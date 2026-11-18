@@ -17,7 +17,7 @@
  */
 import { Downsampler, FramePacker, g711Sample } from './g711';
 
-export type MicProblem = 'insecure' | 'denied' | 'no_mic' | 'mic_busy' | 'failed';
+type MicProblem = 'insecure' | 'denied' | 'no_mic' | 'mic_busy' | 'failed';
 
 export class MicFailure extends Error {
   constructor(readonly code: MicProblem) {

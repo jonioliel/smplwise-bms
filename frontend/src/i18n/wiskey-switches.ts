@@ -170,9 +170,9 @@ const ru: Record<Key, string> = {
 };
 
 export type WsKey = Key;
-export type WsLang = 'he' | 'en' | 'ar' | 'ru';
+type WsLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function wsLang(): WsLang {
+function wsLang(): WsLang {
   return docLang(['en', 'ar', 'ru']);
 }
 

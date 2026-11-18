@@ -75,7 +75,7 @@ export class AutomationTemplates extends LitElement {
       }
       .tpl b {
         font-size: var(--sw-fs-md);
-        font-weight: 700;
+        font-weight: var(--sw-fw-bold);
       }
       .tpl small {
         font-size: var(--sw-fs-sm);
@@ -92,7 +92,7 @@ export class AutomationTemplates extends LitElement {
         padding: 40px 12px;
         text-align: center;
         color: var(--dv-text-2);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
       }
       .state.err {
         color: var(--dv-danger);

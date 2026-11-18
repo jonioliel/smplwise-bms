@@ -92,7 +92,7 @@ export interface LocationInput {
   revision?: number;
 }
 
-export interface LocationsBackend {
+interface LocationsBackend {
   list(): Promise<LocationsAnswer>;
   admin(): Promise<LocationsAdminAnswer>;
   planAreas(): Promise<PlanAreaOption[]>;

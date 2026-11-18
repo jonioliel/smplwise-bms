@@ -4,10 +4,10 @@
 import { del, get, post, put } from './client';
 
 export type Tri = 'TRUE' | 'FALSE' | 'UNKNOWN';
-export type SignalKind = 'bool' | 'number' | 'count' | 'enum';
+type SignalKind = 'bool' | 'number' | 'count' | 'enum';
 export type SubjectKind = 'none' | 'window' | 'temperature_unit' | 'door_sensor' | 'area' | 'flag';
 export type Cmp = 'is_true' | 'is_false' | 'gt' | 'ge' | 'lt' | 'le' | 'eq' | 'ne' | 'between' | 'outside' | 'in_set';
-export type ScenarioState = 'off' | 'ok' | 'active' | 'degraded' | 'suppressed';
+type ScenarioState = 'off' | 'ok' | 'active' | 'degraded' | 'suppressed';
 
 export interface ScenariosStatus {
   enabled: boolean;
@@ -49,7 +49,7 @@ export interface Leaf {
 }
 export interface Group { op: 'and' | 'or'; items: Node[] }
 export interface Not { op: 'not'; item: Node }
-export interface Redacted { redacted: true; message: string }
+interface Redacted { redacted: true; message: string }
 export type Node = Leaf | Group | Not | Redacted;
 
 export type Action =
@@ -93,7 +93,7 @@ export interface Scenario {
   tested_version?: boolean;
 }
 
-export interface LeafSnap {
+interface LeafSnap {
   path: string;
   signal: string;
   subject: string | null;

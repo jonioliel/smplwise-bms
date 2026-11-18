@@ -1,4 +1,5 @@
 import { css } from 'lit';
+import { ltrStyles } from '../styles/fragments';
 
 /**
  * CR-NOTICE106: the visual language of the notice board's editing screens - the owner's standing style (the infrastructure
@@ -14,7 +15,7 @@ export const noticesCss = css`
   [data-look='acc'] { --c: var(--sw-accent); --c-text: var(--sw-accent-text); --c-soft: var(--sw-accent-soft); }
   [data-look='unk'] { --c: var(--sw-unknown); --c-text: var(--sw-unknown-text); --c-soft: var(--sw-unknown-soft); }
   .num { font-variant-numeric: tabular-nums; }
-  .ltr { direction: ltr; unicode-bidi: isolate; }
+  ${ltrStyles}
   /* HDRFIX-295: this row is the page's own header (the <sw-page> above it is drawn without a heading), so it keeps what the shell reserves
      for the page's first row, as <sw-page>'s own header does: the developer / installer logos at the start (--sw-lead-reserve) and the
      floating corner at the end (--sw-float-reserve) - the title was drawn over the logos and the action button hung under the corner */

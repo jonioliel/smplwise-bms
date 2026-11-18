@@ -14,6 +14,7 @@ import { ApiError, get, post, put } from './client';
 import { commandId } from './request-id';
 import { serverNow } from './intercom';
 import type { FleetAlert, SyncConflict } from './access-status';
+import { isoZ } from './day-format';
 
 export const DIRECTIONS = ['central', 'device', 'delete'] as const;
 export type Direction = (typeof DIRECTIONS)[number];
@@ -26,7 +27,7 @@ export type AlertAction = 'snooze' | 'restore';
  * resolution and QUEUED the sync; completed: the snooze is saved; failed (WisKey refused), not_sent, unknown (sent, no clear answer). */
 export type TriageStatus = 'sending' | 'sent' | 'acknowledged' | 'completed' | 'failed' | 'not_sent' | 'unknown' | 'stale';
 
-export interface RecentOutcome {
+interface RecentOutcome {
   status: TriageStatus;
   at: string;
   code: string | null;
@@ -86,7 +87,7 @@ export interface Review {
   impact: Impact;
 }
 
-export interface ResolveReply {
+interface ResolveReply {
   review_id: string;
   station_id: string;
   person_id: string;
@@ -98,7 +99,7 @@ export interface ResolveReply {
   affected_stations: string[];
 }
 
-export interface AlertReply {
+interface AlertReply {
   station_id: string;
   kind: string;
   action: AlertAction;
@@ -117,7 +118,7 @@ export interface StepOutcome {
 }
 
 const TTL_MS = 15_000;
-const envelope = () => ({ client_request_id: commandId(), expires_at: new Date(serverNow() + TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z') });
+const envelope = () => ({ client_request_id: commandId(), expires_at: isoZ(serverNow() + TTL_MS) });
 const enc = encodeURIComponent;
 
 export const getTriage = () => get<TriageView>('access-control/triage');

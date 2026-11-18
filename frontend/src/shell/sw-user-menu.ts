@@ -22,7 +22,7 @@ import { logout as arxLogout } from '../arx/auth';
 import { inAndroidApp, switchServer } from '../arx/android-app';
 
 /** "99+" for a long list: the dot and the chip stay compact. */
-export function alertCountText(n: number): string {
+function alertCountText(n: number): string {
   return n > 99 ? '99+' : String(n);
 }
 

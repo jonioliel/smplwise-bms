@@ -69,7 +69,7 @@ export interface Quote {
   can?: { decide: boolean; reject?: boolean };
 }
 
-export interface QuoteBaseline { quote_id: string; version: number; state?: QuoteState; total_minor: number | null; subtotal_minor?: number | null; currency: string; line_kinds: LineKind[] }
+interface QuoteBaseline { quote_id: string; version: number; state?: QuoteState; total_minor: number | null; subtotal_minor?: number | null; currency: string; line_kinds: LineKind[] }
 
 export interface QuoteBlock {
   flow: CostFlow;
@@ -91,7 +91,7 @@ export interface MessageDraft {
 export type QuotesAnswer = QuoteBlock & { message_draft?: MessageDraft };
 
 /** `reason` is shown to the vendor (request-fix / reject); `internal_note` (TKFIX260) never is - not on the page, not in the draft. */
-export interface QuoteDecisionBody { revision: number; line_indexes?: number[]; reason?: string; internal_note?: string; /** TKQVALID: needed to approve a quote past its valid-until (409 `quote_expired` without it) */ confirm_expired?: boolean }
+interface QuoteDecisionBody { revision: number; line_indexes?: number[]; reason?: string; internal_note?: string; /** TKQVALID: needed to approve a quote past its valid-until (409 `quote_expired` without it) */ confirm_expired?: boolean }
 export interface QuoteOnBehalfBody {
   assignment_id?: string;
   lines: LineInput[];

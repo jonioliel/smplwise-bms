@@ -247,9 +247,9 @@ const en: Partial<Record<Key, string>> = {
 };
 
 export type SctKey = Key;
-export type SctLang = 'he' | 'en';
+type SctLang = 'he' | 'en';
 
-export function sctLang(): SctLang {
+function sctLang(): SctLang {
   return docLang(['en']);
 }
 

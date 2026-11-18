@@ -13,7 +13,7 @@
 import { tr } from '../i18n/msg/map';
 export type Rung = 'realistic' | 'lite' | 'full' | 'schematic';
 export type QualityMode = 'auto' | Rung;
-export type ViewLevel = 1 | 2 | 3;
+type ViewLevel = 1 | 2 | 3;
 
 export const RUNGS: readonly Rung[] = ['realistic', 'lite', 'full', 'schematic'];
 export const MODES: readonly QualityMode[] = ['auto', ...RUNGS];
@@ -24,8 +24,7 @@ export const levelRung = (l: number): Rung => (l >= 3 ? 'realistic' : l === 2 ? 
 /** The next rung down (null: below schematic the host's stills / 2D take over). */
 export const nextDown = (r: Rung): Rung | null => RUNGS[RUNGS.indexOf(r) + 1] ?? null;
 /** Under this rate during the probe window a rung is too heavy (CR-029 section 3.4); the walk has its own floor. */
-export const MIN_FPS = 30;
-export const WALK_MIN_FPS = 24;
+const MIN_FPS = 30;
 
 /** A stored value as a mode: the new names, or the legacy level digits of `sw.plan3d.quality` ('1' / '2'). */
 export function asMode(v: unknown): QualityMode | null {
@@ -130,10 +129,8 @@ export function pixelRatioFor(rung: Rung, base: number, cap: number): number {
  *   own value - S0 notes P7).
  */
 /** The whole ladder of the S3 notes: the live rungs above, then the stills (only with a current bake of the level), then 2D. */
-export type StillRung = Rung | 'stills' | '2d';
+type StillRung = Rung | 'stills' | '2d';
 export const LADDER: readonly StillRung[] = ['realistic', 'lite', 'full', 'schematic', 'stills', '2d'];
-/** The live rungs of SceneView: 3 = realistic / lite (level 3, S1), 2 = full, 1 = schematic. */
-export const RUNG_LEVEL: Partial<Record<StillRung, number>> = { realistic: 3, lite: 3, full: 2, schematic: 1 };
 
 /** The rung below `current` after a failed probe; `hasStills` = the level has a current still set; a walk stops at schematic. */
 export function ladderNext(current: StillRung, hasStills: boolean, walking = false): StillRung {
@@ -175,7 +172,7 @@ export function viewMode(i: ViewInputs): ViewMode {
 }
 
 export const WALL_DISPLAY_KEY = 'sw.plan3d.wall_display';
-export const WALL_FLAG_KEY = 'sw.plan3d.wall';
+const WALL_FLAG_KEY = 'sw.plan3d.wall';
 
 function readLocal(key: string): string | null {
   try {
@@ -186,6 +183,7 @@ function readLocal(key: string): string | null {
 }
 
 /** The wall display's live / stills choice: this browser's pinned value (`sw.plan3d.wall_display`), else the installation's. */
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by ST7-S3 (the wall display's live / stills dial).
 export function wallDisplayMode(installation: 'live' | 'stills'): 'live' | 'stills' {
   const own = readLocal(WALL_DISPLAY_KEY);
   return own === 'live' || own === 'stills' ? own : installation;

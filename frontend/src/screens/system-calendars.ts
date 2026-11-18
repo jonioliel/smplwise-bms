@@ -24,7 +24,7 @@ type Tab = 'overlap' | 'behavior' | 'approval' | 'perm' | 'retention';
 const TABS: [Tab, string, string][] = [['overlap', tr('חפיפת תחזוקה'), tr('חפיפה')], ['behavior', tr('התנהגות'), tr('התנהגות')], ['approval', tr('אישור לכל יומן'), tr('אישור')], ['perm', tr('הרשאות'), tr('הרשאות')], ['retention', tr('פרטי אורחים'), tr('אורחים')]];
 
 /** The server's defaults (smplwise/services/calendar/model.py SETTINGS_DEFAULTS) - the "ברירת מחדל" under every row and its reset. */
-export const CAL_DEFAULTS: Partial<CalSettings> = {
+const CAL_DEFAULTS: Partial<CalSettings> = {
   maintenance_overlap: 'first_holds', contested_requests: 'queue', pending_holds_slot: false, menu_position: 'rail', holiday_eve_as_holiday: false, guest_details_enabled: true,
   guest_retention_days: 30, editors_bypass_approval: true, default_room_buffer_after_min: 10, series_horizon_days: 400, max_calendars: 500, notify_confirmations: false,
   contested_order: 'first_come', allow_displace: true, displace_approver: 'calendar_manager', override_scope: 'both', phone_time_picker: 'grid', reauth_mode: 'reauth_and_continue',
@@ -35,10 +35,10 @@ export const CAL_DEFAULTS: Partial<CalSettings> = {
 
 type Opt = [value: string | boolean | number, label: string];
 /** CALMSG-POLISH-2331: the topic of a behaviour row - the tab filters by it (22 rows were one unsorted list of 2 pages, 8 on a phone). */
-export type BehaviorGroup = 'display' | 'requests' | 'booking' | 'residents' | 'sync' | 'attendees';
-export interface SettingRow { key: keyof CalSettings | 'displaced'; label: string; kind: 'seg' | 'tog' | 'step'; opts?: Opt[]; min?: number; max?: number; step?: number; unit?: string; hint?: string; static?: boolean; group?: BehaviorGroup }
+type BehaviorGroup = 'display' | 'requests' | 'booking' | 'residents' | 'sync' | 'attendees';
+interface SettingRow { key: keyof CalSettings | 'displaced'; label: string; kind: 'seg' | 'tog' | 'step'; opts?: Opt[]; min?: number; max?: number; step?: number; unit?: string; hint?: string; static?: boolean; group?: BehaviorGroup }
 
-export const BEHAVIOR_GROUPS: [BehaviorGroup | 'all', string][] = [['all', tr('הכל')], ['display', tr('תצוגה')], ['requests', tr('בקשות ואישורים')], ['booking', tr('הזמנות')], ['residents', tr('דיירים')], ['sync', tr('סנכרון ופרטיות')], ['attendees', tr('משתתפים')]];
+const BEHAVIOR_GROUPS: [BehaviorGroup | 'all', string][] = [['all', tr('הכל')], ['display', tr('תצוגה')], ['requests', tr('בקשות ואישורים')], ['booking', tr('הזמנות')], ['residents', tr('דיירים')], ['sync', tr('סנכרון ופרטיות')], ['attendees', tr('משתתפים')]];
 
 /** CAL-ATTENDEES-2343 follow-up: the attendee rows ("משתתפים" topic) - the installation document and one calendar's policy (server defaults). */
 const ATT_DEFAULTS: AttendeeSettings = { enabled: true, cancel_notice_delay_s: 6, guest_channel_order: ['whatsapp', 'sms', 'email'], notify_users_inapp: true, notify_guests: true };
@@ -47,7 +47,7 @@ const GUESTS_OPTS: Opt[] = [['off', tr('אף אחד')], ['organizer', tr('מאר
 const VISIBILITY_OPTS: Opt[] = [['organizer', tr('מארגן ומנהלים')], ['attendees', tr('המשתתפים')], ['viewers', tr('כל מי שרואה')]];
 
 /** Every behaviour of the module is a setting (owner rule); the rows of the "התנהגות" tab, by topic (the placement first, as in the mock-up). */
-export const BEHAVIOR_ROWS: SettingRow[] = [
+const BEHAVIOR_ROWS: SettingRow[] = [
   { group: 'display', key: 'menu_position', label: tr('מיקום "יומנים" בתפריט'), kind: 'seg', opts: [['rail', tr('סרגל צד')], ['home_tab', tr('לשונית בראשי')], ['both', tr('שניהם')]], hint: tr('דייר עם יומנים בלבד מקבל תמיד כפתור משלו') },
   { group: 'display', key: 'phone_time_picker', label: tr('בחירת שעה בטלפון'), kind: 'seg', opts: [['grid', tr('רשת שעות')], ['timeline', tr('פס זמן')]] },
   { group: 'display', key: 'tablet_panels', label: tr('טאבלט 1024: לוחות צד'), kind: 'seg', opts: [['collapse', tr('נפתחים בלחיצה')], ['shrink', tr('מוקטנים')]] },

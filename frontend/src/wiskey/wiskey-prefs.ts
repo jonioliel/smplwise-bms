@@ -17,7 +17,7 @@ import { resolveWiskeyView, sameWiskeyView, WISKEY_AUTO, parseWiskeyDensity, par
 /** Fired on `window` when the view the panel's address carries changed (the embed reloads its frame). */
 export const WISKEY_VIEW_EVENT = 'sw-wiskey-view';
 /** How long the embed waits for the two answers before opening the frame with what it has (never blocks WisKey). */
-export const WISKEY_VIEW_WAIT_MS = 3000;
+const WISKEY_VIEW_WAIT_MS = 3000;
 
 export type WiskeyChoiceKey = 'density' | 'wall';
 
@@ -115,10 +115,3 @@ export async function saveWiskeyChoice(key: WiskeyChoiceKey, value: string | nul
   emitIfChanged(before);
 }
 
-/** For the unit spec and a sign-in change: forget everything. */
-export function resetWiskeyViewState(): void {
-  own = { density: null, wall: null };
-  install = { density: WISKEY_AUTO, wall: WISKEY_AUTO };
-  loaded = false;
-  inflight = null;
-}

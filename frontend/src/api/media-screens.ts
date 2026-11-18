@@ -23,7 +23,7 @@ export type MediaKind = 'screen' | 'receiver' | 'speaker' | 'player' | 'group';
 export type ProfileId = 'samsung_smart' | 'lg_webos' | 'android_tv' | 'generic';
 /** The screen's power as the vendor endpoint reports it; `art` = Samsung Frame art mode. */
 export type PowerState = 'on' | 'off' | 'art' | 'standby' | 'unavailable' | 'unknown';
-export type PlayState = 'playing' | 'paused' | 'idle' | null;
+type PlayState = 'playing' | 'paused' | 'idle' | null;
 export type NowKind = 'app' | 'source' | 'channel' | 'art' | 'home' | 'saver' | 'none';
 export type AudioTarget = 'screen' | 'linked';
 export type Size = 's' | 'm' | 'l';
@@ -38,7 +38,7 @@ export const KEY_IDS = [
 export type KeyId = (typeof KEY_IDS)[number];
 
 /** The remote's sections (§2.4); `more` ones sit behind "עוד מקשים". */
-export const REMOTE_SECTIONS = ['recent', 'nav', 'dpad', 'touch', 'vol', 'ch', 'pbk', 'nums', 'colors', 'text', 'xtra'] as const;
+const REMOTE_SECTIONS = ['recent', 'nav', 'dpad', 'touch', 'vol', 'ch', 'pbk', 'nums', 'colors', 'text', 'xtra'] as const;
 export type RemoteSection = (typeof REMOTE_SECTIONS)[number];
 export const SECTION_LABEL: Record<RemoteSection, string> = {
   recent: tr('אחרונים'), nav: tr('חזרה · בית · תפריט'), dpad: tr('חצים ואישור'), touch: tr('משטח מגע'), vol: tr('עוצמה'), ch: tr('ערוצים'), pbk: tr('ניגון'),
@@ -113,7 +113,7 @@ export interface MediaCan {
   bulk: boolean;
 }
 
-export interface AudioLink {
+interface AudioLink {
   key: string;
   name: string;
   default: AudioTarget;
@@ -196,9 +196,9 @@ export type MediaCommand =
   | { command: 'transport'; action: TransportAction }
   | { command: 'key'; key: KeyId }
   | { command: 'text'; text: string };
-export type CommandName = MediaCommand['command'];
+type CommandName = MediaCommand['command'];
 
-export type CommandStatus = 'accepted' | 'sent' | 'refused';
+type CommandStatus = 'accepted' | 'sent' | 'refused';
 export interface CommandResult {
   command_id: string;
   status: CommandStatus;
@@ -209,19 +209,18 @@ export interface CommandResult {
 }
 
 export const TEXT_MAX = 200;
-export const KEY_RATE_PER_S = 5;
-export const KEY_BURST = 8;
-export const VOLUME_RATE_PER_S = 4;
+const KEY_RATE_PER_S = 5;
+const KEY_BURST = 8;
 export const CONFIRM_TIMEOUT_MS = 8000;
 export const HOLD_REPEAT_MS = 200;
 export const HOLD_MAX_MS = 10_000;
 
 /** Commands that need media.power (the rest need media.control). */
-export const POWER_COMMANDS: readonly CommandName[] = ['power_on', 'power_off', 'source', 'app', 'sound_output'];
+const POWER_COMMANDS: readonly CommandName[] = ['power_on', 'power_off', 'source', 'app', 'sound_output'];
 /** Keys and transport actions a public screen leaves to media.control alone (volume, mute, play / pause) - mirror of
  * EXEMPT_PUBLIC_KEYS / EXEMPT_PUBLIC_TRANSPORT in services/media_commands.py. Power and the sound output are not content. */
-export const PUBLIC_EXEMPT_KEYS: readonly KeyId[] = ['volup', 'voldown', 'mute', 'play', 'pause'];
-export const PUBLIC_EXEMPT_TRANSPORT: readonly TransportAction[] = ['play', 'pause', 'play_pause'];
+const PUBLIC_EXEMPT_KEYS: readonly KeyId[] = ['volup', 'voldown', 'mute', 'play', 'pause'];
+const PUBLIC_EXEMPT_TRANSPORT: readonly TransportAction[] = ['play', 'pause', 'play_pause'];
 /** Commands a public screen reserves for media.public holders: source, app, text, every key but the exempt ones, and
  * transport stop / next / previous (same rule as needs_public() on the server). */
 export function needsPublic(c: MediaCommand): boolean {

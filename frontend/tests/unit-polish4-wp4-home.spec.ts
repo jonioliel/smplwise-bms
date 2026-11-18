@@ -12,7 +12,7 @@ const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src')
 const read = (p: string) => readFileSync(path.join(SRC, p), 'utf8');
 
 test('D2: the edit bar reserves its measured height in the last sheet, so no direction or fit step wins over it', () => {
-  const s = read('screens/home-widgets.ts');
+  const s = read('screens/home-widgets.ts') + read('screens/home-widgets-css.ts'); // CR-STRUCT-CSS-SPLIT-2442: the sheets moved to the second file
   // the reservation is its own sheet, the last one of the element
   expect(s).toMatch(/XS_MINI_WIDGET_STYLES, HOME_EDIT_BAR_STYLES\];/);
   expect(s).toContain(":host([editing]) .wg.wg:not(.ghost) {\n    padding-block-end: calc(var(--wg-e-h, 34px) + 16px);");
@@ -25,7 +25,7 @@ test('D2: the edit bar reserves its measured height in the last sheet, so no dir
 });
 
 test('D2: the edit controls are tokens, 44 px on touch, hover gated, pressed on pointer-down', () => {
-  const s = read('screens/home-widgets.ts');
+  const s = read('screens/home-widgets.ts') + read('screens/home-widgets-css.ts'); // CR-STRUCT-CSS-SPLIT-2442: the sheets moved to the second file
   expect(s).not.toMatch(/border-radius:\s*999px/);
   const bar = s.slice(s.indexOf('    .wg-e {'), s.indexOf('    .seg button[aria-pressed'));
   expect(bar).toContain('border-radius: var(--sw-r-lg);');

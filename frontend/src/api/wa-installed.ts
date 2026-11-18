@@ -19,7 +19,7 @@ export const INSTALLED_COMMANDS = [
 export type InstalledCommand = (typeof INSTALLED_COMMANDS)[number];
 
 export type JobState = 'queued' | 'dispatching' | 'completed' | 'cancelled' | 'unknown';
-export type JobOutcome = 'pending' | 'accepted' | 'not_sent' | 'unknown';
+type JobOutcome = 'pending' | 'accepted' | 'not_sent' | 'unknown';
 export type SyncOutcome = 'synced' | 'not_sent' | 'refused' | 'invalid' | 'unknown';
 
 export interface InstalledTemplate {
@@ -42,7 +42,7 @@ export interface InstalledJob {
   created_at: string;
   updated_at: string;
 }
-export interface InstalledSync {
+interface InstalledSync {
   outcome: SyncOutcome;
   code: string | null;
   native: number | null;
@@ -67,7 +67,7 @@ export interface InstalledView {
   sync?: InstalledSync;
 }
 
-export interface WaInstalledBackend {
+interface WaInstalledBackend {
   view(): Promise<InstalledView>;
   save(body: { send_pacing_v1: boolean }): Promise<InstalledView>;
   sync(): Promise<InstalledView>;

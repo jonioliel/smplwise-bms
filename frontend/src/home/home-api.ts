@@ -52,15 +52,15 @@ interface WireRow {
   active: boolean;
   can_control: boolean;
 }
-export interface WireLight extends WireRow { brightness_pct: number | null; dimmable: boolean; kind: 'light' | 'switch'; protected?: boolean; load_type?: string | null }
-export interface WireClimate extends WireRow {
+interface WireLight extends WireRow { brightness_pct: number | null; dimmable: boolean; kind: 'light' | 'switch'; protected?: boolean; load_type?: string | null }
+interface WireClimate extends WireRow {
   climate_kind: string | null; hvac_mode: string | null; hvac_modes: string[] | null; hvac_action: string | null;
   current_temperature: number | null; target_temperature: number | null; min_temp: number | null; max_temp: number | null; target_temp_step: number | null;
   preset_mode: string | null; preset_modes: string[] | null; unit: string | null;
 }
-export interface WireCover extends WireRow { position: number | null; moving: boolean }
-export interface WireLock extends WireRow { locked: boolean; wiskey_door: boolean; unlock_reason?: string; can_unlock?: boolean }
-export interface WireRoom {
+interface WireCover extends WireRow { position: number | null; moving: boolean }
+interface WireLock extends WireRow { locked: boolean; wiskey_door: boolean; unlock_reason?: string; can_unlock?: boolean }
+interface WireRoom {
   id: string; name: string; floor_id: string; temperature: number | null; open_count: number; can_bulk: boolean;
   lights: WireLight[]; switches: WireLight[]; climate: WireClimate[]; shades: WireCover[]; locks: WireLock[];
 }
@@ -74,7 +74,7 @@ export interface Overview {
   policy: InterfacePolicy;
 }
 
-export type FavType = 'scene' | 'light' | 'switch' | 'climate' | 'shade' | 'cam' | 'door' | 'allLights' | 'energy' | 'security';
+type FavType = 'scene' | 'light' | 'switch' | 'climate' | 'shade' | 'cam' | 'door' | 'allLights' | 'energy' | 'security';
 export interface Fav { t: FavType; id?: string; w?: 1 | 2 }
 export interface HomeLayout {
   fav_rooms?: string[];
@@ -96,6 +96,7 @@ export interface HomeLayout {
 }
 export interface HomePrefs { favourites: Record<string, Fav[]>; layout: HomeLayout; seed: Record<string, Fav[]> }
 
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by HOME-SIMPLE-2420 (home interface).
 export const getInterface = () => get<InterfacePolicy>('home/interface');
 export const switchInterface = (iface: Interface) => put<InterfacePolicy>('me/interface', { interface: iface });
 export const getOverview = () => get<Overview>('home/overview');
@@ -120,7 +121,7 @@ export interface HFloor { id: string; name: string; short: string }
 export interface HCamera { id: string; name: string; ok: boolean; room: string | null }
 export interface HScene { id: string; name: string; rooms: string[]; canRun: boolean; canEdit: boolean; sensitive: boolean; icon: string; does: string; lastRun?: string | null }
 export interface HAlert { id: string; tone: 'warn' | 'info' | 'ok'; icon: string; text: string; when: string; open: boolean; canAck: boolean; link: string; door: Notification['door'] }
-export interface HEnergy { today: number[]; usual: number[]; week: [string, number | null, number][]; byRoom: [string, number][]; price: number | null }
+interface HEnergy { today: number[]; usual: number[]; week: [string, number | null, number][]; byRoom: [string, number][]; price: number | null }
 
 export interface HomeData {
   floors: HFloor[];
@@ -145,7 +146,7 @@ const loadType = (name: string, t: string | null | undefined): HLoad['type'] => 
   return 'other';
 };
 
-export function shortFloor(name: string): string {
+function shortFloor(name: string): string {
   const s = name.replace(/^קומת\s+/, '').replace(/^קומה\s+/, '');
   return s.length > 10 ? s.slice(0, 10) : s;
 }

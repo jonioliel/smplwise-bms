@@ -17,7 +17,7 @@ import type { WritesKey } from '../i18n/access-writes';
 
 export type PersonAction = 'edit' | 'deactivate' | 'activate' | 'temporary_cancel' | 'cards' | 'photo' | 'archive' | 'restore' | 'delete';
 
-export interface WriteAccess {
+interface WriteAccess {
   /** access.people.manage somewhere (the server checks every station of the person). */
   manage: boolean;
 }
@@ -52,7 +52,7 @@ export function stateOfReply(reply: { pending?: boolean; effect?: string } | nul
 }
 
 /** What a failed write's error carries (an ApiError's status, code and `details.outcome`; a network failure has no code). */
-export interface FailureFacts {
+interface FailureFacts {
   status: number | null;
   code: string | null;
   outcome: string | null;
@@ -104,7 +104,7 @@ export const PENDING_CHECKS = 10;
 
 // ---------------------------------------------------------------- cards
 
-export const CARD_NUMBER = /^[A-Za-z0-9_-]{1,32}$/;
+const CARD_NUMBER = /^[A-Za-z0-9_-]{1,32}$/;
 export const validCardNumber = (value: string): boolean => CARD_NUMBER.test(value.trim());
 
 // ---------------------------------------------------------------- the photo (WisKey's JPEG rule)
@@ -143,9 +143,9 @@ export const WEEK_ORDER = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday
 export const MAX_PERIODS = 8;
 export const MAX_DATES = 64;
 
-export type TimingMode = 'none' | 'weekly' | 'dates';
+type TimingMode = 'none' | 'weekly' | 'dates';
 /** `draft` = a proposal (never a grant); `ha` = enforced by the system; `native` = enforced by the device (shown, not edited here). */
-export type TimingEnforce = 'draft' | 'ha' | 'native';
+type TimingEnforce = 'draft' | 'ha' | 'native';
 
 export interface TimingForm {
   mode: TimingMode;
@@ -156,7 +156,7 @@ export interface TimingForm {
   periods: { start: string; end: string }[];
 }
 
-export type TimingSchedule = { mode: 'weekly' | 'dates'; timezone: string; days: string[]; dates: string[]; periods: { start: string; end: string }[] };
+type TimingSchedule = { mode: 'weekly' | 'dates'; timezone: string; days: string[]; dates: string[]; periods: { start: string; end: string }[] };
 
 const HHMM = /^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/;
 const DATE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;

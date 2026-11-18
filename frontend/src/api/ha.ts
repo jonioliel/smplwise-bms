@@ -10,7 +10,7 @@ import type { StateKind } from '../components/sw-badge';
 import type { MarkerKind } from '../map/sw-plan-canvas';
 import type { MediaLive } from './media-screens';
 import type { PlayerLive } from './media-players';
-import { dayTimeText } from './day-format';
+import { dayTimeText, isoZ } from './day-format';
 import { tr } from '../i18n/msg/api-devices';
 
 export interface HaActionArgSpec {
@@ -39,13 +39,13 @@ export interface HaActionSpec {
   reason?: string | null;
 }
 
-export interface HaPlacement {
+interface HaPlacement {
   floor_id: string;
   floor_name: string;
 }
 
 /** State of an entity at an instant, from the local history (T041); `known` false carries the reason. */
-export interface HaStateAt {
+interface HaStateAt {
   state: string | null;
   changed_at: string | null;
   known: boolean;
@@ -93,7 +93,7 @@ export interface HaEntity {
   alarm_managed?: boolean;
 }
 
-export type HaActionStatus = 'pending' | 'confirmed' | 'unknown' | 'failed' | 'denied';
+type HaActionStatus = 'pending' | 'confirmed' | 'unknown' | 'failed' | 'denied';
 
 export interface HaActionRecord {
   id: string;
@@ -175,6 +175,7 @@ export function listEntities(opts: { domain?: string; q?: string; area?: string;
   const qs = p.toString();
   return get<HaCatalogue>(`ha/entities${qs ? `?${qs}` : ''}`);
 }
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by the HA bridge entity sync (0.1.x).
 export const getEntity = (entityId: string) => get<HaEntity>(`ha/entities/${encodeURIComponent(entityId)}`);
 export const haStatus = () => get<HaStatus>('ha/status');
 /** BRIDGE-STALE-DISCOVERY-2383: `announced` = a regenerated code was sent to the existing bridge through Arx's own discovery message;
@@ -198,7 +199,7 @@ export const installBridge = () => post<HaIntegrationStatus>('ha/bridge/install'
 
 /** Entity-action request (contracts/entity-action.request.schema.json): one client id per click, short expiry. */
 export function runAction(entityId: string, actionId: string, args: Record<string, unknown> = {}, confirmed = false, building = '') {
-  const body = actionBody(actionId, args, confirmed, commandId(), new Date(Date.now() + 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z'), building);
+  const body = actionBody(actionId, args, confirmed, commandId(), isoZ(Date.now() + 60_000), building);
   return post<HaActionRecord>(`ha/entities/${encodeURIComponent(entityId)}/actions`, body);
 }
 

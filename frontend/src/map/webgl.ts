@@ -23,7 +23,7 @@ export function webglAvailable(): boolean {
 
 /** What the browser says about its GPU (PLAN3D-POLISH-2430): read once per page from a throw-away context, which is released at
  * once (WEBGL_lose_context) so it never counts against the browser's context limit. */
-export function gpuFacts(): GpuFacts {
+function gpuFacts(): GpuFacts {
   if (gpu) return gpu;
   const nav = (globalThis.navigator ?? {}) as Navigator & { deviceMemory?: number };
   const cores = typeof nav.hardwareConcurrency === 'number' && nav.hardwareConcurrency > 0 ? nav.hardwareConcurrency : null;
@@ -47,8 +47,3 @@ export function gpuFacts(): GpuFacts {
 /** The device's GPU class for the `auto` start (quality-ladder.gpuClass). */
 export const detectGpuClass = (): GpuClass => gpuClass(gpuFacts());
 
-/** Forget the cached answer (tests). */
-export function resetWebglCheck(): void {
-  known = null;
-  gpu = null;
-}

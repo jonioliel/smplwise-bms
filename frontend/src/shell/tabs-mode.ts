@@ -24,7 +24,7 @@ export type TabMode = 'tabs' | 'hybrid' | 'dropdown';
 export type TabGroup = 'home' | 'area' | 'multimedia' | 'security' | 'settings';
 
 export const TAB_MODES: readonly TabMode[] = ['tabs', 'hybrid', 'dropdown'];
-export const TAB_MODE_DEFAULT: TabMode = 'tabs';
+const TAB_MODE_DEFAULT: TabMode = 'tabs';
 export const TAB_MODE_LABEL: Record<TabMode, string> = { tabs: tr('כמוסות ופסים'), hybrid: tr('משולב'), dropdown: tr('תפריטים נפתחים') };
 export const TAB_MODE_HINT: Record<TabMode, string> = {
   tabs: tr('כמו היום: כל הלשוניות גלויות'),
@@ -34,7 +34,7 @@ export const TAB_MODE_HINT: Record<TabMode, string> = {
 export const TAB_GROUPS: readonly TabGroup[] = ['home', 'area', 'multimedia', 'security', 'settings'];
 export const TAB_GROUP_LABEL: Record<TabGroup, string> = { home: tr('אזורים בקומה (מסך האזור)'), area: tr('לשוניות האזור'), multimedia: tr('מולטימדיה'), security: tr('אבטחה'), settings: tr('הגדרות') };
 /** The phone's width (the shell's phone layout, the pair row); the mode itself no longer depends on it (0.1.157). */
-export const TAB_MODE_MAX_WIDTH = 767;
+const TAB_MODE_MAX_WIDTH = 767;
 /** `hybrid`: up to this many items stay a segmented control. */
 export const HYBRID_MAX_ITEMS = 3;
 
@@ -42,7 +42,7 @@ export type TabModeGroups = Partial<Record<TabGroup, TabMode>>;
 
 export type { DdStyle };
 export const DD_STYLES: readonly DdStyle[] = DD_STYLE_IDS;
-export const DD_STYLE_DEFAULT: DdStyle = 'auto';
+const DD_STYLE_DEFAULT: DdStyle = 'auto';
 export const DD_STYLE_LABEL: Record<DdStyle, string> = { auto: tr('כמו היום'), pill: tr('כדור מלא'), field: tr('שדה מעוגל'), underline: tr('קו תחתון'), text: tr('טקסט'), prefix: tr('קידומת קבוצה'), tonal: tr('גוון הדגשה'), capsule: tr('קפסולה') };
 export type DdStyleGroups = Partial<Record<TabGroup, DdStyle>>;
 
@@ -76,7 +76,7 @@ export function asDdPanel(v: unknown): DdPanel | null {
  * One global value, installation (`ui.dd_phone`) and personal (/me/prefs; null = follow the installation). Backend twin: services/dd_style.py. */
 export type DdPhone = 'sheet' | 'list';
 export const DD_PHONES: readonly DdPhone[] = ['sheet', 'list'];
-export const DD_PHONE_DEFAULT: DdPhone = 'list';
+const DD_PHONE_DEFAULT: DdPhone = 'list';
 export const DD_PHONE_LABEL: Record<DdPhone, string> = { sheet: tr('גיליון שעולה מלמטה'), list: tr('רשימה קטנה מתחת לשדה') };
 export function asDdPhone(v: unknown): DdPhone | null {
   return typeof v === 'string' && (DD_PHONES as readonly string[]).includes(v) ? (v as DdPhone) : null;
@@ -123,7 +123,7 @@ export function asDdStyle(v: unknown): DdStyle | null {
 }
 
 /** The stored per-group dropdown styles, reduced to known groups and styles (a stored string is parsed); never throws. */
-export function normalizeDdStyleGroups(raw: unknown): DdStyleGroups {
+function normalizeDdStyleGroups(raw: unknown): DdStyleGroups {
   let value = raw;
   if (typeof value === 'string') {
     try {
@@ -143,7 +143,7 @@ export function normalizeDdStyleGroups(raw: unknown): DdStyleGroups {
 }
 
 /** The stored per-group dropdown sizes, reduced to known groups and sizes (a stored string is parsed); never throws. */
-export function normalizeDdSizeGroups(raw: unknown): DdSizeGroups {
+function normalizeDdSizeGroups(raw: unknown): DdSizeGroups {
   let value = raw;
   if (typeof value === 'string') {
     try {
@@ -163,7 +163,7 @@ export function normalizeDdSizeGroups(raw: unknown): DdSizeGroups {
 }
 
 /** The stored per-group overrides, reduced to known groups and modes (a stored string is parsed); never throws. */
-export function normalizeTabModeGroups(raw: unknown): TabModeGroups {
+function normalizeTabModeGroups(raw: unknown): TabModeGroups {
   let value = raw;
   if (typeof value === 'string') {
     try {
@@ -227,7 +227,7 @@ export function isPhoneWidth(): boolean {
 }
 
 /** The configured mode of a group (user over installation, group over global), regardless of the screen width. */
-export function configuredTabMode(group: TabGroup): TabMode {
+function configuredTabMode(group: TabGroup): TabMode {
   return resolveTabMode(group).mode;
 }
 
@@ -495,23 +495,13 @@ export const installationDdPlace = (): DdPlace => placeChoice.inst;
 export const ownDdPlace = (): DdPlace | null => placeChoice.own;
 export const saveOwnDdPlace = (place: DdPlace | null): Promise<void> => placeChoice.save(place);
 
-/** The effective multi-select search threshold: the user's own over the installation's. */
-export function resolveDdSearch(): { search: DdSearch; source: 'own' | 'installation' } {
-  const r = searchChoice.resolve();
-  return { search: r.value, source: r.source };
-}
 export const installationDdSearch = (): DdSearch => searchChoice.inst;
 /** The user's own threshold; null = follows the installation. */
 export const ownDdSearch = (): DdSearch | null => searchChoice.own;
 export const saveOwnDdSearch = (search: DdSearch | null): Promise<void> => searchChoice.save(search);
 
-/** The effective camera-picker look: the user's own over the installation's. */
-export function resolveDdPicker(): { picker: DdPicker; source: 'own' | 'installation' } {
-  const r = pickerChoice.resolve();
-  return { picker: r.value, source: r.source };
-}
 /** How the camera comparison pickers (recordings, synchronized playback) are drawn now. */
-export const ddPickerOf = (): DdPicker => pickerChoice.resolve().value;
+const ddPickerOf = (): DdPicker => pickerChoice.resolve().value;
 export const installationDdPicker = (): DdPicker => pickerChoice.inst;
 /** The user's own choice; null = follows the installation. */
 export const ownDdPicker = (): DdPicker | null => pickerChoice.own;
@@ -532,9 +522,6 @@ export function ownDdRing(): { ring: DdRing | null; groups: DdRingGroups } {
   return { ring: ringDial.own.value, groups: ringDial.own.groups };
 }
 export const saveOwnDdRing = (ring: DdRing | null, groups: DdRingGroups): Promise<void> => ringDial.save(ring, groups);
-export function normalizeDdRingGroups(raw: unknown): DdRingGroups {
-  return ringDial.groupsOf(raw);
-}
 
 export function resolveDdPanel(group: TabGroup): { panel: DdPanel; source: TabModeSource } {
   const r = panelDial.resolve(group);
@@ -551,14 +538,6 @@ export function ownDdPanel(): { panel: DdPanel | null; groups: DdPanelGroups } {
   return { panel: panelDial.own.value, groups: panelDial.own.groups };
 }
 export const saveOwnDdPanel = (panel: DdPanel | null, groups: DdPanelGroups): Promise<void> => panelDial.save(panel, groups);
-export function normalizeDdPanelGroups(raw: unknown): DdPanelGroups {
-  return panelDial.groupsOf(raw);
-}
-
-/** The effective phone choice: the user's own over the installation's. */
-export function resolveDdPhone(): { mode: DdPhone; source: 'own' | 'installation' } {
-  return ddPhoneOwn ? { mode: ddPhoneOwn, source: 'own' } : { mode: ddPhoneInstallation, source: 'installation' };
-}
 
 export function installationDdPhone(): DdPhone {
   return ddPhoneInstallation;

@@ -233,7 +233,7 @@ const en: Partial<Record<MessagingKey, string>> = {
 
 };
 
-export function messagingLang(): 'he' | 'en' {
+function messagingLang(): 'he' | 'en' {
   return docLang(['en']);
 }
 

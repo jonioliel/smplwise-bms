@@ -60,13 +60,13 @@ export interface HubTile { id: HomeModuleP3; href: string; label: string; icon: 
 export type P3Ovl = { type: 'p3'; sheet: 'remote' | 'group' | 'announce'; id?: string };
 export type MediaCmd = Record<string, unknown> & { command: string };
 
-export interface AnnArea { area_id: string; name: string; floor_name: string | null }
-export interface AnnTemplate { id: string; kind: string; name: Record<string, string>; text: Record<string, string> }
-export interface BillPeriod { from: string; to: string; state: string; bill: { id: string; total?: string | number | null; state: string; due_date: string | null } | null }
-export interface BillAccount { id: string; name: string; status: string }
-export interface BillView { accounts: BillAccount[]; acc: string | null; status: { period: { from: string; to: string } | null; amount_so_far?: string | number | null } | null; periods: BillPeriod[]; loading: boolean; error: string }
-export interface WaterView { today: number | null; month: number | null; leaks: number; week: { start: string; litres: number | null }[] | null; meters: number }
-export interface SysView { gen: GenHomeView | null; elev: Elevator[]; temps: TempUnit[] }
+interface AnnArea { area_id: string; name: string; floor_name: string | null }
+interface AnnTemplate { id: string; kind: string; name: Record<string, string>; text: Record<string, string> }
+interface BillPeriod { from: string; to: string; state: string; bill: { id: string; total?: string | number | null; state: string; due_date: string | null } | null }
+interface BillAccount { id: string; name: string; status: string }
+interface BillView { accounts: BillAccount[]; acc: string | null; status: { period: { from: string; to: string } | null; amount_so_far?: string | number | null } | null; periods: BillPeriod[]; loading: boolean; error: string }
+interface WaterView { today: number | null; month: number | null; leaks: number; week: { start: string; litres: number | null }[] | null; meters: number }
+interface SysView { gen: GenHomeView | null; elev: Elevator[]; temps: TempUnit[] }
 
 const enc = encodeURIComponent;
 const MEDIA_KINDS = 'screen,speaker,player,receiver,group';

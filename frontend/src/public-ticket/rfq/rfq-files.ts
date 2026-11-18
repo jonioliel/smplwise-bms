@@ -15,9 +15,9 @@
 import { withBase } from '../base';
 import { h, icon, img } from '../dom';
 
-export type FileKind = 'image' | 'pdf' | 'docx' | 'xlsx';
-export interface PubFile { id: string; name: string; caption?: string; kind: FileKind; bytes: number; thumb?: boolean }
-export interface FilesCreds { token: string | null; session: string | null }
+type FileKind = 'image' | 'pdf' | 'docx' | 'xlsx';
+interface PubFile { id: string; name: string; caption?: string; kind: FileKind; bytes: number; thumb?: boolean }
+interface FilesCreds { token: string | null; session: string | null }
 type Lang = 'he' | 'en' | 'ar' | 'ru';
 
 const WORDS: Record<Lang, Record<'files' | 'open' | 'download' | 'close' | 'failed', string>> = {
@@ -50,6 +50,20 @@ async function fetchBlob(c: FilesCreds, route: string): Promise<Blob | null> {
     return res.ok ? await res.blob() : null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Fetch one file and hand it on (the lightbox, the save dialog). Never rejects (CR-FE-PROMISES-2442): a fetch that fails AND a
+ * failure while showing or saving the file both end in `onError` - the card's "cannot be downloaded right now" line.
+ */
+export async function openFile(get: () => Promise<Blob | null>, use: (blob: Blob) => void, onError: () => void): Promise<void> {
+  try {
+    const blob = await get();
+    if (blob) use(blob);
+    else onError();
+  } catch {
+    onError();
   }
 }
 
@@ -95,11 +109,7 @@ export function filesCard(files: readonly PubFile[], creds: FilesCreds, route: '
   const row = h('div', { class: 'photos' });
   for (const f of pics) {
     const b = h('button', { class: 'thumb empty', attrs: { type: 'button', 'aria-label': `${w.open}: ${f.name}`, 'data-rfq-pic': f.id } }, icon('image'));
-    b.addEventListener('click', async () => {
-      const blob = await fetchBlob(creds, fileRoute(route, f.id));
-      if (blob) lightbox(URL.createObjectURL(blob), f, w);
-      else onError();
-    });
+    b.addEventListener('click', () => void openFile(() => fetchBlob(creds, fileRoute(route, f.id)), (blob) => lightbox(URL.createObjectURL(blob), f, w), onError));
     if (f.thumb) {
       void fetchBlob(creds, fileRoute(route, f.id, true)).then((blob) => {
         if (blob) b.replaceChildren(img(URL.createObjectURL(blob), f.caption || f.name, 'thumb'));
@@ -107,11 +117,7 @@ export function filesCard(files: readonly PubFile[], creds: FilesCreds, route: '
     }
     row.appendChild(b);
   }
-  const list = docs.map((f) => h('button', { class: 'btn ghost block rfq-doc', attrs: { type: 'button', 'data-rfq-doc': f.id }, on: { click: async () => {
-    const blob = await fetchBlob(creds, fileRoute(route, f.id));
-    if (blob) save(blob, f.name);
-    else onError();
-  } } }, icon('out'), h('span', { attrs: { dir: 'auto' } }, f.name), h('small', null, `${sizeText(f.bytes, lang)} · ${w.download}`)));
+  const list = docs.map((f) => h('button', { class: 'btn ghost block rfq-doc', attrs: { type: 'button', 'data-rfq-doc': f.id }, on: { click: () => void openFile(() => fetchBlob(creds, fileRoute(route, f.id)), (blob) => save(blob, f.name), onError) } }, icon('out'), h('span', { attrs: { dir: 'auto' } }, f.name), h('small', null, `${sizeText(f.bytes, lang)} · ${w.download}`)));
   const captions = files.filter((f) => f.caption).map((f) => h('li', { attrs: { dir: 'auto' } }, `${f.name}: ${f.caption}`));
   return h('section', { class: 'card rfq-files', attrs: { 'data-rfq-files': true } }, h('h2', null, w.files),
     pics.length ? row : null,

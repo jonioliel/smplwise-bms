@@ -10,6 +10,7 @@ import './attendee-picker';
 import type { PickerAdd, PickerRemove, PickerRole } from './attendee-picker';
 import { RESPONSE_LABEL, addHit, countText, draftOfAttendee, payloadOf, statusSummary, type AttendeeDraft } from './attendee-logic';
 import type { AttendeeInput } from '../api/calendar-attendees';
+import { errLineStyles, hostBlockStyles } from '../styles/fragments';
 
 /**
  * CAL-ATTENDEES-2343: the "מוזמנים" section of the event drawer. Two modes:
@@ -21,13 +22,13 @@ import type { AttendeeInput } from '../api/calendar-attendees';
 @customElement('cal-attendees-section')
 export class CalAttendeesSection extends LitElement {
   static styles = [calCss, css`
-    :host { display: block; min-inline-size: 0; }
+    ${hostBlockStyles}
     .sec { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px 14px; align-items: start; }
     .lbl { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); padding-block-start: 6px; }
     .col { display: flex; flex-direction: column; gap: 8px; min-inline-size: 0; }
     .muted { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
     .rsvp { display: flex; gap: 6px; flex-wrap: wrap; }
-    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+    ${errLineStyles}
     @media (max-width: 699px) { .sec { grid-template-columns: minmax(0, 1fr); gap: 6px; } .lbl { padding: 0; } }
   `];
 
@@ -163,7 +164,7 @@ export class CalAttendeesSection extends LitElement {
 @customElement('cal-quick-attendees')
 export class CalQuickAttendees extends LitElement {
   static styles = [calCss, css`
-    :host { display: block; min-inline-size: 0; }
+    ${hostBlockStyles}
     .tg { display: flex; align-items: center; gap: 8px; inline-size: 100%; min-block-size: 32px; padding: 0; border: 0; background: transparent; font: inherit;
       font-size: var(--sw-fs-md); color: var(--sw-heading); cursor: pointer; text-align: start; }
     .tg > sw-icon { color: var(--sw-text-3); flex: none; }

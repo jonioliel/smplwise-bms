@@ -1,5 +1,6 @@
 import { css } from 'lit';
 import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
+import { hostBlockStyles } from '../styles/fragments';
 
 /**
  * CR-038 slice 6b (D24): the look of the board TABLE - on top of the automations glass layer (styles/automations-glass.ts over
@@ -10,10 +11,7 @@ import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
  * folder); logical properties only (RTL). The Bubble skin gets component-level rules here (its skin sheet is at its rule budget).
  */
 export const ticketTableStyles = css`
-  :host {
-    display: block;
-    min-inline-size: 0;
-  }
+  ${hostBlockStyles}
   .tbar {
     display: flex;
     flex-wrap: wrap;

@@ -41,7 +41,7 @@ function within(root: Element, el: Element): boolean {
   return false;
 }
 
-export function overflowReport(limit = 15) {
+function overflowReport(limit = 15) {
   const main = document.querySelector('sw-app')?.shadowRoot?.querySelector('main') as HTMLElement | null;
   const scrollers: { path: string; scrollHeight: number; clientHeight: number }[] = [];
   const rows: OverflowRow[] = [];

@@ -11,7 +11,7 @@ export const ID_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/;
 /** The scope value of the whole building (every allowed speaker). */
 export const ALL_ROOMS = '*';
 
-export type UiLang = 'he' | 'en' | 'ar' | 'ru';
+type UiLang = 'he' | 'en' | 'ar' | 'ru';
 
 /** The spoken language that goes with the screen language: Arabic is screen text only, so an Arabic screen announces in Hebrew by default. */
 export function spokenLangOf(ui: UiLang): AnnounceLang {
@@ -142,7 +142,7 @@ export const hasChannel = (speakers: boolean, screens: boolean, screensOffered: 
 // ---------------------------------------------------------------- ANNOUNCE-297: the automatic translation (stage C)
 
 /** The languages whose text came from the automatic translation; a language leaves the set when its text is emptied. */
-export type MachineSet = ReadonlySet<AnnounceLang>;
+type MachineSet = ReadonlySet<AnnounceLang>;
 
 /** The translate button is offered while the server says translation is ready and there is a Hebrew text to translate. */
 export function canTranslate(enabled: boolean | undefined, texts: Texts): boolean {

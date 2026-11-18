@@ -201,7 +201,7 @@ export class SystemNotifications extends LitElement {
       .sec header h2 {
         margin: 0;
         font-size: var(--sw-fs-2xl);
-        font-weight: 700;
+        font-weight: var(--sw-fw-bold);
         letter-spacing: -0.02em;
         display: flex;
         align-items: center;
@@ -239,7 +239,7 @@ export class SystemNotifications extends LitElement {
       }
       .frow .l b {
         font-size: var(--sw-fs-lg);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         letter-spacing: -0.005em;
       }
       .frow .l small {
@@ -270,7 +270,7 @@ export class SystemNotifications extends LitElement {
         flex-direction: column;
         gap: 6px;
         font-size: var(--sw-fs-sm);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         color: var(--dv-text-2);
         min-inline-size: 0;
       }
@@ -280,7 +280,7 @@ export class SystemNotifications extends LitElement {
       .errline {
         color: var(--dv-danger);
         font-size: var(--sw-fs-base);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
       }
       /* the sources matrix */
       .mxw {
@@ -296,7 +296,7 @@ export class SystemNotifications extends LitElement {
       }
       .mx th {
         font-size: var(--sw-fs-sm);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         color: var(--dv-text-3);
         text-align: start;
         padding: 8px;
@@ -327,7 +327,7 @@ export class SystemNotifications extends LitElement {
         background: transparent;
         border-block-end: 0;
         padding: 16px 8px 6px;
-        font-weight: 700;
+        font-weight: var(--sw-fw-bold);
         font-size: var(--sw-fs-sm);
         color: var(--dv-text-2);
         letter-spacing: 0.02em;
@@ -359,7 +359,7 @@ export class SystemNotifications extends LitElement {
         flex: none;
       }
       .nm b {
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         font-size: var(--sw-fs-base);
         white-space: nowrap;
         overflow: hidden;
@@ -380,7 +380,7 @@ export class SystemNotifications extends LitElement {
         min-inline-size: 36px;
         padding: 0 10px;
         font-size: var(--sw-fs-sm);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         color: var(--dv-text-2);
         display: inline-flex;
         align-items: center;
@@ -417,7 +417,7 @@ export class SystemNotifications extends LitElement {
         border: 1px solid var(--dv-border);
         background: var(--dv-surface-2);
         font-size: var(--sw-fs-sm);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         color: var(--dv-text-2);
         white-space: nowrap;
       }
@@ -464,7 +464,7 @@ export class SystemNotifications extends LitElement {
       .scard .top b {
         flex: 1;
         min-inline-size: 0;
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -478,7 +478,7 @@ export class SystemNotifications extends LitElement {
       .scard .ln > small {
         font-size: var(--sw-fs-sm);
         color: var(--dv-text-3);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         min-inline-size: 52px;
       }
       .scard.off .ln {
@@ -531,7 +531,7 @@ export class SystemNotifications extends LitElement {
       }
       .qmx th {
         font-size: var(--sw-fs-sm);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         color: var(--dv-text-3);
         background: var(--nt-matrix-head);
       }
@@ -546,7 +546,7 @@ export class SystemNotifications extends LitElement {
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
       }
       .qmx .sv i {
         inline-size: 10px;
@@ -617,7 +617,7 @@ export class SystemNotifications extends LitElement {
         background: rgba(0, 0, 0, 0.45);
         color: #fff;
         font-size: var(--sw-fs-xs);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         display: inline-flex;
         align-items: center;
         gap: 5px;
@@ -630,7 +630,7 @@ export class SystemNotifications extends LitElement {
       .lphone .ltime {
         margin-block-start: 8px;
         font-size: 54px;
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         letter-spacing: -0.04em;
         line-height: 1;
         direction: ltr;
@@ -638,7 +638,7 @@ export class SystemNotifications extends LitElement {
       }
       .lphone .ldate {
         font-size: var(--sw-fs-base);
-        font-weight: 500;
+        font-weight: var(--sw-fw-medium);
         opacity: 0.9;
         margin-block-start: 4px;
       }
@@ -695,7 +695,7 @@ export class SystemNotifications extends LitElement {
       }
       .pushcard b {
         font-size: var(--sw-fs-sm);
-        font-weight: 700;
+        font-weight: var(--sw-fw-bold);
         line-height: 1.25;
       }
       .pushcard p {
@@ -722,7 +722,7 @@ export class SystemNotifications extends LitElement {
         align-items: center;
         gap: 4px;
         font-size: var(--sw-fs-2xs);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
       }
       :host([data-devices-scheme='dark']) .pushcard .acts span {
         background: rgba(235, 235, 245, 0.14);
@@ -747,7 +747,7 @@ export class SystemNotifications extends LitElement {
       }
       .lg th {
         font-size: var(--sw-fs-xs);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         color: var(--dv-text-3);
         text-align: start;
         padding: 8px;
@@ -773,15 +773,15 @@ export class SystemNotifications extends LitElement {
       }
       .lg .ok {
         color: var(--dv-success);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
       }
       .lg .bad {
         color: var(--dv-danger);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
       }
       .lg .skp {
         color: var(--dv-text-3);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
       }
       .fails {
         display: grid;
@@ -799,7 +799,7 @@ export class SystemNotifications extends LitElement {
       }
       .fstat b {
         font-size: var(--sw-fs-3xl);
-        font-weight: 700;
+        font-weight: var(--sw-fw-bold);
         letter-spacing: -0.02em;
         font-variant-numeric: tabular-nums;
       }
@@ -813,7 +813,7 @@ export class SystemNotifications extends LitElement {
       .fstat .ch {
         font-size: var(--sw-fs-sm);
         color: var(--dv-text-3);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
       }
       .chgrid {
         display: grid;
@@ -842,7 +842,7 @@ export class SystemNotifications extends LitElement {
       }
       .chc b {
         font-size: var(--sw-fs-md);
-        font-weight: 700;
+        font-weight: var(--sw-fw-bold);
       }
       .chc small {
         font-size: var(--sw-fs-sm);

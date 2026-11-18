@@ -9,7 +9,7 @@ import { mediaGlassStyles } from './media-glass';
  * drawer's sections and footer. A designer who restyles the area edits this file and the two glass files; no screen changes.
  * Rules read knobs only; logical properties only (RTL is the product's default).
  */
-export const automationsControls = css`
+const automationsControls = css`
   :host {
     /* readable text on the soft success / warning fills (the palette's own colours are fills first) */
     --au-ok-text: color-mix(in srgb, var(--dv-success) 58%, #02300f);
@@ -214,7 +214,7 @@ export const automationsControls = css`
 /** 0.1.157: in the bubble skin the automation / scene / script cards take the skin's large radius (the knobs already flatten them:
  * no sheen, no blur, no hairline through mediaBubbleKnobs); the banner and block rows follow the medium radius. Keyed on the
  * host's `data-skin` (applyAutomationsGlass mirrors it; the card has its own SkinController). */
-export const automationsBubble = css`
+const automationsBubble = css`
   :host([data-skin='bubble']) .acard,
   :host([data-skin='bubble']) .scard,
   :host([data-skin='bubble']) .pcard {

@@ -88,6 +88,7 @@ import { pt } from '../i18n/access-people';
 import { t, UTC_ZONE } from './wiskey-format';
 import { stateBadge, syncKind, validityText } from './wiskey-person-drawer';
 import { tr } from '../i18n/msg/wiskey';
+import { ltrStyles } from '../styles/fragments';
 
 const POLL_MS = 30000; // while the change notices are down, the shown list is refetched this often
 const TYPING_DEBOUNCE_MS = 250;
@@ -633,19 +634,24 @@ export class WiskeyPeople extends LitElement {
   private watchDelete(id: string, checks: number) {
     window.clearTimeout(this.pendingTimer);
     if (!isApi()) return;
-    this.pendingTimer = window.setTimeout(async () => {
-      let status = 200;
-      try {
-        await getAcPerson(id);
-      } catch (err) {
-        status = err instanceof ApiError ? err.status : 0;
-      }
-      if (!this.isConnected) return;
-      if (deleteSettled(status) === 'confirmed') {
-        this.notice = { tone: 'ok', text: wt('res.deleted') };
-        void this.reload();
-      } else if (checks + 1 < PENDING_CHECKS) this.watchDelete(id, checks + 1);
-      else this.notice = { tone: 'warn', text: wt('res.still_pending') };
+    this.pendingTimer = window.setTimeout(() => {
+      (async () => {
+        let status = 200;
+        try {
+          await getAcPerson(id);
+        } catch (err) {
+          status = err instanceof ApiError ? err.status : 0;
+        }
+        if (!this.isConnected) return;
+        if (deleteSettled(status) === 'confirmed') {
+          this.notice = { tone: 'ok', text: wt('res.deleted') };
+          void this.reload();
+        } else if (checks + 1 < PENDING_CHECKS) this.watchDelete(id, checks + 1);
+        else this.notice = { tone: 'warn', text: wt('res.still_pending') };
+      })().catch(() => {
+        // CR-FE-PROMISES-2442: a check that could not be made is never read as "deleted": the notice says it is still pending
+        if (this.isConnected) this.notice = { tone: 'warn', text: wt('res.still_pending') };
+      });
     }, PENDING_CHECK_MS);
   }
 
@@ -1371,10 +1377,7 @@ export class WiskeyPeople extends LitElement {
       font-size: var(--sw-fs-sm);
       white-space: nowrap;
     }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+    ${ltrStyles}
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));

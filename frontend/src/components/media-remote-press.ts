@@ -12,17 +12,17 @@
 import type { KeyId } from '../api/media-screens';
 import { HoldRepeater, REAL_TIMERS, isRepeatable, type Timers } from './media-remote-logic';
 
-export interface PointerLike {
+interface PointerLike {
   button?: number;
   pointerType?: string;
   preventDefault?: () => void;
 }
-export interface KeyLike {
+interface KeyLike {
   key: string;
   repeat?: boolean;
   preventDefault?: () => void;
 }
-export interface ClickLike {
+interface ClickLike {
   detail?: number;
 }
 

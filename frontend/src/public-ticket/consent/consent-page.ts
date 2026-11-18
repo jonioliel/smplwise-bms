@@ -13,7 +13,7 @@ import { LANG_SELF, isLang, LANGS, RTL, type Lang } from '../strings';
 import { applyMode, resolveMode, saveServerMode, storedChoice } from '../theme';
 import { ct, type ConsentKey } from './consent-text';
 
-export interface ConsentHost {
+interface ConsentHost {
   root: HTMLElement;
   token: string;
   lang: Lang;

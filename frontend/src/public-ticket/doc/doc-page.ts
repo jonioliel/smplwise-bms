@@ -16,7 +16,7 @@ import { LANG_SELF, isLang, LANGS, RTL, type Lang } from '../strings';
 import { applyMode, resolveMode, saveServerMode, storedChoice } from '../theme';
 import { dt, safeName, sizeText, type DocKey } from './doc-text';
 
-export interface DocHost {
+interface DocHost {
   root: HTMLElement;
   token: string;
   lang: Lang;

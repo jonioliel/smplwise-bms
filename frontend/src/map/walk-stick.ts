@@ -39,7 +39,7 @@ export interface StickState {
 
 export const STICK_REST: StickState = { forward: 0, strafe: 0, run: false, engaged: false, knob: [0, 0] };
 
-export interface StickOptions {
+interface StickOptions {
   radius?: number;
   dead?: number;
   runAt?: number;

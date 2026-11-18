@@ -4,8 +4,8 @@
  */
 import type { PortalKey } from './portal-text';
 
-export interface PortalQuote { state: string; total_minor: number; currency: string }
-export interface PortalDemand { status: string; total_minor: number | null; currency: string; paid: boolean; no_charge: boolean }
+interface PortalQuote { state: string; total_minor: number; currency: string }
+interface PortalDemand { status: string; total_minor: number | null; currency: string; paid: boolean; no_charge: boolean }
 export interface PortalItem {
   id: string;
   number: number;

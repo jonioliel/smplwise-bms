@@ -20,6 +20,7 @@ import { canAnywhere } from '../api/session';
 import { loadHomeSettings, saveHomeSettings, type ElevatorsCfg, type HomeSettings } from '../api/home';
 import { elecCss } from '../electricity/styles';
 import { SkinController } from '../design/skin';
+import { segThumbPlainStyles } from '../styles/fragments';
 
 const ROLE_LABEL: Record<ElevatorRole, EltKey> = {
   moving_up: 'roleMovingUp', moving_down: 'roleMovingDown', waiting: 'roleWaiting', fault: 'roleFault', fire_service: 'roleFireService', door_open: 'roleDoorOpen', out_of_service: 'roleOutOfService',
@@ -60,7 +61,7 @@ export class ElevatorSettings extends LitElement {
     .drow > span:first-child { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
     .seg { display: inline-flex; flex-wrap: wrap; background: var(--sw-surface-3); padding: 2px; border-radius: var(--sw-r-pill); gap: 1px; }
     .seg button { border: 0; background: transparent; padding: 3px 12px; min-block-size: 30px; font: inherit; font-size: var(--sw-fs-xs); color: var(--sw-text-2); border-radius: var(--sw-r-pill); cursor: pointer; }
-    .seg button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface)); color: var(--sw-seg-key-ink, var(--sw-text)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
+    ${segThumbPlainStyles}
     .seg button:focus-visible, .lnk:focus-visible { outline: var(--sw-focus-w, 2px) solid var(--sw-focus, var(--sw-accent)); outline-offset: 1px; }
     .incl { display: flex; flex-wrap: wrap; gap: 6px 14px; }
     .lnk { color: var(--sw-accent-text, var(--sw-accent)); font-size: var(--sw-fs-sm); }

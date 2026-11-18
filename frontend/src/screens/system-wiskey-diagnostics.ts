@@ -19,6 +19,7 @@ import { formatTime, UTC_ZONE } from './wiskey-format';
 import { emitFoldSummary } from '../access-control/settings-cards-logic';
 import { fill, sct } from '../i18n/settings-cards';
 import { tr } from '../i18n/msg/system-b';
+import { mutedStyles } from '../styles/fragments';
 
 const AREAS: Array<[keyof WiskeyAuthorization['areas'], string]> = [
   ['overview', tr('סקירה')],
@@ -117,10 +118,7 @@ export class SystemWiskeyDiagnostics extends LitElement {
       gap: 8px;
       font-weight: var(--sw-fw-medium);
     }
-    .muted {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-sm);
-    }
+    ${mutedStyles}
     .facts {
       display: flex;
       flex-wrap: wrap;

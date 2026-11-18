@@ -11,7 +11,7 @@
 import { tn, type TicketLang } from './naming';
 import { ticketsLang } from '../i18n/nav-labels';
 
-export type CatalogueLang = 'he' | 'en';
+type CatalogueLang = 'he' | 'en';
 export type TextVars = Record<string, string | number>;
 
 /** Fill the `{var}`s of a text; a name that `vars` does not carry stays as written. */

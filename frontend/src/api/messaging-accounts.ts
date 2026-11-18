@@ -10,7 +10,7 @@ import { ApiError, get, post, put } from './client';
 import { isApi } from './session';
 
 export type AccountState = 'connected' | 'disconnected' | 'unknown' | 'missing';
-export type AccountKind = 'discovered' | 'manual';
+type AccountKind = 'discovered' | 'manual';
 
 export interface Pacing {
   min_gap_s: number;
@@ -47,7 +47,7 @@ export interface WaAccount {
   connected_states?: string[];
 }
 
-export interface WaUseDepartment { id: string; name: string; value: string | null; resolved: string | null }
+interface WaUseDepartment { id: string; name: string; value: string | null; resolved: string | null }
 export interface WaUse {
   key: string;
   module: string;
@@ -73,7 +73,7 @@ export interface WaWarning {
   severity: 'red' | 'amber' | 'grey';
 }
 
-export interface WaChannel { key: 'whatsapp' | 'email' | 'inapp' | 'sms'; state: 'active' | 'down' | 'not_configured' | 'idle' | 'soon' }
+interface WaChannel { key: 'whatsapp' | 'email' | 'inapp' | 'sms'; state: 'active' | 'down' | 'not_configured' | 'idle' | 'soon' }
 
 export interface WhatsappView {
   revision: number;
@@ -105,7 +105,7 @@ export interface PutBody { revision: number; accounts: PutAccount[]; uses: Recor
 /** 409 `queued_messages`: what would leave from the new account (shown before a confirm, 9.9.3). */
 export interface QueuedMove { use: string; department_id: string | null; count: number }
 
-export interface MessagingAccountsBackend {
+interface MessagingAccountsBackend {
   view(): Promise<WhatsappView>;
   save(body: PutBody): Promise<WhatsappView>;
   refresh(): Promise<WhatsappView>;
@@ -197,7 +197,3 @@ export function messagingAccountsApi(): MessagingAccountsBackend {
   return isApi() ? rest : demoBackend;
 }
 
-/** Tests only: forget the demo store's edits. */
-export function resetDemoMessagingAccounts(): void {
-  demo = null;
-}

@@ -61,7 +61,7 @@ import {
 import { navigate, parseRoute } from '../router';
 import { devicesStyleTokens } from './devices-style';
 import { mediaGlassKnobs, mediaBubbleKnobs } from '../styles/media-glass';
-import { applyAutomationsGlass } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import {
   addEntitiesToSlots,
   classOfEntity,
@@ -114,6 +114,7 @@ import { conflictMove, conflictSlotIndex, draftConflicts, warningsHeading, type 
 import './automation-ext-dialogs';
 import { tr } from '../i18n/msg/automation';
 import { t } from '../i18n/he';
+import { browserSession, dropStored, storeText, storedText } from '../api/safe-storage';
 
 /**
  * CR-014 S4: the schedule editor (mockup 05-09, 17-19 editor level, 21, 24-25).
@@ -142,23 +143,8 @@ const VIEW_KEY = 'sw.schedules.editor_view';
 const STASH_PREFIX = 'sw.schedules.stash.';
 
 function readView(): EditView | null {
-  try {
-    const v = localStorage.getItem(VIEW_KEY);
-    return v === 'week' || v === 'day' || v === 'table' ? v : null;
-  } catch {
-    return null;
-  }
-}
-
-function safeSession(op: 'get' | 'set' | 'del', key: string, value?: string): string | null {
-  try {
-    if (op === 'get') return sessionStorage.getItem(key);
-    if (op === 'set') sessionStorage.setItem(key, value ?? '');
-    else sessionStorage.removeItem(key);
-  } catch {
-    /* storage unavailable */
-  }
-  return null;
+  const v = storedText(VIEW_KEY);
+  return v === 'week' || v === 'day' || v === 'table' ? v : null;
 }
 
 const CAT_ICON: Record<SlotCategory, GridSlotView['icon']> = { on: 'power', off: 'power', level: 'light', climate: 'thermo', cover: 'blinds', secure: 'shield', custom: 'lock', empty: 'plus' };
@@ -238,7 +224,7 @@ export class ScheduleEditor extends LitElement {
     .kav-vbox { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: var(--sw-r-lg); margin-block-end: 10px;
       background: color-mix(in srgb, var(--dv-warning) 10%, transparent); border: 1px solid color-mix(in srgb, var(--dv-warning) 35%, transparent); }
     .kav-vbox > b { display: flex; gap: 8px; align-items: center; }
-    .kav-vbox > b small { font-weight: 400; color: var(--dv-text-2, var(--sw-text-2)); }
+    .kav-vbox > b small { font-weight: var(--sw-fw-regular); color: var(--dv-text-2, var(--sw-text-2)); }
     .kav-iss { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
     .kav-iss span { font-size: var(--sw-fs-sm); color: var(--dv-text-2, var(--sw-text-2)); }
     :host {
@@ -810,7 +796,7 @@ export class ScheduleEditor extends LitElement {
     this.stopSub?.();
     this.stopSub = null;
     // leaving with unsaved edits (a nav-rail click, the back button): keep the draft for the next visit
-    if (this.dirty && !this.savedOk && this.loadedFor) safeSession('set', STASH_PREFIX + this.loadedFor, JSON.stringify({ draft: this.currentDraft() }));
+    if (this.dirty && !this.savedOk && this.loadedFor) storeText(STASH_PREFIX + this.loadedFor, JSON.stringify({ draft: this.currentDraft() }), browserSession());
   }
 
   private onMq = (e: MediaQueryListEvent) => {
@@ -963,7 +949,7 @@ export class ScheduleEditor extends LitElement {
       this.meta = meta;
       if (sched) this.adopt(sched);
       else this.startNew(status, meta);
-      const raw = safeSession('get', STASH_PREFIX + this.loadedFor);
+      const raw = storedText(STASH_PREFIX + this.loadedFor, browserSession());
       if (raw) {
         try {
           this.stash = JSON.parse(raw) as { draft: ScheduleDraft };
@@ -1012,8 +998,8 @@ export class ScheduleEditor extends LitElement {
     const repeat: RepeatType = status?.settings.default_repeat ?? 'repeat';
     let td: TemplateDraft | null = null;
     if (params.get('draft')) {
-      const raw = safeSession('get', NEW_DRAFT_KEY);
-      safeSession('del', NEW_DRAFT_KEY);
+      const raw = storedText(NEW_DRAFT_KEY, browserSession());
+      dropStored(NEW_DRAFT_KEY, browserSession());
       if (raw) {
         try {
           const d = JSON.parse(raw) as ScheduleDraft;
@@ -1092,7 +1078,7 @@ export class ScheduleEditor extends LitElement {
 
   private go(href: string) {
     this.savedOk = true; // nothing to stash: the person chose to leave
-    safeSession('del', STASH_PREFIX + this.loadedFor);
+    dropStored(STASH_PREFIX + this.loadedFor, browserSession());
     if (href.startsWith('#')) navigate(href.slice(1).split('?')[0], Object.fromEntries(new URLSearchParams(href.split('?')[1] ?? '')));
     else window.location.assign(href);
   }
@@ -1239,7 +1225,7 @@ export class ScheduleEditor extends LitElement {
     const off = makeOffSlot(plain[i]);
     if (!off) return;
     const next = [...work, withUid(off)];
-    if (sorted(next, this.sunNow).slots.some((_, a, all) => all.slice(a + 1).some((b, k) => this.overlapIdx(all[a], b, k)))) {
+    if (sorted(next, this.sunNow).slots.some((_, a, all) => all.slice(a + 1).some((b) => this.overlapIdx(all[a], b)))) {
       this.saveError = '';
       this.note = tr('אין מקום לכיבוי בסיום: קיימת משבצת בשעה הזו.');
       return;
@@ -1247,7 +1233,7 @@ export class ScheduleEditor extends LitElement {
     this.setWork(next, work[i].uid);
   }
 
-  private overlapIdx(a: EditSlot, b: EditSlot, _k: number): boolean {
+  private overlapIdx(a: EditSlot, b: EditSlot): boolean {
     const x = spanOf(a, this.sunNow);
     const y = spanOf(b, this.sunNow);
     return !!x && !!y && x.start < y.end && y.start < x.end;
@@ -1255,11 +1241,7 @@ export class ScheduleEditor extends LitElement {
 
   private setView(v: EditView) {
     this.view = v;
-    try {
-      localStorage.setItem(VIEW_KEY, v);
-    } catch {
-      /* not persisted */
-    }
+    storeText(VIEW_KEY, v);
   }
 
   // ------------------------------------------------------------------------------------------------ split (one day / some days)
@@ -1552,13 +1534,13 @@ export class ScheduleEditor extends LitElement {
     const d = this.stash.draft;
     this.draft = { ...d, slots: sorted(d.slots.map(withUid), this.sunNow).slots };
     this.stash = null;
-    safeSession('del', STASH_PREFIX + this.loadedFor);
+    dropStored(STASH_PREFIX + this.loadedFor, browserSession());
     this.mark();
   }
 
   private dropStash() {
     this.stash = null;
-    safeSession('del', STASH_PREFIX + this.loadedFor);
+    dropStored(STASH_PREFIX + this.loadedFor, browserSession());
   }
 
   // ------------------------------------------------------------------------------------------------ view models
@@ -1964,8 +1946,7 @@ export class ScheduleEditor extends LitElement {
 
   private renderDialogs() {
     const cmp = this.conflict ? compareDrafts(this.currentDraft(), draftFromSchedule(this.conflict.current), (id) => (id ? this.meta.get(id)?.name ?? id : tr('ללא התקן')), daysLabel) : [];
-    const allDays = resolveDays(this.draft.weekdays) ?? [];
-    const activeSet = new Set(allDays);
+    const activeSet = new Set(resolveDays(this.draft.weekdays) ?? []);
     return html`
       <schedule-entity-picker ?open=${this.pickerOpen} .selected=${this.entityIds} @close=${() => (this.pickerOpen = false)} @confirm=${(e: CustomEvent<{ ids: string[]; entities: CatalogEntity[] }>) => this.onPicked(e.detail.ids, e.detail.entities)}></schedule-entity-picker>
       <schedule-lowering-dialog

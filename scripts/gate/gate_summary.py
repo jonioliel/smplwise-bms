@@ -5,7 +5,7 @@ Pure functions over the gate report dict; the engine puts the text at the top of
   * a failure whose text says timeout / goto / navigation / net::ERR while the machine load was above 30 -> likely a run problem
   * "no time left", "did not run", "did not start", shard without a pytest summary, budget exhausted, engine-level failures -> run problem
   * failed again alone / failed twice (the same way twice) on a calm machine   -> likely a REAL defect
-  * tsc, build, release_check, count-drop, lint                               -> real (deterministic)
+  * tsc, build, release_check, count-drop, lint, fe_static (ESLint / entry budget / unused exports) -> real (deterministic)
   * anything else                                                              -> unclear, to be looked at
 CLI: gate_summary.py <gate report .json>   prints the summary.
 """
@@ -18,7 +18,7 @@ import sys
 HIGH_LOAD = 30.0
 RUN_TEXT = re.compile(r"no time left|did not run|did not start|no pytest summary|budget exhausted|time limit|not completed|interrupted|crash|job crashed|load error|zero tests|terminated", re.I)
 TIMEOUT_TEXT = re.compile(r"timeout|timed out|page\.goto|navigation|net::ERR|ECONN|Target closed|browser has been closed", re.I)
-DETERMINISTIC = {"tsc", "build", "release_check", "baseline", "lint"}
+DETERMINISTIC = {"tsc", "build", "release_check", "baseline", "lint", "fe_static"}
 
 
 def classify_item(it: dict, max_load1) -> tuple[str, str]:

@@ -8,7 +8,7 @@ import type { TvFitDefaults } from '../notices/display-fit-model';
 import type { Severity } from './types';
 
 export type { Severity } from './types'; // CR-API-PATHS-2439 (07:F21): one definition
-export type NoticeState = 'draft' | 'scheduled' | 'active' | 'expired' | 'archived';
+type NoticeState = 'draft' | 'scheduled' | 'active' | 'expired' | 'archived';
 
 export interface Audience {
   everyone?: boolean;
@@ -42,7 +42,7 @@ export interface Notice {
   push_generation?: number;
 }
 
-export interface NoticesCan {
+interface NoticesCan {
   view: boolean;
   manage: boolean;
   manage_all: boolean;
@@ -76,7 +76,7 @@ export interface Board {
   updated_at?: string;
 }
 
-export interface NoticesSettings {
+interface NoticesSettings {
   enabled: boolean;
   default_days: number;
   default_severity: 'info' | 'alert';
@@ -156,11 +156,13 @@ export interface NoticeInput {
   push?: boolean; // NOTICEPUSH-295: the author's tick (omitted = the installation's default)
 }
 
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by NOTICES106B (notice board).
 export const noticesModule = () => get<{ enabled: boolean; can: NoticesCan }>('notices/module');
 export const noticesSettings = () => get<SettingsResponse>('notices/settings');
 export const patchNoticesSettings = (body: Partial<Omit<NoticesSettings, 'news_sources' | 'tv_defaults'>>) => patch<{ settings: NoticesSettings }>('notices/settings', body);
 /** TVOPT-295: the installation defaults of the four TV options (notices.boards) */
 export const putTvDefaults = (body: Partial<TvDefaults & Tv2Defaults & TvFitDefaults>) => put<{ tv_defaults: TvDefaults; tv2_defaults?: Tv2Defaults & Partial<TvFitDefaults> }>('notices/tv-defaults', body);
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by NOTICERSS-295 (news sources).
 export const getNewsSources = () => get<NewsSourcesAnswer>('notices/news-sources');
 /** the whole list in the order shown; a source without an id is new */
 export const putNewsSources = (sources: { id?: string; name: string; url: string; enabled: boolean }[]) => put<NewsSourcesAnswer>('notices/news-sources', { sources });
@@ -170,11 +172,13 @@ export const uploadNewsLogo = (id: string, file: File) => {
   return api<NewsSourcesAnswer>(`notices/news-sources/${encodeURIComponent(id)}/logo`, { method: 'PUT', body: form });
 };
 export const removeNewsLogo = (id: string) => api<NewsSourcesAnswer>(`notices/news-sources/${encodeURIComponent(id)}/logo`, { method: 'DELETE' });
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by NOTICES106B (notice board).
 export const uploadCompanyLogo = (file: File) => {
   const form = new FormData();
   form.append('file', file);
   return api<{ company_logo: boolean }>('notices/settings/logo', { method: 'PUT', body: form });
 };
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by NOTICES106B (notice board).
 export const removeCompanyLogo = () => del('notices/settings/logo');
 
 export const listNotices = (scope: 'mine' | 'all') => get<NoticesList>(`notices?scope=${scope}`);
@@ -212,6 +216,7 @@ export const patchBoard = (id: string, body: { name?: string; enabled?: boolean;
   patch<{ board: Board }>(`notices/boards/${encodeURIComponent(id)}`, body);
 export const rotateBoardToken = (id: string) => post<{ token: string; board: Board }>(`notices/boards/${encodeURIComponent(id)}/rotate-token`);
 export const getBoardLink = (id: string) => get<{ token: string }>(`notices/boards/${encodeURIComponent(id)}/link`);
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by NOTICEPERM-295 (permanent TV link).
 export const issueBoardLink = (id: string) => post<{ token: string; board: Board }>(`notices/boards/${encodeURIComponent(id)}/issue-link`);
 export const deleteBoard = (id: string) => del(`notices/boards/${encodeURIComponent(id)}`);
 export const putBoardItems = (id: string, notice_ids: string[]) => put<{ notice_ids: string[] }>(`notices/boards/${encodeURIComponent(id)}/items`, { notice_ids });
@@ -241,6 +246,7 @@ export interface SlidesDoc {
   /** LOBBY-STYLES-2300: the building at night (the luxury lobby styles) */
   photo_night?: { has: boolean; stamp: string };
 }
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by NOTICESLIDES-295 (promo slides).
 export const listSlides = () => get<SlidesDoc>('notices/promo-slides/all');
 export const boardSlides = (boardId: string) => get<SlidesDoc>(`notices/boards/${encodeURIComponent(boardId)}/slides`);
 export const createSlide = (body: { title: string; text?: string; seconds?: number | null; board_ids?: string[] }) => post<{ id: string } & SlidesDoc>('notices/promo-slides', body);

@@ -32,7 +32,7 @@ interface Scheme {
   preview: { backdrop: string; surface: string; text: string; accent: string; on: string };
 }
 
-export interface DevicePalette {
+interface DevicePalette {
   id: string;
   name: string;
   hint: string;
@@ -43,7 +43,7 @@ export interface DevicePalette {
 const ROLE_ALPHA = { light: { bg: 0.14, border: 0.5 }, dark: { bg: 0.26, border: 0.6 } };
 
 /** The colour knobs a palette other than "default" must set, light and dark (the shape knobs come from "default"). */
-export const COLOUR_KNOBS = [
+const COLOUR_KNOBS = [
   '--dv-color-scheme', '--dv-backdrop', '--dv-surface', '--dv-surface-2', '--dv-surface-3', '--dv-surface-solid', '--dv-surface-2-solid',
   '--dv-border', '--dv-border-strong', '--dv-overlay', '--dv-text', '--dv-text-2', '--dv-text-3', '--dv-accent', '--dv-accent-hover',
   '--dv-accent-soft', '--dv-accent-text', '--dv-focus', '--dv-success', '--dv-success-soft', '--dv-warning', '--dv-warning-soft',

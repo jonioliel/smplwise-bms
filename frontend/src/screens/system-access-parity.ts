@@ -24,6 +24,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { pt } from '../i18n/access-parity';
 import { checklistSummary, emitFoldSummary } from '../access-control/settings-cards-logic';
 import { sct } from '../i18n/settings-cards';
+import { browserStorage } from '../api/safe-storage';
 
 const HOURS = [24, 168] as const;
 
@@ -36,14 +37,6 @@ function viewerZone(): DisplayZone {
     return { kind: 'iana', name: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' };
   } catch {
     return { kind: 'iana', name: 'UTC' };
-  }
-}
-
-function browserStorage(): Storage | null {
-  try {
-    return typeof localStorage === 'undefined' ? null : localStorage;
-  } catch {
-    return null;
   }
 }
 

@@ -8,7 +8,7 @@
  */
 
 /** A dynamic import, started on the first call and shared by every later call. `loaded` is the value once it arrived. */
-export interface Lazy<T> {
+interface Lazy<T> {
   (): Promise<T>;
   readonly loaded: T | null;
 }
@@ -35,7 +35,7 @@ export function lazy<T>(load: () => Promise<T>): Lazy<T> {
 
 /** The members of `T` that are not "a method returning a promise": they cannot wait for a chunk, so the caller supplies them. */
 type AsyncKey<T> = { [K in keyof T]-?: {} extends Pick<T, K> ? never : T[K] extends (...args: never[]) => Promise<unknown> ? K : never }[keyof T];
-export type SyncPart<T> = { [K in Exclude<keyof T, AsyncKey<T>>]-?: T[K] };
+type SyncPart<T> = { [K in Exclude<keyof T, AsyncKey<T>>]-?: T[K] };
 
 /**
  * An adapter whose every promise-returning method forwards to the adapter `load` resolves to (resolved again on every call, so

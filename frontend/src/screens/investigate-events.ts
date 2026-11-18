@@ -26,12 +26,13 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { techDetailsStyles } from '../styles/tech-details';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
-import { dateInputLang, timeText, dayMonthText } from '../api/day-format';
+import { dateInputLang, timeText, dayMonthText, isoZ } from '../api/day-format';
 import { describeDeviceText, precisionLabel, rawCodeLabel, spanText } from '../i18n/event-codes';
 import { t as vt } from '../i18n/he';
 import { Latest } from '../api/latest';
 import { pushedAction, ThumbPoller } from './investigate-events-logic';
 import { tr } from '../i18n/msg/investigate';
+import { ltrStyles } from '../styles/fragments';
 
 /** EVENTS-POLISH-2331: a phone (the drawer is a full-screen modal sheet there) and a wide desktop (the drawer docks beside the list). */
 const NARROW = '(max-width: 767px)';
@@ -778,10 +779,7 @@ export class InvestigateEvents extends LitElement {
       justify-content: space-between;
       gap: 8px;
     }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+    ${ltrStyles}
   `, bubbleChrome, INVESTIGATE_R5];
 
   connectedCallback() {
@@ -955,7 +953,7 @@ export class InvestigateEvents extends LitElement {
     this.rowPreviewTimer = window.setTimeout(() => {
       const t0 = new Date(ev.occurred_at).getTime();
       const frames = [-5, 0, 5].map((d) => {
-        const at = new Date(t0 + d * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+        const at = isoZ(t0 + d * 1000);
         return { at, url: frameUrl(ev.camera_id!, at), label: d === 0 ? this.fmt(ev.occurred_at) : tr('{n} ש׳', { n: `${d > 0 ? '+' : ''}${d}` }), failed: false };
       });
       this.rowPreview = { id: ev.id, x, y, frames, camera: ev.camera_name ?? '' };
@@ -1049,7 +1047,7 @@ export class InvestigateEvents extends LitElement {
     if (!ev.camera_id) return;
     this.player = { eventId: ev.id, session: null, error: '' };
     try {
-      const startAt = new Date(new Date(ev.occurred_at).getTime() - 2000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+      const startAt = isoZ(new Date(ev.occurred_at).getTime() - 2000);
       const session = await createPlayback(ev.camera_id, startAt);
       if (this.player?.eventId === ev.id) this.player = { eventId: ev.id, session, error: '' };
       else await closePlayback(session.id).catch(() => undefined);

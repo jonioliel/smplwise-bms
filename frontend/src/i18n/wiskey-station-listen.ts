@@ -42,7 +42,7 @@ const he = {
 };
 
 type Widen<T> = T extends string ? string : { [K in keyof T]: Widen<T[K]> };
-export type StationListenText = Widen<typeof he>;
+type StationListenText = Widen<typeof he>;
 
 const en: StationListenText = {
   setting: {

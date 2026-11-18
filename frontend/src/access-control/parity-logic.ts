@@ -27,7 +27,7 @@ const MEDIA_LABEL: Record<StationMediaMode, PtKey> = { off: 'dispMediaOff', vide
  * live picture always goes through the product's own media server (WebRTC or MSE); that is not a choice, so nothing here names it. */
 export const mediaOptions = (): Array<[StationMediaMode, string]> => STATION_MEDIA_MODES.map((m) => [m, pt(MEDIA_LABEL[m])]);
 
-export type BadgeKind = 'live' | 'neutral' | 'error' | 'partial' | 'forbidden' | 'unknown' | 'offline';
+type BadgeKind = 'live' | 'neutral' | 'error' | 'partial' | 'forbidden' | 'unknown' | 'offline';
 
 const TONE: Record<ParityOutcome, BadgeKind> = {
   match: 'live',
@@ -74,7 +74,7 @@ export function rowLinks(route: string, switchedOn: (segment: string) => boolean
 
 // ---------------------------------------------------------------- the side-by-side checklist (CR-036 6.2 step 3)
 
-export interface ChecklistScreen {
+interface ChecklistScreen {
   /** The access.ui screen it belongs to (`overview`, `events`, `people`, `stations`, `schedules`). */
   screen: string;
   label: PtKey;

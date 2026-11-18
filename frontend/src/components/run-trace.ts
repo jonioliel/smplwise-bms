@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { aIcon } from './automation-icons';
 import { automationsStyles } from '../styles/automations-glass';
-import { applyAutomationsGlass } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import { whenText } from '../screens/automations-logic';
 import { bidi } from '../i18n/bidi';
 import { traceView, type Mode, type RunTrace, type TraceRow } from '../api/automations';

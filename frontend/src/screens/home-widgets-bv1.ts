@@ -36,12 +36,12 @@ export interface Bv1Host {
   setLaunchNote(v: string): void;
 }
 
-export const CAL_ICON = svg`<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>`;
-export const GRID_ICON = svg`<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>`;
+const CAL_ICON = svg`<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>`;
+const GRID_ICON = svg`<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>`;
 const PIN = svg`<path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2.2"/>`;
 
 /** The decorative hue of the weather tile by condition (never meaning: the text says the condition). */
-export function weatherHue(cond: string): number {
+function weatherHue(cond: string): number {
   const g = weatherGlyph(cond);
   if (g === 'moon') return 7;
   if (g === 'rain' || g === 'storm') return 1;
@@ -515,7 +515,7 @@ export function renderAgenda(h: Bv1Host, it: WidgetItem): TemplateResult {
 // ------------------------------------------------------------------------------------------------ the launcher
 
 /** The label a launch button shows: the owner's own, else the route's name / the entity's known name / the action's name. */
-export function launchLabel(item: LaunchItemCfg, names: Map<string, string>): string {
+function launchLabel(item: LaunchItemCfg, names: Map<string, string>): string {
   if (item.label.trim()) return item.label.trim();
   if (item.kind === 'route') return launchRoute(item.id)?.label ?? item.id;
   if (item.kind === 'quick') return item.id === 'all_off' ? tr('כבה הכל') : tr('כבה תאורה');

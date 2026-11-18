@@ -19,7 +19,7 @@ export function isTypingTarget(target: EventTarget | null | undefined): boolean 
 }
 
 /** Each screen keeps its own plan picture switch per floor in this browser: the live map, the history and the editor. */
-export type PlanImageScope = 'floor' | 'history' | 'editor';
+type PlanImageScope = 'floor' | 'history' | 'editor';
 
 const planImageKey = (scope: PlanImageScope, floorId: string): string => `sw.${scope}.background.${floorId}`;
 
@@ -42,7 +42,7 @@ export function writePlanImage(scope: PlanImageScope, floorId: string, on: boole
 }
 
 /** What a floor screen keeps of the object library: the 2D lookup, the 3D lookup, the materials and the Hebrew names. */
-export interface LibraryLookups {
+interface LibraryLookups {
   catalogLookup: ReturnType<typeof lookupOf>;
   catalog3d: ReturnType<typeof lookup3dOf>;
   materials3d: ReturnType<typeof lookupMaterialsOf>;

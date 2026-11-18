@@ -1,7 +1,7 @@
 /** NVR storage and recording plan, read-only (T051). */
 import { get, post } from './client';
 
-export interface StorageDisk {
+interface StorageDisk {
   id: string;
   name: string;
   kind: string;
@@ -13,7 +13,7 @@ export interface StorageDisk {
   path: string;
 }
 
-export interface StorageCamera {
+interface StorageCamera {
   camera_id: string;
   name: string;
   channel: number;

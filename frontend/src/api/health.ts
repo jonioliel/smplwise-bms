@@ -6,7 +6,7 @@ import { tr as trTime } from '../i18n/msg/time'; // CR-I18N-UNITS-2442: the shor
 /** off: not part of this installation (NVR-less mode) - neutral, never lowers the overall status. */
 export type CheckStatus = 'ok' | 'warn' | 'error' | 'off';
 
-export interface HealthCheck {
+interface HealthCheck {
   id: string;
   label: string;
   status: CheckStatus;

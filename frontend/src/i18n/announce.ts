@@ -517,7 +517,7 @@ const ar: typeof he = {
   screensCriticalClose: 'يمكن إغلاق رسالة الطوارئ على شاشة الجدار بعد (ثوانٍ)',
 };
 
-export type AnnounceText = typeof he;
+type AnnounceText = typeof he;
 export type AnnounceUiLang = 'he' | 'en' | 'ar' | 'ru';
 /** The columns that are an initial, unreviewed translation. */
 export const ANNOUNCE_DEV_MARKED: readonly AnnounceUiLang[] = ['ar', 'ru'];

@@ -3,8 +3,8 @@ import { api, apiUrl, del, get, patch, post, upload } from './client';
 import type { WallPlanSetting } from '../map/wall-plan-mode';
 import { tr } from '../i18n/msg/api-media';
 
-export type WallLayout = 'auto' | 'tablet-landscape' | 'tablet-portrait' | 'single';
-export type WallStatus = 'connected' | 'not_connected' | 'never' | 'disabled';
+type WallLayout = 'auto' | 'tablet-landscape' | 'tablet-portrait' | 'single';
+type WallStatus = 'connected' | 'not_connected' | 'never' | 'disabled';
 
 export interface WallWindow { days: number[]; from: string; to: string }
 export interface WallConfig {
@@ -89,7 +89,7 @@ export const removeWallProfile = (userId: string) => del(`wall/profiles/${encode
 export const WALL_STATUS_LABEL: Record<WallStatus, string> = { connected: tr('מחובר'), not_connected: tr('לא מחובר'), never: tr('טרם התחבר'), disabled: tr('מושבת') };
 
 // ---- WDX: alert tiles and the picture frame
-export type WallAlertSeverity = 'info' | 'alert' | 'critical';
+type WallAlertSeverity = 'info' | 'alert' | 'critical';
 export interface WallAlert {
   id: string;
   source: string;
@@ -103,6 +103,7 @@ export interface WallAlert {
   last_at: string;
   camera_id: string | null;
 }
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by CR-030 (wall alert tiles).
 export const getWallAlerts = () => get<{ alerts: WallAlert[] }>('wall/alerts');
 /** ANNOUNCEB-295: the voice announcement this wall display shows right now (text only), and how often to ask (0 = this display is not an announcement screen). */
 export const getWallAnnouncement = () => get<{ poll_s: number; announcement: import('../announce/screen-overlay').ScreenAnnouncement | null;
@@ -112,7 +113,7 @@ export const getFrameList = () => get<{ photos: { id: string; w: number; h: numb
 export const frameUrl = (id: string) => apiUrl(`wall/frame/${encodeURIComponent(id)}`);
 
 export interface PhotoSet { id: string; name: string; count: number; bytes: number; used_by: string[] }
-export interface PhotoSetsResponse { sets: PhotoSet[]; limits: { max_files: number; max_bytes: number; formats: string[] } }
+interface PhotoSetsResponse { sets: PhotoSet[]; limits: { max_files: number; max_bytes: number; formats: string[] } }
 export const listPhotoSets = () => get<PhotoSetsResponse>('wall/photo-sets');
 export const createPhotoSet = (name: string) => post<PhotoSet>('wall/photo-sets', { name });
 export const deletePhotoSet = (id: string) => api<{ deleted: boolean; profiles_turned_off: number }>(`wall/photo-sets/${encodeURIComponent(id)}`, { method: 'DELETE' });

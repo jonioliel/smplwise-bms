@@ -10,7 +10,7 @@
 import { tn, type TicketLang } from './naming';
 import { ticketsLang } from '../i18n/nav-labels';
 
-export type NavRfqKey = 'navTitle' | 'navQuestionsAria';
+type NavRfqKey = 'navTitle' | 'navQuestionsAria';
 
 export const NAV_RFQ_HE: Readonly<Record<NavRfqKey, string>> = {
   navTitle: 'בקשות הצעת מחיר',

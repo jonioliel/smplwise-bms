@@ -161,7 +161,7 @@ const ru: Record<Key, string> = {
 export type SpKey = Key;
 export type SpLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function spLang(): SpLang {
+function spLang(): SpLang {
   return docLang(['en', 'ar', 'ru']);
 }
 

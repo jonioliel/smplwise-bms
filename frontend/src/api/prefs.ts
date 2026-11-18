@@ -13,7 +13,7 @@ let inflight: Promise<ProductSettings> | null = null;
 /** Owner bug 2026-10-01: a page left open (a phone, a second tab) kept the settings it read first for good, so a transport
  * changed elsewhere (הגדרות › וידאו ומדיה) never reached its players until a reload. A screen that loads after this long
  * reads them again; within it, the screens of one visit share one request. */
-export const SETTINGS_TTL_MS = 60 * 1000;
+const SETTINGS_TTL_MS = 60 * 1000;
 
 /** Owner decision 2026-10-05: the installation default is `auto` (WebRTC first, MSE only when WebRTC cannot be used); it
  * supersedes the MSE default of 2026-09-14. The server's DEFAULTS (routers/settings.py) say the same; this copy covers the

@@ -28,26 +28,26 @@ export interface HistoryCoverage {
 }
 
 
-export interface SnapshotEntityState {
+interface SnapshotEntityState {
   state: string | null;
   changed_at: string | null;
   known: boolean;
   reason: string | null;
 }
-export interface SnapshotEntityLayer {
+interface SnapshotEntityLayer {
   status: LayerStatus;
   retention_days: number | null;
   from: string | null;
   /** {} when not_permitted (no ids at all) or empty. */
   entities: Record<string, SnapshotEntityState>;
 }
-export interface SnapshotElevatorItem {
+interface SnapshotElevatorItem {
   name: string;
   state: string | null;
   at: string | null;
   known: boolean;
 }
-export interface SnapshotElevatorLayer {
+interface SnapshotElevatorLayer {
   status: LayerStatus;
   retention_days: number | null;
   from: string | null;
@@ -55,11 +55,11 @@ export interface SnapshotElevatorLayer {
   position: 'not_recorded';
   items: Record<string, SnapshotElevatorItem>;
 }
-export interface SnapshotCameraLayer {
+interface SnapshotCameraLayer {
   status: 'ok' | 'not_permitted' | 'empty';
   camera_ids: string[];
 }
-export interface SnapshotEventLayer {
+interface SnapshotEventLayer {
   status: 'ok' | 'not_permitted' | 'empty';
   /** null when not_permitted. */
   retention_days: number | null;
@@ -77,7 +77,7 @@ export interface HistorySnapshot {
 }
 
 /** One change-point: [t (UTC ISO), state, n changes (1 when exact; the changes inside the bucket when bucketed)]. */
-export type RangePoint = [string, string | null, number];
+type RangePoint = [string, string | null, number];
 export interface RangeSeries {
   /** The state at `from` (before the first point). */
   initial: { state: string | null; known: boolean };
@@ -85,13 +85,13 @@ export interface RangeSeries {
   /** A recorded change after `to` exists (the last point's state is bounded on the right). */
   bounded_after: boolean;
 }
-export interface RangeEntityLayer {
+interface RangeEntityLayer {
   status: LayerStatus;
   retention_days: number | null;
   from: string | null;
   entities: Record<string, RangeSeries>;
 }
-export interface RangeElevatorLayer {
+interface RangeElevatorLayer {
   status: LayerStatus;
   retention_days: number | null;
   from: string | null;

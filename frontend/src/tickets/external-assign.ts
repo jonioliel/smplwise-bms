@@ -21,9 +21,9 @@ type CostModeChoice = 'required' | 'optional' | 'off';
 /** The dialog's three groups (owner 2026-10-14): handlers with an account, employees without one, vendors and contacts. TKSTAFF2: the
  * first two are both HANDLERS (one list, one picker and one submit in the host - tickets/assignee-model.ts); this controller runs the
  * third (outside contacts) only. */
-export type AssignKind = 'user' | 'employee' | 'person';
+type AssignKind = 'user' | 'employee' | 'person';
 /** How many handlers of each handler group the server offered (null = still loading). */
-export interface HandlerCounts { user: number | null; employee: number | null }
+interface HandlerCounts { user: number | null; employee: number | null }
 
 /** A refusal the preview names, in words (an unknown code - a newer server - shows the general line). */
 export function refusalText(code: string): string {
@@ -32,7 +32,7 @@ export function refusalText(code: string): string {
 }
 
 /** What the assign dialog's host lends the controller: the one place a new ticket is taken in, and the busy flag. */
-export interface ExternalAssignHost {
+interface ExternalAssignHost {
   busy: () => boolean;
   /** run an API call the way the host runs every action (busy flag, the new ticket, the server's message on a refusal) */
   run: (fn: () => Promise<TicketDetail>, done: string) => Promise<boolean>;

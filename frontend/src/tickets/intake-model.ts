@@ -54,7 +54,7 @@ export function flagKeys(flags: readonly string[]): IntakeKey[] {
   return flags.map((f) => FLAG_KEYS[f]).filter((k): k is IntakeKey => !!k);
 }
 
-export interface Pager { from: number; to: number; total: number; prev: number | null; next: number | null }
+interface Pager { from: number; to: number; total: number; prev: number | null; next: number | null }
 
 export function pager(total: number, offset: number, shown: number): Pager {
   const from = total === 0 ? 0 : offset + 1;

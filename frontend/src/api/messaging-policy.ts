@@ -18,9 +18,9 @@ export interface PolicyView {
   allow: PolicyEntry[];
   self_messages: { active: boolean; until: string | null; minutes_default: number; minutes_range: [number, number] };
 }
-export interface PolicyAdd { phone: string; label: string; role: PolicyRole }
+interface PolicyAdd { phone: string; label: string; role: PolicyRole }
 
-export interface MessagingPolicyBackend {
+interface MessagingPolicyBackend {
   view(): Promise<PolicyView>;
   setEnforce(enforce: boolean): Promise<PolicyView>;
   add(body: PolicyAdd): Promise<PolicyView>;

@@ -23,7 +23,7 @@ export type HomeDrawerTab = 'home' | 'card';
 
 export const HOME_DRAWER_ID = 'he-drawer';
 
-export interface HomeDrawerView {
+interface HomeDrawerView {
   open: boolean;
   tab: HomeDrawerTab;
   /** The layout editor has a card (or a card's device tiles) selected. */

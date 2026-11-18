@@ -115,7 +115,7 @@ export function createHttpTransport(): MessagingTransport {
 
 // ---------------------------------------------------------------- the administrator's settings (Settings > access control > messages)
 
-export interface MessagingTemplateDoc {
+interface MessagingTemplateDoc {
   /** Absent on a template not saved yet: the server assigns one. */
   id?: string;
   label: string;
@@ -147,7 +147,7 @@ export interface MessagingSettingsDoc {
 }
 
 /** WA-CONSENT-LINK: whether the public page can serve a consent link now, and the fixed rules the editor shows. */
-export interface MessagingConsentInfo {
+interface MessagingConsentInfo {
   /** null = it can; else module_off | public_page | key. */
   page_problem: string | null;
   notice_version: string;
@@ -175,7 +175,7 @@ export interface MessagingLimits {
   placeholders_max: number;
 }
 
-export interface MessagingService {
+interface MessagingService {
   state: string;
   /** True when WisKey lists the commands and the service answered "connected"; null = could not be asked. */
   connected: boolean | null;

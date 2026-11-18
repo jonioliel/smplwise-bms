@@ -104,7 +104,7 @@ const he = {
 };
 
 type Widen<T> = { [K in keyof T]: T[K] extends string ? string : Widen<T[K]> };
-export type StationMediaText = Widen<typeof he>;
+type StationMediaText = Widen<typeof he>;
 
 const en: StationMediaText = {
   live: {

@@ -16,7 +16,7 @@ import { STUDIO6_SCHEMA_VERSION, usesStudio6 } from './studio6-fields';
 
 export const GLASS_KIND = 'glass' as const;
 export const GLAZING_SCHEMA_VERSION = '2.1' as const;
-export const BASE_SCHEMA_VERSION = '2.0' as const;
+const BASE_SCHEMA_VERSION = '2.0' as const;
 export type GlassTint = 'clear' | 'tinted' | 'frosted' | 'reflective';
 export type PanelOperation = 'casement_left' | 'casement_right' | 'tilt' | 'sliding' | 'awning';
 export const TINTS: readonly GlassTint[] = ['clear', 'tinted', 'frosted', 'reflective'];
@@ -26,14 +26,13 @@ export const PANEL_WIDTH_RANGE: readonly [number, number] = [0.2, 6];
 export const MULLION_RANGE: readonly [number, number] = [0.01, 0.5];
 export const SILL_RANGE: readonly [number, number] = [0, 10];
 export const GLAZED_HEIGHT_RANGE: readonly [number, number] = [0.2, 50];
-export const OPACITY_RANGE: readonly [number, number] = [0.05, 0.95];
 export const AUTO_MIN_M = 0.9;
 export const AUTO_MAX_M = 1.5;
-export const CORNER_DEG = 20;
+const CORNER_DEG = 20;
 /** The frame depth a wall takes when it becomes a window wall and was thicker (a solid wall's 0.2 m stays as it is). */
 export const GLASS_THICKNESS_M = 0.12;
 
-export interface OperablePanel {
+interface OperablePanel {
   /** 0-based index on the current layout. */
   panel: number;
   operation: PanelOperation;
@@ -53,7 +52,7 @@ export interface Glazing {
 }
 export const GLAZING_DEFAULTS: Glazing = { panel_width_m: 1.2, panel_count: null, mullion_m: 0.06, sill_m: 0, glazed_height_m: null, tint: 'clear', opacity: 0.35, operable: [] };
 
-export interface GlazingPanelPrim {
+interface GlazingPanelPrim {
   index: number;
   a: Pt;
   b: Pt;
@@ -73,8 +72,6 @@ export interface GlazingPrim {
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const isInt = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v);
 const halfUp = (v: number): number => Math.floor(v + 0.5);
-
-export const isGlass = (w: Pick<GeomWall, 'kind'> | null | undefined): boolean => !!w && w.kind === GLASS_KIND;
 
 /** Whether the document needs version 2.1 (a glass wall or a glazing block), as plan_glass.uses_glazing. */
 export function usesGlazing(doc: Pick<GeometryDoc, 'walls'>): boolean {
@@ -107,7 +104,7 @@ export function glazingOf(w: Pick<GeomWall, 'glazing'>): Glazing {
 // ---------------------------------------------------------------- layout (path length only)
 
 /** The wall's path in plan pixels: the polyline, or a curved wall's sampled path (wall-path.ts). */
-export function wallPathPx(w: Pick<GeomWall, 'polyline' | 'bulges'>, W: number, H: number): Pt[] {
+function wallPathPx(w: Pick<GeomWall, 'polyline' | 'bulges'>, W: number, H: number): Pt[] {
   if (!isCurved(w)) return w.polyline.map((p): Pt => [p[0] * W, p[1] * H]);
   const { pts, bulges } = wallPx(w, W, H);
   return sample(pts, bulges) as Pt[];

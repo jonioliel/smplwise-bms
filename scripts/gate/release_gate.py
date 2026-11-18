@@ -45,6 +45,13 @@ starts scripts/gate/addon_build_check.sh of the branch under test IN THE BACKGRO
 builds it, then import / create_app / /healthz inside it) and collects it before the backend. GATE_ADDON_BUILD=auto (default):
 PASS / FAIL as the script says, NOT_RUN (no docker on the machine, or the branch has no script) is a skipped item with its reason,
 never a pass; =require: NOT_RUN fails the gate; =off: not started. GATE_ADDON_BUILD_SECS (600) is the stage's budget.
+Frontend static checks (CR-FE-GATES-ENFORCE-2442, docs/changes/CR-FE-GATES-ENFORCE-2442.md): a branch that carries
+frontend/scripts/gates-baseline.json gets three BLOCKING checks of category fe_static. Right after the build: the entry-chunk budget
+(`node scripts/bundle-budget.mjs --dir dist --enforce`) and the unused-export baseline (`node scripts/unused-exports.mjs --enforce`).
+ESLint over src/ (type-aware, minutes) is started IN THE BACKGROUND after release_check and collected after Playwright. A non-zero
+exit is a FAIL. GATE_FE_STATIC=auto (default): a check that could not finish (over GATE_FE_LINT_SECS, 1800; eslint not in
+node_modules) is a skipped NOT_RUN item with its reason, never a pass; =require: NOT_RUN fails the gate; =off: nothing runs. A
+branch without the baseline file (older than this change) and the timing lane run none of them.
 `--plan --root <checkout>` prints the v1 and v2 plans with time estimates from the recorded costs and runs nothing.
 """
 import concurrent.futures as cf, glob, json, math, os, re, shutil, signal, socket, subprocess, sys, tempfile, threading, time, urllib.request
@@ -135,7 +142,11 @@ ADDON_BUILD = (os.environ.get("GATE_ADDON_BUILD") or "auto").strip().lower()   #
 ADDON_BUILD_SECS = int(os.environ.get("GATE_ADDON_BUILD_SECS") or "600")         # the stage's budget (the script's ADDON_BUILD_SECS)
 ADDON_BUILD_SCRIPT = "scripts/gate/addon_build_check.sh"
 ADDON_BUILD_CAT = "addon_build"
-OPTIONAL_CATS = {ADDON_BUILD_CAT, "visual", VISUAL_RUN_CAT}   # no count baseline: an optional stage (no docker), or a count that follows the touched screens
+FE_STATIC = (os.environ.get("GATE_FE_STATIC") or "auto").strip().lower()   # auto | require | off (CR-FE-GATES-ENFORCE-2442)
+FE_LINT_SECS = int(os.environ.get("GATE_FE_LINT_SECS") or "1800")          # ESLint's budget (type-aware lint of all of src/)
+FE_STATIC_CAT = "fe_static"
+FE_STATIC_MARK = "frontend/scripts/gates-baseline.json"                    # a branch without it predates the blocking checks
+OPTIONAL_CATS = {ADDON_BUILD_CAT, FE_STATIC_CAT, "visual", VISUAL_RUN_CAT}   # no count baseline: an optional stage (no docker), or a count that follows the touched screens
 COSTS_DIR = os.environ.get("GATE_COSTS_DIR") or ""
 SELECT_BASE = os.environ.get("GATE_SELECT_BASE") or ""   # --select-base <ref>: diff-based selection (select_tests.py); "" = full tier
 REDUCED_CATS = {}        # category -> "n of m files" when a selection left files out (filled by apply_selection())
@@ -743,6 +754,117 @@ def addon_build_finish(h, extra):
     elif out["result"] == "NOT_RUN":
         item(ADDON_BUILD_CAT, ident, "SKIPPED_NOT_RUN", out["reason"])
     return out
+
+
+# ---------------------------------------------------------------- frontend static checks (CR-FE-GATES-ENFORCE-2442)
+FE_STATIC_CHECKS = {   # name -> (item id, command run in frontend/, timeout seconds)
+    "bundle-budget": ("entry-chunk budget (frontend/scripts/bundle-budget.mjs --dir dist --enforce)",
+                      ["node", "scripts/bundle-budget.mjs", "--dir", "dist", "--enforce"], 180),
+    "unused-exports": ("unused-export baseline (frontend/scripts/unused-exports.mjs --enforce)",
+                       ["node", "scripts/unused-exports.mjs", "--enforce"], 600),
+}
+FE_LINT_IDENT = "ESLint (frontend: eslint src, eslint.config.mjs + eslint-suppressions.json)"
+
+
+def fe_static_mode():
+    """GATE_FE_STATIC as one of auto / require / off (junk -> auto)."""
+    return FE_STATIC if FE_STATIC in ("auto", "require", "off") else "auto"
+
+
+def fe_static_skip(wt):
+    """Why the frontend static checks do not run for this worktree ("" = they run)."""
+    if fe_static_mode() == "off":
+        return "GATE_FE_STATIC=off"
+    if LANE:
+        return "timing lane: no static checks"
+    if not (Path(wt) / FE_STATIC_MARK).is_file():
+        return f"the branch has no {FE_STATIC_MARK} (older than CR-FE-GATES-ENFORCE-2442)"
+    return ""
+
+
+def fe_static_settle(rc, timed_out, log_text, mode="auto", not_run=""):
+    """One check's verdict: exit 0 = PASS, any other exit = FAIL (with the log tail). A check that could not finish (its budget,
+    or `not_run` = the reason it could not start) is NOT_RUN - a skipped item, never a pass - and a FAIL under mode=require.
+    Returns {"result", "status", "reason"}; status is the count key (pass / fail / skipped)."""
+    tail = " | ".join(ln.strip() for ln in (log_text or "").splitlines()[-8:] if ln.strip())[:240]
+    if not_run or timed_out or rc in (124, 137):
+        why = not_run or f"did not finish inside its budget (killed); log: {tail}"
+        if mode == "require":
+            return {"result": "FAIL", "status": "fail", "reason": f"NOT_RUN under GATE_FE_STATIC=require: {why}"}
+        return {"result": "NOT_RUN", "status": "skipped", "reason": why}
+    if rc == 0:
+        return {"result": "PASS", "status": "pass", "reason": ""}
+    return {"result": "FAIL", "status": "fail", "reason": f"rc={rc}: {tail}"}
+
+
+def fe_static_record(name, ident, out, extra, secs=0):
+    out["seconds"] = secs
+    extra.setdefault("fe_static", {})[name] = out
+    count(FE_STATIC_CAT, out["status"])
+    if out["result"] == "FAIL":
+        item(FE_STATIC_CAT, ident, "FAIL", out["reason"])
+    elif out["result"] == "NOT_RUN":
+        item(FE_STATIC_CAT, ident, "SKIPPED_NOT_RUN", out["reason"])
+    return out
+
+
+def _log_text(log):
+    return Path(log).read_text(encoding="utf-8", errors="replace") if Path(log).exists() else ""
+
+
+def fe_static_sync(wt, fe, logd, extra, built=True):
+    """The two fast checks, right after the build. The budget needs dist: without a build it is not run (the build already failed)."""
+    why = fe_static_skip(wt)
+    if why:
+        extra.setdefault("fe_static", {})["not_run"] = why
+        return
+    for name, (ident, cmd, secs) in FE_STATIC_CHECKS.items():
+        if name == "bundle-budget" and not built:
+            continue
+        log = Path(logd) / f"fe_static_{name}.log"
+        if log.exists():
+            log.unlink()
+        t0 = time.time()
+        rc, to = run(cmd, fe, log, timeout=secs)
+        fe_static_record(name, ident, fe_static_settle(rc, to, _log_text(log), fe_static_mode()), extra, int(time.time() - t0))
+
+
+def fe_lint_start(wt, fe, logd):
+    """Start ESLint over src/ in the background. Returns a handle, {"done": reason} when it cannot start, or None when the checks are off."""
+    if fe_static_skip(wt):
+        return None
+    cli = Path(fe) / "node_modules" / "eslint" / "bin" / "eslint.js"
+    if not (cli.is_file() and (Path(fe) / "node_modules" / "typescript-eslint").exists()):
+        return {"done": "eslint / typescript-eslint are not in frontend/node_modules (npm ci of this package-lock.json installs them)"}
+    log = Path(logd) / "fe_static_eslint.log"
+    if log.exists():
+        log.unlink()
+    # --pass-on-unpruned-suppressions: a fixed report whose count was not pruned yet is not a failure (the count only goes down)
+    cmd = ["timeout", "-k", "10", str(FE_LINT_SECS), "nice", "-n", "10", "node", str(cli), "src", "--pass-on-unpruned-suppressions"]
+    return {"proc": spawn(cmd, fe, log), "t0": time.time(), "log": log}
+
+
+def fe_lint_finish(h, extra):
+    """Collect the background ESLint run (bounded by its budget and the gate's deadline); record count/item and extra['fe_static']."""
+    mode = fe_static_mode()
+    if "done" in h:
+        return fe_static_record("eslint", FE_LINT_IDENT, fe_static_settle(0, False, "", mode, not_run=h["done"]), extra)
+    p = h["proc"]
+    wait = max(5.0, min(FE_LINT_SECS + 20 - (time.time() - h["t0"]), left()))
+    timed_out = False
+    try:
+        rc = p.wait(timeout=wait)
+    except subprocess.TimeoutExpired:
+        timed_out, rc = True, 124
+        try:
+            os.killpg(p.pid, signal.SIGTERM)
+            time.sleep(3)
+            os.killpg(p.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+        p.wait()
+    reap(p)
+    return fe_static_record("eslint", FE_LINT_IDENT, fe_static_settle(rc, timed_out, _log_text(h["log"]), mode), extra, int(time.time() - h["t0"]))
 
 
 def compute_selection(wt, base):
@@ -1995,6 +2117,12 @@ def write_reports(sha, verdict, extra):
         md += [f"- {st_.get('name')}: {st_.get('result')} ({st_.get('seconds')} s)" for st_ in a.get("steps", [])]
         if a["result"] == "FAIL" and a.get("log_tail"):
             md += ["", "```", "\n".join(a["log_tail"])[-3000:], "```"]
+    if extra.get("fe_static"):   # CR-FE-GATES-ENFORCE-2442
+        fs_ = extra["fe_static"]
+        md += ["", "## בדיקות סטטיות של הממשק (fe_static): ESLint, תקציב קובץ הכניסה, exports לא בשימוש", ""]
+        if fs_.get("not_run"):
+            md += [f"- NOT_RUN: {fs_['not_run']}"]
+        md += [f"- {k}: {v['result']} ({v.get('seconds', 0)} s)" + (f" - {v['reason']}" if v.get("reason") else "") for k, v in fs_.items() if isinstance(v, dict)]
     if "release_check_output" in extra:
         md += ["", "## release_check", "", "```", extra["release_check_output"][-4000:], "```"]
     if "classification" in extra:
@@ -2043,6 +2171,7 @@ def main():
     shm = None
     only = None
     abuild = None
+    felint = None
     if SELECT_BASE:
         with Phase("select", f"diff selection against {SELECT_BASE}"):
             try:
@@ -2089,6 +2218,9 @@ def main():
             count("build", "pass" if rc == 0 else "fail")
             if rc != 0:
                 item("build", "vite build", "FAIL", f"rc={rc} (see build.log)")
+        # CR-FE-GATES-ENFORCE-2442: the entry budget (reads dist) and the unused-export baseline - seconds, blocking
+        with Phase("fe-static", "frontend static checks: entry budget, unused exports"):
+            fe_static_sync(wt, fe, logd, extra, built=COUNTS.get("build", {}).get("pass", 0) == 1)
         # 0.1.162 gate: release_check (seconds, reads the tree only) runs right after the build, before any Playwright run -
         # at the end it was starved by the budget (rc=124 without running) and it saw the docs the evidence specs rewrite
         if not LANE:   # the timing lane checks no release (GATELANES-297)
@@ -2104,6 +2236,8 @@ def main():
         # SUPERVISOR-BUILD-GATE-2341: the real Supervisor-style image build runs in the background next to Playwright
         with Phase("addon-build-start", "Supervisor build check started (background)"):
             abuild = addon_build_start(wt, logd)
+        with Phase("fe-lint-start", "ESLint started (background)"):   # CR-FE-GATES-ENFORCE-2442: collected after Playwright
+            felint = fe_lint_start(wt, fe, logd)
         cls = classify(fe, TIER)
         if SELECTION:
             cls = filter_classification(cls, SELECTION)
@@ -2161,6 +2295,10 @@ def main():
                     reap(vp)
         else:
             hard_fail.append("build failed: Playwright not run")
+        if felint is not None:
+            with Phase("fe-lint-wait", "ESLint: collecting"):
+                fe_lint_finish(felint, extra)
+                felint = None
         if abuild is not None:
             with Phase("addon-build-wait", "Supervisor build check: collecting"):
                 addon_build_finish(abuild, extra)

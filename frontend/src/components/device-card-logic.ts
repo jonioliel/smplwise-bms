@@ -36,7 +36,7 @@ export interface CardAction {
   label: I18nKey;
 }
 
-export interface PowerActions {
+interface PowerActions {
   on: CardAction;
   off: CardAction;
   /** The service the scheduler may carry for the auto-off (schedule_policy allow-list), or null when there is none for this domain. */

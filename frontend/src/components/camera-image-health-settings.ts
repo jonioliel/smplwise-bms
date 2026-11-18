@@ -9,6 +9,7 @@ import { cameraImageSettings, saveCameraImageSettings, type ImageHealthSettings,
 import { RECIPIENT_LABEL, type NotifyPolicy } from '../api/notifications';
 import { cit, type CitKey } from '../i18n/camera-image-health';
 import { SkinController } from '../design/skin';
+import { ltrStyles } from '../styles/fragments';
 
 type NumKey = 'interval_s' | 'per_pass_max' | 'dark_level' | 'blur_min' | 'freeze_diff' | 'freeze_samples' | 'shift_pct' | 'shift_corr_min' | 'confirm_samples' | 'recover_s';
 type BoolKey = 'check_dark' | 'check_blur' | 'check_freeze' | 'check_shift';
@@ -230,10 +231,7 @@ export class CameraImageHealthSettings extends LitElement {
       color: var(--sw-danger-text);
       font-size: var(--sw-fs-xs);
     }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+    ${ltrStyles}
     :host([data-skin='bubble']) .chk,
     :host([data-skin='bubble']) .ths input,
     :host([data-skin='bubble']) .row select,

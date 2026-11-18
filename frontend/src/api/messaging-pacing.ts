@@ -12,8 +12,8 @@ export type PacingClass = 'alert' | 'code' | 'ticket' | 'reminder';
 export const PACING_MODES: PacingMode[] = ['conservative', 'standard', 'off'];
 export const PACING_CLASSES: PacingClass[] = ['alert', 'code', 'ticket', 'reminder'];
 
-export interface PacingCounters { sent: number; deferred: number; backoff: number; pair_backoff: number; expired: number }
-export interface PacingWiskey {
+interface PacingCounters { sent: number; deferred: number; backoff: number; pair_backoff: number; expired: number }
+interface PacingWiskey {
   mapped: boolean;
   verified: boolean;
   /** WisKey's own counters are missing for a mapped sender: unknown, never zero */
@@ -27,7 +27,7 @@ export interface PacingWiskey {
   reason?: string | null;
 }
 /** PACING12-295: what the last `whatsapp/pacing_status_v1` read covered; `truncated` = it did not cover every WisKey sender */
-export interface PacingWiskeyCoverage {
+interface PacingWiskeyCoverage {
   closed_reason: string | null;
   total: number | null;
   received: number;
@@ -64,9 +64,9 @@ export interface PacingView {
   /** false while the tickets module is off or the mode is `off`: nothing is governed */
   applies: boolean;
 }
-export interface PacingPut { mode?: PacingMode; wiskey_shared?: boolean; per_minute?: number; burst?: number; max_wait_min?: Partial<Record<PacingClass, number>> }
+interface PacingPut { mode?: PacingMode; wiskey_shared?: boolean; per_minute?: number; burst?: number; max_wait_min?: Partial<Record<PacingClass, number>> }
 
-export interface MessagingPacingBackend {
+interface MessagingPacingBackend {
   view(): Promise<PacingView>;
   save(body: PacingPut): Promise<PacingView>;
 }

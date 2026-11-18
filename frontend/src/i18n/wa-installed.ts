@@ -238,7 +238,7 @@ export const WI_TABLES: Record<Lang, Record<Key, string>> = { he, en, ar, ru };
 export const WI_DEV_MARKED: readonly Lang[] = ['ar', 'ru'];
 export const WI_KEYS = Object.keys(he) as Key[];
 
-export function wiLang(): Lang {
+function wiLang(): Lang {
   return docLang(['en', 'ar', 'ru']);
 }
 

@@ -20,7 +20,7 @@ export type TileLayoutSetting = (typeof TILE_LAYOUTS)[number];
 export type TileLayout = 'cards' | 'compact';
 
 /** `auto` is compact below this viewport width (a phone), cards from it up. */
-export const COMPACT_BELOW_PX = 600;
+const COMPACT_BELOW_PX = 600;
 const OVERRIDE_KEY = 'sw.tiles.override';
 
 export const TILE_LAYOUT_LABEL: Record<TileLayoutSetting, string> = { auto: tr('אוטומטי'), cards: tr('כרטיסים'), compact: tr('קומפקטי') };
@@ -72,11 +72,6 @@ export function setTileLayoutOverride(v: TileLayoutSetting | null) {
   notify();
 }
 
-/** The installation's setting as last read (or saved from the settings screen). */
-export function installationTileLayout(): TileLayoutSetting {
-  return installation;
-}
-
 /** The settings screen saved a new installation value: every open screen follows at once. */
 export function setInstallationTileLayout(v: unknown) {
   installation = isSetting(v) ? v : 'auto';
@@ -96,7 +91,7 @@ export function resolveTileLayout(setting: TileLayoutSetting = effectiveTileSett
 }
 
 /** Reads the installation's setting once per page load (the shared settings cache); never throws. */
-export function loadTileLayout(): Promise<void> {
+function loadTileLayout(): Promise<void> {
   if (!loaded) {
     loaded = (async () => {
       if (!isApi()) return;
@@ -110,7 +105,7 @@ export function loadTileLayout(): Promise<void> {
   return loaded;
 }
 
-export function onTileLayout(fn: () => void): () => void {
+function onTileLayout(fn: () => void): () => void {
   watchWidth();
   listeners.add(fn);
   return () => listeners.delete(fn);

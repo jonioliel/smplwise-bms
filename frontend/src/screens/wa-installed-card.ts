@@ -13,6 +13,7 @@ import { bidi, ltrIsolate } from '../i18n/bidi';
 import { wi, type WiKey } from '../i18n/wa-installed';
 import { blockers, jobTone, jobWord, pacedEditable, recentJobs, syncTone } from '../messaging/wa-installed-model';
 import { timeText } from '../api/day-format';
+import { hostBlockStyles, ltrStyles } from '../styles/fragments';
 
 const COMMAND_ROWS: [InstalledCommand, WiKey][] = [
   ['whatsapp/template_registry_v1', 'cmd_registry'],
@@ -43,7 +44,7 @@ export class WaInstalledCard extends LitElement {
   static styles = [
     statusStyles,
     css`
-      :host { display: block; min-inline-size: 0; }
+      ${hostBlockStyles}
       .sec { padding: 10px 14px; border-block-start: 1px solid var(--sw-border); display: flex; flex-direction: column; gap: 8px; min-inline-size: 0; }
       .sec h4 { margin: 0; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
       .chips { display: flex; flex-wrap: wrap; gap: 6px; min-inline-size: 0; }
@@ -59,7 +60,7 @@ export class WaInstalledCard extends LitElement {
       .line .grow { flex: 1; min-inline-size: 0; overflow-wrap: anywhere; }
       .line .meta { color: var(--sw-text-3); font-size: var(--sw-fs-xs); white-space: nowrap; }
       .row { min-block-size: max(44px, var(--_t)); }
-      .ltr { direction: ltr; unicode-bidi: isolate; }
+      ${ltrStyles}
       .hint { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
       .toggle { display: flex; align-items: center; gap: 12px; min-inline-size: 0; }
       .toggle .txt { flex: 1; min-inline-size: 0; display: flex; flex-direction: column; gap: 2px; }

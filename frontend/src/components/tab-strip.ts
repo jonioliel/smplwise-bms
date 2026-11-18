@@ -8,7 +8,7 @@
  */
 
 export type Side = 'start' | 'end';
-export type Fade = '' | 'left' | 'right' | 'both';
+type Fade = '' | 'left' | 'right' | 'both';
 
 /** Physical extent of the tabs (the union of their boxes) and of the visible box. */
 export interface Extent {
@@ -22,7 +22,7 @@ export interface Extent {
 export const EDGE_SLOP = 1;
 
 /** Which physical edges hide tabs. */
-export function hiddenEdges(e: Extent): { left: boolean; right: boolean } {
+function hiddenEdges(e: Extent): { left: boolean; right: boolean } {
   return { left: e.minLeft < e.boxLeft - EDGE_SLOP, right: e.maxRight > e.boxRight + EDGE_SLOP };
 }
 
@@ -45,7 +45,7 @@ export function sideSign(side: Side, rtl: boolean): 1 | -1 {
 }
 
 /** Share of the visible width one arrow click scrolls (a "page" that keeps one tab of context). */
-export const PAGE_SHARE = 0.8;
+const PAGE_SHARE = 0.8;
 
 /** The physical `left` delta of an arrow click toward `side`, clamped to what is still hidden on that side. */
 export function pageDelta(side: Side, rtl: boolean, e: Extent): number {

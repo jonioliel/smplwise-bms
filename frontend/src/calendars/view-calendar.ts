@@ -18,7 +18,7 @@ import './grid-overlays';
 import type { Anchor, QuickDraft } from './grid-overlays';
 import { payloadOf, type AttendeeDraft } from './attendee-logic';
 
-export type CalMode = 'month' | 'week' | 'day';
+type CalMode = 'month' | 'week' | 'day';
 const FROM_H = 7;
 const TO_H = 22;
 const BAND: Band = { from: FROM_H * 60, to: TO_H * 60 };
@@ -1073,15 +1073,16 @@ export class CalViewCalendar extends LitElement {
       this.seriesClash = null;
       return;
     }
-    this.seriesTimer = window.setTimeout(async () => {
-      const b = this.quickBody(true);
-      if (!b) return;
-      try {
+    // CR-FE-PROMISES-2442: a check that fails shows no clash count (the server checks every occurrence again on save)
+    this.seriesTimer = window.setTimeout(() => {
+      (async () => {
+        const b = this.quickBody(true);
+        if (!b) return;
         const r = await (this.ctx as CalCtx).api.previewEvent(b);
         if (this.draft === d) this.seriesClash = new Set(r.conflicts.map((c) => c.start)).size;
-      } catch {
+      })().catch(() => {
         this.seriesClash = null;
-      }
+      });
     }, 300);
   }
 

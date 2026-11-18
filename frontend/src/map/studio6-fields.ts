@@ -12,7 +12,7 @@ import type { GlassTint } from './glass-wall';
 
 export const STUDIO6_SCHEMA_VERSION = '2.2' as const;
 export const LIGHT_KINDS = ['ceiling', 'wall', 'spot', 'strip', 'floor', 'pendant'] as const;
-export type LightKind = (typeof LIGHT_KINDS)[number];
+type LightKind = (typeof LIGHT_KINDS)[number];
 export const COLOR_K_RANGE: readonly [number, number] = [1800, 6500];
 export const LUMENS_RANGE: readonly [number, number] = [1, 20000];
 export const BEAM_RANGE: readonly [number, number] = [1, 180];

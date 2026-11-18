@@ -73,7 +73,7 @@ export const editorShared = [
       background: var(--dv-neutral-soft, var(--sw-surface-3));
       color: var(--dv-text-2);
       font-size: var(--sw-fs-xs);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       white-space: nowrap;
       flex: none;
     }
@@ -127,7 +127,7 @@ export const editorShared = [
       background: var(--dv-surface-2, var(--sw-surface));
       color: var(--dv-text);
       font-size: var(--sw-fs-base);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       white-space: nowrap;
       box-shadow: var(--dv-shadow-1);
       transition: background var(--ab-motion, 200ms), opacity var(--ab-motion, 200ms);
@@ -193,7 +193,7 @@ export const editorShared = [
     .lbl {
       font-size: var(--sw-fs-sm);
       color: var(--dv-text-2);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
     }
     .inp,
     .selx {
@@ -273,7 +273,7 @@ export const editorShared = [
       border: 1px solid var(--dv-border-strong);
       background: transparent;
       font-size: var(--sw-fs-sm);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       color: var(--dv-text-2);
     }
     .rolechips button[aria-pressed='true'] {
@@ -298,7 +298,7 @@ export const editorShared = [
       padding: 4px 14px;
       min-block-size: 30px;
       font-size: var(--sw-fs-sm);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       color: var(--dv-text-2);
       display: inline-flex;
       align-items: center;

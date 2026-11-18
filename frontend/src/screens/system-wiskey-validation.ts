@@ -34,6 +34,7 @@ import {
 } from '../api/wiskey-validation';
 import { formatTime, UTC_ZONE } from './wiskey-format';
 import { tr } from '../i18n/msg/system-b';
+import { mutedStyles } from '../styles/fragments';
 
 const POLL_MS = 1500;
 const PHYSICAL = tr('פעולה פיזית - דלת תיפתח');
@@ -430,10 +431,7 @@ export class SystemWiskeyValidation extends LitElement {
       flex-direction: column;
       gap: var(--sw-s-4, 16px);
     }
-    .muted {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-sm);
-    }
+    ${mutedStyles}
     .note {
       margin: 0;
       padding: 8px 12px;

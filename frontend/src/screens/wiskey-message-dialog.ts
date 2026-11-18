@@ -26,6 +26,7 @@ import {
 } from '../access-control/messaging-logic';
 import { timeText } from '../api/day-format';
 import { tr } from '../i18n/msg/wiskey';
+import { ltrStyles } from '../styles/fragments';
 
 type Loaded = 'loading' | 'ready' | 'unavailable';
 
@@ -278,10 +279,7 @@ export class WiskeyMessageDialog extends LitElement {
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
     }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+    ${ltrStyles}
     sw-button {
       min-block-size: 44px;
     }

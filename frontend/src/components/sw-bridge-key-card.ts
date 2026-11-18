@@ -11,6 +11,7 @@ import { onRemote } from '../api/session';
 import { describeError } from '../api/client';
 import { ACTIVE_STATES, doorsPaused, getBridgeKey, resumeRotation, setBridgeKeySettings, setOwnerContacts, startRotation, type BridgeKeyStatus, type RotationMode, type WatchdogCondition } from '../api/bridge-key';
 import { bkt, bktCode, bktLang } from '../i18n/bridge-key';
+import { hostBlockStyles, ltrStyles } from '../styles/fragments';
 
 function when(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -36,10 +37,7 @@ export class SwBridgeKeyCard extends LitElement {
   private timer: number | undefined;
 
   static styles = css`
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
     .row {
       display: flex;
       align-items: center;
@@ -68,10 +66,7 @@ export class SwBridgeKeyCard extends LitElement {
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
     }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+    ${ltrStyles}
     .acts {
       display: inline-flex;
       align-items: center;

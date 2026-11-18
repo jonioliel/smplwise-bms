@@ -51,7 +51,7 @@ export function refusedText(code: string | null | undefined): string {
 
 // ---------------------------------------------------------------------------------------------- time
 
-export function msLeft(s: Pick<CastSession, 'expires_at'>, nowMs: number): number | null {
+function msLeft(s: Pick<CastSession, 'expires_at'>, nowMs: number): number | null {
   if (!s.expires_at) return null;
   const e = Date.parse(s.expires_at);
   return Number.isNaN(e) ? null : Math.max(0, e - nowMs);
@@ -115,7 +115,7 @@ export function sessionOfTarget(sessions: CastSession[], key: string): CastSessi
 
 // ---------------------------------------------------------------------------------------------- picker
 
-export interface TargetGroup {
+interface TargetGroup {
   id: string;
   title: string;
   targets: CastTarget[];

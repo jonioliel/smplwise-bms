@@ -7,14 +7,14 @@ import { holdsTab, takesEscape } from './modal-stack';
  */
 
 /** The element that really holds focus (through shadow roots). */
-export function deepActiveElement(): HTMLElement | null {
+function deepActiveElement(): HTMLElement | null {
   let a: Element | null = document.activeElement;
   while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;
   return a as HTMLElement | null;
 }
 
 /** The next index for an arrow / Home / End key in a one-row strip; `rtl` swaps the arrows (in RTL ArrowLeft is the next one). */
-export function stripIndex(key: string, index: number, count: number, rtl: boolean): number | null {
+function stripIndex(key: string, index: number, count: number, rtl: boolean): number | null {
   if (count < 1) return null;
   const forward = rtl ? 'ArrowLeft' : 'ArrowRight';
   const backward = rtl ? 'ArrowRight' : 'ArrowLeft';

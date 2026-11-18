@@ -6,7 +6,7 @@
 import { isRemoteChannel } from '../arx/channel';
 import { tr } from '../i18n/msg/home';
 
-export interface GalleryItem { id: string; name: string; layers: string }
+interface GalleryItem { id: string; name: string; layers: string }
 
 export const GALLERY: GalleryItem[] = [
   { id: 'dusk', name: tr('דמדומים'), layers: 'radial-gradient(120% 90% at 85% 10%, #f2a27a 0%, transparent 55%), radial-gradient(90% 80% at 10% 90%, #5b4b8a 0%, transparent 60%), linear-gradient(160deg, #2b2440, #45324f)' },

@@ -11,8 +11,8 @@ import { tr } from '../i18n/msg/api-electricity';
 
 export type ReadingUnit = 'kWh' | 'Wh' | 'MWh';
 /** allocation: the reading closed or re-split a reporting gap; record: kept for comparison only. */
-export type ReadingEffect = 'allocation' | 'record';
-export type EffectReason = 'open_gap' | 'closed_gap' | 'head_gap' | 'reported' | 'outside_counter' | 'no_counter_data' | 'counter_events' | 'implausible' | 'billed';
+type ReadingEffect = 'allocation' | 'record';
+type EffectReason = 'open_gap' | 'closed_gap' | 'head_gap' | 'reported' | 'outside_counter' | 'no_counter_data' | 'counter_events' | 'implausible' | 'billed';
 
 export interface ManualReading {
   /** null in a dry-run answer (nothing saved yet). */
@@ -75,14 +75,14 @@ export interface ReadingLog {
   undo_window_hours: number;
 }
 
-export interface ReadingBody {
+interface ReadingBody {
   read_at: string;
   value: string;
   unit: ReadingUnit;
   note?: string;
   dry_run?: boolean;
 }
-export interface CalibrationBody {
+interface CalibrationBody {
   effective_date: string;
   factor: string;
   offset_kwh?: string;
@@ -91,7 +91,7 @@ export interface CalibrationBody {
   dry_run?: boolean;
 }
 
-export interface ReadingsAdapter {
+interface ReadingsAdapter {
   log(meterId: string): Promise<ReadingLog>;
   addReading(meterId: string, body: ReadingBody): Promise<{ reading: ManualReading; log: ReadingLog | null }>;
   undoReading(meterId: string, id: string, reason?: string): Promise<ReadingLog>;

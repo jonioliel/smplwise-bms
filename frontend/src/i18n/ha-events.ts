@@ -280,9 +280,9 @@ const ru: Partial<Record<Key, string>> = {
 };
 
 export type HevKey = Key;
-export type HevLang = 'he' | 'en' | 'ar' | 'ru';
+type HevLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function hevLang(): HevLang {
+function hevLang(): HevLang {
   return docLang(['en', 'ar', 'ru']);
 }
 

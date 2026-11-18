@@ -21,7 +21,7 @@ export interface ReplayAnchor {
   entity?: { state_at?: { state: string | null; known: boolean } | null } | null;
 }
 /** The parts of a circuit state the replay reads (api/types CircuitState). */
-export interface ReplayCircuit {
+interface ReplayCircuit {
   state: string | null;
   known: boolean;
 }

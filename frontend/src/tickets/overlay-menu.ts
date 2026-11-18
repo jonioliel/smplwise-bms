@@ -21,8 +21,8 @@ export interface Placement {
   scrolls: boolean;
 }
 
-export const OVERLAY_GAP = 4;
-export const OVERLAY_PAD = 8;
+const OVERLAY_GAP = 4;
+const OVERLAY_PAD = 8;
 
 export function placeOverlay(
   anchor: Box,

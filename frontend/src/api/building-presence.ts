@@ -47,7 +47,7 @@ export const CARD_CHOICES = {
   card_all_empty: ['last', 'count'],
 } as const satisfies Record<string, readonly string[]>;
 export interface BuildingRoom { area_id: string | null; name: string | null; status: OccupancyStatus; sensors: number; empty_since: string | null; floor?: string | null }
-export interface BuildingSensor { entity_id: string; name: string; area_id: string | null; status: OccupancyStatus; since: string | null }
+interface BuildingSensor { entity_id: string; name: string; area_id: string | null; status: OccupancyStatus; since: string | null }
 export interface BuildingSnapshot {
   configured: boolean;
   enabled?: boolean;
@@ -64,7 +64,7 @@ export interface BuildingSnapshot {
 }
 export interface PresenceCandidate { entity_id: string; name: string; area_id: string | null; area_name: string | null; device_class: string | null; tagged: boolean; state: string | null; placed?: boolean }
 export interface PresenceRoomOption { area_id: string; name: string }
-export interface CandidateList { sensors: PresenceCandidate[]; rooms?: PresenceRoomOption[]; settings: BuildingPresenceSettings }
+interface CandidateList { sensors: PresenceCandidate[]; rooms?: PresenceRoomOption[]; settings: BuildingPresenceSettings }
 export interface PresenceHistorySummary { rows: number; oldest: string | null; retention_days: number; enabled: boolean }
 
 /** AREA-PRESENCE-LINE-2351: GET presence/area/{id}. `line` false = the administrator has not switched the line on (nothing was read).

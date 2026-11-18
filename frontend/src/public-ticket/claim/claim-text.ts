@@ -13,7 +13,7 @@ import { FALLBACK_LANG, isLazyLang, langPack, type LazyLang } from '../lang-pack
 
 export type ClaimLang = 'he' | 'en' | 'ar' | 'ru';
 export const CLAIM_LANGS: readonly ClaimLang[] = ['he', 'en', 'ar', 'ru'];
-export const RTL_LANGS: readonly ClaimLang[] = ['he', 'ar'];
+const RTL_LANGS: readonly ClaimLang[] = ['he', 'ar'];
 
 export interface ItemLabels {
   one: string;

@@ -7,7 +7,7 @@ import { del, get, path, put, resourceUrl, upload } from './client';
 
 export type FloorImageVariant = 'off' | 'on';
 
-export interface FloorImageRow {
+interface FloorImageRow {
   id: string;
   floor_id: string;
   variant: FloorImageVariant;
@@ -21,7 +21,7 @@ export interface FloorImageRow {
   url: string;
 }
 
-export interface FloorImageLayout {
+interface FloorImageLayout {
   /** top-left, top-right, bottom-right, bottom-left in plan-normalised coordinates. */
   corners: [number, number][];
   opacity: number;
@@ -34,8 +34,6 @@ export interface FloorImagesInfo {
   images: Record<FloorImageVariant, FloorImageRow | null>;
   layout: FloorImageLayout;
 }
-
-export const DEFAULT_CORNERS: [number, number][] = [[0, 0], [1, 0], [1, 1], [0, 1]];
 
 export const getFloorImages = (floorId: string) => get<FloorImagesInfo>(path`floors/${floorId}/images`);
 export const uploadFloorImage = (floorId: string, variant: FloorImageVariant, file: File) => {

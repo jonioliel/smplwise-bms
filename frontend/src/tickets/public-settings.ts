@@ -12,6 +12,7 @@ import { ticketSettingsCss } from './settings-styles';
 import { TICKET_TEXT_KEYS, tt, type TicketTextKey } from './text';
 import { sampleLink } from './public-address';
 import { privacyPatch, validPrivacyContact, validPrivacyLink } from './privacy-contact';
+import { hostBlockStyles } from '../styles/fragments';
 
 const DEFAULT_PUBLIC: PublicSettings = { base_url: '', trusted_proxy_cidrs: ['172.30.32.0/23'], client_ip_header: 'cf-connecting-ip', theme: 'light', path_prefix: 'support', legacy_t_paths: true };
 const THEMES: PublicSettings['theme'][] = ['light', 'dark', 'auto'];
@@ -47,10 +48,7 @@ export class TicketsPublicCard extends LitElement {
   @state() private advanced = false;
 
   static styles = [settingsStyles, ticketSettingsCss, css`
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
     .line {
       display: flex;
       flex-wrap: wrap;

@@ -14,10 +14,10 @@ import type { RoomSummary } from './room-pills';
 /** Round 28 Q7 (ג1): the spread view's backdrop follows the light / dark mode and the hour like a single level (`theme`, the owner's
  * answer in round 32), or - the owner's note on it (PLAN3D-R32-ANSWERS-2438) - is locked to the day look (`light`) or the night look
  * (`dark`, the owner's reference picture): the host's backdrop and the realistic level's light both follow the lock. */
-export type StackBackdrop = 'theme' | 'light' | 'dark';
+type StackBackdrop = 'theme' | 'light' | 'dark';
 /** Round 28 Q8 (ג2): the first tap on a level focuses it and the second enters it (`two_tap`, recommended), or one tap enters (`one_tap`). */
-export type StackPick = 'two_tap' | 'one_tap';
-export interface StackPrefs {
+type StackPick = 'two_tap' | 'one_tap';
+interface StackPrefs {
   backdrop: StackBackdrop;
   pick: StackPick;
 }
@@ -34,8 +34,8 @@ export type StackMode = 'closed' | 'open';
 export const STACK_KEY = 'sw.plan3d.stack';
 export const DEFAULT_STACK_MODE: StackMode = 'open';
 /** The clear air between two spread levels, as a share of the plan's larger side (a 20 m house: 7 m), at least STACK_GAP_MIN_M. */
-export const STACK_GAP_SHARE = 0.35;
-export const STACK_GAP_MIN_M = 4;
+const STACK_GAP_SHARE = 0.35;
+const STACK_GAP_MIN_M = 4;
 
 /** The parts a spread shows no more: the connectors (a stair between two lifted levels would stand in the air). */
 const DROPPED: ReadonlySet<ScenePart['kind']> = new Set(['connector']);

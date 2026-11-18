@@ -119,7 +119,7 @@ export interface ConfirmModel {
 export const countLabel = (n: number): string => (n === 1 ? tr('שינוי אחד') : tr('{n} שינויים', { n }));
 
 /** The value the stream holds for a field, in the same shape the request uses. */
-export function currentValue(s: StreamEncoding, f: EncodingField): unknown {
+function currentValue(s: StreamEncoding, f: EncodingField): unknown {
   if (f === 'fps') return s.fps_full ? 'full' : s.fps;
   return s[f as keyof StreamEncoding];
 }
@@ -185,9 +185,6 @@ export function errorLine(e: ErrorShape): ErrorLine {
   const text = LINE[e.code] ?? (e.user_message || tr('השינוי לא נשמר.'));
   return { text, reload };
 }
-
-/** The error codes that mean the write did not reach the device at all (a safe state to try again by hand). */
-export const NOT_SENT = new Set(['stale', 'write_in_progress', 'batch_in_progress', 'confirm_required', 'value_not_allowed', 'field_locked', 'field_not_supported', 'capabilities_unreadable', 'forbidden', 'validation']);
 
 // ------------------------------------------------------------------------------------------------ the editor's draft
 

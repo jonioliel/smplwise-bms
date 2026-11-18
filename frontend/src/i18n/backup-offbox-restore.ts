@@ -117,11 +117,10 @@ const en: Record<Key, string> = {
   err_safety_password_too_long: 'The safety backup password is too long.',
 };
 
-export type ObrKey = Key;
 export const OBR_KEYS = Object.keys(he) as Key[];
 export const OBR_TABLES = { he, en };
 
-export function obrLang(): 'he' | 'en' {
+function obrLang(): 'he' | 'en' {
   return docLang(['en']);
 }
 

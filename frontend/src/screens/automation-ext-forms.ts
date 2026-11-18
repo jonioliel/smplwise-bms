@@ -26,11 +26,11 @@ import { tr } from '../i18n/msg/automation';
 
 const typed = <T extends object>(b: T): Block => ({ uid: newUid(), kind: 'typed', raw: null, sentence: '', ...b }) as unknown as Block;
 
-export const BUTTON_TYPE: BlockTypeDef = {
+const BUTTON_TYPE: BlockTypeDef = {
   id: 'button', label: tr('כפתור קיר'), hint: tr('לחיצה על מפסק'), icon: 'button', available: (e) => !!e.catalog.extension?.wall_buttons,
   make: () => typed({ type: 'button', device_id: '', domain: '', ha_type: 'remote_button_short_press', ha_subtype: 'button_1', button: 1, press: 'short', extra: {} }),
 };
-export const PRESENCE_TYPE: BlockTypeDef = {
+const PRESENCE_TYPE: BlockTypeDef = {
   id: 'presence_in', label: tr('מי במבנה'), hint: tr('יש מישהו · אין אף אחד'), icon: 'users', available: (e) => !!e.catalog.extension?.presence,
   make: () => typed({ type: 'presence', mode: 'nobody', where: 'building' }),
 };
@@ -42,8 +42,6 @@ if (!CONDITION_TYPES.some((t) => t.id === PRESENCE_TYPE.id)) CONDITION_TYPES.spl
 type ButtonBlock = Extract<TriggerBlock, { type: 'button' }>;
 let devicesCache: Promise<WallDevice[]> | null = null;
 const buttonsCache = new Map<string, Promise<DeviceButtons>>();
-/** Forget the cached switches (a test, or the settings changed). */
-export function resetButtonCaches(): void { devicesCache = null; buttonsCache.clear(); }
 const devices = (): Promise<WallDevice[]> => (devicesCache ??= wallDevices().then((r) => { r.devices.forEach((d) => wallDeviceNames.set(d.device_id, d.name)); return r.devices; }).catch(() => []));
 const buttonsOf = (id: string, itemId: string | null): Promise<DeviceButtons> => {
   const key = `${id}|${itemId ?? ''}`;
@@ -53,7 +51,7 @@ const buttonsOf = (id: string, itemId: string | null): Promise<DeviceButtons> =>
 };
 
 /** The words of `press` on `button` of the loaded switch (the integration's own `type` / `subtype`), or null when it does not offer it. */
-export function wordsFor(info: DeviceButtons | null, button: number, press: PressKind): { ha_type: string; ha_subtype: string; domain: string; discovery_id?: string } | null {
+function wordsFor(info: DeviceButtons | null, button: number, press: PressKind): { ha_type: string; ha_subtype: string; domain: string; discovery_id?: string } | null {
   const p = info?.buttons.find((b) => b.button === button)?.presses.find((x) => x.press === press);
   return p ? { ha_type: p.ha_type, ha_subtype: p.ha_subtype, domain: p.domain, ...(p.discovery_id ? { discovery_id: p.discovery_id } : {}) } : null;
 }
@@ -173,7 +171,7 @@ function presenceForm(fc: FormCtx): TemplateResult {
 // ------------------------------------------------------------------------------------------------ critical sound on a notify step (state 6)
 
 const SOURCE_WORD: Record<string, string> = { 'sensor.leak': tr('הצפה'), 'sensor.smoke': tr('עשן'), 'sensor.gas': tr('גז'), 'sensor.co': tr('פחמן חד־חמצני'), 'alarm.triggered': tr('אזעקה') };
-export function criticalReason(sources: readonly string[]): string {
+function criticalReason(sources: readonly string[]): string {
   const words = sources.map((s) => SOURCE_WORD[s] ?? s);
   return words.length ? (words.length === 1 ? tr('מותר כי ״{words}״ מסומנת כאירוע בטיחות בהגדרות ‹ התראות.', { words: words.join(tr('״, ״')) }) : tr('מותר כי ״{words}״ מסומנות כאירוע בטיחות בהגדרות ‹ התראות.', { words: words.join(tr('״, ״')) })) : tr('רק לאירועי בטיחות שהופעלו בהגדרות ‹ התראות.');
 }
@@ -204,14 +202,14 @@ export const extFormStyles = css`
   .kav-tools .sp { flex: 1; }
   .kav-btns { display: flex; gap: 8px; flex-wrap: wrap; }
   .kav-btns button { min-inline-size: 52px; min-block-size: 44px; border-radius: var(--sw-r-lg); border: 1px solid var(--dv-border-strong); background: var(--dv-surface-2, transparent);
-    color: var(--dv-text); font: inherit; font-weight: 700; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
-  .kav-btns button small { font-size: var(--sw-fs-xs); font-weight: 500; color: var(--sw-warning-text); }
+    color: var(--dv-text); font: inherit; font-weight: var(--sw-fw-bold); display: inline-flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
+  .kav-btns button small { font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-medium); color: var(--sw-warning-text); }
   .kav-btns button[aria-pressed='true'], .kav-press button[aria-pressed='true'] { border-color: var(--dv-accent); background: color-mix(in srgb, var(--dv-accent) 14%, transparent); color: var(--dv-accent); }
   .kav-press { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   .kav-press button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; border-radius: var(--sw-r-lg); border: 1px solid var(--dv-border-strong);
-    background: var(--dv-surface-2, transparent); color: var(--dv-text); font: inherit; font-weight: 600; cursor: pointer; }
+    background: var(--dv-surface-2, transparent); color: var(--dv-text); font: inherit; font-weight: var(--sw-fw-semibold); cursor: pointer; }
   .kav-press button:disabled { opacity: 0.4; cursor: not-allowed; }
-  .kav-press small { font-size: var(--sw-fs-xs); font-weight: 400; color: var(--dv-text-2); }
+  .kav-press small { font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-regular); color: var(--dv-text-2); }
   .kav-press .pi { display: inline-flex; gap: 3px; block-size: 10px; align-items: center; }
   .kav-press .pi i { inline-size: 10px; block-size: 10px; border-radius: 50%; background: currentColor; }
   .kav-press .pi.long i { inline-size: 26px; border-radius: var(--sw-r-xs); }
@@ -224,6 +222,6 @@ export const extFormStyles = css`
   .kav-src small { font-size: var(--sw-fs-xs); color: var(--dv-text-2); }
   .kav-swrow { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--sw-r-lg); border: 1px solid var(--dv-border); }
   .kav-swrow > .ic { color: var(--dv-danger); }
-  .kav-swrow .t { flex: 1; display: flex; flex-direction: column; font-weight: 600; }
-  .kav-swrow .t small { font-weight: 400; font-size: var(--sw-fs-xs); color: var(--dv-text-2); }
+  .kav-swrow .t { flex: 1; display: flex; flex-direction: column; font-weight: var(--sw-fw-semibold); }
+  .kav-swrow .t small { font-weight: var(--sw-fw-regular); font-size: var(--sw-fs-xs); color: var(--dv-text-2); }
 `;

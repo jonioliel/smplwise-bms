@@ -7,6 +7,7 @@ import { em, type EmKey } from '../i18n/emergency';
 import { fmtInstant } from './model';
 import { bucketHistory } from './emergency-model';
 import { maintCss } from './styles';
+import { errLineStyles } from '../styles/fragments';
 
 const RANGES = [30, 90, 365] as const;
 const LOOK: Record<Verdict, string> = { ready: 'ok', ready_with_gaps: 'warn', not_ready: 'alarm' };
@@ -36,7 +37,7 @@ export class EmergencyHistoryPanel extends LitElement {
     .legend { display: flex; gap: 16px; flex-wrap: wrap; color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
     .legend i { display: inline-block; inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--c); margin-inline-end: 6px; }
     .ctl { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+    ${errLineStyles}
   `];
 
   connectedCallback() {

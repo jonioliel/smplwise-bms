@@ -25,10 +25,9 @@ const ru: Record<Key, string> = {
   retry: 'Повторить',
 };
 
-export type HwfKey = Key;
-export type HwfLang = 'he' | 'en' | 'ar' | 'ru';
+type HwfLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function hwfLang(): HwfLang {
+function hwfLang(): HwfLang {
   return docLang(['en', 'ar', 'ru']);
 }
 

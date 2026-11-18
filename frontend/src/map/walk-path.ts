@@ -19,9 +19,9 @@ import type { WalkSeg, WalkWorld } from './walk-world';
 export const GRID_M = 0.25;
 export const MAX_ASTAR_CELLS = 400_000;
 /** The body is rasterised a little slimmer than its collision circle, so a door gap stays a way through. */
-export const PATH_BODY_FACTOR = 0.85;
+const PATH_BODY_FACTOR = 0.85;
 /** The string-pull keeps this share of the body clear along a straight leg. */
-export const LEG_BODY_FACTOR = 0.8;
+const LEG_BODY_FACTOR = 0.8;
 /** A blocked target takes the nearest free cell within this many cells (1 m). */
 const SNAP_CELLS = 4;
 
@@ -104,7 +104,7 @@ export function levelSegments(world: WalkWorld, levelId: string): WalkSeg[] {
   return [...(world.levels.find((l) => l.id === levelId)?.segs ?? []), ...sides];
 }
 
-export interface WalkGrid {
+interface WalkGrid {
   level: string;
   minX: number;
   minZ: number;
@@ -116,7 +116,7 @@ export interface WalkGrid {
 }
 
 /** Rasterise the blocking capsules of a level (null = the level is unknown or too large for the grid). */
-export function buildGrid(world: WalkWorld, levelId: string, bodyR: number): WalkGrid | null {
+function buildGrid(world: WalkWorld, levelId: string, bodyR: number): WalkGrid | null {
   const L = world.levels.find((l) => l.id === levelId);
   if (!L) return null;
   const ex = L.extent;

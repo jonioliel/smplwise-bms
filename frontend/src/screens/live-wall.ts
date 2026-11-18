@@ -35,11 +35,13 @@ import { t as vt } from '../i18n/he';
 import { PollController } from '../components/poll-controller';
 import { tr } from '../i18n/msg/live';
 
-/** The wall's quality choice of THIS device (`sub` = רגילה, `main` = גבוהה); unset = follow the installation setting. */
-export const WALL_QUALITY_KEY = 'sw.wall.quality';
+/** The wall's quality choice of THIS device (`sub` = רגילה, `main` = גבוהה); unset = follow the installation setting.
+ * CR-FE-NITS-2442 (06:STORE-1): was named WALL_QUALITY_KEY, the name map/wall-plan-mode.ts gives ANOTHER key (the wall plan's 3D
+ * quality, 'sw.plan3d.wall_quality'). The stored key itself is unchanged, so a device keeps its choice. */
+export const WALL_STREAM_KEY = 'sw.wall.quality';
 function storedQuality(): 'auto' | 'main' | 'sub' {
   try {
-    const v = localStorage.getItem(WALL_QUALITY_KEY);
+    const v = localStorage.getItem(WALL_STREAM_KEY);
     return v === 'main' || v === 'sub' ? v : 'auto';
   } catch {
     return 'auto';
@@ -127,28 +129,13 @@ export class LiveWall extends LitElement {
   static styles = [css`
     .layouts {
       display: inline-flex;
-      gap: 2px;
-      background: var(--sw-surface-3);
-      border-radius: var(--sw-r-sm);
-      padding: 2px;
     }
     .layouts button {
       border: 0;
       background: transparent;
       font: inherit;
-      font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-semibold);
-      min-inline-size: 28px;
-      block-size: 26px;
-      border-radius: var(--sw-r-xs);
       cursor: pointer;
-      color: var(--sw-text-2);
       padding: 0 6px;
-    }
-    .layouts button.on {
-      background: var(--sw-surface);
-      color: var(--sw-accent-text);
-      box-shadow: var(--sw-shadow-1);
     }
     @media (hover: hover) and (pointer: fine) {
       .layouts button:hover:not(.on) {
@@ -165,10 +152,6 @@ export class LiveWall extends LitElement {
     /* a tile that just lost or gained its stream keeps its place; only the picture inside changes (sw-camera-tile) */
     .grid sw-camera-tile {
       transition: box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease), opacity var(--sw-t-state) var(--sw-ease);
-    }
-    .grid sw-camera-tile[state='offline'],
-    .grid sw-camera-tile[state='unknown'] {
-      opacity: 0.92;
     }
     sw-field {
       inline-size: 140px;
@@ -224,10 +207,7 @@ export class LiveWall extends LitElement {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 6px 8px;
       border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-sm);
-      background: var(--sw-surface);
     }
     .settings-move {
       display: flex;
@@ -251,7 +231,6 @@ export class LiveWall extends LitElement {
     }
     .settings-name {
       flex: 1;
-      font-size: var(--sw-fs-sm);
     }
     .settings-show {
       display: inline-flex;
@@ -308,7 +287,6 @@ export class LiveWall extends LitElement {
       border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
-      color: var(--sw-text-2);
       cursor: pointer;
       padding: 0;
     }
@@ -454,17 +432,7 @@ export class LiveWall extends LitElement {
        32 px keys, 13 px bold numerals, the chosen count a filled accent key that reads from across the room; hover tints only under a
        fine pointer and a key sinks on pointer-down; a camera that is down is a filled field at full strength (sw-camera-tile), not
        dimmed; the wall-settings rows are wells, not outlined boxes; the phone's kiosk button is a raised key */
-    .layouts {
-      gap: 3px;
-      padding: 3px;
-      border-radius: var(--sw-r-md);
-    }
     .layouts button {
-      min-inline-size: 32px;
-      block-size: 32px;
-      border-radius: var(--sw-r-sm);
-      font-size: var(--sw-fs-base);
-      font-weight: var(--sw-fw-bold);
       font-variant-numeric: tabular-nums;
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
@@ -495,7 +463,6 @@ export class LiveWall extends LitElement {
       opacity: 1;
     }
     .settings-row {
-      padding: 8px 10px;
       border-color: transparent;
       border-radius: var(--sw-r-md);
       background: var(--sw-surface-2);
@@ -698,12 +665,6 @@ export class LiveWall extends LitElement {
     return Math.min(byWidth, byHeight);
   }
 
-  firstUpdated() {
-    this.ro = new ResizeObserver(() => this.measure());
-    this.ro.observe(this);
-    window.addEventListener('resize', this.measure);
-  }
-
   updated() {
     this.measure();
     this.observeTiles();
@@ -822,8 +783,8 @@ export class LiveWall extends LitElement {
   private setQuality(value: string) {
     this.stream = value === 'main' ? 'main' : value === 'sub' ? 'sub' : 'auto';
     try {
-      if (this.stream === 'auto') localStorage.removeItem(WALL_QUALITY_KEY);
-      else localStorage.setItem(WALL_QUALITY_KEY, this.stream);
+      if (this.stream === 'auto') localStorage.removeItem(WALL_STREAM_KEY);
+      else localStorage.setItem(WALL_STREAM_KEY, this.stream);
     } catch {
       /* private mode: the choice lasts until the page closes */
     }
@@ -835,6 +796,11 @@ export class LiveWall extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    // CR-FE-NITS-2442 (06:TIMER-1): the size watch is armed where disconnectedCallback drops it (was firstUpdated, which runs once
+    // in an element's life: a wall attached again was no longer measured on a size change)
+    this.ro = new ResizeObserver(() => this.measure());
+    this.ro.observe(this);
+    window.addEventListener('resize', this.measure);
     this.offScreenEdit = registerScreenEdit({ id: 'wall-arrange', label: tr('סידור הקיר'), icon: 'grid', can: () => isApi() && this.canManage && !!this.cams?.length && !phoneRestricted('wall_arrange'), run: () => this.openSettings() }); // hidden on a phone with the option "הסתרת סידור קיר המצלמות בנייד" (UX guard, not security)
     void this.load();
     this.poller.every('poster', 60_000, () => {
@@ -861,6 +827,7 @@ export class LiveWall extends LitElement {
     this.inView.clear();
     this.wanted.clear();
     this.ro?.disconnect();
+    this.ro = undefined;
     window.removeEventListener('resize', this.measure);
     window.clearTimeout(this.hintTimer);
     window.clearTimeout(this.hintHideTimer);

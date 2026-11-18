@@ -1,4 +1,4 @@
-// I18N-EN-SWITCH-2438: the English of the remaining screens' texts (src/screens/: home-*, infra-*, placeholder-screen, screens-index,
+// I18N-EN-SWITCH-2438: the English of the remaining screens' texts (src/screens/: home-*, infra-*, screens-index,
 // styleguide-screen, bubble-demo, electricity/*): the Hebrew text as written -> its English.
 // Read through `tr()` (i18n/msg.ts); a text missing here stays Hebrew in the English interface. Terms: docs/i18n/GLOSSARY_EN.md.
 import { msgCatalogue } from '../msg';
@@ -250,10 +250,6 @@ export const tr = msgCatalogue('msg/screens', {
   'אין מסך': 'No such screen',
   'עמודים': 'Pages',
   'מוני חשמל': 'Electricity meters',
-
-  // placeholder-screen.ts
-  'המסך הזה עדיין לא נבנה': 'This screen has not been built yet',
-  'ייבנה במשימה {task}. אין כאן נתונים מדומים.': 'It will be built in task {task}. No simulated data here.',
 
   // screens-index.ts
   'סקירה ומצלמות': 'Overview and cameras',

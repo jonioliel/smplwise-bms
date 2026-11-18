@@ -12,6 +12,7 @@ import { bidi } from '../i18n/bidi';
 import { mp, type MpKey } from '../i18n/messaging-pacing';
 import { BURST_RANGE, MINUTE_RANGE, changedWaits, intValue, span, tone, waitValue, wiskeyReasonKey } from '../messaging/pacing-model';
 import { timeText } from '../api/day-format';
+import { hostBlockStyles, ltrStyles } from '../styles/fragments';
 
 /**
  * CR-WA-PACING-295: the shared send budget (Settings > messaging channel). One card: the mode (conservative by default), whether WisKey
@@ -42,14 +43,14 @@ export class MessagingPacingCard extends LitElement {
     .waits label { display: flex; flex-direction: column; gap: 4px; font-size: var(--sw-fs-xs); color: var(--sw-text-2); }
     .waits input { inline-size: 100%; min-inline-size: 0; box-sizing: border-box; }
     .waits label { min-inline-size: 0; }
-    :host { display: block; min-inline-size: 0; }
+    ${hostBlockStyles}
     .head strong { min-inline-size: 0; overflow-wrap: anywhere; }
     .acct { min-inline-size: 0; border-block-start: 1px solid var(--sw-border); padding-block: var(--sw-s-2); }
     .kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px var(--sw-s-3); margin-block-start: 6px; }
     .kv div { display: flex; justify-content: space-between; gap: 8px; font-size: var(--sw-fs-sm); min-inline-size: 0; }
     .kv span, .kv b { min-inline-size: 0; overflow-wrap: anywhere; }
     .kv b { font-variant-numeric: tabular-nums; }
-    .ltr { direction: ltr; unicode-bidi: isolate; }
+    ${ltrStyles}
   `];
 
   connectedCallback(): void {

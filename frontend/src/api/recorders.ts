@@ -8,7 +8,7 @@ import { tr } from '../i18n/msg/api-video';
 
 export const PRIMARY_RECORDER = 'nvr-1';
 
-export type RecorderState = 'online' | 'error' | 'unknown' | 'pending_restart' | 'disabled' | 'removed' | 'not_configured' | 'unreadable' | 'refused';
+type RecorderState = 'online' | 'error' | 'unknown' | 'pending_restart' | 'disabled' | 'removed' | 'not_configured' | 'unreadable' | 'refused';
 
 export interface Recorder {
   id: string;
@@ -107,8 +107,3 @@ export function sameRecorder(picked: string[], cams: { id: string; recorder_id: 
   return !first || !cam || first.recorder_id === cam.recorder_id;
 }
 
-/** The recorders a camera list names (`GET /cameras` → `recorders`): a filter is shown only when there are two or more. */
-export interface RecorderRef {
-  id: string;
-  name: string;
-}

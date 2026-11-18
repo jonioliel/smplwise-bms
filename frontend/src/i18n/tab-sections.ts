@@ -183,10 +183,9 @@ const ru: Record<Key, string> = {
   level2Hint: 'Страницы прямого эфира, расследования и инфраструктуры, а также безопасность в настройках',
 };
 
-export type TstKey = Key;
-export type TstLang = 'he' | 'en' | 'ar' | 'ru';
+type TstLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function tstLang(): TstLang {
+function tstLang(): TstLang {
   return docLang(['en', 'ar', 'ru']);
 }
 

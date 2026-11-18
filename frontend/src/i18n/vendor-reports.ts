@@ -64,10 +64,9 @@ const ru: Record<Key, string> = {
   failed: 'Не удалось сохранить',
 };
 
-export type VrtKey = Key;
-export type VrtLang = 'he' | 'en' | 'ar' | 'ru';
+type VrtLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function vrtLang(): VrtLang {
+function vrtLang(): VrtLang {
   return docLang(['en', 'ar', 'ru']);
 }
 

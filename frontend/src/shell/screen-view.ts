@@ -13,12 +13,12 @@
  * menu stays open so the person sees the screen change. Persistence stays the screen's own (the home screen keeps its
  * per-browser choice and the installation's `devices.default_view`).
  */
-export interface ScreenViewOption {
+interface ScreenViewOption {
   value: string;
   label: string;
 }
 
-export interface ScreenViewAction {
+interface ScreenViewAction {
   /** Stable id (the menu item's `data-menu-screen-view`). */
   id: string;
   /** The item's text, e.g. "תצוגה". */

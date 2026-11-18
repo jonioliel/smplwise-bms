@@ -54,10 +54,10 @@ export interface MeterDetail extends Meter {
   epochs: MeterEpoch[];
 }
 
-export type CandidateVerdict = 'ok' | 'warn' | 'rejected';
+type CandidateVerdict = 'ok' | 'warn' | 'rejected';
 /** kw = power sensor, unit = another unit, measurement = instantaneous value, total = daily / two-way counter (warning),
  * returned = energy returned to the grid, duplicate_device = same device already used (warning), not_sensor = another domain, other = see the message. */
-export type CandidateReason = 'kw' | 'unit' | 'measurement' | 'total' | 'returned' | 'duplicate_device' | 'not_sensor' | 'other';
+type CandidateReason = 'kw' | 'unit' | 'measurement' | 'total' | 'returned' | 'duplicate_device' | 'not_sensor' | 'other';
 
 export interface MeterCandidate {
   /** The source reference (the infrastructure sensor); what POST /energy/meters takes as `source_ref`. */
@@ -127,12 +127,12 @@ export function candidateMessage(c: MeterCandidate): string {
   return c.reason_code ? REASON_TEXT[c.reason_code] : '';
 }
 
-export interface AddMeterBody {
+interface AddMeterBody {
   /** The candidate's `entity_id` (the source reference). */
   entity_id: string;
   name?: string;
 }
-export interface ReplaceMeterBody {
+interface ReplaceMeterBody {
   /** The old counter's final reading (typed or the last seen). */
   final_reading_kwh: number;
   /** The new counter's start reading. */
@@ -143,7 +143,7 @@ export interface ReplaceMeterBody {
 }
 
 /** The adapter surface: what the screens call. */
-export interface MeterAdapter {
+interface MeterAdapter {
   list(): Promise<Meter[]>;
   detail(id: string): Promise<MeterDetail>;
   candidates(q: string, area?: string): Promise<MeterCandidate[]>;
@@ -500,7 +500,7 @@ export interface AreaNode {
   name: string;
   count: number;
 }
-export interface FloorNode {
+interface FloorNode {
   floor_id: string;
   name: string;
   count: number;
@@ -524,7 +524,7 @@ export function buildAreaTree(list: Meter[]): FloorNode[] {
   return [...floors.values()];
 }
 
-export interface MeterSummary {
+interface MeterSummary {
   today_kwh: number;
   month_kwh: number;
   reporting: number;

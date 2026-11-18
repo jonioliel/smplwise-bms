@@ -87,8 +87,6 @@ Object.assign(P, {
   wind: '<path d="M3 9h10a2.5 2.5 0 1 0-2.5-2.5"/><path d="M3 14h14a2.5 2.5 0 1 1-2.5 2.5"/>',
 });
 
-export type HomeIcon = keyof typeof P;
-
 export function hi(name: string, cls = ''): TemplateResult {
   return iconSvg(P[name] ?? '', 'hi' + (cls ? ' ' + cls : '')); // CR-ICONS-PALETTE-2440: the one wrapper (components/icon-paths.ts)
 }

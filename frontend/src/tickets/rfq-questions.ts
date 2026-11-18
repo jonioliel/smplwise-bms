@@ -9,7 +9,7 @@ import type { RfqAnswerBody, RfqDetail, RfqQuestion, RfqQuestionCounts } from '.
 export const ANSWER_MAX = 2000;
 export const QUESTION_SHOWN_MAX = 1000;
 
-export interface QuestionBadge { n: number; fresh: boolean }
+interface QuestionBadge { n: number; fresh: boolean }
 
 /** The badge of a row / column: the number of pending questions, `fresh` while one of them was not opened by a manager yet. */
 export function questionBadge(c: RfqQuestionCounts | null | undefined): QuestionBadge | null {

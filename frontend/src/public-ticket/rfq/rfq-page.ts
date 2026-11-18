@@ -398,7 +398,9 @@ class RfqPage {
     // LAZYLANG-295: an Arabic / Russian paint waits for its words (lang-packs.ts); the screen on show stays until they are in
     if (holdForLang(this.lang, this.host.root, () => this.render(), () => this.msgScreen([h('div', { class: 'spinner', attrs: { role: 'status' } })]))) return;
     this.needTerms();
-    if (!this.up && this.view?.uploads) import('./rfq-upload').then((m) => { this.up = m; this.render(); });
+    // CR-FE-PROMISES-2442: an upload module that does not arrive (no reception, a deploy in between) leaves the page as it is
+    // without the upload card - the quote, the questions and the files are unaffected - and the next paint asks for it again
+    if (!this.up && this.view?.uploads) import('./rfq-upload').then((m) => { this.up = m; this.render(); }, () => undefined);
     document.documentElement.lang = this.lang;
     document.documentElement.dir = RTL.has(this.lang) ? 'rtl' : 'ltr';
     document.title = this.view?.organization || this.t('pageTitle');

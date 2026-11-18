@@ -25,7 +25,7 @@ export interface TapView {
   floorPoint(clientX: number, clientY: number, groundY: number): [number, number] | null;
 }
 
-export interface TapWalker {
+interface TapWalker {
   readonly path: readonly unknown[] | null;
   pose(): { ground: number };
   pathTo(x: number, z: number): [number, number][] | null;
@@ -33,9 +33,9 @@ export interface TapWalker {
 }
 
 /** The kinds a long press may open (the walk's `aim` list: the crosshair names the same ones). */
-export const DEVICE_KINDS: ReadonlySet<string> = new Set(['entity', 'camera', 'object', 'opening']);
+const DEVICE_KINDS: ReadonlySet<string> = new Set(['entity', 'camera', 'object', 'opening']);
 
-export type TapResult =
+type TapResult =
   | { kind: 'cancel' }
   | { kind: 'walk'; target: [number, number]; path: [number, number][] }
   | { kind: 'unreachable' }

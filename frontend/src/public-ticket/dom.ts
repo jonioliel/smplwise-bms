@@ -6,7 +6,7 @@
 
 type Child = Node | string | number | null | undefined | false;
 
-export interface Props {
+interface Props {
   class?: string;
   attrs?: Record<string, string | number | boolean | null | undefined>;
   on?: Partial<Record<keyof HTMLElementEventMap, (e: Event) => void>>;

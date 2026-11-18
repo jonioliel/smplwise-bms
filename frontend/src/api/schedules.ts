@@ -34,7 +34,7 @@ const demoStore = () => schedulesMock().then((m) => m.demoStore());
 /** The component's weekday tokens (V-SRC); only `daily` is verified in real data (P0-1). */
 export type DayToken = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'daily' | 'workday' | 'weekend';
 export type DayId = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat';
-export type DaysKind = 'days' | 'daily' | 'workday' | 'weekend' | 'mixed';
+type DaysKind = 'days' | 'daily' | 'workday' | 'weekend' | 'mixed';
 export type RepeatType = 'repeat' | 'pause' | 'single';
 /** The schedule switch's state (V-LIVE on/off; the others V-SRC). */
 export type ScheduleState = 'on' | 'off' | 'triggered' | 'completed' | 'unavailable' | 'unknown';
@@ -43,9 +43,9 @@ export type ScheduleClass =
   | 'light' | 'switch' | 'cover' | 'climate' | 'fan' | 'alarm' | 'lock' | 'door' | 'script' | 'scene' | 'helper' | 'humidifier' | 'vacuum'
   | 'siren' | 'media' | 'number' | 'select';
 export type MatchType = 'is' | 'not' | 'above' | 'below';
-export type ConditionType = 'and' | 'or';
+type ConditionType = 'and' | 'or';
 export type ConditionPreset = 'only_holy_days' | 'not_holy_days';
-export type ScheduleSource = 'arx' | 'external';
+type ScheduleSource = 'arx' | 'external';
 export type RunResult = 'pending' | 'confirmed' | 'not_confirmed' | 'skipped' | 'unknown';
 
 export const DAY_ORDER: DayId[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
@@ -82,7 +82,6 @@ export const STATE_LABEL: Record<ScheduleState, string> = {
   unavailable: tr('אין הרצות קרובות'),
   unknown: tr('לא ידוע'),
 };
-export const REPEAT_LABEL: Record<RepeatType, string> = { repeat: tr('חוזר'), pause: tr('פעם אחת ואז מושהה (נשמר)'), single: tr('פעם אחת ואז נמחק') };
 export const RESULT_LABEL: Record<RunResult, string> = { pending: tr('ממתין לאישור'), confirmed: tr('אושר'), not_confirmed: tr('לא אושר'), skipped: tr('דולג'), unknown: tr('לא ידוע') };
 export const MATCH_LABEL: Record<MatchType, string> = { is: tr('שווה ל'), not: tr('שונה מ'), above: tr('מעל'), below: tr('מתחת') };
 export const PRESET_LABEL: Record<ConditionPreset, string> = { only_holy_days: tr('רק בשבת ובחג'), not_holy_days: tr('לא בשבת ובחג') };
@@ -109,7 +108,7 @@ export interface ScheduleAction {
   blocked?: { code: 'script_not_approved'; message: string };
 }
 
-export type UnsupportedCode =
+type UnsupportedCode =
   | 'action_without_entity'
   | 'action_not_allowed'
   | 'argument_not_allowed'
@@ -157,7 +156,7 @@ export interface ScheduleConditions {
   preset: ConditionPreset | null;
 }
 
-export interface ScheduleEntity {
+interface ScheduleEntity {
   entity_id: string;
   name: string;
   domain: string;
@@ -177,7 +176,7 @@ export interface UpcomingRun {
   summary?: string;
 }
 
-export interface NextRun extends UpcomingRun {
+interface NextRun extends UpcomingRun {
   source: 'component' | 'computed';
   /** The schedule has conditions: the run happens only if they hold then - show "בתנאי", never a promise (§6.5). */
   conditional: boolean;
@@ -189,7 +188,7 @@ export interface LastRun {
   result: RunResult;
 }
 
-export interface ScheduleCan {
+interface ScheduleCan {
   edit: boolean;
   toggle: boolean;
   run: boolean;
@@ -300,7 +299,7 @@ export interface ScheduleDraft {
 // ------------------------------------------------------------------------------------------------ status (§3.1)
 
 export type Availability = 'ok' | 'component_missing' | 'ha_unavailable' | 'not_configured' | 'feature_disabled' | 'error';
-export type WriteBlock = 'feature_disabled' | 'component_missing' | 'ha_unavailable' | 'bridge_missing' | 'bridge_unpaired' | 'bridge_too_old';
+type WriteBlock = 'feature_disabled' | 'component_missing' | 'ha_unavailable' | 'bridge_missing' | 'bridge_unpaired' | 'bridge_too_old';
 
 export interface ShabbatSensor {
   entity_id: string;
@@ -309,7 +308,7 @@ export interface ShabbatSensor {
   available: boolean;
 }
 
-export interface ScheduleSettingsView {
+interface ScheduleSettingsView {
   snap_minutes: 5 | 15 | 30;
   default_repeat: RepeatType;
   classes: ScheduleClass[];
@@ -450,7 +449,7 @@ export interface PreviewResult {
   requires: { sensitive_permission: boolean; confirm_lowering: boolean; alarm_code: boolean };
 }
 
-export interface WriteOptions {
+interface WriteOptions {
   confirm_lowering?: boolean;
   alarm_code?: string | null;
   client_request_id?: string;
@@ -533,62 +532,6 @@ export interface Organisation {
   folders: { id: string; name: string; position: number }[];
   items: { schedule_id: string; folder_id: string | null; order: number | null; pinned: boolean }[];
 }
-
-/** Error codes of §3.20 (the server's `user_message` is shown as is). */
-export type ScheduleErrorCode =
-  | 'forbidden'
-  | 'entity_not_controllable'
-  | 'sensitive_permission_required'
-  | 'grant_required'
-  | 'condition_locked'
-  | 'condition_not_readable'
-  | 'remote_control_disabled'
-  | 'remote_disarm_disabled'
-  | 'wrong_code'
-  | 'schedule_not_found'
-  | 'trash_not_found'
-  | 'schedule_changed'
-  | 'confirmation_required'
-  | 'lowering_confirmation_required'
-  | 'code_required'
-  | 'feature_disabled'
-  | 'validation'
-  | 'action_not_allowed'
-  | 'class_not_allowed'
-  | 'alarm_managed_control'
-  | 'alarm_code_needed'
-  | 'lock_code_needed'
-  | 'code_not_allowed'
-  | 'arm_mode_not_supported'
-  | 'condition_domain_not_allowed'
-  | 'slots_overlap'
-  | 'slot_required'
-  | 'split_not_possible'
-  | 'unsupported_content'
-  | 'tags_not_supported'
-  | 'rate_limited'
-  | 'run_too_soon'
-  | 'code_locked'
-  | 'scheduler_refused'
-  | 'split_incomplete'
-  | 'scheduler_unavailable'
-  | 'ha_unavailable'
-  | 'bridge_not_paired'
-  | 'bridge_too_old'
-  | 'scheduler_timeout'
-  | 'disarm_not_allowed'
-  | 'service_not_supported'
-  | 'bridge_too_old_for_action'
-  | 'script_field_unsupported'
-  | 'action_invalid'
-  | 'issue_not_present'
-  | 'not_acknowledged'
-  | 'confirm_required'
-  | 'script_not_approved'
-  | 'media_not_approved'
-  | 'media_disabled'
-  | 'not_marked'
-  | 'mark_not_needed';
 
 // ------------------------------------------------------------------------------------------------ calls
 
@@ -679,10 +622,12 @@ export function bulkSchedules(op: 'enable' | 'disable', ids: string[], opts: Wri
   return isApi() ? post<BulkResult>('schedules/bulk', body) : demoStore().then((s) => s.bulk(op, ids));
 }
 
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by CR-014 (schedules organisation).
 export function getOrganisation(): Promise<Organisation> {
   return isApi() ? get<Organisation>('schedules/organisation') : demoStore().then((s) => s.organisation());
 }
 
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by CR-014 (schedules organisation).
 export function putOrganisation(body: Organisation): Promise<Organisation> {
   return isApi() ? put<Organisation>('schedules/organisation', body) : demoStore().then((s) => s.setOrganisation(body));
 }
@@ -710,6 +655,7 @@ export function markScheduleScript(entityId: string, undo = false): Promise<{ en
   return isApi() ? post(`schedules/scripts/${enc(entityId)}/mark`, { undo }) : demoStore().then((s) => s.markScript(entityId, undo));
 }
 
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by CR-014 (schedule tags).
 export function listScheduleTags(): Promise<{ tags: { name: string; count: number }[] }> {
   return isApi() ? get('schedules/tags') : demoStore().then((s) => s.tags());
 }
@@ -1104,7 +1050,7 @@ export function pairedOffSlot(slots: DraftSlot[], index: number): number | null 
 
 // ------------------------------------------------------------------------------------------------ conditions (§2.4, §12.5)
 
-export const NO_CONDITIONS: DraftConditions = { items: [], type: null, track: false };
+const NO_CONDITIONS: DraftConditions = { items: [], type: null, track: false };
 
 /** The preset blocks (V-LIVE form: attribute "state", match "is"). */
 export function presetConditions(preset: ConditionPreset, sensor: string): DraftConditions {
@@ -1208,4 +1154,3 @@ export function nextRunLabel(s: Pick<Schedule, 'next_run' | 'enabled'>, now: Dat
   return s.next_run.conditional ? tr('{v} · בתנאי', { v: whenLabel(s.next_run.at, now) }) : whenLabel(s.next_run.at, now);
 }
 
-export const newClientRequestId = commandId;

@@ -8,7 +8,7 @@ import { saveBlob } from './download';
 
 export type TaskKind = 'certificate' | 'preventive' | 'round' | 'vendor_document';
 export const TASK_KINDS: readonly TaskKind[] = ['certificate', 'preventive', 'round', 'vendor_document'];
-export type DueState = 'overdue' | 'due_soon' | 'ok' | 'none';
+type DueState = 'overdue' | 'due_soon' | 'ok' | 'none';
 export type IntervalUnit = 'day' | 'week' | 'month' | 'year';
 export const INTERVAL_UNITS: readonly IntervalUnit[] = ['day', 'week', 'month', 'year'];
 export type ItemKind = 'check' | 'number' | 'text';
@@ -17,7 +17,7 @@ export const DOC_TYPES: readonly DocType[] = ['insurance', 'electrician_license'
 export const CATEGORIES = ['elevator', 'generator', 'fire', 'kitchen_hood', 'electrical', 'pumps', 'hvac', 'water', 'safety', 'other'] as const;
 export type Category = (typeof CATEGORIES)[number];
 
-export interface PlaceRef { kind: 'site' | 'building' | 'floor'; id: string; name: string }
+interface PlaceRef { kind: 'site' | 'building' | 'floor'; id: string; name: string }
 export interface Interval { unit: IntervalUnit; count: number }
 export interface ChecklistItem { key: string; label: string; kind?: ItemKind; required?: boolean; min?: number | null; max?: number | null; unit?: string }
 
@@ -80,7 +80,7 @@ export interface ClosePlan { task_id: string; title: string; kind: TaskKind; due
 export type RoundView = 'step' | 'list';
 export interface Insurance { state: 'expired' | 'expiring' | 'missing' | 'ok'; valid_until: string | null }
 
-export interface TaskList { items: Task[]; counts: Record<DueState, number>; truncated: boolean; today: string }
+interface TaskList { items: Task[]; counts: Record<DueState, number>; truncated: boolean; today: string }
 
 export interface Answer { ok?: boolean | null; value?: number | string | null; note?: string; at?: string; ticket_id?: string }
 
@@ -123,7 +123,7 @@ export interface ModuleState {
 export interface VendorRow { id: string; name: string; state: 'expired' | 'expiring' | 'ok' | 'none'; expired: { doc_type: DocType; valid_until: string }[]; expiring: { doc_type: DocType; valid_until: string }[] }
 export interface VendorCard { vendor_id: string; name: string; state: VendorRow['state']; documents: Task[]; tasks: Task[] }
 
-export interface FormPlace { kind: 'site' | 'building' | 'floor'; id: string; name: string; parent_id: string | null }
+interface FormPlace { kind: 'site' | 'building' | 'floor'; id: string; name: string; parent_id: string | null }
 export interface Options {
   places: FormPlace[];
   /** what a certificate / plan can be attached to (MAINT215B) */
@@ -192,7 +192,7 @@ export interface TaskBody {
   revision?: number;
 }
 
-export interface CompleteBody { performed_on?: string; valid_until?: string; next_due?: string; note?: string; revision?: number }
+interface CompleteBody { performed_on?: string; valid_until?: string; next_due?: string; note?: string; revision?: number }
 
 const B = 'maintenance';
 const enc = encodeURIComponent;

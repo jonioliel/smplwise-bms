@@ -11,7 +11,7 @@ import { boardApi } from './tickets-board';
 export type DashPeriod = 'today' | '7d' | '30d';
 export const DASH_PERIODS: readonly DashPeriod[] = ['today', '7d', '30d'];
 
-export interface ThroughputRow {
+interface ThroughputRow {
   /** `user:<id>` / `contact:<id>` - the board's assignee key */
   key: string;
   kind: 'user' | 'contact';
@@ -31,9 +31,9 @@ export interface DailyRow { date: string; opened: number; closed: number }
 interface ApprovalBase { id: string; department_id: string; vendor: string; since: string | null; amount_minor: number | null; currency: string | null }
 export interface TicketApproval extends ApprovalBase { ticket: { id: string; number: number; title: string } }
 export interface SecondApproval extends ApprovalBase { rfq: { id: string; number: number; ref: string; title: string } }
-export interface ApprovalGroup<T> { count: number; items: T[] }
+interface ApprovalGroup<T> { count: number; items: T[] }
 
-export type RfqStage = 'second' | 'decide' | 'questions' | 'collecting';
+type RfqStage = 'second' | 'decide' | 'questions' | 'collecting';
 export interface DashRfq {
   id: string;
   number: number;
@@ -68,7 +68,7 @@ export interface DashboardResponse {
   generated_at?: string;
 }
 
-export interface DashboardQuery { department_id?: string; period?: DashPeriod }
+interface DashboardQuery { department_id?: string; period?: DashPeriod }
 
 /** MGRDASH phase 4: one approved instalment of a payment schedule (CR-RFQ-PAYMENT-SCHEDULE), not marked paid */
 export interface PayInstalment {
@@ -113,7 +113,7 @@ export interface PaymentsResponse {
   generated_at?: string;
 }
 
-export interface DashboardBackend {
+interface DashboardBackend {
   summary(q: DashboardQuery): Promise<DashboardResponse>;
   /** phase 4: GET /tickets/dashboard/payments - only for a manager holding tickets.costs + tickets.costs.view somewhere (else 403) */
   payments(q: { department_id?: string }): Promise<PaymentsResponse>;

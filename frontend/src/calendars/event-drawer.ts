@@ -8,13 +8,14 @@ import { dateInputLang } from '../api/day-format';
 import type { CalEvent, Calendar, EventPatch, EventPreview, NewEvent, OnBehalfKind, Occurrence } from '../api/calendars';
 import { CAL_EVENTS, attendeeSlot, emit, type CalCtx, type NewEventDetail } from './ctx';
 import { hintFor, stepOf } from './grid-logic';
-import { STATE_LABEL, addDays, colorVar, ddmm, hm, isoDate, pad, startOfDay, whenText } from './model';
+import { STATE_LABEL, addDays, colorVar, ddmm, hm, isoDate, startOfDay, whenText } from './model';
 import { calCss } from './styles';
 import { tr } from '../i18n/msg/calendars';
 import { BEHALF_LABEL, localInstant, repeatSummary, rruleOf, type Repeat } from './booking-logic';
 import { editableInDrawer } from './event-drawer-logic';
 import './attendees-section'; // CAL-ATTENDEES-2343: the "מוזמנים" section (self-contained; reads / writes its own API)
 import type { CalAttendeesSection } from './attendees-section';
+import { errLineStyles } from '../styles/fragments';
 
 /**
  * CALENDARS-UI-2310 slice A: the new / edit booking drawer (the approved round-8 mock-up, screen 4). Permission-aware: an operator books for
@@ -70,7 +71,7 @@ export class CalEventDrawer extends LitElement {
     .note.warn sw-icon { color: var(--sw-warning-text); }
     .note.bad sw-icon { color: var(--sw-danger-text); }
     .note .muted { display: block; }
-    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+    ${errLineStyles}
     .slot:empty { display: none; }
     dl { margin: 0; display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px 14px; font-size: var(--sw-fs-md); }
     dt { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
@@ -563,9 +564,6 @@ export class CalEventDrawer extends LitElement {
     return null;
   }
 }
-
-/** Two-digit local time label of a number of minutes (unit-tested helper of the drawer). */
-export const minutesLabel = (m: number) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 
 declare global {
   interface HTMLElementTagNameMap {

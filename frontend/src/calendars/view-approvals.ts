@@ -11,6 +11,7 @@ import { calCss } from './styles';
 import { tr } from '../i18n/msg/calendars';
 import { addDays, colorVar, ddmm, DAY_SHORT, hm, pageOf, queueOrder, rowsThatFit, startOfDay, whenText } from './model';
 import { LongListsController, perPageFor } from '../api/long-lists';
+import { errLineStyles } from '../styles/fragments';
 
 /** One decision the viewer made in this session (the "הוחלטו לאחרונה" segment). */
 interface Decided { r: CalRequest; decision: 'approve' | 'reject'; at: Date; displaced: boolean }
@@ -75,7 +76,7 @@ export class CalViewApprovals extends LitElement {
     .foot { display: flex; gap: 8px; margin-block-start: auto; }
     .foot .btn:first-child { flex: 1; }
     textarea.inp { padding: 10px 12px; min-block-size: 72px; resize: none; }
-    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+    ${errLineStyles}
     .scrim { position: fixed; inset: 0; background: var(--sw-overlay); z-index: var(--sw-z-modal); }
     aside.overlay { position: fixed; inset-block: 12px; inset-inline-start: 12px; z-index: calc(var(--sw-z-modal) + 1); inline-size: min(440px, calc(100vw - 24px)); box-shadow: var(--sw-shadow-3); }
     .rj { display: grid; gap: 8px; }

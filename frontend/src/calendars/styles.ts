@@ -1,5 +1,6 @@
 import { css } from 'lit';
 import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
+import { ltrStyles, mutedStyles } from '../styles/fragments';
 
 /**
  * CALENDARS-UI-2310: the shared visual language of the calendars screens (the approved round-8 mock-up, product tokens only). Type, radii and
@@ -23,9 +24,9 @@ export const calCss = css`
   }
   * { box-sizing: border-box; }
   .num { font-variant-numeric: tabular-nums; }
-  .ltr { direction: ltr; unicode-bidi: isolate; }
+  ${ltrStyles}
   .ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-inline-size: 0; }
-  .muted { color: var(--sw-text-3); font-size: var(--sw-fs-sm); }
+  ${mutedStyles}
   .sp { flex: 1; }
   .vh { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 

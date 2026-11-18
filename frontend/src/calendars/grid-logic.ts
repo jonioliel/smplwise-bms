@@ -70,13 +70,13 @@ export const minOfDay = (d: Date | string) => {
 
 // ---------------------------------------------------------------- the press: click, drag-select, move, resize, long-press
 
-export const LONG_PRESS_SLOT_MS = 450; // touch: holding a free slot starts a selection
-export const LONG_PRESS_EVENT_MS = 350; // touch: holding an entry picks it up
-export const MOVE_TOLERANCE = { mouse: 4, touch: 8 };
+const LONG_PRESS_SLOT_MS = 450; // touch: holding a free slot starts a selection
+const LONG_PRESS_EVENT_MS = 350; // touch: holding an entry picks it up
+const MOVE_TOLERANCE = { mouse: 4, touch: 8 };
 
 export type PressTarget = { kind: 'slot'; col: number; at: number } | { kind: 'event'; col: number; at: number; id: string; editable: boolean; mode: 'move' | 'resize' } | { kind: 'none' };
-export type PressStep = 'none' | 'cancel' | 'start' | 'drag';
-export type PressEnd = 'click' | 'drop' | 'coach' | 'none';
+type PressStep = 'none' | 'cancel' | 'start' | 'drag';
+type PressEnd = 'click' | 'drop' | 'coach' | 'none';
 
 /** One pointer press. A mouse is armed at once (a drag starts after a few pixels); a touch is armed only by the long-press timer, and a move
  * before it means the user is scrolling or swiping: the press is cancelled, nothing is selected. */
@@ -139,7 +139,7 @@ export class Press {
 // ---------------------------------------------------------------- keyboard
 
 export interface KbSel { col: number; anchor: number; focus: number }
-export type KbResult = { kind: 'select'; sel: KbSel; span: { col: number; s: number; e: number } } | { kind: 'open'; span: { col: number; s: number; e: number } } | { kind: 'none' };
+type KbResult = { kind: 'select'; sel: KbSel; span: { col: number; s: number; e: number } } | { kind: 'open'; span: { col: number; s: number; e: number } } | { kind: 'none' };
 
 /** Arrows move the selection by one step (Up / Down) or one column (Left / Right - in RTL the next column is to the left), Shift extends,
  * Enter opens the quick create on the selection. `cols` columns; `first` is where a new keyboard selection starts. */
@@ -158,7 +158,7 @@ export function kbStep(cur: KbSel | null, key: string, shift: boolean, cols: num
 
 // ---------------------------------------------------------------- hints (the server decides again)
 
-export type HintLevel = 'ok' | 'pend' | 'contest' | 'bad';
+type HintLevel = 'ok' | 'pend' | 'contest' | 'bad';
 export interface Hint { level: HintLevel; reason: string | null; warn: string | null; peers: number; contested: Occurrence | null; approver: string | null }
 export interface Candidate { cal: Calendar; start: Date; end: Date; ignoreId?: string; behalf?: string; moving?: 'confirmed' | 'pending' | null; started?: boolean; headcount?: number }
 export type HintSettings = Pick<CalSettings, 'contested_requests' | 'maintenance_overlap' | 'editors_bypass_approval' | 'pending_holds_slot'>;

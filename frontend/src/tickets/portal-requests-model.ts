@@ -1,6 +1,6 @@
 import type { PortalTechRequest } from '../api/tickets-portal-requests';
 
-export interface VendorRequestGroup {
+interface VendorRequestGroup {
   vendor: { id: string; name: string };
   requests: PortalTechRequest[];
 }

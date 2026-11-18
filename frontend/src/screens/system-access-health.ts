@@ -11,6 +11,7 @@ import { age, clockTone, dailyHealth, driftTone, historyTone, streamTone, syncPi
 import { ageText, clockText, countsText, driftText, errorText, historyText, modelLine, msText, secondsText, streamText, syncText, timeModeText, yesNo } from '../access-control/status-text';
 import { st } from '../i18n/access-status';
 import { dateLabel } from '../access-control/events-logic';
+import { ltrStyles } from '../styles/fragments';
 
 const DOT_OF: Record<Tone, string> = { ok: 'ok', warn: 'warn', err: 'err', off: 'off', unk: 'unk' };
 
@@ -81,10 +82,7 @@ export class SystemAccessHealth extends LitElement {
       min-inline-size: 0;
       overflow-wrap: anywhere;
     }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+    ${ltrStyles}
     .with {
       display: inline-flex;
       align-items: center;

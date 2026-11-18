@@ -58,7 +58,7 @@ export interface Tariff {
   vat_rate_percent: string | null;
 }
 
-export interface AccountFormula {
+interface AccountFormula {
   ast: FormulaAst;
   text: string;
   sentence_he: string;

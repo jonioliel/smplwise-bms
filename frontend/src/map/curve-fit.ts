@@ -24,7 +24,7 @@ export type P = [number, number];
 
 export const SHARP_TURN_DEG = 150;
 /** Points closer than this (px) are one point. */
-export const MIN_GAP_PX = 0.5;
+const MIN_GAP_PX = 0.5;
 /** Two tangents that differ less than this (radians) from a single arc's take the single arc (no junction). */
 const SINGLE_ARC_EPS = 1e-6;
 const MAX_BULGE = 4;
@@ -39,7 +39,7 @@ export interface CurveFit {
   through: number[];
 }
 
-export interface FitOptions {
+interface FitOptions {
   closed?: boolean;
   /** Applied to each junction point before its arcs are computed (the editor rounds to the stored precision), so the
    * bulges match the corners that are actually stored. */

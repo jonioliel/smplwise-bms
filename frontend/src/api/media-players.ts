@@ -26,7 +26,6 @@ import {
   type BulkScope, type CommandResult, type Glyph, type KeyId, type MediaCan, type MediaCaps, type MediaCommand, type MediaDevice,
   type MediaLive, type MediaStatus, type NowKind, type NowShowing, type PowerState, type RecentItem, type RemoteConfig, type SourceItem,
 } from './media-screens';
-import type { EndpointRole as AdminEndpointRole } from './media-admin';
 import { tr } from '../i18n/msg/api-media';
 
 // ------------------------------------------------------------------------------------------------ vocabulary (§2)
@@ -41,11 +40,9 @@ export const GROUPABLE_KINDS: readonly PlayerKind[] = ['speaker', 'player', 'rec
 
 /** Which layer answers the music controls (CR §5.2). */
 export type MusicProvider = 'ma' | 'sonos' | 'heos' | 'vendor' | 'none';
-/** The admin client's endpoint roles plus `music` (the music layer, CR §5.2) and `mirror` (a poorer cloud twin, never primary). */
-export type PlayerEndpointRole = AdminEndpointRole | 'music' | 'mirror';
 export type RepeatMode = 'off' | 'one' | 'all';
-export type GroupRole = 'leader' | 'member' | 'none';
-export type PlayerNowKind = NowKind | 'music' | 'station';
+type GroupRole = 'leader' | 'member' | 'none';
+type PlayerNowKind = NowKind | 'music' | 'station';
 
 /** Base `NowShowing`, extended: `artist` / `album` (null for screens); stations have `duration_s` null. */
 export interface PlayerNow extends Omit<NowShowing, 'kind'> {
@@ -54,7 +51,7 @@ export interface PlayerNow extends Omit<NowShowing, 'kind'> {
   album: string | null;
 }
 
-export interface LiveGroup {
+interface LiveGroup {
   role: GroupRole;
   leader_key: string | null;
   /** The group's OTHER devices as the server resolved them (union of every player's `group_members` and the `active_queue` owner,
@@ -100,7 +97,7 @@ export interface PlayerCaps extends MediaCaps {
   search?: boolean;
 }
 
-export interface PlayerCan extends MediaCan {
+interface PlayerCan extends MediaCan {
   group: boolean;
   /** Phase 2b: media.queue + media.control at the anchor (move / next / delete / clear). */
   queue?: boolean;
@@ -354,7 +351,7 @@ export interface FavouritesCuration {
 
 // ------------------------------------------------------------------------------------------------ commands and group runs (§2, §3)
 
-export type PlayerOnlyCommand =
+type PlayerOnlyCommand =
   | { command: 'seek'; position_s: number }
   | { command: 'shuffle'; on: boolean }
   | { command: 'repeat'; mode: RepeatMode }
@@ -368,8 +365,8 @@ export type PlayerCommand = (MediaCommand | PlayerOnlyCommand) & {
    * user saw the preview (accepted by power_*, source, sound_output, transport, seek, shuffle, repeat and play_item). */
   confirmed?: boolean;
 };
-export type PlayerCommandName = PlayerCommand['command'];
-export const ZONE2_COMMANDS: readonly PlayerCommandName[] = ['power_on', 'power_off', 'volume_set', 'volume_step', 'mute', 'source', 'sound_output'];
+type PlayerCommandName = PlayerCommand['command'];
+const ZONE2_COMMANDS: readonly PlayerCommandName[] = ['power_on', 'power_off', 'volume_set', 'volume_step', 'mute', 'source', 'sound_output'];
 
 export type MemberOutcome = 'joined' | 'not_joined' | 'left' | 'set' | 'unknown' | 'skipped_muted' | 'skipped_off' | 'skipped_unavailable' | 'clamped' | 'not_allowed';
 
@@ -614,14 +611,11 @@ export const sendApplyPreset = (id: string, confirmed = false, requestId: string
 
 // ------------------------------------------------------------------------------------------------ pure helpers: state
 
-export const isPlayerKind = (k: PlayerKind): boolean => PLAYER_KINDS.includes(k);
-export const isNonPhysical = (k: PlayerKind): boolean => NON_PHYSICAL_KINDS.includes(k);
 /** The leader's transport plays it: a member plays with the leader. */
 export const isMember = (d: Pick<PlayerDevice, 'live'>): boolean => d.live.group.role === 'member';
-export const isLeader = (d: Pick<PlayerDevice, 'live'>): boolean => d.live.group.role === 'leader';
 export const isGrouped = (d: Pick<PlayerDevice, 'live'>): boolean => d.live.group.role !== 'none';
 export const isPlaying = (d: Pick<PlayerDevice, 'live'>): boolean => d.live.power === 'on' && d.live.play === 'playing';
-export const isAvailable = (l: Pick<PlayerLive, 'power'>): boolean => !isDead(l);
+const isAvailable = (l: Pick<PlayerLive, 'power'>): boolean => !isDead(l);
 /** The device has a power control at all. A Cast entity is never one (its "on" launches an app): a Cast-only speaker is `on` while it is
  * reachable and `off` (asleep) when it is not, with neither `power_on` nor `power_off` - the UI draws no power button for it. */
 export const powerControlled = (d: Pick<PlayerDevice, 'caps' | 'zones'>): boolean => d.caps.power_on || d.caps.power_off || !!d.zones?.length;
@@ -641,7 +635,7 @@ export function liveGroupKeys(g: Pick<LiveGroup, 'role' | 'leader_key' | 'member
   return [...new Set([...(leader ? [leader] : []), ...g.member_keys])];
 }
 
-export interface StateTextOptions {
+interface StateTextOptions {
   /** The leader's room or name, for "מנגן עם סלון" (members only; see `leaderLabel`). */
   leaderLabel?: string | null;
   /** Append " · <title>" while something plays. The mockup keeps the title on its own line, so the default is off. */
@@ -704,7 +698,7 @@ export const nextRepeat = (m: RepeatMode | null): RepeatMode => (m === 'off' || 
 
 // ------------------------------------------------------------------------------------------------ pure helpers: up next
 
-export const UP_NEXT_UNAVAILABLE = tr('לא זמין');
+const UP_NEXT_UNAVAILABLE = tr('לא זמין');
 /** Rows beyond the current and the next one ("עוד N"); 0 when unknown. */
 export function upNextMore(u: UpNext | null): number {
   if (!u || !u.confirmed || u.count === null || u.index === null) return 0;
@@ -817,7 +811,7 @@ export function groupVolumePlan(members: readonly PlanMember[], level: number, m
 
 // ------------------------------------------------------------------------------------------------ pure helpers: grouping
 
-export interface JoinDiff { join: string[]; leave: string[]; stay: string[] }
+interface JoinDiff { join: string[]; leave: string[]; stay: string[] }
 /** Current members vs. the wanted ones (the leader is never in either; duplicates dropped): who joins, who leaves, who stays.
  * The same diff serves the ticked rooms of the panel and a saved group's "הפעל" (unjoin the extras, join the missing). */
 export function joinDiff(current: readonly string[], desired: readonly string[], leaderKey?: string): JoinDiff {
@@ -892,7 +886,7 @@ export function unplacedBucket<T extends Pick<PlayerDevice, 'area_id'>>(devices:
 }
 export const hasFloors = (devices: readonly Pick<PlayerDevice, 'floor_id'>[]): boolean => devices.some((d) => d.floor_id !== null);
 
-export interface PlayerSection {
+interface PlayerSection {
   /** A floor id, `all` (floors-less: one list) or `none` (the unplaced bucket, always last). */
   id: string;
   label: string;
@@ -900,7 +894,7 @@ export interface PlayerSection {
 }
 export const UNPLACED_LABEL = tr('לא משויכים');
 export const ALL_ROOMS_LABEL = tr('כל החדרים');
-export const NO_ROOM_LABEL = tr('ללא חדר');
+const NO_ROOM_LABEL = tr('ללא חדר');
 
 /** The players tab's sections: one per floor (the layout's order, else first seen) + "לא משויכים" last; with no floors one
  * list "כל החדרים" (the room chips are the filter) + "לא משויכים". Empty sections are dropped. `order` = device keys. */

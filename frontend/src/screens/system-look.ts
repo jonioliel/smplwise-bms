@@ -15,7 +15,7 @@ import './system-palette-editor';
 import { allPalettes, onPalettes, paletteById, paletteTokens, setCustomPalettes, type Palette } from '../design/palette';
 import { skinTable } from '../design/css';
 import {
-  DENSITY_BUNDLE, LOOK_DEFAULT, LOOK_DIALS, LOOK_DIAL_IDS, RADIUS_BUNDLE, effectiveSheetAlpha, installationLook, lookAttributes, materialMacro, normalizeDial, onLook, ownLook, saveDemoInstallationLook, saveOwnLook,
+  DENSITY_BUNDLE, LOOK_DEFAULT, LOOK_DIALS, RADIUS_BUNDLE, effectiveSheetAlpha, installationLook, lookAttributes, materialMacro, normalizeDial, onLook, ownLook, saveDemoInstallationLook, saveOwnLook,
   sameLook, setInstallationLook, tierOf, type Look, type LookDial, type Material, type PartialLook,
 } from '../design/look';
 import { SkinController } from '../design/skin';
@@ -561,9 +561,6 @@ export class SystemLook extends LitElement {
     </sw-card>`;
   }
 }
-
-/** The dials, in the order the card shows them (exported for the spec). */
-export const LOOK_CARD_DIALS = LOOK_DIAL_IDS;
 
 declare global {
   interface HTMLElementTagNameMap {

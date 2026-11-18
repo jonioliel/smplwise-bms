@@ -55,7 +55,6 @@ export const MONTH_NAMES = MONTHS_FULL;
 export { addDays, daysInclusive };
 export const daysInMonth = (y: number, m: number): number => new Date(Date.UTC(y, m, 0)).getUTCDate();
 export const isIsoDate = (s: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s));
-export const cmpDate = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
 /** The period of a monthly / two-monthly cycle that contains `on`, given the anchor day (1-28) and, for two months, the month that opens a cycle. */
 export function periodContaining(on: string, months: 1 | 2, anchorDay: number, anchorMonth: number): { from: string; to: string } {
@@ -97,8 +96,6 @@ export const billNumber = (to: string, customerNo: string, letter: string, revis
 
 /** `2026-12-0001-2` -> `2026-12-0001`; `2026-12-0001/2-3` -> `2026-12-0001/2` (the revision suffix is dropped, the running suffix stays) */
 export const baseNumber = (num: string): string => /^(\d{4}-\d{2}-\d+(?:\/\d+)?)/.exec(num)?.[1] ?? num;
-
-export const HEBREW_DAYS_UNIT = (n: number): string => (n === 1 ? 'יום' : 'ימים');
 
 /** `חודשי, מה-1 בחודש` / `דו-חודשי, מה-1 בינואר` */
 export const periodLabel = (months: number, day: number, month: number): string =>

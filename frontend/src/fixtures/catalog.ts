@@ -21,7 +21,7 @@ export const demoSites: DemoSite[] = [
   { id: 'site-c', name: 'מחסן לוגיסטי', address: 'אזור תעשייה', buildings: 1, cameras: 4, online: 3, alerts: 1, health: 'offline' },
 ];
 
-export interface DemoBuilding {
+interface DemoBuilding {
   id: string;
   siteId: string;
   name: string;
@@ -42,7 +42,7 @@ export const demoBuildings: DemoBuilding[] = [
   { id: 'bld-b', siteId: 'site-a', name: 'מבנה ב', floors: [{ id: 'b-f0', name: 'קרקע', cameras: 1, entities: 2, hasPlan: false }] },
 ];
 
-export interface DemoWallCamera {
+interface DemoWallCamera {
   id: string;
   name: string;
   floor: string;
@@ -134,7 +134,7 @@ export const demoSegments: DemoSegment[] = [
   { startMin: 660, endMin: 1439, kind: 'continuous' },
 ];
 
-export interface DemoUser {
+interface DemoUser {
   id: string;
   name: string;
   haUser: string;

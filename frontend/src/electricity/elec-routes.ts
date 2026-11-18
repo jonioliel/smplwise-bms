@@ -5,8 +5,8 @@
  */
 import { navigate } from '../router';
 
-export const ELEC_ROOT = '/infra/electricity';
-export const SETTINGS_ROOT = '/system/infra';
+const ELEC_ROOT = '/infra/electricity';
+const SETTINGS_ROOT = '/system/infra';
 
 const p = (path: string): string => `#${path}`;
 export const route = {

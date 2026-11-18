@@ -9,8 +9,8 @@ import { post } from './client';
 import { isApi } from './session';
 import type { StaffMine } from './tickets';
 
-export interface VerifyState { phone_verify: boolean; verify_required: boolean; confirmed: boolean; confirmed_via: 'user' | 'manager' | 'code' | null; code_pending: boolean }
-export interface CodeSent { sent: boolean; expires_in_s: number; resend_after_s: number }
+interface VerifyState { phone_verify: boolean; verify_required: boolean; confirmed: boolean; confirmed_via: 'user' | 'manager' | 'code' | null; code_pending: boolean }
+interface CodeSent { sent: boolean; expires_in_s: number; resend_after_s: number }
 
 const T = 'tickets';
 const enc = encodeURIComponent;

@@ -407,9 +407,9 @@ const en: Record<HsKey, string> = {
   demo: 'Demo data: the settings are saved only with a server.',
 };
 
-export type HsLang = 'he' | 'en' | 'ar' | 'ru';
+type HsLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function hsLang(): HsLang {
+function hsLang(): HsLang {
   return docLang(['en', 'ar', 'ru']);
 }
 

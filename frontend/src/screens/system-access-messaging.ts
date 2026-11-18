@@ -24,6 +24,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { accessPanelPolish } from './system-access-polish-css';
 import { mt, problemText, type MessagingKey } from '../i18n/access-messaging';
 import { dateInputLang } from '../api/day-format';
+import { ltrStyles } from '../styles/fragments';
 
 /** WA-CONSENT-LINK: the consent request's languages (the server's CONSENT_LANGS) and the words of "the page cannot serve a link". */
 const CONSENT_LANGS = ['he', 'en', 'ar', 'ru'] as const;
@@ -212,10 +213,7 @@ export class SystemAccessMessaging extends LitElement {
         padding-inline: 14px;
         padding-block-end: 12px;
       }
-      .ltr {
-        direction: ltr;
-        unicode-bidi: isolate;
-      }
+      ${ltrStyles}
       .cnt {
         color: var(--sw-text-3);
         font-size: var(--sw-fs-xs);

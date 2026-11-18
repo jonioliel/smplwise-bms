@@ -24,7 +24,7 @@ export interface MediaProfile {
   fps: number | null;
 }
 
-export interface StationMediaVideo {
+interface StationMediaVideo {
   profiles: MediaProfile[];
   default_profile: MediaProfileId | null;
   /** The caller holds `video.live` on the station (without it: the still, as before). */
@@ -147,7 +147,7 @@ export function newRequestId(): string {
 /** The settings key of the station media source (routers/settings.py): `local` = Arx's own source (video only), `auto` = WisKey's signed
  * W10 source (video and talk) while it is ready, else Arx's own. */
 export const STATION_MEDIA_PROVIDER_KEY = 'access.station_media_provider';
-export type StationMediaProvider = 'local' | 'auto';
+type StationMediaProvider = 'local' | 'auto';
 
 export function parseProvider(settings: Record<string, unknown> | null | undefined): StationMediaProvider {
   return settings?.[STATION_MEDIA_PROVIDER_KEY] === 'auto' ? 'auto' : 'local';
@@ -157,15 +157,15 @@ export function parseProvider(settings: Record<string, unknown> | null | undefin
  * `video_not_listed` / `talk_not_listed` = listed neither in WisKey's overview nor in its signed capabilities; `capabilities_unread` = the
  * overview lacks them and the signed capabilities could not be read (`wiskey.capabilities.reason_kind` says why). */
 export const READINESS_CODES = ['wiskey_unreachable', 'api_incompatible', 'video_not_listed', 'talk_not_listed', 'capabilities_unread', 'pairing_missing', 'pairing_key_rotated'] as const;
-export type ReadinessCode = (typeof READINESS_CODES)[number];
+type ReadinessCode = (typeof READINESS_CODES)[number];
 
 /** WISKEY-TALK-CAPS-2382: why the signed capabilities read failed, grouped (services/wiskey_media_caps.py `reason_kind`). */
 export const CAPS_REASON_KINDS = ['unreachable', 'refused', 'clock', 'incompatible', 'failed'] as const;
-export type CapsReasonKind = (typeof CAPS_REASON_KINDS)[number];
+type CapsReasonKind = (typeof CAPS_REASON_KINDS)[number];
 
 /** WISKEY-TALK-CAPS-2382: WisKey's signed `direct/capabilities` as the readiness reports it. `not_needed`: the overview already lists W10;
  * `not_read`: not consulted (no key that signs); `read`: read (its own listing); `unread`: the signed read failed (`reason`, `reason_kind`). */
-export interface StationMediaCapabilities {
+interface StationMediaCapabilities {
   state: 'not_needed' | 'not_read' | 'read' | 'unread';
   video_listed: boolean;
   talk_listed: boolean;
@@ -222,7 +222,7 @@ export function talkReason(reason: string | null | undefined): TalkReason {
 /** What the drawer's "dial the station" offers for a station read: `native` (Arx's own talk session), `reason` (why not, with the classic
  * panel as the secondary way), or `legacy` (nothing read yet, or the setting off: the classic-panel link exactly as before). `undefined`
  * media = not read yet; `null` = the read failed. */
-export type DialState = { kind: 'native' } | { kind: 'reason'; reason: TalkReason } | { kind: 'legacy' };
+type DialState = { kind: 'native' } | { kind: 'reason'; reason: TalkReason } | { kind: 'legacy' };
 
 export function dialState(mode: StationMediaMode, media: StationMedia | null | undefined): DialState {
   if (mode === 'off' || media === undefined) return { kind: 'legacy' };

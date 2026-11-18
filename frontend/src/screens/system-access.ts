@@ -81,6 +81,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { secondaryIdentity } from './user-identity'; // UXREST2-295: name and username shown once when equal
 import '../home/sw-home-admin'; // HOME-SIMPLE-2420: the home interface tab
 import { tr } from '../i18n/msg/system-a';
+import { errLineStyles, ltrStyles } from '../styles/fragments';
 
 const TABS = [
   { id: 'users', label: tr('משתמשים'), count: demoUsers.length },
@@ -265,10 +266,7 @@ export class SystemAccess extends LitElement {
       background: var(--sw-surface-2);
       font-size: var(--sw-fs-sm);
     }
-    .err {
-      color: var(--sw-danger-text);
-      font-size: var(--sw-fs-sm);
-    }
+    ${errLineStyles}
     .err.banner {
       padding: 8px 12px;
       border-radius: var(--sw-r-sm);
@@ -440,10 +438,7 @@ export class SystemAccess extends LitElement {
     .dfoot .end {
       margin-inline-start: auto;
     }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+    ${ltrStyles}
     .toolbar {
       display: flex;
       gap: 8px;

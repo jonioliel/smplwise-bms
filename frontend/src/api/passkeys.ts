@@ -32,6 +32,7 @@ export const ownPasskeys = () => get<PasskeySummary>('auth/passkeys');
 export const registrationOptions = () => post<{ publicKey: CreationOptionsJSON; user_verification_required: boolean }>('auth/passkeys/register/options');
 export const registerPasskey = (credential: Record<string, unknown>, label?: string) =>
   post<{ passkey: PasskeyView; first_factor: boolean }>('auth/passkeys/register', { credential, ...(label ? { label } : {}) });
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by USR2 phase 4 (passkeys).
 export const renamePasskey = (id: string, label: string) => patch<PasskeySummary>(`auth/passkeys/${encodeURIComponent(id)}`, { label });
 export const removePasskey = (id: string, code?: string) =>
   api<PasskeySummary & { removed: string }>(`auth/passkeys/${encodeURIComponent(id)}`, { method: 'DELETE', ...(code ? { body: JSON.stringify({ code }) } : {}) });

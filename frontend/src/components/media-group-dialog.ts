@@ -15,7 +15,7 @@ import { tr } from '../i18n/msg/components';
 const PAUSE_REASON: Record<string, string> = { not_playing: tr('לא מנגן'), unavailable: tr('לא זמין'), not_allowed: tr('אין הרשאה') };
 
 /** A generic confirmation: the question, one sentence, the rooms under a closed "פרטים", and what the confirm button does. */
-export interface GroupConfirmRequest {
+interface GroupConfirmRequest {
   heading: string;
   sub?: string;
   /** The rooms / devices of the preview, by name. */
@@ -27,7 +27,7 @@ export interface GroupConfirmRequest {
   /** Runs when the confirm button is pressed (only there); a rejection is shown in the dialog. The dialog closes when it resolves. */
   run: () => Promise<void>;
 }
-export interface PauseRequest {
+interface PauseRequest {
   scope: BulkScope;
   /** The HA floor / area id. */
   id: string;

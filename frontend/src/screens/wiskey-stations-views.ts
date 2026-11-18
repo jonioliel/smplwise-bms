@@ -176,7 +176,7 @@ function callButton(v: ViewCtx, s: AccessStation, command: IntercomCallCommand, 
   >`;
 }
 
-export function talkLink(v: ViewCtx, large = false): TemplateResult {
+function talkLink(v: ViewCtx, large = false): TemplateResult {
   const t = v.text.talk;
   return html`<wk-action-button tone="dashed" icon="window" href=${classicPanelHref()} data-wk-talk="classic" label=${t.hint} ?block=${large} size=${large ? 'lg' : 'md'} @click=${(e: Event) => e.stopPropagation()}
     >${large ? t.classic : t.classicShort}</wk-action-button
@@ -191,7 +191,7 @@ function talkSlot(v: ViewCtx, s: AccessStation, large: boolean): TemplateResult 
 }
 
 /** The call row: the call hint (no caller name) for everyone who sees the station, the controls for who may act on calls. */
-export function callRow(v: ViewCtx, s: AccessStation, big = false): TemplateResult | typeof nothing {
+function callRow(v: ViewCtx, s: AccessStation, big = false): TemplateResult | typeof nothing {
   const t = v.text;
   const phase = s.online ? s.call_state : 'unavailable';
   if (phase !== 'ringing' && phase !== 'in_call' && phase !== 'ending') return nothing;

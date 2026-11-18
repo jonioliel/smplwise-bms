@@ -13,11 +13,12 @@
  * Pure apart from the injected fetch / object-URL functions: the unit spec drives it with fakes.
  */
 import { apiResponse } from './client';
+import { isoZ } from './day-format';
 
-export const FRAME_BUCKET_S = 10;
+const FRAME_BUCKET_S = 10;
 
 export type FrameAnswer = { ok: true; blob: Blob; at: string | null } | { ok: false; status: number };
-export type FrameFetch = (url: string, signal: AbortSignal) => Promise<FrameAnswer>;
+type FrameFetch = (url: string, signal: AbortSignal) => Promise<FrameAnswer>;
 
 export interface PreviewState {
   /** The bucket the pointer is over now. */
@@ -32,7 +33,7 @@ export interface PreviewState {
   none: boolean;
 }
 
-export interface FramePreviewOptions {
+interface FramePreviewOptions {
   fetchFrame: FrameFetch;
   onChange: (state: PreviewState) => void;
   maxConcurrent?: number;
@@ -44,7 +45,7 @@ export interface FramePreviewOptions {
 /** The bucket of a UTC instant, its key per camera and the instant the request asks for (the bucket start, so the HTTP cache helps). */
 export function frameBucket(cameraId: string, at: Date): { key: string; atIso: string } {
   const ms = Math.floor(at.getTime() / (FRAME_BUCKET_S * 1000)) * FRAME_BUCKET_S * 1000;
-  const atIso = new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const atIso = isoZ(ms);
   return { key: `${cameraId}|${atIso}`, atIso };
 }
 

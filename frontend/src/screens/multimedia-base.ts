@@ -33,9 +33,9 @@ import type { PageFit } from '../components/page-fit';
  * period is the same 30 s; it does not run while the page is hidden or offline and catches up once on resume.
  */
 
-export type MediaPhase = 'loading' | 'ready' | 'error' | 'forbidden' | 'disabled';
+type MediaPhase = 'loading' | 'ready' | 'error' | 'forbidden' | 'disabled';
 
-export const FALLBACK_LAYOUT: LayoutResponse = { installation: EMPTY_LAYOUT, personal: null, revision: 0, can_edit: false, can_personalize: false };
+const FALLBACK_LAYOUT: LayoutResponse = { installation: EMPTY_LAYOUT, personal: null, revision: 0, can_edit: false, can_personalize: false };
 
 /** What a read needs of the status document (MediaStatus and PlayerStatus both have it). */
 interface StatusLike {

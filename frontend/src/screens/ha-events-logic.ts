@@ -5,7 +5,7 @@ import type { EventFacets, EventKind, VmsEvent } from '../api/events';
 // place label. No DOM, so the node-only unit specs import it.
 
 /** NVRLESS-295: where a sensor event's entity is placed now (the server resolves it from the plan anchors). */
-export type SensorPlace = { floor_id: string; floor_name: string; building_name?: string; zone: string | null } | null;
+type SensorPlace = { floor_id: string; floor_name: string; building_name?: string; zone: string | null } | null;
 export type SensorEvent = VmsEvent & { place?: SensorPlace };
 
 /** The type filter: the kinds the sensors produce (doors and locks, motion, the alarm panel's "other"). */

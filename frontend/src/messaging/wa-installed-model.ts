@@ -5,7 +5,7 @@
 import type { InstalledJob, InstalledView, SyncOutcome } from '../api/wa-installed';
 
 export type Tone = 'ok' | 'warn' | 'bad' | 'muted';
-export type JobWord = 'pending' | 'sent' | 'cancelled' | 'paced' | 'expired' | 'not_sent' | 'unknown';
+type JobWord = 'pending' | 'sent' | 'cancelled' | 'paced' | 'expired' | 'not_sent' | 'unknown';
 
 /** A job's honest word. `sent` = accepted by the provider (delivery stays unknown); an unknown is never shown as sent or failed. */
 export function jobWord(job: Pick<InstalledJob, 'state' | 'outcome' | 'code'>): JobWord {
@@ -27,7 +27,7 @@ export function jobTone(word: JobWord): Tone {
   return 'bad';
 }
 
-export type Blocker = 'messaging_off' | 'template_switch_off' | 'permit_closed' | 'queue_unavailable';
+type Blocker = 'messaging_off' | 'template_switch_off' | 'permit_closed' | 'queue_unavailable';
 
 /** Why nothing can be sent through the installed client now, in the order the server checks (empty = nothing known stands in the way). */
 export function blockers(v: Pick<InstalledView, 'gates' | 'commands'>): Blocker[] {

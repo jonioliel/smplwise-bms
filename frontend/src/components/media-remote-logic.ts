@@ -24,7 +24,7 @@ import { tr } from '../i18n/msg/components';
 
 /** What the remote shows for a screen: the full pad (`on`), the big power button over a dimmed pad (`off`), art mode (power
  * off / switch to viewing only), or nothing but "לא זמין" (`unavailable`: unavailable or unknown). */
-export type RemoteMode = 'on' | 'off' | 'art' | 'unavailable';
+type RemoteMode = 'on' | 'off' | 'art' | 'unavailable';
 
 export function remoteMode(d: Pick<MediaDevice, 'live'>): RemoteMode {
   switch (d.live.power) {
@@ -39,7 +39,7 @@ export function remoteMode(d: Pick<MediaDevice, 'live'>): RemoteMode {
 export const viewOnly = (d: Pick<MediaDevice, 'can'>): boolean => !d.can.control && !d.can.power;
 
 /** The big button of the off state: what it does, whether it is enabled and why not (tooltip only). */
-export interface PowerOffer {
+interface PowerOffer {
   /** `on` = power_on, `off` = power_off, `none` = nothing to offer. */
   action: 'on' | 'off' | 'none';
   enabled: boolean;
@@ -117,7 +117,7 @@ export function isCurrent(live: MediaLive, item: Pick<SourceItem, 'id' | 'kind'>
 // ------------------------------------------------------------------------------------------------ keys
 
 /** Arrows and volume may repeat while held (nothing else: a held Home or OK would be a mistake). */
-export const REPEATABLE: readonly KeyId[] = ['up', 'down', 'left', 'right', 'volup', 'voldown'];
+const REPEATABLE: readonly KeyId[] = ['up', 'down', 'left', 'right', 'volup', 'voldown'];
 export const isRepeatable = (k: KeyId): boolean => REPEATABLE.includes(k);
 
 /** The desktop keyboard's map (only while the remote has focus and nobody is typing in a field). */
@@ -127,7 +127,7 @@ export const KEYBOARD: Record<string, KeyId> = {
   PageUp: 'chup', PageDown: 'chdown',
 };
 
-export interface KeyEventLike {
+interface KeyEventLike {
   key: string;
   ctrlKey?: boolean;
   altKey?: boolean;
@@ -222,10 +222,10 @@ export class HoldRepeater {
 
 /** Why a press was not sent. `not_offered` = the screen does not offer it (caps / state / permission); `dropped` = over the
  * key rate (a short shake, no text); `busy` = a power command of this screen is still in flight; `cooldown` = text within 1 s. */
-export type GateVerdict = 'send' | 'not_offered' | 'dropped' | 'busy' | 'cooldown';
+type GateVerdict = 'send' | 'not_offered' | 'dropped' | 'busy' | 'cooldown';
 
 const KEYLIKE: readonly MediaCommand['command'][] = ['key', 'volume_step', 'mute', 'transport'];
-export const isKeyLike = (c: MediaCommand): boolean => KEYLIKE.includes(c.command);
+const isKeyLike = (c: MediaCommand): boolean => KEYLIKE.includes(c.command);
 
 /**
  * The one checkpoint every press of the remote passes before `sendCommand`: offered at all (`commandOffered`: the same rule
@@ -265,7 +265,7 @@ export class CommandGate {
 
 /** `null` = the effect is not observable (keys, steps, text): the press is "sent", never "confirmed". Otherwise the
  * predicate the screen's live state must satisfy; it is evaluated against fresh `live` until true or `CONFIRM_TIMEOUT_MS`. */
-export type Expectation = ((live: MediaLive) => boolean) | null;
+type Expectation = ((live: MediaLive) => boolean) | null;
 
 export function expectation(c: MediaCommand, before: MediaLive): Expectation {
   switch (c.command) {

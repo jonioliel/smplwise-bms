@@ -123,9 +123,9 @@ const en: Record<Key, string> = {
 };
 
 export type CsKey = Key;
-export type CsLang = 'he' | 'en';
+type CsLang = 'he' | 'en';
 
-export function csLang(): CsLang {
+function csLang(): CsLang {
   return docLang(['en']);
 }
 

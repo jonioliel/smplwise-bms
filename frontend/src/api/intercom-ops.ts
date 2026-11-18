@@ -1,5 +1,6 @@
 import { apiBlob, get, post } from './client';
 import type { DisplayZone } from './intercom';
+import { isoZ } from './day-format';
 
 /**
  * WISKEY-OPS-VIEWS-2400 (integration plan T11): the client of Settings › תפעול האינטרקום (routers/access_control_ops.py). Every call is one
@@ -17,7 +18,7 @@ import type { DisplayZone } from './intercom';
  *   GET  access-control/operations/exports/fleet-inventory.csv, exports/audit.csv   (administrator, audited, formula-safe)
  */
 
-export type OpsView = 'summary' | 'operations' | 'investigations' | 'jobs' | 'job_errors' | 'capacity' | 'inventory' | 'audit_export' | 'events_report' | 'cancel';
+type OpsView = 'summary' | 'operations' | 'investigations' | 'jobs' | 'job_errors' | 'capacity' | 'inventory' | 'audit_export' | 'events_report' | 'cancel';
 
 export interface OpsStation {
   id: string;
@@ -38,7 +39,7 @@ export interface OpsStation {
   reconciled_at: string | null;
 }
 
-export interface OpsKpis {
+interface OpsKpis {
   stations: number;
   online: number;
   offline: number;
@@ -47,7 +48,7 @@ export interface OpsKpis {
   near_capacity: number;
 }
 
-export interface OpsCan {
+interface OpsCan {
   admin: boolean;
   export: boolean;
   cancel: boolean;
@@ -56,7 +57,7 @@ export interface OpsCan {
   actors: boolean;
 }
 
-export type SummaryPart =
+type SummaryPart =
   | { state: 'ready'; data: { kpis: OpsKpis; stations: OpsStation[]; zone: DisplayZone }; fetched_at: string | null }
   | { state: 'error'; code: string; message: string; details?: Record<string, unknown> };
 
@@ -71,7 +72,7 @@ export interface Read<T> {
   fetched_at: string | null;
 }
 
-export interface PageInfo {
+interface PageInfo {
   total: number;
   offset: number;
   limit: number | null;
@@ -158,7 +159,7 @@ export interface CapacityValues {
   alert: 'unknown' | 'stale' | 'at_limit' | 'near_limit' | 'growth_to_limit' | 'observed';
 }
 
-export interface CapacityRow {
+interface CapacityRow {
   station_id: string;
   name: string;
   sampled_at: string | null;
@@ -181,7 +182,7 @@ export interface CapacityReply extends Read<{ records: CapacityRow[]; forecast_i
   trend: { days: number; series: Record<string, TrendPoint[]>; stored_now: number };
 }
 
-export interface ReportCounts {
+interface ReportCounts {
   records: number;
   authentication: number;
   granted: number;
@@ -217,7 +218,7 @@ const BASE = 'access-control/operations';
 
 export const getOpsOverview = () => get<OpsOverview>(`${BASE}/overview`);
 
-export interface OperationsFilter {
+interface OperationsFilter {
   kind?: string;
   state?: string;
   station_id?: string;
@@ -228,7 +229,7 @@ export interface OperationsFilter {
 }
 export const getOperations = (f: OperationsFilter = {}) => get<Read<OperationsPage>>(`${BASE}/operations${qs({ ...f })}`);
 
-export interface TimelineFilter {
+interface TimelineFilter {
   source?: string;
   station_id?: string;
   query?: string;
@@ -253,7 +254,7 @@ export interface CancelResult {
 
 /** Cancel one job. `revision` is the job's revision as listed (the intercom compares it); `nowMs` the server-aligned clock. */
 export function cancelJob(jobId: string, revision: number, nowMs: number = Date.now()): Promise<CancelResult> {
-  const expires = new Date(nowMs + 30_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const expires = isoZ(nowMs + 30_000);
   return post<CancelResult>(`${BASE}/jobs/${encodeURIComponent(jobId)}/cancel`, {
     client_request_id: crypto.randomUUID().replace(/-/g, ''),
     expires_at: expires,
@@ -262,7 +263,7 @@ export function cancelJob(jobId: string, revision: number, nowMs: number = Date.
   });
 }
 
-export interface FileResult {
+interface FileResult {
   blob: Blob;
   rows: number | null;
   filename: string;

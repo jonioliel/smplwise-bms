@@ -15,9 +15,9 @@
 import { asMode, MODES, WALL_DISPLAY_KEY, type QualityMode } from './quality-ladder';
 import type { PlanViewDials } from '../api/plan-view';
 
-export type WallPlanMode = 'follow' | 'live' | 'stills';
-export type WallPlanQuality = 'follow' | QualityMode;
-export type WallPlanIdle = 'follow' | 0 | 10 | 30 | 120 | 600;
+type WallPlanMode = 'follow' | 'live' | 'stills';
+type WallPlanQuality = 'follow' | QualityMode;
+type WallPlanIdle = 'follow' | 0 | 10 | 30 | 120 | 600;
 /** The wall profile's `plan` block (backend services/wall.py `Plan`). */
 export interface WallPlanSetting {
   mode: WallPlanMode;
@@ -25,14 +25,13 @@ export interface WallPlanSetting {
   idle_s: WallPlanIdle;
 }
 export const FOLLOW_PLAN: WallPlanSetting = { mode: 'follow', quality: 'follow', idle_s: 'follow' };
-export const WALL_PLAN_MODES: readonly WallPlanMode[] = ['follow', 'live', 'stills'];
-export const WALL_PLAN_IDLE: readonly Exclude<WallPlanIdle, 'follow'>[] = [0, 10, 30, 120, 600];
+const WALL_PLAN_IDLE: readonly Exclude<WallPlanIdle, 'follow'>[] = [0, 10, 30, 120, 600];
 
 export const WALL_QUALITY_KEY = 'sw.plan3d.wall_quality';
 export const WALL_IDLE_KEY = 'sw.plan3d.wall_idle_s';
 
-export type PlanSource = 'screen' | 'browser' | 'installation';
-export interface WallPlan {
+type PlanSource = 'screen' | 'browser' | 'installation';
+interface WallPlan {
   mode: 'live' | 'stills';
   /** Forced over the viewer's own choice, or null: nothing forces it. */
   quality: QualityMode | null;

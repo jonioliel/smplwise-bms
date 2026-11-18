@@ -10,7 +10,7 @@
  */
 import type { RoomStateLayer } from './room-state';
 
-export interface PlanChangeInput {
+interface PlanChangeInput {
   layer: RoomStateLayer | null;
   /** circuit id -> switch state ('on' / 'off' / ...); null = unknown (stale). */
   circuits: Record<string, string | null>;

@@ -10,7 +10,7 @@ import type { XtKey } from '../i18n/access-external';
 export type MarkerFilter = 'all' | 'permanent' | 'temporary';
 export const MARKER_FILTERS: readonly MarkerFilter[] = ['all', 'permanent', 'temporary'];
 
-export interface MarkerView { permanent: boolean; key: XtKey; tone: 'ok' | 'off' }
+interface MarkerView { permanent: boolean; key: XtKey; tone: 'ok' | 'off' }
 
 /** The chip of one row: an unknown value (an older server) shows nothing rather than a wrong "temporary". */
 export function markerView(flag: boolean | null | undefined): MarkerView | null {

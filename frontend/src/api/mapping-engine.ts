@@ -52,7 +52,7 @@ export const itemKey = (it: Pick<MapItem, 'kind' | 'id'>): string => `${it.kind 
 
 /** Where something goes: one of our buildings, a building to create on apply, or "לא משויך" on purpose. */
 export type Target = { t: 'b'; id: string } | { t: 'new'; name: string } | { t: 'none' };
-export const sameTarget = (a: Target | null | undefined, b: Target | null | undefined): boolean =>
+const sameTarget = (a: Target | null | undefined, b: Target | null | undefined): boolean =>
   !!a && !!b && a.t === b.t && (a.t === 'b' ? a.id === (b as { id: string }).id : a.t === 'new' ? a.name === (b as { name: string }).name : true);
 export const targetKey = (t: Target | null | undefined): string => (!t ? '' : t.t === 'b' ? `b:${t.id}` : t.t === 'new' ? `n:${t.name}` : 'none');
 
@@ -204,7 +204,7 @@ export function tokenize(it: Pick<MapItem, 'name' | 'labels'>, spec: MarkSpec): 
 
 // ------------------------------------------------------------------------------------------------------------------------------- detection
 
-export interface TokenStat {
+interface TokenStat {
   token: string;
   floors: number;
   areas: number;
@@ -300,7 +300,7 @@ export function buildingForToken(token: string, buildings: BuildingRef[]): Build
 }
 
 /** A token's building: the table, else an existing building of that name, else undefined (a question). */
-export function tableTarget(token: string, state: Pick<MappingState, 'tokens'>, buildings: BuildingRef[]): Target | undefined {
+function tableTarget(token: string, state: Pick<MappingState, 'tokens'>, buildings: BuildingRef[]): Target | undefined {
   const own = state.tokens[token];
   if (own) return own;
   const b = buildingForToken(token, buildings);
@@ -425,7 +425,7 @@ export function moveRule(rules: Rule[], from: number, to: number): Rule[] {
 // ------------------------------------------------------------------------------------------------------------------------------- resolution
 
 export type Source = 'manual' | 'rule' | 'floor' | 'none';
-export type ConflictKind = 'floor' | 'label' | 'rules' | 'unknown_token' | 'no_mark';
+type ConflictKind = 'floor' | 'label' | 'rules' | 'unknown_token' | 'no_mark';
 
 export interface Conflict {
   kind: ConflictKind;
@@ -447,13 +447,13 @@ export interface Res {
   conflict?: Conflict;
 }
 
-export interface ResolveCtx {
+interface ResolveCtx {
   buildings: BuildingRef[];
   settings: MappingSettings;
 }
 
 /** The answers offered for a mark with no building, in the order of the setting (answer 4A). */
-export function newTokenOptions(token: string, s: MappingSettings): Target[] {
+function newTokenOptions(token: string, s: MappingSettings): Target[] {
   const nw: Target = { t: 'new', name: newBuildingName(token) };
   const none: Target = { t: 'none' };
   // "existing" is a building picker in the UI - not a fixed target - so it is represented by its position only (see exceptionOrder)
@@ -614,7 +614,7 @@ export function manualImpact(items: MapItem[], before: MappingState, after: Mapp
 
 // ------------------------------------------------------------------------------------------------------------------------------- summary
 
-export interface BuildingSummary {
+interface BuildingSummary {
   key: string;
   target: Target;
   floors: number;
@@ -671,7 +671,7 @@ export function summarize(items: MapItem[], res: Map<string, Res>, buildings: Bu
 // ------------------------------------------------------------------------------------------------------------------------------- the plan
 
 /** A reference the server resolves: an existing id, or `new:<key>` of a building / floor created by the same apply. */
-export type Ref = string;
+type Ref = string;
 
 export interface PlanFloor {
   key: string;
@@ -876,7 +876,7 @@ export interface HaLabel {
   areas: number;
 }
 
-export interface LabelCoverageRow {
+interface LabelCoverageRow {
   name: string;
   color: string | null;
   /** Areas that carry this label. */

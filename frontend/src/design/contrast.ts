@@ -45,9 +45,9 @@ export function contrastRatio(a: RGBA, b: RGBA): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-export const WCAG_TEXT = 4.5;
+const WCAG_TEXT = 4.5;
 
-export interface SheetModel {
+interface SheetModel {
   /** The sheet colour (opaque) and the dimming overlay (with its alpha). */
   sheet: RGBA;
   overlay: RGBA;
@@ -58,7 +58,7 @@ export interface SheetModel {
 }
 
 /** The colour of the sheet at `alpha` over the overlay over `content`. */
-export function sheetOver(m: SheetModel, alpha: number, content: RGBA): RGBA {
+function sheetOver(m: SheetModel, alpha: number, content: RGBA): RGBA {
   return over(withAlpha(m.sheet, alpha), over(m.overlay, content));
 }
 
@@ -125,7 +125,7 @@ export const WASH_MAX = 62;
 /** The tones a tile may be washed with: the lit fill, the accent, the state colours, the climate pair and the eight decorative hues. */
 export const WASH_TONES = ['--sw-lit', '--sw-accent', '--sw-success', '--sw-warning', '--sw-danger', '--sw-cool', '--sw-heat', '--sw-hue-1', '--sw-hue-2', '--sw-hue-3', '--sw-hue-4', '--sw-hue-5', '--sw-hue-6', '--sw-hue-7', '--sw-hue-8'];
 
-export interface WashModel {
+interface WashModel {
   /** The opaque surfaces a washed tile sits on (a translucent skin surface is composited over the page background first). */
   bases: RGBA[];
   tones: RGBA[];

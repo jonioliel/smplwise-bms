@@ -90,7 +90,7 @@ const TEXT: Record<'he' | 'en' | 'ar' | 'ru', Record<Key, string>> = {
   },
 };
 
-export interface PrefillHost {
+interface PrefillHost {
   lang: string;
   info: () => ClaimInfo | null;
   settings: () => ClaimFormSettings | null;

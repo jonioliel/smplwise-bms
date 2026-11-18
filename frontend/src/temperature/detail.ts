@@ -14,6 +14,7 @@ import { ticketsEnabled } from '../tickets/gate'; // owner rule 2026-10-20: no t
 import { tt, type TtKey } from '../i18n/temperature';
 import { dayMonthText } from '../api/day-format';
 import { confirmDialog } from '../components/confirm-dialog';
+import { errLineStyles } from '../styles/fragments';
 
 const WIDE_KEY = 'sw.temperature.detailWide';
 const MUTES = [15, 30, 60, 120];
@@ -149,7 +150,7 @@ export class TempDetail extends LitElement {
     .pop button { display: flex; justify-content: space-between; gap: 16px; border: 0; background: transparent; padding: 8px 10px; border-radius: var(--sw-r-sm); font: inherit; color: inherit; cursor: pointer; text-align: start; }
     @media (hover: hover) and (pointer: fine) { .pop button:hover { background: var(--sw-hover-wash); } }
     .pop button:active { background: var(--sw-surface-3); }
-    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+    ${errLineStyles}
     /* phase 3 */
     .summ.hl b[data-bad='true'] { color: var(--sw-warning-text); font-weight: var(--sw-fw-semibold); }
     .warnline { color: var(--sw-warning-text) !important; }

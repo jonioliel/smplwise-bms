@@ -13,7 +13,7 @@ import { timelineLine } from './timeline-line';
 const HISTORY_WINDOW = 60;
 const FILTER_LABEL: Record<HistoryFilter, ConvTextKey> = { all: 'f_all', messages: 'f_messages', notes: 'f_notes', status: 'f_status', costs: 'f_costs' };
 
-export interface HistoryCtx {
+interface HistoryCtx {
   /** the handler link panel (tickets/link-panel.ts, managers only): copy / new / revoke / send again - the audit card's actions */
   link: TemplateResult | typeof nothing;
 }

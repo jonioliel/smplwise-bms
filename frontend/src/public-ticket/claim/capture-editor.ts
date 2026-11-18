@@ -10,7 +10,7 @@
  * The module's top level touches no DOM, so its pure helpers are node-testable.
  */
 
-export const LONG_SIDE = 2048;
+const LONG_SIDE = 2048;
 export const JPEG_QUALITY = 0.8;
 /** the preview canvas is smaller than the page itself (drawing cost on a phone) */
 const PREVIEW_LONG_SIDE = 1024;
@@ -101,7 +101,7 @@ function release(c: HTMLCanvasElement | null): void {
 }
 
 /** Decode the picked file (EXIF orientation applied by the browser) and draw it downscaled; the decoded image is released. */
-export async function decodeToCanvas(file: Blob): Promise<HTMLCanvasElement> {
+async function decodeToCanvas(file: Blob): Promise<HTMLCanvasElement> {
   if (typeof createImageBitmap === 'function') {
     try {
       const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
@@ -137,7 +137,7 @@ export async function decodeToCanvas(file: Blob): Promise<HTMLCanvasElement> {
   }
 }
 
-export function rotate90(src: HTMLCanvasElement): HTMLCanvasElement {
+function rotate90(src: HTMLCanvasElement): HTMLCanvasElement {
   const c = canvas(src.height, src.width);
   const g = ctx2d(c);
   g.translate(c.width, 0);
@@ -146,13 +146,13 @@ export function rotate90(src: HTMLCanvasElement): HTMLCanvasElement {
   return c;
 }
 
-export function cropTo(src: HTMLCanvasElement, r: Rect): HTMLCanvasElement {
+function cropTo(src: HTMLCanvasElement, r: Rect): HTMLCanvasElement {
   const c = canvas(r.w, r.h);
   ctx2d(c).drawImage(src, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
   return c;
 }
 
-export function enhanced(src: HTMLCanvasElement): HTMLCanvasElement {
+function enhanced(src: HTMLCanvasElement): HTMLCanvasElement {
   const c = canvas(src.width, src.height);
   const g = ctx2d(c);
   g.drawImage(src, 0, 0);
@@ -170,7 +170,7 @@ export function toJpeg(c: HTMLCanvasElement, quality: number = JPEG_QUALITY): Pr
 
 // ---------------------------------------------------------------- the editor UI
 
-export type EditorTextKey = 'rotate' | 'crop' | 'crop_apply' | 'crop_cancel' | 'crop_hint' | 'contrast' | 'processing';
+type EditorTextKey = 'rotate' | 'crop' | 'crop_apply' | 'crop_cancel' | 'crop_hint' | 'contrast' | 'processing';
 
 export interface EditorAction {
   label: string;
@@ -179,7 +179,7 @@ export interface EditorAction {
   run: (editor: PageEditor) => void;
 }
 
-export interface PageEditorOptions {
+interface PageEditorOptions {
   title: string;
   text: (key: EditorTextKey) => string;
   /** the step's own buttons (add page, finish document, retake, cancel ...) */

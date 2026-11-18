@@ -20,7 +20,7 @@ export interface VisitBlock {
   offer_access?: boolean;
 }
 
-export interface ArrivedHost {
+interface ArrivedHost {
   post(crid: string): Promise<{ status: number; body: unknown }>;
   newRequestId(): string;
   lang: Lang;
@@ -29,7 +29,7 @@ export interface ArrivedHost {
   reload(): void;
 }
 
-export interface ArrivedHandle { element: HTMLElement; update(block: VisitBlock): void; setLang(lang: Lang): void }
+interface ArrivedHandle { element: HTMLElement; update(block: VisitBlock): void; setLang(lang: Lang): void }
 
 /** "Mon 24 Oct, 09:30" in the installation's zone and the page's language; a bad value shows as it came. */
 export function stamp(iso: string | null | undefined, lang: Lang, zone: string): string {

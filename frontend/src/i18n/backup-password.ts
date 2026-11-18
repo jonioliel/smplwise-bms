@@ -96,10 +96,9 @@ const ru: Partial<Record<Key, string>> = {
   resultNeedReset: '{n} локальным учётным записям нужна ссылка для сброса пароля',
 };
 
-export type BptKey = Key;
-export type BptLang = 'he' | 'en' | 'ar' | 'ru';
+type BptLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function bptLang(): BptLang {
+function bptLang(): BptLang {
   return docLang(['en', 'ar', 'ru']);
 }
 

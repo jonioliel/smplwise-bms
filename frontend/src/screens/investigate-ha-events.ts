@@ -20,6 +20,7 @@ import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { hev, type HevKey } from '../i18n/ha-events';
 import { SENSOR_TYPES, areaOptions, describeSensorEvent, placeLabel, type SensorEvent } from './ha-events-logic';
 import { dateInputLang, timeText, dayMonthText } from '../api/day-format';
+import { ltrStyles } from '../styles/fragments';
 
 /**
  * NVRLESS-295 — the sensor events list: the investigate area of an installation with no recorder events (no NVR). The same stored
@@ -87,7 +88,7 @@ export class InvestigateHaEvents extends LitElement {
     dt { color: var(--sw-text-3); }
     dd { margin: 0; }
     .noclip { margin-block-start: 12px; padding: 10px; border-radius: var(--sw-r-md); background: var(--sw-surface-2); color: var(--sw-text-2); font-size: var(--sw-fs-xs); display: flex; gap: 8px; align-items: flex-start; }
-    .ltr { direction: ltr; unicode-bidi: isolate; }
+    ${ltrStyles}
     @media (max-width: 767px) {
       .filters sw-field, .filters sw-field:has(input[type='search']) { inline-size: 100%; }
       .ro { margin-inline-start: 0; }

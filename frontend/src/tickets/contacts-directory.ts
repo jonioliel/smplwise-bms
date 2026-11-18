@@ -10,7 +10,7 @@ import './phone-verify';
 import '../access-external/identity-card'; // SHAREDID-293: the access-control identity of a person (renders nothing without the right)
 import { settingsStyles } from '../styles/settings';
 import { automationsStyles } from '../styles/automations-glass';
-import { applyAutomationsGlass } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { SkinController } from '../design/skin';
 import { bidi } from '../i18n/bidi';
@@ -30,6 +30,7 @@ import { decimalToMinor, minorToInput } from './cost-model';
 import { tt, type TicketTextKey } from './text';
 import { xt } from '../i18n/access-external';
 import { MARKER_FILTERS, byMarker, carriesMarker, filterKey, markerView, type MarkerFilter } from './vendor-marker';
+import { hostBlockStyles } from '../styles/fragments';
 
 /** The languages by their own names (the page and the messages of a contact speak it). */
 const initials = (name: string): string => name.trim().split(/\s+/).slice(0, 2).map((x) => x[0] ?? '').join('');
@@ -123,10 +124,7 @@ export class TicketsContacts extends LitElement {
   private loadedKind: ContactKind | '' = '';
 
   static styles = [bubbleChrome, ...automationsStyles, settingsStyles, ticketSettingsCss, handlersGlass, css`
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
     .sec {
       display: flex;
       flex-direction: column;

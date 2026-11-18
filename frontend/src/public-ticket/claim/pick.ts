@@ -19,9 +19,9 @@ export const ACCEPT: Readonly<Record<PickKind, string>> = {
 };
 
 /** How long after the window regains focus a missing `change` counts as "no file" (camera apps can take a moment to hand over). */
-export const FOCUS_GRACE_MS = 2500;
+const FOCUS_GRACE_MS = 2500;
 
-export interface PickOptions {
+interface PickOptions {
   /** a `change` after the picker was already resolved as "no file" */
   onLate?: (file: File) => void;
   /** where the hidden input lives while the picker is open (default document.body) */

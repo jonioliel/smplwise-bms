@@ -13,7 +13,7 @@ import { statusCss } from '../styles/status-palette';
  * Sizes: small = the supply line and the chip (dots for several); medium = adds the rows (up to 4); large = every row with fuel / load.
  * Read-only: the supply block opens תשתיות › גנרטור, a row opens that generator. Clean operator card: no hints, no paragraphs.
  */
-export interface GeneratorsWidgetHost {
+interface GeneratorsWidgetHost {
   generators: readonly LiveSummaryItem[];
   editing: boolean;
   shell: (it: WidgetItem, cls: string, extra: Record<string, string>, body: TemplateResult) => TemplateResult;

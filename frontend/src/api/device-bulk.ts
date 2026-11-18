@@ -10,6 +10,7 @@
  */
 import { get, post } from './client';
 import { tr } from '../i18n/msg/api-devices';
+import { isoZ } from './day-format';
 
 export type BulkScope = 'building' | 'floor' | 'area';
 /** CR-007 slice 4: covers_open / covers_stop / covers_position are the area's own "כל התריסים" group control
@@ -27,8 +28,6 @@ export const BULK_KINDS: BulkKind[] = ['lights_off', 'covers_close', 'climate_of
 export const BULK_MENU_KINDS: BulkKind[] = ['lights_off', 'lights_on', 'covers_close', 'climate_off', 'heating_off', 'screens_off', 'all_off'];
 /** The kinds that turn something ON (the server's device_bulk.ON_KINDS): they look for devices that are off. */
 export const BULK_ON_KINDS: ReadonlySet<BulkKind> = new Set<BulkKind>(['switches_on', 'lights_on', 'screens_on']);
-/** The cover group control's own four actions (devices-area.ts): open all / stop all / close all / position all. */
-export const COVER_GROUP_KINDS: BulkKind[] = ['covers_open', 'covers_stop', 'covers_close', 'covers_position'];
 
 /** The mockup's menu wording (the quick actions of the floor menu, the area popover and the building buttons), plus
  * the cover group control's own four (CR-007 slice 4). */
@@ -86,7 +85,7 @@ export interface BulkPreview {
   position?: number | null;
 }
 
-export interface BulkItem {
+interface BulkItem {
   entity_id: string;
   name: string;
   domain: string;
@@ -205,7 +204,7 @@ export function bulkBody(scope: BulkScope, id: string, kind: BulkKind, previewDi
     kind,
     confirmed: true,
     client_request_id: commandId(),
-    expires_at: new Date(serverNow() + BULK_TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    expires_at: isoZ(serverNow() + BULK_TTL_MS),
     preview_digest: previewDigest,
     ...(position !== undefined ? { position } : {}),
     ...(only ? { only } : {}),

@@ -14,7 +14,7 @@ export type FormulaAst = { m: string } | { n: string } | { op: '+' | '-' | '*' |
 export type Op = '+' | '-' | '*' | '/' | '(' | ')';
 export type Tok = { t: 'm'; id: string } | { t: 'op'; v: Op } | { t: 'n'; v: string; pct: boolean };
 
-export type IssueCode = 'empty' | 'paren_open' | 'paren_close' | 'meter_times_meter' | 'dangling' | 'missing_operand' | 'number_alone' | 'number_times_number' | 'unknown_meter' | 'bad_char' | 'bad_number' | 'unexpected' | 'divide_by_meter';
+type IssueCode = 'empty' | 'paren_open' | 'paren_close' | 'meter_times_meter' | 'dangling' | 'missing_operand' | 'number_alone' | 'number_times_number' | 'unknown_meter' | 'bad_char' | 'bad_number' | 'unexpected' | 'divide_by_meter';
 export interface Issue {
   code: IssueCode;
   message: string;
@@ -22,7 +22,7 @@ export interface Issue {
   at: number;
 }
 
-export const ISSUE_TEXT: Record<IssueCode, string> = {
+const ISSUE_TEXT: Record<IssueCode, string> = {
   empty: tr('הנוסחה ריקה. הוסיפו לפחות מונה אחד.'),
   paren_open: tr('חסר סוגר. כל סוגר שנפתח צריך להיסגר.'),
   paren_close: tr('יש סוגר סוגר בלי סוגר פותח.'),
@@ -38,7 +38,7 @@ export const ISSUE_TEXT: Record<IssueCode, string> = {
   unexpected: tr('הנוסחה אינה תקינה.'),
 };
 
-export interface ParseResult {
+interface ParseResult {
   ast: FormulaAst | null;
   issues: Issue[];
   warnings: string[];

@@ -7,9 +7,9 @@
 import { tr } from '../i18n/msg/components';
 export const WEEKDAYS_HE = [tr('א׳'), tr('ב׳'), tr('ג׳'), tr('ד׳'), tr('ה׳'), tr('ו׳'), tr('ש׳')] as const;
 export const WEEKDAY_NAMES_HE = [tr('ראשון'), tr('שני'), tr('שלישי'), tr('רביעי'), tr('חמישי'), tr('שישי'), tr('שבת')] as const;
-export const MONTHS_HE = [tr('ינואר'), tr('פברואר'), tr('מרץ'), tr('אפריל'), tr('מאי'), tr('יוני'), tr('יולי'), tr('אוגוסט'), tr('ספטמבר'), tr('אוקטובר'), tr('נובמבר'), tr('דצמבר')] as const;
+const MONTHS_HE = [tr('ינואר'), tr('פברואר'), tr('מרץ'), tr('אפריל'), tr('מאי'), tr('יוני'), tr('יולי'), tr('אוגוסט'), tr('ספטמבר'), tr('אוקטובר'), tr('נובמבר'), tr('דצמבר')] as const;
 
-export type DayState = 'recorded' | 'empty' | 'future' | 'unknown';
+type DayState = 'recorded' | 'empty' | 'future' | 'unknown';
 
 export interface MonthCell {
   /** YYYY-MM-DD */

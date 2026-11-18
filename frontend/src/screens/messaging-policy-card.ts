@@ -12,6 +12,7 @@ import { mw, type MwKey } from '../i18n/messaging-policy';
 import { blocksEverything, minutesValue, pageOf, phoneDigits } from '../messaging/policy-model';
 import { timeText } from '../api/day-format';
 import { PollController } from '../components/poll-controller';
+import { hostBlockStyles, ltrStyles } from '../styles/fragments';
 
 /**
  * WAPACE-295: the WhatsApp send policy (Settings > messaging channel). Two blocks in one card: the allow-list of handlers and providers
@@ -36,7 +37,7 @@ export class MessagingPolicyCard extends LitElement {
   private poll = new PollController(this);
 
   static styles = [settingsStyles, css`
-    :host { display: block; min-inline-size: 0; }
+    ${hostBlockStyles}
     .head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-block-end: var(--sw-s-2); }
     .head strong { min-inline-size: 0; overflow-wrap: anywhere; }
     .tag { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: var(--sw-fs-xs); background: var(--sw-surface-3); color: var(--sw-text-2); white-space: nowrap; }
@@ -47,7 +48,7 @@ export class MessagingPolicyCard extends LitElement {
     .grid .in { inline-size: 100%; min-inline-size: 0; box-sizing: border-box; }
     .entry { display: flex; align-items: center; gap: var(--sw-s-2); min-inline-size: 0; padding-block: 6px; border-block-start: 1px solid var(--sw-border); }
     .entry .name { flex: 1; min-inline-size: 0; overflow-wrap: anywhere; }
-    .ltr { direction: ltr; unicode-bidi: isolate; }
+    ${ltrStyles}
     .pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-block-start: 6px; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
     .sect { border-block-start: 1px solid var(--sw-border); margin-block-start: var(--sw-s-2); padding-block-start: var(--sw-s-2); }
   `];

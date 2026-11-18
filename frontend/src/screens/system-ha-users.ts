@@ -16,6 +16,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';
 import { ht, type HaUsersTextKey } from '../i18n/ha-users';
 import { accessKey, canCreate, confirmMatches, draftProblems, emptyDraft, newRequestKey, repairKey, rowActions, stateKey, type Draft } from './ha-users-logic';
+import { ltrStyles } from '../styles/fragments';
 
 /**
  * USR1 (docs/design/USR1_HA_USERS_FROM_ARX.md): Settings › משתמשים והרשאות › משתמשי מערכת הבית (tab `ha-users` of system-access).
@@ -65,7 +66,7 @@ export class SwHaUsers extends LitElement {
     .item.hdr { color: var(--sw-text-3); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); padding-block: 4px; }
     .name { display: flex; flex-direction: column; min-inline-size: 0; }
     .name .sub { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
-    .ltr { direction: ltr; unicode-bidi: isolate; }
+    ${ltrStyles}
     .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: var(--sw-r-pill); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-medium);
       background: var(--sw-surface-3); color: var(--sw-text-2); white-space: nowrap; }
     .chip.active { background: var(--sw-success-soft); color: var(--sw-success-text); }

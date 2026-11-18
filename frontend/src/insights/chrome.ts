@@ -4,11 +4,11 @@ import type { TabItem } from '../components/sw-tabs';
 import { ix } from '../i18n/insights';
 import { insightsStatus } from './access';
 
-export type InsightPage = 'building' | 'doors' | 'waste';
+type InsightPage = 'building' | 'doors' | 'waste';
 const HREF: Record<InsightPage, string> = { building: '#/tickets/reports/building', doors: '#/tickets/reports/doors', waste: '#/tickets/reports/waste' };
 
 /** The pages of the section the viewer may open now (their switch is on): drawn like the other screens' page rows (sw-tabs, compact underline). */
-export function pageItems(): TabItem[] {
+function pageItems(): TabItem[] {
   const s = insightsStatus();
   const out: TabItem[] = [];
   if (s.report) out.push({ id: 'building', label: ix('pageBuilding'), href: HREF.building });

@@ -2,7 +2,7 @@
  * Floor map, plan import and anchor editing against the backend, with a demo fallback that renders the
  * synthetic plans when no backend is present.
  */
-import { svg, type SVGTemplateResult } from 'lit';
+import type { SVGTemplateResult } from 'lit';
 import { del, get, patch, path, post, put, query, resourceUrl, upload } from './client';
 import { cap, isApi } from './session';
 import { visibleCameras, visibleRecorderGroups } from './camera-visibility';
@@ -16,7 +16,7 @@ import type { StateKind } from '../components/sw-badge';
 
 /** K88: own floor images as the map draws them (urls already resolved). Corners: top-left, top-right, bottom-right,
  * bottom-left in plan-normalised coordinates. */
-export interface FloorImageLayer {
+interface FloorImageLayer {
   off: string | null;
   on: string | null;
   corners: [number, number][];
@@ -237,11 +237,8 @@ export const syncCameras = () => post<{ channels: number; created: number; updat
 export const registerCamera = (body: { channel: number; alias: string }) => post<Camera>('cameras', body);
 export const updateCamera = (id: string, body: { alias?: string; sort_order?: number; enabled?: boolean; grid_col_span?: number; wall_hidden?: boolean }) => patch<Camera>(path`cameras/${id}`, body);
 
-/** Plain white plan area (used only where no raster and no synthetic plan exist). */
-export const blankPlan = (w: number, h: number): SVGTemplateResult => svg`<rect x="0" y="0" width=${w} height=${h} fill="var(--sw-map-bg)" />`;
-
 /** DXF source details and options (T065): what the drawing holds, what is drawn, what is skipped. */
-export interface DxfLayer {
+interface DxfLayer {
   name: string;
   drawable: number;
   off: boolean;

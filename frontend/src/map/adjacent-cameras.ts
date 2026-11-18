@@ -8,19 +8,19 @@
 import { tr } from '../i18n/msg/map';
 import { pointInPolygon, type ZonePoint } from '../api/zones';
 
-export type AdjacentRelation = 'same_zone' | 'adjacent_zone' | 'nearby';
+type AdjacentRelation = 'same_zone' | 'adjacent_zone' | 'nearby';
 
 export const ADJACENT_LABEL: Record<AdjacentRelation, string> = { same_zone: tr('אותו חדר'), adjacent_zone: tr('חדר סמוך'), nearby: tr('בקרבת מקום') };
 
 /** Within this normalized distance (a fifth of the plan) a camera outside every room still counts as "nearby". */
 export const NEARBY_RADIUS = 0.2;
 
-export interface AdjacentCamera {
+interface AdjacentCamera {
   id: string;
   position: ZonePoint;
 }
 
-export interface AdjacentZone {
+interface AdjacentZone {
   id: string;
   name: string;
   polygon: ZonePoint[];

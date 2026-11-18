@@ -4,8 +4,8 @@
  */
 import type { ArrivalKey } from './arrival-text';
 
-export interface ArrivalPerson { id: string; label: string }
-export interface AccessView {
+interface ArrivalPerson { id: string; label: string }
+interface AccessView {
   doors: string[];
   from: string | null;
   to: string | null;
@@ -14,7 +14,7 @@ export interface AccessView {
   code?: { state: 'scheduled' | 'sent' | 'not_delivered'; at: string | null; to: string | null };
   card?: { state: 'ready' | 'preparing' };
 }
-export interface ArrivalCurrent { state: 'waiting' | 'approved' | 'ending' | string; person: string; pending_change: boolean; access?: AccessView }
+interface ArrivalCurrent { state: 'waiting' | 'approved' | 'ending' | string; person: string; pending_change: boolean; access?: AccessView }
 export interface ArrivalView {
   available: boolean;
   persons: ArrivalPerson[];

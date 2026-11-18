@@ -16,7 +16,7 @@ const he = {
   kind: 'בקשת הצעת מחיר',
   open: 'פתח את הבקשה',
 };
-export type RfqNotifyKey = keyof typeof he;
+type RfqNotifyKey = keyof typeof he;
 
 const en: Partial<Record<RfqNotifyKey, string>> = {
   'rfq.quote_received': 'Quote received or updated',
@@ -31,7 +31,7 @@ const en: Partial<Record<RfqNotifyKey, string>> = {
   open: 'Open the request',
 };
 
-export function rfqNotifyLang(): 'he' | 'en' {
+function rfqNotifyLang(): 'he' | 'en' {
   return docLang(['en']);
 }
 

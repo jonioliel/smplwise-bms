@@ -17,7 +17,7 @@ export interface SeekTimers {
   clear(handle: unknown): void;
 }
 
-export interface SeekCoalescerOptions {
+interface SeekCoalescerOptions {
   delayMs?: number;
   busyRetryMs?: number;
   timers?: SeekTimers;

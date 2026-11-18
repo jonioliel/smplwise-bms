@@ -18,11 +18,6 @@ function canEdit(): Promise<boolean> {
   return ACCESS;
 }
 
-/** Tests only: forget the cached answer. */
-export function resetProfilesLinkAccess(): void {
-  ACCESS = null;
-}
-
 /**
  * WISKEY-PROFILES-EDIT-2390: the entry to "קבוצות ושדות" (`#/wiskey/profiles`) from the people screen's actions and the Settings view of
  * the groups. Renders NOTHING until the server says this user may edit the policy (people management at installation scope) - so for

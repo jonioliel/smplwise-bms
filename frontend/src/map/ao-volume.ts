@@ -24,11 +24,11 @@ import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
 import { OccluderGrid, hemisphere, occluderOf, pointInOccluder, type Occluder } from './lightmap-bake';
 
 export const AO_VOLUME_RECIPE = 'aovol-1';
-export const VOL_SAMPLES = 24;
-export const VOL_REACH_M = 1.1;
+const VOL_SAMPLES = 24;
+const VOL_REACH_M = 1.1;
 export const VOL_TEXEL_M = 0.2;
 export const VOL_MAX_XZ = 128;
-export const VOL_MAX_Y = 64;
+const VOL_MAX_Y = 64;
 /** How far the run time lifts a fragment off its surface before it samples (a little more than half a texel). */
 export const VOL_BIAS_M = 0.12;
 /** The margin around the occluders' footprint the volume covers. */
@@ -36,7 +36,7 @@ const MARGIN_M = 0.4;
 /** The door leaves are not static: the floor lightmap's occluder kinds without `door`. */
 const STATIC_KINDS = new Set<ScenePart['kind']>(['wall', 'lintel', 'sill', 'head', 'object', 'connector']);
 
-export interface AoLevel {
+interface AoLevel {
   id: string;
   elevation_m: number;
   ceiling_height_m: number;
@@ -46,7 +46,7 @@ export interface AoVolumeInput {
   levels: AoLevel[];
   parts: Pick<ScenePart, 'level_id' | 'kind' | 'shape' | 'position' | 'size' | 'rotation' | 'opacity'>[];
 }
-export interface AoVolumePlan {
+interface AoVolumePlan {
   /** World position of texel (0, 0, 0)'s lower corner. */
   origin: Vec3;
   /** Texel edge in metres (x / z share it; y is VOL_TEXEL_M). */
@@ -133,7 +133,7 @@ export function flatWallRef(dirs: Vec3[] = hemisphere(VOL_SAMPLES)): number {
   return 1 - sum / dirs.length;
 }
 
-export interface AoBakeOptions {
+interface AoBakeOptions {
   /** Called after every z slice; resolve to continue (the main-thread fallback yields to the event loop here). */
   yieldSlice?: (slice: number, slices: number) => Promise<void> | void;
   now?: () => number;

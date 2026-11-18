@@ -10,7 +10,7 @@ import './rfq-files';
 import './rfq-terms'; // CR-RFQ-PAYMENT-SCHEDULE: the approved schedule + the vendor's arrival confirmation
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles } from '../styles/media-page';
-import { applyAutomationsGlass } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { SkinController } from '../design/skin';
 import { bidi } from '../i18n/bidi';

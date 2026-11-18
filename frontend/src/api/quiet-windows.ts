@@ -19,7 +19,7 @@ export const QW_KEYS = {
   mute_alerts: 'quiet.windows.mute_alerts',
   channels: 'quiet.windows.channels',
 } as const;
-export type QwField = keyof typeof QW_KEYS;
+type QwField = keyof typeof QW_KEYS;
 /** The server's range of both durations (minutes). */
 export const QW_MINUTES: readonly [number, number] = [5, 720];
 
@@ -56,7 +56,7 @@ export function qwChanges(saved: QuietWindowSettings, draft: QuietWindowSettings
   return out;
 }
 
-export type QwProblem = 'range' | 'default_over_max';
+type QwProblem = 'range' | 'default_over_max';
 /** What the server would refuse (422), checked before the save. */
 export function qwProblem(d: QuietWindowSettings): QwProblem | null {
   const ok = (n: number) => Number.isInteger(n) && n >= QW_MINUTES[0] && n <= QW_MINUTES[1];

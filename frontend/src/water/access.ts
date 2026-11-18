@@ -14,7 +14,7 @@ import { get } from '../api/client';
 import { isApi, onSession } from '../api/session';
 import { applyInfraWater } from '../shell/nav';
 
-export interface WaterStatus {
+interface WaterStatus {
   enabled: boolean;
   can_view: boolean;
   can_manage: boolean;

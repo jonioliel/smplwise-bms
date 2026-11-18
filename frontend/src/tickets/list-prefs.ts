@@ -5,14 +5,6 @@
  */
 const SENTENCE_KEY = 'sw.tickets.table.sentence';
 
-export function readSentenceOn(): boolean {
-  try {
-    return window.localStorage.getItem(SENTENCE_KEY) !== '0';
-  } catch {
-    return true;
-  }
-}
-
 /**
  * TICKETS-1440-COLUMN-SETTING-2360: whether the viewer ever chose for the sentence column. `on` / `off` = the tick in the column chooser was
  * used in this browser (the choice wins over the installation's "medium width" default); `default` = never touched, the default (shown) applies.

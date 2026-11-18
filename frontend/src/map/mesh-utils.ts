@@ -11,7 +11,7 @@
  *   transforms, material names) instead of three's GLTFLoader, whose animation / skinning imports would land in the
  *   capped `three` chunk.
  */
-export type Mat4 = number[]; // column-major, 16
+type Mat4 = number[]; // column-major, 16
 
 /** UVs (metres / tile) for a non-indexed triangle list of world positions. */
 export function boxUv(pos: ArrayLike<number>, tileM: number, offset: [number, number, number] = [0, 0, 0]): Float32Array {
@@ -36,7 +36,7 @@ export function boxUv(pos: ArrayLike<number>, tileM: number, offset: [number, nu
 }
 
 /** Expand an indexed attribute (itemSize components) into a triangle soup. */
-export function deindex(attr: ArrayLike<number>, index: ArrayLike<number> | null, itemSize: number): Float32Array {
+function deindex(attr: ArrayLike<number>, index: ArrayLike<number> | null, itemSize: number): Float32Array {
   if (!index) return Float32Array.from(attr);
   const out = new Float32Array(index.length * itemSize);
   for (let i = 0; i < index.length; i++) for (let c = 0; c < itemSize; c++) out[i * itemSize + c] = attr[index[i] * itemSize + c];
@@ -116,11 +116,11 @@ export function compose(t: number[], q: number[], s: number[]): Mat4 {
     t[0], t[1], t[2], 1,
   ];
 }
-export function applyPoint(m: Mat4, x: number, y: number, z: number): [number, number, number] {
+function applyPoint(m: Mat4, x: number, y: number, z: number): [number, number, number] {
   return [m[0] * x + m[4] * y + m[8] * z + m[12], m[1] * x + m[5] * y + m[9] * z + m[13], m[2] * x + m[6] * y + m[10] * z + m[14]];
 }
 
-export interface GlbPrimitive {
+interface GlbPrimitive {
   /** Triangle soup in model space (node transforms applied). */
   positions: Float32Array;
   /** The material's name (the kit's slot: wood, metal, carpet, ...); '' without one. */

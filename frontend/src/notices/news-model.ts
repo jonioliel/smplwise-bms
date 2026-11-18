@@ -21,7 +21,7 @@ export interface Row {
   custom: boolean;
 }
 
-export type RowError = 'name' | 'url' | 'dup' | '';
+type RowError = 'name' | 'url' | 'dup' | '';
 
 export function rowsOf(list: NewsSource[]): Row[] {
   return list.map((s) => ({ id: s.id, name: s.name, url: s.url, enabled: s.enabled !== false, has_logo: !!s.has_logo, logo_url: s.logo_url || '', custom: !!s.custom }));

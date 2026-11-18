@@ -16,7 +16,7 @@
  */
 import { ReactiveElement } from 'lit';
 
-export const FOCUS_POLICY_CSS = `
+const FOCUS_POLICY_CSS = `
 :where(:focus-visible):not(sw-field > *) {
   outline: var(--sw-focus-w, 2px) solid var(--sw-focus, #2767ed);
   outline-offset: var(--sw-focus-offset, 2px);
@@ -37,7 +37,7 @@ export const FOCUS_POLICY_CSS = `
  * something (that rule would merge with this one); such a control gets the min size instead.
  */
 export const TOUCH_TARGET_PX = 44;
-export const TOUCH_POLICY_CSS = `
+const TOUCH_POLICY_CSS = `
 @media (pointer: coarse) {
   :where(.sw-hit) {
     position: relative;
@@ -54,7 +54,7 @@ export const TOUCH_POLICY_CSS = `
 let sheet: CSSStyleSheet | null = null;
 
 /** The shared sheet (null where constructable stylesheets do not exist). */
-export function focusPolicySheet(): CSSStyleSheet | null {
+function focusPolicySheet(): CSSStyleSheet | null {
   if (sheet) return sheet;
   try {
     sheet = new CSSStyleSheet();
@@ -67,7 +67,7 @@ export function focusPolicySheet(): CSSStyleSheet | null {
 
 let installed = false;
 
-export function installFocusPolicy(): void {
+function installFocusPolicy(): void {
   if (installed || typeof document === 'undefined') return;
   installed = true;
   const s = focusPolicySheet();

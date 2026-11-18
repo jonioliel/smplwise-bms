@@ -10,6 +10,7 @@ import { ApiError, get, post, put } from './client';
 import { commandId } from './request-id';
 import { serverNow } from './intercom';
 import { CONFIRM_WORDS } from '../i18n/confirm-words';
+import { isoZ } from './day-format';
 
 const BASE = 'access-control/installer';
 const TTL_MS = 20_000; // the server accepts at most 60 s; it sends within 15 s of arrival or not at all
@@ -22,21 +23,21 @@ export interface InstallerOverview {
   tools: Partial<Record<ToolName, { available: boolean | null; missing: string[] }>>;
 }
 
-export interface PartState<T> {
+interface PartState<T> {
   state: 'ready' | 'error';
   error: { code: string; wiskey_code: string | null; message: string } | null;
   fetched_at: string | null;
   data: T | null;
 }
 
-export interface NtpSettings {
+interface NtpSettings {
   revision: number;
   server: string | null;
   port: number | null;
   interval: number | null;
 }
 
-export interface HostStatus {
+interface HostStatus {
   supported: boolean;
   synchronized: boolean | null;
   use_ntp: boolean | null;
@@ -62,7 +63,7 @@ export interface ClockView {
   cooldowns: { host_apply: number };
 }
 
-export interface ClockCheck {
+interface ClockCheck {
   station_id: string;
   name: string | null;
   typed_phrase: string | null;
@@ -72,7 +73,7 @@ export interface ClockCheck {
   clock: StationClock | null;
 }
 
-export interface MeasuredClock {
+interface MeasuredClock {
   device_time: string | null;
   checked_at: string | null;
   time_mode: string | null;
@@ -101,7 +102,7 @@ export function envelope(typed?: string): Record<string, unknown> {
   return {
     confirmed: true,
     client_request_id: commandId(),
-    expires_at: new Date(serverNow() + TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    expires_at: isoZ(serverNow() + TTL_MS),
     ...(typed === undefined ? {} : { typed_confirmation: typed }),
   };
 }
@@ -120,7 +121,7 @@ export const syncStationClock = (id: string, revision: number, copySystem: boole
 
 /** `completed` from the server; `refused` (WisKey answered a failure - nothing changed), `not_sent` (refused before sending),
  * `unknown` (sent, no clear answer - it may have happened). */
-export type WriteStatus = 'completed' | 'refused' | 'not_sent' | 'unknown';
+type WriteStatus = 'completed' | 'refused' | 'not_sent' | 'unknown';
 
 export interface WriteOutcome {
   status: WriteStatus;
@@ -210,7 +211,7 @@ export interface DoorValues {
   openDuration?: number;
   relayReverseEnabled?: boolean;
 }
-export type DoorConstraint = { type: 'boolean' } | { type: 'text' | 'integer'; min: number; max: number };
+type DoorConstraint = { type: 'boolean' } | { type: 'text' | 'integer'; min: number; max: number };
 
 export interface TechnicalDoor {
   door: number | null;
@@ -219,7 +220,7 @@ export interface TechnicalDoor {
   error: string | null;
 }
 
-export interface TechnicalReport {
+interface TechnicalReport {
   checked_at: string | null;
   doors: TechnicalDoor[];
   passwords: { states: Record<string, boolean | null>; public_pin_state: string | null } | null;
@@ -396,7 +397,7 @@ export function nextAction(job: LifecycleJob): 'apply' | 'verify' | 'remove' | n
   return null;
 }
 
-export const JOB_STEPS: readonly JobState[] = ['prepared', 'applied', 'verified', 'removed'];
+const JOB_STEPS: readonly JobState[] = ['prepared', 'applied', 'verified', 'removed'];
 
 /** How far along the job is (0..3) for the step indicator. */
 export function jobProgress(state: JobState | null): number {
@@ -407,7 +408,7 @@ export function jobProgress(state: JobState | null): number {
 
 // ---------------------------------------------------------------- phase 4: the rest of the platform
 
-export interface MaintWindow {
+interface MaintWindow {
   enabled: boolean;
   days: number[];
   start: string | null;
@@ -443,7 +444,7 @@ export interface PlatformData {
   capabilities: string[];
 }
 
-export interface CapacityKind {
+interface CapacityKind {
   count: number | null;
   advertised_limit: number | null;
   used_percent: number | null;
@@ -453,12 +454,12 @@ export interface CapacityKind {
   alert: string | null;
 }
 
-export interface CapacityData {
+interface CapacityData {
   records: { station_id: string | null; name: string | null; sampled_at: string | null; fresh: boolean | null; sample_count: number | null; users: CapacityKind; cards: CapacityKind }[];
   forecast_is_estimate: boolean;
 }
 
-export interface IntegrityData {
+interface IntegrityData {
   checks: { component: string | null; state: string | null; remedy: string | null }[];
   writes_performed: boolean;
 }

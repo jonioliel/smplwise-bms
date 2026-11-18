@@ -64,7 +64,7 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
         flex: 0 1 280px;
       }
       .ent {
-        font-weight: 400;
+        font-weight: var(--sw-fw-regular);
         font-size: var(--sw-fs-sm);
         overflow: hidden;
         text-overflow: ellipsis;

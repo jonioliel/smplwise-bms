@@ -7,7 +7,7 @@
  */
 import type { InstalmentDemandRow } from '../api/tickets-costs';
 
-export type DemandsLang = 'he' | 'en';
+type DemandsLang = 'he' | 'en';
 
 const TEXT = {
   he: { title: 'תשלומים לפי שלבים', none: 'טרם נדרש', open: 'ממתין לתשלום', paid: 'שולם', cancelled: 'בוטל', advance: 'מקדמה', progress: 'תשלום ביניים',
@@ -25,7 +25,7 @@ export function demandsText(lang: DemandsLang, key: keyof (typeof TEXT)['he']): 
 }
 
 export type Timing = 'paid' | 'late' | 'soon' | 'later';
-export type PayStep = 'create' | 'paid';
+type PayStep = 'create' | 'paid';
 export interface DemandLine {
   id: string; label: string; kind: string; status: InstalmentDemandRow['status']; statusText: string; due: string; amount_minor: number | null; currency: string | null;
   timing: Timing; timingText: string; awardId: string; rfqId: string; index: number; canPay: boolean;

@@ -7,7 +7,7 @@ import { ApiError, describeError, get, put } from '../api/client';
 import { lit, litLang } from '../i18n/local-identity';
 
 /** USR2 P3: GET /identity/service-identity (local channel only, system.configure) - services/service_identity.status on the server. */
-export interface ServiceIdentityStatus {
+interface ServiceIdentityStatus {
   configured_user_id: string | null;
   user: { id: string; name: string | null; is_active: boolean; is_admin: boolean } | null;
   bridge: { paired: boolean; version: string | null; required: string; version_ok: boolean; capable: boolean; reported_user_id: string | null; agrees: boolean };

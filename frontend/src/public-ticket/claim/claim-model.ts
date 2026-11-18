@@ -24,7 +24,7 @@ export type ClaimStatus = 'none' | 'awaiting' | 'submitted' | 'rejected' | 'appr
 
 export const LINE_KINDS: readonly LineKind[] = ['labor', 'parts', 'travel', 'other'];
 
-export interface ClaimLimits {
+interface ClaimLimits {
   lines: number;
   description: number;
   vendor_ref: number;
@@ -56,7 +56,7 @@ export interface RevisionLine {
   amount_minor?: number;
 }
 
-export interface RevisionPage {
+interface RevisionPage {
   id: string;
   kind: 'photo' | 'pdf';
   bytes: number;
@@ -89,7 +89,7 @@ export interface Revision {
   basis?: ClaimBasis | null;
 }
 
-export interface ClaimBasis {
+interface ClaimBasis {
   basis: 'total' | 'instalment';
   instalment_index: number | null;
   basis_minor: number;
@@ -97,7 +97,7 @@ export interface ClaimBasis {
 }
 
 /** CR-CLAIM-PREFILL: one instalment of the approved payment schedule (amounts include VAT, RFQ contract 20.3). */
-export interface PrefillInstalment {
+interface PrefillInstalment {
   index: number;
   kind: 'advance' | 'progress' | 'final';
   amount_minor: number;
@@ -108,7 +108,7 @@ export interface PrefillInstalment {
 }
 
 /** CR-CLAIM-PREFILL: the link's OWN approved quote (GET /t/api/claim `prefill`) - the shape `formFromRevision` reads. */
-export interface ClaimPrefill {
+interface ClaimPrefill {
   version: number;
   partial: boolean;
   currency: string;
@@ -166,13 +166,13 @@ export const DEFAULT_LIMITS: ClaimLimits = {
 
 // ---------------------------------------------------------------- parsing (mirrors money.py)
 
-export type Parsed<T> = { ok: true; value: T } | { ok: false; code: string };
+type Parsed<T> = { ok: true; value: T } | { ok: false; code: string };
 
 const AMOUNT_RE = /^(\d{1,9})(?:\.(\d{1,2}))?$/;
 const HOURS_RE = /^(\d{1,3})(?:\.(\d{1,2}))?$/;
 const QTY_RE = /^(\d{1,6})(?:\.(\d{1,3}))?$/;
-export const MAX_HOURS_Q = 200 * 4;
-export const MAX_QTY_MILLI = 100_000 * 1000;
+const MAX_HOURS_Q = 200 * 4;
+const MAX_QTY_MILLI = 100_000 * 1000;
 
 /** What a person types -> the server's decimal form: Arabic-Indic / Persian digits become ASCII, the Arabic decimal separator and
  * a lone comma (no dot) become a dot, spaces go. Nothing else is guessed ("1,000.5" stays and is refused as a format error). */
@@ -386,7 +386,7 @@ export function formFromRevision(rev: Pick<Revision, 'lines' | 'currency' | 'vat
   };
 }
 
-export interface LineFigure {
+interface LineFigure {
   total: number | null;
   errors: FieldError[];
 }
@@ -425,7 +425,7 @@ export function lineFigure(line: LineDraft, index: number, limits: ClaimLimits =
   return { total, errors };
 }
 
-export interface Figures {
+interface Figures {
   lines: (number | null)[];
   byKind: Record<LineKind, number>;
   subtotal: number;
@@ -458,7 +458,7 @@ export function computeForm(form: ClaimForm, settings: ClaimFormSettings | null 
   return { lines, byKind, subtotal, vatMode: mode, rateBp, vat, total, net, complete };
 }
 
-export interface ValidationContext {
+interface ValidationContext {
   settings: ClaimFormSettings | null | undefined;
   docs: DocsState;
 }
@@ -485,15 +485,11 @@ export function validateForm(form: ClaimForm, ctx: ValidationContext): FieldErro
   return out;
 }
 
-export function lineHasInput(l: LineDraft): boolean {
-  return !!(cleanText(l.description) || l.hours || (l.quantity && l.quantity !== '1') || l.unit_price || l.amount);
-}
-
 // ---------------------------------------------------------------- documents and pages (11A.2 / 11A.6A)
 
-export type PageState = 'local' | 'uploading' | 'uploaded' | 'failed' | 'refused';
+type PageState = 'local' | 'uploading' | 'uploaded' | 'failed' | 'refused';
 
-export interface ClaimPage {
+interface ClaimPage {
   /** the page's own key - the step keeps its Blob under it until the upload succeeded */
   key: string;
   kind: 'photo' | 'pdf';
@@ -540,7 +536,7 @@ export type DocsAction =
   | { type: 'upload_failed'; pageKey: string; code: string; retryable: boolean };
 
 export const EMPTY_DOCS: DocsState = { docs: [] };
-export const DOCUMENT_KEY_RE = /^[A-Za-z0-9_-]{1,32}$/;
+const DOCUMENT_KEY_RE = /^[A-Za-z0-9_-]{1,32}$/;
 
 export function fileCount(s: DocsState): number {
   return s.docs.reduce((n, d) => n + d.pages.length, 0);
@@ -699,7 +695,7 @@ export function classify(r: ApiResult): Outcome {
   return { kind: 'refused', code: code || 'error' };
 }
 
-export interface UploadJob {
+interface UploadJob {
   doc: ClaimDocument;
   page: ClaimPage;
   pageNo: number;
@@ -716,14 +712,14 @@ export function nextUpload(s: DocsState): UploadJob | null {
   return null;
 }
 
-export interface UploadDeps {
+interface UploadDeps {
   /** sends one page: the multipart `file`, `client_request_id` = page.requestId, `document_key`, `page_no`, `name` */
   upload: (job: UploadJob) => Promise<ApiResult>;
   getState: () => DocsState;
   dispatch: (a: DocsAction) => void;
 }
 
-export type QueueResult = { kind: 'done' } | { kind: 'paused'; code: string; retryAfterS: number } | { kind: 'code_required' } | { kind: 'unavailable' };
+type QueueResult = { kind: 'done' } | { kind: 'paused'; code: string; retryAfterS: number } | { kind: 'code_required' } | { kind: 'unavailable' };
 
 /** Upload every waiting page in order; stops at the first retryable failure (the caller retries later with the same ids). A refused
  * page is marked and the queue moves on. */
@@ -850,7 +846,7 @@ export function newDocumentKey(): string {
 
 // ---------------------------------------------------------------- the draft (sessionStorage; bad reception, 10.7)
 
-export interface ClaimDraft {
+interface ClaimDraft {
   v: 1;
   form: ClaimForm;
   docs: DocsState;

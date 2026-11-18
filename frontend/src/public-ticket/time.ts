@@ -30,7 +30,7 @@ export function instantOf(y: number, m: number, d: number, h: number, mi: number
   return guess - offsetMs(first, zone);
 }
 
-export function isoOf(ms: number): string {
+function isoOf(ms: number): string {
   return new Date(Math.floor(ms / 60000) * 60000).toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 

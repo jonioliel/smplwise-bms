@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-dialog';
 import { automationsStyles } from '../styles/automations-glass';
-import { applyAutomationsGlass } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { describeError } from '../api/client';
@@ -23,7 +23,6 @@ import { ticketDetailStyles, ticketFormStyles } from './styles';
  */
 /** 2.5.4: ids this session deleted - a second delete of one answers 404 and is treated as success (idempotent UX). */
 const DELETED = new Set<string>();
-export const wasDeletedHere = (id: string): boolean => DELETED.has(id);
 
 @customElement('tickets-delete-dialog')
 export class TicketsDeleteDialog extends LitElement {

@@ -41,7 +41,7 @@ import { injectBakedAo, injectGlassFresnel, type AoUniforms } from './ao-shading
 import { floorReflectivity, injectFloorReflect } from './floor-reflect';
 import { DEFAULT_FLOOR_FINISH, FINISH_DEFS, finishMaterial, finishPixelsCached, finishSurfaceCached, isFinishMaterial, type FloorFinish } from './floor-finish';
 
-export type RealRung = 'realistic' | 'lite';
+type RealRung = 'realistic' | 'lite';
 export interface RealSettings {
   rung: RealRung;
   style: StyleId;
@@ -343,8 +343,8 @@ export class RealMaterials {
 /** S6: the roughness factor that moves a file of mean `mean` toward the library's `target`, within ROUGH_FACTOR: the CC0 files
  * run glossier than the library (oak .42 for .85, the wall tiles .17 for .35), and the full factor flattened the softbox
  * highlights the floors carry; the clamp keeps a lacquered sheen on wood and tiles and brings fabric and plaster to matte. */
-export const ROUGH_FACTOR: readonly [number, number] = [0.75, 1.5];
-export function roughnessFactor(target: number, mean: number): number {
+const ROUGH_FACTOR: readonly [number, number] = [0.75, 1.5];
+function roughnessFactor(target: number, mean: number): number {
   if (!(mean > 0.02)) return 1;
   return Math.round(Math.min(ROUGH_FACTOR[1], Math.max(ROUGH_FACTOR[0], target / mean)) * 1000) / 1000;
 }
@@ -417,7 +417,7 @@ function canvasTex(w: number, h: number, paint: (ctx: CanvasRenderingContext2D) 
   return new CanvasTexture(c);
 }
 /** The contact blob: a radial gradient (alpha 1 -> .75 at 45 % -> .18 at 80 % -> 0). */
-export function radialTexture(): CanvasTexture {
+function radialTexture(): CanvasTexture {
   radial ??= canvasTex(128, 128, (ctx) => { const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.45, 'rgba(0,0,0,0.75)'); g.addColorStop(0.8, 'rgba(0,0,0,0.18)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128); });
   return radial;
 }
@@ -593,7 +593,7 @@ function plateGeometry(polygon: [number, number][], y: number, thick: number, do
 
 // ---------------------------------------------------------------- the build
 
-export interface RealBuildInput {
+interface RealBuildInput {
   desc: SceneDescription;
   real: RealWorld;
   /** The base parts this realisation draws (SceneView passes its filtered list: one level for a thumbnail, ...). */

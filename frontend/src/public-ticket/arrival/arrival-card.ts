@@ -13,14 +13,14 @@ import type { Lang } from '../strings';
 import { at, type ArrivalKey } from './arrival-text';
 import { bodyOf, codeKey, ltr, draftProblem, firstDraft, outsideWindow, refusalKey, shortDay, type ArrivalDraft, type ArrivalView } from './arrival-model';
 
-export interface ArrivalHost {
+interface ArrivalHost {
   fetchJson(path: string, init?: { method?: 'GET' | 'POST'; body?: unknown }): Promise<{ status: number; body: unknown }>;
   lang: Lang;
   zone: string;
   newRequestId(): string;
 }
 
-export interface ArrivalHandle { element: HTMLElement; refresh(): Promise<void>; setLang(lang: Lang): void }
+interface ArrivalHandle { element: HTMLElement; refresh(): Promise<void>; setLang(lang: Lang): void }
 
 function todayIn(zone: string): string {
   try {

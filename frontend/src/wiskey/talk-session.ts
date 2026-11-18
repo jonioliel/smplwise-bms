@@ -18,7 +18,7 @@ import type { TalkStartReply } from '../api/station-media';
 import { MicFailure, type MicHandle } from './talk-mic';
 import { openSessionSocket } from './session-socket';
 
-export type TalkPhase = 'idle' | 'starting' | 'open' | 'talking';
+type TalkPhase = 'idle' | 'starting' | 'open' | 'talking';
 export type TalkProblem =
   | 'insecure'
   | 'denied'
@@ -67,7 +67,7 @@ export interface TalkDeps {
 export const IDLE_END_MS = 30_000;
 
 /** The one packet size of the station's sound inside a talk (WisKey `arx.station_talk_audio.v1`: 100 ms of 8 kHz PCMU). */
-export const TALK_PACKET_BYTES = 800;
+const TALK_PACKET_BYTES = 800;
 
 const START_PROBLEMS: Record<string, TalkProblem> = {
   intercom_talk_busy: 'busy',

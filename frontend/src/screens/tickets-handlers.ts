@@ -10,7 +10,7 @@ import { needsReviewApi } from '../api/tickets-needs-review';
 import type { TicketsContacts } from '../tickets/contacts-directory';
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles } from '../styles/media-page';
-import { applyAutomationsGlass } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { SkinController } from '../design/skin';
 import { bidi } from '../i18n/bidi';

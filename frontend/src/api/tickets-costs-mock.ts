@@ -17,12 +17,12 @@ import type {
 import type { CostFlow, MessageDraft, Quote, QuoteBlock, QuotesAnswer, QuotesBackend, QuoteState } from './tickets-quotes';
 import { decimalToMinor, halfUpDiv, hoursToQuarters, minorToDecimal, quantityToMilli, vatOf } from '../tickets/cost-model';
 import { csvCell } from '../tickets/vendor-account-model';
-import { dayMonthTimeText } from './day-format';
+import { dayMonthTimeText, isoZ } from './day-format';
 
 const sleep = (ms = 120) => new Promise((r) => setTimeout(r, ms));
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 const DAY = 86_400_000;
-const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d+Z$/, 'Z');
+const iso = (ms: number) => isoZ(ms);
 let idn = 0;
 const nid = (p: string) => `${p}${(++idn).toString(16).padStart(12, '0')}`;
 const ME = 'יוני';

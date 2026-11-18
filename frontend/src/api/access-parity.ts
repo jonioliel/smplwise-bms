@@ -8,8 +8,8 @@
 import { api } from './client';
 import type { StatusHead } from './access-status';
 
-export const PARITY_SCREENS = ['stations', 'people', 'events', 'groups', 'schedules', 'alerts'] as const;
-export type ParityScreen = (typeof PARITY_SCREENS)[number];
+const PARITY_SCREENS = ['stations', 'people', 'events', 'groups', 'schedules', 'alerts'] as const;
+type ParityScreen = (typeof PARITY_SCREENS)[number];
 export const PARITY_OUTCOMES = ['match', 'filtered', 'mismatch', 'partial', 'not_permitted', 'unsupported', 'unavailable'] as const;
 export type ParityOutcome = (typeof PARITY_OUTCOMES)[number];
 
@@ -52,7 +52,7 @@ export interface ParityReply extends StatusHead {
   parity: ParityReport | null;
 }
 
-export interface ParityQuery {
+interface ParityQuery {
   asUser?: string;
   hours?: number;
 }

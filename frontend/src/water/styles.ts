@@ -8,7 +8,7 @@
 import { css } from 'lit';
 import { elecCss } from '../electricity/styles';
 
-export const waterExtraCss = css`
+const waterExtraCss = css`
   :host {
     display: flex;
     flex-direction: column;

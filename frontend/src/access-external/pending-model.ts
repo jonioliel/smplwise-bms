@@ -5,8 +5,8 @@
 import type { PendingRow } from '../api/access-grants';
 import { spt, type SpLang } from '../i18n/security-public';
 
-export const RETENTION_MIN = 7;
-export const RETENTION_MAX = 365;
+const RETENTION_MIN = 7;
+const RETENTION_MAX = 365;
 export const CAP_MAX = 100;
 
 /** "waiting N days" / "since today". */

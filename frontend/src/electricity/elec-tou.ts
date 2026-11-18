@@ -7,14 +7,14 @@
 import { tr } from '../i18n/msg/electricity';
 
 export const WEEK = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
-export type WeekDay = (typeof WEEK)[number];
+type WeekDay = (typeof WEEK)[number];
 export const WEEK_HE: Record<WeekDay, string> = { sun: tr('ראשון'), mon: tr('שני'), tue: tr('שלישי'), wed: tr('רביעי'), thu: tr('חמישי'), fri: tr('שישי'), sat: tr('שבת') };
 
-export interface TouNamed {
+interface TouNamed {
   id: string;
   name_he: string;
 }
-export interface TouSeason extends TouNamed {
+interface TouSeason extends TouNamed {
   /** inclusive MM-DD ranges, may wrap the year end */
   ranges: [string, string][];
 }
@@ -33,13 +33,13 @@ export interface TouDefinition {
   /** price per season and band, as typed (the version's price_mode applies); null = not typed yet */
   prices: Record<string, Record<string, string | null>>;
 }
-export interface TouGridCell {
+interface TouGridCell {
   from: string;
   to: string;
   band: string;
 }
-export type TouGrid = Record<string, Record<string, TouGridCell[]>>;
-export interface TouError {
+type TouGrid = Record<string, Record<string, TouGridCell[]>>;
+interface TouError {
   code: string;
   path: string;
   message: string;
@@ -190,7 +190,7 @@ export function hoursBySeasonBand(d: TouDefinition, from: string, to: string, sp
 }
 
 /** A band's colour token (the day bars and the legend): the first band is the calm one, the next ones step up. */
-export const BAND_TOKENS = ['var(--sw-surface-3)', 'var(--sw-accent)', 'var(--sw-warning)', 'var(--sw-danger)', 'var(--sw-success)', 'color-mix(in srgb, var(--sw-accent) 45%, var(--sw-surface-3))', 'var(--sw-text-3)', 'var(--sw-heading)'];
+const BAND_TOKENS = ['var(--sw-surface-3)', 'var(--sw-accent)', 'var(--sw-warning)', 'var(--sw-danger)', 'var(--sw-success)', 'color-mix(in srgb, var(--sw-accent) 45%, var(--sw-surface-3))', 'var(--sw-text-3)', 'var(--sw-heading)'];
 export const bandColor = (d: TouDefinition, band: string): string => BAND_TOKENS[Math.max(0, d.bands.findIndex((b) => b.id === band)) % BAND_TOKENS.length];
 
 /** A new id for a band or season the manager adds (ids are internal; the manager types only Hebrew names). */

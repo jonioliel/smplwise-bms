@@ -14,13 +14,13 @@
  */
 import { nativeBridge } from './native-app';
 
-export const APP_PARAM = 'app';
+const APP_PARAM = 'app';
 export const ANDROID_VALUE = 'android';
 export const STORAGE_KEY = 'arx.app.v1';
 export const SWITCH_SERVER_URL = 'arx://servers';
 
 /** What the own-WebView shell injects (mobile/android-shell BridgeScript.kt). */
-export interface ArxAppBridge {
+interface ArxAppBridge {
   readonly platform: string;
   readonly shell?: string;
   readonly version?: string;

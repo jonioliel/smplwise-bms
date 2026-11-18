@@ -594,14 +594,15 @@ export class WiskeyAccessDiag extends LitElement {
     this.queries = { ...this.queries, [slot]: text };
     this.openPicker = slot;
     window.clearTimeout(this.searchTimer);
-    this.searchTimer = window.setTimeout(async () => {
-      try {
+    // CR-FE-PROMISES-2442: a failed search shows the picker's "no matches" line
+    this.searchTimer = window.setTimeout(() => {
+      (async () => {
         const r = await getDiagOptions(kind, text.trim(), 0, 8);
         if (this.queries[slot] !== text) return;
         this.options = { ...this.options, [slot]: r.options?.records ?? [] };
-      } catch {
+      })().catch(() => {
         this.options = { ...this.options, [slot]: [] };
-      }
+      });
     }, 250);
   }
 

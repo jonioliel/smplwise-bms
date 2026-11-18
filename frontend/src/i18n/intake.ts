@@ -181,9 +181,9 @@ const en: Partial<Record<Key, string>> = {
 };
 
 export type IntakeKey = Key;
-export type IntakeLang = 'he' | 'en' | 'ar' | 'ru';
+type IntakeLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function intakeLang(): IntakeLang {
+function intakeLang(): IntakeLang {
   return docLang(['en', 'ar', 'ru']);
 }
 

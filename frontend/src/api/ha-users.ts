@@ -8,7 +8,7 @@
 import { get, post } from './client';
 import { isApi } from './session';
 
-export type ManagedState = 'active' | 'inactive' | 'needs_repair';
+type ManagedState = 'active' | 'inactive' | 'needs_repair';
 export type AccessState = 'unknown' | 'ok' | 'not_authorised' | 'unavailable' | 'not_configured' | 'failed';
 export type Transport = 'supervisor' | 'token' | 'none';
 
@@ -41,7 +41,7 @@ export interface HaUsersView {
   limit: number;
 }
 
-export interface CreateRequest {
+interface CreateRequest {
   display_name: string;
   username: string;
   password: string;

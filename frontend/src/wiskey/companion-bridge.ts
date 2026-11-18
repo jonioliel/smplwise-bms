@@ -53,10 +53,10 @@ type BridgeWindow = Window & {
 
 /** The sign-in callbacks the app evaluates in the top document (external_auth.ts 19-20). The bus is not relayed: a
  * kept frame never has one. */
-export const RELAYED_CALLBACKS = ['externalAuthSetToken', 'externalAuthRevokeToken'] as const;
+const RELAYED_CALLBACKS = ['externalAuthSetToken', 'externalAuthRevokeToken'] as const;
 type Relayed = (typeof RELAYED_CALLBACKS)[number];
 
-export const RELAY_REGISTRY_KEY = '__smplwiseCompanionRelay';
+const RELAY_REGISTRY_KEY = '__smplwiseCompanionRelay';
 const PROXY_MARK = '__smplwiseBridgeProxy';
 const PANEL_PATH = '/hikvision-intercom';
 const POLL_MS = 0;

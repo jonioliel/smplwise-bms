@@ -3,7 +3,7 @@
  */
 import { PACING_CLASSES, type PacingAccount, type PacingClass, type PacingView } from '../api/messaging-pacing';
 
-export const WAIT_RANGE: [number, number] = [1, 2880];
+const WAIT_RANGE: [number, number] = [1, 2880];
 
 /** A duration in seconds as a short number plus unit: 45 s -> {n:45,u:'s'}, 540 -> {n:9,u:'m'}, 7300 -> {n:2,u:'h'}. */
 export function span(seconds: number): { n: number; u: 's' | 'm' | 'h' } {
@@ -49,7 +49,7 @@ export function tone(a: PacingAccount): 'bad' | 'warn' | 'ok' {
 
 /** UI2122: the plain-language key (`mp`) for WHY an account's WisKey counters are unknown / not covered; null when they are known.
  *  Closed reasons only (docs/changes/CR-WA-PACING-295-PORT-CONTRACT.md section 11); anything else reads as the generic line - a code never reaches the screen. */
-export type WiskeyReasonKey =
+type WiskeyReasonKey =
   | 'reason_unread' | 'reason_stale' | 'reason_unsupported' | 'reason_error' | 'reason_invalid' | 'reason_truncated'
   | 'reason_absent' | 'reason_unverified' | 'reason_incomplete' | 'reason_unreserved' | 'reason_other';
 

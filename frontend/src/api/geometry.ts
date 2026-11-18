@@ -62,14 +62,14 @@ export interface SharedPending {
   items?: { id: string; message: string }[];
   message?: string;
 }
-export interface GeometryDiff {
+interface GeometryDiff {
   collections: Record<string, { added: string[]; removed: string[]; changed: string[] }>;
   total: number;
   calibration_changed: boolean;
   same: boolean;
 }
 /** Items per collection, as the server counts them. */
-export interface GeometryCounts {
+interface GeometryCounts {
   walls: number;
   openings: number;
   labels: number;
@@ -88,7 +88,7 @@ export interface GeometryDiffResponse {
   published_counts: GeometryCounts | null;
   shared_pending?: SharedPending[];
 }
-export interface CalibrationResult {
+interface CalibrationResult {
   version: PlanVersion;
   scale_m_per_px: number;
   residual_pct: number | null;
@@ -96,7 +96,7 @@ export interface CalibrationResult {
   /** "measured" (two-point pairs) or "estimated" (the door-width hint, phase 3). */
   status?: 'measured' | 'estimated';
 }
-export interface GeometryPeriod {
+interface GeometryPeriod {
   id: string;
   doc_hash: string;
   published_at: string;
@@ -198,12 +198,12 @@ export function exportUrl(versionId: string, fmt: 'svg' | 'png' | 'dxf' | 'ifc',
 // ---- Plan Studio 5 (T088): the signed plan package ----
 
 export type PackageMode = 'replace' | 'merge';
-export interface PackageEntityRef {
+interface PackageEntityRef {
   resource_type: 'camera' | 'ha_entity';
   resource_id: string;
   name: string | null;
 }
-export interface PackageEntities {
+interface PackageEntities {
   anchors_missing: PackageEntityRef[];
   anchors_unplaced: PackageEntityRef[];
   switches_missing: string[];
@@ -246,7 +246,7 @@ export interface PackagePreview {
   entities: PackageEntities;
   warnings: string[];
 }
-export interface PackageImportResult {
+interface PackageImportResult {
   geometry: GeometryRow;
   origin: PackageOrigin;
   result_hash: string;
@@ -300,7 +300,7 @@ export const deleteTwin = (versionId: string, connectorId: string, floorId: stri
 // ---------------------------------------------------------------- detection (phase 3, T086)
 
 export type DetectTarget = 'walls' | 'openings';
-export interface DetectRequest {
+interface DetectRequest {
   targets?: DetectTarget[];
   /** 0.3 (light morphology) to 1.0 (strong); the server's default is 0.6. */
   strength?: number;
@@ -324,12 +324,12 @@ export interface CalibrationHint {
 }
 /** Version pixels per candidate: the client recomputes the metres with the document's effective scale before accepting. */
 export type CandidatePixels = Record<string, { thickness_px?: number; width_px?: number; w_px?: number; d_px?: number }>;
-export interface DetectorInfo {
+interface DetectorInfo {
   name: string;
   version: string;
   params: Record<string, unknown>;
 }
-export interface DxfRoomCandidate {
+interface DxfRoomCandidate {
   polygon: { x: number; y: number }[];
   name: string;
 }
@@ -394,14 +394,14 @@ export const detectStructure = (versionId: string, body: DetectRequest) => post<
  * candidates' source went first (`removed_auto`), and the openings of another source that sat on a removed wall went
  * with it (`removed_manual_openings`); `reided` counts accepted ids that collided with the draft and were re-issued as
  * plain ids (so nothing may key on the "auto-" / "imp-" prefix). Optional: a server without it answers the bare payload. */
-export interface AcceptMerge {
+interface AcceptMerge {
   accepted: { walls: number; openings: number; objects: number };
   removed_auto: number;
   removed_manual_openings: number;
   reided: number;
 }
 /** The accept answer is the draft as a save answers it (revision, hash, document, issues), plus the merge counts. */
-export interface AcceptResponse extends GeometryResponse {
+interface AcceptResponse extends GeometryResponse {
   merge?: AcceptMerge;
 }
 export const acceptDetection = (versionId: string, body: AcceptRequest) => post<AcceptResponse>(path`plan-versions/${versionId}/detect/accept`, body);
@@ -416,8 +416,8 @@ export const calibrateEstimate = (versionId: string, scaleMPerPx: number, reason
 
 /** POST /plan-versions/{id}/door-proposal (T087, the "סמן דלת" tool): what the local analysis proposes for one click -
  * services/plan_door_tool.py. Never stored: the editor adds it to the draft as an ordinary opening once accepted. */
-export type DoorFound = 'arc' | 'chord' | 'leaf' | 'double' | 'gap' | 'default';
-export interface DoorProposalRequest {
+type DoorFound = 'arc' | 'chord' | 'leaf' | 'double' | 'gap' | 'default';
+interface DoorProposalRequest {
   x: number;
   y: number;
   wall_id?: string;
@@ -443,14 +443,8 @@ export interface DoorProposal {
 }
 export const proposeDoor = (versionId: string, body: DoorProposalRequest) => post<DoorProposal>(path`plan-versions/${versionId}/door-proposal`, body);
 
-/** Error codes /detect, /detect/accept and /calibration (estimate) can answer with (the API review, backed by
- * routers/plan_geometry.py and tests/test_plan_detect_api.py): the client reads them off ApiError.code. detect_timeout
- * (504) is retryable. calibration_measured (409, "an estimate never replaces a measured calibration silently"): the
- * editor offers the estimate only while the calibration is not measured and never sends replace_measured (Task 9). */
-export type DetectErrorCode = 'detect_timeout' | 'stale_revision' | 'calibration_measured' | 'unknown_candidate' | 'orphan_opening' | 'candidate_source' | 'duplicate_candidate' | 'candidate_shape' | 'geometry_structure';
-
 export type DxfTarget = 'walls' | 'openings' | 'windows' | 'objects' | 'rooms' | 'ignore';
-export interface DxfEntityLayer {
+interface DxfEntityLayer {
   name: string;
   count: number;
   kinds: Record<string, number>;
@@ -458,7 +452,7 @@ export interface DxfEntityLayer {
   suggested: DxfTarget;
   in_render: boolean;
 }
-export interface DxfBlock {
+interface DxfBlock {
   name: string;
   count: number;
   size_m: [number, number];

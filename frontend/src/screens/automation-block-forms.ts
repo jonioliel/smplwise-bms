@@ -53,7 +53,7 @@ export interface FormCtx {
   editTemplate: (uid: string, text: string) => void;
 }
 
-export type FormFn = (fc: FormCtx) => TemplateResult;
+type FormFn = (fc: FormCtx) => TemplateResult;
 
 // ------------------------------------------------------------------------------------------------ control helpers
 
@@ -424,7 +424,7 @@ export const formStyles = css`
     display: flex;
     gap: 6px;
     align-items: center;
-    font-weight: 600;
+    font-weight: var(--sw-fw-semibold);
   }
   .entpick {
     display: flex;
@@ -443,7 +443,7 @@ export const formStyles = css`
     background: var(--dv-surface-solid, var(--dv-surface));
     border: 1px solid var(--dv-border);
     font-size: var(--sw-fs-base);
-    font-weight: 500;
+    font-weight: var(--sw-fw-medium);
   }
   .ent .ic {
     font-size: var(--sw-fs-md);
@@ -475,7 +475,7 @@ export const formStyles = css`
     border-style: dashed;
     border-color: var(--dv-border-strong);
     color: var(--dv-accent-text);
-    font-weight: 600;
+    font-weight: var(--sw-fw-semibold);
     padding-inline: 12px;
     background: transparent;
     cursor: pointer;
@@ -499,7 +499,7 @@ export const formStyles = css`
   .opts summary {
     cursor: pointer;
     font-size: var(--sw-fs-base);
-    font-weight: 600;
+    font-weight: var(--sw-fw-semibold);
     color: var(--dv-text-2);
     display: flex;
     align-items: center;
@@ -538,7 +538,7 @@ export const formStyles = css`
     background: var(--ab-sens-bg);
     color: var(--ab-sens-fg);
     font-size: var(--sw-fs-sm);
-    font-weight: 600;
+    font-weight: var(--sw-fw-semibold);
   }
   .bsec {
     display: flex;
@@ -548,7 +548,7 @@ export const formStyles = css`
   .sub-h {
     margin: 4px 0 0;
     font-size: var(--sw-fs-base);
-    font-weight: 700;
+    font-weight: var(--sw-fw-bold);
     display: flex;
     gap: 8px;
     align-items: center;

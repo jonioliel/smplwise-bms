@@ -5,7 +5,7 @@
  * print colours, no design tokens (a printed page has no skin).
  */
 
-export interface PrintInput {
+interface PrintInput {
   title: string;
   /** One line under the title (the period and station chosen, when any). */
   subtitle: string;

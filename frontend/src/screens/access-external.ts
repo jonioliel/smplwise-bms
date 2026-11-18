@@ -146,8 +146,8 @@ export class AccessExternalScreen extends LitElement {
       .top h1 { margin: 0; font-size: var(--sw-fs-3xl); line-height: 1.2; color: var(--sw-heading); }
       .top .sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-base); }
       .top .sp { flex: 1; }
-      .banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--sw-r-md); background: var(--cs); color: var(--ct); font-weight: 500; flex-wrap: wrap; }
-      .banner b { font-weight: 700; }
+      .banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--sw-r-md); background: var(--cs); color: var(--ct); font-weight: var(--sw-fw-medium); flex-wrap: wrap; }
+      .banner b { font-weight: var(--sw-fw-bold); }
       .banner .sp { flex: 1; }
       .cols { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
       .main, .side { display: grid; gap: 14px; min-inline-size: 0; }
@@ -162,7 +162,7 @@ export class AccessExternalScreen extends LitElement {
       .filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 12px 14px; border-block-end: 1px solid var(--sw-border-strong); }
       .filters .in { flex: 1 1 200px; inline-size: auto; }
       .gl-h, .gl-r { display: grid; grid-template-columns: minmax(170px, 1.3fr) minmax(140px, 1fr) 100px minmax(200px, 2fr) 130px 16px; gap: 12px; align-items: start; padding: 10px 16px; }
-      .gl-h { font-size: var(--sw-fs-sm); color: var(--sw-text-2); font-weight: 600; background: var(--sw-surface-2); border-block-end: 1px solid var(--sw-border-strong); }
+      .gl-h { font-size: var(--sw-fs-sm); color: var(--sw-text-2); font-weight: var(--sw-fw-semibold); background: var(--sw-surface-2); border-block-end: 1px solid var(--sw-border-strong); }
       .gl-r { border: 0; border-block-end: 1px solid var(--sw-border); background: transparent; inline-size: 100%; text-align: start; color: inherit; cursor: pointer; font: inherit; }
       .gl-r:last-child { border-block-end: 0; }
       /* POLISH4-WP8: the row wash only on a fine pointer (it stuck after a tap on a tablet); a row gives on pointer-down */
@@ -174,7 +174,7 @@ export class AccessExternalScreen extends LitElement {
       @media (prefers-reduced-motion: reduce) { .gl-r, .kpi { transition-duration: 0ms; } .kpi:active { transform: none; } }
       .gl-r[aria-current='true'] { background: var(--sw-accent-soft); }
       .gl-r:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: -2px; }
-      .pn b { display: block; color: var(--sw-heading); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .pn b { display: block; color: var(--sw-heading); font-weight: var(--sw-fw-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .pn small, .win small { display: block; color: var(--sw-text-2); font-size: var(--sw-fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .pn .sr { display: block; font-size: var(--sw-fs-xs); color: var(--sw-text-2); margin-block-start: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .st { display: grid; gap: 5px; min-inline-size: 0; }
@@ -190,13 +190,13 @@ export class AccessExternalScreen extends LitElement {
       @media (prefers-reduced-motion: reduce) { .rb-mark i { animation: none; } }
       .rb-t { display: grid; gap: 2px; min-inline-size: 0; font-size: var(--sw-fs-sm); color: var(--sw-text); }
       .rb-t b { color: var(--sw-heading); }
-      .rb-line { display: flex; gap: 6px; align-items: center; margin: 4px 0 0; font-size: var(--sw-fs-sm); font-weight: 600; color: var(--sw-text); }
+      .rb-line { display: flex; gap: 6px; align-items: center; margin: 4px 0 0; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); color: var(--sw-text); }
       .rb-line[data-tone='err'] { color: var(--x-err-t); }
       @media (max-width: 600px) { .rb { grid-template-columns: auto minmax(0, 1fr); } .rb > sw-button { grid-column: 1 / -1; } }
       .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 10px 16px; font-size: var(--sw-fs-xs); color: var(--sw-text-2); border-block-start: 1px solid var(--sw-border-strong); }
       .legend span { display: inline-flex; gap: 6px; align-items: center; }
       .panel { border-radius: var(--sw-r-lg); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); padding: 16px; display: grid; gap: 12px; align-content: start; min-inline-size: 0; }
-      .panel h3 { margin: 0; font-size: var(--sw-fs-md); color: var(--sw-heading); font-weight: 600; display: flex; align-items: center; gap: 8px; }
+      .panel h3 { margin: 0; font-size: var(--sw-fs-md); color: var(--sw-heading); font-weight: var(--sw-fw-semibold); display: flex; align-items: center; gap: 8px; }
       .panel h3 .sp { flex: 1; }
       .panel .lead { margin: 0; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
       .minis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -212,7 +212,7 @@ export class AccessExternalScreen extends LitElement {
       .dfoot .sp { flex: 1; }
       .dhead { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
       .diff { display: grid; grid-template-columns: auto 1fr 1fr; gap: 8px 12px; padding: 12px; border-radius: var(--sw-r-md); background: var(--sw-surface-2); font-size: var(--sw-fs-sm); align-items: start; }
-      .diff .h { font-weight: 600; color: var(--sw-text-3); }
+      .diff .h { font-weight: var(--sw-fw-semibold); color: var(--sw-text-3); }
       .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
       .flow div { padding: 10px; border-radius: var(--sw-r-sm); background: var(--sw-surface-2); font-size: var(--sw-fs-xs); color: var(--sw-text-2); display: grid; gap: 4px; }
       .flow b { color: var(--sw-heading); font-size: var(--sw-fs-sm); }
@@ -231,12 +231,12 @@ export class AccessExternalScreen extends LitElement {
       .drow .ik { inline-size: 28px; block-size: 28px; border-radius: var(--sw-r-xs); display: grid; place-items: center; background: var(--cs); color: var(--ct); }
       .drow .dmain { display: grid; gap: 6px; min-inline-size: 0; }
       .drow .dname { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; min-inline-size: 0; }
-      .drow .dname b { color: var(--sw-heading); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-inline-size: 100%; }
+      .drow .dname b { color: var(--sw-heading); font-weight: var(--sw-fw-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-inline-size: 100%; }
       .drow .dname small, .drow .dwhen { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
       .drow .dk { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .drow .dlist { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
       .drow .dlist li { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; line-height: 1.45; }
-      .drow .dlist b { color: var(--sw-text); font-weight: 600; }
+      .drow .dlist b { color: var(--sw-text); font-weight: var(--sw-fw-semibold); }
       .drow .dact { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
       .pd-r { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 16px; border-block-end: 1px solid var(--sw-border); }
       .pd-r:last-child { border-block-end: 0; }
@@ -244,7 +244,7 @@ export class AccessExternalScreen extends LitElement {
       .pd-a { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
       .seg { display: flex; flex-wrap: wrap; gap: 6px; }
       .seg button { border: 1px solid var(--sw-border-strong); background: var(--sw-surface-solid); color: var(--sw-text); padding: 0 14px; border-radius: var(--sw-r-pill); min-block-size: var(--sw-touch-desktop); font: inherit; cursor: pointer; }
-      .seg button[aria-pressed='true'] { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 600; }
+      .seg button[aria-pressed='true'] { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); font-weight: var(--sw-fw-semibold); }
       .seg button:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 2px; }
       /* POLISH4-WP8 (D18, owner Q9a): the list card switches to its two-line rows by its OWN width (a narrow main column beside the side
          panels on a tablet), not only by the window's */

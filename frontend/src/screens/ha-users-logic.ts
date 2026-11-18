@@ -15,7 +15,7 @@ export function confirmMatches(typed: string, username: string): boolean {
 }
 const RUNS = ['0123456789', '9876543210', 'abcdefghijklmnopqrstuvwxyz', 'zyxwvutsrqponmlkjihgfedcba', 'qwertyuiopasdfghjklzxcvbnm'];
 
-export type PasswordRule = 'too_short' | 'too_long' | 'repetitive' | 'sequence' | 'contains_username' | 'contains_name';
+type PasswordRule = 'too_short' | 'too_long' | 'repetitive' | 'sequence' | 'contains_username' | 'contains_name';
 
 export function passwordRule(password: string, username: string, displayName: string, min = 10, max = 128): PasswordRule | null {
   if (password.length < min) return 'too_short';

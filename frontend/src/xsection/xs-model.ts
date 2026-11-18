@@ -66,8 +66,8 @@ export type FloorHow = 'link' | 'level' | 'name';
 /** Why an area counts on a floor: `map` = placed on this floor's plan, `manual` = the per-area override, else how its platform floor matched. */
 export type AreaSource = 'map' | 'manual' | FloorHow;
 
-export interface MatchedArea { area: DeviceArea; haFloorId: string | null; source: AreaSource }
-export interface FloorSuggestion { haFloorId: string; haFloorName: string; why: 'level' | 'name' | 'map' }
+interface MatchedArea { area: DeviceArea; haFloorId: string | null; source: AreaSource }
+interface FloorSuggestion { haFloorId: string; haFloorName: string; why: 'level' | 'name' | 'map' }
 export interface FloorMatchInfo {
   /** The platform floors this floor stands for (rows, else the automatic rule) and how. */
   haFloors: { id: string; name: string }[];
@@ -231,7 +231,7 @@ function climateTargetsOf(areas: DeviceArea[], tree: DeviceTree): number[] {
 /** One floor's signals from the catalogue floor, its match (building-wide, from signalsOf), the device tree and the presence answer. */
 /** SWITCH-LIGHT-DIMMER-2331: what the lights column counts. `typed` (default): the server's lights (light.* and the switches an administrator
  * typed as a light); `all`: every other switch.* entity too (the tree's switch_entities - never an input_boolean helper). */
-export interface LightCountOptions {
+interface LightCountOptions {
   switches?: (typeof XS_SYN_SWITCHES)[number];
 }
 
@@ -245,7 +245,7 @@ export function areaLights(a: Pick<DeviceArea, 'counts'>, opts: LightCountOption
   };
 }
 
-export function signalOf(floor: Floor, tree: DeviceTree | null, people: PeopleResponse | null, match?: FloorMatchInfo | null, opts: LightCountOptions = {}): FloorSignal {
+function signalOf(floor: Floor, tree: DeviceTree | null, people: PeopleResponse | null, match?: FloorMatchInfo | null, opts: LightCountOptions = {}): FloorSignal {
   const m = match === undefined ? matchFloors([floor], tree).get(floor.id) ?? null : match;
   const areas = m?.areas.map((x) => x.area) ?? [];
   const climateTargets = tree ? climateTargetsOf(areas, tree) : [];
@@ -308,7 +308,7 @@ export function totalsOf(fl: FloorSignal[], threshold: number) {
 
 /* ---------------------------------------------------------------- layout decisions */
 
-export type PhonePlace = (typeof XS_PHONE_PLACE)[number];
+type PhonePlace = (typeof XS_PHONE_PLACE)[number];
 /** The phone arrangement: option A (tiles) turns into the compact card above 12 floors. */
 export function phonePlaceFor(opt: PhonePlace, floors: number): PhonePlace | 'none' {
   if (!floors) return 'none';
@@ -400,9 +400,9 @@ export function phoneColumns(cols: readonly SynColumn[]): SynColumn[] {
 /* ---------------------------------------------------------------- the phone board (SYNOPTIC-MOBILE-2342) */
 
 /** Below this width the phone board never draws a column of "-" (the hide-empty option off), whatever the option says (mock-up round 12). */
-export const PHONE_DASHED_MIN_WIDTH = 360;
+const PHONE_DASHED_MIN_WIDTH = 360;
 /** At most this many columns on the phone board, the dashed ones included. */
-export const PHONE_MAX_COLUMNS = 5;
+const PHONE_MAX_COLUMNS = 5;
 /** The fixed width (px) of each column of the phone table: the number column never shrinks under its content, so nothing spills into the next. */
 export const PHONE_COL_PX: Readonly<Record<SynColumn, number>> = { light: 56, temp: 38, presence: 34, cameras: 42, doors: 34, alerts: 32, fire: 36 };
 /** Above this many floors the phone rows drop to the 44 px touch minimum (table, section) and the cards turn into one row each. */
@@ -433,7 +433,7 @@ export function litPercent(f: Pick<FloorSignal, 'lit' | 'lights'>): number {
 }
 
 /** SYNOPTIC-PHONE-SETTINGS-2360: the lights gauge of one floor under the setting `syn_phone_light` - what the table cell and the card tile draw. */
-export interface PhoneLightGauge {
+interface PhoneLightGauge {
   kind: 'bar' | 'segments' | 'none';
   /** bar: the filled share, 0-100 (litPercent). */
   percent: number;
@@ -504,8 +504,8 @@ export function xsMetrics(fl: readonly FloorSignal[], o: Partial<Pick<XsOptions,
 
 /* ---------------------------------------------------------------- fire (no integration exists: demo only) */
 
-export type FireState = 'ok' | 'alarm' | 'fault';
-export interface FireFloor { state: FireState; zone?: string; device?: string; time?: string; zones?: number }
+type FireState = 'ok' | 'alarm' | 'fault';
+interface FireFloor { state: FireState; zone?: string; device?: string; time?: string; zones?: number }
 export interface FireReport { connected: boolean; demo: boolean; floors: Record<string, FireFloor> }
 
 /** The real source. No fire-detection integration exists, so this is always "not connected" (an honest empty report). */
@@ -534,14 +534,13 @@ export function mayAcknowledge(who: (typeof XS_ACK_WHO)[number], can: (p: string
   if (who === 'admin') return can('system.configure');
   return can('fire.acknowledge');
 }
-export const FIRE_PERMISSION = 'fire.acknowledge';
 
 /* ---------------------------------------------------------------- the floor lights popup (SWITCH-LIGHT-DIMMER-2331) */
 
 /** Where the floor lights popup reads and acts: one of our floors stands for a set of home-system areas (its match). All on one home-system
  * floor -> that floor's scope (a floor-scoped caller may act there); spread over several -> the building, narrowed to the areas. A floor
  * with no match (no data) has no popup: null. The areas list is the filter of the rows and of every bulk action (`only`). */
-export interface FloorLightsTarget {
+interface FloorLightsTarget {
   scope: 'floor' | 'building';
   scopeId: string;
   areaIds: string[];

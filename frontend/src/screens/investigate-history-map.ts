@@ -206,12 +206,9 @@ export class InvestigateHistoryMap extends LitElement {
     }
     h1 {
       margin: 0;
-      font-size: var(--sw-fs-2xl);
-      font-weight: var(--sw-fw-semibold);
     }
     .sub {
       font-size: var(--sw-fs-sm);
-      color: var(--sw-text-3);
       margin-block-start: 2px;
     }
     .grow {
@@ -224,18 +221,13 @@ export class InvestigateHistoryMap extends LitElement {
       align-items: center;
       gap: 10px;
       margin: 0 24px 10px;
-      padding: 8px 12px;
       background: var(--sw-recorded-soft);
       border: 1px solid color-mix(in srgb, var(--sw-recorded) 35%, transparent);
-      border-radius: var(--sw-r-md);
       font-size: var(--sw-fs-sm);
       flex-wrap: wrap;
     }
     .time {
-      font-family: var(--sw-font-mono);
       direction: ltr;
-      font-weight: var(--sw-fw-semibold);
-      color: var(--sw-accent-text);
     }
     input[type='range'] {
       inline-size: 260px;
@@ -255,7 +247,6 @@ export class InvestigateHistoryMap extends LitElement {
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-lg);
       background: var(--sw-surface);
-      box-shadow: var(--sw-shadow-1);
       overflow: hidden;
     }
     .stage.alone {
@@ -280,19 +271,14 @@ export class InvestigateHistoryMap extends LitElement {
       border-radius: var(--sw-r-pill);
       padding: 3px 10px;
       font-size: var(--sw-fs-xs);
-      color: var(--sw-text-2);
     }
     .chip {
       position: absolute;
       inset-inline-start: 12px;
       inset-block-start: 12px;
       z-index: var(--sw-z-map-ui);
-      background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-md);
       padding: 5px 10px;
-      font-size: var(--sw-fs-sm);
-      font-weight: var(--sw-fw-semibold);
       display: inline-flex;
       gap: 6px;
       align-items: center;
@@ -309,7 +295,6 @@ export class InvestigateHistoryMap extends LitElement {
       border-radius: var(--sw-r-md);
       padding: 3px 9px; /* 4 / 10 minus the hairline: the tag keeps its size */
       font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-semibold);
     }
     .hist.below {
       inset-block-start: 44px;
@@ -329,14 +314,11 @@ export class InvestigateHistoryMap extends LitElement {
       align-items: center;
     }
     dt {
-      color: var(--sw-text-3);
       font-size: var(--sw-fs-xs);
     }
     dd {
       margin: 0;
-      font-weight: var(--sw-fw-semibold);
       font-size: var(--sw-fs-md);
-      color: var(--sw-heading);
       min-inline-size: 0;
       overflow-wrap: anywhere;
     }
@@ -352,24 +334,14 @@ export class InvestigateHistoryMap extends LitElement {
       gap: 8px;
       min-block-size: 42px;
       padding: 7px 12px;
-      background: var(--sw-surface-2);
       border-radius: var(--sw-r-sm);
       text-decoration: none;
       color: var(--sw-heading);
       font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-semibold);
-      transition: transform var(--sw-t-press) var(--sw-ease-out);
-    }
-    .evl a:active {
-      transform: scale(var(--sw-press-scale));
-    }
-    .evl a.hit {
-      border-color: var(--sw-accent);
-      background: var(--sw-accent-soft);
     }
     .evl .s {
       font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
     }
     .ltr {
       direction: ltr;
@@ -876,7 +848,8 @@ export class InvestigateHistoryMap extends LitElement {
       --sw-lanes-label-w: 92px;
     }
     .track .tlwrap {
-      margin-left: calc(var(--sw-lanes-label-w) + 8px);
+      /* CR-FE-NITS-2442 (06:RTL-1): logical. .track is direction: ltr in every language (time runs left to right), so the start edge is the left one */
+      margin-inline-start: calc(var(--sw-lanes-label-w) + 8px);
       margin-block-start: 4px;
     }
     .track .rangenote {
@@ -1127,7 +1100,7 @@ export class InvestigateHistoryMap extends LitElement {
       const start = this.at ? new Date(this.at) : new Date();
       this.date = dateInZone(start, this.tz);
       this.minute = minuteInZone(start, this.tz);
-      const bundle = await loadMap(this.floorId, false, this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z'));
+      const bundle = await loadMap(this.floorId, false, isoZ(this.instant));
       if (!current()) return;
       this.bundle = bundle;
       this.restorePlanImage();
@@ -1301,7 +1274,7 @@ export class InvestigateHistoryMap extends LitElement {
   private scheduleFrame() {
     window.clearTimeout(this.frameTimer);
     this.frameTimer = window.setTimeout(() => {
-      this.frameAt = this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z');
+      this.frameAt = isoZ(this.instant);
       this.frameFailed = false;
       void this.ensureVersion();
       if (this.scrub && !this.playing) void this.fetchSnapshot(); // the settled cursor's snapshot (the bundleSeq pattern)
@@ -1316,7 +1289,7 @@ export class InvestigateHistoryMap extends LitElement {
       this.geometry = null;
       return;
     }
-    const t = this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const t = isoZ(this.instant);
     const g = b.history === 'exact' ? await geometryAt(b.planVersionId, t) : await geometryFor(b);
     if (seq === this.geomSeq) this.geometry = g;
   }
@@ -1327,7 +1300,7 @@ export class InvestigateHistoryMap extends LitElement {
   private async ensureVersion() {
     const b = this.bundle;
     if (!b || b.source !== 'api' || !b.at) return;
-    const t = this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const t = isoZ(this.instant);
     if (t === b.at) {
       void this.updateGeometry();
       return;
@@ -1495,7 +1468,7 @@ export class InvestigateHistoryMap extends LitElement {
     const cov = cam ? this.coverageAt(cam.resource_id) : null;
     const recs = cam ? this.recordings.get(cam.resource_id) : undefined;
     const near = x?.eventsOff ? [] : this.eventsNear(undefined, NEAR_MIN);
-    const tISO = this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const tISO = isoZ(this.instant);
     return html`
       <sw-card heading=${tr('בנקודת הזמן שנבחרה')} subheading=${tr('זמן ונתונים מאותו רגע')} data-history-panel>
         <dl>

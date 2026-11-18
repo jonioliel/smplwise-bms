@@ -31,7 +31,7 @@ const HVAC_SELECTABLE = ['off', 'heat', 'cool', 'heat_cool', 'auto', 'dry', 'fan
 export const ARM_MS = 4000;
 
 /** A robot vacuum's states in words (the same words the activity feed uses, device-activity-logic.ts STATE_HE). */
-export const VACUUM_HE: Record<string, string> = { docked: tr('בעגינה'), cleaning: tr('מנקה'), paused: tr('מושהה'), returning: tr('חוזר לעגינה'), idle: tr('ממתין'), error: tr('תקלה'), unavailable: tr('לא זמין'), unknown: tr('לא ידוע') };
+const VACUUM_HE: Record<string, string> = { docked: tr('בעגינה'), cleaning: tr('מנקה'), paused: tr('מושהה'), returning: tr('חוזר לעגינה'), idle: tr('ממתין'), error: tr('תקלה'), unavailable: tr('לא זמין'), unknown: tr('לא ידוע') };
 
 /** CARD1: the domains the switches card lists read-only - their controls live in the activity window's equipment card. */
 export const EQUIPMENT_DOMAINS = new Set(['vacuum', 'valve', 'water_heater']);
@@ -204,10 +204,6 @@ export const deviceControlStyles = css`
     }
   }
 `;
-
-export interface LockRequest {
-  row: DeviceRow;
-}
 
 export class DeviceControls implements ReactiveController {
   /** One control's command state per key (`entityId:control` - power, brightness, position, temp, mode, fan, mute,
