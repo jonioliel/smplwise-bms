@@ -22,6 +22,7 @@ from .config import DEV_NVR_PLACEHOLDER, Settings, load_settings
 from .db import Database, is_busy, is_storage_full
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
+from .services import log_export
 from . import recorder_scope
 from . import routers as routers_pkg
 from . import startup_steps
@@ -72,6 +73,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # CR-038 S4 (public-core review V10): Pillow's TIFF / EXIF reader logs tag VALUES at DEBUG (GPS, serial numbers of an
     # uploaded photo) - kept at INFO for the whole process whatever the add-on's log level
     logging.getLogger("PIL").setLevel(logging.INFO)
+    # T033: the in-memory ring of recent log lines (with their request's correlation id) behind the redacted log export
+    log_export.install()
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.plans_dir.mkdir(parents=True, exist_ok=True)
 
@@ -162,7 +165,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.exception_handler(ApiError)
     async def api_error(request: Request, exc: ApiError):
-        return JSONResponse(status_code=exc.status, content=exc.payload(getattr(request.state, "correlation_id", "")))
+        return JSONResponse(status_code=exc.status, content=exc.payload(correlation_id.of(request) or ""))
 
     @app.exception_handler(sqlite3.OperationalError)
     async def storage_full(request: Request, exc: sqlite3.OperationalError):
@@ -173,7 +176,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             # marked retryable. Status stays 500 (lead decision L1: the screens give 503 a meaning of its own - "the NVR / the
             # intercom / the source is unavailable", the upload retry, "not sent" in messaging - so a busy database must not
             # borrow it); Retry-After is a hint only. The database layer has already logged who held the lock.
-            cid = getattr(request.state, "correlation_id", "") or correlation_id.new()
+            cid = correlation_id.of(request) or correlation_id.new()
             log.warning("database busy: %s %s (correlation id %s)", request.method, request.url.path, cid, exc_info=True)
             return JSONResponse(status_code=500, headers={"Retry-After": str(BUSY_RETRY_AFTER_S), correlation_id.HEADER: cid},
                                 content={"code": "database_busy", "user_message": "המערכת עמוסה כרגע והפעולה לא הושלמה. יש לנסות שוב בעוד רגע.",
@@ -182,18 +185,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise exc
         log.error("the data disk is full: %s %s could not be saved", request.method, request.url.path)
         return JSONResponse(status_code=507, content={"code": "storage_full", "user_message": "אחסון התוסף מלא, ולכן לא ניתן לשמור. יש לפנות מקום בדיסק של התוסף.",
-                                                      "retryable": False, "correlation_id": getattr(request.state, "correlation_id", ""), "details": {"storage": "full"}})
+                                                      "retryable": False, "correlation_id": correlation_id.of(request) or "", "details": {"storage": "full"}})
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request: Request, exc: StarletteHTTPException):
         code = {401: "unauthenticated", 403: "forbidden", 404: "not_found", 405: "method_not_allowed", 413: "payload_too_large"}.get(exc.status_code, "http_error")
         return JSONResponse(status_code=exc.status_code, content={"code": code, "user_message": str(exc.detail), "retryable": False,
-                                                                  "correlation_id": getattr(request.state, "correlation_id", ""), "details": {}})
+                                                                  "correlation_id": correlation_id.of(request) or "", "details": {}})
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):
         # the same envelope as every other error, so a screen can show why a save was refused
-        return JSONResponse(status_code=422, content=validation_payload(list(exc.errors()), getattr(request.state, "correlation_id", "")))
+        return JSONResponse(status_code=422, content=validation_payload(list(exc.errors()), correlation_id.of(request) or ""))
 
     @app.exception_handler(Exception)
     async def internal_error(request: Request, exc: Exception):
@@ -201,7 +204,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # answers the same envelope as every other error instead of Starlette's bare "Internal Server Error" text - same
         # status 500, a code, the correlation id in the body and the header (this answer leaves outside the correlation
         # middleware). Starlette re-raises the exception after this answer, so the server still logs the full traceback.
-        cid = getattr(request.state, "correlation_id", "") or correlation_id.resolve(request.headers.getlist(correlation_id.HEADER))
+        cid = correlation_id.of(request) or correlation_id.resolve(request.headers.getlist(correlation_id.HEADER))
         log.error("unexpected error: %s %s -> %s (correlation id %s)", request.method, request.url.path, type(exc).__name__, cid)
         return JSONResponse(status_code=500, headers={correlation_id.HEADER: cid},
                             content={"code": "internal_error", "user_message": "אירעה שגיאה בלתי צפויה. יש לנסות שוב; אם השגיאה חוזרת, יש לפנות לתמיכה עם מזהה הבקשה.",
@@ -705,7 +708,11 @@ class CorrelationId:
                 MutableHeaders(scope=message)["X-Correlation-Id"] = cid
             await send(message)
 
-        await self.app(scope, receive, send_with_id)
+        token = correlation_id.CURRENT.set(cid)  # T033: the log ring stamps this request's log lines with its id
+        try:
+            await self.app(scope, receive, send_with_id)
+        finally:
+            correlation_id.CURRENT.reset(token)
 
 
 class CommitBeforeSend:

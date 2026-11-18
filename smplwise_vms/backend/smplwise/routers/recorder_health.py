@@ -20,6 +20,7 @@ from ..db import database_of, unlocked
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import recorder_health as rh
 from .recorders import PERMISSION, _may_read
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -60,5 +61,5 @@ def put_settings(request: Request, body: dict[str, Any] = Body(...), principal: 
     changes = rh.validate(body)
     values = rh.save_thresholds(conn, changes)
     audit(conn, actor=principal, action="recorder_health.settings", decision="allowed", resource_type="settings", resource_id=rh.SETTING_KEY,
-          request_id=getattr(request.state, "correlation_id", None), details={"changed": sorted(changes)})
+          request_id=_rid(request), details={"changed": sorted(changes)})
     return {"values": values, "ranges": rh.ranges(), "cameras": rh.camera_choices(conn)}

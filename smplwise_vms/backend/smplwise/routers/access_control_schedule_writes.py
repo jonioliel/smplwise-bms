@@ -59,7 +59,7 @@ from ..services import intercom_adapter as ad
 from ..services import intercom_authority as ia
 from ..services import intercom_sync
 from ..services import wiskey_schedule_writes as sw
-from ._common import raw_body as _raw_body
+from ._common import raw_body as _raw_body, rid as _rid
 from .access_control import CommandEnvelope, _envelope, _parse
 
 log = logging.getLogger("smplwise.intercom")
@@ -266,7 +266,7 @@ class _Act:
     def __init__(self, request: Request, conn: sqlite3.Connection, principal: Principal, action: str, resource_id: str, resource_type: str) -> None:
         self.request, self.conn, self.principal, self.action = request, conn, principal, action
         self.resource_id, self.resource_type = resource_id, resource_type
-        self.rid = getattr(request.state, "correlation_id", None)
+        self.rid = _rid(request)
         self.details: dict[str, Any] = {"command": action.removeprefix("intercom.")}
 
     def _row(self, decision: str, reason: str | None, fields: dict[str, Any]) -> None:

@@ -47,6 +47,16 @@ Validation (`energy_tou.parse_definition`, first error wins, `{code, path, messa
   `price_mode`, exactly like the fixed price.
 - The normalised definition is what is stored, sealed into snapshots and hashed (`definition_sha256`, canonical JSON).
 
+English names (CR-BE-SMALL-2440): every season, day type and band may carry an optional `name_en` (Latin text, up to 40
+characters, no Hebrew letters; code `name_en`). It enters the normalised definition only when given, so a definition without
+English names normalises and hashes exactly as before. The Israeli template carries them (Summer / Winter / Transition, Weekdays /
+Fridays and holiday eves / Shabbat and holidays, Off-peak / Peak; template `name_en` "Household time of use (Israel)" and
+`source_en`). `energy_tou.names_en(definition)` gives `{seasons, day_types, bands}` id -> English name: the saved `name_en`, else the
+template's for an entry that still has the template's id AND Hebrew name (versions saved before English names existed), else
+absent - the English interface then shows the Hebrew name. It is returned as `names_en` beside a version's definition, by
+`POST /energy/tou/check`, and in a TOU bill snapshot (`tou.names_en`, only when any); a TOU bill line's `season` / `band` carry
+`name_en` when there is one. The Hebrew `name_he` and the Hebrew bill paper are unchanged.
+
 ## 3. Special days (holidays and eves)
 
 `services/energy_calendar.py`. A date is `holiday`, `holiday_eve` or regular:

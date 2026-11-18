@@ -26,6 +26,7 @@ from ..services.access import RowScope, camera_allowed, require_camera, row_scop
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from .media import _principal_for_ws
 from ..services.settings_store import setting_value
+from ._common import rid as _rid
 
 router = APIRouter()
 TYPES = ("motion", "person", "vehicle", "line", "field", "offline", "tamper", "door", "io", "storage", "system", "coverage_gap", "manual", "other")
@@ -629,7 +630,7 @@ def group_window_events(body: WindowGroupIn, request: Request, principal: Princi
         if not conn.execute("SELECT 1 FROM event_window_members WHERE group_id = ? LIMIT 1", (old,)).fetchone():
             conn.execute("DELETE FROM event_window_groups WHERE id = ?", (old,))
     audit(conn, actor=principal, action="event.window.group", decision="allowed", resource_type="event_window_group", resource_id=gid,
-          request_id=getattr(request.state, "correlation_id", None), details={"event_ids": kept, "skipped": skipped, "note": body.note.strip()})
+          request_id=_rid(request), details={"event_ids": kept, "skipped": skipped, "note": body.note.strip()})
     return {"group_id": gid, "event_ids": kept, "skipped": skipped, "note": body.note.strip()}
 
 
@@ -650,7 +651,7 @@ def ungroup_window_events(group_id: str, request: Request, principal: Principal 
     conn.execute("DELETE FROM event_window_members WHERE group_id = ?", (group_id,))
     conn.execute("DELETE FROM event_window_groups WHERE id = ?", (group_id,))
     audit(conn, actor=principal, action="event.window.ungroup", decision="allowed", resource_type="event_window_group", resource_id=group_id,
-          request_id=getattr(request.state, "correlation_id", None), details={"event_ids": [m["event_id"] for m in members]})
+          request_id=_rid(request), details={"event_ids": [m["event_id"] for m in members]})
 
 
 class AckManyIn(BaseModel):
@@ -677,7 +678,7 @@ def ack_many(body: AckManyIn, request: Request, principal: Principal = Depends(c
         if not ev["acked_at"]:
             conn.execute("UPDATE events SET acked_at = ?, acked_by = ?, acked_by_username = ? WHERE id = ?", (now_iso(), principal.user_id, principal.username, eid))
             audit(conn, actor=principal, action="event.ack", decision="allowed", resource_type="event", resource_id=eid,
-                  request_id=getattr(request.state, "correlation_id", None), details={"type": ev["type"], "camera_id": ev["camera_id"], "occurred_at": ev["occurred_at"], "window": True})
+                  request_id=_rid(request), details={"type": ev["type"], "camera_id": ev["camera_id"], "occurred_at": ev["occurred_at"], "window": True})
         acked.append(eid)
     if not acked and skipped:
         require(conn, principal, "events.ack", INSTALLATION)
@@ -854,7 +855,7 @@ def ack(event_id: str, request: Request, principal: Principal = Depends(current_
     if not ev["acked_at"]:
         conn.execute("UPDATE events SET acked_at = ?, acked_by = ?, acked_by_username = ? WHERE id = ?", (now_iso(), principal.user_id, principal.username, event_id))
         audit(conn, actor=principal, action="event.ack", decision="allowed", resource_type="event", resource_id=event_id,
-              request_id=getattr(request.state, "correlation_id", None), details={"type": ev["type"], "camera_id": ev["camera_id"], "occurred_at": ev["occurred_at"]})
+              request_id=_rid(request), details={"type": ev["type"], "camera_id": ev["camera_id"], "occurred_at": ev["occurred_at"]})
     out = events_ingest.row_to_event(conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone())
     return _with_names(conn, [out])[0]
 

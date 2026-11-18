@@ -31,6 +31,7 @@ from ..services import automation_scope as scope
 from ..services import automation_transport as tr
 from ..services import automation_view as view
 from ..services import automations as store
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -177,7 +178,7 @@ def detect(request: Request, device_id: str = DEVICE_ID, principal: Principal = 
         raise ApiError(409, "no_buttons", "לא נמצאו כפתורים במפסק.")
     out = ext.detect_press(ctx, device_id, info["buttons"])
     audit(conn, actor=principal, action="automation.button_detect", decision="allowed", resource_type="ha_device", resource_id=device_id,
-          request_id=getattr(request.state, "correlation_id", None), details={"detected": out["detected"]})
+          request_id=_rid(request), details={"detected": out["detected"]})
     return out
 
 
@@ -194,7 +195,7 @@ def device_test(request: Request, item_id: str = Path(min_length=1, max_length=1
     item = view.build_item(ctx, view.Env(ctx), row, rd=rd, facts=facts)
     if not (item["can"]["edit"] and item["can"]["run"]):  # owner answer 360: whoever may edit AND run it manually; no new permission
         audit(conn, actor=principal, action="automation.device_test", decision="denied", resource_type="automation", resource_id=item_id, reason="not_editor_and_runner",
-              request_id=getattr(request.state, "correlation_id", None))
+              request_id=_rid(request))
         raise ApiError(403, "forbidden", "אין הרשאה לפעולה זו בהיקף המבוקש.")
     draft = rd["draft"] if rd is not None else {"triggers": [], "conditions": [], "actions": []}
     if body.draft is not None:
@@ -207,7 +208,7 @@ def device_test(request: Request, item_id: str = Path(min_length=1, max_length=1
             raise ApiError(422, "validation", "הטיוטה אינה שלמה או אינה תקינה.", details={"fields": ["draft"]}) from None
     plan = ext.test_plan(ctx, draft)
     audit(conn, actor=principal, action="automation.device_test", decision="allowed", resource_type="automation", resource_id=item_id,
-          request_id=getattr(request.state, "correlation_id", None), details={"steps": len(plan["steps"])})
+          request_id=_rid(request), details={"steps": len(plan["steps"])})
     return plan
 
 
@@ -231,7 +232,7 @@ def schedule_device_test(request: Request, schedule_id: str = Path(min_length=1,
         sctx.preload(smodel.action_entities(core))
     if row is None or core is None or not sview.is_visible(sctx, core):
         audit(conn, actor=principal, action="schedule.device_test", decision="denied", resource_type="schedule", resource_id=schedule_id, reason="not_found_or_invisible",
-              request_id=getattr(request.state, "correlation_id", None))
+              request_id=_rid(request))
         raise ApiError(404, "schedule_not_found", "התזמון לא נמצא.")
     draft = body.draft if body.draft is not None else {"weekdays": core["weekdays"], "slots": [
         {"start": (s["start"] or {}).get("raw") or (s["start"] or {}).get("time"), "stop": None,
@@ -241,7 +242,7 @@ def schedule_device_test(request: Request, schedule_id: str = Path(min_length=1,
     except (KeyError, TypeError, ValueError, AttributeError, IndexError, RecursionError):
         raise ApiError(422, "validation", "הטיוטה אינה שלמה או אינה תקינה.", details={"fields": ["draft"]}) from None
     audit(conn, actor=principal, action="schedule.device_test", decision="allowed", resource_type="schedule", resource_id=schedule_id,
-          request_id=getattr(request.state, "correlation_id", None), details={"steps": len(plan["steps"]), "testable": sum(1 for x in plan["steps"] if x["entity_ids"])})
+          request_id=_rid(request), details={"steps": len(plan["steps"]), "testable": sum(1 for x in plan["steps"] if x["entity_ids"])})
     return plan
 
 

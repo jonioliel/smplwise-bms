@@ -13,6 +13,7 @@ from ...errors import ApiError
 from ...rbac import Principal
 from ...services import confirm_words
 from ...services.settings_store import DEFAULTS
+from .._common import rid as _rid
 from . import Patch
 
 # CR-I18N-CONFIRM-WORDS-2442: the words live in services/confirm_words.py (Hebrew, or the fixed English counterpart)
@@ -35,7 +36,7 @@ def _local_only_identity_key(conn: sqlite3.Connection, request: Request, princip
     if not is_remote(request):
         return
     audit(conn, actor=principal, action="identity.local.setting_local_only", decision="denied", resource_type="installation", resource_id="local_identity",
-          reason="remote_channel", request_id=getattr(request.state, "correlation_id", None), details={"key": key})
+          reason="remote_channel", request_id=_rid(request), details={"key": key})
     raise ApiError(403, "local_only", LOCAL_ONLY_HE, details={"field": key})
 
 
@@ -51,7 +52,7 @@ def allow_disarm(patch: Patch) -> None:
 
             if not is_system_admin(conn, principal.user_id):
                 audit(conn, actor=principal, action="schedules.allow_disarm", decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
-                      request_id=getattr(request.state, "correlation_id", None), details={"to": changes["schedules.allow_disarm"]})
+                      request_id=_rid(request), details={"to": changes["schedules.allow_disarm"]})
                 raise ApiError(403, "forbidden", "רק מנהל מערכת יכול לשנות את נטרול האזעקה בתזמונים.")
             if changes["schedules.allow_disarm"] == "true":
                 patch.disarm_word = confirm_words.typed_lang("schedules_allow_disarm", disarm_confirm)
@@ -72,7 +73,7 @@ def local_identity_switch(patch: Patch) -> None:
 
             if not is_system_admin(conn, principal.user_id):
                 audit(conn, actor=principal, action="identity.local.feature", decision="denied", resource_type="installation", resource_id="local_identity",
-                      reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None), details={"to": changes["security.local_identity"]})
+                      reason="not_system_admin", request_id=_rid(request), details={"to": changes["security.local_identity"]})
                 raise ApiError(403, "forbidden", "רק מנהל מערכת יכול להפעיל או לכבות את משתמשי Arx.")
             patch.local_switch = changes["security.local_identity"]
 
@@ -97,16 +98,16 @@ def extended_switch(patch: Patch) -> None:
                 _local_only_identity_key(conn, request, principal, "security.local_identity_extended")
             if not is_system_admin(conn, principal.user_id):
                 audit(conn, actor=principal, action="identity.service_identity.extended_switch", decision="denied", resource_type="installation", resource_id="service_identity",
-                      reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None), details={"to": changes["security.local_identity_extended"]})
+                      reason="not_system_admin", request_id=_rid(request), details={"to": changes["security.local_identity_extended"]})
                 raise ApiError(403, "forbidden", "רק מנהל מערכת יכול להפעיל או לכבות את המצב המורחב של משתמשי Arx.")
             if changes["security.local_identity_extended"] == "on" and not service_identity_svc.extended_go_live_permitted():
                 # integ/270 (2.7.0 security review S7): the go-live guard - after the authority checks, this build refuses to turn the
                 # extended mode on (turning it off always works); the stored value stays as it is; one audit row
                 audit(conn, actor=principal, action="identity.service_identity.extended_switch", decision="denied", resource_type="installation", resource_id="service_identity",
-                      reason="extended_not_permitted", request_id=getattr(request.state, "correlation_id", None), details={"to": "on"})
+                      reason="extended_not_permitted", request_id=_rid(request), details={"to": "on"})
                 raise ApiError(409, "extended_not_permitted", "המצב המורחב של משתמשי Arx אינו זמין בגרסה הזו: הוא יופעל רק אחרי השלמת תיקוני האבטחה הנדרשים.")
             audit(conn, actor=principal, action="identity.service_identity.extended_switch", decision="allowed", resource_type="installation", resource_id="service_identity",
-                  request_id=getattr(request.state, "correlation_id", None),
+                  request_id=_rid(request),
                   details={"from": current_ext, "to": changes["security.local_identity_extended"], "channel": "remote" if is_remote(request) else "local"})
 
 
@@ -127,10 +128,10 @@ def public_url(patch: Patch) -> None:
             _local_only_identity_key(conn, request, principal, "security.local_public_url")
             if not is_system_admin(conn, principal.user_id):
                 audit(conn, actor=principal, action="identity.local.public_url", decision="denied", resource_type="installation", resource_id="local_identity",
-                      reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None))
+                      reason="not_system_admin", request_id=_rid(request))
                 raise ApiError(403, "forbidden", "רק מנהל מערכת משנה את כתובת הקישורים של משתמשי Arx.")
             audit(conn, actor=principal, action="identity.local.public_url", decision="allowed", resource_type="installation", resource_id="local_identity",
-                  request_id=getattr(request.state, "correlation_id", None), details={"to": value or None})
+                  request_id=_rid(request), details={"to": value or None})
         changes["security.local_public_url"] = value
 
 
@@ -156,10 +157,10 @@ def passkey_settings(patch: Patch) -> None:
         _local_only_identity_key(conn, request, principal, key)
         if not is_system_admin(conn, principal.user_id):
             audit(conn, actor=principal, action="identity.local.passkey_setting", decision="denied", resource_type="installation", resource_id="local_identity",
-                  reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None), details={"key": key})
+                  reason="not_system_admin", request_id=_rid(request), details={"key": key})
             raise ApiError(403, "forbidden", "רק מנהל מערכת משנה את הגדרות מפתחות הגישה של משתמשי Arx.")
         audit(conn, actor=principal, action="identity.local.passkey_setting", decision="allowed", resource_type="installation", resource_id="local_identity",
-              request_id=getattr(request.state, "correlation_id", None), details={"key": key, "to": value if key == "security.local_passkey_first" else ("set" if value else "cleared")})
+              request_id=_rid(request), details={"key": key, "to": value if key == "security.local_passkey_first" else ("set" if value else "cleared")})
         changes[key] = value
 
 
@@ -188,7 +189,7 @@ def local_purge(patch: Patch) -> None:
             _local_only_identity_key(conn, request, principal, key)
         if not is_system_admin(conn, principal.user_id):
             audit(conn, actor=principal, action="privacy.local_purge.setting", decision="denied", resource_type="installation", resource_id="local_privacy",
-                  reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None), details={"key": key, "to": new})
+                  reason="not_system_admin", request_id=_rid(request), details={"key": key, "to": new})
             raise ApiError(403, "forbidden", "רק מנהל מערכת משנה את המחיקה האוטומטית של משתמשי Arx.")
         purge_word = confirm_words.typed_lang("privacy_local_purge", purge_confirm) if key == "privacy.local_purge" and new == "on" else None
         if key == "privacy.local_purge" and new == "on" and purge_word is None:
@@ -196,7 +197,7 @@ def local_purge(patch: Patch) -> None:
             raise ApiError(422, "confirm_required", f"המחיקה אינה הפיכה. כדי להפעיל אותה יש להקליד \"{LOCAL_PURGE_WORD}\".",
                            details={"field": "privacy.local_purge_confirm", "due_now": due})
         audit(conn, actor=principal, action="privacy.local_purge.setting", decision="allowed", resource_type="installation", resource_id="local_privacy",
-              request_id=getattr(request.state, "correlation_id", None),
+              request_id=_rid(request),
               details={"key": key, "from": old, "to": new, "channel": "remote" if is_remote(request) else "local", **({"confirm_word": purge_word} if purge_word else {})})
 
 
@@ -218,7 +219,7 @@ def local_switch_applied(patch: Patch) -> None:
         if local_switch == "off":  # USR2-P2B: every live self-service reset code ends with the switch (migration 0097's trigger does it too)
             conn.execute("DELETE FROM auth_local_reset_codes")
         audit(conn, actor=principal, action="identity.local.feature_enabled" if local_switch == "on" else "identity.local.feature_disabled", decision="allowed",
-              resource_type="installation", resource_id="local_identity", request_id=getattr(request.state, "correlation_id", None),
+              resource_type="installation", resource_id="local_identity", request_id=_rid(request),
               details={"sessions_ended": ended} if ended else None)
         if ended:
             local_identity.close_sockets_from_thread()
@@ -227,4 +228,4 @@ def local_switch_applied(patch: Patch) -> None:
 def disarm_changed(patch: Patch) -> None:
     if patch.disarm_change is not None:
         audit(patch.conn, actor=patch.principal, action="schedules.allow_disarm", decision="allowed", resource_type="installation", resource_id="*",
-              request_id=getattr(patch.request.state, "correlation_id", None), details={"to": patch.disarm_change, **({"confirm_word": patch.disarm_word} if patch.disarm_word else {})})
+              request_id=_rid(patch.request), details={"to": patch.disarm_change, **({"confirm_word": patch.disarm_word} if patch.disarm_word else {})})

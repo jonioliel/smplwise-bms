@@ -21,7 +21,8 @@ from ..services import frigate_control_svc as svc
 from ..services import frigate_native_svc as native
 from ..services.recorders import frigate_control as fc
 from .frigate import _camera_row
-from .frigate_control import _adapter, _may_see, _rq
+from ._common import rid as _rid
+from .frigate_control import _adapter, _may_see
 from .recorders import PERMISSION
 
 router = APIRouter()
@@ -114,20 +115,20 @@ def put_profile_auto(recorder_id: str, body: AutoSettingIn, request: Request, pr
     """off | suggest | apply, and the explicit auto-apply consent (system.configure). Default off; `apply` needs the consent."""
     require(conn, principal, PERMISSION, INSTALLATION)
     _adapter(conn, request, recorder_id)
-    return {"recorder_id": recorder_id, "setting": auto.set_setting(conn, principal, recorder_id, body.mode, body.auto_apply_consent, _rq(request))}
+    return {"recorder_id": recorder_id, "setting": auto.set_setting(conn, principal, recorder_id, body.mode, body.auto_apply_consent, _rid(request))}
 
 
 @router.post("/frigate/{recorder_id}/profile-auto/{item_id}/apply")
 def profile_auto_apply(recorder_id: str, item_id: str, body: ApplyIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Apply an open suggestion with the normal confirmed profile write (`confirm: true`)."""
     a = _adapter(conn, request, recorder_id)
-    return {"recorder_id": recorder_id, **auto.apply_suggestion(conn, principal, a, item_id, confirm=body.confirm, supervised=body.supervised, request_id=_rq(request))}
+    return {"recorder_id": recorder_id, **auto.apply_suggestion(conn, principal, a, item_id, confirm=body.confirm, supervised=body.supervised, request_id=_rid(request))}
 
 
 @router.post("/frigate/{recorder_id}/profile-auto/{item_id}/dismiss")
 def profile_auto_dismiss(recorder_id: str, item_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _adapter(conn, request, recorder_id)
-    return {"recorder_id": recorder_id, **auto.dismiss(conn, principal, recorder_id, item_id, _rq(request))}
+    return {"recorder_id": recorder_id, **auto.dismiss(conn, principal, recorder_id, item_id, _rid(request))}
 
 
 # ---------------------------------------------------------------------------------------------- exports
@@ -147,27 +148,27 @@ def export_create(recorder_id: str, body: ExportIn, request: Request, principal:
     cam = _camera_row(conn, principal, recorder_id, body.camera_id, svc.PERMISSION["exports"])
     a = _adapter(conn, request, recorder_id)
     return {"recorder_id": recorder_id, "camera_id": body.camera_id,
-            **native.create_export(conn, principal, a, cam, body.start, body.end, body.name, supervised=body.supervised, request_id=_rq(request), case_id=body.case_id)}
+            **native.create_export(conn, principal, a, cam, body.start, body.end, body.name, supervised=body.supervised, request_id=_rid(request), case_id=body.case_id)}
 
 
 @router.patch("/frigate/{recorder_id}/exports/{export_id}")
 def export_rename(recorder_id: str, export_id: str, body: RenameIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     a = _adapter(conn, request, recorder_id)
-    return {"recorder_id": recorder_id, **native.rename_export(conn, principal, a, export_id, body.name, supervised=body.supervised, request_id=_rq(request))}
+    return {"recorder_id": recorder_id, **native.rename_export(conn, principal, a, export_id, body.name, supervised=body.supervised, request_id=_rid(request))}
 
 
 @router.post("/frigate/{recorder_id}/exports/{export_id}/case")
 def export_assign(recorder_id: str, export_id: str, body: AssignIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Put an export Arx created into a Frigate case, or take it out (`case_id: null`). Class `exports`; undone from the change log."""
     a = _adapter(conn, request, recorder_id)
-    return {"recorder_id": recorder_id, **native.assign_export(conn, principal, a, export_id, body.case_id, supervised=body.supervised, request_id=_rq(request))}
+    return {"recorder_id": recorder_id, **native.assign_export(conn, principal, a, export_id, body.case_id, supervised=body.supervised, request_id=_rid(request))}
 
 
 @router.post("/frigate/{recorder_id}/exports/{export_id}/delete")
 def export_delete(recorder_id: str, export_id: str, body: DeleteIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Delete an export Arx created (needs `confirm: true`; an export Frigate or someone else made is 409 `frigate_object_not_arx`)."""
     a = _adapter(conn, request, recorder_id)
-    return {"recorder_id": recorder_id, **native.delete_export(conn, principal, a, export_id, confirm=body.confirm, supervised=body.supervised, request_id=_rq(request))}
+    return {"recorder_id": recorder_id, **native.delete_export(conn, principal, a, export_id, confirm=body.confirm, supervised=body.supervised, request_id=_rid(request))}
 
 
 # ---------------------------------------------------------------------------------------------- cases
@@ -183,19 +184,19 @@ def cases(recorder_id: str, request: Request, principal: Principal = Depends(cur
 @router.post("/frigate/{recorder_id}/cases")
 def case_create(recorder_id: str, body: CaseIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     a = _adapter(conn, request, recorder_id)
-    return {"recorder_id": recorder_id, **native.create_case(conn, principal, a, body.name, body.description, supervised=body.supervised, request_id=_rq(request))}
+    return {"recorder_id": recorder_id, **native.create_case(conn, principal, a, body.name, body.description, supervised=body.supervised, request_id=_rid(request))}
 
 
 @router.patch("/frigate/{recorder_id}/cases/{case_id}")
 def case_rename(recorder_id: str, case_id: str, body: RenameIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     a = _adapter(conn, request, recorder_id)
-    return {"recorder_id": recorder_id, **native.rename_case(conn, principal, a, case_id, body.name, supervised=body.supervised, request_id=_rq(request))}
+    return {"recorder_id": recorder_id, **native.rename_case(conn, principal, a, case_id, body.name, supervised=body.supervised, request_id=_rid(request))}
 
 
 @router.post("/frigate/{recorder_id}/cases/{case_id}/delete")
 def case_delete(recorder_id: str, case_id: str, body: DeleteIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     a = _adapter(conn, request, recorder_id)
-    return {"recorder_id": recorder_id, **native.delete_case(conn, principal, a, case_id, confirm=body.confirm, supervised=body.supervised, request_id=_rq(request))}
+    return {"recorder_id": recorder_id, **native.delete_case(conn, principal, a, case_id, confirm=body.confirm, supervised=body.supervised, request_id=_rid(request))}
 
 
 # ---------------------------------------------------------------------------------------------- manual events
@@ -206,7 +207,7 @@ def event_create(recorder_id: str, camera_id: str, body: EventIn, request: Reque
     cam = _camera_row(conn, principal, recorder_id, camera_id, svc.PERMISSION["events"])
     a = _adapter(conn, request, recorder_id)
     return {"recorder_id": recorder_id, "camera_id": camera_id,
-            **native.create_event(conn, principal, a, cam, body.label, duration_s=body.duration_s, sub_label=body.sub_label, supervised=body.supervised, request_id=_rq(request))}
+            **native.create_event(conn, principal, a, cam, body.label, duration_s=body.duration_s, sub_label=body.sub_label, supervised=body.supervised, request_id=_rid(request))}
 
 
 @router.post("/frigate/{recorder_id}/events/{event_id}/end")
@@ -215,4 +216,4 @@ def event_end(recorder_id: str, event_id: str, body: EndEventIn, request: Reques
     a = _adapter(conn, request, recorder_id)
     if not fc.EVENT_ID.fullmatch(event_id):
         raise ApiError(422, "frigate_event_invalid", "מזהה אירוע לא תקין.")
-    return {"recorder_id": recorder_id, **native.end_event(conn, principal, a, event_id, supervised=body.supervised, request_id=_rq(request))}
+    return {"recorder_id": recorder_id, **native.end_event(conn, principal, a, event_id, supervised=body.supervised, request_id=_rid(request))}

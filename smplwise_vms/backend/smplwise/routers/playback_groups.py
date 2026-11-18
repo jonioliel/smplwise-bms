@@ -27,6 +27,7 @@ from .playback import SeekBody, _segment_for
 from .recordings import camera_for_playback
 from .settings import read_settings
 from ..services.settings_store import setting_value
+from ._common import rid as _rid
 
 router = APIRouter()
 GAP_TOLERANCE_S = 60  # a member whose next recording starts later than this is a gap, not a late starter
@@ -120,7 +121,7 @@ def create_group(body: GroupBody, request: Request, principal: Principal = Depen
         raise ApiError(409, "no_recording", "אין הקלטה בזמן הזה באף אחת מהמצלמות.", details={"missing": group.missing})
     pg.GROUPS[group.id] = group
     audit(conn, actor=principal, action="video.playback.group", decision="allowed", resource_type="installation", resource_id="*",
-          request_id=getattr(request.state, "correlation_id", None), details={"group": group.id, "cameras": ids, "sessions": group.session_ids, "missing": group.missing, "start_at": iso_utc(start),
+          request_id=_rid(request), details={"group": group.id, "cameras": ids, "sessions": group.session_ids, "missing": group.missing, "start_at": iso_utc(start),
                                                                               **({"experimental_cross_recorder": {k: {"offset_s": v["offset_s"], "time_zone": v["time_zone"], "clock": v["clock"], "refused": v["refused"]} for k, v in group.clocks.items()}} if group.clocks else {})})
     return pg.to_dict(group, s["playback.lease_s"])
 
@@ -150,7 +151,7 @@ def seek_group(group_id: str, body: SeekBody, request: Request, principal: Princ
     group.requested_at = start
     _start_many(settings, conn, principal, cams, start, s["time.zone"], s["playback.max_sessions"], group, existing)
     audit(conn, actor=principal, action="video.playback.group.seek", decision="allowed", resource_type="installation", resource_id="*",
-          request_id=getattr(request.state, "correlation_id", None), details={"group": group.id, "generation": group.generation, "start_at": iso_utc(start), "missing": group.missing})
+          request_id=_rid(request), details={"group": group.id, "generation": group.generation, "start_at": iso_utc(start), "missing": group.missing})
     return pg.to_dict(group, s["playback.lease_s"])
 
 
@@ -193,7 +194,7 @@ def close_group_beacon(group_id: str, request: Request, principal: Principal = D
     group = _owned(conn, principal, group_id)
     pg.close_group(settings_of(request), group)
     audit(conn, actor=principal, action="video.playback.group.stop", decision="allowed", resource_type="installation", resource_id="*",
-          request_id=getattr(request.state, "correlation_id", None), details={"group": group.id, "via": "beacon"})
+          request_id=_rid(request), details={"group": group.id, "via": "beacon"})
     return {"id": group.id, "state": "closed"}
 
 
@@ -202,5 +203,5 @@ def close_group(group_id: str, request: Request, principal: Principal = Depends(
     group = _owned(conn, principal, group_id)
     pg.close_group(settings_of(request), group)
     audit(conn, actor=principal, action="video.playback.group.stop", decision="allowed", resource_type="installation", resource_id="*",
-          request_id=getattr(request.state, "correlation_id", None), details={"group": group.id})
+          request_id=_rid(request), details={"group": group.id})
     return {"id": group.id, "state": "closed"}

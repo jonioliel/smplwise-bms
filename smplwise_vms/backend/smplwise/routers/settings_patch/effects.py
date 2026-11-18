@@ -8,6 +8,7 @@ from ...audit import audit
 from ...db import set_setting
 from ...services import automation_settings
 from ...services.settings_store import CLASSES_REV_KEY
+from .._common import rid as _rid
 from . import Patch
 
 # Stored as compact JSON; every other value is stored as `str(value)`.
@@ -51,7 +52,7 @@ def station_media_provider(patch: Patch) -> None:
     if "access.station_media_provider" in patch.changes:  # WISKEY-JOIN-LIVE-2382: WisKey's direct join follows the provider without a restart
         from ...services import wiskey_join_live
 
-        wiskey_join_live.request_reevaluate("settings", actor=patch.principal, request_id=getattr(patch.request.state, "correlation_id", None))
+        wiskey_join_live.request_reevaluate("settings", actor=patch.principal, request_id=_rid(patch.request))
 
 
 def microphone_policy(patch: Patch) -> None:
@@ -64,4 +65,4 @@ def microphone_policy(patch: Patch) -> None:
 def settings_updated(patch: Patch) -> None:
     changes = patch.changes
     audit(patch.conn, actor=patch.principal, action="settings.update", decision="allowed", resource_type="installation", resource_id="*",
-          request_id=getattr(patch.request.state, "correlation_id", None), details={**changes, "forced": True} if patch.forced else changes)  # an override of the calendar-sensor check is on the record
+          request_id=_rid(patch.request), details={**changes, "forced": True} if patch.forced else changes)  # an override of the calendar-sensor check is on the record

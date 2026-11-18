@@ -30,6 +30,7 @@ from ..rbac import INSTALLATION, Principal, all_roles, require
 from ..services import ha_user_auth as hua
 from ..services import capture_lease, notify_sources, presence
 from ..services import second_factor as sf
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -52,7 +53,7 @@ def _limit(principal: Principal) -> None:
 
 def _audit(conn: sqlite3.Connection, request: Request, principal: Principal, action: str, target: str, **details: Any) -> None:
     audit(conn, actor=principal, action=action, decision="allowed", resource_type="user", resource_id=target,
-          request_id=getattr(request.state, "correlation_id", None), details={"method": "totp", **details})
+          request_id=_rid(request), details={"method": "totp", **details})
 
 
 def _audit_failed(conn: sqlite3.Connection, request: Request, principal: Principal, step: str, exc: sf.SecondFactorError) -> None:
@@ -60,7 +61,7 @@ def _audit_failed(conn: sqlite3.Connection, request: Request, principal: Princip
     reason, the method) plus the step; the code itself is never written. An ApiError commits, so the row survives the 400 / 429."""
     audit(conn, actor=principal, action="auth.second_factor.failed", decision="denied", resource_type="user", resource_id=principal.user_id,
           reason={"locked": "second_factor_locked", "unreadable": "second_factor_unreadable"}.get(exc.code, "second_factor_invalid"),
-          request_id=getattr(request.state, "correlation_id", None), details={"method": "totp", "step": step})
+          request_id=_rid(request), details={"method": "totp", "step": step})
 
 
 def _fail(exc: sf.SecondFactorError) -> ApiError:
@@ -93,7 +94,7 @@ def confirm(body: CodeBody, request: Request, principal: Principal = Depends(cur
     # security review 2.2.0 M4: a session that began before the factor existed must not roll on without it - every other
     # remote sign-in of the user ends now (the caller's own current one stays)
     ended = hua.revoke_user_sign_ins(conn, principal.user_id, actor=principal, reason="second_factor_enrolled", keep=hua.session_of(request),
-                                     request_id=getattr(request.state, "correlation_id", None))
+                                     request_id=_rid(request))
     # TFA2: a phone device token issued before the factor existed ends too; the app re-registers through a session (which owes the code)
     tokens = presence.revoke_tokens(conn, principal.user_id)
     if principal.source == "local":  # USR2: the other local sessions end; this one rotates and counts as having shown the factor
@@ -166,7 +167,7 @@ def set_override(kind: str, subject_id: str, body: OverrideBody, request: Reques
     affected = [subject_id] if kind == "user" else sf.users_of_role(conn, subject_id)
     ended = phones = 0
     if body.policy == "required":
-        rid = getattr(request.state, "correlation_id", None)
+        rid = _rid(request)
         for uid in affected:
             if uid != principal.user_id and not sf.is_enrolled(conn, uid):
                 ended += hua.revoke_user_sign_ins(conn, uid, actor=principal, reason="second_factor_required", request_id=rid)
@@ -174,7 +175,7 @@ def set_override(kind: str, subject_id: str, body: OverrideBody, request: Reques
                 # the phone's device token and push registration end; the app re-registers through a session, which now owes the code
                 phones += presence.end_on_sign_out(conn, uid, "second_factor_required", everywhere=True, actor=principal, request_id=rid)
     audit(conn, actor=principal, action="auth.second_factor.policy_override", decision="allowed", resource_type=kind, resource_id=subject_id,
-          request_id=getattr(request.state, "correlation_id", None),
+          request_id=_rid(request),
           details={"method": "totp", "before": before or "inherit", "after": body.policy, "users_affected": len(affected), "sign_ins_ended": ended,
                    "device_credentials_ended": phones})
     return {"kind": kind, "subject_id": subject_id, "policy": body.policy, **sf.overrides(conn)}
@@ -193,7 +194,7 @@ def require_step_up(conn: sqlite3.Connection, request: Request, principal: Princ
         sf.verify(conn, settings_of(request), principal.user_id, code)
     except sf.SecondFactorError as exc:
         audit(conn, actor=principal, action=action, decision="denied", resource_type="user", resource_id=target,
-              reason=f"step_up_{exc.code}", request_id=getattr(request.state, "correlation_id", None), details={"method": "totp"})
+              reason=f"step_up_{exc.code}", request_id=_rid(request), details={"method": "totp"})
         raise _fail(exc) from None
     return True
 
@@ -222,7 +223,7 @@ def admin_reset(user_id: str, request: Request, body: ResetBody | None = None, p
     was_active = sf.is_enrolled(conn, user_id)
     removed = sf.remove(conn, user_id)
     capture_lease.on_authority_change("second_factor_changed", user_ids=[user_id])  # CR-WISKEY-LEASE-REVOCATION-EVENT T6
-    ended = hua.revoke_user_sign_ins(conn, user_id, actor=principal, reason="second_factor_reset", request_id=getattr(request.state, "correlation_id", None))
+    ended = hua.revoke_user_sign_ins(conn, user_id, actor=principal, reason="second_factor_reset", request_id=_rid(request))
     tokens = presence.revoke_tokens(conn, user_id)  # TFA2: the phone app's device tokens end with the factor (it re-registers through a session)
     from ..services import local_identity
 

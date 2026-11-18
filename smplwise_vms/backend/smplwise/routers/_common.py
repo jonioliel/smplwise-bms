@@ -9,12 +9,13 @@ from __future__ import annotations
 
 from fastapi import Request
 
+from .. import correlation_id
 from ..db import Database
 
 
 def rid(request: Request) -> str | None:
-    """The request's correlation id (set by the request-id middleware), for audit rows and error envelopes."""
-    return getattr(request.state, "correlation_id", None)
+    """The request's correlation id (set by the request-id middleware), for audit rows and error envelopes (`correlation_id.of`)."""
+    return correlation_id.of(request)
 
 
 async def raw_body(request: Request) -> bytes:
