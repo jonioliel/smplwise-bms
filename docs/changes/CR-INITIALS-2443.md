@@ -43,9 +43,7 @@ Negative check: with the `src/` changes stashed the new test fails (`people-logi
 
 ## Tests actually run (workstation, 18.11 evening, `--workers=1`)
 
-- `npx tsc --noEmit`: started on this branch but had not finished when the branch was pushed (workstation at ~99% CPU): NOT_RUN to
-  completion. The change only adds an import of an existing typed export and narrows bodies; the unit run above compiles all six
-  touched modules' importers in Node (the four exported ones) without type stripping errors, but that is not a type check.
+- `npx tsc --noEmit`: clean (0 errors, exit 0) on the tree of `888ad05f8`; it finished just after that push.
 - `npx playwright test -c playwright.unit.config.ts` `unit-polish-classic-domus-297`, `unit-tickets-list`, `unit-people-logic`,
   `unit-tickets-rfq`: 81 passed (existing initials expectations unchanged and still green).
 - Same config, `unit-tickets-rfq-order`, `unit-tickets-rfq-terms`, `unit-public-rfq`, `unit-rfq-attachments`,
