@@ -133,6 +133,7 @@ export function routeMatches(call, route) {
 
 /** Module-level string constants (`const T = 'tickets'`, `const E = \`${BASE}/x/\``) - the usual path prefixes of an API module. */
 export function fileConstants(text) {
+  /** @type {Map<string, string> & { helpers?: Map<string, any> }} */
   const consts = new Map();
   for (const m of text.matchAll(/(?:^|\n)\s*(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*(?::\s*string\s*)?=\s*(?=['"`])/g)) {
     const lit = readLiteral(text, m.index + m[0].length);

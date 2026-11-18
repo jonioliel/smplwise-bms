@@ -123,6 +123,25 @@ try:
         check("sync: a new unused export fails the gate", v == "fail" and len(bad) == 1 and "unused" in bad[0], fs_)
         fs_, v, bad = sync_case(1, 0, built=False)
         check("sync: without a build the budget is not run (the build already failed); unused exports still run", "bundle-budget" not in fs_ and fs_["unused-exports"]["result"] == "PASS", fs_)
+    # ---- CR-TSCONFIG-SPLIT-2443: which type-check programs the tsc phase runs (pure: reads file names only)
+    tfe = TMP / "tsc_fe"
+    tfe.mkdir()
+    (tfe / "tsconfig.json").write_text("{}", encoding="utf-8")
+    check("tsc: a tree from before the split gets plain tsc --noEmit (its tsconfig.json includes tests/)",
+          g.tsc_commands(tfe) == [["npx", "tsc", "--noEmit"]], g.tsc_commands(tfe))
+    (tfe / "tsconfig.tests.json").write_text("{}", encoding="utf-8")
+    check("tsc: after the split the full program is tsconfig.tests.json; tsconfig.json (its subset) is not run twice",
+          g.tsc_commands(tfe) == [["npx", "tsc", "--noEmit", "-p", "tsconfig.tests.json"]], g.tsc_commands(tfe))
+    (tfe / "tsconfig.scripts.json").write_text("{}", encoding="utf-8")
+    (tfe / "tsconfig.later.json").write_text("{}", encoding="utf-8")
+    cmds = g.tsc_commands(tfe)
+    check("tsc: every other tsconfig.*.json runs too, the full program first",
+          [c[-1] for c in cmds] == ["tsconfig.tests.json", "tsconfig.later.json", "tsconfig.scripts.json"] and all(c[:4] == ["npx", "tsc", "--noEmit", "-p"] for c in cmds), cmds)
+    repo_fe = HERE.parent.parent / "frontend"
+    if (repo_fe / "tsconfig.json").is_file():   # inside the repository only (on the runner the self-test sits in ~/)
+        real = g.tsc_commands(repo_fe)
+        check("tsc: this repository's frontend is checked through tsconfig.tests.json and tsconfig.scripts.json",
+              [c[-1] for c in real] == ["tsconfig.tests.json", "tsconfig.scripts.json"], real)
 finally:
     shutil.rmtree(TMP, ignore_errors=True)
 

@@ -15,7 +15,8 @@ import tseslint from 'typescript-eslint';
 import lit from 'eslint-plugin-lit';
 
 const asErrors = (rules) => Object.fromEntries(Object.entries(rules ?? {}).map(([k, v]) => [k, Array.isArray(v) ? ['error', ...v.slice(1)] : 'error']));
-const litRecommended = lit.configs['flat/recommended'];
+/** @type {import('eslint').Linter.Config} the flat preset is one config object (the plugin's type is a union with the legacy shape) */
+const litRecommended = /** @type {any} */ (lit.configs)['flat/recommended'];
 
 export default [
   { ignores: ['dist/**', 'node_modules/**', 'tests/**', 'scripts/**', '*.config.ts', '*.config.mjs', 'public/**'] },

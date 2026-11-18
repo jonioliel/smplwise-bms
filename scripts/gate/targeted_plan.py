@@ -14,7 +14,8 @@ addressed by the diff, or a change reaches every test - conftest.py / the Playwr
 
 The plan (what a targeted run must hold, all on the fixed commit):
   * release_check.py (always - seconds);
-  * tsc --noEmit when any file under frontend/ changed (specs are type-checked: tsconfig includes tests/);
+  * tsc --noEmit when any file under frontend/ changed (specs are type-checked: tsconfig.tests.json includes src and tests/; the
+    gate runs it and every other frontend/tsconfig.*.json - release_gate.tsc_commands; locally `npm run typecheck`);
   * every changed backend test file, every backend test file that imports a changed helper module of tests/, tests/test_gate_hygiene.py;
   * every changed Playwright spec, every spec that imports a changed spec helper (./tickets-mocks etc.), each on the server its header asks
     for (release_gate.classify rules: dev server / fixture / preview), all projects the header allows;

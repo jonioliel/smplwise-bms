@@ -76,7 +76,7 @@ const browser = await chromium.launch();
 const routes = only.length ? ROUTES.filter((r) => only.includes(r.id)) : ROUTES;
 let n = 0;
 for (const v of matrix) {
-  const ctx = await browser.newContext({ viewport: { width: v.width, height: v.width < 500 ? 844 : v.width < 1100 ? 768 : 900 }, locale: 'he-IL', timezoneId: 'Asia/Jerusalem', colorScheme: v.scheme, deviceScaleFactor: 1, isMobile: v.width < 500, hasTouch: v.width < 500 });
+  const ctx = await browser.newContext({ viewport: { width: v.width, height: v.width < 500 ? 844 : v.width < 1100 ? 768 : 900 }, locale: 'he-IL', timezoneId: 'Asia/Jerusalem', colorScheme: /** @type {'light' | 'dark'} */ (v.scheme), deviceScaleFactor: 1, isMobile: v.width < 500, hasTouch: v.width < 500 });
   const page = await ctx.newPage();
   await page.clock.setFixedTime(new Date('2026-10-01T13:00:00Z'));
   for (const r of routes) {
