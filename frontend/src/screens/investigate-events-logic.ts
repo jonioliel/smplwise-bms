@@ -153,3 +153,10 @@ export class ThumbPoller {
     this.o.done(id, st);
   }
 }
+
+/** CR-EVENTS-TABLE-2443 (06:INFILE-1, lead decision L13): the ONE severity-to-badge mapping of the event centre - critical is an error
+ * (red), alert is stale (amber), information is neutral. The review-window drawer painted critical as "offline" (the grey of a
+ * device that is down): a bug, now the same red as the list and the event drawer. */
+export function sevKind(sev: string): 'error' | 'stale' | 'neutral' {
+  return sev === 'critical' ? 'error' : sev === 'alert' ? 'stale' : 'neutral';
+}

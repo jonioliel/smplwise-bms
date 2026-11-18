@@ -30,7 +30,7 @@ import { dateInputLang, timeText, dayMonthText, isoZ } from '../api/day-format';
 import { describeDeviceText, precisionLabel, rawCodeLabel, spanText } from '../i18n/event-codes';
 import { t as vt } from '../i18n/he';
 import { Latest } from '../api/latest';
-import { pushedAction, ThumbPoller } from './investigate-events-logic';
+import { pushedAction, sevKind, ThumbPoller } from './investigate-events-logic';
 import { tr } from '../i18n/msg/investigate';
 import { ltrStyles } from '../styles/fragments';
 
@@ -42,6 +42,10 @@ const C_TITLE = 'font-weight:var(--sw-fw-semibold);font-size:var(--sw-fs-md);col
 const C_SUB = 'color:var(--sw-text-3);font-size:var(--sw-fs-xs);line-height:1.4';
 const C_TIME = 'font-weight:var(--sw-fw-semibold);font-size:var(--sw-fs-md);font-variant-numeric:tabular-nums;color:var(--sw-heading)';
 const C_DOT = 'inline-size:8px;block-size:8px;border-radius:50%;flex:none;background:';
+/** CR-EVENTS-TABLE-2443 (06:EVT-3): the review-window column's spotlight label, inline for the same reason (was class="spot"). */
+const C_SPOT = 'display:inline-flex;align-items:center;gap:4px;color:var(--sw-accent-text);font-size:var(--sw-fs-xs);font-weight:var(--sw-fw-semibold)';
+/** CR-EVENTS-TABLE-2443 (06:EVT-3): the review-window picture, the size of its placeholder (88x56; the ready picture was 64x40). */
+const C_WTHUMB = 'inline-size:88px;block-size:56px;border-radius:8px;display:block;background:var(--sw-surface-3)';
 /** Where an event came from, in the operator's words (the raw source key stays in the technical details). */
 const SOURCE_WORDS: Record<VmsEvent['source'], string> = { alertstream: tr('התראה מהמקליט'), recording: tr('נגזר מקובץ הקלטה'), ha: tr('חיישן התקן'), system: tr('מערכת') };
 /** SYS-AUDIT-QUICKFIX-2437 (audit round 30, finding 15): the demo rows' source keys in plain Hebrew - never the home system's brand
@@ -51,6 +55,13 @@ const DEMO_SOURCE_WORDS: Record<string, string> = { HA: tr('מערכת הבית'
 const TONE: Record<DemoEvent['type'], string> = { person: 'var(--sw-tl-person)', vehicle: 'var(--sw-tl-vehicle)', motion: 'var(--sw-tl-motion)', line: 'var(--sw-tl-line)', offline: 'var(--sw-tl-offline)', door: 'var(--sw-tl-door)' };
 const SCENE: Record<string, string> = { 'כניסה ראשית': 'entrance', 'חצר אחורית': 'backyard', מחסן: 'warehouse', לובי: 'lobby', 'חניה מקורה': 'parking', 'מסדרון מזרחי': 'corridor' };
 const SEV_LABEL = { info: tr('מידע'), alert: tr('התראה'), critical: tr('קריטי') } as const;
+type Severity = keyof typeof SEV_LABEL;
+/** CR-EVENTS-TABLE-2443 (06:INFILE-1): the severity badge of the list, both drawers and the demo table, one mapping (sevKind).
+ * Only an alert / critical is a filled field; information stays quiet (EVENTS-POLISH-2331). `alwaysFilled` keeps the demo table's
+ * look, where every severity is a filled field (its baseline is unchanged). */
+function sevBadge(sev: string, alwaysFilled = false) {
+  return html`<sw-badge ?filled=${alwaysFilled || sev !== 'info'} kind=${sevKind(sev)} label=${SEV_LABEL[sev as Severity] ?? sev}></sw-badge>`;
+}
 
 /**
  * SC14 — event centre (board 1 screen 8): filters, thumbnail | event | camera | time | severity, drawer with
@@ -405,6 +416,8 @@ export class InvestigateEvents extends LitElement {
     .mono {
       font-family: var(--sw-font-mono);
     }
+    /* CR-EVENTS-TABLE-2443 (06:EVT-3): the .thumb rules (88x56 box, pending shimmer) were removed - every thumbnail renders inside
+       sw-table's shadow root, where this stylesheet never reached them; the cells carry their size inline. */
     .big {
       position: relative;
       aspect-ratio: 16 / 9;
@@ -1195,16 +1208,16 @@ export class InvestigateEvents extends LitElement {
 
   private windowColumns: TableColumn[] = [
     { key: 'thumb', label: '', width: '104px', render: (r) => this.renderWindowThumb(r as unknown as EventWindow) },
-    { key: 'title', label: tr('חלון אירוע'), render: (r) => { const w = r as unknown as EventWindow; return html`<span class="ty" style="--tone:${EVENT_TONE[w.dominant_type] ?? 'var(--sw-tl-offline)'}"><i></i>${EVENT_LABEL[w.dominant_type] ?? w.dominant_type}${w.count > 1 ? html` <span class="sub">×${String(w.count)}</span>` : nothing}</span><div class="sub">${Object.entries(w.types).map(([t, n]) => `${EVENT_LABEL[t as EventKind] ?? t} ${n}`).join(' · ')} · ${w.confidence === 'inferred' ? tr('נגזר מהקלטה') : tr('התראות מהמקליט')}</div>`; } },
-    { key: 'spotlight', label: tr('זרקור'), width: '150px', render: (r) => { const w = r as unknown as EventWindow; const s = w.spotlight; return s?.on ? html`<span class="spot" data-window-spotlight title=${s.rules.map((x) => x.why).join(' · ')}><sw-icon name="target" size=${12}></sw-icon>${s.rules.map((x) => x.label).join(' · ')}</span>` : w.manual_group_id ? html`<span class="sub" data-window-manual>${tr('קיבוץ ידני')}</span>` : nothing; } },
-    { key: 'camera_name', label: tr('מצלמה / קבוצה'), render: (r) => { const w = r as unknown as EventWindow; return html`${w.camera_name ?? (w.channel ? tr('ערוץ {n}', { n: w.channel }) : tr('מערכת'))}${w.group && w.group !== 'camera' && w.group !== 'manual' && w.camera_names?.length ? html`<div class="sub">${w.camera_names.join(' · ')}</div>` : nothing}`; } },
-    { key: 'start', label: tr('זמן'), render: (r) => { const w = r as unknown as EventWindow; return html`${this.fmt(w.start)}${w.end !== w.start ? html` – ${this.fmt(w.end)}` : nothing}<div class="sub">${this.fmtDate(w.start)}</div>`; } },
+    { key: 'title', label: tr('חלון אירוע'), render: (r) => { const w = r as unknown as EventWindow; return html`<span style=${C_TITLE}><i style=${`${C_DOT}${EVENT_TONE[w.dominant_type] ?? 'var(--sw-tl-offline)'}`}></i>${EVENT_LABEL[w.dominant_type] ?? w.dominant_type}${w.count > 1 ? html`<span style=${C_SUB}>×${String(w.count)}</span>` : nothing}</span><div style=${C_SUB}>${Object.entries(w.types).map(([t, n]) => `${EVENT_LABEL[t as EventKind] ?? t} ${n}`).join(' · ')} · ${w.confidence === 'inferred' ? tr('נגזר מהקלטה') : tr('התראות מהמקליט')}</div>`; } },
+    { key: 'spotlight', label: tr('זרקור'), width: '150px', render: (r) => { const w = r as unknown as EventWindow; const s = w.spotlight; return s?.on ? html`<span style=${C_SPOT} data-window-spotlight title=${s.rules.map((x) => x.why).join(' · ')}><sw-icon name="target" size=${12}></sw-icon>${s.rules.map((x) => x.label).join(' · ')}</span>` : w.manual_group_id ? html`<span style=${C_SUB} data-window-manual>${tr('קיבוץ ידני')}</span>` : nothing; } },
+    { key: 'camera_name', label: tr('מצלמה / קבוצה'), render: (r) => { const w = r as unknown as EventWindow; return html`${w.camera_name ?? (w.channel ? tr('ערוץ {n}', { n: w.channel }) : tr('מערכת'))}${w.group && w.group !== 'camera' && w.group !== 'manual' && w.camera_names?.length ? html`<div style=${C_SUB}>${w.camera_names.join(' · ')}</div>` : nothing}`; } },
+    { key: 'start', label: tr('זמן'), render: (r) => { const w = r as unknown as EventWindow; return html`<span style=${C_TIME}>${this.fmt(w.start)}${w.end !== w.start ? html` – ${this.fmt(w.end)}` : nothing}</span><div style=${C_SUB}>${this.fmtDate(w.start)}</div>`; } },
     { key: 'acked', label: tr('מצב'), render: (r) => { const w = r as unknown as EventWindow; return html`<sw-badge kind=${w.acked ? 'live' : w.acked_count ? 'stale' : 'neutral'} label=${w.acked ? tr('טופל') : w.acked_count ? tr('בטיפול {n}/{total}', { n: w.acked_count, total: w.count }) : tr('חדש')}></sw-badge>`; } },
   ];
 
   private renderWindowThumb(w: EventWindow) {
-    if (w.thumbnail === 'ready') return html`<img class="thumb" src=${thumbnailUrl(w.thumbnail_event_id, this.thumbVersion.get(w.thumbnail_event_id) ?? 0)} alt="" loading="lazy" style="inline-size:64px;block-size:40px;object-fit:cover;border-radius:6px;display:block;background:var(--sw-surface-3)" />`;
-    return html`<div style="inline-size:88px;block-size:56px;border-radius:8px;background:var(--sw-surface-3);display:grid;place-items:center;color:var(--sw-text-3)"><sw-icon name=${w.camera_id ? 'image' : 'info'} size=${14}></sw-icon></div>`;
+    if (w.thumbnail === 'ready') return html`<img class="thumb" src=${thumbnailUrl(w.thumbnail_event_id, this.thumbVersion.get(w.thumbnail_event_id) ?? 0)} alt="" loading="lazy" style=${`${C_WTHUMB};object-fit:cover`} />`;
+    return html`<div style=${`${C_WTHUMB};display:grid;place-items:center;color:var(--sw-text-3)`}><sw-icon name=${w.camera_id ? 'image' : 'info'} size=${14}></sw-icon></div>`;
   }
 
   private renderWindowDrawer(w: EventWindow) {
@@ -1216,7 +1229,7 @@ export class InvestigateEvents extends LitElement {
     const camsLine = w.camera_names?.length ? w.camera_names.join(' · ') : w.camera_name ?? '';
     return html`<sw-drawer open class="evdrawer" ?modal=${this.narrow} heading=${this.windowTitle(w)} subheading=${`${this.fmtDate(w.start)} · ${this.fmt(w.start)} – ${this.fmt(w.end)} · ${tr('{n} אירועים', { n: w.count })}`} @close=${() => this.closeWindowDrawer()}>
       <div class="wsum" data-window-summary>
-        <sw-badge kind=${w.severity === 'critical' ? 'offline' : w.severity === 'alert' ? 'stale' : 'neutral'} label=${w.severity === 'critical' ? tr('קריטי') : w.severity === 'alert' ? tr('התראה') : tr('מידע')}></sw-badge>
+        ${sevBadge(w.severity)}
         <sw-badge kind=${w.confidence === 'measured' ? 'recorded' : 'unknown'} label=${w.confidence === 'measured' ? tr('נמדד') : tr('נגזר מהקלטה')}></sw-badge>
         ${s?.sources?.length ? html`<span class="sub">${s.sources.map((x) => SOURCE_LABEL[x] ?? x).join(' · ')}</span>` : nothing}
         ${camsLine ? html`<span class="sub">${camsLine}</span>` : nothing}
@@ -1298,7 +1311,7 @@ export class InvestigateEvents extends LitElement {
     { key: 'type', label: tr('אירוע'), render: (r) => { const ev = r as unknown as VmsEvent; return html`<span style=${C_TITLE} title=${tr('קוד המכשיר: {code}', { code: ev.raw_type })} data-raw-type=${ev.raw_type}><i style=${`${C_DOT}${EVENT_TONE[ev.type] ?? 'var(--sw-tl-offline)'}`}></i>${this.kindLabel(ev)}${ev.count > 1 ? html`<span style=${C_SUB}>×${ev.count}</span>` : nothing}</span><div style=${C_SUB}>${SOURCE_WORDS[ev.source] ?? ev.source}${ev.confidence === 'inferred' && ev.source !== 'recording' ? ` · ${tr('נגזר')}` : ''}</div>`; } },
     { key: 'camera_name', label: tr('מצלמה'), render: (r) => { const ev = r as unknown as VmsEvent; return html`<span style="color:var(--sw-text)">${this.camLabel(ev)}</span>${ev.camera_name && ev.channel ? html`<div style=${C_SUB}>${tr('ערוץ {n}', { n: ev.channel })}</div>` : nothing}`; } },
     { key: 'occurred_at', label: tr('זמן'), width: '190px', render: (r) => { const ev = r as unknown as VmsEvent; const span = spanText(ev.occurred_at, ev.ended_at); return html`<span style=${C_TIME}>${this.fmt(ev.occurred_at)}</span><div style=${C_SUB}>${this.ago(ev.occurred_at)} · ${this.fmtDate(ev.occurred_at)}${span ? ` · ${span}` : ''}</div>`; } },
-    { key: 'severity', label: tr('חומרה'), width: '96px', render: (r) => html`<sw-badge ?filled=${r.severity !== 'info'} kind=${r.severity === 'critical' ? 'error' : r.severity === 'alert' ? 'stale' : 'neutral'} label=${SEV_LABEL[r.severity as keyof typeof SEV_LABEL] ?? String(r.severity)}></sw-badge>` },
+    { key: 'severity', label: tr('חומרה'), width: '96px', render: (r) => sevBadge(String(r.severity)) },
     { key: 'acked_at', label: tr('טיפול'), width: '140px', render: (r) => { const ev = r as unknown as VmsEvent; return ev.acked_at ? html`<span style="color:var(--sw-text-2)">${tr('טופל')}</span><div style=${C_SUB}>${ev.acked_by_username ?? ''}${ev.acked_by_username ? ' · ' : ''}${this.fmt(ev.acked_at)}</div>` : html`<span style="color:var(--sw-warning-text);font-weight:var(--sw-fw-semibold)" data-pending>${tr('ממתין')}</span>`; } },
   ];
 
@@ -1308,7 +1321,7 @@ export class InvestigateEvents extends LitElement {
     { key: 'title', label: tr('אירוע'), render: (r) => html`<span class="ty" style="--tone:${TONE[r.type as DemoEvent['type']]}"><i></i>${eventTypeLabel[r.type as DemoEvent['type']]}</span><div class="sub">${String(r.title)} · ${r.acked ? tr('טופל') : html`<span style="color:var(--sw-warning-text);font-weight:var(--sw-fw-semibold)">${tr('ממתין לטיפול')}</span>`}</div>` },
     { key: 'camera', label: tr('מצלמה'), render: (r) => html`${String(r.camera)}<div class="sub">${String(r.floor)}</div>` },
     { key: 'time', label: tr('זמן'), render: (r) => html`<span style="font-weight:700;font-size:var(--sw-fs-md);font-variant-numeric:tabular-nums;color:var(--sw-heading)">${String(r.time)}</span><div class="sub">${DEMO_SOURCE_WORDS[String(r.source)] ?? String(r.source)}</div>` },
-    { key: 'severity', label: tr('חומרה'), render: (r) => html`<sw-badge filled kind=${r.severity === 'critical' ? 'error' : r.severity === 'alert' ? 'stale' : 'neutral'} label=${{ info: tr('מידע'), alert: tr('התראה'), critical: tr('קריטי') }[r.severity as DemoEvent['severity']]}></sw-badge>` },
+    { key: 'severity', label: tr('חומרה'), render: (r) => sevBadge(String(r.severity), true) },
     { key: 'more', label: '', width: '40px', render: () => html`<sw-button variant="ghost" size="sm" iconOnly icon="more" label=${tr('עוד')}></sw-button>` },
   ];
 
@@ -1404,7 +1417,7 @@ export class InvestigateEvents extends LitElement {
     const coalesced = typeof ev.details.coalesced === 'number' ? ev.details.coalesced : 0;
     return html`<sw-drawer open class="evdrawer" ?modal=${this.narrow} heading=${kind} subheading=${`${this.camLabel(ev)} · ${this.fmt(ev.occurred_at)} · ${this.ago(ev.occurred_at)}`} @close=${() => this.closeDrawer()}>
               <div class="chips" slot="sub" data-event-chips>
-                <sw-badge ?filled=${ev.severity !== 'info'} kind=${ev.severity === 'critical' ? 'error' : ev.severity === 'alert' ? 'stale' : 'neutral'} label=${SEV_LABEL[ev.severity] ?? ev.severity}></sw-badge>
+                ${sevBadge(ev.severity)}
                 <sw-badge kind=${ev.acked_at ? 'live' : 'neutral'} label=${ev.acked_at ? tr('טופל') : tr('ממתין לטיפול')}></sw-badge>
               </div>
               <div class="big">
