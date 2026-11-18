@@ -114,7 +114,38 @@ in `~/`, `~/gate2`, `~/nightly-gate` and run `selftest_fe_static.py` there (`scr
 6. `py -3.12 scripts/design_ratchet.py`: **no count above the baseline**, color-literal 2500.
 7. Backend `pytest tests/test_build_guards_2438.py -p no:xdist` (main checkout `.venv`): **10 passed**.
 8. `py -3.12 scripts/gate/selftest_fe_static.py`: **SELFTEST OK**.
-9. Node-only unit suite: see below.
+9. **Full node-only unit suite** (`npx playwright test -c playwright.unit.config.ts tests/unit- --workers=1`, `dist` built,
+   head `b4b38ded9`): **4856 passed, 13 failed, 8 skipped** (36.3 min). The 13:
+   - 5 x `unit-session-me-failure-2435` - the known base failures of the chain (a page spec the node-only config starts without
+     a server; FE-7 had the same 5);
+   - 6 caused by the combination, fixed in the follow-up commit (stale lists/text after FE-3 / FE-5 met the train's new tests):
+     - `unit-chip-selected-2439` Q-DES-3 (DOMUS): reads `devices-schedules.ts` / `mapping-assistant.ts` for the chip fragment ->
+       now names the `-css.ts` files (FE-3's split; the assertions are unchanged);
+     - `unit-home-personal-first-read-2443` (UI-POLISH) counts `data-home-personal-error` in the source = 1: FE-7's doc comment
+       also named the hook -> the comment says "the red note under the list (errorNote)";
+     - `unit-i18n-api-2442` x2 and `unit-i18n-map-wizard-2441` ("no table entry is unused"): the English of texts whose only
+       user was deleted with the dead exports -> removed from `msg/api-automation.ts` (3: the `REPEAT_LABEL` texts),
+       `msg/api-notify.ts` (1: `FAILURES_AUDIENCE_LABEL.visible`), `msg/map.ts` (1: `STAIR_SHAPE_LABEL.straight`);
+     - `unit-i18n-cal-elec-lint` ("the literal is gone"): FE-5 deleted the unused `HEBREW_DAYS_UNIT` of `elec-format.ts` -> its
+       entry left `HEBREW_LITERALS`;
+   - 2 that **fail on the train itself** (`c68904139`), not caused by this branch, left for the train (see "For the lead"):
+     - `unit-chip-selected-2439:37` expects `_skin_switch.run_once(conn)` in `backend/smplwise/main.py`; on the train the call is
+       in `startup_steps.py` (CR-MAIN-RUNTIME moved the start-up steps). This branch changes no backend file.
+     - `unit-diag-tabs-2440:133` settings chunk source budget 510,000 B: this head 512,211 B (33 modules); the train alone
+       514,314 B (33 modules) - measured with the spec's own closure code on `git archive c68904139 frontend/src`; FE-7 alone
+       493,945 B. This branch makes it 2,103 B smaller.
+10. After the follow-up fixes: the 6 fixed specs + all `unit-i18n-*` + `unit-diag-tabs-2440`, `unit-entry-chunk`,
+    `unit-unused-exports`, `unit-tsconfig-split` (`--workers=1`): **126 passed, 2 failed** (the two train failures above).
+    `tsc --noEmit -p tsconfig.tests.json` again on the final tree: **exit 0** (8 min 24 s).
+
+The PNGs the unit runs rewrote under `docs/evidence/` were restored; none is committed.
+
+## For the lead
+
+1. Two train failures (above) are not fixed here, to keep this branch from conflicting with the train's own fix: the main.py
+   string in `unit-chip-selected-2439.spec.ts:49` (point it at `startup_steps.py`), and the settings-chunk budget (the train's
+   chunk is 514,314 B source; raise `OWN_BUDGET` with a measurement or move a card to its tab).
+2. Train commit `4256ca0b9` (backend test only) arrived after the base; not merged here (the lead merges train fixes).
 
 ## NOT_RUN
 

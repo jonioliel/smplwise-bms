@@ -314,7 +314,7 @@ export class SwHomePersonal extends LitElement {
 
   /**
    * Saves one choice at once. Never rejects (CR-FE-PROMISES-2442): a refused or failed save puts the previous choice back and
-   * shows the reason in the note under the list (`data-home-personal-error`), so the setters start it with `void`.
+   * shows the reason in the red note under the list (errorNote), so the setters start it with `void`.
    */
   private async commit(next: HomePersonal) {
     const before = this.personal;
