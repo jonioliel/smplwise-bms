@@ -8,12 +8,12 @@ Input: `private/planning/BACKLOG_TRIAGE_2026-11-18.md` (92 BACKLOG cards: DELIVE
 
 | Status | Before | After |
 |---|---|---|
-| BACKLOG | 92 | 16 |
+| BACKLOG | 92 | 9 |
 | IN_PROGRESS | 6 | 5 |
 | READY | 1 | 1 |
-| REVIEW | 139 | 216 |
+| REVIEW | 139 | 219 |
 | DONE | 208 | 208 |
-| BLOCKED | 19 | 19 |
+| BLOCKED | 19 | 23 |
 
 ## 2. Rule applied
 
@@ -36,29 +36,37 @@ Input: `private/planning/BACKLOG_TRIAGE_2026-11-18.md` (92 BACKLOG cards: DELIVE
 | T035 (PARTIAL) | stays BACKLOG | The card is the real lab disconnection drills and the pilot run; only fakes-based run exists. |
 | T070 (PARTIAL) | stays BACKLOG | Dry-run tooling and parity shipped, but the staged rollout with real rollback and legacy decommission is the card's core and is owner-gated. |
 
-## 4. Cards left BACKLOG (16)
+## 4. Cards left BACKLOG (9, after the owner answers of section 6)
 
 | Card | Reason |
 |---|---|
-| T033 | PARTIAL: log export missing |
-| T035 | PARTIAL: lab drills missing |
+| T033 | PARTIAL: redacted log export with correlation id missing |
+| T035 | PARTIAL: real lab disconnection drills missing |
+| T070 | PARTIAL: staged rollout with real rollback is owner-gated; also depends on T036, T068 |
 | T036 | DELIVERED but dependency T035 stays BACKLOG |
 | T051 | DELIVERED but dependency T033 stays BACKLOG |
-| T060 | UNSURE: owner answer |
-| T061 | UNSURE: owner answer |
-| T063 | UNSURE: owner answer |
-| T064 | DELIVERED but dependency T063 stays BACKLOG |
 | T068 | PARTIAL; dependency T051 stays BACKLOG |
-| T069 | DELIVERED but dependency T060 stays BACKLOG |
-| T070 | PARTIAL: staged rollout owner-gated |
 | T071 | DELIVERED but dependency T036 stays BACKLOG |
-| T072 | UNSURE: owner answer |
-| T073 | OBSOLETE: owner to confirm |
-| T095 | FUTURE |
-| ONVIF-DISCOVERY-2412 | FUTURE |
+| T095 | FUTURE: owner froze the 2FA track |
+| ONVIF-DISCOVERY-2412 | FUTURE: not scheduled by the owner |
+
+(The first pass left 16 BACKLOG; counts above are final after section 6.)
 
 ## 5. Moved BACKLOG -> REVIEW (77, in dependency order of application)
 
 T005, T006, T008, T009, T010, T014, T076, T077, T116, WXN11, WXW, T011, T012, T013, T015, T016, T017, T018, T019, T020, T021, T022, T023, T024, T026, T027, T028, T029, T030, T031, T032, T038, T039, T041, T042, T044, T045, T046, T047, T048, T049, T050, T052, T056, T059, T062, T066, T078, T079, T080, T081, T084, T085, T086, T087, T088, T089, T090, T092, T097, T025, T034, T037, T040, T043, T053, T054, T055, T057, T058, T065, T067, T074, T075, T082, T083, T091
 
 Each card's evidence line (the last entry in `evidence`) starts with `2026-11-18 (BACKLOG-HYGIENE-2443)`.
+
+## 6. Owner answers 18.11 (all option a, relayed by the lead)
+
+Applied with the registry OBSOLETE convention (BLOCKED, blocker starting `Excluded - OBSOLETE by owner decision 2026-11-18`, an `EXCLUDED` evidence line):
+
+- T073 (Codex-era task runner): OBSOLETE, not needed; the Ubuntu runner plays this role.
+- T060, T061 (AI plan normaliser, compare): OBSOLETE, superseded by the local detector (T086) and the human accept screen; no external AI normaliser. **ADR-007 (Plan AI proposes geometry) needs a status update** to superseded; the ADR was not edited on this branch.
+- T072 (V1 acceptance gate): OBSOLETE, V1 declared closed; superseded by the tagged release train with the full release gate.
+- T063 (semantic search): moved to REVIEW with evidence for the local baseline (services/semantic.py, /search/semantic, /search/providers, 0.1.44) and the line "external provider excluded by owner 2026-11-18". **This also rejects the provider part of CR-VSEARCH115** (the CR should be marked accordingly).
+- Released by these answers and moved to REVIEW (DELIVERED in the triage, dependency now met): T064 (T063 now REVIEW), T069 (T060 now OBSOLETE).
+- Still stuck: T036/T071/T070 (T035), T051/T068 (T033); no other card depended on the five closed cards.
+
+Final counts: REVIEW 219, DONE 208, BLOCKED 23, BACKLOG 9, IN_PROGRESS 5, READY 1.

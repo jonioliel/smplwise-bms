@@ -1,6 +1,6 @@
 # Project status — generated view
 
-Generated: 2026-11-18T17:48:16.704279+00:00
+Generated: 2026-11-18T18:32:50.878234+00:00
 
 Tasks: 465 | Requirements: 579 | Tests: 596 | Screens: 32
 
@@ -9,12 +9,12 @@ No VMS implementation or hardware test is implied by this planning registry.
 Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DONE; READY, IN_PROGRESS, VALIDATION and DONE need every dependency DONE. OBSOLETE cards are BLOCKED with a blocker starting "Excluded - OBSOLETE" and an EXCLUDED evidence line (the registry has no OBSOLETE status); a dependency on an OBSOLETE card counts as satisfied under every rule (BOARD-DECISIONS-2407, owner decision 2026-11-07).
 
 ## Status counts
-- BACKLOG: 16
-- BLOCKED: 19
+- BACKLOG: 9
+- BLOCKED: 23
 - DONE: 208
 - IN_PROGRESS: 5
 - READY: 1
-- REVIEW: 216
+- REVIEW: 219
 
 ## Release scope counts
 - BETA: 20
@@ -27,6 +27,10 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 ## Blockers
 - T003: Excluded - OBSOLETE by owner decision 2026-11-05 (round 22, Q2 = א on the BOARD-HYGIENE-2403 candidates; relayed by the coordinator, no written answers file): superseded by the owner's exclusion of 2026-09-22 (docs/architecture/DECISIONS.md. Not to be worked; the card is kept.
 - T004: Excluded - OBSOLETE by owner decision 2026-11-05 (round 22, Q2 = א on the BOARD-HYGIENE-2403 candidates; relayed by the coordinator, no written answers file): superseded by the owner's exclusion of 2026-09-22 (docs/architecture/DECISIONS.md. Not to be worked; the card is kept.
+- T060: Excluded - OBSOLETE by owner decision 2026-11-18 (answers of 18.11, option a, relayed by the lead; no written answers file): the AI plan normaliser is superseded by the local detector (T086) and the human accept screen; no external AI normaliser (ADR-007 needs a status update). Not to be worked; the card is kept.
+- T061: Excluded - OBSOLETE by owner decision 2026-11-18 (answers of 18.11, option a, relayed by the lead; no written answers file): AI plan compare is superseded by the local detector (T086) with its human accept screen; no external AI normaliser. Not to be worked; the card is kept.
+- T072: Excluded - OBSOLETE by owner decision 2026-11-18 (answers of 18.11, option a, relayed by the lead; no written answers file): V1 is declared closed; superseded by the tagged release train with the full release gate. Not to be worked; the card is kept.
+- T073: Excluded - OBSOLETE by owner decision 2026-11-18 (answers of 18.11, option a, relayed by the lead; no written answers file): the Codex-era task runner (scripts/task_runner.py) is not needed; the Ubuntu runner (run_remote.sh) plays this role. Not to be worked; the card is kept.
 - T096: Real FCM / APNs delivery needs the owner's Firebase project and Apple account (docs/operations/ARX_PUSH_RELAY_DEPLOY_HE.md); the relay Worker is not deployed. The CR-012 wake design is treated as superseded by the CR-027 relay (the CR-012 document itself still says "Proposed"); the go-live work is PUSH-GOLIVE-KIT-2380.
 - WXD5B: Excluded - OBSOLETE by owner decision 2026-11-05 (round 22, Q2 = א on the BOARD-HYGIENE-2403 candidates; relayed by the coordinator, no written answers file): superseded by door actions go over the WisKey direct join (docs/changes/DOORLIVE-2310.md, owner decisions 2026-10-30), not a bridge door_open / door_open_status service. Not to be worked; the card is kept.
 - WXG0: Excluded - OBSOLETE by owner decision 2026-11-07, relayed by the lead; no written answers file: superseded: the WX3 gate tool checks a WisKey SOURCE folder under the 2026-10-05 rule "WisKey packages nothing"; since WISKEY-MANAGED-INSTALL-2382 Arx installs a WisKey-built bundle checked byte-exact against its MANAGED_MANIFEST.json behind the Core provenance gate, which takes the tool's place (answer to question 1 of docs/changes/V1-REMAINING-2406.md). Not to be worked; the card is kept.
@@ -107,20 +111,20 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [T057](tasks/T057.md) | BETA | REVIEW | Kiosk ותצוגת קיר | T018, T034, T047 |
 | [T058](tasks/T058.md) | V3 | REVIEW | Multi-NVR ואתרים מרובים | T013, T019, T055 |
 | [T059](tasks/T059.md) | BETA | REVIEW | Schema קנוני לתוכנית אדריכלית | T020, T021, T038 |
-| [T060](tasks/T060.md) | V1 | BACKLOG | AI Plan Normalizer עם Prompt גרסאי | T059 |
-| [T061](tasks/T061.md) | V1 | BACKLOG | Compare ואישור אנושי לתוכנית AI | T060 |
+| [T060](tasks/T060.md) | V1 | BLOCKED | AI Plan Normalizer עם Prompt גרסאי | T059 |
+| [T061](tasks/T061.md) | V1 | BLOCKED | Compare ואישור אנושי לתוכנית AI | T060 |
 | [T062](tasks/T062.md) | BETA | REVIEW | חיפוש metadata מרחבי | T031, T039, T047 |
-| [T063](tasks/T063.md) | V2 | BACKLOG | חיפוש סמנטי ו־AI provider אופציונלי | T055, T062 |
-| [T064](tasks/T064.md) | V2 | BACKLOG | שחזור מסלול מוצע לחקירה | T043, T049, T063 |
+| [T063](tasks/T063.md) | V2 | REVIEW | חיפוש סמנטי ו־AI provider אופציונלי | T055, T062 |
+| [T064](tasks/T064.md) | V2 | REVIEW | שחזור מסלול מוצע לחקירה | T043, T049, T063 |
 | [T065](tasks/T065.md) | V2 | REVIEW | DWG/DXF וייבוא מתקדם | T020, T059, T086 |
 | [T066](tasks/T066.md) | V1 | REVIEW | מהירויות Playback ו־Frame stepping | T042, T044 |
 | [T067](tasks/T067.md) | V2 | REVIEW | חתימת ראיות וניהול מפתחות | T050, T055 |
 | [T068](tasks/T068.md) | V1 | BACKLOG | Load/Soak ותקציב משאבים | T042, T048, T051, T057, T058 |
-| [T069](tasks/T069.md) | V1 | BACKLOG | בדיקות אבטחה של קבצים ורשת | T011, T020, T048, T055, T060 |
+| [T069](tasks/T069.md) | V1 | REVIEW | בדיקות אבטחה של קבצים ורשת | T011, T020, T048, T055, T060 |
 | [T070](tasks/T070.md) | V1 | BACKLOG | מיגרציה הדרגתית והקבלה מול הישן | T036, T055, T068 |
 | [T071](tasks/T071.md) | V1 | BACKLOG | Onboarding, מדריך מפעיל ותמיכה | T036, T038, T048, T056, T055 |
-| [T072](tasks/T072.md) | V1 | BACKLOG | קבלה ושחרור V1 | T050, T054, T055, T058, T061, T066, T068, T069, T070, T071, T074, T075, T082 |
-| [T073](tasks/T073.md) | V2 | BACKLOG | Runner מקומי אופציונלי למשימות Codex | T010, T009 |
+| [T072](tasks/T072.md) | V1 | BLOCKED | קבלה ושחרור V1 | T050, T054, T055, T058, T061, T066, T068, T069, T070, T071, T074, T075, T082 |
+| [T073](tasks/T073.md) | V2 | BLOCKED | Runner מקומי אופציונלי למשימות Codex | T010, T009 |
 | [T074](tasks/T074.md) | V1 | REVIEW | שיפור מוצר ו־Visual regression מתמשך | T034, T043, T049 |
 | [T075](tasks/T075.md) | V1 | REVIEW | אזורי זיהוי ומסכות פרטיות במצלמה | T012, T045, T055 |
 | [T076](tasks/T076.md) | PILOT | REVIEW | גשר זהות HA וייבוא קטלוג משתמשים | T009 |

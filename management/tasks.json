@@ -3402,8 +3402,8 @@
       "AT119",
       "AT120"
     ],
-    "status": "BACKLOG",
-    "blocker": null,
+    "status": "BLOCKED",
+    "blocker": "Excluded - OBSOLETE by owner decision 2026-11-18 (answers of 18.11, option a, relayed by the lead; no written answers file): the AI plan normaliser is superseded by the local detector (T086) and the human accept screen; no external AI normaliser (ADR-007 needs a status update). Not to be worked; the card is kept.",
     "priority": "P1",
     "model_policy": {
       "implementation": "balanced",
@@ -3419,7 +3419,8 @@
     ],
     "evidence": [
       "partial (2026-09-16, 0.1.9): a local, deterministic normalizer instead of an AI prompt for now - services/plan_stylize.py (Pillow + numpy): Otsu binarisation, closing merges double-line walls, opening removes text/dimension lines/thin furniture, doorway sealing (2.5% of width) separates rooms from the exterior, numpy connected components with pointer jumping, repaint in the SW A tokens; presets light/medium/strong; ~5-6 s for the owner's 3000x2121 plan (medium: solid outer walls, hall and wings white, 3 rooms); API POST /plan-versions/{id}/stylize (map.import), migration 0005 (render_mode, stylized_path, stylize_json); tests/test_stylize.py; the AI prompt/provider path of this card stays open and would need consent/budget per §ט",
-      "partial (2026-09-16, 0.1.14, owner asked for choices instead of one look): stylize options - strength light/medium/strong, room_fill white | tint (one pastel per enclosed room, TINTS palette) | none, keep_lines for any strength (furniture, door swings, dimension lines in a faint tone); API StylizeIn.room_fill (422 otherwise), result carries room_fill; editor version card has the form (strength select, room-fill select, lines checkbox, 'עבד תצוגה מקדימה') and the comparison caption names the options; tests/test_stylize.py (tint per room distinct, lines kept at medium, none = canvas, ValueError on bad fill, API 422); frontend/tests/evidence-stylize-options.spec.ts renders the owner's real plan with tint + lines in Chrome - private-evidence/T007-editor-live/stylize-options-desktop.png. Doors are not recognised as such (they appear through the kept thin lines)"
+      "partial (2026-09-16, 0.1.14, owner asked for choices instead of one look): stylize options - strength light/medium/strong, room_fill white | tint (one pastel per enclosed room, TINTS palette) | none, keep_lines for any strength (furniture, door swings, dimension lines in a faint tone); API StylizeIn.room_fill (422 otherwise), result carries room_fill; editor version card has the form (strength select, room-fill select, lines checkbox, 'עבד תצוגה מקדימה') and the comparison caption names the options; tests/test_stylize.py (tint per room distinct, lines kept at medium, none = canvas, ValueError on bad fill, API 422); frontend/tests/evidence-stylize-options.spec.ts renders the owner's real plan with tint + lines in Chrome - private-evidence/T007-editor-live/stylize-options-desktop.png. Doors are not recognised as such (they appear through the kept thin lines)",
+      "EXCLUDED - OBSOLETE by owner decision 2026-11-18 (BACKLOG-HYGIENE-2443): the AI plan normaliser is superseded by the local detector (T086) and the human accept screen; no external AI normaliser (ADR-007 needs a status update)."
     ],
     "owner": null,
     "commit": null,
@@ -3455,8 +3456,8 @@
       "AT121",
       "AT122"
     ],
-    "status": "BACKLOG",
-    "blocker": null,
+    "status": "BLOCKED",
+    "blocker": "Excluded - OBSOLETE by owner decision 2026-11-18 (answers of 18.11, option a, relayed by the lead; no written answers file): AI plan compare is superseded by the local detector (T086) with its human accept screen; no external AI normaliser. Not to be worked; the card is kept.",
     "priority": "P1",
     "model_policy": {
       "implementation": "balanced",
@@ -3471,7 +3472,8 @@
       "Build screenshots matching design reference"
     ],
     "evidence": [
-      "partial (2026-09-16, 0.1.9): the editor's version card shows source vs stylized side by side after processing, 'השתמש בתוצאה' switches the map (PATCH /plan-versions/{id} render_mode) and 'הצג מקור' switches back; anchors keep their coordinates because the rendering has the source geometry; no automatic publish"
+      "partial (2026-09-16, 0.1.9): the editor's version card shows source vs stylized side by side after processing, 'השתמש בתוצאה' switches the map (PATCH /plan-versions/{id} render_mode) and 'הצג מקור' switches back; anchors keep their coordinates because the rendering has the source geometry; no automatic publish",
+      "EXCLUDED - OBSOLETE by owner decision 2026-11-18 (BACKLOG-HYGIENE-2443): AI plan compare is superseded by the local detector (T086) with its human accept screen; no external AI normaliser."
     ],
     "owner": null,
     "commit": null,
@@ -3562,7 +3564,7 @@
       "AT125",
       "AT126"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -3578,7 +3580,8 @@
       "Build screenshots matching design reference"
     ],
     "evidence": [
-      "pre-evidence 2026-09-17 (0.1.44): services/semantic.py local baseline (no model, no network) parses Hebrew/English questions into object class (device detection target), catalogue places (rooms/floors/cameras, scoped) and a site-zone time window; GET /search/semantic runs the scoped event query and labels hits exact/partial with their basis; colour/appearance terms reported unsupported with the reason; GET /search/providers publishes the adapter contract (model version, privacy, budget, opt-in) and settings ai.provider/ai.privacy_ack/ai.budget_daily; ai.provider=external refused (none bundled); every answer states results are not identity evidence. UI: חיפוש AI real mode. tests/test_semantic.py; live evidence private-evidence/T063-semantic-live. Embeddings / image similarity remain excluded until the owner chooses a provider, acknowledges its privacy policy and sets a budget. Status stays BACKLOG."
+      "pre-evidence 2026-09-17 (0.1.44): services/semantic.py local baseline (no model, no network) parses Hebrew/English questions into object class (device detection target), catalogue places (rooms/floors/cameras, scoped) and a site-zone time window; GET /search/semantic runs the scoped event query and labels hits exact/partial with their basis; colour/appearance terms reported unsupported with the reason; GET /search/providers publishes the adapter contract (model version, privacy, budget, opt-in) and settings ai.provider/ai.privacy_ack/ai.budget_daily; ai.provider=external refused (none bundled); every answer states results are not identity evidence. UI: חיפוש AI real mode. tests/test_semantic.py; live evidence private-evidence/T063-semantic-live. Embeddings / image similarity remain excluded until the owner chooses a provider, acknowledges its privacy policy and sets a budget. Status stays BACKLOG.",
+      "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped locally, formal acceptance still to be recorded; not DONE). Local semantic baseline delivered: services/semantic.py, GET /search/semantic and /search/providers contract (0.1.44). External provider excluded by owner 2026-11-18; this also rejects the provider part of CR-VSEARCH115."
     ],
     "owner": null,
     "commit": null,
@@ -3617,7 +3620,7 @@
       "AT127",
       "AT128"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -3636,7 +3639,8 @@
       "M064 (2026-10-05, pilot/investigate-map-improvements): the ranking uses the published floor connectors - correlation.floor_connectors() reads the stairs / elevators of the floor that lead to another floor (published documents only; the twin's middle on the other floor, or the same position with a note when the twin is not published); suggest_route() takes the connectors within 0.35 of the event camera or in its room and suggests the cameras within 0.2 of the twin or in the twin's room as relation via_connector (label 'מדרגות ↑ קומה 1', via {connector_id, kind, floor, direction, twin_published}), ranked after everything on the floor, camera-scope filtered, activity counted; the answer lists `connectors` and the notes say when there are none or they are out of reach. One-click confirm: POST /events/{id}/route/confirm {camera_ids, case_id?, title?, note?, window} (routers/cases.py) - only cameras the route suggests (422 otherwise, the rest reported as skipped), cases.manage + video.playback per camera, a new case (tag 'מסלול מוצע', local-time title) or an open one, the event once + a clip per camera over the route window with a note saying hypothesis, never identification; audited case.route.confirm. UI: a tick per suggestion, the stairs / elevator icon and floor, a case select ('תיק חדש' or an open case) and 'אשר מסלול לתיק (n)'. Tests: tests/test_route.py (+1, cross-floor ranking, twin published / not, scope, confirm, refusals), frontend/tests/evidence-map-improvements.spec.ts. Screenshots: docs/evidence/investigate-map-improvements/{before,after}/m064-*.png",
       "pre-evidence (2026-09-16, 0.1.31): services/correlation.py suggest_route - subject anchor + zone, neighbours ranked same_zone / adjacent_zone (polygons_touch: shared wall within 0.01) / nearby (<= 0.2 plan units), activity count per camera in the window (-15 s .. +window), playback_at, honest notes (unplaced camera, no rooms, no floor connectors yet), policy: hypothetical, no identification, no action; GET /events/{id}/route?window= (events.read on the camera, scope-filtered). tests/test_route.py. UI: event page card with relation badges, activity and play buttons. frontend/tests/evidence-route.spec.ts against the dev backend (a spare camera placed beside the event camera for the evidence and removed afterwards) - private-evidence/T064-route-live/*.png. Open: cross-floor connectors (stairs / elevators), confirming the sequence into a case in one click, direction hints from consecutive events",
       "2.0.3 (integ/203, 2026-10-05): M064 merged from pilot/investigate-map-improvements @ 05403361 and released in 2.0.3 (POST /events/{id}/route/confirm); acceptance on the owner's floors with published stairs / elevators NOT_RUN.",
-      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 054033611); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 054033611); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)",
+      "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence: see the triage of 2026-11-18 (DELIVERED); its blocking dependency was closed by the owner answers of 18.11 (T063 -> REVIEW)."
     ],
     "owner": null,
     "commit": null,
@@ -3904,7 +3908,7 @@
       "AT137",
       "AT138"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -3921,7 +3925,8 @@
     ],
     "evidence": [
       "pre-evidence (2026-09-16, 0.1.30): services/xmlsafe.py refuses DOCTYPE / ENTITY in every device document (nvr.py + events_ingest.py use it); routers/plans.py answers a corrupt PDF with 422 corrupt_pdf. tests/test_security.py: SVG refused, content sniffing over name / declared type, garbage refused, corrupt PDF is a client error (never 500), size cap while streaming (413), path traversal refused on backups / plan assets / plan versions / exports / thumbnails / frames and the backup upload name, entity bomb + XXE refused (alert dropped, never resolved), OpenAPI scan finds no URL-fetching parameter (no SSRF surface), the browser gets relative media paths only and camera rows carry no RTSP URLs or credentials, bridge messages: replay / window / forged secret / tampered body all 401. Dependency scan: docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md (pip-audit + npm audit clean at 0.1.21). Open: oversized media through go2rtc, token replay at the Ingress session level (HA owns it), re-scan of dependencies on each release, network exposure review of go2rtc on the owner's host (manual)",
-      "2026-09-22 (0.1.81): dependency re-scan at the current release (pip-audit clean, npm audit 0, tree grep 0 - DEPENDENCY_AND_SECRETS_AUDIT.md §6); Ingress-session token replay written as an explicit exclusion (Home Assistant's session layer - the add-on never sees or stores that token; the bridge's own HMAC replay window stays tested in tests/test_security.py). Still open and device-bound: oversized media through go2rtc (needs the relay) and the go2rtc API/RTSP exposure review on the owner's host."
+      "2026-09-22 (0.1.81): dependency re-scan at the current release (pip-audit clean, npm audit 0, tree grep 0 - DEPENDENCY_AND_SECRETS_AUDIT.md §6); Ingress-session token replay written as an explicit exclusion (Home Assistant's session layer - the add-on never sees or stores that token; the bridge's own HMAC replay window stays tested in tests/test_security.py). Still open and device-bound: oversized media through go2rtc (needs the relay) and the go2rtc API/RTSP exposure review on the owner's host.",
+      "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence: see the triage of 2026-11-18 (DELIVERED); its blocking dependency was closed by the owner answers of 18.11 (T060 OBSOLETE)."
     ],
     "owner": null,
     "commit": null,
@@ -4080,8 +4085,8 @@
       "AT143",
       "AT144"
     ],
-    "status": "BACKLOG",
-    "blocker": null,
+    "status": "BLOCKED",
+    "blocker": "Excluded - OBSOLETE by owner decision 2026-11-18 (answers of 18.11, option a, relayed by the lead; no written answers file): V1 is declared closed; superseded by the tagged release train with the full release gate. Not to be worked; the card is kept.",
     "priority": "P1",
     "model_policy": {
       "implementation": "balanced",
@@ -4097,7 +4102,8 @@
     ],
     "evidence": [
       "pre-evidence (2026-09-17): docs/release/RELEASE_PACKAGE_V1.md — what is released, compatibility matrix (HA 2026.9.2, HAOS 18.2, Supervisor 2026.09.2, DS-7616NXI-K2(D) V4.84.101, go2rtc 1.9.14, Chrome), evidence sources, eight known limits, rollback (pre-upgrade backups, additive migrations, previous version from the repository), owner-gated items and an approval block with the tag commands; scripts/release_check.py verifies one version everywhere (config.yaml, Dockerfile, __version__, CHANGELOG head, API inventory), identical bridge copies + consistent bridge version, contiguous migrations, built UI, package and known-limits documents, tag presence (informational) — exit 1 when a required check fails; tests/test_release_check.py (repository passes, a mismatched tree fails). Open: the owner's acceptance round and signature, the tag after approval",
-      "2026-09-22 (0.1.81): docs/release/RELEASE_PACKAGE_V1.md refreshed to the current tree - compatibility matrix names the approved NVR writes and their guards instead of 'no NVR writes', evidence section counts 176 backend tests / 86 live specs and links the two test-round records and the audit, known limits rewritten (NVR write scope with privacy masks as the open half of T075; playback-speed exclusions; what a limited user sees since 0.1.81), T054 intercom and T058 second NVR proposed as explicit V1 exclusions for the owner to confirm in §7, owner-only items relisted with the access each one needs. Closure remains the owner's acceptance round and signature; structurally the package now satisfies 'evidenced or explicitly excluded' once the two exclusions are confirmed."
+      "2026-09-22 (0.1.81): docs/release/RELEASE_PACKAGE_V1.md refreshed to the current tree - compatibility matrix names the approved NVR writes and their guards instead of 'no NVR writes', evidence section counts 176 backend tests / 86 live specs and links the two test-round records and the audit, known limits rewritten (NVR write scope with privacy masks as the open half of T075; playback-speed exclusions; what a limited user sees since 0.1.81), T054 intercom and T058 second NVR proposed as explicit V1 exclusions for the owner to confirm in §7, owner-only items relisted with the access each one needs. Closure remains the owner's acceptance round and signature; structurally the package now satisfies 'evidenced or explicitly excluded' once the two exclusions are confirmed.",
+      "EXCLUDED - OBSOLETE by owner decision 2026-11-18 (BACKLOG-HYGIENE-2443): V1 is declared closed; superseded by the tagged release train with the full release gate."
     ],
     "owner": null,
     "commit": null,
@@ -4131,8 +4137,8 @@
       "AT145",
       "AT146"
     ],
-    "status": "BACKLOG",
-    "blocker": null,
+    "status": "BLOCKED",
+    "blocker": "Excluded - OBSOLETE by owner decision 2026-11-18 (answers of 18.11, option a, relayed by the lead; no written answers file): the Codex-era task runner (scripts/task_runner.py) is not needed; the Ubuntu runner (run_remote.sh) plays this role. Not to be worked; the card is kept.",
     "priority": "P1",
     "model_policy": {
       "implementation": "balanced",
@@ -4147,7 +4153,8 @@
       "Technical review record"
     ],
     "evidence": [
-      "pre-evidence 2026-09-17: scripts/task_runner.py — one invocation per task card through a validated local CLI (--version), dependency gate (DONE, or evidence with --gate evidence), attempt cap (2 failed runs → needs_review, no automatic retry), workspace allowlist (inside the repo, never secrets/ private-evidence/ legacy/ data/), budget bound per run (no spend authorisation path), hard timeout, manual STOP file, invocation.json + result.json against schema smplwise-task-run/1 with changed files and violations from git; dry run prints the invocation only. tests/test_task_runner.py (fake CLI: validation, gates, cap, schema, timeout, manual stop); docs/operations/TASK_RUNNER.md. Status stays BACKLOG."
+      "pre-evidence 2026-09-17: scripts/task_runner.py — one invocation per task card through a validated local CLI (--version), dependency gate (DONE, or evidence with --gate evidence), attempt cap (2 failed runs → needs_review, no automatic retry), workspace allowlist (inside the repo, never secrets/ private-evidence/ legacy/ data/), budget bound per run (no spend authorisation path), hard timeout, manual STOP file, invocation.json + result.json against schema smplwise-task-run/1 with changed files and violations from git; dry run prints the invocation only. tests/test_task_runner.py (fake CLI: validation, gates, cap, schema, timeout, manual stop); docs/operations/TASK_RUNNER.md. Status stays BACKLOG.",
+      "EXCLUDED - OBSOLETE by owner decision 2026-11-18 (BACKLOG-HYGIENE-2443): the Codex-era task runner (scripts/task_runner.py) is not needed; the Ubuntu runner (run_remote.sh) plays this role."
     ],
     "owner": null,
     "commit": null,
