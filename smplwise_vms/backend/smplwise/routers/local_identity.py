@@ -19,7 +19,13 @@ Self:
 
 Administration (`identity.directory.read` to read, `identity.local.manage` - system_admin only - to change):
 `GET    identity/local-users`               the list (never a hash, never a link)
-`POST   identity/local-users`               create + exactly one binding + a first-login link returned ONCE
+`POST   identity/local-users`               create + exactly one binding + EITHER a password the administrator sets (`password`,
+                                            `must_change` default true; no link) OR a first-login link returned ONCE. Every refusal
+                                            is audited `identity.local.user.create_refused` with the refusal's code
+                                            (CR-LOCAL-USER-CREATE-2438).
+`PUT    identity/local-users/{id}/password` {password, must_change=true}: the administrator sets a user's password (same policy as the
+                                            set-password page; the user's sessions, open links and reset codes end; an
+                                            administrative target: local channel only). Audit `identity.local.password.set_by_admin`.
 `GET    identity/local-users/export`        CSV (no secrets)
 `GET    identity/local-users/{id}`
 `PATCH  identity/local-users/{id}`          display_name, email, notes, active, reset_mode
@@ -57,7 +63,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import bump_permission_revision, now_iso
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, authorize, require, role_name, scope_name
+from ..rbac import INSTALLATION, Principal, authorize, is_system_admin, require, role_name, scope_name
 from ..remote_channel import csrf_reason, is_remote
 from ..services import ha_user_auth as hua
 from ..services import local_identity as li
@@ -310,15 +316,27 @@ SCOPE_PATTERN = "^(installation|site|building|floor|camera|access_control_statio
 
 
 class LocalUserCreate(BaseModel):
+    """CR-LOCAL-USER-CREATE-2438: the username and the display name are length-checked by the handler (USERNAME_RE, 60 characters), not
+    here - a refusal there carries the product's own sentence and is audited; a model-level 422 is neither."""
     model_config = ConfigDict(extra="forbid")
-    username: str = Field(min_length=3, max_length=32)
-    display_name: str = Field(min_length=1, max_length=60)
+    username: str = Field(max_length=200)
+    display_name: str = Field(max_length=200)
     role_id: str = Field(min_length=1, max_length=60)
     scope_type: str = Field(default="installation", pattern=SCOPE_PATTERN)
     scope_id: str = Field(default="*", min_length=1, max_length=200)
     email: str | None = Field(default=None, max_length=254)
     notes: str | None = Field(default=None, max_length=200)
     reset_mode: str = Field(default="manager_only", pattern="^(manager_only|self_service)$")
+    # CR-LOCAL-USER-CREATE-2438 (owner 18.11): the administrator may set the password at creation (then no first-login link is minted).
+    # `must_change` (default on): the user must choose their own password at the first sign-in.
+    password: str | None = Field(default=None, min_length=1, max_length=1024)
+    must_change: bool = True
+
+
+class PasswordSetBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    password: str = Field(min_length=1, max_length=1024)
+    must_change: bool = True
 
 
 class LocalUserPatch(BaseModel):
@@ -445,7 +463,12 @@ def list_local_users(request: Request, include_deleted: bool = Query(False), pri
             # USR2 phase 2: can a code / a link leave by WhatsApp at all (an account mapped and connected), and where links point
             "whatsapp_ready": lr.channel_ready(conn), "public_url": lr.public_origin(conn, request),
             # USR2 phase 4: the owner switch of passkey-only sign-in (the tab shows it next to the address passkeys depend on)
-            "passkey_first_allowed": _passkey_first_allowed(conn)}
+            "passkey_first_allowed": _passkey_first_allowed(conn),
+            # CR-LOCAL-USER-CREATE-2438: the shortest password the policy takes (`security.local_password_min`), for the form's hint
+            "password_min": li.password_min(conn),
+            # CR-LOCAL-ID-SWITCH-2442: may THIS person turn the feature on / off (PATCH /settings `security.local_identity` asks the same
+            # question and is the authority; this only tells the tab whether to offer the switch)
+            "can_switch": is_system_admin(conn, principal.user_id)}
 
 
 def _passkey_first_allowed(conn: sqlite3.Connection) -> bool:
@@ -498,10 +521,44 @@ def _bind(conn: sqlite3.Connection, principal: Principal, request: Request, user
     return bid
 
 
+DISPLAY_LONG_HE = "שם התצוגה ארוך מדי (עד 60 תווים)."
+
+
+def _checked_password(conn: sqlite3.Connection, request: Request, password: str, username: str, display_name: str) -> tuple[str, int]:
+    """The set-password page's policy (`security.local_password_min`, common / contextual / repeated) and the hash of
+    `local_passwords`. 400 `password_policy` with the reason; the password itself is never logged, audited or answered."""
+    reason = lp.check_policy(password, min_length=li.password_min(conn), context=li._context_words(conn, {"username": username, "display_name": display_name}),
+                             data_dir=settings_of(request).data_dir)
+    if reason is not None:
+        raise ApiError(400, "password_policy", li.POLICY_HE.get(reason, li.POLICY_HE["too_short"]), details={"reason": reason, "min_length": li.password_min(conn)})
+    return lp.hash_password(password)
+
+
+def _create_refused(conn: sqlite3.Connection, principal: Principal, request: Request, exc: ApiError, reason: str | None = None) -> None:
+    """CR-LOCAL-USER-CREATE-2438: no refusal of the create route is silent. The row carries the refusal's code, the field it names and
+    the policy reason - never what was typed (a password typed into the wrong field must not be kept)."""
+    details: dict[str, Any] = {"status": exc.status, "channel": "remote" if is_remote(request) else "local"}
+    if exc.details.get("field"):
+        details["field"] = exc.details["field"]
+    if exc.code == "password_policy":
+        details["policy"] = exc.details.get("reason")
+    audit(conn, actor=principal, action="identity.local.user.create_refused", decision="denied", resource_type="installation", resource_id="local_users",
+          reason=reason or exc.code, request_id=_rid(request), details=details)
+
+
 @router.post("/identity/local-users", status_code=201)
 def create_local_user(body: LocalUserCreate, request: Request, principal: Principal = Depends(current_principal),
                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    _manage(conn, principal)
+    _manage(conn, principal)  # a refusal here is audited by rbac.require (`identity.local.manage`, denied)
+    try:
+        return _create_local_user(body, request, principal, conn)
+    except ApiError as exc:
+        if not getattr(exc, "create_refusal_audited", False):
+            _create_refused(conn, principal, request, exc)
+        raise
+
+
+def _create_local_user(body: LocalUserCreate, request: Request, principal: Principal, conn: sqlite3.Connection) -> dict[str, Any]:
     _feature_on(conn)
     key = li.username_key(body.username)
     if not li.USERNAME_RE.match(key):
@@ -509,36 +566,107 @@ def create_local_user(body: LocalUserCreate, request: Request, principal: Princi
     display = _clean_text(body.display_name, "display_name")
     if not display:
         raise ApiError(422, "validation", "שם התצוגה חסר.", details={"field": "display_name"})
+    if len(display) > 60:
+        raise ApiError(422, "validation", DISPLAY_LONG_HE, details={"field": "display_name"})
     email = _validate_email(body.email)
     notes = _clean_text(body.notes, "notes")
     scope = (body.scope_type, body.scope_id)
     _check_role(conn, principal, body.role_id, scope)
     admin = li.role_is_admin(conn, body.role_id)
-    _admin_target_local_only(request, admin)
+    try:
+        _admin_target_local_only(request, admin)
+    except ApiError as exc:
+        _create_refused(conn, principal, request, exc, "admin_target_remote")
+        exc.create_refusal_audited = True  # type: ignore[attr-defined]
+        raise
     if admin and body.reset_mode == "self_service":
         raise ApiError(422, "self_service_not_for_admins", SELF_SERVICE_ADMIN_HE)
     if _username_taken(conn, key):
         raise ApiError(409, "username_taken", TAKEN_HE)
+    channel = "remote" if is_remote(request) else "local"
+    hashed = _checked_password(conn, request, body.password, key, display) if body.password is not None else None
+    must_change = bool(body.must_change) if hashed is not None else False
     uid = li.new_local_id()
     now = now_iso()
+    token: str | None = None
+    expires = 0.0
     conn.execute("SAVEPOINT usr2_create")
     try:
         conn.execute("""INSERT INTO users(id, username, display_name, source, active, first_seen_at, last_seen_at, email, created_by, notes)
                         VALUES (?, ?, ?, 'local', 1, ?, ?, ?, ?, ?)""", (uid, key, display, now, now, email, principal.user_id, notes))
-        conn.execute("INSERT INTO auth_local_credentials(user_id, reset_mode, updated_at) VALUES (?, ?, ?)", (uid, body.reset_mode, now))
+        if hashed is not None:
+            conn.execute("""INSERT INTO auth_local_credentials(user_id, reset_mode, updated_at, password_hash, params_version, set_at, set_by, must_change)
+                            VALUES (?, ?, ?, ?, ?, ?, 'admin', ?)""", (uid, body.reset_mode, now, hashed[0], hashed[1], now, 1 if must_change else 0))
+        else:
+            conn.execute("INSERT INTO auth_local_credentials(user_id, reset_mode, updated_at) VALUES (?, ?, ?)", (uid, body.reset_mode, now))
         bid = _bind(conn, principal, request, uid, body.role_id, scope)
-        token, expires = li.issue_link(conn, user_id=uid, purpose="first_login", via="shown", channel="remote" if is_remote(request) else "local", actor=principal)
+        if hashed is None:
+            token, expires = li.issue_link(conn, user_id=uid, purpose="first_login", via="shown", channel=channel, actor=principal)
     except BaseException:
         conn.execute("ROLLBACK TO usr2_create")
         conn.execute("RELEASE usr2_create")
         raise
     conn.execute("RELEASE usr2_create")
     audit(conn, actor=principal, action="identity.local.user.created", decision="allowed", resource_type="user", resource_id=uid, request_id=_rid(request),
-          details={"role_id": body.role_id, "scope": f"{scope[0]}:{scope[1]}", "binding_id": bid, "admin": admin, "reset_mode": body.reset_mode})
-    audit(conn, actor=principal, action="auth.local.link.issued", decision="allowed", resource_type="user", resource_id=uid, request_id=_rid(request),
-          details={"purpose": "first_login", "via": "shown", "channel": "remote" if is_remote(request) else "local", "temporary": False})
+          details={"role_id": body.role_id, "scope": f"{scope[0]}:{scope[1]}", "binding_id": bid, "admin": admin, "reset_mode": body.reset_mode,
+                   "password_set": hashed is not None, **({"must_change": must_change} if hashed is not None else {})})
+    if hashed is not None:
+        audit(conn, actor=principal, action="identity.local.password.set_by_admin", decision="allowed", resource_type="user", resource_id=uid,
+              request_id=_rid(request), details={"at": "create", "must_change": must_change, "channel": channel, "admin_target": admin})
+    else:
+        audit(conn, actor=principal, action="auth.local.link.issued", decision="allowed", resource_type="user", resource_id=uid, request_id=_rid(request),
+              details={"purpose": "first_login", "via": "shown", "channel": channel, "temporary": False})
     revocation.changed([uid])
-    return {"user": _user_dict(conn, _user_row(conn, uid)), "link": _link_answer(request, token, expires, "first_login")}
+    return {"user": _user_dict(conn, _user_row(conn, uid)), "password_set": hashed is not None,
+            "link": _link_answer(request, token, expires, "first_login") if token is not None else None}
+
+
+@router.put("/identity/local-users/{user_id}/password")
+def set_local_password(user_id: str, body: PasswordSetBody, request: Request, principal: Principal = Depends(current_principal),
+                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """CR-LOCAL-USER-CREATE-2438 (owner 18.11): the administrator sets the password of an existing Arx user. Like a link that was
+    used: the user's sessions, open links, reset codes and phone credentials end, the failure counters clear. `must_change` (default
+    on) sends the user to choose their own password at the next sign-in. An administrative target: local channel only (owner
+    answer Q3 - the same rule as its links)."""
+    _manage(conn, principal)
+    _feature_on(conn)
+    row = _user_row(conn, user_id)
+    b = _binding(conn, user_id)
+    admin = li.holds_admin(conn, user_id) or bool(b and li.role_is_admin(conn, b["role_id"]))
+    channel = "remote" if is_remote(request) else "local"
+
+    def refused(reason: str, **details: Any) -> None:
+        audit(conn, actor=principal, action="identity.local.password.set_by_admin", decision="denied", resource_type="user", resource_id=user_id,
+              reason=reason, request_id=_rid(request), details={"at": "existing", "channel": channel, "admin_target": admin, **details})
+
+    if admin and is_remote(request):
+        refused("admin_target_remote")
+        _admin_target_local_only(request, admin)
+    if not row["active"]:
+        refused("user_disabled")
+        raise ApiError(409, "user_disabled", "המשתמש מושבת. הפעל אותו לפני קביעת סיסמה.")
+    try:
+        phc, version = _checked_password(conn, request, body.password, row["username"], row["display_name"])
+    except ApiError as exc:
+        refused(exc.code, policy=exc.details.get("reason"))
+        raise
+    now = now_iso()
+    conn.execute("""UPDATE auth_local_credentials SET password_hash = ?, params_version = ?, set_at = ?, set_by = 'admin', must_change = ?,
+                    failed_count = 0, last_failed_at = NULL, delay_until = NULL, updated_at = ? WHERE user_id = ?""",
+                 (phc, version, now, 1 if body.must_change else 0, now, user_id))
+    li.TIERS.acct_clear_name(row["username"])
+    links = li.invalidate_links(conn, user_id)
+    ended = li.revoke_user_sessions(conn, user_id, "password_changed")
+    li.drop_pending_of(user_id)
+    lr.kill_codes(conn, user_id)
+    li._end_phone_credentials(conn, user_id, "password_changed", actor=principal, request_id=_rid(request))
+    audit(conn, actor=principal, action="identity.local.password.set_by_admin", decision="allowed", resource_type="user", resource_id=user_id,
+          request_id=_rid(request), details={"at": "existing", "must_change": bool(body.must_change), "channel": channel, "admin_target": admin,
+                                             "sessions_ended": ended, "links_invalidated": links})
+    revocation.changed([user_id])
+    if ended:
+        li.close_sockets_from_thread()
+    return {**_user_dict(conn, _user_row(conn, user_id)), "sessions_ended": ended, "links_invalidated": links}
 
 
 @router.get("/identity/local-users/export")

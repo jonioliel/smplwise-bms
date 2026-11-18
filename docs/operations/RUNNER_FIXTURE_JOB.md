@@ -34,7 +34,8 @@ test outside `desktop` / `mobile`, so the tablet project adds only skips. No gat
 `toHaveScreenshot`. Before the promotion both specs were `"gate": false`. The four specs added to the list
 (`evidence-arx-second-factor`, `evidence-arx-sessions`, `evidence-custom-roles`, `evidence-plan-package` live part) are
 `"gate": false`: the job can run them, the gate still does not. Promoting one is a one-flag change plus a gate baseline refresh;
-note it here when done. `evidence-custom-roles` uses group `devices_floor`, which runs `seed_floor_plan.py` (a site / floor with a
+note it here when done. `evidence-local-user-create-2438` (group `arx`, desktop, `"gate": false`) was added on 2026-11-18
+(CR-LOCAL-USER-CREATE-2438: the Arx-users create form and the administrator-set password on the real backend). `evidence-custom-roles` uses group `devices_floor`, which runs `seed_floor_plan.py` (a site / floor with a
 published plan and two cameras through the backend's own routes) because that spec was written against the developer database.
 
 ## Runner files (private/runner, gitignored; backups beside them, suffix `.bak-fixture-20261006`)

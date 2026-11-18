@@ -155,6 +155,27 @@ def test_only_a_system_administrator_switches_it(lx):
     assert lx.audit("identity.local.feature_enabled")
 
 
+def test_the_list_says_who_may_switch_and_the_remote_channel_may_switch_both_ways(lx):
+    """CR-LOCAL-ID-SWITCH-2442: the tab offers the switch from `can_switch` (a system administrator; the PATCH stays the authority).
+    The rule as built in USR2 and documented here, not changed: `security.local_identity` is NOT a local-channel-only key - a system
+    administrator's remote (HA-based) session turns it on and off, each with its own audit row."""
+    assert lx.admin.get("/api/v1/identity/local-users").json()["can_switch"] is True
+    # (no built-in role but system_admin reads this list at all - test_permission_matrix - so `can_switch: false` reaches only a
+    # custom-role holder; the refusal of a non-administrator's PATCH is test_only_a_system_administrator_switches_it)
+    lx.flag("u-owner")
+    lx.bind("u-owner", "system_admin")
+    assert lx.login(lx.owner).status_code == 200
+    remote_admin = lx.client
+    assert remote_admin.get("/arx/api/v1/identity/local-users").json()["can_switch"] is True
+    r = remote_admin.patch("/arx/api/v1/settings", json={"security.local_identity": "on"})
+    assert r.status_code == 200 and r.json()["settings"]["security.local_identity"] == "on"
+    assert remote_admin.get("/arx/api/v1/identity/local-users").json()["enabled"] is True
+    assert lx.client.get("/arx/api/v1/auth/remote-config").json().get("local_identity") is True  # the sign-in page's flag follows at once
+    r = remote_admin.patch("/arx/api/v1/settings", json={"security.local_identity": "off"})
+    assert r.status_code == 200 and r.json()["settings"]["security.local_identity"] == "off"
+    assert len(lx.audit("identity.local.feature_enabled")) == 1 and len(lx.audit("identity.local.feature_disabled")) == 1
+
+
 def test_public_routes_are_remote_only(lx):
     lx.enable()
     for path in ("/api/v1/auth/local/sign-in", "/api/v1/auth/local/set-password", "/api/v1/auth/local/sign-in/second-factor"):
