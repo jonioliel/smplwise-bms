@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-button';
@@ -9,7 +10,7 @@ import { SkinController } from '../design/skin';
 
 const DOT: Record<ImageKind, string> = { dark: 'var(--sw-stale)', blurred: 'var(--sw-stale)', frozen: 'var(--sw-danger)', shifted: 'var(--sw-danger)' };
 
-const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '');
+const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString(uiLocale(), { hour: '2-digit', minute: '2-digit' }) : '');
 
 /**
  * CAMHEALTH091: one compact row on בריאות מצלמות - is the picture of the cameras usable (dark / blurred / frozen / shifted). The host

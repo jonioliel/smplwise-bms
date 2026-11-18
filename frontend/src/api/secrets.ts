@@ -1,6 +1,7 @@
 /** TKSECRETS2: the in-app secrets store (הגדרות › חיבורים › סודות) - the secrets that used to be add-on options of type `password`.
  * Every route needs `system.configure` and none exists on the remote channel. A value is WRITE-ONLY: no answer ever carries it. */
 import { api, get, post, put } from './client';
+import { tr } from '../i18n/msg/api-system';
 
 export type SecretName = 'go2rtc_api_password' | 'wiskey_password' | 'wiskey_background_token' | 'openai_api_key' | 'push_relay_key'
   | 'ha_users_token' // USR1-263: the optional home-system users administrator token (store-only, never an add-on option)
@@ -48,14 +49,14 @@ export const clearSecret = (name: string) => api<SecretChange>(`system/secrets/$
 export const testSecret = (name: string, value?: string) => post<SecretTest>(`system/secrets/${encodeURIComponent(name)}/test`, value === undefined ? {} : { value });
 
 export const SECRET_TEST_LABEL: Record<string, string> = {
-  ok: 'החיבור תקין',
-  unauthorized: 'go2rtc דחה את הסיסמה',
-  unreachable: 'go2rtc לא ענה',
-  error: 'go2rtc החזיר שגיאה',
-  not_configured: 'כתובת go2rtc לא הוגדרה',
-  username_missing: 'שם המשתמש לא הוגדר בהגדרות החיבור של ההתקנה',
-  wiskey_unavailable: 'נתוני WisKey אינם זמינים כרגע',
-  no_station: 'אין עמדה מחוברת עם מצלמה שמשתמשת בחשבון המשותף',
-  station_failed: 'לא התקבלה תמונה מהעמדה (סיסמה שגויה או מצלמה שלא ענתה)',
-  go2rtc_unauthorized: 'go2rtc דחה את פרטי הגישה שלו',
+  ok: tr('החיבור תקין'),
+  unauthorized: tr('go2rtc דחה את הסיסמה'),
+  unreachable: tr('go2rtc לא ענה'),
+  error: tr('go2rtc החזיר שגיאה'),
+  not_configured: tr('כתובת go2rtc לא הוגדרה'),
+  username_missing: tr('שם המשתמש לא הוגדר בהגדרות החיבור של ההתקנה'),
+  wiskey_unavailable: tr('נתוני WisKey אינם זמינים כרגע'),
+  no_station: tr('אין עמדה מחוברת עם מצלמה שמשתמשת בחשבון המשותף'),
+  station_failed: tr('לא התקבלה תמונה מהעמדה (סיסמה שגויה או מצלמה שלא ענתה)'),
+  go2rtc_unauthorized: tr('go2rtc דחה את פרטי הגישה שלו'),
 };

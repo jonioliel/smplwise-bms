@@ -81,7 +81,7 @@ def test_n15_wider_value_needs_the_confirmation_word_and_is_audited_before_after
     with db.connection(mode="read") as conn:
         row = conn.execute("SELECT details_json FROM audit_log WHERE action = 'settings.changed' AND decision = 'allowed' ORDER BY rowid DESC LIMIT 1").fetchone()
         stored = conn.execute("SELECT COUNT(*) FROM settings WHERE value = ?", (cl.LOOKUP_WIDE_WORD,)).fetchone()[0]
-    assert json.loads(row[0]) == {"key": cl.LOOKUP_KEY, "before": "holder", "after": "holder_or_audit_readers"}
+    assert json.loads(row[0]) == {"key": cl.LOOKUP_KEY, "before": "holder", "after": "holder_or_audit_readers", "confirm_word": "he"}  # CR-I18N-CONFIRM-WORDS-2442: which word
     assert stored == 0, "the confirmation word is never stored"
     r = c.put("/api/v1/access/capture-lease/settings", json={"lookup_scope": "holder"}, headers=as_user("joni"))
     assert r.status_code == 200 and r.json()["lookup_scope"] == "holder", "narrowing needs no word"
@@ -172,3 +172,34 @@ def test_l6_reading_the_settings_needs_a_system_administrator_too(world, setting
     r = c.put("/api/v1/access/capture-lease/settings", json={"degraded_reenable": True}, headers=as_user("cfgv"))
     assert r.status_code == 403 and r.json()["code"] == "not_system_admin", r.text
     assert c.get("/api/v1/access/capture-lease/settings", headers=as_user("joni")).status_code == 200
+
+
+# ================================================================ CR-I18N-CONFIRM-WORDS-2442 (owner decision 17.11)
+# The typed confirmation takes the Hebrew word or its fixed English counterpart (services/confirm_words.py), nothing looser, and the
+# audit row says which was typed (`confirm_word`); the typed text itself is never stored.
+
+from confirm_words_cases import LANGS, bad, good  # noqa: E402
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_cw2442_the_wider_lookup_takes_the_hebrew_or_the_english_word_only(world, lang):
+    c, db = world
+    url = "/api/v1/access/capture-lease/settings"
+    for text in bad("capture_lookup_wide"):
+        r = c.put(url, json={"lookup_scope": "holder_or_audit_readers", "lookup_scope_confirm": text}, headers=as_user("joni"))
+        assert r.status_code == 422 and r.json()["code"] == "confirm_required" and r.json()["details"] == {"field": "lookup_scope_confirm"}, text
+    with db.connection(mode="read") as conn:
+        assert cl.lookup_scope(conn) == "holder"
+    typed = good("capture_lookup_wide", lang)
+    r = c.put(url, json={"lookup_scope": "holder_or_audit_readers", "lookup_scope_confirm": typed}, headers=as_user("joni"))
+    assert r.status_code == 200 and r.json()["lookup_scope"] == "holder_or_audit_readers", r.text
+    with db.connection(mode="read") as conn:
+        row = conn.execute("SELECT details_json FROM audit_log WHERE action = 'settings.changed' AND decision = 'allowed' ORDER BY rowid DESC LIMIT 1").fetchone()
+        stored = conn.execute("SELECT COUNT(*) FROM settings WHERE value = ?", (typed.strip(),)).fetchone()[0]
+    assert json.loads(row[0]) == {"key": cl.LOOKUP_KEY, "before": "holder", "after": "holder_or_audit_readers", "confirm_word": lang}
+    assert stored == 0 and typed.strip() not in row[0], "which word, never the typed text"
+    # the English word does not replace the system-administrator rule
+    r = c.put(url, json={"lookup_scope": "holder"}, headers=as_user("joni"))
+    assert r.status_code == 200
+    r = c.put(url, json={"lookup_scope": "holder_or_audit_readers", "lookup_scope_confirm": good("capture_lookup_wide", "en")}, headers=as_user("sam"))
+    assert r.status_code == 403

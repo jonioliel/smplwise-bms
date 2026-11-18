@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
@@ -32,6 +33,7 @@ import { SkinController } from '../design/skin';
 import { applyExternalPlacement } from '../shell/nav';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { dateInputLang } from '../api/day-format';
+import { confirmWord, confirmWordMatches, type ConfirmWordKey } from '../i18n/confirm-words';
 import { liftRef, liftedReset } from '../components/top-layer';
 import { leadReserveStyles } from '../styles/lead-reserve'; // header dropdown placement 4: the first row keeps the reserve free (integ/293)
 
@@ -39,7 +41,6 @@ const POLL_MS = 15_000;
 const KPI_KEY: Record<Bucket, XtKey> = { attention: 'kpiAttention', waiting: 'kpiWaiting', moving: 'kpiMoving', active: 'kpiActive', history: 'kpiHistory' };
 const KPI_TONE: Record<Bucket, string> = { attention: 'err', waiting: 'acc', moving: 'acc', active: 'ok', history: 'off' };
 const SRC_KEY: Record<string, XtKey> = { rfq_order: 'srcRfq', ticket: 'srcTicket', manual: 'srcManual' };
-const REVOKE_ALL_WORD = 'בטל הכל';
 // GRANTSMIN-295: the drift view's tone and icon per kind of difference (the server sends them most urgent first)
 const DRIFT_TONE: Record<DriftKind, string> = { missing: 'err', scope: 'err', unknown: 'warn', sync_pending: 'warn', name: 'warn', unverified: 'acc', idle_person: 'off' };
 const DRIFT_ICON: Record<DriftKind, string> = { missing: 'user', scope: 'door', unknown: 'help', sync_pending: 'refresh', name: 'edit', unverified: 'help', idle_person: 'user' };
@@ -59,7 +60,7 @@ function saveFile(blob: Blob, name: string): void {
   window.setTimeout(() => URL.revokeObjectURL(href), 30_000);
 }
 
-type Confirm = { title: string; body: TemplateResult; btn: string; danger?: boolean; word?: string; run: () => Promise<unknown>; done: XtKey; doneText?: string };
+type Confirm = { title: string; body: TemplateResult; btn: string; danger?: boolean; word?: ConfirmWordKey; run: () => Promise<unknown>; done: XtKey; doneText?: string };
 type Dialog =
   | null
   | { kind: 'confirm'; c: Confirm }
@@ -417,7 +418,7 @@ export class AccessExternalScreen extends LitElement {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '';
     try {
-      return d.toLocaleString(document.documentElement.lang || 'he-IL', { timeZone: this.tz, ...(withDate ? { day: '2-digit', month: '2-digit' } : {}), hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+      return d.toLocaleString(uiLocale(), { timeZone: this.tz, ...(withDate ? { day: '2-digit', month: '2-digit' } : {}), hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
     } catch {
       return d.toLocaleString();
     }
@@ -804,9 +805,9 @@ export class AccessExternalScreen extends LitElement {
   }
 
   private goneDialog(g: Grant): TemplateResult {
-    const w = xt('gone_word');
+    const w = confirmWord('access_gone');
     const refOk = goneReferenceOk(this.goneRef);
-    const ok = this.goneChecks.every(Boolean) && refOk && this.word.trim() === w && !this.busy;
+    const ok = this.goneChecks.every(Boolean) && refOk && confirmWordMatches('access_gone', this.word) && !this.busy;
     const checks: XtKey[] = ['gone_ch1', 'gone_ch2', 'gone_ch3'];
     return html`<sw-dialog open wide heading=${xt('gone_title')} subheading=${`${this.name(g)} · ${xt('gone_sub')}`} data-gone-dialog=${g.id} @close=${() => (this.dialog = null)}>
       <div class="stack">
@@ -833,9 +834,9 @@ export class AccessExternalScreen extends LitElement {
   }
 
   private confirmDialog(c: Confirm): TemplateResult {
-    const ok = !this.busy && (!c.word || this.word.trim() === c.word);
+    const ok = !this.busy && (!c.word || confirmWordMatches(c.word, this.word));
     return html`<sw-dialog open heading=${c.title} data-confirm-dialog @close=${() => (this.dialog = null)}>
-      <div class="stack">${c.body}${c.word ? html`<div class="field"><label for="cw">${xt('typeWord', { w: c.word })}</label><input id="cw" class="in" autocomplete="off" .value=${this.word} @input=${(e: Event) => (this.word = (e.target as HTMLInputElement).value)} /></div>` : nothing}</div>
+      <div class="stack">${c.body}${c.word ? html`<div class="field"><label for="cw">${xt('typeWord', { w: confirmWord(c.word) })}</label><input id="cw" class="in" autocomplete="off" .value=${this.word} @input=${(e: Event) => (this.word = (e.target as HTMLInputElement).value)} /></div>` : nothing}</div>
       ${this.dlgError ? html`<p class="err-line" role="alert">${this.dlgError}</p>` : nothing}
       <div class="dfoot"><span class="sp"></span><sw-button variant="ghost" @click=${() => (this.dialog = null)}>${xt('back')}</sw-button>
         <sw-button variant=${c.danger ? 'danger' : 'primary'} data-confirm-ok ?disabled=${!ok} @click=${async () => {
@@ -1184,7 +1185,7 @@ export class AccessExternalScreen extends LitElement {
         ${data.system_admin
           ? html`<sw-button icon="system" data-open-settings @click=${() => this.openSettings()}>${xt('settings')}</sw-button>
               <sw-button variant="danger" icon="lock" data-revoke-all ?disabled=${off || !grants.some((g) => ['requested', 'approved', 'provisioning', 'active', 'unknown'].includes(g.state))}
-                @click=${() => this.confirm({ title: xt('revokeAllQ'), body: html`<p>${xt('revokeAllText')}</p>`, btn: xt('revokeAll'), danger: true, word: REVOKE_ALL_WORD, run: () => revokeAll(REVOKE_ALL_WORD), done: 'revokeAllDone' })}>${xt('revokeAll')}</sw-button>`
+                @click=${() => this.confirm({ title: xt('revokeAllQ'), body: html`<p>${xt('revokeAllText')}</p>`, btn: xt('revokeAll'), danger: true, word: 'access_revoke_all', run: () => revokeAll(this.word.trim()), done: 'revokeAllDone' })}>${xt('revokeAll')}</sw-button>`
           : nothing}
       </div>
       ${off ? html`<div class="banner" data-tone="off" data-banner="off"><sw-icon name="lock" size="18"></sw-icon><span><b>${xt('offTitle')}</b> ${xt('offText')}</span></div>` : nothing}

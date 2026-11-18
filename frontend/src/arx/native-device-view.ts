@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import type { DeviceStatus } from './native-app';
 import { t, type I18nKey } from '../i18n/he';
 import { tr } from '../i18n/msg/misc';
@@ -49,14 +50,14 @@ export function locationAuthText(v: string | null): string {
 }
 
 /** An ISO instant as local date and time; anything unreadable is shown as received. */
-export function lastEventText(iso: string | null, locale = 'he-IL'): string {
+export function lastEventText(iso: string | null, locale = uiLocale()): string {
   if (iso === null) return t('nativeDevice.never');
   const ms = Date.parse(iso);
   if (Number.isNaN(ms)) return iso;
   return new Date(ms).toLocaleString(locale);
 }
 
-export function deviceRows(d: DeviceStatus, locale = 'he-IL'): DeviceRow[] {
+export function deviceRows(d: DeviceStatus, locale = uiLocale()): DeviceRow[] {
   const rows: DeviceRow[] = [
     { key: 'status', label: t('nativeDevice.status'), value: d.registered ? t('nativeDevice.registered') : t('nativeDevice.notRegistered') },
   ];

@@ -11,7 +11,8 @@ import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-field';
 import { describeError } from '../api/client';
-import { getCaptureLeaseSettings, LOOKUP_WIDE_WORD, setLookupScope, type LookupScope } from '../api/capture-lease';
+import { getCaptureLeaseSettings, setLookupScope, type LookupScope } from '../api/capture-lease';
+import { confirmWord, confirmWordMatches } from '../i18n/confirm-words';
 import { tr } from '../i18n/msg/system-b';
 
 const LABEL: Record<LookupScope, string> = {
@@ -85,11 +86,11 @@ export class SwLookupScope extends LitElement {
           </select>
         </sw-field>
         ${wider
-          ? html`<sw-field label=${tr('לאישור ההרחבה הקלידו "{word}"', { word: LOOKUP_WIDE_WORD })}>
+          ? html`<sw-field label=${tr('לאישור ההרחבה הקלידו "{word}"', { word: confirmWord('capture_lookup_wide') })}>
               <input data-lookup-scope-word .value=${live(this.word)} ?disabled=${this.busy} @input=${(e: Event) => (this.word = (e.target as HTMLInputElement).value)} />
             </sw-field>`
           : nothing}
-        <sw-button variant="primary" data-lookup-scope-save ?disabled=${this.busy || this.pending === this.value || (wider && this.word.trim() !== LOOKUP_WIDE_WORD)}
+        <sw-button variant="primary" data-lookup-scope-save ?disabled=${this.busy || this.pending === this.value || (wider && !confirmWordMatches('capture_lookup_wide', this.word))}
           @click=${() => void this.save()}>${tr('שמירה')}</sw-button>
       </div>
       ${this.error ? html`<p class="err" role="alert">${this.error}</p>` : nothing}

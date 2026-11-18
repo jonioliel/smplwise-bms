@@ -14,6 +14,7 @@ import {
   OFF, approveQuestion, approvedLine, canApprove, draftOf, mapDiff, parseChoice, relayChoices, relayName, rowsBody, stationStatus, typedWordNeeded, type RelayDraft,
 } from './wiskey-relay-map-logic';
 import { tr } from '../i18n/msg/wiskey';
+import { serverWordMatches, shownConfirmWord } from '../i18n/confirm-words';
 
 /**
  * Settings › הגדרת מערכת › WisKey: "מיפוי ממסרים" (WISKEY-RELAYMAP-2310). Per WisKey station, which api relay drives which
@@ -210,13 +211,14 @@ export class SwWiskeyRelayMap extends LitElement {
   private dialog(m: RelayMap, s: RelayMapStation) {
     const d = this.draft(s);
     const needWord = typedWordNeeded(s, d);
-    const ok = !needWord || this.word.trim() === m.confirm_word;
+    const ok = !needWord || serverWordMatches(m.confirm_word, this.word);
+    const word = shownConfirmWord(m.confirm_word); // the interface's own word (i18n/confirm-words.ts)
     return html`<sw-dialog open heading=${tr('מיפוי ממסרים')} data-relay-map-confirm @close=${() => { this.pending = null; }}>
       <p>${approveQuestion(s, d)}</p>
       ${needWord
         ? html`<div class="word">
-            <span class="warn">${tr('כדי לאשר יש להקליד "{word}"', { word: m.confirm_word })}</span>
-            <input data-relay-map-word aria-label=${tr('להקליד {word}', { word: m.confirm_word })} .value=${this.word} @input=${(e: Event) => (this.word = (e.target as HTMLInputElement).value)} />
+            <span class="warn">${tr('כדי לאשר יש להקליד "{word}"', { word })}</span>
+            <input data-relay-map-word aria-label=${tr('להקליד {word}', { word })} .value=${this.word} @input=${(e: Event) => (this.word = (e.target as HTMLInputElement).value)} />
           </div>`
         : nothing}
       <sw-button slot="footer" variant="ghost" @click=${() => { this.pending = null; }}>${tr('ביטול')}</sw-button>

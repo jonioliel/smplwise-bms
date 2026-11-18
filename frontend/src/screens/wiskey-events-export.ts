@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-dropdown';
@@ -153,7 +154,7 @@ export class WiskeyEventsExport extends LitElement {
           </sw-field>`
         : nothing}
       ${done
-        ? html`<div class="result ok" role="status" data-ev-export-result="done"><sw-icon name="check" size=${16}></sw-icon>${this.rows === null ? ev('exDoneNoCount') : ev('exDone', { n: this.rows.toLocaleString('he-IL') })}</div>`
+        ? html`<div class="result ok" role="status" data-ev-export-result="done"><sw-icon name="check" size=${16}></sw-icon>${this.rows === null ? ev('exDoneNoCount') : ev('exDone', { n: this.rows.toLocaleString(uiLocale()) })}</div>`
         : this.phase === 'error' && this.failure
           ? html`<div class="result warn" role="alert" data-ev-export-result=${this.failure}><sw-icon name="warning" size=${16}></sw-icon>${ev(FAILURE_TEXT[this.failure])}</div>`
           : nothing}

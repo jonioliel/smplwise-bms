@@ -4,6 +4,7 @@
  * Pure functions; offered only while the owner switched building presence on and tagged sensors (`catalog.extension.building_presence`).
  */
 import type { Duration } from './automations';
+import { tr } from '../i18n/msg/api-automation';
 
 export const MAX_MINUTES = 1440;
 export type PresenceMode = 'occupied' | 'empty';
@@ -43,23 +44,23 @@ export function buildCondition(b: { mode: PresenceMode; sensors: readonly string
 }
 
 export function triggerSentence(minutes: number): string {
-  return minutes === 1 ? 'כשהמבנה ריק במשך דקה' : `כשהמבנה ריק במשך ${minutes} דקות`;
+  return minutes === 1 ? tr('כשהמבנה ריק במשך דקה') : tr('כשהמבנה ריק במשך {minutes} דקות', { minutes });
 }
 export function conditionSentence(b: { mode: PresenceMode; sensors: readonly string[] }, building: readonly string[] = [], names?: (id: string) => string): string {
-  const word = b.mode === 'empty' ? 'אין נוכחות' : 'יש נוכחות';
-  if (building.length && b.sensors.length === building.length && b.sensors.every((s) => building.includes(s))) return `${word} במבנה`;
-  if (names) return `${word} ב${b.sensors.slice(0, 3).map(names).join(' · ')}${b.sensors.length > 3 ? ` ועוד ${b.sensors.length - 3}` : ''}`;
-  return `${word} באזור שנבחר`;
+  const word = b.mode === 'empty' ? tr('אין נוכחות') : tr('יש נוכחות');
+  if (building.length && b.sensors.length === building.length && b.sensors.every((s) => building.includes(s))) return tr('{word} במבנה', { word });
+  if (names) return tr('{word} ב{v}{v2}', { word, v: b.sensors.slice(0, 3).map(names).join(' · '), v2: b.sensors.length > 3 ? tr(' ועוד {v}', { v: b.sensors.length - 3 }) : '' });
+  return tr('{word} באזור שנבחר', { word });
 }
 
 /** Problems of a NEW block (the server judges again). */
 export function problems(b: { sensors?: readonly string[]; minutes?: number; mode?: string }, section: 'trigger' | 'condition', tagged: readonly string[]): string[] {
   const out: string[] = [];
-  if (!tagged.length) return ['אין חיישני נוכחות מסומנים במבנה'];
-  if (!b.sensors?.length) out.push('בחרו חיישני נוכחות');
-  else if (b.sensors.some((s) => !tagged.includes(s))) out.push('החיישן אינו מסומן כחיישן נוכחות');
+  if (!tagged.length) return [tr('אין חיישני נוכחות מסומנים במבנה')];
+  if (!b.sensors?.length) out.push(tr('בחרו חיישני נוכחות'));
+  else if (b.sensors.some((s) => !tagged.includes(s))) out.push(tr('החיישן אינו מסומן כחיישן נוכחות'));
   if (section === 'trigger') {
-    if (!Number.isInteger(b.minutes) || (b.minutes ?? 0) < 1 || (b.minutes ?? 0) > MAX_MINUTES) out.push('הגדירו זמן בדקות (1 עד 1440)');
-  } else if (b.mode !== 'occupied' && b.mode !== 'empty') out.push('בחרו מצב');
+    if (!Number.isInteger(b.minutes) || (b.minutes ?? 0) < 1 || (b.minutes ?? 0) > MAX_MINUTES) out.push(tr('הגדירו זמן בדקות (1 עד 1440)'));
+  } else if (b.mode !== 'occupied' && b.mode !== 'empty') out.push(tr('בחרו מצב'));
   return out;
 }

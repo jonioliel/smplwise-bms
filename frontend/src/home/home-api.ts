@@ -1,6 +1,7 @@
 // HOME-SIMPLE-2420: what the home interface reads, and the view model it draws. Every read is an existing route (or the home
 // interface's own /home/* routes); every control goes through the existing control paths (home-actions.ts). Nothing here knows
 // a device protocol; the names the person sees are the names the installation gave the devices.
+import { uiLocale } from '../i18n/locale';
 import type { HomeModuleP3 } from './home-p3-logic'; // HOME-V3-P3-2432
 import { get, put } from '../api/client';
 import { listCameras } from '../api/maps';
@@ -212,9 +213,9 @@ export function relTime(iso: string, now = Date.now()): string {
   if (min < 1) return tr('עכשיו');
   if (min < 60) return min === 1 ? tr('לפני דקה') : tr('לפני {min} דקות', { min });
   const d = new Date(t);
-  const hm = d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' });
+  const hm = d.toLocaleTimeString(uiLocale(), { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' });
   const today = new Date(now).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' }) === d.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' });
-  return today ? tr('היום, {hm}', { hm }) : `${d.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric', timeZone: 'Asia/Jerusalem' })}, ${hm}`;
+  return today ? tr('היום, {hm}', { hm }) : `${d.toLocaleDateString(uiLocale(), { day: 'numeric', month: 'numeric', timeZone: 'Asia/Jerusalem' })}, ${hm}`;
 }
 
 export async function loadAlerts(): Promise<HAlert[]> {

@@ -3,6 +3,7 @@
  * (tests/unit-temperature.spec.ts). The server decides every status; these only shape it for the screen: the chips of a card, the KPI row,
  * the gauge geometry, the sparkline / chart paths, the 24-hour ring, the timeline runs and the wizard's draft and checks.
  */
+import { uiLocale } from '../i18n/locale';
 import type { DefrostWindow, ManagedUnit, RecipientPick, RecipientsResponse, ReportRange, ReportRecipient, TempEvent, TempUnit, UnitBody, UnitKind, UnitStatus, VendorChannel } from '../api/temperature';
 import { tt, type TtKey } from '../i18n/temperature';
 import { timeText } from '../api/day-format';
@@ -64,7 +65,7 @@ export function minutesSince(iso: string | null, now: number): number {
   return iso ? Math.max(0, (now - Date.parse(iso)) / MIN) : 0;
 }
 
-export function hhmm(ms: number, _lang = 'he-IL'): string {
+export function hhmm(ms: number, _lang = uiLocale()): string {
   return timeText(new Date(ms));
 }
 
@@ -87,7 +88,7 @@ export interface Chip {
   id: string;
 }
 
-export function chipsOf(u: TempUnit, now: number, lang = 'he-IL'): Chip[] {
+export function chipsOf(u: TempUnit, now: number, lang = uiLocale()): Chip[] {
   const out: Chip[] = [];
   const stale = u.stale;
   if (u.hvac) {
@@ -129,7 +130,7 @@ export function chipsOf(u: TempUnit, now: number, lang = 'he-IL'): Chip[] {
 
 /** Phase 3 (ideas 2, 6, 8): the health chips of a card - a low battery, a frozen reading, a suspected cooling fault (slow recovery after the
  * door, a rising compressor duty cycle). A weak signal is shown in the detail only (it is not an alert). */
-export function healthChips(u: TempUnit, lang = 'he-IL'): Chip[] {
+export function healthChips(u: TempUnit, lang = uiLocale()): Chip[] {
   const h = u.health;
   if (!h || u.stale) return [];
   const out: Chip[] = [];

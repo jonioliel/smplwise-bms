@@ -20,6 +20,9 @@ import { commandId } from './request-id';
 import { openReconnectingSocket, wsUrl, type SocketEnv } from './reconnecting-socket';
 import { isApi } from './session';
 import { lazy } from './demo-load';
+import { CONFIRM_WORDS } from '../i18n/confirm-words';
+import { tr } from '../i18n/msg/api-automation';
+import { tr as trTime } from '../i18n/msg/time'; // CR-I18N-DATES-2442: the relative-time and weekday words
 
 /** CR-MOCKS-LAZY-2436 (review 07:F2): the demo store (./schedules-mock.ts) is fetched on the first demo call - with a backend it is never
  * loaded. Each call reads the store in force (`demoStore()`), as before. */
@@ -46,43 +49,43 @@ export type ScheduleSource = 'arx' | 'external';
 export type RunResult = 'pending' | 'confirmed' | 'not_confirmed' | 'skipped' | 'unknown';
 
 export const DAY_ORDER: DayId[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-export const DAY_SHORT: Record<DayId, string> = { sun: 'א׳', mon: 'ב׳', tue: 'ג׳', wed: 'ד׳', thu: 'ה׳', fri: 'ו׳', sat: 'ש׳' };
-export const DAY_LONG: Record<DayId, string> = { sun: 'ראשון', mon: 'שני', tue: 'שלישי', wed: 'רביעי', thu: 'חמישי', fri: 'שישי', sat: 'שבת' };
+export const DAY_SHORT: Record<DayId, string> = { sun: trTime('א׳'), mon: trTime('ב׳'), tue: trTime('ג׳'), wed: trTime('ד׳'), thu: trTime('ה׳'), fri: trTime('ו׳'), sat: trTime('ש׳') };
+export const DAY_LONG: Record<DayId, string> = { sun: trTime('ראשון'), mon: trTime('שני'), tue: trTime('שלישי'), wed: trTime('רביעי'), thu: trTime('חמישי'), fri: trTime('שישי'), sat: trTime('שבת') };
 export const ALL_CLASSES: ScheduleClass[] = [
   'light', 'switch', 'cover', 'climate', 'fan', 'alarm', 'lock', 'door', 'script', 'scene', 'helper', 'humidifier', 'vacuum', 'siren', 'media', 'number', 'select',
 ];
 export const SENSITIVE_CLASSES: ScheduleClass[] = ['alarm', 'lock', 'door', 'siren'];
 export const CLASS_LABEL: Record<ScheduleClass, string> = {
-  light: 'תאורה',
-  switch: 'מתגים',
-  cover: 'תריסים',
-  climate: 'מיזוג',
-  fan: 'מאווררים',
-  alarm: 'אזעקה',
-  lock: 'מנעולים',
-  door: 'דלתות ושערים',
-  script: 'סקריפטים',
-  scene: 'סצנות',
-  helper: 'מתגי עזר',
-  humidifier: 'מכשירי לחות',
-  vacuum: 'שואבים רובוטיים',
-  siren: 'צופרים',
-  media: 'נגנים ומסכים',
-  number: 'ערכים מספריים',
-  select: 'בחירות',
+  light: tr('תאורה'),
+  switch: tr('מתגים'),
+  cover: tr('תריסים'),
+  climate: tr('מיזוג'),
+  fan: tr('מאווררים'),
+  alarm: tr('אזעקה'),
+  lock: tr('מנעולים'),
+  door: tr('דלתות ושערים'),
+  script: tr('סקריפטים'),
+  scene: tr('סצנות'),
+  helper: tr('מתגי עזר'),
+  humidifier: tr('מכשירי לחות'),
+  vacuum: tr('שואבים רובוטיים'),
+  siren: tr('צופרים'),
+  media: tr('נגנים ומסכים'),
+  number: tr('ערכים מספריים'),
+  select: tr('בחירות'),
 };
 export const STATE_LABEL: Record<ScheduleState, string> = {
-  on: 'פעיל',
-  off: 'מושבת',
-  triggered: 'מתבצע עכשיו',
-  completed: 'הסתיים',
-  unavailable: 'אין הרצות קרובות',
-  unknown: 'לא ידוע',
+  on: tr('פעיל'),
+  off: tr('מושבת'),
+  triggered: tr('מתבצע עכשיו'),
+  completed: tr('הסתיים'),
+  unavailable: tr('אין הרצות קרובות'),
+  unknown: tr('לא ידוע'),
 };
-export const REPEAT_LABEL: Record<RepeatType, string> = { repeat: 'חוזר', pause: 'פעם אחת ואז מושהה (נשמר)', single: 'פעם אחת ואז נמחק' };
-export const RESULT_LABEL: Record<RunResult, string> = { pending: 'ממתין לאישור', confirmed: 'אושר', not_confirmed: 'לא אושר', skipped: 'דולג', unknown: 'לא ידוע' };
-export const MATCH_LABEL: Record<MatchType, string> = { is: 'שווה ל', not: 'שונה מ', above: 'מעל', below: 'מתחת' };
-export const PRESET_LABEL: Record<ConditionPreset, string> = { only_holy_days: 'רק בשבת ובחג', not_holy_days: 'לא בשבת ובחג' };
+export const REPEAT_LABEL: Record<RepeatType, string> = { repeat: tr('חוזר'), pause: tr('פעם אחת ואז מושהה (נשמר)'), single: tr('פעם אחת ואז נמחק') };
+export const RESULT_LABEL: Record<RunResult, string> = { pending: tr('ממתין לאישור'), confirmed: tr('אושר'), not_confirmed: tr('לא אושר'), skipped: tr('דולג'), unknown: tr('לא ידוע') };
+export const MATCH_LABEL: Record<MatchType, string> = { is: tr('שווה ל'), not: tr('שונה מ'), above: tr('מעל'), below: tr('מתחת') };
+export const PRESET_LABEL: Record<ConditionPreset, string> = { only_holy_days: tr('רק בשבת ובחג'), not_holy_days: tr('לא בשבת ובחג') };
 
 // ------------------------------------------------------------------------------------------------ read model (§2.1)
 
@@ -503,16 +506,16 @@ export interface Acknowledgement {
 }
 
 export const REVIEW_LABEL: Record<ReviewIssue, string> = {
-  owner_lost_rights: 'מי שיצר או ערך אחרון כבר אינו מורשה לכל ההתקנים',
-  owner_inactive: 'מי שיצר או ערך אחרון אינו פעיל',
-  no_owner_sensitive: 'תזמון רגיש שנוצר מחוץ למערכת',
-  contains_code: 'התזמון שומר קוד',
-  unsupported_content: 'תוכן שהמערכת אינה מציגה במלואו',
-  class_disabled: 'סוג התקן שכובה בהגדרות',
-  sensitive_condition_unavailable: 'פעולה רגישה תלויה בחיישן לא זמין',
-  alarm_may_need_code: 'לוח האזעקה עשוי לדרוש קוד',
-  requested_disabled: 'התזמון התבקש כבוי אך לא נכבה - יש לכבות אותו ידנית',
-  action_invalid: 'פעולה שאינה תקפה עוד (התקן חסר או שאינו תומך בה)',
+  owner_lost_rights: tr('מי שיצר או ערך אחרון כבר אינו מורשה לכל ההתקנים'),
+  owner_inactive: tr('מי שיצר או ערך אחרון אינו פעיל'),
+  no_owner_sensitive: tr('תזמון רגיש שנוצר מחוץ למערכת'),
+  contains_code: tr('התזמון שומר קוד'),
+  unsupported_content: tr('תוכן שהמערכת אינה מציגה במלואו'),
+  class_disabled: tr('סוג התקן שכובה בהגדרות'),
+  sensitive_condition_unavailable: tr('פעולה רגישה תלויה בחיישן לא זמין'),
+  alarm_may_need_code: tr('לוח האזעקה עשוי לדרוש קוד'),
+  requested_disabled: tr('התזמון התבקש כבוי אך לא נכבה - יש לכבות אותו ידנית'),
+  action_invalid: tr('פעולה שאינה תקפה עוד (התקן חסר או שאינו תומך בה)'),
 };
 
 export interface ReviewItem {
@@ -774,8 +777,9 @@ export interface ScheduleSettings {
   allowDisarm: boolean;
 }
 
-/** The word a system administrator types to allow scheduled disarming (the server compares it; it is never stored). */
-export const ALLOW_DISARM_WORD = 'אפשר נטרול';
+/** The word a system administrator types to allow scheduled disarming (the server compares it; it is never stored): the Hebrew
+ * word of i18n/confirm-words.ts `schedules_allow_disarm` (the server takes its English counterpart too; the screen shows `confirmWord(...)`). */
+export const ALLOW_DISARM_WORD = CONFIRM_WORDS.schedules_allow_disarm.he;
 
 export const SCHEDULE_SETTINGS_DEFAULT: ScheduleSettings = { enabled: true, classes: [...ALL_CLASSES], snapMinutes: 15, defaultRepeat: 'repeat', runsRetentionDays: 90, shabbatSensor: '', allowDisarm: true };
 
@@ -881,7 +885,7 @@ export function minutesToRaw(minutes: number): string {
 export function formatTime(spec: TimeSpec | null): string {
   if (!spec) return '—';
   if (spec.kind === 'fixed') return spec.time;
-  const word = spec.event === 'sunrise' ? 'זריחה' : 'שקיעה';
+  const word = spec.event === 'sunrise' ? tr('זריחה') : tr('שקיעה');
   if (!spec.offset_min) return word;
   const a = Math.abs(spec.offset_min);
   return `${word} ${spec.offset_min < 0 ? '−' : '+'}${pad(Math.floor(a / 60))}:${pad(a % 60)}`;
@@ -950,12 +954,12 @@ export function daysKind(tokens: DayToken[]): DaysKind {
 
 /** "כל יום", "א׳–ה׳", "א׳, ג׳, ה׳", "ימי עבודה". */
 export function daysLabel(tokens: DayToken[]): string {
-  if (tokens.includes('daily')) return 'כל יום';
+  if (tokens.includes('daily')) return tr('כל יום');
   const parts: string[] = [];
-  if (tokens.includes('workday')) parts.push('ימי עבודה');
-  if (tokens.includes('weekend')) parts.push('סוף שבוע');
+  if (tokens.includes('workday')) parts.push(tr('ימי עבודה'));
+  if (tokens.includes('weekend')) parts.push(tr('סוף שבוע'));
   const days = DAY_ORDER.filter((d) => tokens.includes(d));
-  if (days.length === 7) return 'כל יום';
+  if (days.length === 7) return tr('כל יום');
   if (days.length >= 3) {
     const idx = days.map((d) => DAY_ORDER.indexOf(d));
     const contiguous = idx.every((v, i) => i === 0 || v === idx[i - 1] + 1);
@@ -968,60 +972,60 @@ export function daysLabel(tokens: DayToken[]): string {
 // ------------------------------------------------------------------------------------------------ action helpers
 
 const SERVICE_LABEL: Record<string, string> = {
-  'light.turn_on': 'הדלקה',
-  'light.turn_off': 'כיבוי',
-  'switch.turn_on': 'הדלקה',
-  'switch.turn_off': 'כיבוי',
-  'fan.turn_on': 'הפעלה',
-  'fan.turn_off': 'כיבוי',
-  'fan.set_percentage': 'עוצמת מאוורר',
-  'cover.open_cover': 'פתיחה',
-  'cover.close_cover': 'סגירה',
-  'cover.stop_cover': 'עצירה',
-  'cover.set_cover_position': 'מיקום',
-  'cover.set_cover_tilt_position': 'מיקום הטיה',
-  'climate.set_hvac_mode': 'מצב פעולה',
-  'climate.set_temperature': 'טמפרטורת יעד',
-  'climate.set_fan_mode': 'מצב מאוורר',
-  'climate.set_preset_mode': 'מצב מוגדר מראש',
-  'climate.turn_off': 'כיבוי מיזוג',
-  'alarm_control_panel.alarm_arm_home': 'דריכה בבית',
-  'alarm_control_panel.alarm_arm_away': 'דריכה מלאה',
-  'alarm_control_panel.alarm_arm_night': 'דריכת לילה',
-  'alarm_control_panel.alarm_arm_vacation': 'דריכת חופשה',
-  'alarm_control_panel.alarm_arm_custom_bypass': 'דריכה עם עקיפה',
-  'alarm_control_panel.alarm_disarm': 'נטרול',
-  'lock.lock': 'נעילה',
-  'lock.unlock': 'פתיחת נעילה',
-  'button.press': 'לחיצה',
-  'cover.open_cover_tilt': 'פתיחת הטיה',
-  'cover.close_cover_tilt': 'סגירת הטיה',
-  'climate.set_swing_mode': 'מצב נדנוד',
-  'climate.set_humidity': 'לחות יעד',
-  'script.turn_on': 'הפעלת סקריפט',
-  'scene.turn_on': 'הפעלת סצנה',
-  'input_boolean.turn_on': 'הפעלה',
-  'input_boolean.turn_off': 'כיבוי',
-  'input_number.set_value': 'קביעת ערך',
-  'input_select.select_option': 'בחירה',
-  'humidifier.set_humidity': 'לחות יעד',
-  'humidifier.set_mode': 'מצב לחות',
-  'vacuum.start': 'התחלת ניקוי',
-  'vacuum.return_to_base': 'חזרה לעמדה',
-  'siren.turn_on': 'הפעלת צופר',
-  'siren.turn_off': 'כיבוי צופר',
-  'media_player.turn_on': 'הדלקה',
-  'media_player.turn_off': 'כיבוי',
-  'media_player.media_play': 'ניגון',
-  'media_player.media_pause': 'השהיה',
-  'media_player.media_stop': 'עצירה',
-  'media_player.volume_set': 'עוצמת שמע',
-  'media_player.select_source': 'החלפת מקור',
-  'number.set_value': 'קביעת ערך',
-  'select.select_option': 'בחירה',
+  'light.turn_on': tr('הדלקה'),
+  'light.turn_off': tr('כיבוי'),
+  'switch.turn_on': tr('הדלקה'),
+  'switch.turn_off': tr('כיבוי'),
+  'fan.turn_on': tr('הפעלה'),
+  'fan.turn_off': tr('כיבוי'),
+  'fan.set_percentage': tr('עוצמת מאוורר'),
+  'cover.open_cover': tr('פתיחה'),
+  'cover.close_cover': tr('סגירה'),
+  'cover.stop_cover': tr('עצירה'),
+  'cover.set_cover_position': tr('מיקום'),
+  'cover.set_cover_tilt_position': tr('מיקום הטיה'),
+  'climate.set_hvac_mode': tr('מצב פעולה'),
+  'climate.set_temperature': tr('טמפרטורת יעד'),
+  'climate.set_fan_mode': tr('מצב מאוורר'),
+  'climate.set_preset_mode': tr('מצב מוגדר מראש'),
+  'climate.turn_off': tr('כיבוי מיזוג'),
+  'alarm_control_panel.alarm_arm_home': tr('דריכה בבית'),
+  'alarm_control_panel.alarm_arm_away': tr('דריכה מלאה'),
+  'alarm_control_panel.alarm_arm_night': tr('דריכת לילה'),
+  'alarm_control_panel.alarm_arm_vacation': tr('דריכת חופשה'),
+  'alarm_control_panel.alarm_arm_custom_bypass': tr('דריכה עם עקיפה'),
+  'alarm_control_panel.alarm_disarm': tr('נטרול'),
+  'lock.lock': tr('נעילה'),
+  'lock.unlock': tr('פתיחת נעילה'),
+  'button.press': tr('לחיצה'),
+  'cover.open_cover_tilt': tr('פתיחת הטיה'),
+  'cover.close_cover_tilt': tr('סגירת הטיה'),
+  'climate.set_swing_mode': tr('מצב נדנוד'),
+  'climate.set_humidity': tr('לחות יעד'),
+  'script.turn_on': tr('הפעלת סקריפט'),
+  'scene.turn_on': tr('הפעלת סצנה'),
+  'input_boolean.turn_on': tr('הפעלה'),
+  'input_boolean.turn_off': tr('כיבוי'),
+  'input_number.set_value': tr('קביעת ערך'),
+  'input_select.select_option': tr('בחירה'),
+  'humidifier.set_humidity': tr('לחות יעד'),
+  'humidifier.set_mode': tr('מצב לחות'),
+  'vacuum.start': tr('התחלת ניקוי'),
+  'vacuum.return_to_base': tr('חזרה לעמדה'),
+  'siren.turn_on': tr('הפעלת צופר'),
+  'siren.turn_off': tr('כיבוי צופר'),
+  'media_player.turn_on': tr('הדלקה'),
+  'media_player.turn_off': tr('כיבוי'),
+  'media_player.media_play': tr('ניגון'),
+  'media_player.media_pause': tr('השהיה'),
+  'media_player.media_stop': tr('עצירה'),
+  'media_player.volume_set': tr('עוצמת שמע'),
+  'media_player.select_source': tr('החלפת מקור'),
+  'number.set_value': tr('קביעת ערך'),
+  'select.select_option': tr('בחירה'),
 };
 
-const HVAC_LABEL: Record<string, string> = { cool: 'קירור', heat: 'חימום', heat_cool: 'אוטומטי', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר', off: 'כבוי' };
+const HVAC_LABEL: Record<string, string> = { cool: tr('קירור'), heat: tr('חימום'), heat_cool: tr('אוטומטי'), auto: tr('אוטומטי'), dry: tr('ייבוש'), fan_only: tr('מאוורר'), off: tr('כבוי') };
 
 /** "הדלקה · בהירות 20%", "קירור 25°", "מיקום 10%", "הפעלת סקריפט · 2 משתנים". */
 export function actionLabel(a: { service: string; data?: Record<string, unknown> }): string {
@@ -1029,16 +1033,16 @@ export function actionLabel(a: { service: string; data?: Record<string, unknown>
   if (a.service === 'script.turn_on' || (a.service.startsWith('script.') && !['turn_off', 'toggle', 'reload'].includes(a.service.slice(7)))) {
     const vars = a.service === 'script.turn_on' ? d.variables : d;
     const n = vars && typeof vars === 'object' ? Object.keys(vars as object).length : 0;
-    return n ? `הפעלת סקריפט · ${n === 1 ? 'משתנה אחד' : `${n} משתנים`}` : 'הפעלת סקריפט';
+    return n ? tr('הפעלת סקריפט · {v}', { v: n === 1 ? tr('משתנה אחד') : tr('{n} משתנים', { n }) }) : tr('הפעלת סקריפט');
   }
   if (a.service === 'climate.set_temperature') {
-    const mode = typeof d.hvac_mode === 'string' ? HVAC_LABEL[d.hvac_mode] ?? d.hvac_mode : 'יעד';
+    const mode = typeof d.hvac_mode === 'string' ? HVAC_LABEL[d.hvac_mode] ?? d.hvac_mode : tr('יעד');
     return `${mode} ${d.temperature ?? ''}°`.trim();
   }
   if (a.service === 'climate.set_hvac_mode' && typeof d.hvac_mode === 'string') return HVAC_LABEL[d.hvac_mode] ?? d.hvac_mode;
   const base = SERVICE_LABEL[a.service] ?? a.service;
-  if (typeof d.brightness_pct === 'number') return `${base} · בהירות ${d.brightness_pct}%`;
-  if (typeof d.brightness === 'number') return `${base} · בהירות ${Math.round((d.brightness / 255) * 100)}%`;
+  if (typeof d.brightness_pct === 'number') return tr('{base} · בהירות {brightness_pct}%', { base, brightness_pct: d.brightness_pct });
+  if (typeof d.brightness === 'number') return tr('{base} · בהירות {v}%', { base, v: Math.round((d.brightness / 255) * 100) });
   if (typeof d.position === 'number') return `${base} ${d.position}%`;
   if (typeof d.tilt_position === 'number') return `${base} ${d.tilt_position}%`;
   if (typeof d.percentage === 'number') return `${base} ${d.percentage}%`;
@@ -1051,8 +1055,8 @@ export function actionLabel(a: { service: string; data?: Record<string, unknown>
   if (typeof d.value === 'number') return `${base} ${d.value}`;
   if (typeof d.volume_level === 'number') return `${base} ${Math.round(d.volume_level * 100)}%`;
   if (typeof d.source === 'string') return `${base}: ${d.source}`;
-  if (typeof d.tone === 'string') return typeof d.duration === 'number' ? `${base}: ${d.tone} · ${d.duration} ש׳` : `${base}: ${d.tone}`;
-  if (typeof d.duration === 'number') return `${base} · ${d.duration} ש׳`;
+  if (typeof d.tone === 'string') return typeof d.duration === 'number' ? tr('{base}: {tone} · {duration} ש׳', { base, tone: d.tone, duration: d.duration }) : `${base}: ${d.tone}`;
+  if (typeof d.duration === 'number') return tr('{base} · {duration} ש׳', { base, duration: d.duration });
   return base;
 }
 
@@ -1121,10 +1125,10 @@ export function conditionSummary(block: DraftConditions | ScheduleConditions, na
   if (preset) return PRESET_LABEL[preset];
   const parts = block.items.map((c) => {
     const name = names[c.entity_id] ?? ('name' in c ? (c as ConditionView).name : c.entity_id);
-    if (c.attribute === 'state' && (c.value === 'on' || c.value === 'off')) return `${name} ${(c.match_type === 'is') === (c.value === 'on') ? 'פעיל' : 'כבוי'}`;
+    if (c.attribute === 'state' && (c.value === 'on' || c.value === 'off')) return `${name} ${(c.match_type === 'is') === (c.value === 'on') ? tr('פעיל') : tr('כבוי')}`;
     return `${name} ${MATCH_LABEL[c.match_type]} ${c.value}`;
   });
-  return `בתנאי: ${parts.join(block.type === 'and' ? ' וגם ' : ' או ')}`;
+  return tr('בתנאי: {v}', { v: parts.join(block.type === 'and' ? tr(' וגם ') : tr(' או ')) });
 }
 
 // ------------------------------------------------------------------------------------------------ drafts
@@ -1191,17 +1195,17 @@ export function whenLabel(iso: string | null | undefined, now: Date = new Date()
   const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   const day0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const diff = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - day0) / 86_400_000);
-  if (diff === 0) return `היום ${hm}`;
-  if (diff === 1) return `מחר ${hm}`;
-  if (diff > 1 && diff < 7) return `יום ${DAY_SHORT[DAY_ORDER[d.getDay()]]} ${hm}`;
+  if (diff === 0) return trTime('היום {time}', { time: hm });
+  if (diff === 1) return trTime('מחר {time}', { time: hm });
+  if (diff > 1 && diff < 7) return trTime('יום {day} {time}', { day: DAY_SHORT[DAY_ORDER[d.getDay()]], time: hm });
   return `${d.getDate()}.${d.getMonth() + 1} ${hm}`;
 }
 
 /** The next-run text of a schedule: "היום 18:00" or "היום 18:00 · בתנאי" (§6.5: conditions are never a promise). */
 export function nextRunLabel(s: Pick<Schedule, 'next_run' | 'enabled'>, now: Date = new Date()): string {
-  if (!s.enabled) return 'מושבת';
-  if (!s.next_run) return 'אין הרצה קרובה';
-  return s.next_run.conditional ? `${whenLabel(s.next_run.at, now)} · בתנאי` : whenLabel(s.next_run.at, now);
+  if (!s.enabled) return tr('מושבת');
+  if (!s.next_run) return tr('אין הרצה קרובה');
+  return s.next_run.conditional ? tr('{v} · בתנאי', { v: whenLabel(s.next_run.at, now) }) : whenLabel(s.next_run.at, now);
 }
 
 export const newClientRequestId = commandId;

@@ -13,6 +13,7 @@ import { commandId } from './request-id';
 import { serverNow } from './intercom';
 import type { Period, StationPolicy, WeekdayName } from './access-stations';
 import { fill } from '../i18n/wiskey-stations';
+import { serverWordMatches, shownConfirmWord } from '../i18n/confirm-words';
 import type { DoorTechText } from '../i18n/wiskey-door-tech';
 
 export type DoorTechKind = 'hold_save' | 'hold_delete' | 'code_write' | 'program_save' | 'program_action';
@@ -234,7 +235,7 @@ export function weekLines(b: PolicyBody | null, t: DoorTechText): string[] {
 export const DIGITS = /^\d{4,16}$/;
 
 /** Whether the code form may be sent, and the first reason it may not (never a value in it). */
-export function codeFormProblem(f: { action: 'set' | 'clear'; expected: boolean; newCode: string; repeatCode: string; currentCode: string; typed: string; phrase: string }):
+export function codeFormProblem(f: { action: 'set' | 'clear'; expected: boolean; newCode: string; repeatCode: string; currentCode: string; typed: string; phrase: string; template?: string; slot?: number }):
   | null
   | 'newCode'
   | 'repeat'
@@ -245,11 +246,16 @@ export function codeFormProblem(f: { action: 'set' | 'clear'; expected: boolean;
     if (f.newCode !== f.repeatCode) return 'repeat';
   }
   if (f.expected && !DIGITS.test(f.currentCode)) return 'currentCode';
-  if (f.typed.trim() !== f.phrase) return 'typed';
+  // the phrase of the slot: the server's Hebrew phrase or, for the fixed template, its English counterpart (i18n/confirm-words.ts)
+  const typedOk = f.template !== undefined && f.slot !== undefined ? serverWordMatches(f.template, f.typed, { slot: f.slot }) : f.typed.trim() === f.phrase;
+  if (!typedOk) return 'typed';
   return null;
 }
 
+/** The server's (Hebrew) phrase of a slot. */
 export const phraseFor = (template: string, slot: number) => fill(template, { slot });
+/** The phrase of a slot as the interface shows it (the English interface: the English counterpart). */
+export const shownPhraseFor = (template: string, slot: number) => shownConfirmWord(template, { slot });
 
 // ---------------------------------------------------------------- wording
 

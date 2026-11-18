@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-state-panel';
@@ -101,7 +102,7 @@ const DECISION: Record<string, { kind: 'success' | 'danger' | 'neutral' | 'warni
 };
 
 const apiColumns: TableColumn[] = [
-  { key: 'at', label: tr('זמן'), ltr: true, render: (r) => html`<span class="ltr">${new Date(String(r.at)).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>` },
+  { key: 'at', label: tr('זמן'), ltr: true, render: (r) => html`<span class="ltr">${new Date(String(r.at)).toLocaleString(uiLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>` },
   { key: 'actor', label: tr('משתמש'), render: (r) => html`<span style="display:inline-flex;align-items:center;gap:8px"><sw-avatar name=${String(r.actor_username ?? tr('מערכת'))} size=${24}></sw-avatar>${String(r.actor_username ?? tr('מערכת'))}</span>` },
   { key: 'action', label: tr('פעולה'), ltr: true, render: (r) => html`<span class="ltr">${String(r.action)}</span>` },
   { key: 'decision', label: tr('החלטה'), render: (r) => { const d = DECISION[String(r.decision)] ?? { kind: 'neutral' as const, label: String(r.decision) }; return html`<sw-badge kind=${d.kind} label=${d.label}></sw-badge>`; } },

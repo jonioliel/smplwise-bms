@@ -101,11 +101,12 @@ def put_switch(body: SwitchIn, request: Request, principal: Principal = Depends(
         _admin_or_403(conn, principal, request, "settings.changed")
         try:
             changes = wmi.set_switch(conn, key, body.value, body.confirm)
+            confirm_word = wmi.switch_confirm_word(key, body.value, body.confirm)  # "he" / "en" for a switch turned on
         except wmi.ManagedRefused as exc:
             raise _refused(conn, request, principal, "settings.changed", exc) from None
         for k, before, after in changes:
             audit(conn, actor=principal, action="settings.changed", decision="allowed", resource_type="installation", resource_id=RID,
-                  request_id=_rid(request), details={"key": k, "before": before, "after": after})
+                  request_id=_rid(request), details={"key": k, "before": before, "after": after, **({"confirm_word": confirm_word} if confirm_word and k == key else {})})
         return wmi.view(conn)
 
 

@@ -1,5 +1,7 @@
 /** Health report (T033): one check per subsystem with its own status, detail and numbers. */
 import { get } from './client';
+import { tr } from '../i18n/msg/api-core';
+import { tr as trTime } from '../i18n/msg/time'; // CR-I18N-UNITS-2442: the short durations
 
 /** off: not part of this installation (NVR-less mode) - neutral, never lowers the overall status. */
 export type CheckStatus = 'ok' | 'warn' | 'error' | 'off';
@@ -31,7 +33,7 @@ export interface HealthReport {
   mode?: 'full' | 'ha_only';
 }
 
-export const STATUS_LABEL: Record<CheckStatus, string> = { ok: 'תקין', warn: 'לתשומת לב', error: 'שגיאה', off: 'לא מוגדר' };
+export const STATUS_LABEL: Record<CheckStatus, string> = { ok: tr('תקין'), warn: tr('לתשומת לב'), error: tr('שגיאה'), off: tr('לא מוגדר') };
 export const STATUS_KIND: Record<CheckStatus, 'live' | 'stale' | 'offline' | 'neutral'> = { ok: 'live', warn: 'stale', error: 'offline', off: 'neutral' };
 
 export const healthReport = (fresh = false) => get<HealthReport>(`health/report${fresh ? '?fresh=1' : ''}`);
@@ -46,7 +48,7 @@ export interface HealthSummary {
 export const healthSummary = () => get<HealthSummary>('health/summary');
 
 export function fmtUptime(s: number): string {
-  if (s < 3600) return `${Math.floor(s / 60)} דק׳`;
-  if (s < 86400) return `${Math.floor(s / 3600)} שע׳ ${Math.floor((s % 3600) / 60)} דק׳`;
-  return `${Math.floor(s / 86400)} ימים ${Math.floor((s % 86400) / 3600)} שע׳`;
+  if (s < 3600) return trTime('{n} דק׳', { n: Math.floor(s / 60) });
+  if (s < 86400) return trTime('{h} שע׳ {m} דק׳', { h: Math.floor(s / 3600), m: Math.floor((s % 3600) / 60) });
+  return trTime('{d} ימים {h} שע׳', { d: Math.floor(s / 86400), h: Math.floor((s % 86400) / 3600) });
 }

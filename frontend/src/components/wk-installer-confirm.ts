@@ -5,6 +5,7 @@ import './sw-button';
 import { settingsStyles } from '../styles/settings';
 import { outcomeOf, type DiffRow, type WriteOutcome } from '../api/installer';
 import { fill, installerText as T } from '../i18n/wiskey-installer';
+import { confirmWord, confirmWordKeyOf, confirmWordMatches, type ConfirmWordKey } from '../i18n/confirm-words';
 
 export interface ConfirmRequest {
   heading: string;
@@ -14,6 +15,9 @@ export interface ConfirmRequest {
   diff?: Array<DiffRow & { label: string; show?: (v: unknown) => string }>;
   /** A dangerous action: the exact phrase to type (the server checks it again). */
   typed?: string;
+  /** `typed` is a FIXED phrase of the confirmation words (i18n/confirm-words.ts), not a station's name: the dialog shows the
+   * interface's own phrase and takes the Hebrew or the English one, as the server does. */
+  typedFixed?: boolean;
   danger?: boolean;
   /** WisKey's own upper bound for the call, in seconds - shown while waiting (honest: no invented stages). */
   maxSeconds?: number;
@@ -151,7 +155,14 @@ export class WkInstallerConfirm extends LitElement {
     const want = this.request?.typed;
     if (!want) return true;
     const norm = (s: string) => s.normalize('NFC').split(/\s+/).filter(Boolean).join(' ');
-    return norm(this.typed) === norm(want);
+    const key = this.wordKey;
+    return key ? confirmWordMatches(key, this.typed, null, norm) : norm(this.typed) === norm(want);
+  }
+
+  /** The key of a fixed phrase (see `typedFixed`); undefined for a station's name. */
+  private get wordKey(): ConfirmWordKey | undefined {
+    const r = this.request;
+    return r?.typed && r.typedFixed ? confirmWordKeyOf(r.typed) : undefined;
   }
 
   private async send(): Promise<void> {
@@ -212,7 +223,7 @@ export class WkInstallerConfirm extends LitElement {
               : nothing}
             ${r.typed
               ? html`<label class="typed">
-                  <span>${T.confirm.typeToConfirm.split('{phrase}')[0]}<b dir="auto" data-phrase>${r.typed}</b></span>
+                  <span>${T.confirm.typeToConfirm.split('{phrase}')[0]}<b dir="auto" data-phrase>${this.wordKey ? confirmWord(this.wordKey) : r.typed}</b></span>
                   <input dir="auto" autocomplete="off" spellcheck="false" aria-label=${T.confirm.typedLabel} .value=${this.typed} ?disabled=${this.busy}
                     @input=${(e: Event) => (this.typed = (e.target as HTMLInputElement).value)} data-typed />
                 </label>`

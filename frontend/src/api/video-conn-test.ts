@@ -13,6 +13,8 @@
  * token, a cookie or a URL. Free text from the network (relay error codes, ICE error texts) goes through `scrub`.
  */
 
+import { tr } from '../i18n/msg/api-video';
+
 export type Profile = 'main' | 'sub';
 export type AddrClass = 'private' | 'cgnat' | 'public' | 'ipv6' | 'mdns' | 'unknown';
 export type CandType = 'host' | 'srflx' | 'prflx' | 'relay' | 'unknown';
@@ -352,32 +354,32 @@ export const hasIpv6 = (groups: CandidateGroup[]): boolean => groups.some((g) =>
 /** Whether the peer connection reached `connected` at any point. */
 export const everConnected = (r: ProbeReport): boolean => r.connectedAt != null || r.timeline.some((e) => (e.kind === 'conn' && e.value === 'connected') || (e.kind === 'ice' && (e.value === 'connected' || e.value === 'completed')));
 
-export const liveCapText = (max: number): string => `הגעת למכסת הזרמים החיים בחיבור הזה${max > 0 ? ` (${max})` : ''} - הבדיקה לא רצה`;
+export const liveCapText = (max: number): string => tr('הגעת למכסת הזרמים החיים בחיבור הזה{v} - הבדיקה לא רצה', { v: max > 0 ? ` (${max})` : '' });
 
 /** The one-line verdict (Hebrew) of a finished (or running) run. */
 export function verdictOf(r: ProbeReport): string {
   if (r.refusal?.kind === 'cap') return liveCapText(r.refusal.max);
-  if (r.refusal?.kind === 'denied') return 'אין הרשאת צפייה במצלמה הזו - הבדיקה לא רצה';
-  if (r.refusal?.kind === 'auth') return 'נדרשת הזדהות מחדש - הבדיקה לא רצה';
-  if (r.setupError) return `WebRTC לא זמין בדפדפן הזה (${r.setupError})`;
+  if (r.refusal?.kind === 'denied') return tr('אין הרשאת צפייה במצלמה הזו - הבדיקה לא רצה');
+  if (r.refusal?.kind === 'auth') return tr('נדרשת הזדהות מחדש - הבדיקה לא רצה');
+  if (r.setupError) return tr('WebRTC לא זמין בדפדפן הזה ({setupError})', { setupError: r.setupError });
   const last = r.last;
   const frames = last?.frames ?? null;
   const bytes = last?.bytes ?? 0;
-  if (r.firstFrameAt != null || (frames != null && frames > 0)) return 'מחובר ומנגן';
-  if (r.endReason === 'aborted') return 'הבדיקה הופסקה';
-  if (r.ws.openedAt == null) return 'לא ניתן לפתוח את חיבור השידור לשרת (WebSocket) - רשת, הרשאה או שרת הווידאו';
-  if (r.ws.relayError === 'upstream_unavailable') return 'שרת הווידאו (go2rtc) אינו זמין';
-  if (r.ws.relayError === 'access_lost') return 'ההרשאה לצפייה במצלמה הזו הוסרה';
-  if (r.ws.answerAt == null) return r.ws.relayError ? `שרת הווידאו סירב להצעה (${r.ws.relayError})` : 'שרת הווידאו לא החזיר תשובה להצעת ה־WebRTC (הזרם לא זמין)';
+  if (r.firstFrameAt != null || (frames != null && frames > 0)) return tr('מחובר ומנגן');
+  if (r.endReason === 'aborted') return tr('הבדיקה הופסקה');
+  if (r.ws.openedAt == null) return tr('לא ניתן לפתוח את חיבור השידור לשרת (WebSocket) - רשת, הרשאה או שרת הווידאו');
+  if (r.ws.relayError === 'upstream_unavailable') return tr('שרת הווידאו (go2rtc) אינו זמין');
+  if (r.ws.relayError === 'access_lost') return tr('ההרשאה לצפייה במצלמה הזו הוסרה');
+  if (r.ws.answerAt == null) return r.ws.relayError ? tr('שרת הווידאו סירב להצעה ({relayError})', { relayError: r.ws.relayError }) : tr('שרת הווידאו לא החזיר תשובה להצעת ה־WebRTC (הזרם לא זמין)');
   if (everConnected(r)) {
-    if (bytes > 0 && frames == null) return 'מחובר והווידאו מגיע (הדפדפן לא מדווח על פענוח)';
-    if (bytes > 0) return 'מחובר אך אין פענוח - קודק או פרופיל שהדפדפן לא מפענח';
-    if (r.droppedAfterConnect) return 'החיבור נותק אחרי שהתחבר, לפני שהגיע וידאו';
-    return 'מחובר אך לא מגיע וידאו (RTP) - הזרם ריק או חסום בנתיב';
+    if (bytes > 0 && frames == null) return tr('מחובר והווידאו מגיע (הדפדפן לא מדווח על פענוח)');
+    if (bytes > 0) return tr('מחובר אך אין פענוח - קודק או פרופיל שהדפדפן לא מפענח');
+    if (r.droppedAfterConnect) return tr('החיבור נותק אחרי שהתחבר, לפני שהגיע וידאו');
+    return tr('מחובר אך לא מגיע וידאו (RTP) - הזרם ריק או חסום בנתיב');
   }
-  if (r.remoteCandidates.length === 0) return 'go2rtc לא שלח מועמדי ICE - בעיה בצד השרת';
-  if (countOfType(r.localCandidates, 'srflx') + countOfType(r.localCandidates, 'relay') === 0) return 'לא נאסף מועמד ציבורי בדפדפן - STUN חסום ברשת הזו, ייתכן שה־UDP כולו חסום';
-  return 'ICE לא התחבר - כנראה UDP חסום ברשת הזו';
+  if (r.remoteCandidates.length === 0) return tr('go2rtc לא שלח מועמדי ICE - בעיה בצד השרת');
+  if (countOfType(r.localCandidates, 'srflx') + countOfType(r.localCandidates, 'relay') === 0) return tr('לא נאסף מועמד ציבורי בדפדפן - STUN חסום ברשת הזו, ייתכן שה־UDP כולו חסום');
+  return tr('ICE לא התחבר - כנראה UDP חסום ברשת הזו');
 }
 
 // ---------------------------------------------------------------- the text report

@@ -5,6 +5,7 @@
  */
 import { del, get, patch, post, put } from './client';
 import { commandId } from './request-id';
+import { tr } from '../i18n/msg/api-devices';
 
 export type ArmMode = 'arm_home' | 'arm_away' | 'arm_night' | 'arm_vacation' | 'arm_custom_bypass';
 export type AlarmAction = ArmMode | 'disarm';
@@ -196,36 +197,36 @@ export const clearUserPin = (userId: string) => del(`alarm/users/${encodeURIComp
 
 // ---- words
 export const ARM_LABEL: Record<AlarmAction, string> = {
-  arm_away: 'דריכה מלאה',
-  arm_home: 'דריכה חלקית',
-  arm_night: 'דריכת לילה',
-  arm_vacation: 'דריכת חופשה',
-  arm_custom_bypass: 'דריכה עם עקיפה',
-  disarm: 'נטרול',
+  arm_away: tr('דריכה מלאה'),
+  arm_home: tr('דריכה חלקית'),
+  arm_night: tr('דריכת לילה'),
+  arm_vacation: tr('דריכת חופשה'),
+  arm_custom_bypass: tr('דריכה עם עקיפה'),
+  disarm: tr('נטרול'),
 };
 
 /** The panel's state in words, with its tone (the header card's colour). */
 export function panelState(state: string | null, available = true): { label: string; tone: 'disarmed' | 'armed' | 'partial' | 'pending' | 'triggered' | 'offline' } {
-  if (!available || state === null || state === 'unavailable' || state === 'unknown') return { label: 'לא זמינה', tone: 'offline' };
+  if (!available || state === null || state === 'unavailable' || state === 'unknown') return { label: tr('לא זמינה'), tone: 'offline' };
   switch (state) {
     case 'disarmed':
-      return { label: 'מנוטרלת', tone: 'disarmed' };
+      return { label: tr('מנוטרלת'), tone: 'disarmed' };
     case 'armed_away':
-      return { label: 'מופעלת מלאה', tone: 'armed' };
+      return { label: tr('מופעלת מלאה'), tone: 'armed' };
     case 'armed_home':
-      return { label: 'מופעלת חלקית', tone: 'partial' };
+      return { label: tr('מופעלת חלקית'), tone: 'partial' };
     case 'armed_night':
-      return { label: 'מופעלת · לילה', tone: 'partial' };
+      return { label: tr('מופעלת · לילה'), tone: 'partial' };
     case 'armed_vacation':
-      return { label: 'מופעלת · חופשה', tone: 'armed' };
+      return { label: tr('מופעלת · חופשה'), tone: 'armed' };
     case 'armed_custom_bypass':
-      return { label: 'מופעלת · עם עקיפות', tone: 'partial' };
+      return { label: tr('מופעלת · עם עקיפות'), tone: 'partial' };
     case 'arming':
-      return { label: 'בהשהיית יציאה', tone: 'pending' };
+      return { label: tr('בהשהיית יציאה'), tone: 'pending' };
     case 'pending':
-      return { label: 'בהשהיית כניסה', tone: 'pending' };
+      return { label: tr('בהשהיית כניסה'), tone: 'pending' };
     case 'triggered':
-      return { label: 'אזעקה!', tone: 'triggered' };
+      return { label: tr('אזעקה!'), tone: 'triggered' };
     default:
       return { label: state, tone: 'offline' };
   }
@@ -233,22 +234,22 @@ export function panelState(state: string | null, available = true): { label: str
 
 /** A zone's state in words: עקוף / תקלה / פתוח / סגור / תנועה ... */
 export function zoneState(z: AlarmZone): { label: string; tone: 'ok' | 'open' | 'fault' | 'bypassed' | 'motion' } {
-  if (z.redacted) return { label: 'משותף למחיצה שאינה בהרשאתך', tone: 'ok' };
-  if (z.bypassed) return { label: 'עקוף', tone: 'bypassed' };
-  if (!z.available) return { label: 'תקלה · לא זמין', tone: 'fault' };
-  if (z.fault) return { label: 'תקלה', tone: 'fault' };
-  if (z.kind === 'motion') return z.open ? { label: 'תנועה', tone: 'motion' } : { label: 'שקט', tone: 'ok' };
-  return z.open ? { label: 'פתוח', tone: 'open' } : { label: 'סגור', tone: 'ok' };
+  if (z.redacted) return { label: tr('משותף למחיצה שאינה בהרשאתך'), tone: 'ok' };
+  if (z.bypassed) return { label: tr('עקוף'), tone: 'bypassed' };
+  if (!z.available) return { label: tr('תקלה · לא זמין'), tone: 'fault' };
+  if (z.fault) return { label: tr('תקלה'), tone: 'fault' };
+  if (z.kind === 'motion') return z.open ? { label: tr('תנועה'), tone: 'motion' } : { label: tr('שקט'), tone: 'ok' };
+  return z.open ? { label: tr('פתוח'), tone: 'open' } : { label: tr('סגור'), tone: 'ok' };
 }
 
 export const CODE_ERROR_LABEL: Record<string, string> = {
-  wrong_code: 'קוד שגוי',
-  code_locked: 'יותר מדי ניסיונות שגויים - הקוד ננעל לזמן קצר',
-  rate_limited: 'יותר מדי ניסיונות - נסו שוב בעוד כמה דקות',
-  code_rejected: 'הלוח דחה את הקוד או את הפקודה',
-  pin_not_set: 'עדיין אין לך קוד אישי - פנה למנהל המערכת לקבלת קוד אישי',
-  pin_by_admin: 'פנה למנהל המערכת לקבלת קוד אישי',
-  own_change_by_other_admin: 'את המדיניות והקוד שלך משנה מנהל מערכת אחר, או אתה עם הקוד האישי הנוכחי',
-  own_pin_by_other_admin: 'את הקוד האישי שלך מוחק מנהל מערכת אחר',
-  code_unverifiable: 'לא הוגדר קוד לוח לאימות',
+  wrong_code: tr('קוד שגוי'),
+  code_locked: tr('יותר מדי ניסיונות שגויים - הקוד ננעל לזמן קצר'),
+  rate_limited: tr('יותר מדי ניסיונות - נסו שוב בעוד כמה דקות'),
+  code_rejected: tr('הלוח דחה את הקוד או את הפקודה'),
+  pin_not_set: tr('עדיין אין לך קוד אישי - פנה למנהל המערכת לקבלת קוד אישי'),
+  pin_by_admin: tr('פנה למנהל המערכת לקבלת קוד אישי'),
+  own_change_by_other_admin: tr('את המדיניות והקוד שלך משנה מנהל מערכת אחר, או אתה עם הקוד האישי הנוכחי'),
+  own_pin_by_other_admin: tr('את הקוד האישי שלך מוחק מנהל מערכת אחר'),
+  code_unverifiable: tr('לא הוגדר קוד לוח לאימות'),
 };

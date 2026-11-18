@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
@@ -97,7 +98,7 @@ export class TempLog extends LitElement {
   }
 
   render() {
-    const lang = document.documentElement.lang || 'he-IL';
+    const lang = uiLocale();
     const now = Date.now();
     const area = new Map(this.units.map((u) => [u.id, u.area_name ?? '']));
     const sev = (s: string) => (s === 'alarm' ? 'var(--tc-alarm)' : s === 'warning' ? 'var(--tc-warn)' : 'var(--tc-acc)');

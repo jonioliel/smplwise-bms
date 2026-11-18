@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, svg, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
@@ -201,7 +202,7 @@ export class LiveOverview extends LitElement {
     }
     return html`
       <sw-page heading=${`${greeting(hour)}${name ? `, ${name}` : ''}`} subheading=${h ? `${tr('מצב המערכת: {status}', { status: STATUS_LABEL[h.status] })}${firstIssue ? ` · ${firstIssue.label}` : ` · ${tr('כל הבדיקות תקינות')}`}` : tr('קורא את מצב המערכת…')}>
-        <div slot="actions" class="date">${this.now.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: this.tz })}<br />${timeText(this.now, { timeZone: this.tz })}</div>
+        <div slot="actions" class="date">${this.now.toLocaleDateString(uiLocale(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: this.tz })}<br />${timeText(this.now, { timeZone: this.tz })}</div>
         <div class="kpis" data-overview-kpis>
           <sw-kpi data-overview-tile="cameras" icon="camera" tone=${cams.length && online === cams.length ? 'live' : online ? 'stale' : 'offline'} value=${`${online}/${cams.length}`} label=${tr('מצלמות')} detail=${!webrtcServer() ? WEBRTC_REQUIRED_SHORT : this.recorder ? `${tr('מחוברות')} · ${this.recorder.model ?? this.recorder.name}` : tr('מחוברות')} layout=${layout} href=${!webrtcServer() ? WEBRTC_SETTINGS_HREF : cap('nvr') ? '#/system/devices?sort=offline' : '#/live/wall'} hint=${webrtcServer() ? tr('פתח את רשימת המצלמות') : WEBRTC_REQUIRED_TEXT} ?data-webrtc-required=${!webrtcServer()}></sw-kpi>
           <sw-kpi data-overview-tile="sites" icon="building" value=${String(sites.length)} label=${tr('אתרים')} detail=${`${tr('{n} קומות', { n: floors.length })} · ${tr('{n} עם תוכנית', { n: floors.filter((f) => f.has_plan).length })}`} tone="neutral" layout=${layout} href="#/explore/sites" hint=${tr('פתח את האתרים')}></sw-kpi>

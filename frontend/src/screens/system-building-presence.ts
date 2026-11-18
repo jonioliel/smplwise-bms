@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-card';
@@ -496,7 +497,7 @@ export class SystemBuildingPresence extends LitElement {
   private renderHistory() {
     const h = this.hist;
     const bad = settingsProblem(this.cfg)?.field === 'retention_days';
-    const oldest = h?.oldest ? new Intl.DateTimeFormat('he-IL', { day: '2-digit', month: '2-digit' }).format(new Date(h.oldest)) : '—';
+    const oldest = h?.oldest ? new Intl.DateTimeFormat(uiLocale(), { day: '2-digit', month: '2-digit' }).format(new Date(h.oldest)) : '—';
     return html`<sw-card heading=${BP.historyHeading} data-building-history>
       <div class="row">
         <label>${BP.retentionLabel} <sw-field inline><input type="number" data-building-retention min=${RETENTION_RANGE.min} max=${RETENTION_RANGE.max} step="1" .value=${String(this.cfg.retention_days)} ?disabled=${!this.editable || this.busy} @input=${(e: Event) => this.num('retention_days', e)} /></sw-field> ${BP.retentionUnit}</label>

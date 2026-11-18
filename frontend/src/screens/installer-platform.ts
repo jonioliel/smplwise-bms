@@ -318,6 +318,7 @@ export class InstallerPlatform extends LitElement {
       heading: fill(now ? X.applyHeading : X.enqueueHeading, { n }),
       body: now ? X.applyBody : X.enqueueBody,
       typed,
+      typedFixed: true,
       danger: true,
       maxSeconds: 58,
       send: (t) => (now ? applyChange(p.review_id!, t ?? '') : enqueueMaintenance(p.review_id!, t ?? '')),
@@ -434,7 +435,7 @@ export class InstallerPlatform extends LitElement {
         <sw-button variant="secondary" ?disabled=${!ok} @click=${() => void this.runRetPreview()} data-ret-check>${X.retPreview}</sw-button>
         ${rp
           ? html`<sw-button variant="danger" @click=${() =>
-              (this.confirm = { heading: X.retHeading, body: fill(X.retBody, { removed: rp.removed ?? 0 }), typed: this.view!.typed.retention_apply, danger: true, maxSeconds: 30,
+              (this.confirm = { heading: X.retHeading, body: fill(X.retBody, { removed: rp.removed ?? 0 }), typed: this.view!.typed.retention_apply, typedFixed: true, danger: true, maxSeconds: 30,
                 send: (t) => applyRetention(rp.review_id, t ?? ''), done: () => ((this.retPreview = null), (this.flash = { tone: 'ok', text: T.result.completed }), void this.load()) })} data-ret-apply>${X.retApply}</sw-button>`
           : nothing}
       </div>
@@ -463,7 +464,7 @@ export class InstallerPlatform extends LitElement {
         ${this.key
           ? html`<sw-button variant="ghost" @click=${() => (this.key = '')} data-hook-hide>${X.hideKey}</sw-button>`
           : html`<sw-button variant="ghost" @click=${() =>
-              (this.confirm = { heading: X.keyHeading, body: X.keyBody, typed: this.view!.typed.webhook_key, danger: true, maxSeconds: 15, send: (t) => revealWebhookKey(t ?? ''),
+              (this.confirm = { heading: X.keyHeading, body: X.keyBody, typed: this.view!.typed.webhook_key, typedFixed: true, danger: true, maxSeconds: 15, send: (t) => revealWebhookKey(t ?? ''),
                 done: (reply) => (this.key = (reply as { data: { key: string } }).data.key) })} data-hook-key-show>${X.showKey}</sw-button>`}
       </div>
     </sw-card>`;
@@ -520,7 +521,7 @@ export class InstallerPlatform extends LitElement {
           }} data-import-preview>${X.importPreview}</sw-button>
             ${review
               ? html`<sw-button variant="danger" @click=${() =>
-                  (this.confirm = { heading: X.importHeading, body: fill(X.importBody, { n: review.stations.length, t: review.templates ?? 0 }), typed: this.view!.typed.import_apply, danger: true,
+                  (this.confirm = { heading: X.importHeading, body: fill(X.importBody, { n: review.stations.length, t: review.templates ?? 0 }), typed: this.view!.typed.import_apply, typedFixed: true, danger: true,
                     maxSeconds: 30, send: (t) => applyImport(review.review_id, t ?? ''),
                     done: () => ((this.importReview = null), (this.importContent = ''), (this.importMap = {}), (this.flash = { tone: 'ok', text: fill(X.imported, { n: review.stations.length }) }), void this.load()) })}
                   data-import-apply>${X.importApply}</sw-button>`

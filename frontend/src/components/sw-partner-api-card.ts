@@ -1,3 +1,4 @@
+import { localeFor } from '../i18n/locale';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import './sw-card';
@@ -19,7 +20,7 @@ type Tab = 'partners' | 'tokens' | 'endpoints' | 'log' | 'settings';
 function when(iso: string | null | undefined): string {
   if (!iso) return '';
   const d = new Date(iso);
-  const locale = { he: 'he-IL', en: 'en-GB', ar: 'ar', ru: 'ru-RU' }[ptLang()];
+  const locale = localeFor(ptLang());
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(locale, { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 

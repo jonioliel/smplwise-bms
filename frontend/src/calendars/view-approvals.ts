@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-dialog';
@@ -213,7 +214,7 @@ export class CalViewApprovals extends LitElement {
       const color = this.ctx.cals.find((c) => c.id === h)?.color ?? r.calendar.color;
       this.lanes = [
         ...held.map((o): Lane => ({ id: o.event_id, title: o.title ?? tr('תפוס'), who: o.organizer?.name ?? o.on_behalf_label ?? '', start: o.start, end: o.end, holder: true, req: null, color })),
-        ...rivals.map((q): Lane => ({ id: q.event_id, title: q.title ?? tr('בקשה'), who: [q.organizer?.name, q.headcount ? tr('{n} משתתפים', { n: q.headcount.toLocaleString('he-IL') }) : ''].filter(Boolean).join(' · '), start: q.start, end: q.end, holder: false, req: q, color: q.calendar.color })),
+        ...rivals.map((q): Lane => ({ id: q.event_id, title: q.title ?? tr('בקשה'), who: [q.organizer?.name, q.headcount ? tr('{n} משתתפים', { n: q.headcount.toLocaleString(uiLocale()) }) : ''].filter(Boolean).join(' · '), start: q.start, end: q.end, holder: false, req: q, color: q.calendar.color })),
       ];
     } catch {
       this.lanes = rivals.map((q): Lane => ({ id: q.event_id, title: q.title ?? tr('בקשה'), who: q.organizer?.name ?? '', start: q.start, end: q.end, holder: false, req: q, color: q.calendar.color }));
@@ -322,10 +323,10 @@ export class CalViewApprovals extends LitElement {
         <div class="meta">
           <span title=${q.calendar.name}>${q.calendar.name}</span>${q.organizer?.name ? html`<span title=${q.organizer.name}>${q.organizer.name}</span>` : nothing}
           <span title=${q.on_behalf_label ?? ''}>${q.on_behalf_label ? tr('בשם: {name}', { name: q.on_behalf_label }) : html`<span class="muted">${tr('ללא תווית')}</span>`}</span>
-          ${q.headcount ? html`<span class="num">${tr('{n} משתתפים', { n: q.headcount.toLocaleString('he-IL') })}</span>` : nothing}
+          ${q.headcount ? html`<span class="num">${tr('{n} משתתפים', { n: q.headcount.toLocaleString(uiLocale()) })}</span>` : nothing}
           ${q.conflicts_now && q.competing_count <= 1 ? html`<span class="chip bad" data-chip="conflict"><sw-icon name="warning" size="12"></sw-icon>${tr('חופף להזמנה מאושרת')}</span>` : nothing}
           ${hours > 0 && left >= 0 && left <= 12 ? html`<span class="chip warn num" data-chip="deadline">${tr('נשארו {n} שע׳ להחלטה', { n: left })}</span>` : nothing}
-          ${q.competing_count > 1 ? html`<span class="chip warn num" data-chip="contest"><sw-icon name="users" size="12"></sw-icon>${tr('{n} מבקשים לחלון', { n: q.competing_count.toLocaleString('he-IL') })}</span>` : nothing}
+          ${q.competing_count > 1 ? html`<span class="chip warn num" data-chip="contest"><sw-icon name="users" size="12"></sw-icon>${tr('{n} מבקשים לחלון', { n: q.competing_count.toLocaleString(uiLocale()) })}</span>` : nothing}
           ${q.guests_count ? html`<span class="chip num" data-chip="guests"><sw-icon name="lock" size="12"></sw-icon>${tr('פרטי אורח: {n}', { n: q.guests_count })}</span>` : nothing}
           ${q.suggested && this.ctx?.access.ui.contested_order !== 'manual' ? html`<span class="chip acc" data-chip="first">${tr('ראשון בתור')}</span>` : nothing}
         </div>

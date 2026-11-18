@@ -6,6 +6,7 @@
  */
 import { del, get, patch, post, put } from './client';
 import { isApi } from './session';
+import { tr } from '../i18n/msg/api-home';
 
 export type CalType = 'room' | 'team' | 'maintenance' | 'event';
 export type CalColor = 'blue' | 'rose' | 'cyan' | 'orange' | 'violet' | 'brown' | 'magenta' | 'slate';
@@ -414,30 +415,30 @@ export function serverProviderOf(card: ProviderCard): ServerProvider {
 
 /** CALCONNECT-2330: a connection's error code in the owner's words (auth expired / quota / rate limit / feed problems ...). */
 export const CONN_ERROR_HE: Record<string, string> = {
-  auth_expired: 'ההרשאה פגה או בוטלה אצל הספק. יש לאשר מחדש.',
-  not_authorized: 'החיבור עדיין לא אושר אצל הספק.',
-  needs_reauth: 'נדרשת הרשאה מחדש אצל הספק.',
-  token_revoked: 'ההרשאה בוטלה אצל הספק. יש לאשר מחדש.',
-  rate_limited: 'הספק מגביל כרגע את קצב הבקשות. ננסה שוב אוטומטית.',
-  quota_exceeded: 'המכסה היומית אצל הספק נוצלה. ננסה שוב מאוחר יותר.',
-  provider_unavailable: 'הספק לא זמין כרגע. ננסה שוב אוטומטית.',
-  provider_error: 'הספק החזיר שגיאה. ננסה שוב אוטומטית.',
-  client_invalid: 'הספק דחה את מזהה הלקוח או את הסוד. יש לבדוק את ההגדרה אצל הספק.',
-  client_missing: 'חסר מזהה הלקוח של האפליקציה אצל הספק.',
-  forbidden: 'אין הרשאה ליומן הזה אצל הספק.',
-  not_found: 'היומן החיצוני לא נמצא (אולי נמחק).',
-  adapter_unavailable: 'אין עדיין מתאם לספק הזה.',
-  feed_missing: 'עדיין לא הוזנה כתובת iCal.',
-  feed_refused: 'הכתובת נחסמה (רק https לכתובת ציבורית).',
-  feed_unreachable: 'כתובת ה־iCal לא ענתה.',
-  feed_invalid: 'בכתובת אין יומן iCal תקין.',
-  feed_too_large: 'יומן ה־iCal גדול מדי (עד 5MB).',
-  resync_failed: 'הסנכרון המלא נכשל. ננסה שוב.',
-  read_only: 'החיבור לקריאה בלבד.',
+  auth_expired: tr('ההרשאה פגה או בוטלה אצל הספק. יש לאשר מחדש.'),
+  not_authorized: tr('החיבור עדיין לא אושר אצל הספק.'),
+  needs_reauth: tr('נדרשת הרשאה מחדש אצל הספק.'),
+  token_revoked: tr('ההרשאה בוטלה אצל הספק. יש לאשר מחדש.'),
+  rate_limited: tr('הספק מגביל כרגע את קצב הבקשות. ננסה שוב אוטומטית.'),
+  quota_exceeded: tr('המכסה היומית אצל הספק נוצלה. ננסה שוב מאוחר יותר.'),
+  provider_unavailable: tr('הספק לא זמין כרגע. ננסה שוב אוטומטית.'),
+  provider_error: tr('הספק החזיר שגיאה. ננסה שוב אוטומטית.'),
+  client_invalid: tr('הספק דחה את מזהה הלקוח או את הסוד. יש לבדוק את ההגדרה אצל הספק.'),
+  client_missing: tr('חסר מזהה הלקוח של האפליקציה אצל הספק.'),
+  forbidden: tr('אין הרשאה ליומן הזה אצל הספק.'),
+  not_found: tr('היומן החיצוני לא נמצא (אולי נמחק).'),
+  adapter_unavailable: tr('אין עדיין מתאם לספק הזה.'),
+  feed_missing: tr('עדיין לא הוזנה כתובת iCal.'),
+  feed_refused: tr('הכתובת נחסמה (רק https לכתובת ציבורית).'),
+  feed_unreachable: tr('כתובת ה־iCal לא ענתה.'),
+  feed_invalid: tr('בכתובת אין יומן iCal תקין.'),
+  feed_too_large: tr('יומן ה־iCal גדול מדי (עד 5MB).'),
+  resync_failed: tr('הסנכרון המלא נכשל. ננסה שוב.'),
+  read_only: tr('החיבור לקריאה בלבד.'),
 };
 
 export function connErrorText(code: string | null | undefined): string {
-  return code ? CONN_ERROR_HE[code] ?? 'הסנכרון נכשל. ננסה שוב אוטומטית.' : '';
+  return code ? CONN_ERROR_HE[code] ?? tr('הסנכרון נכשל. ננסה שוב אוטומטית.') : '';
 }
 
 let demoApi: Promise<CalendarsApi> | null = null;

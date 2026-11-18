@@ -6,6 +6,7 @@
  */
 import { get, put } from './client';
 import { isApi } from './session';
+import { tr } from '../i18n/msg/api-home';
 
 export type ViewStyle = 'auto' | 'light' | 'dark';
 export type MouseMode = 'drag' | 'lock' | 'auto';
@@ -109,21 +110,21 @@ export interface PlanViewPrefs {
 
 /** The Hebrew names the settings screen and the 3D view show (one place, so both agree). */
 export const DIAL_HE: Record<keyof PlanViewDials, string> = {
-  style: 'סגנון חזותי', default_view: 'תצוגת ברירת מחדל', furniture: 'ריהוט', textures: 'טקסטורות', wall_display: 'מסך קיר', time_source: 'שעה ביום',
-  mouse_mode: 'מבט בעכבר בסיור', quality: 'איכות', kiosk_idle_s: 'מעבר לתמונה מוכנה במסך קיר', eye_m: 'גובה עין', dpr_cap: 'חדות מרבית',
-  section_cut: 'חיתוך קירות במבט מלמעלה', show_temps: 'טמפרטורות בחדרים', motion: 'אנימציות', walk_guard: 'הורדת איכות אוטומטית בסיור',
-  backdrop: 'רקע מאחורי הבית', floor_finish: 'ריצוף', floor_reflections: 'השתקפויות ברצפה',
-  wall_cut: 'גובה הקירות', light_mood: 'תאורה ביום, בערב ובלילה', room_marks: 'סימון מצב של חדר', light_mark: 'אור דולק ביום', alarm_motion: 'אזעקה במפה',
-  reflections_auto: 'כיבוי השתקפויות במכשיר חלש',
+  style: tr('סגנון חזותי'), default_view: tr('תצוגת ברירת מחדל'), furniture: tr('ריהוט'), textures: tr('טקסטורות'), wall_display: tr('מסך קיר'), time_source: tr('שעה ביום'),
+  mouse_mode: tr('מבט בעכבר בסיור'), quality: tr('איכות'), kiosk_idle_s: tr('מעבר לתמונה מוכנה במסך קיר'), eye_m: tr('גובה עין'), dpr_cap: tr('חדות מרבית'),
+  section_cut: tr('חיתוך קירות במבט מלמעלה'), show_temps: tr('טמפרטורות בחדרים'), motion: tr('אנימציות'), walk_guard: tr('הורדת איכות אוטומטית בסיור'),
+  backdrop: tr('רקע מאחורי הבית'), floor_finish: tr('ריצוף'), floor_reflections: tr('השתקפויות ברצפה'),
+  wall_cut: tr('גובה הקירות'), light_mood: tr('תאורה ביום, בערב ובלילה'), room_marks: tr('סימון מצב של חדר'), light_mark: tr('אור דולק ביום'), alarm_motion: tr('אזעקה במפה'),
+  reflections_auto: tr('כיבוי השתקפויות במכשיר חלש'),
 };
 export const CHOICE_HE: Record<string, string> = {
-  auto: 'אוטומטי', light: 'אדריכלי בהיר', dark: 'תאום דיגיטלי כהה', schematic: 'סכמטי', realistic: 'ריאליסטי', models: 'דגמים', procedural: 'גאומטרי',
-  files: 'קבצי חומרים', live: 'תלת־ממד חי', stills: 'תמונות מוכנות', clock: 'לפי שעון האתר', manual: 'ידני', drag: 'גרירה', lock: 'נעילת סמן', lite: 'ריאליסטי קל', full: 'מלא',
-  sky: 'שמיים', studio: 'סטודיו כהה', wood: 'פרקט עץ', marble: 'שיש קלקטה מלוטש', ceramic: 'קרמיקה יוקרתית', travertine: 'טרוורטין',
+  auto: tr('אוטומטי'), light: tr('אדריכלי בהיר'), dark: tr('תאום דיגיטלי כהה'), schematic: tr('סכמטי'), realistic: tr('ריאליסטי'), models: tr('דגמים'), procedural: tr('גאומטרי'),
+  files: tr('קבצי חומרים'), live: tr('תלת־ממד חי'), stills: tr('תמונות מוכנות'), clock: tr('לפי שעון האתר'), manual: tr('ידני'), drag: tr('גרירה'), lock: tr('נעילת סמן'), lite: tr('ריאליסטי קל'), full: tr('מלא'),
+  sky: tr('שמיים'), studio: tr('סטודיו כהה'), wood: tr('פרקט עץ'), marble: tr('שיש קלקטה מלוטש'), ceramic: tr('קרמיקה יוקרתית'), travertine: tr('טרוורטין'),
   // PLAN3D-R32-ANSWERS-2438 (owner round 32)
-  low: 'נמוכים (1.25 מ׳)', mid: 'בגובה חלקי', day: 'תמיד יום', evening: 'תמיד ערב', night: 'תמיד לילה',
-  bar_edge: 'פס על ראש הקיר ופס ברצפה', floor: 'צביעת הרצפה', bar: 'פס על ראש הקיר', none: 'בלי סימון', bar_floor: 'פס על הקיר ופס ברצפה',
-  pulse: 'פועמת לאט', steady: 'קבועה',
+  low: tr('נמוכים (1.25 מ׳)'), mid: tr('בגובה חלקי'), day: tr('תמיד יום'), evening: tr('תמיד ערב'), night: tr('תמיד לילה'),
+  bar_edge: tr('פס על ראש הקיר ופס ברצפה'), floor: tr('צביעת הרצפה'), bar: tr('פס על ראש הקיר'), none: tr('בלי סימון'), bar_floor: tr('פס על הקיר ופס ברצפה'),
+  pulse: tr('פועמת לאט'), steady: tr('קבועה'),
 };
 
 let cache: PlanViewPrefs | null = null;

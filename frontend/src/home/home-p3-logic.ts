@@ -1,6 +1,7 @@
 // HOME-V3-P3-2432: the pure logic of the home interface's phase 3 (mockup v3, round 27: music and screens, announcements, the electricity
 // bill, water, the house systems, the home map). No DOM, no network; unit-tested in tests/unit-home-v3-p3-logic.spec.ts.
 // Family words only: no platform, product or protocol names, no internal terms.
+import { uiLocale } from '../i18n/locale';
 import { tr } from '../i18n/msg/home';
 
 /** The six categories phase 3 adds (services/home_interface.MODULES_P3; an administrator can hide each per person). */
@@ -62,7 +63,7 @@ export const money = (v: unknown): number | null => {
 export const ils = (n: number): string => Math.round(n).toLocaleString('en-US');
 
 /** HOME-V3-AUDITFIX-2437 (audit item 17): a reading for people - thousands separated, at most one decimal ("12,480.5", "98,000"). */
-const NUM1 = new Intl.NumberFormat('he-IL', { maximumFractionDigits: 1 });
+const NUM1 = new Intl.NumberFormat(uiLocale(), { maximumFractionDigits: 1 });
 export const num1 = (n: number): string => NUM1.format(n);
 
 /** Today against a usual day in words; past 999 % a percentage says nothing, so "הרבה יותר" (audit item 17). `d` = whole percent. */
@@ -83,7 +84,7 @@ export const BILL_STATE: Record<string, [string, string]> = {
   draft: [tr('בהכנה'), 'neutral'], issued: [tr('לתשלום'), 'warn'], sent: [tr('לתשלום'), 'warn'], paid: [tr('שולם'), 'ok'], void: [tr('בוטל'), 'neutral'],
 };
 
-export const HE_MONTH = new Intl.DateTimeFormat('he-IL', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+export const HE_MONTH = new Intl.DateTimeFormat(uiLocale(), { month: 'long', year: 'numeric', timeZone: 'UTC' });
 /** "אוקטובר 2026" for a period that is one calendar month, else "1.9 - 30.9". */
 export function periodName(from: string, to: string): string {
   const a = new Date(from + 'T00:00:00Z');

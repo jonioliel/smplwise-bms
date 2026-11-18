@@ -12,6 +12,7 @@ import { isRemoteChannel, remoteBase } from '../arx/channel';
 import { openReconnectingSocket, wsUrl, type SocketEnv } from './reconnecting-socket';
 import { syncNativeSession, type NativeSignOutReason } from '../arx/native-app';
 import { setBrandView } from '../design/brand-logo';
+import { tr } from '../i18n/msg/api-core';
 
 export type SessionMode = 'loading' | 'api' | 'demo' | 'unauthenticated' | 'no_access';
 
@@ -198,8 +199,8 @@ export const isApi = () => session.mode === 'api';
 
 /** The one-line state shown where a screen would call a route the remote channel answers 404 on purpose
  * (`BLOCKED_ON_REMOTE` in backend/smplwise/remote_channel.py). Operator copy: no raw server error, no retry. */
-export const LOCAL_ONLY_TEXT = 'חיבור ה־NVR מנוהל רק מהרשת המקומית';
-export const LOCAL_ONLY_GENERIC = 'זמין רק מהרשת המקומית';
+export const LOCAL_ONLY_TEXT = tr('חיבור ה־NVR מנוהל רק מהרשת המקומית');
+export const LOCAL_ONLY_GENERIC = tr('זמין רק מהרשת המקומית');
 
 /** True on the remote channel (`/arx/`): the server's own answer (`/me.channel`) or, before it is known, the address. */
 export const onRemote = () => session.me?.channel === 'remote' || isRemoteChannel();

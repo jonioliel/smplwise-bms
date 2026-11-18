@@ -330,3 +330,78 @@ follows the commoner one, the button.
 
 Stay Hebrew in every interface language (data saved on the server, read by other people): the title of a room booking
 ("הזמנה: ...") and the default title of a service request ("תקלה: ...").
+
+## API layer texts (CR-I18N-API-2442, `src/i18n/msg/api-*.ts`)
+
+| Hebrew | English |
+| --- | --- |
+| תשתית המערכת (in an error or a state line) | the platform |
+| רכיב החיבור | the connection component |
+| הגשר / מצומד / צימוד | the bridge / paired / pairing |
+| דריכה מלאה / דריכה בבית / נטרול | Arm away / Arm home / Disarm |
+| ערכים חסויים / קוד חסוי | Hidden values / hidden code |
+| נשמרה בהאצלה | Saved by delegation |
+| הסלמה / ציר ההסלמה | Escalation / escalation timeline |
+| שעות שקט | Quiet hours |
+| דחיפה | Push |
+| מרכז (the notification channel) | Centre |
+| מטפל (service requests) | Handler |
+| דרישת תשלום | Payment request |
+| תעריף לפי שעות | Time-of-use tariff |
+| מונה מצטבר | Accumulating meter |
+| זרם ראשי / זרם משני | Main stream / sub stream |
+| תרגום (H.265 to H.264) | Transcode |
+| סימנייה ל־NVR | Bookmark to the NVR |
+| מוכן למסירה / חסם | Ready for handover / blocker |
+
+Sentence builders (`api/automations.ts`, `api/schedules.ts`, `api/notifications.ts`): the summary lines are joined from parts, so
+the English keys are lower-case parts ("detects motion", "for {for}", " and ", "before", "sunset") and each part carries the space
+the Hebrew part carries. The Hebrew joiner " ו" (no space after it) is " and " in English. The action verbs that end with a
+maqaf in Hebrew ("נגן ב־") have no maqaf in English, so the builder puts a space before the name.
+
+One Hebrew, two meanings in one table: in `api-automation`, "סגור" (Close a blind / a closed state) and "הפעל" (Turn on /
+Activate) follow the action verb; "נפתח" / "נסגר" (opens / is opening) follow the state label "Opening" / "Closing"; "שעה"
+is "hour" there (a unit) and "Time" in `api-home` (the clock widget).
+
+Stay Hebrew in every interface language: the building marker and the name given to a new building ("בניין"), the demo
+stores, and the Hebrew calendar date (the day and year in letters, "פרשת" - an owner question of CR-I18N-UNITS-2442).
+
+Durations, weekday letters and weather units (`msg/time`, CR-I18N-UNITS-2442): a duration in words is spelled with its number
+("שעה" = "1 hour", "שעתיים" = "2 hours", "{n} שעות" = "{n} hours"; parts joined by " and "); the short forms are "ms", "s", "min", "h",
+"d" ("2 min 5 s", "1 h 30 min", "3 d 2 h"); "עוד ..." is "In ..."; the day toggles are "S M T W T F S" and the day names in a
+sentence "Sun" ... "Sat"; weather units are the SI symbols ("km/h", "m/s", "hPa", "mbar").
+
+## Typed confirmation words (CR-I18N-CONFIRM-WORDS-2442, `src/i18n/confirm-words.ts`)
+
+The fixed words an operator types before a dangerous action have one English counterpart each (owner decision 17.11). The server
+accepts the Hebrew word or the English one (trimmed, case ignored); the English interface shows the English word, every other
+language the Hebrew one. The table is shared with the backend (`smplwise_vms/backend/smplwise/services/confirm_words.py`); a word
+is changed in both files, never in a screen. The English is lower case, a plain imperative or the name of the thing, no article.
+
+| Hebrew | English |
+|---|---|
+| שמור | save |
+| הסר | remove |
+| אפשר נטרול | allow disarm |
+| מחיקה לצמיתות | delete permanently |
+| הרחב בירור | widen lookup |
+| פתיחת דלת לבדיקה | open door for test |
+| שעון השרת | server clock |
+| הצגת המפתח | show key |
+| ייבוא תצורה | import configuration |
+| מחיקת אירועים | delete events |
+| החלה על העמדות | apply to stations |
+| תזמון תחזוקה | schedule maintenance |
+| אתחול | reinitialise |
+| אשר | confirm |
+| נמחק | deleted |
+| בטל הכל | revoke all |
+| מחק | delete |
+| בטל מבקרים | revoke visitors |
+| מאשר ניהול התקנה | approve managed install |
+| מאשר סיכון סביבה | approve environment risk |
+| מאשר העברה לניהול | approve move to managed |
+| קוד {slot} | code {slot} |
+| מחיקה (calendar guest details; compared in the browser only) | delete |
+
+What the operator types that is DATA stays as the screen shows it in every language: a station's name, a user name, a count.

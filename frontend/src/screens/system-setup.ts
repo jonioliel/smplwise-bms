@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
@@ -57,7 +58,7 @@ const OPTIONS: { key: string; label: string }[] = [
 function when(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleString(uiLocale(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 /** הגדרות › חיבורים (0.1.50, F6): the add-on's connection facts and the approved NVR writes. The onboarding wizard

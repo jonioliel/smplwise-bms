@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { settingsLadderStyles } from '../styles/settings';
@@ -26,7 +27,7 @@ type Pane = 'checks' | 'steps' | 'handover';
 function when(iso: string | null | undefined): string {
   if (!iso) return '';
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleString(uiLocale(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
 /** הגדרות › מוכנות (CR-READY96 slice 1, owner-approved mockup 24.10): one score for how complete and how safe the installation is, the checklist behind it

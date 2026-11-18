@@ -1,6 +1,7 @@
 /** CR-021 S2: the self-update state, the manual check and the check interval (backend: routers/system_update.py). */
 import { ApiError, get, put, api } from './client';
 import type { RestartReason, RunRef } from './system-update-runs';
+import { tr } from '../i18n/msg/api-system';
 
 export const INTERVAL_CHOICES = [0, 1, 3, 6, 12, 24] as const;
 
@@ -70,14 +71,14 @@ export function resultLabel(result: CheckResult | null | undefined, available: b
     case 'available':
     case 'update_available':
     case 'refresh_failed_read_ok':
-      return available ? 'יש עדכון' : 'עודכן';
+      return available ? tr('יש עדכון') : tr('עודכן');
     case 'not_permitted':
-      return 'אין הרשאה';
+      return tr('אין הרשאה');
     default:
-      return 'לא ניתן לבדוק';
+      return tr('לא ניתן לבדוק');
   }
 }
 
 export function intervalLabel(h: number): string {
-  return h === 0 ? 'כבוי' : h === 1 ? 'כל שעה' : `כל ${h} שעות`;
+  return h === 0 ? tr('כבוי') : h === 1 ? tr('כל שעה') : tr('כל {h} שעות', { h });
 }

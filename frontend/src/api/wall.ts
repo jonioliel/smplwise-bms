@@ -1,6 +1,7 @@
 /** CR-030 wall display API: the display's own reads (`wall/config`, `wall/states`) and the Settings administration (`wall/profiles`). */
 import { api, apiUrl, del, get, patch, post, upload } from './client';
 import type { WallPlanSetting } from '../map/wall-plan-mode';
+import { tr } from '../i18n/msg/api-media';
 
 export type WallLayout = 'auto' | 'tablet-landscape' | 'tablet-portrait' | 'single';
 export type WallStatus = 'connected' | 'not_connected' | 'never' | 'disabled';
@@ -85,7 +86,7 @@ export const patchWallProfile = (userId: string, body: { title?: string; area_id
 export const removeWallProfile = (userId: string) => del(`wall/profiles/${encodeURIComponent(userId)}`);
 
 /** The Hebrew label of a list status (the "מצב" column). */
-export const WALL_STATUS_LABEL: Record<WallStatus, string> = { connected: 'מחובר', not_connected: 'לא מחובר', never: 'טרם התחבר', disabled: 'מושבת' };
+export const WALL_STATUS_LABEL: Record<WallStatus, string> = { connected: tr('מחובר'), not_connected: tr('לא מחובר'), never: tr('טרם התחבר'), disabled: tr('מושבת') };
 
 // ---- WDX: alert tiles and the picture frame
 export type WallAlertSeverity = 'info' | 'alert' | 'critical';

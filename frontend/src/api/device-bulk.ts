@@ -9,6 +9,7 @@
  * button - and follows the record to its end.
  */
 import { get, post } from './client';
+import { tr } from '../i18n/msg/api-devices';
 
 export type BulkScope = 'building' | 'floor' | 'area';
 /** CR-007 slice 4: covers_open / covers_stop / covers_position are the area's own "כל התריסים" group control
@@ -32,23 +33,23 @@ export const COVER_GROUP_KINDS: BulkKind[] = ['covers_open', 'covers_stop', 'cov
 /** The mockup's menu wording (the quick actions of the floor menu, the area popover and the building buttons), plus
  * the cover group control's own four (CR-007 slice 4). */
 export const BULK_KIND_LABEL: Record<BulkKind, string> = {
-  lights_off: 'כבה תאורה',
-  covers_close: 'סגור תריסים',
-  covers_open: 'פתח תריסים',
-  covers_stop: 'עצור תריסים',
-  covers_position: 'מיקום תריסים',
-  climate_off: 'כבה מיזוג',
-  heating_off: 'כבה חימום',
-  screens_off: 'כבה מסכים',
-  all_off: 'כבה הכל',
+  lights_off: tr('כבה תאורה'),
+  covers_close: tr('סגור תריסים'),
+  covers_open: tr('פתח תריסים'),
+  covers_stop: tr('עצור תריסים'),
+  covers_position: tr('מיקום תריסים'),
+  climate_off: tr('כבה מיזוג'),
+  heating_off: tr('כבה חימום'),
+  screens_off: tr('כבה מסכים'),
+  all_off: tr('כבה הכל'),
   // owner 2026-09-29: the tiles' panel master control
-  switches_off: 'כבה מתגים',
-  switches_on: 'הדלק מתגים',
-  lights_on: 'הדלק תאורה',
-  screens_on: 'הדלק מסכים',
+  switches_off: tr('כבה מתגים'),
+  switches_on: tr('הדלק מתגים'),
+  lights_on: tr('הדלק תאורה'),
+  screens_on: tr('הדלק מסכים'),
 };
 
-export const BULK_SCOPE_LABEL: Record<BulkScope, string> = { building: 'המבנה', floor: 'קומה', area: 'אזור' };
+export const BULK_SCOPE_LABEL: Record<BulkScope, string> = { building: tr('המבנה'), floor: tr('קומה'), area: tr('אזור') };
 
 export interface BulkTarget {
   entity_id: string;
@@ -115,13 +116,13 @@ export interface BulkRecord {
 }
 
 export const OUTCOME_LABEL: Record<BulkOutcome, string> = {
-  queued: 'ממתין לשליחה',
-  accepted: 'נשלח · ממתין לדיווח',
-  confirmed: 'אושר',
-  sent: 'נשלח',
-  not_confirmed: 'לא אושר',
-  refused: 'נדחה / לא נשלח',
-  unknown: 'תוצאה לא ידועה',
+  queued: tr('ממתין לשליחה'),
+  accepted: tr('נשלח · ממתין לדיווח'),
+  confirmed: tr('אושר'),
+  sent: tr('נשלח'),
+  not_confirmed: tr('לא אושר'),
+  refused: tr('נדחה / לא נשלח'),
+  unknown: tr('תוצאה לא ידועה'),
 };
 
 /** Server clock minus this device's clock (ms), learned from each preview (the CR-005 mechanism, api/intercom.ts): the
@@ -234,10 +235,10 @@ export async function followBulk(first: BulkRecord, onUpdate: (r: BulkRecord) =>
 export function bulkHeadline(r: BulkRecord): { tone: 'ok' | 'partial' | 'none' | 'running'; text: string } {
   const c = r.counts;
   const sent = c.sent ?? 0;
-  if (!r.done) return { tone: 'running', text: `${c.confirmed} מתוך ${c.total} אושרו` };
-  if (c.total > 0 && c.confirmed === c.total) return { tone: 'ok', text: 'בוצע' };
-  if (c.total > 0 && c.confirmed + sent === c.total) return { tone: 'ok', text: sent === c.total ? 'נשלח' : 'בוצע (חלק נשלחו ללא אישור)' };
+  if (!r.done) return { tone: 'running', text: tr('{confirmed} מתוך {total} אושרו', { confirmed: c.confirmed, total: c.total }) };
+  if (c.total > 0 && c.confirmed === c.total) return { tone: 'ok', text: tr('בוצע') };
+  if (c.total > 0 && c.confirmed + sent === c.total) return { tone: 'ok', text: sent === c.total ? tr('נשלח') : tr('בוצע (חלק נשלחו ללא אישור)') };
   const missing = c.total - c.confirmed - sent;
-  if (c.confirmed + sent === 0) return { tone: 'none', text: `לא בוצע: אף אחד מ־${c.total} ההתקנים לא אישר` };
-  return { tone: 'partial', text: `בוצע חלקית: ${missing} לא אושרו` };
+  if (c.confirmed + sent === 0) return { tone: 'none', text: tr('לא בוצע: אף אחד מ־{total} ההתקנים לא אישר', { total: c.total }) };
+  return { tone: 'partial', text: tr('בוצע חלקית: {missing} לא אושרו', { missing }) };
 }

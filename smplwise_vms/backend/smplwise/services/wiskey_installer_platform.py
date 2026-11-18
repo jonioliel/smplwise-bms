@@ -38,6 +38,7 @@ import re
 from typing import Any
 from urllib.parse import urlsplit
 
+from . import confirm_words
 from . import intercom_adapter as ad
 from .wiskey_installer import WRITE_TIMEOUT_S, Op
 
@@ -397,15 +398,15 @@ OPS: dict[str, Op] = {
     "webhook_save": Op("webhook_save", "platform/webhook_save", "write", "intercom.installer.platform_webhook_save", ("revision", "values", "confirmed"),
                        danger="confirm", cooldown_s=2.0, project=project_webhook_save, summary=_sum_webhook),
     "webhook_key": Op("webhook_key", "platform/webhook_key", "write", "intercom.installer.platform_webhook_key", ("confirmed",), danger="typed", cooldown_s=30.0,
-                      typed_word="הצגת המפתח", project=project_key, summary=_sum_key),
+                      typed_word=confirm_words.he("installer_webhook_key"), project=project_key, summary=_sum_key),
     "import_apply": Op("import_apply", "platform/import_apply", "write", "intercom.installer.platform_import_apply", ("review_id", "confirmed"), danger="typed",
-                       cooldown_s=10.0, typed_word="ייבוא תצורה", project=project_import_apply, summary=_sum_import),
+                       cooldown_s=10.0, typed_word=confirm_words.he("installer_import_apply"), project=project_import_apply, summary=_sum_import),
     "retention_apply": Op("retention_apply", "platform/retention_apply", "write", "intercom.installer.platform_retention_apply", ("review_id", "confirmed"),
-                          danger="typed", cooldown_s=10.0, typed_word="מחיקת אירועים", project=project_usage, summary=_sum_usage),
+                          danger="typed", cooldown_s=10.0, typed_word=confirm_words.he("installer_retention_apply"), project=project_usage, summary=_sum_usage),
     "config_apply": Op("config_apply", "platform/config_apply", "write", "intercom.installer.platform_config_apply", ("review_id", "confirmed"), danger="typed",
-                       timeout_s=T, cooldown_s=10.0, typed_word="החלה על העמדות", project=project_receipts, summary=_sum_receipts),
+                       timeout_s=T, cooldown_s=10.0, typed_word=confirm_words.he("installer_config_apply"), project=project_receipts, summary=_sum_receipts),
     "maint_enqueue": Op("maint_enqueue", "platform/maintenance_enqueue", "write", "intercom.installer.platform_maintenance_enqueue", ("review_id", "confirmed"),
-                        danger="typed", cooldown_s=5.0, typed_word="תזמון תחזוקה", project=project_enqueue, summary=_sum_enqueue),
+                        danger="typed", cooldown_s=5.0, typed_word=confirm_words.he("installer_maint_enqueue"), project=project_enqueue, summary=_sum_enqueue),
     "maint_cancel": Op("maint_cancel", "platform/maintenance_cancel", "write", "intercom.installer.platform_maintenance_cancel", ("job_id", "fingerprint", "confirmed"),
                        danger="confirm", cooldown_s=2.0, project=project_jobs, summary=_sum_jobs),
 }

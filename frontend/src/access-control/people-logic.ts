@@ -12,6 +12,7 @@
  *     column follows the administrator's setting through `employee_no_visible`);
  *   - the person's state, validity and sync status words, and the small selection helpers of the bulk bar.
  */
+import { uiLocale } from '../i18n/locale';
 import type { AcPeoplePage, AcPeopleSort, AcPerson } from '../api/access-people';
 import { offsetAt, UTC_ZONE } from '../screens/wiskey-format';
 import type { DisplayZone } from '../api/intercom';
@@ -264,7 +265,7 @@ export function formatDay(value: string | null | undefined, zone: DisplayZone = 
   const ms = Date.parse(value);
   if (!Number.isFinite(ms)) return '';
   try {
-    return new Date(ms + offsetAt(ms, zone) * 1000).toLocaleDateString('he-IL', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' }).replaceAll('/', '.');
+    return new Date(ms + offsetAt(ms, zone) * 1000).toLocaleDateString(uiLocale(), { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' }).replaceAll('/', '.');
   } catch {
     return '';
   }
@@ -279,7 +280,7 @@ export function formatClock(value: string | null | undefined, zone: DisplayZone 
   try {
     const shift = (t: number) => new Date(t + offsetAt(t, zone) * 1000);
     const at = shift(ms);
-    const time = at.toLocaleTimeString('he-IL', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false });
+    const time = at.toLocaleTimeString(uiLocale(), { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false });
     return at.toISOString().slice(0, 10) === shift(now).toISOString().slice(0, 10) ? time : `${formatDay(value, zone)} ${time}`;
   } catch {
     return '';

@@ -1,6 +1,7 @@
 /** Event centre (chapter 26): scoped listing, timeline markers, acknowledge and the push socket. */
 import { apiResponse, apiUrl, del, get, post } from './client';
 import { openReconnectingSocket, wsUrl, type SocketEnv } from './reconnecting-socket';
+import { tr } from '../i18n/msg/api-video';
 
 export type EventKind = 'motion' | 'person' | 'vehicle' | 'line' | 'field' | 'offline' | 'tamper' | 'door' | 'io' | 'storage' | 'system' | 'coverage_gap' | 'manual' | 'other';
 
@@ -171,7 +172,7 @@ export const cameraEvents = (cameraId: string, date: string) => get<{ camera_id:
 export const ackEvent = (id: string) => post<VmsEvent>(`events/${id}/ack`);
 export const ackMany = (ids: string[]) => post<{ acked: string[]; skipped: string[] }>('events/ack-many', { event_ids: ids });
 export type WindowGroup = 'camera' | 'all' | 'zone' | 'floor';
-export const WINDOW_GROUP_LABEL: Record<WindowGroup, string> = { camera: 'לפי מצלמה', all: 'כל המצלמות יחד', zone: 'לפי חדר', floor: 'לפי קומה' };
+export const WINDOW_GROUP_LABEL: Record<WindowGroup, string> = { camera: tr('לפי מצלמה'), all: tr('כל המצלמות יחד'), zone: tr('לפי חדר'), floor: tr('לפי קומה') };
 
 export function listWindows(opts: { date?: string; cameraId?: string; gap?: number; limit?: number; by?: WindowGroup; spotlight?: boolean } = {}) {
   const q = new URLSearchParams();
@@ -203,20 +204,20 @@ export async function pollThumbnail(id: string): Promise<'ready' | 'pending' | '
 }
 
 export const EVENT_LABEL: Record<EventKind, string> = {
-  motion: 'תנועה',
-  person: 'אדם',
-  vehicle: 'רכב',
-  line: 'חציית קו',
-  field: 'חדירה לאזור',
-  offline: 'אובדן וידאו',
-  tamper: 'חבלה במצלמה',
-  door: 'דלת',
-  io: 'כניסת חיווי',
-  storage: 'אחסון',
-  system: 'מערכת',
-  coverage_gap: 'פער בקליטת אירועים',
-  manual: 'הקלטה ידנית',
-  other: 'אחר',
+  motion: tr('תנועה'),
+  person: tr('אדם'),
+  vehicle: tr('רכב'),
+  line: tr('חציית קו'),
+  field: tr('חדירה לאזור'),
+  offline: tr('אובדן וידאו'),
+  tamper: tr('חבלה במצלמה'),
+  door: tr('דלת'),
+  io: tr('כניסת חיווי'),
+  storage: tr('אחסון'),
+  system: tr('מערכת'),
+  coverage_gap: tr('פער בקליטת אירועים'),
+  manual: tr('הקלטה ידנית'),
+  other: tr('אחר'),
 };
 
 /** The kinds the timeline setting colours (הגדרות › וידאו ומדיה › צבעי ציר הזמן) are drawn with its custom properties, so the lists, chips and
@@ -272,7 +273,7 @@ export function subscribeEvents(onEvent: (ev: VmsEvent) => void, onState?: (s: I
 
 /** Door–camera–sensor neighbourhood of an event (T053): every link carries its certainty; a command is never proof. */
 export type Certainty = 'measured' | 'inferred' | 'command' | 'availability';
-export const CERTAINTY_LABEL: Record<Certainty, string> = { measured: 'נמדד', inferred: 'נגזר', command: 'פקודה', availability: 'זמינות' };
+export const CERTAINTY_LABEL: Record<Certainty, string> = { measured: tr('נמדד'), inferred: tr('נגזר'), command: tr('פקודה'), availability: tr('זמינות') };
 export interface CorrelationLink {
   kind: 'sensor' | 'command' | 'camera';
   event_id?: string;
@@ -322,7 +323,7 @@ export interface EventFacets {
   notes: string[];
 }
 export const getEventFacets = (days = 90) => get<EventFacets>(`events/facets?days=${days}`);
-export const SOURCE_LABEL: Record<string, string> = { alertstream: 'אירוע NVR', recording: 'נגזר מהקלטה', system: 'מערכת', ha: 'חיישן התקן' };
+export const SOURCE_LABEL: Record<string, string> = { alertstream: tr('אירוע NVR'), recording: tr('נגזר מהקלטה'), system: tr('מערכת'), ha: tr('חיישן התקן') };
 
 /** Suggested next cameras after an event (T064): topology only, always hypothetical, never an action. M064: the
  * floors reached through the published stairs / elevators near the camera rank last, each naming its connector. */

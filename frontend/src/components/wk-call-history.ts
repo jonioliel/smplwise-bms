@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-icon';
@@ -112,7 +113,7 @@ export class WkCallHistory extends LitElement {
   private when(iso: string): string {
     const d = new Date(iso);
     const opts: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false };
-    const lang = document.documentElement.lang || 'he';
+    const lang = uiLocale();
     try {
       return new Intl.DateTimeFormat(lang, this.zone ? { ...opts, timeZone: this.zone } : opts).format(d);
     } catch {

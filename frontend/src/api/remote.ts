@@ -1,6 +1,9 @@
 /** CR-008 P2: the remote sign-ins (SmplWise Arx sessions) - one's own, or everyone's for a system administrator. */
 import { api, get } from './client';
 import { dayMonthTimeText } from './day-format';
+import { tr } from '../i18n/msg/api-core';
+import { uiLocale } from '../i18n/locale';
+import { tr as trTime } from '../i18n/msg/time'; // CR-I18N-DATES-2442
 
 export interface RemoteSession {
   /** A hash of the sign-in (never the cookie value); what the revoke endpoint takes. */
@@ -42,7 +45,7 @@ export const revokeRemoteSession = (id: string) => api<RevokeResult>(`auth/sessi
 export const revokeAllRemoteSessions = (userId?: string) =>
   api<RevokeResult>(`auth/sessions${userId ? `?user_id=${encodeURIComponent(userId)}` : ''}`, { method: 'DELETE' });
 
-const COUNTRY = new Intl.DisplayNames(['he'], { type: 'region' });
+const COUNTRY = new Intl.DisplayNames([uiLocale()], { type: 'region' });
 
 /** "ישראל · 203.0.113.0/24" - the country when the tunnel sent one, the masked address otherwise. */
 export function whereLabel(s: Pick<RemoteSession, 'country' | 'address'>): string {
@@ -54,13 +57,13 @@ export function whereLabel(s: Pick<RemoteSession, 'country' | 'address'>): strin
       country = s.country;
     }
   }
-  return [country, s.address].filter(Boolean).join(' · ') || 'כתובת לא ידועה';
+  return [country, s.address].filter(Boolean).join(' · ') || tr('כתובת לא ידועה');
 }
 
 export function whenLabel(iso: string): string {
   const d = new Date(iso);
   const mins = Math.round((Date.now() - d.getTime()) / 60_000);
-  if (mins < 2) return 'עכשיו';
-  if (mins < 60) return `לפני ${mins} דק׳`;
+  if (mins < 2) return trTime('עכשיו');
+  if (mins < 60) return trTime('לפני {n} דק׳', { n: mins });
   return dayMonthTimeText(d);
 }

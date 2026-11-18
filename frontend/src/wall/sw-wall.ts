@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { keyed } from 'lit/directives/keyed.js';
@@ -1232,7 +1233,7 @@ export class SwWall extends LitElement {
     try {
       return {
         time: timeText(d, { timeZone: zone }),
-        date: new Intl.DateTimeFormat('he-IL', { timeZone: zone, weekday: 'long', day: 'numeric', month: 'long' }).format(d),
+        date: new Intl.DateTimeFormat(uiLocale(), { timeZone: zone, weekday: 'long', day: 'numeric', month: 'long' }).format(d),
       };
     } catch {
       return { time: d.toTimeString().slice(0, 5), date: '' };
@@ -1311,7 +1312,7 @@ export class SwWall extends LitElement {
     const t = new Date(a.last_at);
     let hhmm = '';
     try {
-      hhmm = new Intl.DateTimeFormat('he-IL', { timeZone: this.data?.zone || 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(t);
+      hhmm = new Intl.DateTimeFormat(uiLocale(), { timeZone: this.data?.zone || 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(t);
     } catch {
       hhmm = t.toTimeString().slice(0, 5);
     }

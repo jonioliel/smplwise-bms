@@ -2,6 +2,7 @@
  * CR-INSIGHT215: the pure logic of the insight screens (no DOM, no network) - month arithmetic, durations, the report's figures and
  * "not included" rows, the places tree of the door / waste lists, and the settings form with the server's bounds. Unit-tested.
  */
+import { localeFor } from '../i18n/locale';
 import type { DoorItem, DoorRow, DoorsAnswer, InsightSettings, OmitReason, RangeId, ReportModel, SectionId, WasteAnswer, WasteItem } from '../api/insights';
 import { ix, type IxKey, type IxLang } from '../i18n/insights';
 
@@ -35,7 +36,7 @@ export const canGoNext = (month: string, now: Date, zone?: string): boolean => s
 export function monthLabel(month: string, lang: IxLang = 'he'): string {
   const m = MONTH.exec(month);
   if (!m) return month;
-  return new Intl.DateTimeFormat(lang === 'he' ? 'he-IL' : 'en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, 15)));
+  return new Intl.DateTimeFormat(localeFor(lang), { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, 15)));
 }
 
 // ---------------------------------------------------------------- numbers and durations

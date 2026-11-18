@@ -37,10 +37,11 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsLadderStyles } from '../styles/settings';
 import { PollController } from '../components/poll-controller';
 import { dateInputLang } from '../api/day-format';
+import { tr } from '../i18n/msg/time'; // CR-I18N-DATES-2442: the relative-time and weekday words
 
 type CamLite = { id: string; name: string };
 type FloorLite = { id: string; name: string };
-const DAYS = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
+const DAYS = [tr('א׳'), tr('ב׳'), tr('ג׳'), tr('ד׳'), tr('ה׳'), tr('ו׳'), tr('ש׳')];
 const STRIP_CHIPS: { id: string; label: string }[] = [
   { id: 'clock', label: 'שעון' },
   { id: 'date', label: 'תאריך' },
@@ -294,10 +295,10 @@ export class SystemWall extends LitElement {
   private rel(iso: string | null): string {
     if (!iso) return '—';
     const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-    if (mins < 1) return 'הרגע';
-    if (mins < 60) return `לפני ${mins} דק׳`;
-    if (mins < 1440) return `לפני ${Math.round(mins / 60)} שע׳`;
-    return `לפני ${Math.round(mins / 1440)} ימים`;
+    if (mins < 1) return tr('הרגע');
+    if (mins < 60) return tr('לפני {n} דק׳', { n: mins });
+    if (mins < 1440) return tr('לפני {n} שע׳', { n: Math.round(mins / 60) });
+    return tr('לפני {n} ימים', { n: Math.round(mins / 1440) });
   }
 
   private statusBadge(p: WallProfile) {

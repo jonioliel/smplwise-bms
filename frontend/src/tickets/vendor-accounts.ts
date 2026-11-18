@@ -1,3 +1,4 @@
+import { localeFor } from '../i18n/locale';
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
@@ -276,7 +277,7 @@ export class TicketsVendorAccounts extends LitElement {
   private day(iso: string | null): string {
     if (!iso) return '';
     try {
-      return new Intl.DateTimeFormat(ticketsLang() === 'en' ? 'en-GB' : 'he-IL', { dateStyle: 'short' }).format(new Date(iso));
+      return new Intl.DateTimeFormat(localeFor(ticketsLang()), { dateStyle: 'short' }).format(new Date(iso));
     } catch {
       return iso.slice(0, 10);
     }

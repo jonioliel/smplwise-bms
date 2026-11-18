@@ -2,6 +2,7 @@
 import { apiUrl, get, patch, path, post, query, resourceUrl } from './client';
 import type { CameraEncoding } from './types';
 import type { NavSizeWire } from './me-prefs';
+import { tr } from '../i18n/msg/api-media';
 
 export type Transport = 'auto' | 'webrtc' | 'mse';
 
@@ -320,9 +321,9 @@ export const listStreams = () => get<{ go2rtc: Record<string, unknown>; streams:
 /** The words a stream row shows (an older server without `state`: from `online`). */
 export function streamStateLabel(st: Pick<MediaStream, 'online' | 'state' | 'consumers'>): { state: MediaStreamState; text: string } {
   const state: MediaStreamState = st.state ?? (st.online ? 'active' : 'idle');
-  if (state === 'active') return { state, text: st.consumers ? `פעיל כעת · ${st.consumers} ${st.consumers === 1 ? 'צופה' : 'צופים'}` : 'פעיל כעת' };
-  if (state === 'no_source') return { state, text: 'ללא מקור' };
-  return { state, text: 'מוכן (מתחבר בצפייה)' };
+  if (state === 'active') return { state, text: st.consumers ? tr('פעיל כעת · {consumers} {v}', { consumers: st.consumers, v: st.consumers === 1 ? tr('צופה') : tr('צופים') }) : tr('פעיל כעת') };
+  if (state === 'no_source') return { state, text: tr('ללא מקור') };
+  return { state, text: tr('מוכן (מתחבר בצפייה)') };
 }
 export const listSessions = () => get<{ sessions: { id: string; camera_id: string; stream: string; username: string; seconds: number; bytes_down: number }[]; max_live_sessions: number }>('media/sessions');
 

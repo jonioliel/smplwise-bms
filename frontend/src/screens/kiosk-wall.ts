@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-camera-tile';
@@ -643,7 +644,7 @@ export class KioskWall extends LitElement {
     const d = new Date();
     this.clock = {
       time: timeText(d),
-      date: d.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' }),
+      date: d.toLocaleDateString(uiLocale(), { weekday: 'long', day: 'numeric', month: 'long' }),
     };
     if (Date.now() - this.touchedAt >= IDLE_DIM_MS) this.setAttribute('data-idle', '');
   }
