@@ -46,7 +46,12 @@ test('Q-DES-1 / Q-DES-20: Domus is the default skin on both sides; every other l
   const step = readFileSync(path.resolve(HERE, '../../smplwise_vms/backend/smplwise/services/skin_switch.py'), 'utf8');
   expect(step).toContain('MARKER = "ui.skin.domus_switch"');
   expect(step).toContain('if get_setting(conn, MARKER) is not None:');
-  expect(readFileSync(path.resolve(HERE, '../../smplwise_vms/backend/smplwise/main.py'), 'utf8')).toContain('_skin_switch.run_once(conn)');
+  // RELEASE-2438-TRAIN: the call left main.py with the train merge - it is the AFTER_MIGRATE step `move_classic_skin_once` of
+  // startup_steps.py (CR-MAIN-ROUTERS-TABLE-2440 moved every after-migration step there); main.py runs the list once
+  const steps = readFileSync(path.resolve(HERE, '../../smplwise_vms/backend/smplwise/startup_steps.py'), 'utf8');
+  expect(steps).toContain('_skin_switch.run_once(conn)');
+  expect(steps).toMatch(/AFTER_MIGRATE[^=]*= \(\s*keep_home_interface_defaults,\s*move_classic_skin_once,/);
+  expect(readFileSync(path.resolve(HERE, '../../smplwise_vms/backend/smplwise/main.py'), 'utf8')).toContain('startup_steps.after_migrate(app, settings, applied)');
   // the runtime falls back to the same constant (no second literal)
   expect(flat('design/apply.ts')).toContain("let installation: Installation = { skin: DEFAULT_SKIN, scheme: 'light', motion: 'auto', rail: 'auto', enter: 'on', chip: DEFAULT_CHIP_ON };");
 });
