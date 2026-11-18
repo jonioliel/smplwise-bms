@@ -224,7 +224,7 @@ export class SystemBuildingPresence extends LitElement {
       }
     }
     .muted {
-      color: var(--sw-text-muted);
+      color: var(--sw-text-3);
       font-size: var(--sw-fs-sm);
     }
     .row {

@@ -83,7 +83,7 @@ export class SwBulkPeopleDialog extends LitElement {
       color: var(--sw-text);
     }
     .muted {
-      color: var(--sw-text-muted);
+      color: var(--sw-text-3);
     }
     .line {
       display: flex;
@@ -133,7 +133,7 @@ export class SwBulkPeopleDialog extends LitElement {
       margin-block-start: 4px;
     }
     .diff .k {
-      color: var(--sw-text-muted);
+      color: var(--sw-text-3);
     }
     .actions {
       display: flex;

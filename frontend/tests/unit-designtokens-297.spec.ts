@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { TOKENS, TOKEN_GROUPS } from '../src/design/tokens';
 import {
   BEVEL_SKINS,
@@ -192,5 +192,52 @@ test('break-ui: the skin picker wraps a long name / note inside its card and kee
   for (const id of SKIN_IDS) {
     expect([...SKINS[id].nameHe].length, id).toBeLessThanOrEqual(24);
     expect([...SKINS[id].noteHe].length, id).toBeLessThanOrEqual(90);
+  }
+});
+
+// CR-TOKENS-UNDEFINED-2443 (review 07:F9, owner O18=a): a `var(--sw-*)` with no fallback must name a design token (design/tokens.ts)
+// or a custom property the source itself declares (`--sw-x:` in a component / skin / page stylesheet). An undefined name with no
+// fallback makes the whole declaration invalid at computed-value time: the colour silently falls back to the inherited one, a
+// `border` shorthand draws nothing. A nested `var(--sw-x)` used as the fallback of another var is checked too (a dead fallback
+// that names nothing is noise at best).
+test('every var(--sw-*) without a fallback names a token or a custom property the source declares', () => {
+  const src = resolve(here, '../src');
+  const files: string[] = [];
+  const walk = (dir: string): void => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = resolve(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (/\.(ts|css)$/.test(e.name)) files.push(p);
+    }
+  };
+  walk(src);
+  const text = new Map(files.map((f) => [relative(src, f).replace(/\\/g, '/'), readFileSync(f, 'utf8')]));
+  const declared = new Set(Object.keys(TOKENS));
+  for (const s of text.values()) for (const m of s.matchAll(/(--sw-[a-z0-9-]+)\s*:/g)) declared.add(m[1]);
+  const missing: string[] = [];
+  for (const [f, s] of text) {
+    for (const m of s.matchAll(/var\(\s*(--sw-[a-z0-9-]+)\s*\)/g)) {
+      if (!declared.has(m[1])) missing.push(`${f}:${s.slice(0, m.index).split('\n').length} ${m[1]}`);
+    }
+  }
+  expect(missing, 'var(--sw-*) without a fallback naming nothing').toEqual([]);
+  // the names the review found (07:F9) stay gone: none of them is a token or declared anywhere
+  for (const gone of ['--sw-text-muted', '--sw-line', '--sw-err', '--sw-primary', '--sw-bg-2']) expect(declared.has(gone), gone).toBe(false);
+  // the scan is not vacuous: it walks the whole source tree and sees the fixed references of the screens it guards
+  expect(files.length).toBeGreaterThan(1000);
+  expect(text.get('screens/investigate-search.ts')).toContain('border: 1px solid var(--sw-border);');
+  expect(text.get('components/sw-search-access.ts')).toContain('.hint { color: var(--sw-text-3);');
+});
+
+// CR-TOKENS-UNDEFINED-2443 (row also owns investigate-search's keyboard row, review 06:A11Y-1): the demo match cards open the
+// playback by keyboard as well (role link, tab stop, Enter / Space), like the semantic result rows above them
+test('investigate-search: every clickable result card is a keyboard target', () => {
+  const s = readFileSync(resolve(here, '../src/screens/investigate-search.ts'), 'utf8');
+  const clickable = s.split('\n').filter((l) => /<div class="(row|res)"/.test(l));
+  expect(clickable.length).toBe(2);
+  for (const tag of clickable) {
+    expect(tag).toContain('role="link"');
+    expect(tag).toContain('tabindex="0"');
+    expect(tag).toContain('@keydown=');
   }
 });

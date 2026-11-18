@@ -79,7 +79,7 @@ export class SystemPresence extends LitElement {
       gap: 2px;
     }
     .muted {
-      color: var(--sw-text-muted);
+      color: var(--sw-text-3);
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-regular);
     }

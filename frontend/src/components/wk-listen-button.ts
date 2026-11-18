@@ -86,7 +86,7 @@ export class WkListenButton extends LitElement {
     }
     .msg {
       font-size: var(--sw-fs-sm);
-      color: var(--sw-text-muted);
+      color: var(--sw-text-3);
     }
     .msg.problem {
       color: var(--sw-warn, var(--sw-text));

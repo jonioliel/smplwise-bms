@@ -41,7 +41,7 @@ export const installerStyles = css`
   }
   ${settingsFieldInvalidStyles}
   .field-error {
-    color: var(--sw-danger-text, var(--sw-err));
+    color: var(--sw-danger-text);
     font-size: var(--sw-fs-sm);
   }
   ${mutedStyles}

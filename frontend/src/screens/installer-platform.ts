@@ -153,7 +153,7 @@ export class InstallerPlatform extends LitElement {
         background: var(--sw-warn, var(--sw-accent));
       }
       .bar[data-alert='at_limit'] span {
-        background: var(--sw-danger, var(--sw-err));
+        background: var(--sw-danger);
       }
     `,
   ];

@@ -131,7 +131,7 @@ export class WkDoorTech extends LitElement {
       padding: 3px;
       margin-block-end: var(--sw-s-3);
       border-radius: var(--sw-r-pill);
-      background: var(--sw-surface-2, var(--sw-bg-2));
+      background: var(--sw-surface-2);
       overflow-x: auto;
       scrollbar-width: none;
     }
