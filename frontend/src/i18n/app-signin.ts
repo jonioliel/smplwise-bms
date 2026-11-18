@@ -3,6 +3,7 @@
  * the document language (a missing key falls back to the Hebrew). `{x}` placeholders are filled by `ast(key, { x })`. No platform names.
  */
 import { docLang, fill, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   title: 'כניסה מהאפליקציה לנייד',
   sub: 'למנהל מערכת. ההפעלה רק מתוך הרשת המקומית; הכיבוי אפשרי מכל מקום ומנתק מיד.',
@@ -28,18 +29,7 @@ const he = {
 };
 type Key = keyof typeof he;
 
-const en: Partial<Record<Key, string>> = {
-  title: 'Sign-in from the phone app',
-  sub: 'For a system administrator. Switching on works from the local network only; switching off works anywhere and disconnects at once.',
-  refresh: 'Saved sign-in in the app', refreshHint: 'The app stays signed in without a password every time it opens. Switching it off ends the saved sign-in on every phone at once.',
-  exchange: 'App screen sign-in', exchangeHint: 'The app screen opens signed in with a one-time code, without asking for a password. Needs the saved sign-in on.',
-  off: 'Off', on: 'On', localOnly: 'Switching on is done from the local network only', needsRefresh: 'Switch the saved sign-in on first',
-  accessTooLong: 'While the app screen sign-in is on, the access token lasts at most {max} minutes (now {n}). Shorten it first.',
-  save: 'Save', saved: 'Settings saved', savedEnded: 'Settings saved · {n} saved sign-ins ended', confirmTitle: 'Save and disconnect?',
-  confirmRefresh: 'The saved sign-in on every phone ends now. Every user will be asked to sign in again in the app.',
-  confirmExchange: 'The app screens opened by this sign-in are disconnected now.', confirmGo: 'Save and disconnect', cancel: 'Cancel',
-  loadError: 'The phone app sign-in settings could not be loaded', demo: 'Demo data: the settings are saved against a server only.',
-};
+const en: Partial<Record<Key, string>> = packTable<typeof import('./lang/en/i18n/app-signin').en>('en', 'i18n/app-signin', 'en');
 
 export type AstKey = Key;
 const TABLES: Record<'he' | 'en', Partial<Record<Key, string>>> = { he, en };

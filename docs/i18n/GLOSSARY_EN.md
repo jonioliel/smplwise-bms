@@ -5,6 +5,11 @@ operator term is translated except "NVR"; Q-DES-10 (c) - "Home Assistant" may st
 word list for every English catalogue (`src/i18n/*`, `src/tickets/*-text.ts`, `src/water/i18n.ts` and the source-text tables of
 `src/i18n/msg/*`). A new term is added here in the same commit that first uses it.
 
+Where the English texts are written (CR-I18N-LAZY-LANG-2443): in the English language pack, `src/i18n/lang/en/<module path>.ts`
+(for example `src/i18n/lang/en/i18n/elevators.ts`, `src/i18n/lang/en/i18n/msg/home.ts`), fetched only when the page is in
+English. The module reads it through `packTable(...)`. A table written inline in a module by mistake is moved there by
+`node scripts/i18n-split-langs.mjs` (from `frontend/`), which also regenerates the pack index `src/i18n/lang/en.ts`.
+
 ## Style
 
 - Natural product English, not a word-for-word rendering of the Hebrew. Short labels, plain sentences, no jargon an operator

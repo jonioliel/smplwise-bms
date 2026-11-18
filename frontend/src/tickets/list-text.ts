@@ -10,6 +10,7 @@
  */
 import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 import { registerCatalogue } from '../i18n/core';
+import { packTable } from '../i18n/lang-packs';
 
 const he = {
   // ---- the page frame
@@ -96,75 +97,7 @@ const he = {
 
 export type ListTextKey = keyof typeof he;
 
-const en: Partial<Record<ListTextKey, string>> = {
-  lsScopeGroup: 'List scope',
-  lsStateGroup: 'Filter by state',
-  lsSearchLong: 'Search by number, title or device',
-  lsViewsGroup: 'List view',
-  lsView_cards: 'Cards',
-  lsView_table: 'Table',
-  lsView_board: 'Manager board',
-  lsView_calendar: 'Weekly calendar',
-  lfBtn: 'Filter',
-  lfBtnCount: 'Filter · {n}',
-  lfGroup: 'Filter {tickets}',
-  lfPriority: 'Priority',
-  lfHandler: 'Handler',
-  lfAnyHandler: 'Everyone',
-  lfNoHandler: 'No handler',
-  lfStuck: 'Stuck',
-  lfWaiting: 'Waiting for me',
-  lfCost: 'Cost to approve',
-  lfClear: 'Clear',
-  tbPanel: 'Filter {tickets}',
-  tbState: 'State',
-  tbDept: 'Department',
-  tbPlace: 'Place',
-  tbChips: 'Active filters',
-  tbChipState: 'State: {name}',
-  tbRemove: 'Remove the filter {name}',
-  tbReset: 'Reset',
-  tbResetLabel: 'Reset all filters',
-  tbClose: 'Close',
-  tbTree: 'Floors tree',
-  tbFlags: 'Needs attention',
-  lfShown: 'Showing {n} of {m}',
-  lfNoMatch: 'No {tickets} match the filter',
-  lcCostMine: 'To approve',
-  lcStuck: 'Stuck',
-  lcNoHandler: 'No handler',
-  lcWhoVendor: 'Outside handler: {name}',
-  lcWhoStaff: 'Handler: {name}',
-  lcWhoOwner: 'Owner: {name}',
-  lcSentence: 'Status: {text}',
-  ltSentence: 'What is happening',
-  setTableMid: 'In a medium-width table show',
-  setTableMidSub: 'At about 1440 px there is no room for both the "What is happening" sentence column and the department column. The other column stays in the column chooser, and the viewer own choice wins.',
-  tmSentence: 'Sentence',
-  tmDepartment: 'Department',
-  bdTodayGroup: 'What is happening today',
-  bdToday: 'Today',
-  bdVisit: 'Visit',
-  bdSla: 'Response target',
-  bdWaitingMine: 'Waiting for your approval: {n}',
-  bdWaitingMineOne: 'Waiting for your approval: 1',
-  bdHandlingBy: '{n} in progress · oldest {age}',
-  bdLoad: 'Load',
-  bdLoadLabel: 'Load: {n} {tickets} in progress',
-  bdClosedRows: 'Closed lately',
-  bdOpenRow: 'Open {the_ticket} {n}',
-  elLessMinute: 'Under a minute',
-  elMin: '{m} min',
-  elHour: '{h} h',
-  elHourMin: '{h} h {m} min',
-  elDayOne: '1 day',
-  elDays: '{d} days',
-  elOpen: 'Open {dur}',
-  elHandled: 'Handled in {dur}',
-  elCancelled: 'Cancelled after {dur}',
-  elOldest: 'Oldest open {dur}',
-  elTitle: 'Time since the {ticket} was opened',
-};
+const en: Partial<Record<ListTextKey, string>> = packTable<typeof import('../i18n/lang/en/tickets/list-text').en>('en', 'tickets/list-text', 'en');
 
 /** The raw template of a key (the unit tests read it). */
 const catalogue = makeCatalogue<ListTextKey>(he, en);

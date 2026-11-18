@@ -9,6 +9,7 @@
  */
 import { tn, type TicketLang } from './naming';
 import { ticketsLang } from '../i18n/nav-labels';
+import { packTable } from '../i18n/lang-packs';
 
 export type NavRfqKey = 'navTitle' | 'navQuestionsAria';
 
@@ -17,10 +18,7 @@ export const NAV_RFQ_HE: Readonly<Record<NavRfqKey, string>> = {
   navQuestionsAria: '{n} שאלות של ספקים ממתינות',
 };
 
-export const NAV_RFQ_EN: Readonly<Record<NavRfqKey, string>> = {
-  navTitle: 'Requests for quotation',
-  navQuestionsAria: '{n} vendor questions waiting',
-};
+export const NAV_RFQ_EN: Readonly<Record<NavRfqKey, string>> = packTable<typeof import('../i18n/lang/en/tickets/nav-text').NAV_RFQ_EN>('en', 'tickets/nav-text', 'NAV_RFQ_EN');
 
 /** One of the two shell words, rendered exactly as rfq-text's `rt()` renders it: the document's language, the module's names, `{var}`s. */
 export function nt(key: NavRfqKey, vars?: Record<string, string | number>): string {

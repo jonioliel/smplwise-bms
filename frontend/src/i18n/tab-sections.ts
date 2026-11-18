@@ -6,6 +6,7 @@
  */
 import { docLang, fill, registerCatalogue } from './core';
 import { NAV_TST } from './nav-labels'; // CR-NAV-LABELS-2436: the shell's labels live there
+import { packTable, withEntries } from './lang-packs';
 
 const he = {
   areasLabel: NAV_TST.he.areasLabel,
@@ -52,7 +53,7 @@ const he = {
 
 type Key = keyof typeof he;
 
-const en: Record<Key, string> = {
+const en: Record<Key, string> = withEntries(packTable<typeof import('./lang/en/i18n/tab-sections').en>('en', 'i18n/tab-sections', 'en'), {
   areasLabel: NAV_TST.en.areasLabel,
   areasWhere: NAV_TST.en.areasWhere,
   devicesLabel: NAV_TST.en.devicesLabel,
@@ -82,21 +83,14 @@ const en: Record<Key, string> = {
   ticketsSectionWhere: NAV_TST.en.ticketsSectionWhere,
   ticketsScopesLabel: NAV_TST.en.ticketsScopesLabel,
   ticketsScopesWhere: NAV_TST.en.ticketsScopesWhere,
-  ticketsSingleRowLabel: 'The sections row for a user who sees one section',
-  ticketsSingleRowHint: 'The page row of the section shows either way',
-  ticketsSingleRowHide: 'Hide (default)',
-  ticketsSingleRowShow: 'Always show',
   systemLabel: NAV_TST.en.systemLabel,
   systemWhere: NAV_TST.en.systemWhere,
   systemSecurityLabel: NAV_TST.en.systemSecurityLabel,
   systemSecurityWhere: NAV_TST.en.systemSecurityWhere,
-  noteOffered: 'A tab shows only once the system has items of its kind; until then it keeps the place set for it.',
-  level1Hint: 'The first bar of every area',
-  level2Hint: 'The live, investigation and infrastructure pages, and security in settings',
-};
+});
 
 // initial translation - needs a native review (dev-marked)
-const ar: Record<Key, string> = {
+const ar: Record<Key, string> = withEntries(packTable<typeof import('./lang/ar/i18n/tab-sections').ar>('ar', 'i18n/tab-sections', 'ar'), {
   areasLabel: NAV_TST.ar.areasLabel,
   areasWhere: NAV_TST.ar.areasWhere,
   devicesLabel: NAV_TST.ar.devicesLabel,
@@ -126,21 +120,14 @@ const ar: Record<Key, string> = {
   ticketsSectionWhere: NAV_TST.ar.ticketsSectionWhere,
   ticketsScopesLabel: NAV_TST.ar.ticketsScopesLabel,
   ticketsScopesWhere: NAV_TST.ar.ticketsScopesWhere,
-  ticketsSingleRowLabel: 'صف الأقسام لمن يرى قسمًا واحدًا',
-  ticketsSingleRowHint: 'صف صفحات القسم يظهر في كل الأحوال',
-  ticketsSingleRowHide: 'إخفاء (افتراضي)',
-  ticketsSingleRowShow: 'إظهار دائمًا',
   systemLabel: NAV_TST.ar.systemLabel,
   systemWhere: NAV_TST.ar.systemWhere,
   systemSecurityLabel: NAV_TST.ar.systemSecurityLabel,
   systemSecurityWhere: NAV_TST.ar.systemSecurityWhere,
-  noteOffered: 'تظهر علامة التبويب فقط عندما توجد في النظام عناصر من نوعها؛ وحتى ذلك الحين تحتفظ بالمكان المحدد لها.',
-  level1Hint: 'الشريط الأول في كل منطقة',
-  level2Hint: 'صفحات البث المباشر والتحقيق والبنية التحتية، والأمن في الإعدادات',
-};
+});
 
 // initial translation - needs a native review (dev-marked)
-const ru: Record<Key, string> = {
+const ru: Record<Key, string> = withEntries(packTable<typeof import('./lang/ru/i18n/tab-sections').ru>('ru', 'i18n/tab-sections', 'ru'), {
   areasLabel: NAV_TST.ru.areasLabel,
   areasWhere: NAV_TST.ru.areasWhere,
   devicesLabel: NAV_TST.ru.devicesLabel,
@@ -170,18 +157,11 @@ const ru: Record<Key, string> = {
   ticketsSectionWhere: NAV_TST.ru.ticketsSectionWhere,
   ticketsScopesLabel: NAV_TST.ru.ticketsScopesLabel,
   ticketsScopesWhere: NAV_TST.ru.ticketsScopesWhere,
-  ticketsSingleRowLabel: 'Строка разделов для пользователя с одним разделом',
-  ticketsSingleRowHint: 'Строка страниц раздела показывается в любом случае',
-  ticketsSingleRowHide: 'Скрывать (по умолчанию)',
-  ticketsSingleRowShow: 'Показывать всегда',
   systemLabel: NAV_TST.ru.systemLabel,
   systemWhere: NAV_TST.ru.systemWhere,
   systemSecurityLabel: NAV_TST.ru.systemSecurityLabel,
   systemSecurityWhere: NAV_TST.ru.systemSecurityWhere,
-  noteOffered: 'Вкладка показывается, только когда в системе есть элементы её типа; до тех пор она сохраняет заданное ей место.',
-  level1Hint: 'Первая панель каждого раздела',
-  level2Hint: 'Страницы прямого эфира, расследования и инфраструктуры, а также безопасность в настройках',
-};
+});
 
 export type TstKey = Key;
 export type TstLang = 'he' | 'en' | 'ar' | 'ru';

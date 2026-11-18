@@ -4,6 +4,7 @@
  * error code, address or device path on the face.
  */
 import { docLang, fill, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   section: 'מקור וידאו',
   fromNvr: 'מהמקליט',
@@ -64,63 +65,7 @@ const he = {
 
 type Key = keyof typeof he;
 
-const en: Record<Key, string> = {
-  section: 'Video source',
-  fromNvr: 'From the recorder',
-  manual: 'Manual address',
-  fromNvrLead: 'Video and snapshots come from the recorder, as today.',
-  manualLead: 'Video and snapshots come straight from the camera, from the addresses below.',
-  current: 'Current source: {mode}',
-  change: 'Change source…',
-  dialogTitle: 'Video source',
-  dialogSub: '{name}',
-  mainUrl: 'RTSP address — main stream',
-  subUrl: 'RTSP address — sub stream',
-  urlHint: 'If only one address is filled, it serves both streams.',
-  passwordKept: 'The password is stored and shown as ***. To replace it, type the full address.',
-  test: 'Test stream',
-  testing: 'Testing…',
-  testOk: 'Stream OK · {res}{codec}',
-  testEncourage: 'Testing the stream before saving is recommended.',
-  save: 'Save',
-  saving: 'Saving…',
-  cancel: 'Cancel',
-  saved: 'Video source saved.',
-  urlBad: 'The address must start with rtsp:// or rtsps://',
-  urlRequired: 'Enter at least one address.',
-  healthOk: 'The source works',
-  healthFailing: 'The manual source is not working right now. The camera stays on it; check the address or the camera.',
-  healthUnknown: 'The source has not been checked yet',
-  standaloneNote: 'Camera without a recorder: live video and snapshots only.',
-  noRecording: 'A camera without a recorder has no recordings, recorder events or restart through a recorder.',
-  noRecorder: 'No recorder',
-  addTitle: 'Add a camera without a recorder',
-  addButton: 'Add camera without a recorder',
-  addLead: 'A camera that is not connected to a recorder: live video and snapshots straight from it. No recordings.',
-  name: 'Camera name',
-  area: 'Area',
-  noArea: 'No area',
-  add: 'Add',
-  added: 'Camera added.',
-  listTitle: 'Cameras without a recorder',
-  listEmpty: 'No cameras without a recorder.',
-  remove: 'Remove',
-  removeConfirm: 'Remove "{name}"? The camera leaves every screen. Nothing of it is recorded.',
-  removed: 'Camera removed.',
-  edit: 'Source',
-  view: 'View',
-  offline: 'The manual source of the camera is not answering.',
-  errStale: 'The settings changed meanwhile. Close and open again.',
-  errPasswordReenter: 'The address changed: type the password again.',
-  errNotAllowed: 'This address is not allowed as a video source.',
-  errNotSupported: 'The address is not a supported RTSP address (rtsp:// or rtsps://).',
-  errMedia: 'The video service is not configured, so the stream cannot be tested.',
-  errRate: 'Too many tests in a row. Try again in a minute.',
-  errForbidden: 'You are not allowed to change video sources.',
-  errLimit: 'The maximum number of cameras without a recorder is reached.',
-  errName: 'Enter a name for the camera.',
-  errGeneric: 'The action failed. Try again.',
-};
+const en: Record<Key, string> = packTable<typeof import('./lang/en/i18n/camera-sources').en>('en', 'i18n/camera-sources', 'en');
 
 export type CsKey = Key;
 export type CsLang = 'he' | 'en';

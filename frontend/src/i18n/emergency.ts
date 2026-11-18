@@ -3,6 +3,7 @@
  * language; Arabic and Russian fall back to the Hebrew. Operator screens never name the home platform.
  */
 import { docLang, fill, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   tab: 'מוכנות לחירום',
   title: 'מוכנות לחירום',
@@ -77,79 +78,7 @@ const he = {
   setModuleHint: 'לשונית תצוגה בלבד בתחזוקה ובקרה, מחושבת מנתונים קיימים. כבויה כברירת מחדל ודורשת את מודול התחזוקה.',
 } as const;
 
-const en: Record<keyof typeof he, string> = {
-  tab: 'Emergency readiness',
-  title: 'Emergency readiness',
-  sub: 'Is the building ready for an emergency right now',
-  verdict_ready: 'Ready',
-  verdict_ready_with_gaps: 'Ready with gaps',
-  verdict_not_ready: 'Not ready',
-  checkedAt: 'Checked at {t}',
-  print: 'Print',
-  critical: 'Critical',
-  kpiAll: 'All',
-  kpiRed: 'Not OK',
-  kpiAmber: 'Needs attention',
-  kpiUnknown: 'Unknown',
-  kpiNa: 'Not applicable',
-  filterLabel: 'Filter by status',
-  st_green: 'OK',
-  st_amber: 'Attention',
-  st_red: 'Not OK',
-  st_unknown: 'Unknown',
-  st_not_applicable: 'Not applicable',
-  st_hidden: 'Hidden',
-  grp_power: 'Power',
-  grp_fire: 'Fire safety and inspections',
-  grp_elevators: 'Elevators',
-  grp_doors: 'Doors',
-  grp_people: 'People',
-  grp_records: 'Delivery and records',
-  grp_cameras: 'Cameras and recording',
-  fix: 'Fix',
-  age: 'Data age: {n}',
-  ageMin: '{n} min',
-  ageHour: '{n} h',
-  ageDay: '{n} days',
-  naBy: 'Confirmed by {by} on {at}',
-  empty: 'No items in this state',
-  offTitle: 'The module is off',
-  offBody: 'Emergency readiness is turned on in the system settings.',
-  forbiddenTitle: 'This screen is not available to you',
-  errTitle: 'Emergency readiness could not be loaded',
-  errHint: 'Something went wrong. Try again.',
-  retry: 'Try again',
-  loading: 'Loading',
-  hidden: 'Items you may not see: {n}',
-  printNote: 'This page reflects data collected by the system and is not a regulatory compliance approval.',
-  signed: 'Checked by ____________',
-  banner_fire_service: 'Fire service is active - an event is in progress',
-  banner_door_incident: 'An emergency incident is open on the doors',
-  banner_on_load: 'The generator is carrying the load right now',
-  setModule: 'Emergency readiness',
-  viewList: 'Checklist',
-  viewContacts: 'Emergency contacts',
-  viewSettings: 'Settings',
-  viewHistory: 'History',
-  hRange: 'Range', hDays: '{n} days', hEmpty: 'No history points in this range yet', hSummary: '{n} points · the worst of each period', hNow: 'Now', hFirst: 'First',
-  cName: 'Name', cRole: 'Role', cPhone: 'Phone', cEmail: 'E-mail', cPriority: 'Order', cVerified: 'Verified', cNever: 'Not verified',
-  cAdd: 'Add a contact', cSave: 'Save', cCancel: 'Cancel', cVerify: 'Verify route', cDelete: 'Delete', cEdit: 'Edit', cInactive: 'Inactive',
-  cDeleteConfirm: 'Deleting also erases the personal details. Continue?',
-  cEmpty: 'No contacts yet',
-  cCountOnly: 'The list has {n} contacts. Details are visible to managers only.',
-  cPrivacy: 'Contact details are kept for emergencies only and are visible to managers only.',
-  cRoute: 'A phone or an e-mail is required',
-  sSlots: 'Ledger tasks bound to the checks',
-  sBind: 'Bind', sUnbind: 'Unbind', sPick: 'Pick a task', sNoSuggest: 'No matching task in the ledger', sNoneBound: 'No task bound',
-  slot_fire_certificate: 'Fire-safety certificate', slot_extinguishers: 'Extinguishers', slot_hydrants_sprinklers: 'Hydrants and sprinklers', slot_emergency_lighting: 'Emergency lighting',
-  slot_evacuation_round: 'Evacuation round', slot_elevator_inspection: 'Elevator inspection',
-  sThresholds: 'Thresholds', sReset: 'Default', sDefault: 'Default: {v}',
-  sCameras: 'Emergency cameras', sCamerasHint: 'A marked camera that is offline makes the camera check critical and red.',
-  sNa: 'Not applicable to the building', sNaNote: 'Note (for example: no generator in the building)', sNaSet: 'Mark', sNaClear: 'Clear mark',
-  sSaved: 'Saved', sConflict: 'The settings changed meanwhile and were reloaded', sHistory: 'Readiness history is kept for {n} days',
-  files: 'Approval files',
-  setModuleHint: 'A read-only tab in maintenance, computed from existing data. Off by default and needs the maintenance module.',
-};
+const en: Record<keyof typeof he, string> = packTable<typeof import('./lang/en/i18n/emergency').en>('en', 'i18n/emergency', 'en');
 
 export type EmKey = keyof typeof he;
 export const EM_KEYS = Object.keys(he) as EmKey[];
@@ -165,22 +94,10 @@ export function em(key: EmKey, vars?: Record<string, string | number>, lang: 'he
 }
 
 /** Item titles are Hebrew from the server; English titles by id (the page and the print follow the document language). */
-export const EN_TITLES: Record<string, string> = {
-  E01: 'Last generator test', E02: 'Generator fuel and state', E02b: 'Mains or generator (information)', E03: 'Fire-safety certificate', E04: 'Fire extinguishers checked',
-  E05: 'Hydrants and sprinklers', E06: 'Emergency lighting and exit signs', E07: 'Evacuation round', E08: 'Open fire-safety requests', E09: 'Elevator inspections (fire service)',
-  E10: 'Elevator monitoring', E11: 'Door emergency controls', E12: 'Door faults and open emergency incident', E13: 'Emergency contacts', E14: 'Service suppliers',
-  E15: 'Notification delivery', E16: 'Backup', E17: 'Recorders and recording', E18: 'Cameras online', E19: 'Clock and timestamps',
-};
+export const EN_TITLES: Record<string, string> = packTable<typeof import('./lang/en/i18n/emergency').EN_TITLES>('en', 'i18n/emergency', 'EN_TITLES');
 
 /** English sentence for an item `code` (the server sends Hebrew in `summary`); the Hebrew page shows `summary` as is. */
-export const EN_SUMMARY: Record<string, string> = {
-  no_generator: 'No generator detected', generator_test: 'Generator test status', generator_state: 'Generator fuel and state', on_load: 'The generator is carrying the load',
-  on_mains: 'The building is on the mains', unbound: 'No ledger task is bound to this item', ledger_off: 'The certificates ledger is off', evacuation: 'Evacuation round status',
-  doors_off: 'Door emergency control is off', door_faults: 'Door faults and open emergency incidents', doors_ready: 'Door emergency controls', contacts: 'Emergency contact list',
-  suppliers: 'Service suppliers', deliveries: 'Notification delivery', backup: 'Backup status', recorders: 'Recorder status', cameras: 'Cameras online', clock: 'Recorder clocks',
-  elevator_inspection: 'Elevator inspections', elevator_live: 'Elevator monitoring', tickets: 'Open fire-safety requests', none_open: 'No open fire-safety requests',
-  tickets_off: 'The requests module is off', source_error: 'The source could not be verified', no_data: 'No data',
-};
+export const EN_SUMMARY: Record<string, string> = packTable<typeof import('./lang/en/i18n/emergency').EN_SUMMARY>('en', 'i18n/emergency', 'EN_SUMMARY');
 
 /** Labels of the editable thresholds (key = backend `THRESHOLDS`). */
 export const TH_LABEL: Record<string, { he: string; en: string; unit: string }> = {

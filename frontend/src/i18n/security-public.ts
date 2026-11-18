@@ -5,6 +5,7 @@
  * need a native review (dev-marked). The home platform is never named.
  */
 import { docLang, fill, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   // the settings page
   tab: 'ממשק ציבורי',
@@ -45,118 +46,13 @@ const he = {
 };
 type Key = keyof typeof he;
 
-const en: Record<Key, string> = {
-  tab: 'Public interface',
-  title: 'Public interface',
-  secPending: 'Technicians added by vendors',
-  retention: 'Delete automatically after (days)',
-  cap: 'Most pending per vendor',
-  zeroOff: '0 = off',
-  secPortal: 'Vendor portal',
-  startWorker: 'Process sign-in requests in a separate queue',
-  secAccess: 'Access control',
-  uniform404: 'Uniform answer for a malformed person record',
-  save: 'Save',
-  saved: 'Saved',
-  saveFailed: 'Saving failed',
-  invalidRetention: 'A value from 7 to 365, or 0',
-  invalidCap: 'A value from 0 to 100',
-  loadFailed: 'Loading failed',
-  retry: 'Try again',
-  pendTitle: 'Technicians waiting for approval',
-  pendTicket: 'Request {n}',
-  pendDays: 'Waiting {n} days',
-  pendToday: 'Waiting since today',
-  pendLeft: 'Deleted in {n} days',
-  pendLeftToday: 'Deleted today',
-  pendNoAuto: 'No automatic deletion',
-  approve: 'Approve',
-  reject: 'Reject and delete',
-  approveQ: 'Approve {name}?',
-  approveText: 'The technician is approved. An entry code is sent only after his number is confirmed and access is approved.',
-  rejectQ: 'Reject and delete {name}?',
-  rejectText: 'The name and phone number are deleted and his request ends.',
-  approveDone: 'Technician approved',
-  rejectDone: 'Technician rejected and deleted',
-  failed: 'The action failed',
-  cancel: 'Cancel',
-};
+const en: Record<Key, string> = packTable<typeof import('./lang/en/i18n/security-public').en>('en', 'i18n/security-public', 'en');
 
 // initial translation - needs a native review (dev-marked)
-const ar: Record<Key, string> = {
-  tab: 'الواجهة العامة',
-  title: 'الواجهة العامة',
-  secPending: 'فنيون أضافهم الموردون',
-  retention: 'الحذف التلقائي بعد (أيام)',
-  cap: 'الحد الأقصى للمنتظرين لكل مورد',
-  zeroOff: '0 = متوقف',
-  secPortal: 'بوابة الموردين',
-  startWorker: 'معالجة طلبات الدخول في طابور منفصل',
-  secAccess: 'التحكم في الدخول',
-  uniform404: 'رد موحد لسجل شخص تالف',
-  save: 'حفظ',
-  saved: 'تم الحفظ',
-  saveFailed: 'فشل الحفظ',
-  invalidRetention: 'قيمة من 7 إلى 365، أو 0',
-  invalidCap: 'قيمة من 0 إلى 100',
-  loadFailed: 'فشل التحميل',
-  retry: 'حاول مرة أخرى',
-  pendTitle: 'فنيون بانتظار الموافقة',
-  pendTicket: 'طلب {n}',
-  pendDays: 'بالانتظار منذ {n} أيام',
-  pendToday: 'بالانتظار منذ اليوم',
-  pendLeft: 'سيُحذف بعد {n} أيام',
-  pendLeftToday: 'سيُحذف اليوم',
-  pendNoAuto: 'بدون حذف تلقائي',
-  approve: 'موافقة',
-  reject: 'رفض وحذف',
-  approveQ: 'الموافقة على {name}؟',
-  approveText: 'تتم الموافقة على الفني. يُرسل رمز الدخول فقط بعد تأكيد رقمه والموافقة على الدخول.',
-  rejectQ: 'رفض وحذف {name}؟',
-  rejectText: 'يُحذف الاسم ورقم الهاتف وينتهي طلبه.',
-  approveDone: 'تمت الموافقة على الفني',
-  rejectDone: 'تم رفض الفني وحذفه',
-  failed: 'فشل الإجراء',
-  cancel: 'إلغاء',
-};
+const ar: Record<Key, string> = packTable<typeof import('./lang/ar/i18n/security-public').ar>('ar', 'i18n/security-public', 'ar');
 
 // initial translation - needs a native review (dev-marked)
-const ru: Record<Key, string> = {
-  tab: 'Публичный интерфейс',
-  title: 'Публичный интерфейс',
-  secPending: 'Техники, добавленные поставщиками',
-  retention: 'Автоудаление через (дней)',
-  cap: 'Максимум ожидающих на поставщика',
-  zeroOff: '0 = выкл.',
-  secPortal: 'Портал поставщиков',
-  startWorker: 'Обрабатывать запросы входа в отдельной очереди',
-  secAccess: 'Контроль доступа',
-  uniform404: 'Единый ответ для повреждённой записи человека',
-  save: 'Сохранить',
-  saved: 'Сохранено',
-  saveFailed: 'Не удалось сохранить',
-  invalidRetention: 'Значение от 7 до 365 или 0',
-  invalidCap: 'Значение от 0 до 100',
-  loadFailed: 'Не удалось загрузить',
-  retry: 'Повторить',
-  pendTitle: 'Техники ждут подтверждения',
-  pendTicket: 'Заявка {n}',
-  pendDays: 'Ожидает {n} дн.',
-  pendToday: 'Ожидает с сегодняшнего дня',
-  pendLeft: 'Удаление через {n} дн.',
-  pendLeftToday: 'Удаление сегодня',
-  pendNoAuto: 'Без автоудаления',
-  approve: 'Подтвердить',
-  reject: 'Отклонить и удалить',
-  approveQ: 'Подтвердить {name}?',
-  approveText: 'Техник подтверждён. Код входа отправляется только после подтверждения его номера и одобрения доступа.',
-  rejectQ: 'Отклонить и удалить {name}?',
-  rejectText: 'Имя и номер телефона удаляются, его заявка закрывается.',
-  approveDone: 'Техник подтверждён',
-  rejectDone: 'Техник отклонён и удалён',
-  failed: 'Действие не выполнено',
-  cancel: 'Отмена',
-};
+const ru: Record<Key, string> = packTable<typeof import('./lang/ru/i18n/security-public').ru>('ru', 'i18n/security-public', 'ru');
 
 export type SpKey = Key;
 export type SpLang = 'he' | 'en' | 'ar' | 'ru';

@@ -4,6 +4,7 @@
  * falls back to the Hebrew. `{n}` style placeholders are filled by `glt(key, vars)`. Operator words only: the home platform is never named.
  */
 import { docLang, fill, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   page: 'יומן הפעלות',
   title: 'יומן הפעלות הגנרטור',
@@ -80,110 +81,13 @@ const he = {
 
 type Key = keyof typeof he;
 
-const en: Partial<Record<Key, string>> = {
-  page: 'Run log',
-  title: 'Generator run log',
-  sub: 'Every engine run, derived from the controller readings. View only.',
-  r7d: '7 days',
-  r30d: '30 days',
-  r90d: '90 days',
-  r365d: 'Year',
-  kindAll: 'All kinds',
-  kind_test: 'Test',
-  kind_mains_failure: 'Mains failure',
-  kind_manual: 'Manual',
-  kind_other: 'Other',
-  kpiRuns: 'Runs',
-  kpiHours: 'Run hours',
-  kpiFuel: 'Fuel used',
-  kpiRefills: 'Refills',
-  kpiLastTest: 'Last test',
-  kpiCounter: 'Controller hour meter',
-  byKind: '{t} tests · {m} mains failures · {o} other',
-  noTest: 'No test recorded',
-  testOverdue: 'Test overdue',
-  testDue: 'Next by {t}',
-  runningNow: 'The generator is running now · {kind} · {d}',
-  colStart: 'Start',
-  colKind: 'Kind',
-  colDur: 'Duration',
-  colHours: 'Hours',
-  colFuel: 'Fuel',
-  colLoad: 'Load',
-  colEnd: 'End',
-  open: 'Running',
-  noLoad: 'No load',
-  loadPeak: 'Peak {n}%',
-  loaded: 'On load',
-  short: 'Short test',
-  noData: 'Closed without data',
-  empty: 'No runs in this range',
-  emptyBody: 'The log fills itself as soon as the generator runs.',
-  page_of: 'Page {p} of {n}',
-  prev: 'Previous',
-  next: 'Next',
-  fuelTitle: 'Fuel events',
-  fuelRefill: 'Refill {a}% → {b}%',
-  fuelDrop: 'Drop at rest {a}% → {b}%',
-  fuelNone: 'No fuel events in this range',
-  min: 'min',
-  h: 'h',
-  why_mode_test: 'Controller in test mode',
-  why_start_reason: 'From the controller start reason',
-  why_mains_lost: 'Mains lost',
-  why_mode_manual: 'Controller in manual mode',
-  why_unloaded: 'Unloaded run with the mains present',
-  why_none: 'No identifying signal',
-  loadError: 'The run log could not be loaded',
-  off: 'The run log is off',
-  setSub: 'Run log',
-  setIntro: 'The run log is derived from the controller readings and never sends anything to the controller. Every threshold and window is here.',
-  setEnabled: 'Show the run log on the generator screen',
-  set_min_run_s: 'A run shorter than this is not logged (seconds)',
-  set_mains_lookback_s: 'Mains lost this long before the start = mains failure (seconds)',
-  set_test_min_minutes: 'A test shorter than this is marked "short test" (minutes)',
-  set_test_max_minutes: 'An unloaded run longer than this is not a test (minutes)',
-  set_classify_unloaded_as_test: 'An unloaded run with the mains present counts as a test',
-  set_test_interval_days: 'Expected test interval (days, 0 = not tracked)',
-  set_no_data_close_min: 'A run without readings closes after (minutes)',
-  set_refill_min_pct: 'A level rise that counts as a refill (%)',
-  set_refill_settle_min: 'A refill closes once the level is stable (minutes)',
-  set_drop_min_pct: 'A drop at rest logged for a check (%)',
-  set_fuel_window_h: 'Fuel level comparison window (hours)',
-  set_retention_days: 'Keep the log (days)',
-};
+const en: Partial<Record<Key, string>> = packTable<typeof import('./lang/en/i18n/generator-log').en>('en', 'i18n/generator-log', 'en');
 
 // initial translation - needs a native review (dev-marked)
-const ar: Partial<Record<Key, string>> = {
-  page: 'سجل التشغيل',
-  title: 'سجل تشغيل المولد',
-  kind_test: 'اختبار',
-  kind_mains_failure: 'انقطاع الشبكة',
-  kind_manual: 'يدوي',
-  kind_other: 'آخر',
-  kpiRuns: 'مرات التشغيل',
-  kpiHours: 'ساعات العمل',
-  kpiFuel: 'الوقود المستهلك',
-  empty: 'لا توجد مرات تشغيل في النطاق',
-  prev: 'السابق',
-  next: 'التالي',
-};
+const ar: Partial<Record<Key, string>> = packTable<typeof import('./lang/ar/i18n/generator-log').ar>('ar', 'i18n/generator-log', 'ar');
 
 // initial translation - needs a native review (dev-marked)
-const ru: Partial<Record<Key, string>> = {
-  page: 'Журнал запусков',
-  title: 'Журнал запусков генератора',
-  kind_test: 'Тест',
-  kind_mains_failure: 'Отключение сети',
-  kind_manual: 'Вручную',
-  kind_other: 'Другое',
-  kpiRuns: 'Запуски',
-  kpiHours: 'Моточасы',
-  kpiFuel: 'Израсходовано топлива',
-  empty: 'Нет запусков в диапазоне',
-  prev: 'Назад',
-  next: 'Далее',
-};
+const ru: Partial<Record<Key, string>> = packTable<typeof import('./lang/ru/i18n/generator-log').ru>('ru', 'i18n/generator-log', 'ru');
 
 export type GltKey = Key;
 export type GltLang = 'he' | 'en' | 'ar' | 'ru';

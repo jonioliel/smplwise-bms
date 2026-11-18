@@ -3,6 +3,7 @@
 // back to the Hebrew). A Settings page may name the integration; no internal code is shown as text. The server's own sentences (what a
 // guard does to an item, why a door item stays refused) arrive in the data and are shown as they are.
 import { docLang, fill, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   title: 'חסימות פתיחת דלתות',
   sub: 'כל עוד יש דלת אינטרקום, התקן וירטואלי (תבנית) שלא ניתן להוכיח שאינו דלת נחסם, וכך גם פריט שמשתמש בו. מנהל מערכת יכול לשחרר התקן אחד ולהחזיר אותו לחסימה. כל שינוי נרשם ביומן.',
@@ -69,68 +70,7 @@ const he = {
 
 export type BtKey = keyof typeof he;
 
-const en: Partial<Record<BtKey, string>> = {
-  title: 'Door blocks',
-  sub: 'While there is an intercom door, a virtual device (template) that cannot be proven not to be a door is blocked, and so is any item that uses it. A system administrator can release a single device and block it again. Every change is logged.',
-  entities: 'Virtual devices',
-  items: 'Blocked items',
-  search: 'Search by name, area or reason',
-  fAll: 'All',
-  fBlocked: 'Blocked',
-  fReleased: 'Released',
-  refresh: 'Refresh',
-  more: 'Show more ({n})',
-  retry: 'Try again',
-  none: 'There is no intercom door in this installation, so no device is blocked',
-  noEntities: 'No virtual devices to release',
-  noMatch: 'Nothing matches the search',
-  noItems: 'No blocked items',
-  truncated: 'The list is cut short: only the first devices by name are shown',
-  summary: '{blocked} blocked · {released} released',
-  summaryItems: '{blocked} blocked items',
-  sBlocked: 'Blocked',
-  sReleased: 'Released',
-  sDoor: 'Mapped to a door',
-  sStale: 'No longer in the catalogue',
-  usedBy: 'Used by: {names}',
-  usedMore: ' and {n} more',
-  releasedBy: 'Released by {who} · {when}',
-  toggle: 'Release {name}',
-  itemFreed: 'No longer blocked',
-  itemBlocked: 'Blocked',
-  itemDevices: 'Virtual devices: {names}',
-  itemDevicesMore: ' and {n} more',
-  itemDeviceReleased: '{name} (released)',
-  itemStays: 'Stays blocked even after its devices are released',
-  releaseTitle: 'Release a virtual device',
-  releaseText: 'The device will no longer be blocked: device buttons, group actions and items that use it will be allowed from Arx, even if it opens an intercom door. The release is logged with your name and the reason, and you can block it again at any time.',
-  noteLabel: 'Reason for the release (required)',
-  noteHint: 'At least 3 characters, up to {max}',
-  release: 'Release',
-  reblockTitle: 'Block the device again',
-  reblockText: 'Actions on the device will be blocked again, and items that use it will not run from Arx until it is removed from them.',
-  reblock: 'Block again',
-  noteOptional: 'Reason (optional)',
-  cancel: 'Cancel',
-  saved: 'Saved',
-  needNote: 'A reason is required (at least 3 characters)',
-  tooLong: 'The reason is too long (up to {max} characters)',
-  d_lock: 'Lock',
-  d_switch: 'Switch',
-  d_light: 'Light',
-  d_cover: 'Shutter or gate',
-  d_fan: 'Fan',
-  d_button: 'Button',
-  d_media_player: 'Player',
-  d_select: 'Selector',
-  d_number: 'Value',
-  d_valve: 'Valve',
-  d_vacuum: 'Robot vacuum',
-  d_alarm_control_panel: 'Alarm panel',
-  d_climate: 'Air conditioning',
-  d_other: 'Device',
-
-};
+const en: Partial<Record<BtKey, string>> = packTable<typeof import('./lang/en/i18n/door-blocks').en>('en', 'i18n/door-blocks', 'en');
 
 export function btLang(): 'he' | 'en' {
   return docLang(['en']);

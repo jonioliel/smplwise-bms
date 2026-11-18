@@ -3,6 +3,7 @@
  * (`...OTP_HE`, `...OTP_EN`) and read through `tt()`. Never the module's noun, never a product name of the infrastructure.
  */
 import { registerCatalogue } from '../i18n/core';
+import { packTable } from '../i18n/lang-packs';
 
 export const OTP_HE = {
   otpSettingTitle: 'אימות מספר בקוד',
@@ -24,24 +25,6 @@ export const OTP_HE = {
   otpMineHint: 'בקשו קוד, והקלידו את 6 הספרות שהגיעו בוואטסאפ.',
 };
 
-export const OTP_EN: Record<keyof typeof OTP_HE, string> = {
-  otpSettingTitle: 'Verify numbers with a code',
-  otpSettingHint: 'When on, WhatsApp links and notifications go only to a number verified with a one-time code sent to it. Off by default.',
-  otpRowSwitch: 'Verify the number with a code',
-  otpConfirmed: 'Number verified',
-  otpConfirmedCode: 'Verified by code',
-  otpConfirmedManager: 'Confirmed by a manager',
-  otpConfirmedUser: 'Confirmed by the user',
-  otpUnconfirmed: 'Number not verified',
-  otpRequired: 'Code verification required',
-  otpSend: 'Send code',
-  otpResend: 'Send again',
-  otpSent: 'The code was sent by WhatsApp and is valid for 10 minutes.',
-  otpCodeLabel: '6-digit code',
-  otpVerify: 'Verify',
-  otpManagerSure: "I'm sure this is their number",
-  otpUserOnly: 'The user verifies the number themselves, in My account.',
-  otpMineHint: 'Ask for a code and type the 6 digits that arrive by WhatsApp.',
-};
+export const OTP_EN: Record<keyof typeof OTP_HE, string> = packTable<typeof import('../i18n/lang/en/tickets/text-otp').OTP_EN>('en', 'tickets/text-otp', 'OTP_EN');
 
 registerCatalogue('tickets/text-otp', { he: OTP_HE, en: OTP_EN });

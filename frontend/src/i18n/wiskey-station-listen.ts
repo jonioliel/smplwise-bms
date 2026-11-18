@@ -4,6 +4,7 @@
  * shows an internal code; short words, no explanatory paragraphs.
  */
 import { docLang, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   setting: {
     label: 'האזנה לעמדה',
@@ -44,42 +45,7 @@ const he = {
 type Widen<T> = T extends string ? string : { [K in keyof T]: Widen<T[K]> };
 export type StationListenText = Widen<typeof he>;
 
-const en: StationListenText = {
-  setting: {
-    label: 'Listening to the station',
-    text: 'Sound from the station in the stations screen. Nothing is recorded or sent to the station',
-    off: 'Off',
-    on: 'On',
-    probe: 'Trial (shared session)',
-  },
-  label: 'Listen to the station',
-  start: 'Listen',
-  starting: 'Opening…',
-  listening: 'Listening…',
-  stop: 'Stop listening',
-  mute: 'Mute',
-  unmute: 'Unmute',
-  muted: 'Muted',
-  level: 'Sound level from the station',
-  left: '{t} left',
-  ended: 'Listening ended',
-  problems: {
-    busy: 'Too many people are listening to the station',
-    user_busy: 'You are already listening to another station',
-    forbidden: 'You may not listen to this station',
-    unsupported: 'Listening is not available at this station',
-    no_listen: 'The station does not support listening',
-    off: 'Listening is turned off',
-    offline: 'The station is offline',
-    unavailable: 'Listening is not available right now',
-    expired: 'The listening time ended',
-    upstream: 'The listening channel closed',
-    network: 'The connection was lost',
-    access_lost: 'The listening permission was removed',
-    no_audio: 'This browser has no audio output',
-    failed: 'Listening could not be opened',
-  },
-};
+const en: StationListenText = packTable<typeof import('./lang/en/i18n/wiskey-station-listen').en>('en', 'i18n/wiskey-station-listen', 'en');
 
 export function slt(): StationListenText {
   return docLang(['en']) === 'en' ? en : he;

@@ -3,6 +3,7 @@
  * follows the document language (a missing key falls back to the Hebrew).
  */
 import { docLang, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   label: 'חיפוש בפינה העליונה',
   hint: 'כבוי כברירת מחדל: חיפוש מאפשר להגיע למקומות שלא בטוח שרוצים שמשתמש יגיע אליהם. מנהל מערכת תמיד יכול כשהוא פעיל.',
@@ -13,15 +14,7 @@ const he = {
   rolesTitle: 'התפקידים שרואים את החיפוש',
 };
 type Key = keyof typeof he;
-const en: Record<Key, string> = {
-  label: 'Search in the top corner',
-  hint: 'Off by default: a search can take a person to places you may not want them to reach. A system administrator can always use it while it is on.',
-  off: 'Off (default)',
-  admins: 'System administrators only',
-  roles: 'System administrators and the chosen roles',
-  all: 'All users',
-  rolesTitle: 'Roles that see the search',
-};
+const en: Record<Key, string> = packTable<typeof import('./lang/en/i18n/search-access').en>('en', 'i18n/search-access', 'en');
 
 export function sa(key: Key): string {
   return (docLang(['en']) === 'en' ? en[key] : he[key]) ?? he[key];

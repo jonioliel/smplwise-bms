@@ -7,6 +7,7 @@
  */
 import type { GlassTint, PanelOperation } from '../map/glass-wall';
 import { docLang, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 
 const he = {
   kind: 'קיר זכוכית',
@@ -54,49 +55,7 @@ const he = {
 
 type Key = keyof typeof he;
 
-const en: Record<Key, string> = {
-  kind: 'Glass wall',
-  alias: 'curtain wall',
-  tool: 'Glass wall',
-  toolTip: 'Glass wall / curtain wall (G): draw a wall that is all glazing, straight or curved',
-  toolHint: 'Click point after point as for a wall: a glass wall with panels and mullions is drawn. Enter or a second click on the last point finishes, Esc cancels.',
-  toolHintCurved: 'Click points along the curve: a curved glass wall is built through them. Double-click, Enter or "Finish" builds it, Esc cancels.',
-  shape: 'Shape',
-  shapeStraight: 'Straight',
-  shapeCurved: 'Curved',
-  frameDepth: 'Frame depth (m)',
-  glazing: 'Glazing',
-  panels: 'panels',
-  panelWidth: 'Panel width (m)',
-  panelCount: 'Panels',
-  panelCountAuto: 'auto',
-  mullion: 'Mullion width (m)',
-  sill: 'Sill height (m)',
-  glazedHeight: 'Glazed height (m)',
-  glazedHeightAuto: 'to the head',
-  tint: 'Tint',
-  autoDivide: 'Equal panels',
-  autoMin: 'Min (m)',
-  autoMax: 'Max (m)',
-  autoNone: 'No equal division fits this range',
-  operable: 'Opening panels',
-  operation: 'Opens',
-  entity: 'Entity',
-  noEntity: 'none',
-  panel: 'Panel',
-  toGlass: 'Convert to glass wall',
-  toSolid: 'Convert to solid wall',
-  desktopOnly: 'Desktop only',
-  tint_clear: 'Clear',
-  tint_tinted: 'Tinted',
-  tint_frosted: 'Frosted',
-  tint_reflective: 'Reflective',
-  op_casement_left: 'Left hinge',
-  op_casement_right: 'Right hinge',
-  op_tilt: 'Tilt',
-  op_sliding: 'Sliding',
-  op_awning: 'Awning',
-};
+const en: Record<Key, string> = packTable<typeof import('./lang/en/i18n/plan-glass').en>('en', 'i18n/plan-glass', 'en');
 
 export const PLAN_GLASS_STRINGS = { he, en } as const;
 

@@ -4,6 +4,7 @@
  * filled by `cit(key, { n })`.
  */
 import { docLang, fill, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   title: 'תמונת המצלמות',
   off: 'כבוי',
@@ -62,59 +63,7 @@ const he = {
 
 type Key = keyof typeof he;
 
-const en: Partial<Record<Key, string>> = {
-  title: 'Camera picture',
-  off: 'Off',
-  ok: 'OK',
-  unknown: 'Not checked',
-  excluded: 'Excluded',
-  dark: 'Dark',
-  blurred: 'Blurred',
-  frozen: 'Frozen',
-  shifted: 'Shifted',
-  stateOk: 'OK',
-  stateUnknown: 'Not checked',
-  stateExcluded: 'Excluded',
-  checkNow: 'Check now',
-  checking: 'Checking…',
-  lastCheck: 'Checked {t}',
-  never: 'Not checked yet',
-  every: 'Every {n} min',
-  openSettings: 'Settings',
-  column: 'Picture',
-  refSet: 'Use as reference',
-  refClear: 'Clear reference',
-  refAuto: 'Automatic reference',
-  refManual: 'Manual reference',
-  refNone: 'No reference',
-  reference: 'Reference',
-  brightness: 'Brightness',
-  sharpness: 'Sharpness',
-  settingsTitle: 'Camera picture check',
-  enabled: 'Check on',
-  passiveOnly: 'Only streams already playing',
-  checks: 'Checks',
-  checkDark: 'Dark',
-  checkBlur: 'Blurred',
-  checkFreeze: 'Frozen',
-  checkShift: 'Shifted',
-  interval_s: 'Sample every (s)',
-  per_pass_max: 'Cameras per pass',
-  dark_level: 'Dark level (0-255)',
-  blur_min: 'Sharpness threshold',
-  freeze_diff: 'Freeze change threshold',
-  freeze_samples: 'Identical samples for frozen',
-  shift_pct: 'Largest move (%)',
-  shift_corr_min: 'Least reference match',
-  confirm_samples: 'Samples in a row to confirm',
-  recover_s: 'Time until the alert closes (s)',
-  excludedCams: 'Excluded cameras',
-  recipients: 'Alert recipients',
-  recipientsUsers: 'Selected users',
-  save: 'Save',
-  saved: 'Saved',
-  loading: 'Loading…',
-};
+const en: Partial<Record<Key, string>> = packTable<typeof import('./lang/en/i18n/camera-image-health').en>('en', 'i18n/camera-image-health', 'en');
 
 export type CitKey = Key;
 const TABLES: Record<'he' | 'en', Partial<Record<Key, string>>> = { he, en };

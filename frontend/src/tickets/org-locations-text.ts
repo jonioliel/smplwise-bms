@@ -6,6 +6,7 @@ import { hasNameTokens, tn } from './naming';
 import { ticketsLang } from './text';
 import { fillVars } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 import { registerCatalogue } from '../i18n/core';
+import { packTable } from '../i18n/lang-packs';
 
 const he = {
   tab: 'מיקומים',
@@ -71,66 +72,7 @@ const he = {
 
 export type LocTextKey = keyof typeof he;
 
-const en: Record<LocTextKey, string> = {
-  tab: 'Locations',
-  title: 'Organisation locations',
-  sub: 'Fixed addresses to pick in the service request and request-for-quotation forms.',
-  add: 'Add location',
-  edit: 'Edit',
-  save: 'Save',
-  cancel: 'Cancel',
-  deactivate: 'Deactivate',
-  activate: 'Activate',
-  remove: 'Delete',
-  navigate: 'Navigate',
-  makeDefault: 'Make default',
-  defaultChip: 'Default',
-  inactiveChip: 'Inactive',
-  inUse: 'Used by {n}',
-  empty: 'No locations yet.',
-  loading: 'Loading locations',
-  fName: 'Location name',
-  fStreet: 'Street and number',
-  fCity: 'City',
-  fDetails: 'Additional details',
-  fDetailsPh: 'Building, floor, entrance, access instructions',
-  fCoords: 'Coordinates (optional)',
-  fLat: 'Latitude',
-  fLng: 'Longitude',
-  fSort: 'Order',
-  fActive: 'Active',
-  fArea: 'Plan area (optional)',
-  areaNone: 'Not linked to the plan',
-  areaMissing: 'Linked area (you may not view it)',
-  areaLinked: 'Linked to the plan: {name}',
-  showOnMap: 'Show on map',
-  err_area: 'The area was not found, or you may not link it',
-  fDefault: 'Organisation default',
-  deptTitle: 'Default per department',
-  deptSub: 'Optional. A department default wins over the organisation default.',
-  deptNone: 'Organisation default',
-  err_required: 'Enter a name',
-  err_too_long: 'The text is too long',
-  err_duplicate: 'A location with this name already exists',
-  err_address: 'Enter a street or a city',
-  err_url: 'No links in the text',
-  err_coords: 'Latitude between -90 and 90 and longitude between -180 and 180, both together',
-  err_in_use: 'Existing requests use this location. Deactivate it instead of deleting it.',
-  err_inactive_default: 'An inactive location cannot be the default',
-  saved: 'Location saved',
-  removed: 'Location deleted',
-  confirmRemove: 'Delete the location "{name}"?',
-  retry: 'Try again',
-  fLocation: 'Location',
-  pickNone: 'No location',
-  pickOther: 'Other (free text)',
-  otherPh: 'For example: the meeting room on floor 2',
-  otherLabel: 'Other location',
-  manage: 'Manage locations',
-  navOn: 'Add a navigation link to the message',
-  navOnSub: 'The vendor gets a map link built from the location\'s coordinates.',
-  navNoCoords: 'This location has no coordinates.',
-};
+const en: Record<LocTextKey, string> = packTable<typeof import('../i18n/lang/en/tickets/org-locations-text').en>('en', 'tickets/org-locations-text', 'en');
 
 export const LOC_TEXT_HE: Readonly<Record<LocTextKey, string>> = he;
 export const LOC_TEXT_EN: Readonly<Record<LocTextKey, string>> = en;

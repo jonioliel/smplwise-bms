@@ -262,7 +262,8 @@ test('the shared time words: an api file reads them as trTime from msg/time, eve
 test('completeness: no table carries a key twice in its source (a later line would silently win)', () => {
   let all = 0;
   for (const module of Object.keys(TABLES)) {
-    const source = readFileSync(new URL(`../src/i18n/${module}.ts`, import.meta.url), 'utf8');
+    // CR-I18N-LAZY-LANG-2443: the texts are in the English pack (src/i18n/lang/en/i18n/<module>.ts), the module reads them from there
+    const source = readFileSync(new URL(`../src/i18n/lang/en/i18n/${module}.ts`, import.meta.url), 'utf8');
     const seen = new Set<string>();
     const twice: string[] = [];
     for (const m of source.matchAll(/^\s*'((?:\\.|[^'\\])+)'\s*:/gm)) {

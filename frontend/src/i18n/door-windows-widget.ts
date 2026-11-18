@@ -5,6 +5,7 @@
  * intercom platform are never named, and no sentence explains anything (a clean operator card).
  */
 import { docLang, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   title: 'דלתות',
   emergency: 'חירום',
@@ -26,67 +27,13 @@ const he = {
 };
 type Key = keyof typeof he;
 
-const en: Partial<Record<Key, string>> = {
-  title: 'Doors',
-  emergency: 'Emergency',
-  emergencyAria: 'Open the emergency controls',
-  incident: 'Emergency in effect',
-  drill: 'Emergency drill',
-  unconfirmed: 'Relock not confirmed: {n}',
-  notStarted: 'Window did not start: {n}',
-  foreign: 'Program paused: {n}',
-  openNow: 'Open now: {n}',
-  openUntil: '{name} · until {t}',
-  next: 'Next: {name} · {t}',
-  none: 'No windows planned',
-  rowUnconfirmed: '{name} · not confirmed',
-  rowNotStarted: '{name} · did not start',
-  rowForeign: '{name} · paused',
-  rowActive: '{name} · until {t}',
-  rowNext: '{name} · {t}',
-};
+const en: Partial<Record<Key, string>> = packTable<typeof import('./lang/en/i18n/door-windows-widget').en>('en', 'i18n/door-windows-widget', 'en');
 
 // initial translation - needs a native review (dev-marked)
-const ar: Partial<Record<Key, string>> = {
-  title: 'الأبواب',
-  emergency: 'طوارئ',
-  emergencyAria: 'فتح أزرار الطوارئ',
-  incident: 'حالة طوارئ قائمة',
-  drill: 'تدريب طوارئ',
-  unconfirmed: 'لم تتم تأكيد العودة إلى الوضع العادي: {n}',
-  notStarted: 'لم تبدأ النافذة: {n}',
-  foreign: 'برنامج متوقف مؤقتًا: {n}',
-  openNow: 'مفتوحة الآن: {n}',
-  openUntil: '{name} · حتى {t}',
-  next: 'التالي: {name} · {t}',
-  none: 'لا توجد نوافذ مخططة',
-  rowUnconfirmed: '{name} · غير مؤكد',
-  rowNotStarted: '{name} · لم تبدأ',
-  rowForeign: '{name} · متوقف مؤقتًا',
-  rowActive: '{name} · حتى {t}',
-  rowNext: '{name} · {t}',
-};
+const ar: Partial<Record<Key, string>> = packTable<typeof import('./lang/ar/i18n/door-windows-widget').ar>('ar', 'i18n/door-windows-widget', 'ar');
 
 // initial translation - needs a native review (dev-marked)
-const ru: Partial<Record<Key, string>> = {
-  title: 'Двери',
-  emergency: 'Аварийный режим',
-  emergencyAria: 'Открыть аварийные кнопки',
-  incident: 'Аварийный режим включён',
-  drill: 'Учебная тревога',
-  unconfirmed: 'Возврат в обычный режим не подтверждён: {n}',
-  notStarted: 'Окно не началось: {n}',
-  foreign: 'Программа приостановлена: {n}',
-  openNow: 'Открыты сейчас: {n}',
-  openUntil: '{name} · до {t}',
-  next: 'Далее: {name} · {t}',
-  none: 'Окон не запланировано',
-  rowUnconfirmed: '{name} · не подтверждено',
-  rowNotStarted: '{name} · не началось',
-  rowForeign: '{name} · приостановлено',
-  rowActive: '{name} · до {t}',
-  rowNext: '{name} · {t}',
-};
+const ru: Partial<Record<Key, string>> = packTable<typeof import('./lang/ru/i18n/door-windows-widget').ru>('ru', 'i18n/door-windows-widget', 'ru');
 
 export type DwwtKey = Key;
 export type DwwtLang = 'he' | 'en' | 'ar' | 'ru';

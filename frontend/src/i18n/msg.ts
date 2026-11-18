@@ -1,7 +1,8 @@
 /**
  * I18N-EN-SWITCH-2438 (owner round 32, Q-SYS-8): source-text catalogues for the texts that were written into the templates in
  * Hebrew. The Hebrew text itself is the key (`tr('מערכת')`), and each module's English sits in its own table under
- * `src/i18n/msg/<module>.ts` (Hebrew -> English). Hebrew screens are byte-for-byte unchanged: `tr` returns its argument, then
+ * `src/i18n/msg/<module>.ts` (Hebrew -> English; CR-I18N-LAZY-LANG-2443: the texts themselves are in the English pack,
+ * `src/i18n/lang/en/i18n/msg/<module>.ts`, fetched only for an English page - i18n/lang-packs.ts). Hebrew screens are byte-for-byte unchanged: `tr` returns its argument, then
  * fills `{name}` placeholders. In English the table's text is used, and a text the table lacks stays Hebrew - the missing-keys
  * report (scripts/i18n_missing_keys.mjs) lists every `tr('...')` whose module table has no English.
  *

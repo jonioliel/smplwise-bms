@@ -5,6 +5,7 @@
  * `{name}` placeholders are filled by `mw(key, { name })`.
  */
 import { docLang, fill, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 type Lang = 'he' | 'en' | 'ar' | 'ru';
 
 const he = {
@@ -43,107 +44,11 @@ const he = {
 
 type Key = keyof typeof he;
 
-const en: Record<Key, string> = {
-  title: 'WhatsApp sending policy',
-  allowTitle: 'Allow-list: handlers and providers',
-  enforce: 'Send only to the list',
-  enforceOff: 'Off: every recipient may be messaged',
-  blocksAll: 'Enforcement is on and the list is empty: no message will be sent',
-  phone: 'Number (with country code)',
-  label: 'Name',
-  role: 'Role',
-  role_handler: 'Handler',
-  role_provider: 'Provider',
-  role_other: 'Other',
-  add: 'Add',
-  remove: 'Remove',
-  empty: 'The list is empty',
-  page: 'Page {n} of {m}',
-  prev: 'Previous',
-  next: 'Next',
-  selfTitle: 'Self-messages for testing',
-  selfMinutes: 'Minutes',
-  selfStart: 'Turn on',
-  selfStop: 'Turn off',
-  selfActive: 'On until {time}',
-  selfOff: 'Off',
-  saved: 'Saved',
-  loadError: 'Could not load the policy',
-  retry: 'Try again',
-  err_phone: 'Invalid number',
-  err_label: 'Enter a name',
-  err_minutes: 'A value from {lo} to {hi}',
-  err_listed: 'The number is already listed',
-  readOnly: 'View only',
-};
+const en: Record<Key, string> = packTable<typeof import('./lang/en/i18n/messaging-policy').en>('en', 'i18n/messaging-policy', 'en');
 
-const ar: Record<Key, string> = {
-  title: 'سياسة الإرسال عبر واتساب',
-  allowTitle: 'قائمة المسموح لهم: المعالجون والمزوّدون',
-  enforce: 'الإرسال إلى القائمة فقط',
-  enforceOff: 'متوقف: يمكن مراسلة أي مستلم',
-  blocksAll: 'التطبيق مفعّل والقائمة فارغة: لن تُرسل أي رسالة',
-  phone: 'الرقم (مع رمز الدولة)',
-  label: 'الاسم',
-  role: 'الدور',
-  role_handler: 'معالج',
-  role_provider: 'مزوّد',
-  role_other: 'آخر',
-  add: 'إضافة',
-  remove: 'إزالة',
-  empty: 'القائمة فارغة',
-  page: 'الصفحة {n} من {m}',
-  prev: 'السابق',
-  next: 'التالي',
-  selfTitle: 'رسائل إلى النفس للاختبار',
-  selfMinutes: 'دقائق',
-  selfStart: 'تشغيل',
-  selfStop: 'إيقاف',
-  selfActive: 'يعمل حتى {time}',
-  selfOff: 'متوقف',
-  saved: 'تم الحفظ',
-  loadError: 'تعذّر تحميل السياسة',
-  retry: 'حاول مرة أخرى',
-  err_phone: 'رقم غير صالح',
-  err_label: 'أدخل اسماً',
-  err_minutes: 'قيمة من {lo} إلى {hi}',
-  err_listed: 'الرقم موجود في القائمة',
-  readOnly: 'للعرض فقط',
-};
+const ar: Record<Key, string> = packTable<typeof import('./lang/ar/i18n/messaging-policy').ar>('ar', 'i18n/messaging-policy', 'ar');
 
-const ru: Record<Key, string> = {
-  title: 'Политика отправки в WhatsApp',
-  allowTitle: 'Список разрешённых: исполнители и поставщики',
-  enforce: 'Отправлять только по списку',
-  enforceOff: 'Выключено: сообщения можно слать любому получателю',
-  blocksAll: 'Проверка включена, список пуст: ни одно сообщение не будет отправлено',
-  phone: 'Номер (с кодом страны)',
-  label: 'Имя',
-  role: 'Роль',
-  role_handler: 'Исполнитель',
-  role_provider: 'Поставщик',
-  role_other: 'Другое',
-  add: 'Добавить',
-  remove: 'Убрать',
-  empty: 'Список пуст',
-  page: 'Страница {n} из {m}',
-  prev: 'Назад',
-  next: 'Далее',
-  selfTitle: 'Сообщения самому себе для проверки',
-  selfMinutes: 'Минуты',
-  selfStart: 'Включить',
-  selfStop: 'Выключить',
-  selfActive: 'Включено до {time}',
-  selfOff: 'Выключено',
-  saved: 'Сохранено',
-  loadError: 'Не удалось загрузить политику',
-  retry: 'Повторить',
-  err_phone: 'Неверный номер',
-  err_label: 'Введите имя',
-  err_minutes: 'Значение от {lo} до {hi}',
-  err_listed: 'Номер уже в списке',
-  readOnly: 'Только просмотр',
-};
+const ru: Record<Key, string> = packTable<typeof import('./lang/ru/i18n/messaging-policy').ru>('ru', 'i18n/messaging-policy', 'ru');
 
 export type MwKey = Key;
 export const MW_TABLES: Record<Lang, Record<Key, string>> = { he, en, ar, ru };

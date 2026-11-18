@@ -4,6 +4,7 @@
  * Hebrew first; the English column follows the document language (a missing key falls back to the Hebrew).
  */
 import { docLang, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   'rfq.quote_received': 'הצעת מחיר התקבלה או עודכנה',
   'rfq.declined': 'ספק השיב שאינו מעוניין',
@@ -18,18 +19,7 @@ const he = {
 };
 export type RfqNotifyKey = keyof typeof he;
 
-const en: Partial<Record<RfqNotifyKey, string>> = {
-  'rfq.quote_received': 'Quote received or updated',
-  'rfq.declined': 'Vendor declined',
-  'rfq.question': 'Clarification question from a vendor',
-  'rfq.due_passed': 'Quote deadline passed',
-  'rfq.arrival': 'Vendor confirmed or proposed an arrival date',
-  'rfq.question_unanswered': 'Vendor question waiting for an answer',
-  'rfq.instalment_overdue': 'Vendor payment past its date',
-  'rfq.vendor_postponement': 'Vendor gave notice of postponing the work',
-  kind: 'Request for quotation',
-  open: 'Open the request',
-};
+const en: Partial<Record<RfqNotifyKey, string>> = packTable<typeof import('./lang/en/i18n/rfq-notify').en>('en', 'i18n/rfq-notify', 'en');
 
 export function rfqNotifyLang(): 'he' | 'en' {
   return docLang(['en']);

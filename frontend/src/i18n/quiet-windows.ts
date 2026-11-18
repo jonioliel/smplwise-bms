@@ -3,6 +3,7 @@
  * follows the document language (a missing key falls back to the Hebrew). `{x}` placeholders are filled by `qwt(key, { x })`.
  */
 import { docLang, fill, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   title: 'חלון שקט לקומה או לאזור',
   sub: 'כפתור אחד בכותרת הקומה או האזור משהה התראות מידע לזמן קצוב. התראות קריטיות ובטיחות לא מושהות לעולם.',
@@ -34,20 +35,7 @@ const he = {
 };
 type Key = keyof typeof he;
 
-const en: Partial<Record<Key, string>> = {
-  title: 'Quiet window for a floor or an area',
-  sub: 'One button on the floor or area header holds informational notifications for a while. Critical and safety notifications are never held.',
-  enabled: 'Quiet window', enabledHint: 'Off by default. Switching it off ends every open window at once.', off: 'Off', on: 'On',
-  defaultMinutes: 'Default length (minutes)', maxMinutes: 'Longest length (minutes)', minutesHint: '{lo} to {hi} minutes',
-  muteAlerts: 'Also hold important notifications', muteAlertsHint: 'Off: only informational notifications are held',
-  channels: 'Channels the window holds',
-  channelsHint: 'Push only: the push to the phone and the browser is held; email, WhatsApp and announcements are sent as usual. The notification centre keeps everything either way.',
-  ch_push: 'Push only', ch_all: 'All channels', save: 'Save', saved: 'Settings saved', readOnly: 'Changing these settings needs a system administrator.',
-  demo: 'Demo data: the settings are saved against a server only.', errRange: 'A length from {lo} to {hi} minutes',
-  errOverMax: 'The default length is longer than the longest length', confirmTitle: 'Save the quiet window settings?',
-  confirmBody: 'The change applies at once to every floor and area.', confirmEnds: 'Switching it off ends every open quiet window now.',
-  confirmGo: 'Save', cancel: 'Cancel', loadError: 'The quiet window settings could not be loaded',
-};
+const en: Partial<Record<Key, string>> = packTable<typeof import('./lang/en/i18n/quiet-windows').en>('en', 'i18n/quiet-windows', 'en');
 
 export type QwtKey = Key;
 const TABLES: Record<'he' | 'en', Partial<Record<Key, string>>> = { he, en };

@@ -1,0 +1,37 @@
+// CR-I18N-LAZY-LANG-2443: language pack table of src/i18n/messaging-policy.ts, fetched only when the page is in this language (i18n/lang-packs.ts).
+// Moved by scripts/i18n-split-langs.mjs; edit the texts here.
+/* eslint-disable */
+
+export const ar = {
+  title: 'سياسة الإرسال عبر واتساب',
+  allowTitle: 'قائمة المسموح لهم: المعالجون والمزوّدون',
+  enforce: 'الإرسال إلى القائمة فقط',
+  enforceOff: 'متوقف: يمكن مراسلة أي مستلم',
+  blocksAll: 'التطبيق مفعّل والقائمة فارغة: لن تُرسل أي رسالة',
+  phone: 'الرقم (مع رمز الدولة)',
+  label: 'الاسم',
+  role: 'الدور',
+  role_handler: 'معالج',
+  role_provider: 'مزوّد',
+  role_other: 'آخر',
+  add: 'إضافة',
+  remove: 'إزالة',
+  empty: 'القائمة فارغة',
+  page: 'الصفحة {n} من {m}',
+  prev: 'السابق',
+  next: 'التالي',
+  selfTitle: 'رسائل إلى النفس للاختبار',
+  selfMinutes: 'دقائق',
+  selfStart: 'تشغيل',
+  selfStop: 'إيقاف',
+  selfActive: 'يعمل حتى {time}',
+  selfOff: 'متوقف',
+  saved: 'تم الحفظ',
+  loadError: 'تعذّر تحميل السياسة',
+  retry: 'حاول مرة أخرى',
+  err_phone: 'رقم غير صالح',
+  err_label: 'أدخل اسماً',
+  err_minutes: 'قيمة من {lo} إلى {hi}',
+  err_listed: 'الرقم موجود في القائمة',
+  readOnly: 'للعرض فقط',
+};

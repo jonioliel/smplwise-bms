@@ -261,7 +261,8 @@ function literalRows() {
   const byModule = new Map();
   for (const p of files) {
     const r = rel(p);
-    if (registeringSet.has(r) || r === 'i18n/core.ts' || r === 'i18n/en.ts' || r === 'i18n/frigate-en.ts') continue;
+    // CR-I18N-LAZY-LANG-2443: i18n/lang/** are the language packs (their Hebrew is the msg tables' keys), read through the catalogues above
+    if (registeringSet.has(r) || r === 'i18n/core.ts' || r === 'i18n/en.ts' || r === 'i18n/frigate-en.ts' || r.startsWith('i18n/lang/')) continue;
     const lits = hebrewLiterals(readFileSync(p, 'utf8'));
     if (!lits.length) continue;
     const kind = kindOf(r);

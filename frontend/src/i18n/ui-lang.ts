@@ -15,6 +15,7 @@
  */
 import { getMyPrefs, putMyPrefs } from '../api/me-prefs';
 import { applyUiLang, bootedUiLang, currentUiLang, uiLangFromPref, writeMirror, type UiLang } from './ui-lang-boot';
+import { ensureLangPack, packLangOf } from './lang-packs';
 
 export { UI_LANGS, UI_LANG_MIRROR, applyUiLang, bootUiLang, bootedUiLang, currentUiLang, isUiLang, uiLangFromPref, type UiLang } from './ui-lang-boot';
 
@@ -24,14 +25,23 @@ export function setReloadHookForTests(fn: () => void): void {
   reloadHook = fn;
 }
 
-/** Brings the page to `lang` (`from` = the language the page is built in): mirror + reload, or in place when the mirror cannot be kept. */
-function bringPageTo(lang: UiLang, from: UiLang): void {
+/**
+ * Brings the page to `lang` (`from` = the language the page is built in): mirror + reload, or in place when the mirror cannot be
+ * kept. CR-I18N-LAZY-LANG-2443: the in-place switch first waits for the language's pack (i18n/lang-packs.ts), so `<html lang>`
+ * never names a language whose words are not in yet (the reload waits for it while the page starts).
+ */
+async function bringPageTo(lang: UiLang, from: UiLang): Promise<void> {
   if (lang === from) {
     writeMirror(lang);
     return;
   }
-  if (writeMirror(lang)) reloadHook();
-  else applyUiLang(lang);
+  if (writeMirror(lang)) {
+    reloadHook();
+    return;
+  }
+  const pack = packLangOf(lang);
+  if (pack) await ensureLangPack(pack);
+  applyUiLang(lang);
 }
 
 /** Step 2: the server's value wins over the mirror (another device may have changed it). Errors leave the page as it is. */
@@ -39,7 +49,7 @@ export async function syncUiLang(load: () => Promise<{ prefs: Record<string, unk
   try {
     const lang = uiLangFromPref((await load()).prefs['ui.lang']);
     // compared with the language the page STARTED in: a later change of <html lang> (a test, an embedding page) is not undone here
-    bringPageTo(lang, bootedUiLang());
+    await bringPageTo(lang, bootedUiLang());
     return lang;
   } catch {
     return null; // signed out, demo build or an older server without the key
@@ -49,5 +59,5 @@ export async function syncUiLang(load: () => Promise<{ prefs: Record<string, unk
 /** Step 3: the user's choice. Throws when the server refuses it (the page stays as it is). */
 export async function setUiLang(lang: UiLang, save: (v: UiLang | null) => Promise<unknown> = (v) => putMyPrefs({ 'ui.lang': v })): Promise<void> {
   await save(lang === 'he' ? null : lang); // Hebrew is the default: stored as "not set"
-  bringPageTo(lang, currentUiLang());
+  await bringPageTo(lang, currentUiLang());
 }

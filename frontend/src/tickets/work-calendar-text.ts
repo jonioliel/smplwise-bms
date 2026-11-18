@@ -4,6 +4,7 @@
  */
 import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 import { registerCatalogue } from '../i18n/core';
+import { packTable } from '../i18n/lang-packs';
 
 const he = {
   card: 'שעות עבודה',
@@ -54,52 +55,7 @@ const he = {
 
 export type WorkCalendarTextKey = keyof typeof he;
 
-const en: Record<WorkCalendarTextKey, string> = {
-  card: 'Working hours',
-  cardSub: 'When the timers of stuck and overdue {tickets} and reminders count',
-  enabled: 'Count in working hours',
-  enabledSub: 'Off: timers run around the clock',
-  days: 'Working days',
-  hours: 'Working hours',
-  hoursSub: "In the system's local time",
-  to: 'to',
-  holidays: 'Holidays and days off',
-  holidaysSub: 'One date per line, e.g. 2026-10-21. No time counts on these days',
-  holidaysCount: '{n} days',
-  note: 'Applies to stuck, overdue and reminder timers. Messages to vendors still follow their send hours',
-  save: 'Save',
-  d0: 'Mon',
-  d1: 'Tue',
-  d2: 'Wed',
-  d3: 'Thu',
-  d4: 'Fri',
-  d5: 'Sat',
-  d6: 'Sun',
-  err_weekdays: 'Choose at least one working day',
-  err_time: 'Invalid time',
-  err_order: 'The end must be after the start (no shift across midnight)',
-  err_holidays_many: 'At most 400 days off',
-  err_bad_dates: 'Invalid date: {list}',
-  err_dept: "Check the departments' working hours",
-  holdInternal: 'Reminders and alerts outside working hours',
-  holdInternalSub: 'On: an internal reminder or manager alert that falls outside working hours waits for the next opening',
-  autoClose: 'Automatic close of a finished {ticket}',
-  autoCloseSub: 'Calendar days (as before) or working time: each day is the length of the working day',
-  ac_calendar: 'Calendar days',
-  ac_working: 'Working time',
-  linkClock: 'Vendor link not opened',
-  linkClockSub: "The vendor's clock: by default it counts around the clock, not working hours",
-  lc_wall: 'Around the clock',
-  lc_working: 'Working hours',
-  dayHours: 'Hours per day',
-  dayHoursSub: 'Change the hours of one day, for example a short Friday',
-  depts: 'Working hours per department',
-  deptsSub: 'Like the general setting, around the clock, or its own hours',
-  dm_inherit: 'General',
-  dm_always: 'Around the clock',
-  dm_own: 'Own hours',
-  deptMode: 'Working hours of {name}',
-};
+const en: Record<WorkCalendarTextKey, string> = packTable<typeof import('../i18n/lang/en/tickets/work-calendar-text').en>('en', 'tickets/work-calendar-text', 'en');
 
 const catalogue = makeCatalogue<WorkCalendarTextKey>(he, en);
 

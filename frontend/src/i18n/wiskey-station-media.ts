@@ -6,6 +6,7 @@
  * capabilities_unread / wiskey_unavailable); the Settings row (`source`) named it already.
  */
 import { docLang, fill as coreFill, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   live: {
     label: 'שידור חי',
@@ -106,96 +107,7 @@ const he = {
 type Widen<T> = { [K in keyof T]: T[K] extends string ? string : Widen<T[K]> };
 export type StationMediaText = Widen<typeof he>;
 
-const en: StationMediaText = {
-  live: {
-    label: 'Live',
-    quality: 'Quality',
-    sub: 'Standard',
-    main: 'High',
-    poster: 'Last picture',
-    blocked: 'This station does not stream with your video setting',
-    blockedHint: 'Change it in My account › Video',
-  },
-  talk: {
-    label: 'Talk',
-    start: 'Start talk',
-    starting: 'Opening talk…',
-    muted: 'Microphone muted',
-    talking: 'Microphone open',
-    mute: 'Mute',
-    unmute: 'Unmute',
-    headset: 'A headset is recommended',
-    end: 'End talk',
-    left: '{t} left',
-    openDrawer: 'Talk',
-    busy: 'Another operator is talking to this station',
-    ended: 'Talk ended',
-    problems: {
-      insecure: 'The microphone needs a secure connection',
-      denied: 'The microphone is blocked in the browser',
-      no_mic: 'No microphone found',
-      mic_busy: 'The microphone is in use',
-      busy: 'Another operator is talking to this station',
-      user_busy: 'You already talk to another station',
-      forbidden: 'No permission to talk to this station',
-      unsupported: 'Talk is available in the classic panel',
-      off: 'Talk is off',
-      offline: 'The station is offline',
-      unavailable: 'Talk is not available right now',
-      expired: 'Talk time is over',
-      upstream: 'The talk channel closed',
-      network: 'The connection dropped',
-      access_lost: 'Talk permission was removed',
-      failed: 'Talk could not be opened',
-    },
-  },
-  dial: {
-    dial: 'Call the station',
-    talk: 'Talk to the station',
-    inCall: 'In call',
-    hangUp: 'Hang up',
-    classic: 'In the classic panel',
-    reasons: {
-      off: 'Talk from this screen is off in Settings (video only)',
-      provider_local: 'The local source shows video only, without talk',
-      pairing: 'No signed pairing with WisKey, so no talk from this screen',
-      not_listed: 'WisKey does not publish talk commands to Arx',
-      capabilities_unread: 'Could not check with WisKey whether talk is available; video only',
-      unsupported: 'This station offers no talk',
-      wiskey_unavailable: 'WisKey is not reachable now; the local source shows the video',
-      forbidden: 'No permission to talk to this station',
-      unavailable: 'Talk is not available right now',
-    },
-  },
-  source: {
-    label: 'Video and talk source',
-    local: 'Arx (video only)',
-    auto: 'WisKey (video and talk)',
-    checking: 'Checking what WisKey mode needs…',
-    failed: 'Cannot check what WisKey mode needs right now',
-    ok: 'WisKey is ready: video and talk from this screen',
-    okLocal: 'WisKey is ready. Choosing WisKey also enables talk from this screen',
-    missing: 'WisKey mode still needs: {list}',
-    fallback: 'until then Arx shows video only',
-    videoOnly: 'until then WisKey shows video only',
-    codes: {
-      wiskey_unreachable: 'WisKey is not reachable now',
-      api_incompatible: 'the WisKey version does not match this one',
-      video_not_listed: 'WisKey does not publish video commands to Arx',
-      talk_not_listed: 'WisKey does not publish talk commands to Arx',
-      capabilities_unread: 'the signed capabilities check with WisKey failed ({kind})',
-      pairing_missing: 'no signed pairing with WisKey',
-      pairing_key_rotated: 'the pairing key was rotated and WisKey does not accept it yet',
-    },
-    capsKinds: {
-      unreachable: 'WisKey did not answer',
-      refused: 'WisKey refused the signed connection',
-      clock: 'the clocks of Arx and WisKey disagree',
-      incompatible: 'WisKey answered in a format this version does not read',
-      failed: 'unknown reason',
-    },
-  },
-};
+const en: StationMediaText = packTable<typeof import('./lang/en/i18n/wiskey-station-media').en>('en', 'i18n/wiskey-station-media', 'en');
 
 export function smt(): StationMediaText {
   return docLang(['en']) === 'en' ? en : he;

@@ -4,26 +4,18 @@
  * Hebrew). The Arabic and Russian columns are an INITIAL translation and need a native review (dev-marked).
  */
 import { docLang, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   failed: 'לא ניתן לטעון את הנתונים',
   retry: 'נסו שוב',
 };
 type Key = keyof typeof he;
 
-const en: Record<Key, string> = {
-  failed: 'The data could not be loaded',
-  retry: 'Try again',
-};
+const en: Record<Key, string> = packTable<typeof import('./lang/en/i18n/home-widget-failure').en>('en', 'i18n/home-widget-failure', 'en');
 
-const ar: Record<Key, string> = {
-  failed: 'تعذّر تحميل البيانات',
-  retry: 'حاول مرة أخرى',
-};
+const ar: Record<Key, string> = packTable<typeof import('./lang/ar/i18n/home-widget-failure').ar>('ar', 'i18n/home-widget-failure', 'ar');
 
-const ru: Record<Key, string> = {
-  failed: 'Не удалось загрузить данные',
-  retry: 'Повторить',
-};
+const ru: Record<Key, string> = packTable<typeof import('./lang/ru/i18n/home-widget-failure').ru>('ru', 'i18n/home-widget-failure', 'ru');
 
 export type HwfKey = Key;
 export type HwfLang = 'he' | 'en' | 'ar' | 'ru';
