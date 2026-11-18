@@ -4,7 +4,11 @@ Owner approval 2026-10-30: download IBM Plex Sans Hebrew, IBM Plex Mono, Frank R
 
 Method: the Google Fonts CSS API (`fonts.googleapis.com/css2`, Chrome user agent) names the woff2 files on `fonts.gstatic.com`; only the `hebrew` and `latin` subsets of the needed weights were fetched, each into a new empty folder (checked: every file starts with the `wOF2` signature). The licence texts come from the `google/fonts` GitHub repository (`ofl/<family>/OFL.txt`).
 
-Files live in `frontend/public/fonts/lobby/` (with the OFL texts). `scripts/notice_tv_fonts.py` inlines the used ones into `frontend/src/notice-tv/tv-fonts.css` (the TV page reaches no other file). The two Plex Sans Hebrew weight-700 files were downloaded, then not used (the urgent title uses 600) and removed from the repository.
+Files live in `frontend/fonts-src/lobby/` (with the OFL texts). `scripts/notice_tv_fonts.py` inlines the used ones into one style sheet per style family: `frontend/src/notice-tv/tv-fonts-hitech.css` (IBM Plex Sans Hebrew, IBM Plex Mono: Lumen, Axis, Prism) and `frontend/src/notice-tv/tv-fonts-luxury.css` (Frank Ruhl Libre, David Libre, Bodoni Moda: Gallery, Concierge, Stone). The TV page loads only the active family's sheet (a dynamic `import()` in `main.ts`, reached by the LAN listener's allow-list like every other file of the page's script) and reaches no font file by its own URL. `py -3.12 scripts/notice_tv_fonts.py --check` fails when a generated sheet is stale (`backend/tests/test_font_licences.py` runs it).
+
+CR-TV-FONTS-ESCAPE-2443 (code review 08:F04): until 2.43.8 the woff2 files lived in `frontend/public/fonts/lobby/`, so Vite also copied them into `smplwise_vms/www/fonts/lobby/` (452 KB that nothing read), and one `tv-fonts.css` with all five families was part of every board's render-blocking style sheet. The woff2 files moved; the five OFL texts stay in `frontend/public/fonts/lobby/` as well, so the licences still ship inside the add-on next to the fonts' inlined copies.
+
+The two Plex Sans Hebrew weight-700 files were downloaded, then not used (the urgent title uses 600) and removed from the repository.
 
 | File | Source URL | Bytes | sha256 |
 | --- | --- | ---: | --- |

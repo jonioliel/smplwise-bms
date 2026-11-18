@@ -18,7 +18,7 @@
  */
 import './tv.css';
 import './tv-v2.css'; // BOARDV2-297: the V2 board, scoped to #cv[data-design="v2"] (loaded after tv.css on purpose)
-import './tv-fonts.css'; // LOBBY-STYLES-2300: the OFL lobby fonts, inlined (the TV page reaches no other file)
+// LOBBY-STYLES-2300 / CR-TV-FONTS-ESCAPE-2443: the OFL lobby fonts are NOT imported here; lobbyFonts() loads the active style family's sheet
 import './tv-hitech.css'; // LOBBY-STYLES-2300: Lumen, Axis, Prism
 import './tv-luxury.css'; // LOBBY-STYLES-2300: Gallery, Concierge, Stone
 import './tv-skins.css'; // NOTICEBOARD-STYLES-2300: the Ink and Sign styles, scoped to #nbk (their own root; every class is nb-prefixed)
@@ -26,7 +26,7 @@ import { overlayHtml, overlayKey, pollMs, visibleNow } from '../announce/screen-
 import { swLogoSvg } from '../design/sw-logo-art'; // the approved SmplWise logo (developer kit artwork), inline SVG: the TV page is served at /b/<slug> and reaches no other file
 import { LOGO_SCALE, chooseCompanyLogo } from '../design/brand-choice';
 import {
-  AMBIENT_SPOTS, CYCLE_WASH_MS, DRIFT, DRIFT_MS, HEADERS, NEWS_SPEED, POLL_MS, SAVERS, SEV_LOOK, SIZES, bandNotice, clockIn, dimBrightness, esc, gridPlanExtra, headerOf, heldIndex, logoLayoutOf, netOf, nightDim,
+  AMBIENT_SPOTS, CYCLE_WASH_MS, DRIFT, DRIFT_MS, HEADERS, NEWS_SPEED, POLL_MS, SAVERS, SEV_LOOK, SIZES, bandNotice, clockIn, dimBrightness, esc, num, gridPlanExtra, headerOf, heldIndex, logoLayoutOf, netOf, nightDim,
   nightLogoMode, nightLogoOf, onPoll, othersMax, playlist, remoteKey, withSlides, saverOf, sevLabel, slugFrom, spaceExtra, spaceGrow, spaceOf, str, takeoverNotice, themeOf, tickerItemHtml, timeText, tokenFrom, tx, updatedOf, weatherDaysOf, whenText, withTransit,
   idleLogoOf, updatedLineParts,
   type Clock, type Display, type Feed, type FeedNotice, type FeedSlide, type HeaderLayout, type Item, type LogoLayout, type NetState, type Saver, type UpdatedLine,
@@ -38,7 +38,7 @@ import { v2Panel, v2Slide, v2Strip, type V2TransitCtx } from './v2-transit';
 import { createSkinBoard, type SkinBoard, type SkinInput } from './skin-board';
 import { chipFitOf, dropOrder, logoArea, safeInset, safeMarginOf, type ChipFit } from './tv-fit'; // TV-FIT-2380
 import { hebrewDate } from './heb-date'; // TV-FIT-2380: the Hebrew date on browsers without the Hebrew calendar
-import { isSkin, type Skin } from './skin-logic';
+import { familyOf, isSkin, type Skin } from './skin-logic';
 
 const Q = new URLSearchParams(location.search);
 const root = document.documentElement;
@@ -215,7 +215,7 @@ function logos(dark: boolean): { co: string; sw: string } {
   const mode = nightLogoMode(nightLogoOf(display()), b?.dark_mode ?? 'invert', !!companySrc.dark, companyAlpha);
   const pick = hasCompany() ? chooseCompanyLogo({ light: companySrc.light || null, dark: companySrc.dark || null }, mode, dark) : null;
   const co = pick
-    ? '<div class="lg company" data-tr="' + pick.treatment + '"><img alt="' + name + '" src="' + esc(pick.file) + '"></div>'
+    ? '<div class="lg company" data-tr="' + esc(pick.treatment) + '"><img alt="' + name + '" src="' + esc(pick.file) + '"></div>'
     : '<div class="lg company"><svg viewBox="0 0 280 64" aria-hidden="true"></svg></div>';
   return { co, sw: '<div class="lg product">' + swLogoSvg('horizontal', dark ? 'white' : 'brand', 'SmplWise') + '</div>' };
 }
@@ -231,17 +231,17 @@ function clockHtml(): string {
 function wxHtml(): string {
   const w = feed?.weather;
   if (!w) return '<div class="wx"></div>';
-  const now = '<div class="now">' + ic(ICON_OF[w.now.condition] || 'cloud') + '<b class="num">' + w.now.t + '°</b><span>' + esc(w.now.text) + '</span></div>';
+  const now = '<div class="now">' + ic(ICON_OF[w.now.condition] || 'cloud') + '<b class="num">' + num(w.now.t) + '°</b><span>' + esc(w.now.text) + '</span></div>';
   // TVOPT-295 weather_days: 0 = the forecast entries as before, 1 = today only (no row), 2..5 = one cell per day (as many as the source has)
   const n = weatherDaysOf(display());
   if (n === 1) return '<div class="wx" data-days="1">' + now + '</div>';
   if (n >= 2) {
     const days = (w.days ?? []).slice(0, n);
     return '<div class="wx" data-days="' + n + '">' + now + (days.length > 1 ? '<div class="hrs days">' + days.map((x, k) => '<div><span>' + esc(dayLabel(x.date, k === 0)) + '</span>' + ic(ICON_OF[x.condition] || 'cloud') +
-      '<b class="num">' + x.t + '°</b>' + (typeof x.lo === 'number' ? '<i class="lo num">' + x.lo + '°</i>' : '') + '</div>').join('') + '</div>' : '') + '</div>';
+      '<b class="num">' + num(x.t) + '°</b>' + (typeof x.lo === 'number' ? '<i class="lo num">' + num(x.lo) + '°</i>' : '') + '</div>').join('') + '</div>' : '') + '</div>';
   }
   return '<div class="wx">' + now + '<div class="hrs">' +
-    w.hours.map((x) => '<div><span class="num">' + esc(x.at) + '</span>' + ic(ICON_OF[x.condition] || 'cloud') + '<b class="num">' + x.t + '°</b></div>').join('') + '</div></div>';
+    w.hours.map((x) => '<div><span class="num">' + esc(x.at) + '</span>' + ic(ICON_OF[x.condition] || 'cloud') + '<b class="num">' + num(x.t) + '°</b></div>').join('') + '</div></div>';
 }
 
 /** The label of a forecast day: "היום" for today, else the short weekday of the board's language (the date is a local calendar day). */
@@ -290,14 +290,14 @@ function itemHtml(x: Item, on: boolean): string {
   const sev = sevLabel(lang(), n.severity);
   const meta = sev ? '<div class="meta"><span class="sev">' + esc(sev) + '</span>' + ic('calendar') + '<span>' + tx(when(n)) + '</span></div>' : '';
   const w = sev ? '' : '<div class="when">' + ic('calendar') + '<span>' + tx(when(n)) + '</span></div>';
-  return '<article class="it ' + look + (on ? ' on' : '') + '" data-look="' + look + '">' + (look === 'alarm' ? '<div class="bar"></div>' : '') + meta + '<h1>' + tx(n.title) + '</h1><p>' + tx(n.body) + '</p>' + w + '</article>';
+  return '<article class="it ' + esc(look) + (on ? ' on' : '') + '" data-look="' + esc(look) + '">' + (look === 'alarm' ? '<div class="bar"></div>' : '') + meta + '<h1>' + tx(n.title) + '</h1><p>' + tx(n.body) + '</p>' + w + '</article>';
 }
 
 function cellHtml(x: Item, held: boolean): string {
   const n = x.n;
   const look = SEV_LOOK[n.severity] || 'acc';
   const sev = sevLabel(lang(), n.severity);
-  return '<article class="cell ' + look + (held ? ' held' : '') + '">' + (sev ? '<div class="meta"><span class="sev">' + esc(sev) + '</span></div>' : '') + '<h2>' + tx(n.title) + '</h2><p>' + tx(n.body) + '</p><div class="when">' + ic('calendar') + '<span>' + tx(when(n)) + '</span></div></article>';
+  return '<article class="cell ' + esc(look) + (held ? ' held' : '') + '">' + (sev ? '<div class="meta"><span class="sev">' + esc(sev) + '</span></div>' : '') + '<h2>' + tx(n.title) + '</h2><p>' + tx(n.body) + '</p><div class="when">' + ic('calendar') + '<span>' + tx(when(n)) + '</span></div></article>';
 }
 
 function dotsHtml(count: number, cur: number): string {
@@ -473,7 +473,7 @@ function render(): void {
   const urgentNow = takeoverNotice(notices, d, nowDate().getTime());
   const design = designNow();
   if (isSkin(design)) {
-    renderSkin(design, theme, urgentNow);
+    if (lobbyFonts(design)) renderSkin(design, theme, urgentNow);
     return;
   }
   leaveSkin();
@@ -611,7 +611,7 @@ function v2ClockHtml(flags: Record<string, boolean>): string {
 function v2WxHtml(): string {
   const w = feed?.weather;
   if (!w) return '';
-  return '<div class="b2wx">' + ic(ICON_OF[w.now.condition] || 'cloud') + '<b class="num">' + w.now.t + '°</b><span>' + esc(w.now.text) + '</span></div>';
+  return '<div class="b2wx">' + ic(ICON_OF[w.now.condition] || 'cloud') + '<b class="num">' + num(w.now.t) + '°</b><span>' + esc(w.now.text) + '</span></div>';
 }
 
 /** The footer's start: the network notes and the "updated" line (the `updated` option: full = place · updated HH:MM, time, issues = nothing while live). */
@@ -691,6 +691,34 @@ function renderV2(d: Display, portrait: boolean, L: { co: string; sw: string }, 
 let skinBoard: SkinBoard | null = null;
 let skinActive = false;
 
+/**
+ * CR-TV-FONTS-ESCAPE-2443 (code review 08:F04): the lobby fonts, one inlined style sheet per style family (scripts/notice_tv_fonts.py),
+ * fetched only when a style of that family is about to be drawn - a board on another design downloads none of them (they were 490 KB of
+ * every board's render-blocking style sheet). Still "a file the page's script reaches": Vite names the sheet in this chunk
+ * ("assets/tv-fonts-*.css"), which is what the LAN listener's allow-list follows (services/notices/page.py). The style is drawn only once
+ * its sheet is in, so its first frame uses the same faces as before (`font-display: block`, data: URLs); a sheet that fails to load does
+ * not keep the board blank (the style draws with its fallback fonts).
+ */
+const LOBBY_FONTS = { hitech: () => import('./tv-fonts-hitech.css'), luxury: () => import('./tv-fonts-luxury.css') } as const;
+const lobbyFontsIn = new Set<keyof typeof LOBBY_FONTS>();
+const lobbyFontsAsked = new Set<keyof typeof LOBBY_FONTS>();
+
+/** true = the style's fonts are in (or it needs none): draw now; false = asked for them, render() runs again when they are in. */
+function lobbyFonts(skin: Skin): boolean {
+  const fam = familyOf(skin);
+  if (fam === 'station' || lobbyFontsIn.has(fam)) return true;
+  if (!lobbyFontsAsked.has(fam)) {
+    lobbyFontsAsked.add(fam);
+    const done = (): void => {
+      lobbyFontsIn.add(fam);
+      render();
+      if (document.fonts && document.fonts.ready) void document.fonts.ready.then(() => (skinActive ? skinBoard?.refit() : undefined));
+    };
+    LOBBY_FONTS[fam]().then(done, done);
+  }
+  return false;
+}
+
 /** "Thursday · 29.10" for the header and the plates, the weekday and "29 October" for the idle face (the board's zone and language). */
 function skinClock(): { t: string; d: string; wd: string; dm: string } {
   const at = nowDate();
@@ -730,7 +758,7 @@ function skinCompany(dark: boolean): string {
   const pick = chooseCompanyLogo({ light: companySrc.light || null, dark: companySrc.dark || null }, mode, dark);
   if (!pick) return '';
   const name = esc(feed?.board.brand?.name || feed?.board.building || '');
-  return '<span class="nb-co" data-co="' + tv2Of(display(), 'co_size') + '" data-tr="' + pick.treatment + '"><img alt="' + name + '" src="' + esc(pick.file) + '"></span>';
+  return '<span class="nb-co" data-co="' + esc(tv2Of(display(), 'co_size')) + '" data-tr="' + esc(pick.treatment) + '"><img alt="' + name + '" src="' + esc(pick.file) + '"></span>';
 }
 
 function leaveSkin(): void {
@@ -804,7 +832,8 @@ function renderAnn(): void {
   const key = overlayKey(a);
   if (key !== annKey) {
     annKey = key;
-    ann.innerHTML = a ? overlayHtml(a, feed?.board.display.lang ?? 'he') : '';
+    // CR-TV-FONTS-ESCAPE-2443 (review 08:F05): the overlay prints the language into lang="..." as it is; a valid tag has no character esc() changes
+    ann.innerHTML = a ? overlayHtml({ ...a, texts: a.texts.map((t) => ({ ...t, language: esc(t.language) as typeof t.language })) }, feed?.board.display.lang ?? 'he') : '';
   }
   annSync();
 }
