@@ -192,6 +192,7 @@ export const tr = msgCatalogue('msg/api-home', {
   'חיישן נדרש חייב להיות מאושר: {v}': 'A required sensor must be approved: {v}',
   'הדרישה תחול רק כשהשיתוף פעיל.': 'The requirement applies only while sharing is on.',
   // api/tile-layout.ts
+  'אוטומטי': 'Automatic',
   'כרטיסים': 'Cards',
   'קומפקטי': 'Compact',
   // api/zones.ts
