@@ -12,7 +12,7 @@ Each step keeps its own change note: `docs/changes/CR-ROUTER-COMMON-TAIL-2442.md
 
 | Merge commit | Branch | Head | Note |
 |---|---|---|---|
-| `a7c3134e1` | `pilot/CR-BE-DEAD-CODE-B-2442` (linear chain BE-1 `382b52e1d` -> BE-2 `6de49c824` -> BE-3 `b2ba874ca` -> BE-4 `8b74bb16f`) | `8b74bb16f` | `--no-ff`; merge base `59e4215fe` (the older W2-FU head; the train holds W2-FU `c193fab64`) |
+| `12ba52177` | `pilot/CR-BE-DEAD-CODE-B-2442` (linear chain BE-1 `382b52e1d` -> BE-2 `6de49c824` -> BE-3 `b2ba874ca` -> BE-4 `8b74bb16f`) | `8b74bb16f` | `--no-ff`; merge base `59e4215fe` (the older W2-FU head; the train holds W2-FU `c193fab64`) |
 
 **Conflicts: none.** The merge was textual-clean (`git merge-tree` predicted it, the merge confirmed it). 235 files differ
 from the train. Files changed on BOTH sides since the merge base (7) and how they combined:
@@ -100,9 +100,25 @@ Before this branch gets an entry check or boards a train:
 
 ## Test runs
 
+- `tests/test_routers_table_2440.py`, `tests/test_release_check.py`, `tests/test_router_common_helpers.py`:
+  **25 passed, 0 failed** (1 min 43 s). Route table / API inventory consistency, release consistency, router helper guard.
+- Guard batch `test_router_common_helpers`, `test_setting_callers_2440`, `test_setting_value_parity`,
+  `test_get_routes_read_conn`, `test_routers_table_2440`, `test_release_check`, `test_tickets_router_common_2438`
+  (~800 tests): **stopped by the lead at 27%** (workstation out of RAM, CPU 100%); up to that point **220 passed, 0 failed,
+  0 errors**. Which files the 220 cover cannot be told from the `-q` output (the first files in the order above).
+
 ## NOT_RUN
 
-- The full backend suite (~1070 files): not run (runner not used, PC busy). Router API tests beyond the list above: not run.
+- The full backend suite (~1070 files): not run; the lead runs it on the runner after the 2.43.8 gate frees it.
+- The rest of the guard batch above (~580 tests of `test_setting_value_parity` / `test_get_routes_read_conn` /
+  `test_tickets_router_common_2438` / `test_setting_callers_2440`): NOT_RUN (stopped).
+- Tests of the 7 two-sided files, planned but NOT_RUN: `test_wiskey_door_tech`, `test_confirm_words_2442`,
+  `test_admin_gate_2438`, `test_wkr5_295_writer`, `test_wiskey_managed_install_2382`, `test_wiskey_install_answers_2400`,
+  `test_access_grants`, `test_dirperm_295`, `test_grantsmin_295`, `test_multi_nvr`, `test_settings_patch_audit_order`,
+  `test_settings_nav_pref`.
+- API tests of the BE-1 converted routers (`test_energy_billing_api`, `test_raw_body_order`, `test_cases`, `test_catalog`,
+  `test_plans`, `test_backup`, `test_cameras`, `test_nvr_write`, `test_ha_users`, `test_service_identity`, `test_events`,
+  `test_recordings`, ...): NOT_RUN on this merge (the BE steps ran them on their own base, see their notes).
 - Entry check: not queued (as instructed; the 2.43.8 release gate holds the runner).
 - `branch_check.sh` / `gate_release.sh` end to end: not run (runner); `bash -n` on both ok.
 - Frontend, pixels: nothing in `frontend/` changed by this merge.
