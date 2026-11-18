@@ -18,7 +18,7 @@
  */
 import './tv.css';
 import './tv-v2.css'; // BOARDV2-297: the V2 board, scoped to #cv[data-design="v2"] (loaded after tv.css on purpose)
-import './tv-fonts.css'; // LOBBY-STYLES-2300: the OFL lobby fonts, inlined (the TV page reaches no other file)
+// LOBBY-STYLES-2300 / CR-TV-FONTS-ESCAPE-2443: the OFL lobby fonts are NOT imported here; lobbyFonts() loads the active style family's sheet
 import './tv-hitech.css'; // LOBBY-STYLES-2300: Lumen, Axis, Prism
 import './tv-luxury.css'; // LOBBY-STYLES-2300: Gallery, Concierge, Stone
 import './tv-skins.css'; // NOTICEBOARD-STYLES-2300: the Ink and Sign styles, scoped to #nbk (their own root; every class is nb-prefixed)
@@ -38,7 +38,7 @@ import { v2Panel, v2Slide, v2Strip, type V2TransitCtx } from './v2-transit';
 import { createSkinBoard, type SkinBoard, type SkinInput } from './skin-board';
 import { chipFitOf, dropOrder, logoArea, safeInset, safeMarginOf, type ChipFit } from './tv-fit'; // TV-FIT-2380
 import { hebrewDate } from './heb-date'; // TV-FIT-2380: the Hebrew date on browsers without the Hebrew calendar
-import { isSkin, type Skin } from './skin-logic';
+import { familyOf, isSkin, type Skin } from './skin-logic';
 
 const Q = new URLSearchParams(location.search);
 const root = document.documentElement;
@@ -473,7 +473,7 @@ function render(): void {
   const urgentNow = takeoverNotice(notices, d, nowDate().getTime());
   const design = designNow();
   if (isSkin(design)) {
-    renderSkin(design, theme, urgentNow);
+    if (lobbyFonts(design)) renderSkin(design, theme, urgentNow);
     return;
   }
   leaveSkin();
@@ -690,6 +690,34 @@ function renderV2(d: Display, portrait: boolean, L: { co: string; sw: string }, 
 
 let skinBoard: SkinBoard | null = null;
 let skinActive = false;
+
+/**
+ * CR-TV-FONTS-ESCAPE-2443 (code review 08:F04): the lobby fonts, one inlined style sheet per style family (scripts/notice_tv_fonts.py),
+ * fetched only when a style of that family is about to be drawn - a board on another design downloads none of them (they were 490 KB of
+ * every board's render-blocking style sheet). Still "a file the page's script reaches": Vite names the sheet in this chunk
+ * ("assets/tv-fonts-*.css"), which is what the LAN listener's allow-list follows (services/notices/page.py). The style is drawn only once
+ * its sheet is in, so its first frame uses the same faces as before (`font-display: block`, data: URLs); a sheet that fails to load does
+ * not keep the board blank (the style draws with its fallback fonts).
+ */
+const LOBBY_FONTS = { hitech: () => import('./tv-fonts-hitech.css'), luxury: () => import('./tv-fonts-luxury.css') } as const;
+const lobbyFontsIn = new Set<keyof typeof LOBBY_FONTS>();
+const lobbyFontsAsked = new Set<keyof typeof LOBBY_FONTS>();
+
+/** true = the style's fonts are in (or it needs none): draw now; false = asked for them, render() runs again when they are in. */
+function lobbyFonts(skin: Skin): boolean {
+  const fam = familyOf(skin);
+  if (fam === 'station' || lobbyFontsIn.has(fam)) return true;
+  if (!lobbyFontsAsked.has(fam)) {
+    lobbyFontsAsked.add(fam);
+    const done = (): void => {
+      lobbyFontsIn.add(fam);
+      render();
+      if (document.fonts && document.fonts.ready) void document.fonts.ready.then(() => (skinActive ? skinBoard?.refit() : undefined));
+    };
+    LOBBY_FONTS[fam]().then(done, done);
+  }
+  return false;
+}
 
 /** "Thursday · 29.10" for the header and the plates, the weekday and "29 October" for the idle face (the board's zone and language). */
 function skinClock(): { t: string; d: string; wd: string; dm: string } {
