@@ -371,7 +371,7 @@ export function syncBadge(status: string): { kind: StateKind; label: string } {
 }
 
 /** The name lookups the people screen hands its drawer and its bulk dialog, built from the station and group lists. */
-export interface PeopleLookups {
+interface PeopleLookups {
   stationNames: Record<string, string>;
   groupLabels: Record<string, string>;
   groupStations: Record<string, number | null>;

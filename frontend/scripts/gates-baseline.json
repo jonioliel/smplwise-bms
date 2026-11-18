@@ -63,7 +63,6 @@
       "src/i18n/confirm-dialog.ts#CdKey",
       "src/i18n/home-screen.ts#HS_UNTRANSLATED",
       "src/i18n/msg.ts#msgTables",
-      "src/i18n/wiskey-profiles.ts#PF_EN",
       "src/map/sun.ts#LIGHT_MOODS",
       "src/screens/devices-layout.ts#LAYOUT_ROLES",
       "src/styles/devices-themes.ts#DEVICE_THEME_KNOBS",

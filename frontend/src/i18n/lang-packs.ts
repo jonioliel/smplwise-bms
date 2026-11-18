@@ -24,7 +24,7 @@
 import { docLangRaw } from './core';
 
 /** The languages that have a pack. Hebrew has none: it is in the modules. */
-export type PackLang = 'en' | 'ar' | 'ru';
+type PackLang = 'en' | 'ar' | 'ru';
 export const PACK_LANGS: readonly PackLang[] = ['en', 'ar', 'ru'];
 
 /** A language pack: per module (its path under src/, without `.ts`), its tables by export name. */

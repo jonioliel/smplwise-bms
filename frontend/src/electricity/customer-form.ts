@@ -11,7 +11,7 @@
 /** A plausible e-mail address: something@something.something, no spaces. */
 export const CUSTOMER_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** A customer number: 1 to 9 digits. */
-export const CUSTOMER_NUMBER = /^\d{1,9}$/;
+const CUSTOMER_NUMBER = /^\d{1,9}$/;
 
 /** The customer card's fields, as the inputs hold them (an absent value is ''). */
 export interface CustomerForm {
@@ -25,7 +25,7 @@ export interface CustomerForm {
 }
 
 /** What a customer record from either API carries for the form (the contact fields come only with the bills permission). */
-export interface CustomerRecord {
+interface CustomerRecord {
   name: string;
   customer_number: string;
   tax_id?: string;
@@ -50,7 +50,7 @@ export const customerFormOf = (c: CustomerRecord): CustomerForm => ({
 });
 
 /** A field the checks can refuse. */
-export type CustomerFormProblem = 'name' | 'email' | 'customer_number';
+type CustomerFormProblem = 'name' | 'email' | 'customer_number';
 
 /**
  * The fields that fail, in form order: an empty name (spaces only counts as empty), an e-mail that is written and malformed,
