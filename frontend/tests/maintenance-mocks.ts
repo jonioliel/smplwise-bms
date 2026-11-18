@@ -31,6 +31,8 @@ export interface MaintMockOptions {
   remindersOn?: boolean;
   /** no lines in the reminder log */
   emptyLog?: boolean;
+  /** CR-NOSCROLL-LISTS-2443: this many more generated lines after the four fixture lines (a log longer than a desktop window) */
+  longLog?: number;
   /** the closed request belongs to a plan (the close question is shown); default true */
   closeAsks?: boolean;
 }
@@ -198,13 +200,18 @@ export async function installMaintenanceMock(page: Page, o: MaintMockOptions = {
     }
     if (p === 'reminder-log' || p.startsWith('reminder-log?')) {
       const ev = url.searchParams.get('event');
-      const rows = o.emptyLog ? [] : [
+      const rows: { id: string; task_id: string; title: string; task_kind: string; event: string; due_date: string; detail: string; at: string }[] = o.emptyLog ? [] : [
         { id: 'l1', task_id: 'p1', title: 'ניקוי מנדף המטבח', task_kind: 'preventive', event: 'overdue', due_date: '2027-01-12', detail: '', at: '2027-01-13T06:00:00Z' },
         { id: 'l2', task_id: 'p1', title: 'ניקוי מנדף המטבח', task_kind: 'preventive', event: 'request', due_date: '2027-01-12', detail: 't-1042', at: '2027-01-05T06:00:00Z' },
         { id: 'l3', task_id: 'c1', title: 'בדיקת מעלית שנתית - מעלית צפונית', task_kind: 'certificate', event: 'due_soon', due_date: '2027-02-14', detail: '', at: '2027-01-15T06:00:00Z' },
         { id: 'l4', task_id: 'p2', title: 'ניקוי מסנני מזגנים', task_kind: 'preventive', event: 'request_failed', due_date: '2027-01-27', detail: 'tickets_off', at: '2027-01-14T06:00:00Z' },
-      ].filter((r) => !ev || r.event === ev);
-      return json(route, { items: rows, reminders_enabled: o.remindersOn === true, keep_days: 365 });
+      ];
+      const kinds = ['due_soon', 'overdue', 'request', 'request_failed'] as const;
+      for (let i = 0; !o.emptyLog && i < (o.longLog ?? 0); i++) {
+        const day = String(1 + (i % 28)).padStart(2, '0');
+        rows.push({ id: `lx${i + 1}`, task_id: 'p2', title: `ניקוי מסנני מזגנים ${i + 1}`, task_kind: 'preventive', event: kinds[i % 4], due_date: '2026-12-31', detail: kinds[i % 4] === 'request' ? 't-1042' : kinds[i % 4] === 'request_failed' ? 'tickets_off' : '', at: `2026-12-${day}T06:00:00Z` });
+      }
+      return json(route, { items: rows.filter((r) => !ev || r.event === ev), reminders_enabled: o.remindersOn === true, keep_days: 365 });
     }
     m = /^close-proposal\/([^/]+)(\/confirm)?$/.exec(p);
     if (m) {
