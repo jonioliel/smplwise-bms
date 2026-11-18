@@ -83,8 +83,10 @@ test('the home screen renders its lazy tags through the loader and keeps a used 
   const b = code('screens/devices-building.ts');
   expect(b).toContain('loadPendingScreens(this.renderRoot, () => this.requestUpdate(), true)');
   // each first-press element appears with its first use (or once the idle warm-up brought its chunk) and stays from then on
-  expect(b).toMatch(/if \(this\.panel\) this\.panelUsed = true;\s*if \(!this\.panelUsed && !screenDefined\('devices-tiles-panel'\)\) return nothing;/);
-  expect(b).toMatch(/if \(q\) this\.quickUsed = true;\s*if \(!this\.quickUsed && !screenDefined\('area-quick-sheet'\)\) return nothing;/);
+  // (CR-G1-HOME-AREA-2440, 06:RENDER-1: the "used" flags are set in willUpdate, before the render reads them)
+  expect(b).toMatch(/protected willUpdate\([\s\S]{0,1500}if \(this\.panel\) this\.panelUsed = true;\s*if \(this\.quick\) this\.quickUsed = true;/);
+  expect(b).toMatch(/if \(!this\.panelUsed && !screenDefined\('devices-tiles-panel'\)\) return nothing;/);
+  expect(b).toMatch(/if \(!this\.quickUsed && !screenDefined\('area-quick-sheet'\)\) return nothing;/);
   expect(b).toContain('warmHomePanels(() => this.requestUpdate())');
   // a press on "כבה הכל" before the dialog's chunk landed is kept, not lost
   expect(b).toMatch(/if \(!this\.siteOff\?\.show\) \{[\s\S]{0,400}whenScreen\('home-site-off'\)/);

@@ -35,6 +35,7 @@ import {
   sideSectionsAllowed, springLinear, type Box, type Detent, type QuickMode, type QuickSection,
 } from './area-quick-logic';
 import { FrameCoalescer } from '../components/frame-coalescer';
+import { areaEntityIds, Memo2, NO_EXTRA, presenceWho, ReloadThrottle, routeDevicePush, sensorValueText } from './devices-shared'; // CR-G1-HOME-AREA-2440 (06:DUP-10)
 import { areaQuickSheetStyles } from './area-quick-sheet-css';
 
 const reducedMotion = () => {
@@ -52,7 +53,7 @@ function deepActive(): HTMLElement | null {
   return a as HTMLElement | null;
 }
 
-/** CR-HOME-RELOAD-2436 (06:HOME-1 b): pushes are throttled, not debounced (as devices-building.ts REFRESH_WINDOW_MS): the first push opens
+/** CR-HOME-RELOAD-2436 (06:HOME-1 b): pushes are throttled, not debounced (as devices-shared.ts REFRESH_WINDOW_MS): the first push opens
  * this window, every push inside it rides the same reload, so a busy site still refreshes the sheet about this often instead of never. */
 export const SHEET_RELOAD_WINDOW_MS = 400;
 
@@ -126,7 +127,8 @@ export class AreaQuickSheet extends LitElement {
   private opener: HTMLElement | null = null;
   private releaseScroll: (() => void) | null = null;
   private stopHa: (() => void) | null = null;
-  private reloadTimer = 0;
+  /** CR-G1-HOME-AREA-2440 (06:DUP-10): the throttle shared with the home and the area screens (devices-shared.ts ReloadThrottle). */
+  private readonly reloads = new ReloadThrottle(SHEET_RELOAD_WINDOW_MS, () => void this.reloadQuiet());
   /** CR-HOME-RELOAD-2436 (06:HOME-1 b): a quiet reload in flight, and a push during it (exactly one more reload after it). */
   private reloading = false;
   private reloadAgain = false;
@@ -465,13 +467,16 @@ export class AreaQuickSheet extends LitElement {
   private startLive() {
     this.stopLive();
     if (!isApi()) return;
-    this.stopHa = subscribeHa((m) => {
-      // CR-HOME-RELOAD-2436 (06:HOME-1 b, as devices-area.ts): only a push about one of this area's own entities reloads it (until the body
-      // is loaded every push may be one of them); a structure change may move an entity in or rename: it always reloads
-      if (m.type === 'entity_state_changed') {
-        if (!this.detail || this.entityIds.has(m.entity.entity_id)) this.scheduleReload();
-      } else if (m.type === 'structure_changed') this.scheduleReload();
-    });
+    // CR-HOME-RELOAD-2436 (06:HOME-1 b, as devices-area.ts): only a push about one of this area's own entities reloads it (until the body
+    // is loaded every push may be one of them); a structure change may move an entity in or rename: it always reloads
+    this.stopHa = subscribeHa((m) =>
+      routeDevicePush(m, {
+        entity: (id) => {
+          if (!this.detail || this.entityIds.has(id)) this.scheduleReload();
+        },
+        structure: () => this.scheduleReload(),
+      }),
+    );
     // AREA-PRESENCE-LINE-2351: the people part does not come from entity pushes - a quiet 30 s read while open, the line on and visible
     this.presTimer = window.setInterval(() => {
       const a = this.area;
@@ -485,8 +490,7 @@ export class AreaQuickSheet extends LitElement {
   private stopLive() {
     this.stopHa?.();
     this.stopHa = null;
-    window.clearTimeout(this.reloadTimer);
-    this.reloadTimer = 0; // the throttle's guard: a stale id would block every later reload
+    this.reloads.cancel(); // the throttle's guard: a stale booking would block every later reload
     this.reloadAgain = false;
     window.clearInterval(this.presTimer);
     this.presTimer = 0;
@@ -506,11 +510,7 @@ export class AreaQuickSheet extends LitElement {
   /** CR-HOME-RELOAD-2436 (06:HOME-1 b): a throttle, not a resetting debounce (that starves while pushes keep coming): the first push opens
    * a SHEET_RELOAD_WINDOW_MS window, later pushes ride it, a push during the reload itself queues exactly one more. */
   private scheduleReload() {
-    if (this.reloadTimer) return;
-    this.reloadTimer = window.setTimeout(() => {
-      this.reloadTimer = 0;
-      void this.reloadQuiet();
-    }, SHEET_RELOAD_WINDOW_MS);
+    this.reloads.schedule();
   }
 
   private async reloadQuiet() {
@@ -530,10 +530,11 @@ export class AreaQuickSheet extends LitElement {
     }
   }
 
-  /** The entity ids of the loaded body (every row the sheet draws comes from the area's cards). */
+  /** The entity ids of the loaded body (every row the sheet draws comes from the area's cards). CR-G1-HOME-AREA-2440 (06:PERF-6): built once
+   * per loaded body (was: a new set for every push). */
+  private readonly idsMemo = new Memo2(areaEntityIds);
   private get entityIds(): Set<string> {
-    if (!this.detail) return new Set();
-    return new Set(Object.values(this.detail.cards).flatMap((c) => (c?.entities ?? []).map((r) => r.entity_id)));
+    return this.idsMemo.get(this.detail, NO_EXTRA);
   }
 
   private async load(quiet = false) {
@@ -889,9 +890,7 @@ export class AreaQuickSheet extends LitElement {
    * Names only when the server sent them; an anonymous count otherwise (presence.building.view without presence.view). */
   private renderPresenceLine(v: AreaLineView) {
     if (!v.show) return nothing;
-    const who = v.names.length
-      ? html`${v.names.map((n, i) => html`${i ? ', ' : ''}<bdi>${n}</bdi>`)}${v.rest > 0 ? ` ${BP.andMore(v.rest)}` : ''}`
-      : v.people;
+    const who = presenceWho(v);
     return html`<span class="pline" data-qc-area-presence data-tone=${v.tone} role="status" aria-label=${BP.areaLineAria} title=${v.title}>
       <sw-icon name="users" size=${14}></sw-icon><span class="plbl">${BP.areaLineLabel}</span>
       ${v.room ? html`<span class="psep" aria-hidden="true">·</span><b data-qc-area-presence-room>${v.room}</b>` : nothing}
@@ -953,7 +952,7 @@ export class AreaQuickSheet extends LitElement {
   }
 
   private renderSensor(r: DeviceRow, revealed = false) {
-    const value = r.domain === 'sensor' && r.value !== null && r.value !== undefined ? `${ltrNum(Number.isInteger(r.value) ? r.value : r.value.toFixed(1))}${r.unit ? ` ${r.unit}` : ''}` : rowLabel(r);
+    const value = r.domain === 'sensor' && r.value !== null && r.value !== undefined ? sensorValueText(r.value, r.unit, 'spaced') : rowLabel(r);
     return html`<div class=${classMap({ sv: true, alarm: revealed })} data-qc-sensor=${r.entity_id} data-qc-alarm=${revealed ? 'true' : nothing} title=${revealed ? `${r.name} - ${hs('qcRevealed')}` : r.name}><b>${value}</b><span>${bidi(r.name)}</span>${revealed ? html`<em>${hs('qcRevealed')}</em>` : nothing}</div>`;
   }
 
