@@ -246,3 +246,32 @@ not part of the commit.
 
 NOT_RUN: the pictures were not looked at one by one here (the owner compared the two palettes); nothing else was run. The entry
 check is queued after the push (`~/pre/entry_domus.log`).
+
+## Entry check 98d8d4b44: three failures (18.11)
+
+Verdict `~/smplwise-results/entry_pilot-DOMUS-DEFAULT-2439_98d8d4b44.md`: RED, 3 failures, each failed again alone. `origin/main`
+(cc69447f1) was already merged. All runner runs below were made in two own worktrees (`~/work/domusfix-br` at 98d8d4b44,
+`~/work/domusfix-main` at cc69447f1; `npm run build`, then Playwright on the dist preview, nothing else stopped or touched;
+load average 30-53 while the entry queue ran); the worktrees were removed afterwards.
+
+| Failure | Cause | Fix |
+|---|---|---|
+| `pixel-plan3d-r28-ui:46` desktop (`r28-pills`, `r28-pills-popover`) and `:68` desktop (`r28-stack-open`, `r28-stack-focus`) | Intended: the only difference is the 3D view's chip row - the selected chips (מלמעלה / איזומטרי, סכמטי) now draw the accent ring and the check mark of this branch's strengthened selected chip (Q-DES-3 b, every skin, classic too), and the wider chips wrap one place differently. The baselines came from main (d849af79c, the soft chip of AUDIT30-B-SHARED) with the 2.43.7 merge, after this branch's own baseline passes. The 3D canvas is cleared in this spec, so the Domus 3D palette plays no part; the pills, the popover, the level tags and the column are pixel-equal | Four desktop baselines rewritten on the runner (`-u` = changed only, `--workers=1`, desktop + mobile: 5 passed, 5 skipped by project); the mobile room-card baselines were not rewritten. Looked at before / after: chip row only |
+| `evidence-camera-viewfinder:101` mobile (60 s, `page.screenshot` of the review step, line 118) | **Not caused by this branch** (it changes nothing under `src/tickets/camera-viewfinder.ts` or the ticket detail): main's own nightly `gate_main_0a8fb55e1` (14.11, classic default) failed the same test the same way (`page.screenshot` timeout at `:118`, mobile; its retry passed at 48.7 s of 60). Another signature of the same step: `pilot/CR-MODAL-STACK-2441` (436fdb701, classic default) was FLAKY on `:101` mobile with `toHaveAttribute` | **Nothing changed** (no quarantine). Reported to the lead as a pre-existing flake of the shot -> review step |
+
+Runs of `:101` (mobile, `--workers=1` unless said):
+
+| Where | Run | Result |
+|---|---|---|
+| main cc69447f1 | `-g "on: nothing before the click" --repeat-each=4` | 4 passed (9-13 s) |
+| branch 98d8d4b44 | the same | 4 passed (9.5-20.2 s) |
+| branch 98d8d4b44 | the whole file, `--repeat-each=6 --workers=2` | 29 passed, 1 failed: `:101` repeat 3, `data-camvf` stayed `live` 5 s after the shot click (expected `review`) - the CR-MODAL-STACK signature |
+| main cc69447f1 | the same | 30 passed |
+
+So `:101` is 1 failure in 16 on the branch and 0 in 16 on main in these runs, against one failure each on main's nightly and on an
+unrelated branch: not a difference that can be told apart. A likely cause, not proven: the shot waits for `canvas.toBlob('image/jpeg')`,
+which Chromium encodes in idle time with a timeout of a few seconds, so a starved renderer passes the 5 s expectation and the 60 s
+budget. A separate ticket should fix it in the test or the component.
+
+NOT_RUN: the full suites (the entry check, queued after the push: `~/pre/entry_domus2.log`); nothing locally on the workstation (no
+source changed).
