@@ -64,8 +64,7 @@ function writeRoute(path: string, params: URLSearchParams | undefined, push: boo
   window.dispatchEvent(new CustomEvent(ROUTE_REPLACED));
 }
 
-/** 
-eplaced is true for replaceRoute / pushRoute (the program moved the address), false for a hashchange. */
+/** `replaced` is true for replaceRoute / pushRoute (the program moved the address), false for a hashchange. */
 export function onRouteChange(handler: (route: RouteState, replaced: boolean) => void): () => void {
   const onHash = () => handler(parseRoute(), false);
   const onReplaced = () => handler(parseRoute(), true);
