@@ -26,9 +26,8 @@ import {
   type IntercomEditorPerson,
   type IntercomPersonDraft,
 } from '../api/intercom';
-import { syncBadge } from './wiskey-people';
 import './wiskey-card-capture';
-import { localInput, resolveLocalInput, t, UTC_ZONE } from './wiskey-format';
+import { localInput, resolveLocalInput, syncBadge, t, UTC_ZONE } from './wiskey-format'; // CR-WISKEY-NOTIF-2443: syncBadge moved here from wiskey-people (an import cycle)
 import {
   MAX_DATES,
   MAX_PERIODS,

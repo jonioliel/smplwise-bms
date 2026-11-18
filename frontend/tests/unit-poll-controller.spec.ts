@@ -263,6 +263,7 @@ const FAMILIES: { file: string; ids: string[]; periods: Record<string, number>; 
   { file: 'screens/devices-synoptic.ts', ids: ['board'], periods: { board: 30_000 }, setIntervalLeft: 1 }, // the 15 s clock makes no request
   { file: 'screens/messaging-policy-card.ts', ids: ['window'], periods: { window: 30_000 }, when: true, setIntervalLeft: 0 },
   { file: 'screens/wiskey-events.ts', ids: ['notices'], periods: { notices: 30_000 }, setIntervalLeft: 0 },
+  { file: 'screens/wiskey-people.ts', ids: ['people'], periods: { people: 30_000 }, setIntervalLeft: 0 }, // CR-WISKEY-NOTIF-2443
 ];
 
 test.describe('screens polled through PollController', () => {

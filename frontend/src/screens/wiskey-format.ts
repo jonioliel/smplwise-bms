@@ -7,6 +7,8 @@
  */
 import { uiLocale } from '../i18n/locale';
 import type { DisplayZone } from '../api/intercom';
+import type { AcGroup, AcStationLite } from '../api/access-people';
+import type { StateKind } from '../components/sw-badge';
 import { tr } from '../i18n/msg/wiskey';
 
 export const UTC_ZONE: DisplayZone = { kind: 'iana', name: 'UTC' };
@@ -351,4 +353,53 @@ const HE: Record<string, string> = {
 /** WisKey's `translate`: a known key, else the key itself with underscores as spaces. */
 export function t(key: string): string {
   return HE[key] ?? key.replaceAll('_', ' ');
+}
+
+/**
+ * The sync status as a badge for the person editor's station rows (WisKey `badge(status)`): the editor's own contract, unchanged.
+ * CR-WISKEY-NOTIF-2443 (review 06:WK-1): moved here from screens/wiskey-people.ts - the editor imported it back from the screen that
+ * imports the editor (a cycle). Not the same function as `syncBadge` of access-control/station-permissions-logic.ts (that one takes a
+ * station-permission sync state and returns null for "applied").
+ */
+export function syncBadge(status: string): { kind: StateKind; label: string } {
+  if (status === 'synced') return { kind: 'recorded', label: t('synced') };
+  if (status === 'pending' || status === 'syncing' || status === 'delete_pending') return { kind: 'stale', label: t(status) };
+  if (status === 'conflict' || status === 'error') return { kind: 'error', label: t(status) };
+  if (status === 'offline') return { kind: 'offline', label: t('offline') };
+  if (status === 'unassigned') return { kind: 'unknown', label: t('filter_unassigned') };
+  return { kind: 'neutral', label: t(status) };
+}
+
+/** The name lookups the people screen hands its drawer and its bulk dialog, built from the station and group lists. */
+export interface PeopleLookups {
+  stationNames: Record<string, string>;
+  groupLabels: Record<string, string>;
+  groupStations: Record<string, number | null>;
+  bulkStations: { id: string; name: string; locks: number[] }[];
+  bulkGroups: { id: string; label: string }[];
+}
+
+/**
+ * CR-WISKEY-NOTIF-2443 (review 06:WK-1): the lookups were rebuilt on every render (each search keystroke made three maps and two
+ * arrays, and the drawer and the bulk dialog saw "new" properties every time). The returned function rebuilds them only when the
+ * station list or the group list is a different array (the screen replaces them, never mutates them); otherwise it returns the same
+ * objects.
+ */
+export function peopleLookupsMemo(): (stations: readonly AcStationLite[], groups: readonly AcGroup[]) => PeopleLookups {
+  let lastStations: readonly AcStationLite[] | null = null;
+  let lastGroups: readonly AcGroup[] | null = null;
+  let last: PeopleLookups | null = null;
+  return (stations, groups) => {
+    if (last && stations === lastStations && groups === lastGroups) return last;
+    lastStations = stations;
+    lastGroups = groups;
+    last = {
+      stationNames: Object.fromEntries(stations.map((s): [string, string] => [s.id, s.name])),
+      groupLabels: Object.fromEntries(groups.map((g): [string, string] => [g.id, g.label])),
+      groupStations: Object.fromEntries(groups.map((g): [string, number | null] => [g.id, g.station_ids ? g.station_ids.length : null])),
+      bulkStations: stations.map((st) => ({ id: st.id, name: st.name, locks: [1, 2] })),
+      bulkGroups: groups.map((g) => ({ id: g.id, label: g.label })),
+    };
+    return last;
+  };
 }
