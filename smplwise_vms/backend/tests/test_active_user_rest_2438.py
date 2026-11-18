@@ -192,6 +192,38 @@ def test_access_grants_recovery_actor_is_refused_when_ha_disabled(client, settin
     assert e.value.code == "actor_inactive"
 
 
+def test_notification_recipient_lists_follow_the_one_rule(client, settings, people):
+    """CR-W2-FOLLOWUPS-2441: the notify module's lists of active users are the one rule's Arx accounts (the list form of
+    has_active_account) - the same people as `users.active = 1` whenever the two sides agree, minus the HA-disabled otherwise."""
+    from smplwise.services import active_users, notify, notify_recipients, notify_visibility
+
+    with _conn(settings) as conn:
+        ids = active_users.active_account_ids(conn)
+        every = [r[0] for r in conn.execute("SELECT id FROM users ORDER BY id").fetchall()]
+        assert ids == [u for u in every if active_users.has_active_account(conn, u)]
+        assert people["on"] in ids and people["local"] in ids and people["off"] not in ids and people["svc"] not in ids
+        assert notify._active_users(conn) == ids
+        assert notify_recipients.active_user_ids(conn) == set(ids)
+        assert notify_recipients.Known.read(conn).active_users == set(ids)
+        assert [p.user_id for p in notify_visibility.active_principals(conn)] == ids
+        assert [p.user_id for p in notify._active_principals(conn)] == ids
+        assert notify_recipients.expand(conn, {"users": [people["on"], people["off"], people["svc"]]}, ()) == [people["on"]]
+        # the two sides agree again: exactly the list the module read before
+        conn.execute("UPDATE ha_users SET is_active = 1 WHERE id = ?", (people["off"],))
+        before = [r[0] for r in conn.execute("SELECT id FROM users WHERE active = 1 ORDER BY id").fetchall()]
+        assert active_users.active_account_ids(conn) == before and people["off"] in before
+        assert [p.user_id for p in notify_visibility.active_principals(conn)] == before
+        conn.execute("UPDATE users SET active = 0 WHERE id = ?", (people["on"],))
+        assert people["on"] not in active_users.active_account_ids(conn)
+
+
+def test_the_notify_module_builds_no_active_user_list_of_its_own():
+    root = Path(__file__).resolve().parents[1] / "smplwise" / "services"
+    pat = re.compile(r"FROM users WHERE active = 1")
+    hits = [name for name in ("notify.py", "notify_recipients.py", "notify_visibility.py") if pat.search((root / name).read_text(encoding="utf-8"))]
+    assert hits == [], hits
+
+
 # ---------------------------------------------------------------- the no-drift guard
 
 def test_no_module_reads_users_active_for_one_id_on_its_own():

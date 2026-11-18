@@ -94,9 +94,11 @@ test('always (default): the row and its "⋯"; "הסתר מהעץ" saves one key
   await expect(toast.locator('[data-tree-unassigned-undo]')).toBeFocused();
   expect(o.patches).toEqual([{ 'home.screen': { tree_unassigned: 'editing' } }]);
   expect(await t.locator('[data-tree="all"]').innerText()).toBe(all); // hiding changes no number
-  await shot(page, '03-hidden-undo', info.project.name);
   expect(await overflowX(page)).toBeLessThanOrEqual(0);
+  // the notice closes 8 s after it opens (owner 18.11: a hard 8 s); "בטל" is pressed before the evidence shot, which on a loaded
+  // runner took longer than the 8 s by itself (entry check 59e4215fe, main nightly 0a8fb55e1)
   await toast.locator('[data-tree-unassigned-undo]').click();
+  await shot(page, '03-undone', info.project.name);
   await expect(t.locator('[data-tree-unassigned]')).toBeVisible();
   await expect(B(page).locator('[data-tree-unassigned-toast]')).toHaveCount(0);
   expect(o.patches).toEqual([{ 'home.screen': { tree_unassigned: 'editing' } }, { 'home.screen': { tree_unassigned: 'always' } }]);

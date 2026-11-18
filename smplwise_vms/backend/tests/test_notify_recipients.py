@@ -24,6 +24,7 @@ def _db() -> sqlite3.Connection:
     conn.executescript(
         """CREATE TABLE users (id TEXT PRIMARY KEY, username TEXT NOT NULL DEFAULT '', display_name TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT 'dev',
                               active INTEGER NOT NULL DEFAULT 1, first_seen_at TEXT NOT NULL DEFAULT '', last_seen_at TEXT NOT NULL DEFAULT '');
+           CREATE TABLE ha_users (id TEXT PRIMARY KEY, is_active INTEGER NOT NULL DEFAULT 1);  -- CR-W2-FOLLOWUPS-2441: the one rule reads both sides
            CREATE TABLE groups (id TEXT PRIMARY KEY, name TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT '');
            CREATE TABLE group_members (group_id TEXT NOT NULL, user_id TEXT NOT NULL, PRIMARY KEY (group_id, user_id));
            CREATE TABLE bindings (id TEXT PRIMARY KEY, subject_kind TEXT NOT NULL, subject_id TEXT NOT NULL, role_id TEXT NOT NULL, scope_type TEXT NOT NULL DEFAULT 'installation',

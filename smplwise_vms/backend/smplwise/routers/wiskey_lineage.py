@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, is_system_admin, require
+from ..rbac import Principal, require_system_admin
 from ..services import intercom_writes as iw
 from ..services import wiskey_direct_join as wkj
 
@@ -40,20 +40,18 @@ def _rid(request: Request) -> str | None:
 
 
 def _gate(conn: sqlite3.Connection, request: Request, principal: Principal, *, action: str, interactive: bool) -> None:
-    """The administrator gate of every lineage route, as on the sibling administrator routers (routers/wiskey_managed.py
-    _admin_or_403): rbac.require("system.configure") first - the inactive user, an explicit deny and the local second-factor rule,
-    audited by require() - then the system_admin binding, then (the three actions) an interactive session. Code review 2026-11-13
-    P1-2: is_system_admin alone leaves the active flag and a deny to its caller."""
-    require(conn, principal, "system.configure", INSTALLATION)
-    reason = None
-    if not is_system_admin(conn, principal.user_id):
-        reason = "not_system_admin"
-    elif interactive and not iw.interactive(principal):
-        reason = "interactive_only"
-    if reason is not None:
-        audit(conn, actor=principal, action=action, decision="denied", resource_type="wiskey_lineage", resource_id="*", reason=reason,
+    """The administrator gate of every lineage route: the ONE system-administrator gate of the administrator routes
+    (rbac.require_system_admin, CR-ADMIN-GATE-2438) - rbac.require("system.configure") first (the inactive user, an explicit deny and
+    the local second-factor rule, audited by require()), then the system_admin binding - and then, for the three actions only, an
+    interactive session: the step the shared gate does not have. Code review 2026-11-13 P1-2: is_system_admin alone leaves the active
+    flag and a deny to its caller. CR-W2-FOLLOWUPS-2441: the first two steps were written out here; same order, audit rows, codes and
+    texts."""
+    text = "רק מנהל מערכת בהפעלה אינטראקטיבית יכול לבצע פעולה זו." if interactive else "רק מנהל מערכת."
+    require_system_admin(conn, principal, action=action, text=text, request_id=_rid(request), resource_type="wiskey_lineage")
+    if interactive and not iw.interactive(principal):
+        audit(conn, actor=principal, action=action, decision="denied", resource_type="wiskey_lineage", resource_id="*", reason="interactive_only",
               request_id=_rid(request))
-        raise ApiError(403, reason, "רק מנהל מערכת בהפעלה אינטראקטיבית יכול לבצע פעולה זו." if interactive else "רק מנהל מערכת.")
+        raise ApiError(403, "interactive_only", text)
 
 
 def _admin(request: Request, principal: Principal, *, action: str, interactive: bool) -> None:
