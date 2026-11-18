@@ -29,6 +29,7 @@ import { navTt } from '../i18n/nav-labels'; // CR-038 (spec 13.4 names this file
 import type { Severity, Weekday } from './types';
 import { tr } from '../i18n/msg/api-notify';
 import { isoZ } from './day-format';
+import { packTable } from '../i18n/lang-packs';
 
 // ------------------------------------------------------------------------------------------------ vocabulary (§1)
 
@@ -1036,19 +1037,7 @@ export const RECIPIENT_LABEL: Record<NotifyPolicy['recipients']['rule'], string>
   scenario: tr('הנמענים שנבחרו בתרחיש'), // XSCENARIO109-295: the recipients chosen on the scenario's notify action (or the default list in Settings)
   bridge_key_owner: tr('אנשי הקשר של הבעלים וכל מנהלי המערכת'), // WXH-LEFTOVERS-2405: the owner contacts first, then every other system administrator (services/bridge_key_notice.py)
 };
-export const RECIPIENT_LABEL_EN: Record<NotifyPolicy['recipients']['rule'], string> = {
-  scope: 'Everyone who can see it', managers: 'Managers', initiator: 'The initiator / account owner', users: 'Selected users',
-  generator: 'As set on the generator screen', ticket_managers: 'Service managers', ticket_assignee: 'The person handling the request', rfq_managers: 'Quote request managers',
-  elevator: 'As set on the elevators settings',
-  temperature: 'As set on the temperatures settings (or per unit)',
-  energy_bills: 'Holders of the electricity bills permission',
-  water: 'The recipients chosen for the water alerts',
-  maintenance: 'The responsible person and the maintenance managers of the place',
-  notice: 'The audience of the notice',
-  calendar_attendee: 'The attendee of the calendar entry',
-  scenario: 'The recipients chosen on the scenario',
-  bridge_key_owner: 'The owner contacts and every system administrator',
-};
+export const RECIPIENT_LABEL_EN: Record<NotifyPolicy['recipients']['rule'], string> = packTable<typeof import('../i18n/lang/en/api/notifications').RECIPIENT_LABEL_EN>('en', 'api/notifications', 'RECIPIENT_LABEL_EN');
 export const recipientsText = (r: NotifyPolicy['recipients']): string => (r.rule === 'users' ? `${RECIPIENT_LABEL.users} (${r.user_ids?.length ?? 0})` : RECIPIENT_LABEL[r.rule]);
 interface ChannelCell {
   on: boolean;

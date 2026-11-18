@@ -4,6 +4,7 @@
  * through `tt()`. Short (clean operator screens), no internal codes, the infrastructure never named, the door system called "מערכת הכניסה".
  */
 import { registerCatalogue } from '../i18n/core';
+import { packTable } from '../i18n/lang-packs';
 
 export const NR_HE = {
   hdSeg_review: 'דורש בחינה',
@@ -36,36 +37,7 @@ export const NR_HE = {
   nrSaved: 'נשמר',
 } as const;
 
-export const NR_EN: Record<keyof typeof NR_HE, string> = {
-  hdSeg_review: 'Needs review',
-  nrPendingTitle: 'Pending approval over {n} days',
-  nrIdleTitle: 'No access for over {n} months',
-  nrEmpty: 'Nothing to review',
-  nrLoadFailed: 'Could not load the report',
-  nrDays: '{n} days',
-  nrMonths: '{n} months',
-  nrSince: 'Waiting since {date}',
-  nrLast: 'Last activity {date}',
-  nrDoorTag: 'Also in the door system',
-  nrReject: 'Reject and delete',
-  nrDelete: 'Delete now',
-  nrRejectTitle: 'Reject and delete {name}?',
-  nrDeleteTitle: 'Delete {name}?',
-  nrRejectBody: "The name and phone are erased and the vendor's request is closed. This cannot be undone.",
-  nrDeleteBody: 'The name and phone are erased, in the history too. This cannot be undone.',
-  nrDoorNote: 'This person also exists in the door system. Removing them there is a separate manual step that needs approval.',
-  nrConfirmReject: 'Reject and delete',
-  nrConfirmDelete: 'Delete',
-  nrCancel: 'Cancel',
-  nrRejected: 'Rejected and deleted',
-  nrDeleted: 'Deleted',
-  nrDeletedDoor: 'Deleted. Removing them from the door system remains a manual step.',
-  nrThresholds: 'Report thresholds',
-  nrPendingDays: 'Pending approval (days)',
-  nrIdleMonths: 'No access (months)',
-  nrSave: 'Save',
-  nrSaved: 'Saved',
-};
+export const NR_EN: Record<keyof typeof NR_HE, string> = packTable<typeof import('../i18n/lang/en/tickets/text-needsreview').NR_EN>('en', 'tickets/text-needsreview', 'NR_EN');
 
 /**
  * DEV-MARKED (NEEDSREVIEW, 2026-10-18): an INITIAL Arabic and Russian translation (the text-deptmgr.ts precedent). The tickets screens

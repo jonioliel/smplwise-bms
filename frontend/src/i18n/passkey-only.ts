@@ -5,6 +5,7 @@
  * Short labels only: operator screens carry no hint paragraphs; the server's refusal text (user_message) explains a refusal.
  */
 import { docLang, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   onlyLabel: 'כניסה עם מפתח גישה בלבד',
   onlyOn: 'כניסה עם מפתח גישה בלבד: פעילה',
@@ -16,32 +17,11 @@ const he = {
 
 type Key = keyof typeof he;
 
-const en: Partial<Record<Key, string>> = {
-  onlyLabel: 'Sign in with a passkey only',
-  onlyOn: 'Passkey-only sign-in: on',
-  onlyEnable: 'Turn on',
-  onlyDisable: 'Turn off',
-  onlyConfirmOn: 'Password sign-in will be blocked. Continue?',
-  onlyConfirmOff: 'Allow password sign-in again?',
-};
+const en: Partial<Record<Key, string>> = packTable<typeof import('./lang/en/i18n/passkey-only').en>('en', 'i18n/passkey-only', 'en');
 
-const ar: Partial<Record<Key, string>> = {
-  onlyLabel: 'الدخول بمفتاح المرور فقط',
-  onlyOn: 'الدخول بمفتاح المرور فقط: مفعّل',
-  onlyEnable: 'تفعيل',
-  onlyDisable: 'إيقاف',
-  onlyConfirmOn: 'سيتم حظر الدخول بكلمة المرور. هل تريد المتابعة؟',
-  onlyConfirmOff: 'السماح بالدخول بكلمة المرور من جديد؟',
-};
+const ar: Partial<Record<Key, string>> = packTable<typeof import('./lang/ar/i18n/passkey-only').ar>('ar', 'i18n/passkey-only', 'ar');
 
-const ru: Partial<Record<Key, string>> = {
-  onlyLabel: 'Вход только по ключу доступа',
-  onlyOn: 'Вход только по ключу доступа: включён',
-  onlyEnable: 'Включить',
-  onlyDisable: 'Выключить',
-  onlyConfirmOn: 'Вход по паролю будет заблокирован. Продолжить?',
-  onlyConfirmOff: 'Снова разрешить вход по паролю?',
-};
+const ru: Partial<Record<Key, string>> = packTable<typeof import('./lang/ru/i18n/passkey-only').ru>('ru', 'i18n/passkey-only', 'ru');
 
 type PoLang = 'he' | 'en' | 'ar' | 'ru';
 

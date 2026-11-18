@@ -5,6 +5,7 @@
 import { ticketsLang } from './text';
 import { renderText, type TextVars } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 import { registerCatalogue } from '../i18n/core';
+import { packTable } from '../i18n/lang-packs';
 
 const he = {
   calGroup: 'יומן שבועי',
@@ -49,45 +50,8 @@ const he = {
 type Plain = Exclude<keyof typeof he, 'days' | 'daysShort' | 'months'>;
 type CalTextKey = Plain;
 
-const enPlain: Partial<Record<Plain, string>> = {
-  calGroup: 'Weekly calendar',
-  calPrev: 'Previous week',
-  calNext: 'Next week',
-  calPrevDay: 'Previous day',
-  calNextDay: 'Next day',
-  calToday: 'Today',
-  calTodayJump: 'Jump to today',
-  calWeekOf: '{from} - {to}',
-  calWeekAria: 'Week {from} to {to}',
-  calCount: '{n} events this week',
-  calCountOne: '1 event this week',
-  calCountNone: 'No events this week',
-  calDayCount: '{n} events',
-  calDayEmpty: 'No events',
-  calDayLabel: '{day}, {date}',
-  calDaysStrip: 'Days of the week',
-  calUnscheduled: '{n} {tickets} without a time',
-  calUnscheduledOne: '1 {ticket} without a time',
-  calMore: '{n} more',
-  calLoadMore: 'Load more {tickets} into the list',
-  calJumpNearest: 'Go to the nearest week with events',
-  calLegend: 'Legend',
-  calSwipeHint: 'Swipe sideways to change the day',
-  calK_visit: 'Visit',
-  calK_ack: 'Acknowledge target',
-  calK_stuck: 'No-update target',
-  calK_resolve: 'Resolve target',
-  calOpen: 'Open {the_ticket} {n}',
-  calEmptyTitle: 'No visits or targets this week',
-  calEmptyAll: 'No visits or targets in this list',
-  calLoadFailed: 'The calendar did not load',
-  calRetry: 'Try again',
-};
-const enNames = {
-  days: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
-  daysShort: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-  months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
-};
+const enPlain: Partial<Record<Plain, string>> = packTable<typeof import('../i18n/lang/en/tickets/calendar-text').enPlain>('en', 'tickets/calendar-text', 'enPlain');
+const enNames = packTable<typeof import('../i18n/lang/en/tickets/calendar-text').enNames>('en', 'tickets/calendar-text', 'enNames');
 
 export const CAL_TEXT_KEYS = Object.keys(he).filter((k) => !['days', 'daysShort', 'months'].includes(k)) as CalTextKey[];
 export const CAL_TEXT_EN_KEYS = Object.keys(enPlain) as CalTextKey[];

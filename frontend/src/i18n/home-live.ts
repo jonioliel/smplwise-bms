@@ -4,26 +4,18 @@
  * English, Arabic and Russian follow the document language. The Arabic and Russian columns are an INITIAL translation and need a native review.
  */
 import { docLang, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   updated: 'עודכן',
   stale: 'הנתונים אינם מעודכנים',
 };
 type Key = keyof typeof he;
 
-const en: Record<Key, string> = {
-  updated: 'Updated',
-  stale: 'The data is not current',
-};
+const en: Record<Key, string> = packTable<typeof import('./lang/en/i18n/home-live').en>('en', 'i18n/home-live', 'en');
 
-const ar: Record<Key, string> = {
-  updated: 'آخر تحديث',
-  stale: 'البيانات غير محدّثة',
-};
+const ar: Record<Key, string> = packTable<typeof import('./lang/ar/i18n/home-live').ar>('ar', 'i18n/home-live', 'ar');
 
-const ru: Record<Key, string> = {
-  updated: 'Обновлено',
-  stale: 'Данные не актуальны',
-};
+const ru: Record<Key, string> = packTable<typeof import('./lang/ru/i18n/home-live').ru>('ru', 'i18n/home-live', 'ru');
 
 type HlLang = 'he' | 'en' | 'ar' | 'ru';
 

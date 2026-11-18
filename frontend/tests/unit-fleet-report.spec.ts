@@ -129,7 +129,8 @@ test('the never-sent list names what the CR promises is absent', () => {
 test('the catalogue: every key has Hebrew text, no platform product name, no English-only jargon in the plain wording', () => {
   for (const k of FLEET_TEXT_KEYS) expect(ft(k).length, k).toBeGreaterThan(0);
   const src = [
-    readFileSync(path.join(SRC, 'i18n/fleet-report.ts'), 'utf8'), readFileSync(path.join(SRC, 'screens/system-fleet-report.ts'), 'utf8'),
+    readFileSync(path.join(SRC, 'i18n/fleet-report.ts'), 'utf8'), readFileSync(path.join(SRC, 'i18n/lang/en/i18n/fleet-report.ts'), 'utf8'), // CR-I18N-LAZY-LANG-2443: the English pack
+    readFileSync(path.join(SRC, 'screens/system-fleet-report.ts'), 'utf8'),
     readFileSync(path.join(SRC, 'fleet/fleet-model.ts'), 'utf8'),
   ].join('\n');
   const strings = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');

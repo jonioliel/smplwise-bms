@@ -2,6 +2,7 @@
 // native confirm() box. The question itself comes from the caller, in the caller's own table.
 
 import { docLang, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 
 const he = {
   heading: 'נדרש אישור',
@@ -11,23 +12,11 @@ const he = {
 
 type Key = keyof typeof he;
 
-const en: Record<Key, string> = {
-  heading: 'Please confirm',
-  ok: 'OK',
-  cancel: 'Cancel',
-};
+const en: Record<Key, string> = packTable<typeof import('./lang/en/i18n/confirm-dialog').en>('en', 'i18n/confirm-dialog', 'en');
 
-const ar: Record<Key, string> = {
-  heading: 'يرجى التأكيد',
-  ok: 'موافق',
-  cancel: 'إلغاء',
-};
+const ar: Record<Key, string> = packTable<typeof import('./lang/ar/i18n/confirm-dialog').ar>('ar', 'i18n/confirm-dialog', 'ar');
 
-const ru: Record<Key, string> = {
-  heading: 'Требуется подтверждение',
-  ok: 'ОК',
-  cancel: 'Отмена',
-};
+const ru: Record<Key, string> = packTable<typeof import('./lang/ru/i18n/confirm-dialog').ru>('ru', 'i18n/confirm-dialog', 'ru');
 
 export type CdKey = Key;
 export type CdLang = 'he' | 'en' | 'ar' | 'ru';

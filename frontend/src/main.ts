@@ -1,4 +1,7 @@
 import './i18n/ui-lang-boot'; // I18N-EN-SWITCH-2438: <html lang dir> from the user's language before any module builds text (imports nothing)
+// CR-I18N-LAZY-LANG-2443: a non-Hebrew page fetches its language pack here, and nothing after this line is evaluated before the
+// words are in (top-level await; every catalogue imports this module too). Hebrew fetches nothing and waits for nothing.
+import './i18n/lang-packs';
 import './design/boot'; // design foundation: the token sheet, the skin sheet and data-skin / data-theme on <html> - before anything renders
 import { bootMobilePolish } from './design/mobile-polish'; // POLISH-PHONE-297: the phone layer (after the skin sheet, before any component)
 bootMobilePolish();

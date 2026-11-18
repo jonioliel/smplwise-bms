@@ -4,6 +4,7 @@
  * translation and need a native review (dev-marked).
  */
 import { docLang, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   loading: 'טוען את WisKey…',
   unreachableTitle: 'לא ניתן לטעון את WisKey',
@@ -12,26 +13,11 @@ const he = {
 };
 type Key = keyof typeof he;
 
-const en: Record<Key, string> = {
-  loading: 'Loading WisKey…',
-  unreachableTitle: 'WisKey could not be loaded',
-  unreachableHint: 'WisKey did not answer in time. You can try again.',
-  retry: 'Try again',
-};
+const en: Record<Key, string> = packTable<typeof import('./lang/en/i18n/wiskey-embed').en>('en', 'i18n/wiskey-embed', 'en');
 
-const ar: Record<Key, string> = {
-  loading: 'جارٍ تحميل WisKey…',
-  unreachableTitle: 'تعذّر تحميل WisKey',
-  unreachableHint: 'لم يستجب WisKey في الوقت المناسب. يمكنك المحاولة مرة أخرى.',
-  retry: 'حاول مرة أخرى',
-};
+const ar: Record<Key, string> = packTable<typeof import('./lang/ar/i18n/wiskey-embed').ar>('ar', 'i18n/wiskey-embed', 'ar');
 
-const ru: Record<Key, string> = {
-  loading: 'Загрузка WisKey…',
-  unreachableTitle: 'Не удалось загрузить WisKey',
-  unreachableHint: 'WisKey не ответил вовремя. Попробуйте ещё раз.',
-  retry: 'Повторить',
-};
+const ru: Record<Key, string> = packTable<typeof import('./lang/ru/i18n/wiskey-embed').ru>('ru', 'i18n/wiskey-embed', 'ru');
 
 type WetLang = 'he' | 'en' | 'ar' | 'ru';
 

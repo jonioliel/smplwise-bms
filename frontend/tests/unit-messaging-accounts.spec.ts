@@ -109,7 +109,7 @@ test('warnings: per row, per account, in words, the module name as the server re
 
 test('the catalogue: every key has Hebrew text, no platform name, no default name of the tickets module (D33)', () => {
   for (const k of WA_TEXT_KEYS) expect(wt(k).length, k).toBeGreaterThan(0);
-  const src = readFileSync(path.join(SRC, 'i18n/messaging-accounts.ts'), 'utf8') + readFileSync(path.join(SRC, 'screens/system-messaging-accounts.ts'), 'utf8')
+  const src = readFileSync(path.join(SRC, 'i18n/messaging-accounts.ts'), 'utf8') + readFileSync(path.join(SRC, 'i18n/lang/en/i18n/messaging-accounts.ts'), 'utf8') + readFileSync(path.join(SRC, 'screens/system-messaging-accounts.ts'), 'utf8')
     + readFileSync(path.join(SRC, 'messaging/accounts-model.ts'), 'utf8');
   const strings = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   expect(strings).not.toMatch(/Home Assistant|\bHA\b|Ingress/);

@@ -7,6 +7,7 @@
  */
 import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 import { registerCatalogue } from '../i18n/core';
+import { packTable } from '../i18n/lang-packs';
 
 const he = {
   tab: '{tickets}',
@@ -62,53 +63,7 @@ const he = {
 
 export type DeviceTextKey = keyof typeof he;
 
-const en: Partial<Record<DeviceTextKey, string>> = {
-  tab: '{tickets}',
-  menuLabel: 'Device actions',
-  menuNew: 'Open a {ticket}',
-  menuList: "The device's {tickets}",
-  menuDevice: 'Open the device',
-  menuHistory: 'History',
-  menuSchedules: 'Schedules',
-  newBtn: 'New {ticket}',
-  openCount: 'Open: {n}',
-  empty: 'No {tickets} for this device',
-  loadFailed: 'The {tickets} could not be loaded',
-  retry: 'Try again',
-  noDevice: 'No access to this device',
-  closedGroup: 'Closed',
-  noAssignee: 'No handler',
-  device: 'Device',
-  existing: 'Open {tickets} for this device',
-  openExisting: 'Open the existing {ticket}',
-  historyAttach: '{h} hours of history will be attached · {n} changes',
-  historyNone: 'No changes in the last {h} hours',
-  historyTruncated: 'The last {n} changes',
-  historyWithheld: 'No history will be attached',
-  created: '{ticket} #{n} opened',
-  sHistory: 'Device history',
-  historyWindow: '{h} hours before it was opened',
-  historyEmpty: 'No changes',
-  historyNotAttached: 'No history attached',
-  historyAttached: 'Device history attached · {n} changes',
-  historyCut: 'Only the last {n} changes are shown',
-  historyGaps: 'Part of the period was not recorded',
-  actor_person: 'A person',
-  actor_automation: 'Automation',
-  actor_script: 'Script',
-  actor_scene: 'Scene',
-  actor_schedule: 'Schedule',
-  actor_device: 'The device',
-  actor_system: 'The system',
-  actor_unknown: 'Unknown',
-  kind_availability: 'Availability',
-  mapAction: '{tickets}',
-  countChip: '{n} open {tickets}',
-  setLongPress: 'Long press on a device',
-  setLongPressSub: 'On the home screens: the device window with the {tickets} tab last, or a short menu',
-  lp_sheet: 'Device window',
-  lp_menu: 'Short menu',
-};
+const en: Partial<Record<DeviceTextKey, string>> = packTable<typeof import('../i18n/lang/en/tickets/device-text').en>('en', 'tickets/device-text', 'en');
 
 const catalogue = makeCatalogue<DeviceTextKey>(he, en);
 

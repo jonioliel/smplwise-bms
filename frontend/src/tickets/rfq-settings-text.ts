@@ -5,6 +5,7 @@
  */
 import { ticketsLang } from './text';
 import { registerCatalogue } from '../i18n/core';
+import { packTable } from '../i18n/lang-packs';
 
 const he = {
   qReminder: 'תזכורת על שאלת ספק שלא נענתה',
@@ -21,19 +22,7 @@ const he = {
   ppLateHoursSub: 'הודעה שנמסרה פחות משעות אלה לפני המועד המתוכנן (או אחריו) מסומנת "באיחור" למנהלים. 0 = רק אחרי תחילת המועד. סימון בלבד, לא חסימה',
 } as const;
 
-const en: Record<keyof typeof he, string> = {
-  qReminder: 'Reminder for an unanswered vendor question',
-  qReminderSub: 'Hours after the question (0 = no reminder; once per question)',
-  qBadgeAll: 'Pending-questions count for viewers of all departments',
-  qBadgeAllSub: 'Off - only a manager of the request sees the count in the navigation. The questions text is never shown.',
-  anSetting: 'Approval notice to the selected vendor',
-  anSettingSub: 'A fixed text: the quote is approved and binding, and the vendor must notify in advance through the link if he postpones the work',
-  anMode_confirm: 'When the manager confirms (default)',
-  anMode_auto: 'Automatically with every approval',
-  anMode_off: 'Do not send',
-  ppLateHours: '"Late" postponement notice',
-  ppLateHoursSub: 'A notice given less than this many hours before the scheduled date (or after it) is tagged "late" for the managers. 0 = only after the start. A tag only, never a block',
-};
+const en: Record<keyof typeof he, string> = packTable<typeof import('../i18n/lang/en/tickets/rfq-settings-text').en>('en', 'tickets/rfq-settings-text', 'en');
 
 export function qst(key: keyof typeof he): string {
   return ticketsLang() === 'en' ? en[key] : he[key];

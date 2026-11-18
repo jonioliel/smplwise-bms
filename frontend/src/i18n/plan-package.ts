@@ -3,6 +3,7 @@
  * `lang` (Hebrew unless it starts with "en"); keys are stable English identifiers like he.ts.
  */
 import { docLang, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   dxf: 'DXF',
   dxfPicture: 'DXF + תמונה',
@@ -53,53 +54,7 @@ const he = {
 
 type Key = keyof typeof he;
 
-const en: Record<Key, string> = {
-  dxf: 'DXF',
-  dxfPicture: 'DXF + picture',
-  exportPackage: 'Package',
-  importPackage: 'Import package',
-  title: 'Import plan package',
-  checking: 'Checking the package…',
-  importing: 'Importing…',
-  source: 'Source',
-  draft: 'draft',
-  published: 'published',
-  signedHere: 'Signed by this system',
-  signedForeign: 'Signed by another system',
-  trustForeign: 'I trust this source',
-  mode: 'Import mode',
-  replace: 'Replace',
-  merge: 'Merge',
-  changes: 'Changes to the draft',
-  noChanges: 'No changes',
-  added: 'added',
-  removed: 'removed',
-  changed: 'changed',
-  calibration: 'Calibration changes',
-  otherDrawing: 'Different drawing: check positions after the import',
-  newerApp: 'Made by a newer version',
-  missing: 'Missing here',
-  unplaced: 'Not placed on this floor',
-  itemsAdded: 'Will be added to the library',
-  itemsDiffer: 'Library has another version',
-  issues: 'Issues to check',
-  importDraft: 'Import to draft',
-  cancel: 'Cancel',
-  imported: 'Package imported to the draft',
-  saved: 'Package saved',
-  walls: 'Walls',
-  openings: 'Openings',
-  labels: 'Labels',
-  objects: 'Objects',
-  connectors: 'Connectors',
-  levels: 'Levels',
-  circuits: 'Circuits',
-  groups: 'Groups',
-  rooms: 'Rooms',
-  cameras: 'Cameras and entities',
-  switches: 'Switches',
-  items: 'Custom items',
-};
+const en: Record<Key, string> = packTable<typeof import('./lang/en/i18n/plan-package').en>('en', 'i18n/plan-package', 'en');
 
 const PLAN_PACKAGE_STRINGS = { he, en } as const;
 

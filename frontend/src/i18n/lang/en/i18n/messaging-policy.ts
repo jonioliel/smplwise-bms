@@ -1,0 +1,37 @@
+// CR-I18N-LAZY-LANG-2443: language pack table of src/i18n/messaging-policy.ts, fetched only when the page is in this language (i18n/lang-packs.ts).
+// Moved by scripts/i18n-split-langs.mjs; edit the texts here.
+/* eslint-disable */
+
+export const en = {
+  title: 'WhatsApp sending policy',
+  allowTitle: 'Allow-list: handlers and providers',
+  enforce: 'Send only to the list',
+  enforceOff: 'Off: every recipient may be messaged',
+  blocksAll: 'Enforcement is on and the list is empty: no message will be sent',
+  phone: 'Number (with country code)',
+  label: 'Name',
+  role: 'Role',
+  role_handler: 'Handler',
+  role_provider: 'Provider',
+  role_other: 'Other',
+  add: 'Add',
+  remove: 'Remove',
+  empty: 'The list is empty',
+  page: 'Page {n} of {m}',
+  prev: 'Previous',
+  next: 'Next',
+  selfTitle: 'Self-messages for testing',
+  selfMinutes: 'Minutes',
+  selfStart: 'Turn on',
+  selfStop: 'Turn off',
+  selfActive: 'On until {time}',
+  selfOff: 'Off',
+  saved: 'Saved',
+  loadError: 'Could not load the policy',
+  retry: 'Try again',
+  err_phone: 'Invalid number',
+  err_label: 'Enter a name',
+  err_minutes: 'A value from {lo} to {hi}',
+  err_listed: 'The number is already listed',
+  readOnly: 'View only',
+};

@@ -1,0 +1,37 @@
+// CR-I18N-LAZY-LANG-2443: language pack table of src/i18n/messaging-policy.ts, fetched only when the page is in this language (i18n/lang-packs.ts).
+// Moved by scripts/i18n-split-langs.mjs; edit the texts here.
+/* eslint-disable */
+
+export const ru = {
+  title: 'Политика отправки в WhatsApp',
+  allowTitle: 'Список разрешённых: исполнители и поставщики',
+  enforce: 'Отправлять только по списку',
+  enforceOff: 'Выключено: сообщения можно слать любому получателю',
+  blocksAll: 'Проверка включена, список пуст: ни одно сообщение не будет отправлено',
+  phone: 'Номер (с кодом страны)',
+  label: 'Имя',
+  role: 'Роль',
+  role_handler: 'Исполнитель',
+  role_provider: 'Поставщик',
+  role_other: 'Другое',
+  add: 'Добавить',
+  remove: 'Убрать',
+  empty: 'Список пуст',
+  page: 'Страница {n} из {m}',
+  prev: 'Назад',
+  next: 'Далее',
+  selfTitle: 'Сообщения самому себе для проверки',
+  selfMinutes: 'Минуты',
+  selfStart: 'Включить',
+  selfStop: 'Выключить',
+  selfActive: 'Включено до {time}',
+  selfOff: 'Выключено',
+  saved: 'Сохранено',
+  loadError: 'Не удалось загрузить политику',
+  retry: 'Повторить',
+  err_phone: 'Неверный номер',
+  err_label: 'Введите имя',
+  err_minutes: 'Значение от {lo} до {hi}',
+  err_listed: 'Номер уже в списке',
+  readOnly: 'Только просмотр',
+};

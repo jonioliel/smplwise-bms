@@ -5,6 +5,7 @@ import { ticketsLang } from './text';
 import {
   JPEG_QUALITY, VIDEO_CONSTRAINTS, cameraEnv, captureName, classifyCameraError, frameSize, stopStream, type CameraFailure,
 } from './camera-viewfinder-model';
+import { packTable } from '../i18n/lang-packs';
 
 /**
  * CR-CAMVF-295 (docs/changes/CR-CAMVF-295-SECURITY.md): the live in-page camera viewfinder of a request's photos - OPT-IN, off by default
@@ -37,26 +38,7 @@ const he = {
   live: 'תצוגה חיה מהמצלמה',
   still: 'התמונה שצולמה',
 };
-const en: typeof he = {
-  open: 'Live camera',
-  fail_denied: 'No camera permission. Use "Add" to take or pick a photo.',
-  fail_no_camera: 'No camera found. Use "Add" to pick a photo.',
-  fail_busy: 'The camera is busy. Use "Add" to take or pick a photo.',
-  fail_insecure: 'The live camera is not available here. Use "Add" to take or pick a photo.',
-  fail_failed: 'The camera could not be opened. Use "Add" to take or pick a photo.',
-  set_label: 'Live camera in photos',
-  set_sub: 'Take photos inside the page on a computer or phone. Off: only the "Add" button',
-  set_on: 'On',
-  set_off: 'Off',
-  title: 'Camera',
-  starting: 'Opening the camera…',
-  shoot: 'Take photo',
-  retake: 'Retake',
-  use: 'Use photo',
-  cancel: 'Cancel',
-  live: 'Live camera preview',
-  still: 'The photo taken',
-};
+const en: typeof he = packTable<typeof import('../i18n/lang/en/tickets/camera-viewfinder').en>('en', 'tickets/camera-viewfinder', 'en');
 type ViewfinderTextKey = keyof typeof he;
 export const vft = (k: ViewfinderTextKey): string => (ticketsLang() === 'en' ? en : he)[k];
 /** One short line per failure, always pointing at the unchanged file-input tile ("הוספה"). */

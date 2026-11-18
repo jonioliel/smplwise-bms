@@ -4,6 +4,7 @@
  * screen never names the platform or a protocol and never shows an internal code; short words, no explanatory paragraphs.
  */
 import { docLang, fill as coreFill, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   banner: {
     region: 'שיחה נכנסת',
@@ -89,87 +90,7 @@ const he = {
 type Widen<T> = { [K in keyof T]: T[K] extends string ? string : Widen<T[K]> };
 export type IncomingCallText = Widen<typeof he>;
 
-const en: IncomingCallText = {
-  banner: {
-    region: 'Incoming call',
-    ringing: 'Incoming call',
-    inCall: 'In a call',
-    from: 'from {name}',
-    answer: 'Answer',
-    answering: 'Answering…',
-    reject: 'Decline',
-    hangUp: 'End',
-    door: 'Open door',
-    doorNamed: 'Open {name}',
-    doorAsk: 'Open {name}?',
-    doorYes: 'Open',
-    doorNo: 'Cancel',
-    doorSending: 'Sending…',
-    doorSent: 'The open command was sent. This does not confirm the door opened.',
-    doorFailed: 'The door did not open: {why}',
-    hide: 'Hide',
-    station: 'Station',
-    more: '{n} more',
-    next: 'Next call',
-    mute: 'Silence ring',
-    unmute: 'Ring on',
-    quiet: 'Quiet hours · no sound',
-    soundBlocked: 'Sound starts after you touch the screen',
-    noPicture: 'No picture',
-    offline: 'The station is offline',
-    pictureAlt: 'Picture from {name}',
-    noTalk: 'No talk from here: {why}. Opening the station.',
-    talkReasonOff: 'talk is off in settings',
-    talkReasonUnsupported: 'talk is available in the classic panel',
-    talkReasonForbidden: 'no permission to talk to this station',
-    talkReasonUnknown: 'talk is not available right now',
-    failed: 'The command was not carried out: {why}',
-    answeredElsewhere: 'Answered elsewhere',
-    ended: 'The call ended',
-    mic: { talking: 'Microphone open', muted: 'Microphone muted', starting: 'Opening talk…', mute: 'Mute', unmute: 'Unmute' },
-  },
-  log: {
-    title: 'Recent calls',
-    empty: 'No calls in the log',
-    loading: 'Loading…',
-    error: 'The call log could not be loaded',
-    retry: 'Try again',
-    more: 'More',
-    answeredBy: 'Answered by {name}',
-    answeredMe: 'Answered by you',
-    answeredElsewhere: 'Answered elsewhere',
-    rejectedBy: 'Declined by {name}',
-    rejected: 'Declined',
-    missed: 'Missed',
-    unknown: 'Ending not known',
-    ringing: 'Ringing now',
-    inCall: 'In a call now',
-    door: 'Door opened by {name}',
-    duration: '{t}',
-  },
-  setting: {
-    title: 'Incoming station calls',
-    sub: 'An incoming-call window on every screen',
-    mode: 'Who gets the call window',
-    modeText: 'Only users allowed to take calls at the station',
-    off: 'Nobody (off)',
-    everyone: 'Everyone allowed to take calls',
-    roles: 'Selected roles',
-    rolesLabel: 'Roles',
-    stationsLabel: 'Stations',
-    stationsAll: 'All stations',
-    stationsNone: 'No stations available right now',
-    sound: 'Ring',
-    soundText: 'No sound in quiet hours, as the notification settings say',
-    save: 'Save',
-    saved: 'Saved',
-    loading: 'Loading…',
-    error: 'The setting could not be loaded',
-    retry: 'Try again',
-    readOnly: 'Only a system administrator can change this',
-    needRole: 'Choose at least one role',
-  },
-};
+const en: IncomingCallText = packTable<typeof import('./lang/en/i18n/incoming-calls').en>('en', 'i18n/incoming-calls', 'en');
 
 export function ict(): IncomingCallText {
   return docLang(['en']) === 'en' ? en : he;

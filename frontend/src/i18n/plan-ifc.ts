@@ -5,6 +5,7 @@
  */
 import type { IfcImportReport } from '../api/geometry';
 import { docLang, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 
 const he = {
   ifc: 'IFC',
@@ -50,46 +51,7 @@ const he = {
 
 type Key = keyof typeof he;
 
-const en: Record<Key, string> = {
-  ifc: 'IFC',
-  importIfc: 'Import IFC',
-  origin: 'imported from IFC',
-  reading: 'Reading the IFC file…',
-  loaded: 'The file’s candidates are shown for review',
-  nothing: 'Nothing in the file to import to this level',
-  read: 'Read',
-  skipped: 'skipped',
-  storey: 'storey in the file',
-  storeys: 'storeys in the file',
-  moved: 'the model was moved to the plan’s origin',
-  tooBig: 'the model is larger than the plan',
-  walls: 'walls',
-  openings: 'openings',
-  objects: 'objects',
-  rooms: 'rooms',
-  more: 'and',
-  r_unsupported_class: 'unsupported class',
-  r_no_geometry: 'no readable geometry',
-  r_curved_geometry: 'curved geometry',
-  r_tilted_geometry: 'tilted geometry',
-  r_unsupported_geometry: 'unsupported geometry',
-  r_unsupported_profile: 'unsupported profile',
-  r_unsupported_transform: 'unsupported transform',
-  r_no_storey: 'not in a storey',
-  r_other_storey: 'another storey of the file',
-  r_placement_cycle: 'cyclic placement',
-  r_unsupported_placement: 'unsupported placement',
-  r_bad_placement: 'invalid placement',
-  r_bad_number: 'invalid number',
-  r_outside_plan: 'outside the plan',
-  r_opening_off_wall: 'opening away from its wall',
-  r_host_wall_skipped: 'its wall was skipped',
-  r_host_not_wall: 'not in a wall',
-  r_unsupported_filling: 'unsupported opening filling',
-  r_live_device: 'camera / entity (never imported)',
-  r_connector_not_imported: 'level connector (not imported)',
-  r_limit: 'over the limit',
-};
+const en: Record<Key, string> = packTable<typeof import('./lang/en/i18n/plan-ifc').en>('en', 'i18n/plan-ifc', 'en');
 
 const PLAN_IFC_STRINGS = { he, en } as const;
 

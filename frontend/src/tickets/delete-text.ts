@@ -5,6 +5,7 @@
  */
 import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 import { registerCatalogue } from '../i18n/core';
+import { packTable } from '../i18n/lang-packs';
 
 const he = {
   action: 'מחיקת {ticket}',
@@ -30,27 +31,7 @@ const he = {
 
 export type DeleteTextKey = keyof typeof he;
 
-const en: Partial<Record<DeleteTextKey, string>> = {
-  action: 'Delete {ticket}',
-  bulkAction: 'Delete',
-  title: 'Delete {ticket} #{n}',
-  bulkTitle: 'Delete {n} {tickets}',
-  warn: 'Deleting is final and cannot be undone.',
-  deletedOne: 'Deleted',
-  goes: 'Removed with it: notes, photos, outside links and costs.',
-  bulkGoes: 'Every selected item is removed with its notes, photos, links and costs.',
-  typeNumber: 'To confirm, type the number: {n}',
-  typeCount: 'To confirm, type how many are selected: {n}',
-  reason: 'Reason for deleting',
-  reasonHint: 'Up to {max} characters. Kept in the audit log.',
-  required: 'Required',
-  mismatch: 'The number does not match',
-  tooMany: 'Up to {max} at a time',
-  go: 'Delete for good',
-  cancel: 'Cancel',
-  done: '#{n} deleted',
-  p_delete: 'Full deletion',
-};
+const en: Partial<Record<DeleteTextKey, string>> = packTable<typeof import('../i18n/lang/en/tickets/delete-text').en>('en', 'tickets/delete-text', 'en');
 
 const catalogue = makeCatalogue<DeleteTextKey>(he, en);
 

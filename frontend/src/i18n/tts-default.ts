@@ -4,6 +4,7 @@
  * i18n/wiskey-station-listen.ts. UI_COPY_RULES: no platform names, no internal codes, short words. `{x}` placeholders filled by `fill`.
  */
 import { docLang, fill as coreFill, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   setting: {
     engine: 'מנוע הקראה קבוע',
@@ -32,30 +33,7 @@ const he = {
 type Widen<T> = T extends string ? string : { [K in keyof T]: Widen<T[K]> };
 type TtsDefaultText = Widen<typeof he>;
 
-const en: TtsDefaultText = {
-  setting: {
-    engine: 'Fixed announcement engine',
-    engineText: 'Preselected in every announcement: at a station, from the station drawer and to several stations. Another engine can be picked for one announcement',
-    systemDefault: 'System default',
-    systemDefaultNow: 'The system default now: {name}',
-    language: 'Announcement language',
-    languageText: 'From the languages of the chosen engine',
-    languageAuto: 'Automatic (Hebrew when available)',
-    loading: 'Loading the engine list…',
-    listUnavailable: 'The engine list is not available right now. The saved choice stays',
-    noEngines: 'No announcement engine is available right now',
-    missing: 'The fixed engine {engine} is not available right now',
-    missingOption: '{engine} · not available right now',
-    missingLanguageOption: '{language} · not supported by the engine',
-  },
-  dialog: {
-    missingEngine: 'The fixed engine {engine} is not available right now. Pick another engine for this announcement',
-    missingLanguage: 'The fixed language {language} is not supported by this engine. {auto} was chosen',
-    pickEngine: 'Pick an engine…',
-    fixedTag: 'fixed',
-    overridden: 'For this announcement only. The fixed setting does not change',
-  },
-};
+const en: TtsDefaultText = packTable<typeof import('./lang/en/i18n/tts-default').en>('en', 'i18n/tts-default', 'en');
 
 export function ttt(): TtsDefaultText {
   return docLang(['en']) === 'en' ? en : he;

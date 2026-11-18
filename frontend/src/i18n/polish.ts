@@ -4,6 +4,7 @@
  * translation and need a native review.
  */
 import { docLang, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   prev: 'הקודם',
   next: 'הבא',
@@ -32,86 +33,11 @@ const he = {
 };
 type Key = keyof typeof he;
 
-const en: Record<Key, string> = {
-  prev: 'Previous',
-  next: 'Next',
-  pageOf: 'Page {n} of {m}',
-  pages: 'Pages',
-  rows: 'Rows',
-  review: 'To review',
-  select: 'Select several',
-  selectDone: 'Done selecting',
-  candles: 'Shabbat begins',
-  havdalah: 'Shabbat ends',
-  alarm: 'Alarm',
-  listsHeading: 'List display',
-  defaultView: 'Default view',
-  perPageWide: 'Items per page · desktop',
-  perPagePhone: 'Items per page · phone',
-  cardsPerPageWide: 'Cards per page · desktop',
-  cardsPerPagePhone: 'Cards per page · phone',
-  infoHeading: 'Clock, weather and Shabbat',
-  infoBar: 'Thin row',
-  infoCards: 'Widgets',
-  saved: 'Saved',
-  readOnly: 'Changing these settings needs a system administrator.',
-  lastRun: 'Last run',
-  nextRun: 'Next run',
-};
+const en: Record<Key, string> = packTable<typeof import('./lang/en/i18n/polish').en>('en', 'i18n/polish', 'en');
 
-const ar: Record<Key, string> = {
-  prev: 'السابق',
-  next: 'التالي',
-  pageOf: 'صفحة {n} من {m}',
-  pages: 'الصفحات',
-  rows: 'صفوف',
-  review: 'للمراجعة',
-  select: 'تحديد متعدد',
-  selectDone: 'إنهاء التحديد',
-  candles: 'دخول السبت',
-  havdalah: 'خروج السبت',
-  alarm: 'الإنذار',
-  listsHeading: 'عرض القائمة',
-  defaultView: 'العرض الافتراضي',
-  perPageWide: 'عناصر في الصفحة · حاسوب',
-  perPagePhone: 'عناصر في الصفحة · هاتف',
-  cardsPerPageWide: 'بطاقات في الصفحة · حاسوب',
-  cardsPerPagePhone: 'بطاقات في الصفحة · هاتف',
-  infoHeading: 'الساعة والطقس والسبت',
-  infoBar: 'صف رفيع',
-  infoCards: 'ودجات',
-  saved: 'تم الحفظ',
-  readOnly: 'تغيير هذه الإعدادات يتطلب مدير النظام.',
-  lastRun: 'آخر تشغيل',
-  nextRun: 'التشغيل التالي',
-};
+const ar: Record<Key, string> = packTable<typeof import('./lang/ar/i18n/polish').ar>('ar', 'i18n/polish', 'ar');
 
-const ru: Record<Key, string> = {
-  prev: 'Назад',
-  next: 'Вперёд',
-  pageOf: 'Страница {n} из {m}',
-  pages: 'Страницы',
-  rows: 'Строки',
-  review: 'На проверку',
-  select: 'Выбрать несколько',
-  selectDone: 'Готово',
-  candles: 'Начало шаббата',
-  havdalah: 'Конец шаббата',
-  alarm: 'Сигнализация',
-  listsHeading: 'Вид списка',
-  defaultView: 'Вид по умолчанию',
-  perPageWide: 'Элементов на странице · компьютер',
-  perPagePhone: 'Элементов на странице · телефон',
-  cardsPerPageWide: 'Карточек на странице · компьютер',
-  cardsPerPagePhone: 'Карточек на странице · телефон',
-  infoHeading: 'Часы, погода и шаббат',
-  infoBar: 'Тонкая строка',
-  infoCards: 'Виджеты',
-  saved: 'Сохранено',
-  readOnly: 'Изменение настроек требует администратора системы.',
-  lastRun: 'Последний запуск',
-  nextRun: 'Следующий запуск',
-};
+const ru: Record<Key, string> = packTable<typeof import('./lang/ru/i18n/polish').ru>('ru', 'i18n/polish', 'ru');
 
 type PlLang = 'he' | 'en' | 'ar' | 'ru';
 

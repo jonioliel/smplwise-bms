@@ -5,6 +5,7 @@
  * `{n}` placeholders are filled by `grt(key, { n })`. Operator words only: the home platform is never named.
  */
 import { docLang, fill, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   emptyTitle: 'לא נבחרו נמענים להתראות הגנרטור',
   emptyCritical: 'רק התראה קריטית שלא אושרה מגיעה למנהלי המערכת, אחרי {n} דקות',
@@ -21,52 +22,13 @@ const he = {
 };
 type Key = keyof typeof he;
 
-const en: Partial<Record<Key, string>> = {
-  emptyTitle: 'No one is set to receive generator alerts',
-  emptyCritical: 'Only an unacknowledged critical alert reaches the system administrators, after {n} min',
-  defaultsTitle: 'Default by severity',
-  defaultsSub: 'An alert type with no recipients of its own uses the choice for its severity',
-  criticalNote: 'A critical alert always escalates to the system administrators after {n} min, even when escalation is off',
-  criticalQuiet: 'A critical alert is never held by quiet hours',
-  criticalDelay: 'Minutes until a critical alert escalates',
-  editDefault: 'Default: {name}',
-  inheritedFrom: 'from severity',
-  colEscalate: 'Escalation',
-  always: 'Always',
-  saved: 'Saved',
-};
+const en: Partial<Record<Key, string>> = packTable<typeof import('./lang/en/i18n/generator-routing').en>('en', 'i18n/generator-routing', 'en');
 
 // initial translation - needs a native review (dev-marked)
-const ar: Partial<Record<Key, string>> = {
-  emptyTitle: 'لم يتم تحديد مستلمين لتنبيهات المولد',
-  emptyCritical: 'التنبيه الحرج غير المؤكَّد فقط يصل إلى مديري النظام بعد {n} دقيقة',
-  defaultsTitle: 'الإعداد الافتراضي حسب الخطورة',
-  defaultsSub: 'نوع التنبيه بدون مستلمين خاصين يستخدم اختيار خطورته',
-  criticalNote: 'التنبيه الحرج يُصعَّد دائمًا إلى مديري النظام بعد {n} دقيقة، حتى عند إيقاف التصعيد',
-  criticalQuiet: 'التنبيه الحرج لا يتوقف في ساعات الهدوء',
-  criticalDelay: 'دقائق حتى تصعيد التنبيه الحرج',
-  editDefault: 'افتراضي: {name}',
-  inheritedFrom: 'من الخطورة',
-  colEscalate: 'التصعيد',
-  always: 'دائمًا',
-  saved: 'تم الحفظ',
-};
+const ar: Partial<Record<Key, string>> = packTable<typeof import('./lang/ar/i18n/generator-routing').ar>('ar', 'i18n/generator-routing', 'ar');
 
 // initial translation - needs a native review (dev-marked)
-const ru: Partial<Record<Key, string>> = {
-  emptyTitle: 'Получатели оповещений генератора не выбраны',
-  emptyCritical: 'Только неподтверждённое критическое оповещение доходит до администраторов системы, через {n} мин',
-  defaultsTitle: 'По умолчанию по важности',
-  defaultsSub: 'Тип оповещения без своих получателей использует выбор для своей важности',
-  criticalNote: 'Критическое оповещение всегда передаётся администраторам системы через {n} мин, даже при выключенной эскалации',
-  criticalQuiet: 'Критическое оповещение не задерживается в тихие часы',
-  criticalDelay: 'Минут до эскалации критического оповещения',
-  editDefault: 'По умолчанию: {name}',
-  inheritedFrom: 'по важности',
-  colEscalate: 'Эскалация',
-  always: 'Всегда',
-  saved: 'Сохранено',
-};
+const ru: Partial<Record<Key, string>> = packTable<typeof import('./lang/ru/i18n/generator-routing').ru>('ru', 'i18n/generator-routing', 'ru');
 
 type GrtLang = 'he' | 'en' | 'ar' | 'ru';
 

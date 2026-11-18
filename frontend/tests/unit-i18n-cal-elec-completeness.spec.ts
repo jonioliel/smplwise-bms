@@ -105,7 +105,8 @@ for (const { area, module, tr } of AREAS) {
 
 test('the two tables carry no duplicate key in their source (a later line would silently win)', () => {
   for (const { module } of AREAS) {
-    const source = readFileSync(new URL(`../src/i18n/${module}.ts`, import.meta.url), 'utf8');
+    // CR-I18N-LAZY-LANG-2443: the texts are in the English pack (src/i18n/lang/en/i18n/<module>.ts), the module reads them from there
+    const source = readFileSync(new URL(`../src/i18n/lang/en/i18n/${module}.ts`, import.meta.url), 'utf8');
     const seen = new Set<string>();
     const twice: string[] = [];
     for (const m of source.matchAll(/^\s*'((?:\\.|[^'\\])+)'\s*:/gm)) {

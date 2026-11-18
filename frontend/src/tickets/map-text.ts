@@ -4,6 +4,7 @@
 import { tn, type TicketLang } from './naming';
 import { ticketsLang } from './text';
 import { registerCatalogue } from '../i18n/core';
+import { packTable } from '../i18n/lang-packs';
 
 const he = {
   section: 'רכיב במפה',
@@ -31,29 +32,7 @@ const he = {
 
 export type MapTextKey = keyof typeof he;
 
-const en: Record<MapTextKey, string> = {
-  section: 'Map element',
-  add: 'Add an element from the map',
-  replace: 'Replace the element',
-  remove: 'Remove',
-  show: 'Show on the map',
-  vendorPreview: 'What the vendor sees',
-  vendorPreviewHide: 'Hide the picture',
-  vendorNoImage: 'The vendor will see the description only (no map picture).',
-  gone: 'The element is no longer on the map - the description from the moment it was attached is kept.',
-  pickTitle: 'Choose an element from the map',
-  pickFloor: 'Floor',
-  pickHint: 'Click an element on the map (a camera, a device or an object).',
-  pickNone: 'The map of this floor has no elements to choose.',
-  pickNoPlan: 'This floor has no published plan.',
-  pickChosen: 'Chosen',
-  pickSave: 'Attach to the {ticket}',
-  pickCancel: 'Cancel',
-  pickLoading: 'Loading the map...',
-  attached: 'The element was attached to the {ticket}',
-  removed: 'The element was removed from the {ticket}',
-  createLine: 'Map element',
-};
+const en: Record<MapTextKey, string> = packTable<typeof import('../i18n/lang/en/tickets/map-text').en>('en', 'tickets/map-text', 'en');
 
 /** One text in the document's language (a key missing in English falls back to the Hebrew), the module's name rendered (D33). */
 export function mapText(key: MapTextKey, lang: 'he' | 'en' = ticketsLang()): string {

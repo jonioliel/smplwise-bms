@@ -7,6 +7,7 @@
  * chip of its own (the wall inspector's button and the C key open it), and the old three-click arc mode is gone.
  */
 import { docLang, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   modeCurve: 'כיפוף',
   hintCurve: 'גרור את הנקודה שבאמצע קטע של הקיר הנבחר כדי לכופף אותו; לחיצה על פינה מאפשרת לעגל אותה. (C)',
@@ -42,40 +43,7 @@ const he = {
   area: 'שטח פנימי',
 };
 type Key = keyof typeof he;
-const en: Record<Key, string> = {
-  modeCurve: 'Bend',
-  hintCurve: 'Drag the dot in the middle of a segment of the selected wall to bend it; click a corner to round it. (C)',
-  tipCurve: 'Bend (C): bend a segment of an existing wall and round corners',
-  bendOpen: 'Bend and round corners',
-  bendDone: 'Done bending',
-  modeCurved: 'Curved wall',
-  hintCurved: 'Click points along the curve and the wall is built through them. Double-click, Enter or "Finish" builds it; clicking the first point closes a round room; Backspace removes a point; Esc cancels.',
-  tipCurved: 'Curved wall (R): click points on the curve and the wall is built through them',
-  draft: 'Curved wall',
-  points: 'points',
-  length: 'Length',
-  minRadius: 'Radius',
-  straightLine: 'straight',
-  finish: 'Finish',
-  undoPoint: 'Remove point',
-  closeHint: 'clicking the first point closes it',
-  pointsWall: 'Wall through points',
-  pointHandle: 'Curve point',
-  addPoint: 'Add point',
-  removePoint: 'Remove point',
-  pointsNote: 'Dragging a point reshapes the curve; Delete removes the selected point.',
-  segment: 'Segment',
-  radius: 'Radius (m)',
-  straight: 'Straight',
-  straighten: 'Straighten',
-  corner: 'Corner',
-  roundCorner: 'Round corner',
-  apply: 'Apply',
-  radiusTooSmall: 'The radius is shorter than half the segment',
-  cornerCannot: 'This corner cannot take that radius',
-  segmentHandle: 'Segment middle',
-  area: 'Enclosed area',
-};
+const en: Record<Key, string> = packTable<typeof import('./lang/en/i18n/plan-curves').en>('en', 'i18n/plan-curves', 'en');
 
 export const PLAN_CURVE_STRINGS = { he, en } as const;
 

@@ -132,7 +132,8 @@ test('every catalogue module registers its tables (the missing-keys report reads
   const dir = new URL('../src/i18n/', import.meta.url);
   const notCatalogues = new Set(['core.ts', 'msg.ts', 'ui-lang.ts', 'ui-lang-boot.ts', 'bidi.ts', 'en.ts', 'frigate-en.ts', 'frigate-text.ts', 'entity-label.ts', 'event-codes.ts',
     'nav-labels.ts', 'nav-label-bridges.ts', // CR-NAV-LABELS-2436 (from main): the shell's labels - each is a key of its own dictionary, which registers it
-    'locale.ts']); // CR-I18N-DATES-2442: the formatting locale of the interface language - no texts
+    'locale.ts', // CR-I18N-DATES-2442: the formatting locale of the interface language - no texts
+    'lang-packs.ts']); // CR-I18N-LAZY-LANG-2443: the language-pack loader - the tables it fills are registered by their modules
   const missing = readdirSync(dir).filter((f) => f.endsWith('.ts') && !notCatalogues.has(f) && !/registerCatalogue\(/.test(readFileSync(new URL(f, dir), 'utf8')));
   expect(missing).toEqual([]);
 });

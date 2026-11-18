@@ -4,6 +4,7 @@
  * Server error codes are `err_<code>`; an unknown code falls back to `err_other`.
  */
 import { docLang, fill, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   open: 'שחזור מעותק',
   title: 'שחזור מעותק מחוץ למכונה',
@@ -62,60 +63,7 @@ const he = {
 
 type Key = keyof typeof he;
 
-const en: Record<Key, string> = {
-  open: 'Restore from copy',
-  title: 'Restore from an off-box copy',
-  loading: 'Loading the copies…',
-  none: 'This target holds no copies',
-  pick: 'Pick a copy (newest first)',
-  newest: 'newest',
-  prepare: 'Download and verify',
-  preparing: 'Downloading and decrypting…',
-  verified: 'The copy was downloaded, decrypted and checked. Nothing in the system has changed yet.',
-  summary_version: 'Application version',
-  summary_schema: 'Data schema',
-  summary_tables: 'Tables / files',
-  summary_key: 'Encryption key',
-  warnDestructive: 'Restoring replaces the current project with the copy. A local safety backup is written first, so this can be undone.',
-  includeAccess: 'Also restore users and permissions',
-  password: 'Backup password (for the encrypted section of the copy)',
-  skipSensitive: 'Restore without the passwords of local accounts',
-  confirmHint: 'Type RESTORE to confirm',
-  restore: 'Restore',
-  restoring: 'Restoring…',
-  cancel: 'Cancel',
-  done: 'Restored from {name}: {n} tables, {files} files. Safety backup: {safety}. Refresh the screen.',
-  err_key_missing: 'This installation has no encryption key. Import the exported key (Import key) and try again.',
-  err_key_mismatch: 'The copy was encrypted with a key this installation does not hold. Import the right key.',
-  err_sealed_damaged: 'The copy is damaged or was changed. Try another copy.',
-  err_sealed_invalid: 'The file is not an encrypted Arx copy.',
-  err_archive_invalid: 'The archive inside the copy is not valid.',
-  err_schema_newer: 'The copy is newer than the installed version. Update the add-on, then try again.',
-  err_disk_insufficient: 'Not enough free disk space.',
-  err_object_missing: 'The copy is not at the target.',
-  err_stage_missing: 'The preparation expired. Download and verify again.',
-  err_stage_changed: 'The prepared file changed. Prepare again.',
-  err_safety_failed: 'The safety backup could not be written, so the restore did not start.',
-  err_destination_unavailable: 'The target is not reachable.',
-  err_push_running: 'Another transfer is running.',
-  err_other: 'The action was refused.',
-  safetyPassword: 'Safety backup password',
-  safetyHint: 'Optional. Without it the safety backup leaves out the local accounts’ passwords',
-  safetyPlaceholder: 'At least {n} characters',
-  safetyOff: 'The safety backup before a restore is off in the settings: this restore leaves no way back.',
-  localSafety: 'Safety backup before a restore',
-  localSafetyHint: 'Every restore first saves a backup of the current state (the last three are kept)',
-  scopeDefault: 'Restoring from a copy includes users and permissions',
-  scopeDefaultHint: 'The initial choice in the restore dialog; each restore can change it',
-  saved: 'Setting saved',
-  localScope: 'Restoring a backup includes users and permissions',
-  localScopeHint: 'The initial choice in the restore dialog; your own permissions are always kept',
-  accessLabel: 'Include users and permissions',
-  accessHint: 'Your own permissions are always kept. The default is set in the backup settings.',
-  safetyDone: 'Safety backup: {safety}',
-  err_safety_password_weak: 'The safety backup password needs at least {n} characters.',
-  err_safety_password_too_long: 'The safety backup password is too long.',
-};
+const en: Record<Key, string> = packTable<typeof import('./lang/en/i18n/backup-offbox-restore').en>('en', 'i18n/backup-offbox-restore', 'en');
 
 export const OBR_KEYS = Object.keys(he) as Key[];
 export const OBR_TABLES = { he, en };

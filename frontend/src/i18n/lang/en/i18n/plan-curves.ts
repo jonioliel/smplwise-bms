@@ -1,0 +1,38 @@
+// CR-I18N-LAZY-LANG-2443: language pack table of src/i18n/plan-curves.ts, fetched only when the page is in this language (i18n/lang-packs.ts).
+// Moved by scripts/i18n-split-langs.mjs; edit the texts here.
+/* eslint-disable */
+
+export const en = {
+  modeCurve: 'Bend',
+  hintCurve: 'Drag the dot in the middle of a segment of the selected wall to bend it; click a corner to round it. (C)',
+  tipCurve: 'Bend (C): bend a segment of an existing wall and round corners',
+  bendOpen: 'Bend and round corners',
+  bendDone: 'Done bending',
+  modeCurved: 'Curved wall',
+  hintCurved: 'Click points along the curve and the wall is built through them. Double-click, Enter or "Finish" builds it; clicking the first point closes a round room; Backspace removes a point; Esc cancels.',
+  tipCurved: 'Curved wall (R): click points on the curve and the wall is built through them',
+  draft: 'Curved wall',
+  points: 'points',
+  length: 'Length',
+  minRadius: 'Radius',
+  straightLine: 'straight',
+  finish: 'Finish',
+  undoPoint: 'Remove point',
+  closeHint: 'clicking the first point closes it',
+  pointsWall: 'Wall through points',
+  pointHandle: 'Curve point',
+  addPoint: 'Add point',
+  removePoint: 'Remove point',
+  pointsNote: 'Dragging a point reshapes the curve; Delete removes the selected point.',
+  segment: 'Segment',
+  radius: 'Radius (m)',
+  straight: 'Straight',
+  straighten: 'Straighten',
+  corner: 'Corner',
+  roundCorner: 'Round corner',
+  apply: 'Apply',
+  radiusTooSmall: 'The radius is shorter than half the segment',
+  cornerCannot: 'This corner cannot take that radius',
+  segmentHandle: 'Segment middle',
+  area: 'Enclosed area',
+};

@@ -4,6 +4,7 @@
  * `{n}` placeholders are filled by `gwt(key, { n })`. Operator words only: the home platform is never named.
  */
 import { docLang, fill, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 const he = {
   title: 'גנרטור',
   stateStandby: 'בהמתנה',
@@ -25,67 +26,13 @@ const he = {
 };
 type Key = keyof typeof he;
 
-const en: Partial<Record<Key, string>> = {
-  title: 'Generator',
-  stateStandby: 'Standby',
-  stateRunning: 'Running',
-  stateStarting: 'Starting',
-  stateCooling: 'Cooling down',
-  stateAlarm: 'Alert',
-  stateFault: 'Fault',
-  stateUnknown: 'Unknown',
-  supplyMains: 'On mains',
-  supplyGenerator: 'On generator',
-  supplyNone: 'No mains power',
-  supplyUnknown: 'Supply unknown',
-  summary: '{n} generators',
-  summaryRunning: '{n} running',
-  summaryFault: '{n} in fault',
-  fuel: 'Fuel {n}%',
-  load: 'Load {n}%',
-};
+const en: Partial<Record<Key, string>> = packTable<typeof import('./lang/en/i18n/generator-widget').en>('en', 'i18n/generator-widget', 'en');
 
 // initial translation - needs a native review (dev-marked)
-const ar: Partial<Record<Key, string>> = {
-  title: 'المولد',
-  stateStandby: 'في وضع الاستعداد',
-  stateRunning: 'يعمل',
-  stateStarting: 'يبدأ التشغيل',
-  stateCooling: 'يبرد',
-  stateAlarm: 'تنبيه',
-  stateFault: 'عطل',
-  stateUnknown: 'غير معروف',
-  supplyMains: 'على الشبكة',
-  supplyGenerator: 'على المولد',
-  supplyNone: 'لا توجد كهرباء الشبكة',
-  supplyUnknown: 'مصدر التغذية غير معروف',
-  summary: '{n} مولدات',
-  summaryRunning: '{n} تعمل',
-  summaryFault: '{n} معطلة',
-  fuel: 'الوقود {n}%',
-  load: 'الحمل {n}%',
-};
+const ar: Partial<Record<Key, string>> = packTable<typeof import('./lang/ar/i18n/generator-widget').ar>('ar', 'i18n/generator-widget', 'ar');
 
 // initial translation - needs a native review (dev-marked)
-const ru: Partial<Record<Key, string>> = {
-  title: 'Генератор',
-  stateStandby: 'Ожидание',
-  stateRunning: 'Работает',
-  stateStarting: 'Запуск',
-  stateCooling: 'Охлаждение',
-  stateAlarm: 'Тревога',
-  stateFault: 'Неисправность',
-  stateUnknown: 'Неизвестно',
-  supplyMains: 'От сети',
-  supplyGenerator: 'От генератора',
-  supplyNone: 'Нет сетевого питания',
-  supplyUnknown: 'Питание неизвестно',
-  summary: 'Генераторов: {n}',
-  summaryRunning: 'Работают: {n}',
-  summaryFault: 'Неисправны: {n}',
-  fuel: 'Топливо {n}%',
-  load: 'Нагрузка {n}%',
-};
+const ru: Partial<Record<Key, string>> = packTable<typeof import('./lang/ru/i18n/generator-widget').ru>('ru', 'i18n/generator-widget', 'ru');
 
 export type GwtKey = Key;
 type GwtLang = 'he' | 'en' | 'ar' | 'ru';

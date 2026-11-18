@@ -4,6 +4,7 @@
  * through `tt()`. No internal codes, no product name of the infrastructure, never the module's noun hard-coded.
  */
 import { registerCatalogue } from '../i18n/core';
+import { packTable } from '../i18n/lang-packs';
 
 export const DM_HE = {
   dmPaneGroup: 'תצוגת הלוח',
@@ -31,31 +32,7 @@ export const DM_HE = {
   p_handlers: 'מטפלים וספקים במחלקות שלי', // the "הרשאות" tab's words of the permission (tickets/perm-label.ts)
 } as const;
 
-export const DM_EN: Record<keyof typeof DM_HE, string> = {
-  dmPaneGroup: 'Board view',
-  dmManagerFixed: 'Department managers are set in Settings',
-  dmShared: 'Available to every department',
-  dmSharedHint: 'On: a vendor or contact you create also appears in the other departments\' directory. Off (the default): only in the department you chose.',
-  dmCreatedIn: 'Created in',
-  dmCreatedOther: 'Another department',
-  dmLookupTitle: 'Vendor already listed? Find it by phone number',
-  dmLookupHint: 'The full, exact number only. The number in the result is hidden.',
-  dmLookupFind: 'Find',
-  dmLookupNone: 'No vendor with this number.',
-  dmLookupAttach: 'Attach to the department',
-  dmLookupAttached: 'Already attached',
-  dmCreateIn: 'Department',
-  dmMyDepartments: 'My departments',
-  dmAttach: 'Attach',
-  dmDetach: 'Remove',
-  dmAttachmentOnly: 'For this entry you can change only its attachment to your departments.',
-  dmMemberRemove: 'Remove from the department',
-  dmFullPhones: 'Department managers see full numbers',
-  dmFullPhonesHint: 'Only in the entries of the departments they manage. Off: the last four digits only.',
-  dmMasked: 'Hidden',
-  p_directory: 'Directory: vendors and outside contacts',
-  p_handlers: 'Handlers in my departments',
-};
+export const DM_EN: Record<keyof typeof DM_HE, string> = packTable<typeof import('../i18n/lang/en/tickets/text-deptmgr').DM_EN>('en', 'tickets/text-deptmgr', 'DM_EN');
 
 /**
  * DEV-MARKED (DEPTMGR2, 2026-10-17): an INITIAL Arabic and Russian translation of the words added for the owner's answers (the creating
