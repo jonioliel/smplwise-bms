@@ -58,3 +58,25 @@ Evidence shots with avatars (PNG only, no compare): the tickets detail / RFQ / c
 (`evidence-tickets-*`, `evidence-public-rfq.spec.ts`), WisKey person drawer (`evidence-wiskey-people*.spec.ts`).
 - Ticket / RFQ behaviour specs that read avatar text, if any, on the runner gate.
 - No entry check queued (18.11 evening rule: push only until the 2.43.8 release gate has finished).
+
+## B - the two copies left outside the row (`pilot/CR-INITIALS-B-2443`)
+
+Owner rule: unanswered = recommendation a. Cut from `pilot/CR-INITIALS-2443` @ `f9845046b`. Frontend only, no version bump.
+
+- `access-external/request-dialog.ts` private `initials()` method (person row, picked-person header, approver avatars): was split on
+  spaces AND hyphens, `w[0]` of the first two parts. Now `avatarInitials(name) || '?'`. The method name stays. The `.av` spans have no
+  person-icon fallback (like the RFQ rows), so a name with no letter keeps a "?" instead of an empty circle. Visible: a hyphenated
+  Latin name is one word (`Jean-Pierre` -> `Je`, was `JP`), three-word names use the last word, lower-case names are upper-cased.
+- `components/device-activity-logic.ts` `actorView().initials` (person actor in the device activity feed): was `[...w][0]` of the first
+  two words, no upper-case. Now `avatarInitials(name)`. No special fallback needed: the call site (`device-activity.ts`) already
+  draws the person glyph when `initials` is empty (emoji-only or digit-only name). Non-person actors still return `''`.
+
+Test: new `tests/unit-initials-b-2443.spec.ts` (2 tests): actorView equals `avatarInitials` over 11 worst-case names plus explicit
+cases (three words `דכ`, `dana levi` -> `DL`, non-BMP letters, emoji -> `''`, automation -> `''`); source check that the dialog method
+delegates and has no split-and-index body (a Lit class is not importable in Node). Negative check: with `src/` stashed both tests fail.
+
+Tests actually run (workstation, `--workers=1`): `unit-initials-b-2443`, `unit-device-activity`, `unit-access-external`,
+`unit-polish-classic-domus-297`: 47 passed. `npx tsc --noEmit`: clean (exit 0).
+
+NOT_RUN: pixel / evidence specs that show these initials (`evidence-device-activity*.spec.ts`, the access-request dialog evidence
+and any request-dialog pixel baseline) - runner, after the 2.43.8 gate. No entry check queued.

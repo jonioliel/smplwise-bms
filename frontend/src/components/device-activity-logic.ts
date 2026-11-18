@@ -9,6 +9,7 @@ import { uiLocale } from '../i18n/locale';
 import type { ActivityItem, ActivityKind, ActorType, EventType } from '../api/device-activity';
 import { timeText } from '../api/day-format';
 import { tr } from '../i18n/msg/components';
+import { avatarInitials } from './avatar-initials';
 
 /** The icon (sw-icon name) of each kind. */
 export const KIND_ICON: Record<ActivityKind, string> = {
@@ -148,7 +149,7 @@ export function actorView(item: Pick<ActivityItem, 'actor' | 'source' | 'confide
   else if (t === 'system') name = tr('המערכת');
   else name = tr('מקור לא ידוע');
   if (!name && prefix) { name = tr('{prefix} (ללא שם)', { prefix }); prefix = ''; }
-  const initials = t === 'person' ? name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => [...w][0]).join('') : '';
+  const initials = t === 'person' ? avatarInitials(name) : '';
   return { type: t, prefix, name, initials, glyph: ACTOR_GLYPH[t], qualifier };
 }
 
