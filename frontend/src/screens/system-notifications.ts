@@ -885,11 +885,6 @@ export class SystemNotifications extends LitElement {
         text-align: start;
         font-size: var(--sw-fs-md);
       }
-      .tagrow {
-        display: flex;
-        gap: 6px;
-        flex-wrap: wrap;
-      }
       @media (max-width: 1099px) {
         .fgrid label.w2 {
           grid-column: span 1;

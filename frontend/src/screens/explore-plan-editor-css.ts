@@ -342,7 +342,6 @@ export const explorePlanEditorStyles = [css`
     }
     .list button {
       transition: background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
-      font-size: var(--sw-fs-sm);
     }
     .list button.on {
       font-weight: var(--sw-fw-semibold);
@@ -365,7 +364,6 @@ export const explorePlanEditorStyles = [css`
       font-weight: var(--sw-fw-medium);
     }
     .kv .k {
-      color: var(--sw-text-2);
       font-weight: var(--sw-fw-regular);
     }
     .row .lbl {
@@ -374,7 +372,6 @@ export const explorePlanEditorStyles = [css`
     }
     .row .muted {
       font-weight: var(--sw-fw-regular);
-      color: var(--sw-text-2);
     }
     .list {
       display: flex;

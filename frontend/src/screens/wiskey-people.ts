@@ -1530,8 +1530,7 @@ export class WiskeyPeople extends LitElement {
       padding-block: 10px;
     }
     /* R5-SECURITY pass 2: the name is the row's display line (17/800, tracked -0.01em), the row 60 px, the figures 600 */
-    td .who b,
-    td.name b {
+    td .who b {
       font-size: var(--sw-fs-xl);
       font-weight: 800;
       letter-spacing: -0.01em;
