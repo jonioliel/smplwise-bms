@@ -175,6 +175,7 @@ export const devicesThemes = css`
     --sw-accent-hover: var(--dv-accent-hover);
     --sw-accent-soft: var(--dv-accent-soft);
     --sw-accent-text: var(--dv-accent-text);
+    --sw-accent-text-strong: var(--dv-accent-text-strong, var(--dv-text));
     --sw-focus: var(--dv-focus);
     --sw-live: var(--dv-success);
     --sw-live-soft: var(--dv-success-soft);
@@ -203,6 +204,12 @@ export const devicesThemes = css`
     color: var(--dv-text);
     font-family: var(--dv-font);
   }
+  /* DOMUS-DEFAULT-2439: the selected chip's deeper ink inside a glass screen. The default palette under the product's own scheme
+     reads the product's (never-bridged alias, tokens.ts); every other case - the sand / forest / graphite palettes, a glass area
+     with a scheme of its own - has no deeper accent ink and falls back to the palette's text ink, which reads on its soft field */
+  :host([data-devices-style='glass'][data-devices-theme='default']:not([data-devices-own-backdrop])) {
+    --dv-accent-text-strong: var(--sw-product-accent-text-strong);
+  }
   /* BGFIX-293 (owner 2026-10-20): ONE page background on every screen - the shell's skin canvas (sw-app), exactly as the
      security screen shows it. A glass screen therefore paints no page layer of its own: --dv-page-backdrop is transparent and
      the canvas shows through the glass. Only when the glass area's resolved scheme differs from the product's (an explicit
@@ -218,6 +225,8 @@ export const devicesThemes = css`
   :host([data-devices-style='glass'][data-devices-own-backdrop]) {
     --dv-page-backdrop: var(--dv-backdrop);
     --dv-page-fill: var(--dv-backdrop);
+    /* DOMUS-DEFAULT-2439: a skin's sheet sheen is drawn for the product's scheme; over this area's own (other) scheme it is left out */
+    --dv-sheet-sheen: linear-gradient(transparent, transparent);
   }
   /* the (own) backdrop rides on the page frame, which grows with the content (the host is only as tall as the view) */
   :host([data-devices-style='glass']) sw-page {

@@ -1,4 +1,5 @@
 import { css } from 'lit';
+import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
 
 /**
  * CALENDARS-UI-2310: the shared visual language of the calendars screens (the approved round-8 mock-up, product tokens only). Type, radii and
@@ -52,7 +53,9 @@ export const calCss = css`
   .chipb { font: inherit; font-size: var(--sw-fs-md); display: inline-flex; align-items: center; gap: 6px; min-block-size: var(--sw-ctl-h-lg); padding: 0 16px;
     border-radius: var(--sw-r-pill); border: 1px solid var(--sw-border); background: var(--sw-surface-solid); color: var(--sw-heading); cursor: pointer; white-space: nowrap; }
   /* AUDIT30-F1 (#4, owner Q3 option A assumed): a selected chip is the Blue Wash pair of the design document (sw-chip's look), never a black pill */
-  .chipb[aria-pressed='true'] { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; font-weight: var(--sw-fw-semibold); box-shadow: none; }
+  /* DOMUS-DEFAULT-2439: the product's one selected chip (styles/chip-selected.ts) and its check mark */
+  .chipb[aria-pressed='true'] { ${chipSelected} }
+  .chipb[aria-pressed='true']::before { ${chipSelectedCheck} }
   .chip { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 2px 10px; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold);
     background: var(--sw-surface-3); color: var(--sw-text-2); white-space: nowrap; max-inline-size: 100%; overflow: hidden; text-overflow: ellipsis; }
   .chip.ok { background: var(--sw-success-soft); color: var(--sw-success-text); }

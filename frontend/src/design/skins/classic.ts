@@ -47,6 +47,7 @@ const tokens: TokenTable = {
   '--sw-accent-hover': lt('#1b4ecf', '#3365d9'),
   '--sw-accent-soft': lt('#e4ecff', 'rgba(91, 140, 255, 0.2)'),
   '--sw-accent-text': lt('#1a4fd6', '#8fb2ff'),
+  '--sw-accent-text-strong': lt('#1541af', '#c5d7ff'), // DOMUS-DEFAULT-2439: the selected chip's ink (tokens.ts)
   // the deeper canvas and its bloom: the muted inks the base table had at ~4.0:1 on the bloom centre step down (unit-muted-contrast)
   '--sw-offline-text': lt('#525b6c', '#b4bdcc'),
   '--sw-unknown-text': lt('#525b6c', '#aab5c9'),
@@ -113,12 +114,8 @@ const rules = `
 :host(sw-button[variant='danger']) button { background: linear-gradient(180deg, var(--sw-surface), var(--sw-danger-soft)); }
 :host(sw-button) button:active:not(:disabled), :host(sw-chip) button:active:not(:disabled) { background: var(--sw-surface-2); box-shadow: inset 0 2px 3px rgba(16, 24, 40, 0.14); }
 :host(sw-button[variant='primary']) button:active:not(:disabled) { background: var(--sw-accent-hover); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.26); }
-/* AUDIT30-B-SHARED (audit round 30, finding 4; owner gate Q3, option א assumed): the SELECTED chip is no longer a raised accent key - it is
-   the one soft selected field of the whole product (sw-chip.ts chipSelected): accent-soft, accent ink, no edge, flat, no hover lift */
-:host(sw-chip[selected]) { --sw-chip-on-count: var(--sw-accent-text); --sw-chip-dot-ring: var(--sw-surface-solid); }
-:host(sw-chip[selected]) button { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; box-shadow: none; }
-:host(sw-chip[selected]) button:active:not(:disabled) { background: color-mix(in srgb, var(--sw-accent) 14%, var(--sw-accent-soft)); box-shadow: none; }
-@media (hover: hover) and (pointer: fine) { :host(sw-chip[selected]) button:hover:not(:disabled) { background: color-mix(in srgb, var(--sw-accent) 14%, var(--sw-accent-soft)); border-color: transparent; transform: none; box-shadow: none; } }
+/* DOMUS-DEFAULT-2439: the SELECTED chip is drawn by the component in every skin (sw-chip.ts chipSelected, the owner's round-33 look and
+   its setting ui.chip_selected); the four rules that repainted it here (AUDIT30-B-SHARED) are gone */
 @media (hover: hover) and (pointer: fine) { :host(sw-button:not([variant='ghost'])) button:hover:not(:disabled), :host(sw-chip) button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); } }
 /* classic 2 - panels are objects: the light top edge over the ladder's first step; the home widgets, the floor cards and the tree too */
 :host(sw-card), :host(sw-kpi), :host(sw-table), :host(devices-building) section.fcard, :host(devices-building) nav.tree, :host(home-widgets) .wg { box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); }

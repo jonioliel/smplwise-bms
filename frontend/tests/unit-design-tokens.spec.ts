@@ -36,7 +36,7 @@ test('the colours of the shell exist for both schemes: surfaces, text, accent, e
 
 test('skins: registered ids, overrides carry both columns and name existing tokens, rules stay inside the budget', () => {
   expect([...SKIN_IDS]).toEqual(['classic', 'domus', 'tesla', 'bubble', 'crystal', 'infra', 'soft']);
-  expect(DEFAULT_SKIN).toBe('classic');
+  expect(DEFAULT_SKIN).toBe('domus'); // DOMUS-DEFAULT-2439 (owner round 33, Q-DES-1)
   // POLISH-CLASSIC-DOMUS-297 (round 4): classic carries its own polish layer (skins/classic.ts) so the base table the other skins
   // inherit from stays where it was; it never moves a size (density / type / control heights are not overridden)
   expect(Object.keys(SKINS.classic.tokens).length).toBeGreaterThan(0);

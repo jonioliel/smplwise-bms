@@ -127,6 +127,7 @@ class SettingsPatch(BaseModel):
     ui_scheme: str | None = Field(default=None, pattern="^(light|dark|auto)$", alias="ui.scheme")
     ui_motion: str | None = Field(default=None, pattern="^(auto|full|reduced)$", alias="ui.motion")  # MOTIONSETTING-297; keep in step with MOTION_MODES in frontend/src/design/apply.ts
     ui_entry_animations: str | None = Field(default=None, pattern="^(on|off)$", alias="ui.entry_animations")  # 2.29.0: keep in step with ENTER_MODES in frontend/src/design/apply.ts
+    ui_chip_selected: str | None = Field(default=None, pattern="^(strong|soft|filled|dark)$", alias="ui.chip_selected")  # DOMUS-DEFAULT-2439: keep in step with CHIP_ON_MODES in frontend/src/design/apply.ts
     ui_rail_tone: str | None = Field(default=None, pattern="^(auto|dark)$", alias="ui.rail_tone")  # SKINCOMP-297: keep in step with RAIL_TONES in frontend/src/design/skins/index.ts
 
     @field_validator("ui_skin")

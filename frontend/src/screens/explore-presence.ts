@@ -12,6 +12,7 @@ import { can, canAnywhere, isApi, onSession, session } from '../api/session';
 import { pt, type PtKey } from '../i18n/presence';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
 
 /** The KPI filters of the list: everyone, the people placed on a floor, the people placed on a site only. */
 type Kpi = 'all' | 'floors' | 'site';
@@ -92,7 +93,9 @@ export class ExplorePresence extends LitElement {
       border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text-2); border-radius: var(--sw-r-pill); padding: 4px 12px; font: inherit;
       font-size: var(--sw-fs-sm); cursor: pointer; display: inline-flex; gap: 6px; align-items: center;
     }
-    .chips button[aria-pressed='true'] { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; font-weight: var(--sw-fw-semibold); }
+    /* DOMUS-DEFAULT-2439: the product's one selected chip (styles/chip-selected.ts) and its check mark */
+    .chips button[aria-pressed='true'] { ${chipSelected} }
+    .chips button[aria-pressed='true']::before { ${chipSelectedCheck} }
     .chips .n { font-variant-numeric: tabular-nums; color: var(--sw-text-3); }
     .chips button[aria-pressed='true'] .n { color: inherit; }
     .stage { position: relative; flex: 1; min-block-size: 0; border-radius: var(--sw-r-md); overflow: hidden; background: var(--sw-map-bg); }

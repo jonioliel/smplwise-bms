@@ -3,11 +3,13 @@
  *
  *   skin   = ?skin= (this page view only, for designers and the evidence specs)
  *            > the installation's `ui.skin` (product setting; in the static demo, the choice saved in this browser)
- *            > "classic"
+ *            > DEFAULT_SKIN ("domus", DOMUS-DEFAULT-2439; it was "classic")
  *   scheme = ?scheme= > this browser's own choice (localStorage, "ההעדפה שלי") > the installation's `ui.scheme` > "light"
  *   "auto" follows the operating system (prefers-color-scheme) live.
  *
  *   rail   = the installation's `ui.rail_tone` (SKINCOMP-297: `auto` | `dark`; only a skin with a dark rail - Arx Infra - draws it)
+ *
+ *   chip   = the installation's `ui.chip_selected` (DOMUS-DEFAULT-2439: the look of a selected chip; `data-chip-on` on <html>)
  *
  * Output: `data-skin`, `data-theme` and (dark rail only) `data-rail="dark"` on <html> (the CSS of css.ts keys on them), the token <style>, and the skin's component
  * rules as ONE constructable stylesheet adopted into every shadow root (the whole UI lives in Lit shadow roots, which a
@@ -45,6 +47,17 @@ export type EnterMode = 'on' | 'off';
 export const ENTER_MODES: readonly EnterMode[] = ['on', 'off'];
 export const isEnterMode = (v: unknown): v is EnterMode => v === 'on' || v === 'off';
 
+/**
+ * DOMUS-DEFAULT-2439 (owner round 33, Q-DES-3 option b, "settable"): the installation's `ui.chip_selected` - how a SELECTED chip is
+ * drawn everywhere (components/sw-chip.ts `chipSelected`). strong (default) = the light-blue field with a deeper ink, an accent ring
+ * and a check mark; soft = the plain light-blue field; filled = the accent key; dark = the ink-filled pill. Written as
+ * `data-chip-on` on <html>; css.ts keys the `--sw-chip-on-*` knobs on it. Keep in step with ui.chip_selected in routers/settings.py.
+ */
+export type ChipOn = 'strong' | 'soft' | 'filled' | 'dark';
+export const CHIP_ON_MODES: readonly ChipOn[] = ['strong', 'soft', 'filled', 'dark'];
+export const DEFAULT_CHIP_ON: ChipOn = 'strong';
+export const isChipOn = (v: unknown): v is ChipOn => typeof v === 'string' && (CHIP_ON_MODES as readonly string[]).includes(v);
+
 const CACHE_KEY = 'sw.ui.design'; // the installation's last known { skin, scheme, motion }: applied at once on the next load (no flash)
 const OWN_SCHEME_KEY = 'sw.ui.scheme'; // this browser's own scheme choice
 
@@ -56,6 +69,8 @@ interface Installation {
   rail: RailTone;
   /** 2.29.0: `ui.entry_animations`. */
   enter: EnterMode;
+  /** DOMUS-DEFAULT-2439: `ui.chip_selected`. */
+  chip: ChipOn;
 }
 
 function read(key: string): string | null {
@@ -74,7 +89,7 @@ function write(key: string, value: string | null) {
   }
 }
 
-let installation: Installation = { skin: DEFAULT_SKIN, scheme: 'light', motion: 'auto', rail: 'auto', enter: 'on' };
+let installation: Installation = { skin: DEFAULT_SKIN, scheme: 'light', motion: 'auto', rail: 'auto', enter: 'on', chip: DEFAULT_CHIP_ON };
 let ownScheme: Scheme | null = null;
 let queryOverride: { skin: SkinId | null; scheme: Scheme | null; motion: MotionMode | null } = { skin: null, scheme: null, motion: null };
 let sheet: CSSStyleSheet | null = null;
@@ -90,6 +105,7 @@ function loadStored() {
     if (c && isMotionMode(c.motion)) installation.motion = c.motion;
     if (c && isRailTone(c.rail)) installation.rail = c.rail;
     if (c && isEnterMode(c.enter)) installation.enter = c.enter;
+    if (c && isChipOn(c.chip)) installation.chip = c.chip;
   } catch {
     /* a corrupt cache reads as the defaults */
   }
@@ -171,6 +187,7 @@ function apply() {
   const motion = currentMotion();
   if (root.getAttribute('data-motion') !== motion) root.setAttribute('data-motion', motion);
   if (root.getAttribute('data-enter') !== installation.enter) root.setAttribute('data-enter', installation.enter);
+  if (root.getAttribute('data-chip-on') !== installation.chip) root.setAttribute('data-chip-on', installation.chip);
   syncMotionSheet();
   // SKINCOMP-297: the dark rail of the skin (Arx Infra, direction D) - the attribute only while the skin has one and the tone asks for it
   if (darkRailOn(skin, installation.rail)) {
@@ -207,23 +224,24 @@ export function onDesign(fn: () => void): () => void {
 }
 
 /** The installation's `ui.skin` / `ui.scheme` / `ui.motion` / `ui.rail_tone` as the product settings carry them (unknown or missing values keep the current ones). */
-export function setInstallationDesign(skin: unknown, scheme: unknown, motion?: unknown, rail?: unknown, enter?: unknown) {
+export function setInstallationDesign(skin: unknown, scheme: unknown, motion?: unknown, rail?: unknown, enter?: unknown, chip?: unknown) {
   const next: Installation = {
     skin: resolveSkin(skin) ?? installation.skin,
     scheme: isScheme(scheme) ? scheme : installation.scheme,
     motion: isMotionMode(motion) ? motion : installation.motion,
     rail: isRailTone(rail) ? rail : installation.rail,
     enter: isEnterMode(enter) ? enter : installation.enter,
+    chip: isChipOn(chip) ? chip : installation.chip,
   };
-  if (next.skin === installation.skin && next.scheme === installation.scheme && next.motion === installation.motion && next.rail === installation.rail && next.enter === installation.enter) return;
+  if (next.skin === installation.skin && next.scheme === installation.scheme && next.motion === installation.motion && next.rail === installation.rail && next.enter === installation.enter && next.chip === installation.chip) return;
   installation = next;
   write(CACHE_KEY, JSON.stringify(installation));
   apply();
 }
 
 /** The static demo (no backend) keeps "the installation's" choice in this browser: same cache, same effect. */
-export function saveDemoDesign(skin: SkinId, scheme: Scheme, motion: MotionMode = installation.motion, rail: RailTone = installation.rail, enter: EnterMode = installation.enter) {
-  installation = { skin: resolveSkin(skin) ?? DEFAULT_SKIN, scheme, motion, rail, enter };
+export function saveDemoDesign(skin: SkinId, scheme: Scheme, motion: MotionMode = installation.motion, rail: RailTone = installation.rail, enter: EnterMode = installation.enter, chip: ChipOn = installation.chip) {
+  installation = { skin: resolveSkin(skin) ?? DEFAULT_SKIN, scheme, motion, rail, enter, chip };
   write(CACHE_KEY, JSON.stringify(installation));
   apply();
 }

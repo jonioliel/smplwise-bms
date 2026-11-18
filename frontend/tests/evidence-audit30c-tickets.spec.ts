@@ -144,7 +144,8 @@ test.describe('AUDIT30-C-TICKETS', () => {
   test('#4: a chosen chip is the Blue Wash pair, never the black key (board floor chips, list filter state)', async ({ page }) => {
     await board(page, { board: { board_floors: 'chips' } });
     await page.waitForSelector(`${B} [data-floor-chips] .rc[aria-pressed="true"]`);
-    const c = await colours(page, `${B} [data-floor-chips] .rc[aria-pressed="true"]`, '--sw-accent-soft', '--sw-accent-text');
+    // DOMUS-DEFAULT-2439 (owner round 33, Q-DES-3 b): the same field, the ink one step deeper (plus the ring and the check)
+    const c = await colours(page, `${B} [data-floor-chips] .rc[aria-pressed="true"]`, '--sw-accent-soft', '--sw-accent-text-strong');
     expect(c.bg).toBe(c.want.bg);
     expect(c.fg).toBe(c.want.fg);
     await tickets(page, '/tickets/mine');
@@ -152,7 +153,7 @@ test.describe('AUDIT30-C-TICKETS', () => {
     await page.locator(`${L} [data-filter-toggle]`).click();
     const sel = `${L} [data-filter-panel] .fchips .rc[aria-checked="true"]`;
     await page.waitForSelector(sel);
-    const s = await colours(page, sel, '--sw-accent-soft', '--sw-accent-text');
+    const s = await colours(page, sel, '--sw-accent-soft', '--sw-accent-text-strong');
     expect(s.bg).toBe(s.want.bg);
     expect(s.fg).toBe(s.want.fg);
     for (const k of await contrast(page, sel)) expect(k).toBeGreaterThanOrEqual(4.5);

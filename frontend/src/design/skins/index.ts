@@ -22,7 +22,14 @@ export { SKIN_RULE_BUDGET, BEVEL_SKINS, defineSkin, skinProblems, derivedFeature
 
 export const SKIN_IDS = ['classic', 'domus', 'tesla', 'bubble', 'crystal', 'infra', 'soft'] as const;
 export type SkinId = (typeof SKIN_IDS)[number];
-export const DEFAULT_SKIN: SkinId = 'classic';
+/**
+ * DOMUS-DEFAULT-2439 (owner round 33, Q-DES-1): Domus is the primary rulebook and the skin of an installation that never chose one.
+ * A read-time default for an installation with no stored skin. An installation that stored "classic" is moved to domus ONCE at the
+ * first start of this version (owner Q-DES-20; backend services/skin_switch.py); every other stored skin, and a classic chosen
+ * after that move, stays.
+ * Keep in step with DEFAULTS["ui.skin"] in smplwise_vms/backend/smplwise/routers/settings.py.
+ */
+export const DEFAULT_SKIN: SkinId = 'domus';
 
 export interface Skin {
   id: SkinId;

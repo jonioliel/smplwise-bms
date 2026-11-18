@@ -30,14 +30,14 @@ function resolver(id: (typeof SKIN_IDS)[number], scheme: Scheme) {
   };
 }
 
-test('finding 4: the shared selected chip is the soft accent field, >= 4.5:1 in every skin, light and dark', () => {
+test('finding 4: the shared selected chip is ONE fragment on the soft accent field; its ink reads >= 4.5:1 in every skin, light and dark', () => {
   const s = flat('components/sw-chip.ts');
-  // the exported fragment and its use on the chip itself
-  expect(s).toMatch(/export const chipSelected = css` background: var\(--sw-accent-soft\); color: var\(--sw-accent-text\); border-color: transparent; font-weight: var\(--sw-fw-semibold\); box-shadow: none; `;/);
-  // regression (runner, pixel-round4-leftovers wk-overview domus): the component's own selected state keeps the accent key with inverse
-  // ink - domus rule 6 repaints only the background of the selected chip and relies on this ink; a soft-field ink there was accent on accent
-  expect(s).toContain(':host([selected]) button { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); }');
-  expect(s).toContain('color: var(--sw-chip-on-count, var(--sw-text-inverse));');
+  // DOMUS-DEFAULT-2439 (owner round 33, Q-DES-3 option b): the field is unchanged, the ink is one step deeper and an accent ring is
+  // the boundary; the full contract of the look and of its setting is tests/unit-chip-selected-2439.spec.ts
+  expect(flat('styles/chip-selected.ts')).toMatch(/export const chipSelected = css` background: var\(--sw-chip-on-bg, var\(--sw-accent-soft\)\); color: var\(--sw-chip-on-ink, var\(--sw-accent-text-strong\)\); border-color: var\(--sw-chip-on-ring, var\(--sw-accent\)\); font-weight: var\(--sw-fw-semibold\);/);
+  // the component itself draws the fragment (no skin repaints the selected chip any more, so no ink / field mismatch between layers)
+  expect(s).toContain(':host([selected]) button { ${chipSelected} }');
+  expect(s).toContain(':host([selected]) .count { color: inherit;');
   const rows: string[] = [];
   const fails: string[] = [];
   for (const id of SKIN_IDS) {
@@ -45,31 +45,28 @@ test('finding 4: the shared selected chip is the soft accent field, >= 4.5:1 in 
       const v = resolver(id, scheme);
       const panel = v('--sw-surface-solid');
       const field = over(v('--sw-accent-soft'), panel);
-      const r = contrastRatio(over(v('--sw-accent-text'), field), field);
-      const row = `${id}/${scheme}: accent-text on accent-soft = ${r.toFixed(2)}`;
-      rows.push(row);
-      if (!(r >= 4.5)) fails.push(row);
+      for (const ink of ['--sw-accent-text', '--sw-accent-text-strong'] as const) {
+        const r = contrastRatio(over(v(ink), field), field);
+        const row = `${id}/${scheme}: ${ink} on accent-soft = ${r.toFixed(2)}`;
+        rows.push(row);
+        if (!(r >= 4.5)) fails.push(row);
+      }
     }
   }
   console.log(rows.join('\n'));
   expect(fails).toEqual([]);
 });
 
-test('finding 4: classic rule 1 no longer paints the selected chip as the raised primary key', () => {
-  const rules = SKINS.classic.rules;
-  // the primary button keeps its key; the selected chip is not in that selector list any more
-  expect(rules).toContain(":host(sw-button[variant='primary']) button { background: linear-gradient(");
-  expect(rules).not.toMatch(/sw-chip\[selected\]\) button \{ background: linear-gradient/);
-  expect(rules).not.toMatch(/:host\(sw-chip\[selected\]\) button:active:not\(:disabled\) \{ background: var\(--sw-accent-hover\)/);
-  expect(rules).toContain(':host(sw-chip[selected]) button { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; box-shadow: none; }');
-  // the count and the dot ring follow the soft field (white on the soft field would vanish)
-  expect(rules).toContain(':host(sw-chip[selected]) { --sw-chip-on-count: var(--sw-accent-text); --sw-chip-dot-ring: var(--sw-surface-solid); }');
-  // classic draws exactly the exported fragment's pair
-  const frag = flat('components/sw-chip.ts');
-  expect(frag).toContain('background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent;');
-  // no hover lift on the selected chip (the unselected key keeps its lift)
-  expect(rules).toMatch(/:host\(sw-chip\[selected\]\) button:hover:not\(:disabled\) \{[^}]*transform: none; box-shadow: none; \}/);
-  expect(rules).toContain(':host(sw-chip) button:hover:not(:disabled) { transform: translateY(-1px);');
+test('finding 4: no skin paints the selected chip as the raised primary key (classic rule 1 and domus rule 6 did)', () => {
+  for (const id of ['classic', 'domus'] as const) {
+    const rules = SKINS[id].rules;
+    // the primary button keeps its key; the selected chip is in no selector list of the skin
+    expect(rules, id).toContain(":host(sw-button[variant='primary']) button { background: linear-gradient(");
+    expect(rules, id).not.toContain('sw-chip[selected]');
+    // the unselected chip keeps its hover lift; the selected one is held flat by the component (sw-chip.ts)
+    expect(rules, id).toContain(':host(sw-chip) button:hover:not(:disabled) { transform: translateY(-1px);');
+  }
+  expect(flat('components/sw-chip.ts')).toMatch(/:host\(\[selected\]\) button\.sw-hit:hover:not\(:disabled\) \{ \$\{chipSelectedHover\} transform: none; \}/);
 });
 
 test('finding 7: sw-kpi has unit, secondary, tone warn | alarm and dot; the defaults draw the old tile', () => {
@@ -157,7 +154,7 @@ test('finding 16: sw-field type="search" - its own input, icon, clear key, 34 px
 
 test('no new literal colours in the branch: every colour of the new rules is a --sw-* token or a mix of tokens', () => {
   const pieces = [
-    read('components/sw-chip.ts').split('AUDIT30-B-SHARED')[1] ?? '',
+    read('styles/chip-selected.ts').split('export const chipSelected')[1] ?? '', // DOMUS-DEFAULT-2439: the fragments moved to a CSS-only module
     flat('components/sw-kpi.ts').slice(flat('components/sw-kpi.ts').indexOf('AUDIT30-B-SHARED (audit round 30'), flat('components/sw-kpi.ts').indexOf('.txt {')),
     flat('components/sw-table.ts').slice(flat('components/sw-table.ts').indexOf('@media (max-width: 599px)'), flat('components/sw-table.ts').indexOf('.empty {')),
     flat('components/sw-field.ts').slice(flat('components/sw-field.ts').indexOf('.sbox {'), flat('components/sw-field.ts').indexOf('::slotted([data-ltr])')),

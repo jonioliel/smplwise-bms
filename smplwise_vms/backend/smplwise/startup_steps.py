@@ -39,6 +39,18 @@ def keep_home_interface_defaults(app: FastAPI, settings: Settings, applied: list
             log.exception("could not keep the 2.42.0 home interface defaults")
 
 
+def move_classic_skin_once(app: FastAPI, settings: Settings, applied: list[int] | None) -> None:
+    try:  # DOMUS-DEFAULT-2439 (owner Q-DES-20): a saved "classic" look moves to Domus once; a later choice of classic stays
+        from .services import skin_switch as _skin_switch
+
+        with app.state.db.connection(label="skin_switch.run_once") as conn:
+            moved = _skin_switch.run_once(conn)  # the connection's own exit commits (the write gate: no commit by hand)
+        if moved == "moved":
+            log.info("look: the saved classic skin was moved to domus (once; classic stays selectable)")
+    except Exception:  # noqa: BLE001 - never block the start; the step has written no marker and runs again at the next start
+        log.exception("could not run the one-time move of the classic skin to domus")
+
+
 def load_mic_mode(app: FastAPI, settings: Settings, applied: list[int] | None) -> None:
     try:  # LAZYMIC-295: the remote channel's microphone policy follows this installation's settings from the first response
         from . import remote_channel as _rc
@@ -154,6 +166,7 @@ def ensure_push_server_id(app: FastAPI, settings: Settings, applied: list[int] |
 AfterMigrate = Callable[[FastAPI, Settings, "list[int] | None"], None]
 AFTER_MIGRATE: tuple[AfterMigrate, ...] = (
     keep_home_interface_defaults,
+    move_classic_skin_once,
     load_mic_mode,
     ensure_migration_objects,
     ensure_shared_spaces_schema,

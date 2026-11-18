@@ -69,7 +69,7 @@ test.describe('the camera picker card in the Settings screen', () => {
     await expect(card.locator('[data-dd-picker="own:follow"]')).toBeChecked();
     await expect(card.locator('[data-dd-search="own:follow"]')).toBeChecked();
     await expect(card.locator('[data-dd-picker-effective]')).toContainText('תפריט נפתח, חיפוש מ־4 מצלמות');
-    expect(await htmlSearch(page)).toBe('4');
+    await expect.poll(() => htmlSearch(page)).toBe('4');
     // the installation defaults (an administrator): one key per change
     await card.locator('[data-dd-picker="inst:chips"]').check();
     await expect.poll(() => srv.patches.length).toBe(1);
@@ -78,7 +78,7 @@ test.describe('the camera picker card in the Settings screen', () => {
     await card.locator('[data-dd-search="inst:never"]').check();
     await expect.poll(() => srv.patches.length).toBe(2);
     expect(srv.patches[1]).toEqual({ 'ui.dd_search': 'never' });
-    expect(await htmlSearch(page)).toBe('never');
+    await expect.poll(() => htmlSearch(page)).toBe('never');
     await expect(card.locator('[data-dd-picker-effective]')).toContainText('חיפוש אף פעם');
     expect(srv.puts).toHaveLength(0);
     // the personal choice wins over the installation's
@@ -88,15 +88,15 @@ test.describe('the camera picker card in the Settings screen', () => {
     await expect(card.locator('[data-dd-picker-effective]')).toContainText('תפריט נפתח');
     await card.locator('[data-dd-search="own:always"]').check();
     await expect.poll(() => srv.own['ui.dd_search']).toBe('always');
-    expect(await htmlSearch(page)).toBe('always');
+    await expect.poll(() => htmlSearch(page)).toBe('always');
     await card.locator('[data-dd-search="own:8"]').check();
     await expect.poll(() => srv.own['ui.dd_search']).toBe('8');
-    expect(await htmlSearch(page)).toBe('8');
+    await expect.poll(() => htmlSearch(page)).toBe('8');
     // back to "follow the installation"
     await card.locator('[data-dd-search="own:follow"]').check();
     await expect.poll(() => srv.own['ui.dd_search']).toBeNull();
     expect(srv.puts[srv.puts.length - 1]).toEqual({ 'ui.dd_search': null });
-    expect(await htmlSearch(page)).toBe('never');
+    await expect.poll(() => htmlSearch(page)).toBe('never');
     expect(srv.patches).toHaveLength(2); // the installation was only touched by the two administrator choices
   });
 
@@ -110,13 +110,13 @@ test.describe('the camera picker card in the Settings screen', () => {
     await expect(card.locator('[data-dd-search="inst:8"]')).toBeChecked();
     await expect(card.locator('[data-dd-picker="own:dropdown"]')).toBeChecked();
     await expect(card.locator('[data-dd-search="own:never"]')).toBeChecked();
-    expect(await htmlSearch(page)).toBe('never');
+    await expect.poll(() => htmlSearch(page)).toBe('never');
     await page.reload();
     await page.waitForSelector('system-tabs-mode');
     await page.waitForTimeout(1200);
     await expect(page.locator('[data-dd-picker="own:dropdown"]')).toBeChecked();
     await expect(page.locator('[data-dd-search="own:never"]')).toBeChecked();
-    expect(await htmlSearch(page)).toBe('never');
+    await expect.poll(() => htmlSearch(page)).toBe('never');
     // a user who follows the installation gets the installation's values
     srv.own = { 'ui.dd_picker': null, 'ui.dd_search': null };
     await page.reload();
@@ -125,7 +125,7 @@ test.describe('the camera picker card in the Settings screen', () => {
     await expect(page.locator('[data-dd-picker="own:follow"]')).toBeChecked();
     await expect(page.locator('[data-dd-search="own:follow"]')).toBeChecked();
     await expect(page.locator('[data-dd-picker-effective]')).toContainText('כפתורים, חיפוש מ־8 מצלמות');
-    expect(await htmlSearch(page)).toBe('8');
+    await expect.poll(() => htmlSearch(page)).toBe('8');
   });
 
   test('a user without the system permission can only change the personal choice; a refused save is reverted', async ({ page }, info) => {

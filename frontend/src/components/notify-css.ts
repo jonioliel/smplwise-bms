@@ -1,4 +1,5 @@
 import { css } from 'lit';
+import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
 
 /**
  * CR-018: the look of the notification surfaces (the center, its rows and detail, the Settings tab). It stands on the glass layer of
@@ -128,11 +129,12 @@ export const notifyControls = css`
   /* AUDIT30-I2 (#4, owner Q3 option a): the chosen chip is the Blue Wash pair (was a solid --dv-text block) */
   .rc[aria-pressed='true'],
   .rc.on {
-    background: var(--sw-accent-soft);
-    border-color: transparent;
-    color: var(--sw-accent-text);
-    font-weight: 600;
-    box-shadow: none;
+    ${chipSelected}
+  }
+  /* DOMUS-DEFAULT-2439: the check mark of the selected chip (hidden by the other looks of ui.chip_selected) */
+  .rc[aria-pressed='true']::before,
+  .rc.on::before {
+    ${chipSelectedCheck}
   }
   .rc .ic {
     font-size: var(--sw-fs-lg);

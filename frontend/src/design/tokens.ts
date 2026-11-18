@@ -89,6 +89,12 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-accent-hover': lt('#1f57d1', '#3465d6'),
       '--sw-accent-soft': lt('#edf3ff', 'rgba(91, 140, 255, 0.18)'),
       '--sw-accent-text': lt('#2062ec', '#8fb2ff'),
+      // DOMUS-DEFAULT-2439 (owner round 33, Q-DES-3 option b): the ink of a SELECTED chip (components/sw-chip.ts chipSelected) - the
+      // accent ink one step deeper: 82 % of it toward black in light, 52 % of it toward white in dark (the values the owner saw
+      // measured for Domus: #143a9e / #c5d9ff). A plain colour in the base and in every skin that has its own accent ink (the
+      // in-browser contrast checks read the computed rgb()). >= 4.5:1 on the soft field in every skin, light and dark
+      // (tests/unit-chip-selected-2439.spec.ts).
+      '--sw-accent-text-strong': lt('#1a50c2', '#c5d7ff'),
       '--sw-focus': lt('#2767ed', '#7aa2ff'),
       '--sw-nav': lt('#2868ef', '#3a6ce0'),
     },
@@ -105,6 +111,7 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-product-accent-hover': same('var(--sw-accent-hover)'),
       '--sw-product-accent-soft': same('var(--sw-accent-soft)'),
       '--sw-product-accent-text': same('var(--sw-accent-text)'),
+      '--sw-product-accent-text-strong': same('var(--sw-accent-text-strong)'), // DOMUS-DEFAULT-2439
       '--sw-product-focus': same('var(--sw-focus)'),
       '--sw-product-toggle-on': same('var(--sw-toggle-on)'),
       '--sw-product-success': same('var(--sw-success)'),

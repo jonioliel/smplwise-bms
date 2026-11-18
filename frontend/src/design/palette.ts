@@ -352,6 +352,7 @@ export function paletteTokens(pal: Palette, scheme: Scheme): Record<string, stri
   t['--sw-accent-hover'] = toHex(mix(accent, lum(C('accentContrast')) > 0.4 ? [0, 0, 0, 1] : C('text'), 0.12));
   t['--sw-accent-soft'] = rgbaStr(accent, dark ? 0.26 : 0.14);
   t['--sw-accent-text'] = s.accentText;
+  t['--sw-accent-text-strong'] = dark ? `color-mix(in srgb, ${s.accentText} 52%, #ffffff)` : `color-mix(in srgb, ${s.accentText} 82%, #000000)`; // DOMUS-DEFAULT-2439: the selected chip's ink
   t['--sw-recorded'] = s.accent;
   t['--sw-recorded-soft'] = rgbaStr(accent, dark ? 0.26 : 0.14);
   t['--sw-recorded-text'] = s.accentText;

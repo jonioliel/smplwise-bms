@@ -89,7 +89,7 @@ test('stage: FROZEN_SKINS and FOUNDATION_SKINS are read from the registry data a
   expect([...FROZEN_SKINS]).toEqual(['bubble']);
   expect([...FOUNDATION_SKINS]).toEqual(['infra', 'soft']);
   expect([...SELECTABLE_SKIN_IDS]).toEqual(['classic', 'domus', 'tesla', 'crystal', 'infra', 'soft']);
-  expect(DEFAULT_SKIN).toBe('classic');
+  expect(DEFAULT_SKIN).toBe('domus'); // DOMUS-DEFAULT-2439 (owner round 33, Q-DES-1)
   for (const id of SKIN_IDS) expect(['stable', 'foundation', 'frozen']).toContain(SKINS[id].stage);
 });
 

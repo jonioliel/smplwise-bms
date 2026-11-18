@@ -190,14 +190,19 @@ async function choiceContrast(page: Page) {
         const chosen = ['aria-pressed', 'aria-checked', 'aria-selected'].some((a) => el.getAttribute(a) === 'true');
         const bg = bgOf(el);
         const fg = over(parse(getComputedStyle(el).color)!, bg);
-        return { what: `${(el.getRootNode() as ShadowRoot).host?.tagName.toLowerCase() ?? 'doc'} .${el.parentElement?.className ?? ''} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 16)}"`, chosen, chip: el.matches('.rc[aria-pressed]'), text: ratio(fg, bg), track: ratio(bg, bgOf(up(el)!)) };
+        // DOMUS-DEFAULT-2439: the boundary of a chosen chip is its ring (the border in the accent), composited over what the chip sits on
+        const cs = getComputedStyle(el);
+        const ringC = parseFloat(cs.borderTopWidth) > 0 ? parse(cs.borderTopColor) : null;
+        const ground = bgOf(up(el)!);
+        const ring = ringC && ringC.a > 0 ? ratio(over(ringC, ground), ground) : 0;
+        return { ring, what: `${(el.getRootNode() as ShadowRoot).host?.tagName.toLowerCase() ?? 'doc'} .${el.parentElement?.className ?? ''} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 16)}"`, chosen, chip: el.matches('.rc[aria-pressed]'), text: ratio(fg, bg), track: ratio(bg, bgOf(up(el)!)) };
       });
   });
 }
 
 test.describe('dark scheme: the choice buttons are legible', () => {
   for (const [name, hash] of [['automations', '/devices/automations'], ['schedules', '/devices/schedules'], ['settings-automations', '/system/automations'], ['settings-schedules', '/system/schedules']] as const) {
-    test(`${name}: every label 4.5:1, a chosen segment 3:1 from its track`, async ({ page }, info) => {
+    test(`${name}: every label 4.5:1, a chosen segment or chip 3:1 from its track`, async ({ page }, info) => {
       await openDemo(page, '', hash, { 'sw.demo.automations': JSON.stringify({ scheme: 'dark' }), 'sw.demo.schedules': JSON.stringify({ persona: 'admin' }) });
       await dark(page);
       await page.waitForTimeout(800);
@@ -206,10 +211,12 @@ test.describe('dark scheme: the choice buttons are legible', () => {
       expect(all.some((x) => x.chosen), 'a chosen one').toBe(true);
       for (const x of all) {
         expect(x.text, `label ${x.what} chosen=${x.chosen}`).toBeGreaterThanOrEqual(4.5);
-        // audit round 30 (owner Q3 option 1): a chosen chip (.rc) is the Blue Wash pair - the soft accent fill behind the accent ink, the
-        // state carried by the ink and the fill as on every chip of the product; the key-vs-track rule was written for the lifted segment
-        // thumb and applies to the segment keys only (the same reading as evidence-sys-audit-quickfix-2437 finding 3). Labels stay 4.5:1.
-        if (x.chosen && !x.chip) expect(x.track, `chosen ${x.what} vs its track`).toBeGreaterThanOrEqual(3);
+        // WCAG 1.4.11: a chosen control is told from what it sits on at 3:1. A segment key by its fill against the track. A chosen
+        // chip (.rc) by its ring: audit round 30 made it the soft accent fill (1.28:1 from its track, the rule was narrowed to the
+        // segment keys and the contradiction recorded); the owner then chose the STRENGTHENED chip (round 33, Q-DES-3 option b,
+        // DOMUS-DEFAULT-2439) - a deeper ink, an accent ring and a check mark - so the 3:1 rule holds for chips again, measured on
+        // the ring or the fill, whichever separates more. Labels stay 4.5:1.
+        if (x.chosen) expect(x.chip ? Math.max(x.track, x.ring) : x.track, `chosen ${x.what} vs its track (fill ${x.track.toFixed(2)}, ring ${x.ring.toFixed(2)})`).toBeGreaterThanOrEqual(3);
       }
       await shot(page, `choices-dark-${name}`, info);
     });

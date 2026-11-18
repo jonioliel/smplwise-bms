@@ -36,6 +36,7 @@ import {
   type EditScope, type Filters, type StateFilter,
 } from './multimedia-layout';
 import { tr } from '../i18n/msg/media';
+import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
 
 const PATH = '/multimedia/screens';
 const SIZE_ORDER: Size[] = ['s', 'm', 'l'];
@@ -189,11 +190,11 @@ export class MultimediaScreens extends MediaCardsScreenBase<MediaStatus, MediaDe
     /* AUDIT30-D1 (audit round 30 #4, owner question 3 answer a): the chosen room is the product's one selected look - the soft accent
        fill with the accent ink (Blue Wash), no border, no shadow; it was a black pill (--dv-text fill) */
     .rc[aria-pressed='true'] {
-      background: var(--sw-accent-soft);
-      border-color: transparent;
-      color: var(--sw-accent-text);
-      font-weight: var(--sw-fw-semibold);
-      box-shadow: none;
+      ${chipSelected}
+    }
+    /* DOMUS-DEFAULT-2439: the check mark of the selected chip (hidden by the other looks of ui.chip_selected) */
+    .rc[aria-pressed='true']::before {
+      ${chipSelectedCheck}
     }
     .rc:focus-visible {
       outline: 2px solid var(--dv-focus);

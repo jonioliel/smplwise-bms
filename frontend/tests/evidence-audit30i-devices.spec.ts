@@ -44,13 +44,16 @@ function ruleOf(file: string, selector: string): string {
 test.describe('I2 (#4, Q3 a): the chosen chip is the Blue Wash pair', () => {
   test('the .rc rules of the branch read --sw-accent-soft / --sw-accent-text', () => {
     for (const f of ['screens/automation-drawer.ts', 'screens/system-automations.ts', 'components/notify-css.ts', 'screens/devices-schedules.ts', 'screens/devices-automations.ts']) {
+      // DOMUS-DEFAULT-2439: the rule is the shared fragment (styles/chip-selected.ts: the soft field, the deeper ink, the ring)
       const body = ruleOf(f, ".rc[aria-pressed='true']");
-      expect(body, f).toContain('background: var(--sw-accent-soft)');
-      expect(body, f).toContain('color: var(--sw-accent-text)');
+      expect(body, f).toContain('${chipSelected'); // ruleOf ends at the fragment's own closing brace
       expect(body, f).not.toMatch(/background: var\(--(dv-text|sw-accent)\)/);
     }
     const chip = ruleOf('screens/schedule-create-dialog.ts', ".chip[aria-pressed='true']");
-    expect(chip).toContain('background: var(--sw-accent-soft)');
+    expect(chip).toContain('${chipSelected');
+    const frag = read('styles/chip-selected.ts');
+    expect(frag).toContain('background: var(--sw-chip-on-bg, var(--sw-accent-soft));');
+    expect(frag).toContain('color: var(--sw-chip-on-ink, var(--sw-accent-text-strong));');
   });
 
   test('the chosen floor chip of the schedules list is painted with the wash, not the text colour', async ({ page }) => {
@@ -61,7 +64,7 @@ test.describe('I2 (#4, Q3 a): the chosen chip is the Blue Wash pair', () => {
       const probe = document.createElement('i');
       el.parentElement!.append(probe);
       probe.style.background = 'var(--sw-accent-soft)';
-      probe.style.color = 'var(--sw-accent-text)';
+      probe.style.color = 'var(--sw-accent-text-strong)'; // DOMUS-DEFAULT-2439: the deeper ink of the selected chip
       const r = [getComputedStyle(el).backgroundColor, getComputedStyle(probe).backgroundColor, getComputedStyle(el).color, getComputedStyle(probe).color];
       probe.remove();
       return r;
