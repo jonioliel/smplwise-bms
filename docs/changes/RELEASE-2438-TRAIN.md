@@ -270,7 +270,9 @@ The design-debt ratchet after all merges (`scripts/design_ratchet.py`): every me
 | 18e0ebdb6 | test(pixel): the 16 baselines of merge 14 refreshed on the runner (section 12) |
 | b69abad89 | fix(merge): `tests/test_confirm_words_2442.py` lists `routers/settings_patch/identity.py` (not `routers/settings.py`) among the callers of `confirm_words.typed_lang()` - the consequence of the merge-13 port |
 | 21e4ef10d | release: 2.43.8 - version (config.yaml, Dockerfile label, `__init__.py`), bilingual changelog, API inventory (1909 routes, header only) |
-| (next) | release: 2.43.8 - rebuilt UI (`npm run build:addon` on the runner at 21e4ef10d) + this section |
+| 59ec7cde6 | release: 2.43.8 - rebuilt UI (`npm run build:addon` on the runner at 21e4ef10d) + this section. **The release gate started on this head** (18:02 UTC) |
+| 04f735276 | fix(merge): `i18n/msg/api-home.ts` keeps `'אוטומטי'` ('Automatic') - merge 16 dropped it with the 39 plan-view keys, but `api/tile-layout.ts` reads it too (`unit-i18n-api-2442` 1 failure, found by another agent on 5bcea468d; `i18n_missing_keys` 21 -> 20 = the committed report). The other 38 dropped keys have no other reader (checked by script). Pushed after the gate had started on 59ec7cde6 |
+| (next) | release: 2.43.8 - rebuilt UI at 04f735276 (`~/work/build_ui2438b.sh`, rc=0, 319 maps archived, tarball sha256 `1256bd1c...bdc06ed` checked after the copy; 0 `.map`, 0 `sourceMappingURL`). The gate's targeted re-run (`--after` its report) covers it |
 
 No migration (0216 stays the last). Bridge stays **0.10.7**: the wave-3 bridge refactors (CR-BRIDGE-COMMON-2440, CR-BRIDGE-GAPS-2438)
 change the integration's files without a version bump, so an installed 0.10.7 keeps its old files (behaviour-compatible; the add-on
