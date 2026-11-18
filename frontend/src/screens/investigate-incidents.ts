@@ -36,6 +36,7 @@ import { navigate } from '../router';
 import { refreshIncidents } from '../incidents/store';
 import { SkinController } from '../design/skin';
 import { tr } from '../i18n/msg/investigate';
+import { activateKeydown } from '../components/a11y-keys'; // CR-A11Y-ROWS-2443 (D14): Enter / Space on a clickable row or card
 
 type Part = 'cams' | 'map' | 'doors' | 'chain';
 type Look = 'ok' | 'warn' | 'alarm' | 'off' | 'unk' | 'acc';
@@ -614,7 +615,7 @@ export class InvestigateIncidents extends LitElement {
         <div class="hd"><h2>${it('recent')}</h2><span class="sp"></span><span class="mut">${it('retention', { n: l.retention_days })}</span></div>
         ${rows.length ? html`
           <table class="t" data-incidents-table><thead><tr><th>${it('colState')}</th><th>${it('colIncident')}</th><th>${it('colSource')}</th><th>${it('colOpened')}</th><th>${it('colClosed')}</th><th>${it('colDuration')}</th></tr></thead><tbody>
-            ${rows.slice(0, 8).map((i) => html`<tr data-incident-row=${i.id} data-status=${i.status} @click=${() => navigate(`/investigate/incidents/${i.id}`)}>
+            ${rows.slice(0, 8).map((i) => html`<tr tabindex="0" data-incident-row=${i.id} data-status=${i.status} @click=${() => navigate(`/investigate/incidents/${i.id}`)} @keydown=${activateKeydown(() => navigate(`/investigate/incidents/${i.id}`))}>
               <td><sw-badge filled kind=${i.status === 'open' ? 'error' : 'offline'} label=${i.status === 'open' ? it('statusOpen') : it('statusClosed')}></sw-badge></td>
               <td><span class="t1">${i.title}</span><span class="t2">${[i.building_name, i.floor_name].filter(Boolean).join(' · ')}</span></td>
               <td>${srcWord(i)}</td><td class="num">${this.when(i.opened_at, true)}</td><td class="num">${i.closed_at ? this.when(i.closed_at, true) : '-'}</td><td class="num">${dur(i)}</td>

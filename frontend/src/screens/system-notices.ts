@@ -36,6 +36,7 @@ import { NOTICES_HREF, NOTICES_SETTINGS_HREF, applyNoticesHidden } from '../shel
 import '../notices/display-home';
 import { liftRef, liftedReset } from '../components/top-layer';
 import { dateInputLang } from '../api/day-format';
+import { activateKeydown } from '../components/a11y-keys'; // CR-A11Y-ROWS-2443 (D14): Enter / Space on a clickable row or card
 
 type BoardTab = 'general' | 'display' | 'notices';
 type BoardDetail = Awaited<ReturnType<typeof getBoard>>;
@@ -404,7 +405,7 @@ export class SystemNotices extends LitElement {
 
   private boardsTable() {
     return html`<table class="t"><thead><tr><th>${nt('bState')}</th><th>${nt('bName')}</th><th>${nt('bAddress')}</th><th>${nt('bItems')}</th><th>${nt('bSeen')}</th><th></th></tr></thead><tbody>
-      ${this.boards.map((b) => html`<tr class="go" tabindex="0" data-board=${b.slug} @click=${() => this.goBoard(b)} @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.goBoard(b)}>
+      ${this.boards.map((b) => html`<tr class="go" tabindex="0" data-board=${b.slug} @click=${() => this.goBoard(b)} @keydown=${activateKeydown(() => this.goBoard(b))}>
         <td>${this.seenBadge(b)}</td><td><span class="t1">${b.name}</span><span class="t2">${this.summary(b)}</span></td>
         <td class="ltr mut">/b/${b.slug}</td><td class="num">${b.item_count ?? 0}</td><td class="num mut">${agoText(b.last_seen_at, Date.now())}</td>
         <td class="act">${this.rowActions(b)}</td></tr>`)}
@@ -455,7 +456,7 @@ export class SystemNotices extends LitElement {
   }
 
   private boardCard(b: Board) {
-    return html`<div class="card" @click=${() => this.goBoard(b)}><div class="row">${this.seenBadge(b)}<span class="ltr mut">/b/${b.slug}</span></div><span class="t1">${b.name}</span><span class="t2">${this.summary(b)}</span></div>`;
+    return html`<div class="card" tabindex="0" role="link" data-board-card=${b.slug} @click=${() => this.goBoard(b)} @keydown=${activateKeydown(() => this.goBoard(b))}><div class="row">${this.seenBadge(b)}<span class="ltr mut">/b/${b.slug}</span></div><span class="t1">${b.name}</span><span class="t2">${this.summary(b)}</span></div>`;
   }
 
   private goBoard(b: Board): void {

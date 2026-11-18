@@ -17,6 +17,7 @@ import type { Building, Site } from '../api/types';
 import { PhoneWidth } from '../shell/phone';
 import { multiBuildingOn } from '../api/mapping';
 import { tr } from '../i18n/msg/media';
+import { activateKeydown } from '../components/a11y-keys'; // CR-A11Y-ROWS-2443 (D14): Enter / Space on a clickable row or card
 
 const SITE_SCENE = ['house', 'building', 'warehouse'] as const;
 
@@ -491,7 +492,7 @@ export class ExploreSites extends LitElement {
       ${tree.sites.map((s, i) => {
         const buildings = s.buildings ?? [];
         const cams = buildings.reduce((n, b) => n + (b.floors ?? []).reduce((m, f) => m + f.camera_count, 0), 0);
-        return html`<sw-card flush interactive data-site-card=${s.id} @click=${() => this.openSite(s)}>
+        return html`<sw-card flush interactive tabindex="0" role=${buildings.length ? 'link' : 'button'} aria-label=${s.name} data-site-card=${s.id} @click=${() => this.openSite(s)} @keydown=${activateKeydown(() => this.openSite(s))}>
           <div class="pic">${s.image_url ? html`<img class="photo" src=${imageSrc(s.image_url)} alt="" />` : html`<sw-scene kind=${SITE_SCENE[i % 3]}></sw-scene>${tree.source === 'demo' ? html`<span class="demo">${tr('דמו')}</span>` : html`<span class="demo">${tr('איור')}</span>`}`}</div>
           <div class="info">
             <div class="txt"><b class="clamp2" dir="auto" title=${s.name} data-site-name>${s.name}</b><small>${buildings.length === 1 ? tr('{n} מבנה', { n: 1 }) : tr('{n} מבנים', { n: buildings.length })} · ${tr('{n} מצלמות', { n: cams })}</small>${s.address ? html`<small class="clamp2" dir="auto" title=${s.address} data-site-address>${s.address}</small>` : html`<small class="clamp2"></small>`}</div>
@@ -512,7 +513,7 @@ export class ExploreSites extends LitElement {
     const rows = tree.sites.flatMap((s) => (s.buildings ?? []).map((b) => ({ s, b })));
     return html`<div class="blist">
       ${rows.map(
-        ({ s, b }, i) => html`<sw-card class="brow" data-building-card=${b.id} @click=${() => navigate(`/explore/buildings/${b.id}/floors`)}>
+        ({ s, b }, i) => html`<sw-card class="brow" tabindex="0" role="link" aria-label=${b.name} data-building-card=${b.id} @click=${() => navigate(`/explore/buildings/${b.id}/floors`)} @keydown=${activateKeydown(() => navigate(`/explore/buildings/${b.id}/floors`))}>
           ${b.image_url ? html`<img class="photo small" src=${imageSrc(b.image_url)} alt="" />` : html`<sw-scene kind=${i % 2 ? 'house' : 'building'}></sw-scene>`}
           <div><b dir="auto" title=${b.name}>${b.name}</b><small>${s.name} · ${tr('{n} קומות', { n: (b.floors ?? []).length })} · ${tr('{n} מצלמות', { n: (b.floors ?? []).reduce((n, f) => n + f.camera_count, 0) })}</small></div>
           ${tree.source === 'api' && !this.phone.restricted('structure') ? this.renderMenu('building', s, b) : nothing}

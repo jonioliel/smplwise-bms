@@ -1,6 +1,9 @@
 import { deepFocusables } from './sw-drawer';
 import { holdsTab, takesEscape } from './modal-stack';
 
+/** CR-A11Y-ROWS-2443 (D14): Enter / Space on a clickable row or card (the pure helper lives in activate-keys.ts so Node units can run it). */
+export { activateKeydown, isActivateKey, type ActivateKeyEvent } from './activate-keys';
+
 /**
  * A11Y-POLISHED-2342: small keyboard helpers for the hand-written widgets of the screens (the shared sw-dialog / sw-drawer /
  * sw-sheet carry their own).
