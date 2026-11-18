@@ -34,6 +34,10 @@ test.describe('TKUI1 drawer evidence', () => {
   test.beforeAll(() => fs.mkdirSync(OUT, { recursive: true }));
   test.beforeEach(async ({ page }, info) => {
     test.skip(info.project.name === 'tablet', 'desktop 1440 and phone 390 (the tablet runs the layout guard)');
+    // FIX-2438-REDS: the overview test boots the app 10 times (five skins x light/dark) and "every state" 9 times, each wait on a settled
+    // marker; the default 60 s test budget is about 6 s a boot, which a loaded runner exceeds (phone 390: 33-51 s on the main nightlies,
+    // timed out on main 0a8fb55e1 and on two entry checks). The same budget as the sibling ticket evidence specs (conversation, ui6, s2...).
+    test.setTimeout(240_000);
     await page.emulateMedia({ reducedMotion: 'reduce' });
   });
 
