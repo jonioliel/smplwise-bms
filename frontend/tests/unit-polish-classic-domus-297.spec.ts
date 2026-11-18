@@ -3,6 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { avatarInitials } from '../src/components/avatar-initials';
+import { initials as peopleInitials } from '../src/access-control/people-logic';
+import { initials as cardInitials } from '../src/tickets/list-card-model';
+import { initials as rfqInitials } from '../src/tickets/rfq-model';
+import { initials as blockInitials } from '../src/tickets/status-block';
 import { SKINS } from '../src/design/skins/index';
 import { SKIN_RULE_BUDGET, ruleCount } from '../src/design/skins/define';
 
@@ -22,6 +26,50 @@ test('avatar initials: graphemes, letters only, one script, the person icon when
   expect(avatarInitials('לובי Lobby-12')).toBe('ל'); // never a Hebrew + Latin pair
   expect(avatarInitials('   ')).toBe('');
   expect(avatarInitials('12 34')).toBe('');
+});
+
+// CR-INITIALS-2443 (review 08:F09, owner O6 = a): one initials rule everywhere. The six private copies (people photo frame, ticket
+// contacts, department members, ticket list cards, RFQ vendor rows, the ticket status block) now answer exactly what sw-avatar draws.
+test('avatar initials: every screen that draws initials uses the one rule (no private copy left)', () => {
+  const names = [
+    'Dana Levi',
+    'dana levi', // lower case: upper-cased like sw-avatar (two of the copies left it lower-case)
+    'דנה בת שבע כהן', // three words: first + LAST (two copies took the second word)
+    'אלון ד.',
+    'Jean-Pierre Dupont',
+    'מיזוג',
+    '𝒜lice 𝒵eta', // letters outside the BMP: never half a surrogate pair (two copies indexed x[0])
+    'לובי Lobby-12',
+    'Montgomery III',
+    '👨‍👩‍👧‍👦',
+    '',
+  ];
+  const copies: Array<[string, (n: string) => string]> = [
+    ['access-control/people-logic', peopleInitials],
+    ['tickets/list-card-model', cardInitials],
+    ['tickets/status-block', blockInitials],
+  ];
+  for (const n of names) {
+    for (const [where, f] of copies) expect(f(n), `${where}: ${JSON.stringify(n)}`).toBe(avatarInitials(n));
+    // the RFQ rows keep the "?" they always drew for a name with no letter
+    expect(rfqInitials(n), `tickets/rfq-model: ${JSON.stringify(n)}`).toBe(avatarInitials(n) || '?');
+  }
+  expect(blockInitials(null)).toBe('');
+  expect(blockInitials(undefined)).toBe('');
+  expect(avatarInitials('דנה בת שבע כהן')).toBe('דכ');
+  expect(avatarInitials('𝒜lice 𝒵eta')).toBe('𝒜𝒵');
+  // the two Lit screens keep a module-private alias (not importable in Node): the source names the shared rule
+  for (const f of ['tickets/contacts-directory.ts', 'tickets/handlers-members.ts']) {
+    const s = src(f);
+    expect(s, f).toContain("import { avatarInitials } from '../components/avatar-initials';");
+    expect(s, f).toContain('const initials = avatarInitials;');
+  }
+  // no hand-written initials copy left in the six files (a split-and-index body is the tell)
+  for (const f of ['access-control/people-logic.ts', 'tickets/contacts-directory.ts', 'tickets/handlers-members.ts', 'tickets/list-card-model.ts', 'tickets/rfq-model.ts', 'tickets/status-block.ts']) {
+    const body = /function initials\([^)]*\)[^{]*\{[\s\S]*?\n\}|const initials = [^\n]*/.exec(src(f))?.[0] ?? '';
+    expect(body, f).toContain('avatarInitials');
+    expect(body, f).not.toMatch(/split\(|\[0\]|slice\(0, 2\)/);
+  }
 });
 
 /** Every `:hover` rule outside an `@media (hover: hover) and (pointer: fine)` block (a tapped control kept its hover on a phone). */

@@ -21,6 +21,7 @@ import { handlersGlass } from './handlers-glass';
 import { seesLoad, type MemberLoad } from './handler-load';
 import { tIcon } from './icons';
 import { tt } from './text';
+import { avatarInitials } from '../components/avatar-initials';
 
 type Role = 'manager' | 'member';
 type Lang = 'he' | 'en' | 'ar' | 'ru';
@@ -28,7 +29,8 @@ const LANGS: Lang[] = ['he', 'ar', 'ru', 'en'];
 type Directory = { users: { id: string; name: string }[]; groups: { id: string; name: string }[] };
 
 interface Person { key: string; kind: 'user' | 'group'; id: string; name: string; ms: { d: AdminDepartment; m: AdminMember }[] }
-const initials = (name: string): string => name.trim().split(/\s+/).slice(0, 2).map((s) => s[0] ?? '').join('');
+/** The tile letters: the one product rule (components/avatar-initials.ts), CR-INITIALS-2443 (review 08:F09, owner O6=a). */
+const initials = avatarInitials;
 
 /** CR-DEPT-MANAGER-HANDLERS: the manager view's department in the shape the cards read (no policy fields: only the cards use it). */
 function fromManaged(d: ManagedDepartment): AdminDepartment {

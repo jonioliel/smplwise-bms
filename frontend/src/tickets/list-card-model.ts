@@ -14,6 +14,7 @@ import { lt } from './list-text';
 import { priorityTone, runLine } from './model';
 import { SENTENCE_MAX, sentenceAwaitsHandler, sentenceFor, statusChip, warningFor, type StatusChip, type ViewerRole } from './status-sentence';
 import { tt } from './text';
+import { avatarInitials } from '../components/avatar-initials';
 
 /** A list item with the optional fields the cards read when the server sends them (the board's, a later cost / owner field of the list). */
 export type CardItem = TicketItem & Partial<Pick<BoardItem, 'group' | 'stuck' | 'auto_close_at' | 'manager'>> & {
@@ -70,16 +71,10 @@ export interface Avatar {
   label: string;
 }
 
-/** "אלון ד." -> "אד"; one word -> its first two letters; empty -> ''. Digits and punctuation never make an initial. */
+/** "אלון ד." -> "אד"; one word -> its first two letters; empty -> ''. Digits and punctuation never make an initial. The one product
+ *  rule (components/avatar-initials.ts: first + LAST word, graphemes, one script), CR-INITIALS-2443 (review 08:F09, owner O6=a). */
 export function initials(name: string): string {
-  const words = name.replace(/["'׳״.,()\-]/g, ' ').split(/\s+/).filter(Boolean);
-  const letters = (w: string) => [...w].filter((c) => /\p{L}/u.test(c));
-  if (words.length >= 2) {
-    const a = letters(words[0])[0] ?? '';
-    const b = letters(words[1])[0] ?? '';
-    return `${a}${b}`.toUpperCase();
-  }
-  return letters(words[0] ?? '').slice(0, 2).join('').toUpperCase();
+  return avatarInitials(name);
 }
 
 /** The vendor / handler first, the internal owner second (≤ 2); an unassigned request has no handler avatar. */

@@ -13,6 +13,7 @@
  *   - the person's state, validity and sync status words, and the small selection helpers of the bulk bar.
  */
 import { uiLocale } from '../i18n/locale';
+import { avatarInitials } from '../components/avatar-initials';
 import type { AcPeoplePage, AcPeopleSort, AcPerson } from '../api/access-people';
 import { offsetAt, UTC_ZONE } from '../screens/wiskey-format';
 import type { DisplayZone } from '../api/intercom';
@@ -428,7 +429,5 @@ export function pruneSelection(selected: ReadonlySet<string>, rows: readonly AcP
   return new Set([...selected].filter((id) => ids.has(id)));
 }
 
-export const initials = (name: string): string => {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  return parts.length > 1 ? parts[0][0] + parts[1][0] : name.trim().slice(0, 2);
-};
+/** The initials of a person's photo frame: the one product rule (components/avatar-initials.ts), CR-INITIALS-2443 (review 08:F09, owner O6=a). */
+export const initials = (name: string): string => avatarInitials(name);
