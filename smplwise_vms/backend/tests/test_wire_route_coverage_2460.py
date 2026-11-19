@@ -36,9 +36,16 @@ def test_runs_add_up(tmp_path):
     b.mkdir()
     (a / "oracle-1.json").write_text(json.dumps({"GET /api/v1/x": 2}), encoding="utf-8")
     (a / "oracle-2.json").write_text(json.dumps({"GET /api/v1/x": 1, "PUT /api/v1/y": 1}), encoding="utf-8")
-    (b / "oracle-3.json").write_text(json.dumps({"GET /api/v1/x": 4}), encoding="utf-8")
+    (b / "oracle-3.json").write_text(json.dumps({"GET /api/v1/x": 4, "PUT /arx/api/v1/y": 2}), encoding="utf-8")  # the Arx mount
     (b / "other.json").write_text("not ours", encoding="utf-8")
-    assert _script().covered([a, b]) == {"GET /api/v1/x": 7, "PUT /api/v1/y": 1}
+    assert _script().covered([a, b]) == {"GET /api/v1/x": 7, "PUT /api/v1/y": 3}
+
+
+def test_routes_answering_their_own_json_response_are_told_apart():
+    routes = {r["key"]: r for r in _script().modelled_routes()}
+    assert routes["POST /api/v1/auth/local/sign-in"]["own_json"] is True
+    assert routes["GET /api/v1/energy/bills/state"]["own_json"] is True
+    assert routes["GET /api/v1/floors/{floor_id}"]["own_json"] is False
 
 
 def test_static_scan_expands_imported_path_constants():

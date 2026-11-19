@@ -11,8 +11,9 @@ those routes.
     python scripts/wire_route_coverage.py /tmp/wirecov [--static] [--json out.json]
 
 `--static` adds, per uncovered route, whether any test file even names its path (a string with the route's literal segments), which
-separates "never called" from "called, but never with a successful answer". Routes that answer their own JSONResponse and declare
-their model only with `responses=` never pass the oracle (FastAPI does not serialise them); they are listed apart.
+separates "never called" from "called, but never with a successful answer". Routes that answer their own JSONResponse (`return
+JSONResponse(...)`, the model declared for the contract or with `responses=`) never pass the oracle (FastAPI does not serialise
+them); they are listed apart.
 No application start, no database: the router modules are imported and their route tables read (scripts/gen_wire_types.py)."""
 from __future__ import annotations
 
@@ -40,7 +41,7 @@ def _gen():
 
 def modelled_routes() -> list[dict]:
     """Every route of a generator family with a wire model: router, method, path, and whether FastAPI serialises it through the model
-    (`response_model`) or the model only documents a JSONResponse the route returns itself (`responses=`)."""
+    (`response_model`) or the model only documents a JSONResponse the route returns itself (`responses=`, or `return JSONResponse(`)."""
     from fastapi.routing import APIRoute
 
     gen = _gen()
@@ -50,20 +51,36 @@ def modelled_routes() -> list[dict]:
             for r in importlib.import_module(f"smplwise.routers.{name}").router.routes:
                 if not isinstance(r, APIRoute):
                     continue
-                direct = bool(gen.wire_models(r.response_model))
+                modelled = bool(gen.wire_models(r.response_model))
                 documented = any(gen.wire_models((x or {}).get("model")) for x in (r.responses or {}).values())
-                if not (direct or documented):
+                if not (modelled or documented):
                     continue
+                own = (not modelled) or _own_json_response(r.endpoint)
                 for m in sorted(r.methods - {"HEAD", "OPTIONS"}):
-                    out.append({"router": name, "key": f"{m} {PREFIX}{r.path}", "path": r.path, "oracle": direct})
+                    out.append({"router": name, "key": f"{m} {PREFIX}{r.path}", "path": r.path, "oracle": modelled, "own_json": own})
     return out
 
 
+def _own_json_response(endpoint) -> bool:
+    """The route builds an answer as a `JSONResponse` itself on some path (FastAPI then skips the response model, so the oracle never
+    sees that answer): `JSONResponse(` in its source. Its model is a contract its own test validates strictly."""
+    import inspect
+
+    try:
+        src = inspect.getsource(endpoint)
+    except (OSError, TypeError):
+        return False
+    return "JSONResponse(" in src
+
+
 def covered(dirs: list[Path]) -> dict[str, int]:
+    """The routes the runs compared, summed. The app mounts the API routers twice (`/api/v1` and the Arx app's `/arx/api/v1`); an
+    answer under either prefix counts for the route."""
     seen: dict[str, int] = {}
     for d in dirs:
         for f in sorted(d.glob("oracle-*.json")):
             for k, n in json.loads(f.read_text(encoding="utf-8")).items():
+                k = k.replace(" /arx/api/v1/", f" {PREFIX}/", 1)
                 seen[k] = seen.get(k, 0) + int(n)
     return seen
 
@@ -134,17 +151,17 @@ def main(argv: list[str] | None = None) -> int:
     sys.path.insert(0, str(BACKEND))
     routes = modelled_routes()
     seen = covered(a.dirs)
-    uncovered = [r for r in routes if r["oracle"] and not seen.get(r["key"])]
-    documented = [r for r in routes if not r["oracle"]]
-    named = named_in_tests(uncovered + documented) if a.static else {}
-    direct = sum(1 for r in routes if r["oracle"])
-    print(f"modelled routes: {len(routes)} ({direct} serialised through the model, {len(documented)} JSONResponse documented with responses=)")
-    print(f"compared by the oracle in the given runs: {direct - len(uncovered)} / {direct}")
+    missed = [r for r in routes if not seen.get(r["key"])]
+    uncovered = [r for r in missed if not r["own_json"]]
+    documented = [r for r in missed if r["own_json"]]  # the success answer may never reach the oracle
+    named = named_in_tests(missed) if a.static else {}
+    print(f"modelled routes: {len(routes)} ({sum(1 for r in routes if r['own_json'])} of them return their own JSONResponse on some path)")
+    print(f"compared by the oracle in the given runs: {len(routes) - len(missed)} / {len(routes)}")
     print(f"\nnever compared ({len(uncovered)}):")
     for r in uncovered:
         extra = _named(named, r["key"]) if a.static else ""
         print(f"  [{r['router']}] {r['key']}{extra}")
-    print(f"\nJSONResponse routes (model in responses=, checked by their own tests, not by the oracle) ({len(documented)}):")
+    print(f"\nnever compared, and the route returns its own JSONResponse (the oracle cannot see that answer; its own test validates the model) ({len(documented)}):")
     for r in documented:
         extra = _named(named, r["key"]) if a.static else ""
         print(f"  [{r['router']}] {r['key']}{extra}")
