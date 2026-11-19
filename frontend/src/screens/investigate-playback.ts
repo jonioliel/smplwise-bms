@@ -241,6 +241,9 @@ export class InvestigatePlayback extends LitElement {
        its width is capped so that its rows (16:9 tiles, the 6 px gaps and padding) end within it, centred like the single video. */
     .grid {
       --pb-stage-h: max(200px, calc(100dvh - 560px));
+      /* RELEASE-2439-TRAIN (layout-playback-grid-2443): the caps below count the 6 px padding (the +12 / +18), so they are border-box
+         widths - as content-box the 2x2 grid came out 7 px over the budget (12 px of padding x 9/16) */
+      box-sizing: border-box;
       margin-inline: auto;
       inline-size: 100%;
       max-inline-size: calc(2 * (var(--pb-stage-h) - 12px) * 16 / 9 + 18px);
@@ -1556,7 +1559,11 @@ export class InvestigatePlayback extends LitElement {
         <span>${tr('אזור זמן:')} <span class="ltr">${this.tz}</span></span>
         <span>${tr('כיסוי:')} ${this.rec ? (this.rec.coverage === 'complete' ? tr('מלא') : this.rec.coverage === 'partial' ? tr('חלקי') : tr('לא ידוע')) : '—'}</span>
         ${master ? html`<span>${tr('סוף הטווח:')} ${this.fmt(new Date(master.playback_end_at))}</span>` : nothing}
-        ${this.groupMode ? html`<span data-sync-method>${tr('סנכרון: שעון־אב אחד לכל האריחים (חסם פתיחה, ואז חציון זמני הפריימים המוצגים; מתחת לשלושה אריחים — המוביל); הסטייה של כל אריח נמדדת מול השעון, p95 על החלון האחרון; אריח מאחר מסונכרן לבד ואינו מזיז את האחרים (best effort, ללא עוגן זמן מאומת); מהירויות שונות מ־1× כבויות; מקור בלי הקלטה בזמן הזה מוצג כ"אין הקלטה", לא כמסונכרן')}</span>` : nothing}
+        ${this.groupMode
+          ? /* RELEASE-2439-TRAIN (layout-playback-grid-2443): the method's long explanation wrapped to three lines under a 2x2 grid and
+               scrolled the page; the row shows its name, the explanation is the hover / long-press text */
+            html`<span data-sync-method title=${tr('סנכרון: שעון־אב אחד לכל האריחים (חסם פתיחה, ואז חציון זמני הפריימים המוצגים; מתחת לשלושה אריחים — המוביל); הסטייה של כל אריח נמדדת מול השעון, p95 על החלון האחרון; אריח מאחר מסונכרן לבד ואינו מזיז את האחרים (best effort, ללא עוגן זמן מאומת); מהירויות שונות מ־1× כבויות; מקור בלי הקלטה בזמן הזה מוצג כ"אין הקלטה", לא כמסונכרן')}>${tr('סנכרון: שעון־אב אחד')}</span>`
+          : nothing}
       </div>` : nothing}
       ${this.renderExportDialog()}
     `;
