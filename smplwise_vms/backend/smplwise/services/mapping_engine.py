@@ -7,7 +7,7 @@ decide WHERE a name goes - the tokenizer, the token table, the ordered rules, th
 level answers ("קומות ללא מפלס") - and nothing else (no detection statistics, no suggestions, no questions). Pure: no database, no I/O.
 
 Kept in step with the TypeScript by tests/test_mapping_improve_2351.py (the same cases as the frontend unit spec). Area labels come from the
-label mirror (HA-LABELS-SYNC-2351, read by services/mapping_auto through routers/home_mapping._labels), the same names the browser reads.
+label mirror (HA-LABELS-SYNC-2351, read by services/mapping_auto through services/home_mapping_store.labels), the same names the browser reads.
 """
 from __future__ import annotations
 

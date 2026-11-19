@@ -35,6 +35,7 @@ from ..mode import ensure_nvr, nvr_ready as _nvr_ready  # NVR-less mode: 409 nvr
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import bundle as bundle_svc
 from ..services import bundle_import
+from ..services import cases_store as store
 from ..services.safe_paths import case_file  # BACKEND-SAFETY-2435: stored file paths stay inside their root
 from ..services import signing
 from ..services import exports as ex
@@ -89,7 +90,7 @@ def _require_manage(conn: sqlite3.Connection, principal: Principal) -> None:
 
 
 def _get(conn: sqlite3.Connection, case_id: str) -> sqlite3.Row:
-    row = conn.execute("SELECT * FROM cases WHERE id = ?", (case_id,)).fetchone()
+    row = store.case(conn, case_id)
     if not row:
         raise not_found("התיק לא נמצא.")
     return row
@@ -108,8 +109,7 @@ def _counts(conn: sqlite3.Connection, case_ids: list[str]) -> dict[str, dict[str
     out = {cid: {"items": 0, "events": 0, "clips": 0, "notes": 0, "snapshots": 0, "preserved": 0} for cid in case_ids}
     if not case_ids:
         return out
-    q = ",".join("?" * len(case_ids))
-    for r in conn.execute(f"SELECT ci.case_id, ci.kind, ci.file_path, ej.state AS job_state, ej.payload_json FROM case_items ci LEFT JOIN export_jobs ej ON ej.id = ci.export_job_id WHERE ci.case_id IN ({q})", case_ids).fetchall():
+    for r in store.item_count_rows(conn, case_ids):
         c = out[r["case_id"]]
         c["items"] += 1
         c[{"event": "events", "clip": "clips", "note": "notes", "snapshot": "snapshots"}[r["kind"]]] += 1
@@ -176,14 +176,13 @@ def _preservation(settings: Settings, conn: sqlite3.Connection, item: sqlite3.Ro
 
 
 def _items(settings: Settings, conn: sqlite3.Connection, case_id: str, scope: set[str] | None, check: bool) -> tuple[list[dict[str, Any]], int]:
-    rows = conn.execute("SELECT * FROM case_items WHERE case_id = ? ORDER BY created_at, sort_order", (case_id,)).fetchall()
-    cams = {r["id"]: r for r in conn.execute("SELECT * FROM cameras").fetchall()}
+    rows = store.case_items(conn, case_id)
+    cams = {r["id"]: r for r in store.cameras(conn)}
     tz_name = setting_value(conn, "time.zone")
     ev_ids = [r["event_id"] for r in rows if r["event_id"]]
     events: dict[str, dict[str, Any]] = {}
     if ev_ids:
-        q = ",".join("?" * len(ev_ids))
-        evs = [row_to_event(r) for r in conn.execute(f"SELECT * FROM events WHERE id IN ({q})", ev_ids).fetchall()]
+        evs = [row_to_event(r) for r in store.events_by_id(conn, ev_ids)]
         _with_thumbs(settings, evs)
         _with_names(conn, evs)
         events = {e["id"]: e for e in evs}
@@ -243,17 +242,7 @@ def list_cases(
     limit: int = Query(100, ge=1, le=500),
 ) -> dict[str, Any]:
     _read_scope(conn, principal)
-    where: list[str] = []
-    args: list[Any] = []
-    if status:
-        where.append("status = ?")
-        args.append(status)
-    if q:
-        like = f"%{q.strip()}%"
-        where.append("(title LIKE ? OR description LIKE ? OR tags_json LIKE ?)")
-        args += [like, like, like]
-    sql = "SELECT * FROM cases" + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY updated_at DESC LIMIT ?"
-    rows = conn.execute(sql, (*args, limit)).fetchall()
+    rows = store.list_cases(conn, status, q, limit)
     counts = _counts(conn, [r["id"] for r in rows])
     return {"cases": [case_row(r, counts[r["id"]]) for r in rows], "can_manage": _can_manage(conn, principal),
             "can_import": authorize(conn, principal, "cases.manage", INSTALLATION).allowed}
@@ -264,10 +253,8 @@ def create_case(body: CaseIn, request: Request, principal: Principal = Depends(c
     _require_manage(conn, principal)
     now = now_iso()
     cid = new_id()
-    conn.execute(
-        "INSERT INTO cases(id, title, description, status, tags_json, owner_user_id, owner_username, revision, created_at, updated_at, closed_at) VALUES (?,?,?,?,?,?,?,1,?,?,?)",
-        (cid, body.title.strip(), body.description, body.status, json.dumps(_clean_tags(body.tags), ensure_ascii=False), principal.user_id, principal.username, now, now, now if body.status == "closed" else None),
-    )
+    store.insert_case(conn, cid, body.title.strip(), body.description, body.status, json.dumps(_clean_tags(body.tags), ensure_ascii=False), principal.user_id, principal.username,
+                      now, now if body.status == "closed" else None)
     audit(conn, actor=principal, action="case.create", decision="allowed", resource_type="case", resource_id=cid, request_id=_rid(request), details={"title": body.title.strip(), "status": body.status})
     return case_row(_get(conn, cid), _counts(conn, [cid])[cid])
 
@@ -285,7 +272,7 @@ def list_bookmarks(
     bookmark the NVR still has to serve. Declared before /cases/{case_id} so 'bookmarks' is never read as an id."""
     _read_scope(conn, principal)
     require_camera(conn, principal, camera_id, "events.read")
-    cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    cam = store.camera(conn, camera_id)
     if not cam:
         raise not_found("המצלמה לא נמצאה.")
     try:
@@ -294,12 +281,7 @@ def list_bookmarks(
         raise ApiError(422, "validation", "תאריך לא תקין.") from None
     tz_name = setting_value(conn, "time.zone")
     start, end = local_day_bounds(day, zone(tz_name))
-    rows = conn.execute(
-        "SELECT ci.*, c.title AS case_title, c.status AS case_status FROM case_items ci JOIN cases c ON c.id = ci.case_id "
-        "WHERE ci.camera_id = ? AND ci.kind IN ('event', 'clip') AND ci.from_at IS NOT NULL AND ci.to_at IS NOT NULL "
-        "AND ci.from_at < ? AND ci.to_at > ? ORDER BY ci.from_at, ci.created_at",
-        (camera_id, iso_utc(end), iso_utc(start)),
-    ).fetchall()
+    rows = store.camera_bookmarks(conn, camera_id, iso_utc(start), iso_utc(end))
     settings = settings_of(request)
     out: list[dict[str, Any]] = []
     for r in rows:
@@ -339,8 +321,7 @@ def patch_case(case_id: str, body: CasePatch, request: Request, principal: Princ
     if body.status is not None and body.status != r["status"]:
         fields["status"] = body.status
         fields["closed_at"] = now if body.status == "closed" else None
-    sets = "".join(f"{k} = ?, " for k in fields)
-    conn.execute(f"UPDATE cases SET {sets}revision = revision + 1, updated_at = ? WHERE id = ?", (*fields.values(), now, case_id))
+    store.patch_case(conn, case_id, fields, now)
     audit(conn, actor=principal, action="case.update", decision="allowed", resource_type="case", resource_id=case_id, request_id=_rid(request), details={"fields": sorted(fields), "status": fields.get("status")})
     return case_row(_get(conn, case_id), _counts(conn, [case_id])[case_id])
 
@@ -349,9 +330,7 @@ def patch_case(case_id: str, body: CasePatch, request: Request, principal: Princ
 def delete_case(case_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> None:
     _require_manage(conn, principal)
     r = _get(conn, case_id)
-    n = conn.execute("SELECT COUNT(*) FROM case_items WHERE case_id = ?", (case_id,)).fetchone()[0]
-    conn.execute("DELETE FROM case_items WHERE case_id = ?", (case_id,))
-    conn.execute("DELETE FROM cases WHERE id = ?", (case_id,))
+    n = store.delete_case(conn, case_id)
     audit(conn, actor=principal, action="case.delete", decision="allowed", resource_type="case", resource_id=case_id, request_id=_rid(request),
           details={"title": r["title"], "items": n, "origin": r["origin"], "import_sha256": r["import_sha256"]})
     if r["import_sha256"]:
@@ -362,7 +341,7 @@ def delete_case(case_id: str, request: Request, principal: Principal = Depends(c
         with unlocked(conn):
             pass
         trash = None
-        if not conn.execute("SELECT 1 FROM cases WHERE import_sha256 = ?", (r["import_sha256"],)).fetchone():
+        if not store.import_hash_in_use(conn, r["import_sha256"]):
             trash = bundle_import.detach_case_files(settings, r["import_sha256"])
         if trash is not None:
             with unlocked(conn):
@@ -395,10 +374,10 @@ def add_item(case_id: str, body: ItemIn, request: Request, principal: Principal 
     if body.kind == "event":
         if not body.event_id:
             raise ApiError(422, "validation", "חסר מזהה אירוע.")
-        ev = conn.execute("SELECT * FROM events WHERE id = ?", (body.event_id,)).fetchone()
+        ev = store.event(conn, body.event_id)
         if not ev:
             raise not_found("האירוע לא נמצא.")
-        if conn.execute("SELECT 1 FROM case_items WHERE case_id = ? AND event_id = ?", (case_id, ev["id"])).fetchone():
+        if store.event_in_case(conn, case_id, ev["id"]):
             raise conflict("already_in_case", "האירוע כבר בתיק.")
         camera_id, event_id = ev["camera_id"], ev["id"]
         t0 = parse_utc(ev["occurred_at"])
@@ -421,7 +400,7 @@ def add_item(case_id: str, body: ItemIn, request: Request, principal: Principal 
     elif not body.note.strip():
         raise ApiError(422, "validation", "הערה ריקה.")
     if camera_id:
-        if not conn.execute("SELECT 1 FROM cameras WHERE id = ?", (camera_id,)).fetchone():
+        if not store.camera_exists(conn, camera_id):
             raise not_found("המצלמה לא נמצאה.")
         require_camera(conn, principal, camera_id, "video.playback")
     now = now_iso()
@@ -432,7 +411,7 @@ def add_item(case_id: str, body: ItemIn, request: Request, principal: Principal 
         ensure_nvr(settings)  # NVR-less mode: 409
         if not _nvr_ready(settings):
             raise ApiError(503, "nvr_unconfigured", "לא הוגדר NVR; אין ממה לצלם.")
-        cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+        cam = store.camera(conn, camera_id)
         with unlocked(conn):
             from ..recorder_scope import camera_settings
 
@@ -445,11 +424,8 @@ def add_item(case_id: str, body: ItemIn, request: Request, principal: Principal 
         dest.write_bytes(data)
         file_path, file_sha = rel.as_posix(), hashlib.sha256(data).hexdigest()
         from_at = to_at = now
-    conn.execute(
-        "INSERT INTO case_items(id, case_id, kind, camera_id, event_id, export_job_id, from_at, to_at, note, added_by, added_by_username, created_at, sort_order, file_path, file_sha256) VALUES (?,?,?,?,?,NULL,?,?,?,?,?,?,0,?,?)",
-        (iid, case_id, body.kind, camera_id, event_id, from_at, to_at, body.note.strip(), principal.user_id, principal.username, now, file_path, file_sha),
-    )
-    conn.execute("UPDATE cases SET updated_at = ? WHERE id = ?", (now, case_id))
+    store.insert_item(conn, iid, case_id, body.kind, camera_id, event_id, from_at, to_at, body.note.strip(), principal.user_id, principal.username, now, file_path, file_sha)
+    store.touch_case(conn, case_id, now)
     audit(conn, actor=principal, action="case.item.add", decision="allowed", resource_type="case", resource_id=case_id, request_id=_rid(request),
           details={"item": iid, "kind": body.kind, "camera_id": camera_id, "event_id": event_id, "from": from_at, "to": to_at})
     return _item(settings_of(request), conn, case_id, iid)
@@ -473,7 +449,7 @@ def confirm_route(event_id: str, body: RouteConfirmIn, request: Request, princip
     event's camera needs events.read; cases.manage as any case edit. Audited once with everything added."""
     from ..services import correlation
 
-    row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+    row = store.event(conn, event_id)
     if not row:
         raise not_found("האירוע לא נמצא.")
     ev = row_to_event(row)
@@ -500,21 +476,16 @@ def confirm_route(event_id: str, body: RouteConfirmIn, request: Request, princip
         local = parse_utc(ev["occurred_at"]).astimezone(zone(setting_value(conn, "time.zone"))).strftime("%d.%m %H:%M")
         title = (body.title or "").strip() or f"מסלול מוצע · {ev.get('camera_name') or 'אירוע'} · {local}"
         cid, created = new_id(), True
-        conn.execute(
-            "INSERT INTO cases(id, title, description, status, tags_json, owner_user_id, owner_username, revision, created_at, updated_at, closed_at) VALUES (?,?,?,?,?,?,?,1,?,?,NULL)",
-            (cid, title[:120], "", "open", json.dumps(["מסלול מוצע"], ensure_ascii=False), principal.user_id, principal.username, now, now),
-        )
+        store.insert_open_case(conn, cid, title[:120], "", "open", json.dumps(["מסלול מוצע"], ensure_ascii=False), principal.user_id, principal.username, now)
         audit(conn, actor=principal, action="case.create", decision="allowed", resource_type="case", resource_id=cid, request_id=_rid(request), details={"title": title[:120], "status": "open", "from": "route_confirm"})
     added: list[dict[str, Any]] = []
     # the event itself, with its usual window, unless it is already in the case
-    if not conn.execute("SELECT 1 FROM case_items WHERE case_id = ? AND event_id = ?", (cid, ev["id"])).fetchone():
+    if not store.event_in_case(conn, cid, ev["id"]):
         t0 = parse_utc(ev["occurred_at"])
         t1 = parse_utc(ev["ended_at"]) if ev["ended_at"] else t0
         iid = new_id()
-        conn.execute(
-            "INSERT INTO case_items(id, case_id, kind, camera_id, event_id, export_job_id, from_at, to_at, note, added_by, added_by_username, created_at, sort_order, file_path, file_sha256) VALUES (?,?,'event',?,?,NULL,?,?,?,?,?,?,0,NULL,NULL)",
-            (iid, cid, ev["camera_id"], ev["id"], iso_utc(t0 - dt.timedelta(seconds=EVENT_BEFORE_S)), iso_utc(t1 + dt.timedelta(seconds=EVENT_AFTER_S)), "נקודת המוצא של המסלול המוצע", principal.user_id, principal.username, now),
-        )
+        store.insert_event_item(conn, iid, cid, ev["camera_id"], ev["id"], iso_utc(t0 - dt.timedelta(seconds=EVENT_BEFORE_S)), iso_utc(t1 + dt.timedelta(seconds=EVENT_AFTER_S)),
+                                "נקודת המוצא של המסלול המוצע", principal.user_id, principal.username, now)
         added.append({"id": iid, "kind": "event", "camera_id": ev["camera_id"], "event_id": ev["id"]})
     for cam_id in wanted:
         s = offered[cam_id]
@@ -525,12 +496,9 @@ def confirm_route(event_id: str, body: RouteConfirmIn, request: Request, princip
         if body.note.strip():
             note = f"{note} · {body.note.strip()}"
         iid = new_id()
-        conn.execute(
-            "INSERT INTO case_items(id, case_id, kind, camera_id, event_id, export_job_id, from_at, to_at, note, added_by, added_by_username, created_at, sort_order, file_path, file_sha256) VALUES (?,?,'clip',?,NULL,NULL,?,?,?,?,?,?,0,NULL,NULL)",
-            (iid, cid, cam_id, route["window"]["from"], route["window"]["to"], note[:4000], principal.user_id, principal.username, now),
-        )
+        store.insert_clip_item(conn, iid, cid, cam_id, route["window"]["from"], route["window"]["to"], note[:4000], principal.user_id, principal.username, now)
         added.append({"id": iid, "kind": "clip", "camera_id": cam_id, "relation": s["relation"], "via": s.get("via")})
-    conn.execute("UPDATE cases SET updated_at = ? WHERE id = ?", (now, cid))
+    store.touch_case(conn, cid, now)
     audit(conn, actor=principal, action="case.route.confirm", decision="allowed", resource_type="case", resource_id=cid, request_id=_rid(request),
           details={"event_id": ev["id"], "cameras": wanted, "skipped": skipped, "window": route["window"], "created": created, "hypothetical": True})
     case = _get(conn, cid)
@@ -541,7 +509,7 @@ def confirm_route(event_id: str, body: RouteConfirmIn, request: Request, princip
 def remove_item(case_id: str, item_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> None:
     _require_manage(conn, principal)
     _get(conn, case_id)
-    it = conn.execute("SELECT * FROM case_items WHERE id = ? AND case_id = ?", (item_id, case_id)).fetchone()
+    it = store.case_item(conn, case_id, item_id)
     if not it:
         raise not_found("הפריט לא נמצא.")
     if it["origin_json"]:
@@ -551,8 +519,8 @@ def remove_item(case_id: str, item_id: str, request: Request, principal: Princip
         p = case_file(settings_of(request).data_dir, it["file_path"])  # BACKEND-SAFETY-2435: never unlink outside data/cases|imported
         if p is not None:
             p.unlink(missing_ok=True)
-    conn.execute("DELETE FROM case_items WHERE id = ?", (item_id,))
-    conn.execute("UPDATE cases SET updated_at = ? WHERE id = ?", (now, case_id))
+    store.delete_item(conn, item_id)
+    store.touch_case(conn, case_id, now)
     audit(conn, actor=principal, action="case.item.remove", decision="allowed", resource_type="case", resource_id=case_id, request_id=_rid(request), details={"item": item_id, "kind": it["kind"]})
 
 
@@ -562,13 +530,13 @@ def preserve_item(case_id: str, item_id: str, request: Request, principal: Princ
     _require_manage(conn, principal)
     settings = settings_of(request)
     _get(conn, case_id)
-    it = conn.execute("SELECT * FROM case_items WHERE id = ? AND case_id = ?", (item_id, case_id)).fetchone()
+    it = store.case_item(conn, case_id, item_id)
     if not it:
         raise not_found("הפריט לא נמצא.")
     if it["kind"] == "note" or not it["camera_id"] or not it["from_at"]:
         raise conflict("not_a_clip", "רק אירוע או קטע עם מצלמה ניתנים לשימור.")
     def not_preserving(c: sqlite3.Connection) -> None:
-        row = c.execute("SELECT export_job_id FROM case_items WHERE id = ?", (item_id,)).fetchone()
+        row = store.item_export_job(c, item_id)
         job = ex.get_job(c, row["export_job_id"]) if row and row["export_job_id"] else None
         if job and job["state"] in ("queued", "running", "done", "partial"):
             raise conflict("already_preserving", "כבר קיימת עבודת שימור לפריט.", state=job["state"])
@@ -577,7 +545,7 @@ def preserve_item(case_id: str, item_id: str, request: Request, principal: Princ
     ensure_nvr(settings)  # NVR-less mode: 409 (after the manage permission)
     if not _nvr_ready(settings):
         raise ApiError(503, "nvr_unconfigured", "לא הוגדר NVR; אין ממה להעתיק.")
-    cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (it["camera_id"],)).fetchone()
+    cam = store.camera(conn, it["camera_id"])
     if not cam:
         raise not_found("המצלמה לא נמצאה.")
     require_camera(conn, principal, cam["id"], "video.export")
@@ -587,8 +555,8 @@ def preserve_item(case_id: str, item_id: str, request: Request, principal: Princ
     ex.check_quota(conn, principal)
     job = ex.create_job(conn, settings, principal, cam, parse_utc(it["from_at"]), parse_utc(it["to_at"]), s["time.zone"], s["exports.max_mb"] * 1024 * 1024,
                         recheck=not_preserving)
-    conn.execute("UPDATE case_items SET export_job_id = ? WHERE id = ?", (job["id"], item_id))
-    conn.execute("UPDATE cases SET updated_at = ? WHERE id = ?", (now_iso(), case_id))
+    store.link_export_job(conn, item_id, job["id"])
+    store.touch_case(conn, case_id, now_iso())
     audit(conn, actor=principal, action="case.item.preserve", decision="allowed", resource_type="case", resource_id=case_id, request_id=_rid(request),
           details={"item": item_id, "job": job["id"], "camera_id": cam["id"], "from": it["from_at"], "to": it["to_at"]})
     return _item(settings, conn, case_id, item_id)
@@ -602,7 +570,7 @@ def item_file(case_id: str, item_id: str, request: Request, principal: Principal
     are (JPEG / MP4 by signature, anything else as an attachment), never sniffed, in a sandbox."""
     scope = _read_scope(conn, principal)
     _get(conn, case_id)
-    it = conn.execute("SELECT * FROM case_items WHERE id = ? AND case_id = ?", (item_id, case_id)).fetchone()
+    it = store.case_item(conn, case_id, item_id)
     if not it or not it["file_path"]:
         raise not_found("אין קובץ לפריט.")
     # T055 B2: the item's own camera decides (a camera deny holds even for an installation-wide reader); an imported or
@@ -708,10 +676,10 @@ def download_bundle(case_id: str, name: str, request: Request, principal: Princi
     if scope is not None:
         # T055: a built bundle holds every item of the case - a reader who does not see all of its cameras (or its
         # imported, camera-less items) gets the case's items one by one, not the whole ZIP
-        cams = {r[0] for r in conn.execute("SELECT DISTINCT camera_id FROM case_items WHERE case_id = ? AND camera_id IS NOT NULL AND origin_json IS NULL", (case_id,)).fetchall()}
+        cams = store.own_item_cameras(conn, case_id)
         for cam in sorted(cams - scope):  # security review B2: per camera - no installation fallback past a camera deny
             require_camera(conn, principal, cam, "events.read")
-        if conn.execute("SELECT 1 FROM case_items WHERE case_id = ? AND origin_json IS NOT NULL LIMIT 1", (case_id,)).fetchone():
+        if store.has_imported_items(conn, case_id):
             require(conn, principal, "events.read", INSTALLATION)
     if not bundle_svc.re.fullmatch(r"case-[0-9a-f]{8}-\d{8}T\d{6}Z\.zip", name):
         raise not_found("החבילה לא נמצאה.")
@@ -907,7 +875,7 @@ async def verify_bundle(request: Request, name: str | None = Query(None, max_len
         audit(conn, actor=principal, action="case.bundle.verify", decision="denied", resource_type="bundle", resource_id=up["sha256"], reason=unsafe.code, request_id=_rid(request),
               details={"name": up["name"], "bytes": up["bytes"], "entries": len(unsafe.entries)})
         raise _unsafe_error(unsafe)
-    existing = conn.execute("SELECT id, title FROM cases WHERE import_sha256 = ?", (up["sha256"],)).fetchone()
+    existing = store.case_by_import_hash(conn, up["sha256"])
     report["bundle"] = {"sha256": up["sha256"], "bytes": up["bytes"], "name": up["name"]}
     report["already_imported"] = {"case_id": existing["id"], "title": existing["title"]} if existing else None
     report["importable"] = bool(report["ok"]) and existing is None
@@ -955,7 +923,7 @@ def _import_bundle(db: Database, settings: Settings, up: dict[str, Any], princip
         return ApiError(status, code, message, details=details)
 
     def duplicate(c: sqlite3.Connection) -> sqlite3.Row | None:
-        return c.execute("SELECT id, title FROM cases WHERE import_sha256 = ?", (sha,)).fetchone()
+        return store.case_by_import_hash(c, sha)
 
     bundle_import.sweep_staging(settings)
     with db.connection(mode="read", label="POST /cases/bundles/import") as r:
@@ -1002,17 +970,10 @@ def _import_bundle(db: Database, settings: Settings, up: dict[str, Any], princip
             staging.rename(final)
             moved = True
             cid = new_id()
-            w.execute(
-                "INSERT INTO cases(id, title, description, status, tags_json, owner_user_id, owner_username, revision, created_at, updated_at, closed_at, origin, provenance_json, import_sha256) "
-                "VALUES (?,?,?,'open',?,?,?,1,?,?,NULL,'imported',?,?)",
-                (cid, title, description, json.dumps(tags, ensure_ascii=False), principal.user_id, principal.username, now, now, bundle_import.dump(prov), sha),
-            )
+            store.insert_imported_case(w, cid, title, description, json.dumps(tags, ensure_ascii=False), principal.user_id, principal.username, now, bundle_import.dump(prov), sha)
             for row in rows:
-                w.execute(
-                    "INSERT INTO case_items(id, case_id, kind, camera_id, event_id, export_job_id, from_at, to_at, note, added_by, added_by_username, created_at, sort_order, file_path, file_sha256, origin_json) "
-                    "VALUES (?,?,?,NULL,NULL,NULL,?,?,?,?,?,?,?,?,?,?)",
-                    (new_id(), cid, row["kind"], row["from_at"], row["to_at"], row["note"], principal.user_id, principal.username, now, row["sort_order"], row["file_path"], row["file_sha256"], bundle_import.dump(row["origin"])),
-                )
+                store.insert_imported_item(w, new_id(), cid, row["kind"], row["from_at"], row["to_at"], row["note"], principal.user_id, principal.username, now, row["sort_order"],
+                                           row["file_path"], row["file_sha256"], bundle_import.dump(row["origin"]))
             audit(w, actor=principal, action="case.import", decision="allowed", resource_type="case", resource_id=cid, request_id=rid,
                   details={"bundle_sha256": sha, "bytes": up["bytes"], "name": up["name"], "source_installation": prov["source_installation_id"], "this_installation": prov["this_installation"],
                            "exported_at": prov["exported_at"], "items": len(rows), "files": prov["files_stored"], "stored_bytes": prov["bytes_stored"], "signature": prov["signature"].get("trust")})

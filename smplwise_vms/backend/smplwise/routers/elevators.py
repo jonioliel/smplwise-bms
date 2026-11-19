@@ -21,6 +21,7 @@ from ..db import new_id, now_iso
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import elevators as el
+from ..services import elevators_store as store
 from ..services import ha_scope
 
 router = APIRouter()
@@ -68,7 +69,7 @@ def _manage_w(principal: Principal = Depends(current_principal), conn: sqlite3.C
 def _area_name(conn: sqlite3.Connection, area_id: str | None) -> str | None:
     if not area_id:
         return None
-    r = conn.execute("SELECT name FROM ha_areas WHERE area_id = ?", (area_id,)).fetchone()
+    r = store.area_name(conn, area_id)
     return r["name"] if r else None
 
 
@@ -79,7 +80,7 @@ def _visible_rows(conn: sqlite3.Connection, principal: Principal, whole: set[str
     wide, floors = ha_scope.visible_floors(conn, principal, READ)
     if not wide and not floors:
         require(conn, principal, READ, INSTALLATION)
-    rows = conn.execute("SELECT * FROM infra_elevators WHERE enabled = 1 ORDER BY sort_order, name_key, id").fetchall()
+    rows = store.enabled_elevators(conn)
     every = el.sensors_of(conn, [r["id"] for r in rows])
     sensors = every
     if not wide:
@@ -146,7 +147,7 @@ def _manage_out(conn: sqlite3.Connection, r: sqlite3.Row, sensors: list[sqlite3.
 
 @router.get("/infra/elevators/manage")
 def manage_list(principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    rows = conn.execute("SELECT * FROM infra_elevators ORDER BY sort_order, name_key, id").fetchall()
+    rows = store.elevators(conn)
     sensors, connected = el.sensors_of(conn, [r["id"] for r in rows]), el.mirror_connected()
     return {"elevators": [_manage_out(conn, r, sensors.get(r["id"], []), connected) for r in rows], "roles": list(el.ROLES), "max_extras": el.MAX_EXTRAS}
 
@@ -154,9 +155,7 @@ def manage_list(principal: Principal = Depends(_manage_ro), conn: sqlite3.Connec
 @router.get("/infra/elevators/candidates")
 def candidates(q: str = Query("", max_length=80), principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The binary sensors the setter may link (devices.read scope), for the per-role select of the settings dialog."""
-    rows = conn.execute(
-        "SELECT entity_id, name, original_name, device_class, area_name FROM ha_entities WHERE domain = 'binary_sensor' AND removed_at IS NULL AND disabled = 0 ORDER BY name, entity_id"
-    ).fetchall()
+    rows = store.binary_sensor_candidates(conn)
     items = [{"entity_id": r["entity_id"], "name": r["name"] or r["original_name"] or r["entity_id"], "device_class": r["device_class"], "area_name": r["area_name"]} for r in rows]
     items, _ = ha_scope.scoped_rows(conn, principal, READ, items)
     needle = q.strip().casefold()
@@ -228,7 +227,7 @@ def put_alerts(body: AlertsIn, principal: Principal = Depends(_alerts_writer), c
 
 
 def _validate(conn: sqlite3.Connection, principal: Principal, body: ElevatorIn) -> list[tuple[str, int, str, str | None]]:
-    if body.area_id and conn.execute("SELECT 1 FROM ha_areas WHERE area_id = ?", (body.area_id,)).fetchone() is None:
+    if body.area_id and not store.area_exists(conn, body.area_id):
         raise _err(422, "area_not_found", fields=["area_id"])
     unknown = [k for k in body.sensors if k not in el.ROLES]
     if unknown:
@@ -252,7 +251,7 @@ def _validate(conn: sqlite3.Connection, principal: Principal, body: ElevatorIn) 
         if eid in seen:
             raise _err(422, "duplicate_sensor", fields=[field])
         seen.add(eid)
-        exists = conn.execute("SELECT 1 FROM ha_entities WHERE entity_id = ? AND domain = 'binary_sensor' AND removed_at IS NULL", (eid,)).fetchone()
+        exists = store.live_binary_sensor(conn, eid)
         if not wide and placed is None:
             placed = ha_scope.placements(conn)
         # an entity the setter may not see answers exactly like one that does not exist
@@ -262,18 +261,16 @@ def _validate(conn: sqlite3.Connection, principal: Principal, body: ElevatorIn) 
 
 
 def _name_taken(conn: sqlite3.Connection, name: str, except_id: str | None = None) -> bool:
-    r = conn.execute("SELECT id FROM infra_elevators WHERE name_key = ?", (el.name_key(name),)).fetchone()
+    r = store.elevator_by_name_key(conn, el.name_key(name))
     return r is not None and r["id"] != except_id
 
 
 def _write_sensors(conn: sqlite3.Connection, elevator_id: str, sensors: list[tuple[str, int, str, str | None]]) -> None:
-    conn.execute("DELETE FROM infra_elevator_sensors WHERE elevator_id = ?", (elevator_id,))
-    conn.executemany("INSERT INTO infra_elevator_sensors (elevator_id, role, position, entity_id, label) VALUES (?, ?, ?, ?, ?)",
-                     [(elevator_id, role, pos, eid, label) for role, pos, eid, label in sensors])
+    store.write_sensors(conn, elevator_id, sensors)
 
 
 def _one(conn: sqlite3.Connection, elevator_id: str) -> sqlite3.Row:
-    r = conn.execute("SELECT * FROM infra_elevators WHERE id = ?", (elevator_id,)).fetchone()
+    r = store.elevator(conn, elevator_id)
     if r is None:
         raise _err(404, "elevator_not_found")
     return r
@@ -292,9 +289,8 @@ def create(body: ElevatorIn, principal: Principal = Depends(_manage_w), conn: sq
     if _name_taken(conn, name):
         raise _err(409, "duplicate_name", fields=["name"])
     eid, at = new_id(), now_iso()
-    nxt = conn.execute("SELECT COALESCE(MAX(sort_order), -1) + 1 FROM infra_elevators").fetchone()[0]
-    conn.execute("INSERT INTO infra_elevators (id, name, name_key, area_id, sort_order, enabled, show_travel, revision, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
-                 (eid, name, el.name_key(name), body.area_id or None, nxt, 1 if body.enabled else 0, 1 if body.show_travel else 0, at, at))
+    nxt = store.next_sort_order(conn)
+    store.insert_elevator(conn, eid, name, el.name_key(name), body.area_id or None, nxt, 1 if body.enabled else 0, 1 if body.show_travel else 0, at)
     _write_sensors(conn, eid, sensors)
     audit(conn, actor=principal, action="infra.elevator.create", decision="allowed", resource_type="infra_elevator", resource_id=eid)
     return _manage_one(conn, eid)
@@ -302,10 +298,10 @@ def create(body: ElevatorIn, principal: Principal = Depends(_manage_w), conn: sq
 
 @router.put("/infra/elevators/order")
 def reorder(body: OrderIn, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    have = {r[0] for r in conn.execute("SELECT id FROM infra_elevators").fetchall()}
+    have = store.elevator_ids(conn)
     if set(body.ids) != have or len(body.ids) != len(have):
         raise _err(422, "order_mismatch", fields=["ids"])
-    conn.executemany("UPDATE infra_elevators SET sort_order = ? WHERE id = ?", [(i, x) for i, x in enumerate(body.ids)])
+    store.reorder(conn, body.ids)
     audit(conn, actor=principal, action="infra.elevator.reorder", decision="allowed", resource_type="infra_elevator", details={"ids": body.ids})
     return manage_list(principal, conn)
 
@@ -321,8 +317,7 @@ def update(elevator_id: str, body: ElevatorIn, principal: Principal = Depends(_m
     sensors = _validate(conn, principal, body)
     if _name_taken(conn, name, elevator_id):
         raise _err(409, "duplicate_name", fields=["name"])
-    conn.execute("UPDATE infra_elevators SET name = ?, name_key = ?, area_id = ?, enabled = ?, show_travel = ?, revision = revision + 1, updated_at = ? WHERE id = ?",
-                 (name, el.name_key(name), body.area_id or None, 1 if body.enabled else 0, 1 if body.show_travel else 0, now_iso(), elevator_id))
+    store.update_elevator(conn, elevator_id, name, el.name_key(name), body.area_id or None, 1 if body.enabled else 0, 1 if body.show_travel else 0, now_iso())
     _write_sensors(conn, elevator_id, sensors)
     audit(conn, actor=principal, action="infra.elevator.update", decision="allowed", resource_type="infra_elevator", resource_id=elevator_id)
     return _manage_one(conn, elevator_id)
@@ -335,11 +330,10 @@ def delete(elevator_id: str, principal: Principal = Depends(_manage_w), conn: sq
 
     elevators_runtime.resolve_all(conn, elevator_id)  # 2.8.0: its open notifications end with it (the memory rows would cascade anyway)
     try:
-        conn.execute("DELETE FROM infra_elevator_states WHERE elevator_id = ?", (elevator_id,))
+        store.delete_states(conn, elevator_id)
     except sqlite3.Error:  # before migration 0119
         pass
-    conn.execute("DELETE FROM infra_elevator_sensors WHERE elevator_id = ?", (elevator_id,))
-    conn.execute("DELETE FROM infra_elevators WHERE id = ?", (elevator_id,))
+    store.delete_elevator(conn, elevator_id)
     audit(conn, actor=principal, action="infra.elevator.delete", decision="allowed", resource_type="infra_elevator", resource_id=elevator_id)
 
 

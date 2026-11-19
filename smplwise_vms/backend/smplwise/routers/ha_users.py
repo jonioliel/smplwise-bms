@@ -27,7 +27,7 @@ from ..db import get_setting, new_id, now_iso, set_setting, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, all_roles, require, role_name, scope_name
 from ..services import ha_user_admin as hua
-from ..services import revocation, secrets_store
+from ..services import ha_users_store as store, revocation, secrets_store
 from ..services.tickets import out_documents
 from ._common import rid as _rid
 from . import access as acc
@@ -62,7 +62,7 @@ def _ha_settings(request: Request, conn: sqlite3.Connection):
 
 
 def actor_is_ha_admin(conn: sqlite3.Connection, principal: Principal) -> bool:
-    row = conn.execute("SELECT is_admin, is_active FROM ha_users WHERE id = ?", (principal.user_id,)).fetchone()
+    row = store.directory_flags(conn, principal.user_id)
     return bool(row and row["is_admin"] and row["is_active"])
 
 
@@ -104,7 +104,7 @@ def _access(conn: sqlite3.Connection) -> dict[str, Any]:
 
 
 def _managed(conn: sqlite3.Connection, ha_user_id: str) -> sqlite3.Row | None:
-    return conn.execute("SELECT * FROM ha_managed_users WHERE ha_user_id = ? AND state != 'deleted'", (ha_user_id,)).fetchone()
+    return store.managed(conn, ha_user_id)
 
 
 def would_strand_admins(conn: sqlite3.Connection, user_id: str) -> bool:
@@ -113,18 +113,17 @@ def would_strand_admins(conn: sqlite3.Connection, user_id: str) -> bool:
     before = acc.admin_count(conn)
     if not before:
         return False
-    conn.execute("SAVEPOINT usr1_probe")
+    store.savepoint(conn, "usr1_probe")
     try:
-        conn.execute("UPDATE users SET active = 0 WHERE id = ?", (user_id,))
+        store.deactivate_user(conn, user_id)
         after = acc.admin_count(conn)
     finally:
-        conn.execute("ROLLBACK TO usr1_probe")
-        conn.execute("RELEASE usr1_probe")
+        store.rollback_savepoint(conn, "usr1_probe")
     return after == 0
 
 
 def _row(conn: sqlite3.Connection, r: sqlite3.Row, principal: Principal) -> dict[str, Any]:
-    creator = conn.execute("SELECT display_name, username FROM users WHERE id = ?", (r["created_by"],)).fetchone()
+    creator = store.user_names(conn, r["created_by"])
     return {
         "ha_user_id": r["ha_user_id"],
         "username": r["username"],
@@ -149,7 +148,7 @@ def _row(conn: sqlite3.Connection, r: sqlite3.Row, principal: Principal) -> dict
 @router.get("/ha-users")
 def list_managed(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, PERMISSION, INSTALLATION)
-    rows = conn.execute("SELECT * FROM ha_managed_users WHERE state IN ('active', 'inactive', 'needs_repair') ORDER BY created_at").fetchall()
+    rows = store.listed_managed(conn)
     roles = all_roles(conn) if acc.full_authority(conn, principal) else {r: [] for r in acc.delegable_roles(conn)}
     return {
         "users": [_row(conn, r, principal) for r in rows],
@@ -198,11 +197,7 @@ def _bind(conn: sqlite3.Connection, principal: Principal, request: Request, ha_u
     """The Arx side of a created user: the directory mirror row (the bridge's next push overwrites it), the user row and ONE
     binding - the chosen role at the chosen scope, nothing else. Raises on any failure (the caller compensates)."""
     now = now_iso()
-    conn.execute(
-        "INSERT INTO ha_users(id, name, username, is_active, is_admin, group_ids_json, synced_at) VALUES (?, ?, ?, 1, 0, ?, ?) "
-        "ON CONFLICT(id) DO UPDATE SET name = excluded.name, username = excluded.username",
-        (ha_user_id, body.display_name, body.username, f'["{hua.USERS_GROUP}"]', now),
-    )
+    store.mirror_created_user(conn, ha_user_id, body.display_name, body.username, f'["{hua.USERS_GROUP}"]', now)
     binding = acc.BindingBody(subject_kind="user", subject_id=ha_user_id, role_id=body.role_id, scope_type=body.scope_type, scope_id=body.scope_id)
     acc.validate_binding(conn, principal, binding)
     bid, _rev = acc.insert_binding(conn, principal, request, binding, extra_audit={"via": "ha_users.create"})
@@ -215,7 +210,7 @@ def create(body: CreateBody, request: Request, principal: Principal = Depends(cu
     _guard_write(conn, principal, request, action)
     settings = _ha_settings(request, conn)
     if body.request_key:
-        prior = conn.execute("SELECT * FROM ha_managed_users WHERE request_key = ?", (body.request_key,)).fetchone()
+        prior = store.managed_by_request_key(conn, body.request_key)
         if prior is not None:
             if prior["state"] in ("active", "inactive", "needs_repair"):
                 return {"user": _row(conn, prior, principal), "replayed": True}
@@ -223,12 +218,10 @@ def create(body: CreateBody, request: Request, principal: Principal = Depends(cu
     problem = hua.password_problem(body.password.get_secret_value(), body.username, body.display_name)
     if problem:
         raise ApiError(422, "password_weak", PASSWORD_HE[problem], details={"rule": problem})  # names the rule only, never the value
-    if conn.execute(f"SELECT COUNT(*) FROM ha_managed_users WHERE state IN ({','.join('?' * len(LIVE_STATES))})", LIVE_STATES).fetchone()[0] >= MAX_MANAGED:
+    if store.count_in_states(conn, LIVE_STATES) >= MAX_MANAGED:
         raise _refuse(conn, principal, request, action, "*", 409, "limit_reached", f"אפשר לנהל מכאן עד {MAX_MANAGED} משתמשים.")
     # the directory mirror keeps a row for a user Arx deleted (HA freed its username): those rows do not count
-    taken = conn.execute("SELECT 1 FROM ha_users WHERE lower(username) = ? AND id NOT IN (SELECT ha_user_id FROM ha_managed_users WHERE state = 'deleted')",
-                         (body.username,)).fetchone() or conn.execute(
-        f"SELECT 1 FROM ha_managed_users WHERE lower(username) = ? AND state IN ({','.join('?' * len(LIVE_STATES))})", (body.username, *LIVE_STATES)).fetchone()
+    taken = store.username_taken(conn, body.username, LIVE_STATES)
     if taken:
         raise _refuse(conn, principal, request, action, "*", 409, "username_taken", "שם המשתמש כבר קיים במערכת הבית.")
     # the binding is checked BEFORE anything is created: the same rules as the bindings API (role, scope, delegation)
@@ -240,11 +233,7 @@ def create(body: CreateBody, request: Request, principal: Principal = Depends(cu
 
     row_id = new_id()
     now = now_iso()
-    conn.execute(
-        "INSERT INTO ha_managed_users(id, request_key, username, display_name, role_id, scope_type, scope_id, state, created_by, created_at, updated_by, updated_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, 'creating', ?, ?, ?, ?)",
-        (row_id, body.request_key, body.username, body.display_name, body.role_id, body.scope_type, body.scope_id, principal.user_id, now, principal.user_id, now),
-    )
+    store.insert_creating(conn, row_id, body.request_key, body.username, body.display_name, body.role_id, body.scope_type, body.scope_id, principal.user_id, now)
     base = {"row_id": row_id, "role_id": body.role_id, "scope": f"{body.scope_type}:{body.scope_id}"}
     try:
         with unlocked(conn):  # commits the 'creating' row first: a crash mid-call leaves a visible row
@@ -252,40 +241,35 @@ def create(body: CreateBody, request: Request, principal: Principal = Depends(cu
                                       local_only=body.local_only, create_person=body.create_person)
     except hua.HaUserError as exc:
         if exc.ha_user_id:  # created in HA and the compensation failed: keep a visible repair row with the id
-            conn.execute("UPDATE ha_managed_users SET ha_user_id = ?, state = 'needs_repair', repair = 'compensation_failed', updated_at = ? WHERE id = ?", (exc.ha_user_id, now_iso(), row_id))
+            store.mark_compensation_failed(conn, row_id, exc.ha_user_id, now_iso())
         else:
-            conn.execute("DELETE FROM ha_managed_users WHERE id = ?", (row_id,))
+            store.delete_managed(conn, row_id)
         raise _failed(conn, principal, request, action, exc.ha_user_id or row_id, exc, base) from None
     if created.person_failed:
         base["person_missing"] = True
-    conn.execute("SAVEPOINT usr1_bind")
+    store.savepoint(conn, "usr1_bind")
     try:
         binding_id = _bind(conn, principal, request, created.ha_user_id, body)
     except Exception as bind_exc:  # noqa: BLE001 - any Arx-side failure: undo it, then undo the HA user
-        conn.execute("ROLLBACK TO usr1_bind")
-        conn.execute("RELEASE usr1_bind")
+        store.rollback_savepoint(conn, "usr1_bind")
         with unlocked(conn):
             gone = hua.compensating_delete(settings, created.ha_user_id, created.person_id)
         if gone:
-            conn.execute("DELETE FROM ha_managed_users WHERE id = ?", (row_id,))
+            store.delete_managed(conn, row_id)
         else:
-            conn.execute("UPDATE ha_managed_users SET ha_user_id = ?, person_id = ?, state = 'needs_repair', repair = 'binding_failed', updated_at = ? WHERE id = ?",
-                         (created.ha_user_id, created.person_id, now_iso(), row_id))
+            store.mark_binding_failed(conn, row_id, created.ha_user_id, created.person_id, now_iso())
         audit(conn, actor=principal, action=action, decision="failed", resource_type="ha_user", resource_id=created.ha_user_id, reason="binding_failed",
               request_id=_rid(request), details={**base, "compensated": gone, "error": bind_exc.code if isinstance(bind_exc, ApiError) else type(bind_exc).__name__})
         raise ApiError(500 if gone else 502, "binding_failed",
                        "המשתמש לא נוצר: שיוך התפקיד ב־Arx נכשל, והמשתמש הוסר שוב ממערכת הבית." if gone
                        else "שיוך התפקיד נכשל וההסרה ממערכת הבית לא הצליחה; המשתמש מסומן 'דורש תיקון'.") from None
-    conn.execute("RELEASE usr1_bind")
-    conn.execute(
-        "UPDATE ha_managed_users SET ha_user_id = ?, person_id = ?, binding_id = ?, state = 'active', repair = ?, updated_at = ? WHERE id = ?",
-        (created.ha_user_id, created.person_id, binding_id, "person_missing" if created.person_failed else None, now_iso(), row_id),
-    )
+    store.release_savepoint(conn, "usr1_bind")
+    store.mark_created(conn, row_id, created.ha_user_id, created.person_id, binding_id, "person_missing" if created.person_failed else None, now_iso())
     _store_access(conn, "ok")
     audit(conn, actor=principal, action=action, decision="allowed", resource_type="ha_user", resource_id=created.ha_user_id, request_id=_rid(request),
           details={**base, "binding_id": binding_id, "person": bool(created.person_id)})
     revocation.changed({created.ha_user_id})
-    row = conn.execute("SELECT * FROM ha_managed_users WHERE id = ?", (row_id,)).fetchone()
+    row = store.managed_row(conn, row_id)
     return {"user": _row(conn, row, principal), "replayed": False}
 
 
@@ -317,23 +301,23 @@ def _set_active(ha_user_id: str, active: bool, body: ConfirmBody, request: Reque
             hua.set_active(_ha_settings(request, conn), ha_user_id, active)
     except hua.HaUserError as exc:
         if exc.kind == "not_found":
-            conn.execute("UPDATE ha_managed_users SET state = 'needs_repair', repair = 'missing_in_ha', updated_by = ?, updated_at = ? WHERE id = ?", (principal.user_id, now_iso(), row["id"]))
+            store.mark_missing_in_ha(conn, row["id"], principal.user_id, now_iso())
         raise _failed(conn, principal, request, action, ha_user_id, exc) from None
     flag = 1 if active else 0
-    conn.execute("UPDATE ha_managed_users SET state = ?, updated_by = ?, updated_at = ? WHERE id = ?", ("active" if active else "inactive", principal.user_id, now_iso(), row["id"]))
-    conn.execute("UPDATE ha_users SET is_active = ? WHERE id = ?", (flag, ha_user_id))
-    conn.execute("UPDATE users SET active = ? WHERE id = ?", (flag, ha_user_id))
+    store.set_managed_state(conn, row["id"], "active" if active else "inactive", principal.user_id, now_iso())
+    store.set_directory_active(conn, ha_user_id, flag)
+    store.set_user_active(conn, ha_user_id, flag)
     audit(conn, actor=principal, action=action, decision="allowed", resource_type="ha_user", resource_id=ha_user_id, request_id=_rid(request), details={"row_id": row["id"]})
     if active:
         revocation.changed({ha_user_id})
     else:
         acc._terminate(conn, settings_of(request), {ha_user_id})  # noqa: SLF001 - the access API's own "access taken away" path
         out_documents.revoke_for_inactive_users_safe(conn)  # TEMPLINK-2320 (owner 4A): his report links die at once
-    return {"user": _row(conn, conn.execute("SELECT * FROM ha_managed_users WHERE id = ?", (row["id"],)).fetchone(), principal)}
+    return {"user": _row(conn, store.managed_row(conn, row["id"]), principal)}
 
 
 def _directory_admin(conn: sqlite3.Connection, ha_user_id: str) -> bool:
-    row = conn.execute("SELECT is_admin FROM ha_users WHERE id = ?", (ha_user_id,)).fetchone()
+    row = store.directory_admin_flag(conn, ha_user_id)
     return bool(row and row["is_admin"])
 
 
@@ -371,7 +355,7 @@ def delete(ha_user_id: str, body: DeleteBody, request: Request, principal: Princ
         raise _refuse(conn, principal, request, action, ha_user_id, 409, "last_admin", "המחיקה משאירה את ההתקנה בלי מנהל מערכת פעיל; הקצה מנהל אחר קודם.")
     # owner rule (integ/264): an Arx-only (USR2) identity linked to this HA user blocks the delete - the manager unlinks first
     # (Settings > Arx users). Refused before Home Assistant is called; the audit row carries ids only.
-    linked = [r[0] for r in conn.execute("SELECT local_user_id FROM identity_links WHERE ha_user_id = ? ORDER BY local_user_id", (ha_user_id,))]
+    linked = store.linked_local_users(conn, ha_user_id)
     if linked:
         audit(conn, actor=principal, action=action, decision="denied", resource_type="ha_user", resource_id=ha_user_id, reason="linked_local_identity",
               request_id=_rid(request), details={"local_user_ids": linked})
@@ -383,24 +367,23 @@ def delete(ha_user_id: str, body: DeleteBody, request: Request, principal: Princ
             existed = hua.delete_user(settings, ha_user_id, row["person_id"])
     except hua.HaUserError as exc:
         raise _failed(conn, principal, request, action, ha_user_id, exc, {"row_id": row["id"]}) from None
-    conn.execute("SAVEPOINT usr1_cleanup")
+    store.savepoint(conn, "usr1_cleanup")
     try:
         revoked = 0
-        for b in conn.execute("SELECT * FROM bindings WHERE subject_kind = 'user' AND subject_id = ? AND revoked_at IS NULL", (ha_user_id,)).fetchall():
+        for b in store.live_user_bindings(conn, ha_user_id):
             acc.revoke_one(conn, principal, request, b)
             revoked += 1
-        conn.execute("DELETE FROM group_members WHERE user_id = ?", (ha_user_id,))
-        conn.execute("UPDATE users SET active = 0 WHERE id = ?", (ha_user_id,))
-        conn.execute("UPDATE ha_users SET is_active = 0 WHERE id = ?", (ha_user_id,))
-        conn.execute("UPDATE ha_managed_users SET state = 'deleted', repair = NULL, deleted_at = ?, updated_by = ?, updated_at = ? WHERE id = ?", (now_iso(), principal.user_id, now_iso(), row["id"]))
+        store.drop_group_memberships(conn, ha_user_id)
+        store.deactivate_user(conn, ha_user_id)
+        store.deactivate_directory_user(conn, ha_user_id)
+        store.mark_deleted(conn, row["id"], now_iso(), principal.user_id, now_iso())
     except Exception as exc:  # noqa: BLE001 - the user is gone in HA: keep a repair row, the next delete finishes the cleanup
-        conn.execute("ROLLBACK TO usr1_cleanup")
-        conn.execute("RELEASE usr1_cleanup")
-        conn.execute("UPDATE ha_managed_users SET state = 'needs_repair', repair = 'cleanup_failed', updated_by = ?, updated_at = ? WHERE id = ?", (principal.user_id, now_iso(), row["id"]))
+        store.rollback_savepoint(conn, "usr1_cleanup")
+        store.mark_cleanup_failed(conn, row["id"], principal.user_id, now_iso())
         audit(conn, actor=principal, action=action, decision="failed", resource_type="ha_user", resource_id=ha_user_id, reason="cleanup_failed", request_id=_rid(request),
               details={"row_id": row["id"], "error": exc.code if isinstance(exc, ApiError) else type(exc).__name__})
         raise ApiError(500, "cleanup_failed", "המשתמש נמחק ממערכת הבית, אך הניקוי ב־Arx לא הושלם; המשתמש מסומן 'דורש תיקון' ואפשר למחוק שוב.") from None
-    conn.execute("RELEASE usr1_cleanup")
+    store.release_savepoint(conn, "usr1_cleanup")
     audit(conn, actor=principal, action=action, decision="allowed", resource_type="ha_user", resource_id=ha_user_id, request_id=_rid(request),
           details={"row_id": row["id"], "bindings_revoked": revoked, "already_gone": not existed})
     acc._terminate(conn, settings, {ha_user_id})  # noqa: SLF001
