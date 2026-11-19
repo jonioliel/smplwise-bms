@@ -10295,5 +10295,2533 @@
     "test_ids": [
       "AT-T120-5"
     ]
+  },
+  {
+    "id": "R-BACKEND-SAFETY-2435-1",
+    "title": "BACKEND-SAFETY-2435 - five P1 backend safety and stability fixes",
+    "statement": "Delivered as recorded in docs/changes/BACKEND-SAFETY-2435.md: five P1 backend safety and stability fixes",
+    "task_ids": [
+      "BACKEND-SAFETY-2435"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-BACKEND-SAFETY-2435-1"
+    ]
+  },
+  {
+    "id": "R-BACKLOG-HYGIENE-2443-1",
+    "title": "BACKLOG-HYGIENE-2443 - backlog cleanup after the 2.43.7 triage",
+    "statement": "Delivered as recorded in docs/changes/BACKLOG-HYGIENE-2443.md: backlog cleanup after the 2.43.7 triage",
+    "task_ids": [
+      "BACKLOG-HYGIENE-2443"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-BACKLOG-HYGIENE-2443-1"
+    ]
+  },
+  {
+    "id": "R-CR-A11Y-ROWS-2443-1",
+    "title": "CR-A11Y-ROWS-2443 - keyboard access to clickable rows and cards (screen half of D14)",
+    "statement": "Delivered as recorded in docs/changes/CR-A11Y-ROWS-2443.md: keyboard access to clickable rows and cards (screen half of D14)",
+    "task_ids": [
+      "CR-A11Y-ROWS-2443"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-A11Y-ROWS-2443-1"
+    ]
+  },
+  {
+    "id": "R-CR-ACTIVE-USER-REST-2438-1",
+    "title": "CR-ACTIVE-USER-REST-2438 - every per-user \"active\" check uses the one definition",
+    "statement": "Delivered as recorded in docs/changes/CR-ACTIVE-USER-REST-2438.md: every per-user \"active\" check uses the one definition",
+    "task_ids": [
+      "CR-ACTIVE-USER-REST-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-ACTIVE-USER-REST-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-ADMIN-GATE-2438-1",
+    "title": "CR-ADMIN-GATE-2438 - one administrator gate, one administrator count, the go-live texts, authorize's \"active user\"",
+    "statement": "Delivered as recorded in docs/changes/CR-ADMIN-GATE-2438.md: one administrator gate, one administrator count, the go-live texts, authorize's \"active user\"",
+    "task_ids": [
+      "CR-ADMIN-GATE-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-ADMIN-GATE-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-API-PATHS-2439-1",
+    "title": "CR-API-PATHS-2439 - one way to build an API path: path and query in the client",
+    "statement": "Delivered as recorded in docs/changes/CR-API-PATHS-2439.md: one way to build an API path: path and query in the client",
+    "task_ids": [
+      "CR-API-PATHS-2439"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-API-PATHS-2439-1"
+    ]
+  },
+  {
+    "id": "R-CR-APP-SESSION-CACHE-2443-1",
+    "title": "CR-APP-SESSION-CACHE-2443 - an ended app web session is not cached back; access changes reach it on the next request",
+    "statement": "Delivered as recorded in docs/changes/CR-APP-SESSION-CACHE-2443.md: an ended app web session is not cached back; access changes reach it on the next request",
+    "task_ids": [
+      "CR-APP-SESSION-CACHE-2443"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-APP-SESSION-CACHE-2443-1"
+    ]
+  },
+  {
+    "id": "R-CR-BE-DEAD-CODE-2442-1",
+    "title": "CR-BE-DEAD-CODE-2442 - backend dead code, closing chain step BE-2: re-verification, two leftovers removed, markers",
+    "statement": "Delivered as recorded in docs/changes/CR-BE-DEAD-CODE-2442.md: backend dead code, closing chain step BE-2: re-verification, two leftovers removed, markers",
+    "task_ids": [
+      "CR-BE-DEAD-CODE-2442"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-BE-DEAD-CODE-2442-1"
+    ]
+  },
+  {
+    "id": "R-CR-BE-DEAD-CODE-B-2442-1",
+    "title": "CR-BE-DEAD-CODE-B-2442 - backend dead code, chain step BE-4: the 20 names BE-2 listed for the lead; one flaky assertion",
+    "statement": "Delivered as recorded in docs/changes/CR-BE-DEAD-CODE-B-2442.md: backend dead code, chain step BE-4: the 20 names BE-2 listed for the lead; one flaky assertion",
+    "task_ids": [
+      "CR-BE-DEAD-CODE-B-2442"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-BE-DEAD-CODE-B-2442-1"
+    ]
+  },
+  {
+    "id": "R-CR-BE-SMALL-2440-1",
+    "title": "CR-BE-SMALL-2440 - three small backend rows for 2.44.0",
+    "statement": "Delivered as recorded in docs/changes/CR-BE-SMALL-2440.md: three small backend rows for 2.44.0",
+    "task_ids": [
+      "CR-BE-SMALL-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-BE-SMALL-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-BE-SMALL-UNIFY-2440-1",
+    "title": "CR-BE-SMALL-UNIFY-2440 - small backend unifications (adoption of the wave-2 helpers)",
+    "statement": "Delivered as recorded in docs/changes/CR-BE-SMALL-UNIFY-2440.md: small backend unifications (adoption of the wave-2 helpers)",
+    "task_ids": [
+      "CR-BE-SMALL-UNIFY-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-BE-SMALL-UNIFY-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-BE-TWINS-2440-1",
+    "title": "CR-BE-TWINS-2440 - the twin helpers of electricity, water and temperature are one",
+    "statement": "Delivered as recorded in docs/changes/CR-BE-TWINS-2440.md: the twin helpers of electricity, water and temperature are one",
+    "task_ids": [
+      "CR-BE-TWINS-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-BE-TWINS-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-BILL-LEDGER-B-2438-1",
+    "title": "CR-BILL-LEDGER-B-2438 - drafts, automatic generation and retention written once; the account history reads its bills once (step B)",
+    "statement": "Delivered as recorded in docs/changes/CR-BILL-LEDGER-B-2438.md: drafts, automatic generation and retention written once; the account history reads its bills once (step B)",
+    "task_ids": [
+      "CR-BILL-LEDGER-B-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-BILL-LEDGER-B-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-BRIDGE-COMMON-2440-1",
+    "title": "CR-BRIDGE-COMMON-2440 - the bridge's duplicated helpers live once, in _common.py",
+    "statement": "Delivered as recorded in docs/changes/CR-BRIDGE-COMMON-2440.md: the bridge's duplicated helpers live once, in _common.py",
+    "task_ids": [
+      "CR-BRIDGE-COMMON-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-BRIDGE-COMMON-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-BRIDGE-GAPS-2438-1",
+    "title": "CR-BRIDGE-GAPS-2438 - bridge behaviour gaps and nits",
+    "statement": "Delivered as recorded in docs/changes/CR-BRIDGE-GAPS-2438.md: bridge behaviour gaps and nits",
+    "task_ids": [
+      "CR-BRIDGE-GAPS-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-BRIDGE-GAPS-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-BRIDGE-PREVERIFY-2440-1",
+    "title": "CR-BRIDGE-PREVERIFY-2440 - signed bridge calls are judged before the write gate",
+    "statement": "Delivered as recorded in docs/changes/CR-BRIDGE-PREVERIFY-2440.md: signed bridge calls are judged before the write gate",
+    "task_ids": [
+      "CR-BRIDGE-PREVERIFY-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-BRIDGE-PREVERIFY-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-BRIDGE-STRUCT-2440-1",
+    "title": "CR-BRIDGE-STRUCT-2440 - NOT IMPLEMENTED: the row's premise does not hold (lead decision needed)",
+    "statement": "Decide the CR-BRIDGE-STRUCT row (bridge runtime object, one services table) against the pins recorded in docs/changes/CR-BRIDGE-STRUCT-2440.md: implement as a pure move, change the pins with approval, or close the row.",
+    "task_ids": [
+      "CR-BRIDGE-STRUCT-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-BRIDGE-STRUCT-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-BUILD-GUARDS-2438-1",
+    "title": "CR-BUILD-GUARDS-2438 - debug maps stay on the runner; design-debt ratchet in the release check",
+    "statement": "Delivered as recorded in docs/changes/CR-BUILD-GUARDS-2438.md: debug maps stay on the runner; design-debt ratchet in the release check",
+    "task_ids": [
+      "CR-BUILD-GUARDS-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-BUILD-GUARDS-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-CMP2-TOAST-2440-1",
+    "title": "CR-CMP2-TOAST-2440: 2.44.0 programme rows (private/planning/REMAINING_WORK_2026-11-18.md section C \"Programmes\"; code-review private/code-review-2026-11-13/MASTER_PLAN.md section 3.6):",
+    "statement": "Delivered as recorded in docs/changes/CR-CMP2-TOAST-2440.md: 2.44.0 programme rows (private/planning/REMAINING_WORK_2026-11-18.md section C \"Programmes\"; code-review private/code-review-2026-11-13/MASTER_PLAN.md section 3.6):",
+    "task_ids": [
+      "CR-CMP2-TOAST-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-CMP2-TOAST-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-COLOR-LITERALS-2443-1",
+    "title": "CR-COLOR-LITERALS-2443 - the colour-literal ratchet back to (below) 2512, no pixel change",
+    "statement": "Delivered as recorded in docs/changes/CR-COLOR-LITERALS-2443.md: the colour-literal ratchet back to (below) 2512, no pixel change",
+    "task_ids": [
+      "CR-COLOR-LITERALS-2443"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-COLOR-LITERALS-2443-1"
+    ]
+  },
+  {
+    "id": "R-CR-CONFIRM-DIALOG-2438-1",
+    "title": "CR-CONFIRM-DIALOG-2438 - the system's own confirmation dialog instead of the browser's confirm()",
+    "statement": "Delivered as recorded in docs/changes/CR-CONFIRM-DIALOG-2438.md: the system's own confirmation dialog instead of the browser's confirm()",
+    "task_ids": [
+      "CR-CONFIRM-DIALOG-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-CONFIRM-DIALOG-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-CORE-HELPERS-2438-1",
+    "title": "CR-CORE-HELPERS-2438 - additive core helpers (db, errors, values)",
+    "statement": "Delivered as recorded in docs/changes/CR-CORE-HELPERS-2438.md: additive core helpers (db, errors, values)",
+    "task_ids": [
+      "CR-CORE-HELPERS-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-CORE-HELPERS-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-CSS-FRAGMENTS-2440-1",
+    "title": "CR-CSS-FRAGMENTS-2440: Code-review batch 16.11, frontend wave 2. Contract: the pilot/CR-CSS-FRAGMENTS-2436 row of private/code-review-2026-11-13/MASTER_PLAN.md (06:CSS-1 fragments, 06:DUP-8, 06:DUP-11 helper, step 1 of 06:CMP-2). Base: ...",
+    "statement": "Delivered as recorded in docs/changes/CR-CSS-FRAGMENTS-2440.md: Code-review batch 16.11, frontend wave 2. Contract: the pilot/CR-CSS-FRAGMENTS-2436 row of private/code-review-2026-11-13/MASTER_PLAN.md (06:CSS-1 fragments, 06:DUP-8, 06:DUP-11 helper, step 1 of 06:CMP-2). Base: ...",
+    "task_ids": [
+      "CR-CSS-FRAGMENTS-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-CSS-FRAGMENTS-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-CSS-FRAGMENTS-TAIL-2442-1",
+    "title": "CR-CSS-FRAGMENTS-TAIL-2442: Code-review batch 16.11, wave 3B, frontend chain step FE-1. Contract: the FE-1 row of private/code-review-2026-11-13/MASTER_PLAN.md section 3.5 (named there pilot/CR-CSS-FRAGMENTS-TAIL-2436): the rest of 06:CSS-1, 06:DUP-11 (the ...",
+    "statement": "Delivered as recorded in docs/changes/CR-CSS-FRAGMENTS-TAIL-2442.md: Code-review batch 16.11, wave 3B, frontend chain step FE-1. Contract: the FE-1 row of private/code-review-2026-11-13/MASTER_PLAN.md section 3.5 (named there pilot/CR-CSS-FRAGMENTS-TAIL-2436): the rest of 06:CSS-1, 06:DUP-11 (the ...",
+    "task_ids": [
+      "CR-CSS-FRAGMENTS-TAIL-2442"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-CSS-FRAGMENTS-TAIL-2442-1"
+    ]
+  },
+  {
+    "id": "R-CR-DEAD-CODE-BE-2438-1",
+    "title": "CR-DEAD-CODE-BE-2438 - backend dead code: delete only what nothing references",
+    "statement": "Delivered as recorded in docs/changes/CR-DEAD-CODE-BE-2438.md: backend dead code: delete only what nothing references",
+    "task_ids": [
+      "CR-DEAD-CODE-BE-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-DEAD-CODE-BE-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-DEVICE-HTTP-2438-1",
+    "title": "CR-DEVICE-HTTP-2438 - the shared device-HTTP code leaves the Hikvision module",
+    "statement": "Delivered as recorded in docs/changes/CR-DEVICE-HTTP-2438.md: the shared device-HTTP code leaves the Hikvision module",
+    "task_ids": [
+      "CR-DEVICE-HTTP-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-DEVICE-HTTP-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-DIAG-TABS-2440-1",
+    "title": "CR-DIAG-TABS-2440 - the settings screen fetches a tab's cards when the tab is first opened (review 06:BUNDLE-2, 06:STRUCT-1 settings screen)",
+    "statement": "Delivered as recorded in docs/changes/CR-DIAG-TABS-2440.md: the settings screen fetches a tab's cards when the tab is first opened (review 06:BUNDLE-2, 06:STRUCT-1 settings screen)",
+    "task_ids": [
+      "CR-DIAG-TABS-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-DIAG-TABS-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-DOCS-REGISTERS-2440-1",
+    "title": "CR-DOCS-REGISTERS-2440: Code-review batch 16.11, wave 3A (backend), documentation only. Plan row pilot/CR-DOCS-REGISTERS-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; findings 03:F27, 03:F28, 01:F-21, 05:P2-15. Base: ...",
+    "statement": "Delivered as recorded in docs/changes/CR-DOCS-REGISTERS-2440.md: Code-review batch 16.11, wave 3A (backend), documentation only. Plan row pilot/CR-DOCS-REGISTERS-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; findings 03:F27, 03:F28, 01:F-21, 05:P2-15. Base: ...",
+    "task_ids": [
+      "CR-DOCS-REGISTERS-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-DOCS-REGISTERS-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-DUP-ADMIN-CARDS-2440-1",
+    "title": "CR-DUP-ADMIN-CARDS-2440 - one base for the device admin cards, one switch row for the access messaging / policy cards",
+    "statement": "Delivered as recorded in docs/changes/CR-DUP-ADMIN-CARDS-2440.md: one base for the device admin cards, one switch row for the access messaging / policy cards",
+    "task_ids": [
+      "CR-DUP-ADMIN-CARDS-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-DUP-ADMIN-CARDS-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-DUP-METERS-2440-1",
+    "title": "CR-DUP-METERS-2440 - one meters page base and one meter card base for electricity and water",
+    "statement": "Delivered as recorded in docs/changes/CR-DUP-METERS-2440.md: one meters page base and one meter card base for electricity and water",
+    "task_ids": [
+      "CR-DUP-METERS-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-DUP-METERS-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-DUP-NVR-BATCH-2440-1",
+    "title": "CR-DUP-NVR-BATCH-2440 - one shell for the two NVR batch dialogs",
+    "statement": "Delivered as recorded in docs/changes/CR-DUP-NVR-BATCH-2440.md: one shell for the two NVR batch dialogs",
+    "task_ids": [
+      "CR-DUP-NVR-BATCH-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-DUP-NVR-BATCH-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-DUP-TICKETS-VIEWS-2440-1",
+    "title": "CR-DUP-TICKETS-VIEWS-2440 - one base for the requests list page and the manager board",
+    "statement": "Delivered as recorded in docs/changes/CR-DUP-TICKETS-VIEWS-2440.md: one base for the requests list page and the manager board",
+    "task_ids": [
+      "CR-DUP-TICKETS-VIEWS-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-DUP-TICKETS-VIEWS-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-EDITORS-MEMO-2440-1",
+    "title": "CR-EDITORS-MEMO-2440 - schedule editor, automation editor, schedules list, privacy masks, mapping assistant: races and per-render work",
+    "statement": "Delivered as recorded in docs/changes/CR-EDITORS-MEMO-2440.md: schedule editor, automation editor, schedules list, privacy masks, mapping assistant: races and per-render work",
+    "task_ids": [
+      "CR-EDITORS-MEMO-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-EDITORS-MEMO-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-EVENTS-TABLE-2443-1",
+    "title": "CR-EVENTS-TABLE-2443: the review-window table styles its cells; one severity badge mapping",
+    "statement": "Delivered as recorded in docs/changes/CR-EVENTS-TABLE-2443.md: the review-window table styles its cells; one severity badge mapping",
+    "task_ids": [
+      "CR-EVENTS-TABLE-2443"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-EVENTS-TABLE-2443-1"
+    ]
+  },
+  {
+    "id": "R-CR-EXPORTS-HOUSEKEEPING-2440-1",
+    "title": "CR-EXPORTS-HOUSEKEEPING-2440: Code-review batch 16.11, wave 3A (backend). Plan row pilot/CR-EXPORTS-HOUSEKEEPING-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; findings 03:F08, 03:F18, 03:F25 (two texts), 03:F26, 05:P3-06 (TimeoutExpired). Base: ...",
+    "statement": "Delivered as recorded in docs/changes/CR-EXPORTS-HOUSEKEEPING-2440.md: Code-review batch 16.11, wave 3A (backend). Plan row pilot/CR-EXPORTS-HOUSEKEEPING-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; findings 03:F08, 03:F18, 03:F25 (two texts), 03:F26, 05:P3-06 (TimeoutExpired). Base: ...",
+    "task_ids": [
+      "CR-EXPORTS-HOUSEKEEPING-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-EXPORTS-HOUSEKEEPING-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-FE-DEAD-CODE-2442-1",
+    "title": "CR-FE-DEAD-CODE-2442 - frontend dead code and over-exported internals (review wave 3B, step FE-5)",
+    "statement": "Delivered as recorded in docs/changes/CR-FE-DEAD-CODE-2442.md: frontend dead code and over-exported internals (review wave 3B, step FE-5)",
+    "task_ids": [
+      "CR-FE-DEAD-CODE-2442"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-FE-DEAD-CODE-2442-1"
+    ]
+  },
+  {
+    "id": "R-CR-FE-DEAD-CSS-2443-1",
+    "title": "CR-FE-DEAD-CSS-2443 - the dead CSS of 06:DEAD-1 (review wave 3B, step FE-8)",
+    "statement": "Delivered as recorded in docs/changes/CR-FE-DEAD-CSS-2443.md: the dead CSS of 06:DEAD-1 (review wave 3B, step FE-8)",
+    "task_ids": [
+      "CR-FE-DEAD-CSS-2443"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-FE-DEAD-CSS-2443-1"
+    ]
+  },
+  {
+    "id": "R-CR-FE-GATES-ENFORCE-2442-1",
+    "title": "CR-FE-GATES-ENFORCE-2442 - the frontend static checks become blocking (review wave 3B, step FE-6)",
+    "statement": "Delivered as recorded in docs/changes/CR-FE-GATES-ENFORCE-2442.md: the frontend static checks become blocking (review wave 3B, step FE-6)",
+    "task_ids": [
+      "CR-FE-GATES-ENFORCE-2442"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-FE-GATES-ENFORCE-2442-1"
+    ]
+  },
+  {
+    "id": "R-CR-FE-LOGEXPORT-TARIFF-EN-2440-1",
+    "title": "CR-FE-LOGEXPORT-TARIFF-EN-2440 - redacted log export UI and English tariff names (2.44.0 frontend follow-ups)",
+    "statement": "Delivered as recorded in docs/changes/CR-FE-LOGEXPORT-TARIFF-EN-2440.md: redacted log export UI and English tariff names (2.44.0 frontend follow-ups)",
+    "task_ids": [
+      "CR-FE-LOGEXPORT-TARIFF-EN-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-FE-LOGEXPORT-TARIFF-EN-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-FE-NITS-2442-1",
+    "title": "CR-FE-NITS-2442: Code-review batch 16.11, wave 3B, frontend chain step FE-4. Contract: the FE-4 row of private/code-review-2026-11-13/MASTER_PLAN.md section 3.5 (named there pilot/CR-FE-NITS-2436), findings 06:NOOP-1, 06:STORE-1, 06:RTL-1, ...",
+    "statement": "Delivered as recorded in docs/changes/CR-FE-NITS-2442.md: Code-review batch 16.11, wave 3B, frontend chain step FE-4. Contract: the FE-4 row of private/code-review-2026-11-13/MASTER_PLAN.md section 3.5 (named there pilot/CR-FE-NITS-2436), findings 06:NOOP-1, 06:STORE-1, 06:RTL-1, ...",
+    "task_ids": [
+      "CR-FE-NITS-2442"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-FE-NITS-2442-1"
+    ]
+  },
+  {
+    "id": "R-CR-FE-PROMISES-2442-1",
+    "title": "CR-FE-PROMISES-2442 - the 27 baselined ESLint reports are fixed (review wave 3B, step FE-7)",
+    "statement": "Delivered as recorded in docs/changes/CR-FE-PROMISES-2442.md: the 27 baselined ESLint reports are fixed (review wave 3B, step FE-7)",
+    "task_ids": [
+      "CR-FE-PROMISES-2442"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-FE-PROMISES-2442-1"
+    ]
+  },
+  {
+    "id": "R-CR-FE-SMALL-2440-1",
+    "title": "CR-FE-SMALL-2440 - six small frontend / documentation rows for 2.44.0",
+    "statement": "Delivered as recorded in docs/changes/CR-FE-SMALL-2440.md: six small frontend / documentation rows for 2.44.0",
+    "task_ids": [
+      "CR-FE-SMALL-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-FE-SMALL-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-FE-TYPES-2443-1",
+    "title": "CR-FE-TYPES-2443 - ticket files read declared API fields instead of casts",
+    "statement": "Delivered as recorded in docs/changes/CR-FE-TYPES-2443.md: ticket files read declared API fields instead of casts",
+    "task_ids": [
+      "CR-FE-TYPES-2443"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-FE-TYPES-2443-1"
+    ]
+  },
+  {
+    "id": "R-CR-FLOORMAP-STATE-2440-1",
+    "title": "CR-FLOORMAP-STATE-2440 - the live floor map: stale answers, another floor in the same element, small state defects",
+    "statement": "Delivered as recorded in docs/changes/CR-FLOORMAP-STATE-2440.md: the live floor map: stale answers, another floor in the same element, small state defects",
+    "task_ids": [
+      "CR-FLOORMAP-STATE-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-FLOORMAP-STATE-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-FORMAT-2440-1",
+    "title": "CR-FORMAT-2440: Code-review batch 16.11, frontend wave 2. Contract: the pilot/CR-FORMAT-2436 row of private/code-review-2026-11-13/MASTER_PLAN.md (finding 08:F10). Base: origin/release/2437-train (2.43.7 train).",
+    "statement": "Delivered as recorded in docs/changes/CR-FORMAT-2440.md: Code-review batch 16.11, frontend wave 2. Contract: the pilot/CR-FORMAT-2436 row of private/code-review-2026-11-13/MASTER_PLAN.md (finding 08:F10). Base: origin/release/2437-train (2.43.7 train).",
+    "task_ids": [
+      "CR-FORMAT-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-FORMAT-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-G1-HOME-AREA-2440-1",
+    "title": "CR-G1-HOME-AREA-2440 - home and area screens: memoisation, render side effects, shared pieces",
+    "statement": "Delivered as recorded in docs/changes/CR-G1-HOME-AREA-2440.md: home and area screens: memoisation, render side effects, shared pieces",
+    "task_ids": [
+      "CR-G1-HOME-AREA-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-G1-HOME-AREA-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-GLASS-HELPER-2442-1",
+    "title": "CR-GLASS-HELPER-2442: Code-review batch 16.11, wave 3B, frontend chain step FE-2. Contract: the FE-2 row of private/code-review-2026-11-13/MASTER_PLAN.md section 3.5 (named there pilot/CR-GLASS-HELPER-2436), finding 08:F13. Base: ...",
+    "statement": "Delivered as recorded in docs/changes/CR-GLASS-HELPER-2442.md: Code-review batch 16.11, wave 3B, frontend chain step FE-2. Contract: the FE-2 row of private/code-review-2026-11-13/MASTER_PLAN.md section 3.5 (named there pilot/CR-GLASS-HELPER-2436), finding 08:F13. Base: ...",
+    "task_ids": [
+      "CR-GLASS-HELPER-2442"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-GLASS-HELPER-2442-1"
+    ]
+  },
+  {
+    "id": "R-CR-GO2RTC-OWNED-2438-1",
+    "title": "CR-GO2RTC-OWNED-2438 - one \"owned streams\" rule for go2rtc",
+    "statement": "Delivered as recorded in docs/changes/CR-GO2RTC-OWNED-2438.md: one \"owned streams\" rule for go2rtc",
+    "task_ids": [
+      "CR-GO2RTC-OWNED-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-GO2RTC-OWNED-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-HA-CLIENT-2438-1",
+    "title": "CR-HA-CLIENT-2438 - kept-alive Home Assistant REST client, one bridge status mapping, no body in bridge errors, two event-loop fixes",
+    "statement": "Delivered as recorded in docs/changes/CR-HA-CLIENT-2438.md: kept-alive Home Assistant REST client, one bridge status mapping, no body in bridge errors, two event-loop fixes",
+    "task_ids": [
+      "CR-HA-CLIENT-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-HA-CLIENT-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-HA-WORDING-2443-1",
+    "title": "CR-HA-WORDING-2443: no platform name outside Settings (guard), console wording, the diagnostics site-location text",
+    "statement": "Delivered as recorded in docs/changes/CR-HA-WORDING-2443.md: no platform name outside Settings (guard), console wording, the diagnostics site-location text",
+    "task_ids": [
+      "CR-HA-WORDING-2443"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-HA-WORDING-2443-1"
+    ]
+  },
+  {
+    "id": "R-CR-HEALTH-POLLERS-2440-1",
+    "title": "CR-HEALTH-POLLERS-2440: Code-review batch 16.11, wave 3A (backend). Plan row pilot/CR-HEALTH-POLLERS-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; findings 03:F11, 03:F13, 03:F14, 03:F21, 03:F25 (cameras text). Base: ...",
+    "statement": "Delivered as recorded in docs/changes/CR-HEALTH-POLLERS-2440.md: Code-review batch 16.11, wave 3A (backend). Plan row pilot/CR-HEALTH-POLLERS-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; findings 03:F11, 03:F13, 03:F14, 03:F21, 03:F25 (cameras text). Base: ...",
+    "task_ids": [
+      "CR-HEALTH-POLLERS-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-HEALTH-POLLERS-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-HOME-LAZY-2440-1",
+    "title": "CR-HOME-LAZY-2440 - the home screen's on-demand parts out of the entry chunk (review 06:BUNDLE-1 home side, 07:F4 d)",
+    "statement": "Delivered as recorded in docs/changes/CR-HOME-LAZY-2440.md: the home screen's on-demand parts out of the entry chunk (review 06:BUNDLE-1 home side, 07:F4 d)",
+    "task_ids": [
+      "CR-HOME-LAZY-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-HOME-LAZY-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-I18N-API-2442-1",
+    "title": "CR-I18N-API-2442 - the texts built in the frontend api layer go through tr()",
+    "statement": "Delivered as recorded in docs/changes/CR-I18N-API-2442.md: the texts built in the frontend api layer go through tr()",
+    "task_ids": [
+      "CR-I18N-API-2442"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-I18N-API-2442-1"
+    ]
+  },
+  {
+    "id": "R-CR-I18N-CAL-ELEC-2441-1",
+    "title": "CR-I18N-CAL-ELEC-2441 - calendars and electricity: the completion pass, a completeness spec and a lint spec",
+    "statement": "Delivered as recorded in docs/changes/CR-I18N-CAL-ELEC-2441.md: calendars and electricity: the completion pass, a completeness spec and a lint spec",
+    "task_ids": [
+      "CR-I18N-CAL-ELEC-2441"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-I18N-CAL-ELEC-2441-1"
+    ]
+  },
+  {
+    "id": "R-CR-I18N-COMBINED-2441-1",
+    "title": "CR-I18N-COMBINED-2441 - all translation work on one branch, one entry check",
+    "statement": "Delivered as recorded in docs/changes/CR-I18N-COMBINED-2441.md: all translation work on one branch, one entry check",
+    "task_ids": [
+      "CR-I18N-COMBINED-2441"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-I18N-COMBINED-2441-1"
+    ]
+  },
+  {
+    "id": "R-CR-I18N-COMBINED-B-2442-1",
+    "title": "CR-I18N-COMBINED-B-2442 - the two -2442 translation branches as one",
+    "statement": "Delivered as recorded in docs/changes/CR-I18N-COMBINED-B-2442.md: the two -2442 translation branches as one",
+    "task_ids": [
+      "CR-I18N-COMBINED-B-2442"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-I18N-COMBINED-B-2442-1"
+    ]
+  },
+  {
+    "id": "R-CR-I18N-COMBINED-C-2442-1",
+    "title": "CR-I18N-COMBINED-C-2442 - durations/units + typed confirmation words, one entry check",
+    "statement": "Delivered as recorded in docs/changes/CR-I18N-COMBINED-C-2442.md: durations/units + typed confirmation words, one entry check",
+    "task_ids": [
+      "CR-I18N-COMBINED-C-2442"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-I18N-COMBINED-C-2442-1"
+    ]
+  },
+  {
+    "id": "R-CR-I18N-CONFIRM-WORDS-2442-1",
+    "title": "CR-I18N-CONFIRM-WORDS-2442 - the typed confirmation words: Hebrew or the fixed English word",
+    "statement": "Delivered as recorded in docs/changes/CR-I18N-CONFIRM-WORDS-2442.md: the typed confirmation words: Hebrew or the fixed English word",
+    "task_ids": [
+      "CR-I18N-CONFIRM-WORDS-2442"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-I18N-CONFIRM-WORDS-2442-1"
+    ]
+  },
+  {
+    "id": "R-CR-I18N-CORE-2441-1",
+    "title": "CR-I18N-CORE-2441 - the shared i18n helper: already on the base; verified, guard tightened",
+    "statement": "Delivered as recorded in docs/changes/CR-I18N-CORE-2441.md: the shared i18n helper: already on the base; verified, guard tightened",
+    "task_ids": [
+      "CR-I18N-CORE-2441"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-I18N-CORE-2441-1"
+    ]
+  },
+  {
+    "id": "R-CR-I18N-DATES-2442-1",
+    "title": "CR-I18N-DATES-2442 - dates, times, numbers and time words follow the interface language",
+    "statement": "Delivered as recorded in docs/changes/CR-I18N-DATES-2442.md: dates, times, numbers and time words follow the interface language",
+    "task_ids": [
+      "CR-I18N-DATES-2442"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-I18N-DATES-2442-1"
+    ]
+  },
+  {
+    "id": "R-CR-I18N-ELECTRICITY-2443-1",
+    "title": "CR-I18N-ELECTRICITY-2443 - electricity: the remainder of the i18n row (08:F11) and the shared customer form (08:F25)",
+    "statement": "Delivered as recorded in docs/changes/CR-I18N-ELECTRICITY-2443.md: electricity: the remainder of the i18n row (08:F11) and the shared customer form (08:F25)",
+    "task_ids": [
+      "CR-I18N-ELECTRICITY-2443"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-I18N-ELECTRICITY-2443-1"
+    ]
+  },
+  {
+    "id": "R-CR-I18N-HOME-2441-1",
+    "title": "CR-I18N-HOME-2441 - the home interface's texts on the shared i18n core",
+    "statement": "Delivered as recorded in docs/changes/CR-I18N-HOME-2441.md: the home interface's texts on the shared i18n core",
+    "task_ids": [
+      "CR-I18N-HOME-2441"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-I18N-HOME-2441-1"
+    ]
+  },
+  {
+    "id": "R-CR-I18N-LAZY-LANG-2443-1",
+    "title": "CR-I18N-LAZY-LANG-2443 - language packs: English / Arabic / Russian load only for a page in that language",
+    "statement": "Delivered as recorded in docs/changes/CR-I18N-LAZY-LANG-2443.md: language packs: English / Arabic / Russian load only for a page in that language",
+    "task_ids": [
+      "CR-I18N-LAZY-LANG-2443"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-I18N-LAZY-LANG-2443-1"
+    ]
+  },
+  {
+    "id": "R-CR-I18N-MAP-WIZARD-2441-1",
+    "title": "CR-I18N-MAP-WIZARD-2441: Two rows of private/code-review-2026-11-13/MASTER_PLAN.md, one commit set each, on one branch:",
+    "statement": "Delivered as recorded in docs/changes/CR-I18N-MAP-WIZARD-2441.md: Two rows of private/code-review-2026-11-13/MASTER_PLAN.md, one commit set each, on one branch:",
+    "task_ids": [
+      "CR-I18N-MAP-WIZARD-2441"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-I18N-MAP-WIZARD-2441-1"
+    ]
+  },
+  {
+    "id": "R-CR-I18N-UNITS-2442-1",
+    "title": "CR-I18N-UNITS-2442 - durations, units and weekday letters follow the interface language",
+    "statement": "Delivered as recorded in docs/changes/CR-I18N-UNITS-2442.md: durations, units and weekday letters follow the interface language",
+    "task_ids": [
+      "CR-I18N-UNITS-2442"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-I18N-UNITS-2442-1"
+    ]
+  },
+  {
+    "id": "R-CR-ICONS-PALETTE-2440-1",
+    "title": "CR-ICONS-PALETTE-2440: Code-review batch 16.11, frontend wave 2. Contract: the pilot/CR-ICONS-PALETTE-2436 row of private/code-review-2026-11-13/MASTER_PLAN.md (D15 = 08:F08 + 07:F22, and 08:F12 step 1). Base: origin/release/2437-train (2.43.7 train).",
+    "statement": "Delivered as recorded in docs/changes/CR-ICONS-PALETTE-2440.md: Code-review batch 16.11, frontend wave 2. Contract: the pilot/CR-ICONS-PALETTE-2436 row of private/code-review-2026-11-13/MASTER_PLAN.md (D15 = 08:F08 + 07:F22, and 08:F12 step 1). Base: origin/release/2437-train (2.43.7 train).",
+    "task_ids": [
+      "CR-ICONS-PALETTE-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-ICONS-PALETTE-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-INITIALS-2443-1",
+    "title": "CR-INITIALS-2443 - one initials rule on every avatar",
+    "statement": "Delivered as recorded in docs/changes/CR-INITIALS-2443.md: one initials rule on every avatar",
+    "task_ids": [
+      "CR-INITIALS-2443"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-INITIALS-2443-1"
+    ]
+  },
+  {
+    "id": "R-CR-INTERCOM-SHARED-2440-1",
+    "title": "CR-INTERCOM-SHARED-2440: Code-review batch 16.11, wave 3A (backend). Plan row pilot/CR-INTERCOM-SHARED-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; findings 02:P2-6 and 02:P3-3 (the listen pump part). Base: origin/pilot/CR-WAVE2-COMBINED-2439 ...",
+    "statement": "Delivered as recorded in docs/changes/CR-INTERCOM-SHARED-2440.md: Code-review batch 16.11, wave 3A (backend). Plan row pilot/CR-INTERCOM-SHARED-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; findings 02:P2-6 and 02:P3-3 (the listen pump part). Base: origin/pilot/CR-WAVE2-COMBINED-2439 ...",
+    "task_ids": [
+      "CR-INTERCOM-SHARED-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-INTERCOM-SHARED-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-INV-EVENTS-2440-1",
+    "title": "CR-INV-EVENTS-2440 - stale answers and push filtering in the event centre, the event page and the case page",
+    "statement": "Delivered as recorded in docs/changes/CR-INV-EVENTS-2440.md: stale answers and push filtering in the event centre, the event page and the case page",
+    "task_ids": [
+      "CR-INV-EVENTS-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-INV-EVENTS-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-INV-PLAYBACK-2440-1",
+    "title": "CR-INV-PLAYBACK-2440 - playback and history map: stale answers, per-tick work, the retry bound",
+    "statement": "Delivered as recorded in docs/changes/CR-INV-PLAYBACK-2440.md: playback and history map: stale answers, per-tick work, the retry bound",
+    "task_ids": [
+      "CR-INV-PLAYBACK-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-INV-PLAYBACK-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-JANITOR-REGISTRY-2438-1",
+    "title": "CR-JANITOR-REGISTRY-2438 - the housekeeping pass as a registry",
+    "statement": "Delivered as recorded in docs/changes/CR-JANITOR-REGISTRY-2438.md: the housekeeping pass as a registry",
+    "task_ids": [
+      "CR-JANITOR-REGISTRY-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-JANITOR-REGISTRY-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-LIVE-SOCKET-CAPS-2440-1",
+    "title": "CR-LIVE-SOCKET-CAPS-2440: Code-review batch 16.11, wave 3A (backend). Plan row pilot/CR-LIVE-SOCKET-CAPS-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; findings 03:F07, 03:F19, 03:F23. Base: origin/pilot/CR-WAVE2-COMBINED-2439 (97080bbc4).",
+    "statement": "Delivered as recorded in docs/changes/CR-LIVE-SOCKET-CAPS-2440.md: Code-review batch 16.11, wave 3A (backend). Plan row pilot/CR-LIVE-SOCKET-CAPS-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; findings 03:F07, 03:F19, 03:F23. Base: origin/pilot/CR-WAVE2-COMBINED-2439 (97080bbc4).",
+    "task_ids": [
+      "CR-LIVE-SOCKET-CAPS-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-LIVE-SOCKET-CAPS-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-LOCAL-ID-SWITCH-2442-1",
+    "title": "CR-LOCAL-ID-SWITCH-2442 - the Arx-users switch on its own tab",
+    "statement": "Delivered as recorded in docs/changes/CR-LOCAL-ID-SWITCH-2442.md: the Arx-users switch on its own tab",
+    "task_ids": [
+      "CR-LOCAL-ID-SWITCH-2442"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-LOCAL-ID-SWITCH-2442-1"
+    ]
+  },
+  {
+    "id": "R-CR-LOCAL-USER-CREATE-2438-1",
+    "title": "CR-LOCAL-USER-CREATE-2438 - Arx users: the create form sends, and the administrator sets the password",
+    "statement": "Delivered as recorded in docs/changes/CR-LOCAL-USER-CREATE-2438.md: Arx users: the create form sends, and the administrator sets the password",
+    "task_ids": [
+      "CR-LOCAL-USER-CREATE-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-LOCAL-USER-CREATE-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-MAIN-ROUTERS-TABLE-2440-1",
+    "title": "CR-MAIN-ROUTERS-TABLE-2440 - the routers as an ordered table, the start-up steps in their own module, a lifespan",
+    "statement": "Delivered as recorded in docs/changes/CR-MAIN-ROUTERS-TABLE-2440.md: the routers as an ordered table, the start-up steps in their own module, a lifespan",
+    "task_ids": [
+      "CR-MAIN-ROUTERS-TABLE-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-MAIN-ROUTERS-TABLE-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-MAIN-RUNTIME-2438-1",
+    "title": "CR-MAIN-RUNTIME-2438 - request path and shutdown safety in main.py",
+    "statement": "Delivered as recorded in docs/changes/CR-MAIN-RUNTIME-2438.md: request path and shutdown safety in main.py",
+    "task_ids": [
+      "CR-MAIN-RUNTIME-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-MAIN-RUNTIME-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-MAP-NUM-PRESS-2440-1",
+    "title": "CR-MAP-NUM-PRESS-2440 - one set of map number helpers, one long-press controller",
+    "statement": "Delivered as recorded in docs/changes/CR-MAP-NUM-PRESS-2440.md: one set of map number helpers, one long-press controller",
+    "task_ids": [
+      "CR-MAP-NUM-PRESS-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-MAP-NUM-PRESS-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-MAP-SHARED-2440-1",
+    "title": "CR-MAP-SHARED-2440 - one definition for the pieces the three floor screens wrote two or three times",
+    "statement": "Delivered as recorded in docs/changes/CR-MAP-SHARED-2440.md: one definition for the pieces the three floor screens wrote two or three times",
+    "task_ids": [
+      "CR-MAP-SHARED-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-MAP-SHARED-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-MODAL-STACK-2441-1",
+    "title": "CR-MODAL-STACK-2441 - one stack for the dialog, the modal drawer and the sheet",
+    "statement": "Delivered as recorded in docs/changes/CR-MODAL-STACK-2441.md: one stack for the dialog, the modal drawer and the sheet",
+    "task_ids": [
+      "CR-MODAL-STACK-2441"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-MODAL-STACK-2441-1"
+    ]
+  },
+  {
+    "id": "R-CR-MODAL-STACK-B-2442-1",
+    "title": "CR-MODAL-STACK-B-2442 - the hand-built dialogs join the shared modal stack",
+    "statement": "Delivered as recorded in docs/changes/CR-MODAL-STACK-B-2442.md: the hand-built dialogs join the shared modal stack",
+    "task_ids": [
+      "CR-MODAL-STACK-B-2442"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-MODAL-STACK-B-2442-1"
+    ]
+  },
+  {
+    "id": "R-CR-MULTIMEDIA-BASE-2440-1",
+    "title": "CR-MULTIMEDIA-BASE-2440 - one base for the three multimedia screens",
+    "statement": "Delivered as recorded in docs/changes/CR-MULTIMEDIA-BASE-2440.md: one base for the three multimedia screens",
+    "task_ids": [
+      "CR-MULTIMEDIA-BASE-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-MULTIMEDIA-BASE-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-NOSCROLL-LISTS-2443-1",
+    "title": "CR-NOSCROLL-LISTS-2443: measure the scroll candidates first; page the one that still overflows (the maintenance reminder log)",
+    "statement": "Delivered as recorded in docs/changes/CR-NOSCROLL-LISTS-2443.md: measure the scroll candidates first; page the one that still overflows (the maintenance reminder log)",
+    "task_ids": [
+      "CR-NOSCROLL-LISTS-2443"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-NOSCROLL-LISTS-2443-1"
+    ]
+  },
+  {
+    "id": "R-CR-NVR-GUARD-2438-1",
+    "title": "CR-NVR-GUARD-2438 - one guard for the recorder's \"allow settings changes\" switch",
+    "statement": "Delivered as recorded in docs/changes/CR-NVR-GUARD-2438.md: one guard for the recorder's \"allow settings changes\" switch",
+    "task_ids": [
+      "CR-NVR-GUARD-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-NVR-GUARD-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-PATH-CONFINE-2438-1",
+    "title": "CR-PATH-CONFINE-2438 - one containment rule, one folder per stored file column",
+    "statement": "Delivered as recorded in docs/changes/CR-PATH-CONFINE-2438.md: one containment rule, one folder per stored file column",
+    "task_ids": [
+      "CR-PATH-CONFINE-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-PATH-CONFINE-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-PDF-CHILD-2440-1",
+    "title": "CR-PDF-CHILD-2440: Code-review batch 16.11, wave 3A (backend). Plan row pilot/CR-PDF-CHILD-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; finding 04:F11. Base: origin/pilot/CR-WAVE2-COMBINED-2439 (97080bbc4).",
+    "statement": "Delivered as recorded in docs/changes/CR-PDF-CHILD-2440.md: Code-review batch 16.11, wave 3A (backend). Plan row pilot/CR-PDF-CHILD-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; finding 04:F11. Base: origin/pilot/CR-WAVE2-COMBINED-2439 (97080bbc4).",
+    "task_ids": [
+      "CR-PDF-CHILD-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-PDF-CHILD-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-PERSON-PROJECTION-2440-1",
+    "title": "CR-PERSON-PROJECTION-2440: Code-review batch 16.11, wave 3A (backend). Plan row pilot/CR-PERSON-PROJECTION-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; finding 02:P2-7. Base: origin/pilot/CR-WAVE2-COMBINED-2439 (4e52e5e4a). Risk in the plan: ...",
+    "statement": "Delivered as recorded in docs/changes/CR-PERSON-PROJECTION-2440.md: Code-review batch 16.11, wave 3A (backend). Plan row pilot/CR-PERSON-PROJECTION-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; finding 02:P2-7. Base: origin/pilot/CR-WAVE2-COMBINED-2439 (4e52e5e4a). Risk in the plan: ...",
+    "task_ids": [
+      "CR-PERSON-PROJECTION-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-PERSON-PROJECTION-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-PLAN-CANVAS-DRAG-2440-1",
+    "title": "CR-PLAN-CANVAS-DRAG-2440 - one pointer-drag session for the plan canvas; a cancelled drag no longer commits",
+    "statement": "Delivered as recorded in docs/changes/CR-PLAN-CANVAS-DRAG-2440.md: one pointer-drag session for the plan canvas; a cancelled drag no longer commits",
+    "task_ids": [
+      "CR-PLAN-CANVAS-DRAG-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-PLAN-CANVAS-DRAG-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-POLL-FEATURES-2439-1",
+    "title": "CR-POLL-FEATURES-2439 - the feature modules' hand-rolled polls moved onto the shared PollController",
+    "statement": "Delivered as recorded in docs/changes/CR-POLL-FEATURES-2439.md: the feature modules' hand-rolled polls moved onto the shared PollController",
+    "task_ids": [
+      "CR-POLL-FEATURES-2439"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-POLL-FEATURES-2439-1"
+    ]
+  },
+  {
+    "id": "R-CR-POLL-SCREENS-B-2440-1",
+    "title": "CR-POLL-SCREENS-B-2440 - the shared poll for the screens AUDIT30 held, the wall's timer leak, the alarm's read order",
+    "statement": "Delivered as recorded in docs/changes/CR-POLL-SCREENS-B-2440.md: the shared poll for the screens AUDIT30 held, the wall's timer leak, the alarm's read order",
+    "task_ids": [
+      "CR-POLL-SCREENS-B-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-POLL-SCREENS-B-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-PUBLIC-FRAME-2440-1",
+    "title": "CR-PUBLIC-FRAME-2440 - one page frame for the public ticket page and the public RFQ page (review 08:F16)",
+    "statement": "Delivered as recorded in docs/changes/CR-PUBLIC-FRAME-2440.md: one page frame for the public ticket page and the public RFQ page (review 08:F16)",
+    "task_ids": [
+      "CR-PUBLIC-FRAME-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-PUBLIC-FRAME-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-PYFLAKES-ENFORCE-2442-1",
+    "title": "CR-PYFLAKES-ENFORCE-2442 - backend pyflakes findings cleared, the ruff lane becomes blocking (chain step BE-3)",
+    "statement": "Delivered as recorded in docs/changes/CR-PYFLAKES-ENFORCE-2442.md: backend pyflakes findings cleared, the ruff lane becomes blocking (chain step BE-3)",
+    "task_ids": [
+      "CR-PYFLAKES-ENFORCE-2442"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-PYFLAKES-ENFORCE-2442-1"
+    ]
+  },
+  {
+    "id": "R-CR-RBAC-EVAL-2438-1",
+    "title": "CR-RBAC-EVAL-2438 - deleted places grant nothing; one \"active user\"; the single-signer award",
+    "statement": "Delivered as recorded in docs/changes/CR-RBAC-EVAL-2438.md: deleted places grant nothing; one \"active user\"; the single-signer award",
+    "task_ids": [
+      "CR-RBAC-EVAL-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-RBAC-EVAL-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-READCONN-B-2440-1",
+    "title": "CR-READCONN-B-2440 - the rest of the GET routes off the write lock",
+    "statement": "Delivered as recorded in docs/changes/CR-READCONN-B-2440.md: the rest of the GET routes off the write lock",
+    "task_ids": [
+      "CR-READCONN-B-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-READCONN-B-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-REDACT-2440-1",
+    "title": "CR-REDACT-2440 - one home for the redaction helpers",
+    "statement": "Delivered as recorded in docs/changes/CR-REDACT-2440.md: one home for the redaction helpers",
+    "task_ids": [
+      "CR-REDACT-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-REDACT-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-ROUTER-COMMON-2438-1",
+    "title": "CR-ROUTER-COMMON-2438 - one copy of the router request helpers (routers/_common.py)",
+    "statement": "Delivered as recorded in docs/changes/CR-ROUTER-COMMON-2438.md: one copy of the router request helpers (routers/_common.py)",
+    "task_ids": [
+      "CR-ROUTER-COMMON-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-ROUTER-COMMON-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-ROUTER-COMMON-TAIL-2442-1",
+    "title": "CR-ROUTER-COMMON-TAIL-2442 - the routers wave 2 skipped take the shared request helpers; the last one-key setting readers; the held GET routes",
+    "statement": "Delivered as recorded in docs/changes/CR-ROUTER-COMMON-TAIL-2442.md: the routers wave 2 skipped take the shared request helpers; the last one-key setting readers; the held GET routes",
+    "task_ids": [
+      "CR-ROUTER-COMMON-TAIL-2442"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-ROUTER-COMMON-TAIL-2442-1"
+    ]
+  },
+  {
+    "id": "R-CR-SCHEMA-PROBES-2440-1",
+    "title": "CR-SCHEMA-PROBES-2440 - run-time schema probes outside tickets move to the cached helper",
+    "statement": "Delivered as recorded in docs/changes/CR-SCHEMA-PROBES-2440.md: run-time schema probes outside tickets move to the cached helper",
+    "task_ids": [
+      "CR-SCHEMA-PROBES-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-SCHEMA-PROBES-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-SECRET-FILES-2438-1",
+    "title": "CR-SECRET-FILES-2438 - one write sequence for every secret file",
+    "statement": "Delivered as recorded in docs/changes/CR-SECRET-FILES-2438.md: one write sequence for every secret file",
+    "task_ids": [
+      "CR-SECRET-FILES-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-SECRET-FILES-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-SENDER-WORKER-2440-1",
+    "title": "CR-SENDER-WORKER-2440: Code-review batch 16.11, wave 3A (backend). Plan row pilot/CR-SENDER-WORKER-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; findings 04:F10 and 04:F27 (these files). Base: origin/pilot/CR-WAVE2-COMBINED-2439 (97080bbc4). ...",
+    "statement": "Delivered as recorded in docs/changes/CR-SENDER-WORKER-2440.md: Code-review batch 16.11, wave 3A (backend). Plan row pilot/CR-SENDER-WORKER-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; findings 04:F10 and 04:F27 (these files). Base: origin/pilot/CR-WAVE2-COMBINED-2439 (97080bbc4). ...",
+    "task_ids": [
+      "CR-SENDER-WORKER-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-SENDER-WORKER-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-SESSION-CACHE-2438-1",
+    "title": "CR-SESSION-CACHE-2438 - one session cache for the local and app stores, revoked keys refused by a late put, lease-hook failures logged",
+    "statement": "Delivered as recorded in docs/changes/CR-SESSION-CACHE-2438.md: one session cache for the local and app stores, revoked keys refused by a late put, lease-hook failures logged",
+    "task_ids": [
+      "CR-SESSION-CACHE-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-SESSION-CACHE-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-SETTING-CALLERS-2440-1",
+    "title": "CR-SETTING-CALLERS-2440 - one-key readers use setting_value; the alert listener keeps the zone for 5 s",
+    "statement": "Delivered as recorded in docs/changes/CR-SETTING-CALLERS-2440.md: one-key readers use setting_value; the alert listener keeps the zone for 5 s",
+    "task_ids": [
+      "CR-SETTING-CALLERS-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-SETTING-CALLERS-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-SETTINGS-PATCH-A-2440-1",
+    "title": "CR-SETTINGS-PATCH-A-2440 - PATCH /settings checks move to routers/settings_patch (first half)",
+    "statement": "Delivered as recorded in docs/changes/CR-SETTINGS-PATCH-A-2440.md: PATCH /settings checks move to routers/settings_patch (first half)",
+    "task_ids": [
+      "CR-SETTINGS-PATCH-A-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-SETTINGS-PATCH-A-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-SETTINGS-PATCH-B-2440-1",
+    "title": "CR-SETTINGS-PATCH-B-2440 - the rest of PATCH /settings runs from routers/settings_patch (second half)",
+    "statement": "Delivered as recorded in docs/changes/CR-SETTINGS-PATCH-B-2440.md: the rest of PATCH /settings runs from routers/settings_patch (second half)",
+    "task_ids": [
+      "CR-SETTINGS-PATCH-B-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-SETTINGS-PATCH-B-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-SHELL-EXTRACT-2440-1",
+    "title": "CR-SHELL-EXTRACT-2440 - the shell's notification wiring as a controller; router.ts comment",
+    "statement": "Delivered as recorded in docs/changes/CR-SHELL-EXTRACT-2440.md: the shell's notification wiring as a controller; router.ts comment",
+    "task_ids": [
+      "CR-SHELL-EXTRACT-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-SHELL-EXTRACT-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-SHELL-TIMERS-2439-1",
+    "title": "CR-SHELL-TIMERS-2439 - the shell's timers and the component polls under one rule",
+    "statement": "Delivered as recorded in docs/changes/CR-SHELL-TIMERS-2439.md: the shell's timers and the component polls under one rule",
+    "task_ids": [
+      "CR-SHELL-TIMERS-2439"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-SHELL-TIMERS-2439-1"
+    ]
+  },
+  {
+    "id": "R-CR-SOCKETS-2439-1",
+    "title": "CR-SOCKETS-2439 - the remaining hand-written sockets on the shared reconnecting socket",
+    "statement": "Delivered as recorded in docs/changes/CR-SOCKETS-2439.md: the remaining hand-written sockets on the shared reconnecting socket",
+    "task_ids": [
+      "CR-SOCKETS-2439"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-SOCKETS-2439-1"
+    ]
+  },
+  {
+    "id": "R-CR-SPLIT-ACCESS-2440-1",
+    "title": "CR-SPLIT-ACCESS-2440 - routers/access.py split: a service module and five route modules",
+    "statement": "Delivered as recorded in docs/changes/CR-SPLIT-ACCESS-2440.md: routers/access.py split: a service module and five route modules",
+    "task_ids": [
+      "CR-SPLIT-ACCESS-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-SPLIT-ACCESS-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-SPLIT-ACCESS-CONTROL-2440-1",
+    "title": "CR-SPLIT-ACCESS-CONTROL-2440 - routers/access_control.py split along its section comments",
+    "statement": "Delivered as recorded in docs/changes/CR-SPLIT-ACCESS-CONTROL-2440.md: routers/access_control.py split along its section comments",
+    "task_ids": [
+      "CR-SPLIT-ACCESS-CONTROL-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-SPLIT-ACCESS-CONTROL-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-SPLIT-TICKETS-ADMIN-2440-1",
+    "title": "CR-SPLIT-TICKETS-ADMIN-2440 - routers/tickets_admin.py split along its section comments",
+    "statement": "Delivered as recorded in docs/changes/CR-SPLIT-TICKETS-ADMIN-2440.md: routers/tickets_admin.py split along its section comments",
+    "task_ids": [
+      "CR-SPLIT-TICKETS-ADMIN-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-SPLIT-TICKETS-ADMIN-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-STRUCT-CSS-SPLIT-2442-1",
+    "title": "CR-STRUCT-CSS-SPLIT-2442: Code-review batch 16.11, wave 3B, frontend chain step FE-3. Contract: the FE-3 row of private/code-review-2026-11-13/MASTER_PLAN.md section 3.5 (named there pilot/CR-STRUCT-CSS-SPLIT-2436), finding 06:STRUCT-1 step 1. Base: ...",
+    "statement": "Delivered as recorded in docs/changes/CR-STRUCT-CSS-SPLIT-2442.md: Code-review batch 16.11, wave 3B, frontend chain step FE-3. Contract: the FE-3 row of private/code-review-2026-11-13/MASTER_PLAN.md section 3.5 (named there pilot/CR-STRUCT-CSS-SPLIT-2436), finding 06:STRUCT-1 step 1. Base: ...",
+    "task_ids": [
+      "CR-STRUCT-CSS-SPLIT-2442"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-STRUCT-CSS-SPLIT-2442-1"
+    ]
+  },
+  {
+    "id": "R-CR-SYNC-GATE-2438-1",
+    "title": "CR-SYNC-GATE-2438 - the write-gate wait leaves the shared thread pool",
+    "statement": "Delivered as recorded in docs/changes/CR-SYNC-GATE-2438.md: the write-gate wait leaves the shared thread pool",
+    "task_ids": [
+      "CR-SYNC-GATE-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-SYNC-GATE-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-TEST-SUPPORT-2440-1",
+    "title": "CR-TEST-SUPPORT-2440 - shared test helpers, one per-test reset, clock tests without sleeps",
+    "statement": "Delivered as recorded in docs/changes/CR-TEST-SUPPORT-2440.md: shared test helpers, one per-test reset, clock tests without sleeps",
+    "task_ids": [
+      "CR-TEST-SUPPORT-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-TEST-SUPPORT-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-TIMEUTIL-2438-1",
+    "title": "CR-TIMEUTIL-2438 - one home for the UTC ISO text and the installation's time zone",
+    "statement": "Delivered as recorded in docs/changes/CR-TIMEUTIL-2438.md: one home for the UTC ISO text and the installation's time zone",
+    "task_ids": [
+      "CR-TIMEUTIL-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-TIMEUTIL-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-TK-CATALOGUE-2440-1",
+    "title": "CR-TK-CATALOGUE-2440 - one implementation of the tickets text catalogues (review 08:F07)",
+    "statement": "Delivered as recorded in docs/changes/CR-TK-CATALOGUE-2440.md: one implementation of the tickets text catalogues (review 08:F07)",
+    "task_ids": [
+      "CR-TK-CATALOGUE-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-TK-CATALOGUE-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-TK-EXCEPT-LOG-2440-1",
+    "title": "CR-TK-EXCEPT-LOG-2440: Code review 2026-11-13, wave 3A backend. Finding 01:F-11 (broad handlers that return a default without logging). Plan row: pilot/CR-TK-EXCEPT-LOG-2436 in private/code-review-2026-11-13/MASTER_PLAN.md. Base: ...",
+    "statement": "Delivered as recorded in docs/changes/CR-TK-EXCEPT-LOG-2440.md: Code review 2026-11-13, wave 3A backend. Finding 01:F-11 (broad handlers that return a default without logging). Plan row: pilot/CR-TK-EXCEPT-LOG-2436 in private/code-review-2026-11-13/MASTER_PLAN.md. Base: ...",
+    "task_ids": [
+      "CR-TK-EXCEPT-LOG-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-TK-EXCEPT-LOG-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-TK-MONEY-UTILS-2440-1",
+    "title": "CR-TK-MONEY-UTILS-2440: Code review 2026-11-13, wave 3A backend. Finding 01:F-15 (validation and small utilities copied between the money modules). Plan row: pilot/CR-TK-MONEY-UTILS-2436 in private/code-review-2026-11-13/MASTER_PLAN.md. Base: ...",
+    "statement": "Delivered as recorded in docs/changes/CR-TK-MONEY-UTILS-2440.md: Code review 2026-11-13, wave 3A backend. Finding 01:F-15 (validation and small utilities copied between the money modules). Plan row: pilot/CR-TK-MONEY-UTILS-2436 in private/code-review-2026-11-13/MASTER_PLAN.md. Base: ...",
+    "task_ids": [
+      "CR-TK-MONEY-UTILS-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-TK-MONEY-UTILS-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-TK-OUTBOX-FILTER-2440-1",
+    "title": "CR-TK-OUTBOX-FILTER-2440: Code review 2026-11-13, wave 3A backend. Findings 01:F-16 (the outbox filters open rows in Python) and 01:F-22 (the outbox line only). Plan row: pilot/CR-TK-OUTBOX-FILTER-2436 in private/code-review-2026-11-13/MASTER_PLAN.md. ...",
+    "statement": "Delivered as recorded in docs/changes/CR-TK-OUTBOX-FILTER-2440.md: Code review 2026-11-13, wave 3A backend. Findings 01:F-16 (the outbox filters open rows in Python) and 01:F-22 (the outbox line only). Plan row: pilot/CR-TK-OUTBOX-FILTER-2436 in private/code-review-2026-11-13/MASTER_PLAN.md. ...",
+    "task_ids": [
+      "CR-TK-OUTBOX-FILTER-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-TK-OUTBOX-FILTER-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-TK-ROUTER-COMMON-2438-1",
+    "title": "CR-TK-ROUTER-COMMON-2438 - the tickets routers' shared helpers, batched name reads, one settings read per request, T4 in tickets",
+    "statement": "Delivered as recorded in docs/changes/CR-TK-ROUTER-COMMON-2438.md: the tickets routers' shared helpers, batched name reads, one settings read per request, T4 in tickets",
+    "task_ids": [
+      "CR-TK-ROUTER-COMMON-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-TK-ROUTER-COMMON-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-TK-SQL-2440-1",
+    "title": "CR-TK-SQL-2440: Code review 2026-11-13, wave 3A backend. Findings 01:F-14 (store-layer helpers and query builders copied) and 01:F-10 (run-time schema probes and \"old database\" shims). Plan row: pilot/CR-TK-SQL-2436 in ...",
+    "statement": "Delivered as recorded in docs/changes/CR-TK-SQL-2440.md: Code review 2026-11-13, wave 3A backend. Findings 01:F-14 (store-layer helpers and query builders copied) and 01:F-10 (run-time schema probes and \"old database\" shims). Plan row: pilot/CR-TK-SQL-2436 in ...",
+    "task_ids": [
+      "CR-TK-SQL-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-TK-SQL-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-TK-TIMEUTIL-2438-1",
+    "title": "CR-TK-TIMEUTIL-2438 - one module for the tickets time helpers",
+    "statement": "Delivered as recorded in docs/changes/CR-TK-TIMEUTIL-2438.md: one module for the tickets time helpers",
+    "task_ids": [
+      "CR-TK-TIMEUTIL-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-TK-TIMEUTIL-2438-1"
+    ]
+  },
+  {
+    "id": "R-CR-TOKENS-UNDEFINED-2443-1",
+    "title": "CR-TOKENS-UNDEFINED-2443 - no var(--sw-*) names an undefined property; one keyboard row in investigate-search",
+    "statement": "Delivered as recorded in docs/changes/CR-TOKENS-UNDEFINED-2443.md: no var(--sw-*) names an undefined property; one keyboard row in investigate-search",
+    "task_ids": [
+      "CR-TOKENS-UNDEFINED-2443"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-TOKENS-UNDEFINED-2443-1"
+    ]
+  },
+  {
+    "id": "R-CR-TSCONFIG-SPLIT-2443-1",
+    "title": "CR-TSCONFIG-SPLIT-2443 - the type check is split into three programs, the gate runs all of them",
+    "statement": "Delivered as recorded in docs/changes/CR-TSCONFIG-SPLIT-2443.md: the type check is split into three programs, the gate runs all of them",
+    "task_ids": [
+      "CR-TSCONFIG-SPLIT-2443"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-TSCONFIG-SPLIT-2443-1"
+    ]
+  },
+  {
+    "id": "R-CR-TV-FONTS-ESCAPE-2443-1",
+    "title": "CR-TV-FONTS-ESCAPE-2443 - TV board: escape every feed value (08:F05), lobby fonts per style family (08:F04)",
+    "statement": "Delivered as recorded in docs/changes/CR-TV-FONTS-ESCAPE-2443.md: TV board: escape every feed value (08:F05), lobby fonts per style family (08:F04)",
+    "task_ids": [
+      "CR-TV-FONTS-ESCAPE-2443"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-TV-FONTS-ESCAPE-2443-1"
+    ]
+  },
+  {
+    "id": "R-CR-UI-CONTROLLERS-2440-1",
+    "title": "CR-UI-CONTROLLERS-2440: Code-review batch 16.11, frontend wave 2. Contract: the pilot/CR-UI-CONTROLLERS-2436 row of private/code-review-2026-11-13/MASTER_PLAN.md (findings 07:F12 controller, helper of D12, component half of D14 / 07:F17). Base: ...",
+    "statement": "Delivered as recorded in docs/changes/CR-UI-CONTROLLERS-2440.md: Code-review batch 16.11, frontend wave 2. Contract: the pilot/CR-UI-CONTROLLERS-2436 row of private/code-review-2026-11-13/MASTER_PLAN.md (findings 07:F12 controller, helper of D12, component half of D14 / 07:F17). Base: ...",
+    "task_ids": [
+      "CR-UI-CONTROLLERS-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-UI-CONTROLLERS-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-UI-POLISH-2443-1",
+    "title": "CR-UI-POLISH-2443 - three small UI polish items for 2.43.9",
+    "statement": "Delivered as recorded in docs/changes/CR-UI-POLISH-2443.md: three small UI polish items for 2.43.9",
+    "task_ids": [
+      "CR-UI-POLISH-2443"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-UI-POLISH-2443-1"
+    ]
+  },
+  {
+    "id": "R-CR-W2-FOLLOWUPS-2441-1",
+    "title": "CR-W2-FOLLOWUPS-2441 - the backend follow-ups of code-review wave 2",
+    "statement": "Delivered as recorded in docs/changes/CR-W2-FOLLOWUPS-2441.md: the backend follow-ups of code-review wave 2",
+    "task_ids": [
+      "CR-W2-FOLLOWUPS-2441"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-W2-FOLLOWUPS-2441-1"
+    ]
+  },
+  {
+    "id": "R-CR-W3-BE-COMBINED-2441-1",
+    "title": "CR-W3-BE-COMBINED-2441 - the wave-3A backend code-review branches in one branch, one entry check",
+    "statement": "Delivered as recorded in docs/changes/CR-W3-BE-COMBINED-2441.md: the wave-3A backend code-review branches in one branch, one entry check",
+    "task_ids": [
+      "CR-W3-BE-COMBINED-2441"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-W3-BE-COMBINED-2441-1"
+    ]
+  },
+  {
+    "id": "R-CR-W3-FE-COMBINED-2441-1",
+    "title": "CR-W3-FE-COMBINED-2441 - the frontend side of the code-review batch -2440 on one branch",
+    "statement": "Delivered as recorded in docs/changes/CR-W3-FE-COMBINED-2441.md: the frontend side of the code-review batch -2440 on one branch",
+    "task_ids": [
+      "CR-W3-FE-COMBINED-2441"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-W3-FE-COMBINED-2441-1"
+    ]
+  },
+  {
+    "id": "R-CR-W3B-BE-COMBINED-2443-1",
+    "title": "CR-W3B-BE-COMBINED-2443 - the wave-3B backend chain (BE-1..BE-4) on the 2.43.8 train, for 2.43.9",
+    "statement": "Delivered as recorded in docs/changes/CR-W3B-BE-COMBINED-2443.md: the wave-3B backend chain (BE-1..BE-4) on the 2.43.8 train, for 2.43.9",
+    "task_ids": [
+      "CR-W3B-BE-COMBINED-2443"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-W3B-BE-COMBINED-2443-1"
+    ]
+  },
+  {
+    "id": "R-CR-W3B-FE-COMBINED-2443-1",
+    "title": "CR-W3B-FE-COMBINED-2443 - the wave 3B frontend chain on the 2.43.8 train",
+    "statement": "Delivered as recorded in docs/changes/CR-W3B-FE-COMBINED-2443.md: the wave 3B frontend chain on the 2.43.8 train",
+    "task_ids": [
+      "CR-W3B-FE-COMBINED-2443"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-W3B-FE-COMBINED-2443-1"
+    ]
+  },
+  {
+    "id": "R-CR-WATER-CUSTOMER-FORM-2440-1",
+    "title": "CR-WATER-CUSTOMER-FORM-2440 - one customer form for the water and the electricity customer cards",
+    "statement": "Delivered as recorded in docs/changes/CR-WATER-CUSTOMER-FORM-2440.md: one customer form for the water and the electricity customer cards",
+    "task_ids": [
+      "CR-WATER-CUSTOMER-FORM-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-WATER-CUSTOMER-FORM-2440-1"
+    ]
+  },
+  {
+    "id": "R-CR-WAVE2-COMBINED-2439-1",
+    "title": "CR-WAVE2-COMBINED-2439 - the wave-2 code-review branches in one branch, one entry check",
+    "statement": "Delivered as recorded in docs/changes/CR-WAVE2-COMBINED-2439.md: the wave-2 code-review branches in one branch, one entry check",
+    "task_ids": [
+      "CR-WAVE2-COMBINED-2439"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-WAVE2-COMBINED-2439-1"
+    ]
+  },
+  {
+    "id": "R-CR-WISKEY-NOTIF-2443-1",
+    "title": "CR-WISKEY-NOTIF-2443 - people screen subscription, lookups and poll; notification settings section guard and mail draft",
+    "statement": "Delivered as recorded in docs/changes/CR-WISKEY-NOTIF-2443.md: people screen subscription, lookups and poll; notification settings section guard and mail draft",
+    "task_ids": [
+      "CR-WISKEY-NOTIF-2443"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-WISKEY-NOTIF-2443-1"
+    ]
+  },
+  {
+    "id": "R-CR-WK-LIMITS-2438-1",
+    "title": "CR-WK-LIMITS-2438 - one shared class for the WisKey command limits, one answer reader",
+    "statement": "Delivered as recorded in docs/changes/CR-WK-LIMITS-2438.md: one shared class for the WisKey command limits, one answer reader",
+    "task_ids": [
+      "CR-WK-LIMITS-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-WK-LIMITS-2438-1"
+    ]
+  },
+  {
+    "id": "R-DESIGN-RULEBOOK-2438-1",
+    "title": "DESIGN-RULEBOOK-2438 - the authoritative design rulebook (documentation only)",
+    "statement": "Delivered as recorded in docs/changes/DESIGN-RULEBOOK-2438.md: the authoritative design rulebook (documentation only)",
+    "task_ids": [
+      "DESIGN-RULEBOOK-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-DESIGN-RULEBOOK-2438-1"
+    ]
+  },
+  {
+    "id": "R-DIALOG-DRAWER-ONE-2439-1",
+    "title": "DIALOG-DRAWER-ONE-2439 - one opaque dialog and one opaque drawer for the whole system",
+    "statement": "Delivered as recorded in docs/changes/DIALOG-DRAWER-ONE-2439.md: one opaque dialog and one opaque drawer for the whole system",
+    "task_ids": [
+      "DIALOG-DRAWER-ONE-2439"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-DIALOG-DRAWER-ONE-2439-1"
+    ]
+  },
+  {
+    "id": "R-DOMUS-DEFAULT-2439-1",
+    "title": "DOMUS-DEFAULT-2439 - Domus is the default skin; the selected chip is the strengthened light blue",
+    "statement": "Delivered as recorded in docs/changes/DOMUS-DEFAULT-2439.md: Domus is the default skin; the selected chip is the strengthened light blue",
+    "task_ids": [
+      "DOMUS-DEFAULT-2439"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-DOMUS-DEFAULT-2439-1"
+    ]
+  },
+  {
+    "id": "R-FE-WAVE2-COMBINED-2440-1",
+    "title": "FE-WAVE2-COMBINED-2440 - paging setting + frontend batch A, one combined entry check",
+    "statement": "Delivered as recorded in docs/changes/FE-WAVE2-COMBINED-2440.md: paging setting + frontend batch A, one combined entry check",
+    "task_ids": [
+      "FE-WAVE2-COMBINED-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FE-WAVE2-COMBINED-2440-1"
+    ]
+  },
+  {
+    "id": "R-FIX-2438-REDS-1",
+    "title": "FIX-2438-REDS: the two RED entry checks of 18.11 (LOCAL-USER-CREATE e26f001ec, DOMUS-DEFAULT 2771a0b90)",
+    "statement": "Delivered as recorded in docs/changes/FIX-2438-REDS.md: the two RED entry checks of 18.11 (LOCAL-USER-CREATE e26f001ec, DOMUS-DEFAULT 2771a0b90)",
+    "task_ids": [
+      "FIX-2438-REDS"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-2438-REDS-1"
+    ]
+  },
+  {
+    "id": "R-FIX-CAMVF-FLAKE-2443-1",
+    "title": "FIX-CAMVF-FLAKE-2443 - the live camera's shutter answers at once; the camera evidence spec fits its budget under load",
+    "statement": "Delivered as recorded in docs/changes/FIX-CAMVF-FLAKE-2443.md: the live camera's shutter answers at once; the camera evidence spec fits its budget under load",
+    "task_ids": [
+      "FIX-CAMVF-FLAKE-2443"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-CAMVF-FLAKE-2443-1"
+    ]
+  },
+  {
+    "id": "R-FIX-FLAKY-POLISH-WORKSTCASE-2439-1",
+    "title": "FIX-FLAKY-POLISH-WORSTCASE-2439 - two specs that were FLAKY in both 2.43.8 release gates",
+    "statement": "Delivered as recorded in docs/changes/FIX-FLAKY-POLISH-WORKSTCASE-2439.md: FIX-FLAKY-POLISH-WORSTCASE-2439 - two specs that were FLAKY in both 2.43.8 release gates",
+    "task_ids": [
+      "FIX-FLAKY-POLISH-WORKSTCASE-2439"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-FLAKY-POLISH-WORKSTCASE-2439-1"
+    ]
+  },
+  {
+    "id": "R-FIX-UNIT-PAGES-CONFIG-2440-1",
+    "title": "FIX-UNIT-PAGES-CONFIG-2440 - the unit config recognises baseURL-relative page specs",
+    "statement": "Delivered as recorded in docs/changes/FIX-UNIT-PAGES-CONFIG-2440.md: the unit config recognises baseURL-relative page specs",
+    "task_ids": [
+      "FIX-UNIT-PAGES-CONFIG-2440"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-UNIT-PAGES-CONFIG-2440-1"
+    ]
+  },
+  {
+    "id": "R-FLAKY-S12-FIX-2441-1",
+    "title": "FLAKY-S12-FIX-2441 - the cause of the flaky phone pixels of CR-036 S12",
+    "statement": "Delivered as recorded in docs/changes/FLAKY-S12-FIX-2441.md: the cause of the flaky phone pixels of CR-036 S12",
+    "task_ids": [
+      "FLAKY-S12-FIX-2441"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FLAKY-S12-FIX-2441-1"
+    ]
+  },
+  {
+    "id": "R-I18N-EN-SWITCH-2438-1",
+    "title": "I18N-EN-SWITCH-2438 - English interface and the Hebrew / English switch",
+    "statement": "Delivered as recorded in docs/changes/I18N-EN-SWITCH-2438.md: English interface and the Hebrew / English switch",
+    "task_ids": [
+      "I18N-EN-SWITCH-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-I18N-EN-SWITCH-2438-1"
+    ]
+  },
+  {
+    "id": "R-OWNER-R32-BACKEND-2438-1",
+    "title": "OWNER-R32-BACKEND-2438 - owner round 32 backend decisions: generator alert roles (O1 a), RTSP passwords in the go2rtc log (Q-SEC-2), go-live permit texts (O9 a)",
+    "statement": "Delivered as recorded in docs/changes/OWNER-R32-BACKEND-2438.md: owner round 32 backend decisions: generator alert roles (O1 a), RTSP passwords in the go2rtc log (Q-SEC-2), go-live permit texts (O9 a)",
+    "task_ids": [
+      "OWNER-R32-BACKEND-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-OWNER-R32-BACKEND-2438-1"
+    ]
+  },
+  {
+    "id": "R-PAGING-SETTING-2439-1",
+    "title": "PAGING-SETTING-2439: the long-lists setting, one paging helper, the remaining scrolling lists paged",
+    "statement": "Delivered as recorded in docs/changes/PAGING-SETTING-2439.md: the long-lists setting, one paging helper, the remaining scrolling lists paged",
+    "task_ids": [
+      "PAGING-SETTING-2439"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-PAGING-SETTING-2439-1"
+    ]
+  },
+  {
+    "id": "R-PLAN3D-R32-ANSWERS-2438-1",
+    "title": "PLAN3D-R32-ANSWERS-2438 - the 3D map: the owner's round 32 answers (Q-MAP-1 .. Q-MAP-20)",
+    "statement": "Delivered as recorded in docs/changes/PLAN3D-R32-ANSWERS-2438.md: the 3D map: the owner's round 32 answers (Q-MAP-1 .. Q-MAP-20)",
+    "task_ids": [
+      "PLAN3D-R32-ANSWERS-2438"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-PLAN3D-R32-ANSWERS-2438-1"
+    ]
+  },
+  {
+    "id": "R-RELEASE-2438-TRAIN-1",
+    "title": "RELEASE-2438-TRAIN: assembly of the 2.43.8 train (first part - the branches whose entry check is GREEN)",
+    "statement": "Delivered as recorded in docs/changes/RELEASE-2438-TRAIN.md: assembly of the 2.43.8 train (first part - the branches whose entry check is GREEN)",
+    "task_ids": [
+      "RELEASE-2438-TRAIN"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-RELEASE-2438-TRAIN-1"
+    ]
+  },
+  {
+    "id": "R-RELEASE-2439-TRAIN-1",
+    "title": "RELEASE-2439-TRAIN - the 2.43.9 train",
+    "statement": "Delivered as recorded in docs/changes/RELEASE-2439-TRAIN.md: the 2.43.9 train",
+    "task_ids": [
+      "RELEASE-2439-TRAIN"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-RELEASE-2439-TRAIN-1"
+    ]
+  },
+  {
+    "id": "R-TEST-STABLE-2442-1",
+    "title": "TEST-STABLE-2442 - two test-stability fixes (the home calendar near midnight, the intercom cards' pixel wait)",
+    "statement": "Delivered as recorded in docs/changes/TEST-STABLE-2442.md: two test-stability fixes (the home calendar near midnight, the intercom cards' pixel wait)",
+    "task_ids": [
+      "TEST-STABLE-2442"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-TEST-STABLE-2442-1"
+    ]
+  },
+  {
+    "id": "R-RELEASE-2440-TRAIN-1",
+    "title": "RELEASE-2440-TRAIN - the 2.44.0 train (nine branches) and its release gate",
+    "statement": "The 2.44.0 train on release/2440-train (shell controller, home/area, toasts and switches, redacted log export, English tariff names, water customer form and the rest) passes ONE release gate with targeted re-runs, then is tagged, pushed and installed in the lab.",
+    "task_ids": [
+      "RELEASE-2440-TRAIN"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-RELEASE-2440-TRAIN-1"
+    ]
+  },
+  {
+    "id": "R-CR-FEED-BASE-2450-1",
+    "title": "HA feed base (code-review 02:P2-5): one base for the Home Assistant state feed consumers",
+    "statement": "HA feed base (code-review 02:P2-5): one base for the Home Assistant state feed consumers: delivered on pilot/CR-FEED-BASE-2450 with a change note docs/changes/CR-FEED-BASE-2450.md, focused tests run and NOT_RUN items recorded, UI baselines refreshed on the runner where pixels move.",
+    "task_ids": [
+      "CR-FEED-BASE-2450"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-FEED-BASE-2450-1"
+    ]
+  },
+  {
+    "id": "R-CR-ROUTER-SQL-2450-1",
+    "title": "SQL out of the remaining routers (code-review programme 3.6)",
+    "statement": "SQL out of the remaining routers (code-review programme 3.6): delivered on pilot/CR-ROUTER-SQL-2450 with a change note docs/changes/CR-ROUTER-SQL-2450.md, focused tests run and NOT_RUN items recorded, UI baselines refreshed on the runner where pixels move.",
+    "task_ids": [
+      "CR-ROUTER-SQL-2450"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-ROUTER-SQL-2450-1"
+    ]
+  },
+  {
+    "id": "R-CR-RESPONSE-MODELS-CONSUMPTION-2450-1",
+    "title": "Response models and the generated client consumption (code-review 07:F8 step 2)",
+    "statement": "Response models and the generated client consumption (code-review 07:F8 step 2): delivered on pilot/CR-RESPONSE-MODELS-CONSUMPTION-2450 with a change note docs/changes/CR-RESPONSE-MODELS-CONSUMPTION-2450.md, focused tests run and NOT_RUN items recorded, UI baselines refreshed on the runner where pixels move.",
+    "task_ids": [
+      "CR-RESPONSE-MODELS-CONSUMPTION-2450"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-RESPONSE-MODELS-CONSUMPTION-2450-1"
+    ]
+  },
+  {
+    "id": "R-CR-SHELL-EXTRACT-B-2450-1",
+    "title": "Shell extraction part B: further controllers out of the shell (sw-app.ts), after CR-SHELL-EXTRACT-2440",
+    "statement": "Shell extraction part B: further controllers out of the shell (sw-app.ts), after CR-SHELL-EXTRACT-2440: delivered on pilot/CR-SHELL-EXTRACT-B-2450 with a change note docs/changes/CR-SHELL-EXTRACT-B-2450.md, focused tests run and NOT_RUN items recorded, UI baselines refreshed on the runner where pixels move.",
+    "task_ids": [
+      "CR-SHELL-EXTRACT-B-2450"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-SHELL-EXTRACT-B-2450-1"
+    ]
+  },
+  {
+    "id": "R-CR-CMP2-SELECTS-2450-1",
+    "title": "CMP-2 step 2, the selects family (O13 a: family by family, new baselines)",
+    "statement": "CMP-2 step 2, the selects family (O13 a: family by family, new baselines): delivered on pilot/CR-CMP2-SELECTS-2450 with a change note docs/changes/CR-CMP2-SELECTS-2450.md, focused tests run and NOT_RUN items recorded, UI baselines refreshed on the runner where pixels move.",
+    "task_ids": [
+      "CR-CMP2-SELECTS-2450"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-CMP2-SELECTS-2450-1"
+    ]
+  },
+  {
+    "id": "R-CR-BE-COMPLEXITY-2450-1",
+    "title": "Backend complexity extractions (code-review programme 3.6)",
+    "statement": "Backend complexity extractions (code-review programme 3.6): delivered on pilot/CR-BE-COMPLEXITY-2450 with a change note docs/changes/CR-BE-COMPLEXITY-2450.md, focused tests run and NOT_RUN items recorded, UI baselines refreshed on the runner where pixels move.",
+    "task_ids": [
+      "CR-BE-COMPLEXITY-2450"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CR-BE-COMPLEXITY-2450-1"
+    ]
+  },
+  {
+    "id": "R-T068-EDGE-2450-1",
+    "title": "T068 edge cases of the soak and load work: disconnects and a full disk",
+    "statement": "T068 edge cases of the soak and load work: disconnects and a full disk: delivered on pilot/T068-EDGE-2450 with a change note docs/changes/T068-EDGE-2450.md, focused tests run and NOT_RUN items recorded, UI baselines refreshed on the runner where pixels move.",
+    "task_ids": [
+      "T068-EDGE-2450"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-T068-EDGE-2450-1"
+    ]
   }
 ]

@@ -1,0 +1,32 @@
+# CR-I18N-MAP-WIZARD-2441 — CR-I18N-MAP-WIZARD-2441: Two rows of private/code-review-2026-11-13/MASTER_PLAN.md, one commit set each, on one branch:
+
+> Generated card. Edit management/tasks.json, then run this script with --write.
+
+**Phase:** V1 | **Priority:** P2 | **Status:** REVIEW
+
+**Owner role:** engineering | **Hardware:** False
+
+**Dependencies:** None
+
+**Chapters:** 
+
+**Screens:** N/A
+
+## Model policy — not a live model switch
+```json
+{
+  "implementation": "balanced",
+  "review": "balanced",
+  "effort": "medium",
+  "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+}
+```
+
+## Acceptance
+- **R-CR-I18N-MAP-WIZARD-2441-1 / AT-CR-I18N-MAP-WIZARD-2441-1:** Delivered as recorded in docs/changes/CR-I18N-MAP-WIZARD-2441.md: Two rows of private/code-review-2026-11-13/MASTER_PLAN.md, one commit set each, on one branch:
+
+## Deliverables
+- Change note docs/changes/CR-I18N-MAP-WIZARD-2441.md and the code it records
+
+## Guardrails
+Read AGENTS.md and the linked master chapters. Inspect legacy code before replacement. No production configuration writes, physical commands, spending, or claims of passing unrun tests. Record commit, environment, commands and evidence.
