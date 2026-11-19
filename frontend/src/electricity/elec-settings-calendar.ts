@@ -159,7 +159,7 @@ export class ElecSettingsCalendar extends ElecBase {
   /** what the day counts as: a manager's select sits in the shared field (sw-field), a viewer reads it */
   private kindCell(x: CalendarDay, edit: boolean) {
     if (!edit) return html`<span>${x.kind_he}</span>`;
-    return html`<sw-field><select aria-label=${tr('סוג היום {date}', { date: fmtDate(x.date) })} data-kind-select=${x.date} ?disabled=${this.busy} @change=${(e: Event) => this.setKind(x, (e.target as HTMLSelectElement).value as CalendarDay['kind'])}>${KINDS.map((k) => html`<option value=${k.id} .selected=${k.id === x.kind}>${k.label}</option>`)}</select></sw-field>`;
+    return html`<sw-field part="field"><select aria-label=${tr('סוג היום {date}', { date: fmtDate(x.date) })} data-kind-select=${x.date} ?disabled=${this.busy} @change=${(e: Event) => this.setKind(x, (e.target as HTMLSelectElement).value as CalendarDay['kind'])}>${KINDS.map((k) => html`<option value=${k.id} .selected=${k.id === x.kind}>${k.label}</option>`)}</select></sw-field>`;
   }
 }
 

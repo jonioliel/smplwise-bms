@@ -613,6 +613,10 @@ export const elecCss = css`
   sw-table.t::part(cell-actions) {
     white-space: nowrap;
   }
+  /* a shared field in a cell (sw-field part="field") keeps the module's control height: 38 px, the touch dial from 1100 px down */
+  sw-table.t::part(field) {
+    --sw-ctl-h-md: max(38px, var(--elec-touch));
+  }
   /* a figure that is wrong (a negative formula result) keeps the danger ink inside the table */
   sw-table.t::part(bad) {
     color: var(--sw-danger-text);
