@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-18T18:32:50.878234+00:00
+Generated: 2026-11-19T07:20:41.053617+00:00
 
-Tasks: 465 | Requirements: 579 | Tests: 596 | Screens: 32
+Tasks: 624 | Requirements: 738 | Tests: 755 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,15 +12,14 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BACKLOG: 9
 - BLOCKED: 23
 - DONE: 208
-- IN_PROGRESS: 5
-- READY: 1
-- REVIEW: 219
+- IN_PROGRESS: 11
+- REVIEW: 373
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 371
+- V1: 530
 - V2: 29
 - V3: 2
 
@@ -84,7 +83,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [T030](tasks/T030.md) | PILOT | REVIEW | מפה היסטורית בסיסית ללא מצבי שווא | T022, T024, T029 |
 | [T031](tasks/T031.md) | PILOT | REVIEW | קליטת אירועים ונרמול | T012, T014 |
 | [T032](tasks/T032.md) | PILOT | REVIEW | Inbox אירועים, פילטרים ו־Ack | T029, T031 |
-| [T033](tasks/T033.md) | PILOT | BACKLOG | מסך Health ודיאגנוסטיקה | T012, T015, T024, T027 |
+| [T033](tasks/T033.md) | PILOT | REVIEW | מסך Health ודיאגנוסטיקה | T012, T015, T024, T027 |
 | [T034](tasks/T034.md) | PILOT | REVIEW | רספונסיביות ו־RTL למסלול הראשי | T018, T022, T025, T029, T032 |
 | [T035](tasks/T035.md) | PILOT | BACKLOG | בדיקות Pilot, ניתוקים ובטיחות | T004, T011, T026, T028, T030, T032, T033, T034, T083 |
 | [T036](tasks/T036.md) | PILOT | BACKLOG | שחרור Pilot עם Rollback | T035 |
@@ -102,7 +101,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [T048](tasks/T048.md) | BETA | REVIEW | ייצוא קטעים כ־Jobs עמידים | T027, T028, T011 |
 | [T049](tasks/T049.md) | BETA | REVIEW | Cases, הערות וסימניות | T032, T048 |
 | [T050](tasks/T050.md) | V1 | REVIEW | חבילת ראיות, Manifest ו־Checksum | T049 |
-| [T051](tasks/T051.md) | BETA | BACKLOG | NVR Storage ותוכנית הקלטה | T012, T013, T033 |
+| [T051](tasks/T051.md) | BETA | REVIEW | NVR Storage ותוכנית הקלטה | T012, T013, T033 |
 | [T052](tasks/T052.md) | BETA | REVIEW | Rules/Alarm builder עם Dry run | T024, T031, T047 |
 | [T053](tasks/T053.md) | BETA | REVIEW | קורלציה דלת–מצלמה–חיישן | T039, T040, T041, T052 |
 | [T054](tasks/T054.md) | V1 | REVIEW | אינטרקום ובקרת כניסה מקושרים | T040, T045, T053 |
@@ -508,12 +507,171 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [CAMERA-STREAM-SOURCES-2410](tasks/CAMERA-STREAM-SOURCES-2410.md) | V1 | REVIEW | Video source per camera and cameras without a recorder (2.41.0) | — |
 | [NVRLESS-CAMERAS-2411](tasks/NVRLESS-CAMERAS-2411.md) | V1 | REVIEW | Camera screens without a recorder, WebRTC server notice, cameras on the floor map (2.41.1) | — |
 | [DISK-CLEANUP-2411](tasks/DISK-CLEANUP-2411.md) | V1 | REVIEW | Workstation disk-cleanup script after a release (dry run first) | — |
-| [SOAK-DBGROWTH-2412](tasks/SOAK-DBGROWTH-2412.md) | V1 | IN_PROGRESS | Soak findings: event facets from per-day counts, write-lock holds off notify.faults and /health | — |
-| [EVIDENCE-CAMERAS-2412](tasks/EVIDENCE-CAMERAS-2412.md) | V1 | IN_PROGRESS | Evidence screenshots for the 2.41.x camera screens (with and without a recorder) | — |
+| [SOAK-DBGROWTH-2412](tasks/SOAK-DBGROWTH-2412.md) | V1 | REVIEW | Soak findings: event facets from per-day counts, write-lock holds off notify.faults and /health | — |
+| [EVIDENCE-CAMERAS-2412](tasks/EVIDENCE-CAMERAS-2412.md) | V1 | REVIEW | Evidence screenshots for the 2.41.x camera screens (with and without a recorder) | — |
 | [LAB-CHECKS-2412](tasks/LAB-CHECKS-2412.md) | V1 | BLOCKED | Owner manual lab checks for the 2.41.0 / 2.41.1 cameras | — |
 | [PRIVATE-REPO-2412](tasks/PRIVATE-REPO-2412.md) | V1 | BLOCKED | Move development to a private repository (public add-on repository kept) | — |
 | [ONVIF-DISCOVERY-2412](tasks/ONVIF-DISCOVERY-2412.md) | V1 | BACKLOG | ONVIF discovery of cameras without a recorder (later) | — |
 | [RECORDED-DAYS-MONTH-2407](tasks/RECORDED-DAYS-MONTH-2407.md) | V1 | REVIEW | Recordings: month view of the days with recordings (legacy monthly calendar parity) | — |
 | [TEST-DEBT-2412](tasks/TEST-DEBT-2412.md) | V1 | REVIEW | Test debt: wall-clock backend tests and the flaky items of the 2.41.0 / 2.41.1 release gates | — |
-| [FLAKY-S12-PIXEL-2412](tasks/FLAKY-S12-PIXEL-2412.md) | V1 | READY | Flaky pixel test: CR-036 S12 phone cards render 15-23 px taller under gate load (quarantined until 2026-11-16) | — |
+| [FLAKY-S12-PIXEL-2412](tasks/FLAKY-S12-PIXEL-2412.md) | V1 | REVIEW | Flaky pixel test: CR-036 S12 phone cards render 15-23 px taller under gate load (quarantined until 2026-11-16) | — |
 | [T120](tasks/T120.md) | V1 | IN_PROGRESS | Home interface (HOME-SIMPLE-2420): a second, simpler room-centred interface next to the full one, per-person interface policy | — |
+| [BACKEND-SAFETY-2435](tasks/BACKEND-SAFETY-2435.md) | V1 | REVIEW | BACKEND-SAFETY-2435 - five P1 backend safety and stability fixes | — |
+| [BACKLOG-HYGIENE-2443](tasks/BACKLOG-HYGIENE-2443.md) | V1 | REVIEW | BACKLOG-HYGIENE-2443 - backlog cleanup after the 2.43.7 triage | — |
+| [CR-A11Y-ROWS-2443](tasks/CR-A11Y-ROWS-2443.md) | V1 | REVIEW | CR-A11Y-ROWS-2443 - keyboard access to clickable rows and cards (screen half of D14) | — |
+| [CR-ACTIVE-USER-REST-2438](tasks/CR-ACTIVE-USER-REST-2438.md) | V1 | REVIEW | CR-ACTIVE-USER-REST-2438 - every per-user "active" check uses the one definition | — |
+| [CR-ADMIN-GATE-2438](tasks/CR-ADMIN-GATE-2438.md) | V1 | REVIEW | CR-ADMIN-GATE-2438 - one administrator gate, one administrator count, the go-live texts, authorize's "active user" | — |
+| [CR-API-PATHS-2439](tasks/CR-API-PATHS-2439.md) | V1 | REVIEW | CR-API-PATHS-2439 - one way to build an API path: path and query in the client | — |
+| [CR-APP-SESSION-CACHE-2443](tasks/CR-APP-SESSION-CACHE-2443.md) | V1 | REVIEW | CR-APP-SESSION-CACHE-2443 - an ended app web session is not cached back; access changes reach it on the next request | — |
+| [CR-BE-DEAD-CODE-2442](tasks/CR-BE-DEAD-CODE-2442.md) | V1 | REVIEW | CR-BE-DEAD-CODE-2442 - backend dead code, closing chain step BE-2: re-verification, two leftovers removed, markers | — |
+| [CR-BE-DEAD-CODE-B-2442](tasks/CR-BE-DEAD-CODE-B-2442.md) | V1 | REVIEW | CR-BE-DEAD-CODE-B-2442 - backend dead code, chain step BE-4: the 20 names BE-2 listed for the lead; one flaky assertion | — |
+| [CR-BE-SMALL-2440](tasks/CR-BE-SMALL-2440.md) | V1 | REVIEW | CR-BE-SMALL-2440 - three small backend rows for 2.44.0 | — |
+| [CR-BE-SMALL-UNIFY-2440](tasks/CR-BE-SMALL-UNIFY-2440.md) | V1 | REVIEW | CR-BE-SMALL-UNIFY-2440 - small backend unifications (adoption of the wave-2 helpers) | — |
+| [CR-BE-TWINS-2440](tasks/CR-BE-TWINS-2440.md) | V1 | REVIEW | CR-BE-TWINS-2440 - the twin helpers of electricity, water and temperature are one | — |
+| [CR-BILL-LEDGER-B-2438](tasks/CR-BILL-LEDGER-B-2438.md) | V1 | REVIEW | CR-BILL-LEDGER-B-2438 - drafts, automatic generation and retention written once; the account history reads its bills once (step B) | — |
+| [CR-BRIDGE-COMMON-2440](tasks/CR-BRIDGE-COMMON-2440.md) | V1 | REVIEW | CR-BRIDGE-COMMON-2440 - the bridge's duplicated helpers live once, in _common.py | — |
+| [CR-BRIDGE-GAPS-2438](tasks/CR-BRIDGE-GAPS-2438.md) | V1 | REVIEW | CR-BRIDGE-GAPS-2438 - bridge behaviour gaps and nits | — |
+| [CR-BRIDGE-PREVERIFY-2440](tasks/CR-BRIDGE-PREVERIFY-2440.md) | V1 | REVIEW | CR-BRIDGE-PREVERIFY-2440 - signed bridge calls are judged before the write gate | — |
+| [CR-BRIDGE-STRUCT-2440](tasks/CR-BRIDGE-STRUCT-2440.md) | V1 | BACKLOG | CR-BRIDGE-STRUCT-2440 - NOT IMPLEMENTED: the row's premise does not hold (lead decision needed) | — |
+| [CR-BUILD-GUARDS-2438](tasks/CR-BUILD-GUARDS-2438.md) | V1 | REVIEW | CR-BUILD-GUARDS-2438 - debug maps stay on the runner; design-debt ratchet in the release check | — |
+| [CR-CMP2-TOAST-2440](tasks/CR-CMP2-TOAST-2440.md) | V1 | REVIEW | CR-CMP2-TOAST-2440: 2.44.0 programme rows (private/planning/REMAINING_WORK_2026-11-18.md section C "Programmes"; code-review private/code-review-2026-11-13/MASTER_PLAN.md section 3.6): | — |
+| [CR-COLOR-LITERALS-2443](tasks/CR-COLOR-LITERALS-2443.md) | V1 | REVIEW | CR-COLOR-LITERALS-2443 - the colour-literal ratchet back to (below) 2512, no pixel change | — |
+| [CR-CONFIRM-DIALOG-2438](tasks/CR-CONFIRM-DIALOG-2438.md) | V1 | REVIEW | CR-CONFIRM-DIALOG-2438 - the system's own confirmation dialog instead of the browser's confirm() | — |
+| [CR-CORE-HELPERS-2438](tasks/CR-CORE-HELPERS-2438.md) | V1 | REVIEW | CR-CORE-HELPERS-2438 - additive core helpers (db, errors, values) | — |
+| [CR-CSS-FRAGMENTS-2440](tasks/CR-CSS-FRAGMENTS-2440.md) | V1 | REVIEW | CR-CSS-FRAGMENTS-2440: Code-review batch 16.11, frontend wave 2. Contract: the pilot/CR-CSS-FRAGMENTS-2436 row of private/code-review-2026-11-13/MASTER_PLAN.md (06:CSS-1 fragments, 06:DUP-8, 06:DUP-11 helper, step 1 of 06:CMP-2). Base: ... | — |
+| [CR-CSS-FRAGMENTS-TAIL-2442](tasks/CR-CSS-FRAGMENTS-TAIL-2442.md) | V1 | REVIEW | CR-CSS-FRAGMENTS-TAIL-2442: Code-review batch 16.11, wave 3B, frontend chain step FE-1. Contract: the FE-1 row of private/code-review-2026-11-13/MASTER_PLAN.md section 3.5 (named there pilot/CR-CSS-FRAGMENTS-TAIL-2436): the rest of 06:CSS-1, 06:DUP-11 (the ... | — |
+| [CR-DEAD-CODE-BE-2438](tasks/CR-DEAD-CODE-BE-2438.md) | V1 | REVIEW | CR-DEAD-CODE-BE-2438 - backend dead code: delete only what nothing references | — |
+| [CR-DEVICE-HTTP-2438](tasks/CR-DEVICE-HTTP-2438.md) | V1 | REVIEW | CR-DEVICE-HTTP-2438 - the shared device-HTTP code leaves the Hikvision module | — |
+| [CR-DIAG-TABS-2440](tasks/CR-DIAG-TABS-2440.md) | V1 | REVIEW | CR-DIAG-TABS-2440 - the settings screen fetches a tab's cards when the tab is first opened (review 06:BUNDLE-2, 06:STRUCT-1 settings screen) | — |
+| [CR-DOCS-REGISTERS-2440](tasks/CR-DOCS-REGISTERS-2440.md) | V1 | REVIEW | CR-DOCS-REGISTERS-2440: Code-review batch 16.11, wave 3A (backend), documentation only. Plan row pilot/CR-DOCS-REGISTERS-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; findings 03:F27, 03:F28, 01:F-21, 05:P2-15. Base: ... | — |
+| [CR-DUP-ADMIN-CARDS-2440](tasks/CR-DUP-ADMIN-CARDS-2440.md) | V1 | REVIEW | CR-DUP-ADMIN-CARDS-2440 - one base for the device admin cards, one switch row for the access messaging / policy cards | — |
+| [CR-DUP-METERS-2440](tasks/CR-DUP-METERS-2440.md) | V1 | REVIEW | CR-DUP-METERS-2440 - one meters page base and one meter card base for electricity and water | — |
+| [CR-DUP-NVR-BATCH-2440](tasks/CR-DUP-NVR-BATCH-2440.md) | V1 | REVIEW | CR-DUP-NVR-BATCH-2440 - one shell for the two NVR batch dialogs | — |
+| [CR-DUP-TICKETS-VIEWS-2440](tasks/CR-DUP-TICKETS-VIEWS-2440.md) | V1 | REVIEW | CR-DUP-TICKETS-VIEWS-2440 - one base for the requests list page and the manager board | — |
+| [CR-EDITORS-MEMO-2440](tasks/CR-EDITORS-MEMO-2440.md) | V1 | REVIEW | CR-EDITORS-MEMO-2440 - schedule editor, automation editor, schedules list, privacy masks, mapping assistant: races and per-render work | — |
+| [CR-EVENTS-TABLE-2443](tasks/CR-EVENTS-TABLE-2443.md) | V1 | REVIEW | CR-EVENTS-TABLE-2443: the review-window table styles its cells; one severity badge mapping | — |
+| [CR-EXPORTS-HOUSEKEEPING-2440](tasks/CR-EXPORTS-HOUSEKEEPING-2440.md) | V1 | REVIEW | CR-EXPORTS-HOUSEKEEPING-2440: Code-review batch 16.11, wave 3A (backend). Plan row pilot/CR-EXPORTS-HOUSEKEEPING-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; findings 03:F08, 03:F18, 03:F25 (two texts), 03:F26, 05:P3-06 (TimeoutExpired). Base: ... | — |
+| [CR-FE-DEAD-CODE-2442](tasks/CR-FE-DEAD-CODE-2442.md) | V1 | REVIEW | CR-FE-DEAD-CODE-2442 - frontend dead code and over-exported internals (review wave 3B, step FE-5) | — |
+| [CR-FE-DEAD-CSS-2443](tasks/CR-FE-DEAD-CSS-2443.md) | V1 | REVIEW | CR-FE-DEAD-CSS-2443 - the dead CSS of 06:DEAD-1 (review wave 3B, step FE-8) | — |
+| [CR-FE-GATES-ENFORCE-2442](tasks/CR-FE-GATES-ENFORCE-2442.md) | V1 | REVIEW | CR-FE-GATES-ENFORCE-2442 - the frontend static checks become blocking (review wave 3B, step FE-6) | — |
+| [CR-FE-LOGEXPORT-TARIFF-EN-2440](tasks/CR-FE-LOGEXPORT-TARIFF-EN-2440.md) | V1 | REVIEW | CR-FE-LOGEXPORT-TARIFF-EN-2440 - redacted log export UI and English tariff names (2.44.0 frontend follow-ups) | — |
+| [CR-FE-NITS-2442](tasks/CR-FE-NITS-2442.md) | V1 | REVIEW | CR-FE-NITS-2442: Code-review batch 16.11, wave 3B, frontend chain step FE-4. Contract: the FE-4 row of private/code-review-2026-11-13/MASTER_PLAN.md section 3.5 (named there pilot/CR-FE-NITS-2436), findings 06:NOOP-1, 06:STORE-1, 06:RTL-1, ... | — |
+| [CR-FE-PROMISES-2442](tasks/CR-FE-PROMISES-2442.md) | V1 | REVIEW | CR-FE-PROMISES-2442 - the 27 baselined ESLint reports are fixed (review wave 3B, step FE-7) | — |
+| [CR-FE-SMALL-2440](tasks/CR-FE-SMALL-2440.md) | V1 | REVIEW | CR-FE-SMALL-2440 - six small frontend / documentation rows for 2.44.0 | — |
+| [CR-FE-TYPES-2443](tasks/CR-FE-TYPES-2443.md) | V1 | REVIEW | CR-FE-TYPES-2443 - ticket files read declared API fields instead of casts | — |
+| [CR-FLOORMAP-STATE-2440](tasks/CR-FLOORMAP-STATE-2440.md) | V1 | REVIEW | CR-FLOORMAP-STATE-2440 - the live floor map: stale answers, another floor in the same element, small state defects | — |
+| [CR-FORMAT-2440](tasks/CR-FORMAT-2440.md) | V1 | REVIEW | CR-FORMAT-2440: Code-review batch 16.11, frontend wave 2. Contract: the pilot/CR-FORMAT-2436 row of private/code-review-2026-11-13/MASTER_PLAN.md (finding 08:F10). Base: origin/release/2437-train (2.43.7 train). | — |
+| [CR-G1-HOME-AREA-2440](tasks/CR-G1-HOME-AREA-2440.md) | V1 | REVIEW | CR-G1-HOME-AREA-2440 - home and area screens: memoisation, render side effects, shared pieces | — |
+| [CR-GLASS-HELPER-2442](tasks/CR-GLASS-HELPER-2442.md) | V1 | REVIEW | CR-GLASS-HELPER-2442: Code-review batch 16.11, wave 3B, frontend chain step FE-2. Contract: the FE-2 row of private/code-review-2026-11-13/MASTER_PLAN.md section 3.5 (named there pilot/CR-GLASS-HELPER-2436), finding 08:F13. Base: ... | — |
+| [CR-GO2RTC-OWNED-2438](tasks/CR-GO2RTC-OWNED-2438.md) | V1 | REVIEW | CR-GO2RTC-OWNED-2438 - one "owned streams" rule for go2rtc | — |
+| [CR-HA-CLIENT-2438](tasks/CR-HA-CLIENT-2438.md) | V1 | REVIEW | CR-HA-CLIENT-2438 - kept-alive Home Assistant REST client, one bridge status mapping, no body in bridge errors, two event-loop fixes | — |
+| [CR-HA-WORDING-2443](tasks/CR-HA-WORDING-2443.md) | V1 | REVIEW | CR-HA-WORDING-2443: no platform name outside Settings (guard), console wording, the diagnostics site-location text | — |
+| [CR-HEALTH-POLLERS-2440](tasks/CR-HEALTH-POLLERS-2440.md) | V1 | REVIEW | CR-HEALTH-POLLERS-2440: Code-review batch 16.11, wave 3A (backend). Plan row pilot/CR-HEALTH-POLLERS-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; findings 03:F11, 03:F13, 03:F14, 03:F21, 03:F25 (cameras text). Base: ... | — |
+| [CR-HOME-LAZY-2440](tasks/CR-HOME-LAZY-2440.md) | V1 | REVIEW | CR-HOME-LAZY-2440 - the home screen's on-demand parts out of the entry chunk (review 06:BUNDLE-1 home side, 07:F4 d) | — |
+| [CR-I18N-API-2442](tasks/CR-I18N-API-2442.md) | V1 | REVIEW | CR-I18N-API-2442 - the texts built in the frontend api layer go through tr() | — |
+| [CR-I18N-CAL-ELEC-2441](tasks/CR-I18N-CAL-ELEC-2441.md) | V1 | REVIEW | CR-I18N-CAL-ELEC-2441 - calendars and electricity: the completion pass, a completeness spec and a lint spec | — |
+| [CR-I18N-COMBINED-2441](tasks/CR-I18N-COMBINED-2441.md) | V1 | REVIEW | CR-I18N-COMBINED-2441 - all translation work on one branch, one entry check | — |
+| [CR-I18N-COMBINED-B-2442](tasks/CR-I18N-COMBINED-B-2442.md) | V1 | REVIEW | CR-I18N-COMBINED-B-2442 - the two -2442 translation branches as one | — |
+| [CR-I18N-COMBINED-C-2442](tasks/CR-I18N-COMBINED-C-2442.md) | V1 | REVIEW | CR-I18N-COMBINED-C-2442 - durations/units + typed confirmation words, one entry check | — |
+| [CR-I18N-CONFIRM-WORDS-2442](tasks/CR-I18N-CONFIRM-WORDS-2442.md) | V1 | REVIEW | CR-I18N-CONFIRM-WORDS-2442 - the typed confirmation words: Hebrew or the fixed English word | — |
+| [CR-I18N-CORE-2441](tasks/CR-I18N-CORE-2441.md) | V1 | REVIEW | CR-I18N-CORE-2441 - the shared i18n helper: already on the base; verified, guard tightened | — |
+| [CR-I18N-DATES-2442](tasks/CR-I18N-DATES-2442.md) | V1 | REVIEW | CR-I18N-DATES-2442 - dates, times, numbers and time words follow the interface language | — |
+| [CR-I18N-ELECTRICITY-2443](tasks/CR-I18N-ELECTRICITY-2443.md) | V1 | REVIEW | CR-I18N-ELECTRICITY-2443 - electricity: the remainder of the i18n row (08:F11) and the shared customer form (08:F25) | — |
+| [CR-I18N-HOME-2441](tasks/CR-I18N-HOME-2441.md) | V1 | REVIEW | CR-I18N-HOME-2441 - the home interface's texts on the shared i18n core | — |
+| [CR-I18N-LAZY-LANG-2443](tasks/CR-I18N-LAZY-LANG-2443.md) | V1 | REVIEW | CR-I18N-LAZY-LANG-2443 - language packs: English / Arabic / Russian load only for a page in that language | — |
+| [CR-I18N-MAP-WIZARD-2441](tasks/CR-I18N-MAP-WIZARD-2441.md) | V1 | REVIEW | CR-I18N-MAP-WIZARD-2441: Two rows of private/code-review-2026-11-13/MASTER_PLAN.md, one commit set each, on one branch: | — |
+| [CR-I18N-UNITS-2442](tasks/CR-I18N-UNITS-2442.md) | V1 | REVIEW | CR-I18N-UNITS-2442 - durations, units and weekday letters follow the interface language | — |
+| [CR-ICONS-PALETTE-2440](tasks/CR-ICONS-PALETTE-2440.md) | V1 | REVIEW | CR-ICONS-PALETTE-2440: Code-review batch 16.11, frontend wave 2. Contract: the pilot/CR-ICONS-PALETTE-2436 row of private/code-review-2026-11-13/MASTER_PLAN.md (D15 = 08:F08 + 07:F22, and 08:F12 step 1). Base: origin/release/2437-train (2.43.7 train). | — |
+| [CR-INITIALS-2443](tasks/CR-INITIALS-2443.md) | V1 | REVIEW | CR-INITIALS-2443 - one initials rule on every avatar | — |
+| [CR-INTERCOM-SHARED-2440](tasks/CR-INTERCOM-SHARED-2440.md) | V1 | REVIEW | CR-INTERCOM-SHARED-2440: Code-review batch 16.11, wave 3A (backend). Plan row pilot/CR-INTERCOM-SHARED-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; findings 02:P2-6 and 02:P3-3 (the listen pump part). Base: origin/pilot/CR-WAVE2-COMBINED-2439 ... | — |
+| [CR-INV-EVENTS-2440](tasks/CR-INV-EVENTS-2440.md) | V1 | REVIEW | CR-INV-EVENTS-2440 - stale answers and push filtering in the event centre, the event page and the case page | — |
+| [CR-INV-PLAYBACK-2440](tasks/CR-INV-PLAYBACK-2440.md) | V1 | REVIEW | CR-INV-PLAYBACK-2440 - playback and history map: stale answers, per-tick work, the retry bound | — |
+| [CR-JANITOR-REGISTRY-2438](tasks/CR-JANITOR-REGISTRY-2438.md) | V1 | REVIEW | CR-JANITOR-REGISTRY-2438 - the housekeeping pass as a registry | — |
+| [CR-LIVE-SOCKET-CAPS-2440](tasks/CR-LIVE-SOCKET-CAPS-2440.md) | V1 | REVIEW | CR-LIVE-SOCKET-CAPS-2440: Code-review batch 16.11, wave 3A (backend). Plan row pilot/CR-LIVE-SOCKET-CAPS-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; findings 03:F07, 03:F19, 03:F23. Base: origin/pilot/CR-WAVE2-COMBINED-2439 (97080bbc4). | — |
+| [CR-LOCAL-ID-SWITCH-2442](tasks/CR-LOCAL-ID-SWITCH-2442.md) | V1 | REVIEW | CR-LOCAL-ID-SWITCH-2442 - the Arx-users switch on its own tab | — |
+| [CR-LOCAL-USER-CREATE-2438](tasks/CR-LOCAL-USER-CREATE-2438.md) | V1 | REVIEW | CR-LOCAL-USER-CREATE-2438 - Arx users: the create form sends, and the administrator sets the password | — |
+| [CR-MAIN-ROUTERS-TABLE-2440](tasks/CR-MAIN-ROUTERS-TABLE-2440.md) | V1 | REVIEW | CR-MAIN-ROUTERS-TABLE-2440 - the routers as an ordered table, the start-up steps in their own module, a lifespan | — |
+| [CR-MAIN-RUNTIME-2438](tasks/CR-MAIN-RUNTIME-2438.md) | V1 | REVIEW | CR-MAIN-RUNTIME-2438 - request path and shutdown safety in main.py | — |
+| [CR-MAP-NUM-PRESS-2440](tasks/CR-MAP-NUM-PRESS-2440.md) | V1 | REVIEW | CR-MAP-NUM-PRESS-2440 - one set of map number helpers, one long-press controller | — |
+| [CR-MAP-SHARED-2440](tasks/CR-MAP-SHARED-2440.md) | V1 | REVIEW | CR-MAP-SHARED-2440 - one definition for the pieces the three floor screens wrote two or three times | — |
+| [CR-MODAL-STACK-2441](tasks/CR-MODAL-STACK-2441.md) | V1 | REVIEW | CR-MODAL-STACK-2441 - one stack for the dialog, the modal drawer and the sheet | — |
+| [CR-MODAL-STACK-B-2442](tasks/CR-MODAL-STACK-B-2442.md) | V1 | REVIEW | CR-MODAL-STACK-B-2442 - the hand-built dialogs join the shared modal stack | — |
+| [CR-MULTIMEDIA-BASE-2440](tasks/CR-MULTIMEDIA-BASE-2440.md) | V1 | REVIEW | CR-MULTIMEDIA-BASE-2440 - one base for the three multimedia screens | — |
+| [CR-NOSCROLL-LISTS-2443](tasks/CR-NOSCROLL-LISTS-2443.md) | V1 | REVIEW | CR-NOSCROLL-LISTS-2443: measure the scroll candidates first; page the one that still overflows (the maintenance reminder log) | — |
+| [CR-NVR-GUARD-2438](tasks/CR-NVR-GUARD-2438.md) | V1 | REVIEW | CR-NVR-GUARD-2438 - one guard for the recorder's "allow settings changes" switch | — |
+| [CR-PATH-CONFINE-2438](tasks/CR-PATH-CONFINE-2438.md) | V1 | REVIEW | CR-PATH-CONFINE-2438 - one containment rule, one folder per stored file column | — |
+| [CR-PDF-CHILD-2440](tasks/CR-PDF-CHILD-2440.md) | V1 | REVIEW | CR-PDF-CHILD-2440: Code-review batch 16.11, wave 3A (backend). Plan row pilot/CR-PDF-CHILD-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; finding 04:F11. Base: origin/pilot/CR-WAVE2-COMBINED-2439 (97080bbc4). | — |
+| [CR-PERSON-PROJECTION-2440](tasks/CR-PERSON-PROJECTION-2440.md) | V1 | REVIEW | CR-PERSON-PROJECTION-2440: Code-review batch 16.11, wave 3A (backend). Plan row pilot/CR-PERSON-PROJECTION-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; finding 02:P2-7. Base: origin/pilot/CR-WAVE2-COMBINED-2439 (4e52e5e4a). Risk in the plan: ... | — |
+| [CR-PLAN-CANVAS-DRAG-2440](tasks/CR-PLAN-CANVAS-DRAG-2440.md) | V1 | REVIEW | CR-PLAN-CANVAS-DRAG-2440 - one pointer-drag session for the plan canvas; a cancelled drag no longer commits | — |
+| [CR-POLL-FEATURES-2439](tasks/CR-POLL-FEATURES-2439.md) | V1 | REVIEW | CR-POLL-FEATURES-2439 - the feature modules' hand-rolled polls moved onto the shared PollController | — |
+| [CR-POLL-SCREENS-B-2440](tasks/CR-POLL-SCREENS-B-2440.md) | V1 | REVIEW | CR-POLL-SCREENS-B-2440 - the shared poll for the screens AUDIT30 held, the wall's timer leak, the alarm's read order | — |
+| [CR-PUBLIC-FRAME-2440](tasks/CR-PUBLIC-FRAME-2440.md) | V1 | REVIEW | CR-PUBLIC-FRAME-2440 - one page frame for the public ticket page and the public RFQ page (review 08:F16) | — |
+| [CR-PYFLAKES-ENFORCE-2442](tasks/CR-PYFLAKES-ENFORCE-2442.md) | V1 | REVIEW | CR-PYFLAKES-ENFORCE-2442 - backend pyflakes findings cleared, the ruff lane becomes blocking (chain step BE-3) | — |
+| [CR-RBAC-EVAL-2438](tasks/CR-RBAC-EVAL-2438.md) | V1 | REVIEW | CR-RBAC-EVAL-2438 - deleted places grant nothing; one "active user"; the single-signer award | — |
+| [CR-READCONN-B-2440](tasks/CR-READCONN-B-2440.md) | V1 | REVIEW | CR-READCONN-B-2440 - the rest of the GET routes off the write lock | — |
+| [CR-REDACT-2440](tasks/CR-REDACT-2440.md) | V1 | REVIEW | CR-REDACT-2440 - one home for the redaction helpers | — |
+| [CR-ROUTER-COMMON-2438](tasks/CR-ROUTER-COMMON-2438.md) | V1 | REVIEW | CR-ROUTER-COMMON-2438 - one copy of the router request helpers (routers/_common.py) | — |
+| [CR-ROUTER-COMMON-TAIL-2442](tasks/CR-ROUTER-COMMON-TAIL-2442.md) | V1 | REVIEW | CR-ROUTER-COMMON-TAIL-2442 - the routers wave 2 skipped take the shared request helpers; the last one-key setting readers; the held GET routes | — |
+| [CR-SCHEMA-PROBES-2440](tasks/CR-SCHEMA-PROBES-2440.md) | V1 | REVIEW | CR-SCHEMA-PROBES-2440 - run-time schema probes outside tickets move to the cached helper | — |
+| [CR-SECRET-FILES-2438](tasks/CR-SECRET-FILES-2438.md) | V1 | REVIEW | CR-SECRET-FILES-2438 - one write sequence for every secret file | — |
+| [CR-SENDER-WORKER-2440](tasks/CR-SENDER-WORKER-2440.md) | V1 | REVIEW | CR-SENDER-WORKER-2440: Code-review batch 16.11, wave 3A (backend). Plan row pilot/CR-SENDER-WORKER-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; findings 04:F10 and 04:F27 (these files). Base: origin/pilot/CR-WAVE2-COMBINED-2439 (97080bbc4). ... | — |
+| [CR-SESSION-CACHE-2438](tasks/CR-SESSION-CACHE-2438.md) | V1 | REVIEW | CR-SESSION-CACHE-2438 - one session cache for the local and app stores, revoked keys refused by a late put, lease-hook failures logged | — |
+| [CR-SETTING-CALLERS-2440](tasks/CR-SETTING-CALLERS-2440.md) | V1 | REVIEW | CR-SETTING-CALLERS-2440 - one-key readers use setting_value; the alert listener keeps the zone for 5 s | — |
+| [CR-SETTINGS-PATCH-A-2440](tasks/CR-SETTINGS-PATCH-A-2440.md) | V1 | REVIEW | CR-SETTINGS-PATCH-A-2440 - PATCH /settings checks move to routers/settings_patch (first half) | — |
+| [CR-SETTINGS-PATCH-B-2440](tasks/CR-SETTINGS-PATCH-B-2440.md) | V1 | REVIEW | CR-SETTINGS-PATCH-B-2440 - the rest of PATCH /settings runs from routers/settings_patch (second half) | — |
+| [CR-SHELL-EXTRACT-2440](tasks/CR-SHELL-EXTRACT-2440.md) | V1 | REVIEW | CR-SHELL-EXTRACT-2440 - the shell's notification wiring as a controller; router.ts comment | — |
+| [CR-SHELL-TIMERS-2439](tasks/CR-SHELL-TIMERS-2439.md) | V1 | REVIEW | CR-SHELL-TIMERS-2439 - the shell's timers and the component polls under one rule | — |
+| [CR-SOCKETS-2439](tasks/CR-SOCKETS-2439.md) | V1 | REVIEW | CR-SOCKETS-2439 - the remaining hand-written sockets on the shared reconnecting socket | — |
+| [CR-SPLIT-ACCESS-2440](tasks/CR-SPLIT-ACCESS-2440.md) | V1 | REVIEW | CR-SPLIT-ACCESS-2440 - routers/access.py split: a service module and five route modules | — |
+| [CR-SPLIT-ACCESS-CONTROL-2440](tasks/CR-SPLIT-ACCESS-CONTROL-2440.md) | V1 | REVIEW | CR-SPLIT-ACCESS-CONTROL-2440 - routers/access_control.py split along its section comments | — |
+| [CR-SPLIT-TICKETS-ADMIN-2440](tasks/CR-SPLIT-TICKETS-ADMIN-2440.md) | V1 | REVIEW | CR-SPLIT-TICKETS-ADMIN-2440 - routers/tickets_admin.py split along its section comments | — |
+| [CR-STRUCT-CSS-SPLIT-2442](tasks/CR-STRUCT-CSS-SPLIT-2442.md) | V1 | REVIEW | CR-STRUCT-CSS-SPLIT-2442: Code-review batch 16.11, wave 3B, frontend chain step FE-3. Contract: the FE-3 row of private/code-review-2026-11-13/MASTER_PLAN.md section 3.5 (named there pilot/CR-STRUCT-CSS-SPLIT-2436), finding 06:STRUCT-1 step 1. Base: ... | — |
+| [CR-SYNC-GATE-2438](tasks/CR-SYNC-GATE-2438.md) | V1 | REVIEW | CR-SYNC-GATE-2438 - the write-gate wait leaves the shared thread pool | — |
+| [CR-TEST-SUPPORT-2440](tasks/CR-TEST-SUPPORT-2440.md) | V1 | REVIEW | CR-TEST-SUPPORT-2440 - shared test helpers, one per-test reset, clock tests without sleeps | — |
+| [CR-TIMEUTIL-2438](tasks/CR-TIMEUTIL-2438.md) | V1 | REVIEW | CR-TIMEUTIL-2438 - one home for the UTC ISO text and the installation's time zone | — |
+| [CR-TK-CATALOGUE-2440](tasks/CR-TK-CATALOGUE-2440.md) | V1 | REVIEW | CR-TK-CATALOGUE-2440 - one implementation of the tickets text catalogues (review 08:F07) | — |
+| [CR-TK-EXCEPT-LOG-2440](tasks/CR-TK-EXCEPT-LOG-2440.md) | V1 | REVIEW | CR-TK-EXCEPT-LOG-2440: Code review 2026-11-13, wave 3A backend. Finding 01:F-11 (broad handlers that return a default without logging). Plan row: pilot/CR-TK-EXCEPT-LOG-2436 in private/code-review-2026-11-13/MASTER_PLAN.md. Base: ... | — |
+| [CR-TK-MONEY-UTILS-2440](tasks/CR-TK-MONEY-UTILS-2440.md) | V1 | REVIEW | CR-TK-MONEY-UTILS-2440: Code review 2026-11-13, wave 3A backend. Finding 01:F-15 (validation and small utilities copied between the money modules). Plan row: pilot/CR-TK-MONEY-UTILS-2436 in private/code-review-2026-11-13/MASTER_PLAN.md. Base: ... | — |
+| [CR-TK-OUTBOX-FILTER-2440](tasks/CR-TK-OUTBOX-FILTER-2440.md) | V1 | REVIEW | CR-TK-OUTBOX-FILTER-2440: Code review 2026-11-13, wave 3A backend. Findings 01:F-16 (the outbox filters open rows in Python) and 01:F-22 (the outbox line only). Plan row: pilot/CR-TK-OUTBOX-FILTER-2436 in private/code-review-2026-11-13/MASTER_PLAN.md. ... | — |
+| [CR-TK-ROUTER-COMMON-2438](tasks/CR-TK-ROUTER-COMMON-2438.md) | V1 | REVIEW | CR-TK-ROUTER-COMMON-2438 - the tickets routers' shared helpers, batched name reads, one settings read per request, T4 in tickets | — |
+| [CR-TK-SQL-2440](tasks/CR-TK-SQL-2440.md) | V1 | REVIEW | CR-TK-SQL-2440: Code review 2026-11-13, wave 3A backend. Findings 01:F-14 (store-layer helpers and query builders copied) and 01:F-10 (run-time schema probes and "old database" shims). Plan row: pilot/CR-TK-SQL-2436 in ... | — |
+| [CR-TK-TIMEUTIL-2438](tasks/CR-TK-TIMEUTIL-2438.md) | V1 | REVIEW | CR-TK-TIMEUTIL-2438 - one module for the tickets time helpers | — |
+| [CR-TOKENS-UNDEFINED-2443](tasks/CR-TOKENS-UNDEFINED-2443.md) | V1 | REVIEW | CR-TOKENS-UNDEFINED-2443 - no var(--sw-*) names an undefined property; one keyboard row in investigate-search | — |
+| [CR-TSCONFIG-SPLIT-2443](tasks/CR-TSCONFIG-SPLIT-2443.md) | V1 | REVIEW | CR-TSCONFIG-SPLIT-2443 - the type check is split into three programs, the gate runs all of them | — |
+| [CR-TV-FONTS-ESCAPE-2443](tasks/CR-TV-FONTS-ESCAPE-2443.md) | V1 | REVIEW | CR-TV-FONTS-ESCAPE-2443 - TV board: escape every feed value (08:F05), lobby fonts per style family (08:F04) | — |
+| [CR-UI-CONTROLLERS-2440](tasks/CR-UI-CONTROLLERS-2440.md) | V1 | REVIEW | CR-UI-CONTROLLERS-2440: Code-review batch 16.11, frontend wave 2. Contract: the pilot/CR-UI-CONTROLLERS-2436 row of private/code-review-2026-11-13/MASTER_PLAN.md (findings 07:F12 controller, helper of D12, component half of D14 / 07:F17). Base: ... | — |
+| [CR-UI-POLISH-2443](tasks/CR-UI-POLISH-2443.md) | V1 | REVIEW | CR-UI-POLISH-2443 - three small UI polish items for 2.43.9 | — |
+| [CR-W2-FOLLOWUPS-2441](tasks/CR-W2-FOLLOWUPS-2441.md) | V1 | REVIEW | CR-W2-FOLLOWUPS-2441 - the backend follow-ups of code-review wave 2 | — |
+| [CR-W3-BE-COMBINED-2441](tasks/CR-W3-BE-COMBINED-2441.md) | V1 | REVIEW | CR-W3-BE-COMBINED-2441 - the wave-3A backend code-review branches in one branch, one entry check | — |
+| [CR-W3-FE-COMBINED-2441](tasks/CR-W3-FE-COMBINED-2441.md) | V1 | REVIEW | CR-W3-FE-COMBINED-2441 - the frontend side of the code-review batch -2440 on one branch | — |
+| [CR-W3B-BE-COMBINED-2443](tasks/CR-W3B-BE-COMBINED-2443.md) | V1 | REVIEW | CR-W3B-BE-COMBINED-2443 - the wave-3B backend chain (BE-1..BE-4) on the 2.43.8 train, for 2.43.9 | — |
+| [CR-W3B-FE-COMBINED-2443](tasks/CR-W3B-FE-COMBINED-2443.md) | V1 | REVIEW | CR-W3B-FE-COMBINED-2443 - the wave 3B frontend chain on the 2.43.8 train | — |
+| [CR-WATER-CUSTOMER-FORM-2440](tasks/CR-WATER-CUSTOMER-FORM-2440.md) | V1 | REVIEW | CR-WATER-CUSTOMER-FORM-2440 - one customer form for the water and the electricity customer cards | — |
+| [CR-WAVE2-COMBINED-2439](tasks/CR-WAVE2-COMBINED-2439.md) | V1 | REVIEW | CR-WAVE2-COMBINED-2439 - the wave-2 code-review branches in one branch, one entry check | — |
+| [CR-WISKEY-NOTIF-2443](tasks/CR-WISKEY-NOTIF-2443.md) | V1 | REVIEW | CR-WISKEY-NOTIF-2443 - people screen subscription, lookups and poll; notification settings section guard and mail draft | — |
+| [CR-WK-LIMITS-2438](tasks/CR-WK-LIMITS-2438.md) | V1 | REVIEW | CR-WK-LIMITS-2438 - one shared class for the WisKey command limits, one answer reader | — |
+| [DESIGN-RULEBOOK-2438](tasks/DESIGN-RULEBOOK-2438.md) | V1 | REVIEW | DESIGN-RULEBOOK-2438 - the authoritative design rulebook (documentation only) | — |
+| [DIALOG-DRAWER-ONE-2439](tasks/DIALOG-DRAWER-ONE-2439.md) | V1 | REVIEW | DIALOG-DRAWER-ONE-2439 - one opaque dialog and one opaque drawer for the whole system | — |
+| [DOMUS-DEFAULT-2439](tasks/DOMUS-DEFAULT-2439.md) | V1 | REVIEW | DOMUS-DEFAULT-2439 - Domus is the default skin; the selected chip is the strengthened light blue | — |
+| [FE-WAVE2-COMBINED-2440](tasks/FE-WAVE2-COMBINED-2440.md) | V1 | REVIEW | FE-WAVE2-COMBINED-2440 - paging setting + frontend batch A, one combined entry check | — |
+| [FIX-2438-REDS](tasks/FIX-2438-REDS.md) | V1 | REVIEW | FIX-2438-REDS: the two RED entry checks of 18.11 (LOCAL-USER-CREATE e26f001ec, DOMUS-DEFAULT 2771a0b90) | — |
+| [FIX-CAMVF-FLAKE-2443](tasks/FIX-CAMVF-FLAKE-2443.md) | V1 | REVIEW | FIX-CAMVF-FLAKE-2443 - the live camera's shutter answers at once; the camera evidence spec fits its budget under load | — |
+| [FIX-FLAKY-POLISH-WORKSTCASE-2439](tasks/FIX-FLAKY-POLISH-WORKSTCASE-2439.md) | V1 | REVIEW | FIX-FLAKY-POLISH-WORSTCASE-2439 - two specs that were FLAKY in both 2.43.8 release gates | — |
+| [FIX-UNIT-PAGES-CONFIG-2440](tasks/FIX-UNIT-PAGES-CONFIG-2440.md) | V1 | REVIEW | FIX-UNIT-PAGES-CONFIG-2440 - the unit config recognises baseURL-relative page specs | — |
+| [FLAKY-S12-FIX-2441](tasks/FLAKY-S12-FIX-2441.md) | V1 | REVIEW | FLAKY-S12-FIX-2441 - the cause of the flaky phone pixels of CR-036 S12 | — |
+| [I18N-EN-SWITCH-2438](tasks/I18N-EN-SWITCH-2438.md) | V1 | REVIEW | I18N-EN-SWITCH-2438 - English interface and the Hebrew / English switch | — |
+| [OWNER-R32-BACKEND-2438](tasks/OWNER-R32-BACKEND-2438.md) | V1 | REVIEW | OWNER-R32-BACKEND-2438 - owner round 32 backend decisions: generator alert roles (O1 a), RTSP passwords in the go2rtc log (Q-SEC-2), go-live permit texts (O9 a) | — |
+| [PAGING-SETTING-2439](tasks/PAGING-SETTING-2439.md) | V1 | REVIEW | PAGING-SETTING-2439: the long-lists setting, one paging helper, the remaining scrolling lists paged | — |
+| [PLAN3D-R32-ANSWERS-2438](tasks/PLAN3D-R32-ANSWERS-2438.md) | V1 | REVIEW | PLAN3D-R32-ANSWERS-2438 - the 3D map: the owner's round 32 answers (Q-MAP-1 .. Q-MAP-20) | — |
+| [RELEASE-2438-TRAIN](tasks/RELEASE-2438-TRAIN.md) | V1 | REVIEW | RELEASE-2438-TRAIN: assembly of the 2.43.8 train (first part - the branches whose entry check is GREEN) | — |
+| [RELEASE-2439-TRAIN](tasks/RELEASE-2439-TRAIN.md) | V1 | REVIEW | RELEASE-2439-TRAIN - the 2.43.9 train | — |
+| [TEST-STABLE-2442](tasks/TEST-STABLE-2442.md) | V1 | REVIEW | TEST-STABLE-2442 - two test-stability fixes (the home calendar near midnight, the intercom cards' pixel wait) | — |
+| [RELEASE-2440-TRAIN](tasks/RELEASE-2440-TRAIN.md) | V1 | IN_PROGRESS | RELEASE-2440-TRAIN - the 2.44.0 train (nine branches) and its release gate | — |
+| [CR-FEED-BASE-2450](tasks/CR-FEED-BASE-2450.md) | V1 | IN_PROGRESS | HA feed base (code-review 02:P2-5): one base for the Home Assistant state feed consumers | — |
+| [CR-ROUTER-SQL-2450](tasks/CR-ROUTER-SQL-2450.md) | V1 | IN_PROGRESS | SQL out of the remaining routers (code-review programme 3.6) | — |
+| [CR-RESPONSE-MODELS-CONSUMPTION-2450](tasks/CR-RESPONSE-MODELS-CONSUMPTION-2450.md) | V1 | IN_PROGRESS | Response models and the generated client consumption (code-review 07:F8 step 2) | — |
+| [CR-SHELL-EXTRACT-B-2450](tasks/CR-SHELL-EXTRACT-B-2450.md) | V1 | IN_PROGRESS | Shell extraction part B: further controllers out of the shell (sw-app.ts), after CR-SHELL-EXTRACT-2440 | — |
+| [CR-CMP2-SELECTS-2450](tasks/CR-CMP2-SELECTS-2450.md) | V1 | IN_PROGRESS | CMP-2 step 2, the selects family (O13 a: family by family, new baselines) | — |
+| [CR-BE-COMPLEXITY-2450](tasks/CR-BE-COMPLEXITY-2450.md) | V1 | IN_PROGRESS | Backend complexity extractions (code-review programme 3.6) | — |
+| [T068-EDGE-2450](tasks/T068-EDGE-2450.md) | V1 | IN_PROGRESS | T068 edge cases of the soak and load work: disconnects and a full disk | — |
+| [CR-SHELL-EXTRACT-C-2450](tasks/CR-SHELL-EXTRACT-C-2450.md) | V1 | BACKLOG | Shell extraction part C: the floating-window history management and the "your permissions were updated" notice out of sw-app.ts | — |
