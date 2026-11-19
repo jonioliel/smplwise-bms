@@ -27,6 +27,7 @@ from ..capabilities import ensure_capability  # NN1: 409 capability_unavailable,
 from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Decision, Principal, authorize, require
 from ..services import autosync
+from ..services import media_routes_store as store
 from ..services import camera_cards as cc
 from ..services import ha_camera_streams as hls
 from ..services import go2rtc as g2
@@ -123,7 +124,7 @@ def remote_cap_refusal(chain: str | None, cap: int) -> ApiError | None:
 
 
 def _stream_for(conn: sqlite3.Connection, camera_id: str) -> sqlite3.Row:
-    cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    cam = store.camera(conn, camera_id)
     if not cam:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
     if not cam["enabled"]:
@@ -348,7 +349,7 @@ def live_info(camera_id: str, request: Request, principal: Principal = Depends(c
     require_camera(conn, principal, camera_id, "video.live")  # T055: 403 before 404
     from ..services import camera_sources
 
-    cam = camera_sources.with_source(conn, conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone())
+    cam = camera_sources.with_source(conn, store.camera(conn, camera_id))
     if camera_sources.manual_of(cam) is None:
         ensure_nvr(settings_of(request))  # NVR-less mode: 409 after the permission check (CAMERA-STREAM-SOURCES-2410: not for a manual source)
     cam = camera_sources.with_source(conn, _stream_for(conn, camera_id))
@@ -629,7 +630,7 @@ async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("su
 
     def _authorize() -> tuple[Decision | None, sqlite3.Row | None, int, int]:
         with db.connection() as conn:
-            cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+            cam = store.camera(conn, camera_id)
             if not cam or not cam["enabled"]:
                 return None, None, 0, 0
             from ..services import camera_sources
