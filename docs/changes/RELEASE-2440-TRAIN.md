@@ -72,3 +72,42 @@ through a temporary, git-ignored `node_modules` junction at the worktree root (r
 | backend, the lock / timing tests that failed in CR-BE-SMALL-2440's loaded runner run, alone (unloaded): `test_db_gate`, `test_devices`, `test_lat1_toggle_latency`, `test_ingest_lock_bound`, `test_commit_release_limiter`, `test_bridge_keyrot_harness_doors_295`, `test_lease_wire_closed_295`, `test_media_review_fixes`, `test_get_routes_read_conn` | ccecc796e | 978 passed, 4 skipped, 1 failed: `test_devices::test_bulk_not_sent_after_its_deadline_and_orphans_settled` (a call left inside a 0 s deadline while the PC also ran the unit suite) - re-run alone 3x together with `test_bulk_bounded_concurrency`: 6 passed, 0 failed. Every test named in the BE-SMALL loaded run passes unloaded: not fixed (timing under load, as the brief expected) |
 | ESLint `eslint src --pass-on-unpruned-suppressions` | e9d17b5ab | exit 0, no report |
 | `npx tsc --noEmit -p tsconfig.scripts.json` / `tsconfig.tests.json` / `tsconfig.json` | e9d17b5ab | exit 0 / 0 / 0 |
+
+## 4. 2.43.9, version and built UI
+
+| Commit | What |
+|---|---|
+| 419045531 | merge `release/2439-train` 66527605c (the 2.43.9 gate fixes: rail offset, 2x2 grid budget, rebuilt UI) - no conflict (`sw-app.ts` too: SHELL-EXTRACT and `measureRail` touch different lines) |
+| cc6d5e2f3 | release: 2.44.0 - version (`config.yaml`, `Dockerfile`, `smplwise/__init__.py`), CHANGELOG (bilingual), API inventory (1910 routes: + `POST /api/v1/health/logs/export`). No migration (0216 stays the last); bridge stays 0.10.7 (lead: its bump needs a home-system restart, owner not asked yet) |
+| 2f624a7bc | merge `main` = tag `v2.43.9` (71fa6289a, docs only) |
+| 9d9ccb585 | release: 2.44.0 - rebuilt UI at 2f624a7bc (`~/work/build_ui2440.sh`, the 2.43.9 script renamed; rc=0; 324 maps archived to `~/smplwise-results/sourcemaps/2.44.0`; tarball sha256 `1eca5661...8e034b43` checked after the copy; 0 `.map`, 0 `sourceMappingURL`) |
+| 5d37f1986 | fix(merge): the recordings stage budget counts the diagnostics row (lead's extra item from the 2.43.9 agent): `--pb-diag-h` measured from the row, both budgets subtract it; six new cases in `layout-playback-grid-2443` (before: 6 px overflow in all six; after: 0) |
+
+Entry chunk of the built UI (`node scripts/bundle-budget.mjs --dir ../smplwise_vms/www --enforce`): raw 2,793,333 B, gzip 801,785 B
+(2.43.9: 799,717 B). Budget gzip 1,102,000 - OK.
+
+| Check | At | Result |
+|---|---|---|
+| `npx tsc --noEmit -p tsconfig.json` / `tsconfig.tests.json` | 419045531 | exit 0 / exit 0 |
+| backend `test_version` + `test_release_notes_marker` | cc6d5e2f3 | 9 passed |
+| `scripts/release_check.py` | cc6d5e2f3 | only `[FAIL] git tag v2.44.0 not yet`; RESULT: ready for the owner's approval |
+| Vite dev (workstation), desktop, workers 1: `layout-playback-grid-2443` | 5d37f1986 | 9 passed (3 old + 6 new; the 6 new failed with 6 px before the fix) |
+| the same: `layout-playback-stall`, `layout-compare-dropdown`, `layout-sync-dropdown`, `evidence-playback-controls-below` | 5d37f1986 | 17 passed, 1 skipped |
+| unit `unit-inv-playback-2440`, `unit-playback-scrub`, `unit-playback-stall` | 5d37f1986 | 37 passed |
+| tsc app, eslint (`investigate-playback.ts`), unused-exports | 5d37f1986 | exit 0, clean, OK |
+
+## 5. Release gate
+
+Run 1: `~/wait_gate_2440.sh` -> `GATE_EARLY_FAILFAST=continue GATE_TOTAL_SECS=12000 nice -n 10 ~/gate2/release_gate2.sh release/2440-train`
+(base v2.43.9; selection = full tier: backend 999 files, frontend 1171 specs; estimate 128-154 min) on 9d9ccb585, started 11:15 UTC.
+
+**Run 1 result (9d9ccb585, 168 min wall, load up to ~57): FAIL** - 0 hard failures, 5 test failures, 38 flaky (failed once, passed
+alone). Counts: preview 22,727 passed; dev 1,125; fixture 28; visual 72 (0 changed); pixel 360; backend 23,544 passed, 0 failed,
+5 flaky; tsc, build, fe_static (eslint, bundle budget, unused exports), release_check, addon_build (Supervisor-like image) PASS.
+
+| Failure | Cause | Fix |
+|---|---|---|
+| `unit-plan-editor-hot-2436:86` desktop + tablet, "MSG-1: a detached editor keeps no running message timer" (`'bye'` expected, `''`) | merge interaction: CR-CMP2-TOAST-2440 put the editor's messages on `ToastController`, whose rule is "on disconnect the timer is stopped AND the message dropped"; the page spec asserted the old private implementation | a2802fa4e: the spec checks the same intent on the controller (shown, gone at detach, still gone later, no late `requestUpdate`); local vite preview of the built UI, `SW_UNIT_PAGES=1`: the MSG-1 tests 4 passed (`--repeat-each=2`) |
+| `evidence-automations-builder:676` mobile (timeout) | load | runner, `run_smart.py preview` at load 2.5, workers 1, all projects: passed (desktop, tablet, mobile) |
+| `evidence-tickets:56` desktop (timeout) | load (the known screenshot-load timeout) | same run: passed (desktop, mobile; tablet skips) |
+| `unit-home-clock:74` desktop (Hebrew date did not change within 5 s) | load | same run: passed; workstation preview: the file 5 passed |
