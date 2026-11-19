@@ -60,3 +60,19 @@ test('sw-field: the unit is the control\'s description; a wrong value (aria-inva
   expect(s).toContain("el.removeAttribute('aria-description');");
   expect(s).toContain("::slotted(input[aria-invalid='true']), ::slotted(select[aria-invalid='true']), ::slotted(textarea[aria-invalid='true']) { border-color: var(--sw-danger);");
 });
+
+test('time-of-use prices: the shared table with a ₪ field per price; every spec hook kept; no hand-built table or sideways scroll', () => {
+  const s = flat('electricity/elec-tou-editor.ts');
+  const prices = s.slice(s.indexOf('private prices('), s.indexOf('// ------------------------------------------------------------------ hours'));
+  expect(prices).toContain('<sw-table bare static-rows class="t"');
+  expect(prices).toContain("'data-tou-band'");
+  expect(prices).toContain('data-tou-prices');
+  expect(prices).toContain('<sw-field part="field tou-price" unit="₪" hint=${hint}>');
+  // the spec hooks: data-tou-price on the input, .err on a refused price (+ aria-invalid), the column header 'פס' (English 'Band')
+  expect(prices).toContain('data-tou-price=${`${s.id}:${b.id}`}');
+  expect(prices).toContain("class=\"ltr ${bad ? 'err' : ''}\"");
+  expect(prices).toContain("aria-invalid=${bad ? 'true' : 'false'}");
+  expect(prices).toContain("label: tr('פס')");
+  expect(prices).not.toMatch(/<table|scrollx|<span>₪<\/span>/);
+  expect(s).not.toContain('td.pc');
+});
