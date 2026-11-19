@@ -4,6 +4,7 @@
  * system only, so no platform is named. Terms: docs/i18n/GLOSSARY_EN.md.
  */
 import { docLang, fill, registerCatalogue, type Vars } from './core';
+import { packTable } from './lang-packs';
 
 const he = {
   title: 'ייצוא יומן מצונזר',
@@ -47,43 +48,7 @@ const he = {
 
 export type LogExportKey = keyof typeof he;
 
-const en: Record<LogExportKey, string> = {
-  title: 'Redacted log export',
-  subtitle: 'A file for troubleshooting: the latest log lines with the request id of each line, the system checks and a recommendation for each problem.',
-  window: 'Time range',
-  level: 'Detail level',
-  o15: '15 minutes',
-  o60: '1 hour (default)',
-  o180: '3 hours',
-  o360: '6 hours',
-  o720: '12 hours',
-  o1440: '24 hours',
-  w15: 'in the last 15 minutes',
-  w60: 'in the last hour',
-  w180: 'in the last 3 hours',
-  w360: 'in the last 6 hours',
-  w720: 'in the last 12 hours',
-  w1440: 'in the last 24 hours',
-  oINFO: 'Information and above (default)',
-  oWARNING: 'Warnings and errors',
-  oERROR: 'Errors only',
-  pINFO: 'information, warnings and errors',
-  pWARNING: 'warnings and errors',
-  pERROR: 'errors only',
-  hidden: 'Hidden: passwords, tokens, sign-in details in addresses, network addresses, serial numbers, phone numbers and e-mail addresses. Video, pictures and plans are never included.',
-  export: 'Export the log',
-  exporting: 'Exporting…',
-  confirmTitle: 'Export the log?',
-  confirmBody: 'The file will hold the log lines written {window} ({level}) and the system checks, after hiding passwords, tokens, addresses, serial numbers and personal details. It holds no video, pictures or plans. The export is recorded in the audit log.',
-  confirm: 'Confirm and download',
-  cancel: 'Cancel',
-  done: '{name} was downloaded',
-  cancelled: 'The export was cancelled; no file was created',
-  forbidden: 'Only someone allowed to manage the system settings can export the log.',
-  consent: 'The server did not receive the confirmation. Try again and confirm the export.',
-  failed: 'The export failed: {error}',
-  retry: 'Try again',
-};
+const en: Record<LogExportKey, string> = packTable<typeof import('./lang/en/i18n/log-export').en>('en', 'i18n/log-export', 'en');
 
 registerCatalogue('i18n/log-export', { he, en });
 
