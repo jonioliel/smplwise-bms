@@ -76,6 +76,10 @@ by a stronger rule. What the train lacked, and what was ported onto the shared b
 | b9ff5dcda | `v2Eta`'s doc comment taken verbatim from the lead's fix 78388f837 (`pilot/CR-FE-SMALL-2440`, only that file) so its 2.44.0 merge is clean |
 | 659d732f2 | `app_session._Cache.forget_ended` (tests only) also ends the clear hold - `test_session_cache_2438::test_clear_keeps_the_ended_keys_and_forget_ended_resets_them` failed after the merge-15 port; `pixel-events-windows-2443` (new in CR-EVENTS-TABLE-2443, never run before): its facets mock lacked `unavailable_types`, `renderTech` threw and the screen stayed "loading" (runner: both projects timed out) |
 | 6fd241e76 | first baselines of `pixel-events-windows-2443` (runner, 4 images, reviewed) |
+| 9439362d5 | the five page-bundle unit specs (`unit-arx-local-login`, `-arx-pending-tokens`, `-brand-login`, `-local-user-create-2438`, `-service-identity`) build `esm` and inject `type: 'module'`: LAZY-LANG's `i18n/lang-packs.ts` awaits at top level, which esbuild cannot emit as `iife` (24 cases failed to build) |
+| eed8da28a | `unit-no-ha-branding-2443` judges a pack file `i18n/lang/<lang>/<module>` as its module (+ an allow entry for the `msg/api-devices.ts` table of the Settings › Access labels); `unit-noticeperm-295` reads the English pack |
+| 6af626d93 | `unit-shell-lazy-2436`: `tickets/nav-text.ts` now also imports `i18n/lang-packs.ts` |
+| 2e1904d47 | `unit-wxmedset`: the media row's English is read from the `access-parity` pack file |
 
 ## 3. Version and built UI
 
@@ -108,6 +112,8 @@ Workstation: main checkout `.venv` (Python 3.12), Node 24.21.0, `frontend/node_m
 | runner `run_smart.py preview` `pixel-events-windows-2443`, `evidence-audit30c-tickets`, `pixel-audit30a-glass-bridge`, `pixel-home-fb-2431`, `pixel-wiskey-station-media`, `pixel-wiskey-talk-dial-2382`, `pixel-notice-tv-mock`, `pixel-notice-tv-portrait-chips`, `-u --workers=1`, all projects | b9ff5dcda | 118 passed, 147 skipped (per project), 2 failed (`pixel-events-windows-2443`, fixed 659d732f2); **0 existing baselines rewritten** - the INITIALS / TOKENS / TV changes stay inside the specs' tolerance |
 | runner, same, `pixel-events-windows-2443 -u` | 659d732f2 | 2 passed; 4 new baselines (6fd241e76) |
 | runner `build:addon` | 2668e8c5c | rc=0 (above) |
+| Playwright unit config, every `tests/unit-*.spec.ts`, `--workers=1` (workstation) | 2d8e82ad7 | 4938 tests: **4894 passed, 10 skipped, 34 failed** - 29 merge interactions with CR-I18N-LAZY-LANG-2443 (fixed in the four commits above; each fixed file re-run: 55 + 7 + 8 + 7 passed) and the 5 known `unit-session-me-failure-2435` cases (a browser spec the node config picks up; needs a preview server, same on every branch) |
+| runner `run_smart.py preview` `layout-dd-click`, `dropdown-phone-choice`, desktop, `--workers=1` (the two early-layout failures of gate run 1) | 88bd6bc54 | 36 passed, 0 failed (load 37): run-fault flakes under load 99-107, not product |
 
 Runner full backend outside the gate: started twice and stopped by me - the first time (load 52-75 while the 2.43.8 gate ran) to
 keep that gate clean; the second time at ~4,000 tests because the runner's disk was full (my four `/tmp/t49-pytest-*` basetemps had
