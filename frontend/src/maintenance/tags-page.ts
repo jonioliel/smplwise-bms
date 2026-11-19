@@ -11,6 +11,7 @@ import { mt } from '../i18n/maintenance';
 import type { MaintAccess } from './access';
 import { fmtDate, fmtInstant, kindText, stickerUrl } from './model';
 import { maintCss } from './styles';
+import { ToastController } from '../components/toast-controller';
 
 /** A sticker's QR code as one inline SVG path (no data: URL - the strict remote CSP stays untouched), like the second-factor enrolment. */
 function qrPath(text: string): { d: string; size: number } {
@@ -58,7 +59,11 @@ export class MaintTagsPage extends LitElement {
   @state() private draft: { target: string; label: string; medium: TagMedium } = { target: '', label: '', medium: 'qr' };
   @state() private revoke: Tag | null = null;
   @state() private busy = false;
-  @state() private toast = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 2600 });
+  private get toast(): string {
+    return this.toaster.text;
+  }
   @state() private formError = '';
 
   static styles = [maintCss, css`
@@ -109,10 +114,7 @@ export class MaintTagsPage extends LitElement {
   }
 
   private flash(msg: string) {
-    this.toast = msg;
-    window.setTimeout(() => {
-      if (this.toast === msg) this.toast = '';
-    }, 2600);
+    this.toaster.show(msg);
   }
 
   private url(t: Tag): string {
