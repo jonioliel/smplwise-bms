@@ -1,13 +1,14 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-card';
+import './sw-segmented';
+import type { SegmentedChange } from './sw-segmented';
 import { describeError, patch } from '../api/client';
 import { getSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
 import { AUTOMATIONS_VIEWS, PAGE_SIZE_MAX, SCHEDULES_VIEWS, pageSizeKey, pageSizeMin, screenDisplayOf, type PagedList, type SchedulesView } from '../api/screen-display';
 import { pl } from '../i18n/polish';
-import { settingsSegStyles } from '../styles/settings';
 import { tr } from '../i18n/msg/components';
 
 const VIEW_NAME: Record<SchedulesView, () => string> = { rows: () => pl('rows'), cards: () => tr('כרטיסים'), table: () => tr('טבלה'), week: () => tr('שבוע') };
@@ -31,7 +32,7 @@ export class SwListDisplaySettings extends LitElement {
   @state() private error = '';
   private noteTimer = 0;
 
-  static styles = [settingsSegStyles, css`
+  static styles = [css`
     :host {
       display: block;
     }
@@ -46,11 +47,11 @@ export class SwListDisplaySettings extends LitElement {
     .row + .row {
       border-block-start: 1px solid var(--sw-border);
     }
-    /* POLISH2-295: the segmented control is the settings pages' own (settingsSegStyles: the accent with the inverse label when chosen,
-       AA in both schemes); its own look (the chosen segment darker than the track in the dark scheme, 1.2:1) is gone. A read-only
-       viewer sees the same contrast: no dimming. */
-    .seg button:disabled {
-      cursor: default;
+    /* POLISH2-295: the segmented control is the settings pages' own (the settings key, AA in both schemes); its own look (the chosen
+       segment darker than the track in the dark scheme, 1.2:1) is gone. A read-only viewer sees the same contrast: no dimming.
+       CR-CMP2-SEGMENTED-C-2450: it is sw-segmented (the settings key by default); the no-dimming stays through the disabled opacity */
+    sw-segmented {
+      --sw-disabled-opacity: 1;
     }
     input[type='number'] {
       inline-size: 5.5em;
@@ -63,7 +64,6 @@ export class SwListDisplaySettings extends LitElement {
       font: inherit;
       font-variant-numeric: tabular-nums;
     }
-    .seg button:focus-visible,
     input:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
@@ -159,7 +159,8 @@ export class SwListDisplaySettings extends LitElement {
         aria-label=${label} data-page-size=${tag} @change=${(e: Event) => this.setSize(list, phone, (e.target as HTMLInputElement).value)} /></div>`;
     };
     return html`<sw-card heading=${pl('listsHeading')} data-list-display=${this.list}>
-      <div class="row"><span>${pl('defaultView')}</span><span class="seg" role="group" aria-label=${pl('defaultView')}>${((this.list === 'automations' ? AUTOMATIONS_VIEWS : SCHEDULES_VIEWS) as readonly SchedulesView[]).map((v) => html`<button type="button" data-default-view=${v} aria-pressed=${String(this.view === v)} ?disabled=${ro} @click=${() => this.setView(v)}>${VIEW_NAME[v]()}</button>`)}</span></div>
+      <div class="row"><span>${pl('defaultView')}</span><sw-segmented label=${pl('defaultView')} value=${this.view} ?disabled=${ro} @change=${(e: CustomEvent<SegmentedChange>) => this.setView(e.detail.value as SchedulesView)}
+        .options=${((this.list === 'automations' ? AUTOMATIONS_VIEWS : SCHEDULES_VIEWS) as readonly SchedulesView[]).map((v) => ({ value: v, label: VIEW_NAME[v](), attrs: { 'data-default-view': v } }))}></sw-segmented></div>
       ${size(this.list, false, pl('perPageWide'))}
       ${size(this.list, true, pl('perPagePhone'))}
       ${this.list === 'automations' ? html`${size('automations_cards', false, pl('cardsPerPageWide'))}${size('automations_cards', true, pl('cardsPerPagePhone'))}` : nothing}

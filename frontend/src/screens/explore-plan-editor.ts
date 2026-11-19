@@ -12,6 +12,7 @@ import '../components/sw-state-panel';
 import '../components/sw-toggle';
 import '../components/sw-dialog';
 import '../components/sw-chip';
+import '../components/sw-segmented'; // CR-CMP2-SEGMENTED-C-2450: drawn by plan-studio6-panel's material field
 import '../map/sw-plan-canvas';
 import type { GeomDragDetail, GeomDragMode, GhostHandleDetail, PlanMarker, MarkerSelectDetail, PlanZone, RulerOverlay, SwPlanCanvas } from '../map/sw-plan-canvas';
 import { acceptGhost, defaultGhost, existingOpening, flipHinge, flipSwing, ghostDoc, ghostFromProposal, ghostHandles, ghostWall, ghostWidthTo, onGhost, type DoorGhost } from '../map/door-tool';

@@ -4,6 +4,8 @@ import './sw-button';
 import './sw-dialog';
 import './sw-dropdown';
 import './sw-state-panel';
+import './sw-segmented';
+import type { SegmentedChange } from './sw-segmented';
 import './frigate-zone-editor';
 import { describeError } from '../api/client';
 import type { WireCamera } from '../api/frigate';
@@ -515,10 +517,8 @@ export class FrigateConfigPanel extends LitElement {
         </div>
         <div class="inline">
           ${!this.enabled ? html`<span class="chip warn" data-fcp-class-off>${t.classOff}</span>` : v && !v.writable ? html`<span class="chip" data-fcp-read-only>${t.readOnly}</span>` : nothing}
-          <div class="seg" role="group" aria-label=${s.tabs.config}>
-            <button type="button" aria-pressed=${String(this.mode === 'zones')} data-fcp-mode="zones" @click=${() => (this.mode = 'zones')}>${t.zones}</button>
-            <button type="button" aria-pressed=${String(this.mode === 'settings')} data-fcp-mode="settings" @click=${() => (this.mode = 'settings')}>${t.settings}</button>
-          </div>
+          <sw-segmented label=${s.tabs.config} value=${this.mode} @change=${(e: CustomEvent<SegmentedChange>) => (this.mode = e.detail.value as Mode)}
+            .options=${[{ value: 'zones', label: t.zones, attrs: { 'data-fcp-mode': 'zones' } }, { value: 'settings', label: t.settings, attrs: { 'data-fcp-mode': 'settings' } }]}></sw-segmented>
         </div>
       </div>
       ${this.failed ? html`<div class="msg err" data-fcp-failed>${t.unavailable}</div>` : nothing}
