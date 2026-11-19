@@ -375,11 +375,27 @@ export const remoteStyles = css`
     font-size: var(--sw-fs-base);
     padding: 4px 12px;
   }
-  .seg button[aria-selected='true'],
-  .seg button[aria-checked='true'],
-  .seg button[aria-pressed='true'] {
+  .seg button[aria-selected='true'] {
     background: var(--mr-seg-thumb);
     box-shadow: var(--mr-shadow-control);
+  }
+  /* CR-CMP2-SEGMENTED-C-2450: the radio groups (audio output, pad type, the remote editor's scope) are sw-segmented, drawn as the
+     .seg tab strip above through its knobs - the pill track, the 44 px keys, the --mr thumb (the tab strips stay .seg) */
+  sw-segmented {
+    --sw-seg-border: transparent;
+    --sw-seg-track: var(--mr-surface-3);
+    --sw-seg-radius: 999px;
+    --sw-seg-btn-radius: 999px;
+    --sw-seg-pad: 3px;
+    --sw-seg-gap: 2px;
+    --sw-seg-h: 44px;
+    --sw-seg-key-pad: 12px;
+    --sw-seg-fs: var(--sw-fs-base);
+    --sw-seg-fw: 600;
+    --sw-seg-fg: var(--mr-text);
+    --sw-seg-on-bg: var(--mr-seg-thumb);
+    --sw-seg-on-fg: var(--mr-text);
+    --sw-seg-on-shadow: var(--mr-shadow-control);
   }
   .btn {
     display: inline-flex;

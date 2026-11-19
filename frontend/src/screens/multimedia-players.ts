@@ -12,6 +12,8 @@ import '../components/media-now-hero';
 import './multimedia-edit-panel';
 import '../components/sw-pager';
 import '../components/sw-page';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { PageFit } from '../components/page-fit';
 import { MediaCardsScreenBase } from './multimedia-base';
 import { SkinController } from '../design/skin';
@@ -70,6 +72,16 @@ export class MultimediaPlayers extends MediaCardsScreenBase<PlayerStatus, Player
   protected fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('.scr'), () => !this.editing);
 
   static styles = [mediaGlassStyles, mediaPageStyles, css`
+    /* CR-CMP2-SEGMENTED-C-2450: on a phone the state filter stays one line and scrolls sideways (the .dh-det .seg rule of media-page) */
+    @media (max-width: 767px) {
+      .dh-det sw-segmented {
+        --sw-seg-wrap: nowrap;
+      }
+      .dh-det sw-segmented::part(track) {
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+    }
     .shlink[disabled] {
       cursor: default;
     }
@@ -416,7 +428,8 @@ export class MultimediaPlayers extends MediaCardsScreenBase<PlayerStatus, Player
       <div class="dh-det">
         ${lib && lib !== 'ready' ? html`<span class="chipx libchip" data-lib-state=${lib}>${mIcon('music')}${tr('ספרייה לא זמינה')}</span>` : nothing}
         ${this.fit.pages > 1 ? html`<sw-pager data-mm-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}
-        <div class="seg sm" role="radiogroup" aria-label=${tr('סינון לפי מצב')}>${PLAYER_STATE_FILTERS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id || 'all'} @click=${() => this.setFilters({ state: s.id })}>${s.label}${s.id === 'playing' ? html` <small>${c.playing}</small>` : s.id === 'unavailable' && c.unavailable ? html` <small>${c.unavailable}</small>` : nothing}</button>`)}</div>
+        <sw-segmented radio size="sm" label=${tr('סינון לפי מצב')} value=${f.state} @change=${(e: CustomEvent<SegmentedChange>) => this.setFilters({ state: PLAYER_STATE_FILTERS.find((s) => s.id === e.detail.value)?.id ?? '' })}
+          .options=${PLAYER_STATE_FILTERS.map((s) => ({ value: s.id, label: s.label, count: s.id === 'playing' ? String(c.playing) : s.id === 'unavailable' && c.unavailable ? String(c.unavailable) : undefined, attrs: { 'data-state-filter': s.id || 'all' } }))}></sw-segmented>
         <label class="search">${mIcon('search')}<span class="vh">${tr('חיפוש נגן')}</span><input type="search" data-search placeholder=${tr('חיפוש נגן או חדר')} .value=${f.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
       </div>
     </div>`;
