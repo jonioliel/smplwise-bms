@@ -383,17 +383,20 @@ export class SwField extends LitElement {
     :host([has-unit]:dir(ltr):not([unit-at='start'])) ::slotted(input),
     :host([has-unit]:dir(rtl)[unit-at='start']) ::slotted(input) {
       padding-right: var(--_upad) !important;
+      --_ualign: right;
     }
     :host([has-unit]:dir(rtl):not([unit-at='start'])) ::slotted(input),
     :host([has-unit]:dir(ltr)[unit-at='start']) ::slotted(input) {
       padding-left: var(--_upad) !important;
+      --_ualign: left;
     }
-    /* a figure keeps left-to-right digits (the minus sign and the decimal point stay where they are typed) in tabular figures */
+    /* a figure keeps left-to-right digits (the minus sign and the decimal point stay where they are typed) in tabular figures, and sits
+       against its unit (--_ualign: the unit's physical side, set above) */
     :host([has-unit]) ::slotted(input[inputmode='decimal']),
     :host([has-unit]) ::slotted(input[inputmode='numeric']),
     :host([has-unit]) ::slotted(input[type='number']) {
       direction: ltr;
-      text-align: left;
+      text-align: var(--_ualign, left);
       font-variant-numeric: tabular-nums;
     }
     @media (forced-colors: active) {

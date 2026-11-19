@@ -86,6 +86,7 @@ function geometry(page: Page, key: string) {
       padRight: parseFloat(cs.paddingRight),
       direction: cs.direction,
       digits: cs.fontVariantNumeric,
+      align: cs.textAlign,
       description: input.getAttribute('aria-description'),
       hostDir: getComputedStyle(f).direction,
     };
@@ -110,7 +111,7 @@ test.describe('pixel: sw-field', () => {
     });
   }
 
-  test('sw-field unit: inside the frame at the reading end (left in Hebrew, right in English), the figure never runs under it', async ({ page }) => {
+  test('sw-field unit: inside the frame at the reading end (left in Hebrew, right in English), the figure sits against it and never runs under it', async ({ page }) => {
     await specimen(page, 'light');
     // Hebrew, unit at the end: the unit sits at the input's LEFT edge, inside the frame, vertically centred; the left padding clears it
     const he = await geometry(page, 'ils-end');
@@ -124,10 +125,13 @@ test.describe('pixel: sw-field', () => {
     expect(he.direction).toBe('ltr');
     expect(he.digits).toContain('tabular-nums');
     expect(he.description).toBe('₪');
+    // the figure sits against its unit: the unit's side is the text's side
+    expect(he.align).toBe('left');
     // Hebrew, unit at the start: the RIGHT edge
     const heStart = await geometry(page, 'ils-start');
     expect(heStart.input.right - heStart.unit!.right).toBeLessThan(16);
     expect(heStart.unit!.left).toBeGreaterThan(heStart.input.right - heStart.padRight);
+    expect(heStart.align).toBe('right');
     // a wider unit gets a wider padding (measured, not guessed)
     const kwh = await geometry(page, 'kwh');
     expect(kwh.padLeft).toBeGreaterThan(he.padLeft);
@@ -137,9 +141,11 @@ test.describe('pixel: sw-field', () => {
     expect(en.hostDir).toBe('ltr');
     expect(en.input.right - en.unit!.right).toBeLessThan(16);
     expect(en.unit!.left).toBeGreaterThan(en.input.right - en.padRight);
+    expect(en.align).toBe('right');
     const enStart = await geometry(page, 'en-start');
     expect(enStart.unit!.left - enStart.input.left).toBeLessThan(16);
     expect(enStart.unit!.right).toBeLessThan(enStart.input.left + enStart.padLeft);
+    expect(enStart.align).toBe('left');
     // the plain field has no unit and no description
     const plain = await geometry(page, 'plain');
     expect(plain.unit).toBeNull();
