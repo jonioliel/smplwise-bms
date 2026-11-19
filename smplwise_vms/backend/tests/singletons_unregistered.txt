@@ -200,18 +200,4 @@ smplwise.services.playback._INSTANCE
 smplwise.remote_channel._CSP_MODE
 smplwise.remote_channel._MIC_MODE
 # - no reset function in the module yet (adding one is the next step of this seam)
-smplwise.services.camera_sources._TESTS
-smplwise.services.ha_camera_streams._ENTITY_LOCKS
-smplwise.services.ha_camera_streams._LAST_READ
-smplwise.services.ha_camera_streams._REREADS
-smplwise.services.ha_camera_streams._STALE
 smplwise.services.media_query._NAMES  # not covered by media_query.clear()
-smplwise.services.mobile_push.STATS
-smplwise.services.notify_sources._LAST_FAILED
-smplwise.services.partner.webhooks.STATS
-smplwise.services.push.STATS
-smplwise.services.push._KEYS
-smplwise.services.recorders.frigate_http._LOGIN_LOCKS
-smplwise.services.recorders.provision_playback._SEARCH_LOCKS
-smplwise.services.self_update._LISTED_VIDEO
-smplwise.services.storage._warm_state
