@@ -124,6 +124,13 @@ export const metersGridCss = css`
     transform: scale(var(--sw-press-scale));
     box-shadow: var(--sw-shadow-1);
   }
+  /* RELEASE-2450-TRAIN phase 1: the meters table fits its card at 1024 px (no sideways scroll, owner rule). As table.t's cells did, the
+     state cell lets a stale meter's "since" note take a second line under its chip (the chip itself never breaks), and a long column
+     title takes two lines; both only when the card is too narrow for one line. */
+  sw-table.t[data-meters-table]::part(head),
+  sw-table.t[data-meters-table]::part(cell-status) {
+    white-space: normal;
+  }
 `;
 
 /** The phone and desktop rules of the page (after a module's own base rules, before its own responsive rules: the order is the cascade). */
