@@ -22,6 +22,7 @@ import './view-maint';
 import './maint-drawer';
 import './view-manage';
 import './resident';
+import { ToastController } from '../components/toast-controller';
 
 const TAB_LABEL: Record<CalView, string> = { cal: tr('יומן'), rooms: tr('חדרים לפי שעות'), approvals: tr('אישורים'), maint: tr('תחזוקה'), manage: tr('ניהול יומנים') };
 const TAB_SHORT: Record<CalView, string> = { cal: tr('יומן'), rooms: tr('חדרים'), approvals: tr('אישורים'), maint: tr('תחזוקה'), manage: tr('ניהול') };
@@ -87,11 +88,14 @@ export class CalendarsPage extends LitElement {
   @state() private slow = false;
   @state() private device: CalCtx['device'] = 'desktop';
   @state() private drawer: { kind: 'event'; d: NewEventDetail } | { kind: 'maint'; d: NewMaintDetail } | null = null;
-  @state() private toastText = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 3200 });
+  private get toastText(): string {
+    return this.toaster.text;
+  }
   private api: CalendarsApi | null = null;
   private stop: (() => void) | null = null;
   private slowTimer = 0;
-  private toastTimer = 0;
   private onResize = () => this.measure();
 
   connectedCallback(): void {
@@ -113,7 +117,6 @@ export class CalendarsPage extends LitElement {
     window.removeEventListener('resize', this.onResize);
     this.stop?.();
     clearTimeout(this.slowTimer);
-    clearTimeout(this.toastTimer);
   }
 
   protected willUpdate(changed: PropertyValues<this>): void {
@@ -162,9 +165,7 @@ export class CalendarsPage extends LitElement {
   }
 
   private toast(text: string): void {
-    this.toastText = text;
-    clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => (this.toastText = ''), 3200);
+    this.toaster.show(text);
   }
 
   private get view(): CalView {

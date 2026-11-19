@@ -16,6 +16,7 @@ import { leadReserveStyles } from '../styles/lead-reserve';
 import { tablistKeydown } from '../components/a11y-keys';
 import { LongListsController, perPageFor } from '../api/long-lists';
 import { tr } from '../i18n/msg/system-a';
+import { ToastController } from '../components/toast-controller';
 
 const ORDER: ProviderCard[] = ['ical', 'google', 'microsoft'];
 const STAGE: Record<ProviderCard, string> = { ical: tr('ראשון · ללא חשבון'), google: tr('שני'), microsoft: tr('שלישי') };
@@ -126,7 +127,11 @@ export class SystemCalendarSync extends LitElement {
   /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists scroll (הגדרות › כללי) -> every item on one page, the list box scrolls
    * inside itself (api/long-lists.ts). */
   private lists = new LongListsController(this, () => (this.flagPage = 1));
-  @state() private toastText = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 3200 });
+  private get toastText(): string {
+    return this.toaster.text;
+  }
   @state() private compact = window.innerWidth < 1180 || window.innerHeight < 820;
   @state() private phone = window.innerWidth < 700;
   /** the phone shows one provider at a time (no page scroll); null = the one that needs attention, else the first */
@@ -134,7 +139,6 @@ export class SystemCalendarSync extends LitElement {
   /** CALCONNECT-2330: the open connect / bind / feeds dialog (a new object per opening) */
   @state() private dialog: ConnectMode | null = null;
   private api: CalendarsApi | null = null;
-  private toastTimer = 0;
   private onResize = () => {
     this.compact = window.innerWidth < 1180 || window.innerHeight < 820;
     this.phone = window.innerWidth < 700;
@@ -149,7 +153,6 @@ export class SystemCalendarSync extends LitElement {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     window.removeEventListener('resize', this.onResize);
-    clearTimeout(this.toastTimer);
   }
 
   private async load(): Promise<void> {
@@ -184,9 +187,7 @@ export class SystemCalendarSync extends LitElement {
   }
 
   private toast(t: string): void {
-    this.toastText = t;
-    clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => (this.toastText = ''), 3200);
+    this.toaster.show(t);
   }
 
   private async act(fn: () => Promise<unknown>, done: string): Promise<void> {
