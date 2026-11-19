@@ -11,7 +11,7 @@ import { waterBilling, type Account, type AccountStatus, type AutoMode, type Bil
 import { navigate } from '../../router';
 import { onWaterAccess, waterAccess, type WaterAccess } from '../../water/access';
 import { waterCss } from '../../water/styles';
-import { AUTO_LABEL, BILL_STATE, accountChip, astOf, fmtIls, fmtM3, periodLabel, termsOf, type Term } from '../../water/billing-format';
+import { AUTO_LABEL, BILL_STATE, accountChip, astOf, fmtIls, fmtM3, periodLabel, sumOrNull, termsOf, type Term } from '../../water/billing-format';
 import { fmtDate } from '../../electricity/format';
 import { wt } from '../../water/i18n';
 import { SkinController } from '../../design/skin';
@@ -323,12 +323,13 @@ export class WaterAccountsPage extends LitElement {
       return html`<div class="page" data-water="accounts" data-state="empty"><sw-state-panel icon="drop" state="empty" heading=${wt('emptyAccounts')}>${this.access.manage ? html`<sw-button variant="primary" data-new-account @click=${() => navigate(`${BASE}/new`)}>${wt('newAccount')}</sw-button>` : nothing}</sw-state-panel></div>`;
     }
     const st = this.statuses;
-    const m3sum = this.rows.reduce((s, r) => s + Number(st[r.id]?.m3_so_far ?? 0), 0);
-    const amt = this.rows.reduce((s, r) => s + Number(st[r.id]?.amount_so_far ?? 0), 0);
+    // CR-RESPONSE-MODELS-FOLLOWUP-2450: no account with a value (no period yet, the status read failed) -> a dash, not 0
+    const m3sum = sumOrNull(this.rows.map((r) => st[r.id]?.m3_so_far));
+    const amt = sumOrNull(this.rows.map((r) => st[r.id]?.amount_so_far));
     const tiles = html`<div class="tiles" data-tiles>
       <div class="tile"><div class="k">${wt('tActiveAccounts')}</div><div class="v"><span class="num">${this.rows.filter((r) => r.status === 'active').length}</span></div></div>
       <div class="tile"><div class="k">${wt('tPeriodUsage')}</div><div class="v"><span class="num">${fmtM3(m3sum)}</span><span class="u">${wt('m3')}</span></div></div>
-      ${money ? html`<div class="tile"><div class="k">${wt('tAmountSoFar')}</div><div class="v"><span class="num">${fmtIls(amt).replace(' ₪', '')}</span><span class="u">₪</span></div></div>
+      ${money ? html`<div class="tile"><div class="k">${wt('tAmountSoFar')}</div><div class="v"><span class="num">${amt === null ? '-' : fmtIls(amt).replace(' ₪', '')}</span><span class="u">₪</span></div></div>
         <div class="tile"><div class="k">${wt('tDrafts')}</div><div class="v"><span class="num">${this.drafts ?? 0}</span></div></div>` : nothing}
     </div>`;
     const last = (r: Account) => (r.last_bill ? html`${r.last_bill.number ? html`<span class="num">${r.last_bill.number}</span>` : wt('tBillDrafts')} ${billChipW(r.last_bill)}` : html`<span class="mut">-</span>`);
