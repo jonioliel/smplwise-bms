@@ -85,14 +85,26 @@ test.describe('plan editor hot path (demo data)', () => {
 
   test('MSG-1: a detached editor keeps no running message timer', async ({ page }) => {
     const editor = await open(page);
-    const info = await editor.evaluate(async (n) => {
+    const seen = await editor.evaluate(async (n) => {
       const e = n as Probe;
       e.flash('bye', 300);
+      const shown = e.info;
+      let updates = 0;
+      const req = e.requestUpdate.bind(e);
+      e.requestUpdate = () => { updates += 1; req(); };
       e.remove();
+      const atDetach = e.info;
+      const updatesAtDetach = updates;
       await new Promise((r) => setTimeout(r, 700));
-      return e.info;
+      return { shown, atDetach, after: e.info, lateUpdates: updates - updatesAtDetach };
     });
-    expect(info).toBe('bye'); // the timer was cleared on disconnect, so it never fired on the detached element
+    // CR-CMP2-TOAST-2440 moved the editor's messages onto components/toast-controller.ts, whose rule is: on disconnect the timer is
+    // stopped and the message dropped (a screen that comes back shows no old message). So the message is gone at detach, and no
+    // timer fires on the detached element afterwards (it would ask the host to update). RELEASE-2440-TRAIN: was `toBe('bye')`.
+    expect(seen.shown).toBe('bye');
+    expect(seen.atDetach).toBe('');
+    expect(seen.after).toBe('');
+    expect(seen.lateUpdates).toBe(0);
   });
 
   test('RACE-7: an older entity search answering or failing after a newer one does not overwrite it', async ({ page }) => {
