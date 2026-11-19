@@ -11,6 +11,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..rbac import INSTALLATION, Principal, require
 from ..services import bundle_import, events_ingest, storage
 from ..services import exports as ex
+from ..services import storage_store as store
 from ._common import rid as _rid
 
 router = APIRouter()
@@ -37,7 +38,7 @@ def local_state(settings: Any, conn: sqlite3.Connection) -> dict[str, Any]:
     state with its backpressure counters, and the alert-ingest queue - what the storage screen and /health show."""
     from ..services.tickets import public_portal
 
-    states = {r[0]: r[1] for r in conn.execute("SELECT state, COUNT(*) FROM export_jobs GROUP BY state").fetchall()}
+    states = {r[0]: r[1] for r in store.export_job_counts(conn)}
     return {
         "data_disk": ex.disk_state(settings, ex.min_free_mb(conn)),
         "exports": {"by_state": states, "paused_disk_full": states.get(ex.PAUSED, 0), "waiting": states.get("queued", 0) + states.get(ex.PAUSED, 0),
