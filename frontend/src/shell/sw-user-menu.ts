@@ -99,6 +99,12 @@ export class SwUserMenu extends LitElement {
       visibility: hidden;
       transition: visibility 0s linear var(--sw-t-med);
     }
+    /* FIX-FLAKY-POLISH-WORSTCASE-2439: the delayed hide is for closing only. The host's first style arrives as a change from
+       visible, and that change ran the delayed hide too: a menu that was never opened stayed visible (to the accessibility tree
+       and to every layout check) for the first --sw-t-med after each page load - longer on a busy machine */
+    :host(:not([data-was-open])) {
+      transition: none;
+    }
     :host([open]) {
       pointer-events: auto;
       visibility: visible;
@@ -291,6 +297,19 @@ export class SwUserMenu extends LitElement {
       font-weight: var(--sw-fw-medium);
       color: var(--sw-text);
     }
+    /* FIX-FLAKY-POLISH-WORSTCASE-2439: three options (the building screen with the live plan: cards, tiles, plan) are wider
+       than the 300 px popover leaves beside the label - the label was squeezed to 11 px and the word ran under the control.
+       The label keeps its own width and the control moves to a second line, at the row's end; two options still share one line */
+    li.view {
+      flex-wrap: wrap;
+      row-gap: 6px;
+    }
+    li.view .txt {
+      flex: 1 1 auto;
+    }
+    li.view .seg {
+      margin-inline-start: auto;
+    }
     li.view .seg {
       display: inline-flex;
       padding: 2px;
@@ -481,6 +500,7 @@ export class SwUserMenu extends LitElement {
     if (changed.has('open') && this.open) {
       this.level = 'main';
       this.closeSections();
+      this.toggleAttribute('data-was-open', true); // from now on a close keeps the panel visible while it slides away
     }
   }
 

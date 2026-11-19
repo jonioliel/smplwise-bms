@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { measure } from './breakui-worst';
+import { settle as restingLayout } from './helpers/settle';
 import { installWorstcase } from './fixtures/worstcase/mocks';
 import { DATASETS, type Dataset } from './fixtures/worstcase/devices';
 
@@ -54,6 +55,10 @@ test.describe('worst-case data on the main screens', () => {
         // project of a loaded workstation's Vite dev server - so it is enforced only in the timing lane (the test below, @timing-lane)
         if (ds === 'huge' && process.env.WC_TIMING === '1') expect(settle, `${s.id}: the huge dataset settles`).toBeLessThan(15_000);
         const ctx = `${s.id}/${ds}/${skin}-${scheme}/${info.project.name}`;
+        // FIX-FLAKY-POLISH-WORSTCASE-2439: the resting layout - on a loaded runner the frames lag the tasks, so a counter's value fit
+        // (scheduled for the next frame after a render) and the shell's transitions could still be pending 800 ms after the screen
+        // was attached; the gates measured that in-between frame. Two frames, then the finite animations (helpers/settle.ts).
+        await restingLayout(page);
         const m = await measure(page, ctx, 'sw-app');
         const own = [...m.found.map((f) => `${f.cls} ${f.el} ${f.detail}`), ...(m.scroll > 1 ? [`page scrolls sideways by ${m.scroll}px`] : [])];
         if (own.length) problems.push(`${ctx}: ${Array.from(new Set(own)).slice(0, 8).join(' | ')}`);

@@ -68,6 +68,12 @@ export class NotifyCenter extends LitElement {
         line-height: 1.5;
         -webkit-font-smoothing: antialiased;
       }
+      /* FIX-FLAKY-POLISH-WORSTCASE-2439 (as sw-user-menu): the delayed hide is for closing only - the host's first style ran it too,
+         so a centre that was never opened stayed visible (accessibility tree, layout and contrast checks) for the first --mm-motion
+         after each page load */
+      :host(:not([data-was-open])) {
+        transition: none;
+      }
       :host([open]) {
         pointer-events: auto;
         visibility: visible;
@@ -516,6 +522,7 @@ export class NotifyCenter extends LitElement {
   protected willUpdate(changed: Map<string, unknown>) {
     if (changed.has('open')) {
       if (this.open) {
+        this.toggleAttribute('data-was-open', true); // from now on a close keeps the panel visible while it slides away
         void applyNotifyGlass(this); // the installation's scheme (devices.scheme): the element exists before the session is known
         this.filter = 'all';
         this.category = null;
