@@ -451,93 +451,80 @@ def _build_audio_roles(ep_list: list[Endpoint], ents: dict[str, dict[str, Any]],
         e.role = "music" if i == 0 else "ma_export"
 
 
-def build(
-    entities: list[dict[str, Any]],
-    devices: list[dict[str, Any]],
-    rules: list[dict[str, Any]] | None = None,
-    *,
-    existing_keys: dict[str, str] | None = None,
-    existing_anchors: dict[str, str] | None = None,
-    new_key: Callable[[], str] | None = None,
-) -> Model:
-    """The dedupe ladder over the media endpoints (media_player.* and remote.*) of one installation.
+class _Ladder:
+    """CR-BE-COMPLEXITY-2450 (code review 03:F22): the working state of one `build()` - the candidate endpoints, the union-find over
+    them, the merge edges and the endpoints the administrator pinned apart (`unlink`). Each rung below is a function over it, run in
+    the documented order; the state and the order are exactly those of the former single function."""
 
-    `entities`: dicts with entity_id, domain, platform, unique_id, device_id, device_class, name, original_name, area_id, hidden, disabled,
-    attributes (and, for an audio device, `last_features`). `devices`: HA devices with device_id, name, name_by_user, area_id, manufacturer,
-    model, connections [[type, value]] and identifiers [[domain, id]] (normalised by `normalise_*`). `rules`: the administrator's link /
-    unlink / ignore rows. `existing_keys` (endpoint id -> device key) keeps a device's key stable while its endpoints change;
-    `existing_anchors` (device key -> entity id) keeps its anchor. Deterministic for equal inputs (`new_key` supplies fresh keys).
+    def __init__(self, entities: list[dict[str, Any]], devices: list[dict[str, Any]], rules: list[dict[str, Any]] | None) -> None:
+        self.rule_by_ep = rule_by_ep = {r["endpoint_id"]: r for r in (rules or [])}
+        self.dev_by_id = {d["device_id"]: d for d in devices}
+        cands = sorted((e for e in entities if e["domain"] in MEDIA_DOMAINS and not e.get("disabled") and rule_by_ep.get(endpoint_id_of(e["entity_id"]), {}).get("rule") != "ignore"), key=lambda e: e["entity_id"])
+        self.eps = [Endpoint(endpoint_id_of(e["entity_id"]), e["entity_id"], e["domain"], e.get("platform"), e.get("device_id") or None, role_of(e)) for e in cands]
+        self.ents = {e["entity_id"]: e for e in cands}
+        self.uf = _Union(len(self.eps))
+        self.edges: list[tuple[int, int, str]] = []
+        self.pinned_apart = {i for i, e in enumerate(self.eps) if rule_by_ep.get(e.endpoint_id, {}).get("rule") == "unlink"}
+        self.by_dev: dict[str, list[int]] = {}  # HA device id -> its endpoints (filled by rung 1, read by 2b / 2c / 3 / 4)
 
-    Rungs: 1 same HA device; 2 the MA loop; 2b an MA id EQUALS another integration's id (CR-016); 2c an MA id EMBEDS one; 3 a shared MAC;
-    4 a shared UUID / serial; 3b manufacturer + model across platforms (merged when the model is a single physical device, else a
-    suggestion); 5 / 5b suggestions by name (area on both sides / on one side); 6 the administrator's link."""
-    import uuid
+    def members(self, root: int) -> list[Endpoint]:
+        return [self.eps[i] for i in self.uf.groups().get(root, [])]
 
-    new_key = new_key or (lambda: uuid.uuid4().hex)
-    existing_keys = existing_keys or {}
-    existing_anchors = existing_anchors or {}
-    rule_by_ep = {r["endpoint_id"]: r for r in (rules or [])}
-    dev_by_id = {d["device_id"]: d for d in devices}
-
-    cands = sorted((e for e in entities if e["domain"] in MEDIA_DOMAINS and not e.get("disabled") and rule_by_ep.get(endpoint_id_of(e["entity_id"]), {}).get("rule") != "ignore"), key=lambda e: e["entity_id"])
-    eps = [Endpoint(endpoint_id_of(e["entity_id"]), e["entity_id"], e["domain"], e.get("platform"), e.get("device_id") or None, role_of(e)) for e in cands]
-    ents = {e["entity_id"]: e for e in cands}
-    n = len(eps)
-    uf = _Union(n)
-    edges: list[tuple[int, int, str]] = []
-    pinned_apart = {i for i, e in enumerate(eps) if rule_by_ep.get(e.endpoint_id, {}).get("rule") == "unlink"}
-
-    def members(root: int) -> list[Endpoint]:
-        return [eps[i] for i in uf.groups().get(root, [])]
-
-    def merge(a: int, b: int, rung: str, guarded: bool) -> None:
-        if a in pinned_apart or b in pinned_apart:
+    def merge(self, a: int, b: int, rung: str, guarded: bool) -> None:
+        if a in self.pinned_apart or b in self.pinned_apart:
             return
-        ra, rb = uf.find(a), uf.find(b)
+        ra, rb = self.uf.find(a), self.uf.find(b)
         if ra == rb:
-            edges.append((a, b, rung))
+            self.edges.append((a, b, rung))
             return
-        if guarded and _conflict(members(ra), members(rb)):
+        if guarded and _conflict(self.members(ra), self.members(rb)):
             return
-        uf.union(a, b)
-        edges.append((a, b, rung))
+        self.uf.union(a, b)
+        self.edges.append((a, b, rung))
 
+    def hub(self, ids: list[int]) -> int | None:
+        """The endpoint of a device the other rungs hang their merges on: its first endpoint the administrator did not `unlink`."""
+        return next((i for i in ids if i not in self.pinned_apart), None)
+
+
+def _rung_device(lad: _Ladder) -> None:
     # rung 1: the same HA device id
-    by_dev: dict[str, list[int]] = {}
-    for i, e in enumerate(eps):
+    by_dev = lad.by_dev
+    for i, e in enumerate(lad.eps):
         if e.device_id:
             by_dev.setdefault(e.device_id, []).append(i)
-    def hub(ids: list[int]) -> int | None:
-        """The endpoint of a device the other rungs hang their merges on: its first endpoint the administrator did not `unlink`."""
-        return next((i for i in ids if i not in pinned_apart), None)
-
     for ids in by_dev.values():
-        h = hub(ids)
+        h = lad.hub(ids)
         for j in ids:
             if h is not None and j != h:
-                merge(h, j, "device", False)
+                lad.merge(h, j, "device", False)
     # rung 1 also covers a child device (HA-2026-11-COMPAT-2404, core 2026.9+): a lightweight logical part of its parent, the
     # same physical device - its endpoints join the parent's (and those of the parent's other children)
+    dev_by_id = lad.dev_by_id
     by_root: dict[str, list[int]] = {}
     for did, ids in by_dev.items():
         parent = (dev_by_id.get(did) or {}).get("parent_device_id")
         root = parent if isinstance(parent, str) and parent and not (dev_by_id.get(parent) or {}).get("parent_device_id") else did
-        h = hub(ids)
+        h = lad.hub(ids)
         if h is not None:
             by_root.setdefault(root, []).append(h)
     for hubs in by_root.values():
         for j in hubs[1:]:
-            merge(hubs[0], j, "device", False)
+            lad.merge(hubs[0], j, "device", False)
 
-    # rung 2: the Music Assistant loop - an MA-created entity whose player id is an HA media_player entity id
+
+def _rung_ma_loop(lad: _Ladder) -> dict[int, set[str]]:
+    """rung 2: the Music Assistant loop - an MA-created entity whose player id is an HA media_player entity id. Returns each MA endpoint's
+    player ids (rungs 2b / 2c read them)."""
+    eps = lad.eps
     media_ids = {e.ref.lower(): i for i, e in enumerate(eps) if e.domain == "media_player"}
     ma_ids_of: dict[int, set[str]] = {}
     for i, e in enumerate(eps):
-        ent = ents[e.ref]
+        ent = lad.ents[e.ref]
         if e.platform != "music_assistant":
             continue
         pids = {str(ent.get("unique_id") or "").strip().lower()}
-        dev = dev_by_id.get(e.device_id or "")
+        dev = lad.dev_by_id.get(e.device_id or "")
         for dom, ident in (dev or {}).get("identifiers") or []:
             if dom == "music_assistant":
                 pids.add(str(ident).strip().lower())
@@ -545,12 +532,16 @@ def build(
         for pid in pids:
             j = media_ids.get(pid)
             if j is not None and j != i:
-                merge(i, j, "ma", False)
+                lad.merge(i, j, "ma", False)
                 eps[i].role = "ma_import"
+    return ma_ids_of
 
+
+def _rung_ma_vendor(lad: _Ladder, devices: list[dict[str, Any]], ma_ids_of: dict[int, set[str]]) -> None:
     # rungs 2b / 2c (CR-016 5.1): an MA player id that EQUALS (2b: the HEOS pair of system-V) or EMBEDS (2c: the WiiM pairs of systems H and V,
     # an MA provider prefix around the vendor id) the identifier of another integration's device. Strong identifiers only - a UUID, a MAC, a
     # serial, a long number; never an address or a host name - merged under the same-platform guard (two WiiMs never merge).
+    by_dev = lad.by_dev
     vendor_raw: dict[str, set[str]] = {}
     vendor_key: dict[str, set[str]] = {}
     for d in devices:
@@ -567,14 +558,14 @@ def build(
             if len(key) >= 8:
                 vendor_key.setdefault(key, set()).add(d["device_id"])
     for i, ids in sorted(ma_ids_of.items()):
-        own = eps[i].device_id
+        own = lad.eps[i].device_id
         joined = False
         for ma_id in sorted(ids):
             devs = vendor_raw.get(ma_id) if _strong_id(ma_id) else None
             if devs and len(devs) == 1 and own not in devs:
-                j = hub(by_dev[next(iter(devs))])
+                j = lad.hub(by_dev[next(iter(devs))])
                 if j is not None:
-                    merge(i, j, "2b", True)
+                    lad.merge(i, j, "2b", True)
                     joined = True
         if joined:
             continue
@@ -582,11 +573,14 @@ def build(
             flat = _alnum(ma_id)
             for vk, devs in sorted(vendor_key.items()):
                 if len(devs) == 1 and own not in devs and vk in flat:
-                    j = hub(by_dev[next(iter(devs))])
+                    j = lad.hub(by_dev[next(iter(devs))])
                     if j is not None:
-                        merge(i, j, "2c", True)
+                        lad.merge(i, j, "2c", True)
 
+
+def _rung_shared_ids(lad: _Ladder, devices: list[dict[str, Any]]) -> None:
     # rung 3: a MAC two HA devices share; rung 4: a shared UUID / serial / Cast UUID (both guarded by the same-platform rule)
+    by_dev = lad.by_dev
     macs: dict[str, set[str]] = {}
     idents: dict[str, set[str]] = {}
     for d in devices:
@@ -607,15 +601,20 @@ def build(
         for _value, dev_ids in sorted(table.items()):
             if len(dev_ids) < 2 or len(dev_ids) > 4:  # a value shared by many devices is not an identity
                 continue
-            hubs = [h for h in (hub(by_dev[d]) for d in sorted(dev_ids)) if h is not None]
+            hubs = [h for h in (lad.hub(by_dev[d]) for d in sorted(dev_ids)) if h is not None]
             for other in hubs[1:]:
-                merge(hubs[0], other, rung, True)
+                lad.merge(hubs[0], other, rung, True)
 
-    # rung 3b (CR-016 5.1): the same manufacturer + normalised model on endpoints of DIFFERENT platforms - the key that links Cast to MA, HEOS
-    # to MA and the SmartThings / DLNA / vendor stacks of a Samsung TV. A model shared by several clusters is ONE physical device when no
-    # platform appears on two different HA devices inside it AND exactly two clusters carry it (a unique pair: one Cast + one MA twin) - the merge; otherwise (the
-    # same model twice, or three single-platform clusters that could be three devices of one model - review L7) it is ambiguous and only suggested.
-    # A Cast model that is a prefix of the full one (shortened) counts; a non-physical platform (a Jellyfin session) never carries a model.
+
+def _rung_model(lad: _Ladder) -> list[tuple[int, int]]:
+    """rung 3b (CR-016 5.1): the same manufacturer + normalised model on endpoints of DIFFERENT platforms - the key that links Cast to MA,
+    HEOS to MA and the SmartThings / DLNA / vendor stacks of a Samsung TV. A model shared by several clusters is ONE physical device when no
+    platform appears on two different HA devices inside it AND exactly two clusters carry it (a unique pair: one Cast + one MA twin) - the
+    merge; otherwise (the same model twice, or three single-platform clusters that could be three devices of one model - review L7) it is
+    ambiguous and only suggested. A Cast model that is a prefix of the full one (shortened) counts; a non-physical platform (a Jellyfin
+    session) never carries a model. Returns the ambiguous pairs (hub endpoint a, hub endpoint b): suggestions once the keys exist."""
+    eps, uf, dev_by_id = lad.eps, lad.uf, lad.dev_by_id
+
     def sigs_of(root: int) -> set[tuple[str, str, bool]]:
         out: set[tuple[str, str, bool]] = set()
         for i in uf.groups().get(root, []):
@@ -650,37 +649,34 @@ def build(
         fam = list(dict.fromkeys(uf.find(r) for r in fam0))  # an earlier family may already have merged some of these clusters
         if len(fam) < 2:
             continue
-        fam_eps = [e for r in fam for e in members(r)]
+        fam_eps = [e for r in fam for e in lad.members(r)]
         by_platform: dict[str, set[str]] = {}
         for e in fam_eps:
             if e.platform and (e.platform or "") not in NON_PHYSICAL_PLATFORMS:
                 by_platform.setdefault(e.platform, set()).add(e.device_id or e.endpoint_id)
-        hubs = [h for h in (hub(sorted(uf.groups().get(r, []))) for r in fam) if h is not None]
+        hubs = [h for h in (lad.hub(sorted(uf.groups().get(r, []))) for r in fam) if h is not None]
         if len(fam) == 2 and all(len(v) <= 1 for v in by_platform.values()):
             for other in hubs[1:]:
-                merge(hubs[0], other, "3b", True)
+                lad.merge(hubs[0], other, "3b", True)
         else:
             for ia, a in enumerate(hubs):
                 for b in hubs[ia + 1:]:
-                    if not _conflict(members(uf.find(a)), members(uf.find(b))) and len(ambiguous) < 200:
+                    if not _conflict(lad.members(uf.find(a)), lad.members(uf.find(b))) and len(ambiguous) < 200:
                         ambiguous.append((a, b))
+    return ambiguous
 
+
+def _clusters(lad: _Ladder) -> list[list[int]]:
     # the clusters; a cluster without a media_player is not a media device (a bare remote of a hub)
-    groups = [sorted(ids) for ids in uf.groups().values()]
+    eps = lad.eps
+    groups = [sorted(ids) for ids in lad.uf.groups().values()]
     groups = [g for g in groups if any(eps[i].domain == "media_player" for i in g)]
     groups.sort(key=lambda g: (-len(g), eps[g[0]].ref))
+    return groups
 
-    def cluster_name(g: list[int]) -> str:
-        anchor = _choose_anchor([eps[i] for i in g], None)
-        return normalised_name(device_display_name([ents[eps[i].ref] for i in g], anchor, dev_by_id.get(ents[anchor].get("device_id") or "")))
 
-    def cluster_area(g: list[int]) -> str | None:
-        for i in g:
-            area = ents[eps[i].ref].get("area_id")
-            if area:
-                return area
-        return None
-
+def _assign_keys(lad: _Ladder, groups: list[list[int]], existing_keys: dict[str, str], existing_anchors: dict[str, str],
+                 new_key: Callable[[], str]) -> list[tuple[str, list[int]]]:
     # keys: a device keeps the key its endpoints already had
     claimed: set[str] = set()
     taken = set(existing_keys.values()) | set(existing_anchors)
@@ -688,7 +684,7 @@ def build(
     for g in groups:
         votes: dict[str, int] = {}
         for i in g:
-            k = existing_keys.get(eps[i].endpoint_id)
+            k = existing_keys.get(lad.eps[i].endpoint_id)
             if k:
                 votes[k] = votes.get(k, 0) + 1
         chosen = next((k for k, _c in sorted(votes.items(), key=lambda kv: (-kv[1], kv[0])) if k not in claimed), None)
@@ -698,8 +694,12 @@ def build(
                 chosen = new_key()  # a fresh key is never one another device (or this run) already holds
         claimed.add(chosen)
         keyed.append((chosen, list(g)))
+    return keyed
 
+
+def _apply_links(lad: _Ladder, keyed: list[tuple[str, list[int]]]) -> tuple[list[tuple[str, list[int]]], set[int]]:
     # rung 6: the administrator's `link` rules move one endpoint into another device (applied last; they override 1-5)
+    eps, rule_by_ep = lad.eps, lad.rule_by_ep
     manual_eps: set[int] = set()
     for ep_id, rule in rule_by_ep.items():
         if rule["rule"] != "link" or not rule.get("device_key"):
@@ -721,61 +721,63 @@ def build(
             here.remove(i)
             target.append(i)
         manual_eps.add(src)
-    keyed = [(k, sorted(g)) for k, g in keyed if g]
+    return [(k, sorted(g)) for k, g in keyed if g], manual_eps
 
-    model = Model()
-    for key, g in keyed:
-        ep_list = [eps[i] for i in g]
-        edge_rules: dict[int, list[str]] = {}
-        used: list[str] = []
-        for a, b, rung in edges:
-            if a in g and b in g:
-                edge_rules.setdefault(a, []).append(rung)
-                edge_rules.setdefault(b, []).append(rung)
-                used.append(rung)
-        for i in g:
-            e = eps[i]
-            if i in manual_eps:
-                e.rule, e.link_source = "manual", "manual"
-                used.append("manual")
-            elif i in edge_rules:
-                e.rule = min(edge_rules[i], key=lambda r: RUNG_ORDER[r])
-            elif rule_by_ep.get(e.endpoint_id, {}).get("rule") == "unlink":
-                e.rule, e.link_source = "manual", "manual"
-            else:
-                e.rule = "single"
-        confidence = "exact"
-        for rung in used:
-            c = RUNG_CONFIDENCE[rung]
-            if CONFIDENCE_ORDER[c] > CONFIDENCE_ORDER[confidence]:
-                confidence = c
-        # roles: the MA entities that only ride along another device's ids are exports; a duplicate is hidden when the device
-        # has an endpoint of its own integration to speak for it
-        for e in ep_list:
-            if e.role == "ma_native" and len(ep_list) > 1:
-                e.role = "ma_export"
-        anchor = _choose_anchor(ep_list, existing_anchors.get(key), ents)
-        platforms = {e.platform or "" for e in ep_list}
-        meta_ids = {ents[e.ref].get("device_id") for e in ep_list if ents[e.ref].get("device_id") in dev_by_id}
-        # a child device has no manufacturer / model of its own: its parent's describe it (HA-2026-11-COMPAT-2404)
-        meta_ids |= {p for p in (dev_by_id[d].get("parent_device_id") for d in list(meta_ids)) if isinstance(p, str) and p in dev_by_id}
-        metas = [dev_by_id[d] for d in sorted(meta_ids)]
-        kind = kind_of([ents[e.ref] for e in ep_list], metas)
-        _build_audio_roles(ep_list, ents, kind)
-        for e in ep_list:
-            dup = e.role in DUPLICATE_ROLES and any(x is not e and x.role not in DUPLICATE_ROLES for x in ep_list)
-            user_hidden = bool(ents[e.ref].get("hidden")) and any(x is not e and not ents[x.ref].get("hidden") for x in ep_list)  # the owner's own manual dedupe
-            e.hidden = dup or user_hidden
-        dm = DeviceModel(key=key, endpoints=ep_list, kind=kind, confidence=confidence, anchor=anchor, profile=profiles.detect(platforms))
-        dm.zones = zones_of(ep_list, ents) if kind == "receiver" else None
-        dm.music_provider = music_provider_of(dm, ents) if kind in AUDIO_KINDS else "none"
-        model.devices[key] = dm
-        for e in ep_list:
-            model.by_endpoint[e.endpoint_id] = key
 
+def _device_model(lad: _Ladder, key: str, g: list[int], manual_eps: set[int], existing_anchors: dict[str, str]) -> DeviceModel:
+    eps, ents, dev_by_id, rule_by_ep = lad.eps, lad.ents, lad.dev_by_id, lad.rule_by_ep
+    ep_list = [eps[i] for i in g]
+    edge_rules: dict[int, list[str]] = {}
+    used: list[str] = []
+    for a, b, rung in lad.edges:
+        if a in g and b in g:
+            edge_rules.setdefault(a, []).append(rung)
+            edge_rules.setdefault(b, []).append(rung)
+            used.append(rung)
+    for i in g:
+        e = eps[i]
+        if i in manual_eps:
+            e.rule, e.link_source = "manual", "manual"
+            used.append("manual")
+        elif i in edge_rules:
+            e.rule = min(edge_rules[i], key=lambda r: RUNG_ORDER[r])
+        elif rule_by_ep.get(e.endpoint_id, {}).get("rule") == "unlink":
+            e.rule, e.link_source = "manual", "manual"
+        else:
+            e.rule = "single"
+    confidence = "exact"
+    for rung in used:
+        c = RUNG_CONFIDENCE[rung]
+        if CONFIDENCE_ORDER[c] > CONFIDENCE_ORDER[confidence]:
+            confidence = c
+    # roles: the MA entities that only ride along another device's ids are exports; a duplicate is hidden when the device
+    # has an endpoint of its own integration to speak for it
+    for e in ep_list:
+        if e.role == "ma_native" and len(ep_list) > 1:
+            e.role = "ma_export"
+    anchor = _choose_anchor(ep_list, existing_anchors.get(key), ents)
+    platforms = {e.platform or "" for e in ep_list}
+    meta_ids = {ents[e.ref].get("device_id") for e in ep_list if ents[e.ref].get("device_id") in dev_by_id}
+    # a child device has no manufacturer / model of its own: its parent's describe it (HA-2026-11-COMPAT-2404)
+    meta_ids |= {p for p in (dev_by_id[d].get("parent_device_id") for d in list(meta_ids)) if isinstance(p, str) and p in dev_by_id}
+    metas = [dev_by_id[d] for d in sorted(meta_ids)]
+    kind = kind_of([ents[e.ref] for e in ep_list], metas)
+    _build_audio_roles(ep_list, ents, kind)
+    for e in ep_list:
+        dup = e.role in DUPLICATE_ROLES and any(x is not e and x.role not in DUPLICATE_ROLES for x in ep_list)
+        user_hidden = bool(ents[e.ref].get("hidden")) and any(x is not e and not ents[x.ref].get("hidden") for x in ep_list)  # the owner's own manual dedupe
+        e.hidden = dup or user_hidden
+    dm = DeviceModel(key=key, endpoints=ep_list, kind=kind, confidence=confidence, anchor=anchor, profile=profiles.detect(platforms))
+    dm.zones = zones_of(ep_list, ents) if kind == "receiver" else None
+    dm.music_provider = music_provider_of(dm, ents) if kind in AUDIO_KINDS else "none"
+    return dm
+
+
+def _suggest_all(lad: _Ladder, model: Model, keyed: list[tuple[str, list[int]]], ambiguous: list[tuple[int, int]]) -> None:
     # the suggestions (never merged): 3b an ambiguous model, 5 the same area and the same normalised name, 5b the same name with an area on
     # ONE side (CR-016: most MA / WiiM / HEOS players carry no area). An empty normalised name never matches (model-number names), and
     # sessions, helper groups and Spotify lists are never suggested.
+    eps, ents, dev_by_id = lad.eps, lad.ents, lad.dev_by_id
     key_of_ep = {eps[i].endpoint_id: k for k, g in keyed for i in g}
     seen_pairs: set[tuple[str, str]] = set()
 
@@ -788,6 +790,17 @@ def build(
             return
         seen_pairs.add(pair)
         model.suggestions.append(Suggestion(eps[small_ep].endpoint_id, big_key, reason, rule))
+
+    def cluster_name(g: list[int]) -> str:
+        anchor = _choose_anchor([eps[i] for i in g], None)
+        return normalised_name(device_display_name([ents[eps[i].ref] for i in g], anchor, dev_by_id.get(ents[anchor].get("device_id") or "")))
+
+    def cluster_area(g: list[int]) -> str | None:
+        for i in g:
+            area = ents[eps[i].ref].get("area_id")
+            if area:
+                return area
+        return None
 
     for a, b in ambiguous:
         ka, kb = key_of_ep.get(eps[a].endpoint_id), key_of_ep.get(eps[b].endpoint_id)
@@ -819,6 +832,51 @@ def build(
             else:
                 small, big = ((ka, ga), (kb, gb)) if aa is None else ((kb, gb), (ka, ga))  # the device with an area is the one the other would join
                 suggest(small[1][0], big[0], "same_name_area_one_side", "5b")
+
+
+def build(
+    entities: list[dict[str, Any]],
+    devices: list[dict[str, Any]],
+    rules: list[dict[str, Any]] | None = None,
+    *,
+    existing_keys: dict[str, str] | None = None,
+    existing_anchors: dict[str, str] | None = None,
+    new_key: Callable[[], str] | None = None,
+) -> Model:
+    """The dedupe ladder over the media endpoints (media_player.* and remote.*) of one installation.
+
+    `entities`: dicts with entity_id, domain, platform, unique_id, device_id, device_class, name, original_name, area_id, hidden, disabled,
+    attributes (and, for an audio device, `last_features`). `devices`: HA devices with device_id, name, name_by_user, area_id, manufacturer,
+    model, connections [[type, value]] and identifiers [[domain, id]] (normalised by `normalise_*`). `rules`: the administrator's link /
+    unlink / ignore rows. `existing_keys` (endpoint id -> device key) keeps a device's key stable while its endpoints change;
+    `existing_anchors` (device key -> entity id) keeps its anchor. Deterministic for equal inputs (`new_key` supplies fresh keys).
+
+    Rungs: 1 same HA device; 2 the MA loop; 2b an MA id EQUALS another integration's id (CR-016); 2c an MA id EMBEDS one; 3 a shared MAC;
+    4 a shared UUID / serial; 3b manufacturer + model across platforms (merged when the model is a single physical device, else a
+    suggestion); 5 / 5b suggestions by name (area on both sides / on one side); 6 the administrator's link.
+
+    CR-BE-COMPLEXITY-2450 (code review 03:F22): one function per rung over a shared `_Ladder`, in this order (it was one 370-line function,
+    cyclomatic complexity 216); tests/test_media_model_char_2450.py replays the outputs recorded before the split."""
+    import uuid
+
+    new_key = new_key or (lambda: uuid.uuid4().hex)
+    existing_keys = existing_keys or {}
+    existing_anchors = existing_anchors or {}
+    lad = _Ladder(entities, devices, rules)
+    _rung_device(lad)
+    ma_ids_of = _rung_ma_loop(lad)
+    _rung_ma_vendor(lad, devices, ma_ids_of)
+    _rung_shared_ids(lad, devices)
+    ambiguous = _rung_model(lad)
+    keyed = _assign_keys(lad, _clusters(lad), existing_keys, existing_anchors, new_key)
+    keyed, manual_eps = _apply_links(lad, keyed)
+    model = Model()
+    for key, g in keyed:
+        dm = _device_model(lad, key, g, manual_eps, existing_anchors)
+        model.devices[key] = dm
+        for e in dm.endpoints:
+            model.by_endpoint[e.endpoint_id] = key
+    _suggest_all(lad, model, keyed, ambiguous)
     return model
 
 

@@ -28,6 +28,7 @@ from . import access, rfq, rfq_terms, store_dash_extra, stuck
 from .access import Viewer
 from .costs import COSTS, COSTS_VIEW
 from .dashboard import _Cache, _contact_label, db_key
+from ...test_reset import register_reset
 
 UPCOMING_DAYS = 14
 ITEMS_MAX = 50  # rows per list (the counts are always complete)
@@ -139,3 +140,6 @@ CACHE = _Cache()
 def cached_payments(conn, viewer: Viewer, *, department_id: str | None, now: dt.datetime, tz: dt.tzinfo) -> dict[str, Any]:
     key = (db_key(conn), viewer.uid, permission_revision(conn), department_id or "", "payments")
     return CACHE.get_or_build(key, lambda: {**payments(conn, viewer, department_id=department_id, now=now, tz=tz), "generated_at": stuck.iso(now)})
+
+
+register_reset(__name__, ("CACHE",), CACHE.clear)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)

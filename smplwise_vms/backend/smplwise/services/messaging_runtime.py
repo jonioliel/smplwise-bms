@@ -30,6 +30,7 @@ from typing import Any, Callable, Iterable
 from . import messaging_accounts as ma
 from . import secret_files
 from .tickets.channel import CONNECTED, AccountRef, keyed_hash
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.messaging")
 UTC = dt.timezone.utc
@@ -450,3 +451,10 @@ def pacing_for(conn: sqlite3.Connection) -> Callable[[str], ma.Pacing]:
         return acc.pacing if acc is not None else ma.Pacing()
 
     return get
+
+
+def _reset_tracker() -> None:
+    TRACKER.__init__()  # the same object (callers hold it), emptied
+
+
+register_reset(__name__, ("TRACKER",), _reset_tracker)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)

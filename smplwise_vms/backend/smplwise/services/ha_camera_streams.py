@@ -55,6 +55,7 @@ from . import camera_cards as cc
 from . import go2rtc as g2
 from . import ha_bridge, ha_client, source_policy
 from .leases import CameraLease
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.ha_live")
 
@@ -588,3 +589,6 @@ def _wanted_names(conn: sqlite3.Connection) -> set[str]:
             except ValueError:
                 pass
     return wanted
+
+
+register_reset(__name__, ("_OWNED",), _OWNED.written.clear)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)

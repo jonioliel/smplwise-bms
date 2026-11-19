@@ -26,6 +26,7 @@ from .. import brand_assets
 from ..ha_user_auth import RateLimiter
 from ..transit import digest as transit_digest
 from . import info, model, news_sources, slides, sources, store
+from ...test_reset import register_reset
 
 SLUG_PATH = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$")
 TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{20,128}$")
@@ -430,3 +431,6 @@ def preview_transit(conn: sqlite3.Connection, board: dict[str, Any], display: di
     """The digest for a board's own settings, or (the Settings preview) for a draft `display`."""
     disp = display if display is not None else model.load_display(board["display_json"])
     return transit_digest.build(conn, disp.get("transit") or {}, now, sources.installation_tz(conn))
+
+
+register_reset(__name__, ("LIMITER",), LIMITER.clear)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)
