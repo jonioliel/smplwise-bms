@@ -46,6 +46,7 @@ from . import provision_isr_auth as pauth
 from . import provision_isr_xml as px
 from .base import (ChannelInfo, ChannelReading, DiskReading, HealthReading, RecorderCapabilities, RecorderHealth, StreamEncoding, StreamOptions,
                    StreamSnapshot, WriteOutcome)
+from ...test_reset import register_reset
 
 VENDOR = "provision_isr"
 
@@ -1322,3 +1323,6 @@ def pinned_context(pin: str) -> PinnedContext:
     ctx.verify_mode = ssl.CERT_NONE
     ctx.pin = pin
     return ctx
+
+
+register_reset(__name__, ("_AUTH", "_REFUSED", "_CHALLENGE", "_PINNED", "_CERTS", "_SUPPORT", "_WRITE_REFUSED", "_LIVE_CAPS"), clear_auth_cache)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

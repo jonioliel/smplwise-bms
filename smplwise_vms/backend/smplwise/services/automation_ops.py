@@ -35,6 +35,7 @@ from . import automations as store
 from . import service_identity
 from . import door_path_guard as guard
 from . import door_run_guard, ha_bridge
+from ..test_reset import register_reset
 
 _RATE: dict[tuple[str, str], list[float]] = {}
 _LAST: dict[str, float] = {}
@@ -1287,3 +1288,6 @@ def ha_validate(w: W, kind: str, config: dict[str, Any]) -> str:
     if not isinstance(result, dict):
         return "skipped"
     return "ok" if all(isinstance(v, dict) and v.get("valid", True) for v in result.values()) else "failed"
+
+
+register_reset(__name__, ("_RATE", "_LAST"), reset_limits)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

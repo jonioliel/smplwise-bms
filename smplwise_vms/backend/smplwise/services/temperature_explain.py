@@ -60,7 +60,10 @@ def explain(*, kind: str, start_ts: float, end_ts: float | None, now_ts: float, 
             defrost: list[tuple[float, float]], outages: list[dict[str, Any]], maint: list[tuple[float, float, str | None]],
             offline: list[tuple[float, float]], neighbors: list[dict[str, Any]], has_power: bool, rules: dict[str, Any]) -> dict[str, Any]:
     """The explanation of one excursion. points: raw minutes (ts, v, flags, setpoint, power W) sorted; doors None = the door is not visible
-    (or the unit has none). Returns {factors, primary, confidence, profile}."""
+    (or the unit has none). Returns {factors, primary, confidence, profile}.
+
+    CR-BE-COMPLEXITY-B-2450: one function per signal, called in the order the factors were always gathered (the order matters: the
+    gradual-rise check reads the factors found before it; tests/test_temperature_explain_char_2450.py replays recorded answers)."""
     S = float(start_ts)
     E = float(end_ts if end_ts is not None else now_ts)
     look = int(rules["explain_lookback_min"]) * 60
@@ -69,77 +72,108 @@ def explain(*, kind: str, start_ts: float, end_ts: float | None, now_ts: float, 
     high_side = kind == "high"
     win_pts = [p for p in points if W_lo <= p[0] <= S]
 
-    # maintenance window
+    _maint_factor(factors, maint, S)
+    if high_side:
+        _defrost_factor(factors, points, defrost, S, E, peak, hard_max, rules)
+    if high_side and doors:
+        _door_factor(factors, doors, S, E, rules)
+    if high_side:
+        _outage_factor(factors, outages, S, rules)
+    if has_power:
+        _compressor_factor(factors, win_pts, high_side, rules)
+    _unit_factors(factors, win_pts)
+    _gap_factor(factors, win_pts, offline, W_lo, S, rules)
+    _spike_factor(factors, points, S, E, end_ts, high_side, rules)
+    _neighbour_factor(factors, neighbors, W_lo, S, E, high_side, rules)
+    climb = [(p[0], p[1]) for p in points if S - 900 <= p[0] <= min(E, S + 900)]
+    rate = _slope_h(climb)
+    _gradual_factor(factors, win_pts, S, high_side)
+    return _verdict(factors, rules, rate, S, E, end_ts)
+
+
+def _maint_factor(factors: list[dict[str, Any]], maint: list[tuple[float, float, str | None]], S: float) -> None:
+    """A maintenance window was open."""
     for a, b, reason in maint:
         if _overlap(a, b, S - 300, S + 60) > 0:
             factors.append(_factor("maint", 90, reason=reason or "", started_at=_iso(a)))
             break
 
-    # defrost window (a high excursion only)
-    if high_side:
-        flagged = any(p[2] & 1 for p in points if S - 300 <= p[0] <= S + 300)
-        win = next(((a, b) for a, b in defrost if a <= S + 60 and b >= S - 120), None)
-        if win is not None or flagged:
-            short = (E - S) <= int(rules["defrost_max_min"]) * 60
-            below = peak is None or peak <= hard_max
-            factors.append(_factor("defrost", 85 if short and below else 55, window_from=_iso(win[0]) if win else None,
-                                   window_minutes=round((win[1] - win[0]) / 60) if win else None, above_hard_max=not below))
 
-    # the door (a high excursion only; the door hardly lowers a reading)
-    if high_side and doors:
-        d_lo = S - int(rules["explain_door_lookback_min"]) * 60
-        opens = [(a, b if b is not None else E) for a, b in doors if _overlap(a, b if b is not None else E, d_lo, S + 120) > 0]
-        if opens:
-            total = sum(_overlap(a, b, d_lo, S + 120) for a, b in opens)
-            need = max(30, int(rules["explain_door_min_open_min"]) * 60)
-            if total >= need:
-                open_now = any(a <= S <= b for a, b in opens)
-                lead = max(0, round((S - min(a for a, _b in opens)) / 60))
-                score = min(92, 55 + total / 60 * 5 + (10 if open_now else 0))
-                factors.append(_factor("door", score, count=len(opens), total_min=round(total / 60, 1),
-                                       longest_min=round(max(b - a for a, b in opens) / 60, 1), lead_min=lead, open_at_start=open_now))
+def _defrost_factor(factors: list[dict[str, Any]], points: list[tuple[float, float, int, float | None, float | None]],
+                    defrost: list[tuple[float, float]], S: float, E: float, peak: float | None, hard_max: float, rules: dict[str, Any]) -> None:
+    """A defrost window (a high excursion only)."""
+    flagged = any(p[2] & 1 for p in points if S - 300 <= p[0] <= S + 300)
+    win = next(((a, b) for a, b in defrost if a <= S + 60 and b >= S - 120), None)
+    if win is not None or flagged:
+        short = (E - S) <= int(rules["defrost_max_min"]) * 60
+        below = peak is None or peak <= hard_max
+        factors.append(_factor("defrost", 85 if short and below else 55, window_from=_iso(win[0]) if win else None,
+                               window_minutes=round((win[1] - win[0]) / 60) if win else None, above_hard_max=not below))
 
-    # mains outage (the generator module)
-    if high_side:
-        p_lo = S - int(rules["explain_power_lookback_min"]) * 60
-        hit = [o for o in outages if _overlap(o["from_ts"], o["to_ts"], p_lo, S + 60) > 0]
-        if hit:
-            o = max(hit, key=lambda x: _overlap(x["from_ts"], x["to_ts"], p_lo, S + 60))
-            factors.append(_factor("outage", 88, outage_from=_iso(o["from_ts"]), outage_to=_iso(o["to_ts"]),
-                                   minutes=round((o["to_ts"] - o["from_ts"]) / 60), lead_min=max(0, round((S - o["from_ts"]) / 60)), device_name=o.get("device_name") or ""))
 
-    # the compressor (an optional power sensor)
-    if has_power:
-        on_w = float(rules["compressor_on_w"])
-        need = int(rules["explain_compressor_off_min"]) * 60
-        pw_pts = [(p[0], p[4]) for p in win_pts if p[4] is not None]
-        if win_pts and not pw_pts:
-            factors.append(_factor("compressor_no_power", 50 if high_side else 30))
-        elif pw_pts:
-            best, run_a, prev = 0.0, None, None
-            want_on = not high_side
-            for ts_, w in pw_pts:
-                match = (w >= on_w) if want_on else (w < on_w)
-                if match:
-                    if run_a is None or (prev is not None and ts_ - prev > 180):
-                        run_a = ts_
-                    best = max(best, ts_ - run_a + 60)
-                else:
-                    run_a = None
-                prev = ts_
-            if high_side and best >= need:
-                factors.append(_factor("compressor_off", 78, minutes=round(best / 60)))
-            elif not high_side and best >= max(3600, need * 3):
-                factors.append(_factor("compressor_on", 62, minutes=round(best / 60)))
+def _door_factor(factors: list[dict[str, Any]], doors: list[tuple[float, float | None]], S: float, E: float, rules: dict[str, Any]) -> None:
+    """The door (a high excursion only; the door hardly lowers a reading)."""
+    d_lo = S - int(rules["explain_door_lookback_min"]) * 60
+    opens = [(a, b if b is not None else E) for a, b in doors if _overlap(a, b if b is not None else E, d_lo, S + 120) > 0]
+    if opens:
+        total = sum(_overlap(a, b, d_lo, S + 120) for a, b in opens)
+        need = max(30, int(rules["explain_door_min_open_min"]) * 60)
+        if total >= need:
+            open_now = any(a <= S <= b for a, b in opens)
+            lead = max(0, round((S - min(a for a, _b in opens)) / 60))
+            score = min(92, 55 + total / 60 * 5 + (10 if open_now else 0))
+            factors.append(_factor("door", score, count=len(opens), total_min=round(total / 60, 1),
+                                   longest_min=round(max(b - a for a, b in opens) / 60, 1), lead_min=lead, open_at_start=open_now))
 
-    # a climate unit: switched off, or the setpoint changed
+
+def _outage_factor(factors: list[dict[str, Any]], outages: list[dict[str, Any]], S: float, rules: dict[str, Any]) -> None:
+    """A mains outage (the generator module; a high excursion only)."""
+    p_lo = S - int(rules["explain_power_lookback_min"]) * 60
+    hit = [o for o in outages if _overlap(o["from_ts"], o["to_ts"], p_lo, S + 60) > 0]
+    if hit:
+        o = max(hit, key=lambda x: _overlap(x["from_ts"], x["to_ts"], p_lo, S + 60))
+        factors.append(_factor("outage", 88, outage_from=_iso(o["from_ts"]), outage_to=_iso(o["to_ts"]),
+                               minutes=round((o["to_ts"] - o["from_ts"]) / 60), lead_min=max(0, round((S - o["from_ts"]) / 60)), device_name=o.get("device_name") or ""))
+
+
+def _compressor_factor(factors: list[dict[str, Any]], win_pts: list[tuple[float, float, int, float | None, float | None]], high_side: bool,
+                       rules: dict[str, Any]) -> None:
+    """The compressor (an optional power sensor)."""
+    on_w = float(rules["compressor_on_w"])
+    need = int(rules["explain_compressor_off_min"]) * 60
+    pw_pts = [(p[0], p[4]) for p in win_pts if p[4] is not None]
+    if win_pts and not pw_pts:
+        factors.append(_factor("compressor_no_power", 50 if high_side else 30))
+    elif pw_pts:
+        best, run_a, prev = 0.0, None, None
+        want_on = not high_side
+        for ts_, w in pw_pts:
+            match = (w >= on_w) if want_on else (w < on_w)
+            if match:
+                if run_a is None or (prev is not None and ts_ - prev > 180):
+                    run_a = ts_
+                best = max(best, ts_ - run_a + 60)
+            else:
+                run_a = None
+            prev = ts_
+        if high_side and best >= need:
+            factors.append(_factor("compressor_off", 78, minutes=round(best / 60)))
+        elif not high_side and best >= max(3600, need * 3):
+            factors.append(_factor("compressor_on", 62, minutes=round(best / 60)))
+
+
+def _unit_factors(factors: list[dict[str, Any]], win_pts: list[tuple[float, float, int, float | None, float | None]]) -> None:
+    """A climate unit: switched off, or the setpoint changed."""
     if any(p[2] & 4 for p in win_pts):
         factors.append(_factor("unit_off", 82))
     sps = [p[3] for p in win_pts if p[3] is not None]
     if sps and max(sps) - min(sps) >= 1.0:
         factors.append(_factor("setpoint", 72, sp_from=round(sps[0], 1), sp_to=round(sps[-1], 1)))
 
-    # a gap in the data before the start, or a "sensor silent" event
+
+def _gap_factor(factors: list[dict[str, Any]], win_pts: list[tuple[float, float, int, float | None, float | None]], offline: list[tuple[float, float]],
+                W_lo: float, S: float, rules: dict[str, Any]) -> None:
+    """A gap in the data before the start, or a "sensor silent" event."""
     gap_need = int(rules["explain_gap_min"]) * 60
     marks = [W_lo] + [p[0] for p in win_pts] + [S]
     gap = max((b - a for a, b in zip(marks, marks[1:])), default=0.0)
@@ -147,7 +181,10 @@ def explain(*, kind: str, start_ts: float, end_ts: float | None, now_ts: float, 
     if silent is not None or gap >= gap_need:
         factors.append(_factor("gap", 50 if silent is not None else 42, gap_min=round(gap / 60), silent=silent is not None))
 
-    # a spike: a one-off jump that came back within minutes
+
+def _spike_factor(factors: list[dict[str, Any]], points: list[tuple[float, float, int, float | None, float | None]], S: float, E: float,
+                  end_ts: float | None, high_side: bool, rules: dict[str, Any]) -> None:
+    """A spike: a one-off jump that came back within minutes."""
     if end_ts is not None and (E - S) <= int(rules["explain_spike_max_min"]) * 60:
         before = [p for p in points if S - 300 <= p[0] < S]
         after = [p for p in points if S <= p[0] <= E]
@@ -156,7 +193,10 @@ def explain(*, kind: str, start_ts: float, end_ts: float | None, now_ts: float, 
             if jump >= float(rules["explain_spike_jump"]):
                 factors.append(_factor("spike", 66, jump=round(jump, 1)))
 
-    # the neighbours: did they move at the same time?
+
+def _neighbour_factor(factors: list[dict[str, Any]], neighbors: list[dict[str, Any]], W_lo: float, S: float, E: float, high_side: bool,
+                      rules: dict[str, Any]) -> None:
+    """The neighbours: did they move at the same time?"""
     rise_need = float(rules["explain_neighbor_rise"])
     judged, moved = 0, []
     for nb in neighbors:
@@ -175,9 +215,10 @@ def explain(*, kind: str, start_ts: float, end_ts: float | None, now_ts: float, 
         elif not moved:
             factors.append(_factor("local", 35, n_total=judged))
 
-    # the profile of the climb, and a slow steady rise as the last explanation
-    climb = [(p[0], p[1]) for p in points if S - 900 <= p[0] <= min(E, S + 900)]
-    rate = _slope_h(climb)
+
+def _gradual_factor(factors: list[dict[str, Any]], win_pts: list[tuple[float, float, int, float | None, float | None]], S: float,
+                    high_side: bool) -> None:
+    """A slow steady rise as the last explanation (only when nothing found so far explains it strongly)."""
     strong = any(f["score"] >= 60 and f["key"] not in ("local",) for f in factors)
     if high_side and not strong:
         pre = [(p[0], p[1]) for p in win_pts if p[0] < S]  # the climb BEFORE the start (the first out-of-band reading is not part of it)
@@ -185,6 +226,9 @@ def explain(*, kind: str, start_ts: float, end_ts: float | None, now_ts: float, 
         if r_pre is not None and 0.3 <= r_pre <= 4.0:
             factors.append(_factor("gradual", 45, rate_h=round(r_pre, 2)))
 
+
+def _verdict(factors: list[dict[str, Any]], rules: dict[str, Any], rate: float | None, S: float, E: float, end_ts: float | None) -> dict[str, Any]:
+    """The factors at or above the minimum score, best first; the primary factor, the confidence and the profile of the climb."""
     min_score = int(rules["explain_min_score"])
     factors = sorted((f for f in factors if f["score"] >= min_score), key=lambda f: (-f["score"], f["key"]))
     lead = next((f for f in factors if f["key"] != "local"), None)

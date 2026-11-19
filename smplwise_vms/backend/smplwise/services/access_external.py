@@ -44,6 +44,7 @@ from . import confirm_words
 from . import intercom_authority as ia
 from . import intercom_write_journal as wj
 from .access_grant_engine import NAME_MAX, EngineError
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.access_external")
 
@@ -965,3 +966,6 @@ def rights_export(conn: sqlite3.Connection, contact_id: str) -> dict[str, Any]:
             "notices": [{"via": n["via"], "version": n["version"], "at": n["at"]} for n in notices],
         })
     return {"link": {"origin": link["origin"], "state": link["state"], "linked_at": link["linked_at"]} if link else None, "grants": grants}
+
+
+register_reset(__name__, ("_export_last",), reset_export_rate)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

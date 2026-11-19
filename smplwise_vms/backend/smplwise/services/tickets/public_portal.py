@@ -42,6 +42,7 @@ from ...db import Database
 from . import brand, portal_more, vendor_portal
 from .public_app import PublicError, public_request, read_json
 from .public_http import PORTAL_COOKIE
+from ...test_reset import register_reset
 
 log = logging.getLogger("smplwise.tickets.vendor_portal")
 UTC = dt.timezone.utc
@@ -427,3 +428,6 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None, data
         return FileResponse(p, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
     return r
+
+
+register_reset(__name__, ("_workers", "_TOTALS", "_DROP_TIMES"), reset_workers_for_tests)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

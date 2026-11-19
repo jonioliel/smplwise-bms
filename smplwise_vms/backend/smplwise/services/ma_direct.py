@@ -48,6 +48,7 @@ from ..db import get_setting, now_iso, set_setting
 from ..errors import ApiError
 from . import connection_probe, connection_store
 from .connection_store import SecretError
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.media")
 
@@ -712,3 +713,6 @@ def search(conn: sqlite3.Connection, media_type: str, query: str, limit: int = 5
         if len(out) >= limit:
             break
     return out
+
+
+register_reset(__name__, ("_STATE", "_QUEUES", "_ITEMS", "_DONE", "_PIN"), reset)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

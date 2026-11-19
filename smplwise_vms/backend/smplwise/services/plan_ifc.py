@@ -18,7 +18,7 @@ import json
 import math
 import re
 import uuid
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 from . import plan_catalog, wall_path
 from .plan_geometry import DEFAULT_CEILING_M, DEFAULT_LEVEL_ID, DEFAULT_WALL_THICKNESS_M, effective_scale
@@ -335,12 +335,42 @@ def _levels(doc: dict[str, Any]) -> list[dict[str, Any]]:
 def build(doc: dict[str, Any], zones: list[dict[str, Any]], width_px: int, height_px: int, *, floor_id: str, floor_name: str, version_id: str,
           stage: str, level: str | None = None, anchors: list[dict[str, Any]] | None = None, items: dict[str, Any] | None = None,
           generated_at: str = "1970-01-01T00:00:00Z", doc_hash: str | None = None) -> tuple[bytes, dict[str, int]]:
-    """The IFC4 text of `doc` (one level or all) and the counts per collection written."""
+    """The IFC4 text of `doc` (one level or all) and the counts per collection written.
+
+    CR-BE-COMPLEXITY-B-2450: one helper per part of the file, called in the order the entities were always written (the entity
+    numbers follow that order; tests/test_plan_ifc_build_char_2450.py replays recorded files byte for byte)."""
     items = plan_catalog.builtin()["items"] if items is None else items
     frame = _Frame(doc, width_px, height_px)
     w = Writer(floor_id)
     ctx, units = w.contexts()
     counts = {"levels": 0, "walls": 0, "openings": 0, "rooms": 0, "objects": 0, "connectors": 0, "anchors": 0}
+    building, bld_pl = _ifc_head(w, ctx, units, doc, floor_id=floor_id, floor_name=floor_name, version_id=version_id, stage=stage, doc_hash=doc_hash)
+
+    levels = _levels(doc)
+    by_level = _ifc_storeys(w, floor_id, levels, level, building, bld_pl, counts)
+    default_level = next((lv["id"] for lv in levels if lv.get("is_default") is True), levels[0]["id"])
+
+    def level_of(item: dict[str, Any]) -> dict[str, Any] | None:
+        lid = item.get("level_id") or DEFAULT_LEVEL_ID
+        if lid not in by_level:
+            lid = default_level
+        return by_level.get(lid)
+
+    wall_refs = _ifc_walls(w, floor_id, doc, frame, level_of, counts)
+    _ifc_openings(w, floor_id, doc, frame, wall_refs, counts)
+    _ifc_rooms(w, floor_id, doc, zones, frame, level_of, counts)
+    _ifc_objects(w, floor_id, doc, items, frame, level_of, counts)
+    _ifc_connectors(w, floor_id, doc, frame, by_level, counts)
+    _ifc_anchors(w, floor_id, anchors, frame, by_level, default_level, counts)
+    _ifc_relations(w, floor_id, by_level)
+
+    text = w.s.text(f"plan-{version_id}.ifc", generated_at, f"ViewDefinition [ReferenceView_V1.2]; {APP_NAME} plan {version_id} {stage}")
+    return text.encode("utf-8"), counts
+
+
+def _ifc_head(w: Writer, ctx: Ref, units: Ref, doc: dict[str, Any], *, floor_id: str, floor_name: str, version_id: str, stage: str,
+              doc_hash: str | None) -> tuple[Ref, Ref]:
+    """The project (with its property set), the site and the building, aggregated. Returns (the building, its placement)."""
     project = w.s.add("IFCPROJECT", global_id(floor_id, "project", version_id), None, clean_text(floor_name or version_id) or version_id, None, None, None, None, [ctx], units)
     cal = ((doc.get("dimensions") or {}).get("calibration") or {}).get("status") or "missing"
     w.pset(project, f"project:{version_id}", {"PlanVersionId": version_id, "FloorId": floor_id, "Stage": stage, "ScaleStatus": cal, "DocHash": doc_hash,
@@ -352,8 +382,12 @@ def build(doc: dict[str, Any], zones: list[dict[str, Any]], width_px: int, heigh
     building = w.s.add("IFCBUILDING", global_id(floor_id, "building", floor_id), None, clean_text(floor_name) or "Building", None, None, bld_pl, None, None, Enum("ELEMENT"), None, None, None)
     w.s.add("IFCRELAGGREGATES", global_id(floor_id, "agg", "project"), None, None, None, project, [site])
     w.s.add("IFCRELAGGREGATES", global_id(floor_id, "agg", "site"), None, None, None, site, [building])
+    return building, bld_pl
 
-    levels = _levels(doc)
+
+def _ifc_storeys(w: Writer, floor_id: str, levels: list[dict[str, Any]], level: str | None, building: Ref, bld_pl: Ref,
+                 counts: dict[str, int]) -> dict[str, dict[str, Any]]:
+    """One storey per level (or the one asked for), aggregated into the building. Returns the storeys by level id."""
     by_level: dict[str, dict[str, Any]] = {}
     storeys: list[Ref] = []
     for lv in levels:
@@ -368,15 +402,12 @@ def build(doc: dict[str, Any], zones: list[dict[str, Any]], width_px: int, heigh
         counts["levels"] += 1
     if storeys:
         w.s.add("IFCRELAGGREGATES", global_id(floor_id, "agg", "building"), None, None, None, building, storeys)
-    default_level = next((lv["id"] for lv in levels if lv.get("is_default") is True), levels[0]["id"])
+    return by_level
 
-    def level_of(item: dict[str, Any]) -> dict[str, Any] | None:
-        lid = item.get("level_id") or DEFAULT_LEVEL_ID
-        if lid not in by_level:
-            lid = default_level
-        return by_level.get(lid)
 
-    # -- walls, with their openings
+def _ifc_walls(w: Writer, floor_id: str, doc: dict[str, Any], frame: _Frame, level_of: Callable[[dict[str, Any]], dict[str, Any] | None],
+              counts: dict[str, int]) -> dict[str, tuple[Ref, Ref, list[Pt], list[float], list[float], float, dict[str, Any]]]:
+    """The walls (straight or curved bodies along their path). Returns what an opening needs of its host wall, by wall id."""
     wall_refs: dict[str, tuple[Ref, Ref, list[Pt], list[float], list[float], float, dict[str, Any]]] = {}
     for wall in sorted((x for x in doc.get("walls") or [] if isinstance(x, dict) and isinstance(x.get("id"), str)), key=lambda x: x["id"]):
         lv = level_of(wall)
@@ -410,7 +441,13 @@ def build(doc: dict[str, Any], zones: list[dict[str, Any]], width_px: int, heigh
                                             "Tags": ", ".join(str(t) for t in wall.get("tags") or []) or None, "Locked": bool(wall.get("locked"))})
         lv["elements"].append(ref)
         counts["walls"] += 1
+    return wall_refs
 
+
+def _ifc_openings(w: Writer, floor_id: str, doc: dict[str, Any], frame: _Frame,
+                  wall_refs: dict[str, tuple[Ref, Ref, list[Pt], list[float], list[float], float, dict[str, Any]]],
+                  counts: dict[str, int]) -> None:
+    """The openings: a void in the host wall, filled by a door or a window."""
     for op in sorted((x for x in doc.get("openings") or [] if isinstance(x, dict) and isinstance(x.get("id"), str)), key=lambda x: x["id"]):
         host = wall_refs.get(op.get("wall_id"))
         if host is None:
@@ -452,7 +489,10 @@ def build(doc: dict[str, Any], zones: list[dict[str, Any]], width_px: int, heigh
             w.pset(void, f"openings:{op['id']}", props)
         counts["openings"] += 1
 
-    # -- rooms (the floor's zones) as spaces
+
+def _ifc_rooms(w: Writer, floor_id: str, doc: dict[str, Any], zones: list[dict[str, Any]], frame: _Frame, level_of: Callable[[dict[str, Any]], dict[str, Any] | None],
+              counts: dict[str, int]) -> None:
+    """The rooms (the floor's zones) as spaces."""
     rooms = {r["id"]: r for r in doc.get("rooms") or [] if isinstance(r, dict) and isinstance(r.get("id"), str)}
     for z in sorted((z for z in zones if isinstance(z, dict) and isinstance(z.get("polygon"), list) and len(z["polygon"]) >= 3), key=lambda z: str(z.get("id"))):
         room = rooms.get(str(z.get("id"))) or {}
@@ -473,7 +513,10 @@ def build(doc: dict[str, Any], zones: list[dict[str, Any]], width_px: int, heigh
         lv["spaces"].append(sp)
         counts["rooms"] += 1
 
-    # -- objects as their catalog class
+
+def _ifc_objects(w: Writer, floor_id: str, doc: dict[str, Any], items: dict[str, Any], frame: _Frame, level_of: Callable[[dict[str, Any]], dict[str, Any] | None],
+                counts: dict[str, int]) -> None:
+    """The objects as their catalog class."""
     circuits = {m: str(c.get("switch_entity_id") or "") for c in doc.get("circuits") or [] if isinstance(c, dict) for m in c.get("member_ids") or []}
     for ob in sorted((x for x in doc.get("objects") or [] if isinstance(x, dict) and isinstance(x.get("id"), str)), key=lambda x: x["id"]):
         lv = level_of(ob)
@@ -501,7 +544,9 @@ def build(doc: dict[str, Any], zones: list[dict[str, Any]], width_px: int, heigh
         lv["elements"].append(ref)
         counts["objects"] += 1
 
-    # -- connectors as bands
+
+def _ifc_connectors(w: Writer, floor_id: str, doc: dict[str, Any], frame: _Frame, by_level: dict[str, dict[str, Any]], counts: dict[str, int]) -> None:
+    """The connectors as bands."""
     for c in sorted((x for x in doc.get("connectors") or [] if isinstance(x, dict) and isinstance(x.get("id"), str)), key=lambda x: x["id"]):
         lv = by_level.get(str(c.get("level_from") or ""))
         if lv is None or not isinstance(c.get("polyline"), list) or len(c["polyline"]) < 2:
@@ -522,7 +567,10 @@ def build(doc: dict[str, Any], zones: list[dict[str, Any]], width_px: int, heigh
         lv["elements"].append(ref)
         counts["connectors"] += 1
 
-    # -- anchors (the caller's visible ones only) as proxies on the default level
+
+def _ifc_anchors(w: Writer, floor_id: str, anchors: list[dict[str, Any]] | None, frame: _Frame, by_level: dict[str, dict[str, Any]], default_level: str,
+                 counts: dict[str, int]) -> None:
+    """The anchors (the caller's visible ones only) as proxies on the default level."""
     lv0 = by_level.get(default_level) or (next(iter(by_level.values())) if by_level else None)
     if lv0 is not None:
         for a in sorted(anchors or [], key=lambda a: (str(a.get("resource_type")), str(a.get("resource_id")))):
@@ -546,11 +594,12 @@ def build(doc: dict[str, Any], zones: list[dict[str, Any]], width_px: int, heigh
             lv0["elements"].append(ref)
             counts["anchors"] += 1
 
+
+def _ifc_relations(w: Writer, floor_id: str, by_level: dict[str, dict[str, Any]]) -> None:
+    """Each storey contains its elements and aggregates its spaces."""
     for lid, lv in by_level.items():
         if lv["elements"]:
             w.s.add("IFCRELCONTAINEDINSPATIALSTRUCTURE", global_id(floor_id, "contains", lid), None, None, None, lv["elements"], lv["ref"])
         if lv["spaces"]:
             w.s.add("IFCRELAGGREGATES", global_id(floor_id, "agg", f"spaces:{lid}"), None, None, None, lv["ref"], lv["spaces"])
 
-    text = w.s.text(f"plan-{version_id}.ifc", generated_at, f"ViewDefinition [ReferenceView_V1.2]; {APP_NAME} plan {version_id} {stage}")
-    return text.encode("utf-8"), counts

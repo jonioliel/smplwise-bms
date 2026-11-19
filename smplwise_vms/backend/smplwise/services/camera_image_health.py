@@ -48,6 +48,7 @@ from ..config import Settings
 from ..db import Database, get_setting, now_iso, set_setting
 from ..errors import ApiError
 from .poller import PeriodicWorker
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.camera_image_health")
 
@@ -673,3 +674,6 @@ def view(conn: sqlite3.Connection, visible: set[str] | None, now_ts: float | Non
 
 def camera_choices(conn: sqlite3.Connection) -> list[dict[str, str]]:
     return [{"id": str(r["id"]), "name": _name(r), "recorder_id": str(r["recorder_id"])} for r in _cameras(conn)]
+
+
+register_reset(__name__, ("STORE", "REFS", "_LAST_ACTIVE", "_REFS_LOADED", "_PASS"), reset)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

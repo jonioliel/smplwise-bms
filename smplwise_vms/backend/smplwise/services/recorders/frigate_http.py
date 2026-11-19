@@ -33,6 +33,7 @@ import httpx
 from ...config import Settings
 from ...errors import ApiError
 from .. import nvr
+from ...test_reset import register_reset
 
 VENDOR = "frigate"
 
@@ -697,3 +698,6 @@ def _op(path: str) -> str:
 
 def q(value: str) -> str:
     return quote(value, safe="")
+
+
+register_reset(__name__, ("_TOKENS", "_REFUSED"), clear_cache)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)
