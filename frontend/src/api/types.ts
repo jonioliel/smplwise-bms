@@ -68,47 +68,19 @@ export type Floor = Omit<WireFloor, 'shared_anchor_count' | 'shared_camera_count
 
 export type SitesResponse = Omit<import('./generated/wire-catalog').CatalogSites, 'sites'> & { sites: Site[] };
 
-export interface PlanAsset {
-  /** pdf / dxf / image, from the server's content sniffing (T065). */
-  kind?: 'pdf' | 'dxf' | 'image';
-  id: string;
-  floor_id: string;
-  original_name: string;
-  mime: string;
-  sha256: string;
-  bytes: number;
-  page_count: number;
-  created_at: string;
-  pages: { page: number; preview_url: string }[];
-}
+/* The plan asset and version fields are the backend's response models (smplwise_vms/backend/smplwise/wire/plans.py, generated into
+ * ./generated/wire-plans.ts; code review 07:F8 step 2): a field the server renames or drops is a compile error here. Fields the demo
+ * plans and older bundles leave out stay optional; `crop` / `calibration` (stored documents) keep their hand-written shapes. */
+type PlanAssetWire = import('./generated/wire-plans').PlanAsset;
+type PlanVersionWire = import('./generated/wire-plans').PlanVersionListed;
+export interface PlanAsset extends Pick<PlanAssetWire, 'id' | 'floor_id' | 'original_name' | 'mime' | 'sha256' | 'bytes' | 'page_count' | 'created_at' | 'pages'>, Partial<Pick<PlanAssetWire, 'kind'>> {}
 
-export interface PlanVersion {
-  id: string;
-  floor_id: string;
-  asset_id: string;
-  page: number;
-  rotation: number;
+export interface PlanVersion
+  extends Pick<PlanVersionWire, 'id' | 'floor_id' | 'asset_id' | 'page' | 'rotation' | 'width_px' | 'height_px' | 'scale_m_per_px' | 'status' | 'revision' | 'notes' | 'created_at' | 'published_at' | 'image_url'>,
+    Partial<Pick<PlanVersionWire, 'archived_at' | 'created_by' | 'published_by' | 'anchors_on' | 'render_mode' | 'stylized_url' | 'source_url'>> {
   crop: { x: number; y: number; w: number; h: number } | null;
-  width_px: number;
-  height_px: number;
-  scale_m_per_px: number | null;
   /** Calibration record (Plan Studio): two-point pairs, or a door-width estimate (status "estimated", phase 3). */
   calibration?: { method: string; status?: 'measured' | 'estimated'; pairs: { a: [number, number]; b: [number, number]; metres: number }[]; residual_pct: number | null; reason?: string | null } | null;
-  status: 'draft' | 'published' | 'archived';
-  revision: number;
-  notes: string;
-  created_at: string;
-  published_at: string | null;
-  archived_at?: string | null;
-  created_by?: string | null;
-  published_by?: string | null;
-  /** Active anchors placed on this version (version history, T038). */
-  anchors_on?: number;
-  image_url: string;
-  /** 'stylized' serves the SMPLWISE-language rendering as the map background (the source stays). */
-  render_mode?: 'source' | 'stylized';
-  stylized_url?: string | null;
-  source_url?: string;
 }
 
 /** Plan Studio (T084): the structure document the map bundle points to - fetched separately and cached by hash. */
@@ -164,42 +136,24 @@ export interface CameraEncoding {
   hint?: string | null;
 }
 
-export interface Anchor {
-  id: string;
-  floor_id: string;
-  plan_version_id: string;
-  resource_type: 'camera' | 'ha_entity';
-  resource_id: string;
-  position: { x: number; y: number };
-  rotation_degrees: number;
-  field_of_view_degrees: number | null;
-  /** Manual coverage (R2): cone radius as a fraction of the plan width; null = the default illustration. */
-  coverage_radius?: number | null;
+/* The anchor fields are the backend's response model (smplwise_vms/backend/smplwise/wire/anchors.py `Anchor` / `MapAnchor`, generated into
+ * ./generated/wire-anchors.ts; code review 07:F8 step 2). Narrowed on purpose: `coverage_polygon` (pairs), `camera` / `entity` (the
+ * client's Camera and catalogue entity types), `shared` (map/shared-space); the fields older bundles and the demo map leave out stay
+ * optional. */
+type AnchorWire = import('./generated/wire-anchors').MapAnchor;
+export interface Anchor
+  extends Pick<AnchorWire, 'id' | 'floor_id' | 'plan_version_id' | 'resource_type' | 'resource_id' | 'position' | 'rotation_degrees' | 'field_of_view_degrees' | 'layer_id' | 'label' | 'revision' | 'effective_from' | 'effective_to' | 'updated_at'>,
+    Partial<Pick<AnchorWire, 'coverage_radius' | 'level_id' | 'mount_height_m' | 'tilt_deg' | 'room_candidate' | 'shared_member'>> {
   /** Manual coverage (R2): a free polygon [[x, y], ...] normalized to the plan; null = the cone. */
   coverage_polygon?: [number, number][] | null;
   /** R4: where the name label sits - auto | top | bottom | left | right. */
   label_pos?: string | null;
-  /** Plan Studio level of the floor (null = the default level). */
-  level_id?: string | null;
-  /** T087: metres above the level's floor and the downward tilt in degrees; null = the kind's default (map/anchor-3d.ts). */
-  mount_height_m?: number | null;
-  tilt_deg?: number | null;
-  layer_id: string;
-  label: string | null;
-  revision: number;
-  effective_from: string;
-  effective_to: string | null;
-  updated_at: string;
   camera?: Camera | null;
   /** Synced Home Assistant entity for ha_entity anchors (actions present only with ha.entity.control on the floor). */
   entity?: import('./ha').HaEntity | null;
   /** CR-009: an anchor of a room another floor shares with this one - its real id, its home floor, and its position in
    * this plan's coordinates; edits go through ?from_floor_id. */
   shared?: import('../map/shared-space').SharedAnchorMark;
-  /** CR-009: this floor's anchor lies in a shared room but is not a member - shown here only; the editor may add it. */
-  room_candidate?: string;
-  /** CR-009: this floor's anchor is a member of the shared room (zone id): shown on every floor of it. */
-  shared_member?: string;
 }
 
 export interface ZonePoint {
@@ -207,28 +161,16 @@ export interface ZonePoint {
   y: number;
 }
 
-/** Named room / area polygon on a floor (normalized plan coordinates, origin top-left). */
-export interface SpatialZone {
-  id: string;
-  floor_id: string;
-  plan_version_id: string | null;
-  name: string;
+/** Named room / area polygon on a floor (normalized plan coordinates, origin top-left). The fields are the backend's response model
+ * (smplwise_vms/backend/smplwise/wire/zones.py `Zone`, generated into ./generated/wire-zones.ts; code review 07:F8 step 2). Narrowed on
+ * purpose: `kind` / `source` (the values the server writes), `shared` (map/shared-space); the fields the demo rooms leave out stay
+ * optional. */
+type ZoneWire = import('./generated/wire-zones').Zone;
+export interface SpatialZone
+  extends Pick<ZoneWire, 'id' | 'floor_id' | 'plan_version_id' | 'name' | 'polygon' | 'color' | 'searchable' | 'revision' | 'created_at' | 'updated_at'>,
+    Partial<Pick<ZoneWire, 'label_pos' | 'level_id' | 'ceiling_height_m' | 'tags' | 'area_id'>> {
   kind: 'room' | 'zone' | 'corridor' | 'outdoor' | 'service';
-  polygon: ZonePoint[];
-  color: string;
   source: 'auto' | 'manual';
-  searchable: boolean;
-  /** R4: where the name label sits - auto | top | bottom | left | right. */
-  label_pos?: string;
-  level_id?: string | null;
-  ceiling_height_m?: number | null;
-  /** Free-text tags (T085), as walls and objects of the structure document carry them; [] when none. */
-  tags?: string[];
-  /** K88: the area of the device tree this room stands for (null = not linked). Local link only; nothing is written to the platform. */
-  area_id?: string | null;
-  revision: number;
-  created_at: string;
-  updated_at: string;
   /** CR-009: a room shown on more than one floor - "mirror" (another floor's room, polygon in this plan's coordinates)
    * or "home" (this floor's room that other floors show). */
   shared?: import('../map/shared-space').SharedZoneMark;
@@ -250,7 +192,11 @@ export interface CircuitState {
   actions: import('./ha').HaActionSpec[];
 }
 
-export interface FloorMap {
+/** The floor map bundle (`GET /floors/{id}/map`, smplwise_vms/backend/smplwise/wire/anchors.py `FloorMap`, generated into
+ * ./generated/wire-anchors.ts). The scalar fields come from the generated type; the parts other modules own (geometry reference, levels,
+ * circuits, floor pictures, bakes, the HA history coverage, the permissions) keep their typed client shapes. */
+type FloorMapWire = import('./generated/wire-anchors').FloorMap;
+export interface FloorMap extends Pick<FloorMapWire, 'needs_alignment'>, Partial<Pick<FloorMapWire, 'catalog_revision' | 'at' | 'history' | 'history_from' | 'reach'>> {
   floor: Floor;
   building: Building;
   site: Site;
@@ -258,8 +204,7 @@ export interface FloorMap {
   /** Reference to the structure document of the shown version: the draft (else the published one) for an editor bundle,
    * the row in force at the instant for an exact-history bundle, else the published one; null when none. */
   geometry?: GeometryRef | null;
-  /** T085: the library revision the map needs, the levels of the referenced document and the circuit switch states. */
-  catalog_revision?: string;
+  /** T085: the levels of the referenced document and the circuit switch states. */
   levels?: import('../map/geometry').GeomLevel[];
   circuit_states?: Record<string, CircuitState>;
   /** K88: the floor's own images (urls relative to the API root) and their alignment; null when none. */
@@ -268,11 +213,6 @@ export interface FloorMap {
   bakes?: import('../map/still-bake').BundleBakes | null;
   anchors: Anchor[];
   zones?: SpatialZone[];
-  needs_alignment: boolean;
-  /** Set when the bundle was requested at an instant (historical map, T038). */
-  at?: string | null;
-  history?: 'exact' | 'current' | null;
-  history_from?: string | null;
   /** Coverage of the local HA state history (present in a historical bundle). */
   ha_history?: { from: string | null; to: string | null; rows: number; retention_days: number; forward_fill_max_s: number } | null;
   permissions: { edit: boolean; publish: boolean; import: boolean; structure: boolean };
