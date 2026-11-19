@@ -274,7 +274,7 @@ The design-debt ratchet after all merges (`scripts/design_ratchet.py`): every me
 | 04f735276 | fix(merge): `i18n/msg/api-home.ts` keeps `'אוטומטי'` ('Automatic') - merge 16 dropped it with the 39 plan-view keys, but `api/tile-layout.ts` reads it too (`unit-i18n-api-2442` 1 failure, found by another agent on 5bcea468d; `i18n_missing_keys` 21 -> 20 = the committed report). The other 38 dropped keys have no other reader (checked by script). Pushed after the gate had started on 59ec7cde6 |
 | c68904139 | release: 2.43.8 - rebuilt UI at 04f735276 (`~/work/build_ui2438b.sh`, rc=0, 319 maps archived, tarball sha256 `1256bd1c...bdc06ed` checked after the copy; 0 `.map`, 0 `sourceMappingURL`). The gate's targeted re-run (`--after` its report) covers it |
 | 4256ca0b9 | fix(merge): `tests/test_settings_patch_audit_order.py` (W3-BE golden of one large PATCH's audit rows) gains `"confirm_word": "he"` on the purge and disarm rows - the intended behaviour of CR-I18N-CONFIRM-WORDS-2442, ported by merge 13. Test only, no rebuild needed |
-| (next) | fix(merge), test only, two unit failures found on c68904139 by the frontend combine agent: (1) `unit-chip-selected-2439:49` read the skin step's call in `main.py`; merge 14 moved it to `startup_steps.py` (`move_classic_skin_once`), so the spec now reads it there, checks its place (second in `AFTER_MIGRATE`) and that `main.py` runs the list. (2) `unit-diag-tabs-2440` source budget of the settings screen's own chunk: 514,314 B vs 510,000 (the train before part 2: 509,503 B, already at the edge). Measured per module (closure of `system-diagnostics.ts` less the entry closure, aa20f05ae vs 1adb0b646): the growth is train content, no card imported statically again - the 3D-map card translation of CR-UI-POLISH-2443 (`i18n/msg/api-plan-view.ts` +3,409 B, `api/plan-view.ts` +2,745 B), `styles/settings.ts` +27,889 B and `i18n/msg/map.ts` +12,519 B, offset by modules now in the entry chunk (net +4,811 B). Budget raised to 540,000 (measured + ~5 %, the reason in the spec). Both specs: 13 passed |
+| d40eaf5d7 | fix(merge), test only, two unit failures found on c68904139 by the frontend combine agent: (1) `unit-chip-selected-2439:49` read the skin step's call in `main.py`; merge 14 moved it to `startup_steps.py` (`move_classic_skin_once`), so the spec now reads it there, checks its place (second in `AFTER_MIGRATE`) and that `main.py` runs the list. (2) `unit-diag-tabs-2440` source budget of the settings screen's own chunk: 514,314 B vs 510,000 (the train before part 2: 509,503 B, already at the edge). Measured per module (closure of `system-diagnostics.ts` less the entry closure, aa20f05ae vs 1adb0b646): the growth is train content, no card imported statically again - the 3D-map card translation of CR-UI-POLISH-2443 (`i18n/msg/api-plan-view.ts` +3,409 B, `api/plan-view.ts` +2,745 B), `styles/settings.ts` +27,889 B and `i18n/msg/map.ts` +12,519 B, offset by modules now in the entry chunk (net +4,811 B). Budget raised to 540,000 (measured + ~5 %, the reason in the spec). Both specs: 13 passed |
 
 No migration (0216 stays the last). Bridge stays **0.10.7**: the wave-3 bridge refactors (CR-BRIDGE-COMMON-2440, CR-BRIDGE-GAPS-2438)
 change the integration's files without a version bump, so an installed 0.10.7 keeps its old files (behaviour-compatible; the add-on
@@ -319,3 +319,31 @@ Workstation: Python 3.12 (main checkout `.venv`), Node 24.21.0, `frontend/node_m
 
 - Bridge version bump for the wave-3 bridge refactors (section 11): recommended in 2.43.9 with one Home Assistant restart.
 - `--dv-sheet-sheen` (DOMUS) is now unused on the train (section 10, merge 14) - a cleanup row.
+
+## 15. Release gate result and the fix forward (19.11, release agent)
+
+Release gate on 59ec7cde6 (tier L, 170 min, load up to 57): **FAIL**, 16 failures (15 preview + 1 backend), 17 flaky passed alone.
+
+| Failure | Cause | Fix |
+|---|---|---|
+| `evidence-menu-opaque.spec.ts:299` desktop + mobile, the 3D view chip on domus / tesla / crystal **light** (`rgba(36,88,230,.14)` etc. must have alpha 1) | DOMUS-DEFAULT-2439 made the strengthened light-blue field (`--sw-accent-soft`) the default selected chip; in the light schemes of every skin but classic and infra that token is the accent at an alpha, and `sw-plan-3d` composed it on the opaque menu surface only in the dark schemes | d6c21c7be: the 3D bar lays the accent at the skin's own alpha (domus / bubble 14 %, crystal / soft 12 %, tesla 10 %) on `--sw-menu-surface` - the colour the chip has over the menu, opaque over the scene; the selected hover follows. Classic and infra keep their solid light field, dark unchanged. Spec not changed |
+| `unit-chip-selected-2439:37`, `unit-diag-tabs-2440:133`, `unit-i18n-api-2442:195` (desktop / tablet / mobile), backend `test_settings_patch_audit_order` | merge interactions | already fixed on the train (04f735276, 4256ca0b9, d40eaf5d7, section 11) |
+
+| Commit | What |
+|---|---|
+| d6c21c7be | fix(plan-3d): the selected view chip over the 3D canvas is opaque in the light schemes too |
+| 4679923b4 | release: 2.43.8 - rebuilt UI at d6c21c7be (`~/work/build_ui2438c.sh`, rc=0, 319 maps archived to `sourcemaps/2.43.8`, tarball sha256 `99122358...88609d4907` checked after the copy; 0 `.map`, 0 `sourceMappingURL`) |
+
+Receipts (19.11):
+
+| Check | At | Result |
+|---|---|---|
+| `npx tsc --noEmit` (workstation) | d6c21c7be | exit 0 |
+| runner `run_smart.py spec` `evidence-menu-opaque.spec.ts -g "3D view"`, desktop + mobile | d6c21c7be | 16 passed |
+| runner `run_smart.py spec` `pixel-plan3d-r28-ui`, `pixel-walk-touch` (no `-u`), workers 1 | d6c21c7be | 11 passed, 22 skipped: no baseline changed, none refreshed |
+| **targeted re-gate** `release_gate2.sh --after gate_release-2438-train_59ec7cde6.json` (nice 10, base 59ec7cde6, nightly safety net ok) | 4679923b4 | **PASS** in 66 min: 0 failed; preview 6173 passed, dev 175, fixture 28, pixel 66, visual 72 (0 changed), backend 3737 passed; addon_build PASS; 28 flaky passed alone (preview 25, dev 2, pixel 1) - another agent's job ran on the runner meanwhile (load 50-64) |
+| runner `run_remote.sh backend` the gate's flaky backend files `test_bill_ledger_lifecycle_b`, `test_plan_detect_baseline` + `test_settings_patch_audit_order` | 4679923b4 | 41 passed |
+| `scripts/release_check.py` | 4679923b4 | 20 ok, only `[FAIL] git tag v2.43.8 not yet`; RESULT: ready |
+
+Repeat flakes worth a ticket (flaky in both gates, passed alone): `evidence-polish2-295.spec.ts:205` (choice buttons, several
+projects), `layout-worstcase-screens-297.spec.ts:40`.
