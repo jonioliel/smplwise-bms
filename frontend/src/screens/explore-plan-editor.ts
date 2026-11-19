@@ -64,6 +64,7 @@ import { COLL_LABEL, CONNECTOR_LABEL, circuitPlacingHint, connectorDerived, coun
 import { dayTimeText } from '../api/day-format';
 import { confirmDialog } from '../components/confirm-dialog';
 import { explorePlanEditorStyles } from './explore-plan-editor-css';
+import { ToastController } from '../components/toast-controller';
 
 type Strength = 'light' | 'medium' | 'strong';
 /** A zone save or delete that has not answered by then counts as failed (review of T085, R4): the bulk actions it holds
@@ -202,7 +203,11 @@ export class ExplorePlanEditor extends LitElement {
   @state() private lightsAll = false;
   @state() private busy = false;
   @state() private error = '';
-  @state() private info = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 3500 });
+  private get info(): string {
+    return this.toaster.text;
+  }
   /** T088: the plan package import dialog (dry run, then import into the draft). */
   @state() private pkgImport: PackageImportState | null = null;
   @state() private stylizing = false;
@@ -372,7 +377,6 @@ export class ExplorePlanEditor extends LitElement {
   /** RACE-7: the number of the latest entity search; an older answer (or failure) arriving after a newer request is dropped. */
   private entSeq = 0;
   /** MSG-1: the one pending clear of flash() / flashError(). */
-  private infoTimer = 0;
   private errorTimer = 0;
   /** PERF-5: the identity memos of the render's derived lists (memo()), and the frame that applies the latest drag move. */
   private memos = new Map<string, { keys: readonly unknown[]; value: unknown }>();
@@ -403,9 +407,8 @@ export class ExplorePlanEditor extends LitElement {
     window.removeEventListener('keydown', this.onKey);
     this.phone.removeEventListener('change', this.onNarrow);
     clearInterval(this.elapsedTimer);
-    window.clearTimeout(this.infoTimer);
     window.clearTimeout(this.errorTimer);
-    this.infoTimer = this.errorTimer = 0;
+    this.errorTimer = 0;
     // CR-FE-NITS-2442 (06:TIMER-1): a search typed in the last 250 ms does not start after the editor closed
     window.clearTimeout(this.entTimer);
     window.clearTimeout(this.circuitTimer);
@@ -547,7 +550,7 @@ export class ExplorePlanEditor extends LitElement {
     const b = this.bundle;
     if (!b) return;
     if (b.source === 'demo') {
-      this.info = 'נתוני הדגמה: הזיהוי עובד מול השרת.';
+      this.toaster.show('נתוני הדגמה: הזיהוי עובד מול השרת.', { ms: 0 });
       return;
     }
     this.detecting = true;
@@ -617,7 +620,7 @@ export class ExplorePlanEditor extends LitElement {
     const b = this.bundle;
     if (!d || !b || d.length < 3) return;
     if (b.source === 'demo') {
-      this.info = 'נתוני הדגמה: השמירה עובדת מול השרת.';
+      this.toaster.show('נתוני הדגמה: השמירה עובדת מול השרת.', { ms: 0 });
       this.drawing = null;
       return;
     }
@@ -1120,7 +1123,7 @@ export class ExplorePlanEditor extends LitElement {
 
   private async save(): Promise<boolean> {
     if (!this.bundle || this.bundle.source === 'demo') {
-      this.info = 'נתוני הדגמה: השינויים נשמרים רק במסך זה.';
+      this.toaster.show('נתוני הדגמה: השינויים נשמרים רק במסך זה.', { ms: 0 });
       this.dirty = new Set();
       return true;
     }
@@ -1162,7 +1165,7 @@ export class ExplorePlanEditor extends LitElement {
     const p = this.placing;
     if (!p || !this.bundle) return;
     if (this.bundle.source === 'demo') {
-      this.info = 'נתוני הדגמה: הוספה עובדת מול השרת.';
+      this.toaster.show('נתוני הדגמה: הוספה עובדת מול השרת.', { ms: 0 });
       this.placing = null;
       return;
     }
@@ -1192,7 +1195,7 @@ export class ExplorePlanEditor extends LitElement {
     const a = this.selected;
     if (!a || !this.bundle) return;
     if (this.bundle.source === 'demo') {
-      this.info = 'נתוני הדגמה: הסרה עובדת מול השרת.';
+      this.toaster.show('נתוני הדגמה: הסרה עובדת מול השרת.', { ms: 0 });
       return;
     }
     if (!(await confirmDialog({ body: `להסיר את "${this.anchorName(a)}" מהמפה? המקור עצמו לא נמחק.`, danger: true }))) return;
@@ -1307,10 +1310,10 @@ export class ExplorePlanEditor extends LitElement {
       }
       if (d.mode === 'publish') {
         await publishVersion(d.version.id);
-        this.info = 'הגרסה פורסמה; הצופים רואים אותה עכשיו';
+        this.toaster.show('הגרסה פורסמה; הצופים רואים אותה עכשיו', { ms: 0 });
       } else {
         await rollbackVersion(d.version.id, d.version.revision, d.data.from?.id ?? null);
-        this.info = 'הגרסה שוחזרה ופורסמה מחדש; העוגנים נשמרו';
+        this.toaster.show('הגרסה שוחזרה ופורסמה מחדש; העוגנים נשמרו', { ms: 0 });
       }
       const done = this.info;
       this.diff = null;
@@ -2423,12 +2426,7 @@ export class ExplorePlanEditor extends LitElement {
    * older one's, so an older timer never cuts a newer message short (also the same text flashed again) - and only the text it
    * showed is cleared (a message written since stays); disconnectedCallback clears the timer. */
   private flash(text: string, ms = 3500) {
-    this.info = text;
-    window.clearTimeout(this.infoTimer);
-    this.infoTimer = window.setTimeout(() => {
-      this.infoTimer = 0;
-      if (this.info === text) this.info = '';
-    }, ms);
+    this.toaster.show(text, { ms });
   }
 
   /** A short refusal in the error colour (a curve edit the geometry cannot take), cleared like flash(). */
@@ -4108,7 +4106,7 @@ export class ExplorePlanEditor extends LitElement {
     const versionId = b.planVersionId;
     this.busy = true;
     this.error = '';
-    this.info = ifcT('reading');
+    this.toaster.show(ifcT('reading'), { ms: 0 });
     try {
       if (!(await this.studio.flush())) {
         this.error = this.studio.error;
@@ -4121,7 +4119,7 @@ export class ExplorePlanEditor extends LitElement {
       const n = r.walls.length + r.openings.length + (r.objects?.length ?? 0) + (r.rooms?.length ?? 0);
       this.flash(n ? ifcT('loaded') : ifcT('nothing'), 4000);
     } catch (err) {
-      this.info = '';
+      this.toaster.clear();
       this.error = describeError(err);
     } finally {
       this.busy = false;

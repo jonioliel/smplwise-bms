@@ -26,12 +26,13 @@ test.describe('plan editor hot path (static)', () => {
   test('MSG-1: no message writes its own clearing timer; flash() keeps one stored timer and disconnect clears it', () => {
     expect(src.match(/setTimeout\(\(\)\s*=>\s*\(?this\.info\b/g) ?? []).toEqual([]);
     expect(src.match(/setTimeout\(\(\)\s*=>\s*\(?this\.error\s*=/g) ?? []).toEqual([]);
+    // CR-CMP2-TOAST-2440 (07:F12 adoption): the one stored timer is the shared ToastController's - a new message restarts it, a
+    // message written without a timer (show with ms 0) stops it, and the controller stops it when the editor leaves the page
     const flash = method('private flash(text: string');
-    expect(flash).toMatch(/clearTimeout\(this\.infoTimer\)/);
-    expect(flash).toMatch(/this\.infoTimer = window\.setTimeout/);
-    expect(flash).toMatch(/this\.info === text/); // a message someone else wrote in the meantime is not wiped
+    expect(flash).toMatch(/this\.toaster\.show\(text, \{ ms \}\)/);
+    expect(src).toMatch(/private readonly toaster = new ToastController\(this, \{ ms: 3500 \}\)/);
+    expect(src.match(/this\.info\s*=[^=]/g) ?? []).toEqual([]); // every write goes through the controller
     const off = method('disconnectedCallback() {');
-    expect(off).toMatch(/clearTimeout\(this\.infoTimer\)/);
     expect(off).toMatch(/clearTimeout\(this\.errorTimer\)/);
   });
 
