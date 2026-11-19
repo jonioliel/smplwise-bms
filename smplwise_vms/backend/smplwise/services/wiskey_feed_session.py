@@ -6,6 +6,9 @@ Home Assistant WebSocket session to WisKey in a thread of their own. What they d
 pollers, writes); how the session is run does not, and that part lives here once:
 
 - the thread and its stop (`_start_thread`, `shutdown`);
+- one session (`_session`): connect and authenticate (`ha_client.ws_session`, on the URL / token the client names), forward
+  the stop into the session, and on the way out drop the live call and cancel every task of the session (the stop forwarder,
+  the poller, push-started refreshes) before a fault recorded by `_fail` is raised to the ladder;
 - the reconnect ladder (`_ladder`): the backoff doubling to its cap, WisKey loading (short retry), not installed / refused (the
   absent re-probe ladder, the copy dropped), any other WisKey error, a refused Home Assistant token (the shared refusal ladder of
   the client's own token), the reconnect counter and the log lines;
@@ -99,7 +102,54 @@ class FeedSession:
     def _drop(self) -> None:  # pragma: no cover - provided by each client
         raise NotImplementedError
 
-    async def _session(self, stop_evt: asyncio.Event) -> None:  # pragma: no cover - provided by each client
+    # -- one session: what each client adds to it
+    async def _connect_kwargs(self, settings: Settings) -> dict[str, Any]:
+        """Extra `ha_client.ws_session` arguments (url, token, internal_tls); none = the service connection."""
+        return {}
+
+    async def _on_ready(self, call: intercom_client.Call, end: asyncio.Event) -> None:  # pragma: no cover - provided by each client
+        """The authenticated socket is up: probe, subscribe, set `_call`, start `_poller`. `end` ends the session."""
+        raise NotImplementedError
+
+    def _session_closing(self) -> None:
+        """The socket is gone, `_call` is already None, the session's tasks are not cancelled yet."""
+
+    def _session_closed(self) -> None:
+        """The session's tasks are cancelled and joined."""
+
+    async def _session(self, stop_evt: asyncio.Event) -> None:
+        assert self.settings
+        settings = self.settings
+        self._session_reset()
+        end = asyncio.Event()
+        self._end = end
+        self._event_loop = asyncio.get_running_loop()
+        self._poller: asyncio.Task[None] | None = None
+        connect = await self._connect_kwargs(settings)
+
+        async def forward_stop() -> None:
+            await stop_evt.wait()
+            end.set()
+
+        stopper = asyncio.create_task(forward_stop())
+        try:
+            await ha_client.ws_session(settings, lambda call: self._on_ready(call, end), lambda _data: None, end, on_message=self._on_message, **connect)
+        finally:
+            self._call = None
+            self._session_closing()
+            # nothing of this session may outlive it: a stray refresh's own `finally` would otherwise run after the
+            # next session reset and break its one-refresh-at-a-time invariant
+            tasks = [t for t in (stopper, self._poller, *self._tasks) if t is not None and not t.done()]
+            for t in tasks:
+                t.cancel()
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+            self._tasks.clear()
+            self._session_closed()
+        if self._fault is not None:
+            raise self._fault
+
+    def _session_reset(self) -> None:  # pragma: no cover - provided by each client
         raise NotImplementedError
 
     # -- thread

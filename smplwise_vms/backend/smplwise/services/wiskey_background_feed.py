@@ -68,7 +68,7 @@ class BackgroundFeed(FeedSession):
 
     def _session_reset(self) -> None:
         self._reset_session_skeleton()  # _call, _early, _refreshing, _again, _end, _fault
-        self._loop: asyncio.AbstractEventLoop | None = None
+        self._event_loop: asyncio.AbstractEventLoop | None = None
         self._sub: int | None = None
         self._tasks = set()
 
@@ -114,7 +114,7 @@ class BackgroundFeed(FeedSession):
         never retried."""
         if command not in READ_ALLOWLIST:
             raise ValueError(f"{command} is not an allowed background read")
-        loop, call = self._loop, self._call
+        loop, call = self._event_loop, self._call
         if self.status["state"] != "ready" or loop is None or call is None:
             return self.status["state"], None
         if not self._command_slot.acquire(blocking=False):
@@ -190,73 +190,50 @@ class BackgroundFeed(FeedSession):
         assert self.settings
         return self.settings.wiskey_background_token
 
-    async def _session(self, stop_evt: asyncio.Event) -> None:
-        from . import intercom_sync as sync
+    # -- one session (wiskey_feed_session.FeedSession._session runs it)
+    async def _connect_kwargs(self, settings: Settings) -> dict[str, Any]:
         from .ha_user_auth import core_ws_url
 
-        assert self.settings
-        settings = self.settings
         token = settings.wiskey_background_token
-        self._session_reset()
-        end = asyncio.Event()
-        self._end = end
-        self._loop = asyncio.get_running_loop()
-        poller: asyncio.Task[None] | None = None
         url = await asyncio.to_thread(core_ws_url, settings)  # the token is valid on HA core only (never on the proxy)
+        return {"url": url, "token": token, "internal_tls": True}
 
-        async def forward_stop() -> None:
-            await stop_evt.wait()
-            end.set()
+    async def _on_ready(self, call: intercom_client.Call, end: asyncio.Event) -> None:
+        from . import intercom_sync as sync
+        from . import wiskey_channels
 
-        stopper = asyncio.create_task(forward_stop())
-
-        async def on_ready(call: intercom_client.Call) -> None:
-            nonlocal poller
-            from . import wiskey_channels
-
-            call = wiskey_channels.guard(call, "background")  # overview, subscribe, authorization/session and get_config only
-            self._call = call
-            try:
-                raw = await intercom_client.overview(call)  # the probe: unknown_command = not loaded (yet?)
-            except IntercomError as exc:
-                if exc.not_installed and await self._maybe_loading(call):
-                    raise IntercomError(sync.LOADING, "overview") from exc
-                raise
-            self._absent_strikes = 0
-            self._store(raw)
-            try:
-                self._sub = await intercom_client.subscribe(call)
-                self.status["subscribe"] = "ok"
-            except IntercomError as exc:  # polling still keeps the copy current; the diagnostics show why there is no push
-                self.status["subscribe"] = f"failed:{exc.code}"
-            self._replay_early()
-            self.status["connected"] = True
-            self._was_ready = True
-            self._set_state("ready", None)
-            self._logged_error = None
-            log.info("WisKey background feed connected: %d stations, WisKey %s", len((self._projection or {}).get("stations", [])), self.status["wiskey_version"])
-
-            async def poll() -> None:
-                while not end.is_set():
-                    await asyncio.sleep(POLL_S)
-                    await self._refresh()
-
-            poller = asyncio.create_task(poll(), name="wiskey-background-poll")
-
+        call = wiskey_channels.guard(call, "background")  # overview, subscribe, authorization/session and get_config only
+        self._call = call
         try:
-            await ha_client.ws_session(settings, on_ready, lambda _data: None, end, on_message=self._on_message, url=url, token=token, internal_tls=True)
-        finally:
-            self._call = None
-            if self.status["state"] != "ready":
-                self.status["subscribe"] = "not_attempted"
-            tasks = [t for t in (stopper, poller, *self._tasks) if t is not None and not t.done()]
-            for t in tasks:
-                t.cancel()
-            if tasks:
-                await asyncio.gather(*tasks, return_exceptions=True)
-            self._tasks.clear()
-        if self._fault is not None:
-            raise self._fault
+            raw = await intercom_client.overview(call)  # the probe: unknown_command = not loaded (yet?)
+        except IntercomError as exc:
+            if exc.not_installed and await self._maybe_loading(call):
+                raise IntercomError(sync.LOADING, "overview") from exc
+            raise
+        self._absent_strikes = 0
+        self._store(raw)
+        try:
+            self._sub = await intercom_client.subscribe(call)
+            self.status["subscribe"] = "ok"
+        except IntercomError as exc:  # polling still keeps the copy current; the diagnostics show why there is no push
+            self.status["subscribe"] = f"failed:{exc.code}"
+        self._replay_early()
+        self.status["connected"] = True
+        self._was_ready = True
+        self._set_state("ready", None)
+        self._logged_error = None
+        log.info("WisKey background feed connected: %d stations, WisKey %s", len((self._projection or {}).get("stations", [])), self.status["wiskey_version"])
+
+        async def poll() -> None:
+            while not end.is_set():
+                await asyncio.sleep(POLL_S)
+                await self._refresh()
+
+        self._poller = asyncio.create_task(poll(), name="wiskey-background-poll")
+
+    def _session_closing(self) -> None:
+        if self.status["state"] != "ready":
+            self.status["subscribe"] = "not_attempted"
 
     def _on_message(self, msg: dict[str, Any]) -> None:
         mid = msg.get("id")

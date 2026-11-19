@@ -1676,88 +1676,63 @@ class IntercomSync(FeedSession):
         assert self.settings
         return self.settings.ha_token
 
-    async def _session(self, stop_evt: asyncio.Event) -> None:
-        assert self.settings
-        self._session_reset()
-        end = asyncio.Event()
-        self._end = end
-        self._event_loop = asyncio.get_running_loop()
-        poller: asyncio.Task[None] | None = None
+    # -- one session (wiskey_feed_session.FeedSession._session runs it)
+    async def _on_ready(self, call: intercom_client.Call, end: asyncio.Event) -> None:
+        from . import wiskey_channels
 
-        async def forward_stop() -> None:
-            await stop_evt.wait()
-            end.set()
-
-        stopper = asyncio.create_task(forward_stop())
-
-        async def on_ready(call: intercom_client.Call) -> None:
-            nonlocal poller
-            from . import wiskey_channels
-
-            from .wiskey_native_feed import bind_metadata
-            session_call = call  # WISKEY-EVENT-CURSOR-2400: the signed events/resume_v1 sender adds its own one-command guard
-            raw = await bind_metadata(call, self.settings)
-            native_metadata_call = raw
-            call = wiskey_channels.guard(raw, "service")  # CR-036 S1: only the service (write) channel's allow-list leaves here
-            self._call = call
-            # CR-036 S4: the adapter's reads ride this socket under their own guards (no write is on either list)
-            self._channel_calls = {name: wiskey_channels.guard(raw, name) for name in wiskey_channels.ADAPTER_CHANNELS}
-            try:
-                raw = await intercom_client.overview(call)  # the probe: unknown_command = not loaded (yet?)
-            except IntercomError as exc:
-                if exc.not_installed and await self._maybe_loading(call):
-                    raise IntercomError(LOADING, "overview") from exc
-                raise
-            self._absent_strikes = 0
-            self._store(raw)
-            await self._watch(call, watched_entities(raw))
-            self._wiskey_sub = await intercom_client.subscribe(call)
-            self._replay_early()
-            STATE.connected = True
-            self._was_ready = True
-            self._set_state("ready", None)
-            self._logged_error = None  # a later repeat of an earlier failure is logged again
-            log.info("WisKey feed connected: %d stations, WisKey %s", len((self._cache or {}).get("stations", [])), STATE.wiskey_version)
-
-            async def poll() -> None:
-                while not end.is_set():
-                    await asyncio.sleep(POLL_S)
-                    renew_at = getattr(native_metadata_call, "native_subscription_renew_at", None)
-                    if renew_at is not None and time.monotonic() >= renew_at:
-                        # A new finite registration after cancelling this exact
-                        # old id. No proof or media activity is renewed in place.
-                        if self._wiskey_sub is not None:
-                            await call("unsubscribe_events", subscription=self._wiskey_sub)
-                        self._wiskey_sub = await intercom_client.subscribe(call)
-                        self._replay_early()
-                    if self.watched():
-                        await self._refresh()
-
-            poller = asyncio.create_task(poll(), name="intercom-poll")
-            from . import wiskey_event_resume  # WISKEY-EVENT-CURSOR-2400: gap-free door events (ends with the session's tasks)
-            resume = wiskey_event_resume.start(session_call, self.settings, end)
-            if resume is not None:
-                self._tasks.add(resume)
-
+        from .wiskey_native_feed import bind_metadata
+        session_call = call  # WISKEY-EVENT-CURSOR-2400: the signed events/resume_v1 sender adds its own one-command guard
+        raw = await bind_metadata(call, self.settings)
+        native_metadata_call = raw
+        call = wiskey_channels.guard(raw, "service")  # CR-036 S1: only the service (write) channel's allow-list leaves here
+        self._call = call
+        # CR-036 S4: the adapter's reads ride this socket under their own guards (no write is on either list)
+        self._channel_calls = {name: wiskey_channels.guard(raw, name) for name in wiskey_channels.ADAPTER_CHANNELS}
         try:
-            await ha_client.ws_session(self.settings, on_ready, lambda _data: None, end, on_message=self._on_message)
-        finally:
-            self._call = None
-            self._channel_calls = {}
-            # nothing of this session may outlive it: a stray refresh's own `finally` would otherwise run after the
-            # next session reset and break its one-refresh-at-a-time invariant
-            tasks = [t for t in (stopper, poller, *self._tasks) if t is not None and not t.done()]
-            for t in tasks:
-                t.cancel()
-            if tasks:
-                await asyncio.gather(*tasks, return_exceptions=True)
-            self._tasks.clear()
-            # Home Assistant drops a connection's subscriptions with it, which cancels any announcement still playing
-            for station_id in set(self._tts.values()):
-                self._tts_update(station_id, {"state": "closed", "reason": "connection_lost"})
-            self._tts.clear()
-        if self._fault is not None:
-            raise self._fault
+            raw = await intercom_client.overview(call)  # the probe: unknown_command = not loaded (yet?)
+        except IntercomError as exc:
+            if exc.not_installed and await self._maybe_loading(call):
+                raise IntercomError(LOADING, "overview") from exc
+            raise
+        self._absent_strikes = 0
+        self._store(raw)
+        await self._watch(call, watched_entities(raw))
+        self._wiskey_sub = await intercom_client.subscribe(call)
+        self._replay_early()
+        STATE.connected = True
+        self._was_ready = True
+        self._set_state("ready", None)
+        self._logged_error = None  # a later repeat of an earlier failure is logged again
+        log.info("WisKey feed connected: %d stations, WisKey %s", len((self._cache or {}).get("stations", [])), STATE.wiskey_version)
+
+        async def poll() -> None:
+            while not end.is_set():
+                await asyncio.sleep(POLL_S)
+                renew_at = getattr(native_metadata_call, "native_subscription_renew_at", None)
+                if renew_at is not None and time.monotonic() >= renew_at:
+                    # A new finite registration after cancelling this exact
+                    # old id. No proof or media activity is renewed in place.
+                    if self._wiskey_sub is not None:
+                        await call("unsubscribe_events", subscription=self._wiskey_sub)
+                    self._wiskey_sub = await intercom_client.subscribe(call)
+                    self._replay_early()
+                if self.watched():
+                    await self._refresh()
+
+        self._poller = asyncio.create_task(poll(), name="intercom-poll")
+        from . import wiskey_event_resume  # WISKEY-EVENT-CURSOR-2400: gap-free door events (ends with the session's tasks)
+        resume = wiskey_event_resume.start(session_call, self.settings, end)
+        if resume is not None:
+            self._tasks.add(resume)
+
+    def _session_closing(self) -> None:
+        self._channel_calls = {}
+
+    def _session_closed(self) -> None:
+        # Home Assistant drops a connection's subscriptions with it, which cancels any announcement still playing
+        for station_id in set(self._tts.values()):
+            self._tts_update(station_id, {"state": "closed", "reason": "connection_lost"})
+        self._tts.clear()
 
     def _on_message(self, msg: dict[str, Any]) -> None:
         mid = msg.get("id")
