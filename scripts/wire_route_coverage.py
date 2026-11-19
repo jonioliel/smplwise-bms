@@ -77,22 +77,40 @@ def _path_regex(path: str) -> re.Pattern[str]:
 _CONST = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*f?[\"']((?:/|\{)[^\"']*)[\"']", re.M)
 
 
-def _expanded(text: str) -> str:
-    """The file's text with its module-level path constants (`API = "/api/v1/energy"`) written into the f-strings that use them
+_IMPORT = re.compile(r"^from ([A-Za-z_][A-Za-z0-9_]*) import \(?([^)\n]*(?:\n[^)\n]*)*?)\)?$", re.M)
+
+
+def _consts(texts: dict[str, str]) -> dict[str, dict[str, str]]:
+    """Per test module, its module-level path constants plus the ones it imports from another test module
+    (`from test_infra_temperature import API`)."""
+    own = {name: dict(_CONST.findall(t)) for name, t in texts.items()}
+    out: dict[str, dict[str, str]] = {}
+    for name, t in texts.items():
+        consts: dict[str, str] = {}
+        for mod, names in _IMPORT.findall(t):
+            src = own.get(mod + ".py", {})
+            for n in re.findall(r"[A-Za-z_][A-Za-z0-9_]*", names):
+                if n in src:
+                    consts[n] = src[n]
+        consts.update(own[name])
+        out[name] = consts
+    return out
+
+
+def _expanded(text: str, consts: dict[str, str]) -> str:
+    """The file's text with its path constants (`API = "/api/v1/energy"`) written into the f-strings that use them
     (`f"{API}/tariffs"`), a few rounds for constants built from constants."""
-    consts = dict(_CONST.findall(text))
     for _ in range(3):
-        for name, value in consts.items():
+        for name, value in list(consts.items()):
             text = text.replace("{" + name + "}", value)
-        consts = {k: v for k, v in consts.items() if "{" in v}
-        if not consts:
-            break
-        consts = dict(_CONST.findall(text))
+            consts = {k: v.replace("{" + name + "}", value) for k, v in consts.items()}
     return text
 
 
 def named_in_tests(routes: list[dict]) -> dict[str, list[str]]:
-    texts = {p.name: _expanded(p.read_text(encoding="utf-8", errors="replace")) for p in (BACKEND / "tests").glob("test_*.py")}
+    raw = {p.name: p.read_text(encoding="utf-8", errors="replace") for p in (BACKEND / "tests").glob("*.py")}
+    consts = _consts(raw)
+    texts = {n: _expanded(t, consts[n]) for n, t in raw.items() if n.startswith("test_")}
     out: dict[str, list[str]] = {}
     for r in routes:
         rx = _path_regex(r["path"])
