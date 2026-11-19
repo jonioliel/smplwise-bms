@@ -241,6 +241,9 @@ export class InvestigatePlayback extends LitElement {
        its width is capped so that its rows (16:9 tiles, the 6 px gaps and padding) end within it, centred like the single video. */
     .grid {
       --pb-stage-h: max(200px, calc(100dvh - 560px));
+      /* RELEASE-2439-TRAIN (layout-playback-grid-2443): the caps below count the 6 px padding (the +12 / +18), so they are border-box
+         widths - as content-box the 2x2 grid came out 7 px over the budget (12 px of padding x 9/16) */
+      box-sizing: border-box;
       margin-inline: auto;
       inline-size: 100%;
       max-inline-size: calc(2 * (var(--pb-stage-h) - 12px) * 16 / 9 + 18px);
