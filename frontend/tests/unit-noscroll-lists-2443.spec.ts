@@ -51,12 +51,17 @@ test('08:F23: the reminder log is paged on a desktop with the shared helper, and
   expect(log).toMatch(/private fit = new PageFit\(this, \(\) => this\.renderRoot\.querySelector<HTMLElement>\('\.scroller'\), \(\) => !!this\.log\?\.items\.length\);/);
   expect(log).toMatch(/:host\(\[data-fit\]\[data-long-lists='paged'\]\) \.scroller \{ overflow: hidden; \}/);
   expect(log).toMatch(/protected willUpdate\(\) \{\s*this\.toggleAttribute\('data-fit', this\.fit\.fits\);/);
-  expect(log).toContain('<tr data-fit-item data-maint-log-row=');
-  expect(log).toContain('this.fit.shows(i) ? this.row(r) : nothing');
+  // CR-CMP2-TABLES-GENMAINT-2450: the rows are the shared sw-table's; each carries the measured-pages hook through its row hooks
+  expect(log).toContain("'data-fit-item': true, 'data-maint-log-row': String(r.id)");
+  expect(log).toContain('l.items.filter((_, i) => this.fit.shows(i))');
   expect(log).toMatch(/this\.fit\.sync\(l\.items\.length, `\$\{this\.event\}\|/);
   expect(log).toContain('<sw-pager data-maint-log-pager');
   // the table sits in a <section> so that a later page draws the table head again (PageFit counts the head)
-  expect(log).toMatch(/<section class="fitsec"><table class="t" data-maint-log-table>/);
+  expect(log).toMatch(/<section class="fitsec"><sw-table bare static-rows data-maint-log-table /);
+  // ... and the helper finds the rows inside the table's shadow root, in the section around the table
+  const fit = code('components/page-fit.ts');
+  expect(fit).toContain("r.querySelectorAll<HTMLElement>('[data-fit-item], sw-table')");
+  expect(fit).toContain("root instanceof ShadowRoot ? root.host.closest('section') : null");
 });
 
 // ---------------------------------------------------------------- the candidates kept as inner scrollers (measured, documented)

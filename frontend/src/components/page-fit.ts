@@ -22,6 +22,26 @@ import { LongListsController } from '../api/long-lists';
  */
 const FIT_MQ = '(min-width: 1024px) and (min-height: 560px)';
 
+/** CR-CMP2-TABLES-GENMAINT-2450: a row region that is a shared `sw-table` draws its rows inside the table's shadow root (the row hook
+ * `data-fit-item` comes through `rowAttrs`), where the region's own `querySelectorAll` does not reach. The items in reading order: the
+ * region's own, and at a `sw-table` the rows of that table. */
+function fitItems(r: HTMLElement): HTMLElement[] {
+  const out: HTMLElement[] = [];
+  for (const el of r.querySelectorAll<HTMLElement>('[data-fit-item], sw-table')) {
+    if (el.localName === 'sw-table') out.push(...(el.shadowRoot?.querySelectorAll<HTMLElement>('[data-fit-item]') ?? []));
+    else out.push(el);
+  }
+  return out;
+}
+
+/** The `<section>` an item belongs to - for a row inside a `sw-table`, the section around the table. */
+function sectionOf(el: HTMLElement): Element | null {
+  const own = el.closest('section');
+  if (own) return own;
+  const root = el.getRootNode();
+  return root instanceof ShadowRoot ? root.host.closest('section') : null;
+}
+
 interface Geo {
   top: number;
   bottom: number;
@@ -137,10 +157,10 @@ export class PageFit implements ReactiveController {
 
   private geo(r: HTMLElement): { els: HTMLElement[]; g: Geo[] } {
     // the cards of the other pages are out of the layout (display: none): only the drawn ones count
-    const els = [...r.querySelectorAll<HTMLElement>('[data-fit-item]')].filter((el) => el.getClientRects().length > 0);
+    const els = fitItems(r).filter((el) => el.getClientRects().length > 0);
     const g = els.map((el) => {
       const b = el.getBoundingClientRect();
-      const sec = el.closest('section');
+      const sec = sectionOf(el);
       const grid = el.parentElement;
       const head = sec && grid ? grid.getBoundingClientRect().top - sec.getBoundingClientRect().top : 0;
       return { top: b.top, bottom: b.bottom, sec, head };

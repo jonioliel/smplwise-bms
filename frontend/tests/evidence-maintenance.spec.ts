@@ -132,7 +132,9 @@ test.describe('maintenance evidence', () => {
     await open(page, '/tickets/maintenance/plans');
     await expect(page.locator(`${M} h1`)).toHaveText('תחזוקה מונעת');
     await expect(page.locator(`${M} [data-maint-segs] [data-seg="auto"]`)).toBeVisible();
-    if (!phone()) await expect(page.locator(`${M} [data-maint-row="p1"] [data-maint-ticket="t-1042"]`)).toHaveCount(1);
+    // CR-CMP2-TABLES-GENMAINT-2450: the request column is drawn above the module's 1100 px edge only (below it the column was hidden by CSS
+    // and is now left out of the shared table; the phone cards keep the chip)
+    if (test.info().project.name === 'desktop') await expect(page.locator(`${M} [data-maint-row="p1"] [data-maint-ticket="t-1042"]`)).toHaveCount(1);
     await shot(page, 'plans');
     await page.locator(`${M} [data-maint-act="markDone"][data-task="p3"]:visible`).first().click();
     await expect(page.locator(`${M} .toast`)).toHaveText('סומן כבוצע');
