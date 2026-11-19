@@ -5,7 +5,7 @@
  */
 
 /** A row hook value: `null` / `undefined` / `false` leave the attribute off, `true` sets it empty, anything else is its string. */
-export type RowAttrValue = string | number | boolean | null | undefined;
+type RowAttrValue = string | number | boolean | null | undefined;
 export type RowAttrs = Readonly<Record<string, RowAttrValue>>;
 
 /** Only hooks and accessible names reach a row: `data-*`, `aria-*` and `title`. The row's own wiring (class, tabindex, role, style,
@@ -35,9 +35,9 @@ export function rowAttrMap(raw: RowAttrs | null | undefined): Record<string, str
  *  - `actions`: the row's buttons, packed at the reading end, never wrapped;
  *  - `truncate`: one line, cut with an ellipsis at `--sw-table-trunc` (default 260 px); the full text is the cell's title. */
 export type CellKind = 'num' | 'muted' | 'status' | 'actions' | 'truncate';
-export const CELL_KINDS: readonly CellKind[] = ['num', 'muted', 'status', 'actions', 'truncate'];
+const CELL_KINDS: readonly CellKind[] = ['num', 'muted', 'status', 'actions', 'truncate'];
 
-export interface CellShape {
+interface CellShape {
   ltr?: boolean;
   hideBelow?: 'phone' | 'tablet';
   card?: 'title' | 'badge' | 'meta' | 'show' | 'hide';

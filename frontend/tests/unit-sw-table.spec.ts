@@ -96,11 +96,11 @@ test.describe('sw-table: the contract in the source', () => {
     expect(src).toContain('@click=${() => this.staticRows || this.pick(row)}');
     expect(styles).toContain('min-inline-size: var(--sw-table-min, 560px);');
     expect(styles).toContain('background: var(--sw-table-head-bg, var(--sw-surface));');
-    expect(styles).toContain('max-inline-size: var(--sw-table-trunc, 260px);');
+    expect(styles).toMatch(/td\.k-truncate \.trunc \{\s*display: block;\s*max-inline-size: var\(--sw-table-trunc, 260px\);\s*overflow: hidden;\s*text-overflow: ellipsis;\s*white-space: nowrap;/);
   });
 
   test('the vocabulary: t1 / t2, mut, num (an LTR isolate, tabular), chip tones, actions at the reading end, truncate; tokens only', () => {
-    for (const sel of ['.t1 {', '.t2 {', '.mut {', '.num {', '.chip {', ".chip[data-tone='ok']", ".chip[data-tone='warn']", ".chip[data-tone='bad']", ".chip[data-tone='info']", 'td.k-num {', 'td.k-muted {', 'td.k-status {', 'td.k-actions {', 'td.k-truncate {'])
+    for (const sel of ['.t1 {', '.t2 {', '.mut {', '.num {', '.chip {', ".chip[data-tone='ok']", ".chip[data-tone='warn']", ".chip[data-tone='bad']", ".chip[data-tone='info']", 'td.k-num {', 'td.k-muted {', 'td.k-status {', 'td.k-actions {', 'td.k-truncate .trunc {'])
       expect(styles, sel).toContain(sel);
     expect(styles).toMatch(/\.num \{\s*direction: ltr;\s*unicode-bidi: isolate;\s*font-variant-numeric: tabular-nums;/);
     expect(styles).toMatch(/td\.k-num \{\s*font-variant-numeric: tabular-nums;\s*text-align: end;/);

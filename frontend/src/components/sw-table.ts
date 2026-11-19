@@ -421,10 +421,13 @@ export class SwTable extends LitElement {
       justify-content: flex-end;
       gap: 6px;
     }
-    td.k-truncate {
+    /* a table cell ignores max-inline-size in the auto layout: the cut is on an inner block */
+    td.k-truncate .trunc {
+      display: block;
       max-inline-size: var(--sw-table-trunc, 260px);
       overflow: hidden;
       text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .a-end {
       text-align: end;
@@ -443,8 +446,8 @@ export class SwTable extends LitElement {
       td.k-actions .acts {
         justify-content: flex-start;
       }
-      td.k-truncate {
-        max-inline-size: none;
+      td.k-truncate .trunc {
+        max-inline-size: 100%;
       }
     }
   `;
@@ -482,12 +485,19 @@ export class SwTable extends LitElement {
     return cellClassOf(c);
   }
 
-  /** one body cell: a `num` value is its own left-to-right isolate, `actions` are packed in one line, `truncate` carries its title */
+  /** one body cell: a `num` value is its own left-to-right isolate, `actions` are packed in one line, `truncate` is cut on an inner
+   * block and carries its title */
   private cell(c: TableColumn, row: Record<string, unknown>) {
     const v = c.render ? c.render(row) : String(row[c.key] ?? '');
     const kinds = c.kind === undefined ? [] : typeof c.kind === 'string' ? [c.kind] : c.kind;
     const title = c.cellTitle ? c.cellTitle(row) : kinds.includes('truncate') && !c.render ? String(row[c.key] ?? '') : undefined;
-    const body = kinds.includes('num') ? html`<span class="num">${v}</span>` : kinds.includes('actions') ? html`<span class="acts">${v}</span>` : v;
+    const body = kinds.includes('num')
+      ? html`<span class="num">${v}</span>`
+      : kinds.includes('actions')
+        ? html`<span class="acts">${v}</span>`
+        : kinds.includes('truncate')
+          ? html`<span class="trunc">${v}</span>`
+          : v;
     return html`<td class=${this.cellClass(c)} part=${cellPartOf(c)} data-label=${c.label} title=${title || nothing} ${rowHooks(c.cellAttrs ? c.cellAttrs(row) : null)}>${body}</td>`;
   }
 

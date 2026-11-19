@@ -123,10 +123,11 @@ test.describe('pixel: sw-table', () => {
       tbl.rows = tbl.rows.map((r) => (r.id === 'r2' ? { ...r, tone: '' } : r));
     });
     await expect(own.locator('tr[data-specimen-row="r2"]')).not.toHaveAttribute('data-tone', /.*/);
-    // the number cell is its own LTR isolate, aligned to the reading end
+    // the number cell is its own LTR isolate
     const num = await own.locator('tr[data-specimen-row="r1"] td.k-num').evaluate((td) => [getComputedStyle(td).textAlign, getComputedStyle(td.querySelector('.num') as Element).direction]);
     expect(num[1]).toBe('ltr');
-    expect(['end', 'left']).toContain(num[0]);
+    // the reading end in the table; the phone card stack starts every cell at the reading start again
+    expect(info.project.name === 'mobile' ? ['start', 'right'] : ['end', 'left']).toContain(num[0]);
     // keyboard: Enter picks, ArrowDown walks to the next row (desktop: the rows are a table, not the phone stack)
     await page.evaluate(() => {
       (window as unknown as Win).tblSeen = [];
