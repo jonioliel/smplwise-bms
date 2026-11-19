@@ -67,8 +67,9 @@ running; every step waits while `gate_status.json` says a gate runs.
   (the `tbody` refactor and the opt-in additions change no existing table). Note: the `release/2450-train` gate started at 19:02 UTC while
   this step (started before it, `nice -n 19`, one worker) was running; it finished about 5 minutes into the gate.
 - The generator browser specs (`evidence-generator`, `evidence-genalert`, `evidence-genlog-092`, all projects) and `layout-noscroll-1366
-  -g generator` on the build: WAITING - the script holds them until the 2.45.0 gate ends (gates first), then runs them on its own and
-  cleans up (`dist`, `test-results`, the worktree checkout). Read `~/work/genrest-out1/summary.txt`.
+  -g generator` on the build: held until the 2.45.0 gate ended (gates first), then run: generator specs **36 passed, 0 failed, 0 flaky**
+  (desktop + tablet + mobile); no-scroll guard (desktop, 1366x768 / 1440x900, paged and scrolling lists) **4 passed**. The script cleaned
+  up (`dist`, `test-results`, the worktree checkout); done 22:07, disk 58 %.
 
 Baselines refreshed (in the branch, from the runner, looked at):
 
@@ -81,9 +82,7 @@ Baselines refreshed (in the branch, from the runner, looked at):
 ## NOT_RUN
 
 - Full unit / evidence / pixel suites, the visual matrix, the entry check (`branch_check.sh`) - not queued (gates first).
-- The generator browser specs on Linux / all projects and the no-scroll guard on the build (queued behind the 2.45.0 gate, above). On
-  the PC they ran on desktop + mobile against the dev server (green).
-- Tablet project on the PC.
+- Tablet project on the PC (the runner ran it).
 - No lab / device test (UI only).
 
 ## Open questions (recommendation taken, for the owner's page)
