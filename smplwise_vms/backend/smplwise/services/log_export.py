@@ -27,6 +27,7 @@ from collections.abc import Callable, Iterable
 from typing import Any
 
 from .. import __version__, correlation_id
+from ..test_reset import register_reset
 
 FORMAT = "arx.logs/1"
 MAX_RECORDS = 2000
@@ -120,21 +121,23 @@ def rule_names() -> list[str]:
 # ---------------------------------------------------------------------------------------------------------------- the ring
 
 class LogRing(logging.Handler):
-    """The last MAX_RECORDS log lines of the process, in memory. Installed on the root logger by `install()`; it formats nothing
-    until the export asks (a record costs one tuple), and never raises into the code that logged."""
+    """The last MAX_RECORDS log lines of the process, in memory. Installed on the root logger by `install()`; never raises into the
+    code that logged. A line is kept as TEXT (message and traceback, cut to MAX_MESSAGE) - never the LogRecord: a record's args and
+    exc_info would keep the logging frames and their locals (connections, request objects) alive for as long as the line is held."""
 
     def __init__(self, capacity: int = MAX_RECORDS) -> None:
         super().__init__(level=logging.NOTSET)
-        self._lines: collections.deque[tuple[float, int, str, str | None, logging.LogRecord]] = collections.deque(maxlen=capacity)
+        self._lines: collections.deque[tuple[float, int, str, str | None, str]] = collections.deque(maxlen=capacity)
         self._mutex = threading.Lock()
         self.dropped = 0  # lines pushed out of the ring since start (it is a ring, not a file)
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
+            line = (record.created, record.levelno, record.name, correlation_id.current(), _message(record))
             with self._mutex:
                 if len(self._lines) == self._lines.maxlen:
                     self.dropped += 1
-                self._lines.append((record.created, record.levelno, record.name, correlation_id.current(), record))
+                self._lines.append(line)
         except Exception:  # noqa: BLE001 - logging must never fail the caller
             self.handleError(record)
 
@@ -142,7 +145,7 @@ class LogRing(logging.Handler):
     def capacity(self) -> int:
         return self._lines.maxlen or 0
 
-    def snapshot(self) -> list[tuple[float, int, str, str | None, logging.LogRecord]]:
+    def snapshot(self) -> list[tuple[float, int, str, str | None, str]]:
         with self._mutex:
             return list(self._lines)
 
@@ -153,6 +156,7 @@ class LogRing(logging.Handler):
 
 
 RING = LogRing()
+register_reset(__name__, ("RING",), RING.clear)  # each test starts with an empty ring (the handler itself stays installed)
 
 
 def install(logger: logging.Logger | None = None) -> LogRing:
@@ -241,14 +245,14 @@ def build(health: dict[str, Any] | None, *, minutes: int = DEFAULT_MINUTES, min_
     by_logger: collections.Counter[str] = collections.Counter()
     error_count = 0
     snap = ring.snapshot()
-    for created, levelno, name, cid, record in snap:
+    for created, levelno, name, cid, text in snap:
         if created < since or levelno < floor:
             continue
         if only_correlation_id is not None and cid != only_correlation_id:
             continue
         at = _iso(created)
         records.append({"at": at, "level": logging.getLevelName(levelno), "logger": redact(name, counts), "correlation_id": cid,
-                        "message": redact(_message(record), counts)})
+                        "message": redact(text, counts)})
         if levelno >= logging.ERROR:
             error_count += 1
             by_logger[name] += 1

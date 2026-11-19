@@ -78,7 +78,7 @@ def test_the_ring_is_bounded_and_counts_what_it_dropped():
     finally:
         log.removeHandler(ring)
     snap = ring.snapshot()
-    assert [r[4].getMessage() for r in snap] == ["line 2", "line 3", "line 4"] and ring.dropped == 2
+    assert [r[4] for r in snap] == ["line 2", "line 3", "line 4"] and ring.dropped == 2
     doc = lx.build(None, ring=ring, min_level="WARNING")
     assert [r["message"] for r in doc["records"]] == ["line 2", "line 3", "line 4"]
     assert doc["ring"] == {"capacity": 3, "held": 3, "dropped_since_start": 2}
@@ -189,7 +189,7 @@ def test_log_lines_of_a_request_carry_its_correlation_id(settings):
     c = TestClient(app)
     r = c.get("/api/v1/_test/noisy", headers={"X-Correlation-Id": "noisy-req-2440"})
     assert r.headers["x-correlation-id"] == "noisy-req-2440"
-    stamped = [(rec[3], rec[4].getMessage()) for rec in lx.RING.snapshot() if rec[2] == "smplwise.test.noisy"]
+    stamped = [(rec[3], rec[4]) for rec in lx.RING.snapshot() if rec[2] == "smplwise.test.noisy"]
     assert stamped == [("noisy-req-2440", "inside the handler")]
     assert lx.correlation_id.current() is None
 
