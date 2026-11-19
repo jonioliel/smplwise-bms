@@ -15,7 +15,7 @@ import '../components/sw-sheet';
 import { billsTable } from './elec-bills-table';
 import { go, href, route } from './elec-routes';
 import { tr } from '../i18n/msg/electricity';
-import { blankCustomerForm as blank, customerFormOf, customerFormProblems, customerMatches, customerSaveBody, type CustomerForm as Form } from './customer-form';
+import { blankCustomerForm as blank, customerField, customerFormOf, customerFormProblems, customerMatches, customerSaveBody, type CustomerForm as Form } from '../components/customer-form';
 
 @customElement('elec-customers-page')
 export class ElecCustomersPage extends ElecBase {
@@ -128,13 +128,14 @@ export class ElecCustomersPage extends ElecBase {
   }
 
   private field(k: keyof Form, label: string, o: { wide?: boolean; ltr?: boolean; ph?: string; area?: boolean; ro?: boolean } = {}) {
-    const err = this.errs[k];
-    const ro = o.ro || !energyAccess().manage;
-    return html`<div class="fld ${o.wide ? 'wide' : ''}"><label for="f-${k}">${label}</label>
-      ${o.area
-        ? html`<textarea id="f-${k}" name=${k} ?readonly=${ro} placeholder=${o.ph ?? ''} .value=${this.form[k]} @input=${(e: Event) => (this.form = { ...this.form, [k]: (e.target as HTMLTextAreaElement).value })}></textarea>`
-        : html`<input id="f-${k}" name=${k} class="${o.ltr ? 'ltr' : ''} ${err ? 'err' : ''}" aria-invalid=${err ? 'true' : 'false'} ?readonly=${ro} placeholder=${o.ph ?? ''} .value=${this.form[k]} @input=${(e: Event) => { this.form = { ...this.form, [k]: (e.target as HTMLInputElement).value }; if (this.errs[k]) this.errs = { ...this.errs, [k]: '' }; }} />`}
-      ${err ? html`<div class="msg" role="alert" data-field-error=${k}>${err}</div>` : nothing}</div>`;
+    return customerField(k, {
+      idPrefix: 'f-', label, value: this.form[k], error: this.errs[k], readonly: o.ro || !energyAccess().manage, wide: o.wide, ltr: o.ltr, area: o.area, placeholder: o.ph ?? '',
+      // the notes (a textarea) keep a field error until the next save, as before; an input clears its own
+      onInput: (v) => {
+        this.form = { ...this.form, [k]: v };
+        if (!o.area && this.errs[k]) this.errs = { ...this.errs, [k]: '' };
+      },
+    });
   }
 
   private renderCard() {

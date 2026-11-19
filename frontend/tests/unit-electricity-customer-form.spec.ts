@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { CUSTOMER_EMAIL, blankCustomerForm, customerFormOf, customerFormProblems, customerMatches, customerSaveBody, type CustomerForm } from '../src/electricity/customer-form';
+import { CUSTOMER_EMAIL, blankCustomerForm, customerFormOf, customerFormProblems, customerMatches, customerSaveBody, type CustomerForm } from '../src/components/customer-form';
 
 // CR-I18N-ELECTRICITY-2443 (code review 08:F25): the customer form shared by the electricity and water customer cards. The
 // rules are the ones elec-customers.ts held in its own copy (the electricity case, `numberRequired`) and the ones
@@ -54,7 +54,7 @@ test('the list search: name or number (trimmed query), plus the page\'s own extr
 
 test('the electricity customers page uses the shared form and keeps no copy of its own', () => {
   const src = readFileSync(new URL('../src/electricity/elec-customers.ts', import.meta.url), 'utf8');
-  expect(src).toContain("from './customer-form'");
+  expect(src).toContain("from '../components/customer-form'");
   expect(src).not.toMatch(/const EMAIL\s*=|interface Form\b|const blank\s*=/);
   expect(src).toContain('numberRequired: true');
 });
