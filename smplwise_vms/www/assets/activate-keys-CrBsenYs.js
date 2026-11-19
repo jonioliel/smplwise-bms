@@ -1,0 +1,1 @@
+function r(t){return t.key!=="Enter"&&t.key!==" "||t.repeat||t.altKey||t.ctrlKey||t.metaKey||t.shiftKey?!1:t.target===t.currentTarget}function a(t){return e=>{r(e)&&(e.preventDefault(),t())}}export{a};

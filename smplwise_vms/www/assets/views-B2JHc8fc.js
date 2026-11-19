@@ -1,0 +1,1 @@
+import{b5 as o,br as t,bU as e,bm as c,bW as i}from"./index-kipM9krC.js";const l=()=>o("views"),r=s=>c("views",s),w=(s,a)=>t(e`views/${s}`,a),m=s=>i(e`views/${s}`),p=s=>`#/live/wall?cameras=${encodeURIComponent(s.cameras.join(","))}`,d=s=>`#/kiosk/all?cameras=${encodeURIComponent(s.cameras.join(","))}&cols=${s.cols}&rows=${s.rows}`;export{r as c,m as d,d as k,l,w as u,p as w};
