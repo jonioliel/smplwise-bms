@@ -62,15 +62,20 @@ def modelled_routes() -> list[dict]:
 
 
 def _own_json_response(endpoint) -> bool:
-    """The route builds an answer as a `JSONResponse` itself on some path (FastAPI then skips the response model, so the oracle never
-    sees that answer): `JSONResponse(` in its source. Its model is a contract its own test validates strictly."""
+    """The route builds an answer as a response object itself on some path (FastAPI then skips the response model, so the oracle never
+    sees that answer): `JSONResponse(` in its source, or a declared return type `Response` / `JSONResponse` (a helper builds it). Its
+    model is a contract its own test validates strictly."""
     import inspect
 
     try:
         src = inspect.getsource(endpoint)
     except (OSError, TypeError):
         return False
-    return "JSONResponse(" in src
+    if "JSONResponse(" in src:
+        return True
+    ret = inspect.signature(endpoint).return_annotation
+    name = ret if isinstance(ret, str) else getattr(ret, "__name__", "")
+    return name in ("Response", "JSONResponse")
 
 
 def covered(dirs: list[Path]) -> dict[str, int]:

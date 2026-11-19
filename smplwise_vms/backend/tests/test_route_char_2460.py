@@ -141,6 +141,26 @@ def test_delete_the_building_picture(settings):
     assert {"image": True} in rows and rows.count({"image": False}) == 2
 
 
+def test_patch_a_site(settings):
+    """`PATCH /sites/{id}` was answered only inside the off-box restore test; here its own happy path, refusal and audit row."""
+    app = create_app(settings)
+    c = TestClient(app)
+    ids = seed_tree(c)
+    bind(c, settings, "ron", "viewer", "floor", ids["floor2"])
+    assert c.patch(f"{API}/sites/{ids['site']}", json={"name": "x"}, headers=as_user("ron")).status_code == 403
+    o = Oracle()
+    r = c.patch(f"{API}/sites/{ids['site']}", json={"name": "  אתר מעודכן", "address": "רחוב 2", "sort_order": 3})
+    assert r.status_code == 200, r.text
+    site = r.json()
+    assert site["id"] == ids["site"] and site["address"] == "רחוב 2" and site["sort_order"] == 3 and site["image_url"] is None
+    o.compared(f"PATCH {API}/sites/{{site_id}}")
+    assert c.get(f"{API}/floors/{ids['floor2']}").json()["site"]["address"] == "רחוב 2"
+    assert c.patch(f"{API}/sites/{ids['site']}", json={"name": ""}).status_code == 422
+    assert c.patch(f"{API}/sites/nope", json={"name": "x"}).status_code == 404
+    rows = [json.loads(r["details_json"]) for r in audit_rows(app, "site.update", "allowed") if r["resource_id"] == ids["site"]]
+    assert rows == [{"name": "  אתר מעודכן", "address": "רחוב 2", "sort_order": 3}]
+
+
 # ---------------------------------------------------------------- evidence signing key rotation (T067)
 
 def test_rotate_the_signing_key(settings):
