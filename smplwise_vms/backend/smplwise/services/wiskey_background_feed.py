@@ -20,7 +20,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-from collections import deque
 from typing import Any, Awaitable, Callable
 
 from ..config import Settings
@@ -28,6 +27,7 @@ from ..errors import ApiError
 from . import ha_client, intercom_client, loop_thread_stop
 from .intercom_client import IntercomError
 from .wiskey_background import assert_closed, from_served_copy, project_background
+from .wiskey_feed_session import FeedSession
 
 log = logging.getLogger("smplwise.intercom")
 
@@ -46,11 +46,11 @@ def configured(settings: Settings | None) -> bool:
     return bool(settings is not None and settings.wiskey_background_token)
 
 
-class BackgroundFeed:
+class BackgroundFeed(FeedSession):
+    REFRESH_TASK = "wiskey-background-refresh"
+
     def __init__(self) -> None:
-        self.thread: threading.Thread | None = None
-        self.stop = threading.Event()
-        self.settings: Settings | None = None
+        super().__init__()  # thread, stop, settings
         self._lock = threading.Lock()
         self._projection: dict[str, Any] | None = None
         self._command_slot = threading.BoundedSemaphore(1)
@@ -62,20 +62,15 @@ class BackgroundFeed:
             "state": "not_configured", "last_error": None, "connected": False, "reconnects": 0, "refreshes": 0,
             "fetched_at": None, "wiskey_version": None, "api_version": None, "subscribe": "not_attempted", "sequence": 0,
         }
-        self._logged: str | None = None
+        self._logged_error = None
         self._was_ready = False
-        self._absent = 0
+        self._absent_strikes = 0
 
     def _session_reset(self) -> None:
+        self._reset_session_skeleton()  # _call, _early, _refreshing, _again, _end, _fault
         self._loop: asyncio.AbstractEventLoop | None = None
-        self._call: intercom_client.Call | None = None
         self._sub: int | None = None
-        self._early: deque[dict[str, Any]] = deque(maxlen=20)
-        self._refreshing = False
-        self._again = False
-        self._end: asyncio.Event | None = None
-        self._fault: BaseException | None = None
-        self._tasks: set[asyncio.Task[None]] = set()
+        self._tasks = set()
 
     # -- lifecycle (main.py)
     def start(self, settings: Settings) -> None:
@@ -84,13 +79,7 @@ class BackgroundFeed:
             self.status["state"] = "not_configured"
             return
         self.status["state"] = "connecting"
-        self.stop.clear()
-        self.thread = threading.Thread(target=self._run, name="wiskey-background", daemon=True)
-        self.thread.start()
-
-    def shutdown(self) -> None:
-        self.stop.set()
-        loop_thread_stop.stop_and_join(self)  # CR-WAVE2-COMBINED-2439: wake the loop now and wait for the thread (bounded)
+        self._start_thread("wiskey-background")
 
     def reset(self) -> None:
         """Forget the copy and the counters (a fresh process state; used by tests)."""
@@ -220,9 +209,9 @@ class BackgroundFeed:
                     delay = sync.absent_delay(absent)
                 else:
                     self._set_state("error", exc.code)
-                if self.status["last_error"] != self._logged:
+                if self.status["last_error"] != self._logged_error:
                     log.warning("WisKey background feed: %s (%s)", self.status["state"], exc.code)
-                    self._logged = self.status["last_error"]
+                    self._logged_error = self.status["last_error"]
             except Exception as exc:  # noqa: BLE001 - the loop must survive any socket failure
                 if self.stop.is_set():
                     break
@@ -271,7 +260,7 @@ class BackgroundFeed:
                 if exc.not_installed and await self._maybe_loading(call):
                     raise IntercomError(sync.LOADING, "overview") from exc
                 raise
-            self._absent = 0
+            self._absent_strikes = 0
             self._store(raw)
             try:
                 self._sub = await intercom_client.subscribe(call)
@@ -282,7 +271,7 @@ class BackgroundFeed:
             self.status["connected"] = True
             self._was_ready = True
             self._set_state("ready", None)
-            self._logged = None
+            self._logged_error = None
             log.info("WisKey background feed connected: %d stations, WisKey %s", len((self._projection or {}).get("stations", [])), self.status["wiskey_version"])
 
             async def poll() -> None:
@@ -307,24 +296,6 @@ class BackgroundFeed:
         if self._fault is not None:
             raise self._fault
 
-    async def _maybe_loading(self, call: intercom_client.Call) -> bool:
-        from . import intercom_sync as sync
-
-        frame = await call("get_config")
-        result = frame.get("result") if frame.get("success") else None
-        if not (isinstance(result, dict) and result.get("state") == "RUNNING"):
-            return True
-        if self._was_ready:
-            self._absent += 1
-            return self._absent < sync.ABSENT_AFTER_READY
-        return False
-
-    def _replay_early(self) -> None:
-        early = list(self._early)
-        self._early.clear()
-        for msg in early:
-            self._on_message(msg)
-
     def _on_message(self, msg: dict[str, Any]) -> None:
         mid = msg.get("id")
         event = msg.get("event") if isinstance(msg.get("event"), dict) else {}
@@ -338,16 +309,6 @@ class BackgroundFeed:
             self._fail(IntercomError("unauthorized", "subscribe"))
         elif kind == "screen_locked":
             self._fail(IntercomError("screen_locked", "subscribe"))
-
-    def _kick(self) -> None:
-        task = asyncio.get_running_loop().create_task(self._refresh(), name="wiskey-background-refresh")
-        self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
-
-    def _fail(self, exc: BaseException) -> None:
-        self._fault = exc
-        if self._end is not None:
-            self._end.set()
 
     async def _refresh(self) -> None:
         """Single-flight overview refetch; a request that arrives meanwhile runs once more afterwards."""

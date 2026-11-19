@@ -80,6 +80,7 @@ from ..errors import ApiError
 from ..test_reset import register_reset
 from . import ha_client, intercom_client, loop_thread_stop
 from .intercom_client import IntercomError
+from .wiskey_feed_session import FeedSession
 
 log = logging.getLogger("smplwise.intercom")
 
@@ -830,11 +831,11 @@ def _late_outcome(future: Any, project: Callable[[Any], Any]) -> tuple[str, str 
 
 # ---------------------------------------------------------------- the session
 
-class IntercomSync:
+class IntercomSync(FeedSession):
+    REFRESH_TASK = "intercom-refresh"
+
     def __init__(self) -> None:
-        self.thread: threading.Thread | None = None
-        self.stop = threading.Event()
-        self.settings: Settings | None = None
+        super().__init__()  # thread, stop, settings, _was_ready, _absent_strikes, _logged_error, _tasks
         self._cache: dict[str, Any] | None = None
         # station id -> the station's host from the same `overview` reply. NEVER served: it only builds the station's
         # RTSP source for go2rtc (camera stills), server-side. Kept and dropped together with the copy.
@@ -846,13 +847,9 @@ class IntercomSync:
         self._api: dict[str, Any] | None = None
         self._tag: str | None = None  # change_tag of the last overview stored (never served)
         self._cache_lock = threading.Lock()
-        self._logged_error: str | None = None
-        self._was_ready = False  # a session reached `ready` since the process (or reset()) started
-        self._absent_strikes = 0  # consecutive `unknown_command` probes with HA RUNNING, after a ready session
         self._last_view: float | None = None  # monotonic time of the last GET /intercom/overview
         self._fetched_mono: float | None = None
         self._event_loop: asyncio.AbstractEventLoop | None = None
-        self._tasks: set[asyncio.Task[None]] = set()  # refreshes started by pushes (_kick); cancelled with the session
         self._inflight = threading.BoundedSemaphore(MAX_INFLIGHT)  # one-off reads (command) in flight at once
         self._action_inflight = threading.BoundedSemaphore(ACTION_INFLIGHT)  # physical actions: a lane of their own
         self._config_inflight = threading.BoundedSemaphore(CONFIG_INFLIGHT)  # people writes: a third lane (one slot)
@@ -921,26 +918,19 @@ class IntercomSync:
             return True
 
     def _session_reset(self) -> None:
-        self._call: intercom_client.Call | None = None
+        self._reset_session_skeleton()  # _call, _early, _refreshing, _again, _end, _fault
         # CR-036 S4: the same live socket under the other channels' guards (wiskey_channels): `read` (the adapter's READ
         # commands) and `technical` (its reviewed non-READ reads). Built in on_ready, gone with the session.
         self._channel_calls: dict[str, intercom_client.Call] = {}
         self._wiskey_sub: int | None = None
         self._entities_sub: int | None = None
-        # event frames whose subscription id is not known yet: HA sends a subscription's first event right behind
-        # its result, and the socket reader can get to it before the awaiting coroutine has recorded the id
-        self._early: deque[dict[str, Any]] = deque(maxlen=20)
         self._watched: set[str] = set()
-        self._refreshing = False
-        self._again = False
         # announcements in progress on this session: `tts/start` subscription id -> station id. Kept until WisKey's
         # terminal event, because unsubscribing earlier would cancel the playback
         self._tts: dict[int, str] = {}
         self._retry_pending = False  # a refetch after WisKey's `rate_limited` is scheduled (at most one)
         self._rate_logged = False  # that stretch was logged (once, not every retry)
         self._deferred: str | None = None  # an overview failure kept pending while an announcement plays (S6)
-        self._end: asyncio.Event | None = None
-        self._fault: BaseException | None = None
 
     # -- lifecycle (main.py)
     def start(self, settings: Settings) -> None:
@@ -951,13 +941,7 @@ class IntercomSync:
             return
         STATE.state = "connecting"
         STATE.started_at = now_iso()
-        self.stop.clear()
-        self.thread = threading.Thread(target=self._run, name="intercom-sync", daemon=True)
-        self.thread.start()
-
-    def shutdown(self) -> None:
-        self.stop.set()
-        loop_thread_stop.stop_and_join(self)  # CR-WAVE2-COMBINED-2439: wake the loop now and wait for the thread (bounded)
+        self._start_thread("intercom-sync")
 
     def reset(self) -> None:
         """Forget the cached copy and the counters (a fresh process state; used by tests)."""
@@ -1812,27 +1796,6 @@ class IntercomSync:
         if self._fault is not None:
             raise self._fault
 
-    async def _maybe_loading(self, call: intercom_client.Call) -> bool:
-        """`unknown_command` for WisKey's `overview`: True while that may only mean "not loaded yet" (see the module
-        docstring), False once it means "not installed"."""
-        # a socket failure here propagates: the session ends as ha_unavailable (the connection is gone), not as loading
-        frame = await call("get_config")
-        result = frame.get("result") if frame.get("success") else None
-        running = isinstance(result, dict) and result.get("state") == "RUNNING"
-        if not running:
-            return True
-        # HA's bootstrap can reach RUNNING past a slow integration's setup: after a ready session, re-probe a few times
-        if self._was_ready:
-            self._absent_strikes += 1
-            return self._absent_strikes < ABSENT_AFTER_READY
-        return False
-
-    def _replay_early(self) -> None:
-        early = list(self._early)
-        self._early.clear()
-        for msg in early:
-            self._on_message(msg)
-
     def _on_message(self, msg: dict[str, Any]) -> None:
         mid = msg.get("id")
         event = msg.get("event") if isinstance(msg.get("event"), dict) else {}
@@ -1859,16 +1822,6 @@ class IntercomSync:
             # subscribe_entities also opens with the current states; that costs one coalesced refetch, and clients
             # are only told when the projection actually changed
             self._kick()
-
-    def _kick(self) -> None:
-        task = asyncio.get_running_loop().create_task(self._refresh(), name="intercom-refresh")
-        self._tasks.add(task)  # a strong reference (an unreferenced task can be collected mid-run) ...
-        task.add_done_callback(self._tasks.discard)  # ... dropped once it is done
-
-    def _fail(self, exc: BaseException) -> None:
-        self._fault = exc
-        if self._end is not None:
-            self._end.set()
 
     async def _refresh(self) -> None:
         """Single-flight overview refetch; a request that arrives meanwhile runs once more afterwards."""
