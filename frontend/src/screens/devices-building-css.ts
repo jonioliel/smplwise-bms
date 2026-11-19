@@ -3,6 +3,7 @@ import { devicesStyleTokens } from './devices-style';
 import { TREE_UNASSIGNED_CSS } from './tree-unassigned';
 import { HOME_SCREEN_CSS } from './home-screen-css';
 import { HOME_DRAWER_CSS } from './home-edit-drawer';
+import { SKELETON_CSS } from './devices-shared';
 
 /**
  * CR-STRUCT-CSS-SPLIT-2442 (code review 06:STRUCT-1 step 1): the style sheets of `devices-building` (screens/devices-building.ts), moved here as they
@@ -1567,36 +1568,8 @@ export const devicesBuildingStyles = [devicesStyleTokens, css`
     .pills .none {
       color: var(--sw-text-3);
     }
-    /* ---- the loading skeleton (HOME polish 2026-10-10) ---- */
-    .skeleton {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      min-inline-size: 0;
-    }
-    .skl {
-      position: relative;
-      overflow: hidden;
-      border-radius: var(--sw-r-md);
-      background: var(--sw-skeleton);
-    }
-    .skl::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      transform: translateX(-100%);
-      background: linear-gradient(90deg, transparent, var(--sw-skeleton-shine), transparent);
-    }
-    @media (prefers-reduced-motion: no-preference) {
-      .skl::after {
-        animation: skl-shine 1.4s var(--sw-ease) infinite;
-      }
-    }
-    @keyframes skl-shine {
-      to {
-        transform: translateX(100%);
-      }
-    }
+    /* ---- the loading skeleton (HOME polish 2026-10-10): the shared blocks and shimmer (devices-shared.ts, CR-G1-HOME-AREA-2440), then this screen's shape ---- */
+    ${SKELETON_CSS}
     .skl-band {
       display: flex;
       gap: 12px;

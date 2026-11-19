@@ -23,7 +23,8 @@ import { productSettings } from '../api/prefs';
 import { ALARM_HE, assignEntityArea, CARD_EMPTY, CARD_IDS, climateWord, HVAC_ACTION_HE, getDevicesArea, getDevicesTree, getEntityRows, type CardId, type DeviceArea, type DeviceAreaDetail, type DeviceCard, type DeviceRow, type DeviceTree, type EntityRow, isDimmable } from '../api/devices';
 import { AREA_DESIGN_KEY, AREA_DESIGN_LABEL, AREA_DESIGNS, mainSlotOf, mainStrip, PERSONALIZE_PERMISSION, resolveAreaDesign, SECTION_BULK, sectionBulkActions, type AreaDesign, type BulkLook } from './devices-area-design';
 import type { BulkKind } from '../api/device-bulk';
-import { alarmTone, FIT_MIN_WIDTH, REFRESH_WINDOW_MS, scrollParentOf, STRUCTURE_FLASH_MS } from './devices-building';
+// CR-G1-HOME-AREA-2440 (06:DUP-10): the shared pieces come from devices-shared.ts (this screen no longer pulls in the home module for them)
+import { alarmTone, areaEntityIds, FIT_MIN_WIDTH, fitStep, Memo2, presenceWho, REFRESH_WINDOW_MS, ReloadThrottle, routeDevicePush, rowIndexOf, scrollParentOf, sensorValueText, SKELETON_CSS, STRUCTURE_FLASH_MS, withConnected, type RowIndex } from './devices-shared';
 import './devices-bulk';
 import './devices-camera-card';
 import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
@@ -731,7 +732,6 @@ export class DevicesArea extends LitElement {
   @state() private assignBusy = false;
   @state() private assignError = '';
   private stop: (() => void) | null = null;
-  private timer = 0;
   private loading = false;
   private loadAgain = false;
   /** CR-007 single-entity controls (devices-controls.ts, shared with the overview tiles' panel). */
@@ -795,13 +795,13 @@ export class DevicesArea extends LitElement {
     return CARD_IDS.filter((id) => this.prefs.showSensors || id !== 'sensors').flatMap((id) => (d.cards[id]?.entities ?? []).map((r) => ({ id: r.entity_id, name: r.name, card: id, domain: r.domain, group: r.group, door: r.door_class })));
   }
 
-  private rowIndex(): Map<string, { row: DeviceRow; card: CardId }> {
-    const out = new Map<string, { row: DeviceRow; card: CardId }>();
-    const d = this.detail;
-    if (!d) return out;
-    for (const id of CARD_IDS) for (const r of d.cards[id]?.entities ?? []) out.set(r.entity_id, { row: r, card: id }); // P6 item 13: a missing card never blanks the screen
-    for (const [id, r] of this.extra) if (!out.has(id)) out.set(id, { row: r, card: r.card }); // devices of other areas the layout lists
-    return out;
+  /** CR-G1-HOME-AREA-2440 (06:PERF-6): the row index and the push filter's id set are built once per loaded detail and extra rows (both
+   * are replaced, never mutated) - the index was rebuilt up to six times per render, the id set on every push. */
+  private readonly rowsMemo = new Memo2(rowIndexOf);
+  private readonly idsMemo = new Memo2(areaEntityIds);
+
+  private rowIndex(): RowIndex {
+    return this.rowsMemo.get(this.detail, this.extra);
   }
 
   protected updated() {
@@ -836,20 +836,18 @@ export class DevicesArea extends LitElement {
       return;
     }
     const key = [window.innerWidth, window.innerHeight, this.areaId, this.design, this.entityIds.size].join('|');
-    if (key !== this.fitKey) {
-      this.fitKey = key;
-      if (this.fit !== 0) {
-        this.fit = 0; // measured again after this render
-        return;
-      }
-    }
-    const sc = scrollParentOf(this);
-    // NOSCROLL-1366-2437: while the cards region pages, the page area no longer scrolls - the region's own overflow is what is packed
-    const box = this.bandsOn() ? this.renderRoot.querySelector<HTMLElement>('.fitbox') : null;
-    const grid = box?.querySelector<HTMLElement>(':scope > .grid');
-    const inner = box && grid ? grid.offsetHeight - box.clientHeight : 0;
-    if (((sc && sc.scrollHeight - sc.clientHeight > 1) || inner > 1) && this.fit < 2) {
-      this.fit = (this.fit + 1) as 1 | 2;
+    // CR-G1-HOME-AREA-2440 (06:DUP-10): the step shared with the home screen (a changed key restarts from 0, measured again after that render)
+    const step = fitStep(this.fit, key, this.fitKey, () => {
+      const sc = scrollParentOf(this);
+      // NOSCROLL-1366-2437: while the cards region pages, the page area no longer scrolls - the region's own overflow is what is packed
+      const box = this.bandsOn() ? this.renderRoot.querySelector<HTMLElement>('.fitbox') : null;
+      const grid = box?.querySelector<HTMLElement>(':scope > .grid');
+      const inner = box && grid ? grid.offsetHeight - box.clientHeight : 0;
+      return (!!sc && sc.scrollHeight - sc.clientHeight > 1) || inner > 1;
+    });
+    this.fitKey = step.lastKey;
+    if (!step.settled) {
+      this.fit = step.fit;
       return;
     }
     this.measureBands();
@@ -1157,36 +1155,8 @@ export class DevicesArea extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
-    /* ---- the loading skeleton (HOME polish 2026-10-10): the strip and three section cards in the screen's own shape ---- */
-    .skeleton {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      min-inline-size: 0;
-    }
-    .skl {
-      position: relative;
-      overflow: hidden;
-      border-radius: var(--sw-r-md);
-      background: var(--sw-skeleton);
-    }
-    .skl::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      transform: translateX(-100%);
-      background: linear-gradient(90deg, transparent, var(--sw-skeleton-shine), transparent);
-    }
-    @media (prefers-reduced-motion: no-preference) {
-      .skl::after {
-        animation: skl-shine 1.4s var(--sw-ease) infinite;
-      }
-    }
-    @keyframes skl-shine {
-      to {
-        transform: translateX(100%);
-      }
-    }
+    /* ---- the loading skeleton (HOME polish 2026-10-10): the shared blocks and shimmer (devices-shared.ts, CR-G1-HOME-AREA-2440), then the strip and three section cards in the screen's own shape ---- */
+    ${SKELETON_CSS}
     .skl.strip {
       block-size: 44px;
     }
@@ -1328,21 +1298,25 @@ export class DevicesArea extends LitElement {
       return;
     }
     this.stop = subscribeHa(
-      (m) => {
-        // only pushes about this area's own entities refetch it; until the area is loaded every push may be one of them
-        if (m.type === 'entity_state_changed') {
-          if (!this.detail || this.entityIds.has(m.entity.entity_id)) this.scheduleReload();
-        } else if (m.type === 'structure_changed') {
-          // the entity filter above cannot see an entity moved INTO this area, nor a rename: refetch whole
-          this.scheduleReload();
-          this.structureFlash = true;
-          window.clearTimeout(this.flashTimer);
-          this.flashTimer = window.setTimeout(() => (this.structureFlash = false), STRUCTURE_FLASH_MS);
-        } else if (m.type === 'ha_sync_state') {
-          if (this.sync) this.sync = { ...this.sync, connected: m.connected };
-          this.scheduleReload();
-        } else if (m.type === 'heartbeat') this.sync = m.sync;
-      },
+      (m) =>
+        routeDevicePush(m, {
+          // only pushes about this area's own entities refetch it; until the area is loaded every push may be one of them
+          entity: (id) => {
+            if (!this.detail || this.entityIds.has(id)) this.scheduleReload();
+          },
+          structure: () => {
+            // the entity filter above cannot see an entity moved INTO this area, nor a rename: refetch whole
+            this.scheduleReload();
+            this.structureFlash = true;
+            window.clearTimeout(this.flashTimer);
+            this.flashTimer = window.setTimeout(() => (this.structureFlash = false), STRUCTURE_FLASH_MS);
+          },
+          connected: (on) => {
+            this.sync = withConnected(this.sync, on);
+            this.scheduleReload();
+          },
+          heartbeat: (sync) => (this.sync = sync),
+        }),
       (connected) => {
         if (connected) this.scheduleReload();
       },
@@ -1353,8 +1327,7 @@ export class DevicesArea extends LitElement {
     super.disconnectedCallback();
     this.stop?.();
     this.stop = null;
-    window.clearTimeout(this.timer);
-    this.timer = 0;
+    this.reloads.cancel();
     // CR-FE-NITS-2442 (06:TIMER-1): the badge's timer goes with the screen, and so does the badge it would have hidden
     window.clearTimeout(this.flashTimer);
     this.flashTimer = 0;
@@ -1419,8 +1392,7 @@ export class DevicesArea extends LitElement {
 
   /** The loaded area's entity ids (all cards), for the push filter. */
   private get entityIds(): Set<string> {
-    if (!this.detail) return new Set();
-    return new Set([...CARD_IDS.flatMap((id) => this.detail!.cards[id].entities.map((r) => r.entity_id)), ...this.extra.keys()]);
+    return this.idsMemo.get(this.detail, this.extra);
   }
 
   /** Devices a custom card or a main strip lists that are not this area's own are fetched by id (same visibility as the
@@ -1436,11 +1408,14 @@ export class DevicesArea extends LitElement {
       this.extraKey = '';
       return;
     }
+    const area = this.areaId;
     try {
       const r = await getEntityRows(want);
+      if (area !== this.areaId) return; // CR-G1-HOME-AREA-2440 (06:RACE-7): the route moved on while this was in flight
       this.extra = new Map(r.entities.map((e) => [e.entity_id, e]));
       this.extraKey = key;
     } catch {
+      if (area !== this.areaId) return;
       this.extraKey = key; // no retry storm: the strip simply shows what it has until the next load
     }
   }
@@ -1448,21 +1423,39 @@ export class DevicesArea extends LitElement {
   protected willUpdate(changed: PropertyValues<this>) {
     if (changed.has('areaId') && isApi() && !this.forbidden) {
       void this.lay.load();
-      this.detail = null;
-      this.presence = null;
-      this.notFound = false;
-      this.error = '';
+      this.resetAreaState();
       void this.load();
     }
   }
 
-  /** Throttle, as devices-building: one refetch per window while pushes keep coming, one more after they stop. */
+  /** CR-G1-HOME-AREA-2440 (06:DA-1): another area in the same element (the chip row, a neighbour on the plan card) starts from a clean
+   * state - the old area's quick pop-up, device sheet, assign dialog, media counts, unfolded sensor groups, extra rows and page were kept. */
+  private resetAreaState() {
+    this.detail = null;
+    this.presence = null;
+    this.notFound = false;
+    this.error = '';
+    this.quick = null;
+    this.sheet = null;
+    this.assigning = null;
+    this.assignAreas = null;
+    this.assignTarget = '';
+    this.assignBusy = false;
+    this.assignError = '';
+    this.mediaCount = new Map();
+    this.sensOpen = new Set();
+    this.extra = new Map();
+    this.extraKey = '';
+    this.coverGroupPosition = 50;
+    this.bandPage = 0;
+    this.fitKey = '';
+  }
+
+  /** Throttle, as devices-building: one refetch per window while pushes keep coming, one more after they stop (the shared ReloadThrottle). */
+  private readonly reloads = new ReloadThrottle(REFRESH_WINDOW_MS, () => void this.load());
+
   private scheduleReload() {
-    if (this.timer) return;
-    this.timer = window.setTimeout(() => {
-      this.timer = 0;
-      void this.load();
-    }, REFRESH_WINDOW_MS);
+    this.reloads.schedule();
   }
 
   private async load() {
@@ -1484,6 +1477,8 @@ export class DevicesArea extends LitElement {
       this.notFound = false;
       void this.loadExtra();
     } catch (err) {
+      // CR-G1-HOME-AREA-2440 (06:RACE-7): a failure of the previous area's read says nothing about this one (the success path was guarded)
+      if (id !== this.areaId) return;
       if (err instanceof ApiError && err.status === 403) this.forbidden = true;
       else if (err instanceof ApiError && err.status === 404) this.notFound = true;
       else this.error = describeError(err);
@@ -1535,9 +1530,7 @@ export class DevicesArea extends LitElement {
   private renderPresenceLine() {
     const v = areaLineView(this.presence);
     if (!v.show) return nothing;
-    const who = v.names.length
-      ? html`${v.names.map((n, i) => html`${i ? ', ' : ''}<bdi>${n}</bdi>`)}${v.rest > 0 ? ` ${BP.andMore(v.rest)}` : ''}`
-      : v.people;
+    const who = presenceWho(v);
     return html`<div class="pres-line" data-area-presence data-tone=${v.tone} role="status" aria-label=${BP.areaLineAria} title=${v.title}>
       <sw-icon name="users" size=${15}></sw-icon><span class="pres-lbl">${BP.areaLineLabel}</span>
       ${v.room ? html`<span class="pres-sep" aria-hidden="true">·</span><b data-area-presence-room>${v.room}</b>` : nothing}
@@ -1836,7 +1829,7 @@ export class DevicesArea extends LitElement {
     const slot = mainSlotOf(r);
     const icon: IconName = slot === 'temperature' ? 'sensor' : slot === 'humidity' ? 'sensor' : slot === 'motion' ? 'activity' : slot === 'door' ? 'door' : 'sensor';
     const unavailable = !r.available || r.state === 'unavailable';
-    const value = unavailable ? tr('לא זמין') : r.domain === 'sensor' && r.value !== null && r.value !== undefined ? `${ltrNum(Number.isInteger(r.value) ? r.value : r.value.toFixed(1))}${r.unit ? (r.unit.startsWith('°') || r.unit === '%' ? r.unit : ` ${r.unit}`) : ''}` : rowLabel(r);
+    const value = unavailable ? tr('לא זמין') : r.domain === 'sensor' && r.value !== null && r.value !== undefined ? sensorValueText(r.value, r.unit, 'tight') : rowLabel(r);
     return html`<div class=${classMap({ msens: true, unavailable, hot: r.domain === 'binary_sensor' && r.state === 'on' })} data-main-sensor=${r.entity_id} data-slot=${slot ?? ''} title=${entityLabel(r)}>
       <sw-icon .name=${icon} size=${16}></sw-icon><div class="mv"><b>${value}</b><span>${bidi(r.name)}</span></div>
     </div>`;
@@ -1991,7 +1984,7 @@ export class DevicesArea extends LitElement {
       card === 'sensors'
         ? r.domain === 'sensor'
           ? r.value !== null && r.value !== undefined
-            ? `${ltrNum(Number.isInteger(r.value) ? r.value : r.value.toFixed(1))}${r.unit ? ` ${r.unit}` : ''}`
+            ? sensorValueText(r.value, r.unit, 'spaced')
             : (r.state ?? '—')
           : rowLabel(r)
         : rowLabel(r);
