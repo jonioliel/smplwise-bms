@@ -3,6 +3,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { ApiError, describeError } from '../api/client';
 import { boardApi, BOARD_UI_DEFAULTS, type BoardSettingsDoc, type BoardUi } from '../api/tickets-board';
 import { bt, type BoardTextKey } from './board-text';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 
 /**
  * CR-038 slice 6: the board's rows of Settings > the module > display (D19 floors on the board, D20 grouping, D21 the state strip); the D28 row is
@@ -43,16 +45,18 @@ export class TicketBoardSettings extends LitElement {
   private seg<K extends keyof BoardUi>(key: K, label: BoardTextKey, sub: BoardTextKey, values: readonly BoardUi[K][], prefix: string): TemplateResult {
     const cur = (this.doc?.ui?.[key] as BoardUi[K] | undefined) ?? BOARD_UI_DEFAULTS[key];
     return html`<div class="row"><span class="lbl">${bt(label)}<span class="muted">${bt(sub)}</span></span>
-      <span class="seg" role="radiogroup" aria-label=${bt(label)}>${values.map((v) => html`<button type="button" role="radio" aria-pressed=${String(cur === v)} aria-checked=${String(cur === v)} data-ui-board=${`${String(key)}:${String(v)}`}
-        ?disabled=${this.disabled || this.busy} @click=${() => void this.save({ ui: { [key]: v } as Partial<BoardUi> })}>${bt(`${prefix}${String(v)}` as BoardTextKey)}</button>`)}</span></div>`;
+      <sw-segmented radio label=${bt(label)} value=${String(cur)} ?disabled=${this.disabled || this.busy}
+        @change=${(e: CustomEvent<SegmentedChange>) => { const v = values.find((x) => String(x) === e.detail.value); if (v !== undefined) void this.save({ ui: { [key]: v } as Partial<BoardUi> }); }}
+        .options=${values.map((v) => ({ value: String(v), label: bt(`${prefix}${String(v)}` as BoardTextKey), attrs: { 'data-ui-board': `${String(key)}:${String(v)}` } }))}></sw-segmented></div>`;
   }
 
   /** HANDLERLOAD: the installation default of the "handled" period on the handler cards (1 = today, 7, 30; default 7). */
   private handledRow(): TemplateResult {
     const cur = this.doc?.ui?.handled_days ?? 7;
     return html`<div class="row"><span class="lbl">${bt('setHandledDays')}<span class="muted">${bt('setHandledDaysSub')}</span></span>
-      <span class="seg" role="radiogroup" aria-label=${bt('setHandledDays')}>${([1, 7, 30] as const).map((v) => html`<button type="button" role="radio" aria-pressed=${String(cur === v)} aria-checked=${String(cur === v)} data-ui-board=${`handled_days:${v}`}
-        ?disabled=${this.disabled || this.busy} @click=${() => void this.save({ ui: { handled_days: v } })}>${bt(`hd_${v}` as BoardTextKey)}</button>`)}</span></div>`;
+      <sw-segmented radio label=${bt('setHandledDays')} value=${String(cur)} ?disabled=${this.disabled || this.busy}
+        @change=${(e: CustomEvent<SegmentedChange>) => void this.save({ ui: { handled_days: Number(e.detail.value) as 1 | 7 | 30 } })}
+        .options=${([1, 7, 30] as const).map((v) => ({ value: String(v), label: bt(`hd_${v}` as BoardTextKey), attrs: { 'data-ui-board': `handled_days:${v}` } }))}></sw-segmented></div>`;
   }
 
   render() {

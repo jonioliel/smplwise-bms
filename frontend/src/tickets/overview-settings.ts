@@ -6,6 +6,8 @@ import { ticketsApi } from '../api/tickets';
 import { bidi } from '../i18n/bidi';
 import { COMPARE_PLACES, HANDLER_NUMBERS, overviewSettingsOf, parseBusyInput, parseDeptStuckInput, VENDOR_MODES } from './overview-model';
 import { ot, type OverviewTextKey } from './overview-text';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 
 /**
  * MGRDASH phase 1: the manager overview's rows of Settings > the module > display (owner decisions 2026-10-17) - who sees a handler's own
@@ -50,8 +52,8 @@ export class TicketOverviewSettings extends LitElement {
 
   private seg<T extends string>(key: string, label: OverviewTextKey, sub: OverviewTextKey, values: readonly T[], cur: T, prefix: string): TemplateResult {
     return html`<div class="row"><span class="lbl">${ot(label)}<span class="muted">${ot(sub)}</span></span>
-      <span class="seg" role="radiogroup" aria-label=${ot(label)}>${values.map((v) => html`<button type="button" role="radio" aria-pressed=${String(cur === v)} aria-checked=${String(cur === v)} data-ui-overview=${`${key}:${v}`}
-        ?disabled=${this.disabled || this.busy} @click=${() => void this.save({ [key]: v })}>${ot(`${prefix}${v}` as OverviewTextKey)}</button>`)}</span></div>`;
+      <sw-segmented radio label=${ot(label)} value=${cur} ?disabled=${this.disabled || this.busy} @change=${(e: CustomEvent<SegmentedChange>) => void this.save({ [key]: e.detail.value as T })}
+        .options=${values.map((v) => ({ value: v, label: ot(`${prefix}${v}` as OverviewTextKey), attrs: { 'data-ui-overview': `${key}:${v}` } }))}></sw-segmented></div>`;
   }
 
   private onBusy(e: Event, dept: string | null): void {

@@ -3,6 +3,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { LiveRefresh } from './live-refresh';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-toggle';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
 import '../components/sw-drawer';
 import '../components/sw-state-panel';
@@ -156,13 +158,9 @@ export class TicketsContacts extends LitElement {
     .form .wide {
       grid-column: 1 / -1;
     }
-    .form .fld > .seg {
+    /* the four cost-claim choices (slice 9b) wrap on a 320 px phone instead of leaving the card (2.5.0 gate): sw-segmented's track wraps */
+    .form .fld > sw-segmented {
       align-self: flex-start;
-      max-inline-size: 100%;
-      flex-wrap: wrap; /* the four cost-claim choices (slice 9b) wrap on a 320 px phone instead of leaving the card (2.5.0 gate) */
-    }
-    .form .seg button {
-      white-space: nowrap;
     }
     .fld .in,
     .fld select.in {
@@ -632,8 +630,8 @@ export class TicketsContacts extends LitElement {
   /** VENDMARK-295: the filter above the vendor / contact list. */
   private markerBar(): TemplateResult | typeof nothing {
     if (this.kind === 'employee' || this.rows === null || !this.rows.length) return nothing;
-    return html`<span class="seg" role="radiogroup" aria-label=${xt('vm_kind')} data-contacts-marker-filter>${MARKER_FILTERS.map((f) => html`<button type="button" role="radio"
-      aria-checked=${String(this.marker === f)} aria-pressed=${String(this.marker === f)} data-marker-filter=${f} @click=${() => (this.marker = f)}>${xt(filterKey(f))}</button>`)}</span>`;
+    return html`<sw-segmented radio label=${xt('vm_kind')} data-contacts-marker-filter value=${this.marker} @change=${(e: CustomEvent<SegmentedChange>) => (this.marker = e.detail.value as typeof this.marker)}
+      .options=${MARKER_FILTERS.map((f) => ({ value: f, label: xt(filterKey(f)), attrs: { 'data-marker-filter': f } }))}></sw-segmented>`;
   }
 
   private listCard(): TemplateResult {
@@ -680,15 +678,13 @@ export class TicketsContacts extends LitElement {
     const modes: readonly (CostMode | '')[] = ['', 'required', 'optional', 'off'];
     const rateBad = !!d.labor_rate.trim() && decimalToMinor(d.labor_rate) === null;
     return html`<div class="fld wide" data-section="costs"><span>${ct('ctCostSection')}</span>
-      <span class="seg" role="radiogroup" aria-label=${ct('ctCostClaim')} data-field="cost_claim">${modes.map((m) => html`<button type="button" role="radio"
-        aria-checked=${String(d.cost_claim === m)} aria-pressed=${String(d.cost_claim === m)} data-field=${`cost_claim:${m || 'default'}`}
-        @click=${() => this.set({ cost_claim: m })}>${m ? ct(`m_${m}` as 'm_required') : ct('ctCostClaimDefault')}</button>`)}</span></div>
+      <sw-segmented radio label=${ct('ctCostClaim')} data-field="cost_claim" value=${d.cost_claim ?? ''} @change=${(e: CustomEvent<SegmentedChange>) => this.set({ cost_claim: e.detail.value as CostMode | '' })}
+        .options=${modes.map((m) => ({ value: m, label: m ? ct(`m_${m}` as 'm_required') : ct('ctCostClaimDefault'), attrs: { 'data-field': `cost_claim:${m || 'default'}` } }))}></sw-segmented></div>
       <div class="row wide"><span class="lbl">${ct('ctVatExempt')}</span>
         <sw-toggle label=${ct('ctVatExempt')} labelHidden .checked=${d.vat_exempt} data-field="vat_exempt" @change=${(e: CustomEvent<{ checked: boolean }>) => this.set({ vat_exempt: e.detail.checked })}></sw-toggle></div>
       ${d.vat_exempt ? nothing : html`<div class="fld wide"><span>${ct('ctVatDefault')}</span>
-        <span class="seg" role="radiogroup" aria-label=${ct('ctVatDefault')}>${(['excluded', 'included'] as const).map((v) => html`<button type="button" role="radio"
-          aria-checked=${String(d.vat_default === v)} aria-pressed=${String(d.vat_default === v)} data-field=${`vat_default:${v}`}
-          @click=${() => this.set({ vat_default: v })}>${v === 'excluded' ? ct('amountsExcl') : ct('amountsIncl')}</button>`)}</span></div>`}
+        <sw-segmented radio label=${ct('ctVatDefault')} value=${d.vat_default} @change=${(e: CustomEvent<SegmentedChange>) => this.set({ vat_default: e.detail.value as 'excluded' | 'included' })}
+          .options=${(['excluded', 'included'] as const).map((v) => ({ value: v, label: v === 'excluded' ? ct('amountsExcl') : ct('amountsIncl'), attrs: { 'data-field': `vat_default:${v}` } }))}></sw-segmented></div>`}
       ${rates ? html`<label class="fld"><span>${ct('ctRate')}</span><input class="in" inputmode="decimal" dir="ltr" maxlength="20" data-field="labor_rate"
           aria-invalid=${String(rateBad)} .value=${d.labor_rate} @input=${(e: Event) => this.set({ labor_rate: (e.target as HTMLInputElement).value })} /></label>
         <label class="fld"><span>${ct('ctRateCurrency')}</span><select class="in" data-field="rate_currency" ?disabled=${!d.labor_rate.trim()}
@@ -701,8 +697,8 @@ export class TicketsContacts extends LitElement {
     const employee = d.kind === 'employee'; // an employee without an account: name, phone, e-mail, channel, language, departments, notes
     const kinds: readonly ContactKind[] = this.kind ? [] : creatableKinds(this.canEditStaff, this.mgr);
     const seg = <T extends string>(label: string, values: readonly T[], current: T, text: (v: T) => string, on: (v: T) => void, attr: string) => html`
-      <div class="fld"><span>${label}</span><span class="seg" role="radiogroup" aria-label=${label}>${values.map((v) => html`<button type="button" role="radio"
-        aria-checked=${String(current === v)} aria-pressed=${String(current === v)} data-field=${`${attr}:${v}`} @click=${() => on(v)}>${text(v)}</button>`)}</span></div>`;
+      <div class="fld"><span>${label}</span><sw-segmented radio label=${label} value=${current} @change=${(e: CustomEvent<SegmentedChange>) => on(e.detail.value as T)}
+        .options=${values.map((v) => ({ value: v, label: text(v), attrs: { 'data-field': `${attr}:${v}` } }))}></sw-segmented></div>`;
     return html`<div class="drawer-body" data-card="contact-editor" data-contact=${c?.id ?? 'new'} data-contact-kind=${d.kind}>
       <div class="form">
         ${this.mgr && !c && d.kind === 'vendor' ? this.lookupBlock() : nothing}

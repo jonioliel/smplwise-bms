@@ -13,6 +13,8 @@ import { ct, type CostTextKey } from './cost-text'; // slice 9
 import { loct } from './org-locations-text';
 import { navForAssign, navForPreview, navSwitch, type NavAnswer } from './assign-nav-model';
 import { outsideBlock, staffBlock, usersBlock, whatsappNote, type ReadyItem } from './readiness-model';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { insuranceMark } from '../maintenance/model'; // MAINT215B: the supplier insurance mark of the picker
 
 /** The dialog's three groups (owner 2026-10-14): handlers with an account, employees without one, vendors and contacts. TKSTAFF2: the
@@ -307,8 +309,9 @@ export class ExternalAssign implements ReactiveController {
     if (!opt) return nothing;
     const value = this.costClaim ?? opt.default;
     return html`<div class="fld" data-cost-claim=${value}><span>${ct('mode')}</span>
-      <span class="seg sm" role="radiogroup" aria-label=${ct('mode')}>${opt.choices.map((m) => html`<button type="button" role="radio" aria-checked=${String(value === m)}
-        data-cost-claim-mode=${m} ?disabled=${this.lend.busy()} @click=${() => { this.costClaim = m; this.host.requestUpdate(); }}>${ct(`m_${m}` as CostTextKey)}</button>`)}</span></div>`;
+      <sw-segmented radio size="sm" label=${ct('mode')} value=${value} ?disabled=${this.lend.busy()}
+        @change=${(e: CustomEvent<SegmentedChange>) => { this.costClaim = e.detail.value as typeof value; this.host.requestUpdate(); }}
+        .options=${opt.choices.map((m) => ({ value: m, label: ct(`m_${m}` as CostTextKey), attrs: { 'data-cost-claim-mode': m } }))}></sw-segmented></div>`;
   }
 
   /** CR-ORG-LOCATIONS: the switch (hidden without coordinates). Toggling asks the server for the exact text again, so the preview shows what is sent. */

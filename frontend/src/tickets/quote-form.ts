@@ -1,6 +1,8 @@
 import { LitElement, html, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-dialog';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { automationsStyles } from '../styles/automations-glass';
 import { applyAutomationsGlass } from '../styles/glass';
 import { SkinController } from '../design/skin';
@@ -166,9 +168,8 @@ export class TicketQuoteForm extends LitElement {
         <div class="two">
           ${currencies.length > 1 ? html`<label class="fld"><span>${ct('currency')}</span><select class="inp" data-ob-currency @change=${(e: Event) => this.set({ currency: (e.target as HTMLSelectElement).value })}>
             ${currencies.map((x) => html`<option value=${x} ?selected=${x === f.currency}>${x}</option>`)}</select></label>` : nothing}
-          ${exempt ? nothing : html`<div class="fld"><span>${ct('vatToggle')}</span><span class="seg sm" role="radiogroup" aria-label=${ct('vatToggle')}>
-            <button type="button" role="radio" aria-checked=${String(!f.include)} data-ob-vat="excluded" @click=${() => this.set({ include: false })}>${ct('amountsExcl')}</button>
-            <button type="button" role="radio" aria-checked=${String(f.include)} data-ob-vat="included" @click=${() => this.set({ include: true })}>${ct('amountsIncl')}</button></span></div>`}
+          ${exempt ? nothing : html`<div class="fld"><span>${ct('vatToggle')}</span><sw-segmented radio size="sm" label=${ct('vatToggle')} value=${f.include ? 'included' : 'excluded'} @change=${(e: CustomEvent<SegmentedChange>) => this.set({ include: e.detail.value === 'included' })}
+            .options=${[{ value: 'excluded', label: ct('amountsExcl'), attrs: { 'data-ob-vat': 'excluded' } }, { value: 'included', label: ct('amountsIncl'), attrs: { 'data-ob-vat': 'included' } }]}></sw-segmented></div>`}
         </div>
         ${this.lineEditor(f, kinds, claim?.labor_rate_minor)}
         <dl class="preview" data-preview>
