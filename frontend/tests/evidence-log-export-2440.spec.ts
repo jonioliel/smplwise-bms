@@ -29,7 +29,13 @@ interface Mock {
 async function boot(page: Page, o: { admin?: boolean; lang?: 'he' | 'en' } = {}): Promise<Mock> {
   const st: Mock = { posts: [], answer: 'ok' };
   const perms = o.admin === false ? VIEWER : ADMIN;
-  if (o.lang === 'en') await page.addInitScript(() => localStorage.setItem('sw.ui.lang', 'en'));
+  if (o.lang === 'en') await page.addInitScript(() => {
+    try {
+      localStorage.setItem('sw.ui.lang', 'en');
+    } catch {
+      /* about:blank has no storage */
+    }
+  });
   await page.route('**/api/v1/**', async (route) => {
     const req = route.request();
     const p = new URL(req.url()).pathname.replace(/^.*\/api\/v1\//, '');

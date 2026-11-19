@@ -23,7 +23,13 @@ async function shot(page: Page, info: TestInfo, name: string) {
 }
 
 async function english(page: Page) {
-  await page.addInitScript(() => localStorage.setItem('sw.ui.lang', 'en'));
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('sw.ui.lang', 'en');
+    } catch {
+      /* about:blank has no storage */
+    }
+  });
 }
 
 async function newTouTariff(page: Page, name: string) {
