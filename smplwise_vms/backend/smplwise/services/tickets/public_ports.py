@@ -116,6 +116,7 @@ class CachedSwitch:
     def module_on(self) -> bool:
         return self._on
 
+    # test-only: no product caller; used by tests/test_tickets_ratelimit.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     @property
     def refreshed_at(self) -> float | None:
         return self._at

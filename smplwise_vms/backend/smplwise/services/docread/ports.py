@@ -72,6 +72,7 @@ class ModelExtractor(Protocol):
     def extract(self, text: str, kind: str) -> dict[str, FieldSuggestion]: ...
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_docread_297.py, tests/test_docread_certificate_rules.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 class NullTextReader:
     name = "none"
 

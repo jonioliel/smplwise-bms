@@ -167,6 +167,7 @@ class RemapGuard:
             mapping_changed(self.conn)
 
 
+# test-only: no product caller; used by tests/test_building_scope_single_2351.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def building_areas(conn: sqlite3.Connection, building_id: str, areas: list[dict[str, Any]] | None = None) -> set[str]:
     """The platform areas of one live building; 404 `building_not_found` for an unknown or deleted building."""
     return set(cut(conn, building_id, areas).areas)

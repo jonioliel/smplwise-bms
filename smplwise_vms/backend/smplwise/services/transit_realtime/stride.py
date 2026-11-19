@@ -79,6 +79,7 @@ class PlanStore:
         return RidePlan(plan, start, at.get("shape_dist_traveled") if at else None, _dt(at["arrival_time"]) if at else None)
 
 
+# test-only: no product caller; used by tests/test_transit_realtime.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 class StrideScheduleProvider:
     """Default scheduled rows from Stride (the scheduled-times feature has its own; this one lets the engine run alone)."""
 

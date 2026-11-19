@@ -803,6 +803,7 @@ class ProvisionIsrAdapter:
         """(supported, reason) for SetAlarmServerConfig on this device; `before` = parse_alarm_server of its answer."""
         return px.alarm_server_support(self.kind(), set(before.get("fields") or ()), self.supported_apis())
 
+    # test-only: no product caller; used by tests/test_provision_isr_p2.py, tests/test_provision_push_addon.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def configure_push(self, server: str, port: int, *, heartbeat_s: int = 30, path: str | None = None) -> dict[str, Any]:
         """SetAlarmServerConfig (a device configuration write: needs writes enabled for this recorder). Points the device's
         alarm push at the add-on's listener; reads the configuration back to verify."""
@@ -996,6 +997,7 @@ class ProvisionIsrAdapter:
             alerts += tracker.update_channels(self.channel_states())
         return alerts
 
+    # test-only: no product caller; used by tests/test_provision_isr.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def pull_subscription(self) -> "PullSubscription":
         return PullSubscription(self)
 

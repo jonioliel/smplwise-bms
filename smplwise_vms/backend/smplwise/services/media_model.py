@@ -484,7 +484,6 @@ def build(
     ents = {e["entity_id"]: e for e in cands}
     n = len(eps)
     uf = _Union(n)
-    idx = {e.ref: i for i, e in enumerate(eps)}
     edges: list[tuple[int, int, str]] = []
     pinned_apart = {i for i, e in enumerate(eps) if rule_by_ep.get(e.endpoint_id, {}).get("rule") == "unlink"}
 

@@ -91,7 +91,6 @@ def render_fpdf2(s: BillSnapshot, logo_png: bytes | None, max_pages: int = MAX_P
     """Fallback layout: the same sections and numbers as the main layout, drawn by hand (no watermark rotation
     tricks, a simple bar chart, tables that break across pages with a repeated header). Used only when WeasyPrint
     or Pango cannot be loaded on the target."""
-    import io
 
     from fpdf import FPDF
 

@@ -202,6 +202,7 @@ def render_for(conn: sqlite3.Connection, text: str, lang: str = "he") -> str:
     return render(text, names_for(conn, lang))
 
 
+# test-only: no product caller; used by tests/test_tickets_naming.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def has_tokens(text: str) -> bool:
     return _TOKEN.search(text) is not None
 

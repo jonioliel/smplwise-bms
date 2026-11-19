@@ -9,7 +9,6 @@ Native owns grants and append-only execution dedup; Arx only reads those grants.
 from __future__ import annotations
 import hashlib, json, os, secrets, threading
 from pathlib import Path
-from typing import Any
 from contextlib import contextmanager
 import time
 from .wiskey_distribution_digest import digest
@@ -32,6 +31,7 @@ MAINTENANCE_RELATIVE = ".storage/hikvision_intercom.arx_installation/maintenance
 NAMES = ("smplwise_bridge", "hikvision_intercom")
 
 
+# test-only: no product caller; used by tests/test_alignment_controller.py, tests/test_alignment_staging.py (+4 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def fence_supported():
     return _fcntl is not None
 

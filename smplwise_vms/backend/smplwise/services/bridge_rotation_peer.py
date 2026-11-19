@@ -158,5 +158,6 @@ def set_peer(peer: Peer | None) -> None:
     _PEER = peer
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_bridge_key_activation_295.py, tests/test_bridge_key_rotation_295.py (+4 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def set_peer_for_tests(peer: Peer | None) -> None:
     set_peer(peer)

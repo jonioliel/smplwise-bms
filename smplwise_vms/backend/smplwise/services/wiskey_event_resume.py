@@ -81,6 +81,7 @@ def reset_for_tests() -> None:
     _clock = now_iso
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_wiskey_event_cursor_2400.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def set_clock_for_tests(clock: Callable[[], str]) -> None:
     global _clock
     _clock = clock

@@ -198,6 +198,7 @@ class LocalPathDestination:
         (self.root / check_name(name, marker_ok=True)).unlink(missing_ok=True)
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_backup_offbox.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 class FakeDestination:
     """In memory. Knobs: `fail_put` / `fail_get` / `fail_list` (raise), `corrupt_put` (store the upload with one byte flipped),
     `truncate_put` (store it cut short). `calls` records every operation (name only)."""

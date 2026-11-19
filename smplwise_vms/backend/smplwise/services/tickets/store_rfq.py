@@ -814,6 +814,7 @@ def purge_rfq(conn: sqlite3.Connection, rfq_id: str) -> dict[str, int]:
     return {k: v for k, v in out.items() if v}
 
 
+# test-only: no product caller; used by tests/test_tickets_rfq.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def rfq_rows_left(conn: sqlite3.Connection, rfq_id: str, vendor_ids: list[str], link_ids: list[str]) -> dict[str, int]:
     """Tests and the purge check: rows still naming the request, per table (empty = nothing left)."""
     left: dict[str, int] = {}

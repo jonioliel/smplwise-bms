@@ -19,7 +19,6 @@ import json
 import logging
 import sqlite3
 import zoneinfo
-from pathlib import Path
 from typing import Any, Callable
 
 from ..audit import audit
@@ -28,7 +27,7 @@ from ..db import get_setting, set_setting
 from ..errors import ApiError
 from . import values
 from ..rbac import Principal
-from .timeutil import iso_utc, parse_utc
+from .timeutil import iso_utc
 
 log = logging.getLogger("smplwise.readiness")
 UTC = dt.timezone.utc

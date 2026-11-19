@@ -94,12 +94,7 @@ def _bulk_flags(conn: sqlite3.Connection, principal: Principal, reads: _RequestR
     return bulk.scope_flags(conn, principal, (reads or _RequestReads(conn)).entities())
 
 
-def _configure_holder_early(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
-    """system.configure before the body is read (the same envelope as the slice-4 assign route); the refusal is audited."""
-    require(conn, principal, "system.configure", INSTALLATION)
-    return principal
-
-
+# system.configure before the body is read (the same envelope as the slice-4 assign route); the refusal is audited.
 # review L7: the raw-body routes check the permission on a READ connection, read the body, and only then open the write one
 _configure_holder_early_ro = read_gate(lambda conn, principal: require(conn, principal, "system.configure", INSTALLATION))
 _configure_holder_ro = _configure_holder_early_ro
@@ -816,16 +811,9 @@ class BulkBody(BaseModel):
     building: str | None = Field(None, min_length=1, max_length=64)
 
 
-def _bulk_holder(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
+def _check_bulk(conn: sqlite3.Connection, principal: Principal) -> None:
     """devices.control_bulk somewhere (installation or a floor), checked before the body is looked at; a refusal is
     audited by `require`. devices.control alone (an operator) is never enough."""
-    wide, floors = ha_scope.visible_floors(conn, principal, bulk.PERMISSION)
-    if not wide and not floors:
-        require(conn, principal, bulk.PERMISSION, INSTALLATION)
-    return principal
-
-
-def _check_bulk(conn: sqlite3.Connection, principal: Principal) -> None:
     wide, floors = ha_scope.visible_floors(conn, principal, bulk.PERMISSION)
     if not wide and not floors:
         require(conn, principal, bulk.PERMISSION, INSTALLATION)

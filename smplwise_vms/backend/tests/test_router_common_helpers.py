@@ -2,7 +2,7 @@
 `_db`) live once in smplwise/routers/_common.py; routers import them under their old local names.
 
 The guard is static (AST over smplwise/routers/*.py): a router outside WAITING that defines one of these helpers again fails.
-WAITING is the set of routers another open branch holds today; CR-ROUTER-COMMON-TAIL sweeps them and empties it."""
+WAITING was the set of routers other open branches held; CR-ROUTER-COMMON-TAIL-2442 swept them and emptied it."""
 from __future__ import annotations
 
 import ast
@@ -14,15 +14,7 @@ from smplwise.routers import _common
 
 ROUTERS = Path(__file__).resolve().parents[1] / "smplwise" / "routers"
 HELPERS = {"_rid", "_raw_body", "_is_json", "_db"}
-WAITING = {
-    # CR-ADMIN-GATE
-    "access_visitors", "wiskey_managed", "wiskey_switches", "access_station_permissions", "access_grants", "access_wiskey_visits",
-    "wiskey_pairing", "ha_users", "bridge_key", "door_automations",
-    # path-confine / setting-callers routers
-    "plans", "energy_billing", "backup", "cases", "nvr_write",
-    # held by other open branches
-    "catalog", "wiskey_lineage", "cameras",
-}
+WAITING: set[str] = set()  # emptied by CR-ROUTER-COMMON-TAIL-2442: every router takes the helpers from _common
 
 
 def _waiting(stem: str) -> bool:

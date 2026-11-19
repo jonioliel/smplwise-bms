@@ -211,6 +211,7 @@ def as_peer_binding(candidate: Any) -> VerifiedPeerRef:
     raise PeerSeamError("not_a_peer_binding")
 
 
+# test-only: no product caller; used by tests/test_wkpeer_295.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def refuse_as_peer(source: str) -> None:
     """There is no named source from which a peer binding can be taken: the forbidden ones are refused by name, everything else as
     untrusted. (The registry client is the only minting path.)"""
@@ -254,10 +255,12 @@ class ReceiptVerdict:
     code: str
     commit: dict[str, Any] | None = None
 
+    # test-only: no product caller; the name is read only by tests: tests/test_wkadapt_resolve_295.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     @property
     def proves_create(self) -> bool:
         return False  # a capture / update receipt never proves that Arx created the person
 
+    # test-only: no product caller; the name is read only by tests: tests/test_wkadapt_resolve_295.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     @property
     def device_attested(self) -> bool:
         return False  # device_state is always not_attested
@@ -363,14 +366,17 @@ class ResolutionVerdict:
     code: str
     receipt: dict[str, Any] | None = None
 
+    # test-only: no product caller; the name is read only by tests: tests/test_adoptr6_295.py, tests/test_wk4adopt_295.py (+4 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     @property
     def replay_permitted(self) -> bool:
         return False  # owner decision 2026-10-23: UNKNOWN (or anything else here) is never a licence to resend or re-create
 
+    # test-only: no product caller; the name is read only by tests: tests/test_wkadapt_resolve_295.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     @property
     def proves_create(self) -> bool:
         return False
 
+    # test-only: no product caller; the name is read only by tests: tests/test_wkadapt_resolve_295.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     @property
     def device_attested(self) -> bool:
         return False  # WisKey: device_application stays unknown
@@ -425,6 +431,7 @@ PEER_RESULT_CLASSES = {
 }
 
 
+# test-only: no product caller; used by tests/test_wiskey_mac_adopt_298.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def peer_result_class(receipt: "PeerReadReceipt", frame: Any = None) -> str:
     """The closed class of ONE peer read. `found` only for a verified resolve `found` frame; a refusal is `binding_denied` only when that is
     the command's closed refusal code; every other case (disconnect, timeout, an unlisted code, a malformed frame) is unknown_no_retry -
@@ -447,6 +454,7 @@ class PeerReadReceipt:
     outcome: str
     code: str | None = None
 
+    # test-only: no product caller; the name is read only by tests: tests/test_adoptr6_295.py, tests/test_wk4adopt_295.py (+4 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     @property
     def replay_permitted(self) -> bool:
         return False

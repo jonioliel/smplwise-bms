@@ -21,6 +21,7 @@ from ..errors import ApiError
 from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..recorder_scope import PRIMARY, camera_settings, settings_for
+from ._common import raw_body as _raw_body, rid as _rid
 from .recorders import recorder_settings
 from ..services import camera_reboot, nvr, nvr_schedule, nvr_settings, nvr_system, nvr_write, nvr_write_guard
 from ..services.access import require_camera
@@ -29,10 +30,6 @@ from ..services.settings_store import setting_value
 
 router = APIRouter()
 NOTIFY_PERMISSION = "nvr.config.events"
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _guard(settings: Any, conn: sqlite3.Connection, principal: Principal, kind: str, request: Request, target: str | None = None) -> None:
@@ -661,13 +658,6 @@ def get_change(change_id: str, principal: Principal = Depends(current_principal_
     if r["kind"] == nvr_settings.KIND:
         _require_stream_change(conn, principal, r)
     return nvr_write.change_detail(r)
-
-
-async def _raw_body(request: Request) -> bytes:
-    """The request body, unparsed (review L2 / L7). Declared AFTER the read-connection permission gate and BEFORE the write
-    connection: an unauthorised caller gets the audited 403 whatever they sent (never FastAPI's bare 422 for a body that is
-    not JSON), and a slow client never holds SQLite's write lock while its body streams in."""
-    return await request.body()
 
 
 def json_body(raw: bytes) -> Any:

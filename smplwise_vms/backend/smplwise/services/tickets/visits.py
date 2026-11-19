@@ -332,6 +332,8 @@ def mark_missed(conn, ticket: dict[str, Any], visit: dict[str, Any], *, revision
     return v
 
 
+# built ahead for SVC215 (no product caller yet; owner decision Q-CODE-2 / O15 a, 2026-11-14): the `door` arrival signal of CR-SVC215
+# section 3.2, to be called by the grants model once external grants go live (`arrived_by = 'door'` is already in migration 0156).
 def record_door_arrival(conn, ticket_id: str, assignment_id: str, now: dt.datetime) -> dict[str, Any] | None:
     """The `door` signal (section 3.2): a door opened with the technician's grant credential - the only proof. The grants model calls
     this once external grants go live (not in this build). A missed or reported visit becomes arrived; nothing when the feature is off."""

@@ -19,7 +19,6 @@ never retried, never queued again); a row older than `MAX_AGE_S` expires instead
 every older open row."""
 from __future__ import annotations
 
-import datetime as dt
 import logging
 import sqlite3
 from dataclasses import dataclass

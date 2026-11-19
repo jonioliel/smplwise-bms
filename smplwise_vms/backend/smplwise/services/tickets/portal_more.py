@@ -494,6 +494,7 @@ def forget_contact(conn, contact_id: str) -> None:
             raise
 
 
+# test-only: no product caller; used by tests/test_tickets_vendor_portal_more.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def sanitized_rfq(item: Mapping[str, Any]) -> bool:
     """Test helper: an RFQ item carries only allow-listed keys (and its quote too)."""
     return not (set(item) - RFQ_ITEM_KEYS) and not (item.get("quote") is not None and set(item["quote"]) - RFQ_QUOTE_KEYS)

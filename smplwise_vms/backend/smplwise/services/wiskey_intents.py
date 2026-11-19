@@ -149,6 +149,7 @@ def _terminal(conn: sqlite3.Connection, o: ExactOriginal, new_state: str, reason
     return "settled" if ok else "conflict"
 
 
+# test-only: no product caller; used by tests/test_eccact_intents_295.py, tests/test_pwclean_295.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def settle_update(conn: sqlite3.Connection, o: ExactOriginal, verdict: wp.ReceiptVerdict, now: str | None = None) -> str:
     """Settle an UPDATE intent from a receipt verdict (`wiskey_peer.ReceiptVerdict`). Only a settling verdict moves it. A create
     intent is refused (it settles only through `settle_resolution`); the refusal code is unchanged."""
@@ -241,7 +242,7 @@ class LiveResolveTransport:
         return wp.verify_resolution(frame), receipt
 
 
-# Built ahead, no product caller yet (owner decision Q-CODE-2 / O15 a, 2026-11-14): kept for W-010, the recovery caller of an UNKNOWN intent
+# built ahead for W-010 (no product caller yet; owner decision Q-CODE-2 / O15 a, 2026-11-14), the recovery caller of an UNKNOWN intent
 # (docs/changes/ADOPTR6-295-ADOPTION-RECEIPT.md, not built yet; DirectJoin.resolve_or_none is its transport).
 def resolve_intent(conn: sqlite3.Connection, o: ExactOriginal, original: wp.ResolveOriginal, current: wp.VerifiedPeerRef,
                    transport: LiveResolveTransport, now: str | None = None) -> tuple[str, wp.ResolutionVerdict, wp.PeerReadReceipt | None]:

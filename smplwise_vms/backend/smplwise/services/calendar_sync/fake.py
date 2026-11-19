@@ -34,6 +34,7 @@ class FakeAdapter:
         self.health_state = Health("ok")
 
     # ------------------------------------------------------------ test controls (the provider side)
+    # test-only: test seam / test double - product code never calls it; used by tests/test_calendar_sync_2300.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def add_calendar(self, ref: str, name: str = "", *, can_write: bool = True, is_primary: bool = False) -> str:
         self.calendars[ref] = ExtCalendar(ref, name or ref, can_write, is_primary)
         self._events.setdefault(ref, {})
@@ -44,6 +45,7 @@ class FakeAdapter:
         for _ in range(times):
             self._failures.append((op, error or SyncError("boom", code="provider_error")))
 
+    # test-only: test seam / test double - product code never calls it; used by tests/test_calendar_sync_2300.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def invalidate_tokens(self, ref: str) -> None:
         """Every token issued so far is gone (HTTP 410)."""
         self._min_valid[ref] = self._seq + 1
@@ -56,12 +58,14 @@ class FakeAdapter:
         self._etag += 1
         return f"e{self._etag}"
 
+    # test-only: test seam / test double - product code never calls it; used by tests/fake_calendar_providers.py, tests/test_calendar_connect_2330.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def user_create(self, ref: str, title: str, start: dt.datetime, end: dt.datetime, *, notes: str = "", all_day: bool = False) -> str:
         self._uid += 1
         uid = f"ext{self._uid}"
         self._events[ref][uid] = _Rec(ExtEvent(uid, self._new_etag(), title, start, end, notes, all_day, updated=start), self._bump())
         return uid
 
+    # test-only: test seam / test double - product code never calls it; used by tests/test_calendar_sync_2300.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def user_edit(self, ref: str, uid: str, **fields: Any) -> None:
         rec = self._events[ref][uid]
         self._events[ref][uid] = _Rec(replace(rec.ev, etag=self._new_etag(), **fields), self._bump())

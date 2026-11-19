@@ -21,7 +21,13 @@ state) would otherwise put the revoked session back into the cache after the dro
 with nothing left to close it - until the time-to-live ran out. The keys a revocation ends are therefore remembered for ENDED_KEEP_S and
 `put` refuses an entry under one of them: that request was concurrent with the revocation and is answered from its own read, every later
 one reads the database again. A revocation that then rolls back has only over-revoked the cache (the safe side): the session keeps
-working, read from the database on each request until the key is forgotten."""
+working, read from the database on each request until the key is forgotten.
+
+Held users (CR-APP-SESSION-CACHE-2443, the same race one level up): `drop_users` / `drop_user` run when a user's state changes without
+ending a session (a factor removed or enrolled, a display-name change, an access change - services/revocation). The change commits after
+the drop, so a request that read before the commit must not cache the old principal back: `put` refuses the user's sessions for the
+store's `user_hold_s` (read through the store's own clock, so a test that moves the clock ends the hold; a clock that went back keeps it -
+fail closed). A held user's session is not ended: `_user_held_live_locked` lets its WebSocket attach unless its own key was ended."""
 from __future__ import annotations
 
 import threading
@@ -68,14 +74,16 @@ class SessionCache(Generic[S]):
     `clock` and `ttl_s` are called on every lookup (not captured at construction), so a store's own clock - and a test that moves it -
     stays the one the cache reads. A subclass names the key its sockets and its revocations use (`_ended_key`: the session by default)."""
 
-    def __init__(self, *, clock: Callable[[], float], ttl_s: Callable[[], float]) -> None:
+    def __init__(self, *, clock: Callable[[], float], ttl_s: Callable[[], float], user_hold_s: Callable[[], float] = lambda: 0.0) -> None:
         self._clock = clock
         self._ttl_s = ttl_s
+        self._user_hold_s = user_hold_s
         self._lock = threading.Lock()
         self._by_sid: dict[str, S] = {}
         self._sockets: dict[str, weakref.WeakSet] = {}
         self._to_close: list[Any] = []
         self._ended: dict[str, float] = {}  # key -> time.monotonic() of its revocation (see the module docstring)
+        self._held_users: dict[str, float] = {}  # user id -> store clock time of drop_users (CR-APP-SESSION-CACHE-2443)
 
     def _ended_key(self, s: S) -> str:
         return s.sid_hash
@@ -91,11 +99,32 @@ class SessionCache(Generic[S]):
                 return None
             return s
 
+    def _key_ended_locked(self, key: str) -> bool:
+        ended_at = self._ended.get(key) if self._ended else None
+        return ended_at is not None and time.monotonic() - ended_at <= ENDED_KEEP_S
+
+    def _user_held_locked(self, user_id: str, now: float) -> bool:
+        at = self._held_users.get(user_id) if self._held_users else None
+        if at is None:
+            return False
+        if now - at < self._user_hold_s():
+            return True
+        self._held_users.pop(user_id, None)
+        return False
+
+    def _put_refused_locked(self, s: S) -> bool:
+        """True = do not cache `s`: its key was ended, or its user is held, since the caller read it (see the module docstring)."""
+        return self._key_ended_locked(self._ended_key(s)) or self._user_held_locked(s.user_id, self._clock())
+
+    def _user_held_live_locked(self, key: str, user_id: str) -> bool:
+        """For `attach`: a session absent from the cache only because its USER is held (not an ending) is still live."""
+        return bool(user_id) and not self._key_ended_locked(key) and self._user_held_locked(user_id, self._clock())
+
     def put(self, s: S) -> None:
-        """Cache `s` - unless a revocation ended its key meanwhile (the resolve read the row before that revocation committed)."""
+        """Cache `s` - unless a revocation ended its key meanwhile (the resolve read the row before that revocation committed), or its
+        user's state changed meanwhile (drop_users)."""
         with self._lock:
-            ended_at = self._ended.get(self._ended_key(s)) if self._ended else None
-            if ended_at is not None and time.monotonic() - ended_at <= ENDED_KEEP_S:
+            if self._put_refused_locked(s):
                 return
             if len(self._by_sid) > MAX_ENTRIES:
                 for k in list(self._by_sid)[:EVICT_BATCH]:
@@ -103,9 +132,22 @@ class SessionCache(Generic[S]):
             self._by_sid[s.sid_hash] = s
 
     def drop_user(self, user_id: str) -> None:
-        """The user's entries only (the next request re-reads); attached sockets stay - a revocation closes them through its own drop."""
+        self.drop_users({user_id})
+
+    def drop_users(self, user_ids: set[str]) -> None:
+        """The users' entries only (the next request re-reads), held for `user_hold_s`; attached sockets stay - a revocation closes them
+        through its own drop."""
+        if not user_ids:
+            return
+        now = self._clock()
         with self._lock:
-            for k in [k for k, v in self._by_sid.items() if v.user_id == user_id]:
+            if len(self._held_users) > MAX_ENTRIES:
+                hold = self._user_hold_s()
+                for k in [k for k, at in self._held_users.items() if now - at >= hold]:
+                    del self._held_users[k]
+            for u in user_ids:
+                self._held_users[u] = now
+            for k in [k for k, v in self._by_sid.items() if v.user_id in user_ids]:
                 self._by_sid.pop(k, None)
 
     def _end_keys_locked(self, keys: Any) -> None:
@@ -127,15 +169,17 @@ class SessionCache(Generic[S]):
         return take_queued(self)
 
     def forget_ended(self) -> None:
-        """Tests only (reset_for_tests): forget the ended keys."""
+        """Tests only (reset_for_tests): forget the ended keys and the held users."""
         with self._lock:
             self._ended.clear()
+            self._held_users.clear()
 
     def clear(self) -> None:
         """Every entry goes and every socket is queued for closing; the ended keys stay (a revocation of everything names its keys
-        through the subclass's drop first)."""
+        through the subclass's drop first). The held users go too: nothing of theirs is cached any more."""
         with self._lock:
             self._by_sid.clear()
+            self._held_users.clear()
             for socks in self._sockets.values():
                 self._to_close.extend(list(socks))
             self._sockets.clear()

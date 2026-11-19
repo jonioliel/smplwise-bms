@@ -504,6 +504,7 @@ class Negotiated:
     command: str | None
     reason: str
 
+    # test-only: no product caller; used by tests/test_eccact_readback_295.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     @property
     def can_prove_revocation(self) -> bool:
         return self.version == SCHEMA_V2  # a v1 answer is never a revocation proof (ECCACT-295 / WKV2B owner decision 2026-10-20)

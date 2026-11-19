@@ -96,6 +96,7 @@ def transcode_stream_name(recorder_id: str, channel: int, profile: str) -> str:
     return name
 
 
+# test-only: no product caller; used by tests/test_live_h265.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def is_transcode_stream(name: str) -> bool:
     return name.startswith(g2.STREAM_PREFIX) and not name.startswith(g2.HA_STREAM_PREFIX) and name.endswith(TRANSCODE_SUFFIX)
 

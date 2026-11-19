@@ -172,6 +172,7 @@ def load_bundled(downloads_dir: Path | None) -> Bundled | None:
     return result
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_app_download.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def reset_cache_for_tests() -> None:
     with _cache_lock:
         _cache.clear()

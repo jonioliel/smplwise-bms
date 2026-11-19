@@ -21,6 +21,7 @@ from ..services import backup as svc
 from ..services import backup_drill as drill
 from ..services import backup_sensitive as sens
 from ..services import restore_safety
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -73,10 +74,6 @@ def _sensitive_error(exc: sens.SensitiveError) -> ApiError:
 
 def _secret(v: SecretStr | None) -> str | None:
     return v.get_secret_value() if v is not None else None
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _path(request: Request, name: str) -> Path:

@@ -25,7 +25,6 @@ from ..services import correlation, events_cache, events_derive, events_ingest, 
 from ..services.access import RowScope, camera_allowed, require_camera, row_scope
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from .media import _principal_for_ws
-from .settings import read_settings
 from ..services.settings_store import setting_value
 
 router = APIRouter()
@@ -185,8 +184,7 @@ def _list_window(conn: sqlite3.Connection, wide: bool, ids: RowScope, date: str 
                  zone_id: str | None, source: str | None, severity: str | None, q: str | None, recorder_id: str | None = None) -> dict[str, Any]:
     """The cacheable part of the events list: rows (with camera names), window and filter notes - no thumbnail state,
     no live ingest state (both change without a database write and are added per request)."""
-    s = read_settings(conn)
-    tz_name = s["time.zone"]
+    tz_name = setting_value(conn, "time.zone")
     unsupported: list[dict[str, str]] = []
     applied = {k: v for k, v in {"camera_id": camera_id, "type": type, "site_id": site_id, "building_id": building_id, "floor_id": floor_id, "zone_id": zone_id, "source": source, "severity": severity, "q": q,
                                  "recorder_id": recorder_id}.items() if v}
@@ -413,8 +411,8 @@ def _facets(conn: sqlite3.Connection, wide: bool, ids: RowScope, days: int, floo
 @router.get("/events/summary")
 def summary(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     wide, ids = _scope(conn, principal)
-    s = read_settings(conn)
-    start, end = local_day_bounds(dt.datetime.now(zone(s["time.zone"])).date(), zone(s["time.zone"]))
+    tz_name = setting_value(conn, "time.zone")
+    start, end = local_day_bounds(dt.datetime.now(zone(tz_name)).date(), zone(tz_name))
     rows = [events_ingest.row_to_event(r) for r in conn.execute("SELECT * FROM events WHERE occurred_at >= ? AND occurred_at < ?", (iso_utc(start), iso_utc(end))).fetchall()]
     rows = [r for r in rows if _visible(r, wide, ids)]
     by_type: dict[str, int] = {}
@@ -695,10 +693,10 @@ def camera_events(camera_id: str, principal: Principal = Depends(current_princip
     if not conn.execute("SELECT 1 FROM cameras WHERE id = ?", (camera_id,)).fetchone():
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
     def compute() -> dict[str, Any]:
-        s = read_settings(conn)
-        start, end = local_day_bounds(dt.date.fromisoformat(date), zone(s["time.zone"]))
+        tz_name = setting_value(conn, "time.zone")
+        start, end = local_day_bounds(dt.date.fromisoformat(date), zone(tz_name))
         rows = [events_ingest.row_to_event(r) for r in conn.execute("SELECT * FROM events WHERE camera_id = ? AND occurred_at >= ? AND occurred_at < ? ORDER BY occurred_at", (camera_id, iso_utc(start), iso_utc(end))).fetchall()]
-        return {"camera_id": camera_id, "date": date, "timezone": s["time.zone"], "events": rows}
+        return {"camera_id": camera_id, "date": date, "timezone": tz_name, "events": rows}
 
     # the day's markers are the same for every caller allowed to see this camera (checked above, on every request)
     return _cached(conn, ("events.timeline", camera_id, date), ("events", "structure"), compute)

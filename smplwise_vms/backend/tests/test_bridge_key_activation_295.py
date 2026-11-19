@@ -402,7 +402,9 @@ def test_h02_every_refusal_before_the_mac_is_one_wire_code_and_stale_comes_after
 def test_h03_the_hygiene_not_recovery_text_is_in_the_card_the_cr_and_the_guide():
     root = ROOT
     assert "re-pair" in (root / "docs/changes/CR-WISKEY-HMAC-ROTATION-295.md").read_text(encoding="utf-8")
-    fe = (root / "frontend/src/i18n/bridge-key.ts").read_text(encoding="utf-8")
+    # CR-I18N-LAZY-LANG-2443: Hebrew stays in the module; English / Arabic / Russian are its language pack files
+    packs = [root / "frontend/src/i18n/bridge-key.ts"] + [root / f"frontend/src/i18n/lang/{lang}/i18n/bridge-key.ts" for lang in ("en", "ar", "ru")]
+    fe = "\n".join(p.read_text(encoding="utf-8") for p in packs)
     assert fe.count("hygiene") >= 1 and fe.count("hygieneNote") >= 4
     guides = list((root / "docs/user-guide").rglob("*bridge-key*")) + list((root / "docs/user-guide").rglob("*BRIDGE_KEY*"))
     assert guides and all("re-pair" in g.read_text(encoding="utf-8").lower() or "צימוד מחדש" in g.read_text(encoding="utf-8") for g in guides)

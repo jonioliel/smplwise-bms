@@ -54,6 +54,7 @@ def parse_stop_monitoring(doc: Any, stop_code: int) -> list[Observation]:
     return out
 
 
+# test-only: no product caller; used by tests/test_transit_realtime.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 class MotSiriSource:
     name = "mot_siri"
 

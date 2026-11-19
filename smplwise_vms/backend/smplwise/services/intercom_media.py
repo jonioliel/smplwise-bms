@@ -1302,6 +1302,7 @@ def shutdown_bridge() -> bool:
     return True
 
 
+# test-only: test seam / test double - product code never calls it; the name is read only by tests: tests/test_asgi_wiskey_295.py, tests/test_energy_bill_opening_reading.py (+15 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def set_provider(provider: MediaProvider | None) -> None:
     """Tests: install a provider (None restores the default selection). Clears the descriptor cache."""
     global _override

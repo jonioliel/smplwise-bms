@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping
 
 from . import naming as _naming
-from .channel import CODE_PURPOSES, DEFAULT_LANG, LANGS, LINK_PURPOSES, PURPOSES, TEMPLATE_LINK_PURPOSES, Button, one_line, strip_controls
+from .channel import CODE_PURPOSES, DEFAULT_LANG, LANGS, PURPOSES, TEMPLATE_LINK_PURPOSES, Button, one_line, strip_controls
 
 PLACEHOLDERS = ("name", "number", "department", "title", "place", "device", "priority", "organization", "link", "code",
                 "manager", "eta", "module_name", "module_name_plural",

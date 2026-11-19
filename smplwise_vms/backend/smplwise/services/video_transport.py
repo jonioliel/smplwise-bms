@@ -149,6 +149,7 @@ def policy(installation: Any, personal: Any, channel: str, remote: Mapping[str, 
     }
 
 
+# test-only: no product caller; used by tests/test_video_transport_2400.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def case_table() -> list[dict[str, Any]]:
     """Every installation choice x personal choice x channel x remote.mse_fallback x profile x surface kind, with the policy and
     the plan - the table the frontend's mirror is checked against (contracts/fixtures/video_transport/policy_cases.json)."""

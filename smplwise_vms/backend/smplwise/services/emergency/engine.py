@@ -346,7 +346,6 @@ def derived_recipients(ctx: Ctx) -> dict[str, Any]:
     """Owner q203 "both allowed": who WOULD be told. For every enabled critical-severity notification policy whose recipient rule can be resolved
     here, the number of people it reaches today. A rule that cannot be resolved without an event (e.g. the initiator) is not counted either way.
     The generator's routing starts empty by owner decision: a critical source with nobody to tell is exactly what this makes visible."""
-    import json as _json
 
     from .. import notify
     from .. import notify_policy as npol
@@ -467,7 +466,6 @@ def e17(ctx: Ctx) -> dict[str, Any]:
     recs = ctx.conn.execute("SELECT id, name FROM recorders").fetchall()
     if not recs:
         return _unknown("אין מקליט מוגדר", HREF["health"], "no_recorder")
-    import time
 
     now_ts = ctx.now.timestamp()
     reach: list[bool | None] = []

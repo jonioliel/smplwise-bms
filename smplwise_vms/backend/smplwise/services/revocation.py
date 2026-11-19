@@ -27,20 +27,35 @@ def _lease_hook(user_ids: list[str] | set[str]) -> None:
         pass
 
 
+def _session_hook(user_ids: list[str] | set[str]) -> None:
+    """CR-APP-SESSION-CACHE-2443: the phone app's web sessions keep a 15 s cache of their own re-checks (permission fingerprint, user
+    state, the administrators' caps); a change re-checks them on their next request. Memory only; never raises."""
+    try:
+        from . import app_session
+
+        app_session.on_access_changed(user_ids)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def changed(user_ids: list[str] | set[str]) -> None:
+    user_ids = set(user_ids)
     with _lock:
         for uid in user_ids:
             _generation[uid] = _generation.get(uid, 0) + 1
     _lease_hook(user_ids)
+    _session_hook(user_ids)
 
 
 def mark(user_ids: list[str] | set[str]) -> None:
+    user_ids = set(user_ids)
     now = time.time()
     with _lock:
         for uid in user_ids:
             _marks[uid] = now
             _generation[uid] = _generation.get(uid, 0) + 1
     _lease_hook(user_ids)
+    _session_hook(user_ids)
 
 
 def generation(user_id: str) -> int:
@@ -48,6 +63,7 @@ def generation(user_id: str) -> int:
         return _generation.get(user_id, 0)
 
 
+# test-only: no product caller; used by tests/test_access.py, tests/test_shared_spaces.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def revoked_since(user_id: str, started_at: float) -> bool:
     """True when the user was marked after `started_at` (a socket opened before the revocation)."""
     with _lock:

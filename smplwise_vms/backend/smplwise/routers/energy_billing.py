@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from ..auth import current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
+from ..auth import get_conn, get_read_conn, read_gate, settings_of
 from ..audit import audit
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
@@ -34,6 +34,7 @@ from ..services import energy_tou as tou
 from ..services import safe_paths
 from ..services.energy_billing_provider import get_provider
 from ..services.energy_consumption import meter_window
+from ._common import db_of as _db, is_json as _is_json, raw_body as _raw_body, rid as _rid
 
 router = APIRouter()
 
@@ -235,15 +236,6 @@ class VoidIn(_Body):
 
 # ---------------------------------------------------------------- plumbing
 
-def _is_json(content_type: str | None) -> bool:
-    media = (content_type or "").split(";", 1)[0].strip().lower()
-    return media == "application/json" or (media.startswith("application/") and media.endswith("+json"))
-
-
-async def _raw_body(request: Request) -> bytes:
-    return await request.body()
-
-
 def _parse(request: Request, raw: bytes, model: type[BaseModel]) -> Any:
     if not _is_json(request.headers.get("content-type")):
         raise ApiError(415, "unsupported_media_type", "הבקשה חייבת להישלח כ־JSON (Content-Type: application/json).")
@@ -258,10 +250,6 @@ def _parse(request: Request, raw: bytes, model: type[BaseModel]) -> Any:
     except ValidationError as exc:
         fields = sorted({".".join(str(p) for p in err["loc"]) or "body" for err in exc.errors()})
         raise ApiError(422, "validation", "הבקשה אינה תקינה: " + ", ".join(fields), details={"fields": fields}) from None
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _has(conn: sqlite3.Connection, principal: Principal, perm: str) -> bool:
@@ -284,14 +272,10 @@ _money_read = read_gate(_need_any(MANAGE, BILLS))
 _bills = read_gate(_need_any(BILLS))
 
 
-def _db(request: Request):
-    return request.app.state.db
-
-
 def _tz(conn: sqlite3.Connection) -> str:
-    from .settings import read_settings
+    from ..services.settings_store import setting_value
 
-    return read_settings(conn)["time.zone"]
+    return setting_value(conn, "time.zone")
 
 
 def _today(tz: str) -> dt.date:

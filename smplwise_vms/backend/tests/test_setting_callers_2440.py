@@ -17,7 +17,7 @@ from smplwise.services import events_ingest, settings_store
 BACKEND = Path(__file__).resolve().parents[1] / "smplwise"
 # Files other rows hold (MASTER_PLAN: "except main.py and any file listed by TIMEUTIL, PATH-CONFINE, ADMIN-GATE or TK-*").
 # The closing chain converts them; a name may only leave this list.
-WAITING = {"routers/energy_billing.py": 1, "services/access_grants.py": 1}
+WAITING: dict[str, int] = {}  # emptied by CR-ROUTER-COMMON-TAIL-2442
 # The plain keys the converted call sites read; three of them were read with `.get(key, fallback)` (four sites).
 CONVERTED_KEYS = ("time.zone", "snapshots.max_age_s", "history.ha_secondary", "cases.import_max_mb", "storage.min_free_mb",
                   "remote.max_live_streams", "schedules.enabled", "media.max_live_sessions", "playback.lease_s",

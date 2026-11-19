@@ -24,7 +24,7 @@ import sqlite3
 from typing import Any
 
 from ...db import get_setting, set_setting
-from ..bill_pdf_logo import LogoError, sanitize_image
+from ..bill_pdf_logo import sanitize_image
 from . import model
 from .model import Invalid
 from .sources import FetchRefused, check_feed_url

@@ -31,7 +31,7 @@ import sqlite3
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Iterable
+from typing import Any, Iterable
 
 from ..rbac import Principal
 from . import wiskey_peer as wp
@@ -355,6 +355,7 @@ def admit_request(conn: sqlite3.Connection, body: dict[str, Any], *, now: str | 
         raise FeatureError("duplicate") from None
 
 
+# test-only: no product caller; used by tests/test_eccact_features_295.py, tests/test_t06_work_states_297.py (+4 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def intent_state(conn: sqlite3.Connection, request_id: str) -> str | None:
     r = conn.execute("SELECT state FROM wiskey_feature_intents WHERE request_id=?", (request_id,)).fetchone()
     return r[0] if r else None
@@ -374,6 +375,7 @@ def settle_feature(conn: sqlite3.Connection, request_id: str, state: str, code: 
                          request_id)).rowcount == 1
 
 
+# test-only: no product caller; used by tests/test_eccact_features_295.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 class LiveFeatureTransport:
     """No delivery path exists: the envelope, route and the verified bridge's service identity are a joint pin with the Mac."""
 
@@ -389,6 +391,7 @@ def registry(conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:
                    "host_checked_at": r[5], "host_code": r[6]} for r in rows}
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_eccact_features_295.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def set_feature_enabled(conn: sqlite3.Connection, feature: str, enabled: bool, now: str | None = None) -> None:
     """The switch only. It registers nothing at the host and proves nothing: `status` still reports every blocker."""
     if feature not in REQUIREMENTS:
@@ -397,6 +400,7 @@ def set_feature_enabled(conn: sqlite3.Connection, feature: str, enabled: bool, n
                  (1 if enabled else 0, now or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), feature))
 
 
+# test-only: no product caller; used by tests/test_eccact_features_295.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def record_host_registration(conn: sqlite3.Connection, feature: str, *, peer: wp.VerifiedPeerRef, verified: bool, code: str, now: str | None = None) -> None:
     """Record what a VERIFIED answer of the WisKey host said about the registration of this feature's adapter (never from a flag)."""
     if feature not in REQUIREMENTS:

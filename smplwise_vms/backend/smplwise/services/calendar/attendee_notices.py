@@ -209,6 +209,7 @@ class WhatsAppChannel:
 CHANNELS: dict[str, GuestChannel] = {"whatsapp": WhatsAppChannel(), "sms": SoonChannel("sms", "phone"), "email": SoonChannel("email", "email")}
 
 
+# test-only: no product caller; used by tests/test_calendar_attendees_2343.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def register_channel(channel: GuestChannel) -> None:
     """THE PLUG POINT: e-mail (or SMS) registers its sender here under its key; it is then chosen in the installation's order."""
     if channel.key not in att.GUEST_CHANNELS or channel.address not in ("phone", "email"):

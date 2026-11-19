@@ -43,6 +43,7 @@ from ..services import bridge_key_notice as bkn
 from ..services import bridge_key_revocation as bkr
 from ..services import bridge_rotation as br
 from ..services import second_factor as sf
+from ._common import rid as _rid
 
 router = APIRouter()
 CONFIGURE = "system.configure"
@@ -72,10 +73,6 @@ MESSAGES = {
     "step_up_unavailable": "כדי להציג את הקוד צריך אימות מחדש בקוד מאפליקציית האימות שלך, ולחשבון שלך עוד לא הוגדר אימות דו־שלבי. הפעל אותו בחשבון שלך ונסה שוב.",
     "step_up_required": "הזן את הקוד הנוכחי מאפליקציית האימות שלך.",
 }
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _gate(conn: sqlite3.Connection, request: Request, principal: Principal, action: str, permission: str = CONFIGURE) -> None:

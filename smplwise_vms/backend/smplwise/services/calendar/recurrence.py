@@ -10,7 +10,7 @@ from __future__ import annotations
 import calendar as _cal
 import datetime as dt
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Iterable
 from zoneinfo import ZoneInfo
 

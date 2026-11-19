@@ -28,7 +28,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping
 
-from ...audit import audit
 from ...errors import ApiError
 from . import rfq, rfq_files, store_rfq
 from .access import Viewer, text

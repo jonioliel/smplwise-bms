@@ -31,6 +31,7 @@ def fingerprint(key_blob: bytes) -> str:
     return "SHA256:" + base64.b64encode(hashlib.sha256(key_blob).digest()).decode().rstrip("=")
 
 
+# test-only: no product caller; used by tests/test_offbox_sftp.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def host_key_line(key: Any) -> str:
     return f"{key.get_name()} {key.get_base64()}"
 

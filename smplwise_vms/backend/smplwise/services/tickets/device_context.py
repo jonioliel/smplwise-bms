@@ -159,6 +159,7 @@ def share_history_default(department: dict[str, Any] | None, contact_default: in
     return bool((department or {}).get("share_history_external"))
 
 
+# test-only: no product caller; used by tests/test_tickets_device.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def resolve_share_history(entity_id: str | None, snapshot: dict[str, Any] | None, requested: bool | None, department: dict[str, Any] | None,
                           contact_default: int | None = None) -> bool:
     """The value an assignment stores (slices 4 / 7 call this): the manager's per-ticket choice, else the D23 default - and always False

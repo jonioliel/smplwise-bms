@@ -669,6 +669,7 @@ def recover_orphans(db: Any) -> int:
     return len(dead)
 
 
+# test-only: test seam / test double - product code never calls it; the name is read only by tests: tests/test_infra_temperature_report.py, tests/test_notify_email.py (+2 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def reset_state() -> None:
     """Forget every in-memory limiter, held condition and failure streak, and stop the worker (tests; a restart does it implicitly)."""
     global _WORKER

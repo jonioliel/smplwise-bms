@@ -28,16 +28,13 @@ from ..rbac import Principal, require_system_admin
 from ..services import confirm_words
 from ..services import intercom_writes as iw
 from ..services import wiskey_direct_join as wkj
+from ._common import rid as _rid
 
 router = APIRouter()
 BASE = "/access-control/wiskey-lineage"
 _OP = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 REINIT_WORD = confirm_words.he("lineage_reinit")  # "אתחול" (or its English counterpart, services/confirm_words.py)
 _CODE = re.compile(r"^[a-z0-9_:-]{1,64}$")
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _gate(conn: sqlite3.Connection, request: Request, principal: Principal, *, action: str, interactive: bool) -> None:

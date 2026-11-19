@@ -287,6 +287,7 @@ def _command_list(raw: Any) -> frozenset[str] | None:
     return frozenset(raw)
 
 
+# test-only: no product caller; used by tests/test_wk4adopt_295.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def announced_commands(direct_capabilities: Any = None, overview_api: Any = None) -> tuple[frozenset[str] | None, str]:
     """(the command names, their source) by Mac's preference: the CURRENT authenticated direct connection's `capabilities.commands`
     (`direct/connect` / `direct/capabilities`), else the authorized `overview.api.commands`. A per-command `api_contract: null` is the
@@ -310,6 +311,7 @@ class Provenance:
     code: str | None
     not_sent_proven: bool
 
+    # test-only: no product caller; the name is read only by tests: tests/test_adoptr6_295.py, tests/test_wk4adopt_295.py (+4 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     @property
     def replay_permitted(self) -> bool:
         return False

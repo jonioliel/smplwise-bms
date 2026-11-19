@@ -387,7 +387,11 @@ def test_a_code_needs_the_typed_confirmation_and_valid_digits(wx):
     for bad in ("12", "12345678901234567", "12a4", "١٢٣٤"):
         r = post(c, "entry-a/codes/2", **code_body(new_code=bad))
         assert r.status_code == 422 and r.json()["details"]["fields"] == ["new_code"], bad
-        assert bad not in r.text
+        # the refused code is echoed in no field. The correlation id is the one random value of the answer (12 hex digits, so "12" can
+        # occur in it by chance - the flake of CR-BE-DEAD-CODE-B-2442): it is checked to be the server's id, every other field is searched
+        doc = r.json()
+        assert doc.pop("correlation_id") == r.headers["x-correlation-id"] != bad
+        assert bad not in json.dumps(doc, ensure_ascii=False), doc
     assert not sent(fake, "stations/technical_codes_write") and bad not in all_audit_text(s)
 
 

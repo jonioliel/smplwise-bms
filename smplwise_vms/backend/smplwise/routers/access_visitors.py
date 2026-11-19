@@ -24,17 +24,10 @@ from ..auth import current_principal_ro, get_read_conn
 from ..errors import ApiError
 from ..rbac import Principal, require_system_admin
 from ..services import access_visitors as av
+from ._common import db_of as _db, rid as _rid
 
 router = APIRouter()
 _ID = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
-def _db(request: Request):
-    return request.app.state.db
 
 
 class InviteIn(BaseModel):

@@ -86,6 +86,7 @@ def parse_token(raw: object) -> str | None:
     return raw if _TOKEN_RE.fullmatch(raw) else None
 
 
+# test-only: no product caller; used by tests/test_tickets_links.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def verify_token(key: bytes, link_id: str, generation: int, presented: object) -> bool:
     """Constant-time check that `presented` is the current token of (link_id, generation). The public listener does not need it
     (it looks up by hash); it serves the manager-side paths that hold a link row and a presented value."""

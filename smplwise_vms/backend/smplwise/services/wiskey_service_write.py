@@ -706,6 +706,7 @@ class ServiceWriteClient:
         except sqlite3.Error:
             raise ServiceWriteError("journal_unavailable", "not_sent") from None
 
+    # test-only: no product caller; used by tests/test_wiskey_mac_adopt_298_review.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def settle_unknown(self, limit: int = 16) -> list[ServiceWriteOutcome]:
         """One status read per UNKNOWN row (oldest first, at most `limit`): the caller's way to settle what a lost receipt left open."""
         return [self.status(oid) for oid in self.unsettled(limit)]
@@ -728,6 +729,7 @@ class FinalServiceWriter:
         self._selected, self.client, self._grant, self.actor_id, self._new_id = selected, client, grant, actor_id, new_id
         self.contract = contract
 
+    # test-only: no product caller; used by tests/test_wiskey_adopt_2272_install.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     @classmethod
     def from_installation(cls, join: Any, *, grant: Callable[[], GrantRef | None], actor_id: str,
                           client: ServiceWriteClient | None = None) -> "FinalServiceWriter":

@@ -20,7 +20,7 @@ import logging
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable, Mapping
+from typing import Any, Callable, Mapping
 
 from ..db import commit_now, rollback_now
 
@@ -246,6 +246,7 @@ class PullResult:
     all_delivered: bool
 
 
+# test-only: no product caller; used by tests/test_wiskey_adopt_2272_features.py, tests/test_wiskey_adopt_2272_review.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 class EventCursor:
     """The consumer: one durable cursor + the recent event ids, in Arx's settings / a small table. `pull` hands each NEW event to
     `handler` (in order), remembers each id once its handler returned, and stores the cursor only after all of them returned; a handler
@@ -340,6 +341,7 @@ class EventCursor:
         commit_now(self.conn, keep_reading=False)
         return PullResult("page", None, len(fresh), dup, page.has_more, page.all_delivered)
 
+    # test-only: test seam / test double - product code never calls it; used by tests/test_wiskey_adopt_2272_features.py, tests/test_wiskey_adopt_2272_review.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def acknowledge_reset(self) -> dict[str, Any] | None:
         """The explicit discontinuity acknowledgement: move to WisKey's `reset_cursor` (its current high mark). It is NOT a proof that the
         missing history was delivered; the reason stays in the returned record for the caller's audit."""
@@ -358,6 +360,7 @@ class EventCursor:
 NATIVE_INSTALLATION_KEYS = frozenset({"schema_version", "contract", "authority_mode", "grant_ref", "source", "expires_at"})
 
 
+# test-only: no product caller; used by tests/test_wiskey_adopt_2272_features.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def read_capabilities_v2(raw: Any, connection_ref: str, *, manifest_grant: Mapping[str, Any] | None = None) -> Any:
     """The schema-2 document of `direct/capabilities_v2`: the v1 core (read by the UNCHANGED v1 reader on a copy whose version-2 markers
     are taken out), `lifecycle.event_cursor_resume` true and the closed `native_installation` block. With `manifest_grant`, the block's

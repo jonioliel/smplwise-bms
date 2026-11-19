@@ -13,7 +13,7 @@ import logging
 import os
 import threading
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from ...config import Settings
 from ...db import Database, get_setting, set_setting

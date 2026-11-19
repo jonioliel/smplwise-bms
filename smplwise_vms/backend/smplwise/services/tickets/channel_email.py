@@ -70,6 +70,7 @@ class EmailChannel:
     def status(self, account: Any = None) -> ChannelStatus:
         return ChannelStatus("connected" if self._config() is not None else "not_configured")
 
+    # test-only: no product caller; the name is read only by tests: tests/test_tickets_msg_templates.py, tests/test_tickets_msg_whatsapp.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def can_reach(self, recipient: Recipient, account: Any = None) -> str:
         if recipient.opted_out:
             return REACH_OPTED_OUT
@@ -78,6 +79,7 @@ class EmailChannel:
     def supports_buttons(self) -> bool:
         return False
 
+    # test-only: no product caller; the name is read only by tests: tests/test_tickets_msg_templates.py, tests/test_tickets_msg_whatsapp.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def parse_inbound(self, event: dict[str, Any]) -> InboundMessage | None:
         return None  # e-mail replies are not read (release 1)
 

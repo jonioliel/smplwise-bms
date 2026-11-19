@@ -20,7 +20,7 @@ import secrets
 import sqlite3
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Path, Query, Request
+from fastapi import APIRouter, Depends, Path, Request
 from pydantic import BaseModel, Field
 
 from ..audit import audit
@@ -555,10 +555,6 @@ def put_door_flags(body: FlagsBody, request: Request, station_id: str = Path(min
 
 
 # ================================================================ emergency
-
-def _any(conn: sqlite3.Connection, principal: Principal, permission: str) -> bool:
-    return permission in permissions_anywhere(conn, principal)
-
 
 @router.get("/doors/emergency/state")
 def emergency_state(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:

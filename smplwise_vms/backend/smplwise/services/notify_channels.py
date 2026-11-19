@@ -216,6 +216,7 @@ def process_outbox(notifier: "push.PushNotifier", limit: int = 100) -> int:
     return len(rows)
 
 
+# test-only: no product caller; used by tests/notify_src_world.py, tests/notify_world.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def process_outbox_now(db: Any) -> int:
     """Run the outbox on the calling thread (tests, and a caller that wants its deliveries synchronously). Uses a throw-away
     notifier, so its retries are NOT scheduled; use the real notifier's heap when retries matter."""

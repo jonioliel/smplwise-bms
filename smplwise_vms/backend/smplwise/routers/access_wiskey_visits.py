@@ -19,7 +19,7 @@ import sqlite3
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Path, Query, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn, settings_of
@@ -30,6 +30,7 @@ from ..services import access_visitors as av
 from ..services import intercom_authority as ia
 from ..services import intercom_sync
 from ..services import wiskey_visits as wv
+from ._common import rid as _rid
 
 router = APIRouter()
 API = "/access/wiskey-visits"
@@ -44,10 +45,6 @@ class PushIn(BaseModel):
 class SettingsIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     push: Literal["on", "off"]
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _api(request: Request) -> dict[str, Any] | None:

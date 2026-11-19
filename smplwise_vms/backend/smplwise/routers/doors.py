@@ -481,10 +481,6 @@ def door_path_conversion_act(body: DoorConversionBody, request: Request, princip
                                dev_mode=bool(settings_of(request).dev_user), auto_writer=auto_w, sched_writer=sched_w, rid=_rid(request))
 
 
-class ConfirmBody(BaseModel):
-    confirmed: Any = None
-
-
 @router.post("/intercom/door-path-conversion/records/{record_id}/undo")
 def door_path_conversion_undo(body: ConfirmBody, request: Request, record_id: str = Path(min_length=4, max_length=64), principal: Principal = Depends(current_principal),
                               conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:

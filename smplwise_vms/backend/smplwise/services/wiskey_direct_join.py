@@ -577,7 +577,7 @@ class DirectJoin:
         return self.template_transport if self.selected(V2_COMMAND) else None
 
     # -- ADOPTR6-295 (W-010): the ONE selection point of the two WK4ADOPT live peer reads (no scheduler, no switch of their own) ----------
-    # Built ahead, no product caller yet (owner decision Q-CODE-2 / O15 a, 2026-11-14): kept for W-010, the peer binding allocation
+    # built ahead for W-010 (no product caller yet; owner decision Q-CODE-2 / O15 a, 2026-11-14), the peer binding allocation
     # (docs/changes/ADOPTR6-295-ADOPTION-RECEIPT.md: owner / WisKey; today only the tests call it).
     def registry_or_none(self) -> Any:
         """The dedicated `peer_bindings/get` transport, only while this connection selects that command now; else None (nothing sent)."""
@@ -585,7 +585,7 @@ class DirectJoin:
 
         return self.registry_transport if self.selected(LiveRegistryTransport.COMMAND) else None
 
-    # Built ahead, no product caller yet (owner decision Q-CODE-2 / O15 a, 2026-11-14): kept for W-010, the recovery caller of an UNKNOWN
+    # built ahead for W-010 (no product caller yet; owner decision Q-CODE-2 / O15 a, 2026-11-14), the recovery caller of an UNKNOWN
     # intent (docs/changes/ADOPTR6-295-ADOPTION-RECEIPT.md, not built yet).
     def resolve_or_none(self) -> Any:
         """The dedicated `peer_receipts/resolve` transport, only while this connection selects that command now; else None (nothing sent).
