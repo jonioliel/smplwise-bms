@@ -74,8 +74,25 @@ def _path_regex(path: str) -> re.Pattern[str]:
     return re.compile(rx + r"(?=[\"'?])")
 
 
+_CONST = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*f?[\"']((?:/|\{)[^\"']*)[\"']", re.M)
+
+
+def _expanded(text: str) -> str:
+    """The file's text with its module-level path constants (`API = "/api/v1/energy"`) written into the f-strings that use them
+    (`f"{API}/tariffs"`), a few rounds for constants built from constants."""
+    consts = dict(_CONST.findall(text))
+    for _ in range(3):
+        for name, value in consts.items():
+            text = text.replace("{" + name + "}", value)
+        consts = {k: v for k, v in consts.items() if "{" in v}
+        if not consts:
+            break
+        consts = dict(_CONST.findall(text))
+    return text
+
+
 def named_in_tests(routes: list[dict]) -> dict[str, list[str]]:
-    texts = {p.name: p.read_text(encoding="utf-8", errors="replace") for p in (BACKEND / "tests").glob("test_*.py")}
+    texts = {p.name: _expanded(p.read_text(encoding="utf-8", errors="replace")) for p in (BACKEND / "tests").glob("test_*.py")}
     out: dict[str, list[str]] = {}
     for r in routes:
         rx = _path_regex(r["path"])
