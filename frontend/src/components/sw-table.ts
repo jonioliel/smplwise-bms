@@ -35,7 +35,13 @@ export interface TableColumn<Row = Record<string, unknown>> {
   /** CR-CMP2-TABLES-2450: per-cell hooks (`data-*` / `aria-*` / `title`), as `rowAttrs` does for the row - a spec that reads
    * `td[data-reads-place]` keeps finding the cell */
   cellAttrs?: (row: Row) => RowAttrs;
+  /** CR-CMP2-TABLES-CONSUMPTION-2450: the column's cell in the table's foot row (a total under the rows: `<tfoot>`, bold, a strong rule
+   * above it). The foot row is drawn as soon as one column sets `foot`; a column without it leaves its foot cell empty. */
+  foot?: () => TemplateResult | string | typeof nothing;
 }
+
+/** CR-CMP2-TABLES-CONSUMPTION-2450: a table has a foot row when one of its columns names a foot cell. */
+const hasFootRow = <R>(cols: readonly TableColumn<R>[]): boolean => cols.some((c) => !!c.foot);
 
 /** The phone row template is on for a table as soon as one of its columns names its place in it. */
 export const usesCardTemplate = <R>(cols: readonly TableColumn<R>[]): boolean => cols.some((c) => !!c.card);
@@ -435,6 +441,53 @@ export class SwTable extends LitElement {
     .a-center {
       text-align: center;
     }
+    /* ---- CR-CMP2-TABLES-CONSUMPTION-2450: what the module tables (electricity, water) need on top ----
+       links in a cell: a.t1 names the row (it opens the row's page), a.lnk is a link in the accent ink; no underline until hovered; the
+       hit area is --sw-table-link-h (a module's touch dial; none by default) */
+    a.t1,
+    a.lnk {
+      display: inline-flex;
+      align-items: center;
+      min-block-size: var(--sw-table-link-h, auto);
+      min-inline-size: var(--sw-table-link-h, auto);
+      text-decoration: none;
+      border-radius: var(--sw-r-sm);
+    }
+    a.lnk {
+      color: var(--sw-accent-text);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      a.t1:hover,
+      a.lnk:hover {
+        text-decoration: underline;
+      }
+    }
+    a.t1:focus-visible,
+    a.lnk:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: 2px;
+    }
+    /* a truncated cell of two lines (t1 over t2): each line takes its own ellipsis */
+    td.k-truncate .trunc > .t1,
+    td.k-truncate .trunc > .t2 {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    /* the foot row (TableColumn.foot): a total under the rows */
+    tfoot td {
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
+      border-block-start: 1px solid var(--sw-border-strong);
+      border-block-end: 0;
+    }
+    @media (max-width: 767px) {
+      tfoot {
+        display: block;
+      }
+      tfoot td:empty {
+        display: none;
+      }
+    }
     /* the phone card stack reads top to bottom: every cell starts at the reading start again */
     @media (max-width: 767px) {
       td.k-num,
@@ -501,6 +554,15 @@ export class SwTable extends LitElement {
     return html`<td class=${this.cellClass(c)} part=${cellPartOf(c)} data-label=${c.label} title=${title || nothing} ${rowHooks(c.cellAttrs ? c.cellAttrs(row) : null)}>${body}</td>`;
   }
 
+  /** CR-CMP2-TABLES-CONSUMPTION-2450: one cell of the foot row - the column's classes (a total sits under its figures), a `num` value its
+   * own LTR isolate; empty when the column names no foot cell (left out of the phone stack) */
+  private footCell(c: TableColumn) {
+    const v = c.foot ? c.foot() : nothing;
+    const kinds = c.kind === undefined ? [] : typeof c.kind === 'string' ? [c.kind] : c.kind;
+    const body = v === nothing || v === '' ? nothing : kinds.includes('num') ? html`<span class="num">${v}</span>` : v;
+    return html`<td class=${this.cellClass(c)} part="foot-cell" data-label=${body === nothing ? '' : c.label}>${body}</td>`;
+  }
+
   /** the phone meta line: every `meta` column of the row in column order, " · " between them (an empty value is left out); each part
    * is its own bidi isolate, so "10 fps" stays "10 fps" in the RTL line */
   private metaCell(row: Record<string, unknown>) {
@@ -533,6 +595,7 @@ export class SwTable extends LitElement {
             </tr>`,
           )}
         </tbody>
+        ${hasFootRow(this.columns) ? html`<tfoot><tr part="foot-row">${this.columns.map((c) => this.footCell(c))}</tr></tfoot>` : nothing}
       </table>
     `;
   }
