@@ -123,3 +123,44 @@ test.describe('sw-table: the contract in the source', () => {
     expect(src).toContain('rows[to].focus();');
   });
 });
+
+// CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): the electricity and water tables moved to sw-table, one screen at a time. What they needed on
+// top (a foot row for totals, links in a cell, a two-line truncated cell) and the guard that no hand-built data table comes back there.
+test.describe('sw-table: the module tables (electricity, water)', () => {
+  const src = read('components/sw-table.ts');
+  const styles = src.slice(src.indexOf('static styles'), src.indexOf('private pick('));
+
+  test('a foot row: drawn when a column names a foot cell, bold under a strong rule, an empty foot cell is left out of the phone stack', () => {
+    expect(src).toContain('foot?: () => TemplateResult | string | typeof nothing;');
+    expect(src).toContain('const hasFootRow = <R>(cols: readonly TableColumn<R>[]): boolean => cols.some((c) => !!c.foot);');
+    expect(src).toContain('${hasFootRow(this.columns) ? html`<tfoot><tr part="foot-row">${this.columns.map((c) => this.footCell(c))}</tr></tfoot>` : nothing}');
+    expect(styles).toMatch(/tfoot td \{\s*font-weight: var\(--sw-fw-bold\);[^}]*border-block-start: 1px solid var\(--sw-border-strong\);/);
+    expect(styles).toMatch(/tfoot td:empty \{\s*display: none;/);
+  });
+
+  test('links in a cell: a.t1 names the row, a.lnk in the accent ink; no underline until hovered; the hit area is a knob', () => {
+    expect(styles).toMatch(/a\.t1,\s*a\.lnk \{\s*display: inline-flex;\s*align-items: center;\s*min-block-size: var\(--sw-table-link-h, auto\);/);
+    expect(styles).toMatch(/a\.t1:focus-visible,\s*a\.lnk:focus-visible \{\s*outline: var\(--sw-focus-w\) solid var\(--sw-focus\);/);
+    expect(styles).toMatch(/td\.k-truncate \.trunc > \.t1,\s*td\.k-truncate \.trunc > \.t2 \{\s*overflow: hidden;\s*text-overflow: ellipsis;/);
+    const added = styles.slice(styles.indexOf('CR-CMP2-TABLES-CONSUMPTION-2450'));
+    expect(added).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i);
+  });
+
+  test('no hand-built data table is left in the moved electricity / water screens (print paths, the chart table and the tou editor stay)', () => {
+    const moved = [
+      'screens/electricity/page-meters.ts', 'electricity/elec-account-list.ts', 'electricity/elec-account-page.ts', 'electricity/elec-bills-table.ts',
+      'electricity/elec-bill-page.ts', 'electricity/elec-formula-editor.ts', 'electricity/elec-wizard.ts', 'electricity/elec-settings.ts',
+      'electricity/elec-settings-calendar.ts', 'electricity/permission-rows.ts', 'screens/water/page-meters.ts', 'screens/water/page-accounts.ts',
+      'screens/water/page-alerts.ts', 'screens/water/page-usage.ts', 'screens/water/page-customers.ts', 'screens/water/page-settings.ts',
+    ];
+    for (const f of moved) {
+      const s = read(f);
+      expect(s, f).not.toMatch(/<table\b/);
+      expect(s, f).toContain('<sw-table ');
+    }
+    // the module skin: never wider than its card, the module's header band / reading size / row height, links on the module's hit area
+    const elec = read('electricity/styles.ts');
+    expect(elec).toMatch(/sw-table\.t \{\s*--sw-table-min: 0;\s*--sw-table-head-bg: var\(--sw-surface-2\);\s*--sw-table-cell-pad: 12px;\s*--sw-table-fs: var\(--sw-fs-md\);\s*--sw-table-link-h: var\(--elec-touch\);/);
+    expect(read('water/styles.ts')).toMatch(/sw-table\.t \{\s*--sw-table-cell-pad: 9px 12px;/);
+  });
+});
