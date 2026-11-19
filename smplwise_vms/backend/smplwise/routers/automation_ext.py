@@ -27,6 +27,7 @@ from ..auth import current_principal, get_conn, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import automation_ext as ext
+from ..services import automation_ext_store
 from ..services import automation_scope as scope
 from ..services import automation_transport as tr
 from ..services import automation_view as view
@@ -144,7 +145,7 @@ def _list_triggers(device_id: str) -> list[Any] | None:
 
 
 def _device_or_404(ctx: scope.Ctx, device_id: str) -> None:
-    row = ctx.conn.execute("SELECT 1 FROM ha_devices WHERE device_id = ? AND removed_at IS NULL", (device_id,)).fetchone()
+    row = automation_ext_store.live_device_row(ctx.conn, device_id)
     if row is None or not ext.device_reachable(ctx, device_id):
         raise ApiError(404, "device_not_found", "המפסק לא נמצא.")
 
