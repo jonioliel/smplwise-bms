@@ -16,6 +16,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, all_roles, require
 from ..remote_channel import is_remote
+from ..services import tickets_admin_settings_store
 from ..services.tickets import access, naming, settings_doc, sla, store
 from ..services.tickets.access import text
 from ._common import rid as _rid
@@ -43,7 +44,7 @@ def get_notify_matrix(principal: Principal = Depends(current_principal_ro), conn
     from ..services.tickets import notify_matrix
 
     by_dept = notify_matrix.pending_by_department(conn)
-    custom = {r["id"]: r["name_he"] for r in conn.execute("SELECT id, name_he FROM custom_roles WHERE deleted_at IS NULL").fetchall()}
+    custom = {r["id"]: r["name_he"] for r in tickets_admin_settings_store.live_custom_role_names(conn)}
     return {"sources": [{"key": k, "label": notify_matrix.LABELS.get(k, k), "digest": k in notify_matrix.DIGESTABLE,
                          "assignee": k in notify_matrix.ASSIGNEE_SOURCES, "sla": k in notify_matrix.SLA_SOURCES} for k in notify_matrix.MATRIX_SOURCES],
             # 2.9.1: each department's priorities (the SLA policies are department x priority) and its held events
@@ -51,7 +52,7 @@ def get_notify_matrix(principal: Principal = Depends(current_principal_ro), conn
                              "priorities": [{"id": p["id"], "key": p["key"], "name": p["name"]} for p in store.priorities(conn, d["id"]) if p["active"]]}
                             for d in store.departments(conn)],
             "users": [{"id": r["id"], "name": r["display_name"] or r["username"]}
-                      for r in conn.execute("SELECT id, username, display_name FROM users WHERE active = 1 ORDER BY display_name, username").fetchall()],
+                      for r in tickets_admin_settings_store.active_users(conn)],
             "roles": [{"id": rid, "name": ROLE_NAMES_HE.get(rid) or custom.get(rid) or rid} for rid in all_roles(conn)],
             # the channel groups this installation can deliver (push = web push / the phone app); in-app is always on
             "channels": [g for g, names in notify_matrix.CHANNEL_GROUPS.items() if any(n in notify_channels.CHANNELS for n in names)],
