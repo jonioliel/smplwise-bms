@@ -1338,31 +1338,66 @@ def validate_draft(kind: str, draft: Mapping[str, Any], *, notify_targets: Itera
                    presence_sensors: Iterable[str] | None = None) -> list[dict[str, str]]:
     """Validation of a draft with the caps of section 2.2 (the issues carry the dotted block path of `walk_draft`). A typed block that still equals its
     stored `raw` is not re-judged by the argument and notify rules (an old step stays saveable). Pure: permissions, scope and Home Assistant's own
-    validation are the caller's."""
+    validation are the caller's.
+
+    CR-BE-COMPLEXITY-B-2450: one helper per block family (scene, header and caps, trigger ids, trigger, condition, action, script
+    fields), called in the order the checks always ran, so the issues come out in the same order
+    (tests/test_automation_validate_draft_char_2450.py)."""
     out: list[dict[str, str]] = []
     allowed = list(allowed_actions) if allowed_actions is not None else None
     tagged = list(presence_sensors) if presence_sensors is not None else []
     vctx = ModelContext(shabbat_sensor=shabbat_sensor, allowed_actions=allowed, presence_entity=presence_entity, wall_buttons=wall_buttons, presence_sensors=tuple(tagged))
     notify = list(notify_targets) if notify_targets is not None else None
     if kind == "scene":
-        d = draft
-        if not d["name"].strip():
-            out.append(_issue("name", "alias_required", "תנו שם"))
-        elif len(d["name"]) > pol.CAPS["alias_max"]:
-            out.append(_issue("name", "alias_too_long", f"שם ארוך מדי (עד {pol.CAPS['alias_max']} תווים)"))
-        if not d["members"]:
-            out.append(_issue("members", "members_required", "הוסיפו מכשיר"))
-        if len(d["members"]) > pol.CAPS["members_max"]:
-            out.append(_issue("members", "too_many_members", f"עד {pol.CAPS['members_max']} מכשירים בסצנה"))
-        for i, m in enumerate(d["members"]):
-            dom = m["entity_id"].split(".")[0]
-            if dom == "alarm_control_panel" or dom not in SCENE_CAPTURE_DOMAINS:
-                out.append(_issue(f"members.{i}", "domain_not_allowed", "סוג המכשיר אינו נתמך בסצנה"))
-            if not m["state"]:
-                out.append(_issue(f"members.{i}", "state_required", "בחרו מצב"))
-            if secret_kind(m["attributes"]):
-                out.append(_issue(f"members.{i}", "code_not_allowed", "אסור לשמור קוד סודי"))
+        _check_scene(draft, out)
         return out
+    walked = _check_header(kind, draft, out)
+    trigger_ids = _check_trigger_ids(kind, draft, out)
+    for w in walked:
+        b = w.block
+        if b.get("kind") == "locked":
+            continue
+        fresh = block_changed(b, w.section, vctx)
+
+        def need(cond: bool, code: str, msg: str, _p: str = w.path) -> None:
+            if cond:
+                out.append(_issue(_p, code, msg))
+
+        if w.section == "trigger":
+            _check_trigger_block(b, fresh, need, tagged, wall_buttons)
+        elif w.section == "condition":
+            _check_condition_block(b, fresh, need, tagged, shabbat_sensor, presence_entity, trigger_ids)
+        else:
+            _check_action_block(b, fresh, need, allowed, notify)
+    if kind == "script":
+        _check_script_fields(draft, out)
+    return out
+
+
+def _check_scene(draft: Mapping[str, Any], out: list[dict[str, str]]) -> None:
+    """A scene: its name, its members (count, domain, state, no secret)."""
+    d = draft
+    if not d["name"].strip():
+        out.append(_issue("name", "alias_required", "תנו שם"))
+    elif len(d["name"]) > pol.CAPS["alias_max"]:
+        out.append(_issue("name", "alias_too_long", f"שם ארוך מדי (עד {pol.CAPS['alias_max']} תווים)"))
+    if not d["members"]:
+        out.append(_issue("members", "members_required", "הוסיפו מכשיר"))
+    if len(d["members"]) > pol.CAPS["members_max"]:
+        out.append(_issue("members", "too_many_members", f"עד {pol.CAPS['members_max']} מכשירים בסצנה"))
+    for i, m in enumerate(d["members"]):
+        dom = m["entity_id"].split(".")[0]
+        if dom == "alarm_control_panel" or dom not in SCENE_CAPTURE_DOMAINS:
+            out.append(_issue(f"members.{i}", "domain_not_allowed", "סוג המכשיר אינו נתמך בסצנה"))
+        if not m["state"]:
+            out.append(_issue(f"members.{i}", "state_required", "בחרו מצב"))
+        if secret_kind(m["attributes"]):
+            out.append(_issue(f"members.{i}", "code_not_allowed", "אסור לשמור קוד סודי"))
+
+
+def _check_header(kind: str, draft: Mapping[str, Any], out: list[dict[str, str]]) -> list[Walked]:
+    """An automation / script: the name, the description and the caps of section 2.2 (triggers, conditions, fields, steps, depth,
+    targets). Returns the walked blocks."""
     d = draft
     alias = d["alias"]
     if not alias.strip():
@@ -1392,13 +1427,18 @@ def validate_draft(kind: str, draft: Mapping[str, Any], *, notify_targets: Itera
         out.append(_issue(deep.path, "too_deep", f"עד {pol.CAPS['depth_max']} רמות של שילוב"))
     if len(set(draft_targets(draft))) > pol.CAPS["targets_max"]:
         out.append(_issue(step_path, "too_many_targets", f"עד {pol.CAPS['targets_max']} מכשירים"))
+    return walked
 
-    def trigger_id(t: Block) -> str | None:
-        if t.get("kind") == "typed":
-            return t.get("id")
-        raw = t.get("raw")
-        return raw["id"] if isinstance(raw, dict) and isinstance(raw.get("id"), str) else None
 
+def trigger_id(t: Block) -> str | None:
+    if t.get("kind") == "typed":
+        return t.get("id")
+    raw = t.get("raw")
+    return raw["id"] if isinstance(raw, dict) and isinstance(raw.get("id"), str) else None
+
+
+def _check_trigger_ids(kind: str, d: Mapping[str, Any], out: list[dict[str, str]]) -> set[str]:
+    """An automation's trigger ids: a duplicate is an issue. Returns the ids (what a `trigger` condition may name)."""
     trigger_ids: set[str] = set()
     if kind == "automation":
         seen: set[str] = set()
@@ -1409,107 +1449,110 @@ def validate_draft(kind: str, draft: Mapping[str, Any], *, notify_targets: Itera
                     out.append(_issue(f"triggers.{i}", "duplicate_trigger_id", "מזהה הטריגר כבר בשימוש"))
                 seen.add(tid)
         trigger_ids = seen
-    for w in walked:
-        b = w.block
-        if b.get("kind") == "locked":
-            continue
-        fresh = block_changed(b, w.section, vctx)
+    return trigger_ids
 
-        def need(cond: bool, code: str, msg: str, _p: str = w.path) -> None:
-            if cond:
-                out.append(_issue(_p, code, msg))
 
-        if w.section == "trigger":
-            need(b["type"] in ("state", "numeric_state") and not b["entity_ids"], "entity_required", "בחרו מכשיר")
-            if b["type"] == bpb.TRIGGER_TYPE and fresh:  # BUILDING-PRESENCE-2271
-                for code, msg in bpb.validate(b, "trigger", tagged, bool(tagged)):
-                    need(True, code, msg)
-            if b["type"] == "numeric_state":
-                need(b.get("above") is None and b.get("below") is None, "value_required", "הגדירו ערך")
-            if b["type"] == "time":
-                need(not pol.TIME_RE.match(b["at"]), "time_required", "בחרו שעה")
-            if b["type"] == "time_pattern":
-                need(all(b.get(k) is None for k in ("hours", "minutes", "seconds")), "pattern_required", "הגדירו מחזור")
-            if b["type"] == "button":  # KAV079-295
-                need(not wall_buttons and fresh, "wall_buttons_off", "עריכת כפתורי קיר כבויה בהגדרות")
-                need(not isinstance(b.get("device_id"), str) or not b.get("device_id"), "device_required", "בחרו מפסק")
-                need(b.get("press") not in wb.PRESSES or not wb.type_for(str(b.get("ha_type") or ""), str(b.get("press") or "")), "press_invalid", "סוג הלחיצה אינו נתמך במפסק")
-                need(not isinstance(b.get("button"), int) or not wb.subtype_for(str(b.get("ha_subtype") or ""), int(b.get("button") or 0)), "button_invalid", "בחרו כפתור")
-        elif w.section == "condition":
-            t = b["type"]
-            if t in ("state", "numeric_state"):
-                need(not b["entity_ids"], "entity_required", "בחרו מכשיר")
-            if t == bpb.CONDITION_TYPE and fresh:  # BUILDING-PRESENCE-2271
-                for code, msg in bpb.validate(b, "condition", tagged, bool(tagged)):
-                    need(True, code, msg)
-            if t == "numeric_state":
-                need(b.get("above") is None and b.get("below") is None, "value_required", "הגדירו ערך")
-            if t == "state":
-                need(fresh and state_for_conflict(b), "state_for_conflict", "תנאי עם \"במשך\" תומך במצב קבוע אחד בלבד")
-            if t == "time":
-                need((bool(b.get("after")) and not pol.TIME_RE.match(b["after"])) or (bool(b.get("before")) and not pol.TIME_RE.match(b["before"])), "time_invalid", "שעה לא תקינה")
-            if t == "shabbat":
-                need(not shabbat_sensor, "shabbat_sensor_missing", "לא הוגדר חיישן שבת")
-            if t == "presence":  # KAV079-295
-                need(not presence_entity, "presence_entity_missing", "לא הוגדר מקור ל״מי במבנה״")
-                need(b.get("mode") not in ("someone", "nobody"), "presence_mode_invalid", "בחרו מצב")
-            if t == "trigger":
-                need(not b["ids"], "trigger_id_required", "בחרו טריגר")
-                need(any(i not in trigger_ids for i in b["ids"]), "trigger_id_unknown", "הטריגר אינו קיים")
-            if t in ("and", "or", "not"):
-                need(not b["conditions"], "conditions_required", "הוסיפו תנאי")
-        else:
-            t = b["type"]
-            if t == "service":
-                if fresh:
-                    for p in pol.check_arguments(b["action"], b.get("role"), b.get("data") or {}):
-                        if p["code"] == "code_not_allowed":
-                            need(True, "code_not_allowed", CODE_NOT_ALLOWED_TEXT)
-                        elif p["code"] == "secret_not_allowed":
-                            need(True, "secret_not_allowed", "אסור לשמור ערך חסוי")
-                        elif p["code"] == "argument_not_allowed":
-                            need(True, "argument_not_allowed", f"ארגומנט לא מאושר: {p['arg']}")
-                        elif p["code"] == "required":
-                            need(True, "argument_required", f"חסר ערך: {p['arg']}")
-                        elif p["code"] == "argument_conflict":
-                            need(True, "argument_conflict", f"אי אפשר לשלב את {p['arg']} עם ערך אחר")
-                        else:
-                            need(True, "argument_invalid", f"ערך לא תקין: {p['arg']}")
-                need(b.get("role") == "device" and not b["entity_ids"], "entity_required", "בחרו מכשיר")
-                need(b.get("role") in ("scene", "script", "automation") and len(b["entity_ids"]) != 1, "entity_required", "בחרו פריט")
-                cls = pol.classify_action(b["action"], allowed)
-                need(not cls.ok, "action_not_allowed", ACTION_NOT_ALLOWED_TEXT)
-                if b.get("role") == "notify" and fresh:
-                    msg = (b.get("data") or {}).get("message")
-                    need(not isinstance(msg, str) or not msg.strip(), "message_required", "כתבו הודעה")
-                    need(notify is not None and b["action"] not in notify, "notify_target_not_allowed", "יעד התראה לא מאושר")
-            elif t == "delay":
-                need(not any(b["delay"].get(k) for k in ("hours", "minutes", "seconds")), "duration_required", "הגדירו משך")
-            elif t == "choose":
-                need(not b["options"], "option_required", "הוסיפו ענף")
-                need(len(b["options"]) > pol.CAPS["choose_options_max"], "too_many_options", f"עד {pol.CAPS['choose_options_max']} ענפים")
-            elif t == "if":
-                need(not b["conditions"], "conditions_required", "הוסיפו תנאי")
-                need(not b["then"], "action_required", "הוסיפו לפחות פעולה אחת")
-            elif t == "repeat_count":
-                need(not isinstance(b["count"], int) or b["count"] < 1 or b["count"] > 1000, "count_invalid", "מספר חזרות לא תקין")
-    if kind == "script":
-        keys: set[str] = set()
-        for i, f in enumerate(d["fields"]):
-            p = f"fields.{i}"
-            if not re.match(r"^[a-z_][a-z0-9_]*$", f["key"]):
-                out.append(_issue(p, "field_key_invalid", "מפתח שדה: אותיות לטיניות קטנות, ספרות וקו תחתון"))
-            if f["key"] in keys:
-                out.append(_issue(p, "duplicate_field_key", "מפתח שדה כפול"))
-            keys.add(f["key"])
-            if not f["name"].strip():
-                out.append(_issue(p, "alias_required", "תנו שם לשדה"))
-            sel = f["selector"]
-            if sel["kind"] == "number" and not sel["min"] < sel["max"]:
-                out.append(_issue(p, "range_invalid", "הטווח לא תקין"))
-            if sel["kind"] == "select" and not sel["options"]:
-                out.append(_issue(p, "options_required", "הוסיפו אפשרויות"))
-    return out
+def _check_trigger_block(b: Block, fresh: bool, need: Callable[..., None], tagged: list[str], wall_buttons: bool) -> None:
+    """One trigger block."""
+    need(b["type"] in ("state", "numeric_state") and not b["entity_ids"], "entity_required", "בחרו מכשיר")
+    if b["type"] == bpb.TRIGGER_TYPE and fresh:  # BUILDING-PRESENCE-2271
+        for code, msg in bpb.validate(b, "trigger", tagged, bool(tagged)):
+            need(True, code, msg)
+    if b["type"] == "numeric_state":
+        need(b.get("above") is None and b.get("below") is None, "value_required", "הגדירו ערך")
+    if b["type"] == "time":
+        need(not pol.TIME_RE.match(b["at"]), "time_required", "בחרו שעה")
+    if b["type"] == "time_pattern":
+        need(all(b.get(k) is None for k in ("hours", "minutes", "seconds")), "pattern_required", "הגדירו מחזור")
+    if b["type"] == "button":  # KAV079-295
+        need(not wall_buttons and fresh, "wall_buttons_off", "עריכת כפתורי קיר כבויה בהגדרות")
+        need(not isinstance(b.get("device_id"), str) or not b.get("device_id"), "device_required", "בחרו מפסק")
+        need(b.get("press") not in wb.PRESSES or not wb.type_for(str(b.get("ha_type") or ""), str(b.get("press") or "")), "press_invalid", "סוג הלחיצה אינו נתמך במפסק")
+        need(not isinstance(b.get("button"), int) or not wb.subtype_for(str(b.get("ha_subtype") or ""), int(b.get("button") or 0)), "button_invalid", "בחרו כפתור")
+
+
+def _check_condition_block(b: Block, fresh: bool, need: Callable[..., None], tagged: list[str], shabbat_sensor: str | None, presence_entity: str | None,
+                           trigger_ids: set[str]) -> None:
+    """One condition block."""
+    t = b["type"]
+    if t in ("state", "numeric_state"):
+        need(not b["entity_ids"], "entity_required", "בחרו מכשיר")
+    if t == bpb.CONDITION_TYPE and fresh:  # BUILDING-PRESENCE-2271
+        for code, msg in bpb.validate(b, "condition", tagged, bool(tagged)):
+            need(True, code, msg)
+    if t == "numeric_state":
+        need(b.get("above") is None and b.get("below") is None, "value_required", "הגדירו ערך")
+    if t == "state":
+        need(fresh and state_for_conflict(b), "state_for_conflict", "תנאי עם \"במשך\" תומך במצב קבוע אחד בלבד")
+    if t == "time":
+        need((bool(b.get("after")) and not pol.TIME_RE.match(b["after"])) or (bool(b.get("before")) and not pol.TIME_RE.match(b["before"])), "time_invalid", "שעה לא תקינה")
+    if t == "shabbat":
+        need(not shabbat_sensor, "shabbat_sensor_missing", "לא הוגדר חיישן שבת")
+    if t == "presence":  # KAV079-295
+        need(not presence_entity, "presence_entity_missing", "לא הוגדר מקור ל״מי במבנה״")
+        need(b.get("mode") not in ("someone", "nobody"), "presence_mode_invalid", "בחרו מצב")
+    if t == "trigger":
+        need(not b["ids"], "trigger_id_required", "בחרו טריגר")
+        need(any(i not in trigger_ids for i in b["ids"]), "trigger_id_unknown", "הטריגר אינו קיים")
+    if t in ("and", "or", "not"):
+        need(not b["conditions"], "conditions_required", "הוסיפו תנאי")
+
+
+def _check_action_block(b: Block, fresh: bool, need: Callable[..., None], allowed: list[str] | None, notify: list[str] | None) -> None:
+    """One action block (a service call's arguments, role and notify target; delay, choose, if, repeat)."""
+    t = b["type"]
+    if t == "service":
+        if fresh:
+            for p in pol.check_arguments(b["action"], b.get("role"), b.get("data") or {}):
+                if p["code"] == "code_not_allowed":
+                    need(True, "code_not_allowed", CODE_NOT_ALLOWED_TEXT)
+                elif p["code"] == "secret_not_allowed":
+                    need(True, "secret_not_allowed", "אסור לשמור ערך חסוי")
+                elif p["code"] == "argument_not_allowed":
+                    need(True, "argument_not_allowed", f"ארגומנט לא מאושר: {p['arg']}")
+                elif p["code"] == "required":
+                    need(True, "argument_required", f"חסר ערך: {p['arg']}")
+                elif p["code"] == "argument_conflict":
+                    need(True, "argument_conflict", f"אי אפשר לשלב את {p['arg']} עם ערך אחר")
+                else:
+                    need(True, "argument_invalid", f"ערך לא תקין: {p['arg']}")
+        need(b.get("role") == "device" and not b["entity_ids"], "entity_required", "בחרו מכשיר")
+        need(b.get("role") in ("scene", "script", "automation") and len(b["entity_ids"]) != 1, "entity_required", "בחרו פריט")
+        cls = pol.classify_action(b["action"], allowed)
+        need(not cls.ok, "action_not_allowed", ACTION_NOT_ALLOWED_TEXT)
+        if b.get("role") == "notify" and fresh:
+            msg = (b.get("data") or {}).get("message")
+            need(not isinstance(msg, str) or not msg.strip(), "message_required", "כתבו הודעה")
+            need(notify is not None and b["action"] not in notify, "notify_target_not_allowed", "יעד התראה לא מאושר")
+    elif t == "delay":
+        need(not any(b["delay"].get(k) for k in ("hours", "minutes", "seconds")), "duration_required", "הגדירו משך")
+    elif t == "choose":
+        need(not b["options"], "option_required", "הוסיפו ענף")
+        need(len(b["options"]) > pol.CAPS["choose_options_max"], "too_many_options", f"עד {pol.CAPS['choose_options_max']} ענפים")
+    elif t == "if":
+        need(not b["conditions"], "conditions_required", "הוסיפו תנאי")
+        need(not b["then"], "action_required", "הוסיפו לפחות פעולה אחת")
+    elif t == "repeat_count":
+        need(not isinstance(b["count"], int) or b["count"] < 1 or b["count"] > 1000, "count_invalid", "מספר חזרות לא תקין")
+
+
+def _check_script_fields(d: Mapping[str, Any], out: list[dict[str, str]]) -> None:
+    """A script's fields: key pattern, duplicate key, name, the selector's range / options."""
+    keys: set[str] = set()
+    for i, f in enumerate(d["fields"]):
+        p = f"fields.{i}"
+        if not re.match(r"^[a-z_][a-z0-9_]*$", f["key"]):
+            out.append(_issue(p, "field_key_invalid", "מפתח שדה: אותיות לטיניות קטנות, ספרות וקו תחתון"))
+        if f["key"] in keys:
+            out.append(_issue(p, "duplicate_field_key", "מפתח שדה כפול"))
+        keys.add(f["key"])
+        if not f["name"].strip():
+            out.append(_issue(p, "alias_required", "תנו שם לשדה"))
+        sel = f["selector"]
+        if sel["kind"] == "number" and not sel["min"] < sel["max"]:
+            out.append(_issue(p, "range_invalid", "הטווח לא תקין"))
+        if sel["kind"] == "select" and not sel["options"]:
+            out.append(_issue(p, "options_required", "הוסיפו אפשרויות"))
 
 
 # test-only: no product caller; used by tests/test_automation_model.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
