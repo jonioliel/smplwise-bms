@@ -31,5 +31,14 @@ yet"; this row adds the reset.
 6. `media_query._NAMES` comment line
 
 ## Tests
+Workstation (Python 3.12, the main checkout venv, `pytest -p no:xdist -p no:cacheprovider`, worktree at the head of this branch):
 
-See the report of the run; numbers are filled in there.
+| Run | Result |
+|---|---|
+| `tests/test_singletons_registered.py` (4 tests), final state | **4 passed** |
+| 28 files named after the changed modules (singleton inventory, alarm_managed_cache, automations_mirror, autosync, calendar_connect, cast_relay, door_automation, door_engine_live, frigate_control, frigate_events, go2rtc_owned_streams, intercom_media, media_commands, media_query, mobile_push, notify_sources, nvr_write, push, secrets_store, self_update, source_policy, storage, thumbnails, tickets_monitor, tickets_visits, wall, wiskey_join_live, camera_sources) | **878 passed, 0 failed** (1 h 01 min: the workstation was at 100 % CPU) |
+| ruff check on `smplwise` | all checks passed |
+
+NOT_RUN: the other roughly 350 test files that import the 62 modules (a 379-file run did not fit the loaded workstation; three
+parallel shards produced no output in hours). No test needed a change: no test relied on leaked state in the files that ran.
+Recommended: one full backend run on the runner when a gate slot is free.
