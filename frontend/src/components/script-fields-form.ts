@@ -7,6 +7,9 @@ import type { ScriptField } from '../api/automations';
 
 import { fieldDefaults, missingFields, type FieldChoice } from '../screens/automations-logic';
 import { tr } from '../i18n/msg/components';
+import './sw-toggle';
+import { switchPress } from './sw-toggle';
+import { live } from 'lit/directives/live.js';
 export type { FieldChoice };
 const clampNum = (n: number, min: number, max: number): number => Math.min(max, Math.max(min, n));
 
@@ -149,7 +152,7 @@ export class ScriptFieldsForm extends LitElement {
     switch (s.kind) {
       case 'number': return this.num(f as ScriptField & { selector: { kind: 'number'; min: number; max: number } });
       case 'boolean':
-        return html`<button type="button" class="tog" role="switch" aria-checked=${String(v === true)} aria-label=${f.name} data-field=${f.key} @click=${() => this.set(f.key, v !== true)}></button>`;
+        return html`<sw-toggle .checked=${live(v === true)} label=${f.name} labelHidden data-field=${f.key} @change=${switchPress(v === true, () => this.set(f.key, v !== true))}></sw-toggle>`;
       case 'select':
         return html`<select class="inp" aria-label=${f.name} data-field=${f.key} @change=${(e: Event) => this.set(f.key, (e.target as HTMLSelectElement).value)}>${s.options.map((o) => html`<option value=${o} ?selected=${v === o}>${o}</option>`)}</select>`;
       case 'text':

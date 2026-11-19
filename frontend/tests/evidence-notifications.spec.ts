@@ -601,7 +601,7 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     await expect(sys(page)).toHaveCount(0);
     await page.evaluate(() => { location.hash = '#/system/notifications'; });
     await expect(sys(page).locator('[data-pol-count]')).toHaveText('23 מתוך 28 פעילים');
-    await expect(sys(page).locator('[data-pol-row="sensor.leak"] [data-pol-on]')).toHaveAttribute('aria-checked', 'false');
+    await expect(sys(page).locator('[data-pol-row="sensor.leak"] [data-pol-on] [role="switch"]')).toHaveAttribute('aria-checked', 'false');
   });
 
   test('AUDIT30-I6 (#18): one section at a time at every width, chosen by the underline tabs (was one 6,699 px page on a desktop)', async ({ page }, info) => {
@@ -702,8 +702,8 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     await expect.poll(() => mockState(page, (m) => m.settingsRow.lockscreen)).toBe('full');
     expect(await l.locator('img').count()).toBe(0);
     // the two "soon" switches are off and locked
-    await expect(l.locator('[data-tog="image-in-push"]')).toBeDisabled();
-    await expect(l.locator('[data-tog="critical-sound"]')).toBeDisabled();
+    await expect(l.locator('[data-tog="image-in-push"] [role="switch"]')).toBeDisabled();
+    await expect(l.locator('[data-tog="critical-sound"] [role="switch"]')).toBeDisabled();
     await expect(l).toContainText('בקרוב');
     await shot(page, `settings-lock-${vp(info)}-light`);
     if (narrow(page, info)) {

@@ -21,7 +21,7 @@ import { deepFocusables } from './sw-drawer';
  * Use: `private modal = new HandModal({ box: () => ..., close: () => ... })`, `this.modal.sync(open)` in `updated()`, and
  * `this.modal.release()` in `disconnectedCallback()`. The screen's own Escape listener is removed (this one replaces it).
  */
-export interface HandModalOptions {
+interface HandModalOptions {
   /** The box that holds everything of the modal (the element with the dialog role, or the wrapper of the dialog and its scrim). */
   box: () => Element | null | undefined;
   /** Close the modal (Escape while it is the top layer). */

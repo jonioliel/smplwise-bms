@@ -25,6 +25,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { LongListsController } from '../api/long-lists';
 import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
+import { ToastController } from '../components/toast-controller';
 
 const POLL_MS = 30_000;
 const LONG_PRESS_MS = 480;
@@ -60,7 +61,11 @@ export class InfraTemperature extends LitElement {
   @state() private openId: string | null = null;
   /** the wizard: null = closed, '' = a new unit, else the unit id */
   @state() private wizard: string | null = null;
-  @state() private toast = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 2600 });
+  private get toast(): string {
+    return this.toaster.text;
+  }
   /** phase 2: the PDF report dialog (the preselected units) and the WhatsApp dialog (its params) */
   @state() private report: string[] | null = null;
   @state() private wa: ReportParams | null = null;
@@ -359,10 +364,7 @@ export class InfraTemperature extends LitElement {
   }
 
   private flash(msg: string) {
-    this.toast = msg;
-    window.setTimeout(() => {
-      if (this.toast === msg) this.toast = '';
-    }, 2600);
+    this.toaster.show(msg);
   }
 
   private open(id: string, opener: HTMLElement | null) {

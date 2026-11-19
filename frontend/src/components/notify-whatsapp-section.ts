@@ -7,6 +7,9 @@ import { mediaGlassStyles } from '../styles/media-glass';
 import { notifyControls, notifyKnobs } from './notify-css';
 import { nIcon } from './notify-icons';
 import { waLogic } from './notify-whatsapp-logic';
+import './sw-toggle';
+import { switchPress } from './sw-toggle';
+import { live } from 'lit/directives/live.js';
 
 const DEDUPE_CHOICES = [5, 15, 30, 60] as const; // review F4: never without de-duplication
 
@@ -200,7 +203,7 @@ export class NotifyWhatsappSection extends LitElement {
     const off = !v.enabled;
     const warning = waLogic.warning(v);
     return html`<section class="glass sec" id=${`sec-${this.sectionId}`} data-wa-section data-wa-phase="ready" data-wa-enabled=${String(v.enabled)} dir=${dir}>
-      <header><h2>${nIcon('chat')}${nwt('title')}</h2><div class="sp"><button type="button" class="tog" role="switch" aria-checked=${String(v.enabled)} aria-label=${nwt('enabled')} data-wa-switch ?disabled=${this.busy} @click=${() => void this.save({ enabled: !v.enabled })}></button></div></header>
+      <header><h2>${nIcon('chat')}${nwt('title')}</h2><div class="sp"><sw-toggle .checked=${live(v.enabled)} label=${nwt('enabled')} labelHidden data-wa-switch ?disabled=${this.busy} @change=${switchPress(v.enabled, () => void this.save({ enabled: !v.enabled }))}></sw-toggle></div></header>
       <p class="sub">${nwt('sub')}</p>
       <div class="frow"><div class="l"><b>${nwt('enabled')}</b><small>${nwt('enabledHint')}</small></div><div class="r"><span class="tag ${tone === 'ok' ? 'ok' : tone === 'bad' ? 'bad' : ''}" data-wa-tone=${tone}>${nIcon(tone === 'ok' ? 'check' : tone === 'bad' ? 'warning' : 'moon')}${nwt(tone === 'ok' ? 'on' : tone === 'bad' ? 'attention' : 'off')}</span></div></div>
       ${warning ? html`<div class="warn" role="alert" data-wa-warning=${warning}>${nIcon('warning')}${nwt('warnOffAccount')}</div>` : nothing}

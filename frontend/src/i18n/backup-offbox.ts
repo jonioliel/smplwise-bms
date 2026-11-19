@@ -187,7 +187,7 @@ function obtLang(): ObtLang {
 
 const TABLES: Record<ObtLang, Partial<Record<Key, string>>> = { he, en, ar, ru };
 /** The columns that are an initial, unreviewed translation. */
-export const OBT_DEV_MARKED: readonly ObtLang[] = ['ar', 'ru'];
+const OBT_DEV_MARKED: readonly ObtLang[] = ['ar', 'ru'];
 
 export function obt(key: Key, vars?: Record<string, string | number>, lang: ObtLang = obtLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;

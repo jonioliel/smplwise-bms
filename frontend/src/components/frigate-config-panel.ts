@@ -13,6 +13,7 @@ import {
 } from '../api/frigate-control';
 import { fx } from '../i18n/frigate-text';
 import { adminStyles } from './frigate-admin-shared';
+import { ToastController } from './toast-controller';
 
 type Mode = 'zones' | 'settings';
 interface Draft {
@@ -50,7 +51,11 @@ export class FrigateConfigPanel extends LitElement {
   @state() private supervised = false;
   @state() private dialogError = '';
   @state() private busy = false;
-  @state() private msg: { tone: 'ok' | 'err'; text: string } | null = null;
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController<'ok' | 'err'>(this, { ms: 4000 });
+  private get msg(): { tone: 'ok' | 'err'; text: string } | null {
+    return this.toaster.visible ? { tone: this.toaster.tone as 'ok' | 'err', text: this.toaster.text } : null;
+  }
 
   connectedCallback() {
     super.connectedCallback();
@@ -90,10 +95,7 @@ export class FrigateConfigPanel extends LitElement {
   }
 
   private flash(tone: 'ok' | 'err', text: string) {
-    this.msg = { tone, text };
-    window.setTimeout(() => {
-      if (this.msg?.text === text) this.msg = null;
-    }, 4000);
+    this.toaster.show(text, { tone });
   }
 
   static styles = [adminStyles, css`

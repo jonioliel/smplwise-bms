@@ -6,7 +6,6 @@
  * `capture_lease_not_permitted`). This page edits the C03 lookup scope.
  */
 import { get, put } from './client';
-import { CONFIRM_WORDS } from '../i18n/confirm-words';
 
 export type LookupScope = 'holder' | 'holder_or_audit_readers';
 
@@ -22,9 +21,6 @@ interface CaptureLeaseSettings {
   ledger_busy: boolean;
   clock_untrusted: boolean;
 }
-
-/** The Hebrew word of the wider lookup (i18n/confirm-words.ts `capture_lookup_wide`; the screen shows `confirmWord(...)`). */
-export const LOOKUP_WIDE_WORD = CONFIRM_WORDS.capture_lookup_wide.he;
 
 export const getCaptureLeaseSettings = () => get<CaptureLeaseSettings>('access/capture-lease/settings');
 export const setLookupScope = (value: LookupScope, confirm?: string) =>

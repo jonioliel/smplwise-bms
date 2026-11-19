@@ -36,6 +36,10 @@ import { incidentsModuleOn } from '../shell/nav'; // CR-LIVEEVENT100 (T1 manual)
 import { mayOpenHere, openIncident } from '../api/incidents';
 import { it as incText } from '../i18n/incidents';
 import { tr } from '../i18n/msg/media';
+import '../components/sw-toggle';
+import { switchPress } from '../components/sw-toggle';
+import { live } from 'lit/directives/live.js';
+import { ToastController } from '../components/toast-controller';
 
 type Filter = 'all' | 'open' | 'bypassed' | 'faults';
 /** SEC polish: the zones as cards (the default) or as one dense list per area; kept per browser. */
@@ -102,7 +106,11 @@ export class SecurityAlarm extends LitElement {
   @state() private codeError = '';
   @state() private busy = false;
   @state() private sent: { label: string; record: HaActionRecord | null; entity: string } | null = null;
-  @state() private toast = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 4000 });
+  private get toast(): string {
+    return this.toaster.text;
+  }
   @state() private pinOpen = false;
   @state() private pinForm = { current: '', next: '', again: '', panel: '' };
   @state() private pinError = '';
@@ -115,7 +123,6 @@ export class SecurityAlarm extends LitElement {
   private reads = new Latest();
   /** 06:ALARM-1: the follow-up of the last command (api/ha awaitAction), stopped when another command is sent or the screen leaves. */
   private actionSignal: { stopped: boolean } | null = null;
-  private toastTimer = 0;
   private watched = new Set<string>();
 
   static styles = [liftedReset, css`
@@ -729,40 +736,10 @@ export class SecurityAlarm extends LitElement {
     .zrow[data-tone='bypassed']::before {
       background: var(--al-bypass);
     }
-    button.tgl {
-      inline-size: 46px;
-      block-size: 28px;
-      border-radius: var(--sw-r-pill);
-      border: 0;
-      background: var(--sw-toggle-off);
-      position: relative;
-      cursor: pointer;
-      padding: 0;
-      transition: background var(--sw-t-fast) var(--sw-ease);
+    /* CR-CMP2-TOAST-2440 (06:CMP-2 step 2): the bypass switch is the shared sw-toggle; "bypassed" keeps the zone's bypass colour */
+    .bypass sw-toggle {
+      --sw-toggle-on: var(--al-bypass);
     }
-    button.tgl::after {
-      content: '';
-      position: absolute;
-      inset-block-start: 3px;
-      inset-inline-start: 3px;
-      inline-size: 22px;
-      block-size: 22px;
-      border-radius: 50%;
-      background: var(--sw-toggle-thumb);
-      box-shadow: var(--sw-shadow-thumb);
-      transition: transform var(--sw-t-fast) var(--sw-ease-thumb);
-    }
-    button.tgl[aria-checked='true'] {
-      background: var(--al-bypass);
-    }
-    button.tgl[aria-checked='true']::after {
-      transform: translateX(-18px);
-    }
-    button.tgl:disabled {
-      opacity: var(--sw-disabled-opacity);
-      cursor: not-allowed;
-    }
-    button.tgl:focus-visible,
     .keys button:focus-visible,
     .switcher button:focus-visible,
     .chips button:focus-visible,
@@ -1010,7 +987,6 @@ export class SecurityAlarm extends LitElement {
     if (this.actionSignal) this.actionSignal.stopped = true;
     this.actionSignal = null;
     window.clearTimeout(this.refetchTimer);
-    window.clearTimeout(this.toastTimer);
     window.clearTimeout(this.flashTimer);
     this.clearCode();
   }
@@ -1090,9 +1066,7 @@ export class SecurityAlarm extends LitElement {
   }
 
   private flash(text: string) {
-    this.toast = text;
-    window.clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => (this.toast = ''), 4000);
+    this.toaster.show(text);
   }
 
   // ---- actions
@@ -1356,9 +1330,9 @@ export class SecurityAlarm extends LitElement {
     const b = z.bypass;
     const canToggle = !!b && b.available && (z.bypassed ? p.can.restore : p.can.bypass);
     const toggle = b
-      ? html`<div class="bypass"><button type="button" class="tgl" role="switch" aria-checked=${z.bypassed ? 'true' : 'false'} aria-label=${tr('עקיפת {name}', { name: z.name })} data-bypass=${z.entity_id}
+      ? html`<div class="bypass"><sw-toggle .checked=${live(z.bypassed)} label=${tr('עקיפת {name}', { name: z.name })} labelHidden data-bypass=${z.entity_id}
             ?disabled=${!canToggle || this.busy} title=${canToggle ? '' : tr('אין הרשאה או שהמתג אינו זמין')}
-            @click=${() => this.start({ kind: 'bypass', action: z.bypassed ? 'bypass_off' : 'bypass_on', panel: p, zone: z, prompt: p.code.bypass, needsConfirm: true })}></button>${tr('עקיפה')}</div>`
+            @change=${switchPress(z.bypassed, () => this.start({ kind: 'bypass', action: z.bypassed ? 'bypass_off' : 'bypass_on', panel: p, zone: z, prompt: p.code.bypass, needsConfirm: true }))}></sw-toggle>${tr('עקיפה')}</div>`
       : html`<span></span>`;
     if (row) {
       return html`<article class="zrow" data-tone=${st.tone} data-zone=${z.entity_id}>

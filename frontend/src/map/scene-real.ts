@@ -64,7 +64,7 @@ export interface RealSettings {
   marks?: MarkPrefs;
 }
 export type Backdrop = 'sky' | 'studio';
-export type WallCut = 'low' | 'mid';
+type WallCut = 'low' | 'mid';
 /** PLAN3D-R32-ANSWERS-2438: the low cut of the mockup (round 30 look-dev: every wall at 1.25 m, every room seen from any angle). */
 export const LOW_CUT_M = 1.25;
 /** The section plane's height over a level: low = 1.25 m (never above 0.6 of a low ceiling), mid = 0.6 of the ceiling (before). */

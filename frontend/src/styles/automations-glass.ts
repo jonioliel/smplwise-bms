@@ -22,9 +22,9 @@ const automationsControls = css`
     --au-bad-text: var(--dv-danger);
   }
   .grow { flex: 1; }
-  /* the switch is 28-30 px high: its hit area is 44 px (an invisible margin of the button itself) */
-  .tog::before { content: ''; position: absolute; inset: -8px -4px; }
-  .tog[disabled] { opacity: 0.5; pointer-events: none; }
+  /* CR-CMP2-TOAST-2440: the item switches are the shared sw-toggle (24 px high); its host is padded to a 44 px hit area in the block
+     axis and pulled back by the same margin, so the row does not move (a press on the host's own box flips it, sw-toggle.ts) */
+  sw-toggle[data-card-toggle], sw-toggle[data-toggle], sw-toggle[data-drawer-toggle], sw-toggle[data-field] { padding-block: 10px; margin-block: -10px; }
   /* chips: state of an item, never a paragraph. R5-DEVICES-297: a filled field one step taller (28 px) in the base size, bold */
   .chip {
     display: inline-flex;

@@ -23,6 +23,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsPlainRowStyles, settingsMutedHintStyles, settingsSegKeyStateStyles, settingsPreviewColStyles, settingsPreviewButtonStyles, settingsFootStatusStyles } from '../styles/settings';
 import { segTrackStyles, segThumbStyles } from '../styles/fragments';
 import { tr } from '../i18n/msg/system-b';
+import { ToastController } from '../components/toast-controller';
 
 type Target = 'own' | 'installation';
 
@@ -44,7 +45,11 @@ export class SystemLook extends LitElement {
   @state() private own: PartialLook = ownLook();
   @state() private canEdit = !isApi();
   @state() private busy = false;
-  @state() private message = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 2500 });
+  private get message(): string {
+    return this.toaster.text;
+  }
   @state() private error = '';
   @state() private skin = currentSkin();
   private stops: (() => void)[] = [];
@@ -317,8 +322,7 @@ export class SystemLook extends LitElement {
   }
 
   private flash(text: string) {
-    this.message = text;
-    window.setTimeout(() => (this.message = ''), 2500);
+    this.toaster.show(text);
   }
 
   private async saveInstallation() {
@@ -360,7 +364,7 @@ export class SystemLook extends LitElement {
 
   private setInst<K extends LookDial>(dial: K, value: Look[K]) {
     this.draftInst = { ...this.draftInst, [dial]: value };
-    this.message = '';
+    this.toaster.clear();
   }
 
   /** MD1: a material preset is a macro - it also turns depth and tint on (when off) and suggests the transparency; the dials stay free afterwards. */
@@ -368,7 +372,7 @@ export class SystemLook extends LitElement {
     if (this.target === 'installation') {
       if (value !== null) {
         this.draftInst = { ...this.draftInst, ...materialMacro(this.draftInst, value) };
-        this.message = '';
+        this.toaster.clear();
       }
       return;
     }

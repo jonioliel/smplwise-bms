@@ -20,12 +20,8 @@ export interface Translator {
   readonly en: Readonly<Record<string, string>>;
 }
 
-/** Source-text tables by module name, for the report and the specs. */
-const MSG_TABLES = new Map<string, Readonly<Record<string, string>>>();
-
 /** The translator of one module. `name` is the table's module (`msg/shell` ...). */
 export function msgCatalogue(name: string, en: Record<string, string>): Translator {
-  MSG_TABLES.set(name, en);
   // registered with an empty Hebrew table: the Hebrew keys are the `tr('...')` calls in the sources, collected by the report
   registerCatalogue(name, { he: {}, en });
   const tr = ((he: string, vars?: Vars | null) => fill(docLang(['en']) === 'en' ? (en[he] ?? he) : he, vars)) as Translator;
@@ -33,7 +29,3 @@ export function msgCatalogue(name: string, en: Record<string, string>): Translat
   return tr;
 }
 
-/** Every source-text table, by module name. */
-export function msgTables(): ReadonlyMap<string, Readonly<Record<string, string>>> {
-  return MSG_TABLES;
-}

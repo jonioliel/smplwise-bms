@@ -85,14 +85,17 @@ const OWN_TRACKS: [string, RegExp][] = [
   ['components/sw-toggle.ts', /button \{[^}]*background: var\(--sw-toggle-off\)/s],
   // CR-DUP-ADMIN-CARDS-2440: the access settings cards (messaging, policy) and the person's messages tab share this one track
   ['messaging/policy-switch.ts', /\.track \{[^}]*background: var\(--sw-toggle-off\)/s],
-  ['incidents/settings-form.ts', /\.sw \{[^}]*background: var\(--sw-toggle-off\)/],
-  ['screens/security-alarm.ts', /button\.tgl \{[^}]*background: var\(--sw-toggle-off\)/s],
-  ['screens/system-brand-installer.ts', /\.tgl \{[^}]*background: var\(--sw-toggle-off\)/],
-  ['screens/system-security-privacy-masks.ts', /\.sw-switch \.track \{[^}]*background: var\(--sw-toggle-off\)/s],
+  // CR-CMP2-TOAST-2440 (06:CMP-2 step 2): incidents/settings-form, security-alarm, system-brand-installer and
+  // system-security-privacy-masks no longer draw a track - their switches are sw-toggle (checked in the test below)
   ['screens/system-security-public.ts', /\.track \{[^}]*background: var\(--sw-toggle-off\)/],
 ];
 
 test('every switch that draws its own off track reads --sw-toggle-off (not the hairline border)', () => {
+  // the swapped files carry no hand-built track any more
+  for (const f of ['incidents/settings-form.ts', 'screens/security-alarm.ts', 'screens/system-brand-installer.ts', 'screens/system-security-privacy-masks.ts']) {
+    expect(read(f), f).not.toMatch(/role="switch"/);
+    expect(read(f), f).toMatch(/<sw-toggle /);
+  }
   const bad = OWN_TRACKS.filter(([f, re]) => !re.test(read(f))).map(([f]) => f);
   expect(bad).toEqual([]);
 });

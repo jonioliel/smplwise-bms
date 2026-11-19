@@ -56,6 +56,9 @@ import {
 import { layerSignature, roomStates, type RoomStateLayer } from '../map/room-state';
 import { stateEntitiesOf, stateFactsOf, type StateFacts } from '../map/state-facts';
 import { tr } from '../i18n/msg/investigate';
+import '../components/sw-toggle';
+import { switchPress } from '../components/sw-toggle';
+import { live } from 'lit/directives/live.js';
 
 const NEAR_MIN = 10;
 /** The window choices of the time scrub's bar (minutes); the track below zooms through the same values. */
@@ -661,44 +664,6 @@ export class InvestigateHistoryMap extends LitElement {
         background: var(--sw-hover-wash);
       }
     }
-    .lyr .sw {
-      position: relative;
-      inline-size: 30px;
-      block-size: 18px;
-      border-radius: var(--sw-r-pill);
-      background: var(--sw-unknown);
-      border: 0;
-      cursor: pointer;
-      flex: none;
-      padding: 0;
-      transition: background var(--sw-t-fast) var(--sw-ease);
-    }
-    .lyr .sw::after {
-      content: '';
-      position: absolute;
-      inset-block-start: 2px;
-      inset-inline-start: 2px;
-      inline-size: 14px;
-      block-size: 14px;
-      border-radius: 50%;
-      background: var(--sw-toggle-thumb);
-      box-shadow: var(--sw-shadow-1);
-      transition: transform var(--sw-t-fast) var(--sw-ease);
-    }
-    .lyr .sw[aria-checked='true'] {
-      background: var(--sw-accent);
-    }
-    .lyr .sw[aria-checked='true']::after {
-      transform: translateX(-12px);
-    }
-    .lyr .sw:disabled {
-      opacity: var(--sw-disabled-opacity, 0.5);
-      cursor: default;
-    }
-    .lyr .sw:focus-visible {
-      outline: var(--sw-focus-w, 2px) solid var(--sw-focus);
-      outline-offset: 2px;
-    }
     .lyr .nm {
       display: flex;
       align-items: center;
@@ -858,12 +823,6 @@ export class InvestigateHistoryMap extends LitElement {
       color: var(--sw-warning-text);
       padding-block-end: 2px;
     }
-    @media (prefers-reduced-motion: reduce) {
-      .lyr .sw,
-      .lyr .sw::after {
-        transition: none;
-      }
-    }
     /* tablet: the two columns stay (the panel narrows and scrolls) so nothing drops below the timeline; one control row
        stays one row - the hour steps, the date and the key hints leave it */
     @media (max-width: 1023px) {
@@ -975,17 +934,6 @@ export class InvestigateHistoryMap extends LitElement {
       .lyr .cov,
       .lyr .st {
         display: none;
-      }
-      .lyr .sw {
-        inline-size: 26px;
-        block-size: 16px;
-      }
-      .lyr .sw::after {
-        inline-size: 12px;
-        block-size: 12px;
-      }
-      .lyr .sw[aria-checked='true']::after {
-        transform: translateX(-10px);
       }
       .details {
         display: none;
@@ -1953,7 +1901,7 @@ export class InvestigateHistoryMap extends LitElement {
           else if (id === 'cameras' && st === 'ok') text = tr('{n} מ־{total}', { n: covered, total: camIds.length });
           const cov = id === 'cameras' ? tr('· לפי המקליט') : coverageText(retention[id]);
           return html`<div class="lyr" data-layer=${id} data-off=${on ? 'false' : 'true'} data-status=${st ?? ''}>
-            <button class="sw" type="button" role="switch" aria-checked=${on ? 'true' : 'false'} aria-label=${LAYER_NAME[id]} ?disabled=${locked} @click=${() => this.toggleLayer(id)}></button>
+            <sw-toggle .checked=${live(on)} label=${LAYER_NAME[id]} labelHidden ?disabled=${locked} @change=${switchPress(on, () => this.toggleLayer(id))}></sw-toggle>
             <span class="nm"><i style=${`background:${LAYER_COLOR[id]}`}></i>${LAYER_NAME[id]}${cov ? html` <span class="cov">${cov}</span>` : nothing}</span>
             <span class="st" data-look=${st ? s.look : 'unk'}>${locked ? html`<sw-icon name="lock" size=${13}></sw-icon>` : nothing}${text}</span>
           </div>`;

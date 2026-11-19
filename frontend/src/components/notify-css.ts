@@ -267,17 +267,12 @@ export const notifyControls = css`
     opacity: 0.35;
     pointer-events: none;
   }
-  .tog {
-    position: relative;
-  }
-  .tog::before {
-    content: '';
-    position: absolute;
-    inset: -8px -2px;
-  }
-  .tog[disabled] {
-    opacity: 0.4;
-    pointer-events: none;
+  /* CR-CMP2-TOAST-2440: the section switches are the shared sw-toggle; a 44 px hit area in the block axis, pulled back by the same margin */
+  sw-toggle[data-tog],
+  sw-toggle[data-pol-on],
+  sw-toggle[data-wa-switch] {
+    padding-block: 10px;
+    margin-block: -10px;
   }
   .bnr {
     display: flex;

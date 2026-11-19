@@ -18,6 +18,7 @@ import './task-sheet';
 import './task-form';
 import './vendor-card';
 import './round-run';
+import { ToastController } from '../components/toast-controller';
 
 const COLLAPSED_KEY = 'sw.maintenance.collapsed';
 const POLL_MS = 60_000;
@@ -64,7 +65,11 @@ export class MaintListPage extends LitElement {
   @state() private form: { kind: TaskKind; id: string | null } | null = null;
   @state() private vendor: string | null = null;
   @state() private run: string | null = null;
-  @state() private toast = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 2600 });
+  private get toast(): string {
+    return this.toaster.text;
+  }
   /** CR-POLL-FEATURES-2439: the task list re-read every POLL_MS (not while a round or the form is open) - paused while the tab is hidden, never two at once, caught up on resume. */
   private poll = new PollController(this);
   private loadedFor = '';
@@ -118,10 +123,7 @@ export class MaintListPage extends LitElement {
   }
 
   private flash(msg: string) {
-    this.toast = msg;
-    window.setTimeout(() => {
-      if (this.toast === msg) this.toast = '';
-    }, 2600);
+    this.toaster.show(msg);
   }
 
   private openById(id: string) {

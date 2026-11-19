@@ -37,6 +37,9 @@ import {
   type Rect,
 } from './privacy-mask-logic';
 import { dayMonthTimeText } from '../api/day-format';
+import '../components/sw-toggle';
+import { switchPress } from '../components/sw-toggle';
+import { live } from 'lit/directives/live.js';
 
 /** What one camera's mask looks like on screen: the NVR's mask, the frame and limits, and the draft being edited. */
 interface Loaded {
@@ -234,34 +237,6 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       font-size: var(--sw-fs-sm);
       cursor: pointer;
     }
-    .sw-switch .track {
-      inline-size: 44px;
-      block-size: 26px;
-      border-radius: var(--sw-r-pill);
-      background: var(--sw-toggle-off);
-      position: relative;
-      flex: none;
-    }
-    .sw-switch .track::after {
-      content: '';
-      position: absolute;
-      inset-block-start: 3px;
-      inset-inline-start: 3px;
-      inline-size: 20px;
-      block-size: 20px;
-      border-radius: 50%;
-      background: var(--sw-toggle-thumb);
-      transition: transform 120ms ease;
-    }
-    .sw-switch[aria-checked='true'] .track {
-      background: var(--sw-accent);
-    }
-    .sw-switch[aria-checked='true'] .track::after {
-      transform: translateX(18px);
-    }
-    :host-context([dir='rtl']) .sw-switch[aria-checked='true'] .track::after {
-      transform: translateX(-18px);
-    }
     .swrow {
       display: flex;
       flex-wrap: wrap;
@@ -285,10 +260,6 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       .swrow .ask sw-button {
         min-block-size: 44px;
       }
-    }
-    .sw-switch:disabled {
-      opacity: 0.55;
-      cursor: not-allowed;
     }
     button:focus-visible,
     [tabindex]:focus-visible {
@@ -1058,7 +1029,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
   private renderSwitch() {
     if (this.switchOn === null || this.step !== 'edit') return nothing;
     return html`<div class="swrow" data-pm-switch-row>
-      <button type="button" class="sw-switch" role="switch" aria-checked=${this.switchOn ? 'true' : 'false'} data-pm-switch ?disabled=${this.switchBusy || this.applying} @click=${this.onSwitch}><span class="track" aria-hidden="true"></span>${pm('sw_label')}</button>
+      <sw-toggle class="sw-switch" .checked=${live(!!this.switchOn)} label=${pm('sw_label')} data-pm-switch ?disabled=${this.switchBusy || this.applying} @change=${switchPress(!!this.switchOn, () => this.onSwitch())}></sw-toggle>
       ${this.switchAsk && !this.switchOn
         ? html`<div class="ask" data-pm-switch-ask role="group"><span>${pm('sw_confirm')}</span>
             <sw-button size="lg" variant="ghost" data-pm-switch-cancel ?disabled=${this.switchBusy} @click=${() => (this.switchAsk = false)}>${pm('cancel')}</sw-button>
@@ -1468,7 +1439,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
     const sel = d.regions.find((r) => r.key === this.regionKey) ?? null;
     const main = html`
       <div class="bar">
-        <button type="button" class="sw-switch" role="switch" aria-checked=${d.enabled ? 'true' : 'false'} data-pm-enabled ?disabled=${!!lock} @click=${this.toggleMask}><span class="track" aria-hidden="true"></span>${pm('mask_on')}</button>
+        <sw-toggle class="sw-switch" .checked=${live(d.enabled)} label=${pm('mask_on')} data-pm-enabled ?disabled=${!!lock} @change=${switchPress(d.enabled, () => this.toggleMask())}></sw-toggle>
         <sw-button size="lg" data-pm-add ?disabled=${!!lock || d.regions.length >= l.view.max_regions} @click=${this.addRegion}>${pm('add_region')}</sw-button>
         <sw-button size="lg" variant="ghost" data-pm-delete ?disabled=${!!lock || !sel} @click=${() => sel && this.deleteRegion(sel.key)}>${pm('delete_region')}</sw-button>
         <sw-button size="lg" variant="ghost" data-pm-discard ?disabled=${!this.drafts.has(this.selected)} @click=${this.discard}>${pm('discard')}</sw-button>

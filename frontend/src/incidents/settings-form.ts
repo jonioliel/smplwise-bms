@@ -6,6 +6,9 @@ import { describeError } from '../api/client';
 import { DEFAULT_BOUNDS, incidentSettings, saveIncidentSettings, type IncidentSettingKey, type IncidentSettings, type SettingBound } from '../api/incidents';
 import { it } from '../i18n/incidents';
 import { refreshIncidents, startIncidents } from './store';
+import '../components/sw-toggle';
+import { switchPress } from '../components/sw-toggle';
+import { live } from 'lit/directives/live.js';
 
 type IntKey = Extract<IncidentSettingKey, 'incident.merge_window_s' | 'incident.max_live' | 'incident.max_live_phone' | 'incident.snapshot_refresh_s' | 'incident.refresh_s' | 'incident.hidden_stop_s' | 'incident.door_window_s' | 'incident.near_radius_pct' | 'incidents.retention_days'>;
 type BoolKey = Extract<IncidentSettingKey, 'incident.enabled' | 'incident.auto_open.alarm' | 'incident.header_clock'>;
@@ -43,19 +46,11 @@ export class IncidentSettingsForm extends LitElement {
     .tx { flex: 1; min-inline-size: 0; }
     .tx b { display: block; font-size: var(--sw-fs-base); color: var(--sw-heading); font-weight: var(--sw-fw-semibold); }
     .tx span { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
-    /* POLISH4-WP7: the key reads the same tokens as sw-toggle (track, thumb, spring), presses in on pointer-down, shows a focus ring, and on a phone grows a
-       44 px tall hit area in the block axis only (a transparent ::before, so the drawn key and the row do not move) */
-    .sw { position: relative; inline-size: 42px; block-size: 24px; border-radius: var(--sw-r-pill); background: var(--sw-toggle-off); border: 0; cursor: pointer; flex: none; padding: 0; transition: background var(--sw-t-med) var(--sw-ease); -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
-    .sw::after { content: ''; position: absolute; inset-block-start: 3px; inset-inline-start: 3px; inline-size: 18px; block-size: 18px; border-radius: 50%; background: var(--sw-toggle-thumb); transition: inset-inline-start var(--sw-spring-toggle-ms) var(--sw-spring-toggle); box-shadow: var(--sw-shadow-thumb); }
-    .sw[aria-checked='true'] { background: var(--sw-toggle-on); }
-    .sw[aria-checked='true']::after { inset-inline-start: 21px; }
-    .sw:disabled { opacity: var(--sw-disabled-opacity); cursor: default; }
-    .sw:focus-visible, .seg button:focus-visible, input[type='number']:focus-visible, a:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
+    .seg button:focus-visible, input[type='number']:focus-visible, a:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
     .seg { display: inline-flex; padding: 2px; background: var(--sw-surface-3); border-radius: var(--sw-r-sm); flex: none; }
     .seg button { font: inherit; font-size: var(--sw-fs-sm); border: 0; background: transparent; color: var(--sw-text-2); border-radius: var(--sw-r-xs); padding: 4px 10px; min-block-size: 26px; cursor: pointer; white-space: nowrap; transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color); -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
     .seg button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface)); color: var(--sw-seg-key-ink, var(--sw-heading)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
     .seg button:disabled { cursor: default; }
-    .sw:active:not(:disabled) { transform: scale(var(--sw-press-scale)); }
     .seg button:active:not(:disabled) { transform: scale(var(--sw-press-scale)); }
     @media (hover: hover) and (pointer: fine) {
       .seg button:hover:not(:disabled):not([aria-pressed='true']) { background: var(--sw-hover-wash); color: var(--sw-text); }
@@ -77,11 +72,10 @@ export class IncidentSettingsForm extends LitElement {
       .foot sw-button { flex: 1 1 auto; }
     }
     @media (max-width: 767px) and (pointer: coarse) {
-      .sw::before { content: ''; position: absolute; inset-inline: 0; inset-block: -10px; }
       input[type='number'] { min-block-size: 44px; }
       .seg button { min-block-size: 44px; }
     }
-    @media (prefers-reduced-motion: reduce) { .sw, .sw::after, .seg button { transition-duration: 0ms; } }
+    @media (prefers-reduced-motion: reduce) { .seg button { transition-duration: 0ms; } }
   `;
 
   connectedCallback() {
@@ -149,8 +143,8 @@ export class IncidentSettingsForm extends LitElement {
 
   private toggle(k: BoolKey, label: string) {
     const on = !!this.v(k);
-    return html`<button class="sw" role="switch" type="button" aria-checked=${on ? 'true' : 'false'} aria-label=${label} data-setting=${k} ?disabled=${!this.canEdit}
-      @click=${() => this.set(k, !on)}></button>`;
+    return html`<sw-toggle .checked=${live(on)} label=${label} labelHidden data-setting=${k} ?disabled=${!this.canEdit}
+      @change=${switchPress(on, () => this.set(k, !on))}></sw-toggle>`;
   }
 
   private num(k: IntKey, label: string) {

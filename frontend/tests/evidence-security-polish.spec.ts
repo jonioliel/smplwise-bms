@@ -168,7 +168,7 @@ test.describe('security screens polish - evidence', () => {
   test('the keypad is reachable from the keyboard and the dialog keeps focus inside', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'a keyboard check');
     await open(page, '/security/alarm', 'classic', 'light');
-    await page.locator('security-alarm [data-bypass="binary_sensor.demo_zone_2"]').focus();
+    await page.locator('security-alarm [data-bypass="binary_sensor.demo_zone_2"] [role="switch"]').focus();
     await page.keyboard.press('Enter');
     await expect(page.locator('security-alarm input[data-code]')).toBeVisible();
     // The dialog moves keyboard focus into its first field one animation frame after it opens (sw-dialog.updated): the field is

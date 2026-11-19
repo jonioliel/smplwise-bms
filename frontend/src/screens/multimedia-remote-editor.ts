@@ -13,6 +13,9 @@ import { moveSection, setMore, toggleSection } from '../components/media-remote-
 import { remoteStyles } from '../components/media-remote-css';
 import { integrationName, integrationTitle } from './media-integration-names';
 import { tr } from '../i18n/msg/media';
+import '../components/sw-toggle';
+import { switchPress } from '../components/sw-toggle';
+import { live } from 'lit/directives/live.js';
 
 /**
  * "עריכת השלט" (CR-015 §7.3): the remote's editor, drawn inside the open remote (media-remote.ts) instead of the pad. Reached from
@@ -178,35 +181,6 @@ export class MediaRemoteEditor extends LitElement {
       .ib[disabled] {
         opacity: 0.35;
       }
-      .tog {
-        position: relative;
-        flex: none;
-        inline-size: 48px;
-        block-size: 30px;
-        border-radius: var(--sw-r-pill);
-        background: var(--mr-surface-3);
-        border: 0;
-        padding: 0;
-        transition: background var(--mr-motion);
-      }
-      .tog::after {
-        content: '';
-        position: absolute;
-        inset-block-start: 3px;
-        inset-inline-start: 3px;
-        inline-size: 24px;
-        block-size: 24px;
-        border-radius: 50%;
-        background: var(--sw-toggle-thumb);
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.28);
-        transition: inset-inline-start var(--mr-motion) var(--mr-ease);
-      }
-      .tog[aria-checked='true'] {
-        background: var(--mr-success);
-      }
-      .tog[aria-checked='true']::after {
-        inset-inline-start: 21px;
-      }
       .fold {
         flex: none;
         display: inline-flex;
@@ -266,20 +240,17 @@ export class MediaRemoteEditor extends LitElement {
       }
       /* keyboard: the order buttons, the switches, the fold box and the fields show where the focus is */
       .ib:focus-visible,
-      .tog:focus-visible,
       .fold input:focus-visible,
       .row input[type='text']:focus-visible,
       .row select:focus-visible {
         outline: 2px solid var(--mr-focus);
         outline-offset: 2px;
       }
-      .ib,
-      .tog {
+      .ib {
         cursor: pointer;
         transition: transform var(--sw-t-press) var(--sw-ease-out), background var(--mr-motion);
       }
-      .ib:active:not([disabled]),
-      .tog:active {
+      .ib:active:not([disabled]) {
         transform: scale(var(--sw-press-scale, 0.97));
       }
       .ib[disabled] {
@@ -500,7 +471,7 @@ export class MediaRemoteEditor extends LitElement {
         <label class="fold"><input type="checkbox" .checked=${behind} ?disabled=${!s.on} aria-label=${tr('מאחורי "עוד מקשים": {name}', { name: SECTION_SHORT[s.id] })} @change=${(e: Event) => (this.cfg = setMore(this.cfg, s.id, (e.target as HTMLInputElement).checked))} />${tr('מקופל')}</label>
         <button type="button" class="ib" aria-label=${tr('הקדם: {name}', { name: SECTION_SHORT[s.id] })} ?disabled=${i === 0} @click=${() => this.moveIn('sections', index, rows[i - 1].index)}>${ic('up')}</button>
         <button type="button" class="ib" aria-label=${tr('אחר: {name}', { name: SECTION_SHORT[s.id] })} ?disabled=${i === rows.length - 1} @click=${() => this.moveIn('sections', index, rows[i + 1].index)}>${ic('down')}</button>
-        <button type="button" class="tog" role="switch" aria-checked=${String(s.on)} aria-label=${tr('הצג: {name}', { name: SECTION_SHORT[s.id] })} @click=${() => (this.cfg = toggleSection(this.cfg, s.id, !s.on))}></button>
+        <sw-toggle .checked=${live(s.on)} label=${tr('הצג: {name}', { name: SECTION_SHORT[s.id] })} labelHidden @change=${switchPress(s.on, () => (this.cfg = toggleSection(this.cfg, s.id, !s.on)))}></sw-toggle>
       </div>`;
     });
   }
@@ -522,7 +493,7 @@ export class MediaRemoteEditor extends LitElement {
         <select aria-label=${tr('סמל: {orig}', { orig: x.orig })} @change=${(e: Event) => patch(i, { glyph: (e.target as HTMLSelectElement).value as Glyph })}>${(Object.keys(GLYPH_NAMES) as Glyph[]).map((g) => html`<option value=${g} ?selected=${x.glyph === g}>${GLYPH_NAMES[g]}</option>`)}</select>
         <button type="button" class="ib" aria-label=${tr('הקדם: {orig}', { orig: x.orig })} ?disabled=${i === 0} @click=${() => this.moveIn(list, i, i - 1)}>${ic('up')}</button>
         <button type="button" class="ib" aria-label=${tr('אחר: {orig}', { orig: x.orig })} ?disabled=${i === items.length - 1} @click=${() => this.moveIn(list, i, i + 1)}>${ic('down')}</button>
-        <button type="button" class="tog" role="switch" aria-checked=${String(!x.hidden)} aria-label=${tr('הצג: {orig}', { orig: x.orig })} @click=${() => patch(i, { hidden: !x.hidden })}></button>
+        <sw-toggle .checked=${live(!x.hidden)} label=${tr('הצג: {orig}', { orig: x.orig })} labelHidden @change=${switchPress(!x.hidden, () => patch(i, { hidden: !x.hidden }))}></sw-toggle>
       </div>`;
     });
   }

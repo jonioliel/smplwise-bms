@@ -297,7 +297,7 @@ test.describe('MASKUI-295 privacy-mask editor (mocked backend, no device)', () =
     await open(page);
     const sw = q(page, '[data-pm-switch]');
     await expect(sw).toHaveText(PM_TABLES.he.sw_label);
-    await expect(sw).toHaveAttribute('aria-checked', 'false');
+    await expect(sw.locator('[role="switch"]')).toHaveAttribute('aria-checked', 'false');
     await expect(q(page, '[data-pm-lock="off_switch"]')).toHaveCount(1);
     await expect(q(page, '[data-pm-add]')).toHaveAttribute('disabled', '');
     if (phone(page)) expect((await sw.boundingBox())!.height).toBeGreaterThanOrEqual(44);
@@ -310,13 +310,13 @@ test.describe('MASKUI-295 privacy-mask editor (mocked backend, no device)', () =
     await sw.click();
     if (phone(page)) expect((await q(page, '[data-pm-switch-confirm]').boundingBox())!.height).toBeGreaterThanOrEqual(44);
     await q(page, '[data-pm-switch-confirm]').click();
-    await expect(sw).toHaveAttribute('aria-checked', 'true');
+    await expect(sw.locator('[role="switch"]')).toHaveAttribute('aria-checked', 'true');
     expect(st.settingPatches).toEqual([{ 'nvr.privacy_mask_write': 'true' }]);
     await expect(q(page, '[data-pm-lock]')).toHaveCount(0);
     await expect(q(page, '[data-pm-add]')).not.toHaveAttribute('disabled', '');
     expect(writes(st)).toHaveLength(0); // turning the switch on writes no mask
     await sw.click(); // off: one press, no confirm step
-    await expect(sw).toHaveAttribute('aria-checked', 'false');
+    await expect(sw.locator('[role="switch"]')).toHaveAttribute('aria-checked', 'false');
     expect(st.settingPatches[1]).toEqual({ 'nvr.privacy_mask_write': 'false' });
     await expect(q(page, '[data-pm-lock="off_switch"]')).toHaveCount(1);
     expect(dialogs).toBe(0);
@@ -329,7 +329,7 @@ test.describe('MASKUI-295 privacy-mask editor (mocked backend, no device)', () =
     await q(page, '[data-pm-switch]').click();
     await q(page, '[data-pm-switch-confirm]').click();
     await expect(q(page, '[data-pm-switch-err]')).toHaveText(PM_TABLES.he.sw_err);
-    await expect(q(page, '[data-pm-switch]')).toHaveAttribute('aria-checked', 'false');
+    await expect(q(page, '[data-pm-switch] [role="switch"]')).toHaveAttribute('aria-checked', 'false');
     await expect(q(page, '[data-pm-lock="off_switch"]')).toHaveCount(1);
   });
 

@@ -28,6 +28,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dayMonthTimeText } from '../api/day-format';
+import { ToastController } from '../components/toast-controller';
 
 /** The motion layer reads at most the last 24 h whatever the period says: the screen says so. */
 const f_motionCap = (f: { layer: string; period: string }) => f.layer === 'motion' && (f.period === '7d' || f.period === '30d');
@@ -86,7 +87,11 @@ export class InvestigateReviews extends LitElement {
   @state() private focusIdx = -1;
   @state() private drawer: { item: ReviewItem; detail: ReviewDetail | null; loading: boolean } | null = null;
   @state() private notice = '';
-  @state() private toast: { tone: 'ok' | 'err'; text: string } | null = null;
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController<'ok' | 'err'>(this, { ms: 4000 });
+  private get toast(): { tone: 'ok' | 'err'; text: string } | null {
+    return this.toaster.visible ? { tone: this.toaster.tone as 'ok' | 'err', text: this.toaster.text } : null;
+  }
   @state() private view: ViewMode = readView();
   @state() private keysOpen = false;
   /** the recorders whose `exports` write class is on (read once the caller is known to hold the permissions) */
@@ -248,10 +253,7 @@ export class InvestigateReviews extends LitElement {
   }
 
   private flash(tone: 'ok' | 'err', text: string) {
-    this.toast = { tone, text };
-    window.setTimeout(() => {
-      if (this.toast?.text === text) this.toast = null;
-    }, 4000);
+    this.toaster.show(text, { tone });
   }
 
   // ---- reviewed state ----

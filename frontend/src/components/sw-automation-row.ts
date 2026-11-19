@@ -10,6 +10,9 @@ import type { CardAction } from './sw-automation-card';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { tr } from '../i18n/msg/components';
+import './sw-toggle';
+import { switchPress } from './sw-toggle';
+import { live } from 'lit/directives/live.js';
 
 /**
  * POLISH-295 `<automation-row .item .href>` (owner approval 2026-10-25, the approved preview COCKPIT_AUTOMATIONS_HE): one automation as a
@@ -305,7 +308,7 @@ export class AutomationRow extends LitElement {
     const hasMenu = i.can.edit || i.can.run || i.can.copy || i.can.delete || !!i.last_run || i.source === 'ui';
     return html`<div class=${`ar ${on ? 'on' : 'off'}`} role="row" data-automation=${i.id} data-state=${i.state} aria-label=${i.name}>
       <span class="ctl" role="cell">${canToggle
-        ? html`<button type="button" class="tog" role="switch" aria-checked=${String(on)} aria-label=${`${on ? tr('כיבוי') : tr('הפעלה')} · ${i.name}`} data-card-toggle ?disabled=${this.busy} @click=${() => this.fire('toggle', { item: i, enabled: !on })}></button>`
+        ? html`<sw-toggle .checked=${live(on)} label=${`${on ? tr('כיבוי') : tr('הפעלה')} · ${i.name}`} labelHidden data-card-toggle ?disabled=${this.busy} @change=${switchPress(on, () => this.fire('toggle', { item: i, enabled: !on }))}></sw-toggle>`
         : nothing}</span>
       <span class="who" role="cell"><a class="name" href=${this.href || '#'} data-card-open>${bidi(i.name)}</a><span class="where"><b>${bidi(floorLine(i))}</b>${areas ? html` · ${bidi(areas)}` : nothing}</span></span>
       <span class="sent" role="cell" data-card-sentence title=${i.sentence}>${i.sentence ? html`${aIcon('bolt')}<span>${i.sentence}</span>` : nothing}</span>

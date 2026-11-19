@@ -11,6 +11,10 @@ import { BRAND_PRESETS } from '../design/brand';
 import { brandLogo, installerFromView, setBrandView, type InstallerState, type LogoVariant } from '../design/brand-logo';
 import { t, type I18nKey } from '../i18n/he';
 import { settingsStyles } from '../styles/settings';
+import '../components/sw-toggle';
+import { switchPress } from '../components/sw-toggle';
+import { live } from 'lit/directives/live.js';
+import { ToastController } from '../components/toast-controller';
 
 type Tab = 'profile' | 'logos' | 'pack' | 'preview';
 const ACCEPT = 'image/png,image/svg+xml,image/webp,image/jpeg,.png,.svg,.webp,.jpg,.jpeg';
@@ -40,7 +44,11 @@ export class SystemBrandInstaller extends LitElement {
   @state() private draft: Draft = draftOf(brandLogo().wl);
   @state() private files: InstallerFull['files'] = { light: null, dark: null };
   @state() private busy: LogoVariant | 'save' | 'pack' | null = null;
-  @state() private message = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 2500 });
+  private get message(): string {
+    return this.toaster.text;
+  }
   @state() private error = '';
   @state() private warnings: string[] = [];
 
@@ -78,12 +86,6 @@ export class SystemBrandInstaller extends LitElement {
     .sw-main { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); background: var(--sw-surface-2); }
     .sw-main .t { flex: 1; display: flex; flex-direction: column; gap: 1px; min-inline-size: 0; }
     .sw-main .t b { font-weight: var(--sw-fw-semibold); }
-    .tgl { all: unset; box-sizing: border-box; cursor: pointer; inline-size: 44px; block-size: 26px; border-radius: var(--sw-r-pill); background: var(--sw-toggle-off); position: relative; flex: none; }
-    .tgl::after { content: ''; position: absolute; inset-block-start: 3px; inset-inline-start: 3px; inline-size: 20px; block-size: 20px; border-radius: 50%; background: #fff; transition: inset-inline-start 120ms ease; }
-    .tgl[aria-checked='true'] { background: var(--sw-toggle-on, var(--sw-accent)); }
-    .tgl[aria-checked='true']::after { inset-inline-start: 21px; }
-    .tgl[disabled] { cursor: default; opacity: var(--sw-disabled-opacity, 0.5); }
-    .tgl:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
     .lbox { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); background: var(--sw-surface-2); min-inline-size: 0; }
     .lbox .lt { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-block-size: 28px; }
     .lbox .lt b { font-size: var(--sw-fs-base); font-weight: var(--sw-fw-medium); }
@@ -131,8 +133,7 @@ export class SystemBrandInstaller extends LitElement {
   }
 
   private flash(text: string) {
-    this.message = text;
-    setTimeout(() => (this.message = ''), 2500);
+    this.toaster.show(text);
   }
 
   private async save() {
@@ -216,7 +217,7 @@ export class SystemBrandInstaller extends LitElement {
     const d = this.draft;
     return html`<div class="sw-main"><span class="t"><b>${t('whiteLabel.switchLabel')}</b><span class="muted">${t('whiteLabel.switchHint')}</span></span>
         <span class="chip ${d.enabled ? 'ok' : ''}" data-wl-state>${t(d.enabled ? 'whiteLabel.on' : 'whiteLabel.off')}</span>
-        <button type="button" class="tgl" role="switch" aria-checked=${d.enabled ? 'true' : 'false'} aria-label=${t('whiteLabel.switchLabel')} data-wl-enabled ?disabled=${!this.canEdit} @click=${() => this.set('enabled', !d.enabled)}></button></div>
+        <sw-toggle .checked=${live(d.enabled)} label=${t('whiteLabel.switchLabel')} labelHidden data-wl-enabled ?disabled=${!this.canEdit} @change=${switchPress(d.enabled, () => this.set('enabled', !d.enabled))}></sw-toggle></div>
       <div class="g2">
         <label class="fld"><span class="lbl">${t('whiteLabel.nameLabel')}<span class="muted">${t('whiteLabel.nameHint')}</span></span>
           <input class="inp" maxlength="60" data-wl-name .value=${d.name} ?disabled=${!this.canEdit} @input=${(e: Event) => this.set('name', (e.target as HTMLInputElement).value)} /></label>

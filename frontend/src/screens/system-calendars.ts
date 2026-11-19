@@ -19,6 +19,7 @@ import { calCss } from '../calendars/styles';
 import { LongListsController, perPageFor } from '../api/long-lists';
 import { tr } from '../i18n/msg/system-a';
 import { confirmWord, confirmWordMatches } from '../i18n/confirm-words';
+import { ToastController } from '../components/toast-controller';
 
 type Tab = 'overlap' | 'behavior' | 'approval' | 'perm' | 'retention';
 const TABS: [Tab, string, string][] = [['overlap', tr('חפיפת תחזוקה'), tr('חפיפה')], ['behavior', tr('התנהגות'), tr('התנהגות')], ['approval', tr('אישור לכל יומן'), tr('אישור')], ['perm', tr('הרשאות'), tr('הרשאות')], ['retention', tr('פרטי אורחים'), tr('אורחים')]];
@@ -223,7 +224,11 @@ export class SystemCalendars extends LitElement {
   @state() private draftRetention: number | null = null;
   @state() private confirm: 'retention' | 'purge' | null = null;
   @state() private typed = '';
-  @state() private toastText = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 3200 });
+  private get toastText(): string {
+    return this.toaster.text;
+  }
   @state() private phone = window.innerWidth < 700;
   /** CALMSG-POLISH-2331: the topic shown on the behaviour tab ("הכל" by default; every row stays reachable) */
   @state() private group: BehaviorGroup | 'all' = 'all';
@@ -239,7 +244,6 @@ export class SystemCalendars extends LitElement {
   private stepTimer = 0;
   /** The tallest row met on this tab so far: rows per page only shrink while paging, so turning a page never skips a row. */
   private fitRowH = 0;
-  private toastTimer = 0;
   private onResize = () => (this.phone = window.innerWidth < 700);
 
   connectedCallback(): void {
@@ -253,7 +257,6 @@ export class SystemCalendars extends LitElement {
     window.removeEventListener('resize', this.onResize);
     this.ro?.disconnect();
     clearTimeout(this.stepTimer);
-    clearTimeout(this.toastTimer);
     clearTimeout(this.attTimer);
   }
 
@@ -433,9 +436,7 @@ export class SystemCalendars extends LitElement {
   }
 
   private toast(t: string): void {
-    this.toastText = t;
-    clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => (this.toastText = ''), 3200);
+    this.toaster.show(t);
   }
 
   /** Saves the whole document with one change (the server refuses unknown keys and replaces the document). */

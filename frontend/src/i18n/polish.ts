@@ -47,7 +47,7 @@ function plLang(): PlLang {
 
 const TABLES: Record<PlLang, Record<Key, string>> = { he, en, ar, ru };
 /** The columns that are an initial, unreviewed translation. */
-export const PL_DEV_MARKED: readonly PlLang[] = ['ar', 'ru'];
+const PL_DEV_MARKED: readonly PlLang[] = ['ar', 'ru'];
 
 /** One phrase; `{n}`-style holes are filled from `vars`. */
 export function pl(key: Key, vars: Record<string, string | number> = {}, lang: PlLang = plLang()): string {

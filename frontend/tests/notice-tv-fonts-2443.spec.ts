@@ -67,6 +67,11 @@ for (const design of ['classic', 'v2', 'ink', 'sign', 'lumen', 'axis', 'prism', 
     if (USED[design]) {
       expect(p.loaded.some((f) => f.startsWith(USED[design] + ' ')), 'the style really draws with its own face').toBe(true);
       expect(p.computed.some((c) => c.includes(USED[design])), 'a text element asks for the face').toBe(true);
+      if (USED[design] === 'LobbySans') {
+        // CR-FE-SMALL-2440: Latin letters and digits draw in IBM Plex (the Latin face carries the Latin range), not in the Heebo fallback
+        expect(p.defined.filter((f) => /^LobbySans \S+ latin /.test(f)).length, 'one Latin LobbySans face per weight').toBe(5);
+        expect(p.loaded.some((f) => /^LobbySans \S+ latin /.test(f)), 'a Latin LobbySans face really loads').toBe(true);
+      }
     } else {
       expect(p.loaded.filter((f) => f.startsWith('LobbySans') || f.startsWith('LobbyFrank') || f.startsWith('LobbyDavid')), 'no lobby face drawn').toEqual([]);
     }

@@ -7,6 +7,7 @@ import type { WireCamera } from '../api/frigate';
 import { EVENT_MAX_S, createManualEvent, endManualEvent, isFirstWriteRefusal, openManualEvents, type ChangeRow, type FirstWrites } from '../api/frigate-control';
 import { fx } from '../i18n/frigate-text';
 import { adminStyles, dateText, firstBlocked, supervisedBox } from './frigate-admin-shared';
+import { ToastController } from './toast-controller';
 
 /**
  * FRGD: manual events on ONE Frigate recorder (Settings only; F2b, class `events`, permission analytics.events). One form - camera, label,
@@ -32,15 +33,16 @@ export class FrigateManualEvents extends LitElement {
   @state() private endSupervised = false;
   @state() private busy = false;
   @state() private error = '';
-  @state() private msg: { tone: 'ok' | 'err'; text: string } | null = null;
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController<'ok' | 'err'>(this, { ms: 4000 });
+  private get msg(): { tone: 'ok' | 'err'; text: string } | null {
+    return this.toaster.visible ? { tone: this.toaster.tone as 'ok' | 'err', text: this.toaster.text } : null;
+  }
 
   static styles = adminStyles;
 
   private flash(tone: 'ok' | 'err', text: string) {
-    this.msg = { tone, text };
-    window.setTimeout(() => {
-      if (this.msg?.text === text) this.msg = null;
-    }, 4000);
+    this.toaster.show(text, { tone });
   }
 
   private changed() {

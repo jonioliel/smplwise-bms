@@ -33,6 +33,7 @@ import { dateInputLang, dayTimeText } from '../api/day-format';
 import { tr } from '../i18n/msg/misc';
 import '../screens/presence-opt-out'; // WHOIN034-295: the person's own "do not show me on מי במבנה"
 import { errLineStyles, ltrStyles, okLineStyles } from '../styles/fragments';
+import { ToastController } from '../components/toast-controller';
 
 const CATEGORIES: { id: PushCategory; label: string; detail: string }[] = [
   { id: 'alerts', label: tr('התראות מחוקים'), detail: tr('כל התראה שחוק ב"חוקים והתראות" מעלה: תנועה, חציית קו, אדם, רכב') },
@@ -64,7 +65,11 @@ export class ArxNotificationsSettings extends LitElement {
   @state() private prefs: PushPrefs | null = null;
   @state() private draft: PushPrefs | null = null;
   @state() private busy = false;
-  @state() private message = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 4000 });
+  private get message(): string {
+    return this.toaster.text;
+  }
   @state() private error = '';
   @state() private loaded = false;
   /** POLISH4-WP8: the first read failed (the list and the preferences are unknown): an error panel with a retry instead of an empty "off" card */
@@ -185,11 +190,8 @@ export class ArxNotificationsSettings extends LitElement {
   }
 
   private flash(text: string) {
-    this.message = text;
+    this.toaster.show(text);
     this.error = '';
-    setTimeout(() => {
-      if (this.message === text) this.message = '';
-    }, 4000);
   }
 
   private async run(fn: () => Promise<void>) {

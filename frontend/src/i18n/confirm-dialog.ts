@@ -18,10 +18,9 @@ const ar: Record<Key, string> = packTable<typeof import('./lang/ar/i18n/confirm-
 
 const ru: Record<Key, string> = packTable<typeof import('./lang/ru/i18n/confirm-dialog').ru>('ru', 'i18n/confirm-dialog', 'ru');
 
-export type CdKey = Key;
-export type CdLang = 'he' | 'en' | 'ar' | 'ru';
+type CdLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function cdLang(): CdLang {
+function cdLang(): CdLang {
   return docLang(['en', 'ar', 'ru']);
 }
 

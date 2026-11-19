@@ -94,6 +94,7 @@ import { loadOwnMode, saveOwnMode } from '../api/plan-quality';
 import { planViewPrefs, type SiteLocation } from '../api/plan-view';
 import { timeText, dayTimeText } from '../api/day-format';
 import { WALL_PHONE_BAR_HINT, WALL_PHONE_BAR_LABEL, WALL_PHONE_BAR_OPTIONS, wallPhoneBarMode, type WallPhoneBarMode } from './wall-phone-bar';
+import { ToastController } from '../components/toast-controller';
 
 /** הגדרות › מתגי מסכי כניסה: the SMPLWISE WisKey screens that can show either WisKey's own panel or the screen built here. */
 const ACCESS_SCREENS: { screen: WiskeyScreen; label: string; href: string; detail: string }[] = [
@@ -211,7 +212,11 @@ export class SystemDiagnostics extends LitElement {
   @state() private foreign = 0;
   @state() private sessions: { id: string; camera_id: string; stream: string; username: string; seconds: number; bytes_down: number }[] = [];
   @state() private busy = false;
-  @state() private message = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 2500 });
+  private get message(): string {
+    return this.toaster.text;
+  }
   /** POLISH4-WP7: why the bridge status, the health report or the backup list could not be read (their own error state, with a retry).
    * CR-DIAG-DEFECTS-2436 (06:DIAG-4): one entry per tab, so a failure on one tab is never drawn on another. */
   @state() private loadFailed: Record<'ha' | 'health' | 'backup', string> = { ha: '', health: '', backup: '' };
@@ -223,7 +228,6 @@ export class SystemDiagnostics extends LitElement {
   @state() private summary: HealthSummary | null = null;
   @state() private summaryFailed = '';
   /** CR-DIAG-DEFECTS-2436 (06:MSG-1): the one timer that clears `message`; a newer message restarts it, disconnect clears it. */
-  private messageTimer: ReturnType<typeof setTimeout> | undefined;
   private copiedTimer: ReturnType<typeof setTimeout> | undefined;
   @state() private version = '';
   @state() private ha: HaStatus | null = null;
@@ -660,15 +664,12 @@ export class SystemDiagnostics extends LitElement {
     this.removeEventListener(FOLD_SUMMARY_EVENT, this.onFoldSummary);
     this.phoneMq?.removeEventListener('change', this.onPhoneMq);
     this.phoneMq = null;
-    clearTimeout(this.messageTimer);
     clearTimeout(this.copiedTimer);
   }
 
   /** CR-DIAG-DEFECTS-2436 (06:MSG-1): show a saved / done message for `ms`; a newer message restarts the one timer. */
   private flash(text: string, ms: number) {
-    this.message = text;
-    clearTimeout(this.messageTimer);
-    this.messageTimer = setTimeout(() => (this.message = ''), ms);
+    this.toaster.show(text, { ms });
   }
 
   /** CR-DIAG-DEFECTS-2436 (06:DIAG-4): the error line of one tab ('' clears it). */
@@ -906,7 +907,7 @@ export class SystemDiagnostics extends LitElement {
     try {
       const st = await installBridge();
       const text = st.state === 'installed_pending' ? 'האינטגרציה הועתקה ל־Home Assistant; הפעל מחדש את Home Assistant ואשר את הגשר שהתגלה.' : st.state === 'active' ? 'האינטגרציה פעילה.' : st.state === 'not_available' ? 'תיקיית ההגדרות של Home Assistant אינה נגישה ל־Add-on.' : `מצב: ${st.state}`;
-      this.message = text;
+      this.toaster.show(text, { ms: 0 });
       await this.loadHa();
       this.flash(text, 6000);
     } catch (err) {
@@ -1062,7 +1063,7 @@ export class SystemDiagnostics extends LitElement {
     this.setError('media', '');
     try {
       const r = await syncStreams();
-      this.message = `זרמים: ${r.created} נוצרו, ${r.updated} עודכנו, ${r.unchanged} ללא שינוי · ${r.foreign_streams_untouched} זרמים זרים לא נגעו`;
+      this.toaster.show(`זרמים: ${r.created} נוצרו, ${r.updated} עודכנו, ${r.unchanged} ללא שינוי · ${r.foreign_streams_untouched} זרמים זרים לא נגעו`, { ms: 0 });
       await this.loadMedia();
     } catch (err) {
       this.setError('media', describeError(err));

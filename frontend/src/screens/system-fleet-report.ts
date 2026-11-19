@@ -334,7 +334,7 @@ export class SystemFleetReport extends LitElement {
       background: var(--sw-surface-2);
       border-radius: var(--sw-r-sm);
       direction: ltr;
-      text-align: left;
+      text-align: start;
       font-family: var(--sw-font-mono);
       font-size: var(--sw-fs-state);
       line-height: 1.5;

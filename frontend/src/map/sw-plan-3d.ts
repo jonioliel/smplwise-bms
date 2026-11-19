@@ -37,6 +37,7 @@ import { HUD_EDGE, HUD_MINIMAP, HUD_MINIMAP_PHONE, HUD_PHONE_MAX, HUD_PILL_ROW, 
 import { t } from '../i18n/he';
 import { TIME_BAND_HE, hourLabel, moodInstant, resolveSite, siteInstant, siteLocal, timeBand, type LightMood, type ResolvedSite } from './sun';
 import { dateInputLang } from '../api/day-format';
+import { ToastController } from '../components/toast-controller';
 export { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS } from './timing';
 /** The browser's cache of the viewer's own mode (api/plan-quality.ts; the server keeps it per user in /me/prefs). */
 export { QUALITY_KEY } from '../api/plan-quality';
@@ -335,7 +336,11 @@ export class SwPlan3d extends LitElement {
   /** WebGL could not start: the whole stage says so. */
   @state() private error = '';
   /** An export failed: a toast that clears itself; the view stays. */
-  @state() private toast = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: TOAST_MS });
+  private get toast(): string {
+    return this.toaster.text;
+  }
   /** The viewer's own mode (the browser's cache at once, the server's /me/prefs value when it answers; null = the
    * person's / installation's `plan.view.quality` dial). A chosen rung sticks: the probe never lowers it (owner
    * 2026-10-10), it only offers the hint. */
@@ -363,7 +368,6 @@ export class SwPlan3d extends LitElement {
   private themeObserver?: MutationObserver;
   /** K88 3D round 2: night mode (dark sky, a moon instead of the sun, the lit rooms glow) - the viewer's choice, stored. */
   @state() private night = readStore('local', NIGHT_KEY) === '1';
-  private toastTimer = 0;
   @query('.stage') private stage!: HTMLDivElement;
   private view: SceneView | null = null;
   private ro?: ResizeObserver;
@@ -1051,7 +1055,6 @@ export class SwPlan3d extends LitElement {
     this.applied = null;
     this.thumbs.clear();
     this.thumbsFor = null;
-    window.clearTimeout(this.toastTimer);
   }
 
   /** The mode in force: this browser's choice, else the person's / installation's dial (auto or a fixed rung). */
@@ -2117,9 +2120,7 @@ export class SwPlan3d extends LitElement {
   }
 
   private showToast(text: string): void {
-    this.toast = text;
-    window.clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => (this.toast = ''), TOAST_MS);
+    this.toaster.show(text);
   }
 
   private renderStrip() {

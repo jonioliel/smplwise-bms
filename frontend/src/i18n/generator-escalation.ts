@@ -37,7 +37,7 @@ function gescLang(): GescLang {
 
 const TABLES: Record<GescLang, Partial<Record<Key, string>>> = { he, en, ar, ru };
 /** The columns that are an initial, unreviewed translation. */
-export const GESC_DEV_MARKED: readonly GescLang[] = ['ar', 'ru'];
+const GESC_DEV_MARKED: readonly GescLang[] = ['ar', 'ru'];
 
 export function gesc(key: Key, vars?: Record<string, string | number>, lang: GescLang = gescLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;

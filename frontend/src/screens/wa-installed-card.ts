@@ -14,6 +14,7 @@ import { wi, type WiKey } from '../i18n/wa-installed';
 import { blockers, jobTone, jobWord, pacedEditable, recentJobs, syncTone } from '../messaging/wa-installed-model';
 import { timeText } from '../api/day-format';
 import { hostBlockStyles, ltrStyles } from '../styles/fragments';
+import { ToastController } from '../components/toast-controller';
 
 const COMMAND_ROWS: [InstalledCommand, WiKey][] = [
   ['whatsapp/template_registry_v1', 'cmd_registry'],
@@ -37,9 +38,12 @@ export class WaInstalledCard extends LitElement {
   @state() private view: InstalledView | null = null;
   @state() private phase: 'loading' | 'ready' | 'error' = 'loading';
   @state() private error = '';
-  @state() private notice = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 3000 });
+  private get notice(): string {
+    return this.toaster.text;
+  }
   @state() private busy: '' | 'sync' | 'save' = '';
-  private noticeTimer = 0;
 
   static styles = [
     statusStyles,
@@ -75,7 +79,6 @@ export class WaInstalledCard extends LitElement {
   }
 
   disconnectedCallback(): void {
-    window.clearTimeout(this.noticeTimer);
     super.disconnectedCallback();
   }
 
@@ -92,9 +95,7 @@ export class WaInstalledCard extends LitElement {
   }
 
   private flash(text: string): void {
-    this.notice = text;
-    window.clearTimeout(this.noticeTimer);
-    this.noticeTimer = window.setTimeout(() => (this.notice = ''), 3000);
+    this.toaster.show(text);
   }
 
   private async sync(): Promise<void> {

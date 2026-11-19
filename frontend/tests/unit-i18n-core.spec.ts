@@ -117,7 +117,8 @@ test('every *_DEV_MARKED constant under src/i18n is kept and handed to the regis
   for (const f of readdirSync(dir)) {
     if (!f.endsWith('.ts')) continue;
     const src = readFileSync(new URL(f, dir), 'utf8');
-    for (const m of src.matchAll(/export const (\w+_DEV_MARKED)\b/g)) {
+    // CR-FE-SMALL-2440: twelve of them are file-local now (un-exported: only their own registerCatalogue reads them) - still counted
+    for (const m of src.matchAll(/^(?:export )?const (\w+_DEV_MARKED)\b/gm)) {
       seen += 1;
       if (!src.split('\n').some((line) => line.startsWith('registerCatalogue(') && line.includes(`, ${m[1]})`))) unread.push(`${f}: ${m[1]}`);
     }

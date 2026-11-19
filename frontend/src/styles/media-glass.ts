@@ -315,36 +315,6 @@ export const mediaGlassControls = css`
     min-block-size: 30px;
     font-size: var(--sw-fs-sm);
   }
-  /* switch */
-  .tog {
-    position: relative;
-    flex: none;
-    inline-size: 46px;
-    block-size: 28px;
-    border-radius: 999px;
-    background: var(--dv-surface-3);
-    border: 0;
-    padding: 0;
-    transition: background var(--mm-motion);
-  }
-  .tog::after {
-    content: '';
-    position: absolute;
-    inset-block-start: 2px;
-    inset-inline-start: 2px;
-    inline-size: 24px;
-    block-size: 24px;
-    border-radius: 50%;
-    background: var(--sw-toggle-thumb);
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.28);
-    transition: inset-inline-start var(--mm-motion) var(--mm-ease);
-  }
-  .tog[aria-checked='true'] {
-    background: var(--dv-toggle-on);
-  }
-  .tog[aria-checked='true']::after {
-    inset-inline-start: 20px;
-  }
   /* round keys, the power button, the volume rocker, the remote button */
   .rb {
     position: relative;
@@ -794,10 +764,6 @@ export const mediaGlassControls = css`
       inline-size: 44px;
       block-size: 44px;
     }
-    .tog {
-      inline-size: 50px;
-      block-size: 30px;
-    }
   }
 `;
 
@@ -936,8 +902,7 @@ export const mediaBubbleKnobs = css`
   :host([data-skin='bubble']) .search,
   :host([data-skin='bubble']) .shlink,
   :host([data-skin='bubble']) .pop button,
-  :host([data-skin='bubble']) .rbtn,
-  :host([data-skin='bubble']) .tog {
+  :host([data-skin='bubble']) .rbtn {
     min-block-size: var(--sw-touch-desktop, 44px);
     block-size: auto;
   }
@@ -1006,7 +971,6 @@ export const mediaBubbleKnobs = css`
     :host([data-skin='bubble']) .shlink,
     :host([data-skin='bubble']) .pop button,
     :host([data-skin='bubble']) .rbtn,
-    :host([data-skin='bubble']) .tog,
     :host([data-skin='bubble']) .vrock {
       min-block-size: 44px;
     }
