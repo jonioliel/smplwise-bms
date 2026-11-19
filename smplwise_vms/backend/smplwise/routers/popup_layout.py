@@ -23,6 +23,7 @@ from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import home_screen_options, popup_layout
+from ..services import popup_layout_store as store
 
 router = APIRouter()
 
@@ -68,7 +69,7 @@ def put_site_layout(body: LayoutBody, principal: Principal = Depends(current_pri
 
 @router.put("/devices/areas/{area_id}/popup-layout")
 def put_area_layout(area_id: str, body: LayoutBody, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    row = conn.execute("SELECT floor_id FROM ha_areas WHERE area_id = ?", (area_id,)).fetchone()
+    row = store.area_floor(conn, area_id)
     if row is None:
         raise ApiError(404, "not_found", "האזור לא נמצא.")
     require(conn, principal, "system.configure", ("floor", row["floor_id"]) if row["floor_id"] else INSTALLATION)
