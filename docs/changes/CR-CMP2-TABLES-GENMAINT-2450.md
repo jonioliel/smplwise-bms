@@ -49,7 +49,8 @@ by CSS and still counted.
 
 The PC ran at 100 % CPU (other agents) for most of the afternoon; several timeouts below are load, each re-run alone.
 
-- `npx tsc --noEmit -p tsconfig.json`: exit 0 after every screen (code head a4252fb81) and after the train merge (9422f8cee, see the end).
+- `npx tsc --noEmit -p tsconfig.json`: exit 0 after every screen (code head a4252fb81) and after the train merge (9422f8cee).
+  `-p tsconfig.tests.json`: NOT_RUN - stopped by its 15 min limit on the overloaded PC (the two spec edits are one assertion each).
 - ESLint on every touched source file (`page-fit`, `list-page`, `log-page`, `gen-alerts-page`, `gen-log-page`, `gen-styles`): 0 errors.
 - `node scripts/unused-exports.mjs --enforce`: OK.
 - Unit (`playwright.unit.config.ts`): `unit-noscroll-lists-2443` (updated: the row hooks and the PageFit shadow walk), `unit-poll-features`,
@@ -72,8 +73,10 @@ The PC ran at 100 % CPU (other agents) for most of the afternoon; several timeou
 
 ## NOT_RUN
 
-- Runner pass (targeted browser specs on Linux, desktop + mobile): the runner ran the 2.43.9 / 2.44.0 gates all afternoon and a new 2.44.0
-  gate run was in progress at the end; the rule is gates first. To run there: `evidence-maintenance`, `layout-maint-log-2443`,
+- Runner pass (targeted browser specs on Linux, all projects): the runner ran the 2.43.9 / 2.44.0 gates all afternoon; in the one gap
+  (15:17) `~/work/tablesgm-run1.sh 7e1f720e0` built OK (29 s), then a new 2.44.0 gate started and the script skipped its spec steps by
+  design (gates first). Re-run it with the head SHA when no gate runs (own folder `~/work/tablesgm`, nice -n 19, `--workers=1`; it cleans
+  `dist` / `test-results` after). Its specs: `evidence-maintenance`, `layout-maint-log-2443`,
   `evidence-genlog-092`, `evidence-generator` (alerts + history), `evidence-genalert`, all projects.
 - Pixel baselines: no pixel spec draws the moved screens (`visual-matrix`, `layout-audit30-e-infra` cover the generator live / charts pages
   only, unchanged here), so none were refreshed. NONE CHANGED as far as the specs go.
