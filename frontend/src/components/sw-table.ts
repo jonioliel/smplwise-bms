@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing, noChange, type TemplateResult } from 'l
 import { customElement, property } from 'lit/decorators.js';
 import { Directive, directive, PartType, type ElementPart, type PartInfo } from 'lit/directive.js';
 import { tr } from '../i18n/msg/components';
-import { cellClassOf, cellPartOf, headClassOf, rowAttrMap, rowFocusStep, type CellKind, type RowAttrs } from './table-logic';
+import { cellClassOf, cellPartOf, groupSegments, headClassOf, rowAttrMap, rowFocusStep, type CellKind, type RowAttrs } from './table-logic';
 
 export type { CellKind, RowAttrs } from './table-logic';
 
@@ -100,6 +100,14 @@ export class SwTable extends LitElement {
   /** CR-CMP2-TABLES-2450: a read-only list - the rows show no pointer, no press tint and never fire `row-select` (it wins over
    * `focus-rows` and a listener) */
   @property({ type: Boolean, reflect: true, attribute: 'static-rows' }) staticRows = false;
+  /** CR-CMP2-GEN-REST-2460 (owner N10): group heading rows (opt-in) - a row for which this returns a heading is drawn as one band across
+   * the table (`<th scope="rowgroup">` opening its own `<tbody>`), not as a data row: no cells, no pointer, no tab stop, never
+   * `row-select`; its `rowAttrs` hooks still apply. The rows after it, up to the next heading, are its group. Unset (or `null` /
+   * `undefined` for every row): no band, the table is unchanged. */
+  @property({ attribute: false }) groupHeading?: (row: Record<string, unknown>) => TemplateResult | string | null | undefined;
+  /** CR-CMP2-GEN-REST-2460: a small grid of figures that fits a phone keeps its columns there (no card stack below 768 px); a column
+   * still steps out with `hideBelow`. For a table of a few short columns only (the generator phases): a wide table would overflow. */
+  @property({ type: Boolean, reflect: true, attribute: 'keep-columns' }) keepColumns = false;
   /** how many `row-select` listeners are registered on this element itself */
   private rowSelectListeners = 0;
 
@@ -503,6 +511,81 @@ export class SwTable extends LitElement {
         max-inline-size: 100%;
       }
     }
+    /* ---- CR-CMP2-GEN-REST-2460 (owner N10): group heading rows (groupHeading) - one quiet band across the table, the group's name in the
+       heading ink; it never sticks (only the column header does) */
+    th.grp {
+      position: static;
+      z-index: auto;
+      background: var(--sw-table-group-bg, var(--sw-surface-2));
+      color: var(--sw-heading, var(--sw-text));
+      font-weight: var(--sw-fw-bold);
+      font-size: var(--sw-fs-sm);
+      padding: var(--sw-table-group-pad, 7px 14px);
+      text-align: start;
+    }
+    @media (max-width: 767px) {
+      :host tr.group {
+        display: block;
+        padding: 0;
+      }
+      th.grp {
+        display: block;
+        grid-column: 1 / -1;
+      }
+    }
+    /* keep-columns: the phone keeps the table (a small grid of figures); the columns that step out stay out */
+    @media (max-width: 767px) {
+      :host([keep-columns]) table {
+        display: table;
+      }
+      :host([keep-columns]) thead {
+        display: table-header-group;
+      }
+      :host([keep-columns]) tbody {
+        display: table-row-group;
+      }
+      :host([keep-columns]) tfoot {
+        display: table-footer-group;
+      }
+      :host([keep-columns]) tr {
+        display: table-row;
+        padding: 0;
+        border: 0;
+      }
+      :host([keep-columns]) td {
+        display: table-cell;
+        padding: var(--sw-table-cell-pad, 9px 14px);
+        border-block-end: 1px solid var(--sw-border);
+        white-space: nowrap;
+      }
+      :host([keep-columns]) th.grp {
+        display: table-cell;
+      }
+      :host([keep-columns]) td::before {
+        content: none;
+      }
+      :host([keep-columns]) tbody tr:last-child td,
+      :host([keep-columns]) tfoot td {
+        border-block-end: 0;
+      }
+      :host([keep-columns]) tfoot td:empty {
+        display: table-cell;
+      }
+      :host([keep-columns]) td.k-num,
+      :host([keep-columns]) td.k-actions,
+      :host([keep-columns]) td.a-end {
+        text-align: end;
+      }
+      :host([keep-columns]) td.a-center {
+        text-align: center;
+      }
+      :host([keep-columns]) .hb-phone,
+      :host([keep-columns]) .hb-tablet,
+      :host([keep-columns]) tfoot td.hb-phone,
+      :host([keep-columns]) tfoot td.hb-tablet {
+        display: none;
+      }
+    }
   `;
 
   /** `key` is set when the row was picked from the keyboard ('Enter' or ' '): a screen whose open row has a next step on Enter (the
@@ -574,27 +657,47 @@ export class SwTable extends LitElement {
     return html`<td class="cmeta" data-card-meta data-label="">${parts.map((v, i) => html`${i ? html`<span class="sep"> · </span>` : nothing}<bdi>${v}</bdi>`)}</td>`;
   }
 
+  /** CR-CMP2-GEN-REST-2460: the heading a row draws as a group band, or null for a data row */
+  private headingOf(row: Record<string, unknown>): TemplateResult | string | null {
+    const h = this.groupHeading ? this.groupHeading(row) : null;
+    return h === null || h === undefined ? null : h;
+  }
+
+  /** CR-CMP2-GEN-REST-2460: a group heading row - one band across every column; the row's hooks, no pointer, no tab stop, never picked */
+  private groupRow(row: Record<string, unknown>) {
+    const hooks = this.rowAttrs;
+    return html`<tr class="group" part="group-row" data-row-id=${String(row[this.rowKey] ?? '')} ${rowHooks(hooks ? hooks(row) : null)}><th class="grp" part="group" scope="rowgroup" colspan=${this.columns.length || 1}>${this.headingOf(row)}</th></tr>`;
+  }
+
+  /** one data row: its hooks, the pick (a click, or Enter / Space when the rows are tab stops), the hover events */
+  private dataRow(row: Record<string, unknown>, card: boolean, focusable: boolean) {
+    const hooks = this.rowAttrs;
+    return html`<tr class="clickable ${this.selected === String(row[this.rowKey]) ? 'selected' : ''}" part="row" data-row-id=${String(row[this.rowKey] ?? '')} ${rowHooks(hooks ? hooks(row) : null)} @click=${() => this.staticRows || this.pick(row)}
+              tabindex=${focusable ? '0' : nothing} @keydown=${focusable ? (e: KeyboardEvent) => this.onRowKey(e, row) : nothing}
+              @pointerenter=${(e: PointerEvent) => this.dispatchEvent(new CustomEvent('row-hover', { detail: { id: String(row[this.rowKey] ?? ''), row, clientX: e.clientX, clientY: e.clientY, pointerType: e.pointerType }, bubbles: true, composed: true }))}
+              @pointerleave=${() => this.dispatchEvent(new CustomEvent('row-leave', { detail: { id: String(row[this.rowKey] ?? '') }, bubbles: true, composed: true }))}>
+              ${this.columns.map((c) => this.cell(c, row))}${card ? this.metaCell(row) : nothing}
+            </tr>`;
+  }
+
   render() {
     // CR-CMP2-TABLES-2450: a screen may slot its own empty state (its data hooks and copy); the default line otherwise
     if (!this.rows.length) return html`<slot name="empty"><div class="empty" part="empty">${this.emptyText}</div></slot>`;
     const card = usesCardTemplate(this.columns);
     const focusable = this.rowsFocusable;
-    const hooks = this.rowAttrs;
+    const groups = !!this.groupHeading && this.rows.some((r) => this.headingOf(r) !== null);
     return html`
       <table part="table">
         <thead>
           <tr part="head-row">${this.columns.map((c) => html`<th class=${c.hideBelow || c.align || c.kind ? headClassOf(c) : nothing} part="head" style=${c.width ? `width:${c.width}` : ''}>${c.label}</th>`)}</tr>
         </thead>
-        <tbody>
-          ${this.rows.map(
-            (row) => html`<tr class="clickable ${this.selected === String(row[this.rowKey]) ? 'selected' : ''}" part="row" data-row-id=${String(row[this.rowKey] ?? '')} ${rowHooks(hooks ? hooks(row) : null)} @click=${() => this.staticRows || this.pick(row)}
-              tabindex=${focusable ? '0' : nothing} @keydown=${focusable ? (e: KeyboardEvent) => this.onRowKey(e, row) : nothing}
-              @pointerenter=${(e: PointerEvent) => this.dispatchEvent(new CustomEvent('row-hover', { detail: { id: String(row[this.rowKey] ?? ''), row, clientX: e.clientX, clientY: e.clientY, pointerType: e.pointerType }, bubbles: true, composed: true }))}
-              @pointerleave=${() => this.dispatchEvent(new CustomEvent('row-leave', { detail: { id: String(row[this.rowKey] ?? '') }, bubbles: true, composed: true }))}>
-              ${this.columns.map((c) => this.cell(c, row))}${card ? this.metaCell(row) : nothing}
-            </tr>`,
-          )}
-        </tbody>
+        ${groups
+          ? groupSegments(this.rows, (r) => this.headingOf(r) !== null).map(
+              (seg) => html`<tbody>${seg.head ? this.groupRow(seg.head) : nothing}${seg.rows.map((row) => this.dataRow(row, card, focusable))}</tbody>`,
+            )
+          : html`<tbody>
+              ${this.rows.map((row) => this.dataRow(row, card, focusable))}
+            </tbody>`}
         ${hasFootRow(this.columns) ? html`<tfoot><tr part="foot-row">${this.columns.map((c) => this.footCell(c))}</tr></tfoot>` : nothing}
       </table>
     `;
