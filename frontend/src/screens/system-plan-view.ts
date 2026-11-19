@@ -421,7 +421,7 @@ export class SystemPlanView extends LitElement {
     const hint = own && current === null ? `${tr('לפי ההתקנה: {value}', { value: choiceLabel(dial, inst as string | number) })} · ${HINT_HE[dial]}` : HINT_HE[dial];
     return html`<div class="row" data-view-row=${dial}>
       <span class="lbl">${DIAL_HE[dial]}<span class="muted">${hint}</span></span>
-      ${this.seg(DIAL_HE[dial], dial, own && personal, values, current, (v) => choiceLabel(dial, v), disabled, (v) =>
+      ${this.seg(DIAL_HE[dial], dial, own && personal, values, current as string | number | null, (v) => choiceLabel(dial, v), disabled, (v) =>
         v === null ? void this.setOwn(dial as PersonalDial, null) : own ? void this.setOwn(dial as PersonalDial, v) : this.setInst(dial as SiteDial, v as never),
       )}
     </div>`;
