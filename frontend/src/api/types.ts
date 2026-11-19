@@ -46,55 +46,27 @@ export interface Me {
   modules?: { tickets: boolean; notices?: boolean /* CR-NOTICE106 */; tickets_name?: Partial<Record<import('../tickets/naming').TicketLang, import('../tickets/naming').TicketName>>; tickets_long_press?: 'sheet' | 'menu' /* D17 (slice 3) */; incidents?: boolean /* CR-LIVEEVENT100: the live event mode switch (OFF by default) */; announce?: boolean /* FIX2200: announce.enabled - the הכרזות tab */ };
 }
 
-export interface Site {
-  id: string;
-  name: string;
-  address: string;
-  timezone: string;
-  sort_order: number;
-  updated_at: string;
-  /** R1 (0.1.67): a photo of the site, served by the API (null without one). */
-  image_url?: string | null;
+/* Site / building / floor are the backend's response models (smplwise_vms/backend/smplwise/wire/catalog.py, generated into
+ * ./generated/wire-catalog.ts): a field the server renames or drops is a compile error here (code review 07:F8 step 2). Optional on
+ * purpose: the picture, the shared flags and counts (the demo tree has none of them) and the tree children (absent with `?tree=false`). */
+type WireSite = import('./generated/wire-catalog').CatalogSite;
+type WireBuilding = import('./generated/wire-catalog').CatalogBuilding;
+type WireFloor = import('./generated/wire-catalog').CatalogFloor;
+
+export interface Site extends Pick<WireSite, 'id' | 'name' | 'address' | 'timezone' | 'sort_order' | 'updated_at'>, Partial<Pick<WireSite, 'image_url'>> {
   buildings?: Building[];
 }
 
-export interface Building {
-  id: string;
-  site_id: string;
-  name: string;
-  sort_order: number;
-  updated_at: string;
-  image_url?: string | null;
-  /** MULTIBUILDING-HOME-2330: the site's shared building ("משותף": parking, main electrical room, garden) - listed last on the home
-   * screen with its own icon and colour, unchecked by default in "כבה הכל באתר". Absent on an older server = false. */
-  is_shared?: boolean;
+export interface Building extends Pick<WireBuilding, 'id' | 'site_id' | 'name' | 'sort_order' | 'updated_at'>, Partial<Pick<WireBuilding, 'image_url' | 'is_shared'>> {
+  /** MULTIBUILDING-HOME-2330: `is_shared` = the site's shared building ("משותף": parking, main electrical room, garden) - listed last on
+   * the home screen with its own icon and colour, unchecked by default in "כבה הכל באתר". */
   floors?: Floor[];
 }
 
-export interface Floor {
-  id: string;
-  building_id: string;
-  name: string;
-  level: number;
-  sort_order: number;
-  ha_area_id: string | null;
-  has_plan: boolean;
-  published_version_id: string | null;
-  plan_width_px: number | null;
-  plan_height_px: number | null;
-  draft_version_id: string | null;
-  anchor_count: number;
-  camera_count: number;
-  /** CR-009: the anchors / cameras of rooms other floors share with this one (their home floor counts them). */
-  shared_anchor_count?: number;
-  shared_camera_count?: number;
-  updated_at: string;
-}
+/** CR-009: `shared_anchor_count` / `shared_camera_count` = the anchors / cameras of rooms other floors share with this one. */
+export type Floor = Omit<WireFloor, 'shared_anchor_count' | 'shared_camera_count'> & Partial<Pick<WireFloor, 'shared_anchor_count' | 'shared_camera_count'>>;
 
-export interface SitesResponse {
-  sites: Site[];
-  can_create_site: boolean;
-}
+export type SitesResponse = Omit<import('./generated/wire-catalog').CatalogSites, 'sites'> & { sites: Site[] };
 
 export interface PlanAsset {
   /** pdf / dxf / image, from the server's content sniffing (T065). */

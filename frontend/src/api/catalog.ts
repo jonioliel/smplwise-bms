@@ -71,12 +71,10 @@ export const updateFloor = (id: string, body: Partial<Pick<Floor, 'name' | 'leve
 
 /** SYNOPTIC-HA-2310: the home-system mapping rows, keyed by the platform's id -> our floor (layer 1: one row per platform floor;
  * layer 2: per-area override, `floor_id: null` = taken off every floor by hand). Only rows of floors the caller may read. */
-export interface HomeLinks {
-  floors: { ha_floor_id: string; floor_id: string }[];
-  areas: { area_id: string; floor_id: string | null }[];
+export type HomeLinks = Omit<import('./generated/wire-catalog').CatalogHomeLinks, 'buildings'> & {
   /** MAPPING-ASSIST-2330: area -> building rows of the home's site level (an area put in a building where none of our floors fits). */
-  buildings?: { area_id: string; building_id: string }[];
-}
+  buildings?: import('./generated/wire-catalog').CatalogHomeLinks['buildings'];
+};
 export type AreaLinkMode = 'include' | 'exclude' | 'auto';
 export const getHomeLinks = () => get<HomeLinks>('home-links');
 /** One floor's edit: its platform floors (whole list) and per-area modes; answers the rows after the change. */
