@@ -1,5 +1,7 @@
 import { LitElement, html, nothing } from 'lit';
 import '../components/sw-button';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { customElement, property, state } from 'lit/decorators.js';
 import './gen-chart-set';
 import type { GenDevice, GenRange, HistoryResponse, GenSettings } from '../api/generator';
@@ -66,12 +68,14 @@ export class GenChartsPage extends LitElement {
     const ready = this.range !== 'custom' || !!this.applied.from;
     return html`<div class="col" data-gen-charts>
       <div class="row"><span class="h2">${G.charts.title}</span><div class="sp"></div>
-        <div class="seg" role="group" aria-label=${G.charts.title} data-range>${RANGES.map((r) => html`<button aria-pressed=${this.range === r} @click=${() => this.pickRange(r)}>${G.charts.ranges[r]}</button>`)}</div>
+        <sw-segmented label=${G.charts.title} data-range value=${this.range} @change=${(e: CustomEvent<SegmentedChange>) => this.pickRange(e.detail.value as GenRange)}
+          .options=${RANGES.map((r) => ({ value: r, label: G.charts.ranges[r] }))}></sw-segmented>
         <sw-button size="sm" @click=${() => this.csv()} ?disabled=${!this.data} data-csv>${G.charts.csv}</sw-button></div>
       ${this.range === 'custom' ? html`<div class="row" data-custom><label class="row mut">${G.charts.from} <input type="datetime-local" lang=${dateInputLang()} .value=${this.from} @input=${(e: Event) => (this.from = (e.target as HTMLInputElement).value)} /></label>
         <label class="row mut">${G.charts.to} <input type="datetime-local" lang=${dateInputLang()} .value=${this.to} @input=${(e: Event) => (this.to = (e.target as HTMLInputElement).value)} /></label>
         <sw-button variant="primary" size="sm" @click=${() => this.apply()}>${G.charts.apply}</sw-button>${this.rangeError ? html`<span class="bad" role="alert">${this.rangeError}</span>` : nothing}</div>` : nothing}
-      ${ms.length ? html`<div class="seg" role="group" data-metrics>${ms.map((m) => html`<button aria-pressed=${m.role === metric} @click=${() => navigate('/infra/generator/charts', { device: d.id, metric: m.role })}>${(G.charts.metrics as Record<string, string>)[m.role]}</button>`)}</div>` : nothing}
+      ${ms.length ? html`<sw-segmented data-metrics value=${metric} @change=${(e: CustomEvent<SegmentedChange>) => navigate('/infra/generator/charts', { device: d.id, metric: e.detail.value })}
+          .options=${ms.map((m) => ({ value: m.role, label: (G.charts.metrics as Record<string, string>)[m.role] }))}></sw-segmented>` : nothing}
       ${ready ? html`<gen-chart-set mode="big" .deviceId=${d.id} .roles=${historyRoles(ms)} .range=${this.range} .from=${this.applied.from} .to=${this.applied.to} .metric=${metric} @history-loaded=${(e: CustomEvent<HistoryResponse>) => (this.data = e.detail)}></gen-chart-set>` : nothing}
       <div class="mut">${fill(G.charts.retention, { n: this.retention })}</div>
     </div>`;

@@ -1,6 +1,8 @@
 import { LitElement, html, svg, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
 import './gen-chart-set';
 import { getLive, loadViewMode, saveViewMode, type GenDevice, type GenRange, type LiveResponse, type ViewMode } from '../api/generator';
@@ -179,9 +181,11 @@ export class GenLivePage extends LitElement {
     const pulse = toneOfEngine(plan.engine);
     const status = this.statusText(d.name, plan.engine, plan.onGen, plan.mode, plan.mainsOn, plan.showAts);
     const modeSwitch = (gauges.length || caps.size) ? html`<div class="row"><span class="h3">${this.view === 'gauges' ? G.live.viewGauges : G.live.historyTitle}</span><div class="sp"></div>
-      ${this.view === 'charts' ? html`<div class="seg" role="group" aria-label=${G.charts.title} data-range>${RANGE_SET.map((r) => html`<button aria-pressed=${this.range === r} @click=${() => (this.range = r)}>${G.charts.ranges[r]}</button>`)}</div>
+      ${this.view === 'charts' ? html`<sw-segmented label=${G.charts.title} data-range value=${this.range} @change=${(e: CustomEvent<SegmentedChange>) => (this.range = e.detail.value as GenRange)}
+          .options=${RANGE_SET.map((r) => ({ value: r, label: G.charts.ranges[r] }))}></sw-segmented>
         <a class="btn sm" href="#/infra/generator/charts?device=${encodeURIComponent(d.id)}" data-full-view><sw-icon name="expand" size="16"></sw-icon> ${G.live.fullView}</a>` : nothing}
-      <div class="seg" role="group" aria-label=${G.live.viewLabel} data-view-mode><button aria-pressed=${this.view === 'gauges'} @click=${() => this.setView('gauges')}>${G.live.viewGauges}</button><button aria-pressed=${this.view === 'charts'} @click=${() => this.setView('charts')}>${G.live.viewCharts}</button></div></div>` : nothing;
+      <sw-segmented label=${G.live.viewLabel} data-view-mode value=${this.view} @change=${(e: CustomEvent<SegmentedChange>) => this.setView(e.detail.value as ViewMode)}
+          .options=${[{ value: 'gauges', label: G.live.viewGauges }, { value: 'charts', label: G.live.viewCharts }]}></sw-segmented></div>` : nothing;
     const dials = gauges.length ? html`<div class="gauges n${gauges.length} ${stale ? 'stale' : ''}" data-view="gauges">${gauges.map(gaugeSvg)}</div>` : nothing;
     const charts = html`<gen-chart-set data-view="charts" .deviceId=${d.id} .roles=${d.capabilities.roles} .range=${this.range} mode="cards" @metric-open=${(e: CustomEvent<string>) => navigate(`/infra/generator/charts`, { device: d.id, metric: e.detail })}></gen-chart-set>`;
     return html`<div class="col" data-gen-live data-availability=${availability}>
