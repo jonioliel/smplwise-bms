@@ -1,5 +1,23 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.44.0 (pilot) - Redacted log export; English tariff names; shared switches and messages; code-review clean-up
+
+### חדש - New
+- הגדרות > בריאות ומשימות: ייצוא יומן מצונזר להורדה, אחרי אישור. הקובץ כולל את שורות היומן האחרונות עם מזהה הבקשה של כל שורה, את בדיקות המערכת והמלצה לכל תקלה. סיסמאות, אסימונים, פרטי גישה בכתובות, כתובות IP ו-MAC, מספרים סידוריים, טלפונים ודוא"ל מוסתרים; וידאו, תמונות ותוכניות לא נכללים לעולם. רק מי שמורשה לנהל את הגדרות המערכת יכול לייצא, והייצוא נרשם ביומן הביקורת. - Settings > Health and jobs: a redacted log export, downloaded after a confirmation. The file holds the latest log lines with each line's request id, the system checks and a recommendation for each problem. Passwords, tokens, credentials inside addresses, IP and MAC addresses, serial numbers, phone numbers and e-mail are hidden; video, pictures and plans are never included. Only a user allowed to manage the system settings may export, and the export is recorded in the audit log.
+- חשמל: לעונות, לסוגי הימים ולרצועות של תעריף לפי שעות אפשר לתת שם באנגלית (רשות). הממשק באנגלית מציג אותו, ולתבנית הישראלית יש כבר שמות באנגלית. החשבונית העברית לא משתנה. - Electricity: seasons, day types and bands of a time-of-use tariff can carry an optional English name. The English interface shows it, and the Israeli template already has English names. The Hebrew bill does not change.
+
+### שופר - Improved
+- מתגים: מתגי ההפעלה שנבנו ידנית בהתראות, באוטומציות, בלוחות הזמנים, בעורך השלט, באזעקה, במיתוג, במיפוי, במפת ההיסטוריה, בהגדרות האירועים ובמסיכות הפרטיות הם עכשיו המתג האחיד של המערכת. הגודל והצבעים שלהם משתנים מעט. - Switches: the hand-built on/off switches in notifications, automations, schedules, the remote editor, the alarm, branding, mapping, the history map, the incident settings and the privacy masks are now the system's shared switch, so their size and colours change slightly.
+- הודעות קצרות: 32 מסכים משתמשים בבקר הודעות אחד. הודעה שנייה מקבלת תמיד את מלוא הזמן שלה, ושום הודעה לא מופיעה אחרי שעוזבים את המסך. - Short messages: 32 screens use one message controller. A second message always gets its full time, and nothing appears after you leave the screen.
+- חשמל ומים: כרטיס הלקוח משתמש בטופס משותף אחד (אותם שדות ואותן בדיקות). - Electricity and water: the customer card uses one shared form (the same fields and checks).
+- לחיצה על כותרת מתקפלת או על תווית בגיליון תחתון בטלפון כבר לא הולכת לאיבוד. - A tap on a folding heading or a label in a phone bottom sheet is no longer lost.
+- לוח הטלוויזיה: אותיות לטיניות וספרות בסגנונות Lumen, ‏Axis ו-Prism מוצגות בגופן IBM Plex הנכון. - TV board: Latin letters and digits in the Lumen, Axis and Prism styles are drawn in the right IBM Plex font.
+- מסכי הבית והאזור: פחות חישובים כפולים בכל ציור ובכל עדכון. - Home and area screens: fewer repeated computations on every draw and update.
+- סקירת קוד: חיווט ההתראות של המעטפת עבר לבקר משלו, מזהה הבקשה נקרא בכל השרת דרך פונקציה אחת, ייצוא שלא היה בשימוש הוסר, מסמכי הרישוי של הגופנים מצביעים על הקבצים האמיתיים. - Code review: the shell's notification wiring has its own controller, the server reads the request id through one helper, unused exports were removed, and the font licence documents point at the real files.
+
+### התקנה - Install
+- אין מיגרציה חדשה ואין צורך בהפעלה מחדש של מערכת הבית (הגשר נשאר 0.10.7). - No new migration and no home-system restart (the bridge stays 0.10.7).
+
 ## 2.43.9 (pilot) - English / Arabic / Russian load only when chosen; a safer phone-app session and TV board; code-review wave 3B
 
 ### חדש - New
