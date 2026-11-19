@@ -29,6 +29,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import offline_field as svc
+from ..services import offline_field_store as store
 from ..services.tickets import access
 from ..services.tickets.messaging import DEFAULT_TZ
 from ._common import rid as _rid
@@ -186,7 +187,7 @@ def post_review(body: ReviewBody, request: Request, op_id: str = Path(pattern=ID
 def get_devices(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _gate(conn)
     require(conn, principal, MANAGE, INSTALLATION)
-    return {"devices": [dict(r) for r in conn.execute("SELECT * FROM offline_devices ORDER BY last_seen_at DESC LIMIT 500").fetchall()]}
+    return {"devices": [dict(r) for r in store.devices(conn)]}
 
 
 @router.post("/field/offline/devices/{user_id}/{device_id}/{action}")
@@ -201,7 +202,7 @@ def post_device(body: ReasonBody, request: Request, user_id: str = Path(pattern=
 def get_points(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _gate(conn)
     require(conn, principal, MANAGE, INSTALLATION)
-    return {"points": [dict(r) for r in conn.execute("SELECT * FROM offline_round_points ORDER BY name").fetchall()]}
+    return {"points": [dict(r) for r in store.round_points(conn)]}
 
 
 @router.post("/field/offline/round-points", status_code=201)
@@ -215,6 +216,6 @@ def post_point(body: PointBody, request: Request, principal: Principal = Depends
 def get_tag(request: Request, point_id: str = Path(pattern=ID), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _gate(conn)
     require(conn, principal, MANAGE, INSTALLATION)
-    if conn.execute("SELECT 1 FROM offline_round_points WHERE id = ?", (point_id,)).fetchone() is None:
+    if store.round_point_row(conn, point_id) is None:
         raise ApiError(404, "point_not_found", "נקודת הסבב לא נמצאה.")
     return {"tag": svc.make_tag(settings_of(request).data_dir, point_id)}
