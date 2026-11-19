@@ -9,9 +9,8 @@ import { css } from 'lit';
  *
  *     static styles = css`
  *       ...
- *       ${segTrackStyles}          <- where the screen's own ".seg { ... }" stood
  *       .seg button { ... }        <- the screen's own key (these differ from screen to screen and stay local)
- *       ${segThumbStyles}
+ *       ${segThumbStyles}          <- where the screen's own ".seg button[aria-pressed='true'] { ... }" stood
  *       ...
  *     `;
  *
@@ -27,17 +26,8 @@ import { css } from 'lit';
  * share without touching markup; CR-CSS-FRAGMENTS-TAIL decides those per family.
  */
 
-/** The sunken track of a pill segmented control (3 files: system-design, system-look, system-nav-size). */
-export const segTrackStyles = css`
-  .seg {
-    display: inline-flex;
-    gap: 2px;
-    padding: 3px;
-    background: var(--sw-surface-3);
-    border-radius: var(--sw-r-md);
-    flex-wrap: wrap;
-  }
-`;
+/* CR-CMP2-POLISH-2470: the sunken track fragment (segTrackStyles) is gone - its three screens draw sw-segmented since
+   CR-CMP2-SEGMENTED-C-2450, and an export nobody imports fails scripts/unused-exports.mjs */
 
 /** The chosen key of a segmented control - the lifted thumb, the label in the accent ink (5 files under this selector; the same
  * declarations stand under `.rangepick button.on`, `.tabs button[aria-selected='true']`, ... in 6 more). */

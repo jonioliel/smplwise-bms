@@ -84,6 +84,13 @@ test.describe('WKWATER-POLISH-2331: water pages', () => {
     await shot(page, info, 'water-alerts-open');
     await page.locator('[data-alert-filter] [data-f="all"]').click();
     await shot(page, info, 'water-alerts-all');
+    if (!phone(info)) {
+      // CR-CMP2-POLISH-2470: a closed alert opens nothing, so its row is no tab stop (sw-table rowFocusable); an open one is
+      const closed = page.locator('[data-alerts-table] tr[data-closed]');
+      await expect(closed).toHaveCount(2);
+      for (const row of await closed.all()) await expect(row).not.toHaveAttribute('tabindex', /.*/);
+      await expect(page.locator('[data-alerts-table] tr[data-alert]:not([data-closed])').first()).toHaveAttribute('tabindex', '0');
+    }
     if (!phone(info)) expect(await pageScroll(page), 'the alerts page fits the window').toBeLessThanOrEqual(2);
   });
 
