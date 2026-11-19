@@ -1,6 +1,6 @@
-import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
+import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { segmentedFocusStep } from './segmented-logic';
+import { chipOn, segmentedFocusStep } from './segmented-logic';
 
 /** One chip of a chip choice. */
 export interface ChipChoiceOption<V extends string = string> {
@@ -11,11 +11,18 @@ export interface ChipChoiceOption<V extends string = string> {
   title?: string;
   /** Attributes copied onto the chip's `<button>` (the data-* hooks a screen and its specs already used). */
   attrs?: Readonly<Record<string, string>>;
+  /** CR-CMP2-TABS-2460: an icon at the start of the chip (the screen's own template: an `sw-icon`, the app's inline `svg.ic`). */
+  icon?: TemplateResult;
+  /** CR-CMP2-TABS-2460: a count after the label (a small figure on a soft wash of the chip's ink, part `count`). */
+  count?: number;
 }
 
 export interface ChipChoiceChange<V extends string = string> {
   value: V;
+  /** CR-CMP2-TABS-2460, `multi` only: the state the press asks for (true = turn this chip on). */
+  pressed?: boolean;
 }
+
 
 /**
  * CR-CMP2-SEGMENTED-C-2450 (owner N11 follow-up, recommendation of CR-CMP2-SEGMENTED-B-2450 Q4): ONE choice drawn as a row of separate
@@ -35,6 +42,9 @@ export interface ChipChoiceChange<V extends string = string> {
  *  - knobs: --sw-chipc-gap, --sw-chipc-h, --sw-chipc-pad, --sw-chipc-radius, --sw-chipc-fs, --sw-chipc-fg, --sw-chipc-bg,
  *    --sw-chipc-border, --sw-chipc-on-bg, --sw-chipc-on-fg, --sw-chipc-on-border, --sw-chipc-on-fw.
  *  - motion (emil-design-eng): colour on the hover curve, a 0.97 give on press (`--sw-press-scale` where a skin sets it), none when reduced.
+ *  - CR-CMP2-TABS-2460: an option may carry an `icon` and a `count`. `multi`: several chips may be on at once (`values`); a press
+ *    fires `change` ({ value, pressed }) with the state it asks for and, controlled as ever, the host re-renders `values` (the
+ *    personal home panel's summary tiles: "follow the installation" is one more chip the host keeps exclusive itself).
  */
 @customElement('sw-chip-choice')
 export class SwChipChoice<V extends string = string> extends LitElement {
@@ -43,6 +53,9 @@ export class SwChipChoice<V extends string = string> extends LitElement {
   /** The group's accessible name. */
   @property() label = '';
   @property({ type: Boolean, reflect: true }) disabled = false;
+  /** CR-CMP2-TABS-2460: several chips may be on at once - the chips that are on are `values` (not `value`). */
+  @property({ type: Boolean, reflect: true }) multi = false;
+  @property({ attribute: false }) values: readonly string[] = [];
 
   static styles = css`
     :host {
@@ -107,6 +120,38 @@ export class SwChipChoice<V extends string = string> extends LitElement {
       opacity: var(--sw-disabled-opacity, 0.5);
       cursor: not-allowed;
     }
+    /* CR-CMP2-TABS-2460: an icon before the label, a count after it */
+    button {
+      gap: 6px;
+    }
+    .ic {
+      display: inline-flex;
+      flex: none;
+      line-height: 0;
+    }
+    .ic > svg {
+      inline-size: 1em;
+      block-size: 1em;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .n {
+      display: inline-grid;
+      place-items: center;
+      box-sizing: border-box;
+      min-inline-size: 18px;
+      block-size: 18px;
+      padding-inline: 5px;
+      border-radius: 999px;
+      background: color-mix(in srgb, currentColor 14%, transparent);
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-semibold);
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
     @media (pointer: coarse) {
       button {
         min-block-size: max(44px, var(--sw-chipc-h, 32px));
@@ -125,7 +170,12 @@ export class SwChipChoice<V extends string = string> extends LitElement {
 
   private press(o: ChipChoiceOption<V>) {
     if (this.disabled || o.disabled) return;
-    this.dispatchEvent(new CustomEvent<ChipChoiceChange<V>>('change', { detail: { value: o.value }, bubbles: true, composed: true }));
+    const detail: ChipChoiceChange<V> = this.multi ? { value: o.value, pressed: !this.on(o) } : { value: o.value };
+    this.dispatchEvent(new CustomEvent<ChipChoiceChange<V>>('change', { detail, bubbles: true, composed: true }));
+  }
+
+  private on(o: ChipChoiceOption<V>): boolean {
+    return chipOn(o.value, this.value, this.multi, this.values);
   }
 
   private onKey(e: KeyboardEvent) {
@@ -152,10 +202,11 @@ export class SwChipChoice<V extends string = string> extends LitElement {
 
   render() {
     return html`<div class="row" part="row" role="group" aria-label=${this.label || nothing} @keydown=${this.onKey}>
-      ${this.options.map(
-        (o) => html`<button type="button" part=${o.value === this.value ? 'chip chip-on' : 'chip'} aria-pressed=${o.value === this.value ? 'true' : 'false'}
-          ?disabled=${this.disabled || !!o.disabled} title=${o.title || nothing} @click=${() => this.press(o)}>${o.label}</button>`,
-      )}
+      ${this.options.map((o) => {
+        const on = this.on(o);
+        return html`<button type="button" part=${on ? 'chip chip-on' : 'chip'} aria-pressed=${on ? 'true' : 'false'}
+          ?disabled=${this.disabled || !!o.disabled} title=${o.title || nothing} @click=${() => this.press(o)}>${o.icon ? html`<span class="ic" part="icon" aria-hidden="true">${o.icon}</span>` : nothing}${o.label}${o.count !== undefined ? html`<small class="n" part="count">${o.count}</small>` : nothing}</button>`;
+      })}
     </div>`;
   }
 }
