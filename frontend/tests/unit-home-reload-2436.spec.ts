@@ -156,23 +156,29 @@ test.describe('HOME-1 (b): the area quick sheet reloads', () => {
   });
 
   test('pushes are filtered to the area\'s own entities (a structure change still reloads)', () => {
+    // CR-G1-HOME-AREA-2440 (06:DUP-10): the push switch is the shared routeDevicePush (devices-shared.ts), the id set the shared
+    // areaEntityIds kept per loaded body (every card of CARD_IDS, as Object.values(cards) gave) - the routing itself is run in unit-g1-home-area-2440
     const live = member(QS, /\n  private startLive\(/);
-    expect(live).toMatch(/m\.type === 'entity_state_changed'/);
-    expect(live).toMatch(/!this\.detail \|\| this\.entityIds\.has\(m\.entity\.entity_id\)/);
-    expect(live).toMatch(/m\.type === 'structure_changed'\) this\.scheduleReload\(\)/);
+    expect(live).toMatch(/routeDevicePush\(m, \{/);
+    expect(live).toMatch(/entity: \(id\) => \{\s*if \(!this\.detail \|\| this\.entityIds\.has\(id\)\) this\.scheduleReload\(\);/);
+    expect(live).toMatch(/structure: \(\) => this\.scheduleReload\(\)/);
     const ids = member(QS, /\n  private get entityIds\(/);
-    expect(ids).toMatch(/Object\.values\(this\.detail\.cards\)/);
+    expect(ids).toMatch(/this\.idsMemo\.get\(this\.detail, NO_EXTRA\)/);
+    expect(QS).toMatch(/private readonly idsMemo = new Memo2\(areaEntityIds\);/);
   });
 
   test('scheduleReload is a throttle (the first push opens a window), not a resetting debounce', () => {
+    // CR-G1-HOME-AREA-2440 (06:DUP-10): the throttle is the shared ReloadThrottle (an open window swallows later pushes, never reset;
+    // driven on a fake clock in unit-g1-home-area-2440); the sheet keeps its own in-flight rule (reloadQuiet)
     const sch = member(QS, /\n  private scheduleReload\(/);
-    expect(sch).toMatch(/if \(this\.reloadTimer\) return;/);
+    expect(sch).toMatch(/this\.reloads\.schedule\(\);/);
     expect(sch).not.toMatch(/clearTimeout/);
+    expect(QS).toMatch(/new ReloadThrottle\(SHEET_RELOAD_WINDOW_MS, \(\) => void this\.reloadQuiet\(\)\)/);
     expect(QS).toMatch(/export const SHEET_RELOAD_WINDOW_MS = 400;/);
     const quiet = member(QS, /\n  private async reloadQuiet\(/);
     expect(quiet).toMatch(/this\.reloadAgain = true/);
     const stop = member(QS, /\n  private stopLive\(/);
-    expect(stop).toMatch(/this\.reloadTimer = 0;/);
+    expect(stop).toMatch(/this\.reloads\.cancel\(\);/);
     expect(stop).toMatch(/this\.reloadAgain = false;/);
   });
 

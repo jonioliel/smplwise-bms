@@ -17,6 +17,7 @@ import { LAYOUT_ROLE_IDS, type LayoutRoleId } from '../styles/devices-palettes';
 import { BULK_LOOK_LABEL, BULK_LOOKS, SECTION_BULK, type BulkLook } from './devices-area-design';
 import { getEntityPool, type PoolEntity } from '../api/devices';
 import { tr } from '../i18n/msg/devices';
+import { gridsKey, jsonClone } from './devices-shared'; // CR-G1-HOME-AREA-2440 (06:PERF-6, 06:DUP-10)
 import { bulkSelect, CARD_TYPES, CARDS_VERSION, findSlot, groupPicks, isCardType, libraryTypes, newCardKey, nextTitle, type AreaEntity, type PickEntity } from './devices-layout-cards';
 
 /**
@@ -345,7 +346,7 @@ export function complete(layout: Layout, grids: string[][], defaultH: (key: stri
 }
 
 function clone(l: Layout): Layout {
-  return JSON.parse(JSON.stringify(l)) as Layout;
+  return jsonClone(l);
 }
 
 function clamp(n: number, lo: number, hi: number): number {
@@ -545,6 +546,9 @@ export class DevicesLayoutController implements ReactiveController {
       if (this.opts.id() !== id) return;
       this.record = r;
     } catch {
+      // CR-G1-HOME-AREA-2440 (06:RACE-7): a failed read of the previous screen's layout must not blank the one now shown (the success
+      // path was guarded, the failure path was not)
+      if (this.opts.id() !== id) return;
       this.record = null; // no layout (or no permission to read one): the automatic layout
     }
     this.loaded = true;
@@ -556,9 +560,19 @@ export class DevicesLayoutController implements ReactiveController {
     return isApi() && can('system.configure');
   }
 
+  /** CR-G1-HOME-AREA-2440 (06:PERF-6): the draft's comparison with its base, kept for the draft object it was made for (the draft is
+   * replaced on every change, never mutated) - it was serialised again on every render and every pointer move. */
+  private dirtyMemo: { draft: Layout; base: string; out: boolean } | null = null;
+
   /** The layout itself was changed in this session. */
   private get layoutDirty(): boolean {
-    return this.editing && !!this.draft && JSON.stringify(this.draft) !== this.base;
+    const d = this.draft;
+    if (!this.editing || !d) return false;
+    const m = this.dirtyMemo;
+    if (m && m.draft === d && m.base === this.base) return m.out;
+    const out = JSON.stringify(d) !== this.base;
+    this.dirtyMemo = { draft: d, base: this.base, out };
+    return out;
   }
 
   /** Anything of this session is unsaved: the layout, or the screen's own edits (`extras`). */
@@ -683,7 +697,7 @@ export class DevicesLayoutController implements ReactiveController {
       }
     }
     // a device-less draft item may hold `undefined` keys: JSON drops them, the comparison against the base must too
-    return JSON.parse(JSON.stringify({ ...layout, items })) as Layout;
+    return jsonClone({ ...layout, items });
   }
 
   /** The area's devices that no card shows now: their built-in card is deleted or hides them, and no custom card lists
@@ -823,10 +837,16 @@ export class DevicesLayoutController implements ReactiveController {
     return this.draft?.items[key]?.camera;
   }
 
+  /** CR-G1-HOME-AREA-2440 (06:PERF-6): what the last prepare() built the view from. An unchanged screen (a live state push, a tooltip, a
+   * pointer move outside a drag) re-renders without rebuilding the key map or the view (complete + pack). Every input of the view is
+   * here: the grids' ids and keys, editing, the draft and the stored record (both replaced, never mutated), the variant and the density. */
+  private prepKey: { grids: string; editing: boolean; draft: Layout | null; record: LayoutRecord | null; variant: LayoutVariant; compact: boolean } | null = null;
+
   /** Called at the top of the screen's render with the grids it is about to draw. */
   prepare(grids: LayoutGrid[]) {
+    const gk = gridsKey(grids);
     this.grids = grids;
-    this.gridOf = new Map(grids.flatMap((g) => g.keys.map((k) => [k, g.id] as [string, string])));
+    if (gk !== this.prepKey?.grids) this.gridOf = new Map(grids.flatMap((g) => g.keys.map((k) => [k, g.id] as [string, string])));
     // 6c review: the card being arranged lost its last device (a structure refresh): back to the cards, and say why
     // (its arrangement stays in the draft - the card returns with it when the domain does)
     if (this.tileCard && !this.gridOf.has(this.tileCard)) {
@@ -837,7 +857,12 @@ export class DevicesLayoutController implements ReactiveController {
       this.note = tr('בכרטיס "{label}" כבר אין התקנים, ולכן חזרנו לכל הכרטיסים.', { label });
       this.live = this.note;
     }
-    const layout = this.editing ? this.draft : this.viewerLayout(this.viewVariant());
+    const variant = this.viewVariant();
+    const compact = this.opts.compact?.() ?? false;
+    const p = this.prepKey;
+    if (p && p.grids === gk && p.editing === this.editing && p.draft === this.draft && p.record === this.record && p.variant === variant && p.compact === compact) return;
+    this.prepKey = { grids: gk, editing: this.editing, draft: this.draft, record: this.record, variant, compact };
+    const layout = this.editing ? this.draft : this.viewerLayout(variant);
     this.activeGrids = new Set(this.editing ? grids.map((g) => g.id) : grids.filter((g) => layout && g.keys.some((k) => layout.items[k])).map((g) => g.id));
     this.view = layout ? complete(layout, grids.map((g) => g.keys), this.opts.defaultH) : null;
     if (this.view && !this.editing) this.view = { ...this.view, items: this.packed(this.view.items, grids) };

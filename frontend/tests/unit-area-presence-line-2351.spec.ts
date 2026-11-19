@@ -122,6 +122,8 @@ test.describe('owner round 14', () => {
     expect(css).toContain('white-space: nowrap');
     expect(css).toContain('text-overflow: ellipsis');
     expect(css).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i);
-    expect(sheet).toMatch(/<bdi>\$\{n\}<\/bdi>/);
+    // CR-G1-HOME-AREA-2440 (06:DUP-10): the names part is the one presenceWho of devices-shared.ts (the area screen draws the same)
+    expect(sheet).toMatch(/const who = presenceWho\(v\);/);
+    expect(readFileSync(path.join(SRC, 'screens/devices-shared.ts'), 'utf8')).toMatch(/<bdi>\$\{n\}<\/bdi>/);
   });
 });

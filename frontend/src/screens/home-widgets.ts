@@ -214,6 +214,16 @@ export class HomeWidgetsView extends LitElement {
 
   protected willUpdate(changed: PropertyValues<this>) {
     if (changed.has('items')) this.syncMediaPoll();
+    // CR-G1-HOME-AREA-2440 (06:RENDER-1): an empty band hides its host before the render (was: toggled inside render())
+    if (this.hasAttribute('hidden') !== !this.items.length) this.toggleAttribute('hidden', !this.items.length);
+  }
+
+  /** CR-G1-HOME-AREA-2440 (06:PERF-6): the launcher's names as a map, built once per names object (was: a new Map on every render). */
+  private namesMemo: { of: Record<string, string> | undefined; map: Map<string, string> } | null = null;
+  private launcherNames(): Map<string, string> {
+    const of = this.data.names;
+    if (!this.namesMemo || this.namesMemo.of !== of) this.namesMemo = { of, map: new Map(Object.entries(of ?? {})) };
+    return this.namesMemo.map;
   }
 
   private async loadScreens(): Promise<void> {
@@ -292,7 +302,6 @@ export class HomeWidgetsView extends LitElement {
 
   render() {
     const items = this.items;
-    this.toggleAttribute('hidden', !items.length);
     if (!items.length || !this.config) return nothing;
     return html`<div class="wrap" data-home-widgets role=${this.layout === 'snap' ? 'list' : 'group'} aria-label="ווידג׳טים">${repeat(items, (it) => it.id, (it) => this.item(it))}</div>${this.items.some((i) => i.id === 'media') && this.hasMedia ? html`<media-remote .deviceKey=${this.remoteKey} .kind=${this.remoteKind} .open=${this.remoteOpen} @close=${() => (this.remoteOpen = false)} @media-changed=${() => void this.loadScreens()} @media-remote-open=${() => (this.remoteOpen = true)}></media-remote>` : nothing}`;
   }
@@ -411,7 +420,7 @@ export class HomeWidgetsView extends LitElement {
       case 'agenda':
         return renderAgenda(this.bv1, it);
       case 'launcher':
-        return renderLauncher(this.bv1, it, this.launchSt, new Map(Object.entries(this.data.names ?? {})), () => this.requestUpdate());
+        return renderLauncher(this.bv1, it, this.launchSt, this.launcherNames(), () => this.requestUpdate());
       case 'temperature':
         return renderTemperature({ cfg: this.config.temperature, units: this.temperatureUnits, stale: this.temperatureStale, editing: this.editing, shell: (i, cls, extra, body) => this.shell(i, cls, extra, body) }, it);
       case 'elevators':

@@ -26,7 +26,6 @@ import type { LiveSummaryItem } from '../api/generator';
 import '../components/sw-state-panel';
 import '../components/sw-button';
 import './devices-bulk';
-import type { StateKind } from '../components/sw-badge';
 import type { IconName } from '../components/sw-icon';
 import { canAnywhere, isApi } from '../api/session';
 import { pl } from '../i18n/polish';
@@ -103,27 +102,17 @@ import { modalKeydown } from '../components/a11y-keys';
 import { removeLayer, syncLayer } from '../components/modal-stack';
 import { FrameCoalescer } from '../components/frame-coalescer';
 import { devicesBuildingStyles } from './devices-building-css';
+// CR-G1-HOME-AREA-2440 (06:DUP-10): the pieces the area screen and the quick sheet share live in devices-shared.ts (the area screen no
+// longer imports this module for five small helpers); they stay exported from here for any older importer.
+import { alarmTone, findArea as areaById, FIT_MIN_WIDTH, fitStep, jsonClone, REFRESH_WINDOW_MS, ReloadThrottle, routeDevicePush, scrollParentOf, STRUCTURE_FLASH_MS, withConnected, type FitLevel } from './devices-shared';
+export { alarmTone, FIT_MIN_WIDTH, REFRESH_WINDOW_MS, scrollParentOf, STRUCTURE_FLASH_MS };
 
 /** Owner notes 2026-09-30: the home route's edit mode is entered by the address (`#/devices/building?edit=1`, from the
  * user menu's "עריכת המסך הראשי"), not by a button on the screen. */
 const EDIT_PARAM = 'edit';
 
-/** How tight the screen is packed to fit the viewport without a vertical scroll (owner notes 2026-09-30, item 7): 0 = as
- * designed, 1 = smaller tiles / rows, 2 = the smallest (and the secondary strips drop). Stepped up by measuring. */
-type FitLevel = 0 | 1 | 2;
-/** The packed layout is for a desktop-width screen; a phone scrolls. */
-export const FIT_MIN_WIDTH = 900;
-
-/** The nearest ancestor that scrolls vertically (crossing shadow roots) - the shell's page area. */
-export function scrollParentOf(el: Element): HTMLElement | null {
-  let node: Node | null = el;
-  while (node) {
-    const parent: Node | null = (node as Element).assignedSlot ?? node.parentNode ?? (node as ShadowRoot).host ?? null;
-    if (parent instanceof HTMLElement && ['auto', 'scroll'].includes(getComputedStyle(parent).overflowY)) return parent;
-    node = parent;
-  }
-  return null;
-}
+/* How tight the screen is packed to fit the viewport without a vertical scroll (owner notes 2026-09-30, item 7): FitLevel 0 = as
+ * designed, 1 = smaller tiles / rows, 2 = the smallest (and the secondary strips drop). Stepped up by measuring (devices-shared.ts fitStep). */
 
 /** The count pills' keys that open the tiles' panel (cameras and sensors are counts only). */
 /** The tiles' panel segments (the same list as screens/devices-tiles-panel ITEMS_FILTERS, whose module is a lazy chunk: CR-HOME-LAZY-2440). */
@@ -153,13 +142,6 @@ function panelParams(kind: TileKind, scope: ItemsScope, id: string, filter: Item
   return q;
 }
 
-/** Refetches are throttled, not debounced: the first push starts a window, every push inside it rides the same
- * refetch, and a push during the fetch itself queues exactly one more (loadAgain). A screen full of sensors updating
- * several times a second therefore refreshes about every REFRESH_WINDOW_MS instead of never (a resetting debounce
- * would starve - review finding). */
-export const REFRESH_WINDOW_MS = 400;
-/** How long "מבנה עודכן" stays up after a structure change refetched the screen (CR-007 HA refresh). */
-export const STRUCTURE_FLASH_MS = 4000;
 /** How long after a manual refresh's answer its own structure_changed push is still expected. */
 const INFO_CHOICES: readonly ('bar' | 'cards')[] = ['bar', 'cards']; // HOMEINFO-295: the edit bar's two explicit choices (the options form also offers auto)
 const MANUAL_PUSH_GRACE_MS = 1000;
@@ -211,14 +193,6 @@ export function pillsOf(c: DeviceCounts): CountPill[] {
   if (c.cameras) out.push({ key: 'cameras', icon: 'camera', label: 'מצלמות', total: c.cameras, on: null, warm: false });
   if (c.sensors) out.push({ key: 'sensors', icon: 'sensor', label: 'חיישנים', total: c.sensors, on: null, warm: false });
   return out;
-}
-
-export function alarmTone(state: string | null): StateKind {
-  if (!state) return 'neutral';
-  if (state === 'triggered') return 'error';
-  if (state === 'disarmed') return 'neutral';
-  if (state === 'unavailable' || state === 'unknown') return 'offline';
-  return 'live';
 }
 
 const DEMO_CLIMATE = [{ entity_id: 'climate.lobby', name: 'מזגן לובי', area_name: 'לובי', hvac_mode: 'cool', hvac_action: 'cooling', current_temperature: 24.5, target_temperature: 22, unit: '°C', available: true }];
@@ -402,7 +376,6 @@ export class DevicesBuilding extends LitElement {
   private treeFailed = false;
   @state() private sync: HaSyncState | null = null;
   private stop: (() => void) | null = null;
-  private timer = 0;
   private loading = false;
   private loadAgain = false;
   /** Owner feedback on 0.1.115: the mockup's tree + floor cards (default) or the slice-1 tiles, per viewer. CR-007 6a:
@@ -442,10 +415,14 @@ export class DevicesBuilding extends LitElement {
   /** The manual "רענן מ-Home Assistant" request in flight, and its outcome line (error / "no change"). */
   @state() private refreshing = false;
   @state() private refreshNote = '';
-  /** Re-renders the "עודכן לפני …" line while nothing else changes. */
-  @state() private tick = 0;
   private flashTimer = 0;
-  private tickTimer = 0;
+  /** CR-G1-HOME-AREA-2440 (06:PERF-6): the stale dot as last drawn, and the quiet 15 s check that redraws only when it should change (an
+   * old answer turns stale with time alone). This replaced a 15 s ticker that re-rendered and re-measured the whole screen. */
+  @state() private stale = false;
+  private staleTimer = 0;
+  private checkStale = () => {
+    if (!document.hidden && this.isStale() !== this.stale) this.stale = !this.stale;
+  };
   /** Until when a structure_changed push is taken as the echo of this user's own manual refresh (no second fetch). */
   private manualUntil = 0;
   /** Owner 2026-09-29: the summary tiles' shape (ui.tile_layout, resolved; `data-tile-layout` on the host). */
@@ -718,11 +695,7 @@ export class DevicesBuilding extends LitElement {
     if (id === 'unassigned') return 'ללא שיוך';
     const t = this.tree;
     if (key.startsWith('floor:')) return t?.floors.find((f) => f.floor_id === id)?.name ?? id;
-    for (const f of t?.floors ?? []) {
-      const a = f.areas.find((x) => x.area_id === id);
-      if (a) return a.name;
-    }
-    return id;
+    return areaById(t, id)?.name ?? id;
   }
 
   private measureGrids(): MeasuredGrid[] {
@@ -805,11 +778,7 @@ export class DevicesBuilding extends LitElement {
     if (id === 'unassigned') return 'ללא שיוך';
     const t = this.tree;
     if (scope === 'floor') return t?.floors.find((f) => f.floor_id === id)?.name ?? '';
-    for (const f of t?.floors ?? []) {
-      const a = f.areas.find((x) => x.area_id === id);
-      if (a) return a.name;
-    }
-    return '';
+    return areaById(t, id)?.name ?? '';
   }
 
   /** Owner 2026-09-29: a summary tile / floor chip opens the tiles' panel for its kind over its scope - written to the
@@ -863,10 +832,10 @@ export class DevicesBuilding extends LitElement {
   private beginHomeEdit() {
     const order = this.tree ? this.tree.floors.map((f) => f.floor_id) : this.homeSaved.floorOrder;
     this.homeBase = { ...this.homeSaved, floorOrder: order };
-    this.homeDraft = JSON.parse(JSON.stringify(this.homeBase)) as HomeSettings;
+    this.homeDraft = jsonClone(this.homeBase);
     // HOME-295: the display options are edited here too (the summary tiles, the quick actions per area, ...)
     this.screenBase = { screen: this.screenSite, info: this.infoStyle, view: this.prefs.defaultView === 'tiles' ? 'tiles' : 'cards' };
-    this.screenDraft = JSON.parse(JSON.stringify(this.screenBase)) as HomeScreenForm;
+    this.screenDraft = jsonClone(this.screenBase);
     this.candidates = null;
     this.candidatesError = '';
     this.openWidget = '';
@@ -899,7 +868,7 @@ export class DevicesBuilding extends LitElement {
         this.screenSite = sd.screen;
         this.infoStyle = sd.info;
         this.prefs = { ...this.prefs, defaultView: sd.view };
-        this.screenBase = JSON.parse(JSON.stringify(sd)) as HomeScreenForm;
+        this.screenBase = jsonClone(sd) as HomeScreenForm;
       }
     }
     const d = this.homeDraft;
@@ -908,7 +877,7 @@ export class DevicesBuilding extends LitElement {
     const to: HomeSettings = { ...d, title: d.title.trim(), floorOrder: orderChanged ? d.floorOrder : this.homeSaved.floorOrder };
     this.homeSaved = await saveHomeSettings(this.homeSaved, to);
     this.homeBase = { ...this.homeSaved, floorOrder: d.floorOrder };
-    this.homeDraft = JSON.parse(JSON.stringify(this.homeBase)) as HomeSettings;
+    this.homeDraft = jsonClone(this.homeBase);
     await this.load();
   }
 
@@ -943,7 +912,7 @@ export class DevicesBuilding extends LitElement {
       elevatorsAvailable: !!this.elevators?.length, temperatureAvailable: this.tempWidget && this.tempUnits.length > 0,
       generatorsAvailable: generatorsAvailable(this.generators), doorsAvailable: doorsWidgetAvailable(this.doorsData, doorWindowsTabOn()),
       noticesAvailable: (this.lay.editing ? noticesWidgetOffered : noticesWidgetAvailable)(this.noticesData, noticesModuleOn()), presenceAvailable: this.presenceOffered(),
-      xsectionAvailable: this.xsOffered(h) });
+      xsectionAvailable: this.xsOffered() });
   }
 
   /** CR-015: whether the home's media widget has anything to show - the approved screens of this user (the same question the widget
@@ -1130,9 +1099,8 @@ export class DevicesBuilding extends LitElement {
 
   /** The widget is offered (a ghost / the switch in the editor, or drawn when on): the viewer may read the devices and a building has floors.
    * The catalogue is read the first time the widget is switched on or the editor opens - a home that never shows it never asks. */
-  private xsOffered(h: HomeView): boolean {
-    if (!this.xsMayRead()) return false;
-    if (!this.xsCatAsked && (h.config.xsection.on || h.config.xsection.phone_on === true || this.lay.editing)) void this.loadXsCatalog();
+  private xsOffered(): boolean {
+    if (!this.xsMayRead()) return false; // (the catalogue read starts in willUpdate - CR-G1-HOME-AREA-2440, 06:RENDER-1)
     const b = this.xsBuildings();
     return !!b && miniBuilding(b) !== null;
   }
@@ -1204,7 +1172,7 @@ export class DevicesBuilding extends LitElement {
   private onWidgetSize = (e: CustomEvent<{ id: WidgetId; size: 's' | 'm' | 'l' }>) => {
     const d = this.homeDraft;
     if (!d) return;
-    const c = JSON.parse(JSON.stringify(d.config)) as HomeSettings['config'];
+    const c = jsonClone(d.config);
     // on a phone the card's own controls edit the PHONE size, on a wider screen the direction's size
     if (this.isPhone) c[e.detail.id].phone_size = e.detail.size;
     else c[e.detail.id].sizes[d.direction] = e.detail.size;
@@ -1214,7 +1182,7 @@ export class DevicesBuilding extends LitElement {
   private onWidgetToggle = (e: CustomEvent<{ id: WidgetId }>) => {
     const d = this.homeDraft;
     if (!d) return;
-    const c = JSON.parse(JSON.stringify(d.config)) as HomeSettings['config'];
+    const c = jsonClone(d.config);
     const w = c[e.detail.id];
     if (this.isPhone) w.phone_on = !widgetOn(w, true); // hide / add on the phone only
     else w.on = !w.on;
@@ -1319,7 +1287,7 @@ export class DevicesBuilding extends LitElement {
     const names = new Map(t.floors.map((f) => [f.floor_id, f.name]));
     const floors = this.floorsOf(t).map((f) => ({ id: f.floor_id, name: names.get(f.floor_id) ?? f.floor_id }));
     const areas = this.floorsOf(t).flatMap((f) => f.areas.map((a) => ({ id: a.area_id, name: a.name, floor: f.name, counts: a.counts })));
-    return html`<home-edit-panel flat .draft=${d} .candidates=${this.candidates} .candidatesError=${this.candidatesError} .baseData=${homeViewOf(t.home)?.data ?? NO_DATA} .floors=${floors} .open=${this.openWidget} .elevators=${this.elevators ?? []} .temperatureUnits=${this.tempWidget ? this.tempUnits : []} ?generators=${generatorsAvailable(this.generators)} ?doors=${doorsWidgetAvailable(this.doorsData, doorWindowsTabOn())} ?notices=${noticesWidgetOffered(this.noticesData, noticesModuleOn())} ?presence=${this.presenceOffered()} ?xsection=${this.xsOffered(this.homeOf(t))}
+    return html`<home-edit-panel flat .draft=${d} .candidates=${this.candidates} .candidatesError=${this.candidatesError} .baseData=${homeViewOf(t.home)?.data ?? NO_DATA} .floors=${floors} .open=${this.openWidget} .elevators=${this.elevators ?? []} .temperatureUnits=${this.tempWidget ? this.tempUnits : []} ?generators=${generatorsAvailable(this.generators)} ?doors=${doorsWidgetAvailable(this.doorsData, doorWindowsTabOn())} ?notices=${noticesWidgetOffered(this.noticesData, noticesModuleOn())} ?presence=${this.presenceOffered()} ?xsection=${this.xsOffered()}
       @home-draft=${this.onDraft} @home-reset=${this.onHomeReset} @home-edit-open=${(e: CustomEvent<{ id: WidgetId | '' }>) => (this.openWidget = e.detail.id)}></home-edit-panel>
       ${this.screenDraft
         ? html`<section class="hs-edit" data-home-screen-edit aria-label=${hs('heading')}><h3>${hs('heading')}</h3>
@@ -1377,15 +1345,13 @@ export class DevicesBuilding extends LitElement {
     }
     const h = this.homeOf(t);
     const key = [window.innerWidth, window.innerHeight, this.layout, this.selected, this.level, t.floors.length, t.floors.reduce((n, f) => n + f.areas.length, 0), h.direction, h.side, this.isPhone, h.config.phone_layout, this.widgetItems(t, h).map((i) => `${i.id}${i.size}`).join(',')].join('|');
-    if (key !== this.fitKey) {
-      this.fitKey = key;
-      if (this.fit !== 0) {
-        this.fit = 0; // measured again after this render
-        return;
-      }
-    }
-    const sc = scrollParentOf(this);
-    if (sc && sc.scrollHeight - sc.clientHeight > 1 && this.fit < 2) this.fit = (this.fit + 1) as FitLevel;
+    // CR-G1-HOME-AREA-2440 (06:DUP-10): the step itself is shared with the area screen (a changed key restarts from 0, measured after that render)
+    const step = fitStep(this.fit, key, this.fitKey, () => {
+      const sc = scrollParentOf(this);
+      return !!sc && sc.scrollHeight - sc.clientHeight > 1;
+    });
+    this.fitKey = step.lastKey;
+    if (step.fit !== this.fit) this.fit = step.fit;
   };
 
   /** The user's own home screen changed (החשבון שלי › המסך שלי): fetch the tree again, the server applies it. */
@@ -1406,7 +1372,34 @@ export class DevicesBuilding extends LitElement {
   private viewKey = '';
   private offView: (() => void) | null = null;
 
+  /** CR-G1-HOME-AREA-2440 (06:RENDER-1): the site level this update draws and what follows from it (the counters' scope tag, the building the
+   * tiles' panel acts in, the areas the elevators widget follows). Was computed inside render(), which also wrote the `level` state there. */
+  private scope: { site: { model: SiteModel; shown: SiteBuilding[] } | null; inBuilding: SiteBuilding | null } = { site: null, inBuilding: null };
+
+  private syncScope() {
+    if (!this.tree || this.forbidden) return;
+    const site = this.lay.editing ? null : this.site();
+    this.ensureLevel(site);
+    const inBuilding = site ? site.shown.find((b) => b.id === this.level) ?? null : null;
+    this.scope = { site, inBuilding };
+    this.kpiTag = site ? scopeTag(site.model, this.level) : '';
+    this.ctlBuilding = controlBuilding(site, this.level);
+    this.atSiteLevel = !!site && !inBuilding;
+    this.scopeAreas = inBuilding ? inBuilding.areaIds : null;
+  }
+
   protected willUpdate(changed: PropertyValues) {
+    this.syncScope();
+    this.stale = this.isStale(); // (CR-G1-HOME-AREA-2440: read here, drawn by renderRefresh; checkStale catches the change by age alone)
+    // CR-G1-HOME-AREA-2440 (06:RENDER-1): the mini cross-section's catalogue is asked for here, the first time the widget is on or the editor
+    // opens (was: started from xsOffered() inside the render)
+    if (!this.xsCatAsked && this.tree && !this.forbidden && this.xsMayRead()) {
+      const xs = this.homeOf(this.tree).config.xsection;
+      if (xs.on || xs.phone_on === true || this.lay.editing) void this.loadXsCatalog();
+    }
+    // CR-HOME-LAZY-2440: the tiles' panel / the quick sheet stay rendered from the first time one is asked for (was: noted inside the render)
+    if (this.panel) this.panelUsed = true;
+    if (this.quick) this.quickUsed = true;
     // never hide what is selected: a floor that gets selected (the tree, a floor card, the filter) opens in the tree
     if (changed.has('selected') && this.collapsed.has(this.selected)) this.setCollapsed(this.selected, false);
     // CR-HOME-RELOAD-2436 (06:DB-1): the plan view's catalogue is read the first time that view shows (was: started inside renderPlan)
@@ -1612,23 +1605,30 @@ export class DevicesBuilding extends LitElement {
       return;
     }
     void this.reloadTree();
-    this.tickTimer = window.setInterval(() => (this.tick += 1), 15_000);
+    // CR-G1-HOME-AREA-2440 (06:PERF-6): no 15 s ticker any more - it re-rendered (and re-measured) the whole home screen only so the refresh
+    // button's tooltip ("לפני …") kept up; the tooltip is now written when the pointer or the focus reaches the button (refreshHover), and the
+    // stale dot is checked quietly (checkStale: a render only when it changes)
+    this.staleTimer = window.setInterval(this.checkStale, 15_000);
     this.stop = subscribeHa(
-      (m) => {
-        if (m.type === 'entity_state_changed') {
-          this.scheduleReload();
-          // HOMELIVE-295: a state moved - the elevators / temperature / generators derive from states, so they re-read (bounded: at most one read per source per 15 s)
-          for (const id of ['elevators', 'temperature', 'generators']) this.live.nudge(id);
-        } else if (m.type === 'structure_changed') {
-          // an entity moved / an area renamed / a device added or removed in HA: same throttled refetch, plus a note.
-          // The push of this user's own "רענן" is skipped: refreshFromHa refetches once itself.
-          if (Date.now() >= this.manualUntil) this.scheduleReload();
-          this.flashStructure();
-        } else if (m.type === 'ha_sync_state') {
-          if (this.sync) this.sync = { ...this.sync, connected: m.connected };
-          this.scheduleReload();
-        } else if (m.type === 'heartbeat') this.sync = m.sync;
-      },
+      (m) =>
+        routeDevicePush(m, {
+          entity: () => {
+            this.scheduleReload();
+            // HOMELIVE-295: a state moved - the elevators / temperature / generators derive from states, so they re-read (bounded: at most one read per source per 15 s)
+            for (const id of ['elevators', 'temperature', 'generators']) this.live.nudge(id);
+          },
+          structure: () => {
+            // an entity moved / an area renamed / a device added or removed in HA: same throttled refetch, plus a note.
+            // The push of this user's own "רענן" is skipped: refreshFromHa refetches once itself.
+            if (Date.now() >= this.manualUntil) this.scheduleReload();
+            this.flashStructure();
+          },
+          connected: (on) => {
+            this.sync = withConnected(this.sync, on);
+            this.scheduleReload();
+          },
+          heartbeat: (sync) => (this.sync = sync),
+        }),
       (connected) => {
         if (connected) this.scheduleReload(); // pushes sent while the socket was down are gone: catch up now
       },
@@ -1649,11 +1649,10 @@ export class DevicesBuilding extends LitElement {
     this.offRoute = null;
     this.stop?.();
     this.stop = null;
-    window.clearTimeout(this.timer);
-    this.timer = 0;
+    this.reloads.cancel();
     window.clearTimeout(this.flashTimer);
-    window.clearInterval(this.tickTimer);
-    this.flashTimer = this.tickTimer = 0;
+    window.clearInterval(this.staleTimer);
+    this.flashTimer = this.staleTimer = 0;
     window.clearTimeout(this.noteTimer);
     window.cancelAnimationFrame(this.fitTimer);
     this.noteTimer = this.fitTimer = 0;
@@ -1711,12 +1710,11 @@ export class DevicesBuilding extends LitElement {
     }
   }
 
+  /** CR-G1-HOME-AREA-2440 (06:DUP-10): the shared throttle (devices-shared.ts) - one refetch per window while pushes keep coming. */
+  private readonly reloads = new ReloadThrottle(REFRESH_WINDOW_MS, () => void this.reloadTree());
+
   private scheduleReload() {
-    if (this.timer) return; // a refetch is already on its way: this push rides it
-    this.timer = window.setTimeout(() => {
-      this.timer = 0;
-      void this.reloadTree();
-    }, REFRESH_WINDOW_MS);
+    this.reloads.schedule();
   }
 
   private async load() {
@@ -1761,15 +1759,10 @@ export class DevicesBuilding extends LitElement {
     }
     // MULTIBUILDING-HOME-2330: a site of several buildings - the site level (cards + grouped tree) or one building's home (today's home
     // scoped to it). One building (site() = null): t is the tree itself and nothing below changes. The layout editor works on the whole.
-    const site = this.lay.editing ? null : this.site();
-    this.ensureLevel(site);
-    const inBuilding = site ? site.shown.find((b) => b.id === this.level) ?? null : null;
-    const atSite = !!site && !inBuilding;
+    // CR-G1-HOME-AREA-2440 (06:RENDER-1): settled in willUpdate (syncScope) - the render no longer writes the level or the scope fields
+    const { site, inBuilding } = this.scope;
+    const atSite = this.atSiteLevel;
     const t = inBuilding ? scopeTree(full, inBuilding) : full;
-    this.kpiTag = site ? scopeTag(site.model, this.level) : '';
-    this.ctlBuilding = controlBuilding(site, this.level);
-    this.atSiteLevel = atSite;
-    this.scopeAreas = inBuilding ? inBuilding.areaIds : null;
     // POLISH-295 (owner approval 2026-10-25): no technical line under the title (floors · areas · devices · demo data) - clean operator screen
     const connected = this.sync?.connected ?? false;
     this.lay.prepare(this.layGrids(t));
@@ -1841,7 +1834,6 @@ export class DevicesBuilding extends LitElement {
   /** The tiles' panel of the screen. CR-HOME-LAZY-2440: its module is a chunk of its own - the element is rendered from the first time a
    * panel is asked for (or once the idle warm-up brought the chunk), and stays from then on; updated() fetches the chunk when needed. */
   private renderTilesPanel() {
-    if (this.panel) this.panelUsed = true;
     if (!this.panelUsed && !screenDefined('devices-tiles-panel')) return nothing;
     return html`<devices-tiles-panel .building=${this.ctlBuilding} .bulkHold=${this.atSiteLevel ? SITE_BULK_HOLD : ''} ?open=${!!this.panel} .kind=${this.panel?.kind ?? 'lights'} .scope=${this.panel?.scope ?? 'building'} .scopeId=${this.panel?.id ?? ''} .scopeName=${this.panel?.name || this.scopeName(this.panel?.scope ?? 'building', this.panel?.id ?? '')} .filter=${this.panel?.filter ?? 'all'} @panel-close=${this.closePanel} @panel-filter=${this.onPanelFilter} @panel-changed=${() => this.scheduleReload()} @panel-navigate=${this.onPanelNavigate}></devices-tiles-panel>`;
   }
@@ -1890,21 +1882,34 @@ export class DevicesBuilding extends LitElement {
 
   /** CR-007 HA refresh: the manual refresh, when the structure was last read from HA, and "מבנה עודכן" after a change. */
   private renderRefresh() {
-    void this.tick; // re-rendered every 15 s so the "לפני …" lines keep up
-    const timing = structureTiming(this.sync);
     // owner notes 2026-09-30: one small icon-only button; when the structure was last read is only its tooltip. A short
     // outcome (an error / "no change") shows for a few seconds after a press, and "מבנה עודכן" after a real change.
-    const stale = this.isStale();
-    const at = this.live.lastOkAt();
-    const updated = at ? `${hl('updated')} ${timeText(new Date(at))}` : '';
-    const tip = [this.refreshing ? 'מרענן…' : 'רענן', stale ? hl('stale') : '', updated, timing.changed, timing.checked].filter(Boolean).join(' · ');
+    const stale = this.stale;
     return html`<span class="ha-refresh">
       ${this.structureFlash ? html`<sw-badge data-structure-changed kind="live" label="מבנה עודכן"></sw-badge>` : nothing}
       ${this.refreshNote ? html`<span class="refreshed" role="status" data-devices-refresh-note>${this.refreshNote}</span>` : nothing}
-      <sw-button size="sm" variant="ghost" icon="refresh" iconOnly label=${tip} data-devices-refresh ?disabled=${this.refreshing} @click=${() => void this.refreshFromHa()}></sw-button>
+      <sw-button size="sm" variant="ghost" icon="refresh" iconOnly label=${this.refreshTip(stale)} data-devices-refresh ?disabled=${this.refreshing} @pointerenter=${this.refreshHover} @focusin=${this.refreshHover} @click=${() => void this.refreshFromHa()}></sw-button>
       ${stale ? html`<span class="stale-dot" data-home-stale aria-hidden="true"></span>` : nothing}
     </span>`;
   }
+
+  /** The refresh button's tooltip and accessible name: "רענן", the stale note, when the values were last confirmed, and when the structure
+   * last changed / was last checked ("לפני …"). */
+  private refreshTip(stale = this.isStale(), now = Date.now()): string {
+    const timing = structureTiming(this.sync, now);
+    const at = this.live.lastOkAt();
+    const updated = at ? `${hl('updated')} ${timeText(new Date(at))}` : '';
+    return [this.refreshing ? 'מרענן…' : 'רענן', stale ? hl('stale') : '', updated, timing.changed, timing.checked].filter(Boolean).join(' · ');
+  }
+
+  /** CR-G1-HOME-AREA-2440 (06:PERF-6): the "לפני …" words are brought up to date on the button alone when the pointer or the focus reaches
+   * it (the tooltip and the accessible name are read then) - not by re-rendering the whole screen every 15 s. A render that follows
+   * writes the same text again, or a newer one. */
+  private refreshHover = (e: Event) => {
+    const btn = e.currentTarget as HTMLElement | null;
+    const tip = this.refreshTip();
+    if (btn && btn.getAttribute('label') !== tip) btn.setAttribute('label', tip);
+  };
 
   /** The floors as this render shows them: the tree's own order (the installation's floor order, applied by the server),
    * or - while the order is being edited - the draft's, so the tree and the cards / tiles preview it. */
@@ -2046,7 +2051,7 @@ export class DevicesBuilding extends LitElement {
 
   private async onAreaOpen(t: DeviceTree, e: CustomEvent<{ zone_id: string; zone_name: string; area_id: string | null; x: number; y: number }>) {
     const { area_id: areaId, x, y } = e.detail;
-    const area = areaId ? t.floors.flatMap((f) => f.areas).find((a) => a.area_id === areaId) : undefined;
+    const area = areaId ? areaById(t, areaId) : undefined;
     if (!area) {
       this.planPop = null;
       return;
@@ -2448,7 +2453,7 @@ export class DevicesBuilding extends LitElement {
     return html`<div class="alerts" role="alert" data-home-alerts=${list.length}>${list.map((x) => {
       const key = `${x.scope}:${x.id}`;
       const where = x.scope === 'building' ? '' : x.name;
-      const area = x.scope === 'area' ? t.floors.flatMap((f) => f.areas).find((a) => a.area_id === x.id) : undefined;
+      const area = x.scope === 'area' ? areaById(t, x.id) : undefined;
       return html`<div class="al" data-home-alert=${key}><sw-icon name="shield" size=${17}></sw-icon><b>${hs('alarmTriggered')}</b>${where ? html`<span class="w">${bidi(where)}</span>` : nothing}
         <span class="gx">${this.isPhone
           ? nothing
@@ -2498,7 +2503,6 @@ export class DevicesBuilding extends LitElement {
   private renderQuickSheet() {
     const q = this.quick;
     // CR-HOME-LAZY-2440: a chunk of its own - rendered from the first press (or once the idle warm-up brought it), and stays from then on
-    if (q) this.quickUsed = true;
     if (!this.quickUsed && !screenDefined('area-quick-sheet')) return nothing;
     const live = q ? (this.findArea(q.area.area_id)?.area ?? q.area) : null; // the tree's fresh counts while it is open
     const it = q ? this.lay.item(`area:${q.area.area_id}`) : undefined;
