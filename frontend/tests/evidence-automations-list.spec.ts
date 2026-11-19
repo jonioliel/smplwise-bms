@@ -242,8 +242,8 @@ test.describe('toggle, filters, the segments', () => {
       const b = await c.locator(sel).boundingBox();
       expect(b!.height, sel).toBeGreaterThanOrEqual(44);
     }
-    // the switch is 30 px high but its hit area is 44 px: a point 7 px above its edge still lands on it
-    const t = await c.locator('[data-card-toggle]').boundingBox();
+    // the switch is 24 px high (sw-toggle, CR-CMP2-TOAST-2440) but its hit area is 44 px: a point 7 px above the drawn track still lands on it
+    const t = await c.locator('[data-card-toggle] [role="switch"]').boundingBox();
     const hit = await page.evaluate(({ x, y }) => {
       let el: Element | null = document.elementFromPoint(x, y);
       while (el?.shadowRoot) {
