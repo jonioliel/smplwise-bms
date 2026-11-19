@@ -88,7 +88,16 @@ Workstation (RAM limited; local = tsc + targeted node unit specs, `--workers=1`)
 | Same 23 specs + the new unit, after | 203 passed |
 | Re-run of the 6 directly affected unit specs after the stale-dot change | 82 passed |
 
-Runner: see the section below.
+Runner (`~/run_remote.sh` in its own worktree `~/work/pilot-CR-G1-HOME-AREA-2440`, `nice -n 10`, 1 worker, no `-u`; the 2.43.8
+release gate was running at the same time, nothing of it was touched):
+
+| Run | Commit | Result |
+|---|---|---|
+| preview: `visual-matrix.spec.ts --grep "devices-(home\|building)"`, all projects, against the committed Linux baselines | 1ae47216c | 18 passed - the home and building screens are pixel-identical |
+| preview: 14 home / area demo-mode specs (`evidence-devices-tiles`, `-devices-tree-collapse`, `-home-polish`, `-multibuilding-home-2330`, `-home-edit-drawer-2351`, `-tree-unassigned-2331`, `-home-phonefloors-295`, `-home-quickcard-295`, `-homeinfo-295`, `-homelive-295`, `-breakui-areanav`, `layout-area-popup-edit-2290`, `layout-home-widgets-wide-298`, `layout-home-edit-bar-wp4`), desktop | 1ae47216c | 59 passed, 24 skipped (fixture-backed tests self-skip in a preview), 10 failed: all 10 in the two `layout-home-*` specs, a placement error of this run - their header says they need the Vite DEV server (the widget-break harness page does not exist in a preview build) |
+| dev server: `layout-home-widgets-wide-298`, `layout-home-edit-bar-wp4`, desktop | 1ae47216c | 10 passed |
+
+Baselines: none refreshed (no pixel change intended, and the matrix confirms none).
 
 ## NOT_RUN
 
