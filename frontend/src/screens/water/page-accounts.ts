@@ -17,11 +17,45 @@ import { wt } from '../../water/i18n';
 import { SkinController } from '../../design/skin';
 import { bubbleChrome } from '../../styles/bubble-chrome';
 import { dateInputLang } from '../../api/day-format';
+import { toneOf } from '../../electricity/table-tones';
+import '../../components/sw-table';
+import type { TableColumn } from '../../components/sw-table';
 
 const BASE = '/infra/water/accounts';
-const chip = (c: { label: string; cls: string }) => html`<span class="chip ${c.cls}">${c.label}</span>`;
-export const billChipW = (b: Pick<BillSummary, 'state'>) => html`<span class="chip ${BILL_STATE[b.state].cls}" data-bill-state=${b.state}>${BILL_STATE[b.state].label}</span>`;
+/** CR-CMP2-TABLES-CONSUMPTION-2450: a chip carries the module class (cards, phone rows) and the shared `data-tone` (a `sw-table` cell). */
+const chip = (c: { label: string; cls: string }) => html`<span class="chip ${c.cls}" data-tone=${toneOf(c.cls)}>${c.label}</span>`;
+export const billChipW = (b: Pick<BillSummary, 'state'>) => html`<span class="chip ${BILL_STATE[b.state].cls}" data-tone=${toneOf(BILL_STATE[b.state].cls)} data-bill-state=${b.state}>${BILL_STATE[b.state].label}</span>`;
 const range = (p: { from: string; to: string } | null) => (p ? `${fmtDate(p.from)} - ${fmtDate(p.to)}` : '-');
+/** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): the accounts list as the shared sw-table - the name is the row's link (its tab stop:
+ * `no-focus-rows`; a click anywhere on the row opens it too), the formula cut with an ellipsis (steps out below 1024 px), figures as LTR
+ * isolates at the reading end, the last bill and the state as chips in the shared tones. Row hook `data-account-row`. */
+function accountColumns(money: boolean, st: Record<string, AccountStatus | null>, last: (r: Account) => TemplateResult): TableColumn<Account>[] {
+  const cols: TableColumn<Account>[] = [
+    { key: 'name', label: wt('colAccount'), render: (r) => html`<a class="t1" href=${`#${BASE}/${r.id}`} @click=${(e: Event) => e.stopPropagation()}>${r.name}</a>` },
+    { key: 'customer', label: wt('colCustomer'), render: (r) => r.customer?.name ?? '-' },
+    { key: 'formula', label: wt('colFormula'), kind: ['muted', 'truncate'], hideBelow: 'tablet', render: (r) => r.formula.sentence_he, cellTitle: (r) => r.formula.sentence_he },
+    { key: 'period', label: wt('colPeriod'), render: (r) => periodLabel(r.period_months, r.period_anchor_day) },
+    { key: 'm3', label: wt('colPeriodUsage'), kind: 'num', render: (r) => fmtM3(st[r.id]?.m3_so_far ?? null) },
+  ];
+  if (money)
+    cols.push(
+      { key: 'amount', label: wt('colAmount'), kind: 'num', render: (r) => (st[r.id]?.amount_so_far !== undefined ? fmtIls(st[r.id]?.amount_so_far) : '') },
+      { key: 'last', label: wt('colLastBill'), kind: 'status', render: (r) => last(r) },
+    );
+  cols.push({ key: 'state', label: wt('colState'), kind: 'status', render: (r) => chip(accountChip(r)) });
+  return cols;
+}
+
+/** CR-CMP2-TABLES-CONSUMPTION-2450: the meters of one account (read-only; a negative coefficient reads "−"; a silent meter carries a warn
+ * chip). Row hook `data-acc-meter`. */
+const accMeterColumns = (): TableColumn<AccountStatus['meters'][number]>[] => [
+  { key: 'name', label: wt('colMeter'), render: (m) => html`<b>${Number(m.coefficient) < 0 ? '− ' : ''}${m.name}</b>${m.reporting ? nothing : html` <span class="chip" data-tone="warn">${wt('stNotReporting')}</span>`}` },
+  { key: 'start', label: wt('colStartReading'), kind: 'num', render: (m) => fmtM3(m.start_m3) },
+  { key: 'current', label: wt('colCurrentReading'), kind: 'num', render: (m) => fmtM3(m.current_m3) },
+  { key: 'usage', label: wt('colUsage'), kind: 'num', render: (m) => fmtM3(m.consumption_m3) },
+  { key: 'contribution', label: wt('colContribution'), kind: 'num', render: (m) => fmtM3(m.contribution_m3) },
+];
+
 const skeletonCard = (n = 6) => html`<div class="card" aria-busy="true">${Array.from({ length: n }, () => html`<div class="row skrow"><div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div><div class="skl" style="inline-size:10%"></div></div>`)}</div>`;
 
 interface Form {
@@ -334,14 +368,8 @@ export class WaterAccountsPage extends LitElement {
     const last = (r: Account) => (r.last_bill ? html`${r.last_bill.number ? html`<span class="num">${r.last_bill.number}</span>` : wt('tBillDrafts')} ${billChipW(r.last_bill)}` : html`<span class="mut">-</span>`);
     const body = !rows.length
       ? html`<sw-state-panel icon="search" state="empty" compact heading=${wt('noAccounts')}></sw-state-panel>`
-      : html`<div class="card flush scrollx desk-only"><table class="t" data-acc-table>
-          <thead><tr><th>${wt('colAccount')}</th><th>${wt('colCustomer')}</th><th class="hide-tablet">${wt('colFormula')}</th><th>${wt('colPeriod')}</th><th class="n">${wt('colPeriodUsage')}</th>${money ? html`<th class="n">${wt('colAmount')}</th><th>${wt('colLastBill')}</th>` : nothing}<th>${wt('colState')}</th></tr></thead>
-          <tbody>${rows.map((r) => html`<tr class="go" data-account-row=${r.id} @click=${() => navigate(`${BASE}/${r.id}`)}>
-            <td class="b"><a class="rowlink" href=${`#${BASE}/${r.id}`} @click=${(e: Event) => e.stopPropagation()}>${r.name}</a></td><td>${r.customer?.name ?? '-'}</td>
-            <td class="mut ell hide-tablet">${r.formula.sentence_he}</td><td>${periodLabel(r.period_months, r.period_anchor_day)}</td>
-            <td class="n"><span class="num">${fmtM3(st[r.id]?.m3_so_far ?? null)}</span></td>
-            ${money ? html`<td class="n"><span class="num">${st[r.id]?.amount_so_far !== undefined ? fmtIls(st[r.id]?.amount_so_far) : ''}</span></td><td>${last(r)}</td>` : nothing}
-            <td>${chip(accountChip(r))}</td></tr>`)}</tbody></table></div>
+      : html`<sw-table class="t card flush desk-only" data-acc-table no-focus-rows .columns=${accountColumns(money, st, last) as unknown as TableColumn[]} .rows=${rows as unknown as Record<string, unknown>[]}
+          .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-account-row': String(r.id) })} @row-select=${(e: CustomEvent<{ id: string }>) => navigate(`${BASE}/${e.detail.id}`)}></sw-table>
         <div class="list phone-only" style="flex-direction:column" data-acc-rows>${rows.map((r) => html`<a class="li" href=${`#${BASE}/${r.id}`} data-account-row=${r.id}>
           <div class="grow"><div class="t1">${r.name}</div><div class="t2">${r.customer?.name ?? ''} · <span class="num">${fmtM3(st[r.id]?.m3_so_far ?? null)}</span> ${wt('m3')}${money && st[r.id]?.amount_so_far ? html` · <span class="num">${fmtIls(st[r.id]?.amount_so_far)}</span>` : nothing}</div></div>${chip(accountChip(r))}</a>`)}</div>`;
     return html`<div class="page" data-water="accounts" data-state="ready">${head}${tiles}${body}</div>`;
@@ -357,10 +385,8 @@ export class WaterAccountsPage extends LitElement {
       <div class="tile"><div class="k">${wt('tForecast')}</div><div class="v"><span class="num">${fmtM3(s?.m3_forecast ?? null)}</span><span class="u">${wt('m3')}</span></div></div>
       ${money ? html`<div class="tile"><div class="k">${wt('tAmountSoFar')}</div><div class="v"><span class="num">${s?.amount_so_far ? fmtIls(s.amount_so_far).replace(' ₪', '') : '-'}</span><span class="u">₪</span></div></div>` : nothing}
     </div>`;
-    const meters = html`<div class="card flush scrollx" data-acc-meters><table class="t">
-      <thead><tr><th>${wt('colMeter')}</th><th class="n">${wt('colStartReading')}</th><th class="n">${wt('colCurrentReading')}</th><th class="n">${wt('colUsage')}</th><th class="n">${wt('colContribution')}</th></tr></thead>
-      <tbody>${(s?.meters ?? []).map((m) => html`<tr data-acc-meter=${m.meter_id}><td class="b">${Number(m.coefficient) < 0 ? '− ' : ''}${m.name}${m.reporting ? nothing : html` <span class="chip c-warn">${wt('stNotReporting')}</span>`}</td>
-        <td class="n"><span class="num">${fmtM3(m.start_m3)}</span></td><td class="n"><span class="num">${fmtM3(m.current_m3)}</span></td><td class="n"><span class="num">${fmtM3(m.consumption_m3)}</span></td><td class="n"><span class="num">${fmtM3(m.contribution_m3)}</span></td></tr>`)}</tbody></table></div>`;
+    const meters = html`<sw-table class="t card flush" static-rows data-acc-meters .columns=${accMeterColumns() as unknown as TableColumn[]} .rows=${(s?.meters ?? []) as unknown as Record<string, unknown>[]}
+      .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-acc-meter': String(r.meter_id) })}></sw-table>`;
     const t = a.tariff;
     const side = html`<div class="col">
       <div class="card"><div class="hd"><b>${wt('customerCard')}</b></div><dl class="kv"><dt>${wt('cName')}</dt><dd>${a.customer?.name ?? '-'}</dd><dt>${wt('cNumber')}</dt><dd class="num">${a.customer?.customer_number ?? '-'}</dd>${a.customer?.address ? html`<dt>${wt('cAddress')}</dt><dd>${a.customer.address}</dd>` : nothing}</dl></div>
@@ -377,13 +403,24 @@ export class WaterAccountsPage extends LitElement {
     if (!h) return skeletonCard(4);
     if (!h.length) return html`<sw-state-panel icon="history" state="empty" compact heading=${wt('noHistory')}></sw-state-panel>`;
     const lbl = { measured: wt('hMeasured'), partial: wt('hPartial'), missing: wt('hMissing'), open: wt('hOpen') };
-    return html`<div class="card flush scrollx" data-acc-history><table class="t"><thead><tr><th>${wt('colPeriod')}</th><th class="n">${wt('colM3')}</th><th class="n">${wt('colChange')}</th><th>${wt('colState')}</th>${this.access.bills ? html`<th class="n">${wt('colSum')}</th>` : nothing}</tr></thead>
-      <tbody>${h.map((p, i) => {
-        const prev = h[i + 1]?.m3;
-        const ch = p.m3 !== null && prev ? Math.round(((Number(p.m3) - Number(prev)) / Number(prev)) * 100) : null;
-        return html`<tr><td class="num" style="text-align:start">${range(p)}</td><td class="n"><span class="num">${fmtM3(p.m3)}</span></td><td class="n ${ch === null || ch === 0 ? '' : ch > 0 ? 'up' : 'down'}"><span class="num">${ch === null ? '-' : `${ch > 0 ? '+' : ''}${ch}%`}</span></td>
-          <td>${lbl[p.status]}</td>${this.access.bills ? html`<td class="n"><span class="num">${p.bill?.total ? fmtIls(p.bill.total) : '-'}</span></td>` : nothing}</tr>`;
-      })}</tbody></table></div>`;
+    const rows = h.map((p, i) => {
+      const prev = h[i + 1]?.m3;
+      return { ...p, change: p.m3 !== null && prev ? Math.round(((Number(p.m3) - Number(prev)) / Number(prev)) * 100) : null };
+    });
+    const cols: TableColumn<(typeof rows)[number]>[] = [
+      { key: 'period', label: wt('colPeriod'), render: (p) => html`<span class="num">${range(p)}</span>` },
+      { key: 'm3', label: wt('colM3'), kind: 'num', render: (p) => fmtM3(p.m3) },
+      {
+        key: 'change',
+        label: wt('colChange'),
+        kind: 'num',
+        render: (p) => html`<span part=${p.change === null || p.change === 0 ? nothing : p.change > 0 ? 'up' : 'down'}>${p.change === null ? '-' : `${p.change > 0 ? '+' : ''}${p.change}%`}</span>`,
+      },
+      { key: 'status', label: wt('colState'), render: (p) => lbl[p.status] },
+    ];
+    if (this.access.bills) cols.push({ key: 'sum', label: wt('colSum'), kind: 'num', render: (p) => (p.bill?.total ? fmtIls(p.bill.total) : '-') });
+    // CR-CMP2-TABLES-CONSUMPTION-2450: the periods as the shared sw-table (read-only; a rise in the danger ink, a fall in the success ink)
+    return html`<sw-table class="t card flush" static-rows data-acc-history .columns=${cols as unknown as TableColumn[]} .rows=${rows as unknown as Record<string, unknown>[]}></sw-table>`;
   }
 
   private renderBills() {
@@ -438,15 +475,25 @@ export class WaterAccountsPage extends LitElement {
   }
 }
 
+/** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): the bills as the shared sw-table - the number is the row's link (its tab stop:
+ * `no-focus-rows`; a click anywhere on the row opens the bill too), dates and figures as LTR isolates, the state chip in the shared tones.
+ * Row hook `data-bill-row`. */
+const billColumns = (): TableColumn<BillSummary>[] => [
+  { key: 'number', label: wt('colNumber'), render: (b) => html`<a class="t1" href=${`#/infra/water/bills/${b.id}`} @click=${(e: Event) => e.stopPropagation()}><span class="num">${b.number ?? wt('tBillDrafts')}</span></a>` },
+  { key: 'customer', label: wt('colCustomer'), render: (b) => b.customer.name ?? '-' },
+  { key: 'account', label: wt('colAccount'), render: (b) => b.account_name },
+  { key: 'period', label: wt('colPeriod'), render: (b) => html`<span class="num">${range(b.period)}</span>` },
+  { key: 'm3', label: wt('colM3'), kind: 'num', render: (b) => fmtM3(b.m3) },
+  { key: 'total', label: wt('colTotal'), kind: 'num', render: (b) => (b.total !== undefined ? fmtIls(b.total) : '') },
+  { key: 'due', label: wt('colDue'), render: (b) => html`<span class="num">${b.due_date ? fmtDate(b.due_date) : '-'}</span>` },
+  { key: 'state', label: wt('colState'), kind: 'status', render: (b) => billChipW(b) },
+];
+
 /** The bills table of the bills page, the account page and the customer card (bills permission only). */
 export function billsTable(list: BillSummary[], phone: boolean): TemplateResult {
   const go = (b: BillSummary) => navigate(`/infra/water/bills/${b.id}`);
-  return html`<div class="card flush scrollx ${phone ? '' : 'desk-only'}"><table class="t" data-bill-table>
-      <thead><tr><th>${wt('colNumber')}</th><th>${wt('colCustomer')}</th><th>${wt('colAccount')}</th><th>${wt('colPeriod')}</th><th class="n">${wt('colM3')}</th><th class="n">${wt('colTotal')}</th><th>${wt('colDue')}</th><th>${wt('colState')}</th></tr></thead>
-      <tbody>${list.map((b) => html`<tr class="go" data-bill-row=${b.id} @click=${() => go(b)}>
-        <td class="b"><a class="rowlink num" href=${`#/infra/water/bills/${b.id}`} @click=${(e: Event) => e.stopPropagation()}>${b.number ?? wt('tBillDrafts')}</a></td><td>${b.customer.name ?? '-'}</td><td>${b.account_name}</td>
-        <td class="num" style="text-align:start">${range(b.period)}</td><td class="n"><span class="num">${fmtM3(b.m3)}</span></td><td class="n"><span class="num">${b.total !== undefined ? fmtIls(b.total) : ''}</span></td>
-        <td class="num" style="text-align:start">${b.due_date ? fmtDate(b.due_date) : '-'}</td><td>${billChipW(b)}</td></tr>`)}</tbody></table></div>
+  return html`<sw-table class="t card flush ${phone ? '' : 'desk-only'}" data-bill-table no-focus-rows .columns=${billColumns() as unknown as TableColumn[]} .rows=${list as unknown as Record<string, unknown>[]}
+      .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-bill-row': String(r.id) })} @row-select=${(e: CustomEvent<{ row: Record<string, unknown> }>) => go(e.detail.row as unknown as BillSummary)}></sw-table>
     ${phone ? nothing : html`<div class="list phone-only" style="flex-direction:column" data-bill-rows>${list.map((b) => html`<a class="li" href=${`#/infra/water/bills/${b.id}`} data-bill-row=${b.id}>
       <div class="grow"><div class="t1"><span class="num">${b.number ?? wt('tBillDrafts')}</span> · ${b.customer.name ?? ''}</div><div class="t2">${b.account_name} · <span class="num">${range(b.period)}</span> · <span class="num">${fmtM3(b.m3)}</span> ${wt('m3')}</div></div>
       <div class="rowend">${billChipW(b)}<div class="t2 num">${b.total !== undefined ? fmtIls(b.total) : ''}</div></div></a>`)}</div>`}`;
