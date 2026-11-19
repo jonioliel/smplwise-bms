@@ -388,11 +388,11 @@ export class ElecSettingsBusiness extends ElecBase {
 
   private fld(k: keyof BillingSettings['business'], label: string, o: { wide?: boolean; ltr?: boolean; ro?: boolean; area?: boolean } = {}) {
     const err = this.errs[k];
-    return html`<div class="fld ${o.wide ? 'wide' : ''}"><label for="b-${k}">${label}</label>
+    return html`<sw-field class="fld ${o.wide ? 'wide' : ''}" label=${label}>
       ${o.area
         ? html`<textarea id="b-${k}" name=${k} .value=${this.biz[k]} @input=${(e: Event) => (this.biz = { ...this.biz, [k]: (e.target as HTMLTextAreaElement).value })}></textarea>`
         : html`<input id="b-${k}" name=${k} class="${o.ltr ? 'ltr' : ''} ${err ? 'err' : ''}" aria-invalid=${err ? 'true' : 'false'} .value=${this.biz[k]} @input=${(e: Event) => { this.biz = { ...this.biz, [k]: (e.target as HTMLInputElement).value }; this.errs = { ...this.errs, [k]: '' }; }} />`}
-      ${err ? html`<div class="msg" role="alert" data-field-error=${k}>${err}</div>` : nothing}</div>`;
+      ${err ? html`<div class="msg" role="alert" slot="message" data-field-error=${k}>${err}</div>` : nothing}</sw-field>`;
   }
 
   render() {
@@ -422,10 +422,10 @@ export class ElecSettingsBusiness extends ElecBase {
         <div class="fld wide"><span class="lbl" id="pt">${tr('תנאי תשלום')}</span><div class="row"><sw-segmented label=${tr('תנאי תשלום')} value=${t.mode} @change=${(e: CustomEvent<SegmentedChange>) => (this.terms = { ...t, mode: e.detail.value as 'net_days' | 'day_of_month' })}
         .options=${[{ value: 'net_days', label: tr('ימים מיום ההפקה'), attrs: { 'data-terms': 'net_days' } }, { value: 'day_of_month', label: tr('יום קבוע בחודש'), attrs: { 'data-terms': 'day_of_month' } }]}></sw-segmented>
           ${t.mode === 'net_days'
-            ? html`<div class="unit"><input class="ltr" data-days type="number" min="0" max="120" aria-label=${tr('ימים לתשלום')} style="inline-size:90px" .value=${String(t.days)} @input=${(e: Event) => (this.terms = { ...t, days: Number((e.target as HTMLInputElement).value) })} /><span>${tr('ימים')}</span></div>`
-            : html`<div class="unit"><input class="ltr" data-day-of-month type="number" min="1" max="31" aria-label=${tr('יום בחודש')} style="inline-size:90px" .value=${String(t.day_of_month)} @input=${(e: Event) => (this.terms = { ...t, day_of_month: Number((e.target as HTMLInputElement).value) })} /><span>${tr('בחודש')}</span></div>`}</div>
+            ? html`<sw-field class="terms-n" style="inline-size:132px" unit=${tr('ימים')}><input class="ltr ${this.errs.days ? 'err' : ''}" data-days type="number" min="0" max="120" aria-label=${tr('ימים לתשלום')} aria-invalid=${this.errs.days ? 'true' : 'false'} .value=${String(t.days)} @input=${(e: Event) => (this.terms = { ...t, days: Number((e.target as HTMLInputElement).value) })} /></sw-field>`
+            : html`<sw-field class="terms-n" style="inline-size:132px" unit=${tr('בחודש')}><input class="ltr ${this.errs.day_of_month ? 'err' : ''}" data-day-of-month type="number" min="1" max="31" aria-label=${tr('יום בחודש')} aria-invalid=${this.errs.day_of_month ? 'true' : 'false'} .value=${String(t.day_of_month)} @input=${(e: Event) => (this.terms = { ...t, day_of_month: Number((e.target as HTMLInputElement).value) })} /></sw-field>`}</div>
           ${this.errs.days || this.errs.day_of_month ? html`<div class="msg" role="alert" data-field-error="terms">${this.errs.days || this.errs.day_of_month}</div>` : nothing}</div>
-        <div class="fld wide"><label for="dl">${tr('יצירת טיוטה אוטומטית')}</label><div class="unit"><input id="dl" class="ltr ${this.errs.delay_hours ? 'err' : ''}" data-delay type="number" min="0" max="72" style="inline-size:90px" .value=${this.delay} @input=${(e: Event) => { this.delay = (e.target as HTMLInputElement).value; this.errs = { ...this.errs, delay_hours: '' }; }} /><span>${tr('שעות אחרי סוף התקופה')}</span></div>${this.errs.delay_hours ? html`<div class="msg" role="alert" data-field-error="delay_hours">${this.errs.delay_hours}</div>` : nothing}</div>
+        <sw-field class="fld wide delay" style="max-inline-size:340px" label=${tr('יצירת טיוטה אוטומטית')} unit=${tr('שעות אחרי סוף התקופה')}><input id="dl" class="ltr ${this.errs.delay_hours ? 'err' : ''}" aria-invalid=${this.errs.delay_hours ? 'true' : 'false'} data-delay type="number" min="0" max="72" .value=${this.delay} @input=${(e: Event) => { this.delay = (e.target as HTMLInputElement).value; this.errs = { ...this.errs, delay_hours: '' }; }} />${this.errs.delay_hours ? html`<div class="msg" role="alert" slot="message" data-field-error="delay_hours">${this.errs.delay_hours}</div>` : nothing}</sw-field>
       </div></fieldset>
       ${this.error ? alertBox('err', this.error) : nothing}${this.ok ? alertBox('ok', tr('ההגדרות נשמרו')) : nothing}
       ${edit ? html`<div class="row" style="margin-block-start:14px"><sw-button variant="primary" data-save ?disabled=${this.busy} @click=${() => void this.save()}>${tr('שמירה')}</sw-button></div>` : nothing}</div>
