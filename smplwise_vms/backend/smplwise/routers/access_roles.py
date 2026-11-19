@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends
 
 from ..auth import current_principal_ro, get_read_conn
 from ..rbac import INSTALLATION, LEGACY_PERMISSIONS, Principal, ROLES, authorize, require, role_name
+from ..services import access_roles_store as store
 from ..services.rbac_admin import SENSITIVE, SYSTEM_PERMISSIONS, _custom_role_dict, assigns_anywhere, delegable_roles, delegation_block, full_authority, rendered_labels
 
 router = APIRouter()
@@ -32,7 +33,7 @@ def list_roles(principal: Principal = Depends(current_principal_ro), conn: sqlit
             "sensitive_included": [p for p in perms if p in SENSITIVE], "sensitive_missing": [p for p in SENSITIVE if p not in perms and p not in LEGACY_PERMISSIONS], "system_role": bool(set(perms) & SYSTEM_PERMISSIONS),
             "delegation_block": delegation_block(conn, rid),
         })
-    for r in conn.execute("SELECT * FROM custom_roles WHERE deleted_at IS NULL ORDER BY created_at").fetchall():
+    for r in store.live_custom_roles(conn):
         roles.append(_custom_role_dict(conn, r))
     if delegated_only:
         roles = [r for r in roles if r["id"] in delegable]
