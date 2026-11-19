@@ -817,11 +817,14 @@ export class InvestigateEvents extends LitElement {
    * and Enter opens the full review. Typing in a field, a modifier, or a focused button / link keeps its own keys. On a phone the
    * drawer is a modal sheet that handles Escape itself. */
   private onKey = (e: KeyboardEvent) => {
-    if (this.narrow || e.altKey || e.ctrlKey || e.metaKey || e.defaultPrevented) return;
+    const path = e.composedPath() as HTMLElement[];
+    // RELEASE-2450-TRAIN: the list is the shared sw-table (CR-CMP2-TABLES-2450), whose focused row walks the rows on Up / Down and
+    // marks the key handled; with a drawer open the same key still moves to the previous / next event (focus and selection move together)
+    const listWalk = (e.key === 'ArrowDown' || e.key === 'ArrowUp') && path.some((el) => el instanceof HTMLElement && el.tagName === 'SW-TABLE');
+    if (this.narrow || e.altKey || e.ctrlKey || e.metaKey || (e.defaultPrevented && !listWalk)) return;
     const windows = this.mode === 'windows';
     const id = windows ? this.selectedWindow : this.selected;
     if (!id) return;
-    const path = e.composedPath() as HTMLElement[];
     const typing = path.some((el) => el instanceof HTMLElement && (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA' || el.isContentEditable));
     if (typing) return;
     if (e.key === 'Escape') {
