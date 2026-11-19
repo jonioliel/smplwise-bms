@@ -1,0 +1,1 @@
+import{b4 as o,bs as t,bR as e,bn as c,bT as i}from"./index-DJHEuoub.js";const l=()=>o("views"),w=s=>c("views",s),r=(s,a)=>t(e`views/${s}`,a),m=s=>i(e`views/${s}`),p=s=>`#/live/wall?cameras=${encodeURIComponent(s.cameras.join(","))}`,d=s=>`#/kiosk/all?cameras=${encodeURIComponent(s.cameras.join(","))}&cols=${s.cols}&rows=${s.rows}`;export{w as c,m as d,d as k,l,r as u,p as w};
