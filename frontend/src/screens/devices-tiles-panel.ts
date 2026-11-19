@@ -45,7 +45,7 @@ interface KindMeta {
 }
 
 /** Owner 2026-09-29: the tiles' panel wording per kind (the segmented filter: הכול / פעילים|פתוחים|לא נעולים / כבויים|סגורים|נעולים / לא זמינים). */
-export const KIND_META: Record<TileKind, KindMeta> = {
+const KIND_META: Record<TileKind, KindMeta> = {
   lights: { noun: tr('גופי תאורה'), icon: 'light', active: tr('דולקים'), inactive: tr('כבויים'), unavailable: tr('לא זמינים'), order: ['all', 'active', 'inactive', 'unavailable'], master: { on: 'lights_on', off: 'lights_off', onLabel: tr('הדלק את כל התאורה'), offLabel: tr('כבה את כל התאורה') }, emptyHint: tr('גופי תאורה המשויכים לאזורים יופיעו כאן.') },
   switches: { noun: tr('מתגים'), icon: 'bolt', active: tr('פעילים'), inactive: tr('כבויים'), unavailable: tr('לא זמינים'), order: ['all', 'active', 'inactive', 'unavailable'], master: { on: 'switches_on', off: 'switches_off', onLabel: tr('הדלק את כל המתגים'), offLabel: tr('כבה את כל המתגים') }, emptyHint: tr('מתגים ודגלים המשויכים לאזורים יופיעו כאן.') },
   covers: { noun: tr('תריסים'), icon: 'layers', active: tr('פתוחים'), inactive: tr('סגורים'), unavailable: tr('לא זמינים'), order: ['all', 'active', 'inactive', 'unavailable'], master: { open: 'covers_open', close: 'covers_close', openLabel: tr('פתח את כל התריסים'), closeLabel: tr('סגור את כל התריסים') }, emptyHint: tr('תריסים, וילונות ושערים המשויכים לאזורים יופיעו כאן.') },
@@ -56,7 +56,7 @@ export const KIND_META: Record<TileKind, KindMeta> = {
   alarm: { noun: tr('לוחות אזעקה'), icon: 'shield', active: tr('דרוכים'), inactive: tr('מנוטרלים'), unavailable: tr('לא זמינים'), order: ['all', 'active', 'inactive', 'unavailable'], emptyHint: tr('לוח אזעקה המשויך לאזור יופיע כאן.') },
 };
 
-export const SCOPE_WORD: Record<ItemsScope, string> = { building: tr('במבנה'), floor: tr('בקומה'), area: tr('באזור') };
+const SCOPE_WORD: Record<ItemsScope, string> = { building: tr('במבנה'), floor: tr('בקומה'), area: tr('באזור') };
 /** "בקומה {name}" / "באזור {name}" as one text: the English word order needs the name inside the phrase. */
 const scopeWhere = (scope: ItemsScope, name: string): string =>
   scope === 'floor' ? tr('בקומה {name}', { name }) : scope === 'area' ? tr('באזור {name}', { name }) : `${SCOPE_WORD[scope]} ${name}`;
@@ -68,7 +68,7 @@ function rowState(r: DeviceRow): Exclude<ItemsFilter, 'all'> {
 }
 
 /** Why a row the user can see has no control (shown on hover and on tap). '' = it has controls. */
-export function readOnlyReason(r: DeviceItem, kind: TileKind, demo: boolean): string {
+function readOnlyReason(r: DeviceItem, kind: TileKind, demo: boolean): string {
   if (kind === 'alarm') return tr('דריכה וניטרול נעשים במסך האזעקה');
   if (r.alarm_managed) return r.managed_label ?? tr('נשלט ממסך האזעקה');
   if (demo) return tr('נתוני הדגמה - אין שליטה בהתקנים');
@@ -157,7 +157,7 @@ function num(v: unknown): number | null {
 export { activeOf };
 
 /** A listed row brought up to a pushed entity (review M4): the reported state and the attributes the panel shows. */
-export function patchRow(r: DeviceItem, e: HaEntity): DeviceItem {
+function patchRow(r: DeviceItem, e: HaEntity): DeviceItem {
   const s = e.state;
   const a = e.attributes ?? {};
   const out: DeviceItem = { ...r, state: s, available: e.available, last_changed: e.last_changed ?? r.last_changed, active: activeOf(r.domain, s) };

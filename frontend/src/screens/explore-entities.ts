@@ -22,6 +22,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { syncDisconnectedText } from '../api/ha-sync-status';
 import { tr } from '../i18n/msg/media';
+import { ltrStyles } from '../styles/fragments';
 
 interface Ent {
   id: string;
@@ -141,10 +142,7 @@ export class ExploreEntities extends LitElement {
       align-items: center;
       flex-wrap: wrap;
     }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+    ${ltrStyles}
     /* R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): the drawer's key / value list is a well (surface 2, no hairlines) with the values as
        14/600 headings - the value is the answer; the keys stay the quiet column. The table itself is the shared sw-table (not touched). */
     dl {

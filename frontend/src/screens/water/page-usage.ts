@@ -38,7 +38,7 @@ export function rangeBounds(r: Range, now = new Date()): { from: Date; to: Date;
 }
 
 /** The hourly installation series to bars: per hour for one day, per local day (with the night share) for longer ranges. */
-export function usageBars(c: Consumption, r: Range, rules: Pick<LeakRules, 'night_from' | 'night_to'>, leakDays: Set<string>): Bar[] {
+function usageBars(c: Consumption, r: Range, rules: Pick<LeakRules, 'night_from' | 'night_to'>, leakDays: Set<string>): Bar[] {
   const f = hmOf(rules.night_from);
   const t = hmOf(rules.night_to);
   const night = (d: Date) => {

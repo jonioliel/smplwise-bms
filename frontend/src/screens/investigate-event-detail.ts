@@ -41,7 +41,7 @@ import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
 import { sameRefs } from '../map/memo';
 import { initialLevel } from '../map/studio-ops';
 import { productSettings } from '../api/prefs';
-import { timeText, dayText } from '../api/day-format';
+import { timeText, dayText, isoZ } from '../api/day-format';
 import { incidentsModuleOn } from '../shell/nav'; // CR-LIVEEVENT100 (T2): "פתח אירוע חי" only while the module is on
 import { mayOpenFromEvent } from './investigate-incidents';
 import { openIncident } from '../api/incidents';
@@ -686,7 +686,7 @@ export class InvestigateEventDetail extends LitElement {
   private async loadNearby(ev: VmsEvent) {
     try {
       const at = new Date(ev.occurred_at).getTime();
-      const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
+      const iso = (ms: number) => isoZ(ms);
       const r = await listEvents({ from: iso(at - NEARBY_MS), to: iso(at + NEARBY_MS), limit: 30 });
       if (this.showing(ev.id)) this.nearby = r.events.filter((e) => e.id !== ev.id).slice(0, 6);
     } catch {
@@ -696,14 +696,19 @@ export class InvestigateEventDetail extends LitElement {
 
   private pollThumb(id: string) {
     window.clearTimeout(this.pollTimer);
-    this.pollTimer = window.setTimeout(async () => {
-      const st = await pollThumbnail(id).catch(() => 'unavailable' as const);
-      if (this.ev?.id !== id) return;
-      if (st === 'pending') this.pollThumb(id);
-      else {
-        this.ev = { ...this.ev, thumbnail: st };
-        if (st === 'ready') this.thumbVersion = Date.now();
-      }
+    // CR-FE-PROMISES-2442: a poll that fails reads as "no picture" (the placeholder), never a silent stop on "preparing"
+    this.pollTimer = window.setTimeout(() => {
+      (async () => {
+        const st = await pollThumbnail(id).catch(() => 'unavailable' as const);
+        if (this.ev?.id !== id) return;
+        if (st === 'pending') this.pollThumb(id);
+        else {
+          this.ev = { ...this.ev, thumbnail: st };
+          if (st === 'ready') this.thumbVersion = Date.now();
+        }
+      })().catch(() => {
+        if (this.ev?.id === id) this.ev = { ...this.ev, thumbnail: 'unavailable' };
+      });
     }, 1500);
   }
 
@@ -711,7 +716,7 @@ export class InvestigateEventDetail extends LitElement {
     if (!ev.camera_id) return;
     this.playerError = '';
     try {
-      const startAt = new Date(new Date(ev.occurred_at).getTime() - 2000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+      const startAt = isoZ(new Date(ev.occurred_at).getTime() - 2000);
       const session = await createPlayback(ev.camera_id, startAt);
       if (this.ev?.id === ev.id) this.session = session;
       else await closePlayback(session.id).catch(() => undefined);
@@ -922,7 +927,7 @@ export class InvestigateEventDetail extends LitElement {
     const at = replayInstant(ev.occurred_at);
     if (!floorId || at === null) return;
     try {
-      const past = await loadMap(floorId, false, new Date(at).toISOString().replace(/\.\d{3}Z$/, 'Z'));
+      const past = await loadMap(floorId, false, isoZ(at));
       if (this.ev?.id === ev.id) this.replay = { eventId: ev.id, ...replayStates(past.anchors, past.circuitStates) };
     } catch {
       /* the states stay unknown */

@@ -5,7 +5,7 @@
 import type { CameraRebootState } from '../api/nvr';
 import { crt, type CrKey } from '../i18n/camera-reboot';
 
-export interface RebootView {
+interface RebootView {
   /** The section is shown at all (a recorder type without the action shows nothing). */
   shown: boolean;
   enabled: boolean;

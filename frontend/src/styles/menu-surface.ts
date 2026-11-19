@@ -91,7 +91,7 @@ export const MENU_SURFACES: readonly MenuSurface[] = [
   { file: 'screens/media-admin-list.ts', selector: '.colspanel', what: 'the column chooser' },
   { file: 'components/scene-capture.ts', selector: '.pop', what: 'the scene editor device picker' },
   { file: 'components/sw-automation-card.ts', selector: '.pop', what: 'the automation card "..." menu' },
-  { file: 'screens/devices-schedules.ts', selector: '.acard .pop', what: 'the schedule card "..." menu' },
+  { file: 'screens/devices-schedules-css.ts', selector: '.acard .pop', what: 'the schedule card "..." menu' },
   { file: 'styles/media-glass.ts', selector: '.pop', what: 'the media pages popover menu (floor menu, source menu)' },
   { file: 'components/media-player-card.ts', selector: ":host([data-skin='bubble']) .pop", what: 'the player card menu in the Bubble skin' },
   { file: 'components/notify-center.ts', selector: '.srcbtn .pop', what: 'the notification center source filter menu' },
@@ -114,7 +114,7 @@ export const MENU_SURFACES: readonly MenuSurface[] = [
 ];
 
 /** A HUD panel over the plan canvas or the 3D canvas: how it is made opaque (see "WHAT IS A HUD PANEL" above). */
-export interface HudSurface extends MenuSurface {
+interface HudSurface extends MenuSurface {
   /** `background` (default): the rule paints `var(--sw-menu-surface)`. `surface-token`: the rule re-points `--sw-surface` at it (and `--sw-surface-2`,
    * the hover fill, at that surface washed towards the ink: `color-mix(in srgb, var(--sw-menu-surface) 92%, var(--sw-text))`) for the shared controls it
    * contains. `fill`: an SVG label pill drawn inside the canvas fills with it. */
@@ -163,10 +163,10 @@ export const HUD_SURFACES: readonly HudSurface[] = [
   // the alignment stage of a floor picture (map/sw-floor-image-align.ts)
   { file: 'map/sw-floor-image-align.ts', selector: '.res', what: 'the resolution readout on the alignment stage' },
   // the plan editor (screens/explore-plan-editor.ts)
-  { file: 'screens/explore-plan-editor.ts', selector: '.rail', what: 'the editor tool rail over the plan' },
-  { file: 'screens/explore-plan-editor.ts', selector: '.floorchip', what: 'the floor name chip over the editor plan' },
-  { file: 'screens/explore-plan-editor.ts', selector: '.levelbar', what: 'the level / grid / tag bar over the editor plan' },
-  { file: 'screens/explore-plan-editor.ts', selector: '.legend', what: 'the legend over the editor plan' },
+  { file: 'screens/explore-plan-editor-css.ts', selector: '.rail', what: 'the editor tool rail over the plan' },
+  { file: 'screens/explore-plan-editor-css.ts', selector: '.floorchip', what: 'the floor name chip over the editor plan' },
+  { file: 'screens/explore-plan-editor-css.ts', selector: '.levelbar', what: 'the level / grid / tag bar over the editor plan' },
+  { file: 'screens/explore-plan-editor-css.ts', selector: '.legend', what: 'the legend over the editor plan' },
   // the history map and the event page (screens/investigate-*.ts)
   { file: 'screens/investigate-history-map.ts', selector: '.legend', what: 'the legend over the history plan' },
   { file: 'screens/investigate-history-map.ts', selector: '.chip', what: 'the floor name chip over the history plan' },

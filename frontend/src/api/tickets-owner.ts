@@ -11,8 +11,8 @@
 import { get, put } from './client';
 import type { InternalOwner } from './tickets';
 
-export interface OwnerChange { at: string; from: string | null; to: string | null; by: string; source: string; reason: string | null }
-export interface OwnerAnswer {
+interface OwnerChange { at: string; from: string | null; to: string | null; by: string; source: string; reason: string | null }
+interface OwnerAnswer {
   ticket_id: string;
   revision: number;
   owner: InternalOwner | null;

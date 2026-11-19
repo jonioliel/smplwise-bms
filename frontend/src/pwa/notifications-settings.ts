@@ -32,6 +32,7 @@ import {
 import { dateInputLang, dayTimeText } from '../api/day-format';
 import { tr } from '../i18n/msg/misc';
 import '../screens/presence-opt-out'; // WHOIN034-295: the person's own "do not show me on מי במבנה"
+import { errLineStyles, ltrStyles, okLineStyles } from '../styles/fragments';
 
 const CATEGORIES: { id: PushCategory; label: string; detail: string }[] = [
   { id: 'alerts', label: tr('התראות מחוקים'), detail: tr('כל התראה שחוק ב"חוקים והתראות" מעלה: תנועה, חציית קו, אדם, רכב') },
@@ -134,23 +135,14 @@ export class ArxNotificationsSettings extends LitElement {
         box-shadow: var(--sw-shadow-3);
       }
     }
-    .ok {
-      color: var(--sw-success-text);
-      font-size: var(--sw-fs-sm);
-    }
-    .err {
-      color: var(--sw-danger-text);
-      font-size: var(--sw-fs-sm);
-    }
+    ${okLineStyles}
+    ${errLineStyles}
     .dev {
       display: flex;
       align-items: center;
       gap: 10px;
     }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+    ${ltrStyles}
     @media (max-width: 767px) {
       .row {
         flex-wrap: wrap;

@@ -26,7 +26,7 @@ export const BRAND_PRESETS: Readonly<Record<string, string>> = {
 /** The classic skin's accent (light) - what "default" looks like in the swatch. */
 export const SYSTEM_BLUE = '#2767ed';
 
-export interface BrandColors {
+interface BrandColors {
   accent: string;
   toggle: string;
 }
@@ -76,7 +76,7 @@ export function contrastOf(a: string, b: string): number {
 }
 
 /** `hex` moved `t` (0..1) toward `to`, in sRGB, as #rrggbb. */
-export function mixHex(hex: string, to: string, t: number): string {
+function mixHex(hex: string, to: string, t: number): string {
   const c = (s: string, i: number) => parseInt(s.slice(i, i + 2), 16);
   const one = (i: number) => Math.round(c(hex, i) + (c(to, i) - c(hex, i)) * t).toString(16).padStart(2, '0');
   return `#${one(1)}${one(3)}${one(5)}`;

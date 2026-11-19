@@ -24,7 +24,7 @@ export function canResendDraft(d: Pick<Draft, 'status' | 'aud' | 'to' | 'untilAr
   return Number.isNaN(end.getTime()) || end.getTime() > now.getTime();
 }
 
-export interface ResendResult {
+interface ResendResult {
   requested: boolean;
   sent: boolean;
   recipients: number;

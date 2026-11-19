@@ -43,10 +43,9 @@ const ru: Partial<Record<Key, string>> = {
   onlyConfirmOff: 'Снова разрешить вход по паролю?',
 };
 
-export type PoKey = Key;
-export type PoLang = 'he' | 'en' | 'ar' | 'ru';
+type PoLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function poLang(): PoLang {
+function poLang(): PoLang {
   return docLang(['en', 'ar', 'ru']);
 }
 

@@ -40,7 +40,7 @@ export function langPack(lang: string): LangPack | undefined {
 }
 
 /** Registers a language's words (the loader does it; unit specs register the packs they import statically). */
-export function registerLangPack(lang: LazyLang, pack: LangPack): void {
+function registerLangPack(lang: LazyLang, pack: LangPack): void {
   PACKS[lang] = pack;
   FAILED.delete(lang);
 }

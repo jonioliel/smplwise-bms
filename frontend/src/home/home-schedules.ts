@@ -47,7 +47,7 @@ registerMoreTile({
 });
 
 /** Opens the new-schedule sheet (also from the scenes screen). */
-export function openNewSchedule(h: HomeHost) {
+function openNewSchedule(h: HomeHost) {
   load(h);
   st.draft = { scene: st.scenes[0]?.entity ?? '', at: 420, days: [0, 1, 2, 3, 4], crid: rid() };
   h.ovl = { type: 'ext', mod: 'p2sched', kind: 'new' } as ExtOvl;

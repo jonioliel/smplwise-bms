@@ -11,7 +11,7 @@ export function looksLikeEntityId(text: string | null | undefined): boolean {
 }
 
 /** Domains an entity id can start with, for scanning free text (a scan of "x.y" alone would hit file names and numbers). */
-export const ENTITY_DOMAINS = [
+const ENTITY_DOMAINS = [
   'sensor', 'binary_sensor', 'climate', 'switch', 'light', 'cover', 'fan', 'humidifier', 'media_player', 'lock', 'alarm_control_panel',
   'camera', 'input_boolean', 'input_number', 'input_select', 'input_text', 'input_datetime', 'scene', 'script', 'automation', 'number',
   'select', 'button', 'person', 'device_tracker', 'weather', 'water_heater', 'vacuum', 'siren', 'remote', 'update', 'calendar', 'group', 'zone', 'sun',
@@ -40,7 +40,7 @@ export function friendlyLabel(candidates: ReadonlyArray<string | null | undefine
   return neutral;
 }
 
-export interface LabelSource {
+interface LabelSource {
   entity_id?: string | null;
   name?: string | null;
   original_name?: string | null;

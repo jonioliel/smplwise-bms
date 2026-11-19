@@ -7,14 +7,17 @@ import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 // CR-FE-GATES-2436 (docs/changes/CR-FE-GATES-2436.md, review 07:F20 / 07:F7 / D3): the entry-chunk budget of scripts/bundle-budget.mjs.
-// REPORT-ONLY in this branch: the script prints the entry size against the budget, the `*-mock` and dictionary modules found in the
-// entry's source map, and the debug-map bytes of the build - and always exits 0. These specs pin that contract on a synthetic build,
-// then run it once on the committed build (smplwise_vms/www) and record the numbers as annotations, without judging them.
-// CR-FE-GATES-ENFORCE turns the budget into a failure; until then nothing here may fail because the product grew.
+// The script prints the entry size against the budget, the `*-mock` and dictionary modules found in the entry's source map, and the
+// debug-map bytes of the build. Without `--enforce` it always exits 0 (the report); these specs pin that contract on a synthetic
+// build, then run it once on the committed build (smplwise_vms/www) and record the numbers as annotations, without judging them.
+// CR-FE-GATES-ENFORCE-2442 (docs/changes/CR-FE-GATES-ENFORCE-2442.md): `--enforce` exits 1 on an entry over the budget, on a mock
+// module in the entry, and when there is no build; the budget is the measured entry plus the margin of scripts/gates-baseline.json.
+// The gate runs `--dir dist --enforce` after its own build - the specs here judge the script, never the size of the product.
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT = path.join(HERE, '..', 'scripts', 'bundle-budget.mjs');
 const COMMITTED = path.join(HERE, '..', '..', 'smplwise_vms', 'www');
+const BASELINE = path.join(HERE, '..', 'scripts', 'gates-baseline.json');
 
 interface Report {
   dir: string;
@@ -22,7 +25,8 @@ interface Report {
   budget: { gzip: number; raw: number; overGzip: number; overRaw: number; over: boolean };
   denyList: { measured: boolean; mocks: { source: string; bytes: number }[]; dictionaries: { source: string; bytes: number }[]; allowedDictionaries: string[] };
   maps: { files: number; bytes: number; jsFiles: number; jsBytes: number };
-  mode: 'report-only';
+  mode: 'report-only' | 'enforce';
+  failures?: string[];
 }
 
 function run(args: string[]): { code: number | null; out: string; report: Report | null } {
@@ -33,7 +37,7 @@ function run(args: string[]): { code: number | null; out: string; report: Report
   return { code: r.status, out, report };
 }
 
-function fakeBuild(withMap = true): string {
+function fakeBuild(withMap = true, withMock = true): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sw-entry-'));
   fs.mkdirSync(path.join(dir, 'assets'));
   fs.writeFileSync(path.join(dir, 'index.html'), '<!doctype html><html><head><link rel="stylesheet" href="./fonts.css" />\n<script type="module" crossorigin src="./assets/index-AbC12.js"></script></head></html>');
@@ -43,7 +47,7 @@ function fakeBuild(withMap = true): string {
   const sources = [
     '../../../../smplwisebms/frontend/node_modules/lit-html/lit-html.js',
     '../../../frontend/src/main.ts',
-    '../../../frontend/src/api/tickets-mock.ts',
+    withMock ? '../../../frontend/src/api/tickets-mock.ts' : '../../../frontend/src/api/tickets.ts',
     '../../../frontend/src/i18n/he.ts',
     '../../../frontend/src/i18n/access-external.ts',
     '../../../frontend/src/tickets/rfq-text.ts',
@@ -58,7 +62,7 @@ function fakeBuild(withMap = true): string {
   return dir;
 }
 
-test.describe('bundle-budget.mjs (report-only)', () => {
+test.describe('bundle-budget.mjs (report mode)', () => {
   test('measures the entry named by index.html: raw and gzip bytes', () => {
     const dir = fakeBuild();
     const { code, report } = run(['--dir', dir, '--json']);
@@ -90,7 +94,7 @@ test.describe('bundle-budget.mjs (report-only)', () => {
     expect(report?.maps.bytes).toBe(mapBytes);
   });
 
-  test('an entry over the budget is reported, never failed', () => {
+  test('without --enforce an entry over the budget is reported, never failed', () => {
     const { code, out } = run(['--dir', fakeBuild(), '--budget-gzip', '10', '--budget-raw', '10']);
     expect(code).toBe(0);
     expect(out).toMatch(/over budget/i);
@@ -124,5 +128,58 @@ test.describe('bundle-budget.mjs (report-only)', () => {
       { type: 'deny-list', description: `mocks ${r.denyList.mocks.length}, dictionaries ${r.denyList.dictionaries.length}` },
       { type: 'maps', description: `${r.maps.files} map files, ${r.maps.bytes} bytes against ${r.maps.jsBytes} bytes of JavaScript` },
     );
+  });
+});
+
+test.describe('bundle-budget.mjs --enforce (CR-FE-GATES-ENFORCE-2442)', () => {
+  const BIG = ['--budget-gzip', '1000000', '--budget-raw', '1000000'];
+
+  test('an entry inside the budget with no mock module passes (exit 0)', () => {
+    const { code, out } = run(['--dir', fakeBuild(true, false), '--enforce', ...BIG]);
+    expect(out).toMatch(/-> OK/);
+    expect(code).toBe(0);
+  });
+
+  test('an entry over the gzip budget fails (exit 1) and says by how much', () => {
+    const dir = fakeBuild(true, false);
+    const { code, out } = run(['--dir', dir, '--enforce', '--budget-gzip', '10', '--budget-raw', '1000000']);
+    expect(code).toBe(1);
+    const gz = gzipSync(fs.readFileSync(path.join(dir, 'assets', 'index-AbC12.js')), { level: 9 }).length;
+    expect(out).toContain(`entry gzip ${gz} B is ${gz - 10} B over the budget 10 B`);
+    expect(out).not.toMatch(/entry raw .* over the budget/);
+  });
+
+  test('an entry over the raw budget fails too', () => {
+    const { code, out, report } = run(['--dir', fakeBuild(true, false), '--enforce', '--budget-gzip', '1000000', '--budget-raw', '10', '--json']);
+    expect(code).toBe(1);
+    expect(report?.mode).toBe('enforce');
+    expect(report?.failures).toHaveLength(1);
+    expect(out).toMatch(/entry raw \d+ B is \d+ B over the budget 10 B/);
+  });
+
+  test('a mock module back in the entry fails even inside the byte budget', () => {
+    const { code, out } = run(['--dir', fakeBuild(true, true), '--enforce', ...BIG]);
+    expect(code).toBe(1);
+    expect(out).toMatch(/1 mock module\(s\) in the entry \(allowed 0\): src\/api\/tickets-mock\.ts/);
+  });
+
+  test('a build without source maps: the mock rule is not measured, the byte budget still decides', () => {
+    expect(run(['--dir', fakeBuild(false), '--enforce', ...BIG]).code).toBe(0);
+    expect(run(['--dir', fakeBuild(false), '--enforce', '--budget-gzip', '10']).code).toBe(1);
+  });
+
+  test('no build to measure is a failure, not a pass', () => {
+    const { code, out } = run(['--dir', path.join(os.tmpdir(), 'sw-no-such-build-2442'), '--enforce']);
+    expect(code).toBe(1);
+    expect(out).toMatch(/no build/i);
+  });
+
+  test('the committed budget is the measured entry plus the stated margin, rounded up to 1000 B; no mock is allowed', () => {
+    const b = (JSON.parse(fs.readFileSync(BASELINE, 'utf8')) as { bundle: { measured: { gzip: number; raw: number }; marginPct: number; budget: { gzip: number; raw: number }; mocksInEntry: number } }).bundle;
+    const withMargin = (n: number): number => Math.ceil((n * (1 + b.marginPct / 100)) / 1000) * 1000;
+    expect(b.marginPct).toBeGreaterThan(0);
+    expect(b.marginPct).toBeLessThanOrEqual(5);
+    expect(b.budget).toEqual({ gzip: withMargin(b.measured.gzip), raw: withMargin(b.measured.raw) });
+    expect(b.mocksInEntry).toBe(0);
   });
 });

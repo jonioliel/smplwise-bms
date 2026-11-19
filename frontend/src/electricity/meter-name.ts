@@ -5,13 +5,13 @@ import { tr } from '../i18n/msg/electricity';
  * `primary` is the device's name (the user's name for the device, else its own); `secondary` is the sensor's own name, only when it differs. A sensor
  * with no device shows only its name. A registered meter the operator renamed keeps that name as primary, with the device and sensor below it.
  */
-export interface NamedMeter {
+interface NamedMeter {
   name: string;
   device_name?: string | null;
   entity_name?: string | null;
 }
 
-export interface MeterNames {
+interface MeterNames {
   primary: string;
   secondary: string;
 }
@@ -33,7 +33,7 @@ export function meterSearchText(x: NamedMeter): string {
 
 export const METER_NAME_MAX = 120;
 
-export interface NameCheck {
+interface NameCheck {
   /** the trimmed name to send */
   name: string;
   /** a Hebrew sentence when the name cannot be saved, else '' */

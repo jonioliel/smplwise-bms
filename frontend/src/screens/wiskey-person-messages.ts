@@ -13,7 +13,7 @@ import { UTC_ZONE } from './wiskey-format';
 import { switchTrackStyles, switchBody } from '../messaging/policy-switch';
 
 /** An outcome as a badge: "sent" is what the service accepted (never "delivered"), "not sent" a refusal, "unknown" a send whose answer is lost. */
-export function outcomeBadge(outcome: MessageHistoryItem['outcome']): { kind: StateKind; label: string } {
+function outcomeBadge(outcome: MessageHistoryItem['outcome']): { kind: StateKind; label: string } {
   switch (outcome) {
     case 'sent': return { kind: 'recorded', label: pt('hist.sent') };
     case 'refused': return { kind: 'error', label: pt('hist.refused') };

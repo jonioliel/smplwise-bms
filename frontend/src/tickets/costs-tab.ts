@@ -5,7 +5,7 @@ import '../components/sw-dialog';
 import './ticket-cost-card';
 import './quote-form'; // TKUI3B: a quote entered on the vendor's behalf
 import { automationsStyles } from '../styles/automations-glass';
-import { applyAutomationsGlass } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import { SkinController } from '../design/skin';
 import { session } from '../api/session';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -35,7 +35,7 @@ import { costsTabStyles } from './costs-tab-styles';
 type QDialog = { kind: 'approve' | 'partial' | 'fix' | 'reject'; quoteId: string } | null;
 
 /** The ticket the tab reads: the detail plus the abilities of the detail backend (contract 8) the vendor composer also reads. */
-export type CostsTicket = TicketDetail & { can: TicketDetail['can'] & { vendor_message?: boolean } };
+type CostsTicket = TicketDetail & { can: TicketDetail['can'] & { vendor_message?: boolean } };
 
 /**
  * TKUI3 (release 2.6.0) `<ticket-costs-tab .ticket>`: the request's Costs tab (IA §4.1 / §6.3, mock-up v5 `cost()`), the ONE scroll

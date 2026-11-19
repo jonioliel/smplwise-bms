@@ -20,6 +20,7 @@ import { can, isApi, onRemote, LOCAL_ONLY_TEXT } from '../api/session';
 import { announceRestartPending } from './nvr-restart-banner';
 import { tr } from '../i18n/msg/components';
 import { confirmWord, confirmWordMatches } from '../i18n/confirm-words';
+import { hostBlockStyles, ltrStyles } from '../styles/fragments';
 
 /** Fields the server keeps as columns; any other field of a vendor's catalogue entry travels in `extra`. */
 const CORE = new Set(['host', 'http_port', 'rtsp_port', 'username', 'password']);
@@ -509,10 +510,7 @@ export class NvrConnectionForm extends LitElement {
   }
 
   static styles = css`
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
     .wrap,
     .form {
       display: flex;
@@ -544,10 +542,7 @@ export class NvrConnectionForm extends LitElement {
     .val.warn {
       color: var(--sw-warning-text);
     }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+    ${ltrStyles}
     .grid {
       display: grid;
       grid-template-columns: 1fr 1fr;

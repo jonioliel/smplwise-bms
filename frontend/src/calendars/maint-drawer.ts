@@ -10,6 +10,7 @@ import { CAL_EVENTS, emit, type CalCtx, type NewMaintDetail } from './ctx';
 import { calCss } from './styles';
 import { tr } from '../i18n/msg/calendars';
 import { addDays, colorVar, ddmm, hm, isoDate, OVERLAP_LABEL, sameDay, STATE_LABEL } from './model';
+import { errLineStyles } from '../styles/fragments';
 
 /** What saving does in each overlap mode (contract section 8, C3; the warning itself is shown in every mode). */
 const MODE_TEXT: Record<OverlapMode, string> = {
@@ -59,7 +60,7 @@ export class CalMaintDrawer extends LitElement {
     .opt b { display: block; color: var(--sw-heading); font-size: var(--sw-fs-md); }
     .opt small { display: block; color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
     .sugg { display: flex; gap: 8px; flex-wrap: wrap; }
-    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+    ${errLineStyles}
     .more { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
     @media (max-width: 699px) {
       .content { gap: 10px; }

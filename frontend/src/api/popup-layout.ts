@@ -13,7 +13,7 @@ export const POPUP_SECTIONS = ['quick', 'lighting', 'switches', 'climate', 'heat
 /** The sections whose single items the manager may hide / reorder. */
 export const POPUP_ITEM_SECTIONS = ['lighting', 'switches', 'climate', 'heating', 'covers', 'media', 'sensors', 'cameras'] as const;
 
-export interface PopupItems {
+interface PopupItems {
   order: string[];
   hidden: string[];
 }
@@ -68,7 +68,7 @@ export function popupOf(raw: unknown): PopupState {
   return out;
 }
 
-export interface PopupSaved {
+interface PopupSaved {
   popup: PopupState;
   popup_alert: PopupAlert;
   affected_areas?: number;

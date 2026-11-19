@@ -7,7 +7,7 @@
 import { apiUrl, del, get, patch, post, upload } from './client';
 import { tr } from '../i18n/msg/api-system';
 
-export type BackupKind = 'manual' | 'upload' | 'auto-pre-upgrade' | 'auto-daily' | 'auto-pre-restore' | string;
+type BackupKind = 'manual' | 'upload' | 'auto-pre-upgrade' | 'auto-daily' | 'auto-pre-restore' | string;
 
 export interface BackupEntry {
   name: string;
@@ -24,7 +24,7 @@ export interface BackupEntry {
   sensitive?: { state: 'encrypted' | 'omitted' | 'legacy' | 'invalid'; counts?: { password_hashes?: number; settings?: number } } | null;
 }
 
-export interface RestoreResult {
+interface RestoreResult {
   name: string;
   mode: 'replace' | 'merge';
   scope: 'project' | 'project+access';

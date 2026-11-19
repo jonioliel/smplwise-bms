@@ -8,7 +8,7 @@ import { canAnywhere, isApi, onSession } from '../api/session';
 import { listElevators, type ElevatorsResponse } from '../api/elevators';
 import { applyInfraElevators } from '../shell/nav';
 
-export const ELEVATORS_MANAGE = 'infra.elevators.manage';
+const ELEVATORS_MANAGE = 'infra.elevators.manage';
 
 export interface ElevatorsAccess {
   view: boolean;

@@ -21,7 +21,7 @@ const ALLOW_HEX: Record<string, string> = {
   'screens/automation-editor-css.ts': 'the automation builder knobs (--ab-*) carry their own light / dark blocks on the --dv-* layer',
   'screens/automation-editor-base.ts': 'the builder sheet (--ab-*)',
   'screens/investigate-cases.ts': 'evidence thumbnails HUD',
-  'screens/devices-schedules.ts': 'the summary bar swatches',
+  'screens/devices-schedules-css.ts': 'the summary bar swatches',
   'screens/bubble-demo.ts': 'the style guide demo',
   'screens/styleguide-screen.ts': 'the style guide swatches',
   'screens/scenes-panel.ts': 'the scene glyphs',

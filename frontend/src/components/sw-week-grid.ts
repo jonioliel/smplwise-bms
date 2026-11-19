@@ -9,7 +9,7 @@ export interface WeekRange {
   mode?: string;
 }
 export type WeekDays = WeekRange[][];
-export interface WeekMode {
+interface WeekMode {
   id: string;
   label: string;
   color: string;
@@ -36,7 +36,7 @@ export function cellsOf(days: WeekDays): string[][] {
 }
 
 /** Cells → ranges (consecutive cells of one mode merge; 24 = end of day). */
-export function rangesOf(cells: string[][], withMode: boolean): WeekDays {
+function rangesOf(cells: string[][], withMode: boolean): WeekDays {
   return cells.map((row) => {
     const out: WeekRange[] = [];
     let h = 0;

@@ -14,13 +14,13 @@ import {
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsPlainRowStyles, settingsPreviewColStyles, settingsPreviewButtonStyles } from '../styles/settings';
-import { segThumbStyles } from '../styles/fragments';
+import { segThumbStyles, okLineStyles } from '../styles/fragments';
 import { tr } from '../i18n/msg/system-b';
 
 const newCustomId = (): string => `custom-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
 
 /** The key colours the editor offers (path inside a scheme, Hebrew name), the accent first. The rest of a palette (states, rings, gradients, slider) is the base palette's. */
-export const KEY_COLORS: readonly (readonly [string, string])[] = [
+const KEY_COLORS: readonly (readonly [string, string])[] = [
   ['accent', tr('צבע הדגש')],
   ['accentContrast', tr('טקסט על הדגש')],
   ['accentText', tr('טקסט בצבע הדגש')],
@@ -224,10 +224,7 @@ export class SystemPaletteEditor extends LitElement {
       font-size: var(--sw-fs-sm);
       padding-block: 8px;
     }
-    .ok {
-      color: var(--sw-success-text);
-      font-size: var(--sw-fs-sm);
-    }
+    ${okLineStyles}
     .pv {
       margin-block: 10px;
       padding: 14px;

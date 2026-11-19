@@ -14,7 +14,7 @@ import { hs } from '../i18n/home-screen';
 import { ltrNum } from '../i18n/bidi';
 import { treeUnassignedHint, type TreeUnassigned } from '../api/home-screen';
 
-export const TREE_UNASSIGNED_HREF = '#/devices/areas/unassigned';
+const TREE_UNASSIGNED_HREF = '#/devices/areas/unassigned';
 
 /** The undo notice: `hidden` after "הסתר מהעץ" (with the choice to put back), `failed` when the save was refused. */
 export interface LooseNotice {
@@ -22,7 +22,7 @@ export interface LooseNotice {
   prev: TreeUnassigned;
 }
 
-export interface LooseRowOpts {
+interface LooseRowOpts {
   name: string;
   count: number;
   /** A system.configure holder, outside the editor: the row carries its "⋯". */

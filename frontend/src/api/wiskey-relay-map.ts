@@ -4,7 +4,7 @@
  */
 import { get, put } from './client';
 
-export interface RelayMapRow {
+interface RelayMapRow {
   api_relay: number;
   /** the physical relay this api relay drives now; null: disabled or never mapped */
   physical_relay: number | null;

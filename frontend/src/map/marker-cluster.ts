@@ -22,12 +22,12 @@ export interface Cluster<T extends ClusterInput = ClusterInput> {
   byState: Partial<Record<StateKind, number>>;
 }
 
-export interface ClusterResult<T extends ClusterInput = ClusterInput> {
+interface ClusterResult<T extends ClusterInput = ClusterInput> {
   singles: T[];
   clusters: Cluster<T>[];
 }
 
-export interface ClusterOptions {
+interface ClusterOptions {
   /** Plan size in pixels and the current zoom: screen px = normalized * plan * scale. */
   planWidth: number;
   planHeight: number;
@@ -42,9 +42,9 @@ export interface ClusterOptions {
   keepIds?: Iterable<string>;
 }
 
-export const CLUSTER_THRESHOLD = 60;
-export const CLUSTER_CELL_PX = 56;
-export const CLUSTER_MAX_SCALE = 2.5;
+const CLUSTER_THRESHOLD = 60;
+const CLUSTER_CELL_PX = 56;
+const CLUSTER_MAX_SCALE = 2.5;
 
 /** Worst first: what an operator must see on a cluster pin. */
 const SEVERITY: StateKind[] = ['error', 'offline', 'stale', 'unknown', 'forbidden', 'partial', 'historic', 'recorded', 'live', 'neutral'];

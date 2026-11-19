@@ -9,6 +9,7 @@ import { ticketsApi, type AdminDepartment, type SlaPatch, type SlaRow } from '..
 import { SLA_COUNTERS, SLA_THRESHOLDS, slaRowChanges, splitMinutes, type DurationUnit, type SlaCounter, type SlaThreshold } from './durations';
 import { ticketSettingsCss } from './settings-styles';
 import { tt, type TicketTextKey } from './text';
+import { hostBlockStyles } from '../styles/fragments';
 
 type Draft = Partial<Record<SlaThreshold, { raw: string; unit: DurationUnit }> & Record<SlaCounter, string>>;
 const UNITS: DurationUnit[] = ['min', 'h', 'd'];
@@ -29,10 +30,7 @@ export class TicketsSlaGrid extends LitElement {
   @state() private error = '';
 
   static styles = [settingsStyles, ticketSettingsCss, css`
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
   `, bubbleChrome];
 
   private stored(r: SlaRow): Record<SlaThreshold | SlaCounter, number | null> {

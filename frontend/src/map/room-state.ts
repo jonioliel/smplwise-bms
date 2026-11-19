@@ -28,7 +28,7 @@ export interface StateEntity {
   /** The map layer of the anchor: a switch on the lights layer counts as a light. */
   layer_id?: string | null;
 }
-export interface StateRoom {
+interface StateRoom {
   id: string;
   polygon: { x: number; y: number }[];
   level_id: string | null;
@@ -105,7 +105,7 @@ export interface RoomStateInput {
 export const PRESENCE_STEPS = 12;
 export const DEFAULT_PRESENCE_FADE_MIN = 3;
 /** An opening's gap midpoint this close to a room's boundary (plan-width units) belongs to the room. */
-export const OPENING_ON_ROOM = 0.012;
+const OPENING_ON_ROOM = 0.012;
 /** A door / window sensor not bound to an opening claims the nearest unbound opening within this distance: a plan
  * fraction (of the width) while the plan is uncalibrated, OPENING_NEAR_M once it is (2 % of a 100 m site plan is 2 m). */
 export const OPENING_NEAR = 0.02;

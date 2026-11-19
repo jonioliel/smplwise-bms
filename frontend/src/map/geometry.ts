@@ -15,9 +15,9 @@ export type WallKind = 'exterior' | 'interior' | 'partition' | 'railing' | 'low'
 export type OpeningKind = 'door' | 'window' | 'passage';
 export type Swing = 'left' | 'right' | 'double' | 'sliding' | 'none';
 export type Hinge = 'start' | 'end';
-export type GeomSource = 'manual' | 'auto' | 'imported';
-export type CalStatus = 'measured' | 'estimated' | 'missing';
-export type ExternalIds = Record<string, string>;
+type GeomSource = 'manual' | 'auto' | 'imported';
+type CalStatus = 'measured' | 'estimated' | 'missing';
+type ExternalIds = Record<string, string>;
 
 export interface AnchorRef {
   resource_type: 'camera' | 'ha_entity';
@@ -97,7 +97,7 @@ export interface GeomLabel {
 }
 export type ObjectShape = 'box' | 'cylinder' | 'extruded_polygon' | 'stepped' | 'composite';
 export type ConnectorKind = 'stairs' | 'ramp' | 'tribune' | 'elevator' | 'ladder';
-export type GroupKind = 'array' | 'manual';
+type GroupKind = 'array' | 'manual';
 export interface GeomSize {
   w_m: number;
   d_m: number;
@@ -144,15 +144,15 @@ export interface GeomGroup {
 }
 /** Stairs with a landing (T085, owner 2026-09-29): the run's shape - straight, a quarter turn "L", a half turn "U". */
 export type StairShape = 'straight' | 'l' | 'u';
-export type StairTurn = 'left' | 'right' | 'none';
-export interface StairFlight {
+type StairTurn = 'left' | 'right' | 'none';
+interface StairFlight {
   steps: number;
 }
 /** What the server computes on every read of a connector to another floor (geometry_store.attach_far, never stored):
  * the other floor's name ("קומה אחרת" for a reader who may not read it), the level it reaches there and that level's
  * elevation, the other floor's datum above this one (the floor heights between, signed) and whether it is above or
  * below; missing = the floor was deleted. */
-export interface ConnectorFar {
+interface ConnectorFar {
   floor_id: string;
   floor_name: string | null;
   level_name: string | null;
@@ -207,7 +207,7 @@ export interface GeomCircuit {
   /** CR-009: an item of a room another floor owns, attached on read (map/shared-space.ts); never stored here. */
   shared?: import('./shared-space').SharedItemMark;
 }
-export interface CalPair {
+interface CalPair {
   a: Pt;
   b: Pt;
   metres: number;
@@ -276,7 +276,7 @@ export const CIRCUIT_TOKENS = ['circuit-1', 'circuit-2', 'circuit-3', 'circuit-4
 export const circuitToken = (token: unknown): (typeof CIRCUIT_TOKENS)[number] | null =>
   typeof token === 'string' && (CIRCUIT_TOKENS as readonly string[]).includes(token) ? (token as (typeof CIRCUIT_TOKENS)[number]) : null;
 /** What the renderer needs from the library for one item. */
-export interface CatalogShape {
+interface CatalogShape {
   shape: ObjectShape;
   icon: string;
   color_token: string;
@@ -795,8 +795,8 @@ export function applyAnchorPositions(doc: GeometryDoc, positions: Record<string,
 // joined by a landing that spans both; a quarter-turn "L" turns 90 degrees on a square landing.
 
 export const STAIR_GOING_M = 0.28; // a typical tread depth
-export const STAIR_WELL_M = 0.1; // the gap between the two flights of a U
-export const STAIR_FALLBACK_RISE_M = 3.0; // a stair with no target yet, or a far record without a datum
+const STAIR_WELL_M = 0.1; // the gap between the two flights of a U
+const STAIR_FALLBACK_RISE_M = 3.0; // a stair with no target yet, or a far record without a datum
 export const DEFAULT_FLOOR_HEIGHT_M = 3.0;
 export const FLOOR_HEIGHT_RANGE: readonly [number, number] = [2.2, 12];
 
@@ -809,7 +809,6 @@ export const MAX_STAIR_STEPS = 60;
 export const STAIR_WIDTH_RANGE: readonly [number, number] = [0.6, 5];
 export const LANDING_RANGE: readonly [number, number] = [0.3, 10];
 export const STAIR_POINTS: Record<StairShape, number> = { straight: 2, l: 3, u: 4 };
-export const STAIR_SHAPE_LABEL: Record<StairShape, string> = { straight: tr('ישר'), l: 'L', u: 'U' };
 
 /** Whether a connector carries the stairs model (any of shape, flights, landing depth); else it draws as a band. */
 export function hasStairModel(c: Pick<GeomConnector, 'shape' | 'flights' | 'landing_depth_m'>): boolean {
@@ -833,7 +832,7 @@ export function stairCaption(c: Pick<GeomConnector, 'flights' | 'shape'>): strin
   return `${tr('{steps} מדרגות', { steps: f.join('+') })}${landing ? ` · ${tr('פודסט')}` : ''}`;
 }
 
-export interface StairSpec {
+interface StairSpec {
   shape: StairShape;
   /** The start of the first flight, normalized 0..1. */
   start: Pt;
@@ -1002,7 +1001,7 @@ export function stairRise(levels: Map<string, GeomLevel>, c: Pick<GeomConnector,
 
 /** The tread depth of a drawn stair: its first flight's run over its steps (the going the panel keeps when the steps
  * change), within 0.15..0.5 m; STAIR_GOING_M when the stair has no plan yet. */
-export function stairGoing(c: GeomConnector, W: number, H: number, scale: number): number {
+function stairGoing(c: GeomConnector, W: number, H: number, scale: number): number {
   const plan = stairPlan(c, W, H, scale);
   const f = plan?.flights[0];
   if (!f || f.steps < 1) return STAIR_GOING_M;

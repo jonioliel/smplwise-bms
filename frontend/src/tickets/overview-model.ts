@@ -17,9 +17,9 @@ import type { DailyRow, DashboardResponse, DashDepartment, DashPeriod, DashRfq, 
 
 // ---------------------------------------------------------------- the settings
 
-export type HandlerNumbers = 'managers' | 'own' | 'everyone';
-export type VendorMode = 'tagged' | 'separate' | 'hidden';
-export type ComparePlace = 'top' | 'below_numbers' | 'bottom';
+type HandlerNumbers = 'managers' | 'own' | 'everyone';
+type VendorMode = 'tagged' | 'separate' | 'hidden';
+type ComparePlace = 'top' | 'below_numbers' | 'bottom';
 
 export interface OverviewSettings {
   handlerNumbers: HandlerNumbers;
@@ -106,10 +106,10 @@ export function prevDayKey(key: string): string {
 
 const startOfDay = (d: Date): Date => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
-export const assigneeKeyOf = (t: Pick<TicketItem, 'assignee'>): string => (t.assignee ? `${t.assignee.kind === 'contact' ? 'contact' : 'user'}:${t.assignee.id}` : 'none');
+const assigneeKeyOf = (t: Pick<TicketItem, 'assignee'>): string => (t.assignee ? `${t.assignee.kind === 'contact' ? 'contact' : 'user'}:${t.assignee.id}` : 'none');
 
 /** Whether an assignee key is a vendor (a directory contact of the kind "vendor"). */
-export const isVendorKey = (key: string, vendorIds: ReadonlySet<string>): boolean => key.startsWith('contact:') && vendorIds.has(key.slice(8));
+const isVendorKey = (key: string, vendorIds: ReadonlySet<string>): boolean => key.startsWith('contact:') && vendorIds.has(key.slice(8));
 
 // ---------------------------------------------------------------- card 2: where it is stuck
 
@@ -254,7 +254,7 @@ export function splitVendors(rows: readonly HandlerRow[], mode: VendorMode): { s
 
 // ---------------------------------------------------------------- card 4: who waits for whom
 
-export type LaneId = 'me' | 'staff' | 'vendors';
+type LaneId = 'me' | 'staff' | 'vendors';
 export interface Lane {
   id: LaneId;
   count: number;
@@ -297,8 +297,8 @@ export function lanes(items: readonly BoardItem[], vendorIds: ReadonlySet<string
 
 // ---------------------------------------------------------------- card 9: overdue
 
-export type OverdueKind = 'sla' | 'eta' | 'rfq' | 'pay';
-export interface OverdueRow {
+type OverdueKind = 'sla' | 'eta' | 'rfq' | 'pay';
+interface OverdueRow {
   kind: OverdueKind;
   id: string;
   /** "#1043" / "RFQ-08" */
@@ -353,7 +353,7 @@ export const OVERDUE_SHOWN = 6;
 
 // ---------------------------------------------------------------- card 10: the next two weeks
 
-export type AgendaKind = 'visit_vendor' | 'visit_staff' | 'work_start' | 'rfq_due' | 'payment';
+type AgendaKind = 'visit_vendor' | 'visit_staff' | 'work_start' | 'rfq_due' | 'payment';
 export interface AgendaEntry {
   kind: AgendaKind;
   /** the instant (a timed entry) or local midnight of its day (a date-only entry) */
@@ -369,10 +369,10 @@ export interface AgendaEntry {
   title: string;
   place: string;
 }
-export interface AgendaDay { key: string; offset: number; entries: AgendaEntry[] }
+interface AgendaDay { key: string; offset: number; entries: AgendaEntry[] }
 
 /** One date of an approved payment schedule (an instalment due on a date; the ones due on / after completion have no date yet). */
-export interface PaymentDate { rfqId: string; ref: string; title: string; vendor: string; date: string }
+interface PaymentDate { rfqId: string; ref: string; title: string; vendor: string; date: string }
 
 /** The payment dates of the approved awards of the requests whose detail was read (CR-RFQ-PAYMENT-SCHEDULE; null terms = switch off). */
 export function paymentDates(details: readonly RfqDetail[]): PaymentDate[] {
@@ -454,7 +454,7 @@ export function agenda(items: readonly BoardItem[], rfqs: readonly RfqSummary[],
 
 export interface Kpis { open: number; stuck: number; waiting: number; overdue: number; approval: number | null }
 export type KpiKey = keyof Kpis;
-export interface KpiStore { cur?: { day: string; k: Kpis }; prev?: { day: string; k: Kpis } }
+interface KpiStore { cur?: { day: string; k: Kpis }; prev?: { day: string; k: Kpis } }
 
 /**
  * Yesterday's numbers for the arrows, kept in the viewer's browser per view (a department or all): the last numbers of each day. Pure:
@@ -493,7 +493,7 @@ export function parseKpiStore(raw: string | null): KpiStore | null {
 
 // ---------------------------------------------------------------- card 11 (phase 1): the department comparison
 
-export interface DeptRow { id: string; name: string; open: number; stuck: number; overdue: number; waiting: number; busy: number }
+interface DeptRow { id: string; name: string; open: number; stuck: number; overdue: number; waiting: number; busy: number }
 
 /** One row per department of the board, worst first (stuck + overdue, then open). Counted from the board's rows only. */
 export function deptComparison(items: readonly BoardItem[], departments: readonly { id: string; name: string }[], vendorIds: ReadonlySet<string>, s: OverviewSettings, now: Date): DeptRow[] {
@@ -520,7 +520,7 @@ export function approvalsTotal(a: DashboardResponse['approvals'] | null | undefi
 }
 
 /** Card 8: the state of an open request in words - which text, its tone and its numbers (the server decided the stage). */
-export type RfqStageText = 'rq_second' | 'rq_due' | 'rq_decide' | 'rq_received' | 'rq_collecting';
+type RfqStageText = 'rq_second' | 'rq_due' | 'rq_decide' | 'rq_received' | 'rq_collecting';
 export function rfqStageOf(r: Pick<DashRfq, 'stage' | 'state' | 'quoted' | 'invited'>): { text: RfqStageText; tone: 'warn' | 'info' | '' } {
   if (r.stage === 'second') return { text: 'rq_second', tone: 'info' };
   if (r.stage === 'decide') return r.state === 'due_passed' ? { text: 'rq_due', tone: 'warn' } : { text: 'rq_decide', tone: 'warn' };
@@ -575,7 +575,7 @@ export function serverPaymentDates(items: readonly PayInstalment[]): PaymentDate
 }
 
 /** When an instalment is due, in words: late by n days / today / tomorrow / in n days. */
-export type PayWhen = { key: 'pyLateDays' | 'pyLateDay' | 'pyDueToday' | 'pyDueTomorrow' | 'pyDueIn'; n: number };
+type PayWhen = { key: 'pyLateDays' | 'pyLateDay' | 'pyDueToday' | 'pyDueTomorrow' | 'pyDueIn'; n: number };
 export function payWhen(days: number): PayWhen {
   if (days < -1) return { key: 'pyLateDays', n: -days };
   if (days === -1) return { key: 'pyLateDay', n: 1 };

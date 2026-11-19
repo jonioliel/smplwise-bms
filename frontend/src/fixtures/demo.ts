@@ -4,7 +4,7 @@ import type { StateKind } from '../components/sw-badge';
 // Synthetic fixtures for design review and screenshot tests. Nothing here is customer data:
 // the plan geometry is generated, names are generic, and no stream is connected.
 
-export interface DemoFloor {
+interface DemoFloor {
   id: string;
   name: string;
   hasPlan: boolean;

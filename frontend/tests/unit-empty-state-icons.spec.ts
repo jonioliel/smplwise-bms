@@ -15,9 +15,9 @@ const files = (dir: string): string[] =>
     return statSync(p).isDirectory() ? files(p) : p.endsWith('.ts') ? [p] : [];
   });
 
-/** The panels that stay on the neutral tray on purpose: the style guide's state gallery, the "not built yet" placeholder and the
- * "available on a computer" notice (no topic of their own). */
-const NEUTRAL_OK = ['styleguide-screen.ts', 'placeholder-screen.ts', 'sw-app.ts:desktop-only'];
+/** The panels that stay on the neutral tray on purpose: the style guide's state gallery and the "available on a computer" notice
+ * (no topic of their own). CR-FE-DEAD-CODE-2442: the orphan "not built yet" placeholder screen was deleted, so its entry went too. */
+const NEUTRAL_OK = ['styleguide-screen.ts', 'sw-app.ts:desktop-only'];
 
 test('the empty preset is the neutral tray, not the map pin; the icon override applies to the empty state only', () => {
   const panel = readFileSync(path.join(SRC, 'components', 'sw-state-panel.ts'), 'utf8');

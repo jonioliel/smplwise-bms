@@ -23,9 +23,9 @@
  */
 
 export type StallPhase = 'ok' | 'stalled' | 'reconnecting' | 'gave_up';
-export type StallAnswer = 'none' | 'resume';
+type StallAnswer = 'none' | 'resume';
 
-export interface StallOptions {
+interface StallOptions {
   /** No media progress for this long on an armed track = a stall. Installation setting `playback.stall_s` (default 5 s). */
   stallMs: number;
   /** Automatic attempts before gave_up. Installation setting `playback.auto_resume_attempts` (default 3; 0 = never resume by itself). */

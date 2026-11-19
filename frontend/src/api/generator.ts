@@ -21,7 +21,7 @@ export interface GenValue {
 }
 export type GenValues = Record<string, GenValue>;
 
-export interface GenAlertType {
+interface GenAlertType {
   key: string;
   group: string;
   title: string;
@@ -114,7 +114,7 @@ export interface GenAlert {
   acked_at: string | null;
   ack_note: string | null;
 }
-export interface AlertsResponse {
+interface AlertsResponse {
   alerts: GenAlert[];
   next_before: string | null;
   open_count: number;
@@ -145,7 +145,7 @@ export interface AlertsQuery {
   limit?: number;
 }
 
-export interface RoleCandidate {
+interface RoleCandidate {
   entity_id: string;
   name: string;
   unit: string | null;
@@ -195,7 +195,7 @@ export interface PolicyItem {
   policy: PolicyBodyValue | null;
 }
 /** The default recipients / channels of one severity on one generator; a type without its own inherits them. null = nothing chosen. */
-export interface SeverityDefault {
+interface SeverityDefault {
   recipients: { roles: string[]; users: string[] };
   channels: string[];
   row_version: number;
@@ -220,7 +220,7 @@ export interface PoliciesResponse {
   template_max?: number;
   roles: { id: string; label: string }[];
 }
-export type PolicyPatch = Partial<Omit<PolicyBodyValue, 'row_version'>> & { row_version?: number };
+type PolicyPatch = Partial<Omit<PolicyBodyValue, 'row_version'>> & { row_version?: number };
 
 export interface GenSettings {
   integration_domains: string[];
@@ -308,7 +308,7 @@ export interface GenRun {
   peak_kw: number | null;
   short: boolean;
 }
-export interface FuelEvent {
+interface FuelEvent {
   id: string;
   kind: 'refill' | 'drop';
   started_at: string;

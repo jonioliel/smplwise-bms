@@ -6,7 +6,7 @@
  */
 import type { BuildingRef, MapItem, OurFloor } from './mapping-engine';
 
-export interface DemoMapping {
+interface DemoMapping {
   items: MapItem[];
   buildings: (BuildingRef & { code: string })[];
   floors: OurFloor[];

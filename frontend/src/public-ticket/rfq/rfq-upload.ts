@@ -86,7 +86,7 @@ export function uploadForm(f: File, target: Target): FormData {
   return form;
 }
 
-export interface UploadHost {
+interface UploadHost {
   uploads: RfqUploads;
   creds: Credentials;
   lang: Lang;

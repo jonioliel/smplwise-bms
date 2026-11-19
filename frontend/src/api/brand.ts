@@ -19,7 +19,7 @@ export interface BrandFull extends BrandView {
 }
 
 /** PUT /brand body: every field optional (the server changes only what is sent). */
-export interface BrandPatch {
+interface BrandPatch {
   company_name?: string;
   company_kind?: string;
   logo_size?: string;
@@ -50,7 +50,7 @@ export interface InstallerFull {
   logo_file: Record<LogoVariant, string | null>;
   files: Record<LogoVariant, BrandFileMeta | null>;
 }
-export interface InstallerPatch {
+interface InstallerPatch {
   enabled?: boolean;
   name?: string;
   contact?: string;

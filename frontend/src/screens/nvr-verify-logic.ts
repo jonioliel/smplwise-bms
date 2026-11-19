@@ -8,7 +8,7 @@
 import type { Batch, BatchItem, BatchVerify, ItemVerify, RefusalPolicy, VerifyOutcome } from '../api/nvr-batch';
 import { tr } from '../i18n/msg/media';
 
-export const OUTCOME_HE: Record<VerifyOutcome, string> = {
+const OUTCOME_HE: Record<VerifyOutcome, string> = {
   confirmed: tr('המצלמה אישרה'),
   nvr_accepted: tr('המקליט קיבל'),
   still_old: tr('עדיין בקידוד הקודם'),
@@ -17,7 +17,7 @@ export const OUTCOME_HE: Record<VerifyOutcome, string> = {
   unchanged: tr('כבר מוגדר'),
 };
 
-export type VerifyTone = 'ok' | 'info' | 'warn' | 'bad' | 'muted';
+type VerifyTone = 'ok' | 'info' | 'warn' | 'bad' | 'muted';
 
 export const OUTCOME_TONE: Record<VerifyOutcome, VerifyTone> = {
   confirmed: 'ok',

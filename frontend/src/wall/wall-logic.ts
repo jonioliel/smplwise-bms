@@ -1,8 +1,8 @@
 /** CR-030 section 4: pure layout and timing rules of the wall display (no DOM, unit-tested). */
-export type Preset = 'tablet-landscape' | 'tablet-portrait' | 'single';
-export interface WallGrid { cols: number; rows: number }
+type Preset = 'tablet-landscape' | 'tablet-portrait' | 'single';
+interface WallGrid { cols: number; rows: number }
 
-export interface LayoutInput {
+interface LayoutInput {
   layout: 'auto' | Preset;
   grid: 'auto' | WallGrid;
   cameras: number;
@@ -26,7 +26,7 @@ export interface Layout {
 
 /** More than this many sub streams on one page stall the lab NVR / relay (live review F15): the tablet presets never exceed it. */
 export const MAX_PER_PAGE = 6;
-export const DEFAULT_ROTATE_S = 30;
+const DEFAULT_ROTATE_S = 30;
 
 export function clamp(n: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, n));
@@ -79,7 +79,7 @@ export function resolveLayout(i: LayoutInput): Layout {
  * band"). Exactly ONE home per preset. WALL-ANSWERS-2400 (owner 04.11, round 18 question 19): the portrait wall used to render the
  * same list in both places, so every chip - "המערכת תקינה" first of all - appeared twice.
  */
-export type ChipHome = 'strip' | 'band';
+type ChipHome = 'strip' | 'band';
 export function chipHome(preset: Preset): ChipHome {
   return preset === 'tablet-portrait' ? 'band' : 'strip';
 }
@@ -99,7 +99,7 @@ export function pixelShift(nowMs: number, enabled: boolean): [number, number] {
 }
 
 /** Section 4.4, one camera: fresh -> stale (dimmed, hatched, time of the last frame) -> lost (the name on a dark tile) after `showLastFrameS`. */
-export type TileHealth = 'live' | 'stale' | 'lost';
+type TileHealth = 'live' | 'stale' | 'lost';
 export function tileHealth(lastOkMs: number | null, nowMs: number, stallS = 8, showLastFrameS = 60): TileHealth {
   if (lastOkMs === null) return 'stale';
   const age = (nowMs - lastOkMs) / 1000;
@@ -108,7 +108,7 @@ export function tileHealth(lastOkMs: number | null, nowMs: number, stallS = 8, s
 }
 
 /** Section 4.4, the server: how long the connection has been down decides what the display shows. */
-export type ServerHealth = 'ok' | 'banner' | 'clock';
+type ServerHealth = 'ok' | 'banner' | 'clock';
 export function serverHealth(downSinceMs: number | null, nowMs: number): ServerHealth {
   if (downSinceMs === null) return 'ok';
   const down = (nowMs - downSinceMs) / 1000;
@@ -140,12 +140,12 @@ export function isAwake(windows: WallWindow[], zone: string, at: Date): boolean 
 }
 
 // ---- WDX: alert ladder (CR-030 section 5.2) and picture frame (section 6.1)
-export type AlertSeverity = 'info' | 'alert' | 'critical';
+type AlertSeverity = 'info' | 'alert' | 'critical';
 export interface AlertLike { id: string; severity: AlertSeverity; last_at: string; count: number }
-export const INFO_CHIP_S = 20;
+const INFO_CHIP_S = 20;
 const RANK: Record<AlertSeverity, number> = { info: 0, alert: 1, critical: 2 };
 
-export interface AlertView<T> {
+interface AlertView<T> {
   /** critical items: the whole screen, newest first; never times out */
   takeover: T[];
   /** the alert tile of the top-start cell (the one `tap` selects) and how many more there are */

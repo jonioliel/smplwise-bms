@@ -248,7 +248,7 @@ export function linkKind(view: Pick<TicketView, 'title' | 'claim' | 'claim_mode'
 }
 
 export type Tone = 'acc' | 'ok' | 'warn' | 'bad' | 'mut';
-export interface StatusLine { tone: Tone; icon: string; key: string }
+interface StatusLine { tone: Tone; icon: string; key: string }
 
 /**
  * The ONE status line of the first screen, in the vendor's words (never the manager's): derived from the ticket's status, the cost
@@ -277,7 +277,7 @@ export function statusLine(view: Pick<TicketView, 'status' | 'claim' | 'read_onl
   return { tone: 'mut', icon: 'info', key: 'line_working' };
 }
 
-export type PrimaryKind = 'ack' | 'quote_fix' | 'demand' | 'send' | 'none';
+type PrimaryKind = 'ack' | 'quote_fix' | 'demand' | 'send' | 'none';
 
 /**
  * The ONE big button of the first screen. A draft the vendor started always wins (it is "send the update"); then the next thing the

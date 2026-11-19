@@ -18,7 +18,7 @@ export interface PushFilters {
 }
 
 /** What a pushed event carries of what the filters look at. */
-export interface PushedEvent {
+interface PushedEvent {
   camera_id: string | null;
   recorder_id?: string | null;
   type: string;
@@ -52,7 +52,7 @@ export function pushedAction(ev: PushedEvent, f: PushFilters, o: { day: string; 
 export const THUMB_MAX_POLLS = 14;
 export const THUMB_FIRST_MS = 3000;
 export const THUMB_BUSY_MS = 1500;
-export const THUMB_PARALLEL = 2;
+const THUMB_PARALLEL = 2;
 
 /** The wait before poll number `attempt + 1` (attempt 0 was the first): 3 s growing by 35 % a time, 15 s at most. */
 export function thumbDelay(attempt: number): number {
@@ -61,7 +61,7 @@ export function thumbDelay(attempt: number): number {
 
 type ThumbState = 'ready' | 'pending' | 'unavailable';
 
-export interface ThumbPollerOptions {
+interface ThumbPollerOptions {
   /** One request for the thumbnail's state. */
   poll: (id: string) => Promise<ThumbState>;
   /** Whether the row is still worth asking for (the screen is on the page and still lists it). */

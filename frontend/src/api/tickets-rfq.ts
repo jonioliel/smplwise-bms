@@ -24,14 +24,11 @@ export type RfqState = 'draft' | 'sent' | 'collecting' | 'due_passed' | 'awarded
 export type RfqFilter = 'open' | 'all' | RfqState;
 export type RfqVendorState = 'draft' | 'sent' | 'opened' | 'quoted' | 'declined' | 'expired' | 'withdrawn' | 'awarded' | 'not_awarded' | 'removed';
 export type RfqChannel = 'whatsapp' | 'email' | 'manual';
-export type RfqQuoteState = 'submitted' | 'superseded' | 'withdrawn' | 'approved' | 'partially_approved' | 'not_awarded';
-export type RfqAwardState = 'pending_second' | 'approved' | 'declined';
-export type RfqLinkState = 'live' | 'grace' | 'expired' | 'revoked' | 'none';
+type RfqQuoteState = 'submitted' | 'superseded' | 'withdrawn' | 'approved' | 'partially_approved' | 'not_awarded';
+type RfqAwardState = 'pending_second' | 'approved' | 'declined';
+type RfqLinkState = 'live' | 'grace' | 'expired' | 'revoked' | 'none';
 
 export const RFQ_FILTERS: readonly RfqFilter[] = ['open', 'draft', 'collecting', 'due_passed', 'awarded', 'closed', 'cancelled', 'all'];
-/** The states the server calls open (an award or a close is still possible). */
-export const RFQ_OPEN: readonly RfqState[] = ['sent', 'collecting', 'due_passed'];
-export const RFQ_ENDED: readonly RfqState[] = ['closed', 'cancelled'];
 
 export interface RfqKpis {
   invited: number;
@@ -45,7 +42,7 @@ export interface RfqKpis {
   currency: string | null;
 }
 
-export interface RfqPerson { id: string | null; name: string; active?: boolean }
+interface RfqPerson { id: string | null; name: string; active?: boolean }
 
 /** RFQQUESTIONS (contract section 21): unanswered vendor questions - `unread` = no RFQ manager opened them yet. Zero once the request is no
  * longer open (sent / collecting / due_passed). Absent from servers before 2.6.5: the screens then show no badge. */
@@ -68,7 +65,7 @@ export interface RfqQuestion {
 }
 
 /** ORGPLAN2-291: a linked plan room and where the link came from (the RFQ's own location or its source ticket's). */
-export interface RfqPlanArea { zone_id: string; floor_id: string; name: string; floor_name: string; source: 'location' | 'ticket' }
+interface RfqPlanArea { zone_id: string; floor_id: string; name: string; floor_name: string; source: 'location' | 'ticket' }
 
 /** One row of `GET tickets/rfqs` (rfq.summary). */
 export interface RfqSummary {
@@ -93,11 +90,11 @@ export interface RfqSummary {
 }
 
 export interface RfqListPage { items: RfqSummary[]; next_cursor: string | null }
-export interface RfqListQuery { state?: RfqFilter; department_id?: string; q?: string; limit?: number; cursor?: string | null }
+interface RfqListQuery { state?: RfqFilter; department_id?: string; q?: string; limit?: number; cursor?: string | null }
 
-export interface RfqContact { id: string; name: string; company: string; kind?: string | null; lang?: string | null; erased?: boolean }
+interface RfqContact { id: string; name: string; company: string; kind?: string | null; lang?: string | null; erased?: boolean }
 
-export interface RfqQuoteSummary {
+interface RfqQuoteSummary {
   id: string;
   version: number;
   state: RfqQuoteState;
@@ -187,10 +184,10 @@ export interface RfqInstalment { index: number; kind: 'advance' | 'progress' | '
   /** RFQPAY2 (20.11): the instalment's payment demand (the amount null without tickets.costs.view) */
   demand?: RfqInstalmentDemand | null }
 /** RFQPAY2: one payment demand per approved instalment - made by a manager from the schedule row; paid = recorded, never executed. */
-export interface RfqInstalmentDemand { id: string; status: 'open' | 'paid' | 'cancelled'; amount_minor: number | null; currency: string;
+interface RfqInstalmentDemand { id: string; status: 'open' | 'paid' | 'cancelled'; amount_minor: number | null; currency: string;
   due_date: string | null; created_at: string; paid_at: string | null; cancelled_at: string | null; revision: number }
 export type RfqDemandAction = 'create' | 'paid' | 'cancel';
-export interface RfqDemandAnswer { rfq: RfqDetail; demand: RfqInstalmentDemand | null; created: boolean }
+interface RfqDemandAnswer { rfq: RfqDetail; demand: RfqInstalmentDemand | null; created: boolean }
 /** CR-RFQ-PAYMENT-SCHEDULE: the vendor's proposal as he sent it (percent text or a fixed amount in minor units). */
 export interface RfqPaymentProposal { items: { kind: 'advance' | 'progress' | 'final'; due: string; date: string | null; days: number | null; percent: string | null;
   amount_minor: number | null }[] }
@@ -211,11 +208,11 @@ export interface RfqAwardTerms {
   notice?: RfqChangeNotice | null;
   can: { decide_arrival: boolean; reschedule?: boolean; demand?: boolean; reschedule_arrival?: boolean; notify_vendor?: boolean };
 }
-export interface RfqChangeNotice { lang: string; instalment: string; arrival: string; notify_default: boolean }
+interface RfqChangeNotice { lang: string; instalment: string; arrival: string; notify_default: boolean }
 /** RFQPAY2: the optional vendor notice sent with a moved date (the thread + the templated notice; never free text outside). */
-export interface RfqMoveNotice { notify: boolean; message?: string; reason?: string; resendOrder?: boolean }
+interface RfqMoveNotice { notify: boolean; message?: string; reason?: string; resendOrder?: boolean }
 
-export interface RfqOrderTicket { id: string | null; number: number; status?: string | null }
+interface RfqOrderTicket { id: string | null; number: number; status?: string | null }
 export interface RfqScope { kind: 'all' | 'kinds' | 'lines'; kinds: LineKind[]; lines: number }
 
 /** TKRFQ4 (contract 18): the work order of one award - no table of its own (the award + the quote's request + two timeline rows). */
@@ -270,7 +267,7 @@ export interface RfqFile {
 export interface RfqAttachmentLimits { files: number; image_bytes: number; document_bytes: number; total_bytes: number; caption: number; types: string[]; office?: boolean }
 
 /** RFQATT: the per-file options sent with an upload or a change. */
-export interface RfqFileOptions { caption?: string; visible_vendors?: boolean }
+interface RfqFileOptions { caption?: string; visible_vendors?: boolean }
 
 /** `GET tickets/rfqs/{id}` (rfq.detail). */
 export interface RfqDetail {
@@ -319,7 +316,7 @@ export interface RfqDetail {
     attach?: boolean };
 }
 
-export interface RfqLine extends StoredLine { index: number }
+interface RfqLine extends StoredLine { index: number }
 
 /** One quote column of `GET tickets/rfqs/{id}/comparison`. */
 export interface RfqCompareQuote {
@@ -362,7 +359,7 @@ export interface RfqCompareQuote {
 }
 
 /** RFQ-VENDOR-UPLOAD: one file a vendor uploaded - read through `vendorFileUrl` (always a download; costs.view, like the comparison). */
-export interface RfqVendorFile {
+interface RfqVendorFile {
   id: string;
   name: string;
   kind: RfqFileKind;
@@ -390,7 +387,7 @@ export interface RfqComparison {
   filters: { all: number; in_window: number };
 }
 
-export interface RfqMetaDepartment { id: string; name: string; can_create: boolean; second_approval_minor: number | null; second_approval_enabled: boolean }
+interface RfqMetaDepartment { id: string; name: string; can_create: boolean; second_approval_minor: number | null; second_approval_enabled: boolean }
 
 /** `GET tickets/rfqs/meta`. */
 export interface RfqMeta {
@@ -413,9 +410,9 @@ export interface RfqMeta {
 }
 
 /** CR-AWARD-NOTICE: the setting `rfq.award_notice` - confirm (default) | auto | off. */
-export type RfqAwardNoticeMode = 'confirm' | 'auto' | 'off';
+type RfqAwardNoticeMode = 'confirm' | 'auto' | 'off';
 /** `awards[].notice` (contract 20.16). */
-export interface RfqAwardNotice {
+interface RfqAwardNotice {
   mode: RfqAwardNoticeMode;
   /** queued = the notice went to the outbox; not_sent = tried, the vendor could not be reached (`reason`); pending = a second approval waits */
   state: 'queued' | 'not_sent' | 'pending' | 'none';
@@ -430,17 +427,17 @@ export interface RfqAwardNoticePreview {
   /** why it cannot go now: vendor | page | link | channel */
   refusals: string[]; notify_default: boolean; sent: boolean;
 }
-export interface RfqAwardNoticeResult { queued: boolean; already: boolean; channel: string | null; outbox_id: string | null; reason: string | null }
+interface RfqAwardNoticeResult { queued: boolean; already: boolean; channel: string | null; outbox_id: string | null; reason: string | null }
 /** One postponement notice of the awarded vendor (contract 20.17) - the lead time is stored as given, no judgement. */
-export interface RfqPostponement {
+interface RfqPostponement {
   id: string; proposed_from: string; proposed_to: string | null; reason: string; scheduled_from: string | null; lead_seconds: number | null;
   /** owner decision 2026-10-17: given after the scheduled start or less than `rfq.postpone_late_hours` before it - a tag, never a block */
   late: boolean;
   at: string; state: 'open' | 'acknowledged' | 'rescheduled' | 'ended'; resolved_at: string | null; resolved_by: string | null;
 }
-export interface RfqPostponementBlock { open: RfqPostponement | null; items: RfqPostponement[]; count: number; can: { acknowledge: boolean } }
+interface RfqPostponementBlock { open: RfqPostponement | null; items: RfqPostponement[]; count: number; can: { acknowledge: boolean } }
 
-export interface RfqVendorRef { contact_id: string; channel?: RfqChannel; require_code?: boolean }
+interface RfqVendorRef { contact_id: string; channel?: RfqChannel; require_code?: boolean }
 
 export interface RfqCreateBody {
   department_id: string;
@@ -459,7 +456,7 @@ export interface RfqCreateBody {
   client_request_id: string;
 }
 
-export interface RfqEditBody {
+interface RfqEditBody {
   revision: number;
   title?: string;
   description?: string;
@@ -484,7 +481,7 @@ export interface RfqQuoteBody {
 }
 
 /** contract 15.6: `POST tickets/rfqs/{id}/vendors/{rv_id}/options` - `require_code` until the vendor is awarded / removed, `channel` for a draft vendor only. */
-export interface RfqVendorOptionsBody { revision: number; require_code?: boolean; channel?: 'auto' | RfqChannel }
+interface RfqVendorOptionsBody { revision: number; require_code?: boolean; channel?: 'auto' | RfqChannel }
 
 export interface RfqAwardBody { quote_id: string; revision: number; line_indexes?: number[]; kinds?: LineKind[]; finalize: boolean;
   /** CR-RFQ-PAYMENT-SCHEDULE (20.3): the manager's plan, or the explicit choice (`vendor` = the proposal as is, `default` = one final
@@ -516,9 +513,9 @@ export interface RfqMessage { id: string; direction: 'in' | 'out'; text: string;
   files?: RfqVendorFile[];
   /** HARDEN271 (review F1): files attached that this viewer may not see (no tickets.costs.view) - a count only, no id or name */
   files_hidden?: number }
-export interface RfqMessageAnswer { item: RfqMessage; notified: { queued: boolean; channel: string | null } }
+interface RfqMessageAnswer { item: RfqMessage; notified: { queued: boolean; channel: string | null } }
 
-export interface RfqSendAnswer extends RfqDetail { sent?: Record<string, unknown> }
+interface RfqSendAnswer extends RfqDetail { sent?: Record<string, unknown> }
 
 /** RFQQUESTIONS: an answer to one question - to the asking vendor only (the default) or to every invited vendor. */
 export interface RfqAnswerBody { text: string; scope: 'vendor' | 'all'; question_text?: string; name_asker?: boolean; notify: boolean }
@@ -529,12 +526,12 @@ export interface RfqAnswerPreview {
   name_asker: boolean;
   recipients: { vendor_id: string; vendor: { name: string; company: string }; asker: boolean; text: string; lang: string; notify_channel: string | null }[];
 }
-export interface RfqAnswerAnswer {
+interface RfqAnswerAnswer {
   rfq: RfqDetail;
   answer: { question_id: string; scope: 'vendor' | 'all'; items: { vendor_id: string; message_id: string; notified: boolean }[]; notified: number; broadcast_id: string | null };
   replayed: boolean;
 }
-export interface RfqQuestionsSummary { pending: number; unread: number; requests: number }
+interface RfqQuestionsSummary { pending: number; unread: number; requests: number }
 
 export interface RfqBackend {
   meta(): Promise<RfqMeta>;

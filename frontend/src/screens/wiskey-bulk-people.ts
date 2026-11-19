@@ -34,7 +34,7 @@ import { bt, btDynamic, btLang } from '../i18n/bulk-people';
 import { dateInputLang } from '../api/day-format';
 import { localeFor } from '../i18n/locale';
 
-export interface BulkStation {
+interface BulkStation {
   id: string;
   name: string;
   locks: number[];

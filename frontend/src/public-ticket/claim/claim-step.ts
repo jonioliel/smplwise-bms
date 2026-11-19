@@ -61,10 +61,10 @@ import { type PickKind, fileKind, looksInApp, looksIos, pickFile } from './pick'
 import type { PageEditor } from './capture-editor';
 import type { PrefillExt } from './claim-prefill';
 
-export const CLAIM_PATH = '/t/api/claim';
-export const CLAIM_FILE_PATH = '/t/api/claim/file';
+const CLAIM_PATH = '/t/api/claim';
+const CLAIM_FILE_PATH = '/t/api/claim/file';
 
-export interface ClaimStepOptions {
+interface ClaimStepOptions {
   fetchJson: (path: string, init?: { method?: 'GET' | 'POST'; body?: unknown }) => Promise<ApiResult>;
   uploadFile: (path: string, form: FormData) => Promise<ApiResult>;
   /** the API's `lang` (he / en / ar / ru) */
@@ -92,7 +92,7 @@ export interface ClaimStepOptions {
   embedded?: boolean;
 }
 
-export interface ClaimStepHandle {
+interface ClaimStepHandle {
   /** reload the claim (after a code session, on visibilitychange) */
   refresh(): Promise<void>;
   view(): StepView;
@@ -1429,21 +1429,3 @@ export function mountClaimStep(container: HTMLElement, opts: ClaimStepOptions): 
   };
 }
 
-/** Forget the claim draft of this tab (the page's "סיום" button clears sessionStorage as a whole; this is the claim's own part). */
-export function clearClaimDraft(storage: StorageLike | null = defaultStorage(), key: string = DRAFT_KEY): void {
-  clearDraft(storage, key);
-  try {
-    if (!storage) return;
-    const s = storage as Storage;
-    if (typeof s.length === 'number' && typeof s.key === 'function') {
-      const doomed: string[] = [];
-      for (let i = 0; i < s.length; i += 1) {
-        const k = s.key(i);
-        if (k && k.startsWith(key + BLOB_PREFIX)) doomed.push(k);
-      }
-      for (const k of doomed) s.removeItem(k);
-    }
-  } catch {
-    /* storage refused */
-  }
-}

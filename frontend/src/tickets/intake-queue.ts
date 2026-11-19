@@ -10,6 +10,7 @@ import { ticketsApi, type Meta } from '../api/tickets';
 import { intakeApi, type IntakeDraft, type IntakeDraftRow, type IntakeEditKey, type IntakeSummary, type RejectReason } from '../api/tickets-intake';
 import { itx, type IntakeKey } from '../i18n/intake';
 import { allEvidence, fieldValue, flagKeys, PAGE_SIZE, pager, segments, urgencyTone } from './intake-model';
+import { errLineStyles } from '../styles/fragments';
 
 const REASONS: RejectReason[] = ['not_a_request', 'duplicate', 'spam', 'abusive', 'out_of_scope', 'test'];
 const PRIORITIES = ['urgent', 'high', 'normal', 'low'] as const;
@@ -63,7 +64,7 @@ export class TicketsIntakeChip extends LitElement {
       border-radius: var(--sw-r-sm); background: var(--sw-surface); color: inherit; font: inherit; }
     .flags { display: flex; flex-wrap: wrap; gap: var(--sw-s-1); }
     .bar { display: flex; flex-wrap: wrap; gap: var(--sw-s-2); align-items: center; }
-    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+    ${errLineStyles}
     .okm { color: var(--sw-success-text); font-size: var(--sw-fs-sm); }
     .meta { display: flex; flex-wrap: wrap; gap: var(--sw-s-3); font-size: var(--sw-fs-sm); color: var(--sw-text-3); }
   `];

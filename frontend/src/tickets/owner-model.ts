@@ -11,7 +11,7 @@
 import type { Handler, InternalOwner, TicketDetail } from '../api/tickets';
 import type { OwnerBody } from '../api/tickets-owner';
 
-export type OwnerView = 'hidden' | 'set' | 'none';
+type OwnerView = 'hidden' | 'set' | 'none';
 
 export interface OwnerTicket { view: TicketDetail['view']; status: TicketDetail['status']; internal_owner?: InternalOwner | null; can: { change_owner?: boolean } }
 
@@ -35,7 +35,7 @@ export function ownerChoices(handlers: readonly Handler[], owner: Pick<InternalO
 }
 
 /** The choice of the dialog: a user id, '' = nobody (clears the owner), or null = nothing picked yet. */
-export type OwnerPick = string | null;
+type OwnerPick = string | null;
 
 /** The request body of the choice, or null when there is nothing to send (nothing picked, or the owner stays). */
 export function ownerPlan(pick: OwnerPick, owner: Pick<InternalOwner, 'id'> | null | undefined, reason: string, revision: number): OwnerBody | null {

@@ -12,7 +12,7 @@ const PATHS = {
   window: svg`<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/>`,
 } as const;
 
-export type GlyphName = keyof typeof PATHS;
+type GlyphName = keyof typeof PATHS;
 
 export function glyph(name: GlyphName, size = 16): TemplateResult {
   return html`<svg viewBox="0 0 24 24" width=${size} height=${size} fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${PATHS[name]}</svg>`;

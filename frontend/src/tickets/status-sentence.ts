@@ -19,7 +19,7 @@ import { dwt, type DrawerTextKey } from './drawer-text';
 import { chipLabel, relTime, statusLabel, statusTone } from './model';
 
 export type ViewerRole = 'manager' | 'handler' | 'approver' | 'requester';
-export type Ball = 'manager' | 'handler' | 'vendor' | 'approver' | 'none';
+type Ball = 'manager' | 'handler' | 'vendor' | 'approver' | 'none';
 export const VIEWER_ROLES: readonly ViewerRole[] = ['manager', 'handler', 'approver', 'requester'];
 export const SENTENCE_MAX = 90;
 
@@ -49,7 +49,7 @@ export interface SentenceTicket {
 }
 
 /** What the role resolution reads (the detail's `can`). */
-export interface RoleTicket {
+interface RoleTicket {
   can: { manage: boolean; return?: boolean; eta?: boolean };
   assignee: Assignee | null;
   cost?: { can_decide?: boolean } | null;
@@ -245,14 +245,14 @@ export function sentenceFor(t: SentenceTicket, role: ViewerRole = 'manager', now
 
 // ---------------------------------------------------------------- the warning line
 
-export type WarningKey = 'send_failed' | 'link_expired' | 'code_locked' | 'contact_changed' | 'user_inactive' | 'stuck' | 'late_reply' | 'reply' | 'question';
+type WarningKey = 'send_failed' | 'link_expired' | 'code_locked' | 'contact_changed' | 'user_inactive' | 'stuck' | 'late_reply' | 'reply' | 'question';
 export interface Warning {
   key: WarningKey;
   text: string;
   tone: 'warn' | 'bad';
 }
 /** The rank of the warning reasons (IA §3.3 rule 5); `user_inactive` sits with the contact problems. */
-export const WARNING_RANK: readonly WarningKey[] = ['send_failed', 'link_expired', 'code_locked', 'contact_changed', 'user_inactive', 'stuck', 'late_reply', 'reply', 'question'];
+const WARNING_RANK: readonly WarningKey[] = ['send_failed', 'link_expired', 'code_locked', 'contact_changed', 'user_inactive', 'stuck', 'late_reply', 'reply', 'question'];
 const STUCK_KINDS = ['unassigned', 'overdue', 'unopened', 'ack', 'stuck', 'waiting'];
 
 /** The stuck state: the item's own (board / table), else the last `stuck` row after the last state change, assignment or status. */
@@ -294,7 +294,7 @@ export function warningFor(t: SentenceTicket, role: ViewerRole = 'manager'): War
 
 // ---------------------------------------------------------------- SLA
 
-export interface SlaState {
+interface SlaState {
   /** the badge of the status block: only near (< 24 h) or crossed */
   badge: { text: string; tone: 'warn' | 'bad' } | null;
   /** the quiet Overview row while the target is far; '' otherwise */

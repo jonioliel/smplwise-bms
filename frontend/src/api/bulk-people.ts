@@ -31,7 +31,7 @@ export interface BulkSettings {
   may_export?: boolean;
 }
 
-export interface WiskeyCsvStatus {
+interface WiskeyCsvStatus {
   enabled: 'off' | 'on';
   available: boolean;
   /** switch_off | bulk_people_off | binding_not_configured | direct_not_installed | direct_not_selected */
@@ -52,7 +52,7 @@ export interface VerifiedPreview {
   rows: { source_line: number; op: 'create' | 'update' }[];
 }
 
-export type CsvOperationState = 'not_started' | 'running' | 'finished' | 'cancelled' | 'unknown';
+type CsvOperationState = 'not_started' | 'running' | 'finished' | 'cancelled' | 'unknown';
 
 export interface CsvOperation {
   state: CsvOperationState;
@@ -69,7 +69,7 @@ export interface ReportEntry {
   fields: string[];
 }
 
-export interface PlanEntry {
+interface PlanEntry {
   row: number;
   op: 'create' | 'update';
   person_id: string | null;
@@ -112,7 +112,7 @@ export interface BulkJob {
   stalled?: boolean;
 }
 
-export interface DiffField {
+interface DiffField {
   field: string;
   before: unknown;
   after: unknown;
@@ -158,6 +158,7 @@ export function stageEdit(edit: BulkEdit, key: string): Promise<{ job: BulkJob; 
   return api(`${BASE}/jobs/edit`, { method: 'POST', body: JSON.stringify(edit), headers: { 'Idempotency-Key': key } });
 }
 
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by BULKPEOPLE-295 (bulk people jobs).
 export const getJob = (id: string) => get<{ job: BulkJob }>(`${BASE}/jobs/${encodeURIComponent(id)}`);
 export const dryRun = (id: string) => post<{ job: BulkJob; rows: DryRunRow[] }>(`${BASE}/jobs/${encodeURIComponent(id)}/dry-run`);
 export const confirmJob = (id: string, planDigest: string, typed: string) =>

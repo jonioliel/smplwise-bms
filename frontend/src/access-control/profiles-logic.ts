@@ -9,9 +9,9 @@ import type { ApplyReply, DiffRow, FieldType, ImpactPerson, PolicyValues, Profil
 export const FIELDS_MAX = 12;
 export const GROUPS_MAX = 64;
 export const LABEL_MAX = 64;
-export const OPTIONS_MAX = 100;
-export const OPTION_MAX = 100;
-export const GROUP_STATIONS_MAX = 100;
+const OPTIONS_MAX = 100;
+const OPTION_MAX = 100;
+const GROUP_STATIONS_MAX = 100;
 export const SUGGEST_FIELDS_MAX = 3;
 export const FIELD_TYPES: readonly FieldType[] = ['text', 'select', 'number', 'date'];
 const ID = /^[a-z][a-z0-9_]{0,47}$/;
@@ -39,7 +39,7 @@ export function newGroup(values: PolicyValues, label: string): ProfileGroup {
 }
 
 /** Ids present in the loaded policy: they cannot be removed (WisKey archives definitions), only disabled. */
-export function savedIds(base: PolicyValues | null): Set<string> {
+function savedIds(base: PolicyValues | null): Set<string> {
   return new Set([...(base?.fields ?? []).map((f) => `fields.${f.id}`), ...(base?.groups ?? []).map((g) => `groups.${g.id}`)]);
 }
 

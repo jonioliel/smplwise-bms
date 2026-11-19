@@ -25,9 +25,9 @@ const ru: Record<Key, string> = {
   stale: 'Данные не актуальны',
 };
 
-export type HlLang = 'he' | 'en' | 'ar' | 'ru';
+type HlLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function hlLang(): HlLang {
+function hlLang(): HlLang {
   return docLang(['en', 'ar', 'ru']);
 }
 

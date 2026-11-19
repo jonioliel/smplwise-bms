@@ -10,9 +10,9 @@ import { canAnywhere, isApi, onSession } from '../api/session';
 import { listUnits, type UnitsResponse } from '../api/temperature';
 import { applyInfraTemperature } from '../shell/nav';
 
-export const TEMPERATURE_MANAGE = 'infra.temperature.manage';
-export const TEMPERATURE_ACK = 'infra.temperature.ack';
-export const TEMPERATURE_REPORT_LINK = 'infra.temperature.report_link';
+const TEMPERATURE_MANAGE = 'infra.temperature.manage';
+const TEMPERATURE_ACK = 'infra.temperature.ack';
+const TEMPERATURE_REPORT_LINK = 'infra.temperature.report_link';
 
 export interface TemperatureAccess {
   view: boolean;

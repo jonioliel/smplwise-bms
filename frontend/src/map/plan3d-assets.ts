@@ -19,7 +19,7 @@ export const PLAN3D_BASE = 'plan3d/';
 /** Material ids whose colour detail map is another id's (the same source set, no own file). */
 const COLOR_FROM: Record<string, string> = { door_metal: 'metal_light' };
 
-export interface TextureUrls {
+interface TextureUrls {
   color: string;
   normal: string;
   roughAo: string;

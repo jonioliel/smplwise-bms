@@ -52,7 +52,7 @@ export const meterCardCss = css`
 `;
 
 /** The actions row of the card (shown to a manager): the words and what each button does. */
-export interface MeterCardActions {
+interface MeterCardActions {
   rename: string;
   replace: string;
   pause: string;

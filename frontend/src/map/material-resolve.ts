@@ -24,7 +24,7 @@ export interface MaterialDef {
   glass?: { opacity: number };
   aliases: string[];
 }
-export interface CatalogMaterialInfo {
+interface CatalogMaterialInfo {
   role?: string;
   material_id?: string;
   light?: Partial<LampLight>;
@@ -42,7 +42,7 @@ export interface ResolvedMaterials {
 }
 
 export const MATERIALS: readonly MaterialDef[] = (library as { materials: MaterialDef[] }).materials;
-export const LIBRARY_VERSION: string = (library as { library_version: string }).library_version;
+const LIBRARY_VERSION: string = (library as { library_version: string }).library_version;
 const BY_ID = new Map(MATERIALS.map((m) => [m.id, m]));
 const ALIASES = new Map(MATERIALS.flatMap((m) => m.aliases.map((a) => [a, m.id] as [string, string])));
 

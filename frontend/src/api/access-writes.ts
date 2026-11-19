@@ -11,13 +11,14 @@
 import { post, put } from './client';
 import { commandId } from './request-id';
 import { serverNow, type IntercomEditorPerson, type WriteEffect } from './intercom';
+import { isoZ } from './day-format';
 
 /** A command not sent within this long is refused by the server rather than carried out late (MASTER_SPEC §15). */
 const COMMAND_TTL_MS = 15_000;
 
 /** A fresh command id and expiry for ONE deliberate action. */
 export function writeEnvelope(): { client_request_id: string; expires_at: string } {
-  return { client_request_id: commandId(), expires_at: new Date(serverNow() + COMMAND_TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z') };
+  return { client_request_id: commandId(), expires_at: isoZ(serverNow() + COMMAND_TTL_MS) };
 }
 
 /** A write's reply: the saved record in the editor projection at the caller's field level, and the effect class. */

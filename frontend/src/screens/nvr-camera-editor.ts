@@ -31,7 +31,7 @@ import { dayTimeText } from '../api/day-format';
 import { tr } from '../i18n/msg/media';
 
 /** The editor's line when "שמור" cannot open the confirmation: the press always answers (owner report 2026-10-04: "nothing happens"). */
-export const SAVE_LINE = {
+const SAVE_LINE = {
   gone: tr('הזרם אינו זמין כרגע. סגרו את החלונית ופתחו שוב.'),
   loading: tr('טוען את האפשרויות של הקידוד. נסו שוב בעוד רגע.'),
   no_options: tr('יכולות הזרם אינן ידועות, ולכן אי אפשר לשמור.'),

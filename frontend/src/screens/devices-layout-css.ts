@@ -264,7 +264,7 @@ export const devicesLayoutCss = [
       background: var(--sw-text-3);
       color: var(--sw-surface-solid);
       font-size: var(--sw-fs-xs);
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       line-height: 18px;
       white-space: nowrap;
       overflow: hidden;
@@ -717,7 +717,7 @@ export const devicesLayoutCss = [
       background: var(--sw-text-3);
       color: var(--sw-surface-solid);
       font-size: var(--sw-fs-2xs);
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       line-height: 16px;
       white-space: nowrap;
       cursor: grab;
@@ -743,7 +743,7 @@ export const devicesLayoutCss = [
       color: var(--sw-accent-text, var(--sw-accent));
       font: inherit;
       font-size: var(--sw-fs-xs);
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       line-height: 18px;
       white-space: nowrap;
       cursor: pointer;

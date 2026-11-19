@@ -36,7 +36,7 @@ export function planDrawingDataUrl(doc: GeometryDoc): string {
 }
 
 /** The band colours (product tokens; the CSS of the screen defines them for both themes). */
-export const BAND_VAR: Record<Band, string> = { sure: 'var(--wz-sure)', check: 'var(--wz-check)', doubt: 'var(--wz-doubt)' };
+const BAND_VAR: Record<Band, string> = { sure: 'var(--wz-sure)', check: 'var(--wz-check)', doubt: 'var(--wz-doubt)' };
 
 /** Where each candidate is drawn: its wall parts or its opening gap, in plan pixels. */
 export interface CandidateGeometry {
@@ -88,7 +88,7 @@ export function detectOverlay(g: CandidateGeometry, set: CandidateSet, prefs: Wi
 }
 
 /** The palette of the room fills (a categorical set that reads on white paper in both themes). */
-export const ROOM_COLOURS = ['#7aa7ff', '#b99cf0', '#8fd0c8', '#f5c26b', '#f09a8a', '#9ccf7f', '#e8a3d3', '#b8bfcc', '#7fc4e8', '#d9b48f', '#a3b8f0', '#c9d97f'];
+const ROOM_COLOURS = ['#7aa7ff', '#b99cf0', '#8fd0c8', '#f5c26b', '#f09a8a', '#9ccf7f', '#e8a3d3', '#b8bfcc', '#7fc4e8', '#d9b48f', '#a3b8f0', '#c9d97f'];
 export const roomColour = (i: number) => ROOM_COLOURS[i % ROOM_COLOURS.length];
 
 /** Step 4 / 6: the rooms - strong fills with their numbers (naming), or faint fills under the devices. */

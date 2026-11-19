@@ -10,7 +10,7 @@ import { wt, type WaTextKey } from '../i18n/messaging-accounts';
 export const DEPT_SEP = '@dept:';
 export const PACING_KEYS: readonly PacingKey[] = ['min_gap_s', 'jitter_s', 'per_hour', 'per_day', 'per_recipient_hour', 'hold_when_down_min'];
 /** The server's MANUAL_VALUE_RE (services/messaging_accounts.py). */
-export const MANUAL_VALUE_RE = /^[A-Za-z0-9_\-.:@+]{1,64}$/;
+const MANUAL_VALUE_RE = /^[A-Za-z0-9_\-.:@+]{1,64}$/;
 export const ENTITY_RE = /^[a-z_]+\.[a-z0-9_]+$/;
 export const LABEL_MAX = 40;
 

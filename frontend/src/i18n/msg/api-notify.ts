@@ -10,7 +10,6 @@ export const tr = msgCatalogue('msg/api-notify', {
   'חלונית בצד': 'Side sheet',
   'מסך מלא': 'Full screen',
   'מנהלים': 'Administrators',
-  'כל מי שרואה את התזמון / האוטומציה': 'Everyone who sees the schedule / automation',
   'גנרי': 'Generic',
   'סוג ומקום': 'Type and place',
   'מלא': 'Full',

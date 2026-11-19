@@ -19,24 +19,24 @@ import { closestOnSeg as closest, findPath, levelSegments, lineFree as lineFreeO
 
 export { GRID_M } from './walk-path';
 export const BODY_R = 0.28;
-export const WALK_SPEED = 1.4;
-export const RUN_SPEED = 2.8;
-export const TURN_DEG_S = 120;
-export const AUTO_TURN_DEG_S = 220;
-export const MAX_DT = 0.1;
-export const SUB_DT = 1 / 60;
-export const PITCH_LIMIT_DEG = 70;
-export const EYE_RANGE: readonly [number, number] = [1.2, 2.0];
-export const DEFAULT_EYE_M = 1.65;
+const WALK_SPEED = 1.4;
+const RUN_SPEED = 2.8;
+const TURN_DEG_S = 120;
+const AUTO_TURN_DEG_S = 220;
+const MAX_DT = 0.1;
+const SUB_DT = 1 / 60;
+const PITCH_LIMIT_DEG = 70;
+const EYE_RANGE: readonly [number, number] = [1.2, 2.0];
+const DEFAULT_EYE_M = 1.65;
 /** The level switch window at a band's mouth (CR-029 section 4.3). */
-export const MOUTH_M = 0.02;
+const MOUTH_M = 0.02;
 /** How close to a stair-to-another-floor's cap the prompt appears. */
-export const CROSS_PROMPT_M = 0.45;
+const CROSS_PROMPT_M = 0.45;
 /** The soft edge of the plan: the body stays this far inside the level's extent. */
 export const EDGE_M = 0.3;
 /** An auto-walk whose body moved less than STUCK_MOVE_M within STUCK_S seconds is cancelled (a closed door in the way, a wall). */
 export const STUCK_S = 1.2;
-export const STUCK_MOVE_M = 0.1;
+const STUCK_MOVE_M = 0.1;
 
 export interface WalkInput {
   /** -1..1: backward .. forward. */

@@ -49,7 +49,7 @@ export function startRfqQuestions(): void {
   });
 }
 
-export function stopRfqQuestions(): void {
+function stopRfqQuestions(): void {
   started = false;
   window.clearInterval(timer);
   window.clearTimeout(debounce);

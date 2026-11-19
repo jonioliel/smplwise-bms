@@ -15,15 +15,15 @@ import type { Period, StationPolicy, WeekdayName } from './access-stations';
 import { fill } from '../i18n/wiskey-stations';
 import { serverWordMatches, shownConfirmWord } from '../i18n/confirm-words';
 import type { DoorTechText } from '../i18n/wiskey-door-tech';
+import { isoZ } from './day-format';
 
 export type DoorTechKind = 'hold_save' | 'hold_delete' | 'code_write' | 'program_save' | 'program_action';
-export const DOOR_TECH_KINDS: readonly DoorTechKind[] = ['hold_save', 'hold_delete', 'code_write', 'program_save', 'program_action'];
 
 /** `acknowledged` / `partial`: the server's success; `refused` (WisKey answered a refusal - its reason in `code`), `not_sent`, `unknown`
  * (sent, no clear answer); `sending` is the screen's own while a request is out, `sent` an attempt row with no outcome yet. */
-export type DoorTechStatus = 'sending' | 'sent' | 'acknowledged' | 'partial' | 'refused' | 'not_sent' | 'unknown';
+type DoorTechStatus = 'sending' | 'sent' | 'acknowledged' | 'partial' | 'refused' | 'not_sent' | 'unknown';
 
-export interface DoorTechHistory {
+interface DoorTechHistory {
   kind: DoorTechKind;
   at: string;
   status: DoorTechStatus;
@@ -53,7 +53,7 @@ export interface HoldDraft {
   revision: number | null;
   policy: StationPolicy | null;
 }
-export interface HoldReply {
+interface HoldReply {
   state: string;
   last_error: string | null;
   hold: { draft: HoldDraft | null; active: boolean; blocker: string | null; timezone: string | null } | null;
@@ -90,7 +90,7 @@ export const WEEK: readonly WeekdayName[] = ['Sunday', 'Monday', 'Tuesday', 'Wed
 
 const one = (id: string) => `access-control/stations/${encodeURIComponent(id)}`;
 const TTL_MS = 15_000;
-const envelope = () => ({ confirmed: true, client_request_id: commandId(), expires_at: new Date(serverNow() + TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z') });
+const envelope = () => ({ confirmed: true, client_request_id: commandId(), expires_at: isoZ(serverNow() + TTL_MS) });
 
 export const getDoorTech = (stationId: string) => get<DoorTechView>(`${one(stationId)}/door-tech`);
 export const getHold = (stationId: string, door: number) => get<HoldReply>(`${one(stationId)}/doors/${door}/hold`);
@@ -103,7 +103,7 @@ export const saveProgram = (stationId: string, door: number, revision: number, p
 export const programAction = (stationId: string, door: number, revision: number, action: 'pause' | 'remove') =>
   post<DoorTechReply>(`${one(stationId)}/doors/${door}/program/${action}`, { ...envelope(), revision });
 
-export interface CodeRequest {
+interface CodeRequest {
   slot: number;
   action: 'set' | 'clear';
   door: number;
@@ -175,7 +175,7 @@ export const emptyBody = (zone: string, name = ''): PolicyBody => toBody({ timez
 const HHMM = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const minute = (v: string, end = false): number | null => (HHMM.test(v) ? Number(v.slice(0, 2)) * 60 + Number(v.slice(3)) : end && v === '24:00' ? 1440 : null);
 
-export type PolicyProblem = { field: string; key: 'name' | 'time' | 'order' | 'overlap' | 'tooMany' | 'date' | 'dateOrder' | 'dateOverlap' | 'zone' };
+type PolicyProblem = { field: string; key: 'name' | 'time' | 'order' | 'overlap' | 'tooMany' | 'date' | 'dateOrder' | 'dateOverlap' | 'zone' };
 
 function periodProblems(list: Period[], field: string): PolicyProblem[] {
   if (list.length > 8) return [{ field, key: 'tooMany' }];
@@ -232,7 +232,7 @@ export function weekLines(b: PolicyBody | null, t: DoorTechText): string[] {
 
 // ---------------------------------------------------------------- codes
 
-export const DIGITS = /^\d{4,16}$/;
+const DIGITS = /^\d{4,16}$/;
 
 /** Whether the code form may be sent, and the first reason it may not (never a value in it). */
 export function codeFormProblem(f: { action: 'set' | 'clear'; expected: boolean; newCode: string; repeatCode: string; currentCode: string; typed: string; phrase: string; template?: string; slot?: number }):

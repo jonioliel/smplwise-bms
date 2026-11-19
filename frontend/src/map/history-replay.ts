@@ -89,7 +89,7 @@ export function serializeSwitches(s: LayerSwitches): string {
 
 // ---- the legend's texts ----
 
-export type StatusLook = 'ok' | 'unk' | 'warn' | 'lock';
+type StatusLook = 'ok' | 'unk' | 'warn' | 'lock';
 /** The status text of a layer row and its look. */
 export function layerStatusText(status: LayerStatus | null | undefined): { text: string; look: StatusLook } {
   switch (status) {
@@ -126,7 +126,7 @@ export interface MsGap {
   from: number;
   to: number;
 }
-export function gapsMs(gaps: readonly HistoryGap[] | null | undefined): MsGap[] {
+function gapsMs(gaps: readonly HistoryGap[] | null | undefined): MsGap[] {
   return (gaps ?? []).map((g) => ({ from: Date.parse(g.from), to: Date.parse(g.to) })).filter((g) => Number.isFinite(g.from) && Number.isFinite(g.to) && g.to > g.from).sort((a, b) => a.from - b.from);
 }
 /** The gap that contains `t` (from inclusive, to exclusive), if any. */
@@ -151,7 +151,7 @@ export interface SeriesContext {
   /** null = exact change-points. */
   bucketS: number | null;
 }
-export interface ReplayState {
+interface ReplayState {
   state: string | null;
   known: boolean;
   /** The instant of the change the state comes from (null before the first point / unknown). */
@@ -165,7 +165,7 @@ export interface ReplayState {
 const UNKNOWN = (reason: string): ReplayState => ({ state: null, known: false, changedAt: null, changedDuring: false, reason });
 
 /** The index of the last point at or before `t` (-1 = none); the points are sorted by time. */
-export function lastPointIndex(points: readonly [string, string | null, number][], t: number): number {
+function lastPointIndex(points: readonly [string, string | null, number][], t: number): number {
   let lo = 0;
   let hi = points.length - 1;
   let best = -1;
@@ -201,7 +201,7 @@ export function seriesStateAt(s: RangeSeries, t: number, ctx: SeriesContext): Re
 
 // ---- the replay of a floor ----
 
-export interface ReplayElevator {
+interface ReplayElevator {
   name: string;
   state: string | null;
   known: boolean;
@@ -323,7 +323,7 @@ export function roomsKnown(rooms: readonly { polygon: { x: number; y: number }[]
 
 // ---- the lanes ----
 
-export interface LaneSpan {
+interface LaneSpan {
   /** ms */
   from: number;
   to: number;
@@ -375,7 +375,7 @@ function union(spans: LaneSpan[]): LaneSpan[] {
 
 /** The spans (active / changed during) and the change marks of one series inside [winFrom, winTo] (ms). Known states
  * only: a gap or an exceeded forward fill cuts a span. */
-export function seriesSpans(layer: RangeLayerId, s: RangeSeries, winFrom: number, winTo: number, ctx: SeriesContext): { spans: LaneSpan[]; marks: number[] } {
+function seriesSpans(layer: RangeLayerId, s: RangeSeries, winFrom: number, winTo: number, ctx: SeriesContext): { spans: LaneSpan[]; marks: number[] } {
   const spans: LaneSpan[] = [];
   const marks: number[] = [];
   // the boundaries where the state may change: the window start, every point, every gap edge, every forward-fill expiry

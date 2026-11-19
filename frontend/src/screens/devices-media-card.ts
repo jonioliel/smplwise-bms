@@ -17,6 +17,7 @@ import { bulkCandidates, isOn, media, type BulkPreview, type MediaDevice } from 
 import { PLAYER_KINDS, isPlaying, players, type PlayerDevice } from '../api/media-players';
 import { bidi } from '../i18n/bidi';
 import { tr } from '../i18n/msg/devices';
+import { hostBlockStyles } from '../styles/fragments';
 
 /**
  * The area screen's media card (CR-015 §7.5, owner decision 12a): ONE compact `<media-screen-card>` per PHYSICAL screen of the
@@ -70,10 +71,7 @@ export class MediaAreaCard extends LitElement {
   private stop = { stopped: false };
 
   static styles = css`
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
     :host([hidden]) {
       display: none;
     }
@@ -91,7 +89,7 @@ export class MediaAreaCard extends LitElement {
       margin-block-start: 4px;
       padding-inline: 4px;
       font-size: var(--sw-fs-sm);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       color: var(--sw-text-2);
     }
     .off-all {
@@ -106,7 +104,7 @@ export class MediaAreaCard extends LitElement {
       color: var(--dv-danger, var(--sw-danger));
       font: inherit;
       font-size: var(--sw-fs-base);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       cursor: pointer;
     }
     .bar {

@@ -8,7 +8,7 @@ import { deviceLabel, fmtChange, fmtHM, fmtNum, fmtWhen, monthLabel, reportFigur
  * the report's own language (the preview speaks the language the PDF will). Pure rendering: the screen owns the data and the picks.
  * Counts and names only: no person, no entity id.
  */
-export interface PreviewOptions {
+interface PreviewOptions {
   /** The sections to draw (picked and not left out by the server), in report order. */
   sections: readonly SectionId[];
   /** Links in the doors / waste headers and the "not configured" row. */

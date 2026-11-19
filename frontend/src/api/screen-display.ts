@@ -59,7 +59,7 @@ export type BulkIdle = 'disabled' | 'enabled';
 export const BULK_IDLE: readonly BulkIdle[] = ['disabled', 'enabled'];
 export const BULK_IDLE_DEFAULT: BulkIdle = 'disabled';
 
-export interface ScreenDisplay {
+interface ScreenDisplay {
   infoStyle: InfoStyle;
   schedulesView: SchedulesView;
   automationsView: AutomationsView;
@@ -139,7 +139,7 @@ export const fittedPageSize = (setting: number, fit: number | null): number => (
 
 /** NOSCROLL-295: `?fit=off` in the address turns the fit off for this page (the page size setting alone decides) - for the evidence specs
  * that read every item on one page (`page_size=50`) or a whole page of the setting at a viewport the cards do not fit. */
-export function fitDisabled(): boolean {
+function fitDisabled(): boolean {
   try {
     return new URLSearchParams(location.search).get('fit') === 'off';
   } catch {
@@ -147,7 +147,7 @@ export function fitDisabled(): boolean {
   }
 }
 
-export interface FitTarget {
+interface FitTarget {
   /** The screen element that scrolls (its bottom is the bottom of the screen). */
   host: HTMLElement;
   /** The list (rows, a table or a grid of cards) holding the items. */

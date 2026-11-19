@@ -9,7 +9,7 @@ import { assigneeKey, holdersOf } from './assignee-model';
 import type { CardItem } from './list-card-model';
 
 export type CardFlag = 'stuck' | 'waiting' | 'cost';
-export const CARD_FLAGS: readonly CardFlag[] = ['stuck', 'waiting', 'cost'];
+const CARD_FLAGS: readonly CardFlag[] = ['stuck', 'waiting', 'cost'];
 
 export interface CardFilters {
   /** priority keys; empty = any */
@@ -37,7 +37,7 @@ function flagHolds(item: CardItem, flag: CardFlag): boolean {
   }
 }
 
-export function matchesCardFilters(item: CardItem, f: CardFilters): boolean {
+function matchesCardFilters(item: CardItem, f: CardFilters): boolean {
   if (f.priority.length && !(item.priority && f.priority.includes(item.priority.key))) return false;
   if (f.handler === 'none' ? !!assigneeKey(item.assignee) : f.handler && assigneeKey(item.assignee) !== f.handler) return false;
   return f.flags.every((flag) => flagHolds(item, flag));

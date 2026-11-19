@@ -301,7 +301,7 @@ const en: Partial<Record<Key, string>> = {
   forbidden: 'You do not have permission to manage the schedule library',
 };
 
-export function sedLang(): 'he' | 'en' {
+function sedLang(): 'he' | 'en' {
   return docLang(['en']);
 }
 

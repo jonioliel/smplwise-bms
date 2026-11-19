@@ -2,7 +2,7 @@
 import { apiUrl, del, get, post } from './client';
 import { formatByteSize } from '../format/bytes';
 
-export interface ExportFile {
+interface ExportFile {
   name: string;
   start_at: string;
   end_at: string;
@@ -57,6 +57,7 @@ const body = (cameraId: string, fromAt: string, toAt: string) => ({ camera_id: c
 export const estimateExport = (cameraId: string, fromAt: string, toAt: string) => post<ExportEstimate>('exports/estimate', body(cameraId, fromAt, toAt));
 export const createExport = (cameraId: string, fromAt: string, toAt: string) => post<ExportJob>('exports', body(cameraId, fromAt, toAt));
 export const listExports = () => get<{ jobs: ExportJob[]; ffmpeg: boolean }>('exports');
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by T048 (export jobs).
 export const getExport = (id: string) => get<ExportJob>(`exports/${id}`);
 export const cancelExport = (id: string) => post<ExportJob>(`exports/${id}/cancel`);
 export const deleteExport = (id: string) => del(`exports/${id}`);

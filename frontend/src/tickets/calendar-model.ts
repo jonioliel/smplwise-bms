@@ -123,8 +123,7 @@ export function stepWeek(start: string, n: number): string {
 // ---------------------------------------------------------------- events
 
 export type CalKind = 'visit' | 'ack' | 'stuck' | 'resolve';
-export const CAL_KINDS: readonly CalKind[] = ['visit', 'ack', 'stuck', 'resolve'];
-export type CalTone = 'info' | 'quiet' | 'warn' | 'bad';
+type CalTone = 'info' | 'quiet' | 'warn' | 'bad';
 
 /** The part of a list item the calendar reads. */
 export type CalItem = Pick<TicketItem, 'id' | 'number' | 'title' | 'status' | 'eta_at' | 'sla'>;

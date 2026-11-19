@@ -54,7 +54,7 @@ export function formatElapsed(ms: number): string {
   return h ? `${days} ${lt('elHour', { h })}` : days;
 }
 
-export interface ElapsedView {
+interface ElapsedView {
   /** the full text: "פתוחה 3 ש׳ 12 ד׳" / "טופלה תוך 5 ש׳ 40 ד׳" */
   text: string;
   /** the compact duration alone */

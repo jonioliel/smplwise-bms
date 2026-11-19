@@ -42,7 +42,7 @@ import { cleanWiskeyView, type WiskeyView } from './embed-view';
 /** The WisKey panel's address on the Home Assistant origin (hikvision_intercom panel.py `frontend_url_path`). */
 export const WISKEY_PANEL_PATH = '/hikvision-intercom';
 /** The only contract version this connector speaks. */
-export const WISKEY_EMBED_VERSION = 1;
+const WISKEY_EMBED_VERSION = 1;
 /** How long after a frame load without a handshake the public marker is looked for (the reference's 12 s). */
 export const WISKEY_DISCOVERY_MS = 12000;
 /** While no panel root is found yet (a slow older build still mounting), discovery looks again this often, up to
@@ -52,7 +52,7 @@ export const WISKEY_DISCOVERY_RETRIES = 36;
 /** The public panel root WisKey marks with `data-embed-api`. */
 export const WISKEY_PANEL_TAG = 'hikvision-intercom-panel';
 
-export interface WiskeyNavItem {
+interface WiskeyNavItem {
   readonly id: string;
   readonly label: string;
 }
@@ -68,7 +68,7 @@ export interface WiskeyLocation {
 }
 
 /** What a navigation request may look like (`tool` omitted or null = the top-level tab). */
-export interface WiskeyTarget {
+interface WiskeyTarget {
   readonly tab: string;
   readonly tool?: string | null;
 }
@@ -83,7 +83,7 @@ export interface WiskeyHost {
 }
 
 /** The frame's window as far as the connector touches it: post to it, and (discovery only) read its origin. */
-export interface WiskeyFrameWindow {
+interface WiskeyFrameWindow {
   postMessage(message: unknown, targetOrigin: string): void;
   readonly location: { readonly origin: string; readonly href?: string };
 }

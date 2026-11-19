@@ -6,15 +6,15 @@ import { apiBlob, get, post, put, del, query } from './client';
 
 export type GrantState = 'requested' | 'approved' | 'provisioning' | 'active' | 'revoking' | 'ended' | 'revoked' | 'refused' | 'failed' | 'unknown';
 export type CodeState = 'not_needed' | 'pending' | 'queued' | 'sent' | 'not_delivered' | 'unknown';
-export type DoorsState = 'desired' | 'accepted' | 'verified_central' | null;
+type DoorsState = 'desired' | 'accepted' | 'verified_central' | null;
 
-export interface GrantDoor {
+interface GrantDoor {
   station_id: string;
   name: string;
   relays: number[];
 }
 
-export interface GrantScope {
+interface GrantScope {
   doors: Record<string, number[]>;
   valid_from: string;
   valid_until: string;
@@ -22,13 +22,13 @@ export interface GrantScope {
   credential: string;
 }
 
-export interface GrantLink {
+interface GrantLink {
   id: string;
   origin: 'created_from_arx' | 'matched';
   state: 'linked' | 'unlinking' | 'wiskey_missing';
 }
 
-export interface GrantClosure {
+interface GrantClosure {
   kind: 'confirmed_gone';
   closed_at: string;
   closed_by_name: string | null;
@@ -89,10 +89,10 @@ export interface Grant {
   first_entry_at?: string | null;
 }
 
-export type CodeMode = 'window' | 'single_entry';
+type CodeMode = 'window' | 'single_entry';
 
 /** EXTERNALBUILD-297 (X1): one line of the read-only readiness check. `unknown` is never shown as ok. */
-export interface ReadinessLine {
+interface ReadinessLine {
   key: string;
   label: string;
   state: 'ok' | 'blocked' | 'unknown';
@@ -114,7 +114,7 @@ export const getReadiness = () => get<Readiness>('access-grants/readiness');
 /** EXTERNALBUILD-297: the main switch, a system administrator's settings action (audited server-side with before / after). */
 export const setExternalGrants = (value: 'on' | 'off') => put<GrantRules & ScreenSettings>('access-grants/settings', { external_grants: value });
 
-export type CardState = 'awaiting' | 'adding' | 'attached' | 'unknown' | 'removed';
+type CardState = 'awaiting' | 'adding' | 'attached' | 'unknown' | 'removed';
 
 /** GRANTS3-295: one row of the owner's per-grant history (ids, states and closed codes only). */
 export interface HistoryRow {
@@ -126,7 +126,7 @@ export interface HistoryRow {
   facts: Record<string, unknown>;
 }
 
-export interface GrantRules {
+interface GrantRules {
   external_grants: 'on' | 'off';
   go_live_permitted: boolean;
   max_days: number;
@@ -140,8 +140,8 @@ export interface GrantRules {
 }
 
 export type Placement = 'access' | 'tickets' | 'both';
-export type DigestChannel = 'app' | 'app_whatsapp';
-export type NameSync = 'manual' | 'auto';
+type DigestChannel = 'app' | 'app_whatsapp';
+type NameSync = 'manual' | 'auto';
 
 export interface ScreenSettings {
   digest_channel: DigestChannel;
@@ -165,13 +165,13 @@ export interface GrantsReply {
   wiskey?: WiskeyFreshness;
 }
 
-export interface WiskeyFreshness {
+interface WiskeyFreshness {
   as_of: string | null;
   reachable: boolean;
   has_copy: boolean;
 }
 
-export interface DigestGap {
+interface DigestGap {
   kind: 'name' | 'scope' | 'idle_person';
   link_id?: string;
   grant_id?: string;
@@ -255,6 +255,7 @@ export async function exportGrantsCsv(lang: 'he' | 'en', liveOnly = false): Prom
   const name = /filename="([^"]+)"/.exec(headers.get('Content-Disposition') ?? '')?.[1] ?? 'external-access.csv';
   return { blob, rows: Number(headers.get('X-Export-Rows') ?? 0), filename: name };
 }
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by SHAREDID-293 (external-access screen).
 export const getScreenSettings = () => get<GrantRules & ScreenSettings>('access-grants/settings');
 export const putScreenSettings = (body: Partial<ScreenSettings>) => put<GrantRules & ScreenSettings>('access-grants/settings', body);
 
@@ -312,7 +313,7 @@ export const pushName = (linkId: string) => post<{ outcome: string; drift: boole
 
 // ---------------------------------------------------------------- ACCESSREQ-293: the manual request form
 
-export interface GrantableRelay {
+interface GrantableRelay {
   relay: number;
   name: string | null;
 }
@@ -380,7 +381,7 @@ export interface RequestBody {
   code_mode?: CodeMode;
 }
 
-export interface RequestReply {
+interface RequestReply {
   grant: Grant;
   outcome: 'created' | 'replaced' | 'merged' | 'widening';
   /** "I approve now": null when not asked (or nothing to approve); a refusal after the request was stored says why */

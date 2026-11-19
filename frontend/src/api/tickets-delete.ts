@@ -12,12 +12,12 @@ import type { BulkAnswer } from './tickets-table';
 
 type MockStore = Awaited<ReturnType<typeof ticketsMock>>['mockStore'];
 
-export interface DeleteCounts { notes: number; photos: number; files: number; links: number; claims: number }
-export interface DeleteAnswer { deleted: true; id: string; number: number; counts: DeleteCounts }
-export interface DeleteBody { reason: string; confirm_number: number; client_request_id: string }
-export interface BulkDeleteBody { ids: string[]; reason: string; confirm_count: number; client_request_id: string }
+interface DeleteCounts { notes: number; photos: number; files: number; links: number; claims: number }
+interface DeleteAnswer { deleted: true; id: string; number: number; counts: DeleteCounts }
+interface DeleteBody { reason: string; confirm_number: number; client_request_id: string }
+interface BulkDeleteBody { ids: string[]; reason: string; confirm_count: number; client_request_id: string }
 
-export interface DeleteBackend {
+interface DeleteBackend {
   remove(id: string, body: DeleteBody): Promise<DeleteAnswer>;
   bulkRemove(body: BulkDeleteBody): Promise<BulkAnswer>;
 }

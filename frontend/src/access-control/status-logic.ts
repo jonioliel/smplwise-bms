@@ -130,7 +130,7 @@ export function zoneOfStation(stations: StatusStation[] | null, id: string | nul
 
 // ---------------------------------------------------------------- the page's headline
 
-export interface Headline {
+interface Headline {
   version: string | null;
   /** true / false when the integration said; null when it did not. */
   connected: boolean | null;
@@ -204,7 +204,7 @@ export function syncRows(sync: SyncStatus | null, nameOf: (id: string) => string
 // ---------------------------------------------------------------- codes (errors, actions, fields)
 
 /** Error codes the page has a word for; any other code is shown as the code. */
-export const ERROR_CODES = [
+const ERROR_CODES = [
   'device_unavailable',
   'revision_conflict',
   'rate_limited',
@@ -242,14 +242,14 @@ export const AUDIT_ACTIONS = [
 export const actionKey = (code: string | null | undefined): string | null => (code && (AUDIT_ACTIONS as readonly string[]).includes(code) ? `act_${code.replace('/', '_')}` : null);
 
 /** The names of the fields an action changed that the page has a word for (`fld_<name>`); any other is shown as the name. */
-export const AUDIT_FIELDS = ['display_name', 'employee_no', 'valid_until', 'valid_from', 'phone', 'groups', 'stations', 'photo', 'pin', 'cards', 'profile', 'access_timing', 'active', 'archived'] as const;
+const AUDIT_FIELDS = ['display_name', 'employee_no', 'valid_until', 'valid_from', 'phone', 'groups', 'stations', 'photo', 'pin', 'cards', 'profile', 'access_timing', 'active', 'archived'] as const;
 export const fieldKey = (name: string | null | undefined): string | null => (name && (AUDIT_FIELDS as readonly string[]).includes(name) ? `fld_${name}` : null);
 
 // ---------------------------------------------------------------- fleet alerts
 
 export const alertKindKey = (kind: string | null | undefined): string => (kind && ['offline', 'sync_stalled', 'sync_conflict', 'sync_error', 'event_gap', 'clock_drift'].includes(kind) ? `alert_${kind}` : 'alert_other');
 
-export type AlertTone = 'err' | 'warn' | 'muted';
+type AlertTone = 'err' | 'warn' | 'muted';
 
 /** A suppressed alert is muted whatever its severity; otherwise the server's severity (an unknown one is a warning, never an error). */
 export function alertTone(a: Pick<FleetAlert, 'severity' | 'suppressed'>): AlertTone {
@@ -287,7 +287,7 @@ export function appendAudit(prev: AuditPage | null, next: AuditPage): AuditPage 
   return { ...next, records: [...prev.records, ...next.records.filter((r) => !seen.has(r.sequence))] };
 }
 
-export type AuditTarget =
+type AuditTarget =
   | { kind: 'person'; name: string | null; employee: string | null }
   | { kind: 'stations'; ids: string[]; more: number }
   | { kind: 'none' };
@@ -327,7 +327,7 @@ export function auditPersonOf(r: Pick<AuditRecord, 'person'>): { id: string; nam
 
 // ---------------------------------------------------------------- groups and fields
 
-export type GroupRule = { kind: 'all' } | { kind: 'none' } | { kind: 'unknown' } | { kind: 'stations'; ids: string[] };
+type GroupRule = { kind: 'all' } | { kind: 'none' } | { kind: 'unknown' } | { kind: 'stations'; ids: string[] };
 
 /** The station rule of a group: every station the page knows, none, "not stated", or the named ones. */
 export function groupRule(g: Pick<PersonGroup, 'station_ids'>, knownStationIds: string[]): GroupRule {
@@ -440,7 +440,7 @@ export const DRIFTS = ['not_measured', 'within_tolerance', 'uncertain', 'ahead',
 export const CLOCKS = ['ready', 'stale', 'unavailable'] as const;
 export const TIME_MODES = ['NTP', 'manual', 'satellite', 'platform', 'NONE', 'GB28181', 'unknown'] as const;
 
-export interface DayHealth {
+interface DayHealth {
   /** YYYY-MM-DD in the station's zone. */
   date: string;
   samples: number;

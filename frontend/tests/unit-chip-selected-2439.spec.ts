@@ -95,8 +95,9 @@ test('Q-DES-3: one fragment draws the selected chip - sw-chip and every local ch
   expect(s).toMatch(/:host\(\[selected\]\) button\.sw-hit:hover:not\(:disabled\) \{ \$\{chipSelectedHover\} transform: none; \}/);
   for (const id of SKIN_IDS) expect(SKINS[id].rules, id).not.toContain('sw-chip[selected]');
   // the local chips that drew the soft pair by hand now import the fragments
+  // (CR-W3B-FE-COMBINED-2443: devices-schedules and mapping-assistant keep their sheets in <screen>-css.ts since CR-STRUCT-CSS-SPLIT-2442)
   for (const f of [
-    'components/notify-css.ts', 'screens/automation-drawer.ts', 'screens/devices-automations.ts', 'screens/devices-schedules.ts', 'screens/mapping-assistant.ts',
+    'components/notify-css.ts', 'screens/automation-drawer.ts', 'screens/devices-automations.ts', 'screens/devices-schedules-css.ts', 'screens/mapping-assistant-css.ts',
     'screens/multimedia-screens.ts', 'screens/schedule-create-dialog.ts', 'screens/system-automations.ts', 'styles/media-page.ts', 'tickets/chip-selected.ts',
     'tickets/list-toolbar.ts', 'tickets/settings-styles.ts', 'tickets/styles.ts', 'tickets/table-styles.ts',
     'calendars/styles.ts', 'insights/styles.ts', 'screens/explore-presence.ts', 'screens/infra-temperature.ts',

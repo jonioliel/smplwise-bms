@@ -9,7 +9,7 @@ import { maintAccess } from './access';
 import { fmtDate } from './model';
 
 /** Fired by the tickets API after a request was closed (`api/tickets.ts`); the detail carries the request id. */
-export const TICKET_CLOSED_EVENT = 'sw:ticket-closed';
+const TICKET_CLOSED_EVENT = 'sw:ticket-closed';
 
 /**
  * Closing the request a plan opened (owner review 24.10): the system ASKS the person who closed it whether to mark the plan done -

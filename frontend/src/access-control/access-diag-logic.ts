@@ -23,11 +23,11 @@ export const DIAG_ROUTE = '/wiskey/access-diag';
 export const diagHref = (view: DiagView): string => `#${DIAG_ROUTE}${view === 'scenario' ? '' : `?view=${view}`}`;
 
 /** The features a view needs (GET /access-control/diag `features`); the server's names. */
-export const VIEW_FEATURE: Record<DiagView, string> = {
+const VIEW_FEATURE: Record<DiagView, string> = {
   scenario: 'scenario', compare: 'compare', reviews: 'reviews', quality: 'quality', lifecycle: 'lifecycle', audit: 'permission_audit', sync: 'sync',
 };
 /** The views that show people (need `can.people`). */
-export const PEOPLE_VIEWS: readonly DiagView[] = ['scenario', 'compare', 'reviews', 'quality', 'lifecycle', 'audit'];
+const PEOPLE_VIEWS: readonly DiagView[] = ['scenario', 'compare', 'reviews', 'quality', 'lifecycle', 'audit'];
 
 /** Whether a view can be used: offered by the installed system (unknown = try) and, for a people view, the caller may see people. */
 export function viewState(home: DiagHome | null, view: DiagView): 'ok' | 'unsupported' | 'people' {
@@ -113,7 +113,7 @@ export function validityText(from: string | null | undefined, until: string | nu
 
 // ---------------------------------------------------------------- the scenario's explanation
 
-export type LineTone = 'ok' | 'bad' | 'warn' | 'info';
+type LineTone = 'ok' | 'bad' | 'warn' | 'info';
 export interface Line {
   id: string;
   tone: LineTone;

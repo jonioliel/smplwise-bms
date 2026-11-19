@@ -13,7 +13,7 @@
 import { getMyPrefs, putMyPrefs } from '../api/me-prefs';
 import { tr } from '../i18n/msg/shell';
 
-export type NavPreset = 's' | 'm' | 'l' | 'xl';
+type NavPreset = 's' | 'm' | 'l' | 'xl';
 export type NavSize = { mode: 'rel'; preset: NavPreset } | { mode: 'free'; icon: number; label: number; item: number };
 
 export const NAV_PRESETS: readonly NavPreset[] = ['s', 'm', 'l', 'xl'];
@@ -88,12 +88,6 @@ export function nearestPreset(s: NavSize): NavPreset {
 export function usableNavSize(v: unknown): NavSize | null {
   const n = normalizeNavSize(v);
   return n && n.mode === 'free' ? { mode: 'rel', preset: nearestPreset(n) } : n;
-}
-/** The free sizes a preset stands for (the "חופשי" editor starts from the current preset). */
-export function freeFrom(size: NavSize): Extract<NavSize, { mode: 'free' }> {
-  if (size.mode === 'free') return size;
-  const p = PRESET_DIMS[size.preset];
-  return { mode: 'free', icon: p.icon, label: Math.round(p.label), item: p.item };
 }
 
 export function navDims(size: NavSize): NavDims {

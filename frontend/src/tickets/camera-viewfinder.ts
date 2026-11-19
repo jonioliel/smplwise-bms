@@ -57,11 +57,10 @@ const en: typeof he = {
   live: 'Live camera preview',
   still: 'The photo taken',
 };
-export type ViewfinderTextKey = keyof typeof he;
+type ViewfinderTextKey = keyof typeof he;
 export const vft = (k: ViewfinderTextKey): string => (ticketsLang() === 'en' ? en : he)[k];
 /** One short line per failure, always pointing at the unchanged file-input tile ("הוספה"). */
 export const vfFailText = (reason: CameraFailure): string => vft(`fail_${reason}` as ViewfinderTextKey);
-export const VIEWFINDER_TEXT = { he, en };
 
 type Phase = 'closed' | 'starting' | 'live' | 'review';
 

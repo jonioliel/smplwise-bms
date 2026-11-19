@@ -18,6 +18,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { PollController } from '../components/poll-controller';
 import { tr } from '../i18n/msg/investigate';
+import { ltrStyles } from '../styles/fragments';
 
 const STATE_LABEL: Record<ExportJob['state'], string> = { queued: tr('ממתין'), running: tr('מוריד'), done: tr('הושלם'), partial: tr('חלקי'), failed: tr('נכשל'), cancelled: tr('בוטל'), interrupted: tr('הופסק'), paused_disk_full: tr('מושהה · אין מקום בדיסק') };
 const STATE_KIND: Record<ExportJob['state'], StateKind> = { queued: 'neutral', running: 'live', done: 'recorded', partial: 'partial', failed: 'error', cancelled: 'unknown', interrupted: 'stale', paused_disk_full: 'stale' };
@@ -216,10 +217,7 @@ export class InvestigateExports extends LitElement {
     .actions a {
       text-decoration: none;
     }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+    ${ltrStyles}
     .warn {
       font-size: var(--sw-fs-sm);
       color: var(--sw-warning-text);

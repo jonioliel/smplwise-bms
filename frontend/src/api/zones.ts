@@ -21,7 +21,7 @@ export const ZONE_KINDS: { id: ZoneKind; label: string }[] = [
 
 export const zoneKindLabel = (kind: string) => ZONE_KINDS.find((k) => k.id === kind)?.label ?? kind;
 
-export interface RoomCandidate {
+interface RoomCandidate {
   index: number;
   polygon: ZonePoint[];
   area_ratio: number;
@@ -67,14 +67,14 @@ export interface ShareRequest {
   rotation_deg?: number;
   auto?: boolean;
 }
-export interface ShareCandidate {
+interface ShareCandidate {
   zone_id: string;
   name: string;
   name_score: number;
   overlap: number | null;
   score: number;
 }
-export interface ShareAnchorFate {
+interface ShareAnchorFate {
   anchor_id: string;
   floor_id: string;
   resource_type: 'camera' | 'ha_entity';
@@ -160,22 +160,3 @@ export function pointInPolygon(p: ZonePoint, poly: ZonePoint[]): boolean {
   return inside;
 }
 
-/** Polygon centroid (area-weighted; falls back to the vertex mean for degenerate rings). */
-export function zoneCentroid(poly: ZonePoint[]): ZonePoint {
-  let a = 0;
-  let cx = 0;
-  let cy = 0;
-  for (let i = 0; i < poly.length; i++) {
-    const p = poly[i];
-    const q = poly[(i + 1) % poly.length];
-    const f = p.x * q.y - q.x * p.y;
-    a += f;
-    cx += (p.x + q.x) * f;
-    cy += (p.y + q.y) * f;
-  }
-  if (Math.abs(a) < 1e-9) {
-    const n = poly.length || 1;
-    return { x: poly.reduce((s, p) => s + p.x, 0) / n, y: poly.reduce((s, p) => s + p.y, 0) / n };
-  }
-  return { x: cx / (3 * a), y: cy / (3 * a) };
-}

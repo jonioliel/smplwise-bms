@@ -211,7 +211,7 @@ export const MP_TABLES: Record<Lang, Record<Key, string>> = { he, en, ar, ru };
 export const MP_DEV_MARKED: readonly Lang[] = ['ar', 'ru'];
 export const MP_KEYS = Object.keys(he) as Key[];
 
-export function mpLang(): Lang {
+function mpLang(): Lang {
   return docLang(['en', 'ar', 'ru']);
 }
 

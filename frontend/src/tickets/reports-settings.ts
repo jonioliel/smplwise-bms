@@ -9,6 +9,7 @@ import { ticketsApi, type SettingsDoc } from '../api/tickets';
 import { vrt } from '../i18n/vendor-reports';
 import { ticketSettingsCss } from './settings-styles';
 import { REPORT_LIMITS, documentFieldsEnabled, limitedInt, numberPatch, reportsOf, subControlsEnabled, type ReportsPatch, type ReportsSettings } from './reports-settings-model';
+import { hostBlockStyles } from '../styles/fragments';
 
 /**
  * VENDORQ2-295: Settings > the module > message channel > "Reports to vendors" (system.configure - the administrators; the server checks
@@ -25,7 +26,7 @@ export class TicketsReportsSettings extends LitElement {
   @state() private opensDraft = '';
 
   static styles = [settingsStyles, ticketSettingsCss, css`
-    :host { display: block; min-inline-size: 0; }
+    ${hostBlockStyles}
     input.in.short { inline-size: 6em; }
   `];
 

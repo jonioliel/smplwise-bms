@@ -15,7 +15,7 @@ export function handlerMessageApplies(o: { outside: boolean; pickedStaff: boolea
   return o.outside || o.pickedStaff;
 }
 
-export type MessageTarget = 'vendor' | 'handler';
+type MessageTarget = 'vendor' | 'handler';
 
 /** The label word: "message to the vendor" for a vendor, "message to the handler" for a person or a staff contact. */
 export function messageTarget(o: { outside: boolean; vendor: boolean }): MessageTarget {
@@ -28,7 +28,7 @@ export function outgoingMessage(raw: string, applies: boolean): string {
   return raw.trim().slice(0, HANDLER_MESSAGE_MAX);
 }
 
-export interface AssignPlan {
+interface AssignPlan {
   /** the body of the assign call: the internal note only, never external */
   note: string | null;
   note_external: false;

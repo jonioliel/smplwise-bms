@@ -19,7 +19,7 @@ export interface CameraPose {
   target: Vec3;
   zoom: number;
 }
-export interface FocusFrame {
+interface FocusFrame {
   /** The camera's right and up unit vectors (world). */
   right: Vec3;
   up: Vec3;
@@ -31,8 +31,8 @@ export interface FocusFrame {
   stageH: number;
 }
 /** The room's larger side fills this share of the free space's shorter side. */
-export const FOCUS_FILL = 0.62;
-export const FOCUS_MS = 420;
+const FOCUS_FILL = 0.62;
+const FOCUS_MS = 420;
 const MAX_ZOOM = 6;
 
 const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];

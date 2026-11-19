@@ -23,7 +23,7 @@ export class ApiError extends Error {
 }
 
 /** Base for API calls: `<page dir>/api/v1/`. Under Ingress the page dir is `/api/hassio_ingress/<token>/`. */
-export function apiBase(): URL {
+function apiBase(): URL {
   return new URL('api/v1/', document.baseURI);
 }
 
@@ -32,7 +32,7 @@ export function apiUrl(path: string): string {
 }
 
 /** A value `path` / `query` put into an address. */
-export type PathValue = string | number | boolean;
+type PathValue = string | number | boolean;
 
 /**
  * CR-API-PATHS-2439 (review 07:F15): an API path whose every interpolated value is ONE encoded segment.
@@ -131,7 +131,7 @@ export function apiResponse(path: string, init: RequestInit = {}): Promise<Respo
   return fetchApi(path, init);
 }
 
-export interface BlobReply {
+interface BlobReply {
   blob: Blob;
   headers: Headers;
 }
@@ -184,7 +184,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 /** CR-API-BLOB-2436 (07:F16): an optional abort signal for the helpers. A GET with a signal is never shared with another caller. */
-export interface CallOptions {
+interface CallOptions {
   signal?: AbortSignal;
 }
 const withSignal = (init: RequestInit, opts?: CallOptions): RequestInit => (opts?.signal ? { ...init, signal: opts.signal } : init);

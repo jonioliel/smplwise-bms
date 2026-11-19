@@ -21,7 +21,7 @@ export interface Seg {
   w?: number;
 }
 
-export interface CoverageMarker {
+interface CoverageMarker {
   x: number;
   y: number;
   rotation: number;
@@ -43,7 +43,7 @@ export function hasWallsOnLevel(doc: Pick<GeometryDoc, 'walls'>, level: string):
 
 /** The ids of the anchored doors that are open under `entityStates`, as a key: the only part of the states that changes
  * the blocking segments. */
-export function doorStateKey(doc: Pick<GeometryDoc, 'openings'>, entityStates: Record<string, string | null>): string {
+function doorStateKey(doc: Pick<GeometryDoc, 'openings'>, entityStates: Record<string, string | null>): string {
   return doc.openings
     .filter((o) => o.kind === 'door' && o.anchor_ref?.resource_type === 'ha_entity' && isOpenState(entityStates[o.anchor_ref.resource_id]))
     .map((o) => o.id)

@@ -13,7 +13,7 @@ import { tr } from '../i18n/msg/home';
 const shekels = (n: number) => html`<span class="num">${ils(n)}</span><span class="cur"> ₪</span>`;
 
 /** Open the bill file: the tab opens inside the click (no pop-up blocker), the file follows; without a tab it is saved instead. */
-export async function openBillFile(p: P3, id: string, name: string): Promise<void> {
+async function openBillFile(p: P3, id: string, name: string): Promise<void> {
   const w = window.open('', '_blank');
   try {
     const res = await fetch(apiUrl(`energy/bills/${encodeURIComponent(id)}/pdf`), { credentials: 'same-origin' });

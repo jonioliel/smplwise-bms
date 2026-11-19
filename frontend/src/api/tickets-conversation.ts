@@ -18,7 +18,7 @@ import { post } from './client';
 import { isApi } from './session';
 import { ticketsApi, ticketsMock, type TicketDetail } from './tickets';
 
-export interface VendorMessageAnswer {
+interface VendorMessageAnswer {
   item?: unknown;
   notified?: { queued: boolean; channel: 'whatsapp' | 'email' | 'manual' | null };
 }
@@ -33,7 +33,7 @@ async function demoMessage(id: string, text: string, fromNote: string | null): P
   return mockStore.view(t);
 }
 
-export interface ConversationBackend {
+interface ConversationBackend {
   vendorMessage(id: string, text: string, opts?: { notify?: boolean; source?: { kind: 'quote' | 'claim' | 'note'; id: string } }): Promise<VendorMessageAnswer>;
   forwardNote(id: string, eventId: string, text: string, opts?: { notify?: boolean }): Promise<VendorMessageAnswer>;
   teamNote(id: string, text: string): Promise<TicketDetail>;

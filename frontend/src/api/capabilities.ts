@@ -11,7 +11,7 @@ import { tr } from '../i18n/msg/api-core';
 
 export type CapabilityName = 'nvr' | 'go2rtc' | 'ha' | 'live_video' | 'playback' | 'events_recorder' | 'events_ha' | 'ha_cameras_still' | 'ha_cameras_live' | 'cameras_available';
 
-export interface RecorderCaps {
+interface RecorderCaps {
   id: string;
   vendor: string;
   live: boolean;

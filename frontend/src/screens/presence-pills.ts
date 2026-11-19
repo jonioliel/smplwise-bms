@@ -2,6 +2,7 @@ import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { CompactRoom } from '../api/building-presence-logic';
 import { BP } from '../i18n/building-presence';
+import { hostBlockStyles } from '../styles/fragments';
 
 /**
  * PRESENCE-COMPACT-2310 `<presence-pills>`: the compact card's row of room pills (round-9 mockup, direction A). As many WHOLE pills as fit in
@@ -20,7 +21,7 @@ export class PresencePills extends LitElement {
   private lastW = -1;
 
   static styles = css`
-    :host { display: block; min-inline-size: 0; }
+    ${hostBlockStyles}
     .box { display: flex; flex-wrap: nowrap; gap: 6px; min-inline-size: 0; overflow: hidden; }
     :host([rows='2']) .box { flex-wrap: wrap; max-block-size: calc(24px * 2 + 6px); }
     .r {

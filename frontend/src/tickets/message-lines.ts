@@ -19,7 +19,7 @@ export function when(iso: string | null | undefined, now: Date = new Date()): st
   return sameDay(d, now) ? `${p(d.getHours())}:${p(d.getMinutes())}` : shortDateTime(iso);
 }
 
-export interface MessageLine {
+interface MessageLine {
   text: string;
   tone: 'ok' | 'run' | 'bad' | '';
 }
@@ -57,7 +57,7 @@ export function purposeLabel(p: string): string {
   return PURPOSE_KEYS[p] ? mtt(PURPOSE_KEYS[p]) : p;
 }
 
-export interface AssignLines {
+interface AssignLines {
   /** "יישלח בוואטסאפ · <account>" / "יישלח במייל" */
   via: string;
   /** the WhatsApp account cannot send now: the message waits, then falls back (9.9.4) - '' when it can (or the server did not say) */

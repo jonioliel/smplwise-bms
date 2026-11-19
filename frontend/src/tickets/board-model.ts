@@ -9,7 +9,7 @@ import { bt, type BoardTextKey } from './board-text';
 import { shortDateTime } from './model';
 
 export const BOARD_HREF = '#/tickets/board';
-export const BOARD_STATES: readonly BoardState[] = ['all', 'waiting', 'stuck', 'unassigned', 'closed'];
+const BOARD_STATES: readonly BoardState[] = ['all', 'waiting', 'stuck', 'unassigned', 'closed'];
 
 export interface BoardRoute {
   state: BoardState;
@@ -70,7 +70,7 @@ export function groupingOn(grouping: Grouping, state: BoardState): boolean {
   return state === 'all';
 }
 
-export interface StripItem { id: BoardState; label: string; count: number }
+interface StripItem { id: BoardState; label: string; count: number }
 
 /** D21: the state strip - הכול · ממתינות לי · תקועות · ללא מטפל, then "נסגרו השבוע" / "סגורות (הכול)" / nothing. */
 export function stripItems(closed: ClosedStrip, c: BoardCounts): StripItem[] {
@@ -85,7 +85,7 @@ export function stripItems(closed: ClosedStrip, c: BoardCounts): StripItem[] {
   return out;
 }
 
-export interface FloorsLayout {
+interface FloorsLayout {
   /** the side tree is drawn next to the cards */
   tree: boolean;
   /** the floor chips row is drawn under the title */

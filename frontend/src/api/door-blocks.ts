@@ -11,7 +11,7 @@ import { get, put } from './client';
 
 export type BlockState = 'blocked' | 'unblocked' | 'door';
 
-export interface DoorBlockOverride {
+interface DoorBlockOverride {
   note: string;
   /** The administrator's name (the id when no name was known). */
   by: string;

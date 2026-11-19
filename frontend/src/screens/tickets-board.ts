@@ -102,7 +102,7 @@ export class TicketsBoard extends TicketsViewBase {
     }
     .sidehead b {
       font-size: var(--sw-fs-sm);
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       color: var(--dv-text-2);
     }
     .sidehead .btn {
@@ -123,7 +123,7 @@ export class TicketsBoard extends TicketsViewBase {
       background: var(--dv-warning-soft);
       color: var(--au-warn-text);
       font-size: var(--sw-fs-sm);
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       font-variant-numeric: tabular-nums;
     }
     .seg button small,
@@ -144,7 +144,7 @@ export class TicketsBoard extends TicketsViewBase {
       background: color-mix(in srgb, var(--dv-text) 8%, transparent);
       color: var(--dv-text-2);
       font-size: var(--sw-fs-xs);
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
     }
     .rc[aria-pressed='true'] small {
       background: color-mix(in srgb, currentColor 18%, transparent);

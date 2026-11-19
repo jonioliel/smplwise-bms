@@ -1,7 +1,7 @@
 /** NN5-F1B: the pure logic of the review screen (selection, keys, optimistic reviewed state, grouping of the list state). */
 import type { ReviewItem, ReviewList } from '../api/frigate';
 
-export type ReviewKeyAction = 'next' | 'prev' | 'first' | 'last' | 'toggle-select' | 'toggle-reviewed' | 'open' | 'select-all' | 'escape' | null;
+type ReviewKeyAction = 'next' | 'prev' | 'first' | 'last' | 'toggle-select' | 'toggle-reviewed' | 'open' | 'select-all' | 'escape' | null;
 
 /** The keys of the screen. Typing in a field is never a shortcut (the caller passes the event's target tag). */
 export function keyAction(e: { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; target?: { tagName?: string; isContentEditable?: boolean } | null; path?: readonly string[] }): ReviewKeyAction {
@@ -97,7 +97,7 @@ export function applyReviewed(list: ReviewList, ids: readonly string[], reviewed
 }
 
 /** What the list area shows (the order of the checks is the screen's contract). */
-export type ReviewView = 'loading' | 'forbidden' | 'error' | 'offline-empty' | 'empty' | 'all-reviewed' | 'ready';
+type ReviewView = 'loading' | 'forbidden' | 'error' | 'offline-empty' | 'empty' | 'all-reviewed' | 'ready';
 
 export function viewOf(s: { loading: boolean; forbidden: boolean; error: string; list: ReviewList | null; statusUnreviewed: boolean }): ReviewView {
   if (s.forbidden) return 'forbidden';

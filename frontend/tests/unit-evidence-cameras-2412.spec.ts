@@ -95,5 +95,5 @@ test('the "cameras without a recorder" rows wrap their actions instead of runnin
 });
 
 test('the camera screen styles its "to settings" link (not the browser default blue on the dark video area)', () => {
-  expect(read('screens/live-camera.ts')).toMatch(/\.center\[data-webrtc-required\] a \{\s*color: inherit;/);
+  expect(read('screens/live-camera-css.ts')).toMatch(/\.center\[data-webrtc-required\] a \{\s*color: inherit;/);
 });

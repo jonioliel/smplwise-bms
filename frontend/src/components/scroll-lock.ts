@@ -20,14 +20,14 @@ interface Lock {
 const locks = new Map<HTMLElement, Lock>();
 
 /** The width of the classic (space-taking) vertical scrollbar `el` shows now; 0 with overlay scrollbars or no scrollbar. */
-export function scrollbarWidth(el: HTMLElement): number {
+function scrollbarWidth(el: HTMLElement): number {
   if (el === document.documentElement) return Math.max(0, window.innerWidth - el.clientWidth);
   const cs = getComputedStyle(el);
   const borders = (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0);
   return Math.max(0, el.offsetWidth - el.clientWidth - borders);
 }
 
-export function lockElement(el: HTMLElement): void {
+function lockElement(el: HTMLElement): void {
   const l = locks.get(el);
   if (l) {
     l.n++;
@@ -38,7 +38,7 @@ export function lockElement(el: HTMLElement): void {
   el.style.overflow = 'hidden';
 }
 
-export function unlockElement(el: HTMLElement): void {
+function unlockElement(el: HTMLElement): void {
   const l = locks.get(el);
   if (!l) return;
   if (--l.n > 0) return;

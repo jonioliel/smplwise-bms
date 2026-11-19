@@ -26,7 +26,7 @@ export function quoting(screen: RfqScreen): boolean {
   return screen === 'open' || screen === 'declined';
 }
 
-export interface RfqNext {
+interface RfqNext {
   /** a message key of rfq-text.ts (or strings.ts for the code keys), shown in the banner */
   message: string | null;
   n?: number;
@@ -311,7 +311,7 @@ export function safeMapUrl(url: string | null | undefined): string {
 
 // ---------------------------------------------------------------- CR-RFQ-PAYMENT-SCHEDULE: the proposed payment schedule (contract 20.2)
 
-export type PayMode = 'percent' | 'amount';
+type PayMode = 'percent' | 'amount';
 export type FinalDue = 'completion' | 'date' | 'after_completion';
 export interface PayItemDraft { key: string; kind: 'advance' | 'progress'; mode: PayMode; value: string; date: string }
 export interface PayDraft { items: PayItemDraft[]; due: FinalDue; date: string; days: string }

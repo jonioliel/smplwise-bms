@@ -17,13 +17,6 @@ function insideComposed(node: Node | null, root: Node): boolean {
 }
 
 const PHONE = '(max-width: 767px)';
-const reducedMotion = () => {
-  try {
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  } catch {
-    return false;
-  }
-};
 
 /**
  * The pop-up of the Bubble foundation (owner 2026-10-02): ONE translucent sheet component for every pop-up.
@@ -485,8 +478,6 @@ export class SwSheet extends LitElement {
       </section>`;
   }
 }
-
-export { reducedMotion as sheetReducedMotion };
 
 declare global {
   interface HTMLElementTagNameMap {

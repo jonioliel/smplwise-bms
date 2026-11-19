@@ -15,7 +15,7 @@ export interface Enrolment {
   issuer: string;
 }
 
-export interface FactorUsers {
+interface FactorUsers {
   policy: 'optional' | 'admins';
   users: { user_id: string; enabled_at: string | null; last_used_at: string | null }[];
 }

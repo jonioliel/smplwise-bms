@@ -20,8 +20,8 @@ export const WISKEY_WALLS = ['4', '9', '12'] as const;
 export const WISKEY_AUTO = 'auto';
 
 /** What is stored, for the user or the installation: a value, `auto`, or nothing (null / undefined). */
-export type WiskeyChoice = string | number | null | undefined;
-export interface WiskeyChoices {
+type WiskeyChoice = string | number | null | undefined;
+interface WiskeyChoices {
   density?: WiskeyChoice;
   wall?: WiskeyChoice;
 }
@@ -30,8 +30,6 @@ export interface WiskeyView {
   density: string | null;
   wall: string | null;
 }
-
-export const NO_VIEW: WiskeyView = { density: null, wall: null };
 
 function pick(value: unknown, allowed: readonly string[]): string | null {
   if (typeof value !== 'string' && typeof value !== 'number') return null;

@@ -27,7 +27,7 @@ export interface RecorderHealthCard {
   vendor_details?: Record<string, unknown> | null;
 }
 
-export interface RecorderHealthList {
+interface RecorderHealthList {
   recorders: RecorderHealthCard[];
   interval_s: number;
   can_manage: boolean;
@@ -48,7 +48,7 @@ export interface HealthThresholds {
 
 export type CameraRecordingMode = 'continuous' | 'events';
 
-export interface CameraChoice {
+interface CameraChoice {
   id: string;
   name: string;
   recorder_id: string;

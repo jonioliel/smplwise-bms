@@ -11,6 +11,7 @@ import { calCss } from './styles';
 import { tr } from '../i18n/msg/calendars';
 import { BEHALF_LABEL, repeatSummary, type Repeat } from './booking-logic';
 import { deleteLabel, durText, instantAt, openOn, placePopover, type Hint } from './grid-logic';
+import { errLineStyles } from '../styles/fragments';
 
 /** The quick create's draft (the selection on the grid + what the popover adds). Minutes are local minutes of `day`. */
 export interface QuickDraft {
@@ -61,7 +62,7 @@ const overlayCss = css`
   .st.info > sw-icon { color: var(--sw-accent-text); }
   .st.bad { background: var(--sw-danger-soft); }
   .st.bad > sw-icon, .st.bad b { color: var(--sw-danger-text); }
-  .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+  ${errLineStyles}
   kbd { font: inherit; font-size: var(--sw-fs-2xs); border: 1px solid var(--sw-border-strong); border-block-end-width: 2px; border-radius: var(--sw-r-2xs); padding: 0 4px; background: var(--sw-surface-2); }
   .kb { margin-inline-start: auto; font-size: var(--sw-fs-xs); color: var(--sw-text-3); white-space: nowrap; }
   .x { inline-size: 32px; min-block-size: 32px; border: 0; background: transparent; }

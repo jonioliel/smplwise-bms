@@ -19,7 +19,7 @@
  *                                         DOOR_PERMISSIONS; the server's per-station door answer decides)
  * The labels must equal the backend's routers/access.py PERMISSION_LABELS (tests/test_intercom_authority.py compares them).
  */
-import { canAnywhere, isApi, onSession } from '../api/session';
+import { canAnywhere, isApi } from '../api/session';
 import { tr } from '../i18n/msg/misc';
 
 export const ACCESS_CONTROL_PERMISSIONS = [
@@ -103,7 +103,3 @@ export function accessControlAccess(): AccessControlAccess {
   };
 }
 
-/** Calls `fn` now and whenever the session (and so the permissions) changes. Returns the stop function. */
-export function onAccessControlAccess(fn: (a: AccessControlAccess) => void): () => void {
-  return onSession(() => fn(accessControlAccess()));
-}

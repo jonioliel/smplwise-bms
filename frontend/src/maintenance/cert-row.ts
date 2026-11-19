@@ -5,6 +5,7 @@ import { maintApi, type Task } from '../api/maintenance';
 import { mt } from '../i18n/maintenance';
 import { maintAccess, onMaintAccess, refreshMaintenance, type MaintAccess } from './access';
 import { badgeText, certRowOf } from './model';
+import { hostBlockStyles } from '../styles/fragments';
 
 /**
  * The "certificates and inspections" row of an elevator's or a generator's card (owner review 24.10): the nearest inspection or
@@ -22,7 +23,7 @@ export class MaintCertRow extends LitElement {
   private loadedFor = '';
 
   static styles = css`
-    :host { display: block; min-inline-size: 0; }
+    ${hostBlockStyles}
     :host([hidden]) { display: none; }
     .r { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--sw-fs-sm); color: var(--sw-text-2); padding-block-start: 6px; border-block-start: 1px solid var(--sw-border); }
     .r .lbl { display: inline-flex; align-items: center; gap: 6px; font-weight: var(--sw-fw-semibold); color: var(--sw-text-2); }

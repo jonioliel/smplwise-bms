@@ -13,9 +13,9 @@
  * Only localStorage: HA never reads sessionStorage. In the `browser_session` mode the seed is removed at sign-out and at
  * the next Arx start without a session (auth.ts).
  */
-export const HASS_TOKENS_KEY = 'hassTokens';
+const HASS_TOKENS_KEY = 'hassTokens';
 
-export interface HassAuthData {
+interface HassAuthData {
   hassUrl: string;
   clientId: string | null;
   expires: number;

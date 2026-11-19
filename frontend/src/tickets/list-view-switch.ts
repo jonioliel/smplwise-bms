@@ -9,7 +9,7 @@ import { lt, type ListTextKey } from './list-text';
  */
 export type ListMode = 'cards' | 'table' | 'board' | 'calendar';
 
-export interface ListModeDef {
+interface ListModeDef {
   id: ListMode;
   icon: ListIconName;
   label: ListTextKey;

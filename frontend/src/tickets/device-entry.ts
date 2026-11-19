@@ -16,7 +16,7 @@ import { canAnywhere, session } from '../api/session';
 import { ticketsModuleOn } from '../shell/nav';
 
 export type LongPressMode = 'sheet' | 'menu';
-export type DeviceTab = 'activity' | 'schedules' | 'tickets';
+type DeviceTab = 'activity' | 'schedules' | 'tickets';
 export type MenuItem = 'device' | 'activity' | 'schedules' | 'ticket_new' | 'tickets';
 export type Held = (permission: string) => boolean;
 
@@ -39,13 +39,13 @@ export function deviceTicketsOn(held: Held = canAnywhere, moduleOn: boolean = ti
   return moduleOn && held('tickets.view') && held('devices.read');
 }
 
-export interface PressContext {
+interface PressContext {
   tracked: boolean;
   on: boolean;
   mode: LongPressMode;
 }
 
-export type PressPlan = { kind: 'sheet'; tab: DeviceTab } | { kind: 'menu' } | null;
+type PressPlan = { kind: 'sheet'; tab: DeviceTab } | { kind: 'menu' } | null;
 
 /** What a completed LONG PRESS does (the matrix above). */
 export function pressPlan(c: PressContext): PressPlan {
@@ -67,7 +67,7 @@ export function sheetTabs(c: Pick<PressContext, 'tracked' | 'on'>): DeviceTab[] 
   return tabs;
 }
 
-export interface MenuContext extends PressContext {
+interface MenuContext extends PressContext {
   /** the menu was opened by a long press (mode `menu`) rather than by a right click / the menu key */
   source: 'press' | 'context';
   /** the host row has an "open" tap action of its own */

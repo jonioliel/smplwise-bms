@@ -852,9 +852,9 @@ const en: Partial<Record<Key, string>> = {
 };
 
 export type MtKey = Key;
-export type MtLang = 'he' | 'en' | 'ar' | 'ru';
+type MtLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function mtLang(): MtLang {
+function mtLang(): MtLang {
   return docLang(['en', 'ar', 'ru']);
 }
 

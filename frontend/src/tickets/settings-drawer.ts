@@ -28,7 +28,7 @@ export function drawerSettingsRows(ui: Partial<UiSettings> | undefined, busy: bo
 }
 
 /** CR-CAMVF-295 (docs/changes/CR-CAMVF-295-SECURITY.md): the kill switch of the live in-page camera (`ui.camera_viewfinder`, default off). */
-export function cameraViewfinderRow(ui: Partial<UiSettings> | undefined, busy: boolean, save: (patch: Partial<UiSettings>) => void): TemplateResult {
+function cameraViewfinderRow(ui: Partial<UiSettings> | undefined, busy: boolean, save: (patch: Partial<UiSettings>) => void): TemplateResult {
   const on = ui?.camera_viewfinder === true;
   const opt = (value: boolean) => html`<button type="button" role="radio" aria-pressed=${String(on === value)} aria-checked=${String(on === value)}
     data-ui-drawer=${`camera_viewfinder:${value ? 'on' : 'off'}`} ?disabled=${busy} @click=${() => save({ camera_viewfinder: value })}>${vft(value ? 'set_on' : 'set_off')}</button>`;

@@ -47,8 +47,8 @@ export const listenSocketUrl = (wsPath: string): string => relayWsUrl(wsPath);
 
 /** The settings key (routers/settings.py) and its three values, in the order Settings offers them. */
 export const STATION_LISTEN_KEY = 'access.station_listen';
-export const STATION_LISTEN_MODES = ['off', 'on', 'probe'] as const;
-export type StationListenMode = (typeof STATION_LISTEN_MODES)[number];
+const STATION_LISTEN_MODES = ['off', 'on', 'probe'] as const;
+type StationListenMode = (typeof STATION_LISTEN_MODES)[number];
 
 /** The administrator setting as the screen reads it; anything unreadable is `off`. */
 export function parseListenMode(settings: Record<string, unknown> | null | undefined): StationListenMode {

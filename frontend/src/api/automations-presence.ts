@@ -7,12 +7,12 @@ import type { Duration } from './automations';
 import { tr } from '../i18n/msg/api-automation';
 
 export const MAX_MINUTES = 1440;
-export type PresenceMode = 'occupied' | 'empty';
+type PresenceMode = 'occupied' | 'empty';
 const LIST = String.raw`\[((?:'[a-z0-9_]+\.[a-z0-9_]+'(?:, )?)+)\]`;
 const EMPTY_RE = new RegExp(String.raw`^\{\{ ${LIST} \| reject\('is_state', 'off'\) \| list \| count == 0 \}\}$`);
 const OCCUPIED_RE = new RegExp(String.raw`^\{\{ ${LIST} \| select\('is_state', 'on'\) \| list \| count > 0 \}\}$`);
 
-export function templateFor(mode: PresenceMode, sensors: readonly string[]): string {
+function templateFor(mode: PresenceMode, sensors: readonly string[]): string {
   const lst = `[${sensors.map((s) => `'${s}'`).join(', ')}]`;
   return mode === 'occupied' ? `{{ ${lst} | select('is_state', 'on') | list | count > 0 }}` : `{{ ${lst} | reject('is_state', 'off') | list | count == 0 }}`;
 }
@@ -34,7 +34,7 @@ export function minutesOf(d: Duration | null | undefined): number | null {
   const secs = (d.hours ?? 0) * 3600 + (d.minutes ?? 0) * 60 + (d.seconds ?? 0);
   return secs > 0 && secs % 60 === 0 && secs / 60 <= MAX_MINUTES ? secs / 60 : null;
 }
-export const durationOf = (minutes: number): Duration => ({ hours: Math.floor(minutes / 60), minutes: minutes % 60, seconds: 0 });
+const durationOf = (minutes: number): Duration => ({ hours: Math.floor(minutes / 60), minutes: minutes % 60, seconds: 0 });
 
 export function buildTrigger(b: { sensors: readonly string[]; minutes: number }): Record<string, unknown> {
   return { trigger: 'template', value_template: templateFor('empty', b.sensors), for: durationOf(b.minutes) };

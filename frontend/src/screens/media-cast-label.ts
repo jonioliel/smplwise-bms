@@ -25,7 +25,7 @@ export const CAST_REASON_LABEL: Record<CastReason, string> = {
   kind: tr('סוג ההתקן אינו מציג תמונה'),
 };
 
-export interface CastChip {
+interface CastChip {
   /** The sw-badge kind. */
   kind: 'live' | 'neutral' | 'unknown';
   label: string;

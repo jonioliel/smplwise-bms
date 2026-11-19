@@ -3,7 +3,7 @@
  * No DOM and no network: unit specs run it in Node, and the TV page (a separate bundle) imports it too. The server decides what a screen may show
  * and until when; this only decides how the text is laid out so it fits the viewport without scrolling, and when the overlay is visible.
  */
-export type ScreenLang = 'he' | 'en' | 'ru' | 'ar';
+type ScreenLang = 'he' | 'en' | 'ru' | 'ar';
 
 export interface ScreenAnnouncement {
   id: string;
@@ -15,14 +15,14 @@ export interface ScreenAnnouncement {
   texts: { language: ScreenLang; text: string; machine?: boolean }[];
 }
 
-export type OverlaySize = 'xl' | 'l' | 'm' | 's' | 'xs';
+type OverlaySize = 'xl' | 'l' | 'm' | 's' | 'xs';
 
 const RTL: ScreenLang[] = ['he', 'ar'];
 export const dirOf = (l: ScreenLang): 'rtl' | 'ltr' => (RTL.includes(l) ? 'rtl' : 'ltr');
 
 /** The fastest and the slowest a screen may ask the server for an announcement (seconds); anything else is clamped. 0 = this screen is not an announcement screen. */
-export const POLL_MIN_S = 2;
-export const POLL_MAX_S = 30;
+const POLL_MIN_S = 2;
+const POLL_MAX_S = 30;
 export function pollMs(pollS: number | undefined | null, fallbackMs: number): number {
   if (typeof pollS !== 'number' || !Number.isFinite(pollS) || pollS <= 0) return fallbackMs;
   return Math.round(Math.min(POLL_MAX_S, Math.max(POLL_MIN_S, pollS)) * 1000);

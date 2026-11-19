@@ -112,11 +112,11 @@ export type HeaderLayout = 'a' | 'b' | 'c';
  * board name" (the wording before); time = the time and the green dot; issues = nothing while live (the stale / offline notes still show). */
 export type UpdatedLine = 'place' | 'full' | 'time' | 'issues';
 /** TVNOTICE2-297: the idle board's logos - sw = SmplWise only (as before), both = the developer (company) logo too. */
-export type IdleLogo = 'sw' | 'both';
+type IdleLogo = 'sw' | 'both';
 /** What the height freed by a one-row header goes to. */
-export type SpaceUse = 'bigger' | 'more' | 'mix';
+type SpaceUse = 'bigger' | 'more' | 'mix';
 /** The company logo on a dark surface: auto = the system logo settings, plate = always the white plate, invert = invert when possible. */
-export type NightLogo = 'auto' | 'plate' | 'invert';
+type NightLogo = 'auto' | 'plate' | 'invert';
 export const HEADERS: HeaderLayout[] = ['a', 'b', 'c'];
 export const UPDATED_LINES: UpdatedLine[] = ['place', 'full', 'time', 'issues'];
 export const IDLE_LOGOS: IdleLogo[] = ['sw', 'both'];
@@ -171,10 +171,10 @@ export type UrgentScreen = 'style' | 'minute' | 'always';
 /** The V2 layout: side = an information column (clock, date, weather, bus panel); strip = a full-width bus row; slide = a full-stage bus slide. */
 export type BoardLayout = 'side' | 'strip' | 'slide';
 /** The tenant logo's height in the V2 header: auto = the system logo settings, else 72 / 96 / 120 / 144 px. */
-export type CoSize = 'auto' | 's' | 'm' | 'l' | 'xl';
+type CoSize = 'auto' | 's' | 'm' | 'l' | 'xl';
 /** The portrait V2 board below the clock row: the bus panel first, or the notices first. */
-export type PortraitOrder = 'bus' | 'notices';
-export type NextRow = 'show' | 'hide';
+type PortraitOrder = 'bus' | 'notices';
+type NextRow = 'show' | 'hide';
 export const DESIGNS: Design[] = ['classic', 'v2', 'ink', 'sign', 'lumen', 'axis', 'prism', 'gallery', 'concierge', 'stone'];
 export const LIVE_BGS: LiveBg[] = ['auto', 'full', 'frozen', 'off'];
 export const SYSTEMS_STATUSES: SystemsStatus[] = ['problems', 'always'];
@@ -187,7 +187,7 @@ export const CO_SIZE_PX: Record<Exclude<CoSize, 'auto'>, number> = { s: 72, m: 9
 
 export interface Tv2Defaults { design: Design; board_layout: BoardLayout; co_size: CoSize; portrait_order: PortraitOrder; next_row: NextRow; live_bg: LiveBg; systems_status: SystemsStatus; urgent_screen: UrgentScreen }
 export const TV2_FACTORY: Tv2Defaults = { design: 'classic', board_layout: 'side', co_size: 'auto', portrait_order: 'bus', next_row: 'show', live_bg: 'auto', systems_status: 'problems', urgent_screen: 'style' };
-export const TV2_KEYS = ['design', 'board_layout', 'co_size', 'portrait_order', 'next_row', 'live_bg', 'systems_status', 'urgent_screen'] as const;
+const TV2_KEYS = ['design', 'board_layout', 'co_size', 'portrait_order', 'next_row', 'live_bg', 'systems_status', 'urgent_screen'] as const;
 const TV2_ALLOWED: { [K in keyof Tv2Defaults]: readonly Tv2Defaults[K][] } = { design: DESIGNS, board_layout: BOARD_LAYOUTS, co_size: CO_SIZES, portrait_order: PORTRAIT_ORDERS, next_row: NEXT_ROWS, live_bg: LIVE_BGS, systems_status: SYSTEMS_STATUSES, urgent_screen: URGENT_SCREENS };
 
 /** One V2 option of a display (the feed always carries the effective value; an unknown or absent one reads as the factory value). */
@@ -271,7 +271,7 @@ export const SIZES: Record<Display['font_size'], number> = { s: 0.78, m: 0.9, l:
 export const SEV_LOOK: Record<Severity, 'alarm' | 'warn' | 'acc'> = { critical: 'alarm', alert: 'warn', info: 'acc' };
 export const NEWS_SPEED: Record<Display['news']['speed'], number> = { slow: 80, normal: 120, fast: 170 };
 export const POLL_MS = 30_000;
-export const TAKEOVER_MS = 60_000;
+const TAKEOVER_MS = 60_000;
 
 const STRINGS = {
   he: {

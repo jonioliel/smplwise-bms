@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { automationsStyles } from '../styles/automations-glass';
-import { applyAutomationsGlass } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';
@@ -14,6 +14,7 @@ import {
   type CalKind, type DaySegment,
 } from './calendar-model';
 import './elapsed-clock';
+import { hostBlockStyles } from '../styles/fragments';
 
 /**
  * TKCAL: the weekly calendar of the request list (`יומן שבועי`, the fourth mode of tickets/list-view-switch.ts). A Sunday-first week of seven
@@ -26,7 +27,7 @@ import './elapsed-clock';
  * UXFIX-A11Y-295: a numeric range ("18–24") inside the RTL heading is an LTR island. The en dash is a neutral between two numbers, so in
  * a right-to-left line the bidi algorithm drew it "24–18"; the isolate keeps the numbers in reading order whatever the language.
  */
-export function isolateRanges(text: string): (string | TemplateResult)[] {
+function isolateRanges(text: string): (string | TemplateResult)[] {
   return text.split(/(\d+\s*[–-]\s*\d+)/).map((part, i) => (i % 2 ? html`<bdi dir="ltr">${part}</bdi>` : part));
 }
 
@@ -49,10 +50,7 @@ export class TicketsCalendar extends LitElement {
   private touch: { x: number; y: number } | null = null;
 
   static styles = [bubbleChrome, ...automationsStyles, css`
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
     .cal {
       display: flex;
       flex-direction: column;

@@ -29,7 +29,7 @@ export const COMPANY_SIZES: readonly CompanySize[] = ['same', 's', 'm', 'l', 'xl
 export const DARK_MODES: readonly DarkMode[] = ['plate', 'file', 'invert'];
 export const TITLE_MODES: readonly TitleMode[] = ['both', 'dev', 'project'];
 export const COMPANY_KINDS: readonly CompanyKind[] = ['developer', 'management', 'other'];
-export const TITLE_PREFIX_DEFAULT = 'Smplwise Arx';
+const TITLE_PREFIX_DEFAULT = 'Smplwise Arx';
 
 /** The brand block as the backend sends it (`/me.brand`, `GET /brand`; `GET /brand/public` has the first three fields only). */
 export interface BrandView {
@@ -221,7 +221,7 @@ export function composeTitle(prefix: string, mode: TitleMode, dev: string, proje
 }
 
 /** The browser-tab title the administrator composed (the screen name is not appended: the owner asked for these names only). */
-export function applyBrandTitle(): void {
+function applyBrandTitle(): void {
   if (typeof document === 'undefined') return;
   const s = state;
   document.title = composeTitle(s.titlePrefix, s.titleMode, s.companyName, s.projectName);

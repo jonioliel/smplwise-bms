@@ -7,7 +7,7 @@ import type { Facets } from '../api/tickets-board';
 import type { StatusFilter } from '../api/tickets';
 import { SCOPES, STATUS_FILTERS, type TicketsRoute } from './model';
 
-export type ScopeKey = TicketsRoute['scope'];
+type ScopeKey = TicketsRoute['scope'];
 export interface ListCounts {
   scopes: Partial<Record<ScopeKey, number>>;
   states: Partial<Record<StatusFilter, number>>;

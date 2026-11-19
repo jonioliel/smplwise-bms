@@ -1084,9 +1084,4 @@ function kindMatches(t: Tariff, b: TariffVersionBody): void {
   if ((t.kind === 'tou') !== !!b.definition) throw err(422, 'validation', t.kind === 'tou' ? 'בתעריף לפי שעות המחירים נקבעים לכל עונה ופס.' : 'תעריף במחיר קבוע אינו מקבל הגדרת שעות.');
 }
 
-/** Specs: bring the store back to the fixture (a page reload does it too). */
-export function resetElectricityMock(): void {
-  calendar = { revision: 0, generator: 'israel', overrides: {} };
-  seedBills();
-}
 export type { PriceMode };

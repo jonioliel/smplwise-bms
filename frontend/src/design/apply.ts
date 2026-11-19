@@ -27,7 +27,7 @@ import { applyBackground, bootBackground, onBackground } from './background';
 export type Scheme = 'light' | 'dark' | 'auto';
 export type Theme = 'light' | 'dark';
 export const SCHEMES: readonly Scheme[] = ['light', 'dark', 'auto'];
-export const isScheme = (v: unknown): v is Scheme => v === 'light' || v === 'dark' || v === 'auto';
+const isScheme = (v: unknown): v is Scheme => v === 'light' || v === 'dark' || v === 'auto';
 
 /**
  * MOTIONSETTING-297: the installation's motion setting `ui.motion`. auto = follow the OS reduction (prefers-reduced-motion), full =
@@ -36,7 +36,7 @@ export const isScheme = (v: unknown): v is Scheme => v === 'light' || v === 'dar
  */
 export type MotionMode = 'auto' | 'full' | 'reduced';
 export const MOTION_MODES: readonly MotionMode[] = ['auto', 'full', 'reduced'];
-export const isMotionMode = (v: unknown): v is MotionMode => v === 'auto' || v === 'full' || v === 'reduced';
+const isMotionMode = (v: unknown): v is MotionMode => v === 'auto' || v === 'full' || v === 'reduced';
 
 /**
  * 2.29.0: the installation's entrance-animation setting `ui.entry_animations` (on | off, default on). The classic and domus skins let
@@ -45,7 +45,7 @@ export const isMotionMode = (v: unknown): v is MotionMode => v === 'auto' || v =
  */
 export type EnterMode = 'on' | 'off';
 export const ENTER_MODES: readonly EnterMode[] = ['on', 'off'];
-export const isEnterMode = (v: unknown): v is EnterMode => v === 'on' || v === 'off';
+const isEnterMode = (v: unknown): v is EnterMode => v === 'on' || v === 'off';
 
 /**
  * DOMUS-DEFAULT-2439 (owner round 33, Q-DES-3 option b, "settable"): the installation's `ui.chip_selected` - how a SELECTED chip is
@@ -125,9 +125,9 @@ function loadStored() {
 /** The skin in force. */
 export const currentSkin = (): SkinId => queryOverride.skin ?? installation.skin;
 /** The scheme setting in force (may be "auto"). */
-export const currentScheme = (): Scheme => queryOverride.scheme ?? ownScheme ?? installation.scheme;
+const currentScheme = (): Scheme => queryOverride.scheme ?? ownScheme ?? installation.scheme;
 /** The motion setting in force (auto | full | reduced). */
-export const currentMotion = (): MotionMode => queryOverride.motion ?? installation.motion;
+const currentMotion = (): MotionMode => queryOverride.motion ?? installation.motion;
 export const installationDesign = (): Installation => ({ ...installation });
 export const ownSchemeChoice = (): Scheme | null => ownScheme;
 

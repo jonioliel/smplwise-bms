@@ -10,6 +10,7 @@ import { bigChart } from './charts';
 import { tempCss } from './styles';
 import { tt, type TtKey } from '../i18n/temperature';
 import { dateInputLang, dayTimeText } from '../api/day-format';
+import { errLineStyles } from '../styles/fragments';
 
 export { REPORT_RANGES, localInput } from './model';
 
@@ -93,7 +94,7 @@ export class TempReport extends LitElement {
     .wl .in { flex: 1; min-inline-size: 200px; }
     .wf { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex: 1; min-inline-size: 0; }
     .wf .sp { flex: 1; }
-    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+    ${errLineStyles}
     @media (max-width: 860px) {
       .wb { grid-template-columns: minmax(0, 1fr); }
       .st { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -151,16 +152,17 @@ export class TempReport extends LitElement {
       return;
     }
     const n = ++this.seq;
-    this.timer = window.setTimeout(async () => {
-      try {
+    // CR-FE-PROMISES-2442: a failed preview is the dialog's error line, as before
+    this.timer = window.setTimeout(() => {
+      (async () => {
         const m = await getReportPreview(this.params());
         if (n === this.seq) {
           this.model = m;
           this.err = '';
         }
-      } catch (e) {
+      })().catch((e: unknown) => {
         if (n === this.seq) this.err = describeError(e);
-      }
+      });
     }, 250);
   }
 

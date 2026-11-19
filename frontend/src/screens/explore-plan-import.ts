@@ -20,6 +20,7 @@ import { stashDxfCandidates } from '../map/candidates';
 import type { PlanAsset, PlanVersion } from '../api/types';
 import { dayTimeText } from '../api/day-format';
 import { tr } from '../i18n/msg/media';
+import { okLineStyles } from '../styles/fragments';
 
 const STEPS = [tr('קובץ'), tr('עמוד'), tr('חיתוך וסיבוב'), tr('שם והערות'), tr('שמירה ופרסום')];
 
@@ -260,10 +261,7 @@ export class ExplorePlanImport extends LitElement {
       color: var(--sw-danger);
       font-size: var(--sw-fs-xs);
     }
-    .ok {
-      color: var(--sw-success-text);
-      font-size: var(--sw-fs-sm);
-    }
+    ${okLineStyles}
     .assets button {
       display: flex;
       justify-content: space-between;
@@ -301,7 +299,7 @@ export class ExplorePlanImport extends LitElement {
       vertical-align: middle;
     }
     table.map th {
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       color: var(--sw-text-2);
       white-space: nowrap;
     }

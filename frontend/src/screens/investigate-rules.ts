@@ -30,6 +30,7 @@ import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dateInputLang, dayTimeText } from '../api/day-format';
 import { t as vt } from '../i18n/he';
 import { tr } from '../i18n/msg/investigate';
+import { ltrStyles } from '../styles/fragments';
 
 /** POLISH4-WP2 (D7): the icon tile takes skin tokens, so it follows the scheme (the hex pairs of before were pastel tiles in dark).
     A rule's kind is a category, never a status, so none of them is green (green is for status only); "move" takes the neutral well. */
@@ -452,10 +453,7 @@ export class InvestigateRules extends LitElement {
     .dryrow[data-fire='false'] {
       color: var(--sw-text-3);
     }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+    ${ltrStyles}
     @media (max-width: 767px) {
       .last {
         display: none;

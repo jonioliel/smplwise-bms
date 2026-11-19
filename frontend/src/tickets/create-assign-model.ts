@@ -15,18 +15,17 @@ import type { ExternalAssignee, Readiness } from '../api/tickets-s4';
 import { outsideBlock, type ReadyItem } from './readiness-model';
 
 export type CreateGroupKey = 'later' | 'account' | 'staff' | 'vendor';
-export const CREATE_GROUPS: readonly CreateGroupKey[] = ['later', 'account', 'staff', 'vendor'];
 /** More than this many entries (handlers + vendors) shows the search field. */
 export const SEARCH_ABOVE = 6;
 export const LATER = 'later';
 
-export interface CreateOption {
+interface CreateOption {
   /** the radio value: 'later', `h:<handler key>` or `v:<contact id>` */
   value: string;
   label: string;
   sub: string;
 }
-export interface CreateGroup {
+interface CreateGroup {
   key: CreateGroupKey;
   options: CreateOption[];
   /** how many entries the group has before the search */
@@ -34,7 +33,7 @@ export interface CreateGroup {
   /** why the group cannot be used now (vendors only), or null */
   blocked: ReadyItem | null;
 }
-export interface CreatePick {
+interface CreatePick {
   kind: 'later' | 'handler' | 'vendor';
   id: string;
 }
@@ -51,7 +50,7 @@ export function parsePick(value: string): CreatePick {
 
 const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
 
-export interface CreateAssignInput {
+interface CreateAssignInput {
   handlers: readonly Handler[];
   /** the outside contacts of GET tickets/assignees (staff contacts are handlers and are dropped here); null = still loading */
   contacts: readonly ExternalAssignee[] | null;

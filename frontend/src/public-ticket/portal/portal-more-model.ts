@@ -14,7 +14,7 @@ export interface RfqItem {
   quote: { state: 'submitted' | 'withdrawn'; total_minor: number; currency: string } | null;
   code_first: boolean;
 }
-export interface TechRequest {
+interface TechRequest {
   id: string;
   action: 'add' | 'replace';
   name: string;

@@ -1,5 +1,8 @@
-// CR-FE-GATES-2436 (review 07:F20, 07:F7, master plan D3 / T3): the entry-chunk budget. REPORT-ONLY - it prints and always exits 0;
-// CR-FE-GATES-ENFORCE lowers the budget to the measured size plus a margin and makes "over budget" a failure.
+// CR-FE-GATES-2436 (review 07:F20, 07:F7, master plan D3 / T3): the entry-chunk budget.
+// CR-FE-GATES-ENFORCE-2442: the budget is the measured entry of the build plus a stated margin (scripts/gates-baseline.json,
+// `bundle`), and `--enforce` makes it a failure: exit 1 when the entry is over the budget (gzip or raw), when a `*-mock` module is
+// back in the entry (the baseline is 0), or when there is no build to measure. Without `--enforce` the script is the report it was:
+// it prints and exits 0. The dictionary list and the debug maps stay a report in both modes.
 //
 // What it reads (a built folder; default ../smplwise_vms/www, the committed add-on build; `--dir dist` after `npm run build`):
 //   - the entry chunk: the module script named by index.html; its raw bytes and its gzip bytes (level 9);
@@ -8,7 +11,7 @@
 //     (BASE_DICTIONARIES) is allowed;
 //   - the debug maps of the whole build (07:F7): the number and bytes of `.map` files next to the JavaScript. Whether the add-on
 //     keeps shipping them is owner decision O3; this only counts.
-// Usage (from frontend/): node scripts/bundle-budget.mjs [--dir <build>] [--budget-gzip <bytes>] [--budget-raw <bytes>] [--json]
+// Usage (from frontend/): node scripts/bundle-budget.mjs [--dir <build>] [--budget-gzip <bytes>] [--budget-raw <bytes>] [--json] [--enforce]
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
@@ -16,16 +19,21 @@ import { gzipSync } from 'node:zlib';
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 
-// The starting budget = the entry of the committed build of v2.43.4 (origin/main 665ec8f24, assets/index-BbQM-cPX.js), measured by
-// this script on 2026-11-13. Report-only: an entry above it is printed as "over budget", nothing fails.
-export const BUDGET = { gzip: 1_156_938, raw: 4_074_343 };
+// The budget = the measured entry + the margin, both written in scripts/gates-baseline.json (`bundle.measured`, `bundle.marginPct`,
+// `bundle.budget`). Raising it is a deliberate edit of that file, with the reason in the change note of the branch that needs it;
+// after a real reduction, lower it again (measure with `--dir dist`, add the margin).
+const BASELINE = JSON.parse(fs.readFileSync(path.join(HERE, 'gates-baseline.json'), 'utf8')).bundle;
+export const BUDGET = { gzip: BASELINE.budget.gzip, raw: BASELINE.budget.raw };
+/** How many `*-mock` modules the entry may carry (0 since CR-MOCKS-LAZY). */
+export const MOCKS_IN_ENTRY = BASELINE.mocksInEntry ?? 0;
 const BASE_DICTIONARIES = new Set(['src/i18n/he.ts', 'src/i18n/en.ts']);
 
 function args(argv) {
-  const o = { dir: path.join(HERE, '..', '..', 'smplwise_vms', 'www'), json: false, budgetGzip: BUDGET.gzip, budgetRaw: BUDGET.raw };
+  const o = { dir: path.join(HERE, '..', '..', 'smplwise_vms', 'www'), json: false, enforce: false, budgetGzip: BUDGET.gzip, budgetRaw: BUDGET.raw };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--json') o.json = true;
+    else if (a === '--enforce') o.enforce = true;
     else if (a === '--dir') o.dir = path.resolve(argv[++i]);
     else if (a === '--budget-gzip') o.budgetGzip = Number(argv[++i]);
     else if (a === '--budget-raw') o.budgetRaw = Number(argv[++i]);
@@ -90,8 +98,20 @@ export function measure(o) {
     budget: { gzip: o.budgetGzip, raw: o.budgetRaw, overGzip, overRaw, over: overGzip > 0 || overRaw > 0 },
     denyList,
     maps: { files: maps.length, bytes: size(maps), jsFiles: js.length, jsBytes: size(js) },
-    mode: 'report-only',
+    mode: o.enforce ? 'enforce' : 'report-only',
   };
+}
+
+/** What `--enforce` fails on: [reason]. An empty list is a pass. */
+export function failures(r) {
+  if (!r || !r.entry) return ['no entry chunk to measure (no build, or index.html names no module script)'];
+  const f = [];
+  if (r.budget.overGzip > 0) f.push(`entry gzip ${r.entry.gzip} B is ${r.budget.overGzip} B over the budget ${r.budget.gzip} B`);
+  if (r.budget.overRaw > 0) f.push(`entry raw ${r.entry.raw} B is ${r.budget.overRaw} B over the budget ${r.budget.raw} B`);
+  if (r.denyList.measured && r.denyList.mocks.length > MOCKS_IN_ENTRY) {
+    f.push(`${r.denyList.mocks.length} mock module(s) in the entry (allowed ${MOCKS_IN_ENTRY}): ${r.denyList.mocks.map((m) => m.source).join(', ')}`);
+  }
+  return f;
 }
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
@@ -99,11 +119,12 @@ const signed = (n) => (n > 0 ? `+${n}` : String(n));
 
 function print(r) {
   const L = [];
-  L.push(`bundle-budget (report-only, never fails) - ${r.dir}`);
+  const enforce = r.mode === 'enforce';
+  L.push(`bundle-budget (${enforce ? 'ENFORCED' : 'report-only, never fails'}) - ${r.dir}`);
   if (!r.entry) L.push('  entry: no module script in index.html');
   else {
     L.push(`  entry ${r.entry.file}: raw ${r.entry.raw} B (${kb(r.entry.raw)}), gzip ${r.entry.gzip} B (${kb(r.entry.gzip)})`);
-    L.push(`  budget: gzip ${r.budget.gzip} (${signed(r.budget.overGzip)}), raw ${r.budget.raw} (${signed(r.budget.overRaw)}) -> ${r.budget.over ? 'OVER BUDGET (reported, not failed)' : 'within budget'}`);
+    L.push(`  budget: gzip ${r.budget.gzip} (${signed(r.budget.overGzip)}), raw ${r.budget.raw} (${signed(r.budget.overRaw)}) -> ${r.budget.over ? `OVER BUDGET (${enforce ? 'fails' : 'reported, not failed'})` : 'within budget'}`);
   }
   if (!r.denyList.measured) L.push('  deny-list: not measured (no source map for the entry)');
   else {
@@ -115,6 +136,13 @@ function print(r) {
     if (r.denyList.allowedDictionaries.length) L.push(`    allowed     ${r.denyList.allowedDictionaries.join(', ')}`);
   }
   L.push(`  debug maps: ${r.maps.files} .map files, ${kb(r.maps.bytes)} against ${r.maps.jsFiles} .js files, ${kb(r.maps.jsBytes)} (owner decision O3)`);
+  if (enforce) {
+    const f = failures(r);
+    for (const x of f) L.push(`  FAIL: ${x}`);
+    L.push(f.length
+      ? '  -> FAIL. Load the new code on demand (a dynamic import, the lazy tag registry) instead of from the entry; a budget change is an edit of scripts/gates-baseline.json with its reason.'
+      : '  -> OK');
+  }
   console.log(L.join('\n'));
 }
 
@@ -124,12 +152,12 @@ if (process.argv[1] && path.resolve(process.argv[1]) === url.fileURLToPath(impor
   try {
     r = measure(o);
   } catch (e) {
-    console.error(`bundle-budget (report-only): could not measure ${o.dir}: ${e instanceof Error ? e.message : String(e)}`);
+    console.error(`bundle-budget: could not measure ${o.dir}: ${e instanceof Error ? e.message : String(e)}`);
   }
   if (!r) {
-    if (o.json) console.log(JSON.stringify({ dir: o.dir, entry: null, mode: 'report-only', note: 'no build' }));
-    else console.log(`bundle-budget (report-only): no build in ${o.dir} (run npm run build, then --dir dist)`);
-  } else if (o.json) console.log(JSON.stringify(r, null, 2));
+    if (o.json) console.log(JSON.stringify({ dir: o.dir, entry: null, mode: o.enforce ? 'enforce' : 'report-only', note: 'no build' }));
+    else console.log(`bundle-budget (${o.enforce ? 'ENFORCED' : 'report-only'}): no build in ${o.dir} (run npm run build, then --dir dist)${o.enforce ? ' -> FAIL' : ''}`);
+  } else if (o.json) console.log(JSON.stringify({ ...r, failures: failures(r) }, null, 2));
   else print(r);
-  process.exit(0);
+  process.exit(o.enforce && failures(r).length ? 1 : 0);
 }

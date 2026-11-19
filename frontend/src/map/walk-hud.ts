@@ -31,7 +31,7 @@ export interface WalkHudField {
 export interface WalkHudRoute {
   play: boolean;
 }
-export interface WalkStickShape {
+interface WalkStickShape {
   /** Client coordinates of the finger's origin and the knob's offset from it. */
   origin: [number, number];
   knob: [number, number];
@@ -39,11 +39,11 @@ export interface WalkStickShape {
 }
 
 /** Up to this width of the element the bar becomes a bottom sheet. */
-export const SHEET_MAX_W = 640;
+const SHEET_MAX_W = 640;
 const KINDS = ['saved', 'door', 'room', 'camera', 'centre'] as const;
 const KIND_KEY: Record<(typeof KINDS)[number], I18nKey> = { saved: 'walk.kindSaved', door: 'walk.kindDoor', room: 'walk.kindRoom', camera: 'walk.kindCamera', centre: 'walk.kindCentre' };
 /** The Hebrew title of a kind of start point (the places list, the select's groups). */
-export const kindTitle = (kind: string): string => (kind in KIND_KEY ? t(KIND_KEY[kind as keyof typeof KIND_KEY]) : kind);
+const kindTitle = (kind: string): string => (kind in KIND_KEY ? t(KIND_KEY[kind as keyof typeof KIND_KEY]) : kind);
 /** A drag of the grabber past this opens (up) or closes (down) the sheet. */
 const SWIPE_PX = 28;
 

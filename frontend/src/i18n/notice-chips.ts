@@ -59,7 +59,6 @@ const en: Record<Key, string> = {
   invertGym: 'Invert: for a switch or sensor where on = closed, or an occupancy sensor where on = free.',
 };
 
-export type NcKey = Key;
 export const NC_KEYS = Object.keys(he) as Key[];
 const TABLES: Record<'he' | 'en', Record<Key, string>> = { he, en };
 

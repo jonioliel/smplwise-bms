@@ -10,7 +10,7 @@ import { CONFIRM_WORDS } from '../i18n/confirm-words';
 
 export type LookupScope = 'holder' | 'holder_or_audit_readers';
 
-export interface CaptureLeaseSettings {
+interface CaptureLeaseSettings {
   capture_lease: 'off' | 'on';
   capture_lease_available: boolean;
   capture_lease_go_live_permitted: boolean;

@@ -75,7 +75,7 @@ export interface AccessEventFilters {
 }
 
 /** WisKey's page size for the entry log (the server allows up to 200). */
-export const ACCESS_EVENTS_PAGE = 100;
+const ACCESS_EVENTS_PAGE = 100;
 
 export function eventsQueryString(filters: AccessEventFilters, before?: string | null, limit = ACCESS_EVENTS_PAGE): string {
   const qs = new URLSearchParams();
@@ -91,10 +91,10 @@ export function getAccessEvents(filters: AccessEventFilters, before?: string | n
 
 // ---------------------------------------------------------------- one event
 
-export type IdentityState = 'identified' | 'id_only' | 'identity_unavailable';
+type IdentityState = 'identified' | 'id_only' | 'identity_unavailable';
 
 /** How the identity and the time of an event were established - flags and enums, never a person field. */
-export interface AccessEventEvidence {
+interface AccessEventEvidence {
   identity_state: IdentityState | null;
   origin: string | null;
   arrival_delay_seconds: number | null;
@@ -112,7 +112,7 @@ export interface AccessEventDetail extends Omit<AccessEvent, 'portrait'> {
   } | null;
 }
 
-export interface AccessEventDetailReply {
+interface AccessEventDetailReply {
   state: AccessFeedState;
   configured: boolean;
   last_error: string | null;
@@ -136,7 +136,7 @@ export async function fetchEventPortrait(id: string, stationId: string, at: stri
   return (await blobOf(`access-control/events/${encodeURIComponent(id)}/portrait?${qs.toString()}`, signal)).blob;
 }
 
-export interface EventsExportResult {
+interface EventsExportResult {
   blob: Blob;
   /** The server's own count (`X-Export-Rows`); null when the header is missing. */
   rows: number | null;
@@ -177,7 +177,7 @@ export interface AccessStationsReply {
 
 export const getAccessStations = () => get<AccessStationsReply>('access-control/stations');
 
-export interface AccessFeatureState {
+interface AccessFeatureState {
   available: boolean | null;
   reason: string | null;
 }

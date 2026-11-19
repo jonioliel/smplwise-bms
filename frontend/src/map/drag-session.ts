@@ -15,7 +15,7 @@ export interface DragTarget {
   removeEventListener(type: string, listener: (e: PointerEvent) => void): void;
 }
 
-export interface DragHandlers {
+interface DragHandlers {
   /** The pointer moved while the gesture is alive. */
   move(e: PointerEvent): void;
   /** The pointer was released: the drag is the user's decision. */

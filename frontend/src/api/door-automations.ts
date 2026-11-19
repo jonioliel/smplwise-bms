@@ -7,6 +7,7 @@
  */
 import { isApi } from './session';
 import { del, get, post, put } from './client';
+import { isoZ } from './day-format';
 
 export type BlockState = 'draft' | 'armed' | 'disarmed';
 
@@ -79,7 +80,7 @@ export interface DoorAutomationStatus {
   limits?: Limits;
 }
 
-export interface SimGate {
+interface SimGate {
   gate: string;
   ok: boolean;
   reason: string | null;
@@ -144,7 +145,7 @@ export function mockDoorAutomations(opts: { visible?: boolean; available?: boole
     { station_id: 'demo-roof', relay: 1, name: 'יציאה לגג', online: false, can_arm: false },
   ];
   let n = 0;
-  const now = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const now = () => isoZ(new Date());
   const named = (p: DoorPolicy) => p.doors.map((d) => ({ ...d, name: doors.find((x) => x.station_id === d.station_id && x.relay === d.relay)?.name ?? null }));
   const find = (id: string) => [...blocks.values()].find((b) => b.id === id);
   return {
@@ -167,7 +168,7 @@ export function mockDoorAutomations(opts: { visible?: boolean; available?: boole
     },
     arm: async (block) => {
       const b = find(block.id)!;
-      const until = new Date(Date.now() + (b.policy.arm_days ?? DEFAULT_LIMITS.arm_days) * 86_400_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+      const until = isoZ(Date.now() + (b.policy.arm_days ?? DEFAULT_LIMITS.arm_days) * 86_400_000);
       Object.assign(b, { state: 'armed', armed_by: 'demo', armed_by_name: 'מנהל המערכת', armed_at: now(), armed_until: until, disarm_reason: null, disarmed_at: null });
       return structuredClone(b);
     },

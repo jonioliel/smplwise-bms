@@ -52,7 +52,7 @@ export interface ProtectedCategory {
 
 /** `approve` protects the suggested rows (the strip); `dismiss` rejects a suggestion (the server action is `unprotect`). */
 export type ProtectAction = 'protect' | 'unprotect' | 'approve' | 'dismiss';
-export type ApiAction = 'protect' | 'unprotect' | 'approve';
+type ApiAction = 'protect' | 'unprotect' | 'approve';
 export const apiAction = (a: ProtectAction): ApiAction => (a === 'dismiss' ? 'unprotect' : a);
 
 export type StatusFilter = '' | 'protected' | 'suggested' | 'unprotected';
@@ -61,7 +61,7 @@ export type RowStatus = 'alarm' | 'doors' | 'media' | 'suggested' | 'protected' 
 /** Rows the server never lets a group action reach whatever the mark: protect / unprotect would be refused, so they are not selectable. */
 export const readOnly = (r: ProtectedSwitchRow): boolean => r.alarm_managed || r.doors_layer || !!r.media_managed;
 
-export const isSuggested = (r: ProtectedSwitchRow): boolean => r.suggested && !r.protected;
+const isSuggested = (r: ProtectedSwitchRow): boolean => r.suggested && !r.protected;
 
 export function statusOf(r: ProtectedSwitchRow): RowStatus {
   if (r.alarm_managed) return 'alarm';

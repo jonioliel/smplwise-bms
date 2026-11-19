@@ -8,7 +8,7 @@ import { docLang } from './core';
 
 export type { FrigateText };
 
-export function frigateLang(): 'he' | 'en' {
+function frigateLang(): 'he' | 'en' {
   return docLang(['en']);
 }
 

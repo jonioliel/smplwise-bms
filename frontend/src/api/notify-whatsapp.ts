@@ -30,7 +30,7 @@ export interface WaNotifyView {
   test: { own_number: boolean; masked: string | null };
 }
 export type WaDetail = 'generic' | 'type_place';
-export interface WaNotifyPut { enabled?: boolean; per_user_hour?: number; dedupe_min?: number; budget_pct?: number; budget_critical_pct?: number; detail?: WaDetail; revision: number }
+interface WaNotifyPut { enabled?: boolean; per_user_hour?: number; dedupe_min?: number; budget_pct?: number; budget_critical_pct?: number; detail?: WaDetail; revision: number }
 export interface WaTestResult { ok: boolean; outcome: 'sent' | 'refused' | 'unknown' | 'not_sent'; code: string | null }
 /** The caller's own status (review F1): consent is the user's own opt-in for exactly the number shown; `number_changed` = an earlier opt-in no
  * longer matches the number (someone changed it), so nothing is sent until the user confirms again; `directory_declined` = the contact list
@@ -44,7 +44,7 @@ export interface WaMine {
   stored_opt_in: boolean;
 }
 
-export interface WaNotifyAdapter {
+interface WaNotifyAdapter {
   view(): Promise<WaNotifyView>;
   save(body: WaNotifyPut): Promise<WaNotifyView>;
   test(): Promise<WaTestResult>;
@@ -65,7 +65,7 @@ const http: WaNotifyAdapter = {
 };
 
 /** The demo store: the switch starts OFF like the server; the account is mapped so the section can be reviewed in every state. */
-export function demoWaNotify(): WaNotifyAdapter {
+function demoWaNotify(): WaNotifyAdapter {
   let v: WaNotifyView = {
     enabled: false, per_user_hour: 4, dedupe_min: 30, budget_pct: 50, budget_critical_pct: 80, detail: 'type_place', detail_levels: ['generic', 'type_place'], normalized: [], warnings: [], revision: 0,
     ranges: { per_user_hour: [1, 30], dedupe_min: [5, 1440], budget_pct: [10, 90], budget_critical_pct: [10, 90] },

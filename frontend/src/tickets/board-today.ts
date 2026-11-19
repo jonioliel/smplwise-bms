@@ -8,7 +8,7 @@ import type { BoardCounts, BoardItem } from '../api/tickets-board';
 import { clip } from './status-sentence';
 import { lt } from './list-text';
 
-export interface TodayEntry {
+interface TodayEntry {
   kind: 'visit' | 'sla' | 'waiting';
   /** "09:00" (local) for a timed entry */
   time: string;

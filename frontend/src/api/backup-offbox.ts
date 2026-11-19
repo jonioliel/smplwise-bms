@@ -5,11 +5,11 @@
  */
 import { del, get, patch, post, put } from './client';
 
-export type OffboxKind = 's3' | 'sftp' | 'local' | 'gdrive';
+type OffboxKind = 's3' | 'sftp' | 'local' | 'gdrive';
 /** The kinds an administrator adds from the screen (a `local` folder is configured elsewhere). */
 export type FormKind = 's3' | 'sftp' | 'gdrive';
 
-export interface OffboxRetention {
+interface OffboxRetention {
   keep_last: number;
   keep_daily: number;
   keep_weekly: number;
@@ -46,7 +46,7 @@ export interface OffboxTarget {
   gdrive?: { connected: boolean; pending: boolean; connected_at: string | null };
 }
 
-export interface OffboxKeyInfo {
+interface OffboxKeyInfo {
   id: string;
   created_at: string | null;
   source: string | null;
@@ -72,14 +72,14 @@ export interface OffboxTargetIn {
   retention: OffboxRetention;
 }
 
-export interface OffboxCheckResult {
+interface OffboxCheckResult {
   ok: boolean;
   steps?: string[];
   error: string | null;
   objects?: number;
 }
 
-export interface DrillSummary {
+interface DrillSummary {
   result: 'PASS' | 'FAIL';
   trigger: string;
   started_at: string;
@@ -91,7 +91,7 @@ export interface DrillSummary {
   failed: string[];
 }
 
-export interface DrillResult {
+interface DrillResult {
   result: 'PASS' | 'FAIL';
   finished_at: string;
   checks: { name: string; ok: boolean; severity: string }[];
@@ -122,7 +122,7 @@ export const GDRIVE_NUMBERS: Record<string, { min: number; max: number; fallback
   min_free_mib: { min: 0, max: 1_000_000, fallback: 100 },
 };
 
-export const DEFAULT_RETENTION = (): OffboxRetention => ({ keep_last: 3, keep_daily: 7, keep_weekly: 4, keep_monthly: 6 });
+const DEFAULT_RETENTION = (): OffboxRetention => ({ keep_last: 3, keep_daily: 7, keep_weekly: 4, keep_monthly: 6 });
 
 /** A new target form's starting values (Cloudflare R2 shape: region `auto`, path-style). A Google Drive target starts OFF: it can be
  *  switched on only after an account is connected. */
@@ -171,7 +171,7 @@ export interface GdriveCode {
   expires_in: number;
   interval: number;
 }
-export type GdrivePollState = 'none' | 'pending' | 'slow_down' | 'denied' | 'expired' | 'connected';
+type GdrivePollState = 'none' | 'pending' | 'slow_down' | 'denied' | 'expired' | 'connected';
 
 export const gdriveConnect = (id: string) => post<GdriveCode>(`backups/offbox/targets/${encodeURIComponent(id)}/gdrive/connect`);
 export const gdrivePoll = (id: string) => post<{ state: GdrivePollState; interval?: number }>(`backups/offbox/targets/${encodeURIComponent(id)}/gdrive/poll`);
@@ -179,8 +179,8 @@ export const gdriveDisconnect = (id: string) =>
   post<{ had_token: boolean; revoked: boolean | null; target: OffboxTarget }>(`backups/offbox/targets/${encodeURIComponent(id)}/gdrive/disconnect`);
 
 /** GDRIVE-READY-2351 "בדיקת חיבור Google": one check per step, in Hebrew from the server (title, what is wrong, where to fix it). */
-export type GdriveCheckStatus = 'ok' | 'fail' | 'warn' | 'info' | 'skip';
-export interface GdriveCheck {
+type GdriveCheckStatus = 'ok' | 'fail' | 'warn' | 'info' | 'skip';
+interface GdriveCheck {
   id: string;
   status: GdriveCheckStatus;
   title: string;
@@ -252,7 +252,7 @@ export interface OffboxPrepared {
   expires_in_s: number;
 }
 
-export interface OffboxRestored {
+interface OffboxRestored {
   object: string;
   safety_archive: { name: string; bytes: number; created_at: string };
   tables: Record<string, number>;

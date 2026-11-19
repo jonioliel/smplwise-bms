@@ -20,7 +20,7 @@ import type { DrawerTab } from './drawer-model';
 export type ConvTicket = TicketWithMessages & { can: TicketCan & { vendor_message?: boolean } };
 
 /** What `<ticket-detail>` lends the tab (its run / flash / upload, so every action behaves like the screen's own). */
-export interface ConvHost {
+interface ConvHost {
   busy: () => boolean;
   run: (fn: () => Promise<TicketDetail>, done?: string) => Promise<boolean>;
   upload: (files: File[], external: boolean) => Promise<void>;

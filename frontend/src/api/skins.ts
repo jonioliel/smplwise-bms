@@ -4,7 +4,7 @@ import { get, path, post, upload } from './client';
 import type { ControlState } from '../map/skin-control';
 import { CONTROL_RECIPE, dataUrlBytes } from '../map/skin-control';
 
-export interface SkinsBudget {
+interface SkinsBudget {
   monthly_cap: number;
   used_month: number;
   remaining_month: number;
@@ -40,7 +40,7 @@ export interface SkinsTestResult {
   request_id: string | null;
   budget: SkinsBudget;
 }
-export interface SkinControl {
+interface SkinControl {
   id: string;
   floor_id: string;
   state: ControlState;
@@ -55,7 +55,7 @@ export interface SkinControl {
   current?: boolean;
   identical?: boolean;
 }
-export interface FloorSkins {
+interface FloorSkins {
   floor_id: string;
   geometry_key: string | null;
   doc_hash: string | null;

@@ -12,8 +12,8 @@ const HASH_ROUTE = /^#\/(?!\/)[A-Za-z0-9/_\-.~%?=&]*$/;
 const DOOR_ROUTE = /^#\/doors\/[A-Za-z0-9_\-.~%]+\?confirm=[A-Za-z0-9_\-.~%]+$/;
 const TOKEN = /^[A-Za-z0-9_\-.~=]{8,256}$/;
 
-export type PushActionId = 'ack' | 'snooze' | 'open_door';
-export interface ParsedAction {
+type PushActionId = 'ack' | 'snooze' | 'open_door';
+interface ParsedAction {
   action: PushActionId;
   title: string;
   /** ack / snooze: the single-use token of THIS action (posted to the action endpoint). */
@@ -21,7 +21,7 @@ export interface ParsedAction {
   /** open_door: the in-app confirmation route (a deep link: opening it sends nothing). */
   url?: string;
 }
-export interface ParsedPush {
+interface ParsedPush {
   v: number;
   id: string | null;
   title: string;
@@ -102,7 +102,7 @@ export function dataOf(p: ParsedPush): NotificationData {
 }
 
 /** What a click on a button does, decided from the stored data only: post a token, open the app on the door confirmation, or open the row. */
-export type ClickPlan = { kind: 'post'; token: string; action: 'ack' | 'snooze' } | { kind: 'open'; url: string | null };
+type ClickPlan = { kind: 'post'; token: string; action: 'ack' | 'snooze' } | { kind: 'open'; url: string | null };
 export function planClick(data: Partial<NotificationData> | null, action: string): ClickPlan {
   if ((action === 'ack' || action === 'snooze') && typeof data?.tokens?.[action] === 'string') return { kind: 'post', token: data.tokens[action] as string, action };
   if (action === 'open_door' && typeof data?.door_url === 'string' && DOOR_ROUTE.test(data.door_url)) return { kind: 'open', url: data.door_url };

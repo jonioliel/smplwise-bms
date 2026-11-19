@@ -57,12 +57,12 @@ export interface TableRow extends Omit<TicketItem, 'excerpt' | 'sla'> {
   cost_status?: CostStatus | null;
 }
 
-export interface TablePage { items: TableRow[]; next_cursor: string | null; sort: string; limit: number }
+interface TablePage { items: TableRow[]; next_cursor: string | null; sort: string; limit: number }
 
 export type BulkAction = 'assign' | 'remind' | 'priority' | 'close' | 'delete'; // 'delete': owner 14.10, its own route (api/tickets-delete.ts)
 export type BulkResult = 'ok' | 'unchanged' | 'stale' | 'forbidden' | 'invalid_transition' | 'not_found' | 'assignee_not_allowed' | 'unavailable' | 'too_soon' | 'invalid'
   | 'cost_claim_approved';
-export interface BulkBody {
+interface BulkBody {
   action: Exclude<BulkAction, 'delete'>;
   items: { id: string; revision: number }[];
   params: { assignee?: { kind: 'user' | 'contact'; id: string }; priority_key?: string; note?: string };
@@ -77,9 +77,9 @@ export interface SavedView { id: string; name: string; view: ViewDoc; created_at
 /** The per-user preference `tickets.board` (a partial object; a missing key = the default). */
 export interface BoardPrefs { view?: BoardView; columns?: ColumnKey[]; sort?: string; density?: Density; limit?: number; default_view?: string }
 
-export interface ExportResult { blob: Blob; rows: number | null; filename: string }
+interface ExportResult { blob: Blob; rows: number | null; filename: string }
 
-export interface TableBackend {
+interface TableBackend {
   page(params: Record<string, string>): Promise<TablePage>;
   bulk(body: BulkBody): Promise<BulkAnswer>;
   exportCsv(params: Record<string, string>): Promise<ExportResult>;
@@ -287,7 +287,3 @@ export async function saveBoardPrefs(change: Partial<BoardPrefs>): Promise<Board
   }
 }
 
-/** Tests only: forget the cached preference. */
-export function resetBoardPrefsCache(): void {
-  prefsCache = null;
-}

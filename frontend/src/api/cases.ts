@@ -4,9 +4,10 @@
  */
 import { api, apiUrl, del, get, patch, path, post, query } from './client';
 import { tr } from '../i18n/msg/api-video';
+import { isoZ } from './day-format';
 
 export type CaseStatus = 'open' | 'in_review' | 'closed';
-export type CaseItemKind = 'event' | 'clip' | 'note' | 'snapshot';
+type CaseItemKind = 'event' | 'clip' | 'note' | 'snapshot';
 export type Preservation = 'preserved' | 'preserving' | 'nvr_only' | 'missing' | 'unknown' | 'not_in_bundle' | 'none';
 
 export const CASE_STATUS_LABEL: Record<CaseStatus, string> = { open: tr('פתוח'), in_review: tr('בבדיקה'), closed: tr('סגור') };
@@ -20,7 +21,7 @@ export const PRESERVATION_LABEL: Record<Preservation, string> = {
   none: '',
 };
 
-export interface CaseCounts {
+interface CaseCounts {
   items: number;
   events: number;
   clips: number;
@@ -48,7 +49,7 @@ export interface Case {
 }
 
 /** Where an imported case came from (recorded at import; the bundle verified cleanly then). */
-export interface CaseProvenance {
+interface CaseProvenance {
   source_installation_id: string | null;
   source_app_version: string | null;
   exported_at: string | null;
@@ -74,7 +75,7 @@ export interface CaseProvenance {
 }
 
 /** What the bundle said about an imported item: the source camera is a name only, never a camera here. */
-export interface ItemOrigin {
+interface ItemOrigin {
   bundle_sha256: string;
   source_installation_id: string | null;
   source_item_id: string | null;
@@ -161,7 +162,7 @@ export interface Bookmark {
 export const BOOKMARK_LABEL: Record<Bookmark['preservation'], string> = { preserved: tr('עותק שמור'), preserving: tr('מעתיק מה־NVR…'), nvr: tr('סימנייה ל־NVR') };
 export const listBookmarks = (cameraId: string, date: string) => get<{ bookmarks: Bookmark[] }>(`cases/bookmarks?camera_id=${encodeURIComponent(cameraId)}&date=${encodeURIComponent(date)}`);
 
-const isoSec = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+const isoSec = (d: Date) => isoZ(d);
 /** A clip bookmark around an instant (default 15 s before, 45 s after). */
 export const clipAround = (at: Date, beforeS = 15, afterS = 45) => ({ from_at: isoSec(new Date(at.getTime() - beforeS * 1000)), to_at: isoSec(new Date(at.getTime() + afterS * 1000)) });
 
@@ -198,7 +199,7 @@ export interface SigningInfo {
 export type BundleFileStatus = 'ok' | 'mismatch' | 'missing' | 'corrupt';
 export const FILE_STATUS_LABEL: Record<BundleFileStatus, string> = { ok: tr('תואם'), mismatch: tr('שונה'), missing: tr('חסר'), corrupt: tr('פגום') };
 /** The producing installation as the manifest names it; `confirmed_by_signature` = signed by a key of this installation. */
-export interface BundleOrigin {
+interface BundleOrigin {
   installation_id: string | null;
   app_version: string | null;
   exported_at: string | null;
@@ -210,7 +211,7 @@ export interface BundleOrigin {
   confirmed_by_signature: boolean;
   producer?: Producer;
 }
-export type Producer = 'this_confirmed' | 'this_claimed' | 'other' | 'unknown';
+type Producer = 'this_confirmed' | 'this_claimed' | 'other' | 'unknown';
 /** Who made a bundle, worded honestly: the installation id is public, only a signature of this installation confirms it. */
 export function producerOf(o: { producer?: Producer; this_installation: boolean | null; confirmed_by_signature: boolean } | null | undefined): Producer {
   if (!o) return 'unknown';
@@ -244,7 +245,7 @@ export interface BundleVerification {
   already_imported?: { case_id: string; title: string } | null;
   importable?: boolean;
 }
-export interface BundleImport {
+interface BundleImport {
   case: Case;
   items: number;
   files: number;

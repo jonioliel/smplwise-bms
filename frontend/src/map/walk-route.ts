@@ -18,7 +18,7 @@ export function routeStops(starts: readonly WalkStart[]): WalkStart[] {
   return starts.filter((s) => s.kind === 'saved');
 }
 
-export interface RouteStep {
+interface RouteStep {
   index: number;
   stop: WalkStart;
 }

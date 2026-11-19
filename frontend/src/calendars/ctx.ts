@@ -60,7 +60,7 @@ export interface NewEventDetail {
  * `p.surface` says where it is drawn ('quick' = the narrow popover / phone sheet, 'drawer' = the full form); `p.onChange` hands the picked
  * value back to the host form, which sends it with the booking as `attendees` once the server knows that field (not sent by this branch).
  */
-export interface AttendeeSlotProps { surface: 'quick' | 'drawer'; calendarId: string; eventId?: string; value: unknown; onChange: (value: unknown) => void }
+interface AttendeeSlotProps { surface: 'quick' | 'drawer'; calendarId: string; eventId?: string; value: unknown; onChange: (value: unknown) => void }
 export const calHooks: { attendees: ((p: AttendeeSlotProps) => unknown) | null } = { attendees: null };
 /** The host's call: the registered picker's template, or nothing (the slot keeps its data attribute for the picker's own specs). */
 export function attendeeSlot(p: AttendeeSlotProps): unknown {

@@ -107,18 +107,18 @@ const KEEP_MS = 2000; // after everything is settled: re-apply cheaply, Home Ass
  * edge, so every cropped pixel is WisKey content, not only the ring (owner report 2026-09-30: "cut off"). The ring is
  * WisKey's to remove (docs/integrations/wiskey/WISKEY_REQUEST_RC38_FOCUS_HE.md). The mechanism stays; a crop above 0
  * must never come back while content can touch the edge. */
-export const WISKEY_EDGE_CROP_PX = 0;
-export const WISKEY_EDGE_CROP_PHONE_PX = 0;
+const WISKEY_EDGE_CROP_PX = 0;
+const WISKEY_EDGE_CROP_PHONE_PX = 0;
 
 const TOP_SWITCH_MS = 1000; // "פתח ב-WisKey": Home Assistant's router gets this long before a full page load
 
-export type EmbedPhase = 'loading' | 'waiting' | 'ready' | 'unsupported' | 'login_required' | 'not_installed' | 'unreachable' | 'blocked';
+type EmbedPhase = 'loading' | 'waiting' | 'ready' | 'unsupported' | 'login_required' | 'not_installed' | 'unreachable' | 'blocked';
 /** Which adapter drives the frame: before the handshake / discovery, the embed API v1, the older panel, or neither. */
-export type EmbedMode = 'pending' | 'v1' | 'legacy' | 'unsupported';
+type EmbedMode = 'pending' | 'v1' | 'legacy' | 'unsupported';
 /** Why the tab does not nest Home Assistant: the Companion app (known before framing) or a sign-in inside the frame. */
-export type DirectReason = 'companion' | 'login_required' | '';
+type DirectReason = 'companion' | 'login_required' | '';
 /** How the Home Assistant chrome ended up (legacy adapter): hidden by the kiosk event, by the injected style, or visible. */
-export type ChromeLever = 'kiosk' | 'css' | 'visible' | '';
+type ChromeLever = 'kiosk' | 'css' | 'visible' | '';
 
 const TAB_LABELS: Record<string, string> = {
   overview: tr('מרכז הכניסה'),
@@ -152,7 +152,7 @@ function deepFind(root: Document | ShadowRoot | Element, tag: string, depth = 0)
 
 /** Legacy adapter only: hide Home Assistant's own sidebar around the panel; returns the lever that took, 'visible' when
  * none did, or '' when the structure is not there (yet). Never throws. */
-export function hideHaChrome(win: Window, doc: Document): ChromeLever {
+function hideHaChrome(win: Window, doc: Document): ChromeLever {
   try {
     const ha = doc.querySelector('home-assistant') as AnyEl | null;
     const ham = ha?.shadowRoot?.querySelector('home-assistant-main') as AnyEl | null;
@@ -201,7 +201,7 @@ function hasBridge(w: Window | null | undefined): boolean {
 /** The Home Assistant Companion app: its user agent (Android `Home Assistant/<version> (Android ...)`; iOS
  * `Home Assistant/<version> (...) Mobile/HomeAssistant, like Safari`), or the native bridge on this window or on the top
  * one (same origin under Ingress). Reads nothing but the presence of those names. */
-export function isCompanionApp(win: Window = window): boolean {
+function isCompanionApp(win: Window = window): boolean {
   if (/Home ?Assistant\//.test(win.navigator.userAgent)) return true;
   if (hasBridge(win)) return true;
   try {
@@ -212,7 +212,7 @@ export function isCompanionApp(win: Window = window): boolean {
 }
 
 /** The panel's normal (top-level, not embedded) deep link, root-relative: `/hikvision-intercom?tab=…[&tool=…]`. */
-export function wiskeyDeepLink(loc: { tab: string; tool?: string | null }): string {
+function wiskeyDeepLink(loc: { tab: string; tool?: string | null }): string {
   const q = new URLSearchParams({ tab: loc.tab });
   if (loc.tool) q.set('tool', loc.tool);
   return `${WISKEY_PANEL_PATH}?${q.toString()}`;
@@ -222,7 +222,7 @@ export function wiskeyDeepLink(loc: { tab: string; tool?: string | null }): stri
  * does - pushState on the main window, then `location-changed`, which `home-assistant.ts` routes on. When Home
  * Assistant's router takes it, the Ingress frame this code runs in is replaced and the check below never runs; when
  * this frame is still in place after a second and the panel is nowhere in the top document, a full page load does it. */
-export function openWiskeyInHa(win: Window = window, target: string = WISKEY_PANEL_PATH): void {
+function openWiskeyInHa(win: Window = window, target: string = WISKEY_PANEL_PATH): void {
   let top: Window = win;
   try {
     if (win.top && win.top !== win) {
@@ -377,7 +377,7 @@ export class WiskeyEmbed extends LitElement {
       gap: 6px;
       color: var(--sw-accent-text);
       text-decoration: none;
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       white-space: nowrap;
     }
     a.full:hover {
@@ -406,7 +406,7 @@ export class WiskeyEmbed extends LitElement {
     nav.tools a.on {
       background: var(--sw-surface-3);
       color: var(--sw-accent-text);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
     }
     /* the framed screen: the stage fills the host, the frame fills the stage - no border, outline, padding, margin,
        minimum height or darker canvas anywhere around it */

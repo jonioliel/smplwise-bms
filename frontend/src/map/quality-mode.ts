@@ -45,7 +45,7 @@ export function modeToWire(m: QualityMode): QualityWire {
  * default (`plan.quality` setting) keeps the three values above (integration 2.4.7: the sticky choice of the hotfix kept
  * for every rung of the ladder).
  */
-export type OwnWire = QualityWire | 'realistic' | 'lite';
+type OwnWire = QualityWire | 'realistic' | 'lite';
 /** The order the personal settings row lists them in. */
 export const OWN_MODES: readonly LadderMode[] = ['auto', 'full', 'schematic', 'lite', 'realistic'];
 

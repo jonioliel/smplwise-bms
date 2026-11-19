@@ -5,7 +5,7 @@
  * Pure; no DOM, no imports (the public claim page's bundle takes it too).
  */
 
-export interface ByteUnits {
+interface ByteUnits {
   b: string;
   kb: string;
   mb: string;
@@ -22,7 +22,7 @@ export const BYTE_UNITS_HE: ByteUnits = { b: 'B', kb: 'ק״ב', mb: 'מ״ב', gb
  *  - `'round1'`  `(Math.round(n / MiB * 10) / 10).toFixed(1)`    the same digits, rounded half-up on the decimal value
  *  - `'short'`   under 10: one decimal without a trailing ".0" ("1.2", "3"); from 10: a whole number ("12")
  */
-export type MbStyle = 'fixed1' | 'round1' | 'short';
+type MbStyle = 'fixed1' | 'round1' | 'short';
 
 export interface BytesOptions {
   /** Unit labels. Default English ("B", "KB", "MB", "GB"). */

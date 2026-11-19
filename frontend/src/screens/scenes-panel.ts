@@ -5,7 +5,8 @@ import '../components/sw-dialog';
 import '../components/scene-capture';
 import { aIcon } from '../components/automation-icons';
 import { automationsStyles } from '../styles/automations-glass';
-import { applyAutomationsGlass, autoApi } from '../api/automations-demo';
+import { autoApi } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import { bidi } from '../i18n/bidi';
 import {
   activateScene, createItem, deleteItem, mapAutomationError, replaceItem,
@@ -17,6 +18,7 @@ import type { SceneCapture } from '../components/scene-capture';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { tr } from '../i18n/msg/automation';
+import { dialogRowStyles } from '../styles/fragments';
 
 /**
  * CR-017 `<scenes-panel .items .status .now .sceneId>`: the scenes of the installation (CR §4.3, owner decision 7א). The grid is grouped by area with
@@ -79,7 +81,7 @@ export class ScenesPanel extends LitElement {
     .sh h2 {
       margin: 0;
       font-size: var(--sw-fs-2xl);
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       letter-spacing: -0.025em;
     }
     .sh small {
@@ -134,7 +136,7 @@ export class ScenesPanel extends LitElement {
     }
     .badge {
       font-size: var(--sw-fs-sm);
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       padding: 5px 11px;
       border-radius: 999px;
       background: var(--dv-surface-3);
@@ -240,11 +242,7 @@ export class ScenesPanel extends LitElement {
       color: var(--dv-text-2);
       font-size: var(--sw-fs-md);
     }
-    .dlgrow {
-      display: flex;
-      gap: 8px;
-      justify-content: flex-end;
-    }
+    ${dialogRowStyles}
   `];
 
   connectedCallback() {

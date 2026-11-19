@@ -22,8 +22,8 @@ export interface DoorsWidgetData {
   emergency: EmergencyState | null;
 }
 
-export type DoorsLook = 'err' | 'warn' | 'ok' | 'off';
-export type DoorsRowKind = 'unconfirmed' | 'foreign' | 'not_started' | 'active' | 'next';
+type DoorsLook = 'err' | 'warn' | 'ok' | 'off';
+type DoorsRowKind = 'unconfirmed' | 'foreign' | 'not_started' | 'active' | 'next';
 
 export interface DoorsHomeRow {
   kind: DoorsRowKind;
@@ -35,7 +35,7 @@ export interface DoorsHomeRow {
   key: DwwtKey;
 }
 
-export interface DoorsHomeView {
+interface DoorsHomeView {
   look: DoorsLook;
   incident: Incident | null;
   /** The emergency entry (a button that opens the existing sheet): the installation switch is on and the viewer holds an emergency permission. */

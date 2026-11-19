@@ -8,7 +8,7 @@ import { ticketsLang } from './text';
  */
 
 /** The `link` block of the ticket detail (services/tickets/handler_links.link_block) - the fields the card reads. */
-export interface TicketLinkBlock {
+interface TicketLinkBlock {
   state: 'live' | 'grace' | 'expired' | 'revoked';
   current: boolean;
   generation: number;
@@ -22,7 +22,7 @@ export const LOCK_TEXT = {
   he: { title: 'נעילת קוד', until: 'נעול עד {when}', newLink: 'שלח קישור חדש', done: 'נוצר קישור חדש' },
   en: { title: 'Code locked', until: 'Locked until {when}', newLink: 'Send a new link', done: 'A new link was created' },
 } as const;
-export type CodeLockTextKey = keyof (typeof LOCK_TEXT)['he'];
+type CodeLockTextKey = keyof (typeof LOCK_TEXT)['he'];
 
 export function lockText(key: CodeLockTextKey, vars?: Record<string, string>, lang: 'he' | 'en' = ticketsLang()): string {
   const named = tn(LOCK_TEXT[lang][key] ?? LOCK_TEXT.he[key], lang as TicketLang);
@@ -30,12 +30,12 @@ export function lockText(key: CodeLockTextKey, vars?: Record<string, string>, la
 }
 
 /** The link block of a detail answer (absent before slice 4's backend, null for tickets that never went outside). */
-export function linkOf(t: Pick<TicketDetail, 'id'> & { link?: unknown }): TicketLinkBlock | null {
+function linkOf(t: Pick<TicketDetail, 'id'> & { link?: unknown }): TicketLinkBlock | null {
   const link = t.link;
   return link && typeof link === 'object' ? (link as TicketLinkBlock) : null;
 }
 
-export interface CodeLockCard {
+interface CodeLockCard {
   show: boolean;
   until: string | null; // ISO, while the lock lasts
   canNew: boolean;

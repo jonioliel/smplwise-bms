@@ -9,6 +9,7 @@ import { REPORT_RANGES, bidi, chosenVendors, recipientPicks, unreachable, vendor
 import { tempCss } from './styles';
 import { TT_KEYS, tt, type TtKey } from '../i18n/temperature';
 import { dateInputLang } from '../api/day-format';
+import { errLineStyles } from '../styles/fragments';
 
 type Freq = 'daily' | 'weekly' | 'monthly';
 
@@ -82,7 +83,7 @@ export class TempWa extends LitElement {
     .status { display: grid; gap: 4px; font-size: var(--sw-fs-sm); }
     .wf { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex: 1; min-inline-size: 0; }
     .wf .sp { flex: 1; }
-    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+    ${errLineStyles}
     .okm { color: var(--sw-success-text); font-size: var(--sw-fs-sm); }
     @media (max-width: 600px) {
     }
@@ -153,14 +154,15 @@ export class TempWa extends LitElement {
       this.ok = tt('waQueued', { n: r.queued });
       window.clearInterval(this.poll);
       let left = 12;
-      this.poll = window.setInterval(async () => {
+      // CR-FE-PROMISES-2442: a failed status read stops the follow-up; the list keeps the last statuses it showed
+      this.poll = window.setInterval(() => {
         if (--left <= 0) window.clearInterval(this.poll);
-        try {
+        (async () => {
           this.sends = (await getSends(r.batch_id)).sends;
           if (this.sends.every((s) => s.status !== 'queued' && s.status !== 'retry' && s.status !== 'handed')) window.clearInterval(this.poll);
-        } catch {
+        })().catch(() => {
           window.clearInterval(this.poll);
-        }
+        });
       }, 10_000);
     } catch (e) {
       this.err = describeError(e);

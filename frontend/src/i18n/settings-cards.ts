@@ -71,7 +71,7 @@ const he = {
 };
 
 type Widen<T> = T extends string ? string : { [K in keyof T]: Widen<T[K]> };
-export type SettingsCardsText = Widen<typeof he>;
+type SettingsCardsText = Widen<typeof he>;
 
 const en: SettingsCardsText = {
   layout: {

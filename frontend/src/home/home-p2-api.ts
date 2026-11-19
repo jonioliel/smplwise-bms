@@ -48,7 +48,7 @@ export interface Notice {
 }
 export const listNotices = () => get<{ notices: Notice[] }>('notices');
 export const readNotice = (id: string) => post<{ read: boolean }>(`notices/${encodeURIComponent(id)}/read`);
-export interface BusRow { line: string; dest: string; hm: string; mins: number; quality?: string }
+interface BusRow { line: string; dest: string; hm: string; mins: number; quality?: string }
 export interface Buses { state: 'off' | 'fresh' | 'cached' | 'expired'; items?: BusRow[]; updated_hm?: string | null }
 export const getBuses = () => get<Buses>('home/buses');
 
@@ -82,7 +82,7 @@ export const sceneScheduleOp = (id: string, op: 'enable' | 'disable' | 'run', co
   post<unknown>(`home/schedules/${encodeURIComponent(id)}/${op}`, { client_request_id: rid(), confirm });
 
 // ---------------------------------------------------------------- my notifications
-export interface NotifyCat { id: string; name: string; critical: boolean; on: boolean; partly: boolean }
+interface NotifyCat { id: string; name: string; critical: boolean; on: boolean; partly: boolean }
 export interface NotifyMe { phones: number; categories: NotifyCat[]; dnd: { enabled: boolean; start: string; end: string }; dnd_pass: string[] }
 export const getNotify = () => get<NotifyMe>('home/notify');
 export const putNotify = (body: { muted?: string[]; dnd?: { enabled?: boolean; start?: string; end?: string } }) => put<NotifyMe>('home/notify', body);

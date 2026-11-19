@@ -12,6 +12,7 @@ import './elec-chart';
 import { hasComparison } from './elec-chart-data';
 import { f2, f4, fmtDate, fmtDateTime, openingSource, readingText } from './elec-format';
 import { factorLabel } from './elec-formula';
+import { hostBlockStyles } from '../styles/fragments';
 
 const n = (s: string | number) => html`<span class="n">${s}</span>`;
 
@@ -28,10 +29,7 @@ export class ElecBillPaper extends LitElement {
   private ro?: ResizeObserver;
 
   static styles = css`
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
     .wrap {
       display: flex;
       justify-content: center;

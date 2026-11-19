@@ -15,7 +15,7 @@
  *    so a zone change needs no work here: the next tick formats with the new zone.
  */
 
-export type TickListener = (now: Date) => void;
+type TickListener = (now: Date) => void;
 
 interface Sub {
   fn: TickListener;

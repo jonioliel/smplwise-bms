@@ -11,15 +11,16 @@ import { commandId } from './request-id';
 import { serverNow } from './intercom';
 import { fill } from '../i18n/wiskey-stations';
 import type { StationOpsText } from '../i18n/wiskey-station-ops';
+import { isoZ } from './day-format';
 
 export const STATION_OPS = ['sync', 'rescan', 'health_refresh', 'clock_refresh'] as const;
 export type StationOp = (typeof STATION_OPS)[number];
 
 /** `acknowledged` / `completed`: the server's success; `failed` (WisKey answered a failure), `not_sent`, `unknown` (sent, no clear
  * answer); `sending` / `sent` are the screen's own while a request is out, or an attempt row with no outcome yet. */
-export type OpStatus = 'sending' | 'sent' | 'acknowledged' | 'completed' | 'failed' | 'not_sent' | 'unknown';
+type OpStatus = 'sending' | 'sent' | 'acknowledged' | 'completed' | 'failed' | 'not_sent' | 'unknown';
 
-export interface AuthFailure {
+interface AuthFailure {
   source: 'sync' | 'event_stream' | 'event_history' | 'station_sync' | string;
   step: string | null;
   at: string | null;
@@ -28,7 +29,7 @@ export interface AuthFailure {
   observed?: boolean;
 }
 
-export interface AuthSummary {
+interface AuthSummary {
   last_failure: AuthFailure | null;
   retained: number;
   steps: Record<string, number>;
@@ -39,7 +40,7 @@ export interface AuthSummary {
   retention: string | null;
 }
 
-export interface HealthCard {
+interface HealthCard {
   loaded: boolean | null;
   online: boolean | null;
   consecutive_poll_failures: number | null;
@@ -93,11 +94,11 @@ const TTL_MS = 15_000;
 
 export const getMaintenance = (stationId: string) => get<MaintenanceView>(one(stationId));
 
-export const postMaintenance = (stationId: string, action: StationOp) =>
+const postMaintenance = (stationId: string, action: StationOp) =>
   post<OpReply>(`${one(stationId)}/${action}`, {
     confirmed: true,
     client_request_id: commandId(),
-    expires_at: new Date(serverNow() + TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    expires_at: isoZ(serverNow() + TTL_MS),
   });
 
 /** What a failed POST says: the server's `details.outcome` (`not_sent` / `refused` / `unknown`); a 403 / 404 / 409 / 422 / 429 refusal

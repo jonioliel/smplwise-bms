@@ -36,7 +36,7 @@ export function messageText(l: Pick<OrgLocation, 'name' | 'street' | 'city'> & {
   return parts.filter(Boolean).join(SEP);
 }
 
-export function navUrl(lat: number, lng: number): string {
+function navUrl(lat: number, lng: number): string {
   return `https://maps.google.com/?q=${lat.toFixed(5)},${lng.toFixed(5)}`;
 }
 

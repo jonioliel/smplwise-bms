@@ -12,6 +12,7 @@ import type {
   RfqVendorState,
 } from '../api/tickets-rfq';
 import { vatOf } from './cost-model';
+import { isoZ } from '../api/day-format';
 
 export type Tone = 'ok' | 'info' | 'warn' | 'bad' | '';
 
@@ -59,7 +60,7 @@ export function matchesQuery(item: Pick<RfqSummary, 'title' | 'number' | 'ref' |
   return item.title.toLowerCase().includes(s) || item.ref.toLowerCase().includes(s) || item.department.name.toLowerCase().includes(s);
 }
 
-export interface ListTiles { open: number; collecting: number; decide: number; quotes: number; noReply: number }
+interface ListTiles { open: number; collecting: number; decide: number; quotes: number; noReply: number }
 
 /** The KPI tiles above the list: open requests, out waiting for quotes, waiting for a decision (deadline passed or quotes in), quotes
  * received and vendors without a reply - over the open requests only. */
@@ -72,14 +73,6 @@ export function listTiles(items: readonly Pick<RfqSummary, 'state' | 'kpis'>[]):
     quotes: open.reduce((s, i) => s + i.kpis.quoted, 0),
     noReply: open.reduce((s, i) => s + i.kpis.no_response, 0),
   };
-}
-
-export type VendorBucket = 'invited' | 'opened' | 'quoted' | 'declined' | 'no_reply';
-export const VENDOR_BUCKETS: readonly VendorBucket[] = ['invited', 'opened', 'quoted', 'declined', 'no_reply'];
-
-/** The vendor status of one request (the list's mini strip and the board's tiles), from the server's KPIs. */
-export function vendorBuckets(k: RfqKpis): Record<VendorBucket, number> {
-  return { invited: k.invited, opened: k.opened, quoted: k.quoted, declined: k.declined, no_reply: k.no_response };
 }
 
 /** The segments of the stacked status bar of a request (quoted / declined / opened without a quote / no reply), in that order, each a
@@ -105,7 +98,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
 export function localToIso(date: string, time = '00:00'): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return '';
   const d = new Date(`${date}T${time}:00`);
-  return Number.isNaN(d.getTime()) ? '' : d.toISOString().replace(/\.\d+Z$/, 'Z');
+  return Number.isNaN(d.getTime()) ? '' : isoZ(d);
 }
 
 /** A UTC instant into the form's local date and time. */
@@ -227,7 +220,7 @@ export function initials(name: string): string {
   return `${first}${second}`;
 }
 
-export interface PreviewParts { name: string; number: string; title: string; place: string; due: string; window: string; link: string; organization: string;
+interface PreviewParts { name: string; number: string; title: string; place: string; due: string; window: string; link: string; organization: string;
   /** RFQATT: the `{files}` line - "N files are attached (see the link)", empty when no vendor-visible file (the line is dropped) */
   files?: string }
 
@@ -290,7 +283,7 @@ export function eventLine(e: RfqEvent, vendorName: (id: string | null) => string
 
 // ---------------------------------------------------------------- the comparison
 
-export interface CurrencyGroup { currency: string; ranked: boolean; quotes: RfqCompareQuote[] }
+interface CurrencyGroup { currency: string; ranked: boolean; quotes: RfqCompareQuote[] }
 
 /**
  * The quotes grouped by currency: the comparison's currency first (the only ranked one - lowest / earliest come from the server), then

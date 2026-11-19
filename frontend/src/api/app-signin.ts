@@ -13,7 +13,7 @@ import { get, put } from './client';
 
 export const APP_REFRESH_KEY = 'security.app_refresh';
 export const APP_EXCHANGE_KEY = 'security.app_session_exchange';
-export const APP_ACCESS_KEY = 'security.app_refresh_access_minutes';
+const APP_ACCESS_KEY = 'security.app_refresh_access_minutes';
 /** services/app_session.ACCESS_MAX_WHILE_ON */
 export const EXCHANGE_ACCESS_MAX = 15;
 
@@ -39,7 +39,7 @@ export function onLocked(saved: AppSignIn, sw: AppSwitch, remote: boolean): bool
   return remote && !saved[sw];
 }
 
-export type AppSignInProblem = 'remote_on' | 'exchange_needs_refresh' | 'access_too_long';
+type AppSignInProblem = 'remote_on' | 'exchange_needs_refresh' | 'access_too_long';
 /** What the server would refuse for this draft, checked before the save (the order is the route's). */
 export function appSignInProblem(saved: AppSignIn, d: AppSignIn, remote: boolean): AppSignInProblem | null {
   if (remote && ((d.refresh && !saved.refresh) || (d.exchange && !saved.exchange))) return 'remote_on';

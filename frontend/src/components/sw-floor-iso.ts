@@ -2,7 +2,7 @@ import { LitElement, html, css, svg, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { isoPoint, type IsoScene } from '../map/scene-builder';
 
-export interface IsoRoom {
+interface IsoRoom {
   x: number; // normalized 0..1
   y: number;
   w: number;

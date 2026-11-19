@@ -40,7 +40,7 @@ import { sct } from '../i18n/settings-cards';
 
 /** SETTINGS-INTERCOM-CARDS-2401: which rows the card draws - all of them (layout c, the 2.40.0 card), or one of its two halves (layouts a
  * and b): the stations screen display, or the announcements (the targets, the fixed engine and language, the quick phrases). */
-export type AccessDisplayShow = 'all' | 'display' | 'announce';
+type AccessDisplayShow = 'all' | 'display' | 'announce';
 
 type DisplayKey =
   | (typeof POLICY_KEYS)[keyof typeof POLICY_KEYS]

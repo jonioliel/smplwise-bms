@@ -28,14 +28,14 @@ import { LiveController, type LiveEnv } from '../api/live-refresh';
  * resume within 5 s of `every()` does not repeat that read; pass `{ fresh: false }` when nothing was read yet.
  */
 
-export interface PollOptions {
+interface PollOptions {
   /** Asked before every tick and every resume run; `false` skips this one (asked again a period later). Default: always. */
   when?: () => boolean;
   /** The host has just read this source itself (default true): the first resume within `MIN_GAP_MS` does not run it again. */
   fresh?: boolean;
 }
 
-export interface PollControllerOptions {
+interface PollControllerOptions {
   /** +/-10 % jitter on every period, so many sources never fire in the same tick (default false: the exact period). */
   jitter?: boolean;
   /** Tests: a fake clock and fake page events (see `LiveEnv`). */

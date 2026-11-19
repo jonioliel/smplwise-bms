@@ -31,6 +31,7 @@ import { limitsOf, openableDoors } from '../door-windows/events-logic';
 import { canManageGrants } from '../door-windows/grants-logic';
 import { dateInputLang } from '../api/day-format';
 import { PollController } from '../components/poll-controller';
+import { errLineStyles } from '../styles/fragments';
 
 const POLL_MS = 15_000;
 const EM_POLL_MS = 5_000;
@@ -59,11 +60,11 @@ export class DoorWindowsScreen extends LitElement {
     .stack { display: grid; gap: 16px; } /* round 2 loop 2: the larger titles cost 26 px of inner scroll at 1440x900 - the stack gap and the card padding give it back */
     section { display: grid; gap: 10px; }
     /* round 2: section titles one step larger and tight; the cards carry the lit top edge of the elevation ladder; a card title is a real heading */
-    h2 { margin: 0; font-size: var(--sw-fs-xl); font-weight: 700; letter-spacing: -0.01em; color: var(--sw-text); }
+    h2 { margin: 0; font-size: var(--sw-fs-xl); font-weight: var(--sw-fw-bold); letter-spacing: -0.01em; color: var(--sw-text); }
     .card { display: grid; gap: 8px; padding: 14px; border-radius: var(--sw-r-lg); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0; }
     .card.alarm { border-color: var(--sw-danger); background: var(--sw-danger-soft); }
     .card .top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
-    .card .top b { font-size: var(--sw-fs-lg); font-weight: 700; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+    .card .top b { font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-bold); letter-spacing: -0.01em; overflow-wrap: anywhere; }
     .muted { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
     .doorrow { display: grid; gap: 8px; }
     .occ { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -80,7 +81,7 @@ export class DoorWindowsScreen extends LitElement {
     @media (max-width: 899px) { .rules .head { display: none; } }
     .form { display: grid; gap: 14px; }
     .field { display: grid; gap: 6px; }
-    .field > label, .field > .lbl { font-size: var(--sw-fs-sm); font-weight: 600; color: var(--sw-text-2); }
+    .field > label, .field > .lbl { font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); color: var(--sw-text-2); }
     input[type='text'], input[type='date'], input[type='time'], select, textarea {
       font: inherit; padding: 8px 10px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text);
       min-inline-size: 0;
@@ -107,7 +108,7 @@ export class DoorWindowsScreen extends LitElement {
     .doors { display: grid; gap: 4px; max-block-size: 260px; overflow: auto; padding: 4px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); }
     .doors label { display: flex; gap: 8px; align-items: center; padding: 4px 6px; border-radius: var(--sw-r-sm); }
     .doors .st { font-size: var(--sw-fs-xs); color: var(--sw-text-3); padding: 6px 6px 0; }
-    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+    ${errLineStyles}
     .footer { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
     .preview { display: grid; gap: 8px; }
     .radio { display: grid; gap: 6px; }

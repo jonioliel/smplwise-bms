@@ -6,6 +6,7 @@ import { getExplanation, type Explanation } from '../api/temperature';
 import { tempCss } from './styles';
 import { tt } from '../i18n/temperature';
 import { CONF_KEY, CONF_TONE, FACTOR_ICON as ICON, factorText, num as n } from './explain-model';
+import { errLineStyles } from '../styles/fragments';
 
 export { factorText } from './explain-model';
 
@@ -34,7 +35,7 @@ export class TempExplain extends LitElement {
     .f[data-primary] { font-weight: var(--sw-fw-semibold); }
     .f[data-primary] .bar i { background: var(--tc-warn); }
     .ft { margin: 8px 0 0; font-size: var(--sw-fs-2xs); color: var(--sw-text-3); }
-    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+    ${errLineStyles}
   `];
 
   protected updated() {

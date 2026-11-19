@@ -6,7 +6,7 @@ import type { FleetLogRow, FleetResult, FleetStatus } from '../api/fleet-report'
 import { ft, type FleetTextKey } from '../i18n/fleet-report';
 import { tr } from '../i18n/msg/misc';
 
-export type FleetView = 'off' | 'on' | 'nourl' | 'failed';
+type FleetView = 'off' | 'on' | 'nourl' | 'failed';
 export type Tone = 'ok' | 'warn' | 'bad' | 'mute';
 
 export function viewOf(s: FleetStatus): FleetView {
@@ -143,7 +143,7 @@ export function resultTone(r: FleetResult): Tone {
   return r === 'ok' ? 'ok' : r === 'rejected' ? 'warn' : 'bad';
 }
 
-export interface LogLine { id: number; when: string; text: string; tone: Tone; seq: string }
+interface LogLine { id: number; when: string; text: string; tone: Tone; seq: string }
 
 export function logLines(rows: FleetLogRow[], now: Date = new Date()): LogLine[] {
   return rows.map((r) => ({
@@ -169,8 +169,8 @@ export function silentProblem(value: string, range: [number, number]): string | 
 // ---------------------------------------------------------------- the 52 fields (CR-FLEET215 section 3, nothing more)
 
 export type FieldType = 'const' | 'id' | 'num' | 'time' | 'enum' | 'bool' | 'version' | 'list';
-export type FieldDef = readonly [label: string, path: string, type: FieldType];
-export interface FieldGroup { id: string; title: FleetTextKey; sub?: FleetTextKey; fields: readonly FieldDef[] }
+type FieldDef = readonly [label: string, path: string, type: FieldType];
+interface FieldGroup { id: string; title: FleetTextKey; sub?: FleetTextKey; fields: readonly FieldDef[] }
 
 export const FIELD_GROUPS: readonly FieldGroup[] = [
   { id: 'report', title: 'g_report', sub: 'g_report_x', fields: [

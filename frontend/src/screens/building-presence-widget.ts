@@ -30,7 +30,7 @@ import { BP } from '../i18n/building-presence';
  * Names sit in <bdi> so a Latin room name keeps its place in the Hebrew line; tone is never colour alone (the unknown lamp is hollow).
  */
 
-export interface PresenceWidgetHost {
+interface PresenceWidgetHost {
   snap: BuildingSnapshot | null;
   editing: boolean;
   /** The row band (a compact strip): fewer rows, one-line text. */

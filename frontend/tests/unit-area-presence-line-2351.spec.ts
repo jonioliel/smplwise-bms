@@ -116,7 +116,8 @@ test.describe('owner round 14', () => {
     expect(sheet).toMatch(/if \(!a \|\| !this\.open \|\| document\.hidden \|\| !this\.areaPres\?\.line\) return;/);
     expect(sheet).toMatch(/window\.clearInterval\(this\.presTimer\);/);
     // one fixed-height, non-wrapping line drawn from tokens only; names each in their own bdi
-    const css = sheet.slice(sheet.indexOf('      .pline {'), sheet.indexOf('/* PRESENCE-COMPACT-2310: the room'));
+    const styles = readFileSync(path.join(SRC, 'screens/area-quick-sheet-css.ts'), 'utf8'); // CR-STRUCT-CSS-SPLIT-2442: the pop-up's sheet moved there
+    const css = styles.slice(styles.indexOf('      .pline {'), styles.indexOf('/* PRESENCE-COMPACT-2310: the room'));
     expect(css).toContain('block-size: 24px');
     expect(css).toContain('white-space: nowrap');
     expect(css).toContain('text-overflow: ellipsis');

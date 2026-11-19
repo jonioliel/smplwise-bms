@@ -62,7 +62,7 @@ export class InfraElevators extends LitElement {
     .top .sp { flex: 1; }
     .new {
       display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 8px 16px; text-decoration: none;
-      background: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 600; box-shadow: var(--sw-shadow-1);
+      background: var(--sw-accent); color: var(--sw-text-inverse); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1);
     }
     button.new { border: 0; font: inherit; cursor: pointer; }
     /* POLISH-CONTROL-297: the focus ring is the product's (the same token as the temperature screen), and every pressable thing answers
@@ -117,7 +117,7 @@ export class InfraElevators extends LitElement {
     .head { display: flex; align-items: center; gap: 10px; min-inline-size: 0; }
     /* the elevator name is the card's title - 20 px / 800 in the heading ink */
     .head h3 { margin: 0; font-size: var(--sw-fs-2xl); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; color: var(--sw-heading); flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .head small { display: block; color: var(--sw-text-2); font-size: var(--sw-fs-state); font-weight: 400; overflow: hidden; text-overflow: ellipsis; }
+    .head small { display: block; color: var(--sw-text-2); font-size: var(--sw-fs-state); font-weight: var(--sw-fw-regular); overflow: hidden; text-overflow: ellipsis; }
     .body { display: flex; gap: 16px; align-items: center; min-inline-size: 0; }
     .meta { flex: 1; display: grid; gap: 8px; min-inline-size: 0; }
     .row2 { display: flex; justify-content: space-between; gap: 8px; color: var(--sw-text-2); font-size: var(--sw-fs-state); font-variant-numeric: tabular-nums; }

@@ -18,7 +18,7 @@ export interface LayoutRow {
   hidden: boolean;
 }
 
-export interface CameraPatchBody {
+interface CameraPatchBody {
   sort_order?: number;
   grid_col_span?: number;
   wall_hidden?: boolean;
