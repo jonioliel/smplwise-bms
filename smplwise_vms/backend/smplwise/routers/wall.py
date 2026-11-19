@@ -23,6 +23,7 @@ from ..db import Database, get_setting, now_iso, set_setting
 from ..errors import ApiError, forbidden, not_found
 from ..rbac import INSTALLATION, Principal, permissions_anywhere, require
 from ..services import revocation, wall, wall_alerts, wall_photos
+from ..services import wall_store as store
 from ..services.access import visible_camera_ids
 from ._common import rid as _rid
 from .access import BindingBody, insert_binding, revoke_one, user_known, validate_binding
@@ -35,7 +36,7 @@ WS_HEARTBEAT_STORE_S = 30.0
 
 
 def _names(conn: sqlite3.Connection) -> dict[str, str]:
-    rows = conn.execute("SELECT id, alias, name_source, channel FROM cameras").fetchall()
+    rows = store.camera_name_rows(conn)
     return {r["id"]: (r["alias"] or r["name_source"] or f"ערוץ {r['channel']}") for r in rows}
 
 
@@ -156,7 +157,7 @@ def wall_states(ids: str = Query("", max_length=1000), principal: Principal = De
     wanted = [i for i in (s.strip() for s in ids.split(",")) if i and i in allowed]
     out = []
     for eid in wanted:
-        r = conn.execute("SELECT entity_id, state, unit, original_name, available FROM ha_entities WHERE entity_id = ?", (eid,)).fetchone()
+        r = store.entity_state(conn, eid)
         if r is not None:
             out.append({"id": r["entity_id"], "state": r["state"] if r["available"] else "unavailable", "unit": r["unit"], "name": r["original_name"] or r["entity_id"]})
     return {"states": out}
@@ -196,9 +197,7 @@ def _need_admin(conn: sqlite3.Connection, principal: Principal) -> None:
 
 
 def _kiosk_bindings(conn: sqlite3.Connection, user_id: str) -> list[sqlite3.Row]:
-    return conn.execute(
-        "SELECT * FROM bindings WHERE subject_kind = 'user' AND subject_id = ? AND role_id = ? AND effect = 'allow' AND revoked_at IS NULL", (user_id, wall.KIOSK_ROLE)
-    ).fetchall()
+    return store.kiosk_bindings(conn, user_id, wall.KIOSK_ROLE)
 
 
 def _sync_bindings(conn: sqlite3.Connection, principal: Principal, request: Request, user_id: str, *, floor_id: str | None, cameras: list[str]) -> None:
@@ -221,7 +220,7 @@ def _check_cameras(conn: sqlite3.Connection, cameras: list[str]) -> list[str]:
     for cid in cameras:
         if cid in seen:
             continue
-        if not conn.execute("SELECT 1 FROM cameras WHERE id = ?", (cid,)).fetchone():
+        if not store.camera_exists(conn, cid):
             raise ApiError(422, "validation", "מצלמה לא נמצאה.", details={"camera_id": cid})
         seen.append(cid)
     return seen
@@ -229,7 +228,7 @@ def _check_cameras(conn: sqlite3.Connection, cameras: list[str]) -> list[str]:
 
 def _check_entities(conn: sqlite3.Connection, ids: list[str]) -> None:
     for eid in ids:
-        if not conn.execute("SELECT 1 FROM ha_entities WHERE entity_id = ?", (eid,)).fetchone():
+        if not store.entity_exists(conn, eid):
             raise ApiError(422, "validation", "ישות לא נמצאה.", details={"entity_id": eid})
 
 
@@ -237,7 +236,7 @@ def _check_entities(conn: sqlite3.Connection, ids: list[str]) -> None:
 def list_profiles(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _need_admin(conn, principal)
     names = _names(conn)
-    rows = conn.execute("SELECT * FROM wall_profiles ORDER BY title COLLATE NOCASE").fetchall()
+    rows = store.profiles_by_title(conn)
     return {"profiles": [wall.profile_dict(conn, r, names) for r in rows], "max_profiles": wall.max_profiles(conn), "foldable_open": wall.foldable_open(conn)}
 
 
@@ -266,9 +265,7 @@ def patch_wall_settings(body: WallSettingsPatch, request: Request, principal: Pr
 def candidates(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Existing users that are not wall users yet - the add dialog's picker. The product never creates accounts (CR-001)."""
     _need_admin(conn, principal)
-    rows = conn.execute(
-        "SELECT id, username, name FROM ha_users WHERE is_active = 1 AND id NOT IN (SELECT user_id FROM wall_profiles) ORDER BY COALESCE(name, username) COLLATE NOCASE"
-    ).fetchall()
+    rows = store.candidate_users(conn)
     return {"users": [{"id": r["id"], "username": r["username"] or "", "display_name": r["name"] or r["username"] or ""} for r in rows]}
 
 
@@ -290,7 +287,7 @@ def create_profile(body: ProfileCreate, request: Request, principal: Principal =
         raise ApiError(404, "user_unknown", "המשתמש לא נמצא בספריית Home Assistant.")
     if wall.profile_row(conn, body.user_id) is not None:
         raise ApiError(409, "wall_profile_exists", "למשתמש הזה כבר יש מסך קיר.")
-    count = conn.execute("SELECT COUNT(*) AS n FROM wall_profiles").fetchone()["n"]
+    count = store.profile_count(conn)
     if count >= wall.max_profiles(conn):
         raise ApiError(409, "wall_profile_limit", "הגעת למספר המסכים המרבי.", details={"max": wall.max_profiles(conn)})
     cameras = _check_cameras(conn, body.cameras)
@@ -298,20 +295,16 @@ def create_profile(body: ProfileCreate, request: Request, principal: Principal =
     cfg["cameras"] = cameras
     cfg["scope"] = "floor" if body.floor_id else "cameras"
     now, actor = now_iso(), principal.user_id
-    other = [b for b in conn.execute("SELECT role_id FROM bindings WHERE subject_kind = 'user' AND subject_id = ? AND revoked_at IS NULL", (body.user_id,)).fetchall() if b["role_id"] != wall.KIOSK_ROLE]
-    conn.execute("SAVEPOINT wall_create")
+    other = [b for b in store.live_binding_roles(conn, body.user_id) if b["role_id"] != wall.KIOSK_ROLE]
+    store.savepoint(conn, "wall_create")
     try:
-        conn.execute(
-            "INSERT INTO wall_profiles(user_id, title, area_id, floor_id, enabled, remote_allowed, version, config_json, created_at, created_by, updated_at, updated_by) VALUES (?,?,?,?,1,0,1,?,?,?,?,?)",
-            (body.user_id, body.title.strip(), body.area_id, body.floor_id, wall.dumps(cfg), now, actor, now, actor),
-        )
+        store.insert_profile(conn, body.user_id, body.title.strip(), body.area_id, body.floor_id, wall.dumps(cfg), now, actor)
         _sync_bindings(conn, principal, request, body.user_id, floor_id=body.floor_id, cameras=cameras)
         audit(conn, actor=principal, action="wall.profile.create", decision="allowed", resource_type="wall_profile", resource_id=body.user_id, request_id=_rid(request),
               details={"title": body.title.strip(), "scope": cfg["scope"], "cameras": len(cameras)})
-        conn.execute("RELEASE wall_create")
+        store.release_savepoint(conn, "wall_create")
     except BaseException:
-        conn.execute("ROLLBACK TO wall_create")
-        conn.execute("RELEASE wall_create")
+        store.rollback_savepoint(conn, "wall_create")
         raise
     out = wall.profile_dict(conn, wall.profile_row(conn, body.user_id), _names(conn))
     out["has_other_roles"] = bool(other)
@@ -371,14 +364,11 @@ def patch_profile(user_id: str, body: ProfilePatch, request: Request, principal:
                     {"title": title, "area_id": area_id, "enabled": bool(enabled), "remote_allowed": bool(remote), "desktop": desktop, "config": cfg})
     if not changed:
         return wall.profile_dict(conn, row, _names(conn))
-    conn.execute("SAVEPOINT wall_patch")
+    store.savepoint(conn, "wall_patch")
     try:
         if "config.cameras" in changed or "config.scope" in changed:
             _sync_bindings(conn, principal, request, user_id, floor_id=floor_id, cameras=cfg["cameras"])
-        conn.execute(
-            "UPDATE wall_profiles SET title = ?, area_id = ?, floor_id = ?, enabled = ?, remote_allowed = ?, desktop = ?, config_json = ?, version = version + 1, updated_at = ?, updated_by = ? WHERE user_id = ?",
-            (title, area_id, floor_id, enabled, remote, int(desktop), wall.dumps(cfg), now_iso(), principal.user_id, user_id),
-        )
+        store.update_profile(conn, user_id, title, area_id, floor_id, enabled, remote, int(desktop), wall.dumps(cfg), now_iso(), principal.user_id)
         if "enabled" in changed:
             audit(conn, actor=principal, action="wall.profile.enable" if enabled else "wall.profile.disable", decision="allowed", resource_type="wall_profile", resource_id=user_id, request_id=_rid(request),
                   details={"title": title})
@@ -387,10 +377,9 @@ def patch_profile(user_id: str, body: ProfilePatch, request: Request, principal:
                   details={"title": title, "folder": cfg["frame"]["folder"]})
         audit(conn, actor=principal, action="wall.profile.update", decision="allowed", resource_type="wall_profile", resource_id=user_id, request_id=_rid(request),
               details={"title": title, "changed": changed})
-        conn.execute("RELEASE wall_patch")
+        store.release_savepoint(conn, "wall_patch")
     except BaseException:
-        conn.execute("ROLLBACK TO wall_patch")
-        conn.execute("RELEASE wall_patch")
+        store.rollback_savepoint(conn, "wall_patch")
         raise
     revocation.mark({user_id})  # a dropped camera must close its relay; a grant is picked up by the same signal
     return wall.profile_dict(conn, wall.profile_row(conn, user_id), _names(conn))
@@ -405,16 +394,15 @@ def remove_profile(user_id: str, request: Request, principal: Principal = Depend
     row = wall.profile_row(conn, user_id)
     if row is None:
         raise not_found("מסך הקיר לא נמצא.")
-    conn.execute("SAVEPOINT wall_remove")
+    store.savepoint(conn, "wall_remove")
     try:
         for b in _kiosk_bindings(conn, user_id):
             revoke_one(conn, principal, request, b)
-        conn.execute("DELETE FROM wall_profiles WHERE user_id = ?", (user_id,))
+        store.delete_profile(conn, user_id)
         audit(conn, actor=principal, action="wall.profile.remove", decision="allowed", resource_type="wall_profile", resource_id=user_id, request_id=_rid(request), details={"title": row["title"]})
-        conn.execute("RELEASE wall_remove")
+        store.release_savepoint(conn, "wall_remove")
     except BaseException:
-        conn.execute("ROLLBACK TO wall_remove")
-        conn.execute("RELEASE wall_remove")
+        store.rollback_savepoint(conn, "wall_remove")
         raise
     dropped = 0
     try:
@@ -438,7 +426,7 @@ class PhotoSetCreate(BaseModel):
 
 
 def _used_by(conn: sqlite3.Connection, set_id: str) -> list[sqlite3.Row]:
-    return [r for r in conn.execute("SELECT * FROM wall_profiles").fetchall() if wall.config_of(r)["frame"]["folder"] == set_id]
+    return [r for r in store.profiles(conn) if wall.config_of(r)["frame"]["folder"] == set_id]
 
 
 @router.get("/wall/photo-sets")
@@ -520,7 +508,7 @@ def photo_set_delete(set_id: str, request: Request, principal: Principal = Depen
     for r in used:
         cfg = wall.config_of(r)
         cfg["frame"]["enabled"], cfg["frame"]["folder"] = False, None
-        conn.execute("UPDATE wall_profiles SET config_json = ?, version = version + 1, updated_at = ?, updated_by = ? WHERE user_id = ?", (wall.dumps(cfg), now_iso(), principal.user_id, r["user_id"]))
+        store.set_profile_config(conn, r["user_id"], wall.dumps(cfg), now_iso(), principal.user_id)
     audit(conn, actor=principal, action="wall.photo_set.delete", decision="allowed", resource_type="wall_photo_set", resource_id=set_id, request_id=_rid(request), details={"profiles_turned_off": len(used)})
     return {"deleted": True, "profiles_turned_off": len(used)}
 
