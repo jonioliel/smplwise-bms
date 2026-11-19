@@ -1,6 +1,8 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
 import { describeError } from '../api/client';
@@ -75,9 +77,8 @@ export class NoticeReads extends LitElement {
         <div class="kpi" data-look="acc"><span class="dot"></span><div><b class="num" data-reads-total>${v.total}</b><span class="l">${nt('recipients')}</span></div></div></div>
         <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${v.pct} aria-label=${nt('readSheet')}><i style=${`inline-size:${v.pct}%`}></i></div></div>
       ${v.named ? html`
-        <div class="seg" role="group" aria-label=${nt('readsList')} data-reads-seg>
-          <button aria-pressed=${String(this.seg === 'read')} data-seg="read" @click=${() => (this.seg = 'read')}>${nt('readN', { n: v.read })}</button>
-          <button aria-pressed=${String(this.seg === 'unread')} data-seg="unread" @click=${() => (this.seg = 'unread')}>${nt('unreadN', { n: v.unread })}</button></div>
+        <sw-segmented label=${nt('readsList')} data-reads-seg value=${this.seg} @change=${(e: CustomEvent<SegmentedChange>) => (this.seg = e.detail.value as 'read' | 'unread')}
+          .options=${[{ value: 'read', label: nt('readN', { n: v.read }), attrs: { 'data-seg': 'read' } }, { value: 'unread', label: nt('unreadN', { n: v.unread }), attrs: { 'data-seg': 'unread' } }]}></sw-segmented>
         ${rows.length
           ? html`<div class="list"><table class="t" data-reads-table><thead><tr><th>${nt('colName')}</th><th>${nt('colPlace')}</th>${this.seg === 'read' ? html`<th>${nt('colReadAt')}</th>` : nothing}</tr></thead><tbody>
               ${rows.map((r) => html`<tr data-reads-row><td><span class="t1">${r.name}</span></td><td class="mut" data-reads-place>${r.place || nt('allPlaces')}</td>${this.seg === 'read' ? html`<td class="date num">${readAtText(r.at)}</td>` : nothing}</tr>`)}

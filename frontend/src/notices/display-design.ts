@@ -6,6 +6,8 @@ import {
 } from '../notice-tv/tv-logic';
 import { nt, type NtKey } from '../i18n/notices';
 import { noticesCss } from './styles';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 
 type Key = keyof Tv2Defaults;
 const ROWS: { key: Key; seg: string; label: NtKey; values: readonly string[] }[] = [
@@ -51,9 +53,9 @@ export class NoticeDisplayDesign extends LitElement {
     const label = r.key === 'board_layout' && !board ? nt('boardLayoutDefaultLabel') : nt(r.label);
     const note = off ? nt('v2Only') : board && own === null ? nt('tvDefaultNow', { v: dflt }) : '';
     return html`<div class="fld"><span class="lbl">${label}</span>
-      <div class="seg" data-seg=${r.seg}>
-        ${board ? html`<button data-v="default" aria-pressed=${String(own === null)} ?disabled=${off} title=${dflt} @click=${() => this.emit(r.key, null)}>${nt('tvUseDefault')}</button>` : nothing}
-        ${r.values.map((k) => html`<button data-v=${k} aria-pressed=${String(own === k)} ?disabled=${off} @click=${() => this.emit(r.key, k)}>${text(r.key, k)}</button>`)}</div>
+      <sw-segmented label=${label} data-seg=${r.seg} value=${own === null ? '__default__' : own} ?disabled=${off}
+        @change=${(e: CustomEvent<SegmentedChange>) => this.emit(r.key, e.detail.value === '__default__' ? null : e.detail.value)}
+        .options=${[...(board ? [{ value: '__default__', label: nt('tvUseDefault'), title: dflt, attrs: { 'data-v': 'default' } }] : []), ...r.values.map((k) => ({ value: k, label: text(r.key, k), attrs: { 'data-v': k } }))]}></sw-segmented>
       ${note ? html`<span class="hint" data-default-note>${note}</span>` : nothing}</div>`;
   }
 

@@ -40,6 +40,22 @@ export const noticesCss = css`
   .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 14px; border-block-end: 1px solid var(--sw-border); }
   .toolbar h2 { margin: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
   .toolbar .sp { flex: 1; }
+  /* CR-CMP2-SEGMENTED-B-2450 (owner N11): the module's segmented controls are sw-segmented; these knobs keep the module's key (the bordered
+     track on surface-2, 13 px keys, the chosen key medium) through its shadow root */
+  sw-segmented {
+    --sw-seg-border: var(--sw-border);
+    --sw-seg-radius: var(--sw-r-lg);
+    --sw-seg-btn-radius: var(--sw-r-md);
+    --sw-seg-pad: 2px;
+    --sw-seg-track: var(--sw-surface-2);
+    --sw-seg-h: 28px;
+    --sw-seg-key-pad: 12px;
+    --sw-seg-fs: var(--sw-fs-sm);
+    --sw-seg-fw: var(--sw-fw-regular);
+    --sw-seg-on-fw: var(--sw-fw-medium);
+    --sw-seg-on-bg: var(--sw-seg-key, var(--sw-surface-solid));
+    --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-text));
+  }
   .seg { display: inline-flex; border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); padding: 2px; gap: 2px; background: var(--sw-surface-2); flex-wrap: wrap; }
   .seg button { font: inherit; font-size: var(--sw-fs-sm); border: 0; background: transparent; color: var(--sw-text-2); padding: 5px 12px; border-radius: var(--sw-r-md); cursor: pointer; }
   .seg button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface-solid)); color: var(--sw-seg-key-ink, var(--sw-text)); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); font-weight: var(--sw-fw-medium); }
@@ -71,7 +87,7 @@ export const noticesCss = css`
   .card:last-child { border-block-end: 0; }
   .card .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .form { display: grid; gap: 12px; align-content: start; }
-  .fld > .seg, .fld > .chips, .fld > .sum { justify-self: start; }
+  .fld > .seg, .fld > sw-segmented, .fld > .chips, .fld > .sum { justify-self: start; }
   .chips { align-items: center; }
   .form .r { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
   .fld { display: grid; gap: 4px; min-inline-size: 0; }
