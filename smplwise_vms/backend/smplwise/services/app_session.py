@@ -531,11 +531,15 @@ class _Cache(SessionCache[AppWebSession]):
         with self._lock:
             self._cleared_at = _now()
 
+    def forget_ended(self) -> None:
+        """Tests only: forget the ended keys, the held users and the clear's hold."""
+        super().forget_ended()
+        with self._lock:
+            self._cleared_at = None
+
     def reset(self) -> None:
         """Tests only: an empty cache with no holds."""
         super().clear()
-        with self._lock:
-            self._cleared_at = None
         self.forget_ended()
 
 

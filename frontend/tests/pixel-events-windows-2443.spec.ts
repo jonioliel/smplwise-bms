@@ -79,7 +79,7 @@ async function open(page: Page) {
   await page.route('**/api/v1/events**', (route) => {
     const p = new URL(route.request().url()).pathname;
     if (p.endsWith('/events/windows')) return json(route, { windows: WINDOWS, from: at('00:00'), to: `${DAY}T23:59:59Z`, timezone: 'UTC', gap_seconds: 180, events_total: EVENTS.length, spotlights: 1 });
-    if (p.endsWith('/events/facets')) return json(route, { places: [], severities: [], types: [], sources: [] });
+    if (p.endsWith('/events/facets')) return json(route, { days: 90, since: at('00:00'), places: [], severities: [], types: [], sources: [], unavailable_types: [], notes: [] }); // the whole EventFacets shape (renderTech reads unavailable_types)
     if (p.endsWith('/events')) return json(route, { events: EVENTS, from: at('00:00'), to: `${DAY}T23:59:59Z`, timezone: 'UTC', ingest: INGEST, derive: DERIVE, types: ['line', 'person', 'vehicle', 'motion'] });
     return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 'not_found', user_message: 'לא נמצא', retryable: false, correlation_id: 'mock', details: {} }) });
   });
