@@ -104,14 +104,8 @@ class Definition:
     def band_name(self, bid: str) -> str:
         return next((b.name_he for b in self.bands if b.id == bid), bid)
 
-    def day_type_name(self, did: str) -> str:
-        return next((d.name_he for d in self.day_types if d.id == did), did)
-
     def band_index(self, bid: str) -> int:
         return next((i for i, b in enumerate(self.bands) if b.id == bid), len(self.bands))
-
-    def season_index(self, sid: str) -> int:
-        return next((i for i, s in enumerate(self.seasons) if s.id == sid), len(self.seasons))
 
     def sha256(self) -> str:
         return definition_sha256(self.raw)

@@ -21,8 +21,8 @@ import json
 from typing import Any, Mapping, Sequence
 
 from ...db import get_setting
-from . import model, money, settings_doc, store, store_costs, store_links, store_quotes
-from .costs import CostRefused, cost_settings, iso, now_utc, parse
+from . import fields, model, money, settings_doc, store, store_costs, store_links, store_quotes
+from .costs import CostRefused, _refused, cost_settings, iso, now_utc, parse
 from .text_hygiene import clean_text
 
 STATES = ("submitted", "fix_requested", "approved", "partially_approved", "rejected", "superseded", "withdrawn", "not_awarded")
@@ -225,27 +225,11 @@ def same_line_basis(a: Mapping[str, Any], b: Mapping[str, Any]) -> bool:
 # ---------------------------------------------------------------- building a quote (vendor through the link / manager on behalf)
 
 def _text(value: Any, field: str, max_len: int, *, multiline: bool = False) -> str | None:
-    if value is None:
-        return None
-    if not isinstance(value, str):
-        raise CostRefused(422, "type", field)
-    t = clean_text(value, multiline=multiline)
-    if len(t) > max_len:
-        raise CostRefused(422, "too_long", field)
-    return t or None
+    return fields.text(value, field, max_len, refuse=_refused, multiline=multiline)  # CR-TK-MONEY-UTILS (01:F-15): the shared check
 
 
 def _instant(value: Any, field: str, now: dt.datetime) -> str | None:
-    if value is None or value == "":
-        return None
-    if not isinstance(value, str):
-        raise CostRefused(422, "type", field)
-    at = parse(value)
-    if at is None:
-        raise CostRefused(422, "format", field)
-    if at < now - dt.timedelta(days=1) or at > now + dt.timedelta(days=WORK_HORIZON_DAYS):
-        raise CostRefused(422, "range", field)
-    return iso(at)
+    return fields.instant(value, field, now, horizon_days=WORK_HORIZON_DAYS, refuse=_refused)  # CR-TK-MONEY-UTILS (01:F-15)
 
 
 def _valid_until(value: Any, now: dt.datetime) -> str | None:
@@ -729,13 +713,14 @@ def _local(conn, value: str | None) -> str | None:
     at = parse(value)
     if at is None:
         return None
+    tz: dt.tzinfo = dt.timezone.utc
     try:
         from zoneinfo import ZoneInfo
 
-        at = at.astimezone(ZoneInfo(get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem"))
+        tz = ZoneInfo(get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem")
     except Exception:  # noqa: BLE001 - an unknown zone shows UTC
         pass
-    return at.strftime("%d.%m.%Y %H:%M")
+    return fields.local_text(at, tz, "%d.%m.%Y %H:%M")  # CR-TK-MONEY-UTILS (01:F-15)
 
 
 def draft_message(conn, ticket: Mapping[str, Any], *, subject: str, obj: Mapping[str, Any], decision: str) -> dict[str, Any]:

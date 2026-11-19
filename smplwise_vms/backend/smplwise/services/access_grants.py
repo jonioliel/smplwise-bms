@@ -15,9 +15,9 @@ Owner answers of 2026-10-17 (binding, numbered as the CR's section 11):
 11 the code message names the doors, the dates and the hours;
 12 one live grant per person; a widening needs a new approval, a narrowing (or the same scope) merges at once.
 
-Everything is OFF: the switch `access.external_grants` (default `off`) cannot be turned on in this build - the owner's separate
-go-live permit is the code constant GO_LIVE_PERMITTED (False), checked by the settings route, by the live WisKey engine
-(services/access_grant_engine.py) and by the live WhatsApp transport. Tests drive the whole flow with fakes only.
+OFF by default: the switch `access.external_grants` (default `off`). The owner's separate go-live permit is the code constant
+GO_LIVE_PERMITTED, checked by the settings route, by the live WisKey engine (services/access_grant_engine.py) and by the live WhatsApp
+transport. It has been True since 2026-10-21 (ECCACT-295) and is kept as the owner's kill switch, owner decision O9 a of 14.11.2026. Tests drive the whole flow with fakes only.
 
 How it is built:
 - Every state change of a grant is a database transition written in ONE transaction; nothing here talks to WisKey or WhatsApp
@@ -64,8 +64,10 @@ from typing import Any, Callable, Iterable
 from ..db import Database, get_setting, now_iso, permission_revision, set_setting
 from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, LOCAL_ID_PREFIX, STATION, Principal, authorize, is_system_admin, permissions_anywhere
+from . import confirm_words
 from . import intercom_authority as ia
 from . import intercom_write_journal as wj
+from . import redact
 from .access_grant_engine import KEEP, Engine, EngineError, EnginePerson, central_revoked, plan_overrides, requested_policy, revocation_proven
 from .wiskey_access_state import EVIDENCE_UNVERIFIED
 
@@ -73,9 +75,10 @@ log = logging.getLogger("smplwise.access_grants")
 
 # ---------------------------------------------------------------- constants and settings
 
-# The owner's SEPARATE go-live permit, enforced in code (the capture-lease pattern): while False the switch cannot be turned on,
+# The owner's SEPARATE go-live permit, enforced in code (the capture-lease pattern): when False the switch cannot be turned on,
 # the live WisKey engine refuses every call and the live WhatsApp transport sends nothing. Flipped only by the commit that carries
 # the owner's written go-live permit - never by a setting, an environment variable or a version.
+# O9 a (owner decision 14.11.2026): True, and kept as the owner's kill switch - setting it to False stops the feature in code.
 GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A) removed the historical block; the switch access.external_grants stays OFF until an administrator turns it on
 
 PERMISSION = "access.external.grant"
@@ -99,8 +102,9 @@ MAX_DAYS_CAP = 14  # owner answer 8: a constant; the setting may only lower it
 MAX_DOORS_CAP = 8
 DEFAULTS = {FLAG_KEY: "off", MAX_DAYS_KEY: "14", MAX_DOORS_KEY: "4", FRESH_KEY: "180", CODE_HOUR_KEY: "18", LOCAL_KEY: "off", CARDS_KEY: "off",
             PENDING_RETENTION_KEY: "90", PENDING_CAP_KEY: "10"}
-REVOKE_ALL_WORD = "בטל הכל"
-DELETE_WORD = "מחק"
+# CR-I18N-CONFIRM-WORDS-2442: the words live in services/confirm_words.py (Hebrew, or the fixed English counterpart)
+REVOKE_ALL_WORD = confirm_words.he("access_revoke_all")
+DELETE_WORD = confirm_words.he("access_delete_person")
 
 LIVE = ("requested", "approved", "provisioning", "active", "revoking", "unknown")
 DECIDED = ("approved", "provisioning", "active", "unknown")  # an approval stands behind it
@@ -260,8 +264,8 @@ def set_clock(fn: Callable[[], datetime] | None) -> None:
     _now_fn = fn or _real_now
 
 
-def iso(at: datetime) -> str:
-    return at.astimezone(timezone.utc).strftime(_ISO)
+from .timeutil import iso_utc
+iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def parse_iso(text: str | None) -> datetime | None:
@@ -734,8 +738,7 @@ def _parse_any(text: Any) -> datetime | None:
 
 
 def mask_number(contact: dict[str, Any] | None) -> str | None:
-    digits = (contact or {}).get("phone_e164") or ""
-    return f"····{digits[-2:]}" if len(digits) >= 2 else None
+    return redact.phone_tail2_dots((contact or {}).get("phone_e164") or "")
 
 
 def code_due(conn: sqlite3.Connection, valid_from: str, at: datetime) -> str:
@@ -1203,13 +1206,14 @@ def revoke_all(db: Database, principal: Principal, confirm: str, request_id: str
         if not is_system_admin(conn, principal.user_id):
             _audit(conn, principal, "access.grant.revoke_all", "*", decision="denied", reason="not_system_admin", request_id=request_id, resource_type="installation")
             raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לבטל את כל הגישות.")
-        if (confirm or "").strip() != REVOKE_ALL_WORD:
+        confirm_word = confirm_words.typed_lang("access_revoke_all", confirm)
+        if confirm_word is None:
             raise ApiError(422, "confirm_required", f"כדי לבטל את כל הגישות יש להקליד \"{REVOKE_ALL_WORD}\".", details={"field": "confirm"})
         marks = ",".join("?" * len(LIVE))
         rows = [dict(r) for r in conn.execute(f"SELECT * FROM access_grants WHERE state IN ({marks})", LIVE).fetchall()]
         for g in rows:
             mark_revoking(conn, g, "feature_off", actor=principal, request_id=request_id)
-        _audit(conn, principal, "access.grant.revoke_all", "*", request_id=request_id, resource_type="installation", count=len(rows))
+        _audit(conn, principal, "access.grant.revoke_all", "*", request_id=request_id, resource_type="installation", count=len(rows), confirm_word=confirm_word)
     WORKER.run_once(db)
     return len(rows)
 
@@ -1308,7 +1312,8 @@ def delete_person_now(db: Database, principal: Principal, link_id: str, confirm:
             raise forbidden(permission=PERMISSION, target_type="installation", target_id="*", reason="no_binding")
         if link["origin"] != "created_from_arx":
             raise _conflict("access_person_not_ours", "האדם נוצר במערכת הכניסה ולא על ידי Arx; מחיקה רק ממסך האנשים.")
-        if (confirm or "").strip() != DELETE_WORD:
+        confirm_word = confirm_words.typed_lang("access_delete_person", confirm)
+        if confirm_word is None:
             raise ApiError(422, "confirm_required", f"כדי למחוק יש להקליד \"{DELETE_WORD}\".", details={"field": "confirm"})
         marks = ",".join("?" * len(LIVE))
         for r in conn.execute(f"SELECT * FROM access_grants WHERE link_id = ? AND state IN ({marks})", (link_id, *LIVE)).fetchall():
@@ -1332,7 +1337,7 @@ def delete_person_now(db: Database, principal: Principal, link_id: str, confirm:
     with db.connection(label="access_grants.delete_person.done") as conn:
         conn.execute("DELETE FROM access_person_links WHERE id = ?", (link_id,))
         _audit(conn, principal, "access.person_link.delete", link_id, resource_type="access_person_link", request_id=request_id,
-               wiskey_person_id=link["wiskey_person_id"], outcome=outcome)
+               wiskey_person_id=link["wiskey_person_id"], outcome=outcome, confirm_word=confirm_word)
     return {"link_id": link_id, "outcome": outcome, "pending": outcome == "accepted"}
 
 
@@ -1701,8 +1706,9 @@ def _attach_recovered_person(db: Database, grant_id: str, op_id: str, wiskey_per
         # R6-A5 / R8-A2 (ARX-N04): `is_system_admin` leaves the user's active flag to its caller - checked HERE too, so no future caller
         # can forget it: a disabled (or unknown) Arx user is refused even with a live system_admin binding. This does not authenticate a
         # session (the future route's job) and does not validate the evidence contents (still the caller's duty, see the docstring).
-        user = conn.execute("SELECT active FROM users WHERE id = ?", (actor.user_id,)).fetchone()
-        if user is None or not user["active"]:
+        from .active_users import has_active_account
+
+        if not has_active_account(conn, actor.user_id):  # CR-ACTIVE-USER-REST-2438: the one rule, an Arx account required
             raise ApiError(403, "actor_inactive", "רק מנהל מערכת פעיל יכול לשייך אדם ששוחזר.")
         g = grant_row(conn, grant_id)
         if g is None:
@@ -2243,8 +2249,9 @@ class Worker:
         if link is not None and link["state"] == "wiskey_missing":
             return "wiskey_missing"
         if g["state"] in DECIDED and g.get("approved_by"):
-            u = conn.execute("SELECT active FROM users WHERE id = ?", (g["approved_by"],)).fetchone()
-            if u is None or not u["active"]:
+            from .active_users import has_active_account
+
+            if not has_active_account(conn, g["approved_by"]):  # CR-ACTIVE-USER-REST-2438: the one rule, an Arx account required
                 return "approver_lost_authority"
         return None
 

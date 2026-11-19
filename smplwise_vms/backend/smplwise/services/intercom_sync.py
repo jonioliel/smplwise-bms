@@ -77,7 +77,8 @@ from typing import Any, Awaitable, Callable
 from ..config import Settings
 from ..db import now_iso
 from ..errors import ApiError
-from . import ha_client, intercom_client
+from ..test_reset import register_reset
+from . import ha_client, intercom_client, loop_thread_stop
 from .intercom_client import IntercomError
 
 log = logging.getLogger("smplwise.intercom")
@@ -426,6 +427,32 @@ def person_scope(raw: Any) -> dict[str, Any]:
     }
 
 
+def person_fields(raw: Any) -> dict[str, Any]:
+    """CR-PERSON-PROJECTION (review 02:P2-7): ONE reading of a WisKey person record's containers, for every projection of it - the
+    read people view and the editor below, and the closed superset (services/intercom_adapter.project_person). Each projection used
+    to re-read these from the raw record on its own, so a field one of them learned to read was silently missing in the other
+    (`permission_overrides` once, tests/test_permovr_293.py). A container that is not of its type is None - never an empty one,
+    so "absent / malformed" stays distinguishable from "empty"; each projection decides what None means for its own output.
+
+    `scope` is `person_scope(raw)` (the completeness verdict both already shared). What each projection then does with a value -
+    which ids it accepts, how it clips a text, what it shows for a withheld field - stays its own contract; the pair is held
+    together key by key in tests/test_person_projection_parity_2440.py."""
+    raw = raw if isinstance(raw, dict) else {}
+
+    def of(key: str, kind: type) -> Any:
+        value = raw.get(key)
+        return value if isinstance(value, kind) else None
+
+    return {
+        "scope": person_scope(raw),
+        "assignments": of("assignments", dict),
+        "group_ids": of("group_ids", list),
+        "permission_overrides": of("permission_overrides", dict),
+        "cards": of("cards", list),
+        "profile": of("profile", dict),
+    }
+
+
 ACCESS_CATEGORIES = ("staff", "visitor", "contractor")
 
 
@@ -438,9 +465,10 @@ def project_person(raw: dict[str, Any]) -> dict[str, Any]:
     `stations` / `group_ids` / the validity are real evidence (an empty list with `stations_known: false` means "not shown",
     never "no stations"), `access_category` is null when withheld, and WisKey's own `redacted_fields` / `operator_editable`
     are passed on. Nothing here (or anywhere downstream) may infer a revocation from `stations: []` unless `stations_known`."""
-    scope = person_scope(raw)
-    assignments = raw.get("assignments") if isinstance(raw.get("assignments"), dict) else {}
-    groups = raw.get("group_ids") if isinstance(raw.get("group_ids"), list) else []
+    fields = person_fields(raw)
+    scope = fields["scope"]
+    assignments = fields["assignments"] or {}
+    groups = fields["group_ids"] or []
     category = raw.get("access_category")
     return {
         **{k: str(raw.get(k) or "") for k in PERSON_KEYS},
@@ -509,10 +537,11 @@ def project_person_editor(raw: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(raw, dict) or not isinstance(raw.get("id"), str) or not raw["id"] or _int(raw.get("revision")) is None:
         raise ValueError("unexpected person record")
     person = project_person(raw)
-    scope = person_scope(raw)
-    assignments = raw.get("assignments") if isinstance(raw.get("assignments"), dict) else {}
-    cards = raw.get("cards") if isinstance(raw.get("cards"), list) else []
-    overrides = raw.get("permission_overrides") if isinstance(raw.get("permission_overrides"), dict) else {}
+    fields = person_fields(raw)
+    scope = fields["scope"]
+    assignments = fields["assignments"] or {}
+    cards = fields["cards"] or []
+    overrides = fields["permission_overrides"] or {}
     return {
         **person,
         # R3-03: a withheld field is null ("not shown"), never the blank WisKey puts in its place ("" phone, false PIN flag)
@@ -928,6 +957,7 @@ class IntercomSync:
 
     def shutdown(self) -> None:
         self.stop.set()
+        loop_thread_stop.stop_and_join(self)  # CR-WAVE2-COMBINED-2439: wake the loop now and wait for the thread (bounded)
 
     def reset(self) -> None:
         """Forget the cached copy and the counters (a fresh process state; used by tests)."""
@@ -1646,6 +1676,7 @@ class IntercomSync:
         assert self.settings
         backoff = RETRY_S
         stop_evt = asyncio.Event()
+        loop_thread_stop.remember(self, stop_evt)  # shutdown() sets stop_evt at once; the poll below stays as the fallback
 
         async def watch_stop() -> None:
             while not self.stop.is_set():
@@ -1938,7 +1969,8 @@ def _lease_hook(reason: str, station_ids: list[str] | None = None) -> None:
         elif station_ids:
             capture_lease.on_authority_change(reason, station_ids=station_ids)
     except Exception:  # noqa: BLE001
-        pass
+        # code review 2026-11-13 P2-8: the revocation trigger failed - say so (the reason only, never an id), as local_identity.lease_hook does
+        log.warning("capture lease hook %s could not run", reason)
 
 
 LEASE_RECEIVER_KEYS = ("lock_enabled", "locks")
@@ -1968,3 +2000,19 @@ def lease_station_diff(before: list[Any], after: list[Any]) -> None:
 
 
 SYNC = IntercomSync()
+
+
+def reset_for_tests() -> None:
+    """The feed's STATE and its served copy back to idle - unless a feed a test started is still winding down (never pulled
+    from under it)."""
+    thread = SYNC.thread
+    if thread is not None and thread.is_alive():
+        return
+    STATE.reset()
+    with SYNC._cache_lock:
+        cached = SYNC._cache is not None
+    if cached:
+        SYNC._drop()
+
+
+register_reset(__name__, ("STATE", "SYNC"), reset_for_tests)

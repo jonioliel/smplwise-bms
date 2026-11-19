@@ -24,8 +24,6 @@ import logging
 import re
 import secrets
 import sqlite3
-import threading
-import weakref
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -35,6 +33,7 @@ from ..errors import ApiError
 from ..rbac import LOCAL_ID_PREFIX, Principal, permissions_anywhere
 from . import app_refresh as ar
 from . import app_refresh_key as dk
+from .session_cache import SessionCache
 
 log = logging.getLogger("smplwise.app_session")
 
@@ -481,62 +480,23 @@ def is_app_session(s: Any) -> bool:
     return isinstance(s, AppWebSession)
 
 
-class _Cache:
+class _Cache(SessionCache[AppWebSession]):
+    """The phone app's web-view sessions; sockets are keyed by session (a web session never rotates). The shared cache is
+    services/session_cache.py (code review 2026-11-13 P2-4)."""
+
     def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._by_sid: dict[str, AppWebSession] = {}
-        self._sockets: dict[str, weakref.WeakSet] = {}
-        self._to_close: list[Any] = []
-
-    def get(self, sid_hash: str) -> AppWebSession | None:
-        now = _now()
-        with self._lock:
-            s = self._by_sid.get(sid_hash)
-            if s is None:
-                return None
-            if now - s.loaded_at > CACHE_TTL_S or now < s.loaded_at or s.expires_at <= now or s.idle_expires_at <= now:
-                self._by_sid.pop(sid_hash, None)
-                return None
-            return s
-
-    def put(self, s: AppWebSession) -> None:
-        with self._lock:
-            if len(self._by_sid) > 5000:
-                for k in list(self._by_sid)[:500]:
-                    self._by_sid.pop(k, None)
-            self._by_sid[s.sid_hash] = s
+        super().__init__(clock=lambda: _now(), ttl_s=lambda: CACHE_TTL_S)
 
     def drop(self, sid_hashes: set[str]) -> None:
         with self._lock:
             for sh in sid_hashes:
                 self._by_sid.pop(sh, None)
-                socks = self._sockets.pop(sh, None)
-                if socks:
-                    self._to_close.extend(list(socks))
-
-    def drop_user(self, user_id: str) -> None:
-        with self._lock:
-            for k in [k for k, v in self._by_sid.items() if v.user_id == user_id]:
-                self._by_sid.pop(k, None)
+            self._end_keys_locked(sid_hashes)
 
     def attach(self, sid_hash: str, websocket: Any) -> bool:
         """False when the session's entry is gone (ended between the resolve and the attach, review M2 / code review 2026-11-13 P1-1):
         the caller refuses the socket. Every ending drops the entry (drop, drop_user, clear); a web session never rotates."""
-        from .session_cache import attach_if_live
-
-        return attach_if_live(self._lock, self._sockets, sid_hash, websocket, live=lambda: sid_hash in self._by_sid)
-
-    def take_to_close(self) -> list[Any]:
-        with self._lock:
-            out, self._to_close = self._to_close, []
-        return out
-
-    def clear(self) -> None:
-        with self._lock:
-            self._by_sid.clear()
-            for socks in self._sockets.values():
-                self._to_close.extend(list(socks))
-            self._sockets.clear()
+        return self._attach(sid_hash, websocket, lambda: sid_hash in self._by_sid)
 
 
 CACHE = _Cache()
@@ -908,6 +868,7 @@ install_log_filter()
 def reset_for_tests() -> None:
     CACHE.clear()
     CACHE.take_to_close()
+    CACHE.forget_ended()
 
 
 __all__ = ["FEATURE_KEY", "MODES", "SETTING_KEYS", "POLICY", "Refused", "exchange", "redeem", "resolve", "remote_principal", "remote_principal_ws",

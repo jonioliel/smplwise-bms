@@ -41,7 +41,7 @@ from . import notify
 from . import water_alerts as wa
 from . import water_meters as wm
 from . import water_settings as ws
-from .timeutil import iso_utc, parse_utc
+from .timeutil import epoch_or_none, iso_from_epoch
 
 log = logging.getLogger("smplwise.water")
 
@@ -66,16 +66,10 @@ def reset() -> None:
 
 
 def _iso(ts: float) -> str:
-    return iso_utc(dt.datetime.fromtimestamp(int(ts), dt.timezone.utc))
+    return iso_from_epoch(int(ts))
 
 
-def _ts(iso: str | None) -> float | None:
-    if not iso:
-        return None
-    try:
-        return parse_utc(iso).timestamp()
-    except (ValueError, TypeError):
-        return None
+_ts = epoch_or_none  # CR-BE-TWINS-2440 (review 04:F20): was one of three identical copies
 
 
 def due_boundary(now_ts: float) -> int:

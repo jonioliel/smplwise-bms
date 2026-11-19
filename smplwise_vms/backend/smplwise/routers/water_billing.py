@@ -28,7 +28,8 @@ from ..services import energy_periods as per
 from ..services import energy_pricing as px
 from ..services import water_billing as wb
 from ..services import water_settings as ws
-from .energy_billing import CustomerCreate, CustomerPatch, FormulaIn, PaidIn, PeriodIn, PresetIn, RowVersionIn, SentIn, VoidIn, _Body, _parse, _raw_body
+from ._common import db_of as _db, raw_body as _raw_body, rid as _rid
+from .energy_billing import CustomerCreate, CustomerPatch, FormulaIn, PaidIn, PeriodIn, PresetIn, RowVersionIn, SentIn, VoidIn, _Body, _parse
 from .water import module_off
 
 router = APIRouter()
@@ -103,10 +104,6 @@ class CorrectIn(_Body):
 
 # ---------------------------------------------------------------- plumbing
 
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
 def _has(conn: sqlite3.Connection, principal: Principal, perm: str) -> bool:
     return authorize(conn, principal, perm, INSTALLATION).allowed
 
@@ -128,14 +125,10 @@ _money_read = _gate(MANAGE, BILLS)
 _bills = _gate(BILLS)
 
 
-def _db(request: Request):
-    return request.app.state.db
-
-
 def _tz(conn: sqlite3.Connection) -> str:
-    from .settings import read_settings
+    from ..services.settings_store import setting_value
 
-    return read_settings(conn)["time.zone"]
+    return setting_value(conn, "time.zone")
 
 
 def _today(tz: str) -> dt.date:

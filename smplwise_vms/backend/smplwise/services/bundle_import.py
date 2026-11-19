@@ -25,7 +25,7 @@ from typing import Any
 
 from ..config import Settings
 from . import bundle as bundle_svc
-from . import signing
+from . import safe_paths, signing
 
 FILE_RE = re.compile(r"^(clips|snapshots)/[A-Za-z0-9][A-Za-z0-9._-]{0,200}$")
 PROVENANCE_FILES = ("manifest.json", "MANIFEST.sha256", signing.SIG_NAME)
@@ -130,7 +130,7 @@ def files_to_store(manifest: dict[str, Any]) -> dict[str, str]:
     whose names pass the allow-list. {path: sha256}. report.html and notes.md stay inside the manifest's hashes."""
     out: dict[str, str] = {}
     for f in manifest.get("files") or []:
-        if isinstance(f, dict) and isinstance(f.get("path"), str) and FILE_RE.match(f["path"]) and bundle_svc.SHA_RE.match(str(f.get("sha256"))):
+        if isinstance(f, dict) and isinstance(f.get("path"), str) and FILE_RE.fullmatch(f["path"]) and bundle_svc.SHA_RE.match(str(f.get("sha256"))):
             out[f["path"]] = f["sha256"]
     return out
 
@@ -140,13 +140,12 @@ def extract(zip_path: Path, wanted: dict[str, str], dest: Path) -> dict[str, dic
     a hash that differs now raises ValueError (the temp file changed under us). Names come from the allow-list only."""
     stored: dict[str, dict[str, Any]] = {}
     dest.mkdir(parents=True, exist_ok=True)
-    root = dest.resolve()
     with zipfile.ZipFile(zip_path) as z:
         names = set(z.namelist())
         todo = [(p, s) for p, s in wanted.items() if p in names] + [(p, None) for p in PROVENANCE_FILES if p in names]
         for path, sha in todo:
-            target = (dest / path).resolve()
-            if root not in target.parents:
+            target = safe_paths.inside(dest, dest / path)  # CR-PATH-CONFINE-2438: the one rule of services/safe_paths
+            if target is None:
                 raise ValueError(f"unsafe target for {path}")
             target.parent.mkdir(parents=True, exist_ok=True)
             with open(target, "wb") as out:

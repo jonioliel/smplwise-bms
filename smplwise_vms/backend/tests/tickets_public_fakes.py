@@ -12,6 +12,7 @@ from typing import Any, Mapping
 from smplwise.services.tickets import links
 from smplwise.services.tickets.public_ports import (CodeRecord, FailureRecord, LinkRecord, PhotoCounts, PhotoFile, SessionRecord,
                                                     StoredImage, StoredResponse)
+from support.waiting import wait_until  # noqa: F401 - re-exported: the tickets tests import it from here
 
 KEY = bytes(range(32))  # a fixed test key - never a real one
 KEY_ID = "0123456789ab"  # its id (module_key ids)
@@ -259,15 +260,6 @@ class FakePhotos:
         if r is None or r["ticket_id"] != link.ticket_id or not r["visible_external"]:
             return None
         return PhotoFile(path=(self.root / r["rel"]).resolve(), ticket_number=link.ticket_number or 0)
-
-
-def wait_until(pred, timeout: float = 5.0, step: float = 0.01) -> bool:
-    end = time.monotonic() + timeout
-    while time.monotonic() < end:
-        if pred():
-            return True
-        time.sleep(step)
-    return pred()
 
 
 # ---------------------------------------------------------------- the harness: a public app over fakes

@@ -22,9 +22,11 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from ..db import get_setting, set_setting
+from ..errors import ServiceInvalid
 from ..rbac import INSTALLATION, Principal, require
 from . import ha_scope
-from .timeutil import iso_utc, parse_utc, zone
+from .timeutil import iso_from_epoch, parse_utc
+from .timeutil import site_zone as site_zone, zone as zone  # re-exported: ic.site_zone / ic.zone (CR-TIMEUTIL-2436)
 
 READ, MANAGE, REPORT = "insights.read", "insights.manage", "reports.building"
 CONFIGURE = "system.configure"  # turning a switch on or off (the owner's switches; system administrators)
@@ -59,9 +61,12 @@ WASTE_DOMAINS = ("light", "climate", "fan", "switch")
 SECTIONS = ("summary", "tickets", "energy", "elevators", "generator", "temperature", "doors", "cameras", "waste")
 
 
-class Invalid(ValueError):
+class Invalid(ServiceInvalid):
+    """CR-BE-SMALL-UNIFY-2440 (T7, review 04:F16): on the common base `errors.ServiceInvalid`; the constructor, the attributes it
+    always had and `str()` are unchanged. The router still builds this endpoint's 422 envelope itself (lead decision L2)."""
+
     def __init__(self, fields: list[str]):
-        super().__init__(",".join(fields))
+        ValueError.__init__(self, ",".join(fields))
         self.fields = fields
 
 
@@ -196,10 +201,6 @@ def switches(conn: sqlite3.Connection) -> dict[str, bool]:
     return {k: switch_on(conn, k) for k in SWITCHES}
 
 
-def site_zone(conn: sqlite3.Connection) -> ZoneInfo:
-    return zone(get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem")
-
-
 def parse_range(rng: str, start: str | None, end: str | None, now_ts: float) -> tuple[int, int]:
     """(lo, hi) unix seconds. ValueError for an unknown preset, a bound without a zone, an empty or a too long range."""
     if rng in RANGES:
@@ -214,8 +215,7 @@ def parse_range(rng: str, start: str | None, end: str | None, now_ts: float) -> 
     return lo, hi
 
 
-def iso(ts: float) -> str:
-    return iso_utc(dt.datetime.fromtimestamp(ts, dt.timezone.utc))
+iso = iso_from_epoch  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def ts_of(value: str) -> float:

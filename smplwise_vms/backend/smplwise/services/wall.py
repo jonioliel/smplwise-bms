@@ -138,11 +138,6 @@ def remember_hello(user_id: str, info: dict[str, Any]) -> None:
         _hello[user_id] = {k: str(v)[:40] for k, v in info.items() if k in ("class", "screen")}
 
 
-def last_hello(user_id: str) -> dict[str, str]:
-    with _lock:
-        return dict(_hello.get(user_id, {}))
-
-
 # ---- profiles
 def profile_row(conn: sqlite3.Connection, user_id: str) -> sqlite3.Row | None:
     return conn.execute("SELECT * FROM wall_profiles WHERE user_id = ?", (user_id,)).fetchone()

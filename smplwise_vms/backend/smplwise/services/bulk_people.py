@@ -9,8 +9,8 @@ Rules kept from S11 and from WisKey's own `people_csv` note: Arx RBAC is the onl
 like a missing one; rows are never matched by name, phone or employee number (only an explicit WisKey id updates); `revision`
 binds a row to the record the editor saw; UNKNOWN is never success and is never re-sent; no PIN / card / photo in any file.
 
-Nothing here is live: the switch `access.bulk_people` is `off` by default and every WRITE needs the owner's go-live permit, which is
-not in this build (`GO_LIVE_PERMITTED = False`). Audit rows and logs carry ids, counts, row numbers, field NAMES and codes - never a
+The switch `access.bulk_people` is `off` by default and every WRITE also needs the owner's go-live permit (`GO_LIVE_PERMITTED`:
+True since 2026-10-21, kept as the owner's kill switch, owner decision O9 a of 14.11.2026). Audit rows and logs carry ids, counts, row numbers, field NAMES and codes - never a
 value."""
 from __future__ import annotations
 
@@ -31,14 +31,16 @@ from ..errors import ApiError
 from ..rbac import Principal, is_system_admin
 from . import intercom_authority as ia
 from . import intercom_writes as iw
+from . import redact
 from .access_grant_engine import EngineError, plan_overrides
 from .bulk_people_engine import BulkEngine, BulkPerson, WiskeyBulkEngine
 
 log = logging.getLogger("smplwise.bulk_people")
 
-# ---------------------------------------------------------------- the switches (both OFF in this build)
+# ---------------------------------------------------------------- the switch (off by default) and the owner's permit (on; a kill switch, O9 a)
 
 FLAG_KEY = "access.bulk_people"  # off | on - a product switch (system administrator); default off
+# O9 a (owner decision 14.11.2026): True, and kept as the owner's kill switch - setting it to False stops the feature in code.
 GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A); the switch access.bulk_people stays OFF until an administrator turns it on
 
 
@@ -110,8 +112,8 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _iso(at: datetime) -> str:
-    return at.astimezone(timezone.utc).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
+from .timeutil import iso_utc
+_iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def _parse_iso(text: Any) -> datetime | None:
@@ -206,11 +208,11 @@ def parse_active(text: str) -> bool:
 
 
 def _person_data_check(data: dict[str, Any]) -> list[str]:
-    """The S11 editor's own draft model (routers/access_control.PersonData) over the scalar part of `data`: the codes of the fields it
+    """The S11 editor's own draft model (services/access_control_core.PersonData) over the scalar part of `data`: the codes of the fields it
     refuses (field names only)."""
     from pydantic import ValidationError
 
-    from ..routers.access_control import PersonData
+    from .access_control_core import PersonData
 
     try:
         PersonData.model_validate({k: v for k, v in data.items() if k != "group_ids"})
@@ -558,8 +560,7 @@ def _visible(auth: ia.Authority, person: BulkPerson | None) -> bool:
 
 
 def _mask_phone(value: Any) -> str | None:
-    digits = re.sub(r"[^0-9]", "", value) if isinstance(value, str) else ""
-    return f"{MASK}{digits[-2:]}" if len(digits) >= 2 else None
+    return redact.phone_tail2_dots(re.sub(r"[^0-9]", "", value)) if isinstance(value, str) else None
 
 
 def diff_view(auth: ia.Authority, person: BulkPerson | None, data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -821,7 +822,7 @@ def apply_batch(db: Any, principal: Principal, job_id: str, eng: BulkEngine, req
         if not go_live_permitted():
             audit(conn, actor=principal, action="access.bulk.apply", decision="denied", resource_type="access_bulk_job", resource_id=job_id,
                   reason="bulk_people_not_permitted", request_id=request_id)
-            raise ApiError(409, "bulk_people_not_permitted", "כתיבה מרוכזת לבקרת הכניסה דורשת אישור הפעלה נפרד מבעל המערכת, וגרסה זו אינה כוללת אותו.")
+            raise ApiError(409, "bulk_people_not_permitted", "כתיבה מרוכזת לבקרת הכניסה דורשת אישור הפעלה נפרד מבעל המערכת, והאישור הזה אינו פעיל כעת.")
         if job["state"] == "done":
             return job_view(job)
         if job.get("confirmed_by") != principal.user_id:

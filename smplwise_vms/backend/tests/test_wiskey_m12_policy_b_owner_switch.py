@@ -99,7 +99,7 @@ def test_a_site_admin_who_is_not_a_system_admin_is_refused_and_audited(client, s
 
 
 def test_system_configure_without_being_a_system_admin_is_refused_and_audited(client, db, monkeypatch, no_installer):
-    from smplwise.routers import wiskey_switches as router
+    from smplwise import rbac as router  # CR-ADMIN-GATE-2438: the route's gate is rbac.require_system_admin, which asks rbac.is_system_admin
 
     monkeypatch.setattr(wai, "OWNER_ON_PERMITTED", True)
     monkeypatch.setattr(router, "is_system_admin", lambda conn, user_id: False)

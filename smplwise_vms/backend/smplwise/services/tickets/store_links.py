@@ -17,8 +17,7 @@ from typing import Any, Iterable, Mapping
 from ...db import new_id, now_iso
 
 
-def _dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
-    return dict(row) if row is not None else None
+from ._sql import has_table as _has_table, row_dict as _dict  # noqa: E402 - CR-TK-SQL: the shared helpers under their old names
 
 
 def _in(values: Iterable[str]) -> tuple[str, list[str]]:
@@ -307,17 +306,17 @@ def any_keyed_row(conn: sqlite3.Connection) -> bool:
         return True
     if _has_rfq_links(conn) and conn.execute("SELECT 1 FROM ticket_rfq_links LIMIT 1").fetchone() is not None:  # TKRFQ1 (0089)
         return True
-    if (conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'intercom_consent_requests'").fetchone() is not None
+    if (_has_table(conn, "intercom_consent_requests")
             and conn.execute("SELECT 1 FROM intercom_consent_requests WHERE state IN ('sending', 'open') LIMIT 1").fetchone() is not None):
         return True  # WA-CONSENT-LINK (0113): a live consent link depends on the key too
-    if (conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'outbound_documents'").fetchone() is not None
+    if (_has_table(conn, "outbound_documents")
             and conn.execute("SELECT 1 FROM outbound_documents WHERE purged_at IS NULL AND revoked_at IS NULL LIMIT 1").fetchone() is not None):
         return True  # CR-VENDORQ-294 (0128): a live document link depends on the key too
     return conn.execute("SELECT 1 FROM ticket_contacts WHERE phone_key IS NOT NULL LIMIT 1").fetchone() is not None
 
 
 def _has_rfq_links(conn: sqlite3.Connection) -> bool:
-    return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ticket_rfq_links'").fetchone() is not None
+    return _has_table(conn, "ticket_rfq_links")
 
 
 def key_ids_in_use(conn: sqlite3.Connection) -> set[str]:
@@ -336,7 +335,7 @@ def key_ids_in_use(conn: sqlite3.Connection) -> set[str]:
                         ("intercom_consent_requests", "state IN ('sending', 'open')"),
                         # CR-VENDORQ-294 (0128): a document link that can still be downloaded derives its token under its key
                         ("outbound_documents", "purged_at IS NULL AND revoked_at IS NULL")):
-        if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (table,)).fetchone() is None:
+        if not _has_table(conn, table):
             continue  # a database before the table's migration
         ids |= {r[0] for r in conn.execute(f"SELECT DISTINCT key_id FROM {table} WHERE {live}").fetchall() if r[0]}  # noqa: S608 - fixed names
     return ids
@@ -414,11 +413,6 @@ def access_devices(conn: sqlite3.Connection, link_id: str, *, since: str | None 
         return int(conn.execute("SELECT COUNT(DISTINCT client_key) FROM ticket_link_access WHERE link_id = ? AND at >= ?",
                                 (link_id, since)).fetchone()[0])
     return int(conn.execute("SELECT COUNT(DISTINCT client_key) FROM ticket_link_access WHERE link_id = ?", (link_id,)).fetchone()[0])
-
-
-def access_counts(conn: sqlite3.Connection, link_id: str) -> dict[str, int]:
-    return {r[0]: int(r[1]) for r in conn.execute(
-        "SELECT kind, COUNT(*) FROM ticket_link_access WHERE link_id = ? GROUP BY kind", (link_id,)).fetchall()}
 
 
 # ---------------------------------------------------------------- verification codes, code sessions, wrong-code windows

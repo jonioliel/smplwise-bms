@@ -20,6 +20,7 @@ from ..services import plan_geometry as pg
 from ..services import plan_zones
 from ..services import shared_spaces
 from ..services.tickets import store_locations
+from ._common import rid as _rid
 from .anchors import _editor_version
 from .catalog import get_floor
 
@@ -111,10 +112,6 @@ def floor_zones(conn: sqlite3.Connection, floor_id: str) -> list[dict[str, Any]]
     return [zone_row(r) for r in conn.execute("SELECT * FROM spatial_zones WHERE floor_id = ? AND deleted_at IS NULL ORDER BY created_at, rowid", (floor_id,)).fetchall()]
 
 
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
 def _get_zone(conn: sqlite3.Connection, zone_id: str) -> sqlite3.Row:
     r = conn.execute("SELECT * FROM spatial_zones WHERE id = ? AND deleted_at IS NULL", (zone_id,)).fetchone()
     if not r:
@@ -134,7 +131,7 @@ def _insert(conn: sqlite3.Connection, principal: Principal, floor_id: str, versi
 
 
 @router.get("/floors/{floor_id}/zones")
-def list_zones_api(floor_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_zones_api(floor_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, "map.read", ("floor", floor_id))
     return {"zones": floor_zones(conn, floor_id)}

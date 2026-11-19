@@ -11,10 +11,12 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
 from PIL import Image
+
+if TYPE_CHECKING:  # CR-MAIN-ROUTERS-TABLE-2440 (review 05:P3-03): numpy is imported by the functions that compute with it, not at import
+    import numpy as np
 
 CANVAS = (245, 247, 251)   # --sw-bg (SW A)
 ROOM = (255, 255, 255)     # --sw-map-room-fill
@@ -30,6 +32,8 @@ SEAL_RATIO = 0.025  # doorway sealing radius as a fraction of the label-scale wi
 
 
 def otsu_threshold(gray: np.ndarray) -> int:
+    import numpy as np
+
     hist = np.bincount(gray.ravel(), minlength=256).astype(np.float64)
     total = hist.sum()
     if total == 0:
@@ -86,6 +90,8 @@ def opening(mask: np.ndarray, r: int) -> np.ndarray:
 def label_regions(free: np.ndarray, max_rounds: int = 400) -> np.ndarray:
     """Connected components (4-neighbourhood) of a boolean mask with numpy only: minimum-label propagation
     plus pointer jumping, so large regions converge in a few dozen rounds instead of their diameter."""
+    import numpy as np
+
     h, w = free.shape
     idx = np.arange(1, h * w + 1, dtype=np.int32).reshape(h, w)
     lab = np.where(free, idx, 0).astype(np.int32)
@@ -107,11 +113,15 @@ def label_regions(free: np.ndarray, max_rounds: int = 400) -> np.ndarray:
 
 
 def _resize_mask(mask: np.ndarray, size: tuple[int, int], method=Image.BOX) -> np.ndarray:
+    import numpy as np
+
     im = Image.fromarray(mask.astype(np.uint8) * 255, mode="L").resize(size, method)
     return np.asarray(im, dtype=np.uint8) > 127
 
 
 def stylize(src: Path, out: Path, strength: str = "medium", keep_lines: bool = False, room_fill: str = "white") -> dict[str, Any]:
+    import numpy as np
+
     t0 = time.time()
     if strength not in STRENGTH:
         raise ValueError("strength must be light | medium | strong")

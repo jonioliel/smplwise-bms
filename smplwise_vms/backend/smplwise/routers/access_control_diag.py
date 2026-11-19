@@ -54,7 +54,8 @@ from ..rbac import Principal
 from ..services import intercom_authority as ia
 from ..services import intercom_sync
 from ..services import wiskey_access_diag as diag
-from .access_control import CommandEnvelope, _Action, _envelope, _parse, _raw_body
+from ._common import raw_body as _raw_body, rid as _rid
+from .access_control import CommandEnvelope, _Action, _envelope, _parse
 
 router = APIRouter()
 API = "/access-control/diag"
@@ -63,10 +64,6 @@ ID = re.compile(ID_PATTERN)
 DOOR = re.compile(r"^([A-Za-z0-9][A-Za-z0-9_.:-]{0,127}):([12])$")
 DECIDE_ACTION = "intercom.access_review_decide"
 AUDIT_ACTION = "intercom.permission_audit"
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _refuse(auth: ia.Authority, permission: str, request_id: str | None) -> ApiError:

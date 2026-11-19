@@ -347,7 +347,7 @@ def test_disarm_is_allowed_by_default_and_a_system_administrator_may_restrict_it
     r = c.patch(f"{API}/settings", json={"schedules.allow_disarm": "true", "schedules.allow_disarm_confirm": "אפשר נטרול"})
     assert r.status_code == 200 and r.json()["settings"]["schedules.allow_disarm"] == "true"
     row = _audit(app, "schedules.allow_disarm")[-1]
-    assert row["decision"] == "allowed" and json.loads(row["details_json"]) == {"to": "true"}
+    assert row["decision"] == "allowed" and json.loads(row["details_json"]) == {"to": "true", "confirm_word": "he"}  # CR-I18N-CONFIRM-WORDS-2442: which word
     assert "אפשר נטרול" not in json.dumps(_audit(app, "settings.update")), "the typed confirmation is never stored"
     assert c.get(f"{API}/schedules/status").json()["settings"]["allow_disarm"] is True
     assert "alarm_control_panel.alarm_disarm" in {a["service"] for a in _catalog(c)["alarm_control_panel.shed_panel"]["actions"]}
@@ -462,3 +462,32 @@ def test_acknowledging_is_for_system_administrators_only_and_is_audited(more):
     assert c.post(f"{API}/schedules/{sid}/acknowledge", json={"issue": "contains_code"}).status_code == 422, "only the two warnings may be acknowledged"
     assert c.post(f"{API}/schedules/{sid}/acknowledge", json={"issue": "unsupported_content"}).status_code == 409, "a warning the schedule does not have"
     assert c.post(f"{API}/schedules/{sid}/acknowledge", json={"issue": "no_owner_sensitive", "undo": True}).status_code == 409
+
+
+# ================================================================ CR-I18N-CONFIRM-WORDS-2442 (owner decision 17.11)
+# The typed confirmation takes the Hebrew word or its fixed English counterpart (services/confirm_words.py), nothing looser, and the
+# audit row says which was typed (`confirm_word`); the typed text itself is never stored.
+
+from confirm_words_cases import LANGS, bad, good  # noqa: E402
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_cw2442_allowing_disarm_takes_the_hebrew_or_the_english_word_only(more, lang):
+    app, s, c, fake, tr = more
+    assert c.patch(f"{API}/settings", json={"schedules.allow_disarm": "false"}).status_code == 200
+    for text in bad("schedules_allow_disarm"):
+        r = c.patch(f"{API}/settings", json={"schedules.allow_disarm": "true", "schedules.allow_disarm_confirm": text})
+        assert r.status_code == 422 and r.json()["code"] == "confirm_required" and r.json()["details"] == {"field": "schedules.allow_disarm_confirm"}, text
+    assert c.get(f"{API}/settings").json()["settings"]["schedules.allow_disarm"] == "false"
+    typed = good("schedules_allow_disarm", lang)
+    r = c.patch(f"{API}/settings", json={"schedules.allow_disarm": "true", "schedules.allow_disarm_confirm": typed})
+    assert r.status_code == 200 and r.json()["settings"]["schedules.allow_disarm"] == "true", r.text
+    row = _audit(app, "schedules.allow_disarm")[-1]
+    assert row["decision"] == "allowed" and json.loads(row["details_json"]) == {"to": "true", "confirm_word": lang}
+    stored = json.dumps(_audit(app, "settings.update") + _audit(app, "schedules.allow_disarm"), ensure_ascii=False)
+    assert typed.strip() not in stored, "which word, never the typed text"
+    with app.state.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM settings WHERE key = 'schedules.allow_disarm_confirm'").fetchone()[0] == 0
+    # the stop direction needs no word and records none
+    assert c.patch(f"{API}/settings", json={"schedules.allow_disarm": "false"}).status_code == 200
+    assert json.loads(_audit(app, "schedules.allow_disarm")[-1]["details_json"]) == {"to": "false"}

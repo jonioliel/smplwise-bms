@@ -39,8 +39,8 @@ PERSON = "person"
 _last_prune: dict[str, float] = {}
 
 
-def _iso(d: dt.datetime) -> str:
-    return d.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+from .timeutil import iso_utc
+_iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def _parse(text: Any) -> dt.datetime | None:

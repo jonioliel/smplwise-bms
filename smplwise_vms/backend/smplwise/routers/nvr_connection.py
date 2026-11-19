@@ -24,22 +24,24 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, read_gate, settings_of
+from ..auth import current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..config import DEV_NVR_PLACEHOLDER, Settings
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..recorder_scope import PRIMARY, settings_for
-from ..services import addon_restart, connection_probe, connection_store, update_runs
+from ..services import addon_restart, confirm_words, connection_probe, connection_store, update_runs
 from ..services.recorders import registry
+from ._common import raw_body as _raw_body, rid as _rid
 
 log = logging.getLogger("smplwise.nvr_connection")
 router = APIRouter()
 
 PERMISSION = "system.configure"
 BODY_MAX = 16 * 1024
-SAVE_WORD = "שמור"     # typed confirmation of a save whose test could not reach the NVR (D6)
-REMOVE_WORD = "הסר"    # typed confirmation of "Remove NVR" (D7)
+# CR-I18N-CONFIRM-WORDS-2442: the words live in services/confirm_words.py (Hebrew, or the fixed English counterpart)
+SAVE_WORD = confirm_words.he("nvr_save_untested")  # typed confirmation of a save whose test could not reach the NVR (D6)
+REMOVE_WORD = confirm_words.he("nvr_remove")       # typed confirmation of "Remove NVR" (D7)
 UNTESTED_OK = ("source_unavailable", "timeout")  # the only failures that may be saved untested
 
 
@@ -74,14 +76,6 @@ class RemoveIn(BaseModel):
 class RestartIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     confirm: bool
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
-async def _raw_body(request: Request) -> bytes:
-    return await request.body()
 
 
 def _parse(request: Request, raw: bytes, model: type[BaseModel]) -> Any:
@@ -365,13 +359,13 @@ def _require_revision(if_revision: int | None, conn: sqlite3.Connection, rid: st
 # ---------------------------------------------------------------- routes
 
 @router.get("/nvr/vendors")
-def vendors(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def vendors(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, PERMISSION, INSTALLATION)
     return {"vendors": registry.catalogue()}
 
 
 @router.get("/nvr/connection")
-def get_connection(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_connection(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, PERMISSION, INSTALLATION)
     return connection_view(conn, request)
 
@@ -463,12 +457,14 @@ def do_save(request: Request, principal: Principal, body: "SaveIn", conn: sqlite
     row = connection_store.get_row(conn, rid)
     _check_vendor_change(conn, settings, row, fields, rid)
     untested = False
+    confirm_word: str | None = None  # which word confirmed an untested save ("he" / "en"), for the audit row
     if result.get("pin_required"):  # CR-025: "pin" chosen but no fingerprint in the body - the form pins it from the test
         raise ApiError(422, "tls_pin_required", "יש לנעוץ את תעודת ה־NVR (בדיקת חיבור ואז נעיצה) לפני השמירה.", details={"field": "tls_pin"})
     if not result["ok"]:
         code = result["code"]
         if code in UNTESTED_OK and body.save_untested:
-            if (body.confirm_text or "").strip() != SAVE_WORD:
+            confirm_word = confirm_words.typed_lang("nvr_save_untested", body.confirm_text)
+            if confirm_word is None:
                 raise ApiError(422, "confirm_required", f"כדי לשמור בלי בדיקה יש להקליד \"{SAVE_WORD}\".", details={"field": "confirm_text"})
             untested = True
         else:
@@ -511,7 +507,7 @@ def do_save(request: Request, principal: Principal, body: "SaveIn", conn: sqlite
         raise ApiError(500, "secret_store_unavailable", "לא ניתן לשמור את הסיסמה בצורה מוצפנת; בדקו את תיקיית הנתונים.") from None
     audit(conn, actor=principal, action="nvr.connection.update", decision="allowed", resource_type="nvr", resource_id=_res(rid), request_id=_rid(request),
           details={"vendor": fields["vendor"], "host": fields["host"], "http_port": fields["http_port"], "rtsp_port": fields["rtsp_port"], "changed": changed_fields,
-                   "password_changed": changed, "untested": untested, "revision": revision})
+                   "password_changed": changed, "untested": untested, "revision": revision, **({"confirm_word": confirm_word} if confirm_word else {})})
     if candidate_fp:  # which physical recorder this connection reaches (keyed hash; the serial is never stored)
         autosync.ensure_recorder(conn, recorder_id=rid)
         autosync.store_identity(conn, rid, candidate_fp)
@@ -529,12 +525,13 @@ def remove_connection(request: Request, background: BackgroundTasks, principal: 
     """"Remove NVR": secrets cleared, vendor `none`, the cameras stay - disabled. The add-on options are never re-imported."""
     require(conn, principal, PERMISSION, INSTALLATION)
     body: RemoveIn = _parse(request, raw, RemoveIn)
-    if body.confirm_text.strip() != REMOVE_WORD:
+    confirm_word = confirm_words.typed_lang("nvr_remove", body.confirm_text)
+    if confirm_word is None:
         raise ApiError(422, "confirm_required", f"כדי להסיר את ה־NVR יש להקליד \"{REMOVE_WORD}\".", details={"field": "confirm_text"})
     _require_revision(body.if_revision, conn)  # the request holds the write lock from here to the commit
     revision, disabled = connection_store.remove(conn, settings_of(request), principal.user_id)
     audit(conn, actor=principal, action="nvr.connection.remove", decision="allowed", resource_type="nvr", resource_id="connection", request_id=_rid(request),
-          details={"revision": revision, "cameras_disabled": disabled})
+          details={"revision": revision, "cameras_disabled": disabled, "confirm_word": confirm_word})
     from ..services import recorder_live
 
     background.add_task(recorder_live.stop, request.app.state.db, settings_of(request), PRIMARY)  # CR-024: stopped at once

@@ -191,5 +191,10 @@ def test_reconcile_with_switch_on(settings: Any, ha_cfg: Path, supervisor: dict[
 
 
 def test_start_up_activation_is_wired_and_gated() -> None:
+    from smplwise.services import janitors
+
     src = (REPO / "smplwise_vms/backend/smplwise/main.py").read_text(encoding="utf-8")
-    assert "wiskey_auto_install.activate_software" in src and "wiskey_auto_install.reconcile_due(db, settings)" in src
+    assert "wiskey_auto_install.activate_software" in src
+    # the periodic reconcile is a guarded housekeeping step since CR-JANITOR-REGISTRY-2438 (was `reconcile_due(db, settings)` in main.py)
+    steps = [s for s in janitors.STEPS if s.target == "services.wiskey_auto_install:reconcile_due"]
+    assert len(steps) == 1 and steps[0].needs == ("db", "settings") and steps[0].failure and steps[0].resolve() is wai.reconcile_due

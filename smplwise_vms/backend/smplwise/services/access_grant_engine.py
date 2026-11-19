@@ -6,8 +6,8 @@ WisKey is the access engine (credentials, door map, validity, timing); Arx decid
 
 `WiskeyServiceEngine` is the live implementation over the existing S11 people writes (the SERVICE channel, the config lane of
 `intercom_sync.SYNC.action`: sent once, never queued, never retried). It refuses every call while the owner's separate go-live
-permit is not in the build (`access_grants.GO_LIVE_PERMITTED`, a code constant that is False) - so in this build no grant ever
-reaches a real WisKey, whatever the settings say. It was written against the shipped S11 shapes and has NOT been run against a
+permit (`access_grants.GO_LIVE_PERMITTED`, a code constant) is False - then no grant ever reaches a real WisKey, whatever the settings
+say. The permit has been True since 2026-10-21 (ECCACT-295) and is kept as the owner's kill switch, owner decision O9 a of 14.11.2026; the feature switch stays off by default. It was written against the shipped S11 shapes and has NOT been run against a
 WisKey (NOT_RUN; the W-a..W-e questions of the CR section 9 are open).
 
 Error kinds (`EngineError.kind`): `not_found`, `revision_conflict`, `pin_conflict`, `not_sent` (nothing reached WisKey - safe to
@@ -131,15 +131,6 @@ class Engine(Protocol):
 
 # ---------------------------------------------------------------- the live engine (refused in this build)
 
-def _doors_of(raw: Any) -> dict[str, list[int]]:
-    out: dict[str, list[int]] = {}
-    if isinstance(raw, dict):
-        for sid, relays in raw.items():
-            if isinstance(sid, str) and isinstance(relays, list):
-                out[sid] = sorted({r for r in relays if isinstance(r, int) and not isinstance(r, bool)})
-    return out
-
-
 _EMPLOYEE_NO = re.compile(r"[A-Za-z0-9_-]{1,32}")
 _VALID_MIN = datetime(1970, 1, 1, tzinfo=timezone.utc)
 _VALID_MAX = datetime(2037, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
@@ -150,8 +141,8 @@ def _clean_name(name: Any, fallback: str = "Guest") -> str:
     return (str(name or "").strip()[:NAME_MAX]).strip() or fallback
 
 
-def _iso_z(moment: datetime) -> str:
-    return moment.astimezone(timezone.utc).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
+from .timeutil import iso_utc
+_iso_z = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def default_validity(at: datetime | None = None) -> tuple[str, str]:

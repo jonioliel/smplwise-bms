@@ -53,7 +53,8 @@ from ..rbac import INSTALLATION, Principal, require
 from ..services import intercom_authority as ia
 from ..services import intercom_sync
 from ..services import wiskey_triage as tr
-from .access_control import MAX_STATION_ID, CommandEnvelope, _Action, _envelope, _parse, _raw_body, _station
+from ._common import raw_body as _raw_body, rid as _rid
+from .access_control import MAX_STATION_ID, CommandEnvelope, _Action, _envelope, _parse, _station
 
 router = APIRouter()
 ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
@@ -97,10 +98,6 @@ def _viewer(request: Request, principal: Principal = Depends(current_principal_r
 
 def _not_found() -> ApiError:
     return ApiError(404, "intercom_station_not_found", "העמדה לא נמצאה.")
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 # ---------------------------------------------------------------- the page's facts

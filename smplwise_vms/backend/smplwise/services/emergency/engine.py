@@ -40,10 +40,6 @@ def _safe(fn, *args: Any) -> dict[str, Any]:
         return _unknown("לא ניתן לאמת את המקור", code="source_error")
 
 
-def _days_text(d: float | None) -> str:
-    return "לא ידוע" if d is None else f"לפני {int(d)} ימים"
-
-
 def _iso_to_dt(value: Any) -> dt.datetime | None:
     if not isinstance(value, str) or not value:
         return None
@@ -334,8 +330,9 @@ def _reachable_contacts(ctx: Ctx) -> tuple[int, int]:
     for r in rows:
         route = bool(r["phone"] or r["email"])
         if not route and r["user_id"]:
-            u = ctx.conn.execute("SELECT active FROM users WHERE id = ?", (r["user_id"],)).fetchone()
-            route = bool(u and u["active"])
+            from ..active_users import has_active_account
+
+            route = has_active_account(ctx.conn, r["user_id"])  # CR-ACTIVE-USER-REST-2438: the one rule (services/active_users)
         if not route:
             continue
         reach += 1
@@ -494,8 +491,7 @@ def e17(ctx: Ctx) -> dict[str, Any]:
     if ctx.settings is not None and getattr(ctx.settings, "go2rtc_url", None):
         from .. import health_report
 
-        cached = health_report._probe_cache.get("go2rtc")
-        go = cached[1].get("status") if cached else None
+        go = health_report.cached_status("go2rtc")
     st = model.recorders(reach, bad_disk, rec_exc, go, degraded)
     text = {"green": "המקליטים פועלים ומקליטים", "amber": "דיסק במקליט לקריאה בלבד או איטי", "red": "מקליט לא זמין, דיסק תקול או חריג הקלטה", "unknown": "אין קריאה עדכנית מהמקליטים"}[st]
     return _row(st, text, [{"key": "recorders", "value": len(recs)}], age_s=max(ages) if ages else None, href=HREF["health"], code="recorders")

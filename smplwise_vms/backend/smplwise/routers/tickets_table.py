@@ -33,25 +33,20 @@ from ..errors import ApiError
 from ..rbac import Principal
 from ..services.tickets import access, bulk, export, model, monthly_report, present, store, table, table_present, views
 from ..services.tickets.access import Viewer, text
+from ._common import rid as _rid
+from ._tickets_common import invalid, invalid_fields, need_any
 from .tickets import ID, module_gate
 
 router = APIRouter(dependencies=[Depends(module_gate)])
 BULK_ROUTE = "POST /tickets/bulk"
 
 
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
 def _invalid(conn: sqlite3.Connection, exc: table.TableError) -> ApiError:
-    return ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": exc.field, "code": exc.code}]})
+    return invalid(conn, exc.field, exc.code)
 
 
 def _need(conn: sqlite3.Connection, viewer: Viewer, permission: str, rid: str | None = None) -> None:
-    if permission in viewer.anywhere:
-        return
-    audit(conn, actor=viewer.principal, action=permission, decision="denied", resource_type="installation", resource_id="*", reason="no_binding", request_id=rid)
-    raise ApiError(403, "forbidden", text(conn, "אין הרשאה ל{tickets}."), details={"permission": permission})
+    need_any(conn, viewer, permission, request_id=rid)
 
 
 def _manages_some_department(viewer: Viewer) -> bool:
@@ -308,7 +303,7 @@ def post_bulk_delete(body: BulkDeleteBody, request: Request, principal: Principa
     elif body.confirm_count != len(body.ids):
         problems.append(model.Problem("confirm_count", "mismatch"))
     if problems:
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": p.field, "code": p.code} for p in problems]})
+        raise invalid_fields(conn, [{"field": p.field, "code": p.code} for p in problems])
     reason = deletion.clean_reason(conn, body.reason)
     deletion.require_rate(conn, viewer, len(body.ids), rid)
     results: list[dict[str, Any]] = []
@@ -365,7 +360,7 @@ def _clean(conn: sqlite3.Connection, name: Any, view: Any) -> tuple[str | None, 
     try:
         clean_name = views.clean_name(name) if name is not None else None
     except model.Invalid as exc:
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": p.field, "code": p.code} for p in exc.problems]}) from None
+        raise invalid_fields(conn, [{"field": p.field, "code": p.code} for p in exc.problems]) from None
     try:
         doc = views.normalize(view) if view is not None else None
     except table.TableError as exc:

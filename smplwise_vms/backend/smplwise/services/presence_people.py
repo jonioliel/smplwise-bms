@@ -59,6 +59,12 @@ def should_audit(user_id: str) -> bool:
         return True
 
 
+def audit_missed(user_id: str) -> None:
+    """The row `should_audit` asked for could not be written (the write lock stayed busy): the viewer's next request is asked again."""
+    with _LOCK:
+        _AUDITED.pop(user_id, None)
+
+
 def _value(text: str | None) -> dict[str, Any]:
     try:
         v = json.loads(text) if text else {}

@@ -48,6 +48,8 @@ from urllib.parse import urlparse
 from ..config import Settings
 from ..errors import ApiError, unauthenticated
 from ..rbac import Principal
+from . import redact
+from .session_cache import attach_if_live, take_queued
 from .tickets import ratelimit as _ratelimit
 
 log = logging.getLogger("smplwise.remote")
@@ -144,15 +146,7 @@ def public_id(chain: str) -> str:
 
 def mask_address(ip: str) -> str:
     """An address for the sessions list: IPv4 to its /24, IPv6 to its /48; anything else is dropped."""
-    import ipaddress
-
-    try:
-        addr = ipaddress.ip_address((ip or "").strip())
-    except ValueError:
-        return ""
-    if addr.version == 4:
-        return str(ipaddress.ip_network(f"{addr}/24", strict=False))
-    return str(ipaddress.ip_network(f"{addr}/48", strict=False))
+    return redact.ip_network(ip)
 
 
 def agent_family(ua: str) -> str:
@@ -535,17 +529,11 @@ class SessionStore:
 
     def attach_socket(self, sid: str, websocket: Any) -> bool:
         """False when the session is gone (revoked or expired between the check and the attach, review M2): the caller
-        refuses the socket rather than serve one nothing would ever close."""
-        with self._lock:
-            if sid not in self._sessions:
-                return False
-            self._sockets.setdefault(sid, weakref.WeakSet()).add(websocket)
-            return True
+        refuses the socket rather than serve one nothing would ever close. The shared rule of services/session_cache.py."""
+        return attach_if_live(self._lock, self._sockets, sid, websocket, live=lambda: sid in self._sessions)
 
     def take_sockets_to_close(self) -> list[Any]:
-        with self._lock:
-            out, self._to_close = self._to_close, []
-        return out
+        return take_queued(self)
 
     def due_for_revalidation(self) -> list[RemoteSession]:
         now = time.time()
@@ -582,12 +570,6 @@ STORE = SessionStore()
 
 _rejected: dict[str, float] = {}  # token hash -> until (negative cache)
 _cache_lock = threading.Lock()
-
-
-def forget_bearer_user(user_id: str) -> None:
-    """The MVP's bearer cache is gone: bearer principals are bearer sessions in STORE (CR-008 P2), so drop_user covers
-    them. Kept for callers."""
-    STORE.drop_user(user_id)
 
 
 def _remember_rejected(token: str) -> None:
@@ -1026,9 +1008,9 @@ def policy_refusal(conn, principal: Principal, ha_user: HaUser) -> ApiError | No
     """Why this user may not use the remote channel now, or None."""
     from ..rbac import permissions_anywhere
 
-    ha_row = conn.execute("SELECT is_active FROM ha_users WHERE id = ?", (principal.user_id,)).fetchone()
-    vms_row = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
-    if (ha_row is not None and not ha_row["is_active"]) or (vms_row is not None and not vms_row["active"]):
+    from .active_users import is_disabled
+
+    if is_disabled(conn, principal.user_id):  # CR-ACTIVE-USER-REST-2438: the one rule (services/active_users) - the same two-sided test this function always made, now shared
         return ApiError(403, "remote_user_inactive", INACTIVE_HE)
     from . import wall as wall_service  # CR-030: a wall user does not travel (remote_allowed, default off)
 
@@ -1262,7 +1244,8 @@ def _lease_session_ended(user_id: str) -> None:
 
         capture_lease.on_authority_change("session_ended", user_ids=[user_id])
     except Exception:  # noqa: BLE001 - never breaks a session store operation
-        pass
+        # code review 2026-11-13 P2-8: the revocation trigger failed - say so (the reason only, never an id), as local_identity.lease_hook does
+        log.warning("capture lease hook %s could not run", "session_ended")
 
 
 def logout(app_state: Any, settings: Settings, conn_like: Any) -> bool:
@@ -1395,10 +1378,6 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
         _record_sign_in(db, principal, meta)
         _audit(db, actor=principal, action="auth.remote_session.created", decision="allowed", reason=None, meta={**meta, "basis": basis, **factor_meta})
     return s
-
-
-def _bearer_principal(request: Any, settings: Settings, token: str) -> Principal:
-    return _bearer_session(request, settings, token).principal
 
 
 def _note_use(conn: Any, s: RemoteSession) -> None:

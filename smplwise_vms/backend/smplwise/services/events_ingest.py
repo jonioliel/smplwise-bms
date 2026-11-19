@@ -35,7 +35,7 @@ from typing import Any, Callable
 import httpx
 
 from ..config import Settings
-from ..db import Database, now_iso, retry_locked
+from ..db import Database, has_column, now_iso, retry_locked
 from ..recorder_scope import PRIMARY
 from .timeutil import UTC, iso_utc, nvr_wall_to_utc, zone
 from . import xmlsafe
@@ -179,6 +179,7 @@ class IngestState:
 
 MAX_PENDING = 256  # alerts waiting for the database; ~8 channels x ~16 kinds x 2 states, far above a healthy backlog of 0-1
 DRAIN_S = 5.0  # at shutdown the writer stores what is still queued for at most this long
+ZONE_CACHE_S = 5.0  # review 05:P1-03: the listener asks for the zone once per this many seconds, not once per alert (the getter opens a connection)
 
 
 def _device_instant(alert: ParsedAlert) -> dt.datetime | None:
@@ -426,7 +427,7 @@ def store_alert(conn: sqlite3.Connection, alert: ParsedAlert, tz_name: str, came
 
 
 def _has_recorder_column(conn: sqlite3.Connection) -> bool:
-    return any(r[1] == "recorder_id" for r in conn.execute("PRAGMA table_info(events)").fetchall())
+    return has_column(conn, "events", "recorder_id")  # CR-SCHEMA-PROBES-2440 (review 05:P2-10): the cached schema answer
 
 
 def _recorder_clause(conn: sqlite3.Connection, recorder_id: str) -> tuple[str, tuple[Any, ...]]:
@@ -454,6 +455,37 @@ def record_gap(conn: sqlite3.Connection, started: dt.datetime, ended: dt.datetim
     return row_to_event(conn.execute("SELECT * FROM events WHERE dedup_key = ?", (key,)).fetchone())
 
 
+_GAP_FAILED: set[str] = set()  # recorders whose last gap write failed (the traceback is logged once per failure streak)
+
+
+def close_gap(db: Database | None, disconnected_since: float | None, reason: str, recorder_id: str, what: str) -> bool:
+    """BACKEND-SAFETY-2435 (review 03 F02): record the coverage gap of a reconnect, for the vendor loops (Provision-ISR,
+    Frigate). True when the caller may clear `disconnected_since`: the gap was written and published, or it was too short
+    (or there is no database) to record. False when the write failed: logged, never raised, so the listener thread keeps
+    running and the next successful round retries the same gap (its dedup key is the start, so it is written once)."""
+    if disconnected_since is None:
+        return True
+    if time.time() - disconnected_since < GAP_AFTER_S or db is None:
+        return True
+    since, until = dt.datetime.fromtimestamp(disconnected_since, UTC), dt.datetime.now(UTC)
+
+    def _gap() -> dict[str, Any]:
+        with db.connection() as conn:
+            return record_gap(conn, since, until, reason, recorder_id=recorder_id)
+
+    try:
+        publish(retry_locked(_gap, what=what))
+    except Exception:  # noqa: BLE001 - a failed gap write never ends the listener
+        if recorder_id in _GAP_FAILED:
+            log.warning("%s (%s) still not recorded; retrying on the next round", what, recorder_id)
+        else:
+            _GAP_FAILED.add(recorder_id)
+            log.warning("%s (%s) could not be recorded; retrying on the next round", what, recorder_id, exc_info=True)
+        return False
+    _GAP_FAILED.discard(recorder_id)
+    return True
+
+
 class AlertStreamListener:
     """Two background threads: the reader (connect → read documents → queue; back-off on failure) and the writer
     (queue → store → publish). The bounded QUEUE between them is the backpressure: a slow database never stalls the
@@ -466,6 +498,7 @@ class AlertStreamListener:
         self.db: Database | None = None
         self.settings: Settings | None = None
         self.tz_getter: Callable[[], str] = lambda: "Asia/Jerusalem"
+        self._zone_cache: tuple[Callable[[], str], str, float] | None = None  # (getter, zone, monotonic expiry)
         self.generation = 0  # a writer from an earlier start() ends itself when this moves on
         # CR-024: one listener per recorder; the first recorder's uses the module STATE / QUEUE (the shape /health reads)
         self.recorder_id = recorder_id
@@ -542,6 +575,16 @@ class AlertStreamListener:
 
         return lookup
 
+    def _zone(self) -> str:
+        """The zone the alerts are converted in, asked from `tz_getter` at most once per ZONE_CACHE_S. A replaced getter
+        (start(), a test) is asked at once; a failing getter raises as before and nothing is kept."""
+        getter, cached, now = self.tz_getter, self._zone_cache, time.monotonic()
+        if cached is not None and cached[0] is getter and now < cached[2]:
+            return cached[1]
+        value = getter()
+        self._zone_cache = (getter, value, now + ZONE_CACHE_S)
+        return value
+
     def _handle(self, alert: ParsedAlert, repeats: int = 0) -> None:
         assert self.db
         if alert.is_heartbeat:
@@ -549,7 +592,7 @@ class AlertStreamListener:
             return
         # the zone is read BEFORE the write connection opens: the getter opens its own connection, and doing that
         # while this thread held the write lock blocked every writer for busy_timeout on every alert (0.1.58)
-        tz = self.tz_getter()
+        tz = self._zone()  # a zone saved in the settings reaches the next alert within ZONE_CACHE_S
         from . import rules as rules_svc  # local import: rules depend on correlation which depends on this module
 
         db = self.db

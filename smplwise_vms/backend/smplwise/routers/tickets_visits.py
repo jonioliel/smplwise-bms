@@ -31,6 +31,8 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services.tickets import access, service, store, store_visits, visits
 from ..services.tickets.access import Seen, Viewer, text
+from ._common import rid as _rid
+from ._tickets_common import invalid, invalid_fields
 from .tickets import ID, module_gate
 
 router = APIRouter(dependencies=[Depends(module_gate)])
@@ -45,13 +47,9 @@ MESSAGES = {
 }
 
 
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
 def _err(conn: sqlite3.Connection, exc: visits.VisitRefused) -> ApiError:
     if exc.status == 422:
-        return ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": exc.extra.get("fields") or [{"field": "body", "code": exc.code}]})
+        return invalid_fields(conn, exc.extra.get("fields") or [{"field": "body", "code": exc.code}])
     return ApiError(exc.status, exc.code, text(conn, MESSAGES.get(exc.code, "הפעולה נדחתה.")), details=dict(exc.extra))
 
 
@@ -163,10 +161,10 @@ def post_visit_action(request: Request, body: dict[str, Any] | None = None, tick
         _manager(conn, viewer, seen, audit_action, rid)
     body = body or {}
     if set(body) - {"revision"}:
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": sorted(set(body) - {"revision"})[0], "code": "unknown"}]})
+        raise invalid(conn, sorted(set(body) - {"revision"})[0], "unknown")
     revision = body.get("revision")
     if action != "arrived" and (isinstance(revision, bool) or not isinstance(revision, int) or revision < 1):
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "revision", "code": "required"}]})
+        raise invalid(conn, "revision", "required")
     v = _visit(conn, seen, visit_id)
     now = visits.utcnow()
     name = service.actor_name(viewer)

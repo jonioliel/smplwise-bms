@@ -40,12 +40,6 @@ class AssigneeRef:
         return f"{self.kind}:{self.id}"
 
 
-def parse_key(raw: str | None) -> AssigneeRef | None:
-    """'user:<id>' / 'contact:<id>' -> AssigneeRef; anything else -> None."""
-    kind, _, ident = (raw or "").partition(":")
-    return AssigneeRef(kind, ident) if kind in KINDS and ident else None
-
-
 def is_staff(contact: dict[str, Any] | None) -> bool:
     """A staff contact without an account: the 0084 employee row (a flagged person, no internal user, no vendor)."""
     return bool(contact) and contact.get("kind") == "person" and bool(contact.get("employee")) and not contact.get("user_id") \

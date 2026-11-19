@@ -15,6 +15,7 @@ import sqlite3
 from typing import Any
 
 from ...db import new_id, now_iso
+from ...db import update as db_update
 from ..bill_pdf_logo import LogoError, sanitize_image
 from .model import Invalid
 
@@ -202,7 +203,7 @@ def update(conn: sqlite3.Connection, actor: str, slide_id: str, data: dict[str, 
     if "board_ids" in data:
         _link(conn, slide_id, list(data["board_ids"] or []))
     cols["updated_by"], cols["updated_at"] = actor, now_iso()
-    conn.execute(f"UPDATE notice_slides SET {', '.join(k + ' = ?' for k in cols)} WHERE id = ?", (*cols.values(), slide_id))
+    db_update(conn, "notice_slides", cols, "id = ?", (slide_id,))  # CR-BE-SMALL-UNIFY-2440 (review 04:F25): the keys are checked as identifiers
     _touch_boards(conn, boards_of(conn).get(slide_id, []))
 
 

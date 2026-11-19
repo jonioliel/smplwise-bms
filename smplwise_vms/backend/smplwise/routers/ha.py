@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
-from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
+from ..auth import conn_after, current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..config import Settings
 from ..db import Database, bump_permission_revision, get_setting, is_storage_full, now_iso, retry_locked, set_setting
 from ..errors import ApiError
@@ -59,7 +59,7 @@ def _entity(conn: sqlite3.Connection, entity_id: str) -> dict[str, Any]:
 # ---------------------------------------------------------------- catalogue
 
 @router.get("/ha/status")
-def status(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def status(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     settings = settings_of(request)
     paired_at = get_setting(conn, "bridge.paired_at") or None
     return {
@@ -73,8 +73,8 @@ def status(request: Request, principal: Principal = Depends(current_principal), 
 
 @router.get("/ha/entities")
 def list_entities(
-    principal: Principal = Depends(current_principal),
-    conn: sqlite3.Connection = Depends(get_conn),
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),
     domain: str | None = Query(None, pattern="^[a-z_]+$"),
     q: str | None = None,
     area: str | None = None,
@@ -146,7 +146,7 @@ def list_entities(
 
 
 @router.get("/ha/entities/{entity_id}")
-def get_entity(entity_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_entity(entity_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     if not _entity_allowed(conn, principal, entity_id, "entity.state.read"):
         require(conn, principal, "entity.state.read", INSTALLATION)
     e = _entity(conn, entity_id)
@@ -689,8 +689,34 @@ def pairing(request: Request, principal: Principal = Depends(current_principal),
             "announced": announced, "announce_path": bridge_discovery.path_open(conn)}
 
 
+# CR-BRIDGE-PREVERIFY-2440 (review 05:P2-02): the two signed bridge calls are judged on a short READ connection before the request takes
+# its turn in the write queue (auth.conn_after). Before this an unsigned caller on the local network took the write gate - a turn in the
+# FIFO of every writer - only to be refused with 401 once it had it; what auth.resolve_remote_first removed for the remote channel. The
+# screen is the handler's own judgement, in the handler's order (ha_bridge.verify_message(screen_only=True): the nonce is not spent, no
+# high-water mark is recorded); the handler then verifies again, for real, under its write lock - so what a message is answered, and
+# what the key set records, is unchanged. A refusal just comes before the lock instead of under it.
+
+def _screen(request: Request, message: dict[str, Any], *, pairing: bool) -> None:
+    with request.app.state.db.connection(mode="read", label="bridge.preverify") as conn:
+        ha_bridge.verify_message(conn, message, pairing=pairing, screen_only=True)
+
+
+def _ping_screened(message: dict[str, Any], request: Request) -> None:
+    if "purpose" in message:  # as bridge_ping: refused before the signature is looked at
+        raise ApiError(422, "bridge_bad_request", "גוף הודעה לא תקין.")
+    _screen(request, message, pairing=True)
+
+
+def _directory_screened(message: dict[str, Any], request: Request) -> None:
+    try:
+        _screen(request, message, pairing=False)
+    except ApiError as exc:
+        bridge_discovery.note_directory_refused(exc.code)  # as bridge_directory: the diagnostics see the refusal wherever it happens
+        raise
+
+
 @router.post("/ha/bridge/ping")
-def bridge_ping(message: dict[str, Any], conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def bridge_ping(message: dict[str, Any], conn: sqlite3.Connection = Depends(conn_after(_ping_screened))) -> dict[str, Any]:
     """Called by the integration during its config flow: proves the pairing code and marks the bridge paired."""
     if "purpose" in message:  # WXH-LEFTOVERS-2405: `purpose` marks a message Arx signs FOR the bridge (cast origin, key status) - never a ping
         raise ApiError(422, "bridge_bad_request", "גוף הודעה לא תקין.")
@@ -706,7 +732,7 @@ def bridge_ping(message: dict[str, Any], conn: sqlite3.Connection = Depends(get_
 
 
 @router.post("/ha/bridge/directory")
-def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Connection = Depends(conn_after(_directory_screened))) -> dict[str, Any]:
     """Signed user directory push from the integration (id, name, username, active, admin, groups)."""
     try:
         ha_bridge.verify_message(conn, message)

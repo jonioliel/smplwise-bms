@@ -25,7 +25,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, read_gate, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..db import get_setting, now_iso, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Decision, Principal, authorize, note_grant, permissions_anywhere, require
@@ -33,6 +33,7 @@ from ..services import alarm as svc
 from ..services import alarm_codes as codes
 from ..services import ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, service_identity
 from ..services.timeutil import parse_utc
+from ._common import is_json as _is_json, raw_body as _raw_body
 
 router = APIRouter()
 
@@ -124,7 +125,7 @@ def _visible_panels(conn: sqlite3.Connection, scope: _Scope) -> list[dict[str, A
 # ---------------------------------------------------------------- reads
 
 @router.get("/alarm/panels")
-def panels(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def panels(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     scope = _Scope(conn, principal)
     if not scope.any_view():
         require(conn, principal, VIEW, INSTALLATION)
@@ -167,15 +168,6 @@ def panels(request: Request, principal: Principal = Depends(current_principal), 
 
 
 # ---------------------------------------------------------------- body handling (JSON only, the code kept apart)
-
-def _is_json(content_type: str | None) -> bool:
-    media = (content_type or "").split(";", 1)[0].strip().lower()
-    return media == "application/json" or (media.startswith("application/") and media.endswith("+json"))
-
-
-async def _raw_body(request: Request) -> bytes:
-    return await request.body()
-
 
 def _parse(request: Request, raw: bytes, model: type[BaseModel], secret_fields: tuple[str, ...] = ()) -> tuple[BaseModel, dict[str, Any]]:
     """(validated body, {secret field: value}). Secret fields (a code, a PIN) are taken out BEFORE validation, so no
@@ -635,7 +627,7 @@ class PinBody(BaseModel):
 
 
 @router.get("/alarm/me")
-def me(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def me(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     pol = codes.policy(conn, principal.user_id)
     cfg = _settings(conn)
     return {"arm_policy": pol["arm_policy"], "disarm_policy": pol["disarm_policy"], "pin_set": pol["pin_set"], "pin_set_at": pol["pin_set_at"], "code_mode": cfg["code_mode"]}
@@ -725,7 +717,7 @@ _configurer_ro = read_gate(lambda conn, principal: require(conn, principal, "sys
 
 
 @router.get("/alarm/config")
-def config(request: Request, principal: Principal = Depends(_configurer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def config(request: Request, principal: Principal = Depends(_configurer_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     ents = svc.load(conn)
     ovr = svc.overrides(conn)
     disc = svc.discover(conn, ents, ovr)
@@ -885,7 +877,7 @@ def _own_change(act: "_Act", conn: sqlite3.Connection, current: Any) -> None:
 
 
 @router.get("/alarm/users/{user_id}")
-def user_policy(user_id: str, principal: Principal = Depends(_configurer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def user_policy(user_id: str, principal: Principal = Depends(_configurer_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     if not conn.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone():
         raise ApiError(404, "not_found", "המשתמש לא נמצא.")
     return {"user_id": user_id, **codes.policy(conn, user_id), "code_mode": _settings(conn)["code_mode"]}

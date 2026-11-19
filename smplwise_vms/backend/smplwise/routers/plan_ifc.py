@@ -28,8 +28,9 @@ from ..services import geometry_store as store
 from ..services import plan_catalog, plan_ifc, plan_ifc_read, wall_path
 from ..services import plan_geometry as pg
 from ..services import plan_package as pkg_svc
+from ._common import rid as _rid
 from .catalog import get_floor
-from .plan_geometry import NO_CACHE, _export_doc, _export_zones, _floor, _rid
+from .plan_geometry import NO_CACHE, _export_doc, _export_zones, _floor
 from .plans import get_version
 
 router = APIRouter()

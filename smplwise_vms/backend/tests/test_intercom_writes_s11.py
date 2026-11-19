@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import json
 import logging
-import time
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -38,6 +37,7 @@ from smplwise.routers.access import PERMISSION_LABELS, SENSITIVE
 from smplwise.services import intercom_authority as ia
 from smplwise.services import intercom_client, intercom_sync, wiskey_channels
 from smplwise.services import intercom_writes as iw
+from support.waiting import wait_for
 
 ROOT = Path(__file__).resolve().parents[3]
 API = "/api/v1/intercom"
@@ -98,15 +98,6 @@ def wx(settings, monkeypatch, station_scope):  # noqa: F811
     if intercom_sync.SYNC.thread is not None:
         intercom_sync.SYNC.thread.join(timeout=5)
     intercom_sync.SYNC.reset()
-
-
-def wait_for(pred: Any, timeout: float = 5.0) -> None:
-    end = time.time() + timeout
-    while time.time() < end:
-        if pred():
-            return
-        time.sleep(0.02)
-    raise AssertionError(f"condition not met; feed state {intercom_sync.STATE.as_dict()}")
 
 
 def sent(fake: FakeWiskey, command: str) -> list[dict[str, Any]]:

@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
@@ -81,13 +81,13 @@ def create(body: RangeBody, request: Request, principal: Principal = Depends(cur
 
 
 @router.get("/exports")
-def list_jobs(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_jobs(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     admin = authorize(conn, principal, "system.configure", INSTALLATION).allowed
     return {"jobs": ex.list_jobs(conn, None if admin else principal.user_id), "ffmpeg": bool(ex.ffmpeg_path())}
 
 
 @router.get("/exports/{job_id}")
-def get_job(job_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_job(job_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return _owned(conn, principal, job_id)
 
 
@@ -122,7 +122,7 @@ def download(job_id: str, request: Request, principal: Principal = Depends(curre
 
 
 @router.get("/exports/{job_id}/manifest")
-def manifest(job_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)):
+def manifest(job_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)):
     job = _owned(conn, principal, job_id)
     require_camera(conn, principal, job["camera_id"], "video.export")
     p = ex.job_dir(settings_of(request), job_id) / "manifest.json"

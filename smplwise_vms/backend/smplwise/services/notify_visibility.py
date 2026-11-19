@@ -66,8 +66,11 @@ def principals_of(conn: sqlite3.Connection, user_ids: list[str]) -> dict[str, Pr
 
 def active_principals(conn: sqlite3.Connection) -> list[Principal]:
     """Every active user's principal, in id order, from one statement (CR-NOTIFY-FANOUT-2436) - the same users and order as
-    `SELECT id FROM users WHERE active = 1 ORDER BY id` followed by principal_of for each."""
-    return [_principal(u) for u in conn.execute("SELECT id, username, display_name FROM users WHERE active = 1 ORDER BY id").fetchall()]
+    notify._active_users followed by principal_of for each. CR-W2-FOLLOWUPS-2441: "active" is the one rule's Arx account
+    (services/active_users.ACTIVE_ACCOUNT_SQL), no longer `users.active = 1` alone."""
+    from .active_users import ACTIVE_ACCOUNT_SQL
+
+    return [_principal(u) for u in conn.execute(f"SELECT id, username, display_name FROM users WHERE {ACTIVE_ACCOUNT_SQL} ORDER BY id").fetchall()]
 
 
 def is_manager(conn: sqlite3.Connection, principal: Principal) -> bool:

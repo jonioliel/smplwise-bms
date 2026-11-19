@@ -23,6 +23,7 @@ from ..rbac import INSTALLATION, Principal, require
 from ..services import plan_anchor_scope as anchor_scope
 from ..services.skins import provider as prov
 from ..services.skins import store
+from ._common import rid as _rid
 from .catalog import get_floor
 from .settings import read_settings
 
@@ -40,10 +41,6 @@ LEAVES = [
     "טקסט ההנחיה הקבוע של המוצר (בקשה להפוך את התמונה לפוטוריאליסטית ולשמור על הגאומטריה).",
 ]
 NEVER_LEAVES = ["תמונות ממצלמות", "אנשים", "תוויות, שמות חדרים ושמות ישויות", "מצבי חיישנים ונתוני Home Assistant", "כתובות, שמות אתר ומזהים"]
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _provider(request: Request, conn: sqlite3.Connection) -> prov.SkinProvider:

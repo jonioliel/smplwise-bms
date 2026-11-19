@@ -15,7 +15,7 @@ from typing import Any
 from fastapi import APIRouter, Body, Depends, Request
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import database_of, unlocked
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import recorder_health as rh
@@ -25,7 +25,7 @@ router = APIRouter()
 
 
 @router.get("/recorder-health")
-def get_health(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_health(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """CR-026: the health card of every monitored recorder (names and states only; never an address or a credential)."""
     _may_read(conn, principal)
     th = rh.thresholds(conn)
@@ -46,7 +46,7 @@ def check(request: Request, principal: Principal = Depends(current_principal), c
 
 
 @router.get("/recorder-health/settings")
-def get_settings(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_settings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """CR-026: the recorder health thresholds with their defaults and ranges."""
     require(conn, principal, PERMISSION, INSTALLATION)
     return {"values": rh.thresholds(conn), "ranges": rh.ranges(), "cameras": rh.camera_choices(conn)}

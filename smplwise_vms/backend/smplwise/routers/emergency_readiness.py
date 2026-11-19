@@ -16,6 +16,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..rbac import Principal
 from ..services.emergency import access, service
 from ..services.emergency.access import Viewer
+from ._common import rid as _rid
 
 ID = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
 
@@ -26,10 +27,6 @@ def module_gate(principal: Principal = Depends(current_principal_ro), conn: sqli
 
 open_router = APIRouter()
 router = APIRouter(dependencies=[Depends(module_gate)])
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 class _Body(BaseModel):

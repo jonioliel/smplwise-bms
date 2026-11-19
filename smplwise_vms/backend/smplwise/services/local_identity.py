@@ -41,13 +41,13 @@ import re
 import secrets
 import threading
 import time
-import weakref
 from dataclasses import dataclass, field
 from typing import Any
 
 from ..config import Settings
 from ..errors import ApiError
 from ..rbac import LOCAL_ADMIN_PERMISSIONS, Principal
+from .session_cache import SessionCache
 
 log = logging.getLogger("smplwise.local_identity")
 
@@ -202,7 +202,7 @@ def role_refusal(conn, role_id: str) -> str | None:
     """Why a role can never be bound to a local identity (owner answer Q3: any role except system_admin - and so no role
     carrying a system permission, which only system_admin holds, or identity.local.manage); None when it may be."""
     from ..rbac import all_roles
-    from ..routers.access import SYSTEM_PERMISSIONS
+    from .rbac_admin import SYSTEM_PERMISSIONS
 
     roles = all_roles(conn)
     if role_id not in roles:
@@ -316,75 +316,39 @@ class LocalSession:
         return "l:" + self.chain_id
 
 
-class _Cache:
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._by_sid: dict[str, LocalSession] = {}
-        self._sockets: dict[str, weakref.WeakSet] = {}
-        self._to_close: list[Any] = []
+class _Cache(SessionCache[LocalSession]):
+    """Arx-only sessions; sockets are keyed by sign-in chain (a rotation keeps the chain's sockets). The shared cache is
+    services/session_cache.py (code review 2026-11-13 P2-4); `get` there also drops an entry loaded "in the future" (lead decision L4)."""
 
-    def get(self, sid_hash: str) -> LocalSession | None:
-        now = time.time()
-        with self._lock:
-            s = self._by_sid.get(sid_hash)
-            if s is None:
-                return None
-            if now - s.loaded_at > CACHE_TTL_S or s.expires_at <= now or s.idle_expires_at <= now:
-                self._by_sid.pop(sid_hash, None)
-                return None
-            return s
+    def __init__(self) -> None:
+        super().__init__(clock=lambda: time.time(), ttl_s=lambda: CACHE_TTL_S)
+
+    def _ended_key(self, s: LocalSession) -> str:
+        return s.chain_id  # a revocation ends a whole sign-in chain (drop_chains)
 
     def peek_live(self, sid_hash: str) -> bool:
         s = self.get(sid_hash)
         return s is not None
 
-    def put(self, s: LocalSession) -> None:
-        with self._lock:
-            if len(self._by_sid) > 5000:
-                for k in list(self._by_sid)[:500]:
-                    self._by_sid.pop(k, None)
-            self._by_sid[s.sid_hash] = s
-
     def drop(self, sid_hash: str) -> None:
         with self._lock:
             self._by_sid.pop(sid_hash, None)
-
-    def drop_user(self, user_id: str) -> None:
-        with self._lock:
-            for k in [k for k, v in self._by_sid.items() if v.user_id == user_id]:
-                self._by_sid.pop(k, None)
 
     def drop_chains(self, chains: set[str]) -> None:
         with self._lock:
             for k in [k for k, v in self._by_sid.items() if v.chain_id in chains]:
                 self._by_sid.pop(k, None)
-            for c in chains:
-                socks = self._sockets.pop(c, None)
-                if socks:
-                    self._to_close.extend(list(socks))
+            self._end_keys_locked(chains)
 
     def attach(self, sid_hash: str, chain_id: str, websocket: Any) -> bool:
         """False when the chain has no live entry any more (revoked between the resolve and the attach, review M2 / code review
         2026-11-13 P1-1): the caller refuses the socket. The session's own entry, or a rotated successor of the same chain (a concurrent
         request rotated it; the chain is still live) - every revocation drops the chain's entries (drop_chains, drop_user, clear)."""
-        from .session_cache import attach_if_live
 
         def live() -> bool:
             return sid_hash in self._by_sid or any(v.chain_id == chain_id for v in self._by_sid.values())
 
-        return attach_if_live(self._lock, self._sockets, chain_id, websocket, live=live)
-
-    def take_to_close(self) -> list[Any]:
-        with self._lock:
-            out, self._to_close = self._to_close, []
-        return out
-
-    def clear(self) -> None:
-        with self._lock:
-            self._by_sid.clear()
-            for socks in self._sockets.values():
-                self._to_close.extend(list(socks))
-            self._sockets.clear()
+        return self._attach(chain_id, websocket, live)
 
 
 CACHE = _Cache()
@@ -811,6 +775,7 @@ def revoke_all(conn, reason: str) -> int:
     chains = {r["chain_id"] for r in rows}
     if chains:
         conn.execute("UPDATE auth_local_sessions SET revoked_at = ?, revoked_reason = ? WHERE revoked_at IS NULL", (iso(time.time()), reason))
+    CACHE.drop_chains(chains)  # the ended chains are refused by a late put (services/session_cache.py)
     CACHE.clear()
     return len(chains)
 
@@ -1545,7 +1510,9 @@ def janitor(db: Any) -> int:
     n = 0
     try:
         with db.connection(mode="read", label="local identity janitor read") as conn:
-            if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'auth_local_sessions'").fetchone() is None:
+            from ..db import has_table
+
+            if not has_table(conn, "auth_local_sessions"):  # CR-SCHEMA-PROBES-2440 (review 05:P2-10): the cached schema answer
                 return 0
             week, month = iso(now - 7 * 86400), iso(now - 30 * 86400)
             due = conn.execute("""SELECT 1 FROM auth_local_links WHERE COALESCE(used_at, invalidated_at, expires_at) < ? LIMIT 1""", (week,)).fetchone() \
@@ -1577,6 +1544,7 @@ def reset_for_tests() -> None:
 
     CACHE.clear()
     CACHE.take_to_close()
+    CACHE.forget_ended()
     TIERS.clear()
     with _pending_lock:
         _pending.clear()

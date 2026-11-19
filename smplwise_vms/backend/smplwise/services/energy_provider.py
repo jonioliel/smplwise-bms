@@ -19,13 +19,12 @@ from decimal import Decimal
 from typing import Any, Literal, Protocol, Sequence
 from zoneinfo import ZoneInfo
 
-from ..db import get_setting
 from . import energy_calibration as cal
 from . import energy_counter as ec
 from . import energy_meters as meters
 from . import energy_settings as es
 from . import energy_store as st
-from .timeutil import parse_utc, zone
+from .timeutil import parse_utc, site_zone_name, zone
 
 Coverage = Literal["full", "partial", "none"]
 MeterState = Literal["reporting", "not_reporting", "paused", "retired"]
@@ -208,7 +207,7 @@ class EnergyProvider:
     def __init__(self, conn: sqlite3.Connection, store: st.EnergyStore, *, tz_name: str | None = None, now: float | None = None):
         self.conn = conn
         self.store = store
-        self.tz_name = tz_name or get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem"
+        self.tz_name = tz_name or site_zone_name(conn)
         self.tz: ZoneInfo = zone(self.tz_name)
         self._now = now
         self._segs: dict[str, list[cal.Segment]] = {}

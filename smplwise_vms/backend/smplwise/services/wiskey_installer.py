@@ -23,10 +23,7 @@ Nothing here is automatic: no write is ever sent without a request that carries 
 required); no write is repeated. Tests drive it with tests/fake_wiskey.py; nothing contacts a device."""
 from __future__ import annotations
 
-import threading
-import time
 import unicodedata
-from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable
@@ -35,6 +32,7 @@ from ..config import Settings
 from ..errors import ApiError
 from . import intercom_adapter as ad
 from . import intercom_client, intercom_sync
+from . import wiskey_write_limits as wl
 from .intercom_client import IntercomError, UnclearAnswer
 
 CHANNEL = "installer"  # services/wiskey_channels.py INSTALLER
@@ -162,54 +160,23 @@ USER_MAX = 12  # installer writes per operator per window
 MAX_INFLIGHT = 1  # installer writes at once, installation-wide (each one may hold a device for up to a minute)
 
 
-class Limits:
-    """In-process limits for the installer writes. A refusal is `(code, retry_after_s)`; an admitted write holds the in-flight slot
-    until `done`. The cool-down of `(op, target)` starts only when the write was handed to WisKey (`sent`)."""
+class Limits(wl.WriteLimits):
+    """In-process limits for the installer writes (services/wiskey_write_limits.py with this module's constants). A refusal is
+    `(code, retry_after_s)`; an admitted write holds the in-flight slot until `done`. The cool-down of `(op, target)` starts only when
+    the write was handed to WisKey (`sent`)."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._last: dict[tuple[str, str], float] = {}
-        self._users: dict[str, deque[float]] = {}
-        self._inflight = 0
+        super().__init__("installer", busy_retry_s=3.0)
 
     def cooldown_left(self, op: Op, target: str, now: float | None = None) -> float:
-        with self._lock:
-            at = self._last.get((op.name, target))
-        if at is None or op.cooldown_s <= 0:
-            return 0.0
-        left = op.cooldown_s * COOLDOWN_SCALE - ((time.monotonic() if now is None else now) - at)
-        return max(0.0, round(left, 1))
+        return self.key_cooldown_left((op.name, target), op.cooldown_s * COOLDOWN_SCALE, now)
 
     def admit(self, user: str, op: Op, target: str) -> tuple[str, float] | None:
-        now = time.monotonic()
-        left = self.cooldown_left(op, target, now)
-        if left > 0:
-            return "installer_cooldown", left
-        with self._lock:
-            window = self._users.setdefault(user, deque())
-            while window and now - window[0] >= USER_WINDOW_S:
-                window.popleft()
-            if len(window) >= USER_MAX:
-                return "installer_rate_limited", round(USER_WINDOW_S - (now - window[0]), 1)
-            if self._inflight >= MAX_INFLIGHT:
-                return "installer_busy", 3.0
-            window.append(now)
-            self._inflight += 1
-        return None
+        return self.admit_key(user, (op.name, target), cooldown_s=op.cooldown_s * COOLDOWN_SCALE, window_s=USER_WINDOW_S, user_max=USER_MAX,
+                              max_inflight=MAX_INFLIGHT)
 
     def sent(self, op: Op, target: str) -> None:
-        with self._lock:
-            self._last[(op.name, target)] = time.monotonic()
-
-    def done(self) -> None:
-        with self._lock:
-            self._inflight = max(0, self._inflight - 1)
-
-    def reset(self) -> None:
-        with self._lock:
-            self._last.clear()
-            self._users.clear()
-            self._inflight = 0
+        self.mark_sent((op.name, target))
 
 
 LIMITS = Limits()

@@ -920,13 +920,19 @@ def shutdown(timeout: float = 5.0) -> None:
         t.join(max(0.0, deadline - time.monotonic()))
 
 
-def wait_idle(timeout: float = 30.0) -> bool:
-    """Tests: True once no runner of this process is alive."""
+def threads_idle(lock: Any, threads: dict[Any, threading.Thread], timeout: float) -> bool:
+    """True once no thread of `threads` (read under `lock`) is alive; False after `timeout` seconds. The one copy of the wait the
+    batch runner and the re-check (services/nvr_verify.py) both offer their tests (CR-EXPORTS-HOUSEKEEPING, 03:F26)."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        with _live_lock:
-            alive = [t for t in _live.values() if t.is_alive()]
+        with lock:
+            alive = [t for t in threads.values() if t.is_alive()]
         if not alive:
             return True
         time.sleep(0.02)
     return False
+
+
+def wait_idle(timeout: float = 30.0) -> bool:
+    """Tests: True once no runner of this process is alive."""
+    return threads_idle(_live_lock, _live, timeout)

@@ -12,7 +12,6 @@ Proven here:
 from __future__ import annotations
 
 import json
-import time
 import uuid
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
@@ -28,21 +27,13 @@ from smplwise.db import Database
 from smplwise.routers import wiskey_installer as router_mod
 from smplwise.services import intercom_sync, wiskey_channels
 from smplwise.services import wiskey_installer as wi
+from support.waiting import wait_for
 
 API = "/api/v1/access-control/installer"
 
 
 def env(ttl: float = 15.0, **fields: Any) -> dict[str, Any]:
     return {"client_request_id": uuid.uuid4().hex, "expires_at": (datetime.now(timezone.utc) + timedelta(seconds=ttl)).strftime("%Y-%m-%dT%H:%M:%SZ"), **fields}
-
-
-def wait_for(pred: Any, timeout: float = 5.0) -> None:
-    end = time.time() + timeout
-    while time.time() < end:
-        if pred():
-            return
-        time.sleep(0.02)
-    raise AssertionError(f"condition not met; feed state {intercom_sync.STATE.as_dict()}")
 
 
 @pytest.fixture()
@@ -308,3 +299,35 @@ def test_wiskey_refusal_of_the_whole_identity(wx):
     r = c.post(f"{API}/clock/stations/entry-a/sync", json=env(revision=3, confirmed=True, typed_confirmation="Main gate"), headers=as_user("root"))
     assert r.status_code == 502 and r.json()["details"]["outcome"] == "refused" and r.json()["details"]["wiskey_code"] == "unauthorized"
     assert not fake.effects
+
+
+# ================================================================ CR-I18N-CONFIRM-WORDS-2442 (owner decision 17.11)
+# The typed confirmation takes the Hebrew word or its fixed English counterpart (services/confirm_words.py), nothing looser, and the
+# audit row says which was typed (`confirm_word`); the typed text itself is never stored.
+
+from confirm_words_cases import LANGS, bad, good  # noqa: E402
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_cw2442_host_apply_takes_the_hebrew_or_the_english_phrase_only(wx, lang):
+    fake, c, s = wx
+    for text in bad("installer_host_clock"):
+        r = c.post(f"{API}/clock/host-apply", json=env(revision=3, confirmed=True, typed_confirmation=text), headers=as_user("root"))
+        assert r.status_code == 409 and r.json()["code"] == "typed_confirmation_required", text
+    assert not fake.effects and not frames(fake, "clock/host_apply"), "nothing is sent on a wrong phrase or a near-miss"
+    r = c.post(f"{API}/clock/host-apply", json=env(revision=3, confirmed=True, typed_confirmation=good("installer_host_clock", lang)), headers=as_user("root"))
+    assert r.status_code == 200, r.text
+    assert fake.effects == [("clock/host_apply", {"server": "time.windows.com"})]
+    rows = audit_rows(s, "intercom.installer.clock_host_apply")
+    assert rows[-1]["decision"] == "allowed" and rows[-1]["details"]["confirm_word"] == lang
+    assert all("confirm_word" not in r["details"] for r in rows if r["decision"] == "denied")
+
+
+def test_cw2442_a_station_name_is_data_and_takes_no_english_word(wx):
+    fake, c, s = wx
+    for text in ("server clock", "שעון השרת", "main gate "):  # the host phrase in either language is not this station's name; the name is exact
+        r = c.post(f"{API}/clock/stations/entry-a/sync", json=env(revision=3, confirmed=True, typed_confirmation=text), headers=as_user("root"))
+        assert r.status_code == 409 and r.json()["code"] == "typed_confirmation_required", text
+    r = c.post(f"{API}/clock/stations/entry-a/sync", json=env(revision=3, confirmed=True, typed_confirmation="Main gate", copy_system=True), headers=as_user("root"))
+    assert r.status_code == 200, r.text
+    assert all("confirm_word" not in row["details"] for row in audit_rows(s, "intercom.installer.clock_station_sync"))

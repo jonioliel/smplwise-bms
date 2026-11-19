@@ -24,6 +24,7 @@ from ..services.docread import service as dsvc
 from ..services.maintenance import access as maccess
 from ..services.maintenance import files as mfiles
 from ..services.maintenance.access import Viewer
+from ._common import rid as _rid
 
 ID = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
 FieldName = Literal["supplier", "document_number", "issue_date", "expiry_date", "scope"]
@@ -40,10 +41,6 @@ def feature_gate(principal: Principal = Depends(current_principal_ro), conn: sql
 
 open_router = APIRouter(dependencies=[Depends(module_gate)])  # GET /maintenance/docread/module only
 router = APIRouter(dependencies=[Depends(feature_gate)])
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 @open_router.get("/maintenance/docread/module")

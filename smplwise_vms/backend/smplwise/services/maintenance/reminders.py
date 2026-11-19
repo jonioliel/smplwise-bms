@@ -21,11 +21,10 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
-import threading
-import time
 from datetime import date, datetime
 from typing import Any
 
+from ..janitors import Every
 from . import access, model
 
 log = logging.getLogger(__name__)
@@ -183,24 +182,18 @@ def recipient_users(conn: sqlite3.Connection, n: dict[str, Any]) -> list[str]:
 
 # ---------------------------------------------------------------- the janitor hook
 
-_last_check = 0.0
-_every_s = 900.0
-_check_lock = threading.Lock()
+_DEFAULT_EVERY_S = 900.0
+_CHECK = Every(_DEFAULT_EVERY_S)  # CR-JANITOR-REGISTRY-2438: the shared throttle (was a locked module global); its interval is a setting
 
 
 def _set_every(seconds: float) -> None:
-    global _every_s
-    _every_s = max(60.0, seconds)
+    _CHECK.seconds = max(60.0, seconds)
 
 
 def janitor(db: Any) -> None:
-    """From main.janitor_tick: at most one pass every 15 minutes in this process; never raises."""
-    global _last_check
-    with _check_lock:
-        mono = time.monotonic()
-        if _last_check and mono - _last_check < _every_s:
-            return
-        _last_check = mono
+    """From main.janitor_tick: at most one pass every 15 minutes (the setting) in this process; never raises."""
+    if not _CHECK.due():
+        return
     try:
         with db.connection(label="maintenance.reminders") as conn:
             if not access.module_on(conn):
@@ -214,6 +207,5 @@ def janitor(db: Any) -> None:
 
 
 def reset_for_tests() -> None:
-    global _last_check, _every_s
-    _last_check = 0.0
-    _every_s = 900.0
+    _CHECK.reset()
+    _CHECK.seconds = _DEFAULT_EVERY_S

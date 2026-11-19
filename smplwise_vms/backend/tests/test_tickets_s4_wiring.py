@@ -6,7 +6,6 @@ The ports are exercised directly (public_store.Sql*), the way the public app cal
 0080 and a ticket sent to an outside contact (tests/tickets_s4_world.py)."""
 from __future__ import annotations
 
-import ast
 import contextlib
 import datetime as dt
 import re
@@ -395,10 +394,13 @@ def test_w14_w15_main_starts_the_listener_in_a_worker_thread_and_guards_the_jani
     main = (SMPLWISE / "main.py").read_text(encoding="utf-8")
     assert "await run_in_threadpool(tickets_public.start, app.state.db, settings)" in main
     assert "if settings.tickets_public:" in main
-    tree = ast.parse(main)
-    tick = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "janitor_tick")
-    guarded = [h for h in ast.walk(tick) if isinstance(h, ast.Try) and "tickets_public.janitor" in ast.unparse(h)]
-    assert guarded, "the public janitor step is a guarded step (W15)"
+    # the housekeeping pass is the registry services/janitors.py since CR-JANITOR-REGISTRY-2438 (was a try block in janitor_tick):
+    # a step with a failure text is guarded - its exception is logged and the pass goes on
+    from smplwise.services import janitors
+
+    guarded = [s for s in janitors.STEPS if s.target == "services.tickets.public_runtime:RUNTIME.janitor" and s.failure]
+    assert len(guarded) == 1 and guarded[0].needs == ("db",), "the public janitor step is a guarded step (W15)"
+    assert guarded[0].resolve() == RUNTIME.janitor
     assert 'logging.getLogger("PIL").setLevel(logging.INFO)' in main, "wiring item 12"
 
 

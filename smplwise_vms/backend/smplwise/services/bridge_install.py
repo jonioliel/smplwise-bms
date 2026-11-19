@@ -23,9 +23,10 @@ from typing import Any
 from ..config import Settings
 from ..db import Database, get_setting, now_iso, unlocked
 from ..errors import ApiError
+from ..test_reset import register_reset
 from . import bridge_keys as bk
 from . import ha_bridge, ha_client, self_update
-from .wiskey_distribution_digest import digest as distribution_digest, files as distribution_files
+from .wiskey_distribution_digest import digest as distribution_digest
 
 log = logging.getLogger("smplwise.bridge")
 
@@ -43,7 +44,17 @@ STATE: dict[str, Any] = {
     "last_error": None,
     "discovery_posted_at": None,
 }
+_STATE_AT_IMPORT = dict(STATE)
 _lock = threading.Lock()
+
+
+def reset_for_tests() -> None:
+    """STATE back to its import-time content - the same object: other modules hold a reference to it."""
+    STATE.clear()
+    STATE.update(_STATE_AT_IMPORT)
+
+
+register_reset(__name__, ("STATE",), reset_for_tests)
 
 
 def source_dir() -> Path | None:

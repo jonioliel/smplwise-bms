@@ -26,6 +26,7 @@ from ..services.access import RowScope, camera_allowed, require_camera, row_scop
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from .media import _principal_for_ws
 from .settings import read_settings
+from ..services.settings_store import setting_value
 
 router = APIRouter()
 TYPES = ("motion", "person", "vehicle", "line", "field", "offline", "tamper", "door", "io", "storage", "system", "coverage_gap", "manual", "other")
@@ -704,7 +705,7 @@ def camera_events(camera_id: str, principal: Principal = Depends(current_princip
 
 
 @router.get("/events/{event_id}/thumbnail")
-def thumbnail(event_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)):
+def thumbnail(event_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)):
     """The event's picture from the recording: 200 image/jpeg when ready, 202 while it is being grabbed,
     404 when the recording has no usable frame (remembered for an hour)."""
     row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
@@ -789,7 +790,7 @@ def _location(conn: sqlite3.Connection, camera_id: str) -> dict[str, Any] | None
 
 
 @router.get("/events/{event_id}")
-def get_event(event_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_event(event_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """One event with its picture state and the camera's place on the floor (event page, design M27)."""
     row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
     if not row:
@@ -802,12 +803,12 @@ def get_event(event_id: str, request: Request, principal: Principal = Depends(cu
     _with_thumbs(settings_of(request), [ev], queue_first=1)
     _with_names(conn, [ev])
     ev["location"] = _location(conn, ev["camera_id"]) if ev["camera_id"] else None
-    ev["timezone"] = read_settings(conn)["time.zone"]
+    ev["timezone"] = setting_value(conn, "time.zone")
     return ev
 
 
 @router.get("/events/{event_id}/correlation")
-def event_correlation(event_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), window: int = Query(120, ge=10, le=3600)) -> dict[str, Any]:
+def event_correlation(event_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), window: int = Query(120, ge=10, le=3600)) -> dict[str, Any]:
     """Door–camera–sensor neighbourhood of an event (T053): what nearby sensors, locks, commands and cameras reported
     within ±window seconds, each with its certainty. A command is never proof; nothing here triggers an action."""
     row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
@@ -827,7 +828,7 @@ def event_correlation(event_id: str, principal: Principal = Depends(current_prin
 
 
 @router.get("/events/{event_id}/route")
-def event_route(event_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), window: int = Query(90, ge=10, le=900)) -> dict[str, Any]:
+def event_route(event_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), window: int = Query(90, ge=10, le=900)) -> dict[str, Any]:
     """Suggested next cameras for a hypothetical path after the event (T064): same room, adjacent room, within reach —
     ranked, with the window to look at and the activity each camera reported. Never an identification; never an action."""
     row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()

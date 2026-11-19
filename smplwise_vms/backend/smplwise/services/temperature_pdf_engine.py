@@ -5,27 +5,13 @@ Primary engine: WeasyPrint over the report HTML (services/temperature_report.htm
 Fallback engine: fpdf2 - the same numbers and event lists as plain text tables (no chart), used when WeasyPrint / Pango cannot load."""
 from __future__ import annotations
 
-import json
 import os
-import sys
 from typing import Any
 
-from .bill_pdf_engine import FONT_DIR, MAX_PAGES, MAX_PDF_BYTES, LockedFetcher, RenderRefused, apply_limits, deny_network
+from .bill_pdf_engine import FONT_DIR, MAX_PAGES, MAX_PDF_BYTES, RenderRefused, child_main, render_html_weasyprint, run_report_job
 
 
-def render_weasyprint(page_html: str, max_pages: int = MAX_PAGES) -> bytes:
-    import logging
-
-    from weasyprint import HTML
-
-    logging.getLogger("weasyprint").setLevel(logging.ERROR)
-    doc = HTML(string=page_html, base_url=None, url_fetcher=LockedFetcher(None)).render()
-    if len(doc.pages) > max_pages:
-        raise RenderRefused("pdf_page_limit")
-    pdf = doc.write_pdf()
-    if len(pdf) > MAX_PDF_BYTES:
-        raise RenderRefused("pdf_too_large")
-    return pdf
+render_weasyprint = render_html_weasyprint  # CR-PDF-CHILD: the shared WeasyPrint step, under the name this module always had
 
 
 def render_fpdf2(model: dict[str, Any], max_pages: int = MAX_PAGES) -> bytes:
@@ -102,34 +88,11 @@ def render_fpdf2(model: dict[str, Any], max_pages: int = MAX_PAGES) -> bytes:
 
 
 def run_job(job: dict[str, Any]) -> tuple[bytes, str]:
-    engine = job.get("engine") or "auto"
-    max_pages = int(job.get("max_pages") or MAX_PAGES)
-    if engine in ("auto", "weasyprint"):
-        try:
-            return render_weasyprint(job["html"], max_pages), "weasyprint"
-        except RenderRefused:
-            raise
-        except Exception as exc:
-            if engine == "weasyprint":
-                raise
-            print(f"weasyprint failed ({type(exc).__name__}); using fpdf2", file=sys.stderr)
-    return render_fpdf2(job["model"], max_pages), "fpdf2"
+    return run_report_job(job, render_weasyprint, render_fpdf2)  # the two names are read here, at each job
 
 
 def main() -> int:
-    deny_network()
-    job = json.loads(sys.stdin.buffer.read())
-    if job.get("memory_bytes"):
-        apply_limits(int(job["memory_bytes"]), int(job.get("cpu_seconds") or 30), int(job.get("fsize_bytes") or 12_000_000))
-    try:
-        pdf, engine = run_job(job)
-    except RenderRefused as exc:
-        print(exc.code, file=sys.stderr)
-        return 3
-    sys.stderr.write(f"engine={engine}\n")
-    sys.stdout.buffer.write(pdf)
-    sys.stdout.buffer.flush()
-    return 0
+    return child_main(run_job)
 
 
 if __name__ == "__main__":

@@ -27,8 +27,9 @@ from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from ...audit import audit
-from . import model, money, notify_bridge, settings_doc, store, store_costs, store_links
+from . import fields, model, money, notify_bridge, settings_doc, store, store_costs, store_links
 from .text_hygiene import clean_text
+from .timeutil import iso_s, parse_naive_local
 
 log = logging.getLogger("smplwise.tickets.costs")
 UTC = dt.timezone.utc
@@ -61,17 +62,10 @@ class CostRefused(Exception):
 
 # ---------------------------------------------------------------- time
 
-def iso(at: dt.datetime) -> str:
-    return at.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+iso = iso_s  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
-def parse(value: str | None) -> dt.datetime | None:
-    if not value:
-        return None
-    try:
-        return dt.datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
-    except ValueError:
-        return None
+parse = parse_naive_local  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 def now_utc() -> dt.datetime:
@@ -444,15 +438,13 @@ class Draft:
     notes: str | None
 
 
+def _refused(code: str, field: str) -> CostRefused:
+    """The 422 of a refused field, in this module's shape (the error factory fields.py asks for)."""
+    return CostRefused(422, code, field)
+
+
 def _text(value: Any, field: str, max_len: int, *, multiline: bool = False) -> str | None:
-    if value is None:
-        return None
-    if not isinstance(value, str):
-        raise CostRefused(422, "type", field)
-    t = clean_text(value, multiline=multiline)
-    if len(t) > max_len:
-        raise CostRefused(422, "too_long", field)
-    return t or None
+    return fields.text(value, field, max_len, refuse=_refused, multiline=multiline)  # CR-TK-MONEY-UTILS (01:F-15): the shared check
 
 
 def draft(conn, claim: Mapping[str, Any], body: Mapping[str, Any], *, vat_mode: str | None = None) -> Draft:

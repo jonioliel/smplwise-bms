@@ -152,8 +152,10 @@ def door_key(station_id: str, relay: int) -> str:
 
 
 def installation_zone(conn: sqlite3.Connection) -> str:
-    name = get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem"
-    return name if valid_zone(name) else "Asia/Jerusalem"
+    from .timeutil import DEFAULT_ZONE, site_zone_name  # CR-TIMEUTIL-2436 (04:F15)
+
+    name = site_zone_name(conn)
+    return name if valid_zone(name) else DEFAULT_ZONE
 
 
 def valid_zone(name: Any) -> bool:
@@ -209,8 +211,9 @@ def identity_refusal(conn: sqlite3.Connection, principal: Principal, *, dev_mode
 
     if not door_authority.identity_ok(principal, dev_mode, conn):
         return "identity_unmapped"
-    user = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
-    if user is not None and not user["active"]:
+    from .active_users import is_disabled
+
+    if is_disabled(conn, principal.user_id):  # CR-ACTIVE-USER-REST-2438: the one rule - disabled on either side (services/active_users)
         return "user_inactive"
     if door_authority.is_wall_account(conn, principal.user_id):
         return "wall_account"
@@ -264,8 +267,8 @@ def valid_hm(value: Any, *, end: bool = False) -> bool:
     return isinstance(value, str) and (bool(HM_RE.match(value)) or (end and value == "24:00"))
 
 
-def iso(at: dt.datetime) -> str:
-    return at.astimezone(UTC).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
+from .timeutil import iso_utc
+iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def parse_iso(value: str) -> dt.datetime:
@@ -542,7 +545,9 @@ def stale_approvals(conn: sqlite3.Connection, rules: list[RuleDoc]) -> list[str]
             out.append(r.id)
             continue
         user = conn.execute("SELECT id, username, display_name, active FROM users WHERE id = ?", (approver,)).fetchone()
-        if user is None or not user["active"]:
+        from .active_users import has_active_account
+
+        if user is None or not has_active_account(conn, approver):  # CR-ACTIVE-USER-REST-2438: the one rule (services/active_users), an Arx account required
             out.append(r.id)
             continue
         p = Principal(user["id"], user["username"] or "", user["display_name"] or "", "internal")

@@ -325,10 +325,6 @@ def decide_door(conn: sqlite3.Connection, settings: Any, now: dt.datetime, door:
 
 # ---------------------------------------------------------------- notifications
 
-def _door_label(door: dw.Door | None) -> str:
-    return door.label if door else ""
-
-
 def _notify_simulated(conn: sqlite3.Connection, door: dw.Door, actor: str | None, until_iso: str) -> None:
     from . import notify
 
@@ -372,7 +368,9 @@ def reset_budget() -> None:
 
 def _actor_ok(conn: sqlite3.Connection, user_id: str, rule_doors: list[tuple[str, int]]) -> bool:
     user = conn.execute("SELECT id, username, display_name, active FROM users WHERE id = ?", (user_id,)).fetchone()
-    if user is None or not user["active"]:
+    from .active_users import has_active_account
+
+    if user is None or not has_active_account(conn, user_id):  # CR-ACTIVE-USER-REST-2438: the one rule (services/active_users), an Arx account required
         return False
     p = Principal(user["id"], user["username"] or "", user["display_name"] or "", "internal")
     return all(dw.may(conn, p, dw.MANAGE, s) for s, _ in rule_doors)

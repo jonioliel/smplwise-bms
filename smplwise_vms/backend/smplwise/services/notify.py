@@ -147,7 +147,10 @@ def _frames(conn: sqlite3.Connection, nid: str, frames: list[dict[str, Any]], us
 # ---------------------------------------------------------------- recipients
 
 def _active_users(conn: sqlite3.Connection) -> list[str]:
-    return [r[0] for r in conn.execute("SELECT id FROM users WHERE active = 1 ORDER BY id").fetchall()]
+    """Every active Arx account, in id order - the one rule (services/active_users, CR-W2-FOLLOWUPS-2441)."""
+    from .active_users import active_account_ids
+
+    return active_account_ids(conn)
 
 
 def _active_principals(conn: sqlite3.Connection) -> list[Principal]:

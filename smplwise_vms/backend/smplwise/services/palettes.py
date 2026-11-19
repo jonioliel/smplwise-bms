@@ -93,10 +93,6 @@ def ratio(a: Color, b: Color) -> float:
     return (max(x, y) + 0.05) / (min(x, y) + 0.05)
 
 
-def to_hex(c: Color) -> str:
-    return "#" + "".join(f"{max(0, min(255, round(x))):02x}" for x in c[:3])
-
-
 def _get(o: Any, path: str) -> Any:
     for k in path.split("."):
         if not isinstance(o, dict) or k not in o:

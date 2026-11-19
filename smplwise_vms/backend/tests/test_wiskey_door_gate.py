@@ -337,7 +337,7 @@ def test_t8_a_restart_between_attempt_and_outcome_leaves_the_attempt_and_sends_n
 def test_t10_a_notification_link_is_audit_only_and_no_other_module_opens_a_door(world):
     """B2: the notification deep link reaches the same route, needs the same person's grant and the explicit confirmation;
     its origin is recorded, never authority. No other module (notifications, push, e-mail, service worker routes) calls the
-    door transport: only routers/access_control.py sends a station release or opens a door, and only it and
+    door transport: only routers/access_control_door.py (the door part of routers/access_control.py) sends a station release or opens a door, and only it and
     services/door_run_guard.py call open_door."""
     c, s, db, feed = world["c"], world["settings"], world["db"], world["feed"]
     map_all(c)
@@ -352,9 +352,9 @@ def test_t10_a_notification_link_is_audit_only_and_no_other_module_opens_a_door(
     assert attempt["details"]["entry_point"] == "notification" and attempt["details"]["origin"] == origin
     assert len(feed.sent) == 1
     sources = {str(p.relative_to(BACKEND)).replace("\\", "/"): p.read_text(encoding="utf-8") for p in BACKEND.rglob("*.py")}
-    assert sorted(f for f, t in sources.items() if re.search(r"\brelease_door\(", t) and f != "services/intercom_client.py") == ["routers/access_control.py"]
-    assert sorted(f for f, t in sources.items() if re.search(r"\bopen_door\(", t)) == ["routers/access_control.py", "services/door_run_guard.py"]
-    assert sorted(f for f, t in sources.items() if "call_bridge(" in t and "door_open" in t) == ["routers/access_control.py", "routers/doors.py", "services/trusted_door.py"]
+    assert sorted(f for f, t in sources.items() if re.search(r"\brelease_door\(", t) and f != "services/intercom_client.py") == ["routers/access_control_door.py"]
+    assert sorted(f for f, t in sources.items() if re.search(r"\bopen_door\(", t)) == ["routers/access_control_door.py", "services/door_run_guard.py"]
+    assert sorted(f for f, t in sources.items() if "call_bridge(" in t and "door_open" in t) == ["routers/access_control_door.py", "routers/doors.py", "services/trusted_door.py"]
 
 
 def test_t11_a_wall_account_reached_through_a_group_never_opens(world):

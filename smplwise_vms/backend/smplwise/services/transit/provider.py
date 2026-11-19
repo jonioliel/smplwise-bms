@@ -69,11 +69,6 @@ class ScheduledProvider:
         return rows
 
 
-def as_provider(source: Any, tz: ZoneInfo | None = None) -> ArrivalProvider:
-    """A provider as it is, or a bare `Fetch` callable wrapped as the scheduled provider."""
-    return source if hasattr(source, "arrivals") else ScheduledProvider(source, tz)
-
-
 PLAN_LOOKUPS_PER_PASS = 12  # rides whose planned stop list is read per pass (cached for the day afterwards): a first pass never becomes a burst
 
 

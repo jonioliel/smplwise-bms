@@ -11,13 +11,7 @@ from typing import Any, Iterable, Mapping
 from ...db import new_id
 
 
-def _dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
-    return dict(row) if row is not None else None
-
-
-def _insert(conn: sqlite3.Connection, table: str, row: Mapping[str, Any]) -> None:
-    cols = list(row)
-    conn.execute(f"INSERT INTO {table}({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})", tuple(row[c] for c in cols))
+from ._sql import insert as _insert, row_dict as _dict  # noqa: E402 - CR-TK-SQL: the shared helpers under their old names
 
 
 # ---------------------------------------------------------------- claims
@@ -132,10 +126,6 @@ def pending_for_user(conn: sqlite3.Connection, ticket_id: str, user_id: str, sin
     return [dict(r) for r in conn.execute(
         "SELECT * FROM ticket_cost_files WHERE claim_id IS NULL AND link_id IS NULL AND ticket_id = ? AND uploaded_by_kind = 'user' "
         "AND uploaded_by = ? AND created_at >= ? ORDER BY created_at, id", (ticket_id, user_id, since)).fetchall()]
-
-
-def pending_count_for_link(conn: sqlite3.Connection, link_id: str, since: str) -> int:
-    return pending_usage_for_link(conn, link_id, since)[0]
 
 
 def pending_usage_for_link(conn: sqlite3.Connection, link_id: str, since: str) -> tuple[int, int]:

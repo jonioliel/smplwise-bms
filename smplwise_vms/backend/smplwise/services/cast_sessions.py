@@ -106,8 +106,8 @@ def now() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc)  # tests move the clock here
 
 
-def _iso(t: dt.datetime | None) -> str | None:
-    return t.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z") if t else None
+from .timeutil import iso_or_none
+_iso = iso_or_none  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def _parse(text: str | None) -> dt.datetime | None:
@@ -651,12 +651,6 @@ def _expiry(conn: sqlite3.Connection, item: store.Item, kind: str, duration: str
 
 def _url(origin: str, token: str) -> str:
     return f"{origin}/cast/{token}/index.m3u8"
-
-
-def _index_put(conn: sqlite3.Connection, session_id: str, gen: int, stream: str, expires_at: str | None) -> str:
-    token = token_for(_secret(conn), session_id, gen)
-    cast_relay.INDEX.put(token, session_id, stream, _epoch(expires_at))
-    return token
 
 
 def start(conn: sqlite3.Connection, settings: Settings, principal: Principal, request_id: str | None, body: dict[str, Any], *, channel: str = "local",

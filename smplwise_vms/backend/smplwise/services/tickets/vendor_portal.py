@@ -35,6 +35,7 @@ import datetime as dt
 import hashlib
 import hmac
 import logging
+import sqlite3
 import unicodedata
 from dataclasses import dataclass
 from typing import Any, Mapping
@@ -43,6 +44,7 @@ from ...audit import audit
 from ...db import get_setting
 from . import access, codes as codes_mod, handler_links, links, naming, settings_doc, store, store_links
 from .keyring import KEYS
+from .module_key import ModuleKeyError
 
 log = logging.getLogger("smplwise.tickets.vendor_portal")
 
@@ -94,35 +96,40 @@ class Session:
 # ---------------------------------------------------------------- the switch and the number
 
 
+def _cfg(conn, key: str, default: Any) -> Any:
+    """One value of the `vendor_portal` block of the settings document, or `default` when the settings cannot be read - every caller
+    passes its fail-closed side. CR-TK-EXCEPT-LOG (01:F-11): one reader instead of four `except Exception` copies. settings_doc.read fills every key
+    from the schema, so the one expected failure is the database (a database before the migrations); anything else is a
+    programming error and is no longer hidden."""
+    try:
+        return settings_doc.read(conn)["vendor_portal"][key]
+    except sqlite3.Error:
+        log.debug("vendor portal setting %s could not be read; using the default", key, exc_info=True)
+        return default
+
+
 def enabled(conn) -> bool:
     try:
-        return access.module_on(conn) and bool(settings_doc.read(conn)["vendor_portal"]["enabled"])
-    except Exception:  # noqa: BLE001 - an unreadable document or a database before the migrations: off (fail closed)
+        on = access.module_on(conn)
+    except sqlite3.Error:  # a database before the migrations: off (fail closed)
+        log.debug("the module switch could not be read; the vendor portal reads as off", exc_info=True)
         return False
+    return on and bool(_cfg(conn, "enabled", False))  # an unreadable document: off (fail closed)
 
 
 def closed_months(conn) -> int:
-    try:
-        return int(settings_doc.read(conn)["vendor_portal"]["closed_months"])
-    except Exception:  # noqa: BLE001
-        return 2
+    return int(_cfg(conn, "closed_months", 2))
 
 
 def require_confirmed(conn) -> bool:
     """2.6.4 review F1: only a number its owner proved may sign in (default ON; an unreadable document reads ON - fail closed)."""
-    try:
-        return bool(settings_doc.read(conn)["vendor_portal"]["require_confirmed_number"])
-    except Exception:  # noqa: BLE001
-        return True
+    return bool(_cfg(conn, "require_confirmed_number", True))
 
 
 def start_worker(conn) -> bool:
     """SECFIX2-295 / PUB-04: `portal/start` hands its work to the listener's worker thread (default OFF = the request's background
     task, today's behaviour). An unreadable document reads OFF (both paths answer the same 202; the work still happens)."""
-    try:
-        return bool(settings_doc.read(conn)["vendor_portal"]["start_worker"])
-    except Exception:  # noqa: BLE001
-        return False
+    return bool(_cfg(conn, "start_worker", False))
 
 
 PROVED_VIA = ("code", "user")  # 0091: a typed code, or the signed-in person confirming their own number - never a manager's mark
@@ -159,7 +166,7 @@ def number_key(digits: str) -> tuple[str, str] | None:
     """(phone_key, key_id) of a canonical number under the CURRENT module key, or None (no key: fail closed). Never creates a key."""
     try:
         key_id, key = KEYS.current(create=False)
-    except Exception:  # noqa: BLE001 - no module key yet / a damaged key file
+    except (ModuleKeyError, OSError):  # no module key yet / a damaged key file (CR-TK-EXCEPT-LOG (01:F-11): only a key failure reads as the fail-closed answer)
         return None
     pk = links.phone_key(key, digits)
     return (pk, key_id) if pk else None
@@ -383,7 +390,7 @@ def request_code(conn, digits: str, now: dt.datetime, *, plan: Plan | None = Non
         return "capped"
     try:
         key = KEYS.get(key_id)
-    except Exception:  # noqa: BLE001
+    except (ModuleKeyError, OSError):  # the key the number was indexed under is gone (CR-TK-EXCEPT-LOG (01:F-11): only a key failure reads as the fail-closed answer)
         return "nokey"
     # the row may have changed between the read and this transaction (a new number, deactivated): one primary-key read, the same
     # statement for every number (an empty id for nobody), and a changed row gets no message
@@ -423,14 +430,14 @@ def derive_for_outbox(conn, vid: str | None, contact_id: str | None) -> str | No
         return None
     try:
         r = conn.execute("SELECT * FROM ticket_portal_codes WHERE id = ?", (vid,)).fetchone()
-    except Exception:  # noqa: BLE001 - a database before 0105
+    except sqlite3.Error:  # a database before 0105 (CR-TK-EXCEPT-LOG (01:F-11): narrowed from Exception)
         return None
     if (r is None or not r["contact_id"] or r["contact_id"] != contact_id or r["consumed_at"] or r["invalidated_at"]
             or r["expires_at"] <= _iso(handler_links.now_utc())):
         return None
     try:
         return codes_mod.derive_code(KEYS.get(r["key_id"]), vid)
-    except Exception:  # noqa: BLE001
+    except (ModuleKeyError, OSError):  # the code's key is gone: nothing is rendered (CR-TK-EXCEPT-LOG (01:F-11): only a key failure reads as the fail-closed answer)
         return None
 
 
@@ -454,7 +461,7 @@ def verify(conn, digits: str | None, presented: Any, now: dt.datetime, *, net: s
         return None  # a malformed value is not a guess (it cannot succeed); no live code: nothing to count
     try:
         key = KEYS.get(live["key_id"])
-    except Exception:  # noqa: BLE001
+    except (ModuleKeyError, OSError):  # the code's key is gone: the same refusal (CR-TK-EXCEPT-LOG (01:F-11): only a key failure reads as the fail-closed answer)
         return None
     if not hmac.compare_digest(_net_hash(key, net), str(live["net_hash"] or "")):
         return None  # another network: not a guess, never counted (the same refusal)
@@ -495,7 +502,7 @@ def session(conn, value: str | None, now: dt.datetime) -> Session | None:
         return None
     try:
         current_id, _key = KEYS.current(create=False)
-    except Exception:  # noqa: BLE001 - no key: nothing can be matched
+    except (ModuleKeyError, OSError):  # no key: nothing can be matched (CR-TK-EXCEPT-LOG (01:F-11): only a key failure reads as the fail-closed answer)
         return None
     if r["key_id"] != current_id:
         return None  # a key rotation re-keyed every number: the session's key matches nothing any more (fail closed)

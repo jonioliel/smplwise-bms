@@ -25,6 +25,7 @@ from typing import Any, Iterable
 from ...audit import audit
 from ...errors import ApiError
 from ...rbac import INSTALLATION, require
+from .. import redact
 from . import access, handler_links, links, model, notify_bridge, store, store_links
 from .access import Viewer, text
 from .keyring import KEYS
@@ -98,9 +99,7 @@ def normalize_email(raw: Any) -> str | None:
 
 def mask_phone(digits: str | None) -> str | None:
     """The last four digits only (spec 8: managers without `tickets.external` see masked numbers)."""
-    if not digits:
-        return None
-    return "•••• " + digits[-4:]
+    return redact.phone_tail4_bullets(digits)
 
 
 def display_phone(digits: str | None) -> str | None:

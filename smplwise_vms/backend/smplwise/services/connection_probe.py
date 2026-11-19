@@ -40,6 +40,7 @@ from __future__ import annotations
 import contextvars
 import dataclasses
 import ipaddress
+import logging
 import os
 import re
 import socket
@@ -55,6 +56,14 @@ import httpx
 from ..config import Settings
 from ..errors import ApiError
 from . import source_policy, xmlsafe
+
+log = logging.getLogger("smplwise.connection_probe")
+
+
+def _trace(what: str, exc: BaseException) -> None:
+    """Review 04:F27: a swallowed error of the probe leaves a debug line. The TYPE only, never the text or a traceback: a device or
+    resolver error can carry the address (or a URL with credentials) the operator typed."""
+    log.debug("connection probe: %s (%s)", what, type(exc).__name__)
 
 HOST_MAX = 253
 _LABEL = r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
@@ -242,7 +251,8 @@ def ha_host_port_field(host: str, target: str | None, ports: dict[str, Any], ha_
         literal = source_policy.address_of(name)
         try:
             candidates = [literal] if literal is not None else [source_policy.address_of(t) for t in RESOLVE(name)]
-        except Exception:  # noqa: BLE001 - an unanswered name adds no refusal
+        except Exception as exc:  # noqa: BLE001 - an unanswered name adds no refusal
+            _trace("a Home Assistant name did not resolve", exc)
             candidates = []
         if want is not None and any(a is not None and a == want for a in candidates):
             return fields[0]
@@ -284,7 +294,8 @@ def _own_addresses() -> set[str]:
     name = (HOSTNAME() or "").strip()
     try:
         local = set(LOCAL_ADDRESSES())
-    except Exception:  # noqa: BLE001 - best effort; the refused ports still apply
+    except Exception as exc:  # noqa: BLE001 - best effort; the refused ports still apply
+        _trace("the local addresses could not be listed", exc)
         local = set()
     out: set[str] = set()
     for text in [*(RESOLVE(name) if name else []), *local]:
@@ -412,8 +423,8 @@ class _DeadlineBackend(httpcore.NetworkBackend):
                 pass
             try:
                 stream.close()
-            except Exception:  # noqa: BLE001 - best effort; the socket is shut down already
-                pass
+            except Exception as exc:  # noqa: BLE001 - best effort; the socket is shut down already
+                _trace("closing the stream failed", exc)
 
 
 class _ProbeTransport(httpx.HTTPTransport):
@@ -557,7 +568,8 @@ def _probe_with(client: httpx.Client, deadline: float) -> dict[str, Any]:
     try:
         listing = xmlsafe.parse(_get_capped(client, CHANNELS_PATH, deadline))
         channels = sum(1 for el in listing.iter() if _local(el.tag) == "InputProxyChannel")
-    except Exception:  # noqa: BLE001 - the device answered deviceInfo; the channel count is optional
+    except Exception as exc:  # noqa: BLE001 - the device answered deviceInfo; the channel count is optional
+        _trace("the channel list was not read", exc)
         channels = None
     # `_serial` is internal (CR-024 device identity): the routes hash it and strip every `_` key before answering (`public`)
     out = {"ok": True, "code": "ok", "model": _clip(info.get("model")), "firmware": _clip(info.get("firmwareVersion")), "channels": channels}
@@ -604,7 +616,8 @@ def probe(cand: Settings) -> dict[str, Any]:
                 out.append(_probe_with(client, deadline))
         except _Fail as exc:
             out.append({"ok": False, "code": exc.code if exc.code in OUTCOMES else "source_error"})
-        except Exception:  # noqa: BLE001 - an unparsable answer is a device error, never a 500 with text
+        except Exception as exc:  # noqa: BLE001 - an unparsable answer is a device error, never a 500 with text
+            _trace("a probe attempt failed", exc)
             out.append({"ok": False, "code": "source_error"})
 
     worker = threading.Thread(target=work, name="nvr-probe", daemon=True)
@@ -722,19 +735,22 @@ def _probe_vendor(cand: Settings, budget: float, backends: list) -> dict[str, An
             info = a.device_info(refresh=True)
             try:
                 channels: int | None = len(a.list_channels()) if info.get("kind") == "nvr" else 1
-            except Exception:  # noqa: BLE001 - the device answered GetDeviceInfo; the count is optional
+            except Exception as exc:  # noqa: BLE001 - the device answered GetDeviceInfo; the count is optional
+                _trace("the channel list was not read", exc)
                 channels = None
         result = {"ok": True, "code": "ok", "model": _clip(info.get("model")), "firmware": _clip(info.get("firmware")), "channels": channels}
     except ApiError as exc:
         code = {"source_timeout": "timeout"}.get(exc.code, exc.code)
         result = {"ok": False, "code": code if code in OUTCOMES else "source_error"}
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        _trace("the recorder probe failed", exc)
         result = {"ok": False, "code": "source_error"}
     info_t = a.transport_info()
     result["transport"] = {"scheme": info_t["scheme"], "auth": info_t["auth"], "insecure": info_t["insecure"]}
     try:
         result["warnings"] = [w["code"] for w in a.warnings()]
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        _trace("the adapter warnings were not read", exc)
         result["warnings"] = []
     if certificate is not None:
         result["certificate"] = certificate
@@ -796,13 +812,15 @@ def _probe_frigate(cand: Settings, budget: float, backends: list) -> dict[str, A
             else:
                 try:
                     cams: int | None = len(a.discover(refresh=True)["summary"]["cameras"])
-                except Exception:  # noqa: BLE001 - the server answered; the count is optional (a viewer role may not read /config)
+                except Exception as exc:  # noqa: BLE001 - the server answered; the count is optional (a viewer role may not read /config)
+                    _trace("the camera list was not read", exc)
                     cams = None
                 result = {"ok": True, "code": "ok", "model": "Frigate", "firmware": _clip(text), "channels": cams}
     except ApiError as exc:
         code = "timeout" if fh.is_timeout(exc) else {"source_timeout": "timeout"}.get(exc.code, exc.code)
         result = {"ok": False, "code": code if code in OUTCOMES else "source_error"}
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        _trace("the recorder probe failed", exc)
         result = {"ok": False, "code": "source_error"}
     result["transport"] = {"scheme": "https" if https else "http", "insecure": not https}
     result["warnings"] = [w["code"] for w in a.http.warnings()]

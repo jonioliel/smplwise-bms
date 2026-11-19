@@ -8,7 +8,9 @@ option `bootstrap_admin_username`; the grant happens once and is recorded in the
 """
 from __future__ import annotations
 
+import contextlib
 import logging
+import re
 import sqlite3
 from typing import Callable
 
@@ -88,21 +90,109 @@ def _pre_resolved(request: Request) -> Principal | None:
     return principal
 
 
-def get_conn(request: Request):
+_PARAM_RE = re.compile(r"\{([^{}:]+)(?::[^{}]*)?\}")
+
+
+def conn_label(request: Request) -> str:
+    """The label of the request's connection in the slow-hold and busy logs (db.lock_stats): the method and the path, with the
+    matched route's TEMPLATE in place of its path parameters (CR-BRIDGE-PREVERIFY-2440, review 05:P3-08) - a token, a slug or an id
+    in the path never reaches a log line through here. A route without parameters is labelled exactly as before (the full request
+    path, the remote channel's prefix included)."""
+    path = request.url.path
+    template = getattr(request.scope.get("route"), "path", None)
+    if not isinstance(template, str) or "{" not in template:
+        return f"{request.method} {path}"
+    params = request.scope.get("path_params") or {}
+    try:
+        concrete = _PARAM_RE.sub(lambda m: str(params[m.group(1)]), template)
+    except KeyError:
+        return f"{request.method} {template}"
+    if concrete and path.endswith(concrete):
+        return f"{request.method} {path[:-len(concrete)]}{template}"
+    return f"{request.method} {template}"  # the values could not be placed (an encoded segment): the template alone
+
+
+GATE_WAIT_THREADS = 64  # get_conn: threads of their own for the wait in the write-gate queue (more than the shared pool's 40)
+_gate_wait_limiters: dict[int, tuple[object, object]] = {}  # id(event loop) -> (loop, its CapacityLimiter)
+
+
+def _gate_wait_limiter():
+    """The limiter of the write-gate wait for the running event loop (one per loop: a test client runs its own)."""
+    import asyncio
+
+    import anyio
+
+    loop = asyncio.get_running_loop()
+    held = _gate_wait_limiters.get(id(loop))
+    if held is None or held[0] is not loop:
+        for key in [k for k, (lp, _) in _gate_wait_limiters.items() if lp.is_closed()]:  # loops of finished test clients
+            _gate_wait_limiters.pop(key, None)
+        held = _gate_wait_limiters[id(loop)] = (loop, anyio.CapacityLimiter(GATE_WAIT_THREADS))
+    return held[1]
+
+
+async def get_conn(request: Request):
+    """The request's write connection (BEGIN IMMEDIATE: the write gate, then SQLite's write lock).
+
+    CR-SYNC-GATE-2438: the wait for the write gate runs on threads of its own (GATE_WAIT_THREADS), never in AnyIO's shared
+    40-thread pool. As a sync dependency it waited in that pool, where the gate holder's own sync body and sync
+    dependencies (current_principal, ...) also run: with 40 or more writers parked in the gate, the holder waited for a
+    thread that only a gate time-out freed - a burst of "database is locked" with no slow holder. Same transaction, same
+    gate (FIFO order, BUSY_TIMEOUT_S), same commit / rollback rules (Database.connection); a writer beyond
+    GATE_WAIT_THREADS waits for a thread in arrival order, as the 41st did in the shared pool before. The exit runs like
+    FastAPI's own for a sync dependency (its own thread, never behind a full pool)."""
+    import anyio
+    import anyio.to_thread
+    from starlette.concurrency import run_in_threadpool
+
     db: Database = request.app.state.db
     if is_remote(request) and getattr(request.state, PRE_RESOLVED, None) is None:
-        resolve_remote_first(request)  # 401 here never touches the write gate
-    with db.connection(label=f"{request.method} {request.url.path}") as conn:
+        await run_in_threadpool(resolve_remote_first, request)  # 401 here never touches the write gate
+    cm = db.connection(label=conn_label(request))
+    conn = await anyio.to_thread.run_sync(cm.__enter__, limiter=_gate_wait_limiter())
+    exit_limiter = anyio.CapacityLimiter(1)
+    try:
         _track(request, conn)
         yield conn
+    except Exception as exc:  # the handler's error: Database.connection decides commit (ApiError) or rollback
+        if not await anyio.to_thread.run_sync(cm.__exit__, type(exc), exc, exc.__traceback__, limiter=exit_limiter):
+            raise
+    except BaseException as exc:  # cancelled: roll back and hand the gate on, even while the task is being cancelled
+        with anyio.CancelScope(shield=True):
+            await anyio.to_thread.run_sync(cm.__exit__, type(exc), exc, exc.__traceback__, limiter=exit_limiter)
+        raise
+    else:
+        await anyio.to_thread.run_sync(cm.__exit__, None, None, None, limiter=exit_limiter)
 
 
 def get_read_conn(request: Request):
     """Deferred, query-only request connection for the busy read paths (see Database.connection)."""
     db: Database = request.app.state.db
-    with db.connection(mode="read", label=f"{request.method} {request.url.path}") as conn:
+    with db.connection(mode="read", label=conn_label(request)) as conn:
         _track(request, conn)
         yield conn
+
+
+def remote_first(request: Request) -> None:
+    """The remote channel's identity before anything else of the request (resolve_remote_first): 401 here, before a body is judged and
+    before any connection. Nothing on the local channel."""
+    if is_remote(request) and getattr(request.state, PRE_RESOLVED, None) is None:
+        resolve_remote_first(request)
+
+
+def conn_after(passed: Callable[..., object]):
+    """The request's write connection (get_conn), opened only once the dependency `passed` returned (CR-BRIDGE-PREVERIFY-2440, review
+    05:P2-02) - for a route whose caller proves itself with something other than a user identity (a signed bridge message). As a
+    plain `Depends(get_conn)` next to the body such a route took its turn in the write queue for every request, whatever it carried:
+    FastAPI resolves sibling dependencies even when the body is refused. Here get_conn is reached only through `passed`, so a
+    refusal there (or a body it could not read: 422) never touches the write gate. On the remote channel the session is still
+    resolved first, as get_conn does (remote_first). Same transaction, same commit / rollback rules: this only delegates."""
+
+    async def conn(request: Request, _remote: None = Depends(remote_first), _passed: object = Depends(passed)):
+        async with contextlib.asynccontextmanager(get_conn)(request) as c:
+            yield c
+
+    return conn
 
 
 def release_conns(conns: list[sqlite3.Connection]) -> None:
@@ -231,6 +321,44 @@ def maybe_bootstrap(conn: sqlite3.Connection, settings: Settings, principal: Pri
         grant(conn)
 
 
+def principal_light(request: Request) -> Principal:
+    """The caller's identity alone, with no connection of the request: for the routers that open their own connection per handler
+    (the polled presence reads). CR-BRIDGE-PREVERIFY-2440 (review 05:P2-03): such a handler runs the cross-cutting steps itself, on
+    its own connection, with `shared_steps(request, conn, principal, light=True)` - so a step added there reaches these routes too.
+    tests/test_local_auth_inventory.py lists every dependency that resolves an identity outside `_principal`."""
+    return resolve_remote_first(request) if is_remote(request) else resolve_principal(request, settings_of(request))
+
+
+def shared_steps(request: Request, conn: sqlite3.Connection, principal: Principal, *, light: bool = False) -> None:
+    """The cross-cutting steps every authenticated request passes once its identity is known (in this order). `light=True` is the
+    variant of the principal_light routers and keeps exactly what they ran before: the last-seen stamp and the two path gates (no-ops
+    on their paths today: exempt from both, pinned by tests/test_bridge_preverify_2440.py) - never the service-account refusal and
+    the bootstrap grant, which they never ran. A NEW step belongs here, outside the `if not light`, unless it must not apply there."""
+    rid = getattr(request.state, "correlation_id", None)
+    if not light:
+        # USR2 P3 security review F4: the service Home Assistant user is a technical account - nobody signs in to Arx as it (403 service_account,
+        # audited; checked before any user row is written for it)
+        from .services import service_identity
+
+        service_identity.refuse_service_principal(conn, principal, rid)
+    touch_user(conn, principal)
+    if not light:
+        maybe_bootstrap(conn, settings_of(request), principal, rid)
+    # CR-027: the required-sensors policy - a session of the phone app (or, when the policy says so, any session) of a user
+    # who has not switched the required sensors on is refused here, except on the paths the app needs to get out of that
+    # state (services/presence.enforce; administrators are never refused)
+    from .services import presence
+
+    presence.enforce(conn, principal, request.scope.get("path") or "", request.headers.get("user-agent"), rid,
+                     root_path=request.scope.get("root_path") or "")
+    # HOME-SIMPLE-2420: a person an administrator limited to the home interface reaches only its own API areas (403
+    # home_interface_only elsewhere, audited) - a restriction on top of the role model, never a grant
+    from .services import home_interface
+
+    home_interface.enforce(conn, principal, request.scope.get("path") or "", rid,
+                           root_path=request.scope.get("root_path") or "", method=request.scope.get("method") or "GET")
+
+
 def _principal(request: Request, conn: sqlite3.Connection) -> Principal:
     settings = settings_of(request)
     pre = _pre_resolved(request) if is_remote(request) else None
@@ -249,26 +377,7 @@ def _principal(request: Request, conn: sqlite3.Connection) -> Principal:
                 principal = resolve_principal(request, settings)
     else:
         principal = resolve_principal(request, settings)
-    # USR2 P3 security review F4: the service Home Assistant user is a technical account - nobody signs in to Arx as it (403 service_account,
-    # audited; checked before any user row is written for it)
-    from .services import service_identity
-
-    service_identity.refuse_service_principal(conn, principal, getattr(request.state, "correlation_id", None))
-    touch_user(conn, principal)
-    maybe_bootstrap(conn, settings, principal, getattr(request.state, "correlation_id", None))
-    # CR-027: the required-sensors policy - a session of the phone app (or, when the policy says so, any session) of a user
-    # who has not switched the required sensors on is refused here, except on the paths the app needs to get out of that
-    # state (services/presence.enforce; administrators are never refused)
-    from .services import presence
-
-    presence.enforce(conn, principal, request.scope.get("path") or "", request.headers.get("user-agent"), getattr(request.state, "correlation_id", None),
-                     root_path=request.scope.get("root_path") or "")
-    # HOME-SIMPLE-2420: a person an administrator limited to the home interface reaches only its own API areas (403
-    # home_interface_only elsewhere, audited) - a restriction on top of the role model, never a grant
-    from .services import home_interface
-
-    home_interface.enforce(conn, principal, request.scope.get("path") or "", getattr(request.state, "correlation_id", None),
-                           root_path=request.scope.get("root_path") or "", method=request.scope.get("method") or "GET")
+    shared_steps(request, conn, principal)
     return principal
 
 

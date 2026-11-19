@@ -11,8 +11,10 @@ The check is static (AST over smplwise/routers/*.py and smplwise/main.py): an as
 Nested `def`s and lambdas are skipped (they are what gets passed to `run_in_threadpool`), and so is a function passed as an argument
 rather than called.
 
-`PENDING` lists the offenders known on 2026-11-13. They are fixed by another branch; the first test passes while every offender is in
-that list, the second (xfail, strict) starts passing when the list can be emptied - then remove the entry and the mark.
+`PENDING` lists offenders that another branch is known to fix: the first test passes while every offender is in that list, the
+second asserts the list holds no live offender (add an entry together with a strict xfail mark on the second test, and remove both
+when the fixing branch merges). The 2026-11-13 entry (`routers/wiskey_lineage.py::resolve`, 02:P1-6) was fixed by
+pilot/AUTH-REVOKE-GATE-2435 and removed in CR-WAVE2-COMBINED-2439, where that branch merged.
 """
 from __future__ import annotations
 

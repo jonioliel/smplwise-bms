@@ -42,8 +42,6 @@ import collections
 import io
 import json
 import logging
-import os
-import posixpath
 import re
 import secrets
 import sqlite3
@@ -59,6 +57,7 @@ from ..errors import ApiError
 from . import connection_store as cs
 from . import go2rtc as g2
 from . import source_policy
+from .poller import PeriodicWorker
 
 log = logging.getLogger("smplwise.camera_sources")
 
@@ -221,23 +220,13 @@ def refusal(url: Any, settings: Settings) -> str | None:
 
 def names_foreign_stream(src: str, stream_names: Any) -> bool:
     """True when the first path segment of `src` (raw, percent-decoded twice, dot segments resolved, case-insensitive) is the name of
-    a go2rtc stream outside `smplwise_cam_` (an alias of go2rtc's RTSP restream: `rtsp://<go2rtc by any name>/<another stream>`)."""
-    try:
-        path = urlsplit(src).path
-    except ValueError:
-        return True
-    decoded = unquote(unquote(path))
-    normal = posixpath.normpath("/" + decoded.lstrip("/"))
-    first = {seg.lower() for seg in (path.lstrip("/").split("/", 1)[0], decoded.lstrip("/").split("/", 1)[0], normal.lstrip("/").split("/", 1)[0]) if seg}
-    return bool(first & {n.lower() for n in stream_names if not n.startswith(STREAM_PREFIX)})
+    a go2rtc stream outside `smplwise_cam_` (an alias of go2rtc's RTSP restream: `rtsp://<go2rtc by any name>/<another stream>`).
+    CR-GO2RTC-OWNED-2436 (review 03 F09): the shared rule, go2rtc.names_foreign_stream, with this feature's prefix."""
+    return g2.names_foreign_stream(src, stream_names, STREAM_PREFIX)
 
 
 def _refuse_foreign(src: str) -> Callable[[dict[str, g2.StreamInfo]], None]:
-    def check(streams: dict[str, g2.StreamInfo]) -> None:
-        if names_foreign_stream(src, streams):
-            raise ApiError(422, "source_not_allowed", MSG["source_not_allowed"])
-
-    return check
+    return g2.refuse_foreign(src, STREAM_PREFIX, lambda: ApiError(422, "source_not_allowed", MSG["source_not_allowed"]))
 
 
 def _refuse(code: str) -> ApiError:
@@ -582,17 +571,18 @@ def delete_standalone(conn: sqlite3.Connection, settings: Settings, principal: A
 
 # ---------------------------------------------------------------- go2rtc: the live streams of a manual source
 
-_STREAM_LOCK = threading.Lock()
-_WRITTEN: dict[str, float] = {}
+# CR-GO2RTC-OWNED-2436 (review 03 F09): the shared owned-streams helper - every write and delete of a `smplwise_cam_` stream of the exact
+# shape `stream_name` builds goes through its lock; `_STREAM_LOCK` and `_WRITTEN` are its lock and its write notes (same objects).
+_OWNED = g2.OwnedStreams(STREAM_PREFIX, STREAM_SHAPE_RE)
+_STREAM_LOCK = _OWNED.lock
+_WRITTEN: dict[str, float] = _OWNED.written
 WRITE_GRACE_S = 120.0
 
 
 def _delete(client: g2.Go2rtc, name: str) -> None:
     if not STREAM_SHAPE_RE.fullmatch(name):
         raise ValueError("refusing to delete a stream outside the smplwise_cam_ namespace")
-    with _STREAM_LOCK:
-        client.delete_stream(name)
-        _WRITTEN.pop(name, None)
+    _OWNED.delete(client, name)
 
 
 def ensure_stream(settings: Settings, cam: Any, profile: str) -> str:
@@ -612,9 +602,7 @@ def ensure_stream_outcome(settings: Settings, cam: Any, profile: str) -> tuple[s
         code = refusal(src, settings)
         if code:
             raise _refuse(code)
-        with _STREAM_LOCK:
-            outcome = g2.Go2rtc(settings).ensure_stream(name, src, check=_refuse_foreign(src))
-            _WRITTEN[name] = time.monotonic()
+        outcome = _OWNED.write(g2.Go2rtc(settings), name, src, check=_refuse_foreign(src))
     except ApiError as exc:
         if exc.code not in ("media_not_configured", "media_unavailable", "media_error"):  # go2rtc's own outage is not the camera's
             record_fail(camera_id, exc.code)
@@ -651,21 +639,19 @@ def reconcile(db: Database, settings: Settings, *, force: bool = False) -> dict[
     if not force and now - _last_reconcile < RECONCILE_EVERY_S:
         return out
     _last_reconcile = now
-    try:
-        client = g2.Go2rtc(settings)
+    def wanted() -> set[str]:
         with db.connection(mode="read", label="camera sources reconcile") as conn:
-            wanted = _wanted(conn)
-        stray = sorted(n for n in client.list_streams() if STREAM_SHAPE_RE.fullmatch(n) and _base(n) not in wanted)
-        for name in stray:
-            if time.monotonic() - _WRITTEN.get(name, -1e9) < WRITE_GRACE_S:
-                continue
-            with db.connection(mode="read", label="camera sources reconcile") as conn:
-                if _base(name) in _wanted(conn):
-                    continue
-            _delete(client, name)
-            out["deleted"] += 1
-            with db.connection() as conn:
-                audit(conn, actor=None, action="camera.source.stream_removed", decision="allowed", resource_type="go2rtc_stream", resource_id=name, reason="not_wanted")
+            return _wanted(conn)
+
+    def removed(name: str) -> None:
+        out["deleted"] += 1
+        with db.connection() as conn:
+            audit(conn, actor=None, action="camera.source.stream_removed", decision="allowed", resource_type="go2rtc_stream", resource_id=name, reason="not_wanted")
+
+    try:
+        # CR-GO2RTC-OWNED-2436 (review 03 F09): the grace check, the second look at the database and the delete now happen under one
+        # hold of the stream lock (the Home Assistant reconcile's rule); before, the grace was read outside it
+        _OWNED.reconcile(g2.Go2rtc(settings), wanted, grace_s=WRITE_GRACE_S, key=_base, on_deleted=removed)
     except ApiError as exc:
         log.warning("camera sources reconcile: go2rtc unavailable: %s", exc.code)
     return out
@@ -731,26 +717,12 @@ def classify(status: int, text: str) -> str:
 
 def _grab_probe(client: g2.Go2rtc, name: str, src: str, timeout_s: float = 15.0) -> tuple[int, bytes, str]:
     """ONE frame of a throwaway in-memory stream (`/api/frame.jpeg?src=<address>&name=<probe name>`: go2rtc's Patch - nothing written to
-    its configuration). Returns (status, jpeg, the first 300 bytes of an error answer)."""
-    import httpx
+    its configuration). Returns (status, jpeg, the first 300 bytes of an error answer).
 
-    body = bytearray()
-    err = ""
-    try:
-        with httpx.Client(base_url=client.base, auth=client.auth, timeout=timeout_s, verify=g2._verify()) as c:
-            with c.stream("GET", "/api/frame.jpeg", params={"src": src, "name": name}) as r:
-                status = r.status_code
-                for chunk in r.iter_bytes():
-                    body += chunk
-                    if len(body) > g2.FRAME_MAX:
-                        break
-                if status != 200:
-                    err = bytes(body[:300]).decode("utf-8", "replace")
-    except httpx.TimeoutException:
-        return 0, b"", "timeout"
-    except httpx.HTTPError as exc:
-        raise client._wrap(exc, "probe") from exc
-    return status, bytes(body), err
+    CR-GO2RTC-OWNED-2436 (review 03 F10, caller half): the adapter's own `grab_probe` - the same request, cap and timeout, now with the
+    adapter's client (shared TLS context and the reachability hooks every other go2rtc call carries) instead of a client built here
+    from the adapter's private fields."""
+    return client.grab_probe(name, src, timeout_s)
 
 
 def _preview(jpeg: bytes) -> tuple[str, int, int]:
@@ -909,9 +881,9 @@ def failing() -> dict[str, dict[str, Any]]:
 
 
 def _iso(ts: Any) -> str | None:
-    import datetime as dt
+    from .timeutil import iso_from_epoch  # CR-TIMEUTIL-2436 (04:F14): same text; float() and the falsy check stay
 
-    return dt.datetime.fromtimestamp(float(ts), dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") if ts else None
+    return iso_from_epoch(float(ts)) if ts else None
 
 
 def health_view(camera_id: str) -> dict[str, Any]:
@@ -1003,33 +975,7 @@ def check_once(db: Database, settings: Settings, force: bool = False) -> int:
     return done
 
 
-class Poller:
-    def __init__(self) -> None:
-        self.thread: threading.Thread | None = None
-        self.stop_evt = threading.Event()
-
-    def start(self, db: Database, settings: Settings) -> None:
-        if os.environ.get("SW_CAMERA_SOURCE_HEALTH", "1") == "0" or (self.thread and self.thread.is_alive()):
-            return
-        self.stop_evt.clear()
-        self.thread = threading.Thread(target=self._loop, args=(db, settings), name="camera-source-health", daemon=True)
-        self.thread.start()
-
-    def shutdown(self, timeout: float = 3.0) -> None:
-        self.stop_evt.set()
-        t = self.thread
-        if t is not None and t is not threading.current_thread():
-            t.join(timeout=timeout)
-
-    def _loop(self, db: Database, settings: Settings) -> None:
-        if self.stop_evt.wait(30.0):
-            return
-        while not self.stop_evt.is_set():
-            try:
-                check_once(db, settings)
-            except Exception:  # noqa: BLE001 - the poller never dies on one bad pass
-                log.exception("camera source health pass failed")
-            self.stop_evt.wait(TICK_S)
-
-
-POLLER = Poller()
+# CR-HEALTH-POLLERS: the shared thread shape (services/poller.py); name, switch, first wait and pass are as they were
+POLLER = PeriodicWorker(name="camera-source-health", env_flag="SW_CAMERA_SOURCE_HEALTH", first_delay=30.0,
+                        tick=lambda db, settings: check_once(db, settings), interval=lambda db, settings: TICK_S,
+                        default_interval=TICK_S, log=log, what="camera source health")

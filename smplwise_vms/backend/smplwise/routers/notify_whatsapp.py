@@ -25,14 +25,11 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import notify_whatsapp as wa
 from ..services.notify_visibility import MANAGE
+from ._common import rid as _rid
 from .notifications import _expected_revision
 
 router = APIRouter()
 _TOKEN = re.compile(r"[0-9a-f]{16}")
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _err(exc: wa.ConfigInvalid) -> ApiError:

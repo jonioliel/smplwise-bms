@@ -497,7 +497,3 @@ def send_test(db: Database, device_id: str) -> dict[str, Any]:
     outcome = send_relay(token, "system", mid, "normal", sid)
     result = record(db, device_id, outcome, final=True, delivery_id=None, notification_id=None, attempt=1)
     return {"message_id": mid, "sent": result == "sent", "reason": None if result == "sent" else (outcome.error or f"http_{outcome.status}")}
-
-
-def janitor_stats() -> dict[str, Any]:
-    return {**STATS, "configured": configured(), "relay": relay_health(), "checked_at": time.time()}

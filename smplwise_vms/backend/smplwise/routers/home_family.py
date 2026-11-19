@@ -27,15 +27,12 @@ from ..errors import ApiError, forbidden
 from ..rbac import Principal
 from ..services import home_family as hf
 from ..services import home_interface as hi
+from ._common import rid as _rid
 
 router = APIRouter()
 TICKET_ID = r"^[A-Za-z0-9_\-]{1,64}$"
 SCHEDULE_ID = r"^[A-Za-z0-9_.:\-]{1,64}$"
 RID = Field(min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_\-]{8,64}$")
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _module(conn: sqlite3.Connection, principal: Principal, module: str) -> None:
@@ -242,9 +239,9 @@ def _scene_items(ctx: Any) -> list[dict[str, Any]]:
 @router.get("/home/schedules")
 def scene_schedules(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The schedules the caller may see whose every action runs one scene (the home interface never shows a device schedule)."""
-    from ..routers.settings import read_settings
+    from ..services.settings_store import setting_value
 
-    if read_settings(conn)["schedules.enabled"] != "true":
+    if setting_value(conn, "schedules.enabled") != "true":
         raise _off()
     ctx = _sched_ctx(request, conn, principal)
     from ..services import schedule_view as view

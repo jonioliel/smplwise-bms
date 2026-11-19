@@ -26,7 +26,7 @@ FAKE_ID = "a1b2c3d4e5f60718"
 
 def _gated_routes() -> list[tuple[str, str]]:
     out = []
-    for router in (tickets_router.router, tickets_admin.router):
+    for router in (tickets_router.router, *tickets_admin.PARTS):  # CR-SPLIT-TICKETS-ADMIN-2440: the parts declare the routes
         for r in router.routes:
             if isinstance(r, APIRoute):
                 path = re.sub(r"\{kind\}", "user", r.path)

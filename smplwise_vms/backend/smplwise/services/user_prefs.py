@@ -121,6 +121,13 @@ SETTINGS_NAV_MODES: tuple[str, ...] = ("tabs", "dropdown")
 VALIDATORS["ui.dd_settings_nav"] = _choice("ui.dd_settings_nav", SETTINGS_NAV_MODES)
 DEFAULTS["ui.dd_settings_nav"] = None
 
+# `ui.lang` (I18N-EN-SWITCH-2438, owner round 32 Q-SYS-7 b): the user's interface language, he | en; personal only, presentation
+# only (no permission); null = Hebrew, the product's language. Arabic and Russian columns exist in some catalogues but are not
+# offered yet, so they are refused here until the owner opens them.
+UI_LANGS: tuple[str, ...] = ("he", "en")
+VALIDATORS["ui.lang"] = _choice("ui.lang", UI_LANGS)
+DEFAULTS["ui.lang"] = None
+
 # `generator.view_mode` (CR-031, owner 2026-10-05): the generator live screen shows ONE of dials (gauges) or charts, the user's choice; default gauges.
 VALIDATORS["generator.view_mode"] = _choice("generator.view_mode", ("gauges", "charts"))
 DEFAULTS["generator.view_mode"] = "gauges"
@@ -172,7 +179,9 @@ DEFAULTS["setup.hint"] = None
 # goes in without approval (review_min), what an unreviewed item in between becomes (as_detected | reject), the style kit chosen first,
 # whether starter furniture is placed and whether devices are placed by their area. A partial object; null = the recommended defaults.
 # Presentation of the wizard only: every write it leads to is still authorized by its own endpoint.
-PLAN_WIZARD_KITS: tuple[str, ...] = ("apartment", "office", "empty")
+# PLAN3D-R32-ANSWERS-2438 (owner round 32, Q-MAP-10 a): the six kits of the mockup - apartment, office, lobby, technical / parking,
+# commercial, empty (frontend plan-wizard/wizard-model.ts KITS, the same ids)
+PLAN_WIZARD_KITS: tuple[str, ...] = ("apartment", "office", "lobby", "technical", "commercial", "empty")
 
 
 def _plan_wizard(value: Any) -> dict[str, Any]:

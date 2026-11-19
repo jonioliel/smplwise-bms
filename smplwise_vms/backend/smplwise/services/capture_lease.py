@@ -35,8 +35,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Iterable
 
-from ..db import Database, get_setting, now_iso, permission_revision
+from ..db import Database, get_setting, has_table, now_iso, permission_revision
 from ..errors import ApiError
+from . import confirm_words
 
 log = logging.getLogger("smplwise.capture_lease")
 
@@ -48,7 +49,7 @@ SECONDS_KEY = "access.capture_lease_seconds"
 SECONDS_VALUES = ("120", "90", "60")  # owner decision 2026-10-16 q1: default 120 = the cap; the setting may only lower it
 LOOKUP_KEY = "access.lookup_scope"
 LOOKUP_VALUES = ("holder", "holder_or_audit_readers")  # owner decision 2026-10-16 q5
-LOOKUP_WIDE_WORD = "הרחב בירור"  # the typed confirmation for the WIDER lookup value (never stored)
+LOOKUP_WIDE_WORD = confirm_words.he("capture_lookup_wide")  # the typed confirmation for the WIDER lookup value (never stored; Hebrew or its English counterpart, services/confirm_words.py)
 KEYS = (FLAG_KEY, SECONDS_KEY, LOOKUP_KEY)
 DEFAULTS = {FLAG_KEY: "off", SECONDS_KEY: "120", LOOKUP_KEY: "holder"}
 
@@ -66,8 +67,6 @@ GO_LIVE_PERMITTED = False  # Fable review 2 (2026-10-21) NO-GO: no bridge lease_
 # Development-mode principals (`source == "dev"`, SW_DEV_USER) never hold a lease (CR 4, review L5); the HTTP tests that drive
 # the route with the dev identity switch this on inside the test only.
 DEV_PRINCIPAL_ALLOWED = False
-MAX_BRIDGE_TEXT = 64  # stage / code strings from a bridge answer (review L1)
-BRIDGE_TEXT = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 
 LIVE = ("issued", "active")
 STATES = ("issued", "active", "revoked", "expired", "destroyed")
@@ -116,8 +115,8 @@ def set_clock(now_fn: Callable[[], datetime] | None = None, mono_fn: Callable[[]
     _mono_fn = mono_fn or time.monotonic
 
 
-def iso(at: datetime) -> str:
-    return at.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+from .timeutil import iso_utc
+iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def parse_iso(text: str) -> datetime:
@@ -865,10 +864,6 @@ def mark_acked(conn: sqlite3.Connection, stream_id: str, sequence: int, result: 
                  (now_iso(), result, stream_id, sequence))
 
 
-def count_attempt(conn: sqlite3.Connection, stream_id: str, sequence: int) -> None:
-    conn.execute("UPDATE capture_leases SET revoke_attempts = revoke_attempts + 1 WHERE stream_id = ? AND revoke_sequence = ?", (stream_id, sequence))
-
-
 def expire_due(conn: sqlite3.Connection) -> list[str]:
     """The janitor's expiry: live rows whose `lease_expires_at` passed -> `expired` (nothing is sent: both sides enforce it)."""
     cutoff = iso(now())
@@ -924,7 +919,7 @@ def startup_revoke(conn: sqlite3.Connection) -> int:
 
 def tables_present(conn: sqlite3.Connection) -> bool:
     try:
-        return conn.execute("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('capture_leases', 'capture_lease_stream')").fetchone()[0] == 2
+        return has_table(conn, "capture_leases") and has_table(conn, "capture_lease_stream")  # CR-SCHEMA-PROBES-2440 (review 05:P2-10): the cached schema answer
     except sqlite3.Error:
         return False
 
@@ -947,11 +942,6 @@ def reenable_after_degraded(conn: sqlite3.Connection) -> int:
     GUARDS.degraded = False
     GUARDS.ledger_busy = False
     return len(rows)
-
-
-def bridge_text(value: Any) -> str | None:
-    """A stage / code string from a bridge answer, bounded (review L1): <= 64 characters of `^[a-z][a-z0-9_]*$`, else None."""
-    return value if isinstance(value, str) and len(value) <= MAX_BRIDGE_TEXT and BRIDGE_TEXT.fullmatch(value) else None
 
 
 def reset_for_tests() -> None:

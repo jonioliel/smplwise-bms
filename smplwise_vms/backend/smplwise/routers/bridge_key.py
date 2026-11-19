@@ -50,7 +50,7 @@ ROTATE = "bridge.key.rotate"  # HMACACT2-295: starting / resuming a rotation (sy
 
 MESSAGES = {
     "rotation_off": "החלפת מפתח הגשר כבויה.",
-    "rotation_not_permitted": "החלפת מפתח הגשר דורשת אישור הפעלה נפרד מבעל המערכת, וגרסה זו אינה כוללת אותו.",
+    "rotation_not_permitted": "החלפת מפתח הגשר דורשת אישור הפעלה נפרד מבעל המערכת, והאישור הזה אינו פעיל כעת.",
     "peer_unavailable": "הגשר לא דיווח עדיין שהוא תומך בהחלפת מפתח. הוא יתעדכן עם העדכון הרגיל.",
     # BRIDGE-STALE-DISCOVERY-2383: WisKey verifies Arx only against the original pairing code, which a rotation blanks in the bridge
     "wiskey_present": "החלפת מפתח הגשר חסומה כל עוד WisKey מותקן: WisKey מאמת את Arx רק מול קוד הצימוד המקורי, וההחלפה מוחקת אותו מהגשר ומנתקת את WisKey.",

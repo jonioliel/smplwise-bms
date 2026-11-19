@@ -127,3 +127,74 @@ def test_every_local_route_needs_an_identity(sweep):
             leaks.append((method, path, r.status_code))
     assert leaks == [], "routes that do not answer 401 to an untrusted caller:\n" + "\n".join(f"LEAK {m} {p} {c}" for m, p, c in leaks)
     assert public_seen == PUBLIC_ON_LOCAL
+
+
+# ---------------------------------------------------------------- CR-BRIDGE-PREVERIFY-2440 (review 05:P2-03): identity dependencies by name
+
+def _full_identity() -> set:
+    from smplwise import auth
+
+    return {auth.current_principal, auth.current_principal_ro}
+
+
+def _dependency_calls(dependant, out: list) -> list:
+    for dep in dependant.dependencies:
+        out.append(dep.call)
+        _dependency_calls(dep, out)
+    return out
+
+
+def _name(call) -> str:
+    return f"{getattr(call, '__module__', '?')}.{getattr(call, '__qualname__', repr(call))}"
+
+
+def identity_outside_principal(app) -> dict[str, list[tuple[str, str]]]:
+    """{dependency name: [(method, path template)]} for every HTTP route-method whose dependency tree never reaches
+    `auth.current_principal` / `auth.current_principal_ro` - the routes that skip (or run by themselves) the cross-cutting steps of
+    `auth.shared_steps`: the service-account refusal, the bootstrap grant, the required-sensors gate and the home-interface restriction.
+    A route with no dependency at all is listed under `-`."""
+    from fastapi.routing import iter_route_contexts
+
+    full = _full_identity()
+    out: dict[str, list[tuple[str, str]]] = {}
+    for c in iter_route_contexts(app.router.routes):
+        if not isinstance(c.original_route, APIRoute) or not c.path:
+            continue
+        calls = _dependency_calls(c.original_route.dependant, [])
+        if any(call in full for call in calls):
+            continue
+        names = sorted({_name(call) for call in calls}) or ["-"]
+        for method in sorted(set(c.methods or ()) - {"HEAD"}):
+            for n in names:
+                out.setdefault(n, []).append((method, c.path))
+    return out
+
+
+# Dependencies that resolve (or stand in for) an identity without `auth._principal`. A route reaching none of
+# current_principal / current_principal_ro must reach only these - a new name here is a deliberate decision about the shared steps.
+OUTSIDE_PRINCIPAL = {
+    # the identity alone; the handler runs auth.shared_steps(light=True) on its own connection (routers/building_presence.py)
+    "smplwise.auth.principal_light",
+    # the phone app's device token / session callers: no shared step runs (routers/presence.py; left for the closing chain)
+    "smplwise.routers.presence.session_caller", "smplwise.routers.presence.any_caller", "smplwise.routers.presence.device_caller",
+    # the single-use notification action token; on the remote channel also a live session (routers/notifications.py)
+    "smplwise.routers.notifications._remote_gate",
+    # the calendar feed's own token-free connection (routers/calendar_feeds.py)
+    "smplwise.routers.calendar_feeds.feed_conn",
+    # the HMAC-signed bridge calls: screened on a read connection, then the write connection (routers/ha.py, auth.conn_after)
+    "smplwise.auth.conn_after.<locals>.conn", "smplwise.auth.remote_first",
+    "smplwise.routers.ha._ping_screened", "smplwise.routers.ha._directory_screened",
+}
+# Routes with no dependency at all that are not in PUBLIC_ON_LOCAL: they resolve the identity inside the handler (routers/remote.py:
+# the remote channel's own session list, 401 on the local channel).
+IN_HANDLER: set[tuple[str, str]] = {
+    ("GET", "/api/v1/auth/sessions"), ("DELETE", "/api/v1/auth/sessions"), ("DELETE", "/api/v1/auth/sessions/{session_id}"),
+}
+
+
+def test_identity_dependencies_outside_principal_are_listed(sweep):
+    seen = identity_outside_principal(sweep.app)
+    bare = set(seen.pop("-", [])) - set(PUBLIC_ON_LOCAL)
+    assert set(seen) == OUTSIDE_PRINCIPAL, sorted(set(seen) ^ OUTSIDE_PRINCIPAL)
+    assert bare == IN_HANDLER, sorted(bare ^ IN_HANDLER)
+    assert len(seen["smplwise.auth.principal_light"]) == 8  # routers/building_presence.py, all of it

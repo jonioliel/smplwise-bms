@@ -24,6 +24,7 @@ from typing import Any
 from ...db import now_iso
 from ..plan_geometry import DEFAULT_LEVEL_ID
 from . import map_image
+from .store import table_missing
 
 SEP = " · "
 KINDS = ("anchor", "object")
@@ -245,7 +246,9 @@ def find_resource(conn: sqlite3.Connection, resource_type: str, resource_id: str
 def stored(conn: sqlite3.Connection, ticket_id: str) -> dict[str, Any] | None:
     try:
         r = conn.execute("SELECT * FROM ticket_map_elements WHERE ticket_id = ?", (ticket_id,)).fetchone()
-    except sqlite3.OperationalError:  # a database before the migration: nothing attached
+    except sqlite3.OperationalError as exc:
+        if not table_missing(exc):  # CR-TK-SQL (01:F-10): only a database before the migration reads as "nothing attached"
+            raise
         return None
     return dict(r) if r else None
 

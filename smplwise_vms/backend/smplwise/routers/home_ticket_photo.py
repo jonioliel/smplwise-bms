@@ -24,15 +24,12 @@ from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import Principal
 from . import home_family as hfr
+from ._common import rid as _rid
 
 router = APIRouter()
 PHOTO_WINDOW_S = 30 * 60
 PHOTOS_MAX = 3
 IMAGE_TYPES = ("image/jpeg", "image/png")
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _check_new(conn: sqlite3.Connection, viewer: Any, seen: Any, now: dt.datetime) -> None:

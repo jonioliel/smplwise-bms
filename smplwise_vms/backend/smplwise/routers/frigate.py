@@ -39,7 +39,7 @@ from ..services.recorders import frigate_io
 from ..services.recorders import frigate_playback as fp
 from ..services.recorders.frigate import FrigateAdapter
 from .recorders import PERMISSION, _may_read
-from .settings import read_settings
+from ..services.settings_store import setting_value
 
 router = APIRouter()
 
@@ -408,7 +408,7 @@ def recordings_summary(recorder_id: str, camera_id: str, request: Request, princ
     always sent, so a day key is the site's day."""
     cam = _camera_row(conn, principal, recorder_id, camera_id, "video.playback")
     a = _adapter(conn, request, recorder_id)
-    tz = read_settings(conn)["time.zone"]
+    tz = setting_value(conn, "time.zone")
     days = []
     for d in a.recordings_summary(cam["source_ref"], tz):
         day = d.get("day")

@@ -167,3 +167,42 @@ def test_platform_writes_need_permission_before_the_body(px):
         assert post(c, path, user="otto", review_id="x", typed_confirmation="x").status_code == 403, path
     assert c.post(f"{API}/platform/config/preview", json={"station_ids": ["entry-a"], "door": 1, "changes": {"openDuration": 7}}, headers=as_user("otto")).status_code == 403
     assert not fake.effects
+
+
+# ================================================================ CR-I18N-CONFIRM-WORDS-2442 (owner decision 17.11)
+# The typed confirmation takes the Hebrew word or its fixed English counterpart (services/confirm_words.py), nothing looser, and the
+# audit row says which was typed (`confirm_word`); the typed text itself is never stored.
+
+from confirm_words_cases import LANGS, bad, good  # noqa: E402
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_cw2442_the_webhook_key_takes_the_hebrew_or_the_english_phrase_only(px, lang):
+    fake, c, s = px
+    for text in bad("installer_webhook_key"):
+        r = post(c, "/webhook/key", typed_confirmation=text)
+        assert r.status_code == 409 and r.json()["code"] == "typed_confirmation_required" and fake.WEBHOOK_KEY not in r.text, text
+    assert not frames(fake, "platform/webhook_key"), "nothing is sent on a wrong phrase or a near-miss"
+    r = post(c, "/webhook/key", typed_confirmation=good("installer_webhook_key", lang))
+    assert r.status_code == 200 and r.json()["data"]["key"] == fake.WEBHOOK_KEY and r.headers["cache-control"] == "no-store", r.text
+    rows = audit_rows(s, "intercom.installer.platform_webhook_key")
+    assert fake.WEBHOOK_KEY not in json.dumps(rows) and rows[-1]["details"]["result"] == {"revealed": True} and rows[-1]["details"]["confirm_word"] == lang
+
+
+@pytest.mark.parametrize("lang", LANGS)
+@pytest.mark.parametrize("path, word, command", [
+    ("/import/apply", "installer_import_apply", "platform/import_apply"),
+    ("/retention/apply", "installer_retention_apply", "platform/retention_apply"),
+    ("/config/apply", "installer_config_apply", "platform/config_apply"),
+    ("/maintenance/enqueue", "installer_maint_enqueue", "platform/maintenance_enqueue"),
+])
+def test_cw2442_each_reviewed_platform_write_takes_its_own_phrase_in_hebrew_or_english_only(px, path, word, command, lang):
+    fake, c, s = px
+    for text in bad(word):
+        r = post(c, path, review_id="rv-1", typed_confirmation=text)
+        assert r.status_code == 409 and r.json()["code"] == "typed_confirmation_required", (path, text)
+    assert not frames(fake, command), "nothing is sent on a wrong phrase or a near-miss"
+    r = post(c, path, review_id="rv-1", typed_confirmation=good(word, lang))
+    assert r.json().get("code") != "typed_confirmation_required" and len(frames(fake, command)) == 1, r.text  # past the phrase: WisKey answers for the review
+    rows = audit_rows(s, "intercom.installer." + command.replace("/", "_"))
+    assert rows[-1]["details"]["confirm_word"] == lang

@@ -397,10 +397,10 @@ def dispatch(notifier: "push.PushNotifier", nid: str | None, item: dict[str, Any
         policy = get_policy(conn, n["source"])
         if policy is None or not policy["enabled"]:
             return
-        from ..routers.settings import read_settings
+        from .settings_store import setting_value
 
         st = nsettings.load(conn)
-        tz = read_settings(conn)["time.zone"]
+        tz = setting_value(conn, "time.zone")
         if mode == "escalate":
             users = list(item.get("users") or [])
         elif mode == "resolved":

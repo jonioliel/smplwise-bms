@@ -581,6 +581,11 @@ def test_full_app_lifecycle_media_and_talk_with_downlink_leaves_no_task_socket_t
         assert mid == [], f"media tasks still pending after both sessions ended: {mid}"
 
         await a.shutdown()
+        # CR-WAVE2-COMBINED-2439: the loop-owning feed threads have ended when shutdown returns (they used to poll their stop flag once a
+        # second, unjoined; a faster shutdown elsewhere - BACKEND-SAFETY-2435 - then left their loops' sockets open at the count below)
+        feeds = sorted(t.name for t in threading.enumerate() if t.name in ("ha-sync", "intercom-sync", "wiskey-background"))
+        assert feeds == [], f"feed threads still alive right after shutdown: {feeds}"
+        assert open_os_sockets() <= sockets_before, "no OS socket more than before startup, right after shutdown"
         assert im._bridge is None and not bridge_threads_alive(), "shutdown closed the provider and stopped its loop thread"
         assert not im._LEASED and name not in world.go2rtc.streams, "the shutdown took the idle leased stream out of go2rtc"
         leaked = await settle_tasks(before, 3.0)

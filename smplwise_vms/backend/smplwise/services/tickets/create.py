@@ -8,6 +8,7 @@ server-side (place.locate_entity; tickets.create is then needed WHERE the ticket
 and frozen (device_context, section 12.3)."""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -16,6 +17,8 @@ from ...db import new_id, now_iso
 from ...errors import ApiError
 from . import access, assignees, device_context, model, notify_bridge, org_locations, place, service, sla, store
 from .access import Viewer, text
+
+log = logging.getLogger("smplwise.tickets.create")
 
 PLACE_OTHER_MAX = 200  # CR-ORG-LOCATIONS: the free-text place of a manual request (the RFQ's PLACE_MAX)
 AssigneeRef = assignees.AssigneeRef  # TKSTAFF2: the module's one assignee reference (kind 'user' | 'contact', id)
@@ -230,8 +233,8 @@ def _partner_hook(conn, ticket_id: str) -> None:
         from ..partner import webhooks
 
         webhooks.on_ticket_created(conn, ticket_id)
-    except Exception:  # noqa: BLE001 - a webhook never breaks the creation of a ticket
-        pass
+    except Exception as exc:  # noqa: BLE001 - a webhook never breaks the creation of a ticket
+        log.warning("partner webhook hook failed for a new ticket (%s)", type(exc).__name__)  # CR-TK-EXCEPT-LOG (01:F-11)
 
 
 # ---------------------------------------------------------------- PARTNERAPI113-295: the partner branch

@@ -29,7 +29,7 @@ from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import now_iso
 from ..errors import ApiError, unauthenticated
 from ..rbac import INSTALLATION, Principal, authorize, require
@@ -164,9 +164,9 @@ def set_remote_access(user_id: str, body: RemoteFlag, request: Request, principa
     if not body.enabled:
         # under remote.policy = flag the user's remote sign-ins end now, their WebSockets with them (CR-008 P2) - unless
         # the administrator default still admits them
-        from .settings import read_settings
+        from ..services.settings_store import setting_value
 
-        if read_settings(conn)["remote.policy"] == "flag" and basis is None:
+        if setting_value(conn, "remote.policy") == "flag" and basis is None:
             dropped = len({s.sign_in() for s in hua.STORE.drop_user(user_id)})
             _close_sockets_from_thread()
             # APPREFRESH-295 F-01: the phone app's saved sign-ins of the user end with the remote access
@@ -498,7 +498,7 @@ async def csp_report(request: Request) -> Response:
 
 
 @router.get("/csp-reports")
-def list_csp_reports(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_csp_reports(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """הגדרות › גישה מרחוק: the counters, the mode and both policies, for the owner's review before enforcing."""
     from ..remote_channel import CSP, CSP_STRICT, csp_enforcing
 

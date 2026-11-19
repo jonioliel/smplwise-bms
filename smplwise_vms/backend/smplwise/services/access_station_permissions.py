@@ -21,15 +21,14 @@ Rules (CR sections 2-5):
   malformed read refuses the write. The decision is committed first; the WisKey call runs with no write lock held; its outcome is
   recorded afterwards (`pending` / `applied` / `unverified` / `failed`). `applied` needs a fresh read-back that proves the effect;
   a block also needs the central sync status to show no pending revocation.
-- OFF: the switch `access.station_permissions` (default `off`) cannot be turned on in this build - the owner's separate go-live permit
-  is `access_grants.GO_LIVE_PERMITTED` (False), which the live engine also checks. Tests drive everything with fakes only.
+- OFF by default: the switch `access.station_permissions` (default `off`); the owner's separate go-live permit is
+  `access_grants.GO_LIVE_PERMITTED`, which the live engine also checks (True since 2026-10-21, kept as the owner's kill switch, owner decision O9 a of 14.11.2026). Tests drive everything with fakes only.
 
 Audit (ids only): `access.station_permission.{allow,block,inherit,request,approve,refuse,push}` on the station, details
 {person, effect, state, code}. Never a relay map, a name, a phone, a PIN or a card.
 """
 from __future__ import annotations
 
-import inspect
 import json
 import sqlite3
 import uuid
@@ -509,18 +508,6 @@ def refuse(db: Database, principal: Principal, person_id: str, station_id: str, 
 
 
 # ---------------------------------------------------------------- the WisKey write and the read-back (engine port)
-
-def _revocation_pending(engine: Any, person_id: str, revision: int) -> bool | None:
-    """The central sync status; main's port takes the person id, the STATIONSYNC branch adds the read-back revision."""
-    try:
-        params = inspect.signature(engine.revocation_pending).parameters
-        value = engine.revocation_pending(person_id, revision) if len(params) >= 2 else engine.revocation_pending(person_id)
-    except EngineError:
-        return None
-    except Exception:  # noqa: BLE001 - unknown, never "no pending"
-        return None
-    return value if isinstance(value, bool) else None
-
 
 def _revocation_evidence(engine: Any, person_id: str, revision: int) -> str | None:
     """WKV2B-295: the central sync evidence (pending / verified_clean / revoked_unverified) when the engine offers it, else None."""

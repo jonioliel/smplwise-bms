@@ -178,8 +178,8 @@ def test_n13_no_route_or_job_creates_a_ledger_row_except_the_capture_start():
     inserts = [p for p in src.rglob("*.py") if "INSERT INTO capture_leases" in p.read_text(encoding="utf-8")]
     assert [p.name for p in inserts] == ["capture_lease.py"]
     callers = [p for p in src.rglob("*.py") if re.search(r"capture_lease\.issue\(", p.read_text(encoding="utf-8"))]
-    assert [p.name for p in callers] == ["access_control.py"]
-    text = (src / "routers" / "access_control.py").read_text(encoding="utf-8")
+    assert [p.name for p in callers] == ["access_control_capture.py"]  # CR-SPLIT-ACCESS-CONTROL-2440: the capture part of routers/access_control.py
+    text = (src / "routers" / "access_control_capture.py").read_text(encoding="utf-8")
     assert text.count("capture_lease.issue(") == 1 and "def _lease_start(" in text
 
 

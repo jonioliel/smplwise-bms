@@ -559,7 +559,7 @@ def action_reasons(ctx: Ctx, service: str, entity_id: str, cls: str | None, *, s
     elif cls == "alarm":
         perm = "alarm.disarm" if _alarm_kind(service) == "disarm" else "alarm.arm"
         if not a.allowed(perm, entity_id, own=True):
-            from ..routers.access import PERMISSION_LABELS
+            from .rbac_admin import PERMISSION_LABELS
 
             out.append(reason("grant_required", entity_id, f"הפעולה דורשת הרשאה נפרדת ({PERMISSION_LABELS[perm]})."))
         block = remote_block(ctx, _alarm_kind(service))
@@ -612,7 +612,7 @@ def media_reasons(ctx: Ctx, service: str, entity_id: str, info: dict[str, Any] |
     perm = media_store.PERM_POWER if service in ("media_player.turn_on", "media_player.turn_off", "media_player.select_source") else media_store.PERM_CONTROL
     out: list[dict[str, Any]] = []
     if not acc.has(media_store.PERM_READ, anchor) or not acc.has(perm, anchor):
-        from ..routers.access import PERMISSION_LABELS
+        from .rbac_admin import PERMISSION_LABELS
 
         out.append(reason("grant_required", entity_id, f"הפעולה דורשת הרשאת מולטימדיה ({PERMISSION_LABELS.get(perm, perm)})."))
     elif service == "media_player.select_source" and media.get("public") and not acc.has(media_store.PERM_PUBLIC, anchor):
@@ -1009,8 +1009,9 @@ def _issues(ctx: Ctx, r: Row, cls: dict[str, Any]) -> list[str]:
         if cls["sensitive"]:
             issues.append("no_owner_sensitive")
     else:
-        row = ctx.conn.execute("SELECT active FROM users WHERE id = ?", (owner["user_id"],)).fetchone()
-        if row is not None and not row["active"]:
+        from .active_users import is_disabled
+
+        if is_disabled(ctx.conn, owner["user_id"]):  # CR-ACTIVE-USER-REST-2438: the one rule (services/active_users)
             issues.append("owner_inactive")
         elif not _owner_still_holds(ctx, owner, core, cls):
             issues.append("owner_lost_rights")

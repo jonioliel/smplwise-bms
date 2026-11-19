@@ -148,8 +148,8 @@ def _parse(iso: str | None) -> dt.datetime | None:
         return None
 
 
-def iso(at: dt.datetime) -> str:
-    return at.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+from .timeutil import iso_utc
+iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def now_utc() -> dt.datetime:
@@ -435,7 +435,8 @@ _ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
 
 def ssid_hash(salt: str, ssid: str) -> str:
     """WHOIN034-295: how a Wi-Fi site's network names are kept - `sha256_hex(salt + ssid)` over UTF-8 (the app hashes the SSID it
-    sees the same way with the site's `ssid_hash_salt` and reports `ssid_hash` in its `network` value). The name itself is never stored."""
+    sees the same way with the site's `ssid_hash_salt` and reports `ssid_hash` in its `network` value). The name itself is never stored.
+    The contract's hash: lowercase hex SHA-256 of the UTF-8 bytes of `salt + ssid` (docs/api/mobile-presence-contract.md section 2.1)."""
     return hashlib.sha256((salt + ssid).encode("utf-8")).hexdigest()
 
 
@@ -749,8 +750,9 @@ def by_token(conn: sqlite3.Connection, token: str) -> sqlite3.Row | None:
     r = conn.execute("SELECT * FROM mobile_devices WHERE token_hash = ?", (token_hash(token),)).fetchone()
     if r is None or r["revoked_at"]:
         return None
-    u = conn.execute("SELECT active FROM users WHERE id = ?", (r["user_id"],)).fetchone()
-    if u is not None and not u["active"]:
+    from .active_users import is_disabled
+
+    if is_disabled(conn, r["user_id"]):  # CR-ACTIVE-USER-REST-2438: the one rule (services/active_users)
         return None
     return r
 
@@ -935,11 +937,6 @@ def _site_of(st: dict[str, Any], lat: float, lon: float) -> str | None:
         if d <= float(s["radius_m"]) and (best is None or d < best[0]):
             best = (d, s["id"])
     return best[1] if best else None
-
-
-def ssid_hash(salt: str, ssid: str) -> str:
-    """The contract's hash: lowercase hex SHA-256 of the UTF-8 bytes of `salt + ssid` (docs/api/mobile-presence-contract.md section 2.1)."""
-    return hashlib.sha256((salt + ssid).encode("utf-8")).hexdigest()
 
 
 def _resolve_wifi(value: dict[str, Any], st: dict[str, Any]) -> dict[str, Any]:

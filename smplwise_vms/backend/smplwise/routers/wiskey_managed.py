@@ -22,7 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, is_system_admin, require
+from ..rbac import Principal, require_system_admin
 from ..services import wiskey_managed_install as wmi
 
 router = APIRouter()
@@ -70,11 +70,8 @@ class ConfirmIn(BaseModel):
 
 
 def _admin_or_403(conn: sqlite3.Connection, principal: Principal, request: Request, action: str) -> None:
-    require(conn, principal, "system.configure", INSTALLATION)
-    if not is_system_admin(conn, principal.user_id):
-        audit(conn, actor=principal, action=action, decision="denied", resource_type="installation", resource_id=RID, reason="not_system_admin",
-              request_id=_rid(request), details={})
-        raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לבצע פעולה זו.")
+    require_system_admin(conn, principal, action=action, request_id=_rid(request), resource_id=RID, details={},
+                         text="רק מנהל מערכת יכול לבצע פעולה זו.")
 
 
 def _refused(conn: sqlite3.Connection | None, request: Request, principal: Principal, action: str, exc: wmi.ManagedRefused) -> ApiError:
@@ -104,11 +101,12 @@ def put_switch(body: SwitchIn, request: Request, principal: Principal = Depends(
         _admin_or_403(conn, principal, request, "settings.changed")
         try:
             changes = wmi.set_switch(conn, key, body.value, body.confirm)
+            confirm_word = wmi.switch_confirm_word(key, body.value, body.confirm)  # "he" / "en" for a switch turned on
         except wmi.ManagedRefused as exc:
             raise _refused(conn, request, principal, "settings.changed", exc) from None
         for k, before, after in changes:
             audit(conn, actor=principal, action="settings.changed", decision="allowed", resource_type="installation", resource_id=RID,
-                  request_id=_rid(request), details={"key": k, "before": before, "after": after})
+                  request_id=_rid(request), details={"key": k, "before": before, "after": after, **({"confirm_word": confirm_word} if confirm_word and k == key else {})})
         return wmi.view(conn)
 
 

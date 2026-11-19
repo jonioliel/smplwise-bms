@@ -17,7 +17,6 @@ import datetime as dt
 import hashlib
 import json
 import logging
-import os
 import re
 import shutil
 import sqlite3
@@ -231,10 +230,6 @@ def check_quota(conn: sqlite3.Connection, principal: Any) -> None:
         _count("refused_queue_full")
         raise ApiError(429, "export_queue_full", f"תור הייצוא מלא ({MAX_QUEUED_TOTAL} עבודות ממתינות במערכת); נסה שוב כשחלק מהן יסתיימו.", retryable=True,
                        details={"waiting": waiting, "max": MAX_QUEUED_TOTAL})
-
-
-def paused_jobs(conn: sqlite3.Connection) -> int:
-    return conn.execute("SELECT COUNT(*) FROM export_jobs WHERE state = ?", (PAUSED,)).fetchone()[0]
 
 
 UNKNOWN_FILE_BYTES = 64 * MB  # a file the NVR listed without a size counts as the average known size, else this
@@ -605,6 +600,12 @@ class Worker:
                     f.state = "failed"
                     f.error = type(exc).__name__
                     log.exception("export %s file %s crashed", job_id, f.name)
+            except subprocess.SubprocessError as exc:
+                # CR-EXPORTS-HOUSEKEEPING (05:P3-06): a subprocess error carries its command line, and a download's command line
+                # holds the source URL with its credentials - the type only, never the text or a traceback
+                f.state = "failed"
+                f.error = type(exc).__name__
+                log.error("export %s file %s crashed: %s", job_id, f.name, type(exc).__name__)
             except Exception as exc:  # unexpected
                 f.state = "failed"
                 f.error = type(exc).__name__

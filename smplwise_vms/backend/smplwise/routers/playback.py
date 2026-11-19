@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..config import Settings
 from ..db import unlocked, Database
 from ..errors import ApiError
@@ -29,11 +29,12 @@ from ..services import playback as pb
 from ..services import recordings
 from ..services.access import require_camera
 from ..services.leases import CameraLease
-from ..services.relay import relay_ws
+from ..services.relay import close_with_error, relay_ws
 from ..services.timeutil import UTC, iso_utc, parse_utc
 from .media import _json_dumps_error, _principal_for_ws, refuse_media
 from .recordings import camera_for_playback
 from .settings import read_settings
+from ..services.settings_store import setting_value
 
 log = logging.getLogger("smplwise.playback")
 router = APIRouter()
@@ -99,7 +100,7 @@ def create_session(body: CreateBody, request: Request, principal: Principal = De
 
 
 @router.get("/playback/sessions")
-def list_sessions(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_sessions(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     s = read_settings(conn)
     admin = authorize(conn, principal, "system.configure", INSTALLATION).allowed
     sessions = pb.REGISTRY.active() if admin else pb.REGISTRY.by_user(principal.user_id)
@@ -107,9 +108,9 @@ def list_sessions(principal: Principal = Depends(current_principal), conn: sqlit
 
 
 @router.get("/playback/sessions/{session_id}")
-def get_session(session_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_session(session_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     session = _owned(conn, principal, session_id)
-    return pb.to_dict(session, read_settings(conn)["playback.lease_s"])
+    return pb.to_dict(session, setting_value(conn, "playback.lease_s"))
 
 
 @router.post("/playback/sessions/{session_id}/seek")
@@ -166,12 +167,7 @@ REPLACED_FRAME = '{"type":"replaced","value":"superseded"}'
 
 async def close_replaced(websocket: WebSocket) -> None:
     """Tell a socket of an old generation it was replaced, then close it 4410 (accepted first when it was not yet)."""
-    with contextlib.suppress(Exception):
-        if websocket.client_state.name == "CONNECTING":
-            await websocket.accept()
-        await websocket.send_text(REPLACED_FRAME)
-    with contextlib.suppress(Exception):
-        await websocket.close(code=4410)
+    await close_with_error(websocket, REPLACED_FRAME, 4410, close_apart=True)
 
 
 @router.websocket("/playback/sessions/{session_id}/ws")

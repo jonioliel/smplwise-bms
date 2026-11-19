@@ -18,6 +18,7 @@ from typing import Any
 
 from ..config import Settings
 from ..db import ID_RE, new_id, now_iso
+from . import safe_paths
 
 VARIANTS = ("off", "on")
 MAX_BYTES = 12 * 1024 * 1024
@@ -49,15 +50,14 @@ def check_floor_id(floor_id: str) -> str:
 
 
 def confine(settings: Settings, candidate: Path) -> Path:
-    base = root(settings).resolve()
-    resolved = Path(candidate).resolve()
-    if resolved == base or base not in resolved.parents:
+    resolved = safe_paths.inside(root(settings), candidate)  # CR-PATH-CONFINE-2438: the one rule of services/safe_paths
+    if resolved is None:
         raise FloorImageStoreError("path outside the floor-images folder")
     return resolved
 
 
 def confine_stored(settings: Settings, rel: str) -> Path:
-    if not isinstance(rel, str) or not rel or Path(rel).is_absolute() or "\\" in rel or ".." in rel.split("/"):
+    if not safe_paths.confine(settings.data_dir, rel):  # a plain relative path: no absolute, backslash, drive, NUL, `..`
         raise FloorImageStoreError("stored path is not a plain relative path")
     return confine(settings, settings.data_dir / rel)
 

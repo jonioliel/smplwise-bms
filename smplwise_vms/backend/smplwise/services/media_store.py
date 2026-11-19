@@ -18,7 +18,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..db import get_setting, now_iso
+from ..db import get_setting, has_column, now_iso
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Decision, Principal, authorize, permissions_anywhere
 from . import bridge_keys as bk
@@ -203,7 +203,7 @@ def apply_devices(conn: sqlite3.Connection, listing: list[dict[str, Any]]) -> in
     now = now_iso()
     seen: set[str] = set()
     written = 0
-    has_parent_col = "parent_device_id" in {r[1] for r in conn.execute("PRAGMA table_info(ha_devices)").fetchall()}
+    has_parent_col = has_column(conn, "ha_devices", "parent_device_id")  # CR-SCHEMA-PROBES-2440 (review 05:P2-10): the cached schema answer
     existing = {r["device_id"]: r for r in conn.execute("SELECT * FROM ha_devices").fetchall()}
     by_id = {d.get("id") or d.get("device_id"): d for d in listing if isinstance(d, dict) and isinstance(d.get("id") or d.get("device_id"), str)}
     for d in listing:
@@ -367,15 +367,6 @@ def rebuild(conn: sqlite3.Connection) -> bool:
 
 def suggestions() -> list[mm.Suggestion]:
     return list(INDEX.suggestions)
-
-
-def rebuild_from(db: Any) -> bool:
-    """One write transaction: rebuild and, when it changed anything a screen shows, tell the open clients."""
-    with db.connection(durable=False) as conn:
-        changed = rebuild(conn)
-    if changed:
-        ha_sync.publish({"type": "media_devices_changed", "reason": "registry"})
-    return changed
 
 
 # ------------------------------------------------------------------------------------------------ scope

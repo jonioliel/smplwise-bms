@@ -19,6 +19,7 @@ from ..db import new_id, now_iso
 from ..errors import ApiError, conflict, not_found
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import plan_catalog as cat
+from ._common import rid as _rid
 
 router = APIRouter()
 NO_CACHE = {"Cache-Control": "private, no-cache"}
@@ -34,10 +35,6 @@ def _ts() -> str:
     custom_rows ORDER BY created_at, rowid and then re-sort on any later insert with a fresh rowid - breaking the
     "a round trip keeps created_at, so the order holds" guarantee the export/import pair promises."""
     return dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _held_anywhere(conn: sqlite3.Connection, principal: Principal, permission: str) -> None:

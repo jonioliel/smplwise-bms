@@ -16,16 +16,14 @@ from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, authorize, require
 from ..services import door_authority, floor_images, plan_anchor_scope, plan_bakes
 from ..services.access import camera_reach_for_placement, camera_scope, floor_reach, require_camera_placement, require_floor_read
+from ._common import rid as _rid
 from .catalog import building_row, floor_row, get_building, get_floor, get_site, site_row
 from ..services.timeutil import parse_utc
 from .plans import needs_alignment, version_at, version_row
 from .settings import read_settings
+from ..services.settings_store import setting_value
 
 router = APIRouter()
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def anchor_row(r: sqlite3.Row) -> dict[str, Any]:
@@ -242,12 +240,12 @@ def floor_map(floor_id: str, request: Request, principal: Principal = Depends(cu
     if entity_ids:
         can_control = authorize(conn, principal, "ha.entity.control", ("floor", floor_id)).allowed
         states_at = ha_history.state_at(conn, entity_ids, at_iso) if at_iso else {}
-        if at_iso and str(read_settings(conn).get("history.ha_secondary", "false")) == "true":
+        if at_iso and str(setting_value(conn, "history.ha_secondary")) == "true":
             # S2: the Home Assistant recorder fills what the local history does not know (marked as a secondary source)
             missing = [e for e in entity_ids if not states_at.get(e, {}).get("known")]
             if missing:
                 states_at.update(ha_history.recorder_state_at(missing, at_iso))
-        if at_iso and str(read_settings(conn).get("history.ha_secondary", "false")) == "true":
+        if at_iso and str(setting_value(conn, "history.ha_secondary")) == "true":
             # S2: the Home Assistant recorder fills what the local history does not know (marked as a secondary source)
             missing = [e for e in entity_ids if not states_at.get(e, {}).get("known")]
             if missing:
@@ -464,7 +462,7 @@ class AnchorPatch(BaseModel):
 
 
 @router.get("/floors/{floor_id}/anchors")
-def list_anchors(floor_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_anchors(floor_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, "map.read", ("floor", floor_id))
     rows = conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL ORDER BY layer_id, resource_id", (floor_id,)).fetchall()

@@ -1,8 +1,8 @@
 """STATIONPERM-295 (docs/changes/CR-STATION-PERMISSIONS-295.md): the API of a person's access per access-control station.
 
 Authority is decided in services/access_station_permissions.py (rbac.authorize over the station chain, deny-overrides); refusals are
-audited there. Every route answers 404 `station_permissions_off` while the switch is off, and the switch cannot be turned on in this
-build (access_grants.GO_LIVE_PERMITTED is False).
+audited there. Every route answers 404 `station_permissions_off` while the switch is off (the default). Turning it on is refused only
+while the owner's go-live permit access_grants.GO_LIVE_PERMITTED is False - True since 2026-10-21 (ECCACT-295), kept as the owner's kill switch, owner decision O9 a of 14.11.2026.
 
 - GET  /access-station-permissions/settings                                   system administrator
 - PUT  /access-station-permissions/settings                                   system administrator; `on` refused without the go-live permit
@@ -23,7 +23,7 @@ from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn
 from ..db import set_setting
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, is_system_admin, require
+from ..rbac import Principal, require_system_admin
 from ..services import access_station_permissions as sp
 
 router = APIRouter()
@@ -57,11 +57,7 @@ class SettingsIn(BaseModel):
 
 
 def _admin_only(conn: sqlite3.Connection, principal: Principal, request: Request, action: str, keys: list[str]) -> None:
-    require(conn, principal, "system.configure", INSTALLATION)
-    if not is_system_admin(conn, principal.user_id):
-        audit(conn, actor=principal, action=action, decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
-              request_id=_rid(request), details={"keys": keys})
-        raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לטפל בהגדרה זו.")
+    require_system_admin(conn, principal, action=action, request_id=_rid(request), details={"keys": keys}, text="רק מנהל מערכת יכול לטפל בהגדרה זו.")
 
 
 @router.get(f"{_BASE}/settings")
@@ -77,7 +73,7 @@ def put_settings(body: SettingsIn, request: Request, principal: Principal = Depe
         if body.station_permissions == "on" and not sp.ag.go_live_permitted():
             audit(conn, actor=principal, action="settings.changed", decision="denied", resource_type="installation", resource_id="*", request_id=_rid(request),
                   reason="station_permissions_not_permitted", details={"key": sp.FLAG_KEY, "requested": "on"})
-            raise ApiError(409, "station_permissions_not_permitted", "הפעלת הרשאות לפי עמדה דורשת אישור הפעלה נפרד מבעל המערכת, וגרסה זו אינה כוללת אותו.")
+            raise ApiError(409, "station_permissions_not_permitted", "הפעלת הרשאות לפי עמדה דורשת אישור הפעלה נפרד מבעל המערכת, והאישור הזה אינו פעיל כעת.")
         before = sp.settings_view(conn)["station_permissions"]
         set_setting(conn, sp.FLAG_KEY, body.station_permissions)
         audit(conn, actor=principal, action="settings.changed", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),

@@ -11,6 +11,7 @@ Recipients: `ticket_managers` (the manager members of the ticket's department; `
 off (the bridge emits nothing, and the policy matrix does not list them)."""
 from __future__ import annotations
 
+import sqlite3
 from typing import Any
 
 PREFIX = "ticket."
@@ -121,7 +122,7 @@ def module_on(conn: Any) -> bool:
     """The module switch, read without importing the module's services (the policy matrix hides these sources while it is off)."""
     try:
         row = conn.execute("SELECT value FROM settings WHERE key = 'tickets.enabled'").fetchone()
-    except Exception:  # noqa: BLE001 - a database without the settings table (a unit fixture) has no module either
+    except sqlite3.Error:  # CR-TK-SQL (01:F-10): a database without the settings table (a unit fixture) has no module either
         return False
     return bool(row) and str(row[0]) == "true"
 

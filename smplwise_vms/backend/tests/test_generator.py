@@ -780,3 +780,28 @@ def test_second_rereview_after_s_is_a_whatsapp_reach_field(app):
     assert c.put(url, json={"after_s": 0}, headers=a).status_code == 403
     assert c.put(url, json={"after_s": 120, "template_he": "דלק {detail}"}, headers=a).status_code == 200  # unchanged value + another field
     assert c.put(url, json={"channels": ["push"], "after_s": 0}, headers=a).status_code == 200  # without WhatsApp: allowed
+
+
+def test_routing_by_role_reaches_group_holders_and_not_expired_bindings(app):
+    """OWNER-R32-BACKEND-2438 (owner decision O1 (a), review 04:F02): a generator alert routed to "operator" reaches an operator who holds the role
+    through a group, and no longer reaches a user whose operator binding expired (even when another live binding gives generator.view)."""
+    from smplwise.db import new_id, now_iso, permission_revision
+
+    c, db, settings = app
+    g = _full(db)
+    bind(c, settings, "ops", "operator", "installation", "*")  # direct, live
+    bind(c, settings, "old", "site_admin", "installation", "*")  # a live binding of a role this routing does not name (gives generator.view)
+    c.get("/api/v1/me", headers=as_user("grp"))
+    with db.connection() as conn:
+        rev = permission_revision(conn)
+        conn.execute("INSERT INTO groups(id, name, created_at) VALUES ('g_ops', 'ops group', ?)", (now_iso(),))
+        conn.execute("INSERT INTO group_members(group_id, user_id) VALUES ('g_ops', 'dev-grp')")
+        conn.execute("INSERT INTO bindings(id, subject_kind, subject_id, role_id, scope_type, scope_id, effect, permission_revision, assigned_by, created_at) "
+                     "VALUES (?, 'group', 'g_ops', 'operator', 'installation', '*', 'allow', ?, 'test', ?)", (new_id(), rev, now_iso()))
+        conn.execute("INSERT INTO bindings(id, subject_kind, subject_id, role_id, scope_type, scope_id, effect, permission_revision, assigned_by, created_at, expires_at) "
+                     "VALUES (?, 'user', 'dev-old', 'operator', 'installation', '*', 'allow', ?, 'test', ?, '2000-01-01T00:00:00Z')", (new_id(), rev, now_iso()))
+    r = c.put(f"{API}/devices/{g}/policies/battery_low", json={"recipients": {"roles": ["operator"], "users": []}, "channels": ["push", "app"], "severity": "critical"})
+    assert r.status_code == 200
+    with db.connection(mode="read") as conn:
+        got = alerts.recipient_users(conn, {"source": f"generator.battery_low@{g}", "subject_id": g, "severity": "critical"})
+    assert "dev-ops" in got and "dev-grp" in got and "dev-old" not in got

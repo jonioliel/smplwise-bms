@@ -135,14 +135,22 @@ def test_a_patched_migrations_dir_takes_the_real_path(tmp_path, monkeypatch, set
 
 
 def test_no_product_code_reads_the_schema_cookie():
-    """Its VALUE never matters to the product. The one exception, db.py's connection pool (DB-CONN-POOL-2343), only compares
-    two reads of the same file in one process (did the schema change since?), so a template copy's different counter is
-    irrelevant there."""
+    """Its VALUE never matters to the product. The only readers are in db.py and both only compare two reads of the same file in
+    one process (did the schema change since?), so a template copy's different counter is irrelevant there:
+    - the connection pool (DB-CONN-POOL-2343): `schema != seen` drops idle connections after a schema change;
+    - the schema-question cache (CR-CORE-HELPERS-2438, `_schema_entry`): the value is part of the cache key next to the file path
+      and the file identity, so a copy (another path) or a restored file (another identity) never shares an entry.
+    Comment lines are not reads."""
     src = Path(__file__).resolve().parents[1] / "smplwise"
-    hits = [p.name for p in src.rglob("*.py") if re.search(r"pragma\s+schema_version", p.read_text(encoding="utf-8", errors="replace"), re.I)]
+
+    def reads(text: str) -> list[str]:
+        return [ln for ln in text.splitlines() if not ln.lstrip().startswith("#") and re.search(r"pragma\s+schema_version", ln, re.I)]
+
+    hits = [p.name for p in src.rglob("*.py") if reads(p.read_text(encoding="utf-8", errors="replace"))]
     assert hits == ["db.py"]
     db_src = (src / "db.py").read_text(encoding="utf-8")
-    assert len(re.findall(r"pragma\s+schema_version", db_src, re.I)) == 1 and "schema != seen" in db_src
+    assert len(reads(db_src)) == 2 and "schema != seen" in db_src
+    assert "key = (str(path), ident, version)" in db_src  # the cache key carries the file and its identity, not the counter alone
 
 
 def test_fresh_detection(tmp_path):

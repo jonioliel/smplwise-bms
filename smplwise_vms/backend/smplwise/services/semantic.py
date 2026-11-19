@@ -165,8 +165,8 @@ def _window(q: str, now: dt.datetime, tz: ZoneInfo) -> tuple[dict[str, str] | No
     return {"from": _iso(start), "to": _iso(end), "label": label}, used
 
 
-def _iso(t: dt.datetime) -> str:
-    return t.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+from .timeutil import iso_utc
+_iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def parse(q: str, conn: sqlite3.Connection, tz_name: str, now: dt.datetime | None = None, floor_ok=None, camera_ok=None) -> Parsed:

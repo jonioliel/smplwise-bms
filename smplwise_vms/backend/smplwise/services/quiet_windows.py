@@ -25,8 +25,9 @@ import sqlite3
 from typing import Any, Callable
 
 from ..audit import audit
-from ..db import get_setting, new_id, set_setting
+from ..db import new_id, set_setting
 from ..errors import ApiError
+from . import values
 from ..rbac import INSTALLATION, Principal, authorize, require
 from .timeutil import iso_utc, parse_utc
 
@@ -67,9 +68,7 @@ def now_utc() -> dt.datetime:
 # ---------------------------------------------------------------- settings
 
 def setting(conn: sqlite3.Connection, key: str) -> str:
-    default, valid = SETTINGS[key]
-    v = get_setting(conn, key, default)
-    return v if isinstance(v, str) and valid(v) else default
+    return values.checked_setting(conn, SETTINGS, key)  # CR-BE-SMALL-UNIFY-2440 (review 04:F24): the shared reader over this module's registry
 
 
 def enabled(conn: sqlite3.Connection) -> bool:

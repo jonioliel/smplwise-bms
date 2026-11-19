@@ -16,6 +16,7 @@ from typing import Any
 
 from ...db import get_setting
 from . import settings_doc, store_vendor_stats as sv
+from ._sql import has_table
 
 FEATURE_KEY = "maintenance.enabled"  # CR-MAINT215's switch (services/maintenance/access.FEATURE_KEY)
 
@@ -48,7 +49,7 @@ def status(conn: sqlite3.Connection, vendor_ids: list[str], today: dt.date) -> d
         return helper(conn, ids, today)
     if (get_setting(conn, FEATURE_KEY, "false") or "false") != "true":
         return {}
-    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'maint_tasks'").fetchone() is None:
+    if not has_table(conn, "maint_tasks"):
         return {}
     out: dict[str, dict[str, Any]] = {}
     marks = ",".join("?" * len(ids))

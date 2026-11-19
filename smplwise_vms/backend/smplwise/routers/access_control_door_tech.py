@@ -46,10 +46,12 @@ from ..audit import audit
 from ..auth import current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..errors import ApiError, forbidden
 from ..rbac import Principal
+from ..services import confirm_words
 from ..services import intercom_authority as ia
 from ..services import intercom_client, intercom_sync
 from ..services import wiskey_door_tech as dt
-from .access_control import MAX_STATION_ID, CommandEnvelope, _Action, _envelope, _parse, _raw_body, _station
+from ._common import raw_body as _raw_body
+from .access_control import MAX_STATION_ID, CommandEnvelope, _Action, _envelope, _parse, _station
 
 router = APIRouter()
 ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
@@ -343,7 +345,7 @@ def door_tech_view(request: Request, principal: Principal = Depends(_writer_view
         "feed": intercom_sync.STATE.state,
         "locks": [{"door": lock["physical_index"], "name": lock.get("name")} for lock in (station or {}).get("locks") or []],
         "commands": commands,
-        "confirm_phrase": "קוד {slot}",
+        "confirm_phrase": confirm_words.he("door_code"),  # "קוד {slot}"
         "limits": {"code_window_s": int(dt.CODE_WINDOW_S * dt.SCALE), "code_max": dt.CODE_USER_MAX},
         "history": _history(conn, station_id) if g.allowed else [],
     }
@@ -431,8 +433,10 @@ def code_write(request: Request, station_id: str, slot: str, principal: Principa
     n = _int_path(act, "slot", slot, 1, 16)
     body, not_after = _begin(act, kind, raw, CodeBody, {"slot": n})
     act.details.update(code_action=body.action, door=body.door, expected=body.expected)
-    if (body.confirm_text or "").strip() != dt.confirm_phrase(n):
+    confirm_word = dt.confirm_phrase_lang(n, body.confirm_text)
+    if confirm_word is None:
         raise act.refuse(ApiError(409, "typed_confirmation_required", f"כדי לשנות קוד ציבורי יש להקליד \"{dt.confirm_phrase(n)}\".", details={"phrase": dt.confirm_phrase(n)}))
+    act.details["confirm_word"] = confirm_word  # "he" / "en": which phrase was typed (never the text itself)
     station = _station(act, require_online=True)
     _door(act, station, body.door)
     # the value rules (never echoed): set needs a new code (and the current one when the slot is set); clear needs the current one

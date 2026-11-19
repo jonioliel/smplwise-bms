@@ -150,22 +150,12 @@ def shares_of_floor(conn: sqlite3.Connection, floor_id: str, at: str | None = No
     return _rows(conn, "s.floor_id = ?", (floor_id,), at)
 
 
-def shares_from_floor(conn: sqlite3.Connection, floor_id: str, at: str | None = None) -> list[Share]:
-    """The rooms of this floor shared with other floors (this floor is the HOME floor)."""
-    return _rows(conn, "s.home_floor_id = ?", (floor_id,), at)
-
-
 def shares_of_zone(conn: sqlite3.Connection, zone_id: str) -> list[Share]:
     return _rows(conn, "s.zone_id = ?", (zone_id,))
 
 
 def all_shares(conn: sqlite3.Connection) -> list[Share]:
     return _rows(conn, "", ())
-
-
-def shared_zone_floors(conn: sqlite3.Connection, zone_id: str) -> list[str]:
-    """The other floors a room is shown on (its home floor excluded)."""
-    return [s.floor_id for s in shares_of_zone(conn, zone_id)]
 
 
 # ---------------------------------------------------------------- geometry
@@ -1151,11 +1141,6 @@ def _anchor_tol(conn: sqlite3.Connection, home_floor_id: str) -> tuple[float, fl
     return float(v["width_px"]), float(v["height_px"]), POINT_TOL_M / _scale_of_version(v)
 
 
-def anchor_in_room(x: float, y: float, share: Share, dims: tuple[float, float, float]) -> bool:
-    w, h, tol = dims
-    return near((float(x) * w, float(y) * h), poly_px(share.zone_polygon, w, h), tol)
-
-
 # ---------------------------------------------------------------- membership: THE reach rule (security review B1)
 #
 # Reach follows an explicit list - the members of the shared space - never geometry: moving an anchor into the room, or
@@ -1505,13 +1490,6 @@ def bundle_parts(conn: sqlite3.Connection, floor_id: str, version: sqlite3.Row |
                                     "level_id": ns(a["floor_id"], a["level_id"] or "L0"),
                                     "shared": {"zone_id": g.zone_id, "home_floor_id": a["floor_id"], "home_floor_name": (src["name"] if can_name is None or can_name(a["floor_id"]) else OTHER_FLOOR) if src else "", "label": surface_label(hfloor["level"])}}))
     return zones, anchors
-
-def editor_placement(conn: sqlite3.Connection, share: Share) -> Placement:
-    """The placement between the two floors' editor versions (what an edit made on the other floor's map is in)."""
-    from . import geometry_store as store
-
-    return Placement(share.placement, _dims_of(store.editor_version(conn, share.home_floor_id)), _dims_of(store.editor_version(conn, share.floor_id)))
-
 
 def live_placement(conn: sqlite3.Connection, share: Share) -> Placement:
     """The placement between the plan versions the live maps show (bundle_parts): published first, else the draft."""

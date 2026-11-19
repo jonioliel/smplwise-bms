@@ -39,8 +39,10 @@ def _interface_block(conn: sqlite3.Connection, principal: Principal) -> dict | N
 
 
 def _active(conn: sqlite3.Connection, principal: Principal) -> bool:
-    row = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
-    return row is None or bool(row["active"])
+    """CR-ACTIVE-USER-REST-2438: the one rule (services/active_users) - disabled on either side is not active; no row is not disabled."""
+    from ..services.active_users import is_disabled
+
+    return not is_disabled(conn, principal.user_id)
 
 
 @router.get("/me")
@@ -163,6 +165,7 @@ class PrefsPatch(BaseModel):
     ui_dd_picker: str | None = Field(default=None, alias="ui.dd_picker")  # 2.0.2: dropdown | chips, how the camera comparison picker is shown (services/dd_style.py); null = follow the installation
     ui_dd_place: str | None = Field(default=None, alias="ui.dd_place")  # 2026-10-17: 1 | 2 | 3 | 4, where the header dropdown sits on a wide screen (services/dd_style.py); null = follow the installation
     ui_dd_settings_nav: str | None = Field(default=None, alias="ui.dd_settings_nav")  # PHONENAV-295: tabs | dropdown, how the Settings sub-pages are navigated on a phone (services/user_prefs.py); null = tabs
+    ui_lang: str | None = Field(default=None, alias="ui.lang")  # I18N-EN-SWITCH-2438: he | en, the user's interface language (services/user_prefs.py); null = Hebrew
     ui_dd_style_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_style_groups")  # the same per tab group
     ui_dd_size: str | None = Field(default=None, alias="ui.dd_size")  # Unreleased: sm | md | lg, the size of a dropdown (services/dd_style.py); null = follow the installation
     ui_dd_size_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_size_groups")  # the same per tab group

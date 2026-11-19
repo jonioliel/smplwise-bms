@@ -21,7 +21,9 @@ from ..config import Settings
 from ..db import is_busy, new_id, now_iso, unlocked
 from ..errors import ApiError
 from ..recorder_scope import PRIMARY, camera_settings, settings_for
+from . import nvr_write_guard
 from .nvr import _client, _get
+from . import device_http
 
 CENTER_BLOCK = "<EventTriggerNotification><id>center</id><notificationMethod>center</notificationMethod></EventTriggerNotification>"
 SMART_TYPES = ("linedetection", "fielddetection", "regionEntrance", "regionExiting")
@@ -58,28 +60,23 @@ def _normalize(xml: str) -> str:
 
 
 def response_status(xml: str) -> tuple[int | None, str | None]:
-    code = re.search(r"<statusCode>(\d+)</statusCode>", xml)
-    sub = re.search(r"<subStatusCode>(.*?)</subStatusCode>", xml)
-    return (int(code.group(1)) if code else None), (sub.group(1) if sub else None)
+    """`(statusCode, subStatusCode)` of an ISAPI answer body (None when absent): the write path's view of the shared reader
+    (services/device_http.py)."""
+    rs = device_http.read_response_status(xml)
+    return rs.code, rs.sub
 
 
 # ---------------------------------------------------------------- transport
 
 def _probe(client: httpx.Client, path: str) -> tuple[int, str]:
-    try:
-        r = client.get(path)
-        if r.status_code == 401:  # a stale digest nonce under parallel requests: one retry answers the fresh challenge
-            r = client.get(path)
-    except httpx.HTTPError as exc:
-        raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"path": path, "error": type(exc).__name__}) from exc
+    r = device_http.request(client, "GET", path)
+    if r.status_code == 401:  # a stale digest nonce under parallel requests: one retry answers the fresh challenge
+        r = device_http.request(client, "GET", path)
     return r.status_code, r.text
 
 
 def _put(client: httpx.Client, path: str, xml: str) -> str:
-    try:
-        r = client.put(path, content=xml.encode("utf-8"), headers={"Content-Type": "application/xml"})
-    except httpx.HTTPError as exc:
-        raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"path": path, "error": type(exc).__name__}) from exc
+    r = device_http.request(client, "PUT", path, content=xml.encode("utf-8"), headers={"Content-Type": "application/xml"})
     code, sub = response_status(r.text)
     if r.status_code in (401, 403):
         if sub == "notSupport":
@@ -115,6 +112,7 @@ def change_detail(r: sqlite3.Row) -> dict[str, Any]:
 
 
 STREAM_KIND = "stream_encoding"
+VERIFY_FAILED = "verify_failed"  # BACKEND-SAFETY-2435: the device accepted the write, the read-back GET failed
 
 
 def list_changes(conn: sqlite3.Connection, limit: int = 50, camera_id: str | None = None,
@@ -166,7 +164,9 @@ def apply_change(settings: Settings, conn: sqlite3.Connection, principal: Any, *
     The caller holds the request's connection; NVR I/O happens on `client` (opened here unless given).
     CR-024: `settings` is the TARGET recorder's settings (recorder_scope.camera_settings / settings_for); the change log row
     records that recorder.
-    keep_before=False records no previous document, so the change cannot be rolled back (a clock write, for one)."""
+    keep_before=False records no previous document, so the change cannot be rolled back (a clock write, for one).
+    CR-NVR-GUARD-2438: refused (409 nvr_writes_off, audited, nothing sent) while the recorder's settings switch is off."""
+    nvr_write_guard.guard(settings, conn, principal, kind, request_id=request_id, target=target)
     own = client is None
     c = client or _client(settings)
     try:
@@ -180,7 +180,17 @@ def apply_change(settings: Settings, conn: sqlite3.Connection, principal: Any, *
             rec = _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before, after=after, status="failed", error=exc.code, note=note, recorder_id=settings.nvr_recorder_id)
             audit(conn, actor=principal, action="nvr.write", decision="denied", resource_type="nvr", resource_id=target, reason=exc.code, request_id=request_id, details={"kind": kind, "path": path, "change_id": rec["id"]})
             raise
-        verify = _get(c, path)
+        try:
+            verify = _get(c, path)
+        except ApiError as exc:
+            # BACKEND-SAFETY-2435 (review 03 F01): the device ACCEPTED the PUT, only the read-back failed. The change is
+            # recorded (status applied, error verify_failed, the document sent as `after`, the previous one kept for the
+            # undo) and audited as unverified; the caller still receives the same error.
+            rec = _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before if keep_before else None, after=after,
+                          status="applied", error=VERIFY_FAILED, note=note, recorder_id=settings.nvr_recorder_id)
+            audit(conn, actor=principal, action="nvr.write", decision="allowed", resource_type="nvr", resource_id=target, request_id=request_id,
+                  details={"kind": kind, "path": path, "change_id": rec["id"], "permission": permission, "note": note, "verified": False, "verify_error": exc.code})
+            raise
     finally:
         if own:
             c.close()
@@ -204,6 +214,9 @@ def rollback(settings: Settings, conn: sqlite3.Connection, principal: Any, chang
         # CR-020 S2: an encoding change is undone only by services/nvr_settings.rollback_stream (nvr.configure on the camera,
         # confirm, etag-of-after check, two phases). This generic path must never PUT its document.
         raise ApiError(409, "not_rollbackable", "שינוי קידוד מבוטל רק דרך מסך הגדרות המצלמות.", details={"kind": orig["kind"]})
+    rec_id = orig["recorder_id"] if "recorder_id" in orig.keys() else PRIMARY
+    # CR-NVR-GUARD-2438: an undo is a settings change on the recorder the change was made on - its switch decides
+    nvr_write_guard.guard(settings_for(settings, rec_id), conn, principal, orig["kind"], request_id=request_id, target=orig["target"])
     if orig["kind"] == "privacy_mask":
         # NVRMASK-295: PUT of the old document does not remove stored regions on the lab firmware (it merges); the privacy
         # module restores the original exactly (PUT + DELETE of the added regions + verified read-back).
@@ -212,13 +225,22 @@ def rollback(settings: Settings, conn: sqlite3.Connection, principal: Any, chang
         return restore_change(settings, conn, principal, change_id, request_id=request_id, client=client)
     if orig["status"] not in ("applied", "rolled_back") or not orig["before_xml"]:
         raise ApiError(409, "not_rollbackable", "אין לשינוי הזה מסמך קודם להחזיר.", details={"status": orig["status"]})
-    rec_id = orig["recorder_id"] if "recorder_id" in orig.keys() else PRIMARY
     settings = settings_for(settings, rec_id)  # CR-024: the undo goes to the recorder the change was made on
     own = client is None
     c = client or _client(settings)
     try:
         _put(c, orig["path"], orig["before_xml"])
-        verify = _get(c, orig["path"])
+        try:
+            verify = _get(c, orig["path"])
+        except ApiError as exc:
+            # BACKEND-SAFETY-2435 (review 03 F01): the device accepted the old document; only its read-back failed. The undo
+            # is recorded as such (the document sent as `after`) and audited as unverified, then the same error is raised.
+            conn.execute("UPDATE nvr_changes SET status = 'rolled_back' WHERE id = ?", (change_id,))
+            rec = _record(conn, principal, kind=orig["kind"], permission=orig["permission"], target=orig["target"], path=orig["path"], before=orig["after_xml"],
+                          after=orig["before_xml"], status="applied", error=VERIFY_FAILED, rollback_of=change_id, note=f"החזר של {change_id}", recorder_id=rec_id)
+            audit(conn, actor=principal, action="nvr.rollback", decision="allowed", resource_type="nvr", resource_id=orig["target"], request_id=request_id,
+                  details={"kind": orig["kind"], "path": orig["path"], "change_id": rec["id"], "rollback_of": change_id, "verified": False, "verify_error": exc.code})
+            raise
     finally:
         if own:
             c.close()

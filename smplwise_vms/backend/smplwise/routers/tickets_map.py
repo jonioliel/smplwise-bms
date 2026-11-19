@@ -26,6 +26,7 @@ from ..rbac import Principal
 from ..services.access import camera_scope, floor_reach
 from ..services.tickets import access, map_element, model
 from ..services.tickets.access import Seen, Viewer, text
+from ._common import rid as _rid
 from .tickets import ID, module_gate
 
 router = APIRouter(dependencies=[Depends(module_gate)])
@@ -49,10 +50,6 @@ class AttachBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     element: ElementRef | None = None
     resource: ResourceRef | None = None
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _can_edit(seen: Seen) -> bool:

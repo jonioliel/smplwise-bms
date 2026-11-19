@@ -26,9 +26,10 @@ import sqlite3
 from typing import Any
 
 from ..db import new_id
+from ..errors import ServiceInvalid
 from . import generator_catalog as cat
 from . import generator_core as core
-from .timeutil import iso_utc
+from .timeutil import iso_from_epoch
 
 # key -> (type, default, min, max). type: int | float | bool
 LOG_SPECS: dict[str, tuple[str, Any, float | None, float | None]] = {
@@ -55,10 +56,14 @@ _MAINS_RX = re.compile(r"mains|utility|grid|fail|outage|רשת|הפסקת|נפי
 _MANUAL_RX = re.compile(r"manual|remote|ידני", re.I)
 
 
-class Invalid(ValueError):
+class Invalid(ServiceInvalid):
+    """CR-BE-SMALL-UNIFY-2440 (T7, review 04:F16): on the common base `errors.ServiceInvalid`; the constructor, the attributes it
+    always had and `str()` are unchanged. The router still builds this endpoint's 422 envelope itself (lead decision L2)."""
+
     def __init__(self, key: str) -> None:
-        super().__init__(key)
+        ValueError.__init__(self, key)
         self.key = key
+        self.fields = [key] if key else []
 
 
 # ---------------------------------------------------------------- settings
@@ -326,7 +331,7 @@ def prune(conn: sqlite3.Connection, now_ts: float) -> dict[str, int]:
 # ---------------------------------------------------------------- reading the log
 
 def _iso(ts: int | float | None) -> str | None:
-    return iso_utc(dt.datetime.fromtimestamp(int(ts), dt.timezone.utc)) if ts is not None else None
+    return iso_from_epoch(int(ts)) if ts is not None else None
 
 
 def run_out(r: sqlite3.Row | dict[str, Any], now_ts: int, cfg: dict[str, Any]) -> dict[str, Any]:

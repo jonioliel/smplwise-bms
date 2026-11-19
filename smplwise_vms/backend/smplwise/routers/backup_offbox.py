@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field, SecretStr
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import release
 from ..errors import ApiError, not_found
 from ..rbac import INSTALLATION, Principal, require
@@ -27,6 +27,7 @@ from ..services import backup as backup_svc
 from ..services import backup_sensitive as sens
 from ..services import offbox_gdrive_connect, offbox_keys, offbox_restore, offbox_runtime, offbox_store
 from ..services.backup_offbox import ALLOWED_FIELDS, CONSENT_ONLY_FIELDS, CREDENTIAL_FIELDS, OffboxError, RetentionPolicy, build_destination
+from ._common import db_of as _db, rid as _rid
 
 router = APIRouter()
 
@@ -86,14 +87,6 @@ MESSAGES = {
 
 def _err(exc: OffboxError, status: int = 422) -> ApiError:
     return ApiError(status, exc.code, MESSAGES.get(exc.code, "הפעולה נדחתה."))
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
-def _db(request: Request) -> Any:
-    return request.app.state.db
 
 
 class RetentionIn(BaseModel):
@@ -224,7 +217,7 @@ def _target_or_404(conn: sqlite3.Connection, target_id: str) -> dict[str, Any]:
 
 
 @router.get("/backups/offbox")
-def offbox_status(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def offbox_status(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "backup.manage", INSTALLATION)
     try:
         ring = offbox_keys.load(Path(settings_of(request).data_dir)).summary()
@@ -516,8 +509,8 @@ def _audit_aside(request: Request, principal: Principal, action: str, decision: 
 
 
 @router.get("/backups/offbox/targets/{target_id}/copies")
-def list_copies_api(target_id: str, request: Request, principal: Principal = Depends(current_principal),
-                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_copies_api(target_id: str, request: Request, principal: Principal = Depends(current_principal_ro),
+                    conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """What the target holds, newest first (name, bytes, the time stamp in the name). Read-only at the destination."""
     require(conn, principal, "backup.manage", INSTALLATION)
     _target_or_404(conn, target_id)

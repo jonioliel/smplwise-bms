@@ -577,7 +577,7 @@ def run_loop(listener: "AlertStreamListener", *, adapter: "FrigateAdapter | None
     becomes an `offline` event. A disconnection longer than GAP_AFTER_S records a coverage gap exactly like the alert stream."""
     import os
 
-    from ..events_ingest import GAP_AFTER_S, publish, record_gap
+    from ..events_ingest import close_gap
     from .frigate import FrigateAdapter
 
     if os.environ.get("SW_FRIGATE_EVENTS", "1") == "0":  # tests (like SW_RECORDER_HEALTH): the loop stays off, they call poll_reviews / run_loop directly
@@ -682,16 +682,9 @@ def run_loop(listener: "AlertStreamListener", *, adapter: "FrigateAdapter | None
                 backoff = 5.0
                 flog.ok()
                 if stt.disconnected_since is not None:
-                    gap = time.time() - stt.disconnected_since
-                    if gap >= GAP_AFTER_S and listener.db is not None:
-                        since, until, why = dt.datetime.fromtimestamp(stt.disconnected_since, UTC), dt.datetime.now(UTC), stt.last_error or "disconnected"
-
-                        def _gap() -> dict[str, Any]:
-                            with listener.db.connection() as conn:
-                                return record_gap(conn, since, until, why, recorder_id=listener.recorder_id)
-
-                        publish(retry_locked(_gap, what="frigate gap"))
-                    stt.disconnected_since = None
+                    # BACKEND-SAFETY-2435: a failed gap write is logged and retried on the next good poll; it never ends this thread
+                    if close_gap(listener.db, stt.disconnected_since, stt.last_error or "disconnected", listener.recorder_id, "frigate gap"):
+                        stt.disconnected_since = None
                 stt.connected = True
                 stt.last_error = None
                 stt.last_heartbeat_at = now_iso()

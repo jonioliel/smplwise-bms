@@ -36,16 +36,17 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..audit import audit
-from ..db import Database, get_setting, new_id, now_iso
+from ..db import Database, get_setting, has_table, new_id, now_iso
 from . import bridge_keys as bk
 from . import bridge_rotation_peer as peers
 
 log = logging.getLogger("smplwise.bridge_rotation")
 
-# The owner's SEPARATE go-live permit, enforced in code (the capture-lease pattern): while False the switch cannot be set to `on`
+# The owner's SEPARATE go-live permit, enforced in code (the capture-lease pattern): when False the switch cannot be set to `on`
 # and no rotation starts. Flipped by the activation slice (HMACACT-295): the owner's explicit decision 2026-10-21 (option A, "complete the
 # rotation end to end and activate it"), after the Fable security review (docs/security/FABLE_REVIEW_REPORT_2026-10-21.md section 4), in
 # the SAME commit that wired the key set into ha_bridge.sign/verify - never in a release of its own.
+# O9 a (owner decision 14.11.2026): True, and kept as the owner's kill switch - setting it to False stops the feature in code.
 GO_LIVE_PERMITTED = True
 
 FLAG_KEY = "bridge.key_rotation"
@@ -671,7 +672,7 @@ def reminder_due(conn: sqlite3.Connection, now: float | None = None) -> bool:
 
 
 def _has_tables(conn: sqlite3.Connection) -> bool:
-    return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'bridge_keys'").fetchone() is not None
+    return has_table(conn, "bridge_keys")  # CR-SCHEMA-PROBES-2440 (review 05:P2-10): the cached schema answer
 
 
 def view(conn: sqlite3.Connection, data_dir: Path, peer: peers.Peer | None = None) -> dict[str, Any]:
@@ -895,13 +896,17 @@ async def worker_loop(db: Database, settings: Any, first_delay_s: float = 45.0) 
 
     from starlette.concurrency import run_in_threadpool
 
+    def pass_then_busy() -> bool:
+        # code review 2026-11-13 04:F08: the "busy" read runs on the worker thread with the pass, never on the event loop
+        worker_pass(db, settings)
+        with db.connection(mode="read") as conn:
+            return active_row(conn) is not None
+
     await asyncio.sleep(first_delay_s)
     while True:
         busy = False
         try:
-            await run_in_threadpool(worker_pass, db, settings)
-            with db.connection(mode="read") as conn:
-                busy = active_row(conn) is not None
+            busy = await run_in_threadpool(pass_then_busy)
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001

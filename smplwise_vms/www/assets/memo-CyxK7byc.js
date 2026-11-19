@@ -1,0 +1,1 @@
+function l(s,t){return!!s&&s.length===t.length&&s.every((e,n)=>e===t[n])}class u{constructor(){this.slots=new Map}get(t,e,n){const r=this.slots.get(t);if(r&&l(r.refs,e))return r.value;const o=n();return this.slots.set(t,{refs:e,value:o}),o}}export{u as R,l as s};

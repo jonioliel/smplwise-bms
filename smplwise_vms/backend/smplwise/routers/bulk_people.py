@@ -39,19 +39,12 @@ from ..services import intercom_authority as ia
 from ..services import intercom_writes as iw
 from ..services import wiskey_people_csv as wpc
 from ..services.access_grant_engine import EngineError
+from ._common import db_of as _db, rid as _rid
 
 router = APIRouter()
 BASE = "/access-control/bulk-people"
 _JOB = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
 CSV_HEADERS = {"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"}
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
-def _db(request: Request):
-    return request.app.state.db
 
 
 def _gate(permission: str):

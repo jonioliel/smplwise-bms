@@ -28,6 +28,7 @@ from ..rbac import INSTALLATION, STATION, Principal, authorize, require
 from ..services import intercom_doors, intercom_sync
 from ..services import wiskey_relay_map as rm
 from ..services import wiskey_relay_map_export as rmx
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -43,10 +44,6 @@ MESSAGES = {
     "relay_map_unchanged": (422, "לא היה שינוי במיפוי."),
     "confirm_required": (422, f"השינוי משפיע על דלת שיש לה אוטומציה. כדי לאשר יש להקליד \"{rm.CONFIRM_WORD}\"."),
 }
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _user_name(conn: sqlite3.Connection, user_id: str | None) -> str | None:
@@ -147,7 +144,7 @@ def approve_relay_map(body: SaveBody, request: Request, station_id: str = Path(m
         raise ApiError(status, e.code, msg, details=e.details) from None
     audit(conn, actor=principal, action="wiskey.relay_map.approved", decision="allowed", resource_type=STATION, resource_id=station_id, request_id=_rid(request),
           details={"revision_before": res.revision_before, "revision": res.revision, "before": rm.as_list(res.before), "after": rm.as_list(res.after),
-                   "affected_doors": res.affected, "automated_doors": res.automated})
+                   "affected_doors": res.affected, "automated_doors": res.automated, **({"confirm_word": res.confirm_word} if res.confirm_word else {})})
     _sync_native(request, conn, principal, station_id)
     return {"revision": res.revision, "station": _station_view(conn, station_id, s)}
 

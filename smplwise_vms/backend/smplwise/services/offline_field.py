@@ -30,8 +30,9 @@ from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 from ..audit import audit
-from ..db import get_setting, new_id, now_iso, set_setting
+from ..db import new_id, now_iso, set_setting
 from ..errors import ApiError
+from . import values
 from ..rbac import Principal
 from .tickets import access, model, service, store
 from .tickets.access import Viewer
@@ -68,9 +69,7 @@ SETTINGS: dict[str, tuple[str, Callable[[str], bool]]] = {
 
 
 def setting(conn: sqlite3.Connection, key: str) -> str:
-    default, valid = SETTINGS[key]
-    v = get_setting(conn, key, default)
-    return v if isinstance(v, str) and valid(v) else default
+    return values.checked_setting(conn, SETTINGS, key)  # CR-BE-SMALL-UNIFY-2440 (review 04:F24): the shared reader over this module's registry
 
 
 def settings_view(conn: sqlite3.Connection) -> dict[str, str]:

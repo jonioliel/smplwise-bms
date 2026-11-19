@@ -31,6 +31,7 @@ from typing import Any, Callable
 
 from . import links, policy, settings_doc, store, store_links
 from .keyring import KEYS
+from .timeutil import iso_ms, iso_s, parse_naive_local
 
 UTC = dt.timezone.utc
 
@@ -57,17 +58,10 @@ def now_utc() -> dt.datetime:
     return dt.datetime.now(UTC).replace(microsecond=0)
 
 
-def iso(at: dt.datetime) -> str:
-    return at.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+iso = iso_s  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
-def parse(value: str | None) -> dt.datetime | None:
-    if not value:
-        return None
-    try:
-        return dt.datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
-    except ValueError:
-        return None
+parse = parse_naive_local  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 @dataclass(frozen=True)
@@ -155,8 +149,7 @@ def revoke(conn, link_row: dict[str, Any] | None, reason: str, at: dt.datetime) 
     return done
 
 
-def _outbox_iso(at: dt.datetime) -> str:
-    return at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"  # outbox times carry milliseconds (outbox_store.iso)
+_outbox_iso = iso_ms  # CR-TK-TIMEUTIL-2436: outbox times carry milliseconds (outbox_store.iso)
 
 
 def cancel_messages(conn, link_id: str, at: dt.datetime) -> int:

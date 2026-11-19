@@ -23,21 +23,18 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..auth import current_principal, get_conn, read_gate, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import camera_sources as svc
-from .nvr_connection import _parse, _raw_body
+from ._common import raw_body as _raw_body, rid as _rid
+from .nvr_connection import _parse
 
 router = APIRouter()
 PERMISSION = svc.PERMISSION
 URL_MAX = 2048
 
 _admin_ro = read_gate(lambda conn, principal: require(conn, principal, PERMISSION, INSTALLATION))
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 class SourceIn(BaseModel):
@@ -65,7 +62,7 @@ class StandaloneIn(BaseModel):
 
 
 @router.get("/cameras/{camera_id}/source")
-def get_source(camera_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_source(camera_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The camera's video source (never an address: the masked form and `has_password`)."""
     require(conn, principal, PERMISSION, INSTALLATION)
     return svc.view(conn, svc._camera(conn, camera_id))

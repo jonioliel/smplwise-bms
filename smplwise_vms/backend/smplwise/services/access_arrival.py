@@ -28,6 +28,7 @@ from typing import Any
 
 from ..db import new_id
 from . import access_grants as ag
+from . import redact
 
 UTC = dt.timezone.utc
 NAME_MAX = 60
@@ -145,8 +146,8 @@ def _persons(conn, link_contact: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _label(contact: dict[str, Any]) -> str:
     first = (contact.get("display_name") or "").split(" ")[0][:24]
-    digits = contact.get("phone_e164") or ""
-    return f"{first} ····{digits[-2:]}" if len(digits) >= 2 else first
+    masked = redact.phone_tail2_dots(contact.get("phone_e164") or "")
+    return f"{first} {masked}" if masked else first
 
 
 def _context(conn, link: Any, now: dt.datetime) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:

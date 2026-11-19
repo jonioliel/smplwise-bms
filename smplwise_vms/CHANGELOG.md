@@ -1,5 +1,27 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.43.8 (pilot) - Arx users can be created again; Domus is the default look; one dialog and one drawer; the English interface
+
+### חדש - New
+- משתמשי Arx: טופס יצירת משתמש שולח שוב (הלחיצה על "צור" לא שלחה דבר מאז שהמסך נוסף). מנהל המערכת קובע סיסמה כבר ביצירה, ויכול לקבוע סיסמה חדשה למשתמש קיים; כברירת מחדל המשתמש מתבקש להחליף אותה בכניסה הראשונה. - Arx users: the create-user form sends again (pressing "create" sent nothing since the screen was added). The system administrator sets a password at creation and can set a new password for an existing user; by default the user is asked to change it at the first sign-in.
+- משתמשי Arx: מתג הפעלה וכיבוי בלשונית "משתמשי Arx" עצמה (קודם לא היה מסך שמפעיל אותם). - Arx users: an on / off switch on the "Arx users" tab itself (before, no screen could turn them on).
+- מראה: Domus הוא מראה ברירת המחדל. מערכת שנשמר בה "קלאסי" עוברת ל-Domus פעם אחת בעדכון; אפשר לחזור לקלאסי בהגדרות › תצוגה, והבחירה נשמרת. - Look: Domus is the default look. A system that had "classic" saved moves to Domus once at the update; classic can be chosen again under Settings › Display, and that choice stays.
+- מראה: הבחירה המסומנת בשבבים היא תכלת מודגש עם טבעת וסימן וי; הגדרה "שבב נבחר" לשלושה מראות נוספים. - Look: the selected chip is a strengthened light blue with a ring and a check mark; a "selected chip" setting offers three other looks.
+- ממשק באנגלית: מתג שפה עברית / אנגלית; מסכי הבית, היומנים, החשמל, המפה ואשף התוכנית, הודעות השרת, משכי זמן ויחידות מוצגים באנגלית. מילות האישור המוקלדות מתקבלות גם באנגלית. - English interface: a Hebrew / English switch; the home screens, calendars, electricity, the map and the plan wizard, server messages, durations and units are shown in English. Typed confirmation words are accepted in English too.
+- מפת התלת־ממד: תשובות הבעלים בסבב 32 - קירות נמוכים, תאורת יום / ערב / לילה, סימון מצב חדר, אזעקה במפה, ריצוף שיש קלקטה וטרוורטין; כרטיס ההגדרות "המפה בתלת־ממד" מתורגם במלואו. - 3D map: the owner's round-32 answers - low walls, day / evening / night lighting, room state marks, the alarm on the map, Calacatta marble and travertine floors; the "3D map" settings card is fully translated.
+
+### שופר - Improved
+- חלון אחד ומגירה אחת בכל המערכת: אטומים, בלי טשטוש; Escape סוגר שכבה אחת בכל פעם, גם בחלונות שנבנו בנפרד במסכים, והמיקוד חוזר למקום שממנו נפתחו. - One dialog and one drawer across the system: opaque, no blur; Escape closes one layer at a time, also in the dialogs screens built themselves, and focus returns to where they were opened.
+- מצלמה חיה: הצילום עובר לבדיקה מיד אחרי הלחיצה. - Live camera: the shot goes to review at once after the press.
+- סקירת קוד, גל 3: תיקונים בשרת ובממשק (הרשאות מנהל אחידות, משתמשים פעילים בהתראות, נוכחות כשמסד הנתונים עסוק, ניקוי קוד). - Code review wave 3: server and interface fixes (one administrator check, active users in notifications, presence while the database is busy, code clean-up).
+
+### תוקן - Fixed
+- "החשבון שלי › המסך שלי": כשקריאת ההעדפות נכשלה המסך הציג את ברירות המחדל במצב עריכה, ולחיצה ראשונה דרסה את הבחירות השמורות. עכשיו מוצגת שגיאה ושום דבר לא נשמר. - "My account › My screen": when reading the preferences failed the screen showed the defaults in edit mode and the first press overwrote the saved choices. It now shows an error and saves nothing.
+- אבטחה: כניסה שבוטלה (סיסמה חדשה, ביטול כניסות, השבתה) לא חוזרת לפעול לרגע מהזיכרון. - Security: a revoked sign-in (new password, sessions revoked, disabled) no longer works again for a moment from the cache.
+
+### התקנה - Install
+- אין מיגרציה חדשה ואין צורך בהפעלה מחדש של מערכת הבית (הגשר נשאר 0.10.7). - No new migration and no home-system restart (the bridge stays 0.10.7).
+
 ## 2.43.7 (pilot) - Home interface round 32; one design language on the management screens; faster loading and code-review fixes
 
 ### חדש - New

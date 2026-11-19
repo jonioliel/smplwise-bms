@@ -9,11 +9,13 @@ account" and "switch off" are told apart) and how many active directory rows of 
 address, number or account value ever leaves here."""
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from . import store_links
 
 MESSAGES_USE = "tickets.messages"
+log = logging.getLogger("smplwise.tickets.readiness")
 
 
 def account_mapped(conn, department_id: str | None) -> bool:
@@ -31,6 +33,7 @@ def account_mapped(conn, department_id: str | None) -> bool:
         prefix = f"{MESSAGES_USE}{ma.DEPT_SEP}"
         return any(v for k, v in doc.uses.items() if k.startswith(prefix))
     except Exception:  # noqa: BLE001 - a readiness line never fails a request; an unreadable mapping reads as "not mapped"
+        log.debug("the messages account mapping could not be read", exc_info=True)  # CR-TK-EXCEPT-LOG (01:F-11)
         return False
 
 
@@ -52,7 +55,8 @@ def readiness(conn, department_id: str | None = None) -> dict[str, Any]:
     cs = messaging.channel_settings(conn)
     try:
         email_ok = messaging.email_configured(conn, messaging.RUNTIME.data_dir)
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 - a readiness line never fails a request; unreadable mail settings read as "not configured"
+        log.debug("the e-mail configuration could not be read", exc_info=True)  # CR-TK-EXCEPT-LOG (01:F-11)
         email_ok = False
     public_page = "option" not in missing and "listener" not in missing
     return {

@@ -264,7 +264,9 @@ def janitor(db: Any, now: float | None = None) -> int:
     now = time.time() if now is None else now
     try:
         with db.connection(mode="read", label="local reset janitor read") as conn:
-            if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'auth_local_reset_codes'").fetchone() is None:
+            from ..db import has_table
+
+            if not has_table(conn, "auth_local_reset_codes"):  # CR-SCHEMA-PROBES-2440 (review 05:P2-10): the cached schema answer
                 return 0
             due = conn.execute("SELECT 1 FROM auth_local_reset_codes WHERE expires_at <= ? LIMIT 1", (now - CODE_RETAIN_S,)).fetchone() \
                 or conn.execute("SELECT 1 FROM auth_local_reset_sends WHERE sent_at <= ? LIMIT 1", (now - DAY_S,)).fetchone()

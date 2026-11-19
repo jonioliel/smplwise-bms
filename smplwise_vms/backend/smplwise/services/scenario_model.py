@@ -140,8 +140,8 @@ class Validated:
 
 # ---------------------------------------------------------------- time helpers
 
-def iso(t: dt.datetime) -> str:
-    return t.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+from .timeutil import iso_utc
+iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def parse(text: str | None) -> dt.datetime | None:

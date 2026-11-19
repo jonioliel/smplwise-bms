@@ -32,6 +32,7 @@ from ..services.calendar.access import Ctx, Denied, get_visible
 from ..services.calendar.events import get_row
 from ..services.calendar_sync import credentials, engine, ics, oauth, registry
 from ..services.calendar_sync.adapter import PROVIDERS, SyncError
+from ._common import db_of as _db
 from . import calendar as cal_mod
 from .calendar import Body, _audit, _body, _errors, module_gate
 
@@ -74,10 +75,6 @@ OAUTH_HE = {
 
 def _oauth_err(exc: oauth.OAuthError) -> ApiError:
     return ApiError(exc.status, exc.code, OAUTH_HE.get(exc.code, "החיבור לספק נכשל."), retryable=exc.code in ("provider_unavailable", "rate_limited"))
-
-
-def _db(request: Request) -> Any:
-    return request.app.state.db
 
 
 def _audit_aside(request: Request, principal: Principal, action: str, rid: str, decision: str = "allowed", reason: str | None = None, **details: Any) -> None:
@@ -128,7 +125,7 @@ def _out(conn: sqlite3.Connection, row: sqlite3.Row, data_dir: Any = None) -> di
 
 
 @router.get("/calendar/connections")
-def list_connections(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_connections(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _need_connect(conn, principal)
     d = settings_of(request).data_dir
     return {"connections": [_out(conn, r, d) for r in conn.execute("SELECT * FROM cal_connections ORDER BY created_at, id").fetchall()],
@@ -295,7 +292,7 @@ def authorize_cancel(cid: str, request: Request, principal: Principal = Depends(
 
 
 @router.get("/calendar/connections/{cid}/calendars")
-def connection_calendars(cid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def connection_calendars(cid: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _need_connect(conn, principal)
     row = _connection(conn, cid)
     ad = registry.get(row["provider"])

@@ -42,6 +42,7 @@ from ..services import devices as svc
 from ..services import building_scope, door_authority, ha_bridge, ha_client, ha_scope, ha_sync, home_screen, switch_protection, user_prefs
 from ..services import service_identity
 from ..services.timeutil import parse_utc
+from ._common import is_json as _is_json, raw_body as _raw_body
 
 router = APIRouter()
 READ = "devices.read"
@@ -93,12 +94,6 @@ def _bulk_flags(conn: sqlite3.Connection, principal: Principal, reads: _RequestR
     return bulk.scope_flags(conn, principal, (reads or _RequestReads(conn)).entities())
 
 
-async def _raw_body(request: Request) -> bytes:
-    """The body, unparsed; declared after the permission dependency (403 whatever was sent) - the same JSON-only,
-    permission-before-body pattern for every write route in this module (bulk actions, and slice 4's assign_area)."""
-    return await request.body()
-
-
 def _configure_holder_early(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
     """system.configure before the body is read (the same envelope as the slice-4 assign route); the refusal is audited."""
     require(conn, principal, "system.configure", INSTALLATION)
@@ -108,11 +103,6 @@ def _configure_holder_early(principal: Principal = Depends(current_principal), c
 # review L7: the raw-body routes check the permission on a READ connection, read the body, and only then open the write one
 _configure_holder_early_ro = read_gate(lambda conn, principal: require(conn, principal, "system.configure", INSTALLATION))
 _configure_holder_ro = _configure_holder_early_ro
-
-
-def _is_json(content_type: str | None) -> bool:
-    media = (content_type or "").split(";", 1)[0].strip().lower()
-    return media == "application/json" or (media.startswith("application/") and media.endswith("+json"))
 
 
 @router.get("/devices/tree")

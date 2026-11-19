@@ -54,8 +54,10 @@ def stored_contacts(conn: sqlite3.Connection) -> list[str]:
 
 
 def _active(conn: sqlite3.Connection, user_id: str) -> bool:
-    r = conn.execute("SELECT active FROM users WHERE id = ?", (user_id,)).fetchone()
-    return bool(r and r["active"])
+    """CR-ACTIVE-USER-REST-2438: an Arx account, active under the one rule (services/active_users)."""
+    from .active_users import has_active_account
+
+    return has_active_account(conn, user_id)
 
 
 def eligible(conn: sqlite3.Connection, user_id: str) -> bool:

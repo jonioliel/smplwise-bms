@@ -40,7 +40,7 @@ from typing import Any
 
 from ..db import Database, get_setting, now_iso, retry_locked, set_setting
 from ..rbac import Principal, _active_bindings
-from .timeutil import parse_utc
+from .timeutil import iso_utc_ms, parse_utc
 
 log = logging.getLogger("smplwise.intercom.calls")
 UTC = dt.timezone.utc
@@ -65,10 +65,8 @@ def _now() -> dt.datetime:
     return dt.datetime.now(UTC)
 
 
-def _iso(at: dt.datetime) -> str:
-    """UTC with milliseconds: two calls of one station never share an instant, so the log's order and its `before` cursor are exact."""
-    at = at.astimezone(UTC)
-    return at.strftime("%Y-%m-%dT%H:%M:%S.") + f"{at.microsecond // 1000:03d}Z"
+# UTC with milliseconds: two calls of one station never share an instant, so the log's order and its `before` cursor are exact.
+_iso = iso_utc_ms  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 @dataclass
@@ -501,12 +499,12 @@ def sound_for(conn: sqlite3.Connection, cfg: dict[str, Any], now: dt.datetime | 
     if not cfg.get("sound", True):
         return "silent", "setting_off"
     try:
-        from ..routers.settings import read_settings
+        from .settings_store import setting_value
         from . import notify_settings as nsettings
         from .notify_policy import get_policy
 
         st = nsettings.load(conn)
-        tz = read_settings(conn)["time.zone"]
+        tz = setting_value(conn, "time.zone")
         if nsettings.in_quiet_hours(st["quiet"], now or _now(), tz):
             policy = get_policy(conn, "door.ring") or {}
             severity = policy.get("severity") or "alert"

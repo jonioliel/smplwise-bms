@@ -37,7 +37,7 @@ import httpx
 
 from .. import __version__
 from ..config import Settings
-from ..db import Database, get_setting, now_iso, set_setting
+from ..db import Database, get_setting, has_table, now_iso, set_setting
 from ..mode import installation_mode
 from . import demo_mode, fleet_keys, readiness
 
@@ -216,7 +216,7 @@ def _bounded(value: Any, lo: int = 0, hi: int = INT_MAX) -> int:
 
 
 def _table(conn: sqlite3.Connection, name: str) -> bool:
-    return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)).fetchone() is not None
+    return has_table(conn, name)  # CR-SCHEMA-PROBES-2440 (review 05:P2-10): the cached schema answer
 
 
 def _scalar(conn: sqlite3.Connection, table: str, sql: str, args: tuple = ()) -> int:

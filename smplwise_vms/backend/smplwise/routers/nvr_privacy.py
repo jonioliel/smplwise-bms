@@ -16,18 +16,19 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..recorder_scope import camera_settings
-from ..services import nvr_privacy
+from ..services import nvr_privacy, nvr_write_guard
 from ..services.access import require_camera
 from .nvr_write import _camera_config_scope, _require_read, _rid
 
 router = APIRouter()
 
-SKIP_CODES = ("stale", "validation", "nvr_not_supported", "source_forbidden")  # nothing was written for these: the next camera goes on
+# nothing was written for these: the next camera goes on (nvr_writes_off: CR-NVR-GUARD-2438, the camera's recorder switch is off)
+SKIP_CODES = ("stale", "validation", "nvr_not_supported", "source_forbidden", "nvr_writes_off")
 
 
 class RegionIn(BaseModel):
@@ -76,7 +77,7 @@ def _points(item: MaskItemIn) -> list[list[list[int]]]:
 
 
 @router.get("/cameras/{camera_id}/privacy-mask")
-def get_privacy_mask(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_privacy_mask(camera_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The channel's privacy mask as the NVR holds it (read-only): master switch, regions with the parser's active verdict, etag, limits."""
     _require_read(conn, principal)
     _camera_config_scope(conn, principal, camera_id, None)  # T055: 403 before 404
@@ -86,7 +87,9 @@ def get_privacy_mask(camera_id: str, request: Request, principal: Principal = De
         info = nvr_privacy.read_mask(camera_settings(settings_of(request), cam), ch)
     return {"camera_id": camera_id, "channel": ch, "name": _name(cam), **nvr_privacy.view(info["xml"]), "etag": info["etag"],
             "max_regions": info["max_regions"], "points_per_region": nvr_privacy.POINTS_PER_REGION, "capabilities": info["capabilities"],
-            "can_write": authorize(conn, principal, nvr_privacy.PERMISSION, INSTALLATION).allowed, "write_enabled": nvr_privacy.write_enabled(conn)}
+            "can_write": authorize(conn, principal, nvr_privacy.PERMISSION, INSTALLATION).allowed, "write_enabled": nvr_privacy.write_enabled(conn),
+            # CR-NVR-GUARD-2438: the recorder's own settings switch (a mask is a settings change); `write_enabled` is the feature switch
+            "nvr_writes_enabled": nvr_write_guard.writes_on(camera_settings(settings_of(request), cam))}
 
 
 @router.post("/nvr/privacy-masks/preview")
@@ -98,6 +101,9 @@ def preview(body: PreviewIn, request: Request, principal: Principal = Depends(cu
     for item, cam in zip(body.items, cams):
         ch = int(cam["channel"])
         row: dict[str, Any] = {"camera_id": cam["id"], "channel": ch, "name": _name(cam)}
+        if not nvr_write_guard.writes_on(camera_settings(settings_of(request), cam)):  # CR-NVR-GUARD-2438: nothing read either
+            out.append(row | {"status": "skipped", "reason": nvr_write_guard.CODE, "message": nvr_write_guard.MESSAGE, "details": {}})
+            continue
         try:
             with unlocked(conn):
                 info = nvr_privacy.read_mask(camera_settings(settings_of(request), cam), ch)

@@ -27,7 +27,8 @@ from typing import Any
 from ..config import Settings
 from ..db import Database, now_iso, retry_locked
 from ..errors import ApiError
-from . import ha_client, site_location
+from ..test_reset import register_reset
+from . import ha_client, loop_thread_stop, site_location
 
 log = logging.getLogger("smplwise.ha")
 
@@ -148,6 +149,16 @@ class SyncState:
 
 
 STATE = SyncState()
+_LINK_AT_IMPORT = {k: STATE.__dict__.get(k) for k in ("connected", "disconnected_since")}
+
+
+def reset_link_for_tests() -> None:
+    """The link flag and its `disconnected_since` stamp back to their import-time values (bypassing `__setattr__`, which would
+    stamp a fresh "just lost" instant). Only the link: the counters and stamps of STATE are left to the tests that set them."""
+    STATE.__dict__.update(_LINK_AT_IMPORT)
+
+
+register_reset(__name__, ("STATE",), reset_link_for_tests)
 
 # HA1: a failed connect is classified into a stable code the UI turns into plain Hebrew. While it looks like a platform
 # restart (the core answers the websocket handshake with an HTTP error, refuses the port, or times out) the retry
@@ -652,6 +663,13 @@ def on_state_changed(db: Database, data: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
+def connected() -> bool:
+    """Is the Home Assistant feed connected right now? The one answer behind `elevators.mirror_connected`, `temperature.mirror_connected`,
+    `messaging_runtime.ws_connected` and the samplers' `_connected` (CR-BE-TWINS-2440, review 04:F20): those names stay in their
+    modules (tests replace them there) and all read this."""
+    return bool(STATE.connected)
+
+
 def _note_connect_gap(db: Database) -> None:
     """DEVHIST: the activity log was not fed between the last state the mirror had seen and this connection."""
     from . import device_activity
@@ -660,6 +678,7 @@ def _note_connect_gap(db: Database) -> None:
         with db.connection(mode="read") as conn:
             last = conn.execute("SELECT MAX(state_seen_at) FROM ha_entities").fetchone()[0]
     except Exception:  # noqa: BLE001
+        log.debug("connect gap: the last seen state could not be read", exc_info=True)  # review 04:F27: the one broad handler here that left no trace
         last = None
     device_activity.note_connect(db, last)
     from . import ha_history
@@ -780,6 +799,7 @@ class HaSync:
 
     def shutdown(self) -> None:
         self.stop.set()
+        loop_thread_stop.stop_and_join(self)  # CR-WAVE2-COMBINED-2439: wake the loop now and wait for the thread (bounded)
 
     def _run(self) -> None:
         asyncio.run(self._loop())
@@ -789,13 +809,17 @@ class HaSync:
         backoff = BACKOFF_START_S
         down_since: float | None = None
         stop_evt = asyncio.Event()
+        loop_thread_stop.remember(self, stop_evt)  # shutdown() sets stop_evt at once; the poll below stays as the fallback
 
         async def watch_stop() -> None:
             while not self.stop.is_set():
                 await asyncio.sleep(1)
             stop_evt.set()
 
-        asyncio.create_task(watch_stop())
+        # code review 2026-11-13 04:F07: the watcher is kept in this frame - the event loop holds tasks only weakly, so an unreferenced
+        # one could be collected and stop_evt would then never be set - and cancelled when the loop ends (asyncio.run cancels it too if
+        # the loop itself is cancelled)
+        watcher = asyncio.create_task(watch_stop(), name="ha-sync-watch-stop")
         while not self.stop.is_set():
             try:
                 await self._session(stop_evt)
@@ -835,6 +859,7 @@ class HaSync:
                 backoff, down_since = BACKOFF_START_S, time.monotonic()
                 continue
             backoff = next_backoff(STATE.last_error or "", backoff, down_since, time.monotonic())
+        watcher.cancel()
         STATE.connected = False
 
     async def _session(self, stop_evt: asyncio.Event) -> None:

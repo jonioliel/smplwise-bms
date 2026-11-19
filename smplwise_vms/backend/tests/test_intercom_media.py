@@ -21,6 +21,7 @@ from smplwise.main import create_app
 from smplwise.routers import media
 from smplwise.services import intercom_media as im
 from smplwise.services import leases
+from support.audit import audit_rows
 
 MEDIA = "/api/v1/access-control/stations/{}/media"
 LIVE = "/api/v1/access-control/stations/{}/live/ws?profile={}"
@@ -40,13 +41,6 @@ def fake_provider():
 def mode(c: TestClient, value: str) -> None:
     r = c.patch("/api/v1/settings", json={"access.station_media": value})
     assert r.status_code == 200, r.text
-
-
-def audit_rows(s: Any, action: str) -> list[dict[str, Any]]:
-    from smplwise.db import Database
-
-    with Database(s.db_path).connection(mode="read") as conn:
-        return [dict(r) for r in conn.execute("SELECT * FROM audit_log WHERE action = ? ORDER BY rowid", (action,)).fetchall()]
 
 
 def scripted_relay(frames: list[str], seen: dict[str, Any]):
@@ -406,8 +400,9 @@ def test_a_reservation_never_attached_is_released_and_audited(feed, fake_go2rtc,
     c, s = camera_feed(feed)
     mode(c, "video_talk")
     first = start(c).json()
-    monkeypatch.setattr(im, "RESERVE_S", 0.0)
-    time.sleep(0.01)
+    # a negative grace makes every unattached reservation stale at once: `now - created_at > RESERVE_S` holds even when the clock
+    # has not ticked between the two starts (15.6 ms steps on Windows; a 10 ms sleep and a zero grace failed there - 05:P2-18)
+    monkeypatch.setattr(im, "RESERVE_S", -1.0)
     assert start(c).status_code == 200, "the stale reservation was released"
     end = audit_rows(s, "intercom.talk.end")[-1]
     assert json.loads(end["details_json"])["outcome"] == "never_connected" and end["actor_user_id"] == "dev-joni"

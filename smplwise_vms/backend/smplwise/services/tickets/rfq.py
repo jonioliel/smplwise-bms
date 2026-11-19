@@ -30,7 +30,7 @@ from typing import Any, Mapping, Sequence
 from ...audit import audit
 from ...errors import ApiError
 from ...rbac import INSTALLATION, Principal
-from . import access, model, money, org_locations, quotes, rfq_award_notice, rfq_files, rfq_links, rfq_notify, rfq_terms, settings_doc, store, store_links, store_quotes, store_rfq
+from . import access, fields, model, money, org_locations, quotes, rfq_award_notice, rfq_files, rfq_links, rfq_notify, rfq_terms, settings_doc, store, store_links, store_quotes, store_rfq
 from .access import ALL_DEPARTMENTS, CREATE, DELETE, EXTERNAL, VIEW, Viewer, text
 from .costs import COSTS, COSTS_VIEW, CostRefused, cost_settings, iso, now_utc, parse
 from .text_hygiene import clean_text
@@ -286,16 +286,9 @@ def visible_page(viewer: Viewer, *, state: str = "open", department_id: str | No
 # ---------------------------------------------------------------- time, states
 
 def _instant(conn, value: Any, field_name: str, now: dt.datetime, *, future: bool = False) -> str | None:
-    if value is None or value == "":
-        return None
-    if not isinstance(value, str):
-        raise invalid(conn, field_name, "type")
-    at = parse(value)
-    if at is None:
-        raise invalid(conn, field_name, "format")
-    if (future and at <= now) or at < now - dt.timedelta(days=1) or at > now + dt.timedelta(days=DUE_HORIZON_DAYS):
-        raise invalid(conn, field_name, "range")
-    return iso(at)
+    # CR-TK-MONEY-UTILS (01:F-15): the shared check; the refusal keeps this module's 422 envelope
+    return fields.instant(value, field_name, now, horizon_days=DUE_HORIZON_DAYS, future=future,
+                          refuse=lambda code, name: invalid(conn, name, code))
 
 
 def _due_passed(row: Mapping[str, Any], now: dt.datetime) -> bool:
@@ -693,7 +686,7 @@ def _local(conn, value: str | None, fmt: str) -> str:
         return ""
     from .messaging import time_zone
 
-    return at.astimezone(time_zone(conn)).strftime(fmt)
+    return fields.local_text(at, time_zone(conn), fmt) or ""  # CR-TK-MONEY-UTILS (01:F-15)
 
 
 def message_params(conn, row: Mapping[str, Any], contact: Mapping[str, Any]) -> dict[str, str]:
@@ -1008,6 +1001,31 @@ def second_approvers(conn, row: Mapping[str, Any], first_by: str, quote: Mapping
     return out
 
 
+def second_signer(conn, uid: str, row: Mapping[str, Any], a: Mapping[str, Any], quote: Mapping[str, Any] | None = None) -> str | None:
+    """May `uid` give the second approval of the pending award `a` (confirm or decline it)? "approver" - one of `second_approvers`;
+    "sole" - nobody is left to give it and `uid` is the first approver (see `_second_gate`); None - no. The confirm / decline routes,
+    the manager dashboard and its approvals count all ask this one question."""
+    approvers = second_approvers(conn, row, a["first_by"], quote if quote is not None else store_quotes.quote(conn, a["quote_id"]))
+    if uid in approvers:
+        return "approver"
+    if not approvers and uid == a["first_by"]:
+        return "sole"
+    return None
+
+
+def _second_gate(conn, viewer: Viewer, seen: RfqSeen, a: Mapping[str, Any]) -> bool:
+    """Who may confirm or decline an award that waits for its second approval. Normally one of `second_approvers` (409
+    `second_approver_required` otherwise). CR-RBAC-EVAL-2438 (owner decision O16 a + owner note 14.11: many organisations have ONE
+    signer): when no active second approver exists any more - the only other signer was disabled after the award was made - the
+    flow does not demand one: the first approver may finish (or withdraw) it alone, the same rule the award itself applies when it
+    finds nobody above the requester (owner decision 16.10: the system never waits for an approver who does not exist).
+    Returns True for that sole-signer path, so the audit row can say so."""
+    who = second_signer(conn, viewer.uid, seen.row, a)
+    if who is None:
+        raise _err(conn, 409, "second_approver_required")
+    return who == "sole"
+
+
 def _lines_for(conn, q: Mapping[str, Any], line_indexes: Sequence[int] | None, kinds: Sequence[str] | None) -> list[int]:
     lines = quotes.lines_of(q)
     if line_indexes is not None and kinds is not None:
@@ -1158,8 +1176,7 @@ def confirm(conn, viewer: Viewer, seen: RfqSeen, award_id: str, revision: int, r
         raise _err(conn, 409, "rfq_stale", revision=a["revision"])
     if a["state"] != "pending_second":
         raise _bad_move(conn, seen.row, "award_confirm", now)
-    if viewer.uid not in second_approvers(conn, seen.row, a["first_by"], store_quotes.quote(conn, a["quote_id"])):
-        raise _err(conn, 409, "second_approver_required")
+    sole = _second_gate(conn, viewer, seen, a)
     row = dict(seen.row)
     explicit = award_notice is not None
     if not explicit and rfq_award_notice.mode(conn) == "confirm":
@@ -1169,7 +1186,7 @@ def confirm(conn, viewer: Viewer, seen: RfqSeen, award_id: str, revision: int, r
         rfq_award_notice.check(conn, row, store_rfq.vendor(conn, a["rfq_vendor_id"]) or {}, bool(wanted), now)
     fresh = _finalize(conn, viewer, row, a, now)
     _audit(conn, viewer, "ticket.rfq.award_confirm", row, rid, award_id=a["id"], quote_id=a["quote_id"], state=fresh["state"],
-           approved_total_minor=a["approved_total_minor"])
+           approved_total_minor=a["approved_total_minor"], **({"sole_signer": True} if sole else {}))
     notice = rfq_award_notice.send(conn, viewer, system_row(conn, row["id"]) or row, store_rfq.award(conn, a["id"]) or a, now, rid,
                                    via="confirm") if wanted else None
     return {"award": store_rfq.award(conn, a["id"]), "quote": store_quotes.quote(conn, a["quote_id"]), "vendor_id": a["rfq_vendor_id"],
@@ -1184,8 +1201,7 @@ def decline_award(conn, viewer: Viewer, seen: RfqSeen, award_id: str, revision: 
         raise _err(conn, 409, "rfq_stale", revision=a["revision"])
     if a["state"] != "pending_second":
         raise _bad_move(conn, seen.row, "award_decline", now)
-    if viewer.uid not in second_approvers(conn, seen.row, a["first_by"], store_quotes.quote(conn, a["quote_id"])):
-        raise _err(conn, 409, "second_approver_required")
+    sole = _second_gate(conn, viewer, seen, a)
     why = _text_field(conn, reason, "reason", REASON_MAX, required=True, multiline=True)
     at = iso(now)
     store_rfq.update_award(conn, a["id"], {"state": "declined", "second_by": viewer.uid, "second_at": at, "decline_reason": why, "updated_at": at})
@@ -1193,7 +1209,7 @@ def decline_award(conn, viewer: Viewer, seen: RfqSeen, award_id: str, revision: 
     _touch(conn, seen.row, {}, None, now)
     store_rfq.insert_event(conn, seen.row["id"], "award_declined", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
                            rfq_vendor_id=a["rfq_vendor_id"], data={"award_id": a["id"]}, at=at)
-    _audit(conn, viewer, "ticket.rfq.award_decline", seen.row, rid, award_id=a["id"])
+    _audit(conn, viewer, "ticket.rfq.award_decline", seen.row, rid, award_id=a["id"], **({"sole_signer": True} if sole else {}))
 
 
 # ---------------------------------------------------------------- cancel / close

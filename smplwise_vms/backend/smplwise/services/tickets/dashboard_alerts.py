@@ -27,6 +27,7 @@ from typing import Any
 from ...services import notify_policy
 from . import access, board, dashboard_pay, notify_bridge, rfq, rfq_notify, settings_doc, store, store_dash, store_dash_extra, stuck
 from .access import Viewer
+from .timeutil import zone_of
 
 log = logging.getLogger("smplwise.tickets.dashboard_alerts")
 
@@ -36,10 +37,7 @@ def source_on(conn, source: str) -> bool:
     return bool(policy and policy.get("enabled"))
 
 
-def _tz(conn):
-    from .messaging import time_zone
-
-    return time_zone(conn)
+_tz = zone_of  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 def payments_tick(conn, now: dt.datetime) -> dict[str, int]:
@@ -122,7 +120,7 @@ def numbers(conn, v: Viewer, now: dt.datetime, tz: dt.tzinfo) -> dict[str, Any]:
         rseen = rfq.visible_by_ids(v, [a["rfq_id"] for a in awards])
         for a in awards:
             rs = rseen.get(a["rfq_id"])
-            if rs is not None and v.uid in rfq.second_approvers(conn, rs.row, a["first_by"], quote_row(conn, a["quote_id"])):
+            if rs is not None and rfq.second_signer(conn, v.uid, rs.row, a, quote_row(conn, a["quote_id"])) is not None:
                 approvals += 1
     return {"stuck_by": stuck_by, "stuck": sum(stuck_by.values()), "arrivals": arrivals, "approvals": approvals}
 

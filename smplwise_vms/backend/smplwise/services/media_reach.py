@@ -23,6 +23,7 @@ import threading
 import time
 from typing import Any
 
+from ..test_reset import register_reset
 from .timeutil import iso_utc
 
 log = logging.getLogger("smplwise.media_reach")
@@ -153,6 +154,7 @@ class Reach:
 
 
 REACH = Reach()
+register_reset(__name__, ("REACH",), REACH.reset)
 
 
 def is_connection_failure(exc: BaseException) -> bool:

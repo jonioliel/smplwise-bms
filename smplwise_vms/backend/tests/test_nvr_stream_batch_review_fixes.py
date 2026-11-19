@@ -251,7 +251,9 @@ def test_status_list_and_stop_use_a_read_connection_and_never_recover(bw, monkey
     seen.clear()
     s = c.post(f"/api/v1/nvr/stream-batches/{bid}/stop")
     assert s.status_code == 200, s.text
-    assert [m for m, lbl in seen if lbl == f"POST /api/v1/nvr/stream-batches/{bid}/stop"] == ["read"], seen
+    # CR-BRIDGE-PREVERIFY-2440 (auth.conn_label, 05:P3-08): a route with a path parameter is labelled with its TEMPLATE
+    stop_labels = {f"POST /api/v1/nvr/stream-batches/{bid}/stop", "POST /api/v1/nvr/stream-batches/{batch_id}/stop"}
+    assert [m for m, lbl in seen if lbl in stop_labels] == ["read"], seen
     assert s.json()["state"] == "interrupted", "a batch whose runner is gone is ended by the stop itself"
     monkeypatch.setattr(db, "connection", real)
     janitor_tick(db, with_nvr(settings))
