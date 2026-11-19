@@ -49,7 +49,8 @@ export interface SegmentedChange<V extends string = string> {
  *  - knobs a host may set beside the track ones (CR-CMP2-SEGMENTED-B-2450, so a screen keeps its key through the shadow root):
  *    --sw-seg-fg (the ink of a key that is not chosen), --sw-seg-fs / --sw-seg-fw / --sw-seg-on-fw (the label size, weight, the
  *    chosen key's weight), --sw-seg-key-min-w,
- *    --sw-seg-count-bg / --sw-seg-count-on-bg (the count pill).
+ *    --sw-seg-count-bg / --sw-seg-count-on-bg (the count pill), --sw-seg-count-fs / --sw-seg-count-pad / --sw-seg-count-min-w (its size:
+ *    a host whose counts were plain small figures - the glass keys - sets no pill, so its strip keeps its width).
  *  - motion (emil-design-eng): a settings key is pressed tens of times a day, so the thumb does not slide; colour fades on the
  *    hover curve and a key gives on pointer-down (`--sw-press-scale`, 1 = none in the skins that turn press feedback off).
  *  - rich keys (CR-CMP2-SEGMENTED-C-2450): an option may carry an `icon`, a second line (`sub`), a `badge` and `dimmed`. `labels`
@@ -247,11 +248,11 @@ export class SwSegmented<V extends string = string> extends LitElement {
       color: var(--sw-seg-badge-fg, var(--sw-accent-text));
     }
     .n {
-      font-size: var(--sw-fs-2xs, 11px);
+      font-size: var(--sw-seg-count-fs, var(--sw-fs-2xs, 11px));
       font-weight: var(--sw-fw-bold);
       font-variant-numeric: tabular-nums;
-      min-inline-size: 18px;
-      padding: 1px 5px;
+      min-inline-size: var(--sw-seg-count-min-w, 18px);
+      padding: var(--sw-seg-count-pad, 1px 5px);
       box-sizing: border-box;
       border-radius: var(--sw-r-pill);
       background: var(--sw-seg-count-bg, color-mix(in srgb, currentColor 14%, transparent));

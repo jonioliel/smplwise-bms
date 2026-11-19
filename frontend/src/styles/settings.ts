@@ -101,6 +101,9 @@ export const settingsSegStyles = css`
     --sw-seg-on-shadow: unset;
     --sw-seg-count-bg: unset;
     --sw-seg-count-on-bg: unset;
+    --sw-seg-count-fs: unset;
+    --sw-seg-count-pad: unset;
+    --sw-seg-count-min-w: unset;
   }
 `;
 

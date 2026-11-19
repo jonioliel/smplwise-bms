@@ -335,6 +335,11 @@ export const mediaGlassControls = css`
     --sw-seg-on-shadow: var(--dv-shadow-control);
     --sw-seg-count-bg: transparent;
     --sw-seg-count-on-bg: transparent;
+    /* the glass count is a plain small figure (.seg button small), no pill: without these the schedules' state strip grew ~50 px at
+       1440 px and pushed the "new" key to a row of its own (visual-matrix devices-schedules, RELEASE-2450-TRAIN phase 1) */
+    --sw-seg-count-fs: var(--sw-fs-xs);
+    --sw-seg-count-pad: 0;
+    --sw-seg-count-min-w: 0;
   }
   sw-segmented[size='sm'] {
     --sw-seg-h: 30px;
