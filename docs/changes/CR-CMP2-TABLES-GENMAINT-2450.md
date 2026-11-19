@@ -97,7 +97,7 @@ The PC ran at 100 % CPU (other agents) for most of the afternoon; several timeou
 
 Runner, own worktree `~/work/t2450-genm` at `66ab050fd`, `nice -n 19`, preview build, `--workers=2`, `--retries=1`, no `-u`:
 
-- Every spec file with a Linux baseline (58 files, all projects): **801 passed, 518 skipped (no baseline for that project), 1 flaky,
+- Every spec file with a Linux baseline (52 files, all projects): **801 passed, 518 skipped (no baseline for that project), 1 flaky,
   0 failed** (23.7 min). The flaky one is `visual-matrix` `state-panels panels dark` on mobile (`Page.captureScreenshot` protocol error,
   passed on retry; it is flaky on every branch tonight). **No baseline changed: nothing refreshed** - the shared SELECTS / TABLES specs
   (`pixel-sw-segmented`, `pixel-sw-table`, `pixel-audit30g-video`, `pixel-access-s12`, `pixel-settings-intercom-cards-2401`, the
