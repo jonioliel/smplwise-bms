@@ -400,13 +400,11 @@ const SEG_INVENTORY: [file: string, chosen: string][] = [
   // CR-CSS-FRAGMENTS-TAIL-2442: the same for elevators/elevator-settings, screens/explore-presence, screens/home-widgets and
   // shell/sw-home-personal (segThumbPlainStyles)
   // CR-CMP2-SELECTS-2450 (owner N11): the shared segmented control
-  // CR-CMP2-SEGMENTED-B-2450: system-home-screen, system-mapping, system-timeline-colors and system-update draw their keys with it now
+  // CR-CMP2-SEGMENTED-B-2450: system-home-screen, system-mapping, system-timeline-colors, system-update and temperature detail / report /
+  // wizard draw their keys with it now
   ['components/sw-segmented.ts', ".seg button[aria-pressed='true']"],
   ['styles/fragments.ts', ".seg button[aria-pressed='true']"],
   ['styles/settings.ts', ".seg button[aria-selected='true']"],
-  ['temperature/detail.ts', ".seg button[aria-pressed='true']"],
-  ['temperature/report.ts', ".seg button[aria-pressed='true']"],
-  ['temperature/wizard.ts', ".seg button[aria-pressed='true']"],
 ];
 
 test('lint: every segmented control in the inventory draws its chosen key with --sw-seg-key / --sw-seg-key-ink (DARK-SEG-ALL-2380)', () => {

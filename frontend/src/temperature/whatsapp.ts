@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-dialog';
 import { describeError } from '../api/client';
 import { createSchedule, deleteSchedule, getReportPreview, getReportRecipients, getSends, listSchedules, sendReport, type RecipientsResponse, type ReportParams,
@@ -227,8 +229,8 @@ export class TempWa extends LitElement {
             <span class="hint">${tt('waTextOnly')}</span></div>
           <div class="sched">
             <label class="sw"><input type="checkbox" .checked=${this.scheduled} @change=${(e: Event) => { this.scheduled = (e.target as HTMLInputElement).checked; }} data-wa-sched />${tt('waSchedule')}</label>
-            ${this.scheduled ? html`<div class="r"><span class="seg" role="group">${(['daily', 'weekly', 'monthly'] as Freq[]).map((f) => html`<button type="button" aria-pressed=${String(this.freq === f)}
-                @click=${() => { this.freq = f; }}>${tt(f === 'daily' ? 'waDaily' : f === 'weekly' ? 'waWeekly' : 'waMonthly')}</button>`)}</span>
+            ${this.scheduled ? html`<div class="r"><sw-segmented value=${this.freq} @change=${(e: CustomEvent<SegmentedChange>) => { this.freq = e.detail.value as Freq; }}
+                .options=${(['daily', 'weekly', 'monthly'] as Freq[]).map((f) => ({ value: f, label: tt(f === 'daily' ? 'waDaily' : f === 'weekly' ? 'waWeekly' : 'waMonthly') }))}></sw-segmented>
               ${this.freq === 'weekly' ? html`<select class="in" aria-label=${tt('waWeekly')} @change=${(e: Event) => { this.dow = Number((e.target as HTMLSelectElement).value); }}>
                 ${[0, 1, 2, 3, 4, 5, 6].map((d) => html`<option value=${d} ?selected=${this.dow === d}>${tt(`dow${d}` as TtKey)}</option>`)}</select>` : nothing}
               ${this.freq === 'monthly' ? html`<label class="sw">${tt('waDom')}<input class="in" type="number" min="1" max="28" style="inline-size:70px" .value=${String(this.dom)}
