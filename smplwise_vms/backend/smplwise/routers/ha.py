@@ -271,7 +271,7 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
         raise ApiError(422, "validation", "expires_at חייב להיות UTC (Z).")
     if expires < dt.datetime.now(dt.timezone.utc):
         raise ApiError(409, "expired", "הבקשה פגה; נסה שוב.")
-    existing = conn.execute("SELECT * FROM ha_actions WHERE principal_user_id = ? AND client_request_id = ?", (principal.user_id, body.client_request_id)).fetchone()
+    existing = store.action_for_request(conn, principal.user_id, body.client_request_id)
     if existing:
         return _action_row(conn, existing["id"])  # idempotent: a duplicate click never sends twice
     spec, data = ha_bridge.validate_action(body.allowed_action_id, entity_id, body.arguments)
@@ -302,11 +302,10 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
     cleaned = {k: v for k, v in data.items() if k != "entity_id"}
     row_args = (aid, entity_id, body.allowed_action_id, json.dumps(cleaned, ensure_ascii=False), principal.user_id, principal.username, body.client_request_id, "pending", now,
                 ha_bridge.expectation_for(spec, e.get("attributes")), "bridge")
-    insert_sql = "INSERT INTO ha_actions(id, entity_id, action_id, arguments_json, principal_user_id, principal_username, client_request_id, status, requested_at, expected_state, via) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING"
     if not paired:
         with db.write_aside(label="ha.action not paired") as w:
-            w.execute(insert_sql, row_args)
-            w.execute("UPDATE ha_actions SET status = 'failed', error = 'bridge_not_paired', responded_at = ? WHERE id = ?", (now_iso(), aid))
+            store.insert_action(w, row_args)
+            store.fail_not_paired(w, now_iso(), aid)
             audit(w, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="bridge_not_paired",
                   request_id=rid, details={"action": body.allowed_action_id, "id": aid})
         raise ApiError(503, "bridge_not_paired", "פעולות אלו דורשות את הגשר מותקן ומצומד.", details={"action_id": aid})
@@ -319,14 +318,14 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
         if other is not None:
             other.wait(20)
         with db.connection(mode="read", label="ha.action duplicate") as r:
-            again = r.execute("SELECT id FROM ha_actions WHERE principal_user_id = ? AND client_request_id = ?", key).fetchone()
+            again = store.action_id_for_request(r, key)
             if again:
                 return _action_row(r, again["id"])
         raise ApiError(409, "duplicate_in_flight", "הבקשה כבר נשלחה; רעננו.")
     # the request's read snapshot may predate a duplicate that finished a moment ago (it held the claim until its row was
     # committed): look again on a fresh snapshot now that this request holds the claim - a duplicate click never sends twice
     with db.connection(mode="read", label="ha.action recheck") as r:
-        again = r.execute("SELECT id FROM ha_actions WHERE principal_user_id = ? AND client_request_id = ?", key).fetchone()
+        again = store.action_id_for_request(r, key)
         if again:
             _unclaim(key, claim)
             return _action_row(r, again["id"])
@@ -343,7 +342,7 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
             start = timing.clock()
             with db.write_aside(label="ha.action pending", wait_s=PENDING_WAIT_S, priority=True) as w:
                 timing.span("pending_wait", start)
-                w.execute(insert_sql, row_args)
+                store.insert_action(w, row_args)
                 audit(w, actor=principal, action="ha.action", decision="allowed", resource_type="ha_entity", resource_id=entity_id, reason="attempt",
                       request_id=rid, details={"action": body.allowed_action_id, "id": aid, "phase": "attempt", "arguments": body.arguments,
                                                "sensitive": spec["sensitive"], **({"service_identity": True} if "on_behalf_of" in subj else {})})
@@ -376,8 +375,8 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
 
             def _failed() -> None:
                 with db.write_aside(label="ha.action failed") as w:
-                    w.execute(insert_sql, row_args)
-                    w.execute("UPDATE ha_actions SET status = ?, error = ?, responded_at = ? WHERE id = ?", (row_status, err_code, now_iso(), aid))
+                    store.insert_action(w, row_args)
+                    store.set_action_status(w, row_status, err_code, now_iso(), aid)
                     audit(w, actor=principal, action="ha.action", decision="allowed", resource_type="ha_entity", resource_id=entity_id, reason=err_code,
                           request_id=rid, details={"action": body.allowed_action_id, "id": aid, "status": row_status})
 
@@ -391,8 +390,8 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
 
         def _answer() -> dict[str, Any]:
             with db.write_aside(label="ha.action answer") as w:
-                w.execute(insert_sql, row_args)
-                w.execute("UPDATE ha_actions SET status = ?, error = ?, responded_at = ? WHERE id = ?", (status, error, now_iso(), aid))
+                store.insert_action(w, row_args)
+                store.set_action_status(w, status, error, now_iso(), aid)
                 device_activity.note_context(w, aid, result, principal.user_id, principal.username)  # DEVHIST: HA's context id of the command -> the person behind the state change
                 audit(w, actor=principal, action="ha.action", decision="allowed" if ok else "denied", resource_type="ha_entity", resource_id=entity_id, reason=error,
                       request_id=rid, details={"action": body.allowed_action_id, "id": aid, "arguments": body.arguments, "sensitive": spec["sensitive"]})
