@@ -6,7 +6,7 @@
  */
 import { nothing } from 'lit';
 
-export type TableTone = 'ok' | 'warn' | 'bad' | 'info';
+type TableTone = 'ok' | 'warn' | 'bad' | 'info';
 
 const TONE: Readonly<Record<string, TableTone>> = { 'c-ok': 'ok', 'c-warn': 'warn', 'c-err': 'bad', 'c-acc': 'info' };
 
