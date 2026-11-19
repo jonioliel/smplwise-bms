@@ -1,6 +1,8 @@
 import { LitElement, css, html, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page'; // AUDIT30-C-TICKETS (#6): the one page frame
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { repeat } from 'lit/directives/repeat.js';
 import '../tickets/rfq-new';
 import '../tickets/rfq-board';
@@ -248,10 +250,9 @@ export class TicketsRfqsPage extends LitElement {
           <button type="button" class="rc" aria-pressed=${String(!this.r.dept)} data-dept="" @click=${() => go(rfqHref({ ...this.r, dept: '' }))}>${rt('allDepartments')}</button>
           ${depts.map((d) => html`<button type="button" class="rc" aria-pressed=${String(this.r.dept === d.id)} data-dept=${d.id} @click=${() => go(rfqHref({ ...this.r, dept: d.id }))}>${bidi(d.name)}</button>`)}
         </div>` : nothing}
-        <div class="seg sm stf" role="radiogroup" aria-label=${rt('stateStrip')} data-rfq-strip>
-          ${strip.map((s) => html`<button type="button" role="radio" aria-checked=${String(this.r.state === s.id)} data-state=${s.id}
-            @click=${() => go(rfqHref({ ...this.r, state: s.id }))}>${rt(`st_${s.id}` as RfqTextKey)}<small>${s.count}</small></button>`)}
-        </div>
+        <sw-segmented class="stf" radio size="sm" label=${rt('stateStrip')} data-rfq-strip value=${this.r.state}
+          @change=${(e: CustomEvent<SegmentedChange>) => go(rfqHref({ ...this.r, state: e.detail.value as typeof this.r.state }))}
+          .options=${strip.map((s) => ({ value: s.id, label: rt(`st_${s.id}` as RfqTextKey), count: String(s.count), attrs: { 'data-state': s.id } }))}></sw-segmented>
         <span class="grow"></span>
         <label class="search">${tIcon('search')}<span class="vh">${rt('searchShort')}</span><input type="search" data-rfq-search maxlength="80"
           placeholder=${this.phone ? rt('searchShort') : rt('searchPh')} .value=${this.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>

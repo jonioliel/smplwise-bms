@@ -15,6 +15,8 @@ import type { LineKind } from '../api/tickets-costs';
 import { rememberDemoContact, ticketsRfqApi, type RfqChannel, type RfqDetail, type RfqMeta } from '../api/tickets-rfq';
 import { tIcon } from './icons';
 import { rIcon } from './rfq-icons';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { ct, type CostTextKey } from './cost-text';
 import { rt, type RfqTextKey } from './rfq-text';
 import { rfqStyles } from './rfq-styles';
@@ -202,10 +204,9 @@ export class TicketsRfqNew extends LitElement {
       <span class="av" aria-hidden="true">${initials(company || name)}</span>
       <label for=${`rv-${c.id}`} class="vname"><span><b>${bidi(company || name)}</b><small id=${`rvs-${c.id}`}>${bidi([company ? name : '', c.phone ?? c.email ?? ''].filter(Boolean).join(' · '))}</small></span></label>
       <div class="opts">
-        ${v && options ? html`<span class="seg sm" role="radiogroup" aria-label=${rt('chTitle')} data-rfq-channel=${c.id}>
-            ${CHANNELS.map((x) => html`<button type="button" role="radio" aria-checked=${String(ch === x)} ?disabled=${!this.channelOk(c, x) || this.busy} data-ch=${x}
-              @click=${() => this.setVendorOpt(c.id, { channel: x })}>${this.chIcon(x)}<span class="vh">${rt(`ch_${x}`)}</span></button>`)}
-          </span>
+        ${v && options ? html`<sw-segmented radio size="sm" labels="none" label=${rt('chTitle')} data-rfq-channel=${c.id} value=${ch}
+            @change=${(e: CustomEvent<SegmentedChange>) => this.setVendorOpt(c.id, { channel: e.detail.value as RfqChannel })}
+            .options=${CHANNELS.map((x) => ({ value: x, label: rt(`ch_${x}`), icon: this.chIcon(x), disabled: !this.channelOk(c, x) || this.busy, attrs: { 'data-ch': x } }))}></sw-segmented>
           <label class="chk" data-rfq-code=${c.id}><input type="checkbox" .checked=${code} ?disabled=${c.require_code || this.busy}
             @change=${(e: Event) => this.setVendorOpt(c.id, { require_code: (e.target as HTMLInputElement).checked })} />${rt('codeOn')}</label>`
         : html`<span class="chan" data-rfq-channel-ro=${ch}>${this.chIcon(ch)}${rt(`ch_${ch}`)}</span>${code ? html`<span class="chip" data-rfq-code-ro>${tIcon('lock')}${rt('codeOn')}</span>` : nothing}`}

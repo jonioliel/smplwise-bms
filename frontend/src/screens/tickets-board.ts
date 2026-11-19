@@ -9,6 +9,8 @@ import '../tickets/board-tree';
 import './tickets-handlers'; // CR-DEPT-MANAGER-HANDLERS: the board's "מטפלים וספקים" pane
 import '../components/sw-pager';
 import '../components/sw-page';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { gridCols, packPages, rowGap, type PackGroup, type PackSection, type PageSection } from './tickets-pages';
 import { LongListsController } from '../api/long-lists';
 import { automationsStyles } from '../styles/automations-glass';
@@ -126,7 +128,6 @@ export class TicketsBoard extends TicketsViewBase {
       font-weight: var(--sw-fw-bold);
       font-variant-numeric: tabular-nums;
     }
-    .seg button small,
     .rc small {
       font-variant-numeric: tabular-nums;
       margin-inline-start: 6px;
@@ -256,23 +257,21 @@ export class TicketsBoard extends TicketsViewBase {
       .dh-row > [data-board-pane] {
         align-self: flex-start;
       }
-      /* the state strip (in the "סינון" sheet on a phone): three a row (nothing hidden behind a scroll, every count readable) */
-      .fpop .seg.stf {
+      /* the state strip (in the "סינון" sheet on a phone): three a row (nothing hidden behind a scroll, every count readable).
+         CR-CMP2-SEGMENTED-C-2450: sw-segmented - its wrapping track takes three keys a line through the key flex knob */
+      .fpop sw-segmented.stf {
+        display: flex;
         inline-size: 100%;
-        box-sizing: border-box;
-        display: grid;
-        grid-auto-flow: row;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        border-radius: var(--sw-r-xl);
+        --sw-seg-radius: var(--sw-r-xl);
+        --sw-seg-h: 44px;
+        --sw-seg-key-pad: 6px;
+        --sw-seg-key-flex: 0 0 calc((100% - 2 * var(--sw-seg-gap, 2px)) / 3);
       }
       /* a key keeps its count inside it (the guard: a "3" escaped its key by 3-12 px at 320-390); the label truncates first */
-      .fpop .seg.stf button {
-        min-block-size: 44px;
+      .fpop sw-segmented.stf::part(label) {
         min-inline-size: 0;
-        padding-inline: 6px;
         overflow: hidden;
         text-overflow: ellipsis;
-        white-space: nowrap;
       }
     }
   `, ticketChipSelected];
@@ -490,10 +489,9 @@ export class TicketsBoard extends TicketsViewBase {
     // AUDIT30-C-TICKETS (#6): the title is sw-page's (the one page frame); the board / handlers switch, the view switch and "+ חדשה" sit in
     // its actions slot (#8 / B6: "+ חדשה" moves to sw-page's `primary` slot once branch B adds it). Below the frame's header: the floor
     // chips (when D19 puts them there) and ONE toolbar.
-    const paneSwitch = this.meta?.can.manage ? html`<div class="seg sm" role="radiogroup" aria-label=${tt('dmPaneGroup')} data-board-pane>
-          <button type="button" role="radio" aria-checked=${String(!handlersPane)} data-pane="cards" @click=${() => this.go({ pane: 'cards' })}>${tt('area')}</button>
-          <button type="button" role="radio" aria-checked=${String(handlersPane)} data-pane="handlers" @click=${() => this.go({ pane: 'handlers' })}>${tt('hdTitle')}</button>
-        </div>` : nothing;
+    const paneSwitch = this.meta?.can.manage ? html`<sw-segmented radio size="sm" label=${tt('dmPaneGroup')} data-board-pane value=${handlersPane ? 'handlers' : 'cards'}
+          @change=${(e: CustomEvent<SegmentedChange>) => this.go({ pane: e.detail.value as 'cards' | 'handlers' })}
+          .options=${[{ value: 'cards', label: tt('area'), attrs: { 'data-pane': 'cards' } }, { value: 'handlers', label: tt('hdTitle'), attrs: { 'data-pane': 'handlers' } }]}></sw-segmented>` : nothing;
     // a phone: the board / handlers switch takes a row of its own above the floor chips (it chooses the pane they filter), so the frame's
     // title row keeps only the view switch and "+"
     const actions = html`<div class="pact" slot="actions">
@@ -503,9 +501,8 @@ export class TicketsBoard extends TicketsViewBase {
     </div>`;
     // AUDIT30-C-TICKETS (#9, Q14 option 1): on a phone the state strip goes into the one "סינון" sheet (with the departments): at most two
     // rows of keys above the cards
-    const strip = d ? html`<div class="seg sm stf" role="radiogroup" aria-label=${bt('stateStrip')} data-state-strip>
-          ${stripItems(ui.closed_strip, d.counts).map((s) => html`<button type="button" role="radio" aria-checked=${String(this.r.state === s.id)} data-state=${s.id} title=${this.stripTip(s.id)} @click=${() => this.go({ state: s.id })}>${s.label}<small>${s.count}</small></button>`)}
-        </div>` : nothing;
+    const strip = d ? html`<sw-segmented class="stf" radio size="sm" label=${bt('stateStrip')} data-state-strip value=${this.r.state} @change=${(e: CustomEvent<SegmentedChange>) => this.go({ state: e.detail.value as BoardRoute['state'] })}
+          .options=${stripItems(ui.closed_strip, d.counts).map((s) => ({ value: s.id, label: s.label, count: String(s.count), title: this.stripTip(s.id), attrs: { 'data-state': s.id } }))}></sw-segmented>` : nothing;
     const panel = this.filterOpen ? filterPanel(this.panelBody(layout, this.phone ? strip : nothing), chips.length, this.resetFilters, () => (this.filterOpen = false)) : nothing;
     const chipsRow = floor.length > 0 && !handlersPane;
     return html`${actions}<header class="dh" data-board-header>

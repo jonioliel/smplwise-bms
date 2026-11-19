@@ -883,9 +883,6 @@ export const rfqStyles = css`
     justify-content: flex-end;
     gap: 6px;
   }
-  .vrow .seg button {
-    padding-inline: 8px;
-  }
   .chk {
     display: inline-flex;
     align-items: center;
@@ -1050,12 +1047,12 @@ export const rfqStyles = css`
     .dh-det {
       gap: 10px;
     }
-    .dh-det .stf {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+    /* CR-CMP2-SEGMENTED-C-2450: the state strip (sw-segmented) is two keys a line on a phone, through the key flex knob */
+    .dh-det sw-segmented.stf {
+      display: flex;
       inline-size: 100%;
-      box-sizing: border-box;
-      border-radius: var(--sw-r-xl);
+      --sw-seg-radius: var(--sw-r-xl);
+      --sw-seg-key-flex: 0 0 calc((100% - var(--sw-seg-gap, 2px)) / 2);
     }
     .dh-det .grow {
       display: none;
