@@ -1077,6 +1077,27 @@ export function parseAction(raw: unknown, ctx: ModelContext = {}): ActionBlock |
   const r = raw;
   const bad = (hint: LockedReason = 'unsupported_step') => lockedFor(raw, 'action', ctx, hint);
   const mk = <T extends ActionBlock>(b: unknown): T => finish<T>({ ...(b as object), uid: (ctx.uid ?? newUid)() }, 'action', ctx);
+  const flow = flowAction(raw, r, ctx, bad, mk);
+  if (flow) return flow;
+  if (typeof r.condition === 'string' && !('action' in r) && !('service' in r)) {
+    const c = parseCondition(raw, ctx);
+    if (c.kind === 'locked') return { ...c, effects: 'none' };
+    return mk<ActionBlock>({ kind: 'typed', raw, type: 'condition', condition: c });
+  }
+  if ('type' in r && 'device_id' in r && 'domain' in r) return mkLocked(raw, 'device', 'action', ctx);
+  const svc = r.action ?? r.service;
+  if (svc === undefined) return bad(); // variables, wait_*, parallel, sequence, event, scene ... : known, not typed
+  if (typeof svc !== 'string') return lockedFor(raw, 'action', ctx, 'unknown');
+  if (hasTemplate(raw)) return mkLocked(raw, 'template', 'action', ctx);
+  if (!onlyKeys(r, ['action', 'service', 'target', 'data', 'entity_id'])) return bad();
+  return serviceAction(raw, r, svc, ctx, bad, mk);
+}
+
+/** Builds a typed action block (with a fresh uid and its sentence). */
+type MakeAction = <T extends ActionBlock>(b: unknown) => T;
+
+/** CR-FE-COMPLEXITY-2450 (split of parseAction, moved verbatim): the flow steps choose / if / repeat / delay / stop; null = none of them. */
+function flowAction(raw: Raw, r: Raw, ctx: ModelContext, bad: (hint?: LockedReason) => LockedBlock, mk: MakeAction): ActionBlock | LockedBlock | null {
   if ('choose' in r) {
     if (!onlyKeys(r, ['choose', 'default']) || !Array.isArray(r.choose)) return bad();
     const opts: Array<{ conditions: Array<ConditionBlock | LockedBlock>; sequence: Block[] }> = [];
@@ -1105,17 +1126,12 @@ export function parseAction(raw: unknown, ctx: ModelContext = {}): ActionBlock |
     if (!onlyKeys(r, ['stop']) || typeof r.stop !== 'string') return bad();
     return mk<ActionBlock>({ kind: 'typed', raw, type: 'stop', message: r.stop });
   }
-  if (typeof r.condition === 'string' && !('action' in r) && !('service' in r)) {
-    const c = parseCondition(raw, ctx);
-    if (c.kind === 'locked') return { ...c, effects: 'none' };
-    return mk<ActionBlock>({ kind: 'typed', raw, type: 'condition', condition: c });
-  }
-  if ('type' in r && 'device_id' in r && 'domain' in r) return mkLocked(raw, 'device', 'action', ctx);
-  const svc = r.action ?? r.service;
-  if (svc === undefined) return bad(); // variables, wait_*, parallel, sequence, event, scene ... : known, not typed
-  if (typeof svc !== 'string') return lockedFor(raw, 'action', ctx, 'unknown');
-  if (hasTemplate(raw)) return mkLocked(raw, 'template', 'action', ctx);
-  if (!onlyKeys(r, ['action', 'service', 'target', 'data', 'entity_id'])) return bad();
+  return null;
+}
+
+/** CR-FE-COMPLEXITY-2450 (split of parseAction, moved verbatim): a service call the model types (its role, targets, data and the
+ * notify step's critical sound); a refused service is locked with its reason. */
+function serviceAction(raw: Raw, r: Raw, svc: string, ctx: ModelContext, bad: (hint?: LockedReason) => LockedBlock, mk: MakeAction): ActionBlock | LockedBlock {
   const cls = classifyAction(svc, ctx);
   if (!cls.ok) return mkLocked(raw, cls.reason, 'action', ctx);
   let ids: string[] | null = [];
