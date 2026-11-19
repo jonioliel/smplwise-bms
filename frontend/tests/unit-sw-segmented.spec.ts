@@ -298,6 +298,8 @@ test.describe('sw-chip-choice: the contract in the source and its adopters', () 
     // home panel's summary tiles are a `multi` row
     'screens/investigate-events.ts',
     'shell/sw-home-personal.ts',
+    // CR-CMP2-POLISH-2470: the generator routing drawers' recipient / channel choosers (multi)
+    'generator/gen-routing.ts',
   ];
   test('adoption: these screens draw their single-choice chip rows with sw-chip-choice (no hand-built `.seg` row comes back)', () => {
     const bad: string[] = [];
@@ -322,4 +324,50 @@ test('sw-tabs: an item keeps its data-* hooks on its tab, a warning dot can be n
   expect(sync).toMatch(/<sw-tabs variant="pill" group-label=\$\{tr\('ספק'\)\} data-provider-tabs/);
   expect(sync).toMatch(/attrs: \{ 'data-provider-tab': p \}/);
   expect(sync).not.toMatch(/role="tablist"/);
+});
+
+// CR-CMP2-POLISH-2470: sw-chip-choice can take the installation's selected-chip look (`ui.chip_selected`) as sw-chip does - the events
+// centre's two rows (sw-chip rows until CR-CMP2-TABS-2460) follow the setting again; the generator routing drawers' choosers moved in.
+test.describe('sw-chip-choice: the selected-chip setting, the events centre, the generator choosers', () => {
+  const src = read('components/sw-chip-choice.ts');
+  const styles = src.split('static styles')[1];
+
+  test('selected-look="setting" draws the shared selected fragments (ring, deeper ink, check; the setting knobs); accent stays the default', () => {
+    expect(src).toContain("import { chipSelected, chipSelectedCheck, chipSelectedHover } from '../styles/chip-selected';");
+    expect(src).toContain("@property({ reflect: true, attribute: 'selected-look' }) selectedLook: 'accent' | 'setting' = 'accent';");
+    expect(styles).toMatch(/:host\(\[selected-look='setting'\]\) button\[aria-pressed='true'\] \{\s*\$\{chipSelected\}/);
+    expect(styles).toMatch(/:host\(\[selected-look='setting'\]\) button\[aria-pressed='true'\]::before \{\s*\$\{chipSelectedCheck\}/);
+    expect(styles).toMatch(/:host\(\[selected-look='setting'\]\) button\[aria-pressed='true'\]:hover:not\(:disabled\) \{\s*\$\{chipSelectedHover\}/);
+    // the fragments read the --sw-chip-on-* knobs that <html data-chip-on> sets (design/css.ts CHIP_ON_CSS)
+    const frag = read('styles/chip-selected.ts');
+    for (const k of ['--sw-chip-on-bg', '--sw-chip-on-ink', '--sw-chip-on-ring', '--sw-chip-on-check']) expect(frag, k).toContain(`var(${k}`);
+    // the default accent look is untouched
+    expect(styles).toMatch(/button\[aria-pressed='true'\] \{\s*background: var\(--sw-chipc-on-bg, var\(--sw-accent\)\);/);
+  });
+
+  test('the events centre: both chip rows follow the setting', () => {
+    const ev = read('screens/investigate-events.ts');
+    expect(ev.match(/<sw-chip-choice class="evc" selected-look="setting"/g) ?? []).toHaveLength(2);
+    expect(ev).toContain('data-events-ack-filter');
+    expect(ev).toContain('data-events-view');
+  });
+
+  test('the generator routing drawers: the choosers are sw-chip-choice multi in the module look, the hooks kept, no checkbox labels', () => {
+    const r = read('generator/gen-routing.ts');
+    expect(r).toContain('html`<sw-chip-choice multi label=${label} .options=${options} .values=${on}');
+    expect(r).not.toMatch(/<label class="\$\{on \? 'on' : ''\}/);
+    expect(r).not.toMatch(/<label class="on dis"><input type="checkbox"/);
+    // two drawers x (roles, users, channels); the inbox is always on and cannot be turned off
+    expect(r.match(/<div class="chooser" data-roles>\$\{chooser\(/g) ?? []).toHaveLength(2);
+    expect(r.match(/<div class="chooser users" data-users>\$\{chooser\(/g) ?? []).toHaveLength(2);
+    expect(r.match(/<div class="chooser" data-channels>\$\{chooser\(S\.channels, \[INBOX,/g) ?? []).toHaveLength(2);
+    expect(r).toContain("const INBOX: ChipChoiceOption = { value: 'inbox', label: S.inboxAlways, disabled: true };");
+    expect(r.match(/\['inbox', \.\.\.d\.channels\]/g) ?? []).toHaveLength(2);
+    const st = read('generator/gen-styles.ts');
+    const block = st.slice(st.indexOf('.chooser sw-chip-choice {'), st.indexOf('.chooser sw-chip-choice::part(row)'));
+    for (const k of ['--sw-chipc-h: var(--elec-touch);', '--sw-chipc-radius: var(--sw-r-sm);', '--sw-chipc-bg: var(--gen-surface);', '--sw-chipc-border: var(--sw-border);', '--sw-chipc-on-bg: var(--sw-accent-soft);', '--sw-chipc-on-border: var(--sw-accent);', '--sw-chipc-on-fg: var(--sw-text);'])
+      expect(block, k).toContain(k);
+    expect(st).toMatch(/\.chooser sw-chip-choice::part\(row\) \{\s*display: grid;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+    expect(st).not.toMatch(/\.chooser label/);
+  });
 });
