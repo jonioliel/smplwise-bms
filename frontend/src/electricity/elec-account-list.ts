@@ -4,7 +4,7 @@ import { customElement, state } from 'lit/decorators.js';
 import { elec, type AccountRow } from '../api/electricity-billing';
 import { energyAccess } from './access';
 import { ElecBase, billChip, n, skeleton, stateBox, type LoadState } from './elec-ui';
-import { f2, ils, periodLabel } from './elec-format';
+import { customerName, f2or, ils, periodLabel } from './elec-format';
 import { go, href, route } from './elec-routes';
 import { tr } from '../i18n/msg/electricity';
 
@@ -56,7 +56,7 @@ export class ElecAccountsList extends ElecBase {
     const money = perms.bills;
     if (!perms.view) return html`<div class="page" data-elec="accounts" data-state="forbidden">${stateBox('forbidden', 'lock', tr('אין הרשאה לצפות בחשבונות'))}</div>`;
     const q = this.q.trim();
-    const rows = this.rows.filter((r) => !q || r.account.name.includes(q) || r.account.customer.name.includes(q));
+    const rows = this.rows.filter((r) => !q || r.account.name.includes(q) || !!r.account.customer?.name.includes(q));
     const head = html`<div class="row">
       <input type="search" data-search aria-label=${tr('חיפוש חשבון או לקוח')} placeholder=${tr('חיפוש חשבון או לקוח')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} />
       ${this.phone ? nothing : html`<div class="seg" role="group" aria-label=${tr('תצוגה')}>
@@ -73,20 +73,20 @@ export class ElecAccountsList extends ElecBase {
     else if (!rows.length) body = stateBox('empty', 'search', tr('לא נמצאו חשבונות'));
     else if (this.phone) {
       body = html`<div class="list" data-elec-list>${rows.map((r) => html`<a class="li" href=${href.account(r.account.id)} data-account-row=${r.account.id}>
-        <div class="grow"><div class="t1">${r.account.name}</div><div class="t2">${r.account.customer.name} · ${n(f2(r.kwh ?? 0))} ${tr('קוט״ש')}${money && r.amount !== undefined ? html` · ${n(ils(r.amount))}` : nothing}</div></div>${this.status(r)}</a>`)}</div>`;
+        <div class="grow"><div class="t1">${r.account.name}</div><div class="t2">${customerName(r.account)} · ${n(f2or(r.kwh))} ${tr('קוט״ש')}${money && r.amount !== undefined ? html` · ${n(ils(r.amount))}` : nothing}</div></div>${this.status(r)}</a>`)}</div>`;
     } else if (this.view === 'cards') {
       body = html`<div class="grid-cards" data-elec-list>${rows.map((r) => html`<div class="card" data-account-row=${r.account.id}>
         <div class="row"><a class="rowlink h3" href=${href.account(r.account.id)}>${r.account.name}</a><span class="sp"></span>${this.status(r)}</div>
-        <div class="mut">${r.account.customer.name} · ${periodLabel(r.account.period_months, r.account.period_anchor_day, r.account.period_anchor_month)}</div>
-        <div class="row" style="margin-block-start:10px;align-items:baseline"><span class="big">${n(f2(r.kwh ?? 0))}</span><span class="mut">${tr('קוט״ש בתקופה')}</span><span class="sp"></span>${money && r.amount !== undefined ? html`<b class="big amt">${n(ils(r.amount))}</b>` : nothing}</div>
+        <div class="mut">${customerName(r.account)} · ${periodLabel(r.account.period_months, r.account.period_anchor_day, r.account.period_anchor_month)}</div>
+        <div class="row" style="margin-block-start:10px;align-items:baseline"><span class="big">${n(f2or(r.kwh))}</span><span class="mut">${tr('קוט״ש בתקופה')}</span><span class="sp"></span>${money && r.amount !== undefined ? html`<b class="big amt">${n(ils(r.amount))}</b>` : nothing}</div>
         ${money ? html`<div class="mut" style="margin-block-start:6px">${tr('חיוב אחרון:')} ${this.last(r)}</div>` : nothing}</div>`)}</div>`;
     } else {
       body = html`<div class="card flush scrollx" data-elec-list><table class="t">
         <thead><tr><th>${tr('חשבון')}</th><th>${tr('לקוח')}</th><th class="hide-tablet">${tr('נוסחה')}</th><th>${tr('תקופה')}</th><th class="num">${tr('צריכה בתקופה')}</th>${money ? html`<th class="num">${tr('סכום עד כה')}</th><th>${tr('חיוב אחרון')}</th>` : nothing}<th>${tr('מצב')}</th></tr></thead>
         <tbody>${rows.map((r) => html`<tr class="go" data-account-row=${r.account.id} @click=${() => go(route.account(r.account.id))}>
-          <td class="b"><a class="rowlink" href=${href.account(r.account.id)} @click=${(e: Event) => e.stopPropagation()}>${r.account.name}</a></td><td>${r.account.customer.name}</td>
+          <td class="b"><a class="rowlink" href=${href.account(r.account.id)} @click=${(e: Event) => e.stopPropagation()}>${r.account.name}</a></td><td>${customerName(r.account)}</td>
           <td class="mut ell hide-tablet">${r.account.formula.sentence_he}</td><td>${periodLabel(r.account.period_months, r.account.period_anchor_day, r.account.period_anchor_month)}</td>
-          <td class="num">${f2(r.kwh ?? 0)}</td>${money ? html`<td class="num">${r.amount !== undefined ? ils(r.amount) : ''}</td><td>${this.last(r)}</td>` : nothing}<td>${this.status(r)}</td></tr>`)}</tbody></table></div>`;
+          <td class="num">${f2or(r.kwh)}</td>${money ? html`<td class="num">${r.amount !== undefined ? ils(r.amount) : ''}</td><td>${this.last(r)}</td>` : nothing}<td>${this.status(r)}</td></tr>`)}</tbody></table></div>`;
     }
     return html`<div class="page" data-elec="accounts" data-state=${this.st === 'ready' && !rows.length ? 'empty' : this.st}>
       ${this.st === 'ready' || this.st === 'empty' || this.st === 'loading' ? head : nothing}
