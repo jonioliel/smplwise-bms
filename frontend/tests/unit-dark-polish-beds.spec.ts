@@ -347,7 +347,6 @@ test('dark schemes: the chosen settings key is 3:1 from its track and its label 
 // <light ink>)` and the edge `box-shadow: var(--sw-seg-thumb-shadow, <light shadow>)`. A control that drops the tokens fails here; a
 // NEW one is caught by the pattern check below and joins this list.
 const SEG_INVENTORY: [file: string, chosen: string][] = [
-  ['access-external/request-dialog.ts', ".seg button[aria-pressed='true']"],
   ['arx/arx-login.ts', 'button.mode.on'],
   ['calendars/cal-page.ts', ".tab[aria-current='page']"],
   ['calendars/resident.ts', ".tabs button[aria-pressed='true']"],
@@ -402,6 +401,7 @@ const SEG_INVENTORY: [file: string, chosen: string][] = [
   // CR-CMP2-SELECTS-2450 (owner N11): the shared segmented control
   // CR-CMP2-SEGMENTED-B-2450: system-home-screen, system-mapping, system-timeline-colors, system-update and temperature detail / report /
   // wizard draw their keys with it now
+  // CR-CMP2-SEGMENTED-C-2450: access-external/request-dialog draws its keys with it now (its knobs keep --sw-seg-key / --sw-seg-key-ink)
   ['components/sw-segmented.ts', ".seg button[aria-pressed='true']"],
   ['styles/fragments.ts', ".seg button[aria-pressed='true']"],
   ['styles/settings.ts', ".seg button[aria-selected='true']"],

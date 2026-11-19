@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { segmentedFocusStep } from '../src/components/segmented-logic';
+import { segmentedFocusStep, segmentedTabStop } from '../src/components/segmented-logic';
 
 // CR-CMP2-SELECTS-2450 (owner N11, 19.11): the shared segmented control `sw-segmented` - its keyboard rule (node), its contract (the
 // source), and the screens that adopted it (no hand-built `.seg` group comes back there). The look is pinned by
@@ -45,6 +45,16 @@ test.describe('sw-segmented: the focus rule of the arrow keys', () => {
   });
 });
 
+test.describe('sw-segmented: the Tab stop of a roving group (CR-CMP2-SEGMENTED-C-2450)', () => {
+  test('the chosen key when it is enabled, else the first enabled key, -1 when nothing is', () => {
+    expect(segmentedTabStop(['a', 'b', 'c'], 'b', [true, true, true])).toBe(1);
+    expect(segmentedTabStop(['a', 'b', 'c'], 'b', [true, false, true])).toBe(0);
+    expect(segmentedTabStop(['a', 'b', 'c'], 'x', [false, true, true])).toBe(1);
+    expect(segmentedTabStop(['a', 'b'], 'a', [false, false])).toBe(-1);
+    expect(segmentedTabStop([], '', [])).toBe(-1);
+  });
+});
+
 test.describe('sw-segmented: the contract in the source', () => {
   const src = read('components/sw-segmented.ts');
 
@@ -58,8 +68,9 @@ test.describe('sw-segmented: the contract in the source', () => {
   test('accessible: a named group of toggle buttons (aria-pressed), the arrows move the focus', () => {
     expect(src).toMatch(/role=\$\{radio \? 'radiogroup' : 'group'\} aria-label=\$\{this\.label \|\| nothing\}/);
     // CR-CMP2-SEGMENTED-B-2450: a radio group keeps its radios (role + aria-checked) and the aria-pressed the look reads
-    expect(src).toMatch(/role=\$\{radio \? 'radio' : nothing\} aria-checked=\$\{radio \? String\(o\.value === this\.value\) : nothing\}/);
-    expect(src).toMatch(/<button type="button" part="key" aria-pressed=\$\{o\.value === this\.value \? 'true' : 'false'\}/);
+    expect(src).toMatch(/const on = o\.value === this\.value;/);
+    expect(src).toMatch(/role=\$\{radio \? 'radio' : nothing\} aria-checked=\$\{radio \? String\(on\) : nothing\}/);
+    expect(src).toMatch(/<button type="button" part=\$\{on \? 'key key-on' : 'key'\} class=\$\{cls \|\| nothing\} aria-pressed=\$\{on \? 'true' : 'false'\}/);
     expect(src).toMatch(/@keydown=\$\{this\.onKey\}/);
     expect(src).toMatch(/button:focus-visible \{\s*outline: var\(--sw-focus-w, 2px\) solid var\(--sw-focus\);/);
   });
@@ -74,6 +85,24 @@ test.describe('sw-segmented: the contract in the source', () => {
     expect(src).toMatch(/\.seg button\[aria-pressed='true'\] \{[^}]*background: var\(--sw-seg-on-bg, var\(--sw-seg-key, var\(--sw-surface\)\)\);[^}]*color: var\(--sw-seg-on-fg, var\(--sw-seg-key-ink, var\(--sw-accent-text\)\)\);/);
     // tokens only: no colour literal
     expect(src.split('static styles')[1]).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i);
+  });
+
+  test('rich keys (CR-CMP2-SEGMENTED-C-2450): icon, second line, badge, dimmed; an icon-only key is named by its label', () => {
+    for (const f of ['icon?: TemplateResult;', 'sub?: string;', 'badge?: string;', 'badgeAttrs?: Readonly<Record<string, string>>;', 'dimmed?: boolean;']) expect(src, f).toContain(f);
+    expect(src).toMatch(/@property\(\{ reflect: true \}\) labels: 'all' \| 'chosen' \| 'none' = 'all';/);
+    // a key without an icon always shows its label; `chosen` shows the chosen key's label only
+    expect(src).toMatch(/const shown = !o\.icon \|\| this\.labels === 'all' \|\| \(this\.labels === 'chosen' && on\);/);
+    // the hidden label names the key and is its tooltip
+    expect(src).toMatch(/title=\$\{o\.title \|\| \(shown \? nothing : o\.label\)\} aria-label=\$\{shown \? nothing : o\.label\}/);
+    expect(src).toMatch(/<span class="ic" part=\$\{on \? 'icon icon-on' : 'icon'\} aria-hidden="true">/);
+    for (const part of ['part="label"', 'part="sub"', 'part="badge"']) expect(src, part).toContain(part);
+    // the badge keeps its data-* hooks (the nav size's data-nav-current)
+    expect(src).toMatch(/SwSegmented\.hooks\(k\.querySelector\('\.badge'\), o\.badgeAttrs \?\? \{\}\);/);
+  });
+
+  test('roving (CR-CMP2-SEGMENTED-C-2450): one Tab stop, the arrows choose as they move, the host still confirms', () => {
+    expect(src).toMatch(/tabindex=\$\{this\.roving \? \(i === stop \? '0' : '-1'\) : nothing\}/);
+    expect(src).toMatch(/if \(this\.roving && o && o\.value !== this\.value\) this\.press\(o\);/);
   });
 
   test('touch and motion: a 44 px tall target on a coarse pointer, hover only under a hovering pointer, no motion when reduced', () => {
@@ -167,6 +196,17 @@ const ADOPTED = [
   'tickets/ticket-cost-card.ts',
   'tickets/ticket-detail.ts',
   'tickets/work-calendar-card.ts',
+  // CR-CMP2-SEGMENTED-C-2450 (rich keys, the glass state strips, the notification settings)
+  'access-external/request-dialog.ts',
+  'screens/system-nav-size.ts',
+  'screens/system-notifications.ts',
+  'screens/tickets-board.ts',
+  'screens/tickets-handlers.ts',
+  'screens/tickets-list.ts',
+  'screens/tickets-rfqs.ts',
+  'tickets/external-assign.ts',
+  // tickets/list-view-switch.ts draws sw-segmented too; its hosts (tickets-list, tickets-board) register it (node unit tests import it)
+  'tickets/rfq-new.ts',
 ];
 
 test('adoption: the adopted screens draw every segmented control with sw-segmented', () => {
@@ -178,4 +218,48 @@ test('adoption: the adopted screens draw every segmented control with sw-segment
     if (!/import '(\.\.\/)+components\/sw-segmented';/.test(src)) bad.push(`${file}: does not import the component`);
   }
   expect(bad).toEqual([]);
+});
+
+// CR-CMP2-SEGMENTED-C-2450: the chip rows that only reused the `.seg` class name are sw-chip-choice (one choice, separate chips)
+test.describe('sw-chip-choice: the contract in the source and its adopters', () => {
+  const src = read('components/sw-chip-choice.ts');
+
+  test('controlled, a named group of toggle buttons, the arrows move the focus, the data-* hooks land on the chips', () => {
+    expect(src).toMatch(/new CustomEvent<ChipChoiceChange<V>>\('change', \{ detail: \{ value: o\.value \}, bubbles: true, composed: true \}\)/);
+    expect(src).not.toMatch(/this\.value\s*=[^=]/);
+    expect(src).toMatch(/if \(this\.disabled \|\| o\.disabled\) return;/);
+    expect(src).toMatch(/role="group" aria-label=\$\{this\.label \|\| nothing\}/);
+    expect(src).toMatch(/aria-pressed=\$\{o\.value === this\.value \? 'true' : 'false'\}/);
+    expect(src).toMatch(/segmentedFocusStep\(e\.key, from,/);
+    expect(src).toMatch(/if \(a\.name\.startsWith\('data-'\) && !\(a\.name in want\)\) c\.removeAttribute\(a\.name\);/);
+  });
+
+  test('the look: tokens only, the accent-filled chosen chip, 44 px on a coarse pointer, no motion when reduced, a wrapping row', () => {
+    const styles = src.split('static styles')[1];
+    expect(styles).not.toMatch(/#[0-9a-f]{3,8}|rgba?\(/i);
+    expect(src).toMatch(/background: var\(--sw-chipc-on-bg, var\(--sw-accent\)\);/);
+    expect(src).toMatch(/color: var\(--sw-chipc-on-fg, var\(--sw-text-inverse\)\);/);
+    expect(src).toMatch(/@media \(pointer: coarse\) \{\s*button \{\s*min-block-size: max\(44px,/);
+    expect(src).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*button \{\s*transition-duration: 0ms;/);
+    expect(src).toMatch(/\.row \{[^}]*flex-wrap: wrap;/);
+  });
+
+  const CHIP_ADOPTED = [
+    'door-windows/event-rules.ts',
+    'door-windows/holidays.ts',
+    'door-windows/open-for.ts',
+    'screens/door-windows.ts',
+    'screens/access-external.ts',
+    'screens/wiskey-access-diag.ts',
+  ];
+  test('adoption: these screens draw their single-choice chip rows with sw-chip-choice (no hand-built `.seg` row comes back)', () => {
+    const bad: string[] = [];
+    for (const file of CHIP_ADOPTED) {
+      const f = read(file);
+      if (/class="seg[\s"]/.test(f)) bad.push(`${file}: a hand-built class="seg" row`);
+      if (!f.includes('<sw-chip-choice')) bad.push(`${file}: no <sw-chip-choice>`);
+      if (!/import '(\.\.\/)+components\/sw-chip-choice';/.test(f)) bad.push(`${file}: does not import the component`);
+    }
+    expect(bad).toEqual([]);
+  });
 });
