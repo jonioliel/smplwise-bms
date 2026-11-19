@@ -71,3 +71,8 @@ def wire(model: Any) -> dict[str, Any]:
     """The route-decorator arguments of a modelled answer: the model (or a union of models when the route answers one of several
     shapes), and keys the route did not set stay absent."""
     return {"response_model": model, "response_model_exclude_unset": True}
+
+
+# A JSON number whose int / float type is the value's own (a reading, a ratio, a stored number): pydantic's smart union keeps `1` as `1`
+# and `1.0` as `1.0`, where a plain `float` field would turn `1` into `1.0` and an `int` field `2.0` into `2`. TypeScript: `number`.
+Num = int | float

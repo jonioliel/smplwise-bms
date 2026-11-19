@@ -1,6 +1,7 @@
 /** Media, settings and snapshots against the add-on backend. */
 import { apiUrl, get, patch, path, post, query, resourceUrl } from './client';
 import type { CameraEncoding } from './types';
+import type * as CamWire from './generated/wire-cameras';
 import type { NavSizeWire } from './me-prefs';
 import { tr } from '../i18n/msg/api-media';
 
@@ -356,68 +357,17 @@ export function relayWsUrl(path: string): string {
   return u.toString();
 }
 
-/** The camera's detection configuration as the NVR holds it (T075, read-only). Coordinates are in the device's own normalized frame. */
-interface ZoneMotion {
-  enabled: boolean;
-  region_type: string;
-  sensitivity: number | null;
-  rows: number;
-  cols: number;
-  cells: boolean[][];
-  coverage_pct: number;
-  target_types: string[];
-}
-interface ZonePolygon {
-  id: string;
-  enabled?: boolean;
-  sensitivity?: number;
-  points: number[][];
-}
-interface ZoneLine {
-  id: string;
-  enabled: boolean;
-  direction: string;
-  points: number[][];
-}
-interface ZoneFrame {
-  width: number;
-  height: number;
-}
-export interface CameraZones {
-  camera_id: string;
-  channel: number;
-  source: 'nvr';
-  read_only: true;
-  write_reason: string;
-  /** 0.1.65: the caller holds nvr.config.detection - the motion grid can be edited and written to the NVR. */
-  can_edit_motion?: boolean;
-  /** The sensitivity values the device accepts (min / max / step); the NVR ignores values in between. */
-  sensitivity_caps?: { min: number; max: number; step: number } | null;
-  fetched_at: string;
-  cached: boolean;
-  motion: ZoneMotion | null;
-  /** NVRMASK-295: a region's `enabled` is the parser's verdict (master on + polygon); `device_enabled` is the device's own flag (reads false while masking on V4.84). */
-  privacy_mask: { enabled: boolean; normalized: ZoneFrame; regions: (ZonePolygon & { device_enabled?: boolean | null })[]; active_regions?: number } | null;
-  intrusion: { enabled: boolean; normalized: ZoneFrame; regions: ZonePolygon[] } | null;
-  line_crossing: { enabled: boolean; normalized: ZoneFrame; lines: ZoneLine[] } | null;
-  unsupported: Record<string, string>;
-}
+/* The camera's detection configuration (T075) and capability facts (T045 / T012) are the backend's response models
+ * (smplwise_vms/backend/smplwise/wire/cameras.py, generated into ./generated/wire-cameras.ts; code review 07:F8 step 2). Coordinates
+ * are in the device's own normalized frame; 'unknown' is an honest state. NVRMASK-295: a mask region's `enabled` is the parser's verdict
+ * (master on + polygon), `device_enabled` the device's own flag. Narrowed on purpose: `video` (the stored encodings document) is typed
+ * with the hand-written CameraEncoding. */
+export type CameraZones = CamWire.CameraZones;
 export const cameraZones = (cameraId: string, refresh = false) => get<CameraZones>(path`cameras/${cameraId}/zones` + query({ refresh: refresh || undefined }));
 
-/** Capability facts the NVR reports for a camera (T045 / T012, read-only): never guessed, 'unknown' is an honest state. */
-export interface CameraCapabilities {
-  camera_id: string;
-  channel: number;
-  source: 'nvr';
-  read_only: true;
-  writes: { ptz_move: string; preset_recall: string; talk: string; reason: string };
-  digital_zoom: 'browser_only';
-  fetched_at: string;
-  cached: boolean;
-  ptz: { state: 'supported' | 'unsupported' | 'unknown'; reason: string | null; presets: { id: string; name: string }[] | null; preset_count: number | null };
-  audio: { state: 'available' | 'disabled' | 'unsupported' | 'unknown'; reason: string | null; channel_id: string | null; codec: string | null };
+export type CameraCapabilities = Omit<CamWire.CameraCapabilities, 'video'> & {
   /** CR-008 D7: the stream encodings from the capability registry (the last discovery), with the settings hint. */
-  video?: CameraEncoding | null;
-}
+  video: CameraEncoding | null;
+};
 export const cameraCapabilities = (cameraId: string, refresh = false) => get<CameraCapabilities>(path`cameras/${cameraId}/capabilities` + query({ refresh: refresh || undefined }));
 

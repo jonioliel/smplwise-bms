@@ -16,57 +16,12 @@ import { lit, type LocalIdentityKey } from '../i18n/local-identity';
 import { adminRemovePasskey, adminSetPasskeyOnly, userPasskeys, type PasskeyView } from '../api/passkeys';
 import { po } from '../i18n/passkey-only';
 import { confirmDialog } from '../components/confirm-dialog';
+import type * as LocalWire from '../api/generated/wire-local-identity';
 
-/** USR2: one Arx-only identity as GET /identity/local-users lists it (never a hash, never a link). */
-interface LocalUser {
-  id: string;
-  username: string;
-  display_name: string;
-  email: string | null;
-  notes: string | null;
-  status: 'pending_first_login' | 'active' | 'delayed' | 'disabled' | 'deleted';
-  active: boolean;
-  created_at: string;
-  last_sign_in_at: string | null;
-  last_sign_in_from: string | null;
-  role_id: string | null;
-  role_name: string | null;
-  scope_type: string | null;
-  scope_id: string | null;
-  scope_name: string | null;
-  admin: boolean;
-  second_factor: boolean;
-  reset_mode: 'manager_only' | 'self_service';
-  must_change_password: boolean;
-  sessions: number;
-  ha_user_id: string | null;
-  /** USR2 phase 2: the user's WhatsApp number when it is VERIFIED (masked: the last two digits). */
-  whatsapp?: { verified: boolean; masked: string | null };
-  /** Why a self-service reset would be refused right now (null = it would work, or the mode is manager_only). */
-  self_service_blocked?: 'admin_target' | 'no_verified_number' | null;
-  /** USR2 phase 4: how many passkeys (the list is its own route) and the user's own passkey-only mode. */
-  passkeys?: number;
-  passkey_first?: boolean;
-  /** usr2-passkeys-only-mode: password sign-in refused for the user (default off). */
-  passkey_only?: boolean;
-}
-
-interface LocalUsersReply {
-  enabled: boolean;
-  can_manage: boolean;
-  channel: 'local' | 'remote';
-  users: LocalUser[];
-  /** USR2 phase 2: a WhatsApp account is mapped for the reset use and connected. */
-  whatsapp_ready?: boolean;
-  /** Where links sent by WhatsApp point (the configured address, or this remote session's host), or null. */
-  public_url?: string | null;
-  /** USR2 phase 4: the owner switch `security.local_passkey_first`. */
-  passkey_first_allowed?: boolean;
-  /** CR-LOCAL-ID-SWITCH-2442: the viewer is a system administrator - the only one PATCH /settings lets switch the feature. */
-  can_switch?: boolean;
-  /** CR-LOCAL-USER-CREATE-2438: the shortest password the server's policy takes (`security.local_password_min`). */
-  password_min?: number;
-}
+/* USR2: an Arx-only identity and the tab's list are the backend's response models (smplwise_vms/backend/smplwise/wire/local_identity.py,
+ * generated into ../api/generated/wire-local-identity.ts; code review 07:F8 step 2) - never a hash, never a link. */
+type LocalUser = LocalWire.LocalUser;
+type LocalUsersReply = LocalWire.LocalUserList;
 
 /** CR-LOCAL-USER-CREATE-2438: a password the administrator types for a user (never kept after the request). */
 interface PwDraft {
@@ -84,13 +39,7 @@ interface LinkSent {
   expires_at: string;
 }
 
-interface LinkShown {
-  user: string;
-  purpose: 'first_login' | 'reset';
-  path: string;
-  url?: string | null;
-  expires_at: string;
-}
+type LinkShown = { user: string } & LocalWire.LocalLink;
 
 // sw-table renders the rows in its own shadow root: the cells carry their styles inline (this component's sheet never reaches them)
 const CELL = 'display:flex;flex-direction:column;gap:2px;align-items:flex-start';
@@ -389,7 +338,7 @@ export class SystemLocalUsers extends LitElement {
     this.busy = true;
     this.error = '';
     try {
-      const r = await post<{ user: LocalUser; link: Omit<LinkShown, 'user'> | null }>('/identity/local-users', {
+      const r = await post<LocalWire.LocalUserCreated>('/identity/local-users', {
         username: f.username.trim(),
         display_name: f.display_name.trim(),
         role_id: f.role_id,
@@ -448,7 +397,7 @@ export class SystemLocalUsers extends LitElement {
 
   private issue(u: LocalUser, purpose: 'first_login' | 'reset', temporary = false) {
     void this.run(async () => {
-      const r = await post<{ link: Omit<LinkShown, 'user'> }>(`/identity/local-users/${encodeURIComponent(u.id)}/link`, { purpose, via: 'shown', temporary });
+      const r = await post<Omit<LocalWire.LocalUserLink, 'link'> & { link: LocalWire.LocalLink }>(`/identity/local-users/${encodeURIComponent(u.id)}/link`, { purpose, via: 'shown', temporary });
       this.link = { ...r.link, user: u.display_name };
       this.sent = null;
       this.copied = false;
@@ -459,7 +408,7 @@ export class SystemLocalUsers extends LitElement {
   /** USR2 phase 2: the link goes to the user's verified WhatsApp number; the answer never carries it. */
   private issueWhatsapp(u: LocalUser, purpose: 'first_login' | 'reset') {
     void this.run(async () => {
-      const r = await post<{ link: { expires_at: string } }>(`/identity/local-users/${encodeURIComponent(u.id)}/link`, { purpose, via: 'whatsapp' });
+      const r = await post<Omit<LocalWire.LocalUserLink, 'link'> & { link: LocalWire.LocalLinkQueued }>(`/identity/local-users/${encodeURIComponent(u.id)}/link`, { purpose, via: 'whatsapp' });
       this.link = null;
       this.sent = { user: u.display_name, to: u.whatsapp?.masked ?? '', expires_at: r.link.expires_at };
       await this.load();
@@ -522,7 +471,7 @@ export class SystemLocalUsers extends LitElement {
 
   private setActive(u: LocalUser, active: boolean) {
     void this.run(async () => {
-      const r = await patch<LocalUser & { suggest_also?: { ha_user_id: string } }>(`/identity/local-users/${encodeURIComponent(u.id)}`, { active });
+      const r = await patch<LocalWire.LocalUserPatched>(`/identity/local-users/${encodeURIComponent(u.id)}`, { active });
       this.suggest = r.suggest_also ? lit('suggestAlso') : '';
       await this.load();
     });

@@ -5,27 +5,21 @@
  */
 import { get, patch, path, post, resourceUrl } from './client';
 import type { PlanVersion } from './types';
+import type * as PlanWire from './generated/wire-plans';
 import { tr } from '../i18n/msg/api-home';
 
 export type RoomFill = 'white' | 'tint' | 'none';
 export const ROOM_FILL_LABEL: Record<RoomFill, string> = { white: tr('לבן'), tint: tr('גוון לכל חדר'), none: tr('ללא מילוי') };
 
-export interface StylizeResult {
-  version_id: string;
-  rooms: number;
+/** `POST /plan-versions/{id}/stylize` (wire/plans.py `PlanStylized`, generated), narrowed to the request's choices; the two URLs are
+ * made absolute (base-resolved) for the comparison view. */
+export interface StylizeResult extends Pick<PlanWire.PlanStylized, 'version_id' | 'rooms' | 'keep_lines' | 'width_px' | 'height_px' | 'ms' | 'source_url' | 'stylized_url'> {
   strength: 'light' | 'medium' | 'strong';
-  keep_lines: boolean;
   room_fill: RoomFill;
-  width_px: number;
-  height_px: number;
-  ms: number;
-  /** Absolute (base-resolved) URLs for the comparison view. */
-  source_url: string;
-  stylized_url: string;
 }
 
 export async function stylizeVersion(versionId: string, opts: { strength: 'light' | 'medium' | 'strong'; keep_lines: boolean; room_fill?: RoomFill }): Promise<StylizeResult> {
-  const r = await post<Omit<StylizeResult, 'source_url' | 'stylized_url'> & { source_url: string; stylized_url: string }>(path`plan-versions/${versionId}/stylize`, opts);
+  const r = await post<StylizeResult>(path`plan-versions/${versionId}/stylize`, opts);
   return { ...r, source_url: resourceUrl(r.source_url) + `?v=${Date.now()}`, stylized_url: resourceUrl(r.stylized_url) + `?v=${Date.now()}` };
 }
 

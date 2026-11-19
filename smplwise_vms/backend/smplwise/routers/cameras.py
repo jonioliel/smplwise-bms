@@ -33,6 +33,8 @@ from ._common import rid as _rid
 from .anchors import camera_row
 from .settings import read_settings
 from ..services.settings_store import setting_value
+from ..wire import cameras as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -107,7 +109,7 @@ def frigate_live_kinds(settings: Any, rows: list[sqlite3.Row]) -> dict[str, str]
     return out
 
 
-@router.get("/cameras")
+@router.get("/cameras", **wire(W.CameraList))
 def list_cameras(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
                  recorder_id: str | None = Query(None, max_length=40)) -> dict[str, Any]:
     """Cameras the caller may see: everything for installation-wide readers, otherwise only cameras
@@ -207,7 +209,7 @@ def now_ts() -> float:
     return time.time()
 
 
-@router.post("/cameras/sync")
+@router.post("/cameras/sync", **wire(W.CameraSync))
 def sync_cameras(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn),
                  recorder_id: str | None = Query(None, max_length=40)) -> dict[str, Any]:
     """Read-only discovery from the NVR: channels, online flag and track ids. Existing aliases/order survive.
@@ -251,7 +253,7 @@ class CameraPatch(BaseModel):
     wall_hidden: bool | None = None
 
 
-@router.patch("/cameras/{camera_id}")
+@router.patch("/cameras/{camera_id}", **wire(W.CameraRow))
 def update_camera(camera_id: str, body: CameraPatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "sources.configure", INSTALLATION)
     if not store.camera_exists(conn, camera_id):
@@ -270,7 +272,7 @@ class CameraIn(BaseModel):
     recorder_id: str | None = Field(default=None, max_length=40)
 
 
-@router.post("/cameras", status_code=201)
+@router.post("/cameras", status_code=201, **wire(W.CameraRow))
 def create_camera(body: CameraIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "sources.configure", INSTALLATION)
     ensure_nvr(settings_of(request))  # NVR-less mode: no NVR channel to register (after the permission check)
@@ -315,7 +317,7 @@ def _motion_caps(request: Request, conn: sqlite3.Connection, channel: int, cam: 
         return None
 
 
-@router.get("/cameras/{camera_id}/zones")
+@router.get("/cameras/{camera_id}/zones", **wire(W.CameraZones))
 def detection_zones(camera_id: str, request: Request, refresh: bool = False, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The camera's detection configuration as the NVR holds it — motion grid, privacy mask, intrusion regions,
     line-crossing lines — a read (ISAPI GET), cached for a minute, same permission as live video. These are
@@ -362,7 +364,7 @@ CAPS_TTL_S = 300
 _CAPS_CACHE: TtlCache[str, dict[str, Any]] = TtlCache(CAPS_TTL_S, maxsize=512)
 
 
-@router.get("/cameras/{camera_id}/capabilities")
+@router.get("/cameras/{camera_id}/capabilities", **wire(W.CameraCapabilities))
 def camera_capabilities(camera_id: str, request: Request, refresh: bool = False, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """What the NVR says this camera can do — PTZ (supported / unsupported / unknown, with the device's reason),
     its preset list, two-way audio (available / disabled / unsupported / unknown). Read-only, cached five minutes,

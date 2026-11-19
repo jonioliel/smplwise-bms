@@ -17,6 +17,8 @@ from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import catalog_store as store
 from ..services.safe_paths import confine  # BACKEND-SAFETY-2435: stored picture paths stay inside catalog_images
 from ._common import rid as _rid
+from ..wire import catalog as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -103,7 +105,7 @@ def _still_there(request: Request, rel: str, check: Callable[[], Any]) -> None:
         raise
 
 
-@router.post("/sites/{site_id}/image")
+@router.post("/sites/{site_id}/image", **wire(W.CatalogSite))
 def site_image_upload(site_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_site(conn, site_id)
     require(conn, principal, P_CONTENT, ("site", site_id))
@@ -115,7 +117,7 @@ def site_image_upload(site_id: str, request: Request, file: UploadFile = File(..
     return site_row(get_site(conn, site_id))
 
 
-@router.delete("/sites/{site_id}/image")
+@router.delete("/sites/{site_id}/image", **wire(W.CatalogSite))
 def site_image_delete(site_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     r = get_site(conn, site_id)
     require(conn, principal, P_CONTENT, ("site", site_id))
@@ -126,7 +128,7 @@ def site_image_delete(site_id: str, request: Request, principal: Principal = Dep
     return site_row(get_site(conn, site_id))
 
 
-@router.post("/buildings/{building_id}/image")
+@router.post("/buildings/{building_id}/image", **wire(W.CatalogBuilding))
 def building_image_upload(building_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_building(conn, building_id)
     require(conn, principal, P_CONTENT, ("building", building_id))
@@ -138,7 +140,7 @@ def building_image_upload(building_id: str, request: Request, file: UploadFile =
     return building_row(get_building(conn, building_id))
 
 
-@router.delete("/buildings/{building_id}/image")
+@router.delete("/buildings/{building_id}/image", **wire(W.CatalogBuilding))
 def building_image_delete(building_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     r = get_building(conn, building_id)
     require(conn, principal, P_CONTENT, ("building", building_id))
@@ -222,7 +224,7 @@ def get_floor(conn: sqlite3.Connection, floor_id: str) -> sqlite3.Row:
 
 # ---------- tree ----------
 
-@router.get("/sites")
+@router.get("/sites", **wire(W.CatalogSites))
 def list_sites(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), tree: bool = Query(True)) -> dict[str, Any]:
     """Only nodes the caller may read appear; a site is listed when the caller can read it or any child."""
     all_read = authorize(conn, principal, P_READ, INSTALLATION).allowed
@@ -274,7 +276,7 @@ class SitePatch(BaseModel):
     sort_order: int | None = None
 
 
-@router.post("/sites", status_code=201)
+@router.post("/sites", status_code=201, **wire(W.CatalogSite))
 def create_site(body: SiteIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, P_SYSTEM, INSTALLATION)
     sid, now = new_id(), now_iso()
@@ -283,7 +285,7 @@ def create_site(body: SiteIn, request: Request, principal: Principal = Depends(c
     return site_row(get_site(conn, sid))
 
 
-@router.patch("/sites/{site_id}")
+@router.patch("/sites/{site_id}", **wire(W.CatalogSite))
 def update_site(site_id: str, body: SitePatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_site(conn, site_id)
     require(conn, principal, P_CONTENT, ("site", site_id))
@@ -319,7 +321,7 @@ class BuildingPatch(BaseModel):
     is_shared: bool | None = None
 
 
-@router.post("/sites/{site_id}/buildings", status_code=201)
+@router.post("/sites/{site_id}/buildings", status_code=201, **wire(W.CatalogBuilding))
 def create_building(site_id: str, body: BuildingIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_site(conn, site_id)
     require(conn, principal, P_CONTENT, ("site", site_id))
@@ -329,7 +331,7 @@ def create_building(site_id: str, body: BuildingIn, request: Request, principal:
     return building_row(get_building(conn, bid))
 
 
-@router.patch("/buildings/{building_id}")
+@router.patch("/buildings/{building_id}", **wire(W.CatalogBuilding))
 def update_building(building_id: str, body: BuildingPatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_building(conn, building_id)
     require(conn, principal, P_CONTENT, ("building", building_id))
@@ -368,7 +370,7 @@ class FloorPatch(BaseModel):
     ha_area_id: str | None = Field(default=None, max_length=120)
 
 
-@router.post("/buildings/{building_id}/floors", status_code=201)
+@router.post("/buildings/{building_id}/floors", status_code=201, **wire(W.CatalogFloor))
 def create_floor(building_id: str, body: FloorIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_building(conn, building_id)
     require(conn, principal, P_CONTENT, ("building", building_id))
@@ -378,7 +380,7 @@ def create_floor(building_id: str, body: FloorIn, request: Request, principal: P
     return floor_row(conn, get_floor(conn, fid))
 
 
-@router.get("/floors/{floor_id}")
+@router.get("/floors/{floor_id}", **wire(W.CatalogFloorRead))
 def read_floor(floor_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     f = get_floor(conn, floor_id)
     from ..services.access import require_floor_read
@@ -389,7 +391,7 @@ def read_floor(floor_id: str, principal: Principal = Depends(current_principal_r
     return {"floor": floor_row(conn, f), "building": building_row(b), "site": site_row(s)}
 
 
-@router.patch("/floors/{floor_id}")
+@router.patch("/floors/{floor_id}", **wire(W.CatalogFloor))
 def update_floor(floor_id: str, body: FloorPatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, P_CONTENT, ("floor", floor_id))
@@ -444,7 +446,7 @@ def _live_floor_ids(conn: sqlite3.Connection) -> set[str]:
     return store.live_floor_ids(conn)
 
 
-@router.get("/home-links")
+@router.get("/home-links", **wire(W.CatalogHomeLinks))
 def list_home_links(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The rows whose floor the caller may read (an area taken off every floor has no floor and is always listed: it names no place)."""
     live = _live_floor_ids(conn)
@@ -492,7 +494,7 @@ class HomeLinkIn(BaseModel):
     areas: dict[str, Literal["include", "exclude", "auto"]] | None = Field(default=None, max_length=500)
 
 
-@router.put("/floors/{floor_id}/home-link")
+@router.put("/floors/{floor_id}/home-link", **wire(W.CatalogHomeLinks))
 def put_home_link(floor_id: str, body: HomeLinkIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Whoever may edit the floor (site.content.configure on it) - and on every other floor a row is taken from. Unknown platform ids
     answer 422, except ids already in a row (a dangling row never blocks a save). Audited as floor.home_link."""

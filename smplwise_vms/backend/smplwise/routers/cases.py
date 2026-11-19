@@ -44,6 +44,8 @@ from ..services.access import camera_allowed, require_camera, visible_camera_ids
 from ..services.events_ingest import row_to_event
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from ._common import rid as _rid
+from ..wire import cases as W
+from ..wire import wire
 from .events import _with_names, _with_thumbs
 from .settings import read_settings
 from ..services.settings_store import setting_value
@@ -233,7 +235,7 @@ class CasePatch(BaseModel):
     status: str | None = Field(default=None, pattern="^(open|in_review|closed)$")
 
 
-@router.get("/cases")
+@router.get("/cases", **wire(W.CaseList))
 def list_cases(
     principal: Principal = Depends(current_principal_ro),
     conn: sqlite3.Connection = Depends(get_read_conn),
@@ -248,7 +250,7 @@ def list_cases(
             "can_import": authorize(conn, principal, "cases.manage", INSTALLATION).allowed}
 
 
-@router.post("/cases", status_code=201)
+@router.post("/cases", status_code=201, **wire(W.CaseRow))
 def create_case(body: CaseIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _require_manage(conn, principal)
     now = now_iso()
@@ -259,7 +261,7 @@ def create_case(body: CaseIn, request: Request, principal: Principal = Depends(c
     return case_row(_get(conn, cid), _counts(conn, [cid])[cid])
 
 
-@router.get("/cases/bookmarks")
+@router.get("/cases/bookmarks", **wire(W.CaseBookmarks))
 def list_bookmarks(
     request: Request,
     camera_id: str = Query(min_length=1, max_length=120),
@@ -294,7 +296,7 @@ def list_bookmarks(
     return {"camera_id": camera_id, "date": date, "bookmarks": out}
 
 
-@router.get("/cases/{case_id}")
+@router.get("/cases/{case_id}", **wire(W.CaseDetail))
 def get_case(case_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), check: bool = True) -> dict[str, Any]:
     """The case with its items; `check=false` skips the NVR coverage probe (preservation then reads unknown)."""
     settings = settings_of(request)
@@ -304,7 +306,7 @@ def get_case(case_id: str, request: Request, principal: Principal = Depends(curr
     return {**case_row(r, _counts(conn, [case_id])[case_id]), "items": items, "hidden_items": hidden, "can_manage": _can_manage(conn, principal), "checked": bool(check and _nvr_ready(settings))}
 
 
-@router.patch("/cases/{case_id}")
+@router.patch("/cases/{case_id}", **wire(W.CaseRow))
 def patch_case(case_id: str, body: CasePatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _require_manage(conn, principal)
     r = _get(conn, case_id)
@@ -364,7 +366,7 @@ def _item(settings: Settings, conn: sqlite3.Connection, case_id: str, item_id: s
     return next(i for i in items if i["id"] == item_id)
 
 
-@router.post("/cases/{case_id}/items", status_code=201)
+@router.post("/cases/{case_id}/items", status_code=201, **wire(W.CaseItem))
 def add_item(case_id: str, body: ItemIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _require_manage(conn, principal)
     r = _get(conn, case_id)
@@ -441,7 +443,7 @@ class RouteConfirmIn(BaseModel):
     window: int = Field(default=90, ge=10, le=900)
 
 
-@router.post("/events/{event_id}/route/confirm", status_code=201)
+@router.post("/events/{event_id}/route/confirm", status_code=201, **wire(W.CaseRouteConfirm))
 def confirm_route(event_id: str, body: RouteConfirmIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """One click from the suggested route (T064 / M064) into a case: the event (with its usual window) and one clip per
     chosen suggested camera over the route's window, every clip's note saying it is a hypothesis, never an
@@ -524,7 +526,7 @@ def remove_item(case_id: str, item_id: str, request: Request, principal: Princip
     audit(conn, actor=principal, action="case.item.remove", decision="allowed", resource_type="case", resource_id=case_id, request_id=_rid(request), details={"item": item_id, "kind": it["kind"]})
 
 
-@router.post("/cases/{case_id}/items/{item_id}/preserve", status_code=201)
+@router.post("/cases/{case_id}/items/{item_id}/preserve", status_code=201, **wire(W.CaseItem))
 def preserve_item(case_id: str, item_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Copy the footage out of the NVR through an export job (T048) and link it; only then the item counts as preserved."""
     _require_manage(conn, principal)
@@ -596,7 +598,7 @@ def item_file(case_id: str, item_id: str, request: Request, principal: Principal
     return FileResponse(p, media_type="application/octet-stream", headers=headers, filename=p.name)
 
 
-@router.post("/cases/{case_id}/integrity")
+@router.post("/cases/{case_id}/integrity", **wire(W.CaseIntegrity))
 def case_integrity(case_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Re-hash every stored copy of the case (snapshots, imported clips and snapshots) against the hash recorded when it
     was captured or imported: per item ok / mismatch / missing. A match means "unchanged since then" - not authenticity."""
@@ -638,7 +640,7 @@ def case_integrity(case_id: str, request: Request, principal: Principal = Depend
             "note": "התאמת hash מוכיחה שהעותק השמור לא השתנה מאז שנשמר או יובא; היא אינה מוכיחה את אמיתות הצילום."}
 
 
-@router.post("/cases/{case_id}/bundle", status_code=201)
+@router.post("/cases/{case_id}/bundle", status_code=201, **wire(W.CaseBundle))
 def create_bundle(case_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """One ZIP with the preserved clips, the snapshots, the notes, a manifest with SHA-256 per file and a readable
     report. Items that are only bookmarks (not preserved) are listed as skipped, never silently included."""
@@ -658,7 +660,7 @@ def create_bundle(case_id: str, request: Request, principal: Principal = Depends
     return desc
 
 
-@router.get("/cases/{case_id}/bundles")
+@router.get("/cases/{case_id}/bundles", **wire(W.CaseBundles))
 def list_bundles(case_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _read_scope(conn, principal)
     _get(conn, case_id)
@@ -845,7 +847,7 @@ async def _receive_bundle(request: Request, settings: Settings, cap: int, name: 
     return {"path": path, "sha256": h.hexdigest(), "bytes": size, "name": bundle_svc.clean_text(name or "").strip()[:200] or None}
 
 
-@router.post("/cases/bundles/verify")
+@router.post("/cases/bundles/verify", **wire(W.CaseVerify))
 async def verify_bundle(request: Request, name: str | None = Query(None, max_length=200), principal: Principal = Depends(_bundle_reader),
                         conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Verify an evidence bundle (raw ZIP or multipart `file`, at most cases.import_max_mb, streamed to a temp file that
@@ -885,7 +887,7 @@ async def verify_bundle(request: Request, name: str | None = Query(None, max_len
     return report
 
 
-@router.post("/cases/bundles/import", status_code=201)
+@router.post("/cases/bundles/import", status_code=201, **wire(W.CaseImport))
 async def import_bundle(request: Request, name: str | None = Query(None, max_length=200), principal: Principal = Depends(_bundle_importer),
                         conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Import a verified evidence bundle as a NEW case marked imported (cases.manage at installation scope, checked
@@ -991,7 +993,7 @@ def _import_bundle(db: Database, settings: Settings, up: dict[str, Any], princip
 
 # ---------------------------------------------------------------- evidence signing keys (T067)
 
-@router.get("/evidence/signing")
+@router.get("/evidence/signing", **wire(W.CaseSigning))
 def signing_info(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The installation's evidence-signing keys — public halves only — with the trust statement; anyone who can
     verify a bundle may read them. The private half never leaves /data/keys and is not part of any backup."""
@@ -999,7 +1001,7 @@ def signing_info(request: Request, principal: Principal = Depends(current_princi
             "installation_id": bundle_svc.installation_id(conn, create=True)}
 
 
-@router.post("/evidence/signing/rotate")
+@router.post("/evidence/signing/rotate", **wire(W.CaseSigning))
 def rotate_signing(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """New active key (system.configure); the previous public key stays in the ring as retired, so earlier bundles
     still verify and are reported as signed by a retired key of this installation."""

@@ -27,6 +27,8 @@ from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from .media import _principal_for_ws
 from ..services.settings_store import setting_value
 from ._common import rid as _rid
+from ..wire import events as W
+from ..wire import wire
 
 router = APIRouter()
 TYPES = ("motion", "person", "vehicle", "line", "field", "offline", "tamper", "door", "io", "storage", "system", "coverage_gap", "manual", "other")
@@ -116,7 +118,7 @@ def _with_thumbs(settings: Settings, rows: list[dict[str, Any]], queue_first: in
     return rows
 
 
-@router.get("/events")
+@router.get("/events", **wire(W.EventList))
 def list_events(
     request: Request,
     principal: Principal = Depends(current_principal_ro),
@@ -287,7 +289,7 @@ def _place_filter(conn: sqlite3.Connection, site_id: str | None, building_id: st
     return cams, ents, note
 
 
-@router.get("/events/facets")
+@router.get("/events/facets", **wire(W.EventFacets))
 def event_facets(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), days: int = Query(90, ge=1, le=365)) -> dict[str, Any]:
     """Which search fields have data in this installation and why the others are empty (T062): types, sources and
     severities seen in the last `days`, the places (site / building / floor / zone) with what is placed in them."""
@@ -359,7 +361,7 @@ def _facets(conn: sqlite3.Connection, wide: bool, ids: RowScope, days: int, floo
     }
 
 
-@router.get("/events/summary")
+@router.get("/events/summary", **wire(W.EventSummary))
 def summary(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     wide, ids = _scope(conn, principal)
     tz_name = setting_value(conn, "time.zone")
@@ -512,7 +514,7 @@ def group_windows(events: list[dict[str, Any]], gap_seconds: int, by: str = "cam
     return out
 
 
-@router.get("/events/windows")
+@router.get("/events/windows", **wire(W.EventWindows))
 def list_windows(
     request: Request,
     principal: Principal = Depends(current_principal_ro),
@@ -547,7 +549,7 @@ class WindowGroupIn(BaseModel):
     note: str = Field(default="", max_length=200)
 
 
-@router.post("/events/windows/groups", status_code=201)
+@router.post("/events/windows/groups", status_code=201, **wire(W.EventWindowGroup))
 def group_window_events(body: WindowGroupIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Correct the grouping (M047): the named events form one review window from now on, whatever the gap or the
     grouping mode. An event already in another manual group moves. Needs events.ack on every event's camera (the
@@ -607,7 +609,7 @@ class AckManyIn(BaseModel):
     event_ids: list[str] = Field(min_length=1, max_length=500)
 
 
-@router.post("/events/ack-many")
+@router.post("/events/ack-many", **wire(W.EventAckMany))
 def ack_many(body: AckManyIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Handle a whole window: every event is checked for scope like a single ack; each ack is audited by name."""
     acked: list[str] = []
@@ -634,7 +636,7 @@ def ack_many(body: AckManyIn, request: Request, principal: Principal = Depends(c
     return {"acked": acked, "skipped": skipped}
 
 
-@router.get("/cameras/{camera_id}/events")
+@router.get("/cameras/{camera_id}/events", **wire(W.EventCameraDay))
 def camera_events(camera_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$")) -> dict[str, Any]:
     """Timeline markers for one camera and local day (events.read or video.playback on that camera)."""
     # T055 B2 / nit: the camera's own decision first (403 before 404, and no installation fallback past a camera deny)
@@ -732,7 +734,7 @@ def _location(conn: sqlite3.Connection, camera_id: str) -> dict[str, Any] | None
     }
 
 
-@router.get("/events/{event_id}")
+@router.get("/events/{event_id}", **wire(W.EventDetail))
 def get_event(event_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """One event with its picture state and the camera's place on the floor (event page, design M27)."""
     row = store.event_row(conn, event_id)
@@ -750,7 +752,7 @@ def get_event(event_id: str, request: Request, principal: Principal = Depends(cu
     return ev
 
 
-@router.get("/events/{event_id}/correlation")
+@router.get("/events/{event_id}/correlation", **wire(W.EventCorrelation))
 def event_correlation(event_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), window: int = Query(120, ge=10, le=3600)) -> dict[str, Any]:
     """Door–camera–sensor neighbourhood of an event (T053): what nearby sensors, locks, commands and cameras reported
     within ±window seconds, each with its certainty. A command is never proof; nothing here triggers an action."""
@@ -770,7 +772,7 @@ def event_correlation(event_id: str, principal: Principal = Depends(current_prin
     return out
 
 
-@router.get("/events/{event_id}/route")
+@router.get("/events/{event_id}/route", **wire(W.EventRoute))
 def event_route(event_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), window: int = Query(90, ge=10, le=900)) -> dict[str, Any]:
     """Suggested next cameras for a hypothetical path after the event (T064): same room, adjacent room, within reach —
     ranked, with the window to look at and the activity each camera reported. Never an identification; never an action."""
@@ -786,7 +788,7 @@ def event_route(event_id: str, principal: Principal = Depends(current_principal_
     return correlation.suggest_route(conn, ev, window_s=window, camera_ids_allowed=_camera_ids(wide, ids))
 
 
-@router.post("/events/{event_id}/ack")
+@router.post("/events/{event_id}/ack", **wire(W.EventNamed))
 def ack(event_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     row = store.event_row(conn, event_id)
     if not row:

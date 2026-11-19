@@ -36,6 +36,8 @@ from ..rbac import INSTALLATION, Principal, all_roles, authorize, effective_perm
 from ..services import access_groups_store as store
 from ..services import revocation
 from ._common import is_json as _is_json, rid as _rid
+from ..wire import access_groups as W
+from ..wire import wire
 from .access import BindingBody, active_user_ids, keep_an_admin, _binding_dict, _ensure_user_row, _group_members, _scope_exists, rendered_labels, _subject_name, _terminate, affected_users, assigns_anywhere, check_delegation, full_authority, delegated_group_problem, insert_binding, revoke_one, touch_group, user_known, validate_binding
 
 router = APIRouter()
@@ -166,7 +168,7 @@ def _reach_or_refuse(conn: sqlite3.Connection, principal: Principal, group_id: s
 
 # ---------------------------------------------------------------- list / lifecycle
 
-@router.get("/access/groups")
+@router.get("/access/groups", **wire(W.AccessGroupList))
 def list_groups(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Every group for a holder of identity.directory.read; a delegated administrator sees only the groups in reach."""
     full_dir = authorize(conn, principal, "identity.directory.read", INSTALLATION).allowed
@@ -195,7 +197,7 @@ def _name_taken(conn: sqlite3.Connection, name: str, except_id: str | None = Non
     return store.name_taken(conn, name, except_id or "")
 
 
-@router.post("/access/groups", status_code=201)
+@router.post("/access/groups", status_code=201, **wire(W.AccessGroup))
 def create_group(body: GroupBody, request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     name = body.name.strip()
     if not name:
@@ -209,7 +211,7 @@ def create_group(body: GroupBody, request: Request, principal: Principal = Depen
     return _group_dict(conn, _group_row(conn, gid), principal)
 
 
-@router.patch("/access/groups/{group_id}")
+@router.patch("/access/groups/{group_id}", **wire(W.AccessGroup))
 def rename_group(group_id: str, body: GroupPatch, request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     g = _group_row(conn, group_id)
     _check_revision(g, body.revision)
@@ -224,7 +226,7 @@ def rename_group(group_id: str, body: GroupPatch, request: Request, principal: P
     return _group_dict(conn, _group_row(conn, group_id), principal)
 
 
-@router.delete("/access/groups/{group_id}")
+@router.delete("/access/groups/{group_id}", **wire(W.AccessGroupDeleted))
 def delete_group(group_id: str, request: Request, revision: int | None = Query(None, ge=1), principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Refused while the group has members or active bindings - remove them first (each of those is its own audited,
     previewed change); a deletion therefore never changes anyone's access."""
@@ -258,7 +260,7 @@ def _wanted_members(conn: sqlite3.Connection, principal: Principal, before: list
     return wanted + [u for u in before if u not in visible and u not in wanted], visible
 
 
-@router.put("/access/groups/{group_id}/members")
+@router.put("/access/groups/{group_id}/members", **wire(W.AccessGroup))
 def set_members(group_id: str, request: Request, principal: Principal = Depends(_assign_gate_ro), raw: bytes = Depends(_capped_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Replace the membership - a bulk request: every added or removed user is checked (known person; a delegated
     administrator never adds or removes themselves, and names only people their directory shows) and the first refused
@@ -311,7 +313,7 @@ class GroupBindingBody(BaseModel):
     revision: int = Field(ge=1)
 
 
-@router.post("/access/groups/{group_id}/bindings", status_code=201)
+@router.post("/access/groups/{group_id}/bindings", status_code=201, **wire(W.AccessGroupBound))
 def bind_group(group_id: str, body: GroupBindingBody, request: Request, principal: Principal = Depends(_assign_holder), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     b = BindingBody(subject_kind="group", subject_id=group_id, role_id=body.role_id, scope_type=body.scope_type, scope_id=body.scope_id, effect=body.effect, expires_at=body.expires_at)
     validate_binding(conn, principal, b)  # permission and scope first, then the group (404) and the delegation limits
@@ -324,7 +326,7 @@ def bind_group(group_id: str, body: GroupBindingBody, request: Request, principa
     return {"binding_id": bid, "revision": rev, "group": _group_dict(conn, _group_row(conn, group_id), principal)}
 
 
-@router.delete("/access/groups/{group_id}/bindings/{binding_id}")
+@router.delete("/access/groups/{group_id}/bindings/{binding_id}", **wire(W.AccessGroupUnbound))
 def unbind_group(group_id: str, binding_id: str, request: Request, revision: int = Query(..., ge=1), principal: Principal = Depends(_assign_holder), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     b = store.live_group_binding(conn, group_id, binding_id)
     if not b:
@@ -353,7 +355,7 @@ class _Rollback(Exception):
     pass
 
 
-@router.post("/access/groups/{group_id}/impact")
+@router.post("/access/groups/{group_id}/impact", **wire(W.AccessGroupImpact))
 def group_impact(group_id: str, body: ImpactBody, principal: Principal = Depends(_assign_holder), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Before a group change is saved: every affected user with the permissions they gain or lose at each scope the
     change touches - bind/unbind: all members at the binding's scope; members: the users added or removed, at every
@@ -449,7 +451,7 @@ class BulkBindingsBody(BaseModel):
     items: list[BindingBody] = Field(min_length=1, max_length=BULK_MAX_BINDINGS)
 
 
-@router.post("/access/bindings/bulk", status_code=201)
+@router.post("/access/bindings/bulk", status_code=201, **wire(W.AccessBulkCreated))
 def bulk_bindings(request: Request, principal: Principal = Depends(_assign_gate_ro), raw: bytes = Depends(_capped_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Many bindings in one call, all or nothing: each item gets exactly the single route's checks (validate_binding -
     delegation, allow-list, ceiling, self, group reach, existence, duplicates) and so does the whole set against itself

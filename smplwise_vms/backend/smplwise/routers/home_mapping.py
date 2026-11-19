@@ -29,6 +29,8 @@ from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import building_scope, home_mapping_store as store
 from ._common import rid as _rid
 from .catalog import P_CONTENT, get_site
+from ..wire import home_mapping as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -93,7 +95,7 @@ def _can_toggle(conn: sqlite3.Connection, principal: Principal) -> bool:
 
 # ---------------------------------------------------------------------------------------------------------------------------------- read
 
-@router.get("/sites/{site_id}/mapping")
+@router.get("/sites/{site_id}/mapping", **wire(W.HomeMappingRead))
 def read_mapping(site_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Everything the assistant needs: its stored state and settings, the versions, the item keys the last apply saw, the platform's floors
     and areas (the registry - complete, independent of the caller's device reach), our buildings with their floors, and the current rows."""
@@ -166,7 +168,7 @@ def _save_state(conn: sqlite3.Connection, site_id: str, raw: str, principal: Pri
     return cur + 1
 
 
-@router.put("/sites/{site_id}/mapping/state")
+@router.put("/sites/{site_id}/mapping/state", **wire(W.HomeMappingRevision))
 def put_state(site_id: str, body: StateIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The assistant's draft (the mark, the token table, the rules, the manual decisions). Stored as sent; the browser reads it back
     through stateOf(). A stale revision answers 409 (two people mapping at once)."""
@@ -184,7 +186,7 @@ class SettingsIn(BaseModel):
     new_token: Literal["new_first", "existing_first", "unassigned_first"] | None = None
 
 
-@router.put("/sites/{site_id}/mapping/settings")
+@router.put("/sites/{site_id}/mapping/settings", **wire(W.HomeMappingSettingsAnswer))
 def put_settings(site_id: str, body: SettingsIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_site(conn, site_id)
     require(conn, principal, P_CONTENT, ("site", site_id))
@@ -205,7 +207,7 @@ class MultiIn(BaseModel):
     enabled: bool
 
 
-@router.put("/home/multi-building")
+@router.put("/home/multi-building", **wire(W.HomeMappingMulti))
 def put_multi_building(body: MultiIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The multi-building view of the home screen: OFF by default (owner 31.10). Off = the exact one-building home; the mapping data stays."""
     sites = store.live_site_ids(conn)
@@ -227,7 +229,7 @@ class ReachIn(BaseModel):
     mode: Literal["map_and_mapping", "map"]
 
 
-@router.put("/home/building-reach")
+@router.put("/home/building-reach", **wire(W.HomeMappingReach))
 def put_building_reach(body: ReachIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Round 14 (owner 02.11): what a building-scoped role binding reaches - map placement, or map placement + the home's area mapping."""
     # it changes who reaches which device, like a role edit: the full authority over roles (rbac.roles.manage across the installation)
@@ -285,7 +287,7 @@ class ApplyIn(BaseModel):
 
 
 
-@router.post("/sites/{site_id}/mapping/apply")
+@router.post("/sites/{site_id}/mapping/apply", **wire(W.HomeMappingApply))
 def apply_mapping(site_id: str, body: ApplyIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """One transaction: create the new buildings / floors of the plan, write the rows, store the state, record a version, audit. Every id is
     checked first (a building / floor of THIS site, a platform floor / area the registry lists or a row already names); anything wrong answers
@@ -384,7 +386,7 @@ def apply_mapping(site_id: str, body: ApplyIn, request: Request, principal: Prin
     return {"version": num, "revision": st_rev, "created": {"buildings": created_b, "floors": created_f}, "counts": counts, "links": after}
 
 
-@router.post("/sites/{site_id}/mapping/versions/{number}/restore")
+@router.post("/sites/{site_id}/mapping/versions/{number}/restore", **wire(W.HomeMappingRestore))
 def restore_version(site_id: str, number: int, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """"חזרה לגרסה זו": a NEW version whose rows and state are the chosen version's. Only this site's rows change; rows that name a floor or
     a building deleted since are skipped (counted)."""

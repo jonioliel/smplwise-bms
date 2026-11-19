@@ -24,6 +24,8 @@ from ..services import plans_store as store
 from ..services import plan_catalog, plan_dxf, plan_dxf_map, plan_render, plan_stylize, safe_paths, wall_path
 from ._common import rid as _rid
 from .catalog import get_floor
+from ..wire import plans as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -180,7 +182,7 @@ def _page_png(settings: Settings, asset: sqlite3.Row, page: int, max_px: int) ->
 
 # ---------- upload ----------
 
-@router.post("/floors/{floor_id}/plan-assets", status_code=201)
+@router.post("/floors/{floor_id}/plan-assets", status_code=201, **wire(W.PlanAsset))
 def upload_asset(floor_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     settings = settings_of(request)
     get_floor(conn, floor_id)
@@ -253,7 +255,7 @@ def upload_asset(floor_id: str, request: Request, file: UploadFile = File(...), 
     return asset_row(get_asset(conn, asset_id))
 
 
-@router.get("/floors/{floor_id}/plan-assets")
+@router.get("/floors/{floor_id}/plan-assets", **wire(W.PlanAssets))
 def list_assets(floor_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, "map.import", ("floor", floor_id))
@@ -299,7 +301,7 @@ class VersionIn(BaseModel):
     scale_m_per_px: float | None = Field(default=None, gt=0)
 
 
-@router.post("/floors/{floor_id}/plan-versions", status_code=201)
+@router.post("/floors/{floor_id}/plan-versions", status_code=201, **wire(W.PlanVersionCreated))
 def create_version(floor_id: str, body: VersionIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     settings = settings_of(request)
     get_floor(conn, floor_id)
@@ -343,7 +345,7 @@ def create_version(floor_id: str, body: VersionIn, request: Request, principal: 
     return dict(version_row(get_version(conn, version_id)), geometry_carry=carry)
 
 
-@router.get("/floors/{floor_id}/plan-versions")
+@router.get("/floors/{floor_id}/plan-versions", **wire(W.PlanVersions))
 def list_versions(floor_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, "map.edit", ("floor", floor_id))
@@ -364,7 +366,7 @@ def version_image(version_id: str, request: Request, principal: Principal = Depe
     return FileResponse(path, media_type="image/png", headers={"Cache-Control": "private, max-age=86400"})
 
 
-@router.post("/plan-versions/{version_id}/publish")
+@router.post("/plan-versions/{version_id}/publish", **wire(W.PlanVersion))
 def publish_version(version_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     v = get_version(conn, version_id)
     require(conn, principal, "map.publish", ("floor", v["floor_id"]))
@@ -388,7 +390,7 @@ def publish_version(version_id: str, request: Request, principal: Principal = De
     return version_row(get_version(conn, version_id))
 
 
-@router.get("/plan-versions/{version_id}/diff")
+@router.get("/plan-versions/{version_id}/diff", **wire(W.PlanDiff))
 def diff_version(version_id: str, against: str | None = None, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Preview shown before publishing or restoring: geometry changes against the published version (or `against`)
     and what happens to every placed item (T038)."""
@@ -405,7 +407,7 @@ class RollbackIn(BaseModel):
     expected_published_id: str | None = Field(default=None, max_length=32)
 
 
-@router.post("/plan-versions/{version_id}/rollback", status_code=201)
+@router.post("/plan-versions/{version_id}/rollback", status_code=201, **wire(W.PlanVersion))
 def rollback_version(version_id: str, body: RollbackIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Restore an archived version as a new published version (its own copy of the picture and the same geometry), so
     every version keeps exactly one published period for the historical map. Anchors follow by geometry. The archived
@@ -485,7 +487,7 @@ def _readable(conn: sqlite3.Connection, principal: Principal, v: sqlite3.Row) ->
         require_floor_read(conn, principal, v["floor_id"])  # T055: a camera-scoped reader sees the drawing of its camera's floor
 
 
-@router.get("/plan-versions/{version_id}")
+@router.get("/plan-versions/{version_id}", **wire(W.PlanVersion))
 def get_version_api(version_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     v = get_version(conn, version_id)
     _readable(conn, principal, v)
@@ -514,7 +516,7 @@ def version_stylized(version_id: str, request: Request, principal: Principal = D
     return FileResponse(path, media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})
 
 
-@router.post("/plan-versions/{version_id}/stylize")
+@router.post("/plan-versions/{version_id}/stylize", **wire(W.PlanStylized))
 def stylize_version(version_id: str, body: StylizeIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Local image processing (no AI, nothing leaves the add-on): walls and rooms in the SMPLWISE language."""
     settings = settings_of(request)
@@ -534,7 +536,7 @@ def stylize_version(version_id: str, body: StylizeIn, request: Request, principa
     return {**result, "version_id": version_id, "source_url": f"api/v1/plan-versions/{version_id}/source.png", "stylized_url": f"api/v1/plan-versions/{version_id}/stylized.png"}
 
 
-@router.patch("/plan-versions/{version_id}")
+@router.patch("/plan-versions/{version_id}", **wire(W.PlanVersion))
 def patch_version(version_id: str, body: RenderModeIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     v = get_version(conn, version_id)
     require(conn, principal, "map.import", ("floor", v["floor_id"]))
@@ -564,7 +566,7 @@ def _dxf_payload(settings: Settings, asset: sqlite3.Row) -> dict[str, Any]:
     }
 
 
-@router.get("/plan-assets/{asset_id}/dxf")
+@router.get("/plan-assets/{asset_id}/dxf", **wire(W.PlanDxf))
 def dxf_info(asset_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """What the DXF contains (version, units, layers with drawable counts, entity counts, unsupported types, extent),
     the chosen layers/units and the last render (size, scale, skipped entities, partial flag)."""
@@ -575,7 +577,7 @@ def dxf_info(asset_id: str, request: Request, principal: Principal = Depends(cur
     return _dxf_payload(settings_of(request), asset)
 
 
-@router.put("/plan-assets/{asset_id}/dxf")
+@router.put("/plan-assets/{asset_id}/dxf", **wire(W.PlanDxf))
 def dxf_set_options(asset_id: str, body: DxfOptions, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Choose the layers to draw and the drawing units; the page cache is re-rendered from the untouched source.
     A partial conversion (skipped entity types) is always reported in `render.skipped`; an empty selection is refused."""
@@ -640,7 +642,7 @@ def _in_pool(request: Request, fn: Any, *args: Any, **kwargs: Any) -> Any:
         raise ApiError(504, "dxf_timeout", "קריאת ה־DXF לא הסתיימה בזמן; נסה שכבות מעטות יותר או קובץ קטן יותר.", retryable=True, details={"timeout_s": settings.detect_timeout_s})
 
 
-@router.get("/plan-assets/{asset_id}/dxf/entities")
+@router.get("/plan-assets/{asset_id}/dxf/entities", **wire(W.PlanDxfEntities))
 def dxf_entities(asset_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The mapping screen's table: every layer with its drawable count, kinds, a sample and the suggested target, every
     block with its count, footprint and the suggested catalog item; the targets and the catalog choices to pick from."""
@@ -669,7 +671,7 @@ class DxfImportIn(BaseModel):
     level_id: str | None = Field(default=None, max_length=64)
 
 
-@router.post("/plan-versions/{version_id}/import-dxf-geometry")
+@router.post("/plan-versions/{version_id}/import-dxf-geometry", **wire(W.PlanDxfImport))
 def import_dxf_geometry(version_id: str, body: DxfImportIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Candidates from the DXF the version was made from, by the chosen layer and block mapping (design 9.4), in the
     shape of /detect: nothing is stored; the editor accepts them through /detect/accept. The body is checked against

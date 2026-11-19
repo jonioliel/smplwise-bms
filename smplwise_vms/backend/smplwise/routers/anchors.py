@@ -23,6 +23,8 @@ from ..services.timeutil import parse_utc
 from .plans import needs_alignment, version_at, version_row
 from .settings import read_settings
 from ..services.settings_store import setting_value
+from ..wire import anchors as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -129,7 +131,7 @@ def _editor_version(conn: sqlite3.Connection, floor_id: str) -> sqlite3.Row | No
     return draft or _current_version(conn, floor_id)
 
 
-@router.get("/floors/{floor_id}/map")
+@router.get("/floors/{floor_id}/map", **wire(W.FloorMap))
 def floor_map(floor_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), draft: bool = False, at: str | None = None) -> dict[str, Any]:
     """Everything the map needs in one call. `draft=true` (editors) prefers the latest draft background; `at=<UTC>`
     returns the version that was published at that instant and the anchors effective then (historical map, T038)."""
@@ -376,7 +378,7 @@ def _scrub_cameras(conn: sqlite3.Connection, principal: Principal, floor_id: str
     return allowed, cameras_ok, events_ok
 
 
-@router.get("/floors/{floor_id}/history/snapshot")
+@router.get("/floors/{floor_id}/history/snapshot", **wire(W.FloorHistorySnapshot))
 def floor_history_snapshot(floor_id: str, request: Request, at: str | None = None, principal: Principal = Depends(current_principal_ro),
                            conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The floor at one instant, layer by layer, each authorised on its own (a layer the caller may not see: `not_permitted`, no data)."""
@@ -395,7 +397,7 @@ def floor_history_snapshot(floor_id: str, request: Request, at: str | None = Non
     return out
 
 
-@router.get("/floors/{floor_id}/history/range")
+@router.get("/floors/{floor_id}/history/range", **wire(W.FloorHistoryRange))
 def floor_history_range(floor_id: str, request: Request, frm: str | None = Query(default=None, alias="from"), to: str | None = None,
                         layers: str | None = None, step: int | None = Query(default=None, ge=1, le=86400),
                         principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
@@ -461,7 +463,7 @@ class AnchorPatch(BaseModel):
     label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
 
 
-@router.get("/floors/{floor_id}/anchors")
+@router.get("/floors/{floor_id}/anchors", **wire(W.AnchorList))
 def list_anchors(floor_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, "map.read", ("floor", floor_id))
@@ -475,7 +477,7 @@ def _shared_error(exc: Exception) -> ApiError:
     return ApiError(exc.status, exc.code, exc.message, details=exc.details)  # type: ignore[attr-defined]
 
 
-@router.post("/floors/{floor_id}/anchors", status_code=201)
+@router.post("/floors/{floor_id}/anchors", status_code=201, **wire(W.Anchor))
 def create_anchor(floor_id: str, body: AnchorIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, "placement.edit", ("floor", floor_id))
@@ -551,7 +553,7 @@ class RealignIn(BaseModel):
     mode: str = Field(pattern="^(crop|accept)$")
 
 
-@router.post("/floors/{floor_id}/anchors/realign")
+@router.post("/floors/{floor_id}/anchors/realign", **wire(W.AnchorRealigned))
 def realign_anchors(floor_id: str, body: RealignIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """S4: items placed on an earlier plan version. `crop` maps them through the two crops when both versions come from
     the same asset / page / rotation (a re-crop keeps the drawing, so the maths is exact); `accept` re-stamps them on the
@@ -587,7 +589,7 @@ def realign_anchors(floor_id: str, body: RealignIn, request: Request, principal:
     return {"mode": body.mode, "version_id": version["id"], "moved": len(moved), "skipped": len(skipped), "needs_alignment": bool(skipped)}
 
 
-@router.patch("/map-anchors/{anchor_id}")
+@router.patch("/map-anchors/{anchor_id}", **wire(W.Anchor))
 def update_anchor(anchor_id: str, body: AnchorPatch, request: Request, from_floor_id: str | None = None, principal: Principal = Depends(current_principal),
                   conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     a = get_anchor(conn, anchor_id)
