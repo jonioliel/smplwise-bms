@@ -2,7 +2,8 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 
 // CR-CMP2-SELECTS-2450 (owner N11): the shared segmented control `sw-segmented`, pinned on its own - a specimen sheet of its states
-// (the default and compact sizes, a count, a disabled key, a disabled group, the block form, a long row that wraps) drawn with the app's
+// (the default and compact sizes, a count, a disabled key, a disabled group, the block form, a long row that wraps; since
+// CR-CMP2-SEGMENTED-C-2450 icon keys - every label, the chosen key's label, icon-only - a badge and two-line keys with a dimmed one) drawn with the app's
 // tokens, light and dark, classic skin, demo fixtures. The screens that adopted it are pinned by their own screen shots.
 // Titles carry "pixel-stable" (the gate's pixel lane). Baselines are per OS: the Linux ones are generated on the runner with
 // --update-snapshots, looked at, then committed; on an OS without a baseline the check is skipped instead of failing on a missing file.
@@ -19,7 +20,7 @@ async function specimen(page: Page, scheme: 'light' | 'dark') {
   await page.waitForSelector('sw-app');
   await page.waitForFunction(() => !!customElements.get('sw-segmented'), undefined, { timeout: 30_000 });
   await page.evaluate(() => {
-    type Opt = { value: string; label: string; count?: number; disabled?: boolean };
+    type Opt = { value: string; label: string; count?: number; disabled?: boolean; icon?: unknown; badge?: string };
     const sheet = document.createElement('div');
     sheet.setAttribute('data-seg-specimen', '');
     sheet.style.cssText =
@@ -53,6 +54,36 @@ async function specimen(page: Page, scheme: 'light' | 'dark') {
     b.setAttribute('label', 'specimen block');
     block.append(b);
     row(['5', '10', '15', '20', '30', '45', '60', '90', '120'].map((m) => ({ value: m, label: `${m} דק׳` })), '30');
+    // CR-CMP2-SEGMENTED-C-2450: rich keys - icons (every label / the chosen key's label / icon-only), a badge, two-line keys with a
+    // dimmed one. An option's icon is a template in the app; a DOM node renders the same here (Lit takes a node as a child value).
+    const icon = (name: string) => {
+      const i = document.createElement('sw-icon');
+      i.setAttribute('name', name);
+      i.setAttribute('size', '16');
+      return i;
+    };
+    const views = () => [
+      { value: 'cards', label: 'כרטיסים', icon: icon('grid') },
+      { value: 'table', label: 'טבלה', icon: icon('list') },
+      { value: 'cal', label: 'יומן', icon: icon('calendar') },
+    ];
+    row(views(), 'table');
+    row(views(), 'table', { size: 'sm', labels: 'chosen' });
+    row(views(), 'cards', { labels: 'none' });
+    row([{ value: 's', label: 'קטן' }, { value: 'm', label: 'בינוני', badge: 'נוכחי' }, { value: 'l', label: 'גדול' }], 'l');
+    const two = document.createElement('div');
+    two.style.cssText = 'inline-size:min(100%, 420px);display:flex';
+    sheet.append(two);
+    const t = document.createElement('sw-segmented') as unknown as HTMLElement & { options: unknown[]; value: string };
+    t.options = [
+      { value: 'user', label: 'בעלי חשבון', sub: 'מטפלים במערכת' },
+      { value: 'emp', label: 'עובדים', sub: 'אין עובדים במחלקה', dimmed: true },
+      { value: 'out', label: 'מחוץ למערכת', sub: 'ספקים ואנשי קשר' },
+    ];
+    t.value = 'user';
+    t.setAttribute('block', '');
+    t.setAttribute('label', 'specimen two-line');
+    two.append(t);
     document.body.append(sheet);
   });
   await page.evaluate(() => document.fonts.ready);
@@ -114,5 +145,40 @@ test.describe('pixel: sw-segmented', () => {
     await groups.nth(3).locator('button', { hasText: 'מופחת' }).click({ force: true });
     await groups.nth(4).locator('button').first().click({ force: true });
     expect(await page.evaluate(() => (window as unknown as { segSeen: string[] }).segSeen)).toEqual(['c']);
+  });
+
+  test('sw-segmented rich keys: an icon-only key is named by its label; a roving group chooses with the arrows and has one Tab stop', async ({ page }) => {
+    await specimen(page, 'light');
+    const groups = page.locator('[data-seg-specimen] sw-segmented');
+    // labels="chosen" (the 9th group): the chosen key shows its label, the others only their icon and take the label as their name
+    const chosen = groups.nth(8);
+    await expect(chosen.locator('button[aria-pressed="true"] [part="label"]')).toHaveText('טבלה');
+    await expect(chosen.locator('button[aria-label="כרטיסים"]')).toHaveAttribute('title', 'כרטיסים');
+    await expect(chosen.locator('button[aria-label="כרטיסים"] [part="label"]')).toHaveCount(0);
+    // labels="none": every key is icon-only and named
+    await expect(groups.nth(9).locator('button[aria-label]')).toHaveCount(3);
+    // the badge and the two-line keys
+    await expect(groups.nth(10).locator('[part="badge"]')).toHaveText('נוכחי');
+    await expect(groups.nth(11).locator('button.dim [part="sub"]')).toHaveText('אין עובדים במחלקה');
+    // roving: the arrows choose the next key (a change), the host confirms, one key is in the Tab order
+    const r = groups.nth(7);
+    await r.evaluate((el) => {
+      el.setAttribute('roving', '');
+      (el as unknown as { roving: boolean }).roving = true;
+      (window as unknown as { rov: string[] }).rov = [];
+      el.addEventListener('change', (e) => {
+        const v = (e as CustomEvent<{ value: string }>).detail.value;
+        (window as unknown as { rov: string[] }).rov.push(v);
+        (el as HTMLElement & { value: string }).value = v;
+      });
+    });
+    await expect(r.locator('button[tabindex="0"]')).toHaveCount(1);
+    await expect(r.locator('button[tabindex="0"]')).toHaveAttribute('aria-pressed', 'true');
+    await r.locator('button[tabindex="0"]').focus();
+    const rtl = await r.evaluate((el) => getComputedStyle(el).direction === 'rtl');
+    await page.keyboard.press(rtl ? 'ArrowLeft' : 'ArrowRight');
+    expect(await page.evaluate(() => (window as unknown as { rov: string[] }).rov)).toEqual(['cal']);
+    await expect(r.locator('button[aria-pressed="true"]')).toHaveAttribute('tabindex', '0');
+    await expect(r.locator('button[aria-pressed="true"]')).toBeFocused();
   });
 });

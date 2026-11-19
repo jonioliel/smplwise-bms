@@ -9,6 +9,8 @@ import { ElecBase, billCellChip, billChip, n, skeleton, stateBox, type LoadState
 import { customerName, f2or, ils, periodLabel } from './elec-format';
 import { go, href, route } from './elec-routes';
 import { tr } from '../i18n/msg/electricity';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 
 const VIEW_KEY = 'sw.elec.accounts.view';
 
@@ -99,9 +101,8 @@ export class ElecAccountsList extends ElecBase {
     const rows = this.rows.filter((r) => !q || r.account.name.includes(q) || !!r.account.customer?.name.includes(q));
     const head = html`<div class="row">
       <input type="search" data-search aria-label=${tr('חיפוש חשבון או לקוח')} placeholder=${tr('חיפוש חשבון או לקוח')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} />
-      ${this.phone ? nothing : html`<div class="seg" role="group" aria-label=${tr('תצוגה')}>
-        <button type="button" data-view="cards" aria-pressed=${this.view === 'cards'} @click=${() => this.setView('cards')}>${tr('כרטיסים')}</button>
-        <button type="button" data-view="table" aria-pressed=${this.view === 'table'} @click=${() => this.setView('table')}>${tr('טבלה')}</button></div>`}
+      ${this.phone ? nothing : html`<sw-segmented label=${tr('תצוגה')} value=${this.view} @change=${(e: CustomEvent<SegmentedChange>) => this.setView(e.detail.value as 'cards' | 'table')}
+        .options=${[{ value: 'cards', label: tr('כרטיסים'), attrs: { 'data-view': 'cards' } }, { value: 'table', label: tr('טבלה'), attrs: { 'data-view': 'table' } }]}></sw-segmented>`}
       <span class="sp"></span>
       ${perms.manage ? html`<a class="btn pri ${this.phone ? 'sm' : ''}" data-new-account href=${href.accountNew()}>${tr('+ חשבון חדש')}</a>` : nothing}
     </div>`;

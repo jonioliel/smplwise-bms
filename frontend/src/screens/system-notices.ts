@@ -2,6 +2,9 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { settingsLadderStyles } from '../styles/settings';
 import '../components/sw-page';
+import '../components/sw-segmented';
+import '../components/sw-field';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-toggle';
@@ -56,6 +59,10 @@ export class SystemNotices extends LitElement {
     settingsLadderStyles,
     noticesCss,
     css`
+      /* CR-CMP2-SEGMENTED-B-2450 (owner N10): every text field and select of the page sits in sw-field (one field look for the whole
+         form); the short fields (days, connections, the night hours, the dim level, the forecast hours, the feed and notice pickers) keep
+         their 90 px */
+      sw-field.short { inline-size: 90px; }
       .tpls { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
       .tpl { font: inherit; text-align: start; display: grid; gap: 6px; padding: 10px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); background: var(--sw-surface-2); color: var(--sw-text); cursor: pointer; }
       .tpl[aria-pressed='true'] { border-color: var(--sw-accent); box-shadow: inset 0 0 0 1px var(--sw-accent); background: var(--sw-accent-soft); }
@@ -344,41 +351,41 @@ export class SystemNotices extends LitElement {
     const st = s.settings;
     return html`<div class="panel" data-defaults-card><div class="hd"><h2>${nt('defaultsCard')}</h2></div><div class="form">
       <div class="r">
-        <div class="fld"><label for="ns-days">${nt('dDays')}</label><div class="sum"><input id="ns-days" class="inp short num" type="number" min="1" max="90" .value=${String(st.default_days)}
-          @change=${(e: Event) => this.patchSettings({ default_days: Number((e.target as HTMLInputElement).value) })}><span class="mut">${nt('dDaysUnit')}</span></div></div>
-        <div class="fld"><label for="ns-sev">${nt('dSeverity')}</label><select id="ns-sev" class="inp" data-v=${st.default_severity} @change=${(e: Event) => this.patchSettings({ default_severity: (e.target as HTMLSelectElement).value as 'info' | 'alert' })}>
-          <option value="info">${nt('sevInfo')}</option><option value="alert">${nt('sevAlert')}</option></select></div>
+        <div class="fld"><label for="ns-days">${nt('dDays')}</label><div class="sum"><sw-field class="short"><input id="ns-days" class="num" type="number" min="1" max="90" .value=${String(st.default_days)}
+          @change=${(e: Event) => this.patchSettings({ default_days: Number((e.target as HTMLInputElement).value) })}></sw-field><span class="mut">${nt('dDaysUnit')}</span></div></div>
+        <div class="fld"><label for="ns-sev">${nt('dSeverity')}</label><sw-field><select id="ns-sev" data-v=${st.default_severity} @change=${(e: Event) => this.patchSettings({ default_severity: (e.target as HTMLSelectElement).value as 'info' | 'alert' })}>
+          <option value="info">${nt('sevInfo')}</option><option value="alert">${nt('sevAlert')}</option></select></sw-field></div>
       </div>
       <div class="r">
-        <div class="fld"><label for="ns-reads">${nt('dReads')}</label><select id="ns-reads" class="inp" data-v=${st.reads_names ? 'names' : 'counts'} @change=${(e: Event) => this.patchSettings({ reads_names: (e.target as HTMLSelectElement).value === 'names' })}>
-          <option value="names">${nt('dReadsNames')}</option><option value="counts">${nt('dReadsCounts')}</option></select></div>
-        <div class="fld"><label for="ns-ret">${nt('dRetention')}</label><select id="ns-ret" class="inp" data-v=${String(st.retention_days)}
+        <div class="fld"><label for="ns-reads">${nt('dReads')}</label><sw-field><select id="ns-reads" data-v=${st.reads_names ? 'names' : 'counts'} @change=${(e: Event) => this.patchSettings({ reads_names: (e.target as HTMLSelectElement).value === 'names' })}>
+          <option value="names">${nt('dReadsNames')}</option><option value="counts">${nt('dReadsCounts')}</option></select></sw-field></div>
+        <div class="fld"><label for="ns-ret">${nt('dRetention')}</label><sw-field><select id="ns-ret" data-v=${String(st.retention_days)}
           @change=${(e: Event) => this.patchSettings({ retention_days: Number((e.target as HTMLSelectElement).value) })}>
-          ${retentionOptions(st.retention_days).map((o) => html`<option value=${String(o.value)}>${o.label}</option>`)}</select></div>
+          ${retentionOptions(st.retention_days).map((o) => html`<option value=${String(o.value)}>${o.label}</option>`)}</select></sw-field></div>
         <notice-home-empty .value=${st.home_empty ?? 'hide'} @home-empty-change=${(e: CustomEvent<'hide' | 'line'>) => this.patchSettings({ home_empty: e.detail })}></notice-home-empty>
       </div>
       <div class="r">
-        <div class="fld"><label for="ns-push">${nt('dPush')}</label><select id="ns-push" class="inp" data-v=${st.push_default}
+        <div class="fld"><label for="ns-push">${nt('dPush')}</label><sw-field><select id="ns-push" data-v=${st.push_default}
           @change=${(e: Event) => this.patchSettings({ push_default: (e.target as HTMLSelectElement).value as 'by_severity' | 'always' | 'never' })}>
-          <option value="by_severity">${nt('dPushSev')}</option><option value="always">${nt('dPushAlways')}</option><option value="never">${nt('dPushNever')}</option></select>
+          <option value="by_severity">${nt('dPushSev')}</option><option value="always">${nt('dPushAlways')}</option><option value="never">${nt('dPushNever')}</option></select></sw-field>
           <span class="hint">${nt('dPushHint')}</span></div>
       </div>
       <div class="r">
-        <div class="fld"><label for="ns-wx">${nt('dWeather')}</label><select id="ns-wx" class="inp" data-v=${st.weather_entity} @change=${(e: Event) => this.patchSettings({ weather_entity: (e.target as HTMLSelectElement).value })}>
-          <option value="">${nt('dWeatherNone')}</option>${s.weather_entities.map((w) => html`<option value=${w.entity_id}>${w.name}</option>`)}</select></div>
-        <div class="fld"><label for="ns-bn">${nt('dBuilding')}</label><input id="ns-bn" class="inp" maxlength="60" .value=${st.building_name} placeholder=${s.building_fallback}
-          @change=${(e: Event) => this.patchSettings({ building_name: (e.target as HTMLInputElement).value })}><span class="hint">${nt('dBuildingHint', { name: s.building_fallback || '-' })}</span></div>
+        <div class="fld"><label for="ns-wx">${nt('dWeather')}</label><sw-field><select id="ns-wx" data-v=${st.weather_entity} @change=${(e: Event) => this.patchSettings({ weather_entity: (e.target as HTMLSelectElement).value })}>
+          <option value="">${nt('dWeatherNone')}</option>${s.weather_entities.map((w) => html`<option value=${w.entity_id}>${w.name}</option>`)}</select></sw-field></div>
+        <div class="fld"><label for="ns-bn">${nt('dBuilding')}</label><sw-field><input id="ns-bn" maxlength="60" .value=${st.building_name} placeholder=${s.building_fallback}
+          @change=${(e: Event) => this.patchSettings({ building_name: (e.target as HTMLInputElement).value })}></sw-field><span class="hint">${nt('dBuildingHint', { name: s.building_fallback || '-' })}</span></div>
       </div>
       <notice-info-sources .parking=${st.parking_entities ?? []} .gym=${st.gym_entities ?? []} .candidates=${s.info_entities ?? {}}
         .inverted=${{ parking: st.parking_inverted ?? [], gym: st.gym_inverted ?? [] }}
         @info-sources-change=${(e: CustomEvent<InfoSourcesPatch>) => this.patchSettings(e.detail)}></notice-info-sources>
-      <div class="fld"><label for="ns-origin">${nt('dOrigin')}</label><input id="ns-origin" class="inp ltr" maxlength="220" .value=${st.boards_origin} placeholder="http://192.0.2.10:18094"
-        @change=${(e: Event) => this.patchSettings({ boards_origin: (e.target as HTMLInputElement).value })}><span class="hint">${nt('dOriginHint')}</span></div>
+      <div class="fld"><label for="ns-origin">${nt('dOrigin')}</label><sw-field><input id="ns-origin" class="ltr" maxlength="220" .value=${st.boards_origin} placeholder="http://192.0.2.10:18094"
+        @change=${(e: Event) => this.patchSettings({ boards_origin: (e.target as HTMLInputElement).value })}></sw-field><span class="hint">${nt('dOriginHint')}</span></div>
       <div class="r">
-        <div class="fld"><label for="ns-ctot">${nt('dConnTotal')}</label><input id="ns-ctot" class="inp short num" type="number" min="4" max="256" data-conn-total .value=${String(st.conn_total)}
-          @change=${(e: Event) => this.patchSettings({ conn_total: Number((e.target as HTMLInputElement).value) })}></div>
-        <div class="fld"><label for="ns-cadr">${nt('dConnPerAddr')}</label><input id="ns-cadr" class="inp short num" type="number" min="1" max="64" data-conn-per-address .value=${String(st.conn_per_address)}
-          @change=${(e: Event) => this.patchSettings({ conn_per_address: Number((e.target as HTMLInputElement).value) })}></div>
+        <div class="fld"><label for="ns-ctot">${nt('dConnTotal')}</label><sw-field class="short"><input id="ns-ctot" class="num" type="number" min="4" max="256" data-conn-total .value=${String(st.conn_total)}
+          @change=${(e: Event) => this.patchSettings({ conn_total: Number((e.target as HTMLInputElement).value) })}></sw-field></div>
+        <div class="fld"><label for="ns-cadr">${nt('dConnPerAddr')}</label><sw-field class="short"><input id="ns-cadr" class="num" type="number" min="1" max="64" data-conn-per-address .value=${String(st.conn_per_address)}
+          @change=${(e: Event) => this.patchSettings({ conn_per_address: Number((e.target as HTMLInputElement).value) })}></sw-field></div>
       </div>
       <label class="ck" data-places-tree-setting><input type="checkbox" .checked=${st.show_places_tree !== false} @change=${(e: Event) => this.patchSettings({ show_places_tree: (e.target as HTMLInputElement).checked })}>${nt('dPlacesTree')}</label>
       <label class="ck"><input type="checkbox" .checked=${st.news_custom} @change=${(e: Event) => this.patchSettings({ news_custom: (e.target as HTMLInputElement).checked })}>${nt('dCustomFeeds')}</label>
@@ -471,8 +478,8 @@ export class SystemNotices extends LitElement {
     const c = this.creating;
     return html`<sw-dialog ?open=${!!c} heading=${nt('newBoard')} @close=${() => (this.creating = null)} data-create-board>
       ${c ? html`<div class="form">
-        <div class="fld"><label for="nb-name">${nt('bName')}</label><input id="nb-name" class="inp" maxlength="60" .value=${c.name} @input=${(e: Event) => (this.creating = { ...c, name: (e.target as HTMLInputElement).value, err: '' })}></div>
-        <div class="fld"><label for="nb-slug">${nt('bSlug')}</label><input id="nb-slug" class="inp ltr" maxlength="40" .value=${c.slug} @input=${(e: Event) => (this.creating = { ...c, slug: (e.target as HTMLInputElement).value.toLowerCase(), err: '' })}><span class="hint">${nt('bSlugHint')}</span></div>
+        <div class="fld"><label for="nb-name">${nt('bName')}</label><sw-field><input id="nb-name" maxlength="60" .value=${c.name} @input=${(e: Event) => (this.creating = { ...c, name: (e.target as HTMLInputElement).value, err: '' })}></sw-field></div>
+        <div class="fld"><label for="nb-slug">${nt('bSlug')}</label><sw-field><input id="nb-slug" class="ltr" maxlength="40" .value=${c.slug} @input=${(e: Event) => (this.creating = { ...c, slug: (e.target as HTMLInputElement).value.toLowerCase(), err: '' })}></sw-field><span class="hint">${nt('bSlugHint')}</span></div>
         ${c.err ? html`<span class="err" role="alert">${c.err}</span>` : nothing}</div>` : nothing}
       <sw-button slot="footer" @click=${() => (this.creating = null)}>${nt('cancel')}</sw-button>
       <sw-button slot="footer" variant="primary" data-create @click=${() => this.create()}>${nt('newBoard')}</sw-button></sw-dialog>`;
@@ -548,10 +555,10 @@ export class SystemNotices extends LitElement {
     return html`<div class="two">
       <div class="panel"><div class="hd"><h2>${nt('tabGeneral')}</h2><span class="sp"></span><sw-button size="sm" variant="primary" ?disabled=${!this.dirty && this.nameDraft === b.name} @click=${() => this.saveAll()}>${nt('save')}</sw-button></div>
         <div class="form">
-          <div class="r"><div class="fld"><label for="bg-name">${nt('bName')}</label><input id="bg-name" class="inp" maxlength="60" .value=${this.nameDraft} @input=${(e: Event) => (this.nameDraft = (e.target as HTMLInputElement).value)}></div>
-            <div class="fld"><label for="bg-slug">${nt('bSlug')}</label><input id="bg-slug" class="inp ltr" .value=${b.slug} disabled></div></div>
+          <div class="r"><div class="fld"><label for="bg-name">${nt('bName')}</label><sw-field><input id="bg-name" maxlength="60" .value=${this.nameDraft} @input=${(e: Event) => (this.nameDraft = (e.target as HTMLInputElement).value)}></sw-field></div>
+            <div class="fld"><label for="bg-slug">${nt('bSlug')}</label><sw-field><input id="bg-slug" class="ltr" .value=${b.slug} disabled></sw-field></div></div>
           <div class="r">${this.placeField(d.place)}
-            <div class="fld"><label for="bg-lang">${nt('lang')}</label><select id="bg-lang" class="inp" data-v=${d.lang} @change=${(e: Event) => this.setD({ lang: (e.target as HTMLSelectElement).value as 'he' | 'en' })}><option value="he">עברית</option><option value="en">English</option></select></div></div>
+            <div class="fld"><label for="bg-lang">${nt('lang')}</label><sw-field><select id="bg-lang" data-v=${d.lang} @change=${(e: Event) => this.setD({ lang: (e.target as HTMLSelectElement).value as 'he' | 'en' })}><option value="he">עברית</option><option value="en">English</option></select></sw-field></div></div>
           <dl class="kv"><dt>${nt('kvTemplate')}</dt><dd>${this.summary(b)}</dd><dt>${nt('bItems')}</dt><dd class="num">${this.detail!.notices.length}</dd>
             <dt>${nt('kvSeen')}</dt><dd>${agoText(b.last_seen_at, Date.now())}</dd><dt>${nt('kvCreated')}</dt><dd class="num">${(b.created_at || '').slice(0, 10)}</dd>
             <dt>${nt('kvRotated')}</dt><dd class="num">${(b.token_rotated_at || '').slice(0, 10)}</dd></dl>
@@ -570,17 +577,17 @@ export class SystemNotices extends LitElement {
   private placeField(place: string) {
     const presets = placePresets(this.floors);
     if (!presets.length) {
-      return html`<div class="fld"><label for="bg-place">${nt('place')}</label><input id="bg-place" class="inp" maxlength="60" .value=${place} @input=${(e: Event) => this.setD({ place: (e.target as HTMLInputElement).value })}></div>`;
+      return html`<div class="fld"><label for="bg-place">${nt('place')}</label><sw-field><input id="bg-place" maxlength="60" .value=${place} @input=${(e: Event) => this.setD({ place: (e.target as HTMLInputElement).value })}></sw-field></div>`;
     }
     const custom = !!place && !presets.includes(place);
     const pick = this.placeOther || custom ? '__other' : place;
     return html`<div class="fld"><label for="bg-place">${nt('place')}</label>
-      <select id="bg-place" class="inp" data-place-select data-v=${pick} @change=${(e: Event) => {
+      <sw-field><select id="bg-place" data-place-select data-v=${pick} @change=${(e: Event) => {
         const v = (e.target as HTMLSelectElement).value;
         this.placeOther = v === '__other';
         if (!this.placeOther) this.setD({ place: v });
-      }}><option value="">-</option>${presets.map((p) => html`<option value=${p}>${p}</option>`)}<option value="__other">${nt('placeOther')}</option></select>
-      ${pick === '__other' ? html`<input class="inp" data-place-text maxlength="60" aria-label=${nt('place')} .value=${place} @input=${(e: Event) => this.setD({ place: (e.target as HTMLInputElement).value })}>` : nothing}</div>`;
+      }}><option value="">-</option>${presets.map((p) => html`<option value=${p}>${p}</option>`)}<option value="__other">${nt('placeOther')}</option></select></sw-field>
+      ${pick === '__other' ? html`<sw-field><input data-place-text maxlength="60" aria-label=${nt('place')} .value=${place} @input=${(e: Event) => this.setD({ place: (e.target as HTMLInputElement).value })}></sw-field>` : nothing}</div>`;
   }
 
   private setD(p: Partial<Display>): void {
@@ -630,16 +637,18 @@ export class SystemNotices extends LitElement {
           <sw-button size="sm" @click=${() => this.cmd('next')}>${nt('next')}</sw-button><label class="ck"><input type="checkbox" .checked=${this.sendToTvs} @change=${(e: Event) => (this.sendToTvs = (e.target as HTMLInputElement).checked)}>${nt('sendToTvs')}</label>
           <span class="hint">${nt('remoteHint')}</span></div>
         <div class="form">
-          <div class="r"><div class="fld"><span class="lbl">${nt('theme')}</span><div class="seg" data-theme-seg>${(['day', 'night', 'auto'] as const).map((th) => html`<button aria-pressed=${String(d.theme === th)} @click=${() => this.setD({ theme: th })}>${nt(th === 'day' ? 'themeDay' : th === 'night' ? 'themeNight' : 'themeAuto')}</button>`)}</div></div>
-            <div class="fld"><span class="lbl">${nt('orient')}</span><div class="seg">${(['auto', 'landscape', 'portrait'] as const).map((o) => html`<button aria-pressed=${String(d.layout === o)} @click=${() => this.setD({ layout: o })}>${nt(o === 'auto' ? 'orAuto' : o === 'landscape' ? 'orLand' : 'orPort')}</button>`)}</div></div></div>
-          <div class="r"><div class="fld"><label for="bd-dh">${nt('dayHours')}</label><input id="bd-dh" class="inp ltr" placeholder="07:00-19:00" .value=${d.day_hours} @change=${(e: Event) => this.setD({ day_hours: (e.target as HTMLInputElement).value.trim() })}><span class="hint">${nt('dayHoursHint')}</span></div>
-            <div class="fld"><label for="bd-fs">${nt('fontSize')}</label><select id="bd-fs" class="inp" data-v=${d.font_size} @change=${(e: Event) => this.setD({ font_size: (e.target as HTMLSelectElement).value as Display['font_size'] })}>
-              <option value="s">${nt('fsS')}</option><option value="m">${nt('fsM')}</option><option value="l">${nt('fsL')}</option></select></div></div>
+          <div class="r"><div class="fld"><span class="lbl">${nt('theme')}</span><sw-segmented label=${nt('theme')} data-theme-seg value=${d.theme} @change=${(e: CustomEvent<SegmentedChange>) => this.setD({ theme: e.detail.value as 'day' | 'night' | 'auto' })}
+            .options=${(['day', 'night', 'auto'] as const).map((th) => ({ value: th, label: nt(th === 'day' ? 'themeDay' : th === 'night' ? 'themeNight' : 'themeAuto') }))}></sw-segmented></div>
+            <div class="fld"><span class="lbl">${nt('orient')}</span><sw-segmented label=${nt('orient')} value=${d.layout} @change=${(e: CustomEvent<SegmentedChange>) => this.setD({ layout: e.detail.value as 'auto' | 'landscape' | 'portrait' })}
+            .options=${(['auto', 'landscape', 'portrait'] as const).map((o) => ({ value: o, label: nt(o === 'auto' ? 'orAuto' : o === 'landscape' ? 'orLand' : 'orPort') }))}></sw-segmented></div></div>
+          <div class="r"><div class="fld"><label for="bd-dh">${nt('dayHours')}</label><sw-field><input id="bd-dh" class="ltr" placeholder="07:00-19:00" .value=${d.day_hours} @change=${(e: Event) => this.setD({ day_hours: (e.target as HTMLInputElement).value.trim() })}></sw-field><span class="hint">${nt('dayHoursHint')}</span></div>
+            <div class="fld"><label for="bd-fs">${nt('fontSize')}</label><sw-field><select id="bd-fs" data-v=${d.font_size} @change=${(e: Event) => this.setD({ font_size: (e.target as HTMLSelectElement).value as Display['font_size'] })}>
+              <option value="s">${nt('fsS')}</option><option value="m">${nt('fsM')}</option><option value="l">${nt('fsL')}</option></select></sw-field></div></div>
           <div class="fld"><label class="ck"><input type="checkbox" .checked=${d.night.enabled} @change=${(e: Event) => this.setD({ night: { ...d.night, enabled: (e.target as HTMLInputElement).checked } })}>${nt('nightDim')}</label>
-            ${d.night.enabled ? html`<div class="sum">${nt('nightFrom')}<input class="inp short ltr" type="time" lang=${dateInputLang()} .value=${d.night.from} @change=${(e: Event) => this.setD({ night: { ...d.night, from: (e.target as HTMLInputElement).value } })}>
-              ${nt('nightTo')}<input class="inp short ltr" type="time" lang=${dateInputLang()} .value=${d.night.to} @change=${(e: Event) => this.setD({ night: { ...d.night, to: (e.target as HTMLInputElement).value } })}>
-              ${nt('nightLevel')}<select class="inp short" data-v=${String(d.night.dim)} @change=${(e: Event) => this.setD({ night: { ...d.night, dim: Number((e.target as HTMLSelectElement).value) } })}>
-                ${[0.3, 0.4, 0.5, 0.6, 0.7, 0.8].map((v) => html`<option value=${String(v)}>${Math.round(v * 100)}%</option>`)}</select></div>` : nothing}</div>
+            ${d.night.enabled ? html`<div class="sum">${nt('nightFrom')}<sw-field class="short"><input class="ltr" type="time" lang=${dateInputLang()} .value=${d.night.from} @change=${(e: Event) => this.setD({ night: { ...d.night, from: (e.target as HTMLInputElement).value } })}></sw-field>
+              ${nt('nightTo')}<sw-field class="short"><input class="ltr" type="time" lang=${dateInputLang()} .value=${d.night.to} @change=${(e: Event) => this.setD({ night: { ...d.night, to: (e.target as HTMLInputElement).value } })}></sw-field>
+              ${nt('nightLevel')}<sw-field class="short"><select data-v=${String(d.night.dim)} @change=${(e: Event) => this.setD({ night: { ...d.night, dim: Number((e.target as HTMLSelectElement).value) } })}>
+                ${[0.3, 0.4, 0.5, 0.6, 0.7, 0.8].map((v) => html`<option value=${String(v)}>${Math.round(v * 100)}%</option>`)}</select></sw-field></div>` : nothing}</div>
           <div class="chips"><label class="ck"><input type="checkbox" .checked=${d.burn_in.shift} @change=${(e: Event) => this.setD({ burn_in: { shift: (e.target as HTMLInputElement).checked } })}>${nt('burnIn')}</label>
             <label class="ck"><input type="checkbox" .checked=${d.blocks.company_logo} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, company_logo: (e.target as HTMLInputElement).checked } })}>${nt('companyLogo')}</label>
             <label class="ck"><input type="checkbox" checked disabled>${nt('smplwiseLogo')}</label></div>
@@ -655,24 +664,26 @@ export class SystemNotices extends LitElement {
               <label class="ck"><input type="checkbox" .checked=${d.blocks.welcome} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, welcome: (e.target as HTMLInputElement).checked } })}>${nt('blkWelcome')}</label></div></div>
           <div class="blk"><label class="ck"><input type="checkbox" .checked=${d.blocks.weather} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, weather: (e.target as HTMLInputElement).checked } })}>${nt('blkWeather')}</label>
             <div class="sub">${s.weather_entity ? html`<span class="ltr mut">${s.weather_entity}</span>` : html`<span class="mut">${nt('blkWeatherNoEntity')}</span>`}
-              <span>${nt('hoursAhead')}</span><select class="inp short" data-v=${String(d.weather.hours)} @change=${(e: Event) => this.setD({ weather: { hours: Number((e.target as HTMLSelectElement).value) } })}>${[3, 5, 8].map((h) => html`<option value=${String(h)}>${h}</option>`)}</select></div></div>
+              <span>${nt('hoursAhead')}</span><sw-field class="short"><select data-v=${String(d.weather.hours)} @change=${(e: Event) => this.setD({ weather: { hours: Number((e.target as HTMLSelectElement).value) } })}>${[3, 5, 8].map((h) => html`<option value=${String(h)}>${h}</option>`)}</select></sw-field></div></div>
           <div class="blk"><label class="ck"><input type="checkbox" .checked=${d.blocks.news} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, news: (e.target as HTMLInputElement).checked } })}>${nt('blkNews')}</label>
             <div class="sub">${d.news.feeds.map((f, i) => { const v = feedView(f, s.news_sources); return html`<div class="feed" data-feed=${f.url}>${v.logo ? html`<img class="flg" alt="" src=${v.logo}>` : html`<sw-icon name="link" size="12"></sw-icon>`}<b>${shortName(v.name)}</b>${v.known ? nothing : html`<span class="chip">${nt('nsCustomTag')}</span>`}
                 <sw-button size="sm" variant="ghost" @click=${() => this.setD({ news: { ...d.news, feeds: d.news.feeds.filter((_x, k) => k !== i) } })}>${nt('remove')}</sw-button></div>`; })}
-              <select class="inp short" data-v=${this.feedPick} @change=${(e: Event) => (this.feedPick = (e.target as HTMLSelectElement).value)}><option value="">${nt('feedPick')}</option>
-                ${s.news_sources.filter((f) => f.enabled !== false).map((f) => html`<option value=${f.url}>${f.name}${f.custom ? ' · ' + nt('nsCustomTag') : ''}</option>`)}${s.news_custom ? html`<option value="custom">${nt('feedCustom')}</option>` : nothing}</select>
-              ${this.feedPick === 'custom' ? html`<input class="inp ltr" placeholder="https://" .value=${this.feedUrl} @input=${(e: Event) => (this.feedUrl = (e.target as HTMLInputElement).value)}>` : nothing}
+              <sw-field class="short"><select data-v=${this.feedPick} @change=${(e: Event) => (this.feedPick = (e.target as HTMLSelectElement).value)}><option value="">${nt('feedPick')}</option>
+                ${s.news_sources.filter((f) => f.enabled !== false).map((f) => html`<option value=${f.url}>${f.name}${f.custom ? ' · ' + nt('nsCustomTag') : ''}</option>`)}${s.news_custom ? html`<option value="custom">${nt('feedCustom')}</option>` : nothing}</select></sw-field>
+              ${this.feedPick === 'custom' ? html`<sw-field><input class="ltr" placeholder="https://" .value=${this.feedUrl} @input=${(e: Event) => (this.feedUrl = (e.target as HTMLInputElement).value)}></sw-field>` : nothing}
               <sw-button size="sm" icon="plus" ?disabled=${!this.feedPick || d.news.feeds.length >= 6} @click=${() => this.addFeed()}>${nt('add')}</sw-button>
-              <span>${nt('speed')}</span><div class="seg">${(['slow', 'normal', 'fast'] as const).map((sp) => html`<button aria-pressed=${String(d.news.speed === sp)} @click=${() => this.setD({ news: { ...d.news, speed: sp } })}>${nt(sp === 'slow' ? 'spSlow' : sp === 'normal' ? 'spNormal' : 'spFast')}</button>`)}</div></div></div>
+              <span>${nt('speed')}</span><sw-segmented label=${nt('speed')} value=${d.news.speed} @change=${(e: CustomEvent<SegmentedChange>) => this.setD({ news: { ...d.news, speed: e.detail.value as 'slow' | 'normal' | 'fast' } })}
+                .options=${(['slow', 'normal', 'fast'] as const).map((sp) => ({ value: sp, label: nt(sp === 'slow' ? 'spSlow' : sp === 'normal' ? 'spNormal' : 'spFast') }))}></sw-segmented></div></div>
           <notice-display-info .value=${d.blocks.info} .show=${d.blocks.info_show !== false} .sources=${s.parking_entities ? { parking: s.parking_entities, gym: s.gym_entities ?? [] } : null} @info-show-change=${(e: CustomEvent<boolean>) => this.setD({ blocks: { ...d.blocks, info_show: e.detail } })} @info-change=${(e: CustomEvent<string[]>) => this.setD({ blocks: { ...d.blocks, info: e.detail } })}></notice-display-info>
           <div class="blk"><span class="ck"><b>${nt('blkNotices')}</b></span><span class="hint">${active.length} ${nt('kpiActive')}</span>
-            <div class="sub"><span>${nt('mode')}</span><div class="seg" data-mode-seg>${(['rotation', 'all', 'focus'] as const).map((m) => html`<button aria-pressed=${String(d.mode === m)} data-mode=${m} @click=${() => this.setD({ mode: m })}>${nt(m === 'rotation' ? 'modeRotation' : m === 'all' ? 'modeAll' : 'modeFocus')}</button>`)}</div></div>
-            <div class="sub"><span>${nt('rotateEvery')}</span><input class="inp short num" type="number" min="6" max="60" step="1" data-rot .value=${String(d.rotate_s)}
-              @change=${(e: Event) => this.setD({ rotate_s: Math.max(6, Math.min(60, Math.round(Number((e.target as HTMLInputElement).value) || 12))) })}><span>${nt('seconds')}</span><span class="hint">${nt('rotateHint')}</span></div>
-            <div class="sub"><span>${nt('urgent')}</span><select class="inp" data-urg data-v=${d.urgent === 'band' ? 'stage' : d.urgent} @change=${(e: Event) => this.setD({ urgent: (e.target as HTMLSelectElement).value as Display['urgent'] })}>
-              <option value="stage">${nt('urgStage')}</option><option value="stay">${nt('urgStay')}</option><option value="full">${nt('urgFull')}</option></select></div>
-            <div class="sub"><span>${nt('hold')}</span><select class="inp" data-hold data-v=${d.hold} @change=${(e: Event) => this.setD({ hold: (e.target as HTMLSelectElement).value })}>
-              <option value="">${nt('holdNone')}</option>${active.map((n) => html`<option value=${n.id}>${n.title}</option>`)}</select><span class="hint">${nt('holdHint')}</span></div>
+            <div class="sub"><span>${nt('mode')}</span><sw-segmented label=${nt('mode')} data-mode-seg value=${d.mode} @change=${(e: CustomEvent<SegmentedChange>) => this.setD({ mode: e.detail.value as 'rotation' | 'all' | 'focus' })}
+              .options=${(['rotation', 'all', 'focus'] as const).map((m) => ({ value: m, label: nt(m === 'rotation' ? 'modeRotation' : m === 'all' ? 'modeAll' : 'modeFocus'), attrs: { 'data-mode': m } }))}></sw-segmented></div>
+            <div class="sub"><span>${nt('rotateEvery')}</span><sw-field class="short"><input class="num" type="number" min="6" max="60" step="1" data-rot .value=${String(d.rotate_s)}
+              @change=${(e: Event) => this.setD({ rotate_s: Math.max(6, Math.min(60, Math.round(Number((e.target as HTMLInputElement).value) || 12))) })}></sw-field><span>${nt('seconds')}</span><span class="hint">${nt('rotateHint')}</span></div>
+            <div class="sub"><span>${nt('urgent')}</span><sw-field><select data-urg data-v=${d.urgent === 'band' ? 'stage' : d.urgent} @change=${(e: Event) => this.setD({ urgent: (e.target as HTMLSelectElement).value as Display['urgent'] })}>
+              <option value="stage">${nt('urgStage')}</option><option value="stay">${nt('urgStay')}</option><option value="full">${nt('urgFull')}</option></select></sw-field></div>
+            <div class="sub"><span>${nt('hold')}</span><sw-field><select data-hold data-v=${d.hold} @change=${(e: Event) => this.setD({ hold: (e.target as HTMLSelectElement).value })}>
+              <option value="">${nt('holdNone')}</option>${active.map((n) => html`<option value=${n.id}>${n.title}</option>`)}</select></sw-field><span class="hint">${nt('holdHint')}</span></div>
             <p class="hint">${nt('dwellNote')}</p></div>
           <notice-display-transit .display=${d} .v2Layout=${((e2) => (e2.design === 'v2' ? e2.board_layout : null))(effectiveTv2(d, this.tv2Defaults()))} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)}></notice-display-transit>
           <notice-display-slides .display=${d} .lux=${['gallery', 'concierge', 'stone'].includes(effectiveTv2(d, this.tv2Defaults()).design)} .boardId=${this.detail!.board.id} .boards=${this.boards} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)} @slides-changed=${() => this.pushPreview()}></notice-display-slides>
@@ -701,8 +712,8 @@ export class SystemNotices extends LitElement {
     // NOTICEADD-295: the mockup's "הודעה חדשה ללוח" (2.16.0 offered only the picker of existing notices, and drew nothing without one)
     return html`<div class="panel flush">
       <div class="toolbar"><h2>${nt('boardNotices')}</h2><span class="chip num">${d.notices.filter((n) => n.state === 'active').length} ${nt('kpiActive')}</span><span class="sp"></span>
-        ${candidates.length ? html`<select class="inp short" data-add-notice @change=${(e: Event) => this.addItem((e.target as HTMLSelectElement).value)}><option value="">${nt('addToBoard')}…</option>
-          ${candidates.map((n) => html`<option value=${n.id}>${n.title}</option>`)}</select>` : nothing}
+        ${candidates.length ? html`<sw-field class="short"><select data-add-notice @change=${(e: Event) => this.addItem((e.target as HTMLSelectElement).value)}><option value="">${nt('addToBoard')}…</option>
+          ${candidates.map((n) => html`<option value=${n.id}>${n.title}</option>`)}</select></sw-field>` : nothing}
         ${manage ? html`<sw-button variant="primary" icon="plus" data-board-compose @click=${() => this.newNotice(d.board.id)}>${nt('newForBoard')}</sw-button>` : nothing}</div>
       ${d.notices.length ? html`<table class="t"><thead><tr><th>${nt('colState')}</th><th>${nt('colNotice')}</th><th>${nt('colWindow')}</th><th></th></tr></thead><tbody>
         ${d.notices.map((n) => html`<tr data-look=${n.state === 'active' ? SEV_LOOK[n.severity] : 'off'} data-board-notice=${n.id}><td><span class="badge" data-look=${n.state === 'active' ? SEV_LOOK[n.severity] : 'off'}>${nt(SEV_KEY[n.severity])}${n.pinned ? ' · ' + nt('pinned') : ''}</span></td>

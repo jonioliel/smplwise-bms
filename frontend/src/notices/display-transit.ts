@@ -7,6 +7,8 @@ import { transitSettings, type TransitSettings } from '../api/transit';
 import { tr } from '../i18n/transit';
 import { WINDOWS, WINDOW_RANGE, ROWS_RANGE, DWELL_RANGE, REFRESH_RANGE, clampInt, screenAfter, toggleStop, windowLabel, windowMode } from '../transit/model';
 import { noticesCss } from './styles';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 
 /**
  * BUSTIMES-295: the board's public-transport block (the תצוגה tab): show it or not, which of the installation's stops, one of three layouts,
@@ -74,8 +76,8 @@ export class NoticeDisplayTransit extends LitElement {
             @change=${() => this.emit({ stops: toggleStop(s.stops, st.code, stops.map((x) => x.code)) })}>${st.name || st.catalogue_name || st.code}</label>`)}
           ${s.stops.length === 0 ? html`<span class="hint">${tr('scrStopsAll')}</span>` : nothing}
         </div>
-        ${this.v2Layout ? nothing : html`<div class="sub"><span>${tr('scrLayout')}</span><div class="seg" data-transit-layout>${layouts.map(([k, label, hint]) =>
-          html`<button data-layout=${k} title=${hint} aria-pressed=${String(s.layout === k)} @click=${() => this.emit({ layout: k })}>${label}</button>`)}</div></div>`}
+        ${this.v2Layout ? nothing : html`<div class="sub"><span>${tr('scrLayout')}</span><sw-segmented data-transit-layout value=${s.layout} @change=${(e: CustomEvent<SegmentedChange>) => this.emit({ layout: e.detail.value as typeof s.layout })}
+          .options=${layouts.map(([k, label, hint]) => ({ value: k, label, title: hint, attrs: { 'data-layout': k } }))}></sw-segmented></div>`}
         <div class="sub"><span>${tr('scrWindow')}</span>
           <select class="inp short" data-transit-window .value=${mode === 'list' ? String(s.window_min) : 'free'} @change=${(e: Event) => {
             const v = (e.target as HTMLSelectElement).value;

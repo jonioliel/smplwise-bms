@@ -2,6 +2,8 @@ import { LitElement, html, css, nothing, type PropertyValues, type TemplateResul
 import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-card';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-toggle';
 import '../components/sw-button';
 import './settings-sla';
@@ -219,7 +221,9 @@ export class TicketsDeptEditor extends LitElement {
     return html`<div class="row stack"><span class="lbl">${tt('depMembers')}${!d.can_edit_members ? html`<span class="muted">${tt('depMembersLocked')}</span>` : nothing}</span>
       <div class="people" data-dept-members>${d.members.length ? repeat(d.members, (m) => `${m.kind}:${m.id}`, (m) => html`<div class="person" data-member=${`${m.kind}:${m.id}`}>
         <span class="who">${bidi(m.name)}${m.kind === 'group' ? html` <span class="tag">${tt('depGroupTag')}</span>` : nothing}</span>
-        <span class="seg" role="radiogroup" aria-label=${m.name}>${(['manager', 'member'] as const).map((r) => html`<button type="button" role="radio" aria-pressed=${String(m.role === r)} aria-checked=${String(m.role === r)} ?disabled=${this.busy || !d.can_edit_members || m.role === r} data-member-role=${r} @click=${() => void this.act(() => ticketsApi().putMember(d.id, m.kind, m.id, r))}>${r === 'manager' ? tt('depManager') : tt('depMember')}</button>`)}</span>
+        <sw-segmented radio label=${m.name} value=${m.role} ?disabled=${this.busy || !d.can_edit_members}
+        @change=${(e: CustomEvent<SegmentedChange>) => { const r = e.detail.value as 'manager' | 'member'; if (r !== m.role) void this.act(() => ticketsApi().putMember(d.id, m.kind, m.id, r)); }}
+        .options=${(['manager', 'member'] as const).map((r) => ({ value: r, label: r === 'manager' ? tt('depManager') : tt('depMember'), disabled: m.role === r, attrs: { 'data-member-role': r } }))}></sw-segmented>
         ${m.role === 'manager' && d.can_edit_members ? html`<sw-toggle label=${tt('depNotifyNew')} .checked=${m.notify_new} ?disabled=${this.busy} data-member-notify
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.act(() => ticketsApi().putMember(d.id, m.kind, m.id, m.role, e.detail.checked))}></sw-toggle>` : nothing}
         ${d.can_edit_members ? html`<button type="button" class="rm" data-member-remove ?disabled=${this.busy} @click=${() => void this.act(() => ticketsApi().deleteMember(d.id, m.kind, m.id))}>${tt('depRemove')}</button>` : nothing}
@@ -291,9 +295,9 @@ export class TicketsDeptEditor extends LitElement {
           <sw-toggle label=${tt('depAutoClose')} labelHidden .checked=${auto !== null} ?disabled=${this.busy} data-dept-autoclose
             @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patchDept({ auto_close_after_days: e.detail.checked ? (Number.isNaN(intIn(autoDays, 1, 30)) ? 3 : Number(autoDays)) : null }, () => this.set({ autoDays: undefined }))}></sw-toggle></span></div>
       <div class="row"><span class="lbl">${tt('depUrgent')}</span>
-        <span class="seg" role="radiogroup" aria-label=${tt('depUrgent')}>${([null, true, false] as (boolean | null)[]).map((v) => html`<button type="button" role="radio"
-          aria-pressed=${String(urgent === v)} aria-checked=${String(urgent === v)} ?disabled=${this.busy} data-dept-urgent=${v === null ? 'inherit' : String(v)}
-          @click=${() => urgent !== v && void this.patchDept({ urgent_is_critical: v })}>${v === null ? tt('depUrgentInherit', { v: inst.urgent_is_critical ? tt('yes') : tt('no') }) : v ? tt('yes') : tt('no')}</button>`)}</span></div>
+        <sw-segmented radio label=${tt('depUrgent')} value=${urgent === null ? 'inherit' : String(urgent)} ?disabled=${this.busy}
+          @change=${(e: CustomEvent<SegmentedChange>) => { const v = e.detail.value === 'inherit' ? null : e.detail.value === 'true'; if (urgent !== v) void this.patchDept({ urgent_is_critical: v }); }}
+          .options=${([null, true, false] as (boolean | null)[]).map((v) => ({ value: v === null ? 'inherit' : String(v), label: v === null ? tt('depUrgentInherit', { v: inst.urgent_is_critical ? tt('yes') : tt('no') }) : v ? tt('yes') : tt('no'), attrs: { 'data-dept-urgent': v === null ? 'inherit' : String(v) } }))}></sw-segmented></div>
       <div class="row stack" data-dept-links-row><span class="lbl">${tt('depLinks')}<span class="muted">${tt('depLinksSub', { s: inst.links.sliding_days, c: inst.links.cap_days, g: inst.links.grace_hours })}</span></span>
         <div class="add"><sw-toggle label=${tt('depOwn')} .checked=${linksOwn} ?disabled=${this.busy} data-dept-links-own
           @change=${(e: CustomEvent<{ checked: boolean }>) => {

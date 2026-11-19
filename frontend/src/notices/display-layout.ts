@@ -6,6 +6,8 @@ import {
 } from '../notice-tv/tv-logic';
 import { nt, type NtKey } from '../i18n/notices';
 import { noticesCss } from './styles';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 
 type TvKey = keyof TvDefaults;
 type Val = string | number;
@@ -47,9 +49,9 @@ export class NoticeDisplayLayout extends LitElement {
     const dflt = r.text(this.defaults[r.key]);
     const note = r.key === 'space' && off ? nt('spaceOnlyOneRow') : board && own === null ? nt('tvDefaultNow', { v: dflt }) : '';
     return html`<div class="fld"><span class="lbl">${nt(r.label)}</span>
-      <div class="seg" data-seg=${r.seg}>
-        ${board ? html`<button data-v="default" aria-pressed=${String(own === null)} ?disabled=${off} title=${dflt} @click=${() => this.emit(r.key, null)}>${nt('tvUseDefault')}</button>` : nothing}
-        ${r.values.map((k) => html`<button data-v=${String(k)} aria-pressed=${String(own === k)} ?disabled=${off} @click=${() => this.emit(r.key, k)}>${r.text(k)}</button>`)}</div>
+      <sw-segmented label=${nt(r.label)} data-seg=${r.seg} value=${own === null ? '__default__' : String(own)} ?disabled=${off}
+        @change=${(e: CustomEvent<SegmentedChange>) => { if (e.detail.value === '__default__') this.emit(r.key, null); else { const k = r.values.find((x) => String(x) === e.detail.value); if (k !== undefined) this.emit(r.key, k); } }}
+        .options=${[...(board ? [{ value: '__default__', label: nt('tvUseDefault'), title: dflt, attrs: { 'data-v': 'default' } }] : []), ...r.values.map((k) => ({ value: String(k), label: r.text(k), attrs: { 'data-v': String(k) } }))]}></sw-segmented>
       ${note ? html`<span class="hint" data-default-note>${note}</span>` : nothing}</div>`;
   }
 

@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-card';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
 import { describeError } from '../api/client';
 import { getSettings, patchSettings } from '../api/media';
@@ -110,36 +112,6 @@ export class SystemTimelineColors extends LitElement {
       margin: 14px 0 2px;
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
-    }
-    .seg {
-      display: inline-flex;
-      gap: 2px;
-      padding: 2px;
-      border-radius: var(--sw-r-sm);
-      background: var(--sw-surface-3);
-    }
-    .seg button {
-      border: 0;
-      background: transparent;
-      font: inherit;
-      font-size: var(--sw-fs-xs);
-      padding: 5px 10px;
-      border-radius: var(--sw-r-xs);
-      color: var(--sw-text-2);
-      cursor: pointer;
-    }
-    .seg button[aria-checked='true'] {
-      background: var(--sw-seg-key, var(--sw-surface));
-      color: var(--sw-seg-key-ink, var(--sw-accent-text));
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
-    }
-    .seg button:disabled {
-      cursor: default;
-      opacity: 0.6;
-    }
-    .seg button:focus-visible {
-      outline: var(--sw-focus-w) solid var(--sw-focus);
-      outline-offset: 2px;
     }
     .warn {
       grid-column: 1 / -1;
@@ -273,9 +245,9 @@ export class SystemTimelineColors extends LitElement {
       ${(['helper_line', 'diagnostics'] as const).map(
         (item) => html`<div class="row" data-playback-display=${item}>
           <span class="name"><span class="lbl">${PLAYBACK_ITEM_LABEL[item]}</span></span>
-          <span class="seg" role="radiogroup" aria-label=${PLAYBACK_ITEM_LABEL[item]}>
-            ${VISIBILITY_VALUES.map((v) => html`<button type="button" role="radio" aria-checked=${this.display[item] === v ? 'true' : 'false'} data-visibility=${v} ?disabled=${!editable || this.busy} @click=${() => this.setDisplay(item, v)}>${VISIBILITY_LABEL[v]}</button>`)}
-          </span>
+          <sw-segmented radio size="sm" label=${PLAYBACK_ITEM_LABEL[item]} value=${this.display[item]} ?disabled=${!editable || this.busy}
+            @change=${(e: CustomEvent<SegmentedChange>) => this.setDisplay(item, e.detail.value as (typeof VISIBILITY_VALUES)[number])}
+            .options=${VISIBILITY_VALUES.map((v) => ({ value: v, label: VISIBILITY_LABEL[v], attrs: { 'data-visibility': v } }))}></sw-segmented>
         </div>`,
       )}
       ${editable

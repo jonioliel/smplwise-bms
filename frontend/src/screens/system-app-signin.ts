@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-card';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
 import '../components/sw-dialog';
 import { ApiError, describeError } from '../api/client';
@@ -104,9 +106,8 @@ export class SystemAppSignIn extends LitElement {
     const note = onLocked(this.saved, sw, remote) ? ast('localOnly') : sw === 'exchange' && !this.draft.refresh ? ast('needsRefresh') : '';
     return html`<div class="row" data-app-signin-row=${sw}><span class="lbl">${label}<span class="muted">${ast(sw === 'refresh' ? 'refreshHint' : 'exchangeHint')}</span>
         ${note ? html`<span class="muted note" data-app-signin-note=${sw}>${note}</span>` : nothing}</span>
-      <div class="seg" role="group" aria-label=${label} data-app-signin=${sw}>
-        <button type="button" data-v="off" aria-pressed=${String(!on)} ?disabled=${ro} @click=${() => this.set(sw, false)}>${ast('off')}</button>
-        <button type="button" data-v="on" aria-pressed=${String(on)} ?disabled=${lockOn} @click=${() => this.set(sw, true)}>${ast('on')}</button></div></div>`;
+      <sw-segmented label=${label} data-app-signin=${sw} value=${on ? 'on' : 'off'} @change=${(e: CustomEvent<SegmentedChange>) => this.set(sw, e.detail.value === 'on')}
+        .options=${[{ value: 'off', label: ast('off'), disabled: ro, attrs: { 'data-v': 'off' } }, { value: 'on', label: ast('on'), disabled: lockOn, attrs: { 'data-v': 'on' } }]}></sw-segmented></div>`;
   }
 
   render() {

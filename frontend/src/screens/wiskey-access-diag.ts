@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-dropdown';
+import '../components/sw-chip-choice';
+import type { ChipChoiceChange } from '../components/sw-chip-choice';
 import type { DropdownChange } from '../components/sw-dropdown';
 import '../components/sw-kpi';
 import '../components/sw-page';
@@ -223,27 +225,18 @@ export class WiskeyAccessDiag extends LitElement {
     .acts.end {
       justify-content: flex-end;
     }
-    .seg {
+    /* CR-CMP2-SEGMENTED-C-2450: the filters are sw-chip-choice; this page keeps its square 44 px chips with the soft accent */
+    sw-chip-choice {
       display: inline-flex;
-      flex-wrap: wrap;
-      gap: 4px;
-    }
-    .seg button {
-      min-block-size: 44px;
-      padding-inline: 12px;
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
-      background: var(--sw-surface);
-      color: var(--sw-text-2);
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      cursor: pointer;
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-accent-soft);
-      border-color: var(--sw-accent);
-      color: var(--sw-text);
-      font-weight: var(--sw-fw-semibold);
+      --sw-chipc-gap: 4px;
+      --sw-chipc-h: 44px;
+      --sw-chipc-radius: var(--sw-r-md);
+      --sw-chipc-fg: var(--sw-text-2);
+      --sw-chipc-fs: var(--sw-fs-sm);
+      --sw-chipc-on-bg: var(--sw-accent-soft);
+      --sw-chipc-on-border: var(--sw-accent);
+      --sw-chipc-on-fg: var(--sw-text);
+      --sw-chipc-on-fw: var(--sw-fw-semibold);
     }
     .picker-list {
       position: absolute;
@@ -731,10 +724,8 @@ export class WiskeyAccessDiag extends LitElement {
           ${this.renderDoorSelect(dt('door'), this.door, (v) => (this.door = v), 'scenario')}
           <div class="f">
             <span class="muted">${dt('when')}</span>
-            <div class="seg" role="group" aria-label=${dt('when')}>
-              <button type="button" aria-pressed=${String(this.whenMode === 'now')} data-diag-when="now" @click=${() => (this.whenMode = 'now')}>${dt('now')}</button>
-              <button type="button" aria-pressed=${String(this.whenMode === 'at')} data-diag-when="at" @click=${() => (this.whenMode = 'at')}>${dt('atTime')}</button>
-            </div>
+            <sw-chip-choice label=${dt('when')} value=${this.whenMode} @change=${(e: CustomEvent<ChipChoiceChange>) => (this.whenMode = e.detail.value as 'now' | 'at')}
+              .options=${[{ value: 'now', label: dt('now'), attrs: { 'data-diag-when': 'now' } }, { value: 'at', label: dt('atTime'), attrs: { 'data-diag-when': 'at' } }]}></sw-chip-choice>
           </div>
           ${this.whenMode === 'at'
             ? html`<label class="f">${dt('atTime')}<input type="datetime-local" lang=${dateInputLang()} data-diag-at .value=${this.whenValue}
@@ -806,10 +797,8 @@ export class WiskeyAccessDiag extends LitElement {
     const k = this.cmpKind;
     const ready = k === 'doors' ? this.leftDoor && this.rightDoor && this.leftDoor !== this.rightDoor : !!(this.left && this.right);
     return html`<section class="card" data-diag-compare=${k}>
-        <div class="seg" role="group" aria-label=${dt('compareKind')}>
-          ${(['person', 'group', 'doors'] as CompareKind[]).map((x) => html`<button type="button" aria-pressed=${String(k === x)} data-diag-kind=${x}
-            @click=${() => this.setKind(x)}>${dt(x === 'person' ? 'k_people' : x === 'group' ? 'k_groups' : 'k_doors')}</button>`)}
-        </div>
+        <sw-chip-choice label=${dt('compareKind')} value=${k} @change=${(e: CustomEvent<ChipChoiceChange>) => this.setKind(e.detail.value as CompareKind)}
+          .options=${(['person', 'group', 'doors'] as CompareKind[]).map((x) => ({ value: x, label: dt(x === 'person' ? 'k_people' : x === 'group' ? 'k_groups' : 'k_doors'), attrs: { 'data-diag-kind': x } }))}></sw-chip-choice>
         <div class="form">
           ${k === 'doors'
             ? html`${this.renderDoorSelect(dt('first'), this.leftDoor, (v) => (this.leftDoor = v), 'left')}${this.renderDoorSelect(dt('second'), this.rightDoor, (v) => (this.rightDoor = v), 'right')}`
@@ -887,10 +876,8 @@ export class WiskeyAccessDiag extends LitElement {
     const page = this.load === 'ready' ? this.reviews : null;
     return html`<section class="card" data-diag-reviews>
         <div class="form">${this.renderDoorSelect(dt('reviewDoor'), this.reviewDoor, (v) => { this.reviewDoor = v; void this.loadReviews(0); }, 'reviews')}</div>
-        <div class="seg" role="group" aria-label=${dt('v_reviews')}>
-          ${REVIEW_STATES.map((s) => html`<button type="button" aria-pressed=${String(this.reviewState === s)} data-diag-state-filter=${s}
-            @click=${() => { this.reviewState = s; void this.loadReviews(0); }}>${dtDyn(`st_${s}`, 'st_unknown')}${page && s !== 'all' ? ` (${page.summary[s as keyof ReviewsPage['summary']] ?? 0})` : ''}</button>`)}
-        </div>
+        <sw-chip-choice label=${dt('v_reviews')} value=${this.reviewState} @change=${(e: CustomEvent<ChipChoiceChange>) => { this.reviewState = e.detail.value; void this.loadReviews(0); }}
+          .options=${REVIEW_STATES.map((s) => ({ value: s, label: `${dtDyn(`st_${s}`, 'st_unknown')}${page && s !== 'all' ? ` (${page.summary[s as keyof ReviewsPage['summary']] ?? 0})` : ''}`, attrs: { 'data-diag-state-filter': s } }))}></sw-chip-choice>
       </section>
       ${this.status()}
       ${page ? this.renderReviewList(page) : nothing}`;
@@ -1019,9 +1006,8 @@ export class WiskeyAccessDiag extends LitElement {
     }
     return html`<div class="form" data-diag-decide>
       <div class="f"><span class="muted">${dt('decision')}</span>
-        <div class="seg" role="group" aria-label=${dt('decision')}>
-          ${(['keep', 'followup'] as const).map((d) => html`<button type="button" aria-pressed=${String(this.decision === d)} data-diag-decision=${d} @click=${() => (this.decision = d)}>${dt(d === 'keep' ? 'd_keep' : 'd_followup')}</button>`)}
-        </div></div>
+        <sw-chip-choice label=${dt('decision')} value=${this.decision} @change=${(e: CustomEvent<ChipChoiceChange>) => (this.decision = e.detail.value as 'keep' | 'followup')}
+          .options=${(['keep', 'followup'] as const).map((d) => ({ value: d, label: dt(d === 'keep' ? 'd_keep' : 'd_followup'), attrs: { 'data-diag-decision': d } }))}></sw-chip-choice></div>
       <div class="f"><span>${dt('cadence')}</span>
         <sw-dropdown block data-diag-cadence label=${dt('cadence')} .value=${String(this.cadence)}
           .items=${CADENCES.map((n) => ({ id: String(n), label: dt('days', { n }) }))}
@@ -1045,14 +1031,10 @@ export class WiskeyAccessDiag extends LitElement {
   private renderQuality(): TemplateResult {
     const page = this.load === 'ready' ? this.quality : null;
     return html`<section class="card" data-diag-quality-filters>
-        <div class="seg" role="group" aria-label=${dt('v_quality')}>
-          ${(['all', 'missing', 'invalid', 'duplicate'] as const).map((k) => html`<button type="button" aria-pressed=${String(this.qKind === k)} data-diag-qkind=${k}
-            @click=${() => { this.qKind = k; void this.loadQuality(0); }}>${dt(k === 'all' ? 'q_all' : k === 'missing' ? 'q_missing' : k === 'invalid' ? 'q_invalid' : 'q_duplicate')}</button>`)}
-        </div>
-        <div class="seg" role="group" aria-label=${dt('v_quality')}>
-          ${(['current', 'archived', 'all'] as const).map((k) => html`<button type="button" aria-pressed=${String(this.qState === k)} data-diag-qstate=${k}
-            @click=${() => { this.qState = k; void this.loadQuality(0); }}>${dt(k === 'current' ? 'q_current' : k === 'archived' ? 'q_archived' : 'q_everyone')}</button>`)}
-        </div>
+        <sw-chip-choice label=${dt('v_quality')} value=${this.qKind} @change=${(e: CustomEvent<ChipChoiceChange>) => { this.qKind = e.detail.value; void this.loadQuality(0); }}
+          .options=${(['all', 'missing', 'invalid', 'duplicate'] as const).map((k) => ({ value: k, label: dt(k === 'all' ? 'q_all' : k === 'missing' ? 'q_missing' : k === 'invalid' ? 'q_invalid' : 'q_duplicate'), attrs: { 'data-diag-qkind': k } }))}></sw-chip-choice>
+        <sw-chip-choice label=${dt('v_quality')} value=${this.qState} @change=${(e: CustomEvent<ChipChoiceChange>) => { this.qState = e.detail.value; void this.loadQuality(0); }}
+          .options=${(['current', 'archived', 'all'] as const).map((k) => ({ value: k, label: dt(k === 'current' ? 'q_current' : k === 'archived' ? 'q_archived' : 'q_everyone'), attrs: { 'data-diag-qstate': k } }))}></sw-chip-choice>
       </section>
       ${this.status()}
       ${page
@@ -1099,9 +1081,8 @@ export class WiskeyAccessDiag extends LitElement {
     const life = this.load === 'ready' ? this.lifecycle : null;
     return html`<section class="card" data-diag-life-filters>
         <div class="acts"><span class="muted">${dt('window')}</span>
-          <div class="seg" role="group" aria-label=${dt('window')}>
-            ${WINDOWS.map((n) => html`<button type="button" aria-pressed=${String(this.days === n)} data-diag-days=${n} @click=${() => { this.days = n; void this.loadLifecycle(); }}>${dt('days', { n })}</button>`)}
-          </div></div>
+          <sw-chip-choice label=${dt('window')} value=${String(this.days)} @change=${(e: CustomEvent<ChipChoiceChange>) => { this.days = Number(e.detail.value); void this.loadLifecycle(); }}
+            .options=${WINDOWS.map((n) => ({ value: String(n), label: dt('days', { n }), attrs: { 'data-diag-days': String(n) } }))}></sw-chip-choice></div>
         <span class="muted">${dt('lifeHint')}</span>
       </section>
       ${this.status()}

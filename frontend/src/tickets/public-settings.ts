@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-card';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
 import { settingsStyles } from '../styles/settings';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -188,9 +190,9 @@ export class TicketsPublicCard extends LitElement {
     const monthsOk = Number.isInteger(n) && n >= 1 && n <= 24;
     type Flag = 'enabled' | 'require_confirmed_number' | 'rfqs' | 'technician_requests';
     const seg = (key: Flag, label: string, attr: string) => html`<div class="row"><span class="lbl">${label}</span>
-      <span class="seg" role="radiogroup" aria-label=${label}>${[true, false].map((on) => html`<button type="button" role="radio"
-        aria-checked=${String(vp[key] === on)} aria-pressed=${String(vp[key] === on)} data-vp=${attr} data-on=${String(on)} ?disabled=${this.busy}
-        @click=${() => { if (vp[key] !== on) this.save({ vendor_portal: { [key]: on } }); }}>${tt(on ? 'vpOn' : 'vpOff')}</button>`)}</span></div>`;
+      <sw-segmented radio label=${label} value=${String(vp[key])} ?disabled=${this.busy}
+        @change=${(e: CustomEvent<SegmentedChange>) => { const on = e.detail.value === 'true'; if (vp[key] !== on) this.save({ vendor_portal: { [key]: on } }); }}
+        .options=${[true, false].map((on) => ({ value: String(on), label: tt(on ? 'vpOn' : 'vpOff'), attrs: { 'data-vp': attr, 'data-on': String(on) } }))}></sw-segmented></div>`;
     return html`${seg('enabled', tt('vpLabel'), 'enabled')}
       <div class="hint" data-vp-note>${tt('vpNote')}</div>
       <div class="row stack"><span class="lbl">${tt('vpMonths')}</span>
@@ -240,9 +242,9 @@ export class TicketsPublicCard extends LitElement {
         <div class="hint" data-public-priv-note>${tt('pubPrivNote')}</div>
         ${privOk ? nothing : html`<div class="probe bad" role="alert" data-public-priv-bad>${tt('pubPrivBad')}</div>`}</div>
       <div class="row"><span class="lbl">${tt('pubTheme')}</span>
-        <span class="seg" role="radiogroup" aria-label=${tt('pubTheme')}>${THEMES.map((m) => html`<button type="button" role="radio"
-          aria-checked=${String(p.theme === m)} aria-pressed=${String(p.theme === m)} data-public-theme=${m} ?disabled=${this.busy}
-          @click=${() => { if (p.theme !== m) this.save({ public: { theme: m } }); }}>${tt(m === 'light' ? 'pubThemeLight' : m === 'dark' ? 'pubThemeDark' : 'pubThemeAuto')}</button>`)}</span></div>
+        <sw-segmented radio label=${tt('pubTheme')} value=${p.theme} ?disabled=${this.busy}
+          @change=${(e: CustomEvent<SegmentedChange>) => { const m = e.detail.value as PublicSettings['theme']; if (p.theme !== m) this.save({ public: { theme: m } }); }}
+          .options=${THEMES.map((m) => ({ value: m, label: tt(m === 'light' ? 'pubThemeLight' : m === 'dark' ? 'pubThemeDark' : 'pubThemeAuto'), attrs: { 'data-public-theme': m } }))}></sw-segmented></div>
       <div class="hint" data-public-theme-note>${tt('pubThemeNote')}</div>
       ${this.portalRows()}
       <div class="row stack"><span class="lbl">${tt('pubAddress')}</span>
@@ -274,13 +276,13 @@ export class TicketsPublicCard extends LitElement {
           <div class="foot"><sw-button size="sm" variant="primary" data-public-cidrs-save ?disabled=${this.busy || this.remote || cidrList.length > 8 || cidrList.join(',') === p.trusted_proxy_cidrs.join(',')}
             @click=${() => this.save({ public: { trusted_proxy_cidrs: cidrList } })}>${tt('save')}</sw-button></div></div>
         <div class="row"><span class="lbl">${tt('pubClientHeader')}</span>
-          <span class="seg" role="radiogroup" aria-label=${tt('pubClientHeader')}>${HEADERS.map((hd) => html`<button type="button" role="radio" dir="ltr"
-            aria-checked=${String(p.client_ip_header === hd)} aria-pressed=${String(p.client_ip_header === hd)} data-public-header=${hd} ?disabled=${this.busy || this.remote}
-            @click=${() => this.save({ public: { client_ip_header: hd } })}>${hd}</button>`)}</span></div>
+          <sw-segmented radio label=${tt('pubClientHeader')} value=${p.client_ip_header} ?disabled=${this.busy || this.remote}
+            @change=${(e: CustomEvent<SegmentedChange>) => this.save({ public: { client_ip_header: e.detail.value as PublicSettings['client_ip_header'] } })}
+            .options=${HEADERS.map((hd) => ({ value: hd, label: hd, attrs: { dir: 'ltr', 'data-public-header': hd } }))}></sw-segmented></div>
         <div class="row"><span class="lbl">${tt('pubLegacyT')}</span>
-          <span class="seg" role="radiogroup" aria-label=${tt('pubLegacyT')}>${[true, false].map((on) => html`<button type="button" role="radio"
-            aria-checked=${String((p.legacy_t_paths ?? true) === on)} aria-pressed=${String((p.legacy_t_paths ?? true) === on)} data-public-legacy=${String(on)} ?disabled=${this.busy || this.remote}
-            @click=${() => { if ((p.legacy_t_paths ?? true) !== on) this.save({ public: { legacy_t_paths: on } }); }}>${tt(on ? 'pubLegacyOn' : 'pubLegacyOff')}</button>`)}</span></div>
+          <sw-segmented radio label=${tt('pubLegacyT')} value=${String(p.legacy_t_paths ?? true)} ?disabled=${this.busy || this.remote}
+            @change=${(e: CustomEvent<SegmentedChange>) => { const on = e.detail.value === 'true'; if ((p.legacy_t_paths ?? true) !== on) this.save({ public: { legacy_t_paths: on } }); }}
+            .options=${[true, false].map((on) => ({ value: String(on), label: tt(on ? 'pubLegacyOn' : 'pubLegacyOff'), attrs: { 'data-public-legacy': String(on) } }))}></sw-segmented></div>
         <div class="hint" data-public-legacy-note>${tt('pubLegacyTNote')}</div>
       </div>` : nothing}
     </sw-card>`;

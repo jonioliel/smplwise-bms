@@ -181,6 +181,7 @@ test.describe('אבחון הרשאות', () => {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), view).toBe(true);
     }
     for (const h of await page.locator(`${SCREEN} [data-diag-tab]`).evaluateAll((as) => as.map((a) => a.getBoundingClientRect().height))) expect(h).toBeGreaterThanOrEqual(44);
-    for (const h of await page.locator(`${SCREEN} .seg button`).evaluateAll((bs) => bs.map((b) => b.getBoundingClientRect().height))) expect(h).toBeGreaterThanOrEqual(44);
+    // CR-CMP2-SEGMENTED-C-2450: the filters are sw-chip-choice (its chips in its shadow root; Playwright's CSS pierces it)
+    for (const h of await page.locator(`${SCREEN} sw-chip-choice button`).evaluateAll((bs) => bs.map((b) => b.getBoundingClientRect().height))) expect(h).toBeGreaterThanOrEqual(44);
   });
 });

@@ -8,6 +8,8 @@
  */
 import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import '../components/sw-button';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { customElement, property, state } from 'lit/decorators.js';
 import { elec, elecErrorText, type ElecMeter, type FormulaPreview } from '../api/electricity-billing';
 import { SkinController } from '../design/skin';
@@ -262,10 +264,12 @@ export class ElecFormulaEditor extends LitElement {
           </div>`
         : nothing}
       <div class="row"><b class="h3">${tr('הנוסחה')}</b><span class="sp"></span>
-        <div class="seg" role="group" aria-label=${tr('מצב עריכה')}>
-          <button type="button" data-mode="builder" aria-pressed=${this.mode === 'builder'} @click=${() => this.setMode('builder')}>${tr('בונה')}</button>
-          <button type="button" data-mode="text" aria-pressed=${this.mode === 'text'} @click=${() => this.setMode('text')}>${tr('טקסט')}</button>
-        </div>
+        <sw-segmented label=${tr('מצב עריכה')} value=${this.mode} @change=${(e: CustomEvent<SegmentedChange>) => {
+          // the editor's own `change` (the formula) is what the wizard listens to: the mode key's composed change stays inside
+          e.stopPropagation();
+          this.setMode(e.detail.value as 'builder' | 'text');
+        }}
+        .options=${[{ value: 'builder', label: tr('בונה'), attrs: { 'data-mode': 'builder' } }, { value: 'text', label: tr('טקסט'), attrs: { 'data-mode': 'text' } }]}></sw-segmented>
       </div>
       ${this.mode === 'text'
         ? html`<textarea class="code ${this.textIssues.length ? 'err' : ''}" data-text aria-label=${tr('נוסחה בטקסט')} dir="ltr" spellcheck="false" .value=${this.text} @input=${this.onText}></textarea>

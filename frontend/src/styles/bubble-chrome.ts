@@ -55,6 +55,20 @@ export const bubbleChrome = css`
     box-shadow: none;
     background: transparent;
   }
+  /* CR-CMP2-SEGMENTED-B-2450: the shared segmented control takes the same pill track, pill keys and solid thumb through its knobs */
+  :host([data-skin='bubble']) sw-segmented {
+    --sw-seg-border: transparent;
+    --sw-seg-radius: var(--sw-r-pill);
+    --sw-seg-btn-radius: var(--sw-r-pill);
+    --sw-seg-track: var(--sw-surface-2);
+    --sw-seg-pad: 0;
+    --sw-seg-gap: 2px;
+    --sw-seg-h: var(--sw-touch-desktop);
+    --sw-seg-key-min-w: var(--sw-touch-desktop);
+    --sw-seg-on-bg: var(--sw-surface-solid);
+    --sw-seg-on-fg: var(--sw-accent-text);
+    --sw-seg-on-shadow: var(--sw-shadow-2);
+  }
   /* chip rows wrap instead of leaving their card (the notifications' channel chips at 320-390) */
   :host([data-skin='bubble']) .chs {
     flex-wrap: wrap;
@@ -306,6 +320,10 @@ export const bubbleChrome = css`
   }
   /* touch layouts: 44 px whatever the desktop dial says (the dial is a desktop choice) */
   @media (max-width: 1100px) {
+    :host([data-skin='bubble']) sw-segmented {
+      --sw-seg-h: 44px;
+      --sw-seg-key-min-w: 44px;
+    }
     :host([data-skin='bubble']) .layouts button,
     :host([data-skin='bubble']) .rangepick button,
     :host([data-skin='bubble']) .transport button,

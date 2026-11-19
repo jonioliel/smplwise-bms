@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { leadReserveStyles } from '../styles/lead-reserve';
 import '../components/sw-state-panel';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import './costs-tab'; // TKUI3: the Costs tab (its payment demand is slice 9's cost card, embedded)
 import { ct } from './cost-text';
 import { customElement, property, state } from 'lit/decorators.js';
@@ -1153,9 +1155,8 @@ export class TicketDetailView extends LitElement {
     if (d.kind === 'return') {
       return html`<sw-dialog open heading=${tt('returnTitle')} data-dialog="return" @close=${this.onDialogClose}>
         <div class="form">
-          <div class="seg" role="radiogroup" aria-label=${tt('returnTitle')}>
-            ${(['cannot_handle', 'not_mine'] as const).map((k) => html`<button type="button" role="radio" aria-checked=${String(this.dlgReturnKind === k)} data-return-kind=${k} @click=${() => (this.dlgReturnKind = k)}>${k === 'not_mine' ? tt('returnNotMine') : tt('returnCannot')}</button>`)}
-          </div>
+          <sw-segmented radio label=${tt('returnTitle')} value=${this.dlgReturnKind} @change=${(e: CustomEvent<SegmentedChange>) => (this.dlgReturnKind = e.detail.value as 'cannot_handle' | 'not_mine')}
+            .options=${(['cannot_handle', 'not_mine'] as const).map((k) => ({ value: k, label: k === 'not_mine' ? tt('returnNotMine') : tt('returnCannot'), attrs: { 'data-return-kind': k } }))}></sw-segmented>
           ${text(tt('reason'), true)}
           ${err}</div>
         ${foot(html`<button type="button" class="btn primary" data-dialog-ok ?disabled=${this.busy} @click=${() => void this.submitReturn()}>${tIcon('refresh')}${tt('giveBack')}</button>`)}

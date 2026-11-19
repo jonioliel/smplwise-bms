@@ -7,6 +7,8 @@ import {
   type ChannelGroup, type DeptRecipients, type MatrixMode, type NotifyDoc, type NotifyMatrix, type NotifySource,
 } from './notify-matrix-model';
 import { dateInputLang } from '../api/day-format';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 
 interface MetaDept { id: string; name: string; pending: number; priorities: { id: string; key: string; name: string }[] }
 interface Meta {
@@ -81,9 +83,8 @@ export class TicketNotifyMatrix extends LitElement {
   }
 
   private seg<T extends string>(label: string, values: readonly T[], cur: T, name: (v: T) => string, attr: (v: T) => string, pick: (v: T) => void): TemplateResult {
-    return html`<span class="seg" role="radiogroup" aria-label=${label}>${values.map((v) => html`<button type="button" role="radio"
-      aria-pressed=${String(cur === v)} aria-checked=${String(cur === v)} data-notify-cell=${attr(v)} ?disabled=${this.off}
-      @click=${() => pick(v)}>${name(v)}</button>`)}</span>`;
+    return html`<sw-segmented radio label=${label} value=${cur} ?disabled=${this.off} @change=${(e: CustomEvent<SegmentedChange>) => pick(e.detail.value as T)}
+      .options=${values.map((v) => ({ value: v, label: name(v), attrs: { 'data-notify-cell': attr(v) } }))}></sw-segmented>`;
   }
 
   private pick(src: NotifySource, matrix: NotifyMatrix): TemplateResult {

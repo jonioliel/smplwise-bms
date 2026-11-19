@@ -2,6 +2,8 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-card';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-state-panel';
@@ -156,9 +158,9 @@ export class TicketsCostsSettings extends LitElement {
 
   private modeSeg(current: CostMode | null, onPick: (m: CostMode | null) => void, nullable: boolean, attr: string): TemplateResult {
     const values: readonly (CostMode | null)[] = nullable ? [null, ...COST_MODES] : COST_MODES;
-    return html`<span class="seg" role="radiogroup" aria-label=${ct('setMode')}>${values.map((m) => html`<button type="button" role="radio" ?disabled=${this.busy}
-      aria-checked=${String(current === m)} aria-pressed=${String(current === m)} data-costs-mode=${`${attr}:${m ?? 'default'}`}
-      @click=${() => onPick(m)}>${m ? ct(`m_${m}` as 'm_required') : ct('ctCostClaimDefault')}</button>`)}</span>`;
+    return html`<sw-segmented radio label=${ct('setMode')} value=${current ?? 'default'} ?disabled=${this.busy}
+      @change=${(e: CustomEvent<SegmentedChange>) => onPick(e.detail.value === 'default' ? null : (e.detail.value as CostMode))}
+      .options=${values.map((m) => ({ value: m ?? 'default', label: m ? ct(`m_${m}` as 'm_required') : ct('ctCostClaimDefault'), attrs: { 'data-costs-mode': `${attr}:${m ?? 'default'}` } }))}></sw-segmented>`;
   }
 
   private installationCard(s: CostsSettings): TemplateResult {

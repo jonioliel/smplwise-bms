@@ -2,6 +2,8 @@ import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-drawer';
 import { describeError } from '../api/client';
 import { ackUnit, clearLearned, decideWindow, endMaintenance, getHistory, listEvents, muteUnit, startMaintenance, unmuteUnit, type HistoryResponse, type RangeKey, type TempEvent, type TempUnit } from '../api/temperature';
@@ -99,9 +101,6 @@ export class TempDetail extends LitElement {
     .summ b { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); text-align: end; min-inline-size: 0; overflow-wrap: anywhere; }
     .summ > div > span { overflow-wrap: anywhere; }
     .sname { overflow-wrap: anywhere; word-break: break-word; }
-    .seg { display: inline-flex; background: var(--sw-surface-2); border-radius: var(--sw-r-pill); padding: 3px; gap: 2px; }
-    .seg button { border: 0; background: transparent; border-radius: var(--sw-r-pill); padding: 4px 12px; font: inherit; font-size: var(--sw-fs-sm); color: var(--sw-text-2); cursor: pointer; }
-    .seg button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface)); color: var(--sw-seg-key-ink, var(--sw-text)); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); font-weight: var(--sw-fw-semibold); }
     .ph { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-block-end: 8px; }
     .ph h4 { flex: 1; }
     .bigchart { position: relative; block-size: 250px; touch-action: pan-y; min-inline-size: 0; max-inline-size: 100%; overflow: hidden; }
@@ -168,7 +167,6 @@ export class TempDetail extends LitElement {
     .pop.maint { min-inline-size: min(320px, calc(100vw - 32px)); gap: 8px; padding: 10px; }
     .pop .mf { display: grid; gap: 4px; font-size: var(--sw-fs-sm); }
     .pop .in { min-block-size: var(--sw-ctl-h-md); border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); padding: 0 10px; font: inherit; }
-    .pop.maint .seg button { display: inline-block; padding: 4px 10px; }
     .pop.maint > .btn { justify-self: start; }
     @media (max-width: 900px) {
       .db.wide { grid-template-columns: minmax(0, 1fr); }
@@ -459,8 +457,8 @@ export class TempDetail extends LitElement {
       <div class="nt">${u.rules.maintenance_includes_alarms ? tt('maintNoteAlarms') : tt('maintNote')}</div>
       <label class="mf"><span>${tt('maintReason')}</span><input class="in" maxlength="120" .value=${this.maintReason} placeholder=${tt('maintReasonPh')}
         @input=${(e: Event) => { this.maintReason = (e.target as HTMLInputElement).value; }} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') go(); }} data-maint-reason /></label>
-      <div class="mf"><span>${tt('maintFor')}</span><span class="seg" role="group">${opts.map((m) => html`<button type="button" aria-pressed=${String(this.maintMin === m)} data-maint-min=${m}
-        @click=${() => { this.maintMin = m; }}>${durationText(m)}</button>`)}</span></div>
+      <div class="mf"><span>${tt('maintFor')}</span><sw-segmented value=${String(this.maintMin)} @change=${(e: CustomEvent<SegmentedChange>) => { this.maintMin = Number(e.detail.value) as typeof this.maintMin; }}
+        .options=${opts.map((m) => ({ value: String(m), label: durationText(m), attrs: { 'data-maint-min': String(m) } }))}></sw-segmented></div>
       <button type="button" class="btn pri sm" ?disabled=${!this.maintReason.trim()} data-maint-start @click=${go}><sw-icon name="wrench" size="14"></sw-icon>${tt('maintStart')}</button>
     </div>`;
   }
@@ -516,8 +514,8 @@ export class TempDetail extends LitElement {
                 </div>
               </div></div></div>
             <div class="panel"><div class="ph"><h4>${tt('chartTitle')}</h4>
-              <span class="seg" role="group" aria-label=${tt('chartTitle')}>${(['24h', '7d', '30d'] as RangeKey[]).map((r) => html`<button type="button" aria-pressed=${String(this.range === r)} data-range=${r}
-                @click=${() => { this.range = r; this.cross = null; }}>${tt(r === '24h' ? 'r24' : r === '7d' ? 'r7' : 'r30')}</button>`)}</span></div>
+              <sw-segmented label=${tt('chartTitle')} value=${this.range} @change=${(e: CustomEvent<SegmentedChange>) => { this.range = e.detail.value as RangeKey; this.cross = null; }}
+                .options=${(['24h', '7d', '30d'] as RangeKey[]).map((r) => ({ value: r, label: tt(r === '24h' ? 'r24' : r === '7d' ? 'r7' : 'r30'), attrs: { 'data-range': r } }))}></sw-segmented></div>
               <div class="bigchart" data-temp-chart @pointermove=${(e: PointerEvent) => dt && this.hover(e, dt)} @pointerdown=${(e: PointerEvent) => dt && this.hover(e, dt)} @pointerleave=${() => { this.cross = null; }}>
                 ${dt ? bigChart(dt, this.chartW, 250, lang, this.cross) : this.histError ? html`<p class="err">${this.histError}</p>` : html`<div class="skl" style="block-size:100%"></div>`}
                 ${dt ? this.tip(dt, lang) : nothing}
@@ -533,9 +531,8 @@ export class TempDetail extends LitElement {
             </div>
             <div class="panel"><h4 style="margin-block-end:10px">${tt('timeline')}</h4>${this.bars(u, now)}</div>
             ${others.length ? html`<div class="panel" data-temp-compare><div class="ph"><h4>${tt('compare')}</h4><span class="hint">${tt('compareHint')}</span></div>
-              ${this.cmp.length ? html`<div class="cmpbar"><span class="hint">${tt('compareScale')}</span><span class="seg" role="group" aria-label=${tt('compareScale')}>
-                  <button type="button" aria-pressed=${String(this.cmpScale === 'shared')} data-cmp-scale="shared" @click=${() => { this.cmpScale = 'shared'; this.cross = null; }}>${tt('scaleShared')}</button>
-                  <button type="button" aria-pressed=${String(this.cmpScale === 'norm')} data-cmp-scale="norm" @click=${() => { this.cmpScale = 'norm'; this.cross = null; }}>${tt('scaleNorm')}</button></span>
+              ${this.cmp.length ? html`<div class="cmpbar"><span class="hint">${tt('compareScale')}</span><sw-segmented label=${tt('compareScale')} value=${this.cmpScale} @change=${(e: CustomEvent<SegmentedChange>) => { this.cmpScale = e.detail.value as 'shared' | 'norm'; this.cross = null; }}
+                  .options=${[{ value: 'shared', label: tt('scaleShared'), attrs: { 'data-cmp-scale': 'shared' } }, { value: 'norm', label: tt('scaleNorm'), attrs: { 'data-cmp-scale': 'norm' } }]}></sw-segmented>
                 <button type="button" class="btn sm ghost" data-cmp-clear @click=${() => { this.cmp = []; this.cmpHist = {}; }}>${tt('compareClear')}</button></div>` : nothing}
               <div class="cmp">${others.map((x) => html`<div class="cirow"><label class="cmpck" title=${tt('compareChart')}><input type="checkbox" .checked=${this.cmp.includes(x.id)} data-cmp-pick=${x.id}
                   ?disabled=${!this.cmp.includes(x.id) && this.cmp.length >= COMPARE_MAX} aria-label=${`${tt('compareChart')}: ${x.name}`}

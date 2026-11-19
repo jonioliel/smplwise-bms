@@ -18,6 +18,8 @@ import { tt } from '../i18n/temperature';
 import { ELEVATOR_FILTERS, ELEVATOR_MODES, FILTER_KEY, MODE_KEY } from '../elevators/model';
 import { elt } from '../i18n/elevators';
 import { settingsSegStyles } from '../styles/settings';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { tr } from '../i18n/msg/screens';
 
 /** One place of the panel to open: a widget's row (from a card's "הגדרות" button). */
@@ -198,21 +200,12 @@ export class HomeEditPanel extends LitElement {
         outline: var(--sw-focus-w) solid var(--sw-focus);
         outline-offset: 2px;
       }
-      .seg {
+      /* CR-CMP2-SEGMENTED-C-2450: every choice of the panel is sw-segmented (the settings key; --sw-seg-h above keeps the control
+         height); it sits at the start of its row and wraps, a disabled choice dims to the panel's 0.45 */
+      sw-segmented {
         align-self: flex-start;
         flex: 0 1 auto;
-        flex-wrap: wrap;
-      }
-      .seg button {
-        transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color);
-        -webkit-tap-highlight-color: transparent;
-        touch-action: manipulation;
-        user-select: none;
-        -webkit-user-select: none;
-      }
-      .seg button:disabled {
-        opacity: 0.45;
-        cursor: default;
+        --sw-disabled-opacity: 0.45;
       }
       .row {
         display: flex;
@@ -338,8 +331,7 @@ export class HomeEditPanel extends LitElement {
         }
       }
       .ib:active:not(:disabled),
-      .floor button:active:not(:disabled),
-      .seg button:active:not(:disabled) {
+      .floor button:active:not(:disabled) {
         transform: scale(var(--sw-press-scale));
       }
       .ib:disabled,
@@ -501,7 +493,6 @@ export class HomeEditPanel extends LitElement {
       @media (prefers-reduced-motion: reduce) {
         .ib,
         .floor button,
-        .seg button,
         .w,
         .floor {
           transition-duration: 0ms;
@@ -566,20 +557,19 @@ export class HomeEditPanel extends LitElement {
         </label>
         <div class="row">
           <div class="lbl" id="he-dir">${tr('כיוון')}
-            <span class="seg" role="group" aria-labelledby="he-dir" data-home-directions>
-              ${DIRECTIONS.map((x: Direction) => html`<button type="button" data-home-direction=${x} aria-pressed=${String(d.direction === x)} @click=${() => this.change({ direction: x })}>${DIRECTION_LETTER[x]} · ${DIRECTION_LABEL[x]}</button>`)}
-            </span>
+            <sw-segmented label=${tr('כיוון')} data-home-directions value=${d.direction} @change=${(e: CustomEvent<SegmentedChange>) => this.change({ direction: e.detail.value as Direction })}
+              .options=${DIRECTIONS.map((x: Direction) => ({ value: x, label: `${DIRECTION_LETTER[x]} · ${DIRECTION_LABEL[x]}`, attrs: { 'data-home-direction': x } }))}></sw-segmented>
           </div>
           ${d.direction === 'b'
             ? html`<div class="lbl" id="he-side">${tr('צד הלוח')}
-                <span class="seg" role="group" aria-labelledby="he-side">${SIDES.map((s: Side) => html`<button type="button" data-home-side=${s} aria-pressed=${String(d.side === s)} @click=${() => this.change({ side: s })}>${SIDE_LABEL[s]}</button>`)}</span>
+                <sw-segmented label=${tr('צד הלוח')} value=${d.side} @change=${(e: CustomEvent<SegmentedChange>) => this.change({ side: e.detail.value as Side })}
+                  .options=${SIDES.map((s: Side) => ({ value: s, label: SIDE_LABEL[s], attrs: { 'data-home-side': s } }))}></sw-segmented>
               </div>`
             : nothing}
         </div>
         <div class="lbl" id="he-phone">${tr('בנייד: איך הווידג׳טים מוצגים')}
-          <span class="seg" role="group" aria-labelledby="he-phone" data-home-phone-layouts>
-            ${PHONE_LAYOUTS.map((p: PhoneLayout) => html`<button type="button" data-home-phone-layout=${p} aria-pressed=${String(d.config.phone_layout === p)} @click=${() => this.setConfig((c) => (c.phone_layout = p))}>${PHONE_LAYOUT_LABEL[p]}</button>`)}
-          </span>
+          <sw-segmented label=${tr('בנייד: איך הווידג׳טים מוצגים')} data-home-phone-layouts value=${d.config.phone_layout} @change=${(e: CustomEvent<SegmentedChange>) => this.setConfig((c) => (c.phone_layout = e.detail.value as PhoneLayout))}
+            .options=${PHONE_LAYOUTS.map((p: PhoneLayout) => ({ value: p, label: PHONE_LAYOUT_LABEL[p], attrs: { 'data-home-phone-layout': p } }))}></sw-segmented>
         </div>
         </div>
         <div class="grp" role="group" aria-labelledby="he-widgets-h">
@@ -626,7 +616,8 @@ export class HomeEditPanel extends LitElement {
     return html`<div class=${classMap({ w: true, off: !w.on, open })} data-home-wrow=${id}>
       <div class="w-top">
         <label class="check"><input type="checkbox" data-home-toggle=${id} .checked=${w.on} @change=${(e: Event) => this.setWidget(id, { on: (e.target as HTMLInputElement).checked } as never)} aria-label=${tr('הצג {name}', { name: WIDGET_NAME[id] })} /><span class="w-name">${WIDGET_NAME[id]}</span></label>
-        <span class="seg" role="group" aria-label=${tr('גודל: {name}', { name: WIDGET_NAME[id] })}>${SIZES.map((s: Size) => html`<button type="button" data-home-wsize=${`${id}:${s}`} aria-pressed=${String(w.sizes[d.direction] === s)} ?disabled=${!w.on} @click=${() => this.setConfig((c) => (c[id].sizes[d.direction] = s))}>${SIZE_LABEL[s]}</button>`)}</span>
+        <sw-segmented label=${tr('גודל: {name}', { name: WIDGET_NAME[id] })} value=${w.sizes[d.direction]} ?disabled=${!w.on} @change=${(e: CustomEvent<SegmentedChange>) => this.setConfig((c) => (c[id].sizes[d.direction] = e.detail.value as Size))}
+          .options=${SIZES.map((s: Size) => ({ value: s, label: SIZE_LABEL[s], attrs: { 'data-home-wsize': `${id}:${s}` } }))}></sw-segmented>
         <span class="grow"></span>
         <button type="button" class="ib" data-home-wmove=${id} data-home-wearlier=${id} aria-label=${tr('הקדם את {name}', { name: WIDGET_NAME[id] })} title=${tr('הקדם')} ?disabled=${index === 0} @click=${() => this.moveW(id, index - 1)}><sw-icon name="arrowUp" size=${13}></sw-icon></button>
         <button type="button" class="ib" data-home-wmove=${id} data-home-wlater=${id} aria-label=${tr('אחר את {name}', { name: WIDGET_NAME[id] })} title=${tr('אחר')} ?disabled=${index === last} @click=${() => this.moveW(id, index + 1)}><sw-icon name="arrowDown" size=${13}></sw-icon></button>
@@ -660,7 +651,8 @@ export class HomeEditPanel extends LitElement {
     const c = this.draft.config;
     const sensors = this.candidates?.sensors ?? [];
     const sug = this.suggestion('date');
-    return html`<div class="f">${tr('תצוגה')}<span class="seg" role="group" aria-label=${tr('תצוגת השעון')}>${CLOCK_MODES.map((m) => html`<button type="button" data-home-clock-mode=${m} aria-pressed=${String(c.clock.mode === m)} @click=${() => this.setWidget('clock', { mode: m })}>${CLOCK_MODE_LABEL[m]}</button>`)}</span></div>
+    return html`<div class="f">${tr('תצוגה')}<sw-segmented label=${tr('תצוגת השעון')} value=${c.clock.mode} @change=${(e: CustomEvent<SegmentedChange>) => this.setWidget('clock', { mode: e.detail.value as (typeof CLOCK_MODES)[number] })}
+      .options=${CLOCK_MODES.map((m) => ({ value: m, label: CLOCK_MODE_LABEL[m], attrs: { 'data-home-clock-mode': m } }))}></sw-segmented></div>
       ${styleRow(this.bv1, 'clock')}
       <div class="f"><label class="check"><input type="checkbox" data-home-clock-seconds .checked=${c.clock.seconds} @change=${(e: Event) => this.setWidget('clock', { seconds: (e.target as HTMLInputElement).checked })} />${tr('עם שניות (בגודל גדול)')}</label>
         <label class="check"><input type="checkbox" data-home-clock-hebrew ?disabled=${c.clock.mode !== 'datetime'} .checked=${c.clock.hebrew} @change=${(e: Event) => this.setWidget('clock', { hebrew: (e.target as HTMLInputElement).checked })} />${tr('תאריך עברי')}</label></div>
@@ -688,7 +680,9 @@ export class HomeEditPanel extends LitElement {
         ? html`<div class="f wide" data-home-wfields>${tr('מה להציג (רק מה שהישות מדווחת)')}
             <div class="fields">${shown.map(check)}</div></div>
           ${hasForecast
-            ? html`<div class="f wide">${tr('אורך התחזית')}<span class="seg" role="group" aria-label=${tr('אורך התחזית')}>${FORECAST_LENS.map((l: ForecastLen) => html`<button type="button" data-home-forecast-len=${l} aria-pressed=${String(cfg.forecast === l)} ?disabled=${!cfg.fields.includes('forecast')} @click=${() => this.setWidget('weather', { forecast: l })}>${l === 'max' ? tr('מקסימום ({n})', { n: forecastCount(w.forecast_len, 'max') }) : `${l} (${forecastCount(w.forecast_len, l)})`}</button>`)}</span></div>`
+            ? html`<div class="f wide">${tr('אורך התחזית')}<sw-segmented label=${tr('אורך התחזית')} value=${String(cfg.forecast)} ?disabled=${!cfg.fields.includes('forecast')}
+              @change=${(e: CustomEvent<SegmentedChange>) => this.setWidget('weather', { forecast: FORECAST_LENS.find((l) => String(l) === e.detail.value) ?? cfg.forecast })}
+              .options=${FORECAST_LENS.map((l: ForecastLen) => ({ value: String(l), label: l === 'max' ? tr('מקסימום ({n})', { n: forecastCount(w.forecast_len, 'max') }) : `${l} (${forecastCount(w.forecast_len, l)})`, attrs: { 'data-home-forecast-len': String(l) } }))}></sw-segmented></div>`
             : nothing}
           <div class="f wide" data-home-wsources>${tr('מקור אחר לשדה (לא חובה)')}
             ${WEATHER_SOURCE_FIELDS.filter((f) => cfg.fields.includes(f)).map((f) => html`<div class="frow"><span>${WEATHER_FIELD_LABEL[f]}</span><select data-home-wsource=${f} aria-label=${WEATHER_FIELD_LABEL[f]} @change=${(e: Event) => this.setSource(f, (e.target as HTMLSelectElement).value)}>${optionsOf(sensors, cfg.sources[f] ?? '', tr('מישות מזג האוויר'))}</select></div>`)}
@@ -781,8 +775,10 @@ export class HomeEditPanel extends LitElement {
 
   private elevatorsBody() {
     const cfg = this.draft.config.elevators;
-    return html`<div class="f wide">${elt('displayMode')}<span class="seg" role="group" aria-label=${elt('displayMode')}>${ELEVATOR_MODES.map((m) => html`<button type="button" data-home-elevators-mode=${m} aria-pressed=${String(cfg.mode === m)} @click=${() => this.setWidget('elevators', { mode: m })}>${elt(MODE_KEY[m])}</button>`)}</span></div>
-      <div class="f wide">${elt('filter')}<span class="seg" role="group" aria-label=${elt('filter')}>${ELEVATOR_FILTERS.map((f) => html`<button type="button" data-home-elevators-filter=${f} aria-pressed=${String(cfg.filter === f)} @click=${() => this.setWidget('elevators', { filter: f })}>${elt(FILTER_KEY[f])}</button>`)}</span></div>
+    return html`<div class="f wide">${elt('displayMode')}<sw-segmented label=${elt('displayMode')} value=${cfg.mode} @change=${(e: CustomEvent<SegmentedChange>) => this.setWidget('elevators', { mode: e.detail.value as (typeof ELEVATOR_MODES)[number] })}
+      .options=${ELEVATOR_MODES.map((m) => ({ value: m, label: elt(MODE_KEY[m]), attrs: { 'data-home-elevators-mode': m } }))}></sw-segmented></div>
+      <div class="f wide">${elt('filter')}<sw-segmented label=${elt('filter')} value=${cfg.filter} @change=${(e: CustomEvent<SegmentedChange>) => this.setWidget('elevators', { filter: e.detail.value as (typeof ELEVATOR_FILTERS)[number] })}
+        .options=${ELEVATOR_FILTERS.map((f) => ({ value: f, label: elt(FILTER_KEY[f]), attrs: { 'data-home-elevators-filter': f } }))}></sw-segmented></div>
       <div class="f wide" data-home-elevators-include>${elt('include')}
         <div class="fields">${this.elevators.map((e) => html`<label class="check"><input type="checkbox" data-home-elevator-include=${e.id} .checked=${!cfg.hidden.includes(e.id)}
           @change=${(ev: Event) => this.setWidget('elevators', { hidden: (ev.target as HTMLInputElement).checked ? cfg.hidden.filter((x) => x !== e.id) : [...cfg.hidden, e.id] })} />${bidi(e.name)}</label>`)}</div></div>`;
@@ -794,8 +790,10 @@ export class HomeEditPanel extends LitElement {
     const cfg = this.draft.config.temperature;
     const modeKey = { combined: 'wModeCombined', cards: 'wModeCards', both: 'wModeBoth' } as const;
     const filterKey = { all: 'wFilterAll', alerts: 'wFilterAlerts' } as const;
-    return html`<div class="f wide">${tt('wDisplayMode')}<span class="seg" role="group" aria-label=${tt('wDisplayMode')}>${ELEVATOR_MODES.map((m) => html`<button type="button" data-home-temp-mode=${m} aria-pressed=${String(cfg.mode === m)} @click=${() => this.setWidget('temperature', { mode: m })}>${tt(modeKey[m])}</button>`)}</span></div>
-      <div class="f wide">${tt('wFilter')}<span class="seg" role="group" aria-label=${tt('wFilter')}>${ELEVATOR_FILTERS.map((f) => html`<button type="button" data-home-temp-filter=${f} aria-pressed=${String(cfg.filter === f)} @click=${() => this.setWidget('temperature', { filter: f })}>${tt(filterKey[f])}</button>`)}</span></div>
+    return html`<div class="f wide">${tt('wDisplayMode')}<sw-segmented label=${tt('wDisplayMode')} value=${cfg.mode} @change=${(e: CustomEvent<SegmentedChange>) => this.setWidget('temperature', { mode: e.detail.value as (typeof ELEVATOR_MODES)[number] })}
+      .options=${ELEVATOR_MODES.map((m) => ({ value: m, label: tt(modeKey[m]), attrs: { 'data-home-temp-mode': m } }))}></sw-segmented></div>
+      <div class="f wide">${tt('wFilter')}<sw-segmented label=${tt('wFilter')} value=${cfg.filter} @change=${(e: CustomEvent<SegmentedChange>) => this.setWidget('temperature', { filter: e.detail.value as (typeof ELEVATOR_FILTERS)[number] })}
+        .options=${ELEVATOR_FILTERS.map((f) => ({ value: f, label: tt(filterKey[f]), attrs: { 'data-home-temp-filter': f } }))}></sw-segmented></div>
       <div class="f wide" data-home-temp-include>${tt('wInclude')}
         <div class="fields">${this.temperatureUnits.map((u) => html`<label class="check"><input type="checkbox" data-home-temp-include=${u.id} .checked=${!cfg.hidden.includes(u.id)}
           @change=${(ev: Event) => this.setWidget('temperature', { hidden: (ev.target as HTMLInputElement).checked ? cfg.hidden.filter((x) => x !== u.id) : [...cfg.hidden, u.id] })} />${bidi(u.name)}</label>`)}</div></div>`;

@@ -285,14 +285,6 @@ const waterExtraCss = css`
     background: var(--sw-surface-solid, var(--sw-surface));
     box-shadow: 0 -1px 0 var(--sw-border);
   }
-  /* the bills page's state filter: on a narrow window the segments scroll sideways inside their own row, the search takes the next line */
-  @media (max-width: 1099px) {
-    .seg.scroll-seg {
-      max-inline-size: 100%;
-      overflow-x: auto;
-      scrollbar-width: none;
-    }
-  }
   .phone-only {
     display: none;
   }

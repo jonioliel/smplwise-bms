@@ -9,6 +9,19 @@ import { ltrStyles } from '../styles/fragments';
  * the accent. Type and radii come from the token scale only (token lint). Charts are LTR geometry in every language.
  */
 export const tempCss = css`
+  /* CR-CMP2-SEGMENTED-B-2450 (owner N11): the module's segmented controls are sw-segmented; these knobs keep the module's key (the pill
+     track on surface-2, 13 px keys, the chosen key in the text ink and semibold) through its shadow root */
+  sw-segmented {
+    --sw-seg-track: var(--sw-surface-2);
+    --sw-seg-radius: var(--sw-r-pill);
+    --sw-seg-btn-radius: var(--sw-r-pill);
+    --sw-seg-h: 28px;
+    --sw-seg-key-pad: 12px;
+    --sw-seg-fs: var(--sw-fs-sm);
+    --sw-seg-fw: var(--sw-fw-regular);
+    --sw-seg-on-fw: var(--sw-fw-semibold);
+    --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-text));
+  }
   :host {
     --tc-ok: var(--sw-success);
     --tc-warn: var(--sw-warning);

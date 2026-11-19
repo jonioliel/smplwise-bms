@@ -2,6 +2,8 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-state-panel';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { describeError } from '../api/client';
 import { DEFAULT_BOUNDS, incidentSettings, saveIncidentSettings, type IncidentSettingKey, type IncidentSettings, type SettingBound } from '../api/incidents';
 import { it } from '../i18n/incidents';
@@ -46,14 +48,21 @@ export class IncidentSettingsForm extends LitElement {
     .tx { flex: 1; min-inline-size: 0; }
     .tx b { display: block; font-size: var(--sw-fs-base); color: var(--sw-heading); font-weight: var(--sw-fw-semibold); }
     .tx span { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
-    .seg button:focus-visible, input[type='number']:focus-visible, a:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
-    .seg { display: inline-flex; padding: 2px; background: var(--sw-surface-3); border-radius: var(--sw-r-sm); flex: none; }
-    .seg button { font: inherit; font-size: var(--sw-fs-sm); border: 0; background: transparent; color: var(--sw-text-2); border-radius: var(--sw-r-xs); padding: 4px 10px; min-block-size: 26px; cursor: pointer; white-space: nowrap; transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color); -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
-    .seg button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface)); color: var(--sw-seg-key-ink, var(--sw-heading)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
-    .seg button:disabled { cursor: default; }
-    .seg button:active:not(:disabled) { transform: scale(var(--sw-press-scale)); }
+    input[type='number']:focus-visible, a:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
+    /* CR-CMP2-SEGMENTED-C-2450: the red-dot choice is sw-segmented; the form keeps its compact key (26 px, 2 px track, the small
+       regular label, the chosen key in the heading ink) through the knobs */
+    sw-segmented {
+      --sw-seg-pad: 2px;
+      --sw-seg-radius: var(--sw-r-sm);
+      --sw-seg-btn-radius: var(--sw-r-xs);
+      --sw-seg-h: 26px;
+      --sw-seg-key-pad: 10px;
+      --sw-seg-fs: var(--sw-fs-sm);
+      --sw-seg-fw: var(--sw-fw-regular);
+      --sw-seg-on-fw: var(--sw-fw-semibold);
+      --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-heading));
+    }
     @media (hover: hover) and (pointer: fine) {
-      .seg button:hover:not(:disabled):not([aria-pressed='true']) { background: var(--sw-hover-wash); color: var(--sw-text); }
       a:hover { text-decoration: underline; }
     }
     input[type='number'] { font: inherit; font-size: var(--sw-fs-sm); background: var(--sw-surface); color: var(--sw-text); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); padding: 3px 6px; min-block-size: 28px; inline-size: 64px; }
@@ -73,9 +82,8 @@ export class IncidentSettingsForm extends LitElement {
     }
     @media (max-width: 767px) and (pointer: coarse) {
       input[type='number'] { min-block-size: 44px; }
-      .seg button { min-block-size: 44px; }
+      sw-segmented { --sw-seg-h: 44px; }
     }
-    @media (prefers-reduced-motion: reduce) { .seg button { transition-duration: 0ms; } }
   `;
 
   connectedCallback() {
@@ -178,9 +186,9 @@ export class IncidentSettingsForm extends LitElement {
         ${this.row(it('sHidden'), it('sTimesHint'), this.num('incident.hidden_stop_s', it('sHidden')))}
         ${this.row(it('sDoorWindow'), it('sDoorWindowHint'), this.num('incident.door_window_s', it('sDoorWindow')))}
         ${this.row(it('sRadius'), it('sRadiusHint'), this.num('incident.near_radius_pct', it('sRadius')))}
-        ${this.row(it('sDot'), it('sDotHint'), html`<div class="seg" role="group" aria-label=${it('sDot')} data-setting="incident.red_dot">
-            <button type="button" data-dot="active" aria-pressed=${dot === 'active' ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => this.set('incident.red_dot', 'active')}>${it('sDotActive')}</button>
-            <button type="button" data-dot="off" aria-pressed=${dot === 'off' ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => this.set('incident.red_dot', 'off')}>${it('sDotOff')}</button></div>`)}
+        ${this.row(it('sDot'), it('sDotHint'), html`<sw-segmented label=${it('sDot')} data-setting="incident.red_dot" value=${dot} ?disabled=${!this.canEdit}
+            @change=${(e: CustomEvent<SegmentedChange>) => this.set('incident.red_dot', e.detail.value as IncidentSettings['incident.red_dot'])}
+            .options=${[{ value: 'active', label: it('sDotActive'), attrs: { 'data-dot': 'active' } }, { value: 'off', label: it('sDotOff'), attrs: { 'data-dot': 'off' } }]}></sw-segmented>`)}
         ${this.row(it('sClock'), it('sClockHint'), this.toggle('incident.header_clock', it('sClock')))}
         ${this.row(it('sRetention'), it('sRetentionHint'), this.num('incidents.retention_days', it('sRetention')))}
         ${this.row(it('sRecipients'), it('sRecipientsHint'), html`<a href="#/system/notifications" data-recipients-link>${it('sRecipientsLink')}</a>`)}

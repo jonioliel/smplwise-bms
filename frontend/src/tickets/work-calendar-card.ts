@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-card';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
 import '../components/sw-toggle';
 import { settingsStyles } from '../styles/settings';
@@ -100,8 +102,8 @@ export class TicketsWorkCalendarCard extends LitElement {
       .nested {
         padding-inline-start: 10px;
       }
-      .nested .seg button {
-        padding-inline: 8px;
+      .nested sw-segmented {
+        --sw-seg-key-pad: 8px;
       }
     }
     textarea.in {
@@ -179,8 +181,8 @@ export class TicketsWorkCalendarCard extends LitElement {
 
   private seg<T extends string>(label: string, sub: string, attr: string, values: readonly T[], cur: T, text: (v: T) => string, on: (v: T) => void): TemplateResult {
     return html`<div class="row"><span class="lbl">${label}<span class="muted">${sub}</span></span>
-      <span class="seg" role="radiogroup" aria-label=${label}>${values.map((v) => html`<button type="button" role="radio" aria-pressed=${String(cur === v)} aria-checked=${String(cur === v)}
-        data-wc-seg=${`${attr}:${v}`} ?disabled=${this.busy} @click=${() => on(v)}>${text(v)}</button>`)}</span></div>`;
+      <sw-segmented radio label=${label} value=${cur} ?disabled=${this.busy} @change=${(e: CustomEvent<SegmentedChange>) => on(e.detail.value as T)}
+        .options=${values.map((v) => ({ value: v, label: text(v), attrs: { 'data-wc-seg': `${attr}:${v}` } }))}></sw-segmented></div>`;
   }
 
   private deptRows(c: WorkCalendar): TemplateResult | typeof nothing {

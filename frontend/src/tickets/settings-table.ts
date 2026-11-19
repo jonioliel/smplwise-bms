@@ -2,6 +2,8 @@ import { html, type TemplateResult } from 'lit';
 import type { UiSettings } from '../api/tickets';
 import { TABLE_MID_WIDTH, parseTableMid, type TableMidWidth } from './table-model';
 import { lt } from './list-text';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 
 /**
  * TICKETS-1440-COLUMN-SETTING-2360: the row of Settings > the module > display ("פתיחה והצגה" card of system-tickets.ts) that picks the
@@ -12,6 +14,6 @@ export function tableMidRow(ui: Partial<UiSettings> | undefined, busy: boolean, 
   const cur = parseTableMid(ui?.table_mid_width);
   const word = (v: TableMidWidth) => (v === 'sentence' ? lt('tmSentence') : lt('tmDepartment'));
   return html`<div class="row" data-setting="table_mid_width"><span class="lbl">${lt('setTableMid')}<span class="muted">${lt('setTableMidSub')}</span></span>
-    <span class="seg" role="radiogroup" aria-label=${lt('setTableMid')}>${TABLE_MID_WIDTH.map((v) => html`<button type="button" role="radio" aria-pressed=${String(cur === v)} aria-checked=${String(cur === v)}
-      data-ui-table-mid=${v} ?disabled=${busy} @click=${() => save({ table_mid_width: v })}>${word(v)}</button>`)}</span></div>`;
+    <sw-segmented radio label=${lt('setTableMid')} value=${cur} ?disabled=${busy} @change=${(e: CustomEvent<SegmentedChange>) => save({ table_mid_width: e.detail.value as TableMidWidth })}
+      .options=${TABLE_MID_WIDTH.map((v) => ({ value: v, label: word(v), attrs: { 'data-ui-table-mid': v } }))}></sw-segmented></div>`;
 }

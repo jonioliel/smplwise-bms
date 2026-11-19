@@ -2,6 +2,8 @@ import { uiLocale } from '../i18n/locale';
 import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-dialog';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { ApiError, describeError } from '../api/client';
@@ -234,10 +236,8 @@ export class CalViewManage extends LitElement {
     const counts = CAL_TYPES.map((t) => [t, all.filter((c) => c.type === t).length] as const);
     return html`<section class="panel main" data-manage-list>
       <div class="ph">
-        <div class="seg" role="group" aria-label=${tr('סוג יומן')}>
-          <button type="button" aria-pressed=${String(!this.typ)} data-type="" @click=${() => { this.typ = ''; this.page = 1; }}>${tr('הכל')} <span class="num">${all.length}</span></button>
-          ${counts.filter(([, n]) => n || !phone).map(([t, n]) => html`<button type="button" aria-pressed=${String(this.typ === t)} data-type=${t} @click=${() => { this.typ = t; this.page = 1; }}>${phone ? TYPE_LABEL[t] : TYPE_LABEL[t]} <span class="num">${n}</span></button>`)}
-        </div>
+        <sw-segmented label=${tr('סוג יומן')} value=${this.typ} @change=${(e: CustomEvent<SegmentedChange>) => { this.typ = e.detail.value as typeof this.typ; this.page = 1; }}
+          .options=${[{ value: '', label: tr('הכל'), count: String(all.length), attrs: { 'data-type': '' } }, ...counts.filter(([, n]) => n || !phone).map(([t, n]) => ({ value: t, label: TYPE_LABEL[t], count: String(n), attrs: { 'data-type': t } }))]}></sw-segmented>
         <span class="sp"></span>
         ${ctx.device === 'desktop' ? html`<span class="hint">${tr('ההרשאות נקבעות לכל יומן בנפרד')}</span>` : nothing}
         ${this.canManageAll() ? html`<a class="btn sm" href=${this.href('/new')} data-new-calendar><sw-icon name="plus" size="14"></sw-icon>${tr('יומן חדש')}</a>` : nothing}
@@ -524,8 +524,8 @@ export class CalViewManage extends LitElement {
         <h2>${edit ? `${tr('כללי היומן')} · ${edit.name}` : tr('יומן חדש')}</h2></div>
       <div class="form">
         <div class="fld"><label for="cn">${tr('שם')}</label><input id="cn" class="inp" maxlength="80" .value=${d.name} @input=${(e: Event) => set({ name: (e.target as HTMLInputElement).value })} data-f-name></div>
-        <div class="fld"><span class="lbl">${tr('סוג')}</span><div class="seg" role="group" aria-label=${tr('סוג')}>${CAL_TYPES.map((t) => html`<button type="button" aria-pressed=${String(d.type === t)} ?disabled=${!!edit && d.type !== t}
-          data-f-type=${t} @click=${() => set({ type: t })}>${TYPE_LABEL[t]}</button>`)}</div></div>
+        <div class="fld"><span class="lbl">${tr('סוג')}</span><sw-segmented label=${tr('סוג')} value=${d.type} @change=${(e: CustomEvent<SegmentedChange>) => set({ type: e.detail.value as typeof d.type })}
+          .options=${CAL_TYPES.map((t) => ({ value: t, label: TYPE_LABEL[t], disabled: !!edit && d.type !== t, attrs: { 'data-f-type': t } }))}></sw-segmented></div>
         <div class="fld"><span class="lbl">${tr('צבע')}</span><div class="hues" role="group" aria-label=${tr('צבע')}>${HUES.map((h) => html`<button type="button" class="hue" style=${`--h:${colorVar(h)}`} aria-pressed=${String(d.color === h)}
           aria-label=${h} data-f-color=${h} @click=${() => set({ color: h })}></button>`)}</div></div>
         <div class="fld"><label for="co">${tr('מנהל')}</label><select id="co" class="inp" @change=${(e: Event) => set({ owner: (e.target as HTMLSelectElement).value })}>
@@ -534,8 +534,8 @@ export class CalViewManage extends LitElement {
           @input=${(e: Event) => set({ capacity: (e.target as HTMLInputElement).value })}></div>` : nothing}
         <div class="fld"><label for="ca">${tr('אישור')}</label><select id="ca" class="inp" @change=${(e: Event) => set({ approval: (e.target as HTMLSelectElement).value as ApprovalMode })} data-f-approval>
           ${(Object.keys(APPROVAL_LABEL) as ApprovalMode[]).map((m) => html`<option value=${m} ?selected=${d.approval === m}>${APPROVAL_LABEL[m]}</option>`)}</select></div>
-        ${d.approval !== 'none' ? html`<div class="fld"><span class="lbl">${tr('הזזת הזמנה מאושרת')}</span><div class="seg" role="group" aria-label=${tr('הזזת הזמנה מאושרת')} data-f-approved-move>
-          ${(Object.keys(APPROVED_MOVE_LABEL) as ApprovedMove[]).map((m) => html`<button type="button" aria-pressed=${String(d.approvedMove === m)} data-f-approved-move-opt=${m} @click=${() => set({ approvedMove: m })}>${APPROVED_MOVE_LABEL[m]}</button>`)}</div></div>` : nothing}
+        ${d.approval !== 'none' ? html`<div class="fld"><span class="lbl">${tr('הזזת הזמנה מאושרת')}</span><sw-segmented label=${tr('הזזת הזמנה מאושרת')} data-f-approved-move value=${d.approvedMove} @change=${(e: CustomEvent<SegmentedChange>) => set({ approvedMove: e.detail.value as ApprovedMove })}
+          .options=${(Object.keys(APPROVED_MOVE_LABEL) as ApprovedMove[]).map((m) => ({ value: m, label: APPROVED_MOVE_LABEL[m], attrs: { 'data-f-approved-move-opt': m } }))}></sw-segmented></div>` : nothing}
         ${room ? html`<div class="fld"><label for="cv">${tr('חפיפת תחזוקה')}</label>${overrides.length
           ? html`<select id="cv" class="inp" @change=${(e: Event) => set({ override: (e.target as HTMLSelectElement).value as OverlapMode | '' })} data-f-override>
               <option value="" ?selected=${!d.override}>${tr('לפי ההתקנה ({mode})', { mode: OVERLAP_SHORT[this.instOverlap] })}</option>

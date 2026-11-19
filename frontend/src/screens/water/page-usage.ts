@@ -1,6 +1,8 @@
 import { LitElement, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../../components/sw-icon';
+import '../../components/sw-segmented';
+import type { SegmentedChange } from '../../components/sw-segmented';
 import '../../components/sw-button';
 import '../../components/sw-state-panel';
 import '../../components/sw-table';
@@ -195,7 +197,8 @@ export class WaterUsagePage extends LitElement {
 
   private renderHead() {
     return html`<div class="row head">
-      <div class="seg ranges" role="group" aria-label=${wt('range')} data-ranges>${(['today', '7d', '30d', 'prev'] as Range[]).map((r) => html`<button type="button" aria-pressed=${this.range === r ? 'true' : 'false'} data-range=${r} @click=${() => this.setRange(r)}>${wt(RANGE_KEY[r])}</button>`)}</div>
+      <sw-segmented class="ranges" label=${wt('range')} data-ranges value=${this.range} @change=${(e: CustomEvent<SegmentedChange>) => this.setRange(e.detail.value as Range)}
+        .options=${(['today', '7d', '30d', 'prev'] as Range[]).map((r) => ({ value: r, label: wt(RANGE_KEY[r]), attrs: { 'data-range': r } }))}></sw-segmented>
       <span class="sp"></span>
       <sw-button icon="download" data-csv ?disabled=${this.phase !== 'ready' || !this.data?.items.length} @click=${() => this.csv()}>${wt('csv')}</sw-button>
     </div>`;

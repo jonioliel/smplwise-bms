@@ -1,5 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import '../components/sw-button';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
@@ -63,7 +65,6 @@ export class GenLogPage extends LitElement {
     .lg .pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; padding: 2px 12px; }
     .lg .fe { display: grid; gap: 6px; padding: 10px 12px; font-size: var(--sw-fs-sm); }
     .lg .fe > div { display: flex; justify-content: space-between; gap: 8px; }
-    .lg .seg button { white-space: nowrap; }
     .lg .row select { inline-size: auto; min-inline-size: 150px; flex: none; }
     /* CR-CMP2-TABLES-GENMAINT-2450 (owner N10): the runs are the shared table (gen-styles data-gen-table) with the page's tighter block padding;
        the phone keeps start, kind, duration and fuel (hours, load and end step out: TableColumn.hideBelow / card) */
@@ -142,7 +143,8 @@ export class GenLogPage extends LitElement {
     const cur = d.summary.current;
     return html`<div class="lg" data-gen-log>
       <div class="row"><span class="h2">${glt('title')}</span><div class="sp"></div>
-        <div class="seg" role="group" aria-label=${glt('title')} data-log-range>${RANGES.map((r) => html`<button aria-pressed=${String(this.range === r)} data-range=${r} @click=${() => this.set({ range: r })}>${glt(`r${r}` as GltKey)}</button>`)}</div>
+        <sw-segmented label=${glt('title')} data-log-range value=${this.range} @change=${(e: CustomEvent<SegmentedChange>) => this.set({ range: e.detail.value as RunRange })}
+          .options=${RANGES.map((r) => ({ value: r, label: glt(`r${r}` as GltKey), attrs: { 'data-range': r } }))}></sw-segmented>
         <select aria-label=${glt('colKind')} .value=${this.kind} data-log-kind @change=${(e: Event) => this.set({ kind: (e.target as HTMLSelectElement).value as RunKind | '' })}>
           <option value="" ?selected=${this.kind === ''}>${glt('kindAll')}</option>${KINDS.map((k) => html`<option value=${k} ?selected=${this.kind === k}>${glt(`kind_${k}` as GltKey)}</option>`)}</select></div>
       ${this.strip(d)}

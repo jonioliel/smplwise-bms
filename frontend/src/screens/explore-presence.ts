@@ -3,6 +3,8 @@ import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-page';
 import '../components/sw-state-panel';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../map/sw-plan-canvas';
 import { describeError } from '../api/client';
 import { loadMap, type MapBundle } from '../api/maps';
@@ -13,7 +15,6 @@ import { pt, type PtKey } from '../i18n/presence';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
-import { segThumbPlainStyles } from '../styles/fragments';
 
 /** The KPI filters of the list: everyone, the people placed on a floor, the people placed on a site only. */
 type Kpi = 'all' | 'floors' | 'site';
@@ -71,7 +72,7 @@ export class ExplorePresence extends LitElement {
       display: inline-flex; align-items: center; gap: 6px; block-size: 34px; padding: 0 12px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border);
       background: var(--sw-surface); color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); cursor: pointer; text-decoration: none;
     }
-    .btn:focus-visible, .kpi:focus-visible, .chips button:focus-visible, .seg button:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
+    .btn:focus-visible, .kpi:focus-visible, .chips button:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
     .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; flex: none; }
     .kpi {
       display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--sw-r-md); background: var(--sw-surface);
@@ -135,12 +136,24 @@ export class ExplorePresence extends LitElement {
     .empty p { margin: 0; max-inline-size: 520px; color: var(--sw-text-2); }
     .empty a { color: var(--sw-accent-text); }
     .skl { border-radius: var(--sw-r-md); background: var(--sw-surface-2); }
-    .seg { display: none; }
+    /* CR-CMP2-SEGMENTED-C-2450: the phone's map / list switch is sw-segmented; it keeps its bordered pill track on surface 2, the small
+       regular label and the chosen key in the text ink */
+    sw-segmented[data-presence-seg] {
+      display: none;
+      --sw-seg-border: var(--sw-border);
+      --sw-seg-track: var(--sw-surface-2);
+      --sw-seg-radius: var(--sw-r-pill);
+      --sw-seg-btn-radius: var(--sw-r-pill);
+      --sw-seg-pad: 2px;
+      --sw-seg-h: 28px;
+      --sw-seg-fs: var(--sw-fs-sm);
+      --sw-seg-fw: var(--sw-fw-regular);
+      --sw-seg-on-fw: var(--sw-fw-semibold);
+      --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-text));
+    }
     @media (max-width: 900px) {
       .body { grid-template-columns: minmax(0, 1fr); }
-      .seg { display: inline-flex; border: 1px solid var(--sw-border); border-radius: var(--sw-r-pill); padding: 2px; background: var(--sw-surface-2); flex: none; align-self: flex-start; }
-      .seg button { border: 0; background: transparent; font: inherit; font-size: var(--sw-fs-sm); padding: 4px 14px; border-radius: var(--sw-r-pill); color: var(--sw-text-2); cursor: pointer; }
-      ${segThumbPlainStyles}
+      sw-segmented[data-presence-seg] { display: inline-flex; align-self: flex-start; }
       .body[data-view='map'] .listpanel, .body[data-view='list'] .mappanel { display: none; }
     }
     @media (max-width: 600px) {
@@ -166,8 +179,8 @@ export class ExplorePresence extends LitElement {
     .kpi[aria-pressed='true'] { background: color-mix(in srgb, var(--c) 16%, var(--sw-surface)); border-color: var(--c); box-shadow: var(--sw-shadow-2); }
     .stage { --sw-map-bg: var(--sw-surface-3); }
     @media (hover: hover) and (pointer: fine) { .kpi:not([aria-pressed='true']):not([data-k='hidden']):hover { background: var(--sw-surface-3); } }
-    .kpi:active:not([data-k='hidden']), .chips button:active, .btn:active, .seg button:active { transform: scale(var(--sw-press-scale)); }
-    .chips button, .btn, .seg button { transition: background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease); -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .kpi:active:not([data-k='hidden']), .chips button:active, .btn:active { transform: scale(var(--sw-press-scale)); }
+    .chips button, .btn { transition: background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease); -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
     /* POLISH4 WP6 (D12): the button hover joins the fine-pointer gate (it was ungated with a (hover: none) undo) */
     @media (hover: hover) and (pointer: fine) { .btn:hover { background: var(--sw-surface-2); } }
     .panel { border-radius: var(--sw-r-lg); }
@@ -344,10 +357,8 @@ export class ExplorePresence extends LitElement {
         ${manage ? html`<a href=${PRESENCE_PLACES_HREF} data-presence-places-empty>${pt('noPlacesLink')}</a>` : nothing}</div>`);
     }
     return page(html`${this.kpis(d)}
-      <div class="seg" role="group" data-presence-seg>
-        <button type="button" aria-pressed=${String(this.phoneView === 'map')} @click=${() => { this.phoneView = 'map'; }}>${pt('mapView')}</button>
-        <button type="button" aria-pressed=${String(this.phoneView === 'list')} @click=${() => { this.phoneView = 'list'; }}>${pt('listView')}</button>
-      </div>
+      <sw-segmented data-presence-seg label=${`${pt('mapView')} / ${pt('listView')}`} value=${this.phoneView} @change=${(e: CustomEvent<SegmentedChange>) => { this.phoneView = e.detail.value as 'map' | 'list'; }}
+        .options=${[{ value: 'map', label: pt('mapView') }, { value: 'list', label: pt('listView') }]}></sw-segmented>
       <div class="body" data-view=${this.phoneView}>${this.mapPanel(d)}${this.listPanel(d)}</div>`);
   }
 }

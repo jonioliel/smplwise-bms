@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-state-panel';
 import '../components/sw-place-tree';
 import '../components/sw-pager';
@@ -363,8 +365,8 @@ export class MaintListPage extends LitElement {
           <div class="tree-m"><select aria-label=${mt('place')} data-maint-place-select @change=${(e: Event) => { this.place = (e.target as HTMLSelectElement).value; }}>
             ${treeRows(list).map((r) => html`<option value=${r.id} ?selected=${r.id === this.place}>${r.depth ? '– ' : ''}${r.name} (${r.count})</option>`)}</select></div>
           <div class="toolbar">
-            ${segs.length ? html`<div class="seg" role="group" aria-label=${mt(this.page === 'ledger' ? 'kindFilter' : this.page === 'plans' ? 'requestFilter' : 'freqFilter')} data-maint-segs>
-              ${segs.map((s) => html`<button type="button" aria-pressed=${String(this.seg === s.key)} data-seg=${s.key} @click=${() => { this.seg = s.key; }}>${mt(s.label)}</button>`)}</div>` : nothing}
+            ${segs.length ? html`<sw-segmented label=${mt(this.page === 'ledger' ? 'kindFilter' : this.page === 'plans' ? 'requestFilter' : 'freqFilter')} data-maint-segs value=${this.seg} @change=${(e: CustomEvent<SegmentedChange>) => { this.seg = e.detail.value as typeof this.seg; }}
+              .options=${segs.map((s) => ({ value: s.key, label: mt(s.label), attrs: { 'data-seg': s.key } }))}></sw-segmented>` : nothing}
             <label class="search"><sw-icon name="search" size="14"></sw-icon><input type="search" placeholder=${mt('search')} aria-label=${mt('search')} .value=${this.q} data-maint-search
               @input=${(e: Event) => { this.q = (e.target as HTMLInputElement).value; }}></label>
             ${this.fit.fits ? html`<span class="pg">${this.fit.pages > 1 ? html`<sw-pager data-maint-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}</span>` : nothing}

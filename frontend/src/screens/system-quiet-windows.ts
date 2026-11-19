@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-button';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-field';
 import '../components/sw-dialog';
 import { describeError } from '../api/client';
@@ -92,8 +94,9 @@ export class SystemQuietWindows extends LitElement {
 
   private seg<T extends string | boolean>(field: keyof QuietWindowSettings, values: readonly T[], label: (v: T) => string, name: string, off: boolean) {
     const cur = this.draft[field] as unknown as T;
-    return html`<div class="seg" role="group" aria-label=${name} data-qw-seg=${field}>${values.map((v) => html`<button type="button" data-v=${String(v)} aria-pressed=${String(cur === v)} ?disabled=${off}
-      @click=${() => this.set({ [field]: v } as Partial<QuietWindowSettings>)}>${label(v)}</button>`)}</div>`;
+    return html`<sw-segmented label=${name} data-qw-seg=${field} value=${String(cur)} ?disabled=${off}
+      @change=${(e: CustomEvent<SegmentedChange>) => { const v = values.find((x) => String(x) === e.detail.value); if (v !== undefined) this.set({ [field]: v } as Partial<QuietWindowSettings>); }}
+      .options=${values.map((v) => ({ value: String(v), label: label(v), attrs: { 'data-v': String(v) } }))}></sw-segmented>`;
   }
 
   private minutes(field: 'default_minutes' | 'max_minutes', off: boolean) {

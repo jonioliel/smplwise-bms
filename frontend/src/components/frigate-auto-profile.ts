@@ -3,6 +3,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import './sw-button';
 import './sw-dialog';
 import './sw-toggle';
+import './sw-segmented';
+import type { SegmentedChange } from './sw-segmented';
 import { describeError } from '../api/client';
 import {
   AUTO_MODES, alarmText, applyAutoSuggestion, dismissAutoSuggestion, getProfileAuto, isFirstWriteRefusal, putProfileAuto,
@@ -161,9 +163,9 @@ export class FrigateAutoProfile extends LitElement {
       <div class="head"><h4>${a.title}</h4>${this.statusLine()}</div>
       <div class="row">
         <span class="name"><span>${a.mode}</span></span>
-        <div class="seg" role="group" aria-label=${a.mode} data-auto-modes>
-          ${AUTO_MODES.map((m) => html`<button type="button" aria-pressed=${String(st.mode === m)} data-auto-mode=${m} ?disabled=${lock || (m === 'apply' && !st.auto_apply_consent)} title=${m === 'apply' && !st.auto_apply_consent ? a.blockedConsent : ''} @click=${() => st.mode !== m && void this.setting({ mode: m })}>${a.modes[m]}</button>`)}
-        </div>
+        <sw-segmented label=${a.mode} data-auto-modes value=${st.mode}
+          @change=${(e: CustomEvent<SegmentedChange>) => { const m = AUTO_MODES.find((x) => x === e.detail.value); if (m && st.mode !== m) void this.setting({ mode: m }); }}
+          .options=${AUTO_MODES.map((m) => ({ value: m, label: a.modes[m], disabled: lock || (m === 'apply' && !st.auto_apply_consent), title: m === 'apply' && !st.auto_apply_consent ? a.blockedConsent : '', attrs: { 'data-auto-mode': m } }))}></sw-segmented>
       </div>
       <div class="row">
         <span class="name"><span>${a.consent}</span>${st.auto_apply_consent && st.consent_at ? html`<span class="sub" data-auto-consent-by>${a.consentBy} · ${dateText(st.consent_at, this.tz || undefined)}</span>` : nothing}</span>

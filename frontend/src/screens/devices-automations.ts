@@ -6,6 +6,8 @@ import { keyed } from 'lit/directives/keyed.js';
 import './automation-editors';
 import '../components/sw-dialog';
 import '../components/sw-page';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-automation-card';
 import '../components/sw-automation-row';
 import '../components/sw-pager';
@@ -288,16 +290,15 @@ export class DevicesAutomations extends LitElement {
     .vwrap {
       flex: none;
     }
-    .views button {
-      padding-inline: 12px;
-      min-inline-size: 40px;
-    }
-    .views .ic {
-      font-size: var(--sw-fs-lg);
+    /* CR-CMP2-SEGMENTED-C-2450: the view switch is sw-segmented (icon-only keys); its 40 / 44 px keys and the larger icon through the knobs */
+    sw-segmented.views {
+      --sw-seg-ico-pad: 12px;
+      --sw-seg-key-min-w: 40px;
+      --sw-seg-icon-size: var(--sw-fs-lg);
     }
     @media (pointer: coarse), (max-width: 1100px) {
-      .views button {
-        min-inline-size: 44px;
+      sw-segmented.views {
+        --sw-seg-key-min-w: 44px;
       }
     }
     .stack {
@@ -437,10 +438,12 @@ export class DevicesAutomations extends LitElement {
         display: inline-flex;
         order: 3;
       }
+      /* the strip stays one line and scrolls sideways (CR-CMP2-SEGMENTED-C-2450: sw-segmented keeps its keys on the line) */
       .dh-det .stf {
         overflow-x: auto;
         scrollbar-width: none;
         justify-content: flex-start;
+        --sw-seg-wrap: nowrap;
       }
       .dh-det .stf::-webkit-scrollbar {
         display: none;
@@ -865,7 +868,8 @@ export class DevicesAutomations extends LitElement {
       ${this.phone && rooms !== nothing ? html`<div class="dh-row fl">${rooms}</div>` : nothing}
       ${tools || (sv && scenOk) ? html`<div class="dh-det">
         ${kinds.length > 1 || scenOk || (this.kavarnit.schedules && kinds.length) ? html`<div class="seg kinds" role="tablist" aria-label=${tr('סוג')} @keydown=${tablistKeydown}>${this.kavarnit.schedules ? html`<button type="button" role="tab" aria-selected="false" data-segment="schedules" @click=${() => navigate(SCHEDULES_PATH)}>${tr('תזמונים')}${this.schedCount === null ? nothing : html` <small>${this.schedCount}</small>`}</button>` : nothing}${SEGMENTS.filter((s) => kinds.includes(s.kind)).map((s) => html`<button type="button" role="tab" aria-selected=${String(seg === s.id && !sv)} data-segment=${s.id} @click=${() => (sv ? navigate(itemPath(s.id)) : this.setSegment(s.id))}>${s.label} <small>${counts[s.kind]}</small></button>`)}${scenOk ? html`<button type="button" role="tab" aria-selected=${String(sv)} data-segment="scenarios" @click=${() => navigate('/devices/automations/scenarios')}>${sct('tab')}</button>` : nothing}</div>` : nothing}
-        ${def.kind === 'automation' && all.length && !sv ? html`<div class="seg sm stf" role="radiogroup" aria-label=${tr('סינון לפי מצב')} ?data-open=${this.filtersOpen}>${STATE_FILTERS_OF(extFlags(this.status?.ui ?? null).precheck).map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id} @click=${() => this.setFilter({ state: s.id as StateFilter })}>${s.label}<small>${sc[s.id]}</small></button>`)}</div>` : nothing}
+        ${def.kind === 'automation' && all.length && !sv ? html`<sw-segmented class="stf" radio size="sm" label=${tr('סינון לפי מצב')} ?data-open=${this.filtersOpen} value=${f.state} @change=${(e: CustomEvent<SegmentedChange>) => this.setFilter({ state: e.detail.value as StateFilter })}
+          .options=${STATE_FILTERS_OF(extFlags(this.status?.ui ?? null).precheck).map((s) => ({ value: s.id, label: s.label, count: String(sc[s.id]), attrs: { 'data-state-filter': s.id } }))}></sw-segmented>` : nothing}
         ${def.kind === 'automation' && all.length && !sv ? html`<button type="button" class="btn foldbtn" data-fold-toggle aria-expanded=${String(this.filtersOpen)} @click=${() => (this.filtersOpen = !this.filtersOpen)}>${aIcon('filter')}${tr('סינון')}${active ? html` <small>${active}</small>` : nothing}</button>` : nothing}
         <span class="grow"></span>
         ${showViews && this.phone ? this.viewToggle() : nothing}
@@ -877,7 +881,9 @@ export class DevicesAutomations extends LitElement {
 
   /** POLISH2-295: rows · cards (the cards carry the explanatory sentence); the same segmented icons as the schedules' view switch. */
   private viewSwitch(): TemplateResult {
-    return html`<div class="seg sm views" role="group" aria-label=${tr('תצוגה')} data-auto-views>${VIEWS.map((v) => html`<button type="button" data-view-btn=${v} aria-pressed=${String(this.view === v)} aria-label=${VIEW_LABEL[v]()} title=${VIEW_LABEL[v]()} @click=${() => this.setView(v)}>${aIcon(VIEW_ICON[v])}</button>`)}</div>`;
+    // CR-CMP2-SEGMENTED-C-2450: sw-segmented with icon-only keys (each named by its label, which is also its tooltip)
+    return html`<sw-segmented class="views" size="sm" labels="none" label=${tr('תצוגה')} data-auto-views value=${this.view} @change=${(e: CustomEvent<SegmentedChange>) => this.setView(e.detail.value as AutoView)}
+      .options=${VIEWS.map((v) => ({ value: v, label: VIEW_LABEL[v](), icon: aIcon(VIEW_ICON[v]), attrs: { 'data-view-btn': v } }))}></sw-segmented>`;
   }
 
   /** On a phone one button in the toolbar row (it shows the other view's icon) - the segmented switch would add a row to a screen

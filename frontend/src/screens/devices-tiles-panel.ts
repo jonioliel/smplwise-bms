@@ -7,6 +7,8 @@ import '../components/sw-dialog';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import './devices-bulk';
 import type { IconName } from '../components/sw-icon';
 import type { DevicesBulkDialog } from './devices-bulk';
@@ -253,46 +255,34 @@ export class DevicesTilesPanel extends LitElement {
         padding-block: 14px 8px;
         background: var(--dv-surface-solid, var(--sw-surface));
       }
-      .seg {
-        display: flex;
-        border: 1px solid var(--sw-border-strong);
-        border-radius: var(--sw-r-md);
+      /* R5-DEVICES-297: the filter segment reads at the base size, 40 px high; a press sinks the key.
+         CR-CMP2-SEGMENTED-C-2450: it is sw-segmented and keeps its own form through the knobs - a bordered row of equal keys split by
+         lines (no sunken track), the chosen key filled in the accent */
+      sw-segmented.filter {
+        --sw-seg-border: var(--sw-border-strong);
+        --sw-seg-track: var(--sw-surface);
+        --sw-seg-radius: var(--sw-r-md);
+        --sw-seg-btn-radius: 0;
+        --sw-seg-pad: 0;
+        --sw-seg-gap: 0;
+        --sw-seg-divider: 1px solid var(--sw-border-strong);
+        --sw-seg-h: 40px;
+        --sw-seg-key-pad: 6px;
+        --sw-seg-fs: var(--sw-fs-base);
+        --sw-seg-fw: var(--sw-fw-semibold);
+        --sw-seg-fg: var(--sw-text);
+        --sw-seg-on-bg: var(--sw-accent);
+        --sw-seg-on-fg: var(--sw-text-inverse);
+        --sw-seg-on-fw: var(--sw-fw-bold);
+        --sw-seg-on-shadow: none;
+      }
+      sw-segmented.filter::part(track) {
         overflow: hidden;
       }
-      /* R5-DEVICES-297: the filter segment reads at the base size, 40 px high; a press sinks the key */
-      .seg button {
-        flex: 1;
-        min-inline-size: 0;
-        min-block-size: 40px;
-        border: 0;
-        padding: 4px 6px;
-        background: var(--sw-surface);
-        color: var(--sw-text);
-        font: inherit;
-        font-size: var(--sw-fs-base);
-        font-weight: var(--sw-fw-semibold);
-        cursor: pointer;
+      sw-segmented.filter::part(key) {
+        white-space: normal;
         font-variant-numeric: tabular-nums;
-        line-height: 1.2;
-        transition: transform var(--sw-t-fast) var(--sw-ease), background-color var(--sw-t-fast) var(--sw-ease);
       }
-      .seg button:active {
-        transform: scale(var(--sw-press-scale, 1));
-      }
-      .seg button + button {
-        border-inline-start: 1px solid var(--sw-border-strong);
-      }
-      @media (hover: hover) and (pointer: fine) {
-        .seg button:hover {
-          background: var(--sw-hover-wash);
-        }
-      }
-      .seg button[aria-pressed='true'] {
-        background: var(--sw-accent);
-        color: var(--sw-text-inverse);
-        font-weight: var(--sw-fw-bold);
-      }
-      .seg button:focus-visible,
       .search input:focus-visible {
         outline: var(--sw-focus-w) solid var(--sw-focus);
         outline-offset: -2px;
@@ -323,7 +313,7 @@ export class DevicesTilesPanel extends LitElement {
         align-items: center;
         gap: 8px;
       }
-      .ctlbar .seg {
+      .ctlbar sw-segmented.filter {
         flex: 1;
         min-inline-size: 0;
       }
@@ -529,9 +519,11 @@ export class DevicesTilesPanel extends LitElement {
       }
       /* touch: every control a 44 px target */
       @media (max-width: 767px), (pointer: coarse) {
-        .seg button,
         .search input {
           min-block-size: 44px;
+        }
+        sw-segmented.filter {
+          --sw-seg-h: 44px;
         }
         .row sw-button {
           min-block-size: 44px;
@@ -744,9 +736,8 @@ export class DevicesTilesPanel extends LitElement {
     return html`<div class="top">
         ${this.kind === 'alarm' ? html`<a class="alarm-link" href="#/security/alarm" data-alarm-link @click=${(e: Event) => this.navigateAway(e, '/security/alarm')}><sw-icon name="shield" size=${15}></sw-icon>${tr('פתח במסך האזעקה')} ‹</a>` : nothing}
         <div class="ctlbar">
-          <div class="seg" role="group" aria-label=${tr('סינון')}>
-            ${m.order.map((f) => html`<button type="button" data-filter=${f} aria-pressed=${String(this.filter === f)} @click=${() => this.setFilter(f)}>${label[f]} <span>(${ltrNum(n[f])})</span></button>`)}
-          </div>
+          <sw-segmented class="filter" block label=${tr('סינון')} value=${this.filter} @change=${(e: CustomEvent<SegmentedChange>) => this.setFilter(e.detail.value as ItemsFilter)}
+            .options=${m.order.map((f) => ({ value: f, label: `${label[f]} (${ltrNum(n[f])})`, attrs: { 'data-filter': f } }))}></sw-segmented>
           ${bulkOk && this.bulkHold ? this.renderHeld() : bulkOk ? this.renderMaster(shown, narrowed, this.headingText ? this.scopeName : d.name) : this.pairedMaster && m.master && 'on' in m.master ? this.renderPairedOff() : nothing}
           ${this.kind === 'locks' ? this.renderLockAllButton(shown) : nothing}
         </div>

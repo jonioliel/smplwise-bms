@@ -3,6 +3,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import '../components/sw-dialog';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { automationsStyles } from '../styles/automations-glass';
 import { applyAutomationsGlass } from '../styles/glass';
 import { SkinController } from '../design/skin';
@@ -466,8 +468,9 @@ export class TicketCostCard extends LitElement {
     const rows = (d.external_assignments ?? []).filter((a) => !a.ended_at && requirementEditable(a.id, d.claims, cost));
     if (!rows.length) return nothing;
     return html`${rows.map((a) => html`<div class="reqrow" data-requirement=${a.id}><span class="lbl">${ct('mode')} · ${bidi(a.name)}</span>
-      <span class="seg sm" role="radiogroup" aria-label=${`${ct('mode')} · ${a.name}`}>${COST_MODES.map((m) => html`<button type="button" role="radio" aria-checked=${String((a.cost_claim ?? '') === m)}
-        data-requirement-mode=${m} ?disabled=${this.busy} @click=${() => (a.cost_claim === m ? undefined : void this.setRequirement(a.id, m))}>${ct(`m_${m}` as CostTextKey)}</button>`)}</span></div>`)}`;
+      <sw-segmented radio size="sm" label=${`${ct('mode')} · ${a.name}`} value=${a.cost_claim ?? ''} ?disabled=${this.busy}
+        @change=${(e: CustomEvent<SegmentedChange>) => { const m = e.detail.value as CostMode; if (a.cost_claim !== m) void this.setRequirement(a.id, m); }}
+        .options=${COST_MODES.map((m) => ({ value: m, label: ct(`m_${m}` as CostTextKey), attrs: { 'data-requirement-mode': m } }))}></sw-segmented></div>`)}`;
   }
 
   // ---------------------------------------------------------------- render: dialogs
@@ -583,9 +586,8 @@ export class TicketCostCard extends LitElement {
         <div class="two">
           ${currencies.length > 1 ? html`<label class="fld"><span>${ct('currency')}</span><select class="inp" data-ob-currency @change=${(e: Event) => set({ currency: (e.target as HTMLSelectElement).value })}>
             ${currencies.map((x) => html`<option value=${x} ?selected=${x === f.currency}>${x}</option>`)}</select></label>` : nothing}
-          ${!exempt && !f.noCharge ? html`<div class="fld"><span>${ct('vatToggle')}</span><span class="seg sm" role="radiogroup" aria-label=${ct('vatToggle')}>
-            <button type="button" role="radio" aria-checked=${String(!f.include)} data-ob-vat="excluded" @click=${() => set({ include: false })}>${ct('amountsExcl')}</button>
-            <button type="button" role="radio" aria-checked=${String(f.include)} data-ob-vat="included" @click=${() => set({ include: true })}>${ct('amountsIncl')}</button></span></div>` : nothing}
+          ${!exempt && !f.noCharge ? html`<div class="fld"><span>${ct('vatToggle')}</span><sw-segmented radio size="sm" label=${ct('vatToggle')} value=${f.include ? 'included' : 'excluded'} @change=${(e: CustomEvent<SegmentedChange>) => set({ include: e.detail.value === 'included' })}
+            .options=${[{ value: 'excluded', label: ct('amountsExcl'), attrs: { 'data-ob-vat': 'excluded' } }, { value: 'included', label: ct('amountsIncl'), attrs: { 'data-ob-vat': 'included' } }]}></sw-segmented></div>` : nothing}
         </div>
         <label class="chk"><input type="checkbox" data-ob-no-charge .checked=${f.noCharge} @change=${(e: Event) => set({ noCharge: (e.target as HTMLInputElement).checked })} />${ct('noCharge')}</label>
         ${f.noCharge ? nothing : html`${this.lineEditor(f.currency, claim?.labor_rate_minor)}${this.preview(vatModeFor(exempt, f.include, false), rateBp, f.currency)}`}

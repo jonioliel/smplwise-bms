@@ -1,5 +1,7 @@
 import { LitElement, html, nothing } from 'lit';
 import '../../components/sw-button';
+import '../../components/sw-segmented';
+import type { SegmentedChange } from '../../components/sw-segmented';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../../components/sw-icon';
 import '../../components/sw-state-panel';
@@ -224,9 +226,8 @@ export class WaterSettingsPage extends LitElement {
       <div class="formgrid">
         ${f.tariffId ? nothing : html`<div class="fld wide"><label for="wtn">${wt('tariffName')}</label><input id="wtn" data-tariff-name .value=${f.name} @input=${(e: Event) => set('name', (e.target as HTMLInputElement).value)} /></div>`}
         <div class="fld"><label for="wtf">${wt('colFrom')}</label><input id="wtf" type="date" lang=${dateInputLang()} class="ltr" .value=${f.from} @change=${(e: Event) => set('from', (e.target as HTMLInputElement).value)} /></div>
-        <div class="fld"><span class="lbl">${wt('priceMode')}</span><div class="seg" role="group" aria-label=${wt('priceMode')}>
-          <button type="button" aria-pressed=${f.mode === 'ex_vat' ? 'true' : 'false'} @click=${() => set('mode', 'ex_vat')}>${wt('modeEx')}</button>
-          <button type="button" aria-pressed=${f.mode === 'inc_vat' ? 'true' : 'false'} @click=${() => set('mode', 'inc_vat')}>${wt('modeInc')}</button></div></div>
+        <div class="fld"><span class="lbl">${wt('priceMode')}</span><sw-segmented label=${wt('priceMode')} value=${f.mode} @change=${(e: CustomEvent<SegmentedChange>) => set('mode', e.detail.value as 'ex_vat' | 'inc_vat')}
+          .options=${[{ value: 'ex_vat', label: wt('modeEx') }, { value: 'inc_vat', label: wt('modeInc') }]}></sw-segmented></div>
         <div class="fld"><label for="wtw">${wt('colWaterM3')}</label><input id="wtw" class="ltr" inputmode="decimal" data-water-price .value=${f.water} @input=${(e: Event) => set('water', (e.target as HTMLInputElement).value)} /></div>
         <div class="fld"><label for="wts">${wt('colSewageM3')}</label><input id="wts" class="ltr" inputmode="decimal" data-sewage-price .value=${f.sewage} @input=${(e: Event) => set('sewage', (e.target as HTMLInputElement).value)} /></div>
       </div>
@@ -305,9 +306,8 @@ export class WaterSettingsPage extends LitElement {
     const sec = this.section;
     const go = (s: Section) => navigate('/infra/water/settings', { set: s });
     return html`<div class="page" data-water="settings" data-state="ready" data-section=${sec}>
-      <div class="seg sect-nav" role="group" aria-label=${wt('sections')} data-set-nav>
-        ${this.access.manage || this.access.bills ? html`<button type="button" data-set="prices" aria-pressed=${sec === 'prices' ? 'true' : 'false'} @click=${() => go('prices')}>${wt('sTariffs')}</button>` : nothing}
-        <button type="button" data-set="alerts" aria-pressed=${sec === 'alerts' ? 'true' : 'false'} @click=${() => go('alerts')}>${wt('sAlerts')}</button></div>
+      <sw-segmented class="sect-nav" label=${wt('sections')} data-set-nav value=${sec} @change=${(e: CustomEvent<SegmentedChange>) => go(e.detail.value as typeof sec)}
+        .options=${[...(this.access.manage || this.access.bills ? [{ value: 'prices', label: wt('sTariffs'), attrs: { 'data-set': 'prices' } }] : []), { value: 'alerts', label: wt('sAlerts'), attrs: { 'data-set': 'alerts' } }]}></sw-segmented>
       ${this.notice ? html`<div class="notice" role="status" data-notice>${this.notice}</div>` : nothing}
       ${sec === 'prices' ? this.renderPrices() : this.renderAlerts()}
       ${this.renderVersionDialog()}

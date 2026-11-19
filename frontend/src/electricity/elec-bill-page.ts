@@ -8,6 +8,8 @@
  */
 import { html, nothing } from 'lit';
 import '../components/sw-button';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { customElement, property, state } from 'lit/decorators.js';
 import { ERROR_TEXT, PDF_RETRYABLE, elec, elecErrorCode, elecErrorText, elecToday, type Bill, type BillAction, type BillEvent, type BillSnapshot, type SentHow, type SnapshotMeter } from '../api/electricity-billing';
 import { energyAccess } from './access';
@@ -321,7 +323,8 @@ export class ElecBillPage extends ElecBase {
       <elec-dialog heading=${tr('סימון כנשלח')} ?open=${this.dlg === 'sent'} data-dialog="sent" @close=${() => this.close()}>
         <div class="form">
           <div class="fld"><label for="sd">${tr('תאריך משלוח')}</label><input id="sd" type="date" lang=${dateInputLang()} class="ltr ${isIsoDate(this.date) ? '' : 'err'}" data-date .value=${this.date} @change=${(e: Event) => (this.date = (e.target as HTMLInputElement).value)} /></div>
-          <div class="fld"><span class="lbl">${tr('אופן משלוח')}</span><div class="seg" role="group" aria-label=${tr('אופן משלוח')}>${(['email', 'hand', 'other'] as SentHow[]).map((h) => html`<button type="button" data-how=${h} aria-pressed=${this.how === h} @click=${() => (this.how = h)}>${HOW[h]}</button>`)}</div></div>
+          <div class="fld"><span class="lbl">${tr('אופן משלוח')}</span><sw-segmented label=${tr('אופן משלוח')} value=${this.how} @change=${(e: CustomEvent<SegmentedChange>) => (this.how = e.detail.value as SentHow)}
+        .options=${(['email', 'hand', 'other'] as SentHow[]).map((h) => ({ value: h, label: HOW[h], attrs: { 'data-how': h } }))}></sw-segmented></div>
         </div>${err}
         <sw-button variant="primary" slot="actions" data-confirm ?disabled=${this.busy || !isIsoDate(this.date)} @click=${() => void this.act(() => elec().markSent(b.id, { at: this.date, how: this.how, note: '', row_version: b.row_version }))}>${tr('שמירה')}</sw-button>${cancel()}
       </elec-dialog>

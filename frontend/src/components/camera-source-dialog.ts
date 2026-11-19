@@ -14,6 +14,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import './sw-dialog';
 import './sw-button';
 import './sw-field';
+import './sw-segmented';
+import type { SegmentedChange } from './sw-segmented';
 import {
   addStandaloneCamera,
   getCameraSource,
@@ -63,34 +65,21 @@ export class CameraSourceDialog extends LitElement {
       gap: 12px;
       min-inline-size: min(560px, 100%); /* EVIDENCE-CAMERAS-2412: never wider than its box (was 86vw) */
     }
-    .seg {
-      display: inline-flex;
-      gap: 2px;
-      padding: 3px;
-      border-radius: 999px;
-      background: var(--sw-surface-3);
+    /* CR-CMP2-SEGMENTED-C-2450: the NVR / manual choice is sw-segmented (a radio group); the dialog keeps its pill track and the
+       32 px pill key with the small semibold label, the chosen key in the accent with its own soft lift */
+    sw-segmented {
       justify-self: start;
-    }
-    .seg button {
-      border: 0;
-      background: transparent;
-      border-radius: 999px;
-      padding: 6px 16px;
-      min-block-size: 32px;
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      font-weight: 600;
-      color: var(--sw-text-2);
-      cursor: pointer;
-      transition: background-color 160ms ease, color 160ms ease, transform 120ms ease-out;
-    }
-    .seg button:active {
-      transform: scale(0.97);
-    }
-    .seg button[aria-checked='true'] {
-      background: var(--sw-seg-key, var(--sw-surface));
-      color: var(--sw-seg-key-ink, var(--sw-accent, var(--sw-text)));
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16);
+      --sw-seg-pad: 3px;
+      --sw-seg-gap: 2px;
+      --sw-seg-radius: 999px;
+      --sw-seg-btn-radius: 999px;
+      --sw-seg-h: 32px;
+      --sw-seg-key-pad: 16px;
+      --sw-seg-fs: var(--sw-fs-sm);
+      --sw-seg-fw: 600;
+      --sw-seg-on-fw: 600;
+      --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-accent, var(--sw-text)));
+      --sw-seg-on-shadow: 0 1px 3px rgba(0, 0, 0, 0.16);
     }
     .lead,
     .note {
@@ -149,9 +138,6 @@ export class CameraSourceDialog extends LitElement {
     @media (prefers-reduced-motion: reduce) {
       .result img {
         animation: none;
-      }
-      .seg button {
-        transition: none;
       }
     }
     @media (max-width: 640px) {
@@ -305,10 +291,9 @@ export class CameraSourceDialog extends LitElement {
             </div>`
           : this.standalone
             ? html`<p class="lead" data-source-standalone>${cst('standaloneNote')}</p>`
-            : html`<div class="seg" role="radiogroup" aria-label=${cst('section')} data-source-choice=${this.choice}>
-                ${(['nvr', 'manual'] as const).map((m) => html`<button type="button" role="radio" aria-checked=${String(this.choice === m)} ?disabled=${this.loading || this.busy}
-                  data-source-mode=${m} @click=${() => { this.choice = m; this.test = null; }}>${m === 'nvr' ? cst('fromNvr') : cst('manual')}</button>`)}
-              </div>
+            : html`<sw-segmented radio label=${cst('section')} data-source-choice=${this.choice} value=${this.choice} ?disabled=${this.loading || this.busy}
+                @change=${(e: CustomEvent<SegmentedChange>) => { this.choice = e.detail.value === 'manual' ? 'manual' : 'nvr'; this.test = null; }}
+                .options=${(['nvr', 'manual'] as const).map((m) => ({ value: m, label: m === 'nvr' ? cst('fromNvr') : cst('manual'), attrs: { 'data-source-mode': m } }))}></sw-segmented>
               <p class="lead">${this.choice === 'nvr' ? cst('fromNvrLead') : cst('manualLead')}</p>`}
         ${this.choice === 'manual' && !this.loading ? this.renderManual() : nothing}
         ${this.error ? html`<p class="bad" role="alert" data-source-error>${this.error}</p>` : nothing}

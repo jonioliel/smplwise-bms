@@ -2,6 +2,8 @@ import { LitElement, html, css, nothing, svg, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import qrcode from 'qrcode-generator';
 import '../components/sw-dialog';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import '../components/sw-button';
@@ -205,8 +207,8 @@ export class MaintTagsPage extends LitElement {
           ${devices.length ? html`<optgroup label=${mt('tagDevice')}>${devices.map(([id, name]) => html`<option value=${`entity:${id}`}>${name}</option>`)}</optgroup>` : nothing}
         </select></div>
         <div class="fld"><label for="tg-l">${mt('tagLabel')}</label><input id="tg-l" class="inp" maxlength="120" .value=${this.draft.label} @input=${(e: Event) => { this.draft = { ...this.draft, label: (e.target as HTMLInputElement).value }; }}></div>
-        <div class="fld"><span class="lbl">${mt('tagMedium')}</span><div class="seg" role="group" aria-label=${mt('tagMedium')}>
-          ${(['qr', 'nfc'] as const).map((m) => html`<button type="button" aria-pressed=${String(this.draft.medium === m)} @click=${() => { this.draft = { ...this.draft, medium: m }; }}>${m.toUpperCase()}</button>`)}</div></div>
+        <div class="fld"><span class="lbl">${mt('tagMedium')}</span><sw-segmented label=${mt('tagMedium')} value=${this.draft.medium} @change=${(e: CustomEvent<SegmentedChange>) => { this.draft = { ...this.draft, medium: e.detail.value as 'qr' | 'nfc' }; }}
+          .options=${(['qr', 'nfc'] as const).map((m) => ({ value: m, label: m.toUpperCase() }))}></sw-segmented></div>
         ${this.formError ? html`<div class="alert err" role="alert">${this.formError}</div>` : nothing}
       </div>
       <div class="foot" slot="footer"><span class="sp"></span><button type="button" class="btn" @click=${() => { this.creating = false; }}>${mt('cancel')}</button>

@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-state-panel';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { describeError } from '../api/client';
 import { emergencyApi, type HistoryPoint, type Verdict } from '../api/emergency';
 import { em, type EmKey } from '../i18n/emergency';
@@ -62,8 +64,8 @@ export class EmergencyHistoryPanel extends LitElement {
     const bars = bucketHistory(this.points, MAX_BARS);
     const ranges = RANGES.filter((d) => d <= this.keep);
     return html`<div class="panel flush fill" data-emerg-history>
-      <div class="ctl"><span class="hint mut">${em('hRange')}</span><div class="seg" role="group">${ranges.map((d) => html`<button type="button" aria-pressed=${String(this.days === d)} data-emerg-range=${d}
-        @click=${() => { this.days = d; void this.load(); }}>${em('hDays', { n: d })}</button>`)}</div>
+      <div class="ctl"><span class="hint mut">${em('hRange')}</span><sw-segmented value=${String(this.days)} @change=${(e: CustomEvent<SegmentedChange>) => { this.days = Number(e.detail.value) as typeof this.days; void this.load(); }}
+        .options=${ranges.map((d) => ({ value: String(d), label: em('hDays', { n: d }), attrs: { 'data-emerg-range': String(d) } }))}></sw-segmented>
         <span class="mut">${bars.length ? em('hSummary', { n: this.points.length }) : ''}</span></div>
       ${bars.length ? html`<div class="strip" role="img" aria-label=${em('viewHistory')}>${bars.map((b) => html`<span class="bar" data-look=${LOOK[b.verdict]} data-verdict=${b.verdict}
           title=${`${fmtInstant(b.at)} - ${em(`verdict_${b.verdict}` as EmKey)}`}></span>`)}</div>

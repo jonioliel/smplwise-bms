@@ -8,6 +8,8 @@ import { billsTable } from './elec-bills-table';
 import { monthName } from './elec-format';
 import { go, route } from './elec-routes';
 import { tr } from '../i18n/msg/electricity';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 
 @customElement('elec-bills-list')
 export class ElecBillsList extends ElecBase {
@@ -42,10 +44,8 @@ export class ElecBillsList extends ElecBase {
     const list = this.all.filter((b) => (!this.filter || b.state === this.filter) && (!this.month || b.period.to.startsWith(this.month)) && (!q || (b.number ?? '').includes(q) || b.customer.name.includes(q) || b.account_name.includes(q)));
     return html`<div class="page" data-elec="bills" data-state=${list.length ? 'ready' : 'filtered-empty'}>
       <div class="row">
-        <div class="seg" role="group" aria-label=${tr('סינון לפי מצב')} data-state-filter>
-          <button type="button" data-filter="" aria-pressed=${this.filter === ''} @click=${() => (this.filter = '')}>${tr('הכול')} ${n(this.all.length)}</button>
-          ${BILL_STATES.map((s) => html`<button type="button" data-filter=${s} aria-pressed=${this.filter === s} @click=${() => (this.filter = s)}>${BILL_STATE_LABEL[s]} ${n(cnt(s))}</button>`)}
-        </div>
+        <sw-segmented label=${tr('סינון לפי מצב')} data-state-filter value=${this.filter} @change=${(e: CustomEvent<SegmentedChange>) => (this.filter = e.detail.value as typeof this.filter)}
+          .options=${[{ value: '', label: tr('הכול'), count: n(this.all.length), attrs: { 'data-filter': '' } }, ...BILL_STATES.map((s) => ({ value: s, label: BILL_STATE_LABEL[s], count: n(cnt(s)), attrs: { 'data-filter': s } }))]}></sw-segmented>
         <span class="sp"></span>
         <select data-month aria-label=${tr('חודש')} style="inline-size:auto" @change=${(e: Event) => (this.month = (e.target as HTMLSelectElement).value)}><option value="">${tr('כל החודשים')}</option>${months.map((m) => html`<option value=${m} ?selected=${m === this.month}>${monthName(`${m}-01`)}</option>`)}</select>
         <input type="search" data-search aria-label=${tr('חיפוש מספר או לקוח')} placeholder=${tr('חיפוש מספר או לקוח')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} />

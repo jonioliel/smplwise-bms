@@ -134,7 +134,8 @@ for (const scheme of ['light', 'dark'] as const) {
       // open for N hours
       if (await s.locator('[data-dw-openfor-btn]').count()) {
         await s.locator('[data-dw-openfor-btn]').click();
-        await expect(s.locator('[data-dw-openfor] .seg, [data-dw-openfor-none]').first()).toBeVisible();
+        // CR-CMP2-SEGMENTED-C-2450: the hours are sw-chip-choice
+        await expect(s.locator('[data-dw-openfor] sw-chip-choice, [data-dw-openfor-none]').first()).toBeVisible();
         await check(page, `openfor ${kind} ${scheme}`);
         await shot(page, `dw-openfor-${kind}-${scheme}`);
         await s.locator('[data-dw-hours]').last().click();

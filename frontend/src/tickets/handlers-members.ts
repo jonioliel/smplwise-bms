@@ -3,6 +3,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { LiveRefresh } from './live-refresh';
 import '../components/sw-toggle';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
 import '../components/sw-state-panel';
 import './phone-verify';
@@ -129,10 +131,10 @@ export class TicketsHandlersMembers extends LitElement {
       max-inline-size: 100%;
       min-inline-size: 0;
     }
-    .manage .seg button {
-      min-block-size: 36px;
+    .manage sw-segmented {
+      --sw-seg-h: 36px;
     }
-    .manage .seg button[disabled] {
+    .manage sw-segmented::part(key):disabled {
       cursor: default;
     }
     .rb.sm {
@@ -303,9 +305,9 @@ export class TicketsHandlersMembers extends LitElement {
     const edit = d.can_edit_members;
     return html`<div class="line" data-member-membership=${d.id}>
       <span class="lbl">${many ? bidi(d.name) : tt('u6MemberRole')}</span>
-      <span class="seg" role="radiogroup" aria-label=${`${m.name} · ${d.name}`}>${(['manager', 'member'] as const).map((r) => html`<button type="button" role="radio" aria-pressed=${String(m.role === r)}
-        aria-checked=${String(m.role === r)} ?disabled=${this.busy || !edit || m.role === r} data-member-role=${r}
-        @click=${() => void this.act(() => ticketsApi().putMember(d.id, m.kind, m.id, r))}>${r === 'manager' ? tt('hdRole_manager') : tt('hdRole_member')}</button>`)}</span>
+      <sw-segmented radio label=${`${m.name} · ${d.name}`} value=${m.role} ?disabled=${this.busy || !edit}
+        @change=${(e: CustomEvent<SegmentedChange>) => { const r = e.detail.value as 'manager' | 'member'; if (r !== m.role) void this.act(() => ticketsApi().putMember(d.id, m.kind, m.id, r)); }}
+        .options=${(['manager', 'member'] as const).map((r) => ({ value: r, label: r === 'manager' ? tt('hdRole_manager') : tt('hdRole_member'), disabled: m.role === r, attrs: { 'data-member-role': r } }))}></sw-segmented>
       ${m.role === 'manager' && edit ? html`<sw-toggle label=${tt('depNotifyNew')} .checked=${m.notify_new} ?disabled=${this.busy} data-member-notify
         @change=${(e: CustomEvent<{ checked: boolean }>) => void this.act(() => ticketsApi().putMember(d.id, m.kind, m.id, m.role, e.detail.checked))}></sw-toggle>` : nothing}
       ${edit ? html`<button type="button" class="rm" data-member-remove ?disabled=${this.busy} @click=${() => void this.act(() => ticketsApi().deleteMember(d.id, m.kind, m.id))}>${tt('depRemove')}</button>` : nothing}

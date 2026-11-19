@@ -15,6 +15,8 @@ import { integrationName, integrationTitle } from './media-integration-names';
 import { tr } from '../i18n/msg/media';
 import '../components/sw-toggle';
 import { switchPress } from '../components/sw-toggle';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { live } from 'lit/directives/live.js';
 
 /**
@@ -506,10 +508,12 @@ export class MediaRemoteEditor extends LitElement {
         <button type="button" class="btn quiet" data-ed-cancel ?disabled=${this.busy} @click=${() => this.cancel()}>${tr('ביטול')}</button>
         <button type="button" class="btn primary" data-ed-save ?disabled=${this.busy} @click=${() => void this.save()}>${ic('check')}${tr('שמירה')}</button></div>
       ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
-      <div class="seg sm" role="radiogroup" aria-label=${tr('היקף השינוי')}>
-        <button type="button" role="radio" aria-checked=${String(dev)} data-ed-scope="device" @click=${() => void this.setScope('device')}>${tr('למסך הזה')}</button>
-        <button type="button" role="radio" aria-checked=${String(!dev)} data-ed-scope="default" @click=${() => void this.setScope('default')}>${tr('ברירת מחדל לכל המסכים')}</button>
-      </div>
+      <sw-segmented radio block size="sm" label=${tr('היקף השינוי')} value=${dev ? 'device' : 'default'}
+        @change=${(e: CustomEvent<SegmentedChange>) => void this.setScope(e.detail.value === 'default' ? 'default' : 'device')}
+        .options=${[
+          { value: 'device', label: tr('למסך הזה'), attrs: { 'data-ed-scope': 'device' } },
+          { value: 'default', label: tr('ברירת מחדל לכל המסכים'), attrs: { 'data-ed-scope': 'default' } },
+        ]}></sw-segmented>
       <div class="grp"><h4>${tr('חלקי השלט')}</h4>${this.sectionRows()}</div>
       ${dev && this.sources.length ? html`<div class="grp"><h4>${tr('מקורות · סדר, שם והצגה')}</h4>${this.itemRows('sources')}</div>` : nothing}
       ${dev && this.apps.length ? html`<div class="grp"><h4>${tr('אפליקציות · סדר, שם והצגה')}</h4>${this.itemRows('apps')}</div>` : nothing}

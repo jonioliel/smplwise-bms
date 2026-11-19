@@ -2,6 +2,8 @@ import { LitElement, html, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-dialog';
+import '../components/sw-chip-choice';
+import type { ChipChoiceChange } from '../components/sw-chip-choice';
 import { describeError } from '../api/client';
 import { openFor, type DoorRow } from '../api/door-windows';
 import { dwt } from '../i18n/door-windows';
@@ -80,9 +82,8 @@ export class DoorOpenFor extends LitElement {
         <div class="field"><label for="dwo-door">${dwe('ofDoor')}</label>
           <select id="dwo-door" data-dw-openfor-door @change=${(e: Event) => (this.door = (e.target as HTMLSelectElement).value)}>
             ${this.doors.map((d) => html`<option value=${d.key} ?selected=${d.key === this.door}>${d.label}</option>`)}</select></div>
-        <div class="field"><span class="lbl">${dwe('ofHours')}</span><div class="seg" role="group" data-dw-openfor-hours>
-          ${hourChoices(this.maxHours).map((n) => html`<button type="button" class="num" aria-pressed=${String(this.hours === n)} data-dw-hours=${n}
-            @click=${() => (this.hours = n)}>${dwe('ofHoursN', { n })}</button>`)}</div></div>
+        <div class="field"><span class="lbl">${dwe('ofHours')}</span><sw-chip-choice label=${dwe('ofHours')} data-dw-openfor-hours value=${String(this.hours)} @change=${(e: CustomEvent<ChipChoiceChange>) => (this.hours = Number(e.detail.value))}
+          .options=${hourChoices(this.maxHours).map((n) => ({ value: String(n), label: dwe('ofHoursN', { n }), attrs: { 'data-dw-hours': String(n) } }))}></sw-chip-choice></div>
         ${this.error ? html`<div class="err" role="alert" data-dw-error>${this.error}</div>` : nothing}
       </div>` : html`<p data-dw-openfor-confirm>${dwe('ofConfirmText', { door: door?.label ?? '', end })}</p>`}
       <div slot="footer" class="footer">

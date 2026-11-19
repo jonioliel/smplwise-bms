@@ -6,6 +6,8 @@ import '../components/sw-icon';
 import '../components/sw-drawer';
 import '../components/sw-dialog';
 import '../components/sw-dropdown';
+import '../components/sw-chip-choice';
+import type { ChipChoiceChange } from '../components/sw-chip-choice';
 import '../components/sw-state-panel';
 import '../access-external/identity-card';
 import '../access-external/request-dialog';
@@ -243,10 +245,8 @@ export class AccessExternalScreen extends LitElement {
       .pd-r:last-child { border-block-end: 0; }
       .pd-w { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: var(--sw-fs-sm); color: var(--sw-text-2); min-inline-size: 0; }
       .pd-a { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-      .seg { display: flex; flex-wrap: wrap; gap: 6px; }
-      .seg button { border: 1px solid var(--sw-border-strong); background: var(--sw-surface-solid); color: var(--sw-text); padding: 0 14px; border-radius: var(--sw-r-pill); min-block-size: var(--sw-touch-desktop); font: inherit; cursor: pointer; }
-      .seg button[aria-pressed='true'] { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); font-weight: var(--sw-fw-semibold); }
-      .seg button:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 2px; }
+      /* CR-CMP2-SEGMENTED-C-2450: the settings choices are sw-chip-choice; this page's chip (strong edge, solid fill, desktop touch height) */
+      sw-chip-choice { --sw-chipc-border: var(--sw-border-strong); --sw-chipc-bg: var(--sw-surface-solid); --sw-chipc-pad: 14px; --sw-chipc-h: var(--sw-touch-desktop); --sw-chipc-on-fw: var(--sw-fw-semibold); }
       /* POLISH4-WP8 (D18, owner Q9a): the list card switches to its two-line rows by its OWN width (a narrow main column beside the side
          panels on a tablet), not only by the window's */
       .tcard.grants { container: xgrants / inline-size; }
@@ -1000,8 +1000,8 @@ export class AccessExternalScreen extends LitElement {
       this.loadReadiness();
     }, 'set_saved');
     return html`<section class="sec" data-sec="activation"><h4>${xt('act_title')}</h4>
-      <div class="seg" role="group" data-external-switch><button type="button" aria-pressed=${String(!on)} data-setting="external_grants:off" ?disabled=${this.busy} @click=${() => on && void set('off')}>${xt('act_off')}</button>
-        <button type="button" aria-pressed=${String(on)} data-setting="external_grants:on" ?disabled=${this.busy} @click=${() => !on && void set('on')}>${xt('act_on')}</button></div>
+      <sw-chip-choice label=${xt('act_title')} data-external-switch value=${on ? 'on' : 'off'} ?disabled=${this.busy} @change=${(e: CustomEvent<ChipChoiceChange>) => e.detail.value !== (on ? 'on' : 'off') && void set(e.detail.value as 'on' | 'off')}
+        .options=${[{ value: 'off', label: xt('act_off'), attrs: { 'data-setting': 'external_grants:off' } }, { value: 'on', label: xt('act_on'), attrs: { 'data-setting': 'external_grants:on' } }]}></sw-chip-choice>
       <h4>${xt('rd_title')}</h4>
       ${r === null ? html`<p class="note" data-readiness="loading">${xt('rd_loading')}</p>`
         : r === 'error' ? html`<p class="err-line" data-readiness="error">${xt('rd_error')}</p>`
@@ -1013,21 +1013,22 @@ export class AccessExternalScreen extends LitElement {
 
   private settingsDialog(): TemplateResult {
     const d = this.draft!;
-    const seg = <K extends keyof ScreenSettings>(key: K, items: [ScreenSettings[K], XtKey][]) => html`<div class="seg" role="group">${items.map(
-      ([v, k]) => html`<button type="button" aria-pressed=${String(d[key] === v)} data-setting=${`${String(key)}:${String(v)}`} @click=${() => (this.draft = { ...d, [key]: v })}>${xt(k)}</button>`,
-    )}</div>`;
+    // CR-CMP2-SEGMENTED-C-2450: sw-chip-choice; the values are strings in every one of these settings
+    const seg = <K extends keyof ScreenSettings>(key: K, label: string, items: [ScreenSettings[K], XtKey][]) => html`<sw-chip-choice label=${label} value=${String(d[key])}
+      @change=${(e: CustomEvent<ChipChoiceChange>) => (this.draft = { ...d, [key]: items.find(([v]) => String(v) === e.detail.value)?.[0] ?? d[key] })}
+      .options=${items.map(([v, k]) => ({ value: String(v), label: xt(k), attrs: { 'data-setting': `${String(key)}:${String(v)}` } }))}></sw-chip-choice>`;
     const days: DropdownItem[] = DAYS.map((n) => ({ id: String(n), label: xt(`day${n}` as XtKey) }));
     const hours: DropdownItem[] = Array.from({ length: 24 }, (_, h) => ({ id: String(h), label: `${String(h).padStart(2, '0')}:00` }));
     return html`<sw-dialog open heading=${xt('set_title')} subheading=${xt('set_sub')} data-settings-dialog @close=${() => (this.dialog = null)}>
       <div class="stack">
         ${this.activationSection()}
-        <section class="sec"><h4>${xt('set_placement')}</h4>${seg('placement', [['access', 'pl_access'], ['tickets', 'pl_tickets'], ['both', 'pl_both']])}</section>
+        <section class="sec"><h4>${xt('set_placement')}</h4>${seg('placement', xt('set_placement'), [['access', 'pl_access'], ['tickets', 'pl_tickets'], ['both', 'pl_both']])}</section>
         <section class="sec"><h4>${xt('set_digest')}</h4>
-          <div class="field"><label>${xt('set_channel')}</label>${seg('digest_channel', [['app', 'ch_app'], ['app_whatsapp', 'ch_app_whatsapp']])}</div>
+          <div class="field"><label>${xt('set_channel')}</label>${seg('digest_channel', xt('set_channel'), [['app', 'ch_app'], ['app_whatsapp', 'ch_app_whatsapp']])}</div>
           <div class="two"><sw-dropdown tall label=${xt('set_day')} .items=${days} .value=${String(d.digest_day)} @change=${(e: CustomEvent<{ id: string }>) => (this.draft = { ...d, digest_day: Number(e.detail.id) })}></sw-dropdown>
           <sw-dropdown tall label=${xt('set_hour')} .items=${hours} .value=${String(d.digest_hour)} @change=${(e: CustomEvent<{ id: string }>) => (this.draft = { ...d, digest_hour: Number(e.detail.id) })}></sw-dropdown></div></section>
-        <section class="sec"><h4>${xt('set_name')}</h4>${seg('name_sync', [['manual', 'ns_manual'], ['auto', 'ns_auto']])}</section>
-        <section class="sec"><h4>${xt('set_arrival')}</h4>${seg('arrival_after_grant', [['off', 'ar_off'], ['on', 'ar_on']])}</section>
+        <section class="sec"><h4>${xt('set_name')}</h4>${seg('name_sync', xt('set_name'), [['manual', 'ns_manual'], ['auto', 'ns_auto']])}</section>
+        <section class="sec"><h4>${xt('set_arrival')}</h4>${seg('arrival_after_grant', xt('set_arrival'), [['off', 'ar_off'], ['on', 'ar_on']])}</section>
         <section class="sec" data-visits-section><h4>${xt('set_visits')}</h4><wiskey-visits-panel></wiskey-visits-panel></section>
       </div>
       ${this.dlgError ? html`<p class="err-line" role="alert">${this.dlgError}</p>` : nothing}

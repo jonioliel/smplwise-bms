@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing, svg, type TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-card';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
 import { describeError, patch } from '../api/client';
 import { getSettings } from '../api/media';
@@ -94,8 +96,7 @@ export class SystemHomeScreen extends LitElement {
       cursor: default;
       opacity: 0.75;
     }
-    button.opt:focus-visible,
-    .seg button:focus-visible {
+    button.opt:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
@@ -134,30 +135,6 @@ export class SystemHomeScreen extends LitElement {
       gap: 12px;
       flex-wrap: wrap;
       margin-block-start: 12px;
-    }
-    .seg {
-      display: inline-flex;
-      gap: 2px;
-      padding: 3px;
-      background: var(--sw-surface-3);
-      border-radius: var(--sw-r-md);
-    }
-    .seg button {
-      all: unset;
-      box-sizing: border-box;
-      min-block-size: 34px;
-      padding: 0 14px;
-      display: inline-flex;
-      align-items: center;
-      border-radius: var(--sw-r-sm);
-      color: var(--sw-text-2);
-      font-weight: var(--sw-fw-medium);
-      cursor: pointer;
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-key, var(--sw-surface));
-      color: var(--sw-seg-key-ink, var(--sw-accent-text));
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }
     .ok {
       color: var(--sw-live);
@@ -250,7 +227,8 @@ export class SystemHomeScreen extends LitElement {
 
   /** A settings row with a segmented choice (the same row shape as the board side). */
   private choiceRow<T extends string>(label: string, attr: string, items: readonly T[], labels: Record<T, string>, value: T, ro: boolean, onPick: (v: T) => void): TemplateResult {
-    return html`<div class="row" data-home-choice=${attr}><span>${label}</span><span class="seg" role="group" aria-label=${label}>${items.map((v) => html`<button type="button" data-home-choice-option=${v} aria-pressed=${String(value === v)} ?disabled=${ro || this.busy} @click=${() => onPick(v)}>${labels[v]}</button>`)}</span></div>`;
+    return html`<div class="row" data-home-choice=${attr}><span>${label}</span><sw-segmented label=${label} value=${value} ?disabled=${ro || this.busy} @change=${(e: CustomEvent<SegmentedChange>) => onPick(e.detail.value as T)}
+      .options=${items.map((v) => ({ value: v, label: labels[v], attrs: { 'data-home-choice-option': v } }))}></sw-segmented></div>`;
   }
 
   /** HOME-295: one change of the options form, saved at once (only the keys that changed). */
@@ -288,7 +266,8 @@ export class SystemHomeScreen extends LitElement {
         )}
       </div>
       ${this.direction === 'b'
-        ? html`<div class="row"><span>${tr('צד הלוח')}</span><span class="seg" role="group" aria-label=${tr('צד הלוח')}>${SIDES.map((s) => html`<button type="button" data-home-side-option=${s} aria-pressed=${String(this.side === s)} ?disabled=${ro || this.busy} @click=${() => void this.save({ side: s })}>${SIDE_LABEL[s]}</button>`)}</span></div>`
+        ? html`<div class="row"><span>${tr('צד הלוח')}</span><sw-segmented label=${tr('צד הלוח')} value=${this.side} ?disabled=${ro || this.busy} @change=${(e: CustomEvent<SegmentedChange>) => void this.save({ side: e.detail.value as (typeof SIDES)[number] })}
+      .options=${SIDES.map((s) => ({ value: s, label: SIDE_LABEL[s], attrs: { 'data-home-side-option': s } }))}></sw-segmented></div>`
         : nothing}
       <h3 class="hs-h" data-home-screen-options-heading>${hs('heading')}</h3>
       <home-screen-options .value=${this.form} .areas=${this.areas} .buildings=${this.buildings} ?editable=${!ro && !this.busy} @hs-change=${(e: CustomEvent<HomeScreenForm>) => void this.saveForm(e.detail)}></home-screen-options>

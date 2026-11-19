@@ -13,6 +13,8 @@ import { MATERIALS, materialDef, type VisualStyle } from '../map/material-resolv
 import { MAX_POSITION_NAME, MAX_WALK_POSITIONS, type WalkPosition } from '../map/studio6-fields';
 import { sunPosition } from '../map/sun';
 import { tr } from '../i18n/msg/media';
+// CR-CMP2-SEGMENTED-C-2450: the host (explore-plan-editor) registers sw-segmented - this module stays importable by the node unit tests
+import type { SegmentedChange } from '../components/sw-segmented';
 
 // ---------------------------------------------------------------- materials
 
@@ -62,9 +64,8 @@ export function renderMaterialField(v: MaterialFieldView, a: MaterialFieldAction
   return html`<div class="matf" data-material-field=${v.key}>
     <div class="mathead">
       <span class="lbl">${v.label}<span class="muted" data-material-current>${own ? materialName(current) : tr('ברירת מחדל: {name}', { name: materialName(v.defaultId) })}</span></span>
-      <span class="seg sm" role="group" aria-label=${tr('תצוגה מקדימה לפי סגנון')}>
-        ${(['light', 'dark'] as const).map((s) => html`<button type="button" data-material-style=${s} aria-pressed=${v.style === s ? 'true' : 'false'} @click=${() => a.setStyle(s)}>${STYLE_HE[s]}</button>`)}
-      </span>
+      <sw-segmented size="sm" label=${tr('תצוגה מקדימה לפי סגנון')} value=${v.style} @change=${(e: CustomEvent<SegmentedChange>) => a.setStyle(e.detail.value as VisualStyle)}
+        .options=${(['light', 'dark'] as const).map((s) => ({ value: s, label: STYLE_HE[s], attrs: { 'data-material-style': s } }))}></sw-segmented>
     </div>
     <div class="swatches" role="group" aria-label=${v.label}>
       ${swatches.map(
@@ -288,7 +289,6 @@ export const studio6Styles = css`
   .tbtn,
   .swatch,
   .matreset,
-  .seg.sm button,
   .walkrow button {
     transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color);
     -webkit-tap-highlight-color: transparent;
@@ -297,7 +297,6 @@ export const studio6Styles = css`
   .tbtn:active:not([disabled]),
   .swatch:active:not([disabled]),
   .matreset:active:not([disabled]),
-  .seg.sm button:active,
   .walkrow button:active:not([disabled]) {
     transform: scale(var(--sw-press-scale));
   }
@@ -305,7 +304,6 @@ export const studio6Styles = css`
     .tbtn,
     .swatch,
     .matreset,
-    .seg.sm button,
     .walkrow button {
       transition-duration: 0ms;
     }
@@ -317,9 +315,6 @@ export const studio6Styles = css`
     }
     .tbtn.primary:hover:not([disabled]) {
       background: var(--sw-accent-hover);
-    }
-    .seg.sm button:not([aria-pressed='true']):hover {
-      color: var(--sw-text);
     }
     .swatch:hover:not([disabled]):not([aria-pressed='true']) {
       box-shadow: inset 0 0 0 1px var(--sw-text-3);
@@ -352,34 +347,19 @@ export const studio6Styles = css`
     color: var(--sw-text-2);
     font-weight: var(--sw-fw-medium);
   }
-  .seg.sm {
-    display: inline-flex;
-    gap: 2px;
-    padding: 2px;
-    background: var(--sw-surface-3);
-    border-radius: var(--sw-r-sm);
+  /* CR-CMP2-SEGMENTED-C-2450: the light / dark preview keys are sw-segmented; the card keeps its small track (2 px, the small
+     radius) and its 44 px square key with the extra-small regular label */
+  .mathead sw-segmented {
+    --sw-seg-pad: 2px;
+    --sw-seg-radius: var(--sw-r-sm);
+    --sw-seg-btn-radius: calc(var(--sw-r-sm) - 2px);
+    --sw-seg-h: var(--sw-touch-desktop, 44px);
+    --sw-seg-key-min-w: var(--sw-touch-desktop, 44px);
+    --sw-seg-key-pad: 8px;
+    --sw-seg-fs: var(--sw-fs-xs);
+    --sw-seg-fw: var(--sw-fw-regular);
+    --sw-seg-on-fw: var(--sw-fw-semibold);
   }
-  .seg.sm button {
-    all: unset;
-    box-sizing: border-box;
-    display: inline-flex;
-    align-items: center;
-    min-block-size: var(--sw-touch-desktop, 44px);
-    min-inline-size: var(--sw-touch-desktop, 44px);
-    justify-content: center;
-    padding: 0 8px;
-    border-radius: calc(var(--sw-r-sm) - 2px);
-    color: var(--sw-text-2);
-    font-size: var(--sw-fs-xs);
-    cursor: pointer;
-  }
-  .seg.sm button[aria-pressed='true'] {
-    background: var(--sw-seg-key, var(--sw-surface));
-    color: var(--sw-seg-key-ink, var(--sw-accent-text));
-    font-weight: var(--sw-fw-semibold);
-    box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
-  }
-  .seg.sm button:focus-visible,
   .swatch:focus-visible,
   .matreset:focus-visible,
   .dial:focus-visible,
@@ -646,7 +626,6 @@ export const studio6Styles = css`
   @media (pointer: coarse) {
     .swatch,
     .walkrow button,
-    .seg.sm button,
     .matreset,
     .walkrow .where select,
     .walkrow .hd input,

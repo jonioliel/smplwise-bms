@@ -1,5 +1,7 @@
 import { LitElement, html, nothing } from 'lit';
 import '../components/sw-button';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-drawer';
@@ -158,7 +160,8 @@ export class GenAlertsPage extends LitElement {
     return html`<div class="row"><span class="h2">${G.history.title}</span>${this.retention ? html`<span class="mut">${fill(G.history.kept, { n: this.retention })}</span>` : nothing}</div>
       <div class="filters" data-filters>
         <input type="search" placeholder=${G.history.search} aria-label=${G.history.search} .value=${f.text} @input=${(e: Event) => this.setFilter({ text: (e.target as HTMLInputElement).value })} data-filter="text" />
-        <div class="seg" role="group" data-filter="window">${(['today', '7d', '30d', 'custom'] as const).map((w) => html`<button aria-pressed=${f.window === w} @click=${() => this.setFilter({ window: w })}>${G.history.windows[w]}</button>`)}</div>
+        <sw-segmented data-filter="window" value=${f.window} @change=${(e: CustomEvent<SegmentedChange>) => this.setFilter({ window: e.detail.value as HistoryFilter['window'] })}
+          .options=${(['today', '7d', '30d', 'custom'] as const).map((w) => ({ value: w, label: G.history.windows[w] }))}></sw-segmented>
         ${f.window === 'custom' ? html`<input type="datetime-local" lang=${dateInputLang()} aria-label="from" .value=${f.from} @change=${(e: Event) => this.setFilter({ from: (e.target as HTMLInputElement).value })} /><input type="datetime-local" lang=${dateInputLang()} aria-label="to" .value=${f.to} @change=${(e: Event) => this.setFilter({ to: (e.target as HTMLInputElement).value })} />` : nothing}
         ${sel(G.history.severity, 'severity', (['critical', 'alert', 'info'] as const).map((s) => [s, G.alerts.sev[s]]))}
         ${sel(G.history.type, 'type', types.map((t) => [t.key, t.title]))}
