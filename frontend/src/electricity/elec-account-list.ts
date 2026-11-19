@@ -3,7 +3,9 @@ import { html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { elec, type AccountRow } from '../api/electricity-billing';
 import { energyAccess } from './access';
-import { ElecBase, billChip, n, skeleton, stateBox, type LoadState } from './elec-ui';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
+import { ElecBase, billCellChip, billChip, n, skeleton, stateBox, type LoadState } from './elec-ui';
 import { f2, ils, periodLabel } from './elec-format';
 import { go, href, route } from './elec-routes';
 import { tr } from '../i18n/msg/electricity';
@@ -18,15 +20,28 @@ export class ElecAccountsList extends ElecBase {
   @state() private rows: AccountRow[] = [];
   @state() private q = '';
   @state() private view: 'table' | 'cards' = 'table';
+  /** RELEASE-2450-TRAIN phase 1: the module's narrow edge (the old `.hide-tablet`, 1100 px) - the formula steps out here, not at sw-table's
+   * shared 1023 px: between 1024 and 1100 px the full table was ~64 px wider than its card (layout-electricity, accounts 1024). */
+  @state() private narrow = false;
+  private narrowMq?: MediaQueryList;
+  private readonly onNarrow = () => (this.narrow = !!this.narrowMq?.matches);
 
   connectedCallback() {
     super.connectedCallback();
+    this.narrowMq = globalThis.matchMedia?.('(max-width: 1100px)');
+    this.narrowMq?.addEventListener('change', this.onNarrow);
+    this.onNarrow();
     try {
       this.view = localStorage.getItem(VIEW_KEY) === 'cards' ? 'cards' : 'table';
     } catch {
       /* storage unavailable */
     }
     void this.load();
+  }
+
+  disconnectedCallback() {
+    this.narrowMq?.removeEventListener('change', this.onNarrow);
+    super.disconnectedCallback();
   }
 
   private async load() {
@@ -51,6 +66,31 @@ export class ElecAccountsList extends ElecBase {
   private last = (r: AccountRow) => {
     const b = r.account.last_bill;
     return b ? html`${b.number ? n(b.number) : tr('טיוטה')} ${billChip(b.state)}` : html`<span class="mut">-</span>`;
+  };
+
+  /** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): the accounts table is the shared sw-table - the account's name is the row's link (its
+   * tab stop: `no-focus-rows`, a click anywhere on the row opens it too), the formula sentence cut with an ellipsis (steps out at the
+   * module's narrow edge, `narrow`), figures as LTR isolates at the reading end, the last bill and the state as chips in the shared tones. */
+  private columns(money: boolean): TableColumn<AccountRow>[] {
+    const cols: TableColumn<AccountRow>[] = [
+      { key: 'name', label: tr('חשבון'), render: (r) => html`<a class="t1" href=${href.account(r.account.id)} @click=${(e: Event) => e.stopPropagation()}>${r.account.name}</a>` },
+      { key: 'customer', label: tr('לקוח'), render: (r) => r.account.customer.name },
+      ...(this.narrow ? [] : [{ key: 'formula', label: tr('נוסחה'), kind: ['muted', 'truncate'], render: (r) => r.account.formula.sentence_he, cellTitle: (r) => r.account.formula.sentence_he } satisfies TableColumn<AccountRow>]),
+      { key: 'period', label: tr('תקופה'), render: (r) => periodLabel(r.account.period_months, r.account.period_anchor_day, r.account.period_anchor_month) },
+      { key: 'kwh', label: tr('צריכה בתקופה'), kind: 'num', render: (r) => f2(r.kwh ?? 0) },
+    ];
+    if (money)
+      cols.push(
+        { key: 'amount', label: tr('סכום עד כה'), kind: 'num', render: (r) => (r.amount !== undefined ? ils(r.amount) : '') },
+        { key: 'last', label: tr('חיוב אחרון'), kind: 'status', render: (r) => this.lastCell(r) },
+      );
+    cols.push({ key: 'state', label: tr('מצב'), kind: 'status', render: (r) => this.statusCell(r) });
+    return cols;
+  }
+  private statusCell = (r: AccountRow) => (r.stale ? html`<span class="chip" data-tone="warn">${tr('מונה לא מדווח')}</span>` : html`<span class="chip" data-tone="ok">${tr('תקין')}</span>`);
+  private lastCell = (r: AccountRow) => {
+    const b = r.account.last_bill;
+    return b ? html`${b.number ? n(b.number) : tr('טיוטה')} ${billCellChip(b.state)}` : html`<span class="mut">-</span>`;
   };
 
   render() {
@@ -82,12 +122,9 @@ export class ElecAccountsList extends ElecBase {
         <div class="row" style="margin-block-start:10px;align-items:baseline"><span class="big">${n(f2(r.kwh ?? 0))}</span><span class="mut">${tr('קוט״ש בתקופה')}</span><span class="sp"></span>${money && r.amount !== undefined ? html`<b class="big amt">${n(ils(r.amount))}</b>` : nothing}</div>
         ${money ? html`<div class="mut" style="margin-block-start:6px">${tr('חיוב אחרון:')} ${this.last(r)}</div>` : nothing}</div>`)}</div>`;
     } else {
-      body = html`<div class="card flush scrollx" data-elec-list><table class="t">
-        <thead><tr><th>${tr('חשבון')}</th><th>${tr('לקוח')}</th><th class="hide-tablet">${tr('נוסחה')}</th><th>${tr('תקופה')}</th><th class="num">${tr('צריכה בתקופה')}</th>${money ? html`<th class="num">${tr('סכום עד כה')}</th><th>${tr('חיוב אחרון')}</th>` : nothing}<th>${tr('מצב')}</th></tr></thead>
-        <tbody>${rows.map((r) => html`<tr class="go" data-account-row=${r.account.id} @click=${() => go(route.account(r.account.id))}>
-          <td class="b"><a class="rowlink" href=${href.account(r.account.id)} @click=${(e: Event) => e.stopPropagation()}>${r.account.name}</a></td><td>${r.account.customer.name}</td>
-          <td class="mut ell hide-tablet">${r.account.formula.sentence_he}</td><td>${periodLabel(r.account.period_months, r.account.period_anchor_day, r.account.period_anchor_month)}</td>
-          <td class="num">${f2(r.kwh ?? 0)}</td>${money ? html`<td class="num">${r.amount !== undefined ? ils(r.amount) : ''}</td><td>${this.last(r)}</td>` : nothing}<td>${this.status(r)}</td></tr>`)}</tbody></table></div>`;
+      body = html`<sw-table class="t card flush" data-elec-list no-focus-rows .columns=${this.columns(money) as unknown as TableColumn[]} .rows=${rows as unknown as Record<string, unknown>[]}
+        .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-account-row': (r as unknown as AccountRow).account.id })}
+        @row-select=${(e: CustomEvent<{ row: Record<string, unknown> }>) => go(route.account((e.detail.row as unknown as AccountRow).account.id))}></sw-table>`;
     }
     return html`<div class="page" data-elec="accounts" data-state=${this.st === 'ready' && !rows.length ? 'empty' : this.st}>
       ${this.st === 'ready' || this.st === 'empty' || this.st === 'loading' ? head : nothing}

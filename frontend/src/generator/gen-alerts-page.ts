@@ -6,6 +6,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-drawer';
 import '../components/sw-state-panel';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import { ackAlert, ackAll, getAlert, getSettings, listAlerts, muteAlert, type GenAlert, type GenAlertDetail, type GenDevice, type Severity } from '../api/generator';
 import { describeError } from '../api/client';
 import { PollController } from '../components/poll-controller';
@@ -21,6 +23,9 @@ const G = he.generator;
 const POLL_MS = 15_000;
 const SNAP_UNITS: Record<string, string> = { fuel_pct: '%', battery_v: 'V', coolant_temp: '°C', oil_pressure: 'bar', load_pct: '%', rpm: 'rpm', gen_kw: 'kW' };
 const sev = (s: Severity) => html`<span class="sev ${s}">${G.alerts.sev[s]}</span>`;
+/** CR-CMP2-TABLES-GENMAINT-2450 (owner N10): a severity in the shared table is a shared tone chip (the cards and the drawer keep `.sev`) */
+const SEV_TONE: Record<Severity, 'bad' | 'warn' | 'info'> = { critical: 'bad', alert: 'warn', info: 'info' };
+const sevChip = (s: Severity) => html`<span class="chip" data-tone=${SEV_TONE[s]}>${G.alerts.sev[s]}</span>`;
 const durText = (a: GenAlert) => {
   const m = durationMin(a);
   return m >= 60 ? fill(G.alerts.durationH, { n: fmtDuration(m) }) : fill(G.alerts.durationMin, { n: fmtDuration(m) });
@@ -142,8 +147,16 @@ export class GenAlertsPage extends LitElement {
     const types = (this.device.alert_types ?? []).filter((t) => t.available);
     const shown = this.rows.filter((a) => matchesText(a, f.text));
     const sel = (label: string, key: keyof HistoryFilter, opts: [string, string][]) => html`<select aria-label=${label} .value=${String(f[key])} @change=${(e: Event) => this.setFilter({ [key]: (e.target as HTMLSelectElement).value } as Partial<HistoryFilter>)} data-filter=${key}>${[['', `${label}: ${G.history.all}`] as [string, string], ...opts].map(([v, l]) => html`<option value=${v} ?selected=${f[key] === v}>${l}</option>`)}</select>`;
-    const ackCell = (a: GenAlert) => (a.acknowledged ? html`${a.acked_by ? '' : G.alerts.ackedBy} <span class="mut num">${fmtDateTime(a.acked_at)}</span>` : a.state === 'open' ? html`<span class="chip c-warn">${G.alerts.pending}</span>` : html`<span class="mut">${G.alerts.notNeeded}</span>`);
-    const stateCell = (a: GenAlert) => (a.state === 'open' ? html`<span class="chip c-err">${G.alerts.open}</span>` : html`<span class="mut">${G.alerts.cleared} ${fmtDateTime(a.cleared_at)}</span>`);
+    // CR-CMP2-TABLES-GENMAINT-2450 (owner N10): the history is the shared table - its cells in the shared vocabulary (tone chips, mut, num)
+    const ackCell = (a: GenAlert) => (a.acknowledged ? html`${a.acked_by ? '' : G.alerts.ackedBy} <span class="mut num">${fmtDateTime(a.acked_at)}</span>` : a.state === 'open' ? html`<span class="chip" data-tone="warn">${G.alerts.pending}</span>` : html`<span class="mut">${G.alerts.notNeeded}</span>`);
+    const stateCell = (a: GenAlert) => (a.state === 'open' ? html`<span class="chip" data-tone="bad">${G.alerts.open}</span>` : html`<span class="mut">${G.alerts.cleared} <span class="num">${fmtDateTime(a.cleared_at)}</span></span>`);
+    const columns: TableColumn<GenAlert>[] = [
+      { key: 'raised_at', label: G.history.cols.at, render: (a) => html`<span class="num">${fmtDateTime(a.raised_at)}</span>` },
+      { key: 'title', label: G.history.cols.alert, render: (a) => html`<span class="t1">${a.title}</span>` },
+      { key: 'severity', label: G.history.cols.severity, kind: 'status', render: (a) => sevChip(a.severity) },
+      { key: 'state', label: G.history.cols.state, render: stateCell },
+      { key: 'ack', label: G.history.cols.ack, render: ackCell },
+    ];
     return html`<div class="row"><span class="h2">${G.history.title}</span>${this.retention ? html`<span class="mut">${fill(G.history.kept, { n: this.retention })}</span>` : nothing}</div>
       <div class="filters" data-filters>
         <input type="search" placeholder=${G.history.search} aria-label=${G.history.search} .value=${f.text} @input=${(e: Event) => this.setFilter({ text: (e.target as HTMLInputElement).value })} data-filter="text" />
@@ -157,8 +170,8 @@ export class GenAlertsPage extends LitElement {
         ${activeFilters(f) ? html`<sw-button variant="ghost" size="sm" @click=${() => this.setFilter({ severity: '', type: '', ack: '', state: '' })}>${G.history.clear}</sw-button>` : nothing}</div>
       ${!shown.length ? html`<div class="card"><div class="empty" data-state="empty"><div class="ic"><sw-icon name="check" size="26"></sw-icon></div><h3>${G.history.empty}</h3></div></div>` : html`
         <div class="mut" data-count>${fill(G.history.count, { n: shown.length })}</div>
-        <div class="card flush hide-phone" data-state="ready"><div class="scrollx"><table class="t"><thead><tr><th>${G.history.cols.at}</th><th>${G.history.cols.alert}</th><th>${G.history.cols.severity}</th><th>${G.history.cols.state}</th><th>${G.history.cols.ack}</th></tr></thead>
-          <tbody>${shown.map((a) => html`<tr class="go" data-alert=${a.id} @click=${() => this.open(a.id)}><td class="num">${fmtDateTime(a.raised_at)}</td><td class="b">${a.title}</td><td>${sev(a.severity)}</td><td>${stateCell(a)}</td><td>${ackCell(a)}</td></tr>`)}</tbody></table></div></div>
+        <div class="card flush hide-phone" data-state="ready"><sw-table bare data-gen-table data-gen-history-table .columns=${columns as unknown as TableColumn[]} .rows=${shown as unknown as Record<string, unknown>[]}
+          .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-alert': String(r.id) })} @row-select=${(e: CustomEvent<{ id: string }>) => this.open(e.detail.id)}></sw-table></div>
         <div class="list only-phone" style="flex-direction:column">${shown.map((a) => html`<button class="li" data-alert=${a.id} @click=${() => this.open(a.id)}><div class="grow"><div class="t1">${a.title}</div><div class="t2 num">${fmtDateTime(a.raised_at)} · ${a.state === 'open' ? G.alerts.open : G.alerts.cleared}</div></div>${sev(a.severity)}</button>`)}</div>
         ${this.next ? html`<sw-button @click=${() => this.load(false, true)}>${G.alerts.loadMore}</sw-button>` : nothing}`}`;
   }

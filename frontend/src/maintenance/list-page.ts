@@ -6,6 +6,9 @@ import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-state-panel';
 import '../components/sw-place-tree';
 import '../components/sw-pager';
+import '../components/sw-button';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import { PageFit } from '../components/page-fit';
 import { liftRef } from '../components/top-layer';
 import type { IconName } from '../components/sw-icon';
@@ -23,6 +26,8 @@ import './round-run';
 import { ToastController } from '../components/toast-controller';
 
 const COLLAPSED_KEY = 'sw.maintenance.collapsed';
+/** CR-CMP2-TABLES-GENMAINT-2450 (owner N10): a row's state in the table is a shared tone chip (the phone cards keep the module badge) */
+const TONE: Record<string, 'ok' | 'warn' | 'bad' | 'info' | undefined> = { ok: 'ok', warn: 'warn', alarm: 'bad', acc: 'info', unk: undefined };
 const POLL_MS = 60_000;
 
 function readCollapsed(): Set<string> {
@@ -79,12 +84,28 @@ export class MaintListPage extends LitElement {
    * rows that fit are page 1, the rest are on the next pages (the pager at the end of the toolbar). With the long lists set to scroll
    * (הגדרות › כללי) the table scrolls inside its panel as before. The phone's cards are unchanged. */
   private fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('.scrollx'), () => !this.run && !!this.items?.length);
+  /** CR-CMP2-TABLES-GENMAINT-2450: the module's narrow edge (1100 px, the electricity .hide-tablet rule) for the supplier, request and
+   * last-run columns. The shared tablet width (1024 px) would keep them at 1024-1100 px, where the names then wrap to three lines and the
+   * page of rows that fits the screen shrinks (1024 x 768: 4 rows instead of 5). */
+  private readonly narrowMq = window.matchMedia('(max-width: 1100px)');
+  @state() private narrow = this.narrowMq.matches;
+  private readonly onNarrow = () => {
+    this.narrow = this.narrowMq.matches;
+  };
 
   static styles = [maintCss, css`
     :host { flex: 1; overflow: hidden; }
     /* the pager's place at the end of the toolbar is kept while the table fits the window (its height never moves the table) */
     .toolbar .pg { margin-inline-start: auto; min-inline-size: 150px; display: flex; justify-content: flex-end; }
     .fitsec { display: block; }
+    /* CR-CMP2-TABLES-GENMAINT-2450 (owner N10): the list is the shared table inside the panel - the module's header band, reading size and
+       row padding, never wider than the panel (a long name takes a second line; figures, chips and the row's key stay on one line) */
+    sw-table[data-maint-table] { --sw-table-min: 0; --sw-table-head-bg: var(--sw-surface-2); --sw-table-fs: var(--sw-fs-md); --sw-table-cell-pad: 10px 12px; }
+    sw-table[data-maint-table]::part(cell) { white-space: normal; }
+    sw-table[data-maint-table]::part(cell-num), sw-table[data-maint-table]::part(cell-status), sw-table[data-maint-table]::part(cell-actions) { white-space: nowrap; }
+    sw-table[data-maint-table]::part(request) { text-decoration: none; }
+    sw-table[data-maint-table]::part(request):focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
+    @media (max-width: 1100px) { sw-table[data-maint-table] { --sw-table-cell-pad: 10px 8px; } }
     @media (min-width: 1024px) and (min-height: 560px) {
       :host([data-fit][data-long-lists='paged']) .cols > .panel.flush > .scrollx { overflow-y: hidden; }
     }
@@ -92,7 +113,14 @@ export class MaintListPage extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.narrowMq.addEventListener('change', this.onNarrow);
+    this.narrow = this.narrowMq.matches;
     this.poll.every('tasks', POLL_MS, () => this.load(), { when: () => !this.run && !this.form });
+  }
+
+  disconnectedCallback() {
+    this.narrowMq.removeEventListener('change', this.onNarrow);
+    super.disconnectedCallback();
   }
 
   protected willUpdate(changed: Map<string, unknown>) {
@@ -179,7 +207,7 @@ export class MaintListPage extends LitElement {
   }
 
   /** The row action a viewer may take (none = nothing rendered): renew (manage), mark done (perform), start / continue (perform), resume (manage). */
-  private action(t: Task): TemplateResult | typeof nothing {
+  private action(t: Task, shared = false): TemplateResult | typeof nothing {
     const a = this.access;
     let label: MtKey | null = null;
     let pri = false;
@@ -190,6 +218,8 @@ export class MaintListPage extends LitElement {
     } else if (t.kind === 'preventive') label = a.perform ? 'markDone' : null;
     else label = a.manage ? 'renew' : null;
     if (!label) return nothing;
+    // CR-CMP2-TABLES-GENMAINT-2450: in the table the key is the shared button (a screen's .btn does not reach the table's shadow root)
+    if (shared) return html`<sw-button size="sm" variant=${pri ? 'primary' : 'secondary'} data-maint-act=${label} data-task=${t.id} @click=${(e: Event) => void this.act(t, e)}>${mt(label)}</sw-button>`;
     return html`<button type="button" class="btn sm ${pri ? 'pri' : ''}" data-maint-act=${label} data-task=${t.id} @click=${(e: Event) => void this.act(t, e)}>${mt(label)}</button>`;
   }
 
@@ -208,26 +238,33 @@ export class MaintListPage extends LitElement {
     return [kindText(t.kind), iv].filter(Boolean).join(' · ');
   }
 
-  private head(): TemplateResult[] {
-    const p = this.page;
-    const cols: [MtKey, string?][] =
-      p === 'ledger' ? [['colState'], ['colName'], ['colKind'], ['colPlace'], ['colVendor', 'hide-tablet'], ['colValidUntil']]
-        : p === 'plans' ? [['colState'], ['colPlan'], ['colInterval'], ['colPlace'], ['colVendor', 'hide-tablet'], ['colNext'], ...(this.access.ticketsOn ? [['colRequest', 'hide-tablet'] as [MtKey, string]] : [])]
-          : [['colState'], ['colRound'], ['colFreq'], ['colPlace'], ['colPoints'], ['colLastRun', 'hide-tablet'], ['colNext']];
-    return [...cols.map(([k, cls]) => html`<th class=${cls ?? ''}>${mt(k)}</th>`), html`<th><span class="mut" hidden>-</span></th>`];
+  /** CR-CMP2-TABLES-GENMAINT-2450 (owner N10): the request cell in the table - the open request (a shared chip link), the automatic
+   * request (a neutral chip) or a dash */
+  private requestTableCell(t: Task): TemplateResult {
+    if (t.ticket_id) return html`<a class="chip" part="request" data-tone="info" data-nodot href=${`#/tickets/${encodeURIComponent(t.ticket_id)}`} data-maint-ticket=${t.ticket_id} @click=${(e: Event) => e.stopPropagation()}>${mt('requestOpen')}</a>`;
+    if (t.auto_ticket) return html`<span class="chip" data-nodot>${mt('autoRequest')}</span>`;
+    return html`<span class="mut">${mt('dash')}</span>`;
   }
 
-  private cells(t: Task): TemplateResult {
+  /** CR-CMP2-TABLES-GENMAINT-2450 (owner N10): the list's columns per page - the state (a shared tone chip), the name (with its sub line),
+   * the kind / interval, the place, the supplier, the next date and the row's key; the supplier, the request and the last run step out
+   * at the module's narrow edge (1100 px, `narrow`) */
+  private columns(): TableColumn<Task>[] {
+    const p = this.page;
     const dash = html`<span class="mut">${mt('dash')}</span>`;
-    const name = html`<td class="name"><span class="t1">${t.title}</span>${subLine(t) ? html`<span class="t2">${subLine(t)}</span>` : nothing}</td>`;
-    const state = html`<td><span class="badge" data-maint-badge>${badgeText(t)}</span></td>`;
-    const place = html`<td>${this.placeName(t) || dash}</td>`;
-    const vendor = html`<td class="hide-tablet">${t.vendor_name || dash}</td>`;
-    const due = html`<td class="date num">${t.due_date && t.active ? fmtDate(t.due_date) : dash}</td>`;
-    const act = html`<td class="act">${this.action(t)}</td>`;
-    if (this.page === 'ledger') return html`${state}${name}<td>${this.kindCell(t)}</td>${place}${vendor}${due}${act}`;
-    if (this.page === 'plans') return html`${state}${name}<td>${intervalText(t.interval)}</td>${place}${vendor}${due}${this.access.ticketsOn ? html`<td class="hide-tablet">${this.requestCell(t)}</td>` : nothing}${act}`;
-    return html`${state}${name}<td>${intervalText(t.interval)}</td>${place}<td class="num">${t.checklist_count}</td><td class="hide-tablet date">${lastRunText(t) || dash}</td>${due}${act}`;
+    const state: TableColumn<Task> = { key: 'state', label: mt('colState'), kind: 'status', render: (t) => html`<span class="chip" data-tone=${TONE[lookOf(t)] ?? nothing} data-maint-badge>${badgeText(t)}</span>` };
+    const name: TableColumn<Task> = { key: 'title', label: mt(p === 'ledger' ? 'colName' : p === 'plans' ? 'colPlan' : 'colRound'), render: (t) => html`<span class="t1">${t.title}</span>${subLine(t) ? html`<span class="t2">${subLine(t)}</span>` : nothing}` };
+    const place: TableColumn<Task> = { key: 'place', label: mt('colPlace'), render: (t) => this.placeName(t) || dash };
+    const wide = !this.narrow;
+    const vendor: TableColumn<Task>[] = wide ? [{ key: 'vendor', label: mt('colVendor'), render: (t) => t.vendor_name || dash }] : [];
+    const due: TableColumn<Task> = { key: 'due', label: mt(p === 'ledger' ? 'colValidUntil' : 'colNext'), render: (t) => (t.due_date && t.active ? html`<span class="num">${fmtDate(t.due_date)}</span>` : dash) };
+    const act: TableColumn<Task> = { key: 'act', label: '', kind: 'actions', render: (t) => this.action(t, true) };
+    if (p === 'ledger') return [state, name, { key: 'kind', label: mt('colKind'), render: (t) => this.kindCell(t) }, place, ...vendor, due, act];
+    const interval: TableColumn<Task> = { key: 'interval', label: mt(p === 'plans' ? 'colInterval' : 'colFreq'), render: (t) => intervalText(t.interval) };
+    const request: TableColumn<Task>[] = this.access.ticketsOn && wide ? [{ key: 'request', label: mt('colRequest'), render: (t) => this.requestTableCell(t) }] : [];
+    if (p === 'plans') return [state, name, interval, place, ...vendor, due, ...request, act];
+    return [state, name, interval, place, { key: 'points', label: mt('colPoints'), kind: 'num', render: (t) => String(t.checklist_count) },
+      ...(wide ? [{ key: 'last', label: mt('colLastRun'), render: (t: Task) => lastRunText(t) || dash }] : []), due, act];
   }
 
   private card(t: Task): TemplateResult {
@@ -335,10 +372,10 @@ export class MaintListPage extends LitElement {
             ${this.fit.fits ? html`<span class="pg">${this.fit.pages > 1 ? html`<sw-pager data-maint-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}</span>` : nothing}
           </div>
           ${shown.length ? html`
-            <div class="scrollx"><section class="fitsec"><table class="t" data-maint-table><thead><tr>${this.head()}</tr></thead><tbody>
-              ${shown.map((r, i) => (this.fit.shows(i) ? html`<tr class="go" tabindex="0" data-fit-item data-look=${lookOf(r)} data-maint-row=${r.id} @click=${() => this.openRow(r)}
-                  @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.openRow(r); } }}>${this.cells(r)}</tr>` : nothing))}
-            </tbody></table></section></div>
+            <div class="scrollx"><section class="fitsec"><sw-table bare data-maint-table .columns=${this.columns() as unknown as TableColumn[]}
+              .rows=${shown.filter((_, i) => this.fit.shows(i)) as unknown as Record<string, unknown>[]}
+              .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-fit-item': true, 'data-maint-row': String(r.id), 'data-look': lookOf(r as unknown as Task) })}
+              @row-select=${(e: CustomEvent<{ row: Record<string, unknown> }>) => this.openRow(e.detail.row as unknown as Task)}></sw-table></section></div>
             <div class="cards-m" data-maint-cards>${shown.map((r) => this.card(r))}</div>`
             : html`<div class="nomatch" data-maint-nomatch>${mt('noMatch')}</div>`}
         </div>

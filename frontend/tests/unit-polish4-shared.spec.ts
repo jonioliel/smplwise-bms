@@ -43,7 +43,9 @@ test('sw-table: hideBelow drops a column below 768 / 1024 px; unset columns get 
   expect(s).toContain("hideBelow?: 'phone' | 'tablet';");
   expect(s).toContain('@media (max-width: 1023px) { .hb-tablet { display: none; } }');
   expect(s).toContain('@media (max-width: 767px) { .hb-phone { display: none; } }');
-  expect(s).toContain('class=${c.hideBelow ? `hb-${c.hideBelow}` : nothing}');
+  // CR-CMP2-TABLES-2450: the header class list is table-logic headClassOf (hideBelow + the alignment); a plain column still gets none
+  expect(s).toContain('class=${c.hideBelow || c.align || c.kind ? headClassOf(c) : nothing}');
+  expect(read('components/table-logic.ts')).toContain("c.hideBelow ? `hb-${c.hideBelow}` : ''");
 });
 
 test('sw-state-panel: the bare variant draws no card of its own and no resting height (owner Q2a)', () => {

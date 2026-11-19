@@ -19,6 +19,23 @@ import { alertBox, n } from './elec-ui';
 import { f2, fmtDate } from './elec-format';
 import { PRESETS, detectPreset, parseTokens, presetTokens, sentence, textToTokens, tokensToText, type Issue, type PresetId, type Tok, type Op } from './elec-formula';
 import { tr } from '../i18n/msg/electricity';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
+
+/** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): the preview as the shared sw-table (bare in the card, read-only): each meter's consumption,
+ * the account's result in the foot row (a negative result in the danger ink through the `bad` part; hook `data-formula-result`). */
+function previewColumns(pv: FormulaPreview): TableColumn<FormulaPreview['rows'][number]>[] {
+  return [
+    { key: 'name', label: tr('מונה'), render: (r) => r.name, foot: () => tr('צריכת החשבון') },
+    {
+      key: 'kwh',
+      label: tr('צריכה (קוט״ש)'),
+      kind: 'num',
+      render: (r) => f2(r.kwh),
+      foot: () => html`<span part=${pv.negative ? 'bad' : nothing} data-formula-result>${f2(pv.result_kwh ?? 0)}</span>`,
+    },
+  ];
+}
 
 export interface FormulaChange {
   tokens: Tok[];
@@ -284,9 +301,7 @@ export class ElecFormulaEditor extends LitElement {
   private renderPreview(pv: FormulaPreview) {
     return html`<div class="card soft" data-formula-preview>
       <div class="hd"><b class="h3">${tr('בדיקה על {period}', { period: pv.period_from ? `${fmtDate(pv.period_from)} - ${fmtDate(pv.period_to)}` : tr('התקופה האחרונה') })}</b></div>
-      <div class="scrollx"><table class="t"><thead><tr><th>${tr('מונה')}</th><th class="num">${tr('צריכה (קוט״ש)')}</th></tr></thead>
-        <tbody>${pv.rows.map((r) => html`<tr><td>${r.name}</td><td class="num">${f2(r.kwh)}</td></tr>`)}</tbody>
-        <tfoot><tr><td>${tr('צריכת החשבון')}</td><td class="num ${pv.negative ? 'bad' : ''}" data-formula-result>${f2(pv.result_kwh ?? 0)}</td></tr></tfoot></table></div>
+      <sw-table bare static-rows class="t" .columns=${previewColumns(pv) as unknown as TableColumn[]} .rows=${pv.rows as unknown as Record<string, unknown>[]}></sw-table>
     </div>`;
   }
 }

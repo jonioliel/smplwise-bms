@@ -5,6 +5,8 @@ import '../../components/sw-button';
 import '../../components/sw-dialog';
 import '../../components/sw-place-tree';
 import '../../components/sw-state-panel';
+import '../../components/sw-table';
+import type { TableColumn } from '../../components/sw-table';
 import '../../electricity/meter-picker';
 import '../../electricity/meter-card';
 import { addMeters, buildAreaTree, listMeters, summarize, type Meter } from '../../api/electricity-meters';
@@ -13,6 +15,7 @@ import { fmtInt, fmtKwh, fmtTime } from '../../electricity/format';
 import { checkMeterName, meterNames, meterSearchText } from '../../electricity/meter-name';
 import { elecCss } from '../../electricity/styles';
 import { STATUS_CLASS, STATUS_LABEL } from '../../electricity/meter-card';
+import { toneOf } from '../../electricity/table-tones';
 import { bubbleChrome } from '../../styles/bubble-chrome';
 import { MetersPageBase, metersGridCss, metersResponsiveCss, type MetersFrameState, type MetersPageTexts } from '../meters-page-base';
 import { tr } from '../../i18n/msg/screens';
@@ -70,9 +73,6 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
         white-space: nowrap;
         max-inline-size: 100%;
       }
-      td .ent {
-        max-inline-size: 320px;
-      }
       .phone-only {
         display: none;
       }
@@ -97,16 +97,11 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
           display: none;
         }
       }
-      @media (max-width: 1099px) {
-        .dsk {
-          display: none;
-        }
-      }
       /* R5 fix: the R5 type (bolder chips and names) made the meters table 8 px wider than its card at 1024 px (classic); the cells
-         give 2 px of inline padding a side back so the table fits its card again */
-      table.t[data-meters-table] th,
-      table.t[data-meters-table] td {
-        padding-inline: 10px;
+         give 2 px of inline padding a side back so the table fits its card again. The sensor's name line is cut at 320 px. */
+      sw-table[data-meters-table] {
+        --sw-table-cell-pad: 12px 10px;
+        --sw-table-trunc: 320px;
       }
     `,
     bubbleChrome,
@@ -194,6 +189,11 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
     return html`<span class="chip ${STATUS_CLASS[m.status]}" data-status=${m.status}>${STATUS_LABEL[m.status]}</span>`;
   }
 
+  /** the status chip in a table cell: the shared tones (the module's chip classes do not reach into sw-table) */
+  private statusCellChip(m: Meter) {
+    return html`<span class="chip" data-tone=${toneOf(STATUS_CLASS[m.status])} data-status=${m.status}>${STATUS_LABEL[m.status]}</span>`;
+  }
+
   private staleNote(m: Meter) {
     return m.status === 'stale' && m.last_report_at ? html` <span class="mut">${tr('מ-')}<span class="num">${fmtTime(m.last_report_at)}</span></span>` : nothing;
   }
@@ -218,18 +218,34 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
     return s ? html`<div class="${cls} ent" data-meter-entity title=${tr('שם הישות')}>${s}</div>` : nothing;
   }
 
-  private nameOf(m: Meter) {
-    return html`${meterNames(m).primary}${this.entityLine(m, 'mut')}`;
+  /** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): the meters table is the shared sw-table - the name (+ the sensor's name; each line cut
+   * with an ellipsis), the area (its floor steps out at the module's narrow edge, `narrow`), the three readings (LTR figures at the reading
+   * end), the status chip in the shared tones (+ since when a stale meter is silent) and the accounts count (steps out at `narrow`). The table is the list's
+   * card and its scroll box (the header row stays in place); a row opens the meter card (click, Enter / Space; the block arrows walk the
+   * rows). Row hook `data-meter`. */
+  private tableColumns(showAcc: boolean): TableColumn<Meter>[] {
+    const cols: TableColumn<Meter>[] = [
+      {
+        key: 'name',
+        label: tr('שם'),
+        kind: 'truncate',
+        cellTitle: (m) => [meterNames(m).primary, meterNames(m).secondary].filter(Boolean).join(' - '),
+        render: (m) => html`<span class="t1">${meterNames(m).primary}</span>${this.entityLine(m, 't2')}`,
+      },
+      { key: 'area', label: tr('אזור'), render: (m) => html`${m.area_name ?? '-'}${this.narrow ? nothing : html`<span class="mut"> · ${m.floor_name ?? ''}</span>`}` },
+      { key: 'reading', label: tr('קריאה נוכחית (קוט״ש)'), kind: 'num', render: (m) => fmtKwh(m.reading_kwh) },
+      { key: 'today', label: tr('היום'), kind: 'num', render: (m) => fmtKwh(m.today_kwh) },
+      { key: 'month', label: tr('מתחילת החודש'), kind: 'num', render: (m) => fmtKwh(m.month_kwh) },
+      { key: 'status', label: tr('מצב'), kind: 'status', render: (m) => html`${this.statusCellChip(m)}${this.staleNote(m)}` },
+    ];
+    if (showAcc && !this.narrow) cols.push({ key: 'accounts', label: tr('בחשבונות'), render: (m) => (m.accounts_count ? String(m.accounts_count) : html`<span class="mut">-</span>`) });
+    return cols;
   }
 
   protected renderTable(list: Meter[]) {
     const showAcc = list.some((m) => m.accounts_count != null);
-    return html`<div class="card flush scrollx desk-only"><table class="t" data-meters-table>
-      <thead><tr><th>${tr('שם')}</th><th>${tr('אזור')}</th><th class="n">${tr('קריאה נוכחית (קוט״ש)')}</th><th class="n">${tr('היום')}</th><th class="n">${tr('מתחילת החודש')}</th><th>${tr('מצב')}</th>${showAcc ? html`<th class="dsk">${tr('בחשבונות')}</th>` : nothing}</tr></thead>
-      <tbody>${list.map((m) => html`<tr class="pick" tabindex="0" data-meter=${m.id} @click=${() => this.openMeter(m)} @keydown=${(e: KeyboardEvent) => this.onKey(e, m)}>
-        <td class="b">${this.nameOf(m)}</td><td>${m.area_name ?? '-'}<span class="mut dsk"> · ${m.floor_name ?? ''}</span></td>
-        <td class="n"><span class="num">${fmtKwh(m.reading_kwh)}</span></td><td class="n"><span class="num">${fmtKwh(m.today_kwh)}</span></td><td class="n"><span class="num">${fmtKwh(m.month_kwh)}</span></td>
-        <td>${this.statusChip(m)}${this.staleNote(m)}</td>${showAcc ? html`<td class="dsk">${m.accounts_count || html`<span class="mut">-</span>`}</td>` : nothing}</tr>`)}</tbody></table></div>`;
+    return html`<sw-table class="t card flush scrollx desk-only" data-meters-table .columns=${this.tableColumns(showAcc) as unknown as TableColumn[]} .rows=${list as unknown as Record<string, unknown>[]}
+      .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-meter': String(r.id) })} @row-select=${(e: CustomEvent<{ row: Record<string, unknown> }>) => this.openMeter(e.detail.row as unknown as Meter)}></sw-table>`;
   }
 
   protected renderCards(list: Meter[]) {

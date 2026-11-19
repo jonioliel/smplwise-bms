@@ -22,6 +22,8 @@ import { addDays, f4, fmtDate, isIsoDate } from './elec-format';
 import { cloneDef, heOrEn, israelTemplate, type TouDefinition, touName } from './elec-tou';
 import { dateInputLang } from '../api/day-format';
 import { tr } from '../i18n/msg/electricity';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 
 const NUM = /^\d+(\.\d+)?$/;
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -81,6 +83,23 @@ export class ElecSettingsPrices extends ElecBase {
   private rate(): number {
     return this.vat?.current ? Number(this.vat.current.rate_percent) / 100 : 0;
   }
+  /** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): the tariffs as the shared sw-table (bare in the card; row hooks `data-tariff-row` +
+   * `data-kind`): a manager opens a tariff from its row (click, Enter / Space - the rows are tab stops now); a viewer's rows are
+   * read-only. A time-of-use tariff shows its summary where a fixed one shows its price. */
+  private tariffColumns(): TableColumn<Tariff>[] {
+    const mode = (t: Tariff) => (t.current?.price_mode === 'inc_vat' ? tr('כולל מע״מ') : tr('לפני מע״מ'));
+    const x = (t: Tariff) => this.derived(t.current?.price ?? '0', t.current?.price_mode ?? 'ex_vat');
+    return [
+      { key: 'name', label: tr('שם'), render: (t) => html`<b>${t.name}</b>${t.kind === 'tou' ? html` <span class="chip" data-tone="info" data-nodot>${tr('לפי שעות')}</span>` : nothing}` },
+      { key: 'price', label: tr('מחיר שהוזן'), align: 'end', render: (t) => (t.kind === 'tou' ? html`<span class="mut">${touSummary(t)}</span>` : html`<span class="num">${f4(t.current?.price ?? 0)} ₪</span>`) },
+      { key: 'mode', label: tr('הוזן'), render: (t) => mode(t) },
+      { key: 'ex', label: tr('לפני מע״מ'), kind: 'num', render: (t) => (t.kind === 'tou' ? '-' : `${f4(x(t).ex)} ₪`) },
+      { key: 'inc', label: tr('כולל מע״מ'), kind: 'num', render: (t) => (t.kind === 'tou' ? '-' : `${f4(x(t).inc)} ₪`) },
+      { key: 'from', label: tr('בתוקף מ'), render: (t) => html`<span class="num">${fmtDate(t.current?.effective_from ?? '')}</span>` },
+      { key: 'used', label: tr('חשבונות'), render: (t) => String(t.used_by) },
+    ];
+  }
+
   private derived(price: string, mode: PriceMode): { ex: number; vat: number; inc: number } {
     const p = Number(price) || 0;
     const r = this.rate();
@@ -219,14 +238,9 @@ export class ElecSettingsPrices extends ElecBase {
           ${!this.tariffs.length ? stateBox('empty', 'bolt', tr('אין תעריפים עדיין'), edit ? { label: tr('+ תעריף'), primary: true, run: () => this.openTariff(null) } : undefined)
             : this.phone
               ? html`<div class="list" data-tariffs>${this.tariffs.map((t) => html`<button type="button" class="li" data-tariff-row=${t.id} data-kind=${t.kind} ?disabled=${!edit} @click=${() => edit && this.openTariff(t)}><div class="grow"><div class="t1">${t.name}</div><div class="t2">${t.kind === 'tou' ? html`${touSummary(t)} · ` : nothing}${t.current?.price_mode === 'inc_vat' ? tr('הוזן כולל מע״מ') : tr('הוזן לפני מע״מ')} · ${tr('מ-')}${n(fmtDate(t.current?.effective_from ?? ''))}</div></div>${t.kind === 'tou' ? html`<span class="chip c-acc nodot">${tr('לפי שעות')}</span>` : html`<b class="num">${f4(t.current?.price ?? 0)} ₪</b>`}</button>`)}</div>`
-              : html`<div class="scrollx"><table class="t" data-tariffs><thead><tr><th>${tr('שם')}</th><th class="num">${tr('מחיר שהוזן')}</th><th>${tr('הוזן')}</th><th class="num">${tr('לפני מע״מ')}</th><th class="num">${tr('כולל מע״מ')}</th><th>${tr('בתוקף מ')}</th><th>${tr('חשבונות')}</th></tr></thead><tbody>
-                ${this.tariffs.map((t) => {
-                  const x = this.derived(t.current?.price ?? '0', t.current?.price_mode ?? 'ex_vat');
-                  const tou = t.kind === 'tou';
-                  return html`<tr class="${edit ? 'go' : ''}" data-tariff-row=${t.id} data-kind=${t.kind} @click=${() => edit && this.openTariff(t)}><td class="b">${t.name}${tou ? html` <span class="chip c-acc nodot">${tr('לפי שעות')}</span>` : nothing}</td>${tou
-                    ? html`<td colspan="1" class="mut">${touSummary(t)}</td><td>${t.current?.price_mode === 'inc_vat' ? tr('כולל מע״מ') : tr('לפני מע״מ')}</td><td class="num">-</td><td class="num">-</td>`
-                    : html`<td class="num">${f4(t.current?.price ?? 0)} ₪</td><td>${t.current?.price_mode === 'inc_vat' ? tr('כולל מע״מ') : tr('לפני מע״מ')}</td><td class="num">${f4(x.ex)} ₪</td><td class="num">${f4(x.inc)} ₪</td>`}<td class="num" style="text-align:start">${fmtDate(t.current?.effective_from ?? '')}</td><td>${t.used_by}</td></tr>`;
-                })}</tbody></table></div>`}
+              : html`<sw-table bare class="t" data-tariffs ?static-rows=${!edit} .columns=${this.tariffColumns() as unknown as TableColumn[]} .rows=${this.tariffs as unknown as Record<string, unknown>[]}
+                  .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-tariff-row': String(r.id), 'data-kind': String(r.kind) })}
+                  @row-select=${edit ? (e: CustomEvent<{ row: Record<string, unknown> }>) => this.openTariff(e.detail.row as unknown as Tariff) : nothing}></sw-table>`}
         </div>
         <div class="col">
           <div class="card" data-card="vat"><div class="hd"><b class="h3">${tr('שיעור מע״מ')}</b><span class="sp"></span>${edit ? html`<sw-button size="sm" data-new-vat @click=${() => { this.vf = { rate: '', from: elecToday() }; this.vErr = {}; this.error = ''; this.vOpen = true; }}>${tr('+ שיעור חדש')}</sw-button>` : nothing}</div>

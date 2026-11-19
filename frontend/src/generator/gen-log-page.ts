@@ -5,6 +5,8 @@ import type { SegmentedChange } from '../components/sw-segmented';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import { getRuns, type GenDevice, type GenRun, type RunKind, type RunRange, type RunsResponse } from '../api/generator';
 import { describeError } from '../api/client';
 import { PollController } from '../components/poll-controller';
@@ -17,7 +19,6 @@ import { t } from '../i18n/he';
 
 const RANGES: RunRange[] = ['7d', '30d', '90d', '365d'];
 const KINDS: RunKind[] = ['test', 'mains_failure', 'manual', 'other'];
-const KIND_TONE: Record<RunKind, string> = { test: 'info', mains_failure: 'alert', manual: 'mut', other: 'mut' };
 /** Rows per page from the viewport height: the page fits it - a pager, never a scrolling list (owner rule: no scrolling in control screens). */
 export const pageSizeFor = (h: number): number => Math.max(4, Math.min(12, Math.floor((h - 470) / 50)));
 const POLL_MS = 30_000;
@@ -27,7 +28,10 @@ export const durText = (s: number): string => {
   if (m < 60) return `${m} ${glt('min')}`;
   return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')} ${glt('h')}`;
 };
-const kindChip = (k: RunKind) => html`<span class="sev ${KIND_TONE[k]}" data-kind=${k}>${glt(`kind_${k}` as GltKey)}</span>`;
+/** CR-CMP2-TABLES-GENMAINT-2450 (owner N10): the run's kind in the shared table is a shared tone chip (a test: info, a mains failure: warn,
+ * manual / other: neutral - the module's `.sev` tones mapped one to one) */
+const KIND_CHIP_TONE: Record<RunKind, 'info' | 'warn' | undefined> = { test: 'info', mains_failure: 'warn', manual: undefined, other: undefined };
+const kindChip = (k: RunKind) => html`<span class="chip" data-nodot data-tone=${KIND_CHIP_TONE[k] ?? nothing} data-kind=${k}>${glt(`kind_${k}` as GltKey)}</span>`;
 
 /**
  * תשתיות › גנרטור › יומן הפעלות (GENLOG092-295, board row r092): the run log of the selected generator - a summary strip (runs per kind, run
@@ -61,12 +65,12 @@ export class GenLogPage extends LitElement {
     .lg .pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; padding: 2px 12px; }
     .lg .fe { display: grid; gap: 6px; padding: 10px 12px; font-size: var(--sw-fs-sm); }
     .lg .fe > div { display: flex; justify-content: space-between; gap: 8px; }
-    .lg td .why { display: block; font-size: var(--sw-fs-2xs); color: var(--sw-text-3); }
     .lg .row select { inline-size: auto; min-inline-size: 150px; flex: none; }
-    .lg table.t td { padding: 5px 12px; }
+    /* CR-CMP2-TABLES-GENMAINT-2450 (owner N10): the runs are the shared table (gen-styles data-gen-table) with the page's tighter block padding;
+       the phone keeps start, kind, duration and fuel (hours, load and end step out: TableColumn.hideBelow / card) */
+    .lg sw-table[data-gen-table] { --sw-table-cell-pad: 5px 12px; }
+    @media (max-width: 599px) { .lg sw-table[data-gen-table]::part(why) { display: none; } }
     @media (max-width: 900px) { .lg .split { grid-template-columns: minmax(0, 1fr); } }
-    /* the phone keeps start, kind, duration and fuel: no sideways scrolling either */
-    @media (max-width: 767px) { .lg table.t th:nth-child(4), .lg table.t td:nth-child(4), .lg table.t th:nth-child(6), .lg table.t td:nth-child(6), .lg table.t th:nth-child(7), .lg table.t td:nth-child(7) { display: none; } }
   `];
 
   connectedCallback() {
@@ -117,13 +121,19 @@ export class GenLogPage extends LitElement {
     </div>`;
   }
 
-  private row(r: GenRun) {
-    const fuel = r.fuel_used_pct !== null ? `${fmtNum(r.fuel_used_pct, 0)}%${r.fuel_used_l !== null ? ` · ${fmtNum(r.fuel_used_l, 0)} L` : ''}` : '-';
-    const load = r.took_load ? (r.peak_load_pct !== null ? glt('loadPeak', { n: fmtNum(r.peak_load_pct, 0) }) : glt('loaded')) : glt('noLoad');
-    return html`<tr data-run=${r.id}><td class="num">${fmtDateTime(r.started_at)}</td>
-      <td>${kindChip(r.kind)}${r.short ? html` <span class="sev mut">${glt('short')}</span>` : nothing}<span class="why">${glt(`why_${r.kind_reason ?? 'none'}` as GltKey)}</span></td>
-      <td class="num">${durText(r.duration_s)}</td><td class="num">${fmtNum(r.hours, 2)}</td><td class="num">${fuel}</td><td>${load}</td>
-      <td class="num">${r.open ? html`<span class="sev info">${glt('open')}</span>` : html`${fmtDateTime(r.ended_at)}${r.end_reason === 'no_data' ? html`<span class="why">${glt('noData')}</span>` : nothing}`}</td></tr>`;
+  /** CR-CMP2-TABLES-GENMAINT-2450 (owner N10): the run columns - start, kind (a tone chip, "short", and the signal that decided it), duration,
+   * hours, fuel, load and end. Below 768 px hours, load and end step out; on a narrow phone a run is one line (start, kind) over its
+   * duration and fuel. */
+  private columns(): TableColumn<GenRun>[] {
+    return [
+      { key: 'started_at', label: glt('colStart'), card: 'title', render: (r) => html`<span class="num">${fmtDateTime(r.started_at)}</span>` },
+      { key: 'kind', label: glt('colKind'), card: 'badge', render: (r) => html`<span class="kind">${kindChip(r.kind)}${r.short ? html` <span class="chip" data-nodot>${glt('short')}</span>` : nothing}</span><span class="t2" part="why">${glt(`why_${r.kind_reason ?? 'none'}` as GltKey)}</span>` },
+      { key: 'duration_s', label: glt('colDur'), kind: 'num', card: 'meta', render: (r) => durText(r.duration_s) },
+      { key: 'hours', label: glt('colHours'), kind: 'num', hideBelow: 'phone', render: (r) => fmtNum(r.hours, 2) },
+      { key: 'fuel', label: glt('colFuel'), kind: 'num', card: 'meta', render: (r) => (r.fuel_used_pct !== null ? `${fmtNum(r.fuel_used_pct, 0)}%${r.fuel_used_l !== null ? ` · ${fmtNum(r.fuel_used_l, 0)} L` : ''}` : '-') },
+      { key: 'load', label: glt('colLoad'), hideBelow: 'phone', render: (r) => (r.took_load ? (r.peak_load_pct !== null ? glt('loadPeak', { n: fmtNum(r.peak_load_pct, 0) }) : glt('loaded')) : glt('noLoad')) },
+      { key: 'ended_at', label: glt('colEnd'), hideBelow: 'phone', render: (r) => (r.open ? html`<span class="chip" data-tone="info" data-nodot>${glt('open')}</span>` : html`<span class="num">${fmtDateTime(r.ended_at)}</span>${r.end_reason === 'no_data' ? html`<span class="t2" part="why">${glt('noData')}</span>` : nothing}`) },
+    ];
   }
 
   render() {
@@ -141,8 +151,8 @@ export class GenLogPage extends LitElement {
       ${cur ? html`<div class="notice" data-log-current><sw-icon name="bolt" size="18"></sw-icon><span>${glt('runningNow', { kind: glt(`kind_${cur.kind}` as GltKey), d: durText(cur.duration_s) })}</span></div>` : nothing}
       <div class="split">
         <div class="card flush" data-log-runs>${d.runs.length ? html`
-          <table class="t"><thead><tr><th>${glt('colStart')}</th><th>${glt('colKind')}</th><th>${glt('colDur')}</th><th>${glt('colHours')}</th><th>${glt('colFuel')}</th><th>${glt('colLoad')}</th><th>${glt('colEnd')}</th></tr></thead>
-            <tbody>${d.runs.map((r) => this.row(r))}</tbody></table>
+          <sw-table bare static-rows data-gen-table data-log-table .columns=${this.columns() as unknown as TableColumn[]} .rows=${d.runs as unknown as Record<string, unknown>[]}
+            .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-run': String(r.id) })}></sw-table>
           ${d.pages > 1 ? html`<div class="pager" data-log-pager><span class="mut">${glt('page_of', { p: d.page, n: d.pages })}</span>
             <sw-button size="sm" ?disabled=${d.page <= 1} data-log-prev @click=${() => this.set({ page: d.page - 1 })}>${glt('prev')}</sw-button>
             <sw-button size="sm" ?disabled=${d.page >= d.pages} data-log-next @click=${() => this.set({ page: d.page + 1 })}>${glt('next')}</sw-button></div>` : nothing}`

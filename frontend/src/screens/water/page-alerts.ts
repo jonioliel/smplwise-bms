@@ -5,6 +5,8 @@ import '../../components/sw-segmented';
 import type { SegmentedChange } from '../../components/sw-segmented';
 import '../../components/sw-button';
 import '../../components/sw-state-panel';
+import '../../components/sw-table';
+import type { TableColumn } from '../../components/sw-table';
 import '../../water/meter-card';
 import { describeError } from '../../api/client';
 import { DEFAULT_RULES, readableAlerts, water, type EventsSummary, type LeakRules, type WaterEvent } from '../../api/water';
@@ -151,10 +153,37 @@ export class WaterAlertsPage extends LitElement {
     this.flash(wt('csvDone'));
   }
 
+  /** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): the alerts as the shared sw-table - the meter, the area (its floor steps out below
+   * 1024 px), the kind, since when (until when, once closed), the value (an LTR figure at the reading end), the state chip (eventChip
+   * carries the shared tone) and the acknowledge / snooze keys packed at the reading end. The table is the list's card and its scroll box
+   * under the tiles (the header row stays in place). An open alert's row opens its meter (click, Enter / Space; a key on a button inside
+   * is the button's); a closed one does nothing. Row hooks `data-alert` (+ `data-closed`). */
+  private tableColumns(): TableColumn<WaterEvent>[] {
+    return [
+      { key: 'meter', label: wt('colMeter'), render: (e) => html`<b>${e.meter_name}</b>` },
+      { key: 'area', label: wt('colArea'), render: (e) => html`${e.area_name ?? '-'}<span class="mut hb-tablet">${e.floor_name ? ` · ${e.floor_name}` : ''}</span>` },
+      { key: 'kind', label: wt('colKind'), render: (e) => eventKindLabel(e.kind) },
+      {
+        key: 'since',
+        label: wt('colSince'),
+        render: (e) => html`<span class="num">${dm(e.opened_at)}</span>${e.closed_at ? html`<span class="mut"> - <span class="num">${dm(e.closed_at)}</span></span>` : nothing}`,
+      },
+      { key: 'value', label: wt('colValue'), align: 'end', render: (e) => eventValue(e) },
+      { key: 'state', label: wt('colState'), kind: 'status', render: (e) => eventChip(e) },
+      { key: 'act', label: '', kind: 'actions', render: (e) => this.actionKeys(e) },
+    ];
+  }
+
   private actions(e: WaterEvent) {
     if (e.closed_at || !this.access.ack) return nothing;
-    return html`<span class="acts">${e.can_ack ? html`<sw-button variant="primary" size="sm" data-ack ?disabled=${this.busy} @click=${(ev: Event) => { ev.stopPropagation(); void this.act(() => water.ack(e.id), wt('acked')); }}>${wt('ack')}</sw-button>` : nothing}
-      ${e.can_snooze ? html`<water-snooze .settings=${this.snooze ?? { durations: [60], default: 60, max: 60 }} ?disabled=${this.busy} @snooze=${(ev: CustomEvent<{ minutes: number }>) => this.snoozeEv(e, ev.detail.minutes)}></water-snooze>` : nothing}</span>`;
+    return html`<span class="acts">${this.actionKeys(e)}</span>`;
+  }
+
+  /** the acknowledge / snooze keys of an open alert (the phone row wraps them in its own .acts; the table's actions column packs them) */
+  private actionKeys(e: WaterEvent) {
+    if (e.closed_at || !this.access.ack) return nothing;
+    return html`${e.can_ack ? html`<sw-button variant="primary" size="sm" data-ack ?disabled=${this.busy} @click=${(ev: Event) => { ev.stopPropagation(); void this.act(() => water.ack(e.id), wt('acked')); }}>${wt('ack')}</sw-button>` : nothing}
+      ${e.can_snooze ? html`<water-snooze .settings=${this.snooze ?? { durations: [60], default: 60, max: 60 }} ?disabled=${this.busy} @snooze=${(ev: CustomEvent<{ minutes: number }>) => this.snoozeEv(e, ev.detail.minutes)}></water-snooze>` : nothing}`;
   }
 
   render() {
@@ -186,12 +215,9 @@ export class WaterAlertsPage extends LitElement {
     </div>`;
     const body = !rows.length
       ? html`<sw-state-panel icon="check" state="empty" heading=${wt('emptyAlerts')} data-no-alerts></sw-state-panel>`
-      : html`<div class="card flush scrollx desk-only fitbox"><table class="t" data-alerts-table>
-          <thead><tr><th>${wt('colMeter')}</th><th>${wt('colArea')}</th><th>${wt('colKind')}</th><th>${wt('colSince')}</th><th class="n">${wt('colValue')}</th><th>${wt('colState')}</th><th></th></tr></thead>
-          <tbody>${rows.map((e) => html`<tr class=${e.closed_at ? '' : 'pick'} tabindex=${e.closed_at ? -1 : 0} data-alert=${e.id} @click=${() => this.openMeter(e)} @keydown=${(ev: KeyboardEvent) => this.onKey(ev, e)}>
-            <td class="b">${e.meter_name}</td><td>${e.area_name ?? '-'}<span class="mut dsk">${e.floor_name ? ` · ${e.floor_name}` : ''}</span></td><td>${eventKindLabel(e.kind)}</td>
-            <td><span class="num">${dm(e.opened_at)}</span>${e.closed_at ? html`<span class="mut"> - <span class="num">${dm(e.closed_at)}</span></span>` : nothing}</td>
-            <td class="n">${eventValue(e)}</td><td>${eventChip(e)}</td><td class="n">${this.actions(e)}</td></tr>`)}</tbody></table></div>
+      : html`<sw-table class="t card flush desk-only fitbox" data-alerts-table .columns=${this.tableColumns() as unknown as TableColumn[]} .rows=${rows as unknown as Record<string, unknown>[]}
+          .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-alert': String(r.id), 'data-closed': !!r.closed_at })}
+          @row-select=${(ev: CustomEvent<{ row: Record<string, unknown> }>) => this.openMeter(ev.detail.row as unknown as WaterEvent)}></sw-table>
         <div class="list phone-only" style="flex-direction:column" data-alerts-rows>${rows.map((e) => html`<div class="li ${e.closed_at ? 'dis' : 'pick'}" role=${e.closed_at ? nothing : 'button'} tabindex=${e.closed_at ? nothing : 0} data-alert=${e.id} @click=${() => this.openMeter(e)} @keydown=${(ev: KeyboardEvent) => this.onKey(ev, e)}>
           <div class="grow"><div class="t1">${e.meter_name} · ${eventKindLabel(e.kind)}</div><div class="t2 wrap">${e.area_name ?? ''} · ${wt('colSince')} <span class="num">${dm(e.opened_at)}</span> · ${eventValue(e)}</div></div>${eventChip(e)}${this.actions(e)}</div>`)}</div>`;
     return html`<div class="page fit" data-water="alerts" data-state=${rows.length ? 'ready' : 'empty'}>

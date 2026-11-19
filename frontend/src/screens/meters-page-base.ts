@@ -124,6 +124,13 @@ export const metersGridCss = css`
     transform: scale(var(--sw-press-scale));
     box-shadow: var(--sw-shadow-1);
   }
+  /* RELEASE-2450-TRAIN phase 1: the meters table fits its card at 1024 px (no sideways scroll, owner rule). As table.t's cells did, the
+     state cell lets a stale meter's "since" note take a second line under its chip (the chip itself never breaks), and a long column
+     title takes two lines; both only when the card is too narrow for one line. */
+  sw-table.t[data-meters-table]::part(head),
+  sw-table.t[data-meters-table]::part(cell-status) {
+    white-space: normal;
+  }
 `;
 
 /** The phone and desktop rules of the page (after a module's own base rules, before its own responsive rules: the order is the cascade). */
@@ -184,11 +191,7 @@ export const metersResponsiveCss = css`
       grid-auto-rows: max-content;
       align-content: start;
     }
-    .mlist table.t thead th {
-      position: sticky;
-      inset-block-start: 0;
-      z-index: 1;
-    }
+    /* CR-CMP2-TABLES-CONSUMPTION-2450: the table is the shared sw-table, the list's scroll box itself; its header row sticks on its own */
   }
 `;
 
@@ -210,6 +213,12 @@ export abstract class MetersPageBase<M extends { id: string }, A extends MetersA
   protected get notice(): string {
     return this.toaster.text;
   }
+  /** The module's narrow edge (the old `.dsk` rule of both modules, 1099 px): the meters tables drop their secondary cells (the floor
+   * under the area, electricity's accounts / water's month) here, not at sw-table's shared 1023 px - between 1024 and 1099 px the full
+   * table was ~57 px wider than its card and scrolled sideways (layout-electricity-meters at 1024, RELEASE-2450-TRAIN phase 1). */
+  @state() protected narrow = false;
+  private narrowMq?: MediaQueryList;
+  private readonly onNarrow = () => (this.narrow = !!this.narrowMq?.matches);
   private stopAccess?: () => void;
   private poller = new PollController(this); // CR-POLL-SCREENS-B-2440 (D2): the shared poll - visible only, never two reads at once, one catch-up read on return
 
@@ -253,11 +262,15 @@ export abstract class MetersPageBase<M extends { id: string }, A extends MetersA
   connectedCallback() {
     super.connectedCallback();
     this.stopAccess = this.cfg.onAccess((a) => (this.access = a));
+    this.narrowMq = globalThis.matchMedia?.('(max-width: 1099px)');
+    this.narrowMq?.addEventListener('change', this.onNarrow);
+    this.onNarrow();
     void this.load(true);
     this.poller.every('rows', POLL_MS, () => this.load(false));
   }
 
   disconnectedCallback() {
+    this.narrowMq?.removeEventListener('change', this.onNarrow);
     this.stopAccess?.();
     super.disconnectedCallback();
   }

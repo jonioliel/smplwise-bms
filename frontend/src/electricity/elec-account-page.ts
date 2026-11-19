@@ -15,7 +15,9 @@ import { ElecBase, alertBox, n, skeleton, stateBox, takeFlash, type LoadState } 
 import './elec-bill-create';
 import './elec-chart';
 import { billsTable } from './elec-bills-table';
-import { billChip } from './elec-ui';
+import { billCellChip } from './elec-ui';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import { f0, f2, f4, fmtDate, periodLabel, readingText } from './elec-format';
 import { go, href, route } from './elec-routes';
 import { hasComparison } from './elec-chart-data';
@@ -113,6 +115,40 @@ export class ElecAccountPage extends ElecBase {
     </div>`;
   }
 
+  /** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): the meters of the formula as the shared sw-table (bare in its card, a read-only list):
+   * the meter (+ a "not reporting" chip in the shared tones), the period's readings, consumption, factor and the billed part (LTR figures
+   * at the reading end), the total to bill in the foot row. */
+  private meterColumns(s: AccountStatus, hasReadings: boolean): TableColumn<AccountStatus['rows'][number]>[] {
+    return [
+      { key: 'name', label: tr('מונה'), render: (r) => html`<b>${r.name}</b>${r.stale ? html` <span class="chip" data-tone="warn">${tr('לא מדווח')}</span>` : nothing}`, foot: () => tr('סה״כ לחיוב') },
+      ...(hasReadings
+        ? ([
+            { key: 'start', label: tr('קריאה בתחילת התקופה'), kind: 'num', render: (r) => readingText(r.start) },
+            { key: 'end', label: tr('קריאה נוכחית'), kind: 'num', render: (r) => readingText(r.end) },
+          ] satisfies TableColumn<AccountStatus['rows'][number]>[])
+        : []),
+      { key: 'kwh', label: tr('צריכה'), kind: 'num', render: (r) => f2(r.kwh) },
+      { key: 'factor', label: tr('חלק'), kind: 'num', render: (r) => String(r.factor) },
+      { key: 'part', label: tr('לחיוב (קוט״ש)'), kind: 'num', render: (r) => html`<b>${f2(r.part)}</b>`, foot: () => f2(s.kwh) },
+    ];
+  }
+
+  /** CR-CMP2-TABLES-CONSUMPTION-2450: the periods as the shared sw-table (bare in its card, read-only); row hooks `data-history-row` +
+   * `data-status`; the bill number is a link, its state a chip in the shared tones. */
+  private historyColumns(money: boolean, kwhCell: (r: HistoryRow) => unknown, change: (r: HistoryRow) => string): TableColumn<HistoryRow>[] {
+    const cols: TableColumn<HistoryRow>[] = [
+      { key: 'label', label: tr('תקופה'), render: (r) => n(r.label) },
+      { key: 'kwh', label: tr('קוט״ש'), kind: 'num', render: (r) => html`${kwhCell(r)}` },
+      { key: 'change', label: tr('שינוי'), kind: 'num', render: (r) => change(r) },
+    ];
+    if (money)
+      cols.push(
+        { key: 'amount', label: tr('סכום'), kind: 'num', render: (r) => (r.amount !== undefined ? f2(r.amount) + ' ₪' : '') },
+        { key: 'bill', label: tr('חיוב'), kind: 'status', render: (r) => (r.bill ? html`<a class="lnk num" href=${href.bill(r.bill.id)}>${r.bill.number}</a> ${billCellChip(r.bill.state)}` : html`<span class="mut">-</span>`) },
+      );
+    return cols;
+  }
+
   // ---------------------------------------------------------------- status
   private renderStatus(s: AccountStatus, perms: EnergyAccess) {
     const hasReadings = s.rows.some((r) => r.start !== null);
@@ -132,9 +168,7 @@ export class ElecAccountPage extends ElecBase {
         ${this.phone
           ? html`<div class="list">${rows.map((r) => html`<div class="li"><div class="grow"><div class="t1">${r.name}${r.factor ? html` <span class="mut">(${r.factor})</span>` : nothing}</div><div class="t2">${hasReadings && r.start !== null ? html`${n(f2(r.start))} ${tr('←')} ${n(f2(r.end ?? 0))}` : html`${n(f2(r.kwh))} ${tr('קוט״ש')}`}</div></div><b class="num">${f2(r.part)}</b></div>`)}</div>
             <div class="row" style="margin-block-start:10px"><b>${tr('סה״כ לחיוב')}</b><span class="sp"></span><b class="num">${f2(s.kwh)}</b></div>`
-          : html`<div class="scrollx"><table class="t" data-elec-meters><thead><tr><th>${tr('מונה')}</th>${hasReadings ? html`<th class="num">${tr('קריאה בתחילת התקופה')}</th><th class="num">${tr('קריאה נוכחית')}</th>` : nothing}<th class="num">${tr('צריכה')}</th><th class="num">${tr('חלק')}</th><th class="num">${tr('לחיוב (קוט״ש)')}</th></tr></thead>
-            <tbody>${rows.map((r) => html`<tr><td class="b">${r.name} ${r.stale ? html`<span class="chip c-warn">${tr('לא מדווח')}</span>` : nothing}</td>${hasReadings ? html`<td class="num">${readingText(r.start)}</td><td class="num">${readingText(r.end)}</td>` : nothing}<td class="num">${f2(r.kwh)}</td><td class="num">${r.factor}</td><td class="num b">${f2(r.part)}</td></tr>`)}</tbody>
-            <tfoot><tr><td colspan=${hasReadings ? 5 : 3}>${tr('סה״כ לחיוב')}</td><td class="num">${f2(s.kwh)}</td></tr></tfoot></table></div>`}
+          : html`<sw-table bare static-rows class="t" data-elec-meters .columns=${this.meterColumns(s, hasReadings) as unknown as TableColumn[]} .rows=${rows as unknown as Record<string, unknown>[]}></sw-table>`}
       </div>`;
     const side = html`<div class="card"><div class="hd"><b class="h3">${tr('לקוח')}</b><span class="sp"></span>${perms.bills && c ? html`<a class="btn ghost sm" href=${href.customer(c.id)}>${tr('כרטיס לקוח')}</a>` : nothing}</div>
         <dl class="kv"><dt>${tr('שם')}</dt><dd>${s.account.customer.name}</dd><dt>${tr('מספר לקוח')}</dt><dd>${n(s.account.customer.customer_number)}</dd>${perms.bills && c?.phone ? html`<dt>${tr('טלפון')}</dt><dd>${n(c.phone)}</dd>` : nothing}${perms.bills && c?.email ? html`<dt>${tr('דוא״ל')}</dt><dd>${n(c.email)}</dd>` : nothing}</dl></div>
@@ -156,7 +190,7 @@ export class ElecAccountPage extends ElecBase {
     const money = perms.bills;
     const rows = [...h.rows].reverse();
     // a period with no data says so (never a zero); a partial one carries a chip
-    const kwhCell = (r: HistoryRow) => (r.kwh === null ? html`<span class="mut" data-no-data>${tr('אין נתונים')}</span>` : html`${n(f2(r.kwh))}${r.status === 'partial' ? html` <span class="chip c-warn nodot" data-partial>${tr('חלקי')}</span>` : nothing}`);
+    const kwhCell = (r: HistoryRow) => (r.kwh === null ? html`<span class="mut" data-no-data>${tr('אין נתונים')}</span>` : html`${n(f2(r.kwh))}${r.status === 'partial' ? html` <span class="chip c-warn nodot" data-tone="warn" data-nodot data-partial>${tr('חלקי')}</span>` : nothing}`);
     const change = (r: HistoryRow) => (r.change_pct !== null ? (r.change_pct > 0 ? '+' : '') + r.change_pct.toFixed(1) + '%' : '-');
     return html`<div class="card" data-elec-history><div class="hd"><b class="h3">${tr('צריכה לפי תקופה')}</b><span class="sp"></span>
         <sw-segmented label=${tr('טווח')} value=${String(this.histMonths)} @change=${(e: CustomEvent<SegmentedChange>) => this.setMonths(Number(e.detail.value) as 12 | 24)}
@@ -164,8 +198,8 @@ export class ElecAccountPage extends ElecBase {
       <elec-chart .series=${h.comparison} table="details" .height=${this.phone ? 200 : 220}></elec-chart></div>
       <div class="card ${this.phone ? '' : 'flush'}">${this.phone
         ? html`<div class="list">${rows.map((r) => html`<div class="li" data-history-row data-status=${r.status}><div class="grow"><div class="t1">${n(r.label)}</div><div class="t2">${kwhCell(r)}${r.kwh !== null ? html` ${tr('קוט״ש')}` : ''}${r.change_pct !== null ? html` · ${n(change(r))}` : nothing}</div></div>${money && r.amount !== undefined ? html`<b class="num">${f2(r.amount)} ₪</b>` : nothing}</div>`)}</div>`
-        : html`<table class="t" data-elec-history-table><thead><tr><th>${tr('תקופה')}</th><th class="num">${tr('קוט״ש')}</th><th class="num">${tr('שינוי')}</th>${money ? html`<th class="num">${tr('סכום')}</th><th>${tr('חיוב')}</th>` : nothing}</tr></thead>
-          <tbody>${rows.map((r) => html`<tr data-history-row data-status=${r.status}><td class="num" style="text-align:start">${r.label}</td><td class="num">${kwhCell(r)}</td><td class="num">${change(r)}</td>${money ? html`<td class="num">${r.amount !== undefined ? f2(r.amount) + ' ₪' : ''}</td><td>${r.bill ? html`<a class="lnk num" href=${href.bill(r.bill.id)}>${r.bill.number}</a> ${billChip(r.bill.state)}` : html`<span class="mut">-</span>`}</td>` : nothing}</tr>`)}</tbody></table>`}</div>`;
+        : html`<sw-table bare static-rows class="t" data-elec-history-table .columns=${this.historyColumns(money, kwhCell, change) as unknown as TableColumn[]} .rows=${rows as unknown as Record<string, unknown>[]}
+            .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-history-row': true, 'data-status': String(r.status) })}></sw-table>`}</div>`;
   }
   private setMonths(m: 12 | 24) {
     this.histMonths = m;

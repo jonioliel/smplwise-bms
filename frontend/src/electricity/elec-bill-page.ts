@@ -21,6 +21,10 @@ import { go, href, route } from './elec-routes';
 import { dateInputLang } from '../api/day-format';
 import { tr } from '../i18n/msg/electricity';
 import { touName } from './elec-tou';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
+
+type Tou = NonNullable<BillSnapshot['tou']>;
 
 type Dlg = '' | 'issue' | 'void' | 'correct' | 'sent' | 'paid' | 'delete' | 'opening';
 const HOW: Record<SentHow, string> = { email: tr('דוא״ל'), hand: tr('מסירה ידנית'), other: tr('אחר') };
@@ -230,17 +234,51 @@ export class ElecBillPage extends ElecBase {
     if (!t) return nothing;
     return html`<div class="card" data-card="tou"><div class="hd"><b class="h3">${tr('לפי שעות')}</b><span class="sp"></span>
         <button type="button" class="btn ghost sm" data-tou-daily aria-expanded=${this.daily ? 'true' : 'false'} @click=${() => (this.daily = !this.daily)}>${this.daily ? tr('הסתרת הפירוט היומי') : tr('פירוט יומי')}</button></div>
-      <div class="scrollx"><table class="t" data-tou-bands><thead><tr><th>${tr('פס')}</th><th class="num">${tr('שעות')}</th><th class="num">${tr('קוט״ש')}</th><th class="num">${tr('לפני מע״מ')}</th></tr></thead>
-        <tbody>${t.by_band.map((x) => html`<tr data-band=${x.band.id}><td class="b">${touName('bands', x.band, t.names_en)}</td><td class="num">${f2(x.hours)}</td><td class="num">${f2(x.kwh)}</td><td class="num">${f2(x.amount_ex_vat)} ₪</td></tr>`)}</tbody></table></div>
+      <sw-table bare static-rows class="t" data-tou-bands .columns=${this.bandColumns(t) as unknown as TableColumn[]} .rows=${t.by_band as unknown as Record<string, unknown>[]}
+        .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-band': (r as unknown as Tou['by_band'][number]).band.id })}></sw-table>
       ${t.special_days.some((d) => d.kind !== 'regular') ? html`<div class="mut" style="margin-block-start:8px">${tr('ימים מיוחדים:')} ${t.special_days.filter((d) => d.kind !== 'regular').map((d) => `${fmtDate(d.date)} ${d.name_he}`).join(', ')}</div>` : nothing}</div>`;
+  }
+  /** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): the per-band sums as the shared sw-table (bare in the card, read-only; row hook
+   * `data-band`) - figures as LTR isolates at the reading end. */
+  private bandColumns(t: Tou): TableColumn<Tou['by_band'][number]>[] {
+    return [
+      { key: 'band', label: tr('פס'), render: (x) => html`<b>${touName('bands', x.band, t.names_en)}</b>` },
+      { key: 'hours', label: tr('שעות'), kind: 'num', render: (x) => f2(x.hours) },
+      { key: 'kwh', label: tr('קוט״ש'), kind: 'num', render: (x) => f2(x.kwh) },
+      { key: 'amount', label: tr('לפני מע״מ'), kind: 'num', render: (x) => `${f2(x.amount_ex_vat)} ₪` },
+    ];
+  }
+  /** CR-CMP2-TABLES-CONSUMPTION-2450: the daily table - the date, the day type (+ the special day's name as an info chip), one column per
+   * band in use and the day's total (row hook `data-day`). */
+  private dailyColumns(t: Tou, used: string[]): TableColumn<Tou['daily'][number]>[] {
+    return [
+      { key: 'date', label: tr('תאריך'), render: (d) => html`<span class="num">${fmtDate(d.date)}</span>` },
+      {
+        key: 'type',
+        label: tr('סוג יום'),
+        render: (d) =>
+          html`${t.names.day_types[d.day_type] !== undefined ? touName('day_types', { id: d.day_type, name_he: t.names.day_types[d.day_type] }, t.names_en) : d.day_type}${d.special ? html` <span class="chip" data-tone="info" data-nodot>${d.special.name_he}</span>` : nothing}`,
+      },
+      ...used.map(
+        (b): TableColumn<Tou['daily'][number]> => ({
+          key: `band-${b}`,
+          label: touName('bands', { id: b, name_he: t.names.bands[b] }, t.names_en),
+          kind: 'num',
+          render: (d) => {
+            const v = d.bands.find((x) => x.band === b);
+            return v ? f2(v.kwh) : '';
+          },
+        }),
+      ),
+      { key: 'total', label: tr('סה״כ'), kind: 'num', render: (d) => html`<b>${f2(d.kwh)}</b>` },
+    ];
   }
   private dailyTable(t: NonNullable<BillSnapshot['tou']>) {
     const bands = Object.keys(t.names.bands);
     const used = bands.filter((b) => t.daily.some((d) => d.bands.some((x) => x.band === b)));
     return html`<div class="card flush" data-tou-daily-table><div class="hd"><b class="h3">${tr('פירוט יומי לפי שעות (קוט״ש)')}</b><span class="sp"></span><span class="mut">${tr('לעיון; כל ערך מעוגל בנפרד')}</span></div>
-      <div class="scrollx"><table class="t"><thead><tr><th>${tr('תאריך')}</th><th>${tr('סוג יום')}</th>${used.map((b) => html`<th class="num">${touName('bands', { id: b, name_he: t.names.bands[b] }, t.names_en)}</th>`)}<th class="num">${tr('סה״כ')}</th></tr></thead>
-        <tbody>${t.daily.map((d) => html`<tr data-day=${d.date}><td class="num" style="text-align:start">${fmtDate(d.date)}</td><td>${t.names.day_types[d.day_type] !== undefined ? touName('day_types', { id: d.day_type, name_he: t.names.day_types[d.day_type] }, t.names_en) : d.day_type}${d.special ? html` <span class="chip c-acc nodot">${d.special.name_he}</span>` : nothing}</td>
-          ${used.map((b) => { const v = d.bands.find((x) => x.band === b); return html`<td class="num">${v ? f2(v.kwh) : ''}</td>`; })}<td class="num b">${f2(d.kwh)}</td></tr>`)}</tbody></table></div></div>`;
+      <sw-table bare static-rows class="t" .columns=${this.dailyColumns(t, used) as unknown as TableColumn[]} .rows=${t.daily as unknown as Record<string, unknown>[]}
+        .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-day': String(r.date) })}></sw-table></div>`;
   }
 
   /** One short line when the PDF cannot be had: the last request of this page failed, or the bill says failed / unavailable. Retry unless no engine. */

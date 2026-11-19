@@ -5,6 +5,8 @@ import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-state-panel';
 import '../components/sw-pager';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import { PageFit } from '../components/page-fit';
 import { describeError } from '../api/client';
 import { PollController } from '../components/poll-controller';
@@ -16,6 +18,8 @@ import { fmtDate, fmtInstant, kindText } from './model';
 import { maintCss } from './styles';
 
 const LOOK: Record<LogEvent, string> = { due_soon: 'warn', overdue: 'alarm', request: 'acc', request_failed: 'alarm' };
+/** CR-CMP2-TABLES-GENMAINT-2450 (owner N10): the event's shared tone in the table (the phone cards keep the module look above) */
+const TONE: Record<LogEvent, 'warn' | 'bad' | 'info'> = { due_soon: 'warn', overdue: 'bad', request: 'info', request_failed: 'bad' };
 
 /**
  * The reminder log (owner review 24.10): what the worker sent - a reminder before a date, a reminder after it passed, a service
@@ -56,6 +60,13 @@ export class MaintLogPage extends LitElement {
     [data-look='acc'] { --c: var(--sw-accent); }
     a.task { color: var(--sw-accent-text); text-decoration: none; font-weight: var(--sw-fw-semibold); }
     @media (hover: hover) and (pointer: fine) { a.task:hover { text-decoration: underline; } }
+    /* CR-CMP2-TABLES-GENMAINT-2450 (owner N10): the log is the shared table inside the panel - the module's header band and reading size,
+       never wider than the panel; the links in its cells (drawn in the table's shadow root) reach their look through parts */
+    sw-table[data-maint-log-table] { --sw-table-min: 0; --sw-table-head-bg: var(--sw-surface-2); --sw-table-fs: var(--sw-fs-md); --sw-table-cell-pad: 10px 12px; }
+    sw-table[data-maint-log-table]::part(task) { color: var(--sw-accent-text); text-decoration: none; font-weight: var(--sw-fw-semibold); }
+    sw-table[data-maint-log-table]::part(request) { text-decoration: none; }
+    sw-table[data-maint-log-table]::part(task):focus-visible, sw-table[data-maint-log-table]::part(request):focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; border-radius: 4px; }
+    @media (hover: hover) and (pointer: fine) { sw-table[data-maint-log-table]::part(task):hover { text-decoration: underline; } }
     .note { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-block-end: 1px solid var(--sw-border); background: var(--sw-warning-soft); }
   `];
 
@@ -83,14 +94,26 @@ export class MaintLogPage extends LitElement {
     void this.load();
   }
 
-  private row(r: LogRow) {
-    return html`<tr data-fit-item data-maint-log-row=${r.id} data-event=${r.event}>
-      <td class="date num">${fmtInstant(r.at)}</td>
-      <td><span class="evt" data-look=${LOOK[r.event]}><span class="dot" aria-hidden="true"></span>${mt(`evt_${r.event}` as MtKey)}</span></td>
-      <td class="name"><a class="task" href=${`#/tickets/maintenance?task=${encodeURIComponent(r.task_id)}`}>${r.title}</a><span class="t2">${kindText(r.task_kind)}</span></td>
-      <td class="date num">${r.due_date ? fmtDate(r.due_date) : html`<span class="mut">${mt('dash')}</span>`}</td>
-      <td>${r.event === 'request' && r.detail && this.access.ticketsOn ? html`<a class="chip" data-look="acc" href=${`#/tickets/${encodeURIComponent(r.detail)}`}>${mt('requestOpen')}</a>` : r.event === 'request_failed' && r.detail ? html`<span class="mut">${mt(`ticketErr_${r.detail}` as MtKey) === `ticketErr_${r.detail}` ? r.detail : mt(`ticketErr_${r.detail}` as MtKey)}</span>` : nothing}</td>
-    </tr>`;
+  /** CR-CMP2-TABLES-GENMAINT-2450 (owner N10): the log columns - when, the event (a shared tone chip), the task (its link and kind), the
+   * due date, and the request (its link, or why it was not opened) */
+  private columns(): TableColumn<LogRow>[] {
+    const dash = html`<span class="mut">${mt('dash')}</span>`;
+    return [
+      { key: 'at', label: mt('colWhen'), render: (r) => html`<span class="num">${fmtInstant(r.at)}</span>` },
+      { key: 'event', label: mt('colEvent'), kind: 'status', render: (r) => html`<span class="chip" data-tone=${TONE[r.event]}>${mt(`evt_${r.event}` as MtKey)}</span>` },
+      { key: 'title', label: mt('colTaskName'), render: (r) => html`<a class="t1" part="task" href=${`#/tickets/maintenance?task=${encodeURIComponent(r.task_id)}`}>${r.title}</a><span class="t2">${kindText(r.task_kind)}</span>` },
+      { key: 'due', label: mt('colDueDate'), render: (r) => (r.due_date ? html`<span class="num">${fmtDate(r.due_date)}</span>` : dash) },
+      { key: 'detail', label: '', render: (r) => this.detailCell(r) },
+    ];
+  }
+
+  private detailCell(r: LogRow) {
+    if (r.event === 'request' && r.detail && this.access.ticketsOn) return html`<a class="chip" part="request" data-tone="info" data-nodot href=${`#/tickets/${encodeURIComponent(r.detail)}`}>${mt('requestOpen')}</a>`;
+    if (r.event === 'request_failed' && r.detail) {
+      const key = `ticketErr_${r.detail}` as MtKey;
+      return html`<span class="mut">${mt(key) === key ? r.detail : mt(key)}</span>`;
+    }
+    return nothing;
   }
 
   private card(r: LogRow) {
@@ -119,8 +142,9 @@ export class MaintLogPage extends LitElement {
           .options=${[{ value: '', label: mt('colAll'), attrs: { 'data-ev': 'all' } }, ...LOG_EVENTS.map((ev) => ({ value: ev, label: mt(`evt_${ev}` as MtKey), attrs: { 'data-ev': ev } }))]}></sw-segmented>
           ${this.fit.fits ? html`<span class="pg">${this.fit.pages > 1 ? html`<sw-pager data-maint-log-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}</span>` : nothing}</div>
         ${l.items.length ? html`<div class="scroller">
-            <div class="scrollx"><section class="fitsec"><table class="t" data-maint-log-table><thead><tr><th>${mt('colWhen')}</th><th>${mt('colEvent')}</th><th>${mt('colTaskName')}</th><th>${mt('colDueDate')}</th><th></th></tr></thead>
-              <tbody>${l.items.map((r, i) => (this.fit.shows(i) ? this.row(r) : nothing))}</tbody></table></section></div>
+            <div class="scrollx"><section class="fitsec"><sw-table bare static-rows data-maint-log-table .columns=${this.columns() as unknown as TableColumn[]}
+              .rows=${l.items.filter((_, i) => this.fit.shows(i)) as unknown as Record<string, unknown>[]}
+              .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-fit-item': true, 'data-maint-log-row': String(r.id), 'data-event': String(r.event) })}></sw-table></section></div>
             <div class="cards-m">${l.items.map((r) => this.card(r))}</div></div>`
           : html`<sw-state-panel icon="bell" state="empty" heading=${mt('emptyLog')} hint=${mt('emptyLogBody')} data-state="empty"></sw-state-panel>`}
       </div>`;

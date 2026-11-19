@@ -110,7 +110,7 @@ test.describe('generator evidence', () => {
     await shoot(page, '/infra/generator/live', 'not-found-manager', `${S} [data-state="not-found"]`, { count: 0 });
     await shoot(page, '/system/infra/generator/routing', 'settings-not-found', 'sw-app gen-settings [data-detection="none"]', { count: 0 });
     await shoot(page, '/system/infra/generator/routing', 'settings-routing-empty', 'sw-app gen-routing [data-routing-empty]', { level: 'typical' });
-    await expect(page.locator('sw-app gen-routing tr.na, sw-app gen-routing .li.dis').first()).toBeAttached();
+    await expect(page.locator('sw-app gen-routing tr[data-na], sw-app gen-routing .li.dis').first()).toBeAttached();
     await shoot(page, '/system/infra/generator/routing', 'settings-routing-full', 'sw-app gen-routing [data-routing-empty]', { level: 'full' }, 'dark');
     await shoot(page, '/system/infra/generator/routing', 'settings-routing-edit', 'sw-app gen-routing [data-type="battery_low"] >> visible=true', { level: 'typical' }, 'light', 'classic', async (p) => {
       await p.locator('sw-app gen-routing [data-type="battery_low"] >> visible=true').first().click({ force: true });

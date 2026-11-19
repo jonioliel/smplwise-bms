@@ -33,13 +33,15 @@ export function alertOf(meterId: string, open: WaterEvent[]): 'leak' | 'abnormal
 }
 
 /** The מצב chip (section 5.1): an open alert wins, else the electricity chip (מדווח / לא מדווח מ-HH:MM / מושהה). */
+/** CR-CMP2-TABLES-CONSUMPTION-2450: the water chips carry both the module class (cards, phone rows) and the shared `data-tone` (a
+ * `sw-table` cell, where the module classes do not reach) - one helper for both. */
 export function meterChip(m: Pick<Meter, 'state' | 'last_report_at'>, alert: 'leak' | 'abnormal' | null): TemplateResult {
-  if (alert === 'leak') return html`<span class="chip c-err" data-status="leak">${wt('stLeak')}</span>`;
-  if (alert === 'abnormal') return html`<span class="chip c-warn" data-status="abnormal">${wt('stAbnormal')}</span>`;
-  if (m.state === 'reporting') return html`<span class="chip c-ok" data-status="reporting">${wt('stReporting')}</span>`;
+  if (alert === 'leak') return html`<span class="chip c-err" data-tone="bad" data-status="leak">${wt('stLeak')}</span>`;
+  if (alert === 'abnormal') return html`<span class="chip c-warn" data-tone="warn" data-status="abnormal">${wt('stAbnormal')}</span>`;
+  if (m.state === 'reporting') return html`<span class="chip c-ok" data-tone="ok" data-status="reporting">${wt('stReporting')}</span>`;
   if (m.state === 'paused') return html`<span class="chip c-mut" data-status="paused">${wt('stPaused')}</span>`;
   if (m.state === 'retired') return html`<span class="chip c-mut" data-status="retired">${wt('stRetired')}</span>`;
-  return html`<span class="chip c-warn" data-status="not_reporting">${m.last_report_at ? wt('stNotReportingSince', { t: fmtTime(m.last_report_at) }) : wt('stNotReporting')}</span>`;
+  return html`<span class="chip c-warn" data-tone="warn" data-status="not_reporting">${m.last_report_at ? wt('stNotReportingSince', { t: fmtTime(m.last_report_at) }) : wt('stNotReporting')}</span>`;
 }
 
 const EVENT_KIND: Record<string, WtKey> = { night_flow: 'akNight', burst: 'akBurst', abnormal: 'akAbnormal', offline: 'akOffline', health: 'akHealth' };
@@ -67,10 +69,10 @@ export function eventValue(e: Pick<WaterEvent, 'kind' | 'value'>): string {
 
 /** The alert's state chip (the log): snoozed until, open, acknowledged, closed. */
 export function eventChip(e: WaterEvent): TemplateResult {
-  if (e.closed_at) return html`<span class="chip c-ok" data-event-state="closed">${e.ack_by_display ? wt('asClosedBy', { who: e.ack_by_display }) : wt('asClosed')}</span>`;
+  if (e.closed_at) return html`<span class="chip c-ok" data-tone="ok" data-event-state="closed">${e.ack_by_display ? wt('asClosedBy', { who: e.ack_by_display }) : wt('asClosed')}</span>`;
   if (e.snoozed_until) return html`<span class="chip c-mut" data-event-state="snoozed">${wt('snoozedUntil', { t: fmtTime(e.snoozed_until) })}</span>`;
-  if (e.ack_at) return html`<span class="chip c-acc" data-event-state="acked">${wt('asAcked', { who: e.ack_by_display ?? '' })}</span>`;
-  return html`<span class="chip ${e.severity === 'alarm' || LEAK_KINDS.includes(e.kind) ? 'c-err' : 'c-warn'}" data-event-state="open">${wt('asOpen')}</span>`;
+  if (e.ack_at) return html`<span class="chip c-acc" data-tone="info" data-event-state="acked">${wt('asAcked', { who: e.ack_by_display ?? '' })}</span>`;
+  return html`<span class="chip ${e.severity === 'alarm' || LEAK_KINDS.includes(e.kind) ? 'c-err' : 'c-warn'}" data-tone=${e.severity === 'alarm' || LEAK_KINDS.includes(e.kind) ? 'bad' : 'warn'} data-event-state="open">${wt('asOpen')}</span>`;
 }
 
 export interface Bar {
