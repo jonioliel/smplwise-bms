@@ -143,8 +143,24 @@ test.describe('automations: rows or the cards with their sentence', () => {
 // POLISH2-295 (owner: the dark choice buttons were hard to read): every choice button on the touched screens, dark scheme - the label at
 // least 4.5:1 on its own background, chosen or not, and a chosen segment at least 3:1 from its track (WCAG 1.4.3 / 1.4.11). Backgrounds are
 // composited through every ancestor (shadow hosts included); the glass blur is ignored (it only averages what is already counted).
+const CHOICE = '.seg button, .views button, button.vtog, .rc[aria-pressed]';
+// FIX-FLAKY-POLISH-WORSTCASE-2439: the screen's route chunk and its first render can land well after <sw-app> (0.2-2 s later on the loaded
+// runner, measured): the contrast is read once the screen has drawn its choice buttons, never on the bare shell
+async function choiceCount(page: Page) {
+  return page.evaluate((sel) => {
+    let n = 0;
+    const walk = (root: Document | ShadowRoot) => {
+      for (const el of root.querySelectorAll('*')) {
+        if (el.shadowRoot) walk(el.shadowRoot);
+        if (el.matches(sel) && el.getBoundingClientRect().width > 0 && getComputedStyle(el).visibility !== 'hidden') n++;
+      }
+    };
+    walk(document);
+    return n;
+  }, CHOICE);
+}
 async function choiceContrast(page: Page) {
-  return page.evaluate(() => {
+  return page.evaluate((sel) => {
     type C = { r: number; g: number; b: number; a: number };
     const parse = (s: string): C | null => {
       const m = s.match(/rgba?\(([^)]+)\)/);
@@ -180,7 +196,7 @@ async function choiceContrast(page: Page) {
     const walk = (root: Document | ShadowRoot) => {
       for (const el of root.querySelectorAll('*')) {
         if (el.shadowRoot) walk(el.shadowRoot);
-        if (el.matches('.seg button, .views button, button.vtog, .rc[aria-pressed]')) found.push(el);
+        if (el.matches(sel)) found.push(el);
       }
     };
     walk(document);
@@ -197,13 +213,14 @@ async function choiceContrast(page: Page) {
         const ring = ringC && ringC.a > 0 ? ratio(over(ringC, ground), ground) : 0;
         return { ring, what: `${(el.getRootNode() as ShadowRoot).host?.tagName.toLowerCase() ?? 'doc'} .${el.parentElement?.className ?? ''} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 16)}"`, chosen, chip: el.matches('.rc[aria-pressed]'), text: ratio(fg, bg), track: ratio(bg, bgOf(up(el)!)) };
       });
-  });
+  }, CHOICE);
 }
 
 test.describe('dark scheme: the choice buttons are legible', () => {
   for (const [name, hash] of [['automations', '/devices/automations'], ['schedules', '/devices/schedules'], ['settings-automations', '/system/automations'], ['settings-schedules', '/system/schedules']] as const) {
     test(`${name}: every label 4.5:1, a chosen segment or chip 3:1 from its track`, async ({ page }, info) => {
       await openDemo(page, '', hash, { 'sw.demo.automations': JSON.stringify({ scheme: 'dark' }), 'sw.demo.schedules': JSON.stringify({ persona: 'admin' }) });
+      await expect.poll(() => choiceCount(page), { message: 'the screen drew its choice buttons', timeout: 20_000 }).toBeGreaterThan(0);
       await dark(page);
       await page.waitForTimeout(800);
       const all = await choiceContrast(page);

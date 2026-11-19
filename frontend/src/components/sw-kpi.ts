@@ -394,17 +394,37 @@ export class SwKpi extends LitElement {
       if (v) fitTextElement(v);
     }, this.fitSlot);
   }
+  /**
+   * FIX-FLAKY-POLISH-WORSTCASE-2439: a web font that arrives after the fit changes the value's width while the tile keeps its size,
+   * so neither a render nor the ResizeObserver runs the fit again - the figures stayed cut by a few pixels (Heebo's bold Latin face,
+   * the digits, is fetched only when the first figure is drawn and lands last; the fit had measured the fallback font). Every
+   * connected tile fits again when a font load finishes: one document listener for all tiles, one measure per tile per frame.
+   */
+  private static fontWatch = new Set<SwKpi>();
+  private static fontHooked = false;
+  private static watchFonts(kpi: SwKpi) {
+    SwKpi.fontWatch.add(kpi);
+    if (SwKpi.fontHooked) return;
+    SwKpi.fontHooked = true;
+    try {
+      document.fonts?.addEventListener('loadingdone', () => SwKpi.fontWatch.forEach((k) => k.fitValue()));
+    } catch {
+      /* no font loading API: the fit follows renders and resizes only */
+    }
+  }
   connectedCallback() {
     super.connectedCallback();
     if (typeof ResizeObserver !== 'undefined') {
       this.ro = new ResizeObserver(() => this.fitValue());
       this.ro.observe(this);
     }
+    SwKpi.watchFonts(this);
   }
   disconnectedCallback() {
     super.disconnectedCallback();
     this.ro?.disconnect();
     this.ro = null;
+    SwKpi.fontWatch.delete(this);
   }
   protected updated() {
     this.fitValue();
