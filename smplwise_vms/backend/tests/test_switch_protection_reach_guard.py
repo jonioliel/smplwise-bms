@@ -14,6 +14,7 @@ GUARDED_GLOBS = (
     "services/schedule*.py", "routers/schedules.py",  # CR-014
     "services/automation*.py", "routers/automations.py",  # CR-017 (pilot/CR017-*)
     "services/notify*.py", "routers/notifications.py",  # CR-018 (integ/notify)
+    "services/notifications_store.py",  # CR-018: the SQL of routers/notifications.py (CR-ROUTER-SQL-B-2450), outside the notify* glob
     "services/ha_scope.py", "services/ha_actions.py",  # individual control
 )
 
@@ -21,6 +22,7 @@ GUARDED_GLOBS = (
 def _guarded_files() -> list[Path]:
     files = sorted({f for g in GUARDED_GLOBS for f in BACKEND.glob(g)})
     assert any(f.name == "schedule_policy.py" for f in files) and any(f.name == "ha_scope.py" for f in files), "the guard is not vacuous"
+    assert any(f.name == "notifications_store.py" for f in files), "the notifications SQL module is scanned"
     return files
 
 
