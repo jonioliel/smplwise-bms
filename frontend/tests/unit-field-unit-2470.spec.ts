@@ -36,15 +36,16 @@ test('sw-field: the unit follows the READING direction, the padding side is phys
   expect(s).toMatch(/\.unit \{ position: absolute; inset-block: 0; inset-inline-end: var\(--_uin\);/);
   expect(s).toMatch(/:host\(\[unit-at='start'\]\) \.unit \{ inset-inline-end: auto; inset-inline-start: var\(--_uin\); \}/);
   // the four direction x side cases map onto physical padding (an LTR figure in an RTL page has the opposite logical sides)
-  expect(s).toContain(":host([has-unit]:dir(ltr):not([unit-at='start'])) ::slotted(input), :host([has-unit]:dir(rtl)[unit-at='start']) ::slotted(input) { padding-right: var(--_upad) !important; }");
-  expect(s).toContain(":host([has-unit]:dir(rtl):not([unit-at='start'])) ::slotted(input), :host([has-unit]:dir(ltr)[unit-at='start']) ::slotted(input) { padding-left: var(--_upad) !important; }");
+  expect(s).toContain(":host([has-unit]:dir(ltr):not([unit-at='start'])) ::slotted(input), :host([has-unit]:dir(rtl)[unit-at='start']) ::slotted(input) { padding-right: var(--_upad) !important; --_ualign: right; }");
+  expect(s).toContain(":host([has-unit]:dir(rtl):not([unit-at='start'])) ::slotted(input), :host([has-unit]:dir(ltr)[unit-at='start']) ::slotted(input) { padding-left: var(--_upad) !important; --_ualign: left; }");
   // the padding is the measured unit + the inset + a gap; until the first measure 1.4em
   expect(s).toContain('--_upad: calc(var(--_uw, 1.4em) + var(--_uin) + 6px);');
   expect(s).toContain("this.unitBox?.style.setProperty('--_uw', `${Math.ceil(w)}px`);");
   expect(s).toContain('new ResizeObserver(this.measureUnit)');
   // numeric inputs: LTR digits, tabular figures
   for (const sel of ["::slotted(input[inputmode='decimal'])", "::slotted(input[inputmode='numeric'])", "::slotted(input[type='number'])"]) expect(s).toContain(`:host([has-unit]) ${sel}`);
-  expect(s).toMatch(/direction: ltr; text-align: left; font-variant-numeric: tabular-nums;/);
+  // ... and sits against its unit (the unit's physical side)
+  expect(s).toMatch(/direction: ltr; text-align: var\(--_ualign, left\); font-variant-numeric: tabular-nums;/);
   // a press on the unit lands in the input
   expect(s).toMatch(/\.unit \{[^}]*pointer-events: none;/);
   // the observer is released with the element
@@ -75,4 +76,36 @@ test('time-of-use prices: the shared table with a ₪ field per price; every spe
   expect(prices).toContain("label: tr('פס')");
   expect(prices).not.toMatch(/<table|scrollx|<span>₪<\/span>/);
   expect(s).not.toContain('td.pc');
+});
+
+// ---- the consumption modules' hand-built "input + unit" pairs, one screen per commit (owner N21-N46: a mixed form moves all its
+// fields together; the module keeps its own input look - its input rules outrank the field's ::slotted ones - and its label size
+// through sw-field.fld::part(label))
+const MOVED: Record<string, { units: string[]; hooks: string[] }> = {
+  'electricity/elec-settings.ts': { units: ['unit="₪"', 'unit="%"', "unit=${tr('ימים')}", "unit=${tr('בחודש')}", "unit=${tr('שעות אחרי סוף התקופה')}"], hooks: ['data-tariff-price', 'data-vat-input', 'data-days', 'data-day-of-month', 'data-delay', 'data-field-error=${k}', 'data-field-error="delay_hours"', 'id="b-${k}"'] },
+  'electricity/elec-wizard.ts': { units: ['unit="₪"', "unit=${tr('בחודש')}"], hooks: ['data-anchor-day', 'data-anchor-month', 'data-first-start', 'data-tariff-price', 'data-tariff-name', 'data-tariff-from'] },
+  'electricity/meter-card.ts': { units: ["unit=${tr('קוט״ש')}"], hooks: ['data-replace-final', 'data-replace-start', 'data-replace-note'] },
+  'screens/electricity/settings-retention.ts': { units: ['unit=${UNIT_TEXT[range.unit] ?? range.unit}'], hooks: ['data-retention-input=${r.key}', 'data-retention-error=${r.key}'] },
+  'water/meter-card.ts': { units: ["unit=${o.suffix ?? ''}"], hooks: ["suffix: wt('m3')", 'id="wkd"', 'id="wru"'] },
+  'screens/water/page-settings.ts': { units: ['unit="₪"'], hooks: ['data-water-price', 'data-sewage-price', 'data-tariff-name'] },
+};
+
+for (const [file, { units, hooks }] of Object.entries(MOVED)) {
+  test(`moved to sw-field with a unit: ${file}`, () => {
+    const s = flat(file);
+    expect(s).toMatch(/import '(\.\.\/)+components\/sw-field';/);
+    for (const u of units) expect(s, u).toContain(u);
+    for (const h of hooks) expect(s, h).toContain(h);
+    // no hand-built pair is left: no module .unit box, no unit span after an input, no input inside an .inp frame with a unit
+    expect(s).not.toMatch(/<div class="unit"><input/);
+    expect(s).not.toMatch(/<input[^>]*\/><span( class="mut")?>[^<]{1,30}<\/span><\/div>/);
+    // a field's own message sits in the field's message slot (outside the unit frame)
+    expect(s).not.toMatch(/<sw-field[^`]*?<div class="msg" role="alert"(?! slot="message")[^>]*>/);
+  });
+}
+
+test('the module skin: a module form field keeps the module label and its 13 px unit inset', () => {
+  const s = flat('electricity/styles.ts');
+  expect(s).toContain('sw-field.fld::part(label) { font-size: var(--sw-fs-sm); color: var(--sw-text-2); font-weight: var(--sw-fw-medium); }');
+  expect(s).toContain('sw-field { --sw-field-unit-inset: 13px; }');
 });
