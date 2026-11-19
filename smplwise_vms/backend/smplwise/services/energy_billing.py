@@ -395,12 +395,17 @@ def get_tariff(conn: sqlite3.Connection, tid: str) -> sqlite3.Row:
     return row
 
 
+def _en(name_en: str) -> dict[str, str]:
+    """A TOU line's season / band carries `name_en` only when the tariff has an English name for it (CR-BE-SMALL-2440)."""
+    return {"name_en": name_en} if name_en else {}
+
+
 def _version_dict(v: sqlite3.Row) -> dict[str, Any]:
     """A version for the API. A time-of-use version carries its definition (prices per season and band) and no flat price."""
     out: dict[str, Any] = {"id": v["id"], "effective_from": v["effective_from"], "price": v["price"], "price_mode": v["price_mode"], "created_at": v["created_at"]}
     if v["definition_json"]:
         d = json.loads(v["definition_json"])
-        out.update({"price": None, "definition": d, "definition_sha256": tou.definition_sha256(d)})
+        out.update({"price": None, "definition": d, "definition_sha256": tou.definition_sha256(d), "names_en": tou.names_en(d)})
     return out
 
 
@@ -1014,7 +1019,8 @@ def compute_tou(conn: sqlite3.Connection, provider: BillingReadings, period: per
                        + _fmt_date(piece.start) + " - " + _fmt_date(piece.end - dt.timedelta(days=1)) + ". יש לתקן את הנוסחה או את המונים.",
                        period={"from": piece.start.isoformat(), "to": (piece.end - dt.timedelta(days=1)).isoformat()}, kwh=str(px.r2(kwh_exact)),
                        season=season, band=band)
-        tags = {"season": {"id": season, "name_he": d.season_name(season)}, "band": {"id": band, "name_he": d.band_name(band)},
+        tags = {"season": {"id": season, "name_he": d.season_name(season), **_en(d.season_name_en(season))},
+                "band": {"id": band, "name_he": d.band_name(band), **_en(d.band_name_en(band))},
                 "hours": str(px.r2(Decimal(g["seconds"]) / Decimal(3600)))}
         lines.append(px.line(piece, kwh_exact, d.price(season, band), tags))
     # the daily table (informational: carried energy is not inside it; each value rounded on its own)
@@ -1074,6 +1080,7 @@ def compute_tou(conn: sqlite3.Connection, provider: BillingReadings, period: per
     # what the snapshot keeps to reproduce the bill without live tables
     versions, seen = [], set()
     names: dict[str, dict[str, str]] = {"seasons": {}, "day_types": {}, "bands": {}}
+    names_en: dict[str, dict[str, str]] = {"seasons": {}, "day_types": {}, "bands": {}}
     for p in pieces:
         if p.price.id not in seen:
             seen.add(p.price.id)
@@ -1083,10 +1090,14 @@ def compute_tou(conn: sqlite3.Connection, provider: BillingReadings, period: per
             for key, items in (("seasons", dd.seasons), ("day_types", dd.day_types), ("bands", dd.bands)):
                 for it in items:
                     names[key].setdefault(it.id, it.name_he)
+            for key, en in tou.names_en(dd.raw).items():
+                for iid, name in en.items():
+                    names_en[key].setdefault(iid, name)
     snap = {
         "engine": tou.ENGINE,
         "classification": "local_wall_clock_quarter_hour",
         "names": names,
+        **({"names_en": names_en} if any(names_en.values()) else {}),  # CR-BE-SMALL-2440: English names, when the tariff has them
         "versions": versions,
         "special_days": [s.as_api() for s in cal.between(first_day, period.end)],
         "calendar": {"generator": cal.generator},

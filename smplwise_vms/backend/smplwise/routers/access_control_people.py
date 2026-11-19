@@ -18,7 +18,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal
 from ..services import intercom_authority as ia, intercom_adapter, intercom_client, intercom_sync, intercom_writes as iw
 from ..services.access_control_core import PERSON, PersonData
-from ._common import raw_body as _raw_body
+from ._common import raw_body as _raw_body, rid as _rid
 from .access_control_base import CAPTURE, MANAGE, PIN_GENERATE
 from .access_control_command import CommandEnvelope, _Action, _envelope, _parse, _perform
 
@@ -84,7 +84,7 @@ def people_writer(*extra: str):
     reaches the editor projection, let alone a write (was: installation scope)."""
 
     def dep(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> ia.Authority:
-        rid = getattr(request.state, "correlation_id", None)
+        rid = _rid(request)
         auth = ia.require_anywhere(conn, principal, MANAGE, rid)
         for permission in extra:
             ia.require_anywhere(conn, principal, permission, rid)

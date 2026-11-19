@@ -24,6 +24,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, ROLES, custom_roles, require, role_name
 from ..services import door_authority, intercom_calls, intercom_sync, wiskey_camera
 from ..services import intercom_authority as ia
+from ._common import rid as _rid
 
 router = APIRouter()
 CONFIGURE = "system.configure"
@@ -101,5 +102,5 @@ def put_call_settings(request: Request, body: dict[str, Any], principal: Princip
     old = intercom_calls.load_settings(conn)
     intercom_calls.save_settings(conn, value)
     audit(conn, actor=principal, action="intercom.call_banner.settings", decision="allowed", resource_type="setting", resource_id=intercom_calls.SETTING_KEY,
-          request_id=getattr(request.state, "correlation_id", None), details={"old": old, "new": value})
+          request_id=_rid(request), details={"old": old, "new": value})
     return _settings_view(conn, request)

@@ -18,6 +18,7 @@
   "test_capabilities.py": "app.routes: the capabilities endpoint has no write route",
   "test_capture_lease_ledger.py": "package walk: only the capture start inserts a ledger row",
   "test_confirm_words_2442.py": "package walk: no module keeps its own copy of a confirmation word; only the listed routers / services call the typed-word matcher",
+  "test_correlation_helper_2440.py": "package walk: no module outside correlation_id.py hand-rolls getattr(<x>.state, \"correlation_id\") (CR-BE-SMALL-2440)",
   "test_db_gate.py": "package walk: no manual transaction control outside db.py",
   "test_db_template.py": "package walk: no product code reads the schema cookie",
   "test_exports_housekeeping_2440.py": "package walk: every app_refresh hook name a caller passes is a registered hook; no computed name but the presence wrapper (CR-EXPORTS-HOUSEKEEPING-2440)",

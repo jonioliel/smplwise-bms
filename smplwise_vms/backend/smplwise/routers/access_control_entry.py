@@ -16,6 +16,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import door_authority, intercom_authority as ia, intercom_adapter, intercom_sync, wiskey_background_feed, wiskey_camera, wiskey_diagnostics
 from .access_control_base import MAX_PAGE, READ, _credentials_admin_ro, _gate, _instant, _reader_ro, _visible_stations
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -66,7 +67,7 @@ def diagnostics(request: Request, principal: Principal = Depends(_credentials_ad
     and finding codes only)."""
     body = wiskey_diagnostics.collect(settings_of(request), who=principal.user_id)
     audit(conn, actor=principal, action="intercom.diagnostics.read", decision="allowed", resource_type="intercom", resource_id="diagnostics",
-          request_id=getattr(request.state, "correlation_id", None),
+          request_id=_rid(request),
           details={"service": body["service"]["authorization_state"], "background": body["background"]["authorization_state"],
                    "split": bool(body["background"].get("split")), "findings": [f["code"] for f in body["findings"]]})
     return body
@@ -102,7 +103,7 @@ def events(
     if start and end and datetime.fromisoformat(start.replace("Z", "+00:00")) >= datetime.fromisoformat(end.replace("Z", "+00:00")):
         raise ApiError(422, "validation", "start חייב להיות לפני end.")
     if current_group is not None:
-        ia.require_anywhere(auth.conn, auth.principal, ia.PEOPLE_READ, getattr(request.state, "correlation_id", None))
+        ia.require_anywhere(auth.conn, auth.principal, ia.PEOPLE_READ, _rid(request))
     filters = {"station_id": station_id, "person": person, "result": result, "authentication": authentication, "door": door, "start": start, "end": end, "current_group": current_group}
     try:
         return intercom_adapter.ADAPTER.events(settings_of(request), auth, filters, limit=limit, before=before, legacy=True)

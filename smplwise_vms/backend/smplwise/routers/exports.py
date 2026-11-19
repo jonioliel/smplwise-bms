@@ -17,6 +17,7 @@ from ..services import exports as ex
 from ..services.access import require_camera
 from ..services.timeutil import parse_utc
 from .settings import read_settings
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -76,7 +77,7 @@ def create(body: RangeBody, request: Request, principal: Principal = Depends(cur
     ex.check_quota(conn, principal)  # fails fast; create_job checks again after the NVR search
     job = ex.create_job(conn, settings_of(request), principal, cam, start, end, s["time.zone"], s["exports.max_mb"] * 1024 * 1024)
     audit(conn, actor=principal, action="video.export.create", decision="allowed", resource_type="camera", resource_id=cam["id"],
-          request_id=getattr(request.state, "correlation_id", None), details={"job": job["id"], "from": job["requested_from"], "to": job["requested_to"], "files": len(job["files"]), "estimate_bytes": job.get("estimate_bytes")})
+          request_id=_rid(request), details={"job": job["id"], "from": job["requested_from"], "to": job["requested_to"], "files": len(job["files"]), "estimate_bytes": job.get("estimate_bytes")})
     return job
 
 
@@ -96,7 +97,7 @@ def cancel(job_id: str, request: Request, principal: Principal = Depends(current
     job = _owned(conn, principal, job_id)
     ex.request_cancel(conn, job_id)
     audit(conn, actor=principal, action="video.export.cancel", decision="allowed", resource_type="camera", resource_id=job["camera_id"],
-          request_id=getattr(request.state, "correlation_id", None), details={"job": job_id})
+          request_id=_rid(request), details={"job": job_id})
     return ex.get_job(conn, job_id) or job
 
 
@@ -105,7 +106,7 @@ def delete(job_id: str, request: Request, principal: Principal = Depends(current
     job = _owned(conn, principal, job_id)
     ex.delete_job(conn, settings_of(request), job_id)
     audit(conn, actor=principal, action="video.export.delete", decision="allowed", resource_type="camera", resource_id=job["camera_id"],
-          request_id=getattr(request.state, "correlation_id", None), details={"job": job_id})
+          request_id=_rid(request), details={"job": job_id})
     return {"id": job_id, "deleted": True}
 
 
@@ -117,7 +118,7 @@ def download(job_id: str, request: Request, principal: Principal = Depends(curre
     if not path or job["state"] not in ("done", "partial"):
         raise ApiError(409, "not_ready", "הקובץ עדיין לא מוכן.")
     audit(conn, actor=principal, action="video.export.download", decision="allowed", resource_type="camera", resource_id=job["camera_id"],
-          request_id=getattr(request.state, "correlation_id", None), details={"job": job_id, "bytes": path.stat().st_size, "sha256": job.get("sha256")})
+          request_id=_rid(request), details={"job": job_id, "bytes": path.stat().st_size, "sha256": job.get("sha256")})
     return FileResponse(path, media_type=job.get("media_type") or "application/octet-stream", filename=job.get("output_name") or path.name, headers={"Cache-Control": "private, no-store"})
 
 

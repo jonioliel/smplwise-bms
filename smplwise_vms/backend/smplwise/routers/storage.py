@@ -11,6 +11,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..rbac import INSTALLATION, Principal, require
 from ..services import bundle_import, events_ingest, storage
 from ..services import exports as ex
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -63,5 +64,5 @@ def resume_exports(request: Request, principal: Principal = Depends(current_prin
     settings = settings_of(request)
     n = ex.resume_paused(conn, settings, manual=True)
     audit(conn, actor=principal, action="export.resume", decision="allowed", resource_type="installation", resource_id="*",
-          request_id=getattr(request.state, "correlation_id", None), details={"resumed": n})
+          request_id=_rid(request), details={"resumed": n})
     return {"resumed": n, **local_state(settings, conn)}

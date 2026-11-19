@@ -17,6 +17,7 @@ from typing import Any, Iterator
 from fastapi import Request
 from pydantic import BaseModel, Field
 
+from .. import correlation_id
 from ..audit import audit
 from ..db import bump_permission_revision, get_setting, new_id, now_iso, permission_revision, unlocked
 from ..errors import ApiError
@@ -467,7 +468,7 @@ STALE_S = 300  # the integration pushes the directory every 60 s
 
 
 def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
+    return correlation_id.of(request)
 
 
 def rendered_labels(conn: sqlite3.Connection) -> dict[str, str]:

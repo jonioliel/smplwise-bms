@@ -40,6 +40,7 @@ from ..services.recorders import frigate_playback as fp
 from ..services.recorders.frigate import FrigateAdapter
 from .recorders import PERMISSION, _may_read
 from ..services.settings_store import setting_value
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -149,7 +150,7 @@ def discover(recorder_id: str, request: Request, principal: Principal = Depends(
     are kept as disabled rows; a camera that left the config is marked, never deleted."""
     require(conn, principal, PERMISSION, INSTALLATION)
     _adapter(conn, request, recorder_id)  # 404 unless a Frigate recorder
-    return autosync.sync_cameras(settings_of(request), conn, actor=principal, request_id=getattr(request.state, "correlation_id", None), reason="manual", recorder_id=recorder_id)
+    return autosync.sync_cameras(settings_of(request), conn, actor=principal, request_id=_rid(request), reason="manual", recorder_id=recorder_id)
 
 
 @router.get("/frigate/{recorder_id}/cameras")
@@ -337,7 +338,7 @@ def mark_reviewed(recorder_id: str, body: ReviewedIn, request: Request, principa
 
     # F2: the optional mirror toward Frigate (class `review`, permission analytics.review; off by default). Arx's state above is the truth:
     # a mirror that fails is reported here and never undoes it.
-    mirror = control.mirror_reviewed(conn, principal, a, ids, body.reviewed, request_id=getattr(request.state, "correlation_id", None))
+    mirror = control.mirror_reviewed(conn, principal, a, ids, body.reviewed, request_id=_rid(request))
     return {"recorder_id": recorder_id, "reviewed": body.reviewed, "count": len(ids), "mirror": mirror}
 
 
@@ -480,7 +481,7 @@ def _clip_response(conn: sqlite3.Connection, principal: Principal, a: FrigateAda
     from ..db import database_of
     from ..services import frigate_native_svc as native
 
-    native.check_supervised(conn, principal, recorder_id, "clip_read", supervised, getattr(request.state, "correlation_id", None))
+    native.check_supervised(conn, principal, recorder_id, "clip_read", supervised, _rid(request))
     sem = _sem(recorder_id)
     if not sem.acquire(blocking=False):
         raise ApiError(429, "frigate_busy", "יותר מדי קטעי וידאו נקראים במקביל.", retryable=True, details={"max": ASSET_INFLIGHT})
@@ -508,7 +509,7 @@ def _clip_response(conn: sqlite3.Connection, principal: Principal, a: FrigateAda
         with db.write_aside() as w:   # Frigate accepted the first read: the supervised flag is stored (a read connection cannot write)
             native.mark_first_write(w, principal, recorder_id, "clip_read")
     audit(conn, actor=principal, action="frigate.clip.read", decision="allowed", resource_type="camera" if camera_id else "recorder", resource_id=camera_id or recorder_id,
-          request_id=getattr(request.state, "correlation_id", None), details={"what": what})
+          request_id=_rid(request), details={"what": what})
     return StreamingResponse(body(), media_type=stream.content_type, background=BackgroundTask(cleanup),
                              headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Content-Disposition": 'inline; filename="clip.mp4"'})
 

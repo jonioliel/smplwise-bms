@@ -35,6 +35,7 @@ from .media import _json_dumps_error, _principal_for_ws, refuse_media
 from .recordings import camera_for_playback
 from .settings import read_settings
 from ..services.settings_store import setting_value
+from ._common import rid as _rid
 
 log = logging.getLogger("smplwise.playback")
 router = APIRouter()
@@ -93,7 +94,7 @@ def create_session(body: CreateBody, request: Request, principal: Principal = De
     with unlocked(conn):
         session = pb.create(settings, principal, cam, actual_start, seg_end, s["time.zone"], s["playback.max_sessions"])
     audit(conn, actor=principal, action="video.playback.start", decision="allowed", resource_type="camera", resource_id=cam["id"],
-          request_id=getattr(request.state, "correlation_id", None), details={"session": session.id, "requested_at": iso_utc(start), "start_at": iso_utc(actual_start)}, under=decision)
+          request_id=_rid(request), details={"session": session.id, "requested_at": iso_utc(start), "start_at": iso_utc(actual_start)}, under=decision)
     out = pb.to_dict(session, s["playback.lease_s"])
     out["moved_to_next_segment"] = actual_start != start
     return out
@@ -130,7 +131,7 @@ def seek_session(session_id: str, body: SeekBody, request: Request, principal: P
     with unlocked(conn):
         pb.seek(settings, session, actual_start, seg_end, max_per_min=int(s.get("playback.max_seeks_per_min", pb.DEFAULT_MAX_SEEKS_PER_MIN)))
     audit(conn, actor=principal, action="video.playback.seek", decision="allowed", resource_type="camera", resource_id=session.camera_id,
-          request_id=getattr(request.state, "correlation_id", None), details={"session": session.id, "generation": session.generation, "start_at": iso_utc(actual_start)}, under=decision)
+          request_id=_rid(request), details={"session": session.id, "generation": session.generation, "start_at": iso_utc(actual_start)}, under=decision)
     out = pb.to_dict(session, s["playback.lease_s"])
     out["moved_to_next_segment"] = actual_start != start
     return out
@@ -141,7 +142,7 @@ def close_session(session_id: str, request: Request, principal: Principal = Depe
     session = _owned(conn, principal, session_id)
     pb.close(settings_of(request), session)
     audit(conn, actor=principal, action="video.playback.stop", decision="allowed", resource_type="camera", resource_id=session.camera_id,
-          request_id=getattr(request.state, "correlation_id", None), details={"session": session.id, "generation": session.generation, "bytes_down": session.bytes_down,
+          request_id=_rid(request), details={"session": session.id, "generation": session.generation, "bytes_down": session.bytes_down,
                                                                                **pb.media_timing(session)})
     return {"id": session.id, "state": session.state}
 
@@ -154,7 +155,7 @@ def close_session_beacon(session_id: str, request: Request, principal: Principal
         return {"id": session.id, "state": session.state}
     pb.close(settings_of(request), session)
     audit(conn, actor=principal, action="video.playback.stop", decision="allowed", resource_type="camera", resource_id=session.camera_id,
-          request_id=getattr(request.state, "correlation_id", None), details={"session": session.id, "generation": session.generation, "bytes_down": session.bytes_down, "via": "beacon",
+          request_id=_rid(request), details={"session": session.id, "generation": session.generation, "bytes_down": session.bytes_down, "via": "beacon",
                                                                                **pb.media_timing(session)})
     return {"id": session.id, "state": session.state}
 

@@ -36,6 +36,7 @@ from ..services.leases import CameraLease
 from ..services.relay import close_with_error, relay_ws
 from .settings import read_settings
 from ..services.settings_store import setting_value
+from ._common import rid as _rid
 
 log = logging.getLogger("smplwise.media")
 router = APIRouter()
@@ -286,7 +287,7 @@ def sync_streams(request: Request, principal: Principal = Depends(current_princi
     require(conn, principal, "sources.configure", INSTALLATION)
     ensure_nvr(settings_of(request))  # NVR-less mode: no camera streams to create (after the permission check)
     ensure_capability(settings_of(request), "live_video")  # NN1: no go2rtc = 409 capability_unavailable, never a 503
-    return autosync.ensure_streams(settings_of(request), conn, actor=principal, request_id=getattr(request.state, "correlation_id", None), reason="manual")
+    return autosync.ensure_streams(settings_of(request), conn, actor=principal, request_id=_rid(request), reason="manual")
 
 
 @router.get("/media/streams")

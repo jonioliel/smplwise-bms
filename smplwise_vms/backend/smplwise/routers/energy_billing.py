@@ -635,7 +635,8 @@ def delete_version(tid: str, vid: str, request: Request, principal: Principal = 
 
 @router.get("/energy/tou/templates")
 def tou_templates(principal: Principal = Depends(_money_read)) -> dict[str, Any]:
-    return {"items": [{"id": k, "name_he": t["name_he"], "source_he": t["source_he"], "definition": t["build"]()} for k, t in tou.TEMPLATES.items()]}
+    return {"items": [{"id": k, "name_he": t["name_he"], "name_en": t["name_en"], "source_he": t["source_he"], "source_en": t["source_en"],
+                       "definition": t["build"]()} for k, t in tou.TEMPLATES.items()]}
 
 
 def _structure_grid(definition: dict[str, Any]) -> dict[str, Any] | None:
@@ -660,7 +661,7 @@ def tou_check(request: Request, principal: Principal = Depends(_money_read), raw
     except tou.TouError as e:
         grid = _structure_grid(body.definition) if e.code in ("price", "price_missing", "required") and e.path.startswith("prices") else None
         return {"ok": False, "errors": [e.as_dict()], "definition": None, "definition_sha256": None, "grid": grid}
-    return {"ok": True, "errors": [], "definition": d.raw, "definition_sha256": d.sha256(), "grid": tou.week_grid(d)}
+    return {"ok": True, "errors": [], "definition": d.raw, "definition_sha256": d.sha256(), "grid": tou.week_grid(d), "names_en": tou.names_en(d.raw)}
 
 
 def _tou_drafts_on(conn: sqlite3.Connection, day: dt.date) -> int:

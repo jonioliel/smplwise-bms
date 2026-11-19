@@ -16,6 +16,7 @@ from ..db import now_iso
 from ..errors import conflict, not_found
 from ..rbac import INSTALLATION, Principal, require
 from ..services import plan_area_links as links
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -80,5 +81,5 @@ def apply_area_links(body: LinksIn, request: Request, principal: Principal = Dep
     guard.check()
     if changed:
         audit(conn, actor=principal, action="zone.area_links", decision="allowed", resource_type="installation", resource_id="*",
-              request_id=getattr(request.state, "correlation_id", None), details={"changed": changed, "links": details[:50]})
+              request_id=_rid(request), details={"changed": changed, "links": details[:50]})
     return {"changed": changed, **links.table(conn)}

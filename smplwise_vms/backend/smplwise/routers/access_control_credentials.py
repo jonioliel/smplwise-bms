@@ -15,7 +15,7 @@ from ..auth import get_conn, get_read_conn, settings_of
 from ..errors import ApiError
 from ..rbac import Principal
 from ..services import intercom_sync, wiskey_camera
-from ._common import is_json as _is_json
+from ._common import is_json as _is_json, rid as _rid
 from .access_control_base import MAX_STATION_ID, _credentials_admin, _credentials_admin_ro
 from .access_control_stills import _still_path
 
@@ -39,7 +39,7 @@ async def _credentials_body(request: Request) -> bytes:
 
 def _refuse_credentials(conn: sqlite3.Connection, principal: Principal, request: Request, station_id: str, exc: ApiError) -> ApiError:
     audit(conn, actor=principal, action="intercom.credentials.set", decision="denied", resource_type="intercom_station", resource_id=station_id,
-          reason=exc.code, request_id=getattr(request.state, "correlation_id", None))
+          reason=exc.code, request_id=_rid(request))
     return exc
 
 
@@ -92,7 +92,7 @@ def set_station_credentials(
     replaced = wiskey_camera.set_override(conn, settings_of(request), station_id, body.username, body.password, principal.user_id)
     _drop_still(request, station_id)
     audit(conn, actor=principal, action="intercom.credentials.set", decision="allowed", resource_type="intercom_station", resource_id=station_id,
-          request_id=getattr(request.state, "correlation_id", None), details={"replaced": replaced})
+          request_id=_rid(request), details={"replaced": replaced})
     return wiskey_camera.status(conn, settings_of(request), station_id)
 
 
@@ -101,5 +101,5 @@ def clear_station_credentials(request: Request, principal: Principal = Depends(_
     removed = wiskey_camera.clear_override(conn, station_id)
     _drop_still(request, station_id)
     audit(conn, actor=principal, action="intercom.credentials.clear", decision="allowed", resource_type="intercom_station", resource_id=station_id,
-          request_id=getattr(request.state, "correlation_id", None), details={"removed": removed})
+          request_id=_rid(request), details={"removed": removed})
     return wiskey_camera.status(conn, settings_of(request), station_id)

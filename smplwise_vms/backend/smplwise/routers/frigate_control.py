@@ -28,16 +28,13 @@ from ..services.recorders import frigate_io
 from ..services.recorders.frigate import FrigateAdapter
 from .frigate import _camera_row
 from .recorders import PERMISSION
+from ._common import rid as _rid
 
 router = APIRouter()
 
 
 def _adapter(conn: sqlite3.Connection, request: Request, rid: str) -> FrigateAdapter:
     return frigate_io.adapter_for(conn, settings_of(request), rid)
-
-
-def _rq(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _may_see(conn: sqlite3.Connection, principal: Principal) -> None:
@@ -112,7 +109,7 @@ def put_policy(recorder_id: str, body: PolicyIn, request: Request, principal: Pr
     """Switch write classes on or off for the recorder (system.configure). All off by default; `ptz` cannot be switched on while unreleased."""
     require(conn, principal, PERMISSION, INSTALLATION)
     _adapter(conn, request, recorder_id)
-    after = svc.set_policy(conn, principal, recorder_id, body.classes, _rq(request))
+    after = svc.set_policy(conn, principal, recorder_id, body.classes, _rid(request))
     return {"recorder_id": recorder_id, "policy": after}
 
 
@@ -152,7 +149,7 @@ def set_feature(recorder_id: str, camera_id: str, feature: str, body: SwitchIn, 
     if not row["source_ref"]:
         raise ApiError(409, "camera_not_mapped", "למצלמה אין מפתח ב־Frigate; הריצו גילוי מחדש.")
     a = _adapter(conn, request, recorder_id)
-    out = svc.set_feature(conn, principal, a, row, feature, body.value, confirm=body.confirm, request_id=_rq(request))
+    out = svc.set_feature(conn, principal, a, row, feature, body.value, confirm=body.confirm, request_id=_rid(request))
     return {"recorder_id": recorder_id, "camera_id": camera_id, **out}
 
 
@@ -174,7 +171,7 @@ def put_profile(recorder_id: str, body: ProfileIn, request: Request, principal: 
     """Switch Frigate's active profile (per-action: `confirm: true`; Frigate clears its runtime toggles on a switch). `profile: null` = none."""
     a = _adapter(conn, request, recorder_id)
     require(conn, principal, svc.PERMISSION["profile"], INSTALLATION)
-    return {"recorder_id": recorder_id, **svc.set_profile(conn, principal, a, body.profile, confirm=body.confirm, request_id=_rq(request))}
+    return {"recorder_id": recorder_id, **svc.set_profile(conn, principal, a, body.profile, confirm=body.confirm, request_id=_rid(request))}
 
 
 @router.put("/frigate/{recorder_id}/profile-rules")
@@ -182,7 +179,7 @@ def put_rules(recorder_id: str, body: RulesIn, request: Request, principal: Prin
     """Which profile an alarm state suggests (system.configure). A mapping only: nothing is switched by it."""
     require(conn, principal, PERMISSION, INSTALLATION)
     _adapter(conn, request, recorder_id)
-    return {"recorder_id": recorder_id, "rules": svc.set_rules(conn, principal, recorder_id, body.rules, _rq(request))}
+    return {"recorder_id": recorder_id, "rules": svc.set_rules(conn, principal, recorder_id, body.rules, _rid(request))}
 
 
 @router.get("/frigate/{recorder_id}/profile-suggestion")
@@ -214,13 +211,13 @@ def event_control(recorder_id: str, event_id: str, request: Request, principal: 
 def event_retain(recorder_id: str, event_id: str, body: RetainIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Keep (or stop keeping) the footage of a tracked object past the normal retention. The event must belong to a review item the caller can see."""
     a = _adapter(conn, request, recorder_id)
-    return {"recorder_id": recorder_id, **svc.set_retain(conn, principal, a, event_id, body.retain, request_id=_rq(request))}
+    return {"recorder_id": recorder_id, **svc.set_retain(conn, principal, a, event_id, body.retain, request_id=_rid(request))}
 
 
 @router.post("/frigate/{recorder_id}/events/{event_id}/sub-label")
 def event_sub_label(recorder_id: str, event_id: str, body: SubLabelIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     a = _adapter(conn, request, recorder_id)
-    return {"recorder_id": recorder_id, **svc.set_sub_label(conn, principal, a, event_id, body.sub_label, request_id=_rq(request))}
+    return {"recorder_id": recorder_id, **svc.set_sub_label(conn, principal, a, event_id, body.sub_label, request_id=_rid(request))}
 
 
 # ---------------------------------------------------------------------------------------------- PTZ (disabled by a code flag)
@@ -237,7 +234,7 @@ def ptz_post(recorder_id: str, camera_id: str, body: PtzIn, request: Request, pr
     """ONE PTZ step (move, zoom, stop, or a saved position). Answers 409 `frigate_ptz_disabled` while PTZ is not released."""
     cam = _camera_row(conn, principal, recorder_id, camera_id, svc.PERMISSION["ptz"])
     a = _adapter(conn, request, recorder_id)
-    return {"recorder_id": recorder_id, "camera_id": camera_id, **svc.ptz_step(conn, principal, a, cam, body.command, confirm=body.confirm, request_id=_rq(request))}
+    return {"recorder_id": recorder_id, "camera_id": camera_id, **svc.ptz_step(conn, principal, a, cam, body.command, confirm=body.confirm, request_id=_rid(request))}
 
 
 # ---------------------------------------------------------------------------------------------- the change log
@@ -259,4 +256,4 @@ def list_changes(recorder_id: str, request: Request, limit: int = Query(50, ge=1
 def revert_change(recorder_id: str, change_id: str, body: RevertIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Undo one logged change (same class, permission and confirmation rules as making it; 409 `frigate_change_stale` when Frigate moved since)."""
     a = _adapter(conn, request, recorder_id)
-    return {"recorder_id": recorder_id, **svc.revert(conn, principal, a, change_id, confirm=body.confirm, request_id=_rq(request), supervised=body.supervised)}
+    return {"recorder_id": recorder_id, **svc.revert(conn, principal, a, change_id, confirm=body.confirm, request_id=_rid(request), supervised=body.supervised)}

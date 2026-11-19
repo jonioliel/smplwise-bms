@@ -24,7 +24,7 @@ from ..rbac import INSTALLATION, Principal, STATION, authorize
 from ..services import capture_lease, door_authority, intercom_authority as ia, intercom_client, intercom_sync
 from ..services.access_control_core import PERSON, command_already_sent
 from ..services.timeutil import parse_utc
-from ._common import is_json as _is_json
+from ._common import is_json as _is_json, rid as _rid
 from .access_control_base import DOOR_OPEN, MAX_STATION_ID, log
 
 
@@ -180,7 +180,7 @@ def _caller(request: Request, principal: Principal = Depends(current_principal_r
     languages only; speaking still needs `access.call` on the station's chain)."""
     if authorize(conn, principal, "system.configure", INSTALLATION).allowed:
         return principal
-    ia.require_anywhere(conn, principal, ia.CALL, getattr(request.state, "correlation_id", None))
+    ia.require_anywhere(conn, principal, ia.CALL, _rid(request))
     return principal
 
 
@@ -223,7 +223,7 @@ class _Action:
 
     def __init__(self, request: Request, conn: sqlite3.Connection, principal: Principal, action: str, resource_id: str, resource_type: str = "intercom_station") -> None:
         self.request, self.conn, self.principal, self.action, self.resource_id, self.resource_type = request, conn, principal, action, resource_id, resource_type
-        self.rid = getattr(request.state, "correlation_id", None)
+        self.rid = _rid(request)
         self.details: dict[str, Any] = {"command": action.removeprefix("intercom.")}
 
     @property
