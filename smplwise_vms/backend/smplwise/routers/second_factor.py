@@ -30,6 +30,7 @@ from ..rbac import INSTALLATION, Principal, all_roles, require
 from ..services import ha_user_auth as hua
 from ..services import capture_lease, notify_sources, presence
 from ..services import second_factor as sf
+from ..services import second_factor_store as store
 from ._common import rid as _rid
 
 router = APIRouter()
@@ -158,7 +159,7 @@ def set_override(kind: str, subject_id: str, body: OverrideBody, request: Reques
         raise ApiError(422, "invalid_policy", "המדיניות צריכה להיות inherit, optional או required.", details={"allowed": list(sf.OVERRIDE_VALUES)})
     if len(subject_id) > 200:
         raise ApiError(404, "not_found", "היעד לא נמצא.")
-    if kind == "user" and conn.execute("SELECT 1 FROM users WHERE id = ?", (subject_id,)).fetchone() is None:
+    if kind == "user" and store.user_row(conn, subject_id) is None:
         raise ApiError(404, "user_unknown", "המשתמש לא נמצא בספריית המערכת.")
     if kind == "role" and subject_id not in all_roles(conn):
         raise ApiError(404, "not_found", "התפקיד לא נמצא.")
