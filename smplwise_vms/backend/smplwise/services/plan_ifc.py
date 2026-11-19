@@ -385,7 +385,8 @@ def _ifc_head(w: Writer, ctx: Ref, units: Ref, doc: dict[str, Any], *, floor_id:
     return building, bld_pl
 
 
-def _ifc_storeys(w: Writer, floor_id: str, levels: list[dict[str, Any]], level: str | None, building: Ref, bld_pl: Ref, counts: dict[str, int]) -> dict[str, dict[str, Any]]:
+def _ifc_storeys(w: Writer, floor_id: str, levels: list[dict[str, Any]], level: str | None, building: Ref, bld_pl: Ref,
+                 counts: dict[str, int]) -> dict[str, dict[str, Any]]:
     """One storey per level (or the one asked for), aggregated into the building. Returns the storeys by level id."""
     by_level: dict[str, dict[str, Any]] = {}
     storeys: list[Ref] = []
@@ -404,7 +405,8 @@ def _ifc_storeys(w: Writer, floor_id: str, levels: list[dict[str, Any]], level: 
     return by_level
 
 
-def _ifc_walls(w: Writer, floor_id: str, doc: dict[str, Any], frame: _Frame, level_of: Callable[[dict[str, Any]], dict[str, Any] | None], counts: dict[str, int]) -> dict[str, tuple[Ref, Ref, list[Pt], list[float], list[float], float, dict[str, Any]]]:
+def _ifc_walls(w: Writer, floor_id: str, doc: dict[str, Any], frame: _Frame, level_of: Callable[[dict[str, Any]], dict[str, Any] | None],
+              counts: dict[str, int]) -> dict[str, tuple[Ref, Ref, list[Pt], list[float], list[float], float, dict[str, Any]]]:
     """The walls (straight or curved bodies along their path). Returns what an opening needs of its host wall, by wall id."""
     wall_refs: dict[str, tuple[Ref, Ref, list[Pt], list[float], list[float], float, dict[str, Any]]] = {}
     for wall in sorted((x for x in doc.get("walls") or [] if isinstance(x, dict) and isinstance(x.get("id"), str)), key=lambda x: x["id"]):
@@ -442,7 +444,8 @@ def _ifc_walls(w: Writer, floor_id: str, doc: dict[str, Any], frame: _Frame, lev
     return wall_refs
 
 
-def _ifc_openings(w: Writer, floor_id: str, doc: dict[str, Any], frame: _Frame, wall_refs: dict[str, tuple[Ref, Ref, list[Pt], list[float], list[float], float, dict[str, Any]]],
+def _ifc_openings(w: Writer, floor_id: str, doc: dict[str, Any], frame: _Frame,
+                  wall_refs: dict[str, tuple[Ref, Ref, list[Pt], list[float], list[float], float, dict[str, Any]]],
                   counts: dict[str, int]) -> None:
     """The openings: a void in the host wall, filled by a door or a window."""
     for op in sorted((x for x in doc.get("openings") or [] if isinstance(x, dict) and isinstance(x.get("id"), str)), key=lambda x: x["id"]):
@@ -487,7 +490,8 @@ def _ifc_openings(w: Writer, floor_id: str, doc: dict[str, Any], frame: _Frame, 
         counts["openings"] += 1
 
 
-def _ifc_rooms(w: Writer, floor_id: str, doc: dict[str, Any], zones: list[dict[str, Any]], frame: _Frame, level_of: Callable[[dict[str, Any]], dict[str, Any] | None], counts: dict[str, int]) -> None:
+def _ifc_rooms(w: Writer, floor_id: str, doc: dict[str, Any], zones: list[dict[str, Any]], frame: _Frame, level_of: Callable[[dict[str, Any]], dict[str, Any] | None],
+              counts: dict[str, int]) -> None:
     """The rooms (the floor's zones) as spaces."""
     rooms = {r["id"]: r for r in doc.get("rooms") or [] if isinstance(r, dict) and isinstance(r.get("id"), str)}
     for z in sorted((z for z in zones if isinstance(z, dict) and isinstance(z.get("polygon"), list) and len(z["polygon"]) >= 3), key=lambda z: str(z.get("id"))):
@@ -510,7 +514,8 @@ def _ifc_rooms(w: Writer, floor_id: str, doc: dict[str, Any], zones: list[dict[s
         counts["rooms"] += 1
 
 
-def _ifc_objects(w: Writer, floor_id: str, doc: dict[str, Any], items: dict[str, Any], frame: _Frame, level_of: Callable[[dict[str, Any]], dict[str, Any] | None], counts: dict[str, int]) -> None:
+def _ifc_objects(w: Writer, floor_id: str, doc: dict[str, Any], items: dict[str, Any], frame: _Frame, level_of: Callable[[dict[str, Any]], dict[str, Any] | None],
+                counts: dict[str, int]) -> None:
     """The objects as their catalog class."""
     circuits = {m: str(c.get("switch_entity_id") or "") for c in doc.get("circuits") or [] if isinstance(c, dict) for m in c.get("member_ids") or []}
     for ob in sorted((x for x in doc.get("objects") or [] if isinstance(x, dict) and isinstance(x.get("id"), str)), key=lambda x: x["id"]):
