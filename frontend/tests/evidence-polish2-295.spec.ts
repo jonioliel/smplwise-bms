@@ -220,13 +220,16 @@ async function choiceContrast(page: Page) {
 test.describe('dark scheme: the choice buttons are legible', () => {
   for (const [name, hash] of [['automations', '/devices/automations'], ['schedules', '/devices/schedules'], ['settings-automations', '/system/automations'], ['settings-schedules', '/system/schedules']] as const) {
     test(`${name}: every label 4.5:1, a chosen segment or chip 3:1 from its track`, async ({ page }, info) => {
-      await openDemo(page, '', hash, { 'sw.demo.automations': JSON.stringify({ scheme: 'dark' }), 'sw.demo.schedules': JSON.stringify({ persona: 'admin' }) });
+      // FIX-FLAKY-POLISH-WORSTCASE-2439: the app itself runs dark (`scheme=dark`, the design override every apply() honours). Flipping only
+      // `data-theme` after a light boot raced the app: a later apply() (the look / brand / palette callbacks) put the light theme back
+      // (a chosen light key on its light track read 1.23:1 on the runner), and on a lagging renderer the light-to-dark colour
+      // transitions had not run a single frame 800 ms after the flip (1.44:1 / 4.48:1, the transitions' start). Never when run alone.
+      await openDemo(page, '&scheme=dark', hash, { 'sw.demo.automations': JSON.stringify({ scheme: 'dark' }), 'sw.demo.schedules': JSON.stringify({ persona: 'admin' }) });
       await expect.poll(() => choiceCount(page), { message: 'the screen drew its choice buttons', timeout: 20_000 }).toBeGreaterThan(0);
       await dark(page);
       await page.waitForTimeout(800);
-      // the resting dark colours: on a lagging renderer the scheme's colour transitions had not run a single frame 800 ms after the
-      // switch (a light-to-dark background read at its start under the new ink: 1.44:1 / 4.48:1 on the runner, never alone)
-      await settle(page);
+      await settle(page, 10_000); // the resting colours: two frames, then every finite transition ended (a starved renderer needs longer than 2 s)
+      expect(await page.evaluate(() => document.documentElement.getAttribute('data-theme')), 'the page is dark when it is measured').toBe('dark');
       const all = await choiceContrast(page);
       expect(all.length, 'choice buttons found').toBeGreaterThan(0);
       expect(all.some((x) => x.chosen), 'a chosen one').toBe(true);

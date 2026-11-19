@@ -14,12 +14,21 @@ re-run alone:
 
 ## Root causes (measured on the runner with throw-away diagnostic specs, not committed)
 
-### 1. evidence-polish2-295 "choice buttons found" - a test race (no product bug)
+### 1. evidence-polish2-295 "choice buttons found" - a test race, plus one product bug it shares with spec 2
 
 The test waited for `<sw-app>` only, then 800 ms, then read the choice buttons once. The screen is a lazy route chunk: on the runner at
 load ~47 the buttons were still absent 800 ms after `<sw-app>` in 19 of 24 loads (unthrottled), and appeared 0.2-2.1 s later
 (`#/devices/automations`, `#/devices/schedules`, all three projects; the screen element was often not even defined yet). Every load
 drew the full set at once (desktop 15 / tablet 10 / mobile 9 on automations), so nothing is partly drawn when the first one appears.
+
+The first repeat run of the fix showed two more causes in the same test: (i) `notify-center` has the same close-only delayed hide as
+the user menu (2b below) - a never-opened centre was computed visible after each load, so its segment buttons were counted before the
+screen had drawn its own, then vanished; (ii) the test booted the app light and only flipped `data-theme` to dark afterwards. A
+diagnostic copy under CPU throttle (6x) showed both ways that races the app: the light-to-dark colour transitions were still at
+`currentTime 0` two seconds after the flip (no frame had run; labels read at the transitions' start, 1.44:1 / 4.48:1 / 1.56:1), and
+in another load no transition was running but a chosen key read 1.23:1 from its track - the light theme's white key on its grey track:
+a later `apply()` of the design (the look / brand / palette callbacks) had put the installation's light scheme back over the test's
+flip. Neither happens when the test runs alone.
 
 ### 2. layout-worstcase-screens-297 - two product bugs, made visible by the runner's lag
 
@@ -47,10 +56,11 @@ d. **The measurement could land before the frame that applies pending fits.** Th
 | File | Change |
 |---|---|
 | `frontend/src/shell/sw-user-menu.ts` | (a) `li.view` wraps: the label keeps its own width (`flex: 1 1 auto`), the control moves to a second line at the row's end when both do not fit (three options in the 300 px popover); two options still share one line (same geometry as before). (b) `:host(:not([data-was-open])) { transition: none }`; `data-was-open` is set the first time the menu opens, so the delayed hide still applies to every close. |
+| `frontend/src/components/notify-center.ts` | the same (b) fix as the user menu: no visibility transition until the centre has opened once (`data-was-open`). |
 | `frontend/src/components/sw-kpi.ts` | (c) every connected tile fits its value again when `document.fonts` reports `loadingdone` (one document listener for all tiles, one measure per tile per frame through the existing `fitSchedule`). |
-| `frontend/tests/evidence-polish2-295.spec.ts` | (1) waits (`expect.poll`, 20 s) until the screen has drawn its choice buttons before switching to dark; the selector is one constant shared with the contrast read. The assertions are unchanged. |
+| `frontend/tests/evidence-polish2-295.spec.ts` | (1) the dark test boots the app dark (`&scheme=dark`, the design override every `apply()` honours) instead of flipping `data-theme` after a light boot; waits (`expect.poll`, 20 s) until the screen has drawn its choice buttons; waits for the resting colours (`settle(page, 10_000)`: two frames, then every finite transition); checks the page is still dark when measured. The selector is one constant shared with the count and the contrast read. The contrast assertions are unchanged. |
 | `frontend/tests/layout-worstcase-screens-297.spec.ts` | (d) `settle(page)` (helpers/settle.ts: two frames, then the finite animations) before each measurement. The checks are unchanged. |
-| `frontend/tests/layout-menu-kpi-fit-2439.spec.ts` | New regression spec for (a), (b), (c) - see Tests. |
+| `frontend/tests/layout-menu-kpi-fit-2439.spec.ts` | New regression spec for (a), (b) (user menu and notification centre), (c) - see Tests. |
 
 No assertion was loosened, no retry added, nothing quarantined.
 
