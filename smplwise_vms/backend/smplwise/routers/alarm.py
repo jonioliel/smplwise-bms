@@ -31,6 +31,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Decision, Principal, authorize, note_grant, permissions_anywhere, require
 from ..services import alarm as svc
 from ..services import alarm_codes as codes
+from ..services import alarm_store as store
 from ..services import ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, service_identity
 from ..services.timeutil import parse_utc
 from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
@@ -292,7 +293,7 @@ def _settle_pass_through(conn: sqlite3.Connection) -> None:
     with _PASS_THROUGH_LOCK:
         items = [(tok, dict(e)) for tok, e in _PASS_THROUGH.items() if e["aid"]]
     for tok, e in items:
-        row = conn.execute("SELECT * FROM ha_actions WHERE id = ?", (e["aid"],)).fetchone()
+        row = store.action(conn, e["aid"])
         if row is None:
             _release_pass_through(tok)
             continue
@@ -305,7 +306,7 @@ def _settle_pass_through(conn: sqlite3.Connection) -> None:
         _release_pass_through(tok)
         forgive = a["status"] == "confirmed"
         if not forgive and a.get("error") != "invalid_code" and a["status"] != "failed":
-            cur = conn.execute("SELECT state FROM ha_entities WHERE entity_id = ?", (a["entity_id"],)).fetchone()
+            cur = store.entity_state(conn, a["entity_id"])
             forgive = bool(cur and e["target"] and cur["state"] == e["target"] and a.get("observed_state") == e["target"])
         if a["status"] == "failed" and a.get("error") in PRE_PANEL_FAILURES:
             forgive = True  # failed before the command could reach the panel: no code was judged
@@ -416,13 +417,11 @@ def _send(act: _Act, request: Request, entity_id: str, action_id: str, args: dic
     paired = bool(secret) and bool(get_setting(conn, "bridge.paired_at"))
     aid, now = uuid.uuid4().hex[:12], now_iso()
     cleaned = {k: v for k, v in data.items() if k != "entity_id"}
-    conn.execute(
-        "INSERT INTO ha_actions(id, entity_id, action_id, arguments_json, principal_user_id, principal_username, client_request_id, status, requested_at, expected_state, via) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-        (aid, entity_id, action_id, json.dumps(cleaned, ensure_ascii=False), principal.user_id, principal.username, client_request_id, "pending", now, ha_bridge.expectation_for(spec, attributes), "bridge"),
-    )
+    store.insert_bridge_action(conn, aid, entity_id, action_id, json.dumps(cleaned, ensure_ascii=False), principal.user_id, principal.username, client_request_id, now,
+                               ha_bridge.expectation_for(spec, attributes))
     act.details["id"] = aid
     if not paired:
-        conn.execute("UPDATE ha_actions SET status = 'failed', error = 'bridge_not_paired', responded_at = ? WHERE id = ?", (now_iso(), aid))
+        store.fail_unpaired(conn, aid, now_iso())
         raise act.refuse(ApiError(503, "bridge_not_paired", "פעולות אלו דורשות את גשר SMPLWISE מותקן ומצומד.", details={"action_id": aid}))
     service_data = dict(data)
     if send_code:
@@ -432,7 +431,7 @@ def _send(act: _Act, request: Request, entity_id: str, action_id: str, args: dic
         with unlocked(conn):
             result = ha_client.call_bridge_execute(settings, payload)
     except ApiError as exc:
-        conn.execute("UPDATE ha_actions SET status = 'failed', error = ?, responded_at = ? WHERE id = ?", (exc.code, now_iso(), aid))
+        store.fail_action(conn, aid, exc.code, now_iso())
         act.audit("allowed", exc.code, status="failed")
         # the bridge's own text never travels on (it could in principle quote the request): its code and a fixed message
         raise ApiError(exc.status, exc.code, svc.scrub(exc.user_message, send_code), retryable=exc.retryable, details={"action_id": aid}) from None
@@ -441,7 +440,7 @@ def _send(act: _Act, request: Request, entity_id: str, action_id: str, args: dic
     status, error = ha_actions.bridge_status(result if isinstance(result, dict) else {})
     if error and error not in CODE_REFUSALS and not error.replace("_", "").isalnum():
         error = "bridge_error"
-    conn.execute("UPDATE ha_actions SET status = ?, error = ?, responded_at = ? WHERE id = ?", (status, error, now_iso(), aid))
+    store.answer_action(conn, aid, status, error, now_iso())
     act.audit("allowed" if status == "pending" else "denied", error, status=status)
     out = ha_actions.action_row(conn, aid)
     out["note"] = "הבקשה התקבלה; המצב מאושר רק כשמגיע עדכון." if status == "pending" else None
@@ -481,7 +480,7 @@ def panel_action(entity_id: str, request: Request, principal: Principal = Depend
         _envelope(body.client_request_id, body.expires_at)
     except ApiError as exc:
         raise act.refuse(exc) from None
-    existing = conn.execute("SELECT id FROM ha_actions WHERE principal_user_id = ? AND client_request_id = ?", (principal.user_id, body.client_request_id)).fetchone()
+    existing = store.action_by_request(conn, principal.user_id, body.client_request_id)
     if existing:
         return ha_actions.action_row(conn, existing["id"])  # a repeated click never sends twice
     if disarm and body.confirmed is not True:
@@ -581,7 +580,7 @@ def zone_bypass(zone_entity_id: str, request: Request, principal: Principal = De
         _envelope(body.client_request_id, body.expires_at)
     except ApiError as exc:
         raise act.refuse(exc) from None
-    existing = conn.execute("SELECT id FROM ha_actions WHERE principal_user_id = ? AND client_request_id = ?", (principal.user_id, body.client_request_id)).fetchone()
+    existing = store.action_by_request(conn, principal.user_id, body.client_request_id)
     if existing:
         return ha_actions.action_row(conn, existing["id"])
     if body.confirmed is not True:
@@ -605,7 +604,7 @@ def zone_bypass(zone_entity_id: str, request: Request, principal: Principal = De
         if not option:
             raise act.refuse(ApiError(409, "no_bypass_option", "למתג העקיפה אין אפשרות מתאימה."))
         action_id, args = "select.select_option", {"option": option}
-    row = conn.execute("SELECT attributes_json FROM ha_entities WHERE entity_id = ?", (ctl["entity_id"],)).fetchone()
+    row = store.entity_attributes(conn, ctl["entity_id"])
     attrs = json.loads(row["attributes_json"] or "{}") if row else {}
     return _send(act, request, ctl["entity_id"], action_id, args, None, body.client_request_id, attrs, feature="alarm.bypass")
 
@@ -742,15 +741,15 @@ class OverrideBody(BaseModel):
 def put_override(zone_entity_id: str, request: Request, principal: Principal = Depends(_configurer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body, _ = _parse(request, raw, OverrideBody)
     act = _Act(request, conn, principal, "alarm.mapping", "alarm_zone", zone_entity_id)
-    zone = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (zone_entity_id,)).fetchone()
+    zone = store.live_entity_domain(conn, zone_entity_id)
     if not zone or zone["domain"] != "binary_sensor":
         raise act.refuse(ApiError(404, "not_found", "החיישן לא נמצא (נדרש binary_sensor)."))
     if body.panel_entity_id:
-        r = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (body.panel_entity_id,)).fetchone()
+        r = store.live_entity_domain(conn, body.panel_entity_id)
         if not r or r["domain"] != "alarm_control_panel":
             raise act.refuse(ApiError(422, "validation", "הלוח לא נמצא.", details={"fields": ["panel_entity_id"]}))
     if body.bypass_entity_id:
-        r = conn.execute("SELECT * FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (body.bypass_entity_id,)).fetchone()
+        r = store.live_entity(conn, body.bypass_entity_id)
         ok = bool(r) and r["domain"] in ("switch", "select")
         if ok and r["domain"] == "select":
             ok = svc.select_options(ha_sync.entity_row(r))[0] is not None
@@ -760,13 +759,9 @@ def put_override(zone_entity_id: str, request: Request, principal: Principal = D
             # review L4: a plain switch (a light, a door release) taken for a bypass control would be operated from the
             # alarm screen and withdrawn from every other screen - only on an explicit confirmation
             raise act.refuse(ApiError(409, "not_bypass_like", "למתג הזה אין סימן עקיפה (bypass). לשייך אותו בכל זאת כמתג העקיפה של החיישן?", details={"entity_id": body.bypass_entity_id}))
-    conn.execute(
-        "INSERT INTO alarm_zone_overrides(zone_entity_id, panel_entity_id, bypass_entity_id, excluded, updated_at, updated_by) VALUES (?,?,?,?,?,?) "
-        "ON CONFLICT(zone_entity_id) DO UPDATE SET panel_entity_id = excluded.panel_entity_id, bypass_entity_id = excluded.bypass_entity_id, excluded = excluded.excluded, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
-        (zone_entity_id, body.panel_entity_id or None, body.bypass_entity_id, 1 if body.excluded else 0, now_iso(), principal.username),
-    )
+    store.put_override(conn, zone_entity_id, body.panel_entity_id or None, body.bypass_entity_id, 1 if body.excluded else 0, now_iso(), principal.username)
     act.audit("allowed", None, panel_entity_id=body.panel_entity_id, bypass_entity_id=body.bypass_entity_id, excluded=body.excluded, confirm_not_bypass_like=body.confirm_not_bypass_like)
-    return dict(conn.execute("SELECT * FROM alarm_zone_overrides WHERE zone_entity_id = ?", (zone_entity_id,)).fetchone())
+    return dict(store.override(conn, zone_entity_id))
 
 
 class NotAlarmBody(BaseModel):
@@ -781,27 +776,23 @@ def put_not_alarm(entity_id: str, request: Request, principal: Principal = Depen
     entity again for the other screens. system.configure, audited; `not_alarm: false` takes the mark back."""
     body, _ = _parse(request, raw, NotAlarmBody)
     act = _Act(request, conn, principal, "alarm.mapping", "ha_entity", entity_id)
-    r = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
+    r = store.live_entity_domain(conn, entity_id)
     if not r or r["domain"] not in ("switch", "select"):
         raise act.refuse(ApiError(404, "not_found", "המתג לא נמצא (נדרש switch או select)."))
     if body.not_alarm:
-        paired = conn.execute("SELECT 1 FROM alarm_zone_overrides WHERE bypass_entity_id = ?", (entity_id,)).fetchone()
+        paired = store.paired_as_bypass(conn, entity_id)
         if paired:
             raise act.refuse(ApiError(409, "paired_by_hand", "המתג משויך ידנית לחיישן; בטלו קודם את השיוך."))
-        conn.execute(
-            "INSERT INTO alarm_zone_overrides(zone_entity_id, panel_entity_id, bypass_entity_id, excluded, updated_at, updated_by) VALUES (?, NULL, NULL, 1, ?, ?) "
-            "ON CONFLICT(zone_entity_id) DO UPDATE SET excluded = 1, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
-            (entity_id, now_iso(), principal.username),
-        )
+        store.mark_not_alarm(conn, entity_id, now_iso(), principal.username)
     else:
-        conn.execute("DELETE FROM alarm_zone_overrides WHERE zone_entity_id = ?", (entity_id,))
+        store.delete_override(conn, entity_id)
     act.audit("allowed", None, not_alarm=body.not_alarm)
     return {"entity_id": entity_id, "not_alarm": body.not_alarm, "alarm_managed": svc.is_managed_control(conn, entity_id)}
 
 
 @router.delete("/alarm/overrides/{zone_entity_id}")
 def delete_override(zone_entity_id: str, request: Request, principal: Principal = Depends(_configurer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    n = conn.execute("DELETE FROM alarm_zone_overrides WHERE zone_entity_id = ?", (zone_entity_id,)).rowcount
+    n = store.delete_override(conn, zone_entity_id)
     _Act(request, conn, principal, "alarm.mapping", "alarm_zone", zone_entity_id).audit("allowed", None, reset=True)
     return {"removed": n}
 
@@ -815,7 +806,7 @@ def put_panel_code(entity_id: str, request: Request, principal: Principal = Depe
     """Store the panel's own code (write-only, encrypted). The reply says only that it is set."""
     _, secret = _parse(request, raw, EmptyBody, ("code",))
     act = _Act(request, conn, principal, "alarm.panel_code", "alarm_panel", entity_id)
-    r = conn.execute("SELECT domain, attributes_json FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
+    r = store.live_entity_domain_attributes(conn, entity_id)
     if not r or r["domain"] != "alarm_control_panel":
         raise act.refuse(ApiError(404, "not_found", "לוח האזעקה לא נמצא."))
     fmt = (json.loads(r["attributes_json"] or "{}") or {}).get("code_format")
@@ -840,7 +831,7 @@ def delete_panel_code(entity_id: str, request: Request, principal: Principal = D
 
 def _sole_configurer(conn: sqlite3.Connection, principal: Principal) -> bool:
     """No other active user holds system.configure (at installation scope)."""
-    for r in conn.execute("SELECT id, username FROM users WHERE active = 1 AND id != ?", (principal.user_id,)).fetchall():
+    for r in store.other_active_users(conn, principal.user_id):
         other = Principal(user_id=r["id"], username=r["username"] or "", display_name="", source="dev")
         if authorize(conn, other, "system.configure", INSTALLATION).allowed:
             return False
@@ -863,7 +854,7 @@ def _own_change(act: "_Act", conn: sqlite3.Connection, current: Any) -> None:
 
 @router.get("/alarm/users/{user_id}")
 def user_policy(user_id: str, principal: Principal = Depends(_configurer_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    if not conn.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone():
+    if not store.user_exists(conn, user_id):
         raise ApiError(404, "not_found", "המשתמש לא נמצא.")
     return {"user_id": user_id, **codes.policy(conn, user_id), "code_mode": _settings(conn)["code_mode"]}
 
@@ -878,7 +869,7 @@ class PolicyBody(BaseModel):
 def put_user_policy(user_id: str, request: Request, principal: Principal = Depends(_configurer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body, secret = _parse(request, raw, PolicyBody, ("current_pin",))
     act = _Act(request, conn, principal, "alarm.user_policy", "user", user_id)
-    if not conn.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone():
+    if not store.user_exists(conn, user_id):
         raise act.refuse(ApiError(404, "not_found", "המשתמש לא נמצא."))
     if user_id == principal.user_id:
         _own_change(act, conn, secret.get("current_pin"))
@@ -892,7 +883,7 @@ def put_user_pin(user_id: str, request: Request, principal: Principal = Depends(
     """An administrator sets a user's PIN (e.g. for someone who never opens the screen); the user may change it later."""
     _, secret = _parse(request, raw, PinBody, ("pin", "current_pin"))
     act = _Act(request, conn, principal, "alarm.pin", "user", user_id)
-    if not conn.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone():
+    if not store.user_exists(conn, user_id):
         raise act.refuse(ApiError(404, "not_found", "המשתמש לא נמצא."))
     if user_id == principal.user_id:
         _own_change(act, conn, secret.get("current_pin"))
@@ -905,7 +896,7 @@ def put_user_pin(user_id: str, request: Request, principal: Principal = Depends(
 @router.delete("/alarm/users/{user_id}/pin")
 def delete_user_pin(user_id: str, request: Request, principal: Principal = Depends(_configurer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     act = _Act(request, conn, principal, "alarm.pin", "user", user_id)
-    if not conn.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone():  # review L7
+    if not store.user_exists(conn, user_id):  # review L7
         raise act.refuse(ApiError(404, "not_found", "המשתמש לא נמצא."))
     if user_id == principal.user_id:
         raise act.refuse(ApiError(403, "own_pin_by_other_admin", "את הקוד האישי שלך מוחק מנהל מערכת אחר."))
