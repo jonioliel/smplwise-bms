@@ -1,6 +1,10 @@
-import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { LitElement, html, css, nothing, noChange, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import { Directive, directive, PartType, type ElementPart, type PartInfo } from 'lit/directive.js';
 import { tr } from '../i18n/msg/components';
+import { cellClassOf, cellPartOf, headClassOf, rowAttrMap, rowFocusStep, type CellKind, type RowAttrs } from './table-logic';
+
+export type { CellKind, RowAttrs } from './table-logic';
 
 export interface TableColumn<Row = Record<string, unknown>> {
   key: string;
@@ -19,10 +23,44 @@ export interface TableColumn<Row = Record<string, unknown>> {
    *   `show`: kept below the meta line as the old caption / value pair;  `hide` or unset: left out on the phone.
    * A table that marks no column keeps the old label / value stack (unchanged). */
   card?: 'title' | 'badge' | 'meta' | 'show' | 'hide';
+  /** CR-CMP2-TABLES-2450 (owner N10): the column's shared cell kind(s) - the vocabulary that replaces a screen's own cell classes, which
+   * do not reach into this shadow root: `num` (tabular figures, a left-to-right isolate, aligned to the reading end), `muted`, `status`
+   * (holds a `.chip`), `actions` (the row's buttons at the reading end), `truncate` (one line with an ellipsis). Every kind is also a
+   * part (`sw-table::part(cell-num)`). Unset: the cell is drawn as before. */
+  kind?: CellKind | readonly CellKind[];
+  /** CR-CMP2-TABLES-2450: the column's alignment (a `num` / `actions` column already sits at the reading end) */
+  align?: 'start' | 'center' | 'end';
+  /** CR-CMP2-TABLES-2450: the cell's tooltip (a `truncate` column without `render` shows its own text) */
+  cellTitle?: (row: Row) => string | undefined;
+  /** CR-CMP2-TABLES-2450: per-cell hooks (`data-*` / `aria-*` / `title`), as `rowAttrs` does for the row - a spec that reads
+   * `td[data-reads-place]` keeps finding the cell */
+  cellAttrs?: (row: Row) => RowAttrs;
 }
 
 /** The phone row template is on for a table as soon as one of its columns names its place in it. */
 export const usesCardTemplate = <R>(cols: readonly TableColumn<R>[]): boolean => cols.some((c) => !!c.card);
+
+/** CR-CMP2-TABLES-2450: the per-row hooks (`rowAttrs`) on a `<tr>` - set as given, and removed when a later render drops one (a row is
+ * reused by position). Only `data-*`, `aria-*` and `title` pass (table-logic `rowAttrMap`). */
+class RowAttrsDirective extends Directive {
+  private last = new Set<string>();
+  constructor(info: PartInfo) {
+    super(info);
+    if (info.type !== PartType.ELEMENT) throw new Error('rowHooks() belongs on an element (a row or a cell)');
+  }
+  render(_attrs: RowAttrs | null | undefined) {
+    return noChange;
+  }
+  update(part: ElementPart, [attrs]: [RowAttrs | null | undefined]) {
+    const el = part.element;
+    const want = rowAttrMap(attrs);
+    for (const name of this.last) if (!(name in want)) el.removeAttribute(name);
+    for (const [name, v] of Object.entries(want)) if (el.getAttribute(name) !== v) el.setAttribute(name, v);
+    this.last = new Set(Object.keys(want));
+    return noChange;
+  }
+}
+const rowHooks = directive(RowAttrsDirective);
 
 /**
  * Data table in the boards' language: white card, quiet grey header, 40px rows with thumbnails /
@@ -48,11 +86,20 @@ export class SwTable extends LitElement {
    * link or button (it wins over the listener, not over an explicit `focus-rows`). Mouse behaviour and the look are unchanged: the
    * focus ring is `:focus-visible` only. */
   @property({ type: Boolean, reflect: true, attribute: 'no-focus-rows' }) noFocusRows = false;
+  /** CR-CMP2-TABLES-2450 (owner N10): per-row hooks - `data-*` / `aria-*` / `title` attributes on each `<tr>`, so a screen's specs keep
+   * finding its rows (`tr[data-board="..."]`; Playwright's CSS reaches into the shadow root). */
+  @property({ attribute: false }) rowAttrs?: (row: Record<string, unknown>) => RowAttrs;
+  /** CR-CMP2-TABLES-2450: no card of its own (no border, radius, shadow, background) - for a table that already sits in a card */
+  @property({ type: Boolean, reflect: true }) bare = false;
+  /** CR-CMP2-TABLES-2450: a read-only list - the rows show no pointer, no press tint and never fire `row-select` (it wins over
+   * `focus-rows` and a listener) */
+  @property({ type: Boolean, reflect: true, attribute: 'static-rows' }) staticRows = false;
   /** how many `row-select` listeners are registered on this element itself */
   private rowSelectListeners = 0;
 
   /** The rows are tab stops (and answer Enter / Space). */
   get rowsFocusable(): boolean {
+    if (this.staticRows) return false;
     return this.focusRows || (!this.noFocusRows && this.rowSelectListeners > 0);
   }
 
@@ -82,7 +129,7 @@ export class SwTable extends LitElement {
       inline-size: 100%;
       border-collapse: collapse;
       font-size: var(--sw-table-fs, var(--sw-fs-sm));
-      min-inline-size: 560px;
+      min-inline-size: var(--sw-table-min, 560px);
     }
     /* R5-INVESTIGATE-297 (size hooks): a host may ask for taller rows and a larger reading size (the investigation lists do); the defaults
        are exactly the old values, every other table is unchanged */
@@ -148,13 +195,17 @@ export class SwTable extends LitElement {
         line-height: 1.3;
       }
       tr.selected {
-        box-shadow: inset 3px 0 0 var(--sw-accent);
+        /* CR-CMP2-TABLES-2450: the mark sits on the row's START edge (the right one in Hebrew) */
+        box-shadow: inset var(--_sel-mark, 3px) 0 0 var(--sw-accent);
+      }
+      :host(:dir(rtl)) tr.selected {
+        --_sel-mark: -3px;
       }
     }
     th {
       position: sticky;
       top: 0;
-      background: var(--sw-surface);
+      background: var(--sw-table-head-bg, var(--sw-surface));
       color: var(--sw-text-3);
       font-weight: var(--sw-fw-medium);
       font-size: var(--sw-fs-xs);
@@ -277,6 +328,125 @@ export class SwTable extends LitElement {
       text-align: center;
       color: var(--sw-text-3);
     }
+    /* ---- CR-CMP2-TABLES-2450 (owner N10): what the hand-built tables need to move in ----
+       a table inside a card draws no second card */
+    :host([bare]) {
+      background: none;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+    }
+    /* a read-only list: no pointer and no press tint */
+    :host([static-rows]) tr.clickable {
+      cursor: default;
+    }
+    :host([static-rows]) tbody tr.clickable:active {
+      background: transparent;
+    }
+    /* the shared cell vocabulary - classes a column's render may use (the screen's own classes do not reach this shadow root) */
+    .t1 {
+      display: block;
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading, var(--sw-text));
+    }
+    .t2 {
+      display: block;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .mut {
+      color: var(--sw-text-3);
+    }
+    .num {
+      direction: ltr;
+      unicode-bidi: isolate;
+      font-variant-numeric: tabular-nums;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 1px 10px;
+      border-radius: var(--sw-r-pill);
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-bold);
+      line-height: 20px;
+      white-space: nowrap;
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
+    }
+    .chip::before {
+      content: '';
+      inline-size: 7px;
+      block-size: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .chip[data-nodot]::before {
+      display: none;
+    }
+    .chip[data-tone='ok'] {
+      background: color-mix(in srgb, var(--sw-success) 24%, var(--sw-surface));
+      color: var(--sw-success-text);
+    }
+    .chip[data-tone='warn'] {
+      background: color-mix(in srgb, var(--sw-warning) 26%, var(--sw-surface));
+      color: var(--sw-warning-text);
+    }
+    .chip[data-tone='bad'] {
+      background: color-mix(in srgb, var(--sw-danger) 22%, var(--sw-surface));
+      color: var(--sw-danger-text);
+    }
+    .chip[data-tone='info'] {
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+    }
+    td.k-num {
+      font-variant-numeric: tabular-nums;
+      text-align: end;
+    }
+    td.k-muted {
+      color: var(--sw-text-3);
+    }
+    td.k-status {
+      white-space: nowrap;
+    }
+    td.k-actions {
+      text-align: end;
+      white-space: nowrap;
+    }
+    td.k-actions .acts {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+    td.k-truncate {
+      max-inline-size: var(--sw-table-trunc, 260px);
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .a-end {
+      text-align: end;
+    }
+    .a-center {
+      text-align: center;
+    }
+    /* the phone card stack reads top to bottom: every cell starts at the reading start again */
+    @media (max-width: 767px) {
+      td.k-num,
+      td.k-actions,
+      td.a-end,
+      td.a-center {
+        text-align: start;
+      }
+      td.k-actions .acts {
+        justify-content: flex-start;
+      }
+      td.k-truncate {
+        max-inline-size: none;
+      }
+    }
   `;
 
   /** `key` is set when the row was picked from the keyboard ('Enter' or ' '): a screen whose open row has a next step on Enter (the
@@ -287,9 +457,18 @@ export class SwTable extends LitElement {
   }
 
   private onRowKey(e: KeyboardEvent, row: Record<string, unknown>) {
-    if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+    if (e.target !== e.currentTarget) return; // a key on a control inside a cell is that control's
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      this.pick(row, e.key);
+      return;
+    }
+    // CR-CMP2-TABLES-2450: ArrowDown / ArrowUp / Home / End walk the rows (block keys: the same in Hebrew and English); no motion
+    const rows = [...this.renderRoot.querySelectorAll<HTMLTableRowElement>('tbody tr[tabindex="0"]')];
+    const to = rowFocusStep(e.key, rows.indexOf(e.currentTarget as HTMLTableRowElement), rows.length);
+    if (to < 0) return;
     e.preventDefault();
-    this.pick(row, e.key);
+    rows[to].focus();
   }
 
   protected willUpdate() {
@@ -298,9 +477,18 @@ export class SwTable extends LitElement {
     this.toggleAttribute('has-card-badge', card && this.columns.some((c) => c.card === 'badge'));
   }
 
-  /** the class list of one cell: ltr, hideBelow, and its place in the phone row template */
+  /** the class list of one cell: ltr, hideBelow, its place in the phone row template, its shared kinds (table-logic `cellClassOf`) */
   private cellClass(c: TableColumn): string {
-    return [c.ltr ? 'ltr' : '', c.hideBelow ? `hb-${c.hideBelow}` : '', c.card && c.card !== 'hide' ? `c-${c.card}` : ''].filter(Boolean).join(' ');
+    return cellClassOf(c);
+  }
+
+  /** one body cell: a `num` value is its own left-to-right isolate, `actions` are packed in one line, `truncate` carries its title */
+  private cell(c: TableColumn, row: Record<string, unknown>) {
+    const v = c.render ? c.render(row) : String(row[c.key] ?? '');
+    const kinds = c.kind === undefined ? [] : typeof c.kind === 'string' ? [c.kind] : c.kind;
+    const title = c.cellTitle ? c.cellTitle(row) : kinds.includes('truncate') && !c.render ? String(row[c.key] ?? '') : undefined;
+    const body = kinds.includes('num') ? html`<span class="num">${v}</span>` : kinds.includes('actions') ? html`<span class="acts">${v}</span>` : v;
+    return html`<td class=${this.cellClass(c)} part=${cellPartOf(c)} data-label=${c.label} title=${title || nothing} ${rowHooks(c.cellAttrs ? c.cellAttrs(row) : null)}>${body}</td>`;
   }
 
   /** the phone meta line: every `meta` column of the row in column order, " · " between them (an empty value is left out); each part
@@ -315,21 +503,23 @@ export class SwTable extends LitElement {
   }
 
   render() {
-    if (!this.rows.length) return html`<div class="empty">${this.emptyText}</div>`;
+    // CR-CMP2-TABLES-2450: a screen may slot its own empty state (its data hooks and copy); the default line otherwise
+    if (!this.rows.length) return html`<slot name="empty"><div class="empty" part="empty">${this.emptyText}</div></slot>`;
     const card = usesCardTemplate(this.columns);
     const focusable = this.rowsFocusable;
+    const hooks = this.rowAttrs;
     return html`
-      <table>
+      <table part="table">
         <thead>
-          <tr>${this.columns.map((c) => html`<th class=${c.hideBelow ? `hb-${c.hideBelow}` : nothing} style=${c.width ? `width:${c.width}` : ''}>${c.label}</th>`)}</tr>
+          <tr part="head-row">${this.columns.map((c) => html`<th class=${c.hideBelow || c.align || c.kind ? headClassOf(c) : nothing} part="head" style=${c.width ? `width:${c.width}` : ''}>${c.label}</th>`)}</tr>
         </thead>
         <tbody>
           ${this.rows.map(
-            (row) => html`<tr class="clickable ${this.selected === String(row[this.rowKey]) ? 'selected' : ''}" data-row-id=${String(row[this.rowKey] ?? '')} @click=${() => this.pick(row)}
+            (row) => html`<tr class="clickable ${this.selected === String(row[this.rowKey]) ? 'selected' : ''}" part="row" data-row-id=${String(row[this.rowKey] ?? '')} ${rowHooks(hooks ? hooks(row) : null)} @click=${() => this.staticRows || this.pick(row)}
               tabindex=${focusable ? '0' : nothing} @keydown=${focusable ? (e: KeyboardEvent) => this.onRowKey(e, row) : nothing}
               @pointerenter=${(e: PointerEvent) => this.dispatchEvent(new CustomEvent('row-hover', { detail: { id: String(row[this.rowKey] ?? ''), row, clientX: e.clientX, clientY: e.clientY, pointerType: e.pointerType }, bubbles: true, composed: true }))}
               @pointerleave=${() => this.dispatchEvent(new CustomEvent('row-leave', { detail: { id: String(row[this.rowKey] ?? '') }, bubbles: true, composed: true }))}>
-              ${this.columns.map((c) => html`<td class=${this.cellClass(c)} data-label=${c.label}>${c.render ? c.render(row) : String(row[c.key] ?? '')}</td>`)}${card ? this.metaCell(row) : nothing}
+              ${this.columns.map((c) => this.cell(c, row))}${card ? this.metaCell(row) : nothing}
             </tr>`,
           )}
         </tbody>
