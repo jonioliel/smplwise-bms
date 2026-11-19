@@ -837,6 +837,44 @@ def _item_for(cls: str, ptype: str, catalog: dict[str, dict[str, Any]], by_ifc: 
     return GENERIC_ID if GENERIC_ID in catalog else next(iter(sorted(catalog)), GENERIC_ID), 0.5
 
 
+class _SkipLedger:
+    """What one read skipped and why (R130: a partial import is never silent): every skip is counted, also by reason; the first
+    MAX_SKIPPED_ROWS are listed with the element's id, class and name."""
+    __slots__ = ("rows", "total", "by_reason")
+
+    def __init__(self) -> None:
+        self.rows: list[dict[str, Any]] = []
+        self.total = 0
+        self.by_reason: dict[str, int] = {}
+
+    def skip(self, iid: int, cls: str, reason: str, name: str = "") -> None:
+        self.total += 1
+        self.by_reason[reason] = self.by_reason.get(reason, 0) + 1
+        if len(self.rows) < MAX_SKIPPED_ROWS:
+            self.rows.append({"id": f"#{iid}", "class": cls, "reason": reason, "name": clean_text(name, 80)})
+
+
+class _StoreyScope:
+    """Whether an element belongs to the chosen storey (no storey chosen: every element does). One that does not is skipped:
+    no_storey when it is in no storey and the file has several, other_storey when it is in another."""
+    __slots__ = ("in_storey", "only", "chosen", "skips")
+
+    def __init__(self, in_storey: dict[int, int], only: int | None, chosen: dict[str, Any] | None, skips: _SkipLedger) -> None:
+        self.in_storey, self.only, self.chosen, self.skips = in_storey, only, chosen, skips
+
+    def ok(self, iid: int, cls: str, name: str) -> bool:
+        st = self.in_storey.get(iid, self.only)
+        if self.chosen is None:
+            return True
+        if st is None:
+            self.skips.skip(iid, cls, "no_storey", name)
+            return False
+        if st != self.chosen["id"]:
+            self.skips.skip(iid, cls, "other_storey", name)
+            return False
+        return True
+
+
 def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, scale_status: str, level_id: str, level_elevation_m: float, run_id: str,
          catalog: dict[str, dict[str, Any]], storey: int | None = None, deadline: float | None = None, ceiling_m: float = 2.8) -> dict[str, Any]:
     """The candidates of one storey of `data` in the plan's frame, and the import report (CR-037 sections 1, 2, 4)."""
@@ -890,28 +928,9 @@ def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, s
                     in_storey.setdefault(ev.n, st.n)
     only = storeys[0]["id"] if len(storeys) == 1 else None
 
-    skipped: list[dict[str, Any]] = []
-    skipped_total = 0
-    counts_by_reason: dict[str, int] = {}
-
-    def skip(iid: int, cls: str, reason: str, name: str = "") -> None:
-        nonlocal skipped_total
-        skipped_total += 1
-        counts_by_reason[reason] = counts_by_reason.get(reason, 0) + 1
-        if len(skipped) < MAX_SKIPPED_ROWS:
-            skipped.append({"id": f"#{iid}", "class": cls, "reason": reason, "name": clean_text(name, 80)})
-
-    def storey_ok(iid: int, cls: str, name: str) -> bool:
-        st = in_storey.get(iid, only)
-        if chosen is None:
-            return True
-        if st is None:
-            skip(iid, cls, "no_storey", name)
-            return False
-        if st != chosen["id"]:
-            skip(iid, cls, "other_storey", name)
-            return False
-        return True
+    skips = _SkipLedger()
+    skip = skips.skip
+    storey_ok = _StoreyScope(in_storey, only, chosen, skips).ok
 
     # material layer thickness per wall (IfcMaterialLayerSetUsage)
     layer_thickness: dict[int, float] = {}
@@ -945,9 +964,9 @@ def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, s
         a = model.args(iid)
         cls = model.type_of(iid) or ""
         name = text(at(a, 2))
-        before = skipped_total
+        before = skips.total
         if not storey_ok(iid, cls, name):
-            wall_reason[iid] = skipped[-1]["reason"] if skipped_total > before and skipped else "other_storey"
+            wall_reason[iid] = skips.rows[-1]["reason"] if skips.total > before and skips.rows else "other_storey"
             continue
         x, solids, axis, why = rd.product_shape(a)
         if x is None or (not solids and not axis):
@@ -1275,7 +1294,7 @@ def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, s
         "schema": model.schema, "entities": len(model.spans), "metres_per_unit": unit, "ms": int((time.perf_counter() - t0) * 1000),
         "storeys": [{"index": s["index"], "name": s["name"], "elevation_m": round(s["elevation_m"], 3), "chosen": chosen is not None and s["id"] == chosen["id"]} for s in storeys],
         "counts": {"walls": len(out_walls), "openings": len(out_openings), "objects": len(out_objects), "rooms": len(out_rooms)},
-        "skipped": skipped, "skipped_total": skipped_total, "skipped_by_reason": counts_by_reason, "warnings": warnings,
+        "skipped": skips.rows, "skipped_total": skips.total, "skipped_by_reason": skips.by_reason, "warnings": warnings,
         "alignment": {"dx_m": round(dx, 3), "dy_m": round(dy, 3), "fits": fits, "needed_m": needed, "plan_m": [round(plan_w, 2), round(plan_h, 2)]},
     }
     return {
