@@ -1,6 +1,6 @@
-import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
+import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { segmentedFocusStep } from './segmented-logic';
+import { segmentedFocusStep, segmentedTabStop } from './segmented-logic';
 
 /** One key of a segmented control. */
 export interface SegmentOption<V extends string = string> {
@@ -13,6 +13,16 @@ export interface SegmentOption<V extends string = string> {
   title?: string;
   /** Attributes copied onto the key's `<button>` (the data-* hooks a screen and its specs already used, e.g. `{ 'data-lock-level': 'full' }`). */
   attrs?: Readonly<Record<string, string>>;
+  /** CR-CMP2-SEGMENTED-C-2450: an icon at the start of the key (the screen's own icon template: `sw-icon`, an inline svg). With
+   * `labels="none"` / `"chosen"` the key may show the icon alone; its label then names the key (`aria-label`) and is its tooltip. */
+  icon?: TemplateResult;
+  /** A second, smaller line under the label (a two-line key: the assignee kinds' "why"). */
+  sub?: string;
+  /** A short tag after the label in the accent tone (the nav size's "current" preset); `badgeAttrs` go on it (its data-* hooks). */
+  badge?: string;
+  badgeAttrs?: Readonly<Record<string, string>>;
+  /** The key can still be chosen but cannot be used now: its label dims and its second line takes the warning ink (the line says why). */
+  dimmed?: boolean;
 }
 
 export interface SegmentedChange<V extends string = string> {
@@ -42,6 +52,17 @@ export interface SegmentedChange<V extends string = string> {
  *    --sw-seg-count-bg / --sw-seg-count-on-bg (the count pill).
  *  - motion (emil-design-eng): a settings key is pressed tens of times a day, so the thumb does not slide; colour fades on the
  *    hover curve and a key gives on pointer-down (`--sw-press-scale`, 1 = none in the skins that turn press feedback off).
+ *  - rich keys (CR-CMP2-SEGMENTED-C-2450): an option may carry an `icon`, a second line (`sub`), a `badge` and `dimmed`. `labels`
+ *    decides which keys show their label beside the icon: `all` (default), `chosen` (the others show the icon alone - the tickets
+ *    list's view switch) or `none` (icon-only keys). An icon-only key is named by its label and takes it as its tooltip. The parts
+ *    `key`, `icon`, `label`, `sub`, `badge` let a host shape a key it must (a phone hides the label: `::part(label)`); the chosen
+ *    key adds `key-on` / `icon-on` (the view switch's accent icon: `::part(icon-on)`).
+ *    Two-line keys stack the label over the second line; the knobs --sw-seg-axis (the track: `column` stacks the keys),
+ *    --sw-seg-key-axis / --sw-seg-key-justify / --sw-seg-key-align / --sw-seg-text-align (inside a key), --sw-seg-sub-fg and
+ *    --sw-seg-dim-fg / --sw-seg-dim-sub-fg (the dimmed key), --sw-seg-badge-bg / --sw-seg-badge-fg; --sw-seg-wrap (`nowrap` keeps a
+ *    long strip on one line for a host that scrolls it sideways itself).
+ *  - `roving`: a group the screen used as its view's tabs (the tickets handlers' segments): only one key is in the Tab order and
+ *    an arrow key CHOOSES the next key (fires `change`) as well as focusing it - a radio group's own keyboard rule.
  */
 @customElement('sw-segmented')
 export class SwSegmented<V extends string = string> extends LitElement {
@@ -56,6 +77,10 @@ export class SwSegmented<V extends string = string> extends LitElement {
    * colours ...): the track is a `radiogroup` and each key a `radio` with `aria-checked`. The key keeps `aria-pressed` beside it, as
    * the hand-built groups did (their specs read either attribute); the look reads `aria-pressed` only. */
   @property({ type: Boolean }) radio = false;
+  /** CR-CMP2-SEGMENTED-C-2450: which keys show their label beside their icon (a key without an icon always shows its label). */
+  @property({ reflect: true }) labels: 'all' | 'chosen' | 'none' = 'all';
+  /** CR-CMP2-SEGMENTED-C-2450: one Tab stop (the chosen key); the arrow keys choose as they move (see the class comment). */
+  @property({ type: Boolean }) roving = false;
 
   static styles = css`
     :host {
@@ -158,6 +183,69 @@ export class SwSegmented<V extends string = string> extends LitElement {
       opacity: var(--sw-disabled-opacity, 0.5);
       cursor: not-allowed;
     }
+    /* CR-CMP2-SEGMENTED-C-2450: rich keys - an icon, a second line, a badge, a dimmed key */
+    .seg {
+      flex-direction: var(--sw-seg-axis, row);
+      /* a host that scrolls a long strip sideways itself (a glass toolbar on a phone) keeps it on one line: --sw-seg-wrap: nowrap */
+      flex-wrap: var(--sw-seg-wrap, wrap);
+    }
+    .ic {
+      display: inline-flex;
+      flex: none;
+      align-items: center;
+      line-height: 0;
+    }
+    /* the app's inline icon (components/icon-paths.ts iconSvg: a stroked 24-unit glyph sized by the font) - the host's own svg.ic rule
+       does not reach into this shadow root, so the same rule stands here; an sw-icon sizes itself */
+    .ic > svg.ic {
+      inline-size: var(--sw-seg-icon-size, 1em);
+      block-size: var(--sw-seg-icon-size, 1em);
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    button.ico {
+      padding-inline: var(--sw-seg-ico-pad, 8px);
+      min-inline-size: max(var(--sw-seg-key-min-w, 0px), var(--sw-seg-h, 34px));
+    }
+    :host([size='sm']) button.ico {
+      min-inline-size: max(var(--sw-seg-key-min-w, 0px), var(--sw-seg-h, 28px));
+    }
+    button.two {
+      flex-direction: var(--sw-seg-key-axis, column);
+      justify-content: var(--sw-seg-key-justify, center);
+      align-items: var(--sw-seg-key-align, center);
+      gap: 1px 8px;
+      padding-block: 6px;
+      white-space: normal;
+      text-align: var(--sw-seg-text-align, center);
+    }
+    button.two .l,
+    .sub {
+      min-inline-size: 0;
+      overflow-wrap: anywhere;
+    }
+    .sub {
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-medium);
+      color: var(--sw-seg-sub-fg, var(--sw-text-3));
+    }
+    button.dim .l {
+      color: var(--sw-seg-dim-fg, var(--sw-text-3));
+    }
+    button.dim .sub {
+      color: var(--sw-seg-dim-sub-fg, var(--sw-warning-text));
+    }
+    .badge {
+      font-size: var(--sw-fs-2xs, 11px);
+      font-weight: var(--sw-fw-semibold);
+      padding: 1px 6px;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-seg-badge-bg, var(--sw-accent-soft));
+      color: var(--sw-seg-badge-fg, var(--sw-accent-text));
+    }
     .n {
       font-size: var(--sw-fs-2xs, 11px);
       font-weight: var(--sw-fw-bold);
@@ -207,29 +295,45 @@ export class SwSegmented<V extends string = string> extends LitElement {
     if (to < 0) return;
     e.preventDefault();
     keys[to].focus();
+    // a roving group chooses as it moves (the radio rule); the host confirms by re-rendering `value`, and the Tab stop follows it
+    const o = this.options[to];
+    if (this.roving && o && o.value !== this.value) this.press(o);
+  }
+
+  /** Sets the data-* hooks given on an element (and removes the ones an option dropped). */
+  private static hooks(el: Element | null | undefined, want: Readonly<Record<string, string>>) {
+    if (!el) return;
+    for (const a of [...el.attributes]) if (a.name.startsWith('data-') && !(a.name in want)) el.removeAttribute(a.name);
+    for (const [name, v] of Object.entries(want)) if (el.getAttribute(name) !== v) el.setAttribute(name, v);
   }
 
   protected updated(changed: PropertyValues) {
-    if (!changed.has('options')) return;
-    // the screens' data-* hooks: set on the keys as given (and removed when an option drops one)
+    if (!changed.has('options') && !changed.has('value') && !changed.has('labels')) return;
+    // the screens' data-* hooks: set on the keys (and their badges) as given. `value` too: a badge comes and goes with the choice.
     const keys = this.keys;
     this.options.forEach((o, i) => {
       const k = keys[i];
       if (!k) return;
-      const want = o.attrs ?? {};
-      for (const a of [...k.attributes]) if (a.name.startsWith('data-') && !(a.name in want)) k.removeAttribute(a.name);
-      for (const [name, v] of Object.entries(want)) if (k.getAttribute(name) !== v) k.setAttribute(name, v);
+      SwSegmented.hooks(k, o.attrs ?? {});
+      SwSegmented.hooks(k.querySelector('.badge'), o.badgeAttrs ?? {});
     });
   }
 
   render() {
     const radio = this.radio;
+    const enabled = this.options.map((o) => !(this.disabled || o.disabled));
+    const stop = this.roving ? segmentedTabStop(this.options.map((o) => o.value), this.value, enabled) : -1;
     return html`<div class="seg" part="track" role=${radio ? 'radiogroup' : 'group'} aria-label=${this.label || nothing} @keydown=${this.onKey}>
-      ${this.options.map(
-        (o) => html`<button type="button" part="key" aria-pressed=${o.value === this.value ? 'true' : 'false'} role=${radio ? 'radio' : nothing} aria-checked=${radio ? String(o.value === this.value) : nothing}
-          ?disabled=${this.disabled || !!o.disabled} title=${o.title || nothing}
-          @click=${() => this.press(o)}>${o.label}${o.count ? html`<small class="n">${o.count}</small>` : nothing}</button>`,
-      )}
+      ${this.options.map((o, i) => {
+        const on = o.value === this.value;
+        // an icon key shows its label unless the group says otherwise; a key without an icon always shows it
+        const shown = !o.icon || this.labels === 'all' || (this.labels === 'chosen' && on);
+        const cls = [o.icon && !shown ? 'ico' : '', o.sub ? 'two' : '', o.dimmed ? 'dim' : ''].filter(Boolean).join(' ');
+        return html`<button type="button" part=${on ? 'key key-on' : 'key'} class=${cls || nothing} aria-pressed=${on ? 'true' : 'false'} role=${radio ? 'radio' : nothing} aria-checked=${radio ? String(on) : nothing}
+          ?disabled=${!enabled[i]} title=${o.title || (shown ? nothing : o.label)} aria-label=${shown ? nothing : o.label}
+          tabindex=${this.roving ? (i === stop ? '0' : '-1') : nothing}
+          @click=${() => this.press(o)}>${o.icon ? html`<span class="ic" part=${on ? 'icon icon-on' : 'icon'} aria-hidden="true">${o.icon}</span>` : nothing}${shown ? html`<span class="l" part="label">${o.label}</span>` : nothing}${o.sub ? html`<small class="sub" part="sub">${o.sub}</small>` : nothing}${o.badge ? html`<span class="badge" part="badge">${o.badge}</span>` : nothing}${o.count ? html`<small class="n">${o.count}</small>` : nothing}</button>`;
+      })}
     </div>`;
   }
 }

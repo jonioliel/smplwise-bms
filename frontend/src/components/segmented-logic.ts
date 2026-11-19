@@ -25,3 +25,11 @@ export function segmentedFocusStep(key: string, from: number, enabled: readonly 
       return -1;
   }
 }
+
+/** CR-CMP2-SEGMENTED-C-2450: the one key of a `roving` group that sits in the Tab order - the chosen key when it can be used, else the
+ * first enabled key (a group whose value names no key, or names a disabled one, stays reachable). -1 when nothing is enabled. */
+export function segmentedTabStop(values: readonly string[], value: string, enabled: readonly boolean[]): number {
+  const at = values.indexOf(value);
+  if (at >= 0 && enabled[at]) return at;
+  return enabled.indexOf(true);
+}
