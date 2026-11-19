@@ -19,6 +19,7 @@ from ..db import database_of, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, is_system_admin, require
 from ..remote_channel import is_remote
+from ..services import partner_store as store
 from ..services.partner import core, webhooks
 from ..services.partner.core import PartnerError
 from ._common import rid as _rid
@@ -82,9 +83,9 @@ def get_settings(request: Request, principal: Principal = Depends(current_princi
 def _view(conn: sqlite3.Connection) -> dict[str, Any]:
     view = core.settings_view(conn)
     view["counts"] = {
-        "clients": conn.execute("SELECT COUNT(*) FROM partner_clients WHERE deleted_at IS NULL").fetchone()[0],
-        "tokens": conn.execute("SELECT COUNT(*) FROM partner_tokens WHERE revoked_at IS NULL AND expires_at > ?", (core.iso(core.utcnow()),)).fetchone()[0],
-        "endpoints": conn.execute("SELECT COUNT(*) FROM partner_endpoints WHERE state != 'disabled'").fetchone()[0],
+        "clients": store.live_client_count(conn),
+        "tokens": store.live_token_count(conn, core.iso(core.utcnow())),
+        "endpoints": store.enabled_endpoint_count(conn),
     }
     view["remote"] = is_remote(conn)
     view["allowed_ports"] = sorted(webhooks.ssrf.ALLOWED_PORTS)
@@ -142,15 +143,14 @@ def get_options(request: Request, principal: Principal = Depends(current_princip
     """The pickers of the token / endpoint forms: sites, buildings, floors, departments and ticket templates (names and ids only)."""
     _gate(conn, request, principal, "partner.options.read")
     out: dict[str, Any] = {
-        "sites": [dict(r) for r in conn.execute("SELECT id, name FROM sites WHERE deleted_at IS NULL ORDER BY sort_order, name")],
-        "buildings": [dict(r) for r in conn.execute("SELECT id, name, site_id FROM buildings WHERE deleted_at IS NULL ORDER BY sort_order, name")],
-        "floors": [dict(r) for r in conn.execute("SELECT id, name, building_id FROM floors WHERE deleted_at IS NULL ORDER BY sort_order, level, name")],
+        "sites": [dict(r) for r in store.site_options(conn)],
+        "buildings": [dict(r) for r in store.building_options(conn)],
+        "floors": [dict(r) for r in store.floor_options(conn)],
         "departments": [], "templates": [],
     }
     try:
-        out["departments"] = [dict(r) for r in conn.execute("SELECT id, name FROM ticket_departments WHERE deleted_at IS NULL AND active = 1 ORDER BY sort_order, name")]
-        out["templates"] = [dict(r) for r in conn.execute("""SELECT id, name, department_id FROM ticket_templates WHERE kind = 'ticket' AND active = 1
-                                                                AND deleted_at IS NULL ORDER BY name""")]
+        out["departments"] = [dict(r) for r in store.department_options(conn)]
+        out["templates"] = [dict(r) for r in store.template_options(conn)]
     except sqlite3.OperationalError:
         pass
     return out
