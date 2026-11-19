@@ -22,7 +22,7 @@ async function bundle(): Promise<string> {
   if (bundled) return bundled;
   const out = await build({
     stdin: { contents: "import '../design/boot';\nimport './arx-login';\n", resolveDir: path.join(HERE, '../src/arx'), loader: 'ts' },
-    bundle: true, write: false, format: 'iife', platform: 'browser', target: 'es2022', tsconfig: path.join(HERE, '../tsconfig.json'),
+    bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2022', tsconfig: path.join(HERE, '../tsconfig.json'),
     define: { 'import.meta.env.BASE_URL': '"/arx/"' },
   });
   bundled = out.outputFiles[0].text;
@@ -39,7 +39,7 @@ async function mount(page: Page, brand: { status: number; body?: unknown }) {
     return route.fulfill({ status: 404, contentType: 'application/json', body: '{"code":"not_found"}' });
   });
   await page.goto(`${ORIGIN}/arx/`);
-  await page.addScriptTag({ content: await bundle() });
+  await page.addScriptTag({ content: await bundle(), type: 'module' }); // esm: i18n/lang-packs.ts awaits at top level (CR-I18N-LAZY-LANG-2443); iife cannot bundle that
   await page.evaluate(() => document.body.appendChild(document.createElement('arx-login')));
   await page.waitForSelector('arx-login [data-arx-brand]');
 }

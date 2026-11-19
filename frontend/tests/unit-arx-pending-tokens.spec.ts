@@ -16,7 +16,9 @@ test.use({ serviceWorkers: 'block' });
 
 async function bundle(): Promise<string> {
   const out = await build({
-    entryPoints: [path.join(HERE, '../src/arx/auth.ts')], bundle: true, write: false, format: 'iife', globalName: 'ArxAuth', platform: 'browser', target: 'es2022',
+    // esm + an explicit global (was iife + globalName): arx/auth.ts reaches i18n/lang-packs.ts, which awaits at top level
+    stdin: { contents: "import * as A from './auth';\n(window as unknown as { ArxAuth: typeof A }).ArxAuth = A;\n", resolveDir: path.join(HERE, '../src/arx'), loader: 'ts' },
+    bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2022',
   });
   return out.outputFiles[0].text;
 }
@@ -38,7 +40,7 @@ async function setup(page: import('@playwright/test').Page, sessionStatus: { sta
     return route.fulfill({ status: 404, body: '' });
   });
   await page.goto(`${ORIGIN}/arx/`);
-  await page.addScriptTag({ content: await bundle() });
+  await page.addScriptTag({ content: await bundle(), type: 'module' }); // esm: i18n/lang-packs.ts awaits at top level (CR-I18N-LAZY-LANG-2443); iife cannot bundle that
   // a browser that signed in earlier and passed the factor: a stored entry whose access token is close to its end
   await page.evaluate(([key, origin]) => {
     window.localStorage.setItem(key, JSON.stringify({ hassUrl: origin, clientId: `${origin}/arx/`, access_token: 'OLD-VERIFIED-ACCESS', refresh_token: 'REFRESH-VERIFIED', expires: Date.now() + 1000, expires_in: 1800, user_id: 'u1' }));

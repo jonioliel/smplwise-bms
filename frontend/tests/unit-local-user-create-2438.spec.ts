@@ -23,7 +23,7 @@ async function bundle(): Promise<string> {
   if (bundled) return bundled;
   const out = await build({
     stdin: { contents: "import '../design/boot';\nimport '../components/sw-button';\nimport '../screens/system-local-users';\n", resolveDir: path.join(HERE, '../src/arx'), loader: 'ts' },
-    bundle: true, write: false, format: 'iife', platform: 'browser', target: 'es2022', tsconfig: path.join(HERE, '../tsconfig.json'),
+    bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2022', tsconfig: path.join(HERE, '../tsconfig.json'),
     define: { 'import.meta.env.BASE_URL': '"/arx/"' },
   });
   bundled = out.outputFiles[0].text;
@@ -64,7 +64,7 @@ async function open(page: Page, answers: Record<string, Answer | ((body: string)
     return route.fulfill({ status: a.status, contentType: 'application/json', body: JSON.stringify(a.body) });
   });
   await page.goto(`${ORIGIN}/arx/`);
-  await page.addScriptTag({ content: await bundle() });
+  await page.addScriptTag({ content: await bundle(), type: 'module' }); // esm: i18n/lang-packs.ts awaits at top level (CR-I18N-LAZY-LANG-2443); iife cannot bundle that
   await page.evaluate(() => {
     const el = document.createElement('system-local-users') as HTMLElement & { roles: unknown[]; scopes: unknown[] };
     el.roles = [{ id: 'viewer', name: 'צופה', permissions: ['map.read'] }, { id: 'site_admin', name: 'מנהל אתר', permissions: ['rbac.assign'] }];

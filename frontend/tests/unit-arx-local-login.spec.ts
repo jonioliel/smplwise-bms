@@ -21,7 +21,7 @@ async function bundle(): Promise<string> {
   if (bundled) return bundled;
   const out = await build({
     stdin: { contents: "import '../design/boot';\nimport './arx-login';\nimport './arx-welcome';\nimport '../screens/system-local-users';\n", resolveDir: path.join(HERE, '../src/arx'), loader: 'ts' },
-    bundle: true, write: false, format: 'iife', platform: 'browser', target: 'es2022', tsconfig: path.join(HERE, '../tsconfig.json'),
+    bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2022', tsconfig: path.join(HERE, '../tsconfig.json'),
     define: { 'import.meta.env.BASE_URL': '"/arx/"' },
   });
   bundled = out.outputFiles[0].text;
@@ -44,7 +44,7 @@ async function setup(page: import('@playwright/test').Page, answers: Record<stri
     return route.fulfill({ status: 404, contentType: 'application/json', body: '{"code":"not_found"}' });
   });
   await page.goto(`${ORIGIN}/arx/`);
-  await page.addScriptTag({ content: await bundle() });
+  await page.addScriptTag({ content: await bundle(), type: 'module' }); // esm: i18n/lang-packs.ts awaits at top level (CR-I18N-LAZY-LANG-2443); iife cannot bundle that
   return calls;
 }
 
