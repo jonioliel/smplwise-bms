@@ -249,30 +249,16 @@ class BackgroundFeed(FeedSession):
         elif kind == "screen_locked":
             self._fail(IntercomError("screen_locked", "subscribe"))
 
-    async def _refresh(self) -> None:
-        """Single-flight overview refetch; a request that arrives meanwhile runs once more afterwards."""
-        call = self._call
-        if call is None:
-            return
-        if self._refreshing:
-            self._again = True
-            return
-        self._refreshing = True
-        try:
-            while True:
-                self._again = False
-                self._store(await intercom_client.overview(call))
-                if not self._again:
-                    break
-        except asyncio.CancelledError:
-            raise
-        except IntercomError as exc:
+    # -- the overview refetch (wiskey_feed_session.FeedSession._refresh: single flight)
+    async def _refresh_once(self, call: intercom_client.Call) -> None:
+        self._store(await intercom_client.overview(call))
+
+    def _refresh_failed(self, exc: Exception) -> None:
+        if isinstance(exc, IntercomError):
             if exc.code != "rate_limited":  # a spent WisKey bucket is temporary: keep the session, the poll tries again
                 self._fail(exc)
-        except Exception as exc:  # noqa: BLE001 - end the session; the loop reconnects and re-probes
+        else:  # end the session; the loop reconnects and re-probes
             self._fail(exc)
-        finally:
-            self._refreshing = False
 
 
 def copy_of(projection: dict[str, Any]) -> dict[str, Any]:

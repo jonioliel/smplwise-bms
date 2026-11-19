@@ -15,6 +15,8 @@ pollers, writes); how the session is run does not, and that part lives here once
 - the early-message buffer: an event frame whose subscription id is not known yet is kept and replayed once it is
   (`_replay_early`);
 - ending a session from inside it (`_fail`) and the session's refresh tasks (`_kick`);
+- the single-flight overview refetch (`_refresh`: one at a time, a request meanwhile runs it once more), around each client's
+  own fetch (`_refresh_once`) and failure mapping (`_refresh_failed`);
 - the `unknown_command` rule: WisKey still loading or not installed (`_maybe_loading`).
 
 Moved code only: every frame, wait, state and log line is the one each client had before (pinned by
@@ -39,8 +41,10 @@ EARLY_KEEP = 20  # event frames kept while their subscription id is not known ye
 
 class FeedSession:
     """Base of the two feed clients. A subclass sets `LOG_NAME` (the prefix of its log lines) and `REFRESH_TASK` (the name of a
-    push-started refresh task), and provides `_session` (one session), `_on_message` (it dispatches one event frame or puts it
-    back into `_early`), `_refresh`, `_set_state`, `_drop` and the state accessors below."""
+    push-started refresh task), and provides `_session_reset`, `_on_ready` (what it does once the socket is up),
+    `_on_message` (it dispatches one event frame or puts it back into `_early`), `_refresh_once` / `_refresh_failed`,
+    `_set_state`, `_drop` and the state accessors below; `_connect_kwargs`, `_session_closing` and `_session_closed` are
+    optional."""
 
     LOG_NAME = "WisKey feed"
     REFRESH_TASK = "wiskey-feed-refresh"
@@ -239,8 +243,35 @@ class FeedSession:
         for msg in early:
             self._on_message(msg)
 
-    async def _refresh(self) -> None:  # pragma: no cover - replaced by each client
+    async def _refresh_once(self, call: intercom_client.Call) -> None:  # pragma: no cover - provided by each client
+        """One overview fetch and what the client does with it."""
         raise NotImplementedError
+
+    def _refresh_failed(self, exc: Exception) -> None:  # pragma: no cover - provided by each client
+        """A fetch failed: keep the session (and retry or defer), or end it with `_fail`."""
+        raise NotImplementedError
+
+    async def _refresh(self) -> None:
+        """Single-flight overview refetch; a request that arrives meanwhile runs once more afterwards."""
+        call = self._call
+        if call is None:
+            return
+        if self._refreshing:
+            self._again = True
+            return
+        self._refreshing = True
+        try:
+            while True:
+                self._again = False
+                await self._refresh_once(call)
+                if not self._again:
+                    break
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - mapped by the client; an unmapped failure ends the session (the loop reconnects)
+            self._refresh_failed(exc)
+        finally:
+            self._refreshing = False
 
     def _kick(self) -> None:
         task = asyncio.get_running_loop().create_task(self._refresh(), name=self.REFRESH_TASK)

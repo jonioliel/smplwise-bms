@@ -1761,28 +1761,16 @@ class IntercomSync(FeedSession):
             # are only told when the projection actually changed
             self._kick()
 
-    async def _refresh(self) -> None:
-        """Single-flight overview refetch; a request that arrives meanwhile runs once more afterwards."""
-        call = self._call
-        if call is None:
-            return
-        if self._refreshing:
-            self._again = True
-            return
-        self._refreshing = True
-        try:
-            while True:
-                self._again = False
-                raw = await intercom_client.overview(call)
-                self._store(raw)
-                self._deferred = None  # a deferred failure (S6) is over: the copy is current again
-                self._rate_logged = False  # a later rate-limited stretch is logged again
-                await self._watch(call, watched_entities(raw))
-                if not self._again:
-                    break
-        except asyncio.CancelledError:
-            raise
-        except IntercomError as exc:
+    # -- the overview refetch (wiskey_feed_session.FeedSession._refresh: single flight)
+    async def _refresh_once(self, call: intercom_client.Call) -> None:
+        raw = await intercom_client.overview(call)
+        self._store(raw)
+        self._deferred = None  # a deferred failure (S6) is over: the copy is current again
+        self._rate_logged = False  # a later rate-limited stretch is logged again
+        await self._watch(call, watched_entities(raw))
+
+    def _refresh_failed(self, exc: Exception) -> None:
+        if isinstance(exc, IntercomError):
             if exc.code == RATE_LIMITED:
                 # WisKey's per-user budget is spent for the moment: temporary, not a broken session. Keep the session
                 # and the last copy, and refetch once the bucket has refilled a little.
@@ -1791,15 +1779,13 @@ class IntercomSync(FeedSession):
                 self._defer_failure(exc.code)  # WisKey answered (the socket is fine): do not cut the announcement
             else:
                 self._fail(exc)
-        except TimeoutError as exc:
+        elif isinstance(exc, TimeoutError):
             if self._tts:
                 self._defer_failure("timeout")
             else:
                 self._fail(exc)
-        except Exception as exc:  # noqa: BLE001 - end the session; the loop reconnects and re-probes
+        else:  # end the session; the loop reconnects and re-probes
             self._fail(exc)
-        finally:
-            self._refreshing = False
 
     def _defer_failure(self, code: str) -> None:
         """T054 review S6: an overview refetch failed while an announcement is playing on this session. Ending the
