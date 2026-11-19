@@ -86,7 +86,7 @@ test.describe('sw-segmented: the contract in the source', () => {
 });
 
 /** The screens whose segmented controls moved to sw-segmented: no hand-built `class="seg"` group may come back in them. */
-const ADOPTED = ['screens/system-look.ts', 'screens/system-design.ts', 'screens/system-plan-view.ts'];
+const ADOPTED = ['screens/system-look.ts', 'screens/system-design.ts', 'screens/system-plan-view.ts', 'screens/system-brand-logos.ts'];
 
 test('adoption: the adopted screens draw every segmented control with sw-segmented', () => {
   const bad: string[] = [];
