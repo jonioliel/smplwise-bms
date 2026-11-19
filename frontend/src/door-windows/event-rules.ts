@@ -4,6 +4,8 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-drawer';
 import '../components/sw-dialog';
+import '../components/sw-chip-choice';
+import type { ChipChoiceChange } from '../components/sw-chip-choice';
 import { ApiError, describeError } from '../api/client';
 import { armRule, createRule, newToken, ruleAction, updateRule, type Rule, type RuleSaved, type TriggerLogRow, type WindowsState } from '../api/door-windows';
 import { dwt, type DwtKey } from '../i18n/door-windows';
@@ -219,9 +221,8 @@ export class DoorEventRules extends LitElement {
       <div class="form" data-dw-event-editor>
         <div class="field"><label for="dwe-name">${dwt('fName')}</label>
           <input id="dwe-name" type="text" maxlength="60" .value=${dr.name} @input=${(e: Event) => this.patch((d) => (d.name = (e.target as HTMLInputElement).value))}></div>
-        <div class="field"><span class="lbl">${dwe('src_label')}</span><div class="seg" role="group">
-          ${RULE_SOURCES.map((s) => html`<button type="button" aria-pressed=${String(dr.source === s)} data-dw-source-pick=${s}
-            @click=${() => this.patch((d) => (d.source = s))}>${dwe(`src_${s}` as DweKey)}</button>`)}</div></div>
+        <div class="field"><span class="lbl">${dwe('src_label')}</span><sw-chip-choice label=${dwe('src_label')} value=${dr.source} @change=${(e: CustomEvent<ChipChoiceChange>) => this.patch((d) => (d.source = e.detail.value as typeof d.source))}
+          .options=${RULE_SOURCES.map((s) => ({ value: s, label: dwe(`src_${s}` as DweKey), attrs: { 'data-dw-source-pick': s } }))}></sw-chip-choice></div>
         ${dr.source === 'arx_automation' ? html`<div class="field"><label for="dwe-auto">${dwe('fAutomation')}</label>
           <input id="dwe-auto" class="code" type="text" maxlength="90" placeholder=${dwe('fAutomationPh')} .value=${dr.automationId}
             @input=${(e: Event) => this.patch((d) => (d.automationId = (e.target as HTMLInputElement).value))}></div>` : nothing}
