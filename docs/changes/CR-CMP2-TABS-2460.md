@@ -113,3 +113,21 @@ The glass phone key is 44 px with 8 px sides (the four kinds share the 358 px ro
    (the standard tab look; 44 px targets on a phone stay).
 5. The personal home panel's summary tiles are separate chips now (they were one pill track like the panel's other choices, which
    suggested one-of-N for a multi-choice). Keep? Recommendation: keep - chips read as "any of these".
+
+## Linux baselines (runner, after the 2.45.0 gate; committed by the 2.46.0 train agent)
+
+`~/work/tabs2460-run.sh e46a04ceb 4297` ran at 22:05-22:17 UTC on 19.11 (own worktree, `nice -n 19`, `--workers=1`, built preview):
+
+| Step | Result |
+|---|---|
+| check, the seven pixel files of the script (all projects, retries 1) | 120 passed, 39 skipped, 6 failed - every failure a screenshot comparison: `pixel-events-windows-2443:113` desktop + mobile, `pixel-plan-wizard-2433:53` desktop + tablet, `pixel-plan-wizard-2434:49` desktop + tablet |
+| check, `visual-matrix` devices-schedules / devices-automations / multimedia-screens | 9 passed, 6 failed - devices-schedules ready light / dark x desktop / tablet / mobile (screenshots) |
+| update (`--update-snapshots=changed` on the four failed files) | 48 passed, 18 skipped |
+| new (`pixel-sw-tabs`, desktop + mobile, `--update-snapshots=all`) | 4 passed |
+| verify without `-u` (the four files) / the new specimen | 48 passed, 18 skipped / 8 passed |
+
+Every changed image looked at old vs new (crops of the difference box): the events centre's two chip rows are accent-filled
+sw-chip-choice chips with count pills (mobile: the taller touch chips wrap the view row to its own line); the plan wizard's
+devices / cameras strip is the standard 28 px pill with icon and count pills (was the 34 px key); devices schedules: the kinds strip
+on sw-tabs (desktop / tablet: lighter unselected labels, the strip a little narrower, the list 1 px lower; phone: equal-width tabs).
+All intended by this row; no regression seen. 13 baselines refreshed, 4 new (`pixel-sw-tabs` light / dark x desktop / mobile).
