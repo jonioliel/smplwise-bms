@@ -81,7 +81,24 @@ now finds 0 statements and 0 `execute` calls in the four routers (asserted by th
 
 ## Tests
 
-See the final report of the row for the exact counts (filled in below at commit time).
+All on the workstation unless marked runner. The PC was at 100 % CPU from other agents throughout (times are not meaningful).
+
+| What | Command | Result |
+|---|---|---|
+| Baseline before the change (with a shape recorder) | pytest of the 27 consumption test files (`test_energy_*`, `test_water_*`, `test_bill_*`, tariff names, home v3 followup / p3, xsecfix, path confine, backend safety) | 453 passed, 41 skipped, 2 errors |
+| The same suites after the change, `SW_WIRE_STRICT=1` + the oracle on every answer, plus `test_wire_consumption_2450.py` (first version) | same command + the new file | 466 passed, 41 skipped, 0 failed, 2 errors |
+| The 2 errors (both runs) | `test_bill_pdf.py::test_logo_refusals[<large PNG>]` setup | pre-existing on Windows: `ValueError: the environment variable is longer than 32767 characters` (pytest puts the parameter id into `PYTEST_CURRENT_TEST`); not related |
+| Contract tests (final version) + route table + singletons + OpenAPI | `test_wire_consumption_2450.py test_routers_table_2440.py test_singletons_registered.py test_security.py::test_no_route_fetches_... test_be_twins_2440.py` | 61 passed |
+| `scripts/api_inventory.py` (OpenAPI with the models) | | runs; no consumption route line changes (the one difference is an unrelated route already missing on the train, left alone) |
+| ruff (F rules) | changed backend files, the new script, tests | all checks passed |
+| Frontend type check | `npm run typecheck` (`tsconfig.tests.json` = src + tests) | 0 errors in src and tests; `tsconfig.scripts.json` fails on the PC only because the shared `node_modules` has no ESLint packages - clean on the runner (below) |
+| Frontend unit specs | `npx playwright test -c playwright.unit.config.ts` electricity-billing, -customer-form, -readings, i18n-api-2442, logexport-tariff-en-2440, textkey-2435, water-billing, water-nav | 90 passed |
+| Runner (nice 19): `tsc -p tsconfig.scripts.json`, ESLint of the 10 changed frontend files, `unused-exports.mjs --enforce`, `api-client-check.mjs`, `vite build` | `~/work/respmodels` | all rc=0 (unused exports: no export outside the baseline) |
+| Runner Playwright | the targeted run was started against `vite preview`; the harness specs need the vite DEV server, so every one timed out on `[data-harness]` | stopped by me after 20 of 360 (an infrastructure mistake, not a result); not re-run: the 2.43.9 release gate is running and the lead asked for no new runner runs |
+| Electricity / water specs on the PC instead (vite dev server, desktop, 1 worker) | electricity-accounts, -bills, -meter-device-name, -meter-rename, -meters, -readings, -tou, -wizard, layout-electricity(-meters), evidence-electricity-meters, -electricity-ui-bills, -tariff-names-en-2440, -backup-meters, -wkwater-2331 | 138 passed, 1 skipped, 1 failed: `electricity-accounts` "loading state ..." (expects `data-state=loading` during a 600 ms demo latency; under 100 % CPU the page was already `ready`) - re-run alone: 1 passed. Tablet / mobile projects and the gate's preview-vs-dev split: NOT_RUN (runner blocked by the release gate) |
+
+No pixel change is expected (types only, plus a comparison literal whose screen output is the same and two demo-store values no screen
+reads); no baseline was refreshed.
 
 ## Not done / open
 
