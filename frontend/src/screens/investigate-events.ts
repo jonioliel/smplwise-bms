@@ -6,6 +6,8 @@ import '../components/sw-table';
 import '../components/sw-badge';
 import '../components/sw-button';
 import '../components/sw-chip';
+import '../components/sw-chip-choice';
+import type { ChipChoiceChange } from '../components/sw-chip-choice';
 import '../components/sw-drawer';
 import '../components/sw-live-player';
 import '../components/sw-field';
@@ -306,10 +308,12 @@ export class InvestigateEvents extends LitElement {
       gap: 8px 12px;
       align-items: center;
     }
-    .seg {
-      display: inline-flex;
-      gap: 4px;
-      align-items: center;
+    /* CR-CMP2-TABS-2460: the handling-state and view rows are sw-chip-choice, at this toolbar's 28 px chip (the sw-chip size they had) */
+    sw-chip-choice.evc {
+      --sw-chipc-gap: 4px;
+      --sw-chipc-h: 28px;
+      --sw-chipc-pad: 11px;
+      --sw-chipc-fs: var(--sw-fs-sm);
     }
     .tools .grow {
       flex: 1;
@@ -1359,15 +1363,19 @@ export class InvestigateEvents extends LitElement {
         <sw-field><select aria-label=${tr('מקור')} data-filter-source @change=${(e: Event) => { this.source = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.source}>${tr('כל המקורות')}</option>${Object.entries(SOURCE_LABEL).map(([k, v]) => html`<option value=${k} ?selected=${k === this.source}>${v}</option>`)}</select></sw-field>
       </div>
       <div class="tools">
-        <span class="seg" role="group" aria-label=${tr('מצב טיפול')}>
-          <sw-chip ?selected=${this.filter === 'all'} @click=${() => { this.filter = 'all'; void this.load(); }} count=${this.filter === 'all' ? this.events.length : undefined}>${tr('הכל')}</sw-chip>
-          <sw-chip ?selected=${this.filter === 'unacked'} @click=${() => { this.filter = 'unacked'; void this.load(); }} count=${unacked}>${tr('לבדיקה')}</sw-chip>
-          <sw-chip ?selected=${this.filter === 'acked'} @click=${() => { this.filter = 'acked'; void this.load(); }}>${tr('טופלו')}</sw-chip>
-        </span>
-        <span class="seg" role="group" aria-label=${tr('תצוגה')}>
-          <sw-chip icon="list" ?selected=${this.mode === 'raw'} @click=${() => this.setMode('raw')}>${tr('אירועים')}</sw-chip>
-          <sw-chip icon="layers" ?selected=${this.mode === 'windows'} data-mode-windows @click=${() => this.setMode('windows')} count=${this.windows?.length}>${tr('חלונות')}</sw-chip>
-        </span>
+        <sw-chip-choice class="evc" label=${tr('מצב טיפול')} value=${this.filter} data-events-ack-filter
+          .options=${[
+            { value: 'all', label: tr('הכל'), count: this.filter === 'all' ? this.events.length : undefined, attrs: { 'data-ack-filter': 'all' } },
+            { value: 'unacked', label: tr('לבדיקה'), count: unacked, attrs: { 'data-ack-filter': 'unacked' } },
+            { value: 'acked', label: tr('טופלו'), attrs: { 'data-ack-filter': 'acked' } },
+          ]}
+          @change=${(e: CustomEvent<ChipChoiceChange>) => { e.stopPropagation(); this.filter = e.detail.value as 'all' | 'unacked' | 'acked'; void this.load(); }}></sw-chip-choice>
+        <sw-chip-choice class="evc" label=${tr('תצוגה')} value=${this.mode} data-events-view
+          .options=${[
+            { value: 'raw', label: tr('אירועים'), icon: html`<sw-icon name="list" size=${13}></sw-icon>`, attrs: { 'data-mode-raw': '' } },
+            { value: 'windows', label: tr('חלונות'), icon: html`<sw-icon name="layers" size=${13}></sw-icon>`, count: this.windows?.length, attrs: { 'data-mode-windows': '' } },
+          ]}
+          @change=${(e: CustomEvent<ChipChoiceChange>) => { e.stopPropagation(); this.setMode(e.detail.value as 'raw' | 'windows'); }}></sw-chip-choice>
         ${active.length
           ? html`<span class="active" data-active-filters>
               ${active.map((f) => html`<button type="button" class="fchip" data-active-filter=${f.key} aria-label=${tr('הסר מסנן: {label}', { label: f.label })} @click=${f.clear}><span>${f.label}</span><sw-icon name="close" size=${12}></sw-icon></button>`)}
