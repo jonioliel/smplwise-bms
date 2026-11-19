@@ -315,6 +315,32 @@ export const mediaGlassControls = css`
     min-block-size: 30px;
     font-size: var(--sw-fs-sm);
   }
+  /* CR-CMP2-SEGMENTED-B-2450 (owner N11; the glass hosts keep their look): the shared segmented control sw-segmented drawn as the glass
+     .seg above - the track, the thumb (--mm-seg-thumb / --mm-seg-fg-on, POLISH2-295), the 32 / 30 px keys - through its --sw-seg-* knobs.
+     A host that also takes styles/settings.ts after this sheet hands the knobs back to the settings key (settingsSegKnobsReset). */
+  sw-segmented {
+    --sw-seg-border: transparent;
+    --sw-seg-track: var(--dv-surface-3);
+    --sw-seg-radius: var(--dv-radius-control);
+    --sw-seg-btn-radius: var(--dv-radius-control);
+    --sw-seg-pad: 3px;
+    --sw-seg-gap: 2px;
+    --sw-seg-h: 32px;
+    --sw-seg-key-pad: 16px;
+    --sw-seg-fs: var(--sw-fs-base);
+    --sw-seg-fw: 600;
+    --sw-seg-fg: var(--mm-seg-fg, var(--dv-text));
+    --sw-seg-on-bg: var(--mm-seg-thumb);
+    --sw-seg-on-fg: var(--mm-seg-fg-on, var(--dv-text));
+    --sw-seg-on-shadow: var(--dv-shadow-control);
+    --sw-seg-count-bg: transparent;
+    --sw-seg-count-on-bg: transparent;
+  }
+  sw-segmented[size='sm'] {
+    --sw-seg-h: 30px;
+    --sw-seg-key-pad: 12px;
+    --sw-seg-fs: var(--sw-fs-sm);
+  }
   /* round keys, the power button, the volume rocker, the remote button */
   .rb {
     position: relative;
@@ -750,6 +776,11 @@ export const mediaGlassControls = css`
       min-block-size: 44px;
       min-inline-size: 44px; /* UXFIX-A11Y-295: the icon-only view switch was 37 px wide */
     }
+    sw-segmented,
+    sw-segmented[size='sm'] {
+      --sw-seg-h: 44px;
+      --sw-seg-key-min-w: 44px;
+    }
     .rb {
       inline-size: 44px;
       block-size: 44px;
@@ -894,6 +925,10 @@ export const mediaBubbleKnobs = css`
   }
   /* the bubble skin's targets: every control at least the desktop touch dial (44 / 32) and 44 px in touch layouts (the layout guard);
      the page header no longer sticks (a floating bar over the rows is the one thing the owner's rule forbids) */
+  :host([data-skin='bubble']) sw-segmented,
+  :host([data-skin='bubble']) sw-segmented[size='sm'] {
+    --sw-seg-h: var(--sw-touch-desktop, 44px);
+  }
   :host([data-skin='bubble']) .btn,
   :host([data-skin='bubble']) .btn.sm,
   :host([data-skin='bubble']) .seg button,
@@ -961,6 +996,10 @@ export const mediaBubbleKnobs = css`
     mask-image: none;
   }
   @media (max-width: 1100px) {
+    :host([data-skin='bubble']) sw-segmented,
+    :host([data-skin='bubble']) sw-segmented[size='sm'] {
+      --sw-seg-h: 44px;
+    }
     :host([data-skin='bubble']) .btn,
     :host([data-skin='bubble']) .btn.sm,
     :host([data-skin='bubble']) .seg button,

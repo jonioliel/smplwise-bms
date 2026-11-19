@@ -80,6 +80,28 @@ export const settingsSegStyles = css`
     outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: -2px;
   }
+  /* CR-CMP2-SEGMENTED-B-2450: styles/media-glass.ts draws sw-segmented as the glass key through these knobs; a host that takes this
+     sheet after the glass one gets the settings key back, as its hand-built .seg did (the later .seg rules won). unset = inherit, so the
+     knobs a host sets on itself (TKUI6, system-tickets) still reach the key. */
+  sw-segmented {
+    --sw-seg-border: unset;
+    --sw-seg-track: unset;
+    --sw-seg-radius: unset;
+    --sw-seg-btn-radius: unset;
+    --sw-seg-pad: unset;
+    --sw-seg-gap: unset;
+    --sw-seg-h: unset;
+    --sw-seg-key-pad: unset;
+    --sw-seg-key-min-w: unset;
+    --sw-seg-fs: unset;
+    --sw-seg-fw: unset;
+    --sw-seg-fg: unset;
+    --sw-seg-on-bg: unset;
+    --sw-seg-on-fg: unset;
+    --sw-seg-on-shadow: unset;
+    --sw-seg-count-bg: unset;
+    --sw-seg-count-on-bg: unset;
+  }
 `;
 
 /** R5-SYSTEM-297: the settings ladder (the HOMEFABLE pattern - hero / card / well - on every הגדרות page). A screen that does not

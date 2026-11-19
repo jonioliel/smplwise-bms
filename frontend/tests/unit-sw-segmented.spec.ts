@@ -56,7 +56,9 @@ test.describe('sw-segmented: the contract in the source', () => {
   });
 
   test('accessible: a named group of toggle buttons (aria-pressed), the arrows move the focus', () => {
-    expect(src).toMatch(/role="group" aria-label=\$\{this\.label \|\| nothing\}/);
+    expect(src).toMatch(/role=\$\{radio \? 'radiogroup' : 'group'\} aria-label=\$\{this\.label \|\| nothing\}/);
+    // CR-CMP2-SEGMENTED-B-2450: a radio group keeps its radios (role + aria-checked) and the aria-pressed the look reads
+    expect(src).toMatch(/role=\$\{radio \? 'radio' : nothing\} aria-checked=\$\{radio \? String\(o\.value === this\.value\) : nothing\}/);
     expect(src).toMatch(/<button type="button" part="key" aria-pressed=\$\{o\.value === this\.value \? 'true' : 'false'\}/);
     expect(src).toMatch(/@keydown=\$\{this\.onKey\}/);
     expect(src).toMatch(/button:focus-visible \{\s*outline: var\(--sw-focus-w, 2px\) solid var\(--sw-focus\);/);
@@ -86,7 +88,13 @@ test.describe('sw-segmented: the contract in the source', () => {
 });
 
 /** The screens whose segmented controls moved to sw-segmented: no hand-built `class="seg"` group may come back in them. */
-const ADOPTED = ['screens/system-look.ts', 'screens/system-design.ts', 'screens/system-plan-view.ts', 'screens/system-brand-logos.ts', 'screens/system-automations.ts'];
+const ADOPTED = [
+  'screens/system-look.ts',
+  'screens/system-design.ts',
+  'screens/system-plan-view.ts',
+  'screens/system-brand-logos.ts',
+  'screens/system-automations.ts',
+];
 
 test('adoption: the adopted screens draw every segmented control with sw-segmented', () => {
   const bad: string[] = [];

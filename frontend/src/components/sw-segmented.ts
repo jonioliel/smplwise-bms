@@ -36,6 +36,10 @@ export interface SegmentedChange<V extends string = string> {
  *    keep working (Playwright's CSS pierces the shadow root). The arrow keys and Home / End move the focus along the keys.
  *  - `size="sm"`: the 28 px key of the compact rows (notification settings); default 34 px. `block`: the track fills its row and the
  *    keys share it equally; a host that only stretches it on some widths sets `--sw-seg-key-flex: 1 1 auto` there. On a coarse pointer every key keeps a 44 px tall touch target (an absolute ::before, no layout change).
+ *  - knobs a host may set beside the track ones (CR-CMP2-SEGMENTED-B-2450, so a screen keeps its key through the shadow root):
+ *    --sw-seg-fg (the ink of a key that is not chosen), --sw-seg-fs / --sw-seg-fw / --sw-seg-on-fw (the label size, weight, the
+ *    chosen key's weight), --sw-seg-key-min-w,
+ *    --sw-seg-count-bg / --sw-seg-count-on-bg (the count pill).
  *  - motion (emil-design-eng): a settings key is pressed tens of times a day, so the thumb does not slide; colour fades on the
  *    hover curve and a key gives on pointer-down (`--sw-press-scale`, 1 = none in the skins that turn press feedback off).
  */
@@ -48,6 +52,10 @@ export class SwSegmented<V extends string = string> extends LitElement {
   @property({ type: Boolean, reflect: true }) disabled = false;
   @property({ reflect: true }) size: 'md' | 'sm' = 'md';
   @property({ type: Boolean, reflect: true }) block = false;
+  /** CR-CMP2-SEGMENTED-B-2450: a choice the screen already named a radio group (the settings rows of tickets, calendars, timeline
+   * colours ...): the track is a `radiogroup` and each key a `radio` with `aria-checked`. The key keeps `aria-pressed` beside it, as
+   * the hand-built groups did (their specs read either attribute); the look reads `aria-pressed` only. */
+  @property({ type: Boolean }) radio = false;
 
   static styles = css`
     :host {
@@ -91,10 +99,11 @@ export class SwSegmented<V extends string = string> extends LitElement {
       border: 0;
       border-radius: var(--sw-seg-btn-radius, var(--sw-r-sm));
       background: transparent;
-      color: var(--sw-text-2);
+      color: var(--sw-seg-fg, var(--sw-text-2));
       font: inherit;
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-seg-fs, var(--sw-fs-md));
+      font-weight: var(--sw-seg-fw, var(--sw-fw-semibold));
+      min-inline-size: var(--sw-seg-key-min-w, 0);
       line-height: 1.2;
       white-space: nowrap;
       /* a host that stretches the control (a phone row) may let the keys share the line: --sw-seg-key-flex: 1 1 auto */
@@ -113,7 +122,7 @@ export class SwSegmented<V extends string = string> extends LitElement {
     :host([size='sm']) button {
       min-block-size: var(--sw-seg-h, 28px);
       padding: 0 var(--sw-seg-key-pad, 10px);
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-seg-fs, var(--sw-fs-sm));
     }
     :host([block]) button {
       flex: 1 1 0;
@@ -131,11 +140,15 @@ export class SwSegmented<V extends string = string> extends LitElement {
     button:active:not(:disabled) {
       transform: scale(var(--sw-press-scale, 1));
     }
+    .seg button[aria-pressed='true'] .n {
+      background: var(--sw-seg-count-on-bg, var(--sw-seg-count-bg, color-mix(in srgb, currentColor 14%, transparent)));
+    }
     .seg button[aria-pressed='true'] {
       /* GATE2370-B: in dark the chosen key is the light pill (--sw-seg-key / --sw-seg-key-ink) - 3:1 from the track (WCAG 1.4.11) */
       background: var(--sw-seg-on-bg, var(--sw-seg-key, var(--sw-surface)));
       color: var(--sw-seg-on-fg, var(--sw-seg-key-ink, var(--sw-accent-text)));
       box-shadow: var(--sw-seg-on-shadow, var(--sw-seg-thumb-shadow, var(--sw-shadow-1)));
+      font-weight: var(--sw-seg-on-fw, var(--sw-seg-fw, var(--sw-fw-semibold)));
     }
     button:focus-visible {
       outline: var(--sw-focus-w, 2px) solid var(--sw-focus);
@@ -210,9 +223,11 @@ export class SwSegmented<V extends string = string> extends LitElement {
   }
 
   render() {
-    return html`<div class="seg" part="track" role="group" aria-label=${this.label || nothing} @keydown=${this.onKey}>
+    const radio = this.radio;
+    return html`<div class="seg" part="track" role=${radio ? 'radiogroup' : 'group'} aria-label=${this.label || nothing} @keydown=${this.onKey}>
       ${this.options.map(
-        (o) => html`<button type="button" part="key" aria-pressed=${o.value === this.value ? 'true' : 'false'} ?disabled=${this.disabled || !!o.disabled} title=${o.title || nothing}
+        (o) => html`<button type="button" part="key" aria-pressed=${o.value === this.value ? 'true' : 'false'} role=${radio ? 'radio' : nothing} aria-checked=${radio ? String(o.value === this.value) : nothing}
+          ?disabled=${this.disabled || !!o.disabled} title=${o.title || nothing}
           @click=${() => this.press(o)}>${o.label}${o.count ? html`<small class="n">${o.count}</small>` : nothing}</button>`,
       )}
     </div>`;
