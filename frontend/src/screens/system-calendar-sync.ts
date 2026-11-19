@@ -2,6 +2,7 @@ import { LitElement, html, nothing, css } from 'lit';
 import { liftRef, liftedReset } from '../components/top-layer';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-tabs';
 import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-dialog';
@@ -15,7 +16,6 @@ import { refreshCalendars } from '../calendars/access';
 import { PROVIDER_LABEL, colorVar, hm, pageOf, whenText } from '../calendars/model';
 import { calCss } from '../calendars/styles';
 import { leadReserveStyles } from '../styles/lead-reserve';
-import { tablistKeydown } from '../components/a11y-keys';
 import { LongListsController, perPageFor } from '../api/long-lists';
 import { tr } from '../i18n/msg/system-a';
 import { ToastController } from '../components/toast-controller';
@@ -229,10 +229,13 @@ export class SystemCalendarSync extends LitElement {
   private phoneProviders(now: Date) {
     const att = (this.conns ?? []).find((c) => c.state !== 'ok' && c.state !== 'paused');
     const cur = this.shownProvider ?? (att ? cardOf(att.provider) : null) ?? 'ical';
-    return html`<div class="seg" role="tablist" aria-label=${tr('ספק')} data-provider-tabs @keydown=${tablistKeydown}>${ORDER.map((p) => {
-      const c = this.connOf(p);
-      return html`<button type="button" role="tab" style="flex:1" aria-pressed=${String(cur === p)} aria-selected=${String(cur === p)} data-provider-tab=${p} @click=${() => (this.shownProvider = p)}>${PROVIDER_LABEL[p]}${c && c.state !== 'ok' ? html` <span class="dot" aria-label=${tr('דורש טיפול')} style="display:inline-block;--h:var(--sw-warning)"></span>` : nothing}</button>`;
-    })}</div>${this.card(cur, now)}`;
+    // CR-CMP2-SEGMENTED-C-2450: a tab strip (it switches the card below), so the shared sw-tabs pill rather than a segmented control; a
+    // provider that needs attention keeps its named warning dot, every tab its data-provider-tab hook
+    return html`<sw-tabs variant="pill" group-label=${tr('ספק')} data-provider-tabs active=${cur} @change=${(e: CustomEvent<{ id: string }>) => (this.shownProvider = e.detail.id as ProviderCard)}
+      .items=${ORDER.map((p) => {
+        const c = this.connOf(p);
+        return { id: p, label: PROVIDER_LABEL[p], dot: c && c.state !== 'ok' ? ('warn' as const) : undefined, dotLabel: tr('דורש טיפול'), attrs: { 'data-provider-tab': p } };
+      })}></sw-tabs>${this.card(cur, now)}`;
   }
 
   /** The connection a card shows: the first of its provider (both iCal kinds share the iCal card). */

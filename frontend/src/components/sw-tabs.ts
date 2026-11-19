@@ -23,8 +23,13 @@ export interface TabItem {
   /** SERVICEIA1-295: a shorter label the bar shows when the host asks for short labels (`short-labels`, the phone rows). */
   short?: string;
   /** SERVICEIA1-295 / CR-LIVEEVENT100: a small red dot after the label (the bar forms; the dropdown uses `alert`): something waits inside
-   * this entry (an open incident on the live event tab). */
-  dot?: boolean;
+   * this entry (an open incident on the live event tab). CR-CMP2-SEGMENTED-C-2450: `'warn'` draws it in the warning ink (attention, not
+   * an alarm). */
+  dot?: boolean | 'warn';
+  /** CR-CMP2-SEGMENTED-C-2450: the dot's accessible name ("needs attention"); without it the dot is decorative (aria-hidden). */
+  dotLabel?: string;
+  /** CR-CMP2-SEGMENTED-C-2450: data-* hooks copied onto the tab element (a strip that moved here keeps its specs' hooks). */
+  attrs?: Readonly<Record<string, string>>;
 }
 
 /** The look of a tab bar (0.1.148, `ui.tabs` styles - shell/nav.ts tabStyleOf): the narrow segmented pill, the underline row,
@@ -276,6 +281,9 @@ export class SwTabs extends LitElement {
       border-radius: 999px;
       background: var(--sw-danger);
       flex: none;
+    }
+    .tdot.warn {
+      background: var(--sw-warning);
     }
 
     /* ---- dropdown (0.1.153): one chip + a popover list; nothing to scroll or fade, and the chip's dot / hit area stick out of the box ---- */
@@ -541,6 +549,19 @@ export class SwTabs extends LitElement {
     if (changed.has('active') || changed.has('items') || changed.has('variant') || changed.has('underline') || changed.has('adaptive')) this.revealActive();
     this.updateFade();
     this.markPanel();
+    if (changed.has('items')) this.applyHooks();
+  }
+
+  /** CR-CMP2-SEGMENTED-C-2450: an item's `attrs` (data-* hooks) on its tab element; a hook an item dropped is removed. */
+  private applyHooks() {
+    const tabs = [...this.renderRoot.querySelectorAll<HTMLElement>('.row > a, .row > button')];
+    this.items.filter((it) => !it.divider).forEach((it, i) => {
+      const el = tabs[i];
+      if (!el) return;
+      const want = it.attrs ?? {};
+      for (const a of [...el.attributes]) if (a.name.startsWith('data-') && !(a.name in want)) el.removeAttribute(a.name);
+      for (const [name, v] of Object.entries(want)) if (el.getAttribute(name) !== v) el.setAttribute(name, v);
+    });
   }
 
   /** Which physical edges hide tabs (`data-fade`, direction-agnostic: compares the tabs' boxes with the viewport's box) and which
@@ -607,7 +628,7 @@ export class SwTabs extends LitElement {
     if (this.mode === 'dropdown') {
       return html`<sw-dropdown ?block=${this.block} ?tall=${this.tall} dd-style=${this.ddStyle} dd-size=${this.ddSize} dd-ring=${this.ddRing} dd-panel=${this.ddPanel} .items=${this.items} .value=${this.active} .label=${this.groupLabel} @change=${this.onPick}></sw-dropdown>`;
     }
-    const label = (it: TabItem) => html`<span class="lbl">${this.shortLabels && it.short ? it.short : it.label}${it.count !== undefined ? html`<span class="count">(${it.count})</span>` : ''}${it.badge ? html`<span class="tbadge" data-tab-badge=${it.id}>${it.badge}</span>` : ''}${it.dot && !it.badge ? html`<span class="tdot" data-tab-dot=${it.id} aria-hidden="true"></span>` : ''}</span>`;
+    const label = (it: TabItem) => html`<span class="lbl">${this.shortLabels && it.short ? it.short : it.label}${it.count !== undefined ? html`<span class="count">(${it.count})</span>` : ''}${it.badge ? html`<span class="tbadge" data-tab-badge=${it.id}>${it.badge}</span>` : ''}${it.dot && !it.badge ? html`<span class=${it.dot === 'warn' ? 'tdot warn' : 'tdot'} data-tab-dot=${it.id} role=${it.dotLabel ? 'img' : nothing} aria-label=${it.dotLabel || nothing} aria-hidden=${it.dotLabel ? nothing : 'true'}></span>` : ''}</span>`;
     // A11Y-R4-LEFTOVERS-2380: a real tablist. Every entry is a tab (a link keeps its href and aria-current, a button takes aria-selected in
     // place of the old pressed state); only the selected tab is in the Tab order (roving tabindex) - the arrow keys, Home and End walk
     // the others (onKey). A strip with no selected tab keeps its first tab reachable.

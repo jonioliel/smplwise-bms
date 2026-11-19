@@ -281,6 +281,14 @@ export class SwSegmented<V extends string = string> extends LitElement {
     return [...(this.renderRoot?.querySelectorAll<HTMLButtonElement>('button') ?? [])];
   }
 
+  /** CR-CMP2-SEGMENTED-C-2450: focusing the element focuses its chosen key (else the first enabled one), so a host that moves the
+   * focus to the group itself (a menu's Tab trap) lands on a key. */
+  override focus(options?: FocusOptions) {
+    const keys = this.keys;
+    const i = segmentedTabStop(this.options.map((o) => o.value), this.value, keys.map((k) => !k.disabled));
+    if (i >= 0) keys[i].focus(options);
+  }
+
   private press(o: SegmentOption<V>) {
     if (this.disabled || o.disabled) return;
     this.dispatchEvent(new CustomEvent<SegmentedChange<V>>('change', { detail: { value: o.value }, bubbles: true, composed: true }));
