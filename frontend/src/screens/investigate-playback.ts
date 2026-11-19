@@ -208,7 +208,8 @@ export class InvestigatePlayback extends LitElement {
       background: var(--sw-video-bg);
       box-shadow: var(--sw-shadow-2);
       /* 0.1.68: the whole page (controls + timeline) fits the window - no scrolling to reach the timeline (owner 3.5) */
-      max-block-size: max(200px, calc(100dvh - 560px));
+      /* RELEASE-2440-TRAIN: minus the diagnostics row under the player when it is shown (--pb-diag-h, measured; 0 when hidden) */
+      max-block-size: max(200px, calc(100dvh - 560px - var(--pb-diag-h, 0px)));
       margin-inline: auto;
       inline-size: 100%;
     }
@@ -240,7 +241,7 @@ export class InvestigatePlayback extends LitElement {
        16:9 tiles pushed the timeline below the window while the single video keeps the 0.1.68 budget. The grid takes the same budget:
        its width is capped so that its rows (16:9 tiles, the 6 px gaps and padding) end within it, centred like the single video. */
     .grid {
-      --pb-stage-h: max(200px, calc(100dvh - 560px));
+      --pb-stage-h: max(200px, calc(100dvh - 560px - var(--pb-diag-h, 0px)));
       /* RELEASE-2439-TRAIN (layout-playback-grid-2443): the caps below count the 6 px padding (the +12 / +18), so they are border-box
          widths - as content-box the 2x2 grid came out 7 px over the budget (12 px of padding x 9/16) */
       box-sizing: border-box;
@@ -644,6 +645,9 @@ export class InvestigatePlayback extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    this.diagObs?.disconnect();
+    this.diagObs = undefined;
+    this.diagRow = null;
     this.stopDisplay?.();
     window.clearInterval(this.ticker);
     window.clearTimeout(this.previewTimer);
@@ -651,7 +655,38 @@ export class InvestigatePlayback extends LitElement {
     void this.endSession();
   }
 
+  /**
+   * RELEASE-2440-TRAIN (the open item of RELEASE-2439-TRAIN): the 0.1.68 stage budget (100dvh - 560px) is defined without the
+   * diagnostics row under the player, which is shown by default (`playback.diagnostics`) - with it the page scrolled by 6 px. The
+   * row's height plus the gap before it (it wraps on narrow windows) is kept in `--pb-diag-h`, and both stage budgets subtract it.
+   */
+  private diagObs?: ResizeObserver;
+  private diagRow: Element | null = null;
+  private measureDiagRow() {
+    const row = this.shadowRoot?.querySelector('[data-playback-diagnostics]') ?? null;
+    if (row !== this.diagRow) {
+      this.diagObs?.disconnect();
+      this.diagRow = row;
+      if (row && typeof ResizeObserver !== 'undefined') {
+        this.diagObs ??= new ResizeObserver(() => this.applyDiagRow());
+        this.diagObs.observe(row);
+      }
+    }
+    this.applyDiagRow();
+  }
+  private applyDiagRow() {
+    const row = this.diagRow as HTMLElement | null;
+    const h = row?.isConnected ? row.getBoundingClientRect().height : 0;
+    const gap = h > 0 && row?.parentElement ? parseFloat(getComputedStyle(row.parentElement).rowGap) || 0 : 0;
+    const v = h > 0 ? `${Math.ceil(h + gap)}px` : '';
+    if (this.style.getPropertyValue('--pb-diag-h') !== v) {
+      if (v) this.style.setProperty('--pb-diag-h', v);
+      else this.style.removeProperty('--pb-diag-h');
+    }
+  }
+
   protected updated(changed: Map<string, unknown>) {
+    this.measureDiagRow();
     if (isApi() && changed.has('cameraId') && changed.get('cameraId') !== undefined && this.cams && this.cameraId !== this.appliedCamera) {
       void this.selectCamera(this.cameraId, true); // the address named another camera (not the one this screen just applied itself)
     }

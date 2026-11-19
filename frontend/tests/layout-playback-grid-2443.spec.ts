@@ -27,7 +27,10 @@ const measure = (page: Page) =>
     const screen = findDeep(document, 'investigate-playback') as HTMLElement | null;
     const grid = screen?.shadowRoot?.querySelector('[data-pb-grid]')?.getBoundingClientRect();
     const tl = screen?.shadowRoot?.querySelector('sw-timeline')?.getBoundingClientRect();
+    const video = screen?.shadowRoot?.querySelector('.video')?.getBoundingClientRect();
+    const diag = screen?.shadowRoot?.querySelector('[data-playback-diagnostics]')?.getBoundingClientRect();
     return {
+      videoH: video ? Math.round(video.height) : -1, diagH: diag ? Math.round(diag.height) : -1,
       doc: over(document.scrollingElement), main: over(main), screen: over(screen),
       gridH: grid ? Math.round(grid.height) : -1, gridW: grid ? Math.round(grid.width) : -1, tlBottom: tl ? Math.round(tl.bottom) : -1, vh: innerHeight,
     };
@@ -55,5 +58,33 @@ test.describe('the comparison grid at 2x2 fits the window (CR-NOSCROLL-LISTS-244
       expect(Math.max(m.doc, m.main, m.screen), `page overflow at ${vp.name}: ${JSON.stringify(m)}`).toBeLessThanOrEqual(1);
       expect(m.tlBottom, `the timeline ends inside the window at ${vp.name}`).toBeLessThanOrEqual(m.vh);
     });
+  }
+});
+
+// RELEASE-2440-TRAIN (the open item of RELEASE-2439-TRAIN): with the diagnostics row under the player SHOWN - the installation default
+// (`playback.diagnostics`) - the page scrolled by 6 px at 1440x900, the single video too. The stage budget now counts that row, so the
+// page does not scroll and the timeline stays in the window with the default settings as well.
+test.describe('the recordings page with the diagnostics row (the default) does not scroll', () => {
+  for (const vp of VIEWPORTS) {
+    for (const extra of ['', '&extra=c2,c3,c4'] as const) {
+      const what = extra ? '2x2' : 'single video';
+      test(`${what} at ${vp.name} with the diagnostics row: the page does not scroll, the timeline is in view`, async ({ page }, info) => {
+        test.skip(info.project.name !== 'desktop', 'the viewports are set by the test itself');
+        test.setTimeout(120_000);
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await page.setViewportSize({ width: vp.width, height: vp.height });
+        const st = await mock(page, { cameras: MORE });
+        await openAndPlay(page, extra, 'design=a&skin=classic&scheme=light');
+        if (extra) await expect.poll(() => st.groups.length).toBeGreaterThanOrEqual(1);
+        await expect(page.locator(extra ? 'investigate-playback [data-pb-grid="4"]' : 'investigate-playback .video').first()).toBeVisible({ timeout: 20_000 });
+        await expect(page.locator('investigate-playback [data-playback-diagnostics]').first()).toBeVisible();
+        await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+        const m = await measure(page);
+        if (process.env.NOSCROLL_LOG) console.log(`diag ${what} ${vp.name}: ${JSON.stringify(m)}`);
+        expect(extra ? m.gridH : m.videoH, `stage drawn at ${vp.name}`).toBeGreaterThan(0);
+        expect(Math.max(m.doc, m.main, m.screen), `page overflow at ${vp.name}: ${JSON.stringify(m)}`).toBeLessThanOrEqual(1);
+        expect(m.tlBottom, `the timeline ends inside the window at ${vp.name}`).toBeLessThanOrEqual(m.vh);
+      });
+    }
   }
 });
