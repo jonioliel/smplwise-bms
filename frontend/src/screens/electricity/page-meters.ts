@@ -219,8 +219,8 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
   }
 
   /** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): the meters table is the shared sw-table - the name (+ the sensor's name; each line cut
-   * with an ellipsis), the area (its floor steps out below 1024 px), the three readings (LTR figures at the reading end), the status chip
-   * in the shared tones (+ since when a stale meter is silent) and the accounts count (steps out below 1024 px). The table is the list's
+   * with an ellipsis), the area (its floor steps out at the module's narrow edge, `narrow`), the three readings (LTR figures at the reading
+   * end), the status chip in the shared tones (+ since when a stale meter is silent) and the accounts count (steps out at `narrow`). The table is the list's
    * card and its scroll box (the header row stays in place); a row opens the meter card (click, Enter / Space; the block arrows walk the
    * rows). Row hook `data-meter`. */
   private tableColumns(showAcc: boolean): TableColumn<Meter>[] {
@@ -232,13 +232,13 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
         cellTitle: (m) => [meterNames(m).primary, meterNames(m).secondary].filter(Boolean).join(' - '),
         render: (m) => html`<span class="t1">${meterNames(m).primary}</span>${this.entityLine(m, 't2')}`,
       },
-      { key: 'area', label: tr('אזור'), render: (m) => html`${m.area_name ?? '-'}<span class="mut hb-tablet"> · ${m.floor_name ?? ''}</span>` },
+      { key: 'area', label: tr('אזור'), render: (m) => html`${m.area_name ?? '-'}${this.narrow ? nothing : html`<span class="mut"> · ${m.floor_name ?? ''}</span>`}` },
       { key: 'reading', label: tr('קריאה נוכחית (קוט״ש)'), kind: 'num', render: (m) => fmtKwh(m.reading_kwh) },
       { key: 'today', label: tr('היום'), kind: 'num', render: (m) => fmtKwh(m.today_kwh) },
       { key: 'month', label: tr('מתחילת החודש'), kind: 'num', render: (m) => fmtKwh(m.month_kwh) },
       { key: 'status', label: tr('מצב'), kind: 'status', render: (m) => html`${this.statusCellChip(m)}${this.staleNote(m)}` },
     ];
-    if (showAcc) cols.push({ key: 'accounts', label: tr('בחשבונות'), hideBelow: 'tablet', render: (m) => (m.accounts_count ? String(m.accounts_count) : html`<span class="mut">-</span>`) });
+    if (showAcc && !this.narrow) cols.push({ key: 'accounts', label: tr('בחשבונות'), render: (m) => (m.accounts_count ? String(m.accounts_count) : html`<span class="mut">-</span>`) });
     return cols;
   }
 

@@ -155,18 +155,18 @@ export class WaterMetersPage extends MetersPageBase<Meter, WaterAccess> {
     </div>`;
   }
 
-  /** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): the meters table is the shared sw-table - the name, the area (its floor steps out below
-   * 1024 px), the readings in m³ (LTR figures at the reading end; the month steps out below 1024 px), the night flow (a leak's in the
+  /** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): the meters table is the shared sw-table - the name, the area (its floor steps out at
+   * the module's narrow edge, `narrow`), the readings in m³ (LTR figures at the reading end; the month steps out at `narrow`), the night flow (a leak's in the
    * danger ink through the `bad` part) and the state chip (meterChip carries the shared tone). The table is the list's card and its
    * scroll box (the header row stays in place); a row opens the meter card (click, Enter / Space; the block arrows walk the rows). Row
    * hook `data-meter`. */
   private tableColumns(): TableColumn<Meter>[] {
     return [
       { key: 'name', label: wt('colName'), render: (m) => html`<b>${m.display_name}</b>` },
-      { key: 'area', label: wt('colArea'), render: (m) => html`${m.area_name ?? '-'}<span class="mut hb-tablet">${m.floor_name ? ` · ${m.floor_name}` : ''}</span>` },
+      { key: 'area', label: wt('colArea'), render: (m) => html`${m.area_name ?? '-'}${this.narrow ? nothing : html`<span class="mut">${m.floor_name ? ` · ${m.floor_name}` : ''}</span>`}` },
       { key: 'value', label: wt('colReading'), kind: 'num', render: (m) => m3OfL(m.value_l) },
       { key: 'today', label: wt('colToday'), kind: 'num', render: (m) => m3OfL(m.today_l) },
-      { key: 'month', label: wt('colMonth'), kind: 'num', hideBelow: 'tablet', render: (m) => m3OfL(m.month_l) },
+      ...(this.narrow ? [] : [{ key: 'month', label: wt('colMonth'), kind: 'num', render: (m) => m3OfL(m.month_l) } satisfies TableColumn<Meter>]),
       { key: 'night', label: wt('colNight'), kind: 'num', render: (m) => html`<span part=${alertOf(m.id, this.open) === 'leak' ? 'bad' : nothing}>${nightText(this.night[m.id])}</span>` },
       { key: 'state', label: wt('colState'), kind: 'status', render: (m) => this.chip(m) },
     ];

@@ -206,6 +206,12 @@ export abstract class MetersPageBase<M extends { id: string }, A extends MetersA
   protected get notice(): string {
     return this.toaster.text;
   }
+  /** The module's narrow edge (the old `.dsk` rule of both modules, 1099 px): the meters tables drop their secondary cells (the floor
+   * under the area, electricity's accounts / water's month) here, not at sw-table's shared 1023 px - between 1024 and 1099 px the full
+   * table was ~57 px wider than its card and scrolled sideways (layout-electricity-meters at 1024, RELEASE-2450-TRAIN phase 1). */
+  @state() protected narrow = false;
+  private narrowMq?: MediaQueryList;
+  private readonly onNarrow = () => (this.narrow = !!this.narrowMq?.matches);
   private stopAccess?: () => void;
   private poller = new PollController(this); // CR-POLL-SCREENS-B-2440 (D2): the shared poll - visible only, never two reads at once, one catch-up read on return
 
@@ -249,11 +255,15 @@ export abstract class MetersPageBase<M extends { id: string }, A extends MetersA
   connectedCallback() {
     super.connectedCallback();
     this.stopAccess = this.cfg.onAccess((a) => (this.access = a));
+    this.narrowMq = globalThis.matchMedia?.('(max-width: 1099px)');
+    this.narrowMq?.addEventListener('change', this.onNarrow);
+    this.onNarrow();
     void this.load(true);
     this.poller.every('rows', POLL_MS, () => this.load(false));
   }
 
   disconnectedCallback() {
+    this.narrowMq?.removeEventListener('change', this.onNarrow);
     this.stopAccess?.();
     super.disconnectedCallback();
   }
