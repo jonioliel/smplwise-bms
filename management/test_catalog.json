@@ -19736,30 +19736,5 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
-  },
-  {
-    "id": "AT-CR-SHELL-EXTRACT-C-2450-1",
-    "requirement_ids": [
-      "R-CR-SHELL-EXTRACT-C-2450-1"
-    ],
-    "task_ids": [
-      "CR-SHELL-EXTRACT-C-2450"
-    ],
-    "title": "Shell extraction part C: the floating-window history management and the \"your permissions were updated\" notice out of sw-app.ts",
-    "kind": "unit/integration",
-    "preconditions": [
-      "Build tied to a recorded commit",
-      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
-    ],
-    "procedure": [
-      "Run the tests or checks named in the change record against the commit recorded here."
-    ],
-    "expected": "The floating-window history management and the \"your permissions were updated\" notice move out of sw-app.ts into their own controllers, behaviour unchanged, with the shell unit and navigation specs and a change note.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
   }
 ]

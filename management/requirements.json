@@ -12823,21 +12823,5 @@
     "test_ids": [
       "AT-T068-EDGE-2450-1"
     ]
-  },
-  {
-    "id": "R-CR-SHELL-EXTRACT-C-2450-1",
-    "title": "Shell extraction part C: the floating-window history management and the \"your permissions were updated\" notice out of sw-app.ts",
-    "statement": "The floating-window history management and the \"your permissions were updated\" notice move out of sw-app.ts into their own controllers, behaviour unchanged, with the shell unit and navigation specs and a change note.",
-    "task_ids": [
-      "CR-SHELL-EXTRACT-C-2450"
-    ],
-    "chapters": [],
-    "screens": [],
-    "phase": "V1",
-    "priority": "P2",
-    "status": "PLANNED",
-    "test_ids": [
-      "AT-CR-SHELL-EXTRACT-C-2450-1"
-    ]
   }
 ]

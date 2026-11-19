@@ -1,15 +1,15 @@
 # Project status — generated view
 
-Generated: 2026-11-19T07:20:41.053617+00:00
+Generated: 2026-11-19T07:27:28.790258+00:00
 
-Tasks: 624 | Requirements: 738 | Tests: 755 | Screens: 32
+Tasks: 623 | Requirements: 737 | Tests: 754 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DONE; READY, IN_PROGRESS, VALIDATION and DONE need every dependency DONE. OBSOLETE cards are BLOCKED with a blocker starting "Excluded - OBSOLETE" and an EXCLUDED evidence line (the registry has no OBSOLETE status); a dependency on an OBSOLETE card counts as satisfied under every rule (BOARD-DECISIONS-2407, owner decision 2026-11-07).
 
 ## Status counts
-- BACKLOG: 9
+- BACKLOG: 8
 - BLOCKED: 23
 - DONE: 208
 - IN_PROGRESS: 11
@@ -19,7 +19,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 530
+- V1: 529
 - V2: 29
 - V3: 2
 
@@ -674,4 +674,3 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [CR-CMP2-SELECTS-2450](tasks/CR-CMP2-SELECTS-2450.md) | V1 | IN_PROGRESS | CMP-2 step 2, the selects family (O13 a: family by family, new baselines) | — |
 | [CR-BE-COMPLEXITY-2450](tasks/CR-BE-COMPLEXITY-2450.md) | V1 | IN_PROGRESS | Backend complexity extractions (code-review programme 3.6) | — |
 | [T068-EDGE-2450](tasks/T068-EDGE-2450.md) | V1 | IN_PROGRESS | T068 edge cases of the soak and load work: disconnects and a full disk | — |
-| [CR-SHELL-EXTRACT-C-2450](tasks/CR-SHELL-EXTRACT-C-2450.md) | V1 | BACKLOG | Shell extraction part C: the floating-window history management and the "your permissions were updated" notice out of sw-app.ts | — |

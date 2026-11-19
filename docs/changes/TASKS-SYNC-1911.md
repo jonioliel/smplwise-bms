@@ -11,13 +11,13 @@ no lab, no device contact. No acceptance test was run and no catalog record was 
 |---|---|---|---|
 | DONE | 208 | 208 | 208 |
 | REVIEW | 139 | 219 | 373 |
-| BACKLOG | 92 | 9 | 9 |
+| BACKLOG | 92 | 9 | 8 |
 | BLOCKED | 19 | 23 | 23 |
 | IN_PROGRESS | 6 | 5 | 11 |
 | READY | 1 | 1 | 0 |
-| Total | 465 | 465 | 624 |
+| Total | 465 | 465 | 623 |
 
-Requirements 579 -> 738, catalog records 596 -> 755 (all new records NOT_RUN; PASS 335 and NOT_RUN 261 -> 420 unchanged for the old ones).
+Requirements 579 -> 737, catalog records 596 -> 754 (all new records NOT_RUN; PASS 335 and NOT_RUN 261 -> 419 unchanged for the old ones).
 `project_status.py --write`: PASS.
 
 ## 2. Status moves of existing cards
@@ -33,9 +33,9 @@ Requirements 579 -> 738, catalog records 596 -> 755 (all new records NOT_RUN; PA
 
 The 18.11 triage moves (77 shipped cards to REVIEW; T073, T060, T061, T072 OBSOLETE by owner decision; T063 REVIEW with "no external AI
 provider") come from `docs/changes/BACKLOG-HYGIENE-2443.md` (merged here, dependency order applied there). Still BACKLOG: T035, T036,
-T070, T071 (lab disconnection drills and staged rollout, owner-gated), T068, T095, ONVIF-DISCOVERY-2412 (FUTURE), plus two new ones below.
+T070, T071 (lab disconnection drills and staged rollout, owner-gated), T068, T095, ONVIF-DISCOVERY-2412 (FUTURE), plus CR-BRIDGE-STRUCT-2440.
 
-## 3. New cards (159)
+## 3. New cards (158)
 
 - 150 cards, one per change note added after v2.43.7 (`docs/changes/*.md` on `origin/release/2440-train`): 112 shipped in 2.43.8 (on main),
   30 in the 2.43.9 train, 8 only on the 2.44.0 train. All REVIEW (shipped, acceptance not yet recorded), no dependencies, one acceptance line
@@ -44,7 +44,6 @@ T070, T071 (lab disconnection drills and staged rollout, owner-gated), T068, T09
 - RELEASE-2440-TRAIN (IN_PROGRESS): the 2.44.0 train (head `e9d17b5ab`); its gate starts after 2.43.9 is released.
 - 2.45.0 rows, IN_PROGRESS, branch created 19.11, no commit yet: CR-FEED-BASE-2450, CR-ROUTER-SQL-2450,
   CR-RESPONSE-MODELS-CONSUMPTION-2450, CR-SHELL-EXTRACT-B-2450, CR-CMP2-SELECTS-2450, CR-BE-COMPLEXITY-2450, T068-EDGE-2450.
-- CR-SHELL-EXTRACT-C-2450 (BACKLOG): owner answer N5 below.
 - Release cards for 2.43.8 (RELEASE-2438-TRAIN) and 2.43.9 (RELEASE-2439-TRAIN) come from their change notes; 2.43.9 is not on main yet.
 
 The 2.43.9 / 2.44.0 cards assume those trains reach main; if one is dropped, set its cards back (the evidence lines say "not on main").
@@ -59,7 +58,7 @@ Relayed by the lead: N1 and N5 are the owner's own choices, every other answer i
 | N2 | The broad component swaps of 2.44.0 (shared components, toasts in 39 screens, shared water customer form) start after the structural changes (home/area, app shell) are pushed. |
 | N3 | The px-literals ceiling keeps its margin until every 2.43.9 branch is merged. |
 | N4 | Fix the unit-test config for page specs whose URL starts with `./#/` in a small separate branch (FIX-UNIT-PAGES-CONFIG-2440). |
-| N5 | Approved as a NEW task (not the recommended "not now"): split two more parts out of `sw-app.ts` (floating-window history management, the "your permissions were updated" notice). Card CR-SHELL-EXTRACT-C-2450. |
+| N5 | Approved as a NEW task (not the recommended "not now"): split two more parts out of `sw-app.ts` (floating-window history management, the "your permissions were updated" notice). Covered by the row CR-SHELL-EXTRACT-B-2450 (evidence line added); no separate card. |
 | N6 | Fix the two release-gate flakies now and include the fix in 2.43.9 if ready (FIX-FLAKY-POLISH-WORSTCASE-2439). |
 | N7 | Runner cleanup keeps the two newest test folders plus the nightly main folder. |
 | N8 | The backend lint lane stays non-blocking on main until 2.43.9 is merged (that branch carries the fixes and the blocking switch). |

@@ -26747,7 +26747,8 @@
       "Branch pilot/CR-SHELL-EXTRACT-B-2450, change note docs/changes/CR-SHELL-EXTRACT-B-2450.md, tests"
     ],
     "evidence": [
-      "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/CR-SHELL-EXTRACT-B-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN."
+      "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/CR-SHELL-EXTRACT-B-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN.",
+      "2026-11-19 (TASKS-SYNC-1911): owner answer N5 of 19.11 (private/planning/questions_2026-11-19.html) approved two further sw-app.ts extracts (the floating-window history management and the 'your permissions were updated' notice) as a new task; this row covers it, no separate card."
     ],
     "owner": null,
     "commit": null,
@@ -26862,44 +26863,6 @@
     ],
     "evidence": [
       "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/T068-EDGE-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN."
-    ],
-    "owner": null,
-    "commit": null,
-    "actual_cost_usd": null
-  },
-  {
-    "id": "CR-SHELL-EXTRACT-C-2450",
-    "title": "Shell extraction part C: the floating-window history management and the \"your permissions were updated\" notice out of sw-app.ts",
-    "epic": "CODE_REVIEW",
-    "phase": "V1",
-    "dependencies": [],
-    "chapters": [],
-    "screens": [],
-    "owner_role": "engineering",
-    "requires_hardware": false,
-    "acceptance": [
-      "The floating-window history management and the \"your permissions were updated\" notice move out of sw-app.ts into their own controllers, behaviour unchanged, with the shell unit and navigation specs and a change note."
-    ],
-    "requirement_ids": [
-      "R-CR-SHELL-EXTRACT-C-2450-1"
-    ],
-    "test_ids": [
-      "AT-CR-SHELL-EXTRACT-C-2450-1"
-    ],
-    "status": "BACKLOG",
-    "blocker": null,
-    "priority": "P2",
-    "model_policy": {
-      "implementation": "balanced",
-      "review": "balanced",
-      "effort": "medium",
-      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
-    },
-    "deliverables": [
-      "Two controllers, shell specs, change note"
-    ],
-    "evidence": [
-      "2026-11-19 (TASKS-SYNC-1911): created from owner answer N5 of 19.11 (private/planning/questions_2026-11-19.html): the owner approved the two further sw-app.ts extracts as a NEW task (the non-recommended option; the page text said 2.44.0, but the 2.44.0 train was already assembled, so the id carries 2450 and the lead sets the release). Not started; acceptance test NOT_RUN."
     ],
     "owner": null,
     "commit": null,
