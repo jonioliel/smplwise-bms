@@ -8,8 +8,11 @@ const src = (p: string) => readFileSync(new URL(`../src/${p}`, import.meta.url),
 
 test('the chip switch and its old-boards explanation are in Hebrew and English', () => {
   const i18n = src('i18n/notices.ts');
+  // CR-I18N-LAZY-LANG-2443: the English table lives in its language pack file (i18n/lang/en/i18n/notices.ts)
+  const en = src('i18n/lang/en/i18n/notices.ts');
   for (const key of ['infoShow', 'infoOldBoards']) {
-    expect(i18n.split(`${key}:`).length - 1, key).toBe(2);
+    expect(i18n.split(`${key}:`).length - 1, `${key} (he)`).toBe(1);
+    expect(en.split(`${key}:`).length - 1, `${key} (en)`).toBe(1);
   }
   expect(i18n).toContain('2.16.0');
 });

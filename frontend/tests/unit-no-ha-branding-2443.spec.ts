@@ -49,6 +49,12 @@ const ALLOWED: Allowed[] = [
     readers: ['SYNC_LABEL', 'ACTION_LABEL'],
   },
   {
+    file: 'i18n/msg/api-devices.ts',
+    why: 'the source-text table (Hebrew -> English) of the api/access.ts labels above, read through tr() by text, not by name',
+    texts: ['נמחק ב־HA', 'deleted in HA', 'בספריית HA', 'HA directory', 'הושבת (HA)', 'disabled (HA)', 'הופעל (HA)', 'enabled (HA)'],
+    readers: [],
+  },
+  {
     file: 'api/setup.ts',
     why: 'the demo answers of the setup wizard (Settings › setup): the step that connects the platform',
     texts: ['Home Assistant', 'HA'],
@@ -87,6 +93,9 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 const rel = (p: string): string => path.relative(SRC, p).split(path.sep).join('/');
 const FILES = walk(SRC).map((p) => ({ rel: rel(p), source: readFileSync(p, 'utf8') }));
+/** CR-I18N-LAZY-LANG-2443 (merged in RELEASE-2439-TRAIN): a language pack file `i18n/lang/<lang>/<module>` holds that module's
+ * own table, so it is judged as the module (settings area, allow-list) and is not a "reader" of the module's names. */
+const modOf = (rel: string): string => rel.replace(/^i18n\/lang\/(?:en|ar|ru)\//, '');
 
 const isTextNode = (n: ts.Node): n is ts.LiteralLikeNode =>
   ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || n.kind === ts.SyntaxKind.TemplateHead || n.kind === ts.SyntaxKind.TemplateMiddle || n.kind === ts.SyntaxKind.TemplateTail;
@@ -120,12 +129,13 @@ const code = (s: string): string => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/
 test('no "Home Assistant" / "HA" in a text outside the settings area, except the listed ones', () => {
   const extra: string[] = [];
   const unused = new Set(ALLOWED.flatMap((e) => e.texts.map((t) => `${e.file}${e.exact ? ' =' : ':'} ${t}`)));
-  for (const { rel: f, source } of FILES) {
+  for (const { rel: file, source } of FILES) {
+    const f = modOf(file);
     if (isSettings(f)) continue;
-    for (const hit of brandTexts(f, source)) {
+    for (const hit of brandTexts(file, source)) {
       const ok = allowedFor(f, hit.text);
       if (ok) unused.delete(`${f}${ok.entry.exact ? ' =' : ':'} ${ok.frag}`);
-      else extra.push(`${f}:${hit.line}: ${hit.text.slice(0, 90)}`);
+      else extra.push(`${file}:${hit.line}: ${hit.text.slice(0, 90)}`);
     }
   }
   expect(extra, 'say it in the product\'s own words (for example "תשתית המערכת", "גשר Arx", "the sign-in service")').toEqual([]);
@@ -137,7 +147,7 @@ test('the texts allowed outside the settings area are read by settings screens o
   for (const a of ALLOWED) {
     for (const name of a.readers) {
       const word = new RegExp(`\\b${name}\\b`);
-      const readers = FILES.filter((x) => x.rel !== a.file && word.test(code(x.source))).map((x) => x.rel);
+      const readers = FILES.filter((x) => modOf(x.rel) !== a.file && word.test(code(x.source))).map((x) => x.rel);
       expect(readers.length, `${a.file} ${name} has a reader`).toBeGreaterThan(0);
       for (const r of readers) if (!isSettings(r)) wrong.push(`${a.file} ${name} <- ${r}`);
     }
