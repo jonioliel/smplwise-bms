@@ -8,72 +8,41 @@ import { ApiError, get, post } from './client';
 import { isApi } from './session';
 import { FIXTURE_NOW } from '../electricity/fixtures';
 import { tr } from '../i18n/msg/api-electricity';
+import type * as Wire from './generated/wire-consumption';
 
 export type ReadingUnit = 'kWh' | 'Wh' | 'MWh';
 /** allocation: the reading closed or re-split a reporting gap; record: kept for comparison only. */
 type ReadingEffect = 'allocation' | 'record';
 type EffectReason = 'open_gap' | 'closed_gap' | 'head_gap' | 'reported' | 'outside_counter' | 'no_counter_data' | 'counter_events' | 'implausible' | 'billed';
 
-export interface ManualReading {
-  /** null in a dry-run answer (nothing saved yet). */
-  id: string | null;
-  read_at: string;
-  value_kwh: number;
-  value_wh: number;
-  typed_value: string;
-  typed_unit: ReadingUnit;
-  /** What the system counter showed at that instant, on the physical scale; null = no value then. */
-  system_kwh: number | null;
-  system_exact: boolean;
-  /** value - system; null when the system had no value. */
-  deviation_kwh: number | null;
-  effect: ReadingEffect;
-  effect_reason: EffectReason;
-  /** The server's short operator sentence for the effect. */
-  message: string;
-  note: string | null;
-  created_at: string;
-  created_by_name: string | null;
-  voided_at: string | null;
-  voided_by_name: string | null;
-  void_reason: string | null;
-  can_undo: boolean;
-  undo_until: string | null;
-}
+/* The shapes below are the backend's response models (smplwise_vms/backend/smplwise/wire/energy_meters.py, generated into
+ * ./generated/wire-consumption.ts), narrowed to what the screens and the demo use: a field the server renames or drops is a compile
+ * error here (code review 07:F8 step 2). Narrowed on purpose: a stored reading always has its kWh (`value_wh` is NOT NULL) and one of
+ * the known effect reasons; the calibration in force always has an offset. */
 
-export interface Calibration {
-  id: string | null;
-  effective_date: string;
-  effective_from: string;
-  /** Decimal text: physical = factor x counter + offset. */
-  factor: string;
-  offset_kwh: number;
-  anchor_reading_id: string | null;
-  note: string | null;
-  in_force: boolean;
-  created_at: string;
-  created_by_name: string | null;
-  voided_at: string | null;
-  voided_by_name: string | null;
-  void_reason: string | null;
-  can_undo: boolean;
-  undo_until: string | null;
-}
+/** A typed reading of the physical meter. `id` is null in a dry-run answer (nothing saved yet); `system_kwh` = what the system counter
+ * showed at that instant on the physical scale (null = no value then); `deviation_kwh` = value - system; `message` = the server's short
+ * operator sentence for the effect. */
+export type ManualReading = Pick<
+  Wire.EnergyManualReading,
+  | 'id' | 'read_at' | 'value_wh' | 'typed_value' | 'typed_unit' | 'system_kwh' | 'system_exact' | 'deviation_kwh' | 'effect' | 'message' | 'note'
+  | 'created_at' | 'created_by_name' | 'voided_at' | 'voided_by_name' | 'void_reason' | 'can_undo' | 'undo_until'
+> & { value_kwh: number; effect_reason: EffectReason };
 
-export interface ReadingLog {
-  meter_id: string;
-  /** Newest first, undone ones included (marked). */
+/** A calibration from a date on: physical = factor x counter + offset (`factor` is decimal text). */
+export type Calibration = Pick<
+  Wire.EnergyCalibration,
+  | 'id' | 'effective_date' | 'effective_from' | 'factor' | 'anchor_reading_id' | 'note' | 'in_force' | 'created_at' | 'created_by_name' | 'voided_at'
+  | 'voided_by_name' | 'void_reason' | 'can_undo' | 'undo_until'
+> & { offset_kwh: number };
+
+/** The meter's log: readings newest first (undone ones included, marked), the calibrations, the calibration in force, a suggested factor
+ * (a hint only), and the end of the last issued bill with the meter (UTC) - a calibration may start on `first_calibration_date` at the earliest. */
+export type ReadingLog = Pick<Wire.EnergyReadingLog, 'meter_id' | 'suggestion' | 'billed_until' | 'first_calibration_date' | 'undo_window_hours'> & {
   items: ManualReading[];
   calibrations: Calibration[];
-  /** The calibration in force now. */
-  calibration: { factor: string; offset_kwh: number; calibration_id: string | null; effective_date: string | null; identity: boolean };
-  /** A factor from two compared readings (a hint only). */
-  suggestion: { factor: string; from_reading_id: string; to_reading_id: string; anchor_reading_id: string } | null;
-  /** The end of the last issued bill with the meter (UTC); a calibration may start on `first_calibration_date` at the earliest. */
-  billed_until: string | null;
-  first_calibration_date: string | null;
-  undo_window_hours: number;
-}
+  calibration: Omit<Wire.EnergyCalibrationCurrent, 'offset_kwh'> & { offset_kwh: number };
+};
 
 interface ReadingBody {
   read_at: string;

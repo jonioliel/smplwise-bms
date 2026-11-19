@@ -243,7 +243,7 @@ export class WaterMetersPage extends MetersPageBase<Meter, WaterAccess> {
               const off = c.verdict === 'rejected' || !!c.already_meter_id;
               return html`<div class="li ${off ? 'dis' : 'pick'}" role="button" tabindex=${off ? -1 : 0} aria-disabled=${off ? 'true' : 'false'} aria-pressed=${this.picked?.ref === c.ref ? 'true' : 'false'} data-cand=${c.ref}
                 @click=${() => this.pick(c)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.pick(c); } }}>
-                <div class="grow"><div class="t1">${c.device_name || c.name}</div><div class="t2 wrap">${[c.area_name, c.unit].filter(Boolean).join(' · ')}${c.verdict !== 'accepted' && c.message ? html` · <span class=${c.verdict === 'rejected' ? 'bad' : ''}>${c.message}</span>` : nothing}</div></div>
+                <div class="grow"><div class="t1">${c.device_name || c.name}</div><div class="t2 wrap">${[c.area_name, c.unit].filter(Boolean).join(' · ')}${c.verdict !== 'ok' && c.message ? html` · <span class=${c.verdict === 'rejected' ? 'bad' : ''}>${c.message}</span>` : nothing}</div></div>
                 ${off ? html`<span class="chip c-mut nodot">${wt('candRejected')}</span>` : nothing}</div>`;
             })
           : nothing}
