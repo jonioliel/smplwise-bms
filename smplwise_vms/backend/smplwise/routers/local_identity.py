@@ -73,6 +73,8 @@ from ..services import local_reset as lr
 from ..services import presence, revocation
 from ..services import second_factor as sf
 from ._common import rid as _rid
+from ..wire import local_identity as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -177,7 +179,7 @@ def _success(request: Request, r: li.SignInResult) -> JSONResponse:
     return response
 
 
-@public_post("/auth/local/sign-in")
+@public_post("/auth/local/sign-in", **wire(W.LocalSignInSession | W.LocalSignInPending))
 async def local_sign_in(body: SignInBody, request: Request) -> Response:
     admitted, r = await lp.run_admitted(li.sign_in, request.app.state.db, settings_of(request), request, body.username, body.password, _rid(request))
     if not admitted or r is None:
@@ -203,7 +205,7 @@ class CodeBody(BaseModel):
     code: str = Field(min_length=1, max_length=16)
 
 
-@public_post("/auth/local/sign-in/second-factor")
+@public_post("/auth/local/sign-in/second-factor", **wire(W.LocalSignInSession))
 async def local_sign_in_second_factor(body: CodeBody, request: Request) -> Response:
     pid = request.cookies.get(li.PENDING_COOKIE_SECURE) or (None if settings_of(request).in_addon else request.cookies.get(li.PENDING_COOKIE_PLAIN))
     if not hua.LIMITER.hit(f"lsf:{hua.limit_ip(hua.client_ip(request))}", [(60.0, 20)]):
@@ -218,7 +220,7 @@ class SetPasswordBody(BaseModel):
     password: str = Field(min_length=1, max_length=1024)
 
 
-@public_post("/auth/local/set-password")
+@public_post("/auth/local/set-password", **wire(W.LocalMustEnrol))
 async def local_set_password(body: SetPasswordBody, request: Request) -> dict[str, Any]:
     if not hua.LIMITER.hit(f"lsetpw:{hua.limit_ip(hua.client_ip(request))}", li.SET_PASSWORD_LIMITS):
         raise ApiError(429, "rate_limited", li.RATE_LIMITED_HE, retryable=True)
@@ -236,7 +238,7 @@ class ResetRequestBody(BaseModel):
     username: str = Field(min_length=1, max_length=64)
 
 
-@public_post("/auth/local/reset/request", status_code=202)
+@public_post("/auth/local/reset/request", status_code=202, **wire(W.LocalResetRequested))
 async def local_reset_request(body: ResetRequestBody, request: Request) -> dict[str, Any]:
     """Always the same 202 - an unknown name, a user without self-service, an administrator, no verified number, a cap: alike. The
     message leaves later from the sender thread, so the answer never waits for WhatsApp (local_reset module docstring)."""
@@ -256,7 +258,7 @@ class ResetConfirmBody(BaseModel):
     password: str = Field(min_length=1, max_length=1024)
 
 
-@public_post("/auth/local/reset/confirm")
+@public_post("/auth/local/reset/confirm", **wire(W.LocalMustEnrol))
 async def local_reset_confirm(body: ResetConfirmBody, request: Request) -> dict[str, Any]:
     """200 {must_enrol} | 422 `code_invalid` (uniform) | 400 `password_policy` (only after a correct code; the code stays live) |
     429. No session is created; every session and open link of the user ends."""
@@ -278,7 +280,7 @@ class PasswordChangeBody(BaseModel):
     code: str | None = Field(default=None, max_length=16)
 
 
-@router.put("/auth/local/password")
+@router.put("/auth/local/password", **wire(W.LocalPasswordChanged))
 def change_own_password(body: PasswordChangeBody, request: Request, principal: Principal = Depends(current_principal),
                         conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     s = hua.session_of(request)
@@ -297,7 +299,7 @@ class LabelBody(BaseModel):
     label: str | None = Field(default=None, max_length=40)
 
 
-@router.patch("/auth/sessions/{session_id}")
+@router.patch("/auth/sessions/{session_id}", **wire(W.LocalSessionLabel))
 def label_session(session_id: str, body: LabelBody, request: Request, principal: Principal = Depends(current_principal),
                   conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The user's own device name for one of its local sign-ins (HA sign-ins live in memory only and are not labelled in phase 1)."""
@@ -446,7 +448,7 @@ def _link_answer(request: Request, token: str, expires: float, purpose: str) -> 
     return out
 
 
-@router.get("/identity/local-users")
+@router.get("/identity/local-users", **wire(W.LocalUserList))
 def list_local_users(request: Request, include_deleted: bool = Query(False), principal: Principal = Depends(current_principal_ro),
                      conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "identity.directory.read", INSTALLATION)
@@ -542,7 +544,7 @@ def _create_refused(conn: sqlite3.Connection, principal: Principal, request: Req
           reason=reason or exc.code, request_id=_rid(request), details=details)
 
 
-@router.post("/identity/local-users", status_code=201)
+@router.post("/identity/local-users", status_code=201, **wire(W.LocalUserCreated))
 def create_local_user(body: LocalUserCreate, request: Request, principal: Principal = Depends(current_principal),
                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _manage(conn, principal)  # a refusal here is audited by rbac.require (`identity.local.manage`, denied)
@@ -614,7 +616,7 @@ def _create_local_user(body: LocalUserCreate, request: Request, principal: Princ
             "link": _link_answer(request, token, expires, "first_login") if token is not None else None}
 
 
-@router.put("/identity/local-users/{user_id}/password")
+@router.put("/identity/local-users/{user_id}/password", **wire(W.LocalUserPasswordSet))
 def set_local_password(user_id: str, body: PasswordSetBody, request: Request, principal: Principal = Depends(current_principal),
                        conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """CR-LOCAL-USER-CREATE-2438 (owner 18.11): the administrator sets the password of an existing Arx user. Like a link that was
@@ -682,7 +684,7 @@ def export_local_users(request: Request, principal: Principal = Depends(current_
                     headers={"Content-Disposition": 'attachment; filename="arx-local-users.csv"', "Cache-Control": "no-store"})
 
 
-@router.get("/identity/local-users/{user_id}")
+@router.get("/identity/local-users/{user_id}", **wire(W.LocalUser))
 def get_local_user(user_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "identity.directory.read", INSTALLATION)
     return _user_dict(conn, _user_row(conn, user_id))
@@ -702,7 +704,7 @@ def _end_access(conn: sqlite3.Connection, user_id: str, reason: str) -> dict[str
     return {"sessions_ended": ended, "links_invalidated": links, "device_tokens_revoked": tokens}
 
 
-@router.patch("/identity/local-users/{user_id}")
+@router.patch("/identity/local-users/{user_id}", **wire(W.LocalUserPatched))
 def patch_local_user(user_id: str, body: LocalUserPatch, request: Request, principal: Principal = Depends(current_principal),
                      conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _manage(conn, principal)
@@ -772,7 +774,7 @@ def patch_local_user(user_id: str, body: LocalUserPatch, request: Request, princ
     return out
 
 
-@router.delete("/identity/local-users/{user_id}")
+@router.delete("/identity/local-users/{user_id}", **wire(W.LocalUserDeleted))
 def delete_local_user(user_id: str, request: Request, principal: Principal = Depends(current_principal),
                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _manage(conn, principal)
@@ -791,7 +793,7 @@ def delete_local_user(user_id: str, request: Request, principal: Principal = Dep
     return {"id": user_id, "deleted_at": now, **effects, "bindings_revoked": bindings}
 
 
-@router.put("/identity/local-users/{user_id}/role")
+@router.put("/identity/local-users/{user_id}/role", **wire(W.LocalUser))
 def change_local_role(user_id: str, body: RoleBody, request: Request, principal: Principal = Depends(current_principal),
                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     from .access import revoke_one
@@ -825,7 +827,7 @@ def change_local_role(user_id: str, body: RoleBody, request: Request, principal:
     return _user_dict(conn, _user_row(conn, user_id))
 
 
-@router.post("/identity/local-users/{user_id}/link")
+@router.post("/identity/local-users/{user_id}/link", **wire(W.LocalUserLink))
 def issue_local_link(user_id: str, body: LinkBody, request: Request, principal: Principal = Depends(current_principal),
                      conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _manage(conn, principal)
@@ -876,7 +878,7 @@ def issue_local_link(user_id: str, body: LinkBody, request: Request, principal: 
     return {"user_id": user_id, "link": _link_answer(request, token, expires, body.purpose)}
 
 
-@router.post("/identity/local-users/{user_id}/unlock")
+@router.post("/identity/local-users/{user_id}/unlock", **wire(W.LocalUser))
 def unlock_local_user(user_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _manage(conn, principal)
     row = _user_row(conn, user_id)
@@ -886,7 +888,7 @@ def unlock_local_user(user_id: str, request: Request, principal: Principal = Dep
     return _user_dict(conn, _user_row(conn, user_id))
 
 
-@router.post("/identity/local-users/{user_id}/sessions/revoke")
+@router.post("/identity/local-users/{user_id}/sessions/revoke", **wire(W.LocalUserSessionsRevoked))
 def revoke_local_user_sessions(user_id: str, request: Request, principal: Principal = Depends(current_principal),
                                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _manage(conn, principal)
@@ -902,7 +904,7 @@ def revoke_local_user_sessions(user_id: str, request: Request, principal: Princi
     return {"user_id": user_id, "sessions_ended": ended, "device_tokens_revoked": tokens}
 
 
-@router.put("/identity/local-users/{user_id}/ha-link")
+@router.put("/identity/local-users/{user_id}/ha-link", **wire(W.LocalUser))
 def set_ha_link(user_id: str, body: HaLinkBody, request: Request, principal: Principal = Depends(current_principal),
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _manage(conn, principal)
@@ -916,7 +918,7 @@ def set_ha_link(user_id: str, body: HaLinkBody, request: Request, principal: Pri
     return _user_dict(conn, _user_row(conn, user_id))
 
 
-@router.delete("/identity/local-users/{user_id}/ha-link")
+@router.delete("/identity/local-users/{user_id}/ha-link", **wire(W.LocalUser))
 def remove_ha_link(user_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _manage(conn, principal)
     _user_row(conn, user_id)

@@ -6,6 +6,7 @@ import { del, get, patch, path, post, put, query } from './client';
 import { ltrIsolate } from '../i18n/bidi';
 import { dayTimeText } from './day-format';
 import { tr } from '../i18n/msg/api-devices';
+import type * as GroupWire from './generated/wire-access-groups';
 
 export interface AccessBinding {
   id: string;
@@ -123,34 +124,16 @@ export interface CustomRoleBody {
   delegable: boolean;
 }
 
-export interface AccessGroup {
-  id: string;
-  name: string;
-  created_at: string;
-  /** T082 revision guard: sent back on rename / membership / the group's bindings; a stale one is a 409. */
-  revision: number;
-  updated_at?: string | null;
-  is_member?: boolean;
-  members: { id: string; name: string }[];
-  bindings: AccessBinding[];
-}
+/* The group shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/access_groups.py, generated into
+ * ./generated/wire-access-groups.ts; code review 07:F8 step 2). `revision` (T082 revision guard) is sent back on rename / membership /
+ * the group's bindings; a stale one is a 409. Narrowed on purpose: a binding keeps the access module's own AccessBinding (its scope
+ * types are the CHECK constraint's six). */
+export type AccessGroup = Omit<GroupWire.AccessGroup, 'bindings'> & { bindings: AccessBinding[] };
 
-interface GroupsResponse {
-  groups: AccessGroup[];
-  /** rbac.roles.manage: create, rename, delete. */
-  can_manage: boolean;
-  delegated: boolean;
-}
+type GroupsResponse = Omit<GroupWire.AccessGroupList, 'groups'> & { groups: AccessGroup[] };
 
 /** Who a group change touches, computed by the server before saving (T082). */
-export interface GroupImpact {
-  group_id: string;
-  op: 'bind' | 'unbind' | 'members';
-  revision: number;
-  scopes: { scope_type: string; scope_id: string; scope_name: string }[];
-  users: { id: string; name: string; change: 'member' | 'added' | 'removed'; added: string[]; removed: string[] }[];
-  labels: Record<string, string>;
-}
+export type GroupImpact = GroupWire.AccessGroupImpact;
 
 export interface PreviewResponse {
   user_id: string;
@@ -196,7 +179,7 @@ export const renameGroup = (id: string, name: string, revision: number) => patch
 export const deleteGroup = (id: string, revision?: number) => del(path`access/groups/${id}` + query({ revision: revision || undefined }));
 export const setGroupMembers = (id: string, userIds: string[], revision: number) => put<AccessGroup>(path`access/groups/${id}/members`, { user_ids: userIds, revision });
 export const bindGroup = (id: string, body: { role_id: string; scope_type: string; scope_id: string; effect?: 'allow' | 'deny'; revision: number }) =>
-  post<{ binding_id: string; revision: number; group: AccessGroup }>(path`access/groups/${id}/bindings`, body);
+  post<Omit<GroupWire.AccessGroupBound, 'group'> & { group: AccessGroup }>(path`access/groups/${id}/bindings`, body);
 export const unbindGroup = (id: string, bindingId: string, revision: number) => del(path`access/groups/${id}/bindings/${bindingId}` + query({ revision }));
 export const groupImpact = (id: string, body: { op: 'bind' | 'unbind' | 'members'; role_id?: string; scope_type?: string; scope_id?: string; effect?: 'allow' | 'deny'; binding_id?: string; user_ids?: string[] }) =>
   post<GroupImpact>(path`access/groups/${id}/impact`, body);
