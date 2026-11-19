@@ -1,0 +1,1404 @@
+{
+ "default_no_probe": {
+  "capabilities": {
+   "cameras_available": true,
+   "events_ha": false,
+   "events_recorder": true,
+   "go2rtc": false,
+   "ha": false,
+   "ha_cameras_live": false,
+   "ha_cameras_still": false,
+   "live_video": false,
+   "nvr": true,
+   "playback": false,
+   "recorders": [
+    {
+     "events": true,
+     "id": "nvr-#",
+     "live": true,
+     "playback": true,
+     "vendor": "hikvision",
+     "write_encodings": true
+    }
+   ],
+   "supported": false,
+   "unsupported_reason": "nvr_without_go#rtc",
+   "webrtc_server_configured": false
+  },
+  "checks": [
+   {
+    "detail": "תקין · WAL · # MB · סכימה # · מהדורת הרשאות #",
+    "id": "db",
+    "label": "מסד נתונים",
+    "meta": [
+     "bytes",
+     "integrity",
+     "journal",
+     "schema"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "פנוי #.# GB מתוך #.# GB · תוכניות # KB · תמונות אירועים # KB · גיבויים # KB · ייצוא # KB · ראיות מיובאות # KB",
+    "id": "storage",
+    "label": "אחסון התוסף (/data)",
+    "meta": [
+     "backups",
+     "exports",
+     "free",
+     "imported",
+     "plans",
+     "thumbs",
+     "total"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "לא נבדק בבקשה זו.",
+    "id": "nvr",
+    "label": "NVR (Hikvision ISAPI)",
+    "meta": [],
+    "status": "warn"
+   },
+   {
+    "detail": "לא נבדק בבקשה זו.",
+    "id": "go2rtc",
+    "label": "go2rtc (מדיה)",
+    "meta": [],
+    "status": "warn"
+   },
+   {
+    "detail": "אין חיבור ל־Home Assistant בהגדרות (בתוסף: אוטומטי דרך ה־Supervisor).",
+    "id": "ha_sync",
+    "label": "סנכרון Home Assistant",
+    "meta": [
+     "configured"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "לא מצומד · גרסת אינטגרציה ? · # משתמשים בספרייה · ספרייה עודכנה טרם",
+    "id": "bridge",
+    "label": "גשר Arx (אינטגרציה)",
+    "meta": [
+     "bridge_outdated",
+     "bridge_required",
+     "directory_age_s",
+     "directory_users",
+     "integration_version",
+     "paired"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "ה־NVR לא מוגדר.",
+    "id": "events_ingest",
+    "label": "קליטת התראות מה־NVR",
+    "meta": [
+     "configured"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "טרם רץ · # נגזרו · # אירועים במאגר",
+    "id": "events_derive",
+    "label": "אירועים נגזרים מהקלטות",
+    "meta": [
+     "derived",
+     "last_error",
+     "last_ok",
+     "last_run"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "# מצלמות רשומות · טרם רץ · כל # דק׳",
+    "id": "discovery",
+    "label": "גילוי מצלמות מה־NVR",
+    "meta": [
+     "cameras",
+     "cameras_last_error",
+     "cameras_last_ok",
+     "cameras_last_run",
+     "last_reason",
+     "streams_last_error",
+     "streams_last_ok",
+     "streams_last_run"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "קידוד הזרמים טרם נקרא מה־NVR (נקרא בגילוי המצלמות הבא).",
+    "id": "video_webrtc",
+    "label": "וידאו ב־WebRTC (זרם ראשי / משני)",
+    "meta": [
+     "cameras",
+     "checked",
+     "checked_at",
+     "main",
+     "main_not_webrtc",
+     "sub"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "# נוצרו · # נכשלו · # בתור",
+    "id": "thumbnails",
+    "label": "תמונות אירועים (ffmpeg)",
+    "meta": [
+     "busy",
+     "failed",
+     "generated",
+     "last_error",
+     "queued"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "אין עבודות ייצוא",
+    "id": "exports",
+    "label": "ייצוא קטעים",
+    "meta": [
+     "data_disk"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "# חיים · # ניגון",
+    "id": "sessions",
+    "label": "זרמים פעילים דרך התוסף",
+    "meta": [
+     "live",
+     "playback"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "# גיבויים · אחרון arx-backup-#.zip (manual) · לפני # שע׳",
+    "id": "backups",
+    "label": "גיבויים",
+    "meta": [
+     "count",
+     "last",
+     "last_age_s",
+     "last_kind"
+    ],
+    "status": "ok"
+   }
+  ],
+  "installation": {
+   "action": "השלימו את כתובת שרת המדיה (go#rtc_url) בהגדרות החיבור של ההתקנה והפעילו את המערכת מחדש.",
+   "message": "התקנה עם NVR אינה נתמכת בלי שרת המדיה (go#rtc): בלעדיו אין וידאו חי ואין ניגון הקלטות.",
+   "reason": "nvr_without_go#rtc",
+   "supported": false
+  },
+  "keys": [
+   "capabilities",
+   "checked_at",
+   "checks",
+   "installation",
+   "mode",
+   "probe_ttl_s",
+   "status",
+   "uptime_s",
+   "version"
+  ],
+  "mode": "full",
+  "probe_ttl_s": 20,
+  "status": "warn"
+ },
+ "full_probed_down": {
+  "capabilities": {
+   "cameras_available": true,
+   "events_ha": false,
+   "events_recorder": true,
+   "go2rtc": true,
+   "ha": false,
+   "ha_cameras_live": false,
+   "ha_cameras_still": false,
+   "live_video": true,
+   "nvr": true,
+   "playback": true,
+   "recorders": [
+    {
+     "events": true,
+     "id": "nvr-#",
+     "live": true,
+     "playback": true,
+     "vendor": "hikvision",
+     "write_encodings": true
+    }
+   ],
+   "supported": true,
+   "unsupported_reason": null,
+   "webrtc_server_configured": true
+  },
+  "checks": [
+   {
+    "detail": "תקין · WAL · # MB · סכימה # · מהדורת הרשאות #",
+    "id": "db",
+    "label": "מסד נתונים",
+    "meta": [
+     "bytes",
+     "integrity",
+     "journal",
+     "schema"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "פנוי #.# GB מתוך #.# GB · תוכניות # KB · תמונות אירועים # KB · גיבויים # KB · ייצוא # KB · ראיות מיובאות # KB",
+    "id": "storage",
+    "label": "אחסון התוסף (/data)",
+    "meta": [
+     "backups",
+     "exports",
+     "free",
+     "imported",
+     "plans",
+     "thumbs",
+     "total"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "probe refused",
+    "id": "nvr",
+    "label": "NVR (Hikvision ISAPI)",
+    "meta": [
+     "configured"
+    ],
+    "status": "error"
+   },
+   {
+    "detail": "probe refused",
+    "id": "go2rtc",
+    "label": "go2rtc (מדיה)",
+    "meta": [
+     "configured"
+    ],
+    "status": "error"
+   },
+   {
+    "detail": "אין חיבור ל־Home Assistant בהגדרות (בתוסף: אוטומטי דרך ה־Supervisor).",
+    "id": "ha_sync",
+    "label": "סנכרון Home Assistant",
+    "meta": [
+     "configured"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "לא מצומד · גרסת אינטגרציה ? · # משתמשים בספרייה · ספרייה עודכנה טרם",
+    "id": "bridge",
+    "label": "גשר Arx (אינטגרציה)",
+    "meta": [
+     "bridge_outdated",
+     "bridge_required",
+     "directory_age_s",
+     "directory_users",
+     "integration_version",
+     "paired"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "מנותק · פעימה — · # התראות נקלטו · # חיבורים מחדש",
+    "id": "events_ingest",
+    "label": "קליטת התראות מה־NVR (alertStream)",
+    "meta": [
+     "connected",
+     "events_stored",
+     "last_error",
+     "last_event_at",
+     "last_heartbeat_at",
+     "queue",
+     "reconnects",
+     "started_at",
+     "ws_drops"
+    ],
+    "status": "error"
+   },
+   {
+    "detail": "טרם רץ · # נגזרו · # אירועים במאגר",
+    "id": "events_derive",
+    "label": "אירועים נגזרים מהקלטות",
+    "meta": [
+     "derived",
+     "last_error",
+     "last_ok",
+     "last_run"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "# מצלמות רשומות · טרם רץ · כל # דק׳",
+    "id": "discovery",
+    "label": "גילוי מצלמות מה־NVR",
+    "meta": [
+     "cameras",
+     "cameras_last_error",
+     "cameras_last_ok",
+     "cameras_last_run",
+     "last_reason",
+     "streams_last_error",
+     "streams_last_ok",
+     "streams_last_run"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "קידוד הזרמים טרם נקרא מה־NVR (נקרא בגילוי המצלמות הבא).",
+    "id": "video_webrtc",
+    "label": "וידאו ב־WebRTC (זרם ראשי / משני)",
+    "meta": [
+     "cameras",
+     "checked",
+     "checked_at",
+     "main",
+     "main_not_webrtc",
+     "sub"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "# נוצרו · # נכשלו · # בתור",
+    "id": "thumbnails",
+    "label": "תמונות אירועים (ffmpeg)",
+    "meta": [
+     "busy",
+     "failed",
+     "generated",
+     "last_error",
+     "queued"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "אין עבודות ייצוא",
+    "id": "exports",
+    "label": "ייצוא קטעים",
+    "meta": [
+     "data_disk"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "# חיים · # ניגון",
+    "id": "sessions",
+    "label": "זרמים פעילים דרך התוסף",
+    "meta": [
+     "live",
+     "playback"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "# גיבויים · אחרון אין עדיין",
+    "id": "backups",
+    "label": "גיבויים",
+    "meta": [
+     "count",
+     "last",
+     "last_age_s",
+     "last_kind"
+    ],
+    "status": "error"
+   },
+   {
+    "detail": "# התקבלו · # נפלו (בשעה האחרונה: #) · תור #/#",
+    "id": "portal_start",
+    "label": "קליטת בקשות כניסה לפורטל ספקים",
+    "meta": [
+     "accepted",
+     "depth",
+     "dropped",
+     "dropped_1h",
+     "last_drop_at",
+     "max",
+     "running"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "הנתונים בני # דק׳ · # תחנות בשימוש · # שגיאות מאז ההפעלה · שגיאה אחרונה: timeout",
+    "id": "transit",
+    "label": "זמני תחבורה ציבורית",
+    "meta": [
+     "age_s",
+     "codes_in_use",
+     "errors",
+     "last_good_at",
+     "last_ok_at",
+     "outage",
+     "state"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "# קריסות ביממה האחרונה · # בסך הכול · אחרונה #-#-#T#:#:#Z (SIGSEGV, אחרי # שנ׳ פעילות) · עקבת הקריסה נשמרת ב־crash/faulthandler.log וביומן התוסף",
+    "id": "process_restarts",
+    "label": "הפעלות מחדש אחרי קריסה",
+    "meta": [
+     "count_total",
+     "crashes_24h",
+     "last_at",
+     "last_signal",
+     "last_uptime_s",
+     "safe_mode",
+     "supervised"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "סוד ישן עדיין שמור בהגדרות התוסף: יש להסיר אותו (nvr_password). הערכים נשמרים מוצפנים בהגדרות › חיבורים › סודות.",
+    "id": "secret_options",
+    "label": "סודות ישנים בהגדרות התוסף",
+    "meta": [
+     "names"
+    ],
+    "status": "warn"
+   }
+  ],
+  "installation": {
+   "action": null,
+   "message": null,
+   "reason": null,
+   "supported": true
+  },
+  "keys": [
+   "capabilities",
+   "checked_at",
+   "checks",
+   "installation",
+   "mode",
+   "probe_ttl_s",
+   "status",
+   "uptime_s",
+   "version"
+  ],
+  "mode": "full",
+  "probe_ttl_s": 20,
+  "status": "error"
+ },
+ "full_probed_ok": {
+  "capabilities": {
+   "cameras_available": true,
+   "events_ha": false,
+   "events_recorder": true,
+   "go2rtc": true,
+   "ha": false,
+   "ha_cameras_live": false,
+   "ha_cameras_still": false,
+   "live_video": true,
+   "nvr": true,
+   "playback": true,
+   "recorders": [
+    {
+     "events": true,
+     "id": "nvr-#",
+     "live": true,
+     "playback": true,
+     "vendor": "hikvision",
+     "write_encodings": true
+    }
+   ],
+   "supported": true,
+   "unsupported_reason": null,
+   "webrtc_server_configured": true
+  },
+  "checks": [
+   {
+    "detail": "תקין · WAL · # MB · סכימה # · מהדורת הרשאות #",
+    "id": "db",
+    "label": "מסד נתונים",
+    "meta": [
+     "bytes",
+     "integrity",
+     "journal",
+     "schema"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "פנוי #.# GB מתוך #.# GB · תוכניות # KB · תמונות אירועים # KB · גיבויים # KB · ייצוא # KB · ראיות מיובאות # KB",
+    "id": "storage",
+    "label": "אחסון התוסף (/data)",
+    "meta": [
+     "backups",
+     "exports",
+     "free",
+     "imported",
+     "plans",
+     "thumbs",
+     "total"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "probe ok # ms",
+    "id": "nvr",
+    "label": "NVR (Hikvision ISAPI)",
+    "meta": [
+     "configured",
+     "version"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "probe ok # ms",
+    "id": "go2rtc",
+    "label": "go2rtc (מדיה)",
+    "meta": [
+     "configured",
+     "version"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "אין חיבור ל־Home Assistant בהגדרות (בתוסף: אוטומטי דרך ה־Supervisor).",
+    "id": "ha_sync",
+    "label": "סנכרון Home Assistant",
+    "meta": [
+     "configured"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "לא מצומד · גרסת אינטגרציה ? · # משתמשים בספרייה · ספרייה עודכנה טרם",
+    "id": "bridge",
+    "label": "גשר Arx (אינטגרציה)",
+    "meta": [
+     "bridge_outdated",
+     "bridge_required",
+     "directory_age_s",
+     "directory_users",
+     "integration_version",
+     "paired"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "מנותק · פעימה — · # התראות נקלטו · # חיבורים מחדש",
+    "id": "events_ingest",
+    "label": "קליטת התראות מה־NVR (alertStream)",
+    "meta": [
+     "connected",
+     "events_stored",
+     "last_error",
+     "last_event_at",
+     "last_heartbeat_at",
+     "queue",
+     "reconnects",
+     "started_at",
+     "ws_drops"
+    ],
+    "status": "error"
+   },
+   {
+    "detail": "טרם רץ · # נגזרו · # אירועים במאגר",
+    "id": "events_derive",
+    "label": "אירועים נגזרים מהקלטות",
+    "meta": [
+     "derived",
+     "last_error",
+     "last_ok",
+     "last_run"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "# מצלמות רשומות · טרם רץ · כל # דק׳",
+    "id": "discovery",
+    "label": "גילוי מצלמות מה־NVR",
+    "meta": [
+     "cameras",
+     "cameras_last_error",
+     "cameras_last_ok",
+     "cameras_last_run",
+     "last_reason",
+     "streams_last_error",
+     "streams_last_ok",
+     "streams_last_run"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "קידוד הזרמים טרם נקרא מה־NVR (נקרא בגילוי המצלמות הבא).",
+    "id": "video_webrtc",
+    "label": "וידאו ב־WebRTC (זרם ראשי / משני)",
+    "meta": [
+     "cameras",
+     "checked",
+     "checked_at",
+     "main",
+     "main_not_webrtc",
+     "sub"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "# נוצרו · # נכשלו · # בתור",
+    "id": "thumbnails",
+    "label": "תמונות אירועים (ffmpeg)",
+    "meta": [
+     "busy",
+     "failed",
+     "generated",
+     "last_error",
+     "queued"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "אין עבודות ייצוא",
+    "id": "exports",
+    "label": "ייצוא קטעים",
+    "meta": [
+     "data_disk"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "# חיים · # ניגון",
+    "id": "sessions",
+    "label": "זרמים פעילים דרך התוסף",
+    "meta": [
+     "live",
+     "playback"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "# גיבויים · אחרון arx-backup-#.zip (manual) · לפני # שע׳",
+    "id": "backups",
+    "label": "גיבויים",
+    "meta": [
+     "count",
+     "last",
+     "last_age_s",
+     "last_kind"
+    ],
+    "status": "ok"
+   }
+  ],
+  "installation": {
+   "action": null,
+   "message": null,
+   "reason": null,
+   "supported": true
+  },
+  "keys": [
+   "capabilities",
+   "checked_at",
+   "checks",
+   "installation",
+   "mode",
+   "probe_ttl_s",
+   "status",
+   "uptime_s",
+   "version"
+  ],
+  "mode": "full",
+  "probe_ttl_s": 20,
+  "status": "error"
+ },
+ "ha_only_no_go2rtc": {
+  "capabilities": {
+   "cameras_available": false,
+   "events_ha": false,
+   "events_recorder": false,
+   "go2rtc": false,
+   "ha": false,
+   "ha_cameras_live": false,
+   "ha_cameras_still": false,
+   "live_video": false,
+   "nvr": false,
+   "playback": false,
+   "recorders": [],
+   "supported": true,
+   "unsupported_reason": null,
+   "webrtc_server_configured": false
+  },
+  "checks": [
+   {
+    "detail": "תקין · WAL · # MB · סכימה # · מהדורת הרשאות #",
+    "id": "db",
+    "label": "מסד נתונים",
+    "meta": [
+     "bytes",
+     "integrity",
+     "journal",
+     "schema"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "פנוי #.# GB מתוך #.# GB · תוכניות # KB · תמונות אירועים # KB · גיבויים # KB · ייצוא # KB · ראיות מיובאות # KB",
+    "id": "storage",
+    "label": "אחסון התוסף (/data)",
+    "meta": [
+     "backups",
+     "exports",
+     "free",
+     "imported",
+     "plans",
+     "thumbs",
+     "total"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "לא מוגדר - מצב ללא NVR (Home Assistant בלבד). גילוי מצלמות, קליטת התראות, אירועים נגזרים, תמונות אירועים וייצוא אינם פועלים; להוספת NVR: nvr_host ב־Configuration של ה־Add-on והפעלה מחדש.",
+    "id": "nvr",
+    "label": "NVR (Hikvision ISAPI)",
+    "meta": [
+     "configured",
+     "mode"
+    ],
+    "status": "off"
+   },
+   {
+    "detail": "לא מוגדר (רשות במצב ללא NVR: וידאו של עמדות WisKey).",
+    "id": "go2rtc",
+    "label": "go2rtc (מדיה)",
+    "meta": [
+     "configured"
+    ],
+    "status": "off"
+   },
+   {
+    "detail": "אין חיבור ל־Home Assistant בהגדרות (בתוסף: אוטומטי דרך ה־Supervisor).",
+    "id": "ha_sync",
+    "label": "סנכרון Home Assistant",
+    "meta": [
+     "configured"
+    ],
+    "status": "error"
+   },
+   {
+    "detail": "לא מצומד · גרסת אינטגרציה ? · # משתמשים בספרייה · ספרייה עודכנה טרם",
+    "id": "bridge",
+    "label": "גשר Arx (אינטגרציה)",
+    "meta": [
+     "bridge_outdated",
+     "bridge_required",
+     "directory_age_s",
+     "directory_users",
+     "integration_version",
+     "paired"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "# חיים · # ניגון",
+    "id": "sessions",
+    "label": "זרמים פעילים דרך התוסף",
+    "meta": [
+     "live",
+     "playback"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "# גיבויים · אחרון אין עדיין",
+    "id": "backups",
+    "label": "גיבויים",
+    "meta": [
+     "count",
+     "last",
+     "last_age_s",
+     "last_kind"
+    ],
+    "status": "error"
+   },
+   {
+    "detail": "# התקבלו · # נפלו (בשעה האחרונה: #) · תור #/#",
+    "id": "portal_start",
+    "label": "קליטת בקשות כניסה לפורטל ספקים",
+    "meta": [
+     "accepted",
+     "depth",
+     "dropped",
+     "dropped_1h",
+     "last_drop_at",
+     "max",
+     "running"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "אין נתונים עדיין · # תחנות בשימוש · # שגיאות מאז ההפעלה · שגיאה אחרונה: timeout",
+    "id": "transit",
+    "label": "זמני תחבורה ציבורית",
+    "meta": [
+     "age_s",
+     "codes_in_use",
+     "errors",
+     "last_good_at",
+     "last_ok_at",
+     "outage",
+     "state"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "# קריסות ביממה האחרונה · # בסך הכול · אחרונה #-#-#T#:#:#Z (SIGSEGV, אחרי # שנ׳ פעילות) · עקבת הקריסה נשמרת ב־crash/faulthandler.log וביומן התוסף",
+    "id": "process_restarts",
+    "label": "הפעלות מחדש אחרי קריסה",
+    "meta": [
+     "count_total",
+     "crashes_24h",
+     "last_at",
+     "last_signal",
+     "last_uptime_s",
+     "safe_mode",
+     "supervised"
+    ],
+    "status": "warn"
+   }
+  ],
+  "installation": {
+   "action": null,
+   "message": null,
+   "reason": null,
+   "supported": true
+  },
+  "keys": [
+   "capabilities",
+   "checked_at",
+   "checks",
+   "installation",
+   "mode",
+   "probe_ttl_s",
+   "status",
+   "uptime_s",
+   "version"
+  ],
+  "mode": "ha_only",
+  "probe_ttl_s": 20,
+  "status": "error"
+ },
+ "ha_only_not_probed": {
+  "capabilities": {
+   "cameras_available": false,
+   "events_ha": false,
+   "events_recorder": false,
+   "go2rtc": true,
+   "ha": false,
+   "ha_cameras_live": false,
+   "ha_cameras_still": false,
+   "live_video": false,
+   "nvr": false,
+   "playback": false,
+   "recorders": [],
+   "supported": true,
+   "unsupported_reason": null,
+   "webrtc_server_configured": true
+  },
+  "checks": [
+   {
+    "detail": "תקין · WAL · # MB · סכימה # · מהדורת הרשאות #",
+    "id": "db",
+    "label": "מסד נתונים",
+    "meta": [
+     "bytes",
+     "integrity",
+     "journal",
+     "schema"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "פנוי #.# GB מתוך #.# GB · תוכניות # KB · תמונות אירועים # KB · גיבויים # KB · ייצוא # KB · ראיות מיובאות # KB",
+    "id": "storage",
+    "label": "אחסון התוסף (/data)",
+    "meta": [
+     "backups",
+     "exports",
+     "free",
+     "imported",
+     "plans",
+     "thumbs",
+     "total"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "לא מוגדר - מצב ללא NVR (Home Assistant בלבד). גילוי מצלמות, קליטת התראות, אירועים נגזרים, תמונות אירועים וייצוא אינם פועלים; להוספת NVR: nvr_host ב־Configuration של ה־Add-on והפעלה מחדש.",
+    "id": "nvr",
+    "label": "NVR (Hikvision ISAPI)",
+    "meta": [
+     "configured",
+     "mode"
+    ],
+    "status": "off"
+   },
+   {
+    "detail": "לא נבדק בבקשה זו.",
+    "id": "go2rtc",
+    "label": "go2rtc (מדיה)",
+    "meta": [],
+    "status": "warn"
+   },
+   {
+    "detail": "אין חיבור ל־Home Assistant בהגדרות (בתוסף: אוטומטי דרך ה־Supervisor).",
+    "id": "ha_sync",
+    "label": "סנכרון Home Assistant",
+    "meta": [
+     "configured"
+    ],
+    "status": "error"
+   },
+   {
+    "detail": "לא מצומד · גרסת אינטגרציה ? · # משתמשים בספרייה · ספרייה עודכנה טרם",
+    "id": "bridge",
+    "label": "גשר Arx (אינטגרציה)",
+    "meta": [
+     "bridge_outdated",
+     "bridge_required",
+     "directory_age_s",
+     "directory_users",
+     "integration_version",
+     "paired"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "# חיים · # ניגון",
+    "id": "sessions",
+    "label": "זרמים פעילים דרך התוסף",
+    "meta": [
+     "live",
+     "playback"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "# גיבויים · אחרון arx-backup-#.zip (manual) · לפני # שע׳",
+    "id": "backups",
+    "label": "גיבויים",
+    "meta": [
+     "count",
+     "last",
+     "last_age_s",
+     "last_kind"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "סוד ישן עדיין שמור בהגדרות התוסף: יש להסיר אותו (ha_token). הערכים נשמרים מוצפנים בהגדרות › חיבורים › סודות.",
+    "id": "secret_options",
+    "label": "סודות ישנים בהגדרות התוסף",
+    "meta": [
+     "names"
+    ],
+    "status": "warn"
+   }
+  ],
+  "installation": {
+   "action": null,
+   "message": null,
+   "reason": null,
+   "supported": true
+  },
+  "keys": [
+   "capabilities",
+   "checked_at",
+   "checks",
+   "installation",
+   "mode",
+   "probe_ttl_s",
+   "status",
+   "uptime_s",
+   "version"
+  ],
+  "mode": "ha_only",
+  "probe_ttl_s": 20,
+  "status": "error"
+ },
+ "ha_only_probed_go2rtc": {
+  "capabilities": {
+   "cameras_available": false,
+   "events_ha": false,
+   "events_recorder": false,
+   "go2rtc": true,
+   "ha": false,
+   "ha_cameras_live": false,
+   "ha_cameras_still": false,
+   "live_video": false,
+   "nvr": false,
+   "playback": false,
+   "recorders": [],
+   "supported": true,
+   "unsupported_reason": null,
+   "webrtc_server_configured": true
+  },
+  "checks": [
+   {
+    "detail": "תקין · WAL · # MB · סכימה # · מהדורת הרשאות #",
+    "id": "db",
+    "label": "מסד נתונים",
+    "meta": [
+     "bytes",
+     "integrity",
+     "journal",
+     "schema"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "פנוי #.# GB מתוך #.# GB · תוכניות # KB · תמונות אירועים # KB · גיבויים # KB · ייצוא # KB · ראיות מיובאות # KB",
+    "id": "storage",
+    "label": "אחסון התוסף (/data)",
+    "meta": [
+     "backups",
+     "exports",
+     "free",
+     "imported",
+     "plans",
+     "thumbs",
+     "total"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "לא מוגדר - מצב ללא NVR (Home Assistant בלבד). גילוי מצלמות, קליטת התראות, אירועים נגזרים, תמונות אירועים וייצוא אינם פועלים; להוספת NVR: nvr_host ב־Configuration של ה־Add-on והפעלה מחדש.",
+    "id": "nvr",
+    "label": "NVR (Hikvision ISAPI)",
+    "meta": [
+     "configured",
+     "mode"
+    ],
+    "status": "off"
+   },
+   {
+    "detail": "probe ok # ms",
+    "id": "go2rtc",
+    "label": "go2rtc (מדיה)",
+    "meta": [
+     "configured",
+     "version"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "אין חיבור ל־Home Assistant בהגדרות (בתוסף: אוטומטי דרך ה־Supervisor).",
+    "id": "ha_sync",
+    "label": "סנכרון Home Assistant",
+    "meta": [
+     "configured"
+    ],
+    "status": "error"
+   },
+   {
+    "detail": "לא מצומד · גרסת אינטגרציה ? · # משתמשים בספרייה · ספרייה עודכנה טרם",
+    "id": "bridge",
+    "label": "גשר Arx (אינטגרציה)",
+    "meta": [
+     "bridge_outdated",
+     "bridge_required",
+     "directory_age_s",
+     "directory_users",
+     "integration_version",
+     "paired"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "# חיים · # ניגון",
+    "id": "sessions",
+    "label": "זרמים פעילים דרך התוסף",
+    "meta": [
+     "live",
+     "playback"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "# גיבויים · אחרון arx-backup-#.zip (manual) · לפני # שע׳",
+    "id": "backups",
+    "label": "גיבויים",
+    "meta": [
+     "count",
+     "last",
+     "last_age_s",
+     "last_kind"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "מקור הנתונים החיצוני אינו זמין (תקלה אצל הספק, לא באתר); הנתון התקין האחרון: #-#-#T#:#:# UTC · הנתונים בני # דק׳ · # תחנות בשימוש · # שגיאות מאז ההפעלה · שגיאה אחרונה: timeout",
+    "id": "transit",
+    "label": "זמני תחבורה ציבורית",
+    "meta": [
+     "age_s",
+     "codes_in_use",
+     "errors",
+     "last_good_at",
+     "last_ok_at",
+     "outage",
+     "state"
+    ],
+    "status": "ok"
+   }
+  ],
+  "installation": {
+   "action": null,
+   "message": null,
+   "reason": null,
+   "supported": true
+  },
+  "keys": [
+   "capabilities",
+   "checked_at",
+   "checks",
+   "installation",
+   "mode",
+   "probe_ttl_s",
+   "status",
+   "uptime_s",
+   "version"
+  ],
+  "mode": "ha_only",
+  "probe_ttl_s": 20,
+  "status": "error"
+ },
+ "nvr_without_go2rtc": {
+  "capabilities": {
+   "cameras_available": true,
+   "events_ha": false,
+   "events_recorder": true,
+   "go2rtc": false,
+   "ha": false,
+   "ha_cameras_live": false,
+   "ha_cameras_still": false,
+   "live_video": false,
+   "nvr": true,
+   "playback": false,
+   "recorders": [
+    {
+     "events": true,
+     "id": "nvr-#",
+     "live": true,
+     "playback": true,
+     "vendor": "hikvision",
+     "write_encodings": true
+    }
+   ],
+   "supported": false,
+   "unsupported_reason": "nvr_without_go#rtc",
+   "webrtc_server_configured": false
+  },
+  "checks": [
+   {
+    "detail": "תקין · WAL · # MB · סכימה # · מהדורת הרשאות #",
+    "id": "db",
+    "label": "מסד נתונים",
+    "meta": [
+     "bytes",
+     "integrity",
+     "journal",
+     "schema"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "פנוי # MB מתוך #.# GB · תוכניות # KB · תמונות אירועים # KB · גיבויים # KB · ייצוא # KB · ראיות מיובאות # KB",
+    "id": "storage",
+    "label": "אחסון התוסף (/data)",
+    "meta": [
+     "backups",
+     "exports",
+     "free",
+     "imported",
+     "plans",
+     "thumbs",
+     "total"
+    ],
+    "status": "error"
+   },
+   {
+    "detail": "probe ok # ms",
+    "id": "nvr",
+    "label": "NVR (Hikvision ISAPI)",
+    "meta": [
+     "configured",
+     "version"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "התקנה עם NVR אינה נתמכת בלי שרת המדיה (go#rtc): בלעדיו אין וידאו חי ואין ניגון הקלטות. השלימו את כתובת שרת המדיה (go#rtc_url) בהגדרות החיבור של ההתקנה והפעילו את המערכת מחדש.",
+    "id": "go2rtc",
+    "label": "go2rtc (מדיה)",
+    "meta": [
+     "configured",
+     "required"
+    ],
+    "status": "error"
+   },
+   {
+    "detail": "אין חיבור ל־Home Assistant בהגדרות (בתוסף: אוטומטי דרך ה־Supervisor).",
+    "id": "ha_sync",
+    "label": "סנכרון Home Assistant",
+    "meta": [
+     "configured"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "לא מצומד · גרסת אינטגרציה ? · # משתמשים בספרייה · ספרייה עודכנה טרם",
+    "id": "bridge",
+    "label": "גשר Arx (אינטגרציה)",
+    "meta": [
+     "bridge_outdated",
+     "bridge_required",
+     "directory_age_s",
+     "directory_users",
+     "integration_version",
+     "paired"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "מנותק · פעימה — · # התראות נקלטו · # חיבורים מחדש",
+    "id": "events_ingest",
+    "label": "קליטת התראות מה־NVR (alertStream)",
+    "meta": [
+     "connected",
+     "events_stored",
+     "last_error",
+     "last_event_at",
+     "last_heartbeat_at",
+     "queue",
+     "reconnects",
+     "started_at",
+     "ws_drops"
+    ],
+    "status": "error"
+   },
+   {
+    "detail": "טרם רץ · # נגזרו · # אירועים במאגר",
+    "id": "events_derive",
+    "label": "אירועים נגזרים מהקלטות",
+    "meta": [
+     "derived",
+     "last_error",
+     "last_ok",
+     "last_run"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "# מצלמות רשומות · טרם רץ · כל # דק׳",
+    "id": "discovery",
+    "label": "גילוי מצלמות מה־NVR",
+    "meta": [
+     "cameras",
+     "cameras_last_error",
+     "cameras_last_ok",
+     "cameras_last_run",
+     "last_reason",
+     "streams_last_error",
+     "streams_last_ok",
+     "streams_last_run"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "קידוד הזרמים טרם נקרא מה־NVR (נקרא בגילוי המצלמות הבא).",
+    "id": "video_webrtc",
+    "label": "וידאו ב־WebRTC (זרם ראשי / משני)",
+    "meta": [
+     "cameras",
+     "checked",
+     "checked_at",
+     "main",
+     "main_not_webrtc",
+     "sub"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "# נוצרו · # נכשלו · # בתור",
+    "id": "thumbnails",
+    "label": "תמונות אירועים (ffmpeg)",
+    "meta": [
+     "busy",
+     "failed",
+     "generated",
+     "last_error",
+     "queued"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "אין עבודות ייצוא · הדיסק של התוסף: # MB פנויים, מתחת למינימום # MB - ייצואים חדשים נדחים",
+    "id": "exports",
+    "label": "ייצוא קטעים",
+    "meta": [
+     "data_disk"
+    ],
+    "status": "warn"
+   },
+   {
+    "detail": "# חיים · # ניגון",
+    "id": "sessions",
+    "label": "זרמים פעילים דרך התוסף",
+    "meta": [
+     "live",
+     "playback"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "# גיבויים · אחרון arx-backup-#.zip (manual) · לפני # שע׳",
+    "id": "backups",
+    "label": "גיבויים",
+    "meta": [
+     "count",
+     "last",
+     "last_age_s",
+     "last_kind"
+    ],
+    "status": "ok"
+   },
+   {
+    "detail": "הנתונים בני # דק׳ · # תחנות בשימוש · # שגיאות מאז ההפעלה",
+    "id": "transit",
+    "label": "זמני תחבורה ציבורית",
+    "meta": [
+     "age_s",
+     "codes_in_use",
+     "errors",
+     "last_good_at",
+     "last_ok_at",
+     "outage",
+     "state"
+    ],
+    "status": "ok"
+   }
+  ],
+  "installation": {
+   "action": "השלימו את כתובת שרת המדיה (go#rtc_url) בהגדרות החיבור של ההתקנה והפעילו את המערכת מחדש.",
+   "message": "התקנה עם NVR אינה נתמכת בלי שרת המדיה (go#rtc): בלעדיו אין וידאו חי ואין ניגון הקלטות.",
+   "reason": "nvr_without_go#rtc",
+   "supported": false
+  },
+  "keys": [
+   "capabilities",
+   "checked_at",
+   "checks",
+   "installation",
+   "mode",
+   "probe_ttl_s",
+   "status",
+   "uptime_s",
+   "version"
+  ],
+  "mode": "full",
+  "probe_ttl_s": 20,
+  "status": "error"
+ }
+}
