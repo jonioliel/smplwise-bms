@@ -1,5 +1,6 @@
 /** Alarm rules with a dry run (T052): trigger × scope × window × cooldown → a VMS notification; never a device command. */
 import { del, get, patch, path, post } from './client';
+import type * as Wire from './generated/wire-rules';
 import { tr } from '../i18n/msg/api-automation';
 import { tr as trTime } from '../i18n/msg/time'; // CR-I18N-UNITS-2442: the weekday letters
 
@@ -42,51 +43,13 @@ export interface RuleBody {
   cooldown_s: number;
   actions: RuleAction[];
 }
-export interface Rule extends RuleBody {
-  id: string;
-  revision: number;
-  created_by_username: string | null;
-  updated_by_username: string | null;
-  created_at: string;
-  updated_at: string;
-  last_fired_at: string | null;
-  alerts: { total: number; open: number };
-}
-export interface DryRunRow {
-  event_id: string;
-  occurred_at: string;
-  type: string;
-  source: string;
-  severity: string;
-  camera_id: string | null;
-  camera_name: string | null;
-  reasons: string[];
-  suppressed?: string;
-}
-export interface DryRunResult {
-  rule_name: string;
-  hours: number;
-  since: string;
-  until: string;
-  evaluated: number;
-  would_fire: DryRunRow[];
-  suppressed: DryRunRow[];
-  not_matched: number;
-  note: string;
-}
-export interface RuleAlert {
-  id: string;
-  rule_id: string;
-  rule_name: string | null;
-  event_id: string;
-  camera_id: string | null;
-  entity_id: string | null;
-  fired_at: string;
-  reasons: string[];
-  message: string;
-  acked_at: string | null;
-  acked_by_username: string | null;
-}
+/* The wire shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/rules.py), generated into
+ * ./generated/wire-rules.ts: a field the server renames or drops is a compile error here (code review 07:F8 step 2). The server passes a
+ * rule's trigger / scope / window / actions through as stored (documents); they keep the body's hand-written shapes above. */
+export interface Rule extends RuleBody, Omit<Wire.AlarmRule, keyof RuleBody> {}
+export type DryRunRow = Wire.RuleDryRunRow;
+export type DryRunResult = Wire.RuleDryRun;
+export type RuleAlert = Wire.RuleAlertRow;
 
 export const emptyRule = (): RuleBody => ({
   name: '',
@@ -101,14 +64,14 @@ export const emptyRule = (): RuleBody => ({
   actions: [{ kind: 'notify', message: '' }],
 });
 
-export const listRules = () => get<{ rules: Rule[]; types: string[]; sources: string[]; action_kinds: string[]; days: string[] }>('rules');
+export const listRules = () => get<Omit<Wire.AlarmRuleList, 'rules'> & { rules: Rule[] }>('rules');
 export const createRule = (body: RuleBody) => post<Rule>('rules', body);
 export const updateRule = (id: string, body: RuleBody & { revision: number }) => patch<Rule>(path`rules/${id}`, body);
 export const deleteRule = (id: string) => del(path`rules/${id}`);
 export const dryRunRule = (rule: RuleBody, hours = 24) => post<DryRunResult>('rules/dry-run', { rule, hours });
 // CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by T052 (alarm rules dry run).
 export const dryRunStored = (ruleId: string, hours = 24) => post<DryRunResult>('rules/dry-run', { rule_id: ruleId, hours });
-export const listAlerts = (unacked = false) => get<{ alerts: RuleAlert[]; unacked: number }>(`rules/alerts${unacked ? '?unacked=true' : ''}`);
+export const listAlerts = (unacked = false) => get<Wire.RuleAlertList>(`rules/alerts${unacked ? '?unacked=true' : ''}`);
 export const ackAlert = (id: string) => post<RuleAlert>(path`rules/alerts/${id}/ack`);
 
 export const DAY_LABEL: Record<string, string> = { mon: trTime('ב׳'), tue: trTime('ג׳'), wed: trTime('ד׳'), thu: trTime('ה׳'), fri: trTime('ו׳'), sat: trTime('ש׳'), sun: trTime('א׳') };
