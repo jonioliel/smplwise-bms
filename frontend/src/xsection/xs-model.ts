@@ -132,6 +132,35 @@ export function matchFloors(floors: MatchFloor[], tree: DeviceTree | null, ctx: 
   const free = (hid: string) => !floorRows.has(hid) && !owner.has(hid);
   const ambiguous = new Set<string>();
   const suggestions = new Map<string, FloorSuggestion>();
+  const st: MatchState = { single, floorRows, areaRows, haFloors, haById, areas, areaIds, ids, owner, open, free, ambiguous, suggestions };
+  levelRule(floors, st);
+  nameRule(floors, st);
+  mapSuggestions(floors, st);
+  const { byFloor, excluded } = assignAreas(floors, st);
+  floorInfos(floors, st, byFloor, excluded, out);
+  return out;
+}
+
+/** What the matching passes of matchFloors share (built once per call; the maps and sets are filled pass by pass). */
+interface MatchState {
+  single: boolean;
+  floorRows: Map<string, string>;
+  areaRows: Map<string, string | null>;
+  haFloors: DeviceTree['floors'];
+  haById: Map<string, DeviceTree['floors'][number]>;
+  areas: { area: DeviceArea; haFloorId: string | null }[];
+  areaIds: Set<string>;
+  ids: Set<string>;
+  owner: Map<string, { floor: string; how: FloorHow }>;
+  open: (f: MatchFloor) => boolean;
+  free: (hid: string) => boolean;
+  ambiguous: Set<string>;
+  suggestions: Map<string, FloorSuggestion>;
+}
+
+/** CR-FE-COMPLEXITY-2450 (split of matchFloors, moved verbatim): the level rule - one platform floor and one of ours at that level on a one-building site; else ambiguous, maybe a suggestion. */
+function levelRule(floors: MatchFloor[], st: MatchState): void {
+  const { single, haFloors, owner, open, free, ambiguous, suggestions } = st;
   for (const f of floors) {
     if (!open(f)) continue;
     const sameLevel = haFloors.filter((h) => h.level !== null && h.level === f.level);
@@ -144,6 +173,11 @@ export function matchFloors(floors: MatchFloor[], tree: DeviceTree | null, ctx: 
       if (cand.length === 1 && twins.length === 1) suggestions.set(f.id, { haFloorId: cand[0].floor_id, haFloorName: cand[0].name, why: 'level' });
     }
   }
+}
+
+/** CR-FE-COMPLEXITY-2450 (split of matchFloors, moved verbatim): the name rule - exact normalized equality, unique on both sides; only offered on a site of several buildings. */
+function nameRule(floors: MatchFloor[], st: MatchState): void {
+  const { single, haFloors, owner, open, free, ambiguous, suggestions } = st;
   for (const f of floors) {
     if (!open(f)) continue;
     const key = norm(f.name);
@@ -159,6 +193,11 @@ export function matchFloors(floors: MatchFloor[], tree: DeviceTree | null, ctx: 
       } else if (!suggestions.has(f.id)) suggestions.set(f.id, { haFloorId: cands[0].floor_id, haFloorName: cands[0].name, why: 'name' });
     }
   }
+}
+
+/** CR-FE-COMPLEXITY-2450 (split of matchFloors, moved verbatim): the map suggestion - the free platform floor most of a floor's placed areas sit on. */
+function mapSuggestions(floors: MatchFloor[], st: MatchState): void {
+  const { haById, areas, open, free, suggestions } = st;
   // a suggestion from the map: the platform floor most of the floor's placed areas sit on (only when nothing matched and it is free)
   for (const f of floors) {
     if (!open(f) || suggestions.has(f.id)) continue;
@@ -167,6 +206,11 @@ export function matchFloors(floors: MatchFloor[], tree: DeviceTree | null, ctx: 
     const best = [...votes.entries()].sort((a, b) => b[1] - a[1]);
     if (best[0] && (!best[1] || best[1][1] < best[0][1]) && free(best[0][0])) suggestions.set(f.id, { haFloorId: best[0][0], haFloorName: haById.get(best[0][0])!.name, why: 'map' });
   }
+}
+
+/** CR-FE-COMPLEXITY-2450 (split of matchFloors, moved verbatim): each area to one floor - map placement > the per-area row > the platform floor's owner; the areas taken off a floor by hand. */
+function assignAreas(floors: MatchFloor[], st: MatchState): { byFloor: Map<string, MatchedArea[]>; excluded: Map<string, { area: DeviceArea; to: string | null }[]> } {
+  const { areaRows, areas, ids, owner } = st;
   // the areas, one owner each: map placement > the per-area row > the platform floor's owner
   const byFloor = new Map<string, MatchedArea[]>(floors.map((f) => [f.id, []]));
   const excluded = new Map<string, { area: DeviceArea; to: string | null }[]>(floors.map((f) => [f.id, []]));
@@ -188,6 +232,12 @@ export function matchFloors(floors: MatchFloor[], tree: DeviceTree | null, ctx: 
     if (viaFloor && viaFloor.floor !== to && source !== 'map') excluded.get(viaFloor.floor)?.push({ area: x.area, to });
     if (to && ids.has(to)) byFloor.get(to)!.push({ area: x.area, haFloorId: x.haFloorId, source });
   }
+  return { byFloor, excluded };
+}
+
+/** CR-FE-COMPLEXITY-2450 (split of matchFloors, moved verbatim): one FloorMatchInfo per floor into `out`. */
+function floorInfos(floors: MatchFloor[], st: MatchState, byFloor: Map<string, MatchedArea[]>, excluded: Map<string, { area: DeviceArea; to: string | null }[]>, out: Map<string, FloorMatchInfo>): void {
+  const { floorRows, areaRows, haById, areaIds, ambiguous, suggestions, owner } = st;
   for (const f of floors) {
     const mine = [...owner.entries()].filter(([, o]) => o.floor === f.id);
     const missing = [...floorRows.entries()].filter(([hid, fid]) => fid === f.id && !haById.has(hid)).map(([hid]) => hid);
@@ -202,7 +252,6 @@ export function matchFloors(floors: MatchFloor[], tree: DeviceTree | null, ctx: 
       missing,
     });
   }
-  return out;
 }
 
 /** The device-tree areas of a floor; pass the building's floors so the other floors compete (a lone floor matches alone). */
