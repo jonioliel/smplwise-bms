@@ -219,8 +219,7 @@ export class WaterMetersPage extends MetersPageBase<Meter, WaterAccess> {
     try {
       await water.createMeter({ source_ref: c.ref, display_name: this.newName.trim(), kind: this.newKind });
       this.setParams({ add: null });
-      this.notice = wt('added');
-      window.setTimeout(() => (this.notice = ''), 5000);
+      this.toaster.show(wt('added'), { ms: 5000 });
       await this.load(false);
     } catch (err) {
       this.addError = describeError(err);

@@ -48,7 +48,6 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
   @state() private nameTouched = false;
   @state() private adding = false;
   @state() private addErrors: string[] = [];
-  private noticeTimer = 0;
 
   static styles = [
     elecCss,
@@ -117,11 +116,6 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
     super({ viewKey: 'sw.elec.meters.view', collapseKey: 'sw.elec.meters.collapsed', route: '/infra/electricity/meters', access: energyAccess, onAccess: onEnergyAccess });
   }
 
-  disconnectedCallback() {
-    window.clearTimeout(this.noticeTimer);
-    super.disconnectedCallback();
-  }
-
   protected texts(): MetersPageTexts {
     return TEXTS;
   }
@@ -144,9 +138,7 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
   }
 
   private flash(text: string) {
-    this.notice = text;
-    window.clearTimeout(this.noticeTimer);
-    this.noticeTimer = window.setTimeout(() => (this.notice = ''), 6000);
+    this.toaster.show(text, { ms: 6000 });
   }
 
   protected openAdd() {

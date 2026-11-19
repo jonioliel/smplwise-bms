@@ -16,6 +16,7 @@ import { wt, wtLang } from '../../water/i18n';
 import { SkinController } from '../../design/skin';
 import { bubbleChrome } from '../../styles/bubble-chrome';
 import { PollController } from '../../components/poll-controller';
+import { ToastController } from '../../components/toast-controller';
 
 const POLL_MS = 60_000;
 const p2 = (n: number) => String(n).padStart(2, '0');
@@ -44,7 +45,10 @@ export class WaterAlertsPage extends LitElement {
   @state() private phase: 'loading' | 'ready' | 'error' = 'loading';
   @state() private error = '';
   @state() private actionError = '';
-  @state() private notice = '';
+  private readonly toaster = new ToastController(this, { ms: 4000 }); // CR-CMP2-SELECTS-2450 (07:F12 adoption)
+  private get notice(): string {
+    return this.toaster.text;
+  }
   @state() private filter: 'open' | 'all' = 'open';
   @state() private busy = false;
   @state() private access: WaterAccess = waterAccess();
@@ -87,8 +91,7 @@ export class WaterAlertsPage extends LitElement {
   }
 
   private flash(t: string) {
-    this.notice = t;
-    window.setTimeout(() => (this.notice = ''), 4000);
+    this.toaster.show(t);
   }
 
   private async act(run: () => Promise<unknown>, done: string) {

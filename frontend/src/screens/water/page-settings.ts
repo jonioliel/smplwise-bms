@@ -18,6 +18,7 @@ import { wt } from '../../water/i18n';
 import { SkinController } from '../../design/skin';
 import { bubbleChrome } from '../../styles/bubble-chrome';
 import { dateInputLang } from '../../api/day-format';
+import { ToastController } from '../../components/toast-controller';
 
 type Section = 'prices' | 'alerts';
 const MAX_CHOICES = [1440, 10080, 43200];
@@ -55,7 +56,10 @@ export class WaterSettingsPage extends LitElement {
   @state() private addN = '30';
   @state() private addU: 'min' | 'hour' | 'day' = 'min';
   @state() private snoozeErr = '';
-  @state() private notice = '';
+  private readonly toaster = new ToastController(this, { ms: 4000 }); // CR-CMP2-SELECTS-2450 (07:F12 adoption)
+  private get notice(): string {
+    return this.toaster.text;
+  }
   @state() private vf: VersionForm | null = null;
   @state() private vErr = '';
   @state() private busy = false;
@@ -103,8 +107,7 @@ export class WaterSettingsPage extends LitElement {
   }
 
   private flash(t: string) {
-    this.notice = t;
-    window.setTimeout(() => (this.notice = ''), 4000);
+    this.toaster.show(t);
   }
 
   // ---------------------------------------------------------------- tariffs

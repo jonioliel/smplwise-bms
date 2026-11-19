@@ -36,6 +36,7 @@ import { dateInputLang } from '../api/day-format';
 import { confirmWord, confirmWordMatches, type ConfirmWordKey } from '../i18n/confirm-words';
 import { liftRef, liftedReset } from '../components/top-layer';
 import { leadReserveStyles } from '../styles/lead-reserve'; // header dropdown placement 4: the first row keeps the reserve free (integ/293)
+import { ToastStackController } from '../components/toast-controller';
 
 const POLL_MS = 15_000;
 const KPI_KEY: Record<Bucket, XtKey> = { attention: 'kpiAttention', waiting: 'kpiWaiting', moving: 'kpiMoving', active: 'kpiActive', history: 'kpiHistory' };
@@ -105,7 +106,8 @@ export class AccessExternalScreen extends LitElement {
   @state() private dlgError = '';
   // EXTERNALBUILD-297 (X1): the readiness check shown in the settings dialog (system administrators); null = loading, 'error' = not loaded
   @state() private readiness: Readiness | null | 'error' = null;
-  @state() private toasts: { id: number; text: string }[] = [];
+  /** CR-CMP2-SELECTS-2450 (07:F12): several toasts at once, each with its own 3.2 s. */
+  private readonly toasts = new ToastStackController(this, { ms: 3200 });
   @state() private tz = 'Asia/Jerusalem';
   // GRANTS3-295: the card typed for a card grant (held only until the save answers) and the owner's per-grant history
   @state() private cardNo = '';
@@ -131,7 +133,6 @@ export class AccessExternalScreen extends LitElement {
   private readonly onResume = () => {
     if (document.visibilityState === 'visible') void this.load();
   };
-  private toastSeq = 0;
   private routed = false;
 
   static styles = [
@@ -408,9 +409,7 @@ export class AccessExternalScreen extends LitElement {
   }
 
   private toastText(text: string): void {
-    const id = ++this.toastSeq;
-    this.toasts = [...this.toasts, { id, text }];
-    window.setTimeout(() => (this.toasts = this.toasts.filter((t) => t.id !== id)), 3200);
+    this.toasts.push(text);
   }
 
   private fmt(iso: string | null | undefined, withDate = true): string {
@@ -1205,7 +1204,7 @@ export class AccessExternalScreen extends LitElement {
       </div>
       ${this.dialog ? nothing : this.drawer()}
       ${this.dialogs()}
-      <div class="toasts" aria-live="polite" ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog (a dialog action toasts while it stays open) */}>${this.toasts.map((t) => html`<div class="toast" data-toast><sw-icon name="check" size="16"></sw-icon>${t.text}</div>`)}</div>
+      <div class="toasts" aria-live="polite" ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog (a dialog action toasts while it stays open) */}>${this.toasts.items.map((t) => html`<div class="toast" data-toast><sw-icon name="check" size="16"></sw-icon>${t.text}</div>`)}</div>
     `;
   }
 }

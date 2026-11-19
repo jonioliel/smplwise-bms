@@ -9,6 +9,7 @@ import { describeError } from '../api/client';
 import { navigate } from '../router';
 import { SkinController } from '../design/skin';
 import { PollController } from '../components/poll-controller';
+import { ToastController } from '../components/toast-controller';
 
 /**
  * CR-DUP-METERS-2440 (code review 06:DUP-2): the meters page of a metered utility, written once. `screens/electricity/page-meters.ts` and
@@ -204,7 +205,11 @@ export abstract class MetersPageBase<M extends { id: string }, A extends MetersA
   @state() protected view: MetersView = 'table';
   @state() protected collapsed: string[] = [];
   @state() protected access: A;
-  @state() protected notice = '';
+  /** CR-CMP2-SELECTS-2450 (07:F12 adoption): the page's flash line; each page keeps its own duration (`flash`). */
+  protected readonly toaster = new ToastController(this, { ms: 5000 });
+  protected get notice(): string {
+    return this.toaster.text;
+  }
   private stopAccess?: () => void;
   private poller = new PollController(this); // CR-POLL-SCREENS-B-2440 (D2): the shared poll - visible only, never two reads at once, one catch-up read on return
 
