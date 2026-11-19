@@ -130,3 +130,42 @@ A scan of every host of a converted control for an ancestor `@change` listener (
    Keep? Recommendation: keep (unchanged behaviour).
 5. The open-for hours chips now read in the page direction ("3 ש׳" right to left) instead of the forced left-to-right of the old
    `.num` class. Keep? Recommendation: keep (reads naturally in Hebrew).
+
+## Release train 2.45.0, phase 1 - runner pass, one fix, baselines (RELEASE-2450-TRAIN agent, 19.11 evening)
+
+Runner, own worktree `~/work/t2450-segc`, `nice -n 19`, preview build, `--workers=2`, no `-u`:
+
+1. Check at e2dbca4f4, every spec file with a Linux baseline (51 files, all projects, `--retries=1`): 744 passed, 518 skipped (no
+   baseline for that project), **52 failed**, all screenshot comparisons. Each diff looked at (expected / actual crops). All but one
+   are the intended look of this row (and SEGMENTED-B / SELECTS under it): the specimen's five new rows, the shared key size, the
+   chip rows on `sw-chip-choice` (the accent-bordered chosen chip with its tick), the selects in `sw-field` (intercom operations), the
+   calendar month's view keys, 1-2 px shifts under a taller / shorter key.
+2. **Unintended: `visual-matrix` devices-schedules at 1440 (light + dark)** - the state strip (all / active / paused / ...) was ~50 px
+   wider than the glass `.seg` it replaced, because its counts became pills (18 px minimum, 5 px padding); the toolbar wrapped, the
+   "new" key took a row of its own and the list showed one row less per page. Fixed in 3ccdd80c5: `sw-segmented` gains
+   `--sw-seg-count-fs` / `--sw-seg-count-pad` / `--sw-seg-count-min-w` (defaults unchanged), `styles/media-glass.ts` sets the glass
+   count back to a plain small figure, `styles/settings.ts` hands the three knobs back (`unset`). Workstation: `unit-sw-segmented` +
+   `unit-dark-polish-beds` 23 passed, ESLint on the three files clean. After the fix the schedules desktop / tablet shots match their
+   old baselines again (not refreshed).
+3. Refresh at 3ccdd80c5: `--update-snapshots=changed` on the 9 failing files (206 passed, 70 skipped), only tracked baselines taken
+   (no new file), every changed image looked at old vs new; then the same 9 files **without `-u`: 204 passed, 70 skipped, 2 flaky
+   (visual-matrix security-alarm tablet, state-panels desktop: passed on retry), 0 failed**.
+
+Baselines refreshed (56, all under `frontend/tests/`):
+
+- `audit30-f-calendars.spec.ts-snapshots/`: `a30f-month-{classic,domus}-{1440-desktop,390-mobile}-linux.png`,
+  `a30f-settings-{classic,domus}-{1440-desktop,390-mobile}-linux.png` (8)
+- `evidence-audit30c-tickets.spec.ts-snapshots/audit30c-board-{light,dark}-{1440-desktop,390-mobile}-linux.png` (4)
+- `evidence-intercom-ops.spec.ts-snapshots/intercom-ops-{operations,trend,error}-{1440-desktop,390-mobile}-linux.png` (6)
+- `pixel-access-events.spec.ts-snapshots/`: `events-classic-{list,table,empty,error,stale,drawer,export,period}-1440-desktop-linux.png`,
+  `events-domus-{list,drawer}-1440-desktop-linux.png` (10)
+- `pixel-audit30a-glass-bridge.spec.ts-snapshots/tickets-board-dark-{desktop,tablet,mobile}-linux.png` (3)
+- `pixel-frigate-f2b-2405.spec.ts-snapshots/frigate-f2b-{classic,domus}-profiles-{1440-desktop,390-mobile}-linux.png` (4)
+- `pixel-sw-segmented.spec.ts-snapshots/sw-segmented-{light,dark}-{desktop,tablet,mobile}-linux.png` (6)
+- `pixel-wiskey-access-diag.spec.ts-snapshots/`: `diag-scenario-answer-{1440-desktop,390-mobile}`, `diag-compare-people-1440-desktop`,
+  `diag-reviews-list-1440-desktop`, `diag-review-dialog-{1440-desktop,390-mobile}`, `diag-lifecycle-1440-desktop` (`-linux.png`, 7)
+- `visual-matrix.spec.ts-snapshots/`: `devices-schedules-ready-{light,dark}-mobile`, `multimedia-screens-ready-{light,dark}-{tablet,mobile}`,
+  `settings-notifications-ready-{light,dark}-mobile` (`-linux.png`, 8)
+
+Not changed although listed as likely: `pixel-wiskey-people`, `pixel-home-fb-2431`, `pixel-home-gaps-2436`, `pixel-home-auditfix-2437`,
+`pixel-audit30g-video`, `pixel-events-windows-2443`, `pixel-round4-leftovers-2390` (all passed without `-u`).
