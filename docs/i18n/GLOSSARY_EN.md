@@ -244,6 +244,8 @@ Collected from the module passes; the first column is the Hebrew as the screens 
 | קוט״ש | kWh |
 | כיול / מקדם / הפרש | calibration / factor / offset |
 | תעו״ז, פס, עונה | time of use, band, season |
+| סוג יום / שם באנגלית (תעריף) | day type / English name |
+| יומן מצונזר / מזהה בקשה / יומן הביקורת | redacted log / request id / audit log |
 | הפקת חיוב / הנפקה / אסמכתה | create bill / issue / reference |
 | טריגר / תנאי / פעולה | trigger / condition / action |
 | סצנה / סקריפט / תרחיש | scene / script / scenario |

@@ -6,6 +6,7 @@ from __future__ import annotations
 from ...audit import audit
 from ...db import get_setting
 from ...services.settings_store import DEFAULTS
+from .._common import rid as _rid
 from . import Patch
 
 
@@ -59,14 +60,14 @@ def emergency_switch(patch: Patch) -> None:
 def update_changed(patch: Patch) -> None:
     if patch.update_switch is not None:
         audit(patch.conn, actor=patch.principal, action="system.update.apply_enabled", decision="allowed", resource_type="installation", resource_id="update",
-              request_id=getattr(patch.request.state, "correlation_id", None), details={"to": patch.update_switch == "true"})
+              request_id=_rid(patch.request), details={"to": patch.update_switch == "true"})
 
 
 def tickets_changed(patch: Patch) -> None:
     tickets_switch = patch.tickets_switch
     if tickets_switch is not None:
         audit(patch.conn, actor=patch.principal, action="tickets.module.enable" if tickets_switch == "true" else "tickets.module.disable", decision="allowed",
-              resource_type="installation", resource_id="tickets", request_id=getattr(patch.request.state, "correlation_id", None))
+              resource_type="installation", resource_id="tickets", request_id=_rid(patch.request))
         from ...services.tickets.public_runtime import RUNTIME as tickets_public  # CR-038 S4: the handler page follows at once (W3, W12)
 
         tickets_public.module_switched(tickets_switch == "true")
@@ -76,18 +77,18 @@ def emergency_changed(patch: Patch) -> None:
     emergency_switch = patch.emergency_switch
     if emergency_switch is not None:
         audit(patch.conn, actor=patch.principal, action="emergency_readiness.module.enable" if emergency_switch == "true" else "emergency_readiness.module.disable", decision="allowed",
-              resource_type="installation", resource_id="emergency_readiness", request_id=getattr(patch.request.state, "correlation_id", None))
+              resource_type="installation", resource_id="emergency_readiness", request_id=_rid(patch.request))
 
 
 def maintenance_changed(patch: Patch) -> None:
     maintenance_switch = patch.maintenance_switch
     if maintenance_switch is not None:
         audit(patch.conn, actor=patch.principal, action="maintenance.module.enable" if maintenance_switch == "true" else "maintenance.module.disable", decision="allowed",
-              resource_type="installation", resource_id="maintenance", request_id=getattr(patch.request.state, "correlation_id", None))
+              resource_type="installation", resource_id="maintenance", request_id=_rid(patch.request))
 
 
 def docread_changed(patch: Patch) -> None:
     docread_switch = patch.docread_switch
     if docread_switch is not None:
         audit(patch.conn, actor=patch.principal, action="docread.enable" if docread_switch == "true" else "docread.disable", decision="allowed",
-              resource_type="installation", resource_id="docread", request_id=getattr(patch.request.state, "correlation_id", None))
+              resource_type="installation", resource_id="docread", request_id=_rid(patch.request))

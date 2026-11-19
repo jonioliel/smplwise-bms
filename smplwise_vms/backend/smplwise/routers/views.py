@@ -17,6 +17,7 @@ from ..db import new_id, now_iso
 from ..errors import ApiError, forbidden, not_found
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services.access import camera_allowed, visible_camera_ids
+from ._common import rid as _rid
 
 router = APIRouter()
 MAX_CAMERAS = 16
@@ -106,7 +107,7 @@ def create_view(body: ViewBody, request: Request, principal: Principal = Depends
         (vid, body.name.strip(), json.dumps(cameras), body.cols, body.rows, int(body.shared), int(body.kiosk), principal.user_id, principal.username, now, now),
     )
     audit(conn, actor=principal, action="views.create", decision="allowed", resource_type="view", resource_id=vid,
-          request_id=getattr(request.state, "correlation_id", None), details={"name": body.name.strip(), "cameras": len(cameras), "shared": body.shared, "kiosk": body.kiosk})
+          request_id=_rid(request), details={"name": body.name.strip(), "cameras": len(cameras), "shared": body.shared, "kiosk": body.kiosk})
     return _view_dict(conn.execute("SELECT * FROM saved_views WHERE id = ?", (vid,)).fetchone(), None, _names(conn))
 
 
@@ -130,7 +131,7 @@ def update_view(view_id: str, body: ViewBody, request: Request, principal: Princ
         (body.name.strip(), json.dumps(cameras), body.cols, body.rows, int(body.shared), int(body.kiosk), now_iso(), view_id),
     )
     audit(conn, actor=principal, action="views.update", decision="allowed", resource_type="view", resource_id=view_id,
-          request_id=getattr(request.state, "correlation_id", None), details={"name": body.name.strip(), "cameras": len(cameras), "shared": body.shared, "kiosk": body.kiosk})
+          request_id=_rid(request), details={"name": body.name.strip(), "cameras": len(cameras), "shared": body.shared, "kiosk": body.kiosk})
     return _view_dict(conn.execute("SELECT * FROM saved_views WHERE id = ?", (view_id,)).fetchone(), None, _names(conn))
 
 
@@ -141,5 +142,5 @@ def delete_view(view_id: str, request: Request, principal: Principal = Depends(c
         raise forbidden("רק בעל התצוגה או מנהל מערכת יכולים למחוק אותה.", permission="views.edit", target_type="view", target_id=view_id)
     conn.execute("UPDATE saved_views SET deleted_at = ?, updated_at = ? WHERE id = ?", (now_iso(), now_iso(), view_id))
     audit(conn, actor=principal, action="views.delete", decision="allowed", resource_type="view", resource_id=view_id,
-          request_id=getattr(request.state, "correlation_id", None), details={"name": row["name"]})
+          request_id=_rid(request), details={"name": row["name"]})
     return {"id": view_id, "deleted": True}

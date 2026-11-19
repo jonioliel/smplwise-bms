@@ -29,6 +29,7 @@ from ..services import bridge_discovery, push_queue, service_identity
 from ..services import devices as dsvc
 from ..services.timeutil import parse_utc
 from .media import _principal_for_ws
+from ._common import rid as _rid
 
 router = APIRouter()
 log = logging.getLogger("smplwise.ha")
@@ -241,7 +242,7 @@ def _unclaim(key: tuple[str, str], ev: threading.Event) -> None:
 def _run_action(entity_id: str, body: ActionBody, request: Request, principal: Principal, conn: sqlite3.Connection, timing: "ha_actions.HopTimer") -> dict[str, Any]:
     settings = settings_of(request)
     db: Database = request.app.state.db
-    rid = getattr(request.state, "correlation_id", None)
+    rid = _rid(request)
     if body.allowed_action_id in ("lock.lock", "lock.unlock") and intercom_doors.is_wiskey_lock(conn, entity_id):
         _door_gate(conn, principal, request, entity_id, body.allowed_action_id)  # SEC-WXD L2: the permission first, a uniform 403
         _building_gate(conn, principal, request, entity_id, body)  # BUILDING-SCOPE-CONTROL-2351: then the building, before the door path
@@ -294,7 +295,7 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
     if grant and not _entity_allowed(conn, principal, entity_id, grant):
         # unlock and its kind need their own grant; general entity control never implies them (T079)
         audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="grant_required",
-              request_id=getattr(request.state, "correlation_id", None), details={"action": body.allowed_action_id, "grant": grant})
+              request_id=_rid(request), details={"action": body.allowed_action_id, "grant": grant})
         raise ApiError(403, "grant_required", f"הפעולה דורשת הרשאה נפרדת ({_grant_label(grant)}); שליטה כללית בישויות אינה כוללת אותה.", details={"action": body.allowed_action_id, "grant": grant})
     if spec["sensitive"] and body.confirmation_grant != "confirmed":
         raise ApiError(409, "confirmation_required", "פעולה רגישה דורשת אישור מפורש.", details={"action": body.allowed_action_id})
@@ -441,7 +442,7 @@ def _door_gate(conn: sqlite3.Connection, principal: Principal, request: Request,
     if not ha_scope.control_allowed(conn, principal, entity_id):
         require(conn, principal, "ha.entity.control", INSTALLATION)  # the same audited 403 as for any lock
     audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=decision.reason,
-          request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
+          request_id=_rid(request), details={"action": action_id})
     raise ApiError(403, "forbidden", "אין הרשאה לפתוח דלת זו", details={"reason": decision.reason, "action": action_id})
 
 
@@ -459,7 +460,7 @@ def _building_gate(conn: sqlite3.Connection, principal: Principal, request: Requ
         building_scope.require_entity(conn, body.building, entity)
     except ApiError as exc:
         audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=exc.code,
-              request_id=getattr(request.state, "correlation_id", None), details={"action": body.allowed_action_id, "building_id": body.building})
+              request_id=_rid(request), details={"action": body.allowed_action_id, "building_id": body.building})
         raise
 
 
@@ -474,7 +475,7 @@ def _refuse_alarm_managed(conn: sqlite3.Connection, principal: Principal, reques
     if not alarm_svc.is_managed_control(conn, entity_id):
         return
     audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="use_alarm_screen",
-          request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
+          request_id=_rid(request), details={"action": action_id})
     raise ApiError(409, "use_alarm_screen", "הפעולה נעשית ממסך האזעקה (הגדרות › אבטחה › אזעקה).", details={"action": action_id, "route": "/security/alarm"})
 
 
@@ -486,7 +487,7 @@ def _refuse_scheduler_switch(conn: sqlite3.Connection, principal: Principal, req
     if not dsvc.is_scheduler(conn, entity_id):
         return
     audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="use_schedules_screen",
-          request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
+          request_id=_rid(request), details={"action": action_id})
     raise ApiError(409, "use_schedules_screen", "התזמון מנוהל במסך התזמונים.", details={"action": action_id, "route": "/devices/schedules"})
 
 
@@ -501,7 +502,7 @@ def _refuse_door_chain(conn: sqlite3.Connection, principal: Principal, request: 
         door_run_guard.judge_entity_action(conn, entity_id, action_id)
     except ApiError as exc:
         audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=exc.code,
-              request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
+              request_id=_rid(request), details={"action": action_id})
         raise
 
 
@@ -518,7 +519,7 @@ def _refuse_media_managed(conn: sqlite3.Connection, principal: Principal, reques
     if spec.get("route") != "media" and not audio_action and not media_store.is_managed(conn, entity_id):
         return
     audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="use_media_screen",
-          request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
+          request_id=_rid(request), details={"action": action_id})
     raise ApiError(409, "use_media_screen", "המסך נשלט ממסך המולטימדיה.", details={"action": action_id, "route": "/multimedia/screens"})
 
 
@@ -581,7 +582,7 @@ def dev_states(body: DevStatesIn, request: Request, background: BackgroundTasks,
         ha_sync.publish({"type": "entity_state_changed", "sequence": ha_sync.STATE.sequence, "entity": row})
         rows.append(row)
         background.add_task(media_store.on_state_event, request.app.state.db, st.entity_id)  # CR-015: the same `media_state` frame a real state event sends, after the commit
-    audit(conn, actor=principal, action="ha.dev.states", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None),
+    audit(conn, actor=principal, action="ha.dev.states", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
           details={"entities": [r["entity_id"] for r in rows]})
     return {"entities": rows}
 
@@ -628,7 +629,7 @@ def dev_registry(body: DevRegistryIn, request: Request, principal: Principal = D
         switch_protection.reconcile(wconn, set(maps), devices=body.devices)
         media_changed = media_store.rebuild(wconn)
         changed = ha_sync.mirror_fingerprint(wconn) != before
-        audit(wconn, actor=principal, action="ha.dev.registry", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None),
+        audit(wconn, actor=principal, action="ha.dev.registry", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
               details={"entities": n, "areas": len(body.areas), "floors": len(body.floors)})
     ha_sync.STATE.last_registry_at = now_iso()
     if changed:
@@ -646,7 +647,7 @@ def dev_registry(body: DevRegistryIn, request: Request, principal: Principal = D
 def bridge_install_now(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Copy the integration into Home Assistant's config directory again and re-announce it (system.configure)."""
     require(conn, principal, "system.configure", INSTALLATION)
-    audit(conn, actor=principal, action="bridge.install", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None))
+    audit(conn, actor=principal, action="bridge.install", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request))
     db: Database = request.app.state.db
     return bridge_install.install(db, settings_of(request), force=True, announce=True, conn=conn)
 
@@ -670,7 +671,7 @@ def pairing(request: Request, principal: Principal = Depends(current_principal),
         # to a system administrator after a fresh re-authentication (audited) - never here; a further new code is a further revocation
         if regenerate:
             audit(conn, actor=principal, action="bridge.pairing.regenerate", decision="denied", resource_type="installation", resource_id="*",
-                  reason=bkr.REVOKED_CODE, request_id=getattr(request.state, "correlation_id", None))
+                  reason=bkr.REVOKED_CODE, request_id=_rid(request))
             raise ApiError(409, bkr.REVOKED_CODE, "מפתח הגשר בוטל בחירום. קוד חדש נוצר ומוצג רק במסך מפתח הגשר, אחרי אימות מחדש.")
         host = socket.gethostname()
         return {"pairing_code": None, "revoked": True, "key_set": False, "addon_host": host, "addon_url": f"http://{host}:8099", "paired_at": None,
@@ -678,7 +679,7 @@ def pairing(request: Request, principal: Principal = Depends(current_principal),
     secret = ha_bridge.ensure_pairing(conn, regenerate=regenerate)
     if regenerate:
         _lease_repair("repair")  # CR-WISKEY-LEASE-REVOCATION-EVENT T9: a new pairing key - every capture lease goes, a new stream
-        audit(conn, actor=principal, action="bridge.pairing.regenerate", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None))
+        audit(conn, actor=principal, action="bridge.pairing.regenerate", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request))
     host = socket.gethostname()
     announced = False
     if regenerate:
@@ -829,7 +830,7 @@ def _apply_directory_to_users(conn: sqlite3.Connection, request: Request, pushed
             continue
         conn.execute("UPDATE users SET active = ? WHERE id = ?", (active_now, r["id"]))
         audit(conn, actor=None, action="identity.user_enabled" if active_now else "identity.user_disabled", decision="allowed", resource_type="user", resource_id=r["id"],
-              reason="ha_directory" if p is not None else "missing_from_directory", request_id=getattr(request.state, "correlation_id", None))
+              reason="ha_directory" if p is not None else "missing_from_directory", request_id=_rid(request))
         if not active_now:
             disabled.append(r["id"])
         else:

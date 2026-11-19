@@ -430,8 +430,9 @@ export class SwSheet extends LitElement {
   private onDown = (e: PointerEvent) => {
     if (this.layout !== 'bottom' || this.locked) return;
     // a control anywhere on the composed path (also inside a nested shadow root, whose target is retargeted to its host) keeps its own
-    // pointer: a swipe would capture the pointer and swallow the control's click (EL5: the hour-range buttons of elec-tou-editor)
-    const control = 'button:not(.grab), a, input, select, textarea, [role="slider"], sw-pill, sw-button';
+    // pointer: a swipe would capture the pointer and swallow the control's click (EL5: the hour-range buttons of elec-tou-editor;
+    // CR-FE-LOGEXPORT-TARIFF-EN-2440: a <summary> - the folded structure part of elec-tou-editor never opened on a phone - and a <label>)
+    const control = 'button:not(.grab), a, input, select, textarea, summary, label, [role="slider"], sw-pill, sw-button';
     if (e.composedPath().some((n) => n instanceof Element && n.matches(control))) return;
     this.swipe = { y0: e.clientY, t0: performance.now(), id: e.pointerId };
     try {

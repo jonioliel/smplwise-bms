@@ -2,6 +2,7 @@
 // (#/infra/electricity/accounts/..., #/system/infra/prices ...), without the shell, the session or a backend - the screens answer from the mock layer
 // (src/api/electricity-billing-mock.ts, steered by localStorage `sw.demo.electricity`). Served by the Vite DEV server at /tests/electricity-harness/.
 // The skin / scheme come from the usual URL parameters (?skin=bubble&scheme=dark), read by the design boot.
+import '../../src/i18n/ui-lang-boot'; // CR-FE-LOGEXPORT-TARIFF-EN-2440: <html lang dir> from `sw.ui.lang`, as main.ts does (English specs)
 import '../../src/design/boot';
 import '../../src/styles/focus-policy';
 import '../../src/electricity/elec-pages';

@@ -1,22 +1,30 @@
 from __future__ import annotations
 
+import datetime as dt
+import json
 import os
 import sqlite3
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import Response
+from pydantic import BaseModel, Field
 
-from .. import __version__
-from ..auth import current_principal_ro, get_read_conn, settings_of
+from .. import __version__, correlation_id
+from ..audit import audit
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..capabilities import installation_block, may_see_recorders, resolve as resolve_capabilities
 from ..db import database_of, lock_stats, permission_revision, pool_stats, unlocked
+from ..errors import ApiError
 from ..mode import describe as describe_mode
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import autosync, connection_store, events_cache, events_derive, events_ingest, ha_client, ha_sync, stream_codecs
 from ..services import health_report as health_report_svc
+from ..services import log_export
 from ..services import media_reach
 from ..services import process_stats
 from ..services.ttl_cache import TtlCache
+from ._common import rid as _rid
 from .storage import local_state
 
 router = APIRouter()
@@ -175,3 +183,43 @@ def health_summary(request: Request, principal: Principal = Depends(current_prin
     """What the top bar shows every signed-in user: cached states only, no device probes, no details that a
     non-administrator should not see (labels are operator wording, never addresses or credentials)."""
     return health_report_svc.summary(settings_of(request), conn)
+
+
+class LogExportBody(BaseModel):
+    """T033 acceptance 2: the administrator's explicit request for the redacted log file (`consent` must be true - the master spec's
+    "diagnostic bundle ... created with consent")."""
+    consent: bool = False
+    minutes: int = Field(default=log_export.DEFAULT_MINUTES, ge=1, le=log_export.MAX_MINUTES)
+    min_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+    correlation_id: str | None = Field(default=None, max_length=64)
+    include_health: bool = True
+
+
+@router.post("/health/logs/export")
+def health_logs_export(body: LogExportBody, request: Request, principal: Principal = Depends(current_principal),
+                       conn: sqlite3.Connection = Depends(get_conn)) -> Response:
+    """T033 (R066 / AT066): the redacted log export - the add-on's recent log lines with the correlation id of the request each was
+    written for, the health checks, and a recommendation per problem; tokens, credentials, addresses, serials, MACs and personal
+    numbers redacted, no video, frames or plans (services/log_export.py). system.configure only, on purpose (`consent`), audited
+    with counts only - never the content. A download (Content-Disposition: attachment)."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    if not body.consent:
+        raise ApiError(422, "consent_required", "ייצוא היומן דורש אישור מפורש (consent).")
+    only = None
+    if body.correlation_id is not None:
+        only = correlation_id.accepted(body.correlation_id)
+        if only is None:
+            raise ApiError(422, "validation", "מזהה בקשה לא תקין: 8 עד 64 אותיות לטיניות, ספרות, מקף או קו תחתון.")
+    report = None
+    if body.include_health:
+        with unlocked(conn):  # the NVR / go2rtc probes are network calls (cached for PROBE_TTL_S)
+            report = health_report_svc.build(settings_of(request), conn, probe=True)
+    doc = log_export.build(report, minutes=body.minutes, min_level=body.min_level, only_correlation_id=only,
+                           export_correlation_id=_rid(request))
+    audit(conn, actor=principal, action="health.logs.export", decision="allowed", resource_type="installation", resource_id="*",
+          request_id=_rid(request), details={"records": len(doc["records"]), "minutes": body.minutes, "min_level": body.min_level,
+                                             "one_request": only is not None, "health": report is not None,
+                                             "redactions": doc["redaction"]["total"]})
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return Response(content=json.dumps(doc, ensure_ascii=False, indent=1), media_type="application/json",
+                    headers={"Content-Disposition": f'attachment; filename="arx-logs-{stamp}.json"', "Cache-Control": "no-store"})

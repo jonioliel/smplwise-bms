@@ -18,6 +18,7 @@ from ..db import get_setting
 from ..errors import forbidden, validation
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere
 from ..services import plan_view, site_location
+from ._common import rid as _rid
 
 router = APIRouter()
 ACTION = "plan.view_prefs"
@@ -59,7 +60,7 @@ def get_prefs(principal: Principal = Depends(current_principal_ro), conn: sqlite
 
 @router.put("/plan-view/prefs")
 def put_prefs(body: OwnPatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    rid = getattr(request.state, "correlation_id", None)
+    rid = _rid(request)
     if not _may_view(conn, principal):
         audit(conn, actor=principal, action=ACTION, decision="denied", resource_type="user", resource_id=principal.user_id, reason="permission_missing", request_id=rid)
         raise forbidden(permission="map.read")

@@ -20,7 +20,8 @@ from ..services import frigate_native_svc as native
 from ..services.access import camera_allowed
 from ..services.recorders import frigate_config as fcfg
 from .frigate import _camera_row
-from .frigate_control import _adapter, _may_see, _rq
+from ._common import rid as _rid
+from .frigate_control import _adapter, _may_see
 from .recorders import PERMISSION
 
 router = APIRouter()
@@ -87,7 +88,7 @@ def put_zone(recorder_id: str, camera_id: str, name: str, body: ZoneIn, request:
     a = _adapter(conn, request, recorder_id)
     zone = body.model_dump(exclude={"confirm", "supervised"})
     return {"recorder_id": recorder_id, "camera_id": camera_id, "name": name,
-            **cfgsvc.put_zone(conn, principal, a, cam, name, zone, confirm=body.confirm, supervised=body.supervised, request_id=_rq(request))}
+            **cfgsvc.put_zone(conn, principal, a, cam, name, zone, confirm=body.confirm, supervised=body.supervised, request_id=_rid(request))}
 
 
 @router.post("/frigate/{recorder_id}/cameras/{camera_id}/config/zones/{name}/delete")
@@ -97,7 +98,7 @@ def delete_zone(recorder_id: str, camera_id: str, name: str, body: ConfirmIn, re
     cam = _camera_row(conn, principal, recorder_id, camera_id, svc.PERMISSION["config"])
     a = _adapter(conn, request, recorder_id)
     return {"recorder_id": recorder_id, "camera_id": camera_id, "name": name,
-            **cfgsvc.delete_zone(conn, principal, a, cam, name, confirm=body.confirm, supervised=body.supervised, request_id=_rq(request))}
+            **cfgsvc.delete_zone(conn, principal, a, cam, name, confirm=body.confirm, supervised=body.supervised, request_id=_rid(request))}
 
 
 @router.put("/frigate/{recorder_id}/cameras/{camera_id}/config/settings/{section}")
@@ -107,4 +108,4 @@ def put_settings(recorder_id: str, camera_id: str, section: str, body: SettingsI
     cam = _camera_row(conn, principal, recorder_id, camera_id, svc.PERMISSION["config"])
     a = _adapter(conn, request, recorder_id)
     return {"recorder_id": recorder_id, "camera_id": camera_id, "section": section,
-            **cfgsvc.put_settings(conn, principal, a, cam, section, body.values, confirm=body.confirm, supervised=body.supervised, request_id=_rq(request))}
+            **cfgsvc.put_settings(conn, principal, a, cam, section, body.values, confirm=body.confirm, supervised=body.supervised, request_id=_rid(request))}

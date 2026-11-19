@@ -93,7 +93,7 @@ def _viewer(request: Request, principal: Principal = Depends(current_principal_r
     auth = ia.Authority(conn, principal)
     if auth.anywhere(ia.ADMIN_READ) or may_manage(auth):
         return auth
-    return ia.require_anywhere(conn, principal, ia.ADMIN_READ, getattr(request.state, "correlation_id", None))  # raises the audited 403
+    return ia.require_anywhere(conn, principal, ia.ADMIN_READ, _rid(request))  # raises the audited 403
 
 
 def _not_found() -> ApiError:

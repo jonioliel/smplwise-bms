@@ -42,7 +42,7 @@ from ..services import devices as svc
 from ..services import building_scope, door_authority, ha_bridge, ha_client, ha_scope, ha_sync, home_screen, switch_protection, user_prefs
 from ..services import service_identity
 from ..services.timeutil import parse_utc
-from ._common import is_json as _is_json, raw_body as _raw_body
+from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
 
 router = APIRouter()
 READ = "devices.read"
@@ -506,7 +506,7 @@ def set_bulk_protected_many(request: Request, principal: Principal = Depends(_co
     body = _json_body(request, raw, ProtectManyBody)
     policy = bulk.SwitchPolicy(conn)
     media_managed = _media_managed(conn)
-    rid = getattr(request.state, "correlation_id", None)
+    rid = _rid(request)
     results = []
     changed = 0
     for eid in dict.fromkeys(body.entity_ids):
@@ -541,7 +541,7 @@ def set_bulk_protected(entity_id: str, request: Request, principal: Principal = 
         raise ApiError(422, "not_markable", "תזמון אינו התקן ואינו מסומן כמוגן.")
     policy = bulk.SwitchPolicy(conn)
     why = _protect_refusal(conn, entity_id, "protect", policy, _media_managed(conn))
-    rid = getattr(request.state, "correlation_id", None)
+    rid = _rid(request)
     if why:
         audit(conn, actor=principal, action="devices.bulk_protected", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=why,
               request_id=rid, details={"protected": body.protected})
@@ -600,7 +600,7 @@ def set_climate_kind(entity_id: str, body: ClimateKindBody, request: Request, pr
             (entity_id, body.kind, principal.user_id, principal.username, now_iso()),
         )
     audit(conn, actor=principal, action="devices.climate_kind", decision="allowed", resource_type="ha_entity", resource_id=entity_id,
-          request_id=getattr(request.state, "correlation_id", None), details={"kind": body.kind})
+          request_id=_rid(request), details={"kind": body.kind})
     e = next((x for x in svc.load_entities(conn) if x["entity_id"] == entity_id), None)
     return {"entity_id": entity_id, "kind": e["climate_kind"] if e else None, "auto": e["climate_kind_auto"] if e else None, "set": e["climate_kind_set"] if e else None}
 
@@ -637,7 +637,7 @@ def set_device_type(entity_id: str, request: Request, principal: Principal = Dep
     """Fix the type of one switch-wired device, or return it to automatic (`auto`: its name decides again). system.configure, checked before
     the body; JSON only; audited (`devices.device_type`; a refusal too). Presentation only - the controls stay the entity's own domain's."""
     body = _json_body(request, raw, DeviceTypeBody)
-    rid = getattr(request.state, "correlation_id", None)
+    rid = _rid(request)
     why = device_types.refusal(device_types.domain_of(conn, entity_id), body.kind)
     if why:
         audit(conn, actor=principal, action="devices.device_type", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=why,
@@ -660,7 +660,7 @@ def set_bulk_on(entity_id: str, request: Request, principal: Principal = Depends
     (`switches_on`), or leave it out again (the default). system.configure, checked before the body; JSON only; audited
     (`devices.bulk_on_allowed`; a refusal too). Only a device whose FIXED type is valve / water heater (409 `not_sensitive_type` otherwise)."""
     body = _json_body(request, raw, BulkOnBody)
-    rid = getattr(request.state, "correlation_id", None)
+    rid = _rid(request)
     if device_types.domain_of(conn, entity_id) is None:
         raise ApiError(404, "not_found", DEVICE_TYPE_REFUSALS["not_found"])
     kind = device_types.overrides(conn).get(entity_id)
@@ -679,7 +679,7 @@ def set_device_types(request: Request, principal: Principal = Depends(_configure
     `{entity_id, ok, reason, changed}` (refused: not_found / not_typeable / kind_not_allowed). One audit row per changed entity and one
     summary row (`devices.device_type.batch`)."""
     body = _json_body(request, raw, DeviceTypeManyBody)
-    rid = getattr(request.state, "correlation_id", None)
+    rid = _rid(request)
     results = []
     changed = 0
     for eid in dict.fromkeys(body.entity_ids):
@@ -738,7 +738,7 @@ def assign_area(entity_id: str, request: Request, principal: Principal = Depends
     if not arow:
         raise ApiError(404, "area_not_found", "האזור לא נמצא.")
     settings = settings_of(request)
-    rid = getattr(request.state, "correlation_id", None)
+    rid = _rid(request)
     if principal.source not in ("ingress", "remote") and not settings.dev_user:  # CR-008: the Arx remote channel is the same HA user
         raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן.")
     secret = ha_bridge.signing_key(conn)
@@ -834,7 +834,7 @@ class _Refusals:
 
     def __init__(self, request: Request, conn: sqlite3.Connection, principal: Principal) -> None:
         self.request, self.conn, self.principal = request, conn, principal
-        self.rid = getattr(request.state, "correlation_id", None)
+        self.rid = _rid(request)
         self.resource_type, self.resource_id = "devices_bulk", "*"
         self.details: dict[str, Any] = {}
 

@@ -23,6 +23,7 @@ import { go, href, route } from './elec-routes';
 import { meterNames } from './meter-name';
 import { dateInputLang } from '../api/day-format';
 import { tr } from '../i18n/msg/electricity';
+import { touName } from './elec-tou';
 
 const STEPS = [tr('בחירת מונים'), tr('נוסחת החשבון'), tr('מחיר ומע״מ'), tr('תקופת חיוב'), tr('כרטיס לקוח'), tr('סיכום והפקה')];
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -322,7 +323,7 @@ export class ElecAccountWizard extends ElecBase {
   private priceCard(t: Tariff) {
     if (t.kind === 'tou') {
       const d = t.current?.definition;
-      return html`<div class="card soft" data-price-card data-kind="tou"><dl class="kv"><dt>${tr('תעריף')}</dt><dd>${tr('לפי שעות (תעו״ז)')}${d ? html`: ${d.bands.map((b) => b.name_he).join(' / ')}, ${d.seasons.map((s) => s.name_he).join(' / ')}` : nothing}</dd>
+      return html`<div class="card soft" data-price-card data-kind="tou"><dl class="kv"><dt>${tr('תעריף')}</dt><dd>${tr('לפי שעות (תעו״ז)')}${d ? html`: ${d.bands.map((b) => touName('bands', b, t.current?.names_en)).join(' / ')}, ${d.seasons.map((s) => touName('seasons', s, t.current?.names_en)).join(' / ')}` : nothing}</dd>
         <dt>${tr('מע״מ')}</dt><dd>${n((this.exOf(t).vat * 100).toFixed(0) + '%')} <span class="mut">${tr('(מההגדרות)')}</span></dd></dl>
         <div class="mut" style="margin-block-start:8px">${tr('הסכום מחושב לפי שעות הצריכה בפועל, בכל פס ועונה במחיר שלהם.')}</div></div>`;
     }

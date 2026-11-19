@@ -33,7 +33,7 @@ from ..services import alarm as svc
 from ..services import alarm_codes as codes
 from ..services import ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, service_identity
 from ..services.timeutil import parse_utc
-from ._common import is_json as _is_json, raw_body as _raw_body
+from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
 
 router = APIRouter()
 
@@ -244,7 +244,7 @@ class _Act:
 
     def audit(self, decision: str, reason: str | None = None, **extra: Any) -> None:
         audit(self.conn, actor=self.principal, action=self.action, decision=decision, resource_type=self.resource_type, resource_id=self.resource_id,
-              reason=reason, request_id=getattr(self.request.state, "correlation_id", None), details={**self.details, **extra})
+              reason=reason, request_id=_rid(self.request), details={**self.details, **extra})
 
     def refuse(self, exc: ApiError) -> ApiError:
         self.audit("denied", exc.code, status=exc.status)
@@ -407,7 +407,7 @@ def _send(act: _Act, request: Request, entity_id: str, action_id: str, args: dic
     # `alarm` also holds `arm_custom_bypass` (the panel route asks alarm.bypass for it first) and the zone-bypass route sends as `alarm.bypass`
     try:
         subj = service_identity.subject(conn, principal, feature, bridge_service="execute", item=(spec["domain"], spec["service"]),
-                                        request_id=getattr(request.state, "correlation_id", None))
+                                        request_id=_rid(request))
     except ApiError as exc:
         raise act.refuse(exc) from None
     if "on_behalf_of" in subj:
@@ -568,7 +568,7 @@ def zone_bypass(zone_entity_id: str, request: Request, principal: Principal = De
     # USR2 P3 security review F1: zone bypass (and its restore) is never for a local (Arx-only) identity - an explicit rule here, not only the
     # absence of the bypass control's service from the `alarm` table; before any code is judged or anything recorded
     try:
-        service_identity.refuse_zone_bypass(conn, principal, getattr(request.state, "correlation_id", None), zone=zone_entity_id)
+        service_identity.refuse_zone_bypass(conn, principal, _rid(request), zone=zone_entity_id)
     except ApiError as exc:
         raise act.refuse(exc) from None
     ctl = zone.get("bypass")

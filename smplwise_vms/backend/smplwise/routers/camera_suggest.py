@@ -19,6 +19,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import get_setting, now_iso, set_setting
 from ..errors import ApiError, not_found
 from ..rbac import Principal, require
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -69,7 +70,7 @@ def accept_zone_camera(zone_id: str, request: Request, body: LinkIn, principal: 
     ts = now_iso()
     set_setting(conn, LINK_PREFIX + zone_id, json.dumps({"anchor_id": a["id"], "updated_at": ts}))
     audit(conn, actor=principal, action="plan.zone_camera.accept", decision="allowed", resource_type="zone", resource_id=zone_id,
-          request_id=getattr(request.state, "correlation_id", None), details={"anchor_id": a["id"]})
+          request_id=_rid(request), details={"anchor_id": a["id"]})
     return {"zone_id": zone_id, "anchor_id": a["id"], "updated_at": ts}
 
 
@@ -79,5 +80,5 @@ def clear_zone_camera(zone_id: str, request: Request, principal: Principal = Dep
     require(conn, principal, "placement.edit", ("floor", z["floor_id"]))
     conn.execute("DELETE FROM settings WHERE key = ?", (LINK_PREFIX + zone_id,))
     audit(conn, actor=principal, action="plan.zone_camera.clear", decision="allowed", resource_type="zone", resource_id=zone_id,
-          request_id=getattr(request.state, "correlation_id", None), details={})
+          request_id=_rid(request), details={})
     return {"zone_id": zone_id, "anchor_id": None, "updated_at": None}

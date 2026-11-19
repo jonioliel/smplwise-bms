@@ -36,6 +36,7 @@ _MD = re.compile(r"^(\d{2})-(\d{2})$")
 _HM = re.compile(r"^(\d{2}):(\d{2})$")
 _Q4 = Decimal("0.0001")
 _LEAP = 2000  # a leap year: day-of-year indexes 0..365 cover 29 February
+_HEBREW = re.compile(r"[\u0590-\u05FF]")
 
 
 class TouError(ValueError):
@@ -53,6 +54,7 @@ class TouError(ValueError):
 class Named:
     id: str
     name_he: str
+    name_en: str = ""  # CR-BE-SMALL-2440: optional English name (the English interface); "" = none saved
 
 
 @dataclass(frozen=True)
@@ -60,6 +62,7 @@ class Season:
     id: str
     name_he: str
     ranges: tuple[tuple[str, str], ...]  # inclusive month-day ranges, may wrap the year end
+    name_en: str = ""
 
 
 @dataclass(frozen=True)
@@ -104,6 +107,13 @@ class Definition:
     def band_name(self, bid: str) -> str:
         return next((b.name_he for b in self.bands if b.id == bid), bid)
 
+    def season_name_en(self, sid: str) -> str:
+        """The English name of a season: the saved one, else the Israeli template's for an unchanged template entry, else ""."""
+        return next((s.name_en or known_name_en("seasons", s.id, s.name_he) for s in self.seasons if s.id == sid), "")
+
+    def band_name_en(self, bid: str) -> str:
+        return next((b.name_en or known_name_en("bands", b.id, b.name_he) for b in self.bands if b.id == bid), "")
+
     def band_index(self, bid: str) -> int:
         return next((i for i, b in enumerate(self.bands) if b.id == bid), len(self.bands))
 
@@ -142,16 +152,24 @@ def _named(items: Any, path: str, limit: int, what_he: str) -> tuple[Named, ...]
         p = f"{path}[{i}]"
         if not isinstance(it, dict):
             raise TouError("syntax", p, "מבנה לא תקין.")
-        iid, name = it.get("id"), it.get("name_he")
+        iid, name, name_en = it.get("id"), it.get("name_he"), it.get("name_en")
         if not isinstance(iid, str) or not _ID.match(iid):
             raise TouError("id", p + ".id", "מזהה חייב להתחיל באות לטינית קטנה ולהכיל אותיות, ספרות וקו תחתון (עד 24).")
         if iid in seen:
             raise TouError("duplicate", p + ".id", f"המזהה {iid} מופיע פעמיים.")
         if not isinstance(name, str) or not name.strip() or len(name.strip()) > MAX_NAME:
             raise TouError("name", p + ".name_he", f"שם חובה, עד {MAX_NAME} תווים.")
+        if name_en is not None and (not isinstance(name_en, str) or len(name_en.strip()) > MAX_NAME or _HEBREW.search(name_en)):
+            raise TouError("name_en", p + ".name_en", f"השם באנגלית הוא טקסט באותיות לטיניות, עד {MAX_NAME} תווים (אפשר להשאיר ריק).")
         seen.add(iid)
-        out.append(Named(iid, name.strip()))
+        out.append(Named(iid, name.strip(), (name_en or "").strip()))
     return tuple(out)
+
+
+def _en(name_en: str) -> dict[str, str]:
+    """`name_en` goes into the normalised definition only when one was given: a definition saved before English names existed (or
+    without one) normalises - and hashes (definition_sha256, sealed into bill snapshots) - exactly as before."""
+    return {"name_en": name_en} if name_en else {}
 
 
 def _price(value: Any, path: str) -> Decimal:
@@ -178,7 +196,8 @@ def parse_definition(obj: Any) -> Definition:
         raise TouError("required", "seasons", "יש להגדיר לפחות עונה אחת.")
     if len(raw_seasons) > MAX_SEASONS:
         raise TouError("too_many", "seasons", f"אפשר להגדיר עד {MAX_SEASONS} עונות.")
-    named_seasons = _named([{"id": s.get("id"), "name_he": s.get("name_he")} if isinstance(s, dict) else s for s in raw_seasons], "seasons", MAX_SEASONS, "עונות")
+    named_seasons = _named([{"id": s.get("id"), "name_he": s.get("name_he"), "name_en": s.get("name_en")} if isinstance(s, dict) else s for s in raw_seasons],
+                           "seasons", MAX_SEASONS, "עונות")
     seasons: list[Season] = []
     owner: list[str | None] = [None] * 366
     explicit_feb29 = False
@@ -210,7 +229,7 @@ def parse_definition(obj: Any) -> Definition:
             if _doy(2, 29) in days:
                 explicit_feb29 = True
             ranges.append((r[0], r[1]))
-        seasons.append(Season(n.id, n.name_he, tuple(ranges)))
+        seasons.append(Season(n.id, n.name_he, tuple(ranges), n.name_en))
     feb29, feb28 = _doy(2, 29), _doy(2, 28)
     if owner[feb29] is None and not explicit_feb29 and owner[feb28] is not None:
         owner[feb29] = owner[feb28]  # 29 February belongs to the season of 28 February (plan section 8.1)
@@ -303,11 +322,11 @@ def parse_definition(obj: Any) -> Definition:
                                f"חסר מחיר ל{next(b.name_he for b in bands if b.id == bid)} ב{s.name_he}.")
         norm_prices[s.id] = {b.id: str(prices[(s.id, b.id)]) for b in bands if (s.id, b.id) in prices}
     raw = {
-        "seasons": [{"id": s.id, "name_he": s.name_he, "ranges": [list(r) for r in s.ranges]} for s in seasons],
-        "day_types": [{"id": d.id, "name_he": d.name_he} for d in day_types],
+        "seasons": [{"id": s.id, "name_he": s.name_he, **_en(s.name_en), "ranges": [list(r) for r in s.ranges]} for s in seasons],
+        "day_types": [{"id": d.id, "name_he": d.name_he, **_en(d.name_en)} for d in day_types],
         "week": {k: week[k] for k in WEEK},
         "holiday": hol, "holiday_eve": eve,
-        "bands": [{"id": b.id, "name_he": b.name_he} for b in bands],
+        "bands": [{"id": b.id, "name_he": b.name_he, **_en(b.name_en)} for b in bands],
         "default_band": default_band,
         "schedule": norm_schedule,
         "prices": norm_prices,
@@ -318,6 +337,10 @@ def parse_definition(obj: Any) -> Definition:
 
 # ====================================================================== the Israeli template
 
+TEMPLATE_SOURCE_EN = ("A household time-of-use structure from secondary sources (information sites on the Electricity Authority tariffs, "
+                      "2026): summer June-September, winter December-February, transition in the other months; peak in summer 17:00-23:00 "
+                      "on weekdays, in winter 17:00-22:00 on all days, in transition 17:00-22:00 on weekdays. The prices are empty: enter "
+                      "them from a real bill. The structure was not verified against the Authority's text.")
 TEMPLATE_SOURCE_HE = ("מבנה תעו״ז ביתי לפי מקורות משניים (אתרי מידע על תעריפי רשות החשמל, 2026): קיץ יוני-ספטמבר, חורף "
                       "דצמבר-פברואר, מעבר בשאר החודשים; פסגה בקיץ 17:00-23:00 בימי חול, בחורף 17:00-22:00 בכל הימים, "
                       "במעבר 17:00-22:00 בימי חול. המחירים ריקים: יש להזין אותם מחשבון אמיתי. המבנה לא אומת מול נוסח הרשות.")
@@ -328,18 +351,18 @@ def israel_template() -> dict[str, Any]:
     fills the prices and confirms the hours against a real bill."""
     return {
         "seasons": [
-            {"id": "summer", "name_he": "קיץ", "ranges": [["06-01", "09-30"]]},
-            {"id": "winter", "name_he": "חורף", "ranges": [["12-01", "02-29"]]},
-            {"id": "transition", "name_he": "מעבר", "ranges": [["03-01", "05-31"], ["10-01", "11-30"]]},
+            {"id": "summer", "name_he": "קיץ", "name_en": "Summer", "ranges": [["06-01", "09-30"]]},
+            {"id": "winter", "name_he": "חורף", "name_en": "Winter", "ranges": [["12-01", "02-29"]]},
+            {"id": "transition", "name_he": "מעבר", "name_en": "Transition", "ranges": [["03-01", "05-31"], ["10-01", "11-30"]]},
         ],
         "day_types": [
-            {"id": "weekday", "name_he": "ימי חול"},
-            {"id": "friday", "name_he": "שישי וערבי חג"},
-            {"id": "saturday", "name_he": "שבת וחג"},
+            {"id": "weekday", "name_he": "ימי חול", "name_en": "Weekdays"},
+            {"id": "friday", "name_he": "שישי וערבי חג", "name_en": "Fridays and holiday eves"},
+            {"id": "saturday", "name_he": "שבת וחג", "name_en": "Shabbat and holidays"},
         ],
         "week": {"sun": "weekday", "mon": "weekday", "tue": "weekday", "wed": "weekday", "thu": "weekday", "fri": "friday", "sat": "saturday"},
         "holiday": "saturday", "holiday_eve": "friday",
-        "bands": [{"id": "offpeak", "name_he": "שפל"}, {"id": "peak", "name_he": "פסגה"}],
+        "bands": [{"id": "offpeak", "name_he": "שפל", "name_en": "Off-peak"}, {"id": "peak", "name_he": "פסגה", "name_en": "Peak"}],
         "default_band": "offpeak",
         "schedule": {
             "summer": {"weekday": [["17:00", "23:00", "peak"]]},
@@ -350,7 +373,36 @@ def israel_template() -> dict[str, Any]:
     }
 
 
-TEMPLATES = {"israel_household": {"name_he": "תעו״ז ביתי (ישראל)", "build": israel_template, "source_he": TEMPLATE_SOURCE_HE}}
+TEMPLATES = {"israel_household": {"name_he": "תעו״ז ביתי (ישראל)", "name_en": "Household time of use (Israel)", "build": israel_template,
+                                   "source_he": TEMPLATE_SOURCE_HE, "source_en": TEMPLATE_SOURCE_EN}}
+
+# (kind, id, Hebrew name) -> English name of the template's entries: a definition saved from the template before English names
+# existed (no name_en) still gets its English names while an entry keeps the template's id AND Hebrew name (a renamed one does not).
+_KNOWN_EN: dict[tuple[str, str, str], str] = {
+    (kind, it["id"], it["name_he"]): it["name_en"]
+    for kind in ("seasons", "day_types", "bands") for it in israel_template()[kind]
+}
+
+
+def known_name_en(kind: str, iid: str, name_he: str) -> str:
+    """The template's English name for an unchanged template entry, else ""."""
+    return _KNOWN_EN.get((kind, iid, name_he), "")
+
+
+def names_en(raw: dict[str, Any]) -> dict[str, dict[str, str]]:
+    """The English names of a stored definition's seasons, day types and bands (the saved `name_en`, else the template's for an
+    unchanged template entry); an entry without one is absent - the English interface then shows its Hebrew name. Reads the stored
+    JSON as it is (no validation), so it serves versions saved before English names existed too."""
+    out: dict[str, dict[str, str]] = {"seasons": {}, "day_types": {}, "bands": {}}
+    for kind, names in out.items():
+        for it in raw.get(kind) or []:
+            if not isinstance(it, dict) or not isinstance(it.get("id"), str):
+                continue
+            saved = it.get("name_en")
+            en = saved if isinstance(saved, str) and saved else known_name_en(kind, it["id"], str(it.get("name_he") or ""))
+            if en:
+                names[it["id"]] = en
+    return out
 
 
 # ====================================================================== classification of a window

@@ -41,7 +41,7 @@ from ..rbac import Principal
 from ..services import intercom_authority as ia
 from ..services import intercom_sync
 from ..services import wiskey_station_ops as ops
-from ._common import raw_body as _raw_body
+from ._common import raw_body as _raw_body, rid as _rid
 from .access_control import MAX_STATION_ID, CommandEnvelope, _Action, _envelope, _parse, _station
 
 router = APIRouter()
@@ -71,7 +71,7 @@ def _viewer(request: Request, principal: Principal = Depends(current_principal_r
     auth = ia.Authority(conn, principal)
     if auth.anywhere(ia.ADMIN_READ) or auth.anywhere(ia.STATIONS_MANAGE):
         return auth
-    return ia.require_anywhere(conn, principal, ia.ADMIN_READ, getattr(request.state, "correlation_id", None))  # raises the audited 403
+    return ia.require_anywhere(conn, principal, ia.ADMIN_READ, _rid(request))  # raises the audited 403
 
 
 def _not_found() -> ApiError:

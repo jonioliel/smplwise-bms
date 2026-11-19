@@ -14,6 +14,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import door_authority, intercom_authority as ia
+from ._common import rid as _rid
 
 
 log = logging.getLogger("smplwise.intercom")
@@ -46,7 +47,7 @@ def _gate(permission: str):
     the rows are then filtered per station by the same Authority."""
 
     def dep(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> ia.Authority:
-        return ia.require_anywhere(conn, principal, permission, getattr(request.state, "correlation_id", None))
+        return ia.require_anywhere(conn, principal, permission, _rid(request))
 
     return dep
 

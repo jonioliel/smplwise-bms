@@ -364,6 +364,11 @@ export const en = {
   'חג': 'Holiday',
   'ערב חג': 'Holiday eve',
   'יום שמתאים לכמה סוגים (שבת שהיא גם ערב חג) מקבל את הסוג המאוחר ברשימה:': 'A day that fits several types (a Saturday that is also a holiday eve) takes the later type in the list:',
+  // CR-FE-LOGEXPORT-TARIFF-EN-2440: the optional English names of seasons, day types and bands
+  'סוגי ימים': 'Day types',
+  'שם באנגלית': 'English name',
+  'שם באנגלית (רשות)': 'English name (optional)',
+  'שם באנגלית: אותיות לטיניות בלבד, עד {max} תווים.': 'English name: Latin letters only, up to {max} characters.',
 
   // meter-card.ts: the meter card
   'מדווח': 'Reporting',

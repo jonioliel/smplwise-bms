@@ -46,7 +46,7 @@ from ..rbac import INSTALLATION, Principal, authorize
 from ..services import camera_cards
 from ..services import devices as svc
 from ..services import ha_scope
-from ._common import is_json as _is_json, raw_body as _raw_body
+from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
 from .devices import READ, _configure_holder, _configure_holder_ro, _visible_entities
 
 router = APIRouter()
@@ -509,7 +509,7 @@ def _prune_vanished(conn: sqlite3.Connection, principal: Principal, request: Req
     for scope_id, n in stale:
         conn.execute("DELETE FROM device_layouts WHERE scope = 'area' AND scope_id = ?", (scope_id,))
         audit(conn, actor=principal, action="devices.layout.prune", decision="allowed", resource_type="device_layout_area", resource_id=scope_id,
-              request_id=getattr(request.state, "correlation_id", None), details={"scope": "area", "id": scope_id, "count": n})
+              request_id=_rid(request), details={"scope": "area", "id": scope_id, "count": n})
     if stale:
         log.info("pruned the layouts of %d areas no longer in Home Assistant", len(stale))
 
@@ -563,7 +563,7 @@ def put_layout(scope: str, scope_id: str, request: Request, principal: Principal
     _prune_vanished(conn, principal, request)
     rev = _write(conn, principal, scope, scope_id, body.variant, _dump(body.layout))
     audit(conn, actor=principal, action="devices.layout.update", decision="allowed", resource_type=f"device_layout_{scope}", resource_id=scope_id,
-          request_id=getattr(request.state, "correlation_id", None), details={"scope": scope, "id": scope_id, "variant": body.variant, "revision": rev})
+          request_id=_rid(request), details={"scope": scope, "id": scope_id, "variant": body.variant, "revision": rev})
     return _record(conn, principal, scope, scope_id)
 
 
@@ -589,7 +589,7 @@ def reset_layout(
     before = {v: _revision(conn, scope, scope_id, v) for v in variants}
     conn.execute(f"DELETE FROM device_layouts WHERE scope = ? AND scope_id = ? AND variant IN ({', '.join('?' * len(variants))})", (scope, scope_id, *variants))
     audit(conn, actor=principal, action="devices.layout.reset", decision="allowed", resource_type=f"device_layout_{scope}", resource_id=scope_id,
-          request_id=getattr(request.state, "correlation_id", None), details={"scope": scope, "id": scope_id, "variant": variant, "revision": before})
+          request_id=_rid(request), details={"scope": scope, "id": scope_id, "variant": variant, "revision": before})
     return _record(conn, principal, scope, scope_id)
 
 
@@ -617,5 +617,5 @@ def copy_to_all_areas(scope_id: str, request: Request, principal: Principal = De
         else:
             conn.execute("DELETE FROM device_layouts WHERE scope = 'area' AND scope_id = ? AND variant = 'phone'", (area_id,))
     audit(conn, actor=principal, action="devices.layout.copy", decision="allowed", resource_type="device_layout_area", resource_id=scope_id,
-          request_id=getattr(request.state, "correlation_id", None), details={"scope": "area", "id": scope_id, "revision": src_rev, "areas": len(targets)})
+          request_id=_rid(request), details={"scope": "area", "id": scope_id, "revision": src_rev, "areas": len(targets)})
     return {"copied_to": len(targets), "source": _record(conn, principal, "area", scope_id)}

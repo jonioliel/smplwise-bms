@@ -16,6 +16,7 @@ from typing import Callable
 
 from fastapi import Depends, Request
 
+from . import correlation_id
 from .audit import audit
 from .config import Settings
 import time
@@ -334,7 +335,7 @@ def shared_steps(request: Request, conn: sqlite3.Connection, principal: Principa
     variant of the principal_light routers and keeps exactly what they ran before: the last-seen stamp and the two path gates (no-ops
     on their paths today: exempt from both, pinned by tests/test_bridge_preverify_2440.py) - never the service-account refusal and
     the bootstrap grant, which they never ran. A NEW step belongs here, outside the `if not light`, unless it must not apply there."""
-    rid = getattr(request.state, "correlation_id", None)
+    rid = correlation_id.of(request)
     if not light:
         # USR2 P3 security review F4: the service Home Assistant user is a technical account - nobody signs in to Arx as it (403 service_account,
         # audited; checked before any user row is written for it)

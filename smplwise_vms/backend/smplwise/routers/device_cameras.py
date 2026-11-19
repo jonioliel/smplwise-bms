@@ -34,6 +34,7 @@ from ..services import camera_cards as cc
 from ..services import ha_camera_streams as hls
 from ..services import ha_client, ha_scope
 from ..services.settings_store import setting_value
+from ._common import rid as _rid
 
 router = APIRouter()
 STILL_MIN_AGE_S = 10
@@ -73,14 +74,14 @@ def enable_ha_live(request: Request, entity_id: str = Path(..., pattern=cc.HA_CA
     require(conn, principal, "sources.configure", INSTALLATION)
     if not cc.entity_visible(conn, principal, entity_id):
         raise not_found("המצלמה לא נמצאה.")
-    return hls.enable(conn, settings_of(request), principal, entity_id, getattr(request.state, "correlation_id", None))
+    return hls.enable(conn, settings_of(request), principal, entity_id, _rid(request))
 
 
 @router.delete("/devices/camera-card/ha-live/{entity_id}")
 def disable_ha_live(request: Request, entity_id: str = Path(..., pattern=cc.HA_CAMERA_RE.pattern), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Stop showing the camera live: the opt-in is removed and its go2rtc stream deleted (`sources.configure`, like enabling)."""
     require(conn, principal, "sources.configure", INSTALLATION)
-    return hls.disable(conn, settings_of(request), principal, entity_id, getattr(request.state, "correlation_id", None))
+    return hls.disable(conn, settings_of(request), principal, entity_id, _rid(request))
 
 
 @router.get("/devices/camera-card/still")

@@ -14,6 +14,7 @@ from ..db import unlocked
 from ..errors import ApiError, not_found
 from ..rbac import INSTALLATION, Principal, require
 from ..services import setup_wizard as wizard
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -49,6 +50,6 @@ def setup_check(step: str, request: Request, principal: Principal = Depends(curr
         raise
     result = next(s for s in state["steps"] if s["id"] == step)
     audit(conn, actor=principal, action="setup.check", decision="allowed", resource_type="installation", resource_id="*",
-          request_id=getattr(request.state, "correlation_id", None),
+          request_id=_rid(request),
           details={"step": step, "status": result["status"], "source": result["source"], "problem": (result["problem"] or {}).get("code")})
     return {**state, "checked": step}
