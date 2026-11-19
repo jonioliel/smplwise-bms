@@ -12,7 +12,10 @@ const code = (p: string) => readFileSync(new URL(`../src/${p}`, import.meta.url)
 const pb = code('screens/investigate-playback.ts');
 /** The budget, the gap and the padding as the stylesheet writes them. */
 function gridCss() {
-  const budget = pb.match(/--pb-stage-h:\s*max\((\d+)px,\s*calc\(100dvh - (\d+)px\)\)/);
+  // RELEASE-2440-TRAIN: both budgets also subtract the measured diagnostics row (`--pb-diag-h`, 0 when the row is hidden); the numbers
+  // below are the budget without the row, as the 0.1.68 budget defines it
+  const budget = pb.match(/--pb-stage-h:\s*max\((\d+)px,\s*calc\(100dvh - (\d+)px - var\(--pb-diag-h, 0px\)\)\)/);
+  expect(pb, 'the single video subtracts the diagnostics row too').toMatch(/max-block-size:\s*max\(\d+px,\s*calc\(100dvh - \d+px - var\(--pb-diag-h, 0px\)\)\)/);
   const rows2 = pb.match(/\.grid\.rows2\s*\{\s*max-inline-size:\s*calc\(\(var\(--pb-stage-h\) - (\d+)px\) \* 16 \/ 9 \+ (\d+)px\);/);
   const base = pb.match(/\.grid\s*\{\s*display: grid;\s*gap: (\d+)px;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[\s\S]*?padding: (\d+)px;/);
   expect(budget, 'the stage budget').not.toBeNull();

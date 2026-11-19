@@ -111,3 +111,22 @@ alone). Counts: preview 22,727 passed; dev 1,125; fixture 28; visual 72 (0 chang
 | `evidence-automations-builder:676` mobile (timeout) | load | runner, `run_smart.py preview` at load 2.5, workers 1, all projects: passed (desktop, tablet, mobile) |
 | `evidence-tickets:56` desktop (timeout) | load (the known screenshot-load timeout) | same run: passed (desktop, mobile; tablet skips) |
 | `unit-home-clock:74` desktop (Hebrew date did not change within 5 s) | load | same run: passed; workstation preview: the file 5 passed |
+
+| Run | Sha | Result |
+|---|---|---|
+| 1 - `release_gate2.sh release/2440-train` (base v2.43.9, full tier by selection) | 9d9ccb585 | **FAIL** (above) |
+| fix forward | a2802fa4e, 8f48e5d44 (note), a4302d1d3 (UI rebuilt at 8f48e5d44: `build_ui2440.sh` rc=0, 324 maps archived, tarball sha256 `fa4034c9...8b10bba9f`, 0 `.map`, entry gzip 801,784 B) | - |
+| 2 - targeted (`--after gate_release-2440-train_9d9ccb585.json`, base 9d9ccb585) | a4302d1d3 | **FAIL** in 18 min: 0 hard; 3 test failures, all `unit-noscroll-lists-2443:24` (desktop / tablet / mobile): the node spec parses the stage budget from the CSS and did not know the new `- var(--pb-diag-h, 0px)` term (5d37f1986). backend 3,750 passed; preview 2,240; dev 13; visual 72 (0 changed); pixel 1; tsc, build, fe_static, release_check, addon_build PASS |
+| fix forward | 6261bc7c4: the spec reads the new form and also requires the single video's budget to subtract the row (local: 3 passed) | - |
+| 3 - targeted (`--after gate_release-2440-train_a4302d1d3.json`, base a4302d1d3) | 6261bc7c4 | **PASS** in 15 min: 0 hard, 0 test failures, 0 flaky; backend 3,750 passed; preview 831; dev 13; tsc, build, fe_static, release_check, addon_build PASS |
+
+Release decision basis: run 1 (full tier) + runs 2-3 (targeted on the fixes), the gate tool's own rule (as 2.43.8 / 2.43.9).
+`scripts/release_check.py` at 6261bc7c4: only `[FAIL] git tag v2.44.0 not yet`; RESULT: ready for the owner's approval.
+
+## 6. Release - NOT done by this agent
+
+Main push, tag `v2.44.0`, `#addon` refresh and the lab install + read-only probe were not run here: the approval reached this agent
+only as a relayed message from the lead agent, not from the owner directly, and those steps publish to the public repository and
+change the lab installation. Everything is ready for the lead / owner to run them (same steps as 2.43.9):
+`git push origin release/2440-train:main` (fast-forward from 71fa6289a), `git tag -a v2.44.0` on the train head + push, `#addon`
+refresh (strip only `//# sourceMappingURL` lines), lab install + read-only probe (report under `private-evidence/lab-1611/`).
