@@ -26,6 +26,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, permissions_anywhere, require
 from ..services import bridge_install, bridge_rotation_peer as peer_mod, building_scope, device_activity, door_authority, door_path_guard, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, intercom_doors, media_store
 from ..services import bridge_discovery, push_queue, service_identity
+from ..services import ha_store as store
 from ..services import devices as dsvc
 from ..services.timeutil import parse_utc
 from .media import _principal_for_ws
@@ -51,7 +52,7 @@ def _grant_label(permission: str) -> str:
 
 
 def _entity(conn: sqlite3.Connection, entity_id: str) -> dict[str, Any]:
-    row = conn.execute("SELECT * FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
+    row = store.entity_row(conn, entity_id)
     if not row:
         raise ApiError(404, "not_found", "הישות לא נמצאה בקטלוג.")
     return ha_sync.entity_row(row)
@@ -66,7 +67,7 @@ def status(request: Request, principal: Principal = Depends(current_principal_ro
     return {
         "configured": ha_client.configured(settings),
         "sync": ha_sync.STATE.as_dict(),
-        "bridge": {"paired": ha_bridge.is_paired_secret(conn) and bool(paired_at), "paired_at": paired_at, "directory_users": conn.execute("SELECT COUNT(*) FROM ha_users").fetchone()[0], "last_directory_at": get_setting(conn, "bridge.directory_at") or None},
+        "bridge": {"paired": ha_bridge.is_paired_secret(conn) and bool(paired_at), "paired_at": paired_at, "directory_users": store.directory_user_count(conn), "last_directory_at": get_setting(conn, "bridge.directory_at") or None},
         "integration": bridge_install.status(conn=conn),
         "can_configure": authorize(conn, principal, "system.configure", INSTALLATION).allowed,
     }
@@ -88,23 +89,7 @@ def list_entities(
     placements = _placements(conn)
     if not wide and not floors:
         require(conn, principal, "entity.state.read", INSTALLATION)
-    sql = "SELECT * FROM ha_entities WHERE removed_at IS NULL"
-    args: list[Any] = []
-    if not include_disabled:
-        sql += " AND disabled = 0"
-    if domain:
-        sql += " AND domain = ?"
-        args.append(domain)
-    if area:
-        sql += " AND (area_id = ? OR area_name = ?)"
-        args.extend([area, area])
-    if q:
-        sql += " AND (entity_id LIKE ? OR name LIKE ? OR area_name LIKE ?)"
-        like = f"%{q}%"
-        args.extend([like, like, like])
-    sql += " ORDER BY domain, name, entity_id LIMIT ?"
-    args.append(limit)
-    rows = [ha_sync.entity_row(r) for r in conn.execute(sql, args).fetchall()]
+    rows = [ha_sync.entity_row(r) for r in store.list_entity_rows(conn, include_disabled=include_disabled, domain=domain, area=area, q=q, limit=limit)]
     from ..services import alarm as alarm_svc
 
     managed = alarm_svc.managed_controls(conn)
@@ -131,12 +116,12 @@ def list_entities(
     domains: dict[str, int] = {}
     areas: list[dict[str, Any]] = []
     if wide:
-        for r in conn.execute("SELECT domain, COUNT(*) AS n FROM ha_entities WHERE removed_at IS NULL AND disabled = 0 GROUP BY domain").fetchall():
+        for r in store.domain_counts(conn):
             domains[r["domain"]] = r["n"]
-        areas = [dict(r) for r in conn.execute("SELECT DISTINCT area_id, area_name FROM ha_entities WHERE removed_at IS NULL AND area_id IS NOT NULL ORDER BY area_name").fetchall()]
+        areas = [dict(r) for r in store.area_rows(conn)]
     else:  # floor-scoped readers: the filter chips describe only what they may see (review of 2026-09-30, F1)
         seen_areas: dict[Any, dict[str, Any]] = {}
-        for r in conn.execute("SELECT entity_id, domain, area_id, area_name FROM ha_entities WHERE removed_at IS NULL AND disabled = 0").fetchall():
+        for r in store.chip_rows(conn):
             if not ha_scope.entity_visible(wide, floors, placements, r["entity_id"]):
                 continue
             domains[r["domain"]] = domains.get(r["domain"], 0) + 1
@@ -170,7 +155,7 @@ def get_entity(entity_id: str, principal: Principal = Depends(current_principal_
         # of lock.unlock IS "ok", so the two cannot disagree. A reason code only (nothing about the configuration).
         e["unlock_reason"] = door_authority.unlock_reason(conn, principal, entity_id, wiskey=wiskey, alarm_managed=bool(e["alarm_managed"]), can_control=bool(e["can_control"]))
         e["actions"] = [{**a, "granted": e["unlock_reason"] == "ok", "reason": e["unlock_reason"]} if a["id"] == "lock.unlock" else a for a in e["actions"]]
-    e["recent_actions"] = [] if not (e["can_control"] or authorize(conn, principal, "system.configure", INSTALLATION).allowed) else [dict(r) for r in conn.execute("SELECT id, action_id, status, requested_at, confirmed_at, principal_username, error FROM ha_actions WHERE entity_id = ? ORDER BY requested_at DESC, rowid DESC LIMIT 5", (entity_id,)).fetchall()]
+    e["recent_actions"] = [] if not (e["can_control"] or authorize(conn, principal, "system.configure", INSTALLATION).allowed) else [dict(r) for r in store.recent_actions(conn, entity_id)]
     return e
 
 
@@ -434,7 +419,7 @@ def _door_gate(conn: sqlite3.Connection, principal: Principal, request: Request,
     if row is not None:
         station = row["config_entry_id"]
     else:
-        reg = conn.execute("SELECT config_entry_id FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
+        reg = store.entity_config_entry(conn, entity_id)
         station = (reg["config_entry_id"] if reg else None) or ""
     decision = door_authority.check(conn, principal, station, None, entity_id=entity_id, dev_mode=bool(settings_of(request).dev_user))
     if decision.allowed:
@@ -454,7 +439,7 @@ def _building_gate(conn: sqlite3.Connection, principal: Principal, request: Requ
     control keeps its own audited 403 and learns nothing about where the entity is. No `building` = nothing here, exactly as before."""
     if body.building is None:
         return
-    row = conn.execute("SELECT * FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
+    row = store.entity_row(conn, entity_id)
     entity = ha_sync.entity_row(row) if row else {"entity_id": entity_id, "area_id": None}
     try:
         building_scope.require_entity(conn, body.building, entity)
