@@ -530,3 +530,16 @@ def test_round_trip_through_the_routes_keeps_the_published_structure(settings, w
         back = got[plan_ifc.global_id(floor_id, "walls", w)]
         assert all(math.isclose(a, b, abs_tol=1e-4) for p, q in zip(back["polyline"], w["polyline"]) for a, b in zip(p, q))
         assert back["thickness_m"] == w["thickness_m"] and back["kind"] == w["kind"]
+
+
+def test_a_full_skipped_list_does_not_change_the_reason_an_opening_of_a_skipped_wall_gets(monkeypatch):
+    """CR-BE-FOLLOWUPS-2470 (CR-IFC-SPLIT-2460 Q1 "a"): a wall skipped for its storey after the report's row list was full gave its
+    openings the reason of the last LISTED row, not its own. The cap limits the listed rows only; the counts by reason are the same."""
+    data = _foreign(extra=[f"#150=IFCBUILDINGSTOREY('{_g(50)}',$,'First',$,$,#13,$,$,.ELEMENT.,3000.);",
+                           f"#19=IFCWALLSTANDARDCASE('{_g(51)}',$,'Orphan',$,$,#22,#28,$);"])  # in no storey, read before Wall-1 (#29)
+    full = _read(data, width_px=640, height_px=400, elevation=2.9)["ifc"]  # First chosen: Wall-1 and its door are on Ground
+    monkeypatch.setattr(plan_ifc_read, "MAX_SKIPPED_ROWS", 1)
+    capped = _read(data, width_px=640, height_px=400, elevation=2.9)["ifc"]
+    assert full["skipped_by_reason"]["no_storey"] == 1 and full["skipped_by_reason"]["other_storey"] >= 2, full["skipped_by_reason"]
+    assert [r["reason"] for r in capped["skipped"]] == ["no_storey"] and capped["skipped_total"] == full["skipped_total"]
+    assert capped["skipped_by_reason"] == full["skipped_by_reason"]

@@ -863,16 +863,18 @@ class _StoreyScope:
         self.in_storey, self.only, self.chosen, self.skips = in_storey, only, chosen, skips
 
     def ok(self, iid: int, cls: str, name: str) -> bool:
+        return self.skipped(iid, cls, name) is None
+
+    def skipped(self, iid: int, cls: str, name: str) -> str | None:
+        """None when the element belongs to the chosen storey; otherwise it is skipped and its reason returned
+        (CR-BE-FOLLOWUPS-2470: a skipped wall keeps its own reason for its openings, also once the listed rows are full)."""
         st = self.in_storey.get(iid, self.only)
         if self.chosen is None:
-            return True
-        if st is None:
-            self.skips.skip(iid, cls, "no_storey", name)
-            return False
-        if st != self.chosen["id"]:
-            self.skips.skip(iid, cls, "other_storey", name)
-            return False
-        return True
+            return None
+        reason = "no_storey" if st is None else "other_storey" if st != self.chosen["id"] else None
+        if reason:
+            self.skips.skip(iid, cls, reason, name)
+        return reason
 
 
 def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, scale_status: str, level_id: str, level_elevation_m: float, run_id: str,
@@ -899,9 +901,10 @@ def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, s
     only = storeys[0]["id"] if len(storeys) == 1 else None
 
     skips = _SkipLedger()
-    storey_ok = _StoreyScope(in_storey, only, chosen, skips).ok
+    scope = _StoreyScope(in_storey, only, chosen, skips)
+    storey_ok = scope.ok
     layer_thickness = _layer_thickness(model, unit)
-    walls_m, wall_lookup, wall_reason = _walls(model, rd, psets, layer_thickness, storey_ok, skips, storey_z)
+    walls_m, wall_lookup, wall_reason = _walls(model, rd, psets, layer_thickness, scope.skipped, skips, storey_z)
     openings_m = _openings(model, rd, psets, walls_m, wall_lookup, wall_reason, skips, unit, storey_z)
     rooms_m = _rooms(model, rd, storey_ok, skips)
     objects_m, own_objects = _objects(model, rd, psets, catalog, storey_ok, skips, storey_z)
@@ -1006,8 +1009,8 @@ def _layer_thickness(model: Model, unit: float) -> dict[int, float]:
     return layer_thickness
 
 
-def _walls(model: Model, rd: Reader, psets: dict[int, dict[str, dict[str, Any]]], layer_thickness: dict[int, float], storey_ok: Callable[[int, str, str], bool],
-           skips: _SkipLedger, storey_z: float) -> tuple[list[dict[str, Any]], dict[int, list[int]], dict[int, str]]:
+def _walls(model: Model, rd: Reader, psets: dict[int, dict[str, dict[str, Any]]], layer_thickness: dict[int, float],
+           storey_skipped: Callable[[int, str, str], str | None], skips: _SkipLedger, storey_z: float) -> tuple[list[dict[str, Any]], dict[int, list[int]], dict[int, str]]:
     """The walls of the storey in metres (world): (walls, instance -> indexes into them, a skipped wall's reason)."""
     skip = skips.skip
     walls_m: list[dict[str, Any]] = []  # {iid, guid, name, axis, bulges, thickness, kind, height, base}
@@ -1018,9 +1021,9 @@ def _walls(model: Model, rd: Reader, psets: dict[int, dict[str, dict[str, Any]]]
         a = model.args(iid)
         cls = model.type_of(iid) or ""
         name = text(at(a, 2))
-        before = skips.total
-        if not storey_ok(iid, cls, name):
-            wall_reason[iid] = skips.rows[-1]["reason"] if skips.total > before and skips.rows else "other_storey"
+        out_of_storey = storey_skipped(iid, cls, name)
+        if out_of_storey:
+            wall_reason[iid] = out_of_storey
             continue
         x, solids, axis, why = rd.product_shape(a)
         if x is None or (not solids and not axis):
