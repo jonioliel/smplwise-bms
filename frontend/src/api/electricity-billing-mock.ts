@@ -301,7 +301,11 @@ function touBill(t: Tariff, from: string, to: string, kwh: number): { lines: Sna
   const names = { seasons: Object.fromEntries(d.seasons.map((s) => [s.id, s.name_he])), day_types: Object.fromEntries(d.day_types.map((x) => [x.id, x.name_he])), bands: Object.fromEntries(d.bands.map((b) => [b.id, b.name_he])) };
   const years = [...new Set([Number(from.slice(0, 4)), Number(to.slice(0, 4))])];
   const special = years.flatMap((y) => calendarYear(y).days).filter((x) => x.date >= from && x.date <= to).map((x) => ({ date: x.date, kind: x.kind, kind_he: x.kind_he, name_he: x.name_he, source: x.source }));
-  return { lines, tou: { engine: 'arx.energy.tou/1', names, versions: [{ tariff_version_id: v.id, effective_from: v.effective_from, price_mode: v.price_mode, definition: d, definition_sha256: v.definition_sha256 ?? '' }], special_days: special, by_band: byBand, daily } };
+  // CR-BE-SMALL-2440: the English names (saved ones only here; the screens add the template's themselves), when there are any
+  const en = (list: { id: string; name_en?: string }[]) => Object.fromEntries(list.filter((x) => x.name_en).map((x) => [x.id, x.name_en as string]));
+  const namesEn = { seasons: en(d.seasons), day_types: en(d.day_types), bands: en(d.bands) };
+  const withEn = Object.values(namesEn).some((x) => Object.keys(x).length) ? { names_en: namesEn } : {};
+  return { lines, tou: { engine: 'arx.energy.tou/1', names, ...withEn, versions: [{ tariff_version_id: v.id, effective_from: v.effective_from, price_mode: v.price_mode, definition: d, definition_sha256: v.definition_sha256 ?? '' }], special_days: special, by_band: byBand, daily } };
 }
 /** The amount of `kwh` in a period of an account (fixed or time-of-use). */
 function amountOf(a: MA, from: string, to: string, kwh: number): string {
@@ -819,7 +823,7 @@ export const mockBackend: ElecBackend = {
   async touTemplates() {
     await tick();
     guardMoney();
-    return [{ id: 'israel_household', name_he: 'תעו״ז ביתי (ישראל)', source_he: 'מבנה תעו״ז ביתי לפי מקורות משניים: קיץ יוני-ספטמבר, חורף דצמבר-פברואר, מעבר בשאר החודשים. המחירים ריקים: יש להזין אותם מחשבון אמיתי. המבנה לא אומת מול נוסח הרשות.', definition: israelTemplate() }];
+    return [{ id: 'israel_household', name_he: 'תעו״ז ביתי (ישראל)', name_en: 'Household time of use (Israel)', source_en: 'A household time-of-use structure from secondary sources: summer June-September, winter December-February, transition in the other months. The prices are empty: enter them from a real bill. The structure was not checked against the text of the Authority.', source_he: 'מבנה תעו״ז ביתי לפי מקורות משניים: קיץ יוני-ספטמבר, חורף דצמבר-פברואר, מעבר בשאר החודשים. המחירים ריקים: יש להזין אותם מחשבון אמיתי. המבנה לא אומת מול נוסח הרשות.', definition: israelTemplate() }];
   },
   async checkTou(d) {
     await tick();

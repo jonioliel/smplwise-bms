@@ -16,7 +16,7 @@ import { MOCK_TODAY, mockBackend } from './electricity-billing-mock';
 import { listMeters, type Meter } from './electricity-meters';
 import { coefficients, factorLabel, type FormulaAst } from '../electricity/elec-formula';
 import { addDays, billNumber, daysInclusive, fmtRange, monthShort, r2 } from '../electricity/elec-format';
-import type { TouCheck, TouDefinition, TouTemplate } from '../electricity/elec-tou';
+import type { TouCheck, TouDefinition, TouNamesEn, TouTemplate } from '../electricity/elec-tou';
 import { tr } from '../i18n/msg/api-electricity';
 
 export type { FormulaAst, TouCheck, TouDefinition, TouTemplate };
@@ -104,6 +104,8 @@ export interface TariffVersion {
   /** EL5: the time-of-use definition of the version */
   definition?: TouDefinition;
   definition_sha256?: string;
+  /** CR-BE-SMALL-2440: the English names of the definition's seasons, day types and bands (saved, else the template's) */
+  names_en?: TouNamesEn;
 }
 export interface TariffVersionBody {
   name: string;
@@ -265,17 +267,19 @@ export interface SnapshotLine {
   vat_amount: string;
   total: string;
   /** EL5: a time-of-use line names its season and band; `hours` = clock hours of the period in them */
-  season?: { id: string; name_he: string };
-  band?: { id: string; name_he: string };
+  season?: { id: string; name_he: string; name_en?: string };
+  band?: { id: string; name_he: string; name_en?: string };
   hours?: string;
 }
 /** EL5: snapshot.tou of a time-of-use bill (ELECTRICITY_BILL_SNAPSHOT.md section 6). */
 export interface SnapshotTou {
   engine: string;
   names: { seasons: Record<string, string>; day_types: Record<string, string>; bands: Record<string, string> };
+  /** CR-BE-SMALL-2440: the English names, only when the tariff has any */
+  names_en?: TouNamesEn;
   versions: { tariff_version_id: string; effective_from: string; price_mode: PriceMode; definition: TouDefinition; definition_sha256: string }[];
   special_days: { date: string; kind: string; kind_he: string; name_he: string; source: string }[];
-  by_band: { band: { id: string; name_he: string }; kwh: string; amount_ex_vat: string; total: string; hours: string }[];
+  by_band: { band: { id: string; name_he: string; name_en?: string }; kwh: string; amount_ex_vat: string; total: string; hours: string }[];
   daily: { date: string; season: string; day_type: string; kwh: string; bands: { band: string; kwh: string }[]; special: { kind: string; name_he: string } | null }[];
 }
 export interface BillSnapshot {

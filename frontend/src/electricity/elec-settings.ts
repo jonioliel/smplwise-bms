@@ -17,7 +17,7 @@ import { ElecBase, alertBox, n, skeleton, stateBox, type LoadState } from './ele
 import './elec-bill-paper';
 import './elec-tou-editor';
 import { addDays, f4, fmtDate, isIsoDate } from './elec-format';
-import { cloneDef, israelTemplate, type TouDefinition } from './elec-tou';
+import { cloneDef, heOrEn, israelTemplate, type TouDefinition, touName } from './elec-tou';
 import { dateInputLang } from '../api/day-format';
 import { tr } from '../i18n/msg/electricity';
 
@@ -31,7 +31,7 @@ const lum = (hex: string): number => {
 /** EL5: one line about a time-of-use tariff for the list ("2 פסים · 3 עונות"). */
 function touSummary(t: Tariff): string {
   const d = t.current?.definition;
-  return d ? `${d.bands.map((b) => b.name_he).join(' / ')} · ${tr('{n} עונות', { n: d.seasons.length })}` : tr('לפי שעות');
+  return d ? `${d.bands.map((b) => touName('bands', b, t.current?.names_en)).join(' / ')} · ${tr('{n} עונות', { n: d.seasons.length })}` : tr('לפי שעות');
 }
 
 // ================================================================================================ prices
@@ -108,7 +108,7 @@ export class ElecSettingsPrices extends ElecBase {
       try {
         const tpl = (await elec().touTemplates())[0];
         this.tDef = cloneDef(tpl?.definition ?? israelTemplate());
-        this.tSource = tpl?.source_he ?? '';
+        this.tSource = tpl ? heOrEn(tpl.source_he, tpl.source_en) : '';
       } catch (er) {
         this.tDef = israelTemplate();
         this.error = elecErrorText(er);

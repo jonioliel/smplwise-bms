@@ -1851,7 +1851,7 @@ export class SystemDiagnostics extends LitElement {
     if (!r) {
       return html`<div class="sections"><sw-card heading="בריאות המערכת">${this.loadFailed.health && !this.reportBusy
         ? html`<sw-state-panel compact state="error" heading="דוח הבריאות לא נטען" hint=${this.loadFailed.health} actionLabel="נסו שוב" @action=${() => void this.loadReport(true)}></sw-state-panel>`
-        : html`<sw-state-panel compact state="loading" heading=${this.reportBusy ? 'בודק…' : 'טוען…'}></sw-state-panel>`}</sw-card></div>`;
+        : html`<sw-state-panel compact state="loading" heading=${this.reportBusy ? 'בודק…' : 'טוען…'}></sw-state-panel>`}</sw-card>${this.loadFailed.health ? this.renderLogExport() : nothing}</div>`;
     }
     const checked = timeText(new Date(r.checked_at), { seconds: true });
     return html`<div class="sections">
@@ -1863,7 +1863,14 @@ export class SystemDiagnostics extends LitElement {
       </sw-card>
       ${r.mode !== 'ha_only' ? html`<recorder-health-panel ?manage=${this.canEdit}></recorder-health-panel>` : nothing}
       ${r.mode !== 'ha_only' && this.canEdit ? html`<camera-image-health-settings></camera-image-health-settings>` : nothing}
+      ${this.renderLogExport()}
     </div>`;
+  }
+
+  /** CR-FE-LOGEXPORT-TARIFF-EN-2440 (T033): the redacted log export - for a user who may edit the system settings (the server also
+   * checks system.configure); also under a health report that failed to load, when the file is needed most. */
+  private renderLogExport() {
+    return this.canEdit ? html`<health-log-export></health-log-export>` : nothing;
   }
 
   /** CR-008 D7: under the "וידאו ב־WebRTC" card, the settings hint of each camera whose main stream will not play there. */

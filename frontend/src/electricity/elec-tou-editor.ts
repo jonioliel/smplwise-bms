@@ -6,13 +6,15 @@
  *  3. structure (folded) - the seasons' date ranges, the bands, which day type each weekday, a holiday and a holiday eve count as.
  * Every change emits `tou-change` with a new definition; the owner of the dialog saves it and the server validates (the first error comes
  * back with a path, `errorPath` marks the field). No Israeli number is assumed: the template's prices are empty.
+ * CR-FE-LOGEXPORT-TARIFF-EN-2440: every season, day type and band may carry an optional English name ("שם באנגלית", Latin text up to
+ * 40 characters - the server's `name_en` rule); the English interface shows it wherever a name is shown (touName), else the Hebrew.
  */
 import { css, html, nothing, type TemplateResult } from 'lit';
 import '../components/sw-button';
 import { customElement, property } from 'lit/decorators.js';
 import { ElecBase, n } from './elec-ui';
 import { f4 } from './elec-format';
-import { bandColor, bandsUsed, cloneDef, freshId, fromMin, WEEK, WEEK_HE, weekGrid, type TouDefinition, type TouRange } from './elec-tou';
+import { bandColor, bandsUsed, cloneDef, freshId, fromMin, NAME_EN_MAX, nameEnValid, touName, WEEK, WEEK_HE, weekGrid, type TouDefinition, type TouKind, type TouRange } from './elec-tou';
 import type { PriceMode } from '../api/electricity-billing';
 import { tr } from '../i18n/msg/electricity';
 
@@ -131,6 +133,15 @@ export class ElecTouEditor extends ElecBase {
       .stru .md {
         inline-size: 92px;
       }
+      .en {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-inline-size: 0;
+      }
+      .en .hint.bad {
+        color: var(--sw-danger-text);
+      }
       @media (max-width: 767px) {
         .dt {
           grid-template-columns: minmax(0, 1fr);
@@ -156,7 +167,8 @@ export class ElecTouEditor extends ElecBase {
     return this.errorPath && (this.errorPath === path || this.errorPath.startsWith(path + '[') || this.errorPath.startsWith(path + '.')) ? 'err-on' : '';
   }
   private bandName(id: string): string {
-    return this.definition?.bands.find((b) => b.id === id)?.name_he ?? id;
+    const b = this.definition?.bands.find((x) => x.id === id);
+    return b ? touName('bands', b) : id;
   }
 
   // ------------------------------------------------------------------ prices
@@ -165,8 +177,8 @@ export class ElecTouEditor extends ElecBase {
     return html`<div class="card flush" data-tou-prices>
       <div class="hd"><b class="h3">${tr('מחירים לקוט״ש')}</b><span class="sp"></span><span class="hint">${this.priceMode === 'inc_vat' ? tr('המחירים כוללים מע״מ') : tr('המחירים לפני מע״מ')}</span></div>
       <div class="scrollx"><table class="t">
-        <thead><tr><th>${tr('פס')}</th>${d.seasons.map((s) => html`<th>${s.name_he}</th>`)}</tr></thead>
-        <tbody>${d.bands.map((b) => html`<tr><td class="b"><span class="sw" style="background:${bandColor(d, b.id)}"></span>${b.name_he}${b.id === d.default_band ? html` <span class="hint">(${tr('שאר השעות')})</span>` : nothing}</td>
+        <thead><tr><th>${tr('פס')}</th>${d.seasons.map((s) => html`<th>${touName('seasons', s)}</th>`)}</tr></thead>
+        <tbody>${d.bands.map((b) => html`<tr><td class="b"><span class="sw" style="background:${bandColor(d, b.id)}"></span>${touName('bands', b)}${b.id === d.default_band ? html` <span class="hint">(${tr('שאר השעות')})</span>` : nothing}</td>
           ${d.seasons.map((s) => {
             const used = bandsUsed(d, s.id).includes(b.id);
             const v = d.prices[s.id]?.[b.id] ?? '';
@@ -174,7 +186,7 @@ export class ElecTouEditor extends ElecBase {
             if (!used && (v === '' || v === null)) return html`<td class="pc"><span class="hint">-</span></td>`;
             const num = Number(v);
             const other = rate !== null && v !== '' && Number.isFinite(num) ? (this.priceMode === 'ex_vat' ? num * (1 + rate) : num / (1 + rate)) : null;
-            return html`<td class="pc"><div class="unit"><input class="ltr ${this.bad(path) ? 'err' : ''}" inputmode="decimal" aria-label=${tr('{band} ב{season}', { band: b.name_he, season: s.name_he })} data-tou-price=${`${s.id}:${b.id}`} .value=${v ?? ''} ?disabled=${this.readonly}
+            return html`<td class="pc"><div class="unit"><input class="ltr ${this.bad(path) ? 'err' : ''}" inputmode="decimal" aria-label=${tr('{band} ב{season}', { band: touName('bands', b), season: touName('seasons', s) })} data-tou-price=${`${s.id}:${b.id}`} .value=${v ?? ''} ?disabled=${this.readonly}
               @input=${(e: Event) => this.edit((x) => { (x.prices[s.id] ??= {})[b.id] = (e.target as HTMLInputElement).value.trim() || null; })} /><span>₪</span></div>
               ${other !== null ? html`<div class="hint">${this.priceMode === 'ex_vat' ? tr('כולל מע״מ') : tr('לפני מע״מ')} ${n(f4(other))}</div>` : nothing}</td>`;
           })}</tr>`)}</tbody>
@@ -197,7 +209,7 @@ export class ElecTouEditor extends ElecBase {
           <select aria-label=${tr('משעה')} ?disabled=${this.readonly} @change=${(e: Event) => this.edit((x) => { x.schedule[sid][did][j][0] = (e.target as HTMLSelectElement).value; })}>${QUARTERS.slice(0, 96).map((q) => html`<option .selected=${q === r[0]} value=${q}>${q}</option>`)}</select>
           <span>${tr('עד')}</span>
           <select aria-label=${tr('עד שעה')} ?disabled=${this.readonly} @change=${(e: Event) => this.edit((x) => { x.schedule[sid][did][j][1] = (e.target as HTMLSelectElement).value; })}>${QUARTERS.slice(1).map((q) => html`<option .selected=${q === r[1]} value=${q}>${q}</option>`)}</select>
-          <select aria-label=${tr('פס')} ?disabled=${this.readonly} @change=${(e: Event) => this.edit((x) => { x.schedule[sid][did][j][2] = (e.target as HTMLSelectElement).value; })}>${d.bands.map((b) => html`<option .selected=${b.id === r[2]} value=${b.id}>${b.name_he}</option>`)}</select>
+          <select aria-label=${tr('פס')} ?disabled=${this.readonly} @change=${(e: Event) => this.edit((x) => { x.schedule[sid][did][j][2] = (e.target as HTMLSelectElement).value; })}>${d.bands.map((b) => html`<option .selected=${b.id === r[2]} value=${b.id}>${touName('bands', b)}</option>`)}</select>
           ${this.readonly ? nothing : html`<sw-button variant="ghost" size="sm" iconOnly icon="close" label=${tr('הסרת טווח')} data-tou-remove @click=${() => this.edit((x) => { x.schedule[sid][did].splice(j, 1); if (!x.schedule[sid][did].length) delete x.schedule[sid][did]; })}></sw-button>`}
         </div>`)}
         ${this.readonly || !others.length ? nothing : html`<div><sw-button variant="ghost" size="sm" data-tou-add=${`${sid}:${did}`} @click=${() => this.edit((x) => { ((x.schedule[sid] ??= {})[did] ??= []).push(['17:00', '22:00', others[0].id]); })}>${tr('+ טווח שעות')}</sw-button></div>`}
@@ -208,20 +220,43 @@ export class ElecTouEditor extends ElecBase {
     const rng = (s: TouDefinition['seasons'][number]) => s.ranges.map(([a, b]) => `${a.split('-').reverse().join('.')}-${b.split('-').reverse().join('.')}`).join(', ');
     return html`<div class="card" data-tou-hours>
       <div class="hd"><b class="h3">${tr('שעות לפי עונה')}</b><span class="sp"></span>
-        <span class="legend">${d.bands.map((b) => html`<span><i style="background:${bandColor(d, b.id)}"></i>${b.name_he}</span>`)}</span></div>
+        <span class="legend">${d.bands.map((b) => html`<span><i style="background:${bandColor(d, b.id)}"></i>${touName('bands', b)}</span>`)}</span></div>
       <div class="col">${d.seasons.map((s) => html`<div class="season" data-tou-season=${s.id}>
-        <div class="row"><b class="h3">${s.name_he}</b><span class="mut">${n(rng(s))}</span></div>
-        <div class="dt">${d.day_types.map((t) => this.dayRow(d, s.id, t.id, t.name_he, grid))}</div>
+        <div class="row"><b class="h3">${touName('seasons', s)}</b><span class="mut">${n(rng(s))}</span></div>
+        <div class="dt">${d.day_types.map((t) => this.dayRow(d, s.id, t.id, touName('day_types', t), grid))}</div>
       </div>`)}</div>
       <div class="hint" style="margin-block-start:8px">${tr('כל שעה שאינה בטווח שייכת ל{band}. השעות הן שעון מקומי; טווח שעובר את חצות (22:00 עד 06:00) נספר באותו תאריך.', { band: this.bandName(d.default_band) })}</div>
     </div>`;
+  }
+
+  // ------------------------------------------------------------------ English names
+  /** CR-FE-LOGEXPORT-TARIFF-EN-2440: the optional English name of a season / day type / band. Empty = no `name_en` in the definition
+   * (a definition without English names hashes as before); a Hebrew letter or more than 40 characters is marked here and refused by
+   * the server (path `<list>[i].name_en`). */
+  private nameEn(kind: TouKind, i: number, id: string, value: string | undefined): TemplateResult {
+    const v = value ?? '';
+    const ok = nameEnValid(v);
+    return html`<div class="en">
+      <input class="ltr ${ok && !this.bad(`${kind}[${i}].name_en`) ? '' : 'err'}" dir="ltr" lang="en" maxlength=${NAME_EN_MAX} aria-label=${tr('שם באנגלית')} placeholder=${tr('שם באנגלית (רשות)')}
+        data-tou-name-en=${`${kind}:${id}`} .value=${v} ?disabled=${this.readonly} aria-invalid=${ok ? 'false' : 'true'}
+        @input=${(e: Event) => this.setNameEn(kind, i, (e.target as HTMLInputElement).value)} />
+      ${ok ? nothing : html`<span class="hint bad" data-tou-name-en-error>${tr('שם באנגלית: אותיות לטיניות בלבד, עד {max} תווים.', { max: NAME_EN_MAX })}</span>`}
+    </div>`;
+  }
+  private setNameEn(kind: TouKind, i: number, value: string): void {
+    this.edit((x) => {
+      const it = (x[kind] as { name_en?: string }[])[i];
+      if (!it) return;
+      if (value.trim()) it.name_en = value;
+      else delete it.name_en;
+    });
   }
 
   // ------------------------------------------------------------------ structure
   private structure(d: TouDefinition): TemplateResult {
     const ro = this.readonly;
     const dtSel = (value: string | null, path: string, set: (x: TouDefinition, v: string | null) => void, allowNone: boolean) => html`<select class="${this.bad(path) ? 'err' : ''}" ?disabled=${ro} @change=${(e: Event) => this.edit((x) => set(x, (e.target as HTMLSelectElement).value || null))}>
-      ${allowNone ? html`<option value="" .selected=${value === null}>${tr('ללא שינוי')}</option>` : nothing}${d.day_types.map((t) => html`<option value=${t.id} .selected=${t.id === value}>${t.name_he}</option>`)}</select>`;
+      ${allowNone ? html`<option value="" .selected=${value === null}>${tr('ללא שינוי')}</option>` : nothing}${d.day_types.map((t) => html`<option value=${t.id} .selected=${t.id === value}>${touName('day_types', t)}</option>`)}</select>`;
     return html`<details class="card" data-tou-structure ?open=${!!this.errorPath && /^(seasons|bands|week|holiday|day_types|default_band)/.test(this.errorPath)}>
       <summary>${tr('מבנה התעריף: עונות, פסים וימים')}</summary>
       <div class="stru">
@@ -230,6 +265,7 @@ export class ElecTouEditor extends ElecBase {
           ${d.seasons.map((s, i) => html`<div class="season ${this.bad(`seasons[${i}]`)}" data-tou-season-def=${s.id}>
             <div class="row"><input aria-label=${tr('שם העונה')} .value=${s.name_he} ?disabled=${ro} @input=${(e: Event) => this.edit((x) => { x.seasons[i].name_he = (e.target as HTMLInputElement).value; })} />
               ${ro || d.seasons.length < 2 ? nothing : html`<sw-button variant="ghost" size="sm" iconOnly icon="close" label=${tr('הסרת העונה')} @click=${() => this.edit((x) => { const [gone] = x.seasons.splice(i, 1); delete x.schedule[gone.id]; delete x.prices[gone.id]; })}></sw-button>`}</div>
+            ${this.nameEn('seasons', i, s.id, s.name_en)}
             ${s.ranges.map((r, j) => html`<div class="rng"><span class="mut">${tr('מ')}</span><input class="md ltr" aria-label=${tr('מתאריך (חודש-יום)')} placeholder="MM-DD" .value=${r[0]} ?disabled=${ro} @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value.trim(); if (MD.test(v)) this.edit((x) => { x.seasons[i].ranges[j][0] = v; }); }} />
               <span class="mut">${tr('עד')}</span><input class="md ltr" aria-label=${tr('עד תאריך (חודש-יום)')} placeholder="MM-DD" .value=${r[1]} ?disabled=${ro} @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value.trim(); if (MD.test(v)) this.edit((x) => { x.seasons[i].ranges[j][1] = v; }); }} />
               ${ro || s.ranges.length < 2 ? nothing : html`<sw-button variant="ghost" size="sm" iconOnly icon="close" label=${tr('הסרת טווח תאריכים')} @click=${() => this.edit((x) => { x.seasons[i].ranges.splice(j, 1); })}></sw-button>`}</div>`)}
@@ -246,14 +282,17 @@ export class ElecTouEditor extends ElecBase {
               x.bands.splice(i, 1);
               for (const per of Object.values(x.schedule)) for (const k of Object.keys(per)) { per[k] = per[k].filter((r) => r[2] !== b.id); if (!per[k].length) delete per[k]; }
               for (const p of Object.values(x.prices)) delete p[b.id];
-            })}></sw-button>`}</div>`)}
+            })}></sw-button>`}</div>
+            ${this.nameEn('bands', i, b.id, b.name_en)}`)}
           ${ro || d.bands.length >= 8 ? nothing : html`<div><sw-button size="sm" data-tou-add-band @click=${() => this.edit((x) => { x.bands.push({ id: freshId('band', x.bands.map((b) => b.id)), name_he: 'פס חדש' }); })}>${tr('+ פס')}</sw-button></div>`}
-          <div class="fld"><label>${tr('שאר השעות שייכות ל')}</label><select ?disabled=${ro} @change=${(e: Event) => this.edit((x) => { x.default_band = (e.target as HTMLSelectElement).value; })}>${d.bands.map((b) => html`<option value=${b.id} .selected=${b.id === d.default_band}>${b.name_he}</option>`)}</select></div>
+          <div class="fld"><label>${tr('שאר השעות שייכות ל')}</label><select ?disabled=${ro} @change=${(e: Event) => this.edit((x) => { x.default_band = (e.target as HTMLSelectElement).value; })}>${d.bands.map((b) => html`<option value=${b.id} .selected=${b.id === d.default_band}>${touName('bands', b)}</option>`)}</select></div>
+          <b>${tr('סוגי ימים')}</b>
+          <div class="dt" data-tou-day-types>${d.day_types.map((t, i) => html`<span class="${this.bad(`day_types[${i}]`)}">${t.name_he}</span>${this.nameEn('day_types', i, t.id, t.name_en)}`)}</div>
           <b>${tr('ימים')}</b>
           <div class="dt">${WEEK.map((w) => html`<span>${WEEK_HE[w]}</span>${dtSel(d.week[w], `week.${w}`, (x, v) => { x.week[w] = v ?? x.day_types[0].id; }, false)}`)}
             <span>${tr('חג')}</span>${dtSel(d.holiday, 'holiday', (x, v) => { x.holiday = v; }, true)}
             <span>${tr('ערב חג')}</span>${dtSel(d.holiday_eve, 'holiday_eve', (x, v) => { x.holiday_eve = v; }, true)}</div>
-          <div class="hint">${tr('יום שמתאים לכמה סוגים (שבת שהיא גם ערב חג) מקבל את הסוג המאוחר ברשימה:')} ${d.day_types.map((t) => t.name_he).join(` ${tr('←')} `)}.</div>
+          <div class="hint">${tr('יום שמתאים לכמה סוגים (שבת שהיא גם ערב חג) מקבל את הסוג המאוחר ברשימה:')} ${d.day_types.map((t) => touName('day_types', t)).join(` ${tr('←')} `)}.</div>
         </div>
       </div>
     </details>`;

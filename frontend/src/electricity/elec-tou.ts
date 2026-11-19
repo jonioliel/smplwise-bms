@@ -5,6 +5,7 @@
  * demo backend uses to imitate a TOU bill. The server validates and computes; nothing here is the authority.
  */
 import { tr } from '../i18n/msg/electricity';
+import { docLang } from '../i18n/core';
 
 export const WEEK = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 type WeekDay = (typeof WEEK)[number];
@@ -13,6 +14,8 @@ export const WEEK_HE: Record<WeekDay, string> = { sun: tr('ראשון'), mon: tr
 interface TouNamed {
   id: string;
   name_he: string;
+  /** CR-FE-LOGEXPORT-TARIFF-EN-2440: the optional English name (Latin text, up to 40 characters); absent = none */
+  name_en?: string;
 }
 interface TouSeason extends TouNamed {
   /** inclusive MM-DD ranges, may wrap the year end */
@@ -50,11 +53,15 @@ export interface TouCheck {
   definition: TouDefinition | null;
   definition_sha256: string | null;
   grid: TouGrid | null;
+  /** CR-BE-SMALL-2440: the English names of the checked definition (saved, else the template's) */
+  names_en?: TouNamesEn;
 }
 export interface TouTemplate {
   id: string;
   name_he: string;
   source_he: string;
+  name_en?: string;
+  source_en?: string;
   definition: TouDefinition;
 }
 
@@ -62,21 +69,21 @@ export interface TouTemplate {
 export function israelTemplate(): TouDefinition {
   return {
     seasons: [
-      { id: 'summer', name_he: 'קיץ', ranges: [['06-01', '09-30']] },
-      { id: 'winter', name_he: 'חורף', ranges: [['12-01', '02-29']] },
-      { id: 'transition', name_he: 'מעבר', ranges: [['03-01', '05-31'], ['10-01', '11-30']] },
+      { id: 'summer', name_he: 'קיץ', name_en: 'Summer', ranges: [['06-01', '09-30']] },
+      { id: 'winter', name_he: 'חורף', name_en: 'Winter', ranges: [['12-01', '02-29']] },
+      { id: 'transition', name_he: 'מעבר', name_en: 'Transition', ranges: [['03-01', '05-31'], ['10-01', '11-30']] },
     ],
     day_types: [
-      { id: 'weekday', name_he: 'ימי חול' },
-      { id: 'friday', name_he: 'שישי וערבי חג' },
-      { id: 'saturday', name_he: 'שבת וחג' },
+      { id: 'weekday', name_he: 'ימי חול', name_en: 'Weekdays' },
+      { id: 'friday', name_he: 'שישי וערבי חג', name_en: 'Fridays and holiday eves' },
+      { id: 'saturday', name_he: 'שבת וחג', name_en: 'Shabbat and holidays' },
     ],
     week: { sun: 'weekday', mon: 'weekday', tue: 'weekday', wed: 'weekday', thu: 'weekday', fri: 'friday', sat: 'saturday' },
     holiday: 'saturday',
     holiday_eve: 'friday',
     bands: [
-      { id: 'offpeak', name_he: 'שפל' },
-      { id: 'peak', name_he: 'פסגה' },
+      { id: 'offpeak', name_he: 'שפל', name_en: 'Off-peak' },
+      { id: 'peak', name_he: 'פסגה', name_en: 'Peak' },
     ],
     default_band: 'offpeak',
     schedule: {
@@ -86,6 +93,39 @@ export function israelTemplate(): TouDefinition {
     },
     prices: { summer: { offpeak: null, peak: null }, winter: { offpeak: null, peak: null }, transition: { offpeak: null, peak: null } },
   };
+}
+
+// ------------------------------------------------------------------ English names (CR-FE-LOGEXPORT-TARIFF-EN-2440)
+
+/** The three named lists of a definition. */
+export type TouKind = 'seasons' | 'day_types' | 'bands';
+/** English names by list and id, as the server answers them (`names_en` of a version, a check or a bill snapshot). */
+export type TouNamesEn = Partial<Record<TouKind, Record<string, string>>>;
+
+/** The server's `name_en` rule (services/energy_tou.py `_named`): optional, up to 40 characters, no Hebrew letter. */
+export const NAME_EN_MAX = 40;
+const HEBREW = /[\u0590-\u05FF]/;
+export const nameEnValid = (v: string): boolean => v.trim().length <= NAME_EN_MAX && !HEBREW.test(v);
+
+/** The template's English for an entry that still has the template's id AND Hebrew name (the server's `known_name_en`), so a version
+ * saved before English names existed shows them too; '' for anything else. */
+let known: Map<string, string> | null = null;
+function knownNameEn(kind: TouKind, id: string, nameHe: string): string {
+  if (!known) {
+    const t = israelTemplate();
+    known = new Map((['seasons', 'day_types', 'bands'] as const).flatMap((k) => (t[k] as TouNamed[]).map((it) => [`${k}|${it.id}|${it.name_he}`, it.name_en ?? ''] as [string, string])));
+  }
+  return known.get(`${kind}|${id}|${nameHe}`) ?? '';
+}
+
+/** A server text with an optional English twin (a template's `name_en` / `source_en`): the English in the English interface, else the Hebrew. */
+export const heOrEn = (he: string, en?: string | null): string => (en && docLang(['en']) === 'en' ? en : he);
+
+/** The name the interface shows for a season / day type / band: in English its English name (the entry's own, else the server's
+ * `names_en`, else the template's), else - and always in Hebrew - its Hebrew name. */
+export function touName(kind: TouKind, it: { id: string; name_he: string; name_en?: string }, namesEn?: TouNamesEn | null): string {
+  if (docLang(['en']) !== 'en') return it.name_he;
+  return it.name_en?.trim() || namesEn?.[kind]?.[it.id] || knownNameEn(kind, it.id, it.name_he) || it.name_he;
 }
 
 export const cloneDef = (d: TouDefinition): TouDefinition => JSON.parse(JSON.stringify(d)) as TouDefinition;
