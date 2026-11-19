@@ -26,6 +26,7 @@ from typing import Any, Callable
 
 from ..audit import audit
 from . import door_windows_engine as dwe
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.door_engine_live")
 
@@ -247,3 +248,12 @@ def readiness(conn: Any, settings: Any) -> dict[str, Any]:
                    "lock_supported": getattr(engine, "lock_supported", False) is True, "window_tier": dwe.window_engine(settings).tier},
         "active_incidents_to_verify": sorted(VERIFY),
     }
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    LINK_ALERTED.clear()
+    VERIFY.clear()
+
+
+register_reset(__name__, ("LINK_ALERTED", "VERIFY"), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

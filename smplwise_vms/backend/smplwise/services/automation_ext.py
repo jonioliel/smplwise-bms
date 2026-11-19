@@ -34,6 +34,7 @@ from typing import Any, Callable, Iterable, Mapping
 from . import automation_model as model
 from . import automation_settings as aset
 from . import wall_buttons as wb
+from ..test_reset import register_reset
 
 # ================================================================ settings
 
@@ -807,3 +808,11 @@ def catalog_extension(ctx: Any) -> dict[str, Any]:
     if ctx.presence_sensors:  # BUILDING-PRESENCE-2271 (additive): the tagged sensors the building-empty trigger / room-occupied condition may name
         out["building_presence"] = {"sensors": list(ctx.presence_sensors)}
     return out
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _ACTIVE.clear()
+
+
+register_reset(__name__, ("_ACTIVE",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)
