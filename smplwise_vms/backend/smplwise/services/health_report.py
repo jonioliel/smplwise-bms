@@ -163,31 +163,34 @@ def _video_check(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]
     return _check("video_webrtc", "וידאו ב־WebRTC (זרם ראשי / משני)", status, detail, remote_main_first=remote_main, **s)
 
 
-def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> dict[str, Any]:
-    checks: list[dict[str, Any]] = []
+# CR-BE-COMPLEXITY-2450 (code review 03:F22): build() was one 160-line function (cyclomatic complexity 104). It is now the list of
+# check families below, called in the same order with the same reads; each helper returns the checks it adds (none, one or more).
+# tests/test_health_report_char_2450.py pins the output recorded before the split.
 
-    # database
+
+def _db_check(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
     try:
         integrity = conn.execute("PRAGMA quick_check").fetchone()[0]
         journal = conn.execute("PRAGMA journal_mode").fetchone()[0]
         db_bytes = settings.db_path.stat().st_size if settings.db_path.exists() else 0
-        checks.append(_check("db", "מסד נתונים", "ok" if integrity == "ok" else "error", f"{'תקין' if integrity == 'ok' else integrity} · {journal.upper()} · {_fmt_bytes(db_bytes)} · סכימה {backup_svc.schema_version(conn)} · מהדורת הרשאות {permission_revision(conn)}", integrity=integrity, journal=journal, bytes=db_bytes, schema=backup_svc.schema_version(conn)))
+        return _check("db", "מסד נתונים", "ok" if integrity == "ok" else "error", f"{'תקין' if integrity == 'ok' else integrity} · {journal.upper()} · {_fmt_bytes(db_bytes)} · סכימה {backup_svc.schema_version(conn)} · מהדורת הרשאות {permission_revision(conn)}", integrity=integrity, journal=journal, bytes=db_bytes, schema=backup_svc.schema_version(conn))
     except sqlite3.Error as exc:
-        checks.append(_check("db", "מסד נתונים", "error", f"שגיאת מסד: {type(exc).__name__}"))
+        return _check("db", "מסד נתונים", "error", f"שגיאת מסד: {type(exc).__name__}")
 
-    # storage
+
+def _storage_check(settings: Settings) -> dict[str, Any]:
     try:
         du = shutil.disk_usage(settings.data_dir)
         sizes = {"plans": _dir_size(settings.plans_dir), "thumbs": _dir_size(settings.data_dir / "thumbs"), "backups": _dir_size(settings.data_dir / "backups"), "exports": _dir_size(settings.data_dir / "exports"), "imported": _dir_size(settings.data_dir / "imported")}
         free_ratio = du.free / du.total if du.total else 1
         st = "error" if du.free < STORAGE_ERROR_FREE else "warn" if (du.free < 2 * 1024**3 or free_ratio < 0.10) else "ok"
-        checks.append(_check("storage", "אחסון התוסף (/data)", st, f"פנוי {_fmt_bytes(du.free)} מתוך {_fmt_bytes(du.total)} · תוכניות {_fmt_bytes(sizes['plans'])} · תמונות אירועים {_fmt_bytes(sizes['thumbs'])} · גיבויים {_fmt_bytes(sizes['backups'])} · ייצוא {_fmt_bytes(sizes['exports'])} · ראיות מיובאות {_fmt_bytes(sizes['imported'])}", free=du.free, total=du.total, **sizes))
+        return _check("storage", "אחסון התוסף (/data)", st, f"פנוי {_fmt_bytes(du.free)} מתוך {_fmt_bytes(du.total)} · תוכניות {_fmt_bytes(sizes['plans'])} · תמונות אירועים {_fmt_bytes(sizes['thumbs'])} · גיבויים {_fmt_bytes(sizes['backups'])} · ייצוא {_fmt_bytes(sizes['exports'])} · ראיות מיובאות {_fmt_bytes(sizes['imported'])}", free=du.free, total=du.total, **sizes)
     except OSError as exc:
-        checks.append(_check("storage", "אחסון התוסף (/data)", "error", f"לא ניתן לקרוא את שטח הדיסק ({type(exc).__name__})"))
+        return _check("storage", "אחסון התוסף (/data)", "error", f"לא ניתן לקרוא את שטח הדיסק ({type(exc).__name__})")
 
-    # devices (probed, cached)
-    ha_only = is_ha_only(settings)
-    caps = resolve_capabilities(settings, conn)  # NVRLESS-CAMERAS-2411: cameras without a recorder count
+
+def _device_states(settings: Settings, caps: Any, ha_only: bool, probe: bool) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The NVR and go2rtc states (probed and cached, or a fixed answer when not probed / not part of this installation)."""
     if ha_only:
         # NVR-less mode (mode.py): the NVR is not part of this installation - a neutral "off", never a warning; go2rtc is
         # optional (WisKey station video) and is probed only when it is configured
@@ -205,31 +208,43 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
     else:
         nvr = {"status": "warn", "detail": "לא נבדק בבקשה זו."}
         go = {"status": "warn", "detail": "לא נבדק בבקשה זו."}
+    return nvr, go
+
+
+def _device_checks(settings: Settings, conn: sqlite3.Connection, caps: Any, ha_only: bool, probe: bool) -> list[dict[str, Any]]:
+    nvr, go = _device_states(settings, caps, ha_only, probe)
     from .recorders import vendor_io
 
     nvr_label = "NVR (Provision-ISR)" if vendor_io.handles(settings) else "NVR (Hikvision ISAPI)"
-    checks.append(_check("nvr", nvr_label, nvr["status"], nvr["detail"], **{k: v for k, v in nvr.items() if k not in ("status", "detail")}))
+    checks = [_check("nvr", nvr_label, nvr["status"], nvr["detail"], **{k: v for k, v in nvr.items() if k not in ("status", "detail")})]
     checks.extend(_recorder_time_checks(settings, conn))
     checks.append(_check("go2rtc", "go2rtc (מדיה)", go["status"], go["detail"], **{k: v for k, v in go.items() if k not in ("status", "detail")}))
+    return checks
 
-    # Home Assistant sync + bridge
+
+def _ha_sync_check(settings: Settings) -> dict[str, Any]:
     hs = ha_sync.STATE.as_dict()
     if not ha_client.configured(settings):
-        checks.append(_check("ha_sync", "סנכרון Home Assistant", "error" if is_ha_only(settings) else "warn", "אין חיבור ל־Home Assistant בהגדרות (בתוסף: אוטומטי דרך ה־Supervisor).", configured=False))
+        return _check("ha_sync", "סנכרון Home Assistant", "error" if is_ha_only(settings) else "warn", "אין חיבור ל־Home Assistant בהגדרות (בתוסף: אוטומטי דרך ה־Supervisor).", configured=False)
     else:
         age = _age_s(hs.get("last_event_at") or hs.get("last_snapshot_at"))
         st = "ok" if hs.get("connected") else ("warn" if hs.get("last_snapshot_at") else "error")
         if is_ha_only(settings) and not hs.get("connected") and ha_sync.STATE.down_for() > HA_GRACE_S:
             st = "error"  # NVR-less mode: Home Assistant is the product
-        checks.append(_check("ha_sync", "סנכרון Home Assistant", st, f"{'מחובר' if hs.get('connected') else 'מנותק'} · {hs.get('entities', 0)} ישויות · HA {hs.get('ha_version') or '?'} · עדכון אחרון {'לפני ' + str(int(age)) + ' שנ׳' if age is not None else '—'}{' · ' + str(hs.get('last_error')) if hs.get('last_error') else ''}", **hs))
+        return _check("ha_sync", "סנכרון Home Assistant", st, f"{'מחובר' if hs.get('connected') else 'מנותק'} · {hs.get('entities', 0)} ישויות · HA {hs.get('ha_version') or '?'} · עדכון אחרון {'לפני ' + str(int(age)) + ' שנ׳' if age is not None else '—'}{' · ' + str(hs.get('last_error')) if hs.get('last_error') else ''}", **hs)
+
+
+def _bridge_check(conn: sqlite3.Connection) -> dict[str, Any]:
     paired = ha_bridge.is_paired_secret(conn) and bool(get_setting(conn, "bridge.paired_at"))
     users = conn.execute("SELECT COUNT(*) FROM ha_users").fetchone()[0] if "ha_users" in {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")} else 0
     dir_age = _age_s(get_setting(conn, "bridge.directory_at") or None)
     bridge_v = get_setting(conn, "bridge.integration_version")
     bridge_old = paired and bool(bridge_v) and media_store.version_tuple(bridge_v) < media_store.version_tuple(ha_bridge.BRIDGE_EQUIPMENT_REQUIRED)
-    checks.append(_check("bridge", "גשר Arx (אינטגרציה)", "ok" if paired and not bridge_old and (dir_age is None or dir_age < 15 * 60) else ("warn" if paired else "warn"), f"{'מצומד' if paired else 'לא מצומד'} · גרסת אינטגרציה {get_setting(conn, 'bridge.integration_version') or '?'}{' · נדרש עדכון של רכיב החיבור (' + ha_bridge.BRIDGE_EQUIPMENT_REQUIRED + ' ומעלה) לכרטיסי ציוד' if bridge_old else ''} · {users} משתמשים בספרייה · ספרייה עודכנה {'לפני ' + str(int(dir_age // 60)) + ' דק׳' if dir_age is not None else 'טרם'}", paired=paired, integration_version=get_setting(conn, "bridge.integration_version"), bridge_required=ha_bridge.BRIDGE_EQUIPMENT_REQUIRED, bridge_outdated=bridge_old, directory_users=users, directory_age_s=dir_age))
+    return _check("bridge", "גשר Arx (אינטגרציה)", "ok" if paired and not bridge_old and (dir_age is None or dir_age < 15 * 60) else ("warn" if paired else "warn"), f"{'מצומד' if paired else 'לא מצומד'} · גרסת אינטגרציה {get_setting(conn, 'bridge.integration_version') or '?'}{' · נדרש עדכון של רכיב החיבור (' + ha_bridge.BRIDGE_EQUIPMENT_REQUIRED + ' ומעלה) לכרטיסי ציוד' if bridge_old else ''} · {users} משתמשים בספרייה · ספרייה עודכנה {'לפני ' + str(int(dir_age // 60)) + ' דק׳' if dir_age is not None else 'טרם'}", paired=paired, integration_version=get_setting(conn, "bridge.integration_version"), bridge_required=ha_bridge.BRIDGE_EQUIPMENT_REQUIRED, bridge_outdated=bridge_old, directory_users=users, directory_age_s=dir_age)
 
-    # events
+
+def _event_checks(settings: Settings, conn: sqlite3.Connection, ha_only: bool) -> list[dict[str, Any]]:
+    checks: list[dict[str, Any]] = []
     ing = events_ingest.STATE.as_dict()
     if ha_only:
         pass  # NVR-less mode: no alert stream, no derived events, no discovery, thumbnails or exports (see the nvr check)
@@ -242,8 +257,12 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
     dage = _age_s(dv.get("last_ok"))
     if not ha_only:
         checks.append(_check("events_derive", "אירועים נגזרים מהקלטות", "error" if dv.get("last_error") else ("ok" if dv.get("last_ok") else "warn"), f"{'שגיאה: ' + str(dv['last_error']) if dv.get('last_error') else ('עודכן לפני ' + str(int(dage // 60)) + ' דק׳' if dage is not None else 'טרם רץ')} · {dv.get('derived', 0)} נגזרו · {conn.execute('SELECT COUNT(*) FROM events').fetchone()[0]} אירועים במאגר", **dv))
+    return checks
 
-    # discovery / thumbnails / exports / sessions / backups
+
+def _job_checks(settings: Settings, conn: sqlite3.Connection, ha_only: bool) -> list[dict[str, Any]]:
+    """discovery / video / thumbnails / exports / sessions / backups"""
+    checks: list[dict[str, Any]] = []
     ds = dict(autosync.STATE)
     cams = conn.execute("SELECT COUNT(*) FROM cameras").fetchone()[0]
     cage = _age_s(ds.get("cameras_last_ok"))
@@ -272,16 +291,22 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
     last = backups[0] if backups else None
     bage = _age_s(last["created_at"]) if last else None
     checks.append(_check("backups", "גיבויים", "error" if not last else ("warn" if bage is not None and bage > 2 * 86400 else "ok"), f"{len(backups)} גיבויים · אחרון {last['name'] + ' (' + last['kind'] + ')' if last else 'אין עדיין'}{' · לפני ' + str(int(bage // 3600)) + ' שע׳' if bage is not None else ''}", count=len(backups), last=last["name"] if last else None, last_kind=last["kind"] if last else None, last_age_s=bage))
+    return checks
 
+
+def _portal_check() -> dict[str, Any] | None:
     # PUBCOUNT-295 / D-04: the vendor portal's start worker (switch OFF by default) answers "sent" even when its queue dropped the request;
     # the administrator sees the counts here (shown once a worker ran or anything was counted; a drop within the last hour is a warning)
     from .tickets import public_portal
 
     ps = public_portal.worker_stats()
     if ps["running"] or ps["accepted"] or ps["dropped"]:
-        checks.append(_check("portal_start", "קליטת בקשות כניסה לפורטל ספקים", "warn" if ps["dropped_1h"] else "ok",
-                             f"{ps['accepted']} התקבלו · {ps['dropped']} נפלו (בשעה האחרונה: {ps['dropped_1h']}) · תור {ps['depth']}/{ps['max']}", **ps))
+        return _check("portal_start", "קליטת בקשות כניסה לפורטל ספקים", "warn" if ps["dropped_1h"] else "ok",
+                      f"{ps['accepted']} התקבלו · {ps['dropped']} נפלו (בשעה האחרונה: {ps['dropped_1h']}) · תור {ps['depth']}/{ps['max']}", **ps)
+    return None
 
+
+def _transit_check(conn: sqlite3.Connection) -> dict[str, Any] | None:
     # BUSTIMES-295: the public-transport source (only while the module is in use): last success, age of the data, error count. No ticket action.
     from datetime import datetime, timezone
 
@@ -295,23 +320,26 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
         # (it escalates to a warning after `outage_warn_h`, default 6 h)
         source_down = tv["state"] == "source_down"
         lead = f"מקור הנתונים החיצוני אינו זמין (תקלה אצל הספק, לא באתר); הנתון התקין האחרון: {tv['last_good_at'] or 'לא ידוע'} UTC · " if source_down else ""
-        checks.append(_check("transit", "זמני תחבורה ציבורית", "ok" if tv["state"] in ("ok", "source_down") else "warn",
-                             lead + f"{age_text} · {tv['codes_in_use']} תחנות בשימוש · {tv['errors']} שגיאות מאז ההפעלה" + (f" · שגיאה אחרונה: {tv['last_error']}" if tv["last_error"] else ""),
-                             state=tv["state"], age_s=age, last_ok_at=tv["last_ok_at"], last_good_at=tv["last_good_at"], outage=tv["outage"], errors=tv["errors"],
-                             codes_in_use=tv["codes_in_use"]))
+        return _check("transit", "זמני תחבורה ציבורית", "ok" if tv["state"] in ("ok", "source_down") else "warn",
+                      lead + f"{age_text} · {tv['codes_in_use']} תחנות בשימוש · {tv['errors']} שגיאות מאז ההפעלה" + (f" · שגיאה אחרונה: {tv['last_error']}" if tv["last_error"] else ""),
+                      state=tv["state"], age_s=age, last_ok_at=tv["last_ok_at"], last_good_at=tv["last_good_at"], outage=tv["outage"], errors=tv["errors"],
+                      codes_in_use=tv["codes_in_use"])
+    return None
 
-    restarts = _restarts_check(settings)  # SEGFAULT-PLAYBACK-2332: only after the crash guard restarted the server at least once
-    if restarts:
-        checks.append(restarts)
 
+def _secret_options_check() -> dict[str, Any] | None:
     # 2.6.3 transitional (delta review S-1): a former secret option still holds a value in the add-on configuration (names only)
     from . import secrets_store
 
     if secrets_store.LINGERING_OPTIONS:
         names = ", ".join(secrets_store.LINGERING_OPTIONS)
-        checks.append(_check("secret_options", "סודות ישנים בהגדרות התוסף", "warn",
-                             f"סוד ישן עדיין שמור בהגדרות התוסף: יש להסיר אותו ({names}). הערכים נשמרים מוצפנים בהגדרות › חיבורים › סודות.",
-                             names=list(secrets_store.LINGERING_OPTIONS)))
+        return _check("secret_options", "סודות ישנים בהגדרות התוסף", "warn",
+                      f"סוד ישן עדיין שמור בהגדרות התוסף: יש להסיר אותו ({names}). הערכים נשמרים מוצפנים בהגדרות › חיבורים › סודות.",
+                      names=list(secrets_store.LINGERING_OPTIONS))
+    return None
+
+
+def _worst(checks: list[dict[str, Any]]) -> str:
     worst = "ok"  # "off" (not part of this installation) never lowers the overall status
     for c in checks:
         if c["status"] == "error":
@@ -319,7 +347,24 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
             break
         if c["status"] == "warn":
             worst = "warn"
-    return {"status": worst, "mode": installation_mode(settings), "version": __version__, "uptime_s": int(time.time() - STARTED), "checked_at": now_iso(), "probe_ttl_s": PROBE_TTL_S,
+    return worst
+
+
+def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> dict[str, Any]:
+    checks: list[dict[str, Any]] = [_db_check(settings, conn), _storage_check(settings)]
+    # devices (probed, cached)
+    ha_only = is_ha_only(settings)
+    caps = resolve_capabilities(settings, conn)  # NVRLESS-CAMERAS-2411: cameras without a recorder count
+    checks += _device_checks(settings, conn, caps, ha_only, probe)
+    # Home Assistant sync + bridge
+    checks += [_ha_sync_check(settings), _bridge_check(conn)]
+    checks += _event_checks(settings, conn, ha_only)
+    checks += _job_checks(settings, conn, ha_only)
+    # the optional checks: each shows only when it has something to say
+    for extra in (_portal_check(), _transit_check(conn), _restarts_check(settings), _secret_options_check()):
+        if extra:
+            checks.append(extra)
+    return {"status": _worst(checks), "mode": installation_mode(settings), "version": __version__, "uptime_s": int(time.time() - STARTED), "checked_at": now_iso(), "probe_ttl_s": PROBE_TTL_S,
             # NN1: the report is for system administrators only, so the recorder detail is included
             "capabilities": caps.as_dict(with_recorders=True), "installation": installation_block(caps), "checks": checks}
 
