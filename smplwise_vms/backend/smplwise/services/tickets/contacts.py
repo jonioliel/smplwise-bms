@@ -369,98 +369,136 @@ def assignable_for(viewer: Viewer, ticket: dict[str, Any]) -> list[dict[str, Any
 # ---------------------------------------------------------------- writes
 
 
+# CR-BE-COMPLEXITY-2450 (code review 01:F-19): _fields was one 90-line validator (radon CC 79). Its checks move, verbatim and in the same
+# order, into one helper per field family; the first refusal met is still the one the client sees (the order is behaviour).
+# tests/test_contacts_fields_char_2450.py replays 992 cases recorded before the split.
+
+
+def _identity_fields(body: dict[str, Any], f: dict[str, Any], *, creating: bool) -> None:
+    """kind (employee) and the display name."""
+    if creating or "kind" in body:
+        if body.get("kind") not in KINDS:
+            raise ContactInvalid("kind", "choice")
+        # 0084: the API kind "employee" is a person row with employee = 1; every other kind clears the flag
+        f["kind"] = "person" if body["kind"] == "employee" else body["kind"]
+        f["employee"] = 1 if body["kind"] == "employee" else 0
+    if creating or "display_name" in body:
+        f["display_name"] = model.text_field(body.get("display_name"), "display_name", required=True, max_len=NAME_MAX)
+
+
+def _contact_fields(body: dict[str, Any], f: dict[str, Any]) -> None:
+    """company, notes, phone, email."""
+    if "company" in body:
+        f["company"] = model.text_field(body.get("company"), "company", required=False, max_len=COMPANY_MAX)
+    if "notes" in body:
+        f["notes"] = model.text_field(body.get("notes"), "notes", required=False, max_len=NOTES_MAX, multiline=True)
+    if "phone" in body:
+        f["phone_e164"] = normalize_phone(body.get("phone"))
+    if "email" in body:
+        f["email"] = normalize_email(body.get("email"))
+
+
+def _switch_fields(body: dict[str, Any], f: dict[str, Any]) -> None:
+    """the channel, the language and the yes / no switches."""
+    if "preferred_channel" in body:
+        if body["preferred_channel"] not in CHANNELS:
+            raise ContactInvalid("preferred_channel", "choice")
+        f["preferred_channel"] = body["preferred_channel"]
+    if "lang" in body:
+        if body["lang"] not in LANGS:
+            raise ContactInvalid("lang", "choice")
+        f["lang"] = body["lang"]
+    for flag in ("require_code", "active", "phone_verify"):  # + TKNOTIFOTP: the row's "verify the number with a code" switch
+        if flag in body:
+            if not isinstance(body[flag], bool):
+                raise ContactInvalid(flag, "type")
+            f[flag] = 1 if body[flag] else 0
+    if "share_history" in body:
+        v = body["share_history"]
+        if v is not None and not isinstance(v, bool):
+            raise ContactInvalid("share_history", "type")
+        f["share_history"] = None if v is None else (1 if v else 0)
+
+
+def _vendor_link(conn, body: dict[str, Any], f: dict[str, Any], current: dict[str, Any] | None, *, kind: str | None, employee: bool) -> None:
+    """the vendor a person works for."""
+    if "vendor_id" in body:
+        vid = body.get("vendor_id") or None
+        if vid is not None:
+            vendor = store_links.contact(conn, vid)
+            if kind != "person" or employee or vendor is None or vendor["kind"] != "vendor" or vendor.get("erased_at") or vid == (current or {}).get("id"):
+                raise ContactInvalid("vendor_id", "unknown")
+        f["vendor_id"] = vid
+    elif (kind == "vendor" or employee) and (current or {}).get("vendor_id"):
+        f["vendor_id"] = None  # a vendor or an employee works for no vendor
+
+
+def _permanent_vendor(body: dict[str, Any], f: dict[str, Any], current: dict[str, Any] | None, *, employee: bool) -> None:
+    # VENDMARK-295 (0141, owner GRANTS3 Q1): the permanent-vendor marker - an external technician or vendor company only
+    internal = employee or bool(body.get("user_id") if "user_id" in body else (current or {}).get("user_id"))
+    if "permanent_vendor" in body:
+        if not isinstance(body["permanent_vendor"], bool):
+            raise ContactInvalid("permanent_vendor", "type")
+        if body["permanent_vendor"] and internal:
+            raise ContactInvalid("permanent_vendor", "not_external")  # an employee or an internal user is not a vendor
+        f["permanent_vendor"] = 1 if body["permanent_vendor"] else 0
+    elif internal and (current or {}).get("permanent_vendor"):
+        f["permanent_vendor"] = 0  # the row became an employee / an internal user: the marker goes with it
+
+
+def _cost_fields(body: dict[str, Any], f: dict[str, Any], current: dict[str, Any] | None) -> None:
+    # S9 (11A.1 / 11A.2, D32): the claim requirement default, VAT handling and the hourly-rate prefill
+    if "cost_claim" in body:
+        if body["cost_claim"] not in (None, "required", "optional", "off"):
+            raise ContactInvalid("cost_claim", "choice")
+        f["cost_claim"] = body["cost_claim"]
+    if "vat_exempt" in body:
+        if not isinstance(body["vat_exempt"], bool):
+            raise ContactInvalid("vat_exempt", "type")
+        f["vat_exempt"] = 1 if body["vat_exempt"] else 0
+    if "vat_default" in body:
+        if body["vat_default"] not in ("included", "excluded"):
+            raise ContactInvalid("vat_default", "choice")
+        f["vat_default"] = body["vat_default"]
+    if "labor_rate" in body:
+        from .money import CURRENCIES, MoneyError, parse_amount
+
+        rate = body.get("labor_rate")
+        try:
+            f["labor_rate_minor"] = None if rate in (None, "") else parse_amount(rate, "labor_rate")
+        except MoneyError as exc:
+            raise ContactInvalid("labor_rate", exc.code) from None
+        cur = body.get("rate_currency") or (current or {}).get("rate_currency") or "ILS"
+        if cur not in CURRENCIES:
+            raise ContactInvalid("rate_currency", "choice")
+        f["rate_currency"] = cur if f["labor_rate_minor"] is not None else None
+
+
+def _user_link(conn, body: dict[str, Any], f: dict[str, Any], current: dict[str, Any] | None, *, employee: bool) -> None:
+    """the internal user an account-holding contact is."""
+    if "user_id" in body:
+        uid = body.get("user_id") or None
+        if uid is not None and employee:
+            raise ContactInvalid("user_id", "employee")  # an employee without an account never names an internal user
+        if uid is not None and uid not in store.active_user_ids(conn):
+            raise ContactInvalid("user_id", "unknown")
+        f["user_id"] = uid
+    elif employee and (current or {}).get("user_id"):
+        raise ContactInvalid("kind", "user_linked")  # a row that names a user cannot become an employee without an account
+
+
 def _fields(conn, body: dict[str, Any], *, creating: bool, current: dict[str, Any] | None) -> dict[str, Any]:
     f: dict[str, Any] = {}
     try:
-        if creating or "kind" in body:
-            if body.get("kind") not in KINDS:
-                raise ContactInvalid("kind", "choice")
-            # 0084: the API kind "employee" is a person row with employee = 1; every other kind clears the flag
-            f["kind"] = "person" if body["kind"] == "employee" else body["kind"]
-            f["employee"] = 1 if body["kind"] == "employee" else 0
-        if creating or "display_name" in body:
-            f["display_name"] = model.text_field(body.get("display_name"), "display_name", required=True, max_len=NAME_MAX)
-        if "company" in body:
-            f["company"] = model.text_field(body.get("company"), "company", required=False, max_len=COMPANY_MAX)
-        if "notes" in body:
-            f["notes"] = model.text_field(body.get("notes"), "notes", required=False, max_len=NOTES_MAX, multiline=True)
-        if "phone" in body:
-            f["phone_e164"] = normalize_phone(body.get("phone"))
-        if "email" in body:
-            f["email"] = normalize_email(body.get("email"))
-        if "preferred_channel" in body:
-            if body["preferred_channel"] not in CHANNELS:
-                raise ContactInvalid("preferred_channel", "choice")
-            f["preferred_channel"] = body["preferred_channel"]
-        if "lang" in body:
-            if body["lang"] not in LANGS:
-                raise ContactInvalid("lang", "choice")
-            f["lang"] = body["lang"]
-        for flag in ("require_code", "active", "phone_verify"):  # + TKNOTIFOTP: the row's "verify the number with a code" switch
-            if flag in body:
-                if not isinstance(body[flag], bool):
-                    raise ContactInvalid(flag, "type")
-                f[flag] = 1 if body[flag] else 0
-        if "share_history" in body:
-            v = body["share_history"]
-            if v is not None and not isinstance(v, bool):
-                raise ContactInvalid("share_history", "type")
-            f["share_history"] = None if v is None else (1 if v else 0)
+        _identity_fields(body, f, creating=creating)
+        _contact_fields(body, f)
+        _switch_fields(body, f)
         kind = f.get("kind") or (current or {}).get("kind")
         employee = bool(f["employee"] if "employee" in f else (current or {}).get("employee"))
-        if "vendor_id" in body:
-            vid = body.get("vendor_id") or None
-            if vid is not None:
-                vendor = store_links.contact(conn, vid)
-                if kind != "person" or employee or vendor is None or vendor["kind"] != "vendor" or vendor.get("erased_at") or vid == (current or {}).get("id"):
-                    raise ContactInvalid("vendor_id", "unknown")
-            f["vendor_id"] = vid
-        elif (kind == "vendor" or employee) and (current or {}).get("vendor_id"):
-            f["vendor_id"] = None  # a vendor or an employee works for no vendor
-        # VENDMARK-295 (0141, owner GRANTS3 Q1): the permanent-vendor marker - an external technician or vendor company only
-        internal = employee or bool(body.get("user_id") if "user_id" in body else (current or {}).get("user_id"))
-        if "permanent_vendor" in body:
-            if not isinstance(body["permanent_vendor"], bool):
-                raise ContactInvalid("permanent_vendor", "type")
-            if body["permanent_vendor"] and internal:
-                raise ContactInvalid("permanent_vendor", "not_external")  # an employee or an internal user is not a vendor
-            f["permanent_vendor"] = 1 if body["permanent_vendor"] else 0
-        elif internal and (current or {}).get("permanent_vendor"):
-            f["permanent_vendor"] = 0  # the row became an employee / an internal user: the marker goes with it
-        # S9 (11A.1 / 11A.2, D32): the claim requirement default, VAT handling and the hourly-rate prefill
-        if "cost_claim" in body:
-            if body["cost_claim"] not in (None, "required", "optional", "off"):
-                raise ContactInvalid("cost_claim", "choice")
-            f["cost_claim"] = body["cost_claim"]
-        if "vat_exempt" in body:
-            if not isinstance(body["vat_exempt"], bool):
-                raise ContactInvalid("vat_exempt", "type")
-            f["vat_exempt"] = 1 if body["vat_exempt"] else 0
-        if "vat_default" in body:
-            if body["vat_default"] not in ("included", "excluded"):
-                raise ContactInvalid("vat_default", "choice")
-            f["vat_default"] = body["vat_default"]
-        if "labor_rate" in body:
-            from .money import CURRENCIES, MoneyError, parse_amount
-
-            rate = body.get("labor_rate")
-            try:
-                f["labor_rate_minor"] = None if rate in (None, "") else parse_amount(rate, "labor_rate")
-            except MoneyError as exc:
-                raise ContactInvalid("labor_rate", exc.code) from None
-            cur = body.get("rate_currency") or (current or {}).get("rate_currency") or "ILS"
-            if cur not in CURRENCIES:
-                raise ContactInvalid("rate_currency", "choice")
-            f["rate_currency"] = cur if f["labor_rate_minor"] is not None else None
-        if "user_id" in body:
-            uid = body.get("user_id") or None
-            if uid is not None and employee:
-                raise ContactInvalid("user_id", "employee")  # an employee without an account never names an internal user
-            if uid is not None and uid not in store.active_user_ids(conn):
-                raise ContactInvalid("user_id", "unknown")
-            f["user_id"] = uid
-        elif employee and (current or {}).get("user_id"):
-            raise ContactInvalid("kind", "user_linked")  # a row that names a user cannot become an employee without an account
+        _vendor_link(conn, body, f, current, kind=kind, employee=employee)
+        _permanent_vendor(body, f, current, employee=employee)
+        _cost_fields(body, f, current)
+        _user_link(conn, body, f, current, employee=employee)
     except model.Invalid as exc:
         raise ContactInvalid(exc.problems[0].field, exc.problems[0].code) from None
     return f
