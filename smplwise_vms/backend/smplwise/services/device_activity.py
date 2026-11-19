@@ -597,4 +597,4 @@ def list_activity(conn: sqlite3.Connection, entity_id: str, *, since: str | None
     return {"tracked_since": started, "items": [_item(r) for r in page], "next_cursor": nxt, "retention_days": retention_days(conn), "coverage": {"from": started, "gaps": gaps}, "availability": availability}
 
 
-register_reset(__name__, ("_PRUNE",), reset)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)
+register_reset(__name__, ("_PRUNE", "STATS", "_entity_marks", "_global_marks", "_sources"), reset)  # CR-BE-COMPLEXITY-2450: a shared-class singleton; -B: and the module-level tables (tests/test_singletons_registered.py)

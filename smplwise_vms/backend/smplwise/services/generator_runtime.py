@@ -19,6 +19,7 @@ from . import generator_core as core
 from . import generator_history as history
 from . import insights_generator
 from . import generator_log as glog
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.generator")
 
@@ -119,3 +120,6 @@ class Runner:
 
 
 RUNNER = Runner()
+
+
+register_reset(__name__, ("_LAST",), reset)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

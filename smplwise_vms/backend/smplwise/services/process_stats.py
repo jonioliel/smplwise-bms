@@ -11,6 +11,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any, Callable
+from ..test_reset import register_reset
 
 CACHE_TTL_S = 5.0
 _STARTED = time.monotonic()
@@ -81,3 +82,6 @@ def snapshot(db_path: Path, clock: Callable[[], float] = time.monotonic) -> dict
 def reset_cache() -> None:
     with _lock:
         _cache.update(at=None, key=None, value=None)
+
+
+register_reset(__name__, ("_cache",), reset_cache)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

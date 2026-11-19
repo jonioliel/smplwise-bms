@@ -38,6 +38,7 @@ from ..rbac import Principal
 from . import access_grants as ag
 from . import access_station_permissions as sp
 from . import intercom_authority as ia
+from ..test_reset import register_reset
 
 FLAG_KEY = "access.compliance_export"
 KEYS = (FLAG_KEY,)
@@ -455,3 +456,6 @@ def csv_cells(matrix: dict[str, Any]) -> list[list[Any]]:
         for s in spans:
             cells.append([csv_cell(({**base, "interval_from_utc": s["from"], "interval_to_utc": s["to"]})[c]) for c in COLUMNS])
     return cells
+
+
+register_reset(__name__, ("_last",), reset_rate)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

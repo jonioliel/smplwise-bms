@@ -65,6 +65,7 @@ from .notify_channels import Channel, Dispatch, Target, record_outcome, register
 from .notify_policy import BY_KEY, SEVERITY_LABEL_HE
 from .notify_visibility import Reach, is_manager, principal_of
 from .timeutil import iso_utc, parse_utc, zone
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.notify.email")
 
@@ -1068,3 +1069,6 @@ def send_test(cfg: MailConfig, tz_name: str, to: str | None = None) -> tuple[boo
             if e.kind in SERVER_FAILURES:
                 break  # the server is unusable: do not wait on it once per recipient
     return first is None and delivered == len(targets), first or "ok", delivered, len(targets)
+
+
+register_reset(__name__, ("_HELD", "_DIGEST", "_TEST_BUCKETS", "_LIVE", "_DOWN", "GATE"), reset_state)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

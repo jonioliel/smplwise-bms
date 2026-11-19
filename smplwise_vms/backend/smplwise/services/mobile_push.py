@@ -40,6 +40,7 @@ from .notify_policy import CATEGORIES
 from .notify_visibility import Reach, principal_of
 from .presence import _json, get_device, iso, now_utc
 from .timeutil import iso_utc
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.mobile_push")
 
@@ -498,3 +499,11 @@ def send_test(db: Database, device_id: str) -> dict[str, Any]:
     outcome = send_relay(token, "system", mid, "normal", sid)
     result = record(db, device_id, outcome, final=True, delivery_id=None, notification_id=None, attempt=1)
     return {"message_id": mid, "sent": result == "sent", "reason": None if result == "sent" else (outcome.error or f"http_{outcome.status}")}
+
+
+def _reset_for_tests() -> None:
+    reset_limits()
+    reset_health()
+
+
+register_reset(__name__, ("_TEST_BUCKETS", "HEALTH", "_URL_LOGGED"), _reset_for_tests)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

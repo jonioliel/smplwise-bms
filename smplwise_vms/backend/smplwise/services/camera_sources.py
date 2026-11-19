@@ -983,4 +983,9 @@ POLLER = PeriodicWorker(name="camera-source-health", env_flag="SW_CAMERA_SOURCE_
                         default_interval=TICK_S, log=log, what="camera source health")
 
 
-register_reset(__name__, ("_OWNED",), _OWNED.written.clear)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)
+def _reset_for_tests() -> None:
+    _OWNED.written.clear()
+    reset_health()
+
+
+register_reset(__name__, ("_OWNED", "_HEALTH"), _reset_for_tests)  # CR-BE-COMPLEXITY-2450: a shared-class singleton; -B: and the health table (tests/test_singletons_registered.py)

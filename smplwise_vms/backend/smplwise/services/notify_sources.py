@@ -37,6 +37,7 @@ from .. import __version__
 from . import notify, self_update
 from .notify_policy import get_policy
 from .timeutil import iso_utc, parse_utc
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.notify")
 
@@ -725,3 +726,6 @@ def second_factor_reset(conn: sqlite3.Connection, user_id: str) -> None:
     `security.second_factor_reset` in the inbox (and the channels of its policy). No actor, no secret, no code in it."""
     notify.emit_full(conn, notify.Signal("security.second_factor_reset", "session", user_id, dedupe_key=f"security.second_factor_reset:session:{user_id}:{notify.new_id()}",
                                          initiator_user_id=user_id, link="#/system/notifications", origin={"kind": "second_factor"}))
+
+
+register_reset(__name__, ("_SINCE", "_UPDATE", "_HANDLED"), reset)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)
