@@ -113,3 +113,38 @@ Workstation (Windows), Vite dev server of this worktree on its own port and depe
    Recommendation: a later sw-table option for per-row focus (`rowFocusable(row)`), small.
 5. The tou-editor price grid and the chart number table: leave as they are (recommendation), or give `sw-field` a unit slot first and
    move the editor grid in its own row.
+
+## Release train 2.45.0, phase 1 - runner pass, layout fixes, baselines (RELEASE-2450-TRAIN agent, 19.11 evening)
+
+The queued `~/work/tablescons-run1.sh` had run at 6973fc480 (14:05): build OK, AUDIT30-E 2 shots rewritten, spec verify 26 passed,
+`pixel-sw-table` 9 passed, tablet evidence 30 passed / 2 skipped. Then the release-train pass (own worktree `~/work/t2450-cons`,
+`nice -n 19`, preview build, `--retries=1`, no `-u`):
+
+- Every spec file with a Linux baseline (52 files, all projects, `--workers=2`) at 9949182e8: 799 passed, 518 skipped (no baseline for
+  that project), 1 flaky (`visual-matrix` state-panels dark mobile, a screenshot protocol error), **2 failed = the two expected AUDIT30-E
+  shots**. Nothing else moved: the SELECTS / TABLES shared specs match the branch's baselines.
+- `electricity-meters`, `evidence-wkwater-2331`, `layout-electricity-meters` (all projects): 87 passed, 6 skipped, 2 flaky (wkwater,
+  load), **1 failed: `layout-electricity-meters` - 28 escape findings, the meters table 57 px wider than its card at 1024 px**
+  (682 px in 625 px; every skin, sideways scroll inside the card). The quick sweep of the PC run (320 / 390 / 820 / 1440) skips 1024.
+- `layout-electricity` (dev server, the full sweep of the gate: 4 skins x 2 themes x 10 widths): **76 findings per skin - the accounts
+  table 37 px (768) and 65 px (1024) wider than its card**.
+
+Fixes (three commits; cause: the move to `sw-table` changed the module's step-out width and its wrapping):
+
+| Commit | What |
+|---|---|
+| 4da59fb3a | `MetersPageBase` follows `(max-width: 1099px)` (`narrow`, the old `.dsk` rule of both modules); the meters tables leave the floor and their secondary column (electricity: accounts, water: month) out there instead of at sw-table's 1023 px |
+| 9788c48c4 | the meters table lets the column titles and the state cell take a second line when the card is too narrow (the chip never breaks) |
+| df9c0078c | the module skin lets every state cell wrap (`sw-table.t::part(cell-status)`: the last bill's number / a stale meter's "since" note go under the chip, as `table.t`'s cells did); the accounts list follows `(max-width: 1100px)` (the old `.hide-tablet`) for the formula column |
+
+Verified at df9c0078c (runner): `layout-electricity-meters` 720 checks, **0 findings**; `layout-electricity` 4 skins x 840 checks,
+**0 findings, 4 passed**; preview `layout-audit30-e-infra` + `pixel-sw-table` + `electricity-meters` + `evidence-wkwater-2331` (all
+projects): 131 passed, 50 skipped, 2 failed = the two AUDIT30-E shots below. Workstation: `tsc -p tsconfig.json` exit 0 and ESLint on
+the touched files clean after each fix.
+
+Baselines refreshed (looked at, old vs new; the intended look of the moved tables - the shared header band, the shared tone chips, the
+rows' height):
+
+- `frontend/tests/layout-audit30-e-infra.spec.ts-snapshots/audit30e-elec-meters-1440-desktop-linux.png`
+- `frontend/tests/layout-audit30-e-infra.spec.ts-snapshots/audit30e-water-1440-desktop-linux.png` (its stale chip shows the clock time of
+  the run; the spec's 2 % tolerance covers it, as before)
