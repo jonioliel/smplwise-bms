@@ -16,7 +16,7 @@ import {
   setUserPin,
   userAlarmPolicy,
   type AlarmConfig,
-  type AlarmPanel,
+  type ConfigPanel,
   type AlarmZone,
   type CodePolicy,
   type UserAlarmPolicy,
@@ -282,7 +282,7 @@ export class SystemAlarmSettings extends LitElement {
     </div>`;
   }
 
-  private renderPanel(p: AlarmPanel, ro: boolean) {
+  private renderPanel(p: ConfigPanel, ro: boolean) {
     const info = p.panel_code;
     const draft = this.codeDraft[p.entity_id] ?? '';
     const overrides = new Map((this.cfg?.overrides ?? []).map((o) => [o.zone_entity_id, o]));
@@ -315,7 +315,7 @@ export class SystemAlarmSettings extends LitElement {
         @click=${() => void this.run(() => setNotAlarm(entityId, !marked), marked ? 'הסימון בוטל' : 'סומן כאינו רכיב אזעקה')}>${marked ? 'החזר לאזעקה' : 'אינו רכיב אזעקה'}</sw-button></div>`;
   }
 
-  private renderZoneRow(p: AlarmPanel, z: AlarmZone, o: { bypass_entity_id: string | null; panel_entity_id: string | null } | undefined, controls: { entity_id: string; name: string }[], panels: AlarmPanel[], ro: boolean) {
+  private renderZoneRow(p: ConfigPanel, z: AlarmZone, o: { bypass_entity_id: string | null; panel_entity_id: string | null } | undefined, controls: { entity_id: string; name: string }[], panels: ConfigPanel[], ro: boolean) {
     const current = z.bypass?.entity_id ?? '';
     const pairValue = o?.bypass_entity_id === '' ? '__none' : o?.bypass_entity_id ? o.bypass_entity_id : '__auto';
     return html`<tr data-pair-row=${z.entity_id}>

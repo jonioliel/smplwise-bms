@@ -7,6 +7,7 @@
 import { del, get, patch, post, put } from './client';
 import { isApi } from './session';
 import { tr } from '../i18n/msg/api-home';
+import type * as SyncWire from './generated/wire-calendar-sync';
 
 export type CalType = 'room' | 'team' | 'maintenance' | 'event';
 export type CalColor = 'blue' | 'rose' | 'cyan' | 'orange' | 'violet' | 'brown' | 'magenta' | 'slate';
@@ -208,44 +209,36 @@ export interface ModuleState {
   ui?: Partial<CalUi>;
 }
 
+/* The connection shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/calendar_sync.py, generated into
+ * ./generated/wire-calendar-sync.ts): a field the server renames or drops is a compile error here (code review 07:F8 step 2). Narrowed on
+ * purpose: `provider` also takes the screen's card names (the demo store), `state` / `owner` use the module's own types, `pending_flow`
+ * the two consent providers; `setup` / `account_hint` stay optional (the demo store has neither). */
 /** The provider names of the server (`ics_in` iCal subscription, `ics_out` iCal feed) and the screen's card names (`ical`). */
-type ServerProvider = 'ics_in' | 'ics_out' | 'google' | 'microsoft';
+type ServerProvider = SyncWire.CalSyncProvider['provider'];
 export type ProviderCard = 'ical' | 'google' | 'microsoft';
 
 /** CALCONNECT-2330: what the server says about a connection's credentials - flags only, never a value. */
-export interface ConnSetup {
-  client_id_set: boolean;
-  client_secret_set: boolean;
-  authorized: boolean;
-  feed_url_set: boolean;
-  tenant: string | null;
-  ready: boolean;
-  pending_flow: 'google' | 'microsoft' | null;
-}
+export type ConnSetup = Omit<SyncWire.CalSyncSetup, 'pending_flow'> & { pending_flow: 'google' | 'microsoft' | null };
 
-export interface Connection {
-  id: string;
+export interface Connection
+  extends Pick<SyncWire.CalSyncConnection, 'id' | 'label' | 'scope' | 'last_sync_at' | 'next_sync_at' | 'error_code' | 'adapter_available' | 'bindings' | 'revision'>,
+    Partial<Pick<SyncWire.CalSyncConnection, 'account_hint'>> {
   provider: ProviderCard | ServerProvider;
-  label: string;
-  scope: string;
   state: SyncInfo['state'];
   owner: Person;
-  last_sync_at: string | null;
-  next_sync_at: string | null;
-  error_code: string | null;
-  adapter_available: boolean;
-  account_hint?: string | null;
   setup?: ConnSetup;
-  bindings: { id: string; calendar_id: string; direction: string; detail: string; dedicated: boolean }[];
-  revision: number;
 }
 
 /** Google answers an address to open and takes back the loopback address; Microsoft answers a device code. */
+type AuthorizeWire = Required<SyncWire.CalSyncAuthorizeStart>;
 export type AuthorizeStart =
-  | { flow: 'paste'; authorize_url: string; redirect_prefix: string; expires_in: number }
-  | { flow: 'device'; user_code: string; verification_url: string; expires_in: number; interval: number };
-interface AuthorizePoll { state: 'none' | 'pending' | 'slow_down' | 'denied' | 'expired' | 'connected'; interval?: number; connection?: Connection }
-export interface ExtCalendar { id_ref: string; name: string; can_write: boolean; is_primary: boolean }
+  | ({ flow: 'paste' } & Pick<AuthorizeWire, 'authorize_url' | 'redirect_prefix' | 'expires_in'>)
+  | ({ flow: 'device' } & Pick<AuthorizeWire, 'user_code' | 'verification_url' | 'expires_in' | 'interval'>);
+type AuthorizePoll = Omit<SyncWire.CalSyncAuthorizeResult, 'state' | 'connection'> & {
+  state: 'none' | 'pending' | 'slow_down' | 'denied' | 'expired' | 'connected';
+  connection?: Connection;
+};
+export type ExtCalendar = SyncWire.CalSyncExternalCalendar;
 export interface BindingBody { connection_id: string | null; external_calendar_ref?: string; direction?: 'export' | 'import' | 'two_way'; detail?: 'busy' | 'titles' | 'details'; dedicated?: boolean }
 export interface Feed {
   id: string; calendar_ids: string[]; detail: 'busy' | 'titles'; created_at: string; last_used_at: string | null; revoked: boolean;
@@ -262,7 +255,8 @@ export interface Feed {
 /** GET /calendar/feeds. `local` false = this page came through the remote channel, where the server refuses the remote switch. */
 interface FeedList { feeds: Feed[]; enabled: boolean; local?: boolean; default_max_age_days?: number }
 
-export interface SyncFlag { event_id: string; calendar: { id: string; name: string; color: CalColor }; title: string | null; start: string; end: string; flag: 'conflict' | 'deleted_external'; source: string; state: EntryState; revision: number }
+/** A flagged entry (wire: CalSyncFlag); narrowed: the calendar colour, the flag kinds and the entry state; `title` may be null in the demo store. */
+export type SyncFlag = Omit<SyncWire.CalSyncFlag, 'calendar' | 'title' | 'flag' | 'state'> & { calendar: { id: string; name: string; color: CalColor }; title: string | null; flag: 'conflict' | 'deleted_external'; state: EntryState };
 
 interface MaintOverlap { event_id: string; calendar_id: string; start: string; end: string; title: string | null; organizer: Person | null; state: EntryState }
 export interface MaintPreview { overlaps: MaintOverlap[]; mode: OverlapMode; alternatives: { start: string; end: string }[] }
@@ -323,7 +317,8 @@ export interface CalendarsApi {
   decide(id: string, body: { decision: 'approve' | 'reject'; revision: number; room_calendar_id?: string | null; note?: string; displace_existing?: boolean; except_occurrences?: string[] }): Promise<{ state: EntryState }>;
   maintPreview(body: { calendar_id: string; rooms: string[]; start: string; end: string }): Promise<MaintPreview>;
   maintPlace(body: { calendar_id: string; title: string; rooms: string[]; start: string; end: string; notes?: string; overlap_decision?: 'override_notify' | 'block' }): Promise<{ event: CalEvent; displaced: string[] }>;
-  connections(): Promise<{ connections: Connection[] }>;
+  /** The server also answers the providers, the setup steps and the Google loopback address (the demo store does not). */
+  connections(): Promise<{ connections: Connection[] } & Partial<Omit<SyncWire.CalSyncConnections, 'connections'>>>;
   syncNow(id: string): Promise<unknown>;
   pauseConnection(id: string): Promise<{ connection: Connection }>;
   resumeConnection(id: string): Promise<{ connection: Connection }>;

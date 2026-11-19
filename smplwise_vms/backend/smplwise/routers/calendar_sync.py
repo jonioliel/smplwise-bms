@@ -33,6 +33,8 @@ from ..services.calendar.access import Ctx, Denied, get_visible
 from ..services.calendar.events import get_row
 from ..services.calendar_sync import credentials, engine, ics, oauth, registry
 from ..services.calendar_sync.adapter import PROVIDERS, SyncError
+from ..wire import calendar_sync as W
+from ..wire import wire
 from ._common import db_of as _db
 from . import calendar as cal_mod
 from .calendar import Body, _audit, _body, _errors, module_gate
@@ -125,7 +127,7 @@ def _out(conn: sqlite3.Connection, row: sqlite3.Row, data_dir: Any = None) -> di
     return out
 
 
-@router.get("/calendar/connections")
+@router.get("/calendar/connections", **wire(W.CalSyncConnections))
 def list_connections(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _need_connect(conn, principal)
     d = settings_of(request).data_dir
@@ -134,7 +136,7 @@ def list_connections(request: Request, principal: Principal = Depends(current_pr
             "google_redirect": oauth.GOOGLE_REDIRECT}
 
 
-@router.post("/calendar/connections", status_code=201)
+@router.post("/calendar/connections", status_code=201, **wire(W.CalSyncConnectionAdded))
 def add_connection(body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _need_connect(conn, principal)
     d = _body(body)
@@ -156,7 +158,7 @@ def add_connection(body: Body, request: Request, principal: Principal = Depends(
 
 # ---------------------------------------------------------------- the connect flow (CALCONNECT-2330)
 
-@router.put("/calendar/connections/{cid}/client")
+@router.put("/calendar/connections/{cid}/client", **wire(W.CalSyncConnectionOut))
 def put_client(cid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The owner's OWN OAuth client: `{client_id, client_secret?, tenant?}`. The secret is sealed; the answer carries flags only. A new client
     id drops the old authorisation (it belonged to the old client)."""
@@ -190,7 +192,7 @@ def put_client(cid: str, body: Body, request: Request, principal: Principal = De
     return {"connection": _out(conn, _connection(conn, cid), data_dir)}
 
 
-@router.put("/calendar/connections/{cid}/feed")
+@router.put("/calendar/connections/{cid}/feed", **wire(W.CalSyncConnectionOut))
 def put_feed_url(cid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The secret address of an iCal subscription (`{url}`; https or webcal). Checked for syntax and names now and fully (every resolved
     address) on each fetch; sealed; never answered back."""
@@ -213,7 +215,7 @@ def put_feed_url(cid: str, body: Body, request: Request, principal: Principal = 
     return {"connection": _out(conn, _connection(conn, cid), data_dir)}
 
 
-@router.post("/calendar/connections/{cid}/authorize")
+@router.post("/calendar/connections/{cid}/authorize", **wire(W.CalSyncAuthorizeStart))
 def authorize(cid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Starts (or restarts) the provider's consent. Google: `{flow: paste, authorize_url, redirect_prefix, expires_in}`. Microsoft:
     `{flow: device, user_code, verification_url, expires_in, interval}`. The state / verifier / device code never leave the server."""
@@ -245,7 +247,7 @@ def _connected(request: Request, principal: Principal, cid: str, token: str) -> 
         return {"state": "connected", "connection": _out(c, _connection(c, cid), data_dir)}
 
 
-@router.post("/calendar/connections/{cid}/authorize/complete")
+@router.post("/calendar/connections/{cid}/authorize/complete", **wire(W.CalSyncAuthorizeResult))
 def authorize_complete(cid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Google: `{redirect_url}` - the loopback address the browser landed on after the approval. State-checked, single use."""
     row = _owned(conn, principal, request, cid)
@@ -264,7 +266,7 @@ def authorize_complete(cid: str, body: Body, request: Request, principal: Princi
     return _connected(request, principal, cid, token)
 
 
-@router.post("/calendar/connections/{cid}/authorize/poll")
+@router.post("/calendar/connections/{cid}/authorize/poll", **wire(W.CalSyncAuthorizeResult))
 def authorize_poll(cid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Microsoft: one poll of the pending device grant: `{state: none|pending|slow_down|denied|expired|connected, interval?}`."""
     row = _owned(conn, principal, request, cid)
@@ -290,7 +292,7 @@ def authorize_cancel(cid: str, request: Request, principal: Principal = Depends(
     return Response(status_code=204)
 
 
-@router.get("/calendar/connections/{cid}/calendars")
+@router.get("/calendar/connections/{cid}/calendars", **wire(W.CalSyncExternalCalendars))
 def connection_calendars(cid: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _need_connect(conn, principal)
     row = _connection(conn, cid)
@@ -320,12 +322,12 @@ def _set_state(conn: sqlite3.Connection, principal: Principal, request: Request,
         return {"connection": _out(conn, _connection(conn, cid), settings_of(request).data_dir)}
 
 
-@router.post("/calendar/connections/{cid}/pause")
+@router.post("/calendar/connections/{cid}/pause", **wire(W.CalSyncConnectionOut))
 def pause_connection(cid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     return _set_state(conn, principal, request, cid, ("ok", "error"), "paused", "calendar.connection.pause")
 
 
-@router.post("/calendar/connections/{cid}/resume")
+@router.post("/calendar/connections/{cid}/resume", **wire(W.CalSyncConnectionOut))
 def resume_connection(cid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     # owner answer 21 as a setting: with `reauth_and_continue` (default) a connection waiting for a new authorisation also offers a manual
     # "continue" - the next sync tries again and returns to needs_reauth if the provider still refuses; `reauth_only` keeps the old rule
@@ -353,7 +355,7 @@ def remove_connection(cid: str, request: Request, principal: Principal = Depends
     return Response(status_code=204)
 
 
-@router.post("/calendar/connections/{cid}/sync")
+@router.post("/calendar/connections/{cid}/sync", **wire(W.CalSyncNow))
 def sync_now(cid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Manual "sync now": at most once per `sync_manual_min_interval_s` (default 60) per connection. The provider is asked with no
     transaction open (engine.run_connection)."""
@@ -377,7 +379,7 @@ def sync_now(cid: str, request: Request, principal: Principal = Depends(current_
         return {"report": report, "connection": _out(c, _connection(c, cid), data_dir)}
 
 
-@router.put("/calendar/calendars/{cid}/binding")
+@router.put("/calendar/calendars/{cid}/binding", **wire(W.CalSyncBindingOut))
 def put_binding(cid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Binds a calendar to one external calendar, or (a null body field `connection_id`) removes the binding. One binding per calendar."""
     _need_connect(conn, principal)
@@ -423,7 +425,7 @@ def put_binding(cid: str, body: Body, request: Request, principal: Principal = D
         return {"binding": {"id": bid, "connection_id": crow["id"], "calendar_id": cid, "direction": direction, "detail": detail, "dedicated": dedicated}}
 
 
-@router.get("/calendar/sync/flags")
+@router.get("/calendar/sync/flags", **wire(W.CalSyncFlags))
 def sync_flags(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """CALENDARS-UI-2310: the entries the sync flagged for a human decision (C9: both kept), for the "סומנו להחלטה" list of the connections
     screen and the week view's side-by-side mark. Only calendars where the caller holds `edit`+ (the role that may resolve a flag)."""
@@ -439,7 +441,7 @@ def sync_flags(principal: Principal = Depends(current_principal_ro), conn: sqlit
     return {"flags": out}
 
 
-@router.post("/calendar/events/{eid}/sync-resolve")
+@router.post("/calendar/events/{eid}/sync-resolve", **wire(W.CalSyncResolved))
 def resolve_sync_flag(eid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The human decision on an entry flagged by the sync (C9): `keep` clears the flag, `cancel` cancels the entry. Needs `edit`+ in its calendar."""
     ctx = Ctx(conn, principal, settings_of(request).data_dir)
