@@ -7,6 +7,8 @@ import '../components/sw-page'; // AUDIT30-C-TICKETS (#16, #18): the one page fr
 import '../components/sw-tabs';
 import '../components/sw-icon';
 import '../components/sw-toggle';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
 import '../components/sw-state-panel';
 import { drawerSettingsRows } from '../tickets/settings-drawer'; // TKUI1: the request drawer's display rows
@@ -251,7 +253,7 @@ export class SystemTickets extends LitElement {
       flex-wrap: nowrap;
     }
     /* the card's own actions in its header (the holders' person / permission switch) instead of a row with an empty label */
-    sw-card .seg[slot='actions'] {
+    sw-card sw-segmented[slot='actions'] {
       flex: none;
     }
     sw-card[data-card='holders'] {
@@ -377,10 +379,11 @@ export class SystemTickets extends LitElement {
       /* TKGATEFIX4: the display tab's choices on a phone - the row stacks, so the segmented control takes the line and its options
          share it; an option's text may wrap (the glass sheet's .seg button is nowrap, and "מגירה + מסך מלא" pushed the third option
          13-20 px out of its track at 320 px) */
-      [data-display-tab] .row .seg {
+      [data-display-tab] .row sw-segmented {
+        display: flex;
         inline-size: 100%;
       }
-      [data-display-tab] .row .seg button {
+      [data-display-tab] .row sw-segmented::part(key) {
         flex: 1 1 0;
         min-inline-size: 0;
         padding-inline: 8px;
@@ -608,7 +611,8 @@ export class SystemTickets extends LitElement {
   private longPressRow(): TemplateResult {
     const cur = this.doc?.device_long_press ?? 'sheet';
     return html`<div class="row" data-long-press><span class="lbl">${dt('setLongPress')}<span class="muted">${dt('setLongPressSub')}</span></span>
-      <span class="seg" role="radiogroup" aria-label=${dt('setLongPress')}>${(['sheet', 'menu'] as const).map((v) => html`<button type="button" role="radio" aria-pressed=${String(cur === v)} aria-checked=${String(cur === v)} data-long-press-mode=${v} ?disabled=${this.busy} @click=${() => void this.saveLongPress(v)}>${dt(`lp_${v}`)}</button>`)}</span></div>`;
+      <sw-segmented radio label=${dt('setLongPress')} value=${cur} ?disabled=${this.busy} @change=${(e: CustomEvent<SegmentedChange>) => void this.saveLongPress(e.detail.value as 'sheet' | 'menu')}
+        .options=${(['sheet', 'menu'] as const).map((v) => ({ value: v, label: dt(`lp_${v}`), attrs: { 'data-long-press-mode': v } }))}></sw-segmented></div>`;
   }
 
   private async saveLongPress(mode: 'sheet' | 'menu'): Promise<void> {
@@ -629,7 +633,9 @@ export class SystemTickets extends LitElement {
       <label>${tt('setNameModule')}<input class="in" maxlength="30" data-name-module=${lang} aria-invalid=${String(!!moduleErr)} ?disabled=${!editable} .value=${e.module ?? ''} @input=${(ev: Event) => this.setName(lang, { module: (ev.target as HTMLInputElement).value })} />${moduleErr ? html`<span class="field-error">${moduleErr}</span>` : nothing}</label>
       <label>${tt('setNameOne')}<input class="in" maxlength="30" data-name-one=${lang} aria-invalid=${String(!!oneErr)} ?disabled=${!editable} .value=${e.one} @input=${(ev: Event) => this.setName(lang, { one: (ev.target as HTMLInputElement).value })} />${oneErr ? html`<span class="field-error">${oneErr}</span>` : nothing}</label>
       <label>${tt('setNameMany')}<input class="in" maxlength="30" data-name-many=${lang} aria-invalid=${String(!!manyErr)} ?disabled=${!editable} .value=${e.many} @input=${(ev: Event) => this.setName(lang, { many: (ev.target as HTMLInputElement).value })} />${manyErr ? html`<span class="field-error">${manyErr}</span>` : nothing}</label>
-      ${genders.length ? html`<label>${tt('setNameGender')}<span class="seg" role="radiogroup" aria-label=${tt('setNameGender')}>${genders.map((g) => html`<button type="button" role="radio" aria-pressed=${String(e.gender === g)} aria-checked=${String(e.gender === g)} data-name-gender=${`${lang}:${g}`} ?disabled=${!editable} @click=${() => this.setName(lang, { gender: g })}>${tt(`setGender_${g}` as TicketTextKey)}</button>`)}</span></label>` : html`<span></span>`}
+      ${genders.length ? html`<label>${tt('setNameGender')}<sw-segmented radio label=${tt('setNameGender')} value=${e.gender ?? ''} ?disabled=${!editable}
+        @change=${(ev: CustomEvent<SegmentedChange>) => this.setName(lang, { gender: ev.detail.value as (typeof genders)[number] })}
+        .options=${genders.map((g) => ({ value: g, label: tt(`setGender_${g}` as TicketTextKey), attrs: { 'data-name-gender': `${lang}:${g}` } }))}></sw-segmented></label>` : html`<span></span>`}
     </div>`;
   }
 
@@ -839,9 +845,11 @@ export class SystemTickets extends LitElement {
       <div class="col">
         <sw-card heading=${tt('u6CardOpen')} data-card="display">
           <div class="row"><span class="lbl">${tt('setDetail')}<span class="muted">${tt('setDetailSub')}</span></span>
-            <span class="seg" role="radiogroup" aria-label=${tt('setDetail')}>${(['drawer', 'fullscreen', 'drawer_fullscreen'] as DetailMode[]).map((v) => html`<button type="button" role="radio" aria-pressed=${String(doc.ui.detail === v)} aria-checked=${String(doc.ui.detail === v)} data-ui-detail=${v} ?disabled=${this.busy} @click=${() => void this.saveDoc({ ui: { detail: v } })}>${tt(`d_${v}` as TicketTextKey)}</button>`)}</span></div>
+            <sw-segmented radio label=${tt('setDetail')} value=${doc.ui.detail} ?disabled=${this.busy} @change=${(e: CustomEvent<SegmentedChange>) => void this.saveDoc({ ui: { detail: e.detail.value as DetailMode } })}
+              .options=${(['drawer', 'fullscreen', 'drawer_fullscreen'] as DetailMode[]).map((v) => ({ value: v, label: tt(`d_${v}` as TicketTextKey), attrs: { 'data-ui-detail': v } }))}></sw-segmented></div>
           <div class="row"><span class="lbl">${tt('setNewTicket')}<span class="muted">${tt('setNewTicketSub')}</span></span>
-            <span class="seg" role="radiogroup" aria-label=${tt('setNewTicket')}>${(['sheet', 'dialog'] as NewTicketMode[]).map((v) => html`<button type="button" role="radio" aria-pressed=${String(doc.ui.new_ticket === v)} aria-checked=${String(doc.ui.new_ticket === v)} data-ui-new=${v} ?disabled=${this.busy} @click=${() => void this.saveDoc({ ui: { new_ticket: v } })}>${tt(`n_${v}` as TicketTextKey)}</button>`)}</span></div>
+            <sw-segmented radio label=${tt('setNewTicket')} value=${doc.ui.new_ticket} ?disabled=${this.busy} @change=${(e: CustomEvent<SegmentedChange>) => void this.saveDoc({ ui: { new_ticket: e.detail.value as NewTicketMode } })}
+              .options=${(['sheet', 'dialog'] as NewTicketMode[]).map((v) => ({ value: v, label: tt(`n_${v}` as TicketTextKey), attrs: { 'data-ui-new': v } }))}></sw-segmented></div>
           ${this.requestDrawerRows(doc)}
         </sw-card>
       </div>
@@ -1026,8 +1034,8 @@ export class SystemTickets extends LitElement {
         <span class="chipsrow">${who.length ? who.map((u) => html`<span class="tag">${bidi(u.name ?? u.id)}</span>`) : html`<span class="muted">${tt('permNobody')}</span>`}</span></div>`;
     })}</div>`;
     return html`<sw-card heading=${tt('permPeople')} data-card="holders">
-      <span class="seg sm" slot="actions" role="radiogroup" aria-label=${tt('permPeople')}>
-        ${(['person', 'perm'] as const).map((v) => html`<button type="button" role="radio" aria-pressed=${String(this.holdersBy === v)} aria-checked=${String(this.holdersBy === v)} data-holders-by=${v} @click=${() => (this.holdersBy = v)}>${v === 'person' ? tt('permByPerson') : tt('permByPerm')}</button>`)}</span>
+      <sw-segmented radio size="sm" slot="actions" label=${tt('permPeople')} value=${this.holdersBy} @change=${(e: CustomEvent<SegmentedChange>) => (this.holdersBy = e.detail.value as 'person' | 'perm')}
+        .options=${(['person', 'perm'] as const).map((v) => ({ value: v, label: v === 'person' ? tt('permByPerson') : tt('permByPerm'), attrs: { 'data-holders-by': v } }))}></sw-segmented>
       ${this.holdersBy === 'person' ? byPerson : byPerm}
       <div class="foot"><a href="#/system/access" data-to-users>${tt('permToUsers')}</a></div>
     </sw-card>`;
