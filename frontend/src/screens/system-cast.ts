@@ -25,6 +25,7 @@ import { CastWatch, castStore } from '../components/cast-store';
 import { BLOCKED_DISPLAY_LABEL, CAST_MINUTES, NOT_READY_ADMIN_TEXT, ORIGIN_REASON_TEXT, SCREEN_METHOD_LABEL, STATE_TEXT, BLOCKED_TEXT, leftText, sessionOfTarget } from './cast-logic';
 import { t } from '../i18n/he';
 import { tr } from '../i18n/msg/system-a';
+import '../components/sw-field';
 
 const flash = (ms = 3000) => new Promise((r) => setTimeout(r, ms));
 
@@ -67,9 +68,9 @@ export class SystemCast extends LitElement {
       direction: ltr;
       unicode-bidi: isolate;
     }
+    /* CR-CMP2-SELECTS-2450 (owner N10): the selects sit in sw-field (the shared field look); the inputs keep this rule */
     input[type='text'],
-    input[type='number'],
-    select {
+    input[type='number'] {
       box-sizing: border-box;
       min-block-size: 36px;
       padding-inline: 10px;
@@ -80,6 +81,9 @@ export class SystemCast extends LitElement {
       font: inherit;
       font-size: var(--sw-fs-sm);
       max-inline-size: 100%;
+    }
+    sw-field > select {
+      min-block-size: 36px; /* the row's inputs are 36 px: the field keeps the row even */
     }
     input[type='text'] {
       inline-size: 240px;
@@ -134,8 +138,7 @@ export class SystemCast extends LitElement {
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-medium);
     }
-    input:focus-visible,
-    select:focus-visible {
+    input:focus-visible {
       outline: 2px solid var(--sw-focus);
       outline-offset: 1px;
     }
@@ -200,7 +203,7 @@ export class SystemCast extends LitElement {
     @media (pointer: coarse) {
       input[type='text'],
       input[type='number'],
-      select {
+      sw-field > select {
         min-block-size: 44px;
       }
     }
@@ -355,15 +358,15 @@ export class SystemCast extends LitElement {
       <div class="row"><span class="lbl">${tr('מקסימום שידורים בו־זמנית')}<span class="muted">1-8</span></span>
         <input type="number" min="1" max="8" data-cast-max aria-label=${tr('מקסימום שידורים בו־זמנית')} .value=${String(cf.max_sessions)} @change=${(e: Event) => void this.saveCfg({ max_sessions: Number((e.target as HTMLInputElement).value) })} /></div>
       <div class="row"><span class="lbl">${tr('משך שידור ברירת מחדל')}<span class="muted">${tr('דקות; אפשר להאריך עד {n} פעמים', { n: cf.max_extensions })}</span></span>
-        <select data-cast-minutes aria-label=${tr('משך שידור ברירת מחדל')} .value=${String(cf.minutes)} @change=${(e: Event) => void this.saveCfg({ minutes: Number((e.target as HTMLSelectElement).value) })}>
-          ${[...new Set([...CAST_MINUTES, cf.minutes])].sort((a, b) => a - b).map((m) => html`<option value=${m} ?selected=${m === cf.minutes}>${tr('{n} דקות', { n: m })}</option>`)}</select></div>
+        <sw-field><select data-cast-minutes aria-label=${tr('משך שידור ברירת מחדל')} .value=${String(cf.minutes)} @change=${(e: Event) => void this.saveCfg({ minutes: Number((e.target as HTMLSelectElement).value) })}>
+          ${[...new Set([...CAST_MINUTES, cf.minutes])].sort((a, b) => a - b).map((m) => html`<option value=${m} ?selected=${m === cf.minutes}>${tr('{n} דקות', { n: m })}</option>`)}</select></sw-field></div>
       <div class="row"><span class="lbl">${tr('זרם ראשי (איכות גבוהה)')}<span class="muted">${tr('רק למצלמה ב־H.264 ולמסך שאישר. כבוי = תמיד הזרם המשני.')}</span></span>
         <sw-toggle label=${tr('זרם ראשי')} labelHidden .checked=${cf.allow_main} data-cast-allow-main @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveCfg({ allow_main: e.detail.checked })}></sw-toggle></div>
       <div class="row"><span class="lbl">${tr('כיבוי המסך אחרי העצירה')}<span class="muted">${tr('רק כשהמסך היה כבוי לפני השידור; המשתמש יכול לבטל בעצירה')}</span></span>
         <sw-toggle label=${tr('כיבוי אחרי עצירה')} labelHidden .checked=${cf.power_off_after} data-cast-power-off @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveCfg({ power_off_after: e.detail.checked })}></sw-toggle></div>
       <div class="row"><span class="lbl">${tr('מסכים חסומים בבורר')}<span class="muted">${tr('מסך שהמשתמש לא יכול לשדר אליו')}</span></span>
-        <select data-cast-blocked-display aria-label=${tr('מסכים חסומים בבורר')} @change=${(e: Event) => void this.saveCfg({ blocked_display: (e.target as HTMLSelectElement).value as CastConfigPatch['blocked_display'] })}>
-          ${Object.entries(BLOCKED_DISPLAY_LABEL).map(([k, v]) => html`<option value=${k} ?selected=${k === cf.blocked_display}>${v}</option>`)}</select></div>
+        <sw-field><select data-cast-blocked-display aria-label=${tr('מסכים חסומים בבורר')} @change=${(e: Event) => void this.saveCfg({ blocked_display: (e.target as HTMLSelectElement).value as CastConfigPatch['blocked_display'] })}>
+          ${Object.entries(BLOCKED_DISPLAY_LABEL).map(([k, v]) => html`<option value=${k} ?selected=${k === cf.blocked_display}>${v}</option>`)}</select></sw-field></div>
       <div class="row"><span class="lbl">${tr('רכיבים')}<span class="muted" data-cast-parts>relay: ${c.relay.option ? (c.relay.listening ? tr('מאזין (פורט {port})', { port: c.relay.container_port }) : `${tr('מופעל, לא מאזין')}${c.relay.error ? ` · ${c.relay.error}` : ''}`) : tr('כבוי (cast_relay)')} · ${tr('גשר Arx:')} ${c.bridge.paired ? `${tr('גרסה {version}', { version: c.bridge.version ?? '?' })}${c.bridge.ready ? '' : ` · ${tr('נדרש {version}+', { version: c.bridge.required })}`}` : tr('לא מצומד')}</span></span></div>
     </sw-card>`;
   }
@@ -377,17 +380,17 @@ export class SystemCast extends LitElement {
       <div class="nm"><b>${s.name}</b><span class="muted">${[s.floor_name, s.area_name].filter(Boolean).join(' · ') || '—'}${s.approved ? '' : ' · ' + tr('לא מאושר')}${s.public ? ' · ' + tr('ציבורי') : ''}</span></div>
       <div class="cl">${chip ? html`<sw-badge kind=${chip.kind} label=${chip.label} title=${chip.title}></sw-badge>` : '—'}</div>
       <div class="cl"><span class="lb">${tr('מותר לשדר')}</span><sw-toggle label=${`${tr('מותר לשדר')}: ${s.name}`} labelHidden .checked=${st.allow} data-cast-allow=${s.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveScreen(s, { allow: e.detail.checked })}></sw-toggle></div>
-      <div class="cl"><span class="lb">${tr('שיטה')}</span><select aria-label=${`${tr('שיטה')}: ${s.name}`} data-cast-method=${s.key} @change=${(e: Event) => void this.saveScreen(s, { method: (e.target as HTMLSelectElement).value as CastScreenSettings['method'] })}>
-        ${Object.entries(SCREEN_METHOD_LABEL).map(([k, v]) => html`<option value=${k} ?selected=${k === st.method}>${v}</option>`)}</select></div>
-      <div class="cl"><span class="lb">${tr('משך')}</span><select aria-label=${`${tr('משך')}: ${s.name}`} data-cast-screen-minutes=${s.key} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; void this.saveScreen(s, { minutes: v ? Number(v) : null }); }}>
-        <option value="" ?selected=${st.minutes == null}>${tr('ברירת מחדל')}</option>${CAST_MINUTES.map((m) => html`<option value=${m} ?selected=${m === st.minutes}>${tr('{n} דקות', { n: m })}</option>`)}</select></div>
+      <div class="cl"><span class="lb">${tr('שיטה')}</span><sw-field><select aria-label=${`${tr('שיטה')}: ${s.name}`} data-cast-method=${s.key} @change=${(e: Event) => void this.saveScreen(s, { method: (e.target as HTMLSelectElement).value as CastScreenSettings['method'] })}>
+        ${Object.entries(SCREEN_METHOD_LABEL).map(([k, v]) => html`<option value=${k} ?selected=${k === st.method}>${v}</option>`)}</select></sw-field></div>
+      <div class="cl"><span class="lb">${tr('משך')}</span><sw-field><select aria-label=${`${tr('משך')}: ${s.name}`} data-cast-screen-minutes=${s.key} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; void this.saveScreen(s, { minutes: v ? Number(v) : null }); }}>
+        <option value="" ?selected=${st.minutes == null}>${tr('ברירת מחדל')}</option>${CAST_MINUTES.map((m) => html`<option value=${m} ?selected=${m === st.minutes}>${tr('{n} דקות', { n: m })}</option>`)}</select></sw-field></div>
       <div class="cl"><span class="lb">${tr('שידור קבוע')}</span><sw-toggle label=${`${tr('שידור קבוע')}: ${s.name}`} labelHidden .checked=${st.permanent} data-cast-permanent=${s.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveScreen(s, { permanent: e.detail.checked })}></sw-toggle></div>
-      <div class="cl"><span class="lb">${tr('זרם ראשי')}</span><select aria-label=${`${tr('זרם ראשי')}: ${s.name}`} data-cast-screen-main=${s.key} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; void this.saveScreen(s, { allow_main: v === '' ? null : v === 'yes' }); }}>
-        <option value="" ?selected=${st.allow_main == null}>${tr('לפי ההתקנה')}</option><option value="yes" ?selected=${st.allow_main === true}>${tr('מותר')}</option><option value="no" ?selected=${st.allow_main === false}>${tr('אסור')}</option></select></div>
+      <div class="cl"><span class="lb">${tr('זרם ראשי')}</span><sw-field><select aria-label=${`${tr('זרם ראשי')}: ${s.name}`} data-cast-screen-main=${s.key} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; void this.saveScreen(s, { allow_main: v === '' ? null : v === 'yes' }); }}>
+        <option value="" ?selected=${st.allow_main == null}>${tr('לפי ההתקנה')}</option><option value="yes" ?selected=${st.allow_main === true}>${tr('מותר')}</option><option value="no" ?selected=${st.allow_main === false}>${tr('אסור')}</option></select></sw-field></div>
       ${testable ? html`<div class="cl wide"><sw-button size="sm" data-cast-test-open=${s.key} @click=${() => void this.openTest(s.key)}>${tr('בדיקת שידור (60 שניות)')}</sw-button></div>` : nothing}
       ${this.testFor === s.key
         ? html`<div class="test" data-cast-test-panel=${s.key}>
-            <label class="inl">${tr('מצלמה')} <select data-cast-test-camera .value=${this.testCam} @change=${(e: Event) => (this.testCam = (e.target as HTMLSelectElement).value)}>${this.cams.map((c) => html`<option value=${c.id} ?selected=${c.id === this.testCam}>${c.alias || c.name}</option>`)}</select></label>
+            <label class="inl">${tr('מצלמה')} <sw-field><select data-cast-test-camera .value=${this.testCam} @change=${(e: Event) => (this.testCam = (e.target as HTMLSelectElement).value)}>${this.cams.map((c) => html`<option value=${c.id} ?selected=${c.id === this.testCam}>${c.alias || c.name}</option>`)}</select></sw-field></label>
             <sw-button size="sm" variant="primary" data-cast-test-run ?disabled=${this.testBusy || !this.testCam || !!test} @click=${() => void this.runTest(s.key)}>${tr('התחל בדיקה')}</sw-button>
             ${test ? html`<span data-cast-test-state>${test.state === 'playing' ? tr('משדר') : test.state === 'not_confirmed' ? tr('המסך לא הגיע לזרם') : tr('מתחבר…')} · ${leftText(test, castStore.now)}</span><sw-cast-stop .session=${test}></sw-cast-stop>` : nothing}
             ${this.testMsg ? html`<span class="muted" role="status" data-cast-test-msg>${this.testMsg}</span>` : nothing}
