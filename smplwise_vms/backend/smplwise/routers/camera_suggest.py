@@ -19,6 +19,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import get_setting, now_iso, set_setting
 from ..errors import ApiError, not_found
 from ..rbac import Principal, require
+from ..services import camera_suggest_store as store
 from ._common import rid as _rid
 
 router = APIRouter()
@@ -32,7 +33,7 @@ class LinkIn(BaseModel):
 
 
 def _zone(conn: sqlite3.Connection, zone_id: str) -> sqlite3.Row:
-    z = conn.execute("SELECT id, floor_id FROM spatial_zones WHERE id = ?", (zone_id,)).fetchone()
+    z = store.zone(conn, zone_id)
     if z is None:
         raise not_found("האזור לא נמצא.")
     return z
@@ -47,7 +48,7 @@ def _link_view(conn: sqlite3.Connection, zone_id: str) -> dict[str, Any]:
         d = json.loads(raw)
     except ValueError:
         return empty
-    a = conn.execute("SELECT id FROM map_anchors WHERE id = ? AND effective_to IS NULL AND resource_type = 'camera'", (d.get("anchor_id"),)).fetchone()
+    a = store.live_camera_anchor(conn, d.get("anchor_id"))
     # a camera pin removed since: the link reads as empty (the stored value is replaced on the next accept)
     return {"zone_id": zone_id, "anchor_id": a["id"], "updated_at": d.get("updated_at")} if a else empty
 
@@ -64,7 +65,7 @@ def accept_zone_camera(zone_id: str, request: Request, body: LinkIn, principal: 
     """The editor accepted a suggestion: the camera pin becomes the zone's camera. The pin must be a live camera pin on the same floor."""
     z = _zone(conn, zone_id)
     require(conn, principal, "placement.edit", ("floor", z["floor_id"]))
-    a = conn.execute("SELECT id FROM map_anchors WHERE id = ? AND floor_id = ? AND effective_to IS NULL AND resource_type = 'camera'", (body.anchor_id, z["floor_id"])).fetchone()
+    a = store.live_camera_anchor_on_floor(conn, body.anchor_id, z["floor_id"])
     if a is None:
         raise ApiError(422, "camera_not_on_floor", "המצלמה אינה מוצבת בקומה של האזור")
     ts = now_iso()
@@ -78,7 +79,7 @@ def accept_zone_camera(zone_id: str, request: Request, body: LinkIn, principal: 
 def clear_zone_camera(zone_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     z = _zone(conn, zone_id)
     require(conn, principal, "placement.edit", ("floor", z["floor_id"]))
-    conn.execute("DELETE FROM settings WHERE key = ?", (LINK_PREFIX + zone_id,))
+    store.delete_setting(conn, LINK_PREFIX + zone_id)
     audit(conn, actor=principal, action="plan.zone_camera.clear", decision="allowed", resource_type="zone", resource_id=zone_id,
           request_id=_rid(request), details={})
     return {"zone_id": zone_id, "anchor_id": None, "updated_at": None}

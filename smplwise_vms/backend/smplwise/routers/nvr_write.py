@@ -24,6 +24,7 @@ from ..recorder_scope import PRIMARY, camera_settings, settings_for
 from ._common import raw_body as _raw_body, rid as _rid
 from .recorders import recorder_settings
 from ..services import camera_reboot, nvr, nvr_schedule, nvr_settings, nvr_system, nvr_write, nvr_write_guard
+from ..services import nvr_write_store as store
 from ..services.access import require_camera
 from ..services.timeutil import zone
 from ..services.settings_store import setting_value
@@ -54,8 +55,7 @@ def _require_read(conn: sqlite3.Connection, principal: Principal) -> None:
 def _cameras(conn: sqlite3.Connection, principal: Principal | None = None, permission: str | None = None, recorder_id: str = PRIMARY) -> list[sqlite3.Row]:
     """The recorder's enabled channels; with a principal, only the cameras in their camera scope (T055) for `permission`
     (or, for a read, for any permission _require_read accepts) - a camera deny takes its channel out of the list."""
-    rows = conn.execute("SELECT id, channel, alias, name_source FROM cameras WHERE recorder_id = ? AND enabled = 1 AND channel IS NOT NULL ORDER BY channel",
-                        (recorder_id,)).fetchall()
+    rows = store.enabled_channel_rows(conn, recorder_id)
     if principal is None:
         return rows
     from ..services.access import camera_scope
@@ -163,7 +163,7 @@ def set_motion(camera_id: str, body: MotionIn, request: Request, principal: Prin
         raise ApiError(422, "validation", "אין מה לשנות.")
     require(conn, principal, "nvr.config.detection", INSTALLATION)
     require_camera(conn, principal, camera_id, "video.live")  # T055: 403 before 404
-    cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    cam = store.camera(conn, camera_id)
     if not cam or cam["channel"] is None:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
     ch = int(cam["channel"])
@@ -191,7 +191,7 @@ def _camera_for_record(conn: sqlite3.Connection, principal: Principal, camera_id
 
     require(conn, principal, "nvr.record.manual", INSTALLATION)
     require_camera(conn, principal, camera_id, "video.live")  # T055: 403 before 404
-    cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    cam = store.camera(conn, camera_id)
     if not cam:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
     return cam
@@ -203,7 +203,7 @@ def record_status(camera_id: str, principal: Principal = Depends(current_princip
     from ..services.access import require_camera
 
     require_camera(conn, principal, camera_id, "video.live")  # T055: the camera's recording state follows its live scope (403 before 404)
-    cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    cam = store.camera(conn, camera_id)
     if not cam:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
     can = authorize(conn, principal, "nvr.record.manual", INSTALLATION).allowed
@@ -355,7 +355,7 @@ def reboot_nvr(body: RebootIn, request: Request, principal: Principal = Depends(
 # ---------------------------------------------------------------- CAMERA-REBOOT-2407: reboot one camera through its NVR
 
 def _camera_row(conn: sqlite3.Connection, camera_id: str) -> sqlite3.Row:
-    cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    cam = store.camera(conn, camera_id)
     if not cam:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
     return cam
@@ -420,7 +420,7 @@ def _camera_config_scope(conn: sqlite3.Connection, principal: Principal, camera_
 
 def _channel_of(conn: sqlite3.Connection, camera_id: str, principal: Principal, write: str | None = None) -> tuple[sqlite3.Row, int]:
     _camera_config_scope(conn, principal, camera_id, write)  # T055: 403 before 404
-    cam = conn.execute("SELECT id, recorder_id, channel, alias, name_source FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    cam = store.channel_row(conn, camera_id)
     if not cam or cam["channel"] is None:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
     return cam, int(cam["channel"])
@@ -470,7 +470,7 @@ def write_channel_name(camera_id: str, body: NameIn, request: Request, principal
 
 def _track_of(conn: sqlite3.Connection, camera_id: str, principal: Principal, write: str | None = None) -> tuple[sqlite3.Row, int, int]:
     _camera_config_scope(conn, principal, camera_id, write)  # T055: 403 before 404
-    cam = conn.execute("SELECT id, recorder_id, channel, alias, name_source, main_track FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    cam = store.track_row(conn, camera_id)
     if not cam or cam["channel"] is None:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
     ch = int(cam["channel"])

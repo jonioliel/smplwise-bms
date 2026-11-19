@@ -6,6 +6,7 @@ import json
 
 from ...errors import ApiError
 from ...services import home_config
+from ...services import settings_patch_site_store as store
 from . import Patch
 
 
@@ -13,7 +14,7 @@ def shabbat_sensor(patch: Patch) -> None:
     changes, conn = patch.changes, patch.conn
     force_sensor = bool(changes.pop("schedules.shabbat_sensor_force", False))
     if changes.get("schedules.shabbat_sensor"):
-        row = conn.execute("SELECT entity_id, platform FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (changes["schedules.shabbat_sensor"],)).fetchone()
+        row = store.live_entity(conn, changes["schedules.shabbat_sensor"])
         if not row:
             raise ApiError(422, "validation", "חיישן השבת והחג לא נמצא.", details={"schedules.shabbat_sensor": changes["schedules.shabbat_sensor"]})
         from ...services import home_screen
@@ -29,7 +30,7 @@ def shabbat_sensor(patch: Patch) -> None:
 
 def default_floor(patch: Patch) -> None:
     changes, conn = patch.changes, patch.conn
-    if changes.get("map.default_floor") and not conn.execute("SELECT 1 FROM floors WHERE id = ? AND deleted_at IS NULL", (changes["map.default_floor"],)).fetchone():
+    if changes.get("map.default_floor") and not store.live_floor_row(conn, changes["map.default_floor"]):
         raise ApiError(422, "validation", "קומת ברירת המחדל של המפה לא קיימת.", details={"map.default_floor": changes["map.default_floor"]})
 
 

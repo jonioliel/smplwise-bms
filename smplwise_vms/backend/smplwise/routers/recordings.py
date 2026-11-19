@@ -13,6 +13,7 @@ from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import Principal
 from ..services import recorded_days, recordings
+from ..services import recordings_store as store
 from ..services.access import require_camera
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from ..services.settings_store import setting_value
@@ -22,7 +23,7 @@ router = APIRouter()
 
 def camera_for_playback(conn: sqlite3.Connection, principal: Principal, camera_id: str) -> sqlite3.Row:
     require_camera(conn, principal, camera_id, "video.playback")  # T055: 403 before 404
-    cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    cam = store.camera(conn, camera_id)
     if not cam:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
     return cam
