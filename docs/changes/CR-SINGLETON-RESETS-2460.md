@@ -6,8 +6,8 @@ yet"; this row adds the reset.
 
 ## What changed
 
-- 83 names in 60 service modules (the "no reset function in the module yet" block of `tests/singletons_unregistered.txt`) now register a
-  per-test reset with `smplwise.test_reset.register_reset` and leave the list. Of these, 49 modules had no reset: each gets a
+- 83 names in 62 service modules (the "no reset function in the module yet" block of `tests/singletons_unregistered.txt`) now register a
+  per-test reset with `smplwise.test_reset.register_reset` and leave the list. Of these, 51 modules had no reset: each gets a
   `_reset_for_tests()` placed at the end of the module that clears exactly its tables (`X.clear()`; for a counter dict, `clear()` then
   `update(<the literal it is defined with>)`, so it returns to the value of a fresh import). 11 modules already registered a reset for
   other tables (`camera_sources`, `ha_camera_streams`, `media_query`, `mobile_push`, `notify_sources`, `partner.webhooks`, `push`,
@@ -17,7 +17,7 @@ yet"; this row adds the reset.
 - Nothing at run time changes: the only new call site is `register_reset(...)`, which stores the function; the test fixture calls it.
 - Not touched, as briefed: routers, `db` lock / pool bookkeeping, auth / session / identity / RBAC, billing / electricity / water,
   `intercom_sync`, `wiskey_background_feed`, `wiskey_feed_session`, and the other recorded groups (start-up wiring, files other agents
-  change). `tests/singletons_unregistered.txt` is 202 lines now (was 285 of which 83 were this block).
+  change). `tests/singletons_unregistered.txt` lists 182 names now (was 265; the 83 are this block).
 - Thread dictionaries (`nvr_batch._live`, `nvr_verify._running`, `wiskey_live_validation._ACTIVE`, `intercom_media._LEASE_TIMERS`) are
   only emptied, never joined or cancelled: a reset must not start doing work.
 
