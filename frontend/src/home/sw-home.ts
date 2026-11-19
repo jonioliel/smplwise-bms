@@ -57,6 +57,7 @@ import { HandModal } from '../components/hand-modal';
 // HOME-V3-P2-2431: the family and building screens (home-v3-p2.ts); two hooks below: the scenes screen's buttons, the wall panel's chips
 import { sceneScreenActs, wallChips } from './home-v3-p2';
 import { tr } from '../i18n/msg/home';
+import { ToastController } from '../components/toast-controller';
 
 export const THEMES: [string, string, string, 1 | 2][] = [
   ['classic', tr('קלאסי'), tr('פחם חם וכחול. המראה שאושר.'), 2], ['ocean', tr('אוקיינוס'), tr('כחול ים עמוק ותכלת צלול.'), 2], ['sand', tr('חול'), tr('אבן חמה וחימר.'), 2],
@@ -143,7 +144,12 @@ export class SwHome extends LitElement implements P3Host {
   @state() page: Record<string, number> = {};
   @state() ovl: Ovl = null;
   @state() private wallStamp = 0;
-  @state() private toastMsg: { text: string; undo: (() => void) | null } | null = null;
+  /** CR-CMP2-TOAST-2440 (07:F12): the message and its one timer (stopped when the home leaves the page); the undo rides beside it. */
+  private readonly toaster = new ToastController(this, { ms: 5200 });
+  private toastUndo: (() => void) | null = null;
+  private get toastMsg(): { text: string; undo: (() => void) | null } | null {
+    return this.toaster.visible ? { text: this.toaster.text, undo: this.toastUndo } : null;
+  }
   @state() private armed: string | null = null;
   @state() private sceneRun: string | null = null;
   @state() phone = isPhone();
@@ -164,7 +170,6 @@ export class SwHome extends LitElement implements P3Host {
 
   private stopHa: (() => void) | null = null;
   private refreshT = 0;
-  private toastT = 0;
   private armT = 0;
   private clockT = 0;
   private holdT = 0;
@@ -219,8 +224,8 @@ export class SwHome extends LitElement implements P3Host {
     this.extFor(this.extRoute)?.leave?.();
     this.p3.dispose();
     this.modal.release();
-    for (const t of [this.refreshT, this.toastT, this.armT, this.holdT]) window.clearTimeout(t);
-    this.refreshT = this.toastT = this.armT = this.holdT = this.clockT = 0;
+    for (const t of [this.refreshT, this.armT, this.holdT]) window.clearTimeout(t);
+    this.refreshT = this.armT = this.holdT = this.clockT = 0;
     this.flushFavs();
   }
 
@@ -560,9 +565,8 @@ export class SwHome extends LitElement implements P3Host {
   // ---------------------------------------------------------------- toasts and commands
 
   toast(text: string, undo: (() => void) | null = null) {
-    this.toastMsg = { text, undo };
-    window.clearTimeout(this.toastT);
-    this.toastT = window.setTimeout(() => { this.toastMsg = null; }, 5200);
+    this.toastUndo = undo;
+    this.toaster.show(text);
   }
 
   private async outcome(p: Promise<act.Outcome>, okText?: string) {
@@ -584,7 +588,7 @@ export class SwHome extends LitElement implements P3Host {
         if (!s.l.sw) act.setLevel(s.l, s.lvl, () => undefined);
         else void act.setPower(s.l, true);
       }
-      this.toastMsg = null;
+      this.toaster.clear();
       this.requestUpdate();
       this.scheduleRefresh(1200);
     };
@@ -819,7 +823,7 @@ export class SwHome extends LitElement implements P3Host {
     const [f] = l.splice(+(el.dataset.ix ?? 0), 1);
     const key = this.room;
     this.saveFavs(key, l);
-    this.toast(tr('הוסר מהמועדפים'), () => { const back = this.favs(key).slice(); back.push(f); this.saveFavs(key, back); this.toastMsg = null; });
+    this.toast(tr('הוסר מהמועדפים'), () => { const back = this.favs(key).slice(); back.push(f); this.saveFavs(key, back); this.toaster.clear(); });
   }
   a_wgSize(el: HTMLElement) {
     const l = this.favs(this.room).filter((f) => favOk(f, this.world())).map((f) => ({ ...f }));
