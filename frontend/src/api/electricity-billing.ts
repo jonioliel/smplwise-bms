@@ -18,12 +18,13 @@ import { coefficients, factorLabel, type FormulaAst } from '../electricity/elec-
 import { addDays, billNumber, daysInclusive, fmtRange, monthShort, r2 } from '../electricity/elec-format';
 import type { TouCheck, TouDefinition, TouNamesEn, TouTemplate } from '../electricity/elec-tou';
 import { tr } from '../i18n/msg/api-electricity';
+import type * as Wire from './generated/wire-consumption';
 
 export type { FormulaAst, TouCheck, TouDefinition, TouTemplate };
-export type BillState = 'draft' | 'issued' | 'sent' | 'paid' | 'void';
-export type PriceMode = 'ex_vat' | 'inc_vat';
-export type AutoMode = 'off' | 'draft' | 'issue';
-export type SentHow = 'email' | 'hand' | 'other';
+export type BillState = Wire.EnergyBillSummary['state'];
+export type PriceMode = Wire.EnergyTariffVersion['price_mode'];
+export type AutoMode = Wire.EnergyAccount['auto_mode'];
+export type SentHow = Wire.EnergyBillSent['how'];
 
 export const BILL_STATE_LABEL: Record<BillState, string> = { draft: tr('טיוטה'), issued: tr('הונפק'), sent: tr('נשלח'), paid: tr('שולם'), void: tr('בוטל') };
 export const BILL_STATES: BillState[] = ['draft', 'issued', 'sent', 'paid', 'void'];
@@ -65,25 +66,18 @@ export const ERROR_TEXT: Record<string, string> = {
 };
 
 // ------------------------------------------------------------------------------------------------ wire types
+// Derived from the backend's response models (smplwise_vms/backend/smplwise/wire/energy_billing.py, generated into
+// ./generated/wire-consumption.ts, code review 07:F8 step 2): each type below picks its fields from the generated one, so a field the server
+// renames, drops or retypes is a compile error here. Narrowed or kept by hand, each on purpose and said where: the formula AST and the
+// time-of-use definition (documents the editors own), the bill snapshot (the sealed document, versioned by its own `schema`), and
+// fields the screens read as always present where the server's type allows null or absent (the mock store builds these types too).
 
-interface CustomerRef {
-  id: string;
-  customer_number: string;
-  name: string;
-}
-export interface Customer extends CustomerRef {
-  revision: number;
-  account_count: number;
-  /** contact fields: only with energy.bills or energy.manage */
-  address?: string;
-  phone?: string;
-  email?: string;
-  tax_id?: string;
-  notes?: string;
-  /** on GET /customers/{id} */
+type CustomerRef = Wire.EnergyCustomerRef;
+/** contact fields only with energy.bills or energy.manage; `accounts` and `bills` on GET /customers/{id} */
+export type Customer = Pick<Wire.EnergyCustomer, 'id' | 'customer_number' | 'name' | 'revision' | 'account_count' | 'address' | 'phone' | 'email' | 'tax_id' | 'notes'> & {
   accounts?: { id: string; name: string; status: string }[];
   bills?: BillSummary[];
-}
+};
 interface CustomerBody {
   name: string;
   customer_number?: string;
@@ -94,19 +88,13 @@ interface CustomerBody {
   notes: string;
 }
 
-export type TariffKind = 'fixed' | 'tou';
-export interface TariffVersion {
-  id: string;
-  effective_from: string;
-  /** null for a time-of-use version (its prices are per season and band, in `definition`) */
-  price: string | null;
-  price_mode: PriceMode;
-  /** EL5: the time-of-use definition of the version */
+export type TariffKind = Wire.EnergyTariff['kind'];
+/** A price version: `price` null for a time-of-use version (its prices are per season and band, in `definition`, EL5); `names_en` = the
+ * English names of the definition's seasons, day types and bands (CR-BE-SMALL-2440). */
+export type TariffVersion = Pick<Wire.EnergyTariffVersion, 'id' | 'effective_from' | 'price' | 'price_mode' | 'definition_sha256'> & {
   definition?: TouDefinition;
-  definition_sha256?: string;
-  /** CR-BE-SMALL-2440: the English names of the definition's seasons, day types and bands (saved, else the template's) */
   names_en?: TouNamesEn;
-}
+};
 export interface TariffVersionBody {
   name: string;
   /** the flat price of a fixed tariff ('' for a time-of-use tariff) */
@@ -117,67 +105,27 @@ export interface TariffVersionBody {
   definition?: TouDefinition | null;
 }
 /** What saving a corrected price does: `later_only` = sealed bills keep the old price and the new one starts at `applies_from`. */
-export interface TariffVersionPlan {
-  kind: 'in_place' | 'later_only';
-  applies_from: string;
-  old: { effective_from: string; price: string | null; price_mode: PriceMode; definition_sha256?: string };
-  new: { effective_from: string; price: string | null; price_mode: PriceMode; definition_sha256?: string };
-  message_he: string;
-}
-export interface Tariff {
-  id: string;
-  name: string;
-  currency: string;
-  kind: TariffKind;
-  versions: TariffVersion[];
-  current: TariffVersion | null;
-  used_by: number;
-}
-/** EL5: one special day of the time-of-use calendar (a holiday, its eve, or a cancelled generated day = regular). */
-export interface CalendarDay {
-  date: string;
-  kind: 'holiday' | 'holiday_eve' | 'regular';
-  kind_he: string;
-  name_he: string;
-  source: 'generated' | 'manual';
-  /** the computed entry a manual one replaces */
-  generated: { date: string; kind: string; kind_he: string; name_he: string; source: string } | null;
-}
-export interface CalendarYear {
-  year: number;
-  revision: number;
-  generator: 'israel' | 'none';
-  days: CalendarDay[];
-  note_he: string;
-  drafts_to_recalculate?: number;
-}
-interface VatRate {
-  id: string;
-  effective_from: string;
-  rate_percent: string;
-}
-export interface VatRates {
-  items: VatRate[];
-  current: VatRate | null;
-}
+type PlanSide = Pick<Wire.EnergyPlanSide, 'effective_from' | 'price' | 'price_mode' | 'definition_sha256'>;
+export type TariffVersionPlan = Pick<Wire.EnergyVersionPlan, 'kind' | 'applies_from' | 'message_he'> & { old: PlanSide; new: PlanSide };
+export type Tariff = Pick<Wire.EnergyTariff, 'id' | 'name' | 'currency' | 'kind' | 'used_by'> & { versions: TariffVersion[]; current: TariffVersion | null };
+/** EL5: one special day of the time-of-use calendar (a holiday, its eve, or a cancelled generated day = regular); `generated` = the computed
+ * entry a manual one replaces. */
+export type CalendarDay = Wire.EnergyCalendarDay;
+export type CalendarYear = Wire.EnergyCalendarYear;
+export type VatRates = Wire.EnergyVatRates;
 
-export interface Account {
-  id: string;
-  name: string;
+/** An account (the customer and the next period are always there for an account the server answers: the customer is a foreign key, the
+ * cycle always has a period around today). */
+export type Account = Pick<
+  Wire.EnergyAccount,
+  'id' | 'name' | 'period_months' | 'period_anchor_day' | 'period_anchor_month' | 'first_period_start' | 'timezone' | 'auto_mode' | 'status' | 'revision'
+> & {
   customer: CustomerRef;
-  formula: { ast: FormulaAst; text: string; sentence_he: string; meter_ids: string[] };
-  tariff: { id: string; name: string; kind?: TariffKind; price?: string | null; price_mode?: PriceMode };
-  period_months: 1 | 2;
-  period_anchor_day: number;
-  period_anchor_month: number;
-  first_period_start: string;
-  timezone: string;
-  auto_mode: AutoMode;
-  status: 'active' | 'paused';
-  revision: number;
+  formula: Omit<Wire.EnergyFormula, 'ast'> & { ast: FormulaAst };
+  tariff: Pick<Wire.EnergyAccountTariff, 'id' | 'name'> & Partial<Pick<Wire.EnergyAccountTariff, 'kind' | 'price' | 'price_mode'>>;
   next_period: { from: string; to: string };
   last_bill: BillSummary | null;
-}
+};
 export interface AccountBody {
   name: string;
   customer_id: string;
@@ -190,42 +138,16 @@ export interface AccountBody {
   auto_mode: AutoMode;
 }
 
-export interface StatusMeterWire {
-  meter_id: string;
-  name: string;
-  kwh: string;
-  last_report_at: string | null;
-  reporting: boolean;
-  /** optional: the readings at the period start and now (shown when the server sends them) */
-  start_reading_kwh?: string;
-  end_reading_kwh?: string;
-}
-export interface AccountStatusWire {
-  period: { from: string; to: string };
-  kwh_so_far: string;
-  meters: StatusMeterWire[];
-  notes: { code: string; text_he: string }[]; // the server sends note objects (services/energy_billing.py), like BillSnapshot.notes
-  amount_so_far?: string;
-}
+/** `start_reading_kwh` / `end_reading_kwh`: shown when sent (the demo store sends them; this server's status answer does not). */
+export type StatusMeterWire = Wire.EnergyStatusMeter & { start_reading_kwh?: string; end_reading_kwh?: string };
+/** The open period so far (the server sends note objects, like BillSnapshot.notes); read only for an account with a period. */
+export type AccountStatusWire = Pick<Wire.EnergyAccountStatus, 'kwh_so_far' | 'notes' | 'amount_so_far'> & { period: { from: string; to: string }; meters: StatusMeterWire[] };
 
-export interface BillSummary {
-  id: string;
-  account_id: string;
-  account_name: string;
-  customer: CustomerRef;
-  number: string | null;
-  revision: number;
-  state: BillState;
-  origin: 'manual' | 'auto';
-  period: { from: string; to: string };
-  issue_date: string | null;
-  due_date: string | null;
-  kwh: string;
-  total: string;
-  replaces_bill_id: string | null;
-  replaced_by_bill_id: string | null;
-  row_version: number;
-}
+/** A bill in a list. `total` is read by the bills screens, which need energy.bills - the reads that answer it without (money-free) leave it out. */
+export type BillSummary = Pick<
+  Wire.EnergyBillSummary,
+  'id' | 'account_id' | 'account_name' | 'customer' | 'number' | 'revision' | 'state' | 'origin' | 'period' | 'issue_date' | 'due_date' | 'kwh' | 'replaces_bill_id' | 'replaced_by_bill_id' | 'row_version'
+> & { total: string };
 
 export interface HistoryPoint {
   from: string;
@@ -311,23 +233,18 @@ export interface BillSnapshot {
   meta: { software_version: string; computed_at: string };
   /** the first 12 hex characters of snapshot_sha256 (the server sends the full hash on the Bill) */
 }
-export type BillAction = 'recalculate' | 'delete' | 'issue' | 'sent' | 'paid' | 'correct' | 'void' | 'pdf';
+export type BillAction = Wire.EnergyBill['actions'][number];
 /** The PDF codes of the server (GET /energy/bills/{id}/pdf): 503 render_failed / timeout (retryable), 422 page_limit / too_large / no_lines / invalid_snapshot (none of them retryable: the same bill gives the same answer), 503 unavailable. */
 export type PdfErrorCode = 'pdf_render_failed' | 'pdf_timeout' | 'pdf_page_limit' | 'pdf_too_large' | 'pdf_no_lines' | 'pdf_invalid_snapshot' | 'pdf_unavailable';
 export const PDF_RETRYABLE: readonly string[] = ['pdf_render_failed', 'pdf_timeout'];
 /**
  * The bill's PDF: stored = an issued bill whose PDF file is saved; ready = can be produced on request; failed = the last attempt failed
- * (`error_code`, `failed_at` UTC ISO); unavailable = no PDF engine in this build.
+ * (`error_code`, `failed_at` UTC ISO); unavailable = no PDF engine in this build. `engine`: the server names one of its two engines.
  */
-export interface BillPdf {
-  state: 'stored' | 'ready' | 'failed' | 'unavailable';
-  error_code: string | null;
-  failed_at: string | null;
-  engine: 'weasyprint' | 'fpdf2' | null;
-}
+export type BillPdf = Pick<Wire.EnergyBillPdf, 'state' | 'error_code' | 'failed_at'> & { engine: 'weasyprint' | 'fpdf2' | null };
 export interface Bill extends BillSummary {
   snapshot: BillSnapshot;
-  snapshot_sha256: string | null;
+  snapshot_sha256: Wire.EnergyBill['snapshot_sha256'];
   /** `at` is a DATE (`YYYY-MM-DD`) */
   sent: { at: string; how: SentHow; note: string } | null;
   /** `at` is a DATE (`YYYY-MM-DD`) */
@@ -350,17 +267,8 @@ interface PaidBody {
   reference?: string;
   row_version?: number;
 }
-interface BillEventWire {
-  at: string;
-  action: string;
-  actor: { kind: string; display_name?: string };
-  details: Record<string, unknown>;
-}
-export interface BillList {
-  items: BillSummary[];
-  total: number;
-  counts: Record<BillState, number>;
-}
+type BillEventWire = Wire.EnergyBillEvent;
+export type BillList = Pick<Wire.EnergyBillsPage, 'total' | 'counts'> & { items: BillSummary[] };
 export interface BillsQuery {
   state?: BillState | '';
   from?: string;
@@ -371,41 +279,16 @@ export interface BillsQuery {
 }
 export type PeriodChoice = { kind: 'last' } | { kind: 'range'; from: string; to: string };
 
-export interface PaymentTerms {
-  mode: 'net_days' | 'day_of_month';
-  days: number;
-  day_of_month: number;
-}
-export interface BillingSettings {
-  revision: number;
-  default_price_mode: PriceMode;
-  payment_terms: PaymentTerms;
-  business: { name: string; registration_no: string; address: string; phone: string; email: string; accent_color: string; footer_note: string };
-  numbering: { customer_digits: number; format: string };
-  auto: { delay_hours: number };
-  logo: { sha256: string; mime: string; width: number; height: number } | null;
-  /** the PDF engine of this installation (read only; null or absent from an older server) */
+export type PaymentTerms = Wire.EnergyPaymentTerms;
+/** The billing settings; `pdf_engine` = the PDF engine of this installation (read only; null or absent from an older server). */
+export type BillingSettings = Pick<Wire.EnergyBillingSettings, 'revision' | 'default_price_mode' | 'payment_terms' | 'business' | 'numbering' | 'auto' | 'logo'> & {
   pdf_engine?: PdfEngine | null;
-}
-interface PdfEngine {
-  configured: string;
-  active: 'weasyprint' | 'fpdf2' | null;
-  checked: string | null;
-  detail: string | null;
-  last_render_engine: string | null;
-  slow_fallbacks: number;
-  /** EL8: renders retried with the simple engine because the WeasyPrint process died (2.0.1+; absent on older servers). */
-  crash_fallbacks?: number;
-  fallback_after_s: number;
-}
+};
+/** `crash_fallbacks` (EL8, 2.0.1+) is absent on older servers. */
+type PdfEngine = Omit<Wire.EnergyPdfEngine, 'crash_fallbacks'> & { crash_fallbacks?: number };
 type BillingSettingsPatch = Partial<Pick<BillingSettings, 'default_price_mode' | 'payment_terms' | 'business' | 'auto'>>;
 
-interface FormulaCheckWire {
-  ok: boolean;
-  errors: { code: string; message: string; pos?: number }[];
-  warnings: { code: string; message: string }[];
-  preview: { period: { from: string; to: string }; meters: { meter_id: string; name: string; kwh: string }[]; result_kwh: string; negative: boolean } | null;
-}
+type FormulaCheckWire = Wire.EnergyFormulaCheck;
 /** The editor's live check: each meter's consumption on the last full period and the account result. */
 export interface FormulaPreview {
   ok: boolean;
@@ -456,23 +339,11 @@ export interface AccountStatus {
   customer: Customer | null;
   price?: { tariff: string; ex_vat: string; inc_vat: string; vat: string };
 }
-/** GET /energy/accounts/{aid}/history?past=N: the ENDED regular periods, oldest first (the last one is the latest ended period). */
-export interface HistoryPeriodWire {
-  from: string;
-  /** inclusive last day */
-  to: string;
-  /** null = no data (never invented) */
-  kwh: string | null;
-  status: 'measured' | 'partial' | 'missing';
-  source: 'bill' | 'readings' | null;
-  /** `total` only for energy.bills holders */
-  bill: BillSummary | null;
-}
-export interface AccountHistoryWire {
-  periods: HistoryPeriodWire[];
-  /** snapshot.history's shape, for the latest ended period */
-  comparison: BillHistory;
-}
+/** GET /energy/accounts/{aid}/history?past=N: the ENDED regular periods, oldest first (the last one is the latest ended period); `kwh` null = no
+ * data (never invented), `to` inclusive, the bill's `total` only for energy.bills holders. */
+export type HistoryPeriodWire = Omit<Wire.EnergyHistoryPeriod, 'bill'> & { bill: BillSummary | null };
+/** `comparison`: snapshot.history's shape, for the latest ended period (read only when there is one). */
+export type AccountHistoryWire = { periods: HistoryPeriodWire[]; comparison: BillHistory };
 export interface HistoryRow {
   label: string;
   from: string;
@@ -638,7 +509,7 @@ export function buildStatus(account: Account, w: AccountStatusWire, ctx: { today
 }
 
 /** Hebrew line of the bill log for a server event. */
-export function eventText(e: BillEventWire): string {
+export function eventText(e: Pick<BillEventWire, 'at' | 'action' | 'details'> & { actor?: Pick<BillEventWire['actor'], 'kind'> }): string {
   const d = e.details ?? {};
   const how = { email: tr('בדוא״ל'), hand: tr('במסירה ידנית'), other: tr('באופן אחר') } as Record<string, string>;
   switch (e.action) {

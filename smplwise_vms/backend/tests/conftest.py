@@ -39,6 +39,9 @@ os.environ.setdefault("SW_DOORWIN_WORKER", "0")
 os.environ.setdefault("SW_STARTUP_WARMUP", "0")  # WARMUP-POLISH-2421: no warm-up thread in the test apps (tests call startup_warmup.run)
 # WISKEY-EVENT-CURSOR-2400: the service feed's events/resume_v1 pump stays off; tests drive wiskey_event_resume.step / pass_once / run with a fake WisKey
 os.environ.setdefault("SW_WISKEY_EVENT_RESUME", "0")
+# CR-RESPONSE-MODELS-CONSUMPTION-2450 (review 07:F8 step 2): a response that does not fit its model, or carries an undeclared key,
+# fails the test (production logs it and answers unchanged - smplwise/wire/__init__.py)
+os.environ.setdefault("SW_WIRE_STRICT", "1")
 
 from smplwise.config import Settings  # noqa: E402
 from smplwise.main import create_app  # noqa: E402,F401 - re-exported: test files import it from here
@@ -54,6 +57,10 @@ _db_template.install(_Database)
 # importable from here (`from conftest import as_user, bind, seed_tree`), as hundreds of test files do.
 from support.apps import as_user, bind, enable_search, make_client, pdf_bytes, png_bytes, seed_tree, warm_routes  # noqa: E402,F401
 from support.waiting import DAY_ANCHOR, datetime_shim, day_now, sw_load_factor, sw_perf_enabled, sw_time_factor  # noqa: E402,F401
+from support import wire_oracle as _wire_oracle  # noqa: E402
+
+# CR-RESPONSE-MODELS-CONSUMPTION-2450: every modelled answer is compared with the route's pre-model answer (tests/support/wire_oracle.py)
+_wire_oracle.install()
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

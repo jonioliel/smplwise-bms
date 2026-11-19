@@ -240,7 +240,7 @@ let calendar: { revision: number; generator: 'israel' | 'none'; overrides: Recor
 function calendarEntry(iso: string): CalendarDay | null {
   const o = calendar.overrides[iso];
   const g = calendar.generator === 'israel' ? GENERATED_DAYS.find((x) => x[0] === iso) : undefined;
-  const gen = g ? { date: g[0], kind: g[1], kind_he: KIND_HE[g[1]], name_he: g[2], source: 'generated' } : null;
+  const gen = g ? { date: g[0], kind: g[1], kind_he: KIND_HE[g[1]], name_he: g[2], source: 'generated' as const } : null;
   if (o) return { date: iso, kind: o.kind, kind_he: KIND_HE[o.kind], name_he: o.name_he, source: 'manual', generated: gen };
   return g ? { date: g[0], kind: g[1], kind_he: KIND_HE[g[1]], name_he: g[2], source: 'generated', generated: null } : null;
 }
@@ -355,7 +355,7 @@ let settings: BillingSettings = {
   numbering: { customer_digits: 4, format: 'YYYY-MM-NNNN' },
   auto: { delay_hours: 6 },
   logo: null,
-  pdf_engine: { configured: 'auto', active: 'weasyprint', checked: `${MOCK_TODAY}T06:00:00Z`, detail: null, last_render_engine: 'weasyprint', slow_fallbacks: 0, crash_fallbacks: 0, fallback_after_s: 20 },
+  pdf_engine: { configured: 'auto', active: 'weasyprint', checked: true, detail: '', last_render_engine: 'weasyprint', slow_fallbacks: 0, crash_fallbacks: 0, fallback_after_s: 20 },
 };
 let logoDataUrl = '';
 

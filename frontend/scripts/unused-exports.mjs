@@ -77,6 +77,9 @@ export function report(root = FRONTEND) {
   for (const f of files) {
     const rel = path.relative(root, f).replace(/\\/g, '/');
     if (!rel.startsWith('src/') || !f.endsWith('.ts') || f.endsWith('.d.ts')) continue;
+    // CR-RESPONSE-MODELS-CONSUMPTION-2450: src/api/generated/ is written by scripts/gen_wire_types.py from the backend response models
+    // and declares every modelled answer, used or not - it is complete by design, not dead code (its names still count as uses)
+    if (rel.startsWith('src/api/generated/')) continue;
     const own = tok.get(f);
     for (const e of exportsOf(rel, text.get(f))) {
       total++;

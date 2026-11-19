@@ -11,6 +11,7 @@ import { isApi } from './session';
 import { getDevicesTree } from './devices';
 import { lazy, lazyAdapter } from './demo-load';
 import { tr } from '../i18n/msg/api-electricity';
+import type * as Wire from './generated/wire-consumption';
 
 /** reporting = מדווח, stale = לא מדווח (no reading within `energy.stale_after_minutes`), paused = מושהה. */
 export type MeterStatus = 'reporting' | 'stale' | 'paused';
@@ -158,59 +159,12 @@ interface MeterAdapter {
 }
 
 // ------------------------------------------------------------------------------------------------ wire shapes (ELECTRICITY_INTERFACES.md section 3)
+// The answers are the backend's response models (smplwise_vms/backend/smplwise/wire/energy_meters.py), generated into
+// ./generated/wire-consumption.ts - a change of the contract is a compile error here (code review 07:F8 step 2).
 
-interface WireEpoch {
-  id?: string;
-  started_at: string;
-  ended_at: string | null;
-  start_reading_wh: number | null;
-  reason: string;
-  note: string | null;
-}
-interface WireMeter {
-  id: string;
-  display_name: string;
-  device_id?: string | null;
-  device_name?: string | null;
-  entity_name?: string | null;
-  area_id: string | null;
-  area_name: string | null;
-  status: string;
-  state?: string;
-  revision: number;
-  last_report_at: string | null;
-  value_kwh: number | null;
-  today_kwh: number | null;
-  /** Not in the contract yet: the list may carry it (asked of pilot/elec-server). */
-  accounts_count?: number;
-  used_in?: { account_id: string; name: string }[];
-  epochs?: WireEpoch[];
-}
-interface WireCandidate {
-  ref: string;
-  name: string;
-  device_id?: string | null;
-  device_name?: string | null;
-  entity_name?: string | null;
-  area_id: string | null;
-  area_name: string | null;
-  unit: string | null;
-  state: string | number | null;
-  verdict: 'ok' | 'warning' | 'rejected';
-  code: string;
-  message: string | null;
-  already_meter_id: string | null;
-}
-interface WireSettings {
-  values: Record<string, number | string | boolean>;
-  editable?: Record<string, boolean>;
-  ranges?: Record<string, { min?: number; max?: number } | [number, number]>;
-  storage?: {
-    energy_db_bytes?: number;
-    classes?: Record<string, { rows?: number; bytes_estimate?: number }>;
-    estimate?: { meters?: number };
-  };
-}
+type WireMeter = Wire.EnergyMeter;
+type WireCandidate = Wire.EnergyCandidate;
+type WireSettings = Wire.EnergySettings;
 
 const CODE_REASON: Record<string, CandidateReason> = {
   power_unit: 'kw',
@@ -283,7 +237,7 @@ function wireSettings(w: WireSettings, meterCount: number): EnergySettings {
     const hi = Array.isArray(r) ? r[1] : r?.max;
     return { min: lo ?? RETENTION_RANGES[k].min, max: hi ?? RETENTION_RANGES[k].max };
   };
-  const classes = w.storage?.classes ?? {};
+  const classes: Partial<Wire.EnergyStorageClasses> = w.storage?.classes ?? {};
   return {
     raw_retention_days: val('raw_retention_days'),
     interval_retention_months: val('interval_retention_months'),
@@ -318,7 +272,7 @@ async function monthToDate(ids: string[]): Promise<Map<string, number>> {
   const from = new Date(now.getFullYear(), now.getMonth(), 1);
   try {
     const q = new URLSearchParams({ meter_ids: ids.join(','), from: from.toISOString(), to: now.toISOString() });
-    for (const it of items<{ meter_id: string; kwh: number | null }>(await get<unknown>(`energy/consumption?${q}`))) if (it.kwh != null) out.set(it.meter_id, it.kwh);
+    for (const it of items<Wire.EnergyConsumptionItem>(await get<Wire.EnergyConsumption>(`energy/consumption?${q}`))) if (it.kwh != null) out.set(it.meter_id, it.kwh);
   } catch {
     /* partial: the month column is empty */
   }
@@ -329,7 +283,7 @@ async function monthToDate(ids: string[]): Promise<Map<string, number>> {
 
 const http: MeterAdapter = {
   async list() {
-    const [raw, floors] = await Promise.all([get<unknown>('energy/meters'), floorsByArea()]);
+    const [raw, floors] = await Promise.all([get<Wire.EnergyMeterList>('energy/meters'), floorsByArea()]);
     const list = items<WireMeter>(raw);
     const month = await monthToDate(list.map((m) => m.id));
     return list.map((m) => wireMeter(m, floors, month));
@@ -342,7 +296,7 @@ const http: MeterAdapter = {
     const p = new URLSearchParams({ include_rejected: 'true' });
     if (q.trim()) p.set('q', q.trim());
     if (area) p.set('area_id', area);
-    return items<WireCandidate>(await get<unknown>(`energy/candidates?${p}`)).map(wireCandidate);
+    return items<WireCandidate>(await get<Wire.EnergyCandidateList>(`energy/candidates?${p}`)).map(wireCandidate);
   },
   async add(body) {
     const w = await post<WireMeter>('energy/meters', { source_ref: body.entity_id, ...(body.name ? { display_name: body.name } : {}) });
@@ -364,7 +318,7 @@ const http: MeterAdapter = {
   },
   async series(id, step, from, to) {
     const p = new URLSearchParams({ from, to, step });
-    return items<{ start: string; kwh: number | null }>(await get<unknown>(`energy/meters/${encodeURIComponent(id)}/series?${p}`)).map((i) => ({ t: i.start, kwh: i.kwh ?? 0 }));
+    return items<Wire.EnergySeriesPoint>(await get<Wire.EnergySeries>(`energy/meters/${encodeURIComponent(id)}/series?${p}`)).map((i) => ({ t: i.start, kwh: i.kwh ?? 0 }));
   },
   async getSettings() {
     return wireSettings(await get<WireSettings>('energy/settings'), 0);
