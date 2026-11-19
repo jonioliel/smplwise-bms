@@ -32,6 +32,8 @@ import { tr } from '../i18n/msg/shell';
 import { firstRead, noChoices, readOwnChoices } from './home-personal-read';
 import type { AreaRowChange } from '../screens/area-row-editor';
 import { segThumbPlainStyles } from '../styles/fragments';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 
 
 /**
@@ -96,12 +98,28 @@ export class SwHomePersonal extends LitElement {
       min-block-size: 32px;
       padding: 0 8px;
     }
+    /* the summary tiles stay a hand-built row: it is a multi-choice (each tile on or off), not one of N */
     .seg {
       display: inline-flex;
       background: var(--sw-surface-3);
       padding: 2px;
       border-radius: 999px;
       gap: 1px;
+    }
+    /* CR-CMP2-SEGMENTED-C-2450: the one-of-N choices are sw-segmented, in this panel's compact pill (2 px track, 1 px apart, the 28 px
+       key with the small label, the plain chosen key of segThumbPlainStyles and the panel's 0.45 disabled dimming) */
+    sw-segmented {
+      --sw-seg-pad: 2px;
+      --sw-seg-gap: 1px;
+      --sw-seg-radius: 999px;
+      --sw-seg-btn-radius: 999px;
+      --sw-seg-h: 28px;
+      --sw-seg-key-pad: 10px;
+      --sw-seg-fs: var(--sw-fs-xs);
+      --sw-seg-fw: 400;
+      --sw-seg-on-fw: var(--sw-fw-semibold);
+      --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-text));
+      --sw-disabled-opacity: 0.45;
     }
     .seg button {
       border: 0;
@@ -223,10 +241,8 @@ export class SwHomePersonal extends LitElement {
     // review L5: the user's own list ADDS to the installation's - an elevator the administrator hid stays hidden (its box is disabled)
     const mine = own.hidden ?? [];
     return html`<div class="row" data-home-personal-elevators-mode>
-        <span class="seg" role="group" aria-label=${elt('displayMode')}>
-          <button type="button" data-home-personal-elevators-mode="" aria-pressed=${String(own.mode === undefined)} ?disabled=${this.busy} @click=${() => this.setElevators({ mode: null })}>${elt('personalDefault')}</button>
-          ${ELEVATOR_MODES.map((m) => html`<button type="button" data-home-personal-elevators-mode=${m} aria-pressed=${String(own.mode === m)} ?disabled=${this.busy} @click=${() => this.setElevators({ mode: m })}>${elt(MODE_KEY[m])}</button>`)}
-        </span>
+        <sw-segmented label=${elt('displayMode')} value=${own.mode ?? ''} ?disabled=${this.busy} @change=${(e: CustomEvent<SegmentedChange>) => this.setElevators({ mode: (e.detail.value || null) as ElevatorMode | null })}
+          .options=${[{ value: '', label: elt('personalDefault'), attrs: { 'data-home-personal-elevators-mode': '' } }, ...ELEVATOR_MODES.map((m) => ({ value: m, label: elt(MODE_KEY[m]), attrs: { 'data-home-personal-elevators-mode': m } }))]}></sw-segmented>
       </div>
       <div class="row" role="group" aria-label=${elt('include')} data-home-personal-elevators-include>
         ${this.elevators.map((e) => {
@@ -258,10 +274,8 @@ export class SwHomePersonal extends LitElement {
     };
     return html`<div class="row" data-home-personal-phone-area>
         <span class="lbl" id="hp-parea">${hs('phoneArea')}</span>
-        <span class="seg" role="group" aria-labelledby="hp-parea">
-          <button type="button" data-home-personal-phone-area="" aria-pressed=${String(!own.phone_area)} ?disabled=${this.busy} @click=${() => this.setScreen({ phone_area: undefined })}>${tr('ברירת מחדל')}</button>
-          ${(['sheet', 'full'] as const).map((v) => html`<button type="button" data-home-personal-phone-area=${v} aria-pressed=${String(own.phone_area === v)} ?disabled=${this.busy} @click=${() => this.setScreen({ phone_area: v })}>${hs(`area_${v}`)}</button>`)}
-        </span>
+        <sw-segmented label=${hs('phoneArea')} value=${own.phone_area ?? ''} ?disabled=${this.busy} @change=${(e: CustomEvent<SegmentedChange>) => this.setScreen({ phone_area: (e.detail.value || undefined) as 'sheet' | 'full' | undefined })}
+          .options=${[{ value: '', label: tr('ברירת מחדל'), attrs: { 'data-home-personal-phone-area': '' } }, ...(['sheet', 'full'] as const).map((v) => ({ value: v, label: hs(`area_${v}`), attrs: { 'data-home-personal-phone-area': v } }))]}></sw-segmented>
       </div>
       ${site.summary_chooser === 'user'
         ? html`<div class="row" data-home-personal-tiles>
@@ -282,10 +296,12 @@ export class SwHomePersonal extends LitElement {
     const shared = this.buildings.some((b) => b.shared);
     return html`<div class="row" data-home-personal-site-entry>
         <span class="lbl" id="hp-sentry">${hs('personalEntry')}</span>
-        <span class="seg" role="group" aria-labelledby="hp-sentry">
-          <button type="button" data-home-personal-site-entry="" aria-pressed=${String(!own.site_entry)} ?disabled=${this.busy} @click=${() => this.setScreen({ site_entry: undefined, site_entry_building: undefined })}>${tr('ברירת מחדל')}</button>
-          ${(['site', 'last', 'fixed'] as const).map((v) => html`<button type="button" data-home-personal-site-entry=${v} aria-pressed=${String(own.site_entry === v)} ?disabled=${this.busy} @click=${() => this.setScreen({ site_entry: v, site_entry_building: v === 'fixed' ? own.site_entry_building ?? this.buildings[0].id : undefined })}>${hs(`se_${v}`)}</button>`)}
-        </span>
+        <sw-segmented label=${hs('personalEntry')} value=${own.site_entry ?? ''} ?disabled=${this.busy}
+          @change=${(e: CustomEvent<SegmentedChange>) => {
+            const v = e.detail.value as '' | 'site' | 'last' | 'fixed';
+            this.setScreen(v ? { site_entry: v, site_entry_building: v === 'fixed' ? own.site_entry_building ?? this.buildings[0].id : undefined } : { site_entry: undefined, site_entry_building: undefined });
+          }}
+          .options=${[{ value: '', label: tr('ברירת מחדל'), attrs: { 'data-home-personal-site-entry': '' } }, ...(['site', 'last', 'fixed'] as const).map((v) => ({ value: v, label: hs(`se_${v}`), attrs: { 'data-home-personal-site-entry': v } }))]}></sw-segmented>
         ${own.site_entry === 'fixed'
           ? html`<select data-home-personal-site-building aria-label=${hs('siteEntryBuilding')} ?disabled=${this.busy} @change=${(e: Event) => this.setScreen({ site_entry_building: (e.target as HTMLSelectElement).value })}>
               ${this.buildings.map((b) => html`<option value=${b.id} ?selected=${own.site_entry_building === b.id}>${b.name}</option>`)}
@@ -295,10 +311,8 @@ export class SwHomePersonal extends LitElement {
       ${shared
         ? html`<div class="row" data-home-personal-hide-shared>
             <span class="lbl" id="hp-hshared">${hs('hideShared')}</span>
-            <span class="seg" role="group" aria-labelledby="hp-hshared">
-              <button type="button" data-home-personal-hide-shared="off" aria-pressed=${String(!own.hide_shared)} ?disabled=${this.busy} @click=${() => this.setScreen({ hide_shared: undefined })}>${hs('hideSharedOff')}</button>
-              <button type="button" data-home-personal-hide-shared="on" aria-pressed=${String(!!own.hide_shared)} ?disabled=${this.busy} @click=${() => this.setScreen({ hide_shared: true })}>${hs('hideSharedOn')}</button>
-            </span>
+            <sw-segmented label=${hs('hideShared')} value=${own.hide_shared ? 'on' : 'off'} ?disabled=${this.busy} @change=${(e: CustomEvent<SegmentedChange>) => this.setScreen({ hide_shared: e.detail.value === 'on' ? true : undefined })}
+              .options=${[{ value: 'off', label: hs('hideSharedOff'), attrs: { 'data-home-personal-hide-shared': 'off' } }, { value: 'on', label: hs('hideSharedOn'), attrs: { 'data-home-personal-hide-shared': 'on' } }]}></sw-segmented>
           </div>`
         : nothing}`;
   }
@@ -406,18 +420,14 @@ export class SwHomePersonal extends LitElement {
     return html`
       <div class="row" data-home-personal-direction>
         <span class="lbl" id="hp-dir">${tr('כיוון')}</span>
-        <span class="seg" role="group" aria-labelledby="hp-dir">
-          <button type="button" data-home-personal-dir="" aria-pressed=${String(this.personal.direction === null)} ?disabled=${this.busy} @click=${() => this.setDirection(null)}>${tr('ברירת מחדל')}</button>
-          ${DIRECTIONS.map((x) => html`<button type="button" data-home-personal-dir=${x} aria-pressed=${String(this.personal.direction === x)} ?disabled=${this.busy} title=${DIRECTION_LABEL[x]} @click=${() => this.setDirection(x)}>${DIRECTION_LETTER[x]} · ${DIRECTION_LABEL[x]}</button>`)}
-        </span>
+        <sw-segmented label=${tr('כיוון')} value=${this.personal.direction ?? ''} ?disabled=${this.busy} @change=${(e: CustomEvent<SegmentedChange>) => this.setDirection((e.detail.value || null) as Direction | null)}
+          .options=${[{ value: '', label: tr('ברירת מחדל'), attrs: { 'data-home-personal-dir': '' } }, ...DIRECTIONS.map((x) => ({ value: x, label: `${DIRECTION_LETTER[x]} · ${DIRECTION_LABEL[x]}`, title: DIRECTION_LABEL[x], attrs: { 'data-home-personal-dir': x } }))]}></sw-segmented>
       </div>
       ${this.screenChoices()}
       <div class="row" data-home-personal-phone>
         <span class="lbl" id="hp-phone">${tr('בנייד')}</span>
-        <span class="seg" role="group" aria-labelledby="hp-phone">
-          <button type="button" data-home-personal-phone-layout="" aria-pressed=${String(this.personal.phone_layout === null)} ?disabled=${this.busy} @click=${() => this.setPhoneLayout(null)}>${tr('ברירת מחדל')}</button>
-          ${PHONE_LAYOUTS.map((p) => html`<button type="button" data-home-personal-phone-layout=${p} aria-pressed=${String(this.personal.phone_layout === p)} ?disabled=${this.busy} @click=${() => this.setPhoneLayout(p)}>${PHONE_LAYOUT_LABEL[p]}</button>`)}
-        </span>
+        <sw-segmented label=${tr('בנייד')} value=${this.personal.phone_layout ?? ''} ?disabled=${this.busy} @change=${(e: CustomEvent<SegmentedChange>) => this.setPhoneLayout((e.detail.value || null) as PhoneLayout | null)}
+          .options=${[{ value: '', label: tr('ברירת מחדל'), attrs: { 'data-home-personal-phone-layout': '' } }, ...PHONE_LAYOUTS.map((p) => ({ value: p, label: PHONE_LAYOUT_LABEL[p], attrs: { 'data-home-personal-phone-layout': p } }))]}></sw-segmented>
       </div>
       ${order.map((id, i) => {
         const cfg = this.base!.config[id];
@@ -432,10 +442,8 @@ export class SwHomePersonal extends LitElement {
             <button type="button" class="ib" data-home-personal-later=${id} aria-label=${tr('אחר את {name}', { name: WIDGET_NAME[id] })} ?disabled=${this.busy || i === order.length - 1} @click=${() => this.move(id, i + 1)}>↓</button>
           </div>
           <div class="row">
-            <span class="seg" role="group" aria-label=${tr('גודל: {name}', { name: WIDGET_NAME[id] })}>
-              <button type="button" data-home-personal-size=${`${id}:`} aria-pressed=${String(size === null)} ?disabled=${this.busy || !on} @click=${() => this.setSize(id, null)}>${tr('ברירת מחדל')}</button>
-              ${SIZES.map((s) => html`<button type="button" data-home-personal-size=${`${id}:${s}`} aria-pressed=${String(size === s)} ?disabled=${this.busy || !on} @click=${() => this.setSize(id, s)}>${SIZE_LABEL[s]}</button>`)}
-            </span>
+            <sw-segmented label=${tr('גודל: {name}', { name: WIDGET_NAME[id] })} value=${size ?? ''} ?disabled=${this.busy || !on} @change=${(e: CustomEvent<SegmentedChange>) => this.setSize(id, (e.detail.value || null) as Size | null)}
+              .options=${[{ value: '', label: tr('ברירת מחדל'), attrs: { 'data-home-personal-size': `${id}:` } }, ...SIZES.map((sz) => ({ value: sz, label: SIZE_LABEL[sz], attrs: { 'data-home-personal-size': `${id}:${sz}` } }))]}></sw-segmented>
           </div>
           ${id === 'elevators' && on ? this.elevatorChoices() : nothing}
         </div>`;
