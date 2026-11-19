@@ -73,8 +73,8 @@ def plain(value: Any) -> Any:
 
 
 def raised(exc: BaseException) -> dict[str, Any]:
-    """An exception as the corpus stores it: its class name and its arguments."""
-    return {"type": type(exc).__name__, "args": list(exc.args)}
+    """An exception as the corpus stores it: its class name, its arguments and its own attributes (`DraftError.problems`)."""
+    return {"type": type(exc).__name__, "args": list(exc.args), "attrs": dict(sorted(vars(exc).items()))}
 
 
 def replay(func: Callable[..., Any], case: dict[str, Any]) -> dict[str, Any]:
