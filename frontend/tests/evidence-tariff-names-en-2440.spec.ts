@@ -72,7 +72,8 @@ test.describe('time-of-use tariff names in English', () => {
     const row = page.locator('[data-tariff-row][data-kind="tou"]');
     await expect(row).toContainText('שפל / פסגה'); // Hebrew interface: Hebrew names
     await row.click();
-    await d.locator('elec-tou-editor [data-tou-structure] > summary').click();
+    // the dialog keeps its editor element: the structure part may still be open from before
+    if ((await d.locator('elec-tou-editor [data-tou-structure]').getAttribute('open')) === null) await d.locator('elec-tou-editor [data-tou-structure] > summary').click();
     await expect(d.locator('elec-tou-editor [data-tou-structure]')).toHaveAttribute('open', '');
     await expect(en('bands:peak')).toHaveValue('Peak hours');
     await expect(en('seasons:transition')).toHaveValue('');
