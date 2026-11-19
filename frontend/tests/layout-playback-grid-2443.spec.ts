@@ -40,7 +40,9 @@ test.describe('the comparison grid at 2x2 fits the window (CR-NOSCROLL-LISTS-244
       test.setTimeout(120_000);
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await page.setViewportSize({ width: vp.width, height: vp.height });
-      const st = await mock(page, { cameras: MORE });
+      // the 0.1.68 stage budget (100dvh - 560px) is defined without the diagnostics row under the player (an installation setting,
+      // `playback.diagnostics`): that row's own overflow is a separate item (RELEASE-2439-TRAIN note, owner question); hidden here
+      const st = await mock(page, { cameras: MORE, settings: { 'playback.diagnostics': 'hidden' } });
       await openAndPlay(page, '&extra=c2,c3,c4', 'design=a&skin=classic&scheme=light');
       await expect.poll(() => st.groups.length).toBeGreaterThanOrEqual(1);
       await expect(page.locator('investigate-playback [data-pb-grid="4"]')).toBeVisible({ timeout: 20_000 });

@@ -1559,7 +1559,11 @@ export class InvestigatePlayback extends LitElement {
         <span>${tr('אזור זמן:')} <span class="ltr">${this.tz}</span></span>
         <span>${tr('כיסוי:')} ${this.rec ? (this.rec.coverage === 'complete' ? tr('מלא') : this.rec.coverage === 'partial' ? tr('חלקי') : tr('לא ידוע')) : '—'}</span>
         ${master ? html`<span>${tr('סוף הטווח:')} ${this.fmt(new Date(master.playback_end_at))}</span>` : nothing}
-        ${this.groupMode ? html`<span data-sync-method>${tr('סנכרון: שעון־אב אחד לכל האריחים (חסם פתיחה, ואז חציון זמני הפריימים המוצגים; מתחת לשלושה אריחים — המוביל); הסטייה של כל אריח נמדדת מול השעון, p95 על החלון האחרון; אריח מאחר מסונכרן לבד ואינו מזיז את האחרים (best effort, ללא עוגן זמן מאומת); מהירויות שונות מ־1× כבויות; מקור בלי הקלטה בזמן הזה מוצג כ"אין הקלטה", לא כמסונכרן')}</span>` : nothing}
+        ${this.groupMode
+          ? /* RELEASE-2439-TRAIN (layout-playback-grid-2443): the method's long explanation wrapped to three lines under a 2x2 grid and
+               scrolled the page; the row shows its name, the explanation is the hover / long-press text */
+            html`<span data-sync-method title=${tr('סנכרון: שעון־אב אחד לכל האריחים (חסם פתיחה, ואז חציון זמני הפריימים המוצגים; מתחת לשלושה אריחים — המוביל); הסטייה של כל אריח נמדדת מול השעון, p95 על החלון האחרון; אריח מאחר מסונכרן לבד ואינו מזיז את האחרים (best effort, ללא עוגן זמן מאומת); מהירויות שונות מ־1× כבויות; מקור בלי הקלטה בזמן הזה מוצג כ"אין הקלטה", לא כמסונכרן')}>${tr('סנכרון: שעון־אב אחד')}</span>`
+          : nothing}
       </div>` : nothing}
       ${this.renderExportDialog()}
     `;
