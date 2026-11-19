@@ -20,6 +20,8 @@ from test_energy_billing_api import API, W, w  # noqa: F401 - `w` is the shared 
 from test_energy_tou_billing import JULY, bill, hourly, loc, setup_tou
 
 FRONTEND_MSG = Path(__file__).resolve().parents[3] / "frontend" / "src" / "i18n" / "msg"
+# CR-I18N-LAZY-LANG-2443 moved the English tables of the msg modules into the English language pack (RELEASE-2440-TRAIN).
+FRONTEND_MSG_EN = Path(__file__).resolve().parents[3] / "frontend" / "src" / "i18n" / "lang" / "en" / "i18n" / "msg"
 HEBREW = re.compile(r"[֐-׿]")
 EXPECTED_EN = {
     "seasons": {"summer": "Summer", "winter": "Winter", "transition": "Transition"},
@@ -54,10 +56,10 @@ def test_the_template_has_english_names():
 
 
 def _frontend_pairs() -> dict[str, set[str]]:
-    """Hebrew -> English of every frontend msg table (`'עברית': 'English',` lines)."""
+    """Hebrew -> English of every frontend msg table (`'עברית': 'English',` lines): the inline tables and the English pack."""
     pairs: dict[str, set[str]] = {}
     line = re.compile(r"^\s*'((?:[^'\\]|\\.)+)'\s*:\s*'((?:[^'\\]|\\.)*)',?\s*$")
-    for path in sorted(FRONTEND_MSG.glob("*.ts")):
+    for path in [*sorted(FRONTEND_MSG.glob("*.ts")), *sorted(FRONTEND_MSG_EN.glob("*.ts"))]:
         for ln in path.read_text(encoding="utf-8").splitlines():
             m = line.match(ln)
             if m:
