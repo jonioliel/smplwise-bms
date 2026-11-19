@@ -75,8 +75,9 @@ test.describe('WXMEDSET: the live video and talk row', () => {
   });
 
   test('every string of the row has an English counterpart', () => {
-    const src = read('../src/i18n/access-parity.ts');
-    const en = /const en: Partial<Record<PtKey, string>> = \{([\s\S]*?)\n\};/.exec(src)![1];
+    // CR-I18N-LAZY-LANG-2443: the English table is the module's language pack file
+    const src = read('../src/i18n/lang/en/i18n/access-parity.ts');
+    const en = /export const en = \{([\s\S]*?)\n\};/.exec(src)![1];
     for (const key of ['dispMedia', 'dispMediaOff', 'dispMediaVideo', 'dispMediaTalk']) expect(en, key).toMatch(new RegExp(`\\b${key}:`));
   });
 
