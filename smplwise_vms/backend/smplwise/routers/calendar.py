@@ -21,6 +21,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
+from ..services import calendar_store as store
 from ..services.calendar import calendars as cals
 from ..services.calendar import decisions, events, guests, jobs, model, occ
 from ..services.calendar.access import Ctx, Denied, get_visible, scope_of
@@ -167,7 +168,7 @@ def get_calendar(cid: str, principal: Principal = Depends(current_principal_ro),
     ctx = Ctx(conn, principal)
     cal = get_visible(ctx, cid)
     role = ctx.role_in(cal)
-    return {"calendar": cals.serialize(conn, cal, role), "members_summary": {"count": conn.execute("SELECT COUNT(*) FROM cal_members WHERE calendar_id = ?", (cid,)).fetchone()[0]}}
+    return {"calendar": cals.serialize(conn, cal, role), "members_summary": {"count": store.member_count(conn, cid)}}
 
 
 @router.patch("/calendar/calendars/{cid}")
@@ -186,7 +187,7 @@ def patch_calendar(cid: str, body: Body, request: Request, principal: Principal 
         row = cals.update(ctx, cal, {k: v for k, v in data.items() if k != "owner_user_id"})
         if "owner_user_id" in data and data["owner_user_id"] != cal["owner_user_id"]:
             cals.change_owner(conn, row, str(data["owner_user_id"]), principal.user_id)
-            row = conn.execute("SELECT * FROM cal_calendars WHERE id = ?", (cid,)).fetchone()
+            row = store.calendar(conn, cid)
         _audit(conn, principal, request, "calendar.calendar.update", "calendar", cid, keys=sorted(k for k in data if k != "revision"))
         return {"calendar": cals.serialize(conn, row, ctx.role_in(row))}
 
@@ -198,7 +199,7 @@ def archive_calendar(cid: str, body: Body, request: Request, principal: Principa
     require(conn, principal, model.PERM_MANAGE, scope_of(cal))
     cancelled = cals.archive(conn, cal, _body(body), model.iso(_now()))
     _audit(conn, principal, request, "calendar.calendar.archive", "calendar", cid, cancelled=len(cancelled))
-    return {"calendar": cals.serialize(conn, conn.execute("SELECT * FROM cal_calendars WHERE id = ?", (cid,)).fetchone(), "manage"), "cancelled": len(cancelled)}
+    return {"calendar": cals.serialize(conn, store.calendar(conn, cid), "manage"), "cancelled": len(cancelled)}
 
 
 @router.post("/calendar/calendars/{cid}/restore")
@@ -208,7 +209,7 @@ def restore_calendar(cid: str, request: Request, principal: Principal = Depends(
     require(conn, principal, model.PERM_MANAGE, scope_of(cal))
     cals.restore(conn, cal, model.iso(_now()))
     _audit(conn, principal, request, "calendar.calendar.restore", "calendar", cid)
-    return {"calendar": cals.serialize(conn, conn.execute("SELECT * FROM cal_calendars WHERE id = ?", (cid,)).fetchone(), "manage")}
+    return {"calendar": cals.serialize(conn, store.calendar(conn, cid), "manage")}
 
 
 @router.get("/calendar/calendars/{cid}/members")
@@ -261,7 +262,7 @@ def rooms_day(date: str = Query(), calendars: str = Query(default=""), principal
     from ..services.tickets.hours import _local_instant  # noqa: PLC0415
 
     rooms = []
-    for cal in conn.execute("SELECT * FROM cal_calendars WHERE type = 'room' AND archived_at IS NULL ORDER BY name_key").fetchall():
+    for cal in store.live_rooms(conn):
         if (want and cal["id"] not in want) or not ctx.can_see(cal):
             continue
         z = ZoneInfo(cal["tz"])
@@ -287,7 +288,7 @@ def availability(body: Body, principal: Principal = Depends(current_principal_ro
     s = model.read_settings(conn)
     want = set(d.get("calendars") or [])
     free, nearest = [], []
-    for cal in conn.execute("SELECT * FROM cal_calendars WHERE type = 'room' AND archived_at IS NULL ORDER BY name_key").fetchall():
+    for cal in store.live_rooms(conn):
         if (want and cal["id"] not in want) or not ctx.can_see(cal) or ctx.role_in(cal) is None:
             continue
         if any(e not in json.loads(cal["equipment_json"]) for e in eq) or (hc and cal["capacity"] and hc > cal["capacity"]):
@@ -334,7 +335,7 @@ def get_event(eid: str, principal: Principal = Depends(current_principal_ro), co
     history = []
     if strong or ev["organizer_user_id"] == principal.user_id:
         history = [{"action": r["action"], "room_calendar_id": r["room_calendar_id"], "actor": r["actor_user_id"], "note": r["note"], "at": r["at"]}
-                   for r in conn.execute("SELECT * FROM cal_approvals WHERE event_id = ? ORDER BY rowid", (eid,)).fetchall()]
+                   for r in store.approvals(conn, eid)]
     return {"event": out, "history": history, "guests_count": guests.count(conn, eid) if strong or ev["organizer_user_id"] == principal.user_id else 0,
             "guests_visible": bool(role == "manage" or authorize(conn, principal, model.PERM_GUESTS, scope_of(cal)).allowed)}
 
@@ -353,7 +354,7 @@ def patch_event(eid: str, body: Body, request: Request, principal: Principal = D
         if only_attendees:
             out = {"event": events.get(ctx, eid), "orphaned_overrides": []}
         else:
-            before = conn.execute("SELECT calendar_id, starts_at, ends_at, state FROM cal_events WHERE id = ?", (eid,)).fetchone()
+            before = store.event_placement(conn, eid)
             out = events.update(ctx, model.read_settings(conn), eid, data, _now())
             ev = out["event"]
             # CAL-GRID-EDIT-2343: a move / resize from the grid is audited with what changed (ids and instants, never a title)
@@ -441,8 +442,8 @@ def my_calendar(frm: str | None = Query(default=None, alias="from"), to: str | N
     ctx = Ctx(conn, principal)
     mine = [o for o in events.occurrences(ctx, a, b, calendars=None, kinds=None, states=None)["occurrences"] if (o["organizer"] or {}).get("id") == principal.user_id]
     pending = [{"event_id": r["id"], "title": r["title"], "start": r["starts_at"], "end": r["ends_at"], "calendar_id": r["calendar_id"]}
-               for r in conn.execute("SELECT * FROM cal_events WHERE organizer_user_id = ? AND state = 'pending' AND override_of IS NULL ORDER BY starts_at", (principal.user_id,)).fetchall()
-               if ctx.can_see(conn.execute("SELECT * FROM cal_calendars WHERE id = ?", (r["calendar_id"],)).fetchone())]
+               for r in store.pending_organized(conn, principal.user_id)
+               if ctx.can_see(store.calendar(conn, r["calendar_id"]))]
     return {"occurrences": mine, "pending": pending}
 
 
