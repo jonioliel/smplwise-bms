@@ -253,20 +253,6 @@ export class SystemSchedules extends LitElement {
     .classgrid + .grouplabel {
       margin-block-start: var(--sw-s-4);
     }
-    /* CR-CMP2-TABLES-REST-2470 (owner N10): who may do what is the shared table inside the card (no second card, never wider than the
-       card); the tick in the success ink and the dash in the quiet ink reach its shadow root through the yes / no parts */
-    sw-table[data-sched-roles-table] {
-      --sw-table-min: 0;
-      --sw-table-fs: var(--sw-fs-base);
-      --sw-table-cell-pad: 10px 8px;
-    }
-    sw-table[data-sched-roles-table]::part(yes) {
-      color: var(--sw-success-text);
-      vertical-align: middle;
-    }
-    sw-table[data-sched-roles-table]::part(no) {
-      color: var(--sw-text-3);
-    }
     .rolesnote {
       margin: 12px 0 10px;
     }
@@ -567,7 +553,7 @@ export class SystemSchedules extends LitElement {
       { key: 'sensitive', label: tr('רגיש'), align: 'center', render: (r) => cell(r.sensitive) },
     ];
     return html`<sw-card heading=${tr('מי רשאי מה')} data-sched-roles>
-      <sw-table bare static-rows data-sched-roles-table rowKey="role" .columns=${cols as unknown as TableColumn[]} .rows=${ROLE_ROWS as unknown as Record<string, unknown>[]}
+      <sw-table class="set-matrix" bare static-rows data-sched-roles-table rowKey="role" .columns=${cols as unknown as TableColumn[]} .rows=${ROLE_ROWS as unknown as Record<string, unknown>[]}
         .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-sched-role': String(r.role) })}></sw-table>
       <p class="muted rolesnote">${tr('ברירות המחדל. ניהול תזמונים ותזמון פעולות רגישות (אזעקה, צופרים, מנעולים, דלתות ושערים) ניתנים במפורש לכל משתמש או תפקיד, בהיקף שבחרתם.')}</p>
       <sw-button size="sm" data-open-access @click=${() => navigate('/system/access')}>${tr('משתמשים והרשאות')}</sw-button>
