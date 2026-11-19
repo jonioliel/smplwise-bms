@@ -23,6 +23,8 @@ from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import elevators as el
 from ..services import elevators_store as store
 from ..services import ha_scope
+from ..wire import elevators as W
+from ..wire import wire
 
 router = APIRouter()
 READ, MANAGE = "devices.read", "infra.elevators.manage"
@@ -116,7 +118,7 @@ def _operator_out(conn: sqlite3.Connection, r: sqlite3.Row, sensors: list[sqlite
     return {"id": r["id"], "name": r["name"], "area_id": r["area_id"], "area_name": _area_name(conn, r["area_id"]), **el.live_of(sensors, connected=connected, travel=bool(r["show_travel"])), "uses_travel": bool(r["show_travel"])}
 
 
-@router.get("/infra/elevators")
+@router.get("/infra/elevators", **wire(W.ElevatorList))
 def list_elevators(history: int = Query(0, ge=0, le=24), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Every enabled elevator the caller may see with its derived live state, plus a summary for the home tile. Empty = feature absent.
     `history=24` (2.8.0) adds each elevator's state segments of the last 24 hours (only 24 is offered; 0 = none)."""
@@ -145,14 +147,14 @@ def _manage_out(conn: sqlite3.Connection, r: sqlite3.Row, sensors: list[sqlite3.
             "enabled": bool(r["enabled"]), "show_travel": bool(r["show_travel"]), "sort_order": r["sort_order"], "revision": r["revision"], "sensors": fixed, "extras": extras}
 
 
-@router.get("/infra/elevators/manage")
+@router.get("/infra/elevators/manage", **wire(W.ElevatorManageList))
 def manage_list(principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     rows = store.elevators(conn)
     sensors, connected = el.sensors_of(conn, [r["id"] for r in rows]), el.mirror_connected()
     return {"elevators": [_manage_out(conn, r, sensors.get(r["id"], []), connected) for r in rows], "roles": list(el.ROLES), "max_extras": el.MAX_EXTRAS}
 
 
-@router.get("/infra/elevators/candidates")
+@router.get("/infra/elevators/candidates", **wire(W.ElevatorCandidates))
 def candidates(q: str = Query("", max_length=80), principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The binary sensors the setter may link (devices.read scope), for the per-role select of the settings dialog."""
     rows = store.binary_sensor_candidates(conn)
@@ -200,7 +202,7 @@ def _alerts_writer(principal: Principal = Depends(current_principal), conn: sqli
     return principal
 
 
-@router.get("/infra/elevators/alerts")
+@router.get("/infra/elevators/alerts", **wire(W.ElevatorAlerts))
 def get_alerts(principal: Principal = Depends(_alerts_reader), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The elevator alert settings: master switch, per-state switches (all default off), recipients (roles / users / groups) and channels."""
     from ..services import elevator_alerts
@@ -209,7 +211,7 @@ def get_alerts(principal: Principal = Depends(_alerts_reader), conn: sqlite3.Con
             "can_whatsapp": authorize(conn, principal, NOTIFY_MANAGE, INSTALLATION).allowed}
 
 
-@router.put("/infra/elevators/alerts")
+@router.put("/infra/elevators/alerts", **wire(W.ElevatorAlerts))
 def put_alerts(body: AlertsIn, principal: Principal = Depends(_alerts_writer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Saves the alert settings (system.configure; audited, ids only). Turning a state off closes its open elevator notifications with the visible
     resolution "התראות המעליות כובו"; turning one on notifies only transitions that happen from now on."""
@@ -280,7 +282,7 @@ def _manage_one(conn: sqlite3.Connection, elevator_id: str) -> dict[str, Any]:
     return _manage_out(conn, _one(conn, elevator_id), el.sensors_of(conn, [elevator_id]).get(elevator_id, []), el.mirror_connected())
 
 
-@router.post("/infra/elevators", status_code=201)
+@router.post("/infra/elevators", status_code=201, **wire(W.ElevatorManaged))
 def create(body: ElevatorIn, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     name = " ".join(body.name.split())
     if not name:
@@ -296,7 +298,7 @@ def create(body: ElevatorIn, principal: Principal = Depends(_manage_w), conn: sq
     return _manage_one(conn, eid)
 
 
-@router.put("/infra/elevators/order")
+@router.put("/infra/elevators/order", **wire(W.ElevatorManageList))
 def reorder(body: OrderIn, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     have = store.elevator_ids(conn)
     if set(body.ids) != have or len(body.ids) != len(have):
@@ -306,7 +308,7 @@ def reorder(body: OrderIn, principal: Principal = Depends(_manage_w), conn: sqli
     return manage_list(principal, conn)
 
 
-@router.put("/infra/elevators/{elevator_id}")
+@router.put("/infra/elevators/{elevator_id}", **wire(W.ElevatorManaged))
 def update(elevator_id: str, body: ElevatorIn, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     cur = _one(conn, elevator_id)
     if body.revision is not None and body.revision != cur["revision"]:
@@ -337,7 +339,7 @@ def delete(elevator_id: str, principal: Principal = Depends(_manage_w), conn: sq
     audit(conn, actor=principal, action="infra.elevator.delete", decision="allowed", resource_type="infra_elevator", resource_id=elevator_id)
 
 
-@router.get("/infra/elevators/{elevator_id}")
+@router.get("/infra/elevators/{elevator_id}", **wire(W.ElevatorOperator))
 def get_one(elevator_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     rows, sensors = _visible_rows(conn, principal)
     r = next((x for x in rows if x["id"] == elevator_id), None)
