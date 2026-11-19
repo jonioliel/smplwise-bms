@@ -19,6 +19,7 @@ from ..errors import forbidden, validation
 from ..mode import installation_mode
 from ..rbac import INSTALLATION, Principal, bindings_of, effective_permissions, has_any_binding, permissions_anywhere, permissions_fingerprint
 from ..services import brand_assets, revocation
+from ..services import me_store as store
 from ..services import user_events, user_prefs
 
 router = APIRouter()
@@ -85,7 +86,7 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
         from ..services.ha_user_auth import session_of
 
         s = session_of(request)
-        cred = conn.execute("SELECT must_change, reset_mode FROM auth_local_credentials WHERE user_id = ?", (principal.user_id,)).fetchone()
+        cred = store.local_credential(conn, principal.user_id)
         admin = local_identity.holds_admin(conn, principal.user_id)
         extra["local_identity"] = {
             "admin_permissions": admin,
