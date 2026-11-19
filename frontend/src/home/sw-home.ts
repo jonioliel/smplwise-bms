@@ -27,7 +27,8 @@ import { notify } from '../api/notifications';
 import { snapshotUrl } from '../api/media';
 import { stillIntervalMs } from '../api/frigate';
 import { callResult } from './home-v3-words';
-import { diffWords, num1 } from './home-p3-logic';
+import { diffWords, fixedTariffPrice, num1 } from './home-p3-logic';
+import type { EnergyTariffList } from '../api/generated/wire-consumption';
 import { getCallLog, type CallLogRow } from '../api/intercom-calls';
 import { subscribeHa } from '../api/ha';
 import { relTime } from './home-api';
@@ -289,10 +290,7 @@ export class SwHome extends LitElement implements P3Host {
 
   private async loadPrice() {
     try {
-      const r = await get<{ items: { kind: string; current: { price?: string | null } | null }[] }>('energy/tariffs');
-      const fixed = r.items.find((x) => x.kind === 'fixed' && x.current?.price);
-      const v = fixed ? parseFloat(String(fixed.current?.price)) : NaN;
-      this.price = Number.isFinite(v) && v > 0 ? v : null;
+      this.price = fixedTariffPrice(await get<EnergyTariffList>('energy/tariffs'));
     } catch {
       this.price = null;
     }

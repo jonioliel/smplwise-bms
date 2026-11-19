@@ -6,6 +6,7 @@
  */
 import { apiUrl, del, get, patch, post, upload } from './client';
 import { tr } from '../i18n/msg/api-system';
+import type * as Wire from './generated/wire-consumption';
 
 type BackupKind = 'manual' | 'upload' | 'auto-pre-upgrade' | 'auto-daily' | 'auto-pre-restore' | string;
 
@@ -89,7 +90,8 @@ export interface MeterBackupSetting {
   bytes: number | null;
 }
 const METER_KEY = 'energy.include_history_in_backup';
-type EnergySettingsWire = { values?: Record<string, unknown>; editable?: Record<string, boolean>; storage?: { energy_db_bytes?: number } };
+// the answer of GET / PATCH /energy/settings: the backend's response model (generated, code review 07:F8 step 2); read tolerantly below
+type EnergySettingsWire = Wire.EnergySettings;
 function meterSetting(w: EnergySettingsWire): MeterBackupSetting | null {
   if (!w?.values || !(METER_KEY in w.values)) return null;
   return { on: w.values[METER_KEY] === true, editable: !!w.editable?.[METER_KEY], bytes: typeof w.storage?.energy_db_bytes === 'number' ? w.storage.energy_db_bytes : null };

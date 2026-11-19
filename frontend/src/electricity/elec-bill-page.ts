@@ -13,7 +13,7 @@ import { ERROR_TEXT, PDF_RETRYABLE, elec, elecErrorCode, elecErrorText, elecToda
 import { energyAccess } from './access';
 import { ElecBase, alertBox, billChip, n, skeleton, stateBox, type LoadState } from './elec-ui';
 import './elec-bill-paper';
-import { baseNumber, f2, fmtDate, fmtDateTime, fmtRange, isIsoDate, openingSource, readingText } from './elec-format';
+import { baseNumber, f2, fmtDate, ilsOr, fmtDateTime, fmtRange, isIsoDate, openingSource, readingText } from './elec-format';
 import { addManualReading, parseReading } from '../api/electricity-readings';
 import { go, href, route } from './elec-routes';
 import { dateInputLang } from '../api/day-format';
@@ -304,7 +304,7 @@ export class ElecBillPage extends ElecBase {
     return html`
       <elec-dialog heading=${tr('הנפקת חיוב')} ?open=${this.dlg === 'issue'} data-dialog="issue" @close=${() => this.close()}>
         <div>${tr('החיוב יקבל מספר. אחרי ההנפקה אי אפשר לערוך אותו, רק לבטל או לתקן.')}</div>
-        <dl class="kv"><dt>${tr('חשבון')}</dt><dd>${b.account_name}</dd><dt>${tr('תקופה')}</dt><dd>${n(fmtRange(b.period.from, b.period.to))}</dd><dt>${tr('סה״כ לתשלום')}</dt><dd>${n(f2(b.total) + ' ₪')}</dd></dl>${err}
+        <dl class="kv"><dt>${tr('חשבון')}</dt><dd>${b.account_name}</dd><dt>${tr('תקופה')}</dt><dd>${n(fmtRange(b.period.from, b.period.to))}</dd><dt>${tr('סה״כ לתשלום')}</dt><dd>${n(ilsOr(b.total))}</dd></dl>${err}
         <sw-button variant="primary" slot="actions" data-confirm ?disabled=${this.busy} @click=${() => this.issue()}>${tr('הנפקה')}</sw-button>${cancel()}
       </elec-dialog>
       <elec-dialog heading=${tr('ביטול חיוב {no}', { no: b.number ?? '' })} ?open=${this.dlg === 'void'} data-dialog="void" @close=${() => this.close()}>

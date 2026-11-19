@@ -32,6 +32,13 @@ export function fmtIls(v: string | number | null | undefined): string {
   return Number.isFinite(n) ? `${ILS.format(n)} ₪` : '';
 }
 
+/** CR-RESPONSE-MODELS-FOLLOWUP-2450: the sum of decimal strings the server may leave null (no period yet) or absent (no money permission);
+ * null when none of them has a value, so a total of nothing is a dash and not "0". */
+export function sumOrNull(values: (string | number | null | undefined)[]): number | null {
+  const real = values.filter((v): v is string | number => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v)));
+  return real.length ? real.reduce<number>((s, v) => s + Number(v), 0) : null;
+}
+
 export const BILL_STATE: Record<BillState, { label: string; cls: string }> = {
   draft: { label: 'טיוטה', cls: 'c-mut' },
   issued: { label: 'הונפק', cls: 'c-acc' },

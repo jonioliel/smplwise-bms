@@ -26,10 +26,12 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, effective_permissions, require
 from ..services import energy_calibration as ecal
 from ..services import energy_meters as meters
+from ..services import energy_meters_store as mstore
 from ..services import energy_settings as es
 from ..services import energy_store as st
 from ..services.energy_provider import EnergyProvider, coverage_of
 from ..services.timeutil import parse_utc
+from ..wire import energy_meters as W, wire
 from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
 
 router = APIRouter()
@@ -143,14 +145,14 @@ def _one(request: Request, conn: sqlite3.Connection, meter_id: str, *, detail: b
 
 # ---------------------------------------------------------------- candidates and meters
 
-@router.get("/energy/candidates")
+@router.get("/energy/candidates", **wire(W.EnergyCandidateList))
 def list_candidates(q: str | None = Query(None, max_length=80), area_id: str | None = Query(None, max_length=80), include_rejected: bool = Query(True),
                     limit: int = Query(50, ge=1, le=200), principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Infrastructure sensors that could be electricity meters, with the kWh/kW verdict (energy.manage)."""
     return {"items": meters.candidates(conn, q, area_id, include_rejected, limit)}
 
 
-@router.get("/energy/meters")
+@router.get("/energy/meters", **wire(W.EnergyMeterList))
 def list_meters(request: Request, include_retired: bool = Query(False), principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Electricity meters with their status (reporting / not reporting / paused), current value and today's kWh (energy.view)."""
     p = _provider(request, conn)
@@ -162,7 +164,7 @@ def list_meters(request: Request, include_retired: bool = Query(False), principa
     return {"items": [_meter_out(p, r, statuses[r["id"]], now, counts[r["id"]]) for r in rows], "stale_after_minutes": int(es.value(conn, "energy.stale_after_minutes"))}
 
 
-@router.get("/energy/meters/{meter_id}")
+@router.get("/energy/meters/{meter_id}", **wire(W.EnergyMeter))
 def get_meter(meter_id: str, request: Request, principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """One meter with its counter lives (epochs) and the accounts that use it (energy.view)."""
     return _one(request, conn, meter_id, detail=True)
@@ -175,7 +177,7 @@ class MeterCreate(_Body):
     max_kw: float | None = Field(None, gt=0, le=10000)
 
 
-@router.post("/energy/meters", status_code=201)
+@router.post("/energy/meters", status_code=201, **wire(W.EnergyMeter))
 def create_meter(request: Request, principal: Principal = Depends(_manager), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Register an infrastructure sensor as an electricity meter; the server repeats the kWh validation (energy.manage)."""
     body: MeterCreate = _parse(request, raw, MeterCreate)
@@ -200,7 +202,7 @@ class MeterPatch(_Body):
     status: Literal["active", "paused"] | None = None
 
 
-@router.patch("/energy/meters/{meter_id}")
+@router.patch("/energy/meters/{meter_id}", **wire(W.EnergyMeter))
 def patch_meter(meter_id: str, request: Request, principal: Principal = Depends(_manager), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Rename, move to an area, change the plausibility cap, pause or resume (energy.manage; revision-checked)."""
     body: MeterPatch = _parse(request, raw, MeterPatch)
@@ -219,7 +221,7 @@ def patch_meter(meter_id: str, request: Request, principal: Principal = Depends(
     return _one(request, conn, meter_id, detail=True)
 
 
-@router.delete("/energy/meters/{meter_id}")
+@router.delete("/energy/meters/{meter_id}", **wire(W.EnergyMeter))
 def retire_meter(meter_id: str, request: Request, revision: int = Query(ge=1), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Retire a meter (its data is kept); refused while an active account uses it (energy.manage)."""
     require(conn, principal, MANAGE, INSTALLATION)
@@ -237,7 +239,7 @@ class MeterReplace(_Body):
     note: str | None = Field(None, max_length=500)
 
 
-@router.post("/energy/meters/{meter_id}/replace")
+@router.post("/energy/meters/{meter_id}/replace", **wire(W.EnergyMeter))
 def replace_meter(meter_id: str, request: Request, principal: Principal = Depends(_manager), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Meter replacement or a new source sensor: closes the counter life and starts a new one (energy.manage)."""
     body: MeterReplace = _parse(request, raw, MeterReplace)
@@ -293,14 +295,14 @@ def _log(request: Request, conn: sqlite3.Connection, meter_id: str) -> dict[str,
     return ecal.meter_log(conn, p.store, p.tz, meters.require(conn, meter_id), now=_now_s())
 
 
-@router.get("/energy/meters/{meter_id}/manual-readings")
+@router.get("/energy/meters/{meter_id}/manual-readings", **wire(W.EnergyReadingLog))
 def manual_log(meter_id: str, request: Request, principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The meter's manual readings and calibrations (undone ones included, with who and when), the calibration in force, a suggested
     factor from two compared readings, and the first date a calibration may start (after the last issued bill) (energy.view)."""
     return _log(request, conn, meter_id)
 
 
-@router.post("/energy/meters/{meter_id}/manual-readings")
+@router.post("/energy/meters/{meter_id}/manual-readings", **wire(W.EnergyManualReadingSaved))
 def add_manual_reading(meter_id: str, request: Request, principal: Principal = Depends(_manager), raw: bytes = Depends(_raw_body),
                        conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A reading of the physical meter at an instant (energy.manage). Validated (not in the future, not before the meter, never lower
@@ -327,7 +329,7 @@ def add_manual_reading(meter_id: str, request: Request, principal: Principal = D
     return {"dry_run": False, "reading": out, "log": _log(request, conn, meter_id)}
 
 
-@router.post("/energy/meters/{meter_id}/manual-readings/{reading_id}/undo")
+@router.post("/energy/meters/{meter_id}/manual-readings/{reading_id}/undo", **wire(W.EnergyReadingLog))
 def undo_manual_reading(meter_id: str, reading_id: str, request: Request, principal: Principal = Depends(_manager), raw: bytes = Depends(_raw_body),
                         conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Undo a manual reading within 24 hours of saving it, while no issued bill depends on it (energy.manage). It stays in the list,
@@ -347,7 +349,7 @@ def undo_manual_reading(meter_id: str, reading_id: str, request: Request, princi
     return _log(request, conn, meter_id)
 
 
-@router.post("/energy/meters/{meter_id}/calibrations")
+@router.post("/energy/meters/{meter_id}/calibrations", **wire(W.EnergyCalibrationSaved))
 def add_calibration(meter_id: str, request: Request, principal: Principal = Depends(_manager), raw: bytes = Depends(_raw_body),
                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Calibrate the system counter against the physical meter from a date on (energy.manage): physical = factor x counter + offset.
@@ -373,7 +375,7 @@ def add_calibration(meter_id: str, request: Request, principal: Principal = Depe
     return {"dry_run": False, "calibration": out, "log": _log(request, conn, meter_id)}
 
 
-@router.post("/energy/meters/{meter_id}/calibrations/{calibration_id}/undo")
+@router.post("/energy/meters/{meter_id}/calibrations/{calibration_id}/undo", **wire(W.EnergyReadingLog))
 def undo_calibration(meter_id: str, calibration_id: str, request: Request, principal: Principal = Depends(_manager), raw: bytes = Depends(_raw_body),
                      conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Undo a calibration within 24 hours of saving it, while no issued bill uses it (energy.manage)."""
@@ -401,7 +403,7 @@ def _range(frm: str | None, to: str | None, default_span: dt.timedelta) -> tuple
     return start, end
 
 
-@router.get("/energy/meters/{meter_id}/series")
+@router.get("/energy/meters/{meter_id}/series", **wire(W.EnergySeries))
 def meter_series(meter_id: str, request: Request, frm: str | None = Query(None, alias="from", max_length=40), to: str | None = Query(None, max_length=40),
                  step: Literal["15m", "1h", "1d"] = Query("1h"), principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Consumption series of one meter in kWh per 15 minutes, hour or local day (energy.view; at most 3000 points)."""
@@ -449,7 +451,7 @@ def meter_series(meter_id: str, request: Request, frm: str | None = Query(None, 
     return {"meter_id": meter_id, "step": step, "unit": "kWh", "items": items}
 
 
-@router.get("/energy/meters/{meter_id}/readings")
+@router.get("/energy/meters/{meter_id}/readings", **wire(W.EnergyReadings))
 def meter_readings(meter_id: str, request: Request, frm: str | None = Query(None, alias="from", max_length=40), to: str | None = Query(None, max_length=40),
                    limit: int = Query(500, ge=1, le=5000), principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Raw cumulative readings of one meter (kept for the raw retention; energy.view)."""
@@ -463,7 +465,7 @@ def meter_readings(meter_id: str, request: Request, frm: str | None = Query(None
     return {"meter_id": meter_id, "items": items, "truncated": len(rows) > limit}
 
 
-@router.get("/energy/consumption")
+@router.get("/energy/consumption", **wire(W.EnergyConsumption))
 def consumption(request: Request, meter_ids: str = Query(min_length=1, max_length=2000), frm: str = Query(alias="from", max_length=40), to: str = Query(max_length=40),
                 principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """kWh of each meter between two instants, allocated by time, with coverage and the last report (energy.view)."""
@@ -489,42 +491,29 @@ def consumption(request: Request, meter_ids: str = Query(min_length=1, max_lengt
 
 # ---------------------------------------------------------------- settings
 
-def _draft_usage(conn: sqlite3.Connection) -> dict[str, int]:
-    """Draft bills of the billing branch (retention "טיוטות"): rows and the bytes of their JSON columns; zeros before its table exists."""
-    try:
-        cols = {r[1] for r in conn.execute("PRAGMA table_info(energy_bills)").fetchall()}
-        if not cols:
-            return {"rows": 0, "bytes_estimate": 0}
-        size = " + ".join(f"COALESCE(LENGTH({c}), 0)" for c in ("snapshot_json", "totals_json") if c in cols) or "0"
-        row = conn.execute(f"SELECT COUNT(*), COALESCE(SUM({size}), 0) FROM energy_bills WHERE state = 'draft'").fetchone()
-        return {"rows": int(row[0]), "bytes_estimate": int(row[1])}
-    except sqlite3.Error:
-        return {"rows": 0, "bytes_estimate": 0}
-
-
 def _settings_out(request: Request, conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
     perms = set(effective_permissions(conn, principal, INSTALLATION))
     vals = es.values(conn, perms | {VIEW})
     store = st.store_for(settings_of(request))
     counts = store.counts()
-    n_meters = int(conn.execute("SELECT COUNT(*) FROM energy_meters WHERE status <> 'retired'").fetchone()[0])
+    n_meters = mstore.live_meter_count(conn)
     est = es.estimate(n_meters, int(vals["energy.raw_retention_days"]), int(vals["energy.interval_retention_months"]), int(vals["energy.bill_retention_years"]))
     storage = {"energy_db_bytes": store.file_bytes(), "classes": {
         "raw": {"rows": counts["readings"], "bytes_estimate": counts["readings"] * es.RAW_ROW_BYTES},
         "intervals": {"rows": counts["intervals"], "bytes_estimate": counts["intervals"] * es.INTERVAL_ROW_BYTES},
         "daily": {"rows": counts["daily"], "bytes_estimate": counts["daily"] * es.DAILY_ROW_BYTES},
-        "drafts": _draft_usage(conn)}, "estimate": est}
+        "drafts": mstore.draft_usage(conn)}, "estimate": est}
     editable = {k: s.permission in perms for k, s in es.SPECS.items() if k in vals}
     return {"values": vals, "editable": editable, "ranges": {k: v for k, v in es.ranges().items() if k in vals}, "storage": storage}
 
 
-@router.get("/energy/settings")
+@router.get("/energy/settings", **wire(W.EnergySettings))
 def get_settings(request: Request, principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Electricity settings: retention values with the storage estimate, the not-reporting threshold (energy.view)."""
     return _settings_out(request, conn, principal)
 
 
-@router.patch("/energy/settings")
+@router.patch("/energy/settings", **wire(W.EnergySettings))
 def patch_settings(request: Request, principal: Principal = Depends(_settings_editor), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Change electricity settings; each key is checked against its own permission (retention: system.configure)."""
     if not _is_json(request.headers.get("content-type")):

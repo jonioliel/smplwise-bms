@@ -13,16 +13,10 @@
 import { get } from '../api/client';
 import { isApi, onSession } from '../api/session';
 import { applyInfraWater } from '../shell/nav';
+import type * as Wire from '../api/generated/wire-consumption';
 
-interface WaterStatus {
-  enabled: boolean;
-  can_view: boolean;
-  can_manage: boolean;
-  can_configure: boolean;
-  can_ack: boolean;
-  can_bills: boolean;
-  meters: number;
-}
+/** GET infra/water/status: the backend's response model (generated, code review 07:F8 step 2). */
+type WaterStatus = Wire.WaterStatus;
 
 export interface WaterAccess {
   /** the status was read (or failed): until then the screen shows its loading state */

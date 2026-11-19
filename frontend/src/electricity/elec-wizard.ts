@@ -18,7 +18,7 @@ import './elec-formula-editor';
 import './meter-picker';
 import type { ElecFormulaEditor, FormulaChange } from './elec-formula-editor';
 import { astToTokens, parseTokens, presetTokens, type Tok } from './elec-formula';
-import { MONTH_NAMES, addDays, billNumber, f2, f4, fmtDate, fmtRange, isIsoDate, monthName, nextPeriods, periodContaining, r2 } from './elec-format';
+import { MONTH_NAMES, NO_VALUE, addDays, billNumber, customerName, f2, f4, fmtDate, fmtRange, isIsoDate, monthName, nextPeriods, periodContaining, r2 } from './elec-format';
 import { go, href, route } from './elec-routes';
 import { meterNames } from './meter-name';
 import { dateInputLang } from '../api/day-format';
@@ -131,7 +131,7 @@ export class ElecAccountWizard extends ElecBase {
         this.firstStart = a.first_period_start;
         this.auto = a.auto_mode;
         this.accName = a.name;
-        this.existingId = a.customer.id;
+        this.existingId = a.customer?.id ?? ''; // CR-RESPONSE-MODELS-FOLLOWUP-2450: null when the customer row is gone (edit never sends it)
         this.custMode = 'existing';
         this.reached = 6;
       }
@@ -150,7 +150,7 @@ export class ElecAccountWizard extends ElecBase {
   }
   private cust(): { name: string; number: string; count: number } {
     if (this.custMode === 'existing') {
-      const c = this.customers.find((x) => x.id === this.existingId) ?? (this.account ? { name: this.account.customer.name, customer_number: this.account.customer.customer_number, account_count: 1 } : null);
+      const c = this.customers.find((x) => x.id === this.existingId) ?? (this.account ? { name: customerName(this.account), customer_number: this.account.customer?.customer_number ?? NO_VALUE, account_count: 1 } : null);
       return c ? { name: c.name, number: c.customer_number, count: c.account_count } : { name: '', number: this.nextNo, count: 0 };
     }
     return { name: this.nc.name, number: this.nc.customer_number || this.nextNo, count: 0 };
@@ -374,7 +374,7 @@ export class ElecAccountWizard extends ElecBase {
     const ex = this.customers.find((c) => c.id === this.existingId);
     const q = this.custQ.trim();
     const list = this.customers.filter((c) => !q || c.name.includes(q) || c.customer_number.includes(q));
-    return html`${this.edit ? alertBox('info', html`${tr('הלקוח של חשבון קיים לא משתנה כאן.')} <b>${this.account?.customer.name}</b>`) : html`<div class="seg" style="align-self:flex-start" role="group" aria-label=${tr('לקוח')}><button type="button" data-cust-mode="new" aria-pressed=${this.custMode === 'new'} @click=${() => (this.custMode = 'new')}>${tr('לקוח חדש')}</button><button type="button" data-cust-mode="existing" aria-pressed=${this.custMode === 'existing'} @click=${() => (this.custMode = 'existing')}>${tr('לקוח קיים')}</button></div>`}
+    return html`${this.edit ? alertBox('info', html`${tr('הלקוח של חשבון קיים לא משתנה כאן.')} <b>${this.account ? customerName(this.account) : ''}</b>`) : html`<div class="seg" style="align-self:flex-start" role="group" aria-label=${tr('לקוח')}><button type="button" data-cust-mode="new" aria-pressed=${this.custMode === 'new'} @click=${() => (this.custMode = 'new')}>${tr('לקוח חדש')}</button><button type="button" data-cust-mode="existing" aria-pressed=${this.custMode === 'existing'} @click=${() => (this.custMode = 'existing')}>${tr('לקוח קיים')}</button></div>`}
       ${this.edit ? nothing : this.custMode === 'existing'
         ? html`<input type="search" data-cust-search style="max-inline-size:none" aria-label=${tr('חיפוש לקוח')} placeholder=${tr('חיפוש לקוח')} .value=${this.custQ} @input=${(e: Event) => (this.custQ = (e.target as HTMLInputElement).value)} />
             <div class="list" role="radiogroup" aria-label=${tr('לקוח קיים')} data-cust-list>${list.map((c) => html`<label class="li ${c.id === this.existingId ? 'sel' : ''}" data-cust-row=${c.id}><input type="radio" name="cust" .checked=${c.id === this.existingId} @change=${() => (this.existingId = c.id)} /><span class="ind"></span><div class="grow"><div class="t1">${c.name}</div><div class="t2">${tr('מספר לקוח')} ${n(c.customer_number)} · ${c.account_count} ${tr('חשבונות')}</div></div></label>`)}

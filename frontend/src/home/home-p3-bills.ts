@@ -7,7 +7,7 @@
 import { html, nothing } from 'lit';
 import { apiUrl } from '../api/client';
 import type { P3 } from './home-p3';
-import { BILL_STATE, billForecast, ils, money, periodName, vsLast } from './home-p3-logic';
+import { BILL_STATE, billForecast, billsWithTotal, ils, money, periodName, vsLast } from './home-p3-logic';
 import { tr } from '../i18n/msg/home';
 
 const shekels = (n: number) => html`<span class="num">${ils(n)}</span><span class="cur"> ₪</span>`;
@@ -44,7 +44,7 @@ export function sBills(p: P3) {
   if (B.loading && !B.status) return html`${h.head(tr('חשבון חשמל'), '', html`${pick}${back}`)}<div class="empty loading" aria-busy="true">${ic('bill')}<h2>${tr('טוענים את החשבון…')}</h2></div>`;
   const soFar = money(B.status?.amount_so_far);
   const per = B.status?.period ?? null;
-  const prev = B.periods.filter((x) => x.bill && x.bill.state !== 'void' && x.bill.state !== 'draft' && money(x.bill.total) != null);
+  const prev = billsWithTotal(B.periods);
   if (B.error || (soFar == null && !prev.length)) return html`${h.head(tr('חשבון חשמל'), '', html`${pick}${back}`)}${p.empty('bill', tr('עוד אין חשבון'), tr('אחרי החודש הראשון נראה כאן כמה שילמתם וכמה צפוי.'))}`;
   const fc = billForecast(soFar, per?.from, per?.to);
   const last = prev.length ? money(prev[0].bill?.total) : null;
