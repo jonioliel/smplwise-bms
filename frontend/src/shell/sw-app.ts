@@ -25,6 +25,8 @@ import { listAlerts } from '../api/rules';
 import { notifyStore } from '../components/notify-store';
 import { badgeLabel } from '../components/notify-logic';
 import { ShellNotify } from './notify-wiring'; // CR-SHELL-EXTRACT-2440 (07:F24): the notification wiring (badge numbers, center state, push deep links)
+import { NavOverlay } from './overlay-history'; // CR-SHELL-EXTRACT-B-2450: the overlays' history entry and the Back button (review M4)
+import { PermissionsNotice } from './permissions-notice'; // CR-SHELL-EXTRACT-B-2450: "your permissions were updated" (T055)
 import { inAndroidShell } from '../arx/android-app';
 import { DESKTOP_ONLY, STRUCTURE_DESKTOP_ONLY, phoneRestricted, routeGuardKind, onMobileOptions, setInstallationMobileOptions, type MobileKind } from './phone';
 import '../screens/devices-building';
@@ -146,11 +148,18 @@ export class SwApp extends LitElement {
   private searchSeq = 0;
   private stopRouter?: () => void;
   private stopSession?: () => void;
-  /** T055: the /me/ws access channel - a permissions change re-fetches /me, re-mounts the screen and says so. */
-  private stopPermissions?: () => void;
-  @state() private permEpoch = 0;
-  @state() private permToast = '';
-  private permToastTimer = 0;
+  /** T055: the /me/ws access channel - a permissions change re-fetches /me, re-mounts the screen and says so.
+   * CR-SHELL-EXTRACT-B-2450: the channel, the screen's epoch and the notice's text and timer live in shell/permissions-notice.ts;
+   * the shell passes the session calls and keeps the notice's markup (renderPermToast). */
+  private perm = new PermissionsNotice(this, {
+    watch: (onChanged) => watchPermissions(onChanged),
+    reload: () => loadSession(),
+    afterReload: () => resetAlarmPresence(), // the alarm pages follow the new permissions (the session listener asks again)
+    text: () => tr('ההרשאות שלך עודכנו'),
+    announce: () => void window.dispatchEvent(new CustomEvent('sw-permissions-changed')),
+    setTimer: (fn, ms) => window.setTimeout(fn, ms),
+    clearTimer: (id) => window.clearTimeout(id),
+  });
   private stopWiskeyNav?: () => void;
   private stopAlarmPresence?: () => void;
   /** CR-013: the user menu (from the avatar, the navigation's last item), the tab-order dialog, the open alerts
@@ -1018,8 +1027,11 @@ export class SwApp extends LitElement {
     .perm-toast {
       position: fixed;
       inset-block-end: calc(24px + env(safe-area-inset-bottom, 0px));
-      inset-inline-start: 50%;
-      transform: translateX(50%);
+      /* CR-SHELL-EXTRACT-B-2450 (RTL/LTR): centred by the auto margins between two zero insets - the same place in Hebrew as the old
+         inset-inline-start 50% + translateX(50%), which pushed the notice off the right edge in a left-to-right interface */
+      inset-inline: 0;
+      margin-inline: auto;
+      inline-size: fit-content;
       z-index: var(--sw-z-topbar);
       padding: 10px 18px;
       border-radius: var(--sw-r-md);
@@ -1906,7 +1918,6 @@ export class SwApp extends LitElement {
     this.toggleAttribute('data-android-shell', inAndroidShell()); // the app reserves the status bar itself (CR-013)
     this.setAttribute('data-design', 'a'); // the one design: the attribute stays as the styling hook of the shell's CSS
     this.phoneMq.addEventListener('change', this.onPhoneMq);
-    window.addEventListener('popstate', this.onPopState);
     this.stopNavOrder = onNavOrder((o) => (this.navOrder = o));
     this.stopNavSize = onNavSize((sz) => (this.nav = navDims(sz)));
     this.stopUpdateMark = onUpdateState(() => { this.updateMark = updateAvailable(); this.restartMark = restartRequired(); });
@@ -1957,7 +1968,7 @@ export class SwApp extends LitElement {
       if (s.mode === 'demo' && this.landedDefault) this.land(START_ROUTES.devices);
       if (s.mode === 'api' && this.route) this.redirectDemo(this.route);
       if (s.mode === 'api') void refreshAlarmPresence(); // one answer per session, kept 10 minutes (no request per screen)
-      if ((s.mode === 'api' || s.mode === 'no_access') && !this.stopPermissions) this.stopPermissions = watchPermissions(() => void this.onPermissionsChanged());
+      this.perm.follow(s.mode); // T055: api / no_access follow the access channel (once)
       if (s.mode === 'api' && !this.sysStarted) {
         void productSettings().then((ps) => {
           HIDDEN_HREFS.clear();
@@ -2049,7 +2060,7 @@ export class SwApp extends LitElement {
       if (!replaced) {
         // CR-013: a menu item (or any navigation) closes the user menu and the tab-order dialog; their history entry
         // is behind the new one now and simply stays (Back returns to the same screen)
-        this.overlayEntry = false;
+        this.overlay.forget();
         this.closeMenu(false, false);
         this.orderOpen = false;
         this.notify.routeChanged(); // the center closes, unless a deep link has just opened it
@@ -2245,9 +2256,8 @@ export class SwApp extends LitElement {
     this.stopIncidents?.();
     this.stopRouter?.();
     this.stopSession?.();
-    this.stopPermissions?.();
-    this.stopPermissions = undefined;
-    window.clearTimeout(this.permToastTimer);
+    // CR-SHELL-EXTRACT-B-2450: the access channel and the notice's timer end in PermissionsNotice.hostDisconnected, the popstate
+    // listener in NavOverlay.hostDisconnected (both inside super.disconnectedCallback)
     this.stopWiskeyNav?.();
     this.stopAlarmPresence?.();
     // CR-SHELL-EXTRACT-2440: the notification store's subscription and live events end in ShellNotify.hostDisconnected (super.disconnectedCallback)
@@ -2267,7 +2277,6 @@ export class SwApp extends LitElement {
     this.stopMobileOptions?.();
     this.stopBrandLogo?.();
     this.phoneMq.removeEventListener('change', this.onPhoneMq);
-    window.removeEventListener('popstate', this.onPopState);
     window.removeEventListener('keydown', this.onGlobalKey);
     this.searchPanel = false;
     this.syncSearchOutside();
@@ -2681,24 +2690,15 @@ export class SwApp extends LitElement {
   /** SESSION-DEMO-WS-2435: /me failed while a backend is there (a 502 while the add-on restarts) - the existing offline state, no demo
    * data and nothing granted; session.ts asks again with back-off, the button asks now. */
   private renderRetry() {
-    return html`<sw-state-panel state="stale" data-session-retry heading="אין חיבור לשרת" hint=${`${this.session.error ? `${this.session.error} · ` : ''}מנסה להתחבר שוב…`}
-      actionLabel="נסה עכשיו" @action=${() => void loadSession()}></sw-state-panel>`;
+    // CR-SHELL-EXTRACT-B-2450: the first-load note reads in the interface language (it was Hebrew in every language)
+    return html`<sw-state-panel state="stale" data-session-retry heading=${tr('אין חיבור לשרת')} hint=${`${this.session.error ? `${this.session.error} · ` : ''}${tr('מנסה להתחבר שוב…')}`}
+      actionLabel=${tr('נסה עכשיו')} @action=${() => void loadSession()}></sw-state-panel>`;
   }
 
+  /** T055: the notice after a permissions change (shell/permissions-notice.ts keeps its text and its 5 s timer). */
   private renderPermToast() {
-    return this.permToast ? html`<div class="perm-toast" role="status" aria-live="polite" data-perm-toast>${this.permToast}</div>` : nothing;
-  }
-
-  /** T055: the server says this user's access changed - re-read /me (navigation and gates follow the session), re-mount
-   * the current screen so it re-fetches what it may still see, and tell the user. */
-  private async onPermissionsChanged() {
-    await loadSession();
-    resetAlarmPresence(); // the alarm pages follow the new permissions (the session listener asks again)
-    this.permEpoch += 1;
-    this.permToast = tr('ההרשאות שלך עודכנו');
-    window.clearTimeout(this.permToastTimer);
-    this.permToastTimer = window.setTimeout(() => (this.permToast = ''), 5000);
-    window.dispatchEvent(new CustomEvent('sw-permissions-changed'));
+    const text = this.perm.text;
+    return text ? html`<div class="perm-toast" role="status" aria-live="polite" data-perm-toast>${text}</div>` : nothing;
   }
 
   private renderScreen() {
@@ -2711,7 +2711,7 @@ export class SwApp extends LitElement {
       for (const tag of waiting) loadScreen(tag, () => this.requestUpdate());
       return html`${this.renderPermToast()}`;
     }
-    return html`${keyed(this.permEpoch, view)}${this.renderPermToast()}`;
+    return html`${keyed(this.perm.epoch, view)}${this.renderPermToast()}`;
   }
 
   private renderRoute() {
@@ -3001,91 +3001,56 @@ export class SwApp extends LitElement {
     this.closeMenu(false, false);
     this.orderOpen = false;
     this.notify.show();
-    this.pushOverlay();
+    this.overlay.push();
   }
 
   private closeCenter() {
     if (!this.notify.hide()) return;
-    this.popOverlay();
+    this.overlay.pop();
     this.menuTrigger?.focus({ preventScroll: true });
   }
 
   // ---- overlays and the Back button (review M4): while the phone sheet or the tab-order dialog is open, one history
-  // entry (same address) stands for it, so Back closes the overlay instead of leaving the screen underneath ----
+  // entry (same address) stands for it, so Back closes the overlay instead of leaving the screen underneath.
+  // CR-SHELL-EXTRACT-B-2450: the entry, the run that waits for its popstate and the popstate listener live in
+  // shell/overlay-history.ts (NavOverlay); the shell says which overlays close on Back. ----
 
-  private overlayEntry = false;
+  private overlay = new NavOverlay(this, {
+    history: window.history,
+    target: window,
+    onBack: () => {
+      this.orderOpen = false;
+      this.notify.dismiss();
+      this.closeMenu(true, false);
+    },
+  });
 
-  private pushOverlay() {
-    if (this.overlayEntry) return;
-    this.overlayEntry = true;
-    try {
-      window.history.pushState({ ...(window.history.state ?? {}), swOverlay: true }, '');
-    } catch {
-      this.overlayEntry = false;
-    }
+  /** The overlays a menu item leaves: the menu (its entry is dropped by NavOverlay.leave), the tab-order dialog, the center. */
+  private dismissOverlays() {
+    this.closeMenu(false, false);
+    this.orderOpen = false;
+    this.notify.dismiss();
   }
-
-  /** The overlay closed by itself (✕, Esc, save): drop its history entry. */
-  private popOverlay() {
-    if (!this.overlayEntry) return;
-    this.overlayEntry = false;
-    if ((window.history.state as { swOverlay?: boolean } | null)?.swOverlay) window.history.back();
-  }
-
-  /** What a menu item does once its overlay entry is gone (navigateFromOverlay / runFromOverlay). */
-  private pendingRun: (() => void) | null = null;
 
   /** A menu item's navigation: close the overlay, drop its history entry first (Back then returns to the screen the
    * user was on, not to a duplicate of it), then go. */
   private navigateFromOverlay(href: string) {
     if (href === '#/home') void put('me/interface', { interface: 'home' }).catch(() => undefined); // HOME-SIMPLE-2420: the choice is remembered for the next visit
-    this.closeMenu(false, false);
-    this.orderOpen = false;
-    this.notify.dismiss();
-    const own = this.overlayEntry && (window.history.state as { swOverlay?: boolean } | null)?.swOverlay;
-    this.overlayEntry = false;
-    if (own) {
-      this.pendingRun = () => (window.location.hash = href);
-      window.history.back();
-    } else {
-      window.location.hash = href;
-    }
+    this.dismissOverlays();
+    this.overlay.leave(() => (window.location.hash = href));
   }
 
   /** A menu item that acts on the screen instead of leaving it (a screen's edit mode): the same order as a navigation -
    * close the menu, drop its history entry (Back then still means "leave the screen"), then run. */
   private runFromOverlay(run: () => void) {
-    this.closeMenu(false, false);
-    this.orderOpen = false;
-    this.notify.dismiss();
-    const own = this.overlayEntry && (window.history.state as { swOverlay?: boolean } | null)?.swOverlay;
-    this.overlayEntry = false;
-    if (own) {
-      this.pendingRun = run;
-      window.history.back();
-    } else {
-      run();
-    }
+    this.dismissOverlays();
+    this.overlay.leave(run);
   }
-
-  private onPopState = (e: PopStateEvent) => {
-    if (this.pendingRun) {
-      const run = this.pendingRun;
-      this.pendingRun = null;
-      run();
-      return;
-    }
-    if (!this.overlayEntry || (e.state as { swOverlay?: boolean } | null)?.swOverlay) return;
-    this.overlayEntry = false;
-    this.orderOpen = false;
-    this.notify.dismiss();
-    this.closeMenu(true, false);
-  };
 
   private openMenu(from: HTMLElement | null) {
     this.menuTrigger = from;
     this.menuOpen = true;
-    if (this.phone) this.pushOverlay();
+    if (this.phone) this.overlay.push();
     void this.pollAlerts();
     void refreshUpdateMarker();
   }
@@ -3093,7 +3058,7 @@ export class SwApp extends LitElement {
   private closeMenu(restoreFocus = true, dropEntry = true) {
     if (!this.menuOpen) return;
     this.menuOpen = false;
-    if (dropEntry) this.popOverlay();
+    if (dropEntry) this.overlay.pop();
     if (restoreFocus) this.menuTrigger?.focus({ preventScroll: true });
   }
 
@@ -3146,14 +3111,14 @@ export class SwApp extends LitElement {
           // the sheet hands over to the dialog: its history entry now stands for the dialog
           this.closeMenu(false, false);
           this.orderOpen = true;
-          this.pushOverlay();
+          this.overlay.push();
         }}>${this.renderMenuPills()}</sw-user-menu>
       <sw-nav-order .open=${this.orderOpen} .tabs=${visibleAreas(api, canNav, this.navOrder).filter((a) => a.id !== 'notices' && a.id !== 'calendars') /* NOTICEADD-295: follows מולטימדיה, not movable; CALENDARS-UI-2310: follows ראשי */} .order=${[...this.navOrder]}
         .onSave=${(o: string[]) => saveNavOrder(o)} .onReset=${() => resetNavOrder()}
         @close=${() => {
           if (!this.orderOpen) return;
           this.orderOpen = false;
-          this.popOverlay();
+          this.overlay.pop();
           this.menuTrigger?.focus({ preventScroll: true });
         }}></sw-nav-order>
       ${this.gated ? nothing : html`<notify-center .open=${this.notify.open} .focusId=${this.notify.focusId} .confirmDoor=${this.notify.confirmDoor}

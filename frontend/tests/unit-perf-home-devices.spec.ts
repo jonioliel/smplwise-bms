@@ -100,7 +100,7 @@ test.describe('lazy screen chunks', () => {
     const body = app.slice(app.indexOf('private renderScreen()'), app.indexOf('private renderRoute()'));
     expect(body).toContain('waitingScreenTags(view)');
     expect(body).toContain('loadScreen(tag, () => this.requestUpdate())');
-    expect(body.indexOf('waitingScreenTags(view)')).toBeLessThan(body.indexOf('keyed(this.permEpoch, view)'));
+    expect(body.indexOf('waitingScreenTags(view)')).toBeLessThan(body.indexOf('keyed(this.perm.epoch, view)'));
     expect(loadScreen('not-a-screen')).toBe(false);
   });
 
