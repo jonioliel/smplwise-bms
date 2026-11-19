@@ -72,13 +72,47 @@ Time-of-use (TOU) definitions name their seasons, day types and bands in Hebrew 
 
 The fixed-price tariff `name` (typed by the manager) and water tariff names are data and stay as typed.
 
+## Fixes found while testing (second commit)
+
+- The first ring kept the `LogRecord` itself; a record's `args` / `exc_info` keep the logging frames and their locals
+  (connections, requests) alive while the line is held. A first runner run of the full suite on that head showed 8
+  failures/errors in its first ~4 % (test_alarm, test_app_refresh_295 x2, test_access_grants, test_automations_preview,
+  test_backpressure, test_bridge_key_rotation_295 x2 - setup errors and two failures); all 8 pass on the fixed head when their six
+  files run together on the runner (219 passed, 0 failed). The ring now keeps the formatted text only.
+- `RING` registers its per-test reset (`smplwise.test_reset`; tests/test_singletons_registered.py).
+- `tests/gate_always_run.json` lists `test_correlation_helper_2440.py` (it walks the package; tests/test_gate_always_run.py).
+
 ## Tests actually run
 
-TBD
+Workstation (`.venv` Python 3.12, `-p no:xdist`):
+- New files: `test_correlation_helper_2440.py` (4), `test_log_export_t033.py` (24), `test_tariff_names_en_2440.py` (6) -
+  34 passed (first head); `test_log_export_t033.py` and `test_correlation_helper_2440.py` passed again on the fixed head (below).
+- Existing, related: `test_energy_tou_engine.py`, `test_energy_tou_billing.py`, `test_health_report.py`,
+  `test_correlation_id_sx17.py`, `test_router_common_helpers.py` - 100 passed, 2 skipped (declared).
+- Touched routers: `test_frigate_config.py`, `test_frigate_control.py`, `test_frigate_f2b.py`, `test_local_auth_inventory.py`,
+  `test_remote_access.py`, `test_saved_views.py`, `test_second_factor.py`, `test_settings_patch_audit_order.py`,
+  `test_router_common_helpers.py` - 186 passed, 0 failed.
+- Package scanners / meta (fixed head): `test_singletons_registered`, `test_active_user_rest_2438`,
+  `test_async_routes_no_inline_db`, `test_db_gate`, `test_gate_always_run`, `test_setting_callers_2440`,
+  `test_switch_protection_reach_guard`, `test_confirm_words_2442`, `test_adoptr6_295`, `test_bridge_common_2440`,
+  `test_select_tests`, `test_gate2_select`, `test_get_routes_read_conn`, `test_log_export_t033`, `test_correlation_helper_2440` -
+  965 passed, 1 failed (`test_gate_always_run` - the new scanner was not listed; fixed in the same commit, the file then
+  19 passed).
+- `ruff check --select F smplwise` (the backend lint rule): clean.
+
+Runner (`~/work/besmall2440`, `nice -n 10`, 6 shards by file, `-m "not timing_lane"`):
+- The six files of the first run's failures, fixed head: 219 passed, 0 failed.
+- The full backend suite on the fixed head (af5b7fbdb) was started at 02:55 UTC and was still running when this note was
+  written (load average ~100 from other jobs: ~2,600 tests done, 0 failed at 03:35 UTC). Result: `~/work/besmall2440-results/
+  summary.txt` (per-shard last lines, every FAILED / ERROR, then `DONE`); logs `shard_0*.log` in the same folder.
 
 ## NOT_RUN
 
-TBD
+- The full backend suite to the end (running on the runner, see above).
+- Frontend: nothing touched; no tsc / playwright / pixel run needed.
+- No entry check (instructed: push only).
+- No lab / device test: AT066 on a real installation (an export after a real NVR / go2rtc error) is NOT_RUN;
+  `management/test_catalog.json` (AT066) and `management/tasks.json` (T033) were not edited - the lead records the evidence.
 
 ## Questions (owner rule: unanswered = recommendation)
 
