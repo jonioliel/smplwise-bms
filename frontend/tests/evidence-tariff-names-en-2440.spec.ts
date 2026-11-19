@@ -49,6 +49,7 @@ test.describe('time-of-use tariff names in English', () => {
     await screen(page, 'settings-prices');
     const { d, ed } = await newTouTariff(page, 'תעו״ז דירות');
     await ed.locator('[data-tou-structure] > summary').click();
+    await expect(ed.locator('[data-tou-structure]')).toHaveAttribute('open', ''); // a tap opens it on the phone sheet too (sw-sheet fix)
     const en = (k: string) => ed.locator(`[data-tou-name-en="${k}"]`);
     await expect(ed.locator('[data-tou-name-en]')).toHaveCount(8); // 3 seasons, 3 day types, 2 bands
     await expect(en('seasons:summer')).toHaveValue('Summer');
@@ -72,6 +73,7 @@ test.describe('time-of-use tariff names in English', () => {
     await expect(row).toContainText('שפל / פסגה'); // Hebrew interface: Hebrew names
     await row.click();
     await d.locator('elec-tou-editor [data-tou-structure] > summary').click();
+    await expect(d.locator('elec-tou-editor [data-tou-structure]')).toHaveAttribute('open', '');
     await expect(en('bands:peak')).toHaveValue('Peak hours');
     await expect(en('seasons:transition')).toHaveValue('');
     await expect(en('day_types:friday')).toHaveValue('Fri & holiday eves');
@@ -94,6 +96,7 @@ test.describe('time-of-use tariff names in English', () => {
     await expect(ed.locator('[data-tou-season="summer"]')).toContainText('Weekdays');
     // a band renamed in Hebrew without an English name shows its Hebrew name
     await ed.locator('[data-tou-structure] > summary').click();
+    await expect(ed.locator('[data-tou-structure]')).toHaveAttribute('open', ''); // a tap opens it on the phone sheet too (sw-sheet fix)
     await ed.locator('[data-tou-band-name="peak"]').fill('שיא');
     await ed.locator('[data-tou-name-en="bands:peak"]').fill('');
     await expect(prices).toContainText('שיא');
