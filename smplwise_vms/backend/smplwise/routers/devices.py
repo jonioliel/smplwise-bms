@@ -39,6 +39,7 @@ from ..services import device_activity
 from ..services import device_bulk as bulk
 from ..services import device_types
 from ..services import devices as svc
+from ..services import devices_store as store
 from ..services import building_scope, door_authority, ha_bridge, ha_client, ha_scope, ha_sync, home_screen, switch_protection, user_prefs
 from ..services import service_identity
 from ..services.timeutil import parse_utc
@@ -176,7 +177,7 @@ def device_activity_feed(
     A lock or alarm panel needs the permission that operates it (door.unlock / alarm.arm; alarm.view too for a panel). Only the domains of
     services/device_activity.ACTIVITY_DOMAINS: any other entity is 404. Read-only; never calls Home Assistant."""
     placed, _scoped = ha_scope.scoped_rows(conn, principal, READ, [{"entity_id": entity_id}])  # devices.read at the entity's placement (audited 403 when held nowhere)
-    row = conn.execute("SELECT entity_id, name, domain, device_class FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
+    row = store.live_entity_brief(conn, entity_id)
     if not placed or row is None or row["domain"] not in device_activity.ACTIVITY_DOMAINS:
         raise ApiError(404, "not_found", "ההתקן לא נמצא.")
     perms = device_activity.SECURITY_PERMISSIONS.get(row["domain"])
@@ -192,7 +193,7 @@ def device_activity_feed(
         raise ApiError(422, "validation", "פרמטר לא תקין: " + ("cursor" if str(exc) == "cursor" else "since / until חייבים להיות UTC (Z).")) from exc
     ck = None
     if row["domain"] == "climate":
-        ck = svc.climate_kind_overrides(conn).get(entity_id) or svc.climate_kind_auto(json.loads(conn.execute("SELECT attributes_json FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()[0] or "{}"))
+        ck = svc.climate_kind_overrides(conn).get(entity_id) or svc.climate_kind_auto(json.loads(store.entity_attributes_json(conn, entity_id) or "{}"))
     out["entity"] = {"entity_id": entity_id, "name": row["name"] or entity_id, "domain": row["domain"], "activity_kind": device_activity.activity_kind(row["domain"], row["device_class"], ck, row["name"], device_types.overrides(conn).get(entity_id)),
                      "virtual": row["domain"] in device_activity.VIRTUAL_DOMAINS, "power": device_activity.linked_power(conn, entity_id)}
     return out
@@ -423,7 +424,7 @@ def _protect_refusal(conn: sqlite3.Connection, entity_id: str, action: str, poli
     """Why this id cannot take `action` (None = it can): not_switch (not a switch of the catalogue), not_markable (a
     Scheduler component switch - not a device), and - to protect or unprotect - alarm_managed / media_managed /
     doors_layer (never in a group action whatever the mark: the row is read-only). Approving an auto row is only a review."""
-    row = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
+    row = store.live_entity_domain(conn, entity_id)
     if not row or row["domain"] != "switch":
         return "not_switch"
     if svc.is_scheduler(conn, entity_id):  # CR-014: a schedule's switch is not a device
@@ -453,7 +454,7 @@ def list_bulk_protected(principal: Principal = Depends(current_principal_ro), co
     require(conn, principal, "system.configure", INSTALLATION)
     policy = bulk.SwitchPolicy(conn)
     media_managed = _media_managed(conn)
-    rows_p = {r["entity_id"]: dict(r) for r in conn.execute("SELECT * FROM device_bulk_protected").fetchall()}
+    rows_p = {r["entity_id"]: dict(r) for r in store.bulk_protected(conn)}
     entities = svc.load_entities(conn)
     floors, areas = svc.load_structure(conn, entities)
     fname = {f["floor_id"]: f["name"] for f in floors}
@@ -532,7 +533,7 @@ def set_bulk_protected(entity_id: str, request: Request, principal: Principal = 
     protection is permanent against the classifier (verdict `admin_cleared`). A switch the alarm section or the multimedia
     screens own, or one on the map's door layer, is never in a group action whatever its mark: 409."""
     body = _json_body(request, raw, ProtectBody)
-    row = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
+    row = store.live_entity_domain(conn, entity_id)
     if not row:
         raise ApiError(404, "not_found", "הישות לא נמצאה בקטלוג.")
     if row["domain"] != "switch":
@@ -587,18 +588,15 @@ def set_climate_kind(entity_id: str, body: ClimateKindBody, request: Request, pr
     """Override the group of a climate entity - air conditioning (ac) or heating - or return it to automatic (its own
     hvac_modes decide). system.configure; audited. Only a climate entity has a group."""
     require(conn, principal, "system.configure", INSTALLATION)
-    row = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
+    row = store.live_entity_domain(conn, entity_id)
     if not row:
         raise ApiError(404, "not_found", "הישות לא נמצאה בקטלוג.")
     if row["domain"] != "climate":
         raise ApiError(422, "validation", "רק התקן אקלים (climate) משויך למיזוג או לחימום.")
     if body.kind == "auto":
-        conn.execute("DELETE FROM device_climate_kind WHERE entity_id = ?", (entity_id,))
+        store.delete_climate_kind(conn, entity_id)
     else:
-        conn.execute(
-            "INSERT INTO device_climate_kind(entity_id, kind, set_by, set_by_username, set_at) VALUES (?,?,?,?,?) ON CONFLICT(entity_id) DO UPDATE SET kind = excluded.kind, set_by = excluded.set_by, set_by_username = excluded.set_by_username, set_at = excluded.set_at",
-            (entity_id, body.kind, principal.user_id, principal.username, now_iso()),
-        )
+        store.upsert_climate_kind(conn, entity_id, body.kind, principal.user_id, principal.username, now_iso())
     audit(conn, actor=principal, action="devices.climate_kind", decision="allowed", resource_type="ha_entity", resource_id=entity_id,
           request_id=_rid(request), details={"kind": body.kind})
     e = next((x for x in svc.load_entities(conn) if x["entity_id"] == entity_id), None)
@@ -731,10 +729,10 @@ def assign_area(entity_id: str, request: Request, principal: Principal = Depends
     except ValidationError as exc:
         fields = sorted({".".join(str(p) for p in err["loc"]) or "body" for err in exc.errors()})
         raise ApiError(422, "validation", "הבקשה אינה תקינה: " + ", ".join(fields), details={"fields": fields}) from None
-    erow = conn.execute("SELECT entity_id, area_id FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
+    erow = store.live_entity_area(conn, entity_id)
     if not erow:
         raise ApiError(404, "not_found", "הישות לא נמצאה בקטלוג.")
-    arow = conn.execute("SELECT area_id, name, floor_id FROM ha_areas WHERE area_id = ?", (body.area_id,)).fetchone()
+    arow = store.area(conn, body.area_id)
     if not arow:
         raise ApiError(404, "area_not_found", "האזור לא נמצא.")
     settings = settings_of(request)
@@ -764,11 +762,8 @@ def assign_area(entity_id: str, request: Request, principal: Principal = Depends
     if not ok:
         status = 404 if error in ("entity_not_found", "area_not_found") else 502
         raise ApiError(status, "bridge_error", "תשתית המערכת דחתה את שיוך האזור.", details={"error": error})
-    frow = conn.execute("SELECT name FROM ha_floors WHERE floor_id = ?", (arow["floor_id"],)).fetchone() if arow["floor_id"] else None
-    conn.execute(
-        "UPDATE ha_entities SET area_id = ?, area_name = ?, ha_floor_id = ?, ha_floor_name = ?, updated_at = ? WHERE entity_id = ?",
-        (arow["area_id"], arow["name"], arow["floor_id"], frow["name"] if frow else None, now_iso(), entity_id),
-    )
+    frow = store.floor_name(conn, arow["floor_id"]) if arow["floor_id"] else None
+    store.set_entity_area(conn, entity_id, arow["area_id"], arow["name"], arow["floor_id"], frow["name"] if frow else None, now_iso())
     return {"entity_id": entity_id, "area_id": arow["area_id"], "area_name": arow["name"]}
 
 
@@ -873,7 +868,7 @@ def _envelope(act: _Refusals, body: BulkBody) -> dt.datetime:
         raise act.refuse(ApiError(409, "expired", "הבקשה פגה לפני שהגיעה לשרת, ולכן לא נשלח דבר. אם השעון במכשיר שלכם אינו מדויק, תקנו אותו."))
     if expires > now + dt.timedelta(seconds=bulk.EXPIRY_MAX_S):
         raise act.refuse(ApiError(422, "expires_too_far", f"תוקף הבקשה חייב להסתיים תוך {int(bulk.EXPIRY_MAX_S)} שניות."))
-    seen = act.conn.execute("SELECT id FROM device_bulk_actions WHERE principal_user_id = ? AND client_request_id = ?", (act.principal.user_id, body.client_request_id)).fetchone()
+    seen = store.bulk_action_by_client_request(act.conn, act.principal.user_id, body.client_request_id)
     if seen:
         raise act.refuse(ApiError(409, "duplicate_command", "הפקודה הזו כבר נשלחה (אותו מזהה פקודה), ולכן לא נשלחה שוב.", details={"bulk_id": seen["id"]}))
     return min(expires, now + dt.timedelta(seconds=bulk.SEND_WITHIN_S))
