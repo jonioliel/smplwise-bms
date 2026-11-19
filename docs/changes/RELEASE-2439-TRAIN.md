@@ -121,3 +121,28 @@ grown to 15 GB - no `tmp_path_retention_policy=failed`; the late failures in tha
 a result). The temp folders were deleted (disk 100 % -> 94 %). The full backend then runs inside the release gate (selection: full
 backend, 996 files).
 
+## 5. Release gate
+
+Runner tooling (lead note, 19.11): `release_gate.py` + `gate_summary.py` of W3B-FE in `~`, `~/gate2`, `~/nightly-gate`; ruff installed.
+Launched by `~/wait_gate_2439.sh` (`release_gate2.sh release/2439-train`, nice 10; selection vs `v2.43.8` = the full tier: backend
+996/996 files, frontend 1163/1163 specs). The runner was shared all night (other agents' backend / Playwright jobs; load 50-115 on
+16 cores). Its disk was full when the first gate was queued: my own run's temp folders were removed and the owner-approved
+`prune_gate_dirs.sh` logic was run once by hand (7 old entry worktrees of merged branches, 7.9 -> 22 GB free); the gate waited for
+the tests lock held by `push_watch`.
+
+| Run | Sha | Result |
+|---|---|---|
+| 1 | 88bd6bc54 | **FAIL** after 24 min in the early layout stage (fail-fast): `layout-dd-click:66` placement 4 desktop and `dropdown-phone-choice:411` desktop, both failed again alone at load 99-107. Re-run alone on the runner (`run_smart preview`, desktop, workers 1, load 37): 36 passed - run faults |
+| 2 | 88bd6bc54 (`GATE_EARLY_FAILFAST=continue`, `--resume`) | **FAIL**, 200-minute budget exhausted (load up to 115). Backend complete: 23,501 passed, 10 failed (no retry time). Preview 20,985 passed, 192 failed (180 = the unit specs fixed in 9439362d5..2e1904d47, which the gate ran in all three projects; the rest timeouts), dev 378 / 151 failed (timeouts), pixel / fixture / visual did not finish. One real hard failure: ESLint `no-misused-promises` in `notice-tv/main.ts:715` |
+
+Fixes after run 2:
+
+| Commit | What |
+|---|---|
+| ba7b82a46 | `notice-tv/main.ts`: `if (document.fonts)` instead of a Promise in the condition (CR-TV-FONTS-ESCAPE x CR-FE-GATES-ENFORCE); runner `npx eslint src`: rc=0 |
+| 7257b2d53 | `test_bridge_key_activation_295::test_h03` reads the bridge-key module and its three pack files; `test_lease_wire_closed_295::test_a_status_binding_denied_ends_the_session_as_lost` reads the lease row until it is written (pre-existing race, failed 2 of 3 alone on the runner; code and test unchanged since v2.43.8) |
+| 670716c08 | UI rebuilt at 7257b2d53 (only the TV board chunk changed; sha256 `2a76283b...fa63a54`) |
+
+Runner re-runs at ba7b82a46 before run 3: the 10 backend failures alone - 8 passed, 2 failed (fixed in 7257b2d53, then both files
+passed locally); `layout-timescrub-noscroll` + `dropdown-phone-choice`, all projects, workers 1: 96 passed.
+

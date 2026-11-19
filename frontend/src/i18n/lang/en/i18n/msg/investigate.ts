@@ -752,6 +752,7 @@ export const en = {
   'סוף הטווח:': 'End of range:',
   'סנכרון: שעון־אב אחד לכל האריחים (חסם פתיחה, ואז חציון זמני הפריימים המוצגים; מתחת לשלושה אריחים — המוביל); הסטייה של כל אריח נמדדת מול השעון, p95 על החלון האחרון; אריח מאחר מסונכרן לבד ואינו מזיז את האחרים (best effort, ללא עוגן זמן מאומת); מהירויות שונות מ־1× כבויות; מקור בלי הקלטה בזמן הזה מוצג כ"אין הקלטה", לא כמסונכרן':
     'Sync: one master clock for every tile (a start barrier, then the median of the frame times on screen; under three tiles — the lead); each tile\'s drift is measured against the clock, p95 over the last window; a late tile is resynced alone and does not move the others (best effort, no verified time anchor); speeds other than 1× are off; a source without a recording at this time shows "No recording", never as synced',
+  'סנכרון: שעון־אב אחד': 'Sync: one master clock',
   'דמו · אין שרת מחובר': 'Demo · no server connected',
   'צילום מהקלטה': 'Snapshot from recording',
   'במפה בזמן הזה': 'On the map at this time',
