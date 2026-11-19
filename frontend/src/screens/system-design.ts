@@ -3,6 +3,8 @@ import { customElement, state } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import '../components/sw-card';
 import '../components/sw-button';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { describeError } from '../api/client';
 import { getSettings, patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
@@ -15,8 +17,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { t } from '../i18n/he';
 import { BACKGROUND_MODES, BACKGROUND_SLOTS, customBackgroundUrl, installationBackground, onBackground, ownBackgroundChoice, saveDemoBackground, saveOwnBackground, setInstallationBackground, type BackgroundMode, type BackgroundSlot } from '../design/background';
 import { deleteBackground, uploadBackground } from '../api/background';
-import { settingsPlainRowStyles, settingsStackLabelStyles, settingsMutedHintStyles, settingsSegKeyStateStyles, settingsFootStatusStyles } from '../styles/settings';
-import { segTrackStyles, segThumbStyles } from '../styles/fragments';
+import { settingsPlainRowStyles, settingsStackLabelStyles, settingsMutedHintStyles, settingsFootStatusStyles } from '../styles/settings';
 import { tr } from '../i18n/msg/system-a';
 
 const SCHEME_LABEL: Record<Scheme, string> = { light: tr('בהיר'), dark: tr('כהה'), auto: tr('אוטומטי') };
@@ -245,22 +246,7 @@ export class SystemDesign extends LitElement {
       border-radius: var(--m-r-sm);
       background: var(--m-accent);
     }
-    ${segTrackStyles}
-    .seg button {
-      all: unset;
-      box-sizing: border-box;
-      display: inline-flex;
-      align-items: center;
-      min-block-size: 36px;
-      padding: 0 14px;
-      border-radius: var(--sw-r-sm);
-      color: var(--sw-text-2);
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-medium);
-      cursor: pointer;
-    }
-    ${segThumbStyles}
-    ${settingsSegKeyStateStyles}
+    /* CR-CMP2-SELECTS-2450 (owner N11): the rows' keys are sw-segmented (the shared settings key) */
     ${settingsFootStatusStyles}
     /* CRY: the two picture slots of the custom background */
     .slots {
@@ -475,6 +461,12 @@ export class SystemDesign extends LitElement {
     >`;
   }
 
+  /** CR-CMP2-SELECTS-2450 (owner N11): one settings row's keys - sw-segmented, each key keeping its data hook (`attr` = the value). */
+  private seg<V extends string>(label: string, values: readonly V[], current: V, attr: string, labelOf: (v: V) => string, pick: (v: V) => void, disabled: boolean) {
+    return html`<sw-segmented label=${label} value=${current} ?disabled=${disabled} .options=${values.map((v) => ({ value: v, label: labelOf(v), attrs: { [attr]: v } }))}
+      @change=${(e: CustomEvent<SegmentedChange>) => pick(e.detail.value as V)}></sw-segmented>`;
+  }
+
   render() {
     const preview = themeOf(this.draftScheme);
     const cur = installationDesign();
@@ -492,36 +484,21 @@ export class SystemDesign extends LitElement {
         </div>
       </div>
       <div class="row"><span class="lbl">${tr('תנועה')}<span class="muted">${tr('אוטומטי עוקב אחרי הגדרת המכשיר; מלא מתעלם ממנה; מופחת מבטל תנועה')}</span></span>
-        <span class="seg" role="group" aria-label=${tr('תנועה')}>
-          ${MOTION_MODES.map((m) => html`<button type="button" data-motion-option=${m} aria-pressed=${this.draftMotion === m ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => (this.draftMotion = m)}>${MOTION_LABEL[m]}</button>`)}
-        </span></div>
+        ${this.seg(tr('תנועה'), MOTION_MODES, this.draftMotion, 'data-motion-option', (m) => MOTION_LABEL[m], (m) => (this.draftMotion = m), !this.canEdit)}</div>
       <div class="row" data-enter-row><span class="lbl">${t('entryAnim.label')}<span class="muted">${t('entryAnim.note')}</span></span>
-        <span class="seg" role="group" aria-label=${t('entryAnim.label')}>
-          ${ENTER_MODES.map((m) => html`<button type="button" data-enter-option=${m} aria-pressed=${this.draftEnter === m ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => (this.draftEnter = m)}>${t(m === 'on' ? 'entryAnim.on' : 'entryAnim.off')}</button>`)}
-        </span></div>
+        ${this.seg(t('entryAnim.label'), ENTER_MODES, this.draftEnter, 'data-enter-option', (m) => t(m === 'on' ? 'entryAnim.on' : 'entryAnim.off'), (m) => (this.draftEnter = m), !this.canEdit)}</div>
       <div class="row" data-chip-on-row><span class="lbl">${t('chipOn.label')}<span class="muted">${t('chipOn.note')}</span></span>
-        <span class="seg" role="group" aria-label=${t('chipOn.label')}>
-          ${CHIP_ON_MODES.map((m) => html`<button type="button" data-chip-on-option=${m} aria-pressed=${this.draftChip === m ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => (this.draftChip = m)}>${t(`chipOn.${m}`)}</button>`)}
-        </span></div>
+        ${this.seg(t('chipOn.label'), CHIP_ON_MODES, this.draftChip, 'data-chip-on-option', (m) => t(`chipOn.${m}`), (m) => (this.draftChip = m), !this.canEdit)}</div>
       ${SKINS[this.draftSkin].darkRail
         ? html`<div class="row" data-rail-row><span class="lbl">${tr('סרגל הניווט')}<span class="muted">${tr('כהה = סרגל כחול-כהה גם במראה הבהיר')}</span></span>
-            <span class="seg" role="group" aria-label=${tr('סרגל הניווט')}>
-              ${RAIL_TONES.map((r) => html`<button type="button" data-rail-option=${r} aria-pressed=${this.draftRail === r ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => (this.draftRail = r)}>${RAIL_LABEL[r]}</button>`)}
-            </span></div>`
+            ${this.seg(tr('סרגל הניווט'), RAIL_TONES, this.draftRail, 'data-rail-option', (r) => RAIL_LABEL[r], (r) => (this.draftRail = r), !this.canEdit)}</div>`
         : nothing}
       <div class="row"><span class="lbl">${tr('צבעוניות של המערכת')}<span class="muted">${tr('ברירת המחדל לכל המשתמשים; אוטומטי עוקב אחרי המכשיר')}</span></span>
-        <span class="seg" role="group" aria-label=${tr('צבעוניות של המערכת')}>
-          ${SCHEMES.map((s) => html`<button type="button" data-scheme-option=${s} aria-pressed=${this.draftScheme === s ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => (this.draftScheme = s)}>${SCHEME_LABEL[s]}</button>`)}
-        </span></div>
+        ${this.seg(tr('צבעוניות של המערכת'), SCHEMES, this.draftScheme, 'data-scheme-option', (s) => SCHEME_LABEL[s], (s) => (this.draftScheme = s), !this.canEdit)}</div>
       <div class="row"><span class="lbl">${tr('הצבעוניות אצלי')}<span class="muted">${tr('רק בדפדפן הזה; "כמו המערכת" מבטל')}</span></span>
-        <span class="seg" role="group" aria-label=${tr('הצבעוניות אצלי')}>
-          <button type="button" data-own-scheme="system" aria-pressed=${this.own === null ? 'true' : 'false'} @click=${() => this.setOwn(null)}>${tr('כמו המערכת')}</button>
-          ${SCHEMES.map((s) => html`<button type="button" data-own-scheme=${s} aria-pressed=${this.own === s ? 'true' : 'false'} @click=${() => this.setOwn(s)}>${SCHEME_LABEL[s]}</button>`)}
-        </span></div>
+        ${this.seg(tr('הצבעוניות אצלי'), ['system', ...SCHEMES] as const, this.own ?? 'system', 'data-own-scheme', (s) => (s === 'system' ? tr('כמו המערכת') : SCHEME_LABEL[s]), (s) => this.setOwn(s === 'system' ? null : s), false)}</div>
       <div class="row ${this.draftBackground === 'custom' ? 'col' : ''}"><span class="lbl">${t('background.label')}<span class="muted">${t('background.note')}</span></span>
-        <span class="seg" role="group" aria-label=${t('background.label')}>
-          ${BACKGROUND_MODES.map((m) => html`<button type="button" data-bg-option=${m} aria-pressed=${this.draftBackground === m ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => (this.draftBackground = m)}>${BG_LABEL[m]()}</button>`)}
-        </span>
+        ${this.seg(t('background.label'), BACKGROUND_MODES, this.draftBackground, 'data-bg-option', (m) => BG_LABEL[m](), (m) => (this.draftBackground = m), !this.canEdit)}
         ${this.draftBackground === 'custom'
           ? html`<div class="slots" data-bg-slots>${BACKGROUND_SLOTS.map((s) => this.slotCard(s))}</div>
               <span class="muted">${isApi() ? `${t('background.hint')}. ${t('background.fallback')}` : t('background.demoOnly')}</span>
@@ -530,10 +507,7 @@ export class SystemDesign extends LitElement {
           : nothing}
       </div>
       <div class="row"><span class="lbl">${t('background.ownLabel')}<span class="muted">${t('background.ownNote')}</span></span>
-        <span class="seg" role="group" aria-label=${t('background.ownLabel')}>
-          <button type="button" data-own-bg="system" aria-pressed=${this.ownBackground === null ? 'true' : 'false'} @click=${() => void this.setOwnBackground(null)}>${t('background.likeSystem')}</button>
-          ${BACKGROUND_MODES.map((m) => html`<button type="button" data-own-bg=${m} aria-pressed=${this.ownBackground === m ? 'true' : 'false'} @click=${() => void this.setOwnBackground(m)}>${BG_LABEL[m]()}</button>`)}
-        </span></div>
+        ${this.seg(t('background.ownLabel'), ['system', ...BACKGROUND_MODES] as const, this.ownBackground ?? 'system', 'data-own-bg', (m) => (m === 'system' ? t('background.likeSystem') : BG_LABEL[m]()), (m) => void this.setOwnBackground(m === 'system' ? null : m), false)}</div>
       <div class="foot">
         <sw-button variant="primary" size="sm" icon="check" data-design-save ?disabled=${!this.canEdit || !this.dirty || this.busy} @click=${() => void this.save()}>${tr('שמור')}</sw-button>
         ${this.message ? html`<span class="ok" role="status" data-design-message>${this.message}</span>` : nothing}
