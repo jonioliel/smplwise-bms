@@ -92,3 +92,17 @@ The PC ran at 100 % CPU (other agents) for most of the afternoon; several timeou
    `hideBelow` gains a "narrow desktop" step.
 3. Generator phase table and alert routing: move after `CR-CMP2-TABLES-CONSUMPTION-2450` merges (foot row; band rows added to `sw-table`
    there or in a follow-up), with the routing "on" checkbox as a small `sw-toggle`. Recommendation: one follow-up row.
+
+## Release train 2.45.0, phase 1 - runner pass (RELEASE-2450-TRAIN agent, 19.11 evening)
+
+Runner, own worktree `~/work/t2450-genm` at `66ab050fd`, `nice -n 19`, preview build, `--workers=2`, `--retries=1`, no `-u`:
+
+- Every spec file with a Linux baseline (58 files, all projects): **801 passed, 518 skipped (no baseline for that project), 1 flaky,
+  0 failed** (23.7 min). The flaky one is `visual-matrix` `state-panels panels dark` on mobile (`Page.captureScreenshot` protocol error,
+  passed on retry; it is flaky on every branch tonight). **No baseline changed: nothing refreshed** - the shared SELECTS / TABLES specs
+  (`pixel-sw-segmented`, `pixel-sw-table`, `pixel-audit30g-video`, `pixel-access-s12`, `pixel-settings-intercom-cards-2401`, the
+  visual-matrix settings screens) all match the baselines already in the branch.
+- The NOT_RUN browser specs above, all projects: `evidence-maintenance`, `layout-maint-log-2443`, `evidence-genlog-092`,
+  `evidence-genalert`, `evidence-generator`: **123 passed, 8 skipped, 1 flaky, 0 failed** (4.5 min; flaky: `evidence-maintenance:230`
+  "empty and error states" on mobile, passed on retry).
+- `layout-noscroll-1366 -g generator` (desktop): **4 passed**.
