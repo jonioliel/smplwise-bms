@@ -712,7 +712,7 @@ function lobbyFonts(skin: Skin): boolean {
     const done = (): void => {
       lobbyFontsIn.add(fam);
       render();
-      if (document.fonts && document.fonts.ready) void document.fonts.ready.then(() => (skinActive ? skinBoard?.refit() : undefined));
+      if (document.fonts) void document.fonts.ready.then(() => (skinActive ? skinBoard?.refit() : undefined));
     };
     LOBBY_FONTS[fam]().then(done, done);
   }
