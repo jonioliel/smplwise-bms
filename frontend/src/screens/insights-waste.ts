@@ -1,7 +1,9 @@
-import { html, nothing } from 'lit';
+import { css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-icon';
-import { getWaste, type RangeQuery, type WasteAnswer } from '../api/insights';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
+import { getWaste, type RangeQuery, type WasteAnswer, type WasteItem } from '../api/insights';
 import { InsightList } from '../insights/list-base';
 import { kpi, pageHead } from '../insights/chrome';
 import { deviceLabel, fmtClock, fmtHM, fmtNum, fmtWhen, placeLabel, wasteCounts, wasteLines, type WasteFilter } from '../insights/model';
@@ -17,7 +19,17 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 export class InsightsWaste extends InsightList<WasteAnswer> {
   @state() private filter: WasteFilter = 'all';
 
-  static styles = [insightCss, bubbleChrome];
+  static styles = [
+    insightCss,
+    bubbleChrome,
+    // CR-CMP2-TABLES-2450: the shared table inside the list card - the card's quiet header band, never wider than the card
+    css`
+      sw-table[data-waste-table] {
+        --sw-table-min: 0;
+        --sw-table-head-bg: var(--sw-surface-2);
+      }
+    `,
+  ];
 
   protected fetchData(q: RangeQuery) {
     return getWaste(q);
@@ -33,11 +45,16 @@ export class InsightsWaste extends InsightList<WasteAnswer> {
   private table(a: WasteAnswer) {
     const rows = wasteLines(a, this.place, this.filter);
     if (!rows.length) return nothing;
-    return html`<div class="tw"><table><thead><tr><th>${ix('place')}</th><th class="hide-m">${ix('device')}</th><th>${ix('kind')}</th><th class="hide-m">${ix('when')}</th><th class="n">${ix('duration')}</th></tr></thead>
-      <tbody>${rows.map((r) => html`<tr data-waste-row=${r.kind}><td class="title">${r.area ?? r.name}${r.floor ? html` <span class="muted">· ${r.floor}</span>` : nothing}</td>
-        <td class="hide-m">${r.area ? r.name : ''} <span class="muted">${ix(deviceLabel(r.domain))}</span></td>
-        <td>${ix(r.kind === 'empty_room' ? 'kEmpty' : 'kAfter')}</td>
-        <td class="hide-m date">${fmtWhen(r.first_at, a.zone)}-${fmtClock(r.last_at, a.zone)}</td><td class="n">${fmtHM(r.minutes)}</td></tr>`)}</tbody></table></div>`;
+    // CR-CMP2-TABLES-2450 (owner N10): the shared table; the device and time columns step out below the tablet width (were 900 px)
+    const cols: TableColumn<WasteItem>[] = [
+      { key: 'place', label: ix('place'), render: (r) => html`<span class="t1">${r.area ?? r.name}${r.floor ? html` <span class="mut">· ${r.floor}</span>` : nothing}</span>` },
+      { key: 'device', label: ix('device'), hideBelow: 'tablet', render: (r) => html`${r.area ? r.name : ''} <span class="mut">${ix(deviceLabel(r.domain))}</span>` },
+      { key: 'kind', label: ix('kind'), render: (r) => ix(r.kind === 'empty_room' ? 'kEmpty' : 'kAfter') },
+      { key: 'when', label: ix('when'), hideBelow: 'tablet', render: (r) => html`<span class="num">${fmtWhen(r.first_at, a.zone)}-${fmtClock(r.last_at, a.zone)}</span>` },
+      { key: 'minutes', label: ix('duration'), kind: 'num', render: (r) => fmtHM(r.minutes) },
+    ];
+    return html`<sw-table bare static-rows data-waste-table .rowKey=${'key'} .columns=${cols as unknown as TableColumn[]} .rows=${rows as unknown as Record<string, unknown>[]}
+      .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-waste-row': String(r.kind) })}></sw-table>`;
   }
 
   private night(a: WasteAnswer) {
