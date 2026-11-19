@@ -2,6 +2,8 @@ import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import { describeError } from '../api/client';
 import { downloadLogCsv, listEvents, type LogQuery, type RangeKey, type TempEvent, type TempUnit } from '../api/temperature';
 import { eventDuration, eventText, eventValue, heldText, hhmm } from './model';
@@ -41,21 +43,15 @@ export class TempLog extends LitElement {
     .filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 12px; border-block-end: 1px solid var(--sw-border); }
     .filters select { min-block-size: var(--sw-ctl-h-sm); border-radius: var(--sw-r-pill); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); padding: 0 12px; font: inherit; }
     .filters .sp { flex: 1; }
-    .scrollx { overflow-x: auto; }
-    table { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-sm); }
-    th, td { text-align: start; padding: 10px 12px; border-block-end: 1px solid var(--sw-border); vertical-align: middle; }
-    th { background: var(--sw-surface-2); font-weight: var(--sw-fw-bold); color: var(--sw-heading); white-space: nowrap; font-size: var(--sw-fs-xs); letter-spacing: 0.01em; }
-    td { font-size: var(--sw-fs-md); }
-    td small { display: block; color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
-    .sev { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; font-weight: var(--sw-fw-bold); color: var(--c-text); background: var(--c-soft); border-radius: var(--sw-r-pill); padding: 3px 10px 3px 8px; font-size: var(--sw-fs-sm); }
-    .sev i { inline-size: 9px; block-size: 9px; border-radius: 50%; background: var(--c); }
-    .num { white-space: nowrap; }
+    /* CR-CMP2-TABLES-2450 (owner N10): the log is the shared table inside the card - the card's header band, the page's reading size,
+       never wider than the card (the value and duration columns step out on a phone) */
+    sw-table[data-temp-log-table] { --sw-table-min: 0; --sw-table-head-bg: var(--sw-surface-2); --sw-table-cell-pad: 10px 12px; --sw-table-fs: var(--sw-fs-md); }
+    .hint { margin: 0; padding: 16px 12px; color: var(--sw-text-3); }
     .foot { display: flex; justify-content: center; padding: 10px; }
     .err { color: var(--sw-danger-text); padding: 12px; }
     @media (max-width: 700px) {
       .top { flex-direction: column; align-items: stretch; }
       .top .sp { display: none; }
-      th:nth-child(5), td:nth-child(5), th:nth-child(6), td:nth-child(6) { display: none; }
     }
   `];
 
@@ -97,15 +93,29 @@ export class TempLog extends LitElement {
     }
   }
 
-  render() {
+  /** CR-CMP2-TABLES-2450: the log columns - time, unit (+ area), event (+ why it was held), severity and status chips in the shared
+   * tones, value and duration (LTR isolates; left out on a phone) */
+  private columns(now: number, area: Map<string, string>): TableColumn<TempEvent>[] {
     const lang = uiLocale();
-    const now = Date.now();
-    const area = new Map(this.units.map((u) => [u.id, u.area_name ?? '']));
-    const sev = (s: string) => (s === 'alarm' ? 'var(--tc-alarm)' : s === 'warning' ? 'var(--tc-warn)' : 'var(--tc-acc)');
+    const tone = (s: string) => (s === 'alarm' ? 'bad' : s === 'warning' ? 'warn' : 'info');
     const day = (iso: string) => {
       const d = new Date(iso);
       return now - d.getTime() > 20 * 3600_000 ? `${dayMonthText(d)} ` : '';
     };
+    return [
+      { key: 'started_at', label: tt('colTime'), render: (e) => html`<span class="num">${day(e.started_at)}${hhmm(Date.parse(e.started_at), lang)}</span>` },
+      { key: 'unit', label: tt('colUnit'), render: (e) => html`<span class="t1">${e.unit_name ?? ''}</span><span class="t2">${area.get(e.unit_id) ?? ''}</span>` },
+      { key: 'event', label: tt('colEvent'), render: (e) => html`${eventText(e)}${heldText(e) ? html`<span class="t2">${heldText(e)}</span>` : nothing}` },
+      { key: 'severity', label: tt('colSev'), kind: 'status', render: (e) => html`<span class="chip" data-tone=${tone(e.severity)}>${tt(e.severity === 'alarm' ? 'sevAlarm' : e.severity === 'warning' ? 'sevWarning' : 'sevInfo')}</span>` },
+      { key: 'value', label: tt('colValue'), hideBelow: 'phone', render: (e) => html`<span class="num">${eventValue(e)}</span>` },
+      { key: 'duration', label: tt('colDur'), hideBelow: 'phone', render: (e) => html`<span class="num">${eventDuration(e, now)}</span>` },
+      { key: 'status', label: tt('colStatus'), kind: 'status', render: (e) => html`<span class="chip" data-tone=${e.ended_at ? nothing : 'bad'}>${e.ended_at ? tt('closed') : tt('open')}</span>` },
+    ];
+  }
+
+  render() {
+    const now = Date.now();
+    const area = new Map(this.units.map((u) => [u.id, u.area_name ?? '']));
     return html`<div class="top lead-head"><div><h1>${tt('logTitle')}</h1><p class="sub">${tt('logSub')}</p></div><span class="sp"></span>
         <div class="meta">
           <button type="button" class="btn" data-temp-back @click=${() => this.dispatchEvent(new CustomEvent('back'))}><sw-icon name="chevronBack" size="16"></sw-icon>${tt('back')}</button>
@@ -127,19 +137,9 @@ export class TempLog extends LitElement {
           <span class="sp"></span><span class="chip" data-tone="acc" data-temp-count>${tt('count', { n: this.total })}</span>
         </div>
         ${this.error ? html`<p class="err" role="alert">${this.error}</p>` : nothing}
-        <div class="scrollx"><table data-temp-log-table>
-          <thead><tr><th>${tt('colTime')}</th><th>${tt('colUnit')}</th><th>${tt('colEvent')}</th><th>${tt('colSev')}</th><th>${tt('colValue')}</th><th>${tt('colDur')}</th><th>${tt('colStatus')}</th></tr></thead>
-          <tbody>${this.rows.length
-            ? this.rows.map((e) => html`<tr data-event=${e.id} data-kind=${e.kind} data-sev=${e.severity}>
-                <td class="num">${day(e.started_at)}${hhmm(Date.parse(e.started_at), lang)}</td>
-                <td><b>${e.unit_name ?? ''}</b><small>${area.get(e.unit_id) ?? ''}</small></td>
-                <td>${eventText(e)}${heldText(e) ? html`<small>${heldText(e)}</small>` : nothing}</td>
-                <td><span class="sev" style=${`--c:${sev(e.severity)}`}><i aria-hidden="true"></i>${tt(e.severity === 'alarm' ? 'sevAlarm' : e.severity === 'warning' ? 'sevWarning' : 'sevInfo')}</span></td>
-                <td class="num" dir="ltr">${eventValue(e)}</td>
-                <td class="num">${eventDuration(e, now)}</td>
-                <td><span class="chip" data-tone=${e.ended_at ? 'mut' : 'err'}>${e.ended_at ? tt('closed') : tt('open')}</span></td></tr>`)
-            : html`<tr><td colspan="7" class="hint" data-state=${this.loading ? 'loading' : 'empty'}>${this.loading ? '…' : tt('noEvents')}</td></tr>`}</tbody>
-        </table></div>
+        <sw-table bare static-rows data-temp-log-table .columns=${this.columns(now, area) as unknown as TableColumn[]} .rows=${this.rows as unknown as Record<string, unknown>[]}
+          .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-event': String(r.id), 'data-kind': String(r.kind), 'data-sev': String(r.severity) })}>
+          <p slot="empty" class="hint" data-state=${this.loading ? 'loading' : 'empty'}>${this.loading ? '…' : tt('noEvents')}</p></sw-table>
         ${this.rows.length < this.total ? html`<div class="foot"><button type="button" class="btn sm" ?disabled=${this.loading} @click=${() => this.load(true)}>+</button></div>` : nothing}
       </div>`;
   }
