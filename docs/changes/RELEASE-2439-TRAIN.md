@@ -146,3 +146,23 @@ Fixes after run 2:
 Runner re-runs at ba7b82a46 before run 3: the 10 backend failures alone - 8 passed, 2 failed (fixed in 7257b2d53, then both files
 passed locally); `layout-timescrub-noscroll` + `dropdown-phone-choice`, all projects, workers 1: 96 passed.
 
+| Run | Sha | Result |
+|---|---|---|
+| 3 | 670716c08 (full tier, 192 min, load ~40-65) | **FAIL**: 0 hard failures; tsc, build, fe_static (ESLint, bundle budget, unused exports), release_check, addon_build PASS; backend 23,506 passed, 7 flaky passed alone; dev 1,122, fixture 28, visual 72, pixel 360 - all passed; preview 22,484 passed, 115 flaky passed alone, **6 failed again alone** (below) |
+
+The 6 failures of run 3, re-run alone on the runner (load ~3, `run_smart preview`, workers 1, all projects):
+
+| Failure | Cause | Fix |
+|---|---|---|
+| `evidence-design-foundation:190` mobile, domus light / dark (timeout) | load: passed alone | none |
+| `evidence-nav-size:86` desktop - `--sw-rail-w` 96 vs 108 | the rail offset came only from a ResizeObserver, a frame after the size preset changed; the spec read it in between (the spec passes on v2.43.8, same runner; the train's timing changed) | 107ece670: `sw-app.applyNavSize` also measures the rail at once (`measureRail`) - product |
+| `layout-playback-grid-2443:38` desktop x3 (new spec of CR-NOSCROLL-LISTS-2443, never run before) | (1) the 2x2 grid was 7 px over the budget: the width caps of PAGING-SETTING-2439 count the padding but `.grid` was content-box; (2) then the page still scrolled 36-53 px: the diagnostics row (setting `playback.diagnostics`, default all) carried the group sync explanation, which wrapped to three lines | 107ece670: `.grid` border-box; 7a787c8fe: the sync span shows its name, the explanation is its title (2x2 now measures like the single video); the spec hides the diagnostics row (the 0.1.68 budget is defined without it) |
+
+Re-run after the fixes (runner, workers 1, all projects, at 107ece670): `evidence-nav-size` + `evidence-design-foundation` all
+passed (44 passed with the grid spec's 3 failures before 7a787c8fe); `layout-playback-grid-2443` at 7a787c8fe locally (Vite dev):
+3 passed; probe single 6 px / 2x2 6 px. `unit-i18n-*` 86 passed; `tsc -p tsconfig.json` exit 0. UI rebuilt at 7a787c8fe
+(66527605c, sha256 `094714e8...1f2fd69b`).
+
+Open item (pre-existing, not fixed here): with the diagnostics row shown (the default), the recordings page scrolls by 6 px at
+1440x900 for a single video too - the 0.1.68 stage budget does not count that row.
+
