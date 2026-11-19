@@ -24,6 +24,8 @@ import { meterNames } from './meter-name';
 import { dateInputLang } from '../api/day-format';
 import { tr } from '../i18n/msg/electricity';
 import { touName } from './elec-tou';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 
 const STEPS = [tr('בחירת מונים'), tr('נוסחת החשבון'), tr('מחיר ומע״מ'), tr('תקופת חיוב'), tr('כרטיס לקוח'), tr('סיכום והפקה')];
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -338,6 +340,14 @@ export class ElecAccountWizard extends ElecBase {
     return this.sampleResult !== null && this.sampleResult > 0 ? this.sampleResult : 0;
   }
 
+  /** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): the next periods as the shared sw-table (bare in its card, read-only). */
+  private periodColumns(customerNumber: string): TableColumn<{ from: string; to: string }>[] {
+    return [
+      { key: 'period', label: tr('תקופה'), render: (p) => html`<span class="num">${fmtRange(p.from, p.to)}</span>` },
+      { key: 'number', label: tr('מספר חיוב'), render: (p) => html`<span class="num">${billNumber(p.to, customerNumber, '')}</span>` },
+    ];
+  }
+
   private renderStep4() {
     const anch = this.months === 2 ? this.anchorMonth : 1;
     const periods = isIsoDate(this.firstStart) ? nextPeriods(this.firstStart, this.months, this.anchorDay, anch, '', 3) : [];
@@ -350,8 +360,7 @@ export class ElecAccountWizard extends ElecBase {
         <div class="fld"><label for="fs">${tr('תחילת החיוב הראשון')}</label><input id="fs" type="date" lang=${dateInputLang()} class="ltr ${isIsoDate(this.firstStart) ? '' : 'err'}" data-first-start ?disabled=${this.edit} .value=${this.firstStart} @change=${(e: Event) => (this.firstStart = (e.target as HTMLInputElement).value)} />
           ${isIsoDate(this.firstStart) ? nothing : html`<div class="msg" role="alert">${tr('צריך לבחור תאריך')}</div>`}</div>
       </div>
-      <div class="card flush soft"><div class="hd"><b class="h3">${tr('התקופות הבאות')}</b></div>${periods.length ? html`<table class="t" data-periods><thead><tr><th>${tr('תקופה')}</th><th>${tr('מספר חיוב')}</th></tr></thead><tbody>
-        ${periods.map((p) => html`<tr><td><span class="num">${fmtRange(p.from, p.to)}</span></td><td class="num" style="text-align:start">${billNumber(p.to, c.number, '')}</td></tr>`)}</tbody></table>` : html`<div class="mut" style="padding:0 16px 14px">${tr('בחרו תאריך התחלה')}</div>`}</div>`;
+      <div class="card flush soft"><div class="hd"><b class="h3">${tr('התקופות הבאות')}</b></div>${periods.length ? html`<sw-table bare static-rows class="t" data-periods .columns=${this.periodColumns(c.number) as unknown as TableColumn[]} .rows=${periods as unknown as Record<string, unknown>[]}></sw-table>` : html`<div class="mut" style="padding:0 16px 14px">${tr('בחרו תאריך התחלה')}</div>`}</div>`;
   }
 
   private renderStep5() {
