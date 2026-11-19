@@ -3,7 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { segmentedFocusStep } from './segmented-logic';
 
 /** One chip of a chip choice. */
-export interface ChipChoiceOption<V extends string = string> {
+interface ChipChoiceOption<V extends string = string> {
   value: V;
   label: string;
   disabled?: boolean;
