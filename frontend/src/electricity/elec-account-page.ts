@@ -14,7 +14,7 @@ import './elec-bill-create';
 import './elec-chart';
 import { billsTable } from './elec-bills-table';
 import { billChip } from './elec-ui';
-import { f0, f2, f4, fmtDate, periodLabel, readingText } from './elec-format';
+import { NO_VALUE, customerName, f0or, f2, f2or, f4, fmtDate, periodLabel, readingText } from './elec-format';
 import { go, href, route } from './elec-routes';
 import { hasComparison } from './elec-chart-data';
 import { tr } from '../i18n/msg/electricity';
@@ -86,7 +86,7 @@ export class ElecAccountPage extends ElecBase {
     return html`<div class="row"><a class="btn ghost sm" href=${href.accounts()} data-back>${tr('→ חשבונות')}</a></div>
       <div class="row">
         <div><b class="h2" data-account-name>${a?.name ?? ''}</b>
-          <div class="mut">${a ? html`${perms.bills ? html`<a class="lnk" href=${href.customer(a.customer.id)}>${a.customer.name}</a>` : a.customer.name} · ${periodLabel(a.period_months, a.period_anchor_day, a.period_anchor_month)}` : ''}</div></div>
+          <div class="mut">${a ? html`${perms.bills && a.customer ? html`<a class="lnk" href=${href.customer(a.customer.id)}>${a.customer.name}</a>` : customerName(a)} · ${periodLabel(a.period_months, a.period_anchor_day, a.period_anchor_month)}` : ''}</div></div>
         <span class="sp"></span>
         ${perms.bills && a ? html`<sw-button variant="primary" data-create-bill @click=${() => (this.createOpen = true)}>${tr('הפקת חיוב')}</sw-button>` : nothing}
         ${perms.manage && a ? html`<a class="btn" data-edit-account href=${href.account(a.id, 'edit')}>${tr('עריכה')}</a>` : nothing}
@@ -116,33 +116,41 @@ export class ElecAccountPage extends ElecBase {
     const hasReadings = s.rows.some((r) => r.start !== null);
     const c = s.customer;
     const rows = s.rows;
-    const main = html`${s.stale ? alertBox('warn', html`<b>${s.stale.meter}</b> ${tr('לא מדווח')}${s.stale.since ? html` ${tr('מאז')} ${n(s.stale.since)}` : ''}. ${tr('הצריכה תיספר כשהמונה יחזור לדווח.')}`) : nothing}
+    // CR-RESPONSE-MODELS-FOLLOWUP-2450: no period yet (or one the server could not compute) - the numbers are a dash, the day tile says so
+    const p = s.period;
+    const dayTile = p
+      ? html`<div class="tile"><div class="k">${tr('יום')} ${n(p.day)} ${tr('מתוך')} ${n(p.days)}</div><div class="prog" style="margin-block-start:14px" role="progressbar" aria-valuenow=${p.day} aria-valuemin="0" aria-valuemax=${p.days}><i style="inline-size:${Math.round((p.day / p.days) * 100)}%"></i></div></div>`
+      : html`<div class="tile" data-no-period><div class="k">${tr('תקופה')}</div><div class="v mut">${tr('אין עדיין תקופה פעילה')}</div></div>`;
+    const main = html`${s.error ? alertBox('warn', s.error) : nothing}${s.stale ? alertBox('warn', html`<b>${s.stale.meter}</b> ${tr('לא מדווח')}${s.stale.since ? html` ${tr('מאז')} ${n(s.stale.since)}` : ''}. ${tr('הצריכה תיספר כשהמונה יחזור לדווח.')}`) : nothing}
       ${s.notes.map((t) => alertBox('warn', t.text_he))}
       <div class="tiles" data-elec-tiles>
-        <div class="tile"><div class="k">${tr('צריכה בתקופה')}</div><div class="v">${n(f2(s.kwh))}<span class="u">${tr('קוט״ש')}</span></div></div>
-        <div class="tile"><div class="k">${tr('יום')} ${n(s.period.day)} ${tr('מתוך')} ${n(s.period.days)}</div><div class="prog" style="margin-block-start:14px" role="progressbar" aria-valuenow=${s.period.day} aria-valuemin="0" aria-valuemax=${s.period.days}><i style="inline-size:${Math.round((s.period.day / s.period.days) * 100)}%"></i></div></div>
-        <div class="tile"><div class="k">${tr('צפי לסוף התקופה')}</div><div class="v">${n(f0(s.forecast_kwh))}<span class="u">${tr('קוט״ש')}</span></div></div>
+        <div class="tile"><div class="k">${tr('צריכה בתקופה')}</div><div class="v">${n(f2or(s.kwh))}<span class="u">${tr('קוט״ש')}</span></div></div>
+        ${dayTile}
+        <div class="tile"><div class="k">${tr('צפי לסוף התקופה')}</div><div class="v">${n(f0or(s.forecast_kwh))}<span class="u">${tr('קוט״ש')}</span></div></div>
         ${s.amount_so_far !== undefined
           ? html`<div class="tile" data-tile="amount"><div class="k">${tr('סכום עד כה')}</div><div class="v">${n(s.amount_so_far)}<span class="u">₪</span></div></div>`
-          : html`<div class="tile"><div class="k">${tr('ממוצע ליום')}</div><div class="v">${n(f2(s.avg_per_day))}<span class="u">${tr('קוט״ש')}</span></div></div>`}
+          : html`<div class="tile"><div class="k">${tr('ממוצע ליום')}</div><div class="v">${n(f2or(s.avg_per_day))}<span class="u">${tr('קוט״ש')}</span></div></div>`}
       </div>
       <div class="card ${this.phone ? '' : 'flush'}"><div class="hd"><b class="h3">${tr('מונים בנוסחה')}</b><span class="sp"></span><span class="mut">${s.account.formula.sentence_he}</span></div>
         ${this.phone
-          ? html`<div class="list">${rows.map((r) => html`<div class="li"><div class="grow"><div class="t1">${r.name}${r.factor ? html` <span class="mut">(${r.factor})</span>` : nothing}</div><div class="t2">${hasReadings && r.start !== null ? html`${n(f2(r.start))} ${tr('←')} ${n(f2(r.end ?? 0))}` : html`${n(f2(r.kwh))} ${tr('קוט״ש')}`}</div></div><b class="num">${f2(r.part)}</b></div>`)}</div>
-            <div class="row" style="margin-block-start:10px"><b>${tr('סה״כ לחיוב')}</b><span class="sp"></span><b class="num">${f2(s.kwh)}</b></div>`
+          ? html`<div class="list">${rows.map((r) => html`<div class="li"><div class="grow"><div class="t1">${r.name}${r.factor ? html` <span class="mut">(${r.factor})</span>` : nothing}</div><div class="t2">${hasReadings && r.start !== null ? html`${n(f2(r.start))} ${tr('←')} ${n(readingText(r.end))}` : html`${n(f2(r.kwh))} ${tr('קוט״ש')}`}</div></div><b class="num">${f2(r.part)}</b></div>`)}</div>
+            <div class="row" style="margin-block-start:10px"><b>${tr('סה״כ לחיוב')}</b><span class="sp"></span><b class="num">${f2or(s.kwh)}</b></div>`
           : html`<div class="scrollx"><table class="t" data-elec-meters><thead><tr><th>${tr('מונה')}</th>${hasReadings ? html`<th class="num">${tr('קריאה בתחילת התקופה')}</th><th class="num">${tr('קריאה נוכחית')}</th>` : nothing}<th class="num">${tr('צריכה')}</th><th class="num">${tr('חלק')}</th><th class="num">${tr('לחיוב (קוט״ש)')}</th></tr></thead>
             <tbody>${rows.map((r) => html`<tr><td class="b">${r.name} ${r.stale ? html`<span class="chip c-warn">${tr('לא מדווח')}</span>` : nothing}</td>${hasReadings ? html`<td class="num">${readingText(r.start)}</td><td class="num">${readingText(r.end)}</td>` : nothing}<td class="num">${f2(r.kwh)}</td><td class="num">${r.factor}</td><td class="num b">${f2(r.part)}</td></tr>`)}</tbody>
-            <tfoot><tr><td colspan=${hasReadings ? 5 : 3}>${tr('סה״כ לחיוב')}</td><td class="num">${f2(s.kwh)}</td></tr></tfoot></table></div>`}
+            <tfoot><tr><td colspan=${hasReadings ? 5 : 3}>${tr('סה״כ לחיוב')}</td><td class="num">${f2or(s.kwh)}</td></tr></tfoot></table></div>`}
       </div>`;
     const side = html`<div class="card"><div class="hd"><b class="h3">${tr('לקוח')}</b><span class="sp"></span>${perms.bills && c ? html`<a class="btn ghost sm" href=${href.customer(c.id)}>${tr('כרטיס לקוח')}</a>` : nothing}</div>
-        <dl class="kv"><dt>${tr('שם')}</dt><dd>${s.account.customer.name}</dd><dt>${tr('מספר לקוח')}</dt><dd>${n(s.account.customer.customer_number)}</dd>${perms.bills && c?.phone ? html`<dt>${tr('טלפון')}</dt><dd>${n(c.phone)}</dd>` : nothing}${perms.bills && c?.email ? html`<dt>${tr('דוא״ל')}</dt><dd>${n(c.email)}</dd>` : nothing}</dl></div>
+        <dl class="kv"><dt>${tr('שם')}</dt><dd>${customerName(s.account)}</dd><dt>${tr('מספר לקוח')}</dt><dd>${n(s.account.customer?.customer_number ?? NO_VALUE)}</dd>${perms.bills && c?.phone ? html`<dt>${tr('טלפון')}</dt><dd>${n(c.phone)}</dd>` : nothing}${perms.bills && c?.email ? html`<dt>${tr('דוא״ל')}</dt><dd>${n(c.email)}</dd>` : nothing}</dl></div>
       ${s.price && perms.bills
         ? html`<div class="card" data-card="price"><div class="hd"><b class="h3">${tr('מחיר')}</b></div><dl class="kv"><dt>${tr('תעריף')}</dt><dd>${s.price.tariff}</dd><dt>${tr('לפני מע״מ')}</dt><dd>${n(f4(s.price.ex_vat) + ' ₪')}</dd><dt>${tr('כולל מע״מ')}</dt><dd>${n(f4(s.price.inc_vat) + ' ₪')}</dd><dt>${tr('מע״מ')}</dt><dd>${n(s.price.vat + '%')}</dd></dl></div>`
         : s.account.tariff.kind === 'tou' && perms.bills
           ? html`<div class="card" data-card="price" data-kind="tou"><div class="hd"><b class="h3">${tr('מחיר')}</b></div><dl class="kv"><dt>${tr('תעריף')}</dt><dd>${s.account.tariff.name}</dd><dt>${tr('חישוב')}</dt><dd>${tr('לפי שעות (תעו״ז)')}</dd></dl></div>`
           : nothing}
-      <div class="card" data-card="next"><div class="hd"><b class="h3">${tr('חיוב הבא')}</b></div><dl class="kv"><dt>${tr('תקופה')}</dt><dd>${n(fmtDate(s.next.from))} - ${n(fmtDate(s.next.to))}</dd><dt>${tr('מספר צפוי')}</dt><dd>${n(s.next.number)}</dd>${s.account.auto_mode !== 'off' ? html`<dt>${s.account.auto_mode === 'issue' ? tr('הנפקה אוטומטית') : tr('טיוטה אוטומטית')}</dt><dd>${n(fmtDate(s.next.draft_on))}</dd>` : nothing}</dl></div>`;
+      <div class="card" data-card="next"><div class="hd"><b class="h3">${tr('חיוב הבא')}</b></div>${s.next ? this.nextBill(s.next, s.account.auto_mode) : html`<div class="mut" data-no-next>${tr('אין עדיין תקופה הבאה')}</div>`}</div>`;
     return html`<div class="cols side-l"><div class="col">${main}</div><div class="col">${side}</div></div>`;
+  }
+  private nextBill(x: NonNullable<AccountStatus['next']>, auto: AccountStatus['account']['auto_mode']) {
+    return html`<dl class="kv"><dt>${tr('תקופה')}</dt><dd>${n(fmtDate(x.from))} - ${n(fmtDate(x.to))}</dd><dt>${tr('מספר צפוי')}</dt><dd>${n(x.number)}</dd>${auto !== 'off' ? html`<dt>${auto === 'issue' ? tr('הנפקה אוטומטית') : tr('טיוטה אוטומטית')}</dt><dd>${n(fmtDate(x.draft_on))}</dd>` : nothing}</dl>`;
   }
 
   // ---------------------------------------------------------------- history
