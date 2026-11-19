@@ -9,14 +9,14 @@
 import { ArxAuthError } from './auth';
 import { lit } from '../i18n/local-identity';
 import { getPasskey, type RequestOptionsJSON } from './webauthn';
+import type * as LocalWire from '../api/generated/wire-local-identity';
 
-interface LocalSignIn {
-  second_factor: 'none' | 'required' | 'enroll_required';
-  must_change_password?: boolean;
-  user?: { id: string; username: string; display_name: string; source: string };
-  /** USR2 phase 4: present on the pending step when a passkey can answer it (`['totp', 'passkey']` or `['passkey']`). */
-  methods?: ('totp' | 'passkey')[];
-}
+/* The sign-in answers are the backend's response models (smplwise_vms/backend/smplwise/wire/local_identity.py, generated into
+ * ../api/generated/wire-local-identity.ts; code review 07:F8 step 2): a session (200) or the pending second-factor step (202, `methods`
+ * only when a passkey can answer it). Read as one shape here: the session fields are absent on the pending step. */
+type LocalSignIn = Pick<LocalWire.LocalSignInSession, 'second_factor'> &
+  Partial<Pick<LocalWire.LocalSignInSession, 'must_change_password' | 'user'>> &
+  Pick<LocalWire.LocalSignInPending, 'methods'>;
 
 interface LocalMe {
   user: { id: string; source: string };
@@ -60,8 +60,8 @@ export async function localSecondFactor(code: string): Promise<LocalSignIn> {
   return (await call<LocalSignIn>('api/v1/auth/local/sign-in/second-factor', { method: 'POST', body: JSON.stringify({ code: code.replace(/\s+/g, '') }) })).data;
 }
 
-export async function setPassword(token: string, password: string): Promise<{ must_enrol: boolean }> {
-  return (await call<{ must_enrol: boolean }>('api/v1/auth/local/set-password', { method: 'POST', body: JSON.stringify({ token, password }) })).data;
+export async function setPassword(token: string, password: string): Promise<LocalWire.LocalMustEnrol> {
+  return (await call<LocalWire.LocalMustEnrol>('api/v1/auth/local/set-password', { method: 'POST', body: JSON.stringify({ token, password }) })).data;
 }
 
 /** USR2 phase 2: ask for a self-service reset code. The answer is the same whatever the account (no "this user exists" signal). */
@@ -70,8 +70,8 @@ export async function requestReset(username: string): Promise<void> {
 }
 
 /** USR2 phase 2: the code from WhatsApp + the new password. No session is created: the page signs in normally afterwards. */
-export async function confirmReset(username: string, code: string, password: string): Promise<{ must_enrol: boolean }> {
-  return (await call<{ must_enrol: boolean }>('api/v1/auth/local/reset/confirm', {
+export async function confirmReset(username: string, code: string, password: string): Promise<LocalWire.LocalMustEnrol> {
+  return (await call<LocalWire.LocalMustEnrol>('api/v1/auth/local/reset/confirm', {
     method: 'POST',
     body: JSON.stringify({ username, code: code.replace(/[\s-]+/g, ''), password }),
   })).data;
