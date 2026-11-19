@@ -247,7 +247,11 @@ export class ElecFormulaEditor extends LitElement {
           </div>`
         : nothing}
       <div class="row"><b class="h3">${tr('הנוסחה')}</b><span class="sp"></span>
-        <sw-segmented label=${tr('מצב עריכה')} value=${this.mode} @change=${(e: CustomEvent<SegmentedChange>) => this.setMode(e.detail.value as 'builder' | 'text')}
+        <sw-segmented label=${tr('מצב עריכה')} value=${this.mode} @change=${(e: CustomEvent<SegmentedChange>) => {
+          // the editor's own `change` (the formula) is what the wizard listens to: the mode key's composed change stays inside
+          e.stopPropagation();
+          this.setMode(e.detail.value as 'builder' | 'text');
+        }}
         .options=${[{ value: 'builder', label: tr('בונה'), attrs: { 'data-mode': 'builder' } }, { value: 'text', label: tr('טקסט'), attrs: { 'data-mode': 'text' } }]}></sw-segmented>
       </div>
       ${this.mode === 'text'
