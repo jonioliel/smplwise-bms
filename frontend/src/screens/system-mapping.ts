@@ -14,6 +14,9 @@ import { loadXsData, type XsData } from '../xsection/xs-data';
 import { detect, health, levelWaiting, MAPPING_SETTING_CHOICES, resolve, summarize, tableRows, type MappingSettings, type Target } from '../api/mapping-engine';
 import { BUILDING_REACH_CHOICES, BUILDING_REACH_TEXT, loadMapping, restoreVersion, saveSettings, setBuildingReach, setMultiBuilding, type BuildingReach, type MappingData, type MappingVersion } from '../api/mapping';
 import { tr } from '../i18n/msg/system-b';
+import '../components/sw-toggle';
+import { switchPress } from '../components/sw-toggle';
+import { live } from 'lit/directives/live.js';
 
 /** CR-HOME-LAZY-2440 (review 07:F4 d): the assistant with its slices - "החלטות" (mapping-decide) and "מתקדם" (mapping-rules), which
  * register on its class - is one chunk, fetched when it is first opened. A failed fetch may be tried again by the next press. */
@@ -108,36 +111,6 @@ export class SystemMapping extends LitElement {
     .sw .t span {
       color: var(--sw-text-2);
       font-size: var(--sw-fs-sm);
-    }
-    .toggle {
-      flex: none;
-      inline-size: 52px;
-      block-size: 30px;
-      border-radius: var(--sw-r-pill);
-      border: 0;
-      padding: 3px;
-      background: var(--sw-border-strong, var(--sw-border));
-      cursor: pointer;
-      display: flex;
-      transition: background-color 160ms ease;
-    }
-    .toggle i {
-      inline-size: 24px;
-      block-size: 24px;
-      border-radius: 50%;
-      background: var(--sw-surface);
-      box-shadow: var(--sw-shadow-1);
-      transition: transform 200ms var(--sw-ease-out, ease-out);
-    }
-    .toggle[aria-checked='true'] {
-      background: var(--sw-product-toggle-on, var(--sw-accent));
-    }
-    .toggle[aria-checked='true'] i {
-      transform: translateX(-22px);
-    }
-    .toggle:disabled {
-      opacity: var(--sw-disabled-opacity, 0.5);
-      cursor: not-allowed;
     }
     .state {
       display: inline-flex;
@@ -448,7 +421,7 @@ export class SystemMapping extends LitElement {
         <span>${on ? tr('פעיל: המסך הראשי מציג את האתר לפי בניינים, עם מעבר בין בניינים ו"כבה הכל" לכל בניין.') : tr('כבוי: המסך הראשי מציג בניין אחד, בדיוק כמו היום. אפשר להכין את המיפוי כבר עכשיו - שום דבר לא משתנה במסך הראשי עד שמפעילים.')}</span>
         ${d.can_toggle ? nothing : html`<span class="muted">${tr('רק מי שמנהל את התוכן של כל האתרים יכול להפעיל או לכבות.')}</span>`}
         <span class="state ${on ? 'on' : ''}" data-mapping-switch-state=${on ? 'on' : 'off'}>${on ? tr('פעיל') : tr('כבוי')}</span></div>
-      <button type="button" class="toggle" role="switch" aria-checked=${String(on)} aria-label=${tr('ריבוי בניינים')} data-mapping-toggle ?disabled=${!d.can_toggle || this.busy} @click=${() => void this.toggleMulti()}><i></i></button>
+      <sw-toggle .checked=${live(on)} label=${tr('ריבוי בניינים')} labelHidden data-mapping-toggle ?disabled=${!d.can_toggle || this.busy} @change=${switchPress(on, () => void this.toggleMulti())}></sw-toggle>
     </div></sw-card>`;
   }
 

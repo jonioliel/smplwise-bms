@@ -103,7 +103,7 @@ test.describe('the list (installer)', () => {
     await expect(hall.locator('.where b')).toHaveText('קומה 1');
     await expect(hall.locator('[data-card-run]')).toHaveText('רצה לפני 4 דק׳ · 38 ריצות');
     await expect(hall.locator('[data-card-why]')).toBeVisible();
-    await expect(hall.locator('[data-card-toggle]')).toHaveAttribute('aria-checked', 'true');
+    await expect(hall.locator('[data-card-toggle] [role="switch"]')).toHaveAttribute('aria-checked', 'true');
     // chips: sensitive, locked parts with their count, a missing device, a failed run
     await expect(card(page, 'כולם יצאו').locator('[data-chip="sensitive"]')).toHaveText('רגישה');
     await expect(card(page, 'כפתורי מפסק סלון').locator('[data-chip="locked"]')).toHaveText('2 חלקים נעולים');
@@ -112,7 +112,7 @@ test.describe('the list (installer)', () => {
     await expect(card(page, 'נטרול אזעקה בבוקר').locator('[data-chip="changed_outside"]')).toHaveText('שונתה מחוץ למערכת');
     await expect(card(page, 'השקיה בשבת').locator('[data-chip="read_only"]')).toHaveText('צפייה בלבד');
     // a switched-off automation: the toggle is off, nothing else says "off"
-    await expect(card(page, 'הקפאת תזמונים בחופשה').locator('[data-card-toggle]')).toHaveAttribute('aria-checked', 'false');
+    await expect(card(page, 'הקפאת תזמונים בחופשה').locator('[data-card-toggle] [role="switch"]')).toHaveAttribute('aria-checked', 'false');
     // the operator screen names no product and carries no hint paragraph
     expect(await scr(page).innerText()).not.toMatch(BRANDS);
     // RTL: the name sits at the start (right) edge, the toggle at the end (left)
@@ -131,7 +131,7 @@ test.describe('the list (installer)', () => {
       const row = (name: string) => scr(page).locator('automation-row', { hasText: name });
       if (size === '1440') {
         await expect(row('תנועה בפרוזדור').locator('[data-card-sentence]')).toContainText('תנועה');
-        await expect(row('תנועה בפרוזדור').locator('[data-card-toggle]')).toHaveAttribute('aria-checked', 'true');
+        await expect(row('תנועה בפרוזדור').locator('[data-card-toggle] [role="switch"]')).toHaveAttribute('aria-checked', 'true');
         await expect(row('דוד שמש בבוקר').locator('[data-chip="missing"]')).toHaveText('מכשיר חסר');
         // sensitive, locked parts, view-only and changed-outside moved to the drawer: no chip on the row
         await expect(row('כולם יצאו').locator('[data-chip="sensitive"]')).toHaveCount(0);
@@ -174,10 +174,10 @@ test.describe('toggle, filters, the segments', () => {
     await ready(page);
     const hall = card(page, 'תנועה בפרוזדור');
     await hall.locator('[data-card-toggle]').click();
-    await expect(hall.locator('[data-card-toggle]')).toHaveAttribute('aria-checked', 'false');
+    await expect(hall.locator('[data-card-toggle] [role="switch"]')).toHaveAttribute('aria-checked', 'false');
     await expect(scr(page).locator('[data-state-filter="off"] small')).toHaveText('3');
     await hall.locator('[data-card-toggle]').click();
-    await expect(hall.locator('[data-card-toggle]')).toHaveAttribute('aria-checked', 'true');
+    await expect(hall.locator('[data-card-toggle] [role="switch"]')).toHaveAttribute('aria-checked', 'true');
     // the sensitive filter
     await scr(page).locator('[data-state-filter="sensitive"]').click();
     await expect.poll(() => hashOf(page)).toContain('state=sensitive');
@@ -670,7 +670,7 @@ test.describe('scripts', () => {
       await form.locator('[data-field-plus="percent"]').click();
       await expect(form.locator('[data-field="percent"]')).toHaveValue('60');
       await form.locator('[data-field="slow"]').click();
-      await expect(form.locator('[data-field="slow"]')).toHaveAttribute('aria-checked', 'true');
+      await expect(form.locator('[data-field="slow"] [role="switch"]')).toHaveAttribute('aria-checked', 'true');
       await shot(page, '73-script-fields', size);
       // its step takes the device from the field (a template): the effect is unknown, so the same confirmation as manual control comes first
       await d.locator('[data-drawer-run]').click();
@@ -1058,7 +1058,7 @@ test.describe('with a session: permissions, the setting, the push frame and what
     const dis = post(/disable/)[0].body as { client_request_id: string; confirm?: boolean };
     expect(dis.client_request_id.length).toBeGreaterThanOrEqual(8);
     expect(dis.confirm).toBeUndefined();
-    await expect(hall.locator('[data-card-toggle]')).toHaveAttribute('aria-checked', 'false');
+    await expect(hall.locator('[data-card-toggle] [role="switch"]')).toHaveAttribute('aria-checked', 'false');
     await hall.locator('a.name').click();
     await drawer(page).locator('[data-drawer-versions]').click();
     await expect(drawer(page).locator('[data-version]').first()).toBeVisible();
@@ -1090,7 +1090,7 @@ test.describe('with a session: permissions, the setting, the push frame and what
     await expect.poll(() => st.ws !== null).toBe(true);
     await st.store.setEnabled(st.store.idOf('automation.hall_motion'), false, { client_request_id: 'push-test-1' });
     st.ws!.send(JSON.stringify({ type: 'automations_changed', payload: { kinds: ['automation'], ids: [] } }));
-    await expect(card(page, 'תנועה בפרוזדור').locator('[data-card-toggle]')).toHaveAttribute('aria-checked', 'false');
+    await expect(card(page, 'תנועה בפרוזדור').locator('[data-card-toggle] [role="switch"]')).toHaveAttribute('aria-checked', 'false');
     expect(st.lists).toBeGreaterThan(before);
   });
 

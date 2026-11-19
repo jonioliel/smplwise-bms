@@ -91,6 +91,8 @@ import { tablistKeydown } from '../components/a11y-keys';
 import { readStoredJson, storedText, writeStoredJson } from '../api/safe-storage';
 import { FrameCoalescer } from '../components/frame-coalescer';
 import { devicesSchedulesStyles } from './devices-schedules-css';
+import '../components/sw-toggle';
+import { switchPress } from '../components/sw-toggle';
 
 const VIEW_KEY = 'sw.schedules.view';
 const FILTERS_KEY = 'sw.schedules.filters';
@@ -805,7 +807,7 @@ export class DevicesSchedules extends LitElement {
 
   private switchOf(s: Schedule): TemplateResult {
     if (!s.can.toggle) return html`<span class=${`chip ${s.enabled ? 'ok' : ''}`} data-card-state>${s.enabled ? tr('פעיל') : tr('מושבת')}</span>`;
-    return html`<button type="button" class="tog" role="switch" aria-checked=${String(s.enabled)} aria-label=${`${s.enabled ? tr('השבתה') : tr('הפעלה')} · ${s.display_name}`} data-toggle=${s.id} ?disabled=${this.busy} @click=${() => this.toggle(s, !s.enabled)}></button>`;
+    return html`<sw-toggle .checked=${live(s.enabled)} label=${`${s.enabled ? tr('השבתה') : tr('הפעלה')} · ${s.display_name}`} labelHidden data-toggle=${s.id} ?disabled=${this.busy} @change=${switchPress(s.enabled, () => void this.toggle(s, !s.enabled))}></sw-toggle>`;
   }
 
   private menu(s: Schedule): TemplateResult {

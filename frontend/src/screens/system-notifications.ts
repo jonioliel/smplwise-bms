@@ -2,7 +2,10 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { liftRef } from '../components/top-layer';
 import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
+import { live } from 'lit/directives/live.js';
 import '../components/sw-dialog';
+import '../components/sw-toggle';
+import { switchPress } from '../components/sw-toggle';
 import '../components/sw-page';
 import '../components/sw-tabs';
 import '../pwa/notifications-settings';
@@ -1146,10 +1149,11 @@ export class SystemNotifications extends LitElement {
     return html`<span class="chs"><span class="chip lock" title=${tr('תמיד')}>${nIcon('inbox')}${CHANNEL_LABEL.inbox}</span>${chip('webpush', push, 'phone')}${chip('email', mail, 'mail')}${chip('app', app, 'phone')}${chip('whatsapp', wa, 'chat')}<span class="chip soon" aria-disabled="true" title=${tr('Companion – בקרוב')} aria-label=${tr('Companion – בקרוב')}>${nIcon('phone')}</span></span>`;
   }
   private tog(on: boolean, attr: string, label: string, click: () => void, disabled = false) {
-    return html`<button type="button" class="tog" role="switch" aria-checked=${String(on)} aria-label=${label} ?disabled=${disabled} data-tog=${attr} @click=${click}></button>`;
+    // CR-CMP2-TOAST-2440 (06:CMP-2 step 2, owner O13 a): the shared sw-toggle instead of a hand-built track (switchPress: the model's value)
+    return html`<sw-toggle .checked=${live(on)} label=${label} labelHidden ?disabled=${disabled} data-tog=${attr} @change=${switchPress(on, click)}></sw-toggle>`;
   }
   private polToggle(p: NotifyPolicy) {
-    return html`<button type="button" class="tog" role="switch" aria-checked=${String(p.enabled)} aria-label=${tr('פעיל')} data-pol-on=${p.source} @click=${() => this.patchPolicy(p.source, (x) => ({ ...x, enabled: !x.enabled }))}></button>`;
+    return html`<sw-toggle .checked=${live(p.enabled)} label=${tr('פעיל')} labelHidden data-pol-on=${p.source} @change=${switchPress(p.enabled, () => this.patchPolicy(p.source, (x) => ({ ...x, enabled: !x.enabled })))}></sw-toggle>`;
   }
 
   private renderSources() {

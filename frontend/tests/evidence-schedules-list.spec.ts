@@ -282,7 +282,7 @@ test.describe('the schedules list (demo mode)', () => {
     const c = card(page, '4d6e0a');
     await expect(c.locator('h3 a.name[data-card-open]')).toBeVisible();
     await expect(c.locator('.where')).toBeVisible();
-    await expect(c.locator('button.tog[role="switch"]')).toHaveAttribute('aria-checked', 'true');
+    await expect(c.locator('[data-toggle] [role="switch"]')).toHaveAttribute('aria-checked', 'true');
     await c.locator('[data-card-menu]').click();
     await expect(c.locator('[role="menu"] [data-card-action]')).toHaveText(['עריכה', 'הרץ עכשיו', 'שכפול', 'מחיקה']);
     await c.locator('[data-card-action="copy"]').click();
@@ -712,7 +712,7 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
     expect(post(/schedules\/8b21d4\/enable/)[0].body).toMatchObject({ confirm_lowering: false, alarm_code: null });
     expect(String((post(/enable/)[0].body as { client_request_id: string }).client_request_id).length).toBeGreaterThanOrEqual(8);
     // the enable re-sorts the list by the next run (time-of-day dependent); pick only after that refresh has rendered
-    await expect(page.locator('sw-app devices-schedules article[data-schedule="8b21d4"] [data-toggle]')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('sw-app devices-schedules article[data-schedule="8b21d4"] [data-toggle] [role="switch"]')).toHaveAttribute('aria-checked', 'true');
     const pick = page.locator('sw-app devices-schedules article[data-schedule="4d6e0a"] input[data-select]');
     await pick.check();
     await expect(pick).toBeChecked();

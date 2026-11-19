@@ -40,6 +40,8 @@ import {
 } from './schedules-logic';
 import { toneColor } from '../components/sw-schedule-bar';
 import { tr } from '../i18n/msg/automation';
+import '../components/sw-toggle';
+import { switchPress } from '../components/sw-toggle';
 
 /** How an action ended, for the screen's note or the drawer's status line. */
 export interface ActionResult {
@@ -539,7 +541,7 @@ export class ScheduleDrawer extends LitElement {
       ${s.warnings.map((w) => html`<div class="banner warn" data-drawer-warning>${aIcon('warning')}<div>${w.message}</div></div>`)}
       ${this.note ? html`<div class=${`banner ${this.note.tone === 'error' ? 'bad' : 'info'}`} role="status" data-drawer-status>${aIcon(this.note.tone === 'error' ? 'warning' : 'check')}<div>${this.note.text}</div></div>` : nothing}
       <div class="swrow"><span>${tr('פעיל')}</span>${s.can.toggle
-        ? html`<button type="button" class="tog" role="switch" aria-checked=${String(s.enabled)} aria-label=${tr('פעיל')} data-drawer-toggle @click=${() => void this.actions?.enable(s, !s.enabled)}></button>`
+        ? html`<sw-toggle .checked=${live(s.enabled)} label=${tr('פעיל')} labelHidden data-drawer-toggle @change=${switchPress(s.enabled, () => void this.actions?.enable(s, !s.enabled))}></sw-toggle>`
         : html`<span class=${`chip ${s.enabled ? 'ok' : ''}`} data-drawer-toggle-state title=${this.disabledWhy(s, 'toggle')}>${s.enabled ? tr('פעיל') : tr('מושבת')}</span>`}</div>
       <section class="sect" data-section="when">
         <h4>${aIcon('clock')}${tr('מתי')}</h4>

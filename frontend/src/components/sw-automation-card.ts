@@ -9,6 +9,9 @@ import type { Item } from '../api/automations';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { tr } from '../i18n/msg/components';
+import './sw-toggle';
+import { switchPress } from './sw-toggle';
+import { live } from 'lit/directives/live.js';
 
 export type CardAction = 'edit' | 'run' | 'dryrun' | 'trace' | 'versions' | 'copy' | 'delete';
 
@@ -308,7 +311,7 @@ export class AutomationCard extends LitElement {
         </div>
         <div class="ctl">
           ${canToggle
-            ? html`<button type="button" class="tog" role="switch" aria-checked=${String(on)} aria-label=${`${on ? tr('כיבוי') : tr('הפעלה')} · ${i.name}`} data-card-toggle ?disabled=${this.busy} @click=${() => this.fire('toggle', { item: i, enabled: !on })}></button>`
+            ? html`<sw-toggle .checked=${live(on)} label=${`${on ? tr('כיבוי') : tr('הפעלה')} · ${i.name}`} labelHidden data-card-toggle ?disabled=${this.busy} @change=${switchPress(on, () => this.fire('toggle', { item: i, enabled: !on }))}></sw-toggle>`
             : i.state === 'invalid' || i.state === 'unavailable' ? nothing
             : html`<span class=${`chip ${on ? 'ok' : ''}`} data-card-state>${on ? tr('פעילה') : tr('כבויה')}</span>`}
           ${hasMenu ? html`<button type="button" class="more" aria-haspopup="menu" aria-expanded=${String(this.menu)} aria-label=${`${tr('עוד')} · ${i.name}`} data-card-menu @click=${() => this.setMenu(!this.menu)}>${aIcon('dots')}</button>` : nothing}

@@ -72,7 +72,7 @@ test('off by default: four mapped buildings, the view off - the home has no site
   await expect(page.locator('devices-building [data-kpi-tag]')).toHaveCount(0);
   await settings(page);
   await expect(page.locator('system-mapping [data-mapping-switch-state]')).toHaveAttribute('data-mapping-switch-state', 'off');
-  await expect(page.locator('system-mapping [data-mapping-toggle]')).toHaveAttribute('aria-checked', 'false');
+  await expect(page.locator('system-mapping [data-mapping-toggle] [role="switch"]')).toHaveAttribute('aria-checked', 'false');
   await shot(page, 'settings-off', info.project.name);
 });
 
@@ -80,10 +80,10 @@ test('on: the switch turns the site level on; off again returns the one-building
   await boot(page, '&mb=1', '/devices/building');
   await page.locator('devices-building div[data-site-bar]').waitFor();
   await settings(page, '&mb=1');
-  await expect(page.locator('system-mapping [data-mapping-toggle]')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('system-mapping [data-mapping-toggle] [role="switch"]')).toHaveAttribute('aria-checked', 'true');
   await shot(page, 'settings-on', info.project.name);
   await page.locator('system-mapping [data-mapping-toggle]').click();
-  await expect(page.locator('system-mapping [data-mapping-toggle]')).toHaveAttribute('aria-checked', 'false');
+  await expect(page.locator('system-mapping [data-mapping-toggle] [role="switch"]')).toHaveAttribute('aria-checked', 'false');
   await page.evaluate(() => (location.hash = '#/devices/building'));
   await page.locator('sw-app devices-building sw-kpi').first().waitFor();
   await page.waitForTimeout(400);
@@ -150,7 +150,7 @@ test('the exceptions: plain questions, "נשארו N החלטות" goes down, th
   await A(page).locator('[data-ma-enable-multi]').click();
   await expect(A(page).locator('[data-ma-multi-on]')).toHaveCount(1);
   await A(page).locator('[data-ma-finish]').click();
-  await expect(page.locator('system-mapping [data-mapping-toggle]')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('system-mapping [data-mapping-toggle] [role="switch"]')).toHaveAttribute('aria-checked', 'true');
   await expect(page.locator('system-mapping [data-mapping-version="1"]')).toHaveCount(1);
   await expect(page.locator('system-mapping [data-mapping-buildings]')).toContainText('בניין ה');
   await shot(page, 'settings-after-apply', info.project.name);

@@ -64,6 +64,9 @@ export class SwToggle extends LitElement {
     span {
       font-size: var(--sw-fs-sm);
     }
+    :host(:not([disabled])) span {
+      cursor: pointer;
+    }
     /* UIPOLISH-2320 (owner 1B, 31.10): on a phone the 24 px track gets a 44 px tall touch target - a transparent ::before (free: the thumb is
        ::after) that grows ONLY in the block axis. No inline extension: a ::before wider than the 42 px track is horizontal overflow and
        tripped the 320 px clipped-content guard (layout-devices-break-297), which is why POLISH-PHONE-2310 dropped the old 50 x 44 slop.
@@ -78,6 +81,8 @@ export class SwToggle extends LitElement {
     }
   `;
 
+  // CR-CMP2-TOAST-2440: a press on the visible label flips the switch too (as a <label> does), so a hand-built switch whose text sat
+  // inside its button keeps that behaviour when it becomes a sw-toggle with a visible label.
   constructor() {
     super();
     // A press on the host's own box around the switch (a screen may pad it to a 44 px touch target) flips it too; a
@@ -94,8 +99,22 @@ export class SwToggle extends LitElement {
   }
 
   render() {
-    return html`<button type="button" role="switch" aria-checked=${this.checked} aria-label=${this.label} ?disabled=${this.disabled} @click=${this.flip}></button>${this.label && !this.labelHidden ? html`<span>${this.label}</span>` : ''}`;
+    return html`<button type="button" role="switch" aria-checked=${this.checked} aria-label=${this.label} ?disabled=${this.disabled} @click=${this.flip}></button>${this.label && !this.labelHidden ? html`<span @click=${this.flip}>${this.label}</span>` : ''}`;
   }
+}
+
+/**
+ * CR-CMP2-TOAST-2440 (06:CMP-2 step 2, owner O13 a): the `@change` handler of a sw-toggle that stands in for a hand-built
+ * `<button role="switch" aria-checked=...>`. Such a button showed the MODEL's value only: a press asked the model, and the switch moved
+ * when the answer re-rendered it. This handler keeps that: it puts the switch back at `shown` (the value it was rendered with), stops the
+ * new `change` event from reaching handlers that never heard it before, and runs `act`. Bind `.checked=${live(shown)}` with it.
+ */
+export function switchPress(shown: boolean, act: () => void): (e: Event) => void {
+  return (e: Event) => {
+    e.stopPropagation();
+    (e.currentTarget as SwToggle).checked = shown;
+    act();
+  };
 }
 
 declare global {

@@ -57,7 +57,7 @@ test.describe('WHITELABEL-097 settings card', () => {
     await boot(page, null);
     await expect(card(page)).toBeVisible();
     await expect(card(page).locator('[data-wl-state]')).toHaveText('כבוי');
-    await expect(card(page).locator('[data-wl-enabled]')).toHaveAttribute('aria-checked', 'false');
+    await expect(card(page).locator('[data-wl-enabled] [role="switch"]')).toHaveAttribute('aria-checked', 'false');
     await expect(card(page).locator('[data-wl-save]')).toHaveAttribute('disabled', '');
     for (const tab of ['profile', 'logos', 'pack']) {
       await card(page).locator(`[data-wl-tab="${tab}"]`).click();
