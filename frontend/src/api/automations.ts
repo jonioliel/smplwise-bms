@@ -988,24 +988,17 @@ export function parseCondition(raw: unknown, ctx: ModelContext = {}, inGroup = f
   const bad = (hint: LockedReason = 'unsupported_step') => lockedFor(raw, 'condition', ctx, hint);
   if (!container && hasTemplate(raw)) return mkLocked(raw, 'template', 'condition', ctx);
   const common = { uid: (ctx.uid ?? newUid)(), kind: 'typed' as const, raw };
+  return typedCondition(r, type, common, ctx, inGroup, bad);
+}
+
+/** The common part of a typed condition: its uid, `kind` and raw. */
+type ConditionCommon = { uid: string; kind: 'typed'; raw: unknown };
+
+/** CR-FE-COMPLEXITY-2450 (split of parseCondition, moved verbatim): the typed condition kinds; `bad` locks the raw with a reason. */
+function typedCondition(r: Raw, type: string, common: ConditionCommon, ctx: ModelContext, inGroup: boolean, bad: (hint?: LockedReason) => LockedBlock): ConditionBlock | LockedBlock {
   const head = ['condition'];
   switch (type) {
-    case 'state': {
-      if (!onlyKeys(r, [...head, 'entity_id', 'state', 'for'])) return bad();
-      const ids = entityList(r.entity_id); const f = parseDuration(r.for);
-      const st = Array.isArray(r.state) ? r.state : [r.state];
-      if (!ids || f === 'invalid' || !st.length || !st.every((s) => typeof s === 'string')) return bad();
-      const state = Array.isArray(r.state) ? (r.state as string[]) : (r.state as string);
-      const sensor = ctx.shabbatSensor;
-      if (sensor && ids.length === 1 && ids[0] === sensor && !f && (state === 'on' || state === 'off')) {
-        return finish<ConditionBlock>({ ...common, type: 'shabbat', mode: state === 'on' ? 'only_holy_days' : 'not_holy_days' }, 'condition', ctx);
-      }
-      const pres = ctx.presenceEntity;
-      if (pres && ids.length === 1 && ids[0] === pres && !f && (state === 'on' || state === 'off')) {
-        return finish<ConditionBlock>({ ...common, type: 'presence', mode: state === 'on' ? 'someone' : 'nobody', where: 'building' }, 'condition', ctx);
-      }
-      return finish<ConditionBlock>({ ...common, type: 'state', entity_ids: ids, state, ...(f ? { for: f } : {}) }, 'condition', ctx);
-    }
+    case 'state': return stateCondition(r, common, ctx, bad);
     case 'numeric_state': {
       if (!onlyKeys(r, [...head, 'entity_id', 'above', 'below'])) return bad();
       const ids = entityList(r.entity_id); const above = num(r.above); const below = num(r.below);
@@ -1037,6 +1030,26 @@ export function parseCondition(raw: unknown, ctx: ModelContext = {}, inGroup = f
     }
     default: return bad('unknown');
   }
+}
+
+/** CR-FE-COMPLEXITY-2450 (split of parseCondition, moved verbatim): a `state` condition - the Shabbat sensor's and the building presence
+ * entity's on/off are their own blocks. */
+function stateCondition(r: Raw, common: ConditionCommon, ctx: ModelContext, bad: (hint?: LockedReason) => LockedBlock): ConditionBlock | LockedBlock {
+  const head = ['condition'];
+  if (!onlyKeys(r, [...head, 'entity_id', 'state', 'for'])) return bad();
+  const ids = entityList(r.entity_id); const f = parseDuration(r.for);
+  const st = Array.isArray(r.state) ? r.state : [r.state];
+  if (!ids || f === 'invalid' || !st.length || !st.every((s) => typeof s === 'string')) return bad();
+  const state = Array.isArray(r.state) ? (r.state as string[]) : (r.state as string);
+  const sensor = ctx.shabbatSensor;
+  if (sensor && ids.length === 1 && ids[0] === sensor && !f && (state === 'on' || state === 'off')) {
+    return finish<ConditionBlock>({ ...common, type: 'shabbat', mode: state === 'on' ? 'only_holy_days' : 'not_holy_days' }, 'condition', ctx);
+  }
+  const pres = ctx.presenceEntity;
+  if (pres && ids.length === 1 && ids[0] === pres && !f && (state === 'on' || state === 'off')) {
+    return finish<ConditionBlock>({ ...common, type: 'presence', mode: state === 'on' ? 'someone' : 'nobody', where: 'building' }, 'condition', ctx);
+  }
+  return finish<ConditionBlock>({ ...common, type: 'state', entity_ids: ids, state, ...(f ? { for: f } : {}) }, 'condition', ctx);
 }
 const parseConditions = (v: unknown, ctx: ModelContext): Array<ConditionBlock | LockedBlock> => toList(v).map((c) => parseCondition(c, ctx));
 
