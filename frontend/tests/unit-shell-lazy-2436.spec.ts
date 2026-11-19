@@ -57,7 +57,8 @@ test('the shell imports the RFQ words and the cross-section options from their s
 });
 
 test('nav-text holds the two shell words once; rfq-text reads them from there (same text in both languages)', () => {
-  expect(staticImports('tickets/nav-text.ts').sort()).toEqual(['i18n/nav-labels.ts', 'tickets/naming.ts']);
+  // CR-I18N-LAZY-LANG-2443: the English table is a language pack read through i18n/lang-packs.ts (the small loader the entry holds anyway)
+  expect(staticImports('tickets/nav-text.ts').sort()).toEqual(['i18n/lang-packs.ts', 'i18n/nav-labels.ts', 'tickets/naming.ts']);
   for (const k of ['navTitle', 'navQuestionsAria'] as const) {
     expect(rfqTemplate(k, 'he')).toBe(NAV_RFQ_HE[k]);
     expect(rfqTemplate(k, 'en')).toBe(NAV_RFQ_EN[k]);
