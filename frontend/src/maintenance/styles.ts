@@ -78,6 +78,19 @@ export const maintCss = [tempCss, liftedReset, css`
   }
   .seg button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface-solid)); color: var(--sw-seg-key-ink, var(--sw-text)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
   .seg button:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; }
+  /* CR-CMP2-SEGMENTED-B-2450 (owner N11): the module's segmented controls are sw-segmented; these knobs keep the module's key (surface-3
+     track, 28 px keys, 13 px, the chosen key semibold) through its shadow root; on a phone the keys are 38 px and the track wraps */
+  sw-segmented {
+    --sw-seg-radius: var(--sw-r-sm);
+    --sw-seg-btn-radius: calc(var(--sw-r-sm) - 2px);
+    --sw-seg-h: 28px;
+    --sw-seg-key-pad: 12px;
+    --sw-seg-fs: var(--sw-fs-sm);
+    --sw-seg-fw: var(--sw-fw-regular);
+    --sw-seg-on-fw: var(--sw-fw-semibold);
+    --sw-seg-on-bg: var(--sw-seg-key, var(--sw-surface-solid));
+    --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-text));
+  }
 
   /* the table (electricity table.t) */
   .scrollx { overflow-x: auto; }
@@ -150,7 +163,7 @@ export const maintCss = [tempCss, liftedReset, css`
   .items { display: grid; gap: 8px; }
   .item { display: grid; grid-template-columns: minmax(0, 1fr) 130px auto; gap: 8px; align-items: end; padding: 8px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); }
   .item .range { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .item .range .inp { inline-size: 100px; }
+  .item .range sw-field { inline-size: 100px; }
 
   /* phone (<= 767): the tree becomes a select, the table becomes cards, the head stacks */
   @media (max-width: 767px) {
@@ -166,6 +179,7 @@ export const maintCss = [tempCss, liftedReset, css`
     .search { flex-basis: 100%; min-inline-size: 0; block-size: 44px; }
     .seg { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
     .seg button { min-block-size: 38px; flex: none; }
+    sw-segmented { --sw-seg-h: 38px; }
     .scrollx { display: none; }
     .cards-m { display: grid; gap: 8px; padding: 10px; align-content: start; }
     .cards-m .c { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 10px 12px; display: grid; gap: 6px; background: var(--sw-surface); cursor: pointer; text-align: start; font: inherit; color: inherit; }

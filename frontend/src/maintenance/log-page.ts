@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-state-panel';
 import '../components/sw-pager';
 import { PageFit } from '../components/page-fit';
@@ -113,9 +115,8 @@ export class MaintLogPage extends LitElement {
       <div class="panel flush fill" data-maint-log>
         ${off ? html`<div class="note" role="status" data-maint-log-off><sw-icon name="bell" size="16"></sw-icon><div><b>${mt('logOffTitle')}</b> ${mt('logOffBody')}</div><span class="sp"></span>
           ${!isApi() || can('system.configure') ? html`<a class="btn sm" href="#/system/infra/maintenance" data-maint-to-settings>${mt('logToSettings')}</a>` : nothing}</div>` : nothing}
-        <div class="toolbar"><div class="seg" role="group" aria-label=${mt('evtFilter')} data-maint-log-filter>
-          <button type="button" aria-pressed=${String(this.event === '')} data-ev="all" @click=${() => this.pick('')}>${mt('colAll')}</button>
-          ${LOG_EVENTS.map((e) => html`<button type="button" aria-pressed=${String(this.event === e)} data-ev=${e} @click=${() => this.pick(e)}>${mt(`evt_${e}` as MtKey)}</button>`)}</div>
+        <div class="toolbar"><sw-segmented label=${mt('evtFilter')} data-maint-log-filter value=${this.event} @change=${(e: CustomEvent<SegmentedChange>) => this.pick(e.detail.value as LogEvent | '')}
+          .options=${[{ value: '', label: mt('colAll'), attrs: { 'data-ev': 'all' } }, ...LOG_EVENTS.map((ev) => ({ value: ev, label: mt(`evt_${ev}` as MtKey), attrs: { 'data-ev': ev } }))]}></sw-segmented>
           ${this.fit.fits ? html`<span class="pg">${this.fit.pages > 1 ? html`<sw-pager data-maint-log-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}</span>` : nothing}</div>
         ${l.items.length ? html`<div class="scroller">
             <div class="scrollx"><section class="fitsec"><table class="t" data-maint-log-table><thead><tr><th>${mt('colWhen')}</th><th>${mt('colEvent')}</th><th>${mt('colTaskName')}</th><th>${mt('colDueDate')}</th><th></th></tr></thead>
