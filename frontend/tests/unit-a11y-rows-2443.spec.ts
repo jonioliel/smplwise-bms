@@ -88,7 +88,9 @@ test.describe('keyboard pass over the screens of the row', () => {
 
   test('investigate-incidents: the recent-incidents table row (the phone cards are buttons already)', () => {
     const s = read('screens/investigate-incidents.ts');
-    expect(s).toMatch(/<tr tabindex="0" data-incident-row=\$\{i\.id\}[^\n]*@keydown=\$\{activateKeydown\(\(\) => navigate\(`\/investigate\/incidents\/\$\{i\.id\}`\)\)\}>/);
+    // CR-CMP2-TABLES-2450: the table is sw-table - its row-select listener gives every row a tab stop and Enter / Space (rowsFocusable)
+    expect(s).toMatch(/<sw-table data-incidents-table bare [^\n]*\n[^\n]*'data-incident-row': String\(r\.id\)[^\n]*\n\s*@row-select=\$\{\(e: CustomEvent<\{ id: string \}>\) => navigate\(`\/investigate\/incidents\/\$\{e\.detail\.id\}`\)\}>/);
+    expect(read('components/sw-table.ts')).toContain("if (type === 'row-select' && this.rowSelectListeners++ === 0) this.requestUpdate();");
     expect(s).toMatch(/<button type="button" class="c" data-incident-card=/);
     for (const t of clickTags(s)) {
       const ok = keyboardRow(t.text) || stopOnly(t.text) || /@keydown=\$\{\(e: KeyboardEvent\) => \{ if \(e\.key === 'Enter' \|\| e\.key === ' '\)/.test(t.text);
