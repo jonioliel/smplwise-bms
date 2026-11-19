@@ -17,11 +17,16 @@ process.env.TZ = process.env.SW_TEST_TZ || 'Asia/Jerusalem';
 // (the same locale / zone / desktop viewport as playwright.config.ts's desktop project; the release gate itself uses playwright.config.ts).
 // unit-plan-3d.spec.ts looks for the BUILT chunk (/assets/three-*.js): against the Vite dev server its two page tests fail, against `vite preview` of a
 // build they pass (the gate runs it on the preview). A spec counts as a page spec when it navigates to an app-relative address, or names it in a constant (const HOME = '/?design=a#/...').
-const PAGE_SPEC = /goto\(\s*[`'"]\/|\bconst\s+[A-Z_]+\s*=\s*['"`]\/[?#]/;
+// FIX-UNIT-PAGES-CONFIG-2440: an address relative to the baseURL ('./#/devices', as unit-session-me-failure-2435 uses) is app-relative too;
+// it used to fall through to the node-only run and fail there with no baseURL.
+export const PAGE_SPEC = /goto\(\s*[`'"]\.?\/|\bconst\s+[A-Z_]+\s*=\s*['"`]\.?\/[?#]/;
+// Only unit-* specs belong to this config, in either mode: a bare `-c playwright.unit.config.ts` run must not pick up the evidence / layout /
+// pixel specs (they need playwright.config.ts's preview server and projects).
+export const UNIT_SPEC = /^unit-.*\.spec\.ts$/;
 const testsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'tests');
 const pageSpecs = fs
   .readdirSync(testsDir)
-  .filter((f) => /^unit-.*\.spec\.ts$/.test(f) && PAGE_SPEC.test(fs.readFileSync(path.join(testsDir, f), 'utf8')));
+  .filter((f) => UNIT_SPEC.test(f) && PAGE_SPEC.test(fs.readFileSync(path.join(testsDir, f), 'utf8')));
 const pages = process.env.SW_UNIT_PAGES === '1';
 
 export default defineConfig({
@@ -30,7 +35,7 @@ export default defineConfig({
   retries: 0,
   reporter: [['list']],
   // GATELANES-297: retired specs (tests/archive/README.md) are never run, in either mode
-  ...(pages ? { testMatch: pageSpecs, testIgnore: ['**/archive/**'] } : { testIgnore: ['**/archive/**', ...pageSpecs] }),
+  ...(pages ? { testMatch: pageSpecs, testIgnore: ['**/archive/**'] } : { testMatch: 'unit-*.spec.ts', testIgnore: ['**/archive/**', ...pageSpecs] }),
   use: pages
     ? {
         baseURL: process.env.SW_BASE_URL || 'http://127.0.0.1:5173/',
