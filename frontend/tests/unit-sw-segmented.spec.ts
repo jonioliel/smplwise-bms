@@ -207,6 +207,42 @@ const ADOPTED = [
   'tickets/external-assign.ts',
   // tickets/list-view-switch.ts draws sw-segmented too; its hosts (tickets-list, tickets-board) register it (node unit tests import it)
   'tickets/rfq-new.ts',
+  // CR-CMP2-SEGMENTED-C-2450 (glass media, notifications, investigate, schedule editor family, single groups)
+  'components/notify-center.ts',
+  'components/notify-whatsapp-section.ts',
+  'screens/multimedia-screens.ts',
+  'screens/multimedia-players.ts',
+  'screens/multimedia-edit-panel.ts',
+  'screens/multimedia-remote-editor.ts',
+  'screens/investigate-history-map.ts',
+  'screens/investigate-reviews.ts',
+  'screens/schedule-editor.ts',
+  'screens/schedule-conditions.ts',
+  'screens/schedule-entity-picker.ts',
+  // screens/plan-studio6-panel.ts draws it too; its host explore-plan-editor registers it (node unit tests import the panel)
+  'screens/infra-report.ts',
+  'insights/list-base.ts',
+  'screens/explore-presence.ts',
+  'screens/devices-tiles-panel.ts',
+  'screens/devices-notices.ts',
+  'screens/area-quick-sheet.ts',
+  'incidents/settings-form.ts',
+  'elevators/elevator-settings.ts',
+  'components/wk-station-live.ts',
+  'components/sw-list-display-settings.ts',
+  'components/sw-cast-picker.ts',
+  'components/frigate-config-panel.ts',
+  'components/frigate-auto-profile.ts',
+  'components/camera-source-dialog.ts',
+  'shell/sw-user-menu.ts',
+  'screens/wiskey-people.ts',
+  'screens/wiskey-events.ts',
+  // CR-CMP2-SEGMENTED-C-2450 (home settings: real one-of-N choices only - the home .hsw and the row switches stay)
+  'screens/home-edit-panel.ts',
+  'screens/home-screen-options.ts',
+  // the provider strip of system-calendar-sync is a tab strip: sw-tabs (pill) since CR-CMP2-SEGMENTED-C-2450; its other choices are here
+  'screens/system-calendar-sync.ts',
+  // screens/home-edit-bv1.ts draws it too (registered by home-edit-panel); shell/sw-home-personal.ts keeps one multi-choice row
 ];
 
 test('adoption: the adopted screens draw every segmented control with sw-segmented', () => {
@@ -215,7 +251,8 @@ test('adoption: the adopted screens draw every segmented control with sw-segment
     const src = read(file);
     if (/class="seg[\s"]/.test(src)) bad.push(`${file}: a hand-built class="seg" group`);
     if (!src.includes('<sw-segmented')) bad.push(`${file}: no <sw-segmented>`);
-    if (!/import '(\.\.\/)+components\/sw-segmented';/.test(src)) bad.push(`${file}: does not import the component`);
+    // a file under components/ imports its sibling (./sw-segmented)
+    if (!/import '((\.\.\/)+components|\.)\/sw-segmented';/.test(src)) bad.push(`${file}: does not import the component`);
   }
   expect(bad).toEqual([]);
 });
@@ -262,4 +299,17 @@ test.describe('sw-chip-choice: the contract in the source and its adopters', () 
     }
     expect(bad).toEqual([]);
   });
+});
+
+// CR-CMP2-SEGMENTED-C-2450: a tab strip drawn as segments moves to sw-tabs (pill); sw-tabs carries its data-* hooks and a named warning dot
+test('sw-tabs: an item keeps its data-* hooks on its tab, a warning dot can be named; the calendar sync providers use it', () => {
+  const tabs = read('components/sw-tabs.ts');
+  expect(tabs).toMatch(/attrs\?: Readonly<Record<string, string>>;/);
+  expect(tabs).toMatch(/dot\?: boolean \| 'warn';/);
+  expect(tabs).toMatch(/role=\$\{it\.dotLabel \? 'img' : nothing\} aria-label=\$\{it\.dotLabel \|\| nothing\} aria-hidden=\$\{it\.dotLabel \? nothing : 'true'\}/);
+  expect(tabs).toMatch(/if \(changed\.has\('items'\)\) this\.applyHooks\(\);/);
+  const sync = read('screens/system-calendar-sync.ts');
+  expect(sync).toMatch(/<sw-tabs variant="pill" group-label=\$\{tr\('ספק'\)\} data-provider-tabs/);
+  expect(sync).toMatch(/attrs: \{ 'data-provider-tab': p \}/);
+  expect(sync).not.toMatch(/role="tablist"/);
 });

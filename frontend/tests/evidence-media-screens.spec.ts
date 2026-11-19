@@ -439,6 +439,8 @@ test.describe('multimedia screens (mocked backend)', () => {
       });
       host.shadowRoot!.querySelectorAll('media-screen-card').forEach((c) => check(c.shadowRoot!, '.pw, .rb, .rbtn, .vrock button'));
       check(host.shadowRoot!, '.rc, .search, .seg button');
+      // CR-CMP2-SEGMENTED-C-2450: the state filter / scope keys live in sw-segmented's shadow root
+      host.shadowRoot!.querySelectorAll('sw-segmented').forEach((s) => check(s.shadowRoot!, 'button'));
       return out;
     });
     expect(small).toEqual([]);

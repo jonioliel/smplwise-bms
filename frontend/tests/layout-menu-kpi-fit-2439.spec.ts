@@ -93,14 +93,15 @@ test('a view choice with three options keeps its label whole inside the menu', a
     await menu.updateComplete;
     const li = menu.shadowRoot!.querySelector('[data-menu-screen-view="probe-view"]') as HTMLElement;
     const txt = li.querySelector('.txt') as HTMLElement;
-    const seg = li.querySelector('.seg') as HTMLElement;
+    // CR-CMP2-SEGMENTED-C-2450: the view choice is sw-segmented - its box is the element, its keys live in its shadow root
+    const seg = li.querySelector('sw-segmented') as HTMLElement;
     const r = (el: Element) => el.getBoundingClientRect();
     const [lr, tr, sr] = [r(li), r(txt), r(seg)];
     const out = {
       label: txt.scrollWidth - txt.clientWidth,
       overlap: tr.right > sr.left + 0.5 && sr.right > tr.left + 0.5 && tr.bottom > sr.top + 0.5 && sr.bottom > tr.top + 0.5,
       segInside: sr.left >= lr.left - 0.5 && sr.right <= lr.right + 0.5,
-      buttons: seg.querySelectorAll('button').length,
+      buttons: seg.shadowRoot!.querySelectorAll('button').length,
     };
     menu.open = false;
     await menu.updateComplete;
