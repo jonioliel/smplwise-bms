@@ -22,9 +22,9 @@ import { onPairChip, pairChip } from './tab-pair';
 import type { TabItem } from '../components/sw-tabs';
 import { HYBRID_MAX_ITEMS, ddPanelOf, ddPlaceOf, ddRingOf, ddSizeOf, ddStyleOf, loadTabsMode, onTabsMode, setInstallationTabsMode, tabModeOf, type DdPanel, type DdRing, type DdSize, type DdStyle } from './tabs-mode';
 import { listAlerts } from '../api/rules';
-import { parseDoorConfirmLink, type NotifySummary } from '../api/notifications';
 import { notifyStore } from '../components/notify-store';
-import { badgeLabel, badgeOf, parseNotificationLink } from '../components/notify-logic';
+import { badgeLabel } from '../components/notify-logic';
+import { ShellNotify } from './notify-wiring'; // CR-SHELL-EXTRACT-2440 (07:F24): the notification wiring (badge numbers, center state, push deep links)
 import { inAndroidShell } from '../arx/android-app';
 import { DESKTOP_ONLY, STRUCTURE_DESKTOP_ONLY, phoneRestricted, routeGuardKind, onMobileOptions, setInstallationMobileOptions, type MobileKind } from './phone';
 import '../screens/devices-building';
@@ -157,17 +157,17 @@ export class SwApp extends LitElement {
    * (the avatar's red dot; null = this user may not read alerts) and this user's tab order. */
   @state() private menuOpen = false;
   @state() private orderOpen = false;
-  @state() private alertCount: number | null = null;
   /** CR-018: the notification center (opened from the user menu's bell), the row a deep link focuses, and the numbers of `/notifications/summary`
-   * (the unread chip and the open-critical dot; null while it is not available: the rule-alert count above stands in). */
-  @state() private centerOpen = false;
-  @state() private centerFocus = '';
-  @state() private centerConfirm = false;
-  @state() private notifySummary: NotifySummary | null = null;
-  private stopNotify?: () => void;
-  /** A deep link asked for the center before the session was known; the center opens once it is (never in a gate, never in the kiosk). */
-  private pendingCenter = false;
-  private keepCenterOnce = false;
+   * (the unread chip and the open-critical dot; null while it is not available: the rule-alert count stands in).
+   * CR-SHELL-EXTRACT-2440 (07:F24): that state and the store wiring live in shell/notify-wiring.ts; the shell passes the store and the rules API. */
+  private notify = new ShellNotify(this, {
+    subscribe: (fn) => notifyStore.subscribe((s) => fn(s.summary)),
+    start: () => notifyStore.start(),
+    stop: () => notifyStore.stop(),
+    refreshSummary: () => notifyStore.refreshSummary(),
+    unackedAlerts: async () => (await listAlerts(true)).unacked,
+    mayReadAlerts: () => canNav('events.read'),
+  });
   @state() private navOrder: NavTabId[] = navOrder();
   private menuTrigger: HTMLElement | null = null;
   /** The phone layout (< 768 px): the user menu is a sheet, the tab row the underline variant. */
@@ -1907,7 +1907,6 @@ export class SwApp extends LitElement {
     this.setAttribute('data-design', 'a'); // the one design: the attribute stays as the styling hook of the shell's CSS
     this.phoneMq.addEventListener('change', this.onPhoneMq);
     window.addEventListener('popstate', this.onPopState);
-    this.stopNotify = notifyStore.subscribe((s) => (this.notifySummary = s.summary));
     this.stopNavOrder = onNavOrder((o) => (this.navOrder = o));
     this.stopNavSize = onNavSize((sz) => (this.nav = navDims(sz)));
     this.stopUpdateMark = onUpdateState(() => { this.updateMark = updateAvailable(); this.restartMark = restartRequired(); });
@@ -1952,7 +1951,7 @@ export class SwApp extends LitElement {
       if (s.mode !== 'loading') {
         this.openPendingCenter();
         void this.pollAlerts();
-        if ((s.mode === 'api' || s.mode === 'demo') && !this.embedded()) void notifyStore.start(); // CR-018: the badge's summary and the live events
+        this.notify.startLive(s.mode, this.embedded()); // CR-018: the badge's summary and the live events
       }
       // the static demo has no start-screen setting: the bare address opens "ראשי"
       if (s.mode === 'demo' && this.landedDefault) this.land(START_ROUTES.devices);
@@ -2053,20 +2052,13 @@ export class SwApp extends LitElement {
         this.overlayEntry = false;
         this.closeMenu(false, false);
         this.orderOpen = false;
-        if (this.keepCenterOnce) this.keepCenterOnce = false;
-        else this.centerOpen = false;
+        this.notify.routeChanged(); // the center closes, unless a deep link has just opened it
       }
       // CR-018 / CR §9: the push's "פתח דלת" is a deep link (#/doors/<id>?confirm=<notification id>). It opens the center on that notification with the
       // in-app confirmation - never an unlock by itself, and only inside a signed-in session (the center opens once the session is known); the address
-      // then falls back to the home screen so Back does not repeat it.
-      const doorLink = parseDoorConfirmLink(window.location.hash);
-      const rowLink = doorLink ? null : parseNotificationLink(window.location.hash); // every push opens '#/notifications/<id>': the center on that row
-      if ((doorLink || rowLink) && !replaced) {
-        this.centerFocus = doorLink?.notificationId ?? (rowLink as string);
-        this.centerConfirm = !!doorLink;
-        this.pendingCenter = true;
+      // then falls back to the home screen so Back does not repeat it. Every other push opens '#/notifications/<id>': the center on that row.
+      if (!replaced && this.notify.takeLink(window.location.hash)) {
         this.openPendingCenter();
-        this.keepCenterOnce = true;
         queueMicrotask(() => window.location.replace('#/devices/building'));
         return;
       }
@@ -2253,8 +2245,7 @@ export class SwApp extends LitElement {
     window.clearTimeout(this.permToastTimer);
     this.stopWiskeyNav?.();
     this.stopAlarmPresence?.();
-    this.stopNotify?.();
-    notifyStore.stop();
+    // CR-SHELL-EXTRACT-2440: the notification store's subscription and live events end in ShellNotify.hostDisconnected (super.disconnectedCallback)
     this.stopNavOrder?.();
     this.stopNavSize?.();
     this.stopUpdateMark?.();
@@ -2971,69 +2962,45 @@ export class SwApp extends LitElement {
 
   /** The avatar's accessible name: who, and the open alerts (the red dot says it visually). */
   private userLabel(): string {
-    const s = this.notifySummary;
+    const s = this.notify.summary;
     // CR-018: the center's numbers (unread, open critical) when `/notifications/summary` answers, the open rule alerts of today's poll otherwise
     if (s) {
       const t = badgeLabel(this.badge(), s.open_critical);
       return `${tr('תפריט המשתמש')}${this.userName ? ` · ${this.userName}` : ''}${t ? ` · ${t}` : ''}`;
     }
-    const n = this.alertCount ?? 0;
+    const n = this.notify.alertCount ?? 0;
     return `${tr('תפריט המשתמש')}${this.userName ? ` · ${this.userName}` : ''}${n ? ` · ${openAlertsText(n)}` : ''}`;
   }
 
-  /** The avatar's dot and the menu chip (CR-018): see `badgeOf`. */
+  /** The avatar's dot and the menu chip (CR-018): see `badgeOf` (shell/notify-wiring.ts). */
   private badge() {
-    return badgeOf(this.gated ? null : this.notifySummary, this.gated ? null : this.alertCount);
+    return this.notify.badge(this.gated);
   }
 
   /** The numbers behind the red dot and the menu's chip. CR-018: `/notifications/summary` (unread, open critical), refreshed by the live events of `/me/ws`
    * and by this poll as the fallback; when it does not answer (an older backend) the rule-alert count stands in: the server's `unacked`, the open alerts in
    * this user's scope (routers/rules.py filters by camera scope), null = this user may not read alerts. Never inside the kiosk or the Lovelace card view:
-   * they have no user menu. */
-  private async pollAlerts() {
-    if (this.route?.segments[0] === 'kiosk' || this.embedded()) return;
-    if (this.session.mode === 'demo') {
-      this.alertCount = 0;
-      return;
-    }
-    if (this.session.mode !== 'api') {
-      this.alertCount = null;
-      return;
-    }
-    await notifyStore.refreshSummary();
-    if (this.notifySummary) return;
-    if (!canNav('events.read')) {
-      this.alertCount = null;
-      return;
-    }
-    try {
-      this.alertCount = (await listAlerts(true)).unacked;
-    } catch {
-      /* keep the last known count */
-    }
+   * they have no user menu. CR-SHELL-EXTRACT-2440: the reading itself is ShellNotify.poll. */
+  private pollAlerts() {
+    return this.notify.poll(this.session.mode, this.route?.segments[0] === 'kiosk' || this.embedded());
   }
 
   // ---- the notification center (CR-018) ----
 
   private openPendingCenter() {
-    if (!this.pendingCenter || this.session.mode === 'loading') return;
-    this.pendingCenter = false;
-    if (this.session.mode === 'api' || this.session.mode === 'demo') this.openCenter();
+    if (this.notify.takePending(this.session.mode)) this.openCenter();
   }
 
   private openCenter() {
     // the menu hands over to the center: its history entry (the phone sheet's) now stands for the center
     this.closeMenu(false, false);
     this.orderOpen = false;
-    this.centerOpen = true;
+    this.notify.show();
     this.pushOverlay();
   }
 
   private closeCenter() {
-    if (!this.centerOpen) return;
-    this.centerOpen = false;
-    this.centerFocus = '';
-    this.centerConfirm = false;
+    if (!this.notify.hide()) return;
     this.popOverlay();
     this.menuTrigger?.focus({ preventScroll: true });
   }
@@ -3069,7 +3036,7 @@ export class SwApp extends LitElement {
     if (href === '#/home') void put('me/interface', { interface: 'home' }).catch(() => undefined); // HOME-SIMPLE-2420: the choice is remembered for the next visit
     this.closeMenu(false, false);
     this.orderOpen = false;
-    this.centerOpen = false;
+    this.notify.dismiss();
     const own = this.overlayEntry && (window.history.state as { swOverlay?: boolean } | null)?.swOverlay;
     this.overlayEntry = false;
     if (own) {
@@ -3085,7 +3052,7 @@ export class SwApp extends LitElement {
   private runFromOverlay(run: () => void) {
     this.closeMenu(false, false);
     this.orderOpen = false;
-    this.centerOpen = false;
+    this.notify.dismiss();
     const own = this.overlayEntry && (window.history.state as { swOverlay?: boolean } | null)?.swOverlay;
     this.overlayEntry = false;
     if (own) {
@@ -3106,7 +3073,7 @@ export class SwApp extends LitElement {
     if (!this.overlayEntry || (e.state as { swOverlay?: boolean } | null)?.swOverlay) return;
     this.overlayEntry = false;
     this.orderOpen = false;
-    this.centerOpen = false;
+    this.notify.dismiss();
     this.closeMenu(true, false);
   };
 
@@ -3163,7 +3130,7 @@ export class SwApp extends LitElement {
     const noTabs = this.gated || !visibleAreas(api, canNav, this.navOrder).length;
     const badge = this.badge();
     return html`<sw-user-menu .open=${this.menuOpen} .name=${this.userName} .role=${this.userRole} .api=${api} .gated=${noTabs} .alerts=${badge.item ? badge.count : null}
-        .notifyCenter=${!!this.notifySummary} .alertsHot=${badge.dot} @open-notifications=${() => this.openCenter()}
+        .notifyCenter=${!!this.notify.summary} .alertsHot=${badge.dot} @open-notifications=${() => this.openCenter()}
         .settingsHref=${settings?.href ?? ''} .updateHref=${!this.gated && api && this.updateMark && can('system.update') ? UPDATE_HREF : ''} .restartHref=${!this.gated && api && this.restartMark && can('system.update') ? UPDATE_HREF : ''} .editHomeHref=${this.canEditHome() ? '#/devices/building?edit=1' : ''}
         .homeHref=${!this.gated && api && this.session.me?.interface?.may_switch ? '#/home' : ''}
         .screenEdits=${this.gated ? [] : screenEdits().map((a) => ({ id: a.id, label: a.label, icon: a.icon ?? 'edit' }))}
@@ -3184,7 +3151,7 @@ export class SwApp extends LitElement {
           this.popOverlay();
           this.menuTrigger?.focus({ preventScroll: true });
         }}></sw-nav-order>
-      ${this.gated ? nothing : html`<notify-center .open=${this.centerOpen} .focusId=${this.centerFocus} .confirmDoor=${this.centerConfirm}
+      ${this.gated ? nothing : html`<notify-center .open=${this.notify.open} .focusId=${this.notify.focusId} .confirmDoor=${this.notify.confirmDoor}
         @close=${() => this.closeCenter()} @navigate=${(e: CustomEvent<{ href: string }>) => this.navigateFromOverlay(e.detail.href)}></notify-center>`}${this.gated ? nothing : html`<device-activity></device-activity>`}`;
   }
 
