@@ -32,6 +32,7 @@ from ..services.notices import display as disp
 from ..services.notices import info as ninfo
 from ..services.notices import model, news_sources, page, store
 from ..services.notices import push as npush
+from ..services.notices import router_store as rstore
 from ..services.transit import model as transit_model
 from ..db import get_setting
 from ..services.notices.model import PERM_BOARDS, PERM_DELETE, PERM_MANAGE, PERM_PUSH, PERM_VIEW, Invalid
@@ -159,7 +160,7 @@ class SettingsIn(BaseModel):
 
 def _weather_entities(conn: sqlite3.Connection) -> list[dict[str, str]]:
     return [{"entity_id": r["entity_id"], "name": r["name"] or r["entity_id"]}
-            for r in conn.execute("SELECT entity_id, name FROM ha_entities WHERE domain = 'weather' AND removed_at IS NULL ORDER BY name, entity_id").fetchall()]
+            for r in rstore.weather_entities(conn)]
 
 
 @open_router.get("/notices/settings")
@@ -213,7 +214,7 @@ def put_logo(request: Request, file: UploadFile = File(...), principal: Principa
     path = _logo_path(request)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(png)
-    conn.execute("UPDATE notice_boards SET updated_at = ? WHERE deleted_at IS NULL", (model.iso(store.utcnow()),))
+    rstore.touch_boards(conn, model.iso(store.utcnow()))
     audit(conn, actor=principal, action="notices.logo.update", decision="allowed", resource_type="installation", resource_id="notices", request_id=_rid(request))
     return {"company_logo": True}
 
@@ -224,7 +225,7 @@ def delete_logo(request: Request, principal: Principal = Depends(current_princip
     path = _logo_path(request)
     if path.is_file():
         path.unlink()
-    conn.execute("UPDATE notice_boards SET updated_at = ? WHERE deleted_at IS NULL", (model.iso(store.utcnow()),))
+    rstore.touch_boards(conn, model.iso(store.utcnow()))
     audit(conn, actor=principal, action="notices.logo.delete", decision="allowed", resource_type="installation", resource_id="notices", request_id=_rid(request))
     return {"company_logo": False}
 
@@ -274,7 +275,7 @@ def put_news_sources(body: NewsSourcesIn, request: Request, principal: Principal
         items = news_sources.replace(conn, [x.model_dump() for x in body.sources])
     except Invalid as exc:
         raise _invalid(exc)
-    conn.execute("UPDATE notice_boards SET updated_at = ? WHERE deleted_at IS NULL", (model.iso(store.utcnow()),))
+    rstore.touch_boards(conn, model.iso(store.utcnow()))
     audit(conn, actor=principal, action="notices.news_sources.update", decision="allowed", resource_type="installation", resource_id="notices",
           request_id=_rid(request), details={"count": len(items), "enabled": sum(1 for s in items if s["enabled"])})
     return _news_out(conn)
@@ -292,7 +293,7 @@ def put_news_logo(source_id: str, request: Request, file: UploadFile = File(...)
         raise ApiError(404, "not_found", "המקור לא נמצא.")
     except LogoError as exc:
         raise ApiError(422, "logo_refused", "הלוגו: PNG או JPEG עד 300KB.", details={"reason": str(exc)})
-    conn.execute("UPDATE notice_boards SET updated_at = ? WHERE deleted_at IS NULL", (model.iso(store.utcnow()),))
+    rstore.touch_boards(conn, model.iso(store.utcnow()))
     audit(conn, actor=principal, action="notices.news_logo.update", decision="allowed", resource_type="installation", resource_id="notices", request_id=_rid(request))
     return _news_out(conn)
 
@@ -304,7 +305,7 @@ def delete_news_logo(source_id: str, request: Request, principal: Principal = De
         news_sources.remove_logo(conn, source_id)
     except KeyError:
         raise ApiError(404, "not_found", "המקור לא נמצא.")
-    conn.execute("UPDATE notice_boards SET updated_at = ? WHERE deleted_at IS NULL", (model.iso(store.utcnow()),))
+    rstore.touch_boards(conn, model.iso(store.utcnow()))
     audit(conn, actor=principal, action="notices.news_logo.delete", decision="allowed", resource_type="installation", resource_id="notices", request_id=_rid(request))
     return _news_out(conn)
 
@@ -476,7 +477,7 @@ def patch_board(board_id: str, body: BoardPatch, request: Request, principal: Pr
             cols["enabled"] = body.enabled
         if body.display is not None:
             d = model.merge_display(model.load_display(b["display_json"]), body.display)
-            if d["hold"] and not conn.execute("SELECT 1 FROM notice_board_items WHERE board_id = ? AND notice_id = ?", (b["id"], d["hold"])).fetchone():
+            if d["hold"] and not rstore.board_has_notice(conn, b["id"], d["hold"]):
                 raise Invalid("display.hold", "ההשהיה: הודעה שאינה בלוח.")
             configured = {s["code"] for s in transit_model.load_config(get_setting(conn, transit_model.CONFIG_KEY, ""))["stops"]}
             if any(c not in configured for c in d["transit"]["stops"]):  # BUSTIMES-295: a screen picks among the installation's stops
@@ -727,17 +728,13 @@ def audience_preview(body: AudienceIn, principal: Principal = Depends(current_pr
 def audience_options(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The floors, groups and built-in roles the compose dialog offers (names only)."""
     _need_anywhere(conn, principal, PERM_MANAGE)
-    floors = [{"id": r["id"], "name": r["name"], "building": r["bname"]} for r in conn.execute(
-        """SELECT f.id, f.name, b.name AS bname FROM floors f JOIN buildings b ON b.id = f.building_id
-           WHERE f.deleted_at IS NULL AND b.deleted_at IS NULL ORDER BY b.sort_order, b.name, f.level, f.sort_order""").fetchall()]
-    groups = [{"id": r["id"], "name": r["name"]} for r in conn.execute("SELECT id, name FROM groups ORDER BY name").fetchall()]
+    floors = [{"id": r["id"], "name": r["name"], "building": r["bname"]} for r in rstore.live_floors(conn)]
+    groups = [{"id": r["id"], "name": r["name"]} for r in rstore.groups(conn)]
     from ..rbac import ROLE_NAMES_HE
 
     roles = [{"id": k, "name": v} for k, v in ROLE_NAMES_HE.items() if k in ("viewer", "operator", "editor", "site_admin", "system_admin", "kiosk")]
     # NOTICEPAGE-295: the named areas (rooms / zones) under each floor, for the page's places tree (an area in an audience resolves to its floor)
-    areas = [{"id": r["id"], "name": r["name"], "floor": r["floor_id"]} for r in conn.execute(
-        """SELECT z.id, z.name, z.floor_id FROM spatial_zones z JOIN floors f ON f.id = z.floor_id
-           WHERE z.deleted_at IS NULL AND f.deleted_at IS NULL AND TRIM(z.name) <> '' ORDER BY f.level, f.sort_order, z.name LIMIT 500""").fetchall()]
+    areas = [{"id": r["id"], "name": r["name"], "floor": r["floor_id"]} for r in rstore.named_areas(conn)]
     return {"floors": floors, "areas": areas, "groups": groups, "roles": roles}
 
 
@@ -956,10 +953,10 @@ def reads(notice_id: str, principal: Principal = Depends(current_principal_ro), 
     """Who read (owner decision 2026-10-24: names visible to notice managers; `notices.reads_names = false` -> counts only)."""
     n = _managed(conn, principal, notice_id)
     users = aud.resolve_users(conn, aud.parse(n["audience_json"]))
-    rows = {r["user_id"]: r["read_at"] for r in conn.execute("SELECT user_id, read_at FROM notice_reads WHERE notice_id = ?", (notice_id,)).fetchall()}
+    rows = {r["user_id"]: r["read_at"] for r in rstore.notice_reads(conn, notice_id)}
     out: dict[str, Any] = {"audience": len(users), "read": len([u for u in users if u in rows])}
     if store.settings(conn)["reads_names"]:
-        names = {r["id"]: (r["display_name"] or r["username"]) for r in conn.execute("SELECT id, display_name, username FROM users").fetchall()}
+        names = {r["id"]: (r["display_name"] or r["username"]) for r in rstore.user_names(conn)}
         place = aud.places_of(conn, users)
         out["users"] = [{"user_id": u, "name": names.get(u, u), "place": place.get(u, ""), "read_at": rows[u]} for u in users if u in rows]
         out["unread"] = [{"user_id": u, "name": names.get(u, u), "place": place.get(u, "")} for u in users if u not in rows]

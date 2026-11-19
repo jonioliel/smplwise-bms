@@ -32,6 +32,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..recorder_scope import PRIMARY, next_id, settings_for, valid_id
 from ..services import autosync, confirm_words, connection_store, events_ingest, nvr, nvr_write_switch, recorder_live
+from ..services import recorders_store as store
 from ..services.recorders import registry
 from ._common import rid as _rid
 from . import nvr_connection as nc
@@ -68,7 +69,7 @@ _admin_ro = read_gate(lambda conn, principal: require(conn, principal, PERMISSIO
 
 
 def _row(conn: sqlite3.Connection, rid: str) -> sqlite3.Row | None:
-    return conn.execute("SELECT * FROM recorders WHERE id = ?", (rid,)).fetchone()
+    return store.recorder(conn, rid)
 
 
 def _known(conn: sqlite3.Connection, rid: str, *, include_removed: bool = False) -> sqlite3.Row | None:
@@ -140,7 +141,7 @@ def _caps(row: sqlite3.Row | None) -> dict[str, Any]:
 
 def recorder_view(conn: sqlite3.Connection, request: Request, rid: str, row: sqlite3.Row | None, *, admin: bool) -> dict[str, Any]:
     settings = settings_of(request)
-    counts = conn.execute("SELECT COUNT(*) AS n, COALESCE(SUM(enabled), 0) AS on_ FROM cameras WHERE recorder_id = ?", (rid,)).fetchone()
+    counts = store.camera_counts(conn, rid)
     pending = _pending(conn, settings, rid, row)
     state, error = _state(conn, settings, rid, row, pending)
     conn_row = connection_store.get_row(conn, rid)
@@ -165,8 +166,7 @@ def recorder_view(conn: sqlite3.Connection, request: Request, rid: str, row: sql
 
 
 def _ids(conn: sqlite3.Connection, include_removed: bool) -> list[tuple[str, sqlite3.Row | None]]:
-    sql = "SELECT * FROM recorders" + ("" if include_removed else " WHERE removed_at IS NULL") + " ORDER BY sort_order, id"
-    rows = [r for r in conn.execute(sql).fetchall() if r["id"] != registry.STANDALONE]  # CAMERA-STREAM-SOURCES-2410: not a recorder
+    rows = [r for r in store.recorders(conn, include_removed) if r["id"] != registry.STANDALONE]  # CAMERA-STREAM-SOURCES-2410: not a recorder
     out: list[tuple[str, sqlite3.Row | None]] = [(r["id"], r) for r in rows]
     if not any(rid == PRIMARY for rid, _ in out) and _primary_present(conn):
         out.insert(0, (PRIMARY, None))
@@ -212,8 +212,7 @@ def _destination_taken(conn: sqlite3.Connection, settings: Any, fields: dict[str
     """Another active recorder already names this device (host + HTTP port): two rows on one device would register its
     cameras twice and let two write batches run on it at once."""
     host = nc._norm_host(fields.get("host"))
-    for r in conn.execute("SELECT rc.recorder_id, rc.host, rc.http_port FROM recorder_connections rc LEFT JOIN recorders r ON r.id = rc.recorder_id "
-                          "WHERE rc.vendor <> 'none' AND rc.recorder_id <> ? AND (r.removed_at IS NULL)", (rid,)).fetchall():
+    for r in store.other_active_destinations(conn, rid):
         if nc._norm_host(r["host"]) == host and int(r["http_port"] or 0) == int(fields.get("http_port") or 0):
             return True
     if rid != PRIMARY and connection_store.get_row(conn, PRIMARY) is None and settings.nvr_host and settings.nvr_host != DEV_NVR_PLACEHOLDER:
@@ -227,9 +226,7 @@ def _primary_free(conn: sqlite3.Connection, settings: Any) -> bool:
 
 def _other_recorders(conn: sqlite3.Connection) -> bool:
     """Another recorder is in use (not removed, with a connection that is not "no NVR")."""
-    row = conn.execute("""SELECT 1 FROM recorder_connections rc LEFT JOIN recorders r ON r.id = rc.recorder_id
-                          WHERE rc.recorder_id <> ? AND rc.vendor <> 'none' AND r.removed_at IS NULL LIMIT 1""", (PRIMARY,)).fetchone()
-    return row is not None
+    return store.other_recorder_in_use(conn, PRIMARY)
 
 
 def primary_has_history(conn: sqlite3.Connection) -> bool:
@@ -238,11 +235,8 @@ def primary_has_history(conn: sqlite3.Connection) -> bool:
 
 def create_recorder_row(conn: sqlite3.Connection, rid: str, name: str, vendor: str) -> None:
     """The recorders row of a recorder being added (or revived); the connection row is written by the caller."""
-    order = conn.execute("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM recorders").fetchone()[0]
-    conn.execute("""INSERT INTO recorders(id, name, model, firmware, last_seen_at, created_at, vendor, enabled, sort_order)
-                    VALUES (?, ?, NULL, NULL, NULL, ?, ?, 1, ?)
-                    ON CONFLICT(id) DO UPDATE SET name = excluded.name, vendor = excluded.vendor, enabled = 1, removed_at = NULL""",
-                 (rid, name, now_iso(), vendor, order))
+    order = store.next_sort_order(conn)
+    store.upsert_recorder(conn, rid, name, now_iso(), vendor, order)
 
 
 @router.post("/recorders", status_code=201)
@@ -259,8 +253,8 @@ def add_recorder(request: Request, principal: Principal = Depends(_admin_ro), ra
     if _primary_free(conn, settings) and not _other_recorders(conn) and not primary_has_history(conn):
         rid = PRIMARY  # an installation without any recorder and without history of the first one: it becomes the first recorder
     else:
-        used = [r["id"] for r in conn.execute("SELECT id FROM recorders").fetchall()]
-        used += [r["recorder_id"] for r in conn.execute("SELECT recorder_id FROM recorder_connections").fetchall()]
+        used = [r["id"] for r in store.recorder_ids(conn)]
+        used += [r["recorder_id"] for r in store.connection_recorder_ids(conn)]
         rid = next_id(used)
     body = body.model_copy(update={"if_revision": connection_store.revision_of(conn, rid) or 0})
 
@@ -309,8 +303,7 @@ def update_recorder(recorder_id: str, request: Request, background: BackgroundTa
         changes["time_zone"] = tz or None
     if not changes:
         raise ApiError(422, "validation", "אין מה לשנות.")
-    sets = ", ".join(f"{k} = ?" for k in changes)
-    conn.execute(f"UPDATE recorders SET {sets} WHERE id = ?", (*changes.values(), recorder_id))
+    store.update_recorder(conn, recorder_id, changes)
     audit(conn, actor=principal, action="nvr.recorder.update", decision="allowed", resource_type="recorder", resource_id=recorder_id, request_id=_rid(request),
           details={k: (bool(v) if k == "enabled" else v) for k, v in changes.items()})
     if "enabled" in changes:

@@ -28,6 +28,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import Database, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
+from ..services import notifications_store as store
 from ..services import notify, notify_channels
 from ..services import notify_email as email_svc
 from ..services import notify_policy as policies
@@ -110,19 +111,14 @@ class SnoozeIn(BaseModel):
 @router.get("/notifications/deliveries")
 def my_deliveries(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), notification_id: str | None = Query(None, max_length=64)) -> dict[str, Any]:
     """The caller's OWN delivery rows (what was sent to their devices, what was held back and why)."""
-    sql = "SELECT d.*, n.title, n.source FROM notification_deliveries d JOIN notifications n ON n.id = d.notification_id WHERE d.user_id = ?"
-    params: list[Any] = [principal.user_id]
-    if notification_id:
-        sql += " AND d.notification_id = ?"
-        params.append(notification_id)
-    rows = conn.execute(sql + " ORDER BY d.created_at DESC, d.id DESC LIMIT 400", params).fetchall()
+    rows = store.own_deliveries(conn, principal.user_id, notification_id)
     reach = Reach(conn, principal)
     seen: dict[str, bool] = {}
     out = []
     for r in rows:  # a delivery row names the notification's title: only for a row the caller may STILL see (revoked scope hides it)
         nid = r["notification_id"]
         if nid not in seen:
-            n = conn.execute("SELECT * FROM notifications WHERE id = ?", (nid,)).fetchone()
+            n = store.notification(conn, nid)
             seen[nid] = bool(n is not None and reach.can_see(notify._row_note(n)))
         if seen[nid]:
             out.append(_delivery(conn, r, with_user=False))
@@ -134,7 +130,7 @@ def test_notification(request: Request, principal: Principal = Depends(current_p
     """A test push to the caller's own registered devices (3 per minute per user, the same bucket as /push/test)."""
     if not push_svc.take_token(principal.user_id, "test"):
         raise ApiError(429, "rate_limited", "יותר מדי התראות בדיקה. נסו שוב בעוד דקה.", retryable=True, details={"retry_after_s": 20})
-    if not conn.execute("SELECT 1 FROM push_subscriptions WHERE user_id = ?", (principal.user_id,)).fetchone():
+    if not store.has_push_subscription(conn, principal.user_id):
         raise ApiError(409, "push_not_subscribed", "המכשיר הזה (וכל מכשיר אחר שלך) עדיין לא נרשם להתראות.")
     audit(conn, actor=principal, action="push.test", decision="allowed", resource_type="user", resource_id=principal.user_id, request_id=_rid(request))
     db: Database = request.app.state.db
@@ -291,7 +287,7 @@ def _delivery(conn: sqlite3.Connection, r: sqlite3.Row, with_user: bool = True) 
     d: dict[str, Any] = {"id": r["id"], "notification_id": r["notification_id"], "title": r["title"], "source": r["source"], "channel": r["channel"], "target": r["target_ref"], "status": r["status"],
                          "reason": r["reason"], "attempt": r["attempt"], "at": r["sent_at"] or r["created_at"], "mode": r["mode"]}
     if with_user:
-        u = conn.execute("SELECT display_name, username FROM users WHERE id = ?", (r["user_id"],)).fetchone() if r["user_id"] else None
+        u = store.user_names(conn, r["user_id"]) if r["user_id"] else None
         d["user_display"] = (u["display_name"] or u["username"]) if u else ("דואר יוצא" if r["channel"] == "email" else "")
     else:
         d["user_display"] = ""
@@ -361,10 +357,9 @@ def put_policy(source: str, request: Request, body: dict[str, Any] = Body(...), 
     except policies.PolicyInvalid as exc:
         raise ApiError(422, exc.code, exc.message, details=exc.details) from None
     if cols:
-        if conn.execute("SELECT 1 FROM notify_policies WHERE source = ?", (source,)).fetchone() is None:
+        if not store.policy_exists(conn, source):
             policies.ensure_defaults(conn)
-        conn.execute(f"UPDATE notify_policies SET {', '.join(f'{k} = ?' for k in cols)}, revision = revision + 1, updated_by = ?, updated_at = ? WHERE source = ?",
-                     (*cols.values(), principal.user_id, iso_utc(dt.datetime.now(dt.timezone.utc)), source))
+        store.update_policy(conn, source, cols, principal.user_id, iso_utc(dt.datetime.now(dt.timezone.utc)))
     audit(conn, actor=principal, action="notify.policy.update", decision="allowed", resource_type="notify_policy", resource_id=source, request_id=_rid(request),
           details={"changed": sorted(k.removesuffix("_json") for k in cols)})
     return _policy_view(policies.get_policy(conn, source), nsettings.failures_audience(conn))  # type: ignore[arg-type]
@@ -433,24 +428,12 @@ def all_deliveries(principal: Principal = Depends(current_principal_ro), conn: s
     _manager(conn, principal)
     if status is not None and status not in ("queued", "sent", "retry", "failed", "gone", "skipped", "failures"):
         raise ApiError(422, "validation", "סטטוס לא מוכר.", details={"field": "status"})
-    sql = "SELECT d.*, n.title, n.source FROM notification_deliveries d JOIN notifications n ON n.id = d.notification_id WHERE 1 = 1"
-    params: list[Any] = []
-    if status == "failures":
-        sql += " AND d.status IN ('failed', 'gone')"
-    elif status:
-        sql += " AND d.status = ?"
-        params.append(status)
-    if channel:
-        sql += " AND d.channel = ?"
-        params.append(channel)
     if since:
         try:
             parse_utc(since)
         except ValueError:
             raise ApiError(422, "validation", "since חייב להיות זמן UTC.", details={"field": "since"}) from None
-        sql += " AND d.created_at >= ?"
-        params.append(since)
-    rows = conn.execute(sql + " ORDER BY d.created_at DESC, d.id DESC LIMIT ?", (*params, limit)).fetchall()
+    rows = store.all_deliveries(conn, status, channel, since, limit)
     return {"deliveries": [_delivery(conn, r) for r in rows]}
 
 
@@ -463,7 +446,7 @@ def stats(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Co
     _manager(conn, principal)
     since = iso_utc(dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=24))
     channels: dict[str, dict[str, Any]] = {}
-    for r in conn.execute("SELECT channel, status, COALESCE(reason, '') AS reason, COUNT(*) AS n FROM notification_deliveries WHERE created_at >= ? GROUP BY channel, status, reason", (since,)).fetchall():
+    for r in store.delivery_counts_since(conn, since):
         c = channels.setdefault(r["channel"], {"sent": 0, "failed": 0, "skipped": {}})
         if r["status"] == "sent":
             c["sent"] += r["n"]
@@ -471,9 +454,9 @@ def stats(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Co
             c["failed"] += r["n"]
         elif r["status"] == "skipped":
             c["skipped"][r["reason"] or "other"] = c["skipped"].get(r["reason"] or "other", 0) + r["n"]
-    by_source = {r["source"]: r["n"] for r in conn.execute("SELECT source, COUNT(*) AS n FROM notifications WHERE created_at >= ? GROUP BY source ORDER BY n DESC", (since,)).fetchall()}
+    by_source = {r["source"]: r["n"] for r in store.notification_counts_by_source_since(conn, since)}
     worker = {k: push_svc.STATS[k] for k in ("queued", "sent", "retried", "gone", "failed", "refused", "retry_skipped", "rate_limited", "dropped_queue")}
     from ..services import mobile_push  # RELAY-SAFE-2380: the phone-app relay's health (a wrong address is shown here, never hidden as dropped devices)
 
-    return {"since": since, "channels": channels, "worker": worker, "by_source": by_source, "push_devices": conn.execute("SELECT COUNT(*) FROM push_subscriptions").fetchone()[0],
+    return {"since": since, "channels": channels, "worker": worker, "by_source": by_source, "push_devices": store.push_subscription_count(conn),
             "app_relay": mobile_push.relay_health()}
