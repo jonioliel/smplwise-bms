@@ -4,6 +4,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../../components/sw-icon';
 import '../../components/sw-sheet';
 import '../../components/sw-state-panel';
+import '../../components/sw-table';
+import type { TableColumn } from '../../components/sw-table';
 import '../../electricity/elec-ui'; // elec-dialog (the electricity confirmation dialog)
 import { ApiError, describeError } from '../../api/client';
 import { waterBilling, type Customer } from '../../api/water-billing';
@@ -26,6 +28,19 @@ const skeletonCard = (n = 6) => html`<div class="card" aria-busy="true">${Array.
  * customer's water accounts, the recent bills, save and delete). A customer with accounts (water or electricity) cannot be deleted - the
  * server refuses, the card says so. water.bills for the page; water.manage to create and edit.
  */
+/** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): the customers as the shared sw-table - the name is the row's link (its tab stop:
+ * `no-focus-rows`; a click anywhere on the row opens the card too), the number / phone / e-mail as LTR isolates, the counts and the
+ * balance at the reading end. Row hook `data-customer-row`. */
+const customerColumns = (): TableColumn<Customer>[] => [
+  { key: 'no', label: wt('colCustNo'), render: (c) => html`<span class="num">${c.customer_number}</span>` },
+  { key: 'name', label: wt('colName'), render: (c) => html`<a class="t1" href=${`#${BASE}/${c.id}`} @click=${(e: Event) => e.stopPropagation()}>${c.name}</a>` },
+  { key: 'address', label: wt('colAddress'), render: (c) => c.address ?? '' },
+  { key: 'phone', label: wt('colPhone'), render: (c) => html`<span class="num">${c.phone ?? ''}</span>` },
+  { key: 'email', label: wt('colEmail'), render: (c) => html`<span class="num">${c.email ?? ''}</span>` },
+  { key: 'accounts', label: wt('colAccounts'), kind: 'num', render: (c) => String(c.account_count) },
+  { key: 'balance', label: wt('colBalance'), kind: 'num', render: (c) => (c.open_balance !== undefined ? fmtIls(c.open_balance) : '') },
+];
+
 @customElement('water-customers-page')
 export class WaterCustomersPage extends LitElement {
   readonly bubbleSkin = new SkinController(this);
@@ -193,12 +208,8 @@ export class WaterCustomersPage extends LitElement {
     else if (!this.list.length) body = html`<sw-state-panel icon="users" state="empty" heading=${wt('emptyCustomers')}></sw-state-panel>`;
     else if (!list.length) body = html`<sw-state-panel icon="search" state="empty" compact heading=${wt('noCustomers')}></sw-state-panel>`;
     else
-      body = html`<div class="card flush scrollx desk-only"><table class="t" data-cust-table>
-          <thead><tr><th>${wt('colCustNo')}</th><th>${wt('colName')}</th><th>${wt('colAddress')}</th><th>${wt('colPhone')}</th><th>${wt('colEmail')}</th><th class="n">${wt('colAccounts')}</th><th class="n">${wt('colBalance')}</th></tr></thead>
-          <tbody>${list.map((c) => html`<tr class="go" data-customer-row=${c.id} @click=${() => navigate(`${BASE}/${c.id}`)}>
-            <td class="num" style="text-align:start">${c.customer_number}</td><td class="b"><a class="rowlink" href=${`#${BASE}/${c.id}`} @click=${(e: Event) => e.stopPropagation()}>${c.name}</a></td>
-            <td>${c.address ?? ''}</td><td class="num" style="text-align:start">${c.phone ?? ''}</td><td class="num" style="text-align:start">${c.email ?? ''}</td>
-            <td class="n"><span class="num">${c.account_count}</span></td><td class="n"><span class="num">${c.open_balance !== undefined ? fmtIls(c.open_balance) : ''}</span></td></tr>`)}</tbody></table></div>
+      body = html`<sw-table class="t card flush desk-only" data-cust-table no-focus-rows .columns=${customerColumns() as unknown as TableColumn[]} .rows=${list as unknown as Record<string, unknown>[]}
+          .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-customer-row': String(r.id) })} @row-select=${(e: CustomEvent<{ id: string }>) => navigate(`${BASE}/${e.detail.id}`)}></sw-table>
         <div class="list phone-only" style="flex-direction:column" data-cust-rows>${list.map((c) => html`<a class="li" href=${`#${BASE}/${c.id}`} data-customer-row=${c.id}>
           <div class="grow"><div class="t1">${c.name} · <span class="num">${c.customer_number}</span></div><div class="t2">${c.address ?? ''}${c.phone ? html` · <span class="num">${c.phone}</span>` : nothing}</div></div>
           <div class="rowend"><div class="t2 num">${c.open_balance !== undefined ? fmtIls(c.open_balance) : ''}</div></div></a>`)}</div>`;

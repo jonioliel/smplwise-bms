@@ -105,15 +105,15 @@ test.describe('keyboard pass over the screens of the row', () => {
   });
 
   test('water accounts / bills / customers: each clickable row holds a real link to the same page (already a tab stop; no second one added)', () => {
-    for (const [file, attr] of [['screens/water/page-accounts.ts', 'data-account-row'], ['screens/water/page-accounts.ts', 'data-bill-row'], ['screens/water/page-customers.ts', 'data-customer-row']] as const) {
+    // CR-CMP2-TABLES-CONSUMPTION-2450: the tables are sw-table - `no-focus-rows` keeps the row out of the tab order (the link in its first
+    // cell is the tab stop), the row hook comes through rowAttrs, the link is the shared `a.t1` and stops its click (one navigation)
+    for (const [file, attr, table] of [['screens/water/page-accounts.ts', 'data-account-row', 'data-acc-table'], ['screens/water/page-accounts.ts', 'data-bill-row', 'data-bill-table'], ['screens/water/page-customers.ts', 'data-customer-row', 'data-cust-table']] as const) {
       const s = read(file);
-      const at = s.indexOf(`<tr class="go" ${attr}=`);
-      expect(at, `${file} ${attr}`).toBeGreaterThan(0);
-      expect(s.slice(at, at + 600), `${file} ${attr}`).toMatch(/<a class="rowlink[^"]*" href=\$\{`#/);
-      for (const t of clickTags(s)) {
-        const ok = stopOnly(t.text) || (t.tag === 'tr' && t.text.includes('class="go"') && s.split('\n').slice(t.line - 1, t.line + 1).join('\n').includes('class="rowlink'));
-        expect(ok, `${file}:${t.line} ${t.text.slice(0, 80)}`).toBe(true);
-      }
+      expect(s, `${file} ${table}`).toMatch(new RegExp(`<sw-table class="t card flush[^"]*" ${table} no-focus-rows `));
+      expect(s, `${file} ${attr}`).toContain(`'${attr}': String(r.id)`);
+      expect(s, `${file} ${attr}`).toMatch(/<a class="t1" href=\$\{`#[^\n]*@click=\$\{\(e: Event\) => e\.stopPropagation\(\)\}>/);
+      expect(s, file).not.toContain('<tr class="go"');
+      for (const t of clickTags(s)) expect(stopOnly(t.text), `${file}:${t.line} ${t.text.slice(0, 80)}`).toBe(true);
     }
   });
 
