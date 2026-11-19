@@ -31,6 +31,8 @@ from ..services import ha_users_store as store, revocation, secrets_store
 from ..services.tickets import out_documents
 from ._common import rid as _rid
 from . import access as acc
+from ..wire import ha_users as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -145,7 +147,7 @@ def _row(conn: sqlite3.Connection, r: sqlite3.Row, principal: Principal) -> dict
 # ---------------------------------------------------------------- read
 
 
-@router.get("/ha-users")
+@router.get("/ha-users", **wire(W.HaUserList))
 def list_managed(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, PERMISSION, INSTALLATION)
     rows = store.listed_managed(conn)
@@ -163,7 +165,7 @@ def list_managed(request: Request, principal: Principal = Depends(current_princi
     }
 
 
-@router.post("/ha-users/check")
+@router.post("/ha-users/check", **wire(W.HaUserCheck))
 def check(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Read-only probe: does the admin-only user list answer with the configured token?"""
     require(conn, principal, PERMISSION, INSTALLATION)
@@ -204,7 +206,7 @@ def _bind(conn: sqlite3.Connection, principal: Principal, request: Request, ha_u
     return bid
 
 
-@router.post("/ha-users", status_code=201)
+@router.post("/ha-users", status_code=201, **wire(W.HaUserCreated))
 def create(body: CreateBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     action = "ha_users.create"
     _guard_write(conn, principal, request, action)
@@ -321,12 +323,12 @@ def _directory_admin(conn: sqlite3.Connection, ha_user_id: str) -> bool:
     return bool(row and row["is_admin"])
 
 
-@router.post("/ha-users/{ha_user_id}/deactivate")
+@router.post("/ha-users/{ha_user_id}/deactivate", **wire(W.HaUserOne))
 def deactivate(ha_user_id: str, body: ConfirmBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     return _set_active(ha_user_id, False, body, request, principal, conn)
 
 
-@router.post("/ha-users/{ha_user_id}/activate")
+@router.post("/ha-users/{ha_user_id}/activate", **wire(W.HaUserOne))
 def activate(ha_user_id: str, body: ConfirmBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     return _set_active(ha_user_id, True, body, request, principal, conn)
 
@@ -338,7 +340,7 @@ class DeleteBody(BaseModel):
     confirm_username: str = Field(min_length=1, max_length=64)
 
 
-@router.post("/ha-users/{ha_user_id}/delete")
+@router.post("/ha-users/{ha_user_id}/delete", **wire(W.HaUserDeleted))
 def delete(ha_user_id: str, body: DeleteBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     action = "ha_users.delete"
     _guard_write(conn, principal, request, action, ha_user_id)
