@@ -200,4 +200,3 @@ smplwise.services.playback._INSTANCE
 smplwise.remote_channel._CSP_MODE
 smplwise.remote_channel._MIC_MODE
 # - no reset function in the module yet (adding one is the next step of this seam)
-smplwise.services.media_query._NAMES  # not covered by media_query.clear()
