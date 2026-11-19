@@ -3,11 +3,15 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import { describeError } from '../api/client';
 import { getReads, type Notice, type ReadsAnswer } from '../api/notices';
 import { nt } from '../i18n/notices';
 import { noticesCss } from './styles';
 import { readAtText, readsView, type ReadsSeg } from './reads-model';
+
+type ReadsRowView = { name: string; place: string; at: string };
 
 /**
  * NOTICEPAGE-295 (CR-NOTICE106 section 9, owner decision 2026-10-24 #73: names are shown to notice managers): the "מי קרא" sheet.
@@ -29,7 +33,8 @@ export class NoticeReads extends LitElement {
     .bar i { display: block; block-size: 100%; background: var(--sw-success); border-radius: inherit; }
     .body-grid { display: grid; gap: 12px; }
     .list { max-block-size: 280px; overflow: auto; }
-    .date { white-space: nowrap; }
+    /* CR-CMP2-TABLES-2450: the shared table, inside the sheet (no card of its own, never wider than the dialog) */
+    .list sw-table { --sw-table-min: 0; }
     @media (max-width: 767px) { .reads .kpi { padding: 8px 10px; } }
   `];
 
@@ -63,6 +68,16 @@ export class NoticeReads extends LitElement {
     this.dispatchEvent(new CustomEvent('reads-close', { bubbles: true, composed: true }));
   }
 
+  /** CR-CMP2-TABLES-2450 (owner N10): the readers' list on the shared table - name, place (muted), and the read time on the "read" side */
+  private columns(): TableColumn<ReadsRowView>[] {
+    const cols: TableColumn<ReadsRowView>[] = [
+      { key: 'name', label: nt('colName'), render: (r) => html`<span class="t1">${r.name}</span>` },
+      { key: 'place', label: nt('colPlace'), kind: 'muted', render: (r) => r.place || nt('allPlaces'), cellAttrs: () => ({ 'data-reads-place': true }) },
+    ];
+    if (this.seg === 'read') cols.push({ key: 'at', label: nt('colReadAt'), render: (r) => html`<span class="num">${readAtText(r.at)}</span>` });
+    return cols;
+  }
+
   private body() {
     if (this.error) return html`<sw-state-panel compact state="error" heading=${nt('readsLoadError')} hint=${this.error} actionLabel=${nt('retry')} @action=${() => this.load()}></sw-state-panel>`;
     if (!this.data) return html`<sw-state-panel compact state="loading"></sw-state-panel>`;
@@ -79,9 +94,8 @@ export class NoticeReads extends LitElement {
           <button aria-pressed=${String(this.seg === 'read')} data-seg="read" @click=${() => (this.seg = 'read')}>${nt('readN', { n: v.read })}</button>
           <button aria-pressed=${String(this.seg === 'unread')} data-seg="unread" @click=${() => (this.seg = 'unread')}>${nt('unreadN', { n: v.unread })}</button></div>
         ${rows.length
-          ? html`<div class="list"><table class="t" data-reads-table><thead><tr><th>${nt('colName')}</th><th>${nt('colPlace')}</th>${this.seg === 'read' ? html`<th>${nt('colReadAt')}</th>` : nothing}</tr></thead><tbody>
-              ${rows.map((r) => html`<tr data-reads-row><td><span class="t1">${r.name}</span></td><td class="mut" data-reads-place>${r.place || nt('allPlaces')}</td>${this.seg === 'read' ? html`<td class="date num">${readAtText(r.at)}</td>` : nothing}</tr>`)}
-            </tbody></table></div>`
+          ? html`<div class="list"><sw-table bare static-rows data-reads-table .columns=${this.columns() as unknown as TableColumn[]} .rows=${rows as unknown as Record<string, unknown>[]}
+              .rowAttrs=${() => ({ 'data-reads-row': true })}></sw-table></div>`
           : html`<p class="mut" data-reads-none>${nt('readsNone')}</p>`}` : nothing}
     </div>`;
   }

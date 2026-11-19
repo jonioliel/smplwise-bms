@@ -3,6 +3,8 @@ import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-field';
+import '../components/sw-segmented';
+import type { SegmentedChange, SegmentOption } from '../components/sw-segmented';
 import { describeError, get, put } from '../api/client';
 import { getSettings, patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
@@ -16,6 +18,8 @@ import { HINT_HE, KIOSK_HE, MAP3D_ROWS, type FlagDial, type Map3dKey, type Map3d
 import { KIT_HE, KIT_IDS, normalizePrefs, type WizardPrefs } from '../plan-wizard/wizard-prefs';
 import { tr } from '../i18n/msg/plan-view-card';
 import { ToastController } from '../components/toast-controller';
+/** The key of a dial's "follow the installation" choice (the own preference only) - never a dial value. */
+const FOLLOW = '__follow';
 
 type Target = 'own' | 'installation';
 type ChoiceDial = keyof typeof CHOICES;
@@ -96,28 +100,17 @@ export class SystemPlanView extends LitElement {
       color: var(--sw-heading, var(--sw-text));
       letter-spacing: -0.005em;
     }
-    /* the settings segment, wrapping instead of clipping (five kiosk choices at 320 px) and on the 44 px dial */
-    .seg {
+    /* the settings segment (sw-segmented, CR-CMP2-SELECTS-2450), wrapping instead of clipping (five kiosk choices at 320 px) and on
+       the 44 px dial */
+    sw-segmented {
       flex: 0 1 auto;
-      flex-wrap: wrap;
-    }
-    .seg button {
-      min-block-size: var(--sw-touch-desktop, 44px);
-      font-weight: var(--sw-fw-medium);
-    }
-    .seg button[aria-pressed='true'] {
-      font-weight: var(--sw-fw-semibold);
-    }
-    .seg button[disabled] {
-      cursor: default;
-      opacity: 0.6;
+      --sw-seg-h: var(--sw-touch-desktop, 44px);
     }
     .dirty {
       font-size: var(--sw-fs-sm);
       color: var(--sw-warning-text);
       font-weight: var(--sw-fw-semibold);
     }
-    .seg button:focus-visible,
     .range button:focus-visible,
     .range input:focus-visible {
       outline: 2px solid var(--sw-focus);
@@ -206,7 +199,9 @@ export class SystemPlanView extends LitElement {
       color: var(--sw-text-3);
     }
     @media (pointer: coarse) {
-      .seg button,
+      sw-segmented {
+        --sw-seg-h: 44px;
+      }
       .range button {
         min-block-size: 44px;
       }
@@ -395,6 +390,26 @@ export class SystemPlanView extends LitElement {
     return this.busy || !this.canEdit;
   }
 
+  /** CR-CMP2-SELECTS-2450 (owner N11): a dial's keys - sw-segmented. `follow` puts "לפי ההתקנה" first (the own preference; `pick(null)`);
+   * each key keeps its hooks (`data-view-follow=<dial>`, `data-view-option=<dial>:<value>`). Values may be numbers or booleans: the key
+   * is the value's text, and the press is mapped back to the value. */
+  private seg<V extends string | number | boolean>(label: string, dial: string, follow: boolean, values: readonly V[], current: V | null, labelOf: (v: V) => string, disabled: boolean, pick: (v: V | null) => unknown): TemplateResult {
+    const options: SegmentOption[] = [
+      ...(follow ? [{ value: FOLLOW, label: tr('לפי ההתקנה'), attrs: { 'data-view-follow': dial } }] : []),
+      ...values.map((v) => ({ value: String(v), label: labelOf(v), attrs: { 'data-view-option': `${dial}:${v}` } })),
+    ];
+    const value = current === null ? (follow ? FOLLOW : '') : String(current);
+    return html`<sw-segmented label=${label} .options=${options} value=${value} ?disabled=${disabled}
+      @change=${(e: CustomEvent<SegmentedChange>) => {
+        const key = e.detail.value;
+        if (key === FOLLOW) pick(null);
+        else {
+          const v = values.find((x) => String(x) === key);
+          if (v !== undefined) pick(v);
+        }
+      }}></sw-segmented>`;
+  }
+
   /** A choice dial as a segmented control. Own target: "לפי ההתקנה" first; the installation target: the draft's value. */
   private choiceRow(dial: ChoiceDial): TemplateResult {
     const own = this.target === 'own';
@@ -406,11 +421,9 @@ export class SystemPlanView extends LitElement {
     const hint = own && current === null ? `${tr('לפי ההתקנה: {value}', { value: choiceLabel(dial, inst as string | number) })} · ${HINT_HE[dial]}` : HINT_HE[dial];
     return html`<div class="row" data-view-row=${dial}>
       <span class="lbl">${DIAL_HE[dial]}<span class="muted">${hint}</span></span>
-      <span class="seg" role="group" aria-label=${DIAL_HE[dial]}>
-        ${own && personal ? html`<button type="button" data-view-follow=${dial} aria-pressed=${current === null ? 'true' : 'false'} ?disabled=${disabled} @click=${() => void this.setOwn(dial as PersonalDial, null)}>${tr('לפי ההתקנה')}</button>` : nothing}
-        ${values.map((v) => html`<button type="button" data-view-option=${`${dial}:${v}`} aria-pressed=${current === v ? 'true' : 'false'} ?disabled=${disabled}
-          @click=${() => (own ? void this.setOwn(dial as PersonalDial, v) : this.setInst(dial as SiteDial, v as never))}>${choiceLabel(dial, v)}</button>`)}
-      </span>
+      ${this.seg(DIAL_HE[dial], dial, own && personal, values, current as string | number | null, (v) => choiceLabel(dial, v), disabled, (v) =>
+        v === null ? void this.setOwn(dial as PersonalDial, null) : own ? void this.setOwn(dial as PersonalDial, v) : this.setInst(dial as SiteDial, v as never),
+      )}
     </div>`;
   }
 
@@ -423,11 +436,7 @@ export class SystemPlanView extends LitElement {
     const hint = own && current === null ? `${tr('לפי ההתקנה: {value}', { value: label(inst) })} · ${HINT_HE[dial]}` : HINT_HE[dial];
     return html`<div class="row" data-view-row=${dial}>
       <span class="lbl">${DIAL_HE[dial]}<span class="muted">${hint}</span></span>
-      <span class="seg" role="group" aria-label=${DIAL_HE[dial]}>
-        ${own ? html`<button type="button" data-view-follow=${dial} aria-pressed=${current === null ? 'true' : 'false'} ?disabled=${disabled} @click=${() => void this.setOwn(dial, null)}>${tr('לפי ההתקנה')}</button>` : nothing}
-        ${[true, false].map((v) => html`<button type="button" data-view-option=${`${dial}:${v}`} aria-pressed=${current === v ? 'true' : 'false'} ?disabled=${disabled}
-          @click=${() => (own ? void this.setOwn(dial, v) : this.setInst(dial, v))}>${label(v)}</button>`)}
-      </span>
+      ${this.seg(DIAL_HE[dial], dial, own, [true, false], current, label, disabled, (v) => (v === null ? void this.setOwn(dial, null) : own ? void this.setOwn(dial, v) : this.setInst(dial, v)))}
     </div>`;
   }
 
@@ -459,9 +468,7 @@ export class SystemPlanView extends LitElement {
     const current = this.mapValue(row);
     return html`<div class="row" data-map-row=${row.key}>
       <span class="lbl">${row.he}<span class="muted">${row.hint}</span></span>
-      <span class="seg" role="group" aria-label=${row.he}>
-        ${row.options.map(([v, l]) => html`<button type="button" data-view-option=${`${row.key}:${v}`} aria-pressed=${current === v ? 'true' : 'false'} ?disabled=${this.instDisabled} @click=${() => this.setMap(row, v)}>${l}</button>`)}
-      </span>
+      ${this.seg(row.he, row.key, false, row.options.map(([v]) => v), current, (v) => row.options.find(([o]) => o === v)?.[1] ?? v, this.instDisabled, (v) => v !== null && this.setMap(row, v))}
     </div>`;
   }
 
@@ -482,15 +489,11 @@ export class SystemPlanView extends LitElement {
       ${pct('review_min', tr('לא נכנס בלי אישור מתחת ל־(%)'), tr('בין שני הספים הפריט מסומן לבדיקה'))}
       <div class="row" data-wizard-row="unreviewed">
         <span class="lbl">${tr('פריט לבדיקה שדילגת עליו')}<span class="muted">${tr('נכנס כמו שזוהה, או לא נכנס')}</span></span>
-        <span class="seg" role="group" aria-label=${tr('פריט לבדיקה שדילגת עליו')}>
-          ${(['as_detected', 'reject'] as const).map((v) => html`<button type="button" data-view-option=${`wizard.unreviewed:${v}`} aria-pressed=${w.unreviewed === v ? 'true' : 'false'} ?disabled=${this.busy} @click=${() => void this.setWizard({ unreviewed: v })}>${v === 'as_detected' ? tr('נכנס כמו שזוהה') : tr('לא נכנס')}</button>`)}
-        </span>
+        ${this.seg(tr('פריט לבדיקה שדילגת עליו'), 'wizard.unreviewed', false, ['as_detected', 'reject'] as const, w.unreviewed, (v) => (v === 'as_detected' ? tr('נכנס כמו שזוהה') : tr('לא נכנס')), this.busy, (v) => v && void this.setWizard({ unreviewed: v }))}
       </div>
       <div class="row" data-wizard-row="kit">
         <span class="lbl">${tr('ערכת סגנון ראשונה')}<span class="muted">${tr('הערכה שמסומנת כשמגיעים לשלב הסגנון; בכל תוכנית אפשר לבחור אחרת')}</span></span>
-        <span class="seg" role="group" aria-label=${tr('ערכת סגנון ראשונה')}>
-          ${KIT_IDS.map((v) => html`<button type="button" data-view-option=${`wizard.kit:${v}`} aria-pressed=${w.kit === v ? 'true' : 'false'} ?disabled=${this.busy} @click=${() => void this.setWizard({ kit: v })}>${KIT_HE[v]}</button>`)}
-        </span>
+        ${this.seg(tr('ערכת סגנון ראשונה'), 'wizard.kit', false, KIT_IDS, w.kit, (v) => KIT_HE[v], this.busy, (v) => v && void this.setWizard({ kit: v }))}
       </div>
       ${this.wizardErr ? html`<div class="row"><span class="msg err" role="alert" data-wizard-error><sw-icon name="warning" size=${13}></sw-icon>${this.wizardErr}</span></div>` : nothing}`;
   }
@@ -516,10 +519,11 @@ export class SystemPlanView extends LitElement {
     return html`<sw-card heading=${tr('מפה תלת־ממדית')} subheading=${tr('תוויות וכרטיס החדר, כל הקומות, מראה, סימוני מצב, שעה ואור, תוכנית מתמונה, סיור ואיכות - לכל ההתקנה ולעצמי')} data-plan-view-card data-settings-map3d>
       <div class="row scope">
         <span class="lbl">${tr('למי')}<span class="muted">${own ? tr('ההעדפה שלי: כל שינוי נשמר מיד ותקף בכל מכשיר שלי. התוויות, כרטיס החדר והריצוף נקבעים בברירת המחדל של ההתקנה') : tr('ברירת המחדל של ההתקנה: נשמרת בכפתור')}</span></span>
-        <span class="seg" role="group" aria-label=${tr('למי')}>
-          <button type="button" data-view-target="own" aria-pressed=${own ? 'true' : 'false'} @click=${() => (this.target = 'own')}>${tr('ההעדפה שלי')}</button>
-          <button type="button" data-view-target="installation" aria-pressed=${own ? 'false' : 'true'} @click=${() => (this.target = 'installation')}>${tr('ברירת המחדל של ההתקנה')}</button>
-        </span>
+        <sw-segmented label=${tr('למי')} value=${this.target} @change=${(e: CustomEvent<SegmentedChange>) => (this.target = e.detail.value as Target)}
+          .options=${[
+            { value: 'own', label: tr('ההעדפה שלי'), attrs: { 'data-view-target': 'own' } },
+            { value: 'installation', label: tr('ברירת המחדל של ההתקנה'), attrs: { 'data-view-target': 'installation' } },
+          ]}></sw-segmented>
       </div>
       ${own ? nothing : html`<h4 class="sub">${tr('תוויות וכרטיס החדר')}</h4>${map('labels')}<h4 class="sub">${tr('כל הקומות')}</h4>${map('stack')}`}
       <h4 class="sub">${tr('מראה')}</h4>

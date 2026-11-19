@@ -8,6 +8,7 @@ import type { IconName } from '../components/sw-icon';
 import { SkinController } from '../design/skin';
 import { BILL_STATE_LABEL, type BillState } from '../api/electricity-billing';
 import { elecCss } from './styles';
+import { toneOf } from './table-tones';
 import { tr } from '../i18n/msg/electricity';
 
 /** Base of every screen element of this half: the shared sheet, the skin mirrored on the host (data-skin). */
@@ -34,6 +35,8 @@ export type LoadState = 'loading' | 'ready' | 'error' | 'forbidden' | 'empty';
 
 const BILL_CLASS: Record<BillState, string> = { draft: 'c-mut', issued: 'c-acc', sent: 'c-warn', paid: 'c-ok', void: 'c-err' };
 export const billChip = (s: BillState): TemplateResult => html`<span class="chip ${BILL_CLASS[s]}" data-bill-state=${s}>${BILL_STATE_LABEL[s]}</span>`;
+/** CR-CMP2-TABLES-CONSUMPTION-2450: the same chip in a `sw-table` cell (the shared status tones). */
+export const billCellChip = (s: BillState): TemplateResult => html`<span class="chip" data-tone=${toneOf(BILL_CLASS[s])} data-bill-state=${s}>${BILL_STATE_LABEL[s]}</span>`;
 
 /** The empty / error / forbidden panel of a screen. */
 export function stateBox(kind: 'empty' | 'error' | 'forbidden', icon: IconName, title: string, action?: { label: string; run: () => void; primary?: boolean }): TemplateResult {

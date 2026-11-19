@@ -401,18 +401,6 @@ export const settingsMutedHintStyles = css`
   }
 `;
 
-/** A pill key that is off, and the keyboard ring of a pill key (system-design, system-look). */
-export const settingsSegKeyStateStyles = css`
-  .seg button[disabled] {
-    cursor: default;
-    opacity: 0.6;
-  }
-  .seg button:focus-visible {
-    outline: var(--sw-focus-w) solid var(--sw-focus);
-    outline-offset: 1px;
-  }
-`;
-
 /** The save row of a look card and its status lines (system-design, system-look). */
 export const settingsFootStatusStyles = css`
   .foot {

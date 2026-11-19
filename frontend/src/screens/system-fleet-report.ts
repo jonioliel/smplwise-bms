@@ -6,6 +6,8 @@ import '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import { ApiError } from '../api/client';
 import { fleetApi, type FleetEnrollment, type FleetLogRow, type FleetStatus } from '../api/fleet-report';
 import { getReadiness, type ReadinessReport } from '../api/readiness';
@@ -30,6 +32,14 @@ import { tr } from '../i18n/msg/system-a';
  * setting. Reads and writes need system.configure at installation scope AND a system administrator (the server decides; a 403 is shown).
  * The receiver's overview page is a separate service and is not built here.
  */
+type LogLineView = ReturnType<typeof logLines>[number];
+/** CR-CMP2-TABLES-2450 (owner N10): the send log on the shared table - when, what (a status chip in the result's tone), sequence */
+const logColumns = (): TableColumn<LogLineView>[] => [
+  { key: 'when', label: ft('colWhen'), render: (l) => html`<span class="num">${l.when}</span>` },
+  { key: 'text', label: ft('colWhat'), kind: 'status', render: (l) => html`<span class="chip" data-tone=${l.tone === 'mute' ? nothing : l.tone}>${l.text}</span>` },
+  { key: 'seq', label: ft('colSeq'), kind: 'num' },
+];
+
 @customElement('system-fleet-report')
 export class SystemFleetReport extends LitElement {
   readonly bubbleSkin = new SkinController(this);
@@ -285,28 +295,12 @@ export class SystemFleetReport extends LitElement {
       text-decoration: line-through;
       text-decoration-color: var(--sw-danger);
     }
-    table {
-      inline-size: 100%;
-      border-collapse: collapse;
-      font-size: var(--sw-fs-sm);
+    /* CR-CMP2-TABLES-2450 (owner N10): the send log is the shared table, inside the card (no second card, never wider than the card) */
+    sw-table[data-log] {
+      --sw-table-min: 0;
     }
-    th {
-      text-align: start;
-      padding: 6px 0;
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-medium);
-      border-block-end: 1px solid var(--sw-border);
-    }
-    td {
+    [data-log-empty] {
       padding: 8px 0;
-      border-block-end: 1px solid var(--sw-border);
-    }
-    tr:last-child td {
-      border-block-end: 0;
-    }
-    .num {
-      font-variant-numeric: tabular-nums;
     }
     details.exact {
       margin-block-start: var(--sw-s-2);
@@ -637,12 +631,8 @@ export class SystemFleetReport extends LitElement {
     const showNext = this.exact === 'next' || !lastBody;
     const body = showNext ? this.nextBody : lastBody;
     return html`<sw-card collapsible collapsed data-card="last" heading=${ft('lastTitle')} subheading=${a.lastLine}>
-      <table data-log>
-        <thead><tr><th>${ft('colWhen')}</th><th>${ft('colWhat')}</th><th>${ft('colSeq')}</th></tr></thead>
-        <tbody>${lines.length
-          ? lines.map((l) => html`<tr data-log-row><td class="num">${l.when}</td><td><span class="msg ${l.tone === 'mute' ? '' : l.tone === 'bad' ? 'err' : l.tone}">${l.text}</span></td><td class="num">${l.seq}</td></tr>`)
-          : html`<tr><td colspan="3" class="muted" data-log-empty>${ft('logEmpty')}</td></tr>`}</tbody>
-      </table>
+      <sw-table bare static-rows data-log .columns=${logColumns() as unknown as TableColumn[]} .rows=${lines as unknown as Record<string, unknown>[]}
+        .rowAttrs=${() => ({ 'data-log-row': true })}><p slot="empty" class="muted" data-log-empty>${ft('logEmpty')}</p></sw-table>
       <div class="hint">${ft('seqHint')}</div>
       <details class="exact" data-exact @toggle=${(e: Event) => void this.onExactToggle(e)}>
         <summary>${ft('exactTitle')}<span class="hint">${ft('exactHint')}</span></summary>
