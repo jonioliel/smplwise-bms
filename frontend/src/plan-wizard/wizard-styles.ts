@@ -745,47 +745,7 @@ export const wizardStyles = css`
   .dev.set .w {
     color: var(--sw-accent-text);
   }
-  .seg {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2px;
-    padding: 2px;
-    border-radius: var(--sw-r-md);
-    background: var(--sw-surface-2);
-  }
-  .seg button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    block-size: 34px;
-    border: 0;
-    border-radius: calc(var(--sw-r-md) - 2px);
-    background: transparent;
-    color: var(--sw-text-2);
-    font: inherit;
-    font-size: var(--sw-fs-sm);
-    font-weight: var(--sw-fw-semibold);
-    cursor: pointer;
-    transition: background-color 150ms ease, color 150ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
-  }
-  .seg button:active {
-    transform: scale(0.97);
-  }
-  .seg button[aria-selected='true'] {
-    /* DARK-SEG-ALL-2380: the chosen key reads the key tokens (in dark the light pill + its ink); light keeps the card surface */
-    background: var(--sw-seg-key, var(--sw-surface));
-    color: var(--sw-seg-key-ink, var(--sw-text));
-    box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
-  }
-  .seg .num {
-    font-size: var(--sw-fs-xs);
-    color: var(--sw-text-3);
-    font-variant-numeric: tabular-nums;
-  }
-  .seg button[aria-selected='true'] .num {
-    color: var(--sw-seg-key-ink, var(--sw-text-3));
-  }
+  /* CR-CMP2-TABS-2460: the devices / cameras strip is sw-tabs (pill, filling the side panel) - its .seg rules are gone */
   .card.resume {
     display: grid;
     gap: 6px;
@@ -971,7 +931,6 @@ export const wizardStyles = css`
     .preset,
     .dev,
     .gear,
-    .seg button,
     .pager button {
       transition: none;
     }
