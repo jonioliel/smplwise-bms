@@ -30,7 +30,7 @@ export interface CustomerForm {
 type CustomerFormKey = keyof CustomerForm;
 
 /** What a customer record from either API carries for the form (the contact fields come only with the bills permission). */
-export interface CustomerFields {
+interface CustomerFields {
   name: string;
   customer_number: string;
   tax_id?: string;
@@ -91,7 +91,7 @@ export function customerMatches(c: Pick<CustomerFields, 'name' | 'customer_numbe
   return !q || c.name.includes(q) || c.customer_number.includes(q) || more.some((t) => (t ?? '').includes(q));
 }
 
-export interface CustomerFieldOptions {
+interface CustomerFieldOptions {
   /** the id prefix of the control (the label's `for`), unique per page */
   idPrefix: string;
   label: unknown;
