@@ -19,6 +19,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { tr } from '../i18n/msg/system-b';
 import { srOnlyStyles } from '../styles/fragments';
+import { ToastController } from '../components/toast-controller';
 
 type CardScope = 'style' | 'phone' | 'picker' | 'place' | 'settings-nav';
 
@@ -73,7 +74,11 @@ export class SystemTabsMode extends LitElement {
   @state() private snOwn: SettingsNav | null = ownSettingsNav();
   @state() private canEdit = false;
   @state() private busy = false;
-  @state() private message = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 2500 });
+  private get message(): string {
+    return this.toaster.text;
+  }
   /** Which card the status line belongs to (the tabs / style cards, the phone card, or the camera picker card). */
   @state() private scope: CardScope = 'style';
   @state() private error = '';
@@ -549,13 +554,10 @@ export class SystemTabsMode extends LitElement {
     }
   }
 
-  private flashTimer = 0;
 
   /** The saved line of the card that saved; a second save restarts the clock instead of being cut short by the first one's timer. */
   private flash(text: string) {
-    this.message = text;
-    window.clearTimeout(this.flashTimer);
-    this.flashTimer = window.setTimeout(() => (this.message = ''), 2500);
+    this.toaster.show(text);
   }
 
   /** TABSMODE-POLISH-2331: the head of an owner column - whose value it is, and (installation) why it may be read-only. */

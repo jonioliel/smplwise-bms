@@ -16,6 +16,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsPlainRowStyles, settingsPreviewColStyles, settingsPreviewButtonStyles } from '../styles/settings';
 import { segThumbStyles, okLineStyles } from '../styles/fragments';
 import { tr } from '../i18n/msg/system-b';
+import { ToastController } from '../components/toast-controller';
 
 const newCustomId = (): string => `custom-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
 
@@ -62,7 +63,11 @@ export class SystemPaletteEditor extends LitElement {
   @state() private scheme: Scheme = 'light';
   @state() private busy = false;
   @state() private error = '';
-  @state() private message = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 2500 });
+  private get message(): string {
+    return this.toaster.text;
+  }
   @state() private confirmDelete = '';
   private stop?: () => void;
 
@@ -281,8 +286,7 @@ export class SystemPaletteEditor extends LitElement {
   }
 
   private flash(text: string) {
-    this.message = text;
-    window.setTimeout(() => (this.message = ''), 2500);
+    this.toaster.show(text);
   }
 
   /** A new palette starts as a copy of the palette in force (or the first ready one); editing one starts as that palette. */

@@ -82,6 +82,7 @@ import { secondaryIdentity } from './user-identity'; // UXREST2-295: name and us
 import '../home/sw-home-admin'; // HOME-SIMPLE-2420: the home interface tab
 import { tr } from '../i18n/msg/system-a';
 import { errLineStyles, ltrStyles } from '../styles/fragments';
+import { ToastController } from '../components/toast-controller';
 
 const TABS = [
   { id: 'users', label: tr('משתמשים'), count: demoUsers.length },
@@ -139,7 +140,11 @@ export class SystemAccess extends LitElement {
   @state() private previewScope = 'installation:*';
   @state() private busy = false;
   @state() private error = '';
-  @state() private message = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 3500 });
+  private get message(): string {
+    return this.toaster.text;
+  }
   @state() private forbidden = false;
   @state() private roleEdit: { id: string | null; revision: number; name: string; description: string; permissions: string[]; sensitive: string[]; delegable: boolean; assignMe?: boolean } | null = null;
   @state() private roleImpact: RoleImpact | null = null;
@@ -518,8 +523,7 @@ export class SystemAccess extends LitElement {
   }
 
   private flash(msg: string) {
-    this.message = msg;
-    setTimeout(() => (this.message = ''), 3500);
+    this.toaster.show(msg);
   }
 
   // ---- helpers ----
@@ -1044,7 +1048,7 @@ export class SystemAccess extends LitElement {
         await updateRole(e.id, { ...body, revision: e.revision });
         this.roleEdit = null;
         this.roleImpact = null;
-        this.message = tr('התפקיד עודכן; השינוי חל על כל המשויכים ברענון הבא');
+        this.toaster.show(tr('התפקיד עודכן; השינוי חל על כל המשויכים ברענון הבא'), { ms: 0 });
         this.roles = await listRoles();
         return;
       }
@@ -1059,12 +1063,12 @@ export class SystemAccess extends LitElement {
       if (e.assignMe !== false && me) {
         try {
           await createBinding({ subject_kind: 'user', subject_id: me, role_id: created.id, scope_type: 'installation', scope_id: '*' });
-          this.message = tr('התפקיד "{name}" נוצר ושויך אליך (כל המתקן). ההרשאות החדשות ייכנסו לתוקף ברענון הבא של הדף.', { name: created.name });
+          this.toaster.show(tr('התפקיד "{name}" נוצר ושויך אליך (כל המתקן). ההרשאות החדשות ייכנסו לתוקף ברענון הבא של הדף.', { name: created.name }), { ms: 0 });
         } catch (bindErr) {
-          this.message = tr('התפקיד "{name}" נוצר, אך השיוך האוטומטי אליך נכשל ({error}). שייך אותו ידנית בלשונית "שיוכים".', { name: created.name, error: describeError(bindErr) });
+          this.toaster.show(tr('התפקיד "{name}" נוצר, אך השיוך האוטומטי אליך נכשל ({error}). שייך אותו ידנית בלשונית "שיוכים".', { name: created.name, error: describeError(bindErr) }), { ms: 0 });
         }
       } else {
-        this.message = tr('התפקיד "{name}" נוצר. שייך אותו למשתמש או לקבוצה בלשונית "שיוכים".', { name: created.name });
+        this.toaster.show(tr('התפקיד "{name}" נוצר. שייך אותו למשתמש או לקבוצה בלשונית "שיוכים".', { name: created.name }), { ms: 0 });
       }
     } catch (err) {
       this.error = describeError(err);

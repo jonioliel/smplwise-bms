@@ -31,6 +31,7 @@ import {
 import { t, type I18nKey } from '../i18n/he';
 import { settingsStyles } from '../styles/settings';
 import { segThumbStyles } from '../styles/fragments';
+import { ToastController } from '../components/toast-controller';
 
 type Tab = 'files' | 'look' | 'title' | 'preview';
 const ACCEPT = 'image/png,image/svg+xml,image/webp,image/jpeg,.png,.svg,.webp,.jpg,.jpeg';
@@ -65,7 +66,11 @@ export class SystemBrandLogos extends LitElement {
   @state() private draft: Draft = draftOf(brandLogo());
   @state() private files: BrandFull['files'] = { light: null, dark: null };
   @state() private busy: LogoVariant | 'save' | null = null;
-  @state() private message = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 2500 });
+  private get message(): string {
+    return this.toaster.text;
+  }
   @state() private error = '';
   @state() private warnings: string[] = [];
   @state() private dragOver: LogoVariant | null = null;
@@ -618,8 +623,7 @@ export class SystemBrandLogos extends LitElement {
   }
 
   private flash(text: string) {
-    this.message = text;
-    setTimeout(() => (this.message = ''), 2500);
+    this.toaster.show(text);
   }
 
   private async onFile(variant: LogoVariant, file: File | undefined) {

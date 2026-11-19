@@ -14,6 +14,7 @@ import { settingsStyles } from '../styles/settings';
 import '../components/sw-toggle';
 import { switchPress } from '../components/sw-toggle';
 import { live } from 'lit/directives/live.js';
+import { ToastController } from '../components/toast-controller';
 
 type Tab = 'profile' | 'logos' | 'pack' | 'preview';
 const ACCEPT = 'image/png,image/svg+xml,image/webp,image/jpeg,.png,.svg,.webp,.jpg,.jpeg';
@@ -43,7 +44,11 @@ export class SystemBrandInstaller extends LitElement {
   @state() private draft: Draft = draftOf(brandLogo().wl);
   @state() private files: InstallerFull['files'] = { light: null, dark: null };
   @state() private busy: LogoVariant | 'save' | 'pack' | null = null;
-  @state() private message = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 2500 });
+  private get message(): string {
+    return this.toaster.text;
+  }
   @state() private error = '';
   @state() private warnings: string[] = [];
 
@@ -128,8 +133,7 @@ export class SystemBrandInstaller extends LitElement {
   }
 
   private flash(text: string) {
-    this.message = text;
-    setTimeout(() => (this.message = ''), 2500);
+    this.toaster.show(text);
   }
 
   private async save() {

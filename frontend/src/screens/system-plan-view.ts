@@ -15,6 +15,7 @@ import '../components/sw-icon';
 import { HINT_HE, KIOSK_HE, MAP3D_ROWS, type FlagDial, type Map3dKey, type Map3dRow, type SiteDial } from './plan-view-dials';
 import { KIT_HE, KIT_IDS, normalizePrefs, type WizardPrefs } from '../plan-wizard/wizard-prefs';
 import { tr } from '../i18n/msg/plan-view-card';
+import { ToastController } from '../components/toast-controller';
 
 type Target = 'own' | 'installation';
 type ChoiceDial = keyof typeof CHOICES;
@@ -53,7 +54,11 @@ export class SystemPlanView extends LitElement {
   @state() private wizard: WizardPrefs | null = null;
   @state() private wizardErr = '';
   @state() private busy = false;
-  @state() private message = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 2500 });
+  private get message(): string {
+    return this.toaster.text;
+  }
   @state() private error = '';
 
   /* SETUPPLAN-POLISH-2331: the card sat on the map settings tab next to cards in the settings vocabulary (styles/settings.ts: the
@@ -283,7 +288,7 @@ export class SystemPlanView extends LitElement {
     if (value === (this.mapStored[row.key] ?? row.options[0][0])) delete next[row.key];
     else next[row.key] = value;
     this.mapDraft = next;
-    this.message = '';
+    this.toaster.clear();
   }
 
   /** The installation's value of a dial: the draft first, then the stored one, then the product default. */
@@ -296,8 +301,7 @@ export class SystemPlanView extends LitElement {
   }
 
   private flash(text: string) {
-    this.message = text;
-    window.setTimeout(() => (this.message = ''), 2500);
+    this.toaster.show(text);
   }
 
   private setInst<K extends SiteDial>(dial: K, value: PlanViewDials[K]) {
@@ -305,7 +309,7 @@ export class SystemPlanView extends LitElement {
     if (value === (this.prefs?.site[dial] ?? DEFAULT_VIEW[dial])) delete next[dial];
     else next[dial] = value;
     this.draft = next;
-    this.message = '';
+    this.toaster.clear();
   }
 
   private async saveInstallation() {
@@ -495,7 +499,7 @@ export class SystemPlanView extends LitElement {
     const d = this.siteDraft ?? this.siteStored;
     const set = (patch: Partial<{ lat: string; lon: string }>) => {
       this.siteDraft = { ...(this.siteDraft ?? this.siteStored), ...patch };
-      this.message = '';
+      this.toaster.clear();
     };
     return html`<div class="row" data-view-row="site">
       <span class="lbl">${tr('מיקום האתר — ידני')}<span class="muted">${tr('קו רוחב וקו אורך במעלות, לחישוב מסלול השמש. חל רק כשמקור המיקום הוא "ידני" (הגדרות ‹ כללי ‹ וידאו ומדיה ‹ מיקום האתר לשמש בתלת־ממד); אחרת השמש לפי מיקום הבית')}</span></span>
