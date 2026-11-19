@@ -150,41 +150,20 @@ export interface GeometryRef {
   view_hash?: string;
 }
 
-export interface Camera {
-  id: string;
-  recorder_id: string;
-  channel: number;
-  name: string;
-  name_source: string;
-  alias: string | null;
-  enabled: boolean;
-  sort_order: number;
-  /** T091: how many grid columns wide this camera's tile is on the all-cameras grid (1-4, default 1). */
-  grid_col_span: number;
-  /** Wall arrangement: "לא להציג" - left out of the all-cameras wall and the kiosk pages derived from it (absent = shown). */
-  wall_hidden?: boolean;
-  main_track: number | null;
-  sub_track: number | null;
+/* The camera fields are the backend's response model (smplwise_vms/backend/smplwise/wire/cameras.py `CameraRow` / `CameraListed`,
+ * generated into ./generated/wire-cameras.ts): a field the server renames or drops is a compile error here (code review 07:F8 step 2).
+ * Narrowed on purpose: `status` (the registry's three states), `stream` / `encoding` (stored documents the server passes through), and
+ * the list-only fields stay optional (a row from PATCH / POST and the demo cameras have none of them). Client-only: `still_refresh_s`. */
+type CameraWire = import('./generated/wire-cameras').CameraListed;
+export interface Camera
+  extends Pick<CameraWire, 'id' | 'recorder_id' | 'channel' | 'name' | 'name_source' | 'alias' | 'enabled' | 'sort_order' | 'grid_col_span' | 'main_track' | 'sub_track' | 'last_seen_at'>,
+    Partial<Pick<CameraWire, 'wall_hidden' | 'can_view_live' | 'recorder_name' | 'recorder_enabled' | 'live_kind' | 'video_source' | 'standalone' | 'area_id'>> {
   status: 'online' | 'offline' | 'unknown';
-  last_seen_at: string | null;
   stream?: { codec?: string; resolution?: string; fps?: number; bitrate_kbps?: number } | null;
   /** CR-008 D7: the main / sub stream encodings the discovery read from the NVR, with the WebRTC verdict of each. */
   encoding?: CameraEncoding | null;
-  can_view_live?: boolean;
-  /** CR-024: the recorder's name, given only when the installation has two or more recorders. */
-  recorder_name?: string | null;
-  /** CR-024: false while the camera's recorder is disabled (the camera stays listed, not offered for live). */
-  recorder_enabled?: boolean;
-  /** NN5-F1B: `still` = the camera has no live stream (a Frigate recorder in F1): its tile shows a refreshing snapshot. Absent = a stream. */
-  live_kind?: 'stream' | 'still';
-  /** NN5-F1B: seconds between refreshes of the still (the tile never goes below 5). */
+  /** NN5-F1B: seconds between refreshes of the still (the tile never goes below 5; set by the client, api/frigate.ts). */
   still_refresh_s?: number;
-  /** CAMERA-STREAM-SOURCES-2410: where the video comes from - the recorder (default) or the camera's own RTSP address. */
-  video_source?: 'nvr' | 'manual';
-  /** CAMERA-STREAM-SOURCES-2410: a camera without a recorder - live and snapshots only (no recordings, playback, NVR events or reboot). */
-  standalone?: boolean;
-  /** CAMERA-STREAM-SOURCES-2410: the area a camera without a recorder belongs to (a home-platform area id), if one was chosen. */
-  area_id?: string | null;
 }
 
 /** One stream's encoding as the NVR reports it (services/stream_codecs.py); `webrtc` = can a browser decode it there. */

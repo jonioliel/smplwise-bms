@@ -10,6 +10,7 @@ import { markStillCameras } from './frigate';
 import { resolveBundleBakes } from './bakes';
 import type { BundleBakes } from '../map/still-bake';
 import type { Anchor, Camera, CircuitState, FloorMap, GeometryRef, PlanAsset, PlanVersion, SpatialZone } from './types';
+import type * as CamWire from './generated/wire-cameras';
 import type { GeomLevel } from '../map/geometry';
 import { demoCameras, demoFloors, demoPlan, demoSite } from '../fixtures/demo';
 import type { StateKind } from '../components/sw-badge';
@@ -225,7 +226,7 @@ export const deleteAnchor = (id: string, fromFloorId?: string) => del(path`map-a
 // ---- cameras ----
 
 /** CR-024: `recorders` names the recorders of the visible cameras (a recorder filter is shown only with two or more). */
-export const listCameras = () => get<{ cameras: Camera[]; recorders?: { id: string; name: string; vendor?: string | null }[]; recorder: { id: string; name: string; model: string | null; firmware: string | null; last_seen_at: string | null } | null; can_sync: boolean }>('cameras')
+export const listCameras = () => get<Omit<CamWire.CameraList, 'cameras' | 'recorders' | 'media'> & { cameras: Camera[]; recorders?: CamWire.CameraList['recorders'] }>('cameras')
   // NN5-F1B: cameras of a Frigate recorder without a restream are stills (live_kind), so the live screens do not open a stream for them
   .then(async (r) => {
     await markStillCameras(r.cameras);
@@ -233,7 +234,7 @@ export const listCameras = () => get<{ cameras: Camera[]; recorders?: { id: stri
     if (isApi() && !cap('nvr')) return { ...r, cameras: visibleCameras(r.cameras, false), recorders: r.recorders ? visibleRecorderGroups(r.recorders, false) : r.recorders, recorder: null };
     return r;
   });
-export const syncCameras = () => post<{ channels: number; created: number; updated: number; recorder: { model: string | null; firmware: string | null } }>('cameras/sync');
+export const syncCameras = () => post<CamWire.CameraSync>('cameras/sync');
 export const registerCamera = (body: { channel: number; alias: string }) => post<Camera>('cameras', body);
 export const updateCamera = (id: string, body: { alias?: string; sort_order?: number; enabled?: boolean; grid_col_span?: number; wall_hidden?: boolean }) => patch<Camera>(path`cameras/${id}`, body);
 
