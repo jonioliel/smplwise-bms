@@ -2,11 +2,11 @@
 
 Branch `pilot/CR-ROUTER-SQL-C-2450`, base `origin/pilot/CR-ROUTER-SQL-2450` at `0a5d0431e` (the programme step that moved the
 16 largest routers; its change note `docs/changes/CR-ROUTER-SQL-2450.md` holds the pattern, the inventory and the proof method).
-Review finding **05:P2-07**. Targets 2.45.0. No version bump, no migration, no route change, no frontend change, no pixel change.
+Review finding **05:P2-07**. Targets 2.46.0 (the 2.45.0 train closed without this row; lead 19.11). No version bump, no migration, no route change, no frontend change, no pixel change.
 
 Split of the open inventory today: batch B (`pilot/CR-ROUTER-SQL-B-2450`) works from the largest open router down; this row
 works from the smallest up and stops at 8 statements. Before every router `origin/pilot/CR-ROUTER-SQL-B-2450` was fetched;
-batch B touched none of the 64 routers here (its routers so far: `access_custom_roles`, `calendar`, `calendar_feeds`,
+batch B (finished at `205434ecc`) touched none of the 64 routers here (its routers: `access_custom_roles`, `calendar`, `calendar_feeds`,
 `devices`, `door_windows`, `doors`, `frigate`, `generator`, `notices`, `notifications`, `recorders`, `rules`,
 `tickets_costs`, `views`), and the two branches share no file. Excluded as briefed: `ha.py` (own row), `energy_billing`,
 `energy_meters`, `water`, `water_billing`, `wiskey_installer_common`, `wiskey_relay_map`.
@@ -137,4 +137,34 @@ Static (workstation, Python 3.12):
 - Import of every module under `smplwise.routers` and `smplwise.services` with the workstation venv: **0 failures**
   (at `d328e5c58`, after the first 46 routers).
 
-Backend tests: see the results section below.
+- `test_db_gate.py::test_no_manual_transaction_control_outside_db_py` (part of the runner run below) passes with the new
+  `begin_deferred`.
+
+Backend tests, all at `79cd01d81` (the code head; later commits are this note and the train merge):
+
+The file list: every backend test file that names one of the 64 routers (`routers.<name>` / `routers/<name>.py` / an import
+of it), whose file name contains the router's name (names of 5+ characters), or that calls one of the routers' URL prefixes,
+plus the guards (`test_db_gate`, `test_get_routes_read_conn`, `test_sql_boundary_report`, `test_setting_callers_2440`,
+`test_capture_lease_triggers`, `test_capture_lease_ledger`, `test_wiskey_final3_281`, `test_tickets_naming`,
+`test_async_routes_hold_no_write_conn`): **563 files**, split into 29 chunks of 20.
+
+| Where | What | Result |
+|---|---|---|
+| Runner (own worktree `~/work/routersqlc`, `nice -n 19`, own basetemp; only while `gate_status.json` showed no gate, a watcher killed the run when one started) | 20 of 29 chunks = **383 files** | **9,937 passed, 10 skipped, 3 xfailed, 3 failed**. The 3 failures are load / timing flakes, each re-run on the runner on this branch and passing: `test_media_players_commands::test_seek_and_shuffle_are_rate_limited_per_device_and_the_limit_is_audited` and `test_media_review_fixes::test_l4_the_group_volume_bucket_...` (a token bucket refilled between calls on the loaded runner, load 15-20; both pass alone), `test_notify_channels::test_rule_alerts_are_notifications_folded_and_acknowledged_both_ways` (passes alone twice and with its whole file, 19 passed). None of the three files reaches a router of this row (media players, rules / notifications) |
+| Workstation (`py -3.12`, the main venv, `-p no:cacheprovider`) | group 1: the guards + the access-control suites (`test_sql_boundary_report`, `test_capture_lease_triggers`, `test_capture_lease_ledger`, `test_wiskey_door_path`, `test_wiskey_door_gate`, `test_tickets_naming`, `test_setting_callers_2440`, `test_async_routes_hold_no_write_conn`, `test_wiskey_access_diag`, `test_wiskey_door_tech`, `test_wiskey_station_ops`, `test_wiskey_station_people_2390`, `test_wiskey_triage_2400`, `test_wiskey_wa_queue_2400`, `test_intercom_capture_lease`) | **734 passed, 1 skipped, 0 failed** (44 min) |
+| Workstation | group 2: `test_access`, `test_username_normalisation`, `test_access_grants`, `test_announcements`, `test_app_refresh_295`, `test_automation_blueprints_80`, `test_automations_extra`, `test_brand_logos_295`, `test_calendar_attendees_2343`, `test_device_layouts`, `test_door_automation_295`, `test_exports`, `test_fleet_report_215`, `test_floor_images`, `test_frames` | **424 passed, 0 failed** (66 min) |
+| Workstation | the router suites of the chunks the runner could not finish: `test_frigate_control`, `test_nvr_write`, `test_nvr_write_guard_2438`, `test_offline_field_295`, `test_partner_api_113`, `test_plan_area_links`, `test_plan_catalog_api`, `test_plan_catalog`, `test_plan_geometry_api`, `test_plan_package`, `test_plan_skins`, `test_popup_layout_2290`, `test_recordings`, `test_playback_release`, `test_playback_sync`, `test_device_layout_cards`, `test_exports_housekeeping_2440` | **294 passed, 0 failed** (36 min) |
+| Workstation | `test_get_routes_read_conn.py` (every GET route still answers while another connection holds the write lock; the read-connection allow-list did not move) | **722 passed, 0 failed** (89 min) |
+
+NOT_RUN:
+
+- **9 runner chunks = 180 of the 563 files** (chunks 005-007, 014-018, 023): the 2.44.0 re-gates and then the 2.45.0 release
+  gate took the runner. Of them, the router suites were run on the workstation (the last two rows above); still NOT_RUN are
+  the 34 wider files that name a router of this row - `test_fake_doorwin_closed_rule_sr1`, `test_fleet_receiver_fixtures_215`,
+  `test_frigate_api`, `test_frigate_playback`, `test_frigate_restream`, `test_go2rtc_big_media`, `test_go2rtc_stream_sync_2436`,
+  `test_plan_detect_api`, `test_plan_door_tool`, `test_plan_geometry_{binding,db,export,integration,model,objects,render,render2,stairs,store}`,
+  `test_plan_package_pln2`, `test_playback_{cap,race,scrub_2341,stall_settings,stress_2332,timing_t074}`,
+  `test_provision_{live_source_cache,nvr_write_script,playback}`, `test_rbac_camera_scope`, `test_readyfleet_295`,
+  `test_recorder_health`, `test_recorder_health_nn6`, `test_remote_hardening` - and the 124 files of those chunks picked only by
+  URL prefix. They are left to the next runner entry check / gate.
+- The full backend suite (999 files); frontend: nothing changed; no pixel run (no UI change).
