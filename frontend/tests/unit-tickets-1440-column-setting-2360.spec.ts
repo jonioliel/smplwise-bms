@@ -116,7 +116,8 @@ test('the settings row sits in the display card next to the drawer rows, default
   const row = read('src/tickets/settings-table.ts');
   expect(row).toContain('data-setting="table_mid_width"');
   expect(row).toContain('TABLE_MID_WIDTH.map');
-  expect(row).toMatch(/save\(\{ table_mid_width: v \}\)/);
+  // CR-CMP2-SEGMENTED-B-2450: the row is sw-segmented; its change saves the chosen width
+  expect(row).toMatch(/save\(\{ table_mid_width: e\.detail\.value as TableMidWidth \}\)/);
   expect(lt('setTableMid')).toBe('בטבלה ברוחב בינוני הצג');
   expect([lt('tmSentence'), lt('tmDepartment')]).toEqual(['משפט', 'מחלקה']);
   expect(lt('setTableMidSub')).toContain('בורר העמודות');
