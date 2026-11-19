@@ -35,6 +35,8 @@ from ..services import alarm_store as store
 from ..services import ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, service_identity
 from ..services.timeutil import parse_utc
 from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
+from ..wire import alarm as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -125,7 +127,7 @@ def _visible_panels(conn: sqlite3.Connection, scope: _Scope) -> list[dict[str, A
 
 # ---------------------------------------------------------------- reads
 
-@router.get("/alarm/panels")
+@router.get("/alarm/panels", **wire(W.AlarmPanels))
 def panels(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     scope = _Scope(conn, principal)
     if not scope.any_view():
@@ -447,7 +449,7 @@ def _send(act: _Act, request: Request, entity_id: str, action_id: str, args: dic
     return out
 
 
-@router.post("/alarm/panels/{entity_id}/actions", status_code=202)
+@router.post("/alarm/panels/{entity_id}/actions", status_code=202, **wire(W.AlarmAction))
 def panel_action(entity_id: str, request: Request, principal: Principal = Depends(_control_holder_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body, secret = _parse(request, raw, ActionBody, ("code",))
     typed = secret.get("code")
@@ -539,7 +541,7 @@ def panel_action(entity_id: str, request: Request, principal: Principal = Depend
     return out
 
 
-@router.post("/alarm/zones/{zone_entity_id}/bypass", status_code=202)
+@router.post("/alarm/zones/{zone_entity_id}/bypass", status_code=202, **wire(W.AlarmAction))
 def zone_bypass(zone_entity_id: str, request: Request, principal: Principal = Depends(_bypass_holder_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body, secret = _parse(request, raw, BypassBody, ("code",))
     typed = secret.get("code")
@@ -615,7 +617,7 @@ class PinBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-@router.get("/alarm/me")
+@router.get("/alarm/me", **wire(W.AlarmMe))
 def me(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     pol = codes.policy(conn, principal.user_id)
     cfg = _settings(conn)
@@ -649,7 +651,7 @@ def _verify_current_pin(act: "_Act", conn: sqlite3.Connection, user_id: str, cur
     codes.LOCKOUT.succeed(key[0], conn)
 
 
-@router.put("/alarm/me/pin")
+@router.put("/alarm/me/pin", **wire(W.AlarmPinSet))
 def set_my_pin(request: Request, principal: Principal = Depends(_alarm_actor_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Change the caller's own PIN. Security review M3: changing an existing PIN needs the current one; the FIRST PIN is
     set by an administrator (משתמשים והרשאות) - or here, by a user who types the stored code of a panel they may see
@@ -700,7 +702,7 @@ def _configurer(principal: Principal = Depends(current_principal), conn: sqlite3
 _configurer_ro = read_gate(lambda conn, principal: require(conn, principal, "system.configure", INSTALLATION))  # review L7
 
 
-@router.get("/alarm/config")
+@router.get("/alarm/config", **wire(W.AlarmConfig))
 def config(request: Request, principal: Principal = Depends(_configurer_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     ents = svc.load(conn)
     ovr = svc.overrides(conn)
@@ -737,7 +739,7 @@ class OverrideBody(BaseModel):
     confirm_not_bypass_like: bool = False
 
 
-@router.put("/alarm/overrides/{zone_entity_id}")
+@router.put("/alarm/overrides/{zone_entity_id}", **wire(W.AlarmOverride))
 def put_override(zone_entity_id: str, request: Request, principal: Principal = Depends(_configurer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body, _ = _parse(request, raw, OverrideBody)
     act = _Act(request, conn, principal, "alarm.mapping", "alarm_zone", zone_entity_id)
@@ -769,7 +771,7 @@ class NotAlarmBody(BaseModel):
     not_alarm: bool
 
 
-@router.put("/alarm/controls/{entity_id}/not-alarm")
+@router.put("/alarm/controls/{entity_id}/not-alarm", **wire(W.AlarmNotAlarm))
 def put_not_alarm(entity_id: str, request: Request, principal: Principal = Depends(_configurer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Final review item 3: release a bypass-like switch / select that is not part of the alarm (e.g. a boiler bypass
     valve on the same MQTT broker) - it leaves the unpaired list and the fail-closed fallback, and becomes an ordinary
@@ -790,7 +792,7 @@ def put_not_alarm(entity_id: str, request: Request, principal: Principal = Depen
     return {"entity_id": entity_id, "not_alarm": body.not_alarm, "alarm_managed": svc.is_managed_control(conn, entity_id)}
 
 
-@router.delete("/alarm/overrides/{zone_entity_id}")
+@router.delete("/alarm/overrides/{zone_entity_id}", **wire(W.AlarmRemoved))
 def delete_override(zone_entity_id: str, request: Request, principal: Principal = Depends(_configurer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     n = store.delete_override(conn, zone_entity_id)
     _Act(request, conn, principal, "alarm.mapping", "alarm_zone", zone_entity_id).audit("allowed", None, reset=True)
@@ -801,7 +803,7 @@ class EmptyBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-@router.put("/alarm/panels/{entity_id}/code")
+@router.put("/alarm/panels/{entity_id}/code", **wire(W.AlarmPanelCode))
 def put_panel_code(entity_id: str, request: Request, principal: Principal = Depends(_configurer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Store the panel's own code (write-only, encrypted). The reply says only that it is set."""
     _, secret = _parse(request, raw, EmptyBody, ("code",))
@@ -822,7 +824,7 @@ def put_panel_code(entity_id: str, request: Request, principal: Principal = Depe
     return {"panel_code": info}
 
 
-@router.delete("/alarm/panels/{entity_id}/code")
+@router.delete("/alarm/panels/{entity_id}/code", **wire(W.AlarmPanelCode))
 def delete_panel_code(entity_id: str, request: Request, principal: Principal = Depends(_configurer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     removed = codes.clear_panel_code(conn, entity_id)
     _Act(request, conn, principal, "alarm.panel_code", "alarm_panel", entity_id).audit("allowed", None, panel_code="cleared" if removed else "absent")
@@ -852,7 +854,7 @@ def _own_change(act: "_Act", conn: sqlite3.Connection, current: Any) -> None:
     _verify_current_pin(act, conn, act.principal.user_id, current)
 
 
-@router.get("/alarm/users/{user_id}")
+@router.get("/alarm/users/{user_id}", **wire(W.AlarmUserPolicy))
 def user_policy(user_id: str, principal: Principal = Depends(_configurer_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     if not store.user_exists(conn, user_id):
         raise ApiError(404, "not_found", "המשתמש לא נמצא.")
@@ -865,7 +867,7 @@ class PolicyBody(BaseModel):
     disarm_policy: Literal["no_code", "code_required"] | None = None
 
 
-@router.put("/alarm/users/{user_id}/policy")
+@router.put("/alarm/users/{user_id}/policy", **wire(W.AlarmUserPolicy))
 def put_user_policy(user_id: str, request: Request, principal: Principal = Depends(_configurer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body, secret = _parse(request, raw, PolicyBody, ("current_pin",))
     act = _Act(request, conn, principal, "alarm.user_policy", "user", user_id)
@@ -878,7 +880,7 @@ def put_user_policy(user_id: str, request: Request, principal: Principal = Depen
     return {"user_id": user_id, **pol}
 
 
-@router.put("/alarm/users/{user_id}/pin")
+@router.put("/alarm/users/{user_id}/pin", **wire(W.AlarmUserPolicy))
 def put_user_pin(user_id: str, request: Request, principal: Principal = Depends(_configurer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """An administrator sets a user's PIN (e.g. for someone who never opens the screen); the user may change it later."""
     _, secret = _parse(request, raw, PinBody, ("pin", "current_pin"))
@@ -893,7 +895,7 @@ def put_user_pin(user_id: str, request: Request, principal: Principal = Depends(
     return {"user_id": user_id, **pol}
 
 
-@router.delete("/alarm/users/{user_id}/pin")
+@router.delete("/alarm/users/{user_id}/pin", **wire(W.AlarmUserPolicy))
 def delete_user_pin(user_id: str, request: Request, principal: Principal = Depends(_configurer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     act = _Act(request, conn, principal, "alarm.pin", "user", user_id)
     if not store.user_exists(conn, user_id):  # review L7
