@@ -16,6 +16,7 @@ from __future__ import annotations
 import copy
 import json
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -434,5 +435,12 @@ def test_a_status_binding_denied_ends_the_session_as_lost(route, monkeypatch):
     sid = start(w).json()["capture"]["session_id"]
     _override(w, monkeypatch, "capture_status", lambda dto: {"result": "refused", "request_id": dto.request_id, "code": "binding_denied"})
     wait_state(w, sid, "lost")
+    # the poll sets the in-memory state first and writes the lease row right after (capture_lease_route: set_state, then
+    # cl.finish), so a status read can see "lost" a moment before the row commits - read the row until it is written
+    # (RELEASE-2439-TRAIN: 2 of 3 runs on the loaded runner read the row still "active"; pre-existing, unchanged since 2.43.8)
+    end = time.monotonic() + 10.0
     row = lease_of(w, sid)
+    while row["state"] == "active" and time.monotonic() < end:
+        time.sleep(0.03)
+        row = lease_of(w, sid)
     assert row["state"] == "destroyed" and row["reason"] == "lost"
