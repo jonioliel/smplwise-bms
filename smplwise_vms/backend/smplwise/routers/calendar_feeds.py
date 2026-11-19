@@ -51,6 +51,7 @@ from ..auth import _track, current_principal, current_principal_ro, get_conn, ge
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, LOCAL_ID_PREFIX, Principal, authorize, require
+from ..services import calendar_feeds_store as store
 from ..services.calendar import calendars as cals
 from ..services.calendar import model
 from ..services.calendar.access import Ctx, Denied, get_visible
@@ -92,7 +93,7 @@ def _feeds_on(conn: sqlite3.Connection) -> None:
 
 
 def _row(conn: sqlite3.Connection, fid: str) -> sqlite3.Row:
-    row = conn.execute("SELECT * FROM cal_feeds WHERE id = ?", (fid,)).fetchone()
+    row = store.feed(conn, fid)
     if row is None:
         raise ApiError(404, "not_found", "הפיד לא נמצא.")
     return row
@@ -109,7 +110,7 @@ def _expiry_map(conn: sqlite3.Connection) -> dict[str, Any]:
 def _issue_expiry(conn: sqlite3.Connection, fid: str, now: dt.datetime) -> None:
     """Fixes the expiry of the address just issued (create / rotate) from the CURRENT default; drops the ids of feeds that are gone or revoked."""
     days = model.read_settings(conn)["feed_max_age_days"]
-    live = {r[0] for r in conn.execute("SELECT id FROM cal_feeds WHERE revoked_at IS NULL")}
+    live = store.live_feed_ids(conn)
     m = {k: v for k, v in _expiry_map(conn).items() if k in live}
     m[fid] = model.iso(now + dt.timedelta(days=days)) if days else None
     set_setting(conn, EXPIRY_KEY, json.dumps(m, sort_keys=True))
@@ -163,7 +164,7 @@ def _manages_all(ctx: Ctx, row: sqlite3.Row) -> bool:
     if not ids:
         return False
     for cid in ids:
-        cal = ctx.conn.execute("SELECT * FROM cal_calendars WHERE id = ? AND archived_at IS NULL", (cid,)).fetchone()
+        cal = store.live_calendar(ctx.conn, cid)
         if cal is None or ctx.role_in(cal) != "manage":
             return False
     return True
@@ -192,7 +193,7 @@ def list_feeds(request: Request, principal: Principal = Depends(current_principa
     _need(conn, principal)
     s = model.read_settings(conn)
     ctx, expiry = Ctx(conn, principal), _expiry_map(conn)
-    return {"feeds": [_out(r, expiry, ctx) for r in conn.execute("SELECT * FROM cal_feeds ORDER BY created_at, id").fetchall()],
+    return {"feeds": [_out(r, expiry, ctx) for r in store.feeds(conn)],
             "enabled": bool(s["feeds_enabled"]), "local": not _remote(request), "default_max_age_days": s["feed_max_age_days"]}
 
 
@@ -215,12 +216,11 @@ def create_feed(body: Body, request: Request, principal: Principal = Depends(cur
             role = ctx.role_in(cal)
             if role is None or model.ROLE_RANK[role] < model.ROLE_RANK["edit"]:
                 raise Denied("calendar.role", cid, "edit")
-        if conn.execute("SELECT COUNT(*) FROM cal_feeds WHERE revoked_at IS NULL").fetchone()[0] >= MAX_FEEDS:
+        if store.live_feed_count(conn) >= MAX_FEEDS:
             raise model.Invalid("too many feeds", "calendar_ids", "limit_reached")
         fid, token, when = cals.new_id("fed"), secrets.token_urlsafe(32), cal_mod._now()
         now = model.iso(when)
-        conn.execute("INSERT INTO cal_feeds(id, calendar_ids_json, detail, token_hash, created_by, created_at, token_set_at) VALUES (?,?,?,?,?,?,?)",
-                     (fid, json.dumps(ids), detail, _hash(token), principal.user_id, now, now))
+        store.insert_feed(conn, fid, json.dumps(ids), detail, _hash(token), principal.user_id, now, now)
         _issue_expiry(conn, fid, when)
         _audit(conn, principal, request, "calendar.feed.create", "calendar_feed", fid, calendars=len(ids), detail=detail)
         return {"feed": _out(_row(conn, fid), _expiry_map(conn), ctx), "path": _path(token)}
@@ -239,7 +239,7 @@ def rotate_feed(fid: str, request: Request, principal: Principal = Depends(curre
         if row["revoked_at"] is not None:
             raise ApiError(409, "bad_state", "הפיד בוטל.")
         token, when = secrets.token_urlsafe(32), cal_mod._now()
-        conn.execute("UPDATE cal_feeds SET token_hash = ?, last_used_at = NULL, token_set_at = ? WHERE id = ?", (_hash(token), model.iso(when), fid))
+        store.set_token(conn, fid, _hash(token), model.iso(when))
         _issue_expiry(conn, fid, when)
         _audit(conn, principal, request, "calendar.feed.rotate", "calendar_feed", fid)
         return {"feed": _out(_row(conn, fid), _expiry_map(conn), ctx), "path": _path(token)}
@@ -254,7 +254,7 @@ def revoke_feed(fid: str, request: Request, principal: Principal = Depends(curre
         ctx = Ctx(conn, principal)
         _own(ctx, row)
         if row["revoked_at"] is None:
-            conn.execute("UPDATE cal_feeds SET revoked_at = ?, remote_enabled = 0 WHERE id = ?", (model.iso(cal_mod._now()), fid))
+            store.revoke_feed(conn, fid, model.iso(cal_mod._now()))
             _forget_expiry(conn, fid)
             _audit(conn, principal, request, "calendar.feed.revoke", "calendar_feed", fid)
         return {"feed": _out(_row(conn, fid), _expiry_map(conn), ctx)}
@@ -283,7 +283,7 @@ def set_feed_remote(fid: str, body: Body, request: Request, principal: Principal
         if row["revoked_at"] is not None:
             raise ApiError(409, "bad_state", "הפיד בוטל.")
         if bool(row["remote_enabled"]) != d["enabled"]:
-            conn.execute("UPDATE cal_feeds SET remote_enabled = ? WHERE id = ?", (1 if d["enabled"] else 0, fid))
+            store.set_remote(conn, fid, 1 if d["enabled"] else 0)
             _audit(conn, principal, request, "calendar.feed.remote", "calendar_feed", fid, enabled=d["enabled"])
         return {"feed": _out(_row(conn, fid), _expiry_map(conn), ctx)}
 
@@ -325,12 +325,7 @@ def render(conn: sqlite3.Connection, calendar_ids: list[str], detail: str, now: 
     w0, w1 = model.iso(now - dt.timedelta(days=PAST_DAYS)), model.iso(now + dt.timedelta(days=AHEAD_DAYS))
     lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//SmplWise Arx//Calendar feed//HE", "CALSCALE:GREGORIAN", "METHOD:PUBLISH"]
     if calendar_ids:
-        marks = ",".join("?" * len(calendar_ids))
-        rows = conn.execute(
-            f"SELECT o.event_id, o.holder_calendar_id, o.occ_start, o.occ_end, e.title FROM cal_occurrences o JOIN cal_events e ON e.id = o.event_id "
-            f"JOIN cal_calendars c ON c.id = o.holder_calendar_id WHERE o.holder_calendar_id IN ({marks}) AND o.state = 'confirmed' AND e.state NOT IN "
-            f"('cancelled','rejected','withdrawn','expired') AND c.archived_at IS NULL AND o.occ_end > ? AND o.occ_start < ? ORDER BY o.occ_start LIMIT {MAX_EVENTS}",
-            (*calendar_ids, w0, w1)).fetchall()
+        rows = store.confirmed_occurrences(conn, calendar_ids, w0, w1, MAX_EVENTS)
     else:
         rows = []
     stamp = now.strftime("%Y%m%dT%H%M%SZ")
@@ -383,9 +378,9 @@ def _creator_calendars(conn: sqlite3.Connection, row: sqlite3.Row) -> list[str]:
     was made; a feed is not a session)."""
     uid = row["created_by"]
     try:
-        u = conn.execute("SELECT active, disabled_at FROM users WHERE id = ?", (uid,)).fetchone()
+        u = store.user_state(conn, uid)
     except sqlite3.OperationalError:
-        u = conn.execute("SELECT active, NULL AS disabled_at FROM users WHERE id = ?", (uid,)).fetchone()
+        u = store.user_state_old(conn, uid)
     if u is None or not u["active"] or u["disabled_at"]:
         return []
     p = Principal(user_id=uid, username="", display_name="", source="local" if str(uid).startswith(LOCAL_ID_PREFIX) else "internal", factor_ok=True)
@@ -394,7 +389,7 @@ def _creator_calendars(conn: sqlite3.Connection, row: sqlite3.Row) -> list[str]:
     ctx = Ctx(conn, p)
     out = []
     for cid in json.loads(row["calendar_ids_json"] or "[]"):
-        cal = conn.execute("SELECT * FROM cal_calendars WHERE id = ? AND archived_at IS NULL", (cid,)).fetchone()
+        cal = store.live_calendar(conn, cid)
         if cal is None:
             continue
         role = ctx.role_in(cal)
@@ -425,7 +420,7 @@ def feed_document(name: str, request: Request, conn: sqlite3.Connection = Depend
     if not s["enabled"] or not s["feeds_enabled"]:
         raise _gone()
     h = _hash(token)
-    row = conn.execute("SELECT * FROM cal_feeds WHERE token_hash = ? AND revoked_at IS NULL", (h,)).fetchone()
+    row = store.live_feed_by_token_hash(conn, h)
     if row is None or not hmac.compare_digest(row["token_hash"], h):
         raise _gone()
     if remote and not row["remote_enabled"]:
@@ -443,7 +438,7 @@ def feed_document(name: str, request: Request, conn: sqlite3.Connection = Depend
     last = row["last_used_at"]
     if not last or model.parse_utc(last, "l") < now - dt.timedelta(minutes=10):
         with request.app.state.db.write_aside(label="calendar.feed.used") as c:
-            c.execute("UPDATE cal_feeds SET last_used_at = ? WHERE id = ?", (model.iso(now), row["id"]))
+            store.set_last_used(c, row["id"], model.iso(now))
     return Response(content=body.encode("utf-8"), media_type="text/calendar; charset=utf-8",
                     headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer",
                              "X-Robots-Tag": "noindex, nofollow", "Content-Disposition": 'inline; filename="arx.ics"'})
