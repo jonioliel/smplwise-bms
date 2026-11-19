@@ -24,6 +24,8 @@ from ..services.tickets import store_locations
 from ._common import rid as _rid
 from .anchors import _editor_version
 from .catalog import get_floor
+from ..wire import zones as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -129,14 +131,14 @@ def _insert(conn: sqlite3.Connection, principal: Principal, floor_id: str, versi
     return zid
 
 
-@router.get("/floors/{floor_id}/zones")
+@router.get("/floors/{floor_id}/zones", **wire(W.ZoneList))
 def list_zones_api(floor_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, "map.read", ("floor", floor_id))
     return {"zones": floor_zones(conn, floor_id)}
 
 
-@router.post("/floors/{floor_id}/zones", status_code=201)
+@router.post("/floors/{floor_id}/zones", status_code=201, **wire(W.Zone))
 def create_zone(floor_id: str, body: ZoneIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, "placement.edit", ("floor", floor_id))
@@ -161,7 +163,7 @@ def _via_share(conn: sqlite3.Connection, z: sqlite3.Row, from_floor_id: str | No
     return shared_spaces.Placement(share.placement, shared_spaces._dims_of(home_v), shared_spaces._dims_of(other_v))
 
 
-@router.patch("/zones/{zone_id}")
+@router.patch("/zones/{zone_id}", **wire(W.Zone))
 def update_zone(zone_id: str, body: ZonePatch, request: Request, from_floor_id: str | None = None, principal: Principal = Depends(current_principal),
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     z = _get_zone(conn, zone_id)
@@ -271,7 +273,7 @@ def _revoke(background: BackgroundTasks, users: list[str]) -> None:
     background.add_task(revocation.mark, users)
 
 
-@router.post("/zones/{zone_id}/share/preview")
+@router.post("/zones/{zone_id}/share/preview", **wire(W.ZoneSharePlan))
 def share_preview(zone_id: str, body: ShareIn, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """"הפוך לחלל משותף" - what sharing this room with the other floor would do, written nowhere: the placement and its
     alignment check, the other floor's outline of the room (its duplicate room, kept), the duplicate content that leaves
@@ -282,7 +284,7 @@ def share_preview(zone_id: str, body: ShareIn, principal: Principal = Depends(cu
     return shared_spaces.public(_plan(conn, z, body))
 
 
-@router.post("/zones/{zone_id}/share")
+@router.post("/zones/{zone_id}/share", **wire(W.ZoneShared))
 def share_zone(zone_id: str, body: ShareIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The conversion, atomically: the duplicate content leaves the other floor's draft, its outline stays as that floor's
     outline of the room, the listed cameras and devices become members (each anchored where it is; a duplicate copy of a
@@ -346,7 +348,7 @@ def _member_kind(resource_type: str, resource_id: str) -> str:
     return "door" if domain in ("lock", "doorbell", "intercom", "event") or "door" in resource_id else "device"
 
 
-@router.get("/zones/{zone_id}/share/members")
+@router.get("/zones/{zone_id}/share/members", **wire(W.ZoneMembers))
 def list_members(zone_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """"חברים בחלל המשותף" (owner 2026-09-30): whoever reaches ANY floor that shows the room sees, of its members, exactly
     what their own permissions allow per member - a camera through camera_scope (a deny on the camera, and later the
@@ -419,7 +421,7 @@ def list_members(zone_id: str, request: Request, principal: Principal = Depends(
     return out
 
 
-@router.post("/zones/{zone_id}/share/members", status_code=201)
+@router.post("/zones/{zone_id}/share/members", status_code=201, **wire(W.ZoneMemberAdded))
 def add_member(zone_id: str, body: MemberIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """"הוסף לחלל המשותף": a camera or device of the room reaches every floor that shows it - the share rights on every
     floor of the room and placement reach on the camera. It must be placed on one of those floors."""
@@ -473,7 +475,7 @@ def remove_member(zone_id: str, resource_type: str, resource_id: str, request: R
           details={"resource": f"{resource_type}:{resource_id}"})
     _revoke(background, _all_users(conn))
 
-@router.patch("/zones/{zone_id}/share/{floor_id}")
+@router.patch("/zones/{zone_id}/share/{floor_id}", **wire(W.ZonePlacement))
 def share_placement(zone_id: str, floor_id: str, body: PlacementIn, request: Request, principal: Principal = Depends(current_principal),
                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """"יישור": where the room sits on the other plan (same_frame, or fit: from / to points, rotation, scale)."""
@@ -532,7 +534,7 @@ def delete_zone(zone_id: str, request: Request, background: BackgroundTasks, wit
     _revoke(background, _all_users(conn))
 
 
-@router.post("/floors/{floor_id}/zones/detect")
+@router.post("/floors/{floor_id}/zones/detect", **wire(W.ZoneDetected))
 def detect_zones(floor_id: str, body: DetectIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Room candidates from the floor's plan (local image processing; nothing is saved until accepted)."""
     get_floor(conn, floor_id)
@@ -553,7 +555,7 @@ def detect_zones(floor_id: str, body: DetectIn, request: Request, principal: Pri
     return {**result, "plan_version_id": v["id"], "existing_auto": zones_store.live_auto_zone_count(conn, floor_id)}
 
 
-@router.post("/floors/{floor_id}/zones/accept", status_code=201)
+@router.post("/floors/{floor_id}/zones/accept", status_code=201, **wire(W.ZoneAccepted))
 def accept_zones(floor_id: str, body: AcceptIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Save chosen candidates as zones (source 'auto'); optionally replace the previous automatic ones."""
     get_floor(conn, floor_id)
