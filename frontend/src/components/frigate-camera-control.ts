@@ -10,6 +10,7 @@ import {
   type CameraControl, type ProfilesView, type SwitchGroup,
 } from '../api/frigate-control';
 import { he } from '../i18n/he';
+import { ToastController } from './toast-controller';
 
 interface Pending {
   group: SwitchGroup | 'profile';
@@ -34,7 +35,11 @@ export class FrigateCameraControl extends LitElement {
   @state() private profiles: ProfilesView | null = null;
   @state() private pending: Pending | null = null;
   @state() private busy = false;
-  @state() private msg: { tone: 'ok' | 'err'; text: string } | null = null;
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController<'ok' | 'err'>(this, { ms: 3500 });
+  private get msg(): { tone: 'ok' | 'err'; text: string } | null {
+    return this.toaster.visible ? { tone: this.toaster.tone as 'ok' | 'err', text: this.toaster.text } : null;
+  }
   private seq = 0;
 
   connectedCallback() {
@@ -69,10 +74,7 @@ export class FrigateCameraControl extends LitElement {
   }
 
   private flash(tone: 'ok' | 'err', text: string) {
-    this.msg = { tone, text };
-    window.setTimeout(() => {
-      if (this.msg?.text === text) this.msg = null;
-    }, 3500);
+    this.toaster.show(text, { tone });
   }
 
   private ask(p: Pending) {

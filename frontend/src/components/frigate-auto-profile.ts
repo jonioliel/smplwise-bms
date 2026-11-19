@@ -10,6 +10,7 @@ import {
 } from '../api/frigate-control';
 import { fx } from '../i18n/frigate-text';
 import { adminStyles, dateText, supervisedBox } from './frigate-admin-shared';
+import { ToastController } from './toast-controller';
 
 /**
  * FRGD: the automatic profile of ONE Frigate recorder (Settings only; CR-029 section 11.1): the mode (off / suggest only / apply), the
@@ -30,7 +31,11 @@ export class FrigateAutoProfile extends LitElement {
   @state() private data: AutoView | null = null;
   @state() private failed = '';
   @state() private busy = false;
-  @state() private msg: { tone: 'ok' | 'err'; text: string } | null = null;
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController<'ok' | 'err'>(this, { ms: 4000 });
+  private get msg(): { tone: 'ok' | 'err'; text: string } | null {
+    return this.toaster.visible ? { tone: this.toaster.tone as 'ok' | 'err', text: this.toaster.text } : null;
+  }
   @state() private applying: { item: AutoItem; supervised: boolean; error: string } | null = null;
 
   static styles = adminStyles;
@@ -55,10 +60,7 @@ export class FrigateAutoProfile extends LitElement {
   }
 
   private flash(tone: 'ok' | 'err', text: string) {
-    this.msg = { tone, text };
-    window.setTimeout(() => {
-      if (this.msg?.text === text) this.msg = null;
-    }, 4000);
+    this.toaster.show(text, { tone });
   }
 
   private changed() {

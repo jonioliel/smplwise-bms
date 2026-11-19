@@ -12,6 +12,7 @@ import {
 import { fx } from '../i18n/frigate-text';
 import { adminStyles, dateText, epochToLocal, firstBlocked, localToEpoch, supervisedBox } from './frigate-admin-shared';
 import { dateInputLang } from '../api/day-format';
+import { ToastController } from './toast-controller';
 
 interface CreateDraft {
   camera: string;
@@ -40,7 +41,11 @@ export class FrigateExportsPanel extends LitElement {
   @state() private enabled = false;
   @state() private failed = '';
   @state() private busy = false;
-  @state() private msg: { tone: 'ok' | 'err'; text: string } | null = null;
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController<'ok' | 'err'>(this, { ms: 4000 });
+  private get msg(): { tone: 'ok' | 'err'; text: string } | null {
+    return this.toaster.visible ? { tone: this.toaster.tone as 'ok' | 'err', text: this.toaster.text } : null;
+  }
   @state() private draft: CreateDraft | null = null;
   @state() private renaming: { id: string; name: string; supervised: boolean } | null = null;
   @state() private deleting: { row: FrigateExport; typed: string; supervised: boolean; error: string } | null = null;
@@ -72,10 +77,7 @@ export class FrigateExportsPanel extends LitElement {
   }
 
   private flash(tone: 'ok' | 'err', text: string) {
-    this.msg = { tone, text };
-    window.setTimeout(() => {
-      if (this.msg?.text === text) this.msg = null;
-    }, 4000);
+    this.toaster.show(text, { tone });
   }
 
   private changed() {
