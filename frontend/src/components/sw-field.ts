@@ -5,7 +5,10 @@ import type { IconName } from './sw-icon';
 import { fitSchedule, fitSelectElement } from './fit-text';
 import { tr } from '../i18n/msg/components';
 
-/** Labelled form field wrapper; the control (input/select/textarea) is slotted and styled here. */
+/** Labelled form field wrapper; the control (input/select/textarea) is slotted and styled here.
+ * Slots: the default one (the control), `message` (a field's own message under the control - an error with role="alert" - kept out of
+ * the unit frame). Parts: `label`, `hint`, `unit-box`, `unit` (a module skin keeps its own label size through `sw-field::part(label)`).
+ * Custom property: `--sw-field-unit-inset` (the unit's distance from the frame edge; 11 px). */
 @customElement('sw-field')
 export class SwField extends LitElement {
   @property() label = '';
@@ -27,7 +30,18 @@ export class SwField extends LitElement {
   @property() placeholder = '';
   /** search: the clear key's name (the i18n catalogue belongs to another branch, so the default is set here). */
   @property({ attribute: 'clear-label' }) clearLabel = tr('נקה חיפוש');
+  /** CR-FIELD-UNIT-2470: the unit of the value (₪, kWh, m³, %, "ימים"), drawn INSIDE the slotted input's frame - the figure and its unit
+   * read as one value, a press on the unit still lands in the input. The input keeps every state of its own (hover, focus, disabled,
+   * the screen's error class); the unit side is padded by the unit's measured width. A numeric input (`inputmode` decimal / numeric,
+   * `type="number"`) keeps left-to-right digits in tabular figures in either reading direction. The unit is also the input's
+   * accessible description (`aria-description`), so a screen reader hears "12.5, shekel sign". Unset: the field is unchanged. */
+  @property() unit = '';
+  /** CR-FIELD-UNIT-2470: where the unit sits, in the READING direction of the page: `end` (the default - after the figure, as "12.5 ₪"
+   * is read: the left edge in Hebrew, the right edge in English) or `start` (before it, as a currency prefix "₪ 12.5"). */
+  @property({ attribute: 'unit-at', reflect: true }) unitAt: 'start' | 'end' = 'end';
   @query('input.search') private searchInput?: HTMLInputElement;
+  @query('.ubox') private unitBox?: HTMLElement;
+  @query('.unit') private unitMark?: HTMLElement;
 
   static styles = css`
     :host {
@@ -326,6 +340,67 @@ export class SwField extends LitElement {
       text-align: left;
       font-family: var(--sw-font-mono);
     }
+    /* CR-FIELD-UNIT-2470: a value the screen marked wrong (aria-invalid) reads as wrong wherever the field sits - also inside a shared
+       table's shadow root, where the screen's own .err class does not reach */
+    ::slotted(input[aria-invalid='true']),
+    ::slotted(select[aria-invalid='true']),
+    ::slotted(textarea[aria-invalid='true']) {
+      border-color: var(--sw-danger);
+      box-shadow: 0 0 0 3px var(--sw-danger-soft);
+    }
+    /* ---- CR-FIELD-UNIT-2470: the unit inside the input's frame. The unit is laid over the input's padding on the unit side; the padding
+       is the unit's measured width (--_uw, set from a ResizeObserver; 1.4em until the first measure) + the frame inset + a gap. ---- */
+    .ubox {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      min-inline-size: 0;
+      --_uin: var(--sw-field-unit-inset, 11px);
+      --_upad: calc(var(--_uw, 1.4em) + var(--_uin) + 6px);
+    }
+    .unit {
+      position: absolute;
+      inset-block: 0;
+      inset-inline-end: var(--_uin);
+      display: flex;
+      align-items: center;
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+      line-height: 1;
+      white-space: nowrap;
+      unicode-bidi: isolate;
+      pointer-events: none;
+      user-select: none;
+    }
+    :host([unit-at='start']) .unit {
+      inset-inline-end: auto;
+      inset-inline-start: var(--_uin);
+    }
+    /* The padding side is PHYSICAL: a figure is a left-to-right input inside a right-to-left page, so the input's own logical sides are
+       not the page's. !important on this one property only: a module skin's plain "input { padding: 0 12px }" sits in the outer tree,
+       which outranks ::slotted() for normal declarations, and the figure would run under the unit. */
+    :host([has-unit]:dir(ltr):not([unit-at='start'])) ::slotted(input),
+    :host([has-unit]:dir(rtl)[unit-at='start']) ::slotted(input) {
+      padding-right: var(--_upad) !important;
+    }
+    :host([has-unit]:dir(rtl):not([unit-at='start'])) ::slotted(input),
+    :host([has-unit]:dir(ltr)[unit-at='start']) ::slotted(input) {
+      padding-left: var(--_upad) !important;
+    }
+    /* a figure keeps left-to-right digits (the minus sign and the decimal point stay where they are typed) in tabular figures */
+    :host([has-unit]) ::slotted(input[inputmode='decimal']),
+    :host([has-unit]) ::slotted(input[inputmode='numeric']),
+    :host([has-unit]) ::slotted(input[type='number']) {
+      direction: ltr;
+      text-align: left;
+      font-variant-numeric: tabular-nums;
+    }
+    @media (forced-colors: active) {
+      .unit {
+        color: CanvasText;
+      }
+    }
   `;
 
   private fitSlot = { raf: 0 };
@@ -379,9 +454,15 @@ export class SwField extends LitElement {
 
   disconnectedCallback() {
     this.unwatchSelect();
+    this.unitObserver?.disconnect();
+    this.unitObserved = undefined;
     cancelAnimationFrame(this.fitSlot.raf);
     this.fitSlot.raf = 0;
     super.disconnectedCallback();
+  }
+
+  protected willUpdate() {
+    this.toggleAttribute('has-unit', this.hasUnit);
   }
 
   protected updated() {
@@ -389,6 +470,32 @@ export class SwField extends LitElement {
     this.watchSelect();
     this.fitLater();
     this.nameControls();
+    this.watchUnit();
+  }
+
+  /** CR-FIELD-UNIT-2470: a unit is drawn for the plain field only (the capsule select and the search box have their own chrome) */
+  private get hasUnit(): boolean {
+    return !!this.unit && !this.capsule && this.type !== 'search';
+  }
+
+  private unitObserver?: ResizeObserver;
+  private unitObserved?: HTMLElement;
+  /** the input's padding on the unit side follows the unit's drawn width (a font swap or a language change re-measures it) */
+  private measureUnit = () => {
+    const w = this.unitMark?.getBoundingClientRect().width ?? 0;
+    if (w > 0) this.unitBox?.style.setProperty('--_uw', `${Math.ceil(w)}px`);
+  };
+  private watchUnit() {
+    const mark = this.hasUnit ? this.unitMark : undefined;
+    if (mark === this.unitObserved) return;
+    this.unitObserver?.disconnect();
+    this.unitObserved = mark;
+    if (!mark) return;
+    if (typeof ResizeObserver !== 'undefined') {
+      this.unitObserver ??= new ResizeObserver(this.measureUnit);
+      this.unitObserver.observe(mark);
+    }
+    this.measureUnit();
   }
 
   /** A11Y-POLISHED-2342: the <label> is drawn inside this element's shadow root and the control is slotted from the page, so the
@@ -399,6 +506,7 @@ export class SwField extends LitElement {
     for (const el of Array.from(this.children)) {
       if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement)) continue;
       if (el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio' || el.type === 'hidden')) continue;
+      this.describeUnit(el);
       const ours = el.hasAttribute('data-sw-field-named');
       if (!ours && (el.hasAttribute('aria-label') || el.hasAttribute('aria-labelledby') || (el.id && el.labels?.length))) continue;
       if (this.label) {
@@ -410,6 +518,31 @@ export class SwField extends LitElement {
       }
     }
   }
+
+  /** CR-FIELD-UNIT-2470: the unit is drawn in this shadow root, out of the control's reach, so it is the control's description (a
+   * description the screen set itself is kept; ours is marked, follows a unit change and leaves with the unit). */
+  private describeUnit(el: HTMLElement) {
+    const ours = el.hasAttribute('data-sw-field-unit');
+    if (!ours && el.hasAttribute('aria-description')) return;
+    if (this.hasUnit && el instanceof HTMLInputElement) {
+      el.setAttribute('aria-description', this.unit);
+      el.setAttribute('data-sw-field-unit', '');
+    } else if (ours) {
+      el.removeAttribute('aria-description');
+      el.removeAttribute('data-sw-field-unit');
+    }
+  }
+
+  /** CR-FIELD-UNIT-2470: the label is drawn in this shadow root and cannot point at the slotted control (no `for` across the boundary),
+   * so a press on it focuses the control itself, as a page label would */
+  private focusControl = () => {
+    const c = Array.from(this.children).find((el) => el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) as
+      | HTMLInputElement
+      | HTMLSelectElement
+      | HTMLTextAreaElement
+      | undefined;
+    if (c && !c.disabled) c.focus();
+  };
 
   protected firstUpdated() {
     void document.fonts?.ready.then(this.fitLater);
@@ -460,11 +593,14 @@ export class SwField extends LitElement {
     const size = { sm: 14, md: 16, lg: 18 }[this.ddSize as 'sm' | 'md' | 'lg'] ?? 16;
     const ico = { sm: 17, md: 20, lg: 24 }[this.ddSize as 'sm' | 'md' | 'lg'] ?? 20;
     return html`
-      ${this.label ? html`<label>${this.label}</label>` : ''}
+      ${this.label ? html`<label part="label" @click=${this.focusControl}>${this.label}</label>` : ''}
       ${this.capsule
         ? html`<div class="box"><slot @slotchange=${this.onSlotChange}></slot>${this.icon ? html`<span class="ci" aria-hidden="true"><sw-icon .name=${this.icon} size=${ico}></sw-icon></span>` : ''}<span class="cv" aria-hidden="true"><sw-icon name="chevronDown" size=${size}></sw-icon></span></div>`
-        : html`<slot @slotchange=${this.onSlotChange}></slot>`}
-      ${this.hint ? html`<div class="hint">${this.hint}</div>` : ''}
+        : this.hasUnit
+          ? html`<div class="ubox" part="unit-box"><slot @slotchange=${this.onSlotChange}></slot><span class="unit" part="unit" aria-hidden="true" data-unit>${this.unit}</span></div>`
+          : html`<slot @slotchange=${this.onSlotChange}></slot>`}
+      <slot name="message"></slot>
+      ${this.hint ? html`<div class="hint" part="hint">${this.hint}</div>` : ''}
     `;
   }
 }
