@@ -17,7 +17,7 @@ import { cdt } from '../i18n/confirm-dialog';
  *
  * The guard tests/unit-no-native-dialogs.spec.ts fails on any new window.confirm / alert / prompt in frontend/src.
  */
-export interface ConfirmDialogOptions {
+interface ConfirmDialogOptions {
   /** The question. A string keeps its line breaks. */
   body: string | TemplateResult;
   /** The dialog's title; defaults to "נדרש אישור" in the interface language. */

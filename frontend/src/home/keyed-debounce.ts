@@ -7,7 +7,7 @@ export interface DebounceTimers {
   clear(id: number): void;
 }
 
-export interface KeyedDebounce<T> {
+interface KeyedDebounce<T> {
   /** Remembers `value` as the latest for `key` and (re)starts that key's delay; other keys are left alone. */
   push(key: string, value: T): void;
   /** Sends every pending value now, in the order the keys were first pushed, and stops their timers. */

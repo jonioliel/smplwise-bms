@@ -9,7 +9,7 @@
  * and a digest that has not arrived yet (the header alone: the area is reserved, nothing moves when it arrives).
  * The "next arrivals" line (`next_row`) is a setting: show / hide.
  */
-import { esc } from './tv-logic';
+import { esc, num } from './tv-logic';
 import { ahead, badgeWide, etaOf, noneText, ts, windowChip, type TransitDigest, type TransitItem } from './transit-logic';
 import { stopsTitle } from './transit-view';
 
@@ -35,10 +35,11 @@ function badge(line: string): string {
   return '<span class="b2ln' + (badgeWide(line) ? ' w4' : '') + '">' + esc(line) + '</span>';
 }
 
-/** The time of one arrival: "now" (gold), minutes + "min", or the clock time (over the clock threshold, and always for cached data). */
-function v2Eta(it: Pick<TransitItem, 'at' | 'hm' | 'quality'>, d: TransitDigest, c: V2TransitCtx): string {
+/** The time of one arrival: "now" (gold), minutes + "min", or the clock time (over the clock threshold, and always for cached data).
+ * Exported for tests/unit-notice-tv-escape-2443.spec.ts (hostile strings; CR-FE-SMALL-2440 merge fix). */
+export function v2Eta(it: Pick<TransitItem, 'at' | 'hm' | 'quality'>, d: TransitDigest, c: V2TransitCtx): string {
   const e = etaOf(it.at, it.hm, d, c.nowMs);
-  const main = e.kind === 'now' ? '<b class="now">' + esc(ts(c.lang, 'now')) + '</b>' : e.kind === 'min' ? '<b class="num">' + e.text + '</b><small>' + esc(ts(c.lang, 'min')) + '</small>' : '<b class="cl num">' + esc(e.text) + '</b>';
+  const main = e.kind === 'now' ? '<b class="now">' + esc(ts(c.lang, 'now')) + '</b>' : e.kind === 'min' ? '<b class="num">' + esc(e.text) + '</b><small>' + esc(ts(c.lang, 'min')) + '</small>' : '<b class="cl num">' + esc(e.text) + '</b>';
   const rt = it.quality === 'realtime' && d.state === 'fresh';
   return '<span class="b2eta">' + main + '<span class="b2mk' + (rt ? ' rt' : '') + '" title="' + esc(rt ? ts(c.lang, 'rt') : S[c.lang].sched) + '">' + ic(rt ? 'rt' : 'clock') + '</span></span>';
 }
@@ -100,7 +101,7 @@ function rowsOf(d: TransitDigest | null, c: V2TransitCtx): TransitItem[] {
 }
 
 function more(n: number, c: V2TransitCtx): string {
-  return '<div class="bmore" data-n="' + n + '">' + (n > 0 ? esc(ts(c.lang, 'more', { n })) : '') + '</div>';
+  return '<div class="bmore" data-n="' + num(n) + '">' + (n > 0 ? esc(ts(c.lang, 'more', { n })) : '') + '</div>';
 }
 
 /** The panel of the side layout (under the weather, at the bottom of the information column) and of the portrait board. */
@@ -115,7 +116,7 @@ export function v2Panel(d: TransitDigest | null, c: V2TransitCtx): string {
     body = '<div class="rows">' + items.map((it) => '<div class="b2r">' + badge(it.line) + '<span class="b2dest"><b>' + esc(it.dest) + '</b>' +
       (multi ? '<small>' + esc(stopName(d, it.stop)) + '</small>' : nextHtml(it, d, c)) + '</span>' + v2Eta(it, d, c) + '</div>').join('') + '</div>';
   }
-  return '<section class="b2bus panel" data-b2bus="panel" data-bus-state="' + (d?.state ?? 'wait') + '">' + head(d, c, false) + body + (st === 'rows' && d ? legend(d, c, more(d.overflow ?? 0, c)) : '') + '</section>';
+  return '<section class="b2bus panel" data-b2bus="panel" data-bus-state="' + esc(d?.state ?? 'wait') + '">' + head(d, c, false) + body + (st === 'rows' && d ? legend(d, c, more(d.overflow ?? 0, c)) : '') + '</section>';
 }
 
 /** The strip of the strip layout: a fixed-height row under the notices (the stop in its own column, a card per line). */
@@ -126,10 +127,10 @@ export function v2Strip(d: TransitDigest | null, c: V2TransitCtx): string {
   if (st === 'off') body = offBlock(c);
   else if (st === 'empty' && d) body = emptyBlock(d, c);
   else if (st === 'rows' && d) {
-    body = '<div class="cards" data-total="' + (items.length + (d.overflow ?? 0)) + '">' + items.map((it) => '<div class="bcard"><div class="h">' + badge(it.line) + '<span>' + esc(it.dest) + '</span></div>' +
+    body = '<div class="cards" data-total="' + num(items.length + (d.overflow ?? 0)) + '">' + items.map((it) => '<div class="bcard"><div class="h">' + badge(it.line) + '<span>' + esc(it.dest) + '</span></div>' +
       v2Eta(it, d, c) + nextHtml(it, d, c) + '</div>').join('') + '</div>';
   }
-  return '<section class="b2bus strip" data-b2bus="strip" data-bus-state="' + (d?.state ?? 'wait') + '"><div class="sl">' + head(d, c, false) + (st === 'rows' && d ? legend(d, c) : '') + '</div>' + body + '</section>';
+  return '<section class="b2bus strip" data-b2bus="strip" data-bus-state="' + esc(d?.state ?? 'wait') + '"><div class="sl">' + head(d, c, false) + (st === 'rows' && d ? legend(d, c) : '') + '</div>' + body + '</section>';
 }
 
 /** The slide of the slide layout: an item of the rotation (`.it.transit`) that takes the whole stage. */
@@ -144,5 +145,5 @@ export function v2Slide(d: TransitDigest | null, c: V2TransitCtx, on: boolean): 
     body = '<div class="rows">' + items.map((it) => '<div class="b2r">' + badge(it.line) + '<span class="b2dest">' + esc(it.dest) + (multi ? '<small>' + esc(stopName(d, it.stop)) + '</small>' : '') + '</span>' +
       v2Eta(it, d, c) + (c.next ? nextHtml(it, d, c) || '<span class="b2nx"></span>' : '') + '</div>').join('') + '</div>';
   }
-  return '<article class="it transit b2bus slide' + (on ? ' on' : '') + (c.next ? '' : ' nonx') + '" data-b2bus="slide" data-bus-state="' + (d?.state ?? 'wait') + '">' + head(d, c, true) + body + (st === 'rows' && d ? legend(d, c, more(d.overflow ?? 0, c)) : '') + '</article>';
+  return '<article class="it transit b2bus slide' + (on ? ' on' : '') + (c.next ? '' : ' nonx') + '" data-b2bus="slide" data-bus-state="' + esc(d?.state ?? 'wait') + '">' + head(d, c, true) + body + (st === 'rows' && d ? legend(d, c, more(d.overflow ?? 0, c)) : '') + '</article>';
 }

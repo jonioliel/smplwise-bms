@@ -586,7 +586,7 @@ const ru: Record<BtKey, string> = {
 
 const TABLES: Record<BtLang, Record<BtKey, string>> = { he, en, ar, ru };
 /** The columns that are an initial, unreviewed translation. */
-export const BT_DEV_MARKED: readonly BtLang[] = ['ar', 'ru'];
+const BT_DEV_MARKED: readonly BtLang[] = ['ar', 'ru'];
 export const BT_KEYS = Object.keys(he) as BtKey[];
 export const BT_TABLES = TABLES;
 

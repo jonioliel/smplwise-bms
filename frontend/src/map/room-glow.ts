@@ -31,14 +31,14 @@ export const GLOW_INSET_M = 0.14;
 const PRESENCE_BAND_M = 0.55;
 /** PLAN3D-R32-ANSWERS-2438: the state bar on the wall tops (from the wall's centre line into the room) and the floor line. */
 export const MARK_BAR_M = 0.05;
-export const MARK_LINE_M = 0.07;
+const MARK_LINE_M = 0.07;
 
 /** Q-MAP-16: bar_edge = the wall-top bar and the floor line (the owner's answer) | floor = the floor tint of before | bar = the bar only. */
-export type RoomMarksMode = 'bar_edge' | 'floor' | 'bar';
+type RoomMarksMode = 'bar_edge' | 'floor' | 'bar';
 /** Q-MAP-17: a light on - bar = a thin amber wall-top bar (the answer) | none | bar_floor = the bar and the floor line. */
-export type LightMarkMode = 'bar' | 'none' | 'bar_floor';
+type LightMarkMode = 'bar' | 'none' | 'bar_floor';
 /** Q-MAP-18: an alarm pulses slowly (the answer) or stays steady; reduced motion keeps it steady anyway. */
-export type AlarmMotion = 'pulse' | 'steady';
+type AlarmMotion = 'pulse' | 'steady';
 export interface MarkPrefs {
   marks: RoomMarksMode;
   light: LightMarkMode;

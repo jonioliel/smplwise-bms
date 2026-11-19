@@ -2226,7 +2226,7 @@ const ru: Record<XtKey, string> = {
 
 const TABLES: Record<XtLang, Record<XtKey, string>> = { he, en, ar, ru };
 /** The columns that are an initial, unreviewed translation. */
-export const XT_DEV_MARKED: readonly XtLang[] = ['ar', 'ru'];
+const XT_DEV_MARKED: readonly XtLang[] = ['ar', 'ru'];
 export const XT_KEYS = Object.keys(he) as XtKey[];
 export const XT_TABLES = TABLES;
 

@@ -208,7 +208,7 @@ const ru: Record<Key, string> = {
 export type MpKey = Key;
 export const MP_TABLES: Record<Lang, Record<Key, string>> = { he, en, ar, ru };
 /** The columns that are an initial, unreviewed translation. */
-export const MP_DEV_MARKED: readonly Lang[] = ['ar', 'ru'];
+const MP_DEV_MARKED: readonly Lang[] = ['ar', 'ru'];
 export const MP_KEYS = Object.keys(he) as Key[];
 
 function mpLang(): Lang {

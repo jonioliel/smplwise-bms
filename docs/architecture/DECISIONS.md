@@ -8,7 +8,7 @@
 | ADR-004 | Internal UTC instants, per-source time adapters, IANA display timezone | Binding; source semantics proven in lab |
 | ADR-005 | No source credentials/control in browser; authorized WebRTC data path permitted | Binding; principal/media policy in T011 |
 | ADR-006 | Playback strategy selected by evidence | OPEN: RTSP session / bounded clip / remux; no transparent hot-swap assumption. Lab 2026-09-14: go2rtc API persists streams; NVR download by file only; direction in ADR-013 |
-| ADR-007 | Plan AI proposes geometry; deterministic renderer owns style | Binding; human publish gate |
+| ADR-007 | ~~Plan AI proposes geometry; deterministic renderer owns style~~ | **Superseded** (owner decision 2026-11-18, backlog triage T060/T061): no AI plan normaliser is built. Geometry proposals come from the local deterministic detector (T086, `services/plan_detect.py`) and the local stylizer (`services/plan_stylize.py`), behind the human accept/publish screen - see ADR-016 ("local detection before any AI") and `docs/architecture/PLAN_STUDIO_DESIGN_HE.md`. The human publish gate stays binding. Was: Binding; human publish gate |
 | ADR-008 | Initial single-node durable store and bounded job queues | Proposed; avoid unnecessary distributed architecture |
 | ADR-009 | Four main modes, shared UI, original design assets preserved | Binding; no separate card UI fork |
 | ADR-010 | Codex aliases resolved locally; dispatcher optional | Binding; resolved in MODEL_POLICY.json (Claude Code session) |

@@ -12,7 +12,7 @@
  */
 import { docLang, fill, registerCatalogue, type Vars } from './core';
 
-export type ConfirmWordLang = 'he' | 'en';
+type ConfirmWordLang = 'he' | 'en';
 
 /** key -> the two words. `{slot}` is filled from `vars` in both. Keep in step with the backend table (unit-confirm-words-2442). */
 export const CONFIRM_WORDS = {
@@ -50,7 +50,7 @@ export const CLIENT_CONFIRM_WORDS = {
   calendar_guest_purge: { he: 'מחיקה', en: 'delete' },
 } as const satisfies Record<string, Record<ConfirmWordLang, string>>;
 
-export type ClientConfirmWordKey = keyof typeof CLIENT_CONFIRM_WORDS;
+type ClientConfirmWordKey = keyof typeof CLIENT_CONFIRM_WORDS;
 
 type AnyKey = ConfirmWordKey | ClientConfirmWordKey;
 

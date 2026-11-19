@@ -235,7 +235,7 @@ const ru: Record<Key, string> = {
 export type WiKey = Key;
 export const WI_TABLES: Record<Lang, Record<Key, string>> = { he, en, ar, ru };
 /** The columns that are an initial, unreviewed translation. */
-export const WI_DEV_MARKED: readonly Lang[] = ['ar', 'ru'];
+const WI_DEV_MARKED: readonly Lang[] = ['ar', 'ru'];
 export const WI_KEYS = Object.keys(he) as Key[];
 
 function wiLang(): Lang {

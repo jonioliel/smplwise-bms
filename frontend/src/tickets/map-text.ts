@@ -29,7 +29,7 @@ const he = {
   createLine: 'רכיב מהמפה',
 } as const;
 
-export type MapTextKey = keyof typeof he;
+type MapTextKey = keyof typeof he;
 
 const en: Record<MapTextKey, string> = {
   section: 'Map element',
@@ -56,7 +56,7 @@ const en: Record<MapTextKey, string> = {
 };
 
 /** One text in the document's language (a key missing in English falls back to the Hebrew), the module's name rendered (D33). */
-export function mapText(key: MapTextKey, lang: 'he' | 'en' = ticketsLang()): string {
+function mapText(key: MapTextKey, lang: 'he' | 'en' = ticketsLang()): string {
   const raw = (lang === 'en' ? en[key] : undefined) ?? he[key];
   return tn(raw, lang as TicketLang);
 }
@@ -66,8 +66,5 @@ export const MAP_TEXT: Readonly<Record<MapTextKey, string>> = Object.definePrope
   {},
   Object.fromEntries((Object.keys(he) as MapTextKey[]).map((k) => [k, { get: () => mapText(k), enumerable: true }])),
 ) as Readonly<Record<MapTextKey, string>>;
-
-export const MAP_TEXT_KEYS = Object.keys(he) as MapTextKey[];
-export const MAP_TEXT_EN_KEYS = Object.keys(en) as MapTextKey[];
 
 registerCatalogue('tickets/map-text', { he, en });

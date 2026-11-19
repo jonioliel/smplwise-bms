@@ -86,7 +86,7 @@ export class AutomationCode extends LitElement {
         overflow: hidden;
         pointer-events: none;
         color: var(--dv-text-3);
-        text-align: right;
+        text-align: end; /* .wrap is direction: ltr - end = right, next to the code */
         font: 12px/20px var(--sw-font-mono, ui-monospace, monospace);
         border-inline-end: 1px solid var(--dv-border);
         background: color-mix(in srgb, var(--dv-surface-3) 60%, transparent);
@@ -103,7 +103,8 @@ export class AutomationCode extends LitElement {
         inline-size: 100%;
         block-size: 100%;
         margin: 0;
-        padding: 10px 12px 10px 56px;
+        padding-block: 10px;
+        padding-inline: 56px 12px; /* .wrap is direction: ltr: the wide start side clears the line-number gutter */
         border: 0;
         outline: none;
         resize: none;
@@ -114,7 +115,7 @@ export class AutomationCode extends LitElement {
         overflow: auto;
         tab-size: 2;
         direction: ltr;
-        text-align: left;
+        text-align: start;
       }
       textarea[readonly] {
         opacity: 0.85;

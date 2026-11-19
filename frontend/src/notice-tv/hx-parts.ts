@@ -2,7 +2,7 @@
  * LOBBY-STYLES-2300 - the markup pieces the three hi-tech lobby styles (Lumen, Axis, Prism) share. Pure strings, no DOM: unit specs run them in Node.
  * The mock-up they come from: private/design-system-2026-10-27/round7/noticeboard-hitech (hx.js). Every class is nb-prefixed (the engine's root is #nbk).
  */
-import { esc } from './tv-logic';
+import { esc, num } from './tv-logic';
 import type { Skin } from './skin-logic';
 
 /** A number or a time range inside running text stays left-to-right inside a right-to-left line (a single short number is left alone). */
@@ -30,5 +30,5 @@ export function metaHtml(o: { severity: string; word: string; when: string }): s
 /** Prism: the next hours as figures in a row (read from 4 m, not compared as a trend, so no chart). */
 export function hoursRow(hours: { at: string; t: number }[], label: string): string {
   if (!hours.length) return '';
-  return '<div class="nb-hrs" aria-label="' + esc(label) + '">' + hours.map((x) => '<span><b class="nb-num">' + x.t + '°</b>' + esc(x.at) + '</span>').join('') + '</div>';
+  return '<div class="nb-hrs" aria-label="' + esc(label) + '">' + hours.map((x) => '<span><b class="nb-num">' + num(x.t) + '°</b>' + esc(x.at) + '</span>').join('') + '</div>';
 }
