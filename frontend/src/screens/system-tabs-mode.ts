@@ -20,6 +20,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { tr } from '../i18n/msg/system-b';
 import { srOnlyStyles } from '../styles/fragments';
 import { ToastController } from '../components/toast-controller';
+import '../components/sw-field';
 
 type CardScope = 'style' | 'phone' | 'picker' | 'place' | 'settings-nav';
 
@@ -266,34 +267,15 @@ export class SystemTabsMode extends LitElement {
       min-inline-size: 0;
       overflow-wrap: anywhere;
     }
-    select {
+    /* CR-CMP2-SELECTS-2450 (owner N10): every select sits in sw-field (the shared field: look, focus, hover, disabled, the 44 px phone
+       target); the row only places it */
+    .grp > sw-field {
       flex: 0 1 240px;
       min-inline-size: 0;
       max-inline-size: 60%;
-      min-block-size: 40px;
-      padding: 0 10px;
-      border: 1px solid var(--sw-border-strong);
-      border-radius: var(--sw-r-md);
-      background: var(--sw-surface);
-      color: var(--sw-text);
-      font: inherit;
-      font-weight: var(--sw-fw-regular);
+    }
+    sw-field > select {
       text-overflow: ellipsis;
-      cursor: pointer;
-      transition: border-color var(--sw-t-hover) var(--sw-ease-color);
-    }
-    select:focus-visible {
-      outline: var(--sw-focus-w) solid var(--sw-focus);
-      outline-offset: 1px;
-    }
-    select:disabled {
-      opacity: var(--sw-disabled-opacity);
-      cursor: default;
-    }
-    @media (hover: hover) and (pointer: fine) {
-      select:hover:not(:disabled) {
-        border-color: var(--sw-text-3);
-      }
     }
     /* "what is active for me now": a fact list - the group at the start, the value and where it comes from at the end */
     .effective {
@@ -403,7 +385,7 @@ export class SystemTabsMode extends LitElement {
     }
     @media (pointer: coarse) {
       .reset,
-      select {
+      sw-field > select {
         min-block-size: 44px;
       }
     }
@@ -498,8 +480,7 @@ export class SystemTabsMode extends LitElement {
     ${srOnlyStyles}
     @media (prefers-reduced-motion: reduce) {
       .opt,
-      .reset,
-      select {
+      .reset {
         transition-duration: 0ms;
       }
     }
@@ -669,10 +650,10 @@ export class SystemTabsMode extends LitElement {
     const opts = (cur: DdSize | null, withFollow: string | null) => html`${withFollow ? html`<option value="" ?selected=${!cur}>${withFollow}</option>` : nothing}${DD_SIZES.map((m) => html`<option value=${m} ?selected=${cur === m}>${DD_SIZE_LABEL[m]}</option>`)}`;
     return html`<fieldset><legend>${tr('גודל התפריט הנפתח')}</legend>
         <div class="grp all"><span>${tr('לכל הקבוצות')}</span>
-          <select data-dd-size-global=${scope} aria-label=${tr('גודל תפריט נפתח: לכל הקבוצות')} ?disabled=${disabled} @change=${(e: Event) => onGlobal((e.target as HTMLSelectElement).value)}>${opts(size, scope === 'own' ? `${follow} ${tr('(כרגע: {value})', { value: DD_SIZE_LABEL[this.szInst.size] })}` : null)}</select></div>
+          <sw-field><select data-dd-size-global=${scope} aria-label=${tr('גודל תפריט נפתח: לכל הקבוצות')} ?disabled=${disabled} @change=${(e: Event) => onGlobal((e.target as HTMLSelectElement).value)}>${opts(size, scope === 'own' ? `${follow} ${tr('(כרגע: {value})', { value: DD_SIZE_LABEL[this.szInst.size] })}` : null)}</select></sw-field></div>
         ${TAB_GROUPS.map(
           (g) => html`<div class="grp" data-dd-size-group-row=${g}><span>${TAB_GROUP_LABEL[g]}</span>
-            <select data-dd-size-group=${`${scope}:${g}`} aria-label=${`${TAB_GROUP_LABEL[g]}: ${tr('גודל תפריט נפתח')}`} ?disabled=${disabled} @change=${(e: Event) => onGroup(g, (e.target as HTMLSelectElement).value)}>${opts(groups[g] ?? null, follow)}</select></div>`,
+            <sw-field><select data-dd-size-group=${`${scope}:${g}`} aria-label=${`${TAB_GROUP_LABEL[g]}: ${tr('גודל תפריט נפתח')}`} ?disabled=${disabled} @change=${(e: Event) => onGroup(g, (e.target as HTMLSelectElement).value)}>${opts(groups[g] ?? null, follow)}</select></sw-field></div>`,
         )}
       </fieldset>`;
   }
@@ -734,10 +715,10 @@ export class SystemTabsMode extends LitElement {
     return html`<fieldset data-dd-dial-fieldset=${key}><legend>${title}</legend>
         ${ring ? html`<span class="muted">${tr('טבעת דקה מאוד (1 או 1.5 פיקסל) נראית רק במסכי רטינה. חל רק על הסגנון קפסולה')}</span>` : html`<span class="muted">${tr('חל רק על הסגנון קפסולה')}</span>`}
         <div class="grp all"><span>${tr('לכל הקבוצות')}</span>
-          <select data-dd-dial-global=${`${key}:${scope}`} aria-label=${`${title}: ${tr('לכל הקבוצות')}`} ?disabled=${disabled} @change=${(e: Event) => onGlobal((e.target as HTMLSelectElement).value)}>${opts(value, scope === 'own' ? `${follow} ${tr('(כרגע: {value})', { value: label(inheritedValue) })}` : null)}</select></div>
+          <sw-field><select data-dd-dial-global=${`${key}:${scope}`} aria-label=${`${title}: ${tr('לכל הקבוצות')}`} ?disabled=${disabled} @change=${(e: Event) => onGlobal((e.target as HTMLSelectElement).value)}>${opts(value, scope === 'own' ? `${follow} ${tr('(כרגע: {value})', { value: label(inheritedValue) })}` : null)}</select></sw-field></div>
         ${TAB_GROUPS.map(
           (g) => html`<div class="grp" data-dd-dial-group-row=${`${key}:${g}`}><span>${TAB_GROUP_LABEL[g]}</span>
-            <select data-dd-dial-group=${`${key}:${scope}:${g}`} aria-label=${`${TAB_GROUP_LABEL[g]}: ${title}`} ?disabled=${disabled} @change=${(e: Event) => onGroup(g, (e.target as HTMLSelectElement).value)}>${opts(groups[g] ?? null, follow)}</select></div>`,
+            <sw-field><select data-dd-dial-group=${`${key}:${scope}:${g}`} aria-label=${`${TAB_GROUP_LABEL[g]}: ${title}`} ?disabled=${disabled} @change=${(e: Event) => onGroup(g, (e.target as HTMLSelectElement).value)}>${opts(groups[g] ?? null, follow)}</select></sw-field></div>`,
         )}
       </fieldset>`;
   }
@@ -910,10 +891,10 @@ export class SystemTabsMode extends LitElement {
     const opts = (cur: DdStyle | null, withFollow: string | null) => html`${withFollow ? html`<option value="" ?selected=${!cur}>${withFollow}</option>` : nothing}${DD_STYLES.map((m) => html`<option value=${m} ?selected=${cur === m}>${DD_STYLE_LABEL[m]}</option>`)}`;
     return html`<fieldset><legend>${tr('סגנון התפריט הנפתח')}</legend>
         <div class="grp all"><span>${tr('לכל הקבוצות')}</span>
-          <select data-dd-global=${scope} aria-label=${tr('סגנון תפריט נפתח: לכל הקבוצות')} ?disabled=${disabled} @change=${(e: Event) => onGlobal((e.target as HTMLSelectElement).value)}>${opts(style, scope === 'own' ? `${follow} ${tr('(כרגע: {value})', { value: DD_STYLE_LABEL[this.ddInst.style] })}` : null)}</select></div>
+          <sw-field><select data-dd-global=${scope} aria-label=${tr('סגנון תפריט נפתח: לכל הקבוצות')} ?disabled=${disabled} @change=${(e: Event) => onGlobal((e.target as HTMLSelectElement).value)}>${opts(style, scope === 'own' ? `${follow} ${tr('(כרגע: {value})', { value: DD_STYLE_LABEL[this.ddInst.style] })}` : null)}</select></sw-field></div>
       ${TAB_GROUPS.map(
         (g) => html`<div class="grp" data-dd-group-row=${g}><span>${TAB_GROUP_LABEL[g]}</span>
-          <select data-dd-group=${`${scope}:${g}`} aria-label=${`${TAB_GROUP_LABEL[g]}: ${tr('סגנון תפריט נפתח')}`} ?disabled=${disabled} @change=${(e: Event) => onGroup(g, (e.target as HTMLSelectElement).value)}>${opts(groups[g] ?? null, follow)}</select></div>`,
+          <sw-field><select data-dd-group=${`${scope}:${g}`} aria-label=${`${TAB_GROUP_LABEL[g]}: ${tr('סגנון תפריט נפתח')}`} ?disabled=${disabled} @change=${(e: Event) => onGroup(g, (e.target as HTMLSelectElement).value)}>${opts(groups[g] ?? null, follow)}</select></sw-field></div>`,
       )}</fieldset>`;
   }
 
@@ -952,10 +933,10 @@ export class SystemTabsMode extends LitElement {
     const follow = scope === 'inst' ? tr('לפי ברירת המחדל הכללית') : tr('לפי ההתקנה');
     return TAB_GROUPS.map(
       (g) => html`<div class="grp" data-group-row=${g}><span>${TAB_GROUP_LABEL[g]}</span>
-        <select data-group=${`${scope}:${g}`} aria-label=${`${TAB_GROUP_LABEL[g]}: ${tr('תצוגת לשוניות')}`} ?disabled=${disabled} @change=${(e: Event) => onPick(g, (e.target as HTMLSelectElement).value)}>
+        <sw-field><select data-group=${`${scope}:${g}`} aria-label=${`${TAB_GROUP_LABEL[g]}: ${tr('תצוגת לשוניות')}`} ?disabled=${disabled} @change=${(e: Event) => onPick(g, (e.target as HTMLSelectElement).value)}>
           <option value="" ?selected=${!groups[g]}>${follow}</option>
           ${TAB_MODES.map((m) => html`<option value=${m} ?selected=${groups[g] === m}>${TAB_MODE_LABEL[m]}</option>`)}
-        </select></div>`,
+        </select></sw-field></div>`,
     );
   }
 
