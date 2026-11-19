@@ -403,6 +403,8 @@ const SEG_INVENTORY: [file: string, chosen: string][] = [
   // shared rule of styles/fragments.ts now - the screens interpolate it where their own copy stood
   // CR-CSS-FRAGMENTS-TAIL-2442: the same for elevators/elevator-settings, screens/explore-presence, screens/home-widgets and
   // shell/sw-home-personal (segThumbPlainStyles)
+  // CR-CMP2-SELECTS-2450 (owner N11): the shared segmented control
+  ['components/sw-segmented.ts', ".seg button[aria-pressed='true']"],
   ['styles/fragments.ts', ".seg button[aria-pressed='true']"],
   ['styles/settings.ts', ".seg button[aria-selected='true']"],
   ['temperature/detail.ts', ".seg button[aria-pressed='true']"],
