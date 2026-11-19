@@ -572,6 +572,20 @@ export class SwPlan3d extends LitElement {
     :host-context(html[data-theme='dark']) .bar {
       --sw-accent-soft: color-mix(in srgb, var(--sw-accent) 20%, var(--sw-menu-surface));
     }
+    /* RELEASE-2438-TRAIN: the light soft field is translucent too in every skin but classic (domus .14, tesla .10, crystal .12, bubble .14,
+       soft .12 - the accent itself at that alpha), and since DOMUS-DEFAULT-2439 it is the default selected chip: the accent at the skin's
+       own alpha laid on the opaque menu surface - the very colour the chip had over the menu, now opaque over the scene too. The light
+       fields of classic and infra are already solid colours and stay as they are. */
+    :host-context(html:not([data-theme='dark']):not([data-skin='classic']):not([data-skin='infra'])) .bar {
+      --sw-accent-soft: color-mix(in srgb, var(--sw-accent) var(--p3d-soft-alpha, 14%), var(--sw-menu-surface));
+    }
+    :host-context(html[data-skin='tesla']) .bar {
+      --p3d-soft-alpha: 10%;
+    }
+    :host-context(html[data-skin='crystal']) .bar,
+    :host-context(html[data-skin='soft']) .bar {
+      --p3d-soft-alpha: 12%;
+    }
     .bar select {
       font: inherit;
       font-size: var(--sw-fs-xs);
