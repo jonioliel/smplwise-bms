@@ -69,8 +69,8 @@ export const ERROR_TEXT: Record<string, string> = {
 // Derived from the backend's response models (smplwise_vms/backend/smplwise/wire/energy_billing.py, generated into
 // ./generated/wire-consumption.ts, code review 07:F8 step 2): each type below picks its fields from the generated one, so a field the server
 // renames, drops or retypes is a compile error here. Narrowed or kept by hand, each on purpose and said where: the formula AST and the
-// time-of-use definition (documents the editors own), the bill snapshot (the sealed document, versioned by its own `schema`), and
-// fields the screens read as always present where the server's type allows null or absent (the mock store builds these types too).
+// time-of-use definition (documents the editors own) and the bill snapshot (the sealed document, versioned by its own `schema`). A field the
+// server may leave null or absent stays so here (CR-RESPONSE-MODELS-FOLLOWUP-2450): the screens draw a dash or "no data yet" for it.
 
 type CustomerRef = Wire.EnergyCustomerRef;
 /** contact fields only with energy.bills or energy.manage; `accounts` and `bills` on GET /customers/{id} */
@@ -114,16 +114,16 @@ export type CalendarDay = Wire.EnergyCalendarDay;
 export type CalendarYear = Wire.EnergyCalendarYear;
 export type VatRates = Wire.EnergyVatRates;
 
-/** An account (the customer and the next period are always there for an account the server answers: the customer is a foreign key, the
- * cycle always has a period around today). */
+/** An account. `customer` is null when the account's customer row is gone (the server answers null, the screens show a dash); `next_period`
+ * is null when the cycle has no period after today's (the screens say there is no next bill yet). */
 export type Account = Pick<
   Wire.EnergyAccount,
   'id' | 'name' | 'period_months' | 'period_anchor_day' | 'period_anchor_month' | 'first_period_start' | 'timezone' | 'auto_mode' | 'status' | 'revision'
 > & {
-  customer: CustomerRef;
+  customer: CustomerRef | null;
   formula: Omit<Wire.EnergyFormula, 'ast'> & { ast: FormulaAst };
   tariff: Pick<Wire.EnergyAccountTariff, 'id' | 'name'> & Partial<Pick<Wire.EnergyAccountTariff, 'kind' | 'price' | 'price_mode'>>;
-  next_period: { from: string; to: string };
+  next_period: Wire.EnergyPeriod | null;
   last_bill: BillSummary | null;
 };
 export interface AccountBody {
@@ -140,14 +140,15 @@ export interface AccountBody {
 
 /** `start_reading_kwh` / `end_reading_kwh`: shown when sent (the demo store sends them; this server's status answer does not). */
 export type StatusMeterWire = Wire.EnergyStatusMeter & { start_reading_kwh?: string; end_reading_kwh?: string };
-/** The open period so far (the server sends note objects, like BillSnapshot.notes); read only for an account with a period. */
-export type AccountStatusWire = Pick<Wire.EnergyAccountStatus, 'kwh_so_far' | 'notes' | 'amount_so_far'> & { period: { from: string; to: string }; meters: StatusMeterWire[] };
+/** The open period so far (the server sends note objects, like BillSnapshot.notes). `period` null = the cycle has no period yet (kWh null, no
+ * meters); `error_code` = the period could not be computed (kWh null, no meters: e.g. `tariff_missing`). */
+export type AccountStatusWire = Pick<Wire.EnergyAccountStatus, 'period' | 'kwh_so_far' | 'notes' | 'amount_so_far' | 'error_code'> & { meters: StatusMeterWire[] };
 
-/** A bill in a list. `total` is read by the bills screens, which need energy.bills - the reads that answer it without (money-free) leave it out. */
+/** A bill in a list. `total` is absent from the reads answered without energy.bills (money-free): the screens show a dash then. */
 export type BillSummary = Pick<
   Wire.EnergyBillSummary,
-  'id' | 'account_id' | 'account_name' | 'customer' | 'number' | 'revision' | 'state' | 'origin' | 'period' | 'issue_date' | 'due_date' | 'kwh' | 'replaces_bill_id' | 'replaced_by_bill_id' | 'row_version'
-> & { total: string };
+  'id' | 'account_id' | 'account_name' | 'customer' | 'number' | 'revision' | 'state' | 'origin' | 'period' | 'issue_date' | 'due_date' | 'kwh' | 'replaces_bill_id' | 'replaced_by_bill_id' | 'row_version' | 'total'
+>;
 
 export interface HistoryPoint {
   from: string;
@@ -325,17 +326,21 @@ interface StatusRow {
   factor: string;
   part: number;
 }
+/** The status screen's model. `period` null = no period yet; `kwh` (and the forecast / average) null = not computed (no period, or `error`:
+ * the server's code why the period could not be computed); `next` null = no next period; `customer` = the full customer card (null when not
+ * readable or the account has none). */
 export interface AccountStatus {
   account: Account;
-  period: { from: string; to: string; day: number; days: number };
-  kwh: number;
-  forecast_kwh: number;
-  avg_per_day: number;
+  period: { from: string; to: string; day: number; days: number } | null;
+  kwh: number | null;
+  forecast_kwh: number | null;
+  avg_per_day: number | null;
+  error?: string;
   amount_so_far?: string;
   rows: StatusRow[];
   stale: { meter: string; since: string } | null;
   notes: { code: string; text_he: string }[];
-  next: { from: string; to: string; number: string; draft_on: string };
+  next: { from: string; to: string; number: string; draft_on: string } | null;
   customer: Customer | null;
   price?: { tariff: string; ex_vat: string; inc_vat: string; vat: string };
 }
@@ -469,9 +474,10 @@ const num = (s: string | number | null | undefined): number => (s === null || s 
 
 /** Derives the status screen's model from the wire answers (shared by the REST adapter and the mock). */
 export function buildStatus(account: Account, w: AccountStatusWire, ctx: { today: string; customer: Customer | null; tariffs?: Tariff[]; vat?: VatRates | null }): AccountStatus {
-  const days = daysInclusive(w.period.from, w.period.to);
-  const day = Math.min(days, Math.max(1, daysInclusive(w.period.from, ctx.today)));
-  const kwh = num(w.kwh_so_far);
+  const p = w.period;
+  const days = p ? daysInclusive(p.from, p.to) : 0;
+  const day = p ? Math.min(days, Math.max(1, daysInclusive(p.from, ctx.today))) : 0;
+  const kwh = w.kwh_so_far === null ? null : num(w.kwh_so_far);
   const coef = coefficients(account.formula.ast);
   const rows: StatusRow[] = w.meters.map((m) => ({
     meter_id: m.meter_id,
@@ -490,16 +496,17 @@ export function buildStatus(account: Account, w: AccountStatusWire, ctx: { today
   const rate = ctx.vat?.current ? Number(ctx.vat.current.rate_percent) : null;
   const out: AccountStatus = {
     account,
-    period: { from: w.period.from, to: w.period.to, day, days },
+    period: p ? { from: p.from, to: p.to, day, days } : null,
     kwh,
-    forecast_kwh: r2((kwh / day) * days),
-    avg_per_day: r2(kwh / day),
+    forecast_kwh: kwh === null || !day ? null : r2((kwh / day) * days),
+    avg_per_day: kwh === null || !day ? null : r2(kwh / day),
     rows,
     stale: stale ? { meter: stale.name, since: stale.last_report_at ? stale.last_report_at.slice(11, 16) : '' } : null,
     notes: w.notes,
-    next: { from: nf.from, to: nf.to, number: billNumber(nf.to, account.customer.customer_number, ''), draft_on: addDays(nf.to, 1) },
+    next: nf ? { from: nf.from, to: nf.to, number: billNumber(nf.to, account.customer?.customer_number ?? '', ''), draft_on: addDays(nf.to, 1) } : null,
     customer: ctx.customer,
   };
+  if (w.error_code !== undefined) out.error = ERROR_TEXT[w.error_code] ?? tr('לא ניתן לחשב את הצריכה בתקופה.');
   if (w.amount_so_far !== undefined) out.amount_so_far = w.amount_so_far;
   if (cur && cur.price !== null && !cur.definition && rate !== null) {
     const v = Number(cur.price);
@@ -573,7 +580,7 @@ const rest: ElecBackend = {
       r.items.map(async (account): Promise<AccountRow> => {
         try {
           const st = await get<AccountStatusWire>(`${E}accounts/${account.id}/status`);
-          const row: AccountRow = { account, kwh: num(st.kwh_so_far), stale: st.meters.some((m) => !m.reporting) };
+          const row: AccountRow = { account, kwh: st.kwh_so_far === null ? null : num(st.kwh_so_far), stale: st.meters.some((m) => !m.reporting) };
           if (st.amount_so_far !== undefined) row.amount = st.amount_so_far;
           return row;
         } catch {
@@ -588,7 +595,7 @@ const rest: ElecBackend = {
     const [account, w] = await Promise.all([get<Account>(`${E}accounts/${id}`), get<AccountStatusWire>(`${E}accounts/${id}/status`)]);
     const money = w.amount_so_far !== undefined;
     const [customer, tariffs, vat] = await Promise.all([
-      get<Customer>(`${E}customers/${account.customer.id}`).catch(() => null),
+      account.customer ? get<Customer>(`${E}customers/${account.customer.id}`).catch(() => null) : Promise.resolve(null),
       money ? get<{ items: Tariff[] }>(`${E}tariffs`).then((x) => x.items).catch(() => undefined) : Promise.resolve(undefined),
       money ? get<VatRates>(`${E}vat-rates`).catch(() => null) : Promise.resolve(null),
     ]);

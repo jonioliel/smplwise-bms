@@ -649,7 +649,7 @@ export const mockBackend: ElecBackend = {
     if (demoControl().empty) return [];
     return accounts.map((a): AccountRow => {
       const w = statusWire(a);
-      const row: AccountRow = { account: wireAccount(a), kwh: Number(w.kwh_so_far), stale: w.meters.some((m) => !m.reporting) };
+      const row: AccountRow = { account: wireAccount(a), kwh: w.kwh_so_far === null ? null : Number(w.kwh_so_far), stale: w.meters.some((m) => !m.reporting) };
       if (w.amount_so_far !== undefined) row.amount = w.amount_so_far;
       return row;
     });

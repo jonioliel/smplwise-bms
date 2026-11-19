@@ -43,6 +43,7 @@ export const en = {
   'בתקופה יש גם מחיר קבוע וגם תעריף לפי שעות.': 'The period has both a fixed price and a time-of-use tariff.',
   'לחישוב לפי שעות נדרשים נתוני רבע שעה, ולתקופה זו הם כבר לא נשמרים.': 'A time-of-use calculation needs quarter-hour data, and for this period it is no longer kept.',
   'לא בוצע שינוי.': 'Nothing was changed.',
+  'לא ניתן לחשב את הצריכה בתקופה.': 'The consumption of the period cannot be calculated.',
   'בדוא״ל': 'by email',
   'במסירה ידנית': 'by hand',
   'באופן אחר': 'another way',
