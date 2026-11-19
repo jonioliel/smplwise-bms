@@ -26,7 +26,6 @@ router = APIRouter()
 NO_CACHE = {"Cache-Control": "private, no-cache"}
 EXPORT_FORMAT = "smplwise-catalog-1"
 COLUMNS = store.COLUMNS
-_INSERT = store.INSERT  # routers/plan_package.py imports it
 
 
 def _ts() -> str:
