@@ -10,7 +10,7 @@ declarations, plus one map `<Family>Routes` from `'METHOD /api/v1/path'` to the 
 types instead of writing the wire shapes by hand, so `tsc` fails when a response changes and the client was not adapted.
 
 Step 1 of the finding (`frontend/scripts/api-client-check.mjs`) checks that every client PATH exists; this file checks the SHAPES.
-The backend test `tests/test_wire_types_generated.py` runs `--check`, so a model change without the regenerated file fails the gate.
+The backend tests `tests/test_wire_consumption_2450.py` and `tests/test_wire_routers_b_2450.py` run `--check`, so a model change without the regenerated file fails the gate.
 No application start, no database: the router modules are imported and their route tables read."""
 from __future__ import annotations
 
@@ -32,6 +32,23 @@ PREFIX = "/api/v1"
 # family -> (output file, router modules). One file per family keeps a frontend module's import small and its diff readable.
 FAMILIES: dict[str, tuple[str, tuple[str, ...]]] = {
     "Consumption": ("wire-consumption.ts", ("energy_meters", "energy_billing", "water", "water_billing")),
+    # CR-RESPONSE-MODELS-B-2450: the routers whose SQL moved in CR-ROUTER-SQL-2450, one file per router
+    "Events": ("wire-events.ts", ("events",)),
+    "Catalog": ("wire-catalog.ts", ("catalog",)),
+    "HomeMapping": ("wire-home-mapping.ts", ("home_mapping",)),
+    "HaUsers": ("wire-ha-users.ts", ("ha_users",)),
+    "Cases": ("wire-cases.ts", ("cases",)),
+    "LocalIdentity": ("wire-local-identity.ts", ("local_identity",)),
+    "Temperature": ("wire-temperature.ts", ("temperature",)),
+    "CalendarSync": ("wire-calendar-sync.ts", ("calendar_sync",)),
+    "Wall": ("wire-wall.ts", ("wall",)),
+    "Plans": ("wire-plans.ts", ("plans",)),
+    "Alarm": ("wire-alarm.ts", ("alarm",)),
+    "Anchors": ("wire-anchors.ts", ("anchors",)),
+    "AccessGroups": ("wire-access-groups.ts", ("access_groups",)),
+    "Elevators": ("wire-elevators.ts", ("elevators",)),
+    "Zones": ("wire-zones.ts", ("zones",)),
+    "Cameras": ("wire-cameras.ts", ("cameras",)),
 }
 
 IDENT = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
@@ -193,8 +210,12 @@ def main(argv: list[str] | None = None) -> int:
     sys.path.insert(0, str(BACKEND))
     stale: list[str] = []
     for family, (fname, modules) in FAMILIES.items():
-        text = render(family, modules)
         path = OUT_DIR / fname
+        if not _routes(modules):  # a family without a modelled route has no file (yet)
+            if path.exists():
+                stale.append(str(path.relative_to(ROOT)) + " (no modelled route)")
+            continue
+        text = render(family, modules)
         current = path.read_text(encoding="utf-8") if path.exists() else None
         if args.check:
             if current != text:
