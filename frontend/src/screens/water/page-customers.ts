@@ -15,19 +15,9 @@ import { wt, type WtKey } from '../../water/i18n';
 import { SkinController } from '../../design/skin';
 import { bubbleChrome } from '../../styles/bubble-chrome';
 import { billsTable } from './page-accounts';
+import { blankCustomerForm as blank, customerField, customerFormOf, customerUpdateBody, validateCustomerForm, type CustomerForm as Form } from '../../components/customer-form';
 
 const BASE = '/infra/water/customers';
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-interface Form {
-  name: string;
-  customer_number: string;
-  tax_id: string;
-  address: string;
-  phone: string;
-  email: string;
-  notes: string;
-}
-const blank = (no = ''): Form => ({ name: '', customer_number: no, tax_id: '', address: '', phone: '', email: '', notes: '' });
 const skeletonCard = (n = 6) => html`<div class="card" aria-busy="true">${Array.from({ length: n }, () => html`<div class="row skrow"><div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div><div class="skl" style="inline-size:10%"></div></div>`)}</div>`;
 
 /**
@@ -99,7 +89,7 @@ export class WaterCustomersPage extends LitElement {
     try {
       const c = await waterBilling.customer(id);
       this.card = c;
-      this.form = { name: c.name, customer_number: c.customer_number, tax_id: c.tax_id ?? '', address: c.address ?? '', phone: c.phone ?? '', email: c.email ?? '', notes: c.notes ?? '' };
+      this.form = customerFormOf(c);
       this.cardSt = 'ready';
     } catch {
       this.cardSt = 'error';
@@ -107,10 +97,7 @@ export class WaterCustomersPage extends LitElement {
   }
 
   private validate(): boolean {
-    const e: Record<string, string> = {};
-    if (!this.form.name.trim()) e.name = wt('errName');
-    if (this.form.email && !EMAIL.test(this.form.email)) e.email = wt('errEmail');
-    if (this.form.customer_number && !/^\d{1,9}$/.test(this.form.customer_number)) e.customer_number = wt('errCustNo');
+    const e = validateCustomerForm(this.form, { name: wt('errName'), email: wt('errEmail'), customerNumber: wt('errCustNo') }, { numberOptional: true });
     this.errs = e;
     return !Object.keys(e).length;
   }
@@ -122,9 +109,7 @@ export class WaterCustomersPage extends LitElement {
     try {
       const f = { ...this.form, name: this.form.name.trim() };
       if (this.card) {
-        const body: Partial<Form> = { ...f };
-        if (f.customer_number === this.card.customer_number) delete body.customer_number;
-        this.card = await waterBilling.updateCustomer(this.card.id, { ...body, base_revision: this.card.revision });
+        this.card = await waterBilling.updateCustomer(this.card.id, { ...customerUpdateBody(f, this.card), base_revision: this.card.revision });
         await this.loadList();
       } else {
         const c = await waterBilling.createCustomer({ ...f, customer_number: f.customer_number || undefined });
@@ -157,17 +142,13 @@ export class WaterCustomersPage extends LitElement {
   }
 
   private field(k: keyof Form, label: WtKey, o: { wide?: boolean; ltr?: boolean; area?: boolean } = {}) {
-    const err = this.errs[k];
-    const ro = !this.access.manage;
-    const set = (v: string) => {
-      this.form = { ...this.form, [k]: v };
-      if (this.errs[k]) this.errs = { ...this.errs, [k]: '' };
-    };
-    return html`<div class="fld ${o.wide ? 'wide' : ''}"><label for="wc-${k}">${wt(label)}</label>
-      ${o.area
-        ? html`<textarea id="wc-${k}" name=${k} ?readonly=${ro} .value=${this.form[k]} @input=${(e: Event) => set((e.target as HTMLTextAreaElement).value)}></textarea>`
-        : html`<input id="wc-${k}" name=${k} class="${o.ltr ? 'ltr' : ''} ${err ? 'err' : ''}" aria-invalid=${err ? 'true' : 'false'} ?readonly=${ro} .value=${this.form[k]} @input=${(e: Event) => set((e.target as HTMLInputElement).value)} />`}
-      ${err ? html`<div class="msg" role="alert" data-field-error=${k}>${err}</div>` : nothing}</div>`;
+    return customerField(k, {
+      idPrefix: 'wc-', label: wt(label), value: this.form[k], error: this.errs[k], readonly: !this.access.manage, wide: o.wide, ltr: o.ltr, area: o.area,
+      onInput: (v) => {
+        this.form = { ...this.form, [k]: v };
+        if (this.errs[k]) this.errs = { ...this.errs, [k]: '' };
+      },
+    });
   }
 
   private renderCard() {

@@ -15,18 +15,7 @@ import '../components/sw-sheet';
 import { billsTable } from './elec-bills-table';
 import { go, href, route } from './elec-routes';
 import { tr } from '../i18n/msg/electricity';
-
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-interface Form {
-  name: string;
-  customer_number: string;
-  tax_id: string;
-  address: string;
-  phone: string;
-  email: string;
-  notes: string;
-}
-const blank = (no = ''): Form => ({ name: '', customer_number: no, tax_id: '', address: '', phone: '', email: '', notes: '' });
+import { blankCustomerForm as blank, customerField, customerFormOf, customerUpdateBody, validateCustomerForm, type CustomerForm as Form } from '../components/customer-form';
 
 @customElement('elec-customers-page')
 export class ElecCustomersPage extends ElecBase {
@@ -83,7 +72,7 @@ export class ElecCustomersPage extends ElecBase {
     try {
       const c = await elec().getCustomer(id);
       this.card = c;
-      this.form = { name: c.name, customer_number: c.customer_number, tax_id: c.tax_id ?? '', address: c.address ?? '', phone: c.phone ?? '', email: c.email ?? '', notes: c.notes ?? '' };
+      this.form = customerFormOf(c);
       this.cardSt = 'ready';
     } catch {
       this.cardSt = 'error';
@@ -94,10 +83,7 @@ export class ElecCustomersPage extends ElecBase {
   }
 
   private validate(): boolean {
-    const e: Record<string, string> = {};
-    if (!this.form.name.trim()) e.name = tr('צריך לכתוב שם ללקוח');
-    if (this.form.email && !EMAIL.test(this.form.email)) e.email = tr('כתובת דוא״ל לא תקינה');
-    if (!/^\d{1,9}$/.test(this.form.customer_number)) e.customer_number = tr('מספר לקוח הוא ספרות בלבד');
+    const e = validateCustomerForm(this.form, { name: tr('צריך לכתוב שם ללקוח'), email: tr('כתובת דוא״ל לא תקינה'), customerNumber: tr('מספר לקוח הוא ספרות בלבד') });
     this.errs = e;
     return !Object.keys(e).length;
   }
@@ -108,9 +94,7 @@ export class ElecCustomersPage extends ElecBase {
     try {
       const f = { ...this.form, name: this.form.name.trim() };
       if (this.card) {
-        const body = { ...f } as Partial<Form>;
-        if (f.customer_number === this.card.customer_number) delete body.customer_number;
-        this.card = await elec().updateCustomer(this.card.id, this.card.revision, body);
+        this.card = await elec().updateCustomer(this.card.id, this.card.revision, customerUpdateBody(f, this.card));
       } else {
         const c = await elec().createCustomer(f);
         await this.loadList();
@@ -143,13 +127,14 @@ export class ElecCustomersPage extends ElecBase {
   }
 
   private field(k: keyof Form, label: string, o: { wide?: boolean; ltr?: boolean; ph?: string; area?: boolean; ro?: boolean } = {}) {
-    const err = this.errs[k];
-    const ro = o.ro || !energyAccess().manage;
-    return html`<div class="fld ${o.wide ? 'wide' : ''}"><label for="f-${k}">${label}</label>
-      ${o.area
-        ? html`<textarea id="f-${k}" name=${k} ?readonly=${ro} placeholder=${o.ph ?? ''} .value=${this.form[k]} @input=${(e: Event) => (this.form = { ...this.form, [k]: (e.target as HTMLTextAreaElement).value })}></textarea>`
-        : html`<input id="f-${k}" name=${k} class="${o.ltr ? 'ltr' : ''} ${err ? 'err' : ''}" aria-invalid=${err ? 'true' : 'false'} ?readonly=${ro} placeholder=${o.ph ?? ''} .value=${this.form[k]} @input=${(e: Event) => { this.form = { ...this.form, [k]: (e.target as HTMLInputElement).value }; if (this.errs[k]) this.errs = { ...this.errs, [k]: '' }; }} />`}
-      ${err ? html`<div class="msg" role="alert" data-field-error=${k}>${err}</div>` : nothing}</div>`;
+    return customerField(k, {
+      idPrefix: 'f-', label, value: this.form[k], error: this.errs[k], readonly: o.ro || !energyAccess().manage, wide: o.wide, ltr: o.ltr, area: o.area, placeholder: o.ph ?? '',
+      // the notes (a textarea) keep a field error until the next save, as before; an input clears its own
+      onInput: (v) => {
+        this.form = { ...this.form, [k]: v };
+        if (!o.area && this.errs[k]) this.errs = { ...this.errs, [k]: '' };
+      },
+    });
   }
 
   private renderCard() {
