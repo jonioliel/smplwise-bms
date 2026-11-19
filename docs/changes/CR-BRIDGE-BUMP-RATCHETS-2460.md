@@ -113,7 +113,8 @@ budget takes effect after that nightly.
 | `npm run build` (tsc + vite) then `npm run gate:budget` | build ok (7 min 14 s); budget check exit 0, entry gzip 807,703 within 849,000, raw 2,810,184 within 2,951,000, 0 mock modules |
 | `node scripts/bundle-budget.mjs --enforce` on the committed `smplwise_vms/www` | within budget (807,666 / 2,810,141) |
 | `npx playwright test -c playwright.unit.config.ts tests/unit-entry-chunk.spec.ts --workers=1` | 14 passed |
-| bridge backend tests (below) | see BRIDGE_TESTS |
+| bridge backend tests, one run, `.venv` Python 3.12, `-p no:xdist`: `test_bridge_*.py` (all 33), `test_door_bridge_block_2404`, `test_entpol295_*`, `test_extid_followups`, `test_keyrot_fix_k07_dto_kid_295`, `test_lovelace_card`, `test_schedimpact_295_bridge`, `test_wiskey_adopt_2272_review`, `test_wiskey_adopt_2272_contrib`, `test_wiskey_native_bundle_2272`, `test_wiskey_rc7_adopt_2331`, `test_wiskey_s4_core_observer`, `test_wxh4_emergency_revoke_2407` | **1482 passed, 11 skipped, 0 failed** (exit 0) |
+| `tests/test_build_guards_2438.py` (ratchet + baseline-at-or-below check) | 10 passed |
 | `ruff check` on the 21 touched Python files | no new finding (same count per file as on the base: 15 pre-existing in 6 test files) |
 
 ## 5. Rollback
