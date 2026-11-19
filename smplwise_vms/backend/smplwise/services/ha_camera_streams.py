@@ -591,4 +591,13 @@ def _wanted_names(conn: sqlite3.Connection) -> set[str]:
     return wanted
 
 
-register_reset(__name__, ("_OWNED",), _OWNED.written.clear)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)
+def _reset_all_for_tests() -> None:
+    """Test seam: the module's existing reset, then the remaining module-level tables back to a fresh process (smplwise.test_reset; product code never calls it)."""
+    _OWNED.written.clear()
+    _ENTITY_LOCKS.clear()
+    _LAST_READ.clear()
+    _REREADS.clear()
+    _STALE.clear()
+
+
+register_reset(__name__, ("_OWNED", "_ENTITY_LOCKS", "_LAST_READ", "_REREADS", "_STALE"), _reset_all_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

@@ -23,6 +23,7 @@ from ..rbac import INSTALLATION, Principal, all_roles, authorize, role_name
 from . import scenario_model as m
 from . import scenario_settings as cfg
 from . import scenario_signals as sig
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.scenarios")
 
@@ -880,3 +881,11 @@ def choices(conn: sqlite3.Connection, author: Principal) -> dict[str, Any]:
         viewer = access.Viewer(conn, author)
         departments = [{"id": d["id"], "name": d["name"]} for d in store.departments(conn, include_inactive=False) if viewer.can_create_in(d)]
     return {"users": users[:500], "roles": roles, "departments": departments}
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _test_hits.clear()
+
+
+register_reset(__name__, ("_test_hits",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

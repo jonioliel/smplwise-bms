@@ -135,7 +135,14 @@ def invalidate() -> None:
         _cache.clear()
 
 
-register_reset(__name__, ("_cache",), invalidate)
+def _reset_all_for_tests() -> None:
+    """Test seam: the module's existing reset, then the remaining module-level tables back to a fresh process (smplwise.test_reset; product code never calls it)."""
+    invalidate()
+    _warm_state.clear()
+    _warm_state.update({"running": False, "last": 0.0, "builds": 0})
+
+
+register_reset(__name__, ("_cache", "_warm_state"), _reset_all_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)
 
 
 def build(settings: Settings, tz_name: str, cams: list[dict[str, Any]], now: dt.datetime) -> dict[str, Any]:

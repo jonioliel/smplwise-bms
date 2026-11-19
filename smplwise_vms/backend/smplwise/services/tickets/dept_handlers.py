@@ -35,6 +35,7 @@ from ...audit import audit
 from ...errors import ApiError
 from . import access, contacts, model, store, store_links
 from .access import Viewer, text
+from ...test_reset import register_reset
 
 VIA = "department_manager"
 CONTACT_KINDS = ("employee", "vendor", "person")
@@ -447,3 +448,11 @@ def detach_contact(viewer: Viewer, dept_id: str, contact_id: str, rid: str | Non
     audit(conn, actor=viewer.principal, action="ticket.contact.detach", decision="allowed", resource_type="ticket_contact", resource_id=contact_id,
           request_id=rid, details=_rid_details(dept_id))
     return {"id": contact_id, "department_id": dept_id, "detached": True}
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _LOOKUP_HITS.clear()
+
+
+register_reset(__name__, ("_LOOKUP_HITS",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

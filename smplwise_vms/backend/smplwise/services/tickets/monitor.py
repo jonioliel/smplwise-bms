@@ -26,6 +26,7 @@ from typing import Any, Callable
 from ...audit import audit
 from ...db import Database, get_setting
 from . import notify_bridge, policy, settings_doc, sla, store, stuck, work_calendar
+from ...test_reset import register_reset
 
 log = logging.getLogger("smplwise.tickets.monitor")
 
@@ -233,3 +234,14 @@ def _purge_days(conn) -> int:
     except (TypeError, ValueError, AttributeError):
         days = 730
     return max(90, min(3650, days))
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    STATS.clear()
+    STATS.update({"last_run_at": None, "last_duration_ms": None, "looked": 0, "reminders": 0, "alerts": 0, "auto_closed": 0, "errors": 0})
+    _LAST.clear()
+    _LAST_RUN.clear()
+
+
+register_reset(__name__, ("STATS", "_LAST", "_LAST_RUN"), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

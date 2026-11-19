@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .. import safe_paths
+from ...test_reset import register_reset
 
 MAX_BYTES = 8 * 1024 * 1024
 MAX_PIXELS = 16_000_000
@@ -173,3 +174,11 @@ def remove(data_dir: Path, rel_path: str) -> None:
         size = p.stat().st_size
         p.unlink()
         _account(data_dir, -size)
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _SIZE.clear()
+
+
+register_reset(__name__, ("_SIZE",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

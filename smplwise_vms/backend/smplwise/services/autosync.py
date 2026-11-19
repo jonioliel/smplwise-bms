@@ -28,6 +28,7 @@ from ..errors import ApiError
 from ..recorder_scope import PRIMARY, ready, ready_ids, settings_for
 from . import go2rtc as g2
 from . import nvr, stream_codecs
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.autosync")
 DEFAULT_RECORDER = PRIMARY
@@ -427,3 +428,14 @@ class Periodic:
 
 
 PERIODIC = Periodic()
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    RECORDER_STATE.clear()
+    STATE.clear()
+    STATE.update(dict(_EMPTY_STATE))
+    _PLAN_FAILED.clear()
+
+
+register_reset(__name__, ("RECORDER_STATE", "STATE", "_PLAN_FAILED"), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

@@ -18,6 +18,7 @@ from pathlib import Path
 
 from ...db import Database
 from . import cost_storage, costs, store_costs
+from ...test_reset import register_reset
 
 log = logging.getLogger("smplwise.tickets.costs")
 EVERY_S = 600
@@ -78,3 +79,11 @@ def janitor(db: Database, root: Path, *, force: bool = False, now: dt.datetime |
     except Exception as exc:  # noqa: BLE001 - never stops the tick
         log.warning("ticket file sweep failed (%s)", type(exc).__name__)
     return out
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _LAST.clear()
+
+
+register_reset(__name__, ("_LAST",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)
