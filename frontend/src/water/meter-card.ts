@@ -14,6 +14,7 @@ import { waterCss } from './styles';
 import { alertOf, eventKindLabel, eventValue, kindLabel, m3OfL, meterChip, METER_KINDS, nightText, waterBarChart, type Bar } from './ui';
 import { wt } from './i18n';
 import { MeterCardBase, meterCardCss, type MeterRange, type MeterSeriesStep } from '../electricity/meter-card-base';
+import { ToastController } from '../components/toast-controller';
 
 type Range = MeterRange;
 const RANGE_KEY = { hours: 'r24h', days: 'r30d', months: 'r12m' } as const;
@@ -46,7 +47,11 @@ export class WaterMeterCard extends MeterCardBase<MeterDetail, 'remove' | 'repla
   @state() private bars: Bar[] = [];
   @state() private alerts: WaterEvent[] = [];
   @state() private readings: ManualReading[] = [];
-  @state() private notice = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 4000 });
+  private get notice(): string {
+    return this.toaster.text;
+  }
   @state() private f1 = '';
   @state() private f2 = '';
   @state() private f3 = '';
@@ -118,8 +123,7 @@ export class WaterMeterCard extends MeterCardBase<MeterDetail, 'remove' | 'repla
   }
 
   private flash(t: string) {
-    this.notice = t;
-    window.setTimeout(() => (this.notice = ''), 4000);
+    this.toaster.show(t);
   }
 
   private async act(run: () => Promise<unknown>, after?: () => void) {
