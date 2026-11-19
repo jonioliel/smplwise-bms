@@ -1,6 +1,8 @@
 import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { ToastController } from '../components/toast-controller';
 import { ApiError, describeError } from '../api/client';
 import type { Calendar, NewEvent, Occurrence } from '../api/calendars';
@@ -435,9 +437,8 @@ export class CalViewCalendar extends LitElement {
       <span class="sp"></span>
       ${collapse && !this.resident ? html`<button type="button" class="btn sm" data-cal-switcher-open aria-expanded=${String(this.switcherOpen)} @click=${() => (this.switcherOpen = true)}>
         <sw-icon name="calendar" size="16"></sw-icon><span class="num">${shown}</span> ${tr('יומנים')}</button>` : nothing}
-      ${modes.length > 1 ? html`<div class="seg" role="group" aria-label=${tr('תצוגה')}>
-        ${modes.map((m) => html`<button type="button" aria-pressed=${String(this.mode === m)} data-cal-mode=${m} @click=${() => this.setMode(m)}>${{ month: tr('חודש'), week: tr('שבוע'), day: tr('יום') }[m]}</button>`)}
-      </div>` : nothing}
+      ${modes.length > 1 ? html`<sw-segmented label=${tr('תצוגה')} value=${this.mode} @change=${(e: CustomEvent<SegmentedChange>) => this.setMode(e.detail.value as typeof this.mode)}
+        .options=${modes.map((m) => ({ value: m, label: { month: tr('חודש'), week: tr('שבוע'), day: tr('יום') }[m], attrs: { 'data-cal-mode': m } }))}></sw-segmented>` : nothing}
     </div>`;
   }
 

@@ -2,6 +2,8 @@ import { LitElement, html, nothing, css } from 'lit';
 import { liftRef, liftedReset } from '../components/top-layer';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
 import { ApiError, describeError } from '../api/client';
@@ -305,8 +307,8 @@ export class SystemCalendarSync extends LitElement {
     ];
     return html`<h3 class="rulesh">${tr('כללי הסנכרון')}${this.canConfigure ? nothing : html` <span class="ro">${tr('צפייה בלבד: שינוי דורש את ההרשאה "יומנים: הגדרות"')}</span>`}</h3>
       <div class="rules" data-sync-rules>${rows.map(([k, name, def, opts]) => html`<div class="row" data-setting=${k}><div class="grow"><div class="name ell">${name}</div><div class="sub">${def}</div></div>
-      <div class="seg" role="radiogroup" aria-label=${name}>${opts.map(([v, l]) => html`<button type="button" role="radio" aria-pressed=${String(s[k] === v)} aria-checked=${String(s[k] === v)} data-opt=${v}
-        ?disabled=${!this.canConfigure} @click=${() => void this.saveRule(k, v)}>${l}</button>`)}</div></div>`)}</div>`;
+      <sw-segmented radio label=${name} value=${String(s[k])} ?disabled=${!this.canConfigure} @change=${(e: CustomEvent<SegmentedChange>) => void this.saveRule(k, e.detail.value)}
+        .options=${opts.map(([v, l]) => ({ value: v, label: l, attrs: { 'data-opt': v } }))}></sw-segmented></div>`)}</div>`;
   }
 
   /** "ב׳ 26.10 · 10:00–11:30" with the time range as one isolated LTR run (in the RTL line it read "11:30–10:00"). */
