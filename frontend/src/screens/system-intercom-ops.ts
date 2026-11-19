@@ -8,6 +8,8 @@ import '../components/sw-kpi';
 import '../components/sw-button';
 import '../components/sw-dialog';
 import '../components/wk-ops-charts';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import { settingsStyles, settingsTabNavStyles, settingsFieldLabelStyles } from '../styles/settings';
 import { ApiError } from '../api/client';
 import type { DisplayZone } from '../api/intercom';
@@ -79,6 +81,14 @@ function failure(err: unknown): { s: 'error'; code: string; message: string; sta
  * does not offer shows as unavailable - never guessed. Each tab loads only when shown; each part says its own state (loading / empty /
  * error / ready). The page never names the intercom platform.
  */
+/** CR-CMP2-TABLES-REST-2470: a count per code (anomalies, identification methods) as table rows, in the server's order */
+const countRows = (m: Record<string, number>): Record<string, unknown>[] => Object.entries(m).map(([code, n]) => ({ code, n }));
+/** the two columns of such a table: the code's name under the section's own title, and its total as a figure */
+const countCols = (title: string, names: Record<string, string>): TableColumn<{ code: string; n: number }>[] => [
+  { key: 'code', label: title, render: (r) => he(names, r.code) },
+  { key: 'n', label: T.total, kind: 'num' },
+];
+
 @customElement('system-intercom-ops')
 export class SystemIntercomOps extends LitElement {
   @property() view = '';
@@ -352,23 +362,11 @@ export class SystemIntercomOps extends LitElement {
         grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
         gap: 16px;
       }
-      table.t {
-        inline-size: 100%;
-        border-collapse: collapse;
-        font-size: var(--sw-fs-sm);
-      }
-      table.t th,
-      table.t td {
-        text-align: start;
-        padding: 6px 8px;
-        border-block-end: 1px solid var(--sw-border);
-      }
-      table.t th {
-        color: var(--sw-text-3);
-        font-weight: var(--sw-fw-medium);
-      }
-      table.t td.n {
-        font-variant-numeric: tabular-nums;
+      /* CR-CMP2-TABLES-REST-2470 (owner N10): the report's three tables are the shared table, bare in the section (never wider than
+         their column) */
+      sw-table.t {
+        --sw-table-min: 0;
+        --sw-table-cell-pad: 7px 10px;
       }
       .exp {
         display: grid;
@@ -419,6 +417,16 @@ export class SystemIntercomOps extends LitElement {
   private get stations(): OpsStation[] {
     const s = this.overview?.summary;
     return s && s.state === 'ready' ? s.data.stations : [];
+  }
+
+  /** CR-CMP2-TABLES-REST-2470 (owner N10): the report's per-station table - the station, then its three counts as figures */
+  private stationCols(): TableColumn<{ station_id: string; granted: number; denied: number; other: number }>[] {
+    return [
+      { key: 'station_id', label: T.table.station, render: (r) => this.name(r.station_id) },
+      { key: 'granted', label: T.granted, kind: 'num' },
+      { key: 'denied', label: T.denied, kind: 'num' },
+      { key: 'other', label: T.other, kind: 'num' },
+    ];
   }
 
   private name(id: string): string {
@@ -828,20 +836,16 @@ export class SystemIntercomOps extends LitElement {
         <div class="two">
           <div>
             <h3>${T.byStation}</h3>
-            <table class="t" data-ev-stations>
-              <thead><tr><th scope="col">${T.table.station}</th><th scope="col">${T.granted}</th><th scope="col">${T.denied}</th><th scope="col">${T.other}</th></tr></thead>
-              <tbody>${rep!.by_station.map((r) => html`<tr><td>${this.name(r.station_id)}</td><td class="n">${r.granted}</td><td class="n">${r.denied}</td><td class="n">${r.other}</td></tr>`)}</tbody>
-            </table>
+            <sw-table class="t" bare static-rows data-ev-stations rowKey="station_id" .columns=${this.stationCols() as unknown as TableColumn[]} .rows=${rep!.by_station as unknown as Record<string, unknown>[]}
+              .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-ev-station': String(r.station_id) })}></sw-table>
           </div>
           <div>
             <h3>${T.anomalies}</h3>
-            <table class="t" data-ev-anomalies>
-              <tbody>${Object.entries(rep!.anomalies).map(([k, n]) => html`<tr><td>${he(ANOMALY_HE, k)}</td><td class="n">${n}</td></tr>`)}</tbody>
-            </table>
+            <sw-table class="t" bare static-rows data-ev-anomalies rowKey="code" .columns=${countCols(T.anomalies, ANOMALY_HE) as unknown as TableColumn[]} .rows=${countRows(rep!.anomalies)}
+              .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-ev-anomaly': String(r.code) })}></sw-table>
             <h3>${T.methods}</h3>
-            <table class="t" data-ev-methods>
-              <tbody>${Object.entries(rep!.methods).map(([k, n]) => html`<tr><td>${he(METHOD_HE, k)}</td><td class="n">${n}</td></tr>`)}</tbody>
-            </table>
+            <sw-table class="t" bare static-rows data-ev-methods rowKey="code" .columns=${countCols(T.methods, METHOD_HE) as unknown as TableColumn[]} .rows=${countRows(rep!.methods)}
+              .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-ev-method': String(r.code) })}></sw-table>
           </div>
         </div>`}
     </section>`;
