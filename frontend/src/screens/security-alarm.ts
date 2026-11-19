@@ -39,6 +39,7 @@ import { tr } from '../i18n/msg/media';
 import '../components/sw-toggle';
 import { switchPress } from '../components/sw-toggle';
 import { live } from 'lit/directives/live.js';
+import { ToastController } from '../components/toast-controller';
 
 type Filter = 'all' | 'open' | 'bypassed' | 'faults';
 /** SEC polish: the zones as cards (the default) or as one dense list per area; kept per browser. */
@@ -105,7 +106,11 @@ export class SecurityAlarm extends LitElement {
   @state() private codeError = '';
   @state() private busy = false;
   @state() private sent: { label: string; record: HaActionRecord | null; entity: string } | null = null;
-  @state() private toast = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 4000 });
+  private get toast(): string {
+    return this.toaster.text;
+  }
   @state() private pinOpen = false;
   @state() private pinForm = { current: '', next: '', again: '', panel: '' };
   @state() private pinError = '';
@@ -118,7 +123,6 @@ export class SecurityAlarm extends LitElement {
   private reads = new Latest();
   /** 06:ALARM-1: the follow-up of the last command (api/ha awaitAction), stopped when another command is sent or the screen leaves. */
   private actionSignal: { stopped: boolean } | null = null;
-  private toastTimer = 0;
   private watched = new Set<string>();
 
   static styles = [liftedReset, css`
@@ -983,7 +987,6 @@ export class SecurityAlarm extends LitElement {
     if (this.actionSignal) this.actionSignal.stopped = true;
     this.actionSignal = null;
     window.clearTimeout(this.refetchTimer);
-    window.clearTimeout(this.toastTimer);
     window.clearTimeout(this.flashTimer);
     this.clearCode();
   }
@@ -1063,9 +1066,7 @@ export class SecurityAlarm extends LitElement {
   }
 
   private flash(text: string) {
-    this.toast = text;
-    window.clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => (this.toast = ''), 4000);
+    this.toaster.show(text);
   }
 
   // ---- actions

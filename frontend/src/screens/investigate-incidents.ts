@@ -36,6 +36,7 @@ import { navigate } from '../router';
 import { refreshIncidents } from '../incidents/store';
 import { SkinController } from '../design/skin';
 import { tr } from '../i18n/msg/investigate';
+import { ToastController } from '../components/toast-controller';
 
 type Part = 'cams' | 'map' | 'doors' | 'chain';
 type Look = 'ok' | 'warn' | 'alarm' | 'off' | 'unk' | 'acc';
@@ -99,7 +100,11 @@ export class InvestigateIncidents extends LitElement {
   @state() private snapBust = Date.now();
   @state() private sheet: 'settings' | 'close' | 'manual' | 'note' | null = null;
   @state() private casePick: NewCaseItem | null = null;
-  @state() private toast = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 2200 });
+  private get toast(): string {
+    return this.toaster.text;
+  }
   @state() private busy = false;
   @state() private closeNoteText = '';
   @state() private noteText = '';
@@ -112,7 +117,6 @@ export class InvestigateIncidents extends LitElement {
   private pollTimer = 0;
   private snapTimer = 0;
   private hiddenTimer = 0;
-  private toastTimer = 0;
   private loadedFloor = '';
 
   static styles = [css`
@@ -271,7 +275,7 @@ export class InvestigateIncidents extends LitElement {
     this.mq?.removeEventListener('change', this.onMq);
     document.removeEventListener('visibilitychange', this.onVisibility);
     for (const t of [this.clockTimer, this.snapTimer]) window.clearInterval(t);
-    for (const t of [this.pollTimer, this.hiddenTimer, this.toastTimer, ...this.capTimers.values()]) window.clearTimeout(t);
+    for (const t of [this.pollTimer, this.hiddenTimer, ...this.capTimers.values()]) window.clearTimeout(t);
     this.capTimers.clear();
     // leaving the page stops every player: the tiles leave the DOM with this element (sw-live-player tears its session down)
   }
@@ -475,9 +479,7 @@ export class InvestigateIncidents extends LitElement {
   // ---------------------------------------------------------------- actions (all existing, all permissioned on the server)
 
   private flash(text: string) {
-    this.toast = text;
-    window.clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => (this.toast = ''), 2200);
+    this.toaster.show(text);
   }
 
   private async doAck() {

@@ -32,6 +32,7 @@ import { canManageGrants } from '../door-windows/grants-logic';
 import { dateInputLang } from '../api/day-format';
 import { PollController } from '../components/poll-controller';
 import { errLineStyles } from '../styles/fragments';
+import { ToastController } from '../components/toast-controller';
 
 const POLL_MS = 15_000;
 const EM_POLL_MS = 5_000;
@@ -135,7 +136,11 @@ export class DoorWindowsScreen extends LitElement {
   @state() private holidaysOpen = false;
   @state() private openForOpen = false;
   @state() private openForDoor = '';
-  @state() private toast = '';
+  /** CR-CMP2-TOAST-2440 (07:F12): the flash message and its one timer (stopped when the element leaves the page). */
+  private readonly toaster = new ToastController(this, { ms: 2500 });
+  private get toast(): string {
+    return this.toaster.text;
+  }
   @state() private settingsOpen = false;
   @state() private ws: Record<string, string> | null = null;
   @state() private wsEdit: Record<string, string> = {};
@@ -176,8 +181,7 @@ export class DoorWindowsScreen extends LitElement {
   }
 
   private flash(text: string): void {
-    this.toast = text;
-    window.setTimeout(() => (this.toast = ''), 2500);
+    this.toaster.show(text);
   }
 
   private doorOf(key: string): DoorRow | undefined {
