@@ -890,6 +890,20 @@ export function parseTrigger(raw: unknown, ctx: ModelContext = {}): TriggerBlock
   const r = raw as Raw;
   const type = r.trigger ?? r.platform;
   if (typeof type !== 'string') return lockedFor(raw, 'trigger', ctx, 'unknown');
+  const special = specialTrigger(raw, r, type, ctx);
+  if (special) return special;
+  const idv = r.id;
+  if (idv !== undefined && typeof idv !== 'string') return mkLocked(raw, 'unsupported_step', 'trigger', ctx);
+  const common = { uid: (ctx.uid ?? newUid)(), kind: 'typed' as const, raw, ...(typeof idv === 'string' ? { id: idv } : {}) };
+  return typedTrigger(raw, r, type, common, ctx);
+}
+
+/** The common part of a typed trigger: its uid, `kind` and raw, and the trigger's `id` when it has one. */
+type TriggerCommon = { uid: string; kind: 'typed'; raw: unknown; id?: string };
+
+/** CR-FE-COMPLEXITY-2450 (split of parseTrigger, moved verbatim): the device and template triggers, purpose triggers and any trigger
+ * holding a template; null = none of these (a plain typed trigger follows). */
+function specialTrigger(raw: unknown, r: Raw, type: string, ctx: ModelContext): TriggerBlock | LockedBlock | null {
   if (type === 'device') {
     if (ctx.wallButtons && !hasTemplate(raw) && isButtonTrigger(r)) {
       const b = { uid: (ctx.uid ?? newUid)(), kind: 'typed' as const, raw, type: 'button' as const, device_id: r.device_id as string, domain: r.domain as string,
@@ -908,9 +922,11 @@ export function parseTrigger(raw: unknown, ctx: ModelContext = {}): TriggerBlock
   if (type === 'template') return mkLocked(raw, 'template', 'trigger', ctx);
   if (type.includes('.')) return mkLocked(raw, 'purpose_trigger', 'trigger', ctx);
   if (hasTemplate(raw)) return mkLocked(raw, 'template', 'trigger', ctx);
-  const idv = r.id;
-  if (idv !== undefined && typeof idv !== 'string') return mkLocked(raw, 'unsupported_step', 'trigger', ctx);
-  const common = { uid: (ctx.uid ?? newUid)(), kind: 'typed' as const, raw, ...(typeof idv === 'string' ? { id: idv } : {}) };
+  return null;
+}
+
+/** CR-FE-COMPLEXITY-2450 (split of parseTrigger, moved verbatim): the typed trigger kinds of v1; any other kind is locked. */
+function typedTrigger(raw: unknown, r: Raw, type: string, common: TriggerCommon, ctx: ModelContext): TriggerBlock | LockedBlock {
   const head = ['trigger', 'platform', 'id'];
   const bad = (hint: LockedReason = 'unsupported_step') => mkLocked(raw, hint, 'trigger', ctx);
   switch (type) {
