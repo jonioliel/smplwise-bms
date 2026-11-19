@@ -4,6 +4,7 @@ THIS test, tests/support/wire_oracle.py, SW_WIRE_STRICT=1), the main refusal, an
 Fake mirror states and store samples only (the fixtures of test_water_billing_s3.py); no infrastructure, no device."""
 from __future__ import annotations
 
+import calendar
 import json
 import time
 
@@ -27,7 +28,11 @@ def test_water_meter_replacement(app):  # noqa: F811
     assert r.status_code == 201, r.text
     m = r.json()
     bind(c, settings, "omer", "operator", "installation", "*")  # water.view + water.ack, no water.manage
-    body = {"revision": m["revision"], "old_final_reading_l": 1250.5, "new_start_reading_l": 0, "note": "מונה חדש"}  # `at` = now
+    # one second after the counter life began (the creation second): a replacement in that same second is refused (422), so `at`
+    # omitted (= now) would depend on the clock ticking between the two requests
+    started = c.get(f"{API}/meters/{m['id']}").json()["epochs"][0]["started_at"]
+    at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(calendar.timegm(time.strptime(started[:19], "%Y-%m-%dT%H:%M:%S")) + 1))
+    body = {"revision": m["revision"], "at": at, "old_final_reading_l": 1250.5, "new_start_reading_l": 0, "note": "מונה חדש"}
     assert c.post(f"{API}/meters/{m['id']}/replace", json=body, headers=as_user("omer")).status_code == 403
     future = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 3600))
     bad = c.post(f"{API}/meters/{m['id']}/replace", json={**body, "at": future})
