@@ -106,3 +106,22 @@ def install() -> None:
 
     fr.serialize_response = checked
     _INSTALLED = True
+    _record_coverage()
+
+
+def _record_coverage() -> None:
+    """CR-ROUTE-CHAR-2460: `SW_WIRE_COVERAGE_DIR=<dir>` writes, when the test process ends, the routes this process compared
+    (`<dir>/oracle-<pid>.json`, {"METHOD path": answers}); `scripts/wire_route_coverage.py` lists the modelled routes no file names.
+    One file per process, so xdist workers and parallel runs never write the same file."""
+    out = os.environ.get("SW_WIRE_COVERAGE_DIR")
+    if not out:
+        return
+    import atexit
+    from pathlib import Path
+
+    def dump() -> None:
+        d = Path(out)
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"oracle-{os.getpid()}.json").write_text(json.dumps(CHECKED, indent=0, sort_keys=True), encoding="utf-8")
+
+    atexit.register(dump)
