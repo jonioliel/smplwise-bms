@@ -603,13 +603,14 @@ export const elecCss = css`
   :host([data-skin='bubble']) sw-table.t {
     --sw-table-head-bg: transparent;
   }
-  /* the cells wrap as table.t's did (a card that is the table clips: a long name takes a second line, never a cut); figures, status chips
-     and the row's keys stay on one line */
+  /* the cells wrap as table.t's did (a card that is the table clips: a long name takes a second line, never a cut); figures and the row's
+     keys stay on one line. A state cell wraps too (RELEASE-2450-TRAIN phase 1): a chip never breaks, but what sits beside it - the last
+     bill's number, a stale meter's "since" note - takes a second line when the card is narrow (at 768 / 1024 px the tables were 37-65 px
+     wider than their cards, layout-electricity) */
   sw-table.t::part(cell) {
     white-space: normal;
   }
   sw-table.t::part(cell-num),
-  sw-table.t::part(cell-status),
   sw-table.t::part(cell-actions) {
     white-space: nowrap;
   }
