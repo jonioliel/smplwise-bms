@@ -23,7 +23,7 @@ SECRETS = {
     "rtsp_password": "Pa55word-rtsp",
     "token": "tok_8f3a9c2e71b04d5f",
     "jwt": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhcngtdGVzdCJ9.c2lnbmF0dXJlLXRlc3Q",
-    "ip": "10.20.30.40",
+    "ip": "192.0.2.40",
     "mac": "a4:14:37:0b:cd:ef",
     "serial": "8P0820200101CCRRD12345678WCVU",
     "email": "owner@example.com",
@@ -33,7 +33,7 @@ SECRETS = {
 
 
 @pytest.mark.parametrize(("raw", "expected"), [
-    ("rtsp://admin:Pa55word@192.168.1.64:554/Streaming/Channels/101", "rtsp://<credentials>@<ip>/Streaming/Channels/101"),
+    ("rtsp://admin:Pa55word@192.0.2.64:554/Streaming/Channels/101", "rtsp://<credentials>@<ip>/Streaming/Channels/101"),
     ("GET /api/states?access_token=abc123secret&x=1", "GET /api/states?access_token=<redacted>&x=1"),
     ('{"password": "hunter2", "user": "op"}', '{"password": <redacted>, "user": "op"}'),
     ("Authorization: Bearer abcDEF1234567890", "Authorization: <redacted> <token>"),
@@ -64,7 +64,7 @@ def test_ordinary_text_is_kept(plain):
 
 def test_redaction_counts_per_rule():
     counts: dict[str, int] = {}
-    lx.redact("rtsp://u:p@10.0.0.1/x and 10.0.0.2 and aa:bb:cc:dd:ee:ff", counts)
+    lx.redact("rtsp://u:p@198.51.100.1/x and 198.51.100.2 and aa:bb:cc:dd:ee:ff", counts)
     assert counts == {"url_credentials": 1, "ipv4": 2, "mac": 1}
 
 
@@ -91,8 +91,8 @@ def test_build_filters_and_recommends():
     log.addHandler(ring)
     tok = lx.correlation_id.CURRENT.set("req-aaaa1111")
     try:
-        log.info("nvr probe to %s failed", "10.1.2.3")
-        log.error("export failed for rtsp://admin:pw@10.1.2.3/x")
+        log.info("nvr probe to %s failed", "203.0.113.3")
+        log.error("export failed for rtsp://admin:pw@203.0.113.3/x")
         log.error("second failure")
     finally:
         lx.correlation_id.CURRENT.reset(tok)
@@ -105,12 +105,12 @@ def test_build_filters_and_recommends():
         log.removeHandler(ring)
     health = {"status": "error", "checks": [
         {"id": "db", "label": "מסד נתונים", "status": "ok", "detail": "תקין"},
-        {"id": "nvr", "label": "NVR", "status": "error", "detail": "אין תשובה מ-10.1.2.3"},
+        {"id": "nvr", "label": "NVR", "status": "error", "detail": "אין תשובה מ-203.0.113.3"},
         {"id": "brand_new_check", "label": "בדיקה חדשה", "status": "warn", "detail": "x"},
     ]}
     doc = lx.build(health, ring=ring)
     msgs = [r["message"] for r in doc["records"]]
-    assert "not in the file at INFO" not in msgs and "10.1.2.3" not in json.dumps(doc)
+    assert "not in the file at INFO" not in msgs and "203.0.113.3" not in json.dumps(doc)
     assert [r["correlation_id"] for r in doc["records"]] == ["req-aaaa1111", "req-aaaa1111", "req-aaaa1111", None]
     assert doc["errors"]["count"] == 3
     assert doc["errors"]["by_correlation_id"][0]["correlation_id"] == "req-aaaa1111" and doc["errors"]["by_correlation_id"][0]["count"] == 2
