@@ -4,10 +4,15 @@
 # this list (the test fails on a stale entry). Many of these are reset today by an autouse fixture inside the test files
 # that use them; moving such a fixture to a registered reset removes the line here.
 # Recorded on 2026-11-16 from origin/pilot/CR-WAVE2-COMBINED-2439 (97080bbc4): 116 names.
+# CR-BE-COMPLEXITY-2450 (19.11): the walk now also sees singletons of a class defined in another module of the package;
+# 26 of the 30 it found register a reset, the 4 marked below are recorded.
 
 smplwise.routers.access_control_command.RELAYS
 smplwise.routers.calendar_feeds._FILTER
+smplwise.routers.cameras._CAPS_CACHE  # shared class (TtlCache); routers are another agent's files on 19.11
+smplwise.routers.cameras._ZONES_CACHE  # shared class (TtlCache); routers are another agent's files on 19.11
 smplwise.routers.frames.MEMO
+smplwise.routers.health._EVENTS_COUNT  # shared class (TtlCache); routers are another agent's files on 19.11
 smplwise.routers.media.REGISTRY
 smplwise.routers.notifications.ACTION_FAILURES
 smplwise.routers.notifications.ACTION_GLOBAL
@@ -35,6 +40,7 @@ smplwise.services.capture_lease.GUARDS
 smplwise.services.capture_lease.REG
 smplwise.services.cast_relay.INDEX
 smplwise.services.cast_relay.SERVER
+smplwise.services.connection_probe._RESOLVER  # shared class (source_policy.Resolver, a thread pool like source_policy._RESOLVER): nothing to reset
 smplwise.services.device_bulk.RUNNER
 smplwise.services.door_windows.WORKER
 smplwise.services.elevators_runtime.RUNNER

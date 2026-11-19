@@ -34,6 +34,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from . import access_grants as ag
 from .janitors import Every
+from ..test_reset import register_reset
 
 log = logging.getLogger(__name__)
 
@@ -252,3 +253,6 @@ def janitor(db: Any) -> None:
 
 def reset_for_tests() -> None:
     _CHECK.reset()
+
+
+register_reset(__name__, ("_CHECK",), reset_for_tests)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)

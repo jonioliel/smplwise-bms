@@ -25,6 +25,7 @@ from ..errors import ApiError
 from . import nvr, recordings
 from .timeutil import UTC, iso_utc, local_day_bounds, zone
 from .ttl_cache import TtlCache
+from ..test_reset import register_reset
 
 WINDOW_DAYS = 7  # recordings.search_segments refuses windows above seven days
 TTL_CURRENT_S = 60
@@ -168,3 +169,6 @@ def invalidate(camera_id: str | None = None) -> None:
 
 def as_dict(result: MonthDays) -> dict:
     return asdict(result)
+
+
+register_reset(__name__, ("_cache",), invalidate)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)

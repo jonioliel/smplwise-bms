@@ -41,6 +41,7 @@ from . import messaging_accounts as ma
 from . import messaging_runtime as mr
 from .janitors import Every
 from .timeutil import iso_utc
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.insights.delivery")
 
@@ -506,3 +507,5 @@ def janitor(db: Database, settings: Any = None, now_ts: float | None = None) -> 
 def reset() -> None:
     _PASS.reset()
 
+
+register_reset(__name__, ("_PASS",), reset)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)

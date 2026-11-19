@@ -36,6 +36,7 @@ from typing import Any
 from ..db import Database, get_setting, now_iso, set_setting
 from .janitors import Every
 from .timeutil import iso_utc, parse_utc
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.device_activity")
 
@@ -594,3 +595,6 @@ def list_activity(conn: sqlite3.Connection, entity_id: str, *, since: str | None
     partial = bool(gaps) or bool(started and window_from and window_from < started)
     availability = "unavailable" if (started is None and connected is False) else ("partial" if partial else "ok")
     return {"tracked_since": started, "items": [_item(r) for r in page], "next_cursor": nxt, "retention_days": retention_days(conn), "coverage": {"from": started, "gaps": gaps}, "availability": availability}
+
+
+register_reset(__name__, ("_PRUNE",), reset)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)

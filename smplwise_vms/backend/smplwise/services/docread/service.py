@@ -30,6 +30,7 @@ from ..maintenance import service as msvc
 from ..maintenance.access import MANAGE, Viewer
 from . import certificate_rules, ports
 from .pdftext import PdftotextReader
+from ...test_reset import register_reset
 
 FEATURE_KEY = "docread.enabled"
 KINDS = ("certificate",)
@@ -327,3 +328,13 @@ def janitor(db: Database, clock: Callable[[], float] = time.monotonic) -> int:
         return 0
     with db.connection() as conn:
         return purge(conn)
+
+
+def _reset_for_tests() -> None:
+    global MODEL
+    set_ocr_reader(None)
+    MODEL = ports.NullModelExtractor()
+    _JANITOR.reset()
+
+
+register_reset(__name__, ("_ocr_reader", "MODEL", "_JANITOR"), _reset_for_tests)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)

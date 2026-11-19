@@ -58,6 +58,7 @@ from . import connection_store as cs
 from . import go2rtc as g2
 from . import source_policy
 from .poller import PeriodicWorker
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.camera_sources")
 
@@ -980,3 +981,6 @@ def check_once(db: Database, settings: Settings, force: bool = False) -> int:
 POLLER = PeriodicWorker(name="camera-source-health", env_flag="SW_CAMERA_SOURCE_HEALTH", first_delay=30.0,
                         tick=lambda db, settings: check_once(db, settings), interval=lambda db, settings: TICK_S,
                         default_interval=TICK_S, log=log, what="camera source health")
+
+
+register_reset(__name__, ("_OWNED",), _OWNED.written.clear)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)

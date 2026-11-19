@@ -21,6 +21,7 @@ from . import autosync, events_derive, events_ingest, ha_bridge, ha_client, ha_s
 from . import backup as backup_svc
 from .ttl_cache import TtlCache
 from ..mode import NVR_LESS_LABEL, installation_mode, is_ha_only
+from ..test_reset import register_reset
 
 PROBE_TTL_S = 20
 HA_GRACE_S = 60  # NVR-less mode: a Home Assistant disconnection longer than this is an error
@@ -465,3 +466,6 @@ def _recorder_time_checks(settings: Settings, conn: sqlite3.Connection) -> list[
         else:
             out.append(_check(f"recorder_time_{rid}", f"שעון ההקלטות ({rid})", "ok", f"לפי {basis} · שעון המכשיר תואם לשעון ישראל", **note))
     return out
+
+
+register_reset(__name__, ("_probe_cache",), invalidate)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)
