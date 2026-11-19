@@ -3,6 +3,8 @@ import '../../components/sw-button';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../../components/sw-icon';
 import '../../components/sw-state-panel';
+import '../../components/sw-table';
+import type { TableColumn } from '../../components/sw-table';
 import '../../electricity/elec-ui'; // elec-dialog (the electricity confirmation dialog)
 import { ApiError, describeError } from '../../api/client';
 import { DEFAULT_RULES, DEFAULT_SNOOZE, readableAlerts, water, type AlertsConfig, type LeakRules } from '../../api/water';
@@ -159,6 +161,40 @@ export class WaterSettingsPage extends LitElement {
     return l.startsWith('#/system/') ? l : INFRA_SETTINGS_HREF;
   }
 
+  /** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): a tariff's versions as the shared sw-table (bare in the tariff's card, read-only; row
+   * hook `data-version`): from when (+ the current / locked chips in the shared tones), the water / sewage prices and the price with VAT
+   * (LTR figures at the reading end), and a manager's delete key. */
+  private versionColumns(t: Tariff, vat: string | null, manage: boolean): TableColumn<Tariff['versions'][number]>[] {
+    return [
+      {
+        key: 'from',
+        label: wt('colFrom'),
+        render: (v) =>
+          html`<span class="num">${fmtDate(v.effective_from)}</span> ${t.current?.id === v.id ? html`<span class="chip" data-tone="ok" data-nodot>${wt('current')}</span>` : nothing}${v.locked ? html` <span class="chip" data-nodot data-locked>${wt('locked')}</span>` : nothing}`,
+      },
+      { key: 'water', label: wt('colWaterM3'), kind: 'num', render: (v) => fmtIls(v.water_price) },
+      { key: 'sewage', label: wt('colSewageM3'), kind: 'num', render: (v) => fmtIls(v.sewage_price) },
+      {
+        key: 'inc',
+        label: wt('colIncVat'),
+        kind: 'num',
+        render: (v) => {
+          const inc = v.price_inc_vat ?? priceIncVat(v.water_price, v.sewage_price, v.price_mode, t.vat_rate_percent ?? vat);
+          return inc === null ? '-' : fmtIls(inc);
+        },
+      },
+      {
+        key: 'act',
+        label: '',
+        kind: 'actions',
+        render: (v) =>
+          manage && !v.locked && t.versions.length > 1
+            ? html`<sw-button variant="ghost" size="sm" iconOnly icon="trash" label=${wt('delVersion')} ?disabled=${this.busy} @click=${() => void this.deleteVersion(t, v)}></sw-button>`
+            : nothing,
+      },
+    ];
+  }
+
   private renderPrices() {
     if (!this.access.manage && !this.access.bills) return html`<sw-state-panel state="forbidden" compact></sw-state-panel>`;
     if (this.tariffs === null) return skeletonCard();
@@ -170,13 +206,8 @@ export class WaterSettingsPage extends LitElement {
         ${this.tariffs.map((t) => html`<div class="card flush" data-tariff=${t.id}>
           <div class="hd" style="padding:14px 16px 0"><b>${t.name}</b><span class="sp"></span><span class="mut">${wt('usedBy', { n: t.used_by })}</span>
             ${manage ? html`<sw-button size="sm" data-new-version @click=${() => this.openVersion(t)}>${wt('newVersion')}</sw-button>` : nothing}</div>
-          <div class="scrollx"><table class="t"><thead><tr><th>${wt('colFrom')}</th><th class="n">${wt('colWaterM3')}</th><th class="n">${wt('colSewageM3')}</th><th class="n">${wt('colIncVat')}</th><th></th></tr></thead>
-            <tbody>${t.versions.map((v) => {
-              const inc = v.price_inc_vat ?? priceIncVat(v.water_price, v.sewage_price, v.price_mode, t.vat_rate_percent ?? vat);
-              return html`<tr data-version=${v.id}><td class="num" style="text-align:start">${fmtDate(v.effective_from)} ${t.current?.id === v.id ? html`<span class="chip c-ok nodot">${wt('current')}</span>` : nothing}${v.locked ? html` <span class="chip c-mut nodot" data-locked>${wt('locked')}</span>` : nothing}</td>
-                <td class="n"><span class="num">${fmtIls(v.water_price)}</span></td><td class="n"><span class="num">${fmtIls(v.sewage_price)}</span></td><td class="n"><span class="num">${inc === null ? '-' : fmtIls(inc)}</span></td>
-                <td class="n">${manage && !v.locked && t.versions.length > 1 ? html`<sw-button variant="ghost" size="sm" iconOnly icon="trash" label=${wt('delVersion')} ?disabled=${this.busy} @click=${() => void this.deleteVersion(t, v)}></sw-button>` : nothing}</td></tr>`;
-            })}</tbody></table></div></div>`)}
+          <sw-table bare static-rows class="t" .columns=${this.versionColumns(t, vat, manage) as unknown as TableColumn[]} .rows=${t.versions as unknown as Record<string, unknown>[]}
+            .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-version': String(r.id) })}></sw-table></div>`)}
         ${manage ? html`<sw-button icon="plus" style="align-self:flex-start" data-new-tariff @click=${() => this.openVersion(null)}>${wt('newTariff')}</sw-button>` : nothing}`;
     const right = html`<div class="card" data-card="shared"><div class="hd"><b>${wt('sharedTitle')}</b></div>
       <div class="mut" style="margin-block-end:10px">${wt('sharedNote')}</div>
