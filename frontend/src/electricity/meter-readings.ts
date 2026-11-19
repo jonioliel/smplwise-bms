@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-dialog';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
 import { ApiError, describeError } from '../api/client';
 import {
@@ -439,9 +441,8 @@ export class ElecReadingDialogs extends LitElement {
           <div class="inp ${this.fieldErrors.factor ? 'err' : ''}"><input id="cf" data-cal-factor inputmode="decimal" dir="ltr" .value=${this.factor} @input=${(e: Event) => set('factor', (e.target as HTMLInputElement).value)} /></div>
           ${this.fieldMsg('factor')}</div>
         <div class="fld wide"><span class="lbl">${tr('הפרש')}</span>
-          <div class="seg" role="group" aria-label=${tr('הפרש')}>
-            <button type="button" data-cal-mode="anchor" aria-pressed=${this.mode === 'anchor' ? 'true' : 'false'} ?disabled=${!anchors.length} @click=${() => { this.mode = 'anchor'; this.schedule(); }}>${tr('לפי קריאה ידנית')}</button>
-            <button type="button" data-cal-mode="offset" aria-pressed=${this.mode === 'offset' ? 'true' : 'false'} @click=${() => { this.mode = 'offset'; this.schedule(); }}>${tr('הזנה ידנית')}</button></div></div>
+          <sw-segmented label=${tr('הפרש')} value=${this.mode} @change=${(e: CustomEvent<SegmentedChange>) => { this.mode = e.detail.value as 'anchor' | 'offset'; this.schedule(); }}
+            .options=${[{ value: 'anchor', label: tr('לפי קריאה ידנית'), disabled: !anchors.length, attrs: { 'data-cal-mode': 'anchor' } }, { value: 'offset', label: tr('הזנה ידנית'), attrs: { 'data-cal-mode': 'offset' } }]}></sw-segmented></div>
         ${this.mode === 'anchor'
           ? html`<div class="fld wide"><label for="ca">${tr('קריאה')}</label>
               <div class="inp ${this.fieldErrors.anchor ? 'err' : ''}"><select id="ca" data-cal-anchor @change=${(e: Event) => set('anchor', (e.target as HTMLSelectElement).value)}>

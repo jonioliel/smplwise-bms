@@ -1,5 +1,7 @@
 import { LitElement, html, nothing, type TemplateResult } from 'lit';
 import '../../components/sw-button';
+import '../../components/sw-segmented';
+import type { SegmentedChange } from '../../components/sw-segmented';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../../components/sw-icon';
 import '../../components/sw-sheet';
@@ -274,7 +276,8 @@ export class WaterAccountsPage extends LitElement {
         <div class="fld"><span class="lbl">${wt('accFormula')}</span>
           ${f.keepAst && this.acc ? html`<div class="mut" data-formula-kept>${this.acc.formula.sentence_he}</div>` : nothing}
           <div class="list" data-formula-terms>${f.terms.map((t, i) => html`<div class="row" style="flex-wrap:nowrap" data-term=${i}>
-            <div class="seg" role="group" aria-label=${wt('accFormula')}><button type="button" aria-pressed=${t.sign > 0 ? 'true' : 'false'} data-sign="+" @click=${() => this.setTerm(i, { sign: 1 })}>+</button><button type="button" aria-pressed=${t.sign < 0 ? 'true' : 'false'} data-sign="-" @click=${() => this.setTerm(i, { sign: -1 })}>−</button></div>
+            <sw-segmented label=${wt('accFormula')} value=${t.sign > 0 ? '+' : '-'} @change=${(e: CustomEvent<SegmentedChange>) => this.setTerm(i, { sign: e.detail.value === '+' ? 1 : -1 })}
+            .options=${[{ value: '+', label: '+', attrs: { 'data-sign': '+' } }, { value: '-', label: '−', attrs: { 'data-sign': '-' } }]}></sw-segmented>
             <select aria-label=${wt('accPickMeter')} style="flex:1" @change=${(e: Event) => this.setTerm(i, { meter_id: (e.target as HTMLSelectElement).value })}>${meterOpts(t.meter_id)}</select>
             <sw-button variant="ghost" size="sm" iconOnly icon="close" label=${wt('remove')} @click=${() => (this.form = { ...this.form, terms: f.terms.filter((_, j) => j !== i), keepAst: null })}></sw-button></div>`)}</div>
           <div class="row">
@@ -284,15 +287,13 @@ export class WaterAccountsPage extends LitElement {
             <sw-button size="sm" data-loss-preset ?disabled=${!this.meters.length} @click=${() => void this.lossPreset()}>${wt('accLossPreset')}</sw-button></div>
           ${this.errs.formula ? html`<div class="msg" role="alert" data-field-error="formula">${this.errs.formula}</div>` : nothing}</div>
         <div class="formgrid">
-          <div class="fld"><span class="lbl">${wt('accPeriod')}</span><div class="seg" role="group" aria-label=${wt('accPeriod')}>
-            <button type="button" aria-pressed=${f.period_months === 1 ? 'true' : 'false'} @click=${() => this.setF('period_months', 1)}>${wt('accMonthly')}</button>
-            <button type="button" aria-pressed=${f.period_months === 2 ? 'true' : 'false'} @click=${() => this.setF('period_months', 2)}>${wt('accBimonthly')}</button></div></div>
+          <div class="fld"><span class="lbl">${wt('accPeriod')}</span><sw-segmented label=${wt('accPeriod')} value=${String(f.period_months)} @change=${(e: CustomEvent<SegmentedChange>) => this.setF('period_months', Number(e.detail.value) as 1 | 2)}
+            .options=${[{ value: '1', label: wt('accMonthly') }, { value: '2', label: wt('accBimonthly') }]}></sw-segmented></div>
           ${this.fld('period_anchor_day', wt('accAnchorDay'), html`<input id="wa-period_anchor_day" type="number" min="1" max="31" class="ltr" .value=${String(f.period_anchor_day)} @input=${(e: Event) => this.setF('period_anchor_day', Math.min(31, Math.max(1, Number((e.target as HTMLInputElement).value) || 1)))} />`)}
           ${this.fld('first_period_start', wt('accFirstStart'), html`<input id="wa-first_period_start" type="date" lang=${dateInputLang()} class="ltr ${this.errs.first_period_start ? 'err' : ''}" .value=${f.first_period_start} @change=${(e: Event) => this.setF('first_period_start', (e.target as HTMLInputElement).value)} />`)}
           ${this.fld('auto_mode', wt('accAuto'), html`<select id="wa-auto_mode" @change=${(e: Event) => this.setF('auto_mode', (e.target as HTMLSelectElement).value as AutoMode)}>${(['off', 'draft', 'issue'] as AutoMode[]).map((m) => html`<option value=${m} ?selected=${m === f.auto_mode}>${AUTO_LABEL[m]}</option>`)}</select>`)}
-          ${id ? html`<div class="fld"><span class="lbl">${wt('accStatus')}</span><div class="seg" role="group" aria-label=${wt('accStatus')}>
-            <button type="button" aria-pressed=${f.status === 'active' ? 'true' : 'false'} @click=${() => this.setF('status', 'active')}>${wt('accActive')}</button>
-            <button type="button" aria-pressed=${f.status === 'paused' ? 'true' : 'false'} @click=${() => this.setF('status', 'paused')}>${wt('accPaused')}</button></div></div>` : nothing}
+          ${id ? html`<div class="fld"><span class="lbl">${wt('accStatus')}</span><sw-segmented label=${wt('accStatus')} value=${f.status} @change=${(e: CustomEvent<SegmentedChange>) => this.setF('status', e.detail.value as 'active' | 'paused')}
+            .options=${[{ value: 'active', label: wt('accActive') }, { value: 'paused', label: wt('accPaused') }]}></sw-segmented></div>` : nothing}
         </div>
         ${this.error ? html`<div class="alert err" role="alert">${this.error}</div>` : nothing}
         <div class="row formacts"><sw-button variant="primary" data-save ?disabled=${this.busy} @click=${() => void this.save(id)}>${wt('save')}</sw-button>
@@ -420,10 +421,8 @@ export class WaterAccountsPage extends LitElement {
       <div class="backrow"><a class="btn ghost sm" href=${`#${BASE}`} data-back><sw-icon name="chevronBack" size="13"></sw-icon>${wt('accounts')}</a><b class="h3">${a.name}</b>${chip(accountChip(a))}<span class="sp"></span>
         ${this.access.bills ? html`<sw-button data-create-bill ?disabled=${this.busy} @click=${() => void this.createDraft(a)}>${wt('createBill')}</sw-button>` : nothing}
         ${this.access.manage ? html`<sw-button icon="edit" data-edit @click=${() => navigate(`${BASE}/${a.id}/edit`)}>${wt('edit')}</sw-button>` : nothing}</div>
-      <div class="seg" role="group" aria-label=${wt('accounts')} data-acc-tabs style="align-self:flex-start">
-        <button type="button" aria-pressed=${t === 'status' ? 'true' : 'false'} @click=${() => navigate(`${BASE}/${a.id}`)}>${wt('tabStatus')}</button>
-        <button type="button" aria-pressed=${t === 'history' ? 'true' : 'false'} @click=${() => navigate(`${BASE}/${a.id}/history`)}>${wt('tabHistory')}</button>
-        ${this.access.bills ? html`<button type="button" aria-pressed=${t === 'bills' ? 'true' : 'false'} @click=${() => navigate(`${BASE}/${a.id}/bills`)}>${wt('tabBills')}</button>` : nothing}</div>
+      <sw-segmented label=${wt('accounts')} data-acc-tabs style="align-self:flex-start" value=${t} @change=${(e: CustomEvent<SegmentedChange>) => navigate(e.detail.value === 'status' ? `${BASE}/${a.id}` : `${BASE}/${a.id}/${e.detail.value}`)}
+        .options=${[{ value: 'status', label: wt('tabStatus') }, { value: 'history', label: wt('tabHistory') }, ...(this.access.bills ? [{ value: 'bills', label: wt('tabBills') }] : [])]}></sw-segmented>
       ${this.error && !this.segments.includes('edit') ? html`<div class="alert err" role="alert">${this.error}</div>` : nothing}
       ${t === 'status' ? this.renderStatus(a) : t === 'history' ? this.renderHistory() : this.renderBills()}
     </div>`;

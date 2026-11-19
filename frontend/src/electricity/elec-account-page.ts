@@ -6,6 +6,8 @@
  */
 import { html, nothing } from 'lit';
 import '../components/sw-button';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { customElement, property, state } from 'lit/decorators.js';
 import { elec, elecErrorText, type AccountHistory, type AccountStatus, type BillSummary, type HistoryRow } from '../api/electricity-billing';
 import { energyAccess, type EnergyAccess } from './access';
@@ -157,7 +159,8 @@ export class ElecAccountPage extends ElecBase {
     const kwhCell = (r: HistoryRow) => (r.kwh === null ? html`<span class="mut" data-no-data>${tr('אין נתונים')}</span>` : html`${n(f2(r.kwh))}${r.status === 'partial' ? html` <span class="chip c-warn nodot" data-partial>${tr('חלקי')}</span>` : nothing}`);
     const change = (r: HistoryRow) => (r.change_pct !== null ? (r.change_pct > 0 ? '+' : '') + r.change_pct.toFixed(1) + '%' : '-');
     return html`<div class="card" data-elec-history><div class="hd"><b class="h3">${tr('צריכה לפי תקופה')}</b><span class="sp"></span>
-        <div class="seg" role="group" aria-label=${tr('טווח')}><button type="button" data-months="12" aria-pressed=${this.histMonths === 12} @click=${() => this.setMonths(12)}>${tr('12 תקופות')}</button><button type="button" data-months="24" aria-pressed=${this.histMonths === 24} @click=${() => this.setMonths(24)}>${tr('24 תקופות')}</button></div></div>
+        <sw-segmented label=${tr('טווח')} value=${String(this.histMonths)} @change=${(e: CustomEvent<SegmentedChange>) => this.setMonths(Number(e.detail.value) as 12 | 24)}
+        .options=${[{ value: '12', label: tr('12 תקופות'), attrs: { 'data-months': '12' } }, { value: '24', label: tr('24 תקופות'), attrs: { 'data-months': '24' } }]}></sw-segmented></div>
       <elec-chart .series=${h.comparison} table="details" .height=${this.phone ? 200 : 220}></elec-chart></div>
       <div class="card ${this.phone ? '' : 'flush'}">${this.phone
         ? html`<div class="list">${rows.map((r) => html`<div class="li" data-history-row data-status=${r.status}><div class="grow"><div class="t1">${n(r.label)}</div><div class="t2">${kwhCell(r)}${r.kwh !== null ? html` ${tr('קוט״ש')}` : ''}${r.change_pct !== null ? html` · ${n(change(r))}` : nothing}</div></div>${money && r.amount !== undefined ? html`<b class="num">${f2(r.amount)} ₪</b>` : nothing}</div>`)}</div>`

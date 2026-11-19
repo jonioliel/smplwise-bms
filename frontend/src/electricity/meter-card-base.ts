@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import '../components/sw-drawer';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
 import '../components/sw-state-panel';
 import { describeError } from '../api/client';
@@ -152,7 +154,8 @@ export abstract class MeterCardBase<D, K extends string> extends LitElement {
 
   /** The chart's range switch. */
   protected rangeSeg(ariaLabel: string, label: (r: MeterRange) => string) {
-    return html`<div class="seg" role="group" aria-label=${ariaLabel}>${RANGES.map((r) => html`<button type="button" aria-pressed=${this.range === r ? 'true' : 'false'} data-range=${r} @click=${() => { this.range = r; void this.loadSeries(); }}>${label(r)}</button>`)}</div>`;
+    return html`<sw-segmented label=${ariaLabel} value=${this.range} @change=${(e: CustomEvent<SegmentedChange>) => { this.range = e.detail.value as MeterRange; void this.loadSeries(); }}
+      .options=${RANGES.map((r) => ({ value: r, label: label(r), attrs: { 'data-range': r } }))}></sw-segmented>`;
   }
 
   protected actionsRow(a: MeterCardActions) {

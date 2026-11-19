@@ -1,6 +1,8 @@
 import { LitElement, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../../components/sw-icon';
+import '../../components/sw-segmented';
+import type { SegmentedChange } from '../../components/sw-segmented';
 import '../../components/sw-button';
 import '../../components/sw-state-panel';
 import '../../water/meter-card';
@@ -170,9 +172,8 @@ export class WaterAlertsPage extends LitElement {
     const r = this.rules;
     const meterId = this.params.get('meter') ?? '';
     const head = html`<div class="row head">
-      <div class="seg" role="group" aria-label=${wt('filter')} data-alert-filter>
-        <button type="button" aria-pressed=${this.filter === 'open' ? 'true' : 'false'} data-f="open" @click=${() => (this.filter = 'open')}>${wt('fOpen')}</button>
-        <button type="button" aria-pressed=${this.filter === 'all' ? 'true' : 'false'} data-f="all" @click=${() => (this.filter = 'all')}>${wt('fAll')}</button></div>
+      <sw-segmented label=${wt('filter')} data-alert-filter value=${this.filter} @change=${(e: CustomEvent<SegmentedChange>) => (this.filter = e.detail.value as 'open' | 'all')}
+        .options=${[{ value: 'open', label: wt('fOpen'), attrs: { 'data-f': 'open' } }, { value: 'all', label: wt('fAll'), attrs: { 'data-f': 'all' } }]}></sw-segmented>
       <span class="sp"></span>
       <sw-button icon="download" data-csv ?disabled=${!rows.length} @click=${() => this.exportCsv(rows)}>${wt('csv')}</sw-button>
       ${this.access.manage || this.access.configure ? html`<sw-button data-leak-rules @click=${() => navigate('/infra/water/settings', { set: 'alerts' })}>${wt('leakRules')}</sw-button>` : nothing}

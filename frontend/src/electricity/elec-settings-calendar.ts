@@ -6,6 +6,8 @@
  */
 import { html, nothing } from 'lit';
 import '../components/sw-button';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { customElement, state } from 'lit/decorators.js';
 import { elec, elecErrorText, elecForbidden, elecToday, type CalendarDay, type CalendarYear } from '../api/electricity-billing';
 import { energyAccess } from './access';
@@ -106,7 +108,9 @@ export class ElecSettingsCalendar extends ElecBase {
         <div class="hd"><b class="h3">${tr('ימים מיוחדים')}</b>
           <div class="row" role="group" aria-label=${tr('שנה')}><sw-button variant="ghost" size="sm" iconOnly icon="chevronBack" label=${tr('השנה הקודמת')} data-year-prev @click=${() => this.setYear(this.year - 1)}></sw-button><b class="num" data-year>${this.year}</b><sw-button variant="ghost" size="sm" iconOnly icon="chevron" label=${tr('השנה הבאה')} data-year-next @click=${() => this.setYear(this.year + 1)}></sw-button></div>
           <span class="sp"></span>
-          <div class="seg" role="group" aria-label=${tr('מקור החגים')}><button type="button" data-generator="israel" aria-pressed=${d.generator === 'israel'} ?disabled=${!edit || this.busy} @click=${() => d.generator !== 'israel' && void this.run(() => elec().setCalendarGenerator('israel', d.revision, this.year))}>${tr('חגי ישראל מחושבים')}</button><button type="button" data-generator="none" aria-pressed=${d.generator === 'none'} ?disabled=${!edit || this.busy} @click=${() => d.generator !== 'none' && void this.run(() => elec().setCalendarGenerator('none', d.revision, this.year))}>${tr('ימים ידניים בלבד')}</button></div>
+          <sw-segmented label=${tr('מקור החגים')} value=${d.generator} ?disabled=${!edit || this.busy}
+        @change=${(e: CustomEvent<SegmentedChange>) => { const g = e.detail.value as 'israel' | 'none'; if (d.generator !== g) void this.run(() => elec().setCalendarGenerator(g, d.revision, this.year)); }}
+        .options=${[{ value: 'israel', label: tr('חגי ישראל מחושבים'), attrs: { 'data-generator': 'israel' } }, { value: 'none', label: tr('ימים ידניים בלבד'), attrs: { 'data-generator': 'none' } }]}></sw-segmented>
         </div>
         ${!rows.length ? html`<div class="mut" style="padding:0 16px 16px" data-calendar-empty>${tr('אין ימים מיוחדים בשנה הזו.')}</div>`
           : this.phone

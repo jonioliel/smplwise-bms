@@ -488,6 +488,20 @@ export const elecCss = css`
     opacity: 0.5;
     cursor: not-allowed;
   }
+  /* CR-CMP2-SEGMENTED-B-2450 (owner N11): the segmented controls of the electricity and water pages are sw-segmented; these knobs keep
+     the module's key above (AUDIT30-E1: the pill track and pill thumbs, the small key height, 13 px labels, the chosen key semibold)
+     through its shadow root. The .seg rules stay for the account page's tab strip (a tablist). */
+  sw-segmented {
+    --sw-seg-radius: var(--sw-r-pill);
+    --sw-seg-btn-radius: var(--sw-r-pill);
+    --sw-seg-h: var(--elec-key-sm);
+    --sw-seg-key-pad: 12px;
+    --sw-seg-fs: var(--sw-fs-sm);
+    --sw-seg-fw: var(--sw-fw-regular);
+    --sw-seg-on-fw: var(--sw-fw-semibold);
+    --sw-seg-on-bg: var(--sw-seg-key, var(--sw-surface-solid));
+    --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-text));
+  }
 
   /* chips */
   /* R5-MEDIA-ENERGY-297 (status as a filled field): a status chip is a 24 px field of its colour at 24 % with the deep status text, 700 */
@@ -1330,6 +1344,10 @@ export const elecCss = css`
   :host([data-skin='bubble']) .seg button {
     border-radius: var(--sw-r-pill);
     min-inline-size: var(--elec-touch);
+  }
+  :host([data-skin='bubble']) sw-segmented {
+    --sw-seg-pad: 0;
+    --sw-seg-key-min-w: var(--elec-touch);
   }
   :host([data-skin='bubble']) .li,
   :host([data-skin='bubble']) .tile,

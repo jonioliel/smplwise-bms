@@ -7,6 +7,8 @@
  */
 import { html, nothing } from 'lit';
 import '../components/sw-button';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { customElement, property, state } from 'lit/decorators.js';
 import {
   AUTO_LABEL, elec, elecCustomerNumberError, elecErrorText, elecFieldErrors, elecMeters, elecToday, type Account, type AutoMode, type Customer, type ElecMeter, type PriceMode, type Tariff, type VatRates,
@@ -295,10 +297,8 @@ export class ElecAccountWizard extends ElecBase {
       <div class="fld"><label for="numv">${tr('ערך')}</label>
         <input id="numv" class="ltr ${this.numErr ? 'err' : ''}" data-number-input inputmode="decimal" .value=${this.numVal} @input=${(e: Event) => { this.numVal = (e.target as HTMLInputElement).value; this.numErr = ''; }} @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.confirmNumber()} />
         ${this.numErr ? html`<div class="msg" role="alert">${this.numErr}</div>` : nothing}</div>
-      <div class="seg" role="group" aria-label=${tr('סוג')}>
-        <button type="button" data-number-kind="pct" aria-pressed=${this.numPct} @click=${() => (this.numPct = true)}>${tr('אחוז')}</button>
-        <button type="button" data-number-kind="num" aria-pressed=${!this.numPct} @click=${() => (this.numPct = false)}>${tr('מספר')}</button>
-      </div>
+      <sw-segmented label=${tr('סוג')} value=${this.numPct ? 'pct' : 'num'} @change=${(e: CustomEvent<SegmentedChange>) => (this.numPct = e.detail.value === 'pct')}
+        .options=${[{ value: 'pct', label: tr('אחוז'), attrs: { 'data-number-kind': 'pct' } }, { value: 'num', label: tr('מספר'), attrs: { 'data-number-kind': 'num' } }]}></sw-segmented>
       <sw-button variant="primary" slot="actions" data-number-ok @click=${() => this.confirmNumber()}>${tr('הוספה')}</sw-button>
       <sw-button slot="actions" @click=${() => (this.numOpen = false)}>${tr('ביטול')}</sw-button>
     </elec-dialog>`;
@@ -343,7 +343,8 @@ export class ElecAccountWizard extends ElecBase {
     const periods = isIsoDate(this.firstStart) ? nextPeriods(this.firstStart, this.months, this.anchorDay, anch, '', 3) : [];
     const c = this.cust();
     return html`<div class="form">
-        <div class="fld"><span class="lbl" id="len">${tr('אורך תקופה')}</span><div class="seg" role="group" aria-labelledby="len"><button type="button" data-months="1" aria-pressed=${this.months === 1} ?disabled=${this.edit} @click=${() => (this.months = 1)}>${tr('חודשית')}</button><button type="button" data-months="2" aria-pressed=${this.months === 2} ?disabled=${this.edit} @click=${() => (this.months = 2)}>${tr('דו-חודשית')}</button></div></div>
+        <div class="fld"><span class="lbl" id="len">${tr('אורך תקופה')}</span><sw-segmented label=${tr('אורך תקופה')} ?disabled=${this.edit} value=${String(this.months)} @change=${(e: CustomEvent<SegmentedChange>) => (this.months = Number(e.detail.value) as 1 | 2)}
+        .options=${[{ value: '1', label: tr('חודשית'), attrs: { 'data-months': '1' } }, { value: '2', label: tr('דו-חודשית'), attrs: { 'data-months': '2' } }]}></sw-segmented></div>
         ${this.months === 2 ? html`<div class="fld"><label for="am">${tr('חודש פתיחת המחזור')}</label><select id="am" data-anchor-month ?disabled=${this.edit} @change=${(e: Event) => (this.anchorMonth = Number((e.target as HTMLSelectElement).value))}>${MONTH_NAMES.map((m, i) => html`<option value=${i + 1} ?selected=${this.anchorMonth === i + 1}>${m}</option>`)}</select></div>` : nothing}
         <div class="fld"><label for="ad">${tr('יום תחילת תקופה')}</label><div class="unit"><input id="ad" class="ltr" type="number" min="1" max="28" data-anchor-day ?disabled=${this.edit} .value=${String(this.anchorDay)} @input=${(e: Event) => (this.anchorDay = Number((e.target as HTMLInputElement).value))} /><span>${tr('בחודש')}</span></div>
           ${this.anchorDay < 1 || this.anchorDay > 28 ? html`<div class="msg" role="alert">${tr('היום חייב להיות בין 1 ל-28')}</div>` : nothing}</div>
@@ -365,7 +366,8 @@ export class ElecAccountWizard extends ElecBase {
     const ex = this.customers.find((c) => c.id === this.existingId);
     const q = this.custQ.trim();
     const list = this.customers.filter((c) => !q || c.name.includes(q) || c.customer_number.includes(q));
-    return html`${this.edit ? alertBox('info', html`${tr('הלקוח של חשבון קיים לא משתנה כאן.')} <b>${this.account?.customer.name}</b>`) : html`<div class="seg" style="align-self:flex-start" role="group" aria-label=${tr('לקוח')}><button type="button" data-cust-mode="new" aria-pressed=${this.custMode === 'new'} @click=${() => (this.custMode = 'new')}>${tr('לקוח חדש')}</button><button type="button" data-cust-mode="existing" aria-pressed=${this.custMode === 'existing'} @click=${() => (this.custMode = 'existing')}>${tr('לקוח קיים')}</button></div>`}
+    return html`${this.edit ? alertBox('info', html`${tr('הלקוח של חשבון קיים לא משתנה כאן.')} <b>${this.account?.customer.name}</b>`) : html`<sw-segmented label=${tr('לקוח')} style="align-self:flex-start" value=${this.custMode} @change=${(e: CustomEvent<SegmentedChange>) => (this.custMode = e.detail.value as 'new' | 'existing')}
+        .options=${[{ value: 'new', label: tr('לקוח חדש'), attrs: { 'data-cust-mode': 'new' } }, { value: 'existing', label: tr('לקוח קיים'), attrs: { 'data-cust-mode': 'existing' } }]}></sw-segmented>`}
       ${this.edit ? nothing : this.custMode === 'existing'
         ? html`<input type="search" data-cust-search style="max-inline-size:none" aria-label=${tr('חיפוש לקוח')} placeholder=${tr('חיפוש לקוח')} .value=${this.custQ} @input=${(e: Event) => (this.custQ = (e.target as HTMLInputElement).value)} />
             <div class="list" role="radiogroup" aria-label=${tr('לקוח קיים')} data-cust-list>${list.map((c) => html`<label class="li ${c.id === this.existingId ? 'sel' : ''}" data-cust-row=${c.id}><input type="radio" name="cust" .checked=${c.id === this.existingId} @change=${() => (this.existingId = c.id)} /><span class="ind"></span><div class="grow"><div class="t1">${c.name}</div><div class="t2">${tr('מספר לקוח')} ${n(c.customer_number)} · ${c.account_count} ${tr('חשבונות')}</div></div></label>`)}
@@ -430,7 +432,8 @@ export class ElecAccountWizard extends ElecBase {
       <div class="form">
         <div class="fld wide"><label for="tn">${tr('שם התעריף')}</label><input id="tn" class="${f.err.name ? 'err' : ''}" data-tariff-name .value=${f.name} @input=${(e: Event) => set('name', (e.target as HTMLInputElement).value)} />${f.err.name ? html`<div class="msg" role="alert">${f.err.name}</div>` : nothing}</div>
         <div class="fld"><label for="tp">${tr('מחיר לקוט״ש')}</label><div class="unit"><input id="tp" class="ltr ${f.err.price ? 'err' : ''}" data-tariff-price inputmode="decimal" .value=${f.price} @input=${(e: Event) => set('price', (e.target as HTMLInputElement).value)} /><span>₪</span></div>${f.err.price ? html`<div class="msg" role="alert">${f.err.price}</div>` : nothing}</div>
-        <div class="fld"><span class="lbl">${tr('המחיר שהוזן')}</span><div class="seg" role="group" aria-label=${tr('סוג מחיר')}><button type="button" data-tariff-mode="ex_vat" aria-pressed=${f.mode === 'ex_vat'} @click=${() => (this.tf = { ...f, mode: 'ex_vat' })}>${tr('לפני מע״מ')}</button><button type="button" data-tariff-mode="inc_vat" aria-pressed=${f.mode === 'inc_vat'} @click=${() => (this.tf = { ...f, mode: 'inc_vat' })}>${tr('כולל מע״מ')}</button></div></div>
+        <div class="fld"><span class="lbl">${tr('המחיר שהוזן')}</span><sw-segmented label=${tr('סוג מחיר')} value=${f.mode} @change=${(e: CustomEvent<SegmentedChange>) => (this.tf = { ...f, mode: e.detail.value as 'ex_vat' | 'inc_vat' })}
+        .options=${[{ value: 'ex_vat', label: tr('לפני מע״מ'), attrs: { 'data-tariff-mode': 'ex_vat' } }, { value: 'inc_vat', label: tr('כולל מע״מ'), attrs: { 'data-tariff-mode': 'inc_vat' } }]}></sw-segmented></div>
         <div class="fld"><label for="tf">${tr('בתוקף מתאריך')}</label><input id="tf" type="date" lang=${dateInputLang()} class="ltr ${f.err.from ? 'err' : ''}" data-tariff-from .value=${f.from} @change=${(e: Event) => set('from', (e.target as HTMLInputElement).value)} />${f.err.from ? html`<div class="msg" role="alert">${f.err.from}</div>` : nothing}</div>
       </div>
       ${f.error ? alertBox('err', f.error) : nothing}
