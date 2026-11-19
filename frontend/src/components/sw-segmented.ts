@@ -35,7 +35,7 @@ export interface SegmentedChange<V extends string = string> {
  *  - each key is a `<button aria-pressed>` in a `role="group"` named by `label`; the screens' specs that read `button[aria-pressed]`
  *    keep working (Playwright's CSS pierces the shadow root). The arrow keys and Home / End move the focus along the keys.
  *  - `size="sm"`: the 28 px key of the compact rows (notification settings); default 34 px. `block`: the track fills its row and the
- *    keys share it equally. On a coarse pointer every key keeps a 44 px tall touch target (an absolute ::before, no layout change).
+ *    keys share it equally; a host that only stretches it on some widths sets `--sw-seg-key-flex: 1 1 auto` there. On a coarse pointer every key keeps a 44 px tall touch target (an absolute ::before, no layout change).
  *  - motion (emil-design-eng): a settings key is pressed tens of times a day, so the thumb does not slide; colour fades on the
  *    hover curve and a key gives on pointer-down (`--sw-press-scale`, 1 = none in the skins that turn press feedback off).
  */
@@ -66,6 +66,7 @@ export class SwSegmented<V extends string = string> extends LitElement {
     .seg {
       display: inline-flex;
       flex-wrap: wrap;
+      inline-size: 100%;
       max-inline-size: 100%;
       box-sizing: border-box;
       border: 1px solid var(--sw-seg-border, transparent);
@@ -96,6 +97,8 @@ export class SwSegmented<V extends string = string> extends LitElement {
       font-weight: var(--sw-fw-semibold);
       line-height: 1.2;
       white-space: nowrap;
+      /* a host that stretches the control (a phone row) may let the keys share the line: --sw-seg-key-flex: 1 1 auto */
+      flex: var(--sw-seg-key-flex, 0 1 auto);
       cursor: pointer;
       transition:
         transform var(--sw-t-press, 120ms) var(--sw-ease),
