@@ -8,6 +8,7 @@
  */
 import { html, nothing } from 'lit';
 import '../components/sw-button';
+import '../components/sw-field';
 import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
 import { customElement, state } from 'lit/decorators.js';
@@ -252,13 +253,13 @@ export class ElecSettingsPrices extends ElecBase {
       </div>
       <elec-dialog heading=${this.tEdit ? tr('עריכת תעריף') : tr('תעריף חדש')} ?open=${this.tOpen} ?wide=${this.tKind === 'tou'} data-dialog="tariff" @close=${() => (this.tOpen = false)}>
         <div class="form">
-          <div class="fld wide"><label for="tn">${tr('שם התעריף')}</label><input id="tn" class="${this.tErr.name ? 'err' : ''}" data-tariff-name .value=${this.tf.name} @input=${(e: Event) => this.setTf({ name: (e.target as HTMLInputElement).value })} />${this.tErr.name ? html`<div class="msg" role="alert">${this.tErr.name}</div>` : nothing}</div>
+          <sw-field class="fld wide" label=${tr('שם התעריף')}><input id="tn" class="${this.tErr.name ? 'err' : ''}" aria-invalid=${this.tErr.name ? 'true' : 'false'} data-tariff-name .value=${this.tf.name} @input=${(e: Event) => this.setTf({ name: (e.target as HTMLInputElement).value })} />${this.tErr.name ? html`<div class="msg" role="alert" slot="message">${this.tErr.name}</div>` : nothing}</sw-field>
           ${this.tEdit ? nothing : html`<div class="fld wide"><span class="lbl">${tr('סוג התעריף')}</span><sw-segmented label=${tr('סוג התעריף')} value=${this.tKind} @change=${(e: CustomEvent<SegmentedChange>) => void this.setKind(e.detail.value as 'fixed' | 'tou')}
         .options=${[{ value: 'fixed', label: tr('מחיר קבוע'), attrs: { 'data-tariff-kind': 'fixed' } }, { value: 'tou', label: tr('לפי שעות (תעו״ז)'), attrs: { 'data-tariff-kind': 'tou' } }]}></sw-segmented></div>`}
-          ${this.tKind === 'fixed' ? html`<div class="fld"><label for="tp">${tr('מחיר לקוט״ש')}</label><div class="unit"><input id="tp" class="ltr ${this.tErr.price ? 'err' : ''}" data-tariff-price inputmode="decimal" .value=${this.tf.price} @input=${(e: Event) => this.setTf({ price: (e.target as HTMLInputElement).value })} /><span>₪</span></div>${this.tErr.price ? html`<div class="msg" role="alert">${this.tErr.price}</div>` : nothing}</div>` : nothing}
+          ${this.tKind === 'fixed' ? html`<sw-field class="fld" label=${tr('מחיר לקוט״ש')} unit="₪"><input id="tp" class="ltr ${this.tErr.price ? 'err' : ''}" aria-invalid=${this.tErr.price ? 'true' : 'false'} data-tariff-price inputmode="decimal" .value=${this.tf.price} @input=${(e: Event) => this.setTf({ price: (e.target as HTMLInputElement).value })} />${this.tErr.price ? html`<div class="msg" role="alert" slot="message">${this.tErr.price}</div>` : nothing}</sw-field>` : nothing}
           <div class="fld"><span class="lbl">${this.tKind === 'tou' ? tr('המחירים שהוזנו') : tr('המחיר שהוזן')}</span><sw-segmented label=${tr('סוג מחיר')} value=${this.tf.mode} @change=${(e: CustomEvent<SegmentedChange>) => this.setTf({ mode: e.detail.value as 'ex_vat' | 'inc_vat' })}
         .options=${[{ value: 'ex_vat', label: tr('לפני מע״מ'), attrs: { 'data-tariff-mode': 'ex_vat' } }, { value: 'inc_vat', label: tr('כולל מע״מ'), attrs: { 'data-tariff-mode': 'inc_vat' } }]}></sw-segmented></div>
-          <div class="fld"><label for="tf">${tr('בתוקף מתאריך')}</label><input id="tf" type="date" lang=${dateInputLang()} class="ltr ${this.tErr.effective_from ? 'err' : ''}" data-tariff-from .value=${this.tf.from} @change=${(e: Event) => this.setTf({ from: (e.target as HTMLInputElement).value })} />${this.tErr.effective_from ? html`<div class="msg" role="alert">${this.tErr.effective_from}</div>` : nothing}</div>
+          <sw-field class="fld" label=${tr('בתוקף מתאריך')}><input id="tf" type="date" lang=${dateInputLang()} class="ltr ${this.tErr.effective_from ? 'err' : ''}" aria-invalid=${this.tErr.effective_from ? 'true' : 'false'} data-tariff-from .value=${this.tf.from} @change=${(e: Event) => this.setTf({ from: (e.target as HTMLInputElement).value })} />${this.tErr.effective_from ? html`<div class="msg" role="alert" slot="message">${this.tErr.effective_from}</div>` : nothing}</sw-field>
         </div>
         ${this.tKind === 'fixed' && cur ? html`<div class="card soft" data-tariff-derived><dl class="kv"><dt>${tr('לפני מע״מ')}</dt><dd>${n(f4(d.ex) + ' ₪')}</dd><dt>${tr('מע״מ')} ${n(cur.rate_percent + '%')}</dt><dd>${n(f4(d.vat) + ' ₪')}</dd><dt>${tr('כולל מע״מ')}</dt><dd>${n(f4(d.inc) + ' ₪')}</dd></dl></div>` : nothing}
         ${this.tKind === 'tou' && this.tSource && !this.tEdit ? alertBox('info', this.tSource) : nothing}
@@ -272,8 +273,8 @@ export class ElecSettingsPrices extends ElecBase {
       </elec-dialog>
       <elec-dialog heading=${tr('שיעור מע״מ חדש')} ?open=${this.vOpen} data-dialog="vat" @close=${() => (this.vOpen = false)}>
         <div class="form">
-          <div class="fld"><label for="vr">${tr('שיעור')}</label><div class="unit"><input id="vr" class="ltr ${this.vErr.rate_percent ? 'err' : ''}" data-vat-input inputmode="decimal" .value=${this.vf.rate} @input=${(e: Event) => (this.vf = { ...this.vf, rate: (e.target as HTMLInputElement).value })} /><span>%</span></div>${this.vErr.rate_percent ? html`<div class="msg" role="alert">${this.vErr.rate_percent}</div>` : nothing}</div>
-          <div class="fld"><label for="vf">${tr('בתוקף מתאריך')}</label><input id="vf" type="date" lang=${dateInputLang()} class="ltr ${this.vErr.effective_from ? 'err' : ''}" data-vat-from .value=${this.vf.from} @change=${(e: Event) => (this.vf = { ...this.vf, from: (e.target as HTMLInputElement).value })} />${this.vErr.effective_from ? html`<div class="msg" role="alert">${this.vErr.effective_from}</div>` : nothing}</div>
+          <sw-field class="fld" label=${tr('שיעור')} unit="%"><input id="vr" class="ltr ${this.vErr.rate_percent ? 'err' : ''}" aria-invalid=${this.vErr.rate_percent ? 'true' : 'false'} data-vat-input inputmode="decimal" .value=${this.vf.rate} @input=${(e: Event) => (this.vf = { ...this.vf, rate: (e.target as HTMLInputElement).value })} />${this.vErr.rate_percent ? html`<div class="msg" role="alert" slot="message">${this.vErr.rate_percent}</div>` : nothing}</sw-field>
+          <sw-field class="fld" label=${tr('בתוקף מתאריך')}><input id="vf" type="date" lang=${dateInputLang()} class="ltr ${this.vErr.effective_from ? 'err' : ''}" aria-invalid=${this.vErr.effective_from ? 'true' : 'false'} data-vat-from .value=${this.vf.from} @change=${(e: Event) => (this.vf = { ...this.vf, from: (e.target as HTMLInputElement).value })} />${this.vErr.effective_from ? html`<div class="msg" role="alert" slot="message">${this.vErr.effective_from}</div>` : nothing}</sw-field>
         </div>
         ${this.error ? alertBox('err', this.error) : nothing}
         <sw-button variant="primary" slot="actions" data-save ?disabled=${this.busy} @click=${() => void this.saveVat()}>${tr('שמירה')}</sw-button>
