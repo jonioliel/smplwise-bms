@@ -184,11 +184,7 @@ export const metersResponsiveCss = css`
       grid-auto-rows: max-content;
       align-content: start;
     }
-    .mlist table.t thead th {
-      position: sticky;
-      inset-block-start: 0;
-      z-index: 1;
-    }
+    /* CR-CMP2-TABLES-CONSUMPTION-2450: the table is the shared sw-table, the list's scroll box itself; its header row sticks on its own */
   }
 `;
 

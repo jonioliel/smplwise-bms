@@ -136,6 +136,36 @@ const waterExtraCss = css`
   table.t td {
     padding-block: 9px;
   }
+  /* CR-CMP2-TABLES-CONSUMPTION-2450: the water tables (sw-table) keep their 9 px rows */
+  sw-table.t {
+    --sw-table-cell-pad: 9px 12px;
+  }
+  /* a period's change in a table: a rise in the danger ink, a fall in the success ink (as .up / .down) */
+  sw-table.t::part(up) {
+    color: var(--sw-danger-text);
+  }
+  sw-table.t::part(down) {
+    color: var(--sw-success-text);
+  }
+  /* the usage table's share bar (as .share) */
+  sw-table.t::part(share) {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  sw-table.t::part(share-track) {
+    display: inline-block;
+    inline-size: 56px;
+    block-size: 6px;
+    border-radius: 3px;
+    background: var(--sw-surface-3);
+    overflow: hidden;
+  }
+  sw-table.t::part(share-fill) {
+    display: block;
+    block-size: 100%;
+    background: var(--sw-accent);
+  }
   .backrow {
     display: flex;
     align-items: center;
@@ -243,11 +273,6 @@ const waterExtraCss = css`
       min-block-size: 160px;
       overflow: auto;
       scrollbar-width: thin;
-    }
-    .page.fit > .fitbox table.t thead th {
-      position: sticky;
-      inset-block-start: 0;
-      z-index: 1;
     }
   }
   /* a sheet's form keeps its save / cancel row in view: the row sticks to the foot of the scrolling sheet body */
