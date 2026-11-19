@@ -9,22 +9,30 @@ import sqlite3
 from typing import Any
 
 from ...db import now_iso
+from ...rbac import dead_places
 
 
 def _live_bindings(conn: sqlite3.Connection, user_id: str) -> list[sqlite3.Row]:
     now = now_iso()
-    return conn.execute(
+    rows = conn.execute(
         """SELECT role_id, scope_type, scope_id FROM bindings
            WHERE effect = 'allow' AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)
              AND ((subject_kind = 'user' AND subject_id = ?)
                   OR (subject_kind = 'group' AND subject_id IN (SELECT group_id FROM group_members WHERE user_id = ?)))""",
         (now, user_id, user_id)).fetchall()
+    # CR-BE-COMPLEXITY-2450 (owner decision O20 a, code review 02:P3-4): an allow bound on a dead place - a deleted site, building or
+    # floor, one under a deleted parent, an orphaned scope row - reaches no one: not its floors, not a role audience, not the read-
+    # receipt place line. The rule and the query are rbac's own (rbac._drop_dead_allows), so the audience and authorize() agree.
+    dead = dead_places(conn, {(r["scope_type"], r["scope_id"]) for r in rows})
+    return [r for r in rows if (r["scope_type"], r["scope_id"]) not in dead] if dead else rows
 
 
 def _floor_chain(conn: sqlite3.Connection, floor_id: str) -> set[tuple[str, str]]:
-    # CR-RBAC-EVAL-2438 (owner decision O20 a): a floor of a deleted building is reached by no one through it
+    # CR-RBAC-EVAL-2438 (owner decision O20 a): a floor of a deleted building is reached by no one through it; CR-BE-COMPLEXITY-2450:
+    # nor a floor of a deleted (or missing) site - the same place is dead in rbac.dead_places, so no allow there or above it reaches it
     row = conn.execute("""SELECT f.id AS fid, b.id AS bid, b.site_id AS sid FROM floors f JOIN buildings b ON b.id = f.building_id
-                          WHERE f.id = ? AND f.deleted_at IS NULL AND b.deleted_at IS NULL""", (floor_id,)).fetchone()
+                          JOIN sites s ON s.id = b.site_id
+                          WHERE f.id = ? AND f.deleted_at IS NULL AND b.deleted_at IS NULL AND s.deleted_at IS NULL""", (floor_id,)).fetchone()
     if row is None:
         return set()
     return {("floor", row["fid"]), ("building", row["bid"]), ("site", row["sid"]), ("installation", "*")}
