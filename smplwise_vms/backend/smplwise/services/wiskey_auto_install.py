@@ -45,6 +45,7 @@ import stat
 import sys
 from pathlib import Path
 from typing import Any, Callable
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.wiskey.install")
 
@@ -1148,3 +1149,14 @@ def observe_readiness(db,settings,*,deadline_s=READINESS_DEADLINE_S):
             save_observation(db,journal,answer,"deadline" if deadline_s is not None else "not_ready")
             return "readiness_deadline" if deadline_s is not None else "not_ready"
         time.sleep(min(READ_BACKOFF_S[min(attempt,len(READ_BACKOFF_S)-1)],max(0,end-time.monotonic())));attempt+=1
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    NATIVE.clear()
+    NATIVE.update({"state": "off", "code": None, "version": None, "restart": None})
+    _last_reconcile.clear()
+    _last_reconcile.update({"at": float("-inf")})
+
+
+register_reset(__name__, ("NATIVE", "_last_reconcile"), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)
