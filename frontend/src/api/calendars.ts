@@ -8,6 +8,7 @@ import { del, get, patch, post, put } from './client';
 import { isApi } from './session';
 import { tr } from '../i18n/msg/api-home';
 import type * as SyncWire from './generated/wire-calendar-sync';
+import type * as FeedWire from './generated/wire-calendar-feeds';
 
 export type CalType = 'room' | 'team' | 'maintenance' | 'event';
 export type CalColor = 'blue' | 'rose' | 'cyan' | 'orange' | 'violet' | 'brown' | 'magenta' | 'slate';
@@ -240,20 +241,17 @@ type AuthorizePoll = Omit<SyncWire.CalSyncAuthorizeResult, 'state' | 'connection
 };
 export type ExtCalendar = SyncWire.CalSyncExternalCalendar;
 export interface BindingBody { connection_id: string | null; external_calendar_ref?: string; direction?: 'export' | 'import' | 'two_way'; detail?: 'busy' | 'titles' | 'details'; dedicated?: boolean }
-export interface Feed {
-  id: string; calendar_ids: string[]; detail: 'busy' | 'titles'; created_at: string; last_used_at: string | null; revoked: boolean;
-  /** CAL-FEED-REVIEW-2351: the address also answers outside the building network (the per-feed remote switch, default off) */
-  remote?: boolean;
-  /** round 14 (4A): what the document really carries - always 'busy' while `remote` is on, whatever `detail` says */
-  detail_effective?: 'busy' | 'titles';
-  /** round 14 (2A): may THIS person change the remote switch now (on: an administrator or the creator managing every calendar of the feed) */
-  can_remote?: boolean;
-  /** round 14 (3C): when the current address stops answering (null = no expiry); fixed when the address was issued */
-  expires_at?: string | null;
-  token_set_at?: string;
-}
+/* The feed shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/calendar_feeds.py, generated into
+ * ./generated/wire-calendar-feeds.ts). The round-14 fields stay optional on the client (an older server, the demo store has no
+ * `token_set_at`). `remote`: the address also answers outside the building network (the per-feed remote switch, default off);
+ * `detail_effective` (4A): what the document really carries - always 'busy' while `remote` is on; `can_remote` (2A): may THIS person
+ * change the remote switch now; `expires_at` (3C): when the current address stops answering (null = no expiry). */
+export type Feed = Pick<FeedWire.CalFeed, 'id' | 'calendar_ids' | 'detail' | 'created_at' | 'last_used_at' | 'revoked'>
+  & Partial<Pick<FeedWire.CalFeed, 'remote' | 'detail_effective' | 'can_remote' | 'expires_at' | 'token_set_at'>>;
 /** GET /calendar/feeds. `local` false = this page came through the remote channel, where the server refuses the remote switch. */
-interface FeedList { feeds: Feed[]; enabled: boolean; local?: boolean; default_max_age_days?: number }
+type FeedList = Pick<FeedWire.CalFeedList, 'enabled'> & Partial<Pick<FeedWire.CalFeedList, 'local' | 'default_max_age_days'>> & { feeds: Feed[] };
+/** A new or renewed address: the feed and its document path (shown once). */
+type FeedIssued = Omit<FeedWire.CalFeedIssued, 'feed'> & { feed: Feed };
 
 /** A flagged entry (wire: CalSyncFlag); narrowed: the calendar colour, the flag kinds and the entry state; `title` may be null in the demo store. */
 export type SyncFlag = Omit<SyncWire.CalSyncFlag, 'calendar' | 'title' | 'flag' | 'state'> & { calendar: { id: string; name: string; color: CalColor }; title: string | null; flag: 'conflict' | 'deleted_external'; state: EntryState };
@@ -336,8 +334,8 @@ export interface CalendarsApi {
   connectionCalendars(id: string): Promise<{ calendars: ExtCalendar[] }>;
   putBinding(calendarId: string, body: BindingBody): Promise<unknown>;
   feeds(): Promise<FeedList>;
-  createFeed(calendarIds: string[], detail: 'busy' | 'titles'): Promise<{ feed: Feed; path: string }>;
-  rotateFeed(id: string): Promise<{ feed: Feed; path: string }>;
+  createFeed(calendarIds: string[], detail: Feed['detail']): Promise<FeedIssued>;
+  rotateFeed(id: string): Promise<FeedIssued>;
   revokeFeed(id: string): Promise<{ feed: Feed }>;
   /** CAL-FEED-REVIEW-2351 round 14: the per-feed remote switch (a local session only) */
   setFeedRemote(id: string, enabled: boolean): Promise<{ feed: Feed }>;
