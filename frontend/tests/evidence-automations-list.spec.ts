@@ -245,13 +245,17 @@ test.describe('toggle, filters, the segments', () => {
     // the switch is 24 px high (sw-toggle, CR-CMP2-TOAST-2440) but its hit area is 44 px: a point 7 px above the drawn track still lands on it
     const t = await c.locator('[data-card-toggle] [role="switch"]').boundingBox();
     const hit = await page.evaluate(({ x, y }) => {
+      // the walk passes the sw-toggle host on its way down (on a touch phone it ends on the switch's own button, whose
+      // ::before is the coarse-pointer target): the point is on the switch when the host is on that path
       let el: Element | null = document.elementFromPoint(x, y);
+      let onSwitch = el?.hasAttribute('data-card-toggle') ?? false;
       while (el?.shadowRoot) {
         const inner = el.shadowRoot.elementFromPoint(x, y);
         if (!inner || inner === el) break;
         el = inner;
+        onSwitch ||= el.hasAttribute('data-card-toggle');
       }
-      return el?.hasAttribute('data-card-toggle') ?? false;
+      return onSwitch;
     }, { x: t!.x + t!.width / 2, y: t!.y - 7 });
     expect(hit).toBe(true);
     for (const sel of ['button[data-segment="scenes"]', 'label.search', '[data-auto-new]', '[data-fold-toggle]']) {
