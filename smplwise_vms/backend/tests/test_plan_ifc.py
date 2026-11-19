@@ -158,6 +158,26 @@ def test_export_without_anchors_or_items_still_writes_every_wall():
     assert len(m.of("IFCFURNITURE")) == 5, "an object without a catalog item is the default furniture class"
 
 
+def test_export_skips_entries_that_are_not_objects():
+    """CR-IFC-SPLIT-2460: a non-object `dimensions` / calibration, anchor or catalog entry counts as none (it used to raise
+    AttributeError); the file is the one written without that entry."""
+    doc = _sample()
+    items = plan_catalog.builtin()["items"]
+    used = doc["objects"][0]["item_id"]
+    for bad in ("2.1", 15, ["x"], True):
+        no_dims = {k: v for k, v in doc.items() if k != "dimensions"}
+        assert _export({**doc, "dimensions": bad}) == _export(no_dims)
+        cal = {**doc, "dimensions": {**doc["dimensions"], "calibration": bad}}
+        no_cal = {**doc, "dimensions": {k: v for k, v in doc["dimensions"].items() if k != "calibration"}}
+        assert _export(cal) == _export(no_cal)
+        assert _export(doc, anchors=[bad, *ANCHORS, bad]) == _export(doc)
+        assert _export(doc, items={**items, used: bad}) == _export(doc, items={k: v for k, v in items.items() if k != used})
+    data, counts = plan_ifc.build({**doc, "dimensions": "2.1"}, ZONES, 1000, 800, floor_id="F1", floor_name="x", version_id="V1", stage="draft", anchors=["a", 7])
+    assert counts["walls"] == 6 and counts["anchors"] == 0
+    project = plan_ifc_read._psets(plan_ifc_read.Model(data.decode()))
+    assert any(p.get(plan_ifc.PSET, {}).get("ScaleStatus") == "missing" for p in project.values()), "no dimensions: no calibration"
+
+
 # ---------------------------------------------------------------- round trip
 
 def _by_tag(items: list[dict], key: str) -> dict:
