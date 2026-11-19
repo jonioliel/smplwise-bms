@@ -6,6 +6,9 @@ Home Assistant WebSocket session to WisKey in a thread of their own. What they d
 pollers, writes); how the session is run does not, and that part lives here once:
 
 - the thread and its stop (`_start_thread`, `shutdown`);
+- the reconnect ladder (`_ladder`): the backoff doubling to its cap, WisKey loading (short retry), not installed / refused (the
+  absent re-probe ladder, the copy dropped), any other WisKey error, a refused Home Assistant token (the shared refusal ladder of
+  the client's own token), the reconnect counter and the log lines;
 - the early-message buffer: an event frame whose subscription id is not known yet is kept and replayed once it is
   (`_replay_early`);
 - ending a session from inside it (`_fail`) and the session's refresh tasks (`_kick`);
@@ -16,20 +19,27 @@ tests/test_feed_session_pin_2450.py). The tunable constants stay in `intercom_sy
 from __future__ import annotations
 
 import asyncio
+import logging
 import threading
 from collections import deque
 from typing import Any
 
 from ..config import Settings
-from . import intercom_client, loop_thread_stop
+from ..errors import ApiError
+from . import ha_client, intercom_client, loop_thread_stop
+from .intercom_client import IntercomError
+
+log = logging.getLogger("smplwise.intercom")  # the logger both clients always used
 
 EARLY_KEEP = 20  # event frames kept while their subscription id is not known yet
 
 
 class FeedSession:
-    """Base of the two feed clients. A subclass sets `REFRESH_TASK` (the name of a push-started refresh task) and provides
-    `_on_message` (it dispatches one event frame or puts it back into `_early`) and `_refresh`."""
+    """Base of the two feed clients. A subclass sets `LOG_NAME` (the prefix of its log lines) and `REFRESH_TASK` (the name of a
+    push-started refresh task), and provides `_session` (one session), `_on_message` (it dispatches one event frame or puts it
+    back into `_early`), `_refresh`, `_set_state`, `_drop` and the state accessors below."""
 
+    LOG_NAME = "WisKey feed"
     REFRESH_TASK = "wiskey-feed-refresh"
 
     def __init__(self) -> None:
@@ -62,8 +72,95 @@ class FeedSession:
         self.stop.set()
         loop_thread_stop.stop_and_join(self)  # CR-WAVE2-COMBINED-2439: wake the loop now and wait for the thread (bounded)
 
-    def _run(self) -> None:  # pragma: no cover - replaced by each client
+    # -- the state each client keeps (the service feed in intercom_sync.STATE, the background feed in its `status`)
+    def _feed_state(self) -> str:  # pragma: no cover - provided by each client
         raise NotImplementedError
+
+    def _feed_error(self) -> str | None:  # pragma: no cover - provided by each client
+        raise NotImplementedError
+
+    def _feed_connected(self) -> bool:  # pragma: no cover - provided by each client
+        raise NotImplementedError
+
+    def _set_connected(self, value: bool) -> None:  # pragma: no cover - provided by each client
+        raise NotImplementedError
+
+    def _count_reconnect(self) -> None:  # pragma: no cover - provided by each client
+        """A connected session is over: count the reconnect (and whatever else the client does at that moment)."""
+        raise NotImplementedError
+
+    def _refused_token(self) -> str | None:  # pragma: no cover - provided by each client
+        """The token this client's sessions authenticate with (the key of ha_client's refusal ladder)."""
+        raise NotImplementedError
+
+    def _set_state(self, state: str, error: str | None) -> None:  # pragma: no cover - provided by each client
+        raise NotImplementedError
+
+    def _drop(self) -> None:  # pragma: no cover - provided by each client
+        raise NotImplementedError
+
+    async def _session(self, stop_evt: asyncio.Event) -> None:  # pragma: no cover - provided by each client
+        raise NotImplementedError
+
+    # -- thread
+    def _run(self) -> None:
+        asyncio.run(self._ladder())
+
+    async def _ladder(self) -> None:
+        from . import intercom_sync as sync  # the constants: the tests tune them in one place
+
+        assert self.settings
+        backoff = sync.RETRY_S
+        stop_evt = asyncio.Event()
+        loop_thread_stop.remember(self, stop_evt)  # shutdown() sets stop_evt at once; the poll below stays as the fallback
+
+        async def watch_stop() -> None:
+            while not self.stop.is_set():
+                await asyncio.sleep(1)
+            stop_evt.set()
+
+        asyncio.create_task(watch_stop())
+        absent = 0  # consecutive "not installed" / "forbidden" answers on a working HA socket (the re-probe ladder, FOLLOWUPS-2406)
+        while not self.stop.is_set():
+            delay = backoff
+            short = False  # HA is answering but WisKey is still loading: retry soon, whatever the backoff had reached
+            was_absent, absent = absent, 0
+            try:
+                await self._session(stop_evt)
+                backoff = sync.RETRY_S
+                if self._feed_state() == "ready":
+                    self._set_state("ha_unavailable", "disconnected")
+            except IntercomError as exc:
+                if exc.code == sync.LOADING:
+                    # HA is (re)starting and WisKey is not loaded yet: keep the last-known copy (served as not fresh)
+                    # and retry on the normal short backoff
+                    self._set_state("connecting", sync.LOADING)
+                    delay, short = sync.RETRY_S, True
+                elif exc.not_installed or exc.code == "unauthorized":
+                    self._drop()
+                    self._set_state("not_installed" if exc.not_installed else "forbidden", exc.code)
+                    absent = was_absent + 1
+                    delay = sync.absent_delay(absent)
+                else:
+                    self._set_state("error", exc.code)
+                if self._feed_error() != self._logged_error:  # an absent integration is logged once, not every probe
+                    log.warning(self.LOG_NAME + ": %s (%s)", self._feed_state(), exc.code)
+                    self._logged_error = self._feed_error()
+            except Exception as exc:  # noqa: BLE001 - the loop must survive any socket failure
+                if self.stop.is_set():
+                    break
+                code = exc.code if isinstance(exc, ApiError) else type(exc).__name__
+                self._set_state("ha_unavailable", code)
+                if code == "ha_forbidden":  # FOLLOWUPS-2406: a refused token waits on ha_client's slow shared ladder
+                    delay = max(delay, ha_client.refused_wait(self._refused_token()))
+                if not (isinstance(exc, ApiError) and exc.details.get("held")):  # a held attempt never reached HA
+                    log.warning(self.LOG_NAME + " disconnected: %s (retry in %.0fs)", code, delay)
+            if self._feed_connected():
+                self._count_reconnect()
+            self._set_connected(False)
+            await ha_client.wait_or_reset(delay, stop_evt)  # a reset of the refused-token ladder ends the wait at once
+            backoff = sync.RETRY_S if short else min(sync.RETRY_MAX_S, backoff * 2)
+        self._set_connected(False)
 
     # -- inside a session
     async def _maybe_loading(self, call: intercom_client.Call) -> bool:

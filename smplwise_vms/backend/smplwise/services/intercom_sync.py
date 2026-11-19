@@ -78,7 +78,7 @@ from ..config import Settings
 from ..db import now_iso
 from ..errors import ApiError
 from ..test_reset import register_reset
-from . import ha_client, intercom_client, loop_thread_stop
+from . import ha_client, intercom_client
 from .intercom_client import IntercomError
 from .wiskey_feed_session import FeedSession
 
@@ -832,6 +832,7 @@ def _late_outcome(future: Any, project: Callable[[Any], Any]) -> tuple[str, str 
 # ---------------------------------------------------------------- the session
 
 class IntercomSync(FeedSession):
+    LOG_NAME = "WisKey feed"
     REFRESH_TASK = "intercom-refresh"
 
     def __init__(self) -> None:
@@ -1654,64 +1655,26 @@ class IntercomSync(FeedSession):
         if changed:
             publish({"type": "intercom_state", "state": state})
 
-    # -- thread
-    def _run(self) -> None:
-        asyncio.run(self._loop())
+    # -- the reconnect ladder's view of this feed's state (wiskey_feed_session.FeedSession._ladder)
+    def _feed_state(self) -> str:
+        return STATE.state
 
-    async def _loop(self) -> None:
+    def _feed_error(self) -> str | None:
+        return STATE.last_error
+
+    def _feed_connected(self) -> bool:
+        return STATE.connected
+
+    def _set_connected(self, value: bool) -> None:
+        STATE.connected = value
+
+    def _count_reconnect(self) -> None:
+        STATE.reconnects += 1
+        _lease_hook("feed_reconnect")  # CR-WISKEY-LEASE-REVOCATION-EVENT T8: a feed reconnect revokes every live capture lease
+
+    def _refused_token(self) -> str | None:
         assert self.settings
-        backoff = RETRY_S
-        stop_evt = asyncio.Event()
-        loop_thread_stop.remember(self, stop_evt)  # shutdown() sets stop_evt at once; the poll below stays as the fallback
-
-        async def watch_stop() -> None:
-            while not self.stop.is_set():
-                await asyncio.sleep(1)
-            stop_evt.set()
-
-        asyncio.create_task(watch_stop())
-        absent = 0  # consecutive "not installed" / "forbidden" answers on a working HA socket (the re-probe ladder)
-        while not self.stop.is_set():
-            delay = backoff
-            short = False  # HA is answering but WisKey is still loading: retry soon, whatever the backoff had reached
-            was_absent, absent = absent, 0
-            try:
-                await self._session(stop_evt)
-                backoff = RETRY_S
-                if STATE.state == "ready":
-                    self._set_state("ha_unavailable", "disconnected")
-            except IntercomError as exc:
-                if exc.code == LOADING:
-                    # HA is (re)starting and WisKey is not loaded yet: keep the last-known copy (served as not fresh)
-                    # and retry on the normal short backoff
-                    self._set_state("connecting", LOADING)
-                    delay, short = RETRY_S, True
-                elif exc.not_installed or exc.code == "unauthorized":
-                    self._drop()
-                    self._set_state("not_installed" if exc.not_installed else "forbidden", exc.code)
-                    absent = was_absent + 1
-                    delay = absent_delay(absent)
-                else:
-                    self._set_state("error", exc.code)
-                if STATE.last_error != self._logged_error:  # an absent integration is logged once, not every probe
-                    log.warning("WisKey feed: %s (%s)", STATE.state, exc.code)
-                    self._logged_error = STATE.last_error
-            except Exception as exc:  # noqa: BLE001 - the loop must survive any socket failure
-                if self.stop.is_set():
-                    break
-                code = exc.code if isinstance(exc, ApiError) else type(exc).__name__
-                self._set_state("ha_unavailable", code)
-                if code == "ha_forbidden":  # FOLLOWUPS-2406: a refused token waits on ha_client's slow shared ladder
-                    delay = max(delay, ha_client.refused_wait(self.settings.ha_token))
-                if not (isinstance(exc, ApiError) and exc.details.get("held")):  # a held attempt never reached HA
-                    log.warning("WisKey feed disconnected: %s (retry in %.0fs)", code, delay)
-            if STATE.connected:
-                STATE.reconnects += 1
-                _lease_hook("feed_reconnect")  # CR-WISKEY-LEASE-REVOCATION-EVENT T8: a feed reconnect revokes every live capture lease
-            STATE.connected = False
-            await ha_client.wait_or_reset(delay, stop_evt)  # a reset of the refused-token ladder ends the wait at once
-            backoff = RETRY_S if short else min(RETRY_MAX_S, backoff * 2)
-        STATE.connected = False
+        return self.settings.ha_token
 
     async def _session(self, stop_evt: asyncio.Event) -> None:
         assert self.settings

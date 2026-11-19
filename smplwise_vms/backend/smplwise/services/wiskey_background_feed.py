@@ -23,8 +23,7 @@ import threading
 from typing import Any, Awaitable, Callable
 
 from ..config import Settings
-from ..errors import ApiError
-from . import ha_client, intercom_client, loop_thread_stop
+from . import ha_client, intercom_client
 from .intercom_client import IntercomError
 from .wiskey_background import assert_closed, from_served_copy, project_background
 from .wiskey_feed_session import FeedSession
@@ -47,6 +46,7 @@ def configured(settings: Settings | None) -> bool:
 
 
 class BackgroundFeed(FeedSession):
+    LOG_NAME = "WisKey background feed"
     REFRESH_TASK = "wiskey-background-refresh"
 
     def __init__(self) -> None:
@@ -170,63 +170,25 @@ class BackgroundFeed(FeedSession):
     def _set_state(self, state: str, error: str | None) -> None:
         self.status["state"], self.status["last_error"] = state, error
 
-    # -- thread
-    def _run(self) -> None:
-        asyncio.run(self._main())
+    # -- the reconnect ladder's view of this feed's state (wiskey_feed_session.FeedSession._ladder)
+    def _feed_state(self) -> str:
+        return self.status["state"]
 
-    async def _main(self) -> None:
-        from . import intercom_sync as sync  # constants only: the tests tune them in one place
+    def _feed_error(self) -> str | None:
+        return self.status["last_error"]
 
+    def _feed_connected(self) -> bool:
+        return self.status["connected"]
+
+    def _set_connected(self, value: bool) -> None:
+        self.status["connected"] = value
+
+    def _count_reconnect(self) -> None:
+        self.status["reconnects"] += 1
+
+    def _refused_token(self) -> str | None:
         assert self.settings
-        backoff = sync.RETRY_S
-        stop_evt = asyncio.Event()
-        loop_thread_stop.remember(self, stop_evt)  # shutdown() sets stop_evt at once; the poll below stays as the fallback
-
-        async def watch_stop() -> None:
-            while not self.stop.is_set():
-                await asyncio.sleep(1)
-            stop_evt.set()
-
-        asyncio.create_task(watch_stop())
-        absent = 0  # the same re-probe ladder as the main feed (FOLLOWUPS-2406)
-        while not self.stop.is_set():
-            delay = backoff
-            short = False
-            was_absent, absent = absent, 0
-            try:
-                await self._session(stop_evt)
-                backoff = sync.RETRY_S
-                if self.status["state"] == "ready":
-                    self._set_state("ha_unavailable", "disconnected")
-            except IntercomError as exc:
-                if exc.code == sync.LOADING:
-                    self._set_state("connecting", sync.LOADING)
-                    delay, short = sync.RETRY_S, True
-                elif exc.not_installed or exc.code == "unauthorized":
-                    self._drop()
-                    self._set_state("not_installed" if exc.not_installed else "forbidden", exc.code)
-                    absent = was_absent + 1
-                    delay = sync.absent_delay(absent)
-                else:
-                    self._set_state("error", exc.code)
-                if self.status["last_error"] != self._logged_error:
-                    log.warning("WisKey background feed: %s (%s)", self.status["state"], exc.code)
-                    self._logged_error = self.status["last_error"]
-            except Exception as exc:  # noqa: BLE001 - the loop must survive any socket failure
-                if self.stop.is_set():
-                    break
-                code = exc.code if isinstance(exc, ApiError) else type(exc).__name__
-                self._set_state("ha_unavailable", code)
-                if code == "ha_forbidden":  # FOLLOWUPS-2406: a refused token waits on ha_client's slow shared ladder
-                    delay = max(delay, ha_client.refused_wait(self.settings.wiskey_background_token))
-                if not (isinstance(exc, ApiError) and exc.details.get("held")):  # a held attempt never reached HA
-                    log.warning("WisKey background feed disconnected: %s (retry in %.0fs)", code, delay)
-            if self.status["connected"]:
-                self.status["reconnects"] += 1
-            self.status["connected"] = False
-            await ha_client.wait_or_reset(delay, stop_evt)  # a reset of the refused-token ladder ends the wait at once
-            backoff = sync.RETRY_S if short else min(sync.RETRY_MAX_S, backoff * 2)
-        self.status["connected"] = False
+        return self.settings.wiskey_background_token
 
     async def _session(self, stop_evt: asyncio.Event) -> None:
         from . import intercom_sync as sync
