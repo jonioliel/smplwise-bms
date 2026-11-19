@@ -34,6 +34,10 @@ runs everything under nice 19 / ionice idle / taskset / an address-space limit; 
 while the host's available memory is under --pause-mem-mb (resumes above 1.5 x that) and stops the run when the backend's
 RSS passes --max-rss-mb (a soft memory cap: the run ends with reason `rss_cap`). A backend that exits on its own ends the
 run with reason `backend_exit` (a crash is a finding, it is not restarted). Refuses to run inside the add-on.
+T068-EDGE-2450: the run also ends (reason `disk_low`) when the run folder's disk has less than --min-free-mb free, and the
+backend's log is written by a rotating pump (--log-max-mb, --log-keep; a write that fails drops the chunk, counted, and never
+blocks the backend). The edges a long run cannot produce safely (a full disk, an export cut off while it is finished) are
+tests: tests/test_soak_edges_2450.py.
 """
 from __future__ import annotations
 
@@ -45,6 +49,7 @@ import datetime as dt
 import json
 import os
 import random
+import shutil
 import signal
 import socket
 import statistics
@@ -79,6 +84,77 @@ CSV_HEADER = [
     "exports_created_cum", "nvr_alerts_sent_cum", "ha_events_sent_cum", "wiskey_frames_cum", "go2rtc_ws_open",
     "fake_restarts_cum", "host_load1", "host_mem_avail_mb", "harness_rss_mb", "stats_ms", "note",
 ]
+
+
+class LogPump(threading.Thread):
+    """T068-EDGE-2450: the backend's stdout / stderr, written to `<run>/backend.log` with size rotation (backend.log.1 ...
+    backend.log.<keep>, oldest dropped). The pump is the only writer of the file, so a rotation is a plain rename (no
+    copy-truncate race, and the same on Windows, where an inherited append handle does not seek to the end after a truncate).
+    The pump never stops draining the pipe: a write that fails (a full disk) drops that chunk and counts it, so the backend
+    never blocks on its log; once writes succeed again the file continues. `--log-max-mb 0` turns rotation off."""
+
+    def __init__(self, stream: Any, path: Path, max_bytes: int, keep: int) -> None:
+        super().__init__(name="soak-log-pump", daemon=True)
+        self.stream, self.path, self.max_bytes, self.keep = stream, Path(path), int(max_bytes), max(1, int(keep))
+        self.rotations = 0
+        self.dropped_bytes = 0
+        self.write_errors = 0
+        self._fh: Any = None
+        self._size = 0
+
+    def _open(self) -> None:
+        if self._fh is None:
+            self._fh = open(self.path, "ab")  # noqa: SIM115 - kept open between chunks
+            self._size = self._fh.tell()
+
+    def _close(self) -> None:
+        if self._fh is not None:
+            try:
+                self._fh.close()
+            except OSError:
+                pass
+            self._fh = None
+
+    def rotate(self) -> None:
+        self._close()
+        for i in range(self.keep, 0, -1):
+            src = self.path if i == 1 else self.path.with_name(f"{self.path.name}.{i - 1}")
+            if src.exists():
+                os.replace(src, self.path.with_name(f"{self.path.name}.{i}"))
+        self.rotations += 1
+
+    def write(self, data: bytes) -> None:
+        try:
+            self._open()
+            if self.max_bytes and self._size and self._size + len(data) > self.max_bytes:
+                self.rotate()
+                self._open()
+            self._fh.write(data)
+            self._fh.flush()
+            self._size += len(data)
+        except OSError:
+            self.write_errors += 1
+            self.dropped_bytes += len(data)
+            self._close()  # the next chunk reopens (and finds the real size)
+
+    def run(self) -> None:
+        try:
+            for line in iter(self.stream.readline, b""):
+                self.write(line)
+        except (OSError, ValueError):
+            pass
+        finally:
+            self._close()
+
+    def stats(self) -> dict[str, int]:
+        return {"rotations": self.rotations, "dropped_bytes": self.dropped_bytes, "write_errors": self.write_errors}
+
+
+def free_mb(path: Path) -> float | None:
+    try:
+        return shutil.disk_usage(path).free / 1024 / 1024
+    except OSError:
+        return None
 
 
 def free_port() -> int:
@@ -357,6 +433,7 @@ class Soak:
         self.t0 = time.monotonic()
         self.base = ""
         self.backend: subprocess.Popen | None = None
+        self.log_pump: LogPump | None = None
         self.cams: list[str] = []
         self.end_wall = dt.datetime.fromisoformat(a.until.replace("Z", "+00:00")).timestamp() if a.until else None
         self.duration = a.hours * 3600 + a.minutes * 60
@@ -378,12 +455,14 @@ class Soak:
     def start_backend(self) -> None:
         port = free_port()
         self.base = f"http://127.0.0.1:{port}"
-        log = open(self.run_dir / "backend.log", "ab")  # noqa: SIM115 - kept open for the child's lifetime
         argv = [sys.executable, str(HERE / "soak_long_backend.py"), "--port", str(port), "--data-dir", str(self.data_dir),
                 "--nvr-port", str(self.nvr.port), "--ha-port", str(self.ha.port), "--go2rtc-port", str(self.g2.port)]
         env = {k: v for k, v in os.environ.items() if not k.startswith("SW_")}
         env["PYTHONUNBUFFERED"] = "1"
-        self.backend = subprocess.Popen(argv, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env=env, cwd=str(BACKEND))
+        # T068-EDGE-2450: the log goes through the rotating pump (a long run must not fill the runner's disk with it)
+        self.backend = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env=env, cwd=str(BACKEND))
+        self.log_pump = LogPump(self.backend.stdout, self.run_dir / "backend.log", int(self.a.log_max_mb * 1024 * 1024), self.a.log_keep)
+        self.log_pump.start()
         (self.run_dir / "backend.pid").write_text(str(self.backend.pid))
         import httpx
 
@@ -674,6 +753,12 @@ class Soak:
                 self.pause.clear()
                 prev.setdefault("pending_notes", []).append("load_resumed")
                 self.note("host memory back: client load resumed")
+        free = free_mb(self.run_dir)
+        if free is not None and self.a.min_free_mb > 0 and free < self.a.min_free_mb:
+            # T068-EDGE-2450: the runner's disk is shared with the gates - the run ends before it fills (2026-11-18: 100 %)
+            self.reason = "disk_low"
+            self.note(f"free space on the run folder's disk {free:.0f} MB < {self.a.min_free_mb:.0f} MB: stopping")
+            self.stop.set()
         rss = row.get("rss_mb")
         if rss is not None and rss > self.a.max_rss_mb:
             self.reason = "rss_cap"
@@ -757,6 +842,7 @@ class Soak:
             "backend_last_stats": {k: last_stats.get(k) for k in ("log", "db_write_lock", "ingest", "events_cache", "export_counters", "thread_names", "ws_total", "http_total")},
             "fakes": {"nvr_sent": dict(self.nvr.sent), "nvr_downloads": dict(self.nvr.downloads), "ha_events_sent": self.ha.sent_events, "ha_connections": self.ha.connections,
                       "wiskey_frames": self.ha.wiskey_frames, "go2rtc": dict(self.g2.counters)},
+            "backend_log": self.log_pump.stats() if self.log_pump is not None else None,
         }
         (self.run_dir / "summary.json").write_text(json.dumps(summary, indent=1, default=str), encoding="utf-8")
         print(f"[soak-long] done: {self.reason}, {summary['duration_s']} s, backend rc {rc}; summary {self.run_dir / 'summary.json'}", flush=True)
@@ -772,6 +858,8 @@ class Soak:
             except subprocess.TimeoutExpired:
                 self.backend.kill()
                 self.backend.wait(10)
+        if self.log_pump is not None:
+            self.log_pump.join(10)  # the pipe closed with the backend: the pump writes the last lines and ends
         return self.backend.returncode
 
 
@@ -792,6 +880,9 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--go2rtc-every", type=float, default=3600)
     ap.add_argument("--max-rss-mb", type=float, default=1200.0)
     ap.add_argument("--pause-mem-mb", type=float, default=800.0)
+    ap.add_argument("--min-free-mb", type=float, default=2048.0, help="stop the run (reason disk_low) below this much free space on the run folder's disk; 0 = off")
+    ap.add_argument("--log-max-mb", type=float, default=64.0, help="rotate backend.log at this size; 0 = never")
+    ap.add_argument("--log-keep", type=int, default=3, help="rotated backend logs kept (backend.log.1 ... .N)")
     a = ap.parse_args(argv)
     if not a.until and a.hours <= 0 and a.minutes <= 0:
         ap.error("give --hours, --minutes or --until")
