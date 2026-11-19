@@ -33,6 +33,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import autosync
+from ..services import frigate_store as store
 from ..services.access import camera_allowed, require_camera, row_scope
 from ..services.recorders import frigate_events as fe
 from ..services.recorders import frigate_io
@@ -76,7 +77,7 @@ def _epoch(value: str | float | None, default: float | None = None) -> float | N
 
 def _camera_row(conn: sqlite3.Connection, principal: Principal, rid: str, camera_id: str, permission: str) -> sqlite3.Row:
     require_camera(conn, principal, camera_id, permission)  # 403 before 404: an unknown id tells a scoped user nothing
-    row = conn.execute("SELECT * FROM cameras WHERE id = ? AND recorder_id = ?", (camera_id, rid)).fetchone()
+    row = store.camera_on_recorder(conn, camera_id, rid)
     if row is None:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
     if not row["source_ref"]:
@@ -96,7 +97,7 @@ def _image(data: bytes, ctype: str, max_age: int) -> Response:
 
 
 def _frigate_info(conn: sqlite3.Connection, rid: str) -> dict[str, Any]:
-    rec = conn.execute("SELECT id, name, enabled, removed_at, model, firmware FROM recorders WHERE id = ?", (rid,)).fetchone()
+    rec = store.recorder_info(conn, rid)
     return dict(rec) if rec else {"id": rid}
 
 
@@ -106,7 +107,7 @@ def _frigate_info(conn: sqlite3.Connection, rid: str) -> dict[str, Any]:
 def list_recorders(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The recorders whose vendor is Frigate (names and ids only: never an address, a user name or a secret)."""
     _may_read(conn, principal)
-    rows = conn.execute("SELECT id, name, enabled, model, firmware FROM recorders WHERE vendor = 'frigate' AND removed_at IS NULL ORDER BY sort_order, id").fetchall()
+    rows = store.frigate_recorders(conn)
     return {"recorders": [{"id": r["id"], "name": r["name"] or r["id"], "enabled": bool(r["enabled"]), "firmware": r["firmware"]} for r in rows]}
 
 
@@ -122,7 +123,7 @@ def status(recorder_id: str, request: Request, refresh: bool = Query(False), pri
     a = _adapter(conn, request, recorder_id)
     doc = a.discover(refresh=refresh)
     sync = fe.state_of(recorder_id).as_dict()
-    row = conn.execute("SELECT * FROM frigate_sync_state WHERE recorder_id = ?", (recorder_id,)).fetchone()
+    row = store.sync_state(conn, recorder_id)
     if row is not None and sync["last_poll_at"] is None:
         sync = {**sync, "last_poll_at": row["last_poll_at"], "ws_state": row["ws_state"], "ws_frames": row["ws_frames"], "last_poll_error": row["last_poll_error"]}
     from ..services import recorder_health as rh
@@ -160,9 +161,9 @@ def cameras(recorder_id: str, request: Request, principal: Principal = Depends(c
     _adapter(conn, request, recorder_id)
     out = []
     links = {}
-    for l in conn.execute("SELECT camera_id, linked_camera_id, kind FROM camera_links").fetchall():
+    for l in store.camera_links(conn):
         links.setdefault(l["camera_id"], []).append({"camera_id": l["linked_camera_id"], "kind": l["kind"]})
-    for r in conn.execute("SELECT * FROM cameras WHERE recorder_id = ? ORDER BY sort_order, channel", (recorder_id,)).fetchall():
+    for r in store.recorder_cameras(conn, recorder_id):
         if not (camera_allowed(conn, principal, r["id"], "video.live") or camera_allowed(conn, principal, r["id"], "events.read")):
             continue
         caps = json.loads(r["capabilities_json"] or "{}")
@@ -182,20 +183,7 @@ def _scope_sql(conn: sqlite3.Connection, principal: Principal) -> tuple[str, lis
     sc = row_scope(conn, principal, "events.read")
     if not sc.any():
         require(conn, principal, "events.read", INSTALLATION)
-    if sc.everything:
-        return "", []
-    parts, args = [], []
-    if sc.cameras.everything:
-        parts.append("camera_id IS NOT NULL")
-    elif sc.cameras.ids:
-        ids = sorted(sc.cameras.ids)
-        parts.append(f"camera_id IN ({','.join('?' * len(ids))})")
-        args += ids
-    if sc.camera_less:
-        parts.append("camera_id IS NULL")
-    if not parts:
-        return " AND 0", []
-    return " AND (" + " OR ".join(parts) + ")", args
+    return store.scope_clause(sc)
 
 
 @router.get("/frigate/{recorder_id}/reviews")
@@ -207,37 +195,11 @@ def list_reviews(recorder_id: str, request: Request, principal: Principal = Depe
     (the `next_before` of the previous page, an epoch). The motion layer is `/activity`."""
     _adapter(conn, request, recorder_id)
     scope, sargs = _scope_sql(conn, principal)
-    sql = ("SELECT r.*, s.reviewed_at AS _reviewed FROM frigate_reviews r LEFT JOIN frigate_review_state s ON s.user_id = ? AND s.recorder_id = r.recorder_id AND s.review_id = r.review_id "
-           "WHERE r.recorder_id = ?")
-    args: list[Any] = [principal.user_id, recorder_id]
-    sc_sql = scope.replace("camera_id", "r.camera_id")
-    sql += sc_sql
-    args += sargs
-    if severity:
-        sql += " AND r.severity = ?"
-        args.append(severity)
-    if camera_id:
-        sql += " AND r.camera_id = ?"
-        args.append(camera_id)
-    if reviewed is True:
-        sql += " AND s.reviewed_at IS NOT NULL"
-    elif reviewed is False:
-        sql += " AND s.reviewed_at IS NULL"
     t_from, t_to = _epoch(from_), _epoch(to)
-    if t_from is not None:
-        sql += " AND COALESCE(r.end_ts, r.start_ts) >= ?"
-        args.append(t_from)
-    if t_to is not None:
-        sql += " AND r.start_ts < ?"
-        args.append(t_to)
-    if before is not None:
-        sql += " AND r.start_ts < ?"
-        args.append(before)
-    sql += " ORDER BY r.start_ts DESC LIMIT ?"
-    args.append(limit + 1)
-    rows = conn.execute(sql, args).fetchall()
+    rows = store.reviews_page(conn, principal.user_id, recorder_id, scope, sargs, severity=severity, camera_id=camera_id, reviewed=reviewed,
+                              t_from=t_from, t_to=t_to, before=before, limit=limit + 1)
     page = rows[:limit]
-    names = {c["id"]: (c["alias"] or c["name_source"]) for c in conn.execute("SELECT id, alias, name_source FROM cameras WHERE recorder_id = ?", (recorder_id,)).fetchall()}
+    names = {c["id"]: (c["alias"] or c["name_source"]) for c in store.camera_names(conn, recorder_id)}
     items = []
     for r in page:
         v = fe.review_view(r, reviewed=r["_reviewed"] is not None)
@@ -249,7 +211,7 @@ def list_reviews(recorder_id: str, request: Request, principal: Principal = Depe
 
 
 def _review_row(conn: sqlite3.Connection, principal: Principal, recorder_id: str, review_id: str) -> sqlite3.Row:
-    row = conn.execute("SELECT * FROM frigate_reviews WHERE recorder_id = ? AND review_id = ?", (recorder_id, review_id)).fetchone()
+    row = store.review(conn, recorder_id, review_id)
     if row is None:
         if not row_scope(conn, principal, "events.read").any():
             require(conn, principal, "events.read", INSTALLATION)  # 403 before 404 for a caller who may see no review at all
@@ -268,12 +230,9 @@ def reviews_summary(recorder_id: str, request: Request, principal: Principal = D
     _adapter(conn, request, recorder_id)
     scope, sargs = _scope_sql(conn, principal)
     since = dt.datetime.now(dt.timezone.utc).timestamp() - days * 86400
-    sql = ("SELECT r.severity, r.camera_id, COUNT(*) AS n, SUM(CASE WHEN s.reviewed_at IS NULL THEN 1 ELSE 0 END) AS unreviewed FROM frigate_reviews r "
-           "LEFT JOIN frigate_review_state s ON s.user_id = ? AND s.recorder_id = r.recorder_id AND s.review_id = r.review_id WHERE r.recorder_id = ? AND r.start_ts >= ?"
-           + scope.replace("camera_id", "r.camera_id") + " GROUP BY r.severity, r.camera_id")
     by_sev: dict[str, dict[str, int]] = {"alert": {"total": 0, "unreviewed": 0}, "detection": {"total": 0, "unreviewed": 0}}
     by_cam: dict[str, int] = {}
-    for r in conn.execute(sql, [principal.user_id, recorder_id, since, *sargs]).fetchall():
+    for r in store.review_counts(conn, principal.user_id, recorder_id, since, scope, sargs):
         d = by_sev.setdefault(r["severity"], {"total": 0, "unreviewed": 0})
         d["total"] += r["n"]
         d["unreviewed"] += r["unreviewed"] or 0
@@ -287,7 +246,7 @@ def get_review(recorder_id: str, review_id: str, request: Request, principal: Pr
                conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _adapter(conn, request, recorder_id)
     row = _review_row(conn, principal, recorder_id, review_id)
-    state = conn.execute("SELECT reviewed_at FROM frigate_review_state WHERE user_id = ? AND recorder_id = ? AND review_id = ?", (principal.user_id, recorder_id, review_id)).fetchone()
+    state = store.review_state(conn, principal.user_id, recorder_id, review_id)
     v = fe.review_view(row, reviewed=state is not None)
     v["reviewed_at"] = state["reviewed_at"] if state else None
     v["detection_ids"] = json.loads(row["detections_json"] or "[]")
@@ -331,9 +290,9 @@ def mark_reviewed(recorder_id: str, body: ReviewedIn, request: Request, principa
     now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     for rid in ids:
         if body.reviewed:
-            conn.execute("INSERT OR IGNORE INTO frigate_review_state(user_id, recorder_id, review_id, reviewed_at) VALUES (?,?,?,?)", (principal.user_id, recorder_id, rid, now))
+            store.mark_reviewed(conn, principal.user_id, recorder_id, rid, now)
         else:
-            conn.execute("DELETE FROM frigate_review_state WHERE user_id = ? AND recorder_id = ? AND review_id = ?", (principal.user_id, recorder_id, rid))
+            store.unmark_reviewed(conn, principal.user_id, recorder_id, rid)
     from ..services import frigate_control_svc as control
 
     # F2: the optional mirror toward Frigate (class `review`, permission analytics.review; off by default). Arx's state above is the truth:
@@ -355,7 +314,7 @@ def activity(recorder_id: str, request: Request, principal: Principal = Depends(
     end = _epoch(to, now) or now
     start = _epoch(from_, end - 3600) or end - 3600
     fp.validate_window(start, end, 24 * 3600, now)
-    allowed_keys = {r["source_ref"] for r in conn.execute("SELECT id, source_ref FROM cameras WHERE recorder_id = ?", (recorder_id,)).fetchall() if scope.allows_row(r["id"])}
+    allowed_keys = {r["source_ref"] for r in store.camera_source_refs(conn, recorder_id) if scope.allows_row(r["id"])}
     buckets = []
     for b in a.motion_activity(start, end):
         cams = [c for c in str(b.get("camera") or "").split(",") if c in allowed_keys]
@@ -581,7 +540,7 @@ def storage(recorder_id: str, request: Request, principal: Principal = Depends(c
     """Storage as Frigate reports it: per-camera usage and bandwidth (MB, MB/h) and the recording policy (names of cameras only)."""
     _may_read(conn, principal)
     a = _adapter(conn, request, recorder_id)
-    names = {r["source_ref"]: (r["alias"] or r["name_source"]) for r in conn.execute("SELECT source_ref, alias, name_source FROM cameras WHERE recorder_id = ?", (recorder_id,)).fetchall()}
+    names = {r["source_ref"]: (r["alias"] or r["name_source"]) for r in store.camera_names_by_source_ref(conn, recorder_id)}
     # FRIGLIVE2-295 (live 0.18.0): `/api/recordings/storage` is admin-only - a Frigate `viewer` account gets 403 there while it reads
     # everything else Arx uses. A 403 on that ONE route is a role limit, not a refused session: the per-camera usage is named as
     # unavailable and the policy / retention parts are still served (a 401, an outage or a pin problem still fail the request).

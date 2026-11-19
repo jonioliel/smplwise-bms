@@ -44,6 +44,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, ROLES, STATION, Principal, authorize, require, role_name, role_permissions, scope_name
 from ..services import (bridge_rotation, door_authority, door_blocks, door_conversion, door_overrides, door_path, door_path_guard, ha_bridge, intercom_doors, intercom_sync,
                         revocation, trusted_door)
+from ..services import doors_store as store
 from ._common import rid as _rid
 from . import access as acc
 
@@ -102,8 +103,8 @@ def door_map(request: Request, principal: Principal = Depends(current_principal_
             "mapping": mapping,
             "suggestion": {"station_id": sug.station_id, "relay": sug.relay} if sug else None,
         })
-    sites = [{"id": s["id"], "name": s["name"]} for s in conn.execute("SELECT id, name FROM sites WHERE deleted_at IS NULL ORDER BY sort_order, name").fetchall()]
-    buildings = [{"id": b["id"], "site_id": b["site_id"], "name": b["name"]} for b in conn.execute("SELECT id, site_id, name FROM buildings WHERE deleted_at IS NULL ORDER BY sort_order, name").fetchall()]
+    sites = [{"id": s["id"], "name": s["name"]} for s in store.live_sites(conn)]
+    buildings = [{"id": b["id"], "site_id": b["site_id"], "name": b["name"]} for b in store.live_buildings(conn)]
     return {"state": state, "has_copy": overview is not None, "stations": [_station_view(conn, s) for s in stations.values()], "locks": locks, "sites": sites, "buildings": buildings}
 
 
@@ -177,7 +178,7 @@ def place_station(body: PlacementBody, request: Request, station_id: str = Path(
 
 def _card_bindings(conn: sqlite3.Connection) -> set[str]:
     try:
-        return {r[0] for r in conn.execute("SELECT binding_id FROM door_grant_bindings").fetchall()}
+        return store.card_binding_ids(conn)
     except sqlite3.OperationalError:
         return set()
 
@@ -205,7 +206,7 @@ def door_grants(principal: Principal = Depends(current_principal_ro), conn: sqli
         require(conn, principal, "rbac.roles.manage", INSTALLATION)  # the audited 403
     card = _card_bindings(conn)
     now = now_iso()
-    active = conn.execute(acc._active_bindings_sql("AND effect = 'allow'"), (now,)).fetchall()
+    active = store.active_allow_bindings(conn, now)
     by_subject: dict[tuple[str, str], list[sqlite3.Row]] = {}
     for b in active:
         by_subject.setdefault((b["subject_kind"], b["subject_id"]), []).append(b)
@@ -228,7 +229,7 @@ def door_grants(principal: Principal = Depends(current_principal_ro), conn: sqli
         if door_authority.is_wall_account(conn, u["id"]):
             continue  # SEC-WXD L1: a wall display is not offered as a person who opens doors (the door rule refuses it anyway)
         users.append(subject_row("user", u["id"], u["name"], bool(u["active"])))
-    groups = [subject_row("group", g["id"], g["name"], True) for g in conn.execute("SELECT id, name FROM groups ORDER BY name").fetchall()]
+    groups = [subject_row("group", g["id"], g["name"], True) for g in store.groups(conn)]
     if not full:
         reach = {g["id"] for g in groups if acc.delegated_group_problem(conn, principal, g["id"]) is None}
         groups = [g for g in groups if g["id"] in reach]
@@ -237,7 +238,7 @@ def door_grants(principal: Principal = Depends(current_principal_ro), conn: sqli
         if rid == DOOR_ROLE:
             continue
         roles.append({"id": rid, "name": role_name(conn, rid), "custom": False, "includes": DOOR_OPEN in perms, "editable": False, "answer": _builtin_answer(rid, perms)})  # CR-038 D33: names rendered
-    for r in conn.execute("SELECT id, name_he, sensitive_json, delegable, revision FROM custom_roles WHERE deleted_at IS NULL ORDER BY created_at").fetchall():
+    for r in store.live_custom_roles(conn):
         sens = json.loads(r["sensitive_json"] or "[]")
         roles.append({"id": r["id"], "name": r["name_he"], "custom": True, "includes": any(p in sens for p in DOOR_GRANTS), "editable": can_roles, "delegable": bool(r["delegable"]), "revision": r["revision"]})
     # UNLOCK-REASON-2370: intercom doors waiting for a door mapping (counts only) - no grant opens them until an administrator maps them
@@ -262,7 +263,7 @@ def switch_subject(body: SubjectSwitch, request: Request, principal: Principal =
     _confirmed(body.confirmed)
     card = _card_bindings(conn)
     now = now_iso()
-    mine = [b for b in conn.execute(acc._active_bindings_sql("AND subject_kind = ? AND subject_id = ? AND role_id = ?"), (now, body.subject_kind, body.subject_id, DOOR_ROLE)).fetchall() if b["id"] in card]
+    mine = [b for b in store.active_subject_role_bindings(conn, now, body.subject_kind, body.subject_id, DOOR_ROLE) if b["id"] in card]
     if body.enabled:
         if mine:
             return {"granted": True, "binding_id": mine[0]["id"], "revision": int(get_setting(conn, "permission_revision", "1") or 1)}
@@ -272,7 +273,7 @@ def switch_subject(body: SubjectSwitch, request: Request, principal: Principal =
         bb = acc.BindingBody(subject_kind=body.subject_kind, subject_id=body.subject_id, role_id=DOOR_ROLE, scope_type="installation", scope_id="*")
         acc.validate_binding(conn, principal, bb, request)
         bid, rev = acc.insert_binding(conn, principal, request, bb, extra_audit={"via": "door_grants_card"})
-        conn.execute("INSERT INTO door_grant_bindings(binding_id, created_at) VALUES (?, ?)", (bid, now_iso()))
+        store.add_card_binding(conn, bid, now_iso())
         revocation.changed(acc.affected_users(conn, body.subject_kind, body.subject_id))
         return {"granted": True, "binding_id": bid, "revision": rev}
     rev = None
@@ -298,7 +299,7 @@ def switch_role(role_id: str, body: RoleSwitch, request: Request, principal: Pri
     _confirmed(body.confirmed)
     if role_id in ROLES:
         raise ApiError(409, "builtin_role", "תפקידים מובנים אינם משתנים כאן; אפשר לתת למשתמשים בנפרד.")
-    r = conn.execute("SELECT * FROM custom_roles WHERE id = ? AND deleted_at IS NULL", (role_id,)).fetchone()
+    r = store.live_custom_role(conn, role_id)
     if not r:
         raise ApiError(404, "not_found", "התפקיד לא נמצא.")
     if body.revision != r["revision"]:
@@ -318,8 +319,7 @@ def switch_role(role_id: str, body: RoleSwitch, request: Request, principal: Pri
     impact = acc._role_impact(conn, role_id, sorted(set(perms) | set(new_sens)))
     if not impact["added"] and not impact["removed"]:
         return {"id": role_id, "includes": body.enabled, "revision": r["revision"]}
-    conn.execute("UPDATE custom_roles SET sensitive_json = ?, revision = revision + 1, updated_by = ?, updated_by_username = ?, updated_at = ? WHERE id = ?",
-                 (json.dumps(new_sens), principal.user_id, principal.username, now_iso(), role_id))
+    store.set_role_sensitive(conn, role_id, json.dumps(new_sens), principal.user_id, principal.username, now_iso())
     rev = bump_permission_revision(conn)
     if impact["removed"]:
         acc._terminate(conn, settings_of(request), {u["id"] for u in impact["users"]})
@@ -327,7 +327,7 @@ def switch_role(role_id: str, body: RoleSwitch, request: Request, principal: Pri
         revocation.changed({u["id"] for u in impact["users"]})
     audit(conn, actor=principal, action="rbac.role.update", decision="allowed", resource_type="role", resource_id=role_id, request_id=_rid(request),
           details={"added": impact["added"], "removed": impact["removed"], "affected_users": len(impact["users"]), "affected_bindings": impact["bindings"], "via": "door_grants_card", "revision": rev})
-    row = conn.execute("SELECT revision FROM custom_roles WHERE id = ?", (role_id,)).fetchone()
+    row = store.custom_role_revision(conn, role_id)
     return {"id": role_id, "includes": body.enabled, "revision": row["revision"], "permission_revision": rev}
 
 
@@ -399,10 +399,7 @@ def door_status(request: Request, request_id: str = Path(min_length=36, max_leng
     transport has no status read."""
     if not REQUEST_ID.fullmatch(request_id):
         raise ApiError(422, "validation", "מזהה הבקשה אינו תקין.")
-    row = conn.execute(
-        "SELECT actor_user_id, details_json FROM audit_log WHERE action = 'intercom.release' AND details_json LIKE ? AND details_json LIKE ? ORDER BY rowid LIMIT 1",
-        (f'%"door_request_id": "{request_id}"%', '%"phase": "attempt"%'),
-    ).fetchone()
+    row = store.release_attempt(conn, request_id)
     if row is None:
         raise ApiError(404, "not_found", "הבקשה לא נמצאה.")
     if row["actor_user_id"] != principal.user_id:
