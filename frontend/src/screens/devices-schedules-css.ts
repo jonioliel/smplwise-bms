@@ -96,12 +96,11 @@ export const devicesSchedulesStyles = [bubbleChrome, ...automationsStyles, media
     .vwrap {
       flex: none;
     }
-    .views button {
-      padding-inline: 12px;
-      min-inline-size: 40px;
-    }
-    .views .ic {
-      font-size: var(--sw-fs-lg);
+    /* CR-CMP2-SEGMENTED-C-2450: the view switch is sw-segmented (icon-only keys); its 40 / 44 px keys and the larger icon through the knobs */
+    sw-segmented.views {
+      --sw-seg-ico-pad: 12px;
+      --sw-seg-key-min-w: 40px;
+      --sw-seg-icon-size: var(--sw-fs-lg);
     }
     /* the filters behind "סינון": the same chips and dropdown chips as the header */
     .more {
@@ -911,8 +910,8 @@ export const devicesSchedulesStyles = [bubbleChrome, ...automationsStyles, media
         inline-size: 44px;
         block-size: 44px;
       }
-      .views button {
-        min-inline-size: 44px;
+      sw-segmented.views {
+        --sw-seg-key-min-w: 44px;
       }
       .rc.day {
         inline-size: 44px;

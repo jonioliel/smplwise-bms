@@ -3,6 +3,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-dialog';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { describeError } from '../api/client';
 import {
   getNotice, grantableDoors, listApprovers, requestGrant, type ApproversReply, type GrantableDoors, type GrantableStation, type NoticeReply,
@@ -65,12 +67,9 @@ export class AccessRequestDialog extends LitElement {
       .ap { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 22px; align-items: start; }
       .col { display: grid; gap: 20px; min-inline-size: 0; }
       .sec > h4 .sp { flex: 1; }
-      .seg { display: flex; gap: 4px; padding: 3px; border-radius: var(--sw-r-md); background: var(--sw-surface-2); }
-      .seg button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; background: transparent; color: var(--sw-text-2);
-        min-block-size: var(--sw-touch-desktop, 44px); border-radius: var(--sw-r-sm); font: inherit; font-size: var(--sw-fs-sm); cursor: pointer; padding: 0 10px; }
-      .seg button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface-solid)); color: var(--sw-seg-key-ink, var(--sw-heading)); font-weight: 600; box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
-      .seg button:disabled { opacity: .5; cursor: not-allowed; }
-      .seg button:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 1px; }
+      /* CR-CMP2-SEGMENTED-C-2450: the dialog's choices are sw-segmented (block: the keys share the row), its own key through the knobs */
+      sw-segmented { --sw-seg-track: var(--sw-surface-2); --sw-seg-gap: 4px; --sw-seg-h: var(--sw-touch-desktop, 44px); --sw-seg-key-pad: 10px; --sw-seg-fs: var(--sw-fs-sm);
+        --sw-seg-fw: 400; --sw-seg-on-fw: 600; --sw-seg-on-bg: var(--sw-seg-key, var(--sw-surface-solid)); --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-heading)); }
       .f2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
       textarea.in { min-block-size: 76px; padding-block: 8px; resize: vertical; }
       select.in { appearance: auto; }
@@ -260,9 +259,11 @@ export class AccessRequestDialog extends LitElement {
 
   private whoSection(e: Errs): TemplateResult {
     const f = this.f;
-    const seg = html`<div class="seg" role="group" aria-label=${rt('who')}>
-      <button type="button" data-pmode="dir" aria-pressed=${String(f.mode === 'dir')} @click=${() => this.set({ mode: 'dir' })}><sw-icon name="users" size="15"></sw-icon>${rt('fromDir')}</button>
-      <button type="button" data-pmode="new" aria-pressed=${String(f.mode === 'new')} @click=${() => this.set({ mode: 'new' })}><sw-icon name="user" size="15"></sw-icon>${rt('newPerson')}</button></div>`;
+    const seg = html`<sw-segmented block label=${rt('who')} value=${f.mode} @change=${(ev: CustomEvent<SegmentedChange>) => this.set({ mode: ev.detail.value as RequestForm['mode'] })}
+      .options=${[
+        { value: 'dir', label: rt('fromDir'), icon: html`<sw-icon name="users" size="15"></sw-icon>`, attrs: { 'data-pmode': 'dir' } },
+        { value: 'new', label: rt('newPerson'), icon: html`<sw-icon name="user" size="15"></sw-icon>`, attrs: { 'data-pmode': 'new' } },
+      ]}></sw-segmented>`;
     let body: TemplateResult;
     if (f.mode === 'dir') {
       const c = this.contact();
@@ -392,7 +393,8 @@ export class AccessRequestDialog extends LitElement {
         <div class="field"><label for="vu">${rt('until')}</label><input id="vu" class="in num" type="date" lang=${dateInputLang()} min=${f.from || today} aria-invalid=${e.dates ? 'true' : 'false'} .value=${f.until} @change=${(ev: Event) => this.set({ until: (ev.target as HTMLInputElement).value, dates: new Set() })} /></div></div>
       ${this.err(e, 'dates')}
       ${n && !e.dates ? html`<div class="row"><span class="chip" data-tone="acc">${rt('daysOf', { n, max })}</span>${f.cred === 'pin' ? html`<span class="chip" data-tone="off"><sw-icon name="mail" size="12"></sw-icon>${due ? rt('codeAt', { t: due }) : rt('codeAtOnce')}</span>` : nothing}</div>` : nothing}
-      <div class="seg" role="group"><button type="button" aria-pressed=${String(f.dmode === 'weekly')} @click=${() => this.set({ dmode: 'weekly' })}>${rt('weekdays')}</button><button type="button" aria-pressed=${String(f.dmode === 'dates')} @click=${() => this.set({ dmode: 'dates' })}>${rt('specificDates')}</button></div>
+      <sw-segmented block label=${rt('when')} value=${f.dmode} @change=${(ev: CustomEvent<SegmentedChange>) => this.set({ dmode: ev.detail.value as RequestForm['dmode'] })}
+        .options=${[{ value: 'weekly', label: rt('weekdays') }, { value: 'dates', label: rt('specificDates') }]}></sw-segmented>
       ${f.dmode === 'weekly'
         ? html`<div class="pills" data-days>${[0, 1, 2, 3, 4, 5, 6].map((i) => html`<button type="button" class="pill" aria-pressed=${String(f.days.has(i))} data-day=${i} @click=${() => this.set({ days: toggle(f.days, i) })}>${rt(`d${i}` as RtKey)}</button>`)}</div>`
         : html`<div class="pills" data-dates>${dates.length ? dates.map((d) => html`<button type="button" class="pill num" aria-pressed=${String(f.dates.has(d))} @click=${() => this.set({ dates: toggle(f.dates, d) })}>${dm(d)}</button>`) : html`<span class="chip" data-tone="off">${rt('pickRange')}</span>`}</div>`}
@@ -413,14 +415,16 @@ export class AccessRequestDialog extends LitElement {
   private credSection(): TemplateResult {
     const f = this.f;
     return html`<section class="sec" data-sec="cred"><h4><sw-icon name="shield" size="14"></sw-icon>${rt('cred')}</h4>
-      <div class="seg" role="group"><button type="button" data-cred="pin" aria-pressed=${String(f.cred === 'pin')} @click=${() => this.set({ cred: 'pin' })}><sw-icon name="mail" size="14"></sw-icon>${rt('credPin')}</button>
-        <button type="button" data-cred="none" aria-pressed=${String(f.cred === 'none')} @click=${() => this.set({ cred: 'none' })}>${rt('credNone')}</button>
-        ${this.cards
-          ? html`<button type="button" data-cred="card" aria-pressed=${String(f.cred === 'card')} @click=${() => this.set({ cred: 'card' })}><sw-icon name="shield" size="14"></sw-icon>${rt('credCard')}</button>`
-          : html`<button type="button" disabled aria-pressed="false" data-cred="card"><sw-icon name="lock" size="14"></sw-icon>${rt('credCard')}</button>`}</div>
+      <sw-segmented block label=${rt('cred')} value=${f.cred} @change=${(ev: CustomEvent<SegmentedChange>) => this.set({ cred: ev.detail.value as RequestForm['cred'] })}
+        .options=${[
+          { value: 'pin', label: rt('credPin'), icon: html`<sw-icon name="mail" size="14"></sw-icon>`, attrs: { 'data-cred': 'pin' } },
+          { value: 'none', label: rt('credNone'), attrs: { 'data-cred': 'none' } },
+          // no card system: the key stays, locked
+          { value: 'card', label: rt('credCard'), icon: html`<sw-icon name=${this.cards ? 'shield' : 'lock'} size="14"></sw-icon>`, disabled: !this.cards, attrs: { 'data-cred': 'card' } },
+        ]}></sw-segmented>
       ${f.cred === 'pin'
-        ? html`<div class="seg" role="group" aria-label=${rt('codeType')} data-code-mode><button type="button" data-once="0" aria-pressed=${String(!f.once)} @click=${() => this.set({ once: false })}>${rt('codeWindow')}</button>
-            <button type="button" data-once="1" aria-pressed=${String(f.once)} @click=${() => this.set({ once: true })}>${rt('codeOnce')}</button></div>
+        ? html`<sw-segmented block label=${rt('codeType')} data-code-mode value=${f.once ? '1' : '0'} @change=${(ev: CustomEvent<SegmentedChange>) => this.set({ once: ev.detail.value === '1' })}
+            .options=${[{ value: '0', label: rt('codeWindow'), attrs: { 'data-once': '0' } }, { value: '1', label: rt('codeOnce'), attrs: { 'data-once': '1' } }]}></sw-segmented>
             ${f.once ? html`<p class="note">${rt('codeOnceNote')}</p>` : nothing}`
         : nothing}</section>`;
   }

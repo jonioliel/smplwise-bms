@@ -5,6 +5,8 @@ import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-avatar';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { describeError } from '../api/client';
 import { getSettings, patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
@@ -16,7 +18,6 @@ import {
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsPlainRowStyles, settingsStackLabelStyles, settingsMutedHintStyles, settingsWrapFootStyles } from '../styles/settings';
-import { segTrackStyles, segThumbStyles } from '../styles/fragments';
 import { tr } from '../i18n/msg/system-b';
 
 /** The preview's tabs (the same icons and labels as the rail; shell/nav.ts NAV_A). */
@@ -59,35 +60,15 @@ export class SystemNavSize extends LitElement {
     }
     ${settingsStackLabelStyles}
     ${settingsMutedHintStyles}
-    ${segTrackStyles}
-    .seg button {
-      all: unset;
-      box-sizing: border-box;
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      min-block-size: 36px;
-      padding: 0 14px;
-      border-radius: var(--sw-r-sm);
-      color: var(--sw-text-2);
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-medium);
-      cursor: pointer;
+    /* CR-CMP2-SEGMENTED-C-2450: the keys are sw-segmented (the settings key); this page keeps its 36 px key with the medium label */
+    sw-segmented {
+      --sw-seg-h: 36px;
+      --sw-seg-fw: var(--sw-fw-medium);
+      --sw-seg-on-fw: var(--sw-fw-semibold);
     }
-    ${segThumbStyles}
-    .seg button:focus-visible,
     input:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
-    }
-    .seg .cur {
-      font-size: var(--sw-fs-2xs);
-      padding: 1px 6px;
-      border-radius: 999px;
-      background: var(--sw-accent-soft);
-      color: var(--sw-accent-text);
-      font-weight: var(--sw-fw-semibold);
     }
     .stage {
       display: flex;
@@ -266,9 +247,8 @@ export class SystemNavSize extends LitElement {
     const cur = this.applied.mode === 'rel' ? this.applied.preset : null;
     const sel = this.draft.mode === 'rel' ? this.draft.preset : null;
     return html`<div class="row" data-nav-rel><span class="lbl">${tr('גודל')}<span class="muted">${tr('כל חלקי הניווט מוגדלים ומוקטנים יחד')}</span></span>
-      <span class="seg" role="group" aria-label=${tr('גודל הניווט')}>${NAV_PRESETS.map(
-        (p) => html`<button type="button" data-nav-preset=${p} aria-pressed=${sel === p ? 'true' : 'false'} @click=${() => { this.draft = { mode: 'rel', preset: p }; this.message = ''; }}>${NAV_PRESET_LABEL[p]}${cur === p ? html`<span class="cur" data-nav-current>${tr('נוכחי')}</span>` : nothing}</button>`,
-      )}</span></div>`;
+      <sw-segmented label=${tr('גודל הניווט')} value=${sel ?? ''} @change=${(e: CustomEvent<SegmentedChange>) => { this.draft = { mode: 'rel', preset: e.detail.value as (typeof NAV_PRESETS)[number] }; this.message = ''; }}
+        .options=${NAV_PRESETS.map((p) => ({ value: p, label: NAV_PRESET_LABEL[p], badge: cur === p ? tr('נוכחי') : undefined, badgeAttrs: { 'data-nav-current': '' }, attrs: { 'data-nav-preset': p } }))}></sw-segmented></div>`;
   }
 
   private renderPreview() {
@@ -293,10 +273,8 @@ export class SystemNavSize extends LitElement {
     return html`<sw-card heading=${tr('גודל הניווט')} subheading=${tr('סרגל הצד במחשב והסרגל התחתון בטלפון')} data-nav-size>
       ${both
         ? html`<div class="row"><span class="lbl">${tr('מה לערוך')}<span class="muted">${tr('הגדרה אישית גוברת על ברירת המחדל של המערכת')}</span></span>
-            <span class="seg" role="group" aria-label=${tr('מה לערוך')}>
-              <button type="button" data-nav-target="own" aria-pressed=${this.target === 'own' ? 'true' : 'false'} @click=${() => this.setTarget('own')}>${tr('שלי')}</button>
-              <button type="button" data-nav-target="installation" aria-pressed=${this.target === 'installation' ? 'true' : 'false'} @click=${() => this.setTarget('installation')}>${tr('ברירת מחדל של המערכת')}</button>
-            </span></div>`
+            <sw-segmented label=${tr('מה לערוך')} value=${this.target} @change=${(e: CustomEvent<SegmentedChange>) => this.setTarget(e.detail.value as 'own' | 'installation')}
+              .options=${[{ value: 'own', label: tr('שלי'), attrs: { 'data-nav-target': 'own' } }, { value: 'installation', label: tr('ברירת מחדל של המערכת'), attrs: { 'data-nav-target': 'installation' } }]}></sw-segmented></div>`
         : nothing}
       ${this.renderRel()}
       ${this.renderPreview()}
