@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { settle } from './helpers/settle';
 
 // POLISH2-295 (owner feedback 2026-10-25 on the POLISH-295 screens), in demo mode (no backend answers):
 //  1. the automations list keeps the cards with their explanatory sentence as a choice beside the rows - a view switch where the
@@ -223,6 +224,9 @@ test.describe('dark scheme: the choice buttons are legible', () => {
       await expect.poll(() => choiceCount(page), { message: 'the screen drew its choice buttons', timeout: 20_000 }).toBeGreaterThan(0);
       await dark(page);
       await page.waitForTimeout(800);
+      // the resting dark colours: on a lagging renderer the scheme's colour transitions had not run a single frame 800 ms after the
+      // switch (a light-to-dark background read at its start under the new ink: 1.44:1 / 4.48:1 on the runner, never alone)
+      await settle(page);
       const all = await choiceContrast(page);
       expect(all.length, 'choice buttons found').toBeGreaterThan(0);
       expect(all.some((x) => x.chosen), 'a chosen one').toBe(true);

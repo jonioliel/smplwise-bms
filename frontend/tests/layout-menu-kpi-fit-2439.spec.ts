@@ -2,9 +2,9 @@ import { test, expect, type Page } from '@playwright/test';
 import { settle } from './helpers/settle';
 
 // FIX-FLAKY-POLISH-WORSTCASE-2439: the regressions behind the layout-worstcase-screens-297 flake (the gates of 2.43.8), in demo mode:
-//  1. a user menu that was never opened is never visible - its first style used to run the delayed hide that is meant for closing,
-//     so the closed menu stayed visible (accessibility tree, layout checks) for the first --sw-t-med of every page load; a close
-//     after an open still keeps the panel visible while it slides away;
+//  1. a user menu or a notification centre that was never opened is never visible - its first style used to run the delayed hide
+//     that is meant for closing, so the closed overlay stayed visible (accessibility tree, layout and contrast checks) for the first
+//     transition time of every page load; a close after an open still keeps the panel visible while it slides away;
 //  2. a view choice with three options (the building screen with the live plan) keeps its label whole: "תצוגה" was squeezed to
 //     11 px of the 300 px popover and ran under the control;
 //  3. a counter tile fits its figures again when a web font lands after the fit (the tile keeps its size, so neither a render nor
@@ -16,23 +16,24 @@ const MENU = 'sw-app sw-user-menu';
 async function openBuilding(page: Page) {
   await page.route('**/api/v1/**', (route) => route.abort()); // demo mode whatever runs on the preview's proxy target
   await page.addInitScript(() => {
-    // every frame of the load: is the closed menu computed visible?
-    const w = window as unknown as { __closedVisible: string[] };
+    // every frame of the load: is a closed overlay (the user menu, the notification centre) computed visible?
+    const w = window as unknown as { __closedVisible: string[]; __seen: string[] };
     w.__closedVisible = [];
-    const find = (root: Document | ShadowRoot): Element | null => {
+    w.__seen = [];
+    const find = (root: Document | ShadowRoot, out: Element[] = []): Element[] => {
       for (const el of root.querySelectorAll('*')) {
-        if (el.tagName === 'SW-USER-MENU') return el;
-        if (el.shadowRoot) {
-          const f = find(el.shadowRoot);
-          if (f) return f;
-        }
+        if (el.tagName === 'SW-USER-MENU' || el.tagName === 'NOTIFY-CENTER') out.push(el);
+        if (el.shadowRoot) find(el.shadowRoot, out);
       }
-      return null;
+      return out;
     };
     const tick = () => {
-      const m = find(document);
-      if (m && !m.hasAttribute('open') && !m.hasAttribute('data-was-open') && getComputedStyle(m).visibility !== 'hidden') {
-        w.__closedVisible.push(`${performance.now().toFixed(0)} ms`);
+      for (const m of find(document)) {
+        const tag = m.tagName.toLowerCase();
+        if (!w.__seen.includes(tag)) w.__seen.push(tag);
+        if (!m.hasAttribute('open') && !m.hasAttribute('data-was-open') && getComputedStyle(m).visibility !== 'hidden') {
+          w.__closedVisible.push(`${tag} ${performance.now().toFixed(0)} ms`);
+        }
       }
       requestAnimationFrame(tick);
     };
@@ -46,9 +47,14 @@ async function openBuilding(page: Page) {
   await settle(page);
 }
 
-test('the closed user menu is never visible while the page loads; a close still slides the open panel away', async ({ page }) => {
+test('a closed user menu or notification centre is never visible while the page loads; a close still slides the open panel away', async ({ page }) => {
   await openBuilding(page);
-  expect(await page.evaluate(() => (window as unknown as { __closedVisible: string[] }).__closedVisible), 'frames with the closed menu visible').toEqual([]);
+  const load = await page.evaluate(() => {
+    const w = window as unknown as { __closedVisible: string[]; __seen: string[] };
+    return { visible: w.__closedVisible, seen: [...w.__seen].sort() };
+  });
+  expect(load.seen, 'both overlays are on the page').toEqual(['notify-center', 'sw-user-menu']);
+  expect(load.visible, 'frames with a closed overlay visible').toEqual([]);
   await page.locator('sw-app [data-profile-menu]:visible, sw-app [data-nav-me]:visible').first().click();
   await expect(page.locator(`${MENU} [data-user-menu]`)).toBeVisible();
   await settle(page);
@@ -60,15 +66,18 @@ test('the closed user menu is never visible while the page loads; a close still 
   expect(prop).toBe('visibility');
   expect(wait, 'the delayed hide after a close').toBeGreaterThan(0);
   const fresh = await page.evaluate(async () => {
-    const m = document.createElement('sw-user-menu') as HTMLElement & { updateComplete: Promise<boolean> };
-    document.body.appendChild(m);
-    await m.updateComplete;
-    const cs = getComputedStyle(m);
-    const out = [cs.visibility, cs.transitionProperty];
-    m.remove();
+    const out: string[][] = [];
+    for (const tag of ['sw-user-menu', 'notify-center']) {
+      const m = document.createElement(tag) as HTMLElement & { updateComplete: Promise<boolean> };
+      document.body.appendChild(m);
+      await m.updateComplete;
+      const cs = getComputedStyle(m);
+      out.push([tag, cs.visibility, cs.transitionProperty]);
+      m.remove();
+    }
     return out;
   });
-  expect(fresh, 'a menu never opened: hidden, no delayed hide').toEqual(['hidden', 'none']);
+  expect(fresh, 'an overlay never opened: hidden, no delayed hide').toEqual([['sw-user-menu', 'hidden', 'none'], ['notify-center', 'hidden', 'none']]);
 });
 
 test('a view choice with three options keeps its label whole inside the menu', async ({ page }) => {
