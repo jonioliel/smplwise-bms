@@ -100,3 +100,14 @@ Entry chunk of the built UI (`node scripts/bundle-budget.mjs --dir ../smplwise_v
 
 Run 1: `~/wait_gate_2440.sh` -> `GATE_EARLY_FAILFAST=continue GATE_TOTAL_SECS=12000 nice -n 10 ~/gate2/release_gate2.sh release/2440-train`
 (base v2.43.9; selection = full tier: backend 999 files, frontend 1171 specs; estimate 128-154 min) on 9d9ccb585, started 11:15 UTC.
+
+**Run 1 result (9d9ccb585, 168 min wall, load up to ~57): FAIL** - 0 hard failures, 5 test failures, 38 flaky (failed once, passed
+alone). Counts: preview 22,727 passed; dev 1,125; fixture 28; visual 72 (0 changed); pixel 360; backend 23,544 passed, 0 failed,
+5 flaky; tsc, build, fe_static (eslint, bundle budget, unused exports), release_check, addon_build (Supervisor-like image) PASS.
+
+| Failure | Cause | Fix |
+|---|---|---|
+| `unit-plan-editor-hot-2436:86` desktop + tablet, "MSG-1: a detached editor keeps no running message timer" (`'bye'` expected, `''`) | merge interaction: CR-CMP2-TOAST-2440 put the editor's messages on `ToastController`, whose rule is "on disconnect the timer is stopped AND the message dropped"; the page spec asserted the old private implementation | a2802fa4e: the spec checks the same intent on the controller (shown, gone at detach, still gone later, no late `requestUpdate`); local vite preview of the built UI, `SW_UNIT_PAGES=1`: the MSG-1 tests 4 passed (`--repeat-each=2`) |
+| `evidence-automations-builder:676` mobile (timeout) | load | runner, `run_smart.py preview` at load 2.5, workers 1, all projects: passed (desktop, tablet, mobile) |
+| `evidence-tickets:56` desktop (timeout) | load (the known screenshot-load timeout) | same run: passed (desktop, mobile; tablet skips) |
+| `unit-home-clock:74` desktop (Hebrew date did not change within 5 s) | load | same run: passed; workstation preview: the file 5 passed |
