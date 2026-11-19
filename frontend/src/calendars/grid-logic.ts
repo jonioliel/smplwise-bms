@@ -188,17 +188,36 @@ export function hintFor(c: Candidate, busy: Occurrence[], s: HintSettings, now: 
   const sMin = minOfDay(c.start);
   const eMin = c.end.getTime() - day.getTime() >= 86_400_000 ? 1440 : minOfDay(c.end);
   let needsApproval = cal.approval_mode === 'always' || (cal.approval_mode === 'on_behalf' && !!c.behalf && c.behalf !== 'self');
+  if (hoursRule(cal, day, sMin, eMin, strong, out, block)) needsApproval = true;
+  bookingRules(c, cal, strong, sMin, eMin, now, out, block);
+  conflictRule(c, cal, busy, s, out, block);
+  if (needsApproval && strong && s.editors_bypass_approval) needsApproval = false;
+  const toRequest = needsApproval || !!out.contested;
+  if (toRequest && c.moving === 'confirmed' && cal.approved_move === 'managers' && !strong) block.push(tr('הזמנה מאושרת: שינוי רק דרך מנהל החדר'));
+  verdictOf(out, block, needsApproval);
+  return out;
+}
+
+/** CR-FE-COMPLEXITY-2450 (split of hintFor, moved verbatim): the opening hours. Pushes a block or sets a manager's warning; true = the entry needs approval (outside the hours of an
+ * `outside_hours` calendar). */
+function hoursRule(cal: Calendar, day: Date, sMin: number, eMin: number, strong: boolean, out: Hint, block: string[]): boolean {
+  let approval = false;
   const open = openOn(cal, day);
   if (!open) {
     if (strong) out.warn = tr('{name} סגור ב{day}. כמנהל היומן מותר לך', { name: cal.name, day: DAY_LONG[day.getDay()] });
-    else if (cal.approval_mode === 'outside_hours') needsApproval = true;
+    else if (cal.approval_mode === 'outside_hours') approval = true;
     else block.push(day.getDay() === 6 ? tr('{name} סגור בשבת', { name: cal.name }) : tr('{name} סגור ביום הזה', { name: cal.name }));
   } else if (sMin < open.from || eMin > open.to) {
     const txt = tr('מחוץ לשעות הפתיחה של {name}: {from}–{to}', { name: cal.name, from: `${pad(Math.floor(open.from / 60))}:${pad(open.from % 60)}`, to: `${pad(Math.floor(open.to / 60))}:${pad(open.to % 60)}` });
     if (strong) out.warn = tr('{text}. כמנהל היומן מותר לך', { text: txt });
-    else if (cal.approval_mode === 'outside_hours') needsApproval = true;
+    else if (cal.approval_mode === 'outside_hours') approval = true;
     else block.push(txt);
   }
+  return approval;
+}
+
+/** CR-FE-COMPLEXITY-2450 (split of hintFor, moved verbatim): the start in the past, the shortest and longest booking, the step and the capacity. */
+function bookingRules(c: Candidate, cal: Calendar, strong: boolean, sMin: number, eMin: number, now: Date, out: Hint, block: string[]): void {
   if (c.started ? c.end <= now : c.start < now) block.push(tr('המועד כבר התחיל או עבר'));
   const len = Math.round((c.end.getTime() - c.start.getTime()) / 60000);
   if (cal.max_minutes && len > cal.max_minutes) {
@@ -212,6 +231,10 @@ export function hintFor(c: Candidate, busy: Occurrence[], s: HintSettings, now: 
   const step = stepOf(cal);
   if (sMin % step || eMin % step) block.push(tr('השעות ב{name} בקפיצות של {n} דק׳', { name: cal.name, n: step }));
   if (cal.capacity && c.headcount && c.headcount > cal.capacity) block.push(tr('ב{name} יש {n} מקומות', { name: cal.name, n: cal.capacity }));
+}
+
+/** CR-FE-COMPLEXITY-2450 (split of hintFor, moved verbatim): the clashes with the entries on screen (an exclusive calendar only): blocks, the contested entry, pending peers. */
+function conflictRule(c: Candidate, cal: Calendar, busy: Occurrence[], s: HintSettings, out: Hint, block: string[]): void {
   // conflicts: only an exclusive calendar; buffers on both sides (touching is not a clash)
   if ((cal.conflict_policy ?? 'exclusive') === 'exclusive') {
     const margin = ((cal.buffer_before_min ?? 0) + (cal.buffer_after_min ?? 0)) * 60000;
@@ -235,9 +258,10 @@ export function hintFor(c: Candidate, busy: Occurrence[], s: HintSettings, now: 
       } else if (o.state === 'pending') out.peers += 1;
     }
   }
-  if (needsApproval && strong && s.editors_bypass_approval) needsApproval = false;
-  const toRequest = needsApproval || !!out.contested;
-  if (toRequest && c.moving === 'confirmed' && cal.approved_move === 'managers' && !strong) block.push(tr('הזמנה מאושרת: שינוי רק דרך מנהל החדר'));
+}
+
+/** CR-FE-COMPLEXITY-2450 (split of hintFor, moved verbatim): the level and the reason: the first block, else the contested entry, else approval. */
+function verdictOf(out: Hint, block: string[], needsApproval: boolean): void {
   if (block.length) {
     out.level = 'bad';
     out.reason = block[0];
@@ -249,7 +273,6 @@ export function hintFor(c: Candidate, busy: Occurrence[], s: HintSettings, now: 
     out.level = 'pend';
     out.reason = out.approver ? tr('באישור {name}', { name: out.approver }) : tr('באישור מנהל היומן');
   }
-  return out;
 }
 
 /** The short line under a dragged entry / a selection: the reason it cannot go there, or that it goes to approval, or a manager's warning. */
