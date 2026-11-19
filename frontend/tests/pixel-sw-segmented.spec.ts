@@ -26,7 +26,7 @@ async function specimen(page: Page, scheme: 'light' | 'dark') {
       'position:fixed;inset:0;z-index:2147483647;overflow:hidden;padding:24px 16px;box-sizing:border-box;display:flex;flex-direction:column;gap:18px;' +
       'align-items:flex-start;background:var(--sw-surface);color:var(--sw-text);font-family:var(--sw-font, inherit);';
     const row = (opts: Opt[], value: string, attrs: Record<string, string> = {}) => {
-      const el = document.createElement('sw-segmented') as HTMLElement & { options: Opt[]; value: string };
+      const el = document.createElement('sw-segmented') as unknown as HTMLElement & { options: Opt[]; value: string };
       el.options = opts;
       el.value = value;
       el.setAttribute('label', 'specimen');
@@ -46,7 +46,7 @@ async function specimen(page: Page, scheme: 'light' | 'dark') {
     const block = document.createElement('div');
     block.style.cssText = 'inline-size:min(100%, 340px);display:flex';
     sheet.append(block);
-    const b = document.createElement('sw-segmented') as HTMLElement & { options: Opt[]; value: string };
+    const b = document.createElement('sw-segmented') as unknown as HTMLElement & { options: Opt[]; value: string };
     b.options = [{ value: 'own', label: 'ההעדפה שלי' }, { value: 'inst', label: 'ברירת המחדל של ההתקנה' }];
     b.value = 'own';
     b.setAttribute('block', '');

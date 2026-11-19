@@ -173,7 +173,7 @@ export class ToastController<Tone extends string = string> implements ReactiveCo
   }
 }
 
-export interface StackedToast<Tone extends string = string> {
+interface StackedToast<Tone extends string = string> {
   /** A new number per message (a stable `repeat` key). */
   readonly id: number;
   readonly text: string;
