@@ -146,3 +146,36 @@ Fixes after run 2:
 Runner re-runs at ba7b82a46 before run 3: the 10 backend failures alone - 8 passed, 2 failed (fixed in 7257b2d53, then both files
 passed locally); `layout-timescrub-noscroll` + `dropdown-phone-choice`, all projects, workers 1: 96 passed.
 
+| Run | Sha | Result |
+|---|---|---|
+| 3 | 670716c08 (full tier, 192 min, load ~40-65) | **FAIL**: 0 hard failures; tsc, build, fe_static (ESLint, bundle budget, unused exports), release_check, addon_build PASS; backend 23,506 passed, 7 flaky passed alone; dev 1,122, fixture 28, visual 72, pixel 360 - all passed; preview 22,484 passed, 115 flaky passed alone, **6 failed again alone** (below) |
+
+The 6 failures of run 3, re-run alone on the runner (load ~3, `run_smart preview`, workers 1, all projects):
+
+| Failure | Cause | Fix |
+|---|---|---|
+| `evidence-design-foundation:190` mobile, domus light / dark (timeout) | load: passed alone | none |
+| `evidence-nav-size:86` desktop - `--sw-rail-w` 96 vs 108 | the rail offset came only from a ResizeObserver, a frame after the size preset changed; the spec read it in between (the spec passes on v2.43.8, same runner; the train's timing changed) | 107ece670: `sw-app.applyNavSize` also measures the rail at once (`measureRail`) - product |
+| `layout-playback-grid-2443:38` desktop x3 (new spec of CR-NOSCROLL-LISTS-2443, never run before) | (1) the 2x2 grid was 7 px over the budget: the width caps of PAGING-SETTING-2439 count the padding but `.grid` was content-box; (2) then the page still scrolled 36-53 px: the diagnostics row (setting `playback.diagnostics`, default all) carried the group sync explanation, which wrapped to three lines | 107ece670: `.grid` border-box; 7a787c8fe: the sync span shows its name, the explanation is its title (2x2 now measures like the single video); the spec hides the diagnostics row (the 0.1.68 budget is defined without it) |
+
+Re-run after the fixes (runner, workers 1, all projects, at 107ece670): `evidence-nav-size` + `evidence-design-foundation` all
+passed (44 passed with the grid spec's 3 failures before 7a787c8fe); `layout-playback-grid-2443` at 7a787c8fe locally (Vite dev):
+3 passed; probe single 6 px / 2x2 6 px. `unit-i18n-*` 86 passed; `tsc -p tsconfig.json` exit 0. UI rebuilt at 7a787c8fe
+(66527605c, sha256 `094714e8...1f2fd69b`).
+
+Open item (pre-existing, not fixed here): with the diagnostics row shown (the default), the recordings page scrolls by 6 px at
+1440x900 for a single video too - the 0.1.68 stage budget does not count that row.
+
+| Run | Sha | Result |
+|---|---|---|
+| 4 - targeted (`release_gate2.sh --after gate_release-2439-train_670716c08.json`, base 670716c08) | 66527605c | **PASS** in 25 min: 0 hard failures, 0 test failures; backend 137 files - 3,746 passed; preview 4,011 passed, 2 flaky passed alone (`evidence-playback-stall:105`, `home-v3-followup-a:79`); dev 76, visual 72, pixel 43 (6 mapped specs) - all passed; tsc, build, fe_static, release_check, addon_build PASS. Deferred to the nightly (heavy, unchanged): `evidence-menu-opaque`, `evidence-nn1-p2`, `evidence-plan-3d-dpr-cap`, `layout-tickets-tabs` |
+
+Release decision: run 3 (full tier) + run 4 (targeted on the fixes), the gate tool's own rule.
+
+## 6. Release
+
+- `scripts/release_check.py` at 66527605c: every check ok (one version 2.43.9; bridge 0.10.7 consistent; migrations to 0216; built
+  UI present, no source map; design-debt ratchet at or below the baseline); only `[FAIL] git tag v2.43.9 not yet`; RESULT: ready.
+- `main` fast-forwarded to the train, tag `v2.43.9` (annotated, "SmplWise Arx 2.43.9"), `#addon` refreshed, lab install + read-only
+  probe: see the report of the release (this file is part of the tagged tree; the steps after the tag are recorded in the handoff).
+
