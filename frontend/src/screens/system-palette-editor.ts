@@ -2,6 +2,8 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import '../components/sw-button';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-pill';
 import { describeError } from '../api/client';
 import { patchSettings } from '../api/media';
@@ -14,7 +16,7 @@ import {
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsPlainRowStyles, settingsPreviewColStyles, settingsPreviewButtonStyles } from '../styles/settings';
-import { segThumbStyles, okLineStyles } from '../styles/fragments';
+import { okLineStyles } from '../styles/fragments';
 import { tr } from '../i18n/msg/system-b';
 import { ToastController } from '../components/toast-controller';
 
@@ -82,27 +84,6 @@ export class SystemPaletteEditor extends LitElement {
       flex-wrap: wrap;
       align-items: center;
     }
-    .seg {
-      display: inline-flex;
-      gap: 2px;
-      padding: 3px;
-      background: var(--sw-surface-3);
-      border-radius: var(--sw-r-md);
-    }
-    .seg button {
-      all: unset;
-      box-sizing: border-box;
-      display: inline-flex;
-      align-items: center;
-      min-block-size: 36px;
-      padding: 0 12px;
-      border-radius: var(--sw-r-sm);
-      color: var(--sw-text-2);
-      font-weight: var(--sw-fw-medium);
-      cursor: pointer;
-    }
-    ${segThumbStyles}
-    .seg button:focus-visible,
     select:focus-visible,
     input:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
@@ -158,15 +139,8 @@ export class SystemPaletteEditor extends LitElement {
     .chip:active {
       transform: scale(var(--sw-press-scale));
     }
-    .seg button {
-      transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color);
-    }
-    .seg button:active {
-      transform: scale(var(--sw-press-scale));
-    }
     @media (prefers-reduced-motion: reduce) {
-      .chip,
-      .seg button {
+      .chip {
         transition-duration: 0ms;
       }
     }
@@ -420,10 +394,8 @@ export class SystemPaletteEditor extends LitElement {
               <option value="">${tr('התחל מ…')}</option>
               ${allPalettes().map((p) => html`<option value=${p.id}>${p.name.he}</option>`)}
             </select>`}
-        <span class="seg" role="group" aria-label=${tr('מצב תצוגה')}>
-          <button type="button" data-palette-scheme="light" aria-pressed=${this.scheme === 'light' ? 'true' : 'false'} @click=${() => (this.scheme = 'light')}>${tr('בהיר')}</button>
-          <button type="button" data-palette-scheme="dark" aria-pressed=${this.scheme === 'dark' ? 'true' : 'false'} @click=${() => (this.scheme = 'dark')}>${tr('כהה')}</button>
-        </span>
+        <sw-segmented label=${tr('מצב תצוגה')} value=${this.scheme} @change=${(e: CustomEvent<SegmentedChange>) => (this.scheme = e.detail.value as 'light' | 'dark')}
+          .options=${[{ value: 'light', label: tr('בהיר'), attrs: { 'data-palette-scheme': 'light' } }, { value: 'dark', label: tr('כהה'), attrs: { 'data-palette-scheme': 'dark' } }]}></sw-segmented>
       </div>
       <div class="grid" data-palette-colors>
         ${KEY_COLORS.map(([path, name]) => {

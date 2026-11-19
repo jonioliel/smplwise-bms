@@ -2,6 +2,8 @@ import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-card';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
 import '../components/sw-toggle';
 import '../components/sw-dialog';
@@ -18,7 +20,6 @@ import {
 import { cardOptions, filterSensors, pageSlice, settingsProblem, toggledTags, type SensorFilter } from '../api/building-presence-logic';
 import { BP } from '../i18n/building-presence';
 import { LongListsController, perPageFor } from '../api/long-lists';
-import { settingsPillSegKeyStyles } from '../styles/settings';
 
 const DEFAULT_CFG: BuildingPresenceSettings = { enabled: false, hold_seconds: 60, empty_minutes: 10, retention_days: 30, home_display: 'chip', map_tint: true, area_line: false };
 
@@ -156,12 +157,10 @@ export class SystemBuildingPresence extends LitElement {
       outline-offset: 2px;
     }
     @media (prefers-reduced-motion: no-preference) {
-      .more,
-      .seg button {
+      .more {
         transition: transform 120ms var(--sw-ease-out, ease-out), background-color var(--sw-t-state, 200ms) var(--sw-ease, ease);
       }
-      .more:not(:disabled):active,
-      .seg button:not(:disabled):active {
+      .more:not(:disabled):active {
         transform: scale(0.96);
       }
     }
@@ -170,13 +169,6 @@ export class SystemBuildingPresence extends LitElement {
       .more {
         inline-size: 44px;
         block-size: 44px;
-      }
-      .seg button {
-        min-block-size: 40px;
-        padding-inline: 16px;
-        touch-action: manipulation;
-        -webkit-tap-highlight-color: transparent;
-        user-select: none;
       }
       input[type='number'],
       select {
@@ -247,15 +239,25 @@ export class SystemBuildingPresence extends LitElement {
     select {
       max-inline-size: 180px;
     }
-    .seg {
-      display: inline-flex;
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-pill);
-      padding: 2px;
-      background: var(--sw-surface-2);
-      flex-wrap: wrap;
+    /* CR-CMP2-SEGMENTED-B-2450: the presence pages' round pill keys (the bordered pill track, 13 px keys; 40 / 44 px under a finger)
+       drawn by sw-segmented through its knobs */
+    sw-segmented {
+      --sw-seg-border: var(--sw-border);
+      --sw-seg-radius: var(--sw-r-pill);
+      --sw-seg-btn-radius: var(--sw-r-pill);
+      --sw-seg-pad: 2px;
+      --sw-seg-track: var(--sw-surface-2);
+      --sw-seg-h: 28px;
+      --sw-seg-fs: var(--sw-fs-sm);
+      --sw-seg-fw: var(--sw-fw-regular);
+      justify-self: start;
     }
-    ${settingsPillSegKeyStyles}
+    @media (pointer: coarse) {
+      sw-segmented {
+        --sw-seg-h: 40px;
+        --sw-seg-key-pad: 16px;
+      }
+    }
     input[type='checkbox'] {
       accent-color: var(--sw-accent);
       inline-size: 18px;
@@ -409,9 +411,9 @@ export class SystemBuildingPresence extends LitElement {
     const filtered = filterSensors(list, this.filter);
     const size = perPageFor(this.lists.paged, this.narrow ? 5 : 6, filtered.length);
     const pg = pageSlice(filtered, this.page, size);
-    const chip = (v: SensorFilter, label: string) => html`<button type="button" aria-pressed=${String(this.filter === v)} data-building-filter=${v} @click=${() => { this.filter = v; this.page = 1; }}>${label}</button>`;
     return html`<sw-card heading=${BP.heading} subheading=${tagged ? `${tagged} ${BP.tagged} · ${list.length} ${BP.found}` : BP.subheading} data-building-presence-card>
-      <div class="bar"><span class="seg" role="group" aria-label=${BP.filterLabel}>${chip('all', BP.filterAll)}${chip('tagged', BP.filterTagged)}${chip('untagged', BP.filterUntagged)}</span></div>
+      <div class="bar"><sw-segmented label=${BP.filterLabel} value=${this.filter} @change=${(e: CustomEvent<SegmentedChange>) => { this.filter = e.detail.value as SensorFilter; this.page = 1; }}
+        .options=${([['all', BP.filterAll], ['tagged', BP.filterTagged], ['untagged', BP.filterUntagged]] as [SensorFilter, string][]).map(([v, l]) => ({ value: v, label: l, attrs: { 'data-building-filter': v } }))}></sw-segmented></div>
       ${list.length ? nothing : html`<div class="muted">${BP.noSensors}</div>`}
       <div class="tbl" data-building-table>${pg.items.map((c) => this.renderRow(c))}</div>
       <div class="foot"><span class="muted">${BP.tagNote}</span>${pg.pages > 1 ? html`<sw-pager .page=${pg.page} .pages=${pg.pages} @page-change=${(e: CustomEvent<{ page: number }>) => (this.page = e.detail.page)}></sw-pager>` : nothing}</div>
@@ -459,15 +461,14 @@ export class SystemBuildingPresence extends LitElement {
 
   private renderTimes() {
     const bad = settingsProblem(this.cfg);
-    const seg = (v: HomeDisplay, label: string) =>
-      html`<button type="button" aria-pressed=${String(this.cfg.home_display === v)} data-building-home=${v} ?disabled=${!this.editable || this.busy} @click=${() => void this.patch({ home_display: v })}>${label}</button>`;
     return html`<sw-card heading=${BP.timesHeading} data-building-presence-settings>
       <div class="row">
         <label>${BP.holdLabel} <sw-field inline><input type="number" data-building-hold min=${HOLD_RANGE.min} max=${HOLD_RANGE.max} step="1" .value=${String(this.cfg.hold_seconds)} ?disabled=${!this.editable || this.busy} @input=${(e: Event) => this.num('hold_seconds', e)} /></sw-field> ${BP.holdUnit}</label>
         <label>${BP.emptyLabel} <sw-field inline><input type="number" data-building-empty min=${EMPTY_RANGE.min} max=${EMPTY_RANGE.max} step="1" .value=${String(this.cfg.empty_minutes)} ?disabled=${!this.editable || this.busy} @input=${(e: Event) => this.num('empty_minutes', e)} /></sw-field> ${BP.emptyUnit}</label>
         ${this.editable ? html`<sw-button size="sm" data-building-save ?disabled=${this.busy || !!bad} @click=${() => void this.patch({ hold_seconds: this.cfg.hold_seconds, empty_minutes: this.cfg.empty_minutes })}>${BP.save}</sw-button>` : nothing}
       </div>
-      <div class="row"><span>${BP.homeLabel}</span><span class="seg" role="group">${seg('card', BP.homeCard)}${seg('chip', BP.homeChip)}${seg('off', BP.homeOff)}</span></div>
+      <div class="row"><span>${BP.homeLabel}</span><sw-segmented label=${BP.homeLabel} value=${this.cfg.home_display} ?disabled=${!this.editable || this.busy} @change=${(e: CustomEvent<SegmentedChange>) => void this.patch({ home_display: e.detail.value as HomeDisplay })}
+        .options=${([['card', BP.homeCard], ['chip', BP.homeChip], ['off', BP.homeOff]] as [HomeDisplay, string][]).map(([v, l]) => ({ value: v, label: l, attrs: { 'data-building-home': v } }))}></sw-segmented></div>
       ${this.cfg.home_display === 'card' ? this.renderCardOptions() : nothing}
       <div class="row"><sw-toggle label=${BP.tintLabel} data-building-tint .checked=${this.cfg.map_tint} ?disabled=${!this.editable || this.busy}
         @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patch({ map_tint: e.detail.checked })}></sw-toggle><span class="muted">${BP.tintHint}</span></div>
@@ -481,8 +482,8 @@ export class SystemBuildingPresence extends LitElement {
     const o = cardOptions(this.cfg);
     const group = <K extends keyof typeof CARD_CHOICES>(key: K, label: string, current: string, words: Record<(typeof CARD_CHOICES)[K][number], string>) => html`<div class="row" data-building-card-option=${key}>
         <span>${label}</span>
-        <span class="seg" role="group" aria-label=${label}>${CARD_CHOICES[key].map((v) => html`<button type="button" aria-pressed=${String(current === v)} data-building-card=${`${key}:${v}`}
-          ?disabled=${!this.editable || this.busy} @click=${() => void this.patch({ [key]: v } as Partial<BuildingPresenceSettings>)}>${words[v as keyof typeof words]}</button>`)}</span>
+        <sw-segmented label=${label} value=${current} ?disabled=${!this.editable || this.busy} @change=${(e: CustomEvent<SegmentedChange>) => void this.patch({ [key]: e.detail.value } as Partial<BuildingPresenceSettings>)}
+          .options=${CARD_CHOICES[key].map((v) => ({ value: v, label: words[v as keyof typeof words], attrs: { 'data-building-card': `${key}:${v}` } }))}></sw-segmented>
       </div>`;
     return html`<div class="cardopts" data-building-card-options>
       <div class="room">${BP.cardHeading}</div>

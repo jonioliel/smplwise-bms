@@ -2,6 +2,8 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { settingsLadderStyles } from '../styles/settings';
 import '../components/sw-page';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-icon';
@@ -161,41 +163,9 @@ export class SystemUpdate extends LitElement {
       flex-wrap: wrap;
       margin-block-start: 12px;
     }
-    .seg {
-      display: inline-flex;
-      gap: 2px;
-      padding: 3px;
-      background: var(--sw-surface-3);
-      border-radius: var(--sw-r-md);
-      flex-wrap: wrap;
-      max-inline-size: 100%;
-    }
-    .seg button {
-      all: unset;
-      box-sizing: border-box;
-      display: inline-flex;
-      align-items: center;
-      min-block-size: 44px;
-      padding: 0 14px;
-      border-radius: var(--sw-r-sm);
-      color: var(--sw-text-2);
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-medium);
-      cursor: pointer;
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-key, var(--sw-surface));
-      color: var(--sw-seg-key-ink, var(--sw-accent-text));
-      font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-2));
-    }
-    .seg button:focus-visible {
-      outline: var(--sw-focus-w) solid var(--sw-focus);
-      outline-offset: 1px;
-    }
-    .seg button[disabled] {
-      opacity: 0.6;
-      cursor: default;
+    /* CR-CMP2-SEGMENTED-B-2450: the update page's keys keep their 44 px height (sw-segmented) */
+    sw-segmented {
+      --sw-seg-h: 44px;
     }
     .note {
       padding: 10px 0;
@@ -407,12 +377,9 @@ export class SystemUpdate extends LitElement {
     return html`<sw-card heading=${t('selfUpdate.heading')} data-update-switch-card>
       <div class="row">
         <span class="lbl" id="sw-update-switch-lbl">${t('selfUpdate.switchLabel')}</span>
-        <span class="seg" role="group" aria-labelledby="sw-update-switch-lbl" data-update-switch data-on=${on ? 'true' : 'false'}>
-          ${([true, false] as const).map(
-            (v) => html`<button type="button" data-update-switch-option=${v ? 'on' : 'off'} aria-pressed=${on === v ? 'true' : 'false'} ?disabled=${!canSet || this.switchSaving}
-              @click=${() => { if (on !== v) void this.setApplyEnabled(v); }}>${v ? t('selfUpdate.on') : t('selfUpdate.off')}</button>`,
-          )}
-        </span>
+        <sw-segmented label=${t('selfUpdate.switchLabel')} data-update-switch data-on=${on ? 'true' : 'false'} value=${on ? 'on' : 'off'} ?disabled=${!canSet || this.switchSaving}
+          @change=${(e: CustomEvent<SegmentedChange>) => { const v = e.detail.value === 'on'; if (on !== v) void this.setApplyEnabled(v); }}
+          .options=${([true, false] as const).map((v) => ({ value: v ? 'on' : 'off', label: v ? t('selfUpdate.on') : t('selfUpdate.off'), attrs: { 'data-update-switch-option': v ? 'on' : 'off' } }))}></sw-segmented>
       </div>
       <p class="msg" data-update-switch-hint>${t('selfUpdate.switchHint')}</p>
       ${canSet ? nothing : html`<p class="msg" data-update-switch-ro>${t('selfUpdate.needsConfigure')}</p>`}
@@ -542,11 +509,9 @@ export class SystemUpdate extends LitElement {
                 : nothing}
         </sw-card>
         <sw-card heading=${tr('בדיקה אוטומטית')} data-update-interval-card>
-          <div class="seg" role="group" aria-label=${tr('תדירות בדיקה אוטומטית')} data-update-interval>
-            ${INTERVAL_CHOICES.map(
-              (h) => html`<button type="button" data-update-interval-option=${h} aria-pressed=${interval === h ? 'true' : 'false'} ?disabled=${this.savingInterval} @click=${() => void this.pickInterval(h)}>${intervalLabel(h)}</button>`,
-            )}
-          </div>
+          <sw-segmented label=${tr('תדירות בדיקה אוטומטית')} data-update-interval value=${String(interval)} ?disabled=${this.savingInterval}
+            @change=${(e: CustomEvent<SegmentedChange>) => { const h = INTERVAL_CHOICES.find((x) => String(x) === e.detail.value); if (h !== undefined) void this.pickInterval(h); }}
+            .options=${INTERVAL_CHOICES.map((h) => ({ value: String(h), label: intervalLabel(h), attrs: { 'data-update-interval-option': String(h) } }))}></sw-segmented>
           ${this.intervalError ? html`<p class="msg err" role="alert" data-update-interval-error>${this.intervalError}</p>` : nothing}
         </sw-card>
         ${this.renderSwitch(d)}

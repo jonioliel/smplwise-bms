@@ -2,6 +2,8 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
 import '../components/sw-page';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-card';
 import '../components/sw-dialog';
 import '../components/sw-button';
@@ -563,7 +565,8 @@ export class SystemSchedules extends LitElement {
     const d = this.draft;
     const retention = RETENTION.includes(d.runsRetentionDays) ? RETENTION : [...RETENTION, d.runsRetentionDays].sort((a, b) => a - b);
     return html`<sw-card heading=${tr('ברירות מחדל לעורך')} data-sched-defaults>
-      <div class="row"><span class="lbl">${tr('הצמדת זמן')}</span><span class="seg" role="group" aria-label=${tr('הצמדת זמן')}>${([5, 15, 30] as const).map((m) => html`<button type="button" data-snap=${m} aria-pressed=${d.snapMinutes === m} @click=${() => this.patch({ snapMinutes: m })}>${tr('{n} דק׳', { n: m })}</button>`)}</span></div>
+      <div class="row"><span class="lbl">${tr('הצמדת זמן')}</span><sw-segmented label=${tr('הצמדת זמן')} value=${String(d.snapMinutes)} @change=${(e: CustomEvent<SegmentedChange>) => this.patch({ snapMinutes: Number(e.detail.value) as 5 | 15 | 30 })}
+      .options=${([5, 15, 30] as const).map((m) => ({ value: String(m), label: tr('{n} דק׳', { n: m }), attrs: { 'data-snap': String(m) } }))}></sw-segmented></div>
       <div class="row"><span class="lbl">${tr('סוג חזרה')}</span><sw-field class="ctl"><select aria-label=${tr('סוג חזרה')} data-default-repeat @change=${(e: Event) => this.patch({ defaultRepeat: (e.target as HTMLSelectElement).value as RepeatType })}>${REPEAT_OPTIONS.map((o) => html`<option value=${o.value} .selected=${o.value === d.defaultRepeat}>${o.label}</option>`)}</select></sw-field></div>
       <div class="row"><span class="lbl">${tr('שמירת הרצות אחרונות')}</span><sw-field class="ctl"><select aria-label=${tr('שמירת הרצות אחרונות')} data-retention @change=${(e: Event) => this.patch({ runsRetentionDays: Number((e.target as HTMLSelectElement).value) })}>${retention.map((n) => html`<option value=${n} .selected=${n === d.runsRetentionDays}>${tr('{n} ימים', { n })}</option>`)}</select></sw-field></div>
     </sw-card>`;

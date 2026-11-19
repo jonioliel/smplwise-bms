@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-card';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
 import '../components/sw-toggle';
 import '../components/sw-field';
@@ -17,7 +19,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { parseRoute, replaceRoute } from '../router';
 import { pt } from '../i18n/presence';
 import { BP } from '../i18n/building-presence';
-import { settingsWrapFootStyles, settingsPillSegKeyStyles } from '../styles/settings';
+import { settingsWrapFootStyles } from '../styles/settings';
 import { okLineStyles, errLineStyles } from '../styles/fragments';
 import { tr } from '../i18n/msg/system-b';
 import './system-presence-places'; // WHOIN034-295: the place editors and the "מי במבנה" thresholds
@@ -120,24 +122,9 @@ export class SystemPresence extends LitElement {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
-    .seg button {
-      transition: transform var(--sw-t-press) var(--sw-ease);
-    }
-    .seg button:active {
-      transform: scale(var(--sw-press-scale));
-    }
     @media (pointer: coarse) {
-      .chk,
-      .seg button {
+      .chk {
         min-block-size: 44px;
-      }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .seg button {
-        transition-duration: 0ms;
-      }
-      .seg button:active {
-        transform: none;
       }
     }
     .glass {
@@ -179,16 +166,25 @@ export class SystemPresence extends LitElement {
     .wrap {
       overflow-x: auto;
     }
-    .seg {
-      display: inline-flex;
+    /* CR-CMP2-SEGMENTED-B-2450: the presence pages' round pill keys (the bordered pill track, 13 px keys; 40 / 44 px under a finger)
+       drawn by sw-segmented through its knobs */
+    sw-segmented {
+      --sw-seg-border: var(--sw-border);
+      --sw-seg-radius: var(--sw-r-pill);
+      --sw-seg-btn-radius: var(--sw-r-pill);
+      --sw-seg-pad: 2px;
+      --sw-seg-track: var(--sw-surface-2);
+      --sw-seg-h: 28px;
+      --sw-seg-fs: var(--sw-fs-sm);
+      --sw-seg-fw: var(--sw-fw-regular);
       justify-self: start;
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-pill);
-      padding: 2px;
-      background: var(--sw-surface-2);
-      flex-wrap: wrap;
     }
-    ${settingsPillSegKeyStyles}
+    @media (pointer: coarse) {
+      sw-segmented {
+        --sw-seg-h: 44px;
+        --sw-seg-key-pad: 16px;
+      }
+    }
     @media (max-width: 767px) {
       .row {
         flex-direction: column;
@@ -343,8 +339,8 @@ export class SystemPresence extends LitElement {
 
   render() {
     const editable = this.canEdit && isApi();
-    const seg = (p: Page, key: 'segGeneral' | 'segPlaces' | 'segScreen') => html`<button type="button" aria-pressed=${String(this.page === p)} data-presence-page=${p} @click=${() => this.setPage(p)}>${pt(key)}</button>`;
-    const pages = html`<div class="seg" role="group" data-presence-pages>${seg('general', 'segGeneral')}${seg('places', 'segPlaces')}${seg('screen', 'segScreen')}<button type="button" aria-pressed=${String(this.page === 'building')} data-presence-page="building" @click=${() => this.setPage('building')}>${BP.tab}</button></div>`;
+    const pages = html`<sw-segmented data-presence-pages value=${this.page} @change=${(e: CustomEvent<SegmentedChange>) => this.setPage(e.detail.value as Page)}
+      .options=${[{ value: 'general', label: pt('segGeneral'), attrs: { 'data-presence-page': 'general' } }, { value: 'places', label: pt('segPlaces'), attrs: { 'data-presence-page': 'places' } }, { value: 'screen', label: pt('segScreen'), attrs: { 'data-presence-page': 'screen' } }, { value: 'building', label: BP.tab, attrs: { 'data-presence-page': 'building' } }]}></sw-segmented>`;
     if (this.page === 'building') return html`${pages}<system-building-presence ?editable=${editable}></system-building-presence>`;
     if (this.page === 'places') return html`${pages}<system-presence-places .settings=${this.saved} ?editable=${editable} @saved=${(e: CustomEvent<PresenceSettings>) => this.adopt(e.detail)}></system-presence-places>`;
     if (this.page === 'screen') return html`${pages}<system-presence-screen .settings=${this.saved} ?editable=${editable} @saved=${(e: CustomEvent<PresenceSettings>) => this.adopt(e.detail)}></system-presence-screen>`;
@@ -367,7 +363,8 @@ export class SystemPresence extends LitElement {
             <option value="server" ?selected=${d.wifi_match_mode === 'server'}>${tr('בשרת (גיבוב)')}</option>
           </select></sw-field></div>
         <div class="row" data-presence-row="value-check"><span class="lbl">${pt('valueCheck')}<span class="muted">${pt('valueCheckHint')}</span></span>
-          <div class="seg" role="group" aria-label=${pt('valueCheck')} data-presence-value-check>${VALUE_CHECK_MODES.map((m: ValueCheck) => html`<button type="button" data-v=${m} aria-pressed=${String(valueCheckOf(d.value_check) === m)} ?disabled=${!editable || this.busy} @click=${() => this.patch({ value_check: m })}>${pt(`valueCheck_${m}`)}</button>`)}</div></div>
+          <sw-segmented label=${pt('valueCheck')} data-presence-value-check value=${valueCheckOf(d.value_check)} ?disabled=${!editable || this.busy} @change=${(e: CustomEvent<SegmentedChange>) => this.patch({ value_check: e.detail.value as ValueCheck })}
+      .options=${VALUE_CHECK_MODES.map((m: ValueCheck) => ({ value: m, label: pt(`valueCheck_${m}`), attrs: { 'data-v': m } }))}></sw-segmented></div>
         <div class="row" data-presence-row="notice"><span class="lbl">${tr('הודעה לעובדים')}<span class="muted">${tr('גרסה {n}; שינוי בטקסט מעלה את הגרסה וכל מכשיר מאשר מחדש', { n: d.notice_version })}</span></span></div>
         <textarea data-presence-notice placeholder=${tr('טקסט ההודעה לעובדים (ניסוח משפטי של בעל המערכת)')} .value=${d.notice_text} ?disabled=${!editable || this.busy} @input=${(e: Event) => this.patch({ notice_text: (e.target as HTMLTextAreaElement).value })}></textarea>
         <div class="row" data-presence-row="retention"><span class="lbl">${tr('שמירת יומן הדיווחים')}</span>

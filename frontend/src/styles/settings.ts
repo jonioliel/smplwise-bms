@@ -1,5 +1,5 @@
 import { css } from 'lit';
-import { errLineStyles, okLineStyles, segThumbPlainStyles } from './fragments';
+import { errLineStyles, okLineStyles } from './fragments';
 
 /**
  * SET-polish (2026-10-10): the ONE stylesheet of the settings screens (הגדרות › *). Every `system-*` screen used to carry its
@@ -444,26 +444,6 @@ export const settingsWrapFootStyles = css`
     flex-wrap: wrap;
     align-items: center;
     margin-block-start: 12px;
-  }
-`;
-
-/** The round pill keys of the presence settings: the key, the chosen key and its keyboard ring (system-presence,
- * system-building-presence). The track differs between the two and stays local. */
-export const settingsPillSegKeyStyles = css`
-  .seg button {
-    border: 0;
-    background: transparent;
-    font: inherit;
-    font-size: var(--sw-fs-sm);
-    padding: 4px 14px;
-    border-radius: var(--sw-r-pill);
-    color: var(--sw-text-2);
-    cursor: pointer;
-  }
-  ${segThumbPlainStyles}
-  .seg button:focus-visible {
-    outline: var(--sw-focus-w) solid var(--sw-focus);
-    outline-offset: 2px;
   }
 `;
 

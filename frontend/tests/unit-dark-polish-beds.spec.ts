@@ -388,11 +388,7 @@ const SEG_INVENTORY: [file: string, chosen: string][] = [
   ['screens/security-alarm.ts', ".vt button[aria-pressed='true']"],
   ['screens/system-brand-installer.ts', ".tabs button[aria-selected='true']"],
   ['screens/system-brand-logos.ts', ".tabs button[aria-selected='true']"],
-  ['screens/system-home-screen.ts', ".seg button[aria-pressed='true']"],
-  ['screens/system-mapping.ts', ".seg button[aria-pressed='true']"],
   ['screens/system-readiness.ts', ".panes button[aria-selected='true']"],
-  ['screens/system-timeline-colors.ts', ".seg button[aria-checked='true']"],
-  ['screens/system-update.ts', ".seg button[aria-pressed='true']"],
   ['screens/wiskey-events.ts', ".seg button[aria-pressed='true']"],
   ['screens/wiskey-person-drawer.ts', ".tabs button[aria-selected='true']"],
   ['shell/sw-app.ts', 'nav.sections a.on'],
@@ -404,6 +400,7 @@ const SEG_INVENTORY: [file: string, chosen: string][] = [
   // CR-CSS-FRAGMENTS-TAIL-2442: the same for elevators/elevator-settings, screens/explore-presence, screens/home-widgets and
   // shell/sw-home-personal (segThumbPlainStyles)
   // CR-CMP2-SELECTS-2450 (owner N11): the shared segmented control
+  // CR-CMP2-SEGMENTED-B-2450: system-home-screen, system-mapping, system-timeline-colors and system-update draw their keys with it now
   ['components/sw-segmented.ts', ".seg button[aria-pressed='true']"],
   ['styles/fragments.ts', ".seg button[aria-pressed='true']"],
   ['styles/settings.ts', ".seg button[aria-selected='true']"],
