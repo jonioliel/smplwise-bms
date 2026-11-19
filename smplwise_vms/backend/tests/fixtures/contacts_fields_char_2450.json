@@ -1,0 +1,6071 @@
+{
+"active[0]@employee": {
+"ok": {
+"active": 0
+}
+},
+"active[0]@linked": {
+"ok": {
+"active": 0
+}
+},
+"active[0]@none": {
+"ok": {
+"active": 0,
+"display_name": "Dana",
+"employee": 0,
+"kind": "person"
+}
+},
+"active[0]@person": {
+"ok": {
+"active": 0
+}
+},
+"active[0]@vendor": {
+"ok": {
+"active": 0
+}
+},
+"active[1]@employee": {
+"refused": [
+"active",
+"type"
+]
+},
+"active[1]@linked": {
+"refused": [
+"active",
+"type"
+]
+},
+"active[1]@none": {
+"refused": [
+"active",
+"type"
+]
+},
+"active[1]@person": {
+"refused": [
+"active",
+"type"
+]
+},
+"active[1]@vendor": {
+"refused": [
+"active",
+"type"
+]
+},
+"all-bad-minus-active@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-active@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-active@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-active@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-active@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-company@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-company@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-company@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-company@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-company@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-cost_claim@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-cost_claim@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-cost_claim@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-cost_claim@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-cost_claim@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-display_name@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-display_name@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-display_name@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-display_name@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-display_name@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-email@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-email@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-email@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-email@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-email@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-kind@employee": {
+"refused": [
+"company",
+"too_long"
+]
+},
+"all-bad-minus-kind@linked": {
+"refused": [
+"company",
+"too_long"
+]
+},
+"all-bad-minus-kind@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-kind@person": {
+"refused": [
+"company",
+"too_long"
+]
+},
+"all-bad-minus-kind@vendor": {
+"refused": [
+"company",
+"too_long"
+]
+},
+"all-bad-minus-labor_rate@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-labor_rate@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-labor_rate@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-labor_rate@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-labor_rate@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-lang@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-lang@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-lang@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-lang@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-lang@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-notes@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-notes@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-notes@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-notes@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-notes@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-permanent_vendor@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-permanent_vendor@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-permanent_vendor@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-permanent_vendor@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-permanent_vendor@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-phone@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-phone@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-phone@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-phone@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-phone@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-phone_verify@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-phone_verify@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-phone_verify@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-phone_verify@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-phone_verify@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-preferred_channel@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-preferred_channel@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-preferred_channel@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-preferred_channel@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-preferred_channel@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-rate_currency@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-rate_currency@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-rate_currency@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-rate_currency@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-rate_currency@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-require_code@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-require_code@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-require_code@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-require_code@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-require_code@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-share_history@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-share_history@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-share_history@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-share_history@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-share_history@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-user_id@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-user_id@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-user_id@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-user_id@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-user_id@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-vat_default@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-vat_default@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-vat_default@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-vat_default@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-vat_default@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-vat_exempt@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-vat_exempt@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-vat_exempt@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-vat_exempt@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-vat_exempt@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-vendor_id@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-vendor_id@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-vendor_id@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-vendor_id@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad-minus-vendor_id@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-bad@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"all-good@employee": {
+"refused": [
+"permanent_vendor",
+"not_external"
+]
+},
+"all-good@linked": {
+"refused": [
+"permanent_vendor",
+"not_external"
+]
+},
+"all-good@none": {
+"refused": [
+"permanent_vendor",
+"not_external"
+]
+},
+"all-good@person": {
+"refused": [
+"permanent_vendor",
+"not_external"
+]
+},
+"all-good@vendor": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"company[0]@employee": {
+"ok": {
+"company": "Acme"
+}
+},
+"company[0]@linked": {
+"ok": {
+"company": "Acme"
+}
+},
+"company[0]@none": {
+"ok": {
+"company": "Acme",
+"display_name": "Dana",
+"employee": 0,
+"kind": "person"
+}
+},
+"company[0]@person": {
+"ok": {
+"company": "Acme"
+}
+},
+"company[0]@vendor": {
+"ok": {
+"company": "Acme"
+}
+},
+"company[1]@employee": {
+"ok": {
+"company": ""
+}
+},
+"company[1]@linked": {
+"ok": {
+"company": ""
+}
+},
+"company[1]@none": {
+"ok": {
+"company": "",
+"display_name": "Dana",
+"employee": 0,
+"kind": "person"
+}
+},
+"company[1]@person": {
+"ok": {
+"company": ""
+}
+},
+"company[1]@vendor": {
+"ok": {
+"company": ""
+}
+},
+"company[2]@employee": {
+"refused": [
+"company",
+"too_long"
+]
+},
+"company[2]@linked": {
+"refused": [
+"company",
+"too_long"
+]
+},
+"company[2]@none": {
+"refused": [
+"company",
+"too_long"
+]
+},
+"company[2]@person": {
+"refused": [
+"company",
+"too_long"
+]
+},
+"company[2]@vendor": {
+"refused": [
+"company",
+"too_long"
+]
+},
+"cost_claim[0]+vat_default[0]@employee": {
+"ok": {
+"cost_claim": "required",
+"vat_default": "included"
+}
+},
+"cost_claim[0]+vat_default[0]@linked": {
+"ok": {
+"cost_claim": "required",
+"vat_default": "included"
+}
+},
+"cost_claim[0]+vat_default[0]@none": {
+"ok": {
+"cost_claim": "required",
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"vat_default": "included"
+}
+},
+"cost_claim[0]+vat_default[0]@person": {
+"ok": {
+"cost_claim": "required",
+"vat_default": "included"
+}
+},
+"cost_claim[0]+vat_default[1]@employee": {
+"refused": [
+"vat_default",
+"choice"
+]
+},
+"cost_claim[0]+vat_default[1]@linked": {
+"refused": [
+"vat_default",
+"choice"
+]
+},
+"cost_claim[0]+vat_default[1]@none": {
+"refused": [
+"vat_default",
+"choice"
+]
+},
+"cost_claim[0]+vat_default[1]@person": {
+"refused": [
+"vat_default",
+"choice"
+]
+},
+"cost_claim[0]@employee": {
+"ok": {
+"cost_claim": "required"
+}
+},
+"cost_claim[0]@linked": {
+"ok": {
+"cost_claim": "required"
+}
+},
+"cost_claim[0]@none": {
+"ok": {
+"cost_claim": "required",
+"display_name": "Dana",
+"employee": 0,
+"kind": "person"
+}
+},
+"cost_claim[0]@person": {
+"ok": {
+"cost_claim": "required"
+}
+},
+"cost_claim[0]@vendor": {
+"ok": {
+"cost_claim": "required"
+}
+},
+"cost_claim[1]+vat_default[0]@employee": {
+"ok": {
+"cost_claim": null,
+"vat_default": "included"
+}
+},
+"cost_claim[1]+vat_default[0]@linked": {
+"ok": {
+"cost_claim": null,
+"vat_default": "included"
+}
+},
+"cost_claim[1]+vat_default[0]@none": {
+"ok": {
+"cost_claim": null,
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"vat_default": "included"
+}
+},
+"cost_claim[1]+vat_default[0]@person": {
+"ok": {
+"cost_claim": null,
+"vat_default": "included"
+}
+},
+"cost_claim[1]+vat_default[1]@employee": {
+"refused": [
+"vat_default",
+"choice"
+]
+},
+"cost_claim[1]+vat_default[1]@linked": {
+"refused": [
+"vat_default",
+"choice"
+]
+},
+"cost_claim[1]+vat_default[1]@none": {
+"refused": [
+"vat_default",
+"choice"
+]
+},
+"cost_claim[1]+vat_default[1]@person": {
+"refused": [
+"vat_default",
+"choice"
+]
+},
+"cost_claim[1]@employee": {
+"ok": {
+"cost_claim": null
+}
+},
+"cost_claim[1]@linked": {
+"ok": {
+"cost_claim": null
+}
+},
+"cost_claim[1]@none": {
+"ok": {
+"cost_claim": null,
+"display_name": "Dana",
+"employee": 0,
+"kind": "person"
+}
+},
+"cost_claim[1]@person": {
+"ok": {
+"cost_claim": null
+}
+},
+"cost_claim[1]@vendor": {
+"ok": {
+"cost_claim": null
+}
+},
+"cost_claim[2]+vat_default[0]@employee": {
+"refused": [
+"cost_claim",
+"choice"
+]
+},
+"cost_claim[2]+vat_default[0]@linked": {
+"refused": [
+"cost_claim",
+"choice"
+]
+},
+"cost_claim[2]+vat_default[0]@none": {
+"refused": [
+"cost_claim",
+"choice"
+]
+},
+"cost_claim[2]+vat_default[0]@person": {
+"refused": [
+"cost_claim",
+"choice"
+]
+},
+"cost_claim[2]+vat_default[1]@employee": {
+"refused": [
+"cost_claim",
+"choice"
+]
+},
+"cost_claim[2]+vat_default[1]@linked": {
+"refused": [
+"cost_claim",
+"choice"
+]
+},
+"cost_claim[2]+vat_default[1]@none": {
+"refused": [
+"cost_claim",
+"choice"
+]
+},
+"cost_claim[2]+vat_default[1]@person": {
+"refused": [
+"cost_claim",
+"choice"
+]
+},
+"cost_claim[2]@employee": {
+"refused": [
+"cost_claim",
+"choice"
+]
+},
+"cost_claim[2]@linked": {
+"refused": [
+"cost_claim",
+"choice"
+]
+},
+"cost_claim[2]@none": {
+"refused": [
+"cost_claim",
+"choice"
+]
+},
+"cost_claim[2]@person": {
+"refused": [
+"cost_claim",
+"choice"
+]
+},
+"cost_claim[2]@vendor": {
+"refused": [
+"cost_claim",
+"choice"
+]
+},
+"display_name[0]+kind[0]@employee": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person"
+}
+},
+"display_name[0]+kind[0]@linked": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person"
+}
+},
+"display_name[0]+kind[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person"
+}
+},
+"display_name[0]+kind[0]@person": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person"
+}
+},
+"display_name[0]+kind[1]@employee": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "vendor"
+}
+},
+"display_name[0]+kind[1]@linked": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "vendor"
+}
+},
+"display_name[0]+kind[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "vendor"
+}
+},
+"display_name[0]+kind[1]@person": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "vendor",
+"vendor_id": null
+}
+},
+"display_name[0]+kind[2]@employee": {
+"ok": {
+"display_name": "Dana",
+"employee": 1,
+"kind": "person"
+}
+},
+"display_name[0]+kind[2]@linked": {
+"refused": [
+"kind",
+"user_linked"
+]
+},
+"display_name[0]+kind[2]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 1,
+"kind": "person"
+}
+},
+"display_name[0]+kind[2]@person": {
+"ok": {
+"display_name": "Dana",
+"employee": 1,
+"kind": "person",
+"permanent_vendor": 0,
+"vendor_id": null
+}
+},
+"display_name[0]+kind[3]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[0]+kind[3]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[0]+kind[3]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[0]+kind[3]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[0]+kind[4]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[0]+kind[4]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[0]+kind[4]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[0]+kind[4]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[0]@employee": {
+"ok": {
+"display_name": "Dana"
+}
+},
+"display_name[0]@linked": {
+"ok": {
+"display_name": "Dana"
+}
+},
+"display_name[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person"
+}
+},
+"display_name[0]@person": {
+"ok": {
+"display_name": "Dana"
+}
+},
+"display_name[0]@vendor": {
+"ok": {
+"display_name": "Dana"
+}
+},
+"display_name[1]+kind[0]@employee": {
+"refused": [
+"display_name",
+"required"
+]
+},
+"display_name[1]+kind[0]@linked": {
+"refused": [
+"display_name",
+"required"
+]
+},
+"display_name[1]+kind[0]@none": {
+"refused": [
+"display_name",
+"required"
+]
+},
+"display_name[1]+kind[0]@person": {
+"refused": [
+"display_name",
+"required"
+]
+},
+"display_name[1]+kind[1]@employee": {
+"refused": [
+"display_name",
+"required"
+]
+},
+"display_name[1]+kind[1]@linked": {
+"refused": [
+"display_name",
+"required"
+]
+},
+"display_name[1]+kind[1]@none": {
+"refused": [
+"display_name",
+"required"
+]
+},
+"display_name[1]+kind[1]@person": {
+"refused": [
+"display_name",
+"required"
+]
+},
+"display_name[1]+kind[2]@employee": {
+"refused": [
+"display_name",
+"required"
+]
+},
+"display_name[1]+kind[2]@linked": {
+"refused": [
+"display_name",
+"required"
+]
+},
+"display_name[1]+kind[2]@none": {
+"refused": [
+"display_name",
+"required"
+]
+},
+"display_name[1]+kind[2]@person": {
+"refused": [
+"display_name",
+"required"
+]
+},
+"display_name[1]+kind[3]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[1]+kind[3]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[1]+kind[3]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[1]+kind[3]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[1]+kind[4]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[1]+kind[4]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[1]+kind[4]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[1]+kind[4]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[1]@employee": {
+"refused": [
+"display_name",
+"required"
+]
+},
+"display_name[1]@linked": {
+"refused": [
+"display_name",
+"required"
+]
+},
+"display_name[1]@none": {
+"refused": [
+"display_name",
+"required"
+]
+},
+"display_name[1]@person": {
+"refused": [
+"display_name",
+"required"
+]
+},
+"display_name[1]@vendor": {
+"refused": [
+"display_name",
+"required"
+]
+},
+"display_name[2]+kind[0]@employee": {
+"refused": [
+"display_name",
+"too_long"
+]
+},
+"display_name[2]+kind[0]@linked": {
+"refused": [
+"display_name",
+"too_long"
+]
+},
+"display_name[2]+kind[0]@none": {
+"refused": [
+"display_name",
+"too_long"
+]
+},
+"display_name[2]+kind[0]@person": {
+"refused": [
+"display_name",
+"too_long"
+]
+},
+"display_name[2]+kind[1]@employee": {
+"refused": [
+"display_name",
+"too_long"
+]
+},
+"display_name[2]+kind[1]@linked": {
+"refused": [
+"display_name",
+"too_long"
+]
+},
+"display_name[2]+kind[1]@none": {
+"refused": [
+"display_name",
+"too_long"
+]
+},
+"display_name[2]+kind[1]@person": {
+"refused": [
+"display_name",
+"too_long"
+]
+},
+"display_name[2]+kind[2]@employee": {
+"refused": [
+"display_name",
+"too_long"
+]
+},
+"display_name[2]+kind[2]@linked": {
+"refused": [
+"display_name",
+"too_long"
+]
+},
+"display_name[2]+kind[2]@none": {
+"refused": [
+"display_name",
+"too_long"
+]
+},
+"display_name[2]+kind[2]@person": {
+"refused": [
+"display_name",
+"too_long"
+]
+},
+"display_name[2]+kind[3]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[2]+kind[3]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[2]+kind[3]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[2]+kind[3]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[2]+kind[4]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[2]+kind[4]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[2]+kind[4]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[2]+kind[4]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[2]@employee": {
+"refused": [
+"display_name",
+"too_long"
+]
+},
+"display_name[2]@linked": {
+"refused": [
+"display_name",
+"too_long"
+]
+},
+"display_name[2]@none": {
+"refused": [
+"display_name",
+"too_long"
+]
+},
+"display_name[2]@person": {
+"refused": [
+"display_name",
+"too_long"
+]
+},
+"display_name[2]@vendor": {
+"refused": [
+"display_name",
+"too_long"
+]
+},
+"display_name[3]+kind[0]@employee": {
+"ok": {
+"display_name": "5",
+"employee": 0,
+"kind": "person"
+}
+},
+"display_name[3]+kind[0]@linked": {
+"ok": {
+"display_name": "5",
+"employee": 0,
+"kind": "person"
+}
+},
+"display_name[3]+kind[0]@none": {
+"ok": {
+"display_name": "5",
+"employee": 0,
+"kind": "person"
+}
+},
+"display_name[3]+kind[0]@person": {
+"ok": {
+"display_name": "5",
+"employee": 0,
+"kind": "person"
+}
+},
+"display_name[3]+kind[1]@employee": {
+"ok": {
+"display_name": "5",
+"employee": 0,
+"kind": "vendor"
+}
+},
+"display_name[3]+kind[1]@linked": {
+"ok": {
+"display_name": "5",
+"employee": 0,
+"kind": "vendor"
+}
+},
+"display_name[3]+kind[1]@none": {
+"ok": {
+"display_name": "5",
+"employee": 0,
+"kind": "vendor"
+}
+},
+"display_name[3]+kind[1]@person": {
+"ok": {
+"display_name": "5",
+"employee": 0,
+"kind": "vendor",
+"vendor_id": null
+}
+},
+"display_name[3]+kind[2]@employee": {
+"ok": {
+"display_name": "5",
+"employee": 1,
+"kind": "person"
+}
+},
+"display_name[3]+kind[2]@linked": {
+"refused": [
+"kind",
+"user_linked"
+]
+},
+"display_name[3]+kind[2]@none": {
+"ok": {
+"display_name": "5",
+"employee": 1,
+"kind": "person"
+}
+},
+"display_name[3]+kind[2]@person": {
+"ok": {
+"display_name": "5",
+"employee": 1,
+"kind": "person",
+"permanent_vendor": 0,
+"vendor_id": null
+}
+},
+"display_name[3]+kind[3]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[3]+kind[3]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[3]+kind[3]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[3]+kind[3]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[3]+kind[4]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[3]+kind[4]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[3]+kind[4]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[3]+kind[4]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"display_name[3]@employee": {
+"ok": {
+"display_name": "5"
+}
+},
+"display_name[3]@linked": {
+"ok": {
+"display_name": "5"
+}
+},
+"display_name[3]@none": {
+"ok": {
+"display_name": "5",
+"employee": 0,
+"kind": "person"
+}
+},
+"display_name[3]@person": {
+"ok": {
+"display_name": "5"
+}
+},
+"display_name[3]@vendor": {
+"ok": {
+"display_name": "5"
+}
+},
+"email[0]@employee": {
+"ok": {
+"email": "Dana@Example.com"
+}
+},
+"email[0]@linked": {
+"ok": {
+"email": "Dana@Example.com"
+}
+},
+"email[0]@none": {
+"ok": {
+"display_name": "Dana",
+"email": "Dana@Example.com",
+"employee": 0,
+"kind": "person"
+}
+},
+"email[0]@person": {
+"ok": {
+"email": "Dana@Example.com"
+}
+},
+"email[0]@vendor": {
+"ok": {
+"email": "Dana@Example.com"
+}
+},
+"email[1]@employee": {
+"refused": [
+"email",
+"format"
+]
+},
+"email[1]@linked": {
+"refused": [
+"email",
+"format"
+]
+},
+"email[1]@none": {
+"refused": [
+"email",
+"format"
+]
+},
+"email[1]@person": {
+"refused": [
+"email",
+"format"
+]
+},
+"email[1]@vendor": {
+"refused": [
+"email",
+"format"
+]
+},
+"email[2]@employee": {
+"ok": {
+"email": null
+}
+},
+"email[2]@linked": {
+"ok": {
+"email": null
+}
+},
+"email[2]@none": {
+"ok": {
+"display_name": "Dana",
+"email": null,
+"employee": 0,
+"kind": "person"
+}
+},
+"email[2]@person": {
+"ok": {
+"email": null
+}
+},
+"email[2]@vendor": {
+"ok": {
+"email": null
+}
+},
+"kind[0]+permanent_vendor[0]@employee": {
+"ok": {
+"employee": 0,
+"kind": "person",
+"permanent_vendor": 1
+}
+},
+"kind[0]+permanent_vendor[0]@linked": {
+"refused": [
+"permanent_vendor",
+"not_external"
+]
+},
+"kind[0]+permanent_vendor[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"permanent_vendor": 1
+}
+},
+"kind[0]+permanent_vendor[0]@person": {
+"ok": {
+"employee": 0,
+"kind": "person",
+"permanent_vendor": 1
+}
+},
+"kind[0]+permanent_vendor[1]@employee": {
+"ok": {
+"employee": 0,
+"kind": "person",
+"permanent_vendor": 0
+}
+},
+"kind[0]+permanent_vendor[1]@linked": {
+"ok": {
+"employee": 0,
+"kind": "person",
+"permanent_vendor": 0
+}
+},
+"kind[0]+permanent_vendor[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"permanent_vendor": 0
+}
+},
+"kind[0]+permanent_vendor[1]@person": {
+"ok": {
+"employee": 0,
+"kind": "person",
+"permanent_vendor": 0
+}
+},
+"kind[0]+permanent_vendor[2]@employee": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"kind[0]+permanent_vendor[2]@linked": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"kind[0]+permanent_vendor[2]@none": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"kind[0]+permanent_vendor[2]@person": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"kind[0]+user_id[0]@employee": {
+"ok": {
+"employee": 0,
+"kind": "person",
+"user_id": "u1"
+}
+},
+"kind[0]+user_id[0]@linked": {
+"ok": {
+"employee": 0,
+"kind": "person",
+"user_id": "u1"
+}
+},
+"kind[0]+user_id[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"user_id": "u1"
+}
+},
+"kind[0]+user_id[0]@person": {
+"ok": {
+"employee": 0,
+"kind": "person",
+"permanent_vendor": 0,
+"user_id": "u1"
+}
+},
+"kind[0]+user_id[1]@employee": {
+"ok": {
+"employee": 0,
+"kind": "person",
+"user_id": null
+}
+},
+"kind[0]+user_id[1]@linked": {
+"ok": {
+"employee": 0,
+"kind": "person",
+"user_id": null
+}
+},
+"kind[0]+user_id[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"user_id": null
+}
+},
+"kind[0]+user_id[1]@person": {
+"ok": {
+"employee": 0,
+"kind": "person",
+"user_id": null
+}
+},
+"kind[0]+user_id[2]@employee": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"kind[0]+user_id[2]@linked": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"kind[0]+user_id[2]@none": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"kind[0]+user_id[2]@person": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"kind[0]+vendor_id[0]@employee": {
+"ok": {
+"employee": 0,
+"kind": "person",
+"vendor_id": "v1"
+}
+},
+"kind[0]+vendor_id[0]@linked": {
+"ok": {
+"employee": 0,
+"kind": "person",
+"vendor_id": "v1"
+}
+},
+"kind[0]+vendor_id[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"vendor_id": "v1"
+}
+},
+"kind[0]+vendor_id[0]@person": {
+"ok": {
+"employee": 0,
+"kind": "person",
+"vendor_id": "v1"
+}
+},
+"kind[0]+vendor_id[1]@employee": {
+"ok": {
+"employee": 0,
+"kind": "person",
+"vendor_id": null
+}
+},
+"kind[0]+vendor_id[1]@linked": {
+"ok": {
+"employee": 0,
+"kind": "person",
+"vendor_id": null
+}
+},
+"kind[0]+vendor_id[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"vendor_id": null
+}
+},
+"kind[0]+vendor_id[1]@person": {
+"ok": {
+"employee": 0,
+"kind": "person",
+"vendor_id": null
+}
+},
+"kind[0]+vendor_id[2]@employee": {
+"ok": {
+"employee": 0,
+"kind": "person",
+"vendor_id": null
+}
+},
+"kind[0]+vendor_id[2]@linked": {
+"ok": {
+"employee": 0,
+"kind": "person",
+"vendor_id": null
+}
+},
+"kind[0]+vendor_id[2]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"vendor_id": null
+}
+},
+"kind[0]+vendor_id[2]@person": {
+"ok": {
+"employee": 0,
+"kind": "person",
+"vendor_id": null
+}
+},
+"kind[0]+vendor_id[3]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[0]+vendor_id[3]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[0]+vendor_id[3]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[0]+vendor_id[3]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[0]+vendor_id[4]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[0]+vendor_id[4]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[0]+vendor_id[4]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[0]+vendor_id[4]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[0]+vendor_id[5]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[0]+vendor_id[5]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[0]+vendor_id[5]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[0]+vendor_id[5]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[0]+vendor_id[6]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[0]+vendor_id[6]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[0]+vendor_id[6]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[0]+vendor_id[6]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[0]@employee": {
+"ok": {
+"employee": 0,
+"kind": "person"
+}
+},
+"kind[0]@linked": {
+"ok": {
+"employee": 0,
+"kind": "person"
+}
+},
+"kind[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person"
+}
+},
+"kind[0]@person": {
+"ok": {
+"employee": 0,
+"kind": "person"
+}
+},
+"kind[0]@vendor": {
+"ok": {
+"employee": 0,
+"kind": "person"
+}
+},
+"kind[1]+permanent_vendor[0]@employee": {
+"ok": {
+"employee": 0,
+"kind": "vendor",
+"permanent_vendor": 1
+}
+},
+"kind[1]+permanent_vendor[0]@linked": {
+"refused": [
+"permanent_vendor",
+"not_external"
+]
+},
+"kind[1]+permanent_vendor[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "vendor",
+"permanent_vendor": 1
+}
+},
+"kind[1]+permanent_vendor[0]@person": {
+"ok": {
+"employee": 0,
+"kind": "vendor",
+"permanent_vendor": 1,
+"vendor_id": null
+}
+},
+"kind[1]+permanent_vendor[1]@employee": {
+"ok": {
+"employee": 0,
+"kind": "vendor",
+"permanent_vendor": 0
+}
+},
+"kind[1]+permanent_vendor[1]@linked": {
+"ok": {
+"employee": 0,
+"kind": "vendor",
+"permanent_vendor": 0
+}
+},
+"kind[1]+permanent_vendor[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "vendor",
+"permanent_vendor": 0
+}
+},
+"kind[1]+permanent_vendor[1]@person": {
+"ok": {
+"employee": 0,
+"kind": "vendor",
+"permanent_vendor": 0,
+"vendor_id": null
+}
+},
+"kind[1]+permanent_vendor[2]@employee": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"kind[1]+permanent_vendor[2]@linked": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"kind[1]+permanent_vendor[2]@none": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"kind[1]+permanent_vendor[2]@person": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"kind[1]+user_id[0]@employee": {
+"ok": {
+"employee": 0,
+"kind": "vendor",
+"user_id": "u1"
+}
+},
+"kind[1]+user_id[0]@linked": {
+"ok": {
+"employee": 0,
+"kind": "vendor",
+"user_id": "u1"
+}
+},
+"kind[1]+user_id[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "vendor",
+"user_id": "u1"
+}
+},
+"kind[1]+user_id[0]@person": {
+"ok": {
+"employee": 0,
+"kind": "vendor",
+"permanent_vendor": 0,
+"user_id": "u1",
+"vendor_id": null
+}
+},
+"kind[1]+user_id[1]@employee": {
+"ok": {
+"employee": 0,
+"kind": "vendor",
+"user_id": null
+}
+},
+"kind[1]+user_id[1]@linked": {
+"ok": {
+"employee": 0,
+"kind": "vendor",
+"user_id": null
+}
+},
+"kind[1]+user_id[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "vendor",
+"user_id": null
+}
+},
+"kind[1]+user_id[1]@person": {
+"ok": {
+"employee": 0,
+"kind": "vendor",
+"user_id": null,
+"vendor_id": null
+}
+},
+"kind[1]+user_id[2]@employee": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"kind[1]+user_id[2]@linked": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"kind[1]+user_id[2]@none": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"kind[1]+user_id[2]@person": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"kind[1]+vendor_id[0]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[1]+vendor_id[0]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[1]+vendor_id[0]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[1]+vendor_id[0]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[1]+vendor_id[1]@employee": {
+"ok": {
+"employee": 0,
+"kind": "vendor",
+"vendor_id": null
+}
+},
+"kind[1]+vendor_id[1]@linked": {
+"ok": {
+"employee": 0,
+"kind": "vendor",
+"vendor_id": null
+}
+},
+"kind[1]+vendor_id[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "vendor",
+"vendor_id": null
+}
+},
+"kind[1]+vendor_id[1]@person": {
+"ok": {
+"employee": 0,
+"kind": "vendor",
+"vendor_id": null
+}
+},
+"kind[1]+vendor_id[2]@employee": {
+"ok": {
+"employee": 0,
+"kind": "vendor",
+"vendor_id": null
+}
+},
+"kind[1]+vendor_id[2]@linked": {
+"ok": {
+"employee": 0,
+"kind": "vendor",
+"vendor_id": null
+}
+},
+"kind[1]+vendor_id[2]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "vendor",
+"vendor_id": null
+}
+},
+"kind[1]+vendor_id[2]@person": {
+"ok": {
+"employee": 0,
+"kind": "vendor",
+"vendor_id": null
+}
+},
+"kind[1]+vendor_id[3]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[1]+vendor_id[3]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[1]+vendor_id[3]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[1]+vendor_id[3]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[1]+vendor_id[4]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[1]+vendor_id[4]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[1]+vendor_id[4]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[1]+vendor_id[4]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[1]+vendor_id[5]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[1]+vendor_id[5]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[1]+vendor_id[5]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[1]+vendor_id[5]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[1]+vendor_id[6]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[1]+vendor_id[6]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[1]+vendor_id[6]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[1]+vendor_id[6]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[1]@employee": {
+"ok": {
+"employee": 0,
+"kind": "vendor"
+}
+},
+"kind[1]@linked": {
+"ok": {
+"employee": 0,
+"kind": "vendor"
+}
+},
+"kind[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "vendor"
+}
+},
+"kind[1]@person": {
+"ok": {
+"employee": 0,
+"kind": "vendor",
+"vendor_id": null
+}
+},
+"kind[1]@vendor": {
+"ok": {
+"employee": 0,
+"kind": "vendor"
+}
+},
+"kind[2]+permanent_vendor[0]@employee": {
+"refused": [
+"permanent_vendor",
+"not_external"
+]
+},
+"kind[2]+permanent_vendor[0]@linked": {
+"refused": [
+"permanent_vendor",
+"not_external"
+]
+},
+"kind[2]+permanent_vendor[0]@none": {
+"refused": [
+"permanent_vendor",
+"not_external"
+]
+},
+"kind[2]+permanent_vendor[0]@person": {
+"refused": [
+"permanent_vendor",
+"not_external"
+]
+},
+"kind[2]+permanent_vendor[1]@employee": {
+"ok": {
+"employee": 1,
+"kind": "person",
+"permanent_vendor": 0
+}
+},
+"kind[2]+permanent_vendor[1]@linked": {
+"refused": [
+"kind",
+"user_linked"
+]
+},
+"kind[2]+permanent_vendor[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 1,
+"kind": "person",
+"permanent_vendor": 0
+}
+},
+"kind[2]+permanent_vendor[1]@person": {
+"ok": {
+"employee": 1,
+"kind": "person",
+"permanent_vendor": 0,
+"vendor_id": null
+}
+},
+"kind[2]+permanent_vendor[2]@employee": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"kind[2]+permanent_vendor[2]@linked": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"kind[2]+permanent_vendor[2]@none": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"kind[2]+permanent_vendor[2]@person": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"kind[2]+user_id[0]@employee": {
+"refused": [
+"user_id",
+"employee"
+]
+},
+"kind[2]+user_id[0]@linked": {
+"refused": [
+"user_id",
+"employee"
+]
+},
+"kind[2]+user_id[0]@none": {
+"refused": [
+"user_id",
+"employee"
+]
+},
+"kind[2]+user_id[0]@person": {
+"refused": [
+"user_id",
+"employee"
+]
+},
+"kind[2]+user_id[1]@employee": {
+"ok": {
+"employee": 1,
+"kind": "person",
+"user_id": null
+}
+},
+"kind[2]+user_id[1]@linked": {
+"ok": {
+"employee": 1,
+"kind": "person",
+"user_id": null
+}
+},
+"kind[2]+user_id[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 1,
+"kind": "person",
+"user_id": null
+}
+},
+"kind[2]+user_id[1]@person": {
+"ok": {
+"employee": 1,
+"kind": "person",
+"permanent_vendor": 0,
+"user_id": null,
+"vendor_id": null
+}
+},
+"kind[2]+user_id[2]@employee": {
+"refused": [
+"user_id",
+"employee"
+]
+},
+"kind[2]+user_id[2]@linked": {
+"refused": [
+"user_id",
+"employee"
+]
+},
+"kind[2]+user_id[2]@none": {
+"refused": [
+"user_id",
+"employee"
+]
+},
+"kind[2]+user_id[2]@person": {
+"refused": [
+"user_id",
+"employee"
+]
+},
+"kind[2]+vendor_id[0]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[2]+vendor_id[0]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[2]+vendor_id[0]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[2]+vendor_id[0]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[2]+vendor_id[1]@employee": {
+"ok": {
+"employee": 1,
+"kind": "person",
+"vendor_id": null
+}
+},
+"kind[2]+vendor_id[1]@linked": {
+"refused": [
+"kind",
+"user_linked"
+]
+},
+"kind[2]+vendor_id[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 1,
+"kind": "person",
+"vendor_id": null
+}
+},
+"kind[2]+vendor_id[1]@person": {
+"ok": {
+"employee": 1,
+"kind": "person",
+"permanent_vendor": 0,
+"vendor_id": null
+}
+},
+"kind[2]+vendor_id[2]@employee": {
+"ok": {
+"employee": 1,
+"kind": "person",
+"vendor_id": null
+}
+},
+"kind[2]+vendor_id[2]@linked": {
+"refused": [
+"kind",
+"user_linked"
+]
+},
+"kind[2]+vendor_id[2]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 1,
+"kind": "person",
+"vendor_id": null
+}
+},
+"kind[2]+vendor_id[2]@person": {
+"ok": {
+"employee": 1,
+"kind": "person",
+"permanent_vendor": 0,
+"vendor_id": null
+}
+},
+"kind[2]+vendor_id[3]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[2]+vendor_id[3]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[2]+vendor_id[3]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[2]+vendor_id[3]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[2]+vendor_id[4]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[2]+vendor_id[4]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[2]+vendor_id[4]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[2]+vendor_id[4]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[2]+vendor_id[5]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[2]+vendor_id[5]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[2]+vendor_id[5]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[2]+vendor_id[5]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[2]+vendor_id[6]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[2]+vendor_id[6]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[2]+vendor_id[6]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[2]+vendor_id[6]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"kind[2]@employee": {
+"ok": {
+"employee": 1,
+"kind": "person"
+}
+},
+"kind[2]@linked": {
+"refused": [
+"kind",
+"user_linked"
+]
+},
+"kind[2]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 1,
+"kind": "person"
+}
+},
+"kind[2]@person": {
+"ok": {
+"employee": 1,
+"kind": "person",
+"permanent_vendor": 0,
+"vendor_id": null
+}
+},
+"kind[2]@vendor": {
+"ok": {
+"employee": 1,
+"kind": "person",
+"permanent_vendor": 0
+}
+},
+"kind[3]+permanent_vendor[0]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+permanent_vendor[0]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+permanent_vendor[0]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+permanent_vendor[0]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+permanent_vendor[1]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+permanent_vendor[1]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+permanent_vendor[1]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+permanent_vendor[1]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+permanent_vendor[2]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+permanent_vendor[2]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+permanent_vendor[2]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+permanent_vendor[2]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+user_id[0]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+user_id[0]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+user_id[0]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+user_id[0]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+user_id[1]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+user_id[1]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+user_id[1]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+user_id[1]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+user_id[2]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+user_id[2]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+user_id[2]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+user_id[2]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[0]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[0]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[0]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[0]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[1]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[1]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[1]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[1]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[2]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[2]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[2]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[2]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[3]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[3]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[3]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[3]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[4]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[4]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[4]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[4]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[5]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[5]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[5]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[5]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[6]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[6]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[6]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]+vendor_id[6]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[3]@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+permanent_vendor[0]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+permanent_vendor[0]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+permanent_vendor[0]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+permanent_vendor[0]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+permanent_vendor[1]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+permanent_vendor[1]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+permanent_vendor[1]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+permanent_vendor[1]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+permanent_vendor[2]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+permanent_vendor[2]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+permanent_vendor[2]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+permanent_vendor[2]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+user_id[0]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+user_id[0]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+user_id[0]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+user_id[0]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+user_id[1]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+user_id[1]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+user_id[1]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+user_id[1]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+user_id[2]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+user_id[2]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+user_id[2]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+user_id[2]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[0]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[0]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[0]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[0]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[1]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[1]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[1]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[1]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[2]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[2]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[2]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[2]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[3]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[3]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[3]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[3]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[4]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[4]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[4]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[4]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[5]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[5]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[5]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[5]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[6]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[6]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[6]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]+vendor_id[6]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]@employee": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]@linked": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]@none": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]@person": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"kind[4]@vendor": {
+"refused": [
+"kind",
+"choice"
+]
+},
+"labor_rate[0]+rate_currency[0]@employee": {
+"ok": {
+"labor_rate_minor": 12050,
+"rate_currency": "EUR"
+}
+},
+"labor_rate[0]+rate_currency[0]@linked": {
+"ok": {
+"labor_rate_minor": 12050,
+"rate_currency": "EUR"
+}
+},
+"labor_rate[0]+rate_currency[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"labor_rate_minor": 12050,
+"rate_currency": "EUR"
+}
+},
+"labor_rate[0]+rate_currency[0]@person": {
+"ok": {
+"labor_rate_minor": 12050,
+"rate_currency": "EUR"
+}
+},
+"labor_rate[0]+rate_currency[1]@employee": {
+"refused": [
+"rate_currency",
+"choice"
+]
+},
+"labor_rate[0]+rate_currency[1]@linked": {
+"refused": [
+"rate_currency",
+"choice"
+]
+},
+"labor_rate[0]+rate_currency[1]@none": {
+"refused": [
+"rate_currency",
+"choice"
+]
+},
+"labor_rate[0]+rate_currency[1]@person": {
+"refused": [
+"rate_currency",
+"choice"
+]
+},
+"labor_rate[0]@employee": {
+"ok": {
+"labor_rate_minor": 12050,
+"rate_currency": "ILS"
+}
+},
+"labor_rate[0]@linked": {
+"ok": {
+"labor_rate_minor": 12050,
+"rate_currency": "ILS"
+}
+},
+"labor_rate[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"labor_rate_minor": 12050,
+"rate_currency": "ILS"
+}
+},
+"labor_rate[0]@person": {
+"ok": {
+"labor_rate_minor": 12050,
+"rate_currency": "USD"
+}
+},
+"labor_rate[0]@vendor": {
+"ok": {
+"labor_rate_minor": 12050,
+"rate_currency": "ILS"
+}
+},
+"labor_rate[1]+rate_currency[0]@employee": {
+"ok": {
+"labor_rate_minor": null,
+"rate_currency": null
+}
+},
+"labor_rate[1]+rate_currency[0]@linked": {
+"ok": {
+"labor_rate_minor": null,
+"rate_currency": null
+}
+},
+"labor_rate[1]+rate_currency[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"labor_rate_minor": null,
+"rate_currency": null
+}
+},
+"labor_rate[1]+rate_currency[0]@person": {
+"ok": {
+"labor_rate_minor": null,
+"rate_currency": null
+}
+},
+"labor_rate[1]+rate_currency[1]@employee": {
+"refused": [
+"rate_currency",
+"choice"
+]
+},
+"labor_rate[1]+rate_currency[1]@linked": {
+"refused": [
+"rate_currency",
+"choice"
+]
+},
+"labor_rate[1]+rate_currency[1]@none": {
+"refused": [
+"rate_currency",
+"choice"
+]
+},
+"labor_rate[1]+rate_currency[1]@person": {
+"refused": [
+"rate_currency",
+"choice"
+]
+},
+"labor_rate[1]@employee": {
+"ok": {
+"labor_rate_minor": null,
+"rate_currency": null
+}
+},
+"labor_rate[1]@linked": {
+"ok": {
+"labor_rate_minor": null,
+"rate_currency": null
+}
+},
+"labor_rate[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"labor_rate_minor": null,
+"rate_currency": null
+}
+},
+"labor_rate[1]@person": {
+"ok": {
+"labor_rate_minor": null,
+"rate_currency": null
+}
+},
+"labor_rate[1]@vendor": {
+"ok": {
+"labor_rate_minor": null,
+"rate_currency": null
+}
+},
+"labor_rate[2]+rate_currency[0]@employee": {
+"ok": {
+"labor_rate_minor": null,
+"rate_currency": null
+}
+},
+"labor_rate[2]+rate_currency[0]@linked": {
+"ok": {
+"labor_rate_minor": null,
+"rate_currency": null
+}
+},
+"labor_rate[2]+rate_currency[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"labor_rate_minor": null,
+"rate_currency": null
+}
+},
+"labor_rate[2]+rate_currency[0]@person": {
+"ok": {
+"labor_rate_minor": null,
+"rate_currency": null
+}
+},
+"labor_rate[2]+rate_currency[1]@employee": {
+"refused": [
+"rate_currency",
+"choice"
+]
+},
+"labor_rate[2]+rate_currency[1]@linked": {
+"refused": [
+"rate_currency",
+"choice"
+]
+},
+"labor_rate[2]+rate_currency[1]@none": {
+"refused": [
+"rate_currency",
+"choice"
+]
+},
+"labor_rate[2]+rate_currency[1]@person": {
+"refused": [
+"rate_currency",
+"choice"
+]
+},
+"labor_rate[2]@employee": {
+"ok": {
+"labor_rate_minor": null,
+"rate_currency": null
+}
+},
+"labor_rate[2]@linked": {
+"ok": {
+"labor_rate_minor": null,
+"rate_currency": null
+}
+},
+"labor_rate[2]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"labor_rate_minor": null,
+"rate_currency": null
+}
+},
+"labor_rate[2]@person": {
+"ok": {
+"labor_rate_minor": null,
+"rate_currency": null
+}
+},
+"labor_rate[2]@vendor": {
+"ok": {
+"labor_rate_minor": null,
+"rate_currency": null
+}
+},
+"labor_rate[3]+rate_currency[0]@employee": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[3]+rate_currency[0]@linked": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[3]+rate_currency[0]@none": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[3]+rate_currency[0]@person": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[3]+rate_currency[1]@employee": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[3]+rate_currency[1]@linked": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[3]+rate_currency[1]@none": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[3]+rate_currency[1]@person": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[3]@employee": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[3]@linked": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[3]@none": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[3]@person": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[3]@vendor": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[4]+rate_currency[0]@employee": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[4]+rate_currency[0]@linked": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[4]+rate_currency[0]@none": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[4]+rate_currency[0]@person": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[4]+rate_currency[1]@employee": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[4]+rate_currency[1]@linked": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[4]+rate_currency[1]@none": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[4]+rate_currency[1]@person": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[4]@employee": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[4]@linked": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[4]@none": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[4]@person": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"labor_rate[4]@vendor": {
+"refused": [
+"labor_rate",
+"format"
+]
+},
+"lang[0]@employee": {
+"ok": {
+"lang": "en"
+}
+},
+"lang[0]@linked": {
+"ok": {
+"lang": "en"
+}
+},
+"lang[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"lang": "en"
+}
+},
+"lang[0]@person": {
+"ok": {
+"lang": "en"
+}
+},
+"lang[0]@vendor": {
+"ok": {
+"lang": "en"
+}
+},
+"lang[1]@employee": {
+"refused": [
+"lang",
+"choice"
+]
+},
+"lang[1]@linked": {
+"refused": [
+"lang",
+"choice"
+]
+},
+"lang[1]@none": {
+"refused": [
+"lang",
+"choice"
+]
+},
+"lang[1]@person": {
+"refused": [
+"lang",
+"choice"
+]
+},
+"lang[1]@vendor": {
+"refused": [
+"lang",
+"choice"
+]
+},
+"notes[0]@employee": {
+"ok": {
+"notes": "line one\nline two"
+}
+},
+"notes[0]@linked": {
+"ok": {
+"notes": "line one\nline two"
+}
+},
+"notes[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"notes": "line one\nline two"
+}
+},
+"notes[0]@person": {
+"ok": {
+"notes": "line one\nline two"
+}
+},
+"notes[0]@vendor": {
+"ok": {
+"notes": "line one\nline two"
+}
+},
+"notes[1]@employee": {
+"refused": [
+"notes",
+"too_long"
+]
+},
+"notes[1]@linked": {
+"refused": [
+"notes",
+"too_long"
+]
+},
+"notes[1]@none": {
+"refused": [
+"notes",
+"too_long"
+]
+},
+"notes[1]@person": {
+"refused": [
+"notes",
+"too_long"
+]
+},
+"notes[1]@vendor": {
+"refused": [
+"notes",
+"too_long"
+]
+},
+"permanent_vendor[0]@employee": {
+"refused": [
+"permanent_vendor",
+"not_external"
+]
+},
+"permanent_vendor[0]@linked": {
+"refused": [
+"permanent_vendor",
+"not_external"
+]
+},
+"permanent_vendor[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"permanent_vendor": 1
+}
+},
+"permanent_vendor[0]@person": {
+"ok": {
+"permanent_vendor": 1
+}
+},
+"permanent_vendor[0]@vendor": {
+"ok": {
+"permanent_vendor": 1
+}
+},
+"permanent_vendor[1]@employee": {
+"ok": {
+"permanent_vendor": 0
+}
+},
+"permanent_vendor[1]@linked": {
+"ok": {
+"permanent_vendor": 0
+}
+},
+"permanent_vendor[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"permanent_vendor": 0
+}
+},
+"permanent_vendor[1]@person": {
+"ok": {
+"permanent_vendor": 0
+}
+},
+"permanent_vendor[1]@vendor": {
+"ok": {
+"permanent_vendor": 0
+}
+},
+"permanent_vendor[2]@employee": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"permanent_vendor[2]@linked": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"permanent_vendor[2]@none": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"permanent_vendor[2]@person": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"permanent_vendor[2]@vendor": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"phone[0]@employee": {
+"ok": {
+"phone_e164": "972501234567"
+}
+},
+"phone[0]@linked": {
+"ok": {
+"phone_e164": "972501234567"
+}
+},
+"phone[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"phone_e164": "972501234567"
+}
+},
+"phone[0]@person": {
+"ok": {
+"phone_e164": "972501234567"
+}
+},
+"phone[0]@vendor": {
+"ok": {
+"phone_e164": "972501234567"
+}
+},
+"phone[1]@employee": {
+"ok": {
+"phone_e164": "972501234567"
+}
+},
+"phone[1]@linked": {
+"ok": {
+"phone_e164": "972501234567"
+}
+},
+"phone[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"phone_e164": "972501234567"
+}
+},
+"phone[1]@person": {
+"ok": {
+"phone_e164": "972501234567"
+}
+},
+"phone[1]@vendor": {
+"ok": {
+"phone_e164": "972501234567"
+}
+},
+"phone[2]@employee": {
+"refused": [
+"phone",
+"format"
+]
+},
+"phone[2]@linked": {
+"refused": [
+"phone",
+"format"
+]
+},
+"phone[2]@none": {
+"refused": [
+"phone",
+"format"
+]
+},
+"phone[2]@person": {
+"refused": [
+"phone",
+"format"
+]
+},
+"phone[2]@vendor": {
+"refused": [
+"phone",
+"format"
+]
+},
+"phone[3]@employee": {
+"ok": {
+"phone_e164": null
+}
+},
+"phone[3]@linked": {
+"ok": {
+"phone_e164": null
+}
+},
+"phone[3]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"phone_e164": null
+}
+},
+"phone[3]@person": {
+"ok": {
+"phone_e164": null
+}
+},
+"phone[3]@vendor": {
+"ok": {
+"phone_e164": null
+}
+},
+"phone_verify[0]@employee": {
+"ok": {
+"phone_verify": 1
+}
+},
+"phone_verify[0]@linked": {
+"ok": {
+"phone_verify": 1
+}
+},
+"phone_verify[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"phone_verify": 1
+}
+},
+"phone_verify[0]@person": {
+"ok": {
+"phone_verify": 1
+}
+},
+"phone_verify[0]@vendor": {
+"ok": {
+"phone_verify": 1
+}
+},
+"phone_verify[1]@employee": {
+"refused": [
+"phone_verify",
+"type"
+]
+},
+"phone_verify[1]@linked": {
+"refused": [
+"phone_verify",
+"type"
+]
+},
+"phone_verify[1]@none": {
+"refused": [
+"phone_verify",
+"type"
+]
+},
+"phone_verify[1]@person": {
+"refused": [
+"phone_verify",
+"type"
+]
+},
+"phone_verify[1]@vendor": {
+"refused": [
+"phone_verify",
+"type"
+]
+},
+"preferred_channel[0]+lang[0]@employee": {
+"ok": {
+"lang": "en",
+"preferred_channel": "whatsapp"
+}
+},
+"preferred_channel[0]+lang[0]@linked": {
+"ok": {
+"lang": "en",
+"preferred_channel": "whatsapp"
+}
+},
+"preferred_channel[0]+lang[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"lang": "en",
+"preferred_channel": "whatsapp"
+}
+},
+"preferred_channel[0]+lang[0]@person": {
+"ok": {
+"lang": "en",
+"preferred_channel": "whatsapp"
+}
+},
+"preferred_channel[0]+lang[1]@employee": {
+"refused": [
+"lang",
+"choice"
+]
+},
+"preferred_channel[0]+lang[1]@linked": {
+"refused": [
+"lang",
+"choice"
+]
+},
+"preferred_channel[0]+lang[1]@none": {
+"refused": [
+"lang",
+"choice"
+]
+},
+"preferred_channel[0]+lang[1]@person": {
+"refused": [
+"lang",
+"choice"
+]
+},
+"preferred_channel[0]@employee": {
+"ok": {
+"preferred_channel": "whatsapp"
+}
+},
+"preferred_channel[0]@linked": {
+"ok": {
+"preferred_channel": "whatsapp"
+}
+},
+"preferred_channel[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"preferred_channel": "whatsapp"
+}
+},
+"preferred_channel[0]@person": {
+"ok": {
+"preferred_channel": "whatsapp"
+}
+},
+"preferred_channel[0]@vendor": {
+"ok": {
+"preferred_channel": "whatsapp"
+}
+},
+"preferred_channel[1]+lang[0]@employee": {
+"refused": [
+"preferred_channel",
+"choice"
+]
+},
+"preferred_channel[1]+lang[0]@linked": {
+"refused": [
+"preferred_channel",
+"choice"
+]
+},
+"preferred_channel[1]+lang[0]@none": {
+"refused": [
+"preferred_channel",
+"choice"
+]
+},
+"preferred_channel[1]+lang[0]@person": {
+"refused": [
+"preferred_channel",
+"choice"
+]
+},
+"preferred_channel[1]+lang[1]@employee": {
+"refused": [
+"preferred_channel",
+"choice"
+]
+},
+"preferred_channel[1]+lang[1]@linked": {
+"refused": [
+"preferred_channel",
+"choice"
+]
+},
+"preferred_channel[1]+lang[1]@none": {
+"refused": [
+"preferred_channel",
+"choice"
+]
+},
+"preferred_channel[1]+lang[1]@person": {
+"refused": [
+"preferred_channel",
+"choice"
+]
+},
+"preferred_channel[1]@employee": {
+"refused": [
+"preferred_channel",
+"choice"
+]
+},
+"preferred_channel[1]@linked": {
+"refused": [
+"preferred_channel",
+"choice"
+]
+},
+"preferred_channel[1]@none": {
+"refused": [
+"preferred_channel",
+"choice"
+]
+},
+"preferred_channel[1]@person": {
+"refused": [
+"preferred_channel",
+"choice"
+]
+},
+"preferred_channel[1]@vendor": {
+"refused": [
+"preferred_channel",
+"choice"
+]
+},
+"rate_currency[0]@employee": {
+"ok": {}
+},
+"rate_currency[0]@linked": {
+"ok": {}
+},
+"rate_currency[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person"
+}
+},
+"rate_currency[0]@person": {
+"ok": {}
+},
+"rate_currency[0]@vendor": {
+"ok": {}
+},
+"rate_currency[1]@employee": {
+"ok": {}
+},
+"rate_currency[1]@linked": {
+"ok": {}
+},
+"rate_currency[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person"
+}
+},
+"rate_currency[1]@person": {
+"ok": {}
+},
+"rate_currency[1]@vendor": {
+"ok": {}
+},
+"require_code[0]@employee": {
+"ok": {
+"require_code": 1
+}
+},
+"require_code[0]@linked": {
+"ok": {
+"require_code": 1
+}
+},
+"require_code[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"require_code": 1
+}
+},
+"require_code[0]@person": {
+"ok": {
+"require_code": 1
+}
+},
+"require_code[0]@vendor": {
+"ok": {
+"require_code": 1
+}
+},
+"require_code[1]@employee": {
+"refused": [
+"require_code",
+"type"
+]
+},
+"require_code[1]@linked": {
+"refused": [
+"require_code",
+"type"
+]
+},
+"require_code[1]@none": {
+"refused": [
+"require_code",
+"type"
+]
+},
+"require_code[1]@person": {
+"refused": [
+"require_code",
+"type"
+]
+},
+"require_code[1]@vendor": {
+"refused": [
+"require_code",
+"type"
+]
+},
+"share_history[0]+require_code[0]@employee": {
+"ok": {
+"require_code": 1,
+"share_history": null
+}
+},
+"share_history[0]+require_code[0]@linked": {
+"ok": {
+"require_code": 1,
+"share_history": null
+}
+},
+"share_history[0]+require_code[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"require_code": 1,
+"share_history": null
+}
+},
+"share_history[0]+require_code[0]@person": {
+"ok": {
+"require_code": 1,
+"share_history": null
+}
+},
+"share_history[0]+require_code[1]@employee": {
+"refused": [
+"require_code",
+"type"
+]
+},
+"share_history[0]+require_code[1]@linked": {
+"refused": [
+"require_code",
+"type"
+]
+},
+"share_history[0]+require_code[1]@none": {
+"refused": [
+"require_code",
+"type"
+]
+},
+"share_history[0]+require_code[1]@person": {
+"refused": [
+"require_code",
+"type"
+]
+},
+"share_history[0]@employee": {
+"ok": {
+"share_history": null
+}
+},
+"share_history[0]@linked": {
+"ok": {
+"share_history": null
+}
+},
+"share_history[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"share_history": null
+}
+},
+"share_history[0]@person": {
+"ok": {
+"share_history": null
+}
+},
+"share_history[0]@vendor": {
+"ok": {
+"share_history": null
+}
+},
+"share_history[1]+require_code[0]@employee": {
+"ok": {
+"require_code": 1,
+"share_history": 1
+}
+},
+"share_history[1]+require_code[0]@linked": {
+"ok": {
+"require_code": 1,
+"share_history": 1
+}
+},
+"share_history[1]+require_code[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"require_code": 1,
+"share_history": 1
+}
+},
+"share_history[1]+require_code[0]@person": {
+"ok": {
+"require_code": 1,
+"share_history": 1
+}
+},
+"share_history[1]+require_code[1]@employee": {
+"refused": [
+"require_code",
+"type"
+]
+},
+"share_history[1]+require_code[1]@linked": {
+"refused": [
+"require_code",
+"type"
+]
+},
+"share_history[1]+require_code[1]@none": {
+"refused": [
+"require_code",
+"type"
+]
+},
+"share_history[1]+require_code[1]@person": {
+"refused": [
+"require_code",
+"type"
+]
+},
+"share_history[1]@employee": {
+"ok": {
+"share_history": 1
+}
+},
+"share_history[1]@linked": {
+"ok": {
+"share_history": 1
+}
+},
+"share_history[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"share_history": 1
+}
+},
+"share_history[1]@person": {
+"ok": {
+"share_history": 1
+}
+},
+"share_history[1]@vendor": {
+"ok": {
+"share_history": 1
+}
+},
+"share_history[2]+require_code[0]@employee": {
+"ok": {
+"require_code": 1,
+"share_history": 0
+}
+},
+"share_history[2]+require_code[0]@linked": {
+"ok": {
+"require_code": 1,
+"share_history": 0
+}
+},
+"share_history[2]+require_code[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"require_code": 1,
+"share_history": 0
+}
+},
+"share_history[2]+require_code[0]@person": {
+"ok": {
+"require_code": 1,
+"share_history": 0
+}
+},
+"share_history[2]+require_code[1]@employee": {
+"refused": [
+"require_code",
+"type"
+]
+},
+"share_history[2]+require_code[1]@linked": {
+"refused": [
+"require_code",
+"type"
+]
+},
+"share_history[2]+require_code[1]@none": {
+"refused": [
+"require_code",
+"type"
+]
+},
+"share_history[2]+require_code[1]@person": {
+"refused": [
+"require_code",
+"type"
+]
+},
+"share_history[2]@employee": {
+"ok": {
+"share_history": 0
+}
+},
+"share_history[2]@linked": {
+"ok": {
+"share_history": 0
+}
+},
+"share_history[2]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"share_history": 0
+}
+},
+"share_history[2]@person": {
+"ok": {
+"share_history": 0
+}
+},
+"share_history[2]@vendor": {
+"ok": {
+"share_history": 0
+}
+},
+"share_history[3]+require_code[0]@employee": {
+"refused": [
+"share_history",
+"type"
+]
+},
+"share_history[3]+require_code[0]@linked": {
+"refused": [
+"share_history",
+"type"
+]
+},
+"share_history[3]+require_code[0]@none": {
+"refused": [
+"share_history",
+"type"
+]
+},
+"share_history[3]+require_code[0]@person": {
+"refused": [
+"share_history",
+"type"
+]
+},
+"share_history[3]+require_code[1]@employee": {
+"refused": [
+"require_code",
+"type"
+]
+},
+"share_history[3]+require_code[1]@linked": {
+"refused": [
+"require_code",
+"type"
+]
+},
+"share_history[3]+require_code[1]@none": {
+"refused": [
+"require_code",
+"type"
+]
+},
+"share_history[3]+require_code[1]@person": {
+"refused": [
+"require_code",
+"type"
+]
+},
+"share_history[3]@employee": {
+"refused": [
+"share_history",
+"type"
+]
+},
+"share_history[3]@linked": {
+"refused": [
+"share_history",
+"type"
+]
+},
+"share_history[3]@none": {
+"refused": [
+"share_history",
+"type"
+]
+},
+"share_history[3]@person": {
+"refused": [
+"share_history",
+"type"
+]
+},
+"share_history[3]@vendor": {
+"refused": [
+"share_history",
+"type"
+]
+},
+"user_id[0]+permanent_vendor[0]@employee": {
+"refused": [
+"permanent_vendor",
+"not_external"
+]
+},
+"user_id[0]+permanent_vendor[0]@linked": {
+"refused": [
+"permanent_vendor",
+"not_external"
+]
+},
+"user_id[0]+permanent_vendor[0]@none": {
+"refused": [
+"permanent_vendor",
+"not_external"
+]
+},
+"user_id[0]+permanent_vendor[0]@person": {
+"refused": [
+"permanent_vendor",
+"not_external"
+]
+},
+"user_id[0]+permanent_vendor[1]@employee": {
+"refused": [
+"user_id",
+"employee"
+]
+},
+"user_id[0]+permanent_vendor[1]@linked": {
+"ok": {
+"permanent_vendor": 0,
+"user_id": "u1"
+}
+},
+"user_id[0]+permanent_vendor[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"permanent_vendor": 0,
+"user_id": "u1"
+}
+},
+"user_id[0]+permanent_vendor[1]@person": {
+"ok": {
+"permanent_vendor": 0,
+"user_id": "u1"
+}
+},
+"user_id[0]+permanent_vendor[2]@employee": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"user_id[0]+permanent_vendor[2]@linked": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"user_id[0]+permanent_vendor[2]@none": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"user_id[0]+permanent_vendor[2]@person": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"user_id[0]@employee": {
+"refused": [
+"user_id",
+"employee"
+]
+},
+"user_id[0]@linked": {
+"ok": {
+"user_id": "u1"
+}
+},
+"user_id[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"user_id": "u1"
+}
+},
+"user_id[0]@person": {
+"ok": {
+"permanent_vendor": 0,
+"user_id": "u1"
+}
+},
+"user_id[0]@vendor": {
+"ok": {
+"permanent_vendor": 0,
+"user_id": "u1"
+}
+},
+"user_id[1]+permanent_vendor[0]@employee": {
+"refused": [
+"permanent_vendor",
+"not_external"
+]
+},
+"user_id[1]+permanent_vendor[0]@linked": {
+"ok": {
+"permanent_vendor": 1,
+"user_id": null
+}
+},
+"user_id[1]+permanent_vendor[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"permanent_vendor": 1,
+"user_id": null
+}
+},
+"user_id[1]+permanent_vendor[0]@person": {
+"ok": {
+"permanent_vendor": 1,
+"user_id": null
+}
+},
+"user_id[1]+permanent_vendor[1]@employee": {
+"ok": {
+"permanent_vendor": 0,
+"user_id": null
+}
+},
+"user_id[1]+permanent_vendor[1]@linked": {
+"ok": {
+"permanent_vendor": 0,
+"user_id": null
+}
+},
+"user_id[1]+permanent_vendor[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"permanent_vendor": 0,
+"user_id": null
+}
+},
+"user_id[1]+permanent_vendor[1]@person": {
+"ok": {
+"permanent_vendor": 0,
+"user_id": null
+}
+},
+"user_id[1]+permanent_vendor[2]@employee": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"user_id[1]+permanent_vendor[2]@linked": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"user_id[1]+permanent_vendor[2]@none": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"user_id[1]+permanent_vendor[2]@person": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"user_id[1]@employee": {
+"ok": {
+"user_id": null
+}
+},
+"user_id[1]@linked": {
+"ok": {
+"user_id": null
+}
+},
+"user_id[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"user_id": null
+}
+},
+"user_id[1]@person": {
+"ok": {
+"user_id": null
+}
+},
+"user_id[1]@vendor": {
+"ok": {
+"user_id": null
+}
+},
+"user_id[2]+permanent_vendor[0]@employee": {
+"refused": [
+"permanent_vendor",
+"not_external"
+]
+},
+"user_id[2]+permanent_vendor[0]@linked": {
+"refused": [
+"permanent_vendor",
+"not_external"
+]
+},
+"user_id[2]+permanent_vendor[0]@none": {
+"refused": [
+"permanent_vendor",
+"not_external"
+]
+},
+"user_id[2]+permanent_vendor[0]@person": {
+"refused": [
+"permanent_vendor",
+"not_external"
+]
+},
+"user_id[2]+permanent_vendor[1]@employee": {
+"refused": [
+"user_id",
+"employee"
+]
+},
+"user_id[2]+permanent_vendor[1]@linked": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"user_id[2]+permanent_vendor[1]@none": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"user_id[2]+permanent_vendor[1]@person": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"user_id[2]+permanent_vendor[2]@employee": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"user_id[2]+permanent_vendor[2]@linked": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"user_id[2]+permanent_vendor[2]@none": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"user_id[2]+permanent_vendor[2]@person": {
+"refused": [
+"permanent_vendor",
+"type"
+]
+},
+"user_id[2]@employee": {
+"refused": [
+"user_id",
+"employee"
+]
+},
+"user_id[2]@linked": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"user_id[2]@none": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"user_id[2]@person": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"user_id[2]@vendor": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"vat_default[0]@employee": {
+"ok": {
+"vat_default": "included"
+}
+},
+"vat_default[0]@linked": {
+"ok": {
+"vat_default": "included"
+}
+},
+"vat_default[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"vat_default": "included"
+}
+},
+"vat_default[0]@person": {
+"ok": {
+"vat_default": "included"
+}
+},
+"vat_default[0]@vendor": {
+"ok": {
+"vat_default": "included"
+}
+},
+"vat_default[1]@employee": {
+"refused": [
+"vat_default",
+"choice"
+]
+},
+"vat_default[1]@linked": {
+"refused": [
+"vat_default",
+"choice"
+]
+},
+"vat_default[1]@none": {
+"refused": [
+"vat_default",
+"choice"
+]
+},
+"vat_default[1]@person": {
+"refused": [
+"vat_default",
+"choice"
+]
+},
+"vat_default[1]@vendor": {
+"refused": [
+"vat_default",
+"choice"
+]
+},
+"vat_exempt[0]@employee": {
+"ok": {
+"vat_exempt": 1
+}
+},
+"vat_exempt[0]@linked": {
+"ok": {
+"vat_exempt": 1
+}
+},
+"vat_exempt[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"vat_exempt": 1
+}
+},
+"vat_exempt[0]@person": {
+"ok": {
+"vat_exempt": 1
+}
+},
+"vat_exempt[0]@vendor": {
+"ok": {
+"vat_exempt": 1
+}
+},
+"vat_exempt[1]@employee": {
+"refused": [
+"vat_exempt",
+"type"
+]
+},
+"vat_exempt[1]@linked": {
+"refused": [
+"vat_exempt",
+"type"
+]
+},
+"vat_exempt[1]@none": {
+"refused": [
+"vat_exempt",
+"type"
+]
+},
+"vat_exempt[1]@person": {
+"refused": [
+"vat_exempt",
+"type"
+]
+},
+"vat_exempt[1]@vendor": {
+"refused": [
+"vat_exempt",
+"type"
+]
+},
+"vendor_id[0]+user_id[0]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[0]+user_id[0]@linked": {
+"ok": {
+"user_id": "u1",
+"vendor_id": "v1"
+}
+},
+"vendor_id[0]+user_id[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"user_id": "u1",
+"vendor_id": "v1"
+}
+},
+"vendor_id[0]+user_id[0]@person": {
+"ok": {
+"permanent_vendor": 0,
+"user_id": "u1",
+"vendor_id": "v1"
+}
+},
+"vendor_id[0]+user_id[1]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[0]+user_id[1]@linked": {
+"ok": {
+"user_id": null,
+"vendor_id": "v1"
+}
+},
+"vendor_id[0]+user_id[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"user_id": null,
+"vendor_id": "v1"
+}
+},
+"vendor_id[0]+user_id[1]@person": {
+"ok": {
+"user_id": null,
+"vendor_id": "v1"
+}
+},
+"vendor_id[0]+user_id[2]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[0]+user_id[2]@linked": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"vendor_id[0]+user_id[2]@none": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"vendor_id[0]+user_id[2]@person": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"vendor_id[0]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[0]@linked": {
+"ok": {
+"vendor_id": "v1"
+}
+},
+"vendor_id[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"vendor_id": "v1"
+}
+},
+"vendor_id[0]@person": {
+"ok": {
+"vendor_id": "v1"
+}
+},
+"vendor_id[0]@vendor": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[1]+user_id[0]@employee": {
+"refused": [
+"user_id",
+"employee"
+]
+},
+"vendor_id[1]+user_id[0]@linked": {
+"ok": {
+"user_id": "u1",
+"vendor_id": null
+}
+},
+"vendor_id[1]+user_id[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"user_id": "u1",
+"vendor_id": null
+}
+},
+"vendor_id[1]+user_id[0]@person": {
+"ok": {
+"permanent_vendor": 0,
+"user_id": "u1",
+"vendor_id": null
+}
+},
+"vendor_id[1]+user_id[1]@employee": {
+"ok": {
+"user_id": null,
+"vendor_id": null
+}
+},
+"vendor_id[1]+user_id[1]@linked": {
+"ok": {
+"user_id": null,
+"vendor_id": null
+}
+},
+"vendor_id[1]+user_id[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"user_id": null,
+"vendor_id": null
+}
+},
+"vendor_id[1]+user_id[1]@person": {
+"ok": {
+"user_id": null,
+"vendor_id": null
+}
+},
+"vendor_id[1]+user_id[2]@employee": {
+"refused": [
+"user_id",
+"employee"
+]
+},
+"vendor_id[1]+user_id[2]@linked": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"vendor_id[1]+user_id[2]@none": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"vendor_id[1]+user_id[2]@person": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"vendor_id[1]@employee": {
+"ok": {
+"vendor_id": null
+}
+},
+"vendor_id[1]@linked": {
+"ok": {
+"vendor_id": null
+}
+},
+"vendor_id[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"vendor_id": null
+}
+},
+"vendor_id[1]@person": {
+"ok": {
+"vendor_id": null
+}
+},
+"vendor_id[1]@vendor": {
+"ok": {
+"vendor_id": null
+}
+},
+"vendor_id[2]+user_id[0]@employee": {
+"refused": [
+"user_id",
+"employee"
+]
+},
+"vendor_id[2]+user_id[0]@linked": {
+"ok": {
+"user_id": "u1",
+"vendor_id": null
+}
+},
+"vendor_id[2]+user_id[0]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"user_id": "u1",
+"vendor_id": null
+}
+},
+"vendor_id[2]+user_id[0]@person": {
+"ok": {
+"permanent_vendor": 0,
+"user_id": "u1",
+"vendor_id": null
+}
+},
+"vendor_id[2]+user_id[1]@employee": {
+"ok": {
+"user_id": null,
+"vendor_id": null
+}
+},
+"vendor_id[2]+user_id[1]@linked": {
+"ok": {
+"user_id": null,
+"vendor_id": null
+}
+},
+"vendor_id[2]+user_id[1]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"user_id": null,
+"vendor_id": null
+}
+},
+"vendor_id[2]+user_id[1]@person": {
+"ok": {
+"user_id": null,
+"vendor_id": null
+}
+},
+"vendor_id[2]+user_id[2]@employee": {
+"refused": [
+"user_id",
+"employee"
+]
+},
+"vendor_id[2]+user_id[2]@linked": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"vendor_id[2]+user_id[2]@none": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"vendor_id[2]+user_id[2]@person": {
+"refused": [
+"user_id",
+"unknown"
+]
+},
+"vendor_id[2]@employee": {
+"ok": {
+"vendor_id": null
+}
+},
+"vendor_id[2]@linked": {
+"ok": {
+"vendor_id": null
+}
+},
+"vendor_id[2]@none": {
+"ok": {
+"display_name": "Dana",
+"employee": 0,
+"kind": "person",
+"vendor_id": null
+}
+},
+"vendor_id[2]@person": {
+"ok": {
+"vendor_id": null
+}
+},
+"vendor_id[2]@vendor": {
+"ok": {
+"vendor_id": null
+}
+},
+"vendor_id[3]+user_id[0]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[3]+user_id[0]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[3]+user_id[0]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[3]+user_id[0]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[3]+user_id[1]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[3]+user_id[1]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[3]+user_id[1]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[3]+user_id[1]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[3]+user_id[2]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[3]+user_id[2]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[3]+user_id[2]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[3]+user_id[2]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[3]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[3]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[3]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[3]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[3]@vendor": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[4]+user_id[0]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[4]+user_id[0]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[4]+user_id[0]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[4]+user_id[0]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[4]+user_id[1]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[4]+user_id[1]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[4]+user_id[1]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[4]+user_id[1]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[4]+user_id[2]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[4]+user_id[2]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[4]+user_id[2]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[4]+user_id[2]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[4]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[4]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[4]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[4]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[4]@vendor": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[5]+user_id[0]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[5]+user_id[0]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[5]+user_id[0]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[5]+user_id[0]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[5]+user_id[1]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[5]+user_id[1]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[5]+user_id[1]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[5]+user_id[1]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[5]+user_id[2]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[5]+user_id[2]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[5]+user_id[2]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[5]+user_id[2]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[5]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[5]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[5]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[5]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[5]@vendor": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[6]+user_id[0]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[6]+user_id[0]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[6]+user_id[0]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[6]+user_id[0]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[6]+user_id[1]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[6]+user_id[1]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[6]+user_id[1]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[6]+user_id[1]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[6]+user_id[2]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[6]+user_id[2]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[6]+user_id[2]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[6]+user_id[2]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[6]@employee": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[6]@linked": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[6]@none": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[6]@person": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+},
+"vendor_id[6]@vendor": {
+"refused": [
+"vendor_id",
+"unknown"
+]
+}
+}
