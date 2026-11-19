@@ -35,6 +35,20 @@ async function open(page: Page, skin: string, scheme: string, hash: string, read
   await page.waitForTimeout(800);
 }
 
+/** Loading panels (sw-state-panel state="loading") anywhere in the app, shadow roots included. */
+const loadingPanels = (page: Page) =>
+  page.evaluate(() => {
+    let n = 0;
+    const walk = (root: Document | ShadowRoot) => {
+      for (const el of root.querySelectorAll('*')) {
+        if (el.tagName === 'SW-STATE-PANEL' && el.getAttribute('state') === 'loading') n++;
+        if (el.shadowRoot) walk(el.shadowRoot);
+      }
+    };
+    walk(document);
+    return n;
+  });
+
 test.describe('worst-case data on the main screens', () => {
   test.beforeAll(() => { if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true }); });
   for (const skin of SKINS) for (const scheme of SCHEMES) for (const ds of SETS) {
@@ -57,7 +71,10 @@ test.describe('worst-case data on the main screens', () => {
         const ctx = `${s.id}/${ds}/${skin}-${scheme}/${info.project.name}`;
         // FIX-FLAKY-POLISH-WORSTCASE-2439: the resting layout - on a loaded runner the frames lag the tasks, so a counter's value fit
         // (scheduled for the next frame after a render) and the shell's transitions could still be pending 800 ms after the screen
-        // was attached; the gates measured that in-between frame. Two frames, then the finite animations (helpers/settle.ts).
+        // was attached; the gates measured that in-between frame. Two frames, then the finite animations (helpers/settle.ts). Before
+        // that, the screen's data has arrived: under load the users screen could still show its loading panel (whose spinner ring,
+        // painted 3 px outside its 64 px tile, read as "div.icon content 67px wider than box 64px")
+        await expect.poll(() => loadingPanels(page), { message: `${ctx}: the screen finished loading`, timeout: 30_000 }).toBe(0);
         await restingLayout(page);
         const m = await measure(page, ctx, 'sw-app');
         const own = [...m.found.map((f) => `${f.cls} ${f.el} ${f.detail}`), ...(m.scroll > 1 ? [`page scrolls sideways by ${m.scroll}px`] : [])];
