@@ -740,13 +740,10 @@ def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Co
     for u in users:
         if not u.get("id"):
             continue
-        conn.execute(
-            "INSERT INTO ha_users(id, name, username, is_active, is_admin, group_ids_json, synced_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, username = excluded.username, is_active = excluded.is_active, is_admin = excluded.is_admin, group_ids_json = excluded.group_ids_json, synced_at = excluded.synced_at",
-            (u["id"], u.get("name"), u.get("username"), 1 if u.get("is_active", True) else 0, 1 if u.get("is_admin") else 0, json.dumps(u.get("group_ids") or []), now),
-        )
+        store.upsert_directory_user(conn, u["id"], u.get("name"), u.get("username"), 1 if u.get("is_active", True) else 0, 1 if u.get("is_admin") else 0, json.dumps(u.get("group_ids") or []), now)
     ids = [u["id"] for u in users if u.get("id")]
     if ids:
-        conn.execute(f"UPDATE ha_users SET is_active = 0 WHERE id NOT IN ({','.join('?' * len(ids))})", ids)
+        store.deactivate_directory_users_except(conn, ids)
     _apply_directory_to_users(conn, request, {u["id"]: u for u in users if u.get("id")})
     from ..services.tickets import staff_links  # TKSTAFF1 (R7 a): a deactivated user's no-login staff links die with the push
 
@@ -801,10 +798,10 @@ def _apply_directory_to_users(conn: sqlite3.Connection, request: Request, pushed
     cannot lock the installation."""
     from ..services import revocation
 
-    admins = {r["subject_id"] for r in conn.execute("SELECT subject_id FROM bindings WHERE subject_kind = 'user' AND role_id = 'system_admin' AND scope_type = 'installation' AND effect = 'allow' AND revoked_at IS NULL").fetchall()}
+    admins = {r["subject_id"] for r in store.installation_admin_rows(conn)}
     disabled: list[str] = []
     # CR-008: first seen through Arx. USR2 R11: `source = 'local'` rows (Arx-only identities) are never mirrored or dropped here
-    for r in conn.execute("SELECT id, active FROM users WHERE source IN ('ingress', 'remote') AND substr(id, 1, 2) <> 'l_'").fetchall():
+    for r in store.mirrored_user_rows(conn):
         p = pushed.get(r["id"])
         if p is None:
             active_now = 1 if r["id"] in admins else 0
@@ -812,7 +809,7 @@ def _apply_directory_to_users(conn: sqlite3.Connection, request: Request, pushed
             active_now = 1 if p.get("is_active", True) else 0
         if active_now == r["active"]:
             continue
-        conn.execute("UPDATE users SET active = ? WHERE id = ?", (active_now, r["id"]))
+        store.set_user_active(conn, active_now, r["id"])
         audit(conn, actor=None, action="identity.user_enabled" if active_now else "identity.user_disabled", decision="allowed", resource_type="user", resource_id=r["id"],
               reason="ha_directory" if p is not None else "missing_from_directory", request_id=_rid(request))
         if not active_now:
