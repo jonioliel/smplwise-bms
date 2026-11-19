@@ -307,7 +307,7 @@ def _parameter_problems(bp: dict[str, Any], errs: list[str]) -> dict[str, dict[s
 def _rule_problems(bp: dict[str, Any], keys: dict[str, dict[str, Any]], errs: list[str]) -> None:
     """Each rule compares two declared parameters."""
     for r in bp.get("rules") or []:
-        if not isinstance(r, dict) or r.get("rule") not in ("lt", "ne") or r.get("a") not in keys or r.get("b") not in keys:
+        if not isinstance(r, dict) or r.get("rule") not in ("lt", "ne") or not _declared(r.get("a"), keys) or not _declared(r.get("b"), keys):
             errs.append("bad rule")
 
 
@@ -317,9 +317,9 @@ def _template_ref_problems(tpl: dict[str, Any], keys: dict[str, dict[str, Any]],
         errs.append("template: mode must be single or restart")
     refs: list[tuple[str, str | None]] = []
     _refs(tpl, refs)
-    used = {k for k, _a in refs}
+    used = {k for k, _a in refs if _hashable(k)}
     for k, as_ in refs:
-        if k not in keys:
+        if not _declared(k, keys):
             errs.append(f"template uses undeclared parameter {k}")
         elif as_ not in (None, "duration", "offset_text"):
             errs.append(f"{k}: bad conversion {as_}")
@@ -328,17 +328,26 @@ def _template_ref_problems(tpl: dict[str, Any], keys: dict[str, dict[str, Any]],
             errs.append(f"parameter {k} is never used")
 
 
+def _hashable(v: Any) -> bool:
+    """CR-IFC-SPLIT-2460: a JSON list or object (unhashable) where a name belongs is a problem like any unknown name, never a TypeError."""
+    return not isinstance(v, (dict, list, set))
+
+
+def _declared(k: Any, keys: dict[str, dict[str, Any]]) -> bool:
+    return _hashable(k) and k in keys
+
+
 def _template_step_problems(tpl: dict[str, Any], keys: dict[str, dict[str, Any]], errs: list[str]) -> None:
     """The template's triggers, conditions and actions: allowed types and keys, at least one trigger and one action."""
     for i, t in enumerate(tpl.get("triggers") or []):
-        if not isinstance(t, dict) or t.get("trigger") not in ALLOWED_TRIGGERS:
+        if not isinstance(t, dict) or not _hashable(t.get("trigger")) or t.get("trigger") not in ALLOWED_TRIGGERS:
             errs.append(f"triggers.{i}: trigger type not allowed")
         elif set(t) - ALLOWED_TRIGGERS[t["trigger"]]:
             errs.append(f"triggers.{i}: keys not allowed")
     if not tpl.get("triggers"):
         errs.append("template: a trigger is required")
     for i, c in enumerate(tpl.get("conditions") or []):
-        if not isinstance(c, dict) or c.get("condition") not in ALLOWED_CONDITIONS:
+        if not isinstance(c, dict) or not _hashable(c.get("condition")) or c.get("condition") not in ALLOWED_CONDITIONS:
             errs.append(f"conditions.{i}: condition type not allowed")
         elif set(c) - ALLOWED_CONDITIONS[c["condition"]]:
             errs.append(f"conditions.{i}: keys not allowed")
@@ -358,7 +367,7 @@ def _action_problems(i: int, a: Any, keys: dict[str, dict[str, Any]]) -> list[st
     svc = a["action"]
     out: list[str] = []
     if isinstance(svc, dict):
-        p = keys.get(svc.get("$param"))
+        p = keys.get(svc.get("$param")) if _hashable(svc.get("$param")) else None
         if p is None or p.get("type") != "notify_target" or set(svc) != {"$param"}:
             out.append(f"actions.{i}: a parameter may stand for a notify target only")
     elif not isinstance(svc, str) or svc not in ALLOWED_SERVICES:

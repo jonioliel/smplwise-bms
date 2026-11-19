@@ -18,7 +18,7 @@ import json
 import math
 import re
 import time
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 from .plan_geometry import DEFAULT_WALL_THICKNESS_M, WALL_KINDS
 from .plan_ifc import PSET, clean_text, expand_guid
@@ -837,18 +837,52 @@ def _item_for(cls: str, ptype: str, catalog: dict[str, dict[str, Any]], by_ifc: 
     return GENERIC_ID if GENERIC_ID in catalog else next(iter(sorted(catalog)), GENERIC_ID), 0.5
 
 
+class _SkipLedger:
+    """What one read skipped and why (R130: a partial import is never silent): every skip is counted, also by reason; the first
+    MAX_SKIPPED_ROWS are listed with the element's id, class and name."""
+    __slots__ = ("rows", "total", "by_reason")
+
+    def __init__(self) -> None:
+        self.rows: list[dict[str, Any]] = []
+        self.total = 0
+        self.by_reason: dict[str, int] = {}
+
+    def skip(self, iid: int, cls: str, reason: str, name: str = "") -> None:
+        self.total += 1
+        self.by_reason[reason] = self.by_reason.get(reason, 0) + 1
+        if len(self.rows) < MAX_SKIPPED_ROWS:
+            self.rows.append({"id": f"#{iid}", "class": cls, "reason": reason, "name": clean_text(name, 80)})
+
+
+class _StoreyScope:
+    """Whether an element belongs to the chosen storey (no storey chosen: every element does). One that does not is skipped:
+    no_storey when it is in no storey and the file has several, other_storey when it is in another."""
+    __slots__ = ("in_storey", "only", "chosen", "skips")
+
+    def __init__(self, in_storey: dict[int, int], only: int | None, chosen: dict[str, Any] | None, skips: _SkipLedger) -> None:
+        self.in_storey, self.only, self.chosen, self.skips = in_storey, only, chosen, skips
+
+    def ok(self, iid: int, cls: str, name: str) -> bool:
+        st = self.in_storey.get(iid, self.only)
+        if self.chosen is None:
+            return True
+        if st is None:
+            self.skips.skip(iid, cls, "no_storey", name)
+            return False
+        if st != self.chosen["id"]:
+            self.skips.skip(iid, cls, "other_storey", name)
+            return False
+        return True
+
+
 def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, scale_status: str, level_id: str, level_elevation_m: float, run_id: str,
          catalog: dict[str, dict[str, Any]], storey: int | None = None, deadline: float | None = None, ceiling_m: float = 2.8) -> dict[str, Any]:
-    """The candidates of one storey of `data` in the plan's frame, and the import report (CR-037 sections 1, 2, 4)."""
+    """The candidates of one storey of `data` in the plan's frame, and the import report (CR-037 sections 1, 2, 4).
+
+    CR-IFC-SPLIT-2460: one function per section, called in the order the sections always ran - the instances are parsed, the skips
+    listed and the first error raised in the same order (tests/test_plan_ifc_read_char_2460.py replays recorded answers)."""
     t0 = time.perf_counter()
-    if len(data) > MAX_BYTES:
-        raise IfcError("ifc_too_large", "file too large", {"limit": MAX_BYTES})
-    if data[:2] == b"PK":
-        raise IfcError("ifc_compressed", "compressed IFC (ifczip) is not read")
-    if b"\x00" in data[:65536]:
-        raise IfcError("ifc_not_step", "binary content")
-    txt = data.decode("utf-8", errors="replace")
-    model = Model(txt, deadline)
+    model = _model(data, deadline)
     unit, unit_warning = _unit_factor(model)
     rd = Reader(model, unit)
     psets = _psets(model)
@@ -859,6 +893,59 @@ def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, s
         warnings.append(f"schema_{model.schema.lower()}")
 
     storeys = _storeys(model, unit)
+    chosen = _chosen_storey(storeys, storey, level_elevation_m, warnings)
+    storey_z = chosen["elevation_m"] if chosen else 0.0
+    in_storey = _containment(model, storeys)
+    only = storeys[0]["id"] if len(storeys) == 1 else None
+
+    skips = _SkipLedger()
+    storey_ok = _StoreyScope(in_storey, only, chosen, skips).ok
+    layer_thickness = _layer_thickness(model, unit)
+    walls_m, wall_lookup, wall_reason = _walls(model, rd, psets, layer_thickness, storey_ok, skips, storey_z)
+    openings_m = _openings(model, rd, psets, walls_m, wall_lookup, wall_reason, skips, unit, storey_z)
+    rooms_m = _rooms(model, rd, storey_ok, skips)
+    objects_m, own_objects = _objects(model, rd, psets, catalog, storey_ok, skips, storey_z)
+    _report_the_rest(model, in_storey, only, chosen, own_objects, skips)
+
+    # -- alignment and conversion into the plan's frame
+    plan_w, plan_h = width_px * scale_m_per_px, height_px * scale_m_per_px
+    dx, dy, fits, needed = _alignment(walls_m, rooms_m, objects_m, plan_w, plan_h)
+    to_plan = _plan_frame(dx, dy, plan_w, plan_h)
+    out_walls, wall_ids = _out_walls(walls_m, to_plan, skips, run_id, level_id)
+    out_openings = _out_openings(openings_m, wall_ids, skips, run_id)
+    out_objects = _out_objects(objects_m, to_plan, skips, run_id, level_id)
+    out_rooms = _out_rooms(rooms_m, to_plan, skips)
+
+    report = {
+        "schema": model.schema, "entities": len(model.spans), "metres_per_unit": unit, "ms": int((time.perf_counter() - t0) * 1000),
+        "storeys": [{"index": s["index"], "name": s["name"], "elevation_m": round(s["elevation_m"], 3), "chosen": chosen is not None and s["id"] == chosen["id"]} for s in storeys],
+        "counts": {"walls": len(out_walls), "openings": len(out_openings), "objects": len(out_objects), "rooms": len(out_rooms)},
+        "skipped": skips.rows, "skipped_total": skips.total, "skipped_by_reason": skips.by_reason, "warnings": warnings,
+        "alignment": {"dx_m": round(dx, 3), "dy_m": round(dy, 3), "fits": fits, "needed_m": needed, "plan_m": [round(plan_w, 2), round(plan_h, 2)]},
+    }
+    return {
+        "walls": out_walls, "openings": out_openings, "objects": out_objects, "rooms": out_rooms,
+        "detector": {"name": "plan_ifc_read", "version": VERSION, "params": {"schema": model.schema, "storey": chosen["index"] if chosen else None, "metres_per_unit": unit}},
+        "calibration_hint": None, "pixels": {}, "scale": {"m_per_px": scale_m_per_px, "status": scale_status},
+        "units": "m", "metres_per_unit": unit, "layers": [], "blocks": [], "targets": [], "catalog_choices": [],
+        "ifc": report,
+    }
+
+
+def _model(data: bytes, deadline: float | None) -> Model:
+    """The raw bytes refused early (too large, ifczip, binary), else the scanned DATA section."""
+    if len(data) > MAX_BYTES:
+        raise IfcError("ifc_too_large", "file too large", {"limit": MAX_BYTES})
+    if data[:2] == b"PK":
+        raise IfcError("ifc_compressed", "compressed IFC (ifczip) is not read")
+    if b"\x00" in data[:65536]:
+        raise IfcError("ifc_not_step", "binary content")
+    txt = data.decode("utf-8", errors="replace")
+    return Model(txt, deadline)
+
+
+def _chosen_storey(storeys: list[dict[str, Any]], storey: int | None, level_elevation_m: float, warnings: list[str]) -> dict[str, Any] | None:
+    """The storey asked for (by index), else the one nearest the target level's elevation; None (and a warning) without storeys."""
     chosen: dict[str, Any] | None = None
     if storeys:
         if storey is not None:
@@ -869,9 +956,11 @@ def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, s
             chosen = min(storeys, key=lambda s: (abs(s["elevation_m"] - level_elevation_m), s["index"]))
     else:
         warnings.append("no_storey_in_file")
-    storey_z = chosen["elevation_m"] if chosen else 0.0
+    return chosen
 
-    # containment: element -> storey id
+
+def _containment(model: Model, storeys: list[dict[str, Any]]) -> dict[int, int]:
+    """element -> storey id (contained, then aggregated; the first relation wins)."""
     in_storey: dict[int, int] = {}
     storey_ids = {s["id"] for s in storeys}
     for rid in model.of("IFCRELCONTAINEDINSPATIALSTRUCTURE"):
@@ -888,32 +977,11 @@ def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, s
             for ev in at(a, 5)[:MAX_AGGREGATE]:
                 if isinstance(ev, R):
                     in_storey.setdefault(ev.n, st.n)
-    only = storeys[0]["id"] if len(storeys) == 1 else None
+    return in_storey
 
-    skipped: list[dict[str, Any]] = []
-    skipped_total = 0
-    counts_by_reason: dict[str, int] = {}
 
-    def skip(iid: int, cls: str, reason: str, name: str = "") -> None:
-        nonlocal skipped_total
-        skipped_total += 1
-        counts_by_reason[reason] = counts_by_reason.get(reason, 0) + 1
-        if len(skipped) < MAX_SKIPPED_ROWS:
-            skipped.append({"id": f"#{iid}", "class": cls, "reason": reason, "name": clean_text(name, 80)})
-
-    def storey_ok(iid: int, cls: str, name: str) -> bool:
-        st = in_storey.get(iid, only)
-        if chosen is None:
-            return True
-        if st is None:
-            skip(iid, cls, "no_storey", name)
-            return False
-        if st != chosen["id"]:
-            skip(iid, cls, "other_storey", name)
-            return False
-        return True
-
-    # material layer thickness per wall (IfcMaterialLayerSetUsage)
+def _layer_thickness(model: Model, unit: float) -> dict[int, float]:
+    """The material layer thickness per wall (IfcMaterialLayerSetUsage or IfcMaterialLayerSet), in metres."""
     layer_thickness: dict[int, float] = {}
     for rid in model.of("IFCRELASSOCIATESMATERIAL"):
         a = model.args(rid)
@@ -935,8 +1003,13 @@ def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, s
             for ev in at(a, 4)[:MAX_AGGREGATE]:
                 if isinstance(ev, R):
                     layer_thickness.setdefault(ev.n, total)
+    return layer_thickness
 
-    # -- walls, in metres (world)
+
+def _walls(model: Model, rd: Reader, psets: dict[int, dict[str, dict[str, Any]]], layer_thickness: dict[int, float], storey_ok: Callable[[int, str, str], bool],
+           skips: _SkipLedger, storey_z: float) -> tuple[list[dict[str, Any]], dict[int, list[int]], dict[int, str]]:
+    """The walls of the storey in metres (world): (walls, instance -> indexes into them, a skipped wall's reason)."""
+    skip = skips.skip
     walls_m: list[dict[str, Any]] = []  # {iid, guid, name, axis, bulges, thickness, kind, height, base}
     wall_lookup: dict[int, list[int]] = {}  # instance -> indexes into walls_m
     wall_reason: dict[int, str] = {}  # a skipped wall's reason: its openings are reported with it
@@ -945,9 +1018,9 @@ def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, s
         a = model.args(iid)
         cls = model.type_of(iid) or ""
         name = text(at(a, 2))
-        before = skipped_total
+        before = skips.total
         if not storey_ok(iid, cls, name):
-            wall_reason[iid] = skipped[-1]["reason"] if skipped_total > before and skipped else "other_storey"
+            wall_reason[iid] = skips.rows[-1]["reason"] if skips.total > before and skips.rows else "other_storey"
             continue
         x, solids, axis, why = rd.product_shape(a)
         if x is None or (not solids and not axis):
@@ -957,53 +1030,18 @@ def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, s
         own = psets.get(iid, {}).get(PSET, {})
         common = psets.get(iid, {}).get("Pset_WallCommon", {})
         thickness = num(own.get("Thickness")) or layer_thickness.get(iid)
-        pieces: list[tuple[list[Pt], float | None]] = []
-        if axis:
-            if thickness is None and solids:
-                # the extent of the first solid across the axis direction
-                poly = solids[0]["poly"]
-                a0, a1 = axis[0], axis[-1]
-                dx, dy = a1[0] - a0[0], a1[1] - a0[1]
-                ln = math.hypot(dx, dy)
-                if ln > 1e-9 and poly:
-                    nn = [(-p[0] * dy + p[1] * dx) / ln for p in poly]
-                    thickness = max(nn) - min(nn)
-            pieces.append((axis, thickness))
-        else:
-            for sol in solids:
-                ml = _midline(sol["poly"])
-                if ml is None:
-                    continue
-                pieces.append((ml[0], thickness if thickness is not None else ml[1]))
-            if not pieces:
-                skip(iid, cls, "no_geometry", name)
-                wall_reason[iid] = "no_geometry"
-                continue
+        pieces = _wall_pieces(axis, solids, thickness)
+        if not pieces:
+            skip(iid, cls, "no_geometry", name)
+            wall_reason[iid] = "no_geometry"
+            continue
         # our own file says the height only when the wall has an explicit one (absent = the level's ceiling, kept as None)
         height = num(own.get("Height")) if own else (solids[0]["h"] if solids else None)
         base = num(own.get("BaseZ"))
         if base is None and solids:
             base = solids[0]["z0"] - storey_z
-        kind = str(own.get("Kind") or "")
-        if kind not in WALL_KINDS:
-            ptype = enum(at(a, 8)) if cls != "IFCCURTAINWALL" else "GLASS"
-            if cls == "IFCCURTAINWALL" or (text(at(a, 4)) or "").lower() == "glass":
-                kind = "glass"
-            elif common.get("IsExternal") is True:
-                kind = "exterior"
-            elif ptype == "PARTITIONING":
-                kind = "partition"
-            else:
-                kind = ""
-        bulges: list[float] = []
-        raw_b = own.get("Bulges")
-        if isinstance(raw_b, str) and axis:
-            try:
-                vals = json.loads(raw_b)
-                if isinstance(vals, list) and len(vals) == len(axis) - 1 and all(isinstance(v, (int, float)) and abs(v) <= 4 for v in vals):
-                    bulges = [float(v) for v in vals]
-            except (ValueError, TypeError):
-                pass
+        kind = _wall_kind(own, common, cls, a)
+        bulges = _wall_bulges(own, axis)
         for k, (poly, th) in enumerate(pieces):
             if len(poly) < 2 or any(not (math.isfinite(p[0]) and math.isfinite(p[1])) or abs(p[0]) > MAX_ABS_M or abs(p[1]) > MAX_ABS_M for p in poly):
                 skip(iid, cls, "bad_number", name)
@@ -1013,8 +1051,67 @@ def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, s
             walls_m.append({"iid": iid, "cls": cls, "guid": text(at(a, 0)), "name": name, "axis": poly, "bulges": bulges if k == 0 else [], "thickness": th,
                             "kind": kind or ("exterior" if th >= 0.25 else "interior"), "height": height if height and height >= MIN_HEIGHT_M else None,
                             "base": base if base is not None and abs(base) < 100 else 0.0, "own": bool(own), "pset": own})
+    return walls_m, wall_lookup, wall_reason
 
-    # -- openings: voids of the walls above, filled by doors / windows or passages
+
+def _wall_pieces(axis: list[Pt], solids: list[dict[str, Any]], thickness: float | None) -> list[tuple[list[Pt], float | None]]:
+    """(centre line, thickness) per piece: the Axis with the thickness (else the first solid's extent across it), else the long axis
+    of each solid's footprint. Empty: nothing usable."""
+    pieces: list[tuple[list[Pt], float | None]] = []
+    if axis:
+        if thickness is None and solids:
+            # the extent of the first solid across the axis direction
+            poly = solids[0]["poly"]
+            a0, a1 = axis[0], axis[-1]
+            dx, dy = a1[0] - a0[0], a1[1] - a0[1]
+            ln = math.hypot(dx, dy)
+            if ln > 1e-9 and poly:
+                nn = [(-p[0] * dy + p[1] * dx) / ln for p in poly]
+                thickness = max(nn) - min(nn)
+        pieces.append((axis, thickness))
+    else:
+        for sol in solids:
+            ml = _midline(sol["poly"])
+            if ml is None:
+                continue
+            pieces.append((ml[0], thickness if thickness is not None else ml[1]))
+    return pieces
+
+
+def _wall_kind(own: dict[str, Any], common: dict[str, Any], cls: str, a: list[Any]) -> str:
+    """Our own Kind, else glass / exterior / partition from the class, the description, Pset_WallCommon and the predefined type
+    ("" = by thickness)."""
+    kind = str(own.get("Kind") or "")
+    if kind not in WALL_KINDS:
+        ptype = enum(at(a, 8)) if cls != "IFCCURTAINWALL" else "GLASS"
+        if cls == "IFCCURTAINWALL" or (text(at(a, 4)) or "").lower() == "glass":
+            kind = "glass"
+        elif common.get("IsExternal") is True:
+            kind = "exterior"
+        elif ptype == "PARTITIONING":
+            kind = "partition"
+        else:
+            kind = ""
+    return kind
+
+
+def _wall_bulges(own: dict[str, Any], axis: list[Pt]) -> list[float]:
+    """Our own arc bulges of the axis segments (one per segment, |b| <= 4), else none."""
+    bulges: list[float] = []
+    raw_b = own.get("Bulges")
+    if isinstance(raw_b, str) and axis:
+        try:
+            vals = json.loads(raw_b)
+            if isinstance(vals, list) and len(vals) == len(axis) - 1 and all(isinstance(v, (int, float)) and abs(v) <= 4 for v in vals):
+                bulges = [float(v) for v in vals]
+        except (ValueError, TypeError):
+            pass
+    return bulges
+
+
+def _openings(model: Model, rd: Reader, psets: dict[int, dict[str, dict[str, Any]]], walls_m: list[dict[str, Any]], wall_lookup: dict[int, list[int]],
+              wall_reason: dict[int, str], skips: _SkipLedger, unit: float, storey_z: float) -> list[dict[str, Any]]:
+    """The openings: voids of the walls above, filled by doors / windows or passages."""
     fills: dict[int, int] = {}
     for rid in model.of("IFCRELFILLSELEMENT"):
         a = model.args(rid)
@@ -1027,74 +1124,104 @@ def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, s
         wv, ov = at(a, 4), at(a, 5)
         if not isinstance(wv, R) or not isinstance(ov, R):
             continue
-        hosts = wall_lookup.get(wv.n)
-        oargs = model.args(ov.n)
-        ocls = model.type_of(ov.n) or "IFCOPENINGELEMENT"
-        fill = fills.get(ov.n)
-        fcls = model.type_of(fill) if fill is not None else None
-        fargs = model.args(fill) if fill is not None else []
-        name = text(at(fargs, 2)) if fill is not None else text(at(oargs, 2))
-        cls = fcls or ocls
-        if not hosts:
-            skip(fill if fill is not None else ov.n, cls, wall_reason.get(wv.n, "host_wall_skipped" if model.type_of(wv.n) in WALL_CLASSES else "host_not_wall"), name)
-            continue
-        own = psets.get(fill, {}).get(PSET, {}) if fill is not None else {}
-        own = own or psets.get(ov.n, {}).get(PSET, {})
-        kind = "door" if fcls == "IFCDOOR" else "window" if fcls == "IFCWINDOW" else "passage"
-        if fcls not in (None, "IFCDOOR", "IFCWINDOW"):
-            skip(fill, fcls or "", "unsupported_filling", name)  # type: ignore[arg-type]
-            continue
-        # position: the opening's body centroid (world), else its placement origin
-        x, solids, _axis, why = rd.product_shape(oargs)
-        centre: Pt | None = None
-        if solids and solids[0]["poly"]:
-            poly = solids[0]["poly"]
-            centre = (sum(p[0] for p in poly) / len(poly), sum(p[1] for p in poly) / len(poly))
-        elif x is not None:
-            o = _apply(x, (0.0, 0.0, 0.0))
-            centre = (o[0], o[1])
-        if centre is None or not all(math.isfinite(c) for c in centre):
-            skip(fill if fill is not None else ov.n, cls, "no_geometry", name)
-            continue
-        # the host piece: the nearest of the wall's pieces
-        best = None
-        for wi in hosts:
-            s, d, total = _project(walls_m[wi]["axis"], centre)
-            if total > 1e-9 and (best is None or d < best[1]):
-                best = (wi, d, s, total)
-        if best is None:
-            skip(fill if fill is not None else ov.n, cls, "host_wall_skipped", name)
-            continue
-        wi, dist, s, total = best
-        host = walls_m[wi]
-        if dist > max(1.0, host["thickness"] * 2):
-            skip(fill if fill is not None else ov.n, cls, "opening_off_wall", name)
-            continue
-        t_own = num(own.get("T"))
-        t = t_own if t_own is not None and 0 <= t_own <= 1 else s / total
-        width = num(own.get("Width")) or (num(at(fargs, 9)) or 0) * unit or None
-        if not width and solids and solids[0]["poly"]:
-            a0, a1 = host["axis"][0], host["axis"][-1]
-            dx, dy = a1[0] - a0[0], a1[1] - a0[1]
-            ln = math.hypot(dx, dy) or 1.0
-            ss = [(p[0] * dx + p[1] * dy) / ln for p in solids[0]["poly"]]
-            width = max(ss) - min(ss)
-        width = width if width and 0.05 <= width <= 10 else 0.9
-        height = num(own.get("Height")) or (num(at(fargs, 8)) or 0) * unit or (solids[0]["h"] if solids else None)
-        height = height if height and 0.1 <= height <= 10 else (1.2 if kind == "window" else 2.1)
-        sill = num(own.get("Sill"))
-        if sill is None and solids:
-            sill = solids[0]["z0"] - storey_z
-        sill = sill if sill is not None and 0 <= sill <= 10 else (0.9 if kind == "window" else 0.0)
-        swing = str(own.get("Swing") or "")
-        if swing not in ("left", "right", "double", "sliding", "none"):
-            swing = _swing_of(enum(at(fargs, 11))) if kind == "door" else "none"
-        hinge = str(own.get("Hinge") or "")
-        hinge = hinge if hinge in ("start", "end") else "start"
-        openings_m.append({"iid": fill if fill is not None else ov.n, "cls": cls, "guid": text(at(fargs, 0)) if fill is not None else text(at(oargs, 0)), "name": name, "host": wi,
-                           "t": t, "kind": kind, "width": width, "height": height, "sill": sill, "swing": swing, "hinge": hinge, "own": bool(own)})
+        opening = _opening(model, rd, psets, wv, ov, fills, walls_m, wall_lookup, wall_reason, skips, unit, storey_z)
+        if opening is not None:
+            openings_m.append(opening)
+    return openings_m
 
-    # -- spaces -> rooms
+
+def _opening(model: Model, rd: Reader, psets: dict[int, dict[str, dict[str, Any]]], wv: R, ov: R, fills: dict[int, int], walls_m: list[dict[str, Any]],
+             wall_lookup: dict[int, list[int]], wall_reason: dict[int, str], skips: _SkipLedger, unit: float, storey_z: float) -> dict[str, Any] | None:
+    """One void of a wall `wv` by the opening element `ov` (and its filling): the opening on its nearest host piece, or None (skipped)."""
+    skip = skips.skip
+    hosts = wall_lookup.get(wv.n)
+    oargs = model.args(ov.n)
+    ocls = model.type_of(ov.n) or "IFCOPENINGELEMENT"
+    fill = fills.get(ov.n)
+    fcls = model.type_of(fill) if fill is not None else None
+    fargs = model.args(fill) if fill is not None else []
+    name = text(at(fargs, 2)) if fill is not None else text(at(oargs, 2))
+    cls = fcls or ocls
+    if not hosts:
+        skip(fill if fill is not None else ov.n, cls, wall_reason.get(wv.n, "host_wall_skipped" if model.type_of(wv.n) in WALL_CLASSES else "host_not_wall"), name)
+        return None
+    own = psets.get(fill, {}).get(PSET, {}) if fill is not None else {}
+    own = own or psets.get(ov.n, {}).get(PSET, {})
+    kind = "door" if fcls == "IFCDOOR" else "window" if fcls == "IFCWINDOW" else "passage"
+    if fcls not in (None, "IFCDOOR", "IFCWINDOW"):
+        skip(fill, fcls or "", "unsupported_filling", name)  # type: ignore[arg-type]
+        return None
+    solids, centre = _opening_centre(rd, oargs)
+    if centre is None or not all(math.isfinite(c) for c in centre):
+        skip(fill if fill is not None else ov.n, cls, "no_geometry", name)
+        return None
+    best = _nearest_host(walls_m, hosts, centre)
+    if best is None:
+        skip(fill if fill is not None else ov.n, cls, "host_wall_skipped", name)
+        return None
+    wi, dist, s, total = best
+    host = walls_m[wi]
+    if dist > max(1.0, host["thickness"] * 2):
+        skip(fill if fill is not None else ov.n, cls, "opening_off_wall", name)
+        return None
+    t, width, height, sill, swing, hinge = _opening_fields(own, fargs, solids, host, s, total, kind, unit, storey_z)
+    return {"iid": fill if fill is not None else ov.n, "cls": cls, "guid": text(at(fargs, 0)) if fill is not None else text(at(oargs, 0)), "name": name, "host": wi,
+            "t": t, "kind": kind, "width": width, "height": height, "sill": sill, "swing": swing, "hinge": hinge, "own": bool(own)}
+
+
+def _opening_centre(rd: Reader, oargs: list[Any]) -> tuple[list[dict[str, Any]], Pt | None]:
+    """The opening's solids and its position: the body centroid (world), else its placement origin, else None."""
+    x, solids, _axis, why = rd.product_shape(oargs)
+    centre: Pt | None = None
+    if solids and solids[0]["poly"]:
+        poly = solids[0]["poly"]
+        centre = (sum(p[0] for p in poly) / len(poly), sum(p[1] for p in poly) / len(poly))
+    elif x is not None:
+        o = _apply(x, (0.0, 0.0, 0.0))
+        centre = (o[0], o[1])
+    return solids, centre
+
+
+def _nearest_host(walls_m: list[dict[str, Any]], hosts: list[int], centre: Pt) -> tuple[int, float, float, float] | None:
+    """The host piece: the nearest of the wall's pieces, as (index, distance, arc length at the nearest point, length)."""
+    best = None
+    for wi in hosts:
+        s, d, total = _project(walls_m[wi]["axis"], centre)
+        if total > 1e-9 and (best is None or d < best[1]):
+            best = (wi, d, s, total)
+    return best
+
+
+def _opening_fields(own: dict[str, Any], fargs: list[Any], solids: list[dict[str, Any]], host: dict[str, Any], s: float, total: float, kind: str, unit: float,
+                    storey_z: float) -> tuple[float, float, float, float, str, str]:
+    """(t, width, height, sill, swing, hinge): our own values, else the filling's, else the body's, else the kind's defaults."""
+    t_own = num(own.get("T"))
+    t = t_own if t_own is not None and 0 <= t_own <= 1 else s / total
+    width = num(own.get("Width")) or (num(at(fargs, 9)) or 0) * unit or None
+    if not width and solids and solids[0]["poly"]:
+        a0, a1 = host["axis"][0], host["axis"][-1]
+        dx, dy = a1[0] - a0[0], a1[1] - a0[1]
+        ln = math.hypot(dx, dy) or 1.0
+        ss = [(p[0] * dx + p[1] * dy) / ln for p in solids[0]["poly"]]
+        width = max(ss) - min(ss)
+    width = width if width and 0.05 <= width <= 10 else 0.9
+    height = num(own.get("Height")) or (num(at(fargs, 8)) or 0) * unit or (solids[0]["h"] if solids else None)
+    height = height if height and 0.1 <= height <= 10 else (1.2 if kind == "window" else 2.1)
+    sill = num(own.get("Sill"))
+    if sill is None and solids:
+        sill = solids[0]["z0"] - storey_z
+    sill = sill if sill is not None and 0 <= sill <= 10 else (0.9 if kind == "window" else 0.0)
+    swing = str(own.get("Swing") or "")
+    if swing not in ("left", "right", "double", "sliding", "none"):
+        swing = _swing_of(enum(at(fargs, 11))) if kind == "door" else "none"
+    hinge = str(own.get("Hinge") or "")
+    hinge = hinge if hinge in ("start", "end") else "start"
+    return t, width, height, sill, swing, hinge
+
+
+def _rooms(model: Model, rd: Reader, storey_ok: Callable[[int, str, str], bool], skips: _SkipLedger) -> list[dict[str, Any]]:
+    """The spaces of the storey with a footprint (rooms -> zone candidates)."""
+    skip = skips.skip
     rooms_m: list[dict[str, Any]] = []
     for iid in model.of("IFCSPACE"):
         model.tick()
@@ -1108,8 +1235,14 @@ def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, s
             skip(iid, "IFCSPACE", why or "no_geometry", name)
             continue
         rooms_m.append({"iid": iid, "guid": text(at(a, 0)), "name": name, "poly": poly})
+    return rooms_m
 
-    # -- objects
+
+def _objects(model: Model, rd: Reader, psets: dict[int, dict[str, dict[str, Any]]], catalog: dict[str, dict[str, Any]], storey_ok: Callable[[int, str, str], bool],
+             skips: _SkipLedger, storey_z: float) -> tuple[list[dict[str, Any]], set[int]]:
+    """The objects of the storey (furniture, fixtures, our own tribune / ladder objects): (objects, the connector-class instances that
+    came back as our objects)."""
+    skip = skips.skip
     by_ifc: dict[tuple[str, str], str] = {}
     by_class: dict[str, str] = {}
     for item_id in sorted(catalog):
@@ -1134,43 +1267,57 @@ def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, s
             own_objects.add(iid)
         if not storey_ok(iid, cls, name):
             continue
-        x, solids, _axis, why = rd.product_shape(a)
-        sol = next((s for s in solids if len(s["poly"]) >= 3), None)
-        if x is None or sol is None:
-            skip(iid, cls, why or "no_geometry", name)
-            continue
-        # the object's own frame: its placement x axis; size = the footprint's extents in that frame
-        ax = _rotate(x, (1.0, 0.0, 0.0))
-        ang = math.atan2(ax[1], ax[0]) if math.hypot(ax[0], ax[1]) > 1e-9 else 0.0
-        ca, sa = math.cos(-ang), math.sin(-ang)
-        local = [(p[0] * ca - p[1] * sa, p[0] * sa + p[1] * ca) for p in sol["poly"]]
-        x0, y0, x1, y1 = _bbox(local)
-        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-        centre = (cx * math.cos(ang) - cy * math.sin(ang), cx * math.sin(ang) + cy * math.cos(ang))
-        if not all(math.isfinite(v) and abs(v) <= MAX_ABS_M for v in (*centre, x1 - x0, y1 - y0)):
-            skip(iid, cls, "bad_number", name)
-            continue
-        item_id = str(own.get("CatalogItem") or "")
-        confidence = 0.9
-        if item_id not in catalog:
-            ptype = enum(at(a, 8))
-            item_id, confidence = _item_for(cls, ptype, catalog, by_ifc, by_class)
-        item = catalog.get(item_id) or {}
-        size_default = item.get("size") if isinstance(item.get("size"), dict) else {}
-        w = num(own.get("Width")) or (x1 - x0)
-        d = num(own.get("Depth")) or (y1 - y0)
-        h = num(own.get("Height")) or sol["h"]
-        z = num(own.get("Z"))
-        if z is None:
-            z = sol["z0"] - storey_z
-        rot = num(own.get("Rotation"))
-        if rot is None:
-            rot = (-math.degrees(ang)) % 360.0
-        objects_m.append({"iid": iid, "cls": cls, "guid": text(at(a, 0)), "name": name, "item_id": item_id, "confidence": confidence, "centre": centre,
-                          "w": w if 0.05 <= w <= 100 else float(size_default.get("w_m") or 0.5), "d": d if 0.05 <= d <= 100 else float(size_default.get("d_m") or 0.5),
-                          "h": h if 0.05 <= h <= 100 else float(size_default.get("h_m") or 0.5), "z": max(-50.0, min(500.0, z)), "rot": round(rot % 360.0, 2)})
+        ob = _object(rd, iid, cls, name, a, own, catalog, by_ifc, by_class, skips, storey_z)
+        if ob is not None:
+            objects_m.append(ob)
+    return objects_m, own_objects
 
-    # -- everything else of the storey: named in the report
+
+def _object(rd: Reader, iid: int, cls: str, name: str, a: list[Any], own: dict[str, Any], catalog: dict[str, dict[str, Any]], by_ifc: dict[tuple[str, str], str],
+            by_class: dict[str, str], skips: _SkipLedger, storey_z: float) -> dict[str, Any] | None:
+    """One object in its own frame (the placement's x axis; size = the footprint's extents in that frame) with its catalog item,
+    or None (skipped)."""
+    skip = skips.skip
+    x, solids, _axis, why = rd.product_shape(a)
+    sol = next((s for s in solids if len(s["poly"]) >= 3), None)
+    if x is None or sol is None:
+        skip(iid, cls, why or "no_geometry", name)
+        return None
+    # the object's own frame: its placement x axis; size = the footprint's extents in that frame
+    ax = _rotate(x, (1.0, 0.0, 0.0))
+    ang = math.atan2(ax[1], ax[0]) if math.hypot(ax[0], ax[1]) > 1e-9 else 0.0
+    ca, sa = math.cos(-ang), math.sin(-ang)
+    local = [(p[0] * ca - p[1] * sa, p[0] * sa + p[1] * ca) for p in sol["poly"]]
+    x0, y0, x1, y1 = _bbox(local)
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    centre = (cx * math.cos(ang) - cy * math.sin(ang), cx * math.sin(ang) + cy * math.cos(ang))
+    if not all(math.isfinite(v) and abs(v) <= MAX_ABS_M for v in (*centre, x1 - x0, y1 - y0)):
+        skip(iid, cls, "bad_number", name)
+        return None
+    item_id = str(own.get("CatalogItem") or "")
+    confidence = 0.9
+    if item_id not in catalog:
+        ptype = enum(at(a, 8))
+        item_id, confidence = _item_for(cls, ptype, catalog, by_ifc, by_class)
+    item = catalog.get(item_id) or {}
+    size_default = item.get("size") if isinstance(item.get("size"), dict) else {}
+    w = num(own.get("Width")) or (x1 - x0)
+    d = num(own.get("Depth")) or (y1 - y0)
+    h = num(own.get("Height")) or sol["h"]
+    z = num(own.get("Z"))
+    if z is None:
+        z = sol["z0"] - storey_z
+    rot = num(own.get("Rotation"))
+    if rot is None:
+        rot = (-math.degrees(ang)) % 360.0
+    return {"iid": iid, "cls": cls, "guid": text(at(a, 0)), "name": name, "item_id": item_id, "confidence": confidence, "centre": centre,
+            "w": w if 0.05 <= w <= 100 else float(size_default.get("w_m") or 0.5), "d": d if 0.05 <= d <= 100 else float(size_default.get("d_m") or 0.5),
+            "h": h if 0.05 <= h <= 100 else float(size_default.get("h_m") or 0.5), "z": max(-50.0, min(500.0, z)), "rot": round(rot % 360.0, 2)}
+
+
+def _report_the_rest(model: Model, in_storey: dict[int, int], only: int | None, chosen: dict[str, Any] | None, own_objects: set[int], skips: _SkipLedger) -> None:
+    """Everything else of the storey, named in the report: the connectors (stairs, ramps, lifts) and the classes not imported."""
+    skip = skips.skip
     for iid in model.of(*CONNECTOR_CLASSES):
         a = model.args(iid)
         if iid not in own_objects and in_storey.get(iid, only) in (None, chosen["id"] if chosen else None):
@@ -1180,8 +1327,10 @@ def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, s
         if in_storey.get(iid, only) in (None, chosen["id"] if chosen else None):
             skip(iid, model.type_of(iid) or "", "unsupported_class", text(at(a, 2)))
 
-    # -- alignment and conversion into the plan's frame
-    plan_w, plan_h = width_px * scale_m_per_px, height_px * scale_m_per_px
+
+def _alignment(walls_m: list[dict[str, Any]], rooms_m: list[dict[str, Any]], objects_m: list[dict[str, Any]], plan_w: float,
+               plan_h: float) -> tuple[float, float, bool, list[float] | None]:
+    """(dx, dy, fits, needed): a model outside the plan is moved onto its origin; whether it fits and the size it needs."""
     pts_all: list[Pt] = [p for w in walls_m for p in w["axis"]] + [p for r in rooms_m for p in r["poly"]] + [o["centre"] for o in objects_m]
     dx = dy = 0.0
     fits = True
@@ -1193,7 +1342,11 @@ def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, s
             dx, dy = -x0, -y0
             fits = (x1 - x0) <= plan_w + eps and (y1 - y0) <= plan_h + eps
             needed = [round(x1 - x0, 2), round(y1 - y0, 2)]
+    return dx, dy, fits, needed
 
+
+def _plan_frame(dx: float, dy: float, plan_w: float, plan_h: float) -> Callable[[Pt], list[float] | None]:
+    """World metres (moved by dx, dy) -> normalized plan coordinates, y down; None outside the plan."""
     def to_plan(p: Pt) -> list[float] | None:
         xn = (p[0] + dx) / plan_w
         yn = 1.0 - (p[1] + dy) / plan_h
@@ -1201,6 +1354,13 @@ def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, s
             return None
         return [round(min(1.0, max(0.0, xn)), 5), round(min(1.0, max(0.0, yn)), 5)]
 
+    return to_plan
+
+
+def _out_walls(walls_m: list[dict[str, Any]], to_plan: Callable[[Pt], list[float] | None], skips: _SkipLedger, run_id: str,
+               level_id: str) -> tuple[list[dict[str, Any]], dict[int, str]]:
+    """The wall candidates (up to the limit, inside the plan) and their ids by index into walls_m."""
+    skip = skips.skip
     out_walls: list[dict[str, Any]] = []
     wall_ids: dict[int, str] = {}
     for k, w in enumerate(walls_m):
@@ -1223,7 +1383,12 @@ def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, s
         if w["name"] and not w["own"]:
             item["tags"] = [clean_text(w["name"], 40)]
         out_walls.append(item)
+    return out_walls, wall_ids
 
+
+def _out_openings(openings_m: list[dict[str, Any]], wall_ids: dict[int, str], skips: _SkipLedger, run_id: str) -> list[dict[str, Any]]:
+    """The opening candidates along their host wall (up to the limit; a host left out leaves its openings out)."""
+    skip = skips.skip
     out_openings: list[dict[str, Any]] = []
     for o in sorted(openings_m, key=lambda o: (o["host"], o["t"], o["iid"])):
         if len(out_openings) >= LIMITS["openings"]:
@@ -1239,7 +1404,12 @@ def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, s
         out_openings.append({"id": f"imp-{run_id}-o{len(out_openings) + 1:03d}", "wall_id": wid, "t": round(o["t"], 5), "kind": o["kind"], "width_m": round(o["width"], 3),
                              "height_m": round(o["height"], 3), "sill_m": round(o["sill"], 3), "swing": o["swing"], "hinge": o["hinge"], "anchor_ref": None,
                              "confidence": 0.9 if o["own"] else 0.7, "source": "imported", "external_ids": ext})
+    return out_openings
 
+
+def _out_objects(objects_m: list[dict[str, Any]], to_plan: Callable[[Pt], list[float] | None], skips: _SkipLedger, run_id: str, level_id: str) -> list[dict[str, Any]]:
+    """The object candidates (up to the limit, inside the plan)."""
+    skip = skips.skip
     out_objects: list[dict[str, Any]] = []
     for o in objects_m:
         if len(out_objects) >= LIMITS["objects"]:
@@ -1256,7 +1426,12 @@ def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, s
                             "size": {"w_m": round(o["w"], 3), "d_m": round(o["d"], 3), "h_m": round(o["h"], 3)}, "z_m": round(o["z"], 3), "params": {},
                             "label": clean_text(o["name"], 80) or None, "anchor_ref": None, "group_id": None, "locked": False, "source": "imported",
                             "confidence": o["confidence"], "external_ids": ext})
+    return out_objects
 
+
+def _out_rooms(rooms_m: list[dict[str, Any]], to_plan: Callable[[Pt], list[float] | None], skips: _SkipLedger) -> list[dict[str, Any]]:
+    """The room (zone) candidates (up to the limit, inside the plan)."""
+    skip = skips.skip
     out_rooms: list[dict[str, Any]] = []
     for r in rooms_m:
         if len(out_rooms) >= LIMITS["rooms"]:
@@ -1270,18 +1445,4 @@ def read(data: bytes, *, width_px: int, height_px: int, scale_m_per_px: float, s
         if expand_guid(r["guid"]):
             ext["ifc_guid"] = r["guid"]
         out_rooms.append({"polygon": [{"x": p[0], "y": p[1]} for p in poly if p is not None], "name": clean_text(r["name"], 80), "external_ids": ext})
-
-    report = {
-        "schema": model.schema, "entities": len(model.spans), "metres_per_unit": unit, "ms": int((time.perf_counter() - t0) * 1000),
-        "storeys": [{"index": s["index"], "name": s["name"], "elevation_m": round(s["elevation_m"], 3), "chosen": chosen is not None and s["id"] == chosen["id"]} for s in storeys],
-        "counts": {"walls": len(out_walls), "openings": len(out_openings), "objects": len(out_objects), "rooms": len(out_rooms)},
-        "skipped": skipped, "skipped_total": skipped_total, "skipped_by_reason": counts_by_reason, "warnings": warnings,
-        "alignment": {"dx_m": round(dx, 3), "dy_m": round(dy, 3), "fits": fits, "needed_m": needed, "plan_m": [round(plan_w, 2), round(plan_h, 2)]},
-    }
-    return {
-        "walls": out_walls, "openings": out_openings, "objects": out_objects, "rooms": out_rooms,
-        "detector": {"name": "plan_ifc_read", "version": VERSION, "params": {"schema": model.schema, "storey": chosen["index"] if chosen else None, "metres_per_unit": unit}},
-        "calibration_hint": None, "pixels": {}, "scale": {"m_per_px": scale_m_per_px, "status": scale_status},
-        "units": "m", "metres_per_unit": unit, "layers": [], "blocks": [], "targets": [], "catalog_choices": [],
-        "ifc": report,
-    }
+    return out_rooms
