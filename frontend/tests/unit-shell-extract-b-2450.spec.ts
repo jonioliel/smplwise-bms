@@ -296,6 +296,6 @@ test.describe('the shell wiring (shell/sw-app.ts)', () => {
     expect(css).toContain('inset-inline: 0;');
     expect(css).toContain('margin-inline: auto;');
     expect(css).toContain('inline-size: fit-content;');
-    expect(css).not.toMatch(/translateX|inset-inline-start: 50%/);
+    expect(css).not.toMatch(/transform:|inset-inline-start: 50%/);
   });
 });
