@@ -4,6 +4,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-drawer';
 import '../components/sw-dialog';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import './scenario-recipients';
 import { aIcon } from '../components/automation-icons';
 import { automationsStyles } from '../styles/automations-glass';
@@ -280,10 +282,9 @@ export class ScenariosPanel extends LitElement {
     const g = n;
     return html`<div class="grp" data-group=${sp}>
       <div class="grp-h">
-        <div class="seg sm" role="radiogroup" aria-label=${tr('חיבור')}>
-          <button type="button" role="radio" aria-checked=${String(g.op === 'and')} @click=${() => this.setAt(path, (x) => ({ ...(x as typeof g), op: 'and' }))}>${sct('and')}</button>
-          <button type="button" role="radio" aria-checked=${String(g.op === 'or')} @click=${() => this.setAt(path, (x) => ({ ...(x as typeof g), op: 'or' }))}>${sct('or')}</button>
-        </div>
+        <sw-segmented radio size="sm" label=${tr('חיבור')} value=${g.op}
+          @change=${(e: CustomEvent<SegmentedChange>) => { const op = e.detail.value === 'or' ? 'or' : 'and'; this.setAt(path, (x) => ({ ...(x as typeof g), op })); }}
+          .options=${[{ value: 'and', label: sct('and') }, { value: 'or', label: sct('or') }]}></sw-segmented>
         <button type="button" class="btn sm" data-add-leaf @click=${() => this.addLeaf(path)}>${aIcon('plus')}${sct('addCondition')}</button>
         ${path.length < 3 ? html`<button type="button" class="btn sm" @click=${() => this.addGroup(path)}>${aIcon('plus')}${sct('addGroup')}</button>` : nothing}
         ${path.length ? html`<button type="button" class="btn sm" @click=${() => this.setAt(path, () => null)}>${sct('remove')}</button>` : nothing}

@@ -13,7 +13,7 @@ import { badgeOf, parseNotificationLink } from '../components/notify-logic';
  *  - the deep links of a push (`#/notifications/<id>`, `#/doors/<id>?confirm=<id>`): the center opens on that row once the session
  *    is known, and survives the route change the shell makes right after (the address falls back to the home screen).
  * The shell keeps what is not the notifications' own: the user menu, the tab-order dialog and the overlay history entry the center
- * shares with them (shell/sw-app.ts openCenter / closeCenter / pushOverlay).
+ * shares with them (shell/sw-app.ts openCenter / closeCenter; the entry itself: shell/overlay-history.ts).
  *
  * Every state change asks the host to render only when a value really changed (the `@state()` rule this state used to follow).
  */

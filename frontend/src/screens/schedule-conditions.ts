@@ -2,6 +2,8 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { MATCH_LABEL, PRESET_LABEL, getConditionCandidates, type ConditionCandidate, type ConditionPreset, type ConditionView, type DraftCondition, type DraftConditions, type MatchType, type Problem, type ShabbatSensor } from '../api/schedules';
 import { activePreset, addCondition, applyPreset, clearConditions, describeCondition, newCondition, removeCondition, stateChoices, updateCondition } from './schedule-edit-logic';
 import { tr } from '../i18n/msg/automation';
@@ -142,26 +144,15 @@ export class ScheduleConditions extends LitElement {
       font-size: var(--sw-fs-sm);
       flex-wrap: wrap;
     }
-    .seg {
-      display: inline-flex;
-      background: var(--sw-surface-3);
-      border-radius: var(--sw-r-sm);
-      padding: 2px;
-    }
-    .seg button {
-      border: 0;
-      background: none;
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      padding: 3px 10px;
-      border-radius: var(--sw-r-xs);
-      color: var(--sw-text-2);
-      cursor: pointer;
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-key, var(--sw-surface));
-      color: var(--sw-seg-key-ink, var(--sw-accent-text));
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
+    /* CR-CMP2-SEGMENTED-C-2450: the and / or switch is sw-segmented - its small 2 px track and plain-weight keys through the knobs */
+    sw-segmented {
+      --sw-seg-pad: 2px;
+      --sw-seg-gap: 0px;
+      --sw-seg-h: 26px;
+      --sw-seg-radius: var(--sw-r-sm);
+      --sw-seg-btn-radius: var(--sw-r-xs);
+      --sw-seg-fw: var(--sw-fw-regular);
+      --sw-seg-on-fw: var(--sw-fw-regular);
     }
     label.check {
       display: inline-flex;
@@ -351,9 +342,9 @@ export class ScheduleConditions extends LitElement {
           : nothing}
       <div class="list">${c.items.map((it, i) => this.renderCondition(it, i))}</div>
       ${c.items.length > 1
-        ? html`<div class="row"><span>${tr('יתקיימו')}</span><div class="seg" role="group" aria-label=${tr('חיבור התנאים')}>
-            <button type="button" aria-pressed=${c.type !== 'or'} data-cond-type="and" ?disabled=${this.readOnly} @click=${() => this.emit({ ...c, type: 'and' })}>${tr('כל התנאים')}</button>
-            <button type="button" aria-pressed=${c.type === 'or'} data-cond-type="or" ?disabled=${this.readOnly} @click=${() => this.emit({ ...c, type: 'or' })}>${tr('אחד מהם')}</button></div></div>`
+        ? html`<div class="row"><span>${tr('יתקיימו')}</span><sw-segmented size="sm" label=${tr('חיבור התנאים')} value=${c.type === 'or' ? 'or' : 'and'} ?disabled=${this.readOnly}
+            @change=${(e: CustomEvent<SegmentedChange>) => this.emit({ ...c, type: e.detail.value === 'or' ? 'or' : 'and' })}
+            .options=${[{ value: 'and', label: tr('כל התנאים'), attrs: { 'data-cond-type': 'and' } }, { value: 'or', label: tr('אחד מהם'), attrs: { 'data-cond-type': 'or' } }]}></sw-segmented></div>`
         : nothing}
       ${c.items.length
         ? html`<div class="row"><label class="check"><input type="checkbox" data-cond-track ?disabled=${this.readOnly} .checked=${c.track} @change=${(e: Event) => this.emit({ ...c, track: (e.target as HTMLInputElement).checked })} />${tr('המשך לבדוק עד סוף החלון')}</label></div>`

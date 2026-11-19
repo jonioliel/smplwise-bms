@@ -347,7 +347,6 @@ test('dark schemes: the chosen settings key is 3:1 from its track and its label 
 // <light ink>)` and the edge `box-shadow: var(--sw-seg-thumb-shadow, <light shadow>)`. A control that drops the tokens fails here; a
 // NEW one is caught by the pattern check below and joins this list.
 const SEG_INVENTORY: [file: string, chosen: string][] = [
-  ['access-external/request-dialog.ts', ".seg button[aria-pressed='true']"],
   ['arx/arx-login.ts', 'button.mode.on'],
   ['calendars/cal-page.ts', ".tab[aria-current='page']"],
   ['calendars/resident.ts', ".tabs button[aria-pressed='true']"],
@@ -355,59 +354,48 @@ const SEG_INVENTORY: [file: string, chosen: string][] = [
   ['calendars/view-manage.ts', ".rolepick button[aria-pressed='true']"],
   ['components/device-activity.ts', '.segt button.on'],
   ['components/device-activity.ts', '.vw button.on'],
-  ['components/frigate-admin-shared.ts', ".seg button[aria-pressed='true']"],
-  ['components/sw-cast-picker.ts', ".seg button[aria-pressed='true']"],
   ['components/sw-tabs.ts', ":host([data-variant='pill']) .on .lbl"],
   ['components/sw-timeline.ts', '.windows button.on'],
   ['components/sw-view-switch.ts', "button[aria-pressed='true']"],
   ['design/skins/crystal.ts', ":host(sw-tabs[data-variant='pill']) .on .lbl"],
   ['design/skins/domus.ts', ":host(sw-tabs[data-variant='pill']) .on .lbl"],
   ['electricity/styles.ts', ".seg button[aria-pressed='true']"],
-  ['incidents/settings-form.ts', ".seg button[aria-pressed='true']"],
-  ['insights/styles.ts', ".seg button[aria-pressed='true']"],
   ['maintenance/round-run.ts', ".vw button[aria-pressed='true']"],
   ['maintenance/styles.ts', ".seg button[aria-pressed='true']"],
   ['notices/styles.ts', ".seg button[aria-pressed='true']"],
-  ['screens/area-quick-sheet-css.ts', '.seg button.on'],
   ['screens/devices-building-css.ts', ".bswitch button[aria-pressed='true']"],
   ['screens/devices-layout-css.ts', ".lay-seg button[aria-pressed='true']"],
   ['screens/home-screen-css.ts', ".pfl .segs button[aria-pressed='true']"],
-  ['screens/home-screen-options.ts', ".seg button[aria-pressed='true']"],
   ['screens/investigate-events.ts', '.rangepick button.on'],
   ['screens/investigate-ha-events.ts', '.rangepick button.on'],
-  ['screens/investigate-history-map.ts', ".seg button[aria-pressed='true']"],
   ['screens/investigate-incidents.ts', ".ptabs button[aria-pressed='true']"],
   ['screens/investigate-reviews.ts', ".layers button[aria-selected='true']"],
-  ['screens/investigate-reviews.ts', ".seg button[aria-pressed='true']"],
   ['screens/live-camera-css.ts', '.round .transport button.on'],
-  ['screens/plan-studio6-panel.ts', ".seg.sm button[aria-pressed='true']"],
-  ['screens/schedule-conditions.ts', ".seg button[aria-pressed='true']"],
   ['screens/schedule-create-dialog.ts', ".tabs button[aria-selected='true']"],
-  ['screens/schedule-editor.ts', ".seg button[aria-pressed='true']"],
-  ['screens/schedule-entity-picker.ts', ".seg button[aria-pressed='true']"],
   ['screens/security-alarm.ts', ".vt button[aria-pressed='true']"],
   ['screens/system-brand-installer.ts', ".tabs button[aria-selected='true']"],
   ['screens/system-brand-logos.ts', ".tabs button[aria-selected='true']"],
-  ['screens/system-home-screen.ts', ".seg button[aria-pressed='true']"],
-  ['screens/system-mapping.ts', ".seg button[aria-pressed='true']"],
   ['screens/system-readiness.ts', ".panes button[aria-selected='true']"],
-  ['screens/system-timeline-colors.ts', ".seg button[aria-checked='true']"],
-  ['screens/system-update.ts', ".seg button[aria-pressed='true']"],
-  ['screens/wiskey-events.ts', ".seg button[aria-pressed='true']"],
   ['screens/wiskey-person-drawer.ts', ".tabs button[aria-selected='true']"],
   ['shell/sw-app.ts', 'nav.sections a.on'],
   ['shell/sw-app.ts', ":host([data-design='a']) nav.secrow a.on .pill"],
-  ['shell/sw-user-menu.ts', "li.view .seg button[aria-pressed='true']"],
   // CR-CSS-FRAGMENTS-2440: the chosen key of system-brand-logos, system-design, system-look, system-nav-size, system-palette-editor
   // (segThumbStyles) and of system-presence, system-building-presence (segThumbPlainStyles, through settingsPillSegKeyStyles) is the
   // shared rule of styles/fragments.ts now - the screens interpolate it where their own copy stood
   // CR-CSS-FRAGMENTS-TAIL-2442: the same for elevators/elevator-settings, screens/explore-presence, screens/home-widgets and
   // shell/sw-home-personal (segThumbPlainStyles)
+  // CR-CMP2-SELECTS-2450 (owner N11): the shared segmented control
+  // CR-CMP2-SEGMENTED-B-2450: system-home-screen, system-mapping, system-timeline-colors, system-update and temperature detail / report /
+  // wizard draw their keys with it now
+  // CR-CMP2-SEGMENTED-C-2450: access-external/request-dialog, investigate-history-map / -reviews, schedule-conditions / -editor /
+  // -entity-picker, frigate-admin-shared (config panel, auto profile), sw-cast-picker, incidents/settings-form, insights/styles
+  // (list-base, infra-report), area-quick-sheet, plan-studio6-panel, wiskey-events and the user menu's view choice draw their keys
+  // with it now (where a screen kept a dark pill its knobs read --sw-seg-key / --sw-seg-key-ink); elevators/elevator-settings and
+  // screens/explore-presence no longer interpolate segThumbPlainStyles; home-screen-options, home-edit-panel / -bv1 and the
+  // one-of-N choices of shell/sw-home-personal moved too
+  ['components/sw-segmented.ts', ".seg button[aria-pressed='true']"],
   ['styles/fragments.ts', ".seg button[aria-pressed='true']"],
   ['styles/settings.ts', ".seg button[aria-selected='true']"],
-  ['temperature/detail.ts', ".seg button[aria-pressed='true']"],
-  ['temperature/report.ts', ".seg button[aria-pressed='true']"],
-  ['temperature/wizard.ts', ".seg button[aria-pressed='true']"],
 ];
 
 test('lint: every segmented control in the inventory draws its chosen key with --sw-seg-key / --sw-seg-key-ink (DARK-SEG-ALL-2380)', () => {

@@ -4,6 +4,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-button';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-dialog';
 import '../components/sw-toggle';
 import '../components/sw-state-panel';
@@ -312,39 +314,16 @@ export class ScheduleEditor extends LitElement {
     .toolbar .sp {
       flex: 1;
     }
-    .seg {
-      display: inline-flex;
-      background: var(--sw-surface-3);
-      border-radius: var(--sw-r-sm);
-      padding: 2px;
-    }
-    .seg button {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      border: 0;
-      background: none;
-      font: inherit;
-      font-size: var(--sw-fs-base);
-      font-weight: var(--sw-fw-semibold);
-      padding: 5px 14px;
-      border-radius: var(--sw-r-sm);
-      color: var(--sw-text-2);
-      cursor: pointer;
-      min-block-size: 36px;
-      transition: transform var(--sw-t-fast) var(--sw-ease), background-color var(--sw-t-fast) var(--sw-ease);
-    }
-    .seg button:active {
-      transform: scale(var(--sw-press-scale, 1));
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-key, var(--sw-surface));
-      color: var(--sw-seg-key-ink, var(--sw-accent-text));
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
-      font-weight: var(--sw-fw-bold);
-    }
-    .seg button:focus-visible {
-      outline: var(--sw-focus-w) solid var(--sw-focus);
+    /* CR-CMP2-SEGMENTED-C-2450: the view switch is sw-segmented - its 2 px track, 36 px keys and bold chosen label through the knobs */
+    .toolbar sw-segmented {
+      --sw-seg-pad: 2px;
+      --sw-seg-gap: 0px;
+      --sw-seg-radius: var(--sw-r-sm);
+      --sw-seg-btn-radius: var(--sw-r-sm);
+      --sw-seg-h: 36px;
+      --sw-seg-fs: var(--sw-fs-base);
+      --sw-seg-fw: var(--sw-fw-semibold);
+      --sw-seg-on-fw: var(--sw-fw-bold);
     }
     label.snap {
       display: inline-flex;
@@ -762,8 +741,8 @@ export class ScheduleEditor extends LitElement {
       .card {
         padding: 12px;
       }
-      .toolbar .seg button {
-        padding: 5px 9px;
+      .toolbar sw-segmented {
+        --sw-seg-key-pad: 9px;
       }
     }
   `];
@@ -1704,11 +1683,12 @@ export class ScheduleEditor extends LitElement {
     const editingDays = this.override ? this.override.days : null;
     return html`<div class="card" data-board>
       <div class="toolbar">
-        <div class="seg" role="group" aria-label=${tr('תצוגה')}>
-          <button type="button" data-view-btn="week" aria-pressed=${this.view === 'week'} @click=${() => this.setView('week')}><sw-icon name="calendar" size="14"></sw-icon>${tr('שבוע')}</button>
-          <button type="button" data-view-btn="day" aria-pressed=${this.view === 'day'} @click=${() => this.setView('day')}><sw-icon name="clock" size="14"></sw-icon>${tr('יום')}</button>
-          <button type="button" data-view-btn="table" aria-pressed=${this.view === 'table'} @click=${() => this.setView('table')}><sw-icon name="list" size="14"></sw-icon>${tr('טבלה')}</button>
-        </div>
+        <sw-segmented label=${tr('תצוגה')} value=${this.view} @change=${(e: CustomEvent<SegmentedChange>) => this.setView(e.detail.value as EditView)}
+          .options=${[
+            { value: 'week', label: tr('שבוע'), icon: html`<sw-icon name="calendar" size="14"></sw-icon>`, attrs: { 'data-view-btn': 'week' } },
+            { value: 'day', label: tr('יום'), icon: html`<sw-icon name="clock" size="14"></sw-icon>`, attrs: { 'data-view-btn': 'day' } },
+            { value: 'table', label: tr('טבלה'), icon: html`<sw-icon name="list" size="14"></sw-icon>`, attrs: { 'data-view-btn': 'table' } },
+          ]}></sw-segmented>
         <span class="sp"></span>
         ${this.view === 'table'
           ? nothing

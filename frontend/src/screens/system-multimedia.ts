@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-toggle';
@@ -117,33 +119,6 @@ export class SystemMultimedia extends LitElement {
     }
     input[type='text'] {
       min-inline-size: min(200px, 100%);
-    }
-    .seg {
-      display: inline-flex;
-      border: 1px solid var(--sw-border-strong);
-      border-radius: var(--sw-r-sm);
-      overflow: hidden;
-    }
-    .seg button {
-      border: 0;
-      background: var(--sw-surface);
-      padding: 0 12px;
-      min-block-size: 36px;
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      cursor: pointer;
-      color: var(--sw-text-2);
-    }
-    .seg button + button {
-      border-inline-start: 1px solid var(--sw-border);
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-accent);
-      color: var(--sw-text-inverse);
-    }
-    .seg button:disabled {
-      opacity: 0.45;
-      cursor: default;
     }
     .ib {
       display: inline-grid;
@@ -380,10 +355,9 @@ export class SystemMultimedia extends LitElement {
           </select>
         </label>
         <span class="f">${tr('שמע ברירת מחדל')}
-          <span class="seg" role="group" aria-label=${tr('שמע ברירת מחדל')}>
-            <button type="button" aria-pressed=${String(d.audio_default === 'screen')} ?disabled=${!d.audio_link_key} @click=${() => void this.updateDevice(d, { audio_default: 'screen' })}>${tr('רמקולי המסך')}</button>
-            <button type="button" aria-pressed=${String(d.audio_default === 'linked')} ?disabled=${!d.audio_link_key} @click=${() => void this.updateDevice(d, { audio_default: 'linked' })}>${tr('מגבר')}</button>
-          </span>
+          <sw-segmented label=${tr('שמע ברירת מחדל')} value=${d.audio_default} ?disabled=${!d.audio_link_key}
+            @change=${(e: CustomEvent<SegmentedChange>) => void this.updateDevice(d, { audio_default: e.detail.value as 'screen' | 'linked' })}
+            .options=${[{ value: 'screen', label: tr('רמקולי המסך') }, { value: 'linked', label: tr('מגבר') }]}></sw-segmented>
         </span>
         <label class="f">${tr('תקרת עוצמה')}
           <input type="number" min="0" max="100" .value=${d.volume_max === null ? '' : String(d.volume_max)} placeholder=${tr('ללא')} data-mm-volmax=${d.key}

@@ -27,6 +27,15 @@ export function openingSource(kind: string): string {
 }
 /** `497.35 ₪` */
 export const ils = (x: number | string): string => `${f2(x)} ₪`;
+/** CR-RESPONSE-MODELS-FOLLOWUP-2450: a value the server may leave null or absent (no period yet, a period that could not be computed, an answer
+ * without the money permission) is drawn as a dash - never NaN, never a made-up 0. */
+export const NO_VALUE = '-';
+const absent = (x: number | string | null | undefined): x is null | undefined | '' => x === null || x === undefined || x === '';
+export const f2or = (x: number | string | null | undefined): string => (absent(x) ? NO_VALUE : f2(x));
+export const f0or = (x: number | string | null | undefined): string => (absent(x) ? NO_VALUE : f0(x));
+export const ilsOr = (x: number | string | null | undefined): string => (absent(x) ? NO_VALUE : ils(x));
+/** An account's customer name; the server answers `customer: null` when the customer row is gone. */
+export const customerName = (a: { customer: { name: string } | null }): string => a.customer?.name ?? NO_VALUE;
 /** 30 -> "30%", 0.3 -> "30%" is not guessed: the caller passes percent. */
 export const pct = (x: number): string => `${Number.isInteger(x) ? x : x.toFixed(1)}%`;
 

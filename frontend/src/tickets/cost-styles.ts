@@ -157,7 +157,7 @@ export const costCardStyles = css`
     min-inline-size: 0;
     overflow-wrap: anywhere;
   }
-  .reqrow .seg {
+  .reqrow sw-segmented {
     margin-inline-start: auto;
   }
   details.hist {

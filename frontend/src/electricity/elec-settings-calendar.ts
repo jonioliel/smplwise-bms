@@ -6,6 +6,8 @@
  */
 import { html, nothing } from 'lit';
 import '../components/sw-button';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { customElement, state } from 'lit/decorators.js';
 import { elec, elecErrorText, elecForbidden, elecToday, type CalendarDay, type CalendarYear } from '../api/electricity-billing';
 import { energyAccess } from './access';
@@ -14,6 +16,9 @@ import { fmtDate, isIsoDate } from './elec-format';
 import { WEEK, WEEK_HE } from './elec-tou';
 import { dateInputLang } from '../api/day-format';
 import { tr } from '../i18n/msg/electricity';
+import '../components/sw-field';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 
 const KINDS: { id: CalendarDay['kind']; label: string }[] = [
   { id: 'holiday', label: tr('חג (כמו שבת)') },
@@ -106,18 +111,16 @@ export class ElecSettingsCalendar extends ElecBase {
         <div class="hd"><b class="h3">${tr('ימים מיוחדים')}</b>
           <div class="row" role="group" aria-label=${tr('שנה')}><sw-button variant="ghost" size="sm" iconOnly icon="chevronBack" label=${tr('השנה הקודמת')} data-year-prev @click=${() => this.setYear(this.year - 1)}></sw-button><b class="num" data-year>${this.year}</b><sw-button variant="ghost" size="sm" iconOnly icon="chevron" label=${tr('השנה הבאה')} data-year-next @click=${() => this.setYear(this.year + 1)}></sw-button></div>
           <span class="sp"></span>
-          <div class="seg" role="group" aria-label=${tr('מקור החגים')}><button type="button" data-generator="israel" aria-pressed=${d.generator === 'israel'} ?disabled=${!edit || this.busy} @click=${() => d.generator !== 'israel' && void this.run(() => elec().setCalendarGenerator('israel', d.revision, this.year))}>${tr('חגי ישראל מחושבים')}</button><button type="button" data-generator="none" aria-pressed=${d.generator === 'none'} ?disabled=${!edit || this.busy} @click=${() => d.generator !== 'none' && void this.run(() => elec().setCalendarGenerator('none', d.revision, this.year))}>${tr('ימים ידניים בלבד')}</button></div>
+          <sw-segmented label=${tr('מקור החגים')} value=${d.generator} ?disabled=${!edit || this.busy}
+        @change=${(e: CustomEvent<SegmentedChange>) => { const g = e.detail.value as 'israel' | 'none'; if (d.generator !== g) void this.run(() => elec().setCalendarGenerator(g, d.revision, this.year)); }}
+        .options=${[{ value: 'israel', label: tr('חגי ישראל מחושבים'), attrs: { 'data-generator': 'israel' } }, { value: 'none', label: tr('ימים ידניים בלבד'), attrs: { 'data-generator': 'none' } }]}></sw-segmented>
         </div>
         ${!rows.length ? html`<div class="mut" style="padding:0 16px 16px" data-calendar-empty>${tr('אין ימים מיוחדים בשנה הזו.')}</div>`
           : this.phone
             ? html`<div class="list" data-calendar>${rows.map((x) => html`<div class="li" data-day=${x.date} data-kind=${x.kind} style="flex-wrap:wrap"><div class="grow"><div class="t1">${x.name_he || x.kind_he}</div><div class="t2">${n(fmtDate(x.date))} · ${tr('יום {weekday}', { weekday: weekday(x.date) })} · ${x.source === 'manual' ? tr('ידני') : tr('מחושב')}</div></div>${this.kindCell(x, edit)}
                 ${edit && x.source === 'manual' ? html`<sw-button variant="ghost" size="sm" data-restore=${x.date} ?disabled=${this.busy} @click=${() => this.restore(x)}>${x.generated ? tr('החזרה לחישוב') : tr('הסרה')}</sw-button>` : nothing}</div>`)}</div>`
-            : html`<div class="scrollx"><table class="t" data-calendar><thead><tr><th>${tr('תאריך')}</th><th>${tr('יום')}</th><th>${tr('שם')}</th><th>${tr('נחשב')}</th><th>${tr('מקור')}</th><th></th></tr></thead><tbody>
-              ${rows.map((x) => html`<tr data-day=${x.date} data-kind=${x.kind}><td class="num" style="text-align:start">${fmtDate(x.date)}</td><td>${weekday(x.date)}</td><td class="b">${x.name_he || (x.generated?.name_he ?? '')}</td><td>${this.kindCell(x, edit)}</td>
-                <td>${x.source === 'manual' ? html`<span class="chip c-warn nodot">${tr('ידני')}</span>` : html`<span class="chip c-mut nodot">${tr('מחושב')}</span>`}</td>
-                <td>${edit ? (x.source === 'manual'
-                  ? html`<sw-button variant="ghost" size="sm" data-restore=${x.date} ?disabled=${this.busy} @click=${() => this.restore(x)}>${x.generated ? tr('החזרה לחישוב') : tr('הסרה')}</sw-button>`
-                  : nothing) : nothing}</td></tr>`)}</tbody></table></div>`}
+            : html`<sw-table bare static-rows class="t" data-calendar .columns=${this.dayColumns(edit) as unknown as TableColumn[]} .rows=${rows as unknown as Record<string, unknown>[]}
+                .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-day': String(r.date), 'data-kind': String(r.kind) })}></sw-table>`}
       </div>
       ${edit ? html`<div class="card" data-calendar-add><div class="hd"><b class="h3">${tr('הוספת יום')}</b></div>
         <div class="form">
@@ -130,9 +133,37 @@ export class ElecSettingsCalendar extends ElecBase {
     </div>`;
   }
 
+  /** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): the special days as the shared sw-table (bare in the card, read-only rows; hooks
+   * `data-day` + `data-kind`): the date, the weekday, the name, what the day counts as (a manager's select in the shared field), the source
+   * as a chip in the shared tones (manual = warn, generated = neutral) and the restore / remove key. */
+  private dayColumns(edit: boolean): TableColumn<CalendarDay>[] {
+    return [
+      { key: 'date', label: tr('תאריך'), render: (x) => html`<span class="num">${fmtDate(x.date)}</span>` },
+      { key: 'weekday', label: tr('יום'), render: (x) => weekday(x.date) },
+      { key: 'name', label: tr('שם'), render: (x) => html`<b>${x.name_he || (x.generated?.name_he ?? '')}</b>` },
+      { key: 'kind', label: tr('נחשב'), render: (x) => this.kindCell(x, edit) },
+      {
+        key: 'source',
+        label: tr('מקור'),
+        kind: 'status',
+        render: (x) => (x.source === 'manual' ? html`<span class="chip" data-tone="warn" data-nodot>${tr('ידני')}</span>` : html`<span class="chip" data-nodot>${tr('מחושב')}</span>`),
+      },
+      {
+        key: 'act',
+        label: '',
+        kind: 'actions',
+        render: (x) =>
+          edit && x.source === 'manual'
+            ? html`<sw-button variant="ghost" size="sm" data-restore=${x.date} ?disabled=${this.busy} @click=${() => this.restore(x)}>${x.generated ? tr('החזרה לחישוב') : tr('הסרה')}</sw-button>`
+            : nothing,
+      },
+    ];
+  }
+
+  /** what the day counts as: a manager's select sits in the shared field (sw-field), a viewer reads it */
   private kindCell(x: CalendarDay, edit: boolean) {
     if (!edit) return html`<span>${x.kind_he}</span>`;
-    return html`<select aria-label=${tr('סוג היום {date}', { date: fmtDate(x.date) })} data-kind-select=${x.date} ?disabled=${this.busy} @change=${(e: Event) => this.setKind(x, (e.target as HTMLSelectElement).value as CalendarDay['kind'])}>${KINDS.map((k) => html`<option value=${k.id} .selected=${k.id === x.kind}>${k.label}</option>`)}</select>`;
+    return html`<sw-field part="field"><select aria-label=${tr('סוג היום {date}', { date: fmtDate(x.date) })} data-kind-select=${x.date} ?disabled=${this.busy} @change=${(e: Event) => this.setKind(x, (e.target as HTMLSelectElement).value as CalendarDay['kind'])}>${KINDS.map((k) => html`<option value=${k.id} .selected=${k.id === x.kind}>${k.label}</option>`)}</select></sw-field>`;
   }
 }
 

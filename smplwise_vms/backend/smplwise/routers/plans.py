@@ -20,9 +20,12 @@ from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, require
 from ..services import geometry_store
+from ..services import plans_store as store
 from ..services import plan_catalog, plan_dxf, plan_dxf_map, plan_render, plan_stylize, safe_paths, wall_path
 from ._common import rid as _rid
 from .catalog import get_floor
+from ..wire import plans as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -58,20 +61,17 @@ def _geometry(r: sqlite3.Row) -> tuple[Any, ...]:
 
 
 def _published(conn: sqlite3.Connection, floor_id: str) -> sqlite3.Row | None:
-    return conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? AND status = 'published'", (floor_id,)).fetchone()
+    return store.published_version(conn, floor_id)
 
 
 def _carry_anchors(conn: sqlite3.Connection, target: sqlite3.Row, now: str) -> tuple[int, int]:
     """Active anchors placed on a version with identical geometry follow the target version. Others keep their
     version id and the map reports needs_alignment: nothing is ever moved to an invented location (T038)."""
-    same = [r["id"] for r in conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? AND id != ?", (target["floor_id"], target["id"])).fetchall() if _geometry(r) == _geometry(target)]
+    same = [r["id"] for r in store.other_versions(conn, target["floor_id"], target["id"]) if _geometry(r) == _geometry(target)]
     carried = 0
     if same:
-        carried = conn.execute(
-            f"UPDATE map_anchors SET plan_version_id = ?, updated_at = ? WHERE floor_id = ? AND effective_to IS NULL AND plan_version_id IN ({','.join('?' * len(same))})",
-            (target["id"], now, target["floor_id"], *same),
-        ).rowcount
-    pending = conn.execute("SELECT COUNT(*) FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL AND plan_version_id != ?", (target["floor_id"], target["id"])).fetchone()[0]
+        carried = store.carry_anchors(conn, target["floor_id"], target["id"], same, now)
+    pending = store.anchors_off_version(conn, target["floor_id"], target["id"])
     return carried, pending
 
 
@@ -79,17 +79,14 @@ def needs_alignment(conn: sqlite3.Connection, version: sqlite3.Row | None, ancho
     """An anchor needs a look when it was placed on a version whose pixel space differs from the shown one."""
     if not version or not anchors:
         return False
-    versions = {r["id"]: r for r in conn.execute("SELECT * FROM plan_versions WHERE floor_id = ?", (version["floor_id"],)).fetchall()}
+    versions = {r["id"]: r for r in store.floor_versions(conn, version["floor_id"])}
     g = _geometry(version)
     return any(a["plan_version_id"] != version["id"] and (a["plan_version_id"] not in versions or _geometry(versions[a["plan_version_id"]]) != g) for a in anchors)
 
 
 def version_at(conn: sqlite3.Connection, floor_id: str, iso: str) -> sqlite3.Row | None:
     """The version that was published at the instant (every version keeps one published period; a restore creates a copy)."""
-    return conn.execute(
-        "SELECT * FROM plan_versions WHERE floor_id = ? AND status != 'draft' AND published_at IS NOT NULL AND published_at <= ? AND (archived_at IS NULL OR archived_at > ?) ORDER BY published_at DESC LIMIT 1",
-        (floor_id, iso, iso),
-    ).fetchone()
+    return store.version_published_at(conn, floor_id, iso)
 
 
 def version_diff(conn: sqlite3.Connection, target: sqlite3.Row, base: sqlite3.Row | None) -> dict[str, Any]:
@@ -103,10 +100,10 @@ def version_diff(conn: sqlite3.Connection, target: sqlite3.Row, base: sqlite3.Ro
             if a != b:
                 changes.append({"field": name, "from": a, "to": b})
     g = _geometry(target)
-    versions = {r["id"]: r for r in conn.execute("SELECT * FROM plan_versions WHERE floor_id = ?", (target["floor_id"],)).fetchall()}
-    cameras = {r["id"]: r for r in conn.execute("SELECT id, channel, name_source, alias FROM cameras").fetchall()}
+    versions = {r["id"]: r for r in store.floor_versions(conn, target["floor_id"])}
+    cameras = {r["id"]: r for r in store.camera_name_rows(conn)}
     items = []
-    for a in conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL ORDER BY layer_id, resource_id", (target["floor_id"],)).fetchall():
+    for a in store.floor_anchors(conn, target["floor_id"]):
         on = versions.get(a["plan_version_id"])
         carried = a["plan_version_id"] == target["id"] or (on is not None and _geometry(on) == g)
         cam = cameras.get(a["resource_id"]) if a["resource_type"] == "camera" else None
@@ -132,14 +129,14 @@ def _stylized(r: sqlite3.Row) -> bool:
 
 
 def get_asset(conn: sqlite3.Connection, asset_id: str) -> sqlite3.Row:
-    row = conn.execute("SELECT * FROM plan_assets WHERE id = ?", (asset_id,)).fetchone()
+    row = store.asset(conn, asset_id)
     if not row:
         raise not_found("קובץ התוכנית לא נמצא.")
     return row
 
 
 def get_version(conn: sqlite3.Connection, version_id: str) -> sqlite3.Row:
-    row = conn.execute("SELECT * FROM plan_versions WHERE id = ?", (version_id,)).fetchone()
+    row = store.version(conn, version_id)
     if not row:
         raise not_found("גרסת התוכנית לא נמצאה.")
     return row
@@ -185,7 +182,7 @@ def _page_png(settings: Settings, asset: sqlite3.Row, page: int, max_px: int) ->
 
 # ---------- upload ----------
 
-@router.post("/floors/{floor_id}/plan-assets", status_code=201)
+@router.post("/floors/{floor_id}/plan-assets", status_code=201, **wire(W.PlanAsset))
 def upload_asset(floor_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     settings = settings_of(request)
     get_floor(conn, floor_id)
@@ -252,20 +249,17 @@ def upload_asset(floor_id: str, request: Request, file: UploadFile = File(...), 
     except ApiError:
         shutil.rmtree(folder, ignore_errors=True)
         raise
-    conn.execute(
-        "INSERT INTO plan_assets(id, floor_id, original_name, mime, sha256, bytes, page_count, storage_path, uploaded_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (asset_id, floor_id, name, mime, sha, size, page_count, str(dest.relative_to(settings.data_dir).as_posix()), principal.user_id, now_iso()),
-    )
+    store.insert_asset(conn, asset_id, floor_id, name, mime, sha, size, page_count, str(dest.relative_to(settings.data_dir).as_posix()), principal.user_id, now_iso())
     audit(conn, actor=principal, action="plan.asset.upload", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
           details={"asset_id": asset_id, "mime": mime, "bytes": size, "pages": page_count, "sha256": sha})
     return asset_row(get_asset(conn, asset_id))
 
 
-@router.get("/floors/{floor_id}/plan-assets")
+@router.get("/floors/{floor_id}/plan-assets", **wire(W.PlanAssets))
 def list_assets(floor_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, "map.import", ("floor", floor_id))
-    rows = conn.execute("SELECT * FROM plan_assets WHERE floor_id = ? ORDER BY created_at DESC", (floor_id,)).fetchall()
+    rows = store.floor_assets(conn, floor_id)
     return {"assets": [asset_row(r) for r in rows]}
 
 
@@ -307,7 +301,7 @@ class VersionIn(BaseModel):
     scale_m_per_px: float | None = Field(default=None, gt=0)
 
 
-@router.post("/floors/{floor_id}/plan-versions", status_code=201)
+@router.post("/floors/{floor_id}/plan-versions", status_code=201, **wire(W.PlanVersionCreated))
 def create_version(floor_id: str, body: VersionIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     settings = settings_of(request)
     get_floor(conn, floor_id)
@@ -341,12 +335,8 @@ def create_version(floor_id: str, body: VersionIn, request: Request, principal: 
             rw, rh = rh, rw
         crop_w_px = round(crop.w * rw) if crop else rw
         scale_value = dxf_scale * (crop_w_px / w) if w else dxf_scale
-    conn.execute(
-        """INSERT INTO plan_versions(id, floor_id, asset_id, page, rotation, crop_json, width_px, height_px, image_path, scale_m_per_px, status, revision, notes, created_by, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', 1, ?, ?, ?)""",
-        (version_id, floor_id, asset["id"], body.page, body.rotation, json.dumps(body.crop.model_dump()) if body.crop else None, w, h,
-         str(out.relative_to(settings.data_dir).as_posix()), scale_value, body.notes, principal.user_id, now_iso()),
-    )
+    store.insert_draft(conn, (version_id, floor_id, asset["id"], body.page, body.rotation, json.dumps(body.crop.model_dump()) if body.crop else None, w, h,
+                              str(out.relative_to(settings.data_dir).as_posix()), scale_value, body.notes, principal.user_id, now_iso()))
     # a new version starts from the floor's structure when it is the same drawing (copied / mapped through a re-crop)
     carry = geometry_store.carry(conn, get_version(conn, version_id), principal.user_id)
     audit(conn, actor=principal, action="plan.version.create", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
@@ -355,12 +345,12 @@ def create_version(floor_id: str, body: VersionIn, request: Request, principal: 
     return dict(version_row(get_version(conn, version_id)), geometry_carry=carry)
 
 
-@router.get("/floors/{floor_id}/plan-versions")
+@router.get("/floors/{floor_id}/plan-versions", **wire(W.PlanVersions))
 def list_versions(floor_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, "map.edit", ("floor", floor_id))
-    rows = conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? ORDER BY created_at DESC", (floor_id,)).fetchall()
-    counts = {r["plan_version_id"]: r["n"] for r in conn.execute("SELECT plan_version_id, COUNT(*) AS n FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL GROUP BY plan_version_id", (floor_id,)).fetchall()}
+    rows = store.floor_versions_newest_first(conn, floor_id)
+    counts = {r["plan_version_id"]: r["n"] for r in store.anchors_per_version(conn, floor_id)}
     return {"versions": [dict(version_row(r), anchors_on=counts.get(r["id"], 0)) for r in rows]}
 
 
@@ -376,7 +366,7 @@ def version_image(version_id: str, request: Request, principal: Principal = Depe
     return FileResponse(path, media_type="image/png", headers={"Cache-Control": "private, max-age=86400"})
 
 
-@router.post("/plan-versions/{version_id}/publish")
+@router.post("/plan-versions/{version_id}/publish", **wire(W.PlanVersion))
 def publish_version(version_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     v = get_version(conn, version_id)
     require(conn, principal, "map.publish", ("floor", v["floor_id"]))
@@ -387,8 +377,8 @@ def publish_version(version_id: str, request: Request, principal: Principal = De
     structure_pending = geometry_store.pending_doc(conn, v)
     previous = _published(conn, v["floor_id"])
     if previous:
-        conn.execute("UPDATE plan_versions SET status = 'archived', archived_at = ?, revision = revision + 1 WHERE id = ?", (now, previous["id"]))
-    conn.execute("UPDATE plan_versions SET status = 'published', published_by = ?, published_at = ?, revision = revision + 1 WHERE id = ?", (principal.user_id, now, version_id))
+        store.archive_version(conn, previous["id"], now)
+    store.publish_version(conn, version_id, principal.user_id, now)
     # Anchors never migrate to an invented location: they follow only between versions with identical geometry;
     # otherwise they keep their old version id and the map reports needs_alignment (T038).
     carried, pending = _carry_anchors(conn, get_version(conn, version_id), now)
@@ -400,7 +390,7 @@ def publish_version(version_id: str, request: Request, principal: Principal = De
     return version_row(get_version(conn, version_id))
 
 
-@router.get("/plan-versions/{version_id}/diff")
+@router.get("/plan-versions/{version_id}/diff", **wire(W.PlanDiff))
 def diff_version(version_id: str, against: str | None = None, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Preview shown before publishing or restoring: geometry changes against the published version (or `against`)
     and what happens to every placed item (T038)."""
@@ -417,7 +407,7 @@ class RollbackIn(BaseModel):
     expected_published_id: str | None = Field(default=None, max_length=32)
 
 
-@router.post("/plan-versions/{version_id}/rollback", status_code=201)
+@router.post("/plan-versions/{version_id}/rollback", status_code=201, **wire(W.PlanVersion))
 def rollback_version(version_id: str, body: RollbackIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Restore an archived version as a new published version (its own copy of the picture and the same geometry), so
     every version keeps exactly one published period for the historical map. Anchors follow by geometry. The archived
@@ -446,16 +436,12 @@ def rollback_version(version_id: str, body: RollbackIn, request: Request, princi
         shutil.copyfile(stylized_src, so)
         stylized_rel = str(so.relative_to(settings.data_dir).as_posix())
     if previous:
-        conn.execute("UPDATE plan_versions SET status = 'archived', archived_at = ?, revision = revision + 1 WHERE id = ?", (now, previous["id"]))
-    conn.execute("UPDATE plan_versions SET revision = revision + 1 WHERE id = ?", (version_id,))
+        store.archive_version(conn, previous["id"], now)
+    store.bump_version(conn, version_id)
     notes = f"שחזור של גרסה שפורסמה ב־{v['published_at'] or v['created_at']}"
-    conn.execute(
-        """INSERT INTO plan_versions(id, floor_id, asset_id, page, rotation, crop_json, width_px, height_px, image_path, scale_m_per_px, calibration_json, status, revision, notes,
-                                     created_by, created_at, published_by, published_at, render_mode, stylized_path, stylize_json)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', 1, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (restored_id, v["floor_id"], v["asset_id"], v["page"], v["rotation"], v["crop_json"], v["width_px"], v["height_px"], str(out.relative_to(settings.data_dir).as_posix()),
-         v["scale_m_per_px"], v["calibration_json"], notes, principal.user_id, now, principal.user_id, now, v["render_mode"] if stylized_rel else "source", stylized_rel, v["stylize_json"] if stylized_rel else None),
-    )
+    store.insert_restored(conn, (restored_id, v["floor_id"], v["asset_id"], v["page"], v["rotation"], v["crop_json"], v["width_px"], v["height_px"], str(out.relative_to(settings.data_dir).as_posix()),
+                                 v["scale_m_per_px"], v["calibration_json"], notes, principal.user_id, now, principal.user_id, now, v["render_mode"] if stylized_rel else "source", stylized_rel,
+                                 v["stylize_json"] if stylized_rel else None))
     restored = get_version(conn, restored_id)
     carried, pending = _carry_anchors(conn, restored, now)
     geometry_store.copy_published(conn, v, restored, principal.user_id, now)
@@ -471,10 +457,9 @@ def delete_version(version_id: str, request: Request, principal: Principal = Dep
     require(conn, principal, "map.edit", ("floor", v["floor_id"]))
     if v["status"] != "draft":
         raise conflict("not_draft", "רק טיוטה ניתנת למחיקה; גרסה שפורסמה נשמרת להיסטוריה.", status=v["status"])
-    if conn.execute("SELECT COUNT(*) FROM map_anchors WHERE plan_version_id = ?", (version_id,)).fetchone()[0]:
+    if store.version_anchor_count(conn, version_id):
         raise conflict("has_anchors", "על הטיוטה מוצבים פריטים.")
-    conn.execute("DELETE FROM plan_geometry WHERE plan_version_id = ?", (version_id,))
-    conn.execute("DELETE FROM plan_versions WHERE id = ?", (version_id,))
+    store.delete_draft(conn, version_id)
     image = _version_file(settings, v, "image_path")
     if image is not None:  # a path outside the plan's own folder is never deleted
         image.unlink(missing_ok=True)
@@ -502,7 +487,7 @@ def _readable(conn: sqlite3.Connection, principal: Principal, v: sqlite3.Row) ->
         require_floor_read(conn, principal, v["floor_id"])  # T055: a camera-scoped reader sees the drawing of its camera's floor
 
 
-@router.get("/plan-versions/{version_id}")
+@router.get("/plan-versions/{version_id}", **wire(W.PlanVersion))
 def get_version_api(version_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     v = get_version(conn, version_id)
     _readable(conn, principal, v)
@@ -531,7 +516,7 @@ def version_stylized(version_id: str, request: Request, principal: Principal = D
     return FileResponse(path, media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})
 
 
-@router.post("/plan-versions/{version_id}/stylize")
+@router.post("/plan-versions/{version_id}/stylize", **wire(W.PlanStylized))
 def stylize_version(version_id: str, body: StylizeIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Local image processing (no AI, nothing leaves the add-on): walls and rooms in the SMPLWISE language."""
     settings = settings_of(request)
@@ -546,18 +531,18 @@ def stylize_version(version_id: str, body: StylizeIn, request: Request, principa
             result = plan_stylize.stylize(src, out, body.strength, body.keep_lines, body.room_fill)
     except (OSError, ValueError, MemoryError) as exc:
         raise ApiError(500, "stylize_failed", "עיבוד התוכנית נכשל.", details={"error": type(exc).__name__})
-    conn.execute("UPDATE plan_versions SET stylized_path = ?, stylize_json = ? WHERE id = ?", (str(out.relative_to(settings.data_dir)).replace("\\", "/"), json.dumps(result), version_id))
+    store.set_stylized(conn, version_id, str(out.relative_to(settings.data_dir)).replace("\\", "/"), json.dumps(result))
     audit(conn, actor=principal, action="plan.stylize", decision="allowed", resource_type="plan_version", resource_id=version_id, request_id=_rid(request), details=result)
     return {**result, "version_id": version_id, "source_url": f"api/v1/plan-versions/{version_id}/source.png", "stylized_url": f"api/v1/plan-versions/{version_id}/stylized.png"}
 
 
-@router.patch("/plan-versions/{version_id}")
+@router.patch("/plan-versions/{version_id}", **wire(W.PlanVersion))
 def patch_version(version_id: str, body: RenderModeIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     v = get_version(conn, version_id)
     require(conn, principal, "map.import", ("floor", v["floor_id"]))
     if body.render_mode == "stylized" and not _has_stylized(v):
         raise conflict("stylized_missing", "הרץ קודם את העיבוד לשפת Arx.")
-    conn.execute("UPDATE plan_versions SET render_mode = ? WHERE id = ?", (body.render_mode, version_id))
+    store.set_render_mode(conn, version_id, body.render_mode)
     audit(conn, actor=principal, action="plan.render_mode", decision="allowed", resource_type="plan_version", resource_id=version_id, request_id=_rid(request), details={"render_mode": body.render_mode})
     return version_row(get_version(conn, version_id))
 
@@ -581,7 +566,7 @@ def _dxf_payload(settings: Settings, asset: sqlite3.Row) -> dict[str, Any]:
     }
 
 
-@router.get("/plan-assets/{asset_id}/dxf")
+@router.get("/plan-assets/{asset_id}/dxf", **wire(W.PlanDxf))
 def dxf_info(asset_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """What the DXF contains (version, units, layers with drawable counts, entity counts, unsupported types, extent),
     the chosen layers/units and the last render (size, scale, skipped entities, partial flag)."""
@@ -592,7 +577,7 @@ def dxf_info(asset_id: str, request: Request, principal: Principal = Depends(cur
     return _dxf_payload(settings_of(request), asset)
 
 
-@router.put("/plan-assets/{asset_id}/dxf")
+@router.put("/plan-assets/{asset_id}/dxf", **wire(W.PlanDxf))
 def dxf_set_options(asset_id: str, body: DxfOptions, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Choose the layers to draw and the drawing units; the page cache is re-rendered from the untouched source.
     A partial conversion (skipped entity types) is always reported in `render.skipped`; an empty selection is refused."""
@@ -657,7 +642,7 @@ def _in_pool(request: Request, fn: Any, *args: Any, **kwargs: Any) -> Any:
         raise ApiError(504, "dxf_timeout", "קריאת ה־DXF לא הסתיימה בזמן; נסה שכבות מעטות יותר או קובץ קטן יותר.", retryable=True, details={"timeout_s": settings.detect_timeout_s})
 
 
-@router.get("/plan-assets/{asset_id}/dxf/entities")
+@router.get("/plan-assets/{asset_id}/dxf/entities", **wire(W.PlanDxfEntities))
 def dxf_entities(asset_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The mapping screen's table: every layer with its drawable count, kinds, a sample and the suggested target, every
     block with its count, footprint and the suggested catalog item; the targets and the catalog choices to pick from."""
@@ -686,7 +671,7 @@ class DxfImportIn(BaseModel):
     level_id: str | None = Field(default=None, max_length=64)
 
 
-@router.post("/plan-versions/{version_id}/import-dxf-geometry")
+@router.post("/plan-versions/{version_id}/import-dxf-geometry", **wire(W.PlanDxfImport))
 def import_dxf_geometry(version_id: str, body: DxfImportIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Candidates from the DXF the version was made from, by the chosen layer and block mapping (design 9.4), in the
     shape of /detect: nothing is stored; the editor accepts them through /detect/accept. The body is checked against

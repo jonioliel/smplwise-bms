@@ -16,6 +16,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import new_id, now_iso
 from ..errors import ApiError, forbidden, not_found
 from ..rbac import INSTALLATION, Principal, authorize, require
+from ..services import views_store as store
 from ..services.access import camera_allowed, visible_camera_ids
 from ._common import rid as _rid
 
@@ -36,7 +37,7 @@ def _can_manage_shared(conn: sqlite3.Connection, principal: Principal) -> bool:
     """Shared views are an administration act: rbac.assign at the installation or at any site (a site administrator)."""
     if authorize(conn, principal, "rbac.assign", INSTALLATION).allowed:
         return True
-    for r in conn.execute("SELECT id FROM sites WHERE deleted_at IS NULL").fetchall():
+    for r in store.live_site_ids(conn):
         if authorize(conn, principal, "rbac.assign", ("site", r["id"])).allowed:
             return True
     return False
@@ -61,7 +62,7 @@ def _view_dict(row: sqlite3.Row, visible: set[str] | None, names: dict[str, str]
 
 def _names(conn: sqlite3.Connection) -> dict[str, str]:
     """Display names as the camera list shows them: two channels with the same name carry their channel number."""
-    rows = conn.execute("SELECT id, alias, name_source, channel FROM cameras").fetchall()
+    rows = store.camera_names(conn)
     base = {r["id"]: (r["alias"] or r["name_source"] or f"ערוץ {r['channel']}") for r in rows}
     seen: dict[str, int] = {}
     for n in base.values():
@@ -74,7 +75,7 @@ def _check_cameras(conn: sqlite3.Connection, principal: Principal, cameras: list
     for cid in cameras:
         if cid in seen:
             continue
-        if not conn.execute("SELECT 1 FROM cameras WHERE id = ?", (cid,)).fetchone():
+        if not store.camera_exists(conn, cid):
             raise ApiError(422, "validation", "מצלמה בתצוגה לא נמצאה.", details={"camera_id": cid})
         if not camera_allowed(conn, principal, cid, "video.live"):
             raise forbidden("אין הרשאת צפייה חיה במצלמה שבתצוגה.", permission="video.live", target_type="camera", target_id=cid)
@@ -87,7 +88,7 @@ def list_views(principal: Principal = Depends(current_principal_ro), conn: sqlit
     """The caller's own views plus every shared view; cameras the caller may not watch are left out and counted."""
     visible = visible_camera_ids(conn, principal, "video.live")
     names = _names(conn)
-    rows = conn.execute("SELECT * FROM saved_views WHERE deleted_at IS NULL AND (shared = 1 OR owner_user_id = ?) ORDER BY shared DESC, name COLLATE NOCASE", (principal.user_id,)).fetchall()
+    rows = store.visible_views(conn, principal.user_id)
     return {
         "views": [_view_dict(r, visible, names) for r in rows],
         "can_share": _can_manage_shared(conn, principal),
@@ -102,17 +103,14 @@ def create_view(body: ViewBody, request: Request, principal: Principal = Depends
     cameras = _check_cameras(conn, principal, body.cameras)
     vid = new_id()
     now = now_iso()
-    conn.execute(
-        "INSERT INTO saved_views(id, name, cameras_json, cols, rows, shared, kiosk, owner_user_id, owner_username, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-        (vid, body.name.strip(), json.dumps(cameras), body.cols, body.rows, int(body.shared), int(body.kiosk), principal.user_id, principal.username, now, now),
-    )
+    store.insert_view(conn, vid, body.name.strip(), json.dumps(cameras), body.cols, body.rows, int(body.shared), int(body.kiosk), principal.user_id, principal.username, now, now)
     audit(conn, actor=principal, action="views.create", decision="allowed", resource_type="view", resource_id=vid,
           request_id=_rid(request), details={"name": body.name.strip(), "cameras": len(cameras), "shared": body.shared, "kiosk": body.kiosk})
-    return _view_dict(conn.execute("SELECT * FROM saved_views WHERE id = ?", (vid,)).fetchone(), None, _names(conn))
+    return _view_dict(store.view(conn, vid), None, _names(conn))
 
 
 def _load(conn: sqlite3.Connection, view_id: str) -> sqlite3.Row:
-    row = conn.execute("SELECT * FROM saved_views WHERE id = ? AND deleted_at IS NULL", (view_id,)).fetchone()
+    row = store.live_view(conn, view_id)
     if not row:
         raise not_found("התצוגה לא נמצאה.")
     return row
@@ -126,13 +124,10 @@ def update_view(view_id: str, body: ViewBody, request: Request, principal: Princ
     if body.shared and not bool(row["shared"]) and not _can_manage_shared(conn, principal):
         require(conn, principal, "rbac.assign", INSTALLATION)  # audited refusal
     cameras = _check_cameras(conn, principal, body.cameras)
-    conn.execute(
-        "UPDATE saved_views SET name = ?, cameras_json = ?, cols = ?, rows = ?, shared = ?, kiosk = ?, updated_at = ? WHERE id = ?",
-        (body.name.strip(), json.dumps(cameras), body.cols, body.rows, int(body.shared), int(body.kiosk), now_iso(), view_id),
-    )
+    store.update_view(conn, view_id, body.name.strip(), json.dumps(cameras), body.cols, body.rows, int(body.shared), int(body.kiosk), now_iso())
     audit(conn, actor=principal, action="views.update", decision="allowed", resource_type="view", resource_id=view_id,
           request_id=_rid(request), details={"name": body.name.strip(), "cameras": len(cameras), "shared": body.shared, "kiosk": body.kiosk})
-    return _view_dict(conn.execute("SELECT * FROM saved_views WHERE id = ?", (view_id,)).fetchone(), None, _names(conn))
+    return _view_dict(store.view(conn, view_id), None, _names(conn))
 
 
 @router.delete("/views/{view_id}")
@@ -140,7 +135,7 @@ def delete_view(view_id: str, request: Request, principal: Principal = Depends(c
     row = _load(conn, view_id)
     if not _can_edit(conn, principal, row):
         raise forbidden("רק בעל התצוגה או מנהל מערכת יכולים למחוק אותה.", permission="views.edit", target_type="view", target_id=view_id)
-    conn.execute("UPDATE saved_views SET deleted_at = ?, updated_at = ? WHERE id = ?", (now_iso(), now_iso(), view_id))
+    store.delete_view(conn, view_id, now_iso(), now_iso())
     audit(conn, actor=principal, action="views.delete", decision="allowed", resource_type="view", resource_id=view_id,
           request_id=_rid(request), details={"name": row["name"]})
     return {"id": view_id, "deleted": True}

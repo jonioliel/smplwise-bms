@@ -4,6 +4,8 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-drawer';
 import '../components/sw-dialog';
+import '../components/sw-chip-choice';
+import type { ChipChoiceChange } from '../components/sw-chip-choice';
 import '../components/sw-state-panel';
 import { describeError } from '../api/client';
 import { getCalendar, putCalendarDay, putWindowSettings, type CalendarReply, type HolidayRow } from '../api/door-windows';
@@ -134,8 +136,8 @@ export class DoorHolidays extends LitElement {
     return html`
       <div class="field"><span class="lbl">${dwe('hlGenerator')}</span>
         ${this.canConfigure
-          ? html`<div class="seg" role="group" data-dw-generator>${GENERATORS.map((g) => html`<button type="button" aria-pressed=${String(cal.generator === g)} data-dw-gen=${g}
-              @click=${() => cal.generator !== g && this.askGenerator(g)}>${dwe(`gen_${g}` as DweKey)}</button>`)}</div>`
+          ? html`<sw-chip-choice label=${dwe('hlGenerator')} data-dw-generator value=${cal.generator} @change=${(e: CustomEvent<ChipChoiceChange>) => cal.generator !== e.detail.value && this.askGenerator(e.detail.value as typeof cal.generator)}
+              .options=${GENERATORS.map((g) => ({ value: g, label: dwe(`gen_${g}` as DweKey), attrs: { 'data-dw-gen': g } }))}></sw-chip-choice>`
           : html`<div class="chips"><span class="chip" data-dw-generator-chip>${dwe(`gen_${cal.generator}` as DweKey)}</span></div>`}</div>
       ${months.length ? months.map((m) => html`<div class="card" data-dw-month=${m.month}>
         <b class="num">${m.month.slice(5, 7)}.${m.month.slice(0, 4)}</b>

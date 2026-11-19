@@ -5,6 +5,8 @@ import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-icon';
 import '../components/sw-button';
 import '../components/sw-toggle';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import './devices-camera-card';
 import type { IconName } from '../components/sw-icon';
 import { deepFocusables } from '../components/sw-drawer';
@@ -770,10 +772,11 @@ export class AreaQuickSheet extends LitElement {
         <aside class="ed-side">
           <div class="fld">
             <b class=${phone ? 'vh' : ''}>${hs('qcApplyTo')}</b>
-            <div class="seg" role="radiogroup" aria-label=${hs('qcApplyTo')}>
-              <button type="button" role="radio" aria-checked=${String(!site)} class=${classMap({ on: !site })} data-ed-apply="area" @click=${() => (this.applyTo = 'area')}><sw-icon name="pin" size=${13}></sw-icon>${hs('qcApplyArea')}</button>
-              <button type="button" role="radio" aria-checked=${String(site)} class=${classMap({ on: site })} data-ed-apply="site" ?disabled=${!installation} @click=${() => (this.applyTo = 'site')}><sw-icon name="home" size=${13}></sw-icon>${hs('qcApplySite')}</button>
-            </div>
+            <sw-segmented radio block label=${hs('qcApplyTo')} value=${this.applyTo} @change=${(e: CustomEvent<SegmentedChange>) => (this.applyTo = e.detail.value as 'area' | 'site')}
+              .options=${[
+                { value: 'area', label: hs('qcApplyArea'), icon: html`<sw-icon name="pin" size=${13}></sw-icon>`, attrs: { 'data-ed-apply': 'area' } },
+                { value: 'site', label: hs('qcApplySite'), icon: html`<sw-icon name="home" size=${13}></sw-icon>`, disabled: !installation, attrs: { 'data-ed-apply': 'site' } },
+              ]}></sw-segmented>
             ${site ? html`<div class="sitewarn" data-ed-sitewarn><sw-icon name="warning" size=${13}></sw-icon><span>${hs('qcSiteWarn')}</span></div>` : phone ? nothing : html`<small>${hs('qcAreaNote', { name: a.name })}</small>`}
           </div>
           ${installation ? html`<div class="fld tgrow"><div><b>${hs('qcAlertTitle')}</b>${phone ? nothing : html`<small>${this.alertDraft === 'show' ? hs('qcAlertOn') : hs('qcAlertOff')}</small>`}</div>

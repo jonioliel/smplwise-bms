@@ -6,6 +6,8 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-pill';
 import '../components/sw-kpi';
+import '../components/sw-segmented';
+import type { SegmentedChange, SegmentOption } from '../components/sw-segmented';
 import { describeError } from '../api/client';
 import { getSettings, patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
@@ -20,12 +22,13 @@ import {
 } from '../design/look';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
-import { settingsPlainRowStyles, settingsMutedHintStyles, settingsSegKeyStateStyles, settingsPreviewColStyles, settingsPreviewButtonStyles, settingsFootStatusStyles } from '../styles/settings';
-import { segTrackStyles, segThumbStyles } from '../styles/fragments';
+import { settingsPlainRowStyles, settingsMutedHintStyles, settingsPreviewColStyles, settingsPreviewButtonStyles, settingsFootStatusStyles } from '../styles/settings';
 import { tr } from '../i18n/msg/system-b';
 import { ToastController } from '../components/toast-controller';
 
 type Target = 'own' | 'installation';
+/** The key of a dial's "follow the installation" choice (the own preference only) - never a dial value. */
+const FOLLOW = '__follow';
 
 /**
  * הגדרות › כללי › מראה (Bubble foundation, owner 2026-10-02): every look dial of the skin - density, surface, pop-up kind, corner
@@ -64,24 +67,8 @@ export class SystemLook extends LitElement {
       min-inline-size: 120px;
     }
     ${settingsMutedHintStyles}
-    ${segTrackStyles}
-    .seg button {
-      all: unset;
-      box-sizing: border-box;
-      display: inline-flex;
-      align-items: center;
-      min-block-size: 36px;
-      padding: 0 12px;
-      border-radius: var(--sw-r-sm);
-      color: var(--sw-text-2);
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-medium);
-      cursor: pointer;
-    }
-    ${segThumbStyles}
-    ${settingsSegKeyStateStyles}
+    /* CR-CMP2-SELECTS-2450 (owner N11): the dials' keys are sw-segmented (the shared settings key; its own press / hover / disabled) */
     /* LOOK-POLISH-2331: every key gives on pointer-down and washes on hover only under a pointer that hovers */
-    .seg button,
     .range button,
     .pal button {
       transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color);
@@ -90,20 +77,17 @@ export class SystemLook extends LitElement {
       user-select: none;
       -webkit-user-select: none;
     }
-    .seg button:active:not(:disabled),
     .range button:active:not(:disabled),
     .pal button:active:not(:disabled) {
       transform: scale(var(--sw-press-scale));
     }
     @media (hover: hover) and (pointer: fine) {
-      .seg button:hover:not([aria-pressed='true']):not(:disabled),
       .pal button:hover:not([aria-pressed='true']):not(:disabled) {
         color: var(--sw-text);
         background: var(--sw-hover-wash);
       }
     }
     @media (prefers-reduced-motion: reduce) {
-      .seg button,
       .range button,
       .pal button {
         transition-duration: 0ms;
@@ -408,12 +392,14 @@ export class SystemLook extends LitElement {
     let hint = current === null ? tr('לפי ההתקנה: {value}', { value: d.labelHe[String(inst)] }) : d.hintHe[String(current)];
     // the performance dial: auto shows what this device decided (design/performance.ts)
     if (dial === 'performance' && (current ?? inst) === 'auto') hint += ` · ${tr('כרגע: {value}', { value: d.labelHe[tierOf('auto')] })}`;
+    const options: SegmentOption[] = [
+      ...(this.target === 'own' ? [{ value: FOLLOW, label: tr('לפי ההתקנה'), attrs: { 'data-look-follow': dial } }] : []),
+      ...d.values.map((v) => ({ value: String(v), label: d.labelHe[String(v)], attrs: { 'data-look-option': `${dial}:${v}` } })),
+    ];
     return html`<div class="row" data-look-row=${dial}>
       <span class="lbl">${d.nameHe}<span class="muted">${hint}</span></span>
-      <span class="seg" role="group" aria-label=${d.nameHe}>
-        ${this.target === 'own' ? html`<button type="button" data-look-follow=${dial} aria-pressed=${current === null ? 'true' : 'false'} ?disabled=${disabled} @click=${() => this.pick(dial, null)}>${tr('לפי ההתקנה')}</button>` : nothing}
-        ${d.values.map((v) => html`<button type="button" data-look-option=${`${dial}:${v}`} aria-pressed=${current === v ? 'true' : 'false'} ?disabled=${disabled} @click=${() => this.pick(dial, v as Look[K])}>${d.labelHe[String(v)]}</button>`)}
-      </span>
+      <sw-segmented label=${d.nameHe} .options=${options} value=${current === null ? FOLLOW : String(current)} ?disabled=${disabled}
+        @change=${(e: CustomEvent<SegmentedChange>) => this.pick(dial, e.detail.value === FOLLOW ? null : (d.values.find((v) => String(v) === e.detail.value) as Look[K]))}></sw-segmented>
     </div>`;
   }
 
@@ -508,10 +494,11 @@ export class SystemLook extends LitElement {
     return html`<sw-card heading=${tr('מראה')} subheading=${tr('צפיפות, משטח, חלונות קופצים, פינות, אטימות, גודל, יעד לחיצה, חומר, עומק וגוון מצב - לכל ההתקנה ולעצמי')} data-look-card>
       <div class="row">
         <span class="lbl">${tr('למי')}<span class="muted">${this.target === 'own' ? tr('ההעדפה שלי: כל שינוי נשמר מיד') : tr('ברירת המחדל של ההתקנה: נשמרת בכפתור')}</span></span>
-        <span class="seg" role="group" aria-label=${tr('למי')}>
-          <button type="button" data-look-target="own" aria-pressed=${this.target === 'own' ? 'true' : 'false'} @click=${() => (this.target = 'own')}>${tr('ההעדפה שלי')}</button>
-          <button type="button" data-look-target="installation" aria-pressed=${this.target === 'installation' ? 'true' : 'false'} @click=${() => (this.target = 'installation')}>${tr('ברירת המחדל של ההתקנה')}</button>
-        </span>
+        <sw-segmented label=${tr('למי')} value=${this.target} @change=${(e: CustomEvent<SegmentedChange>) => (this.target = e.detail.value as Target)}
+          .options=${[
+            { value: 'own', label: tr('ההעדפה שלי'), attrs: { 'data-look-target': 'own' } },
+            { value: 'installation', label: tr('ברירת המחדל של ההתקנה'), attrs: { 'data-look-target': 'installation' } },
+          ]}></sw-segmented>
       </div>
       ${this.skin !== 'bubble' ? html`<div class="row"><span class="note skinnote" data-look-skin-note><sw-icon name="info" size=${14}></sw-icon>${tr('הסגנון הנוכחי הוא {skin}; האפשרויות כאן מצוירות על ידי סגנון Bubble.', { skin: this.skin })}</span></div>` : nothing}
       <h4 class="group">${tr('פריסה')}</h4>

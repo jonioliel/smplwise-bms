@@ -33,9 +33,12 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import bump_permission_revision, new_id, now_iso
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, all_roles, authorize, effective_permissions, require, scope_name
+from ..services import access_groups_store as store
 from ..services import revocation
 from ._common import is_json as _is_json, rid as _rid
-from .access import BindingBody, active_user_ids, keep_an_admin, _active_bindings_sql, _binding_dict, _ensure_user_row, _group_members, _scope_exists, rendered_labels, _subject_name, _terminate, affected_users, assigns_anywhere, check_delegation, full_authority, delegated_group_problem, insert_binding, revoke_one, touch_group, user_known, validate_binding
+from ..wire import access_groups as W
+from ..wire import wire
+from .access import BindingBody, active_user_ids, keep_an_admin, _binding_dict, _ensure_user_row, _group_members, _scope_exists, rendered_labels, _subject_name, _terminate, affected_users, assigns_anywhere, check_delegation, full_authority, delegated_group_problem, insert_binding, revoke_one, touch_group, user_known, validate_binding
 
 router = APIRouter()
 
@@ -99,14 +102,13 @@ def _parse(request: Request, raw: bytes, model: type[BaseModel]) -> Any:
 def _all_or_nothing(conn: sqlite3.Connection) -> Iterator[None]:
     """A savepoint around the writes of one request: any exception - an ApiError included, which the request
     transaction would otherwise COMMIT to keep refusal audit rows - rolls every write of the block back."""
-    conn.execute("SAVEPOINT t082_all_or_nothing")
+    store.savepoint(conn, "t082_all_or_nothing")
     try:
         yield
     except BaseException:
-        conn.execute("ROLLBACK TO t082_all_or_nothing")
-        conn.execute("RELEASE t082_all_or_nothing")
+        store.rollback_savepoint(conn, "t082_all_or_nothing")
         raise
-    conn.execute("RELEASE t082_all_or_nothing")
+    store.release_savepoint(conn, "t082_all_or_nothing")
 
 
 def _item_refusal(exc: ApiError, index: int, item_id: str, kind: str) -> ApiError:
@@ -117,14 +119,14 @@ def _item_refusal(exc: ApiError, index: int, item_id: str, kind: str) -> ApiErro
 # ---------------------------------------------------------------- shaping
 
 def _group_row(conn: sqlite3.Connection, group_id: str) -> sqlite3.Row:
-    g = conn.execute("SELECT * FROM groups WHERE id = ?", (group_id,)).fetchone()
+    g = store.group(conn, group_id)
     if not g:
         raise ApiError(404, "group_unknown", "הקבוצה לא נמצאה.")
     return g
 
 
 def _group_bindings(conn: sqlite3.Connection, group_id: str) -> list[sqlite3.Row]:
-    return conn.execute(_active_bindings_sql("AND subject_kind = 'group' AND subject_id = ?"), (now_iso(), group_id)).fetchall()
+    return store.group_bindings(conn, group_id, now_iso())
 
 
 def _group_dict(conn: sqlite3.Connection, g: sqlite3.Row, principal: Principal | None = None) -> dict[str, Any]:
@@ -166,13 +168,13 @@ def _reach_or_refuse(conn: sqlite3.Connection, principal: Principal, group_id: s
 
 # ---------------------------------------------------------------- list / lifecycle
 
-@router.get("/access/groups")
+@router.get("/access/groups", **wire(W.AccessGroupList))
 def list_groups(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Every group for a holder of identity.directory.read; a delegated administrator sees only the groups in reach."""
     full_dir = authorize(conn, principal, "identity.directory.read", INSTALLATION).allowed
     if not full_dir and not assigns_anywhere(conn, principal):
         require(conn, principal, "identity.directory.read", INSTALLATION)
-    rows = conn.execute("SELECT * FROM groups ORDER BY name").fetchall()
+    rows = store.groups_by_name(conn)
     if not full_dir:
         rows = [g for g in rows if delegated_group_problem(conn, principal, g["id"]) is None]
     return {
@@ -192,10 +194,10 @@ class GroupPatch(GroupBody):
 
 
 def _name_taken(conn: sqlite3.Connection, name: str, except_id: str | None = None) -> bool:
-    return conn.execute("SELECT 1 FROM groups WHERE name = ? AND id != ?", (name, except_id or "")).fetchone() is not None
+    return store.name_taken(conn, name, except_id or "")
 
 
-@router.post("/access/groups", status_code=201)
+@router.post("/access/groups", status_code=201, **wire(W.AccessGroup))
 def create_group(body: GroupBody, request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     name = body.name.strip()
     if not name:
@@ -204,12 +206,12 @@ def create_group(body: GroupBody, request: Request, principal: Principal = Depen
         raise ApiError(409, "group_exists", "קבוצה בשם הזה כבר קיימת.")
     gid = new_id()
     now = now_iso()
-    conn.execute("INSERT INTO groups(id, name, created_at, created_by, revision, updated_at, updated_by) VALUES (?, ?, ?, ?, 1, ?, ?)", (gid, name, now, principal.user_id, now, principal.user_id))
+    store.insert_group(conn, gid, name, now, principal.user_id)
     audit(conn, actor=principal, action="rbac.group_create", decision="allowed", resource_type="group", resource_id=gid, request_id=_rid(request), details={"group_revision": 1})
     return _group_dict(conn, _group_row(conn, gid), principal)
 
 
-@router.patch("/access/groups/{group_id}")
+@router.patch("/access/groups/{group_id}", **wire(W.AccessGroup))
 def rename_group(group_id: str, body: GroupPatch, request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     g = _group_row(conn, group_id)
     _check_revision(g, body.revision)
@@ -218,13 +220,13 @@ def rename_group(group_id: str, body: GroupPatch, request: Request, principal: P
         raise ApiError(422, "validation", "שם הקבוצה ריק.")
     if _name_taken(conn, name, group_id):
         raise ApiError(409, "group_exists", "קבוצה בשם הזה כבר קיימת.")
-    conn.execute("UPDATE groups SET name = ? WHERE id = ?", (name, group_id))
+    store.rename_group(conn, group_id, name)
     grev = touch_group(conn, group_id, principal)
     audit(conn, actor=principal, action="rbac.group_rename", decision="allowed", resource_type="group", resource_id=group_id, request_id=_rid(request), details={"group_revision": grev})
     return _group_dict(conn, _group_row(conn, group_id), principal)
 
 
-@router.delete("/access/groups/{group_id}")
+@router.delete("/access/groups/{group_id}", **wire(W.AccessGroupDeleted))
 def delete_group(group_id: str, request: Request, revision: int | None = Query(None, ge=1), principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Refused while the group has members or active bindings - remove them first (each of those is its own audited,
     previewed change); a deletion therefore never changes anyone's access."""
@@ -234,7 +236,7 @@ def delete_group(group_id: str, request: Request, revision: int | None = Query(N
     bindings = _group_bindings(conn, group_id)
     if members or bindings:
         raise ApiError(409, "group_in_use", "לקבוצה יש עדיין חברים או שיוכים; הסר אותם קודם.", details={"members": len(members), "bindings": len(bindings)})
-    conn.execute("DELETE FROM groups WHERE id = ?", (group_id,))
+    store.delete_group(conn, group_id)
     rev = bump_permission_revision(conn)
     audit(conn, actor=principal, action="rbac.group_delete", decision="allowed", resource_type="group", resource_id=group_id, request_id=_rid(request), details={"group_revision": g["revision"], "revision": rev})
     return {"deleted": group_id, "revision": rev}
@@ -258,7 +260,7 @@ def _wanted_members(conn: sqlite3.Connection, principal: Principal, before: list
     return wanted + [u for u in before if u not in visible and u not in wanted], visible
 
 
-@router.put("/access/groups/{group_id}/members")
+@router.put("/access/groups/{group_id}/members", **wire(W.AccessGroup))
 def set_members(group_id: str, request: Request, principal: Principal = Depends(_assign_gate_ro), raw: bytes = Depends(_capped_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Replace the membership - a bulk request: every added or removed user is checked (known person; a delegated
     administrator never adds or removes themselves, and names only people their directory shows) and the first refused
@@ -287,9 +289,9 @@ def set_members(group_id: str, request: Request, principal: Principal = Depends(
     with keep_an_admin(conn):
         for uid in added:
             _ensure_user_row(conn, uid)
-            conn.execute("INSERT INTO group_members(group_id, user_id) VALUES (?, ?)", (group_id, uid))
+            store.add_member(conn, group_id, uid)
         for uid in removed:
-            conn.execute("DELETE FROM group_members WHERE group_id = ? AND user_id = ?", (group_id, uid))
+            store.remove_member(conn, group_id, uid)
         rev = bump_permission_revision(conn)
         grev = touch_group(conn, group_id, principal)
     audit(conn, actor=principal, action="rbac.group_members", decision="allowed", resource_type="group", resource_id=group_id, request_id=_rid(request),
@@ -311,7 +313,7 @@ class GroupBindingBody(BaseModel):
     revision: int = Field(ge=1)
 
 
-@router.post("/access/groups/{group_id}/bindings", status_code=201)
+@router.post("/access/groups/{group_id}/bindings", status_code=201, **wire(W.AccessGroupBound))
 def bind_group(group_id: str, body: GroupBindingBody, request: Request, principal: Principal = Depends(_assign_holder), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     b = BindingBody(subject_kind="group", subject_id=group_id, role_id=body.role_id, scope_type=body.scope_type, scope_id=body.scope_id, effect=body.effect, expires_at=body.expires_at)
     validate_binding(conn, principal, b)  # permission and scope first, then the group (404) and the delegation limits
@@ -324,9 +326,9 @@ def bind_group(group_id: str, body: GroupBindingBody, request: Request, principa
     return {"binding_id": bid, "revision": rev, "group": _group_dict(conn, _group_row(conn, group_id), principal)}
 
 
-@router.delete("/access/groups/{group_id}/bindings/{binding_id}")
+@router.delete("/access/groups/{group_id}/bindings/{binding_id}", **wire(W.AccessGroupUnbound))
 def unbind_group(group_id: str, binding_id: str, request: Request, revision: int = Query(..., ge=1), principal: Principal = Depends(_assign_holder), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    b = conn.execute("SELECT * FROM bindings WHERE id = ? AND revoked_at IS NULL AND subject_kind = 'group' AND subject_id = ?", (binding_id, group_id)).fetchone()
+    b = store.live_group_binding(conn, group_id, binding_id)
     if not b:
         raise ApiError(404, "not_found", "השיוך לא נמצא או כבר בוטל.")
     check_delegation(conn, principal, b["role_id"], (b["scope_type"], b["scope_id"]), "group", group_id, op="unbind", effect=b["effect"])
@@ -353,7 +355,7 @@ class _Rollback(Exception):
     pass
 
 
-@router.post("/access/groups/{group_id}/impact")
+@router.post("/access/groups/{group_id}/impact", **wire(W.AccessGroupImpact))
 def group_impact(group_id: str, body: ImpactBody, principal: Principal = Depends(_assign_holder), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Before a group change is saved: every affected user with the permissions they gain or lose at each scope the
     change touches - bind/unbind: all members at the binding's scope; members: the users added or removed, at every
@@ -380,17 +382,16 @@ def group_impact(group_id: str, body: ImpactBody, principal: Principal = Depends
         scopes, users = [scope], [(u, "member") for u in members]
 
         def apply() -> None:  # noqa: F811
-            conn.execute("INSERT INTO bindings(id, subject_kind, subject_id, role_id, scope_type, scope_id, effect, permission_revision, assigned_by, created_at) VALUES (?, 'group', ?, ?, ?, ?, ?, 0, ?, ?)",
-                         (new_id(), group_id, body.role_id, scope[0], scope[1], body.effect, principal.user_id, now_iso()))
+            store.insert_group_binding(conn, new_id(), group_id, body.role_id, scope[0], scope[1], body.effect, principal.user_id, now_iso())
     elif body.op == "unbind":
-        b = conn.execute("SELECT * FROM bindings WHERE id = ? AND revoked_at IS NULL AND subject_kind = 'group' AND subject_id = ?", (body.binding_id or "", group_id)).fetchone()
+        b = store.live_group_binding(conn, group_id, body.binding_id or "")
         if not b:
             raise ApiError(404, "not_found", "השיוך לא נמצא או כבר בוטל.")
         check_delegation(conn, principal, b["role_id"], (b["scope_type"], b["scope_id"]), "group", group_id, op="unbind", effect=b["effect"])
         scopes, users = [(b["scope_type"], b["scope_id"])], [(u, "member") for u in members]
 
         def apply() -> None:  # noqa: F811
-            conn.execute("UPDATE bindings SET revoked_at = ? WHERE id = ?", (now_iso(), b["id"]))
+            store.revoke_binding(conn, b["id"], now_iso())
     else:
         _reach_or_refuse(conn, principal, group_id, "rbac.group_members")
         wanted, visible = _wanted_members(conn, principal, members, body.user_ids)
@@ -405,9 +406,9 @@ def group_impact(group_id: str, body: ImpactBody, principal: Principal = Depends
             for uid in added:
                 if user_known(conn, uid):
                     _ensure_user_row(conn, uid)
-                    conn.execute("INSERT OR IGNORE INTO group_members(group_id, user_id) VALUES (?, ?)", (group_id, uid))
+                    store.add_member_if_missing(conn, group_id, uid)
             for uid in removed:
-                conn.execute("DELETE FROM group_members WHERE group_id = ? AND user_id = ?", (group_id, uid))
+                store.remove_member(conn, group_id, uid)
 
     def snapshot() -> dict[str, dict[tuple[str, str], set[str]]]:
         out: dict[str, dict[tuple[str, str], set[str]]] = {}
@@ -450,7 +451,7 @@ class BulkBindingsBody(BaseModel):
     items: list[BindingBody] = Field(min_length=1, max_length=BULK_MAX_BINDINGS)
 
 
-@router.post("/access/bindings/bulk", status_code=201)
+@router.post("/access/bindings/bulk", status_code=201, **wire(W.AccessBulkCreated))
 def bulk_bindings(request: Request, principal: Principal = Depends(_assign_gate_ro), raw: bytes = Depends(_capped_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Many bindings in one call, all or nothing: each item gets exactly the single route's checks (validate_binding -
     delegation, allow-list, ceiling, self, group reach, existence, duplicates) and so does the whole set against itself

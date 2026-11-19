@@ -3,6 +3,8 @@ import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { liftRef, liftedReset } from '../components/top-layer';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-toggle';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
@@ -116,14 +118,13 @@ export class SystemCalendars extends LitElement {
     .cardin { display: flex; flex-direction: column; gap: 12px; block-size: 100%; min-block-size: 0; overflow: hidden; }
     .tabhead { display: flex; align-items: flex-end; gap: 8px 16px; flex-wrap: wrap; min-inline-size: 0; }
     .tabhead h2 + .lead { margin-block-start: 4px; }
-    .groups { flex-wrap: wrap; }
-    .groups .mod { display: inline-grid; place-items: center; min-inline-size: 18px; block-size: 18px; padding: 0 5px; margin-inline-start: 6px; border-radius: var(--sw-r-pill);
-      background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: var(--sw-fs-2xs); font-weight: var(--sw-fw-bold); }
+    /* the topic keys (sw-segmented): the "changed from the default" count is the accent pill */
+    sw-segmented.groups { --sw-seg-count-bg: var(--sw-accent-soft); --sw-seg-count-on-bg: var(--sw-accent-soft); }
     .groupsel { inline-size: 100%; }
-    /* focus and hover on every control the screen draws itself (the shared .btn / .seg have theirs in calCss) */
-    .opt, .reset, .linkrow, .seg button, .selw select { transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color); }
+    /* focus and hover on every control the screen draws itself (the shared .btn has its own in calCss, sw-segmented its own) */
+    .opt, .reset, .linkrow, .selw select { transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color); }
     @media (prefers-reduced-motion: reduce) { .opt, .stepper button, .opt:active, .stepper button:active { transition: none; transform: none; } }
-    .opt:focus-visible, .stepper button:focus-visible, .reset:focus-visible, .linkrow:focus-visible, .seg button:focus-visible {
+    .opt:focus-visible, .stepper button:focus-visible, .reset:focus-visible, .linkrow:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
     .stepper input:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; border-radius: var(--sw-r-sm); }
     .stepper button:not([disabled]):active, .opt:not([disabled]):active { transform: scale(0.97); }
@@ -203,7 +204,7 @@ export class SystemCalendars extends LitElement {
       .opt .rad { margin-block-start: 0; }
       .wide-only { display: none; }
       .row .ctl { inline-size: 100%; }
-      .row .seg { flex-wrap: wrap; border-radius: var(--sw-r-lg); }
+      .row sw-segmented { --sw-seg-radius: var(--sw-r-lg); }
       .lead { display: none; }
       .tabhead { flex-direction: column; align-items: stretch; }
       .toast { inset-block-end: calc(var(--sw-bottomnav-h) + 16px + env(safe-area-inset-bottom)); }
@@ -341,8 +342,9 @@ export class SystemCalendars extends LitElement {
       ctl = html`<span class="stepper"><button type="button" aria-label=${tr('פחות')} ?disabled=${off || n <= lo} @click=${() => set(n - 1)}>−</button>
         <input type="number" inputmode="numeric" aria-label=${label} .value=${String(n)} ?disabled=${off} min=${lo} max=${hi} @change=${(e: Event) => set(Number((e.target as HTMLInputElement).value))}><button type="button" aria-label=${tr('יותר')} ?disabled=${off || n >= hi} @click=${() => set(n + 1)}>+</button></span>`;
     } else {
-      ctl = html`<div class="seg" role="radiogroup" aria-label=${label}>${(o.opts ?? []).map(([val, lab]) => html`<button type="button" role="radio" aria-pressed=${String(cur === val)} aria-checked=${String(cur === val)}
-        ?disabled=${off} data-opt=${String(val)} @click=${() => { if (cur !== val) save(val); }}>${lab}</button>`)}</div>`;
+      ctl = html`<sw-segmented radio label=${label} value=${String(cur)} ?disabled=${off}
+        @change=${(e: CustomEvent<SegmentedChange>) => { const val = (o.opts ?? []).find(([x]) => String(x) === e.detail.value)?.[0]; if (val !== undefined && cur !== val) save(val); }}
+        .options=${(o.opts ?? []).map(([val, lab]) => ({ value: String(val), label: lab, attrs: { 'data-opt': String(val) } }))}></sw-segmented>`;
     }
     const defText = kind === 'tog' ? (def ? tr('דולק') : tr('כבוי')) : kind === 'step' ? `${def}${o.unit ? ` ${o.unit}` : ''}` : o.opts?.find((x) => x[0] === def)?.[1] ?? String(def);
     return html`<div class="row" data-setting=${key}><div class="grow"><div class="name ell" title=${label}>${label}</div>
@@ -530,10 +532,11 @@ export class SystemCalendars extends LitElement {
     return html`<div class="tabhead"><div class="grow"><h2>${tr('התנהגות המודול')}</h2><p class="lead">${tr('כל התנהגות היא הגדרה. ברירת המחדל כתובה מתחת לכל שורה; "איפוס" מחזיר אותה.')}</p></div>
         ${this.phone ? html`<select class="inp groupsel" aria-label=${tr('נושא')} data-calset-group .value=${this.group} @change=${(e: Event) => pick((e.target as HTMLSelectElement).value as BehaviorGroup | 'all')}>
             ${BEHAVIOR_GROUPS.map(([g, he]) => html`<option value=${g} ?selected=${g === this.group}>${he}</option>`)}</select>`
-          : html`<div class="seg groups" role="radiogroup" aria-label=${tr('נושא')} data-calset-groups>${BEHAVIOR_GROUPS.map(([g, he]) => {
-            const n = g === 'all' ? 0 : changed(g);
-            return html`<button type="button" role="radio" aria-pressed=${String(g === this.group)} aria-checked=${String(g === this.group)} data-calset-group=${g} @click=${() => pick(g)}>${he}${n ? html`<span class="mod num" title=${tr('שונו מברירת המחדל')}>${n}</span>` : nothing}</button>`;
-          })}</div>`}${calPick}</div>
+          : html`<sw-segmented radio class="groups" label=${tr('נושא')} data-calset-groups value=${this.group} @change=${(e: CustomEvent<SegmentedChange>) => pick(e.detail.value as BehaviorGroup | 'all')}
+            .options=${BEHAVIOR_GROUPS.map(([g, he]) => {
+              const n = g === 'all' ? 0 : changed(g);
+              return { value: g, label: he, count: n || undefined, title: n ? tr('שונו מברירת המחדל') : undefined, attrs: { 'data-calset-group': g } };
+            })}></sw-segmented>`}${calPick}</div>
       <div class="fitbox"><div class="grid rows2" data-fit="66" data-calset-rows>${p.items}</div></div>
       ${this.pager(p.page, p.pages)}`;
   }
@@ -561,9 +564,9 @@ export class SystemCalendars extends LitElement {
         <input type="number" inputmode="numeric" aria-label=${r.label} .value=${String(n)} ?disabled=${off} min=${r.min ?? 0} max=${r.max ?? 9999}
           @change=${(e: Event) => set(Number((e.target as HTMLInputElement).value))}><button type="button" aria-label=${tr('יותר')} ?disabled=${off || n >= (r.max ?? 9999)} @click=${() => set(n + (r.step ?? 1))}>+</button></span>`;
     } else {
-      ctl = html`<div class="seg" role="radiogroup" aria-label=${r.label}>${(r.opts ?? []).map(([val, lab]) => html`<button type="button" role="radio" aria-pressed=${String(v === val)} aria-checked=${String(v === val)}
-        ?disabled=${off || (r.static && val !== 'organizer')} title=${r.static && val !== 'organizer' ? tr('לא נבנה') : ''} data-opt=${String(val)}
-        @click=${() => { if (!r.static && v !== val) void this.save({ [r.key]: val } as Partial<CalSettings>); }}>${lab}</button>`)}</div>`;
+      ctl = html`<sw-segmented radio label=${r.label} value=${String(v)} ?disabled=${off}
+        @change=${(e: CustomEvent<SegmentedChange>) => { const val = (r.opts ?? []).find(([x]) => String(x) === e.detail.value)?.[0]; if (val !== undefined && !r.static && v !== val) void this.save({ [r.key]: val } as Partial<CalSettings>); }}
+        .options=${(r.opts ?? []).map(([val, lab]) => ({ value: String(val), label: lab, disabled: !!r.static && val !== 'organizer', title: r.static && val !== 'organizer' ? tr('לא נבנה') : undefined, attrs: { 'data-opt': String(val) } }))}></sw-segmented>`;
     }
     return html`<div class="row" data-setting=${r.key}><div class="grow"><div class="name ell" title=${r.label}>${r.label}</div>
       <div class="sub">${tr('ברירת מחדל:')} ${defaultLabel(r)}${r.hint ? html` · ${r.hint}` : nothing}${changed && !off ? html` <button type="button" class="reset" data-reset=${r.key}

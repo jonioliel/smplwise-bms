@@ -1,5 +1,5 @@
 import { css } from 'lit';
-import { errLineStyles, okLineStyles, segThumbPlainStyles } from './fragments';
+import { errLineStyles, okLineStyles } from './fragments';
 
 /**
  * SET-polish (2026-10-10): the ONE stylesheet of the settings screens (הגדרות › *). Every `system-*` screen used to carry its
@@ -79,6 +79,31 @@ export const settingsSegStyles = css`
   .seg button:focus-visible {
     outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: -2px;
+  }
+  /* CR-CMP2-SEGMENTED-B-2450: styles/media-glass.ts draws sw-segmented as the glass key through these knobs; a host that takes this
+     sheet after the glass one gets the settings key back, as its hand-built .seg did (the later .seg rules won). unset = inherit, so the
+     knobs a host sets on itself (TKUI6, system-tickets) still reach the key. */
+  sw-segmented {
+    --sw-seg-border: unset;
+    --sw-seg-track: unset;
+    --sw-seg-radius: unset;
+    --sw-seg-btn-radius: unset;
+    --sw-seg-pad: unset;
+    --sw-seg-gap: unset;
+    --sw-seg-h: unset;
+    --sw-seg-key-pad: unset;
+    --sw-seg-key-min-w: unset;
+    --sw-seg-fs: unset;
+    --sw-seg-fw: unset;
+    --sw-seg-fg: unset;
+    --sw-seg-on-bg: unset;
+    --sw-seg-on-fg: unset;
+    --sw-seg-on-shadow: unset;
+    --sw-seg-count-bg: unset;
+    --sw-seg-count-on-bg: unset;
+    --sw-seg-count-fs: unset;
+    --sw-seg-count-pad: unset;
+    --sw-seg-count-min-w: unset;
   }
 `;
 
@@ -401,18 +426,6 @@ export const settingsMutedHintStyles = css`
   }
 `;
 
-/** A pill key that is off, and the keyboard ring of a pill key (system-design, system-look). */
-export const settingsSegKeyStateStyles = css`
-  .seg button[disabled] {
-    cursor: default;
-    opacity: 0.6;
-  }
-  .seg button:focus-visible {
-    outline: var(--sw-focus-w) solid var(--sw-focus);
-    outline-offset: 1px;
-  }
-`;
-
 /** The save row of a look card and its status lines (system-design, system-look). */
 export const settingsFootStatusStyles = css`
   .foot {
@@ -434,26 +447,6 @@ export const settingsWrapFootStyles = css`
     flex-wrap: wrap;
     align-items: center;
     margin-block-start: 12px;
-  }
-`;
-
-/** The round pill keys of the presence settings: the key, the chosen key and its keyboard ring (system-presence,
- * system-building-presence). The track differs between the two and stays local. */
-export const settingsPillSegKeyStyles = css`
-  .seg button {
-    border: 0;
-    background: transparent;
-    font: inherit;
-    font-size: var(--sw-fs-sm);
-    padding: 4px 14px;
-    border-radius: var(--sw-r-pill);
-    color: var(--sw-text-2);
-    cursor: pointer;
-  }
-  ${segThumbPlainStyles}
-  .seg button:focus-visible {
-    outline: var(--sw-focus-w) solid var(--sw-focus);
-    outline-offset: 2px;
   }
 `;
 

@@ -101,6 +101,26 @@ export const genCss = css`
     background: var(--sw-surface-3);
     color: var(--sw-text-2);
   }
+  /* CR-CMP2-TABLES-GENMAINT-2450 (owner N10): the generator's data tables are the shared sw-table (data-gen-table). It keeps the module's
+     header band, reading size and 12 px cells (table.t), is never wider than its card (no sideways scroll), and its cells wrap as table.t's
+     did - figures, status chips and the row's keys stay on one line. A table inside a card is "bare". */
+  sw-table[data-gen-table] {
+    --sw-table-min: 0;
+    --sw-table-head-bg: var(--sw-surface-2);
+    --sw-table-cell-pad: 12px;
+    --sw-table-fs: var(--sw-fs-md);
+  }
+  :host([data-skin='bubble']) sw-table[data-gen-table] {
+    --sw-table-head-bg: transparent;
+  }
+  sw-table[data-gen-table]::part(cell) {
+    white-space: normal;
+  }
+  sw-table[data-gen-table]::part(cell-num),
+  sw-table[data-gen-table]::part(cell-status),
+  sw-table[data-gen-table]::part(cell-actions) {
+    white-space: nowrap;
+  }
 
   /* power flow */
   svg.flow {

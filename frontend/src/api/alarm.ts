@@ -7,46 +7,20 @@ import { del, get, patch, post, put } from './client';
 import { commandId } from './request-id';
 import { tr } from '../i18n/msg/api-devices';
 import { isoZ } from './day-format';
+import type * as Wire from './generated/wire-alarm';
 
 type ArmMode = 'arm_home' | 'arm_away' | 'arm_night' | 'arm_vacation' | 'arm_custom_bypass';
 export type AlarmAction = ArmMode | 'disarm';
 /** What the user must type for an action: nothing, their personal PIN, the panel's code; or why they cannot. */
-export type CodePrompt = 'none' | 'pin' | 'panel' | 'unverifiable' | 'pin_missing';
+export type CodePrompt = Wire.AlarmCodePrompts['arm'];
 
-interface ZoneBypass {
-  entity_id: string;
-  domain: 'switch' | 'select';
-  name: string;
-  state: string | null;
-  available: boolean;
-  bypassed: boolean | null;
-  strategy: string;
-  on_option: string | null;
-  off_option: string | null;
-}
+/* The wire shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/alarm.py), generated into
+ * ./generated/wire-alarm.ts: a field the server renames or drops is a compile error here (code review 07:F8 step 2). Narrowed on
+ * purpose: the bypass control's domain, the arm modes, `panels` / `redacted` optional (an older server). A zone redacted for this caller
+ * (security review M4) sends null for `available` / `open` / `fault` / `bypassed` / `aux` - the generated types say so. */
+type ZoneBypass = Omit<Wire.AlarmBypassControl, 'domain'> & { domain: 'switch' | 'select' };
 
-export interface AlarmZone {
-  entity_id: string;
-  name: string;
-  platform: string | null;
-  device_class: string | null;
-  kind: 'opening' | 'motion' | 'fault' | 'zone' | 'other';
-  state: string | null;
-  available: boolean;
-  open: boolean;
-  fault: boolean;
-  tamper: boolean | null;
-  battery_low: boolean | null;
-  battery_level: number | null;
-  alarmed: boolean | null;
-  bypassed: boolean;
-  last_changed: string | null;
-  area_id: string | null;
-  area_name: string | null;
-  ha_floor_name: string | null;
-  zone_number: number | null;
-  aux: string[];
-  shared: boolean;
+export interface AlarmZone extends Omit<Wire.AlarmZone, 'bypass' | 'panels' | 'redacted'> {
   bypass: ZoneBypass | null;
   /** Every panel that lists this zone (security review M4). */
   panels?: string[];
@@ -54,56 +28,25 @@ export interface AlarmZone {
   redacted?: boolean;
 }
 
-interface UnpairedControl {
-  entity_id: string;
-  domain: string;
-  name: string;
-  state: string | null;
-  bypassed: boolean | null;
-}
+type UnpairedControl = Wire.AlarmUnpairedControl;
 
-export interface AlarmPanel {
-  entity_id: string;
-  name: string;
-  platform: string | null;
-  integration: string;
-  integration_note: string;
-  config_entry_id: string | null;
-  state: string | null;
-  available: boolean;
-  fresh: boolean;
-  last_changed: string | null;
-  changed_by: string | null;
+/** A panel of `GET /alarm/panels` (`can`, `panel_code_set`, `code` are answered there; the configuration answers `panel_code` instead). */
+export interface AlarmPanel extends Omit<Wire.AlarmPanel, 'device_id' | 'arm_modes' | 'zones' | 'unpaired_controls' | 'can' | 'panel_code_set' | 'code' | 'panel_code'> {
+  /** the platform's device of the panel (the demo store has none) */
+  device_id?: string | null;
   arm_modes: ArmMode[];
-  features_reported: boolean;
-  code_format: 'number' | 'text' | null;
-  code_arm_required: boolean;
-  needs_code_arm: boolean;
-  needs_code_disarm: boolean;
-  area_name: string | null;
-  open_sensors: string[];
-  bypassed_sensors: string[];
   zones: AlarmZone[];
   unpaired_controls: UnpairedControl[];
-  ready: { ready: boolean; open: string[]; faults: string[] };
-  can: { arm: boolean; disarm: boolean; bypass: boolean; restore: boolean };
+  can: Wire.AlarmPanelCan;
   panel_code_set: boolean;
-  code: { arm: CodePrompt; disarm: CodePrompt; bypass: CodePrompt };
+  code: Wire.AlarmCodePrompts;
   /** settings view only */
-  panel_code?: { set: boolean; set_at: string | null; set_by: string | null };
+  panel_code?: Wire.AlarmPanelCodeInfo;
 }
 
-export interface AlarmPanels {
-  panels: AlarmPanel[];
-  counts: { panels: number; zones: number; open: number; bypassed: number; faults: number };
-  channel: 'local' | 'remote';
-  remote: { control: boolean; disarm: boolean; codeless: boolean };
-  code_mode: 'personal_pin' | 'panel_code';
-  me: { arm_policy: CodePolicy; disarm_policy: CodePolicy; pin_set: boolean };
-  can_configure: boolean;
-}
+export type AlarmPanels = Omit<Wire.AlarmPanels, 'panels' | 'sync'> & { panels: AlarmPanel[] };
 
-export type CodePolicy = 'no_code' | 'code_required';
+export type CodePolicy = Wire.AlarmMe['arm_policy'];
 
 export const alarmPanels = () => get<AlarmPanels>('alarm/panels');
 
@@ -111,15 +54,10 @@ function envelope() {
   return { client_request_id: commandId(), expires_at: isoZ(Date.now() + 60_000) };
 }
 
-interface AlarmActionRecord {
-  id: string;
-  entity_id: string;
-  action_id: string;
+/** The device-action record (wire: AlarmAction); narrowed: the record's status values. */
+type AlarmActionRecord = Pick<Wire.AlarmAction, 'id' | 'entity_id' | 'action_id' | 'error' | 'expected_state' | 'note'> & {
   status: 'pending' | 'confirmed' | 'unknown' | 'failed' | 'denied';
-  error: string | null;
-  expected_state?: string | null;
-  note?: string | null;
-}
+};
 
 /** Arm or disarm. `code` is sent only when given, in the body. */
 export function panelAction(entityId: string, action: AlarmAction, opts: { confirmed?: boolean; code?: string } = {}) {
@@ -135,40 +73,25 @@ export function zoneBypass(zoneEntityId: string, bypassed: boolean, opts: { conf
 }
 
 // ---- the caller's own code settings
-export const alarmMe = () => get<{ arm_policy: CodePolicy; disarm_policy: CodePolicy; pin_set: boolean; pin_set_at: string | null; code_mode: string }>('alarm/me');
+export const alarmMe = () => get<Wire.AlarmMe>('alarm/me');
 /** Change the own PIN (with the current one), or set the FIRST one with a stored panel code (security review M3). */
 export function setMyPin(pin: string, currentPin?: string, panelCode?: string) {
   const body: Record<string, unknown> = { pin };
   if (currentPin) body.current_pin = currentPin;
   if (panelCode) body.panel_code = panelCode;
-  return put<{ pin_set: boolean; pin_set_at: string | null }>('alarm/me/pin', body);
+  return put<Wire.AlarmPinSet>('alarm/me/pin', body);
 }
 
 // ---- administration (system.configure)
-interface AlarmOverride {
-  zone_entity_id: string;
-  panel_entity_id: string | null;
-  bypass_entity_id: string | null;
-  excluded: number;
-  updated_at: string;
-  updated_by: string | null;
-}
-interface EntityBrief {
-  entity_id: string;
-  name: string;
-  platform: string | null;
-  domain: string;
-}
-export interface AlarmConfig {
-  panels: AlarmPanel[];
-  excluded: string[];
-  overrides: AlarmOverride[];
-  candidates: { controls: EntityBrief[]; sensors: EntityBrief[] };
-  integrations: Record<string, { label: string; note: string; verified: boolean }>;
+type AlarmOverride = Wire.AlarmOverride;
+/** `GET /alarm/config`: its panels carry `panel_code`, not the caller's `can` / `code` (those are answered by `GET /alarm/panels`). */
+export type ConfigPanel = Omit<AlarmPanel, 'can' | 'panel_code_set' | 'code'> & Partial<Pick<AlarmPanel, 'can' | 'panel_code_set' | 'code'>>;
+export interface AlarmConfig extends Omit<Wire.AlarmConfig, 'panels' | 'fallback_controls' | 'not_alarm' | 'settings'> {
+  panels: ConfigPanel[];
   /** Bypass-like controls held because their config entry is unknown, and those released as "not an alarm control". */
   fallback_controls?: string[];
   not_alarm?: string[];
-  settings: { remote_control: boolean; remote_disarm: boolean; remote_codeless: boolean; code_mode: 'personal_pin' | 'panel_code' };
+  settings: Omit<Wire.AlarmSettings, 'pin_min_length'> & Partial<Pick<Wire.AlarmSettings, 'pin_min_length'>>;
 }
 export const alarmConfig = () => get<AlarmConfig>('alarm/config');
 export const putOverride = (zone: string, body: { panel_entity_id?: string | null; bypass_entity_id?: string | null; excluded?: boolean; confirm_not_bypass_like?: boolean }) =>
@@ -176,20 +99,12 @@ export const putOverride = (zone: string, body: { panel_entity_id?: string | nul
 export const deleteOverride = (zone: string) => del(`alarm/overrides/${encodeURIComponent(zone)}`);
 /** Final review item 3: mark a switch / select "אינו רכיב אזעקה" (or take the mark back). */
 export const setNotAlarm = (entityId: string, notAlarm: boolean) =>
-  put<{ entity_id: string; not_alarm: boolean; alarm_managed: boolean }>(`alarm/controls/${encodeURIComponent(entityId)}/not-alarm`, { not_alarm: notAlarm });
-export const setPanelCode = (panel: string, code: string) => put<{ panel_code: { set: boolean; set_at: string | null; set_by: string | null } }>(`alarm/panels/${encodeURIComponent(panel)}/code`, { code });
+  put<Wire.AlarmNotAlarm>(`alarm/controls/${encodeURIComponent(entityId)}/not-alarm`, { not_alarm: notAlarm });
+export const setPanelCode = (panel: string, code: string) => put<Wire.AlarmPanelCode>(`alarm/panels/${encodeURIComponent(panel)}/code`, { code });
 export const clearPanelCode = (panel: string) => del(`alarm/panels/${encodeURIComponent(panel)}/code`);
 export const alarmSettingsPatch = (changes: Record<string, string>) => patch<unknown>('settings', changes);
 
-export interface UserAlarmPolicy {
-  user_id: string;
-  arm_policy: CodePolicy;
-  disarm_policy: CodePolicy;
-  pin_set: boolean;
-  pin_set_at: string | null;
-  pin_set_by: string | null;
-  code_mode?: string;
-}
+export type UserAlarmPolicy = Wire.AlarmUserPolicy;
 export const userAlarmPolicy = (userId: string) => get<UserAlarmPolicy>(`alarm/users/${encodeURIComponent(userId)}`);
 /** `currentPin`: required when administrators change their OWN policy or PIN (security review M3). */
 export const setUserAlarmPolicy = (userId: string, body: { arm_policy?: CodePolicy; disarm_policy?: CodePolicy; current_pin?: string }) => put<UserAlarmPolicy>(`alarm/users/${encodeURIComponent(userId)}/policy`, body);

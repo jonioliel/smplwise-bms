@@ -1,6 +1,8 @@
 import { LitElement, html, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-dialog';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import './rfq-message-dialog';
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles } from '../styles/media-page';
@@ -299,8 +301,8 @@ export class TicketsRfqCompare extends LitElement {
       ${p ? html`<p class="note">${rt('pyEditNote')}</p>
         ${p.items.map((it, i) => html`<div class="frm" data-cmp-pay-item=${i}>
           <span class="mut">${rt(it.kind === 'advance' ? 'pk_advance' : 'pk_progress')}</span>
-          <span class="seg sm" role="radiogroup">${(['percent', 'amount'] as const).map((m) => html`<button type="button" role="radio" aria-checked=${String(it.mode === m)}
-            @click=${() => upd((c) => { c.items[i].mode = m; })}>${rt(m === 'percent' ? 'pyPercent' : 'pyAmount')}</button>`)}</span>
+          <sw-segmented radio size="sm" value=${it.mode} @change=${(e: CustomEvent<SegmentedChange>) => upd((c) => { c.items[i].mode = e.detail.value as 'percent' | 'amount'; })}
+            .options=${(['percent', 'amount'] as const).map((m) => ({ value: m, label: rt(m === 'percent' ? 'pyPercent' : 'pyAmount') }))}></sw-segmented>
           <input class="inp" inputmode="decimal" dir="ltr" aria-label=${rt(it.mode === 'percent' ? 'pyPercent' : 'pyAmount')} .value=${it.value} @change=${(e: Event) => upd((c) => { c.items[i].value = (e.target as HTMLInputElement).value; })} />
           <input class="inp" type="date" lang=${dateInputLang()} aria-label=${rt('pyDate')} min=${this.today()} .value=${it.date} @change=${(e: Event) => upd((c) => { c.items[i].date = (e.target as HTMLInputElement).value; })} />
           <button type="button" class="btn sm quiet" @click=${() => upd((c) => { c.items.splice(i, 1); })}>${rt('pyRemove')}</button></div>`)}
@@ -549,14 +551,10 @@ export class TicketsRfqCompare extends LitElement {
           <div class="subline"><span>${bidi(d.title)}</span><span>${rt('cmpSub', { ref: d.ref, n: c.quotes.length, m: invited })}</span></div>
         </div><span class="grow"></span></div>
         ${c.quotes.length ? html`<div class="dh-det">
-          <span class="seg sm" role="radiogroup" aria-label=${rt('cmpFilter')} data-cmp-filter>
-            <button type="button" role="radio" aria-checked=${String(this.filter === 'all')} data-f="all" @click=${() => (this.filter = 'all')}>${rt('cmpAll')}<small>${c.filters.all}</small></button>
-            <button type="button" role="radio" aria-checked=${String(this.filter === 'in_window')} data-f="in_window" ?disabled=${!c.filters.in_window} @click=${() => (this.filter = 'in_window')}>${rt('cmpInWindow')}<small>${c.filters.in_window}</small></button>
-          </span>
-          <span class="seg sm" role="radiogroup" aria-label=${rt('cmpSort')} data-cmp-sort>
-            <button type="button" role="radio" aria-checked=${String(this.sort === 'price')} @click=${() => (this.sort = 'price')}>${rIcon('coin')}${rt('cmpByPrice')}</button>
-            <button type="button" role="radio" aria-checked=${String(this.sort === 'date')} @click=${() => (this.sort = 'date')}>${rIcon('cal')}${rt('cmpByDate')}</button>
-          </span>
+          <sw-segmented radio size="sm" label=${rt('cmpFilter')} data-cmp-filter value=${this.filter} @change=${(e: CustomEvent<SegmentedChange>) => (this.filter = e.detail.value as 'all' | 'in_window')}
+            .options=${[{ value: 'all', label: rt('cmpAll'), count: String(c.filters.all), attrs: { 'data-f': 'all' } }, { value: 'in_window', label: rt('cmpInWindow'), count: String(c.filters.in_window), disabled: !c.filters.in_window, attrs: { 'data-f': 'in_window' } }]}></sw-segmented>
+          <sw-segmented radio size="sm" label=${rt('cmpSort')} data-cmp-sort value=${this.sort} @change=${(e: CustomEvent<SegmentedChange>) => (this.sort = e.detail.value as 'price' | 'date')}
+            .options=${[{ value: 'price', label: rt('cmpByPrice'), icon: rIcon('coin') }, { value: 'date', label: rt('cmpByDate'), icon: rIcon('cal') }]}></sw-segmented>
           <span class="grow"></span>
           ${low ? html`<span class="chip ok" data-cmp-low-chip>${rt('cmpLowestChip', { name: this.name(low), amount: this.money(low.total_minor, low.currency) })}</span>` : nothing}
           ${early ? html`<span class="chip info">${rt('cmpEarliestChip', { name: this.name(early), date: windowText(early.work_from, null) })}</span>` : nothing}

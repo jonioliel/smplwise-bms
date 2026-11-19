@@ -5,6 +5,8 @@ import { classMap } from 'lit/directives/class-map.js';
 import { live } from 'lit/directives/live.js';
 import '../components/sw-dialog';
 import '../components/sw-toggle';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { switchPress } from '../components/sw-toggle';
 import '../components/sw-page';
 import '../components/sw-tabs';
@@ -1179,7 +1181,8 @@ export class SystemNotifications extends LitElement {
         <div class="ln"><small>${tr('ערוצים')}</small>${this.chans(p)}</div></section>`)}</div>`;
     }
     return html`<section class="glass sec" data-set-section="sources" id="sec-sources"><header><h2>${nIcon('list')}${SECTIONS[0].label}</h2><div class="sp"><span class="tag soon">${nIcon('phone')}${tr('Companion – בקרוב')}</span><span class="tag" data-pol-count>${tr('{n} מתוך {total} פעילים', { n: enabledCount(this.policies), total })}</span></div></header>
-      <div class="frow"><div class="l"><b>${tr('כשל בתזמון או באוטומציה מגיע אל')}</b></div><div class="r"><div class="seg sm" role="group" aria-label=${tr('כשל בתזמון או באוטומציה')}>${FAILURES_AUDIENCES.map((a: FailuresAudience) => html`<button type="button" aria-pressed=${String(s.failures_audience === a)} data-failures-audience=${a} @click=${() => this.patchSettings({ failures_audience: a })}>${a === 'admins' ? tr('מנהלים') : tr('כל מי שרואה')}</button>`)}</div></div></div>
+      <div class="frow"><div class="l"><b>${tr('כשל בתזמון או באוטומציה מגיע אל')}</b></div><div class="r"><sw-segmented size="sm" label=${tr('כשל בתזמון או באוטומציה')} value=${s.failures_audience} @change=${(ev: CustomEvent<SegmentedChange>) => this.patchSettings({ failures_audience: ev.detail.value as FailuresAudience })}
+        .options=${FAILURES_AUDIENCES.map((a: FailuresAudience) => ({ value: a, label: a === 'admins' ? tr('מנהלים') : tr('כל מי שרואה'), attrs: { 'data-failures-audience': a } }))}></sw-segmented></div></div>
       ${body}</section>`;
   }
 
@@ -1211,8 +1214,10 @@ export class SystemNotifications extends LitElement {
     const lines = escalationLines(e, 14 * 60 + 2, this.nameOf);
     return html`<section class="glass sec" data-set-section="esc" id="sec-esc"><header><h2>${nIcon('escal')}${SECTIONS[2].label}</h2><div class="sp">${this.tog(e.enabled, 'esc-on', tr('הסלמה'), () => set({ enabled: !e.enabled }))}</div></header>
       <div class="frow ${dis ? 'dis' : ''}"><div class="l"><b>${tr('אחרי')}</b><small>${tr('קריטי בלי אישור')}</small></div><div class="r"><span class="stp"><button type="button" data-esc-step="-1" aria-label=${tr('פחות')} @click=${() => this.patchSettings({ escalation: stepAfterMin(e, -1) })}>${nIcon('minus')}</button><span class="vv" data-esc-min><span class="n">${e.after_min}</span><small>${tr('דק׳')}</small></span><button type="button" data-esc-step="1" aria-label=${tr('יותר')} @click=${() => this.patchSettings({ escalation: stepAfterMin(e, 1) })}>${nIcon('plus')}</button></span></div></div>
-      <div class="frow ${dis ? 'dis' : ''}"><div class="l"><b>${tr('שלבים')}</b></div><div class="r"><div class="seg sm" role="group" aria-label=${tr('שלבים')}>${[1, 2, 3].map((v) => html`<button type="button" aria-pressed=${String(e.steps === v)} data-esc-steps=${v} @click=${() => set({ steps: v })}>${v}</button>`)}</div></div></div>
-      <div class="frow ${dis ? 'dis' : ''}"><div class="l"><b>${tr('אל')}</b></div><div class="r"><div class="seg sm" role="group" aria-label=${tr('אל')}><button type="button" aria-pressed=${String(!users)} data-esc-to="managers" @click=${() => set({ to: 'managers' })}>${tr('מנהלי התראות')}</button><button type="button" aria-pressed=${String(users)} data-esc-to="users" @click=${() => this.openPicker('esc')}>${tr('משתמשים נבחרים')}</button></div>${users ? html`<span class="tag" data-esc-names>${this.nameOf(e.to)}</span>` : nothing}</div></div>
+      <div class="frow ${dis ? 'dis' : ''}"><div class="l"><b>${tr('שלבים')}</b></div><div class="r"><sw-segmented size="sm" label=${tr('שלבים')} value=${String(e.steps)} @change=${(ev: CustomEvent<SegmentedChange>) => set({ steps: Number(ev.detail.value) })}
+        .options=${[1, 2, 3].map((v) => ({ value: String(v), label: String(v), attrs: { 'data-esc-steps': String(v) } }))}></sw-segmented></div></div>
+      <div class="frow ${dis ? 'dis' : ''}"><div class="l"><b>${tr('אל')}</b></div><div class="r"><sw-segmented size="sm" label=${tr('אל')} value=${users ? 'users' : 'managers'} @change=${(ev: CustomEvent<SegmentedChange>) => (ev.detail.value === 'users' ? this.openPicker('esc') : set({ to: 'managers' }))}
+        .options=${[{ value: 'managers', label: tr('מנהלי התראות'), attrs: { 'data-esc-to': 'managers' } }, { value: 'users', label: tr('משתמשים נבחרים'), attrs: { 'data-esc-to': 'users' } }]}></sw-segmented>${users ? html`<span class="tag" data-esc-names>${this.nameOf(e.to)}</span>` : nothing}</div></div>
       <div class="frow ${dis ? 'dis' : ''}"><div class="l"><b>${tr('נעצרת באישור')}</b></div><div class="r"><span class="tag ok">${nIcon('lock')}${tr('תמיד')}</span></div></div>
       ${this.invalid === 'escalation_invalid' ? html`<div class="errline" data-set-error>${NOTIFY_ERROR_LABEL.escalation_invalid}</div>` : nothing}
       <div class="escprev ${dis ? 'dis' : ''}" data-esc-preview><div class="tl">${lines.map((l) => html`<div class="ev ${l.kind}"><span class="t">${l.clock}</span><span class="d"><i></i></span><span class="b"><b>${l.title}</b><small>${l.sub}</small></span></div>`)}</div></div></section>`;
@@ -1228,7 +1233,8 @@ export class SystemNotifications extends LitElement {
   private renderLock() {
     const s = this.settings as NotifySettings;
     return html`<section class="glass sec" data-set-section="lock" id="sec-lock"><header><h2>${nIcon('lock')}${SECTIONS[3].label}</h2></header>
-      <div class="frow"><div class="l"><b>${tr('רמת פירוט')}</b></div><div class="r"><div class="seg" role="group" aria-label=${tr('רמת פירוט')}>${LOCKSCREEN_LEVELS.map((l) => html`<button type="button" aria-pressed=${String(s.lockscreen === l)} data-lock-level=${l} @click=${() => this.patchSettings({ lockscreen: l })}>${LOCKSCREEN_LABEL[l]}</button>`)}</div></div></div>
+      <div class="frow"><div class="l"><b>${tr('רמת פירוט')}</b></div><div class="r"><sw-segmented label=${tr('רמת פירוט')} value=${s.lockscreen} @change=${(ev: CustomEvent<SegmentedChange>) => this.patchSettings({ lockscreen: ev.detail.value as LockscreenLevel })}
+        .options=${LOCKSCREEN_LEVELS.map((l) => ({ value: l, label: LOCKSCREEN_LABEL[l], attrs: { 'data-lock-level': l } }))}></sw-segmented></div></div>
       <div class="lockrow" data-lock-preview>${(['generic', 'type_place', 'full'] as LockscreenLevel[]).map((l) => this.lockPhone(l, s.lockscreen === l))}</div>
       <div class="frow dis"><div class="l"><b>${tr('תמונה מהמצלמה בהתראה')}</b><small>${tr('התמונה נפתחת רק בתוך Arx')}</small></div><div class="r"><span class="tag soon">${tr('בקרוב')}</span>${this.tog(false, 'image-in-push', tr('תמונה בהתראה'), () => undefined, true)}</div></div>
       <div class="frow dis"><div class="l"><b>${tr('צליל קריטי שעוקף "נא לא להפריע"')}</b><small>${tr('בטיחות בלבד · טלפוני Companion')}</small></div><div class="r"><span class="tag soon">${tr('בקרוב')}</span>${this.tog(s.companion.critical_sound_safety, 'critical-sound', tr('צליל קריטי'), () => undefined, true)}</div></div></section>`;
@@ -1237,7 +1243,8 @@ export class SystemNotifications extends LitElement {
   private renderKeep() {
     const s = this.settings as NotifySettings;
     return html`<section class="glass sec" data-set-section="keep" id="sec-keep"><header><h2>${nIcon('calendar')}${SECTIONS[4].label}</h2></header>
-      <div class="frow"><div class="l"><b>${tr('התראות')}</b></div><div class="r"><div class="seg sm" role="group" aria-label=${tr('שמירת התראות')}>${RETENTION_CHOICES.map((v: RetentionDays) => html`<button type="button" aria-pressed=${String(s.retention_days === v)} data-keep=${v} @click=${() => this.patchSettings({ retention_days: v })}>${v}</button>`)}</div><span>${tr('ימים')}</span></div></div>
+      <div class="frow"><div class="l"><b>${tr('התראות')}</b></div><div class="r"><sw-segmented size="sm" label=${tr('שמירת התראות')} value=${String(s.retention_days)} @change=${(ev: CustomEvent<SegmentedChange>) => this.patchSettings({ retention_days: Number(ev.detail.value) as RetentionDays })}
+        .options=${RETENTION_CHOICES.map((v: RetentionDays) => ({ value: String(v), label: String(v), attrs: { 'data-keep': String(v) } }))}></sw-segmented><span>${tr('ימים')}</span></div></div>
       <div class="frow"><div class="l"><b>${tr('יומן מסירה')}</b></div><div class="r"><span class="tag"><span class="n">${s.deliveries_retention_days}</span> ${tr('ימים')}</span></div></div></section>`;
   }
 
@@ -1281,7 +1288,8 @@ export class SystemNotifications extends LitElement {
     const wa = channelStatus('whatsapp', s, this.devices, this.wa ? { enabled: this.wa.enabled, mapped: this.wa.account.mapped } : null);
     const pill = (state: string, text: string) => html`<span class="tag ${state === 'on' || state === 'always' ? 'ok' : state === 'soon' ? 'soon' : ''}">${state === 'on' || state === 'always' ? tr('פעיל') : text}</span>`;
     return html`<section class="glass sec" data-set-section="chan" id="sec-chan"><header><h2>${nIcon('phone')}${SECTIONS[7].label}</h2></header>
-      <div class="frow"><div class="l"><b>${tr('מרכז ההתראות במחשב')}</b></div><div class="r"><div class="seg sm" role="group" aria-label=${tr('מרכז ההתראות במחשב')}>${CENTER_LAYOUTS.map((l: CenterLayout) => html`<button type="button" aria-pressed=${String(s.center_layout === l)} data-layout=${l} @click=${() => this.patchSettings({ center_layout: l })}>${CENTER_LAYOUT_LABEL[l]}</button>`)}</div></div></div>
+      <div class="frow"><div class="l"><b>${tr('מרכז ההתראות במחשב')}</b></div><div class="r"><sw-segmented size="sm" label=${tr('מרכז ההתראות במחשב')} value=${s.center_layout} @change=${(ev: CustomEvent<SegmentedChange>) => this.patchSettings({ center_layout: ev.detail.value as CenterLayout })}
+        .options=${CENTER_LAYOUTS.map((l: CenterLayout) => ({ value: l, label: CENTER_LAYOUT_LABEL[l], attrs: { 'data-layout': l } }))}></sw-segmented></div></div>
       <div class="chgrid">
         <div class="chc" data-channel="inbox"><span class="ring">${nIcon('inbox')}</span><b>${tr('מרכז ההתראות')}</b><small>${tr('פעיל תמיד · לכל המשתמשים')}</small>${pill('always', '')}</div>
         <div class="chc" data-channel="webpush"><span class="ring">${nIcon('phone')}</span><b>${tr('דחיפה (Arx)')}</b><small>${push.state === 'on' ? tr('{n} מכשירים רשומים אצלך', { n: this.devices }) : push.text}</small>${pill(push.state, push.text)}</div>
@@ -1297,7 +1305,8 @@ export class SystemNotifications extends LitElement {
     const cards = failurePanel(this.stats);
     const list = logRows(this.log, this.onlyFailed);
     const fails = failedCount(this.log);
-    return html`<section class="glass sec" data-set-section="log" id="sec-log"><header><h2>${nIcon('inbox')}${SECTIONS[8].label}</h2><div class="sp"><span class="tag" data-log-window>${s14()}</span><div class="seg sm" role="group" aria-label=${tr('סינון היומן')}><button type="button" aria-pressed=${String(!this.onlyFailed)} data-log-filter="all" @click=${() => (this.onlyFailed = false)}>${tr('הכל')}</button><button type="button" aria-pressed=${String(this.onlyFailed)} data-log-filter="failed" @click=${() => (this.onlyFailed = true)}>${tr('רק כשלים')}${fails ? html`<small class="n">${fails}</small>` : nothing}</button></div></div></header>
+    return html`<section class="glass sec" data-set-section="log" id="sec-log"><header><h2>${nIcon('inbox')}${SECTIONS[8].label}</h2><div class="sp"><span class="tag" data-log-window>${s14()}</span><sw-segmented size="sm" label=${tr('סינון היומן')} value=${this.onlyFailed ? 'failed' : 'all'} @change=${(ev: CustomEvent<SegmentedChange>) => (this.onlyFailed = ev.detail.value === 'failed')}
+        .options=${[{ value: 'all', label: tr('הכל'), attrs: { 'data-log-filter': 'all' } }, { value: 'failed', label: tr('רק כשלים'), count: fails || undefined, attrs: { 'data-log-filter': 'failed' } }]}></sw-segmented></div></header>
       <div class="fails" data-fail-panel>${cards.map((c) => html`<div class="fstat ${c.tone}" data-fail-card=${c.channel}><span class="ch">${c.label} · ${tr('24 שעות')}</span><b class="n">${c.failed > 0 ? c.failed : c.sent}</b><small>${c.failed > 0 ? tr('נכשלו') : tr('נשלחו')}${c.skipped ? ` · ${tr('{n} לא נשלחו', { n: c.skipped })}` : ''}</small></div>`)}</div>
       <div class="lgw"><table class="lg"><thead><tr><th>${tr('שעה')}</th><th>${tr('התראה')}</th><th>${tr('משתמש')}</th><th>${tr('ערוץ')}</th><th>${tr('מצב')}</th><th>${tr('סיבה')}</th></tr></thead><tbody>${list.length ? list.map((d) => html`<tr data-log-row=${d.id} data-log-status=${d.status}><td class="n" style="direction:rtl">${relativeTime(d.at, this.now, this.tz)}</td><td>${this.titles[d.notification_id] ?? '—'}</td><td>${d.user_display}</td><td>${nIcon(d.channel === 'email' ? 'mail' : d.channel === 'whatsapp' ? 'chat' : 'phone')}${CHANNEL_LABEL[d.channel]}</td><td class=${STATUS_TONE[d.status]}>${nIcon(STATUS_ICON[d.status])}${DELIVERY_STATUS_LABEL[d.status]}</td><td>${deliveryReasonText(d.reason) || '—'}</td></tr>`) : html`<tr><td colspan="6" style="text-align:center;padding:18px;color:var(--dv-text-3)">${tr('אין רשומות')}</td></tr>`}</tbody></table></div></section>`;
   }

@@ -8,6 +8,8 @@
  */
 import { html, nothing } from 'lit';
 import '../components/sw-button';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { customElement, state } from 'lit/decorators.js';
 import { recommendedColors } from '../design/palette';
 import { ApiError } from '../api/client';
@@ -20,6 +22,8 @@ import { addDays, f4, fmtDate, isIsoDate } from './elec-format';
 import { cloneDef, heOrEn, israelTemplate, type TouDefinition, touName } from './elec-tou';
 import { dateInputLang } from '../api/day-format';
 import { tr } from '../i18n/msg/electricity';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 
 const NUM = /^\d+(\.\d+)?$/;
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -79,6 +83,23 @@ export class ElecSettingsPrices extends ElecBase {
   private rate(): number {
     return this.vat?.current ? Number(this.vat.current.rate_percent) / 100 : 0;
   }
+  /** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): the tariffs as the shared sw-table (bare in the card; row hooks `data-tariff-row` +
+   * `data-kind`): a manager opens a tariff from its row (click, Enter / Space - the rows are tab stops now); a viewer's rows are
+   * read-only. A time-of-use tariff shows its summary where a fixed one shows its price. */
+  private tariffColumns(): TableColumn<Tariff>[] {
+    const mode = (t: Tariff) => (t.current?.price_mode === 'inc_vat' ? tr('כולל מע״מ') : tr('לפני מע״מ'));
+    const x = (t: Tariff) => this.derived(t.current?.price ?? '0', t.current?.price_mode ?? 'ex_vat');
+    return [
+      { key: 'name', label: tr('שם'), render: (t) => html`<b>${t.name}</b>${t.kind === 'tou' ? html` <span class="chip" data-tone="info" data-nodot>${tr('לפי שעות')}</span>` : nothing}` },
+      { key: 'price', label: tr('מחיר שהוזן'), align: 'end', render: (t) => (t.kind === 'tou' ? html`<span class="mut">${touSummary(t)}</span>` : html`<span class="num">${f4(t.current?.price ?? 0)} ₪</span>`) },
+      { key: 'mode', label: tr('הוזן'), render: (t) => mode(t) },
+      { key: 'ex', label: tr('לפני מע״מ'), kind: 'num', render: (t) => (t.kind === 'tou' ? '-' : `${f4(x(t).ex)} ₪`) },
+      { key: 'inc', label: tr('כולל מע״מ'), kind: 'num', render: (t) => (t.kind === 'tou' ? '-' : `${f4(x(t).inc)} ₪`) },
+      { key: 'from', label: tr('בתוקף מ'), render: (t) => html`<span class="num">${fmtDate(t.current?.effective_from ?? '')}</span>` },
+      { key: 'used', label: tr('חשבונות'), render: (t) => String(t.used_by) },
+    ];
+  }
+
   private derived(price: string, mode: PriceMode): { ex: number; vat: number; inc: number } {
     const p = Number(price) || 0;
     const r = this.rate();
@@ -217,14 +238,9 @@ export class ElecSettingsPrices extends ElecBase {
           ${!this.tariffs.length ? stateBox('empty', 'bolt', tr('אין תעריפים עדיין'), edit ? { label: tr('+ תעריף'), primary: true, run: () => this.openTariff(null) } : undefined)
             : this.phone
               ? html`<div class="list" data-tariffs>${this.tariffs.map((t) => html`<button type="button" class="li" data-tariff-row=${t.id} data-kind=${t.kind} ?disabled=${!edit} @click=${() => edit && this.openTariff(t)}><div class="grow"><div class="t1">${t.name}</div><div class="t2">${t.kind === 'tou' ? html`${touSummary(t)} · ` : nothing}${t.current?.price_mode === 'inc_vat' ? tr('הוזן כולל מע״מ') : tr('הוזן לפני מע״מ')} · ${tr('מ-')}${n(fmtDate(t.current?.effective_from ?? ''))}</div></div>${t.kind === 'tou' ? html`<span class="chip c-acc nodot">${tr('לפי שעות')}</span>` : html`<b class="num">${f4(t.current?.price ?? 0)} ₪</b>`}</button>`)}</div>`
-              : html`<div class="scrollx"><table class="t" data-tariffs><thead><tr><th>${tr('שם')}</th><th class="num">${tr('מחיר שהוזן')}</th><th>${tr('הוזן')}</th><th class="num">${tr('לפני מע״מ')}</th><th class="num">${tr('כולל מע״מ')}</th><th>${tr('בתוקף מ')}</th><th>${tr('חשבונות')}</th></tr></thead><tbody>
-                ${this.tariffs.map((t) => {
-                  const x = this.derived(t.current?.price ?? '0', t.current?.price_mode ?? 'ex_vat');
-                  const tou = t.kind === 'tou';
-                  return html`<tr class="${edit ? 'go' : ''}" data-tariff-row=${t.id} data-kind=${t.kind} @click=${() => edit && this.openTariff(t)}><td class="b">${t.name}${tou ? html` <span class="chip c-acc nodot">${tr('לפי שעות')}</span>` : nothing}</td>${tou
-                    ? html`<td colspan="1" class="mut">${touSummary(t)}</td><td>${t.current?.price_mode === 'inc_vat' ? tr('כולל מע״מ') : tr('לפני מע״מ')}</td><td class="num">-</td><td class="num">-</td>`
-                    : html`<td class="num">${f4(t.current?.price ?? 0)} ₪</td><td>${t.current?.price_mode === 'inc_vat' ? tr('כולל מע״מ') : tr('לפני מע״מ')}</td><td class="num">${f4(x.ex)} ₪</td><td class="num">${f4(x.inc)} ₪</td>`}<td class="num" style="text-align:start">${fmtDate(t.current?.effective_from ?? '')}</td><td>${t.used_by}</td></tr>`;
-                })}</tbody></table></div>`}
+              : html`<sw-table bare class="t" data-tariffs ?static-rows=${!edit} .columns=${this.tariffColumns() as unknown as TableColumn[]} .rows=${this.tariffs as unknown as Record<string, unknown>[]}
+                  .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-tariff-row': String(r.id), 'data-kind': String(r.kind) })}
+                  @row-select=${edit ? (e: CustomEvent<{ row: Record<string, unknown> }>) => this.openTariff(e.detail.row as unknown as Tariff) : nothing}></sw-table>`}
         </div>
         <div class="col">
           <div class="card" data-card="vat"><div class="hd"><b class="h3">${tr('שיעור מע״מ')}</b><span class="sp"></span>${edit ? html`<sw-button size="sm" data-new-vat @click=${() => { this.vf = { rate: '', from: elecToday() }; this.vErr = {}; this.error = ''; this.vOpen = true; }}>${tr('+ שיעור חדש')}</sw-button>` : nothing}</div>
@@ -237,9 +253,11 @@ export class ElecSettingsPrices extends ElecBase {
       <elec-dialog heading=${this.tEdit ? tr('עריכת תעריף') : tr('תעריף חדש')} ?open=${this.tOpen} ?wide=${this.tKind === 'tou'} data-dialog="tariff" @close=${() => (this.tOpen = false)}>
         <div class="form">
           <div class="fld wide"><label for="tn">${tr('שם התעריף')}</label><input id="tn" class="${this.tErr.name ? 'err' : ''}" data-tariff-name .value=${this.tf.name} @input=${(e: Event) => this.setTf({ name: (e.target as HTMLInputElement).value })} />${this.tErr.name ? html`<div class="msg" role="alert">${this.tErr.name}</div>` : nothing}</div>
-          ${this.tEdit ? nothing : html`<div class="fld wide"><span class="lbl">${tr('סוג התעריף')}</span><div class="seg" role="group" aria-label=${tr('סוג התעריף')}><button type="button" data-tariff-kind="fixed" aria-pressed=${this.tKind === 'fixed'} @click=${() => void this.setKind('fixed')}>${tr('מחיר קבוע')}</button><button type="button" data-tariff-kind="tou" aria-pressed=${this.tKind === 'tou'} @click=${() => void this.setKind('tou')}>${tr('לפי שעות (תעו״ז)')}</button></div></div>`}
+          ${this.tEdit ? nothing : html`<div class="fld wide"><span class="lbl">${tr('סוג התעריף')}</span><sw-segmented label=${tr('סוג התעריף')} value=${this.tKind} @change=${(e: CustomEvent<SegmentedChange>) => void this.setKind(e.detail.value as 'fixed' | 'tou')}
+        .options=${[{ value: 'fixed', label: tr('מחיר קבוע'), attrs: { 'data-tariff-kind': 'fixed' } }, { value: 'tou', label: tr('לפי שעות (תעו״ז)'), attrs: { 'data-tariff-kind': 'tou' } }]}></sw-segmented></div>`}
           ${this.tKind === 'fixed' ? html`<div class="fld"><label for="tp">${tr('מחיר לקוט״ש')}</label><div class="unit"><input id="tp" class="ltr ${this.tErr.price ? 'err' : ''}" data-tariff-price inputmode="decimal" .value=${this.tf.price} @input=${(e: Event) => this.setTf({ price: (e.target as HTMLInputElement).value })} /><span>₪</span></div>${this.tErr.price ? html`<div class="msg" role="alert">${this.tErr.price}</div>` : nothing}</div>` : nothing}
-          <div class="fld"><span class="lbl">${this.tKind === 'tou' ? tr('המחירים שהוזנו') : tr('המחיר שהוזן')}</span><div class="seg" role="group" aria-label=${tr('סוג מחיר')}><button type="button" data-tariff-mode="ex_vat" aria-pressed=${this.tf.mode === 'ex_vat'} @click=${() => this.setTf({ mode: 'ex_vat' })}>${tr('לפני מע״מ')}</button><button type="button" data-tariff-mode="inc_vat" aria-pressed=${this.tf.mode === 'inc_vat'} @click=${() => this.setTf({ mode: 'inc_vat' })}>${tr('כולל מע״מ')}</button></div></div>
+          <div class="fld"><span class="lbl">${this.tKind === 'tou' ? tr('המחירים שהוזנו') : tr('המחיר שהוזן')}</span><sw-segmented label=${tr('סוג מחיר')} value=${this.tf.mode} @change=${(e: CustomEvent<SegmentedChange>) => this.setTf({ mode: e.detail.value as 'ex_vat' | 'inc_vat' })}
+        .options=${[{ value: 'ex_vat', label: tr('לפני מע״מ'), attrs: { 'data-tariff-mode': 'ex_vat' } }, { value: 'inc_vat', label: tr('כולל מע״מ'), attrs: { 'data-tariff-mode': 'inc_vat' } }]}></sw-segmented></div>
           <div class="fld"><label for="tf">${tr('בתוקף מתאריך')}</label><input id="tf" type="date" lang=${dateInputLang()} class="ltr ${this.tErr.effective_from ? 'err' : ''}" data-tariff-from .value=${this.tf.from} @change=${(e: Event) => this.setTf({ from: (e.target as HTMLInputElement).value })} />${this.tErr.effective_from ? html`<div class="msg" role="alert">${this.tErr.effective_from}</div>` : nothing}</div>
         </div>
         ${this.tKind === 'fixed' && cur ? html`<div class="card soft" data-tariff-derived><dl class="kv"><dt>${tr('לפני מע״מ')}</dt><dd>${n(f4(d.ex) + ' ₪')}</dd><dt>${tr('מע״מ')} ${n(cur.rate_percent + '%')}</dt><dd>${n(f4(d.vat) + ' ₪')}</dd><dt>${tr('כולל מע״מ')}</dt><dd>${n(f4(d.inc) + ' ₪')}</dd></dl></div>` : nothing}
@@ -400,7 +418,8 @@ export class ElecSettingsBusiness extends ElecBase {
           ${this.errs.accent_color ? html`<div class="msg" role="alert" data-field-error="accent_color">${this.errs.accent_color}</div>` : nothing}</div>
         ${this.fld('footer_note', tr('הערה קבועה בתחתית החיוב'), { wide: true, area: true })}
         <div class="fld wide"><span class="lbl">${tr('מספור חיובים')}</span><div class="row" data-numbering style="padding:8px 12px;border:1px solid var(--sw-border-strong);border-radius:var(--sw-r-sm)"><span class="num">${s.numbering.format}</span><span class="sp"></span><span class="mut">${tr('שנה-חודש-מספר לקוח, למשל')} ${n('2026-12-0001')}</span></div></div>
-        <div class="fld wide"><span class="lbl" id="pt">${tr('תנאי תשלום')}</span><div class="row"><div class="seg" role="group" aria-labelledby="pt"><button type="button" data-terms="net_days" aria-pressed=${t.mode === 'net_days'} @click=${() => (this.terms = { ...t, mode: 'net_days' })}>${tr('ימים מיום ההפקה')}</button><button type="button" data-terms="day_of_month" aria-pressed=${t.mode === 'day_of_month'} @click=${() => (this.terms = { ...t, mode: 'day_of_month' })}>${tr('יום קבוע בחודש')}</button></div>
+        <div class="fld wide"><span class="lbl" id="pt">${tr('תנאי תשלום')}</span><div class="row"><sw-segmented label=${tr('תנאי תשלום')} value=${t.mode} @change=${(e: CustomEvent<SegmentedChange>) => (this.terms = { ...t, mode: e.detail.value as 'net_days' | 'day_of_month' })}
+        .options=${[{ value: 'net_days', label: tr('ימים מיום ההפקה'), attrs: { 'data-terms': 'net_days' } }, { value: 'day_of_month', label: tr('יום קבוע בחודש'), attrs: { 'data-terms': 'day_of_month' } }]}></sw-segmented>
           ${t.mode === 'net_days'
             ? html`<div class="unit"><input class="ltr" data-days type="number" min="0" max="120" aria-label=${tr('ימים לתשלום')} style="inline-size:90px" .value=${String(t.days)} @input=${(e: Event) => (this.terms = { ...t, days: Number((e.target as HTMLInputElement).value) })} /><span>${tr('ימים')}</span></div>`
             : html`<div class="unit"><input class="ltr" data-day-of-month type="number" min="1" max="31" aria-label=${tr('יום בחודש')} style="inline-size:90px" .value=${String(t.day_of_month)} @input=${(e: Event) => (this.terms = { ...t, day_of_month: Number((e.target as HTMLInputElement).value) })} /><span>${tr('בחודש')}</span></div>`}</div>

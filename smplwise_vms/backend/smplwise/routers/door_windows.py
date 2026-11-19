@@ -34,6 +34,7 @@ from ..services import door_emergency_grants as deg
 from ..services import door_window_triggers as dwt
 from ..services import door_windows as dw
 from ..services import door_windows_engine as dwe
+from ..services import door_windows_store as store
 from ..services import door_windows_watch as dww
 from ..services import special_days
 from ._common import rid as _rid
@@ -102,7 +103,7 @@ def windows_state(request: Request, principal: Principal = Depends(current_princ
     ext = dw.exterior_doors(conn)
     rules = []
     rule_names: dict[str, str] = {}
-    for row in conn.execute("SELECT * FROM door_window_rules WHERE state <> 'retired' ORDER BY name, id").fetchall():
+    for row in store.live_rules(conn):
         rule_names[row["id"]] = row["name"]
         view = _rule_view(conn, row, labels, vis_keys)
         if view["doors"]:
@@ -110,12 +111,10 @@ def windows_state(request: Request, principal: Principal = Depends(current_princ
             rules.append(view)
     now = now_utc()
     horizon = dw.iso(now + dt.timedelta(days=7))
-    occ = [o for o in (_occ_view(r, labels, rule_names) for r in conn.execute(
-        """SELECT * FROM door_window_occurrences WHERE (end_at >= ? AND start_at <= ? AND state NOT IN ('cancelled'))
-           OR state IN ('relock_unconfirmed','ending','active','starting') ORDER BY start_at LIMIT 500""", (dw.iso(now - dt.timedelta(hours=12)), horizon)).fetchall())
-        if o["door"] in vis_keys]
+    occ = [o for o in (_occ_view(r, labels, rule_names) for r in store.screen_occurrences(conn, dw.iso(now - dt.timedelta(hours=12)), horizon))
+           if o["door"] in vis_keys]
     engine_tier = dwe.window_engine(settings_of(request)).tier
-    engine_rows = {dw.door_key(r["station_id"], r["relay"]): r for r in conn.execute("SELECT * FROM door_window_engine").fetchall()}  # DOORWRITE-297
+    engine_rows = {dw.door_key(r["station_id"], r["relay"]): r for r in store.engine_rows(conn)}  # DOORWRITE-297
     return {
         "enabled": dw.enabled(conn), "tier": engine_tier if dw.enabled(conn) else "prepared", "go_live_permitted": dwe.program_ready(),
         "settings": {k.split(".")[-1]: v for k, v in dw.settings_view(conn).items()},
@@ -123,8 +122,7 @@ def windows_state(request: Request, principal: Principal = Depends(current_princ
         "automation_actor": dw.automation_actor_on(conn),
         "foreign_paused": [f | {"label": labels[f["door"]].label if f["door"] in labels else f["door"]} for f in dw.foreign_paused_list(conn) if f["door"] in vis_keys],
         "triggers": [{"at": t["at"], "source": t["source"], "door": dw.door_key(t["station_id"], t["relay"]), "decision": t["decision"], "reason": t["reason"],
-                      "end_at": t["end_at"]} for t in conn.execute(
-            "SELECT at, source, station_id, relay, decision, reason, end_at FROM door_window_trigger_log WHERE station_id IS NOT NULL ORDER BY at DESC LIMIT 60").fetchall()
+                      "end_at": t["end_at"]} for t in store.recent_triggers(conn)
             if dw.door_key(t["station_id"], t["relay"]) in vis_keys][:20],
         "doors": [{"key": d.key, "station_id": d.station_id, "relay": d.relay, "label": d.label, "station_name": d.station_name, "name": d.name, "zone": d.zone,
                    "manage": d.key in manage, "cancel": d.key in cancel, "exterior": d.key in ext, "program": dw.program_view(engine_rows.get(d.key))}
@@ -247,14 +245,13 @@ def regenerate_token(body: ConfirmBody, request: Request, rule_id: str = Path(mi
     _confirmed(body.confirmed)
     dw.require_person(conn, principal, "door.window.token_regenerated", dev_mode=_dev(request))
     row = dw.rule_row(conn, rule_id)
-    trig = conn.execute("SELECT source FROM door_window_triggers WHERE rule_id = ?", (rule_id,)).fetchone()
+    trig = store.trigger_source(conn, rule_id)
     if row is None or row["state"] == "retired" or row["kind"] != "event" or trig is None or trig["source"] != "ha_event":
         raise ApiError(404, "not_found", "החלון לא נמצא.")
     dw.require_doors(conn, principal, dw._rule_doc(conn, row).doors, dw.MANAGE, "door.window.token_regenerated")
     token = secrets.token_urlsafe(24)
     at = dw.iso(now_utc())
-    conn.execute("UPDATE door_window_triggers SET token_sha256 = ?, token_set_at = ?, authorising_actor = ?, arm_state = 'simulate' WHERE rule_id = ?",
-                 (dwt.token_sha(token), at, principal.user_id, rule_id))
+    store.set_trigger_token(conn, rule_id, dwt.token_sha(token), at, principal.user_id)
     audit(conn, actor=principal, action="door.window.token_regenerated", decision="allowed", resource_type="door_window_rule", resource_id=rule_id, request_id=_rid(request))
     commit_now(conn)
     return {"token": token, "snippet": dwt.snippet(rule_id, token)}
@@ -296,15 +293,12 @@ def end_now(body: ConfirmBody, request: Request, occ_id: str = Path(min_length=1
     now = now_utc()
     at = dw.iso(now)
     if occ["state"] in ("prepared", "planned", "armed") and occ["start_at"] > at:
-        conn.execute("UPDATE door_window_occurrences SET state = 'cancelled', resolution = 'override', resolved_by = ?, resolved_at = ?, updated_at = ? WHERE id = ?",
-                     (principal.user_id, at, at, occ_id))
+        store.cancel_occurrence(conn, occ_id, principal.user_id, at)
         # W-01: the cancel must reach the engine - the window leaves the compiled program (an exclusion by token), and the next compile never re-plans it
-        conn.execute("INSERT OR REPLACE INTO door_window_exclusions(station_id, relay, token, excluded_by, excluded_at) VALUES (?, ?, ?, ?, ?)",
-                     (occ["station_id"], occ["relay"], occ["token"], principal.user_id, at))
+        store.exclude_window(conn, occ["station_id"], occ["relay"], occ["token"], principal.user_id, at)
         outcome = "cancelled"
     elif occ["state"] in ("starting", "active", "not_started", "prepared", "armed", "planned"):
-        conn.execute("""UPDATE door_window_occurrences SET state = CASE WHEN tier = 'prepared' THEN 'elapsed' ELSE 'ending' END, end_at = ?, last_reason = 'override',
-                        resolved_by = ?, updated_at = ? WHERE id = ?""", (at, principal.user_id, at, occ_id))
+        store.end_occurrence_now(conn, occ_id, principal.user_id, at)
         outcome = "ending"
     else:
         raise ApiError(409, "not_running", "החלון אינו פעיל.")
@@ -467,7 +461,7 @@ def get_calendar(principal: Principal = Depends(current_principal_ro), conn: sql
     if not dw.visible_doors(conn, principal) and not authorize(conn, principal, dw.MANAGE, INSTALLATION).allowed:
         raise ApiError(403, "forbidden", "אין הרשאה.")
     start = (now_utc() - dt.timedelta(days=1)).date()
-    rows = conn.execute("SELECT on_date, scope_key, day_type, label FROM door_window_calendar WHERE on_date >= ? ORDER BY on_date", (start.isoformat(),)).fetchall()
+    rows = store.calendar_days(conn, start.isoformat())
     overrides = {r["on_date"]: dict(r) for r in rows if r["scope_key"] == "*"}
     # the holiday list (CR-039 5.4): the generated Israeli holidays and eves under the manager's overrides, for the next 400 days
     return {"days": [dict(r) for r in rows], "generator": special_days.generator_of(conn),
@@ -498,11 +492,9 @@ def put_calendar(body: CalendarBody, request: Request, principal: Principal = De
         except ValueError:
             raise ApiError(422, "invalid_date", "תאריך לא תקין.") from None
         if d.day_type == "none":
-            conn.execute("DELETE FROM door_window_calendar WHERE on_date = ? AND scope_key = '*'", (d.on_date,))
+            store.delete_calendar_day(conn, d.on_date)
         else:
-            conn.execute("""INSERT INTO door_window_calendar(on_date, scope_key, day_type, label, set_by, set_at) VALUES (?, '*', ?, ?, ?, ?)
-                            ON CONFLICT(on_date, scope_key) DO UPDATE SET day_type = excluded.day_type, label = excluded.label, set_by = excluded.set_by,
-                            set_at = excluded.set_at""", (d.on_date, d.day_type, d.label.strip() or None, principal.user_id, at))
+            store.upsert_calendar_day(conn, d.on_date, d.day_type, d.label.strip() or None, principal.user_id, at)
     audit(conn, actor=principal, action="door.window.calendar", decision="allowed", resource_type="door_window_calendar", request_id=_rid(request),
           details={"days": [[d.on_date, d.day_type] for d in body.days][:60]})
     _after_write(request, conn)
@@ -546,9 +538,7 @@ def put_door_flags(body: FlagsBody, request: Request, station_id: str = Path(min
     require(conn, principal, CONFIGURE, INSTALLATION)
     _confirmed(body.confirmed)
     dw.require_person(conn, principal, "door.window.door_flags", dev_mode=_dev(request))
-    conn.execute("""INSERT INTO door_window_door_flags(station_id, relay, exterior, set_by, set_at) VALUES (?, ?, ?, ?, ?)
-                    ON CONFLICT(station_id, relay) DO UPDATE SET exterior = excluded.exterior, set_by = excluded.set_by, set_at = excluded.set_at""",
-                 (station_id, relay, 1 if body.exterior else 0, principal.user_id, dw.iso(now_utc())))
+    store.upsert_door_flags(conn, station_id, relay, 1 if body.exterior else 0, principal.user_id, dw.iso(now_utc()))
     audit(conn, actor=principal, action="door.window.door_flags", decision="allowed", resource_type="door", resource_id=dw.door_key(station_id, relay),
           request_id=_rid(request), details={"exterior": body.exterior})
     return {"door": dw.door_key(station_id, relay), "exterior": body.exterior}
@@ -587,8 +577,7 @@ def emergency_state(request: Request, principal: Principal = Depends(current_pri
         out["drill"] = de.incident_view(conn, drill) if drill is not None and drill["requested_by"] == principal.user_id else None
         labels = dw.doors_by_key(conn)
         out["foreign_paused"] = [f | {"label": labels[f["door"]].label if f["door"] in labels else f["door"]} for f in dw.foreign_paused_list(conn)]
-        out["recent"] = [de.incident_view(conn, r, with_doors=False) for r in conn.execute(
-            "SELECT * FROM door_emergency_incidents ORDER BY requested_at DESC LIMIT 10").fetchall()]
+        out["recent"] = [de.incident_view(conn, r, with_doors=False) for r in store.recent_incidents(conn)]
     return out
 
 
@@ -623,7 +612,7 @@ def _request_id(value: str) -> str:
 @router.post("/doors/emergency/incidents", status_code=201)
 def emergency_start(body: StartBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     rid = _request_id(body.client_request_id)
-    if conn.execute("SELECT id FROM door_emergency_incidents WHERE request_id = ?", (rid,)).fetchone():
+    if store.incident_by_request_id(conn, rid):
         raise ApiError(409, "duplicate_request", "הבקשה כבר התקבלה.")
     settings = settings_of(request)
     try:

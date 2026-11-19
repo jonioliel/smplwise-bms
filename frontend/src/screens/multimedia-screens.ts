@@ -10,6 +10,8 @@ import '../components/media-screen-card';
 import '../components/media-bulk-dialog';
 import '../components/sw-pager';
 import '../components/sw-page';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { PageFit } from '../components/page-fit';
 import { MediaCardsScreenBase } from './multimedia-base';
 import './multimedia-edit-panel';
@@ -485,7 +487,11 @@ export class MultimediaScreens extends MediaCardsScreenBase<MediaStatus, MediaDe
         margin-inline: calc(-1 * var(--mm-pad));
         padding-inline: var(--mm-pad);
       }
-      .dh-det .seg {
+      /* CR-CMP2-SEGMENTED-C-2450: the state filter stays one line and scrolls sideways */
+      .dh-det sw-segmented {
+        --sw-seg-wrap: nowrap;
+      }
+      .dh-det sw-segmented::part(track) {
         overflow-x: auto;
         scrollbar-width: none;
       }
@@ -752,7 +758,8 @@ export class MultimediaScreens extends MediaCardsScreenBase<MediaStatus, MediaDe
       </div>
       <div class="dh-det">
         ${this.fit.pages > 1 ? html`<sw-pager data-mm-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}
-        <div class="seg sm" role="radiogroup" aria-label=${tr('סינון לפי מצב')}>${STATE_FILTERS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id} @click=${() => this.setFilters({ state: s.id as StateFilter })}>${s.label}${s.id === 'on' ? html` <small>${c.on}</small>` : s.id === 'un' && c.un ? html` <small>${c.un}</small>` : nothing}</button>`)}</div>
+        <sw-segmented radio size="sm" label=${tr('סינון לפי מצב')} value=${f.state} @change=${(e: CustomEvent<SegmentedChange>) => this.setFilters({ state: e.detail.value as StateFilter })}
+          .options=${STATE_FILTERS.map((s) => ({ value: s.id, label: s.label, count: s.id === 'on' ? String(c.on) : s.id === 'un' && c.un ? String(c.un) : undefined, attrs: { 'data-state-filter': s.id } }))}></sw-segmented>
         <label class="search">${mIcon('search')}<span class="vh">${tr('חיפוש מסך')}</span><input type="search" data-search placeholder=${tr('חיפוש מסך או חדר')} .value=${f.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
       </div>
     </div>`;
@@ -773,9 +780,8 @@ export class MultimediaScreens extends MediaCardsScreenBase<MediaStatus, MediaDe
     const both = this.res.can_edit && this.res.can_personalize;
     return html`<div class="editbar" data-mm-editbar>
       <span class="t">${mIcon('edit')}${tr('עריכת מסך המולטימדיה')}</span>
-      ${both ? html`<div class="seg sm" role="radiogroup" aria-label=${tr('עבור מי')}>
-        <button type="button" role="radio" aria-checked=${String(this.scope === 'all')} data-scope="all" @click=${() => this.setScope('all')}>${tr('לכולם')}</button>
-        <button type="button" role="radio" aria-checked=${String(this.scope === 'me')} data-scope="me" @click=${() => this.setScope('me')}>${tr('רק אני')}</button></div>` : nothing}
+      ${both ? html`<sw-segmented radio size="sm" label=${tr('עבור מי')} value=${this.scope} @change=${(e: CustomEvent<SegmentedChange>) => this.setScope(e.detail.value === 'me' ? 'me' : 'all')}
+        .options=${[{ value: 'all', label: tr('לכולם'), attrs: { 'data-scope': 'all' } }, { value: 'me', label: tr('רק אני'), attrs: { 'data-scope': 'me' } }]}></sw-segmented>` : nothing}
       <span class="grow"></span>
       ${this.conflict ? html`<span class="note-bad" role="alert">${tr('המסך נערך במקום אחר')}</span><button type="button" class="btn sm" @click=${() => void this.reloadAfterConflict()}>${tr('טען מחדש')}</button>` : nothing}
       ${this.saveError ? html`<span class="note-bad" role="alert">${this.saveError}</span>` : nothing}

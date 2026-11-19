@@ -14,6 +14,7 @@ from ..db import new_id, now_iso
 from ..errors import ApiError, conflict, not_found
 from ..rbac import INSTALLATION, Principal, require
 from ..services import rules as svc
+from ..services import rules_store as store
 from ..services.access import require_camera, row_scope
 from ._common import rid as _rid
 from ..services.settings_store import setting_value
@@ -99,14 +100,14 @@ def _check_announce(conn: sqlite3.Connection, principal: Principal, body: "RuleI
 
 
 def _get(conn: sqlite3.Connection, rule_id: str) -> sqlite3.Row:
-    r = conn.execute("SELECT * FROM rules WHERE id = ?", (rule_id,)).fetchone()
+    r = store.rule(conn, rule_id)
     if not r:
         raise not_found("החוק לא נמצא.")
     return r
 
 
 def _with_counts(conn: sqlite3.Connection, rules: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    counts = {r["rule_id"]: (r["n"], r["open"]) for r in conn.execute("SELECT rule_id, COUNT(*) AS n, SUM(CASE WHEN acked_at IS NULL THEN 1 ELSE 0 END) AS open FROM rule_alerts GROUP BY rule_id").fetchall()}
+    counts = store.alert_counts(conn)
     for r in rules:
         n, open_ = counts.get(r["id"], (0, 0))
         r["alerts"] = {"total": n, "open": open_ or 0}
@@ -116,7 +117,7 @@ def _with_counts(conn: sqlite3.Connection, rules: list[dict[str, Any]]) -> list[
 @router.get("/rules")
 def list_rules(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "rules.manage", INSTALLATION)
-    rows = [svc.row_to_rule(r) for r in conn.execute("SELECT * FROM rules ORDER BY created_at").fetchall()]
+    rows = [svc.row_to_rule(r) for r in store.rules(conn)]
     return {"rules": _with_counts(conn, rows), "types": ["motion", "person", "vehicle", "line", "field", "offline", "tamper", "door", "io", "storage", "system", "coverage_gap", "manual", "other"],
             "sources": ["alertstream", "recording", "system", "ha"], "action_kinds": list(svc.ACTION_KINDS), "days": list(svc.DAYS)}
 
@@ -132,31 +133,12 @@ def create_rule(body: RuleIn, request: Request, principal: Principal = Depends(c
     cols = body.columns()
     rid = new_id()
     now = now_iso()
-    conn.execute(
-        "INSERT INTO rules(id, name, description, enabled, owner, ha_automation_id, trigger_json, scope_json, window_json, cooldown_s, actions_json, revision, created_by, created_by_username, updated_by, updated_by_username, created_at, updated_at) "
-        "VALUES (:id, :name, :description, :enabled, :owner, :ha_automation_id, :trigger_json, :scope_json, :window_json, :cooldown_s, :actions_json, 1, :uid, :uname, :uid, :uname, :now, :now)",
-        {**cols, "id": rid, "uid": principal.user_id, "uname": principal.username, "now": now},
-    )
+    store.insert_rule(conn, cols, rid, principal.user_id, principal.username, now)
     audit(conn, actor=principal, action="rule.create", decision="allowed", resource_type="rule", resource_id=rid, request_id=_rid(request), details={"name": cols["name"], "owner": body.owner, "enabled": body.enabled})
     return _with_counts(conn, [svc.row_to_rule(_get(conn, rid))])[0]
 
 
-def _alert_scope_sql(sc: Any) -> tuple[str, list[Any]]:
-    """The caller's reach over rule_alerts as a WHERE fragment: a camera alert follows the camera scope, a camera-less
-    one the installation-wide grant (T055 M3). Everything = no fragment."""
-    if sc.everything:
-        return "1 = 1", []
-    parts: list[str] = []
-    params: list[Any] = []
-    cams = sc.cameras
-    if cams.everything:
-        parts.append("COALESCE(a.camera_id, '') <> ''")
-    elif cams.ids:
-        parts.append("a.camera_id IN (SELECT value FROM json_each(?))")
-        params.append(json.dumps(sorted(cams.ids)))
-    if sc.camera_less:
-        parts.append("COALESCE(a.camera_id, '') = ''")
-    return ("(" + " OR ".join(parts) + ")") if parts else "0 = 1", params
+_alert_scope_sql = store.alert_scope_clause  # the caller's reach over rule_alerts as a WHERE fragment (T055 M3); the builder lives in the store
 
 
 @router.get("/rules/alerts")
@@ -169,28 +151,27 @@ def list_alerts(principal: Principal = Depends(current_principal_ro), conn: sqli
     if not sc.any():
         require(conn, principal, "events.read", INSTALLATION)
     where, params = _alert_scope_sql(sc)
-    sql = f"SELECT a.*, r.name AS rule_name FROM rule_alerts a JOIN rules r ON r.id = a.rule_id WHERE {where}" + (" AND a.acked_at IS NULL" if unacked else "") + " ORDER BY a.fired_at DESC, a.occurred_at DESC LIMIT ?"
-    rows = [svc.alert_row(r) for r in conn.execute(sql, (*params, limit)).fetchall()]
+    rows = [svc.alert_row(r) for r in store.alerts(conn, where, params, unacked, limit)]
     rows = [a for a in rows if sc.allows_row(a["camera_id"])]  # the SQL already filtered; the Python rule stays the authority
-    open_ = conn.execute(f"SELECT COUNT(*) FROM rule_alerts a WHERE {where} AND a.acked_at IS NULL", params).fetchone()[0]
+    open_ = store.open_alert_count(conn, where, params)
     return {"alerts": rows, "unacked": open_}
 
 
 @router.post("/rules/alerts/{alert_id}/ack")
 def ack_alert(alert_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "events.ack", INSTALLATION)
-    a = conn.execute("SELECT * FROM rule_alerts WHERE id = ?", (alert_id,)).fetchone()
+    a = store.alert(conn, alert_id)
     if not a:
         raise not_found("ההתראה לא נמצאה.")
     if a["camera_id"]:
         require_camera(conn, principal, a["camera_id"], "events.ack")  # T055: a camera deny holds past the installation grant
     if not a["acked_at"]:
-        conn.execute("UPDATE rule_alerts SET acked_at = ?, acked_by = ?, acked_by_username = ? WHERE id = ?", (now_iso(), principal.user_id, principal.username, alert_id))
+        store.ack_alert(conn, alert_id, now_iso(), principal.user_id, principal.username)
         audit(conn, actor=principal, action="rule.alert.ack", decision="allowed", resource_type="rule_alert", resource_id=alert_id, request_id=_rid(request), details={"rule_id": a["rule_id"], "event_id": a["event_id"]})
         from ..services import notify
 
         notify.ack_from_alert(conn, a["notification_id"], principal)  # CR-018: the alert's notification is acknowledged with it (and stops escalating)
-    r = conn.execute("SELECT a.*, r.name AS rule_name FROM rule_alerts a JOIN rules r ON r.id = a.rule_id WHERE a.id = ?", (alert_id,)).fetchone()
+    r = store.alert_with_rule_name(conn, alert_id)
     return svc.alert_row(r)
 
 
@@ -227,11 +208,7 @@ def update_rule(rule_id: str, body: RulePatch, request: Request, principal: Prin
         raise ApiError(422, "validation", "חוק בבעלות תשתית המערכת חייב לציין את מזהה האוטומציה בתשתית המערכת.")
     cols = body.columns()
     before = svc.row_to_rule(r)
-    conn.execute(
-        "UPDATE rules SET name = :name, description = :description, enabled = :enabled, owner = :owner, ha_automation_id = :ha_automation_id, trigger_json = :trigger_json, scope_json = :scope_json, "
-        "window_json = :window_json, cooldown_s = :cooldown_s, actions_json = :actions_json, revision = revision + 1, updated_by = :uid, updated_by_username = :uname, updated_at = :now WHERE id = :id",
-        {**cols, "id": rule_id, "uid": principal.user_id, "uname": principal.username, "now": now_iso()},
-    )
+    store.update_rule(conn, rule_id, cols, principal.user_id, principal.username, now_iso())
     after = svc.row_to_rule(_get(conn, rule_id))
     changed = sorted(k for k in ("name", "description", "enabled", "owner", "trigger", "scope", "window", "cooldown_s", "actions") if before[k] != after[k])
     audit(conn, actor=principal, action="rule.update", decision="allowed", resource_type="rule", resource_id=rule_id, request_id=_rid(request), details={"changed": changed, "enabled": after["enabled"], "revision": after["revision"]})
@@ -242,6 +219,5 @@ def update_rule(rule_id: str, body: RulePatch, request: Request, principal: Prin
 def delete_rule(rule_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> None:
     require(conn, principal, "rules.manage", INSTALLATION)
     r = _get(conn, rule_id)
-    conn.execute("DELETE FROM rule_alerts WHERE rule_id = ?", (rule_id,))
-    conn.execute("DELETE FROM rules WHERE id = ?", (rule_id,))
+    store.delete_rule(conn, rule_id)
     audit(conn, actor=principal, action="rule.delete", decision="allowed", resource_type="rule", resource_id=rule_id, request_id=_rid(request), details={"name": r["name"]})

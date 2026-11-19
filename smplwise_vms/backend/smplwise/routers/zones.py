@@ -19,10 +19,13 @@ from ..services import plan_area_links
 from ..services import plan_geometry as pg
 from ..services import plan_zones
 from ..services import shared_spaces
+from ..services import zones_store
 from ..services.tickets import store_locations
 from ._common import rid as _rid
 from .anchors import _editor_version
 from .catalog import get_floor
+from ..wire import zones as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -109,11 +112,11 @@ def zone_row(r: sqlite3.Row) -> dict[str, Any]:
 
 
 def floor_zones(conn: sqlite3.Connection, floor_id: str) -> list[dict[str, Any]]:
-    return [zone_row(r) for r in conn.execute("SELECT * FROM spatial_zones WHERE floor_id = ? AND deleted_at IS NULL ORDER BY created_at, rowid", (floor_id,)).fetchall()]
+    return [zone_row(r) for r in zones_store.floor_zone_rows(conn, floor_id)]
 
 
 def _get_zone(conn: sqlite3.Connection, zone_id: str) -> sqlite3.Row:
-    r = conn.execute("SELECT * FROM spatial_zones WHERE id = ? AND deleted_at IS NULL", (zone_id,)).fetchone()
+    r = zones_store.live_zone(conn, zone_id)
     if not r:
         raise not_found("האזור לא נמצא.")
     return r
@@ -122,22 +125,20 @@ def _get_zone(conn: sqlite3.Connection, zone_id: str) -> sqlite3.Row:
 def _insert(conn: sqlite3.Connection, principal: Principal, floor_id: str, version_id: str | None, name: str, kind: str, polygon: list[Point], color: str | None, source: str, searchable: bool = True) -> str:
     zid = new_id()
     now = now_iso()
-    n = conn.execute("SELECT COUNT(*) FROM spatial_zones WHERE floor_id = ? AND deleted_at IS NULL", (floor_id,)).fetchone()[0]
-    conn.execute(
-        "INSERT INTO spatial_zones(id, floor_id, plan_version_id, name, kind, polygon_json, color, source, searchable, revision, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,1,?,?,?)",
-        (zid, floor_id, version_id, name.strip(), kind, json.dumps([{"x": round(p.x, 4), "y": round(p.y, 4)} for p in polygon]), color or PALETTE[n % len(PALETTE)], source, 1 if searchable else 0, principal.user_id, now, now),
-    )
+    n = zones_store.live_zone_count(conn, floor_id)
+    zones_store.insert_zone(conn, zid, floor_id, version_id, name.strip(), kind, json.dumps([{"x": round(p.x, 4), "y": round(p.y, 4)} for p in polygon]), color or PALETTE[n % len(PALETTE)],
+                      source, 1 if searchable else 0, principal.user_id, now)
     return zid
 
 
-@router.get("/floors/{floor_id}/zones")
+@router.get("/floors/{floor_id}/zones", **wire(W.ZoneList))
 def list_zones_api(floor_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, "map.read", ("floor", floor_id))
     return {"zones": floor_zones(conn, floor_id)}
 
 
-@router.post("/floors/{floor_id}/zones", status_code=201)
+@router.post("/floors/{floor_id}/zones", status_code=201, **wire(W.Zone))
 def create_zone(floor_id: str, body: ZoneIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, "placement.edit", ("floor", floor_id))
@@ -162,7 +163,7 @@ def _via_share(conn: sqlite3.Connection, z: sqlite3.Row, from_floor_id: str | No
     return shared_spaces.Placement(share.placement, shared_spaces._dims_of(home_v), shared_spaces._dims_of(other_v))
 
 
-@router.patch("/zones/{zone_id}")
+@router.patch("/zones/{zone_id}", **wire(W.Zone))
 def update_zone(zone_id: str, body: ZonePatch, request: Request, from_floor_id: str | None = None, principal: Principal = Depends(current_principal),
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     z = _get_zone(conn, zone_id)
@@ -207,7 +208,7 @@ def update_zone(zone_id: str, body: ZonePatch, request: Request, from_floor_id: 
         return zone_row(z)
     fields["revision"] = z["revision"] + 1
     fields["updated_at"] = now_iso()
-    conn.execute(f"UPDATE spatial_zones SET {', '.join(f'{k} = ?' for k in fields)} WHERE id = ?", (*fields.values(), zone_id))
+    zones_store.patch_zone(conn, zone_id, fields)
     audit(conn, actor=principal, action="zone.update", decision="allowed", resource_type="zone", resource_id=zone_id, request_id=_rid(request),
           details={k: v for k, v in fields.items() if k != "polygon_json"} | ({"points": len(body.polygon)} if body.polygon else {}) | ({"via_floor_id": from_floor_id} if place is not None else {}))
     return zone_row(_get_zone(conn, zone_id))
@@ -259,7 +260,7 @@ def _floors_of(conn: sqlite3.Connection, z: sqlite3.Row, other_floor_id: str) ->
 
 
 def _all_users(conn: sqlite3.Connection) -> list[str]:
-    return [r[0] for r in conn.execute("SELECT id FROM users").fetchall()]
+    return zones_store.user_ids(conn)
 
 
 def _revoke(background: BackgroundTasks, users: list[str]) -> None:
@@ -272,7 +273,7 @@ def _revoke(background: BackgroundTasks, users: list[str]) -> None:
     background.add_task(revocation.mark, users)
 
 
-@router.post("/zones/{zone_id}/share/preview")
+@router.post("/zones/{zone_id}/share/preview", **wire(W.ZoneSharePlan))
 def share_preview(zone_id: str, body: ShareIn, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """"הפוך לחלל משותף" - what sharing this room with the other floor would do, written nowhere: the placement and its
     alignment check, the other floor's outline of the room (its duplicate room, kept), the duplicate content that leaves
@@ -283,7 +284,7 @@ def share_preview(zone_id: str, body: ShareIn, principal: Principal = Depends(cu
     return shared_spaces.public(_plan(conn, z, body))
 
 
-@router.post("/zones/{zone_id}/share")
+@router.post("/zones/{zone_id}/share", **wire(W.ZoneShared))
 def share_zone(zone_id: str, body: ShareIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The conversion, atomically: the duplicate content leaves the other floor's draft, its outline stays as that floor's
     outline of the room, the listed cameras and devices become members (each anchored where it is; a duplicate copy of a
@@ -347,7 +348,7 @@ def _member_kind(resource_type: str, resource_id: str) -> str:
     return "door" if domain in ("lock", "doorbell", "intercom", "event") or "door" in resource_id else "device"
 
 
-@router.get("/zones/{zone_id}/share/members")
+@router.get("/zones/{zone_id}/share/members", **wire(W.ZoneMembers))
 def list_members(zone_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """"חברים בחלל המשותף" (owner 2026-09-30): whoever reaches ANY floor that shows the room sees, of its members, exactly
     what their own permissions allow per member - a camera through camera_scope (a deny on the camera, and later the
@@ -371,7 +372,7 @@ def list_members(zone_id: str, request: Request, principal: Principal = Depends(
     if not any(r is not None for r in reach.values()):
         require(conn, principal, "map.read", ("floor", z["floor_id"]))  # the audited 403
     cams = camera_scope(conn, principal, "map.read")
-    names = {r["id"]: r["name"] for r in conn.execute(f"SELECT id, name FROM floors WHERE id IN ({','.join('?' * len(group.floors))})", group.floors).fetchall()}
+    names = {r["id"]: r["name"] for r in zones_store.floor_names(conn, group.floors)}
 
     manage = _can_manage_members(conn, principal, group.floors)
     stations = shared_spaces.served_stations(settings_of(request))  # None: WisKey has no honest copy right now
@@ -386,14 +387,12 @@ def list_members(zone_id: str, request: Request, principal: Principal = Depends(
             s = (stations or {}).get(rid)
             return (s.get("name") or "עמדת WisKey") if s is not None else ("עמדת WisKey" if stations is None else "עמדה שאינה קיימת עוד ב־WisKey")
         if rtype == "camera":
-            r = conn.execute("SELECT alias, name_source, channel FROM cameras WHERE id = ?", (rid,)).fetchone()
+            r = zones_store.camera_name(conn, rid)
             return (r["alias"] or r["name_source"] or f"ערוץ {r['channel']}") if r is not None else rid
-        r = conn.execute("SELECT name FROM ha_entities WHERE entity_id = ?", (rid,)).fetchone()
+        r = zones_store.entity_name(conn, rid)
         return (r["name"] or rid) if r is not None else rid
 
-    q = ",".join("?" * len(group.floors))
-    live = conn.execute(f"SELECT id, floor_id, resource_type, resource_id FROM map_anchors WHERE effective_to IS NULL AND floor_id IN ({q}) ORDER BY floor_id, resource_type, resource_id",
-                        group.floors).fetchall()
+    live = zones_store.live_anchors_on(conn, group.floors)
     placed: dict[tuple[str, str], list[str]] = {}
     for a in live:
         placed.setdefault((a["resource_type"], a["resource_id"]), [])
@@ -422,7 +421,7 @@ def list_members(zone_id: str, request: Request, principal: Principal = Depends(
     return out
 
 
-@router.post("/zones/{zone_id}/share/members", status_code=201)
+@router.post("/zones/{zone_id}/share/members", status_code=201, **wire(W.ZoneMemberAdded))
 def add_member(zone_id: str, body: MemberIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """"הוסף לחלל המשותף": a camera or device of the room reaches every floor that shows it - the share rights on every
     floor of the room and placement reach on the camera. It must be placed on one of those floors."""
@@ -445,8 +444,7 @@ def add_member(zone_id: str, body: MemberIn, request: Request, principal: Princi
     else:
         if body.resource_type == "ha_entity" and shared_spaces.alarm_owned(conn, [body.resource_id]):  # review M1
             raise ApiError(409, "alarm_managed", shared_spaces.ALARM_MEMBER_MESSAGE, details={"entity_ids": [body.resource_id]})
-        q = ",".join("?" * len(group.floors))
-        if not conn.execute(f"SELECT 1 FROM map_anchors WHERE resource_type = ? AND resource_id = ? AND effective_to IS NULL AND floor_id IN ({q})", (body.resource_type, body.resource_id, *group.floors)).fetchone():
+        if not zones_store.placed_on_any(conn, body.resource_type, body.resource_id, group.floors):
             raise ApiError(422, "not_placed", "הפריט לא מוצב באף אחת מהקומות של החלל המשותף.")
     added = shared_spaces.add_member(conn, zone_id, body.resource_type, body.resource_id, principal.user_id, now_iso())
     if added:
@@ -477,7 +475,7 @@ def remove_member(zone_id: str, resource_type: str, resource_id: str, request: R
           details={"resource": f"{resource_type}:{resource_id}"})
     _revoke(background, _all_users(conn))
 
-@router.patch("/zones/{zone_id}/share/{floor_id}")
+@router.patch("/zones/{zone_id}/share/{floor_id}", **wire(W.ZonePlacement))
 def share_placement(zone_id: str, floor_id: str, body: PlacementIn, request: Request, principal: Principal = Depends(current_principal),
                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """"יישור": where the room sits on the other plan (same_frame, or fit: from / to points, rotation, scale)."""
@@ -511,12 +509,12 @@ def delete_zone(zone_id: str, request: Request, background: BackgroundTasks, wit
     require(conn, principal, "placement.edit", ("floor", z["floor_id"]))
     group = shared_spaces.zone_in_share(conn, zone_id)
     if group is None:
-        conn.execute("UPDATE spatial_zones SET deleted_at = ? WHERE id = ?", (now_iso(), zone_id))
+        zones_store.delete_zone(conn, zone_id, now_iso())
         store_locations.clear_dead_plan_zones(conn)  # ORGPLAN-291: an organisation location's optional link to this room
         audit(conn, actor=principal, action="zone.delete", decision="allowed", resource_type="zone", resource_id=zone_id, request_id=_rid(request), details={"name": z["name"]})
         return
     # the refusal names the home floor only to a caller who may read it (review L1): otherwise "קומה אחרת" and no ids
-    home = conn.execute("SELECT id, name FROM floors WHERE id = ?", (group.home_floor_id,)).fetchone()
+    home = zones_store.floor_name(conn, group.home_floor_id)
     if home is not None and authorize(conn, principal, "map.read", ("floor", group.home_floor_id)).allowed:
         details = {"home_zone_id": group.zone_id, "home_floor_id": group.home_floor_id, "home_floor_name": home["name"]}
     else:
@@ -530,13 +528,13 @@ def delete_zone(zone_id: str, request: Request, background: BackgroundTasks, wit
         if shared_spaces.unshare(conn, zone_id, s.floor_id, principal.user_id, now):
             audit(conn, actor=principal, action="zone.unshare", decision="allowed", resource_type="zone", resource_id=zone_id, request_id=rid,
                   details={"home_floor_id": group.home_floor_id, "floor_id": s.floor_id, "reason": "zone_deleted"})
-    conn.execute("UPDATE spatial_zones SET deleted_at = ? WHERE id = ?", (now, zone_id))
+    zones_store.delete_zone(conn, zone_id, now)
     store_locations.clear_dead_plan_zones(conn)  # ORGPLAN-291
     audit(conn, actor=principal, action="zone.delete", decision="allowed", resource_type="zone", resource_id=zone_id, request_id=rid, details={"name": z["name"], "unshared_floors": [s.floor_id for s in group.shares]})
     _revoke(background, _all_users(conn))
 
 
-@router.post("/floors/{floor_id}/zones/detect")
+@router.post("/floors/{floor_id}/zones/detect", **wire(W.ZoneDetected))
 def detect_zones(floor_id: str, body: DetectIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Room candidates from the floor's plan (local image processing; nothing is saved until accepted)."""
     get_floor(conn, floor_id)
@@ -554,10 +552,10 @@ def detect_zones(floor_id: str, body: DetectIn, request: Request, principal: Pri
     except (OSError, ValueError, MemoryError) as exc:
         raise ApiError(500, "detect_failed", "זיהוי החדרים נכשל.", details={"error": type(exc).__name__})
     audit(conn, actor=principal, action="zone.detect", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request), details={"rooms": len(result["rooms"]), "strength": body.strength})
-    return {**result, "plan_version_id": v["id"], "existing_auto": conn.execute("SELECT COUNT(*) FROM spatial_zones WHERE floor_id = ? AND source = 'auto' AND deleted_at IS NULL", (floor_id,)).fetchone()[0]}
+    return {**result, "plan_version_id": v["id"], "existing_auto": zones_store.live_auto_zone_count(conn, floor_id)}
 
 
-@router.post("/floors/{floor_id}/zones/accept", status_code=201)
+@router.post("/floors/{floor_id}/zones/accept", status_code=201, **wire(W.ZoneAccepted))
 def accept_zones(floor_id: str, body: AcceptIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Save chosen candidates as zones (source 'auto'); optionally replace the previous automatic ones."""
     get_floor(conn, floor_id)
@@ -565,8 +563,8 @@ def accept_zones(floor_id: str, body: AcceptIn, request: Request, principal: Pri
     v = _editor_version(conn, floor_id)
     if body.replace_auto:
         # review M4: a room that is part of a shared space is kept (un-share it first to replace it)
-        keep = {r["id"] for r in conn.execute("SELECT id FROM spatial_zones WHERE floor_id = ? AND source = 'auto' AND deleted_at IS NULL", (floor_id,)).fetchall() if shared_spaces.zone_in_share(conn, r["id"]) is not None}
-        conn.execute(f"UPDATE spatial_zones SET deleted_at = ? WHERE floor_id = ? AND source = 'auto' AND deleted_at IS NULL AND id NOT IN ({','.join('?' * len(keep)) or "''"})", (now_iso(), floor_id, *sorted(keep)))
+        keep = {r["id"] for r in zones_store.live_auto_zone_ids(conn, floor_id) if shared_spaces.zone_in_share(conn, r["id"]) is not None}
+        zones_store.delete_auto_zones_except(conn, floor_id, keep, now_iso())
         store_locations.clear_dead_plan_zones(conn)  # ORGPLAN-291
     ids = []
     for i, cnd in enumerate(body.candidates):

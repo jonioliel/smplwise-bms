@@ -67,11 +67,14 @@ from ..rbac import INSTALLATION, Principal, authorize, is_system_admin, require,
 from ..remote_channel import csrf_reason, is_remote
 from ..services import ha_user_auth as hua
 from ..services import local_identity as li
+from ..services import local_identity_store as store
 from ..services import local_passwords as lp
 from ..services import local_reset as lr
 from ..services import presence, revocation
 from ..services import second_factor as sf
 from ._common import rid as _rid
+from ..wire import local_identity as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -176,7 +179,7 @@ def _success(request: Request, r: li.SignInResult) -> JSONResponse:
     return response
 
 
-@public_post("/auth/local/sign-in")
+@public_post("/auth/local/sign-in", **wire(W.LocalSignInSession | W.LocalSignInPending))
 async def local_sign_in(body: SignInBody, request: Request) -> Response:
     admitted, r = await lp.run_admitted(li.sign_in, request.app.state.db, settings_of(request), request, body.username, body.password, _rid(request))
     if not admitted or r is None:
@@ -202,7 +205,7 @@ class CodeBody(BaseModel):
     code: str = Field(min_length=1, max_length=16)
 
 
-@public_post("/auth/local/sign-in/second-factor")
+@public_post("/auth/local/sign-in/second-factor", **wire(W.LocalSignInSession))
 async def local_sign_in_second_factor(body: CodeBody, request: Request) -> Response:
     pid = request.cookies.get(li.PENDING_COOKIE_SECURE) or (None if settings_of(request).in_addon else request.cookies.get(li.PENDING_COOKIE_PLAIN))
     if not hua.LIMITER.hit(f"lsf:{hua.limit_ip(hua.client_ip(request))}", [(60.0, 20)]):
@@ -217,7 +220,7 @@ class SetPasswordBody(BaseModel):
     password: str = Field(min_length=1, max_length=1024)
 
 
-@public_post("/auth/local/set-password")
+@public_post("/auth/local/set-password", **wire(W.LocalMustEnrol))
 async def local_set_password(body: SetPasswordBody, request: Request) -> dict[str, Any]:
     if not hua.LIMITER.hit(f"lsetpw:{hua.limit_ip(hua.client_ip(request))}", li.SET_PASSWORD_LIMITS):
         raise ApiError(429, "rate_limited", li.RATE_LIMITED_HE, retryable=True)
@@ -235,7 +238,7 @@ class ResetRequestBody(BaseModel):
     username: str = Field(min_length=1, max_length=64)
 
 
-@public_post("/auth/local/reset/request", status_code=202)
+@public_post("/auth/local/reset/request", status_code=202, **wire(W.LocalResetRequested))
 async def local_reset_request(body: ResetRequestBody, request: Request) -> dict[str, Any]:
     """Always the same 202 - an unknown name, a user without self-service, an administrator, no verified number, a cap: alike. The
     message leaves later from the sender thread, so the answer never waits for WhatsApp (local_reset module docstring)."""
@@ -255,7 +258,7 @@ class ResetConfirmBody(BaseModel):
     password: str = Field(min_length=1, max_length=1024)
 
 
-@public_post("/auth/local/reset/confirm")
+@public_post("/auth/local/reset/confirm", **wire(W.LocalMustEnrol))
 async def local_reset_confirm(body: ResetConfirmBody, request: Request) -> dict[str, Any]:
     """200 {must_enrol} | 422 `code_invalid` (uniform) | 400 `password_policy` (only after a correct code; the code stays live) |
     429. No session is created; every session and open link of the user ends."""
@@ -277,7 +280,7 @@ class PasswordChangeBody(BaseModel):
     code: str | None = Field(default=None, max_length=16)
 
 
-@router.put("/auth/local/password")
+@router.put("/auth/local/password", **wire(W.LocalPasswordChanged))
 def change_own_password(body: PasswordChangeBody, request: Request, principal: Principal = Depends(current_principal),
                         conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     s = hua.session_of(request)
@@ -296,7 +299,7 @@ class LabelBody(BaseModel):
     label: str | None = Field(default=None, max_length=40)
 
 
-@router.patch("/auth/sessions/{session_id}")
+@router.patch("/auth/sessions/{session_id}", **wire(W.LocalSessionLabel))
 def label_session(session_id: str, body: LabelBody, request: Request, principal: Principal = Depends(current_principal),
                   conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The user's own device name for one of its local sign-ins (HA sign-ins live in memory only and are not labelled in phase 1)."""
@@ -306,7 +309,7 @@ def label_session(session_id: str, body: LabelBody, request: Request, principal:
     label = (body.label or "").strip() or None
     if label and any(ord(c) < 32 for c in label):
         raise ApiError(422, "validation", "שם המכשיר: טקסט רגיל בלבד.")
-    conn.execute("UPDATE auth_local_sessions SET label = ? WHERE chain_id = ? AND revoked_at IS NULL", (label, found[0]))
+    store.label_session_chain(conn, found[0], label)
     return {"id": session_id, "label": label}
 
 
@@ -380,17 +383,14 @@ def _feature_on(conn: sqlite3.Connection) -> None:
 def _user_row(conn: sqlite3.Connection, user_id: str, *, include_deleted: bool = False) -> sqlite3.Row:
     if not li.is_local_id(user_id) or len(user_id) > 40:
         raise ApiError(404, "user_unknown", NOT_FOUND_HE)
-    row = conn.execute("""SELECT u.*, c.password_hash IS NOT NULL AS has_password, c.must_change, c.reset_mode, c.last_sign_in_at, c.last_sign_in_from,
-                                 c.failed_count, c.delay_until FROM users u JOIN auth_local_credentials c ON c.user_id = u.id
-                          WHERE u.id = ? AND u.source = 'local'""", (user_id,)).fetchone()
+    row = store.local_user(conn, user_id)
     if row is None or (row["deleted_at"] and not include_deleted):
         raise ApiError(404, "user_unknown", NOT_FOUND_HE)
     return row
 
 
 def _binding(conn: sqlite3.Connection, user_id: str) -> sqlite3.Row | None:
-    return conn.execute("""SELECT * FROM bindings WHERE subject_kind = 'user' AND subject_id = ? AND revoked_at IS NULL
-                           AND role_id != 'emergency_open' AND (expires_at IS NULL OR expires_at > ?) ORDER BY created_at DESC LIMIT 1""", (user_id, now_iso())).fetchone()  # EMROLE-295: the temporary emergency_open grant is not the person's role
+    return store.role_binding(conn, user_id, now_iso())  # EMROLE-295: the temporary emergency_open grant is not the person's role
 
 
 def _status(row: sqlite3.Row) -> str:
@@ -407,7 +407,7 @@ def _status(row: sqlite3.Row) -> str:
 
 def _user_dict(conn: sqlite3.Connection, row: sqlite3.Row, live: dict[str, int] | None = None) -> dict[str, Any]:
     b = _binding(conn, row["id"])
-    link = conn.execute("SELECT ha_user_id FROM identity_links WHERE local_user_id = ?", (row["id"],)).fetchone()
+    link = store.ha_link(conn, row["id"])
     if live is None:
         live = {row["id"]: len(li.chains(conn, row["id"]))}
     number = lr.verified_number(conn, row["id"])  # USR2 phase 2: the self-service reset / WhatsApp link needs it (masked: last two digits)
@@ -448,13 +448,11 @@ def _link_answer(request: Request, token: str, expires: float, purpose: str) -> 
     return out
 
 
-@router.get("/identity/local-users")
+@router.get("/identity/local-users", **wire(W.LocalUserList))
 def list_local_users(request: Request, include_deleted: bool = Query(False), principal: Principal = Depends(current_principal_ro),
                      conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "identity.directory.read", INSTALLATION)
-    rows = conn.execute("""SELECT u.*, c.password_hash IS NOT NULL AS has_password, c.must_change, c.reset_mode, c.last_sign_in_at, c.last_sign_in_from,
-                                  c.failed_count, c.delay_until FROM users u JOIN auth_local_credentials c ON c.user_id = u.id
-                           WHERE u.source = 'local'""" + ("" if include_deleted else " AND u.deleted_at IS NULL") + " ORDER BY u.display_name COLLATE NOCASE").fetchall()
+    rows = store.local_users(conn, include_deleted)
     live: dict[str, int] = {}
     for c in li.chains(conn, None):
         live[c["user_id"]] = live.get(c["user_id"], 0) + 1
@@ -492,9 +490,9 @@ def _clean_text(value: str | None, field: str) -> str | None:
 
 
 def _username_taken(conn: sqlite3.Connection, key: str) -> bool:
-    if conn.execute("SELECT 1 FROM users WHERE lower(trim(username)) = ?", (key,)).fetchone():
+    if store.username_key_in_users(conn, key):
         return True
-    return any(li.username_key(r[0]) == key for r in conn.execute("SELECT username FROM ha_users WHERE username IS NOT NULL").fetchall())
+    return any(li.username_key(r[0]) == key for r in store.directory_usernames(conn))
 
 
 def _check_role(conn: sqlite3.Connection, principal: Principal, role_id: str, scope: tuple[str, str]) -> None:
@@ -546,7 +544,7 @@ def _create_refused(conn: sqlite3.Connection, principal: Principal, request: Req
           reason=reason or exc.code, request_id=_rid(request), details=details)
 
 
-@router.post("/identity/local-users", status_code=201)
+@router.post("/identity/local-users", status_code=201, **wire(W.LocalUserCreated))
 def create_local_user(body: LocalUserCreate, request: Request, principal: Principal = Depends(current_principal),
                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _manage(conn, principal)  # a refusal here is audited by rbac.require (`identity.local.manage`, denied)
@@ -590,23 +588,20 @@ def _create_local_user(body: LocalUserCreate, request: Request, principal: Princ
     now = now_iso()
     token: str | None = None
     expires = 0.0
-    conn.execute("SAVEPOINT usr2_create")
+    store.savepoint(conn, "usr2_create")
     try:
-        conn.execute("""INSERT INTO users(id, username, display_name, source, active, first_seen_at, last_seen_at, email, created_by, notes)
-                        VALUES (?, ?, ?, 'local', 1, ?, ?, ?, ?, ?)""", (uid, key, display, now, now, email, principal.user_id, notes))
+        store.insert_local_user(conn, uid, key, display, now, email, principal.user_id, notes)
         if hashed is not None:
-            conn.execute("""INSERT INTO auth_local_credentials(user_id, reset_mode, updated_at, password_hash, params_version, set_at, set_by, must_change)
-                            VALUES (?, ?, ?, ?, ?, ?, 'admin', ?)""", (uid, body.reset_mode, now, hashed[0], hashed[1], now, 1 if must_change else 0))
+            store.insert_credentials_with_password(conn, uid, body.reset_mode, now, hashed[0], hashed[1], 1 if must_change else 0)
         else:
-            conn.execute("INSERT INTO auth_local_credentials(user_id, reset_mode, updated_at) VALUES (?, ?, ?)", (uid, body.reset_mode, now))
+            store.insert_credentials(conn, uid, body.reset_mode, now)
         bid = _bind(conn, principal, request, uid, body.role_id, scope)
         if hashed is None:
             token, expires = li.issue_link(conn, user_id=uid, purpose="first_login", via="shown", channel=channel, actor=principal)
     except BaseException:
-        conn.execute("ROLLBACK TO usr2_create")
-        conn.execute("RELEASE usr2_create")
+        store.rollback_savepoint(conn, "usr2_create")
         raise
-    conn.execute("RELEASE usr2_create")
+    store.release_savepoint(conn, "usr2_create")
     audit(conn, actor=principal, action="identity.local.user.created", decision="allowed", resource_type="user", resource_id=uid, request_id=_rid(request),
           details={"role_id": body.role_id, "scope": f"{scope[0]}:{scope[1]}", "binding_id": bid, "admin": admin, "reset_mode": body.reset_mode,
                    "password_set": hashed is not None, **({"must_change": must_change} if hashed is not None else {})})
@@ -621,7 +616,7 @@ def _create_local_user(body: LocalUserCreate, request: Request, principal: Princ
             "link": _link_answer(request, token, expires, "first_login") if token is not None else None}
 
 
-@router.put("/identity/local-users/{user_id}/password")
+@router.put("/identity/local-users/{user_id}/password", **wire(W.LocalUserPasswordSet))
 def set_local_password(user_id: str, body: PasswordSetBody, request: Request, principal: Principal = Depends(current_principal),
                        conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """CR-LOCAL-USER-CREATE-2438 (owner 18.11): the administrator sets the password of an existing Arx user. Like a link that was
@@ -651,9 +646,7 @@ def set_local_password(user_id: str, body: PasswordSetBody, request: Request, pr
         refused(exc.code, policy=exc.details.get("reason"))
         raise
     now = now_iso()
-    conn.execute("""UPDATE auth_local_credentials SET password_hash = ?, params_version = ?, set_at = ?, set_by = 'admin', must_change = ?,
-                    failed_count = 0, last_failed_at = NULL, delay_until = NULL, updated_at = ? WHERE user_id = ?""",
-                 (phc, version, now, 1 if body.must_change else 0, now, user_id))
+    store.set_password_by_admin(conn, user_id, phc, version, 1 if body.must_change else 0, now)
     li.TIERS.acct_clear_name(row["username"])
     links = li.invalidate_links(conn, user_id)
     ended = li.revoke_user_sessions(conn, user_id, "password_changed")
@@ -672,9 +665,7 @@ def set_local_password(user_id: str, body: PasswordSetBody, request: Request, pr
 @router.get("/identity/local-users/export")
 def export_local_users(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
     _manage(conn, principal)
-    rows = conn.execute("""SELECT u.*, c.password_hash IS NOT NULL AS has_password, c.must_change, c.reset_mode, c.last_sign_in_at, c.last_sign_in_from,
-                                  c.failed_count, c.delay_until FROM users u JOIN auth_local_credentials c ON c.user_id = u.id
-                           WHERE u.source = 'local' AND u.deleted_at IS NULL ORDER BY u.display_name COLLATE NOCASE""").fetchall()
+    rows = store.live_local_users(conn)
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["id", "username", "display_name", "role", "scope", "status", "created_at", "last_sign_in_at", "last_sign_in_from", "second_factor"])
@@ -693,7 +684,7 @@ def export_local_users(request: Request, principal: Principal = Depends(current_
                     headers={"Content-Disposition": 'attachment; filename="arx-local-users.csv"', "Cache-Control": "no-store"})
 
 
-@router.get("/identity/local-users/{user_id}")
+@router.get("/identity/local-users/{user_id}", **wire(W.LocalUser))
 def get_local_user(user_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "identity.directory.read", INSTALLATION)
     return _user_dict(conn, _user_row(conn, user_id))
@@ -713,7 +704,7 @@ def _end_access(conn: sqlite3.Connection, user_id: str, reason: str) -> dict[str
     return {"sessions_ended": ended, "links_invalidated": links, "device_tokens_revoked": tokens}
 
 
-@router.patch("/identity/local-users/{user_id}")
+@router.patch("/identity/local-users/{user_id}", **wire(W.LocalUserPatched))
 def patch_local_user(user_id: str, body: LocalUserPatch, request: Request, principal: Principal = Depends(current_principal),
                      conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _manage(conn, principal)
@@ -725,20 +716,20 @@ def patch_local_user(user_id: str, body: LocalUserPatch, request: Request, princ
         name = _clean_text(fields["display_name"], "display_name")
         if not name:
             raise ApiError(422, "validation", "שם התצוגה חסר.", details={"field": "display_name"})
-        conn.execute("UPDATE users SET display_name = ? WHERE id = ?", (name, user_id))
+        store.set_display_name(conn, user_id, name)
         changed["display_name"] = True
     if "email" in fields:
-        conn.execute("UPDATE users SET email = ? WHERE id = ?", (_validate_email(fields["email"]), user_id))
+        store.set_email(conn, user_id, _validate_email(fields["email"]))
         changed["email"] = True
     if "notes" in fields:
-        conn.execute("UPDATE users SET notes = ? WHERE id = ?", (_clean_text(fields["notes"], "notes"), user_id))
+        store.set_notes(conn, user_id, _clean_text(fields["notes"], "notes"))
         changed["notes"] = True
     if fields.get("reset_mode") is not None and fields["reset_mode"] != row["reset_mode"]:
         if fields["reset_mode"] == "self_service" and li.holds_admin(conn, user_id):
             audit(conn, actor=principal, action="identity.local.user.updated", decision="denied", resource_type="user", resource_id=user_id,
                   reason="self_service_not_for_admins", request_id=_rid(request))
             raise ApiError(422, "self_service_not_for_admins", SELF_SERVICE_ADMIN_HE)
-        conn.execute("UPDATE auth_local_credentials SET reset_mode = ?, updated_at = ? WHERE user_id = ?", (fields["reset_mode"], now_iso(), user_id))
+        store.set_reset_mode(conn, user_id, fields["reset_mode"], now_iso())
         changed["reset_mode"] = fields["reset_mode"]
         if fields["reset_mode"] == "manager_only":
             lr.kill_codes(conn, user_id)
@@ -751,7 +742,7 @@ def patch_local_user(user_id: str, body: LocalUserPatch, request: Request, princ
             raise ApiError(409, "passkey_only_on", lpk.ONLY_ON_HE)  # usr2-passkeys-only-mode needs passkey-first: switch the mode off first
         if lpk.user_first_on(conn, user_id):
             li.lease_hook("second_factor_changed", user_ids=[user_id])  # CR-WISKEY-LEASE T6: the sign-in factor mode changed
-            conn.execute("UPDATE auth_local_credentials SET passkey_first = 0, updated_at = ? WHERE user_id = ?", (now_iso(), user_id))
+            store.passkey_first_off(conn, user_id, now_iso())
             audit(conn, actor=principal, action="auth.local.passkey.first_disabled", decision="allowed", resource_type="user", resource_id=user_id,
                   reason="admin", request_id=_rid(request))
             changed["passkey_first"] = False
@@ -759,15 +750,15 @@ def patch_local_user(user_id: str, body: LocalUserPatch, request: Request, princ
     if fields.get("active") is not None and bool(fields["active"]) != bool(row["active"]):
         if not fields["active"]:
             li.lease_hook("actor_disabled", user_ids=[user_id])  # CR-WISKEY-LEASE T2 (then T4 / T3 / strict T1 below)
-            conn.execute("UPDATE users SET active = 0, disabled_at = ?, disabled_by = ? WHERE id = ?", (now_iso(), principal.user_id, user_id))
+            store.disable_user(conn, user_id, now_iso(), principal.user_id)
             effects = _end_access(conn, user_id, "user_disabled")
             bump_permission_revision(conn)
             action = "identity.local.user.disabled"
         else:
-            conn.execute("UPDATE users SET active = 1, disabled_at = NULL, disabled_by = NULL WHERE id = ?", (user_id,))
+            store.enable_user(conn, user_id)
             revocation.changed([user_id])
             action = "identity.local.user.enabled"
-        link = conn.execute("SELECT ha_user_id FROM identity_links WHERE local_user_id = ?", (user_id,)).fetchone()
+        link = store.ha_link(conn, user_id)
         suggest = link["ha_user_id"] if link else None  # owner answer Q7: the other identity of the same person is only SUGGESTED
         audit(conn, actor=principal, action=action, decision="allowed", resource_type="user", resource_id=user_id, request_id=_rid(request),
               details={**effects, **({"linked_ha_user": suggest} if suggest else {})})
@@ -783,18 +774,17 @@ def patch_local_user(user_id: str, body: LocalUserPatch, request: Request, princ
     return out
 
 
-@router.delete("/identity/local-users/{user_id}")
+@router.delete("/identity/local-users/{user_id}", **wire(W.LocalUserDeleted))
 def delete_local_user(user_id: str, request: Request, principal: Principal = Depends(current_principal),
                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _manage(conn, principal)
     _user_row(conn, user_id)
     now = now_iso()
     li.lease_hook("actor_removed", user_ids=[user_id])  # CR-WISKEY-LEASE T2 (then T4 / T3 / strict T1 below)
-    conn.execute("UPDATE users SET active = 0, deleted_at = ?, disabled_at = COALESCE(disabled_at, ?), disabled_by = COALESCE(disabled_by, ?) WHERE id = ?",
-                 (now, now, principal.user_id, user_id))
+    store.mark_user_deleted(conn, user_id, now, principal.user_id)
     effects = _end_access(conn, user_id, "user_deleted")
-    bindings = conn.execute("UPDATE bindings SET revoked_at = ? WHERE subject_kind = 'user' AND subject_id = ? AND revoked_at IS NULL", (now, user_id)).rowcount
-    conn.execute("DELETE FROM identity_links WHERE local_user_id = ?", (user_id,))
+    bindings = store.revoke_user_bindings(conn, user_id, now)
+    store.delete_ha_link(conn, user_id)
     bump_permission_revision(conn)
     audit(conn, actor=principal, action="identity.local.user.deleted", decision="allowed", resource_type="user", resource_id=user_id, request_id=_rid(request),
           details={**effects, "bindings_revoked": bindings})
@@ -803,7 +793,7 @@ def delete_local_user(user_id: str, request: Request, principal: Principal = Dep
     return {"id": user_id, "deleted_at": now, **effects, "bindings_revoked": bindings}
 
 
-@router.put("/identity/local-users/{user_id}/role")
+@router.put("/identity/local-users/{user_id}/role", **wire(W.LocalUser))
 def change_local_role(user_id: str, body: RoleBody, request: Request, principal: Principal = Depends(current_principal),
                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     from .access import revoke_one
@@ -815,21 +805,20 @@ def change_local_role(user_id: str, body: RoleBody, request: Request, principal:
     admin = li.role_is_admin(conn, body.role_id)
     _admin_target_local_only(request, admin)
     before = _binding(conn, user_id)
-    conn.execute("SAVEPOINT usr2_role")
+    store.savepoint(conn, "usr2_role")
     try:
         # every active binding of the user ends (normally exactly one; a row written behind the routes' back too)
-        for b in conn.execute("SELECT * FROM bindings WHERE subject_kind = 'user' AND subject_id = ? AND revoked_at IS NULL AND role_id != 'emergency_open'", (user_id,)).fetchall():
+        for b in store.live_role_bindings(conn, user_id):
             revoke_one(conn, principal, request, b)
         bid = _bind(conn, principal, request, user_id, body.role_id, scope)
         reset_switched = False
         if admin and row["reset_mode"] == "self_service":  # Q5: an administrative role never keeps self-service reset
-            conn.execute("UPDATE auth_local_credentials SET reset_mode = 'manager_only', updated_at = ? WHERE user_id = ?", (now_iso(), user_id))
+            store.force_manager_only_reset(conn, user_id, now_iso())
             reset_switched = True
     except BaseException:
-        conn.execute("ROLLBACK TO usr2_role")
-        conn.execute("RELEASE usr2_role")
+        store.rollback_savepoint(conn, "usr2_role")
         raise
-    conn.execute("RELEASE usr2_role")
+    store.release_savepoint(conn, "usr2_role")
     audit(conn, actor=principal, action="identity.local.user.role_changed", decision="allowed", resource_type="user", resource_id=user_id, request_id=_rid(request),
           details={"before": {"role_id": before["role_id"], "scope": f"{before['scope_type']}:{before['scope_id']}"} if before is not None else None,
                    "after": {"role_id": body.role_id, "scope": f"{scope[0]}:{scope[1]}", "binding_id": bid}, "admin": admin,
@@ -838,7 +827,7 @@ def change_local_role(user_id: str, body: RoleBody, request: Request, principal:
     return _user_dict(conn, _user_row(conn, user_id))
 
 
-@router.post("/identity/local-users/{user_id}/link")
+@router.post("/identity/local-users/{user_id}/link", **wire(W.LocalUserLink))
 def issue_local_link(user_id: str, body: LinkBody, request: Request, principal: Principal = Depends(current_principal),
                      conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _manage(conn, principal)
@@ -889,18 +878,17 @@ def issue_local_link(user_id: str, body: LinkBody, request: Request, principal: 
     return {"user_id": user_id, "link": _link_answer(request, token, expires, body.purpose)}
 
 
-@router.post("/identity/local-users/{user_id}/unlock")
+@router.post("/identity/local-users/{user_id}/unlock", **wire(W.LocalUser))
 def unlock_local_user(user_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _manage(conn, principal)
     row = _user_row(conn, user_id)
-    conn.execute("UPDATE auth_local_credentials SET failed_count = 0, last_failed_at = NULL, delay_until = NULL, unlocked_by = ?, updated_at = ? WHERE user_id = ?",
-                 (principal.user_id, now_iso(), user_id))
+    store.unlock(conn, user_id, principal.user_id, now_iso())
     li.TIERS.acct_clear_name(row["username"])  # USR2-FIX F2: the per-network delays of the name end too
     audit(conn, actor=principal, action="identity.local.user.unlocked", decision="allowed", resource_type="user", resource_id=user_id, request_id=_rid(request))
     return _user_dict(conn, _user_row(conn, user_id))
 
 
-@router.post("/identity/local-users/{user_id}/sessions/revoke")
+@router.post("/identity/local-users/{user_id}/sessions/revoke", **wire(W.LocalUserSessionsRevoked))
 def revoke_local_user_sessions(user_id: str, request: Request, principal: Principal = Depends(current_principal),
                                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _manage(conn, principal)
@@ -916,25 +904,25 @@ def revoke_local_user_sessions(user_id: str, request: Request, principal: Princi
     return {"user_id": user_id, "sessions_ended": ended, "device_tokens_revoked": tokens}
 
 
-@router.put("/identity/local-users/{user_id}/ha-link")
+@router.put("/identity/local-users/{user_id}/ha-link", **wire(W.LocalUser))
 def set_ha_link(user_id: str, body: HaLinkBody, request: Request, principal: Principal = Depends(current_principal),
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _manage(conn, principal)
     _user_row(conn, user_id)
-    if li.is_local_id(body.ha_user_id) or conn.execute("SELECT 1 FROM ha_users WHERE id = ?", (body.ha_user_id,)).fetchone() is None:
+    if li.is_local_id(body.ha_user_id) or not store.directory_user_exists(conn, body.ha_user_id):
         raise ApiError(404, "user_unknown", "המשתמש לא נמצא בספריית תשתית המערכת.")
-    conn.execute("DELETE FROM identity_links WHERE local_user_id = ?", (user_id,))
-    conn.execute("INSERT INTO identity_links(ha_user_id, local_user_id, linked_by, linked_at) VALUES (?, ?, ?, ?)", (body.ha_user_id, user_id, principal.user_id, now_iso()))
+    store.delete_ha_link(conn, user_id)
+    store.insert_ha_link(conn, body.ha_user_id, user_id, principal.user_id, now_iso())
     audit(conn, actor=principal, action="identity.link.created", decision="allowed", resource_type="user", resource_id=user_id, request_id=_rid(request),
           details={"ha_user_id": body.ha_user_id})
     return _user_dict(conn, _user_row(conn, user_id))
 
 
-@router.delete("/identity/local-users/{user_id}/ha-link")
+@router.delete("/identity/local-users/{user_id}/ha-link", **wire(W.LocalUser))
 def remove_ha_link(user_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _manage(conn, principal)
     _user_row(conn, user_id)
-    n = conn.execute("DELETE FROM identity_links WHERE local_user_id = ?", (user_id,)).rowcount
+    n = store.delete_ha_link(conn, user_id)
     if n:
         audit(conn, actor=principal, action="identity.link.removed", decision="allowed", resource_type="user", resource_id=user_id, request_id=_rid(request))
     return _user_dict(conn, _user_row(conn, user_id))

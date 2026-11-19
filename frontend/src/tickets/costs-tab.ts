@@ -2,6 +2,8 @@ import { LitElement, html, nothing, type PropertyValues, type TemplateResult } f
 import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-dialog';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import './ticket-cost-card';
 import './quote-form'; // TKUI3B: a quote entered on the vendor's behalf
 import { automationsStyles } from '../styles/automations-glass';
@@ -486,8 +488,9 @@ export class TicketCostsTab extends LitElement {
   }
 
   private seg(label: string, current: CostMode, attr: string, disabled: boolean, onPick: (m: CostMode) => void): TemplateResult {
-    return html`<span class="seg sm" role="radiogroup" aria-label=${label}>${MODES.map((m) => html`<button type="button" role="radio" aria-checked=${String(current === m)}
-      data-mode=${`${attr}:${m}`} ?disabled=${disabled || this.busy} @click=${() => (current === m ? undefined : onPick(m))}>${qt(`m_${m}` as QuoteTextKey)}</button>`)}</span>`;
+    return html`<sw-segmented radio size="sm" label=${label} value=${current} ?disabled=${disabled || this.busy}
+      @change=${(e: CustomEvent<SegmentedChange>) => (current === e.detail.value ? undefined : onPick(e.detail.value as CostMode))}
+      .options=${MODES.map((m) => ({ value: m, label: qt(`m_${m}` as QuoteTextKey), attrs: { 'data-mode': `${attr}:${m}` } }))}></sw-segmented>`;
   }
 
   private requirementFold(d: TicketCostsFull): TemplateResult | typeof nothing {

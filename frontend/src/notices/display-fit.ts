@@ -7,6 +7,8 @@ import {
   PORTRAIT_CHIPS, SAFE_MARGINS, TVFIT_FACTORY, tvFitOwn, tvFitText,
   type PortraitChips, type SafeMargin, type TvFitDefaults, type TvFitKey,
 } from './display-fit-model';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 
 const text = (k: TvFitKey, v: PortraitChips | SafeMargin): string => {
   const [key, vars] = tvFitText(k, v);
@@ -40,9 +42,9 @@ export class NoticeDisplayFit extends LitElement {
     const own: TvFitDefaults[K] | null = board ? tvFitOwn(this.display, key) : this.defaults[key];
     const dflt = text(key, this.defaults[key]);
     return html`<div class="fld" data-tv-fit=${key}><span class="lbl">${label}</span>
-      <div class="seg" role="group" aria-label=${label} data-seg=${seg}>
-        ${board ? html`<button type="button" data-v="default" aria-pressed=${String(own === null)} title=${dflt} @click=${() => this.emit(key, null)}>${nt('tvUseDefault')}</button>` : nothing}
-        ${values.map((v) => html`<button type="button" data-v=${String(v)} aria-pressed=${String(own === v)} @click=${() => this.emit(key, v)}>${text(key, v)}</button>`)}</div>
+      <sw-segmented label=${label} data-seg=${seg} value=${own === null ? '__default__' : String(own)}
+        @change=${(e: CustomEvent<SegmentedChange>) => { if (e.detail.value === '__default__') this.emit(key, null); else { const v = values.find((x) => String(x) === e.detail.value); if (v !== undefined) this.emit(key, v); } }}
+        .options=${[...(board ? [{ value: '__default__', label: nt('tvUseDefault'), title: dflt, attrs: { 'data-v': 'default' } }] : []), ...values.map((v) => ({ value: String(v), label: text(key, v), attrs: { 'data-v': String(v) } }))]}></sw-segmented>
       ${board && own === null ? html`<span class="hint" data-default-note>${nt('tvDefaultNow', { v: dflt })}</span>` : nothing}
       <span class="hint">${hint}</span></div>`;
   }

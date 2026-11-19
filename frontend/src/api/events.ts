@@ -2,46 +2,28 @@
 import { apiResponse, apiUrl, del, get, post } from './client';
 import { openReconnectingSocket, wsUrl, type SocketEnv } from './reconnecting-socket';
 import { tr } from '../i18n/msg/api-video';
+import type * as Wire from './generated/wire-events';
+import type { CaseRouteConfirm } from './generated/wire-cases';
 
 export type EventKind = 'motion' | 'person' | 'vehicle' | 'line' | 'field' | 'offline' | 'tamper' | 'door' | 'io' | 'storage' | 'system' | 'coverage_gap' | 'manual' | 'other';
 
-export interface VmsEvent {
-  id: string;
+/* The wire shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/events.py, generated into
+ * ./generated/wire-events.ts): a field the server renames or drops is a compile error here (code review 07:F8 step 2). Narrowed on
+ * purpose: the stored strings `source`, `type`, `state`, `severity` and `confidence` (several writers fill the events table, the server
+ * types them `string`) to the values the screens know; the list-only fields stay optional (camera markers, the push socket and the
+ * demo events have none of them). */
+type EventWire = Wire.EventListed;
+export interface VmsEvent
+  extends Pick<EventWire, 'id' | 'raw_type' | 'camera_id' | 'channel' | 'occurred_at' | 'ended_at' | 'received_at' | 'count' | 'details' | 'acked_at' | 'acked_by_username'>,
+    Partial<Pick<EventWire, 'camera_name' | 'recorder_id' | 'thumbnail'>> {
   source: 'alertstream' | 'recording' | 'system' | 'ha';
-  raw_type: string;
   type: EventKind;
-  camera_id: string | null;
-  camera_name?: string | null;
-  /** CR-024: the recorder whose alert stream (or camera) produced it; null for Home Assistant and system events. */
-  recorder_id?: string | null;
-  channel: number | null;
-  occurred_at: string;
-  ended_at: string | null;
-  received_at: string;
   state: 'active' | 'inactive' | 'none';
-  count: number;
   severity: 'info' | 'alert' | 'critical';
   confidence: 'measured' | 'inferred';
-  details: Record<string, unknown>;
-  acked_at: string | null;
-  acked_by_username: string | null;
-  /** Picture from the recording at the event time: ready | pending (being grabbed) | unavailable | none (not asked yet). */
-  thumbnail?: 'ready' | 'pending' | 'unavailable' | 'none';
 }
-
 /** Where the event's camera sits (its current anchor); `zone` is the smallest room / zone containing the pin. */
-interface EventLocation {
-  anchor_id: string;
-  floor_id: string;
-  floor_name: string;
-  building_id: string;
-  building_name: string;
-  x: number;
-  y: number;
-  zone: string | null;
-  has_plan: boolean;
-}
-
+type EventLocation = Wire.EventLocation;
 export interface EventDetail extends VmsEvent {
   location: EventLocation | null;
   timezone: string;
@@ -49,101 +31,36 @@ export interface EventDetail extends VmsEvent {
   playerHint?: string;
 }
 
-/** Review window (design M26): adjacent events of one camera; the raw events stay reachable by id. */
-export interface EventWindow {
-  id: string;
-  camera_id: string | null;
-  camera_name?: string | null;
-  /** 0.1.62: what the window spans and the cameras inside it (group modes other than 'camera'); 'manual' (M047) = an
-   * operator's own grouping, whatever the mode. */
-  group?: WindowGroup | 'manual';
-  group_label?: string | null;
-  camera_ids?: string[];
-  camera_names?: string[];
-  channel: number | null;
-  start: string;
-  end: string;
-  count: number;
-  types: Record<string, number>;
+/** Review window (design M26): adjacent events of one camera; the raw events stay reachable by id. 0.1.62: `group` / `camera_ids`
+ * say what the window spans; M047: `spotlight` (the deterministic verdict) and `manual_group_id` (an operator's own grouping). Narrowed:
+ * `dominant_type` / `severity` (stored strings); the grouping fields stay optional for the demo windows. */
+type WindowWire = Wire.EventWindow;
+export interface EventWindow
+  extends Pick<WindowWire, 'id' | 'camera_id' | 'channel' | 'start' | 'end' | 'count' | 'types' | 'acked_count' | 'acked' | 'first_event_id' | 'last_event_id' | 'event_ids' | 'thumbnail' | 'thumbnail_event_id' | 'confidence'>,
+    Partial<Pick<WindowWire, 'camera_name' | 'group' | 'group_label' | 'camera_ids' | 'camera_names' | 'spotlight' | 'manual_group_id'>> {
   dominant_type: EventKind;
   severity: 'info' | 'alert' | 'critical';
-  acked_count: number;
-  acked: boolean;
-  first_event_id: string;
-  last_event_id: string;
-  event_ids: string[];
-  thumbnail: 'ready' | 'pending' | 'unavailable' | 'none';
-  thumbnail_event_id: string;
-  confidence: 'measured' | 'inferred';
-  /** M047: the deterministic spotlight verdict - every rule it meets, named and explained. */
-  spotlight?: Spotlight;
-  /** M047: set when an operator regrouped these events by hand (POST events/windows/groups). */
-  manual_group_id?: string | null;
 }
 
-/** One deterministic rule a window met (M047); `why` is the rule in the operator's words. */
-interface SpotlightRule {
-  code: string;
-  score: number;
-  label: string;
-  why: string;
-}
-interface Spotlight {
-  on: boolean;
-  score: number;
-  rules: SpotlightRule[];
-  confidence: 'measured' | 'inferred';
-  sources: string[];
-}
+type SpotlightRule = Wire.EventSpotlightRule;
 
-interface WindowsResponse {
+type WindowsResponse = Omit<Wire.EventWindows, 'windows' | 'ingest' | 'spotlights' | 'spotlight_rules'> & {
   windows: EventWindow[];
-  from: string;
-  to: string;
-  timezone: string;
-  gap_seconds: number;
-  events_total: number;
   /** M047: how many of the day's windows are lit (before the `spotlight` filter). */
   spotlights?: number;
   spotlight_rules?: SpotlightRule[];
   ingest: IngestState;
-}
+};
 
-export interface IngestState {
-  connected: boolean;
-  last_heartbeat_at: string | null;
-  last_event_at: string | null;
-  last_error: string | null;
-  reconnects: number;
-  events_stored: number;
-  started_at: string | null;
-}
+/** The alert-stream listener's state; the push socket's heartbeat carries it too (without the queue counters on older servers). */
+export type IngestState = Pick<Wire.EventIngest, 'connected' | 'last_heartbeat_at' | 'last_event_at' | 'last_error' | 'reconnects' | 'events_stored' | 'started_at'>;
 
-interface DeriveState {
-  last_run: string | null;
-  last_ok: string | null;
-  last_error: string | null;
-  derived: number;
-}
+type DeriveState = Wire.EventDerive;
 
-interface EventsResponse {
-  /** Filters echoed back; `unsupported` names filters that cannot match by construction (T062). */
-  filters?: { applied: Record<string, string>; unsupported: UnsupportedFilter[] };
-  events: VmsEvent[];
-  from: string;
-  to: string;
-  timezone: string;
-  ingest: IngestState;
-  derive: DeriveState;
-  types: EventKind[];
-}
+/** Filters echoed back; `unsupported` names filters that cannot match by construction (T062). */
+type EventsResponse = Omit<Wire.EventList, 'events' | 'types' | 'ingest'> & { events: VmsEvent[]; types: EventKind[]; ingest: IngestState };
 
-export interface EventsSummary {
-  today: { total: number; unacked: number; by_type: Record<string, number>; measured: number; inferred: number };
-  ingest: IngestState;
-  derive: DeriveState;
-}
-
+export type EventsSummary = Omit<Wire.EventSummary, 'ingest'> & { ingest: IngestState; derive: DeriveState };
 export function listEvents(opts: { date?: string; from?: string; to?: string; cameraId?: string; type?: string; unacked?: boolean; acked?: boolean; limit?: number ; floorId?: string; zoneId?: string; buildingId?: string; siteId?: string; source?: string; severity?: string; query?: string; recorderId?: string } = {}) {
   const q = new URLSearchParams();
   if (opts.date) q.set('date', opts.date);
@@ -168,9 +85,9 @@ export function listEvents(opts: { date?: string; from?: string; to?: string; ca
   return get<EventsResponse>(`events${qs ? `?${qs}` : ''}`);
 }
 export const eventsSummary = () => get<EventsSummary>('events/summary');
-export const cameraEvents = (cameraId: string, date: string) => get<{ camera_id: string; date: string; timezone: string; events: VmsEvent[] }>(`cameras/${cameraId}/events?date=${date}`);
+export const cameraEvents = (cameraId: string, date: string) => get<Omit<Wire.EventCameraDay, 'events'> & { events: VmsEvent[] }>(`cameras/${cameraId}/events?date=${date}`);
 export const ackEvent = (id: string) => post<VmsEvent>(`events/${id}/ack`);
-export const ackMany = (ids: string[]) => post<{ acked: string[]; skipped: string[] }>('events/ack-many', { event_ids: ids });
+export const ackMany = (ids: string[]) => post<Wire.EventAckMany>('events/ack-many', { event_ids: ids });
 export type WindowGroup = 'camera' | 'all' | 'zone' | 'floor';
 export const WINDOW_GROUP_LABEL: Record<WindowGroup, string> = { camera: tr('לפי מצלמה'), all: tr('כל המצלמות יחד'), zone: tr('לפי חדר'), floor: tr('לפי קומה') };
 
@@ -186,7 +103,7 @@ export function listWindows(opts: { date?: string; cameraId?: string; gap?: numb
   return get<WindowsResponse>(`events/windows${qs ? `?${qs}` : ''}`);
 }
 /** M047: the named events form one review window from now on (a split or a join); the raw events are untouched. */
-export const groupWindowEvents = (eventIds: string[], note = '') => post<{ group_id: string; event_ids: string[]; skipped: string[] }>('events/windows/groups', { event_ids: eventIds, note });
+export const groupWindowEvents = (eventIds: string[], note = '') => post<Wire.EventWindowGroup>('events/windows/groups', { event_ids: eventIds, note });
 export const ungroupWindow = (groupId: string) => del(`events/windows/groups/${groupId}`);
 export const getEvent = (id: string) => get<EventDetail>(`events/${id}`);
 export const thumbnailUrl = (id: string, v = 0) => apiUrl(`events/${id}/thumbnail${v ? `?v=${v}` : ''}`);
@@ -274,106 +191,24 @@ export function subscribeEvents(onEvent: (ev: VmsEvent) => void, onState?: (s: I
 /** Door–camera–sensor neighbourhood of an event (T053): every link carries its certainty; a command is never proof. */
 export type Certainty = 'measured' | 'inferred' | 'command' | 'availability';
 export const CERTAINTY_LABEL: Record<Certainty, string> = { measured: tr('נמדד'), inferred: tr('נגזר'), command: tr('פקודה'), availability: tr('זמינות') };
-interface CorrelationLink {
-  kind: 'sensor' | 'command' | 'camera';
-  event_id?: string;
-  action_id?: string;
-  entity_id?: string;
-  camera_id?: string;
-  name: string;
-  type?: string;
-  action?: string;
-  status?: string;
-  by?: string | null;
-  at: string;
-  delta_s: number;
-  label: string;
-  certainty: Certainty;
-  note: string;
-}
-export interface Correlation {
-  event_id: string;
-  window_s: number;
-  subject: { kind: 'camera' | 'entity' | 'system'; id: string | null };
-  spatial: boolean;
-  location: { floor_id: string; floor_name: string; building_name: string; x: number; y: number; zone: string | null; radius: number } | null;
-  entities: { entity_id: string; name: string; domain: string; device_class: string | null; tracked_as: string | null; state: string | null; last_changed: string | null; state_missing: boolean; distance: number | null; same_zone: boolean }[];
-  cameras: { camera_id: string; distance: number | null; same_zone: boolean }[];
-  links: CorrelationLink[];
-  notes: { code: string; text: string }[];
-  policy: string;
-  event: { id: string; type: string; source: string; camera_id: string | null; camera_name: string | null; occurred_at: string; received_at: string; confidence: string; details: Record<string, unknown> };
-}
+/* T053: the link's kind-specific keys are absent for the other kinds; `certainty` narrowed to the four the server sends. */
+type CorrelationLink = Omit<Wire.EventCorrelationLink, 'certainty'> & { certainty: Certainty };
+export type Correlation = Omit<Wire.EventCorrelation, 'links'> & { links: CorrelationLink[] };
 export const getCorrelation = (id: string, windowS = 120) => get<Correlation>(`events/${id}/correlation?window=${windowS}`);
 
 /** A filter that cannot match by construction, with the reason (T062). */
-export interface UnsupportedFilter {
-  field: string;
-  value: string;
-  reason: string;
-}
-export interface EventFacets {
-  days: number;
-  since: string;
-  types: { type: string; count: number }[];
-  sources: { source: string; count: number }[];
-  severities: { severity: string; count: number }[];
-  unavailable_types: { type: string; reason: string }[];
-  places: { id: string; name: string; buildings: { id: string; name: string; floors: { id: string; name: string; cameras: number; sensors: number; zones: { id: string; name: string; kind: string; cameras: number; sensors: number }[] }[] }[] }[];
-  notes: string[];
-}
+export type UnsupportedFilter = Wire.EventUnsupportedFilter;
+export type EventFacets = Wire.EventFacets;
 export const getEventFacets = (days = 90) => get<EventFacets>(`events/facets?days=${days}`);
 export const SOURCE_LABEL: Record<string, string> = { alertstream: tr('אירוע NVR'), recording: tr('נגזר מהקלטה'), system: tr('מערכת'), ha: tr('חיישן התקן') };
 
 /** Suggested next cameras after an event (T064): topology only, always hypothetical, never an action. M064: the
  * floors reached through the published stairs / elevators near the camera rank last, each naming its connector. */
-type RouteRelation = 'same_zone' | 'adjacent_zone' | 'nearby' | 'via_connector';
-interface RouteVia {
-  connector_id: string;
-  kind: string;
-  kind_label: string;
-  label: string | null;
-  floor_id: string;
-  floor_name: string;
-  direction: 'up' | 'down' | null;
-  twin_published: boolean;
-}
-interface RouteSuggestion {
-  camera_id: string;
-  name: string;
-  relation: RouteRelation;
-  relation_label: string;
-  distance: number;
-  zone: string | null;
-  floor_id?: string;
-  floor_name?: string;
-  via?: RouteVia | null;
-  activity_events: number;
-  playback_at: string;
-}
-export interface EventRoute {
-  event_id: string;
-  hypothetical: true;
-  spatial: boolean;
-  subject: { camera_id: string; name: string; zone: string | null } | null;
-  location: { floor_id: string; floor_name: string; building_name: string } | null;
-  window: { from: string; to: string };
-  suggestions: RouteSuggestion[];
-  /** M064: the floor connectors within reach of the event camera. */
-  connectors?: { id: string; kind: string; kind_label: string; other_floor_id: string; distance: number; twin_published: boolean }[];
-  notes: string[];
-  policy: string;
-}
+type RouteRelation = Wire.EventRouteSuggestion['relation'];
+export type EventRoute = Wire.EventRoute;
 export const getEventRoute = (id: string, windowS = 90) => get<EventRoute>(`events/${id}/route?window=${windowS}`);
 
-/** M064: one click from the suggested route into a case - the event and a clip per chosen camera over the route window. */
-export interface RouteConfirmResult {
-  case_id: string;
-  title: string;
-  created: boolean;
-  added: { id: string; kind: 'event' | 'clip'; camera_id: string | null; relation?: RouteRelation }[];
-  skipped: { camera_id: string; reason: string }[];
-  window: { from: string; to: string };
-  hypothetical: true;
-}
+/** M064: one click from the suggested route into a case - the event and a clip per chosen camera over the route window
+ * (the backend's model: smplwise_vms/backend/smplwise/wire/cases.py). Narrowed: a clip's `relation`. */
+export type RouteConfirmResult = Omit<CaseRouteConfirm, 'added'> & { added: (Omit<CaseRouteConfirm['added'][number], 'relation'> & { relation?: RouteRelation })[] };
 export const confirmEventRoute = (id: string, body: { camera_ids: string[]; case_id?: string; title?: string; note?: string; window?: number }) => post<RouteConfirmResult>(`events/${id}/route/confirm`, body);

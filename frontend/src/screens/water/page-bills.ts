@@ -1,5 +1,7 @@
 import { LitElement, html, nothing } from 'lit';
 import '../../components/sw-button';
+import '../../components/sw-segmented';
+import type { SegmentedChange } from '../../components/sw-segmented';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../../components/sw-icon';
 import '../../components/sw-state-panel';
@@ -171,9 +173,8 @@ export class WaterBillsPage extends LitElement {
     const late = this.all.filter((b) => isLate(b, t)).length;
     return html`<div class="page" data-water="bills" data-state=${list.length ? 'ready' : 'filtered-empty'}>
       <div class="row head">
-        <div class="seg scroll-seg" role="group" aria-label=${wt('stateFilter')} data-bill-filter>
-          <button type="button" data-filter="" aria-pressed=${this.filter === '' ? 'true' : 'false'} @click=${() => (this.filter = '')}>${wt('fAll')} <span class="num">${this.all.length}</span></button>
-          ${STATES.map((s) => html`<button type="button" data-filter=${s} aria-pressed=${this.filter === s ? 'true' : 'false'} @click=${() => (this.filter = s)}>${BILL_STATE[s].label} <span class="num">${cnt(s)}</span></button>`)}</div>
+        <sw-segmented label=${wt('stateFilter')} data-bill-filter value=${this.filter} @change=${(e: CustomEvent<SegmentedChange>) => (this.filter = e.detail.value as typeof this.filter)}
+          .options=${[{ value: '', label: wt('fAll'), count: String(this.all.length), attrs: { 'data-filter': '' } }, ...STATES.map((s) => ({ value: s, label: BILL_STATE[s].label, count: String(cnt(s)), attrs: { 'data-filter': s } }))]}></sw-segmented>
         <label class="inp"><sw-icon name="search" size="16"></sw-icon><input type="search" data-bill-search placeholder=${wt('billSearch')} aria-label=${wt('billSearch')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>
         <span class="sp"></span>
         <sw-button icon="download" data-csv ?disabled=${!list.length} @click=${() => this.exportCsv(list)}>${wt('csv')}</sw-button>
@@ -274,7 +275,8 @@ export class WaterBillsPage extends LitElement {
         <sw-button variant="primary" slot="actions" data-confirm ?disabled=${this.busy} @click=${() => void this.act(() => waterBilling.correct(b))}>${wt('dCorrectGo')}</sw-button>${cancel}
       </elec-dialog>
       <elec-dialog heading=${wt('dSentTitle')} ?open=${this.dlg === 'sent'} data-dialog="sent" @close=${() => (this.dlg = '')}>
-        <div class="fld"><span class="lbl">${wt('dSentHow')}</span><div class="seg" role="group" aria-label=${wt('dSentHow')}>${(['email', 'hand', 'other'] as How[]).map((h) => html`<button type="button" data-how=${h} aria-pressed=${this.how === h ? 'true' : 'false'} @click=${() => (this.how = h)}>${wt(HOW_KEY[h])}</button>`)}</div></div>${err}
+        <div class="fld"><span class="lbl">${wt('dSentHow')}</span><sw-segmented label=${wt('dSentHow')} value=${this.how} @change=${(e: CustomEvent<SegmentedChange>) => (this.how = e.detail.value as How)}
+        .options=${(['email', 'hand', 'other'] as How[]).map((h) => ({ value: h, label: wt(HOW_KEY[h]), attrs: { 'data-how': h } }))}></sw-segmented></div>${err}
         <sw-button variant="primary" slot="actions" data-confirm ?disabled=${this.busy} @click=${() => void this.act(() => waterBilling.markSent(b, this.how))}>${wt('save')}</sw-button>${cancel}
       </elec-dialog>
       <elec-dialog heading=${wt('dPaidTitle')} ?open=${this.dlg === 'paid'} data-dialog="paid" @close=${() => (this.dlg = '')}>

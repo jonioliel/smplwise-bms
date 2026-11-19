@@ -3,6 +3,8 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-avatar';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-remote-sessions';
 // CR-SHELL-LAZY-2436 (review 07:F24): <sw-second-factor> is imported when its section is first opened (onFactorToggle)
 import '../components/sw-native-device-card';
@@ -307,37 +309,21 @@ export class SwUserMenu extends LitElement {
     li.view .txt {
       flex: 1 1 auto;
     }
-    li.view .seg {
+    /* CR-CMP2-SEGMENTED-C-2450: the view choice is sw-segmented; the menu keeps its compact pill (2 px track, 1 px apart, the 32 px
+       key with the small label in the row's medium weight, the chosen key on the menu surface in the text ink) */
+    li.view sw-segmented {
       margin-inline-start: auto;
-    }
-    li.view .seg {
-      display: inline-flex;
-      padding: 2px;
-      gap: 1px;
-      background: var(--sw-surface-3);
-      border-radius: 999px;
-      flex: none;
-    }
-    li.view .seg button {
-      border: 0;
-      background: transparent;
-      min-block-size: 32px;
-      padding: 0 12px;
-      border-radius: 999px;
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      color: var(--sw-text-2);
-      cursor: pointer;
-    }
-    li.view .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-key, var(--sw-menu-surface));
-      color: var(--sw-seg-key-ink, var(--sw-text));
-      font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
-    }
-    li.view .seg button:focus-visible {
-      outline: var(--sw-focus-w) solid var(--sw-focus);
-      outline-offset: 1px;
+      --sw-seg-pad: 2px;
+      --sw-seg-gap: 1px;
+      --sw-seg-radius: 999px;
+      --sw-seg-btn-radius: 999px;
+      --sw-seg-h: 32px;
+      --sw-seg-key-pad: 12px;
+      --sw-seg-fs: var(--sw-fs-sm);
+      --sw-seg-fw: var(--sw-fw-medium);
+      --sw-seg-on-fw: var(--sw-fw-semibold);
+      --sw-seg-on-bg: var(--sw-seg-key, var(--sw-menu-surface));
+      --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-text));
     }
     .ic {
       display: grid;
@@ -451,7 +437,8 @@ export class SwUserMenu extends LitElement {
   };
 
   private focusables(): HTMLElement[] {
-    return Array.from(this.renderRoot.querySelectorAll<HTMLElement>('button, a[href], summary'));
+    // CR-CMP2-SEGMENTED-C-2450: a view choice's keys live in sw-segmented's shadow root - the root's activeElement is the element itself
+    return Array.from(this.renderRoot.querySelectorAll<HTMLElement>('button, a[href], summary, sw-segmented'));
   }
 
   /** The sections are <details> inside the account level: they are re-created closed whenever the level is drawn again, so the
@@ -551,7 +538,8 @@ export class SwUserMenu extends LitElement {
         ${this.screenViews.map(
           (v) => html`<li class="view" data-menu-screen-view=${v.id}>
             <span class="ic"><sw-icon name=${v.icon ?? 'layers'} size=${18}></sw-icon></span><span class="txt" id=${`mv-${v.id}`}>${v.label}</span>
-            <span class="seg" role="group" aria-labelledby=${`mv-${v.id}`}>${v.options.map((o) => html`<button type="button" data-menu-view-option=${o.value} aria-pressed=${String(v.current === o.value)} @click=${() => this.dispatchEvent(new CustomEvent('screen-view', { detail: { id: v.id, value: o.value }, bubbles: true, composed: true }))}>${o.label}</button>`)}</span>
+            <sw-segmented label=${v.label} value=${v.current} @change=${(e: CustomEvent<SegmentedChange>) => this.dispatchEvent(new CustomEvent('screen-view', { detail: { id: v.id, value: e.detail.value }, bubbles: true, composed: true }))}
+              .options=${v.options.map((o) => ({ value: o.value, label: o.label, attrs: { 'data-menu-view-option': o.value } }))}></sw-segmented>
           </li>`,
         )}
         ${this.homeHref

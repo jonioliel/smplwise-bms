@@ -78,21 +78,25 @@ export const insightCss = css`
     transition: background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
   }
   .btn:active:not(:disabled) { transform: scale(0.97); }
-  .btn:focus-visible, .chip:focus-visible, .seg button:focus-visible, .month button:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
+  .btn:focus-visible, .chip:focus-visible, .month button:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
   .btn:disabled { opacity: var(--sw-disabled-opacity, 0.5); cursor: default; }
   .btn.primary, .btn.pri { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); box-shadow: var(--sw-shadow-1); }
   .btn.icon { padding: 7px; inline-size: var(--sw-ctl-h-lg); }
   .btn sw-icon { --sw-icon-size: 16px; }
 
-  /* a segmented choice (range, language): one pill track, the chosen segment raised on it */
-  .seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); }
-  .seg button {
-    border: 0; background: transparent; color: var(--sw-text-2); padding: 6px 14px; min-block-size: calc(var(--sw-ctl-h-lg) - 4px); border-radius: var(--sw-r-pill); cursor: pointer;
-    font-weight: var(--sw-fw-medium); white-space: nowrap; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
-    transition: background-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
+  /* a segmented choice (range, language): one pill track, the chosen segment raised on it.
+     CR-CMP2-SEGMENTED-C-2450: the keys are sw-segmented; the pill track (2 px), the pill key with the medium label in the page's own
+     size, and the chosen key's heading ink stay through its knobs */
+  sw-segmented {
+    --sw-seg-pad: 2px;
+    --sw-seg-radius: var(--sw-r-pill);
+    --sw-seg-btn-radius: var(--sw-r-pill);
+    --sw-seg-h: calc(var(--sw-ctl-h-lg) - 4px);
+    --sw-seg-fs: 1em;
+    --sw-seg-fw: var(--sw-fw-medium);
+    --sw-seg-on-fw: var(--sw-fw-semibold);
+    --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-heading));
   }
-  .seg button:active { transform: scale(0.97); }
-  .seg button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface)); color: var(--sw-seg-key-ink, var(--sw-heading)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
 
   .chips { display: flex; gap: 6px; flex-wrap: wrap; }
   .chip {
@@ -263,7 +267,6 @@ export const insightCss = css`
     button.kpi:hover:not([aria-pressed='true']) { border-color: var(--sw-border-strong); }
     .btn:hover:not(:disabled) { background: var(--sw-surface-2); }
     .btn.primary:hover:not(:disabled), .btn.pri:hover:not(:disabled) { background: var(--sw-accent-hover); }
-    .seg button:hover:not([aria-pressed='true']) { color: var(--sw-text); }
     .month button:hover:not(:disabled) { background: var(--sw-surface); }
     button.chip:hover:not(.sel) { border-color: var(--sw-border-strong); color: var(--sw-text); }
     tbody.click tr.hit:hover td { background: var(--sw-surface-2); }
@@ -274,7 +277,7 @@ export const insightCss = css`
   @media (max-width: 1100px) {
     .btn, .inp { min-block-size: 44px; }
     .btn.icon { inline-size: 44px; }
-    .seg button { min-block-size: 40px; }
+    sw-segmented { --sw-seg-h: 40px; }
     .month button { inline-size: 40px; block-size: 40px; }
     .chip { min-block-size: 40px; }
     .checks label { min-block-size: 44px; }
@@ -302,8 +305,7 @@ export const insightCss = css`
     .kpi b { font-size: var(--sw-fs-3xl); }
     .kpis.figs .kpi b { font-size: var(--sw-fs-2xl); }
     .toolbar { padding: 10px 12px; }
-    .toolbar .seg { inline-size: 100%; }
-    .toolbar .seg button { flex: 1; padding-inline: 6px; }
+    .toolbar sw-segmented { inline-size: 100%; --sw-seg-key-flex: 1 1 0; --sw-seg-key-pad: 6px; }
     .toolbar .place-m { inline-size: 100%; }
     .toolbar .place-m select { flex: 1; }
     .toolbar .month { flex: 1; justify-content: space-between; }

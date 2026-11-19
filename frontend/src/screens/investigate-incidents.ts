@@ -9,6 +9,8 @@ import '../components/sw-state-panel';
 import '../components/sw-camera-tile';
 import '../components/sw-case-picker';
 import '../components/sw-sheet';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import '../map/sw-plan-canvas';
 import '../incidents/settings-form';
 import type { PlanMarker } from '../map/sw-plan-canvas';
@@ -36,7 +38,6 @@ import { navigate } from '../router';
 import { refreshIncidents } from '../incidents/store';
 import { SkinController } from '../design/skin';
 import { tr } from '../i18n/msg/investigate';
-import { activateKeydown } from '../components/a11y-keys'; // CR-A11Y-ROWS-2443 (D14): Enter / Space on a clickable row or card
 import { ToastController } from '../components/toast-controller';
 
 type Part = 'cams' | 'map' | 'doors' | 'chain';
@@ -191,19 +192,11 @@ export class InvestigateIncidents extends LitElement {
     .chainfoot { flex: none; display: flex; gap: 8px; padding: 0 16px 12px; }
     .ptabs { display: none; }
     .only-phone { display: none; }
-    table.t { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-md); }
-    table.t th { text-align: start; font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-sm); color: var(--sw-text-2); padding: 8px 12px; border-block-end: 1px solid var(--sw-border-strong); white-space: nowrap; background: var(--sw-surface-2); }
-    table.t td { padding: 12px 14px; border-block-end: 1px solid var(--sw-border); vertical-align: middle; white-space: nowrap; }
-    table.t tbody tr { cursor: pointer; }
-    /* R5-INVESTIGATE-297 loop 2: hover only under a fine pointer; the row's title sinks on pointer-down (a tr cannot transform) */
-    @media (hover: hover) and (pointer: fine) { table.t tbody tr:hover { background: var(--sw-hover-wash); } }
-    table.t tbody tr:active { background: var(--sw-surface-2); }
+    /* CR-CMP2-TABLES-2450 (owner N10): the recent incidents are the shared table (its rows answer the pointer and the keyboard);
+       the list panel's header band, the investigation lists' taller rows and reading size (R5-INVESTIGATE-297 size hooks) */
+    sw-table[data-incidents-table] { --sw-table-min: 0; --sw-table-head-bg: var(--sw-surface-2); --sw-table-cell-pad: 12px 14px; --sw-table-fs: var(--sw-fs-md); }
     .cards .c, .dr, .li { transition: transform var(--sw-t-press) var(--sw-ease-out); }
     .cards .c:active { transform: scale(var(--sw-press-scale)); }
-    table.t tbody tr:last-child td { border-block-end: 0; }
-    td .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); font-size: var(--sw-fs-lg); }
-    table.t td.num { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
-    td .t2 { display: block; font-size: var(--sw-fs-sm); color: var(--sw-text-3); white-space: normal; }
     .cards { display: none; gap: 8px; padding: 0 12px 12px; }
     .cards .c { border: 0; border-radius: var(--sw-r-sm); padding: 10px 12px; min-block-size: 56px; display: grid; gap: 2px; background: var(--sw-surface-2); cursor: pointer; text-align: start; font: inherit; color: inherit; }
     .cards .c .r1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
@@ -256,7 +249,7 @@ export class InvestigateIncidents extends LitElement {
       .dr { padding-inline: 10px; grid-template-columns: 56px minmax(0, 1fr) auto; }
       .dr .when { display: none; }
       .chain, .rows { padding-inline: 12px; }
-      table.t { display: none; }
+      sw-table[data-incidents-table] { display: none; }
       .cards { display: grid; }
       .ptabs button { min-block-size: 44px; }
     }
@@ -565,6 +558,19 @@ export class InvestigateIncidents extends LitElement {
 
   // ---------------------------------------------------------------- render helpers
 
+  /** CR-CMP2-TABLES-2450 (owner N10): the recent-incidents columns on the shared table - state, incident (title + place), source, opened,
+   * closed, duration (the times are LTR isolates). sw-table gives every row a tab stop and Enter / Space (its row-select listener). */
+  private incidentColumns(srcWord: (i: Incident) => string, dur: (i: Incident) => string): TableColumn<Incident>[] {
+    return [
+      { key: 'status', label: it('colState'), kind: 'status', render: (i) => html`<sw-badge filled kind=${i.status === 'open' ? 'error' : 'offline'} label=${i.status === 'open' ? it('statusOpen') : it('statusClosed')}></sw-badge>` },
+      { key: 'title', label: it('colIncident'), render: (i) => html`<span class="t1">${i.title}</span><span class="t2">${[i.building_name, i.floor_name].filter(Boolean).join(' · ')}</span>` },
+      { key: 'source', label: it('colSource'), render: (i) => srcWord(i) },
+      { key: 'opened', label: it('colOpened'), render: (i) => html`<span class="num">${this.when(i.opened_at, true)}</span>` },
+      { key: 'closed', label: it('colClosed'), render: (i) => html`<span class="num">${i.closed_at ? this.when(i.closed_at, true) : '-'}</span>` },
+      { key: 'duration', label: it('colDuration'), render: (i) => html`<span class="num">${dur(i)}</span>` },
+    ];
+  }
+
   private when(iso: string | null | undefined, withDay = false): string {
     if (!iso) return '-';
     return withDay ? `${dayMonthText(iso)} · ${timeText(iso)}` : timeText(iso, { seconds: true });
@@ -616,13 +622,9 @@ export class InvestigateIncidents extends LitElement {
       <div class="panel listwrap">
         <div class="hd"><h2>${it('recent')}</h2><span class="sp"></span><span class="mut">${it('retention', { n: l.retention_days })}</span></div>
         ${rows.length ? html`
-          <table class="t" data-incidents-table><thead><tr><th>${it('colState')}</th><th>${it('colIncident')}</th><th>${it('colSource')}</th><th>${it('colOpened')}</th><th>${it('colClosed')}</th><th>${it('colDuration')}</th></tr></thead><tbody>
-            ${rows.slice(0, 8).map((i) => html`<tr tabindex="0" data-incident-row=${i.id} data-status=${i.status} @click=${() => navigate(`/investigate/incidents/${i.id}`)} @keydown=${activateKeydown(() => navigate(`/investigate/incidents/${i.id}`))}>
-              <td><sw-badge filled kind=${i.status === 'open' ? 'error' : 'offline'} label=${i.status === 'open' ? it('statusOpen') : it('statusClosed')}></sw-badge></td>
-              <td><span class="t1">${i.title}</span><span class="t2">${[i.building_name, i.floor_name].filter(Boolean).join(' · ')}</span></td>
-              <td>${srcWord(i)}</td><td class="num">${this.when(i.opened_at, true)}</td><td class="num">${i.closed_at ? this.when(i.closed_at, true) : '-'}</td><td class="num">${dur(i)}</td>
-            </tr>`)}
-          </tbody></table>
+          <sw-table data-incidents-table bare .columns=${this.incidentColumns(srcWord, dur) as unknown as TableColumn[]} .rows=${rows.slice(0, 8) as unknown as Record<string, unknown>[]}
+            .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-incident-row': String(r.id), 'data-status': String(r.status) })}
+            @row-select=${(e: CustomEvent<{ id: string }>) => navigate(`/investigate/incidents/${e.detail.id}`)}></sw-table>
           <div class="cards">${rows.slice(0, 5).map((i) => html`<button type="button" class="c" data-incident-card=${i.id} @click=${() => navigate(`/investigate/incidents/${i.id}`)}>
             <div class="r1"><span class="t1">${i.title}</span><sw-badge filled kind=${i.status === 'open' ? 'error' : 'offline'} label=${i.status === 'open' ? it('statusOpen') : it('statusClosed')}></sw-badge></div>
             <div class="mut">${srcWord(i)} · ${this.when(i.opened_at, true)} · ${dur(i)}</div></button>`)}</div>`

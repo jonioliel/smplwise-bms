@@ -5,19 +5,18 @@
  */
 import { api, apiBlob, del, get, post, put } from './client';
 import { dispositionName, saveBlob } from './download';
+import type * as Wire from './generated/wire-temperature';
+
+/* The wire shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/temperature.py, generated into
+ * ./generated/wire-temperature.ts): a field the server renames or drops is a compile error here (code review 07:F8 step 2). Narrowed on
+ * purpose (each noted where it is declared): the known sets of kinds, states and reasons, the point tuples, and the computed documents the
+ * server passes through untyped (a unit's rules, the sensor health, the insights, a report unit, an explanation's evidence). */
 
 export type UnitKind = 'fridge' | 'freezer' | 'coldroom' | 'pharma' | 'server' | 'room';
 /** off = a climate unit switched off (a state, not an alarm; owner 2026-10-19) */
 export type UnitStatus = 'ok' | 'warning' | 'alarm' | 'offline' | 'off' | 'unknown';
 type BandMode = 'fixed' | 'setpoint';
 export type SourceKind = 'sensor' | 'climate';
-interface Hvac {
-  setpoint: number | null;
-  setpoint_low: number | null;
-  setpoint_high: number | null;
-  hvac_mode: string | null;
-  hvac_action: string | null;
-}
 /** phase 3: predict (an early warning), battery / frozen / recovery / duty (health), maint / escalate / ticket (acts) */
 export type EventKind = 'high' | 'low' | 'door' | 'offline' | 'defrost' | 'ack' | 'mute' | 'predict' | 'battery' | 'frozen' | 'recovery' | 'duty' | 'maint' | 'escalate' | 'ticket';
 export type Severity = 'info' | 'warning' | 'alarm';
@@ -25,42 +24,22 @@ type DefrostMode = 'fixed' | 'learn' | 'none';
 type DefrostState = 'learning' | 'learned' | 'none_found' | 'fixed' | 'none';
 export type RangeKey = '24h' | '7d' | '30d' | 'custom';
 
-export interface TempEvent {
-  id: string;
-  unit_id: string;
-  unit_name?: string;
+/** One alert-log row; narrowed: the kinds, severities and suppressions the runtime writes, the detail keys of each kind. The phase-3
+ * fields stay optional here (an older server, and the report's own rows built into this shape, have none of them). */
+export type TempEvent = Omit<Wire.TempEvent, 'kind' | 'severity' | 'suppressed' | 'detail' | 'escalation_level' | 'ticket_id'> &
+  Partial<Pick<Wire.TempEvent, 'escalation_level' | 'ticket_id'>> & {
   kind: EventKind;
   severity: Severity;
-  started_at: string;
-  warned_at: string | null;
-  alarmed_at: string | null;
-  ended_at: string | null;
-  value: number | null;
-  peak: number | null;
-  threshold: number | null;
   suppressed: 'quiet' | 'mute' | 'defrost' | 'off' | 'maintenance' | null;
-  ack_at: string | null;
-  ack_by_name: string | null;
-  notified: boolean;
-  /** for an open warning: when it turns into an alarm if it does not end (null = the alarm is off) */
-  alarm_at?: string | null;
   detail: {
     minutes?: number; until?: string; hard_max?: boolean; window?: boolean; closed?: string;
     /** phase 3 */
     reason?: string; ended_early?: boolean; level?: number; of?: string; side?: 'high' | 'low'; eta_min?: number; rate_h?: number; battery?: number | null;
     median_recovery_min?: number | null; recent?: number | null; before?: number | null; number?: number; absorbed?: boolean;
   };
-  /** phase 3: how many steps of the escalation chain this alarm reached; the service ticket opened from it */
-  escalation_level?: number;
-  ticket_id?: string | null;
-}
+};
 
-export interface DefrostWindow {
-  start_min: number;
-  minutes: number;
-  status: 'fixed' | 'learned' | 'confirmed' | 'rejected';
-  repeats?: number;
-}
+export type DefrostWindow = Omit<Wire.TempDefrostWindow, 'status'> & { status: 'fixed' | 'learned' | 'confirmed' | 'rejected' };
 
 interface UnitRules {
   warn_on_excursion: boolean;
@@ -102,13 +81,6 @@ interface UnitRules {
   duty_alert?: boolean;
 }
 
-/** Phase 3 (idea 5): the projection of the slope of the last 30 minutes towards an edge of the band. */
-interface Prediction {
-  side: 'high' | 'low';
-  threshold: number;
-  eta_min: number;
-  rate_h: number;
-}
 /** Phase 3 (idea 8): the temperature sensor's own device - battery, signal, reading age, a frozen value; `issues` adds recovery / duty. */
 type HealthIssue = 'battery' | 'frozen' | 'signal' | 'recovery' | 'duty';
 export interface Health {
@@ -149,98 +121,37 @@ interface DutyInsight {
   days: { day: string; pct: number | null; minutes: number }[];
 }
 /** Phase 3 (ideas 2 and 6): recomputed hourly from the stored history. */
-export interface Insights {
-  door: DoorInsight | null;
-  duty: DutyInsight | null;
-  computed_at: string | null;
-}
-export interface Maintenance {
-  until: string;
-  reason: string;
-  by_name: string | null;
-}
-interface LinkedTicket {
-  ticket_id: string;
-  number: number;
-  event_id: string | null;
-  status: string | null;
-  created_at: string;
-}
+export type Insights = Omit<Wire.TempInsights, 'door' | 'duty'> & { door: DoorInsight | null; duty: DutyInsight | null };
+export type Maintenance = Wire.TempMaintenance;
 
-interface Stats {
-  min: number | null;
-  max: number | null;
-  avg: number | null;
-  out_min: number;
-  out_min_raw: number;
-  door_opens: number;
-  door_total_min: number;
-  door_longest_min: number;
-  alarms: number;
-  warnings: number;
-}
+type Stats = Wire.TempStats24h;
 
-export interface TempUnit {
-  id: string;
-  name: string;
+/** Phase 3 of a unit's answer: optional on the client (an older server sent none of it). */
+type TempPhase3 = 'floor_id' | 'floor_name' | 'floor_level' | 'prediction' | 'power' | 'maintenance' | 'tickets';
+
+/** One unit with its live status; narrowed: the unit kinds, the effective rules, the defrost states, the health / insight documents, the
+ * spark tuples ([ts, value] or a climate unit's [ts, value, setpoint]). */
+export type TempUnit = Omit<Wire.TempUnit, 'kind' | 'events' | 'defrost' | 'rules' | 'health' | 'insights' | 'spark' | 'doors_24h' | 'defrost_24h' | TempPhase3> &
+  Partial<Pick<Wire.TempUnit, TempPhase3>> & {
   kind: UnitKind;
-  area_id: string | null;
-  area_name: string | null;
-  low: number;
-  high: number;
-  hard_max: number;
-  band_mode: BandMode;
-  /** a sensor, or a climate entity (current temperature + setpoint + mode / action) */
-  source: SourceKind;
-  hvac: Hvac | null;
-  status: UnitStatus;
-  value: number | null;
-  /** the last recorded reading while the infrastructure is disconnected (shown grey) */
-  value_last: number | null;
-  updated_at: string | null;
-  trend: 'up' | 'down' | 'flat' | null;
-  temp_sensor_name: string;
-  door: { open: boolean | null; since: string | null; sensor_name: string } | null;
   events: TempEvent[];
   defrost: { mode: DefrostMode; in_window: boolean; next_at: string | null; state: DefrostState; days: number; windows: DefrostWindow[] };
-  muted_until: string | null;
   rules: UnitRules;
-  stats_24h: Stats;
-  stale: boolean;
+  /** phase 3 (an older server: absent) */
+  health?: Health;
+  insights?: Insights;
   /** [ts (unix s), value] five-minute points of the last 24 h; a climate unit adds the setpoint: [ts, value, setpoint] */
   spark?: ([number, number] | [number, number, number | null])[];
   doors_24h?: [number, number][];
   defrost_24h?: [number, number][];
-  /** managers only */
-  temp_entity_id?: string;
-  door_entity_id?: string | null;
-  power_entity_id?: string | null;
-  /** phase 3 (an older server: absent) */
-  floor_id?: string | null;
-  floor_name?: string | null;
-  floor_level?: number | null;
-  prediction?: Prediction | null;
-  health?: Health;
-  insights?: Insights;
-  power?: { w: number | null; on: boolean | null; sensor_name: string } | null;
-  maintenance?: Maintenance | null;
-  tickets?: LinkedTicket[];
-}
+};
 
-export interface UnitsResponse {
+export type UnitsResponse = Omit<Wire.TempUnits, 'units' | 'summary' | 'grouping'> & {
   units: TempUnit[];
   summary: Record<UnitStatus, number>;
-  stale: boolean;
-  at: string;
-  can_manage: boolean;
-  can_ack: boolean;
-  /** phase 3: the grid's grouping (idea 7) and whether the home widget is offered (idea 12) */
-  grouping?: 'area' | 'none';
-  home_widget?: boolean;
-  ticket_department_id?: string | null;
-  /** TEMPEXPLAIN093-295 (additive): the "why?" explanation of an excursion is offered (installation setting explain_enabled) */
-  explain?: boolean;
-}
+  /** phase 3: the grid's grouping (idea 7) */
+  grouping: 'area' | 'none';
+};
 
 /** TEMPEXPLAIN093-295: one factor of a rule-based excursion explanation - a key (the words live in i18n/temperature), its score and its evidence. */
 export type ExplainKey = 'maint' | 'defrost' | 'door' | 'outage' | 'compressor_off' | 'compressor_no_power' | 'compressor_on' | 'unit_off' | 'setpoint' | 'gap' | 'spike' | 'shared' | 'local' | 'gradual';
@@ -249,100 +160,35 @@ export interface ExplainFactor {
   score: number;
   vars: Record<string, string | number | boolean | null | string[]>;
 }
-export interface Explanation {
-  unit_id: string;
-  event_id: string | null;
-  kind: 'high' | 'low';
-  started_at: string | null;
-  ended_at: string | null;
-  peak: number | null;
-  factors: ExplainFactor[];
-  primary: ExplainKey | null;
-  confidence: 'high' | 'medium' | 'low' | 'none';
-  reason: 'no_samples' | null;
-  profile: { rate_h: number | null; duration_min: number; ongoing: boolean } | null;
-  generated_at: string;
-}
+export type Explanation = Omit<Wire.TempExplanation, 'factors' | 'primary'> & { factors: ExplainFactor[]; primary: ExplainKey | null };
 
-export interface HistoryResponse {
-  from: number;
-  to: number;
-  step: number;
-  source: 'raw' | '5m';
-  /** [ts, avg, min, max, defrost 0/1, setpoint (climate units; null otherwise)] */
+/** points: [ts, avg, min, max, defrost 0/1, setpoint (climate units; null otherwise)] */
+export type HistoryResponse = Omit<Wire.TempHistory, 'points' | 'doors' | 'defrost'> & {
   points: [number, number, number, number, number, number | null][];
-  low: number;
-  high: number;
   doors: [number, number][];
   defrost: [number, number][];
-  stats: Stats;
-  zone: string;
-}
+};
 
-export interface Recipients {
-  roles: string[];
-  users: string[];
-  groups: string[];
-}
+export type Recipients = Wire.TempRecipients;
 
-export interface ManagedUnit {
-  id: string;
-  name: string;
+/** The power sensor (phase 3) stays optional on the client (an older server sent none). */
+export type ManagedUnit = Omit<Wire.TempManagedUnit, 'kind' | 'rules' | 'power_entity_id' | 'power_sensor_name' | 'power_missing'> &
+  Partial<Pick<Wire.TempManagedUnit, 'power_entity_id' | 'power_sensor_name' | 'power_missing'>> & {
   kind: UnitKind;
-  area_id: string | null;
-  enabled: boolean;
-  sort_order: number;
-  revision: number;
-  temp_entity_id: string;
-  temp_sensor_name: string;
-  temp_missing: boolean;
-  door_entity_id: string | null;
-  door_sensor_name: string;
-  door_missing: boolean;
-  door_invert: boolean;
-  /** phase 3: a smart plug / current meter (read only) for the compressor duty cycle */
-  power_entity_id?: string | null;
-  power_sensor_name?: string;
-  power_missing?: boolean;
-  low: number;
-  high: number;
-  band_mode: BandMode;
-  source: SourceKind;
   rules: Partial<Record<string, boolean | number | string>>;
-  recipients: Recipients | null;
-  defrost_mode: DefrostMode;
-  defrost_windows: { start: string; minutes: number }[];
-}
+};
 
-interface RuleSpec {
-  type: 'bool' | 'int' | 'float' | 'hhmm' | 'choice' | 'id' | 'text' | 'ids';
-  min: number | null;
-  max: number | null;
-  choices?: string[];
-}
+type RuleSpec = Omit<Wire.TempRuleSpec, 'type'> & { type: 'bool' | 'int' | 'float' | 'hhmm' | 'choice' | 'id' | 'text' | 'ids' };
 
-export interface ManageResponse {
+export type ManageResponse = Omit<Wire.TempManage, 'units' | 'defaults' | 'rule_specs' | 'kinds' | 'templates'> & {
   units: ManagedUnit[];
   defaults: Record<string, boolean | number | string>;
   rule_specs: Record<string, RuleSpec>;
   kinds: UnitKind[];
   templates: Record<string, [number, number]>;
-  areas: { area_id: string; name: string; floor_name: string | null }[];
-}
+};
 
-export interface Candidate {
-  entity_id: string;
-  name: string;
-  device_class: string | null;
-  area_name: string | null;
-  value: number | null;
-  state: 'on' | 'off' | null;
-  /** temp candidates: `sensor` or `climate` (grouped in the wizard); door candidates: `door`; phase 3 power candidates: `power` */
-  group: 'sensor' | 'climate' | 'door' | 'power';
-  setpoint: number | null;
-  hvac_mode: string | null;
-  watts?: number | null;
-}
+export type Candidate = Omit<Wire.TempCandidate, 'state'> & { state: 'on' | 'off' | null };
 
 export interface UnitBody {
   name: string;
@@ -363,12 +209,11 @@ export interface UnitBody {
   revision?: number;
 }
 
-export interface SettingsResponse {
+export type SettingsResponse = Omit<Wire.TempSettings, 'rules' | 'code_defaults' | 'rule_specs'> & {
   rules: Record<string, boolean | number | string | string[]>;
   code_defaults: Record<string, boolean | number | string | string[]>;
-  row_version: number;
   rule_specs: Record<string, RuleSpec>;
-}
+};
 
 export type AlertKind = 'alarm' | 'warning' | 'offline' | 'health';
 export type AlertChannel = 'push' | 'app' | 'email' | 'whatsapp';
@@ -387,17 +232,12 @@ export interface Escalation {
   channels: AlertChannel[];
   steps: EscalationStep[];
 }
-export interface AlertSettings {
+export type AlertSettings = Omit<Wire.TempAlertSettings, 'kinds' | 'escalation' | 'channels' | 'kinds_order'> & {
   kinds: Record<AlertKind, AlertKindSettings>;
-  /** an older server: absent */
-  escalation?: Escalation;
-  steps_max?: number;
-  row_version: number;
-  roles: { id: string; label: string }[];
+  escalation: Escalation;
   channels: AlertChannel[];
   kinds_order: AlertKind[];
-  can_edit: boolean;
-}
+};
 
 export interface LogQuery {
   unit?: string;
@@ -427,7 +267,7 @@ export const getUnit = (id: string) => get<TempUnit>(`${B}/${enc(id)}`);
 export const getHistory = (id: string, range: RangeKey, from?: string, to?: string, points = 600) =>
   get<HistoryResponse>(`${B}/${enc(id)}/history${logQs({ range, from, to }, { points: String(points) })}`);
 export const listEvents = (q: LogQuery) => get<{ events: TempEvent[]; total: number }>(`${B}/events${logQs(q)}`);
-export const ackUnit = (id: string, eventId?: string) => post<{ acked: number; at: string }>(`${B}/${enc(id)}/ack`, eventId ? { event_id: eventId } : {});
+export const ackUnit = (id: string, eventId?: string) => post<Wire.TempAcked>(`${B}/${enc(id)}/ack`, eventId ? { event_id: eventId } : {});
 export const muteUnit = (id: string, body: { minutes?: number; until_defrost_end?: boolean }) => post<{ muted_until: string }>(`${B}/${enc(id)}/mute`, body);
 export const unmuteUnit = (id: string) => del(`${B}/${enc(id)}/mute`);
 
@@ -452,17 +292,11 @@ export const endMaintenance = (id: string) => del(`${B}/${enc(id)}/maintenance`)
 export const getExplanation = (id: string, o: { eventId?: string; at?: string }) =>
   get<Explanation>(`${B}/${enc(id)}/explain${logQs({}, o.eventId ? { event_id: o.eventId } : { at: o.at ?? '' })}`);
 /** phase 3 (idea 11): a service ticket from the unit or one of its alert rows */
-export interface TicketDraft {
-  title: string;
-  description: string;
-  departments: { id: string; name: string }[];
-  department_id: string | null;
-  attach_chart: boolean;
-}
+export type TicketDraft = Wire.TempTicketDraft;
 export const getTicketDraft = (id: string, eventId?: string | null, lang: 'he' | 'en' = 'he') =>
   get<TicketDraft>(`${B}/${enc(id)}/ticket/draft${logQs({}, eventId ? { event_id: eventId, lang } : { lang })}`);
 export const openTicket = (id: string, body: { department_id: string; title?: string; description?: string; event_id?: string | null; attach_chart?: boolean; lang?: 'he' | 'en' }) =>
-  post<{ ticket_id: string; number: number; result: 'created' | 'absorbed'; chart_attached: boolean }>(`${B}/${enc(id)}/ticket`, body);
+  post<Wire.TempTicketOpened>(`${B}/${enc(id)}/ticket`, body);
 
 /** The alert log as CSV (the browser's own download). */
 export async function downloadLogCsv(q: LogQuery, lang: 'he' | 'en' = 'he'): Promise<void> {
@@ -515,25 +349,7 @@ interface ReportUnit {
   /** phase 3: the HACCP daily table (layout haccp only) */
   daily?: { day: string; min: number | null; max: number | null; avg: number | null; out_min: number; out_min_raw: number; alarms: number; door_opens: number | null; coverage: number; verdict: 'ok' | 'exc' | 'none' }[];
 }
-export interface ReportModel {
-  v: number;
-  lang: 'he' | 'en';
-  from: number;
-  to: number;
-  zone: string;
-  generated: number;
-  units: ReportUnit[];
-  chart: boolean;
-  events: boolean;
-  /** a LINE only today (owner decision 4); a future electronic signature is a new mode */
-  signature: { mode: 'line' } | null;
-  layout?: 'standard' | 'haccp';
-  samples?: boolean;
-  digest: string;
-  range_text: string;
-  text_summary: string;
-  filename: string;
-}
+export type ReportModel = Omit<Wire.TempReportPreview, 'units'> & { units: ReportUnit[] };
 export interface ReportRecipient {
   id: string;
   name: string;
@@ -556,41 +372,14 @@ export interface RecipientPick {
   /** vendors only: the channel chosen for this report (never switched automatically) */
   channel?: VendorChannel;
 }
-export interface RecipientsResponse {
-  users: ReportRecipient[];
-  vendors: ReportRecipient[];
-  send_hours: { from: string; to: string };
-  attachment: string;
-  /** TEMPREPORT-297: the summary to a system user carries a temporary link to his PDF (mode on and this sender may send links) */
-  user_attachment?: string;
-  attachment_modes: string[];
-  /** TEMPVENDOR-295: vendor reports on / e-mail on (both off by default) */
-  vendor_reports?: { enabled: boolean; email: boolean };
-}
-export interface SendRow {
-  id: string;
-  name: string;
+/** `user_attachment` (TEMPREPORT-297) and `vendor_reports` (TEMPVENDOR-295) stay optional on the client (an older server: absent). */
+export type RecipientsResponse = Omit<Wire.TempReportRecipients, 'users' | 'vendors' | 'user_attachment' | 'vendor_reports'> &
+  Partial<Pick<Wire.TempReportRecipients, 'user_attachment' | 'vendor_reports'>> & { users: ReportRecipient[]; vendors: ReportRecipient[] };
+export type SendRow = Omit<Wire.TempSendRow, 'status' | 'channel'> & {
   status: 'queued' | 'held' | 'retry' | 'handed' | 'sent' | 'failed' | 'skipped';
-  reason: string | null;
-  kind?: 'vendor';
   channel?: VendorChannel | null;
-  not_before: string;
-  finished_at: string | null;
-}
-export interface Schedule {
-  id: string;
-  units: string[];
-  range_key: ReportRange;
-  lang: 'he' | 'en';
-  freq: 'daily' | 'weekly' | 'monthly';
-  dow: number | null;
-  dom: number | null;
-  at: string;
-  recipients: RecipientPick[];
-  enabled: boolean;
-  next_run_at: string;
-  last_run_at: string | null;
-}
+};
+export type Schedule = Omit<Wire.TempSchedule, 'range_key' | 'recipients'> & { range_key: ReportRange; recipients: RecipientPick[] };
 
 export function reportQs(p: ReportParams): string {
   const q = new URLSearchParams({ units: p.units.join(','), range: p.range, lang: p.lang });
@@ -610,7 +399,7 @@ export function reportQs(p: ReportParams): string {
 export const getReportPreview = (p: ReportParams) => get<ReportModel>(`${B}/report/preview${reportQs(p)}`);
 export const getReportRecipients = () => get<RecipientsResponse>(`${B}/report/recipients`);
 export const sendReport = (body: { units: string[]; range: ReportRange; from?: string; to?: string; lang: 'he' | 'en'; recipients: RecipientPick[] }) =>
-  post<{ batch_id: string; queued: number; sends: SendRow[] }>(`${B}/report/send`, body);
+  post<Omit<Wire.TempReportSent, 'sends'> & { sends: SendRow[] }>(`${B}/report/send`, body);
 export const getSends = (batch: string) => get<{ sends: SendRow[] }>(`${B}/report/sends/${enc(batch)}`);
 export const listSchedules = () => get<{ schedules: Schedule[] }>(`${B}/report/schedules`);
 export const createSchedule = (body: { units: string[]; range: ReportRange; lang: 'he' | 'en'; freq: string; at: string; dow?: number | null; dom?: number | null; recipients: RecipientPick[] }) =>
@@ -618,42 +407,11 @@ export const createSchedule = (body: { units: string[]; range: ReportRange; lang
 export const deleteSchedule = (id: string) => del(`${B}/report/schedules/${enc(id)}`);
 
 /** TEMPLINK-295: the temporary download link of a report (infra.temperature.report_link; off until the settings turn it on). */
-export interface ReportLink {
-  id: string;
-  filename: string;
-  created_at: string;
-  expires_at: string;
-  opens: number;
-  max_opens: number;
-  state: 'live' | 'expired' | 'revoked' | 'used';
-  created_by: string | null;
-  /** TEMPREPORT-297: the link went out inside a WhatsApp report, to this recipient (display name) */
-  sent?: boolean;
-  recipient?: string | null;
-}
-interface ReportLinksResponse {
-  available: boolean;
-  hours: number;
-  max_opens: number;
-  /** WALINK-295: the plain-text WhatsApp send of a link is offered (setting on, recipients set, and the caller may send) */
-  whatsapp?: { available: boolean };
-  links: ReportLink[];
-}
+export type ReportLink = Wire.TempReportLink;
+type ReportLinksResponse = Wire.TempReportLinks;
 /** WALINK-295: one recipient's typed result. `not_sendable` is never shown as sent. */
-interface LinkSendResult {
-  user_id: string;
-  name: string;
-  status: 'sent' | 'not_sendable' | 'failed';
-  reason: string | null;
-}
-export interface LinkSendResponse {
-  status: 'sent' | 'partial' | 'not_sendable' | 'failed';
-  sent: number;
-  not_sendable: number;
-  failed: number;
-  results: LinkSendResult[];
-}
-export type ReportLinkCreated = ReportLink & { url: string };
+export type LinkSendResponse = Wire.TempLinkSent;
+export type ReportLinkCreated = Wire.TempReportLinkCreated;
 
 /** The create body: the same choices as the PDF; dates travel only with a custom range. */
 function reportLinkBody(p: ReportParams): Record<string, unknown> {
@@ -664,7 +422,7 @@ export const getReportLinks = () => get<ReportLinksResponse>(`${B}/report/links`
 export const createReportLink = (p: ReportParams) => post<ReportLinkCreated>(`${B}/report/links`, reportLinkBody(p));
 export const revokeReportLink = (id: string) => del(`${B}/report/links/${enc(id)}`);
 /** TEMPREPORT-297 (Settings): revoke every live link at once - a manager all of them, anyone else his own. */
-export const revokeAllReportLinks = () => api<{ revoked: number }>(`${B}/report/links`, { method: 'DELETE' });
+export const revokeAllReportLinks = () => api<Wire.TempRevoked>(`${B}/report/links`, { method: 'DELETE' });
 export const sendReportLink = (id: string) => post<LinkSendResponse>(`${B}/report/links/${enc(id)}/send`, {});
 
 /** The PDF (the browser's own download). */

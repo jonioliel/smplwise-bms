@@ -4,6 +4,8 @@ import '../components/sw-dialog';
 import '../components/sw-icon';
 import '../components/sw-badge';
 import '../components/sw-state-panel';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import type { RouteState } from '../router';
 import { describeError } from '../api/client';
 import {
@@ -20,7 +22,6 @@ import { canAnywhere } from '../api/session';
 import { loadHomeSettings, saveHomeSettings, type ElevatorsCfg, type HomeSettings } from '../api/home';
 import { elecCss } from '../electricity/styles';
 import { SkinController } from '../design/skin';
-import { segThumbPlainStyles } from '../styles/fragments';
 
 const ROLE_LABEL: Record<ElevatorRole, EltKey> = {
   moving_up: 'roleMovingUp', moving_down: 'roleMovingDown', waiting: 'roleWaiting', fault: 'roleFault', fire_service: 'roleFireService', door_open: 'roleDoorOpen', out_of_service: 'roleOutOfService',
@@ -59,10 +60,23 @@ export class ElevatorSettings extends LitElement {
     /* R5-MEDIA-ENERGY-297: an option row is a well inside the card (no outlined box inside a card inside a card), its label in the heading ink */
     .drow { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 12px; border: 0; background: var(--sw-surface-2); border-radius: var(--sw-r-md); padding: 10px 14px; min-block-size: 48px; }
     .drow > span:first-child { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
-    .seg { display: inline-flex; flex-wrap: wrap; background: var(--sw-surface-3); padding: 2px; border-radius: var(--sw-r-pill); gap: 1px; }
-    .seg button { border: 0; background: transparent; padding: 3px 12px; min-block-size: 30px; font: inherit; font-size: var(--sw-fs-xs); color: var(--sw-text-2); border-radius: var(--sw-r-pill); cursor: pointer; }
-    ${segThumbPlainStyles}
-    .seg button:focus-visible, .lnk:focus-visible { outline: var(--sw-focus-w, 2px) solid var(--sw-focus, var(--sw-accent)); outline-offset: 1px; }
+    /* CR-CMP2-SEGMENTED-C-2450: the display choices are sw-segmented; this card keeps its own key over the module's knobs (elecCss) -
+       the pill track on surface 3 (2 px, 1 px apart), the 30 px pill key with the extra-small label, the chosen key in the text ink */
+    sw-segmented {
+      --sw-seg-track: var(--sw-surface-3);
+      --sw-seg-pad: 2px;
+      --sw-seg-gap: 1px;
+      --sw-seg-radius: var(--sw-r-pill);
+      --sw-seg-btn-radius: var(--sw-r-pill);
+      --sw-seg-h: 30px;
+      --sw-seg-key-pad: 12px;
+      --sw-seg-fs: var(--sw-fs-xs);
+      --sw-seg-fw: var(--sw-fw-regular);
+      --sw-seg-on-fw: var(--sw-fw-semibold);
+      --sw-seg-on-bg: var(--sw-seg-key, var(--sw-surface));
+      --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-text));
+    }
+    .lnk:focus-visible { outline: var(--sw-focus-w, 2px) solid var(--sw-focus, var(--sw-accent)); outline-offset: 1px; }
     .incl { display: flex; flex-wrap: wrap; gap: 6px 14px; }
     .lnk { color: var(--sw-accent-text, var(--sw-accent)); font-size: var(--sw-fs-sm); }
     /* R5-MEDIA-ENERGY-297: an elevator row is a well (52 px) with its name 16 px / 700 in the heading ink, not a ruled table line */
@@ -77,11 +91,8 @@ export class ElevatorSettings extends LitElement {
     .foot { display: flex; justify-content: flex-end; gap: 8px; padding-block-start: 10px; }
     @media (max-width: 600px) { .map { grid-template-columns: 1fr; } }
     /* POLISH4-WP8: the segment keys give on pointer-down and are 44 px on a touch screen; the link row's three columns stack on a phone */
-    .seg button { transition: transform var(--sw-t-press) var(--sw-ease); }
-    .seg button:active { transform: scale(var(--sw-press-scale)); }
-    @media (pointer: coarse) { .seg button { min-block-size: 44px; padding-inline: 14px; } }
+    @media (pointer: coarse) { sw-segmented { --sw-seg-h: 44px; --sw-seg-key-pad: 14px; } }
     @media (max-width: 600px) { .xrow { grid-template-columns: minmax(0, 1fr) auto; } .xrow > :nth-child(2) { grid-column: 1 / -1; grid-row: 2; } }
-    @media (prefers-reduced-motion: reduce) { .seg button { transition-duration: 0ms; } .seg button:active { transform: none; } }
   `];
 
   connectedCallback() {
@@ -253,7 +264,8 @@ export class ElevatorSettings extends LitElement {
     const c = this.home.config.elevators;
     const size = c.sizes[this.home.direction]; // review L4: the size of the layout direction in use; the other directions keep theirs
     const seg = <T extends string>(label: string, values: readonly T[], cur: T, key: (v: T) => EltKey, set: (v: T) => void, attr: string) => html`<div class="drow"><span>${label}</span>
-      <span class="seg" role="group" aria-label=${label}>${values.map((v) => html`<button type="button" data-elevators-display-opt=${`${attr}:${v}`} aria-pressed=${String(cur === v)} ?disabled=${this.homeBusy} @click=${() => set(v)}>${elt(key(v))}</button>`)}</span></div>`;
+      <sw-segmented label=${label} value=${cur} ?disabled=${this.homeBusy} @change=${(e: CustomEvent<SegmentedChange>) => { const v = values.find((x) => x === e.detail.value); if (v !== undefined) set(v); }}
+        .options=${values.map((v) => ({ value: v, label: elt(key(v)), attrs: { 'data-elevators-display-opt': `${attr}:${v}` } }))}></sw-segmented></div>`;
     return html`<div class="card" data-elevators-display>
       <div class="b">${elt('displayTitle')}</div>
       <div class="dset">

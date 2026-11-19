@@ -12,6 +12,8 @@ import './tickets-table'; // CR-038 S6b (D24): the board's table view
 import '../tickets/my-numbers'; // MGRDASH: a handler's own numbers at the top of "שלי" (owner decision, question 4 b)
 import '../components/sw-pager';
 import '../components/sw-page';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { gridCols, packPages, rowGap } from './tickets-pages';
 import { LongListsController } from '../api/long-lists';
 import type { TicketsTable } from './tickets-table';
@@ -416,6 +418,9 @@ export class TicketsList extends TicketsViewBase {
     // widen afterwards
     const countsPending = this.counts === NO_COUNTS;
     const withCount = (n: number | undefined) => (n === undefined ? (countsPending ? html`<small aria-hidden="true" style="visibility:hidden">00</small>` : nothing) : html`<small>${countText(n)}</small>`);
+    // CR-CMP2-SEGMENTED-C-2450: the scope keys are sw-segmented; while the counts load two figure spaces hold the place of "00" (the glass
+    // count pill is transparent, so they are invisible and nothing shifts when the numbers land)
+    const scopeCount = (n: number | undefined) => (n === undefined ? (countsPending ? '  ' : undefined) : countText(n));
     const cards = this.view !== 'table' || this.cal; // the card filters (priority, handler, flags) also narrow the calendar
     const chips = this.chips(cards);
     // UXFIX-A11Y-295: the "new" key arrives with the meta; an invisible twin holds its place meanwhile (no shift of the title row)
@@ -431,9 +436,8 @@ export class TicketsList extends TicketsViewBase {
         </div>` : nothing}
     <header class="dh" data-tickets-header>
       ${tools ? html`<div class="dh-det tb" role="group" aria-label=${lt('lfGroup')} data-toolbar>
-        <div class="seg sm scope" role="radiogroup" aria-label=${lt('lsScopeGroup')} data-scope-seg>
-          ${this.scopes().map((sc) => html`<button type="button" role="radio" aria-checked=${String(this.r.scope === sc)} data-scope=${sc} @click=${() => writeHref(listHref(sc, f), false)}>${scopeLabel(sc)}${withCount(c.scopes[sc])}</button>`)}
-        </div>
+        <sw-segmented class="scope" radio size="sm" label=${lt('lsScopeGroup')} data-scope-seg value=${this.r.scope} @change=${(e: CustomEvent<SegmentedChange>) => writeHref(listHref(e.detail.value as typeof this.r.scope, f), false)}
+          .options=${this.scopes().map((sc) => ({ value: sc, label: scopeLabel(sc), count: scopeCount(c.scopes[sc]), attrs: { 'data-scope': sc } }))}></sw-segmented>
         <label class="search">${tIcon('search')}<span class="vh">${tt('searchShort')}</span><input type="search" data-search maxlength="80" placeholder=${this.phone ? tt('searchShort') : lt('lsSearchLong')} .value=${this.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
         <span class="fanchor">
           ${filterToggle(this.filterOpen, chips.length, () => (this.filterOpen = !this.filterOpen))}

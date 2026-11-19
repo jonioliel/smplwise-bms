@@ -1,5 +1,23 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.45.0 (pilot) - Shared tables, segmented keys and fields; two screen crashes fixed; code-review clean-up
+
+### תוקן - Fixed
+- אזעקה: אזור שמוסתר עבור המשתמש כבר לא מפיל את מסך האזעקה. - Alarm: a zone hidden from the user no longer breaks the alarm screen.
+- התקנים: סנכרון מצלמות שלא הצליח באף מקליט כבר לא מפיל את המסך. - Devices: a camera sync that succeeded on no recorder no longer breaks the screen.
+- חשמל ומים: חשבון בלי לקוח, בלי תקופה פעילה או בלי תקופה הבאה, וחשבונית שהסכום שלה לא מוצג למשתמש, מוצגים עם מקף או "אין עדיין" במקום שגיאה, NaN או 0. - Electricity and water: an account without a customer, an active period or a next period, and a bill whose total the user may not see, show a dash or "not yet" instead of an error, NaN or 0.
+- הודעות: הרשאה על אתר או בניין שנמחקו לא חלה יותר על הקומות שלהם, גם בקהל של הודעה וגם בשורת המקום של אישורי הקריאה. - Notices: a permission on a deleted site or building no longer applies to their floors, in a notice's audience and in the place line of the read receipts.
+
+### שופר - Improved
+- טבלאות: טבלאות החשמל והמים, הגנרטור, התחזוקה, יומן הטמפרטורה, האירועים האחרונים, הבזבוז, אישורי הקריאה ודוח המערכות עברו לטבלה המשותפת: אותה כותרת, אותם צבעי מצב, שורה נפתחת בלחיצה או במקלדת. ברוחב 1024 הטבלאות נכנסות לכרטיס בלי גלילה הצידה. - Tables: the electricity and water tables, the generator, maintenance, the temperature log, recent incidents, waste, read receipts and the fleet report use the shared table: one header, one set of state colours, a row opens by click or keyboard. At 1024 px the tables fit their card with no sideways scroll.
+- בוררים: רוב בוררי ה"מקטעים" שנבנו ידנית (הגדרות, יומנים, כרטיסים, התראות, כניסה, ווייזקי ועוד) הם עכשיו הבורר המשותף, ושורות השבבים הן בורר שבבים משותף. במסכי הזכוכית נשמר המראה שלהם. - Choosers: most hand-built segmented choosers (settings, calendars, tickets, notifications, access, WisKey and more) are now the shared segmented control, and the chip rows a shared chip chooser. The glass screens keep their look.
+- רשימות נפתחות בטפסים (מצב לשוניות, הכרזות, שידור, פעולות האינטרקום) יושבות בשדה המשותף. - Form drop-downs (tab mode, announcements, casting, intercom operations) sit in the shared field.
+- הודעות קצרות: שבעת המסכים האחרונים עברו לבקר ההודעות המשותף. - Short messages: the last seven screens moved to the shared message controller.
+- סקירת קוד: השאילתות של 30 נתבי שרת עברו למודולי אחסון; לכ-20 נתבים יש מודל תשובה וטיפוסים שנוצרים לממשק; הפונקציות המורכבות ביותר פוצלו; שני בקרים נוספים יצאו מהמעטפת; שני ערוצי העדכון של ווייזקי חולקים בסיס אחד; בדיקות קצה לניתוקים ולדיסק מלא. - Code review: the queries of 30 server routers moved into store modules; about 20 routers have response models and generated client types; the most complex functions were split; two more controllers left the shell; the two WisKey feed clients share one base; edge tests for disconnects and a full disk.
+
+### התקנה - Install
+- אין מיגרציה חדשה ואין צורך בהפעלה מחדש של מערכת הבית (הגשר נשאר 0.10.7). - No new migration and no home-system restart (the bridge stays 0.10.7).
+
 ## 2.44.0 (pilot) - Redacted log export; English tariff names; shared switches and messages; code-review clean-up
 
 ### חדש - New

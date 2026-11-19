@@ -46,6 +46,8 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dateInputLang, dayTimeText, timeText } from '../api/day-format';
 import '../components/sw-history-lanes';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import type { SwTimeline } from '../components/sw-timeline';
 import { isFeatureOff, apiErrorCode, isoZ, loadRange, loadSnapshot, type HistoryRange, type HistorySnapshot, type LayerStatus } from '../api/history-scrub';
 import {
@@ -748,30 +750,19 @@ export class InvestigateHistoryMap extends LitElement {
     .tlrow sw-field {
       inline-size: 150px;
     }
-    .seg {
-      display: inline-flex;
-      padding: 3px;
-      gap: 2px;
-      background: var(--sw-surface-3);
-      border-radius: var(--sw-r-sm);
-    }
-    .seg button {
-      padding: 3px 10px;
-      border-radius: calc(var(--sw-r-sm) - 2px);
-      color: var(--sw-text-2);
-      cursor: pointer;
-      font: inherit;
-      font-size: var(--sw-fs-xs);
-      white-space: nowrap;
-      border: 0;
-      background: transparent;
-      min-block-size: 24px;
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-key, var(--sw-surface-solid, var(--sw-surface)));
-      color: var(--sw-seg-key-ink, var(--sw-text));
-      font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
+    /* CR-CMP2-SEGMENTED-C-2450: the timeline row's compact keys (mode, speed, window) through the sw-segmented knobs - 24 px keys,
+       the extra-small label, the neutral ink on the chosen key */
+    .tlrow sw-segmented {
+      --sw-seg-h: 24px;
+      --sw-seg-key-pad: 10px;
+      --sw-seg-fs: var(--sw-fs-xs);
+      --sw-seg-fw: var(--sw-fw-regular);
+      --sw-seg-on-fw: var(--sw-fw-semibold);
+      --sw-seg-radius: var(--sw-r-sm);
+      --sw-seg-btn-radius: calc(var(--sw-r-sm) - 2px);
+      --sw-seg-on-bg: var(--sw-seg-key, var(--sw-surface-solid, var(--sw-surface)));
+      --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-text));
+      --sw-seg-wrap: nowrap;
     }
     .play {
       display: inline-grid;
@@ -2070,17 +2061,17 @@ export class InvestigateHistoryMap extends LitElement {
         <div class="tlrow">
           <sw-badge kind="historic"></sw-badge>
           <span class="time" data-history-time-bar>${when}</span>
-          <div class="seg" role="group" aria-label=${tr('אופן')}>
-            <button type="button" aria-pressed=${this.mode === 'snapshot' ? 'true' : 'false'} data-mode="snapshot" @click=${() => this.setMode('snapshot')}>${tr('רגע אחד')}</button>
-            <button type="button" aria-pressed=${this.mode === 'play' ? 'true' : 'false'} data-mode="play" @click=${() => this.setMode('play')}>${tr('ניגון תקופה')}</button>
-          </div>
+          <sw-segmented label=${tr('אופן')} value=${this.mode} @change=${(e: CustomEvent<SegmentedChange>) => this.setMode(e.detail.value === 'play' ? 'play' : 'snapshot')}
+            .options=${[{ value: 'snapshot', label: tr('רגע אחד'), attrs: { 'data-mode': 'snapshot' } }, { value: 'play', label: tr('ניגון תקופה'), attrs: { 'data-mode': 'play' } }]}></sw-segmented>
           ${this.mode === 'play'
             ? html`<button type="button" class="play" data-play aria-label=${this.playing ? tr('השהיה') : tr('ניגון')} aria-pressed=${this.playing ? 'true' : 'false'} @click=${() => this.togglePlay()}><sw-icon name=${this.playing ? 'pause' : 'play'} size=${18}></sw-icon></button>
-              <div class="seg speed" role="group" aria-label=${tr('מהירות')}>${SPEEDS.map((s) => html`<button type="button" data-speed=${s} aria-pressed=${this.speed === s ? 'true' : 'false'} @click=${() => (this.speed = s)}>×${s}</button>`)}</div>`
+              <sw-segmented class="speed" label=${tr('מהירות')} value=${String(this.speed)} @change=${(e: CustomEvent<SegmentedChange>) => (this.speed = SPEEDS.find((s) => String(s) === e.detail.value) ?? this.speed)}
+                .options=${SPEEDS.map((s) => ({ value: String(s), label: `×${s}`, attrs: { 'data-speed': String(s) } }))}></sw-segmented>`
             : nothing}
           <sw-chip data-step="-60" @click=${() => this.setMinute(this.minute - 60)}>${tr('-1 שעה')}</sw-chip><sw-chip data-step="-5" @click=${() => this.setMinute(this.minute - 5)}>${tr('-5 דק׳')}</sw-chip><sw-chip data-step="5" @click=${() => this.setMinute(this.minute + 5)}>${tr('+5 דק׳')}</sw-chip><sw-chip data-step="60" @click=${() => this.setMinute(this.minute + 60)}>${tr('+1 שעה')}</sw-chip>
           <span class="grow"></span>
-          <div class="seg win" role="group" aria-label=${tr('חלון')}>${SCRUB_WINDOWS.map((w) => html`<button type="button" data-window=${w.minutes} aria-pressed=${this.winMinutes === w.minutes ? 'true' : 'false'} @click=${() => this.setWindow(w.minutes)}>${w.label}</button>`)}</div>
+          <sw-segmented class="win" label=${tr('חלון')} value=${String(this.winMinutes)} @change=${(e: CustomEvent<SegmentedChange>) => this.setWindow(Number(e.detail.value))}
+            .options=${SCRUB_WINDOWS.map((w) => ({ value: String(w.minutes), label: w.label, attrs: { 'data-window': String(w.minutes) } }))}></sw-segmented>
           <span class="dateq"><sw-field><input type="date" lang=${dateInputLang()} .value=${this.date} min=${minDate ?? ''} max=${dateInZone(new Date(), this.tz)} data-ltr aria-label=${tr('תאריך')} @change=${(e: Event) => this.setDate((e.target as HTMLInputElement).value)} /></sw-field></span>
           ${this.mode === 'play' ? html`<span class="note keys"><span class="kbd">${tr('רווח')}</span> ${tr('ניגון')} · <span class="kbd">←</span><span class="kbd">→</span> ${tr('צעד')}</span>` : nothing}
         </div>

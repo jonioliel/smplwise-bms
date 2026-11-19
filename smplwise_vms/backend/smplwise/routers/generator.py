@@ -25,6 +25,7 @@ from ..services import generator_catalog as cat
 from ..services import generator_core as core
 from ..services import generator_history as history
 from ..services import generator_log as glog
+from ..services import generator_store as store
 
 router = APIRouter()
 VIEW, MANAGE = "generator.view", "generator.manage"
@@ -62,7 +63,7 @@ def _mirror_connected() -> bool:
 
 
 def _device(conn: sqlite3.Connection, device_id: str) -> sqlite3.Row:
-    row = conn.execute("SELECT * FROM generator_devices WHERE id = ? AND status <> 'removed'", (device_id,)).fetchone()
+    row = store.live_device(conn, device_id)
     if row is None:
         raise ApiError(404, "generator_not_found", "הגנרטור לא נמצא.")
     return row
@@ -71,7 +72,7 @@ def _device(conn: sqlite3.Connection, device_id: str) -> sqlite3.Row:
 def _area_name(conn: sqlite3.Connection, area_id: str | None) -> str | None:
     if not area_id:
         return None
-    r = conn.execute("SELECT name FROM ha_areas WHERE area_id = ?", (area_id,)).fetchone()
+    r = store.area_name(conn, area_id)
     return r["name"] if r else None
 
 
@@ -89,7 +90,7 @@ def _device_out(conn: sqlite3.Connection, d: sqlite3.Row, *, detail: bool, value
         "id": d["id"], "name": d["name"], "area_id": d["area_id"], "area_name": _area_name(conn, d["area_id"]), "status": d["status"], "source_kind": d["source_kind"],
         "rated_kw": d["rated_kw"], "rated_kva": d["rated_kva"], "fuel_type": d["fuel_type"], "detected_at": d["detected_at"], "last_seen_at": d["last_seen_at"], "revision": d["revision"],
         "availability": avail, "stale": avail != "online", "core_met": cat.is_core_met(roles),
-        "open_alerts": open_alerts if open_alerts is not None else conn.execute("SELECT COUNT(*) FROM generator_alerts WHERE device_id = ? AND cleared_at IS NULL", (d["id"],)).fetchone()[0],
+        "open_alerts": open_alerts if open_alerts is not None else store.open_alert_count(conn, d["id"]),
         "capabilities": {"roles": sorted(roles), "values": sum(1 for r in roles if r in value_roles), "values_total": len(value_roles),
                          "alert_types": len(types_ok), "alert_types_total": len(cat.ALERT_TYPES),
                          "disabled_roles": core.disabled_roles(conn, d["id"]),
@@ -106,12 +107,12 @@ def _device_out(conn: sqlite3.Connection, d: sqlite3.Row, *, detail: bool, value
 # ---------------------------------------------------------------- devices
 
 def _open_counts(conn: sqlite3.Connection) -> dict[str, int]:
-    return {r[0]: r[1] for r in conn.execute("SELECT device_id, COUNT(*) FROM generator_alerts WHERE cleared_at IS NULL GROUP BY device_id").fetchall()}
+    return store.open_alert_counts(conn)
 
 
 @router.get("/generator/devices")
 def list_devices(principal: Principal = Depends(_view_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    rows = conn.execute("SELECT * FROM generator_devices WHERE status <> 'removed' ORDER BY name, id").fetchall()
+    rows = store.live_devices(conn)
     values, counts = core.read_values_bulk(conn), _open_counts(conn)
     devices = [_device_out(conn, d, detail=False, values=values.get(d["id"], {}), open_alerts=counts.get(d["id"], 0)) for d in rows]
     return {"devices": devices, "detected": sum(1 for d in rows if d["status"] == "detected"), "partial": sum(1 for d in rows if d["status"] == "partial"),
@@ -125,9 +126,9 @@ def live_all(principal: Principal = Depends(_view_ro), conn: sqlite3.Connection 
     fuel and open alerts. GENWIDGET 2.9.3 (additive): the summary also carries the roles the power-flow derivation of the live screen reads
     (running flag, mains voltages, the breakers, load-on-mains), `roles` lists the mapped role keys (capability set, no entity ids) and
     `open_critical` counts the open critical alerts, so the home widget derives mains / generator exactly as the generator screen does."""
-    rows = conn.execute("SELECT id, name, area_id, status FROM generator_devices WHERE status <> 'removed' ORDER BY name, id").fetchall()
+    rows = store.live_devices_brief(conn)
     values, counts, connected = core.read_values_bulk(conn), _open_counts(conn), _mirror_connected()
-    critical = {r[0]: r[1] for r in conn.execute("SELECT device_id, COUNT(*) FROM generator_alerts WHERE cleared_at IS NULL AND severity = 'critical' GROUP BY device_id").fetchall()}
+    critical = store.open_critical_counts(conn)
     keys = ("engine_state", "controller_mode", "supply_source", "ats_position", "mains_available", "on_load", "gen_kw", "load_pct", "fuel_pct", "battery_v",
             "generator_running", "mains_v_l1", "mains_v_l2", "mains_v_l3", "mains_breaker_closed", "load_on_mains", "generator_breaker_closed")
     items = []
@@ -174,9 +175,9 @@ def device_candidates(q: str = Query("", max_length=80), limit: int = Query(50, 
                       conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The manual pick: registry devices (display names only) with how many generator roles Arx can map on each."""
     by_device = core._device_entities(conn)
-    taken = {r[0] for r in conn.execute("SELECT source_device_ref FROM generator_devices WHERE status <> 'removed'").fetchall()}
+    taken = store.taken_device_refs(conn)
     items = []
-    for d in conn.execute("SELECT * FROM ha_devices WHERE removed_at IS NULL").fetchall():
+    for d in store.live_registry_devices(conn):
         name = core._device_name(d)
         if q and q.lower() not in name.lower():
             continue
@@ -226,7 +227,7 @@ def update_device(device_id: str, body: DeviceBody, principal: Principal = Depen
         stored[device_id] = part
         core.jset(conn, "generator.thresholds", stored)
     if sets:
-        conn.execute(f"UPDATE generator_devices SET {', '.join(f'{k} = ?' for k in sets)}, revision = revision + 1 WHERE id = ?", (*sets.values(), device_id))
+        store.update_device(conn, device_id, sets)
     audit(conn, actor=principal, action="generator.device.update", decision="allowed", resource_type="generator_device", resource_id=device_id)
     return _device_out(conn, _device(conn, device_id), detail=True)
 
@@ -236,8 +237,8 @@ def update_device(device_id: str, body: DeviceBody, principal: Principal = Depen
 @router.get("/generator/devices/{device_id}/roles")
 def get_roles(device_id: str, principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _device(conn, device_id)
-    mapped = {r["role"]: r for r in conn.execute("SELECT * FROM generator_roles WHERE device_id = ?", (device_id,)).fetchall()}
-    names = {r["entity_id"]: (r["name"] or r["original_name"] or "") for r in conn.execute("SELECT entity_id, name, original_name FROM ha_entities").fetchall()}
+    mapped = {r["role"]: r for r in store.device_roles(conn, device_id)}
+    names = {r["entity_id"]: (r["name"] or r["original_name"] or "") for r in store.entity_names(conn)}
     cands = core.candidates(conn, device_id)
     overrides = core.overrides(conn, device_id)
     disabled = set(core.disabled_roles(conn, device_id))
@@ -260,7 +261,7 @@ def put_roles(device_id: str, body: RolesBody, principal: Principal = Depends(_m
     for role, eid in body.roles.items():
         if role not in cat.ROLES:
             raise ApiError(422, "validation", "תפקיד חיישן לא מוכר.", details={"fields": [f"roles.{role}"]})
-        if eid is not None and conn.execute("SELECT 1 FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (eid,)).fetchone() is None:
+        if eid is not None and not store.live_entity_exists(conn, eid):
             raise ApiError(422, "role_unmapped", "החיישן לא נמצא.", details={"fields": [f"roles.{role}"]})
     stored = core.jget(conn, "generator.role_overrides", {})
     stored = stored if isinstance(stored, dict) else {}

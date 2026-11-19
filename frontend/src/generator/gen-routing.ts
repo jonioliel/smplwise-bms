@@ -1,5 +1,7 @@
 import { LitElement, html, nothing } from 'lit';
 import '../components/sw-button';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-drawer';
@@ -255,7 +257,8 @@ export class GenRouting extends LitElement {
     return html`<sw-drawer modal .open=${!!i} heading=${i ? fill(S.editTitle, { name: i.title }) : ''} @close=${() => (this.editing = null)} data-drawer="routing">
       ${i ? html`<div class="drawer-body">
         <label class="row"><input type="checkbox" .checked=${d.enabled} @change=${() => this.patch({ enabled: !d.enabled })} data-enabled /> <span>${S.active}</span></label>
-        <div class="fld"><label>${S.severity}</label><div class="seg" role="group" data-severity>${SEVS.map((s) => html`<button aria-pressed=${(d.severity ?? i.default_severity) === s} @click=${() => this.patch({ severity: s })}>${G.alerts.sev[s]}</button>`)}</div></div>
+        <div class="fld"><label>${S.severity}</label><sw-segmented data-severity value=${d.severity ?? i.default_severity} @change=${(e: CustomEvent<SegmentedChange>) => this.patch({ severity: e.detail.value as Severity })}
+          .options=${SEVS.map((s) => ({ value: s, label: G.alerts.sev[s] }))}></sw-segmented></div>
         ${eff.roles.length + eff.users.length > 0 ? nothing : html`<div class="notice warnbox" data-empty-note>${S.routingEmpty}: ${S.routingEmptyShort}</div>`}
         ${hasRecipients(d) || eff.roles.length + eff.users.length === 0 ? nothing : html`<div class="mut" data-inherited>${grt('inheritedFrom')}: ${this.chips(eff, true)}</div>`}
         <div class="fld"><label>${S.recRoles}</label><div class="chooser" data-roles>${data.roles.map((r) => chk(r.label, d.recipients.roles.includes(r.id), () => this.patch({ recipients: { ...d.recipients, roles: this.toggle(d.recipients.roles, r.id) } })))}</div></div>
@@ -263,7 +266,8 @@ export class GenRouting extends LitElement {
           ${this.users.length > 6 ? html`<input type="search" placeholder=${G.history.search} .value=${this.userQ} @input=${(e: Event) => (this.userQ = (e.target as HTMLInputElement).value)} />` : nothing}
           <div class="chooser users" data-users>${users.map((u) => chk(u.name || u.username, d.recipients.users.includes(u.id), () => this.patch({ recipients: { ...d.recipients, users: this.toggle(d.recipients.users, u.id) } })))}</div></div>` : nothing}
         <div class="fld"><label>${S.channels}</label><div class="chooser" data-channels>${chk(S.inboxAlways, true, () => undefined, true)}${data.channels.map((c) => chk(chLabel(c), d.channels.includes(c), () => this.patch({ channels: this.toggle(d.channels, c) })))}${data.channels_reserved.map((c) => chk(chLabel(c), false, () => undefined, true, S.soon))}</div></div>
-        <div class="fld"><label>${S.quietHours}</label>${critical ? html`<div class="mut" data-quiet-critical>${grt('criticalQuiet')}</div>` : html`<div class="seg" role="group" data-quiet>${(data.quiet_modes as ('pass' | 'matrix' | 'hold')[]).map((m) => html`<button aria-pressed=${d.quiet_mode === m} @click=${() => this.patch({ quiet_mode: m })}>${S.quietLong[m]}</button>`)}</div>`}</div>
+        <div class="fld"><label>${S.quietHours}</label>${critical ? html`<div class="mut" data-quiet-critical>${grt('criticalQuiet')}</div>` : html`<sw-segmented data-quiet value=${d.quiet_mode} @change=${(e: CustomEvent<SegmentedChange>) => this.patch({ quiet_mode: e.detail.value as 'pass' | 'matrix' | 'hold' })}
+          .options=${(data.quiet_modes as ('pass' | 'matrix' | 'hold')[]).map((m) => ({ value: m, label: S.quietLong[m] }))}></sw-segmented>`}</div>
         <div class="fld"><label>${S.escalate}</label>${critical ? html`<div class="mut" data-escalate-critical>${grt('criticalNote', { n: data.critical_escalate_after_min })}</div>` : html`<div class="row"><input type="checkbox" .checked=${d.escalate} @change=${() => this.patch({ escalate: !d.escalate })} data-escalate />
           ${d.escalate ? html`<input type="number" min="1" style="inline-size:90px" .value=${String(Math.round((d.escalate_after_s || data.critical_escalate_after_min * 60) / 60))} @change=${(e: Event) => this.patch({ escalate_after_s: Math.max(1, Number((e.target as HTMLInputElement).value) || 1) * 60 })} data-escalate-min /> <span class="mut">${S.escalateAfter}</span>` : nothing}</div>`}</div>
         <div class="fld"><label for="tpl">${S.message}</label>

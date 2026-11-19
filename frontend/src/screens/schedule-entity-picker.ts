@@ -4,6 +4,8 @@ import '../components/sw-drawer';
 import '../components/sw-button';
 import '../components/sw-icon';
 import type { IconName } from '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { CLASS_LABEL, getScheduleCatalog, type CatalogEntity, type ScheduleClass } from '../api/schedules';
 import { tr } from '../i18n/msg/automation';
 
@@ -72,26 +74,15 @@ export class ScheduleEntityPicker extends LitElement {
       inset-block-start: 9px;
       color: var(--sw-text-3);
     }
-    .seg {
-      display: inline-flex;
-      background: var(--sw-surface-3);
-      border-radius: var(--sw-r-sm);
-      padding: 2px;
-    }
-    .seg button {
-      border: 0;
-      background: none;
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      padding: 4px 12px;
-      border-radius: var(--sw-r-xs);
-      color: var(--sw-text-2);
-      cursor: pointer;
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-key, var(--sw-surface));
-      color: var(--sw-seg-key-ink, var(--sw-accent-text));
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
+    /* CR-CMP2-SEGMENTED-C-2450: the grouping switch is sw-segmented - its small 2 px track and plain-weight keys through the knobs */
+    sw-segmented {
+      --sw-seg-pad: 2px;
+      --sw-seg-gap: 0px;
+      --sw-seg-key-pad: 12px;
+      --sw-seg-radius: var(--sw-r-sm);
+      --sw-seg-btn-radius: var(--sw-r-xs);
+      --sw-seg-fw: var(--sw-fw-regular);
+      --sw-seg-on-fw: var(--sw-fw-regular);
     }
     .chosen {
       display: flex;
@@ -236,10 +227,8 @@ export class ScheduleEntityPicker extends LitElement {
     return html`<sw-drawer modal ?open=${this.open} heading=${tr('בחירת התקנים')} subheading=${tr('התקנים ברשותכם בלבד. התקנים שאינם ניתנים לתזמון מסומנים עם הסיבה.')} data-entity-picker @close=${this.close}>
       <div class="tools">
         <div class="search"><input type="search" data-picker-search placeholder=${tr('חיפוש התקן או אזור')} aria-label=${tr('חיפוש התקן')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /><sw-icon name="search" size="15"></sw-icon></div>
-        <div class="seg" role="group" aria-label=${tr('קיבוץ')}>
-          <button type="button" aria-pressed=${this.by === 'area'} @click=${() => (this.by = 'area')}>${tr('אזור')}</button>
-          <button type="button" aria-pressed=${this.by === 'class'} data-picker-by-class @click=${() => (this.by = 'class')}>${tr('סוג')}</button>
-        </div>
+        <sw-segmented size="sm" label=${tr('קיבוץ')} value=${this.by} @change=${(e: CustomEvent<SegmentedChange>) => (this.by = e.detail.value === 'class' ? 'class' : 'area')}
+          .options=${[{ value: 'area', label: tr('אזור') }, { value: 'class', label: tr('סוג'), attrs: { 'data-picker-by-class': '' } }]}></sw-segmented>
       </div>
       <div class="chosen" data-picker-chosen>
         ${this.picked.size

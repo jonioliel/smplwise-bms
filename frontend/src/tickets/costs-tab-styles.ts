@@ -301,8 +301,7 @@ export const costsTabStyles = css`
   }
   @media (max-width: 767px) {
     .acts .btn,
-    .rc,
-    .seg button {
+    .rc {
       min-block-size: 44px;
     }
     .acts .btn.primary {

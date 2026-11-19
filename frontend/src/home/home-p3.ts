@@ -7,6 +7,8 @@
 //                      POST multimedia/devices/{key}/commands, POST multimedia/groups/join | leave            (media.read / control / power / group)
 //   announcements      GET announcements/areas, POST announcements (never the emergency one: full interface)   (media.announce)
 //   electricity bill   GET energy/accounts, GET energy/accounts/{id}/status | periods                           (energy.bills, money only)
+//                      (CR-RESPONSE-MODELS-FOLLOWUP-2450: the electricity and water reads use the answers generated from the server's
+//                      response models, api/generated/wire-consumption.ts, so the null / absent fields are the server's own)
 //   water              GET infra/water/status | meters | consumption | events/summary                         (water.view, the water module)
 //   house systems      GET generator/devices/live, GET infra/elevators, GET infra/temperature (read only)      (generator.view / their own reach)
 //   home map           the rooms of GET home/overview drawn as a schematic plan per floor (map.read); nothing of the full map is edited
@@ -23,7 +25,8 @@ import { listUnits, type TempUnit } from '../api/temperature';
 import type { HomeData, HRoom } from './home-api';
 import { paged } from './home-logic';
 import { hi3 } from './home-p3-icons';
-import { ils, isP3Screen, money, plural, TEMP_OK, type HomeModuleP3, type P3Screen } from './home-p3-logic';
+import { billAccounts, ils, isP3Screen, money, plural, TEMP_OK, waterView, type HomeModuleP3, type P3Screen, type WaterView } from './home-p3-logic';
+import type * as Wire from '../api/generated/wire-consumption';
 import { sMedia, groupSheet, remoteSheet } from './home-p3-media';
 import { announceSheet } from './home-p3-announce';
 import { sBills } from './home-p3-bills';
@@ -62,10 +65,9 @@ export type MediaCmd = Record<string, unknown> & { command: string };
 
 interface AnnArea { area_id: string; name: string; floor_name: string | null }
 interface AnnTemplate { id: string; kind: string; name: Record<string, string>; text: Record<string, string> }
-interface BillPeriod { from: string; to: string; state: string; bill: { id: string; total?: string | number | null; state: string; due_date: string | null } | null }
-interface BillAccount { id: string; name: string; status: string }
-interface BillView { accounts: BillAccount[]; acc: string | null; status: { period: { from: string; to: string } | null; amount_so_far?: string | number | null } | null; periods: BillPeriod[]; loading: boolean; error: string }
-interface WaterView { today: number | null; month: number | null; leaks: number; week: { start: string; litres: number | null }[] | null; meters: number }
+/** The bill screen: the accounts offered, the chosen one, its open period so far (`period` null = no period yet; `amount_so_far` absent without
+ * the money permission) and its periods newest first (a bill's `total` absent without it). */
+interface BillView { accounts: Wire.EnergyAccount[]; acc: string | null; status: Wire.EnergyAccountStatus | null; periods: Wire.EnergyAccountPeriod[]; loading: boolean; error: string }
 interface SysView { gen: GenHomeView | null; elev: Elevator[]; temps: TempUnit[] }
 
 const enc = encodeURIComponent;
@@ -156,8 +158,7 @@ export class P3 {
 
   private async loadBillAccounts() {
     try {
-      const r = await get<{ items: BillAccount[] }>('energy/accounts');
-      const accounts = r.items.filter((a) => a.status !== 'paused');
+      const accounts = billAccounts(await get<Wire.EnergyAccountList>('energy/accounts'));
       this.bill = accounts.length ? { accounts, acc: accounts[0].id, status: null, periods: [], loading: true, error: '' } : null;
       if (this.bill) await this.loadBill(this.bill.acc as string);
     } catch {
@@ -171,8 +172,8 @@ export class P3 {
     this.up();
     try {
       const [status, per] = await Promise.all([
-        get<BillView['status']>(`energy/accounts/${enc(acc)}/status`),
-        get<{ periods: BillPeriod[] }>(`energy/accounts/${enc(acc)}/periods?past=6&future=0`),
+        get<Wire.EnergyAccountStatus>(`energy/accounts/${enc(acc)}/status`),
+        get<Wire.EnergyAccountPeriods>(`energy/accounts/${enc(acc)}/periods?past=6&future=0`),
       ]);
       this.bill = { ...this.bill, status, periods: per.periods.slice().reverse(), loading: false };
     } catch (err) {
@@ -183,18 +184,16 @@ export class P3 {
 
   private async loadWater() {
     try {
-      const st = await get<{ enabled: boolean; can_view: boolean; meters: number }>('infra/water/status');
+      const st = await get<Wire.WaterStatus>('infra/water/status');
       if (!st.enabled || !st.can_view || !st.meters) { this.water = null; return; }
       const to = new Date();
       const from = new Date(to.getFullYear(), to.getMonth(), to.getDate() - 6);
       const [m, s, c] = await Promise.all([
-        get<{ items: { status: string; today_l: number | null; month_l: number | null }[] }>('infra/water/meters'),
-        get<{ open_leaks: number }>('infra/water/events/summary').catch(() => ({ open_leaks: 0 })),
-        get<{ series?: { start: string; litres: number | null }[] }>(`infra/water/consumption?from=${enc(from.toISOString())}&to=${enc(to.toISOString())}&bucket=1d`).catch(() => ({ series: undefined })),
+        get<Wire.WaterMeterList>('infra/water/meters'),
+        get<Wire.WaterEventsSummary>('infra/water/events/summary').catch((): Pick<Wire.WaterEventsSummary, 'open_leaks'> => ({ open_leaks: 0 })),
+        get<Wire.WaterConsumption>(`infra/water/consumption?from=${enc(from.toISOString())}&to=${enc(to.toISOString())}&bucket=1d`).catch((): Pick<Wire.WaterConsumption, 'series'> => ({})),
       ]);
-      const live = m.items.filter((x) => x.status !== 'retired');
-      const sum = (k: 'today_l' | 'month_l') => (live.some((x) => x[k] != null) ? live.reduce((a, x) => a + (x[k] ?? 0), 0) : null);
-      this.water = { today: sum('today_l'), month: sum('month_l'), leaks: s.open_leaks ?? 0, week: c.series ?? null, meters: live.length };
+      this.water = waterView(m, s, c);
     } catch {
       this.water = null;
     }

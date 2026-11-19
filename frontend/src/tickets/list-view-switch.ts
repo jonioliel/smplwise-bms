@@ -1,4 +1,6 @@
 import { html, type TemplateResult } from 'lit';
+// the hosts (screens/tickets-list.ts, tickets-board.ts) register sw-segmented: this module stays importable by the node unit tests
+import type { SegmentedChange } from '../components/sw-segmented';
 import { listIcon, type ListIconName } from './list-icons';
 import { lt, type ListTextKey } from './list-text';
 
@@ -29,10 +31,11 @@ export function visibleModes(canManage: boolean): readonly ListModeDef[] {
   return LIST_MODES.filter((m) => !m.managerOnly || canManage);
 }
 
-/** The icon segment: the active mode also shows its name on a wide screen (the label hides on a phone, by CSS). */
+/** The icon segment: the active mode also shows its name on a wide screen (the label hides on a phone, by CSS: `.vsw::part(label)`).
+ * CR-CMP2-SEGMENTED-C-2450: the shared sw-segmented (`labels="chosen"`); every key keeps its name as its tooltip, an icon-only key
+ * is named by it, and `data-view-switch` / `data-view` stay on the group / the keys. */
 export function listViewSwitch(current: ListMode, canManage: boolean, pick: (m: ListMode) => void): TemplateResult {
-  return html`<div class="seg sm vsw" role="radiogroup" aria-label=${lt('lsViewsGroup')} data-view-switch>
-    ${visibleModes(canManage).map((m) => html`<button type="button" role="radio" aria-checked=${String(current === m.id)} aria-label=${lt(m.label)} title=${lt(m.label)} data-view=${m.id}
-      @click=${() => pick(m.id)}>${listIcon(m.icon)}${current === m.id ? html`<span class="lbl">${lt(m.label)}</span>` : ''}</button>`)}
-  </div>`;
+  return html`<sw-segmented class="vsw" radio size="sm" labels="chosen" label=${lt('lsViewsGroup')} data-view-switch value=${current}
+    @change=${(e: CustomEvent<SegmentedChange>) => pick(e.detail.value as ListMode)}
+    .options=${visibleModes(canManage).map((m) => ({ value: m.id, label: lt(m.label), title: lt(m.label), icon: listIcon(m.icon), attrs: { 'data-view': m.id } }))}></sw-segmented>`;
 }

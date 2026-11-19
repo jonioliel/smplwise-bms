@@ -5,6 +5,8 @@ import './sw-icon';
 import './sw-badge';
 import './sw-sheet';
 import './sw-cast-stop';
+import './sw-segmented';
+import type { SegmentedChange } from './sw-segmented';
 import { ApiError, describeError } from '../api/client';
 import { castStart, castSwitch, castTargets, newRequestId, type CastProfile, type CastSession, type CastTarget, type CastTargets } from '../api/cast';
 import { CAST_CONFIDENCE_LABEL } from '../screens/media-cast-label';
@@ -124,7 +126,6 @@ export class SwCastPicker extends LitElement {
     }
     .x:focus-visible,
     .row:focus-visible,
-    .seg button:focus-visible,
     .perm:focus-visible,
     .link:focus-visible,
     .yes:focus-visible {
@@ -139,32 +140,19 @@ export class SwCastPicker extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
     }
-    .seg {
-      display: inline-flex;
-      padding: 2px;
-      border-radius: var(--sw-r-pill);
-      background: var(--sw-surface-3);
-    }
-    .seg button {
-      all: unset;
-      box-sizing: border-box;
-      padding: 3px 12px;
-      border-radius: var(--sw-r-pill);
-      cursor: pointer;
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-2);
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-key, var(--sw-surface));
-      color: var(--sw-seg-key-ink, var(--sw-accent, var(--sw-text)));
-      /* DARK-REVIEW-2342: the bare accent read ~2.2:1 on the lifted dark thumb (3.3:1 on the old one) - dark takes the accent's text ink;
-         light keeps the accent (an engine without light-dark() keeps the line above) */
-      color: var(--sw-seg-key-ink, light-dark(var(--sw-accent, var(--sw-text)), var(--sw-accent-text)));
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
-    }
-    .seg button[disabled] {
-      opacity: 0.5;
-      cursor: default;
+    /* CR-CMP2-SEGMENTED-C-2450: the quality choice is sw-segmented; the picker keeps its small pill (2 px track, 24 px key, the
+       extra-small regular label also when chosen). DARK-REVIEW-2342: the bare accent read ~2.2:1 on the lifted dark thumb - dark takes
+       the accent's text ink, light keeps the accent */
+    sw-segmented {
+      --sw-seg-pad: 2px;
+      --sw-seg-radius: var(--sw-r-pill);
+      --sw-seg-btn-radius: var(--sw-r-pill);
+      --sw-seg-h: 24px;
+      --sw-seg-key-pad: 12px;
+      --sw-seg-fs: var(--sw-fs-xs);
+      --sw-seg-fw: var(--sw-fw-regular);
+      --sw-seg-on-fw: var(--sw-fw-regular);
+      --sw-seg-on-fg: var(--sw-seg-key-ink, light-dark(var(--sw-accent, var(--sw-text)), var(--sw-accent-text)));
     }
     .body {
       overflow: auto;
@@ -459,10 +447,11 @@ export class SwCastPicker extends LitElement {
     return html`
       <div class="opts" data-cast-quality>
         <span>${t('camera.quality')}</span>
-        <div class="seg" role="group" aria-label=${t('camera.quality')}>
-          <button type="button" aria-pressed=${this.quality === 'sub'} data-cast-q="sub" @click=${() => (this.quality = 'sub')}>${t('cast.profileSub')}</button>
-          <button type="button" aria-pressed=${this.quality === 'main'} data-cast-q="main" ?disabled=${!mainOk} title=${mainOk ? '' : t('cast.profileMainNo')} @click=${() => (this.quality = 'main')}>${t('cast.profileMain')}</button>
-        </div>
+        <sw-segmented label=${t('camera.quality')} value=${this.quality} @change=${(e: CustomEvent<SegmentedChange>) => (this.quality = e.detail.value === 'main' ? 'main' : 'sub')}
+          .options=${[
+            { value: 'sub', label: t('cast.profileSub'), attrs: { 'data-cast-q': 'sub' } },
+            { value: 'main', label: t('cast.profileMain'), disabled: !mainOk, title: mainOk ? '' : t('cast.profileMainNo'), attrs: { 'data-cast-q': 'main' } },
+          ]}></sw-segmented>
       </div>
       ${this.error ? html`<div class="err" role="alert" data-cast-error>${this.error}</div>` : nothing}
       ${this.confirm

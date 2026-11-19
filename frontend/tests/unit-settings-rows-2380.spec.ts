@@ -103,7 +103,8 @@ test('presence value check: the row (כבוי / נרמול / קפדני, the go-
   expect(scr).toContain('data-presence-row="value-check"');
   expect(scr).toContain('data-presence-value-check');
   expect(scr).toContain('value_check: valueCheckOf(d.value_check)');
-  expect(scr).toContain("this.patch({ value_check: m })");
+  // CR-CMP2-SEGMENTED-B-2450: the row is sw-segmented; its change saves the chosen mode
+  expect(scr).toContain('this.patch({ value_check: e.detail.value as ValueCheck })');
   expect(HA_WORDS.test(pt('valueCheckHint', undefined, 'he'))).toBe(false);
 });
 

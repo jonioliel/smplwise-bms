@@ -906,7 +906,6 @@ export const areaQuickSheetStyles = [
          the alert switch (its host is padded to 44 x 44; a press on the padding flips it) */
       :host([data-editing]) .ib,
       :host([data-editing]) .qb,
-      .seg button,
       .more {
         min-block-size: 44px;
       }
@@ -937,8 +936,7 @@ export const areaQuickSheetStyles = [
       .mv:focus-visible,
       .grip:focus-visible,
       .exp:focus-visible,
-      .more:focus-visible,
-      .seg button:focus-visible {
+      .more:focus-visible {
         outline: var(--sw-focus-w) solid var(--sw-focus);
         outline-offset: var(--sw-focus-offset);
       }
@@ -991,37 +989,21 @@ export const areaQuickSheetStyles = [
         overflow: hidden;
         clip-path: inset(50%);
       }
-      .seg {
-        display: flex;
-        padding: 3px;
-        gap: 3px;
-        border-radius: var(--sw-r-md);
-        background: var(--sw-surface-2);
-      }
-      .seg button {
-        flex: 1 1 0;
-        min-block-size: 44px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 5px;
-        border: 0;
-        border-radius: var(--sw-r-sm, var(--sw-r-md));
-        background: transparent;
-        color: var(--sw-text-2);
-        font: inherit;
-        font-size: var(--sw-fs-sm);
-        font-weight: var(--sw-fw-semibold);
-        cursor: pointer;
-      }
-      .seg button.on {
-        background: var(--sw-seg-key, var(--sw-surface-solid));
-        color: var(--sw-seg-key-ink, var(--sw-text));
-        box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
-      }
-      .seg button:disabled {
-        opacity: 0.45;
-        cursor: default;
+      /* CR-CMP2-SEGMENTED-C-2450: the apply-to switch is sw-segmented (a radio group of two equal keys filling the column); it keeps
+         its 3 px track on surface 2, the 44 px small semibold key and the solid chosen key through the knobs */
+      .fld sw-segmented {
+        flex: none;
+        --sw-seg-track: var(--sw-surface-2);
+        --sw-seg-radius: var(--sw-r-md);
+        --sw-seg-btn-radius: var(--sw-r-sm, var(--sw-r-md));
+        --sw-seg-pad: 3px;
+        --sw-seg-gap: 3px;
+        --sw-seg-h: 44px;
+        --sw-seg-fs: var(--sw-fs-sm);
+        --sw-seg-fw: var(--sw-fw-semibold);
+        --sw-seg-on-bg: var(--sw-seg-key, var(--sw-surface-solid));
+        --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-text));
+        --sw-disabled-opacity: 0.45;
       }
       .sitewarn,
       .warn {

@@ -4,6 +4,8 @@ import { live } from 'lit/directives/live.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-dialog';
 import '../components/sw-page';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-dropdown';
 import '../components/sw-schedule-bar';
 import '../components/sw-pager';
@@ -698,7 +700,8 @@ export class DevicesSchedules extends LitElement {
       ${this.phone && rooms !== nothing ? html`<div class="dh-row fl">${rooms}</div>` : nothing}
       ${tools ? html`<div class="dh-det" data-sched-toolbar>
         ${this.renderSegments()}
-        ${all.length ? html`<div class="seg sm stf" role="radiogroup" aria-label=${tr('סינון לפי מצב')} ?data-open=${this.filtersOpen}>${STATE_SEGMENTS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id || 'all'} @click=${() => this.setFilter({ state: s.id as StateFilter })}>${s.label}<small>${sc[s.id]}</small></button>`)}</div>` : nothing}
+        ${all.length ? html`<sw-segmented class="stf" radio size="sm" label=${tr('סינון לפי מצב')} ?data-open=${this.filtersOpen} value=${f.state} @change=${(e: CustomEvent<SegmentedChange>) => this.setFilter({ state: e.detail.value as StateFilter })}
+          .options=${STATE_SEGMENTS.map((s) => ({ value: s.id, label: s.label, count: String(sc[s.id]), attrs: { 'data-state-filter': s.id || 'all' } }))}></sw-segmented>` : nothing}
         ${attention ? html`<button type="button" class="rc attn" data-open-review data-sched-attention @click=${() => this.go('review')}><i class="wdot" aria-hidden="true"></i>${pl('review')}<small>${attention}</small></button>` : nothing}
         ${all.length ? html`<button type="button" class="btn foldbtn" data-filters-toggle aria-label=${tr('סינון')} title=${tr('סינון')} aria-expanded=${String(this.filtersOpen)} @click=${() => (this.filtersOpen = !this.filtersOpen)}>${aIcon('filter')}<span class="lbl">${tr('סינון')}</span>${extra ? html`<small>${extra}</small>` : nothing}</button>` : nothing}
         <span class="grow"></span>
@@ -712,7 +715,9 @@ export class DevicesSchedules extends LitElement {
 
   /** Cards · table · week: the view switch sits where the media pages keep their floor menu (the end of the title row). */
   private viewSwitch(): TemplateResult {
-    return html`<div class="seg sm views" role="group" aria-label=${tr('תצוגה')}>${VIEWS.map((v) => html`<button type="button" data-view-btn=${v} aria-pressed=${String(this.view === v)} aria-label=${VIEW_LABEL[v]()} title=${VIEW_LABEL[v]()} @click=${() => this.setView(v)}>${aIcon(VIEW_ICON[v])}</button>`)}</div>`;
+    // CR-CMP2-SEGMENTED-C-2450: sw-segmented with icon-only keys (each named by its label, which is also its tooltip)
+    return html`<sw-segmented class="views" size="sm" labels="none" label=${tr('תצוגה')} value=${this.view} @change=${(e: CustomEvent<SegmentedChange>) => this.setView(e.detail.value as ListView)}
+      .options=${VIEWS.map((v) => ({ value: v, label: VIEW_LABEL[v](), icon: aIcon(VIEW_ICON[v]), attrs: { 'data-view-btn': v } }))}></sw-segmented>`;
   }
 
   /** The strip of "קברניט": תזמונים (this screen) first, then the automations screen's segments. Shown only when there is a second segment to go to. */

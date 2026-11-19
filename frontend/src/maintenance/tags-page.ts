@@ -2,8 +2,13 @@ import { LitElement, html, css, nothing, svg, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import qrcode from 'qrcode-generator';
 import '../components/sw-dialog';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
+import '../components/sw-button';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import { liftRef } from '../components/top-layer';
 import { describeError } from '../api/client';
 import { maintApi, type Tag, type TagMedium, type Task } from '../api/maintenance';
@@ -67,6 +72,8 @@ export class MaintTagsPage extends LitElement {
   @state() private formError = '';
 
   static styles = [maintCss, css`
+    /* CR-CMP2-TABLES-2450 (owner N10): the tags list is the shared table inside the panel - its header band, never wider than the panel */
+    sw-table[data-maint-tags-table] { --sw-table-min: 0; --sw-table-head-bg: var(--sw-surface-2); --sw-table-fs: var(--sw-fs-md); }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); gap: 12px; }
     /* stickers are always light (print) */
     .sticker { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 12px; background: #fff; color: #111; text-align: center; display: grid; justify-items: center; gap: 4px; break-inside: avoid; }
@@ -119,6 +126,19 @@ export class MaintTagsPage extends LitElement {
 
   private url(t: Tag): string {
     return stickerUrl(this.base, t.token, { origin: window.location.origin, pathname: window.location.pathname });
+  }
+
+  /** CR-CMP2-TABLES-2450: the tag columns - label, target, medium (chip), created (steps out below the tablet width), last scan,
+   * and the revoke key in the shared actions column (a shared button: a screen's .btn does not reach the table's shadow root) */
+  private tagColumns(): TableColumn<Tag>[] {
+    return [
+      { key: 'label', label: mt('colLabel'), render: (t) => html`<span class="t1">${t.label || this.targetText(t)}</span>` },
+      { key: 'target', label: mt('colTarget'), render: (t) => this.targetText(t) },
+      { key: 'medium', label: mt('colMedium'), kind: 'status', render: (t) => html`<span class="chip" data-tone="info" data-nodot>${t.medium.toUpperCase()}</span>` },
+      { key: 'created_at', label: mt('colCreated'), hideBelow: 'tablet', render: (t) => html`<span class="num">${fmtDate(t.created_at.slice(0, 10))}</span>` },
+      { key: 'last_scan_at', label: mt('colLastScan'), render: (t) => (t.last_scan_at ? html`<span class="num">${fmtInstant(t.last_scan_at)}</span>` : html`<span class="mut">${mt('neverScanned')}</span>`) },
+      { key: 'act', label: '', kind: 'actions', render: (t) => html`<sw-button size="sm" variant="danger" data-maint-revoke=${t.id} @click=${() => { this.revoke = t; }}>${mt('tagRevoke')}</sw-button>` },
+    ];
   }
 
   private targetText(t: Tag): string {
@@ -187,8 +207,8 @@ export class MaintTagsPage extends LitElement {
           ${devices.length ? html`<optgroup label=${mt('tagDevice')}>${devices.map(([id, name]) => html`<option value=${`entity:${id}`}>${name}</option>`)}</optgroup>` : nothing}
         </select></div>
         <div class="fld"><label for="tg-l">${mt('tagLabel')}</label><input id="tg-l" class="inp" maxlength="120" .value=${this.draft.label} @input=${(e: Event) => { this.draft = { ...this.draft, label: (e.target as HTMLInputElement).value }; }}></div>
-        <div class="fld"><span class="lbl">${mt('tagMedium')}</span><div class="seg" role="group" aria-label=${mt('tagMedium')}>
-          ${(['qr', 'nfc'] as const).map((m) => html`<button type="button" aria-pressed=${String(this.draft.medium === m)} @click=${() => { this.draft = { ...this.draft, medium: m }; }}>${m.toUpperCase()}</button>`)}</div></div>
+        <div class="fld"><span class="lbl">${mt('tagMedium')}</span><sw-segmented label=${mt('tagMedium')} value=${this.draft.medium} @change=${(e: CustomEvent<SegmentedChange>) => { this.draft = { ...this.draft, medium: e.detail.value as 'qr' | 'nfc' }; }}
+          .options=${(['qr', 'nfc'] as const).map((m) => ({ value: m, label: m.toUpperCase() }))}></sw-segmented></div>
         ${this.formError ? html`<div class="alert err" role="alert">${this.formError}</div>` : nothing}
       </div>
       <div class="foot" slot="footer"><span class="sp"></span><button type="button" class="btn" @click=${() => { this.creating = false; }}>${mt('cancel')}</button>
@@ -221,11 +241,8 @@ export class MaintTagsPage extends LitElement {
       <p class="note noprint" data-maint-tag-url>${this.base ? mt('tagUrlHint', { u: this.base }) : mt('tagNoRemote')}</p>
       <div class="grid" data-maint-stickers>${live.map((t) => this.sticker(t))}</div>
       <div class="panel flush noprint">
-        <div class="scrollx"><table class="t" data-maint-tags-table><thead><tr><th>${mt('colLabel')}</th><th>${mt('colTarget')}</th><th>${mt('colMedium')}</th><th class="hide-tablet">${mt('colCreated')}</th><th>${mt('colLastScan')}</th><th></th></tr></thead><tbody>
-          ${live.map((t) => html`<tr data-maint-tag=${t.id}><td><span class="t1">${t.label || this.targetText(t)}</span></td><td>${this.targetText(t)}</td><td><span class="chip" data-look="acc">${t.medium.toUpperCase()}</span></td>
-            <td class="date num hide-tablet">${fmtDate(t.created_at.slice(0, 10))}</td><td class="date num">${t.last_scan_at ? fmtInstant(t.last_scan_at) : html`<span class="mut">${mt('neverScanned')}</span>`}</td>
-            <td class="act"><button type="button" class="btn sm dng" data-maint-revoke=${t.id} @click=${() => { this.revoke = t; }}>${mt('tagRevoke')}</button></td></tr>`)}
-        </tbody></table></div>
+        <div class="scrollx"><sw-table bare static-rows data-maint-tags-table .columns=${this.tagColumns() as unknown as TableColumn[]} .rows=${live as unknown as Record<string, unknown>[]}
+          .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-maint-tag': String(r.id) })}></sw-table></div>
         <div class="cards-m">${live.map((t) => html`<div class="c"><div class="r1"><span class="t1">${t.label || this.targetText(t)}</span><span class="chip" data-look="acc">${t.medium.toUpperCase()}</span></div>
           <div class="mut">${this.targetText(t)} · ${t.last_scan_at ? fmtInstant(t.last_scan_at) : mt('neverScanned')}</div>
           <div class="r3"><button type="button" class="btn sm dng" @click=${() => { this.revoke = t; }}>${mt('tagRevoke')}</button></div></div>`)}</div>

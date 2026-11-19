@@ -25,6 +25,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import release
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
+from ..services import calendar_sync_store as store
 from ..services import connection_store
 from ..services.calendar import calendars as cals
 from ..services.calendar import model
@@ -32,6 +33,8 @@ from ..services.calendar.access import Ctx, Denied, get_visible
 from ..services.calendar.events import get_row
 from ..services.calendar_sync import credentials, engine, ics, oauth, registry
 from ..services.calendar_sync.adapter import PROVIDERS, SyncError
+from ..wire import calendar_sync as W
+from ..wire import wire
 from ._common import db_of as _db
 from . import calendar as cal_mod
 from .calendar import Body, _audit, _body, _errors, module_gate
@@ -88,7 +91,7 @@ def _need_connect(conn: sqlite3.Connection, principal: Principal) -> None:
 
 
 def _connection(conn: sqlite3.Connection, cid: str) -> sqlite3.Row:
-    row = conn.execute("SELECT * FROM cal_connections WHERE id = ?", (cid,)).fetchone()
+    row = store.connection(conn, cid)
     if row is None:
         raise ApiError(404, "not_found", "החיבור לא נמצא.")
     return row
@@ -108,7 +111,7 @@ def _owned(conn: sqlite3.Connection, principal: Principal, request: Request, cid
 
 
 def _out(conn: sqlite3.Connection, row: sqlite3.Row, data_dir: Any = None) -> dict[str, Any]:
-    bs = conn.execute("SELECT id, calendar_id, direction, detail, dedicated FROM cal_sync_bindings WHERE connection_id = ? ORDER BY id", (row["id"],)).fetchall()
+    bs = store.connection_bindings(conn, row["id"])
     out = {"id": row["id"], "provider": row["provider"], "label": row["label"], "scope": row["scope"], "state": row["state"], "owner": cals.user_label(conn, row["owner_user_id"]),
            "last_sync_at": row["last_sync_at"], "next_sync_at": row["next_sync_at"], "error_code": row["error_code"], "adapter_available": row["provider"] in registry.available(),
            "account_hint": row["account_hint"],
@@ -124,16 +127,16 @@ def _out(conn: sqlite3.Connection, row: sqlite3.Row, data_dir: Any = None) -> di
     return out
 
 
-@router.get("/calendar/connections")
+@router.get("/calendar/connections", **wire(W.CalSyncConnections))
 def list_connections(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _need_connect(conn, principal)
     d = settings_of(request).data_dir
-    return {"connections": [_out(conn, r, d) for r in conn.execute("SELECT * FROM cal_connections ORDER BY created_at, id").fetchall()],
+    return {"connections": [_out(conn, r, d) for r in store.connections(conn)],
             "providers": [{"provider": p, "adapter_available": p in registry.available()} for p in PROVIDERS], "setup_steps": SETUP_STEPS,
             "google_redirect": oauth.GOOGLE_REDIRECT}
 
 
-@router.post("/calendar/connections", status_code=201)
+@router.post("/calendar/connections", status_code=201, **wire(W.CalSyncConnectionAdded))
 def add_connection(body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _need_connect(conn, principal)
     d = _body(body)
@@ -145,18 +148,17 @@ def add_connection(body: Body, request: Request, principal: Principal = Depends(
         scope = model._choice(d.get("scope", "read"), "scope", ("read", "read_write"))
         if provider == "ics_in" and scope != "read":
             raise model.Invalid("an iCal subscription is read-only", "scope", "connection_read_only")
-        if conn.execute("SELECT COUNT(*) FROM cal_connections").fetchone()[0] >= MAX_CONNECTIONS:
+        if store.connection_count(conn) >= MAX_CONNECTIONS:
             raise model.Invalid("too many connections", "provider", "limit_reached")
         cid = cals.new_id("con")
-        conn.execute("INSERT INTO cal_connections(id, provider, label, owner_user_id, scope, state, token_ref, created_at) VALUES (?,?,?,?,?, 'ok', ?, ?)",
-                     (cid, provider, label, principal.user_id, scope, cid if provider != "ics_out" else None, model.iso(_now())))
+        store.insert_connection(conn, cid, provider, label, principal.user_id, scope, cid if provider != "ics_out" else None, model.iso(_now()))
         _audit(conn, principal, request, "calendar.connection.add", "calendar_connection", cid, provider=provider, scope=scope)
         return {"connection": _out(conn, _connection(conn, cid), settings_of(request).data_dir), "setup_steps": SETUP_STEPS[provider]}
 
 
 # ---------------------------------------------------------------- the connect flow (CALCONNECT-2330)
 
-@router.put("/calendar/connections/{cid}/client")
+@router.put("/calendar/connections/{cid}/client", **wire(W.CalSyncConnectionOut))
 def put_client(cid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The owner's OWN OAuth client: `{client_id, client_secret?, tenant?}`. The secret is sealed; the answer carries flags only. A new client
     id drops the old authorisation (it belonged to the old client)."""
@@ -185,12 +187,12 @@ def put_client(cid: str, body: Body, request: Request, principal: Principal = De
     if changed:
         credentials.clear_secret(conn, cid, "refresh_token")
         oauth.cancel(cid)
-    conn.execute("UPDATE cal_connections SET revision = revision + 1 WHERE id = ?", (cid,))
+    store.bump_connection(conn, cid)
     _audit(conn, principal, request, "calendar.connection.client", "calendar_connection", cid, secret_set=isinstance(secret, str), authorization_dropped=changed)
     return {"connection": _out(conn, _connection(conn, cid), data_dir)}
 
 
-@router.put("/calendar/connections/{cid}/feed")
+@router.put("/calendar/connections/{cid}/feed", **wire(W.CalSyncConnectionOut))
 def put_feed_url(cid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The secret address of an iCal subscription (`{url}`; https or webcal). Checked for syntax and names now and fully (every resolved
     address) on each fetch; sealed; never answered back."""
@@ -208,13 +210,12 @@ def put_feed_url(cid: str, body: Body, request: Request, principal: Principal = 
     data_dir = settings_of(request).data_dir
     credentials.set_secret(conn, data_dir, cid, "feed_url", ics.normalise_url(url))
     host = ics.host_hint(url)
-    conn.execute("UPDATE cal_connections SET account_hint = ?, state = CASE WHEN state = 'error' THEN 'ok' ELSE state END, error_code = NULL, next_sync_at = NULL, "
-                 "revision = revision + 1 WHERE id = ?", (host, cid))
+    store.set_feed_host(conn, cid, host)
     _audit(conn, principal, request, "calendar.connection.feed", "calendar_connection", cid)
     return {"connection": _out(conn, _connection(conn, cid), data_dir)}
 
 
-@router.post("/calendar/connections/{cid}/authorize")
+@router.post("/calendar/connections/{cid}/authorize", **wire(W.CalSyncAuthorizeStart))
 def authorize(cid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Starts (or restarts) the provider's consent. Google: `{flow: paste, authorize_url, redirect_prefix, expires_in}`. Microsoft:
     `{flow: device, user_code, verification_url, expires_in, interval}`. The state / verifier / device code never leave the server."""
@@ -240,13 +241,13 @@ def _connected(request: Request, principal: Principal, cid: str, token: str) -> 
     data_dir = settings_of(request).data_dir
     with _db(request).write_aside(label="calendar.connection.authorize") as c:
         credentials.set_secret(c, data_dir, cid, "refresh_token", token)
-        c.execute("UPDATE cal_connections SET state = 'ok', error_code = NULL, error_text = NULL, next_sync_at = NULL, revision = revision + 1 WHERE id = ?", (cid,))
+        store.mark_authorized(c, cid)
         audit(c, actor=principal, action="calendar.connection.authorize", decision="allowed", resource_type="calendar_connection", resource_id=cid,
               request_id=cal_mod._rid(request))
         return {"state": "connected", "connection": _out(c, _connection(c, cid), data_dir)}
 
 
-@router.post("/calendar/connections/{cid}/authorize/complete")
+@router.post("/calendar/connections/{cid}/authorize/complete", **wire(W.CalSyncAuthorizeResult))
 def authorize_complete(cid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Google: `{redirect_url}` - the loopback address the browser landed on after the approval. State-checked, single use."""
     row = _owned(conn, principal, request, cid)
@@ -265,7 +266,7 @@ def authorize_complete(cid: str, body: Body, request: Request, principal: Princi
     return _connected(request, principal, cid, token)
 
 
-@router.post("/calendar/connections/{cid}/authorize/poll")
+@router.post("/calendar/connections/{cid}/authorize/poll", **wire(W.CalSyncAuthorizeResult))
 def authorize_poll(cid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Microsoft: one poll of the pending device grant: `{state: none|pending|slow_down|denied|expired|connected, interval?}`."""
     row = _owned(conn, principal, request, cid)
@@ -291,7 +292,7 @@ def authorize_cancel(cid: str, request: Request, principal: Principal = Depends(
     return Response(status_code=204)
 
 
-@router.get("/calendar/connections/{cid}/calendars")
+@router.get("/calendar/connections/{cid}/calendars", **wire(W.CalSyncExternalCalendars))
 def connection_calendars(cid: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _need_connect(conn, principal)
     row = _connection(conn, cid)
@@ -316,17 +317,17 @@ def _set_state(conn: sqlite3.Connection, principal: Principal, request: Request,
         if row["state"] not in allowed_from:
             raise ApiError(409, "bad_state", "אי אפשר לבצע את הפעולה במצב הנוכחי של החיבור.", details={"state": row["state"]})
         nxt = None if to == "paused" else model.iso(_now())
-        conn.execute("UPDATE cal_connections SET state = ?, next_sync_at = ?, error_code = NULL, error_text = NULL, revision = revision + 1 WHERE id = ?", (to, nxt, cid))
+        store.set_connection_state(conn, cid, to, nxt)
         _audit(conn, principal, request, action, "calendar_connection", cid)
         return {"connection": _out(conn, _connection(conn, cid), settings_of(request).data_dir)}
 
 
-@router.post("/calendar/connections/{cid}/pause")
+@router.post("/calendar/connections/{cid}/pause", **wire(W.CalSyncConnectionOut))
 def pause_connection(cid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     return _set_state(conn, principal, request, cid, ("ok", "error"), "paused", "calendar.connection.pause")
 
 
-@router.post("/calendar/connections/{cid}/resume")
+@router.post("/calendar/connections/{cid}/resume", **wire(W.CalSyncConnectionOut))
 def resume_connection(cid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     # owner answer 21 as a setting: with `reauth_and_continue` (default) a connection waiting for a new authorisation also offers a manual
     # "continue" - the next sync tries again and returns to needs_reauth if the provider still refuses; `reauth_only` keeps the old rule
@@ -348,20 +349,13 @@ def remove_connection(cid: str, request: Request, principal: Principal = Depends
         except Exception:  # noqa: BLE001 - revoking is best effort; the local delete always happens
             pass
     with _db(request).write_aside(label="calendar.connection.remove") as c:
-        ids = [b["id"] for b in c.execute("SELECT id FROM cal_sync_bindings WHERE connection_id = ?", (cid,)).fetchall()]
-        for bid in ids:
-            c.execute("DELETE FROM cal_sync_map WHERE binding_id = ?", (bid,))
-        c.execute("UPDATE cal_calendars SET sync_binding_id = NULL WHERE sync_binding_id IN (SELECT id FROM cal_sync_bindings WHERE connection_id = ?)", (cid,))
-        c.execute("DELETE FROM cal_sync_bindings WHERE connection_id = ?", (cid,))
-        c.execute("DELETE FROM settings WHERE key IN (?, ?)", (engine._lease_key(cid), f"calendar.sync.manual.{cid}"))
-        credentials.clear_all(c, cid)
-        c.execute("DELETE FROM cal_connections WHERE id = ?", (cid,))
+        bindings = store.remove_connection(c, cid, engine._lease_key(cid), credentials.clear_all)
         audit(c, actor=principal, action="calendar.connection.remove", decision="allowed", resource_type="calendar_connection", resource_id=cid,
-              request_id=cal_mod._rid(request), details={"bindings": len(ids)})
+              request_id=cal_mod._rid(request), details={"bindings": bindings})
     return Response(status_code=204)
 
 
-@router.post("/calendar/connections/{cid}/sync")
+@router.post("/calendar/connections/{cid}/sync", **wire(W.CalSyncNow))
 def sync_now(cid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Manual "sync now": at most once per `sync_manual_min_interval_s` (default 60) per connection. The provider is asked with no
     transaction open (engine.run_connection)."""
@@ -385,7 +379,7 @@ def sync_now(cid: str, request: Request, principal: Principal = Depends(current_
         return {"report": report, "connection": _out(c, _connection(c, cid), data_dir)}
 
 
-@router.put("/calendar/calendars/{cid}/binding")
+@router.put("/calendar/calendars/{cid}/binding", **wire(W.CalSyncBindingOut))
 def put_binding(cid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Binds a calendar to one external calendar, or (a null body field `connection_id`) removes the binding. One binding per calendar."""
     _need_connect(conn, principal)
@@ -396,12 +390,11 @@ def put_binding(cid: str, body: Body, request: Request, principal: Principal = D
         role = ctx.role_in(cal)
         if role is None or model.ROLE_RANK[role] < model.ROLE_RANK["edit"]:
             raise Denied("calendar.role", cid, "edit")
-        old = conn.execute("SELECT * FROM cal_sync_bindings WHERE calendar_id = ?", (cid,)).fetchone()
+        old = store.calendar_binding(conn, cid)
         if d.get("connection_id") is None:
             if old is not None:
-                conn.execute("DELETE FROM cal_sync_map WHERE binding_id = ?", (old["id"],))
-                conn.execute("DELETE FROM cal_sync_bindings WHERE id = ?", (old["id"],))
-                conn.execute("UPDATE cal_calendars SET sync_binding_id = NULL WHERE id = ?", (cid,))
+                store.drop_binding(conn, old["id"])
+                store.unlink_calendar(conn, cid)
                 _audit(conn, principal, request, "calendar.binding.set", "calendar", cid, removed=True)
             return {"binding": None}
         if set(d) - {"connection_id", "external_calendar_ref", "direction", "detail", "dedicated"}:
@@ -417,30 +410,29 @@ def put_binding(cid: str, body: Body, request: Request, principal: Principal = D
         if old is not None and old["connection_id"] == crow["id"] and engine.open_ref(settings_of(request).data_dir, old) == ref:
             # the same external calendar: settings change in place (map and sync token stay, so nothing is imported twice)
             if (old["detail"], old["direction"]) != (detail, direction):
-                conn.execute("UPDATE cal_sync_map SET last_pushed_revision = NULL WHERE binding_id = ? AND origin = 'arx'", (old["id"],))  # re-publish at the new level
-            conn.execute("UPDATE cal_sync_bindings SET direction = ?, detail = ?, dedicated = ?, revision = revision + 1 WHERE id = ?", (direction, detail, int(dedicated), old["id"]))
+                store.republish_arx_entries(conn, old["id"])  # re-publish at the new level
+            store.update_binding(conn, old["id"], direction, detail, int(dedicated))
             bid = old["id"]
         else:
             if old is not None:  # another external calendar: nothing of the old link is trusted
-                conn.execute("DELETE FROM cal_sync_map WHERE binding_id = ?", (old["id"],))
-                conn.execute("DELETE FROM cal_sync_bindings WHERE id = ?", (old["id"],))
+                store.drop_binding(conn, old["id"])
             bid = cals.new_id("bnd")
-            conn.execute("INSERT INTO cal_sync_bindings(id, connection_id, calendar_id, external_calendar_id_sealed, direction, detail, dedicated, created_by) VALUES (?,?,?,?,?,?,?,?)",
-                         (bid, crow["id"], cid, connection_store.seal_calendar_sync(settings_of(request).data_dir, bid, "ref", ref), direction, detail, int(dedicated), principal.user_id))
-        conn.execute("UPDATE cal_calendars SET sync_binding_id = ?, updated_at = ?, revision = revision + 1 WHERE id = ?", (bid, model.iso(_now()), cid))
-        conn.execute("UPDATE cal_connections SET next_sync_at = NULL WHERE id = ? AND state IN ('ok','error')", (crow["id"],))  # due on the next scheduler tick
+            store.insert_binding(conn, bid, crow["id"], cid, connection_store.seal_calendar_sync(settings_of(request).data_dir, bid, "ref", ref), direction, detail, int(dedicated),
+                                 principal.user_id)
+        store.link_calendar(conn, cid, bid, model.iso(_now()))
+        store.due_now(conn, crow["id"])  # due on the next scheduler tick
         _audit(conn, principal, request, "calendar.binding.set", "calendar", cid, direction=direction, detail=detail, dedicated=dedicated, connection_id=crow["id"])
         return {"binding": {"id": bid, "connection_id": crow["id"], "calendar_id": cid, "direction": direction, "detail": detail, "dedicated": dedicated}}
 
 
-@router.get("/calendar/sync/flags")
+@router.get("/calendar/sync/flags", **wire(W.CalSyncFlags))
 def sync_flags(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """CALENDARS-UI-2310: the entries the sync flagged for a human decision (C9: both kept), for the "סומנו להחלטה" list of the connections
     screen and the week view's side-by-side mark. Only calendars where the caller holds `edit`+ (the role that may resolve a flag)."""
     ctx = Ctx(conn, principal)
     out = []
-    for ev in conn.execute("SELECT * FROM cal_events WHERE sync_flag IS NOT NULL AND state NOT IN ('cancelled','rejected','withdrawn','expired') ORDER BY starts_at LIMIT 500").fetchall():
-        cal = conn.execute("SELECT * FROM cal_calendars WHERE id = ?", (ev["calendar_id"],)).fetchone()
+    for ev in store.flagged_events(conn):
+        cal = store.calendar(conn, ev["calendar_id"])
         role = ctx.role_in(cal) if cal is not None and ctx.can_see(cal) else None
         if role is None or model.ROLE_RANK[role] < model.ROLE_RANK["edit"]:
             continue
@@ -449,7 +441,7 @@ def sync_flags(principal: Principal = Depends(current_principal_ro), conn: sqlit
     return {"flags": out}
 
 
-@router.post("/calendar/events/{eid}/sync-resolve")
+@router.post("/calendar/events/{eid}/sync-resolve", **wire(W.CalSyncResolved))
 def resolve_sync_flag(eid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The human decision on an entry flagged by the sync (C9): `keep` clears the flag, `cancel` cancels the entry. Needs `edit`+ in its calendar."""
     ctx = Ctx(conn, principal, settings_of(request).data_dir)
@@ -465,7 +457,7 @@ def resolve_sync_flag(eid: str, body: Body, request: Request, principal: Princip
             raise ApiError(409, "bad_state", "האירוע לא מסומן לטיפול.", details={"state": ev["state"]})
         engine.resolve_flag(conn, model.read_settings(conn), ev, resolution, principal.user_id, _now())
         _audit(conn, principal, request, "calendar.sync.resolve", "calendar_event", eid, resolution=resolution, flag=ev["sync_flag"])
-        fresh = conn.execute("SELECT * FROM cal_events WHERE id = ?", (eid,)).fetchone()
+        fresh = store.event(conn, eid)
         return {"event_id": eid, "state": fresh["state"], "sync_flag": fresh["sync_flag"]}
 
 

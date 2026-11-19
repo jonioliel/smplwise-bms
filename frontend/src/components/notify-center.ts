@@ -12,6 +12,8 @@ import { notifyControls, notifyKnobs } from './notify-css';
 import { filterCounts, menuArrow, sourceOptions, subtitleText, visibleRows } from './notify-logic';
 import { applyNotifyGlass, notifyStore, type NotifyState } from './notify-store';
 import './sw-dialog';
+import './sw-segmented';
+import type { SegmentedChange } from './sw-segmented';
 import './notify-row';
 import './notify-detail';
 import type { RowAction } from './notify-row';
@@ -256,8 +258,9 @@ export class NotifyCenter extends LitElement {
       .nfilt::-webkit-scrollbar {
         display: none;
       }
-      .nfilt .seg {
-        flex: none;
+      /* CR-CMP2-SEGMENTED-C-2450: the filter keys stay on one line; the row scrolls sideways */
+      .nfilt sw-segmented {
+        --sw-seg-wrap: nowrap;
       }
       .srcbtn {
         position: relative;
@@ -698,9 +701,10 @@ export class NotifyCenter extends LitElement {
     const s = this.st;
     const c = filterCounts(s.rows, s.now);
     const opts = sourceOptions(s.rows);
-    const seg = (f: InboxFilter, label: string, n?: number) => html`<button type="button" data-filter=${f} aria-pressed=${String(this.filter === f)} @click=${() => (this.filter = f)}>${label}${n !== undefined && n > 0 ? html`<small class="n">${n}</small>` : nothing}</button>`;
+    const seg = (f: InboxFilter, label: string, n?: number) => ({ value: f, label, count: n !== undefined && n > 0 ? String(n) : undefined, attrs: { 'data-filter': f } });
     return html`<div class="nfilt" data-center-filters>
-      <div class="seg" role="group" aria-label=${tr('סינון')}>${seg('all', tr('הכל'))}${seg('unread', tr('לא נקראו'), c.unread)}${seg('critical', tr('קריטי'), c.critical)}</div>
+      <sw-segmented label=${tr('סינון')} value=${this.filter} @change=${(e: CustomEvent<SegmentedChange>) => (this.filter = e.detail.value as InboxFilter)}
+        .options=${[seg('all', tr('הכל')), seg('unread', tr('לא נקראו'), c.unread), seg('critical', tr('קריטי'), c.critical)]}></sw-segmented>
       <div class="srcbtn"><button type="button" class=${classMap({ rc: true, on: this.category !== null })} data-source-filter aria-haspopup="menu" aria-expanded=${String(this.srcMenu)} @click=${() => this.toggleSourceMenu()}>${nIcon('filter')}${this.category ? CATEGORY_LABEL[this.category] : tr('מקור')}${nIcon('chevronDown')}</button>
         ${this.srcMenu ? html`<div class="pop" role="menu" data-source-menu>
           <button type="button" role="menuitemradio" aria-checked=${String(this.category === null)} data-source-opt="all" @click=${() => { this.category = null; this.srcMenu = false; }}>${nIcon('list')}${tr('כל המקורות')}<span class="cnt n">${s.rows.length}</span></button>

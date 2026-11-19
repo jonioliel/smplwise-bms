@@ -62,7 +62,7 @@ def _settings(raw: str | None) -> dict[str, str]:
 
 
 def _snapshot(conn: sqlite3.Connection, site_id: str, state_json: str, settings_json: str) -> _Snap | None:
-    from ..routers.home_mapping import _labels, _site_buildings, _site_floors
+    from .home_mapping_store import labels as _labels, site_buildings as _site_buildings, site_floors as _site_floors  # CR-ROUTER-SQL-2450: not through the router
 
     if not conn.execute("SELECT 1 FROM sites WHERE id = ? AND deleted_at IS NULL", (site_id,)).fetchone():
         return None
@@ -128,7 +128,7 @@ def compute(s: _Snap) -> _Work | None:
 
 def _write(conn: sqlite3.Connection, s: _Snap, w: _Work, reason: str) -> int | None:
     """One short transaction (the caller's). Re-checks the snapshot; None = something moved, nothing written."""
-    from ..routers.home_mapping import _new_version, _site_buildings, _site_floors, site_rows
+    from .home_mapping_store import new_version as _new_version, site_buildings as _site_buildings, site_floors as _site_floors, site_rows  # CR-ROUTER-SQL-2450
 
     st = conn.execute("SELECT settings_json, state_json FROM home_mapping_state WHERE site_id = ?", (s.site_id,)).fetchone()
     last = conn.execute("SELECT MAX(number) FROM home_mapping_versions WHERE site_id = ?", (s.site_id,)).fetchone()[0]

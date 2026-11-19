@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { secondaryIdentity } from './user-identity'; // UXREST2-295: name and username shown once when equal
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
+import '../components/sw-field';
 import '../components/sw-badge';
 import '../components/sw-card';
 import '../components/sw-table';
@@ -15,57 +16,12 @@ import { lit, type LocalIdentityKey } from '../i18n/local-identity';
 import { adminRemovePasskey, adminSetPasskeyOnly, userPasskeys, type PasskeyView } from '../api/passkeys';
 import { po } from '../i18n/passkey-only';
 import { confirmDialog } from '../components/confirm-dialog';
+import type * as LocalWire from '../api/generated/wire-local-identity';
 
-/** USR2: one Arx-only identity as GET /identity/local-users lists it (never a hash, never a link). */
-interface LocalUser {
-  id: string;
-  username: string;
-  display_name: string;
-  email: string | null;
-  notes: string | null;
-  status: 'pending_first_login' | 'active' | 'delayed' | 'disabled' | 'deleted';
-  active: boolean;
-  created_at: string;
-  last_sign_in_at: string | null;
-  last_sign_in_from: string | null;
-  role_id: string | null;
-  role_name: string | null;
-  scope_type: string | null;
-  scope_id: string | null;
-  scope_name: string | null;
-  admin: boolean;
-  second_factor: boolean;
-  reset_mode: 'manager_only' | 'self_service';
-  must_change_password: boolean;
-  sessions: number;
-  ha_user_id: string | null;
-  /** USR2 phase 2: the user's WhatsApp number when it is VERIFIED (masked: the last two digits). */
-  whatsapp?: { verified: boolean; masked: string | null };
-  /** Why a self-service reset would be refused right now (null = it would work, or the mode is manager_only). */
-  self_service_blocked?: 'admin_target' | 'no_verified_number' | null;
-  /** USR2 phase 4: how many passkeys (the list is its own route) and the user's own passkey-only mode. */
-  passkeys?: number;
-  passkey_first?: boolean;
-  /** usr2-passkeys-only-mode: password sign-in refused for the user (default off). */
-  passkey_only?: boolean;
-}
-
-interface LocalUsersReply {
-  enabled: boolean;
-  can_manage: boolean;
-  channel: 'local' | 'remote';
-  users: LocalUser[];
-  /** USR2 phase 2: a WhatsApp account is mapped for the reset use and connected. */
-  whatsapp_ready?: boolean;
-  /** Where links sent by WhatsApp point (the configured address, or this remote session's host), or null. */
-  public_url?: string | null;
-  /** USR2 phase 4: the owner switch `security.local_passkey_first`. */
-  passkey_first_allowed?: boolean;
-  /** CR-LOCAL-ID-SWITCH-2442: the viewer is a system administrator - the only one PATCH /settings lets switch the feature. */
-  can_switch?: boolean;
-  /** CR-LOCAL-USER-CREATE-2438: the shortest password the server's policy takes (`security.local_password_min`). */
-  password_min?: number;
-}
+/* USR2: an Arx-only identity and the tab's list are the backend's response models (smplwise_vms/backend/smplwise/wire/local_identity.py,
+ * generated into ../api/generated/wire-local-identity.ts; code review 07:F8 step 2) - never a hash, never a link. */
+type LocalUser = LocalWire.LocalUser;
+type LocalUsersReply = LocalWire.LocalUserList;
 
 /** CR-LOCAL-USER-CREATE-2438: a password the administrator types for a user (never kept after the request). */
 interface PwDraft {
@@ -83,13 +39,7 @@ interface LinkSent {
   expires_at: string;
 }
 
-interface LinkShown {
-  user: string;
-  purpose: 'first_login' | 'reset';
-  path: string;
-  url?: string | null;
-  expires_at: string;
-}
+type LinkShown = { user: string } & LocalWire.LocalLink;
 
 // sw-table renders the rows in its own shadow root: the cells carry their styles inline (this component's sheet never reaches them)
 const CELL = 'display:flex;flex-direction:column;gap:2px;align-items:flex-start';
@@ -209,18 +159,8 @@ export class SystemLocalUsers extends LitElement {
       color: var(--sw-text-2);
       font-weight: var(--sw-fw-medium);
     }
-    input,
-    select {
-      font: inherit;
-      min-block-size: 40px;
-      padding: 6px 10px;
-      border-radius: var(--sw-r-md);
-      border: 1px solid var(--sw-border-strong);
-      background: var(--sw-surface);
-      color: var(--sw-text);
-      inline-size: 100%;
-      box-sizing: border-box;
-    }
+    /* CR-CMP2-SEGMENTED-B-2450 (owner N10): every text field and select of the page sits in sw-field (the shared field look, one look
+       for the whole form); the LTR fields keep their direction */
     input.ltr {
       direction: ltr;
       text-align: start;
@@ -274,8 +214,7 @@ export class SystemLocalUsers extends LitElement {
       flex: none;
       margin: 0;
     }
-    input:focus-visible,
-    select:focus-visible {
+    label.check input:focus-visible {
       outline: 2px solid var(--sw-focus);
       outline-offset: 1px;
     }
@@ -399,7 +338,7 @@ export class SystemLocalUsers extends LitElement {
     this.busy = true;
     this.error = '';
     try {
-      const r = await post<{ user: LocalUser; link: Omit<LinkShown, 'user'> | null }>('/identity/local-users', {
+      const r = await post<LocalWire.LocalUserCreated>('/identity/local-users', {
         username: f.username.trim(),
         display_name: f.display_name.trim(),
         role_id: f.role_id,
@@ -448,9 +387,9 @@ export class SystemLocalUsers extends LitElement {
   /** The password pair + the "must change" choice, shared by the create form and the selected user's panel. */
   private renderPwFields(d: PwDraft, set: (next: PwDraft) => void, mark: string): TemplateResult {
     const text = (k: 'password' | 'again') => (e: Event) => set({ ...d, [k]: (e.target as HTMLInputElement).value });
-    return html`<label>${lit('pwField')}<input class="ltr" type="password" autocomplete="new-password" maxlength="128" .value=${d.password} @input=${text('password')} data-local-pw=${mark} />
+    return html`<label>${lit('pwField')}<sw-field><input class="ltr" type="password" autocomplete="new-password" maxlength="128" .value=${d.password} @input=${text('password')} data-local-pw=${mark} /></sw-field>
         <span class="muted">${lit('pwHint', { min: this.pwMin })}</span></label>
-      <label>${lit('pwAgain')}<input class="ltr" type="password" autocomplete="new-password" maxlength="128" .value=${d.again} @input=${text('again')} data-local-pw-again=${mark} /></label>
+      <label>${lit('pwAgain')}<sw-field><input class="ltr" type="password" autocomplete="new-password" maxlength="128" .value=${d.again} @input=${text('again')} data-local-pw-again=${mark} /></sw-field></label>
       <label class="full check"><input type="checkbox" .checked=${d.must} @change=${(e: Event) => set({ ...d, must: (e.target as HTMLInputElement).checked })} data-local-pw-must=${mark} />
         ${lit(mark === 'user' ? 'pwMustChangeNext' : 'pwMustChange')}</label>
       <div class="muted full">${lit('pwMustChangeHelp')}</div>`;
@@ -458,7 +397,7 @@ export class SystemLocalUsers extends LitElement {
 
   private issue(u: LocalUser, purpose: 'first_login' | 'reset', temporary = false) {
     void this.run(async () => {
-      const r = await post<{ link: Omit<LinkShown, 'user'> }>(`/identity/local-users/${encodeURIComponent(u.id)}/link`, { purpose, via: 'shown', temporary });
+      const r = await post<Omit<LocalWire.LocalUserLink, 'link'> & { link: LocalWire.LocalLink }>(`/identity/local-users/${encodeURIComponent(u.id)}/link`, { purpose, via: 'shown', temporary });
       this.link = { ...r.link, user: u.display_name };
       this.sent = null;
       this.copied = false;
@@ -469,7 +408,7 @@ export class SystemLocalUsers extends LitElement {
   /** USR2 phase 2: the link goes to the user's verified WhatsApp number; the answer never carries it. */
   private issueWhatsapp(u: LocalUser, purpose: 'first_login' | 'reset') {
     void this.run(async () => {
-      const r = await post<{ link: { expires_at: string } }>(`/identity/local-users/${encodeURIComponent(u.id)}/link`, { purpose, via: 'whatsapp' });
+      const r = await post<Omit<LocalWire.LocalUserLink, 'link'> & { link: LocalWire.LocalLinkQueued }>(`/identity/local-users/${encodeURIComponent(u.id)}/link`, { purpose, via: 'whatsapp' });
       this.link = null;
       this.sent = { user: u.display_name, to: u.whatsapp?.masked ?? '', expires_at: r.link.expires_at };
       await this.load();
@@ -532,7 +471,7 @@ export class SystemLocalUsers extends LitElement {
 
   private setActive(u: LocalUser, active: boolean) {
     void this.run(async () => {
-      const r = await patch<LocalUser & { suggest_also?: { ha_user_id: string } }>(`/identity/local-users/${encodeURIComponent(u.id)}`, { active });
+      const r = await patch<LocalWire.LocalUserPatched>(`/identity/local-users/${encodeURIComponent(u.id)}`, { active });
       this.suggest = r.suggest_also ? lit('suggestAlso') : '';
       await this.load();
     });
@@ -626,8 +565,8 @@ export class SystemLocalUsers extends LitElement {
       ${items.map((p) => html`<span class="muted" data-local-passkey=${p.id}>${p.label || lit('passkeys')} · ${fmtWhen(p.created_at)}${p.synced ? html` · ${lit('passkeySynced')}` : nothing}${p.usable ? nothing : html` · ${lit('passkeyNotUsable')}`}
         ${manage ? html`<sw-button size="sm" variant="ghost" @click=${() => this.removePasskey(u, p.id)} ?disabled=${this.busy} data-local-passkey-remove>${lit('passkeyAdminRemove')}</sw-button>` : nothing}</span>`)}
       ${manage && this.pkStepUp
-        ? html`<label>${lit('code')}<input class="ltr" inputmode="numeric" autocomplete="one-time-code" maxlength="6" .value=${this.pkCode}
-            @input=${(e: Event) => (this.pkCode = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 6))} data-local-passkey-code /></label>`
+        ? html`<label>${lit('code')}<sw-field><input class="ltr" inputmode="numeric" autocomplete="one-time-code" maxlength="6" .value=${this.pkCode}
+            @input=${(e: Event) => (this.pkCode = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 6))} data-local-passkey-code /></sw-field></label>`
         : nothing}
       ${manage && (u.passkey_only || (this.data?.passkey_first_allowed && (u.passkeys ?? items.length) > 0))
         ? html`<div class="actions"><sw-button @click=${() => this.passkeyOnly(u, !u.passkey_only)} ?disabled=${this.busy} data-local-passkey-only>${u.passkey_only ? po('onlyDisable') : po('onlyEnable')} · ${po('onlyLabel')}</sw-button></div>`
@@ -662,27 +601,27 @@ export class SystemLocalUsers extends LitElement {
       <form @submit=${this.create} novalidate>
         <div class="head"><div class="cell"><strong>${lit('add')}</strong></div>
           <sw-button variant="ghost" size="sm" iconOnly icon="close" label=${lit('cancel')} @click=${() => this.closeCreate()}></sw-button></div>
-        <label>${lit('colUsername')}<input class="ltr" .value=${f.username} @input=${up('username')} autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="32" required data-local-username />
+        <label>${lit('colUsername')}<sw-field><input class="ltr" .value=${f.username} @input=${up('username')} autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="32" required data-local-username /></sw-field>
           <span class="muted">${lit('usernameHint')}</span></label>
-        <label>${lit('displayName')}<input .value=${f.display_name} @input=${up('display_name')} maxlength="60" required data-local-display /></label>
-        <label>${lit('role')}<select .value=${f.role_id} @change=${up('role_id')} data-local-role>
+        <label>${lit('displayName')}<sw-field><input .value=${f.display_name} @input=${up('display_name')} maxlength="60" required data-local-display /></sw-field></label>
+        <label>${lit('role')}<sw-field><select .value=${f.role_id} @change=${up('role_id')} data-local-role>
           ${roles.map((r) => html`<option value=${r.id} ?selected=${r.id === f.role_id} ?disabled=${this.remote && roleIsAdmin(r)}>${r.name}</option>`)}
-        </select></label>
-        <label>${lit('scope')}<select .value=${f.scope} @change=${up('scope')}>
+        </select></sw-field></label>
+        <label>${lit('scope')}<sw-field><select .value=${f.scope} @change=${up('scope')}>
           ${this.scopes.map((s) => html`<option value=${`${s.type}:${s.id}`} ?selected=${`${s.type}:${s.id}` === f.scope}>${s.name}</option>`)}
-        </select></label>
-        <label>${lit('email')}<input class="ltr" type="email" .value=${f.email} @input=${up('email')} maxlength="254" /></label>
-        <label>${lit('notes')}<input .value=${f.notes} @input=${up('notes')} maxlength="200" /></label>
-        <label>${lit('resetMode')}<select .value=${admin ? 'manager_only' : f.reset_mode} @change=${up('reset_mode')} ?disabled=${admin} data-local-reset-mode>
+        </select></sw-field></label>
+        <label>${lit('email')}<sw-field><input class="ltr" type="email" .value=${f.email} @input=${up('email')} maxlength="254" /></sw-field></label>
+        <label>${lit('notes')}<sw-field><input .value=${f.notes} @input=${up('notes')} maxlength="200" /></sw-field></label>
+        <label>${lit('resetMode')}<sw-field><select .value=${admin ? 'manager_only' : f.reset_mode} @change=${up('reset_mode')} ?disabled=${admin} data-local-reset-mode>
           <option value="manager_only">${lit('reset_manager_only')}</option>
           <option value="self_service">${lit('reset_self_service')}</option>
-        </select></label>
+        </select></sw-field></label>
         ${admin ? html`<div class="note warn full" data-local-admin-note>${lit('adminNote')} ${lit('resetAdminNote')}</div>` : nothing}
         <div class="sep" role="presentation"></div>
-        <label class="full">${lit('pwHow')}<select .value=${this.pwMode} @change=${(e: Event) => { this.pwMode = (e.target as HTMLSelectElement).value === 'link' ? 'link' : 'set'; this.formError = ''; }} data-local-pw-mode>
+        <label class="full">${lit('pwHow')}<sw-field><select .value=${this.pwMode} @change=${(e: Event) => { this.pwMode = (e.target as HTMLSelectElement).value === 'link' ? 'link' : 'set'; this.formError = ''; }} data-local-pw-mode>
           <option value="set" ?selected=${this.pwMode === 'set'}>${lit('pwHowSet')}</option>
           <option value="link" ?selected=${this.pwMode === 'link'}>${lit('pwHowLink')}</option>
-        </select></label>
+        </select></sw-field></label>
         ${this.pwMode === 'set'
           ? this.renderPwFields(this.pw, (next) => (this.pw = next), 'create')
           : html`<div class="muted full" data-local-pw-link-help>${lit('pwLinkHelp')}</div>`}
@@ -784,10 +723,10 @@ export class SystemLocalUsers extends LitElement {
                 </form>`
               : nothing}
             <div class="sep" role="presentation"></div>
-            <label>${lit('resetMode')}<select .value=${u.reset_mode} ?disabled=${this.busy || u.admin} @change=${(e: Event) => this.setResetMode(u, (e.target as HTMLSelectElement).value)}>
+            <label>${lit('resetMode')}<sw-field><select .value=${u.reset_mode} ?disabled=${this.busy || u.admin} @change=${(e: Event) => this.setResetMode(u, (e.target as HTMLSelectElement).value)}>
               <option value="manager_only">${lit('reset_manager_only')}</option>
               <option value="self_service">${lit('reset_self_service')}</option>
-            </select></label>
+            </select></sw-field></label>
             ${u.admin
               ? html`<div class="muted full" data-local-reset-admin>${lit('resetAdminNote')}</div>`
               : u.self_service_blocked
@@ -796,12 +735,12 @@ export class SystemLocalUsers extends LitElement {
             ${this.renderWhatsapp(u)}
             ${this.renderPasskeys(u, manage)}
             ${edit
-              ? html`<label>${lit('role')}<select .value=${edit.role_id} @change=${(e: Event) => (this.roleEdit = { ...edit, role_id: (e.target as HTMLSelectElement).value })}>
+              ? html`<label>${lit('role')}<sw-field><select .value=${edit.role_id} @change=${(e: Event) => (this.roleEdit = { ...edit, role_id: (e.target as HTMLSelectElement).value })}>
                     ${roles.map((r) => html`<option value=${r.id} ?selected=${r.id === edit.role_id} ?disabled=${this.remote && roleIsAdmin(r)}>${r.name}</option>`)}
-                  </select></label>
-                  <label>${lit('scope')}<select .value=${edit.scope} @change=${(e: Event) => (this.roleEdit = { ...edit, scope: (e.target as HTMLSelectElement).value })}>
+                  </select></sw-field></label>
+                  <label>${lit('scope')}<sw-field><select .value=${edit.scope} @change=${(e: Event) => (this.roleEdit = { ...edit, scope: (e.target as HTMLSelectElement).value })}>
                     ${this.scopes.map((s) => html`<option value=${`${s.type}:${s.id}`} ?selected=${`${s.type}:${s.id}` === edit.scope}>${s.name}</option>`)}
-                  </select></label>
+                  </select></sw-field></label>
                   <div class="actions"><sw-button variant="primary" @click=${() => this.saveRole(u)} ?disabled=${this.busy}>${lit('save')}</sw-button><sw-button variant="ghost" @click=${() => (this.roleEdit = null)}>${lit('cancel')}</sw-button></div>`
               : nothing}`
           : nothing}
@@ -814,8 +753,8 @@ export class SystemLocalUsers extends LitElement {
     return html`<sw-card flush data-local-public-url>
       <div class="panel">
         <label class="full">${lit('publicUrl')}
-          <input class="ltr" type="url" inputmode="url" placeholder=${d.public_url ?? 'https://'} .value=${this.publicUrl}
-            @input=${(e: Event) => (this.publicUrl = (e.target as HTMLInputElement).value)} maxlength="300" data-local-public-url-input /></label>
+          <sw-field><input class="ltr" type="url" inputmode="url" placeholder=${d.public_url ?? 'https://'} .value=${this.publicUrl}
+            @input=${(e: Event) => (this.publicUrl = (e.target as HTMLInputElement).value)} maxlength="300" data-local-public-url-input /></sw-field></label>
         <div class="muted full">${lit('publicUrlHint')}</div>
         ${this.publicUrlNote ? html`<div class="note full" role="status">${this.publicUrlNote}</div>` : nothing}
         <div class="actions"><sw-button @click=${() => this.savePublicUrl()} ?disabled=${this.busy} data-local-public-url-save>${lit('publicUrlSave')}</sw-button></div>

@@ -10,6 +10,7 @@
 import { ApiError, get } from './client';
 import { isoZ } from './day-format';
 import type { EntityLayerId, RangeLayerId } from '../map/history-replay';
+import type * as AnchorWire from './generated/wire-anchors';
 
 export type LayerStatus = 'ok' | 'empty' | 'not_recorded' | 'not_permitted' | 'gap';
 export interface HistoryGap {
@@ -64,10 +65,9 @@ interface SnapshotEventLayer {
   /** null when not_permitted. */
   retention_days: number | null;
 }
-export interface HistorySnapshot {
-  at: string;
-  floor_id: string;
-  settings: { range_max_days: number; presence_retention_days: number };
+/* The envelopes are the backend's response models (wire/anchors.py `FloorHistorySnapshot` / `FloorHistoryRange`, generated into
+ * ./generated/wire-anchors.ts); the coverage and the layers (computed documents) are typed here. */
+export interface HistorySnapshot extends Pick<AnchorWire.FloorHistorySnapshot, 'at' | 'floor_id' | 'settings'> {
   coverage: HistoryCoverage;
   layers: Record<EntityLayerId, SnapshotEntityLayer> & {
     elevators: SnapshotElevatorLayer;
@@ -98,12 +98,8 @@ interface RangeElevatorLayer {
   position: 'not_recorded';
   items: Record<string, RangeSeries & { name: string }>;
 }
-export interface HistoryRange {
-  from: string;
-  to: string;
-  floor_id: string;
-  /** null = exact change-points; a number = bucketed (each point is the LAST state of its bucket, n = changes in it). */
-  bucket_s: number | null;
+/** `bucket_s`: null = exact change-points; a number = bucketed (each point is the LAST state of its bucket, n = changes in it). */
+export interface HistoryRange extends Pick<AnchorWire.FloorHistoryRange, 'from' | 'to' | 'floor_id' | 'bucket_s'>, Partial<Pick<AnchorWire.FloorHistoryRange, 'native_rows'>> {
   coverage: HistoryCoverage;
   layers: Partial<Record<EntityLayerId, RangeEntityLayer>> & { elevators?: RangeElevatorLayer };
 }

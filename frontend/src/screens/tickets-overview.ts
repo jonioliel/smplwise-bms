@@ -28,6 +28,8 @@ import { formatMoney } from '../tickets/cost-model';
 import { asHandledDays, HANDLED_DEFAULT, installationHandledDays, readStoredPeriod, storePeriod, type HandledDays } from '../tickets/handler-load';
 import { ot, type OverviewTextKey } from '../tickets/overview-text';
 import '../components/sw-state-panel';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import {
   agenda, APPROVALS_SHOWN, approvalsTotal, dailyTotals, dayKey, daysOfPeriod, deptComparison, FOLD_STORAGE_KEY, foldedOf, handlerRows, kpiDeltas, lanes, METER_SEGMENTS,
   overdueRows, OVERDUE_SHOWN, overviewSettingsOf, packPages, filledSpans, parseKpiStore, paymentDates, paymentOverdueRows, paymentsTotal, payWhen, periodOfDays, rfqStageOf, rollKpis, serverPaymentDates, shortDay, signed, sortDepartments, splitVendors,
@@ -406,7 +408,7 @@ export class TicketsOverview extends LitElement {
       .closedrows .cr.rq { grid-template-columns: auto minmax(0, 1fr); }
       .closedrows .cr.rq .tags { grid-column: 2; justify-content: flex-start; }
       .closedrows .cr[data-pay-row] .back { display: none; }
-      .w > header .pseg button { min-block-size: 36px; }
+      .w > header .pseg { --sw-seg-h: 36px; }
     }
     @media (pointer: coarse) {
       .tree .row, .closedrows .cr, .tl { min-block-size: 44px; }
@@ -987,7 +989,8 @@ export class TicketsOverview extends LitElement {
   // card 5
   private periodSeg(): TemplateResult {
     const p = this.chosenPeriod();
-    return html`<div class="seg sm pseg" role="radiogroup" aria-label=${ot('thPeriod')} data-period-seg>${DASH_PERIODS.map((x) => html`<button type="button" role="radio" aria-checked=${String(p === x)} data-period=${x} @click=${() => this.setPeriod(x)}>${ot(`pd_${x}` as OverviewTextKey)}</button>`)}</div>`;
+    return html`<sw-segmented class="pseg" radio size="sm" label=${ot('thPeriod')} data-period-seg value=${p} @change=${(e: CustomEvent<SegmentedChange>) => this.setPeriod(e.detail.value as DashPeriod)}
+      .options=${DASH_PERIODS.map((x) => ({ value: x, label: ot(`pd_${x}` as OverviewTextKey), attrs: { 'data-period': x } }))}></sw-segmented>`;
   }
 
   private throughputCard(): TemplateResult {

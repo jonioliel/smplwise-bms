@@ -189,6 +189,41 @@ export function roomStates(input: RoomStateInput): RoomStateLayer {
 
   // the open openings: a bound opening follows its own entity only; an unbound sensor claims the nearest opening
   // without an entity of its own on its level (a neighbouring door with a bound closed sensor is never claimed)
+  const open = openOpenings(entities, openings, byEntity, levelOf, ky, reach);
+
+  const levels: Record<string, LevelDots> = {};
+  const dots = (level: string): LevelDots => (levels[level] ??= { presence: 0, open: false, lit: false });
+  for (const o of openings) if (open.has(o.id)) dots(levelOf(o.level_id)).open = true;
+
+  const out: Record<string, RoomState> = {};
+  const claimed = new Set<string>();
+  for (const r of rooms) {
+    const level = levelOf(r.level_id);
+    const inside = entities.filter((e) => levelOf(e.level_id) === level && pointInPolygon({ x: e.x, y: e.y }, r.polygon));
+    for (const e of inside) claimed.add(e.id);
+    const lampsOn = (input.lamps ?? []).some((l) => l.on && levelOf(l.level_id) === level && pointInPolygon({ x: l.x, y: l.y }, r.polygon));
+    const lit = lampsOn || inside.some((e) => isLightEntity(e) && e.state === 'on');
+    const { presence, fade, age } = roomPresence(inside, input.now, input.fade);
+    const { src, temperature, lock, alarm } = roomReadings(inside);
+    const mine = openings.filter((o) => open.has(o.id) && levelOf(o.level_id) === level && boundaryDistance(o.x, o.y, r.polygon, ky) <= OPENING_ON_ROOM).map((o) => o.id);
+    out[r.id] = { id: r.id, level_id: r.level_id, lit, presence, presenceAge: age, presenceFade: fade, openings: mine, temperature: temperature === null ? null : Math.round(temperature * 10) / 10, temperatureSource: src?.id ?? null, lock, alarm };
+    const d = dots(level);
+    d.presence = Math.max(d.presence, fade);
+    d.lit = d.lit || lit;
+    d.open = d.open || mine.length > 0;
+  }
+  // a sensor in no room still lights its level's dot
+  for (const e of entities) {
+    if (claimed.has(e.id) || !isPresenceEntity(e)) continue;
+    const d = dots(levelOf(e.level_id));
+    d.presence = Math.max(d.presence, presenceFade(e.state, e.last_changed, input.now, input.fade));
+  }
+  return { rooms: out, openOpenings: [...open].sort(byId), levels };
+}
+
+/** CR-FE-COMPLEXITY-2450 (split of roomStates, moved verbatim): the open openings - a bound opening follows its own entity only; an unbound open sensor claims the
+ * nearest opening of its level that has no entity of its own (ties: the smaller id). */
+function openOpenings(entities: StateEntity[], openings: StateOpening[], byEntity: Map<string, StateOpening>, levelOf: (id: string | null) => string, ky: number, reach: number): Set<string> {
   const open = new Set<string>();
   for (const e of entities) {
     if (!isOpeningEntity(e) || !isOpenState(e.state)) continue;
@@ -209,55 +244,40 @@ export function roomStates(input: RoomStateInput): RoomStateLayer {
     }
     if (best) open.add(best.id);
   }
+  return open;
+}
 
-  const levels: Record<string, LevelDots> = {};
-  const dots = (level: string): LevelDots => (levels[level] ??= { presence: 0, open: false, lit: false });
-  for (const o of openings) if (open.has(o.id)) dots(levelOf(o.level_id)).open = true;
-
-  const out: Record<string, RoomState> = {};
-  const claimed = new Set<string>();
-  for (const r of rooms) {
-    const level = levelOf(r.level_id);
-    const inside = entities.filter((e) => levelOf(e.level_id) === level && pointInPolygon({ x: e.x, y: e.y }, r.polygon));
-    for (const e of inside) claimed.add(e.id);
-    const lampsOn = (input.lamps ?? []).some((l) => l.on && levelOf(l.level_id) === level && pointInPolygon({ x: l.x, y: l.y }, r.polygon));
-    const lit = lampsOn || inside.some((e) => isLightEntity(e) && e.state === 'on');
-    let presence = false;
-    let fade = 0;
-    let age: number | null = null;
-    for (const e of inside) {
-      if (!isPresenceEntity(e)) continue;
-      if (e.state === 'on') presence = true;
-      fade = Math.max(fade, presenceFade(e.state, e.last_changed, input.now, input.fade));
-      if (e.state === 'off' && e.last_changed) {
-        const t = Date.parse(e.last_changed);
-        if (Number.isFinite(t)) {
-          const s = Math.max(0, Math.round((input.now - t) / 1000));
-          age = age === null ? s : Math.min(age, s);
-        }
+/** CR-FE-COMPLEXITY-2450 (split of roomStates, moved verbatim): a room's presence - on now, the strongest fade weight, and the seconds since the last
+ * motion ended (null while a sensor is on). */
+function roomPresence(inside: StateEntity[], now: number, fadeSetting: PresenceFade): { presence: boolean; fade: number; age: number | null } {
+  let presence = false;
+  let fade = 0;
+  let age: number | null = null;
+  for (const e of inside) {
+    if (!isPresenceEntity(e)) continue;
+    if (e.state === 'on') presence = true;
+    fade = Math.max(fade, presenceFade(e.state, e.last_changed, now, fadeSetting));
+    if (e.state === 'off' && e.last_changed) {
+      const t = Date.parse(e.last_changed);
+      if (Number.isFinite(t)) {
+        const s = Math.max(0, Math.round((now - t) / 1000));
+        age = age === null ? s : Math.min(age, s);
       }
     }
-    if (presence) age = null;
-    const climate = inside.filter((e) => e.domain === 'climate' && num(e.attributes?.current_temperature) !== null);
-    const sensors = inside.filter((e) => e.domain === 'sensor' && e.device_class === 'temperature' && num(e.state) !== null);
-    const src = climate[0] ?? sensors[0] ?? null;
-    const temperature = src ? (src.domain === 'climate' ? num(src.attributes?.current_temperature) : num(src.state)) : null;
-    const lock = inside.find((e) => e.domain === 'lock' && e.state !== null)?.state ?? null;
-    const alarm = inside.find((e) => e.domain === 'alarm_control_panel' && e.state !== null)?.state ?? null;
-    const mine = openings.filter((o) => open.has(o.id) && levelOf(o.level_id) === level && boundaryDistance(o.x, o.y, r.polygon, ky) <= OPENING_ON_ROOM).map((o) => o.id);
-    out[r.id] = { id: r.id, level_id: r.level_id, lit, presence, presenceAge: age, presenceFade: fade, openings: mine, temperature: temperature === null ? null : Math.round(temperature * 10) / 10, temperatureSource: src?.id ?? null, lock, alarm };
-    const d = dots(level);
-    d.presence = Math.max(d.presence, fade);
-    d.lit = d.lit || lit;
-    d.open = d.open || mine.length > 0;
   }
-  // a sensor in no room still lights its level's dot
-  for (const e of entities) {
-    if (claimed.has(e.id) || !isPresenceEntity(e)) continue;
-    const d = dots(levelOf(e.level_id));
-    d.presence = Math.max(d.presence, presenceFade(e.state, e.last_changed, input.now, input.fade));
-  }
-  return { rooms: out, openOpenings: [...open].sort(byId), levels };
+  if (presence) age = null;
+  return { presence, fade, age };
+}
+
+/** CR-FE-COMPLEXITY-2450 (split of roomStates, moved verbatim): a room's temperature (a climate unit's reading, else a temperature sensor), lock and alarm. */
+function roomReadings(inside: StateEntity[]): { src: StateEntity | null; temperature: number | null; lock: string | null; alarm: string | null } {
+  const climate = inside.filter((e) => e.domain === 'climate' && num(e.attributes?.current_temperature) !== null);
+  const sensors = inside.filter((e) => e.domain === 'sensor' && e.device_class === 'temperature' && num(e.state) !== null);
+  const src = climate[0] ?? sensors[0] ?? null;
+  const temperature = src ? (src.domain === 'climate' ? num(src.attributes?.current_temperature) : num(src.state)) : null;
+  const lock = inside.find((e) => e.domain === 'lock' && e.state !== null)?.state ?? null;
+  const alarm = inside.find((e) => e.domain === 'alarm_control_panel' && e.state !== null)?.state ?? null;
+  return { src, temperature, lock, alarm };
 }
 
 /** What a scene built from the layer depends on: every drawn value (lit, the quantised fade, the open openings, the
