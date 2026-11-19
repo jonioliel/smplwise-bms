@@ -782,27 +782,30 @@ export const genCss = css`
     max-block-size: 300px;
     overflow: auto;
   }
-  .chooser {
+  /* CR-CMP2-POLISH-2470: the recipient / channel choosers of the routing drawers are sw-chip-choice (multi) in the module's boxed look -
+     two columns of bordered boxes at the module's touch height, the chosen box on the accent wash with an accent rim (and the bolder
+     label, the cue that is not a colour) - through the chip knobs; the row is the old two-column grid (one column on a phone) */
+  .chooser sw-chip-choice {
+    --sw-chipc-gap: 8px;
+    --sw-chipc-h: var(--elec-touch);
+    --sw-chipc-pad: 10px;
+    --sw-chipc-radius: var(--sw-r-sm);
+    --sw-chipc-bg: var(--gen-surface);
+    --sw-chipc-border: var(--sw-border);
+    --sw-chipc-on-bg: var(--sw-accent-soft);
+    --sw-chipc-on-border: var(--sw-accent);
+    --sw-chipc-on-fg: var(--sw-text);
+    --sw-chipc-on-fw: var(--sw-fw-semibold);
+    display: block;
+  }
+  .chooser sw-chip-choice::part(row) {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
   }
-  .chooser label {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    padding: 8px 10px;
-    border: 1px solid var(--sw-border);
-    border-radius: var(--sw-r-sm);
-    background: var(--gen-surface);
-    min-block-size: var(--elec-touch);
-  }
-  .chooser label.on {
-    border-color: var(--sw-accent);
-    background: var(--sw-accent-soft);
-  }
-  .chooser label.dis {
-    opacity: 0.45;
+  .chooser sw-chip-choice::part(chip) {
+    justify-content: flex-start;
+    padding-block: 8px;
+    text-align: start;
   }
   .preview {
     border: 1px dashed var(--sw-border-strong, var(--sw-border));
@@ -957,7 +960,7 @@ export const genCss = css`
     .al > sw-button {
       margin-inline-start: auto;
     }
-    .chooser {
+    .chooser sw-chip-choice::part(row) {
       grid-template-columns: minmax(0, 1fr);
     }
     .det {

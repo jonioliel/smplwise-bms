@@ -3,6 +3,8 @@ import { live } from 'lit/directives/live.js';
 import '../components/sw-button';
 import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
+import '../components/sw-chip-choice';
+import type { ChipChoiceChange, ChipChoiceOption } from '../components/sw-chip-choice';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-table';
 import '../components/sw-toggle';
@@ -27,6 +29,17 @@ const S = G.settings;
 const SEVS: Severity[] = ['critical', 'alert', 'info'];
 const DEFAULT_POLICY: PolicyBodyValue = { enabled: true, severity: null, recipients: { roles: [], users: [] }, channels: [], quiet_mode: 'matrix', escalate: false, after_s: 0, escalate_after_s: 0, row_version: 0 };
 const chLabel = (c: string) => (S.ch as Record<string, string>)[c] ?? c;
+/**
+ * CR-CMP2-POLISH-2470 (owner N21-N46: selection-chip rows -> the shared chip component): the recipient / channel choosers of the two
+ * routing drawers are `sw-chip-choice multi` (several chips on at once, controlled: the press asks, the drawer's draft answers) inside
+ * the old `.chooser` boxes, which keep their data hooks (`data-roles`, `data-users`, `data-channels`) and the module's boxed look through
+ * the chip knobs (gen-styles `.chooser sw-chip-choice`). The inbox is always on (a disabled chip that is on); a reserved channel is a
+ * disabled chip marked "soon".
+ */
+const chooser = (label: string, options: ChipChoiceOption[], on: readonly string[], toggle: (value: string) => void) =>
+  html`<sw-chip-choice multi label=${label} .options=${options} .values=${on}
+    @change=${(e: CustomEvent<ChipChoiceChange>) => { e.stopPropagation(); toggle(e.detail.value); }}></sw-chip-choice>`;
+const INBOX: ChipChoiceOption = { value: 'inbox', label: S.inboxAlways, disabled: true };
 /** CR-CMP2-GEN-REST-2460 (owner N10): a severity in the shared tables is a shared tone chip (the phone list keeps `.sev`) */
 const SEV_TONE: Record<Severity, 'bad' | 'warn' | 'info'> = { critical: 'bad', alert: 'warn', info: 'info' };
 const sevChip = (s: Severity) => html`<span class="chip" data-tone=${SEV_TONE[s]}>${G.alerts.sev[s]}</span>`;
@@ -250,15 +263,14 @@ export class GenRouting extends LitElement {
     const sev = this.sevEdit;
     const data = this.data;
     const d = this.sevDraft;
-    const chk = (label: string, on: boolean, fn: () => void) => html`<label class="${on ? 'on' : ''}"><input type="checkbox" .checked=${on} @change=${fn} /> ${label}</label>`;
     const users = this.users.filter((u) => !this.userQ || (u.name || u.username).toLowerCase().includes(this.userQ.toLowerCase()));
     return html`<sw-drawer modal .open=${!!sev} heading=${sev ? fill(grt('editDefault'), { name: G.alerts.sev[sev] }) : ''} @close=${() => (this.sevEdit = null)} data-drawer="severity">
       ${sev && data ? html`<div class="drawer-body">
-        <div class="fld"><label>${S.recRoles}</label><div class="chooser" data-roles>${data.roles.map((r) => chk(r.label, d.recipients.roles.includes(r.id), () => (this.sevDraft = { ...d, recipients: { ...d.recipients, roles: this.toggle(d.recipients.roles, r.id) } })))}</div></div>
+        <div class="fld"><label>${S.recRoles}</label><div class="chooser" data-roles>${chooser(S.recRoles, data.roles.map((r) => ({ value: r.id, label: r.label })), d.recipients.roles, (id) => (this.sevDraft = { ...d, recipients: { ...d.recipients, roles: this.toggle(d.recipients.roles, id) } }))}</div></div>
         ${this.users.length ? html`<div class="fld"><label>${S.recUsers}</label>
           ${this.users.length > 6 ? html`<input type="search" placeholder=${G.history.search} .value=${this.userQ} @input=${(e: Event) => (this.userQ = (e.target as HTMLInputElement).value)} />` : nothing}
-          <div class="chooser users" data-users>${users.map((u) => chk(u.name || u.username, d.recipients.users.includes(u.id), () => (this.sevDraft = { ...d, recipients: { ...d.recipients, users: this.toggle(d.recipients.users, u.id) } })))}</div></div>` : nothing}
-        <div class="fld"><label>${S.channels}</label><div class="chooser" data-channels><label class="on dis"><input type="checkbox" checked disabled /> ${S.inboxAlways}</label>${data.severity_channels.map((c) => chk(chLabel(c), d.channels.includes(c), () => (this.sevDraft = { ...d, channels: this.toggle(d.channels, c) })))}</div></div>
+          <div class="chooser users" data-users>${chooser(S.recUsers, users.map((u) => ({ value: u.id, label: u.name || u.username })), d.recipients.users, (id) => (this.sevDraft = { ...d, recipients: { ...d.recipients, users: this.toggle(d.recipients.users, id) } }))}</div></div>` : nothing}
+        <div class="fld"><label>${S.channels}</label><div class="chooser" data-channels>${chooser(S.channels, [INBOX, ...data.severity_channels.map((c) => ({ value: c, label: chLabel(c) }))], ['inbox', ...d.channels], (c) => (this.sevDraft = { ...d, channels: this.toggle(d.channels, c) }))}</div></div>
         ${sev === 'critical' ? html`<div class="fld"><label for="crit-min">${grt('criticalDelay')}</label><input id="crit-min" type="number" min="1" max="1440" style="inline-size:90px" .value=${this.delay} @input=${(e: Event) => (this.delay = (e.target as HTMLInputElement).value)} data-critical-delay /><div class="mut" data-critical-note>${grt('criticalNote', { n: this.delay })}</div></div>` : nothing}
         ${this.fail ? html`<div class="alert err" role="alert"><span class="x">!</span><div>${this.fail}</div></div>` : nothing}
         <div class="row"><sw-button variant="primary" ?disabled=${this.busy} @click=${() => this.saveSeverity()} data-save-severity>${S.save}</sw-button><sw-button @click=${() => (this.sevEdit = null)}>${S.cancel}</sw-button></div>
@@ -274,7 +286,6 @@ export class GenRouting extends LitElement {
     const critical = (d.severity ?? i?.default_severity) === 'critical';
     const eff = i ? effectiveRecipients({ ...i, policy: { ...d, severity: d.severity ?? i.default_severity } }, data.severity_defaults) : { roles: [], users: [], inherited: true };
     const users = this.users.filter((u) => !this.userQ || (u.name || u.username).toLowerCase().includes(this.userQ.toLowerCase()));
-    const chk = (label: string, on: boolean, fn: () => void, dis = false, extra = '') => html`<label class="${on ? 'on' : ''} ${dis ? 'dis' : ''}"><input type="checkbox" .checked=${on} ?disabled=${dis} @change=${fn} /> ${label}${extra ? html` <span class="mut">${extra}</span>` : nothing}</label>`;
     return html`<sw-drawer modal .open=${!!i} heading=${i ? fill(S.editTitle, { name: i.title }) : ''} @close=${() => (this.editing = null)} data-drawer="routing">
       ${i ? html`<div class="drawer-body">
         <label class="row"><input type="checkbox" .checked=${d.enabled} @change=${() => this.patch({ enabled: !d.enabled })} data-enabled /> <span>${S.active}</span></label>
@@ -282,11 +293,11 @@ export class GenRouting extends LitElement {
           .options=${SEVS.map((s) => ({ value: s, label: G.alerts.sev[s] }))}></sw-segmented></div>
         ${eff.roles.length + eff.users.length > 0 ? nothing : html`<div class="notice warnbox" data-empty-note>${S.routingEmpty}: ${S.routingEmptyShort}</div>`}
         ${hasRecipients(d) || eff.roles.length + eff.users.length === 0 ? nothing : html`<div class="mut" data-inherited>${grt('inheritedFrom')}: ${this.chips(eff, true)}</div>`}
-        <div class="fld"><label>${S.recRoles}</label><div class="chooser" data-roles>${data.roles.map((r) => chk(r.label, d.recipients.roles.includes(r.id), () => this.patch({ recipients: { ...d.recipients, roles: this.toggle(d.recipients.roles, r.id) } })))}</div></div>
+        <div class="fld"><label>${S.recRoles}</label><div class="chooser" data-roles>${chooser(S.recRoles, data.roles.map((r) => ({ value: r.id, label: r.label })), d.recipients.roles, (id) => this.patch({ recipients: { ...d.recipients, roles: this.toggle(d.recipients.roles, id) } }))}</div></div>
         ${this.users.length ? html`<div class="fld"><label>${S.recUsers}</label>
           ${this.users.length > 6 ? html`<input type="search" placeholder=${G.history.search} .value=${this.userQ} @input=${(e: Event) => (this.userQ = (e.target as HTMLInputElement).value)} />` : nothing}
-          <div class="chooser users" data-users>${users.map((u) => chk(u.name || u.username, d.recipients.users.includes(u.id), () => this.patch({ recipients: { ...d.recipients, users: this.toggle(d.recipients.users, u.id) } })))}</div></div>` : nothing}
-        <div class="fld"><label>${S.channels}</label><div class="chooser" data-channels>${chk(S.inboxAlways, true, () => undefined, true)}${data.channels.map((c) => chk(chLabel(c), d.channels.includes(c), () => this.patch({ channels: this.toggle(d.channels, c) })))}${data.channels_reserved.map((c) => chk(chLabel(c), false, () => undefined, true, S.soon))}</div></div>
+          <div class="chooser users" data-users>${chooser(S.recUsers, users.map((u) => ({ value: u.id, label: u.name || u.username })), d.recipients.users, (id) => this.patch({ recipients: { ...d.recipients, users: this.toggle(d.recipients.users, id) } }))}</div></div>` : nothing}
+        <div class="fld"><label>${S.channels}</label><div class="chooser" data-channels>${chooser(S.channels, [INBOX, ...data.channels.map((c) => ({ value: c, label: chLabel(c) })), ...data.channels_reserved.map((c) => ({ value: c, label: `${chLabel(c)} (${S.soon})`, disabled: true }))], ['inbox', ...d.channels], (c) => this.patch({ channels: this.toggle(d.channels, c) }))}</div></div>
         <div class="fld"><label>${S.quietHours}</label>${critical ? html`<div class="mut" data-quiet-critical>${grt('criticalQuiet')}</div>` : html`<sw-segmented data-quiet value=${d.quiet_mode} @change=${(e: CustomEvent<SegmentedChange>) => this.patch({ quiet_mode: e.detail.value as 'pass' | 'matrix' | 'hold' })}
           .options=${(data.quiet_modes as ('pass' | 'matrix' | 'hold')[]).map((m) => ({ value: m, label: S.quietLong[m] }))}></sw-segmented>`}</div>
         <div class="fld"><label>${S.escalate}</label>${critical ? html`<div class="mut" data-escalate-critical>${grt('criticalNote', { n: data.critical_escalate_after_min })}</div>` : html`<div class="row"><input type="checkbox" .checked=${d.escalate} @change=${() => this.patch({ escalate: !d.escalate })} data-escalate />
@@ -313,6 +324,7 @@ export class GenRouting extends LitElement {
     // CR-CMP2-GEN-REST-2460 (owner N10): the alert-type matrix is the shared table - a group heading row per group (groupHeading), the "on"
     // switch a sw-toggle (it saves at once and never opens the row), the recipient / channel chips the module's look through parts, a
     // type that is off dimmed (part "off"), a type without its sensor muted with the sensor it needs. A row opens the type's editor.
+    // CR-CMP2-POLISH-2470: a type without its sensor opens nothing, so its row is still (rowFocusable: no tab stop, no pointer).
     const dim = (on: boolean, v: unknown) => html`<span part=${on ? nothing : 'off'}>${v}</span>`;
     const setOn = async (i: PolicyItem, v: boolean) => {
       try {
@@ -379,6 +391,7 @@ export class GenRouting extends LitElement {
         <input type="search" placeholder=${G.history.search} aria-label=${G.history.search} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></div>
       <div class="card flush hide-phone" data-routing-matrix><sw-table bare data-gen-table data-gen-routing-table rowKey="key" .columns=${columns as unknown as TableColumn[]}
         .rows=${matrixRows as unknown as Record<string, unknown>[]} .groupHeading=${(r: Record<string, unknown>) => (r as MatrixRow).grp ?? null} .rowAttrs=${matrixHooks}
+        .rowFocusable=${(r: Record<string, unknown>) => !!(r as MatrixRow).item?.available}
         @row-select=${(e: CustomEvent<{ row: MatrixRow }>) => e.detail.row.item && this.edit(e.detail.row.item)}></sw-table></div>
       <div class="list only-phone" style="flex-direction:column">${groups.map((g) => html`<div class="h3">${g.title}</div>${g.items.filter(match).map(phoneRow)}`)}</div>
       ${this.msg ? html`<div class="mut" role="status" data-saved>${this.msg}</div>` : nothing}${!this.editing && this.fail ? html`<div class="bad" role="alert">${this.fail}</div>` : nothing}

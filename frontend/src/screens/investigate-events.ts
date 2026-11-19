@@ -309,6 +309,7 @@ export class InvestigateEvents extends LitElement {
       align-items: center;
     }
     /* CR-CMP2-TABS-2460: the handling-state and view rows are sw-chip-choice, at this toolbar's 28 px chip (the sw-chip size they had) */
+    /* CR-CMP2-POLISH-2470: their chosen chip follows the installation's selected-chip look again (selected-look="setting", ui.chip_selected) */
     sw-chip-choice.evc {
       --sw-chipc-gap: 4px;
       --sw-chipc-h: 28px;
@@ -1363,14 +1364,14 @@ export class InvestigateEvents extends LitElement {
         <sw-field><select aria-label=${tr('מקור')} data-filter-source @change=${(e: Event) => { this.source = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.source}>${tr('כל המקורות')}</option>${Object.entries(SOURCE_LABEL).map(([k, v]) => html`<option value=${k} ?selected=${k === this.source}>${v}</option>`)}</select></sw-field>
       </div>
       <div class="tools">
-        <sw-chip-choice class="evc" label=${tr('מצב טיפול')} value=${this.filter} data-events-ack-filter
+        <sw-chip-choice class="evc" selected-look="setting" label=${tr('מצב טיפול')} value=${this.filter} data-events-ack-filter
           .options=${[
             { value: 'all', label: tr('הכל'), count: this.filter === 'all' ? this.events.length : undefined, attrs: { 'data-ack-filter': 'all' } },
             { value: 'unacked', label: tr('לבדיקה'), count: unacked, attrs: { 'data-ack-filter': 'unacked' } },
             { value: 'acked', label: tr('טופלו'), attrs: { 'data-ack-filter': 'acked' } },
           ]}
           @change=${(e: CustomEvent<ChipChoiceChange>) => { e.stopPropagation(); this.filter = e.detail.value as 'all' | 'unacked' | 'acked'; void this.load(); }}></sw-chip-choice>
-        <sw-chip-choice class="evc" label=${tr('תצוגה')} value=${this.mode} data-events-view
+        <sw-chip-choice class="evc" selected-look="setting" label=${tr('תצוגה')} value=${this.mode} data-events-view
           .options=${[
             { value: 'raw', label: tr('אירועים'), icon: html`<sw-icon name="list" size=${13}></sw-icon>`, attrs: { 'data-mode-raw': '' } },
             { value: 'windows', label: tr('חלונות'), icon: html`<sw-icon name="layers" size=${13}></sw-icon>`, count: this.windows?.length, attrs: { 'data-mode-windows': '' } },
