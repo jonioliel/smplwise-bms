@@ -252,7 +252,7 @@ test.describe('AT221 acceptance', () => {
   test('Settings > מסכי קיר: the list as a table on wide screens, as cards on a phone', async ({ page }, info) => {
     await install(page, newMock({ admin: true }));
     await page.goto('/?design=a&look=performance:full#/system/wall');
-    const narrow = page.viewportSize()!.width <= 720;
+    const narrow = page.viewportSize()!.width <= 767; // CR-CMP2-TABLES-REST-2470: the shared 768 px phone edge
     await expect(page.locator(narrow ? 'system-wall [data-wall-card]' : 'system-wall [data-wall-row]')).toHaveCount(2);
     await expect(page.locator('system-wall [data-wall-count]')).toHaveText('2 / 20 מסכים');
     expect(await page.locator('body').innerText()).not.toMatch(/Home Assistant/);
