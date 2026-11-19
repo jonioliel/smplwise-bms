@@ -211,10 +211,10 @@ def test_the_audit_rows_of_one_large_request_keep_their_order(settings):
         {"to": "https://arx.example.org"},
         {"key": "security.local_passkey_first", "to": "on"},
         {"key": "security.local_passkey_android", "to": "set"},
-        {"key": "privacy.local_purge", "from": "off", "to": "on", "channel": "local"},
+        {"key": "privacy.local_purge", "from": "off", "to": "on", "channel": "local", "confirm_word": "he"},  # CR-I18N-CONFIRM-WORDS-2442
         {"key": "privacy.local_purge_days", "from": "30", "to": "60", "channel": "local"},
         None,
-        {"to": "true"},
+        {"to": "true", "confirm_word": "he"},  # CR-I18N-CONFIRM-WORDS-2442: which word confirmed it
         {"to": False},
         None, None, None, None,
     ]
