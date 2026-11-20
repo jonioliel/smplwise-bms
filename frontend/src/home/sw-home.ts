@@ -43,6 +43,8 @@ import './sw-home-call';
 import type { HomeCallsState, SwHomeCall } from './sw-home-call';
 import '../components/wk-talk-button';
 import '../components/sw-camera-tile';
+import '../components/sw-segmented'; // CR-HOME-V3-SEGMENTS-2470: seg() below (and home-p3's)
+import type { SegmentOption } from '../components/sw-segmented';
 import { STILL_REFRESH_MS } from '../components/sw-live-player';
 // HOME-V3-P1-2430: the v3 screens register themselves (home-ext.ts); sw-home only wires the registry in
 import { homeV3Styles } from './home-styles-v3';
@@ -1036,8 +1038,12 @@ export class SwHome extends LitElement implements P3Host {
     return html`<div class="pager" role="group" aria-label="${tr('דפדוף')}"><button class="rb" data-act="page" data-key=${key} data-d="-1" ?disabled=${p === 0} aria-label="${tr('הקודם')}">${hi('back')}</button><span class="pg num" aria-live="polite">${p + 1} ${tr('מתוך')} ${pages}</span><button class="rb" data-act="page" data-key=${key} data-d="1" ?disabled=${p >= pages - 1} aria-label="${tr('הבא')}">${hi('fwd')}</button></div>`;
   }
 
+  /** CR-HOME-V3-SEGMENTS-2470 (owner N11): a one-of-N choice is the shared `sw-segmented`. Each key carries its `data-act` / `data-v`
+   *  (the component's `attrs`), so the press still reaches the ONE delegated click handler (`onClick` reads `composedPath()`, which
+   *  runs through the key inside the component's open shadow root) - the `a_*` handlers and the screens' specs are unchanged. The
+   *  component's own `change` is not listened to here (the click already carries the choice). */
   seg(a: string, opts: [string, string][], cur: string, label: string) {
-    return html`<div class="seg" role="group" aria-label=${label}>${opts.map(([v, t]) => html`<button data-act=${a} data-v=${v} aria-pressed=${String(v === cur)}>${t}</button>`)}</div>`;
+    return html`<sw-segmented label=${label} value=${cur} .options=${opts.map(([v, t]): SegmentOption => ({ value: v, label: t, attrs: { 'data-act': a, 'data-v': v } }))}></sw-segmented>`;
   }
 
   scopeSeg() {

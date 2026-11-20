@@ -7,7 +7,7 @@ import { DOORS_WIDGET_STYLES } from '../door-windows/home-widget';
 import { NOTICES_WIDGET_STYLES } from '../notices/home-widget';
 import { PRESENCE_WIDGET_STYLES } from './building-presence-widget';
 import { XS_MINI_WIDGET_STYLES } from '../xsection/xs-mini-widget';
-import { hostBlockStyles, segThumbPlainStyles } from '../styles/fragments';
+import { hostBlockStyles } from '../styles/fragments';
 
 /**
  * CR-STRUCT-CSS-SPLIT-2442 (code review 06:STRUCT-1 step 1): the style sheets of `home-widgets` (screens/home-widgets.ts), moved here as they
@@ -822,7 +822,6 @@ export const homeWidgetsStyles = [css`
     .gbtn:focus-visible,
     .grip:focus-visible,
     .eb:focus-visible,
-    .seg button:focus-visible,
     .al-go:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
@@ -924,8 +923,7 @@ export const homeWidgetsStyles = [css`
       background: var(--sw-pressed-wash);
     }
     .grip,
-    .eb,
-    .seg button {
+    .eb {
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
     }
@@ -954,23 +952,30 @@ export const homeWidgetsStyles = [css`
     .eb.x {
       margin-inline-start: auto;
     }
-    .seg {
-      display: inline-flex;
-      background: var(--sw-surface-3);
-      padding: 2px;
-      border-radius: var(--sw-r-pill);
-      gap: 1px;
+    /* CR-HOME-V3-SEGMENTS-2470 (owner N11): the size choice is the shared sw-segmented; the edit bar's small pill key reaches it
+       through the component's knobs (the chosen key, its touch-action and focus ring are the component's own) */
+    .wg-e sw-segmented {
+      --sw-seg-track: var(--sw-surface-3);
+      --sw-seg-pad: 2px;
+      --sw-seg-radius: var(--sw-r-pill);
+      --sw-seg-gap: 1px;
+      --sw-seg-key-pad: 9px;
+      --sw-seg-h: 24px;
+      --sw-seg-fs: var(--sw-fs-xs);
+      --sw-seg-fw: var(--sw-fw-regular);
+      --sw-seg-on-fw: var(--sw-fw-semibold);
+      --sw-seg-fg: var(--sw-text-2);
+      --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-text));
+      --sw-seg-btn-radius: var(--sw-r-pill);
+      --sw-seg-key-min-w: auto;
+      --sw-seg-wrap: nowrap;
     }
-    .seg button {
+    .wg-e sw-segmented::part(track) {
       border: 0;
-      background: transparent;
-      padding: 2px 9px;
-      min-block-size: 24px;
-      font: inherit;
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-2);
-      border-radius: var(--sw-r-pill);
-      cursor: pointer;
+    }
+    /* the label keeps the bar's own line height (it sits on the same pixel row as before) */
+    .wg-e sw-segmented::part(key) {
+      line-height: inherit;
     }
     /* POLISH4-WP4 (D2): a 44 px target for every edit control on touch (26 px on a mouse) */
     @media (pointer: coarse) {
@@ -979,18 +984,15 @@ export const homeWidgetsStyles = [css`
         inline-size: 44px;
         block-size: 44px;
       }
-      .wg-e .seg {
-        padding: 0;
-      }
-      .seg button {
-        min-block-size: 44px;
-        min-inline-size: 44px;
+      .wg-e sw-segmented {
+        --sw-seg-pad: 0;
+        --sw-seg-h: 44px;
+        --sw-seg-key-min-w: 44px;
       }
       .wg-e {
         gap: 2px;
       }
     }
-    ${segThumbPlainStyles}
     /* QUICKHIDE-295: with the quick actions hidden by the setting the notices card is not held to its natural width: it takes the rest of its row */
     :host([quick-hidden]) .wg.wg-notices {
       max-inline-size: none;

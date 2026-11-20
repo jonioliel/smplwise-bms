@@ -243,6 +243,11 @@ const ADOPTED = [
   // the provider strip of system-calendar-sync is a tab strip: sw-tabs (pill) since CR-CMP2-SEGMENTED-C-2450; its other choices are here
   'screens/system-calendar-sync.ts',
   // screens/home-edit-bv1.ts draws it too (registered by home-edit-panel); shell/sw-home-personal.ts keeps one multi-choice row
+  // CR-HOME-V3-SEGMENTS-2470: the home v3 operator screen (sw-home's seg() serves its screens and the v3 modules, home-p3's seg() phase 3)
+  // and the home widgets' edit-bar size choice. The home .hsw and the row switches are not segmented controls and stay (owner N12).
+  'home/sw-home.ts',
+  'home/home-p3.ts',
+  'screens/home-widgets.ts',
 ];
 
 test('adoption: the adopted screens draw every segmented control with sw-segmented', () => {
