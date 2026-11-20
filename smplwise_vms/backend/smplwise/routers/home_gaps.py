@@ -21,6 +21,8 @@ from ..rbac import INSTALLATION, Principal, require
 from ..services import home_gaps_store as store
 from ..services import home_interface as hi
 from ..services.alarm import ACTIONS
+from ..wire import home_gaps as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -66,7 +68,7 @@ def alarm_log(conn: sqlite3.Connection, principal: Principal, now: dt.datetime |
     return out
 
 
-@router.get("/home/alarm-log")
+@router.get("/home/alarm-log", **wire(W.AlarmLog))
 def get_alarm_log(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _modules_on(conn, principal)
     return {"items": alarm_log(conn, principal), "days": DAYS}
