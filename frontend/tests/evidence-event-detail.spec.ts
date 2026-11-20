@@ -61,8 +61,8 @@ test.describe('event page (SW A)', () => {
     // event centre: the 'טופלו' tab lists acknowledged events; the drawer's 'סקירה מלאה' opens the page
     await open(page, '/investigate/events');
     const centre = page.locator('investigate-events');
-    await expect(centre.locator('sw-chip', { hasText: 'טופלו' })).toBeVisible();
-    await centre.locator('sw-chip', { hasText: 'טופלו' }).click();
+    await expect(centre.locator('[data-ack-filter="acked"]')).toBeVisible(); // CR-CMP2-TABS-2460: a chip of sw-chip-choice
+    await centre.locator('[data-ack-filter="acked"]').click();
     await page.waitForTimeout(800);
     const rows = centre.locator('sw-table tbody tr, sw-table [role="row"]');
     if ((await rows.count()) > 0) {
