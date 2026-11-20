@@ -101,14 +101,14 @@ writing the models, then again under the strict oracle.
 | Lanes B / C: ESLint, unit and browser specs | NOT reported (lanes stopped at their turn limit) - treat as NOT_RUN |
 | Second session (20.11): notifications, the 6 suites (`test_notify_core`, `test_notify_email`, `test_home_interface`, `test_local_auth_inventory`, `test_second_factor_followups`, `test_xsecfix_297`) under the strict oracle | 163 passed, 0 failed (rc 0); 19 of the 20 JSON routes compared (not `POST /notifications/test`, see Remaining 5) |
 | Second session: tickets_costs, `test_tickets_vendor_accounts` + `test_tickets_quotes` under the strict oracle | 19 passed, 0 failed (rc 0) |
-| Second session: tickets_costs, the 14 ticket suites in one strict run | STOPPED UNFINISHED at the session's time limit: ~91 of ~257 tests ran (`test_tickets_costs` .. into `test_tickets_detail`), 0 failures, 1 skip; PC at 100 % CPU (other agents) |
+| Second session: tickets_costs, the 14 ticket suites in one strict run | 383 passed, 5 skipped, 0 failed (rc 0); ~70 min at 100 % CPU (other agents) |
 | Second session: `test_wire_tickets_costs_2470` | 1 passed |
 | Second session: all 11 tickets_costs JSON routes compared by the oracle across the runs above | yes (report, claims, bulk mark-paid, GET costs, requirement, decision, quote-decision alias, pending file, on-behalf, department GET / PUT) |
 | Second session: `test_wire_routers_c_2470`, `test_wire_routers_b_2450`, `test_wire_consumption_2450`, `test_wire_route_coverage_2460` (head `884bd8294`) | 142 passed, 0 failed |
 | Second session: `gen_wire_types.py --check` | rc 0 |
 | Second session: ruff (`smplwise/wire`, both routers, the generator, both test files) | All checks passed |
 | Second session: ESLint `api/notifications.ts`, `api/tickets-costs.ts` | rc 0 |
-| Second session: `tsc --noEmit -p tsconfig.tests.json` | 0 errors (rc 0) with both modules edited; final run on the head: see below |
+| Second session: `tsc --noEmit -p tsconfig.tests.json` | 0 errors (rc 0), run on the frontend files as committed in `d9e8868bf` + `884bd8294` |
 | NOT_RUN | full backend suite, unit / browser specs of the notification center and the costs tab, tablet / mobile projects, pixel specs, anything on the runner (gates were running) | |
 
 No pixel change is expected (types only); no baseline refreshed.
@@ -119,7 +119,7 @@ No pixel change is expected (types only); no baseline refreshed.
 2. Lanes B / C: ESLint, unit and browser specs on the merged head (the second session linted its two modules only).
 5. `POST /notifications/test` answered only with refusals in the suites (no registered device): its model follows
    services/notify_channels.send_test but no successful answer was compared by the oracle.
-6. The full strict run of the 14 ticket suites did not finish inside the session (see Tests); finish it before the train.
+6. Unit / browser specs of the notification center and the costs tab on this head (types-only change; NOT_RUN).
 3. `notices.open_router` (module, settings, logos, news sources) and the login-free TV routers are not modelled; the generator now
    reads `open_router`, so modelling them puts them in `wire-notices.ts`.
 4. `routers/access.py` role list (`RoleInfo`) not modelled.
