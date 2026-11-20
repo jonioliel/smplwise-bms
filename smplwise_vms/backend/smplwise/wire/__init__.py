@@ -42,6 +42,16 @@ def _drift(model: str, what: str) -> None:
     log.error("response contract drift in %s: %s (the answer is sent as the route built it)", model, what)
 
 
+def _reset_reported() -> None:
+    _REPORTED.clear()
+
+
+from ..test_reset import register_reset  # noqa: E402 - imports nothing from the package
+
+# RELEASE-2450-TRAIN: the once-per-drift log set is module state; tests start from an empty set (test_singletons_registered)
+register_reset(__name__, ("_REPORTED",), _reset_reported)
+
+
 class WireModel(BaseModel):
     """Base of every response model: undeclared keys pass through (strict mode: refused), a value of the wrong type falls back to the
     route's own dict for this object (strict mode: refused)."""
