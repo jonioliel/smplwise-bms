@@ -1,0 +1,9 @@
+{
+"services/bill_pdf.py": {"attrs": ["_STATUS"], "body": ["with _STATUS_LOCK:", "    _STATUS.clear()", "    _STATUS.update(configured=None, active=None, checked=False, checked_at=None, detail=\"\", check_seconds=None, last_render_engine=None,", "                   last_render_at=None, slow_fallbacks=0, crash_fallbacks=0, fallback_after_s=None)"]},
+"services/energy_billing.py": {"attrs": ["_LAST_AUTO", "_LAST_RETENTION"], "body": ["_LAST_AUTO.clear()", "_LAST_RETENTION.clear()"]},
+"services/energy_sampler.py": {"attrs": ["_LAST"], "body": ["_LAST.update(retention=0.0, vacuum=0.0)"]},
+"services/energy_store.py": {"attrs": ["_STORES"], "body": ["with _STORES_LOCK:", "    _STORES.clear()"]},
+"services/water_billing.py": {"attrs": ["_LAST", "_OVERRIDE"], "register": "reset"},
+"services/water_runtime.py": {"attrs": ["_LAST"], "register": "reset"},
+"services/water_sampler.py": {"attrs": ["_LAST"], "body": ["_LAST.update(retention=0.0)"]}
+}
