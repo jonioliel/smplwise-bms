@@ -81,26 +81,48 @@ On the two devices screens a chosen kind tab must be among the measured choices 
 - Looked at by eye: the severity-default drawer (two columns of boxes, the chosen ones on the accent wash with the rim, the inbox on and
   disabled), the events centre's chip rows (API mode, 1440).
 
-## Runner
+## Runner (linux, own worktree `~/work/polish2470`, `nice -n 19`, `--workers=1`, own TMPDIR)
 
-The 2.45.0 release gate (`release/2450-train`) held the runner for the whole session, with the 2.46.0 train next, so no pixel work ran
-there and NO Linux baseline is refreshed in this branch yet. Queued: `~/work/polish2470-run.sh <sha>` (log `~/work/polish2470-run.log`,
-results `~/work/polish2470-out/`). It waits while a gate runs or is pending (`gate_status.json`, `~/.gate-pending`) and while the TABS-2460 /
-GEN-REST-2460 waiting scripts run, then in its own worktree (`~/work/polish2470`, `nice -n 19`, `--workers=1`, its own TMPDIR): build;
-pixel verify without `-u` of every spec this branch or its TABS base can move (events windows, sw-tabs, sw-segmented, sw-table, plan
-wizard 2433 / 2434, AUDIT30-B / C / E / G, glass bridge, home gaps, access events, WisKey diagnostics, visual matrix); rewrite only the
-failed ones (`--last-failed --update-snapshots=changed`); verify again; `evidence-polish2-295` / `-genalert` / `-kavarnit` on all
-projects. It packs the changed / new images (`snaps-new.tgz`) with their old versions (`snaps-old.tgz`) for the old-vs-new look before
-they are committed here, and cleans its worktree, build and temp folder.
+The 2.45.0 gate held the runner while the code was written. Script `~/work/polish2470-run.sh f221cb60b` (log `~/work/polish2470-run.log`,
+results `~/work/polish2470-out/summary.txt`) waits while a gate runs or is pending (`gate_status.json`, `~/.gate-pending`) and while the
+TABS-2460 / GEN-REST-2460 waiting scripts run. It started at 22:55 UTC, after that gate had ended and those scripts were done (no gate ran
+during it), and finished at 23:17:
 
-Expected to move: `pixel-events-windows-2443` (the chip rows: the TABS-2460 chip shape, now with the setting's selected look),
-`pixel-sw-tabs` (new, 4 images), and the TABS-2460 list (plan wizard 2434 cameras tab, visual-matrix devices-schedules, AUDIT30-C
-tickets overview, ...). Not expected: the generator drawers and the water alerts are in no pixel spec; a still row looks the same at rest.
+- Build (`vite build`): OK.
+- Pixel verify without `-u`, `--retries=1`, all projects, every spec this branch or its TABS-2460 base can move (`pixel-events-windows-2443`,
+  `pixel-sw-tabs`, `pixel-sw-segmented`, `pixel-sw-table`, `pixel-plan-wizard-2433` / `-2434`, `evidence-audit30c-tickets`,
+  `pixel-audit30a-glass-bridge`, `evidence-audit30b-shared`, `pixel-home-gaps-2436`, `layout-audit30-e-infra`, `pixel-access-events`,
+  `pixel-wiskey-access-diag`, `pixel-audit30g-video`, `visual-matrix`): 289 passed, 110 skipped (no baseline for that project),
+  **12 failed** - exactly the TABS-2460 set (its own runner check at e46a04ceb failed the same four files): events windows, plan wizard
+  2433 / 2434, visual-matrix devices-schedules.
+- Rewrite only those (`--last-failed --update-snapshots=changed`): 12 passed, 13 images.
+- Verify again without `-u`: **301 passed, 110 skipped, 0 failed**.
+- Behaviour on all projects (`evidence-polish2-295`, `evidence-genalert`, `evidence-kavarnit`): **69 passed, 0 failed** (the kind-strip
+  contrast and the still-row DOM checks included).
+- `pixel-sw-tabs` has no baseline yet (its tests skip without one). A follow-up to create them waited behind the next gate and was
+  stopped by me; the four images come from the TABS-2460 runner pass (`~/work/tabs2460-out/take.tgz`: created at e46a04ceb, then
+  verified twice, 8 passed) - the specimen draws only `sw-tabs` and the default `sw-chip-choice`, which this branch does not change.
+- Clean-up: the worktree, `dist`, `test-results` and the temp folder are removed; outputs stay in `~/work/polish2470-out/`.
+
+Baselines refreshed in this branch (all looked at, old vs new):
+
+- CHANGED `frontend/tests/pixel-events-windows-2443.spec.ts-snapshots/events-windows-classic-{table-1440-desktop,drawer-1440-desktop,table-390-mobile}-linux.png`
+  - the handling-state / view rows are `sw-chip-choice` (TABS-2460: pill chips, the count as a small pill; 44 px tall on the phone's coarse
+  pointer, so the phone page is 32 px longer above the table) and the chosen chips take the installation's selected look again (field,
+  ring, check - this row).
+- CHANGED `frontend/tests/pixel-plan-wizard-2433.spec.ts-snapshots/wizard-step6-{1440-desktop,1024-tablet}-linux.png` and
+  `frontend/tests/pixel-plan-wizard-2434.spec.ts-snapshots/wizard2-cameras-{1440-desktop,1024-tablet}-linux.png` - the devices / cameras
+  strip is the `sw-tabs` pill with count pills (TABS-2460); the strip is 4 px shorter, the list below moves up.
+- CHANGED `frontend/tests/visual-matrix.spec.ts-snapshots/devices-schedules-ready-{light,dark}-{desktop,tablet,mobile}-linux.png` (6) - the
+  kind strip is `sw-tabs` (TABS-2460; on the phone it shares the toolbar row equally).
+- NEW `frontend/tests/pixel-sw-tabs.spec.ts-snapshots/sw-tabs-{light,dark}-{desktop,mobile}-linux.png` (4) - the specimen of CR-CMP2-TABS-2460.
+
+Not moved: the generator drawers and the water alerts are in no pixel spec; a still row looks the same at rest; every other spec above
+matched its baseline.
 
 ## NOT_RUN
 
-- Every Linux pixel check and baseline refresh (queued above); the tablet project; full unit / evidence / pixel suites; the entry check
-  (`branch_check.sh`) - not queued (gates first).
+- Full unit / evidence / pixel suites; the entry check (`branch_check.sh`) - not queued (gates first); tablet on the PC.
 - No lab / device test (UI only).
 
 ## Open questions (recommendation taken, for the owner's page)
@@ -114,3 +136,5 @@ tickets overview, ...). Not expected: the generator drawers and the water alerts
    question 1.
 3. A still row (closed water alert, sensorless generator type) also ignores a mouse click now (it did nothing before either, but showed
    a pointer). Keep? Recommendation: keep - one rule for pointer and keyboard.
+4. On a phone the events centre's chip rows are 44 px tall (sw-chip-choice's coarse-pointer target; the old sw-chip rows were 28 px), so
+   the page is 32 px longer above the table (it scrolls on a phone as before). Keep? Recommendation: keep - 44 px touch targets.
