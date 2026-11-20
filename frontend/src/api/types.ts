@@ -1,50 +1,25 @@
 // Shapes returned by the add-on backend (smplwise_vms/backend). Keep in step with the routers.
 
-export interface Me {
-  /** CR-LOGOS295: the company logo / name, logo size, dark-background mode and the browser-tab title parts (design/brand-logo.ts). */
-  brand?: import('../design/brand-logo').BrandView;
-  user: { id: string; username: string; display_name: string; source: 'ingress' | 'dev' | 'remote' };
-  /** CR-008: the entry channel - `remote` through SmplWise Arx (`/arx/`), `local` through Ingress (or a developer backend). */
-  channel?: 'remote' | 'local';
-  /** CR-008: the remote.* settings the Arx client needs; null outside the remote channel. */
-  remote?: Record<string, string | number> | null;
-  bindings: { id: string; role_id: string; role_name: string; scope_type: string; scope_id: string; scope_name: string; effect: string }[];
-  permissions_installation: string[];
-  /** Held at any scope (union of the allow bindings, minus installation-wide denies): what the shell may show. */
-  permissions_any?: string[];
-  has_access: boolean;
-  permission_revision: number;
-  /** T055: false once Home Assistant disabled the user (every request is refused from then on). */
-  active?: boolean;
-  /** T055: hash of everything this user's access depends on; moves exactly when their permissions may have changed. */
-  permissions_fingerprint?: string;
-  /** T055: /me?known=<fingerprint> - whether it moved since. */
-  permissions_changed?: boolean;
-  /** CR-030: presence of an enabled wall profile; `desktop` (WALL-FOLLOWUPS-2390): the wall display also takes over a desktop-class browser;
-   * `foldable_open` (WALL-ANSWERS-2400): an unfolded foldable counts as a tablet (default) or a phone. Absent in an older answer: false / tablet. */
-  /** HOME-SIMPLE-2420: which interface opens (home / full), the switch, home-only and the wall-panel lock (absent on an older add-on). */
-  interface?: import('../home/home-api').InterfacePolicy | null;
-  wall?: { enabled: boolean; profile_version: number; desktop?: boolean; foldable_open?: 'tablet' | 'phone' } | null;
-  bootstrap_state: string;
-  /** NVR-less mode (owner request 2026-09-29): `ha_only` when the add-on options name no NVR host - the shell hides the
-   * NVR areas for everyone. Absent on an older backend (= full). */
-  mode?: 'full' | 'ha_only';
-  /** CR-022 section 8: a saved / removed NVR connection waits for a restart. Present only for holders of system.configure. */
-  connection_pending_restart?: boolean;
-  /** NN1: what this installation has (NVR, media server, Home Assistant ...), derived by the server; the shell hides what cannot work.
-   * Booleans for everyone; `recorders` only for whoever may read the NVR configuration (CR-022). */
-  capabilities?: import('./capabilities').Capabilities;
-  /** CR-027: what the required-sensors policy says about this caller on this channel; present once a policy was ever written,
-   * null when it applies to nobody. `blocked` is what the shell acts on (the server refuses every other request too). */
+/* `GET /me` is the backend's response model (smplwise_vms/backend/smplwise/wire/me.py, generated into ./generated/wire-me.ts; code review
+ * 07:F8 step 2): a key the server renames or drops is a compile error here. The blocks other modules own keep their client types
+ * (narrowed on purpose: the server passes them through as documents) - the brand view (design/brand-logo.ts, LOGOS-295), the home
+ * interface policy (HOME-SIMPLE-2420, null on an add-on whose migration has not run), the capabilities (NN1: booleans for everyone,
+ * `recorders` only for whoever may read the NVR configuration), the presence gate (CR-027: present once a policy was ever written, null
+ * when it applies to nobody; `blocked` is what the shell acts on), the remote.* settings (CR-008: null outside the remote channel), the
+ * tickets module's display names (CR-038 D33), the demo banner (CR-READY96) and the wall presence (CR-030). Present only for some
+ * callers: `connection_pending_restart` / `readiness` (system.configure), `presence_gate`, `local_identity` (an Arx-only identity).
+ * `user.source` is the principal's source (`ingress`, `dev`, `remote`, `bearer`, `local` ...). */
+type MeWire = import('./generated/wire-me').Me;
+export type Me = Omit<MeWire, 'brand' | 'interface' | 'capabilities' | 'presence_gate' | 'remote' | 'modules' | 'demo' | 'wall'> & {
+  brand: import('../design/brand-logo').BrandView;
+  interface: import('../home/home-api').InterfacePolicy | null;
+  capabilities: import('./capabilities').Capabilities;
   presence_gate?: import('./presence').PresenceGate | null;
-  /** CR-038 section 6: the optional modules the shell offers - the tickets module's switch (permissions decide the rest) and its
-   * display name per language (owner decision D33: every text that names the module is rendered through tickets/naming.ts). Absent on
-   * an older backend (= off). */
-  /** CR-READY96: the last RECORDED readiness score (system.configure holders only; null until the first check) and the demo-mode state every signed-in user is told. */
-  readiness?: { score: number; level: 'building' | 'almost' | 'ready'; at: string } | null;
-  demo?: import('./readiness').DemoState;
-  modules?: { tickets: boolean; notices?: boolean /* CR-NOTICE106 */; tickets_name?: Partial<Record<import('../tickets/naming').TicketLang, import('../tickets/naming').TicketName>>; tickets_long_press?: 'sheet' | 'menu' /* D17 (slice 3) */; incidents?: boolean /* CR-LIVEEVENT100: the live event mode switch (OFF by default) */; announce?: boolean /* FIX2200: announce.enabled - the הכרזות tab */ };
-}
+  remote: Record<string, string | number> | null;
+  modules: Omit<MeWire['modules'], 'tickets_name'> & { tickets_name: Partial<Record<import('../tickets/naming').TicketLang, import('../tickets/naming').TicketName>> };
+  demo: import('./readiness').DemoState;
+  wall: (Omit<NonNullable<MeWire['wall']>, 'foldable_open'> & { foldable_open: 'tablet' | 'phone' }) | null;
+};
 
 /* Site / building / floor are the backend's response models (smplwise_vms/backend/smplwise/wire/catalog.py, generated into
  * ./generated/wire-catalog.ts): a field the server renames or drops is a compile error here (code review 07:F8 step 2). Optional on
