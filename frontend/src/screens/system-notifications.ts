@@ -48,7 +48,7 @@ const SECTIONS: { id: SecId; label: string; icon: string }[] = [
   { id: 'quiet', label: tr('שעות שקט ומה עובר'), icon: 'moon' },
   { id: 'esc', label: tr('הסלמה'), icon: 'escal' },
   { id: 'lock', label: tr('פרטיות מסך נעול'), icon: 'lock' },
-  { id: 'keep', label: 'שמירה', icon: 'calendar' },
+  { id: 'keep', label: tr('שמירה'), icon: 'calendar' },
   { id: 'mail', label: tr('דואר יוצא'), icon: 'mail' },
   { id: 'wa', label: tr('וואטסאפ'), icon: 'chat' }, // NOTIFWA
   { id: 'chan', label: tr('ערוצים'), icon: 'phone' },

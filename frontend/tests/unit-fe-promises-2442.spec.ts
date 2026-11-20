@@ -97,6 +97,7 @@ test('timers and listeners of the other screens take a plain function (the async
 
 test('the remote-access card writes its angle brackets as entities (the text shown is unchanged)', () => {
   const s = src('screens/system-diagnostics.ts');
-  expect(s).toContain('https://&lt;שם ה־Home Assistant&gt;/arx');
-  expect(s).not.toContain('https://<שם');
+  // I18N-EN-2490: the subheading is a tr() text now - a JS string bound with ${...}, never parsed as markup, so its brackets are plain
+  expect(s).toContain("subheading=${tr('כניסה דרך https://<שם ה־Home Assistant>/arx");
+  expect(s).not.toContain('subheading="כניסה דרך https://<שם');
 });

@@ -17,6 +17,7 @@ import { adminRemovePasskey, adminSetPasskeyOnly, userPasskeys, type PasskeyView
 import { po } from '../i18n/passkey-only';
 import { confirmDialog } from '../components/confirm-dialog';
 import type * as LocalWire from '../api/generated/wire-local-identity';
+import { tr } from '../i18n/msg/system-b';
 
 /* USR2: an Arx-only identity and the tab's list are the backend's response models (smplwise_vms/backend/smplwise/wire/local_identity.py,
  * generated into ../api/generated/wire-local-identity.ts; code review 07:F8 step 2) - never a hash, never a link. */
@@ -60,7 +61,7 @@ export function localRoles(roles: RoleInfo[]): RoleInfo[] {
 
 /** The full address of a link: the server gives it on the remote channel; under Ingress the public host is not known here. */
 function linkText(link: LinkShown): string {
-  return link.url ?? `https://<כתובת הגישה מרחוק>${link.path}`;
+  return link.url ?? tr('https://<כתובת הגישה מרחוק>{path}', { path: link.path });
 }
 
 /** A masked number (`····91`) inside Hebrew text keeps its left-to-right order (Unicode isolate). */
@@ -770,7 +771,7 @@ export class SystemLocalUsers extends LitElement {
     const d = this.data;
     if (!d) {
       return html`<div class="stack">${this.error
-        ? html`<sw-state-panel state="error" compact hint=${this.error} actionLabel="נסה שוב" data-local-load-error @action=${() => void this.load()}></sw-state-panel>`
+        ? html`<sw-state-panel state="error" compact hint=${this.error} actionLabel=${tr('נסה שוב')} data-local-load-error @action=${() => void this.load()}></sw-state-panel>`
         : html`<sw-state-panel state="loading" compact data-local-loading></sw-state-panel>`}</div>`;
     }
     const row = (x: Record<string, unknown>) => x as unknown as LocalUser;
