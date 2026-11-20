@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ממשק ביתי - השלב הבא</title>
+<meta name="description" content="T120 next phase mockup: wall panel ambient / night / takeover, today rail, scene result and editor, panels list. Design only.">
+<style>
+@font-face { font-family: "Heebo"; font-weight: 400; src: url(../../../frontend/public/fonts/heebo-hebrew-400.woff2) format("woff2"); unicode-range: U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; }
+@font-face { font-family: "Heebo"; font-weight: 500; src: url(../../../frontend/public/fonts/heebo-hebrew-500.woff2) format("woff2"); unicode-range: U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; }
+@font-face { font-family: "Heebo"; font-weight: 600; src: url(../../../frontend/public/fonts/heebo-hebrew-600.woff2) format("woff2"); unicode-range: U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; }
+@font-face { font-family: "Heebo"; font-weight: 700; src: url(../../../frontend/public/fonts/heebo-hebrew-700.woff2) format("woff2"); unicode-range: U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; }
+@font-face { font-family: "Heebo"; font-weight: 400; src: url(../../../frontend/public/fonts/heebo-latin-400.woff2) format("woff2"); }
+@font-face { font-family: "Heebo"; font-weight: 500; src: url(../../../frontend/public/fonts/heebo-latin-500.woff2) format("woff2"); }
+@font-face { font-family: "Heebo"; font-weight: 600; src: url(../../../frontend/public/fonts/heebo-latin-600.woff2) format("woff2"); }
+
+/* ---------- review chrome (not product) ---------- */
+:root {
+  --font: "Heebo", "Segoe UI", "Noto Sans Hebrew", Arial, sans-serif;
+  --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --c-bg: #e9e7e3; --c-ink: #22201d; --c-ink2: #5a554d; --c-line: #d3cfc8; --c-acc: #2459d6; --c-on: #fff;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --c-bg: #0d0d0c; --c-ink: #ece8e1; --c-ink2: #a59f95; --c-line: #2f2c28; --c-acc: #7fa6ff; --c-on: #111; color-scheme: dark; } }
+:root[data-theme="dark"] { --c-bg: #0d0d0c; --c-ink: #ece8e1; --c-ink2: #a59f95; --c-line: #2f2c28; --c-acc: #7fa6ff; --c-on: #111; color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { font-family: var(--font); background: var(--c-bg); color: var(--c-ink); overflow: hidden; -webkit-font-smoothing: antialiased; }
+::selection { background: var(--c-acc); color: var(--c-on); }
+.chrome { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 10px 16px; border-bottom: 1px solid var(--c-line); }
+.chrome h1 { font-size: 16px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+.chrome .note { font-size: 13px; color: var(--c-ink2); }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tabs button { font: inherit; font-size: 13px; border: 1px solid var(--c-line); background: transparent; color: var(--c-ink); border-radius: 999px; padding: 6px 12px; cursor: pointer; transition: transform 120ms var(--ease); }
+.tabs button:active { transform: scale(.97); }
+.tabs button[aria-pressed="true"] { background: var(--c-ink); color: var(--c-bg); border-color: var(--c-ink); }
+.tabs button:focus-visible, .chrome button:focus-visible { outline: 2px solid var(--c-acc); outline-offset: 2px; }
+.stage { position: relative; height: calc(100% - var(--chrome-h, 92px)); display: grid; place-items: center; overflow: hidden; }
+.frame { position: absolute; top: 50%; left: 50%; transform-origin: 50% 50%; box-shadow: 0 20px 60px rgba(0,0,0,.28); border-radius: 18px; overflow: hidden; display: none; }
+.frame.on { display: block; }
+.frame:not(.on) { display: none !important; }
+.stage > .frame { position: absolute; }
+.cap { flex-basis: 100%; font-size: 13px; color: var(--c-ink2); margin: 0; }
+
+/* ---------- home face tokens (approved v2 classic) ---------- */
+.hs { --sw-bg: #131211; --sw-surface: #1d1c1a; --sw-surface-2: #262421; --sw-surface-3: #33302c; --sw-solid: #262421;
+  --sw-border: #2e2c28; --sw-border-strong: #45413b; --sw-overlay: rgba(0,0,0,.62);
+  --sw-text: #f1ede6; --sw-heading: #faf7f1; --sw-text-2: #bdb6aa; --sw-text-3: #989185;
+  --sw-accent: #3d6ddf; --sw-accent-soft: #232b3f; --sw-accent-text: #a3c0ff; --sw-focus: #a3c0ff; --on-accent: #fff;
+  --sw-lit: #ffb547; --lamp-on: #3a2f1a; --on-tile: #2f2c28; --dim-fill: #48443d;
+  --ok: #3ddc84; --ok-soft: #1b2b22; --ok-text: #5fe39a;
+  --warn: #f5b043; --warn-soft: #302717; --warn-text: #f7bd62;
+  --bad: #ff6b62; --bad-soft: #35201e; --bad-text: #ff938b;
+  --toast-bg: #f1ede6; --toast-text: #1b1a18; --toast-act: #1f4fc4;
+  --f-sm: 15px; --f-body: 17px; --f-tile: 19px; --f-h2: 18px; --f-h1: 34px;
+  --hit: 56px; --r-tile: 22px; --r-ctl: 16px; --gap: 16px;
+  font-family: var(--font); color: var(--sw-text); background: var(--sw-bg); color-scheme: dark; position: relative; overflow: hidden; }
+.hs[data-scheme="light"] { --sw-bg: #f2f0ec; --sw-surface: #ffffff; --sw-surface-2: #f7f5f2; --sw-surface-3: #e9e6e0; --sw-solid: #ffffff;
+  --sw-border: #e2ded7; --sw-border-strong: #cdc8bf; --sw-overlay: rgba(28,26,22,.42);
+  --sw-text: #24221f; --sw-heading: #171614; --sw-text-2: #57524a; --sw-text-3: #6b665d;
+  --sw-accent: #2459d6; --sw-accent-soft: #e6edfc; --sw-accent-text: #1c4fc8; --sw-focus: #2459d6;
+  --sw-lit: #b86e00; --lamp-on: #fbe8c2; --on-tile: #ffffff; --dim-fill: #d3cec5;
+  --ok: #1fa75a; --ok-soft: #e3f4ea; --ok-text: #136c3b; --warn: #d97706; --warn-soft: #fbefdc; --warn-text: #8f4a05;
+  --bad: #dc2626; --bad-soft: #fbe9e7; --bad-text: #a81c1c; --toast-bg: #24221f; --toast-text: #fff; --toast-act: #a3c0ff; color-scheme: light; }
+.hs ::selection { background: var(--sw-accent); color: var(--on-accent); }
+.hs .num, .hs time { font-variant-numeric: tabular-nums; }
+.hi { width: 26px; height: 26px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.hi.sm { width: 20px; height: 20px; } .hi.lg { width: 32px; height: 32px; }
+.hs button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; transition: transform 120ms var(--ease), background-color 200ms var(--ease); }
+.hs button:active { transform: scale(.97); }
+.hs button:focus-visible { outline: 3px solid var(--sw-focus); outline-offset: 3px; }
+.muted { color: var(--sw-text-2); font-size: var(--f-sm); }
+.clamp1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.hbtn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: var(--hit); padding: 0 22px !important; border-radius: var(--r-ctl); background: var(--sw-surface-3) !important; color: var(--sw-heading) !important; font-size: var(--f-body); font-weight: 500; white-space: nowrap; }
+.hbtn.strong { background: var(--sw-accent) !important; color: var(--on-accent) !important; }
+.hbtn.quiet { background: transparent !important; color: var(--sw-text-2) !important; }
+.hbtn .hi { width: 22px; height: 22px; }
+
+/* panel shell */
+.shell { display: grid; grid-template-columns: 96px 1fr; grid-template-rows: 72px 1fr; height: 100%; }
+.nav { grid-row: 1 / 3; grid-column: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0; background: var(--sw-surface); border-inline-start: 1px solid var(--sw-border); }
+.nav button { width: 76px; min-height: 72px; border-radius: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 13px; color: var(--sw-text-2); }
+.nav button[aria-current] { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
+.nav .sp { flex: 1; }
+.strip { grid-column: 2; display: flex; align-items: center; gap: 16px; padding: 0 24px; }
+.strip .room { display: flex; align-items: center; gap: 8px; font-size: 24px; font-weight: 600; color: var(--sw-heading); letter-spacing: -0.01em; }
+.strip .room .hi { width: 20px; height: 20px; color: var(--sw-text-3); }
+.strip .sp { flex: 1; }
+.pill { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px; border-radius: 999px; background: var(--sw-surface); font-size: var(--f-sm); color: var(--sw-text); }
+.pill .hi { width: 20px; height: 20px; }
+.pill.ok .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.strip time { font-size: 22px; font-weight: 500; color: var(--sw-heading); }
+.main { grid-column: 2; padding: 0 24px 24px; min-height: 0; display: grid; gap: 16px; }
+
+/* ---------- 1. ambient ---------- */
+.amb { height: 100%; display: grid; grid-template-columns: 1.15fr 1fr; grid-template-rows: 1fr auto; gap: 0 56px; padding: 64px 72px 48px; background:
+  radial-gradient(90% 70% at 85% 0%, rgba(255,181,71,.07), transparent 60%), radial-gradient(80% 80% at 0% 100%, rgba(61,109,223,.08), transparent 65%), var(--sw-bg); }
+.amb .left { display: flex; flex-direction: column; justify-content: center; }
+.amb .clock { font-size: 168px; line-height: .9; font-weight: 400; letter-spacing: -0.04em; color: var(--sw-heading); margin: 0; }
+.amb .date { font-size: 26px; color: var(--sw-text); margin-top: 18px; }
+.amb .date span { color: var(--sw-text-3); }
+.amb .wx { display: flex; align-items: center; gap: 14px; margin-top: 28px; font-size: 22px; color: var(--sw-text); }
+.amb .wx .hi { width: 34px; height: 34px; color: var(--sw-lit); }
+.amb .wx b { font-weight: 500; font-size: 30px; color: var(--sw-heading); }
+.amb .right { display: flex; flex-direction: column; justify-content: center; gap: 34px; }
+.amb h2 { margin: 0 0 14px; font-size: 18px; font-weight: 600; color: var(--sw-text-2); letter-spacing: 0; }
+.agenda { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.agenda li { display: grid; grid-template-columns: 72px 1fr; align-items: baseline; gap: 16px; }
+.agenda time { font-size: 22px; color: var(--sw-heading); font-weight: 500; }
+.agenda .t { font-size: 22px; color: var(--sw-text); }
+.agenda .w { display: block; font-size: 15px; color: var(--sw-text-3); margin-top: 2px; }
+.agenda .bar { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-inline-end: 10px; vertical-align: 2px; }
+.notice { padding: 22px 24px; border-radius: 20px; background: rgba(255,255,255,.04); border: 1px solid var(--sw-border); }
+.notice .h { display: flex; align-items: center; gap: 12px; font-size: 22px; color: var(--sw-heading); font-weight: 500; }
+.notice .h .hi { color: var(--warn); }
+.notice p { margin: 8px 0 0; font-size: 17px; color: var(--sw-text-2); }
+.notice .more { margin-top: 12px; font-size: 15px; color: var(--sw-text-3); display: flex; gap: 6px; align-items: center; }
+.notice .more i { width: 6px; height: 6px; border-radius: 50%; background: var(--sw-text-3); display: inline-block; opacity: .5; }
+.notice .more i.on { opacity: 1; background: var(--sw-text); }
+.amb .foot { grid-column: 1 / 3; display: flex; align-items: center; gap: 28px; padding-top: 28px; border-top: 1px solid var(--sw-border); }
+.amb .state { display: flex; gap: 28px; font-size: 18px; color: var(--sw-text-2); }
+.amb .state span { display: inline-flex; align-items: center; gap: 10px; }
+.amb .state .hi { width: 22px; height: 22px; }
+.amb .state .lit { color: var(--sw-lit); }
+.amb .state .ok { color: var(--ok-text); }
+.amb .foot .sp { flex: 1; }
+.scbtn { display: inline-flex; align-items: center; gap: 10px; height: 56px; padding: 0 20px !important; border-radius: 999px; border: 1px solid var(--sw-border-strong) !important; color: var(--sw-text) !important; font-size: 17px; }
+.scbtn .hi { width: 22px; height: 22px; color: var(--sw-text-2); }
+.hint { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); font-size: 14px; color: var(--sw-text-3); }
+
+/* ---------- 2. night ---------- */
+.night { height: 100%; background: #000; display: grid; place-items: center; text-align: center; }
+.night .clock { font-size: 150px; line-height: .9; letter-spacing: -0.04em; color: #6f6a62; margin: 0; font-weight: 400; }
+.night .ln { margin-top: 26px; font-size: 20px; color: #858077; display: flex; gap: 26px; justify-content: center; }
+.night .ln span { display: inline-flex; gap: 8px; align-items: center; }
+.night .ln .hi { width: 20px; height: 20px; }
+
+/* ---------- 3. room + today rail ---------- */
+.roomgrid { display: grid; grid-template-columns: 1fr 300px; gap: 20px; min-height: 0; }
+.cats { display: flex; gap: 10px; }
+.chip { display: inline-flex; align-items: center; gap: 8px; height: 52px; padding: 0 18px !important; border-radius: 16px; background: var(--sw-surface) !important; font-size: 16px; color: var(--sw-text) !important; }
+.chip .hi { width: 22px; height: 22px; color: var(--sw-text-2); }
+.chip[aria-pressed="true"] { background: var(--sw-accent-soft) !important; color: var(--sw-accent-text) !important; }
+.chip[aria-pressed="true"] .hi { color: inherit; }
+.favs { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); gap: 16px; min-height: 0; }
+.tile { background: var(--sw-surface); border-radius: var(--r-tile); padding: 18px; display: flex; flex-direction: column; justify-content: space-between; min-height: 0; min-width: 0; }
+.tile .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tile .nm { font-size: var(--f-tile); color: var(--sw-heading); font-weight: 500; }
+.tile .sub { font-size: 15px; color: var(--sw-text-2); }
+.lamp { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; background: var(--sw-surface-3) !important; color: var(--sw-text-2); flex: none; }
+.lamp.on { background: var(--lamp-on) !important; color: var(--sw-lit); box-shadow: inset 0 0 0 2px var(--sw-lit); }
+.dimmer { height: 48px; border-radius: 14px; background: var(--sw-surface-3); position: relative; overflow: hidden; display: flex; align-items: center; justify-content: flex-end; padding: 0 14px; font-size: 15px; color: var(--sw-text); }
+.dimmer::before { content: ""; position: absolute; inset-block: 0; inset-inline-start: 0; width: var(--v, 50%); background: var(--dim-fill); }
+.dimmer span { position: relative; }
+.tile.wide { grid-column: span 2; }
+.tile.climate { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
+.climate .big { font-size: 48px; font-weight: 400; letter-spacing: -0.03em; color: var(--sw-heading); }
+.climate .ctl { display: flex; gap: 10px; }
+.rb { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; background: var(--sw-surface-3) !important; color: var(--sw-heading) !important; }
+.scene-t { background: var(--sw-surface); }
+.scene-t .ic { width: 56px; height: 56px; border-radius: 18px; display: grid; place-items: center; background: var(--sw-surface-3); color: var(--sw-text); }
+.scene-t.active .ic { background: var(--sw-accent); color: var(--on-accent); }
+.rail { background: var(--sw-surface); border-radius: var(--r-tile); padding: 20px; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.rail h3 { margin: 0; font-size: 18px; font-weight: 600; color: var(--sw-heading); display: flex; align-items: center; justify-content: space-between; }
+.rail h3 .muted { font-weight: 400; }
+.rail ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.rail li { display: grid; grid-template-columns: 56px 1fr; gap: 10px; align-items: baseline; }
+.rail time { font-size: 17px; color: var(--sw-heading); font-weight: 500; }
+.rail .t { font-size: 16px; color: var(--sw-text); }
+.rail .w { display: block; font-size: 13px; color: var(--sw-text-3); }
+.rail .nt { border-top: 1px solid var(--sw-border); padding-top: 14px; display: grid; gap: 6px; }
+.rail .nt .h { display: flex; gap: 10px; align-items: center; font-size: 16px; color: var(--sw-heading); font-weight: 500; }
+.rail .nt .h .hi { color: var(--warn); width: 20px; height: 20px; }
+.tag-new { font-size: 12px; font-weight: 600; color: var(--sw-accent-text); background: var(--sw-accent-soft); border-radius: 999px; padding: 2px 8px; }
+.rail .acts { margin-top: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rail .acts .hbtn { padding: 0 10px !important; font-size: 15px; }
+
+/* ---------- 4. takeover ---------- */
+.tko { height: 100%; display: grid; grid-template-columns: 1fr 360px; background: var(--warn-soft); }
+.tko .body { padding: 80px 88px; display: flex; flex-direction: column; justify-content: center; }
+.tko .sev { display: flex; align-items: center; gap: 16px; font-size: 20px; color: var(--warn-text); font-weight: 500; }
+.tko .sev .disc { width: 64px; height: 64px; border-radius: 50%; background: var(--warn); color: #1b1408; display: grid; place-items: center; }
+.tko h2 { font-size: 56px; line-height: 1.08; letter-spacing: -0.025em; margin: 28px 0 0; color: var(--sw-heading); font-weight: 600; max-width: 16ch; }
+.tko .when { font-size: 28px; color: var(--sw-text); margin-top: 22px; }
+.tko p { font-size: 20px; color: var(--sw-text-2); margin: 18px 0 0; max-width: 46ch; line-height: 1.5; }
+.tko .side { background: rgba(0,0,0,.18); padding: 48px 36px; display: flex; flex-direction: column; gap: 14px; justify-content: flex-end; }
+.hs[data-scheme="light"] .tko .side { background: rgba(120,80,10,.07); }
+.tko .side .hbtn { width: 100%; min-height: 72px; font-size: 20px; }
+.tko .side .muted { text-align: center; }
+
+/* ---------- 5. scenes + result ---------- */
+.scenes { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); gap: 16px; min-height: 0; }
+.sc { position: relative; background: var(--sw-surface) !important; border-radius: var(--r-tile); padding: 20px !important; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; text-align: start; min-height: 0; }
+.sc .ic { width: 64px; height: 64px; border-radius: 20px; display: grid; place-items: center; background: var(--sw-surface-3); color: var(--sw-text); }
+.sc .ic .hi { width: 30px; height: 30px; }
+.sc .nm { font-size: 21px; color: var(--sw-heading); font-weight: 500; }
+.sc .sub { font-size: 15px; color: var(--sw-text-2); margin-top: 4px; }
+.sc.active .ic { background: var(--sw-accent); color: var(--on-accent); }
+.sc.part .ic { box-shadow: 0 0 0 3px var(--warn); }
+.ring { position: absolute; top: 16px; inset-inline-end: 16px; width: 44px; height: 44px; }
+.ring circle { fill: none; stroke-width: 4; }
+.ring .bg { stroke: var(--sw-surface-3); } .ring .fg { stroke: var(--warn); stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; }
+.scrim { position: absolute; inset: 0; background: var(--sw-overlay); }
+.sheet { position: absolute; background: var(--sw-solid); border-radius: 28px; box-shadow: 0 18px 48px rgba(0,0,0,.55); display: flex; flex-direction: column; }
+.sheet.side { top: 24px; bottom: 24px; inset-inline-end: 24px; width: 520px; padding: 28px; }
+.sheet h2 { margin: 0; font-size: 28px; font-weight: 600; color: var(--sw-heading); letter-spacing: -0.01em; }
+.sheet .lead { font-size: 17px; color: var(--sw-text-2); margin: 6px 0 0; }
+.mlist { list-style: none; padding: 0; margin: 22px 0 0; display: grid; gap: 4px; }
+.mlist li { display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: center; min-height: 60px; padding: 0 12px; border-radius: 14px; }
+.mlist li.no { background: var(--warn-soft); }
+.mlist .st { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; }
+.mlist .st.ok { background: var(--ok-soft); color: var(--ok-text); }
+.mlist .st.no { background: var(--warn); color: #1b1408; }
+.mlist .st.na { background: var(--sw-surface-3); color: var(--sw-text-3); }
+.mlist .st .hi { width: 18px; height: 18px; stroke-width: 2.2; }
+.mlist .n { font-size: 18px; color: var(--sw-heading); } .mlist .r { font-size: 14px; color: var(--sw-text-3); display: block; }
+.mlist .v { font-size: 16px; color: var(--sw-text-2); }
+.sheet .foot { margin-top: auto; display: flex; gap: 12px; }
+.sheet .foot .hbtn { flex: 1; }
+.toast { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--toast-bg); color: var(--toast-text); border-radius: 18px; min-height: 60px; display: flex; align-items: center; gap: 16px; padding: 0 12px 0 22px; font-size: 17px; box-shadow: 0 12px 32px rgba(0,0,0,.35); white-space: nowrap; }
+.toast b { font-weight: 600; } .toast button { color: var(--toast-act) !important; font-weight: 600; height: 48px; padding: 0 14px !important; }
+.toast .hi { width: 22px; height: 22px; color: #c47a08; }
+
+/* ---------- 6. editor ---------- */
+.ed { inset: 24px 120px; position: absolute; padding: 28px 32px; display: grid; grid-template-columns: 300px 1fr; grid-template-rows: auto 1fr auto; gap: 18px 32px; }
+.ed .hd { grid-column: 1 / 3; display: flex; align-items: center; gap: 16px; }
+.ed .hd h2 { flex: 1; }
+.fld { display: grid; gap: 8px; }
+.fld label { font-size: 15px; color: var(--sw-text-2); }
+.input { height: 56px; border-radius: 14px; background: var(--sw-surface-3); padding: 0 16px; display: flex; align-items: center; font-size: 19px; color: var(--sw-heading); }
+.icons { display: grid; grid-template-columns: repeat(4, 56px); gap: 10px; }
+.icons button { width: 56px; height: 56px; border-radius: 16px; background: var(--sw-surface-3) !important; display: grid; place-items: center; color: var(--sw-text-2) !important; }
+.icons button[aria-pressed="true"] { background: var(--sw-accent) !important; color: var(--on-accent) !important; }
+.rooms { display: flex; flex-wrap: wrap; gap: 8px; }
+.rooms span { height: 40px; display: inline-flex; align-items: center; padding: 0 14px; border-radius: 999px; background: var(--sw-surface-3); font-size: 15px; }
+.rooms span.on { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
+.members { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.mem { display: grid; grid-template-columns: 1fr 240px 48px; gap: 14px; align-items: center; min-height: 64px; padding: 0 14px; border-radius: 16px; background: var(--sw-surface); }
+.mem .n { font-size: 18px; color: var(--sw-heading); } .mem .r { display: block; font-size: 14px; color: var(--sw-text-3); }
+.mem .x { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; color: var(--sw-text-3) !important; }
+.seg { display: inline-flex; background: var(--sw-surface-3); border-radius: 14px; padding: 4px; gap: 4px; }
+.seg span { min-width: 64px; height: 44px; display: grid; place-items: center; border-radius: 10px; font-size: 15px; color: var(--sw-text-2); padding: 0 10px; }
+.seg span.on { background: var(--sw-solid); color: var(--sw-heading); box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+.kept { font-size: 15px; color: var(--sw-text-3); }
+.pager { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
+.pager .pg { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--sw-text-2); }
+.ed .ft { grid-column: 1 / 3; display: flex; gap: 12px; }
+.ed .ft .sp { flex: 1; }
+.note-line { font-size: 14px; color: var(--sw-text-3); display: flex; gap: 8px; align-items: center; }
+
+/* ---------- phone ---------- */
+.ph { display: grid; grid-template-rows: 64px 1fr 72px; height: 100%; }
+.ph .top { display: flex; align-items: center; gap: 10px; padding: 0 16px; }
+.ph .top .room { font-size: 22px; font-weight: 600; color: var(--sw-heading); flex: 1; }
+.ph .body { padding: 4px 16px 16px; display: grid; grid-template-rows: auto 1fr auto; gap: 12px; min-height: 0; }
+.ph .grid2 { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, 1fr); gap: 12px; min-height: 0; }
+.ph .sc { padding: 14px !important; } .ph .sc .ic { width: 52px; height: 52px; border-radius: 16px; } .ph .sc .nm { font-size: 18px; } .ph .ring { width: 36px; height: 36px; top: 12px; inset-inline-end: 12px; }
+.ph .bar { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--sw-surface); border-top: 1px solid var(--sw-border); }
+.ph .bar button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 12px; color: var(--sw-text-2); }
+.ph .bar button[aria-current] { color: var(--sw-accent-text); }
+.ph .toast { position: static; transform: none; white-space: normal; font-size: 15px; padding: 10px 8px 10px 16px; min-height: 56px; }
+.ph .toast span { flex: 1; }
+.ph h1 { margin: 0; font-size: 26px; font-weight: 600; color: var(--sw-heading); letter-spacing: -0.01em; }
+.phs { position: absolute; inset: 56px 0 0; border-radius: 28px 28px 0 0; padding: 20px 16px 16px; display: grid; grid-template-rows: auto auto 1fr auto auto; gap: 14px; }
+.phs .grab { width: 40px; height: 5px; border-radius: 3px; background: var(--sw-border-strong); margin: -8px auto 0; }
+.phs .mem { grid-template-columns: 1fr auto 44px; min-height: 60px; padding: 0 12px; }
+.phs .mem .x { width: 44px; height: 44px; }
+.phs .seg span { min-width: 52px; height: 40px; }
+
+/* ---------- desktop: full interface (Arx Infra light) ---------- */
+.ax { --bg: #f5f7fb; --sf: #fff; --sf2: #f7f9fc; --sf3: #eef2f8; --ln: #e7ebf2; --ln2: #d9dfe9; --tx: #22314c; --hd: #1e2e47; --tx2: #4b5976; --tx3: #5e6d88;
+  --ac: #2767ed; --acs: #edf3ff; --act: #2062ec; --ok: #22c55e; --oks: #e8f8ee; --okt: #15803d; --wn: #f59e0b; --wns: #fff4e0; --wnt: #a04a06; --of: #9aa3b5; --ofs: #f1f3f7; --oft: #5c6573;
+  font-family: var(--font); background: var(--bg); color: var(--tx); height: 100%; display: grid; grid-template-columns: 72px 1fr; font-size: 14px; color-scheme: light; }
+.ax ::selection { background: var(--ac); color: #fff; }
+.ax .rail2 { grid-column: 1; grid-row: 1; background: var(--sf); border-inline-start: 1px solid var(--ln); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0; }
+.ax .rail2 span { width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; color: var(--tx2); }
+.ax .rail2 span.on { background: var(--acs); color: var(--act); }
+.ax .rail2 .hi { width: 22px; height: 22px; }
+.ax .pg { grid-column: 2; grid-row: 1; display: grid; grid-template-rows: auto auto auto 1fr; padding: 22px 28px; gap: 14px; min-height: 0; }
+.ax h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.4px; color: var(--hd); }
+.ax .t1 { display: flex; gap: 4px; border-bottom: 1px solid var(--ln); }
+.ax .t1 span { padding: 10px 14px; font-size: 14px; color: var(--tx2); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.ax .t1 span.on { color: var(--act); border-color: var(--ac); font-weight: 600; }
+.ax .t2 { display: flex; gap: 6px; align-items: center; }
+.ax .t2 span { height: 34px; padding: 0 14px; display: inline-flex; align-items: center; border-radius: 999px; background: var(--sf); border: 1px solid var(--ln); color: var(--tx2); font-size: 13px; }
+.ax .t2 span.on { background: var(--acs); border-color: transparent; color: var(--act); font-weight: 600; }
+.ax .t2 .sp { flex: 1; background: none; border: 0; }
+.ax .sg { justify-self: start; }
+.ax .body2 { display: grid; grid-template-columns: 1fr 380px; gap: 16px; min-height: 0; }
+.ax .card { background: var(--sf); border: 1px solid var(--ln); border-radius: 14px; min-height: 0; display: flex; flex-direction: column; }
+.ax table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.ax th { text-align: start; font-weight: 600; color: var(--tx3); font-size: 12.5px; padding: 12px 14px; border-bottom: 1px solid var(--ln); }
+.ax td { padding: 0 14px; height: 54px; border-bottom: 1px solid var(--ln); color: var(--tx); }
+.ax tr.sel td { background: var(--acs); }
+.ax td b { font-weight: 600; color: var(--hd); }
+.ax td .s { color: var(--tx3); font-size: 12.5px; display: block; }
+.st2 { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12.5px; font-weight: 500; }
+.st2 i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.st2.ok { background: var(--oks); color: var(--okt); } .st2.ok i { background: var(--ok); }
+.st2.amb { background: var(--sf3); color: var(--tx2); } .st2.amb i { background: #7c8aa5; }
+.st2.ngt { background: #eceaf6; color: #4b4a7a; } .st2.ngt i { background: #6d6ab0; }
+.st2.off { background: var(--ofs); color: var(--oft); } .st2.off i { background: var(--of); }
+.ax .tfoot { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; color: var(--tx3); font-size: 13px; margin-top: auto; }
+.ax .btn { height: 34px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--ln2); background: var(--sf); color: var(--tx); display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+.ax .btn.p { background: var(--ac); color: #fff; border-color: var(--ac); }
+.ax .drawer { padding: 18px; gap: 14px; }
+.ax .drawer h2 { margin: 0; font-size: 17px; color: var(--hd); }
+.ax .drawer .sub { color: var(--tx3); font-size: 13px; margin-top: -8px; }
+.ax .row { display: grid; gap: 6px; }
+.ax .row > span { font-size: 13px; color: var(--tx2); font-weight: 500; }
+.ax .sg { display: inline-flex; border: 1px solid var(--ln2); border-radius: 8px; overflow: hidden; }
+.ax .sg span { height: 32px; padding: 0 12px; display: grid; place-items: center; font-size: 13px; color: var(--tx2); border-inline-start: 1px solid var(--ln2); }
+.ax .sg span:first-child { border-inline-start: 0; }
+.ax .sg span.on { background: var(--acs); color: var(--act); font-weight: 600; }
+.ax .tg { display: flex; align-items: center; justify-content: space-between; font-size: 13.5px; }
+.ax .sw { width: 36px; height: 20px; border-radius: 999px; background: var(--ac); position: relative; }
+.ax .sw::after { content: ""; position: absolute; width: 16px; height: 16px; border-radius: 50%; background: #fff; top: 2px; left: 2px; box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+.ax .sw.off { background: var(--ln2); } .ax .sw.off::after { left: auto; right: 2px; }
+.ax .range { height: 6px; border-radius: 3px; background: var(--sf3); position: relative; }
+.ax .range::before { content: ""; position: absolute; inset-block: 0; inset-inline-start: 0; width: 70%; background: var(--ac); border-radius: 3px; }
+.ax .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ax .chips span { height: 28px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; background: var(--sf3); font-size: 12.5px; color: var(--tx); }
+.ax .chips span.add { background: transparent; border: 1px dashed var(--ln2); color: var(--tx2); }
+.ax .dfoot { margin-top: auto; display: flex; gap: 8px; }
+.ax .hint2 { font-size: 12.5px; color: var(--tx3); }
+
+@media (prefers-reduced-motion: reduce) { .hs button, .tabs button { transition: none; } .hs button:active, .tabs button:active { transform: none; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
+  <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6z"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M8 3v4M16 3v4M3.5 10h17"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"/></symbol>
+  <symbol id="i-board" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M8 9h8M8 13h8M8 17h5"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v8.5a1.5 1.5 0 0 1-1.5 1.5H15v-6H9v6H5.5A1.5 1.5 0 0 1 4 19.5z"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-blind" viewBox="0 0 24 24"><path d="M4 4h16M5 4v10M19 4v10M5 8h14M5 11h14M5 14h14M12 14v5"/><circle cx="12" cy="20" r="1"/></symbol>
+  <symbol id="i-thermo" viewBox="0 0 24 24"><path d="M10 13.5V5a2 2 0 0 1 4 0v8.5a4 4 0 1 1-4 0z"/><path d="M12 9v7"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.5l9.5 16.5h-19z"/><path d="M12 10v4.5M12 17.5v.2"/></symbol>
+  <symbol id="i-retry" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5.3L20 9M20 4v5h-5M20 12a8 8 0 0 1-14 5.3L4 15M4 20v-5h5"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-cam" viewBox="0 0 24 24"><rect x="3" y="6.5" width="13" height="11" rx="2"/><path d="M16 10.5l5-3v9l-5-3z"/></symbol>
+  <symbol id="i-sofa" viewBox="0 0 24 24"><path d="M5 11V8a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3M3 13a2 2 0 0 1 4 0v2h10v-2a2 2 0 0 1 4 0v5H3zM5 18v2M19 18v2"/></symbol>
+  <symbol id="i-door" viewBox="0 0 24 24"><path d="M6 21V4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21M3 21h18M14.5 12.5v.2"/></symbol>
+  <symbol id="i-cook" viewBox="0 0 24 24"><path d="M4 11h16v3a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6zM9 7c0-1 1-1.5 1-2.5M13 7c0-1 1-1.5 1-2.5M2 11h2M20 11h2"/></symbol>
+  <symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14M3 9.5h4M3 14.5h4M17 9.5h4M17 14.5h4"/></symbol>
+  <symbol id="i-bed" viewBox="0 0 24 24"><path d="M3 18V7M3 14h18v4M21 14v-2.5A2.5 2.5 0 0 0 18.5 9H11v5M7 11.5a1.5 1.5 0 1 0 0-.01"/></symbol>
+  <symbol id="i-leave" viewBox="0 0 24 24"><path d="M14 4h4.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H14M10 8l-4 4 4 4M6 12h10"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></symbol>
+  <symbol id="i-panel" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2.5"/><path d="M10 18h4"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M9 4L3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 5.2a3.5 3.5 0 0 1 0 6.6M18 14a6.5 6.5 0 0 1 3.5 6"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18.5a4.5 4.5 0 0 1-.5-9A6 6 0 0 1 18 10a4 4 0 0 1-.5 8.5z"/></symbol>
+</svg>
+
+<header class="chrome" id="chrome">
+  <h1>ממשק ביתי · השלב הבא (T120)</h1>
+  <span class="note">הדמיה בלבד, שום דבר לא נבנה. נתונים לדוגמה.</span>
+  <nav class="tabs" id="tabs" aria-label="מסכים"></nav>
+  <p class="cap" id="cap"></p>
+</header>
+<main class="stage" id="stage">
+
+<!-- 1 ambient -->
+<section class="frame hs" data-w="1280" data-h="800" data-name="מסך קיר · מנוחה" data-cap="מסך קיר 1280x800 · אחרי 2 דקות בלי נגיעה. נגיעה ראשונה רק מעירה. כפתורי הסצנה פועלים בנגיעה השנייה.">
+  <div class="amb">
+    <div class="left">
+      <p class="clock num">21:47</p>
+      <div class="date">יום חמישי, 20 בנובמבר</div>
+      <div class="wx"><svg class="hi"><use href="#i-moon"/></svg><b class="num">17°</b> בהיר · מחר 24° / 14°</div>
+    </div>
+    <div class="right">
+      <section>
+        <h2>היום והלילה</h2>
+        <ul class="agenda">
+          <li><time class="num">22:30</time><span class="t"><i class="bar" style="background:#7fa6ff"></i>נועה חוזרת מהחוג<span class="w">יומן המשפחה</span></span></li>
+          <li><time class="num">07:15</time><span class="t"><i class="bar" style="background:#e3a35c"></i>הסעה לבית הספר<span class="w">מחר · יומן המשפחה</span></span></li>
+          <li><time class="num">18:00</time><span class="t"><i class="bar" style="background:#8bc7a4"></i>חדר כושר משותף · הוזמן<span class="w">מחר · חדרים משותפים</span></span></li>
+        </ul>
+      </section>
+      <section class="notice" aria-label="הודעה חדשה">
+        <div class="h"><svg class="hi"><use href="#i-board"/></svg>הפסקת מים מתוכננת</div>
+        <p>מחר 10:00-12:00, כל הבניין. מומלץ למלא מים מראש.</p>
+        <div class="more"><i class="on"></i><i></i><i></i><span>עוד 2 הודעות</span></div>
+      </section>
+    </div>
+    <div class="foot">
+      <div class="state">
+        <span><svg class="hi lit"><use href="#i-bulb"/></svg>2 אורות דולקים</span>
+        <span><svg class="hi"><use href="#i-thermo"/></svg><span class="num">23.5°</span></span>
+        <span class="ok"><svg class="hi"><use href="#i-lock"/></svg>כל הדלתות נעולות</span>
+        <span><svg class="hi"><use href="#i-shield"/></svg>אזעקה מנוטרלת</span>
+      </div>
+      <span class="sp"></span>
+      <button class="scbtn"><svg class="hi"><use href="#i-film"/></svg>סרט</button>
+      <button class="scbtn"><svg class="hi"><use href="#i-bed"/></svg>לילה טוב</button>
+    </div>
+  </div>
+  <span class="hint">נגיעה מחזירה לסלון</span>
+</section>
+
+<!-- 2 night -->
+<section class="frame hs" data-w="1280" data-h="800" data-name="מסך קיר · לילה" data-cap="לילה 23:00-06:00 (הגדרה). מעבר רך של 2 שניות, שכבה כהה 70%, רק שעה, דלתות ואזעקה.">
+  <div class="night">
+    <div>
+      <p class="clock num">02:14</p>
+      <div class="ln"><span><svg class="hi"><use href="#i-lock"/></svg>כל הדלתות נעולות</span><span><svg class="hi"><use href="#i-shield"/></svg>אזעקה דרוכה · בבית</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 room + today rail -->
+<section class="frame hs" data-w="1280" data-h="800" data-name="מסך קיר · חדר + היום" data-cap="אחרי נגיעה: החדר של המסך, ועמודת 'היום' (יומן + הודעה). בלי גלילה, 4x2 מועדפים נשמרים.">
+  <div class="shell">
+    <nav class="nav" aria-label="ניווט">
+      <button aria-current="page"><svg class="hi"><use href="#i-home"/></svg>הבית שלי</button>
+      <button><svg class="hi"><use href="#i-grid"/></svg>חדרים</button>
+      <button><svg class="hi"><use href="#i-spark"/></svg>סצנות</button>
+      <button><svg class="hi"><use href="#i-bell"/></svg>התראות</button>
+      <span class="sp"></span>
+      <button><svg class="hi"><use href="#i-moon"/></svg>מנוחה</button>
+    </nav>
+    <div class="strip">
+      <span class="room">סלון <svg class="hi"><use href="#i-down"/></svg></span>
+      <span class="muted">קומה 3 · דירה 12</span>
+      <span class="sp"></span>
+      <span class="pill"><svg class="hi"><use href="#i-sun"/></svg><span class="num">24°</span></span>
+      <span class="pill ok"><span class="dot"></span>כל הדלתות נעולות</span>
+      <span class="pill"><svg class="hi"><use href="#i-bell"/></svg><span class="num">1</span></span>
+      <time class="num">18:42</time>
+    </div>
+    <div class="main" style="grid-template-rows:auto 1fr">
+      <div class="cats">
+        <button class="chip" aria-pressed="true"><svg class="hi"><use href="#i-bulb"/></svg>תאורה</button>
+        <button class="chip"><svg class="hi"><use href="#i-thermo"/></svg>אקלים</button>
+        <button class="chip"><svg class="hi"><use href="#i-blind"/></svg>תריסים</button>
+        <button class="chip"><svg class="hi"><use href="#i-spark"/></svg>סצנות</button>
+        <button class="chip"><svg class="hi"><use href="#i-board"/></svg>לוח הודעות</button>
+        <button class="chip"><svg class="hi"><use href="#i-cal"/></svg>יומן</button>
+      </div>
+      <div class="roomgrid">
+        <div class="favs">
+          <div class="tile wide"><div class="top"><span><span class="nm">תקרה</span><br><span class="sub">דולק · עמעום</span></span><button class="lamp on" aria-label="תקרה"><svg class="hi"><use href="#i-bulb"/></svg></button></div><div class="dimmer" style="--v:72%"><span class="num">72%</span></div></div>
+          <div class="tile"><div class="top"><span class="nm">מנורת קריאה</span><button class="lamp on" aria-label="מנורת קריאה"><svg class="hi"><use href="#i-bulb"/></svg></button></div><span class="sub">דולק · מפסק</span></div>
+          <div class="tile"><div class="top"><span class="nm">פסי לד</span><button class="lamp" aria-label="פסי לד"><svg class="hi"><use href="#i-bulb"/></svg></button></div><span class="sub">כבוי</span></div>
+          <div class="tile wide climate"><div><span class="nm">מזגן סלון</span><br><span class="sub">קירור · עכשיו 23.5°</span></div><span class="big num">22°</span><span class="ctl"><button class="rb" aria-label="הורד"><svg class="hi"><use href="#i-down"/></svg></button><button class="rb" aria-label="העלה"><svg class="hi" style="transform:rotate(180deg)"><use href="#i-down"/></svg></button></span></div>
+          <div class="tile scene-t active"><span class="ic"><svg class="hi"><use href="#i-sofa"/></svg></span><span><span class="nm">ערב</span><br><span class="sub">פעילה</span></span></div>
+          <div class="tile scene-t"><span class="ic"><svg class="hi"><use href="#i-film"/></svg></span><span><span class="nm">סרט</span><br><span class="sub">סצנה</span></span></div>
+        </div>
+        <aside class="rail" aria-label="היום">
+          <h3>היום <span class="muted num">20.11</span></h3>
+          <ol>
+            <li><time class="num">19:30</time><span class="t">ארוחת ערב אצל סבתא<span class="w">יומן המשפחה</span></span></li>
+            <li><time class="num">20:00</time><span class="t">חדר ישיבות קומה 1<span class="w">הזמנה שלנו</span></span></li>
+            <li><time class="num">22:30</time><span class="t">נועה חוזרת מהחוג<span class="w">יומן המשפחה</span></span></li>
+          </ol>
+          <h3 style="font-size:15px;color:var(--sw-text-2);font-weight:500">מחר</h3>
+          <ol><li><time class="num">07:15</time><span class="t">הסעה לבית הספר<span class="w">יומן המשפחה</span></span></li></ol>
+          <div class="nt"><div class="h"><svg class="hi"><use href="#i-board"/></svg>הפסקת מים מתוכננת <span class="tag-new">חדש</span></div><span class="muted">מחר 10:00-12:00 · כל הבניין</span></div>
+          <div class="acts"><button class="hbtn">כל היומן</button><button class="hbtn"><svg class="hi"><use href="#i-plus"/></svg>אירוע</button></div>
+        </aside>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 takeover -->
+<section class="frame hs" data-w="1280" data-h="800" data-name="מסך קיר · הודעה דחופה" data-cap="השתלטות: שיחת דלת > אזעקה > הודעה דחופה. אף כפתור כאן לא מפעיל מכשיר.">
+  <div class="tko">
+    <div class="body">
+      <div class="sev"><span class="disc"><svg class="hi lg"><use href="#i-alert"/></svg></span>הודעה דחופה מהנהלת הבניין</div>
+      <h2>המעלית הצפונית מושבתת לטיפול</h2>
+      <div class="when num">היום 08:00-14:00</div>
+      <p>המעלית הדרומית פועלת כרגיל. לעזרה עם עגלה או קניות אפשר לפנות לקבלה בלובי.</p>
+    </div>
+    <div class="side">
+      <button class="hbtn strong">הבנתי, הסתר</button>
+      <button class="hbtn">כל ההודעות</button>
+      <span class="muted">נעלם לבד בסיום ההודעה</span>
+    </div>
+  </div>
+</section>
+
+<!-- 5 scene result -->
+<section class="frame hs" data-w="1280" data-h="800" data-name="סצנה · תוצאה" data-cap="'ערב' רצה: 5 מתוך 6 הגיעו. 'נסה שוב' היא לחיצה חדשה, רק לפריט שלא הגיע, אחרי קריאת המצב מחדש.">
+  <div class="shell">
+    <nav class="nav" aria-label="ניווט">
+      <button><svg class="hi"><use href="#i-home"/></svg>הבית שלי</button>
+      <button><svg class="hi"><use href="#i-grid"/></svg>חדרים</button>
+      <button aria-current="page"><svg class="hi"><use href="#i-spark"/></svg>סצנות</button>
+      <button><svg class="hi"><use href="#i-bell"/></svg>התראות</button>
+      <span class="sp"></span>
+    </nav>
+    <div class="strip"><span class="room">סצנות</span><span class="muted">כל הבית</span><span class="sp"></span><time class="num">18:43</time></div>
+    <div class="main">
+      <div class="scenes">
+        <button class="sc part"><svg class="ring" viewBox="0 0 44 44"><circle class="bg" cx="22" cy="22" r="18"/><circle class="fg" cx="22" cy="22" r="18" stroke-dasharray="94 113"/></svg><span class="ic"><svg class="hi"><use href="#i-sofa"/></svg></span><span><span class="nm">ערב</span><span class="sub" style="display:block">5 מתוך 6</span></span></button>
+        <button class="sc"><span class="ic"><svg class="hi"><use href="#i-film"/></svg></span><span><span class="nm">סרט</span><span class="sub" style="display:block">סלון</span></span></button>
+        <button class="sc"><span class="ic"><svg class="hi"><use href="#i-cook"/></svg></span><span><span class="nm">בישול</span><span class="sub" style="display:block">מטבח</span></span></button>
+        <button class="sc"><span class="ic"><svg class="hi"><use href="#i-bed"/></svg></span><span><span class="nm">לילה טוב</span><span class="sub" style="display:block">כל הבית</span></span></button>
+        <button class="sc"><span class="ic"><svg class="hi"><use href="#i-leave"/></svg></span><span><span class="nm">יציאה מהבית</span><span class="sub" style="display:block">כל הבית</span></span></button>
+        <button class="sc"><span class="ic"><svg class="hi"><use href="#i-sun"/></svg></span><span><span class="nm">בוקר</span><span class="sub" style="display:block">כל הבית</span></span></button>
+        <button class="sc"><span class="ic"><svg class="hi"><use href="#i-spark"/></svg></span><span><span class="nm">אורחים</span><span class="sub" style="display:block">סלון, מטבח</span></span></button>
+        <button class="sc" style="border:1px dashed var(--sw-border-strong)"><span class="ic"><svg class="hi"><use href="#i-plus"/></svg></span><span><span class="nm">סצנה חדשה</span><span class="sub" style="display:block">מהמצב עכשיו</span></span></button>
+      </div>
+    </div>
+  </div>
+  <div class="scrim"></div>
+  <div class="sheet side" role="dialog" aria-label="תוצאת הסצנה ערב">
+    <h2>ערב · 5 מתוך 6</h2>
+    <p class="lead">מנורת המטבח לא ענתה תוך 8 שניות.</p>
+    <ul class="mlist">
+      <li class="no"><span class="st no"><svg class="hi"><use href="#i-alert"/></svg></span><span><span class="n">מנורת מטבח</span><span class="r">מטבח · צריכה: דולק 40%</span></span><span class="v">כבוי</span></li>
+      <li><span class="st ok"><svg class="hi"><use href="#i-check"/></svg></span><span><span class="n">תקרה</span><span class="r">סלון</span></span><span class="v num">60%</span></li>
+      <li><span class="st ok"><svg class="hi"><use href="#i-check"/></svg></span><span><span class="n">פסי לד</span><span class="r">סלון</span></span><span class="v num">30%</span></li>
+      <li><span class="st ok"><svg class="hi"><use href="#i-check"/></svg></span><span><span class="n">תריס סלון</span><span class="r">סלון</span></span><span class="v">סגור</span></li>
+      <li><span class="st ok"><svg class="hi"><use href="#i-check"/></svg></span><span><span class="n">מזגן סלון</span><span class="r">סלון</span></span><span class="v num">22° קירור</span></li>
+      <li><span class="st na"><svg class="hi"><use href="#i-user"/></svg></span><span><span class="n">פריט אחד שאינו מוצג לך</span><span class="r">הגיע</span></span><span class="v"></span></li>
+    </ul>
+    <div class="foot"><button class="hbtn strong"><svg class="hi"><use href="#i-retry"/></svg>נסה שוב למנורת המטבח</button><button class="hbtn">סגור</button></div>
+  </div>
+</section>
+
+<!-- 6 editor -->
+<section class="frame hs" data-w="1280" data-h="800" data-name="סצנה · עריכה פשוטה" data-cap="עריכה פשוטה למי שמחזיק הרשאת ניהול סצנות. 6 שורות בעמוד, בלי גלילה. מנעול, אזעקה ודלת לא נכנסים לסצנה.">
+  <div class="shell" aria-hidden="true">
+    <nav class="nav"><button><svg class="hi"><use href="#i-home"/></svg>הבית שלי</button><button aria-current="page"><svg class="hi"><use href="#i-spark"/></svg>סצנות</button></nav>
+    <div class="strip"><span class="room">סצנות</span></div><div class="main"></div>
+  </div>
+  <div class="scrim"></div>
+  <div class="sheet ed" role="dialog" aria-label="עריכת הסצנה ערב">
+    <div class="hd"><h2>עריכת סצנה</h2><span class="note-line"><svg class="hi sm"><use href="#i-check"/></svg>גרסה 4 · נשמרת עם היסטוריה</span></div>
+    <div style="display:grid;gap:20px;align-content:start">
+      <div class="fld"><label>שם</label><div class="input">ערב</div></div>
+      <div class="fld"><label>סמל</label><div class="icons"><button aria-pressed="true"><svg class="hi"><use href="#i-sofa"/></svg></button><button><svg class="hi"><use href="#i-film"/></svg></button><button><svg class="hi"><use href="#i-cook"/></svg></button><button><svg class="hi"><use href="#i-bed"/></svg></button><button><svg class="hi"><use href="#i-sun"/></svg></button><button><svg class="hi"><use href="#i-moon"/></svg></button><button><svg class="hi"><use href="#i-leave"/></svg></button><button><svg class="hi"><use href="#i-spark"/></svg></button></div></div>
+      <div class="fld"><label>מופיעה בחדרים</label><div class="rooms"><span class="on">סלון</span><span class="on">מטבח</span><span>חדר הורים</span><span>+ חדר</span></div></div>
+      <div class="fld"><label>אחרי ההפעלה</label><div class="seg"><span class="on">כלום</span><span>להציע דריכה</span><span>להציע נעילה</span></div></div>
+    </div>
+    <div class="members">
+      <div class="pager"><b style="font-size:18px;color:var(--sw-heading)">מה הסצנה עושה</b><span class="pg"><button class="rb" aria-label="הקודם"><svg class="hi" style="transform:scaleX(-1)"><use href="#i-chev"/></svg></button><span>1 מתוך 2</span><button class="rb" aria-label="הבא"><svg class="hi"><use href="#i-chev"/></svg></button></span></div>
+      <div class="mem"><span><span class="n">תקרה</span><span class="r">סלון · עמעום</span></span><div class="dimmer" style="--v:60%"><span class="num">60%</span></div><button class="x" aria-label="הסר"><svg class="hi"><use href="#i-x"/></svg></button></div>
+      <div class="mem"><span><span class="n">פסי לד</span><span class="r">סלון · עמעום · נשמר גם צבע חם, כפי שצולם</span></span><div class="dimmer" style="--v:30%"><span class="num">30%</span></div><button class="x" aria-label="הסר"><svg class="hi"><use href="#i-x"/></svg></button></div>
+      <div class="mem"><span><span class="n">מנורת קריאה</span><span class="r">סלון · מפסק</span></span><span class="seg"><span>כבוי</span><span class="on">דולק</span></span><button class="x" aria-label="הסר"><svg class="hi"><use href="#i-x"/></svg></button></div>
+      <div class="mem"><span><span class="n">תריס סלון</span><span class="r">סלון · מיקום</span></span><span class="seg"><span class="on">סגור</span><span>חצי</span><span>פתוח</span></span><button class="x" aria-label="הסר"><svg class="hi"><use href="#i-x"/></svg></button></div>
+      <div class="mem"><span><span class="n">מזגן סלון</span><span class="r">סלון · קירור</span></span><span class="seg"><span>−</span><span class="on num">22°</span><span>+</span></span><button class="x" aria-label="הסר"><svg class="hi"><use href="#i-x"/></svg></button></div>
+      <div class="mem"><span><span class="n">מנורת מטבח</span><span class="r">מטבח · עמעום</span></span><div class="dimmer" style="--v:40%"><span class="num">40%</span></div><button class="x" aria-label="הסר"><svg class="hi"><use href="#i-x"/></svg></button></div>
+    </div>
+    <div class="ft"><button class="hbtn"><svg class="hi"><use href="#i-plus"/></svg>הוסף מהחדר</button><button class="hbtn"><svg class="hi"><use href="#i-retry"/></svg>צלם שוב מהמצב עכשיו</button><span class="sp"></span><button class="hbtn quiet">בטל</button><button class="hbtn strong">שמור</button></div>
+  </div>
+</section>
+
+<!-- 7 phone scenes -->
+<section class="frame hs" data-w="390" data-h="844" data-name="טלפון · סצנות" data-cap="טלפון 390x844: 6 סצנות בעמוד, הטבעת מתמלאת, ההודעה אומרת מה לא הגיע.">
+  <div class="ph">
+    <div class="top"><span class="room">סצנות</span><span class="pill">עמוד 1 מתוך 2</span></div>
+    <div class="body">
+      <span class="muted">כל הבית · לחיצה אחת מפעילה</span>
+      <div class="grid2">
+        <button class="sc part"><svg class="ring" viewBox="0 0 44 44"><circle class="bg" cx="22" cy="22" r="18"/><circle class="fg" cx="22" cy="22" r="18" stroke-dasharray="94 113"/></svg><span class="ic"><svg class="hi"><use href="#i-sofa"/></svg></span><span class="nm">ערב</span></button>
+        <button class="sc"><span class="ic"><svg class="hi"><use href="#i-film"/></svg></span><span class="nm">סרט</span></button>
+        <button class="sc"><span class="ic"><svg class="hi"><use href="#i-cook"/></svg></span><span class="nm">בישול</span></button>
+        <button class="sc"><span class="ic"><svg class="hi"><use href="#i-bed"/></svg></span><span class="nm">לילה טוב</span></button>
+        <button class="sc"><span class="ic"><svg class="hi"><use href="#i-leave"/></svg></span><span class="nm">יציאה מהבית</span></button>
+        <button class="sc"><span class="ic"><svg class="hi"><use href="#i-sun"/></svg></span><span class="nm">בוקר</span></button>
+      </div>
+      <div class="toast" role="status"><svg class="hi"><use href="#i-alert"/></svg><span><b>ערב: 5 מתוך 6</b> · מנורת המטבח לא ענתה</span><button>פרטים</button></div>
+    </div>
+    <nav class="bar" aria-label="ניווט"><button><svg class="hi"><use href="#i-home"/></svg>הבית</button><button><svg class="hi"><use href="#i-grid"/></svg>חדרים</button><button aria-current="page"><svg class="hi"><use href="#i-spark"/></svg>סצנות</button><button><svg class="hi"><use href="#i-bell"/></svg>התראות</button><button><svg class="hi"><use href="#i-dots"/></svg>עוד</button></nav>
+  </div>
+</section>
+
+<!-- 8 phone editor -->
+<section class="frame hs" data-w="390" data-h="844" data-name="טלפון · עריכת סצנה" data-cap="עריכה בטלפון: 6 שורות בעמוד, מעבר בין עמודים בחצים. שם, סמל וחדרים בלשונית אחרת של אותו גיליון.">
+  <div class="ph" aria-hidden="true"><div class="top"><span class="room">סצנות</span></div><div></div><div></div></div>
+  <div class="scrim"></div>
+  <div class="sheet phs" role="dialog" aria-label="עריכת הסצנה ערב">
+    <span class="grab"></span>
+    <div style="display:flex;align-items:center;gap:12px"><h1 style="flex:1">ערב</h1><span class="seg"><span class="on">פריטים</span><span>פרטים</span></span></div>
+    <div style="display:flex;flex-direction:column;gap:8px;min-height:0">
+      <div class="mem"><span><span class="n">תקרה</span><span class="r">סלון</span></span><span class="seg"><span class="on num">60%</span></span><button class="x" aria-label="הסר"><svg class="hi"><use href="#i-x"/></svg></button></div>
+      <div class="mem"><span><span class="n">פסי לד</span><span class="r">סלון · צבע נשמר</span></span><span class="seg"><span class="on num">30%</span></span><button class="x" aria-label="הסר"><svg class="hi"><use href="#i-x"/></svg></button></div>
+      <div class="mem"><span><span class="n">תריס סלון</span><span class="r">סלון</span></span><span class="seg"><span class="on">סגור</span><span>פתוח</span></span><button class="x" aria-label="הסר"><svg class="hi"><use href="#i-x"/></svg></button></div>
+      <div class="mem"><span><span class="n">מזגן סלון</span><span class="r">סלון · קירור</span></span><span class="seg"><span class="on num">22°</span></span><button class="x" aria-label="הסר"><svg class="hi"><use href="#i-x"/></svg></button></div>
+      <div class="mem"><span><span class="n">מנורת קריאה</span><span class="r">סלון · מפסק</span></span><span class="seg"><span>כבוי</span><span class="on">דולק</span></span><button class="x" aria-label="הסר"><svg class="hi"><use href="#i-x"/></svg></button></div>
+      <div class="mem"><span><span class="n">מנורת מטבח</span><span class="r">מטבח</span></span><span class="seg"><span class="on num">40%</span></span><button class="x" aria-label="הסר"><svg class="hi"><use href="#i-x"/></svg></button></div>
+    </div>
+    <div class="pager"><button class="hbtn"><svg class="hi"><use href="#i-plus"/></svg>הוסף</button><span class="pg"><button class="rb" aria-label="הקודם"><svg class="hi" style="transform:scaleX(-1)"><use href="#i-chev"/></svg></button><span>1 מתוך 2</span><button class="rb" aria-label="הבא"><svg class="hi"><use href="#i-chev"/></svg></button></span></div>
+    <div style="display:flex;gap:10px"><button class="hbtn quiet" style="flex:1">בטל</button><button class="hbtn strong" style="flex:2">שמור</button></div>
+  </div>
+</section>
+
+<!-- 9 desktop panels admin -->
+<section class="frame" data-w="1440" data-h="900" data-name="מחשב · מסכי קיר" data-cap="ממשק מלא 1440x900 · ניהול משתמשים › ממשק ביתי › מסכי קיר. רשימה מדפדפת, הגדרות למסך שנבחר בצד.">
+  <div class="ax">
+    <nav class="rail2" aria-label="ניווט ראשי"><span><svg class="hi"><use href="#i-home"/></svg></span><span><svg class="hi"><use href="#i-map"/></svg></span><span><svg class="hi"><use href="#i-cam"/></svg></span><span class="on"><svg class="hi"><use href="#i-users"/></svg></span><span><svg class="hi"><use href="#i-gear"/></svg></span></nav>
+    <div class="pg">
+      <h1>ניהול משתמשים</h1>
+      <div class="t1"><span>אנשים</span><span>קבוצות</span><span>הרשאות</span><span class="on">ממשק ביתי</span></div>
+      <div class="t2"><span>לכל אדם</span><span class="on">מסכי קיר · 6</span><span>הגדרות התקנה</span><span class="sp"></span><span style="background:transparent;border:0;color:var(--tx3)">עודכן לפני 20 שנ׳</span></div>
+      <div class="body2">
+        <div class="card">
+          <table>
+            <thead><tr><th>מסך</th><th>חדר</th><th>מצב</th><th>נראה לאחרונה</th><th>מסך וגרסה</th><th>מנוחה · לילה</th></tr></thead>
+            <tbody>
+              <tr class="sel"><td><b>מסך מטבח</b><span class="s">משתמש מסך · ערכת קלאסי</span></td><td>מטבח<span class="s">קומה 3 · דירה 12</span></td><td><span class="st2 amb"><i></i>מנוחה</span></td><td class="num">לפני 30 שנ׳</td><td class="num">1280x800<span class="s">2.49.0</span></td><td>2 דק׳ · 23:00-06:00</td></tr>
+              <tr><td><b>מסך כניסה</b><span class="s">משתמש מסך · ערכת חול</span></td><td>מבואה<span class="s">קומה 3 · דירה 12</span></td><td><span class="st2 ok"><i></i>פעיל</span></td><td class="num">לפני 12 שנ׳</td><td class="num">1280x800<span class="s">2.49.0</span></td><td>2 דק׳ · ברירת מחדל</td></tr>
+              <tr><td><b>מסך חדר הורים</b><span class="s">משתמש מסך · ערכת חצות</span></td><td>חדר הורים<span class="s">קומה 3 · דירה 12</span></td><td><span class="st2 ngt"><i></i>לילה</span></td><td class="num">לפני 41 שנ׳</td><td class="num">800x1280<span class="s">2.49.0</span></td><td>1 דק׳ · שקיעה</td></tr>
+              <tr><td><b>מסך ילדים</b><span class="s">משתמש מסך · ערכת פסטל</span></td><td>חדר ילדים<span class="s">קומה 3 · דירה 12</span></td><td><span class="st2 amb"><i></i>מנוחה</span></td><td class="num">לפני 50 שנ׳</td><td class="num">1024x768<span class="s">2.49.0</span></td><td>5 דק׳ · 21:00-07:00</td></tr>
+              <tr><td><b>מסך חדר עבודה</b><span class="s">משתמש מסך · ערכת נורדי</span></td><td>חדר עבודה<span class="s">קומה 3 · דירה 12</span></td><td><span class="st2 off"><i></i>לא מחובר</span></td><td class="num">לפני 3 ימים</td><td class="num">1280x800<span class="s">2.48.0</span></td><td>2 דק׳ · ברירת מחדל</td></tr>
+              <tr><td><b>מסך מרפסת</b><span class="s">משתמש מסך · ערכת אוקיינוס</span></td><td>מרפסת<span class="s">קומה 3 · דירה 12</span></td><td><span class="st2 ok"><i></i>פעיל</span></td><td class="num">לפני 5 שנ׳</td><td class="num">1280x800<span class="s">2.49.0</span></td><td>כבוי · ברירת מחדל</td></tr>
+            </tbody>
+          </table>
+          <div class="tfoot"><span>6 מסכים · עמוד 1 מתוך 1</span><span>"לא מחובר" = אין דופק 3 דקות. הדופק נשמר בזיכרון בלבד, בלי היסטוריה.</span></div>
+        </div>
+        <div class="card drawer">
+          <h2>מסך מטבח</h2>
+          <div class="sub">שינוי כאן גובר על הגדרות ההתקנה, רק למסך הזה.</div>
+          <div class="row"><span>מנוחה אחרי</span><div class="sg"><span>1 דק׳</span><span class="on">2 דק׳</span><span>5 דק׳</span><span>10 דק׳</span><span>כבוי</span></div></div>
+          <div class="row"><span>לילה</span><div class="sg"><span class="on">שעות</span><span>שקיעה וזריחה</span><span>כבוי</span></div><span class="hint2 num">23:00 עד 06:00</span></div>
+          <div class="row"><span>כמה להחשיך בלילה · 70%</span><div class="range"></div></div>
+          <div class="tg">השתלטות באזעקה <span class="sw"></span></div>
+          <div class="tg">השתלטות בהודעה דחופה <span class="sw"></span></div>
+          <div class="row"><span>כפתורי סצנה במנוחה (עד 4)</span><div class="chips"><span>בישול</span><span>ערב</span><span>לילה טוב</span><span class="add">+ סצנה</span></div></div>
+          <div class="dfoot"><span class="btn"><svg class="hi sm"><use href="#i-retry"/></svg>רענן מסך</span><span style="flex:1"></span><span class="btn">בטל</span><span class="btn p">שמור</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+<script>
+(function () {
+  var frames = Array.prototype.slice.call(document.querySelectorAll('.frame'));
+  var tabs = document.getElementById('tabs'), cap = document.getElementById('cap'), stage = document.getElementById('stage');
+  var cur = 0;
+  try { var q = new URLSearchParams(location.search).get('s'); if (q) cur = Math.max(0, Math.min(frames.length - 1, parseInt(q, 10) - 1 || 0)); } catch (e) {}
+  frames.forEach(function (f, i) {
+    f.style.width = f.dataset.w + 'px'; f.style.height = f.dataset.h + 'px';
+    var b = document.createElement('button'); b.type = 'button'; b.textContent = (i + 1) + '. ' + f.dataset.name;
+    b.addEventListener('click', function () { show(i); }); tabs.appendChild(b);
+  });
+  var light = document.createElement('button'); light.type = 'button'; light.textContent = 'בהיר / כהה (מסכי הבית)';
+  light.addEventListener('click', function () { frames.forEach(function (f) { if (f.classList.contains('hs') && !f.querySelector('.night')) f.dataset.scheme = f.dataset.scheme === 'light' ? '' : 'light'; }); });
+  tabs.appendChild(light);
+  function fit() {
+    var f = frames[cur], ch = document.getElementById('chrome').offsetHeight;
+    document.documentElement.style.setProperty('--chrome-h', ch + 'px');
+    var w = +f.dataset.w, h = +f.dataset.h, sw = stage.clientWidth - 32, sh = stage.clientHeight - 48;
+    var s = Math.min(sw / w, sh / h, 1);
+    f.style.transform = 'translate(-50%, -50%) scale(' + s + ')';
+  }
+  function show(i) {
+    frames[cur].classList.remove('on'); cur = i; frames[cur].classList.add('on');
+    Array.prototype.forEach.call(tabs.children, function (b, j) { if (j < frames.length) b.setAttribute('aria-pressed', String(j === cur)); });
+    cap.textContent = frames[cur].dataset.cap || ''; fit();
+  }
+  window.addEventListener('resize', fit); show(cur);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>כמה בניינים · השלב הבא</title>
+<meta name="description" content="T119 next phase mockup: home interface building chip, floor move with impact preview, review before enabling, building filter, resident groups, lobby board per building. Design only.">
+<style>
+@font-face { font-family: "Heebo"; font-weight: 400; src: url(../../../frontend/public/fonts/heebo-hebrew-400.woff2) format("woff2"); unicode-range: U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; }
+@font-face { font-family: "Heebo"; font-weight: 500; src: url(../../../frontend/public/fonts/heebo-hebrew-500.woff2) format("woff2"); unicode-range: U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; }
+@font-face { font-family: "Heebo"; font-weight: 600; src: url(../../../frontend/public/fonts/heebo-hebrew-600.woff2) format("woff2"); unicode-range: U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; }
+@font-face { font-family: "Heebo"; font-weight: 700; src: url(../../../frontend/public/fonts/heebo-hebrew-700.woff2) format("woff2"); unicode-range: U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; }
+@font-face { font-family: "Heebo"; font-weight: 400; src: url(../../../frontend/public/fonts/heebo-latin-400.woff2) format("woff2"); }
+@font-face { font-family: "Heebo"; font-weight: 500; src: url(../../../frontend/public/fonts/heebo-latin-500.woff2) format("woff2"); }
+@font-face { font-family: "Heebo"; font-weight: 600; src: url(../../../frontend/public/fonts/heebo-latin-600.woff2) format("woff2"); }
+@font-face { font-family: "LobbyDavid"; font-weight: 400; src: url(../../../frontend/fonts-src/lobby/david-libre-hebrew-400.woff2) format("woff2"); }
+@font-face { font-family: "LobbyDavid"; font-weight: 500; src: url(../../../frontend/fonts-src/lobby/david-libre-hebrew-500.woff2) format("woff2"); }
+@font-face { font-family: "LobbyDavid"; font-weight: 700; src: url(../../../frontend/fonts-src/lobby/david-libre-hebrew-700.woff2) format("woff2"); }
+@font-face { font-family: "LobbyBodoni"; font-weight: 400 700; src: url(../../../frontend/fonts-src/lobby/bodoni-moda-latin-400-700.woff2) format("woff2"); }
+
+:root {
+  --font: "Heebo", "Segoe UI", "Noto Sans Hebrew", Arial, sans-serif;
+  --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --c-bg: #e9ebf0; --c-ink: #1e2e47; --c-ink2: #5e6d88; --c-line: #d3d9e4; --c-acc: #2767ed; --c-on: #fff;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --c-bg: #080b13; --c-ink: #e6ebf5; --c-ink2: #a9b4ca; --c-line: #232e45; --c-acc: #8fb2ff; --c-on: #0b1020; color-scheme: dark; } }
+:root[data-theme="dark"] { --c-bg: #080b13; --c-ink: #e6ebf5; --c-ink2: #a9b4ca; --c-line: #232e45; --c-acc: #8fb2ff; --c-on: #0b1020; color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { font-family: var(--font); background: var(--c-bg); color: var(--c-ink); overflow: hidden; -webkit-font-smoothing: antialiased; }
+::selection { background: var(--c-acc); color: var(--c-on); }
+.chrome { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 10px 16px; border-bottom: 1px solid var(--c-line); }
+.chrome h1 { font-size: 16px; font-weight: 600; margin: 0; }
+.chrome .note { font-size: 13px; color: var(--c-ink2); }
+.cap { flex-basis: 100%; font-size: 13px; color: var(--c-ink2); margin: 0; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tabs button { font: inherit; font-size: 13px; border: 1px solid var(--c-line); background: transparent; color: var(--c-ink); border-radius: 999px; padding: 6px 12px; cursor: pointer; transition: transform 120ms var(--ease); }
+.tabs button:active { transform: scale(.97); }
+.tabs button[aria-pressed="true"] { background: var(--c-ink); color: var(--c-bg); border-color: var(--c-ink); }
+.tabs button:focus-visible { outline: 2px solid var(--c-acc); outline-offset: 2px; }
+.stage { position: relative; height: calc(100% - var(--chrome-h, 92px)); overflow: hidden; }
+.frame { position: absolute; top: 50%; left: 50%; box-shadow: 0 20px 60px rgba(0,0,0,.28); border-radius: 18px; overflow: hidden; display: none; }
+.frame.on { display: block; }
+.frame:not(.on) { display: none !important; }
+.stage > .frame { position: absolute; }
+.frame.ax.on { display: grid; }
+.hi { width: 22px; height: 22px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.num { font-variant-numeric: tabular-nums; }
+button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; transition: transform 120ms var(--ease); }
+button:active { transform: scale(.97); }
+
+/* ======================= home interface (approved classic) ======================= */
+.hs { --bg: #131211; --sf: #1d1c1a; --sf3: #33302c; --solid: #262421; --ln: #2e2c28; --ln2: #45413b; --ov: rgba(0,0,0,.62);
+  --tx: #f1ede6; --hd: #faf7f1; --tx2: #bdb6aa; --tx3: #989185; --ac: #3d6ddf; --acs: #232b3f; --act: #a3c0ff; --lit: #ffb547; --lampon: #3a2f1a;
+  --bad: #ff6b62; --sh: #8f7ad6; --shs: #2a2540; --sht: #c6b8ff; --ok: #3ddc84;
+  --hit: 56px; font-family: var(--font); background: var(--bg); color: var(--tx); color-scheme: dark; }
+.hs[data-scheme="light"] { --bg: #f2f0ec; --sf: #fff; --sf3: #e9e6e0; --solid: #fff; --ln: #e2ded7; --ln2: #cdc8bf; --ov: rgba(28,26,22,.42);
+  --tx: #24221f; --hd: #171614; --tx2: #57524a; --tx3: #6b665d; --ac: #2459d6; --acs: #e6edfc; --act: #1c4fc8; --lit: #b86e00; --lampon: #fbe8c2;
+  --bad: #dc2626; --sh: #6a55c2; --shs: #eeeafb; --sht: #4b3a9e; --ok: #1fa75a; color-scheme: light; }
+.hs ::selection { background: var(--ac); color: #fff; }
+.hs button:focus-visible { outline: 3px solid var(--act); outline-offset: 3px; }
+.hbtn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: var(--hit); padding: 0 22px; border-radius: 16px; background: var(--sf3); color: var(--hd); font-size: 17px; font-weight: 500; white-space: nowrap; }
+.hbtn.strong { background: var(--ac); color: #fff; }
+.hbtn.danger { background: transparent; color: var(--hd); box-shadow: inset 0 0 0 1.5px var(--ln2); }
+.bchip { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; border-radius: 999px; background: var(--acs); color: var(--act); font-size: 16px; font-weight: 600; }
+.bchip .hi { width: 18px; height: 18px; }
+.muted { color: var(--tx2); font-size: 15px; }
+
+/* phone */
+.ph { height: 100%; display: grid; grid-template-rows: 64px auto 1fr 72px; }
+.ph .top { display: flex; align-items: center; gap: 10px; padding: 0 16px; }
+.ph .top h1 { margin: 0; font-size: 24px; font-weight: 600; color: var(--hd); flex: 1; }
+.ph .now { margin: 0 16px; padding: 14px 16px; border-radius: 20px; background: var(--sf); display: flex; align-items: center; gap: 12px; }
+.ph .now .t { flex: 1; } .ph .now b { display: block; font-size: 17px; color: var(--hd); font-weight: 500; }
+.ph .body { padding: 12px 16px; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 12px; min-height: 0; }
+.rt { background: var(--sf); border-radius: 22px; padding: 14px; display: flex; flex-direction: column; justify-content: space-between; min-height: 0; }
+.rt .n { font-size: 18px; color: var(--hd); font-weight: 500; } .rt .s { font-size: 14px; color: var(--tx2); }
+.lamp { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; background: var(--sf3); color: var(--tx2); }
+.lamp.on { background: var(--lampon); color: var(--lit); box-shadow: inset 0 0 0 2px var(--lit); }
+.ph .bar { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--sf); border-top: 1px solid var(--ln); }
+.ph .bar span { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 12px; color: var(--tx2); }
+.ph .bar span.on { color: var(--act); }
+.scrim { position: absolute; inset: 0; background: var(--ov); }
+.bsheet { position: absolute; inset-inline: 0; bottom: 0; background: var(--solid); border-radius: 28px 28px 0 0; padding: 14px 16px 20px; display: grid; gap: 10px; box-shadow: 0 -12px 40px rgba(0,0,0,.4); transform-origin: 50% 0; }
+.bsheet .grab { width: 40px; height: 5px; border-radius: 3px; background: var(--ln2); margin: 0 auto 4px; }
+.bsheet h2 { margin: 0 0 4px; font-size: 22px; color: var(--hd); font-weight: 600; }
+.bopt { display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: 12px; min-height: 68px; padding: 0 12px; border-radius: 18px; background: var(--sf); text-align: start; }
+.bopt .ic { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--sf3); color: var(--tx2); }
+.bopt.sel { box-shadow: inset 0 0 0 2px var(--ac); }
+.bopt.sel .ic { background: var(--ac); color: #fff; }
+.bopt.shared .ic { background: var(--shs); color: var(--sht); }
+.bopt b { display: block; font-size: 18px; color: var(--hd); font-weight: 500; } .bopt span.s { font-size: 14px; color: var(--tx2); }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--bad); display: inline-block; }
+.tagline { font-size: 14px; color: var(--tx3); text-align: center; margin-top: 4px; }
+
+/* tablet rooms grouped */
+.tb { height: 100%; display: grid; grid-template-columns: 96px 1fr; grid-template-rows: 72px auto 1fr; }
+.tb .nav { grid-row: 1 / 4; grid-column: 1; background: var(--sf); border-inline-start: 1px solid var(--ln); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0; }
+.tb .nav span { width: 76px; min-height: 72px; border-radius: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 13px; color: var(--tx2); }
+.tb .nav span.on { background: var(--acs); color: var(--act); }
+.tb .nav .hi { width: 26px; height: 26px; }
+.tb .strip { grid-column: 2; display: flex; align-items: center; gap: 14px; padding: 0 24px; }
+.tb .strip h1 { margin: 0; font-size: 26px; font-weight: 600; color: var(--hd); }
+.tb .strip .sp { flex: 1; }
+.tb .strip time { font-size: 22px; font-weight: 500; color: var(--hd); }
+.tb .bar2 { grid-column: 2; display: flex; align-items: center; gap: 12px; padding: 0 24px 14px; }
+.tb .bar2 .sp { flex: 1; }
+.tb .cols { grid-column: 2; padding: 0 24px 24px; display: grid; grid-template-columns: 1fr 1fr 1fr 1.1fr; grid-template-rows: auto 1fr; gap: 16px; min-height: 0; }
+.bgrp { display: contents; }
+.fcol { background: var(--sf); border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.fcol h2 { margin: 0; font-size: 17px; color: var(--hd); font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; }
+.fcol h2 small { font-size: 13px; color: var(--tx3); font-weight: 400; }
+.room { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; min-height: 56px; padding: 0 12px; border-radius: 16px; background: var(--bg); font-size: 16px; color: var(--tx); }
+.room .hi { width: 20px; height: 20px; color: var(--tx3); }
+.room.lit .hi { color: var(--lit); }
+.ghead { grid-column: span 3; display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--tx2); }
+.ghead b { font-size: 17px; color: var(--hd); }
+.ghead hr { flex: 1; border: 0; border-top: 1px solid var(--ln); }
+.shared-col { background: var(--shs); }
+.shared-col h2 { color: var(--sht); }
+
+/* ======================= full interface (Arx Infra) ======================= */
+.ax { --bg: #f5f7fb; --sf: #fff; --sf2: #f7f9fc; --sf3: #eef2f8; --ln: #e7ebf2; --ln2: #d9dfe9; --tx: #22314c; --hd: #1e2e47; --tx2: #4b5976; --tx3: #5e6d88;
+  --ac: #2767ed; --acs: #edf3ff; --act: #2062ec; --ok: #22c55e; --oks: #e8f8ee; --okt: #15803d; --wn: #f59e0b; --wns: #fff4e0; --wnt: #a04a06;
+  --dg: #ef4444; --dgs: #fdecec; --dgt: #b91c1c; --sh: #7c3aed; --shs: #f1ebfd; --sht: #5b21b6; --ov: rgba(17,24,39,.45); --sh3: 0 14px 36px rgba(34,49,76,.14);
+  font-family: var(--font); background: var(--bg); color: var(--tx); height: 100%; display: grid; grid-template-columns: 72px 1fr; font-size: 14px; color-scheme: light; position: relative; }
+.ax[data-scheme="dark"] { --bg: #0d1220; --sf: #151c2c; --sf2: #1a2336; --sf3: #222d44; --ln: #232e45; --ln2: #2f3c58; --tx: #e6ebf5; --hd: #f3f6fc; --tx2: #a9b4ca; --tx3: #8896af;
+  --ac: #3a6ce0; --acs: rgba(91,140,255,.18); --act: #8fb2ff; --oks: rgba(34,197,94,.16); --okt: #6ee7a0; --wns: rgba(245,158,11,.16); --wnt: #fbbf5a;
+  --dgs: rgba(239,68,68,.16); --dgt: #fca5a5; --shs: rgba(167,139,250,.16); --sht: #c4b5fd; --ov: rgba(0,0,0,.62); --sh3: 0 14px 36px rgba(0,0,0,.5); color-scheme: dark; }
+.ax ::selection { background: var(--ac); color: #fff; }
+.ax button:focus-visible { outline: 2px solid var(--act); outline-offset: 2px; }
+.ax .rail { grid-column: 1; background: var(--sf); border-inline-start: 1px solid var(--ln); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0; }
+.ax .rail span { width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; color: var(--tx2); }
+.ax .rail span.on { background: var(--acs); color: var(--act); }
+.ax .pg { grid-column: 2; display: grid; grid-template-rows: auto auto 1fr; gap: 14px; padding: 22px 28px; min-height: 0; min-width: 0; }
+.ax h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.4px; color: var(--hd); display: flex; align-items: center; gap: 12px; }
+.ax .crumb { font-size: 13px; color: var(--tx3); font-weight: 400; letter-spacing: 0; }
+.ax .t1 { display: flex; gap: 4px; border-bottom: 1px solid var(--ln); }
+.ax .t1 span { padding: 10px 14px; font-size: 14px; color: var(--tx2); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.ax .t1 span.on { color: var(--act); border-color: var(--ac); font-weight: 600; }
+.ax .card { background: var(--sf); border: 1px solid var(--ln); border-radius: 14px; min-height: 0; }
+.ax .split { display: grid; grid-template-columns: 280px 1fr; gap: 16px; min-height: 0; }
+.tree { padding: 12px; display: flex; flex-direction: column; gap: 2px; font-size: 13.5px; }
+.tree .h { font-size: 12.5px; color: var(--tx3); font-weight: 600; padding: 6px 8px; }
+.tree .it { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 8px; border-radius: 8px; color: var(--tx); }
+.tree .it .hi { width: 18px; height: 18px; color: var(--tx3); }
+.tree .it.l2 { padding-inline-start: 26px; } .tree .it.l3 { padding-inline-start: 46px; color: var(--tx2); }
+.tree .it.on { background: var(--acs); color: var(--act); font-weight: 600; } .tree .it.on .hi { color: var(--act); }
+.tree .it .c { margin-inline-start: auto; font-size: 12px; color: var(--tx3); }
+.tree .it.sh .hi { color: var(--sh); }
+.floors { padding: 16px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; align-content: start; }
+.fl { border: 1px solid var(--ln); border-radius: 12px; padding: 14px; display: grid; gap: 6px; background: var(--sf2); }
+.fl b { color: var(--hd); font-size: 15px; } .fl .s { color: var(--tx3); font-size: 12.5px; }
+.fl.sel { border-color: var(--ac); box-shadow: 0 0 0 3px var(--acs); }
+.btn { height: 34px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--ln2); background: var(--sf); color: var(--tx); display: inline-flex; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap; }
+.btn .hi { width: 16px; height: 16px; }
+.btn.p { background: var(--ac); color: #fff; border-color: var(--ac); }
+.btn.p[aria-disabled="true"] { opacity: .5; }
+.btn.dg { background: var(--dgt); border-color: var(--dgt); color: #fff; }
+.ax .scrim { position: absolute; inset: 0; background: var(--ov); }
+.modal { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--sf); border-radius: 16px; box-shadow: var(--sh3); display: flex; flex-direction: column; }
+.modal header { padding: 20px 24px 0; }
+.modal h2 { margin: 0; font-size: 20px; color: var(--hd); }
+.modal .sub { margin: 6px 0 0; color: var(--tx2); font-size: 14px; }
+.modal .mb { padding: 18px 24px; display: grid; gap: 16px; min-height: 0; }
+.modal footer { margin-top: auto; padding: 14px 24px; border-top: 1px solid var(--ln); display: flex; gap: 8px; align-items: center; }
+.modal footer .sp { flex: 1; }
+.route { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; }
+.route .box { border: 1px solid var(--ln); border-radius: 12px; padding: 12px 14px; background: var(--sf2); }
+.route .box .s { font-size: 12.5px; color: var(--tx3); display: block; } .route .box b { color: var(--hd); font-size: 15px; }
+.route .box.to { border-color: var(--ac); background: var(--acs); }
+.route .arr { color: var(--tx3); }
+.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.kpi { border-radius: 12px; padding: 12px 14px; display: grid; gap: 2px; }
+.kpi b { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; } .kpi span { font-size: 13px; }
+.kpi.lose { background: var(--dgs); color: var(--dgt); } .kpi.gain { background: var(--oks); color: var(--okt); } .kpi.move { background: var(--sf3); color: var(--tx2); } .kpi.move b { color: var(--hd); }
+.plist { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.plist h3 { margin: 0 0 6px; font-size: 13px; color: var(--tx2); font-weight: 600; display: flex; justify-content: space-between; }
+.prow { display: flex; align-items: center; gap: 10px; height: 40px; border-bottom: 1px solid var(--ln); font-size: 13.5px; }
+.prow .av { width: 28px; height: 28px; border-radius: 50%; background: var(--sf3); display: grid; place-items: center; font-size: 12px; color: var(--tx2); font-weight: 600; flex: none; }
+.prow .r { margin-inline-start: auto; font-size: 12.5px; color: var(--tx3); }
+.callout { border-radius: 10px; padding: 10px 12px; font-size: 13px; display: flex; gap: 8px; align-items: flex-start; }
+.callout .hi { width: 18px; height: 18px; margin-top: 1px; }
+.callout.w { background: var(--wns); color: var(--wnt); } .callout.i { background: var(--acs); color: var(--act); }
+.check { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--hd); }
+.box2 { width: 20px; height: 20px; border-radius: 5px; border: 1.5px solid var(--ln2); display: grid; place-items: center; }
+.box2.on { background: var(--ac); border-color: var(--ac); color: #fff; }
+.box2 .hi { width: 14px; height: 14px; stroke-width: 2.4; }
+.sec h3 { margin: 0 0 8px; font-size: 14px; color: var(--hd); }
+.stats { display: flex; gap: 18px; font-size: 13.5px; color: var(--tx2); }
+.stats b { color: var(--hd); font-weight: 600; }
+.vt { width: 100%; border-collapse: collapse; font-size: 13px; }
+.vt td, .vt th { text-align: start; padding: 0 10px; height: 36px; border-bottom: 1px solid var(--ln); }
+.vt th { font-size: 12px; color: var(--tx3); font-weight: 600; height: 30px; }
+.kind { display: inline-flex; height: 22px; align-items: center; padding: 0 8px; border-radius: 999px; font-size: 12px; background: var(--sf3); color: var(--tx2); }
+.kind.auto { background: var(--acs); color: var(--act); }
+.gain2 { color: var(--okt); font-weight: 600; }
+.fbar { display: flex; gap: 10px; align-items: center; }
+.seg2 { display: inline-flex; border: 1px solid var(--ln2); border-radius: 8px; overflow: hidden; background: var(--sf); }
+.seg2 span { height: 34px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--tx2); border-inline-start: 1px solid var(--ln2); }
+.seg2 span:first-child { border-inline-start: 0; }
+.seg2 span.on { background: var(--acs); color: var(--act); font-weight: 600; }
+.seg2 .hi { width: 15px; height: 15px; }
+.seg2 span.shd .hi { color: var(--sh); }
+.mt { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.mt th { text-align: start; font-size: 12.5px; color: var(--tx3); font-weight: 600; padding: 12px 14px; border-bottom: 1px solid var(--ln); }
+.mt td { padding: 0 14px; height: 50px; border-bottom: 1px solid var(--ln); }
+.mt td b { color: var(--hd); font-weight: 600; } .mt td .s { display: block; font-size: 12px; color: var(--tx3); }
+.bt { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12px; background: var(--sf3); color: var(--tx2); }
+.bt.shd { background: var(--shs); color: var(--sht); }
+.spark { display: inline-block; width: 120px; height: 8px; border-radius: 4px; background: var(--sf3); position: relative; overflow: hidden; vertical-align: middle; }
+.spark i { position: absolute; inset-block: 0; inset-inline-start: 0; background: var(--ac); border-radius: 4px; }
+.tfoot { display: flex; justify-content: space-between; padding: 10px 14px; font-size: 13px; color: var(--tx3); }
+.field { display: grid; gap: 6px; } .field > span { font-size: 13px; color: var(--tx2); font-weight: 500; }
+.sel2 { height: 38px; border: 1px solid var(--ln2); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; color: var(--hd); font-size: 14px; background: var(--sf); }
+.sel2 .hi { width: 16px; height: 16px; color: var(--tx3); }
+.mrow { display: flex; align-items: center; gap: 10px; height: 40px; border-bottom: 1px solid var(--ln); font-size: 13.5px; }
+.mrow .r { margin-inline-start: auto; font-size: 12.5px; color: var(--tx3); }
+
+/* ======================= lobby (Concierge, owner-approved luxury family) ======================= */
+.lob { --bg: #EEEBE4; --ink: #18211D; --ink2: #3A4540; --mute: #56605A; --rule: #8C6E45; --acc: #7C603B;
+  --serif: LobbyDavid, "David Libre", David, serif; --digits: LobbyBodoni, "Bodoni Moda", Didot, serif;
+  height: 100%; background: var(--bg); color: var(--ink); font-family: var(--font); display: grid; grid-template-rows: 150px 1fr 96px; padding: 0 120px; color-scheme: light; }
+.lob[data-scheme="dark"] { --bg: #101714; --ink: #EEE8DB; --ink2: #CCC6B8; --mute: #A3AAA0; --rule: #A88A5F; --acc: #C9AB7F; color-scheme: dark; }
+.lob ::selection { background: var(--acc); color: var(--bg); }
+.lob .hd { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; border-bottom: 1px solid var(--rule); }
+.lob .mono { width: 72px; height: 72px; border: 1px solid var(--rule); border-radius: 50%; display: grid; place-items: center; font-family: var(--serif); font-size: 30px; color: var(--acc); }
+.lob .greet { text-align: center; font-family: var(--serif); }
+.lob .greet .w { display: block; font-size: 22px; color: var(--mute); letter-spacing: .02em; }
+.lob .greet b { font-size: 46px; font-weight: 500; letter-spacing: -0.01em; }
+.lob .tm { justify-self: end; text-align: end; }
+.lob .tm .t { font-family: var(--digits); font-size: 64px; line-height: 1; letter-spacing: -0.01em; }
+.lob .tm .d { font-size: 20px; color: var(--mute); margin-top: 6px; }
+.lob .mid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 0 120px; padding: 90px 0 60px; min-height: 0; }
+.lob .feat .k { font-size: 20px; color: var(--acc); letter-spacing: .04em; }
+.lob .feat h2 { font-family: var(--serif); font-weight: 500; font-size: 86px; line-height: 1.04; letter-spacing: -0.015em; margin: 22px 0 0; max-width: 13ch; }
+.lob .feat p { font-size: 26px; line-height: 1.55; color: var(--ink2); max-width: 40ch; margin: 34px 0 0; }
+.lob .feat .when { font-family: var(--digits); font-size: 34px; margin-top: 34px; color: var(--ink); }
+.lob .list { border-inline-start: 1px solid var(--rule); padding-inline-start: 72px; display: flex; flex-direction: column; gap: 40px; justify-content: center; }
+.lob .li .sc { font-size: 17px; color: var(--acc); letter-spacing: .03em; }
+.lob .li h3 { font-family: var(--serif); font-weight: 500; font-size: 38px; margin: 8px 0 0; line-height: 1.15; }
+.lob .li p { font-size: 20px; color: var(--mute); margin: 8px 0 0; }
+.lob .ft { border-top: 1px solid var(--rule); display: flex; align-items: center; gap: 56px; font-size: 21px; color: var(--ink2); }
+.lob .ft .sp { flex: 1; }
+.lob .ft b { font-family: var(--digits); font-weight: 400; color: var(--ink); font-size: 24px; }
+.lob .ft .wx { color: var(--mute); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-bldg" viewBox="0 0 24 24"><path d="M4 21V5.5A1.5 1.5 0 0 1 5.5 4h7A1.5 1.5 0 0 1 14 5.5V21M14 10h4.5A1.5 1.5 0 0 1 20 11.5V21M2.5 21h19M7.5 8h3M7.5 12h3M7.5 16h3M17 14.5v.2M17 17.5v.2"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3v9M6.4 6.4a8 8 0 1 0 11.2 0"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v8.5a1.5 1.5 0 0 1-1.5 1.5H15v-6H9v6H5.5A1.5 1.5 0 0 1 4 19.5z"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M9 4L3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></symbol>
+  <symbol id="i-cam" viewBox="0 0 24 24"><rect x="3" y="6.5" width="13" height="11" rx="2"/><path d="M16 10.5l5-3v9l-5-3z"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 5.2a3.5 3.5 0 0 1 0 6.6M18 14a6.5 6.5 0 0 1 3.5 6"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v2.5M12 19v2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M2.5 12H5M19 12h2.5M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3L5 13.5h6L10 21l8-10.5h-6z"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5zM3 13l9 5 9-5"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.5l9.5 16.5h-19z"/><path d="M12 10v4.5M12 17.5v.2"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.2"/></symbol>
+  <symbol id="i-car" viewBox="0 0 24 24"><path d="M5 16V11l2-5h10l2 5v5M3 16h18v3H3zM7 13.5v.2M17 13.5v.2"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+</svg>
+
+<header class="chrome" id="chrome">
+  <h1>כמה בניינים על מערכת בית אחת · השלב הבא (T119)</h1>
+  <span class="note">הדמיה בלבד, שום דבר לא נבנה. אתר לדוגמה: "פארק הדר" עם מגדל א, מגדל ב וחלק משותף.</span>
+  <nav class="tabs" id="tabs" aria-label="מסכים"></nav>
+  <p class="cap" id="cap"></p>
+</header>
+<main class="stage" id="stage">
+
+<!-- 1 phone: home interface building chip + sheet -->
+<section class="frame hs" data-w="390" data-h="844" data-name="טלפון · ממשק ביתי" data-cap="ממשק ביתי בטלפון: כפתור בניין ליד שם החדר, רק כשהאדם רואה שני בניינים או יותר. 'כל הבניינים' מוסתר כברירת מחדל (הגדרה).">
+  <div class="ph">
+    <div class="top"><h1>הבית שלי</h1><button class="bchip"><svg class="hi"><use href="#i-bldg"/></svg>מגדל ב<svg class="hi"><use href="#i-down"/></svg></button></div>
+    <div class="now"><span class="t"><b>2 אורות דולקים</b><span class="muted">מגדל ב · קומה 12</span></span><button class="hbtn danger" style="min-height:48px;padding:0 14px"><svg class="hi"><use href="#i-power"/></svg>כבה הכל במגדל ב</button></div>
+    <div class="body">
+      <div class="rt"><div style="display:flex;justify-content:space-between"><span class="n">סלון</span><span class="lamp on"><svg class="hi"><use href="#i-bulb"/></svg></span></div><span class="s">2 דולקים · 23°</span></div>
+      <div class="rt"><div style="display:flex;justify-content:space-between"><span class="n">מטבח</span><span class="lamp"><svg class="hi"><use href="#i-bulb"/></svg></span></div><span class="s">כבוי</span></div>
+      <div class="rt"><div style="display:flex;justify-content:space-between"><span class="n">חדר הורים</span><span class="lamp"><svg class="hi"><use href="#i-bulb"/></svg></span></div><span class="s">כבוי · 21°</span></div>
+      <div class="rt"><div style="display:flex;justify-content:space-between"><span class="n">חדר ילדים</span><span class="lamp"><svg class="hi"><use href="#i-bulb"/></svg></span></div><span class="s">כבוי</span></div>
+    </div>
+    <nav class="bar"><span class="on"><svg class="hi"><use href="#i-home"/></svg>הבית</span><span><svg class="hi"><use href="#i-grid"/></svg>חדרים</span><span><svg class="hi"><use href="#i-spark"/></svg>סצנות</span><span><svg class="hi"><use href="#i-bell"/></svg>התראות</span><span><svg class="hi"><use href="#i-dots"/></svg>עוד</span></nav>
+  </div>
+  <div class="scrim"></div>
+  <div class="bsheet" role="dialog" aria-label="בחירת בניין">
+    <span class="grab"></span>
+    <h2>באיזה בניין?</h2>
+    <button class="bopt sel"><span class="ic"><svg class="hi"><use href="#i-bldg"/></svg></span><span><b>מגדל ב</b><span class="s">הבית שלי · קומה 12</span></span><svg class="hi" style="color:var(--act)"><use href="#i-check"/></svg></button>
+    <button class="bopt"><span class="ic"><svg class="hi"><use href="#i-bldg"/></svg></span><span><b>מגדל א</b><span class="s">חדר הכושר · קומה 1</span></span><span class="dot" title="התראה פעילה"></span></button>
+    <button class="bopt shared"><span class="ic"><svg class="hi"><use href="#i-spark"/></svg></span><span><b>משותף</b><span class="s">חניון, מחסנים, גינה</span></span><span></span></button>
+    <p class="tagline">"כבה הכל" פועל רק בבניין שנבחר</p>
+  </div>
+</section>
+
+<!-- 2 tablet rooms grouped -->
+<section class="frame hs" data-w="1280" data-h="800" data-name="טאבלט · חדרים לפי בניין" data-cap="מסך החדרים עם 'כל הבניינים' (רק כשההגדרה מתירה): קומות בעמודות תחת כותרת לכל בניין, אף פעם לא מעורבבות. שמות הקומות שלנו, לא של מערכת הבית.">
+  <div class="tb">
+    <nav class="nav"><span><svg class="hi"><use href="#i-home"/></svg>הבית שלי</span><span class="on"><svg class="hi"><use href="#i-grid"/></svg>חדרים</span><span><svg class="hi"><use href="#i-spark"/></svg>סצנות</span><span><svg class="hi"><use href="#i-bell"/></svg>התראות</span></nav>
+    <div class="strip"><h1>חדרים</h1><button class="bchip"><svg class="hi"><use href="#i-bldg"/></svg>כל הבניינים<svg class="hi"><use href="#i-down"/></svg></button><span class="sp"></span><time class="num">18:42</time></div>
+    <div class="bar2"><span class="muted">3 אורות דולקים בשני בניינים</span><span class="sp"></span><button class="hbtn danger"><svg class="hi"><use href="#i-power"/></svg>כבה הכל במגדל ב</button></div>
+    <div class="cols">
+      <div class="ghead"><svg class="hi"><use href="#i-bldg"/></svg><b>מגדל ב</b><span>· הבית שלי</span><hr></div>
+      <div class="ghead" style="grid-column:span 1"><svg class="hi" style="color:var(--sh)"><use href="#i-spark"/></svg><b>משותף</b><hr></div>
+      <div class="fcol"><h2>קומה 12 <small>4 חדרים</small></h2><div class="room lit">סלון<svg class="hi"><use href="#i-bulb"/></svg></div><div class="room">מטבח<svg class="hi"><use href="#i-bulb"/></svg></div><div class="room">חדר הורים<svg class="hi"><use href="#i-bulb"/></svg></div><div class="room">חדר ילדים<svg class="hi"><use href="#i-bulb"/></svg></div></div>
+      <div class="fcol"><h2>קומת גג <small>2 חדרים</small></h2><div class="room lit">מרפסת גג<svg class="hi"><use href="#i-bulb"/></svg></div><div class="room">מחסן גג<svg class="hi"><use href="#i-bulb"/></svg></div></div>
+      <div class="fcol"><h2>לובי <small>1 חדר</small></h2><div class="room">לובי מגדל ב<svg class="hi"><use href="#i-bulb"/></svg></div></div>
+      <div class="fcol shared-col"><h2>חניון 1- <small>3 חדרים</small></h2><div class="room lit">חניה 214<svg class="hi"><use href="#i-car"/></svg></div><div class="room">מחסן 31<svg class="hi"><use href="#i-bulb"/></svg></div><div class="room">חדר אופניים<svg class="hi"><use href="#i-bulb"/></svg></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 floor move -->
+<section class="frame ax" data-w="1440" data-h="900" data-name="מחשב · העברת קומה" data-cap="סיור › אתרים: העברת קומה שצוירה תחת הבניין הראשון אל מגדל ב. התוכנית, העוגנים והמצלמות עוברים איתה. לפני האישור: מי מאבד גישה ומי מקבל.">
+  <nav class="rail"><span><svg class="hi"><use href="#i-home"/></svg></span><span class="on"><svg class="hi"><use href="#i-map"/></svg></span><span><svg class="hi"><use href="#i-cam"/></svg></span><span><svg class="hi"><use href="#i-users"/></svg></span><span><svg class="hi"><use href="#i-gear"/></svg></span></nav>
+  <div class="pg">
+    <h1>אתרים ומבנים <span class="crumb">פארק הדר › מגדל א</span></h1>
+    <div class="t1"><span class="on">מבנה</span><span>קומות ותוכניות</span><span>קישור למערכת הבית</span></div>
+    <div class="split">
+      <div class="card tree" aria-label="עץ האתר">
+        <span class="h">פארק הדר</span>
+        <span class="it on"><svg class="hi"><use href="#i-bldg"/></svg>מגדל א<span class="c">14 קומות</span></span>
+        <span class="it l3">קומה 14</span><span class="it l3">קומה 13</span><span class="it l3">…</span>
+        <span class="it l3" style="color:var(--act);font-weight:600">קומה 3 · ב</span><span class="it l3">קומה 2</span><span class="it l3">קומה 1</span>
+        <span class="it"><svg class="hi"><use href="#i-bldg"/></svg>מגדל ב<span class="c">0 קומות</span></span>
+        <span class="it sh"><svg class="hi"><use href="#i-spark"/></svg>משותף<span class="c">2 קומות</span></span>
+      </div>
+      <div class="card floors">
+        <div class="fl"><b>קומה 14</b><span class="s">תוכנית · 38 עוגנים · 4 מצלמות</span></div>
+        <div class="fl"><b>קומה 13</b><span class="s">תוכנית · 35 עוגנים · 4 מצלמות</span></div>
+        <div class="fl sel"><b>קומה 3 · ב</b><span class="s">תוכנית · 42 עוגנים · 6 מצלמות</span></div>
+        <div class="fl"><b>קומה 2</b><span class="s">תוכנית · 40 עוגנים · 5 מצלמות</span></div>
+        <div class="fl"><b>קומה 1</b><span class="s">תוכנית · 44 עוגנים · 7 מצלמות</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="scrim"></div>
+  <div class="modal" role="dialog" aria-label="העברת קומה" style="width:760px">
+    <header><h2>העברת קומה לבניין אחר</h2><p class="sub">אותו אתר בלבד. שום דבר לא נמחק, ואפשר להחזיר באותה דרך.</p></header>
+    <div class="mb">
+      <div class="route"><div class="box"><span class="s">מ־</span><b>מגדל א · קומה 3 · ב</b></div><svg class="hi arr"><use href="#i-arrow"/></svg><div class="box to"><span class="s">אל</span><b>מגדל ב</b> <span class="s">מפלס 3 · אין קומה באותו מפלס</span></div></div>
+      <div class="kpis">
+        <div class="kpi lose"><b class="num">3</b><span>אנשים יאבדו גישה לקומה</span></div>
+        <div class="kpi gain"><b class="num">12</b><span>אנשים יקבלו גישה</span></div>
+        <div class="kpi move"><b class="num">6</b><span>מצלמות, תוכנית ו־42 עוגנים עוברים איתה</span></div>
+      </div>
+      <div class="plist">
+        <div><h3>יאבדו גישה <span>הרשאה על מגדל א בלבד</span></h3>
+          <div class="prow"><span class="av">דכ</span>דנה כהן<span class="r">מנהלת בניין · מגדל א</span></div>
+          <div class="prow"><span class="av">אל</span>אבי לוי<span class="r">אחזקה · מגדל א</span></div>
+          <div class="prow"><span class="av">שמ</span>שירן מזרחי<span class="r">קבלה · מגדל א</span></div>
+        </div>
+        <div><h3>יקבלו גישה <span>עמוד 1 מתוך 2</span></h3>
+          <div class="prow"><span class="av">דב</span>דיירי מגדל ב<span class="r">קבוצה · 11 אנשים</span></div>
+          <div class="prow"><span class="av">יו</span>יוסי אוחיון<span class="r">מנהל בניין · מגדל ב</span></div>
+          <div class="prow"><span class="av">2</span>2 הרשאות קומה<span class="r">עוברות עם הקומה</span></div>
+        </div>
+      </div>
+      <div class="callout i"><svg class="hi"><use href="#i-info"/></svg><span>מומלץ ליצור קודם את הקבוצות של מגדל ב, כדי שאף אחד לא יישאר בלי גישה. חיבורי מערכת הבית של הקומה נשארים כמו שהם.</span></div>
+    </div>
+    <footer><span class="check"><span class="box2 on"><svg class="hi"><use href="#i-check"/></svg></span>ראיתי מי מאבד גישה</span><span class="sp"></span><button class="btn">ביטול</button><button class="btn p">העבר קומה · 3 יאבדו גישה</button></footer>
+  </div>
+</section>
+
+<!-- 4 review before enabling -->
+<section class="frame ax" data-w="1440" data-h="900" data-name="מחשב · בדיקה לפני הפעלה" data-cap="הגדרות › בניינים ומיפוי: הדלקת ריבוי בניינים פותחת בדיקה: מצב המיפוי, הגרסאות מאז ההפעלה הקודמת, ומה כל הרשאת בניין תקבל. 'הפעל' רק אחרי סימון.">
+  <nav class="rail"><span><svg class="hi"><use href="#i-home"/></svg></span><span><svg class="hi"><use href="#i-map"/></svg></span><span><svg class="hi"><use href="#i-cam"/></svg></span><span><svg class="hi"><use href="#i-users"/></svg></span><span class="on"><svg class="hi"><use href="#i-gear"/></svg></span></nav>
+  <div class="pg">
+    <h1>הגדרות</h1>
+    <div class="t1"><span>כללי</span><span>תצוגה</span><span class="on">בניינים ומיפוי</span><span>אבטחה</span><span>גיבוי</span></div>
+    <div class="card" style="padding:20px"><div class="stats"><span>ריבוי בניינים: <b>כבוי</b></span><span>3 בניינים</span><span>141 שמות ממערכת הבית</span></div></div>
+  </div>
+  <div class="scrim"></div>
+  <div class="modal" role="dialog" aria-label="בדיקה לפני הפעלה" style="width:820px">
+    <header><h2>לפני שמפעילים ריבוי בניינים</h2><p class="sub">מרגע ההפעלה, הרשאה על בניין תכלול גם את ההתקנים שהמיפוי שייך אליו.</p></header>
+    <div class="mb">
+      <div class="sec"><h3>מצב המיפוי</h3><div class="stats"><span><b class="num">136</b> משויכים</span><span><b class="num">3</b> לא משויכים</span><span><b class="num">2</b> קומות בלי מפלס</span><span><b class="num">0</b> ממתינים לאישור</span></div></div>
+      <div class="sec"><h3>גרסאות מאז ההפעלה הקודמת</h3>
+        <table class="vt"><thead><tr><th>גרסה</th><th>סוג</th><th>מי</th><th>מתי</th><th>מה השתנה</th></tr></thead><tbody>
+          <tr><td class="num">9</td><td><span class="kind">אישור</span></td><td>דנה כהן</td><td class="num">20.11 09:12</td><td>2 אזורים חדשים במגדל ב</td></tr>
+          <tr><td class="num">8</td><td><span class="kind auto">אוטומטי</span></td><td>המערכת</td><td class="num">19.11 22:40</td><td>5 אזורים לפי טבלת הסימונים</td></tr>
+          <tr><td class="num">7</td><td><span class="kind">החלה</span></td><td>יוסי אוחיון</td><td class="num">18.11 14:03</td><td>הוקם מגדל ב, 14 קומות</td></tr>
+        </tbody></table></div>
+      <div class="sec"><h3>מה כל הרשאת בניין תקבל בנוסף <span style="font-weight:400;color:var(--tx3)">(לפי "מפה + מיפוי אזורים")</span></h3>
+        <table class="vt"><thead><tr><th>הרשאה</th><th>בניין</th><th>אנשים</th><th>התקנים נוספים</th></tr></thead><tbody>
+          <tr><td>מנהל בניין</td><td>מגדל א</td><td class="num">2</td><td class="gain2 num">+18</td></tr>
+          <tr><td>דייר</td><td>מגדל ב</td><td class="num">11</td><td class="gain2 num">+64</td></tr>
+          <tr><td>אחזקה</td><td><span class="bt shd">משותף</span></td><td class="num">3</td><td class="gain2 num">+9</td></tr>
+        </tbody></table></div>
+      <div class="callout w"><svg class="hi"><use href="#i-alert"/></svg><span>3 אזורים לא משויכים יישארו זמינים רק למי שמחזיק הרשאה על כל ההתקנה.</span></div>
+    </div>
+    <footer><span class="check"><span class="box2 on"><svg class="hi"><use href="#i-check"/></svg></span>בדקתי את המיפוי (גרסה 9)</span><span class="sp"></span><button class="btn">פתח את האשף</button><button class="btn">ביטול</button><button class="btn p">הפעל ריבוי בניינים</button></footer>
+  </div>
+</section>
+
+<!-- 5 energy filter -->
+<section class="frame ax" data-w="1440" data-h="900" data-name="מחשב · סינון לפי בניין" data-cap="רכיב סינון אחד לכל המסכים (חשמל, תזמונים, חיפוש, הוספת התקן בעורך, חדרים משותפים). מופיע רק כשהמתג דלוק ונראים שני בניינים. רק מצמצם, אף פעם לא נותן.">
+  <nav class="rail"><span><svg class="hi"><use href="#i-home"/></svg></span><span><svg class="hi"><use href="#i-map"/></svg></span><span class="on"><svg class="hi"><use href="#i-bolt"/></svg></span><span><svg class="hi"><use href="#i-users"/></svg></span><span><svg class="hi"><use href="#i-gear"/></svg></span></nav>
+  <div class="pg" style="grid-template-rows:auto auto auto 1fr">
+    <h1>חשמל <span class="crumb">מונים לפי אזור</span></h1>
+    <div class="t1"><span>סקירה</span><span class="on">מונים</span><span>חשבונות</span><span>תעריפים</span></div>
+    <div class="fbar"><span class="seg2"><span>כל האתר</span><span><svg class="hi"><use href="#i-bldg"/></svg>מגדל א</span><span class="on"><svg class="hi"><use href="#i-bldg"/></svg>מגדל ב</span><span class="shd"><svg class="hi"><use href="#i-spark"/></svg>משותף</span></span><span style="flex:1"></span><span class="btn">היום</span><span class="btn">שבוע</span></div>
+    <div class="card" style="display:flex;flex-direction:column">
+      <table class="mt"><thead><tr><th>מונה</th><th>אזור</th><th>בניין</th><th>היום</th><th>לעומת הרגיל</th></tr></thead><tbody>
+        <tr><td><b>לוח ראשי מגדל ב</b><span class="s">3 פאזות</span></td><td>חדר חשמל · ב</td><td><span class="bt">מגדל ב</span></td><td class="num">412 קוט״ש</td><td><span class="spark"><i style="width:62%"></i></span></td></tr>
+        <tr><td><b>מעליות מגדל ב</b><span class="s">2 מעליות</span></td><td>פיר מעליות · ב</td><td><span class="bt">מגדל ב</span></td><td class="num">96 קוט״ש</td><td><span class="spark"><i style="width:48%"></i></span></td></tr>
+        <tr><td><b>תאורת לובי</b><span class="s">מעגל 14</span></td><td>לובי · ב</td><td><span class="bt">מגדל ב</span></td><td class="num">18 קוט״ש</td><td><span class="spark"><i style="width:35%"></i></span></td></tr>
+        <tr><td><b>משאבות מים</b><span class="s">משרת את שני המגדלים</span></td><td>חדר משאבות · משותף</td><td><span class="bt shd">משותף</span> <span class="s" style="display:inline">גם במגדל ב</span></td><td class="num">54 קוט״ש</td><td><span class="spark"><i style="width:70%"></i></span></td></tr>
+        <tr><td><b>מיזוג קומות 1-6</b><span class="s">VRF</span></td><td>גג · ב</td><td><span class="bt">מגדל ב</span></td><td class="num">231 קוט״ש</td><td><span class="spark"><i style="width:55%"></i></span></td></tr>
+      </tbody></table>
+      <div class="tfoot" style="margin-top:auto"><span>5 מונים במגדל ב · עמוד 1 מתוך 1</span><span>מונה שמשרת שני בניינים מופיע בשניהם, עם הערה</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 resident groups -->
+<section class="frame ax" data-w="1440" data-h="900" data-name="מחשב · קבוצת דיירים" data-cap="ניהול משתמשים › קבוצות › קבוצה לבניין: קבוצה אחת והרשאה אחת על הבניין, בפעולה אחת. לפי כללי ההאצלה הקיימים.">
+  <nav class="rail"><span><svg class="hi"><use href="#i-home"/></svg></span><span><svg class="hi"><use href="#i-map"/></svg></span><span><svg class="hi"><use href="#i-cam"/></svg></span><span class="on"><svg class="hi"><use href="#i-users"/></svg></span><span><svg class="hi"><use href="#i-gear"/></svg></span></nav>
+  <div class="pg">
+    <h1>ניהול משתמשים</h1>
+    <div class="t1"><span>אנשים</span><span class="on">קבוצות</span><span>הרשאות</span><span>ממשק ביתי</span></div>
+    <div class="card" style="padding:16px"><div class="stats"><span><b>8</b> קבוצות</span><span>דיירי מגדל א · 46</span><span>מנהלי אחזקה · 3</span></div></div>
+  </div>
+  <div class="scrim"></div>
+  <div class="modal" role="dialog" aria-label="קבוצה לבניין" style="width:680px">
+    <header><h2>קבוצה לבניין</h2><p class="sub">יוצר קבוצה, ומחבר לה תפקיד על בניין אחד.</p></header>
+    <div class="mb">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <label class="field"><span>בניין</span><span class="sel2">מגדל ב<svg class="hi"><use href="#i-down"/></svg></span></label>
+        <label class="field"><span>תפקיד</span><span class="sel2">דייר<svg class="hi"><use href="#i-down"/></svg></span></label>
+      </div>
+      <label class="field"><span>שם הקבוצה</span><span class="sel2" style="justify-content:flex-start">דיירי מגדל ב</span></label>
+      <div class="callout i"><svg class="hi"><use href="#i-info"/></svg><span>תיווצר קבוצה אחת והרשאה אחת: דייר · מגדל ב. האנשים יראו את מגדל ב בלבד, וגם התקנים שהמיפוי שייך למגדל ב.</span></div>
+      <div><div style="display:flex;justify-content:space-between;font-size:13px;color:var(--tx2);font-weight:600;margin-bottom:4px"><span>חברים · 11 נבחרו</span><span>עמוד 1 מתוך 3</span></div>
+        <div class="mrow"><span class="box2 on"><svg class="hi"><use href="#i-check"/></svg></span>נועה ויוסי לביא<span class="r">דירה 12</span></div>
+        <div class="mrow"><span class="box2 on"><svg class="hi"><use href="#i-check"/></svg></span>משפחת אברהם<span class="r">דירה 14</span></div>
+        <div class="mrow"><span class="box2 on"><svg class="hi"><use href="#i-check"/></svg></span>רון גבאי<span class="r">דירה 21</span></div>
+        <div class="mrow"><span class="box2"></span>מסך קיר · מטבח דירה 12<span class="r">מסך קיר · ממשק ביתי</span></div>
+        <div class="mrow"><span class="box2 on"><svg class="hi"><use href="#i-check"/></svg></span>תמר שחר<span class="r">דירה 30</span></div>
+      </div>
+    </div>
+    <footer><span class="sp"></span><button class="btn">ביטול</button><button class="btn p"><svg class="hi"><use href="#i-plus"/></svg>צור קבוצה</button></footer>
+  </div>
+</section>
+
+<!-- 7 lobby -->
+<section class="frame" data-w="1920" data-h="1080" data-name="לובי · מסך לפי בניין" data-cap="מסך הלובי של מגדל ב, בסגנון Concierge שאושר (יוקרה שקטה). הלוח משויך לבניין: הברכה בשם הבניין, הודעות של מגדל ב ושל כל האתר.">
+  <div class="lob">
+    <div class="hd">
+      <span class="mono">ה</span>
+      <div class="greet"><span class="w">ברוכים הבאים</span><b>מגדל ב · פארק הדר</b></div>
+      <div class="tm"><div class="t num">18:42</div><div class="d">חמישי, 20 בנובמבר</div></div>
+    </div>
+    <div class="mid">
+      <div class="feat">
+        <span class="k">מגדל ב · תחזוקה</span>
+        <h2>המעלית הצפונית בטיפול שנתי</h2>
+        <p>המעלית הדרומית פועלת כרגיל. צוות הקבלה ישמח לעזור עם עגלות וקניות.</p>
+        <div class="when num">21.11 · 08:00-14:00</div>
+      </div>
+      <div class="list">
+        <div class="li"><span class="sc">כל האתר</span><h3>הפסקת מים מתוכננת</h3><p>מחר 10:00-12:00, שני המגדלים</p></div>
+        <div class="li"><span class="sc">מגדל ב</span><h3>ערב גבינות ויין בגג</h3><p>שישי 20:00 · בהרשמה בקבלה</p></div>
+        <div class="li"><span class="sc">משותף</span><h3>החניון נשטף ביום ראשון</h3><p>קומה 1- סגורה 07:00-10:00</p></div>
+      </div>
+    </div>
+    <div class="ft"><span>קו 72 · <b>4</b> דק׳</span><span>קו 18 · <b>11</b> דק׳</span><span class="sp"></span><span class="wx">ערב בהיר · <b>17°</b></span></div>
+  </div>
+</section>
+
+</main>
+<script>
+(function () {
+  var frames = Array.prototype.slice.call(document.querySelectorAll('.frame'));
+  var tabs = document.getElementById('tabs'), cap = document.getElementById('cap'), stage = document.getElementById('stage');
+  var cur = 0;
+  try { var q = new URLSearchParams(location.search).get('s'); if (q) cur = Math.max(0, Math.min(frames.length - 1, parseInt(q, 10) - 1 || 0)); } catch (e) {}
+  frames.forEach(function (f, i) {
+    f.style.width = f.dataset.w + 'px'; f.style.height = f.dataset.h + 'px';
+    var b = document.createElement('button'); b.type = 'button'; b.textContent = (i + 1) + '. ' + f.dataset.name;
+    b.addEventListener('click', function () { show(i); }); tabs.appendChild(b);
+  });
+  var dk = document.createElement('button'); dk.type = 'button'; dk.textContent = 'בהיר / כהה';
+  dk.addEventListener('click', function () {
+    frames.forEach(function (f) {
+      var el = f.classList.contains('ax') ? f : (f.querySelector('.lob') || f);
+      if (f.classList.contains('hs')) f.dataset.scheme = f.dataset.scheme === 'light' ? '' : 'light';
+      else el.dataset.scheme = el.dataset.scheme === 'dark' ? '' : 'dark';
+    });
+  });
+  tabs.appendChild(dk);
+  function fit() {
+    var f = frames[cur], ch = document.getElementById('chrome').offsetHeight;
+    document.documentElement.style.setProperty('--chrome-h', ch + 'px');
+    var w = +f.dataset.w, h = +f.dataset.h, sw = stage.clientWidth - 32, sh = stage.clientHeight - 32;
+    var s = Math.min(sw / w, sh / h, 1);
+    f.style.transform = 'translate(-50%, -50%) scale(' + s + ')';
+  }
+  function show(i) {
+    frames[cur].classList.remove('on'); cur = i; frames[cur].classList.add('on');
+    Array.prototype.forEach.call(tabs.children, function (b, j) { if (j < frames.length) b.setAttribute('aria-pressed', String(j === cur)); });
+    cap.textContent = frames[cur].dataset.cap || ''; fit();
+  }
+  window.addEventListener('resize', fit); show(cur);
+})();
+</script>
+</body>
+</html>
