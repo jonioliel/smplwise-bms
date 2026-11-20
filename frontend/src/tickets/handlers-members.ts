@@ -141,6 +141,11 @@ export class TicketsHandlersMembers extends LitElement {
       inline-size: 40px;
       block-size: 40px;
     }
+    /* A11Y-AUDIT-2490: a 44 px hit area on a touch screen (the key keeps its drawn 40 px) */
+    @media (pointer: coarse) {
+      .rb.sm { position: relative; }
+      .rb.sm::after { content: ''; position: absolute; inset: -2px; }
+    }
   `];
 
   private live = new LiveRefresh(() => {
