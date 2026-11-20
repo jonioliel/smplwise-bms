@@ -76,7 +76,7 @@ writing the models, then again under the strict oracle.
 | Merged head: `test_wire_routers_c_2470.py`, `test_wire_routers_b_2450.py`, `test_wire_consumption_2450.py`, `test_wire_route_coverage_2460.py`, `-k "not tickets_costs and not notifications"` | exit 0 (all selected passed; the count line was not captured) |
 | `scripts/gen_wire_types.py --check` (merged head) | rc 0 |
 | ruff (F rules): `smplwise/wire`, `smplwise/routers`, both scripts, the new tests (merged head) | All checks passed |
-| Frontend `tsc --noEmit -p tsconfig.tests.json` | lanes: 0 errors each; merged head: see the final commit / report |
+| Frontend `tsc --noEmit -p tsconfig.tests.json` | lanes: 0 errors each; merged head: 0 errors (rc 0) |
 | Lane A: ESLint (4 files) clean; unit specs 9 files 58 passed + 1 fixed and re-run 3/3; browser specs (Vite dev, desktop, 1 worker) 10 specs 56 passed, 5 skipped (need a live backend: custom roles, delegation x2, kiosk, rules - NOT_RUN in effect) | |
 | Lanes B / C: ESLint, unit and browser specs | NOT reported (lanes stopped at their turn limit) - treat as NOT_RUN |
 | NOT_RUN | full backend suite, tablet / mobile projects, pixel specs, anything on the runner (gates were running) | |
