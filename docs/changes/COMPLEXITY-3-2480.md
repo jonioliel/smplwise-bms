@@ -39,7 +39,7 @@ plugin, not committed, like the previous rows' generators) plus seeded mutations
 | after the parse_condition split: its corpus + `test_automation_model`, `test_kav079_model`, `test_building_presence_2271`, validate_draft corpus | **4430 passed** |
 | after the parse_action split: both parse corpora + `test_automation_model`, `test_kav079_model`, `test_automations_draft`, validate_draft corpus | **9566 passed** |
 | validate_changes corpus on the unchanged code | **1587 passed** |
-| after the validate_changes split: its corpus + `test_nvr_encoding_plan`, `_encoding_batch`, `_stream_document`, `_stream_write`, `_h264_bulk_2341`, `_stream_review_fixes` | **not finished when the agents were stopped**: about 97 % of the run (the corpus file runs first and was fully through) with **0 failures, 0 errors** so far; no final summary line, so NOT_RUN as a verdict - re-run before the train |
+| after the validate_changes split: its corpus + `test_nvr_encoding_plan`, `_encoding_batch`, `_stream_document`, `_stream_write`, `_h264_bulk_2341`, `_stream_review_fixes` | **1743 passed** (finished right after the split was committed; the run was on the same working tree) |
 | ruff (project `select = ["F"]`) on the two changed services | **All checks passed** |
 
 NOT_RUN: the full backend suite, `test_nvr_stream_write_locks.py` (lock / timing test: run alone), the runner entry check; frontend
