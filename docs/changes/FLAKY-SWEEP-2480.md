@@ -74,7 +74,8 @@ Before = the unchanged specs (copied to an untracked `tests-before/`), after = t
 | plan-editor MSG-1, both tests | 2 passed |
 | home-v3-followup-a bill file | 1 passed |
 | calendars-settings-2310 "every answered setting" | 1 passed |
-| frigate guard (per skin x scheme), tickets evidence (whole file) | NOT_RUN at the time of writing (the run was still going when the session had to stop) |
+| frigate layout guard, final shape (per skin x scheme, 8 tests) | 8 passed |
+| tickets evidence (whole file) | NOT_RUN (stopped unfinished when the session had to end) |
 
 Not run after the change: calmsg-polish-2331, schedules-list, automations-list (`sizesHere`), layout-tickets-map, the mobile project of
 bridge-key / session-me-failure. 5x after-runs exist only for design-foundation and the frigate guard (its first split).
