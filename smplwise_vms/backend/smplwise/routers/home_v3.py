@@ -27,6 +27,8 @@ from ..rbac import INSTALLATION, Principal, require
 from ..services import home_interface as hi
 from ..services import home_v3
 from ..services import home_v3_store as store
+from ..wire import home_v3 as W
+from ..wire import wire
 from ._common import rid as _rid
 
 router = APIRouter()
@@ -39,7 +41,7 @@ def _room(room_key: str) -> str:
     return room_key
 
 
-@router.get("/home/room-wallpapers")
+@router.get("/home/room-wallpapers", **wire(W.RoomWallpaperList))
 def list_room_wallpapers(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, ADMIN, INSTALLATION)
     mode = hi.install_settings(conn)["wallpaper"]
@@ -51,7 +53,7 @@ class WallBody(BaseModel):
     value: str = Field("", max_length=40)
 
 
-@router.put("/home/room-wallpapers/{room_key}")
+@router.put("/home/room-wallpapers/{room_key}", **wire(W.RoomWallpapers))
 def put_room_wallpaper(room_key: str, body: WallBody, request: Request, principal: Principal = Depends(current_principal),
                        conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, ADMIN, INSTALLATION)
@@ -71,7 +73,7 @@ def put_room_wallpaper(room_key: str, body: WallBody, request: Request, principa
     return {"walls": home_v3.room_wallpapers(conn, mode)}
 
 
-@router.put("/home/room-wallpapers/{room_key}/image")
+@router.put("/home/room-wallpapers/{room_key}/image", **wire(W.RoomWallpaperImage))
 def put_room_wallpaper_image(room_key: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal),
                                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     from ..services.bill_pdf_logo import LogoError, sanitize_image
@@ -102,7 +104,7 @@ def get_room_wallpaper_image(room_key: str, principal: Principal = Depends(curre
     return Response(base64.b64decode(r["data_b64"]), media_type=r["mime"], headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"})
 
 
-@router.delete("/home/room-wallpapers/{room_key}/image")
+@router.delete("/home/room-wallpapers/{room_key}/image", **wire(W.RoomWallpaperImage))
 def delete_room_wallpaper_image(room_key: str, request: Request, principal: Principal = Depends(current_principal),
                                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, ADMIN, INSTALLATION)
@@ -115,7 +117,7 @@ def delete_room_wallpaper_image(room_key: str, request: Request, principal: Prin
     return {"ok": True, "walls": home_v3.room_wallpapers(conn, hi.install_settings(conn)["wallpaper"])}
 
 
-@router.get("/home/guest-doors")
+@router.get("/home/guest-doors", **wire(W.GuestDoors))
 def guest_doors(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The doors the caller may put in a guest invitation. Hidden (404) unless the visitor invitations are on and the home administrator
     marked the caller; an empty list when the caller holds the invite permission on no station."""

@@ -9,9 +9,11 @@ import { P3_MODULE_LABEL } from './home-p3-logic'; // HOME-V3-P3-2432
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { api, apiUrl, describeError, get, post, put } from '../api/client';
+import type * as V3Wire from '../api/generated/wire-home-v3';
+import type * as HiWire from '../api/generated/wire-home-interface';
 import { session } from '../api/session';
 import { GALLERY, galleryCss } from './home-wall';
-import { getHomePrefs, getOverview, type HomeModule, type Interface, type Overview } from './home-api';
+import { getHomePrefs, getOverview, type HomeModule, type Overview } from './home-api';
 import '../components/sw-button';
 import '../components/sw-toggle';
 import '../components/sw-view-switch';
@@ -19,19 +21,13 @@ import '../components/sw-tabs';
 import '../components/sw-state-panel';
 import { tr } from '../i18n/msg/home';
 
-interface PolicyRow {
-  user_id: string; username: string; display_name: string; source: string; system_admin: boolean;
-  default_interface: Interface; may_switch: boolean; home_only: boolean; kiosk: boolean; kiosk_area_id: string | null;
-  rooms: string[] | null; modules: HomeModule[] | null; configured: boolean; admin: boolean;
-  /** HOME-V3-P1-2430: may invite a guest from the home interface; can_invite = holds the visitor-invite permission somewhere */
-  guests?: boolean; can_invite?: boolean;
-}
+/* The page's rows are the backend's response models (wire/home_interface.py, ../api/generated/wire-home-interface.ts); narrowed on
+ * purpose: a row's room keys and categories. HOME-V3-P1-2430: `guests` = may invite a guest from the home interface; `can_invite` = holds
+ * the visitor-invite permission somewhere. */
+type PolicyRow = Omit<HiWire.HomeUserPolicy, 'rooms' | 'modules'> & { rooms: string[] | null; modules: HomeModule[] | null };
 type SwitchClass = 'light' | 'not_light' | 'protected';
-interface SwitchRow {
-  entity_id: string; name: string; area_id: string | null; area_name: string | null; floor_name: string | null; state: string | null; available: boolean;
-  class: SwitchClass; suggest: SwitchClass | null; suggest_reason: string | null; locked: string | null;
-}
-interface InstallSettings { default_mode: 'full_all' | 'home_regular' | 'choose'; kiosk_exit: 'code' | 'none'; wallpaper: 'none' | 'gallery' | 'gallery_image' }
+type SwitchRow = HiWire.SwitchClassRow;
+type InstallSettings = HiWire.HomeInstallSettings;
 /** HOME-V3-FOLLOWUP-A-2431 (owner answer 2): the visitor-invitation switch (GET|PUT access/visitors/settings, system administrator only;
  *  OFF at install). `effective` is false while the installation's external access is off too. 'denied' = the viewer may not change it. */
 interface VisitorSwitch { visitors: 'on' | 'off'; effective: boolean; external_grants: 'on' | 'off' }
@@ -39,7 +35,7 @@ const CLASS_LABEL: Record<SwitchClass, string> = { light: tr('תאורה'), not_
 const LOCKED_LABEL: Record<string, string> = { alarm_managed: tr('נשלט ממסך האזעקה'), media_managed: tr('נשלט ממסך המולטימדיה'), doors_layer: tr('בשכבת הדלתות') };
 const PAGE = 20;
 
-interface Policies { users: PolicyRow[]; modules: HomeModule[]; seed: Record<string, unknown[]>; kiosk_code_set: boolean }
+type Policies = Omit<HiWire.HomePolicies, 'users' | 'modules'> & { users: PolicyRow[]; modules: HomeModule[] };
 
 const MODULE_LABEL: Record<HomeModule, string> = {
   lights: tr('תאורה'), climate: tr('אקלים'), shades: tr('תריסים'), doors: tr('דלתות'), cameras: tr('מצלמות'), energy: tr('חשמל'), alerts: tr('התראות'), scenes: tr('סצנות'), security: tr('אבטחה'),
@@ -128,7 +124,7 @@ export class SwHomeAdmin extends LitElement {
 
   private async load() {
     try {
-      const [p, ov, st] = await Promise.all([get<Policies>('home/policies'), getOverview().catch(() => null), get<{ settings: InstallSettings }>('home/settings').catch(() => null)]);
+      const [p, ov, st] = await Promise.all([get<Policies>('home/policies'), getOverview().catch(() => null), get<HiWire.HomeSettingsView>('home/settings').catch(() => null)]);
       this.data = p;
       this.inst = st?.settings ?? null;
       this.rooms = ov?.rooms ?? [];
@@ -193,7 +189,7 @@ export class SwHomeAdmin extends LitElement {
 
   private async saveCode() {
     try {
-      const r = await put<{ kiosk_code_set: boolean }>('home/kiosk-code', { code: this.code || null });
+      const r = await put<HiWire.KioskCodeSet>('home/kiosk-code', { code: this.code || null });
       this.code = '';
       this.message = r.kiosk_code_set ? tr('קוד היציאה של מסכי הקיר נשמר.') : tr('קוד היציאה נמחק.');
       await this.load();
@@ -214,7 +210,7 @@ export class SwHomeAdmin extends LitElement {
 
   private async loadSwitches() {
     try {
-      this.sw = (await get<{ switches: SwitchRow[] }>('home/switches')).switches;
+      this.sw = (await get<HiWire.SwitchClasses>('home/switches')).switches;
       this.swError = '';
     } catch (err) {
       this.swError = describeError(err);
@@ -224,7 +220,7 @@ export class SwHomeAdmin extends LitElement {
   private async saveInstall(patch: Partial<InstallSettings>) {
     this.message = '';
     try {
-      this.inst = (await put<{ settings: InstallSettings }>('home/settings', patch)).settings;
+      this.inst = (await put<HiWire.HomeSettingsSaved>('home/settings', patch)).settings;
       this.message = tr('נשמר. משתמשים קיימים לא הושפעו.');
     } catch (err) {
       this.error = describeError(err);
@@ -240,7 +236,7 @@ export class SwHomeAdmin extends LitElement {
     this.busy = true;
     this.message = '';
     try {
-      const r = await post<{ changed: number; refused: number }>('home/switches', { entity_ids: ids, mark });
+      const r = await post<HiWire.SwitchClassesSaved>('home/switches', { entity_ids: ids, mark });
       this.message = tr('סומנו {changed} כ"{v1}".{v2}', { changed: r.changed, v1: CLASS_LABEL[mark], v2: r.refused ? tr(' {refused} לא שונו (נשלטים ממסך אחר).', { refused: r.refused }) : '' });
       this.swSel = new Set();
       await this.loadSwitches();
@@ -292,7 +288,7 @@ export class SwHomeAdmin extends LitElement {
     if (this.wallsLoading) return;
     this.wallsLoading = true;
     try {
-      this.walls = (await get<{ walls: Record<string, string> }>('home/room-wallpapers')).walls;
+      this.walls = (await get<V3Wire.RoomWallpaperList>('home/room-wallpapers')).walls;
     } catch {
       this.walls = {};
     }
@@ -302,7 +298,7 @@ export class SwHomeAdmin extends LitElement {
   private async setWall(room: string, value: string) {
     this.busy = true;
     try {
-      this.walls = (await put<{ walls: Record<string, string> }>(`home/room-wallpapers/${encodeURIComponent(room)}`, { value })).walls;
+      this.walls = (await put<V3Wire.RoomWallpapers>(`home/room-wallpapers/${encodeURIComponent(room)}`, { value })).walls;
       this.message = tr('הרקע נשמר');
     } catch (err) {
       this.message = describeError(err);
@@ -320,7 +316,7 @@ export class SwHomeAdmin extends LitElement {
     const form = new FormData();
     form.append('file', f);
     try {
-      this.walls = (await api<{ walls: Record<string, string> }>(`home/room-wallpapers/${encodeURIComponent(room)}/image`, { method: 'PUT', body: form })).walls;
+      this.walls = (await api<V3Wire.RoomWallpaperImage>(`home/room-wallpapers/${encodeURIComponent(room)}/image`, { method: 'PUT', body: form })).walls;
       this.wallStamp = Date.now();
       this.message = tr('התמונה נשמרה כרקע לכולם');
     } catch (err) {
