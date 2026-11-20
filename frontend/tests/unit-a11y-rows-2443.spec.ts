@@ -71,7 +71,8 @@ const stopOnly = (t: string) => /@click=\$\{stop\}/.test(t) || /@click=\$\{\(e: 
 test.describe('keyboard pass over the screens of the row', () => {
   test('system-notices: the boards table row and the phone board card', () => {
     const s = read('screens/system-notices.ts');
-    expect(s).toMatch(/<tr class="go" tabindex="0" data-board=\$\{b\.slug\} @click=\$\{\(\) => this\.goBoard\(b\)\} @keydown=\$\{activateKeydown\(\(\) => this\.goBoard\(b\)\)\}>/);
+    // CR-CMP2-TABLES-REST-2470: the boards table is sw-table - its row-select listener gives every row a tab stop and Enter / Space
+    expect(s).toMatch(/<sw-table class="t" bare data-boards-table [^\n]*\n[^\n]*'data-board': String\(b\.slug\)[^\n]*\n\s*@row-select=\$\{[^\n]*this\.goBoard\(/);
     expect(s).toMatch(/<div class="card" tabindex="0" role="link" data-board-card=\$\{b\.slug\} @click=\$\{\(\) => this\.goBoard\(b\)\} @keydown=\$\{activateKeydown\(\(\) => this\.goBoard\(b\)\)\}>/);
     // the old handler took Enter from the row's own buttons too (edit / delete navigated to the board)
     expect(s).not.toMatch(/e\.key === 'Enter' && this\.goBoard/);
