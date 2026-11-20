@@ -149,16 +149,7 @@ smplwise.services.local_reset._senders
 smplwise.services.revocation._generation
 smplwise.services.revocation._marks
 # - billing / electricity / water: out of this row on purpose
-smplwise.services.bill_pdf._STATUS
-smplwise.services.energy_billing._LAST_AUTO
-smplwise.services.energy_billing._LAST_RETENTION
 smplwise.services.energy_billing_adapter._SETTINGS
-smplwise.services.energy_sampler._LAST
-smplwise.services.energy_store._STORES
-smplwise.services.water_billing._LAST
-smplwise.services.water_billing._OVERRIDE
-smplwise.services.water_runtime._LAST
-smplwise.services.water_sampler._LAST
 # - files other agents change on 19.11 (CR-FEED-BASE: intercom_sync; T068-EDGE: events_ingest, exports, ha_sync; the *_store modules)
 smplwise.services.events_ingest.EXTRA
 smplwise.services.events_ingest._GAP_FAILED

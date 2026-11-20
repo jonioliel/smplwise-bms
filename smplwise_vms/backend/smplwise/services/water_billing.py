@@ -43,6 +43,7 @@ from . import water_settings as ws
 from .energy_billing_provider import BoundaryReading, Consumption, MeterEvent, MeterInfo
 from .energy_consumption import MeterWindow, data_until, meter_window
 from .energy_provider import coverage_of
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.water_billing")
 
@@ -922,3 +923,6 @@ def reset() -> None:
 
 def data_dir_of(settings: Any) -> Path:
     return Path(settings.data_dir)
+
+
+register_reset(__name__, ("_LAST", "_OVERRIDE"), reset)  # SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)
