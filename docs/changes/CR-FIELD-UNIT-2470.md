@@ -59,7 +59,8 @@ Not moved (recorded, not guessed):
 
 ## Tests actually run (workstation, Vite dev server of this worktree on its own port and dependency cache, `--workers=1`)
 
-- `npx tsc --noEmit -p tsconfig.json`: exit 0; `-p tsconfig.tests.json`: exit 0 (code head 71755755d).
+- `npx tsc --noEmit -p tsconfig.json`: exit 0; `-p tsconfig.tests.json`: exit 0 (code head 71755755d; the train merge touches no file of
+  this row - not re-run after it).
 - ESLint on the 9 touched source files: exit 0, no findings. `node scripts/unused-exports.mjs --enforce`: OK.
 - Unit (`playwright.unit.config.ts`): `unit-field-unit-2470` (new) 11 passed; `unit-a11y-polished-lint`, `unit-a11y-r4-leftovers-2380`,
   `unit-audit30b-shared`, `unit-dark-polish-beds`, `unit-fe-nits-2442`, `unit-i18n-cal-elec-lint`, `unit-i18n-cal-elec-completeness`,
@@ -78,7 +79,23 @@ Not moved (recorded, not guessed):
 
 ## Runner pass and baselines
 
-See the section below (filled after the runner pass).
+Runner, no gate running (gate_status `pass`, release/2450-train done), own folder `~/work/fieldunit`, `nice -n 19`, `--workers=1`, script
+`~/work/fieldunit-run1.sh 71755755d` (log `~/work/fieldunit-run1.log`, results `~/work/fieldunit-out1/summary.txt`), 00:19-00:28:
+
+- build: rc 0.
+- `pixel-sw-field` (new specimen): `--update-snapshots` 6 written; verify without `-u` on desktop / tablet / mobile: 12 passed.
+- unchanged by construction, verified without `-u`: `evidence-audit30b-shared` pixel (the gallery with the sw-field search box) 4 passed;
+  `pixel-sw-table` 9 passed; `layout-audit30-e-infra` (desktop) 26 passed; `layout-dropdown-fit` (capsule sw-field) 2 passed.
+- tablet project against the folder's dev server: `electricity-tou`, `electricity-accounts`, `electricity-wizard`, `electricity-meters`,
+  `evidence-wkwater-2331`: 63 passed, 1 skipped.
+- the only changed images: the six new baselines. Disk 84 % -> 87 % during the pass; the folder's dist / test-results / vite cache removed.
+
+Baselines added (each looked at: light and dark, the units inside the frames at the reading end, the figures against their units, "-12.50 ₪"
+in Hebrew, the wrong and the disabled values, the English block):
+`frontend/tests/pixel-sw-field.spec.ts-snapshots/sw-field-{light,dark}-{desktop,tablet,mobile}-linux.png`.
+
+Train: `origin/release/2450-train` moved to b643e8e7a (2.45.0 gate run 1 fixes: events keys, temperature report) and was merged in
+(9ece2af80); no overlap with this row.
 
 ## Open questions (recommendation taken, for the owner's page)
 
