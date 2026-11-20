@@ -1,31 +1,21 @@
 /** Recording search and playback sessions against the add-on backend (chapters 23/24). */
 import { apiUrl, del, get, path, post, query } from './client';
+import type * as PbWire from './generated/wire-playback';
 import type * as RecWire from './generated/wire-recordings';
 
-/* The recording search is the backend's response model (smplwise_vms/backend/smplwise/wire/recordings.py, generated into ./generated/;
- * code review 07:F8 step 2). Narrowed on purpose: a segment's `kind` (the documented set; the server types it as a string). */
+/* The recording search and playback sessions are the backend's response models (smplwise_vms/backend/smplwise/wire/recordings.py,
+ * playback.py, generated into ./generated/; code review 07:F8 step 2). Narrowed on purpose: a segment's `kind` and a session's `state`
+ * (the documented sets; the server types them as strings) and the media anchor (a document chapter 24 fills, null until then). */
 type RecordingSegment = Omit<RecWire.RecordingSegment, 'kind'> & { kind: 'continuous' | 'motion' | 'alarm' | 'event' | 'manual' | 'unknown' };
 
 export type RecordingsResponse = Omit<RecWire.RecordingSearch, 'segments'> & { segments: RecordingSegment[] };
 
 export const recordingsForDay = (cameraId: string, date: string) => get<RecordingsResponse>(path`cameras/${cameraId}/recordings` + query({ date }));
 
-export interface PlaybackSession {
-  id: string;
-  camera_id: string;
-  generation: number;
+export type PlaybackSession = Omit<PbWire.PlaybackSession, 'state' | 'media_anchor'> & {
   state: 'creating' | 'buffering' | 'playing' | 'paused' | 'seeking' | 'ended' | 'expired' | 'failed' | 'closed';
-  requested_at: string;
-  actual_start_at: string | null;
-  actual_end_at: string | null;
   media_anchor: { source_at: string; media_pts_seconds: number; verified: boolean } | null;
-  time_precision: 'verified' | 'keyframe_limited' | 'estimated' | 'unknown';
-  media_handle: string | null;
-  expires_at: string;
-  capabilities: { seek: boolean; pause: boolean; frame_step: boolean; supported_speeds: number[] };
-  playback_end_at: string;
-  moved_to_next_segment?: boolean;
-}
+};
 
 /** Sessions and groups this page opened; released with a beacon when the page is left, so a closed tab never holds a quota slot. */
 const openSessions = new Set<string>();
@@ -50,7 +40,7 @@ export const closePlayback = (id: string) => {
   return del(path`playback/sessions/${id}`);
 };
 // CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by T028/T029 (playback sessions).
-export const listPlayback = () => get<{ sessions: (PlaybackSession & { username: string; bytes_down: number; seconds: number })[]; max_sessions: number; lease_s: number }>('playback/sessions');
+export const listPlayback = () => get<Omit<PbWire.PlaybackSessions, 'sessions'> & { sessions: PlaybackSession[] }>('playback/sessions');
 
 /** ws(s):// URL of a session's relay socket for one generation (works under Ingress). */
 export function playbackWsUrl(session: PlaybackSession): string {
