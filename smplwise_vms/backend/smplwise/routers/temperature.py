@@ -34,7 +34,10 @@ from ..services import temperature as t
 from ..services import temperature_access as ta
 from ..services import temperature_defrost as learner
 from ..services import temperature_runtime as rt
+from ..services import temperature_store as store
 from ..services.timeutil import iso_utc
+from ..wire import temperature as W
+from ..wire import wire
 
 router = APIRouter()
 MANAGE, ACK, CONFIGURE = "infra.temperature.manage", "infra.temperature.ack", "system.configure"
@@ -172,7 +175,7 @@ def _user_names(conn: sqlite3.Connection, ids: set[str]) -> dict[str, str]:
     ids = {i for i in ids if i}
     if not ids:
         return {}
-    rows = conn.execute(f"SELECT id, username, display_name FROM users WHERE id IN ({','.join('?' * len(ids))})", list(ids)).fetchall()
+    rows = store.user_name_rows(conn, ids)
     return {r["id"]: (r["display_name"] or r["username"] or "") for r in rows}
 
 
@@ -225,8 +228,7 @@ class _Ctx:
         self.learned = t.learned_of(conn)
         self.connected = t.mirror_connected()
         self.insights = ti.load(conn)
-        rows = conn.execute("""SELECT a.area_id, a.name, a.floor_id, f.name AS floor_name, f.level AS floor_level FROM ha_areas a
-                               LEFT JOIN ha_floors f ON f.floor_id = a.floor_id""").fetchall()
+        rows = store.areas_with_floor(conn)
         self.areas = {r["area_id"]: r["name"] for r in rows}
         self.floors = {r["area_id"]: (r["floor_id"], r["floor_name"], r["floor_level"]) for r in rows}
 
@@ -277,7 +279,7 @@ def _unit_out(ctx: _Ctx, u: sqlite3.Row, door_visible: bool, ents: dict[str, sql
     value = reading["value"]
     low, high = t.band_of(u, reading, rules)
     if not ctx.connected:
-        last = conn.execute("SELECT v FROM infra_temp_samples WHERE unit_id = ? ORDER BY ts DESC LIMIT 1", (u["id"],)).fetchone()
+        last = store.last_sample(conn, u["id"])
         value_last = last[0] if last else None
     else:
         value_last = None
@@ -336,7 +338,7 @@ def _visible(conn: sqlite3.Connection, principal: Principal) -> list[tuple[sqlit
 
 # ---------------------------------------------------------------- operator routes
 
-@router.get(API)
+@router.get(API, **wire(W.TempUnits))
 def list_units(spark: int = Query(1, ge=0, le=1), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Every enabled unit the caller may see with its live status, open alerts, 24-hour statistics and (spark=1) the 24-hour line. Empty = no units."""
     ctx = _Ctx(conn, now_ts(), principal)
@@ -374,17 +376,8 @@ def _log_query(conn: sqlite3.Connection, principal: Principal, unit: str | None,
     ids = [i for i in ids if i in vis]
     if not ids:
         return [], 0, vis
-    where = [f"unit_id IN ({','.join('?' * len(ids))})", "started_at <= ?", "(ended_at IS NULL OR ended_at >= ?)"]
-    args: list[Any] = [*ids, _iso(hi), _iso(lo)]
-    if kind:
-        kinds = (("high", "low", "predict") if kind == "temp" else t.ACT_KINDS if kind == "act" else t.HEALTH_KINDS if kind == "health" else (kind,))
-        where.append(f"kind IN ({','.join('?' * len(kinds))})")
-        args += list(kinds)
-    if severity:
-        where.append("severity = ?")
-        args.append(severity)
-    sql = " AND ".join(where)
-    rows = [r for r in conn.execute(f"SELECT * FROM infra_temp_events WHERE {sql} ORDER BY started_at DESC, id", args).fetchall()
+    kinds = (("high", "low", "predict") if kind == "temp" else t.ACT_KINDS if kind == "act" else t.HEALTH_KINDS if kind == "health" else (kind,)) if kind else None
+    rows = [r for r in store.events_window(conn, ids, _iso(hi), _iso(lo), kinds, severity)
             if r["kind"] != "door" or r["unit_id"] in door_vis]
     total = len(rows)
     page = rows[offset:offset + limit]
@@ -454,7 +447,7 @@ def _wa_error(e: Any) -> ApiError:
     return ApiError(422, e.code, e.message, details={"fields": e.fields, "message_en": e.message_en})
 
 
-@router.get(f"{API}/report/preview")
+@router.get(f"{API}/report/preview", **wire(W.TempReportPreview))
 def report_preview(units: str = Query(..., max_length=2000), range: str = Query("24h", max_length=12), start: str | None = Query(None, alias="from", max_length=40),  # noqa: A002
                    end: str | None = Query(None, alias="to", max_length=40), lang: Literal["he", "en"] = "he", chart: int = Query(1, ge=0, le=1),
                    events: int = Query(1, ge=0, le=1), signature: int = Query(1, ge=0, le=1), layout: Literal["standard", "haccp"] = "standard",
@@ -545,7 +538,7 @@ def _people_in_links(conn: sqlite3.Connection) -> bool:
     return twa.people_in_links(conn)
 
 
-@router.get(f"{API}/report/links")
+@router.get(f"{API}/report/links", **wire(W.TempReportLinks))
 def report_links(response: Response, principal: Principal = Depends(_link_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Whether the dialog offers the link (`available`), its lifetime, and the links this user made (a manager sees all of them)."""
     response.headers["Cache-Control"] = NO_STORE
@@ -560,7 +553,7 @@ def report_links(response: Response, principal: Principal = Depends(_link_ro), c
             "links": rl.listing(conn, principal.user_id, authorize(conn, principal, MANAGE, INSTALLATION).allowed, now)}
 
 
-@router.post(f"{API}/report/links", status_code=201)
+@router.post(f"{API}/report/links", status_code=201, **wire(W.TempReportLinkCreated))
 def report_link_create(body: ReportLinkIn, response: Response, principal: Principal = Depends(_link_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Render the report (the same units the user may download) and make a temporary link to that one file. The URL is returned once."""
     from ..services import temperature_report as rep
@@ -587,7 +580,7 @@ def report_link_revoke(link_id: str = Path(min_length=1, max_length=64), princip
         raise _link_error(e) from None
 
 
-@router.delete(f"{API}/report/links")
+@router.delete(f"{API}/report/links", **wire(W.TempRevoked))
 def report_links_revoke_all(response: Response, principal: Principal = Depends(_link_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """TEMPREPORT-297: revoke every live temperature document link at once (Settings). A manager revokes all of them (the vendor links too,
     TEMPREPORT-2310 S4), anyone else his own."""
@@ -598,7 +591,7 @@ def report_links_revoke_all(response: Response, principal: Principal = Depends(_
     return {"revoked": n}
 
 
-@router.post(f"{API}/report/links/{{link_id}}/send")
+@router.post(f"{API}/report/links/{{link_id}}/send", **wire(W.TempLinkSent))
 def report_link_send(request: Request, link_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(_link_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """WALINK-295: send a live link as a plain-text WhatsApp message to the configured recipients (installation settings). The answer is typed per
     recipient: `sent`, `not_sendable` (no number / no consent / template support off / no session window - never a fake success) or `failed`."""
@@ -612,7 +605,7 @@ def report_link_send(request: Request, link_id: str = Path(min_length=1, max_len
         raise _link_error(e) from None
 
 
-@router.get(f"{API}/report/recipients")
+@router.get(f"{API}/report/recipients", **wire(W.TempReportRecipients))
 def report_recipients(principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The report dialog's people: system users (with whether the summary can reach them) and vendors (selectable while vendor reports are on,
     with the reason per channel), plus the installation's send hours. Never a phone number or an address."""
@@ -626,7 +619,7 @@ def report_recipients(principal: Principal = Depends(_manage_ro), conn: sqlite3.
     return {**out, "send_hours": {"from": w.start.strftime("%H:%M"), "to": w.end.strftime("%H:%M")}}
 
 
-@router.post(f"{API}/report/send", status_code=202)
+@router.post(f"{API}/report/send", status_code=202, **wire(W.TempReportSent))
 def report_send(body: ReportSendIn, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Queues the text summary to each recipient (one-off). It leaves inside the installation's send hours (else it waits for the next
     opening, logged), through the shared account and pacing, only to a number the user opted in for. A vendor (TEMPVENDOR-295) goes through
@@ -645,21 +638,21 @@ def report_send(body: ReportSendIn, principal: Principal = Depends(_manage_w), c
     return {**out, "sends": twa.batch_view(conn, out["batch_id"])}
 
 
-@router.get(f"{API}/report/sends/{{batch_id}}")
+@router.get(f"{API}/report/sends/{{batch_id}}", **wire(W.TempSends))
 def report_sends(batch_id: str, principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     from ..services import temperature_whatsapp as twa
 
     return {"sends": twa.batch_view(conn, batch_id)}
 
 
-@router.get(f"{API}/report/schedules")
+@router.get(f"{API}/report/schedules", **wire(W.TempSchedules))
 def report_schedules(principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     from ..services import temperature_whatsapp as twa
 
     return {"schedules": twa.schedules(conn)}
 
 
-@router.post(f"{API}/report/schedules", status_code=201)
+@router.post(f"{API}/report/schedules", status_code=201, **wire(W.TempSchedule))
 def report_schedule_create(body: ScheduleIn, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     from ..services import temperature_whatsapp as twa
 
@@ -674,12 +667,12 @@ def report_schedule_create(body: ScheduleIn, principal: Principal = Depends(_man
 
 @router.delete(f"{API}/report/schedules/{{schedule_id}}", status_code=204)
 def report_schedule_delete(schedule_id: str, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> None:
-    if conn.execute("DELETE FROM infra_temp_report_schedules WHERE id = ?", (schedule_id,)).rowcount == 0:
+    if store.delete_report_schedule(conn, schedule_id) == 0:
         raise ApiError(404, "not_found", "התזמון לא נמצא.", details={"message_en": "The schedule was not found."})
     audit(conn, actor=principal, action="infra.temperature.report.schedule.delete", decision="allowed", resource_type="infra_temp_report_schedule", resource_id=schedule_id)
 
 
-@router.get(f"{API}/events")
+@router.get(f"{API}/events", **wire(W.TempEvents))
 def events(unit: str | None = Query(None, max_length=64), kind: str | None = Query(None, pattern="^(temp|high|low|door|offline|defrost|ack|mute|act|predict|battery|frozen|recovery|duty|maint|escalate|ticket|health)$"),
            severity: str | None = Query(None, pattern="^(info|warning|alarm)$"), range: str = Query("24h", pattern="^(24h|7d|30d|custom)$"),  # noqa: A002
            start: str | None = Query(None, alias="from", max_length=40), end: str | None = Query(None, alias="to", max_length=40),
@@ -740,7 +733,7 @@ def events_csv(unit: str | None = Query(None, max_length=64), kind: str | None =
 
 # ---------------------------------------------------------------- manage (registered before /{unit_id})
 
-@router.get(f"{API}/manage")
+@router.get(f"{API}/manage", **wire(W.TempManage))
 def manage_list(principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     rows = t.units(conn)
     ents = t.entity_rows(conn, [x for r in rows for x in (r["temp_entity_id"], r["door_entity_id"], r["power_entity_id"])])
@@ -756,11 +749,10 @@ def manage_list(principal: Principal = Depends(_manage_ro), conn: sqlite3.Connec
                       "defrost_mode": r["defrost_mode"], "defrost_windows": t.fixed_of(r)})
     return {"units": items, "defaults": t.load_defaults(conn), "rule_specs": {k: {"type": s[0], "min": s[2], "max": s[3]} for k, s in t.RULES.items()},
             "kinds": list(t.KINDS), "templates": {k: list(v) for k, v in t.TEMPLATES.items()},
-            "areas": [{"area_id": a["area_id"], "name": a["name"], "floor_name": a["floor_name"]} for a in conn.execute(
-                "SELECT a.area_id, a.name, f.name AS floor_name FROM ha_areas a LEFT JOIN ha_floors f ON f.floor_id = a.floor_id ORDER BY a.position, a.name").fetchall()]}
+            "areas": [{"area_id": a["area_id"], "name": a["name"], "floor_name": a["floor_name"]} for a in store.area_choices(conn)]}
 
 
-@router.get(f"{API}/candidates")
+@router.get(f"{API}/candidates", **wire(W.TempCandidates))
 def candidates(kind: str = Query("temp", pattern="^(temp|door|power)$"), q: str = Query("", max_length=80), principal: Principal = Depends(_manage_ro),
                conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The sensors the setter may link (devices.read scope): numeric degree sensors for `temp`, binary sensors for `door` (door / opening /
@@ -768,9 +760,7 @@ def candidates(kind: str = Query("temp", pattern="^(temp|door|power)$"), q: str 
     from ..services import ha_scope
 
     doms = ("sensor", "climate") if kind == "temp" else ("sensor",) if kind == "power" else ("binary_sensor",)
-    marks = ",".join("?" * len(doms))
-    rows = conn.execute(f"""SELECT entity_id, name, original_name, domain, device_class, unit, state, available, removed_at, disabled, area_name, attributes_json
-                            FROM ha_entities WHERE domain IN ({marks}) AND removed_at IS NULL AND disabled = 0 ORDER BY name, entity_id""", doms).fetchall()
+    rows = store.candidate_entities(conn, doms)
     if kind == "temp":
         rows = [r for r in rows if t.is_temperature_entity(r)]
     elif kind == "power":  # phase 3: a smart plug / current meter of the unit (read only)
@@ -795,18 +785,18 @@ def candidates(kind: str = Query("temp", pattern="^(temp|door|power)$"), q: str 
     return {"items": items[:500]}
 
 
-@router.get(f"{API}/settings")
+@router.get(f"{API}/settings", **wire(W.TempSettings))
 def get_settings(principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The installation defaults of every rule (each unit may override any of them)."""
-    r = conn.execute("SELECT row_version FROM infra_temp_settings WHERE id = 1").fetchone()
+    r = store.settings_version(conn)
     return {"rules": t.load_defaults(conn), "code_defaults": t.code_defaults(), "row_version": r["row_version"] if r else 0,
             "rule_specs": {k: {"type": s[0], "min": s[2], "max": s[3], **({"choices": list(t.CHOICES[k])} if k in t.CHOICES else {})}
                            for k, s in {**t.RULES, **t.INSTALLATION}.items()}}
 
 
-@router.put(f"{API}/settings")
+@router.put(f"{API}/settings", **wire(W.TempSettings))
 def put_settings(body: SettingsIn, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    r = conn.execute("SELECT row_version, rules_json FROM infra_temp_settings WHERE id = 1").fetchone()
+    r = store.settings_row(conn)
     cur_v = r["row_version"] if r else 0
     if body.row_version is not None and body.row_version != cur_v:
         raise ApiError(409, "revision_conflict", "ההגדרות השתנו בינתיים.", details={"row_version": cur_v, "message_en": "The settings were changed meanwhile."})
@@ -814,9 +804,7 @@ def put_settings(body: SettingsIn, principal: Principal = Depends(_manage_w), co
         new = t.validate_rules(body.rules, installation=True)
     except t.Invalid as e:
         raise _invalid(e) from None
-    conn.execute("""INSERT INTO infra_temp_settings(id, rules_json, row_version, updated_by, updated_at) VALUES (1, ?, 1, ?, ?)
-                    ON CONFLICT(id) DO UPDATE SET rules_json = excluded.rules_json, row_version = row_version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at""",
-                 (json.dumps(new), principal.user_id, now_iso()))
+    store.put_settings(conn, json.dumps(new), principal.user_id, now_iso())
     audit(conn, actor=principal, action="infra.temperature.settings.update", decision="allowed", resource_type="infra_temperature_settings", resource_id="settings",
           details={"keys": sorted(new)})
     return get_settings(principal, conn)
@@ -833,14 +821,14 @@ def _alerts_writer(principal: Principal = Depends(current_principal), conn: sqli
     return principal
 
 
-@router.get(f"{API}/alerts")
+@router.get(f"{API}/alerts", **wire(W.TempAlertSettings))
 def get_alerts(principal: Principal = Depends(_alerts_reader), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     from ..services import temperature_alerts
 
     return {**temperature_alerts.view(conn), "can_edit": authorize(conn, principal, CONFIGURE, INSTALLATION).allowed}
 
 
-@router.put(f"{API}/alerts")
+@router.put(f"{API}/alerts", **wire(W.TempAlertSettings))
 def put_alerts(body: AlertsIn, principal: Principal = Depends(_alerts_writer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     from ..services import temperature_alerts
 
@@ -854,7 +842,7 @@ def put_alerts(body: AlertsIn, principal: Principal = Depends(_alerts_writer), c
 def _validate_unit(conn: sqlite3.Connection, principal: Principal, body: UnitIn) -> dict[str, Any]:
     from ..services import ha_scope, temperature_alerts
 
-    if body.area_id and conn.execute("SELECT 1 FROM ha_areas WHERE area_id = ?", (body.area_id,)).fetchone() is None:
+    if body.area_id and not store.area_exists(conn, body.area_id):
         raise _err(422, "area_not_found", fields=["area_id"])
     if body.kind not in t.KINDS:
         raise ApiError(422, "validation", "סוג יחידה לא מוכר.", details={"fields": ["kind"], "message_en": "Unknown unit kind."})
@@ -867,21 +855,21 @@ def _validate_unit(conn: sqlite3.Connection, principal: Principal, body: UnitIn)
     wide, floors = ha_scope.visible_floors(conn, principal, ta.READ)
     placed = None if wide else ha_scope.placements(conn)
     temp = body.temp_entity_id.strip()
-    r = conn.execute("SELECT entity_id, domain, device_class, unit FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (temp,)).fetchone()
+    r = store.temp_entity(conn, temp)
     if r is None or not ha_scope.entity_visible(wide, floors, placed or {}, temp):
         raise _err(422, "sensor_not_found", fields=["temp_entity_id"])
     if not t.is_temperature_entity(r):
         raise _err(422, "not_temperature_sensor", fields=["temp_entity_id"])
     door = (body.door_entity_id or "").strip() or None
     if door:
-        d = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (door,)).fetchone()
+        d = store.door_entity(conn, door)
         if d is None or not ha_scope.entity_visible(wide, floors, placed or {}, door):
             raise _err(422, "sensor_not_found", fields=["door_entity_id"])
         if d["domain"] != "binary_sensor":
             raise _err(422, "not_door_sensor", fields=["door_entity_id"])
     power = (body.power_entity_id or "").strip() or None
     if power:
-        p = conn.execute("SELECT domain, device_class, unit FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (power,)).fetchone()
+        p = store.power_entity(conn, power)
         if p is None or not ha_scope.entity_visible(wide, floors, placed or {}, power):
             raise _err(422, "sensor_not_found", fields=["power_entity_id"])
         if not t.is_power_entity(p):
@@ -898,12 +886,12 @@ def _validate_unit(conn: sqlite3.Connection, principal: Principal, body: UnitIn)
 
 
 def _name_taken(conn: sqlite3.Connection, name: str, except_id: str | None = None) -> bool:
-    r = conn.execute("SELECT id FROM infra_temp_units WHERE name_key = ?", (t.name_key(name),)).fetchone()
+    r = store.unit_by_name_key(conn, t.name_key(name))
     return r is not None and r["id"] != except_id
 
 
 def _unit_row(conn: sqlite3.Connection, unit_id: str) -> sqlite3.Row:
-    r = conn.execute("SELECT * FROM infra_temp_units WHERE id = ?", (unit_id,)).fetchone()
+    r = store.unit(conn, unit_id)
     if r is None:
         raise _err(404, "unit_not_found")
     return r
@@ -920,33 +908,31 @@ def _manage_one(conn: sqlite3.Connection, principal: Principal, unit_id: str) ->
     return next(u for u in manage_list(principal, conn)["units"] if u["id"] == unit_id)
 
 
-@router.post(API, status_code=201)
+@router.post(API, status_code=201, **wire(W.TempManagedUnit))
 def create(body: UnitIn, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     name = _clean_name(body.name)
     v = _validate_unit(conn, principal, body)
     if _name_taken(conn, name):
         raise _err(409, "duplicate_name", fields=["name"])
     uid, at = new_id(), now_iso()
-    nxt = conn.execute("SELECT COALESCE(MAX(sort_order), -1) + 1 FROM infra_temp_units").fetchone()[0]
-    conn.execute("""INSERT INTO infra_temp_units(id, name, name_key, area_id, kind, temp_entity_id, door_entity_id, door_invert, power_entity_id, low, high, band_mode, rules_json,
-                    recipients_json, defrost_mode, defrost_json, sort_order, enabled, revision, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)""",
-                 (uid, name, t.name_key(name), body.area_id or None, body.kind, v["temp"], v["door"], int(body.door_invert and bool(v["door"])), v["power"], v["low"], v["high"],
-                  body.band_mode, json.dumps(v["rules"]), json.dumps(v["rec"]) if v["rec"] is not None else None, v["mode"], json.dumps(v["wins"]), nxt, int(body.enabled), at, at))
+    nxt = store.next_sort_order(conn)
+    store.insert_unit(conn, (uid, name, t.name_key(name), body.area_id or None, body.kind, v["temp"], v["door"], int(body.door_invert and bool(v["door"])), v["power"], v["low"], v["high"],
+                             body.band_mode, json.dumps(v["rules"]), json.dumps(v["rec"]) if v["rec"] is not None else None, v["mode"], json.dumps(v["wins"]), nxt, int(body.enabled), at, at))
     audit(conn, actor=principal, action="infra.temperature.create", decision="allowed", resource_type="infra_temp_unit", resource_id=uid)
     return _manage_one(conn, principal, uid)
 
 
-@router.put(f"{API}/order")
+@router.put(f"{API}/order", **wire(W.TempManage))
 def reorder(body: OrderIn, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    have = {r[0] for r in conn.execute("SELECT id FROM infra_temp_units").fetchall()}
+    have = store.unit_ids(conn)
     if set(body.ids) != have or len(body.ids) != len(have):
         raise _err(422, "order_mismatch", fields=["ids"])
-    conn.executemany("UPDATE infra_temp_units SET sort_order = ? WHERE id = ?", [(i, x) for i, x in enumerate(body.ids)])
+    store.reorder_units(conn, body.ids)
     audit(conn, actor=principal, action="infra.temperature.reorder", decision="allowed", resource_type="infra_temp_unit", details={"ids": body.ids})
     return manage_list(principal, conn)
 
 
-@router.put(f"{API}/{{unit_id}}")
+@router.put(f"{API}/{{unit_id}}", **wire(W.TempManagedUnit))
 def update(unit_id: str, body: UnitIn, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     cur = _unit_row(conn, unit_id)
     if body.revision is not None and body.revision != cur["revision"]:
@@ -959,14 +945,11 @@ def update(unit_id: str, body: UnitIn, principal: Principal = Depends(_manage_w)
     if cur["temp_entity_id"] != v["temp"] or (cur["door_entity_id"] or None) != v["door"] or (cur["enabled"] and not body.enabled):
         rt.close_all(conn, cur, ts, "changed")  # a different sensor: the open conditions were about the old one
     if cur["temp_entity_id"] != v["temp"]:
-        conn.execute("DELETE FROM infra_temp_defrost_learned WHERE unit_id = ? AND status = 'learned'", (unit_id,))
+        store.forget_learned_windows(conn, unit_id)
     if (cur["power_entity_id"] or None) != v["power"]:
-        conn.execute("DELETE FROM infra_temp_insights WHERE unit_id = ?", (unit_id,))  # the duty cycle was about the old power sensor
-    conn.execute("""UPDATE infra_temp_units SET name = ?, name_key = ?, area_id = ?, kind = ?, temp_entity_id = ?, door_entity_id = ?, door_invert = ?, power_entity_id = ?,
-                    low = ?, high = ?, band_mode = ?, rules_json = ?, recipients_json = ?, defrost_mode = ?, defrost_json = ?, enabled = ?, revision = revision + 1, updated_at = ?
-                    WHERE id = ?""",
-                 (name, t.name_key(name), body.area_id or None, body.kind, v["temp"], v["door"], int(body.door_invert and bool(v["door"])), v["power"], v["low"], v["high"],
-                  body.band_mode, json.dumps(v["rules"]), json.dumps(v["rec"]) if v["rec"] is not None else None, v["mode"], json.dumps(v["wins"]), int(body.enabled), now_iso(), unit_id))
+        store.forget_insights(conn, unit_id)  # the duty cycle was about the old power sensor
+    store.update_unit(conn, (name, t.name_key(name), body.area_id or None, body.kind, v["temp"], v["door"], int(body.door_invert and bool(v["door"])), v["power"], v["low"], v["high"],
+                             body.band_mode, json.dumps(v["rules"]), json.dumps(v["rec"]) if v["rec"] is not None else None, v["mode"], json.dumps(v["wins"]), int(body.enabled), now_iso(), unit_id))
     audit(conn, actor=principal, action="infra.temperature.update", decision="allowed", resource_type="infra_temp_unit", resource_id=unit_id)
     return _manage_one(conn, principal, unit_id)
 
@@ -975,42 +958,37 @@ def update(unit_id: str, body: UnitIn, principal: Principal = Depends(_manage_w)
 def delete(unit_id: str, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> None:
     u = _unit_row(conn, unit_id)
     rt.close_all(conn, u, now_ts(), "removed")
-    for tbl in ("infra_temp_samples", "infra_temp_samples_5m", "infra_temp_doors", "infra_temp_events", "infra_temp_defrost_learned", "infra_temp_defrost_state",
-                "infra_temp_insights", "infra_temp_tickets"):  # phase 3 tables (the tickets themselves stay in the service module)
-        conn.execute(f"DELETE FROM {tbl} WHERE unit_id = ?", (unit_id,))
-    conn.execute("DELETE FROM infra_temp_units WHERE id = ?", (unit_id,))
+    store.delete_unit(conn, unit_id)  # every table of store.UNIT_TABLES (phase 3 tables; the tickets themselves stay in the service module)
     audit(conn, actor=principal, action="infra.temperature.delete", decision="allowed", resource_type="infra_temp_unit", resource_id=unit_id)
 
 
 # ---------------------------------------------------------------- learned defrost windows (manage)
 
-@router.post(f"{API}/{{unit_id}}/defrost/{{start_min}}/{{decision}}")
+@router.post(f"{API}/{{unit_id}}/defrost/{{start_min}}/{{decision}}", **wire(W.TempDefrostDecided))
 def decide_window(unit_id: str, start_min: int, decision: Literal["confirm", "reject"], principal: Principal = Depends(_manage_w),
                   conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _unit_row(conn, unit_id)
-    r = conn.execute("SELECT status FROM infra_temp_defrost_learned WHERE unit_id = ? AND start_min = ?", (unit_id, start_min)).fetchone()
+    r = store.defrost_window_status(conn, unit_id, start_min)
     if r is None:
         raise _err(404, "window_not_found")
-    conn.execute("UPDATE infra_temp_defrost_learned SET status = ?, decided_by = ?, decided_at = ? WHERE unit_id = ? AND start_min = ?",
-                 ("confirmed" if decision == "confirm" else "rejected", principal.user_id, now_iso(), unit_id, start_min))
+    store.decide_defrost_window(conn, unit_id, start_min, "confirmed" if decision == "confirm" else "rejected", principal.user_id, now_iso())
     audit(conn, actor=principal, action=f"infra.temperature.defrost.{decision}", decision="allowed", resource_type="infra_temp_unit", resource_id=unit_id,
           details={"start_min": start_min})
-    return {"windows": [dict(x) for x in conn.execute("SELECT start_min, minutes, repeats, status FROM infra_temp_defrost_learned WHERE unit_id = ? ORDER BY start_min", (unit_id,)).fetchall()]}
+    return {"windows": [dict(x) for x in store.defrost_windows(conn, unit_id)]}
 
 
 @router.delete(f"{API}/{{unit_id}}/defrost/learned", status_code=204)
 def clear_learned(unit_id: str, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> None:
     """Forgets every learned, confirmed and rejected window of the unit; the learner starts over (state `learning` until it has seen enough)."""
     _unit_row(conn, unit_id)
-    conn.execute("DELETE FROM infra_temp_defrost_learned WHERE unit_id = ?", (unit_id,))
-    conn.execute("DELETE FROM infra_temp_defrost_state WHERE unit_id = ?", (unit_id,))
+    store.clear_defrost(conn, unit_id)
     rt._LAST["learn"].pop(unit_id, None)
     audit(conn, actor=principal, action="infra.temperature.defrost.clear", decision="allowed", resource_type="infra_temp_unit", resource_id=unit_id)
 
 
 # ---------------------------------------------------------------- operator acts (infra.temperature.ack)
 
-@router.post(f"{API}/{{unit_id}}/ack")
+@router.post(f"{API}/{{unit_id}}/ack", **wire(W.TempAcked))
 def ack(unit_id: str, body: AckIn | None = None, principal: Principal = Depends(_ack_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Acknowledges the unit's open warnings and alarms (or one row): who and when go into the log; the notifications are acknowledged too
     (which stops the centre's escalation). The condition itself stays open until it ends."""
@@ -1024,7 +1002,7 @@ def ack(unit_id: str, body: AckIn | None = None, principal: Principal = Depends(
         raise _err(409, "nothing_to_ack")
     at = _iso(now_ts())
     for e in evs:
-        conn.execute("UPDATE infra_temp_events SET ack_by = ?, ack_at = ? WHERE id = ?", (principal.user_id, at, e["id"]))
+        store.ack_event(conn, e["id"], principal.user_id, at)
         notify.ack_from_alert(conn, e.get("notification_id"), principal)
         if e.get("escalation_level"):
             rt.resolve_escalations(conn, u, e, now_ts())  # phase 3: an acknowledged alarm stops climbing and its steps end
@@ -1033,7 +1011,7 @@ def ack(unit_id: str, body: AckIn | None = None, principal: Principal = Depends(
     return {"acked": len(evs), "at": at}
 
 
-@router.post(f"{API}/{{unit_id}}/mute")
+@router.post(f"{API}/{{unit_id}}/mute", **wire(W.TempMuted))
 def mute(unit_id: str, body: MuteIn, principal: Principal = Depends(_ack_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Mutes the unit's WARNING notifications for a while (or until the end of its next defrost window). Alarms are never muted (owner decision 2)."""
     u, _d = _one_visible(conn, principal, unit_id)
@@ -1050,23 +1028,23 @@ def mute(unit_id: str, body: MuteIn, principal: Principal = Depends(_ack_w), con
     else:
         raise ApiError(422, "validation", "יש לבחור משך.", details={"fields": ["minutes"], "message_en": "Choose a duration."})
     until_iso = _iso(until)
-    conn.execute("UPDATE infra_temp_units SET muted_until = ?, muted_by = ? WHERE id = ?", (until_iso, principal.user_id, unit_id))
+    store.mute_unit(conn, unit_id, until_iso, principal.user_id)
     rt.log_act(conn, unit_id, "mute", _iso(ts), principal.user_id, {"until": until_iso, "minutes": round((until - ts) / 60)})
     audit(conn, actor=principal, action="infra.temperature.mute", decision="allowed", resource_type="infra_temp_unit", resource_id=unit_id, details={"until": until_iso})
     return {"muted_until": until_iso}
 
 
-@router.delete(f"{API}/{{unit_id}}/mute")
+@router.delete(f"{API}/{{unit_id}}/mute", **wire(W.TempMuted))
 def unmute(unit_id: str, principal: Principal = Depends(_ack_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _one_visible(conn, principal, unit_id)
-    conn.execute("UPDATE infra_temp_units SET muted_until = NULL, muted_by = NULL WHERE id = ?", (unit_id,))
+    store.unmute_unit(conn, unit_id)
     audit(conn, actor=principal, action="infra.temperature.unmute", decision="allowed", resource_type="infra_temp_unit", resource_id=unit_id)
     return {"muted_until": None}
 
 
 # ---------------------------------------------------------------- phase 3: the maintenance window (idea 9) - infra.temperature.ack
 
-@router.post(f"{API}/{{unit_id}}/maintenance")
+@router.post(f"{API}/{{unit_id}}/maintenance", **wire(W.TempMaintenanceAnswer))
 def maintenance_start(unit_id: str, body: MaintenanceIn, principal: Principal = Depends(_ack_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Puts the unit in maintenance (cleaning, restocking, a technician) for a while, with a reason and who: its WARNINGS are held and logged
     as held by maintenance; alarms still go out (saying the unit is in maintenance) unless `maintenance_includes_alarms` is on. Shown in the
@@ -1084,7 +1062,7 @@ def maintenance_start(unit_id: str, body: MaintenanceIn, principal: Principal = 
     return {"maintenance": {"until": until, "reason": reason, "by_name": _user_names(conn, {principal.user_id}).get(principal.user_id)}}
 
 
-@router.delete(f"{API}/{{unit_id}}/maintenance")
+@router.delete(f"{API}/{{unit_id}}/maintenance", **wire(W.TempMaintenanceAnswer))
 def maintenance_end(unit_id: str, principal: Principal = Depends(_ack_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     u, _d = _one_visible(conn, principal, unit_id)
     if not u["maint_until"] or u["maint_until"] <= _iso(now_ts()):
@@ -1099,13 +1077,13 @@ def maintenance_end(unit_id: str, principal: Principal = Depends(_ack_w), conn: 
 def _event_of(conn: sqlite3.Connection, unit_id: str, event_id: str | None, door_vis: bool) -> dict[str, Any] | None:
     if not event_id:
         return None
-    r = conn.execute("SELECT * FROM infra_temp_events WHERE id = ? AND unit_id = ?", (event_id, unit_id)).fetchone()
+    r = store.unit_event(conn, unit_id, event_id)
     if r is None or r["kind"] in t.ACT_KINDS or (r["kind"] == "door" and not door_vis):
         raise _err(404, "event_not_found")
     return dict(r)
 
 
-@router.get(f"{API}/{{unit_id}}/ticket/draft")
+@router.get(f"{API}/{{unit_id}}/ticket/draft", **wire(W.TempTicketDraft))
 def ticket_draft(unit_id: str, event_id: str | None = Query(None, max_length=64), lang: Literal["he", "en"] = "he",
                  principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The prefilled ticket (title, description) and the departments the caller may open it in - the dialog's content. Nothing is written."""
@@ -1125,7 +1103,7 @@ def ticket_draft(unit_id: str, event_id: str | None = Query(None, max_length=64)
             "attach_chart": bool(t.load_defaults(conn).get("ticket_attach_chart", True))}
 
 
-@router.post(f"{API}/{{unit_id}}/ticket", status_code=201)
+@router.post(f"{API}/{{unit_id}}/ticket", status_code=201, **wire(W.TempTicketOpened))
 def ticket_open(unit_id: str, body: TicketIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Opens a service ticket from the unit (or one of its alert rows) as the caller - the service module's own creation path and rules."""
     from ..auth import settings_of
@@ -1145,7 +1123,7 @@ def ticket_open(unit_id: str, body: TicketIn, request: Request, principal: Princ
 
 # ---------------------------------------------------------------- TEMPEXPLAIN093-295: why did it warm (rule-based, read-only)
 
-@router.get(f"{API}/{{unit_id}}/explain")
+@router.get(f"{API}/{{unit_id}}/explain", **wire(W.TempExplanation))
 def explain(unit_id: str, event_id: str | None = Query(None, max_length=64), at: str | None = Query(None, max_length=40),
             principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Why an excursion happened: the factors found in the stored signals around it (door, defrost, mains outage, compressor, data gap, spike,
@@ -1160,7 +1138,7 @@ def explain(unit_id: str, event_id: str | None = Query(None, max_length=64), at:
     ev = None
     at_ts = None
     if event_id:
-        ev = conn.execute("SELECT * FROM infra_temp_events WHERE id = ? AND unit_id = ?", (event_id, unit_id)).fetchone()
+        ev = store.unit_event(conn, unit_id, event_id)
         if ev is None or ev["kind"] not in tx.EXPLAIN_KINDS:
             raise _err(404, "event_not_found")
     elif at:
@@ -1176,7 +1154,7 @@ def explain(unit_id: str, event_id: str | None = Query(None, max_length=64), at:
 
 # ---------------------------------------------------------------- one unit (registered last)
 
-@router.get(f"{API}/{{unit_id}}/history")
+@router.get(f"{API}/{{unit_id}}/history", **wire(W.TempHistory))
 def history(unit_id: str, range: str = Query("24h", pattern="^(24h|7d|30d|custom)$"), start: str | None = Query(None, alias="from", max_length=40),  # noqa: A002
             end: str | None = Query(None, alias="to", max_length=40), points: int = Query(600, ge=50, le=t.MAX_POINTS),
             principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
@@ -1198,7 +1176,7 @@ def history(unit_id: str, range: str = Query("24h", pattern="^(24h|7d|30d|custom
             "defrost": [[int(a), int(b)] for a, b in t.window_intervals(wins, lo, hi, tz)], "stats": st, "zone": str(tz)}
 
 
-@router.get(f"{API}/{{unit_id}}")
+@router.get(f"{API}/{{unit_id}}", **wire(W.TempUnit))
 def get_one(unit_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     u, d = _one_visible(conn, principal, unit_id)
     ctx = _Ctx(conn, now_ts(), principal)

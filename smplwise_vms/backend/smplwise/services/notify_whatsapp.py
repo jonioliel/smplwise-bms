@@ -47,6 +47,7 @@ from .notify_visibility import Reach, principal_of
 from .tickets.channel import LANGS, NOT_SENT, REFUSED, SENT, UNKNOWN, AccountRef, OutboundMessage, Recipient, SendResult, one_line, phone_digits
 from .tickets.channel_whatsapp import TransportReply, WhatsAppChannel
 from .timeutil import iso_utc, zone
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.notify.whatsapp")
 
@@ -991,3 +992,6 @@ def send_test(conn: sqlite3.Connection, db: Any, user_id: str) -> dict[str, Any]
 
 __all__ = ["CHANNEL", "USE_KEY", "ResolvedNumber", "NumberResolver", "register_resolver", "resolve_number", "render", "clean", "load_config", "update_config",
            "AccountRef"]
+
+
+register_reset(__name__, ("_LIVE", "_TEST_SENDS", "_KEYS", "_KEY_BROKEN"), reset_state)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

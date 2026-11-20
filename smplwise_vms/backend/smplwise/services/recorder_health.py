@@ -36,6 +36,7 @@ from .timeutil import iso_from_epoch_or_none, site_zone_name
 from ..errors import ApiError
 from .poller import PeriodicWorker
 from .recorders.base import HealthReading
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.recorder_health")
 
@@ -705,3 +706,6 @@ def _recorder_view(st: RecState, th: dict[str, Any], now_ts: float, cams: dict[i
             "detail_supported": st.detail_supported, "model": st.model, "firmware": st.firmware,
             "api": api, "disks": disks, "recording": recording, "channels": channels, "clock": clock, "certificate": cert,
             "vendor_details": (r.details if r is not None and getattr(r, "details", None) else None)}
+
+
+register_reset(__name__, ("STORE", "_LATCH", "_LAST_ACTIVE", "_CHECKED"), reset)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

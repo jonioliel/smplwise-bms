@@ -39,6 +39,7 @@ from ...errors import ApiError
 from ...rbac import Principal
 from . import access, fields, model, notify_bridge, store
 from .access import Seen, Viewer, text
+from ...test_reset import register_reset
 
 log = logging.getLogger("smplwise.tickets.deletion")
 
@@ -301,3 +302,6 @@ def sweep_orphan_files(db: Database, root: Path, *, min_age_s: float = ORPHAN_MI
         attachments.forget_size_cache()
         log.info("orphan ticket files removed: %d", removed)
     return removed
+
+
+register_reset(__name__, ("_RATE",), reset_rate)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)

@@ -32,6 +32,7 @@ from ..janitors import Every
 from . import attendees as att
 from . import model
 from .calendars import new_id
+from ...test_reset import register_reset
 
 log = logging.getLogger(__name__)
 
@@ -541,3 +542,6 @@ def can_see(conn: sqlite3.Connection, principal: Any, n: dict[str, Any]) -> bool
     """Visibility of an attendee notification: the attendee himself, while the calendars module is on."""
     uid = (n.get("origin") or {}).get("attendee_user_id")
     return bool(uid) and uid == principal.user_id and _module_on(conn)
+
+
+register_reset(__name__, ("_ERASE",), _ERASE.reset)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)

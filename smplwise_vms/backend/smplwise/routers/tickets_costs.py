@@ -37,6 +37,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import Principal
+from ..services import savepoints
 from ..services.tickets import access, cost_files, cost_storage, costs, costs_report, image_intake, present, quotes, service, store, store_costs
 from ..services.tickets.access import Seen, Viewer, text
 from ._common import rid as _rid
@@ -235,7 +236,7 @@ def _mark_one(conn: sqlite3.Connection, viewer: Viewer, it: BulkPaidItem, ref: s
         return {**out, "result": "not_approved", "revision": claim["revision"]}
     if it.revision is not None and int(claim["revision"]) != it.revision:
         return {**out, "result": "stale", "revision": claim["revision"]}
-    conn.execute("SAVEPOINT tk258_mark_paid")
+    savepoints.savepoint(conn, "tk258_mark_paid")
     try:
         fresh = costs.mark_paid(conn, claim, by=viewer.uid, revision=int(claim["revision"]), payment_ref=ref, payment_date=day, at=at)
         _audit(conn, viewer, "ticket.cost.mark_paid", seen, fresh, rid, revision_id=fresh.get("current_revision_id"),
@@ -243,14 +244,12 @@ def _mark_one(conn: sqlite3.Connection, viewer: Viewer, it: BulkPaidItem, ref: s
         store.insert_event(conn, seen.row["id"], "cost_decision", actor_kind="user", actor_user_id=viewer.uid, actor_name=service.actor_name(viewer),
                            assignment_id=fresh["assignment_id"], data={"claim_id": fresh["id"], "action": "mark_paid"})
     except costs.CostRefused as exc:
-        conn.execute("ROLLBACK TO tk258_mark_paid")
-        conn.execute("RELEASE tk258_mark_paid")
+        savepoints.rollback_savepoint(conn, "tk258_mark_paid")
         return {**out, "result": "stale" if exc.code == "claim_stale" else "not_approved", "revision": claim["revision"]}
     except Exception:
-        conn.execute("ROLLBACK TO tk258_mark_paid")
-        conn.execute("RELEASE tk258_mark_paid")
+        savepoints.rollback_savepoint(conn, "tk258_mark_paid")
         raise
-    conn.execute("RELEASE tk258_mark_paid")
+    savepoints.release_savepoint(conn, "tk258_mark_paid")
     return {**out, "result": "paid", "revision": fresh["revision"]}
 
 
@@ -331,22 +330,20 @@ def _with_budget(conn: sqlite3.Connection, seen: Seen, body: DecisionBody, decid
     overrun per budget, to repeat it with `budget_confirm: true`. Nothing is ever refused for the budget itself."""
     from ..services.tickets import budgets
 
-    conn.execute("SAVEPOINT svc215_budget")
+    savepoints.savepoint(conn, "svc215_budget")
     try:
         fresh = decide()
         info = budgets.after_approval(conn, seen.row, fresh, at)
     except BaseException:
-        conn.execute("ROLLBACK TO svc215_budget")
-        conn.execute("RELEASE svc215_budget")
+        savepoints.rollback_savepoint(conn, "svc215_budget")
         raise
     over = [x for x in info if x["state"] == "exceeded"]
     if over and budgets.cfg(conn)["require_confirmation"] and not body.budget_confirm:
-        conn.execute("ROLLBACK TO svc215_budget")
-        conn.execute("RELEASE svc215_budget")
+        savepoints.rollback_savepoint(conn, "svc215_budget")
         raise ApiError(409, "budget_confirm_required", text(conn, "אישור זה חורג מהתקציב. אשרו את החריגה כדי להמשיך."),
                        details={"budgets": [{**budgets.present_row(conn, x["budget"]), "overrun_minor": x["overrun_minor"],
                                              "remaining_minor": x["remaining_minor"]} for x in over]})
-    conn.execute("RELEASE svc215_budget")
+    savepoints.release_savepoint(conn, "svc215_budget")
     return fresh, info
 
 

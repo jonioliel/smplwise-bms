@@ -35,11 +35,13 @@ from ..services import energy_counter as ec
 from ..services import energy_store as st
 from ..services import water_alerts as wa
 from ..services import water_meters as wm
+from ..services import water_meters_store as wstore
 from ..services import water_runtime as wr
 from ..services import water_sampler
 from ..services import water_settings as ws
 from ..services.energy_provider import coverage_of
 from ..services.timeutil import parse_utc
+from ..wire import water as W, wire
 from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
 
 router = APIRouter()
@@ -201,7 +203,7 @@ def _one(request: Request, conn: sqlite3.Connection, principal: Principal, row: 
 
 # ---------------------------------------------------------------- status (the tab gate; never 403, never module_off)
 
-@router.get(f"{API}/status")
+@router.get(f"{API}/status", **wire(W.WaterStatus))
 def status(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """`{enabled, can_view, can_manage, can_configure, meters}` for the tab gate - any signed-in user."""
     on = ws.enabled(conn)
@@ -219,14 +221,14 @@ def status(principal: Principal = Depends(current_principal_ro), conn: sqlite3.C
 
 # ---------------------------------------------------------------- candidates and meters
 
-@router.get(f"{API}/candidates")
+@router.get(f"{API}/candidates", **wire(W.WaterCandidateList))
 def list_candidates(q: str | None = Query(None, max_length=80), area_id: str | None = Query(None, max_length=80), include_rejected: bool = Query(True),
                     limit: int = Query(50, ge=1, le=200), principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Infrastructure sensors that could be water meters, with the volume / flow-rate verdict (water.manage)."""
     return {"items": wm.candidates(conn, q, area_id, include_rejected, limit)}
 
 
-@router.get(f"{API}/meters")
+@router.get(f"{API}/meters", **wire(W.WaterMeterList))
 def list_meters(request: Request, include_retired: bool = Query(False), principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The water meters the caller may see with their state, last reading, today and this month (water.view, floor-scoped)."""
     reach = wm.Reach(conn, principal)
@@ -238,7 +240,7 @@ def list_meters(request: Request, include_retired: bool = Query(False), principa
     return {"items": [_meter_out(conn, store, tz, r, cursors.get(r["id"]), now, stale, manage) for r in rows], "stale_after_minutes": stale // 60}
 
 
-@router.get(f"{API}/meters/{{meter_id}}")
+@router.get(f"{API}/meters/{{meter_id}}", **wire(W.WaterMeter))
 def get_meter(meter_id: str, request: Request, principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """One meter with its counter lives (water.view; an invisible meter is the uniform 404)."""
     return _one(request, conn, principal, wm.Reach(conn, principal).require(conn, meter_id))
@@ -252,7 +254,7 @@ class MeterCreate(_Body):
     max_flow_lph: float | None = Field(None, gt=0, le=1_000_000)
 
 
-@router.post(f"{API}/meters", status_code=201)
+@router.post(f"{API}/meters", status_code=201, **wire(W.WaterMeter))
 def create_meter(request: Request, principal: Principal = Depends(_manager), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Register an infrastructure sensor as a water meter; the server repeats the volume validation (water.manage)."""
     body: MeterCreate = _parse(request, raw, MeterCreate)
@@ -280,7 +282,7 @@ class MeterPatch(_Body):
     rules: dict[str, Any] | None = None  # slice 2: per-meter leak-rule overrides (water_alerts.OVERRIDE_KEYS); null / {} clears
 
 
-@router.patch(f"{API}/meters/{{meter_id}}")
+@router.patch(f"{API}/meters/{{meter_id}}", **wire(W.WaterMeter))
 def patch_meter(meter_id: str, request: Request, principal: Principal = Depends(_manager), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Rename, move, change kind or the plausibility cap, pause or resume (water.manage; revision-checked)."""
     body: MeterPatch = _parse(request, raw, MeterPatch)
@@ -299,7 +301,7 @@ def patch_meter(meter_id: str, request: Request, principal: Principal = Depends(
     return _one(request, conn, principal, wm.require_row(conn, meter_id))
 
 
-@router.delete(f"{API}/meters/{{meter_id}}")
+@router.delete(f"{API}/meters/{{meter_id}}", **wire(W.WaterMeter))
 def retire_meter(meter_id: str, request: Request, revision: int = Query(ge=1), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Retire a meter (its data is kept) (water.manage)."""
     _manage_check(conn, principal)
@@ -323,7 +325,7 @@ class MeterReplace(_Body):
     note: str | None = Field(None, max_length=500)
 
 
-@router.post(f"{API}/meters/{{meter_id}}/replace")
+@router.post(f"{API}/meters/{{meter_id}}/replace", **wire(W.WaterMeter))
 def replace_meter(meter_id: str, request: Request, principal: Principal = Depends(_manager), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Meter replacement or a new source sensor: closes the counter life and starts a new one (water.manage)."""
     body: MeterReplace = _parse(request, raw, MeterReplace)
@@ -344,7 +346,7 @@ def replace_meter(meter_id: str, request: Request, principal: Principal = Depend
 
 # ---------------------------------------------------------------- series, readings, consumption
 
-@router.get(f"{API}/meters/{{meter_id}}/series")
+@router.get(f"{API}/meters/{{meter_id}}/series", **wire(W.WaterSeries))
 def meter_series(meter_id: str, request: Request, frm: str | None = Query(None, alias="from", max_length=40), to: str | None = Query(None, max_length=40),
                  bucket: Literal["15m", "1h", "1d"] = Query("1h"), principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Consumption of one meter in litres per 15 minutes, hour or local day (water.view; at most 3000 points)."""
@@ -388,7 +390,7 @@ def meter_series(meter_id: str, request: Request, frm: str | None = Query(None, 
     return {"meter_id": meter_id, "bucket": bucket, "unit": "L", "items": items}
 
 
-@router.get(f"{API}/meters/{{meter_id}}/readings")
+@router.get(f"{API}/meters/{{meter_id}}/readings", **wire(W.WaterReadings))
 def meter_readings(meter_id: str, request: Request, frm: str | None = Query(None, alias="from", max_length=40), to: str | None = Query(None, max_length=40),
                    limit: int = Query(500, ge=1, le=5000), principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Raw cumulative readings of one meter in litres (kept for the raw retention; water.view)."""
@@ -425,7 +427,7 @@ def _consumption_rows(request: Request, conn: sqlite3.Connection, principal: Pri
     return out
 
 
-@router.get(f"{API}/consumption")
+@router.get(f"{API}/consumption", **wire(W.WaterConsumption))
 def consumption(request: Request, meter_ids: str | None = Query(None, max_length=8000), frm: str | None = Query(None, alias="from", max_length=40),
                 to: str | None = Query(None, max_length=40), bucket: Literal["1h", "1d"] | None = Query(None),
                 principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
@@ -535,14 +537,13 @@ def _epoch_bounds(conn: sqlite3.Connection, meter_id: str, ts: int) -> tuple[sql
     raise _err(422, "validation", "מועד הקריאה לפני תחילת המונה.", "The reading is before the meter's counter life began.", fields=["read_at"])
 
 
-@router.get(f"{API}/meters/{{meter_id}}/manual-readings")
+@router.get(f"{API}/meters/{{meter_id}}/manual-readings", **wire(W.WaterManualReadings))
 def list_manual(meter_id: str, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     wm.require_row(conn, meter_id)
-    rows = conn.execute("SELECT * FROM water_meter_manual_readings WHERE meter_id = ? ORDER BY read_at DESC, created_at DESC", (meter_id,)).fetchall()
-    return {"meter_id": meter_id, "items": [_reading_out(r) for r in rows]}
+    return {"meter_id": meter_id, "items": [_reading_out(r) for r in wstore.manual_readings(conn, meter_id)]}
 
 
-@router.post(f"{API}/meters/{{meter_id}}/manual-readings")
+@router.post(f"{API}/meters/{{meter_id}}/manual-readings", **wire(W.WaterManualReadingResult))
 def add_manual(meter_id: str, request: Request, principal: Principal = Depends(_manager), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A typed reading of the physical meter (water.manage; 60 an hour per user). An open or closed reporting gap is allocated; every
     other case is recorded only (the 0058 rules). `dry_run` answers what it would do and stores nothing."""
@@ -565,22 +566,21 @@ def add_manual(meter_id: str, request: Request, principal: Principal = Depends(_
     if body.dry_run:
         return out
     rid, now = new_id(), now_iso()
-    conn.execute("""INSERT INTO water_meter_manual_readings(id, meter_id, epoch_id, read_at, value_ml, typed_value, typed_unit, effect, effect_reason, note, created_by, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                 (rid, meter_id, epoch["id"], _iso(ts), ml, str(body.value), body.unit, plan.effect, plan.reason, body.note, principal.user_id, now))
+    wstore.insert_manual_reading(conn, reading_id=rid, meter_id=meter_id, epoch_id=epoch["id"], read_at=_iso(ts), value_ml=ml, typed_value=str(body.value),
+                                 typed_unit=body.unit, effect=plan.effect, effect_reason=plan.reason, note=body.note, created_by=principal.user_id, created_at=now)
     audit(conn, actor=principal, action="infra.water.reading.manual", decision="allowed", resource_type="water_meter", resource_id=meter_id, request_id=_rid(request),
           details={"reading_id": rid, "effect": plan.effect, "reason": plan.reason})
     out["id"] = rid
     return out
 
 
-@router.post(f"{API}/meters/{{meter_id}}/manual-readings/{{reading_id}}/undo")
+@router.post(f"{API}/meters/{{meter_id}}/manual-readings/{{reading_id}}/undo", **wire(W.WaterManualReading))
 def undo_manual(meter_id: str, reading_id: str, request: Request, principal: Principal = Depends(_manager), raw: bytes = Depends(_raw_body),
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Take back a manual reading (an allocated one returns its energy to one linear span) (water.manage)."""
     body: UndoBody = _parse(request, raw, UndoBody)
     _manage_check(conn, principal)
-    r = conn.execute("SELECT * FROM water_meter_manual_readings WHERE id = ? AND meter_id = ?", (reading_id, meter_id)).fetchone()
+    r = wstore.manual_reading(conn, reading_id, meter_id)
     if r is None:
         raise wm.not_found()
     if r["voided_at"]:
@@ -591,10 +591,10 @@ def undo_manual(meter_id: str, reading_id: str, request: Request, principal: Pri
         why = wm.store_for(settings_of(request)).undo_manual_reading(meter_id, ts=ts, raw_wh=int(r["value_ml"]), epoch_lo=lo, epoch_hi=hi, tz=wm.tz_of(conn))
         if why is not None:
             raise _err(409, "reading_undo_refused", "אי אפשר לבטל את הקריאה: המונה המשיך מאז.", "The reading cannot be undone: the counter moved on.", reason=why)
-    conn.execute("UPDATE water_meter_manual_readings SET voided_at = ?, voided_by = ?, void_reason = ? WHERE id = ?", (now_iso(), principal.user_id, body.reason, reading_id))
+    wstore.void_manual_reading(conn, reading_id, at=now_iso(), by=principal.user_id, reason=body.reason)
     audit(conn, actor=principal, action="infra.water.reading.undo", decision="allowed", resource_type="water_meter", resource_id=meter_id, request_id=_rid(request),
           details={"reading_id": reading_id})
-    return _reading_out(conn.execute("SELECT * FROM water_meter_manual_readings WHERE id = ?", (reading_id,)).fetchone())
+    return _reading_out(wstore.manual_reading(conn, reading_id))
 
 
 # ---------------------------------------------------------------- settings (allowed while the module is off: the switch lives here)
@@ -629,13 +629,13 @@ def _settings_out(request: Request, conn: sqlite3.Connection, principal: Princip
             "storage": {"water_db_bytes": store.file_bytes(), "rows": counts}}
 
 
-@router.get(f"{API}/settings")
+@router.get(f"{API}/settings", **wire(W.WaterSettings))
 def get_settings(request: Request, principal: Principal = Depends(_settings_reader), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The water settings (the switch only while the module is off)."""
     return _settings_out(request, conn, principal)
 
 
-@router.put(f"{API}/settings")
+@router.put(f"{API}/settings", **wire(W.WaterSettings))
 def put_settings(request: Request, principal: Principal = Depends(_settings_editor), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Change water settings; each key against its own permission (the switch and retention: system.configure). The switch is audited
     as `infra.water.enabled` and starts / stops the sampler thread."""
@@ -733,17 +733,7 @@ def _event_out(r: sqlite3.Row, can_ack: bool) -> dict[str, Any]:
             "can_snooze": can_ack and r["closed_at"] is None}
 
 
-EVENTS_SQL = """SELECT e.*, m.display_name, m.kind AS meter_kind, m.source_ref, COALESCE(a.name, x.area_name) AS area_name,
-                       CASE WHEN a.area_id IS NOT NULL THEN f.name ELSE x.ha_floor_name END AS floor_name,
-                       COALESCE(NULLIF(u.display_name, ''), u.username) AS ack_by_display
-                FROM water_alert_events e JOIN water_meters m ON m.id = e.meter_id
-                LEFT JOIN ha_entities x ON x.entity_id = m.source_ref
-                LEFT JOIN ha_areas a ON a.area_id = COALESCE(m.area_id, x.area_id)
-                LEFT JOIN ha_floors f ON f.floor_id = a.floor_id
-                LEFT JOIN users u ON u.id = e.ack_by"""
-
-
-@router.get(f"{API}/events")
+@router.get(f"{API}/events", **wire(W.WaterEvents))
 def list_events(state: Literal["open", "all"] = Query("open"), kind: Literal["night_flow", "abnormal", "burst", "offline"] | None = Query(None),
                 meter_id: str | None = Query(None, max_length=80), limit: int = Query(200, ge=1, le=1000),
                 principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
@@ -751,23 +741,12 @@ def list_events(state: Literal["open", "all"] = Query("open"), kind: Literal["ni
     reach = wm.Reach(conn, principal)
     if meter_id:
         reach.require(conn, meter_id)
-    where: list[str] = []
-    args: list[Any] = []
-    if state == "open":
-        where.append("e.closed_at IS NULL")
-    if kind:
-        where.append("e.kind = ?")
-        args.append(kind)
-    if meter_id:
-        where.append("e.meter_id = ?")
-        args.append(meter_id)
-    sql = EVENTS_SQL + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY e.opened_at DESC, e.id"
-    rows = [r for r in conn.execute(sql, args).fetchall() if reach.sees(r)][:limit]
+    rows = [r for r in wstore.events(conn, open_only=state == "open", kind=kind, meter_id=meter_id) if reach.sees(r)][:limit]
     acker = _AckReach(conn, principal)
     return {"items": [_event_out(r, acker.allows(r)) for r in rows], "summary": wr.summary(conn, reach.sees, wr.clock())}
 
 
-@router.get(f"{API}/events/summary")
+@router.get(f"{API}/events/summary", **wire(W.WaterEventsSummary))
 def events_summary(principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The KPI row of the alert log and the home tile (owner Q7: one tile "מים · דליפה חשודה" only while a leak is open and
     `water.home_kpi` is on; tap = the alert log)."""
@@ -776,14 +755,14 @@ def events_summary(principal: Principal = Depends(_viewer), conn: sqlite3.Connec
     return {**s, "home_tile": {"show": tile, "leaks": s["open_leaks"] if tile else 0, "link": wr.LINK}}
 
 
-@router.post(f"{API}/events/{{event_id}}/ack")
+@router.post(f"{API}/events/{{event_id}}/ack", **wire(W.WaterEvent))
 def ack_event(event_id: str, request: Request, principal: Principal = Depends(_acker), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Acknowledge one open alert row (water.ack on its meter): who and when go into the log, its notification is acknowledged too. The
     condition itself stays open until it ends."""
     from ..services import notify
 
     _require_on(conn)
-    r = conn.execute(EVENTS_SQL + " WHERE e.id = ?", (event_id,)).fetchone()
+    r = wstore.event(conn, event_id)
     if r is None or not wm.Reach(conn, principal).sees(r):
         raise _err(404, "not_found", "ההתראה לא נמצאה.", "The alert was not found.")
     if not _AckReach(conn, principal).allows(r):
@@ -792,11 +771,11 @@ def ack_event(event_id: str, request: Request, principal: Principal = Depends(_a
         raise _err(409, "event_closed", "ההתראה כבר הסתיימה.", "The alert has already ended.")
     if r["ack_at"] is not None:
         raise _err(409, "already_acked", "ההתראה כבר אושרה.", "The alert was already acknowledged.")
-    conn.execute("UPDATE water_alert_events SET ack_by = ?, ack_at = ? WHERE id = ?", (principal.user_id, now_iso(), event_id))
+    wstore.ack_event(conn, event_id, by=principal.user_id, at=now_iso())
     notify.ack_from_alert(conn, r["notification_id"], principal)
     audit(conn, actor=principal, action="infra.water.event.ack", decision="allowed", resource_type="water_meter", resource_id=r["meter_id"], request_id=_rid(request),
           details={"event_id": event_id, "kind": r["kind"]})
-    return _event_out(conn.execute(EVENTS_SQL + " WHERE e.id = ?", (event_id,)).fetchone(), True)
+    return _event_out(wstore.event(conn, event_id), True)
 
 
 class MuteBody(_Body):
@@ -813,24 +792,24 @@ def _ack_meter(conn: sqlite3.Connection, principal: Principal, meter_id: str) ->
     return row
 
 
-@router.post(f"{API}/meters/{{meter_id}}/mute")
+@router.post(f"{API}/meters/{{meter_id}}/mute", **wire(W.WaterMute))
 def mute_meter(meter_id: str, request: Request, principal: Principal = Depends(_acker), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Hold the meter's WARNING notifications for 15 / 30 / 60 / 120 minutes (water.ack). Alarms are never held unless the installation's
     `mute_includes_alarms` says so; held rows are still logged."""
     body: MuteBody = _parse(request, raw, MuteBody)
     _ack_meter(conn, principal, meter_id)
     until = wm.epoch_to_iso(int(wr.clock()) + body.minutes * 60)
-    conn.execute("UPDATE water_meters SET muted_until = ?, muted_by = ? WHERE id = ?", (until, principal.user_id, meter_id))
+    wstore.set_meter_mute(conn, meter_id, until=until, by=principal.user_id)
     audit(conn, actor=principal, action="infra.water.event.mute", decision="allowed", resource_type="water_meter", resource_id=meter_id, request_id=_rid(request),
           details={"minutes": body.minutes})
     return {"meter_id": meter_id, "muted_until": until}
 
 
-@router.delete(f"{API}/meters/{{meter_id}}/mute")
+@router.delete(f"{API}/meters/{{meter_id}}/mute", **wire(W.WaterMute))
 def unmute_meter(meter_id: str, request: Request, principal: Principal = Depends(_acker), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """End a mute early (water.ack)."""
     _ack_meter(conn, principal, meter_id)
-    conn.execute("UPDATE water_meters SET muted_until = NULL, muted_by = NULL WHERE id = ?", (meter_id,))
+    wstore.set_meter_mute(conn, meter_id, until=None, by=None)
     audit(conn, actor=principal, action="infra.water.event.unmute", decision="allowed", resource_type="water_meter", resource_id=meter_id, request_id=_rid(request))
     return {"meter_id": meter_id, "muted_until": None}
 
@@ -843,7 +822,7 @@ class SnoozeBody(_Body):
 
 def _ack_event_row(conn: sqlite3.Connection, principal: Principal, event_id: str) -> sqlite3.Row:
     _require_on(conn)
-    r = conn.execute(EVENTS_SQL + " WHERE e.id = ?", (event_id,)).fetchone()
+    r = wstore.event(conn, event_id)
     if r is None or not wm.Reach(conn, principal).sees(r):
         raise _err(404, "not_found", "ההתראה לא נמצאה.", "The alert was not found.")
     if not _AckReach(conn, principal).allows(r):
@@ -853,7 +832,7 @@ def _ack_event_row(conn: sqlite3.Connection, principal: Principal, event_id: str
     return r
 
 
-@router.post(f"{API}/events/{{event_id}}/snooze")
+@router.post(f"{API}/events/{{event_id}}/snooze", **wire(W.WaterEvent))
 def snooze_event(event_id: str, request: Request, principal: Principal = Depends(_acker), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Snooze one open alert for one of the configured durations (water.ack on its meter). It is NOT acknowledged: while snoozed its
     warnings are held (an alarm only with `mute_includes_alarms`), and when the time ends it returns if the condition persists."""
@@ -865,29 +844,29 @@ def snooze_event(event_id: str, request: Request, principal: Principal = Depends
         raise _err(422, "snooze_duration", "משך הנדנוד אינו אחד מהמשכים שהוגדרו.", "The snooze duration is not one of the configured durations.",
                    fields=["minutes"], durations=cfg["durations"])
     until = wm.epoch_to_iso(int(wr.clock()) + minutes * 60)
-    conn.execute("UPDATE water_alert_events SET snoozed_until = ?, snoozed_by = ? WHERE id = ?", (until, principal.user_id, event_id))
+    wstore.set_event_snooze(conn, event_id, until=until, by=principal.user_id)
     audit(conn, actor=principal, action="infra.water.event.snooze", decision="allowed", resource_type="water_meter", resource_id=r["meter_id"], request_id=_rid(request),
           details={"event_id": event_id, "minutes": minutes})
-    return _event_out(conn.execute(EVENTS_SQL + " WHERE e.id = ?", (event_id,)).fetchone(), True)
+    return _event_out(wstore.event(conn, event_id), True)
 
 
-@router.delete(f"{API}/events/{{event_id}}/snooze")
+@router.delete(f"{API}/events/{{event_id}}/snooze", **wire(W.WaterEvent))
 def unsnooze_event(event_id: str, request: Request, principal: Principal = Depends(_acker), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """End a snooze early (water.ack)."""
     r = _ack_event_row(conn, principal, event_id)
-    conn.execute("UPDATE water_alert_events SET snoozed_until = NULL, snoozed_by = NULL WHERE id = ?", (event_id,))
+    wstore.set_event_snooze(conn, event_id, until=None, by=None)
     audit(conn, actor=principal, action="infra.water.event.unsnooze", decision="allowed", resource_type="water_meter", resource_id=r["meter_id"], request_id=_rid(request),
           details={"event_id": event_id})
-    return _event_out(conn.execute(EVENTS_SQL + " WHERE e.id = ?", (event_id,)).fetchone(), True)
+    return _event_out(wstore.event(conn, event_id), True)
 
 
-@router.get(f"{API}/alerts")
+@router.get(f"{API}/alerts", **wire(W.WaterAlerts))
 def get_alerts(principal: Principal = Depends(_alerts_reader), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The leak rules' installation defaults and the alert routing (water.manage)."""
     return {**wa.view(conn), "can_edit": _can(conn, principal, ws.CONFIGURE)}
 
 
-@router.put(f"{API}/alerts")
+@router.put(f"{API}/alerts", **wire(W.WaterAlerts))
 def put_alerts(request: Request, principal: Principal = Depends(_alerts_editor), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Change the defaults and / or the routing (system.configure; `row_version` checked when sent). Audited `infra.water.alerts.update`."""
     if not _is_json(request.headers.get("content-type")):

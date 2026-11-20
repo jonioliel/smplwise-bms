@@ -243,10 +243,26 @@ def _refs(node: Any, out: list[tuple[str, str | None]]) -> None:
 
 # test-only: no product caller; used by tests/test_automation_blueprints_80.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def validate_definition(bp: Any) -> list[str]:
-    """The problems of one blueprint definition (empty = acceptable). Pure; closed: anything not listed is a problem."""
+    """The problems of one blueprint definition (empty = acceptable). Pure; closed: anything not listed is a problem.
+
+    CR-BE-COMPLEXITY-B-2450: one helper per part (header, parameters, rules, template references, template steps), called in the
+    order the checks always ran, so the problems come out in the same order (tests/test_automation_blueprints_char_2450.py)."""
     errs: list[str] = []
     if not isinstance(bp, dict):
         return ["definition is not an object"]
+    _header_problems(bp, errs)
+    keys = _parameter_problems(bp, errs)
+    _rule_problems(bp, keys, errs)
+    tpl = bp.get("template")
+    if not isinstance(tpl, dict) or set(tpl) - {"mode", "triggers", "conditions", "actions"}:
+        return errs + ["template: keys must be mode / triggers / conditions / actions"]
+    _template_ref_problems(tpl, keys, errs)
+    _template_step_problems(tpl, keys, errs)
+    return errs
+
+
+def _header_problems(bp: dict[str, Any], errs: list[str]) -> None:
+    """Unknown keys, the id, the version, the category, the title and the description."""
     unknown = set(bp) - {"id", "version", "category", "icon", "title", "description", "parameters", "rules", "template"}
     if unknown:
         errs.append(f"unknown keys {sorted(unknown)}")
@@ -259,6 +275,10 @@ def validate_definition(bp: Any) -> list[str]:
     for k, lim in (("title", 80), ("description", 300)):
         if not isinstance(bp.get(k), str) or not bp[k].strip() or len(bp[k]) > lim:
             errs.append(f"bad {k}")
+
+
+def _parameter_problems(bp: dict[str, Any], errs: list[str]) -> dict[str, dict[str, Any]]:
+    """The parameters (1-12, unique keys, type, label, domains and role of an entity parameter). Returns them by key."""
     params = bp.get("parameters")
     keys: dict[str, dict[str, Any]] = {}
     if not isinstance(params, list) or not params or len(params) > 12:
@@ -281,12 +301,18 @@ def validate_definition(bp: Any) -> list[str]:
                 errs.append(f"{p['key']}: forbidden domain for a controlled entity")
             if p.get("role") not in ("watch", "control"):
                 errs.append(f"{p['key']}: role must be watch or control")
+    return keys
+
+
+def _rule_problems(bp: dict[str, Any], keys: dict[str, dict[str, Any]], errs: list[str]) -> None:
+    """Each rule compares two declared parameters."""
     for r in bp.get("rules") or []:
         if not isinstance(r, dict) or r.get("rule") not in ("lt", "ne") or r.get("a") not in keys or r.get("b") not in keys:
             errs.append("bad rule")
-    tpl = bp.get("template")
-    if not isinstance(tpl, dict) or set(tpl) - {"mode", "triggers", "conditions", "actions"}:
-        return errs + ["template: keys must be mode / triggers / conditions / actions"]
+
+
+def _template_ref_problems(tpl: dict[str, Any], keys: dict[str, dict[str, Any]], errs: list[str]) -> None:
+    """The template's mode, and its parameter references: declared, a known conversion, every parameter used."""
     if tpl.get("mode") not in ("single", "restart"):
         errs.append("template: mode must be single or restart")
     refs: list[tuple[str, str | None]] = []
@@ -300,6 +326,10 @@ def validate_definition(bp: Any) -> list[str]:
     for k in keys:
         if k not in used:
             errs.append(f"parameter {k} is never used")
+
+
+def _template_step_problems(tpl: dict[str, Any], keys: dict[str, dict[str, Any]], errs: list[str]) -> None:
+    """The template's triggers, conditions and actions: allowed types and keys, at least one trigger and one action."""
     for i, t in enumerate(tpl.get("triggers") or []):
         if not isinstance(t, dict) or t.get("trigger") not in ALLOWED_TRIGGERS:
             errs.append(f"triggers.{i}: trigger type not allowed")
@@ -316,7 +346,6 @@ def validate_definition(bp: Any) -> list[str]:
         errs.append("template: an action is required")
     for i, a in enumerate(tpl.get("actions") or []):
         errs.extend(_action_problems(i, a, keys))
-    return errs
 
 
 def _action_problems(i: int, a: Any, keys: dict[str, dict[str, Any]]) -> list[str]:

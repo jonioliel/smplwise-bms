@@ -51,6 +51,7 @@ from ..errors import ApiError
 from ..rbac import Principal
 from . import door_windows as dw
 from . import door_windows_engine as dwe
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.doors")
 
@@ -523,3 +524,6 @@ def on_automation_event(db: Database | None, settings: Any, frame: Any) -> None:
             log.exception("door window trigger: an automation event could not be handled")
 
     _submit(run)
+
+
+register_reset(__name__, ("_REFUSALS",), reset_budget)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

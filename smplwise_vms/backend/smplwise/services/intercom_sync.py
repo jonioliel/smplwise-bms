@@ -78,8 +78,9 @@ from ..config import Settings
 from ..db import now_iso
 from ..errors import ApiError
 from ..test_reset import register_reset
-from . import ha_client, intercom_client, loop_thread_stop
+from . import ha_client, intercom_client
 from .intercom_client import IntercomError
+from .wiskey_feed_session import FeedSession
 
 log = logging.getLogger("smplwise.intercom")
 
@@ -830,11 +831,12 @@ def _late_outcome(future: Any, project: Callable[[Any], Any]) -> tuple[str, str 
 
 # ---------------------------------------------------------------- the session
 
-class IntercomSync:
+class IntercomSync(FeedSession):
+    LOG_NAME = "WisKey feed"
+    REFRESH_TASK = "intercom-refresh"
+
     def __init__(self) -> None:
-        self.thread: threading.Thread | None = None
-        self.stop = threading.Event()
-        self.settings: Settings | None = None
+        super().__init__()  # thread, stop, settings, _was_ready, _absent_strikes, _logged_error, _tasks
         self._cache: dict[str, Any] | None = None
         # station id -> the station's host from the same `overview` reply. NEVER served: it only builds the station's
         # RTSP source for go2rtc (camera stills), server-side. Kept and dropped together with the copy.
@@ -846,13 +848,9 @@ class IntercomSync:
         self._api: dict[str, Any] | None = None
         self._tag: str | None = None  # change_tag of the last overview stored (never served)
         self._cache_lock = threading.Lock()
-        self._logged_error: str | None = None
-        self._was_ready = False  # a session reached `ready` since the process (or reset()) started
-        self._absent_strikes = 0  # consecutive `unknown_command` probes with HA RUNNING, after a ready session
         self._last_view: float | None = None  # monotonic time of the last GET /intercom/overview
         self._fetched_mono: float | None = None
         self._event_loop: asyncio.AbstractEventLoop | None = None
-        self._tasks: set[asyncio.Task[None]] = set()  # refreshes started by pushes (_kick); cancelled with the session
         self._inflight = threading.BoundedSemaphore(MAX_INFLIGHT)  # one-off reads (command) in flight at once
         self._action_inflight = threading.BoundedSemaphore(ACTION_INFLIGHT)  # physical actions: a lane of their own
         self._config_inflight = threading.BoundedSemaphore(CONFIG_INFLIGHT)  # people writes: a third lane (one slot)
@@ -921,26 +919,19 @@ class IntercomSync:
             return True
 
     def _session_reset(self) -> None:
-        self._call: intercom_client.Call | None = None
+        self._reset_session_skeleton()  # _call, _early, _refreshing, _again, _end, _fault
         # CR-036 S4: the same live socket under the other channels' guards (wiskey_channels): `read` (the adapter's READ
         # commands) and `technical` (its reviewed non-READ reads). Built in on_ready, gone with the session.
         self._channel_calls: dict[str, intercom_client.Call] = {}
         self._wiskey_sub: int | None = None
         self._entities_sub: int | None = None
-        # event frames whose subscription id is not known yet: HA sends a subscription's first event right behind
-        # its result, and the socket reader can get to it before the awaiting coroutine has recorded the id
-        self._early: deque[dict[str, Any]] = deque(maxlen=20)
         self._watched: set[str] = set()
-        self._refreshing = False
-        self._again = False
         # announcements in progress on this session: `tts/start` subscription id -> station id. Kept until WisKey's
         # terminal event, because unsubscribing earlier would cancel the playback
         self._tts: dict[int, str] = {}
         self._retry_pending = False  # a refetch after WisKey's `rate_limited` is scheduled (at most one)
         self._rate_logged = False  # that stretch was logged (once, not every retry)
         self._deferred: str | None = None  # an overview failure kept pending while an announcement plays (S6)
-        self._end: asyncio.Event | None = None
-        self._fault: BaseException | None = None
 
     # -- lifecycle (main.py)
     def start(self, settings: Settings) -> None:
@@ -951,13 +942,7 @@ class IntercomSync:
             return
         STATE.state = "connecting"
         STATE.started_at = now_iso()
-        self.stop.clear()
-        self.thread = threading.Thread(target=self._run, name="intercom-sync", daemon=True)
-        self.thread.start()
-
-    def shutdown(self) -> None:
-        self.stop.set()
-        loop_thread_stop.stop_and_join(self)  # CR-WAVE2-COMBINED-2439: wake the loop now and wait for the thread (bounded)
+        self._start_thread("intercom-sync")
 
     def reset(self) -> None:
         """Forget the cached copy and the counters (a fresh process state; used by tests)."""
@@ -1670,168 +1655,84 @@ class IntercomSync:
         if changed:
             publish({"type": "intercom_state", "state": state})
 
-    # -- thread
-    def _run(self) -> None:
-        asyncio.run(self._loop())
+    # -- the reconnect ladder's view of this feed's state (wiskey_feed_session.FeedSession._ladder)
+    def _feed_state(self) -> str:
+        return STATE.state
 
-    async def _loop(self) -> None:
+    def _feed_error(self) -> str | None:
+        return STATE.last_error
+
+    def _feed_connected(self) -> bool:
+        return STATE.connected
+
+    def _set_connected(self, value: bool) -> None:
+        STATE.connected = value
+
+    def _count_reconnect(self) -> None:
+        STATE.reconnects += 1
+        _lease_hook("feed_reconnect")  # CR-WISKEY-LEASE-REVOCATION-EVENT T8: a feed reconnect revokes every live capture lease
+
+    def _refused_token(self) -> str | None:
         assert self.settings
-        backoff = RETRY_S
-        stop_evt = asyncio.Event()
-        loop_thread_stop.remember(self, stop_evt)  # shutdown() sets stop_evt at once; the poll below stays as the fallback
+        return self.settings.ha_token
 
-        async def watch_stop() -> None:
-            while not self.stop.is_set():
-                await asyncio.sleep(1)
-            stop_evt.set()
+    # -- one session (wiskey_feed_session.FeedSession._session runs it)
+    async def _on_ready(self, call: intercom_client.Call, end: asyncio.Event) -> None:
+        from . import wiskey_channels
 
-        asyncio.create_task(watch_stop())
-        absent = 0  # consecutive "not installed" / "forbidden" answers on a working HA socket (the re-probe ladder)
-        while not self.stop.is_set():
-            delay = backoff
-            short = False  # HA is answering but WisKey is still loading: retry soon, whatever the backoff had reached
-            was_absent, absent = absent, 0
-            try:
-                await self._session(stop_evt)
-                backoff = RETRY_S
-                if STATE.state == "ready":
-                    self._set_state("ha_unavailable", "disconnected")
-            except IntercomError as exc:
-                if exc.code == LOADING:
-                    # HA is (re)starting and WisKey is not loaded yet: keep the last-known copy (served as not fresh)
-                    # and retry on the normal short backoff
-                    self._set_state("connecting", LOADING)
-                    delay, short = RETRY_S, True
-                elif exc.not_installed or exc.code == "unauthorized":
-                    self._drop()
-                    self._set_state("not_installed" if exc.not_installed else "forbidden", exc.code)
-                    absent = was_absent + 1
-                    delay = absent_delay(absent)
-                else:
-                    self._set_state("error", exc.code)
-                if STATE.last_error != self._logged_error:  # an absent integration is logged once, not every probe
-                    log.warning("WisKey feed: %s (%s)", STATE.state, exc.code)
-                    self._logged_error = STATE.last_error
-            except Exception as exc:  # noqa: BLE001 - the loop must survive any socket failure
-                if self.stop.is_set():
-                    break
-                code = exc.code if isinstance(exc, ApiError) else type(exc).__name__
-                self._set_state("ha_unavailable", code)
-                if code == "ha_forbidden":  # FOLLOWUPS-2406: a refused token waits on ha_client's slow shared ladder
-                    delay = max(delay, ha_client.refused_wait(self.settings.ha_token))
-                if not (isinstance(exc, ApiError) and exc.details.get("held")):  # a held attempt never reached HA
-                    log.warning("WisKey feed disconnected: %s (retry in %.0fs)", code, delay)
-            if STATE.connected:
-                STATE.reconnects += 1
-                _lease_hook("feed_reconnect")  # CR-WISKEY-LEASE-REVOCATION-EVENT T8: a feed reconnect revokes every live capture lease
-            STATE.connected = False
-            await ha_client.wait_or_reset(delay, stop_evt)  # a reset of the refused-token ladder ends the wait at once
-            backoff = RETRY_S if short else min(RETRY_MAX_S, backoff * 2)
-        STATE.connected = False
-
-    async def _session(self, stop_evt: asyncio.Event) -> None:
-        assert self.settings
-        self._session_reset()
-        end = asyncio.Event()
-        self._end = end
-        self._event_loop = asyncio.get_running_loop()
-        poller: asyncio.Task[None] | None = None
-
-        async def forward_stop() -> None:
-            await stop_evt.wait()
-            end.set()
-
-        stopper = asyncio.create_task(forward_stop())
-
-        async def on_ready(call: intercom_client.Call) -> None:
-            nonlocal poller
-            from . import wiskey_channels
-
-            from .wiskey_native_feed import bind_metadata
-            session_call = call  # WISKEY-EVENT-CURSOR-2400: the signed events/resume_v1 sender adds its own one-command guard
-            raw = await bind_metadata(call, self.settings)
-            native_metadata_call = raw
-            call = wiskey_channels.guard(raw, "service")  # CR-036 S1: only the service (write) channel's allow-list leaves here
-            self._call = call
-            # CR-036 S4: the adapter's reads ride this socket under their own guards (no write is on either list)
-            self._channel_calls = {name: wiskey_channels.guard(raw, name) for name in wiskey_channels.ADAPTER_CHANNELS}
-            try:
-                raw = await intercom_client.overview(call)  # the probe: unknown_command = not loaded (yet?)
-            except IntercomError as exc:
-                if exc.not_installed and await self._maybe_loading(call):
-                    raise IntercomError(LOADING, "overview") from exc
-                raise
-            self._absent_strikes = 0
-            self._store(raw)
-            await self._watch(call, watched_entities(raw))
-            self._wiskey_sub = await intercom_client.subscribe(call)
-            self._replay_early()
-            STATE.connected = True
-            self._was_ready = True
-            self._set_state("ready", None)
-            self._logged_error = None  # a later repeat of an earlier failure is logged again
-            log.info("WisKey feed connected: %d stations, WisKey %s", len((self._cache or {}).get("stations", [])), STATE.wiskey_version)
-
-            async def poll() -> None:
-                while not end.is_set():
-                    await asyncio.sleep(POLL_S)
-                    renew_at = getattr(native_metadata_call, "native_subscription_renew_at", None)
-                    if renew_at is not None and time.monotonic() >= renew_at:
-                        # A new finite registration after cancelling this exact
-                        # old id. No proof or media activity is renewed in place.
-                        if self._wiskey_sub is not None:
-                            await call("unsubscribe_events", subscription=self._wiskey_sub)
-                        self._wiskey_sub = await intercom_client.subscribe(call)
-                        self._replay_early()
-                    if self.watched():
-                        await self._refresh()
-
-            poller = asyncio.create_task(poll(), name="intercom-poll")
-            from . import wiskey_event_resume  # WISKEY-EVENT-CURSOR-2400: gap-free door events (ends with the session's tasks)
-            resume = wiskey_event_resume.start(session_call, self.settings, end)
-            if resume is not None:
-                self._tasks.add(resume)
-
+        from .wiskey_native_feed import bind_metadata
+        session_call = call  # WISKEY-EVENT-CURSOR-2400: the signed events/resume_v1 sender adds its own one-command guard
+        raw = await bind_metadata(call, self.settings)
+        native_metadata_call = raw
+        call = wiskey_channels.guard(raw, "service")  # CR-036 S1: only the service (write) channel's allow-list leaves here
+        self._call = call
+        # CR-036 S4: the adapter's reads ride this socket under their own guards (no write is on either list)
+        self._channel_calls = {name: wiskey_channels.guard(raw, name) for name in wiskey_channels.ADAPTER_CHANNELS}
         try:
-            await ha_client.ws_session(self.settings, on_ready, lambda _data: None, end, on_message=self._on_message)
-        finally:
-            self._call = None
-            self._channel_calls = {}
-            # nothing of this session may outlive it: a stray refresh's own `finally` would otherwise run after the
-            # next session reset and break its one-refresh-at-a-time invariant
-            tasks = [t for t in (stopper, poller, *self._tasks) if t is not None and not t.done()]
-            for t in tasks:
-                t.cancel()
-            if tasks:
-                await asyncio.gather(*tasks, return_exceptions=True)
-            self._tasks.clear()
-            # Home Assistant drops a connection's subscriptions with it, which cancels any announcement still playing
-            for station_id in set(self._tts.values()):
-                self._tts_update(station_id, {"state": "closed", "reason": "connection_lost"})
-            self._tts.clear()
-        if self._fault is not None:
-            raise self._fault
+            raw = await intercom_client.overview(call)  # the probe: unknown_command = not loaded (yet?)
+        except IntercomError as exc:
+            if exc.not_installed and await self._maybe_loading(call):
+                raise IntercomError(LOADING, "overview") from exc
+            raise
+        self._absent_strikes = 0
+        self._store(raw)
+        await self._watch(call, watched_entities(raw))
+        self._wiskey_sub = await intercom_client.subscribe(call)
+        self._replay_early()
+        STATE.connected = True
+        self._was_ready = True
+        self._set_state("ready", None)
+        self._logged_error = None  # a later repeat of an earlier failure is logged again
+        log.info("WisKey feed connected: %d stations, WisKey %s", len((self._cache or {}).get("stations", [])), STATE.wiskey_version)
 
-    async def _maybe_loading(self, call: intercom_client.Call) -> bool:
-        """`unknown_command` for WisKey's `overview`: True while that may only mean "not loaded yet" (see the module
-        docstring), False once it means "not installed"."""
-        # a socket failure here propagates: the session ends as ha_unavailable (the connection is gone), not as loading
-        frame = await call("get_config")
-        result = frame.get("result") if frame.get("success") else None
-        running = isinstance(result, dict) and result.get("state") == "RUNNING"
-        if not running:
-            return True
-        # HA's bootstrap can reach RUNNING past a slow integration's setup: after a ready session, re-probe a few times
-        if self._was_ready:
-            self._absent_strikes += 1
-            return self._absent_strikes < ABSENT_AFTER_READY
-        return False
+        async def poll() -> None:
+            while not end.is_set():
+                await asyncio.sleep(POLL_S)
+                renew_at = getattr(native_metadata_call, "native_subscription_renew_at", None)
+                if renew_at is not None and time.monotonic() >= renew_at:
+                    # A new finite registration after cancelling this exact
+                    # old id. No proof or media activity is renewed in place.
+                    if self._wiskey_sub is not None:
+                        await call("unsubscribe_events", subscription=self._wiskey_sub)
+                    self._wiskey_sub = await intercom_client.subscribe(call)
+                    self._replay_early()
+                if self.watched():
+                    await self._refresh()
 
-    def _replay_early(self) -> None:
-        early = list(self._early)
-        self._early.clear()
-        for msg in early:
-            self._on_message(msg)
+        self._poller = asyncio.create_task(poll(), name="intercom-poll")
+        from . import wiskey_event_resume  # WISKEY-EVENT-CURSOR-2400: gap-free door events (ends with the session's tasks)
+        resume = wiskey_event_resume.start(session_call, self.settings, end)
+        if resume is not None:
+            self._tasks.add(resume)
+
+    def _session_closing(self) -> None:
+        self._channel_calls = {}
+
+    def _session_closed(self) -> None:
+        # Home Assistant drops a connection's subscriptions with it, which cancels any announcement still playing
+        for station_id in set(self._tts.values()):
+            self._tts_update(station_id, {"state": "closed", "reason": "connection_lost"})
+        self._tts.clear()
 
     def _on_message(self, msg: dict[str, Any]) -> None:
         mid = msg.get("id")
@@ -1860,38 +1761,16 @@ class IntercomSync:
             # are only told when the projection actually changed
             self._kick()
 
-    def _kick(self) -> None:
-        task = asyncio.get_running_loop().create_task(self._refresh(), name="intercom-refresh")
-        self._tasks.add(task)  # a strong reference (an unreferenced task can be collected mid-run) ...
-        task.add_done_callback(self._tasks.discard)  # ... dropped once it is done
+    # -- the overview refetch (wiskey_feed_session.FeedSession._refresh: single flight)
+    async def _refresh_once(self, call: intercom_client.Call) -> None:
+        raw = await intercom_client.overview(call)
+        self._store(raw)
+        self._deferred = None  # a deferred failure (S6) is over: the copy is current again
+        self._rate_logged = False  # a later rate-limited stretch is logged again
+        await self._watch(call, watched_entities(raw))
 
-    def _fail(self, exc: BaseException) -> None:
-        self._fault = exc
-        if self._end is not None:
-            self._end.set()
-
-    async def _refresh(self) -> None:
-        """Single-flight overview refetch; a request that arrives meanwhile runs once more afterwards."""
-        call = self._call
-        if call is None:
-            return
-        if self._refreshing:
-            self._again = True
-            return
-        self._refreshing = True
-        try:
-            while True:
-                self._again = False
-                raw = await intercom_client.overview(call)
-                self._store(raw)
-                self._deferred = None  # a deferred failure (S6) is over: the copy is current again
-                self._rate_logged = False  # a later rate-limited stretch is logged again
-                await self._watch(call, watched_entities(raw))
-                if not self._again:
-                    break
-        except asyncio.CancelledError:
-            raise
-        except IntercomError as exc:
+    def _refresh_failed(self, exc: Exception) -> None:
+        if isinstance(exc, IntercomError):
             if exc.code == RATE_LIMITED:
                 # WisKey's per-user budget is spent for the moment: temporary, not a broken session. Keep the session
                 # and the last copy, and refetch once the bucket has refilled a little.
@@ -1900,15 +1779,13 @@ class IntercomSync:
                 self._defer_failure(exc.code)  # WisKey answered (the socket is fine): do not cut the announcement
             else:
                 self._fail(exc)
-        except TimeoutError as exc:
+        elif isinstance(exc, TimeoutError):
             if self._tts:
                 self._defer_failure("timeout")
             else:
                 self._fail(exc)
-        except Exception as exc:  # noqa: BLE001 - end the session; the loop reconnects and re-probes
+        else:  # end the session; the loop reconnects and re-probes
             self._fail(exc)
-        finally:
-            self._refreshing = False
 
     def _defer_failure(self, code: str) -> None:
         """T054 review S6: an overview refetch failed while an announcement is playing on this session. Ending the

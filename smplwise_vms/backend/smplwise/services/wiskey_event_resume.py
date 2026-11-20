@@ -45,6 +45,7 @@ from ..db import Database, get_setting, now_iso, set_setting
 from . import intercom_client
 from .intercom_client import IntercomError
 from .wiskey_installed_features import EventCursorError, EventPage, read_page
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.wiskey.events")
 
@@ -477,3 +478,6 @@ def facts(conn: Any) -> dict[str, Any]:
         active, stored = None, 0
     return {"enabled": enabled(), "last": last_outcome(conn), "caught_up_at": (active or {}).get("caught_up_at"),
             "source": ((active or {}).get("source") or "")[:8] or None, "stored": stored, "gap": recent_gap(conn)}
+
+
+register_reset(__name__, ("STATUS", "_PUMP"), reset_for_tests)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

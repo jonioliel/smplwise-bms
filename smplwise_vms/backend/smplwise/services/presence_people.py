@@ -33,6 +33,7 @@ from typing import Any
 
 from ..rbac import INSTALLATION, Principal, authorize
 from . import presence as P
+from ..test_reset import register_reset
 
 VIEW = "presence.view"
 AUDIT_EVERY_S = 600
@@ -251,3 +252,6 @@ def people_view(conn: sqlite3.Connection, principal: Principal, perm: str = VIEW
     base["sites"] = sorted(({"site_id": s, "name": site_names.get(s, s), "count": n} for s, n in site_count.items()), key=lambda s: s["name"])
     base["people"] = people
     return base
+
+
+register_reset(__name__, ("_AUDITED",), reset)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

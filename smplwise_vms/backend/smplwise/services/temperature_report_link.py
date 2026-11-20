@@ -25,6 +25,7 @@ from . import temperature as t
 from .ha_user_auth import RateLimiter
 from .tickets import links as tlinks
 from .tickets import out_documents as docs
+from ..test_reset import register_reset
 
 PERM = "infra.temperature.report_link"
 MODULE = "temperature"
@@ -153,3 +154,6 @@ def revoke(conn: sqlite3.Connection, doc_id: str, user_id: str, actor: Any, ever
 
 
 __all__ = ["PERM", "DAILY_LIMIT", "LinkRefused", "check_daily_limit", "settings", "available", "create", "listing", "revoke", "revoke_all"]
+
+
+register_reset(__name__, ("LIMITER",), LIMITER.clear)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)

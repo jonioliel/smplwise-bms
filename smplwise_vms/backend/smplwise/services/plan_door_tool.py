@@ -36,6 +36,7 @@ from PIL import Image
 from . import plan_detect_doors as pdd
 from . import plan_stylize as ps
 from . import wall_path
+from ..test_reset import register_reset
 
 DOOR_DEFAULT_M = 0.9  # the editor's default door (OPENING_DEFAULTS.door), used when nothing is found
 LEAF_M = (0.45, 1.3)  # a leaf searched when the plan is calibrated (a leaf of a double from 0.45 m, a wide single to 1.3 m)
@@ -868,3 +869,6 @@ def _place_plain(dark: np.ndarray, off: np.ndarray, click: np.ndarray, near, W: 
         pos = min(max(pos, wpx / 2), total - wpx / 2)
     return {"found": "default", "wall_id": wall["id"], "t": round(pos / total, 5), "new_wall": None, "width_px": None, "hinge": "start", "swing": swing,
             "confidence": 0.2, "warning": "לא נמצאו סמל דלת או פער ליד הלחיצה: הוצעה דלת ברוחב ברירת המחדל. בדוק רוחב, ציר וכיוון.", "scores": {}}
+
+
+register_reset(__name__, ("_cache",), clear_cache)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

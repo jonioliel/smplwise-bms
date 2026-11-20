@@ -55,6 +55,7 @@ from ..timeutil import iso_utc
 from . import provision_isr as pisr
 from . import provision_isr_xml as px
 from . import provision_time as pt
+from ...test_reset import register_reset
 
 PLAYBACK_COMMANDS = frozenset({"GetRecordType", "SearchRecordDate", "SearchByTime", "GetSnapshotByTime", "GetDateAndTime"})
 
@@ -690,3 +691,6 @@ def export_url(settings: Settings, stored: str) -> str:
     if not settings.nvr_host or not settings.nvr_user or not settings.nvr_password:
         raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו.")
     return f"rtsp://{quote(settings.nvr_user, safe='')}:{quote(settings.nvr_password, safe='')}@{settings.nvr_host}:{settings.nvr_rtsp_port}{path}"
+
+
+register_reset(__name__, ("_ZONES", "_TYPES"), clear_caches)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

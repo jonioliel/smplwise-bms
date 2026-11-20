@@ -38,6 +38,7 @@ from ..errors import ApiError
 from ..rbac import LOCAL_ADMIN_PERMISSIONS, Principal, permissions_anywhere
 from . import app_refresh_key as dk
 from . import device_attestation as att
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.app_refresh")
 
@@ -1309,3 +1310,6 @@ HOOKS: dict[str, Callable[..., int]] = {
     "revoke_all": revoke_all,
     "revoke_kind": revoke_kind,
 }
+
+
+register_reset(__name__, ("FAILURES", "FAILURES_ALL"), reset_limits)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)

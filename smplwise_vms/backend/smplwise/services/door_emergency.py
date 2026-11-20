@@ -46,6 +46,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, STATION, Principal, authorize, is_system_admin, permissions_anywhere, scope_name, station_chain
 from . import door_windows as dw
 from . import door_windows_engine as dwe
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.doors")
 
@@ -934,3 +935,6 @@ def pause_windows_for_lock(db: Database, settings: Any, incident_id: str) -> Non
         # the one exception to "a program a person made is never touched" (CR-039 8.2 / 19.3): a LOCK pauses a foreign program too, audited with
         # the incident, and never re-activates it - the door is listed until the person who made it enables it again in the intercom window
         dw.pause_door(db, settings, d["station_id"], d["relay"], None, why="emergency_lock", allow_foreign=True, incident_id=incident_id)
+
+
+register_reset(__name__, ("_PREPARE",), reset_rate)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

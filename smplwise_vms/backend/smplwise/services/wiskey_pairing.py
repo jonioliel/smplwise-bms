@@ -35,6 +35,7 @@ from . import bridge_keys as bk
 from . import wiskey_media_bridge as bridge
 from . import wiskey_media_contract as w10
 from .wiskey_direct_discovery import DirectDiscovery
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.wiskey.pairing")
 
@@ -558,3 +559,6 @@ def probe(db: Any, settings: Any, *, force: bool = False) -> tuple[dict[str, Any
 
 def forget_probe() -> None:
     PROBE.update(last=None, mono=0.0)
+
+
+register_reset(__name__, ("PROBE",), reset_for_tests)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

@@ -1,0 +1,2864 @@
+import{g as V,ax as y,j as c,i as W,CR as Yt,n as F,a as z,CS as Gt,b7 as me,CT as Ht,CU as bt,CV as Jt,A as l,dI as x,b as a,k as Y,cC as $e,cE as pe,bG as H,bH as he,bm as M,br as ke,bA as Xt,hU as Zt,hV as Qt,b5 as re,CW as vt,CX as ye,a2 as T,a3 as Ce,CY as es,CZ as ts,C_ as ss,C$ as yt,ek as ee,bd as ce,aV as Ne,d as is,c0 as je,bv as as,eI as ns,eR as rs,cy as os,b8 as ls,aA as ds}from"./index-koYOOmpL.js";import"./wk-deep-links-CGRq9XdI.js";import{t as p,U as te,l as Be,r as Ke,s as cs,p as ps}from"./wiskey-format-ctBX13dU.js";import{t as w}from"./wiskey-DMSm420K.js";import{f as se,s as _t,v as hs,a as Ve,b as us,p as fs,t as ms,c as $t,i as gs,d as ae,e as ge,h as we,m as ws,j as bs,k as vs,T as ys,l as We,n as _s,o as $s,q as ks,w as Ye,g as Se,P as ue,r as Ge,u as xs,x as zs,y as Cs,z as Ss,A as He,B as Es,C as Ps,D as Ts,E as Je,S as Os,F as Rs,R as Ds,G as As,H as Is,I as Ms,J as Ns,K as js,L as qs,M as Ls}from"./access-people-8LlB00J3.js";import{c as Us,s as Fs,u as Xe,r as Bs,d as Ee,e as Pe,n as Ks,f as Vs,j as Ws,o as Ys,k as Gs}from"./access-messaging-BrNo40-J.js";import{a as Hs}from"./access-external-MIbOtXFw.js";import{a as Ze}from"./access-CVhEDOUk.js";import"./sw-logo-art-PLtEZJxU.js";import"./deep-links-B9VAd8Dg.js";import"./wiskey-profiles-BvX2Ju2X.js";var Js=Object.defineProperty,Xs=Object.getOwnPropertyDescriptor,L=(e,t,s,i)=>{for(var n=i>1?void 0:i?Xs(t,s):t,d=e.length-1,o;d>=0;d--)(o=e[d])&&(n=(i?o(t,s,n):o(n))||n);return i&&n&&Js(t,s,n),n};const Zs=30,Qs=1e3,ei=3e3,ti=2e3,si=new Set(["preparing","waiting","captured","applying"]),Te=new Set(["preparing","waiting","captured"]);async function Qe(e){try{await bt(e)}catch{}}function Oe(e){const t=e instanceof z?e.body?.details?.wiskey_code:void 0,s=t?p(t):"";return t&&s!==t.replaceAll("_"," ")?s:F(e)}let j=class extends W{constructor(){super(...arguments),this.stations=[],this.step="choose",this.station="",this.readers=null,this.reader=0,this.busy="",this.capture=null,this.label="",this.error="",this.errorCode="",this.outcome="",this.holdUntil=0,this.now=performance.now(),this.receivedAt=performance.now(),this.epoch=0,this.pollTimer=0,this.tickTimer=0}connectedCallback(){super.connectedCallback();const e=this.usable()[0]?.id??"";this.station=e,e&&this.readReaders(e),this.tickTimer=window.setInterval(()=>this.now=performance.now(),250)}disconnectedCallback(){super.disconnectedCallback(),window.clearInterval(this.tickTimer),this.clear()}usable(){return this.stations.filter(e=>e.lock_enabled&&e.online)}clear(){this.epoch++,window.clearTimeout(this.pollTimer);const e=this.capture;this.capture=null,e&&Te.has(e.state)&&Qe(e.session_id)}setError(e,t="",s=""){this.error=e,this.errorCode=t,this.outcome=s}async readReaders(e){if(this.clear(),this.step="choose",this.station=e,this.readers=null,this.reader=0,this.setError(""),!e)return;const t=this.epoch;this.busy="readers";try{const s=await Yt(e);if(t!==this.epoch)return;if(s.readers)this.readers=s.readers.readers,this.reader=s.readers.readers[0]??0;else{const i=s.last_error??s.state;this.setError(p(i)!==i.replaceAll("_"," ")?p(i):w("לא ניתן לקרוא את יכולות הקורא ({code}).",{code:i}),i)}}catch(s){t===this.epoch&&this.setError(F(s),s instanceof z?s.code:"error")}finally{t===this.epoch&&(this.busy="")}}async start(){if(this.busy||!this.station||!this.readers?.length)return;const e=++this.epoch;this.busy="start",this.setError("");try{const t=await Gt(this.person.id,this.station,this.reader,this.person.revision??0);if(e!==this.epoch){t.capture&&Qe(t.capture.session_id);return}this.show(t.capture),this.step="session"}catch(t){if(e!==this.epoch)return;const s=me(t);if(s==="unknown"){const i=t instanceof z?Number(t.body?.details?.retry_after_s):NaN;this.holdUntil=performance.now()+(Number.isFinite(i)&&i>0?i:120)*1e3,this.step="start_unknown",this.setError(F(t),t instanceof z?t.code:"error","unknown")}else this.step="choose",this.setError(Oe(t),t instanceof z?t.code:"error",s)}finally{e===this.epoch&&(this.busy="")}}show(e){if(this.capture=e,this.receivedAt=performance.now(),window.clearTimeout(this.pollTimer),e&&si.has(e.state)&&e.state!=="applying"){const t=this.epoch;this.pollTimer=window.setTimeout(()=>void this.poll(t),e.state==="captured"?ei:Qs)}}async poll(e){const t=this.capture?.session_id;if(!(!t||e!==this.epoch))try{const s=await Ht(t);if(e!==this.epoch||this.busy==="save"||this.busy==="cancel")return;this.show(s.capture)}catch(s){if(e!==this.epoch)return;if(s instanceof z&&s.code==="intercom_capture_not_found"){this.capture=this.capture?{...this.capture,state:"lost",active:!1,card:null}:null,this.setError(p("capture_not_found"),s.code);return}this.pollTimer=window.setTimeout(()=>void this.poll(e),ti)}}async cancel(){const e=this.capture;if(!e||!Te.has(e.state)||this.busy)return;this.busy="cancel",window.clearTimeout(this.pollTimer);const t=this.epoch;try{const s=await bt(e.session_id);if(t!==this.epoch)return;this.setError(""),this.show(s.capture)}catch(s){if(t!==this.epoch)return;const i=s instanceof z?s.body?.details?.capture:void 0,n=me(s);this.setError(n==="unknown"?w("לא ידוע אם הביטול התקבל: {error}",{error:F(s)}):Oe(s),s instanceof z?s.code:"error",n),this.show(i??e)}finally{t===this.epoch&&(this.busy="")}}again(){this.readReaders(this.station)}close(){if(this.busy==="save"){this.requestUpdate();return}this.clear(),this.dispatchEvent(new CustomEvent("capture-close",{bubbles:!0,composed:!0}))}async save(){const e=this.capture;if(!e||e.state!=="captured"||this.busy)return;this.busy="save",window.clearTimeout(this.pollTimer);const t=this.epoch;try{const s=await Jt(e.session_id,this.label);this.capture=s.capture,this.dispatchEvent(new CustomEvent("capture-saved",{detail:{person:s.person,note:s.note},bubbles:!0,composed:!0}))}catch(s){if(t!==this.epoch)return;const i=s instanceof z?s.body?.details?.capture:void 0,n=me(s);this.step="session",n==="unknown"?(this.setError(`${p("capture_state_unconfirmed")} (${F(s)})`,s instanceof z?s.code:"error","unknown"),this.show(i??{...e,state:"unconfirmed",active:!1,card:null})):(this.setError(Oe(s),s instanceof z?s.code:"error",n),this.show(i??e))}finally{this.busy=""}}remaining(e){return e==null?0:Math.max(0,Math.ceil(e-(this.now-this.receivedAt)/1e3))}stationName(e){return this.stations.find(t=>t.id===e)?.name??e}render(){const e=this.capture,t=this.step==="session"||this.step==="confirm_save"?e?.state??"preparing":this.step;return a`<sw-dialog
+      .open=${x(!0)}
+      heading=${p("capture_card")}
+      subheading=${[this.person.display_name,this.person.employee_no].filter(Boolean).join(" · ")}
+      data-wiskey-capture
+      data-wiskey-capture-step=${this.step}
+      data-wiskey-capture-state=${t}
+      @close=${()=>this.close()}
+    >
+      ${this.step==="choose"?this.renderChoose():l}
+      ${this.step==="confirm"?this.renderConfirm():l}
+      ${this.step==="start_unknown"?this.renderStartUnknown():l}
+      ${(this.step==="session"||this.step==="confirm_save")&&e?this.renderSession(e):l}
+      ${this.error&&this.step!=="start_unknown"?a`<p class="note ${this.outcome==="unknown"?"warn":"err"}" role="alert" data-wiskey-capture-error=${this.errorCode} data-wiskey-capture-outcome=${this.outcome}>${this.error}</p>`:l}
+      <p class="muted">${p("capture_limits")}</p>
+      <div slot="footer" class="footer">${this.renderFooter()}</div>
+    </sw-dialog>`}renderChoose(){const e=this.usable();return a`<p class="muted">${p("capture_hint")}</p>
+      <div class="grid2">
+        <sw-field label=${p("station")}>
+          <sw-dropdown block data-wiskey-capture-station label=${p("station")} placeholder=${p("select_station")} .value=${this.station}
+            .items=${e.map(t=>({id:t.id,label:t.name}))} ?inert=${this.busy==="start"} aria-disabled=${this.busy==="start"?"true":l} style=${this.busy==="start"?"opacity: var(--sw-disabled-opacity)":""}
+            @change=${t=>void this.readReaders(t.detail.id)}></sw-dropdown>
+        </sw-field>
+        <sw-field label=${p("capture_reader")}>
+          <sw-dropdown block label=${p("capture_reader")} data-wiskey-capture-reader .value=${String(this.reader)}
+            .items=${(this.readers??[]).map(t=>({id:String(t),label:t===0?p("capture_default_reader"):String(t)}))} ?inert=${!this.readers?.length} aria-disabled=${this.readers?.length?l:"true"} style=${this.readers?.length?"":"opacity: var(--sw-disabled-opacity)"}
+            @change=${t=>this.reader=Number(t.detail.id)}></sw-dropdown>
+        </sw-field>
+      </div>
+      ${e.length?l:a`<p class="note err" data-wiskey-capture-no-station>${w("אין כרגע אינטרקום מחובר עם מנעול מנוהל שאפשר לקרוא בו כרטיס.")}</p>`}
+      <p role="status" data-wiskey-capture-status>${this.busy==="readers"?p("loading"):p("capture_state_choose")}</p>`}renderConfirm(){const e=this.stationName(this.station);return a`<div class="confirm" data-wiskey-capture-confirm-step>
+      <p><b>${w("להפעיל את קורא הכרטיסים בעמדה {station}?",{station:e})}</b></p>
+      <p>${w("הקורא בעמדה ייכנס עכשיו למצב קריאת כרטיס, לעד {n} שניות.",{n:Zs})} ${w("בקשו מ־")}<b>${this.person.display_name}</b> ${w("(או ממי שמחזיק את הכרטיס) לעמוד ליד העמדה ולהצמיד")} <b>${w("כרטיס אחד")}</b> ${w('לקורא כשתופיע כאן ההנחיה "הצמד כעת כרטיס".')}</p>
+      <p>${w("המספר שנקרא יוצג כאן ממוסך, ורק אחרי אישורכם הוא יתווסף למשתמש ויסונכרן לתחנות שלו.")} ${p("capture_hint").split(". ").slice(-1)[0]}</p>
+      <p class="muted">${w("הפעולה נרשמת ביומן הביקורת של Arx בשמך.")}</p>
+    </div>`}renderStartUnknown(){const e=Math.max(0,Math.ceil((this.holdUntil-this.now)/1e3));return a`<div class="note warn" role="alert" data-wiskey-capture-error=${this.errorCode} data-wiskey-capture-outcome="unknown">
+      <sw-icon name="warning" size=${16}></sw-icon>
+      <span>${w("לא ידוע אם הקורא נכנס למצב קריאה.")} ${this.error}</span>
+    </div>
+    <p data-wiskey-capture-countdown=${e}>${e>0?w("ייתכן שהקורא בעמדה {station} ממתין לכרטיס עוד עד {n} שניות (עד שיפוג זמן הקריאה). שום כרטיס לא יתווסף בלי אישורכם.",{station:this.stationName(this.station),n:e}):w("זמן הקריאה הסתיים. אפשר לנסות שוב.")}</p>`}renderSession(e){const t=e.state==="preparing"||e.state==="waiting",s=this.remaining(e.collect_remaining_s),i=this.remaining(e.session_remaining_s),n=this.person.stations.filter(d=>d.enabled).map(d=>this.stationName(d.station_id));return a`<div class="session">
+      <p class="muted">${p("station")}: <b>${e.station_name??this.stationName(e.station_id)}</b> · ${p("capture_reader")}: ${e.reader_id===0?p("capture_default_reader"):e.reader_id}</p>
+      <p role="status" class="status ${t?"live":""}" data-wiskey-capture-status>
+        ${t?a`<span class="pulse" aria-hidden="true"></span>`:l}${this.stateText(e)}
+      </p>
+      ${t?a`<p data-wiskey-capture-countdown=${s}>${w("זמן שנותר לקריאה:")} <b>${s}</b> ${w("שניות")}</p>`:l}
+      ${e.state==="error"&&e.error?a`<p class="note err" data-wiskey-capture-wiskey-error=${e.error}>${p(e.error)}</p>`:l}
+      ${e.card&&(e.state==="captured"||e.state==="applying")?a`<div class="card" data-wiskey-capture-card>
+              <bdi data-ltr>${e.card.masked_number}</bdi>${e.card.technology?a`<span> · <bdi>${e.card.technology}</bdi></span>`:l}
+            </div>
+            <sw-field label=${p("card_label")}>
+              <input maxlength="64" data-wiskey-capture-label .value=${x(this.label)} ?disabled=${this.step==="confirm_save"||this.busy==="save"} @input=${d=>this.label=d.target.value} />
+            </sw-field>
+            <p class="muted">${p("capture_targets")}: ${n.join(", ")||p("csv_no_stations")}</p>
+            ${e.state==="captured"?a`<p class="muted" data-wiskey-capture-session-left=${i}>${w("הכרטיס ממתין לאישור עוד {n} שניות; אחר כך הקריאה נמחקת.",{n:i})}</p>`:l}`:l}
+      ${this.step==="confirm_save"&&e.state==="captured"?a`<div class="note info" data-wiskey-capture-save-prompt>${p("capture_confirm_prompt").replace("{name}",this.person.display_name)} ${w("הכרטיס יישמר ויפתח את הדלתות שהמשתמש משויך אליהן.")}</div>`:l}
+      ${e.reader_may_be_collecting&&!t?a`<p class="note warn" data-wiskey-capture-maybe-collecting>${w("ייתכן שהקורא בעמדה עדיין במצב קריאה עד שיפוג הזמן (עד {n} שניות; זמן ההמתנה של הקורא עצמו נקבע בקושחה). שום כרטיס לא יתווסף בלי אישורכם.",{n:i})}</p>`:l}
+    </div>`}stateText(e){switch(e.state){case"cancel_unknown":return e.reason==="abandoned"?`${p("capture_state_abandoned")} ${w("לא ידוע אם הביטול התקבל.")}`:w("לא ידוע אם הביטול התקבל.");case"unconfirmed":return p("capture_state_unconfirmed");case"cancelled":case"lost":return e.reason==="abandoned"?p("capture_state_abandoned"):p(`capture_state_${e.state}`);default:return p(`capture_state_${e.state}`)}}renderFooter(){const e=this.capture,t=this.busy,s=a`<sw-button variant="ghost" data-wiskey-capture-close ?disabled=${t==="save"} @click=${()=>this.close()}>${p("close")}</sw-button>`;if(this.step==="choose")return a`${s}<sw-button variant="primary" data-wiskey-capture-next ?disabled=${!!t||!this.station||!this.readers?.length} @click=${()=>{this.setError(""),this.step="confirm"}}>${w("המשך")}</sw-button>`;if(this.step==="confirm")return a`<sw-button variant="ghost" data-wiskey-capture-back ?disabled=${t==="start"} @click=${()=>this.step="choose"}>${w("חזרה")}</sw-button>
+        <sw-button variant="primary" icon="wifi" data-wiskey-capture-start ?disabled=${t==="start"} @click=${()=>void this.start()}>${t==="start"?p("wait"):p("capture_start")}</sw-button>`;if(this.step==="start_unknown")return a`${s}<sw-button data-wiskey-capture-again @click=${()=>this.again()}>${p("capture_again")}</sw-button>`;if(!e)return s;if(this.step==="confirm_save")return a`<sw-button variant="ghost" data-wiskey-capture-save-back ?disabled=${t==="save"} @click=${()=>this.step="session"}>${w("חזרה")}</sw-button>
+        <sw-button variant="primary" icon="check" data-wiskey-capture-save-confirm ?disabled=${t==="save"||e.state!=="captured"} @click=${()=>void this.save()}>${t==="save"?p("wait"):p("capture_save")}</sw-button>`;const i=Te.has(e.state)?a`<sw-button variant="danger" data-wiskey-capture-cancel ?disabled=${!!t} @click=${()=>void this.cancel()}>${t==="cancel"?p("wait"):w("ביטול הקריאה")}</sw-button>`:l,n=["error","captured","cancelled","expired","lost","closed","revoked"].includes(e.state)?a`<sw-button data-wiskey-capture-again ?disabled=${!!t} @click=${()=>this.again()}>${p("capture_again")}</sw-button>`:l,d=e.state==="captured"?a`<sw-button variant="primary" icon="check" data-wiskey-capture-save ?disabled=${!!t} @click=${()=>{this.setError(""),this.step="confirm_save"}}>${p("capture_save")}</sw-button>`:l,o=e.state==="unconfirmed"?a`<sw-button icon="refresh" data-wiskey-capture-reload @click=${()=>{this.clear(),this.dispatchEvent(new CustomEvent("capture-reload",{bubbles:!0,composed:!0}))}}>${w("טען מחדש את הרשומה")}</sw-button>`:l;return a`${s}${i}${n}${o}${d}`}};j.styles=V`
+    .grid2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 10px;
+    }
+    @media (max-width: 480px) {
+      .grid2 {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+    p {
+      margin: 0;
+      font-size: var(--sw-fs-sm);
+    }
+    .muted {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .session,
+    .confirm {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pulse {
+      inline-size: 10px;
+      block-size: 10px;
+      border-radius: 50%;
+      background: var(--sw-accent, var(--sw-success));
+      animation: pulse 1.2s ease-in-out infinite;
+      flex: none;
+    }
+    @keyframes pulse {
+      0%,
+      100% {
+        opacity: 0.3;
+      }
+      50% {
+        opacity: 1;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .pulse {
+        animation: none;
+      }
+    }
+    /* R5-SECURITY: the read card number is the dialog's display figure - 26/800 tabular in a well */
+    .card {
+      font-size: var(--sw-fs-3xl);
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      font-variant-numeric: tabular-nums;
+      color: var(--sw-heading, var(--sw-text));
+      padding: 12px 16px;
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface-2);
+    }
+    .status {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
+    }
+    [data-ltr] {
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
+    .note {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: var(--sw-r-md);
+      font-size: var(--sw-fs-sm);
+    }
+    .note > span {
+      flex: 1 1 200px;
+    }
+    .note.info {
+      background: var(--sw-surface-2);
+      color: var(--sw-text-2);
+    }
+    .note.warn {
+      background: var(--sw-stale-soft);
+      color: var(--sw-text);
+    }
+    .note.err {
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger);
+    }
+    .footer {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+  `;L([y({attribute:!1})],j.prototype,"person",2);L([y({attribute:!1})],j.prototype,"stations",2);L([c()],j.prototype,"step",2);L([c()],j.prototype,"station",2);L([c()],j.prototype,"readers",2);L([c()],j.prototype,"reader",2);L([c()],j.prototype,"busy",2);L([c()],j.prototype,"capture",2);L([c()],j.prototype,"label",2);L([c()],j.prototype,"error",2);L([c()],j.prototype,"errorCode",2);L([c()],j.prototype,"outcome",2);L([c()],j.prototype,"holdUntil",2);L([c()],j.prototype,"now",2);j=L([Y("wiskey-card-capture")],j);function ii(e,t,s){if(!e||!t.manage||!e.editable)return[];const i=["edit"];return e.archived||i.push(e.active?"deactivate":"activate"),!e.archived&&e.active&&(e.access_category==="visitor"||e.access_category==="contractor")&&i.push("temporary_cancel"),e.level==="sensitive"&&(i.push("cards"),s.photoEnabled&&i.push("photo")),i.push(e.archived?"restore":"archive","delete"),i}function Ae(e){return e&&e.pending===!1&&e.effect!=="unknown_effect"?"saved":"pending"}const ai={intercom_person_scope:"err.scope",intercom_field_level:"err.field",intercom_person_not_found:"err.gone",intercom_revision_conflict:"err.revision",intercom_archive_state_changed:"err.archive_state",intercom_person_archived:"err.archived",intercom_not_temporary:"err.not_temporary",intercom_already_inactive:"err.already_inactive",intercom_card_conflict:"err.card_conflict",intercom_card_not_found:"err.card_gone",intercom_approval_required:"err.approval",intercom_pin_interactive_only:"err.pin_interactive",intercom_busy:"err.busy",intercom_rate_limited:"err.busy",intercom_unavailable:"err.unavailable",intercom_duplicate_command:"err.duplicate",intercom_responsible_required:"err.guest",intercom_photo_disabled:"err.photo_disabled",expired:"err.expired",forbidden:"err.forbidden",validation:"err.invalid",intercom_invalid_request:"err.invalid"};function et(e){const t=e.code&&ai[e.code]||"err.generic";return e.outcome==="not_sent"||e.status===403&&e.code==="forbidden"?{state:"not_sent",reason:t}:e.outcome==="refused"?{state:"refused",reason:t}:{state:"unknown",reason:"err.generic"}}function kt(e){return e===404?"confirmed":"pending"}const xt=3e3,Ie=10,ni=/^[A-Za-z0-9_-]{1,32}$/,ri=e=>ni.test(e.trim()),oi=512,li=32768,di=44e3,ci="data:image/jpeg;base64,",pi=[.86,.78,.7,.62,.54,.46,.38];function hi(e,t,s=oi){if(!(e>0)||!(t>0))return{width:1,height:1};const i=Math.min(1,s/Math.max(e,t));return{width:Math.max(1,Math.round(e*i)),height:Math.max(1,Math.round(t*i))}}function ui(e){const t=e.slice(e.indexOf(",")+1),s=t.endsWith("==")?2:t.endsWith("=")?1:0;return Math.floor(t.length*3/4)-s}function fi(e){return e.startsWith(ci)&&e.length<=di&&ui(e)<=li}const zt=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],mi=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],Ct=8,St=64,gi=/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/,wi=/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;function tt(e,t=!1){if(t&&e==="24:00")return 1440;if(!gi.test(e))return null;const[s,i]=e.split(":");return Number(s)*60+Number(i)}function bi(e){if(!wi.test(e))return!1;const[t,s,i]=e.split("-").map(Number),n=new Date(Date.UTC(t,s-1,i));return n.getUTCFullYear()===t&&n.getUTCMonth()===s-1&&n.getUTCDate()===i&&t>=2e3&&t<=2037}function Me(e,t){const s=e?.timing_policy??null,i=s?.schedule??e?.timing_draft??null,n=s?.mode==="native"?"native":s?.mode==="ha"?"ha":"draft";return!i||i.mode!=="weekly"&&i.mode!=="dates"?{mode:"none",enforce:n==="native"?"native":"draft",timezone:t,days:[],dates:[],periods:[{start:"08:00",end:"17:00"}]}:{mode:i.mode,enforce:n,timezone:i.timezone||t,days:[...i.days],dates:[...i.dates],periods:i.periods.length?i.periods.map(d=>({...d})):[{start:"08:00",end:"17:00"}]}}function vi(e,t=()=>!0){if(e.mode==="none"||e.enforce==="native")return null;if(!e.timezone||!t(e.timezone))return"timing.err.zone";if(e.mode==="weekly"){const n=new Set(e.days);if(n.size===0||[...n].some(d=>!zt.includes(d)))return"timing.err.days"}else{const n=new Set(e.dates);if(n.size===0||n.size>St||[...n].some(d=>!bi(d)))return"timing.err.dates"}if(!e.periods.length||e.periods.length>Ct)return"timing.err.periods";const s=e.periods.map(n=>[tt(n.start),tt(n.end,!0)]);if(s.some(([n,d])=>n===null||d===null||n>=d))return"timing.err.order";const i=[...s].sort((n,d)=>n[0]-d[0]);for(let n=1;n<i.length;n++)if(i[n-1][1]>i[n][0])return"timing.err.overlap";return null}function Re(e){return e.mode==="none"?null:{mode:e.mode,timezone:e.timezone,days:e.mode==="weekly"?zt.filter(t=>e.days.includes(t)):[],dates:e.mode==="dates"?[...new Set(e.dates)].sort():[],periods:[...e.periods].map(t=>({start:t.start,end:t.end})).sort((t,s)=>t.start<s.start?-1:t.start>s.start?1:0)}}function yi(e,t,s){if(e.enforce==="native")return{};const i=Me(t,s);if(i.enforce!=="native"&&JSON.stringify([i.mode,i.mode==="none"?null:i.enforce,Re(i)])===JSON.stringify([e.mode,e.mode==="none"?null:e.enforce,Re(e)]))return{};const d=Re(e);return d?e.enforce==="ha"?{access_timing_draft:null,access_timing_policy:{mode:"ha",schedule:d,bindings:{}}}:{access_timing_draft:d,access_timing_policy:null}:{access_timing_draft:null,access_timing_policy:null}}function _i(e,t,s){return e==="staff"||t.trim()&&s?null:"err.guest"}const Et={"actions.open":"פעולות","actions.heading":"פעולות","act.edit":"עריכת פרטים","act.deactivate":"השבתה","act.activate":"הפעלה","act.archive":"העברה לארכיון","act.restore":"שחזור מהארכיון","act.temporary_cancel":"סיום גישה זמנית","act.cards":"כרטיסים","act.photo":"תמונה","act.delete":"מחיקה","confirm.deactivate":"להשבית את הגישה של {name}?","confirm.activate":"להפעיל את הגישה של {name}?","confirm.archive":"להעביר את {name} לארכיון? הגישה תושבת.","confirm.restore":"לשחזר את {name} מהארכיון? האדם יחזור מושבת.","confirm.temporary_cancel":"לסיים עכשיו את הגישה של {name}?","confirm.delete":"למחוק את {name}? ההסרה מהעמדות מתוזמנת.","confirm.remove_card":"להסיר את הכרטיס {mask}?","confirm.remove_photo":"להסיר את התמונה של {name}?","reason.label":"סיבה","reason.visit_completed":"הביקור הסתיים","reason.visit_cancelled":"הביקור בוטל","reason.access_no_longer_needed":"הגישה אינה נחוצה עוד","btn.confirm":"אישור","btn.cancel":"ביטול","btn.close":"סגירה","btn.check":"בדיקה חוזרת","btn.add_card":"הוספת כרטיס","btn.remove":"הסרה","btn.read_card":"קריאה מעמדה","btn.choose_photo":"בחירת תמונה","btn.save_photo":"שמירה","btn.remove_photo":"הסרת התמונה","btn.working":"שולח…","res.saved":"נשמר · {time}","res.pending":"נשלח · ממתין לאישור","res.deleted":"האדם הוסר","res.still_pending":"עדיין לא אושר · אפשר לבדוק שוב","res.unknown":"לא ידוע אם בוצע · טענו מחדש לפני ניסיון נוסף","res.not_sent":"לא נשלח · {reason}","res.refused":"לא בוצע · {reason}","err.scope":"האדם משויך גם לעמדה שאינה בניהולך","err.field":"נדרשת הרשאה לפרטים רגישים","err.gone":"האדם לא נמצא","err.revision":"האדם השתנה בינתיים · טענו מחדש","err.archive_state":"מצב הארכיון כבר השתנה","err.archived":"האדם בארכיון · יש לשחזר לפני הפעלה","err.not_temporary":"רק לאורח או לקבלן","err.already_inactive":"הגישה כבר מושבתת","err.card_conflict":"הכרטיס משויך לאדם אחר","err.card_gone":"הכרטיס כבר אינו משויך","err.card_invalid":"אותיות לטיניות, ספרות, מקף או קו תחתון (עד 32)","err.approval":"הפעולה דורשת אישור נוסף בחלון האינטרקום","err.pin_interactive":"יצירת קוד זמינה רק בדפדפן","err.busy":"עמוס כרגע · נסו שוב בעוד רגע","err.unavailable":"בקרת הכניסה אינה זמינה כרגע","err.duplicate":"הפקודה כבר נשלחה","err.expired":"הבקשה פגה · נסו שוב","err.forbidden":"אין הרשאה לפעולה","err.invalid":"הנתונים אינם תקינים","err.photo_disabled":"תמונות אינן מופעלות","err.guest":"לאורח או לקבלן נדרשים אחראי ותאריך סיום","err.generic":"הפעולה לא בוצעה","photo.processing":"מכין תמונה…","photo.too_big":"התמונה גדולה מדי גם אחרי הקטנה","photo.not_image":"הקובץ אינו תמונה","photo.none":"אין תמונה","photo.preview":"תצוגה מקדימה","cards.number":"מספר כרטיס","cards.label":"תווית","cards.none":"אין כרטיסים","cards.loading":"טוען…","cards.disabled":"מושבת","timing.heading":"מועדי כניסה","timing.mode":"מתי","timing.none":"תמיד","timing.weekly":"ימים קבועים בשבוע","timing.dates":"תאריכים","timing.days":"ימים","timing.dates_label":"תאריכים","timing.add_date":"הוספת תאריך","timing.periods":"שעות","timing.add_period":"הוספת שעות","timing.from":"משעה","timing.to":"עד שעה","timing.zone":"אזור זמן","timing.enforce":"אכיפה","timing.enforce_draft":"הצעה בלבד","timing.enforce_ha":"נאכף במערכת","timing.native_locked":"נאכף בעמדה · נערך בחלון האינטרקום","timing.err.days":"יש לבחור לפחות יום אחד","timing.err.dates":"יש לבחור 1-64 תאריכים בין 2000 ל־2037","timing.err.periods":"יש להגדיר 1-8 טווחי שעות","timing.err.order":"שעת ההתחלה חייבת להיות לפני שעת הסיום","timing.err.overlap":"טווחי השעות חופפים","timing.err.zone":"אזור זמן לא מוכר","day.Sunday":"ראשון","day.Monday":"שני","day.Tuesday":"שלישי","day.Wednesday":"רביעי","day.Thursday":"חמישי","day.Friday":"שישי","day.Saturday":"שבת","cat.label":"סוג גישה","cat.field":"קטגוריה","cat.staff":"עובד","cat.visitor":"אורח","cat.contractor":"קבלן","cat.responsible":"אחראי","cat.purpose":"מטרת הגישה"},Pt=H("en","i18n/access-writes","en");function u(e,t){const s=($e(["en"])==="en"?Pt[e]:void 0)??Et[e]??e;return pe(s,t)}he("i18n/access-writes",{he:Et,en:Pt});const $i=15e3;function G(){return{client_request_id:Qt(),expires_at:Xt(Zt()+$i)}}const ki=["visit_completed","visit_cancelled","access_no_longer_needed"],ie=e=>`intercom/people/${encodeURIComponent(e)}`,xi=(e,t)=>M(`${ie(e)}/archive`,{revision:t,confirmed:!0,...G()}),zi=(e,t)=>M(`${ie(e)}/unarchive`,{revision:t,confirmed:!0,...G()}),st=(e,t,s)=>M(`${ie(e)}/active`,{active:s,revision:t,...G()}),Ci=(e,t,s)=>M(`${ie(e)}/temporary-cancel`,{reason_code:s,revision:t,confirmed:!0,...G()}),Si=(e,t,s)=>M(`${ie(e)}/cards`,{...s,revision:t,...G()}),Ei=(e,t,s)=>M(`${ie(e)}/cards/${encodeURIComponent(s)}/remove`,{revision:t,confirmed:!0,...G()}),Pi=(e,t,s,i=!0)=>ke(`${ie(e)}/photo`,{photo:s,revision:t,sync_now:i,...G()}),Ti=encodeURIComponent,Oi=()=>re("access-control/station-people/stations"),Ri=(e,t=!1)=>re(`access-control/station-people/stations/${Ti(e)}${t?"?refresh=true":""}`),Di=(e,t)=>M("intercom/station-people/check",{station_id:e,employee_no:t}),Ai=(e,t,s)=>M("intercom/station-people/adopt",{employee_no:e,station_ids:t,confirmed:!0,allow_possible_duplicate:s,...G()}),Ii=(e,t,s)=>M("intercom/station-people/ignore",{employee_no:e,station_ids:t,ignored:s,confirmed:!0,...G()}),Mi=(e,t,s)=>M("intercom/station-people/delete",{employee_no:e,station_ids:t,typed:s,confirmed:!0,...G()}),Ni=()=>re("access-control/people-duplicates"),ji=(e,t)=>M("intercom/people/pin-check",{user_id:e,pin:t});function it(e){const t=e.filter(s=>s!==null);return t.length?t.some(Boolean):null}function qi(e){const t=new Map;for(const{station:s,people:i}of e)for(const n of i??[]){const d={...n,station_id:s.id,station_name:s.name},o=t.get(n.employee_no);if(!o){t.set(n.employee_no,{employee_no:n.employee_no,display_name:n.display_name,names:n.display_name?[n.display_name]:[],stations:[d],first_seen_at:n.first_seen_at,ignored:n.ignored,pin:n.pin,cards:n.cards,biometric:n.biometric});continue}o.stations.push(d),!o.display_name&&n.display_name&&(o.display_name=n.display_name),n.display_name&&!o.names.includes(n.display_name)&&o.names.push(n.display_name),n.first_seen_at<o.first_seen_at&&(o.first_seen_at=n.first_seen_at),o.ignored=o.ignored&&n.ignored,o.pin=it(o.stations.map(m=>m.pin)),o.biometric=it(o.stations.map(m=>m.biometric));const f=o.stations.map(m=>m.cards).filter(m=>m!==null);o.cards=f.length?f.reduce((m,$)=>m+$,0):null}return[...t.values()].sort((s,i)=>!s.display_name!=!i.display_name?s.display_name?-1:1:s.display_name.localeCompare(i.display_name,"he")||s.employee_no.localeCompare(i.employee_no))}function Li(e,t,s=""){const i=s.trim().toLocaleLowerCase("he");return e.filter(n=>(t||!n.ignored)&&(!i||n.employee_no.toLowerCase().includes(i)||n.names.some(d=>d.toLocaleLowerCase("he").includes(i))))}function de(e,t){return t==="adopt"?e.stations.filter(s=>s.adoptable&&!s.ignored):t==="ignore"?e.stations.filter(s=>!s.ignored):t==="unignore"?e.stations.filter(s=>s.ignored):e.stations}function Ui(e){return de(e,"adopt").length?"":e.stations.find(s=>s.import_error)?.import_error??(e.stations.every(s=>s.ignored)?"ignored":"review_stale")}function Fi(e,t){return e.trim()===t}function Bi(e){if(!e.length)return"failed";const t=e.filter(s=>s.outcome==="ok").length;return t===e.length?"ok":e.some(s=>s.outcome==="unknown")?"unknown":t?"partial":"failed"}function Ki(e){const t=e??[];return{groups:t,people:new Set(t.flatMap(s=>s.people.map(i=>i.id))).size}}function Vi(e){return typeof e=="string"&&/^[0-9]{4,128}$/.test(e)}const qe={open:"בעמדות בלבד",title:"משתמשים שנמצאים רק בעמדות",intro:"משתמשים שרשומים באחת העמדות או יותר, אבל אינם ברשימת האנשים. אפשר לאמץ, להסתיר או למחוק כל אחד מהם.",refresh:"קריאה מחדש מהעמדות",reading:"קורא את העמדות…",reading_station:"קורא את {name}…",search:"חיפוש לפי שם או מספר",show_ignored:"הצגת מוסתרים",empty:"לא נמצאו בעמדות משתמשים שאינם ברשימת האנשים.",empty_filtered:"אין תוצאות לחיפוש.",no_stations:"אין עמדות שבהן מותר לך לנהל אנשים.",feed_down:"בקרת הכניסה אינה זמינה כרגע, ולכן אי אפשר לקרוא את העמדות. נסו שוב בעוד רגע.",count:"{n} משתמשים",count_one:"משתמש אחד",read_at:"נקרא {when}",cached:"מהקריאה האחרונה",col_name:"שם בעמדה",col_number:"מספר בעמדה",col_stations:"עמדות",col_credentials:"אמצעי זיהוי",col_first_seen:"נראה לראשונה",no_name:"ללא שם",two_names:"שמות שונים בעמדות",pin:"קוד",card:"כרטיס",cards:"{n} כרטיסים",face:"פנים או טביעת אצבע",none:"אין",hidden:"מוסתר",hidden_hint:"אמצעי הזיהוי מוצגים רק עם הרשאה לפרטים רגישים בעמדה.",ignored_badge:"מוסתר",station_off:"{name}: לא נקראה ({reason})",station_numbers_hidden:"{name}: מספרי המשתמשים בעמדה הזו מוגדרים כפרט רגיש",reason_offline:"העמדה אינה מחוברת",reason_busy:"המערכת עסוקה, נסו שוב בעוד רגע",reason_forbidden:"אין הרשאה לקרוא את העמדה",reason_unsupported:"הגרסה המותקנת אינה תומכת בקריאה הזו",reason_generic:"הקריאה נכשלה",act_adopt:"אימוץ",act_ignore:"הסתרה",act_unignore:"ביטול הסתרה",act_delete:"מחיקה מהעמדה",actions_for:"פעולות עבור {name}",adopt_title:"אימוץ משתמש מהעמדה",adopt_text:"ייווצר אדם ברשימת האנשים מתוך המשתמש כפי שהוא רשום בעמדה, כולל הקוד והכרטיסים שלו. שום דבר לא נוצר בעמדה עצמה.",adopt_link:"ברשימת האנשים כבר קיים אדם עם המספר הזה: {name}. האימוץ יקשר אליו את המשתמש בעמדה, בלי ליצור אדם נוסף.",adopt_link_hidden:"ברשימת האנשים כבר קיים אדם עם המספר הזה. האימוץ יקשר אליו את המשתמש בעמדה, בלי ליצור אדם נוסף.",adopt_checking:"בודק אם האדם כבר קיים…",adopt_maybe:"ייתכן שהאדם כבר קיים בשם או בטלפון אחר:",adopt_maybe_hidden:"ייתכן שהאדם כבר קיים ({n} התאמות) ברשומות שאינן בהרשאתך.",adopt_maybe_accept:"בדקתי - זה אדם אחר, לאמץ בכל זאת",adopt_check_failed:"לא ניתן היה לבדוק כפילויות כרגע. האימוץ ייבדק שוב בשרת.",adopt_blocked:"אי אפשר לאמץ את המשתמש כמו שהוא",adopt_go:"אימוץ",ignore_title:"הסתרת משתמש",ignore_text:"המשתמש יוסתר מהרשימה הזו. הוא נשאר בעמדה ויכול להמשיך להיכנס. אפשר לבטל את ההסתרה בכל עת.",unignore_title:"ביטול הסתרה",unignore_text:"המשתמש יחזור להופיע ברשימה.",delete_title:"מחיקת משתמש מהעמדה",delete_text:"המשתמש יימחק מהעמדות שלמטה ולא יוכל עוד להיכנס בהן בקוד, בכרטיס או בפנים. המחיקה מתבצעת בסנכרון ואינה מיידית.",delete_type:"כדי לאשר, הקלידו את מספר המשתמש בעמדה: {n}",delete_go:"מחיקה מהעמדה",stations_list:"עמדות:",confirm:"אישור",cancel:"ביטול",close:"סגירה",working:"שולח…",res_title:"התוצאה",res_ok:"בוצע",res_refused:"נדחה - לא בוצע",res_unknown:"לא ידוע אם בוצע",res_not_sent:"לא נשלח",res_all_ok:"הפעולה בוצעה בכל העמדות.",res_partial:"הפעולה בוצעה רק בחלק מהעמדות. הפרטים לכל עמדה למטה.",res_failed:"הפעולה לא בוצעה.",res_unknown_all:"לחלק מהעמדות אין תוצאה ברורה. רעננו את הרשימה ובדקו לפני שמנסים שוב.",res_pending:"נשלח - ההסרה מהעמדה תתבצע בסנכרון. רעננו את הרשימה בעוד כמה דקות.",res_stored_only:"הוסתר כאן, אך הסימון בבקרת הכניסה לא עודכן.",res_open_person:"פתיחת האדם",imp_unsupported_credentials:"יש לו פנים או טביעת אצבע בעמדה",imp_unmanaged_lock:"מורשה לדלת שאינה מנוהלת",imp_schedule_unverified:"יש לו לוח זמנים שאי אפשר לאמת",imp_pin_device_managed:"הקוד מנוהל בעמדה עצמה",imp_local_validity_needs_conversion:"התוקף רשום בשעון מקומי",imp_device_user_missing:"כבר לא נמצא בעמדה",imp_ignored:"מוסתר בכל העמדות",imp_review_stale:"השתנה מאז הקריאה - רעננו",imp_unknown:"סיבה לא מוכרת",dup_strip:"ייתכן שיש אנשים שרשומים פעמיים ({n} קבוצות)",dup_show:"הצגה",dup_hide:"הסתרה",dup_name:"אותו שם",dup_phone:"אותו טלפון",dup_profile:"אותו ערך ב{label}",dup_more:"ועוד {n}",dup_partial:"הרשימה חלקית.",dup_resolve:"פתחו כל אדם, בדקו אם זה אותו אדם, ותקנו או מחקו את הרשומה הכפולה.",pin_checking:"בודק אם הקוד פנוי…",pin_free:"הקוד פנוי כרגע (ייבדק שוב בשמירה).",pin_taken:"הקוד הזה כבר בשימוש אצל אדם אחר. בחרו קוד אחר או צרו קוד פנוי.",pin_check_failed:"לא ניתן היה לבדוק את הקוד כרגע. הוא ייבדק בשמירה.",pin_check_limited:"יותר מדי בדיקות קוד בזמן קצר. הקוד ייבדק בשמירה."},Tt=H("en","i18n/station-people","en");function g(e,t){const s=($e(["en"])==="en"?Tt[e]:void 0)??qe[e]??e;return pe(s,t)}function Wi(e,t){return g(e in qe?e:t)}he("i18n/station-people",{he:qe,en:Tt});var Yi=Object.defineProperty,Gi=Object.getOwnPropertyDescriptor,C=(e,t,s,i)=>{for(var n=i>1?void 0:i?Gi(t,s):t,d=e.length-1,o;d>=0;d--)(o=e[d])&&(n=(i?o(t,s,n):o(n))||n);return i&&n&&Yi(t,s,n),n};function Hi(e){try{return new Intl.DateTimeFormat("en-US",{timeZone:e}),!0}catch{return!1}}function Ji(){const e=new Uint32Array(1);return crypto.getRandomValues(e),String(1e8+e[0]%9e8)}let Xi=0;const Zi=()=>`row-${++Xi}`;function Qi(e){const t=e.replace(/\D/g,"");return/^05\d{8}$/.test(t)&&/^[\d\s()-]*$/.test(e)?`${t.slice(0,3)}-${t.slice(3,6)}-${t.slice(6)}`:e}let k=class extends W{constructor(){super(...arguments),this.userId="",this.ctx=null,this.ctxNote="",this.original=null,this.draft=null,this.loadError="",this.loading=!0,this.timed=!1,this.validityFrom="",this.validityUntil="",this.busy="",this.error="",this.errorCode="",this.errorTone="err",this.outcome="",this.pinStatus="",this.pinReveal=null,this.pinCopy="",this.pinCheck="",this.pinCheckSeq=0,this.confirmDelete=!1,this.confirmClose=!1,this.capturing=!1,this.notice="",this.sensitive=!0,this.cardsKnown=!0,this.baseline="",this.generation=0}connectedCallback(){super.connectedCallback(),this.load()}disconnectedCallback(){super.disconnectedCallback(),this.generation++}get zone(){return this.ctx?.default_zone??te}get isNew(){return!this.userId}async load(){const e=++this.generation;this.loading=!0,this.loadError="";try{const[t,s]=await Promise.all([vt(),this.isNew?null:ye(this.userId)]);if(e!==this.generation)return;if(t.context?this.ctx=t.context:this.ctxNote=t.state==="unsupported"?w("בקרת הכניסה המותקנת אינה מכירה את הפקודות הנדרשות."):w("נתוני התחנות לא נטענו ({reason}).",{reason:t.last_error??t.state}),this.isNew)this.edit(null);else{if(!s?.person){this.loadError=w("הרשומה לא נטענה ({reason}).",{reason:s?.last_error??s?.state??"error"});return}this.edit(s.person)}}catch(t){if(e!==this.generation)return;this.loadError=t instanceof z&&t.code==="intercom_person_not_found"?w("האדם הזה לא נמצא (ייתכן שנמחק)."):t instanceof z&&t.code==="intercom_person_scope"?u("err.scope"):F(t)}finally{e===this.generation&&(this.loading=!1)}}edit(e){this.original=e,this.pinStatus="",this.hidePin(),this.notice="",this.error="",this.errorCode="",this.outcome="";const t=this.zone.kind==="iana"?this.zone.name:"UTC";if(e){this.sensitive=e.level!=="names",this.cardsKnown=e.cards!==null;const s=e.access_category==="visitor"||e.access_category==="contractor"?e.access_category:"staff";this.draft={employee_no:e.employee_no??"",display_name:e.display_name,phone:e.phone??"",active:e.active,confirm_pin:"",cards:(e.cards??[]).map(i=>({key:i.id,id:i.id,masked_number:i.masked_number,card_no:"",label:i.label,enabled:i.enabled})),assignments:Object.fromEntries(e.stations.map(i=>[i.station_id,{enabled:i.enabled,allowed_locks:[...i.doors],sync_state:i.sync_state}])),overrides:{...e.permission_overrides},category:s,responsible:e.responsible_person??"",purpose:e.access_purpose??"",timing:Me(e,t)},this.timed=!!e.valid_from,this.validityFrom=Be(e.valid_from,this.zone),this.validityUntil=Be(e.valid_until,this.zone)}else this.sensitive=!T()||Ce("access.people.sensitive"),this.cardsKnown=!0,this.draft={employee_no:Ji(),display_name:"",phone:"",active:!0,confirm_pin:"",cards:[],assignments:{},overrides:{},category:"staff",responsible:"",purpose:"",timing:Me(null,t)},this.timed=!1,this.validityFrom="",this.validityUntil="";this.baseline=this.snapshot()}snapshot(){return JSON.stringify([this.draft,this.timed,this.validityFrom,this.validityUntil])}get dirty(){return!!this.draft&&this.snapshot()!==this.baseline}patch(e,t){this.draft&&(this.draft={...this.draft,[e]:t})}pinBlocked(){return!this.draft||!this.ctx?!1:this.ctx.stations.some(e=>this.draft.assignments[e.id]?.enabled&&e.pin_writable===!1)}async generatePin(){if(!(!this.draft||this.busy)){this.busy="pin",this.pinStatus="",this.hidePin(),this.error="";try{const e=await es(this.userId);e.pin?(this.draft={...this.draft,pin:e.pin.pin,confirm_pin:e.pin.pin},this.pinStatus="generated",this.pinCheck="",this.pinReveal=e.pin.pin):(this.pinStatus="failed",this.setError(e.last_error==="pin_generation_failed"?p("pin_generation_failed"):`${p("pin_generation_failed")} (${e.last_error??e.state})`,"err",e.last_error??e.state))}catch(e){this.pinStatus="failed",this.setError(F(e),"err",e instanceof z?e.code:"error")}finally{this.busy=""}}}async copyPin(){const e=this.pinReveal;if(e)try{if(!navigator.clipboard?.writeText)throw new Error("clipboard unavailable");if(await navigator.clipboard.writeText(e),this.pinReveal!==e)return;this.pinReveal=null,this.pinCopy="copied"}catch{this.pinReveal===e&&(this.pinCopy="manual")}}hidePin(){this.pinReveal=null,this.pinCopy=""}async checkPinFree(){const e=this.draft?.pin,t=++this.pinCheckSeq;if(!T()||!Ce("access.people.sensitive")||!Vi(e)){this.pinCheck="";return}this.pinCheck="checking";try{const s=await ji(this.userId,e);if(t!==this.pinCheckSeq)return;this.pinCheck=s.available===!0?"free":s.available===!1?"taken":"failed"}catch(s){if(t!==this.pinCheckSeq)return;this.pinCheck=s instanceof z&&s.status===429?"limited":"failed"}}readValidity(){const e=Ke(this.validityFrom,this.zone,this.original?.valid_from??void 0),t=Ke(this.validityUntil,this.zone,this.original?.valid_until??void 0);if(!e||!t)throw new Error("invalid_validity");return{from:e,until:t}}setError(e,t,s="",i=""){this.error=e,this.errorTone=t,this.errorCode=s,this.outcome=i}async save(e){const t=this.draft;if(!t||this.busy)return;this.hidePin(),this.error="",this.errorCode="",this.outcome="";let s=null;if(this.timed)try{s=this.readValidity()}catch(m){this.setError(p(m.message),"err",m.message);return}if(t.pin&&t.pin!==t.confirm_pin){this.setError(p("pin_mismatch"),"err","pin_mismatch");return}if(s&&Date.parse(s.from)>=Date.parse(s.until)){this.setError(p("invalid_validity"),"err","invalid_validity");return}const i=this.renderRoot.querySelector("form");if(i&&!i.reportValidity()){this.setError(p("field_required"),"err","field_required");return}const n=this.zone.kind==="iana"?this.zone.name:"UTC",d=vi(t.timing,Hi);if(d){this.setError(u(d),"err",d);return}const o=this.sensitive?_i(t.category,t.responsible,!!s):null;if(o){this.setError(u(o),"err",o);return}const f={display_name:t.display_name,active:t.active,valid_from:s?s.from:null,valid_until:s?s.until:null,permission_overrides:{...t.overrides},door_permissions:Object.fromEntries(Object.entries(t.assignments).filter(([,m])=>m.enabled).map(([m,$])=>[m,[...$.allowed_locks].sort()])),...yi(t.timing,this.original,n)};(this.isNew||this.original?.employee_no!==null)&&(f.employee_no=t.employee_no),(this.isNew||t.category!==(this.original?.access_category??"staff"))&&(f.access_category=t.category),this.sensitive&&(f.phone=t.phone??"",(this.isNew||t.responsible!==(this.original?.responsible_person??""))&&(f.responsible_person=t.responsible),(this.isNew||t.purpose!==(this.original?.access_purpose??""))&&(f.access_purpose=t.purpose),this.cardsKnown&&(f.cards=t.cards.map(m=>m.id?{id:m.id,label:m.label,enabled:m.enabled}:{card_no:m.card_no,label:m.label,enabled:m.enabled})),t.pin!==void 0&&(f.pin=t.pin)),typeof this.ctx?.profile_policy?.revision=="number"&&(f.access_policy_revision=this.ctx.profile_policy.revision),this.busy=e?"sync":"save";try{const m=this.isNew?await ts(f,e):await ss(this.userId,this.original?.revision??0,f,e);if(!m.person)throw new Error("empty reply");this.draft=null,this.dispatchEvent(new CustomEvent("editor-saved",{detail:{person:m.person,notice:e?"saved_sync":"saved",note:m.note,pending:Ae(m)==="pending"},bubbles:!0,composed:!0}))}catch(m){this.showFailure(m)}finally{this.busy=""}}showFailure(e){const t=me(e),s=e instanceof z?e.code:"error";if(t==="unknown"){this.setError(u("res.unknown"),"warn",s,"unknown");return}const i={intercom_person_scope:"err.scope",intercom_field_level:"err.field",intercom_approval_required:"err.approval",intercom_person_archived:"err.archived",intercom_responsible_required:"err.guest",intercom_pin_interactive_only:"err.pin_interactive",intercom_busy:"err.busy",intercom_rate_limited:"err.busy",intercom_unavailable:"err.unavailable",intercom_duplicate_command:"err.duplicate",expired:"err.expired"};s==="intercom_pin_conflict"?this.setError(p("pin_conflict"),"err",s,t):s==="intercom_revision_conflict"?this.setError(p("revision_conflict"),"err",s,t):s==="intercom_card_conflict"?this.setError(p("card_conflict"),"err",s,t):s==="intercom_employee_conflict"?this.setError(p("employee_conflict"),"err",s,t):i[s]?this.setError(u(i[s]),"err",s,t):this.setError(F(e),"err",s,t)}async reload(){this.isNew||(this.loading=!0,this.draft=null,await this.load())}askDelete(){if(this.dirty){this.setError(p("profile_save_first"),"err","profile_save_first");return}this.confirmDelete=!0}async doDelete(){const e=this.original;if(!(!e||this.busy)){this.busy="delete",this.error="";try{const t=await yt(e.id,e.revision??0);this.confirmDelete=!1,this.draft=null,this.dispatchEvent(new CustomEvent("editor-deleted",{detail:{id:e.id,notice:"deleted",note:t.note,pending:Ae(t)==="pending"},bubbles:!0,composed:!0}))}catch(t){this.confirmDelete=!1,this.showFailure(t)}finally{this.busy=""}}}requestClose(){if(!this.busy){if(this.dirty){this.confirmClose=!0;return}this.close()}}close(){this.draft=null,this.hidePin(),this.dispatchEvent(new CustomEvent("editor-close",{bubbles:!0,composed:!0}))}setStation(e,t){if(!this.draft)return;const s=this.draft.assignments[e],i=s?.allowed_locks.length?s.allowed_locks:[1];this.draft={...this.draft,assignments:{...this.draft.assignments,[e]:{enabled:t,allowed_locks:i,sync_state:s?.sync_state??null}},overrides:{...this.draft.overrides,[e]:t?"allow":"deny"}}}setLock(e,t,s){if(!this.draft)return;const i=this.draft.assignments[e];if(!i)return;const n=s?[...i.allowed_locks,t].sort():i.allowed_locks.filter(d=>d!==t);n.length?this.patch("assignments",{...this.draft.assignments,[e]:{...i,allowed_locks:n}}):this.setStation(e,!1)}setAll(e){if(!this.draft||!this.ctx)return;const t={...this.draft.assignments},s={...this.draft.overrides};for(const i of this.ctx.stations){if(!i.lock_enabled)continue;const n=t[i.id];t[i.id]={enabled:e,allowed_locks:n?.allowed_locks.length?n.allowed_locks:[1],sync_state:n?.sync_state??null},s[i.id]=e?"allow":"deny"}this.draft={...this.draft,assignments:t,overrides:s}}render(){const e=this.isNew?"new":"edit";return a`<sw-dialog open xl heading=${p(this.isNew?"add_user":"edit_user")} subheading=${`${this.draft?.display_name||(this.isNew?p("new_person_heading"):"")} · ${p("editor_intro")}`}
+        @beforeclose=${t=>{t.preventDefault(),this.requestClose()}}>
+        <div class="body" data-wiskey-editor data-wiskey-editor-mode=${e}>${this.renderBody()}</div>
+        ${this.draft?this.renderFooter():l}
+      ${this.confirmDelete?this.renderDeleteConfirm():l}
+      ${this.confirmClose?this.renderCloseConfirm():l}
+      ${this.capturing&&this.original&&this.ctx?a`<wiskey-card-capture
+            .person=${this.original}
+            .stations=${this.captureStations()}
+            @capture-close=${()=>this.capturing=!1}
+            @capture-saved=${t=>this.captured(t.detail.person,t.detail.note)}
+            @capture-reload=${()=>{this.capturing=!1,this.reload()}}
+          ></wiskey-card-capture>`:l}
+    </sw-dialog>`}renderBody(){if(this.loading&&!this.draft)return a`<sw-state-panel state="loading"></sw-state-panel>`;if(this.loadError||!this.draft)return a`<sw-state-panel data-wiskey-editor-load-error state="error" heading=${w("לא ניתן לפתוח את העורך")} hint=${this.loadError||w("הרשומה לא נטענה.")}></sw-state-panel>
+        <div class="row"><sw-button size="sm" icon="refresh" data-wiskey-editor-retry ?disabled=${this.loading} @click=${()=>void this.load()}>${w("נסו שוב")}</sw-button></div>`;const e=this.draft,t=this.ctx,s=this.pinBlocked();return a`
+      ${this.renderContextNotes()}
+      ${this.notice?a`<div class="note info" role="status" data-wiskey-editor-notice><sw-icon name="check" size=${16}></sw-icon><span>${this.notice}</span></div>`:l}
+      ${this.error?this.renderError():l}
+      <form @submit=${i=>i.preventDefault()}>
+        <p class="hint">${p("save_hint")}</p>
+        <div class="columns">
+          <div class="column">
+            <fieldset data-wiskey-editor-section="person">
+              <legend><sw-icon name="user" size=${16}></sw-icon>${p("person_details")}</legend>
+              <div class="grid2">
+                <sw-field label=${p("name")}>
+                  <input required autofocus maxlength="32" data-wiskey-editor-name .value=${x(e.display_name)} @input=${i=>this.patch("display_name",i.target.value)} />
+                </sw-field>
+                <sw-field label=${p("employee_id")} hint=${this.original?.identity_locked?p("employee_locked"):""}>
+                  <input required pattern="[A-Za-z0-9_-]{1,32}" maxlength="32" data-ltr data-wiskey-editor-employee .value=${x(e.employee_no)} ?disabled=${!!this.original?.identity_locked} @input=${i=>this.patch("employee_no",i.target.value)} />
+                </sw-field>
+              </div>
+              ${this.sensitive?a`<sw-field label=${p("phone")}>
+                    <input type="tel" autocomplete="tel" maxlength="32" data-ltr placeholder="05X-xxx-xxxx" data-wiskey-editor-phone .value=${x(e.phone)} @input=${i=>this.patch("phone",Qi(i.target.value))} />
+                  </sw-field>`:l}
+              <label class="check"><input type="checkbox" data-wiskey-editor-active .checked=${x(e.active)} ?disabled=${!!this.original?.archived} @change=${i=>this.patch("active",i.target.checked)} />${p("active")}</label>
+            </fieldset>
+            ${this.renderCategory()}
+            ${this.isNew?l:this.renderActions()}
+            ${this.renderValidity()}
+            ${this.renderTiming()}
+            ${this.sensitive?this.renderPin(s):l}
+          </div>
+          <div class="column">
+            ${this.sensitive&&this.cardsKnown?this.renderCards():l}
+            ${t?this.renderAssignments(t):a`<fieldset data-wiskey-editor-section="assignments"><legend>${p("assignments")}</legend><p class="muted">${this.ctxNote||w("רשימת התחנות לא נטענה, ולכן אי אפשר לערוך הרשאות לתחנות כאן.")}</p></fieldset>`}
+          </div>
+        </div>
+      </form>
+    `}renderContextNotes(){const e=this.ctx,t=[];return e&&(e.writes_listed===!1||e.users_manage===!1)?t.push(a`<div class="note err" role="alert" data-wiskey-editor-note="no_users_manage">${w("חשבון המערכת אינו מורשה לנהל אנשים בבקרת הכניסה. שמירה תידחה.")}</div>`):e&&e.writes_listed===null&&t.push(a`<div class="note info" role="note" data-wiskey-editor-note="writes_unverified">${w("לא ידוע אם חשבון המערכת מורשה לנהל אנשים; דחייה תוצג כאן.")}</div>`),this.ctxNote&&t.push(a`<div class="note warn" role="status" data-wiskey-editor-note="context">${this.ctxNote}</div>`),e?.profile_policy&&(e.profile_policy.fields||e.profile_policy.groups)&&t.push(a`<div class="note info" role="note" data-wiskey-editor-note="profile">${w("שדות פרופיל וקבוצות נערכים בחלון האינטרקום. ביטול סימון של תחנה שמגיעה מקבוצה חוסם אותה לאדם הזה.")}</div>`),t}renderCategory(){const e=this.draft,t=e.category!=="staff";return a`<fieldset data-wiskey-editor-section="category">
+      <legend><sw-icon name="users" size=${16}></sw-icon>${u("cat.label")}</legend>
+      <sw-field label=${u("cat.field")}>
+        <sw-dropdown block data-wiskey-editor-category label=${u("cat.field")} .value=${e.category}
+          .items=${["staff","visitor","contractor"].map(s=>({id:s,label:u(`cat.${s}`)}))}
+          @change=${s=>this.patch("category",s.detail.id)}></sw-dropdown>
+      </sw-field>
+      ${t&&this.sensitive?a`<div class="grid2">
+            <sw-field label=${u("cat.responsible")}>
+              <input maxlength="64" data-wiskey-editor-responsible .value=${x(e.responsible)} @input=${s=>this.patch("responsible",s.target.value)} />
+            </sw-field>
+            <sw-field label=${u("cat.purpose")}>
+              <input maxlength="128" data-wiskey-editor-purpose .value=${x(e.purpose)} @input=${s=>this.patch("purpose",s.target.value)} />
+            </sw-field>
+          </div>`:l}
+    </fieldset>`}setTiming(e){this.draft&&this.patch("timing",{...this.draft.timing,...e})}renderTiming(){const e=this.draft.timing,t=e.enforce==="native";return a`<fieldset data-wiskey-editor-section="timing" data-wiskey-editor-timing-mode=${e.mode}>
+      <legend><sw-icon name="clock" size=${16}></sw-icon>${u("timing.heading")}</legend>
+      ${t?a`<p class="muted" data-wiskey-editor-timing-native>${u("timing.native_locked")}</p>`:a`<div class="grid2">
+            <sw-field label=${u("timing.mode")}>
+              <sw-dropdown block data-wiskey-editor-timing-select label=${u("timing.mode")} .value=${e.mode}
+                .items=${[{id:"none",label:u("timing.none")},{id:"weekly",label:u("timing.weekly")},{id:"dates",label:u("timing.dates")}]}
+                @change=${s=>this.setTiming({mode:s.detail.id})}></sw-dropdown>
+            </sw-field>
+            ${e.mode==="none"?l:a`<sw-field label=${u("timing.enforce")}>
+                  <sw-dropdown block data-wiskey-editor-timing-enforce label=${u("timing.enforce")} .value=${e.enforce}
+                    .items=${[{id:"draft",label:u("timing.enforce_draft")},{id:"ha",label:u("timing.enforce_ha")}]}
+                    @change=${s=>this.setTiming({enforce:s.detail.id})}></sw-dropdown>
+                </sw-field>`}
+          </div>
+          ${e.mode==="weekly"?a`<div class="days" role="group" aria-label=${u("timing.days")} data-wiskey-editor-timing-days>
+                ${mi.map(s=>a`<label class="check day"><input type="checkbox" data-timing-day=${s} .checked=${x(e.days.includes(s))}
+                  @change=${i=>this.setTiming({days:i.target.checked?[...e.days,s]:e.days.filter(n=>n!==s)})} />${u(`day.${s}`)}</label>`)}
+              </div>`:l}
+          ${e.mode==="dates"?a`<div class="dates" role="group" aria-label=${u("timing.dates_label")} data-wiskey-editor-timing-dates>
+                ${e.dates.map((s,i)=>a`<div class="row"><input type="date" lang=${ee()} data-timing-date=${i} min="2000-01-01" max="2037-12-31" .value=${x(s)}
+                    @change=${n=>this.setTiming({dates:e.dates.map((d,o)=>o===i?n.target.value:d)})} />
+                  <sw-button size="sm" variant="ghost" iconOnly icon="trash" label=${p("remove")} @click=${()=>this.setTiming({dates:e.dates.filter((n,d)=>d!==i)})}></sw-button></div>`)}
+                <sw-button size="sm" icon="plus" data-timing-add-date ?disabled=${e.dates.length>=St} @click=${()=>this.setTiming({dates:[...e.dates,""]})}>${u("timing.add_date")}</sw-button>
+              </div>`:l}
+          ${e.mode==="none"?l:a`<div class="periods" role="group" aria-label=${u("timing.periods")} data-wiskey-editor-timing-periods>
+                ${e.periods.map((s,i)=>a`<div class="row period" data-timing-period=${i}>
+                  <sw-field label=${u("timing.from")}><input type="time" lang=${ee()} data-timing-start .value=${x(s.start)}
+                    @change=${n=>this.setTiming({periods:e.periods.map((d,o)=>o===i?{...d,start:n.target.value}:d)})} /></sw-field>
+                  <sw-field label=${u("timing.to")}><input type="time" lang=${ee()} data-timing-end .value=${x(s.end==="24:00"?"23:59":s.end)}
+                    @change=${n=>this.setTiming({periods:e.periods.map((d,o)=>o===i?{...d,end:n.target.value}:d)})} /></sw-field>
+                  ${e.periods.length>1?a`<sw-button size="sm" variant="ghost" iconOnly icon="trash" label=${p("remove")} @click=${()=>this.setTiming({periods:e.periods.filter((n,d)=>d!==i)})}></sw-button>`:l}
+                </div>`)}
+                <sw-button size="sm" icon="plus" data-timing-add-period ?disabled=${e.periods.length>=Ct} @click=${()=>this.setTiming({periods:[...e.periods,{start:"08:00",end:"17:00"}]})}>${u("timing.add_period")}</sw-button>
+                <sw-field label=${u("timing.zone")}><input data-ltr data-timing-zone maxlength="128" .value=${x(e.timezone)} @input=${s=>this.setTiming({timezone:s.target.value.trim()})} /></sw-field>
+              </div>`}`}
+    </fieldset>`}renderActions(){return a`<fieldset data-wiskey-editor-section="actions">
+      <legend>${p("user_more_actions")}</legend>
+      <div class="row">
+        <sw-button variant="danger" size="sm" icon="trash" data-wiskey-editor-delete ?disabled=${!!this.busy} @click=${()=>this.askDelete()}>${p("delete")}</sw-button>
+      </div>
+      <p class="muted">${p("profile_save_first")}</p>
+    </fieldset>`}renderValidity(){return a`<fieldset data-wiskey-editor-section="validity">
+      <legend><sw-icon name="calendar" size=${16}></sw-icon>${p("validity")}</legend>
+      <sw-field label=${p("user_timing_mode")}>
+        <sw-dropdown block data-wiskey-editor-validity-mode label=${p("user_timing_mode")} .value=${this.timed?"period":"always"}
+          .items=${[{id:"always",label:p("permanent")},{id:"period",label:p("period")}]}
+          @change=${e=>this.timed=e.detail.id==="period"}></sw-dropdown>
+      </sw-field>
+      ${this.timed?a`<div class="grid2">
+              <sw-field label=${p("valid_from")}>
+                <input required type="datetime-local" lang=${ee()} data-wiskey-editor-valid-from .value=${x(this.validityFrom)} @input=${e=>this.validityFrom=e.target.value} />
+              </sw-field>
+              <sw-field label=${p("valid_until")}>
+                <input required type="datetime-local" lang=${ee()} data-wiskey-editor-valid-until .value=${x(this.validityUntil)} @input=${e=>this.validityUntil=e.target.value} />
+              </sw-field>
+            </div>
+            <p class="muted">${p("clock_ha_zone")}: <bdi>${this.zone.name}</bdi>. ${p("validity_hint")}</p>`:a`<p class="muted">${p("permanent")}</p>`}
+    </fieldset>`}renderPin(e){const t=this.draft,s=!!this.original?.pin_configured,i=t.pin===null;return a`<fieldset data-wiskey-editor-section="pin" data-wiskey-editor-pin-configured=${String(s)}>
+      <legend><sw-icon name="lock" size=${16}></sw-icon>${p("pin")} · ${p(s?"configured":"not_configured")}</legend>
+      <p class="muted">${p("pin_private")}</p>
+      ${e?a`<p class="danger" data-wiskey-editor-pin-blocked>${p("pin_mode_blocked")}</p>`:l}
+      <div class="grid2">
+        <sw-field label=${p("new_pin")}>
+          <input type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="128" data-ltr data-wiskey-editor-pin .value=${x(t.pin??"")} ?disabled=${e||i} @input=${n=>{this.hidePin(),this.pinCheckSeq++,this.pinCheck="",this.patch("pin",n.target.value||void 0)}} @change=${()=>void this.checkPinFree()} />
+        </sw-field>
+        <sw-field label=${p("confirm_pin")}>
+          <input type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="128" data-ltr data-wiskey-editor-pin-confirm .value=${x(t.confirm_pin)} ?disabled=${e||i} @input=${n=>{this.hidePin(),this.patch("confirm_pin",n.target.value)}} />
+        </sw-field>
+      </div>
+      <div aria-live="polite" data-wiskey-editor-pin-status=${this.pinStatus}>
+        ${this.pinCheck==="checking"?a`<p class="muted" data-wiskey-editor-pin-check="checking">${g("pin_checking")}</p>`:l}
+        ${this.pinCheck==="free"?a`<p class="ok" data-wiskey-editor-pin-check="free">${g("pin_free")}</p>`:l}
+        ${this.pinCheck==="taken"?a`<p class="danger" data-wiskey-editor-pin-check="taken">${g("pin_taken")}</p>`:l}
+        ${this.pinCheck==="failed"?a`<p class="muted" data-wiskey-editor-pin-check="failed">${g("pin_check_failed")}</p>`:l}
+        ${this.pinCheck==="limited"?a`<p class="muted" data-wiskey-editor-pin-check="limited">${g("pin_check_limited")}</p>`:l}
+        ${this.pinStatus==="generated"?a`<p class="ok">${w("נוצר קוד פנוי ומולא בשני השדות. הוא אינו שמור עדיין - הוא ייבדק שוב בשמירה.")}</p>`:l}
+        ${this.pinReveal?a`<div class="reveal" data-wiskey-editor-pin-reveal>
+              <span>${w("הקוד שנוצר (מוצג פעם אחת, כדי למסור אותו):")}</span>
+              <bdi class="pin" data-ltr data-wiskey-editor-pin-reveal-value>${this.pinReveal}</bdi>
+              <sw-button size="sm" icon="check" data-wiskey-editor-pin-copy @click=${()=>void this.copyPin()}>${w("העתק")}</sw-button>
+              <sw-button size="sm" variant="ghost" icon="eye" data-wiskey-editor-pin-hide @click=${()=>this.hidePin()}>${w("הסתר")}</sw-button>
+            </div>`:l}
+        ${this.pinCopy==="copied"?a`<p class="ok" data-wiskey-editor-pin-copied>${w("הקוד הועתק ללוח והוסתר.")}</p>`:l}
+        ${this.pinCopy==="manual"?a`<p class="danger" data-wiskey-editor-pin-copy-failed>${w('העתקה אוטומטית אינה זמינה בדפדפן הזה (למשל בחיבור שאינו מאובטח). סמנו את הקוד והעתיקו ידנית, ואז לחצו "הסתר".')}</p>`:l}
+      </div>
+      <div class="row">
+        ${this.ctx?.pin_generate===!1?l:a`<sw-button size="sm" data-wiskey-editor-pin-generate ?disabled=${e||i||!!this.busy} @click=${()=>void this.generatePin()}>${this.busy==="pin"?p("wait"):p("generate_unique_pin")}</sw-button>`}
+        ${i?a`<sw-badge kind="stale" label=${p("remove_pin")}></sw-badge>
+              <sw-button size="sm" variant="ghost" data-wiskey-editor-pin-keep @click=${()=>{this.draft={...t,pin:void 0,confirm_pin:""},this.pinStatus="",this.hidePin()}}>${p("keep_pin")}</sw-button>`:a`<sw-button size="sm" variant="danger" data-wiskey-editor-pin-remove ?disabled=${e||!s} @click=${()=>{this.draft={...t,pin:null,confirm_pin:""},this.pinStatus="",this.hidePin()}}>${p("remove_pin")}</sw-button>`}
+      </div>
+      <p class="muted">${p("pin_physical")} ${w("קוד תפוס יידחה בשמירה.")}</p>
+    </fieldset>`}renderCards(){const e=this.draft;return a`<fieldset data-wiskey-editor-section="cards">
+      <legend><sw-icon name="grid" size=${16}></sw-icon>${p("cards")}</legend>
+      ${ce(e.cards,t=>t.key,t=>a`<div class="card-row" data-wiskey-editor-card=${t.id?"saved":"new"}>
+          <div class="grid2">
+            <sw-field label=${p("card_label")}>
+              <input maxlength="64" data-wiskey-editor-card-label .value=${x(t.label)} @input=${s=>this.editCard(t.key,{label:s.target.value})} />
+            </sw-field>
+            <sw-field label=${p("card_number")} hint=${t.id?p("masked"):""}>
+              ${t.id?a`<input readonly data-ltr data-wiskey-editor-card-masked .value=${t.masked_number??"••••"} aria-label=${p("masked")} />`:a`<input required pattern="[A-Za-z0-9_-]+" maxlength="32" autocomplete="off" data-ltr data-wiskey-editor-card-number .value=${x(t.card_no)} @input=${s=>this.editCard(t.key,{card_no:s.target.value})} />`}
+            </sw-field>
+          </div>
+          <div class="row between">
+            <label class="check"><input type="checkbox" data-wiskey-editor-card-enabled .checked=${x(t.enabled)} @change=${s=>this.editCard(t.key,{enabled:s.target.checked})} />${p("active")} · ${p("normal_card")}</label>
+            <sw-button size="sm" variant="ghost" icon="trash" data-wiskey-editor-card-remove @click=${()=>this.patch("cards",e.cards.filter(s=>s.key!==t.key))}>${p("remove")}</sw-button>
+          </div>
+        </div>`)}
+      <div class="row">
+        <sw-button size="sm" icon="plus" data-wiskey-editor-card-add @click=${()=>this.patch("cards",[...e.cards,{key:Zi(),card_no:"",label:"",enabled:!0}])}>${p("add_card")}</sw-button>
+      </div>
+      ${this.renderCapture()}
+      <p class="muted">${w("מספר כרטיס שמור מוצג ממוסך; המספר המלא אינו זמין לאחר השמירה.")}</p>
+    </fieldset>`}captureStations(){const e=this.ctx?.capture_stations;return(this.ctx?.stations??[]).filter(t=>e===void 0||e.includes(t.id))}renderCapture(){if(!T())return l;if(!Ce("access.cards.capture"))return l;const e=this.captureStations().some(t=>t.lock_enabled&&t.online);return a`<div class="capture" data-wiskey-editor-capture>
+      <sw-button size="sm" icon="wifi" data-wiskey-editor-capture-open ?disabled=${!!this.busy||this.isNew||!this.ctx||!e} @click=${()=>this.openCapture()}>${p("capture_card")}</sw-button>
+      <p class="muted">${p(this.isNew?"capture_save_user_first":"capture_from_editor_hint")}${!this.isNew&&this.ctx&&!e?` ${w("אין כרגע אינטרקום מחובר עם מנעול מנוהל.")}`:""}</p>
+    </div>`}openCapture(){if(!(this.busy||this.isNew||!this.original)){if(this.dirty){this.setError(p("profile_save_first"),"err","profile_save_first");return}this.notice="",this.setError("","err"),this.capturing=!0}}captured(e,t){this.capturing=!1;const s=this.original?.cards?.length??0;this.edit(e),this.notice=u("res.pending"),this.userId&&ye(this.userId).then(i=>{!i.person||!this.isConnected||(this.edit(i.person),this.notice=(i.person.cards?.length??0)>s?p("capture_state_confirmed"):u("res.still_pending"))}).catch(()=>{})}editCard(e,t){this.draft&&this.patch("cards",this.draft.cards.map(s=>s.key===e?{...s,...t}:s))}renderAssignments(e){const t=this.draft,s=Object.values(t.assignments).filter(i=>i.enabled).length;return a`<fieldset data-wiskey-editor-section="assignments">
+      <legend><sw-icon name="door" size=${16}></sw-icon>${p("assignments")}</legend>
+      <div class="row">
+        <sw-button size="sm" variant="ghost" data-wiskey-editor-stations-all @click=${()=>this.setAll(!0)}>${p("select_all_stations")}</sw-button>
+        <sw-button size="sm" variant="ghost" data-wiskey-editor-stations-clear @click=${()=>this.setAll(!1)}>${p("clear_stations")}</sw-button>
+        <span class="muted" data-wiskey-editor-stations-count=${s}>${p("selected_stations")}: ${s}</span>
+      </div>
+      ${e.stations.length?l:a`<p class="muted">${p("no_stations")}</p>`}
+      ${e.stations.map(i=>{const n=t.assignments[i.id],d=!!n?.enabled,o=d&&n?cs(n.sync_state??"pending"):null;return a`<div class="station" data-wiskey-editor-station=${i.id} data-wiskey-editor-station-enabled=${String(d)}>
+          <label class="check">
+            <input type="checkbox" data-wiskey-editor-station-toggle .checked=${x(d)} ?disabled=${!i.lock_enabled} @change=${f=>this.setStation(i.id,f.target.checked)} />
+            <b>${i.name}</b>
+          </label>
+          <sw-badge kind=${i.online?"recorded":"offline"} label=${p(i.online?"online":"offline")}></sw-badge>
+          <span class="muted">${i.lock_enabled?`${p("station_access")}${i.locks.length===1&&i.locks[0].name?` · ${i.locks[0].name}`:""}`:p("camera_only")}</span>
+          ${d&&i.locks.length>1?a`<div class="locks">
+                ${i.locks.map(f=>a`<label class="check"><input type="checkbox" data-wiskey-editor-lock=${f.physical_index} .checked=${x(n.allowed_locks.includes(f.physical_index))} @change=${m=>this.setLock(i.id,f.physical_index,m.target.checked)} />${f.name||`${p("physical_lock")} ${f.physical_index}`}</label>`)}
+              </div>`:l}
+          ${o?a`<sw-badge kind=${o.kind} label=${o.label}></sw-badge>`:l}
+        </div>`})}
+    </fieldset>`}renderError(){const e=this.outcome==="unknown",t=this.errorCode==="intercom_revision_conflict";return a`<div class="note ${this.errorTone}" role="alert" data-wiskey-editor-error data-wiskey-editor-error-code=${this.errorCode} data-wiskey-editor-outcome=${this.outcome}>
+      <sw-icon name=${e?"warning":"info"} size=${16}></sw-icon>
+      <span>${this.error}${e&&!this.isNew?` ${w("טענו מחדש את הרשומה והשוו את הגרסה לפני ניסיון נוסף.")}`:""}${e&&this.isNew?` ${w("חפשו את מזהה העובד בספריית האנשים לפני שיוצרים שוב.")}`:""}${this.errorCode==="intercom_pin_conflict"?` ${w('אפשר ללחוץ על "{action}".',{action:p("generate_unique_pin")})}`:""}</span>
+      ${(t||e)&&!this.isNew?a`<sw-button size="sm" variant="ghost" icon="refresh" data-wiskey-editor-reload @click=${()=>void this.reload()}>${w("טען מחדש את הרשומה")}</sw-button>`:l}
+    </div>`}renderFooter(){const e=!!this.busy,t=e||this.ctx?.writes_listed===!1||this.ctx?.users_manage===!1;return a`
+      <sw-button slot="footer" variant="ghost" data-wiskey-editor-cancel-footer ?disabled=${e} @click=${()=>this.requestClose()}>${p("cancel")}</sw-button>
+      <sw-button slot="footer" data-wiskey-editor-save ?disabled=${t} @click=${()=>void this.save(!1)}>${this.busy==="save"?p("wait"):p("save")}</sw-button>
+      <sw-button slot="footer" variant="primary" icon="check" data-wiskey-editor-save-sync ?disabled=${t} @click=${()=>void this.save(!0)}>${this.busy==="sync"?p("wait"):p("save_sync")}</sw-button>`}renderDeleteConfirm(){const e=this.original,t=Object.keys(this.draft?.assignments??{}).length;return a`<sw-dialog open heading=${p("delete")} subheading=${e.display_name} data-wiskey-editor-delete-dialog @close=${()=>this.confirmDelete=!1}>
+      <p>${p("confirm_delete").replace("{count}",String(t))}</p>
+      <div slot="footer">
+        <sw-button variant="ghost" @click=${()=>this.confirmDelete=!1}>${p("cancel")}</sw-button>
+        <sw-button variant="danger" icon="trash" data-wiskey-editor-delete-confirm ?disabled=${!!this.busy} @click=${()=>void this.doDelete()}>${this.busy==="delete"?p("wait"):p("delete")}</sw-button>
+      </div>
+    </sw-dialog>`}renderCloseConfirm(){return a`<sw-dialog open heading=${w("שינויים שלא נשמרו")} data-wiskey-editor-close-dialog @close=${()=>this.confirmClose=!1}>
+      <p>${w("יש בטופס שינויים שלא נשמרו. לסגור בלי לשמור?")}</p>
+      <div slot="footer">
+        <sw-button variant="ghost" @click=${()=>this.confirmClose=!1}>${w("חזרה לעריכה")}</sw-button>
+        <sw-button variant="danger" data-wiskey-editor-close-discard @click=${()=>{this.confirmClose=!1,this.close()}}>${w("סגירה בלי לשמור")}</sw-button>
+      </div>
+    </sw-dialog>`}};k.styles=V`
+    :host {
+      display: contents;
+    }
+    .body {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-inline-size: 0;
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .columns {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      align-items: start;
+    }
+    @media (max-width: 860px) {
+      .columns {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+    .column {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-inline-size: 0;
+    }
+    /* R5-SECURITY: each section is a well (a tone step, no edge, radius lg); its legend 14.5/700 in the heading ink */
+    fieldset {
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface-2);
+      padding: 10px 14px 14px;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-inline-size: 0;
+    }
+    legend {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 6px;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
+    }
+    sw-badge {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-bold);
+      line-height: 18px;
+      padding-block: 2px;
+    }
+    .grid2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 10px;
+    }
+    @media (max-width: 480px) {
+      .grid2 {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 10px;
+    }
+    .row.between {
+      justify-content: space-between;
+    }
+    .check {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--sw-fs-sm);
+    }
+    .capture {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding-block-start: 6px;
+      border-block-start: 1px solid var(--sw-border);
+    }
+    .days {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 12px;
+    }
+    .day {
+      min-block-size: 44px;
+    }
+    .dates,
+    .periods {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: flex-start;
+    }
+    .period {
+      align-items: flex-end;
+    }
+    .dates input,
+    .periods input,
+    [data-wiskey-editor-section='category'] select,
+    [data-wiskey-editor-section='timing'] select {
+      font: inherit;
+    }
+    @media (max-width: 1100px) {
+      [data-wiskey-editor-section='category'] input,
+      [data-wiskey-editor-section='category'] select,
+      [data-wiskey-editor-section='timing'] input:not([type='checkbox']),
+      [data-wiskey-editor-section='timing'] select {
+        min-block-size: 44px;
+      }
+    }
+    .card-row {
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .station {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 10px;
+      padding: 6px 0;
+      border-block-start: 1px solid var(--sw-border);
+    }
+    .locks {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 12px;
+      flex-basis: 100%;
+      padding-inline-start: 24px;
+    }
+    .hint,
+    .muted {
+      margin: 0;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .ok {
+      margin: 0;
+      color: var(--sw-success);
+      font-size: var(--sw-fs-xs);
+    }
+    .reveal {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 10px;
+      padding: 8px 10px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
+      font-size: var(--sw-fs-sm);
+    }
+    .reveal .pin {
+      font-family: var(--sw-font-mono, ui-monospace, monospace);
+      font-size: var(--sw-fs-lg);
+      font-weight: var(--sw-fw-semibold);
+      letter-spacing: 0.12em;
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
+    .danger {
+      margin: 0;
+      color: var(--sw-danger);
+      font-size: var(--sw-fs-sm);
+    }
+    .note {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: var(--sw-r-md);
+      font-size: var(--sw-fs-sm);
+    }
+    .note > span {
+      flex: 1 1 240px;
+    }
+    .note.info {
+      background: var(--sw-surface-2);
+      color: var(--sw-text-2);
+    }
+    .note.warn {
+      background: var(--sw-stale-soft);
+      color: var(--sw-text);
+    }
+    .note.err {
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger);
+    }
+  `;C([y()],k.prototype,"userId",2);C([c()],k.prototype,"ctx",2);C([c()],k.prototype,"ctxNote",2);C([c()],k.prototype,"original",2);C([c()],k.prototype,"draft",2);C([c()],k.prototype,"loadError",2);C([c()],k.prototype,"loading",2);C([c()],k.prototype,"timed",2);C([c()],k.prototype,"validityFrom",2);C([c()],k.prototype,"validityUntil",2);C([c()],k.prototype,"busy",2);C([c()],k.prototype,"error",2);C([c()],k.prototype,"errorCode",2);C([c()],k.prototype,"errorTone",2);C([c()],k.prototype,"outcome",2);C([c()],k.prototype,"pinStatus",2);C([c()],k.prototype,"pinReveal",2);C([c()],k.prototype,"pinCopy",2);C([c()],k.prototype,"pinCheck",2);C([c()],k.prototype,"confirmDelete",2);C([c()],k.prototype,"confirmClose",2);C([c()],k.prototype,"capturing",2);C([c()],k.prototype,"notice",2);C([c()],k.prototype,"sensitive",2);k=C([Y("wiskey-person-editor")],k);const Ot={"page.title":"אנשים","page.count":"{n} אנשים","page.count_one":"אדם אחד","page.count_of":"{shown} מתוך {total}","page.count_min":"{shown} מתוך {total}+","page.count_zero":"אין אנשים","search.name":"חיפוש לפי שם","search.name_number":"חיפוש לפי שם או מס׳ עובד","search.label":"חיפוש אנשים","view.label":"תצוגה","view.cards":"כרטיסים","view.list":"רשימה","view.table":"טבלה","action.add":"הוספת אדם","action.refresh":"רענון","action.select":"בחירה מרובה","action.select_off":"סיום הבחירה","action.columns":"עמודות","action.more":"עוד {n}","action.clear":"ניקוי מסננים","action.retry":"נסה שוב","action.reload":"טען מחדש","action.close":"סגירה","action.edit":"עריכה","action.message":"שלח הודעה","action.message_selected":"הודעה לנבחרים","action.settings":"להגדרות","action.show_photo":"הצג תמונה","action.hide_photo":"הסתר תמונה","action.reveal_phone":"הצג מספר","action.hide_phone":"הסתר מספר","action.select_all":"בחירת כל הרשומות המוצגות","action.clear_selection":"ביטול הבחירה","action.select_row":"בחירת {name}","filter.group":"קבוצה","filter.station":"תחנה","filter.state":"מצב","filter.rights":"הרשאה","filter.credential":"אמצעי זיהוי","filter.profile":"שדה פרופיל","filter.profile_value":"ערך","filter.sort":"מיון","filter.any":"הכול","filter.bar":"סינון","state.active":"פעילים","state.inactive":"מושבתים","state.expired":"פג תוקף","state.upcoming":"תוקף עתידי","state.archived":"בארכיון","rights.assigned":"עם הרשאה פעילה","rights.unassigned":"ללא שיוך לתחנות","rights.disabled":"שיוך כבוי","credential.pin":"עם קוד","credential.no_pin":"בלי קוד","credential.card":"עם כרטיס","credential.no_card":"בלי כרטיס","sort.name":"שם (א׳–ת׳)","sort.name_desc":"שם (ת׳–א׳)","sort.employee":"מס׳ עובד","col.name":"שם","col.employee":"מס׳ עובד","col.groups":"קבוצות","col.stations":"תחנות","col.credentials":"אמצעים","col.validity":"תוקף","col.state":"מצב","col.sync":"סנכרון","col.actions":"פעולות","row.stations":"{n} תחנות","row.station_one":"תחנה אחת","row.no_stations":"ללא תחנות","row.no_groups":"ללא קבוצה","validity.permanent":"ללא הגבלה","validity.until":"עד {date}","validity.from":"מ־{date}","validity.expired":"פג תוקף","validity.future":"טרם התחיל","validity.window":"מ־{from} עד {until}","validity.unknown":"לא ידוע","person.active":"פעיל","person.inactive":"מושבת","person.archived":"בארכיון","cred.card":"כרטיס","cred.cards":"{n} כרטיסים","cred.pin":"קוד","cred.none":"ללא אמצעי","cred.unknown":"לא ידוע","sync.synced":"מסונכרן","sync.pending":"ממתין לסנכרון","sync.syncing":"מסנכרן","sync.conflict":"התנגשות","sync.error":"שגיאת סנכרון","sync.delete_pending":"ממתין להסרה","sync.offline":"התחנה לא מחוברת","sync.unknown":"לא ידוע","sync.unassigned":"ללא שיוך","state.loading":"טוען אנשים…","state.empty":"אין אנשים להצגה","state.no_results":"לא נמצאו אנשים","state.error":"לא ניתן לטעון את רשימת האנשים","state.forbidden":"המסך הזה אינו זמין לך","state.unavailable":"בקרת הכניסה אינה זמינה","state.unsupported":"המסך אינו זמין בגרסה המותקנת","state.connecting":"מתחבר לבקרת הכניסה…","state.stale":"מוצג המצב האחרון · עודכן {when}","state.page_stale":"הרשימה השתנתה","state.partial":"התוצאות חלקיות","state.partial_rate":"הבקשה הוגבלה בקצב והחיפוש נעצר לפני סופו","state.partial_scan":"החיפוש נעצר לפני סופו","state.detail_error":"לא ניתן לטעון את הכרטיס","state.detail_gone":"האדם לא נמצא","state.detail_loading":"טוען…","drawer.tab_details":"פרטים","drawer.tab_access":"גישה","drawer.tab_groups":"קבוצות","drawer.tabs":"חלקי הכרטיס","drawer.validity":"תוקף","drawer.timing":"מועדי כניסה","drawer.timing_always":"ללא הגבלת שעות","drawer.timing_days":"ימים","drawer.timing_dates":"תאריכים","drawer.timing_hours":"שעות","drawer.timing_zone":"אזור זמן","drawer.timing_native":"נאכף בתחנה","drawer.timing_arx":"נאכף במערכת","drawer.credentials":"אמצעי זיהוי","drawer.category":"סוג גישה","drawer.employee":"מס׳ עובד","drawer.sensitive":"פרטים רגישים","drawer.phone":"טלפון","drawer.no_phone":"אין מספר","drawer.photo":"תמונה","drawer.no_photo":"אין תמונה","drawer.photo_loading":"טוען תמונה…","drawer.photo_error":"לא ניתן להציג את התמונה","drawer.profile":"שדות פרופיל","drawer.responsible":"אחראי","drawer.purpose":"מטרת הגישה","drawer.stations":"גישה לתחנות","drawer.door":"דלת {doors}","drawer.doors":"דלתות {doors}","syncerr.device_unavailable":"העמדה אינה זמינה","syncerr.action_failed":"הפעולה נכשלה","syncerr.station_unloaded":"העמדה אינה טעונה","syncerr.device_busy":"העמדה עסוקה","drawer.access_off":"כבוי","drawer.no_access":"אין שיוך לתחנות","drawer.error_detail":"פירוט","drawer.groups":"קבוצות","drawer.no_groups":"האדם אינו שייך לקבוצה","drawer.group_stations":"מעניקה גישה ל־{n} תחנות","drawer.unknown_value":"לא ידוע","drawer.tab_messages":"הודעות","category.staff":"עובד","category.visitor":"אורח","category.contractor":"קבלן","timing.weekly":"שבועי","timing.dates":"תאריכים","bulk.selected":"{n} נבחרו","bulk.bar":"פעולות על הנבחרים","msg.title":"הודעת וואטסאפ","msg.title_bulk":"הודעת וואטסאפ ל־{n} אנשים","msg.recipient":"נמען","msg.phone_hidden":"מספר מוסתר","msg.phone_masked":"מספר מוסתר חלקית","msg.consent_granted":"הסכמה","msg.consent_declined":"ביקש לא לקבל","msg.consent_unknown":"הסכמה לא ידועה","msg.template":"תבנית","msg.free":"חופשי","msg.text":"ההודעה","msg.counter":"{n}/{max}","msg.send":"שלח","msg.send_again":"שליחה נוספת","msg.send_n":"שלח ל־{n}","msg.send_anyway":"שלח שוב בכל זאת","msg.confirm_send":"אישור ושליחה","msg.confirm_bulk":"לשלוח ל־{n} אנשים? ההודעות יישלחו בזו אחר זו, ואי אפשר לבטל הודעה שנשלחה.","msg.back":"חזרה","msg.stop":"עצירה","msg.stopping":"עוצר אחרי ההודעה הנוכחית…","msg.cancel":"ביטול","msg.close":"סגירה","msg.sending":"שולח…","msg.sending_n":"שולח {done} מתוך {total}…","msg.sent":"נשלח · {time} · אין אישור מסירה","msg.failed":"לא נשלח · {reason}","msg.uncertain":"לא ידוע אם ההודעה נשלחה · בדקו עם הנמען לפני שליחה חוזרת","msg.rate":"הגעת למכסת ההודעות · אפשר לשלוח שוב בעוד {minutes} דק׳","msg.cant":"אי אפשר לשלוח · {reason}","msg.preview_bulk":"יישלח ל־{send}{skip}","msg.preview_skip":" · לא יישלח ל־{n}: {names}","msg.bulk_done":"נשלח ל־{sent}{failed}","msg.bulk_held":" · {n} ממתינות לאישור האדם","msg.bulk_failed":" · {n} לא נשלחו","msg.bulk_unknown":" · {n} לא ידוע","msg.results":"תוצאות השליחה","msg.result_name":"נמען","msg.result_outcome":"תוצאה","msg.result_detail":"פירוט","msg.result_sent":"נשלח","msg.result_failed":"לא נשלח","msg.result_unknown":"לא ידוע","msg.bulk_over_quota":"המכסה מאפשרת {n} הודעות בלבד · הקטינו את הבחירה","msg.bulk_too_many":"אפשר לשלוח לעד {max} אנשים בבת אחת","msg.no_template":"בחרו תבנית או כתבו הודעה","msg.too_long":"ההודעה ארוכה מדי","msg.credential_blocked":"אי אפשר לשלוח קוד גישה או פרטי כניסה בהודעה","msg.reason.no_phone":"אין מספר טלפון בכרטיס האדם","msg.reason.no_consent":"האדם ביקש לא לקבל הודעות","msg.reason.no_service":"שירות ההודעות אינו מחובר","msg.reason.not_registered":"המספר אינו רשום בוואטסאפ","msg.reason.uncertain":"לא ידוע אם ההודעה נשלחה","msg.reason.unknown":"הסיבה לא ידועה","msg.reason.expired":"ההודעה פגה · נסו שוב","msg.reason.free_text_off":"הודעה חופשית אינה מופעלת","msg.reason.rate":"מכסת ההודעות מלאה","msg.reason.person_limit":"האדם קיבל היום את מספר ההודעות המרבי","msg.reason.station_limit":"אנשי העמדה קיבלו את מספר ההודעות המרבי לשעה","msg.reason.outside_hours":"מחוץ לשעות השליחה","msg.reason.forbidden":"אין לכם הרשאה לשלוח לאדם הזה","msg.reason.gone":"האדם לא נמצא","msg.reason.template_changed":"התבניות עודכנו · בחרו תבנית שוב","msg.reason.disabled":"שליחת ההודעות כבויה בהגדרות","msg.reason.duplicate":"ההודעה הזו כבר נשלחה","msg.reason.refused":"שירות ההודעות דחה את ההודעה","msg.reason.stopped":"הופסק לפני השליחה","msg.reason.empty":"ההודעה ריקה","msg.held":"ממתינה לאישור האדם · תישלח אחרי שיאשר בקישור","msg.consent_requested":"נשלחה לאדם בקשת אישור · ההודעה תישלח אחרי שיאשר","msg.consent_requested_free":"נשלחה לאדם בקשת אישור · הודעה חופשית לא נשמרת, שלחו אותה שוב אחרי האישור","msg.result_held":"ממתין לאישור","msg.reason.consent_pending":"ממתינה כבר בקשת אישור לאדם הזה","msg.reason.consent_recent":"נשלחה לאדם בקשת אישור בחודש האחרון ולא אושרה","msg.reason.consent_unavailable":"אי אפשר לשלוח בקשת אישור כרגע","hist.held":"ממתין לאישור","hist.dropped":"לא נשלח · אין אישור","hist.loading":"טוען הודעות…","hist.empty":"עדיין לא נשלחו הודעות לאדם הזה","hist.error":"לא ניתן לטעון את ההודעות","hist.retry":"נסה שוב","hist.free":"הודעה חופשית","hist.removed_template":"תבנית שנמחקה","hist.bulk":"שליחה לרבים","hist.by":"נשלח ע״י {name}","hist.sent":"נשלח","hist.refused":"לא נשלח","hist.unknown":"לא ידוע","hist.pending":"בשליחה","hist.list":"הודעות שנשלחו","optout.label":"ביקש לא לקבל הודעות","optout.by":"סומן ע״י {name} · {date}","optout.at":"סומן {date}","optout.error":"השינוי לא נשמר","optout.admin_only":"רק מנהל מערכת יכול לבטל את הבקשה"},Rt=H("en","i18n/access-people","en");function r(e,t){const s=($e(["en"])==="en"?Rt[e]:void 0)??Ot[e]??e;return pe(s,t)}const Dt=new Map([["device_unavailable","syncerr.device_unavailable"],["action_failed","syncerr.action_failed"],["station_unloaded","syncerr.station_unloaded"],["device_busy","syncerr.device_busy"]]),ea=e=>Dt.has(e);function ta(e){const t=Dt.get(e);return t?r(t):e}he("i18n/access-people",{he:Ot,en:Rt});var sa=Object.defineProperty,ia=Object.getOwnPropertyDescriptor,J=(e,t,s,i)=>{for(var n=i>1?void 0:i?ia(t,s):t,d=e.length-1,o;d>=0;d--)(o=e[d])&&(n=(i?o(t,s,n):o(n))||n);return i&&n&&sa(t,s,n),n};function aa(e){switch(e){case"sent":return{kind:"recorded",label:r("hist.sent")};case"refused":return{kind:"error",label:r("hist.refused")};case"pending":return{kind:"stale",label:r("hist.pending")};case"held":return{kind:"stale",label:r("hist.held")};case"dropped":return{kind:"error",label:r("hist.dropped")};default:return{kind:"unknown",label:r("hist.unknown")}}}let B=class extends W{constructor(){super(...arguments),this.transport=null,this.personId="",this.zone=te,this.rev=0,this.phase="loading",this.data=null,this.busy=!1,this.failed=!1,this.generation=0}willUpdate(e){(e.has("personId")||e.has("rev")||e.has("transport"))&&this.personId&&this.load()}disconnectedCallback(){super.disconnectedCallback(),this.generation++}async load(){const e=++this.generation,t=this.transport;if(t){this.data||(this.phase="loading");try{const s=await t.history(this.personId);if(e!==this.generation)return;this.data=s,this.phase="ready"}catch{if(e!==this.generation)return;this.phase="error"}}}async toggleOptOut(){const e=this.transport;if(!e||!this.data||this.busy||this.data.opt_out!==null&&this.data.can_clear_opt_out===!1)return;this.busy=!0,this.failed=!1;const t=this.personId;try{const s=await e.setOptOut(t,this.data.opt_out===null);if(t!==this.personId)return;this.data={...this.data,opt_out:s.opt_out,consent:s.consent}}catch{this.failed=!0}finally{this.busy=!1}}optOutText(e){if(!e.opt_out)return"";const t=se(e.opt_out.at,this.zone);return e.opt_out.by?r("optout.by",{name:e.opt_out.by,date:t}):r("optout.at",{date:t})}renderItem(e){const t=aa(e.outcome),s=e.kind==="free"?r("hist.free"):e.template_label??r("hist.removed_template"),i=[e.by?r("hist.by",{name:e.by}):"",se(e.at,this.zone),e.bulk?r("hist.bulk"):""].filter(Boolean).join(" · ");return a`<li data-msg-history-item data-msg-outcome=${e.outcome}>
+      <div class="main"><span class="t">${s}</span><span class="s">${i}</span></div>
+      <sw-badge kind=${t.kind} label=${t.label}></sw-badge>
+    </li>`}render(){if(this.phase==="loading")return a`<section data-person-section="messages" data-msg-history-state="loading" aria-busy="true"><div class="skeleton" style="inline-size:60%"></div><div class="skeleton" style="inline-size:80%"></div><span class="sub" role="status">${r("hist.loading")}</span></section>`;if(this.phase==="error"||!this.data)return a`<section data-person-section="messages" data-msg-history-state="error"><sw-state-panel compact state="error" heading=${r("hist.error")} actionLabel=${r("hist.retry")} @action=${()=>void this.load()}></sw-state-panel></section>`;const e=this.data,t=e.opt_out!==null,s=t&&e.can_clear_opt_out===!1;return a`<section data-person-section="messages" data-msg-history-state="ready">
+      <button type="button" class="sw" role="switch" aria-checked=${String(t)} data-msg-optout ?data-locked=${s} ?disabled=${this.busy||s} @click=${()=>void this.toggleOptOut()}>
+        ${Fs(r("optout.label"),t?a`<span class="x" data-msg-optout-by>${this.optOutText(e)}${s?` · ${r("optout.admin_only")}`:""}</span>`:l)}
+      </button>
+      ${this.failed?a`<div class="err" role="alert" data-msg-optout-error><sw-icon name="warning" size=${16}></sw-icon><span>${r("optout.error")}</span></div>`:l}
+      <h4>${r("hist.list")}</h4>
+      ${e.messages.length===0?a`<span class="sub" data-msg-history-empty>${r("hist.empty")}</span>`:a`<ul data-msg-history aria-label=${r("hist.list")}>${e.messages.map(i=>this.renderItem(i))}</ul>`}
+    </section>`}};B.styles=[Us,V`
+    :host {
+      display: block;
+    }
+    section {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    h4 {
+      margin: 0;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-text-2);
+    }
+    .sw {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      inline-size: 100%;
+      min-block-size: 56px;
+      padding: 8px 12px;
+      box-sizing: border-box;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
+      color: inherit;
+      font: inherit;
+      text-align: start;
+      cursor: pointer;
+    }
+    .sw:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+    }
+    .sw .t {
+      font-weight: var(--sw-fw-medium);
+    }
+    ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-block-size: 56px;
+      padding: 8px 0;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    li:last-child {
+      border-block-end: 0;
+    }
+    li .main {
+      flex: 1;
+      min-inline-size: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    li .t {
+      font-weight: var(--sw-fw-medium);
+      overflow-wrap: anywhere;
+    }
+    li .s {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-sm);
+      overflow-wrap: anywhere;
+    }
+    .sub {
+      color: var(--sw-text-3);
+    }
+    .err {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 12px;
+      border-radius: var(--sw-r-md);
+      font-size: var(--sw-fs-sm);
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger-text);
+    }
+    .skeleton {
+      block-size: 14px;
+      border-radius: var(--sw-r-xs);
+      background: linear-gradient(90deg, var(--sw-surface-3), var(--sw-surface-2), var(--sw-surface-3));
+      background-size: 200% 100%;
+      animation: shimmer 1.4s linear infinite;
+    }
+    @keyframes shimmer {
+      to {
+        background-position: -200% 0;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .skeleton {
+        animation: none;
+      }
+    }
+    sw-button {
+      min-block-size: 44px;
+    }
+  `];J([y({attribute:!1})],B.prototype,"transport",2);J([y()],B.prototype,"personId",2);J([y({attribute:!1})],B.prototype,"zone",2);J([y({type:Number})],B.prototype,"rev",2);J([c()],B.prototype,"phase",2);J([c()],B.prototype,"data",2);J([c()],B.prototype,"busy",2);J([c()],B.prototype,"failed",2);B=J([Y("wiskey-person-messages")],B);const At=e=>`access-station-permissions/people/${encodeURIComponent(e)}`,xe=(e,t)=>`${At(e)}/stations/${encodeURIComponent(t)}`,na=e=>re(At(e)),ra=(e,t,s,i,n)=>ke(xe(e,t),{effect:s,revision:i,...s==="allow"?{relays:n??[1]}:{}}),oa=(e,t,s)=>M(`${xe(e,t)}/approve`,{revision:s}),la=(e,t,s)=>M(`${xe(e,t)}/refuse`,{revision:s}),da=(e,t,s)=>M(`${xe(e,t)}/sync`,{revision:s}),Le={title:"הרשאות לפי עמדה",src_group:"דרך קבוצה",src_personal:"אישית",src_blocked:"חסומה",src_blocked_group:"נחסמה אישית · הקבוצה מאפשרת",src_none:"ללא גישה",src_unknown:"לא ידוע",sync_pending:"ממתין לשליחה",sync_applied:"עודכן ב-WisKey",sync_unverified:"לא אומת",sync_failed:"נדחה ב-WisKey",allow:"אפשר",deny:"חסום",inherit:"לפי קבוצה",removePersonal:"הסרת גישה אישית",approve:"אישור",refuse:"דחייה",withdraw:"ביטול בקשה",sync:"בדיקה חוזרת",add:"הוספת עמדה",addPick:"בחירת עמדה",doors:"דלתות {doors}",requested:"בקשה: {who}",requestedMine:"הבקשה שלך ממתינה לאישור",requestSent:"הבקשה נשלחה לאישור",confirmDeny:"לחסום את {station}?",confirmYes:"חסום",cancel:"ביטול",done:"נשמר",unavailable:"WisKey לא זמין כרגע",grantLive:"גישה זמנית פעילה מנהלת את הדלתות של אדם זה",self:"לא ניתן לשנות את הגישה של עצמך",empty:"אין עמדות",error:"לא ניתן לטעון",retry:"נסה שוב"},It=H("en","i18n/station-permissions","en"),Mt=H("ar","i18n/station-permissions","ar"),Nt=H("ru","i18n/station-permissions","ru"),ca={he:Le,en:It,ar:Mt,ru:Nt},pa=["ar","ru"];function _(e,t,s=Hs()){const i=ca[s][e]??Le[e]??e;return pe(i,t)}he("i18n/station-permissions",{he:Le,en:It,ar:Mt,ru:Nt},pa);function ha(e){switch(e){case"group":return{kind:"neutral",label:_("src_group")};case"personal":return{kind:"live",label:_("src_personal")};case"blocked":return{kind:"error",label:_("src_blocked")};case"blocked_group":return{kind:"error",label:_("src_blocked_group")};case"none":return{kind:"offline",label:_("src_none")};default:return{kind:"unknown",label:_("src_unknown")}}}function ua(e){switch(e){case"pending":return{kind:"stale",label:_("sync_pending")};case"unverified":return{kind:"stale",label:_("sync_unverified")};case"failed":return{kind:"error",label:_("sync_failed")};case"applied":return{kind:"recorded",label:_("sync_applied")};default:return null}}function fa(e){const t=[],s=e.actions;return s.approve&&t.push({action:"approve",label:_("approve"),primary:!0}),s.refuse&&t.push({action:"refuse",label:_(e.request?.mine?"withdraw":"refuse"),primary:!1}),s.allow&&e.source!=="personal"&&!e.request&&t.push({action:"allow",label:_("allow"),primary:!1}),s.inherit&&t.push({action:"inherit",label:_(e.source==="personal"?"removePersonal":"inherit"),primary:!1}),s.deny&&t.push({action:"deny",label:_("deny"),primary:!1}),s.sync&&t.push({action:"sync",label:_("sync"),primary:!1}),t}function ma(e){return e.grant_live?"grantLive":e.self&&!e.system_admin?"self":e.read==="unavailable"?"unavailable":null}function ga(e){return e.length&&!(e.length===1&&e[0]===1)?_("doors",{doors:e.join(", ")}):""}function wa(e,t){return e.name||t[e.station_id]||e.station_id}function at(e){const t=new Set(e.stations.map(s=>s.station_id));return e.addable.filter(s=>!t.has(s.station_id)).sort((s,i)=>(s.name||s.station_id).localeCompare(i.name||i.station_id))}function ba(e){return e==="requested"?"requestSent":"done"}var va=Object.defineProperty,ya=Object.getOwnPropertyDescriptor,X=(e,t,s,i)=>{for(var n=i>1?void 0:i?ya(t,s):t,d=e.length-1,o;d>=0;d--)(o=e[d])&&(n=(i?o(t,s,n):o(n))||n);return i&&n&&va(t,s,n),n};let K=class extends W{constructor(){super(...arguments),this.personId="",this.stationNames={},this.phase="loading",this.data=null,this.busy="",this.confirming="",this.line=null,this.pick="",this.seq=0}willUpdate(e){e.has("personId")&&(this.line=null,this.confirming="",this.pick="",this.load())}async load(){const e=this.personId,t=++this.seq;if(!e){this.phase="hidden";return}(!this.data||this.data.person_id!==e)&&(this.phase="loading");try{const s=await na(e);if(t!==this.seq)return;this.data=s,this.phase="ready"}catch(s){if(t!==this.seq)return;this.phase=s instanceof z&&(s.status===404||s.status===403)?"hidden":"error"}}async act(e,t,s){if(t==="deny"&&this.confirming!==e.station_id){this.confirming=e.station_id;return}this.confirming="",this.busy=e.station_id,this.line=null;const i=this.personId;try{const n=t==="approve"?await oa(i,e.station_id,e.revision):t==="refuse"?await la(i,e.station_id,e.revision):t==="sync"?await da(i,e.station_id,e.revision):await ra(i,e.station_id,t,e.revision,t==="allow"?s??(e.relays.length?e.relays:[1]):void 0);this.line={ok:!0,text:_(ba(n.outcome))}}catch(n){this.line={ok:!1,text:n instanceof z?n.message:_("error")}}finally{this.busy="",await this.load()}}addStation(){const e=this.data?at(this.data).find(s=>s.station_id===this.pick):void 0;if(!e)return;const t={station_id:e.station_id,name:e.name,enabled:!1,relays:e.relays,source:"none",record:null,request:null,revision:0,decides:!e.request_only,request_only:e.request_only,actions:{allow:!0,deny:!1,inherit:!1,approve:!1,refuse:!1,sync:!1}};this.pick="",this.act(t,"allow",e.relays.length?e.relays:[1])}renderRow(e){const t=ha(e.source),s=e.record&&e.record.sync_state!=="applied"?ua(e.record.sync_state):null,i=wa(e,this.stationNames),n=ga(e.relays),d=this.busy===e.station_id;return a`<li data-sp-station=${e.station_id}>
+      <span class="name">${i}</span>
+      ${n?a`<span class="sub">${n}</span>`:l}
+      <sw-badge data-sp-source=${e.source} kind=${t.kind} label=${t.label}></sw-badge>
+      ${s?a`<sw-badge data-sp-sync=${e.record.sync_state} kind=${s.kind} label=${s.label}></sw-badge>`:l}
+      ${e.request?a`<span class="req" data-sp-request>${e.request.mine?_("requestedMine"):_("requested",{who:e.request.requested_by_name??"—"})}</span>`:l}
+      ${this.confirming===e.station_id?a`<div class="acts" role="group">
+            <span class="sub" style="margin-inline-end:auto">${_("confirmDeny",{station:i})}</span>
+            <sw-button size="sm" @click=${()=>this.confirming=""}>${_("cancel")}</sw-button>
+            <sw-button size="sm" variant="danger" data-sp-confirm @click=${()=>void this.act(e,"deny")}>${_("confirmYes")}</sw-button>
+          </div>`:(()=>{const o=fa(e);return o.length?a`<div class="acts">${o.map(f=>a`<sw-button size="sm" variant=${f.primary?"primary":f.action==="deny"?"ghost":"secondary"} ?disabled=${d}
+                  data-sp-action=${f.action} @click=${()=>void this.act(e,f.action)}>${f.label}</sw-button>`)}</div>`:l})()}
+    </li>`}render(){if(this.phase==="hidden"||this.phase==="loading"&&!this.data)return l;if(this.phase==="error")return a`<section data-sp-block="error"><h4>${_("title")}</h4>
+        <p class="note">${_("error")} <sw-button size="sm" @click=${()=>void this.load()}>${_("retry")}</sw-button></p></section>`;const e=this.data,t=ma(e),s=t?[]:at(e);return a`<section data-sp-block="ready">
+      <h4>${_("title")}</h4>
+      ${t?a`<p class="note" data-sp-notice=${t}>${_(t)}</p>`:l}
+      ${this.line?a`<p class="line ${this.line.ok?"ok":"bad"}" role="status" data-sp-line>${this.line.text}</p>`:l}
+      ${e.stations.length?a`<ul>${e.stations.map(i=>this.renderRow(i))}</ul>`:a`<span class="sub" data-sp-empty>${_("empty")}</span>`}
+      ${s.length?a`<div class="add">
+            <sw-dropdown label=${_("addPick")} data-sp-add-pick .value=${this.pick}
+              .items=${[{id:"",label:_("addPick")},...s.map(i=>({id:i.station_id,label:i.name||this.stationNames[i.station_id]||i.station_id}))]}
+              @change=${i=>this.pick=i.detail.id}></sw-dropdown>
+            <sw-button size="sm" icon="plus" data-sp-add ?disabled=${!this.pick||!!this.busy} @click=${()=>this.addStation()}>${_("add")}</sw-button>
+          </div>`:l}
+    </section>`}};K.styles=V`
+    :host {
+      display: block;
+    }
+    section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    h4 {
+      margin: 0;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-text-2);
+    }
+    ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    li {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px 10px;
+      padding: 8px 0;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    li:last-child {
+      border-block-end: 0;
+    }
+    .name {
+      flex: 1 1 8rem;
+      min-inline-size: 0;
+      font-weight: var(--sw-fw-medium);
+      overflow-wrap: anywhere;
+    }
+    .sub {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .acts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      flex-basis: 100%;
+      justify-content: flex-end;
+    }
+    .req {
+      flex-basis: 100%;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .note,
+    .line {
+      margin: 0;
+      padding: 8px 12px;
+      border-radius: var(--sw-r-md);
+      font-size: var(--sw-fs-sm);
+      background: var(--sw-surface-2);
+      color: var(--sw-text-2);
+    }
+    .line.ok {
+      background: var(--sw-success-soft);
+      color: var(--sw-text);
+    }
+    .line.bad {
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger-text);
+    }
+    .add {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    sw-dropdown {
+      flex: 1 1 10rem;
+    }
+    select {
+      flex: 1 1 10rem;
+      min-block-size: 44px;
+      padding-inline: 8px;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+    }
+    select:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+    }
+    sw-button {
+      min-block-size: 44px;
+    }
+  `;X([y()],K.prototype,"personId",2);X([y({attribute:!1})],K.prototype,"stationNames",2);X([c()],K.prototype,"phase",2);X([c()],K.prototype,"data",2);X([c()],K.prototype,"busy",2);X([c()],K.prototype,"confirming",2);X([c()],K.prototype,"line",2);X([c()],K.prototype,"pick",2);K=X([Y("wiskey-station-permissions")],K);var _a=Object.defineProperty,$a=Object.getOwnPropertyDescriptor,R=(e,t,s,i)=>{for(var n=i>1?void 0:i?$a(t,s):t,d=e.length-1,o;d>=0;d--)(o=e[d])&&(n=(i?o(t,s,n):o(n))||n);return i&&n&&_a(t,s,n),n};function _e(e){switch(e){case"synced":return{kind:"recorded",label:r("sync.synced")};case"pending":case"syncing":case"delete_pending":return{kind:"stale",label:r(`sync.${e}`)};case"conflict":case"error":return{kind:"error",label:r(`sync.${e}`)};case"offline":return{kind:"offline",label:r("sync.offline")};case"unassigned":return{kind:"neutral",label:r("sync.unassigned")};default:return{kind:"unknown",label:r("sync.unknown")}}}function be(e){switch(_t(e)){case"archived":return{kind:"neutral",label:r("person.archived")};case"inactive":return{kind:"offline",label:r("person.inactive")};case"expired":return{kind:"error",label:r("validity.expired")};case"upcoming":return{kind:"stale",label:r("validity.future")};default:return{kind:"live",label:r("person.active")}}}function ve(e,t,s=!1){const i=hs(e);if(i==="permanent")return r("validity.permanent");if(i==="validity_unknown")return r("validity.unknown");const n=Ve(e.valid_from,t),d=Ve(e.valid_until,t);return i==="validity_expired"?`${r("validity.expired")} · ${d}`:i==="validity_future"?`${r("validity.future")} · ${n}`:s?r("validity.until",{date:d}):r("validity.window",{from:n,until:d})}let S=class extends W{constructor(){super(...arguments),this.open=!1,this.person=null,this.loading=!1,this.error="",this.stationNames={},this.groupLabels={},this.groupStations={},this.fields=null,this.zone=te,this.canEdit=!1,this.canMessage=!1,this.canAct=!1,this.resultLine=null,this.transport=null,this.messagesTab=!1,this.messagesRev=0,this.photoEnabled=!0,this.tab="details",this.photo={phase:"idle",url:"",reason:""},this.photoFor=""}willUpdate(e){const t=this.person?.id??"";e.has("person")&&t!==this.photoFor&&(this.dropPhoto(),this.photoFor=t,this.tab="details"),e.has("open")&&!this.open&&this.dropPhoto()}disconnectedCallback(){super.disconnectedCallback(),this.dropPhoto()}dropPhoto(){this.photo.url&&URL.revokeObjectURL(this.photo.url),this.photo={phase:"idle",url:"",reason:""}}async showPhoto(){const e=this.person;if(!e)return;this.photo={phase:"loading",url:"",reason:""};const t=await us(e.id);if(this.person?.id!==e.id||!this.open){"url"in t&&URL.revokeObjectURL(t.url);return}this.photo="url"in t?{phase:"ready",url:t.url,reason:""}:{phase:"error",url:"",reason:t.error}}fire(e,t={}){this.dispatchEvent(new CustomEvent(e,{detail:t,bubbles:!0,composed:!0}))}renderDetails(e,t){const s=fs(e),i=ms(e.timing),n=$t(e),d=e.access_category&&e.access_category!=="unknown"?r(`category.${e.access_category}`):"";return a`
+      <section data-person-section="details">
+        <h4>${r("drawer.tab_details")}</h4>
+        <dl>
+          ${s.employeeNo?a`<dt>${r("drawer.employee")}</dt><dd><bdi class="ltr" data-person-employee>${e.employee_no}</bdi></dd>`:l}
+          ${d?a`<dt>${r("drawer.category")}</dt><dd>${d}</dd>`:l}
+          <dt>${r("drawer.validity")}</dt><dd data-person-validity>${ve(e,this.zone)}</dd>
+          ${t?a`<dt>${r("drawer.timing")}</dt><dd data-person-timing>${i?a`${i.mode==="weekly"?a`${i.days.length?a`<div>${r("drawer.timing_days")}: ${i.days.join(", ")}</div>`:l}`:l}
+                    ${i.mode==="dates"?a`<div>${r("drawer.timing_dates")}: <bdi class="ltr">${i.dates.join(", ")}</bdi>${i.moreDates?` +${i.moreDates}`:""}</div>`:l}
+                    <div>${r("drawer.timing_hours")}: ${i.hours?a`<bdi class="ltr">${i.hours}</bdi>`:r("drawer.timing_always")}</div>
+                    ${i.timezone?a`<div class="sub">${r("drawer.timing_zone")}: <bdi class="ltr">${i.timezone}</bdi></div>`:l}`:r("drawer.timing_always")}</dd>`:a`<dt>${r("drawer.timing")}</dt><dd><div class="skeleton" style="inline-size:60%"></div></dd>`}
+          ${s.credentials?a`<dt>${r("drawer.credentials")}</dt><dd data-person-credentials>${n?n.kinds.length?n.kinds.map(o=>o==="card"?n.cards>1?r("cred.cards",{n:n.cards}):r("cred.card"):r("cred.pin")).join(" · "):n.none?r("cred.none"):r("cred.unknown"):r("drawer.unknown_value")}</dd>`:l}
+        </dl>
+      </section>
+      ${s.sensitive?this.renderSensitive(e,s,t):l}`}renderSensitive(e,t,s){const i=t.photo&&this.photoEnabled?a`<div class="portrait" data-person-portrait>
+          <div class="frame" aria-hidden=${this.photo.phase==="ready"?"false":"true"}>${this.photo.phase==="ready"?a`<img src=${this.photo.url} alt=${e.display_name} data-person-photo-img />`:gs(e.display_name)}</div>
+          <div>
+            ${e.photo_configured===!0?this.photo.phase==="ready"?a`<button type="button" class="linkbtn" data-person-photo-hide @click=${()=>this.dropPhoto()}>${r("action.hide_photo")}</button>`:this.photo.phase==="loading"?a`<span class="sub" role="status">${r("drawer.photo_loading")}</span>`:a`<button type="button" class="linkbtn" data-person-photo-show @click=${()=>void this.showPhoto()}>${r("action.show_photo")}</button>${this.photo.phase==="error"?a`<div class="sub" role="status" data-person-photo-error=${this.photo.reason}>${r("drawer.photo_error")}</div>`:l}`:a`<span class="sub">${r("drawer.no_photo")}</span>`}
+          </div>
+        </div>`:l,n=new Map((this.fields??[]).map(o=>[o.id,o.label])),d=Object.entries(e.profile??{});return a`<section class="sens" data-person-section="sensitive" aria-label=${r("drawer.sensitive")}>
+      <h4><sw-icon name="lock" size=${14}></sw-icon>${r("drawer.sensitive")}</h4>
+      ${i}
+      ${s?a`<dl>
+            <dt>${r("drawer.phone")}</dt><dd data-person-phone>${e.phone?a`<bdi class="ltr">${e.phone}</bdi>`:e.phone_set===!1?r("drawer.no_phone"):r("drawer.unknown_value")}</dd>
+            ${t.responsible?a`<dt>${r("drawer.responsible")}</dt><dd>${e.responsible_person}</dd>`:l}
+            ${t.purpose?a`<dt>${r("drawer.purpose")}</dt><dd>${e.access_purpose}</dd>`:l}
+            ${t.profile?d.map(([o,f])=>a`<dt>${n.get(o)??o}</dt><dd data-person-profile=${o}>${f}</dd>`):l}
+          </dl>`:a`<div class="skeleton" style="inline-size:70%"></div>`}
+    </section>`}renderAccess(e){const t=e.stations??[];return a`<section data-person-section="access">
+      <h4>${r("drawer.stations")}</h4>
+      ${t.length===0?a`<span class="sub" data-person-no-access>${r("drawer.no_access")}</span>`:a`<ul>${t.map(s=>{const i=_e(ae({stations:[s]}));return a`<li class="station" data-person-station=${s.station_id}>
+              <span class="name">${this.stationNames[s.station_id]??s.station_id}</span>
+              ${s.doors.length?a`<span class="sub">${r(s.doors.length===1?"drawer.door":"drawer.doors",{doors:s.doors.join(", ")})}</span>`:l}
+              ${s.enabled?l:a`<sw-badge kind="neutral" label=${r("drawer.access_off")}></sw-badge>`}
+              <sw-badge data-person-sync=${ae({stations:[s]})} kind=${i.kind} label=${i.label}></sw-badge>
+              ${s.last_error?a`<span class="err" data-person-sync-error=${s.last_error} title=${s.last_error}>${ea(s.last_error)?ta(s.last_error):a`<bdi class="ltr">${s.last_error}</bdi>`}</span>`:l}
+            </li>`})}</ul>`}
+    </section>
+    ${T()?a`<wiskey-station-permissions .personId=${e.id} .stationNames=${this.stationNames}></wiskey-station-permissions>`:l}`}renderGroups(e){const t=e.group_ids??[];return a`<section data-person-section="groups">
+      <h4>${r("drawer.groups")}</h4>
+      ${t.length===0?a`<span class="sub" data-person-no-groups>${r("drawer.no_groups")}</span>`:a`<ul>${t.map(s=>{const i=this.groupStations[s];return a`<li class="station" data-person-group=${s}><span class="name">${this.groupLabels[s]??s}</span>${typeof i=="number"?a`<span class="sub">${r("drawer.group_stations",{n:i})}</span>`:l}</li>`})}</ul>`}
+    </section>`}render(){const e=this.person,t=!!e&&!this.loading&&!this.error,s=e?.display_name??"",i=e&&e.employee_no!==null?`${r("drawer.employee")} ${e.employee_no}`:"",n=this.messagesTab&&!!this.transport,d=[["details",r("drawer.tab_details")],["access",r("drawer.tab_access")],["groups",r("drawer.tab_groups")],...n?[["messages",r("drawer.tab_messages")]]:[]],o=this.tab==="messages"&&!n?"details":this.tab,f=e?be(e):null,m=e?_e(ae(e)):null;return a`<sw-drawer modal ?open=${this.open} heading=${s} subheading=${i} data-person-drawer @close=${$=>$.target===$.currentTarget&&this.fire("close")}>
+      ${e?a`
+            <div class="head">
+              <sw-avatar name=${e.display_name} size=${44} aria-hidden="true"></sw-avatar>
+              <div class="tags">
+                <sw-badge data-person-state=${_t(e)} kind=${f.kind} label=${f.label}></sw-badge>
+                ${ge(e)||e.stations?.length?a`<sw-badge data-person-sync-all=${ae(e)} kind=${m.kind} label=${m.label}></sw-badge>`:l}
+              </div>
+            </div>
+            ${this.resultLine?a`<p class="result ${this.resultLine.state}" role="status" data-person-result=${this.resultLine.state}>${this.resultLine.text}</p>`:l}
+            ${this.error?a`<sw-state-panel icon="user" compact data-person-error=${this.error} state=${this.error==="gone"?"empty":"error"} heading=${this.error==="gone"?r("state.detail_gone"):r("state.detail_error")}></sw-state-panel>`:l}
+            <div class="tabs" role="tablist" aria-label=${r("drawer.tabs")}>
+              ${d.map(([$,Z])=>a`<button type="button" role="tab" id="tab-${$}" aria-selected=${o===$} aria-controls="panel-${$}" data-person-tab=${$} @click=${()=>this.tab=$}>${Z}</button>`)}
+            </div>
+            <div role="tabpanel" id="panel-${o}" aria-labelledby="tab-${o}" style="display:flex;flex-direction:column;gap:12px">
+              ${o==="details"?this.renderDetails(e,t):o==="access"?this.renderAccess(e):o==="groups"?this.renderGroups(e):a`<wiskey-person-messages .transport=${this.transport} .personId=${e.id} .zone=${this.zone} .rev=${this.messagesRev}></wiskey-person-messages>`}
+            </div>`:l}
+      ${e&&(this.canMessage||this.canEdit||this.canAct)?a`<div slot="footer" style="display:contents">
+            ${this.canMessage?a`<sw-button icon="mail" data-person-message @click=${()=>this.fire("message",{id:e.id})}>${r("action.message")}</sw-button>`:l}
+            ${this.canAct?a`<sw-button icon="more" data-person-actions-open @click=${()=>this.fire("actions",{id:e.id})}>${u("actions.open")}</sw-button>`:l}
+            ${this.canEdit?a`<sw-button variant="primary" icon="edit" data-wiskey-person-edit @click=${()=>this.fire("edit",{id:e.id})}>${r("action.edit")}</sw-button>`:l}
+          </div>`:l}
+      <slot></slot>
+    </sw-drawer>`}};S.styles=V`
+    :host {
+      display: contents;
+    }
+    .head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .head .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .tabs {
+      display: flex;
+      gap: 4px;
+      padding: 4px;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-3);
+    }
+    .tabs button {
+      flex: 1;
+      min-block-size: 44px;
+      border: 0;
+      border-radius: var(--sw-r-sm);
+      background: transparent;
+      color: var(--sw-text-2);
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+      cursor: pointer;
+    }
+    .tabs button[aria-selected='true'] {
+      background: var(--sw-seg-key, var(--sw-surface));
+      color: var(--sw-seg-key-ink, var(--sw-heading, var(--sw-text)));
+      font-weight: var(--sw-fw-bold);
+      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
+    }
+    .tabs button {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: background var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
+    }
+    .tabs button:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    /* R5-SECURITY: the badges in the head and the sections are fields - 12.5/700 on 22 px */
+    sw-badge {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-bold);
+      line-height: 18px;
+      padding-block: 2px;
+    }
+    .tabs button:focus-visible,
+    .linkbtn:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+    }
+    section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    /* R5-SECURITY: section headings in the heading ink (14.5/700); values 14/600; the sensitive section is a well (a tone step, no edge) */
+    h4 {
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
+    }
+    section.sens {
+      padding: 14px;
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface-2);
+    }
+    dl {
+      display: grid;
+      grid-template-columns: minmax(0, 8rem) minmax(0, 1fr);
+      gap: 8px 12px;
+      margin: 0;
+      font-size: var(--sw-fs-base);
+    }
+    dt {
+      color: var(--sw-text-3);
+    }
+    dd {
+      margin: 0;
+      min-inline-size: 0;
+      overflow-wrap: anywhere;
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-text);
+      font-variant-numeric: tabular-nums;
+    }
+    .sub {
+      color: var(--sw-text-3);
+    }
+    ${Ne}
+    ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    li.station {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px 10px;
+      padding: 8px 0;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    li.station:last-child {
+      border-block-end: 0;
+    }
+    li.station .name {
+      flex: 1 1 8rem;
+      min-inline-size: 0;
+      font-weight: var(--sw-fw-bold);
+      font-size: var(--sw-fs-md);
+      color: var(--sw-heading, var(--sw-text));
+    }
+    li.station .err {
+      flex-basis: 100%;
+      color: var(--sw-danger-text);
+      font-size: var(--sw-fs-xs);
+    }
+    .portrait {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .frame {
+      display: grid;
+      place-items: center;
+      inline-size: 88px;
+      block-size: 88px;
+      flex-shrink: 0;
+      border-radius: 50%;
+      overflow: hidden;
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+      font-size: var(--sw-fs-2xl);
+      font-weight: var(--sw-fw-bold);
+      border: 2px solid var(--sw-surface);
+      box-shadow: var(--sw-shadow-2);
+    }
+    .frame img {
+      inline-size: 100%;
+      block-size: 100%;
+      object-fit: cover;
+    }
+    .linkbtn {
+      min-block-size: 44px;
+      padding-inline: 12px;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      cursor: pointer;
+    }
+    .skeleton {
+      block-size: 14px;
+      border-radius: var(--sw-r-xs);
+      background: linear-gradient(90deg, var(--sw-surface-3), var(--sw-surface-2), var(--sw-surface-3));
+      background-size: 200% 100%;
+      animation: shimmer 1.4s linear infinite;
+    }
+    @keyframes shimmer {
+      to {
+        background-position: -200% 0;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .skeleton {
+        animation: none;
+      }
+    }
+    sw-button {
+      min-block-size: 44px;
+    }
+    .result {
+      margin: 0;
+      padding: 8px 12px;
+      border-radius: var(--sw-r-md);
+      font-size: var(--sw-fs-sm);
+      background: var(--sw-surface-2);
+      color: var(--sw-text-2);
+    }
+    .result.saved,
+    .result.deleted {
+      background: var(--sw-success-soft);
+      color: var(--sw-text);
+    }
+    .result.pending,
+    .result.unknown {
+      background: var(--sw-stale-soft);
+      color: var(--sw-text);
+    }
+    .result.refused,
+    .result.not_sent {
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger-text);
+    }
+  `;R([y({type:Boolean,reflect:!0})],S.prototype,"open",2);R([y({attribute:!1})],S.prototype,"person",2);R([y({type:Boolean})],S.prototype,"loading",2);R([y()],S.prototype,"error",2);R([y({attribute:!1})],S.prototype,"stationNames",2);R([y({attribute:!1})],S.prototype,"groupLabels",2);R([y({attribute:!1})],S.prototype,"groupStations",2);R([y({attribute:!1})],S.prototype,"fields",2);R([y({attribute:!1})],S.prototype,"zone",2);R([y({type:Boolean})],S.prototype,"canEdit",2);R([y({type:Boolean})],S.prototype,"canMessage",2);R([y({type:Boolean})],S.prototype,"canAct",2);R([y({attribute:!1})],S.prototype,"resultLine",2);R([y({attribute:!1})],S.prototype,"transport",2);R([y({type:Boolean})],S.prototype,"messagesTab",2);R([y({type:Number})],S.prototype,"messagesRev",2);R([y({type:Boolean})],S.prototype,"photoEnabled",2);R([c()],S.prototype,"tab",2);R([c()],S.prototype,"photo",2);S=R([Y("wiskey-person-drawer")],S);var ka=Object.defineProperty,xa=Object.getOwnPropertyDescriptor,N=(e,t,s,i)=>{for(var n=i>1?void 0:i?xa(t,s):t,d=e.length-1,o;d>=0;d--)(o=e[d])&&(n=(i?o(t,s,n):o(n))||n);return i&&n&&ka(t,s,n),n};const za={no_phone:"msg.reason.no_phone",no_consent:"msg.reason.no_consent",no_service:"msg.reason.no_service",not_registered:"msg.reason.not_registered",uncertain:"msg.reason.uncertain",expired:"msg.reason.expired",free_text_off:"msg.reason.free_text_off",credential:"msg.credential_blocked",too_long:"msg.too_long",empty:"msg.reason.empty",rate:"msg.reason.rate",person_limit:"msg.reason.person_limit",station_limit:"msg.reason.station_limit",outside_hours:"msg.reason.outside_hours",forbidden:"msg.reason.forbidden",gone:"msg.reason.gone",template_changed:"msg.reason.template_changed",disabled:"msg.reason.disabled",duplicate:"msg.reason.duplicate",refused:"msg.reason.refused",stopped:"msg.reason.stopped",unknown:"msg.reason.unknown",consent_pending:"msg.reason.consent_pending",consent_recent:"msg.reason.consent_recent",consent_unavailable:"msg.reason.consent_unavailable"},Q=e=>r(za[e]),nt=e=>{const t=new Date(e);return Number.isFinite(t.getTime())?is(t):""};let O=class extends W{constructor(){super(...arguments),this.open=!1,this.transport=null,this.people=[],this.loaded="loading",this.config=null,this.recipients=[],this.draft={template_id:null,text:""},this.phase="idle",this.sentAt="",this.held="",this.progress=null,this.outcome=null,this.confirming=!1,this.stopping=!1,this.generation=0,this.stopRequested=!1}willUpdate(e){e.has("open")&&this.open&&this.begin()}get bulk(){return this.people.length>1}async begin(){const e=++this.generation;this.loaded="loading",this.config=null,this.recipients=[],this.draft={template_id:null,text:""},this.phase="idle",this.failure=void 0,this.retryAfterS=void 0,this.progress=null,this.outcome=null,this.sentAt="",this.held="",this.confirming=!1,this.stopping=!1,this.stopRequested=!1;const t=this.transport;if(!t){this.loaded="unavailable";return}try{const[s,i]=await Promise.all([t.config(),t.recipients(this.people.map(n=>n.id)).catch(()=>[])]);if(e!==this.generation)return;this.config={...s,templates:Xe(s.templates)},this.recipients=this.people.map(n=>({...i.find(d=>d.person_id===n.id)??{person_id:n.id,phone_masked:null,has_phone:null,consent:"unknown"},name:n.name})),this.loaded="ready"}catch{if(e!==this.generation)return;this.loaded="unavailable"}}close(){this.generation++,this.open=!1,this.dispatchEvent(new CustomEvent("close",{bubbles:!0,composed:!0,detail:{sent:this.phase==="sent"||(this.outcome?.sent.length??0)>0}}))}pick(e){if(this.config){if(this.phase="idle",this.failure=void 0,this.outcome=null,this.confirming=!1,!e){this.draft={template_id:null,text:this.draft.template_id===null?this.draft.text:""};return}this.draft={template_id:e.id,text:this.bulk?e.body:Bs(e.body,{name:this.recipients[0]?.name??""})}}}edit(e){this.phase=this.phase==="sent"?"idle":this.phase,this.failure=void 0,this.confirming=!1,this.draft={template_id:null,text:e}}async send(){const e=this.transport;if(!e||!this.config||this.phase==="sending"||!(this.bulk?Ee(this.recipients,this.config,this.draft).canSend:Pe({config:this.config,recipient:this.recipients[0]??null,draft:this.draft,phase:this.phase,failure:this.failure,retryAfterS:this.retryAfterS}).canSend))return;if(this.bulk&&!this.confirming){this.confirming=!0;return}const s=this.generation,i={templates_revision:this.config.templates_revision};if(this.phase="sending",this.failure=void 0,!this.bulk){const f=await e.send(this.people[0].id,this.draft,i);if(s!==this.generation)return;f.ok?(this.phase="sent",this.sentAt=f.sent_at,this.held=f.held?f.held==="held"?"msg.held":this.draft.template_id===null?"msg.consent_requested_free":"msg.consent_requested":"",f.quota!==void 0?this.config={...this.config,quota:f.quota}:await this.refreshConfig()):(this.phase="failed",this.failure=f.reason,this.retryAfterS=f.retry_after_s,(f.reason==="rate"||f.reason==="template_changed"||f.reason==="disabled")&&(await this.refreshConfig(),f.reason==="template_changed"&&(this.draft={template_id:null,text:""})));return}const n=Ee(this.recipients,this.config,this.draft);this.confirming=!1,this.progress=[0,n.send.length],this.stopRequested=!1,this.stopping=!1;const d=Ks(),o=await Vs(n,this.draft,(f,m)=>e.send(f,m,{...i,bulk:{id:d,total:n.send.length}}),{onProgress:(f,m)=>this.progress=[f,m],paceMs:this.config.pace_ms,sleep:this.sleep,shouldStop:()=>this.stopRequested});s===this.generation&&(this.outcome=o,this.progress=null,this.stopping=!1,this.phase="sent",await this.refreshConfig())}stop(){this.stopRequested=!0,this.stopping=!0}async refreshConfig(){try{const e=await this.transport?.config();e&&(this.config={...e,templates:Xe(e.templates)})}catch{}}renderLine(e){const t=e.line;if(!t)return l;const s=t.tone==="ok"?"check":t.tone==="wait"?"refresh":t.tone==="warn"?"clock":"warning";let i="";return t.kind==="sending"?i=r("msg.sending"):t.kind==="sent"?i=this.held?r(this.held):r("msg.sent",{time:nt(this.sentAt)}):t.kind==="rate"?i=r("msg.rate",{minutes:t.minutes??1}):t.kind==="cant"?i=r("msg.cant",{reason:Q(t.reason)}):i=t.reason==="uncertain"?r("msg.uncertain"):r("msg.failed",{reason:Q(t.reason)}),a`<div class="line ${t.tone}" role=${t.tone==="err"?"alert":"status"} data-msg-line=${t.kind} data-msg-tone=${t.tone}><sw-icon name=${s} size=${16}></sw-icon><span>${i}</span></div>`}renderTemplates(e,t){return a`<div class="field">
+      <span class="lbl">${r("msg.template")}</span>
+      <div class="chips" role="group" aria-label=${r("msg.template")}>
+        ${e.templates.map(s=>a`<button type="button" class="chip" data-msg-template=${s.id} aria-pressed=${this.draft.template_id===s.id} ?disabled=${t} @click=${()=>this.pick(s)}>${s.label}</button>`)}
+        ${e.free_text?a`<button type="button" class="chip" data-msg-free aria-pressed=${this.draft.template_id===null&&this.draft.text!==""} ?disabled=${t} @click=${()=>this.pick(null)}>${r("msg.free")}</button>`:l}
+      </div>
+    </div>`}renderText(e,t){const s=this.bulk&&this.draft.template_id?this.draft.text.replaceAll("{name}",w("[שם]")):this.draft.text,i=this.draft.template_id!==null&&!e.free_text;return a`<div class="field">
+      <label for="msg-text">${r("msg.text")}</label>
+      <textarea id="msg-text" data-msg-text maxlength=${e.text_max} .value=${s} ?disabled=${t} ?readonly=${i}
+        @input=${n=>this.edit(n.target.value)}
+        @keydown=${n=>{(n.ctrlKey||n.metaKey)&&n.key==="Enter"&&(n.preventDefault(),this.send())}}></textarea>
+      <span class="cnt" aria-hidden="true">${r("msg.counter",{n:this.draft.text.length,max:e.text_max})}</span>
+    </div>`}renderSingle(e){const t=this.recipients[0],s=Pe({config:e,recipient:t??null,draft:this.draft,phase:this.phase,failure:this.failure,retryAfterS:this.retryAfterS}),i=t?.has_phone===!1?"—":t?.phone_masked?a`<span class="ltr" data-msg-phone>${t.phone_masked}</span>`:a`<span data-msg-phone="hidden">${r("msg.phone_hidden")}</span>`,n=t?.consent==="declined"?a`<span class="pill warn" data-msg-consent="declined">${r("msg.consent_declined")}</span>`:t?.consent==="granted"?a`<span class="pill ok" data-msg-consent="granted">${r("msg.consent_granted")}</span>`:t?.consent===null?l:a`<span class="pill" data-msg-consent="unknown">${r("msg.consent_unknown")}</span>`,d=this.phase==="sending",o=this.phase==="sent"?r("msg.send_again"):this.phase==="failed"&&this.failure==="uncertain"?r("msg.send_anyway"):r("msg.send");return a`
+      <div class="to" data-msg-recipient>
+        <sw-avatar name=${t?.name??""} size=${40} aria-hidden="true"></sw-avatar>
+        <div class="col"><b>${t?.name}</b><span class="meta">${i}${n}</span></div>
+      </div>
+      ${this.renderTemplates(e,s.textDisabled||d)}
+      ${this.renderText(e,s.textDisabled||d)}
+      ${this.renderLine(s)}
+      <div slot="footer" style="display:contents">
+        <sw-button variant="primary" icon="mail" data-msg-send ?disabled=${!s.canSend||d} @click=${()=>void this.send()}>${o}</sw-button>
+        <sw-button data-msg-cancel @click=${()=>this.close()} ?disabled=${d}>${this.phase==="sent"?r("msg.close"):r("msg.cancel")}</sw-button>
+      </div>`}renderResults(e){const t=s=>this.people.find(i=>i.id===s)?.name??s;return a`<table class="results" data-msg-results>
+      <caption>${r("msg.results")}</caption>
+      <thead><tr><th scope="col" class="c-name">${r("msg.result_name")}</th><th scope="col" class="c-outcome">${r("msg.result_outcome")}</th><th scope="col" class="c-detail">${r("msg.result_detail")}</th></tr></thead>
+      <tbody>
+        ${e.map(s=>{const i=s.status==="sent"?"ok":s.status==="unknown"||s.status==="held"?"warn":"err",n=s.status==="sent"?r("msg.result_sent"):s.status==="held"?r("msg.result_held"):s.status==="unknown"?r("msg.result_unknown"):r("msg.result_failed"),d=s.status==="sent"?nt(s.at??""):s.status==="held"?r("msg.held"):s.status==="unknown"?r("msg.uncertain"):Q(s.reason??"unknown");return a`<tr data-msg-result=${s.id} data-msg-outcome=${s.status}><td class="c-name">${t(s.id)}</td><td class="c-outcome"><span class="pill ${i}">${n}</span></td><td class="c-detail">${d}</td></tr>`})}
+      </tbody>
+    </table>`}renderBulk(e){const t=Ee(this.recipients,e,this.draft),s=this.phase==="sending",i=t.skip.slice(0,3).map(m=>`${m.recipient.name} (${Q(m.reason)})`).join(", ")+(t.skip.length>3?"…":""),n=r("msg.preview_bulk",{send:t.send.length,skip:t.skip.length?r("msg.preview_skip",{n:t.skip.length,names:i}):""}),d=this.outcome;let o=l;if(s&&this.progress)o=a`<div class="line wait" role="status" data-msg-line="sending"><sw-icon name="refresh" size=${16}></sw-icon><span>${this.stopping?r("msg.stopping"):r("msg.sending_n",{done:this.progress[0],total:this.progress[1]})}</span></div>`;else if(d){const m=Ws(d),$=m.failed||m.unknown||m.held?"warn":"ok";o=a`<div class="line ${$}" role="status" data-msg-line="bulk-done" data-msg-tone=${$}><sw-icon name="check" size=${16}></sw-icon><span>${r("msg.bulk_done",{sent:m.sent,failed:(m.held?r("msg.bulk_held",{n:m.held}):"")+(m.failed?r("msg.bulk_failed",{n:m.failed}):"")+(m.unknown?r("msg.bulk_unknown",{n:m.unknown}):"")})}</span></div>`}else if(this.confirming)o=a`<div class="line warn" role="alert" data-msg-line="confirm"><sw-icon name="warning" size=${16}></sw-icon><span>${r("msg.confirm_bulk",{n:t.send.length})}</span></div>`;else if(t.tooMany)o=a`<div class="line err" role="alert" data-msg-line="too-many"><sw-icon name="warning" size=${16}></sw-icon><span>${r("msg.bulk_too_many",{max:e.bulk_max})}</span></div>`;else if(t.overQuota!==null)o=a`<div class="line warn" role="status" data-msg-line="over-quota"><sw-icon name="clock" size=${16}></sw-icon><span>${r("msg.bulk_over_quota",{n:t.overQuota})}</span></div>`;else{const m=Pe({config:e,recipient:this.recipients[0]??null,draft:this.draft,phase:"idle"}).line;m?.kind==="cant"&&m.reason&&["credential","too_long","free_text_off"].includes(m.reason)?o=a`<div class="line err" role="alert" data-msg-line="cant"><sw-icon name="warning" size=${16}></sw-icon><span>${r("msg.cant",{reason:Q(m.reason)})}</span></div>`:e.enabled||(o=a`<div class="line warn" role="status" data-msg-line="cant"><sw-icon name="clock" size=${16}></sw-icon><span>${r("msg.cant",{reason:Q("no_service")})}</span></div>`)}const f=d?a`<sw-button variant="primary" data-msg-cancel @click=${()=>this.close()}>${r("msg.close")}</sw-button>`:s?a`<sw-button data-msg-stop icon="close" ?disabled=${this.stopping} @click=${()=>this.stop()}>${r("msg.stop")}</sw-button>`:this.confirming?a`<sw-button variant="primary" icon="mail" data-msg-confirm @click=${()=>void this.send()}>${r("msg.confirm_send")}</sw-button>
+              <sw-button data-msg-back @click=${()=>this.confirming=!1}>${r("msg.back")}</sw-button>`:a`<sw-button variant="primary" icon="mail" data-msg-send ?disabled=${!t.canSend} @click=${()=>void this.send()}>${r("msg.send_n",{n:t.send.length})}</sw-button>
+              <sw-button data-msg-cancel @click=${()=>this.close()}>${r("msg.cancel")}</sw-button>`;return a`
+      ${d?l:this.renderTemplates(e,s||this.confirming)}
+      ${d?l:this.renderText(e,s||this.confirming||!e.enabled)}
+      ${d?l:a`<div class="prev" data-msg-preview><sw-icon name="users" size=${16}></sw-icon><span>${n}</span></div>`}
+      ${o}
+      ${d?this.renderResults(Ys(this.people.map(m=>m.id),d.rows)):l}
+      <div slot="footer" style="display:contents">${f}</div>`}render(){const e=this.bulk?r("msg.title_bulk",{n:this.people.length}):r("msg.title");return a`<sw-dialog wide ?open=${this.open} ?locked=${this.phase==="sending"} heading=${e} @close=${t=>{t.stopPropagation(),this.close()}} data-msg-dialog>
+      ${this.loaded==="loading"?a`<div class="line wait" role="status" data-msg-line="loading"><sw-icon name="refresh" size=${16}></sw-icon><span>${r("state.detail_loading")}</span></div>`:l}
+      ${this.loaded==="unavailable"||!this.config?this.loaded==="unavailable"?a`<div class="line warn" role="status" data-msg-line="cant"><sw-icon name="clock" size=${16}></sw-icon><span>${r("msg.cant",{reason:Q("no_service")})}</span></div>
+              <div slot="footer" style="display:contents"><sw-button data-msg-cancel @click=${()=>this.close()}>${r("msg.close")}</sw-button></div>`:l:this.bulk?this.renderBulk(this.config):this.renderSingle(this.config)}
+    </sw-dialog>`}};O.styles=V`
+    :host {
+      display: contents;
+    }
+    .to {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface-2);
+    }
+    .to .col {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-inline-size: 0;
+    }
+    /* R5-SECURITY: the recipient is the dialog's display line - 17/800 in the heading ink; the pills are 12.5/700 fields */
+    .to b {
+      font-weight: 800;
+      font-size: var(--sw-fs-xl);
+      letter-spacing: -0.01em;
+      color: var(--sw-heading, var(--sw-text));
+    }
+    .to .meta {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px 8px;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-sm);
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: var(--sw-r-pill);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-bold);
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
+      white-space: nowrap;
+    }
+    .pill.ok {
+      background: var(--sw-success-soft);
+      color: var(--sw-success-text);
+    }
+    .pill.warn {
+      background: var(--sw-stale-soft);
+      color: var(--sw-stale-text);
+    }
+    .pill.err {
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger-text);
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .field > label,
+    .field > .lbl {
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    /* R5-SECURITY: the template chips are raised keys (shadow 1, 600) that sink on pointer-down; the chosen one a filled accent field */
+    .chip {
+      min-block-size: 44px;
+      padding-inline: 14px;
+      border-radius: var(--sw-r-pill);
+      border: 1px solid transparent;
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      cursor: pointer;
+      max-inline-size: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: background var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
+    }
+    .chip:active:not(:disabled) {
+      transform: scale(var(--sw-press-scale));
+    }
+    .chip[aria-pressed='true'] {
+      background: var(--sw-accent);
+      border-color: transparent;
+      color: var(--sw-text-inverse);
+      font-weight: var(--sw-fw-bold);
+    }
+    .chip:disabled {
+      opacity: var(--sw-disabled-opacity);
+      cursor: default;
+    }
+    .chip:focus-visible,
+    textarea:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+    }
+    textarea {
+      box-sizing: border-box;
+      inline-size: 100%;
+      min-block-size: 120px;
+      padding: 10px 12px;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+      font-size: var(--sw-fs-md);
+      line-height: 1.5;
+      resize: vertical;
+    }
+    textarea:disabled {
+      background: var(--sw-surface-2);
+      color: var(--sw-text-3);
+    }
+    .cnt {
+      align-self: flex-end;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+      font-variant-numeric: tabular-nums;
+    }
+    .line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 12px;
+      border-radius: var(--sw-r-md);
+      font-size: var(--sw-fs-sm);
+      background: var(--sw-surface-2);
+      color: var(--sw-text);
+    }
+    .line.ok {
+      background: var(--sw-success-soft);
+    }
+    .line.warn {
+      background: var(--sw-stale-soft);
+    }
+    .line.err {
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger-text);
+    }
+    .line.wait sw-icon {
+      animation: spin 1.2s linear infinite;
+    }
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .line.wait sw-icon {
+        animation: none;
+      }
+    }
+    .prev {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+    }
+    ${Ne}
+    sw-button {
+      min-block-size: 44px;
+    }
+    /* the per-recipient result table of a bulk run */
+    .results {
+      inline-size: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: var(--sw-fs-sm);
+    }
+    .results caption {
+      caption-side: top;
+      text-align: start;
+      padding-block-end: 6px;
+      color: var(--sw-text-2);
+      font-weight: var(--sw-fw-medium);
+    }
+    .results th {
+      text-align: start;
+      padding: 6px 8px;
+      border-block-end: 1px solid var(--sw-border-strong);
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-medium);
+    }
+    .results td {
+      padding: 8px;
+      border-block-end: 1px solid var(--sw-border);
+      vertical-align: middle;
+      overflow-wrap: anywhere;
+    }
+    .results tr:last-child td {
+      border-block-end: 0;
+    }
+    .results .c-name {
+      inline-size: 36%;
+    }
+    .results .c-outcome {
+      inline-size: 26%;
+    }
+    .results .c-detail {
+      color: var(--sw-text-2);
+    }
+  `;N([y({type:Boolean,reflect:!0})],O.prototype,"open",2);N([y({attribute:!1})],O.prototype,"transport",2);N([y({attribute:!1})],O.prototype,"people",2);N([y({attribute:!1})],O.prototype,"sleep",2);N([c()],O.prototype,"loaded",2);N([c()],O.prototype,"config",2);N([c()],O.prototype,"recipients",2);N([c()],O.prototype,"draft",2);N([c()],O.prototype,"phase",2);N([c()],O.prototype,"failure",2);N([c()],O.prototype,"retryAfterS",2);N([c()],O.prototype,"sentAt",2);N([c()],O.prototype,"held",2);N([c()],O.prototype,"progress",2);N([c()],O.prototype,"outcome",2);N([c()],O.prototype,"confirming",2);N([c()],O.prototype,"stopping",2);O=N([Y("wiskey-message-dialog")],O);var Ca=Object.defineProperty,Sa=Object.getOwnPropertyDescriptor,D=(e,t,s,i)=>{for(var n=i>1?void 0:i?Sa(t,s):t,d=e.length-1,o;d>=0;d--)(o=e[d])&&(n=(i?o(t,s,n):o(n))||n);return i&&n&&Ca(t,s,n),n};const rt={edit:"act.edit",deactivate:"act.deactivate",activate:"act.activate",temporary_cancel:"act.temporary_cancel",cards:"act.cards",photo:"act.photo",archive:"act.archive",restore:"act.restore",delete:"act.delete"},Ea={deactivate:"confirm.deactivate",activate:"confirm.activate",temporary_cancel:"confirm.temporary_cancel",archive:"confirm.archive",restore:"confirm.restore",delete:"confirm.delete"},Pa={deactivate:"lock",activate:"check",temporary_cancel:"clock",cards:"grid",photo:"image",archive:"storage",restore:"refresh",delete:"trash"};function ot(e){if(e instanceof z){const t=e.body?.details?.outcome;return{status:e.status,code:e.code,outcome:typeof t=="string"?t:null}}return{status:null,code:null,outcome:null}}async function Ta(e){if(!e.type.startsWith("image/"))throw new Error("not_image");const t=URL.createObjectURL(e);try{const s=await new Promise((n,d)=>{const o=new Image;o.onload=()=>n(o),o.onerror=()=>d(new Error("not_image")),o.src=t});let i=512;for(let n=0;n<4;n++,i=Math.round(i*.75)){const{width:d,height:o}=hi(s.naturalWidth,s.naturalHeight,i),f=document.createElement("canvas");f.width=d,f.height=o;const m=f.getContext("2d");if(!m)throw new Error("not_image");m.fillStyle="#ffffff",m.fillRect(0,0,d,o),m.drawImage(s,0,0,d,o);for(const $ of pi){const Z=f.toDataURL("image/jpeg",$);if(fi(Z))return Z}}throw new Error("too_big")}finally{URL.revokeObjectURL(t)}}let E=class extends W{constructor(){super(...arguments),this.person=null,this.kind="menu",this.actions=[],this.canCapture=!1,this.zone=te,this.current="menu",this.step="ask",this.result=null,this.reason="visit_completed",this.editor=null,this.editorError="",this.cardNo="",this.cardLabel="",this.cardProblem=!1,this.removing=null,this.ctx=null,this.capturing=!1,this.photo={phase:"idle",data:"",problem:null},this.photoRemove=!1,this.checks=0,this.checkTimer=0,this.generation=0}connectedCallback(){super.connectedCallback(),this.current=this.kind}disconnectedCallback(){super.disconnectedCallback(),window.clearTimeout(this.checkTimer),this.generation++}willUpdate(e){e.has("kind")&&this.select(this.kind)}select(e){this.current=e,this.step="ask",this.result=null,(e==="cards"||e==="photo")&&this.loadEditor()}fire(e){this.dispatchEvent(new CustomEvent("action-result",{detail:e,bubbles:!0,composed:!0}))}close(){this.step!=="working"&&(window.clearTimeout(this.checkTimer),this.dispatchEvent(new CustomEvent("close",{bubbles:!0,composed:!0})))}async loadEditor(){const e=this.person;if(!e)return;const t=++this.generation;this.editor=null,this.editorError="";try{const[s,i]=await Promise.all([ye(e.id),this.current==="cards"&&this.canCapture?vt().catch(()=>null):Promise.resolve(null)]);if(t!==this.generation)return;this.editor=s.person,s.person||(this.editorError=u("err.unavailable")),this.ctx=i?.context??null}catch(s){if(t!==this.generation)return;this.editorError=u(et(ot(s)).reason)}}revision(){return this.editor?.revision??this.person?.revision??0}async write(e,t){const s=this.person;if(!(!s||this.step==="working")){this.step="working",this.result=null;try{const i=await t(),n=Ae(i),d="person"in i?i.person:null;if(d&&(this.editor=d),e==="delete"&&n==="pending"){this.result={state:"pending",text:u("res.pending")},this.step="checking",this.checks=0,this.fire({kind:e,id:s.id,state:"pending",text:this.result.text,person:null}),this.scheduleCheck(s.id);return}const o=n==="pending"?u("res.pending"):u("res.saved",{time:se(new Date().toISOString(),this.zone)});this.result={state:n,text:o},this.step="done",this.fire({kind:e,id:s.id,state:n,text:o,person:d})}catch(i){const n=et(ot(i)),d=n.state==="unknown"?u("res.unknown"):u(n.state==="not_sent"?"res.not_sent":"res.refused",{reason:u(n.reason)});this.result={state:n.state,text:d},this.step="done",this.fire({kind:e,id:s.id,state:n.state,text:d,person:null})}}}scheduleCheck(e){window.clearTimeout(this.checkTimer),this.checkTimer=window.setTimeout(()=>void this.check(e),xt)}async check(e){let t=200;try{await we(e)}catch(s){t=s instanceof z?s.status:0}if(this.isConnected){if(kt(t)==="confirmed"){this.result={state:"deleted",text:u("res.deleted")},this.step="done",this.fire({kind:"delete",id:e,state:"deleted",text:this.result.text,person:null});return}this.checks++,this.checks<Ie?this.scheduleCheck(e):this.result={state:"pending",text:u("res.still_pending")}}}confirm(){const e=this.person;if(!e)return;const t=this.revision();switch(this.current){case"deactivate":return void this.write("deactivate",()=>st(e.id,t,!1));case"activate":return void this.write("activate",()=>st(e.id,t,!0));case"archive":return void this.write("archive",()=>xi(e.id,t));case"restore":return void this.write("restore",()=>zi(e.id,t));case"temporary_cancel":return void this.write("temporary_cancel",()=>Ci(e.id,t,this.reason));case"delete":return void this.write("delete",()=>yt(e.id,t))}}addCard(){const e=this.person;if(!e||!this.editor)return;if(!ri(this.cardNo)){this.cardProblem=!0;return}const t={card_no:this.cardNo.trim(),label:this.cardLabel.trim(),enabled:!0};this.write("cards",()=>Si(e.id,this.revision(),t)).then(()=>{(this.result?.state==="saved"||this.result?.state==="pending")&&(this.cardNo="",this.cardLabel="")})}removeCard(e){const t=this.person;t&&(this.removing=null,this.write("cards",()=>Ei(t.id,this.revision(),e)))}async pickPhoto(e){const t=e.target,s=t.files?.[0];if(t.value="",!!s){this.photo={phase:"processing",data:"",problem:null};try{const i=await Ta(s);this.photo={phase:"ready",data:i,problem:null}}catch(i){this.photo={phase:"error",data:"",problem:i.message==="too_big"?"photo.too_big":"photo.not_image"}}}}savePhoto(e){const t=this.person;if(!t)return;const s=e?null:this.photo.data;!e&&!s||(this.photoRemove=!1,this.write("photo",()=>Pi(t.id,this.revision(),s)).then(()=>{(this.result?.state==="saved"||this.result?.state==="pending")&&(this.photo={phase:"idle",data:"",problem:null})}))}captured(){this.capturing=!1;const e=this.editor?.cards?.length??0,t=this.person;t&&(this.result={state:"pending",text:u("res.pending")},ye(t.id).then(s=>{if(!s.person)return;this.editor=s.person;const i=(s.person.cards?.length??0)>e;this.result=i?{state:"saved",text:u("res.saved",{time:se(new Date().toISOString(),this.zone)})}:{state:"pending",text:u("res.still_pending")},this.fire({kind:"cards",id:t.id,state:this.result.state,text:this.result.text,person:s.person})}).catch(()=>{}))}render(){const e=this.person;if(!e)return l;const t=this.current,s=u(t==="menu"?"actions.heading":rt[t]);return a`<sw-dialog open heading=${s} subheading=${e.display_name} ?locked=${this.step==="working"} data-person-actions=${t} data-person-actions-step=${this.step}
+        @close=${i=>{i.stopPropagation(),this.close()}}>
+        ${t==="menu"?this.renderMenu():t==="cards"?this.renderCards():t==="photo"?this.renderPhoto():this.renderAsk(t)}
+        ${this.result?a`<p class="result ${this.result.state}" role="status" data-action-result=${this.result.state}>${this.result.text}</p>`:l}
+        <div slot="footer" class="footer">${this.renderFooter(t)}</div>
+      </sw-dialog>
+      ${this.capturing&&this.editor&&this.ctx?a`<wiskey-card-capture .person=${this.editor} .stations=${this.ctx.stations.filter(i=>(this.ctx?.capture_stations??[]).includes(i.id))}
+            @capture-close=${()=>this.capturing=!1} @capture-saved=${()=>this.captured()} @capture-reload=${()=>{this.capturing=!1,this.loadEditor()}}></wiskey-card-capture>`:l}`}renderMenu(){const e=this.actions.filter(t=>t!=="edit");return a`<div class="menu">
+      ${e.map(t=>a`<button type="button" class="item ${t==="delete"?"danger":""}" data-person-action=${t} @click=${()=>this.select(t)}>
+        <sw-icon name=${Pa[t]??"chevron"} size=${18}></sw-icon><span>${u(rt[t])}</span></button>`)}
+    </div>`}renderAsk(e){const t=this.person,s=Ea[e];return a`${s&&this.step==="ask"?a`<p class="ask" data-action-question>${u(s,{name:t.display_name})}</p>`:l}
+      ${e==="temporary_cancel"&&this.step==="ask"?a`<sw-field label=${u("reason.label")}>
+            <sw-dropdown block data-action-reason label=${u("reason.label")} .value=${this.reason}
+              .items=${ki.map(i=>({id:i,label:u(`reason.${i}`)}))}
+              @change=${i=>this.reason=i.detail.id}></sw-dropdown>
+          </sw-field>`:l}`}renderCards(){const e=this.editor;if(this.editorError)return a`<p class="result refused" role="status" data-cards-error>${this.editorError}</p>`;if(!e)return a`<p class="muted" role="status" data-cards-loading>${u("cards.loading")}</p>`;const t=e.cards??[];return a`<ul class="cards" data-person-cards>
+        ${t.length===0?a`<li class="muted" data-cards-none>${u("cards.none")}</li>`:l}
+        ${t.map(s=>a`<li class="card" data-person-card=${s.id}>
+          <bdi class="mask" dir="ltr">${s.masked_number}</bdi>
+          <span class="label">${s.label}</span>
+          ${s.enabled?l:a`<span class="muted">${u("cards.disabled")}</span>`}
+          ${this.removing===s.id?a`<span class="inline-ask"><span>${u("confirm.remove_card",{mask:s.masked_number})}</span>
+                <sw-button size="sm" variant="danger" data-card-remove-confirm ?disabled=${this.step==="working"} @click=${()=>this.removeCard(s.id)}>${u("btn.remove")}</sw-button>
+                <sw-button size="sm" variant="ghost" @click=${()=>this.removing=null}>${u("btn.cancel")}</sw-button></span>`:a`<sw-button size="sm" variant="ghost" icon="trash" data-card-remove ?disabled=${this.step==="working"} @click=${()=>this.removing=s.id}>${u("btn.remove")}</sw-button>`}
+        </li>`)}
+      </ul>
+      <div class="add" data-card-add-form>
+        <sw-field label=${u("cards.number")} hint=${this.cardProblem?u("err.card_invalid"):""}>
+          <input data-card-number dir="ltr" autocomplete="off" maxlength="32" .value=${x(this.cardNo)} aria-invalid=${this.cardProblem?"true":"false"}
+            @input=${s=>{this.cardNo=s.target.value,this.cardProblem=!1}} />
+        </sw-field>
+        <sw-field label=${u("cards.label")}>
+          <input data-card-label maxlength="64" .value=${x(this.cardLabel)} @input=${s=>this.cardLabel=s.target.value} />
+        </sw-field>
+      </div>`}renderPhoto(){const e=this.editor;if(this.editorError)return a`<p class="result refused" role="status" data-photo-error>${this.editorError}</p>`;const t=this.photo;return a`<div class="photo" data-person-photo-form>
+      <div class="frame" aria-label=${u("photo.preview")}>${t.phase==="ready"?a`<img src=${t.data} alt=${u("photo.preview")} data-photo-preview />`:a`<sw-icon name="user" size=${40}></sw-icon>`}</div>
+      <div class="col">
+        <label class="pick">
+          <input type="file" accept="image/*" data-photo-input @change=${s=>void this.pickPhoto(s)} ?disabled=${this.step==="working"} />
+          <span>${u("btn.choose_photo")}</span>
+        </label>
+        ${t.phase==="processing"?a`<span class="muted" role="status">${u("photo.processing")}</span>`:l}
+        ${t.phase==="error"&&t.problem?a`<span class="result refused" role="status" data-photo-problem=${t.problem}>${u(t.problem)}</span>`:l}
+        ${e&&e.photo_configured===!1&&t.phase!=="ready"?a`<span class="muted">${u("photo.none")}</span>`:l}
+        ${this.photoRemove?a`<span class="ask">${u("confirm.remove_photo",{name:this.person?.display_name??""})}</span>`:l}
+      </div>
+    </div>`}renderFooter(e){const t=this.step==="working",s=a`<sw-button variant="ghost" data-action-close ?disabled=${t} @click=${()=>this.close()}>${u(this.result?"btn.close":"btn.cancel")}</sw-button>`;if(e==="menu")return s;if(e==="cards"){const i=this.canCapture&&(this.ctx?.capture_stations?.length??0)>0?a`<sw-button icon="wifi" data-card-read ?disabled=${t||!this.editor} @click=${()=>this.capturing=!0}>${u("btn.read_card")}</sw-button>`:l;return a`${s}${i}<sw-button variant="primary" icon="plus" data-card-add ?disabled=${t||!this.editor||!this.cardNo.trim()} @click=${()=>this.addCard()}>${u(t?"btn.working":"btn.add_card")}</sw-button>`}if(e==="photo"){const n=this.editor?.photo_configured?this.photoRemove?a`<sw-button variant="danger" data-photo-remove-confirm ?disabled=${t} @click=${()=>this.savePhoto(!0)}>${u("btn.remove_photo")}</sw-button>`:a`<sw-button variant="ghost" icon="trash" data-photo-remove ?disabled=${t} @click=${()=>this.photoRemove=!0}>${u("btn.remove_photo")}</sw-button>`:l;return a`${s}${n}<sw-button variant="primary" icon="check" data-photo-save ?disabled=${t||this.photo.phase!=="ready"} @click=${()=>this.savePhoto(!1)}>${u(t?"btn.working":"btn.save_photo")}</sw-button>`}if(this.step==="ask")return a`${s}<sw-button variant=${e==="delete"||e==="archive"||e==="deactivate"||e==="temporary_cancel"?"danger":"primary"} data-action-confirm
+        @click=${()=>this.confirm()}>${u("btn.confirm")}</sw-button>`;if(this.step==="checking"||e==="delete"&&this.result?.state==="pending"){const i=this.person?.id??"";return a`${s}<sw-button variant="ghost" icon="refresh" data-action-check ?disabled=${this.step==="checking"&&this.checks<Ie} @click=${()=>{this.checks=0,this.check(i)}}>${u("btn.check")}</sw-button>`}return t?a`<sw-button variant="primary" disabled>${u("btn.working")}</sw-button>`:s}};E.styles=V`
+    .menu {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-block-size: 46px;
+      padding-inline: 14px;
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      text-align: start;
+      cursor: pointer;
+      /* R5-SECURITY: the menu items are raised keys (shadow 1) that sink on pointer-down; a hover only under a fine pointer */
+      box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: background var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .item:hover {
+        background: var(--sw-surface-2);
+      }
+    }
+    .item:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    .item.danger {
+      background: var(--sw-danger-soft);
+    }
+    .item:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+    }
+    .item.danger {
+      color: var(--sw-danger-text);
+    }
+    .ask {
+      margin: 0;
+      font-size: var(--sw-fs-sm);
+    }
+    .muted {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .result {
+      margin: 0;
+      padding: 8px 12px;
+      border-radius: var(--sw-r-md);
+      font-size: var(--sw-fs-sm);
+      background: var(--sw-surface-2);
+      color: var(--sw-text-2);
+    }
+    .result.saved,
+    .result.deleted {
+      background: var(--sw-success-soft);
+      color: var(--sw-text);
+    }
+    .result.pending,
+    .result.unknown {
+      background: var(--sw-stale-soft);
+      color: var(--sw-text);
+    }
+    .result.refused,
+    .result.not_sent {
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger-text);
+    }
+    .cards {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .card {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 10px;
+      padding: 8px 12px;
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
+      min-block-size: 44px;
+    }
+    .card .mask {
+      font-weight: var(--sw-fw-bold);
+      font-size: var(--sw-fs-lg);
+      font-variant-numeric: tabular-nums;
+      color: var(--sw-heading, var(--sw-text));
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
+    .card .label {
+      flex: 1 1 6rem;
+      min-inline-size: 0;
+      overflow-wrap: anywhere;
+    }
+    .inline-ask {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      flex-basis: 100%;
+      font-size: var(--sw-fs-sm);
+    }
+    .add {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 10px;
+    }
+    @media (max-width: 480px) {
+      .add {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+    input,
+    select {
+      font: inherit;
+      min-block-size: 44px;
+      box-sizing: border-box;
+      inline-size: 100%;
+    }
+    .photo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .frame {
+      display: grid;
+      place-items: center;
+      inline-size: 96px;
+      block-size: 96px;
+      flex-shrink: 0;
+      border-radius: 50%;
+      overflow: hidden;
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+      border: 2px solid var(--sw-border);
+    }
+    .frame img {
+      inline-size: 100%;
+      block-size: 100%;
+      object-fit: cover;
+    }
+    .col {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-inline-size: 0;
+      flex: 1 1 10rem;
+    }
+    .pick {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-block-size: 44px;
+      padding-inline: 14px;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      cursor: pointer;
+      font-size: var(--sw-fs-sm);
+      position: relative;
+    }
+    .pick input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      min-block-size: 0;
+    }
+    .pick:focus-within {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+    }
+    .footer {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    sw-button {
+      min-block-size: 44px;
+    }
+  `;D([y({attribute:!1})],E.prototype,"person",2);D([y()],E.prototype,"kind",2);D([y({attribute:!1})],E.prototype,"actions",2);D([y({type:Boolean})],E.prototype,"canCapture",2);D([y({attribute:!1})],E.prototype,"zone",2);D([c()],E.prototype,"current",2);D([c()],E.prototype,"step",2);D([c()],E.prototype,"result",2);D([c()],E.prototype,"reason",2);D([c()],E.prototype,"editor",2);D([c()],E.prototype,"editorError",2);D([c()],E.prototype,"cardNo",2);D([c()],E.prototype,"cardLabel",2);D([c()],E.prototype,"cardProblem",2);D([c()],E.prototype,"removing",2);D([c()],E.prototype,"ctx",2);D([c()],E.prototype,"capturing",2);D([c()],E.prototype,"photo",2);D([c()],E.prototype,"photoRemove",2);E=D([Y("wiskey-person-actions")],E);const U="access-control/bulk-people";function lt(){const e=new Uint8Array(16);return crypto.getRandomValues(e),Array.from(e,t=>t.toString(16).padStart(2,"0")).join("")}const jt=()=>re(`${U}/settings`),Oa=e=>ke(`${U}/settings`,{enabled:e});function Ra(e,t){return je(`${U}/jobs`,{method:"POST",body:e,headers:{"Content-Type":"text/csv","Idempotency-Key":t}})}function Da(e,t){return je(`${U}/jobs/edit`,{method:"POST",body:JSON.stringify(e),headers:{"Idempotency-Key":t}})}const Aa=e=>M(`${U}/jobs/${encodeURIComponent(e)}/dry-run`),Ia=(e,t,s)=>M(`${U}/jobs/${encodeURIComponent(e)}/confirm`,{plan_digest:t,confirm:s}),Ma=e=>M(`${U}/jobs/${encodeURIComponent(e)}/apply`),Na=e=>M(`${U}/jobs/${encodeURIComponent(e)}/cancel`);async function qt(e){const{blob:t,headers:s}=await as(e),i=s.get("X-Export-Rows");return{blob:t,rows:i===null?null:Number(i)}}const ja=()=>qt(`${U}/export.csv`),qa=()=>qt(`${U}/template.csv`),La=e=>ke(`${U}/wiskey-csv/settings`,{enabled:e});function Ua(e,t){return je(`${U}/jobs/${encodeURIComponent(e)}/wiskey-preview`,{method:"POST",body:t,headers:{"Content-Type":"text/csv"}})}const Fa=(e,t,s)=>M(`${U}/jobs/${encodeURIComponent(e)}/wiskey-confirm`,{preview_digest:t,confirm:s}),dt=e=>re(`${U}/jobs/${encodeURIComponent(e)}/wiskey-result`),Lt=8,Ba=1500,Ka=20;function Va(e){const t=e?.wiskey_csv;return!t||t.enabled!=="on"?"off":t.available&&e?.may_import===!0?"ready":"blocked"}const Wa={switch_off:"v_blocker_switch_off",bulk_people_off:"v_blocker_bulk_people_off",binding_not_configured:"v_blocker_binding_not_configured",direct_not_installed:"v_blocker_direct_not_installed",direct_not_selected:"v_blocker_direct_not_selected"};function Ya(e){return Wa[e]??"v_blocker_direct_not_selected"}function Ut(e,t=Lt){return Math.max(1,Math.ceil(e/t))}function Ga(e,t,s=Lt){const i=Ut(e.length,s)-1,n=Math.min(Math.max(0,t),i);return e.slice(n*s,n*s+s)}function ct(e,t,s){if(e.writes<=0||t.trim()!==String(e.writes))return!1;const i=Date.parse(e.expires_at);return Number.isFinite(i)&&i>s}function Ha(e){switch(e.state){case"running":return{key:"v_result_running"};case"finished":return typeof e.saved=="number"?{key:"v_result_finished",n:e.saved}:{key:"v_result_done"};case"cancelled":return{key:"v_result_cancelled"};case"not_started":return{key:"v_none"};default:return{key:"v_result_unknown"}}}function Ja(e,t){return e!==null&&e.state==="running"&&t<Ka}function Xa(e,t){const s=Date.parse(e);return Number.isFinite(s)?new Date(s).toLocaleTimeString(t,{hour:"2-digit",minute:"2-digit"}):e}const ze={open:"ייבוא וייצוא",title:"ייבוא, ייצוא ושינוי מרוכז",tab_import:"ייבוא מקובץ",tab_export:"ייצוא",edit_open:"שינוי מרוכז",no_secrets:"קודים, כרטיסים ותמונות אינם נטענים מקובץ ואינם מיוצאים לקובץ.",off_title:"שינוי מרוכז כבוי",off_text:"מנהל מערכת יכול להפעיל ייבוא, ייצוא ושינוי מרוכז של אנשים.",off_enable:"הפעלה",permit_missing:"הכתיבה לבקרת הכניסה דורשת אישור הפעלה נפרד מבעל המערכת. עד אז אפשר לבדוק קבצים ולראות תצוגה מקדימה בלבד.",template:"הורדת תבנית",export_btn:"ייצוא לקובץ",export_hint:"רק האנשים שמותר לך לראות. הטלפון מוסתר חלקית. אפשר לייצא פעם בדקה.",export_done:"יוצאו {n} אנשים",choose_file:"בחירת קובץ CSV",file_hint:"עד {rows} שורות ועד {kb} ק״ב. שורה בלי מזהה יוצרת אדם חדש; שורה עם מזהה מעדכנת רק את האדם הזה.",uploading:"בודק את הקובץ…",report_title:"בדיקת הקובץ",report_ok:"{n} תקינות",report_skip:"{n} ללא שינוי",report_error:"{n} עם שגיאה",row:"שורה {n}",dry_run:"תצוגה מקדימה",dry_running:"משווה מול בקרת הכניסה…",dry_title:"מה ישתנה",will_create:"{n} חדשים",will_update:"{n} עדכונים",unchanged:"{n} ללא שינוי",errors:"{n} לא ייכתבו",before:"לפני",after:"אחרי",hidden:"מוסתר",confirm_title:"אישור כתיבה",confirm_text:"ייכתבו {n} שורות לבקרת הכניסה. להמשך הקלידו את המספר {n}.",confirm_label:"מספר השורות",confirm_btn:"אישור",confirm_admin_only:"האישור שמור למנהל מערכת. שלחו לו את הקישור למשימה.",apply:"כתיבה",applying:"נכתבו {done} מתוך {total}",paused:"הכתיבה נעצרה באמצע. אפשר להמשיך.",stalled:"בקרת הכניסה לא זמינה כרגע. נסו להמשיך מאוחר יותר.",resume:"המשך",done_title:"הכתיבה הסתיימה",cancel:"ביטול המשימה",close:"סגירה",back:"חזרה",outcome_ok:"נכתב",outcome_failed:"לא נכתב",outcome_unknown:"לא ידוע",outcome_not_sent:"לא נשלח",unknown_hint:"שורה שתוצאתה לא ידועה לא נשלחת שוב. בדקו את האדם ברשימה לפני כל שינוי נוסף.",edit_title:"שינוי מרוכז · {n} אנשים",edit_validity:"תוקף",edit_from:"מתאריך",edit_until:"עד תאריך",edit_doors_add:"הוספת עמדה",edit_doors_remove:"הסרת עמדה",edit_relays:"דלתות",edit_groups_add:"הוספה לקבוצה",edit_groups_remove:"הסרה מקבוצה",edit_active:"מצב",edit_keep:"ללא שינוי",edit_activate:"הפעלה",edit_deactivate:"השבתה",edit_stage:"המשך לתצוגה מקדימה",edit_nochange:"לא נבחר שינוי.",field_person_id:"מזהה",field_revision:"גרסה",field_employee_no:"מספר עובד",field_display_name:"שם",field_phone:"טלפון",field_access_category:"סוג",field_responsible_person:"אחראי",field_access_purpose:"מטרה",field_active:"פעיל",field_valid_from:"מתאריך",field_valid_until:"עד",field_doors:"דלתות",field_groups:"קבוצות",field_group_ids:"קבוצות",field_door_permissions:"דלתות",code_formula_like:"ערך שנראה כנוסחה",code_invalid:"ערך לא תקין",code_validity_pair:"יש למלא גם התחלה וגם סוף",code_validity:"תאריך לא תקין",code_required:"שדה חובה",code_duplicate_person:"האדם מופיע יותר מפעם אחת",code_duplicate_employee_no:"מספר עובד כפול בקובץ",code_guest_responsible_required:"למבקר או לקבלן נדרש אחראי",code_invalid_validity:"למבקר או לקבלן נדרש תאריך סיום",code_doors:"דלתות לא תקינות",code_groups:"קבוצות לא תקינות",code_active:"ערך פעיל לא תקין",code_access_category:"סוג לא מוכר",code_person_id:"מזהה לא תקין",code_revision:"גרסה לא תקינה",code_revision_without_person:"גרסה בלי מזהה",code_cell_too_long:"ערך ארוך מדי",code_control_character:"תו לא חוקי",code_too_many_cells:"יותר מדי עמודות בשורה",code_nothing_to_change:"אין מה לשנות",code_unchanged:"ללא שינוי",code_not_found:"האדם לא נמצא",code_scope:"האדם או העמדה אינם בניהולך",code_field_level:"נדרשת הרשאה לפרטים רגישים",code_revision_conflict:"האדם השתנה מאז הייצוא",code_employee_conflict:"מספר העובד כבר קיים",code_projection_restricted:"הרשאות האדם אינן גלויות במלואן",code_unknown_group:"קבוצה לא מוכרת",code_group_stations_unknown:"עמדות הקבוצה לא ידועות",code_plan_changed:"הנתונים השתנו מאז התצוגה המקדימה",code_refused:"בקרת הכניסה דחתה את השורה",code_generic:"שגיאה",v_title:"אימות מול בקרת הכניסה",v_enable:"הפעלת אימות הקובץ",v_btn:"אימות הקובץ",v_running:"מאמת…",v_will_write:"{n} ייכתבו",v_line:"שורה {n} בקובץ",v_op_create:"אדם חדש",v_op_update:"עדכון",v_expires:"בתוקף עד {t}",v_confirm_btn:"אישור וכתיבה",v_sent:"נשלח",v_result_running:"בביצוע…",v_result_finished:"נכתבו {n}",v_result_done:"הושלם",v_result_unknown:"התוצאה לא ידועה. לא נשלח שוב.",v_result_cancelled:"בוטל",v_check:"בדיקת תוצאה",v_prev:"הקודם",v_next:"הבא",v_page:"{a} מתוך {b}",v_admin_only:"רק מנהל מערכת יכול לאשר.",v_blocker_switch_off:"האימות כבוי",v_blocker_bulk_people_off:"שינוי מרוכז כבוי",v_blocker_binding_not_configured:"חסרה הגדרת סמכות",v_blocker_direct_not_installed:"אין חיבור ישיר",v_blocker_direct_not_selected:"החיבור הישיר אינו זמין",v_none:"אין שורות לכתיבה",v_mode_note:"רק אנשים חדשים"},Ft=H("en","i18n/bulk-people","en"),Bt=H("ar","i18n/bulk-people","ar"),Kt=H("ru","i18n/bulk-people","ru"),Za={he:ze,en:Ft,ar:Bt,ru:Kt},Qa=["ar","ru"];function Ue(){return $e(["en","ar","ru"])}function h(e,t,s=Ue()){const i=Za[s][e]??ze[e]??e;return pe(i,t)}function ne(e,t,s,i=Ue()){return e in ze?h(e,s,i):h(t,s,i)}he("i18n/bulk-people",{he:ze,en:Ft,ar:Bt,ru:Kt},Qa);function en(e){switch(e.state){case"staged":return"report";case"previewed":return"preview";case"confirmed":case"applying":case"paused":return"apply";case"done":return"done";default:return"closed"}}function tn(e){const t={create:0,update:0,unchanged:0,error:0};for(const s of e)s.status==="error"?t.error+=1:s.status==="unchanged"?t.unchanged+=1:s.op==="create"?t.create+=1:t.update+=1;return t}function pt(e,t){const s=e.fields.map(n=>ne(`field_${n}`,"code_generic",void 0,t)),i=e.codes.map(n=>ne(`code_${n}`,"code_generic",void 0,t));return s.length?`${s.join(", ")}: ${i.join(", ")}`:i.join(", ")}function ht(e){if(e==null||e==="")return"—";if(Array.isArray(e))return e.length?e.join(", "):"—";if(typeof e=="object"){const t=Object.entries(e);return t.length?t.map(([s,i])=>`${s}: ${Array.isArray(i)?i.join("+"):String(i)}`).join("; "):"—"}return typeof e=="boolean"?e?"✓":"✗":String(e)}function sn(e){return e.more===!0&&e.stalled!==!0&&(e.state==="paused"||e.state==="applying")}function an(e){return e.filter(t=>t.outcome==="failed"||t.outcome==="unknown")}const ut={validFrom:"",validUntil:"",active:"keep",doorsAdd:{},doorsRemove:[],groupsAdd:[],groupsRemove:[]};function nn(e,t){const s={person_ids:[...new Set(e)]};if(!s.person_ids.length||!!t.validFrom!=!!t.validUntil)return null;if(t.validFrom&&t.validUntil){if(t.validFrom>t.validUntil)return null;s.valid_from=t.validFrom,s.valid_until=t.validUntil}t.active!=="keep"&&(s.active=t.active==="on");const i=Object.fromEntries(Object.entries(t.doorsAdd).filter(([,d])=>d.length));return Object.keys(i).length&&(s.doors_add=i),t.doorsRemove.length&&(s.doors_remove=[...new Set(t.doorsRemove)]),t.groupsAdd.length&&(s.groups_add=[...new Set(t.groupsAdd)]),t.groupsRemove.length&&(s.groups_remove=[...new Set(t.groupsRemove)]),s.doors_add&&s.doors_remove&&s.doors_remove.some(d=>d in s.doors_add)||s.groups_add&&s.groups_remove&&s.groups_remove.some(d=>s.groups_add.includes(d))?null:["valid_from","active","doors_add","doors_remove","groups_add","groups_remove"].filter(d=>d in s).length?s:null}function rn(e,t,s,i){return t>i?"too_large":/\.csv$/i.test(e)?/(pin|card|code|photo|password|secret|token|קוד|כרטיס|תמונה|סיסמ)/i.test(s)?"secret_column":null:"not_csv"}var on=Object.defineProperty,ln=Object.getOwnPropertyDescriptor,A=(e,t,s,i)=>{for(var n=i>1?void 0:i?ln(t,s):t,d=e.length-1,o;d>=0;d--)(o=e[d])&&(n=(i?o(t,s,n):o(n))||n);return i&&n&&on(t,s,n),n};let P=class extends W{constructor(){super(...arguments),this.open=!1,this.mode="import",this.personIds=[],this.stations=[],this.groups=[],this.settings=null,this.job=null,this.rows=[],this.busy=!1,this.error="",this.note="",this.typed="",this.form={...ut},this.addStation="",this.addRelays=[1],this.file=null,this.vp=null,this.op=null,this.vpage=0,this.vtyped=""}updated(e){e.has("open")&&this.open&&this.load()}async load(){this.job=null,this.rows=[],this.error="",this.note="",this.typed="",this.file=null,this.vp=null,this.op=null,this.vpage=0,this.vtyped="",this.form={...ut};try{this.settings=await jt()}catch(e){this.error=F(e)}}close(){this.busy||this.dispatchEvent(new CustomEvent("close",{bubbles:!0,composed:!0}))}async run(e){this.busy=!0,this.error="";try{return await e()}catch(t){this.error=F(t);return}finally{this.busy=!1}}save(e,t){const s=URL.createObjectURL(e),i=document.createElement("a");i.href=s,i.download=t,i.click(),setTimeout(()=>URL.revokeObjectURL(s),1e3)}async onFile(e){const t=e.target,s=t.files?.[0];if(t.value="",!s||!this.settings)return;const i=(await s.slice(0,2048).text()).split(/\r?\n/,1)[0]??"",n=rn(s.name,s.size,i,this.settings.limits.max_file_bytes);if(n==="secret_column"){this.error=h("no_secrets");return}if(n){this.error=h("file_hint",{rows:this.settings.limits.max_rows,kb:Math.round(this.settings.limits.max_file_bytes/1024)});return}const d=await this.run(()=>Ra(s,lt()));d&&(this.job=d.job,this.file=s)}async verify(){if(!this.job||!this.file)return;const e=this.file,t=await this.run(()=>Ua(this.job.id,e));t&&(this.job=t.job,this.vp=t.preview,this.vpage=0,this.vtyped="")}async confirmVerifiedStep(){if(!this.job||!this.vp||!ct(this.vp,this.vtyped,Date.now()))return;const e=this.job.id,t=await this.run(()=>Fa(e,this.vp.preview_digest,this.vtyped));t&&(this.op=t.operation,this.vp=null,this.vtyped="",await this.pollResult(e))}async pollResult(e){let t=0;for(;this.open&&Ja(this.op,t);){await new Promise(i=>setTimeout(i,Ba)),t+=1;const s=await this.run(()=>dt(e));if(!s)return;this.op=s.operation}this.op?.state==="finished"&&this.dispatchEvent(new CustomEvent("changed",{bubbles:!0,composed:!0}))}async enableVerify(){const e=await this.run(()=>La("on"));e&&this.settings&&(this.settings={...this.settings,wiskey_csv:e})}async stageEdit(){const e=nn(this.personIds,this.form);if(!e){this.error=h("edit_nochange");return}const t=await this.run(()=>Da(e,lt()));t&&(this.job=t.job,await this.preview())}async preview(){if(!this.job)return;const e=await this.run(()=>Aa(this.job.id));e&&(this.job=e.job,this.rows=e.rows)}async confirm(){if(!this.job?.plan_digest)return;const e=await this.run(()=>Ia(this.job.id,this.job.plan_digest,this.typed));e&&(this.job=e.job)}async apply(){if(!this.job)return;let e=this.job;do e=(await this.run(()=>Ma(e.id)))?.job,e&&(this.job=e);while(e&&sn(e)&&this.open);this.dispatchEvent(new CustomEvent("changed",{bubbles:!0,composed:!0}))}async cancel(){if(!this.job)return;await this.run(()=>Na(this.job.id))&&(this.job=null),this.rows=[],this.vp=null,this.op=null,this.file=null}async exportFile(){const e=await this.run(()=>ja());e&&(this.save(e.blob,"access-people.csv"),this.note=h("export_done",{n:e.rows??0}))}async template(){const e=await this.run(()=>qa());e&&this.save(e.blob,"people-template.csv")}async enable(){const e=await this.run(()=>Oa("on"));e&&(this.settings={...this.settings,...e})}render(){const e=this.mode==="edit"?h("edit_title",{n:this.personIds.length}):h("title");return a`<sw-dialog wide ?open=${this.open} ?locked=${this.busy} heading=${e} @close=${t=>{t.stopPropagation(),this.close()}} data-bulk-dialog>
+      <div class="stack">
+        ${this.error?a`<div class="line bad" role="alert" data-bulk-error><sw-icon name="warning" size=${16}></sw-icon><span>${this.error}</span></div>`:l}
+        ${this.note?a`<div class="line" role="status" data-bulk-note><sw-icon name="check" size=${16}></sw-icon><span>${this.note}</span></div>`:l}
+        ${this.body()}
+      </div>
+      <sw-button slot="footer" variant="ghost" ?disabled=${this.busy} @click=${()=>this.close()}>${h("close")}</sw-button>
+    </sw-dialog>`}body(){const e=this.settings;if(!e)return a`<div class="muted" role="status">…</div>`;if(e.enabled!=="on")return a`<div class="line warn" data-bulk-off><sw-icon name="warning" size=${16}></sw-icon><div><strong>${h("off_title")}</strong><div class="muted">${h("off_text")}</div></div></div>
+        ${e.system_admin?a`<div class="actions"><sw-button variant="primary" data-bulk-enable ?disabled=${this.busy} @click=${()=>void this.enable()}>${h("off_enable")}</sw-button></div>`:l}`;const t=e.go_live_permitted?l:a`<div class="line warn" data-bulk-permit><sw-icon name="clock" size=${16}></sw-icon><span>${h("permit_missing")}</span></div>`;return this.job?a`${t}${this.jobView(this.job)}`:this.mode==="edit"?a`${t}${this.editForm()}`:a`${t}
+      <div class="muted">${h("no_secrets")}</div>
+      ${e.may_export?a`<div class="actions"><sw-button icon="download" data-bulk-export ?disabled=${this.busy} @click=${()=>void this.exportFile()}>${h("export_btn")}</sw-button></div>
+        <div class="muted">${h("export_hint")}</div>`:l}
+      ${e.may_import?a`<div class="actions">
+          <sw-button variant="ghost" icon="download" data-bulk-template ?disabled=${this.busy} @click=${()=>void this.template()}>${h("template")}</sw-button>
+          <label class="file"><span>${h("choose_file")}</span><input type="file" accept=".csv,text/csv" data-bulk-file ?disabled=${this.busy} @change=${s=>void this.onFile(s)}></label>
+        </div>
+        <div class="muted">${h("file_hint",{rows:e.limits.max_rows,kb:Math.round(e.limits.max_file_bytes/1024)})}</div>
+        ${e.system_admin&&e.wiskey_csv&&e.wiskey_csv.enabled!=="on"?a`<div class="actions"><sw-button variant="ghost" data-verify-enable ?disabled=${this.busy} @click=${()=>void this.enableVerify()}>${h("v_enable")}</sw-button></div>`:l}`:l}
+      ${this.busy?a`<div class="muted" role="status">${h("uploading")}</div>`:l}`}jobView(e){const t=en(e);if(t==="report"){const s=e.report.filter(i=>i.status!=="ok");return a`<strong>${h("report_title")}</strong>
+        <div class="chips" data-bulk-report><span class="chip">${h("report_ok",{n:e.counts.ok})}</span><span class="chip">${h("report_skip",{n:e.counts.skip})}</span><span class="chip">${h("report_error",{n:e.counts.error})}</span></div>
+        ${s.length?a`<div class="rows">${s.map(i=>a`<div class="row" data-bulk-row=${i.row}><span>${h("row",{n:i.row})}</span><span>${pt(i)}</span></div>`)}</div>`:l}
+        ${this.verifySection(e)}`}if(t==="preview"){const s=tn(this.rows),i=e.writes??0;return a`<strong>${h("dry_title")}</strong>
+        <div class="chips" data-bulk-preview><span class="chip">${h("will_create",{n:s.create})}</span><span class="chip">${h("will_update",{n:s.update})}</span>
+          <span class="chip">${h("unchanged",{n:s.unchanged})}</span><span class="chip">${h("errors",{n:s.error})}</span></div>
+        <div class="rows">${this.rows.filter(n=>n.status!=="unchanged").map(n=>this.previewRow(n))}</div>
+        ${i>0?this.settings?.system_admin?a`<strong>${h("confirm_title")}</strong><div>${h("confirm_text",{n:i})}</div>
+              <div class="actions"><label><span class="muted">${h("confirm_label")}</span><input inputmode="numeric" data-bulk-typed .value=${this.typed} @input=${n=>this.typed=n.target.value}></label>
+                <sw-button variant="primary" data-bulk-confirm ?disabled=${this.busy||this.typed.trim()!==String(i)} @click=${()=>void this.confirm()}>${h("confirm_btn")}</sw-button></div>`:a`<div class="line" data-bulk-admin-only><sw-icon name="clock" size=${16}></sw-icon><span>${h("confirm_admin_only")}</span></div>`:l}
+        <div class="actions"><sw-button variant="ghost" ?disabled=${this.busy} @click=${()=>void this.cancel()}>${h("cancel")}</sw-button></div>`}if(t==="apply"||t==="done"){const s=e.progress,i=an(e.results);return a`<strong>${h(t==="done"?"done_title":"apply")}</strong>
+        <progress max=${Math.max(1,s.total)} value=${s.done} aria-label=${h("applying",{done:s.done,total:s.total})}></progress>
+        <div role="status" data-bulk-progress>${h("applying",{done:s.done,total:s.total})}</div>
+        <div class="chips">${Object.entries(e.outcomes).map(([n,d])=>a`<span class="chip">${ne(`outcome_${n}`,"code_generic")} · ${d}</span>`)}</div>
+        ${e.stalled?a`<div class="line warn" data-bulk-stalled><sw-icon name="pause" size=${16}></sw-icon><span>${h("stalled")}</span></div>`:e.state==="paused"?a`<div class="line" data-bulk-paused><sw-icon name="pause" size=${16}></sw-icon><span>${h("paused")}</span></div>`:l}
+        ${i.length?a`<div class="rows">${i.map(n=>a`<div class="row" data-bulk-result=${n.row}><span>${h("row",{n:n.row})}</span>
+          <span>${ne(`outcome_${n.outcome}`,"code_generic")}${n.code?a` · ${ne(`code_${n.code}`,"code_generic")}`:l}</span></div>`)}</div>`:l}
+        ${i.some(n=>n.outcome==="unknown")?a`<div class="muted">${h("unknown_hint")}</div>`:l}
+        ${t==="apply"?a`<div class="actions"><sw-button variant="primary" icon="play" data-bulk-apply ?disabled=${this.busy||!e.go_live_permitted} @click=${()=>void this.apply()}>${e.state==="confirmed"?h("apply"):h("resume")}</sw-button></div>`:l}`}return a`<div class="muted">${h("code_generic")}</div>`}verifySection(e){const t=Va(this.settings),s=a`<sw-button variant="ghost" ?disabled=${this.busy} @click=${()=>void this.cancel()}>${h("cancel")}</sw-button>`;if(this.op)return this.resultView(this.op);if(t==="off")return a`<div class="actions"><sw-button variant="primary" data-bulk-dry ?disabled=${this.busy||e.counts.ok===0} @click=${()=>void this.preview()}>${h("dry_run")}</sw-button>${s}</div>`;if(t==="blocked")return a`<div class="chips" data-verify-blockers>${(this.settings?.wiskey_csv?.blockers??[]).map(o=>a`<span class="chip">${h(Ya(o))}</span>`)}</div><div class="actions">${s}</div>`;const i=this.vp;if(!i)return a`<strong>${h("v_title")}</strong>
+        <div class="actions"><sw-button variant="primary" data-verify-run ?disabled=${this.busy||e.counts.ok===0||!this.file} @click=${()=>void this.verify()}>${this.busy?h("v_running"):h("v_btn")}</sw-button>${s}</div>`;const n=Ut(i.rows.length),d=Math.min(this.vpage,n-1);return a`<strong>${h("v_title")}</strong>
+      <div class="chips" data-verify-preview>
+        <span class="chip">${h("v_will_write",{n:i.writes})}</span><span class="chip">${h("unchanged",{n:i.skipped})}</span><span class="chip">${h("errors",{n:i.errors})}</span>
+        <span class="chip">${h("v_expires",{t:Xa(i.expires_at,ns(Ue()))})}</span></div>
+      <div class="vlist">${Ga(i.rows,d).map(o=>a`<div class="vrow" data-verify-row=${o.source_line}><span>${h("v_line",{n:o.source_line})}</span><span>${o.op==="create"?h("v_op_create"):h("v_op_update")}</span></div>`)}</div>
+      ${n>1?a`<div class="pager"><sw-button variant="ghost" data-verify-prev ?disabled=${d===0} @click=${()=>this.vpage=d-1}>${h("v_prev")}</sw-button>
+        <span class="muted">${h("v_page",{a:d+1,b:n})}</span><sw-button variant="ghost" data-verify-next ?disabled=${d>=n-1} @click=${()=>this.vpage=d+1}>${h("v_next")}</sw-button></div>`:l}
+      ${i.writes===0?a`<div class="line" data-verify-none><span>${h("v_none")}</span></div>`:this.settings?.system_admin?a`<div>${h("confirm_text",{n:i.writes})}</div>
+            <div class="actions"><label><span class="muted">${h("confirm_label")}</span><input inputmode="numeric" data-verify-typed .value=${this.vtyped} @input=${o=>this.vtyped=o.target.value}></label>
+              <sw-button variant="primary" data-verify-confirm ?disabled=${this.busy||!ct(i,this.vtyped,Date.now())} @click=${()=>void this.confirmVerifiedStep()}>${h("v_confirm_btn")}</sw-button></div>`:a`<div class="line" data-verify-admin-only><sw-icon name="clock" size=${16}></sw-icon><span>${h("v_admin_only")}</span></div>`}
+      <div class="actions"><sw-button variant="ghost" data-verify-again ?disabled=${this.busy} @click=${()=>void this.verify()}>${h("v_btn")}</sw-button>${s}</div>`}resultView(e){const t=Ha(e);return a`<strong>${h("v_sent")}</strong>
+      <div class="line ${e.state==="unknown"?"warn":""}" role="status" data-verify-result=${e.state}><span>${h(t.key,t.n===void 0?void 0:{n:t.n})}</span></div>
+      ${e.state==="running"||e.state==="unknown"?a`<div class="actions"><sw-button variant="ghost" data-verify-check ?disabled=${this.busy} @click=${()=>void this.recheck()}>${h("v_check")}</sw-button></div>`:l}`}async recheck(){if(!this.job)return;const e=this.job.id,t=await this.run(()=>dt(e));t&&(this.op=t.operation,await this.pollResult(e))}previewRow(e){return a`<div class="row" data-bulk-preview-row=${e.row}><span>${h("row",{n:e.row})}</span><div>
+      ${e.name?a`<strong>${e.name}</strong>`:l}
+      ${e.status==="error"?a`<div>${pt(e)}</div>`:l}
+      ${e.diff?.length?a`<div class="diff"><span></span><span class="k">${h("before")}</span><span class="k">${h("after")}</span>
+        ${e.diff.map(t=>a`<span class="k">${ne(`field_${t.field}`,"code_generic")}</span><span>${ht(t.before)}</span><span>${ht(t.after)}</span>`)}</div>`:l}
+    </div></div>`}editForm(){const e=this.form,t=s=>this.form={...e,...s};return a`<div class="grid2">
+        <label>${h("edit_from")}<input type="date" lang=${ee()} data-bulk-from .value=${e.validFrom} @change=${s=>t({validFrom:s.target.value})}></label>
+        <label>${h("edit_until")}<input type="date" lang=${ee()} data-bulk-until .value=${e.validUntil} @change=${s=>t({validUntil:s.target.value})}></label>
+        <div class="dd"><span>${h("edit_active")}</span><sw-dropdown block data-bulk-active label=${h("edit_active")} .value=${e.active}
+          .items=${[{id:"keep",label:h("edit_keep")},{id:"on",label:h("edit_activate")},{id:"off",label:h("edit_deactivate")}]}
+          @change=${s=>t({active:s.detail.id})}></sw-dropdown></div>
+      </div>
+      ${this.stations.length?a`<div class="grid2">
+        <div class="dd"><span>${h("edit_doors_add")}</span><sw-dropdown block data-bulk-door-add label=${h("edit_doors_add")} .value=${this.addStation}
+          .items=${[{id:"",label:"—"},...this.stations.map(s=>({id:s.id,label:s.name}))]}
+          @change=${s=>this.addStation=s.detail.id}></sw-dropdown></div>
+        <div class="dd"><span>${h("edit_relays")}</span><sw-dropdown block data-bulk-relays label=${h("edit_relays")} .value=${this.addRelays.join("+")}
+          .items=${[{id:"1",label:"1"},{id:"2",label:"2"},{id:"1+2",label:"1+2"}]}
+          @change=${s=>this.addRelays=s.detail.id.split("+").map(Number)}></sw-dropdown></div>
+        <div class="dd"><span>${h("edit_doors_remove")}</span><sw-dropdown block multiple data-bulk-door-remove label=${h("edit_doors_remove")} .values=${e.doorsRemove}
+          .items=${this.stations.map(s=>({id:s.id,label:s.name}))}
+          @change=${s=>t({doorsRemove:s.detail.ids??[]})}></sw-dropdown></div>
+      </div>`:l}
+      ${this.groups.length?a`<div class="grid2">
+        <div class="dd"><span>${h("edit_groups_add")}</span><sw-dropdown block multiple data-bulk-group-add label=${h("edit_groups_add")} .values=${e.groupsAdd}
+          .items=${this.groups.map(s=>({id:s.id,label:s.label}))}
+          @change=${s=>t({groupsAdd:s.detail.ids??[]})}></sw-dropdown></div>
+        <div class="dd"><span>${h("edit_groups_remove")}</span><sw-dropdown block multiple data-bulk-group-remove label=${h("edit_groups_remove")} .values=${e.groupsRemove}
+          .items=${this.groups.map(s=>({id:s.id,label:s.label}))}
+          @change=${s=>t({groupsRemove:s.detail.ids??[]})}></sw-dropdown></div>
+      </div>`:l}
+      <div class="actions"><sw-button variant="primary" data-bulk-edit-stage ?disabled=${this.busy} @click=${()=>{this.form={...this.form,doorsAdd:this.addStation?{[this.addStation]:this.addRelays}:{}},this.stageEdit()}}>${h("edit_stage")}</sw-button></div>`}};P.styles=V`
+    :host {
+      display: contents;
+    }
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text);
+    }
+    .muted {
+      color: var(--sw-text-3);
+    }
+    .line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
+    }
+    .line.warn {
+      background: var(--sw-warning-bg, var(--sw-surface-2));
+    }
+    .line.bad {
+      background: var(--sw-danger-bg, var(--sw-surface-2));
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .chip {
+      padding: 2px 10px;
+      border-radius: 999px;
+      background: var(--sw-surface-2);
+      font-variant-numeric: tabular-nums;
+    }
+    .rows {
+      max-block-size: 320px;
+      overflow: auto;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+    }
+    .row {
+      display: grid;
+      grid-template-columns: minmax(64px, auto) 1fr;
+      gap: 8px;
+      padding: 8px 10px;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    .row:last-child {
+      border-block-end: 0;
+    }
+    .diff {
+      display: grid;
+      grid-template-columns: auto 1fr 1fr;
+      gap: 2px 10px;
+      margin-block-start: 4px;
+    }
+    .diff .k {
+      color: var(--sw-text-3);
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    label,
+    .dd {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    input,
+    select {
+      font: inherit;
+      padding: 6px 8px;
+      border-radius: var(--sw-r-sm);
+      border: 1px solid var(--sw-border);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      min-block-size: 36px;
+    }
+    .grid2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+    }
+    progress {
+      inline-size: 100%;
+    }
+    .pager {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .vlist {
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+    }
+    .vrow {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 10px;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    .vrow:last-child {
+      border-block-end: 0;
+    }
+  `;A([y({type:Boolean})],P.prototype,"open",2);A([y()],P.prototype,"mode",2);A([y({attribute:!1})],P.prototype,"personIds",2);A([y({attribute:!1})],P.prototype,"stations",2);A([y({attribute:!1})],P.prototype,"groups",2);A([c()],P.prototype,"settings",2);A([c()],P.prototype,"job",2);A([c()],P.prototype,"rows",2);A([c()],P.prototype,"busy",2);A([c()],P.prototype,"error",2);A([c()],P.prototype,"note",2);A([c()],P.prototype,"typed",2);A([c()],P.prototype,"form",2);A([c()],P.prototype,"addStation",2);A([c()],P.prototype,"addRelays",2);A([c()],P.prototype,"vp",2);A([c()],P.prototype,"op",2);A([c()],P.prototype,"vpage",2);A([c()],P.prototype,"vtyped",2);P=A([Y("sw-bulk-people-dialog")],P);var dn=Object.defineProperty,cn=Object.getOwnPropertyDescriptor,q=(e,t,s,i)=>{for(var n=i>1?void 0:i?cn(t,s):t,d=e.length-1,o;d>=0;d--)(o=e[d])&&(n=(i?o(t,s,n):o(n))||n);return i&&n&&dn(t,s,n),n};const pn={ok:"res_ok",refused:"res_refused",unknown:"res_unknown",not_sent:"res_not_sent"},hn={adopt:"adopt_title",ignore:"ignore_title",unignore:"unignore_title",delete:"delete_title"};function un(e,t){return g(t==="station_offline"||t==="device_unavailable"?"reason_offline":t==="busy"||t==="rate_limited"?"reason_busy":e==="forbidden"?"reason_forbidden":e==="unsupported"?"reason_unsupported":"reason_generic")}let I=class extends W{constructor(){super(...arguments),this.open=!1,this.zone=te,this.phase="loading",this.feedDown=!1,this.scope=[],this.reads={},this.query="",this.showIgnored=!1,this.acting=null,this.step="ask",this.check=null,this.checkFailed=!1,this.acceptDuplicate=!1,this.typed="",this.reply=null,this.failure="",this.generation=0}connectedCallback(){super.connectedCallback(),this.open&&this.load(!1)}disconnectedCallback(){super.disconnectedCallback(),this.generation++}updated(e){e.has("open")&&this.open&&e.get("open")===!1&&this.load(!1)}async load(e){const t=++this.generation;this.phase="loading";try{const i=await Oi();if(t!==this.generation)return;this.scope=i.stations,this.feedDown=i.state!=="ready"&&!i.stations.length,this.phase="ready"}catch{t===this.generation&&(this.phase="error");return}const s=this.scope.filter(i=>i.numbers);this.reads=Object.fromEntries(s.map(i=>[i.id,{loading:!0,reply:this.reads[i.id]?.reply??null,error:""}]));for(const i of s){if(t!==this.generation)return;await this.readStation(i.id,e,t)}}async readStation(e,t,s=this.generation){this.reads={...this.reads,[e]:{...this.reads[e]??{reply:null,error:""},loading:!0}};try{const i=await Ri(e,t);if(s!==this.generation)return;this.reads={...this.reads,[e]:{loading:!1,reply:i,error:i.people?"":un(i.state,i.last_error)}}}catch(i){if(s!==this.generation)return;const n=i instanceof z&&i.status===403?g("reason_forbidden"):g("reason_generic");this.reads={...this.reads,[e]:{loading:!1,reply:null,error:n}}}}get rows(){const e=this.scope.filter(t=>this.reads[t.id]?.reply?.people).map(t=>({station:{id:t.id,name:t.name},people:this.reads[t.id].reply.people}));return qi(e)}get loadingAny(){return Object.values(this.reads).some(e=>e.loading)}close(){this.step!=="working"&&(this.acting=null,this.dispatchEvent(new CustomEvent("close")))}startAction(e,t){this.acting={row:e,action:t},this.step="ask",this.reply=null,this.failure="",this.check=null,this.checkFailed=!1,this.acceptDuplicate=!1,this.typed="",t==="adopt"&&this.runCheck(e)}async runCheck(e){const t=de(e,"adopt")[0];if(t){this.step="checking";try{this.check=await Di(t.station_id,e.employee_no),this.checkFailed=!this.check.checked}catch{this.checkFailed=!0}finally{this.step==="checking"&&(this.step="ask")}}}get possibleDuplicates(){const e=this.check;return!e||!e.checked?0:e.total-(e.same_number?1:0)}canConfirm(){const e=this.acting;return!(!e||this.step!=="ask"||!de(e.row,e.action).length||e.action==="adopt"&&this.possibleDuplicates>0&&!this.acceptDuplicate||e.action==="delete"&&!Fi(this.typed,e.row.employee_no))}async confirm(){const e=this.acting;if(!e||!this.canConfirm())return;const t=de(e.row,e.action).map(s=>s.station_id);this.step="working",this.failure="";try{e.action==="adopt"?this.reply=await Ai(e.row.employee_no,t,this.acceptDuplicate):e.action==="delete"?this.reply=await Mi(e.row.employee_no,t,this.typed.trim()):this.reply=await Ii(e.row.employee_no,t,e.action==="ignore")}catch(s){this.failure=s instanceof z?s.body.user_message||s.code:g("res_failed"),this.reply=null}this.step="done",this.reply&&this.reply.summary.ok+this.reply.summary.unknown>0&&this.dispatchEvent(new CustomEvent("changed"));for(const s of t)this.readStation(s,e.action==="adopt"||e.action==="delete")}closeAction(){this.step!=="working"&&(this.acting=null)}render(){if(!this.open)return l;const e=this.rows,t=Li(e,this.showIgnored,this.query),s=e.filter(i=>i.ignored).length;return a`<sw-dialog open xl heading=${g("title")} subheading=${this.phase==="ready"&&!this.loadingAny?e.length===1?g("count_one"):g("count",{n:e.length}):""}
+        data-station-people data-station-people-phase=${this.phase} data-station-people-loading=${String(this.loadingAny)}
+        @close=${i=>{i.stopPropagation(),this.close()}}>
+        <p class="intro">${g("intro")}</p>
+        ${this.phase==="loading"?a`<sw-state-panel state="loading" compact heading=${g("reading")}></sw-state-panel>`:l}
+        ${this.phase==="error"?a`<sw-state-panel state="error" compact heading=${g("reason_generic")} data-station-people-error></sw-state-panel>`:l}
+        ${this.phase==="ready"&&this.feedDown?a`<sw-state-panel state="error" compact heading=${g("feed_down")} data-station-people-feed-down></sw-state-panel>`:l}
+        ${this.phase==="ready"&&!this.feedDown&&!this.scope.length?a`<sw-state-panel icon="door" state="empty" compact heading=${g("no_stations")} data-station-people-noscope></sw-state-panel>`:l}
+        ${this.phase==="ready"&&this.scope.length?this.renderReady(t,e.length,s):l}
+        <div slot="footer" class="footer">
+          <sw-button variant="ghost" icon="refresh" data-station-people-refresh ?disabled=${this.loadingAny||this.phase==="loading"} @click=${()=>void this.load(!0)}>${g("refresh")}</sw-button>
+          <sw-button variant="secondary" data-station-people-close @click=${()=>this.close()}>${g("close")}</sw-button>
+        </div>
+      </sw-dialog>
+      ${this.acting?this.renderAction():l}`}renderReady(e,t,s){return a`
+      <div class="tools">
+        <label class="search"><sw-icon name="search" size=${16}></sw-icon>
+          <input type="search" data-station-people-search maxlength="64" aria-label=${g("search")} placeholder=${g("search")} .value=${x(this.query)}
+            @input=${i=>this.query=i.target.value} />
+        </label>
+        ${s?a`<label class="check"><input type="checkbox" data-station-people-show-ignored .checked=${this.showIgnored} @change=${i=>this.showIgnored=i.target.checked} />
+              <span>${g("show_ignored")} (${s})</span></label>`:l}
+      </div>
+      <ul class="status" aria-live="polite">
+        ${this.scope.map(i=>{if(!i.numbers)return a`<li class="warn" data-station-people-station=${i.id} data-station-state="numbers_hidden"><sw-icon name="lock" size=${14}></sw-icon>${g("station_numbers_hidden",{name:i.name})}</li>`;const n=this.reads[i.id];return!n||n.loading?a`<li class="muted" data-station-people-station=${i.id} data-station-state="loading"><span class="dot"></span>${g("reading_station",{name:i.name})}</li>`:n.error?a`<li class="warn" data-station-people-station=${i.id} data-station-state="error"><sw-icon name="warning" size=${14}></sw-icon>${g("station_off",{name:i.name,reason:n.error})}</li>`:l})}
+      </ul>
+      ${e.length?a`<ul class="rows" data-station-people-rows>${ce(e,i=>i.employee_no,i=>this.renderRow(i))}</ul>`:this.loadingAny?l:a`<sw-state-panel icon="users" state="empty" compact heading=${g(t?"empty_filtered":"empty")} data-station-people-empty></sw-state-panel>`}`}credentials(e){if(e.pin===null&&e.cards===null&&e.biometric===null)return a`<span class="muted" title=${g("hidden_hint")}>${g("hidden")}</span>`;const t=[];return e.pin&&t.push(a`<span class="chip" data-cred="pin"><sw-icon name="lock" size=${12}></sw-icon>${g("pin")}</span>`),e.cards&&t.push(a`<span class="chip" data-cred="cards"><sw-icon name="grid" size=${12}></sw-icon>${e.cards===1?g("card"):g("cards",{n:e.cards})}</span>`),e.biometric&&t.push(a`<span class="chip" data-cred="face"><sw-icon name="user" size=${12}></sw-icon>${g("face")}</span>`),t.length?a`${t}`:a`<span class="muted">${g("none")}</span>`}renderRow(e){const t=Ui(e),s=e.display_name||g("no_name");return a`<li class="row ${e.ignored?"ignored":""}" data-station-user=${e.employee_no} data-station-user-ignored=${String(e.ignored)}>
+      <div class="who">
+        <span class="name ${e.display_name?"":"muted"}">${s}</span>
+        <bdi class="num" dir="ltr" data-station-user-number>${e.employee_no}</bdi>
+        ${e.ignored?a`<sw-badge kind="neutral" label=${g("ignored_badge")}></sw-badge>`:l}
+        ${e.names.length>1?a`<span class="warn-text" data-station-user-names>${g("two_names")}: ${e.names.join(" · ")}</span>`:l}
+      </div>
+      <div class="facts">
+        <span class="stations" aria-label=${g("col_stations")}>${e.stations.map(i=>a`<span class="chip station ${i.ignored?"off":""}" data-station-chip=${i.station_id}>${i.station_name}</span>`)}</span>
+        <span class="creds" aria-label=${g("col_credentials")}>${this.credentials(e)}</span>
+        <span class="seen muted" data-station-user-first-seen>${g("col_first_seen")}: ${se(e.first_seen_at,this.zone)}</span>
+      </div>
+      <div class="acts">
+        ${t?a`<span class="muted small" data-station-user-block=${t}>${g("adopt_blocked")}: ${Wi(`imp_${t}`,"imp_unknown")}</span>`:a`<sw-button size="sm" variant="primary" icon="plus" data-station-user-act="adopt" @click=${()=>this.startAction(e,"adopt")}>${g("act_adopt")}</sw-button>`}
+        ${e.ignored?a`<sw-button size="sm" variant="secondary" icon="eye" data-station-user-act="unignore" @click=${()=>this.startAction(e,"unignore")}>${g("act_unignore")}</sw-button>`:a`<sw-button size="sm" variant="secondary" icon="eye" data-station-user-act="ignore" @click=${()=>this.startAction(e,"ignore")}>${g("act_ignore")}</sw-button>`}
+        <sw-button size="sm" variant="danger" icon="trash" data-station-user-act="delete" @click=${()=>this.startAction(e,"delete")}>${g("act_delete")}</sw-button>
+      </div>
+    </li>`}renderAction(){const{row:e,action:t}=this.acting,s=de(e,t),i=this.step==="done";return a`<sw-dialog open heading=${g(hn[t])} subheading=${`${e.display_name||g("no_name")} · ${e.employee_no}`} ?locked=${this.step==="working"}
+        data-station-action=${t} data-station-action-step=${this.step} @close=${n=>{n.stopPropagation(),this.closeAction()}}>
+        ${i?this.renderResult(t):this.renderAsk(e,t,s.map(n=>n.station_name))}
+        <div slot="footer" class="footer">
+          ${i?a`${t==="adopt"&&this.reply?.person?a`<sw-button variant="secondary" icon="user" data-station-action-open-person @click=${()=>{const n=this.reply.person.id;this.acting=null,this.dispatchEvent(new CustomEvent("open-person",{detail:{id:n}}))}}>${g("res_open_person")}</sw-button>`:l}
+              <sw-button variant="primary" data-station-action-close @click=${()=>this.closeAction()}>${g("close")}</sw-button>`:a`<sw-button variant="ghost" data-station-action-cancel ?disabled=${this.step==="working"} @click=${()=>this.closeAction()}>${g("cancel")}</sw-button>
+              <sw-button variant=${t==="delete"?"danger":"primary"} data-station-action-confirm ?disabled=${!this.canConfirm()} @click=${()=>void this.confirm()}>
+                ${this.step==="working"?g("working"):g(t==="adopt"?"adopt_go":t==="delete"?"delete_go":"confirm")}</sw-button>`}
+        </div>
+      </sw-dialog>`}renderAsk(e,t,s){return a`<p class="ask">${g(t==="adopt"?"adopt_text":t==="delete"?"delete_text":t==="ignore"?"ignore_text":"unignore_text")}</p>
+      <p class="targets" data-station-action-targets>${g("stations_list")} ${s.join(" · ")}</p>
+      ${t==="adopt"?this.renderCheck():l}
+      ${t==="delete"?a`<sw-field label=${g("delete_type",{n:e.employee_no})}>
+            <input data-station-action-typed dir="ltr" autocomplete="off" maxlength="64" .value=${x(this.typed)} @input=${n=>this.typed=n.target.value} />
+          </sw-field>`:l}`}renderCheck(){if(this.step==="checking")return a`<p class="muted" role="status" data-station-check="checking">${g("adopt_checking")}</p>`;if(this.checkFailed)return a`<p class="warn-text" role="status" data-station-check="failed">${g("adopt_check_failed")}</p>`;const e=this.check;if(!e)return a``;const t=e.same_number,s=this.possibleDuplicates;return a`${t?a`<p class="note ok" data-station-check="link"><sw-icon name="link" size=${14}></sw-icon>${t.id?g("adopt_link",{name:t.display_name}):g("adopt_link_hidden")}</p>`:l}
+      ${s>0?a`<div class="note warn" data-station-check="maybe">
+            <p>${e.restricted?g("adopt_maybe_hidden",{n:s}):g("adopt_maybe")}</p>
+            ${e.restricted?l:a`<ul>${e.matches.filter(i=>!i.reasons.includes("employee_no")).map(i=>a`<li data-station-check-match=${i.id}>
+                  <button type="button" class="link" @click=${()=>{this.acting=null,this.dispatchEvent(new CustomEvent("open-person",{detail:{id:i.id}}))}}>${i.display_name}</button>
+                  ${i.employee_no?a`<bdi dir="ltr" class="muted">${i.employee_no}</bdi>`:l}</li>`)}</ul>`}
+            <label class="check"><input type="checkbox" data-station-check-accept .checked=${this.acceptDuplicate} @change=${i=>this.acceptDuplicate=i.target.checked} />
+              <span>${g("adopt_maybe_accept")}</span></label>
+          </div>`:l}`}renderResult(e){if(this.failure||!this.reply)return a`<p class="result failed" role="status" data-station-result="failed">${this.failure||g("res_failed")}</p>`;const t=Bi(this.reply.results),s=t==="ok"?e==="delete"?"res_pending":"res_all_ok":t==="partial"?"res_partial":t==="unknown"?"res_unknown_all":"res_failed",i=Object.fromEntries(this.scope.map(n=>[n.id,n.name]));return a`<p class="result ${t}" role="status" data-station-result=${t}>${g(s)}</p>
+      <ul class="per-station" data-station-results>
+        ${this.reply.results.map(n=>a`<li data-station-result-row=${n.station_id} data-outcome=${n.outcome}>
+          <span class="st">${i[n.station_id]??n.station_id}</span>
+          <span class="oc ${n.outcome}">${g(pn[n.outcome])}</span>
+          ${n.message?a`<span class="msg">${n.message}</span>`:l}
+          ${(e==="ignore"||e==="unignore")&&n.stored&&n.outcome!=="ok"?a`<span class="msg" data-station-result-stored-only>${g("res_stored_only")}</span>`:l}
+        </li>`)}
+      </ul>`}};I.styles=V`
+    :host {
+      display: contents;
+    }
+    .intro,
+    .ask,
+    .targets {
+      margin: 0 0 12px;
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+      line-height: 1.5;
+    }
+    .targets {
+      color: var(--sw-text);
+    }
+    .tools {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      align-items: center;
+      margin-block-end: 8px;
+    }
+    .search {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1 1 220px;
+      min-block-size: 40px;
+      padding-inline: 12px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      color: var(--sw-text-2);
+    }
+    .search input {
+      flex: 1;
+      min-inline-size: 0;
+      border: 0;
+      background: transparent;
+      color: var(--sw-text);
+      font: inherit;
+      font-size: max(16px, var(--sw-fs-sm));
+    }
+    .search input:focus {
+      outline: none;
+    }
+    .search:focus-within {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+    }
+    .check {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-block-size: 40px;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text);
+      cursor: pointer;
+    }
+    .check input {
+      inline-size: 18px;
+      block-size: 18px;
+      accent-color: var(--sw-accent);
+    }
+    .status {
+      list-style: none;
+      margin: 0 0 8px;
+      padding: 0;
+      display: grid;
+      gap: 4px;
+      font-size: var(--sw-fs-sm);
+    }
+    .status li {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .dot {
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: 50%;
+      background: var(--sw-skeleton);
+    }
+    .warn,
+    .warn-text {
+      color: var(--sw-text);
+    }
+    .warn sw-icon {
+      color: var(--sw-warning);
+    }
+    .warn-text {
+      color: var(--sw-text);
+      font-weight: var(--sw-fw-medium);
+    }
+    .muted {
+      color: var(--sw-text-3);
+    }
+    .small {
+      font-size: var(--sw-fs-xs);
+    }
+    .rows {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 8px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 2fr) auto;
+      gap: 8px 16px;
+      align-items: center;
+      padding: 12px 14px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+    }
+    .row.ignored {
+      background: var(--sw-surface-2);
+    }
+    .who {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 4px 8px;
+      min-inline-size: 0;
+    }
+    .name {
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+      overflow-wrap: anywhere;
+    }
+    .num {
+      font-variant-numeric: tabular-nums;
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+    }
+    .facts {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 12px;
+      min-inline-size: 0;
+      font-size: var(--sw-fs-sm);
+    }
+    .stations,
+    .creds {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-surface-2);
+      color: var(--sw-text);
+      font-size: var(--sw-fs-xs);
+      white-space: nowrap;
+    }
+    .chip.station {
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+    }
+    .chip.station.off {
+      background: var(--sw-surface-3);
+      color: var(--sw-text-3);
+    }
+    .acts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+    .footer {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+      inline-size: 100%;
+    }
+    .note {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 0 0 12px;
+      padding: 10px 12px;
+      border-radius: var(--sw-r-md);
+      font-size: var(--sw-fs-sm);
+    }
+    p.note {
+      flex-direction: row;
+      align-items: center;
+    }
+    .note p {
+      margin: 0;
+    }
+    .note ul {
+      margin: 0;
+      padding-inline-start: 18px;
+    }
+    .note.ok {
+      background: var(--sw-success-soft);
+    }
+    .note.warn {
+      background: var(--sw-stale-soft);
+    }
+    .link {
+      border: 0;
+      padding: 4px 0;
+      background: none;
+      color: var(--sw-accent-text);
+      font: inherit;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+    .result {
+      margin: 0 0 10px;
+      padding: 10px 12px;
+      border-radius: var(--sw-r-md);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      background: var(--sw-surface-2);
+    }
+    .result.ok {
+      background: var(--sw-success-soft);
+    }
+    .result.partial,
+    .result.unknown {
+      background: var(--sw-stale-soft);
+    }
+    .result.failed {
+      background: var(--sw-danger-soft);
+    }
+    .per-station {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 6px;
+      font-size: var(--sw-fs-sm);
+    }
+    .per-station li {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 10px;
+      align-items: baseline;
+    }
+    .per-station .st {
+      font-weight: var(--sw-fw-semibold);
+    }
+    .oc {
+      padding: 0 8px;
+      border-radius: var(--sw-r-pill);
+      font-weight: var(--sw-fw-semibold);
+      background: var(--sw-surface-2);
+    }
+    .oc.ok {
+      background: var(--sw-success-soft);
+    }
+    .oc.unknown {
+      background: var(--sw-stale-soft);
+    }
+    .oc.refused,
+    .oc.not_sent {
+      background: var(--sw-danger-soft);
+    }
+    .msg {
+      color: var(--sw-text-2);
+      flex-basis: 100%;
+    }
+    input[data-station-action-typed] {
+      font-size: max(16px, var(--sw-fs-sm));
+    }
+    @media (max-width: 767px) {
+      .row {
+        grid-template-columns: minmax(0, 1fr);
+        padding: 12px;
+      }
+      .acts {
+        justify-content: flex-start;
+      }
+    }
+  `;q([y({type:Boolean,reflect:!0})],I.prototype,"open",2);q([y({attribute:!1})],I.prototype,"zone",2);q([c()],I.prototype,"phase",2);q([c()],I.prototype,"feedDown",2);q([c()],I.prototype,"scope",2);q([c()],I.prototype,"reads",2);q([c()],I.prototype,"query",2);q([c()],I.prototype,"showIgnored",2);q([c()],I.prototype,"acting",2);q([c()],I.prototype,"step",2);q([c()],I.prototype,"check",2);q([c()],I.prototype,"checkFailed",2);q([c()],I.prototype,"acceptDuplicate",2);q([c()],I.prototype,"typed",2);q([c()],I.prototype,"reply",2);q([c()],I.prototype,"failure",2);I=q([Y("wiskey-station-people")],I);const De={p1:{name:"דנה כהן",phone:"050-000-0001",consent:"granted"},p2:{name:"יוסי לוי",phone:"050-000-0002",consent:"granted"},p3:{name:"מאיה כץ",phone:null,consent:"unknown"},p4:{name:"אורן ברק",phone:"050-000-0004",consent:"declined"},p5:{name:"נועה שלו",phone:"050-000-0005",consent:"unknown",unregistered:!0}},ft=[{id:"card_ready",label:"כרטיס מוכן",body:"שלום {name}, כרטיס הכניסה שלך מוכן לאיסוף במשרד."},{id:"validity_reminder",label:"תזכורת תוקף",body:"שלום {name}, תוקף הכניסה שלך מסתיים בקרוב. נא לפנות למשרד."},{id:"closure",label:"הכניסה סגורה",body:"שלום {name}, הכניסה לחניון סגורה היום בין 12:00 ל־14:00."}];function fn(e=350){const t={limit:6,used:0,resets_in_s:1800},s=new Map,i=new Map,n=()=>({feature:!0,enabled:!0,can_send:!0,can_reveal_phone:!0,free_text:!0,bulk_max:20,text_max:1e3,templates:ft.map(f=>({...f})),templates_revision:1,quota:{...t},pace_ms:0}),d=()=>new Promise(f=>setTimeout(f,e)),o=f=>i.has(f)?"declined":De[f]?.consent??"unknown";return{async config(){return n()},async recipients(f){return f.map(m=>{const $=De[m];return{person_id:m,name:$?.name??m,phone_masked:$?.phone?ws($.phone):null,has_phone:$?$.phone!==null:!1,consent:o(m),allowed:!0}})},async send(f,m,$){await d();const Z=De[f];if(!Z?.phone)return{ok:!1,reason:"no_phone"};if(o(f)==="declined")return{ok:!1,reason:"no_consent"};if(t.used>=t.limit)return{ok:!1,reason:"rate",retry_after_s:t.resets_in_s};if(Z.unregistered)return{ok:!1,reason:"not_registered"};if(!m.text.trim())return{ok:!1,reason:"empty"};t.used+=1;const Fe=new Date().toISOString(),Vt=ft.find(Wt=>Wt.id===m.template_id);return s.set(f,[{id:`demo-${f}-${t.used}`,at:Fe,by:"בודק",kind:m.template_id?"template":"free",template_id:m.template_id,template_label:Vt?.label??null,outcome:"sent",reason:null,bulk:!!$.bulk},...s.get(f)??[]]),{ok:!0,sent_at:Fe,quota:{...t}}},async history(f){return{messages:s.get(f)??[],opt_out:i.get(f)??null,consent:o(f)}},async setOptOut(f,m){return m?i.set(f,{at:new Date().toISOString(),by:"בודק"}):i.delete(f),{opt_out:i.get(f)??null,consent:o(f)}}}}var mn=Object.defineProperty,gn=Object.getOwnPropertyDescriptor,v=(e,t,s,i)=>{for(var n=i>1?void 0:i?gn(t,s):t,d=e.length-1,o;d>=0;d--)(o=e[d])&&(n=(i?o(t,s,n):o(n))||n);return i&&n&&mn(t,s,n),n};const wn=3e4,bn=250,vn=800,mt="sw.people.view",gt="sw.people.columns",fe={get(e){try{return window.localStorage.getItem(e)}catch{return null}},set(e,t){try{window.localStorage.setItem(e,t)}catch{}}},yn={kind:"iana",name:"Asia/Jerusalem"},_n=[{id:"d1",name:"שער ראשי"},{id:"d2",name:"לובי"},{id:"d3",name:"חניון"}],$n=[{id:"staff",label:"עובדים",enabled:!0,station_ids:["d1","d2"]},{id:"night",label:"משמרת לילה",enabled:!0,station_ids:["d3"]}],oe=(e,t,s,i={})=>({id:e,display_name:s,active:!0,archived:!1,valid_from:null,valid_until:null,revision:1,access_category:"staff",user_type:"normal",identity_locked:!1,employee_no:t,group_ids:[],stations:[],timing:null,level:"sensitive",editable:!1,phone:null,phone_set:!0,credentials:{pin:!0,cards:1},photo_configured:!1,profile:null,responsible_person:null,access_purpose:null,...i}),le=(e,t,s=!0)=>({station_id:e,enabled:s,doors:[1],sync_state:t,last_sync_at:null,last_error:null}),wt=[oe("p1","1001","דנה כהן",{phone:"050-000-0001",group_ids:["staff"],stations:[le("d1","synced"),le("d2","synced")],credentials:{pin:!0,cards:2}}),oe("p2","1017","יוסי לוי",{phone:"050-000-0002",stations:[le("d1","pending")],credentials:{pin:!1,cards:1}}),oe("p3","1033","מאיה כץ",{valid_from:"2026-01-01T00:00:00+02:00",valid_until:"2026-06-30T00:00:00+03:00",stations:[le("d3","synced")],phone_set:!1,credentials:{pin:!0,cards:0}}),oe("p4","2044","אורן ברק",{phone:"050-000-0004",active:!1,group_ids:["night"],stations:[le("d2","error",!1)],credentials:{pin:!1,cards:0}}),oe("p5","2051","נועה שלו",{phone:"050-000-0005",credentials:{pin:!1,cards:1}})];let b=class extends W{constructor(){super(...arguments),this.access=Ze(),this.phase="loading",this.panelNote="",this.rows=[],this.page=null,this.shownAt=null,this.feedDown=!1,this.changed=!1,this.busy=!1,this.moreBusy=!1,this.query="",this.filters={},this.view=bs(fe.get(mt)),this.columns=vs(fe.get(gt)),this.columnsOpen=!1,this.phone=!1,this.stations=[],this.zone=te,this.groups=[],this.fields=null,this.features={},this.photoOn=!0,this.profileDraft={field:"",value:""},this.selecting=!1,this.selected=new Set,this.openId="",this.drawerOpen=!1,this.detail=null,this.detailLoading=!1,this.detailError="",this.editing=null,this.notice=null,this.transport=null,this.msgConfig=null,this.message=null,this.acting=null,this.result=null,this.pendingTimer=0,this.pendingDelete="",this.bulk=null,this.bulkShown=!1,this.messagesRev=0,this.stationPeople=!1,this.dups=null,this.dupsOpen=!1,this.rowsKey="",this.generation=0,this.detailGeneration=0,this.inflight=!1,this.queued=!1,this.typing=0,this.coalesce=0,this.poll=new rs(this),this.lookups=ps(),this.stop=null,this.stopSession=null,this.media=null,this.onMedia=()=>this.phone=!!this.media?.matches}connectedCallback(){if(super.connectedCallback(),T()&&jt().then(e=>this.bulkShown=e.enabled==="on"||e.system_admin===!0,()=>this.bulkShown=!1),this.media=typeof window.matchMedia=="function"?window.matchMedia(`(max-width: ${ys-1}px)`):null,this.phone=!!this.media?.matches,this.media?.addEventListener("change",this.onMedia),!T()){this.phase="ready",this.rows=wt,this.stations=_n,this.zone=yn,this.groups=$n,this.transport=fn(),this.transport.config().then(e=>this.msgConfig=e);return}if(this.stopSession=os(()=>{const e=Ze(),t=this.access.people;this.access=e,e.people&&!t&&this.phase==="forbidden"?this.begin():!e.people&&this.phase!=="forbidden"&&(this.phase="forbidden")}),!this.access.people){this.phase="forbidden";return}this.begin()}disconnectedCallback(){super.disconnectedCallback(),this.media?.removeEventListener("change",this.onMedia),this.stop?.(),this.stop=null,this.stopSession?.(),this.stopSession=null,window.clearTimeout(this.typing),window.clearTimeout(this.coalesce),this.poll.cancel("people"),window.clearTimeout(this.pendingTimer),this.generation++,this.detailGeneration++}begin(){this.phase="loading",this.subscribe(),this.loadMeta(),this.reload()}subscribe(){this.stop||(this.stop=ls(e=>{(e.type==="intercom_refresh"||e.type==="intercom_state")&&this.scheduleRefresh()},e=>{this.setPolling(!e),e&&this.scheduleRefresh()}))}setPolling(e){e?this.poll.every("people",wn,()=>this.refresh()):this.poll.cancel("people")}get filterAccess(){return{people:this.access.people,sensitive:this.access.sensitive}}request(e,t,s){return{query:this.query,filters:We(this.filters,this.filterAccess),offset:e,limit:t,snapshot:s}}requestKey(){return JSON.stringify([this.query.trim(),We(this.filters,this.filterAccess)])}async loadMeta(){const[e,t,s]=await Promise.allSettled([_s(),$s(),ks()]);e.status==="fulfilled"&&(this.features=e.value.features??{},this.photoOn=this.features.person_photo?.available!==!1),await this.loadMessaging(),this.loadDuplicates(),t.status==="fulfilled"&&t.value.stations&&(this.stations=t.value.stations,this.zone=t.value.default_zone??te,this.filters.station&&!this.stations.some(i=>i.id===this.filters.station)&&(this.filters=Ye(this.filters,"station",""))),s.status==="fulfilled"&&s.value.groups&&(this.groups=s.value.groups.groups,this.fields=s.value.groups.fields,this.photoOn=this.photoOn&&s.value.groups.photo_enabled!==!1)}async loadDuplicates(){if(!this.canManage){this.dups=null;return}try{this.dups=await Ni()}catch{this.dups=null}}async loadMessaging(){if(this.transport=null,this.msgConfig=null,!this.access.message)return;const e=Gs();try{const t=await e.config();this.msgConfig=t,this.transport=t.feature?e:null}catch{}}async reload(){const e=++this.generation;this.busy=!0,this.moreBusy=!1;try{const t=await Se(this.request(0,ue,""));if(e!==this.generation)return;this.apply(t,"replace")}catch(t){if(e!==this.generation)return;this.fail(t)}finally{e===this.generation&&(this.busy=!1)}}async loadMore(){const e=this.page,t=e?Ge(e):null;if(!e||t===null||this.moreBusy||this.busy)return;const s=this.generation;this.moreBusy=!0;try{const i=await Se(this.request(t,ue,e.snapshot));if(s!==this.generation)return;this.apply(i,"append")}catch(i){if(s!==this.generation)return;this.fail(i)}finally{s===this.generation&&(this.moreBusy=!1),this.queued&&!this.inflight&&!this.moreBusy&&(this.queued=!1,this.refresh())}}scheduleRefresh(){window.clearTimeout(this.coalesce),this.coalesce=window.setTimeout(()=>void this.refresh(),vn)}async refresh(){if(this.phase==="forbidden"||!this.access.people)return;if(this.inflight||this.moreBusy){this.queued=!0;return}if(this.rows.length>xs){this.changed=!0;return}this.inflight=!0;const e=++this.generation;try{const t=await Se(this.request(0,Math.max(ue,this.rows.length),""));if(e!==this.generation)return;this.apply(t,"replace")}catch(t){if(e!==this.generation)return;this.rows.length?this.feedDown=!0:this.fail(t)}finally{this.inflight=!1,this.queued&&(this.queued=!1,this.refresh())}}apply(e,t){if(e.state==="ready"&&e.people){const i=e.people;if(this.rows=zs(this.rows,i.records,t),this.rowsKey=this.requestKey(),this.page=i,this.shownAt=e.fetched_at,this.feedDown=!1,this.changed=t==="append"?i.stale:!1,this.phase="ready",this.selected=Cs(this.selected,this.rows),this.openId){const n=this.rows.find(d=>d.id===this.openId);n&&this.detail&&n.revision!==this.detail.revision&&this.openPerson(this.openId,!1)}return}if(e.state==="unsupported"){this.rows.length||(this.phase="unsupported");return}if(e.state==="forbidden"){this.phase="forbidden";return}if(this.rows.length>0&&this.rowsKey===this.requestKey()){this.feedDown=!0;return}if(this.dropRows(),e.state==="connecting"){this.phase="loading";return}this.phase=e.state==="error"?"error":"unavailable",this.panelNote=e.last_error??""}dropRows(){this.rows=[],this.page=null,this.rowsKey="",this.selected=new Set}fail(e){if(e instanceof z&&e.status===403){this.phase="forbidden";return}if(this.rows.length>0&&this.rowsKey===this.requestKey()){this.feedDown=!0;return}this.dropRows(),this.phase="error",this.panelNote=F(e)}editQuery(e){this.query=e,window.clearTimeout(this.typing),this.typing=window.setTimeout(()=>this.restart(),bn)}restart(){window.clearTimeout(this.typing),this.selected=new Set,T()&&this.reload()}setFilter(e,t){this.filters=Ye(this.filters,e,t),this.restart()}clearAll(){window.clearTimeout(this.typing),this.query="",this.filters=Ss(this.filters),this.profileDraft={field:"",value:""},this.restart()}applyProfile(){const{field:e,value:t}=this.profileDraft;!e||!t.trim()||(this.filters=He(this.filters,e,t.trim()),this.profileDraft={field:"",value:""},this.restart())}setView(e){this.view=e,fe.set(mt,e),this.columnsOpen=!1}setColumns(e){this.columns=Es(this.columns,e,this.access,this.employeeNoVisible),fe.set(gt,JSON.stringify(this.columns))}get employeeNoVisible(){return this.page?.employee_no_visible??!0}get shownView(){return Ps(this.view,this.phone)}async openPerson(e,t=!0){this.openId=e,t&&(this.drawerOpen=!0);const s=this.rows.find(n=>n.id===e)??null;if(this.detail=s,this.detailError="",!T()){this.detailLoading=!1;return}this.detailLoading=!0;const i=++this.detailGeneration;try{const n=await we(e);if(i!==this.detailGeneration)return;n.state==="ready"&&n.person?this.detail=n.person:this.detailError="failed"}catch(n){if(i!==this.detailGeneration)return;this.detailError=n instanceof z&&(n.status===404||n.status===403)?"gone":"failed"}finally{i===this.detailGeneration&&(this.detailLoading=!1)}}closePerson(){this.detailGeneration++,this.drawerOpen=!1,this.openId="",this.detail=null,this.detailLoading=!1,this.detailError="",this.message=this.message?.inDrawer?null:this.message,this.closeActions()}closeActions(){this.acting=null;const e=this.pendingDelete;e&&(this.pendingDelete="",this.notice={tone:"warn",text:u("res.pending")},this.watchDelete(e,0))}get canManage(){return T()&&this.access.manage}onSaved(e){const{person:t}=e.detail;this.editing=null;const s=e.detail.pending?u("res.pending"):u("res.saved",{time:se(new Date().toISOString(),this.zone)});this.notice={tone:e.detail.pending?"warn":"ok",text:s},this.result={id:t.id,state:e.detail.pending?"pending":"saved",text:s},this.selected=new Set,this.reload().then(()=>{this.rows.some(i=>i.id===t.id)&&this.openPerson(t.id)})}onDeleted(e){this.editing=null,this.notice={tone:"warn",text:u("res.pending")},this.closePerson(),this.selected=new Set,this.reload(),this.watchDelete(e.detail.id,0)}watchDelete(e,t){window.clearTimeout(this.pendingTimer),T()&&(this.pendingTimer=window.setTimeout(()=>{(async()=>{let s=200;try{await we(e)}catch(i){s=i instanceof z?i.status:0}this.isConnected&&(kt(s)==="confirmed"?(this.notice={tone:"ok",text:u("res.deleted")},this.reload()):t+1<Ie?this.watchDelete(e,t+1):this.notice={tone:"warn",text:u("res.still_pending")})})().catch(()=>{this.isConnected&&(this.notice={tone:"warn",text:u("res.still_pending")})})},xt))}actionsFor(e){return ii(e,{manage:this.canManage},{photoEnabled:this.photoOn}).filter(t=>t!=="edit")}onActionResult(e){const t=e.detail;if(this.result={id:t.id,state:t.state,text:t.text},t.state==="deleted"){this.pendingDelete="",this.notice={tone:"ok",text:t.text},this.closePerson(),this.reload();return}t.kind==="delete"&&(this.pendingDelete=t.state==="pending"?t.id:""),(t.state==="saved"||t.state==="unknown"||t.state==="pending"&&t.kind!=="delete")&&(this.scheduleRefresh(),this.refreshPerson(t.id))}async refreshPerson(e){if(!T()||this.openId!==e)return;const t=++this.detailGeneration;try{const s=await we(e);if(t!==this.detailGeneration||this.openId!==e)return;s.state==="ready"&&s.person&&(this.detail=s.person)}catch(s){if(t!==this.detailGeneration||this.openId!==e)return;s instanceof z&&s.status===404&&(this.detailError="gone")}finally{t===this.detailGeneration&&(this.detailLoading=!1)}}openEditor(e){this.drawerOpen=!1,this.editing=e}closeEditor(){this.editing=null,this.openId&&(this.drawerOpen=!0)}get canMessage(){return!!this.transport&&this.msgConfig?.feature===!0&&this.msgConfig.can_send===!0}openMessage(e,t){const s=e.map(i=>({id:i,name:this.rows.find(n=>n.id===i)?.display_name??(this.detail?.id===i?this.detail.display_name:i)}));s.length&&(this.message={people:s,inDrawer:t})}closeMessage(){this.message=null}groupLabel(e){return this.groups.find(t=>t.id===e)?.label??e}groupsText(e){const t=e.group_ids??[];return t.length?t.map(s=>this.groupLabel(s)).join(" · "):r("row.no_groups")}stationsText(e){const t=ge(e);return t===0?r("row.no_stations"):t===1?r("row.station_one"):r("row.stations",{n:t})}subtitle(){if(!this.page&&!T())return`${w("{n} אנשים",{n:wt.length})} · ${w("נתוני הדגמה")}`;const e=Ts(this.rows.length,this.page,Je(this.query,this.filters));if(e.total===null)return"";if(e.total===0)return r("page.count_zero");if(this.rows.length<e.total||e.minimum)return r(e.minimum?"page.count_min":"page.count_of",{shown:this.rows.length,total:e.total});const t=e.total===1?r("page.count_one"):r("page.count",{n:e.total});return e.of!==null&&e.of!==e.total?`${t} · ${r("page.count_of",{shown:e.total,total:e.of})}`:t}render(){if(T()&&this.phase==="forbidden")return a`<sw-page heading=${r("page.title")}><sw-state-panel data-wiskey-state="no_permission" state="forbidden" heading=${r("state.forbidden")}></sw-state-panel></sw-page>`;const e=this.phase==="ready",t=this.selecting&&e;return a`<sw-page heading=${r("page.title")} subheading=${e?this.subtitle():""} wide data-people-screen data-people-phase=${this.phase}>
+        ${this.renderActions(e)}
+        ${e?this.renderSearch():l}
+        ${e?this.renderFilters():l}
+        ${this.renderStrips()}
+        ${t?this.renderBulkBar():l}
+        ${this.renderBody()}
+      </sw-page>
+      ${this.renderDrawer()}
+      ${this.editing?a`<wiskey-person-editor .userId=${this.editing==="new"?"":this.editing.id} @editor-saved=${s=>this.onSaved(s)} @editor-deleted=${s=>this.onDeleted(s)} @editor-close=${()=>this.closeEditor()}></wiskey-person-editor>`:l}
+      ${this.message&&!this.message.inDrawer?this.renderMessage():l}
+      ${this.stationPeople?a`<wiskey-station-people open .zone=${this.zone} @close=${()=>this.stationPeople=!1}
+            @changed=${()=>{this.reload(),this.loadDuplicates()}}
+            @open-person=${s=>{this.stationPeople=!1,this.openPerson(s.detail.id)}}></wiskey-station-people>`:l}
+      ${this.bulk?a`<sw-bulk-people-dialog open .mode=${this.bulk} .personIds=${[...this.selected]} .stations=${this.lookups(this.stations,this.groups).bulkStations}
+            .groups=${this.lookups(this.stations,this.groups).bulkGroups} @close=${()=>this.bulk=null} @changed=${()=>void this.reload()}></sw-bulk-people-dialog>`:l}`}renderActions(e){const t=this.shownView,s=[["cards",r("view.cards"),"grid"],["list",r("view.list"),"list"]];return this.phone||s.push(["table",r("view.table"),"menu"]),a`
+      ${e?a`<sw-segmented slot="actions" data-people-views labels="none" label=${r("view.label")} value=${t} @change=${i=>this.setView(i.detail.value)}
+            .options=${s.map(([i,n,d])=>({value:i,label:n,title:n,icon:a`<sw-icon name=${d} size=${16}></sw-icon>`,attrs:{"data-people-view":i}}))}></sw-segmented>`:l}
+      ${e?a`<sw-button slot="actions" variant=${this.selecting?"primary":"secondary"} icon="check" iconOnly data-people-select-mode label=${this.selecting?r("action.select_off"):r("action.select")} aria-pressed=${this.selecting}
+            @click=${()=>{this.selecting=!this.selecting,this.selecting||(this.selected=new Set)}}></sw-button>`:l}
+      ${e&&this.canManage?a`<sw-button slot="actions" variant="primary" icon="plus" data-wiskey-people-add @click=${()=>this.openEditor("new")}>${r("action.add")}</sw-button>`:l}
+      ${e&&this.canManage?a`<sw-button slot="actions" variant="secondary" icon="door" ?iconOnly=${this.phone} label=${g("open")} data-people-station-only @click=${()=>this.stationPeople=!0}>${g("open")}</sw-button>`:l}
+      ${e&&T()&&this.bulkShown?a`<sw-button slot="actions" variant="secondary" icon="upload" data-people-bulk-open @click=${()=>this.bulk="import"}>${h("open")}</sw-button>`:l}
+      ${e&&this.canManage&&T()?a`<wk-profiles-link slot="actions"></wk-profiles-link>`:l}
+      ${T()&&this.phase!=="forbidden"?a`<sw-button slot="actions" variant="ghost" icon="refresh" iconOnly data-wiskey-people-refresh label=${r("action.refresh")} ?disabled=${this.busy} @click=${()=>void this.reload()}></sw-button>`:l}
+      ${e?a`<wk-deep-links slot="actions" place="people" mode="menu"></wk-deep-links>`:l}`}renderSearch(){const e=!this.employeeNoVisible;return a`<div class="search">
+      <sw-icon name="search" size=${16}></sw-icon>
+      <input type="search" data-wiskey-people-search name="query" maxlength="160" autocomplete="off" aria-label=${r("search.label")} placeholder=${r(e?"search.name":"search.name_number")}
+        .value=${this.query} ?disabled=${!T()} @input=${t=>this.editQuery(t.target.value)} @keydown=${t=>t.key==="Enter"&&this.restart()} />
+    </div>`}selectChip(e,t,s,i,n,d,o=!0){const f=[...o?[{id:"",label:`${t}: ${r("filter.any")}`}]:[],...i.map(([m,$])=>({id:m,label:$}))];return a`<sw-dropdown tall data-people-chip=${e} data-wiskey-people-filter=${e} label=${t} icon=${d}
+      .items=${f} .value=${s} ?inert=${!T()} aria-disabled=${T()?l:"true"} @change=${m=>n(m.detail.id)}></sw-dropdown>`}renderFilters(){const e=this.filters,t=this.access.sensitive,s=(this.fields??[]).filter(o=>o.enabled),i=s.find(o=>o.id===this.profileDraft.field)??null,n=Os.filter(o=>o!=="employee"||this.employeeNoVisible),d=e.sort??this.page?.sort??(this.employeeNoVisible?"employee":"name");return a`<div class="filters" role="group" aria-label=${r("filter.bar")} data-people-filters>
+      ${this.groups.length?this.selectChip("group",r("filter.group"),e.group??"",this.groups.filter(o=>o.enabled).map(o=>[o.id,o.label]),o=>this.setFilter("group",o),"users"):l}
+      ${this.stations.length?this.selectChip("station",r("filter.station"),e.station??"",this.stations.map(o=>[o.id,o.name]),o=>this.setFilter("station",o),"door"):l}
+      ${this.selectChip("state",r("filter.state"),e.state??"",Rs.map(o=>[o,r(`state.${o}`)]),o=>this.setFilter("state",o),"check")}
+      ${this.selectChip("rights",r("filter.rights"),e.rights??"",Ds.map(o=>[o,r(`rights.${o}`)]),o=>this.setFilter("rights",o),"shield")}
+      ${t?this.selectChip("credential",r("filter.credential"),e.credential??"",As.map(o=>[o,r(`credential.${o}`)]),o=>this.setFilter("credential",o),"lock"):l}
+      ${t&&s.length?a`${Object.entries(e.profile??{}).map(([o,f])=>a`<button type="button" class="fchip on" data-people-profile-clear=${o} @click=${()=>{this.filters=He(this.filters,o,""),this.restart()}}><span class="k">${s.find(m=>m.id===o)?.label??o}</span><span class="v">${f}</span><sw-icon name="close" size=${12}></sw-icon></button>`)}
+          <sw-dropdown tall data-people-chip="profile" data-people-profile-field label=${r("filter.profile")} icon="list"
+            .items=${[{id:"",label:`${r("filter.profile")}: ${r("filter.any")}`},...s.map(o=>({id:o.id,label:o.label}))]}
+            .value=${this.profileDraft.field} @change=${o=>this.profileDraft={field:o.detail.id,value:""}}></sw-dropdown>
+          ${i?a`<label class="fchip on" data-people-chip="profile-value"><span class="k">${r("filter.profile_value")}</span>
+                ${i.type==="select"&&i.options.length?a`<sw-dropdown tall data-people-profile-value label=${r("filter.profile_value")}
+                      .items=${[{id:"",label:r("filter.any")},...i.options.map(o=>({id:o,label:o}))]}
+                      .value=${this.profileDraft.value} @change=${o=>{this.profileDraft={...this.profileDraft,value:o.detail.id},this.applyProfile()}}></sw-dropdown>`:a`<input data-people-profile-value type="text" maxlength="100" aria-label=${r("filter.profile_value")} .value=${this.profileDraft.value}
+                      @input=${o=>this.profileDraft={...this.profileDraft,value:o.target.value}} @keydown=${o=>o.key==="Enter"&&this.applyProfile()} @change=${()=>this.applyProfile()} />`}
+              </label>`:l}`:l}
+      ${this.selectChip("sort",r("filter.sort"),d,n.map(o=>[o,r(`sort.${o}`)]),o=>this.setFilter("sort",o),"list",!1)}
+      ${Is(this.query,this.filters)>0?a`<button type="button" class="clear" data-wiskey-people-clear @click=${()=>this.clearAll()}>${r("action.clear")}</button>`:l}
+    </div>`}renderDuplicates(){const e=Ki(this.dups?.groups);return!this.canManage||!e.groups.length?l:a`<div class="note dup" role="status" data-people-duplicates=${e.groups.length}>
+      <sw-icon name="users" size=${16}></sw-icon>
+      <span>${g("dup_strip",{n:e.groups.length})}${this.dups?.complete===!1?` ${g("dup_partial")}`:""}</span>
+      <sw-button size="sm" variant="ghost" data-people-duplicates-toggle aria-expanded=${String(this.dupsOpen)} @click=${()=>this.dupsOpen=!this.dupsOpen}>${this.dupsOpen?g("dup_hide"):g("dup_show")}</sw-button>
+      ${this.dupsOpen?a`<div class="dup-list"><p class="dup-hint">${g("dup_resolve")}</p><ul>
+            ${e.groups.map(t=>a`<li data-people-duplicate-group=${t.code}>
+              <span class="dup-kind">${t.code==="duplicate_display_name"?g("dup_name"):t.code==="duplicate_phone"?g("dup_phone"):g("dup_profile",{label:t.label})}</span>
+              ${t.people.map(s=>a`<button type="button" class="dup-person" data-people-duplicate-person=${s.id} @click=${()=>void this.openPerson(s.id)}>${s.display_name}</button>`)}
+              ${t.more?a`<span class="dup-more">${g("dup_more",{n:t.more})}</span>`:l}
+            </li>`)}
+          </ul></div>`:l}
+    </div>`}renderStrips(){return a`
+      ${this.renderDuplicates()}
+      ${this.notice?a`<div class="note ${this.notice.tone}" role="status" data-wiskey-people-notice=${this.notice.tone}>
+            <sw-icon name=${this.notice.tone==="ok"?"check":"warning"} size=${16}></sw-icon><span>${this.notice.text}</span>
+            <sw-button size="sm" variant="ghost" iconOnly icon="close" label=${r("action.close")} @click=${()=>this.notice=null}></sw-button>
+          </div>`:l}
+      ${this.feedDown&&this.rows.length?a`<div class="note stale" role="status" data-wiskey-stale><sw-icon name="offline" size=${16}></sw-icon><span>${r("state.stale",{when:se(this.shownAt,this.zone)})}</span></div>`:l}
+      ${this.changed?a`<div class="note stale" role="status" data-wiskey-people-stale><sw-icon name="warning" size=${16}></sw-icon><span>${r("state.page_stale")}</span>
+            <sw-button size="sm" variant="ghost" icon="refresh" data-wiskey-people-restart ?disabled=${this.busy} @click=${()=>{this.changed=!1,this.reload()}}>${r("action.reload")}</sw-button></div>`:l}
+      ${this.page&&!this.page.complete?a`<div class="note stale" role="status" data-wiskey-people-incomplete=${this.page.incomplete_reason??"unknown"}><sw-icon name="warning" size=${16}></sw-icon><span>${r("state.partial")} · ${this.page.incomplete_reason==="rate_limited"?r("state.partial_rate"):r("state.partial_scan")}</span></div>`:l}`}renderBody(){switch(this.phase){case"loading":return this.renderSkeleton();case"unsupported":return a`<sw-state-panel icon="users" data-wiskey-state="unsupported" state="empty" heading=${r("state.unsupported")}></sw-state-panel>`;case"unavailable":return a`<sw-state-panel icon="users" data-wiskey-state="unavailable" state="empty" heading=${r("state.unavailable")}>${ds("system.configure")?a`<a class="settings-link" href="#/system/diagnostics?tab=access-control">${r("action.settings")}</a>`:l}</sw-state-panel>`;case"error":return a`<sw-state-panel data-wiskey-state="load_error" state="error" heading=${r("state.error")} hint=${this.panelNote} actionLabel=${r("action.retry")} @action=${()=>this.begin()}></sw-state-panel>`}if(this.busy&&!this.rows.length)return this.renderSkeleton();if(!this.rows.length){const s=Je(this.query,this.filters);return a`<sw-state-panel icon="users" data-wiskey-people-empty state="empty" heading=${r(s?"state.no_results":"state.empty")} actionLabel=${s?r("action.clear"):""} @action=${()=>this.clearAll()}></sw-state-panel>`}const e=this.shownView,t=this.page?Ge(this.page):null;return a`${e==="cards"?this.renderCards():e==="table"?this.renderTable():this.renderList()}
+      ${t!==null?a`<div class="more"><sw-button data-wiskey-people-more ?disabled=${this.moreBusy} @click=${()=>void this.loadMore()}>${this.moreBusy?r("state.detail_loading"):r("action.more",{n:Math.min(ue,Math.max(1,(this.page?.total??0)-this.rows.length))})}</sw-button></div>`:l}`}renderSkeleton(){return a`<div class="skeletons" aria-busy="true" data-people-skeleton>${Array.from({length:6},()=>a`<div class="sk-row"><span class="sk dot"></span><span class="sk-col"><span class="sk a"></span><span class="sk b"></span></span><span class="sk c"></span></div>`)}</div>`}checkbox(e){const t=this.selected.has(e.id);return a`<button type="button" class="cbx" role="checkbox" aria-checked=${t} aria-label=${r("action.select_row",{name:e.display_name})} data-person-select=${e.id}
+      @click=${s=>{s.stopPropagation(),this.selected=Ms(this.selected,e.id)}} @keydown=${s=>s.stopPropagation()}>
+      <span class="box${t?" on":""}">${t?a`<sw-icon name="check" size=${14}></sw-icon>`:l}</span></button>`}messageButton(e){return!this.canMessage||e.phone_set===!1?l:a`<sw-button variant="ghost" iconOnly icon="mail" data-person-message-row label=${r("action.message")} @click=${t=>{t.stopPropagation(),this.openMessage([e.id],!1)}}></sw-button>`}credentialsText(e){const t=$t(e);return t?t.kinds.length?t.kinds.map(s=>s==="card"?t.cards>1?r("cred.cards",{n:t.cards}):r("cred.card"):r("cred.pin")).join(" · "):t.none?r("cred.none"):r("cred.unknown"):""}rowKeys(e){return t=>{t.target===t.currentTarget&&(t.key==="Enter"||t.key===" ")&&(t.preventDefault(),this.openPerson(e.id))}}renderList(){return a`<ul class="rows" role="list" data-wiskey-people-list>
+      ${ce(this.rows,e=>e.id,e=>{const t=be(e);return a`<li class="row${this.selected.has(e.id)?" sel":""}" tabindex="0" data-wiskey-person-name-row=${e.id} data-person-row=${e.id} @click=${()=>void this.openPerson(e.id)} @keydown=${this.rowKeys(e)}>
+          ${this.selecting?this.checkbox(e):l}
+          <sw-avatar name=${e.display_name} size=${36} aria-hidden="true"></sw-avatar>
+          <span class="main"><b data-wiskey-person-name>${e.display_name}</b><span class="sub">${e.employee_no!==null?a`<bdi class="ltr" data-wiskey-person-employee>${e.employee_no}</bdi> · `:l}${this.groupsText(e)}</span></span>
+          <span class="side hide-p">${this.stationsText(e)}</span>
+          <span class="side hide-p">${ve(e,this.zone,!0)}</span>
+          <sw-badge data-person-state kind=${t.kind} label=${t.label}></sw-badge>
+          ${this.messageButton(e)}
+        </li>`})}
+    </ul>`}renderCards(){return a`<div class="grid" data-wiskey-people-cards>
+      ${ce(this.rows,e=>e.id,e=>{const t=be(e),s=_e(ae(e));return a`<article class="card${this.selected.has(e.id)?" sel":""}" tabindex="0" data-person-row=${e.id} @click=${()=>void this.openPerson(e.id)} @keydown=${this.rowKeys(e)}>
+          <div class="ctop">${this.selecting?this.checkbox(e):l}<sw-avatar name=${e.display_name} size=${40} aria-hidden="true"></sw-avatar>
+            <span class="main"><b data-wiskey-person-name>${e.display_name}</b>${e.employee_no!==null?a`<span class="sub"><bdi class="ltr" data-wiskey-person-employee>${e.employee_no}</bdi></span>`:l}</span>
+            <sw-badge kind=${t.kind} label=${t.label}></sw-badge></div>
+          <div class="cmeta"><span>${this.groupsText(e)}</span><span>${this.stationsText(e)}</span><span>${ve(e,this.zone,!0)}</span></div>
+          <div class="cfoot">${ge(e)||e.stations?.length?a`<sw-badge kind=${s.kind} label=${s.label}></sw-badge>`:l}${this.credentialsText(e)?a`<span class="sub">${this.credentialsText(e)}</span>`:l}${this.messageButton(e)}</div>
+        </article>`})}
+    </div>`}renderTable(){const e=Ns(this.columns,this.access,this.employeeNoVisible),t={name:r("col.name"),employee:r("col.employee"),groups:r("col.groups"),stations:r("col.stations"),credentials:r("col.credentials"),validity:r("col.validity"),state:r("col.state"),sync:r("col.sync")},s=js(this.selected,this.rows),i=(n,d)=>{switch(d){case"name":return a`<span class="who"><sw-avatar name=${n.display_name} size=${34} aria-hidden="true"></sw-avatar><b data-wiskey-person-name>${n.display_name}</b></span>`;case"employee":return a`<bdi class="ltr" data-wiskey-person-employee>${n.employee_no??""}</bdi>`;case"groups":return a`${this.groupsText(n)}`;case"stations":return a`<span data-wiskey-person-assignments=${ge(n)}>${this.stationsText(n)}</span>`;case"credentials":return a`${this.credentialsText(n)}`;case"validity":return a`${ve(n,this.zone,!0)}`;case"state":{const o=be(n);return a`<sw-badge data-person-state kind=${o.kind} label=${o.label}></sw-badge>`}default:{const o=_e(ae(n));return a`<sw-badge kind=${o.kind} label=${o.label}></sw-badge>`}}};return a`<div class="tablewrap" data-wiskey-people-table>
+      <div class="tabletools">
+        <button type="button" class="linkbtn" data-people-columns aria-expanded=${this.columnsOpen} @click=${()=>this.columnsOpen=!this.columnsOpen}><sw-icon name="filter" size=${14}></sw-icon>${r("action.columns")}</button>
+        ${this.columnsOpen?a`<div class="colmenu" role="group" aria-label=${r("action.columns")}>
+              ${qs(this.access,this.employeeNoVisible).map(n=>a`<label class="colopt"><input type="checkbox" data-people-column=${n} .checked=${e.includes(n)} ?disabled=${n==="name"} @change=${()=>this.setColumns(n)} />${t[n]}</label>`)}
+            </div>`:l}
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr>
+            ${this.selecting?a`<th class="chk"><button type="button" class="cbx" role="checkbox" aria-checked=${s==="all"?"true":s==="some"?"mixed":"false"} aria-label=${r("action.select_all")} data-people-select-all @click=${()=>this.selected=Ls(this.selected,this.rows)}><span class="box${s!=="none"?" on":""}">${s==="all"?a`<sw-icon name="check" size=${14}></sw-icon>`:s==="some"?a`<sw-icon name="minus" size=${14}></sw-icon>`:l}</span></button></th>`:l}
+            ${e.map(n=>a`<th scope="col" data-col=${n}>${t[n]}</th>`)}
+            <th class="act" aria-label=${r("col.actions")}></th>
+          </tr></thead>
+          <tbody>
+            ${ce(this.rows,n=>n.id,n=>a`<tr class="${this.selected.has(n.id)?"sel":""}" tabindex="0" data-person-row=${n.id} @click=${()=>void this.openPerson(n.id)} @keydown=${this.rowKeys(n)}>
+              ${this.selecting?a`<td class="chk">${this.checkbox(n)}</td>`:l}
+              ${e.map(d=>a`<td data-col=${d}>${i(n,d)}</td>`)}
+              <td class="act">${this.messageButton(n)}</td>
+            </tr>`)}
+          </tbody>
+        </table>
+      </div>
+    </div>`}renderBulkBar(){const e=this.selected.size;return a`<div class="bulk" role="toolbar" aria-label=${r("bulk.bar")} data-people-bulk>
+      <span class="n" data-people-bulk-count=${e}>${r("bulk.selected",{n:e})}</span>
+      <span class="sp"></span>
+      ${this.canMessage?a`<sw-button icon="mail" data-people-bulk-message ?disabled=${e===0} @click=${()=>this.openMessage([...this.selected],!1)}>${r("action.message_selected")}</sw-button>`:l}
+      ${this.canManage&&T()&&this.bulkShown?a`<sw-button icon="edit" data-people-bulk-edit ?disabled=${e===0} @click=${()=>this.bulk="edit"}>${h("edit_open")}</sw-button>`:l}
+      <sw-button variant="ghost" data-people-bulk-clear ?disabled=${e===0} @click=${()=>this.selected=new Set}>${r("action.clear_selection")}</sw-button>
+    </div>`}renderDrawer(){if(!this.openId&&!this.drawerOpen)return l;const{stationNames:e,groupLabels:t,groupStations:s}=this.lookups(this.stations,this.groups),i=this.detail,n=this.canManage&&!!i&&i.editable!==!1,d=this.actionsFor(i);return a`<wiskey-person-drawer .open=${this.drawerOpen} .person=${i} .loading=${this.detailLoading} .error=${this.detailError}
+        .stationNames=${e} .groupLabels=${t} .groupStations=${s} .fields=${this.fields} .zone=${this.zone} .photoEnabled=${this.photoOn}
+        .canEdit=${n} .canMessage=${this.canMessage&&!!i&&i.phone_set!==!1} .canAct=${d.length>0&&!this.detailLoading}
+        .messagesTab=${this.canMessage} .transport=${this.transport} .messagesRev=${this.messagesRev}
+        .resultLine=${i&&this.result?.id===i.id?this.result:null}
+        @close=${()=>this.closePerson()} @edit=${o=>this.openEditor({id:o.detail.id})} @message=${o=>this.openMessage([o.detail.id],!0)}
+        @actions=${()=>this.acting="menu"}>
+        ${this.message?.inDrawer?this.renderMessage():l}
+        ${this.acting&&i?a`<wiskey-person-actions .person=${i} .kind=${this.acting} .actions=${d} .canCapture=${this.access.capture} .zone=${this.zone}
+              @action-result=${o=>{o.stopPropagation(),this.onActionResult(o)}}
+              @close=${o=>{o.stopPropagation(),this.closeActions()}}></wiskey-person-actions>`:l}
+      </wiskey-person-drawer>`}renderMessage(){const e=this.message;return a`<wiskey-message-dialog open .transport=${this.transport} .people=${e.people} @close=${t=>{t.stopPropagation(),this.closeMessage(),t.detail?.sent&&(this.selected=new Set,this.messagesRev+=1)}}></wiskey-message-dialog>`}};b.styles=V`
+    .search {
+      position: relative;
+      display: flex;
+      align-items: center;
+      inline-size: min(100%, 28rem);
+      color: var(--sw-text-3);
+    }
+    .search sw-icon {
+      position: absolute;
+      inset-inline-start: 12px;
+      pointer-events: none;
+    }
+    .search input {
+      box-sizing: border-box;
+      inline-size: 100%;
+      min-block-size: 44px;
+      padding-inline: 36px 12px;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+      font-size: var(--sw-fs-md);
+    }
+    .search input:focus-visible,
+    .fchip input:focus-visible,
+    .cbx:focus-visible,
+    .linkbtn:focus-visible,
+    .clear:focus-visible,
+    .row:focus-visible,
+    .card:focus-visible,
+    tr:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+    }
+    /* CR-CMP2-SEGMENTED-C-2450: the view switch is sw-segmented (icon-only keys); it keeps its bordered row of 44 px square keys
+       (no sunken track), the chosen key on the accent wash */
+    sw-segmented[data-people-views] {
+      --sw-seg-border: var(--sw-border-strong);
+      --sw-seg-track: var(--sw-surface);
+      --sw-seg-radius: var(--sw-r-md);
+      --sw-seg-btn-radius: 0;
+      --sw-seg-pad: 0;
+      --sw-seg-gap: 0;
+      --sw-seg-h: 44px;
+      --sw-seg-key-min-w: 44px;
+      --sw-seg-ico-pad: 0;
+      --sw-seg-on-bg: var(--sw-accent-soft);
+      --sw-seg-on-fg: var(--sw-accent-text);
+      --sw-seg-on-shadow: none;
+    }
+    sw-segmented[data-people-views]::part(track) {
+      overflow: hidden;
+    }
+    sw-button {
+      min-block-size: 44px;
+    }
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    /* R5-SECURITY: the filter chips are raised keys (shadow 1, no outline); an active one is a filled accent field */
+    .fchip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-block-size: 44px;
+      padding-inline: 12px 6px;
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      max-inline-size: 100%;
+      box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
+    }
+    .fchip.on {
+      border-color: transparent;
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-accent) 45%, transparent);
+    }
+    .fchip .k {
+      color: var(--sw-text-3);
+      white-space: nowrap;
+    }
+    .fchip.on .k {
+      color: inherit;
+    }
+    .fchip input {
+      min-block-size: 44px;
+      max-inline-size: 11rem;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-weight: var(--sw-fw-medium);
+      text-overflow: ellipsis;
+    }
+    .fchip input {
+      max-inline-size: 9rem;
+      border-block-end: 1px solid var(--sw-border-strong);
+    }
+    button.fchip {
+      cursor: pointer;
+      padding-inline: 12px;
+    }
+    .clear {
+      min-block-size: 44px;
+      padding-inline: 12px;
+      border: 0;
+      background: transparent;
+      color: var(--sw-accent-text);
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      cursor: pointer;
+    }
+    .note {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: var(--sw-r-md);
+      font-size: var(--sw-fs-sm);
+      background: var(--sw-surface-2);
+      color: var(--sw-text);
+    }
+    .note > span {
+      flex: 1 1 12rem;
+    }
+    .note.stale {
+      background: var(--sw-stale-soft);
+    }
+    .note.ok {
+      background: var(--sw-success-soft);
+    }
+    /* WISKEY-PEOPLE-COMPLETE-2390: people who may be in the list twice */
+    .note.dup {
+      background: var(--sw-warning-soft);
+    }
+    .dup-list {
+      flex-basis: 100%;
+    }
+    .dup-list ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 6px;
+    }
+    .dup-list li {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px 8px;
+    }
+    .dup-hint {
+      margin: 0 0 6px;
+      color: var(--sw-text-2);
+    }
+    .dup-kind {
+      font-weight: var(--sw-fw-semibold);
+    }
+    .dup-person {
+      min-block-size: 32px;
+      padding: 2px 10px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-surface);
+      color: var(--sw-accent-text);
+      font: inherit;
+      cursor: pointer;
+    }
+    .dup-person:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+    }
+    .dup-more {
+      color: var(--sw-text-3);
+    }
+    /* not sticky: now that the page scrolls, a bar stuck to the top of the column would pass under the shell's floating search / status
+       corner (it covers the far end of whatever is at the top) and cover the rows beneath it (layout guard: floating) */
+    .bulk {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 8px 12px;
+      border: 1px solid var(--sw-accent);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+    }
+    .bulk .n {
+      font-weight: var(--sw-fw-semibold);
+    }
+    .bulk .sp {
+      flex: 1;
+    }
+    .rows {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
+      overflow: hidden;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-block-size: 60px;
+      padding: 8px 14px;
+      border-block-end: 1px solid var(--sw-border);
+      cursor: pointer;
+    }
+    .row:last-child {
+      border-block-end: 0;
+    }
+    /* R5-SECURITY (mobile-native / emil): a hover only under a fine pointer; the press answers on pointer-down */
+    @media (hover: hover) and (pointer: fine) {
+      .row:hover,
+      .card:hover,
+      tbody tr:hover {
+        background: var(--sw-surface-2);
+      }
+    }
+    .row,
+    .card,
+    tbody tr {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: background var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
+    }
+    .row:active,
+    .card:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    tbody tr:active td {
+      background: var(--sw-surface-3);
+    }
+    .row.sel,
+    .card.sel,
+    tbody tr.sel {
+      background: var(--sw-accent-soft);
+    }
+    /* R5-SECURITY: the state badge is the question of its column - 13/700, a 26 px field */
+    sw-badge {
+      font-size: var(--sw-fs-base);
+      font-weight: var(--sw-fw-bold);
+      line-height: 20px;
+      padding-block: 3px;
+      padding-inline: 10px;
+    }
+    .main {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1 1 auto;
+      min-inline-size: 0;
+    }
+    .main b {
+      font-weight: 800;
+      font-size: var(--sw-fs-xl);
+      letter-spacing: -0.01em;
+      color: var(--sw-heading, var(--sw-text));
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .sub {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-sm);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .side {
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+      white-space: nowrap;
+    }
+    ${Ne}
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+      gap: 12px;
+    }
+    .card {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px;
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
+      cursor: pointer;
+    }
+    .card .ctop b {
+      font-size: var(--sw-fs-lg);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
+    }
+    .ctop {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .cmeta {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+    }
+    .cfoot {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-block-size: 24px;
+    }
+    .cfoot sw-button {
+      margin-inline-start: auto;
+    }
+    .cbx {
+      display: grid;
+      place-items: center;
+      inline-size: 44px;
+      block-size: 44px;
+      flex-shrink: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      padding: 0;
+    }
+    .box {
+      display: grid;
+      place-items: center;
+      inline-size: 22px;
+      block-size: 22px;
+      border: 2px solid var(--sw-border-strong);
+      border-radius: var(--sw-r-xs);
+      background: var(--sw-surface);
+      color: var(--sw-text-inverse);
+    }
+    .box.on {
+      background: var(--sw-accent);
+      border-color: var(--sw-accent);
+    }
+    .tablewrap {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-inline-size: 0;
+    }
+    .tabletools {
+      position: relative;
+      display: flex;
+      justify-content: flex-end;
+    }
+    .linkbtn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-block-size: 44px;
+      padding-inline: 12px;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      cursor: pointer;
+    }
+    .colmenu {
+      position: absolute;
+      inset-block-start: 100%;
+      inset-inline-end: 0;
+      z-index: 3;
+      display: flex;
+      flex-direction: column;
+      min-inline-size: 12rem;
+      padding: 6px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-solid);
+      box-shadow: var(--sw-shadow-3);
+    }
+    .colopt {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-block-size: 44px;
+      padding-inline: 8px;
+      font-size: var(--sw-fs-sm);
+    }
+    .colopt input {
+      inline-size: 20px;
+      block-size: 20px;
+    }
+    .scroll {
+      overflow: auto;
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface);
+      /* R5-SECURITY pass 2: the table is the screen's one primary object - shadow 2 */
+      box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
+    }
+    table {
+      inline-size: 100%;
+      border-collapse: collapse;
+      font-size: var(--sw-fs-base);
+    }
+    th,
+    td {
+      padding: 8px 14px;
+      text-align: start;
+      white-space: nowrap;
+      border-block-end: 1px solid var(--sw-border);
+      vertical-align: middle;
+    }
+    /* R5-SECURITY: column heads are a filled head row (surface-2, 11/700 tracked); the name cell is the row's display line */
+    th {
+      position: sticky;
+      inset-block-start: 0;
+      background: var(--sw-surface-2);
+      color: var(--sw-text-2);
+      font-weight: var(--sw-fw-bold);
+      font-size: var(--sw-fs-xs);
+      letter-spacing: 0.03em;
+      padding-block: 10px;
+    }
+    /* R5-SECURITY pass 2: the name is the row's display line (17/800, tracked -0.01em), the row 60 px, the figures 600 */
+    td .who b {
+      font-size: var(--sw-fs-xl);
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      color: var(--sw-heading, var(--sw-text));
+    }
+    td {
+      font-variant-numeric: tabular-nums;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-medium);
+    }
+    tbody tr {
+      cursor: pointer;
+      block-size: 60px;
+    }
+    tbody tr:last-child td {
+      border-block-end: 0;
+    }
+    td.chk,
+    th.chk {
+      inline-size: 44px;
+      padding: 0 4px;
+    }
+    td.act,
+    th.act {
+      inline-size: 48px;
+      padding: 0 4px;
+    }
+    /* break-ui (R5): an 80-character name used to push every other column out of the table (nowrap cells, no cap); the name cell
+       is capped at 30ch and truncates, the full name lives in the person drawer */
+    .who {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      max-inline-size: min(30ch, 34vw);
+    }
+    .who b {
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    /* PEOPLE-TABLE-2271: the R5 cells (14 px sides, 15 px figures, the 13/700 state field) made the table's narrowest form about
+       930 px, wider than its box from the table's first width (TABLE_MIN_WIDTH, 1000 px) to about 1075 px - it scrolled sideways by
+       51 px at 1024. Below 1200 px the cells keep the R5 type and take 8 px sides; 1200 px and up are unchanged. */
+    @media (max-width: 1199px) {
+      th:not(.chk):not(.act),
+      td:not(.chk):not(.act) {
+        padding-inline: 8px;
+      }
+    }
+    .more {
+      display: flex;
+      justify-content: center;
+      padding-block: 4px;
+    }
+    .skeletons {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      overflow: hidden;
+    }
+    .sk-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-block-size: 56px;
+      padding: 8px 12px;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    .sk-col {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+    }
+    .sk {
+      display: block;
+      border-radius: var(--sw-r-xs);
+      background: linear-gradient(90deg, var(--sw-skeleton), var(--sw-skeleton-shine), var(--sw-skeleton));
+      background-size: 200% 100%;
+      animation: shimmer 1.4s linear infinite;
+    }
+    .sk.dot {
+      inline-size: 36px;
+      block-size: 36px;
+      border-radius: 50%;
+    }
+    .sk.a {
+      inline-size: 40%;
+      block-size: 12px;
+    }
+    .sk.b {
+      inline-size: 25%;
+      block-size: 10px;
+    }
+    .sk.c {
+      inline-size: 70px;
+      block-size: 18px;
+      border-radius: var(--sw-r-pill);
+    }
+    @keyframes shimmer {
+      to {
+        background-position: -200% 0;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .sk {
+        animation: none;
+      }
+    }
+    .settings-link {
+      color: var(--sw-accent-text);
+      font-size: var(--sw-fs-sm);
+    }
+    @media (max-width: 767px) {
+      .hide-p {
+        display: none;
+      }
+      .search {
+        inline-size: 100%;
+      }
+      .filters {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-block-end: 4px;
+        scrollbar-width: none;
+      }
+      .fchip,
+      .filters > sw-dropdown {
+        /* AUDIT30-H: the filter dropdowns keep their width in the one scrolling line (they shrank to a letter column) */
+        flex-shrink: 0;
+      }
+    }
+  `;v([c()],b.prototype,"access",2);v([c()],b.prototype,"phase",2);v([c()],b.prototype,"panelNote",2);v([c()],b.prototype,"rows",2);v([c()],b.prototype,"page",2);v([c()],b.prototype,"shownAt",2);v([c()],b.prototype,"feedDown",2);v([c()],b.prototype,"changed",2);v([c()],b.prototype,"busy",2);v([c()],b.prototype,"moreBusy",2);v([c()],b.prototype,"query",2);v([c()],b.prototype,"filters",2);v([c()],b.prototype,"view",2);v([c()],b.prototype,"columns",2);v([c()],b.prototype,"columnsOpen",2);v([c()],b.prototype,"phone",2);v([c()],b.prototype,"stations",2);v([c()],b.prototype,"zone",2);v([c()],b.prototype,"groups",2);v([c()],b.prototype,"fields",2);v([c()],b.prototype,"features",2);v([c()],b.prototype,"photoOn",2);v([c()],b.prototype,"profileDraft",2);v([c()],b.prototype,"selecting",2);v([c()],b.prototype,"selected",2);v([c()],b.prototype,"openId",2);v([c()],b.prototype,"drawerOpen",2);v([c()],b.prototype,"detail",2);v([c()],b.prototype,"detailLoading",2);v([c()],b.prototype,"detailError",2);v([c()],b.prototype,"editing",2);v([c()],b.prototype,"notice",2);v([c()],b.prototype,"transport",2);v([c()],b.prototype,"msgConfig",2);v([c()],b.prototype,"message",2);v([c()],b.prototype,"acting",2);v([c()],b.prototype,"result",2);v([c()],b.prototype,"bulk",2);v([c()],b.prototype,"bulkShown",2);v([c()],b.prototype,"messagesRev",2);v([c()],b.prototype,"stationPeople",2);v([c()],b.prototype,"dups",2);v([c()],b.prototype,"dupsOpen",2);b=v([Y("wiskey-people")],b);export{b as WiskeyPeople};

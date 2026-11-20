@@ -35,6 +35,7 @@ import urllib.request
 from typing import Any, Callable, Protocol
 
 from ..db import get_setting
+from ..test_reset import register_reset
 
 SOURCE = "he"
 TARGETS = ("ar", "en", "ru")
@@ -370,3 +371,6 @@ def _clean(raw: Any) -> str:
         return clean_text(line)
     except Exception:  # noqa: BLE001 - an ApiError text_invalid: the provider's line is not a usable announcement
         raise TranslateError("translate_failed") from None
+
+
+register_reset(__name__, ("CACHE", "_CALLS"), reset)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

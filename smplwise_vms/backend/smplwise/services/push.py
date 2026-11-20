@@ -58,6 +58,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from ..db import Database, new_id, now_iso
 from ..rbac import Principal
 from .delayed_worker import heap_wait, wait_idle
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.push")
 
@@ -830,3 +831,6 @@ def wake_all() -> None:
 
 
 NOTIFIER = PushNotifier()
+
+
+register_reset(__name__, ("_BUCKETS",), reset_limits)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

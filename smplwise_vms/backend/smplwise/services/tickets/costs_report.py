@@ -30,6 +30,7 @@ from .access import Viewer
 from .costs import COSTS_VIEW
 from .text_hygiene import csv_cell
 from .timeutil import zone_of
+from ...test_reset import register_reset
 
 GROUPS: tuple[str, ...] = ("vendor", "department", "device", "room", "month")
 STATUSES: tuple[str, ...] = ("submitted", "approved", "paid")
@@ -319,3 +320,5 @@ def filename(conn) -> str:
     stamp = dt.datetime.now(zone_of(conn)).strftime("%Y%m%d-%H%M")
     return f"ticket-costs-{stamp}.csv"
 
+
+register_reset(__name__, ("_RATE",), reset_rate)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)

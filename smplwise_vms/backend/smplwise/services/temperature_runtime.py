@@ -38,6 +38,7 @@ from . import temperature as t
 from . import temperature_defrost as learner
 from . import temperature_vendor_reports  # noqa: F401 - registers the vendor-report provider `temperature` (TEMPVENDOR-295) at startup, before any queued report is sent
 from .timeutil import epoch_or_none, iso_from_epoch
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.temperature")
 
@@ -622,3 +623,6 @@ class Runner:
 
 
 RUNNER = Runner()
+
+
+register_reset(__name__, ("_LAST",), reset)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

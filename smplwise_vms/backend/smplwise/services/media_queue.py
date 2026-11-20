@@ -24,6 +24,7 @@ from ..errors import ApiError
 from ..rbac import Principal
 from . import ma_direct as ma, media_commands, media_model as mm, media_profiles as profiles, media_query, media_store as store
 from .timeutil import parse_utc
+from ..test_reset import register_reset
 
 EDIT_DEVICE = (2.0, 4.0)  # queue edits: 2 a second per device (a burst of 4: a few quick drags)
 EDIT_USER = (0.5, 30.0)  # ... and 30 a minute per user (burst 30, refill 1 every 2 s)
@@ -371,3 +372,6 @@ def browse(conn: sqlite3.Connection, settings: Settings, principal: Principal, c
     raw = [i for i in raw if media_query.make_ref(conn, "ma", i["media_type"], i["uri"]) not in hidden]  # an item the administrator hid stays hidden here too
     listed = media_query.remember(conn, "ma", raw, principal.user_id, item.key)
     return {"type": media_type, "q": text or None, "items": listed, "offset": offset, "more": more, "read_at": _iso_now(), "provider": "ma"}
+
+
+register_reset(__name__, ("_BROWSE", "_SEARCH"), clear)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)
