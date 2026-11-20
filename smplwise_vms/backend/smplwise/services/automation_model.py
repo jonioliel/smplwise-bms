@@ -532,36 +532,15 @@ def parse_action(raw: Any, ctx: ModelContext | None = None) -> Block:
         return _finish(b, "action", ctx)
 
     if "choose" in r:
-        if not _only_keys(r, ["choose", "default"]) or not isinstance(r["choose"], list):
-            return bad()
-        opts = []
-        for o in r["choose"]:
-            if not isinstance(o, dict) or not all(k in ("conditions", "sequence") for k in o):
-                return bad()
-            opts.append({"conditions": _parse_conditions(o.get("conditions"), ctx), "sequence": parse_actions(o.get("sequence"), ctx)})
-        return mk({"kind": "typed", "raw": raw, "type": "choose", "options": opts, "default": parse_actions(r["default"], ctx) if "default" in r else None})
+        return _action_choose(raw, r, ctx, bad, mk)
     if "if" in r:
-        if not _only_keys(r, ["if", "then", "else"]) or "then" not in r:
-            return bad()
-        return mk({"kind": "typed", "raw": raw, "type": "if", "conditions": _parse_conditions(r["if"], ctx), "then": parse_actions(r["then"], ctx),
-                   "else": parse_actions(r["else"], ctx) if "else" in r else None})
+        return _action_if(raw, r, ctx, bad, mk)
     if "repeat" in r:
-        rp = r["repeat"]
-        if (not _only_keys(r, ["repeat"]) or not isinstance(rp, dict) or not all(k in ("count", "sequence") for k in rp) or not is_number(rp.get("count"))
-                or float(rp["count"]) != int(rp["count"]) or rp["count"] < 1):
-            return bad()
-        return mk({"kind": "typed", "raw": raw, "type": "repeat_count", "count": int(rp["count"]), "sequence": parse_actions(rp.get("sequence"), ctx)})
+        return _action_repeat(raw, r, ctx, bad, mk)
     if "delay" in r:
-        if not _only_keys(r, ["delay"]):
-            return bad()
-        d = _parse_duration(r["delay"])
-        if d is None or d is _INVALID:
-            return bad()
-        return mk({"kind": "typed", "raw": raw, "type": "delay", "delay": d})
+        return _action_delay(raw, r, ctx, bad, mk)
     if "stop" in r:
-        if not _only_keys(r, ["stop"]) or not isinstance(r["stop"], str):
-            return bad()
-        return mk({"kind": "typed", "raw": raw, "type": "stop", "message": r["stop"]})
+        return _action_stop(raw, r, ctx, bad, mk)
     if isinstance(r.get("condition"), str) and "action" not in r and "service" not in r:
         c = parse_condition(raw, ctx)
         if c["kind"] == "locked":
@@ -569,6 +548,51 @@ def parse_action(raw: Any, ctx: ModelContext | None = None) -> Block:
         return mk({"kind": "typed", "raw": raw, "type": "condition", "condition": c})
     if "type" in r and "device_id" in r and "domain" in r:
         return mk_locked(raw, "device", "action", ctx)
+    return _action_service(raw, r, ctx, bad, mk)
+
+
+def _action_choose(raw: Any, r: Raw, ctx: ModelContext, bad: Callable[..., Block], mk: Callable[[Block], Block]) -> Block:
+    if not _only_keys(r, ["choose", "default"]) or not isinstance(r["choose"], list):
+        return bad()
+    opts = []
+    for o in r["choose"]:
+        if not isinstance(o, dict) or not all(k in ("conditions", "sequence") for k in o):
+            return bad()
+        opts.append({"conditions": _parse_conditions(o.get("conditions"), ctx), "sequence": parse_actions(o.get("sequence"), ctx)})
+    return mk({"kind": "typed", "raw": raw, "type": "choose", "options": opts, "default": parse_actions(r["default"], ctx) if "default" in r else None})
+
+
+def _action_if(raw: Any, r: Raw, ctx: ModelContext, bad: Callable[..., Block], mk: Callable[[Block], Block]) -> Block:
+    if not _only_keys(r, ["if", "then", "else"]) or "then" not in r:
+        return bad()
+    return mk({"kind": "typed", "raw": raw, "type": "if", "conditions": _parse_conditions(r["if"], ctx), "then": parse_actions(r["then"], ctx),
+               "else": parse_actions(r["else"], ctx) if "else" in r else None})
+
+
+def _action_repeat(raw: Any, r: Raw, ctx: ModelContext, bad: Callable[..., Block], mk: Callable[[Block], Block]) -> Block:
+    rp = r["repeat"]
+    if (not _only_keys(r, ["repeat"]) or not isinstance(rp, dict) or not all(k in ("count", "sequence") for k in rp) or not is_number(rp.get("count"))
+            or float(rp["count"]) != int(rp["count"]) or rp["count"] < 1):
+        return bad()
+    return mk({"kind": "typed", "raw": raw, "type": "repeat_count", "count": int(rp["count"]), "sequence": parse_actions(rp.get("sequence"), ctx)})
+
+
+def _action_delay(raw: Any, r: Raw, ctx: ModelContext, bad: Callable[..., Block], mk: Callable[[Block], Block]) -> Block:
+    if not _only_keys(r, ["delay"]):
+        return bad()
+    d = _parse_duration(r["delay"])
+    if d is None or d is _INVALID:
+        return bad()
+    return mk({"kind": "typed", "raw": raw, "type": "delay", "delay": d})
+
+
+def _action_stop(raw: Any, r: Raw, ctx: ModelContext, bad: Callable[..., Block], mk: Callable[[Block], Block]) -> Block:
+    if not _only_keys(r, ["stop"]) or not isinstance(r["stop"], str):
+        return bad()
+    return mk({"kind": "typed", "raw": raw, "type": "stop", "message": r["stop"]})
+
+
+def _action_service(raw: Any, r: Raw, ctx: ModelContext, bad: Callable[..., Block], mk: Callable[[Block], Block]) -> Block:
     svc = _service_of(r)
     if svc is None:
         return bad()  # variables, wait_*, parallel, sequence, event, scene ... : known, not typed
