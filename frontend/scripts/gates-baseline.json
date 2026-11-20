@@ -108,7 +108,6 @@
       "src/map/material-resolve.ts#LIGHT_DEFAULT",
       "src/map/plan-symbols.ts#SYMBOLS",
       "src/map/quality-ladder.ts#wallDisplayMode",
-      "src/map/still-bake.ts#VARIANTS",
       "src/map/wall-path.ts#MAX_SEGMENTS",
       "src/map/wall-path.ts#MAX_STEP",
       "src/map/wall-path.ts#TOL_PX",
