@@ -319,9 +319,9 @@ export const editorShared = [
       --sw-text: var(--dv-text);
       --sw-text-2: var(--dv-text-2);
       --sw-accent-text: var(--dv-text);
-      --sw-seg-key: var(--ab-seg-thumb, #fff);
+      --sw-seg-key: var(--ab-seg-thumb);
       --sw-seg-key-ink: var(--dv-text);
-      --sw-seg-thumb-shadow: var(--dv-shadow-control, 0 1px 4px rgba(0, 0, 0, 0.18));
+      --sw-seg-thumb-shadow: var(--dv-shadow-control);
       --sw-tabs-key-h: 30px;
     }
     @media (max-width: 767px) {
