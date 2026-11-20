@@ -23,6 +23,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..rbac import INSTALLATION, Principal, require
 from ..services import device_bulk as bulk
+from ..services import home_interface_store as store
 from ..services import device_types
 from ..services import devices as svc
 from ..services import door_authority, intercom_doors
@@ -163,7 +164,7 @@ def _weather(conn: sqlite3.Connection) -> dict[str, Any] | None:
     """The outside temperature and condition of the installation's first available weather entity (the strip's weather line), or None."""
     import json
 
-    r = conn.execute("SELECT state, attributes_json FROM ha_entities WHERE domain = 'weather' AND removed_at IS NULL AND disabled = 0 AND available = 1 ORDER BY entity_id LIMIT 1").fetchone()
+    r = store.first_weather(conn)
     if r is None:
         return None
     try:
@@ -211,7 +212,7 @@ def policies(principal: Principal = Depends(current_principal_ro), conn: sqlite3
     require(conn, principal, ADMIN, INSTALLATION)
     from ..db import get_setting
 
-    seed = {row["room_key"]: hi._loads(row["items_json"]) or [] for row in conn.execute("SELECT room_key, items_json FROM home_favourites_seed").fetchall()}
+    seed = {row["room_key"]: hi._loads(row["items_json"]) or [] for row in store.favourites_seed_rows(conn)}
     return {"users": hi.list_policies(conn), "modules": list(hi.MODULES), "seed": seed, "kiosk_code_set": bool(get_setting(conn, hi.KIOSK_CODE_KEY))}
 
 
@@ -336,7 +337,7 @@ def _switch_rows(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     entities = [e for e in all_entities if e["domain"] == "switch" and not svc.is_scheduler(conn, e["entity_id"])]
     floors, areas = svc.load_structure(conn, all_entities)
     types = {r["entity_id"]: r for r in device_types.listing(conn, entities, floors, areas)}
-    prot = {r["entity_id"]: dict(r) for r in conn.execute("SELECT * FROM device_bulk_protected").fetchall()}
+    prot = {r["entity_id"]: dict(r) for r in store.bulk_protected_rows(conn)}
     policy = bulk.SwitchPolicy(conn)
     media_managed = dev._media_managed(conn)
     out = []
@@ -463,11 +464,7 @@ def put_wallpaper(room_key: str, request: Request, file: UploadFile = File(...),
         mime, data = sanitize_image(raw, max_bytes=hi.WALL_IMAGE_BYTES, max_side=hi.WALL_IMAGE_SIDE)
     except LogoError as exc:
         raise hi.HomeInterfaceError(422, "image_refused", WALL_REFUSED.get(str(exc), "התמונה נדחתה."), details={"reason": str(exc)}) from None
-    conn.execute(
-        """INSERT INTO home_room_image (user_id, room_key, mime, data_b64, bytes, updated_at) VALUES (?, ?, ?, ?, ?, ?)
-           ON CONFLICT(user_id, room_key) DO UPDATE SET mime = excluded.mime, data_b64 = excluded.data_b64, bytes = excluded.bytes, updated_at = excluded.updated_at""",
-        (principal.user_id, room_key, mime, base64.b64encode(data).decode("ascii"), len(data), now_iso()),
-    )
+    store.upsert_room_image(conn, principal.user_id, room_key, mime, base64.b64encode(data).decode("ascii"), len(data), now_iso())
     walls = dict(hi.get_prefs(conn, principal.user_id)["layout"].get("wallpapers") or {})
     walls[room_key] = "img"
     prefs = hi.set_prefs(conn, principal.user_id, {"layout": {"wallpapers": walls}})
@@ -482,7 +479,7 @@ def get_wallpaper(room_key: str, principal: Principal = Depends(current_principa
     import base64
 
     _wall_room(conn, room_key)
-    r = conn.execute("SELECT mime, data_b64 FROM home_room_image WHERE user_id = ? AND room_key = ?", (principal.user_id, room_key)).fetchone()
+    r = store.room_image(conn, principal.user_id, room_key)
     if r is None or hi.install_settings(conn)["wallpaper"] != "gallery_image":
         raise hi.HomeInterfaceError(404, "not_found", "אין תמונה.")
     return Response(base64.b64decode(r["data_b64"]), media_type=r["mime"], headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"})
@@ -492,7 +489,7 @@ def get_wallpaper(room_key: str, principal: Principal = Depends(current_principa
 def delete_wallpaper(room_key: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Remove the caller's own picture for one room (the room goes back to no wallpaper)."""
     _wall_room(conn, room_key)
-    conn.execute("DELETE FROM home_room_image WHERE user_id = ? AND room_key = ?", (principal.user_id, room_key))
+    store.delete_room_image(conn, principal.user_id, room_key)
     walls = dict(hi.get_prefs(conn, principal.user_id)["layout"].get("wallpapers") or {})
     if walls.get(room_key) == "img":
         walls.pop(room_key)

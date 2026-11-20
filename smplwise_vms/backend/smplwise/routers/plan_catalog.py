@@ -19,14 +19,13 @@ from ..db import new_id, now_iso
 from ..errors import ApiError, conflict, not_found
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import plan_catalog as cat
+from ..services import plan_catalog_store as store
 from ._common import rid as _rid
 
 router = APIRouter()
 NO_CACHE = {"Cache-Control": "private, no-cache"}
 EXPORT_FORMAT = "smplwise-catalog-1"
-COLUMNS = ("based_on", "names_json", "category", "tags_json", "role", "shape", "size_json", "z_m", "params_json", "icon", "color_token")
-_INSERT = f"INSERT INTO catalog_items(id, {', '.join(COLUMNS)}, created_by, created_at, updated_at) VALUES (?, {', '.join('?' * len(COLUMNS))}, ?, ?, ?)"
-_UPDATE = f"UPDATE catalog_items SET {', '.join(f'{c} = ?' for c in COLUMNS)}, updated_at = ? WHERE id = ?"
+COLUMNS = store.COLUMNS
 
 
 def _ts() -> str:
@@ -48,7 +47,7 @@ def _held_anywhere(conn: sqlite3.Connection, principal: Principal, permission: s
 def _custom(conn: sqlite3.Connection, item_id: str) -> sqlite3.Row:
     if item_id in cat.builtin_ids():
         raise conflict("builtin_item", "פריט מובנה אינו ניתן לעריכה או למחיקה; צור פריט מותאם שמבוסס עליו.")
-    r = conn.execute("SELECT * FROM catalog_items WHERE id = ?", (item_id,)).fetchone()
+    r = store.item(conn, item_id)
     if r is None:
         raise not_found("הפריט לא נמצא בספרייה.")
     return r
@@ -62,7 +61,7 @@ def _values(body: dict[str, Any], existing: sqlite3.Row | None = None) -> dict[s
 
 
 def _item(conn: sqlite3.Connection, item_id: str) -> dict[str, Any]:
-    return cat.row_item(conn.execute("SELECT * FROM catalog_items WHERE id = ?", (item_id,)).fetchone())
+    return cat.row_item(store.item(conn, item_id))
 
 
 def _row_dict(r: sqlite3.Row) -> dict[str, Any]:
@@ -104,7 +103,7 @@ def create_object(body: CustomItemIn, request: Request, principal: Principal = D
     _held_anywhere(conn, principal, "catalog.manage")
     values = _values(body.model_dump(exclude_unset=True))
     iid, now = new_id(), _ts()
-    conn.execute(_INSERT, (iid, *[values[c] for c in COLUMNS], principal.user_id, now, now))
+    store.insert_item(conn, (iid, *[values[c] for c in COLUMNS], principal.user_id, now, now))
     audit(conn, actor=principal, action="catalog.item.create", decision="allowed", resource_type="catalog", resource_id=iid, request_id=_rid(request),
           details={"based_on": values["based_on"], "category": values["category"], "name": json.loads(values["names_json"])["he"]})
     return _item(conn, iid)
@@ -116,7 +115,7 @@ def update_object(item_id: str, body: CustomItemIn, request: Request, principal:
     r = _custom(conn, item_id)
     fields = body.model_dump(exclude_unset=True)
     values = _values(fields, existing=r)
-    conn.execute(_UPDATE, (*[values[c] for c in COLUMNS], _ts(), item_id))
+    store.update_item(conn, (*[values[c] for c in COLUMNS], _ts(), item_id))
     audit(conn, actor=principal, action="catalog.item.update", decision="allowed", resource_type="catalog", resource_id=item_id, request_id=_rid(request),
           details={"fields": sorted(fields)})
     return _item(conn, item_id)
@@ -126,7 +125,7 @@ def update_object(item_id: str, body: CustomItemIn, request: Request, principal:
 def delete_object(item_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> None:
     _held_anywhere(conn, principal, "catalog.manage")
     r = _custom(conn, item_id)
-    conn.execute("DELETE FROM catalog_items WHERE id = ?", (item_id,))
+    store.delete_item(conn, item_id)
     audit(conn, actor=principal, action="catalog.item.delete", decision="allowed", resource_type="catalog", resource_id=item_id, request_id=_rid(request),
           details={"name": json.loads(r["names_json"]).get("he"), "based_on": r["based_on"]})
 
@@ -158,11 +157,11 @@ def import_catalog(body: ImportIn, request: Request, principal: Principal = Depe
     imported = replaced = 0
     now = _ts()
     for iid, values, created in prepared:
-        if conn.execute("SELECT 1 FROM catalog_items WHERE id = ?", (iid,)).fetchone():
-            conn.execute(_UPDATE, (*[values[c] for c in COLUMNS], now, iid))
+        if store.item_row(conn, iid):
+            store.update_item(conn, (*[values[c] for c in COLUMNS], now, iid))
             replaced += 1
         else:
-            conn.execute(_INSERT, (iid, *[values[c] for c in COLUMNS], principal.user_id, created or now, now))
+            store.insert_item(conn, (iid, *[values[c] for c in COLUMNS], principal.user_id, created or now, now))
             imported += 1
     audit(conn, actor=principal, action="catalog.import", decision="allowed", resource_type="catalog", resource_id="*", request_id=_rid(request),
           details={"imported": imported, "replaced": replaced})

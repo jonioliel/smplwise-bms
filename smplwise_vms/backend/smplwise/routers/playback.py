@@ -26,6 +26,7 @@ from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize
 from ..services import go2rtc as g2
 from ..services import playback as pb
+from ..services import playback_store as store
 from ..services import recordings
 from ..services.access import require_camera
 from ..services.leases import CameraLease
@@ -121,7 +122,7 @@ def seek_session(session_id: str, body: SeekBody, request: Request, principal: P
     if session.state in ("closed", "expired"):
         raise ApiError(409, "session_over", "סשן הניגון הסתיים; פתח ניגון חדש.")
     decision = require_camera(conn, principal, session.camera_id, "video.playback")  # T055: a seek is a new request - re-checked
-    cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (session.camera_id,)).fetchone()
+    cam = store.camera(conn, session.camera_id)
     try:
         start = parse_utc(body.start_at)
     except ValueError:

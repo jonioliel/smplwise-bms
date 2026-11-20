@@ -49,6 +49,7 @@ from ..remote_channel import is_remote
 from ..services import ha_user_auth as hua
 from ..services import local_identity as li
 from ..services import local_passkeys as lpk
+from ..services import local_passkeys_store as store
 from ..services import second_factor as sf
 from .. import guarded_route
 from ._common import rid as _rid
@@ -178,7 +179,7 @@ def rename(pk_id: str, body: LabelBody, request: Request, principal: Principal =
     label = (body.label or "").strip() or None
     if label and any(ord(c) < 32 or ord(c) == 127 for c in label):
         raise ApiError(422, "validation", "שם מפתח הגישה: טקסט רגיל בלבד.")
-    if len(pk_id) > 40 or conn.execute("UPDATE auth_webauthn_credentials SET label = ? WHERE id = ? AND user_id = ?", (label, pk_id, s.user_id)).rowcount != 1:
+    if len(pk_id) > 40 or store.rename_passkey(conn, label, pk_id, s.user_id) != 1:
         raise ApiError(404, "passkey_not_found", lpk.NOT_FOUND_HE)
     return lpk.summary(conn, s.user_id)
 
@@ -193,7 +194,7 @@ def remove_own(pk_id: str, request: Request, body: RemoveBody | None = None, pri
                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A fresh sign-in (< 5 min, with the factor) or the current TOTP code: a stolen session alone cannot strip a factor."""
     s = _self(request, principal, conn)
-    if conn.execute("SELECT 1 FROM auth_webauthn_credentials WHERE id = ? AND user_id = ?", (pk_id[:40], s.user_id)).fetchone() is None:
+    if store.passkey_row(conn, pk_id[:40], s.user_id) is None:
         raise ApiError(404, "passkey_not_found", lpk.NOT_FOUND_HE)
     code = (request.headers.get(hua.SECOND_FACTOR_HEADER) or (body.code if body else None) or "").strip()
     if code and sf.is_enrolled(conn, s.user_id):
@@ -274,7 +275,7 @@ def admin_remove(user_id: str, pk_id: str, request: Request, body: RemoveBody | 
     _user_row(conn, user_id, include_deleted=True)
     if not hua.LIMITER.hit(f"factor:{principal.user_id}", SELF_LIMITS):
         raise ApiError(429, "rate_limited", hua.RATE_LIMITED_HE, retryable=True)
-    if conn.execute("SELECT 1 FROM auth_webauthn_credentials WHERE id = ? AND user_id = ?", (pk_id[:40], user_id)).fetchone() is None:
+    if store.passkey_row(conn, pk_id[:40], user_id) is None:
         raise ApiError(404, "passkey_not_found", lpk.NOT_FOUND_HE)
     step_up = require_step_up(conn, request, principal, body.code if body else None, action="auth.local.passkey.removed", target=user_id)
     out = lpk.remove(conn, user_id, pk_id, actor=principal, by="admin", keep_chain=None, request_id=_rid(request))

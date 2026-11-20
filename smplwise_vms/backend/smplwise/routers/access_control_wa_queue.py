@@ -28,6 +28,7 @@ from ..audit import audit
 from ..auth import get_read_conn
 from ..errors import ApiError
 from ..rbac import Principal
+from ..services import access_control_wa_queue_store as store
 from ..services import intercom_authority as ia
 from ..services import intercom_messaging as M
 from ..services import wa_template_send as wts
@@ -250,7 +251,7 @@ def _settle_message(act: base._Act, row: dict[str, Any], view: Any, raw: Any) ->
         return
     message_id = row["request_id"]
     with act.db.connection(mode="read", label="wa job message") as c:
-        r = c.execute("SELECT outcome FROM intercom_messages WHERE id = ?", (message_id,)).fetchone()
+        r = store.message_outcome(c, message_id)
     pacing = wq.pacing_of_job(raw)
     if pacing is not None:
         reason = "rate_limited"

@@ -19,6 +19,7 @@ from ..db import new_id, now_iso, rollback_and_restart, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, authorize, require
 from ..services import geometry_store as store
+from ..services import plan_geometry_store
 from ..services import plan_anchor_scope as anchor_scope
 from ..services import plan_catalog
 from ..services import plan_detect
@@ -320,7 +321,7 @@ def put_geometry(version_id: str, body: GeometryPut, principal: Principal = Depe
         body_out["issues"] = body_out["issues"] + removed
     if skipped:  # review M-a: the stairs there stay as they were; the editor says so (names only of floors the person may read)
         body_out["twins_skipped"] = [{"floor_id": fid, "name": (r["name"] if r is not None and floor_reach(conn, principal, fid) is not None else "קומה אחרת")}
-                                     for fid in skipped for r in [conn.execute("SELECT name FROM floors WHERE id = ?", (fid,)).fetchone()]]
+                                     for fid in skipped for r in [plan_geometry_store.floor_name_row(conn, fid)]]
     return body_out
 
 
@@ -468,7 +469,7 @@ def link_connector(version_id: str, body: LinkIn, request: Request, principal: P
     require(conn, principal, "map.edit", ("floor", body.floor_id))
     # review B1: every floor the connector names now may lose its twin - the person must be allowed to edit each of them
     for fid in store.connector_floor_ids(conn, v, body.connector_id):
-        if fid not in (v["floor_id"], body.floor_id) and conn.execute("SELECT 1 FROM floors WHERE id = ? AND deleted_at IS NULL", (fid,)).fetchone():
+        if fid not in (v["floor_id"], body.floor_id) and plan_geometry_store.live_floor_row(conn, fid):
             require(conn, principal, "map.edit", ("floor", fid))
     result = store.link_connector(conn, v, body.connector_id, body.floor_id, principal.user_id, level_to=body.level_to, replace=body.replace)
     audit(conn, actor=principal, action="geometry.connector.link", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
@@ -562,8 +563,7 @@ def calibrate(version_id: str, body: CalibrationIn, request: Request, principal:
         record = {"method": "two_point", "status": status, "pairs": [{"a": [round(p.a[0], 6), round(p.a[1], 6)], "b": [round(p.b[0], 6), round(p.b[1], 6)], "metres": p.metres} for p in pairs],
                   "residual_pct": residual, "reason": None, "at": now, "by": principal.user_id}
         details = {"version_id": v["id"], "method": "two_point", "status": status, "scale_m_per_px": scale, "residual_pct": residual, "pairs": len(pairs)}
-    conn.execute("UPDATE plan_versions SET scale_m_per_px = ?, calibration_json = ?, revision = revision + 1 WHERE id = ?",
-                 (scale, json.dumps(record, ensure_ascii=False), v["id"]))
+    plan_geometry_store.set_calibration(conn, v["id"], scale, json.dumps(record, ensure_ascii=False))
     v2 = get_version(conn, v["id"])
     doc, row = store.working_doc(conn, v2)
     store.save_draft(conn, v2, doc, row["revision"] if row is not None else 0, principal.user_id, now)

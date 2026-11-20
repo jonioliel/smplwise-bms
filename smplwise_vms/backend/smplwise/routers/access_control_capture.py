@@ -16,7 +16,7 @@ from ..auth import current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import Database, unlocked
 from ..errors import ApiError
 from ..rbac import Principal
-from ..services import bridge_rotation, capture_lease, capture_lease_route, intercom_authority as ia, intercom_adapter, intercom_client, intercom_sync, intercom_writes as iw, lease_events, trusted_door
+from ..services import bridge_rotation, capture_lease, capture_lease_route, intercom_authority as ia, intercom_adapter, intercom_client, intercom_sync, intercom_writes as iw, lease_events, savepoints, trusted_door
 from ..services.access_control_core import PERSON, _no_control
 from ..services.intercom_capture import CAPTURES, POLLED
 from ._common import raw_body as _raw_body
@@ -176,7 +176,7 @@ def _lease_start(request: Request, act: _Action, conn: sqlite3.Connection, auth:
             log.warning("capture lease start: no clear answer (%s)", type(exc).__name__)
             answer = None
     finally:
-        conn.execute("BEGIN")  # deferred, lock-free: nothing more is written on the request connection
+        savepoints.begin_deferred(conn)  # deferred, lock-free: nothing more is written on the request connection
     kind, data = capture_lease_route.classify_request(answer, signed.request_id, "capture_start") if answer is not None else ("unknown", {"code": "no_answer"})
     capture_lease_route._clock_check(kind, data)
     session = None
@@ -257,7 +257,7 @@ def _lease_confirm(request: Request, act: _Action, auth: ia.Authority, capture: 
     if blocked is not None:
         CAPTURES.back_to_captured(capture)
         act.outcome("not_sent", blocked, {"error": blocked})
-        act.conn.execute("BEGIN")
+        savepoints.begin_deferred(act.conn)
         raise _gate_refusal(blocked, capture)
     settled = {"outcome": "unknown", "code": None}
     try:
@@ -288,7 +288,7 @@ def _lease_confirm_admitted(act: _Action, auth: ia.Authority, capture: Any, db: 
         except Exception as exc:  # noqa: BLE001 - after a possible delivery
             log.warning("capture lease confirm: no clear answer (%s)", type(exc).__name__)
     finally:
-        act.conn.execute("BEGIN")
+        savepoints.begin_deferred(act.conn)
     kind, data = capture_lease_route.classify_request(answer, signed.request_id, "capture_confirm") if answer is not None else ("unknown", {"code": "no_answer"})
     capture_lease_route._clock_check(kind, data)
     if kind in ("refused", "rejected"):
@@ -343,7 +343,7 @@ def _lease_cancel(request: Request, act: _Action, capture: Any) -> dict[str, Any
         except Exception as exc:  # noqa: BLE001
             log.warning("capture lease cancel: no clear answer (%s)", type(exc).__name__)
     finally:
-        act.conn.execute("BEGIN")
+        savepoints.begin_deferred(act.conn)
     kind, data = capture_lease_route.classify_request(answer, signed.request_id, "capture_cancel") if answer is not None else ("unknown", {"code": "no_answer"})
     capture_lease_route._clock_check(kind, data)
     if kind == "ok" and data.get("cancelled") is True:
