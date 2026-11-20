@@ -121,6 +121,18 @@ Not a product defect of this row, and not new: a race in the spec, present on th
   or a blob URL in THAT tab within 15 s). Byte-identical to the sweep's hunk, so merging both branches is conflict-free. No product
   change: nothing in `home-p3-bills.ts` was wrong, and the home look is untouched.
 
+Runs of this session (workstation, Vite dev server on its own port, `--workers=1`, desktop project, branch code + the spec fix):
+- the bill test alone, `--repeat-each=5`: **5 passed, 0 failed**.
+- `home-simple-2420`, `home-v3-followup-a`, `home-v3-gaps-2436`, `home-v3-p1`, `home-v3-p3` (the home specs this row touched), one
+  pass: **74 passed, 3 failed** - the three `home-v3-gaps-2436` "every changed screen fits" audits, each a 60 s test timeout in
+  `page.goto` / `page.evaluate` on the dev server (tsc and the unit run shared the PC). Re-run of the three with `--timeout=600000`:
+  **3 passed, 0 failed**. (`home-v3-p3` "all seven themes" passed this time.)
+- `npx tsc --noEmit -p tsconfig.json` and `-p tsconfig.tests.json`: exit 0. ESLint on the 7 touched source files: 0 errors,
+  0 warnings (the spec is outside the lint config).
+- Unit (`playwright.unit.config.ts`: `unit-sw-segmented`, `unit-polish4-wp4-home`, `unit-dark-polish-beds`, `unit-home*`,
+  `unit-i18n-home`): **135 passed, 0 failed**.
+- NOT_RUN: runner (gates have priority), mobile / tablet projects, pixel specs (no product change in this session).
+
 ## Remains (before this row boards a train)
 
 1. Runner pixel check without `-u` of the three home pixel files (expected to pass, see the A/B), then the entry check.
