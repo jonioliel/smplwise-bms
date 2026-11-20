@@ -15,6 +15,8 @@ from ..rbac import INSTALLATION, Principal, require
 from ..services import access_bindings_store as store
 from ..services import revocation
 from ..services.rbac_admin import BindingBody, _binding_dict, _terminate, affected_users, assigns_anywhere, delegated_sees, full_authority, insert_binding, revoke_one, validate_binding
+from ..wire import access_bindings as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -22,7 +24,7 @@ router = APIRouter()
 # ---------------------------------------------------------------- bindings
 
 
-@router.get("/access/bindings")
+@router.get("/access/bindings", **wire(W.BindingList))
 def list_bindings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     if not assigns_anywhere(conn, principal):
         require(conn, principal, "rbac.assign", INSTALLATION)
@@ -32,7 +34,7 @@ def list_bindings(principal: Principal = Depends(current_principal_ro), conn: sq
     return {"bindings": [_binding_dict(conn, b) for b in rows], "revision": permission_revision(conn)}
 
 
-@router.post("/access/bindings", status_code=201)
+@router.post("/access/bindings", status_code=201, **wire(W.BindingCreated))
 def create_binding(body: BindingBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     validate_binding(conn, principal, body, request)
     bid, rev = insert_binding(conn, principal, request, body)
@@ -44,7 +46,7 @@ def create_binding(body: BindingBody, request: Request, principal: Principal = D
     return {**_binding_dict(conn, row), "revision": rev}
 
 
-@router.delete("/access/bindings/{binding_id}")
+@router.delete("/access/bindings/{binding_id}", **wire(W.BindingRevoked))
 def revoke_binding(binding_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     if not assigns_anywhere(conn, principal):
         require(conn, principal, "rbac.assign", INSTALLATION)

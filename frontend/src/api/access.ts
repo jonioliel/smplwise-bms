@@ -7,73 +7,26 @@ import { ltrIsolate } from '../i18n/bidi';
 import { dayTimeText } from './day-format';
 import { tr } from '../i18n/msg/api-devices';
 import type * as GroupWire from './generated/wire-access-groups';
+import type * as AuditWire from './generated/wire-access-audit';
+import type * as BindingWire from './generated/wire-access-bindings';
+import type * as DirWire from './generated/wire-access-directory';
+import type * as RolesWire from './generated/wire-access-roles';
 
-export interface AccessBinding {
-  id: string;
-  subject_kind: 'user' | 'group';
-  subject_id: string;
-  subject_name: string;
-  role_id: string;
-  role_name: string;
-  scope_type: 'installation' | 'site' | 'building' | 'floor' | 'camera' | 'access_control_station';
-  scope_id: string;
-  scope_name: string;
-  effect: 'allow' | 'deny';
-  permission_revision: number;
-  assigned_by: string | null;
-  created_at: string;
-  expires_at: string | null;
-  via_group: string | null;
-}
+/* The directory, role catalogue, binding, preview and audit shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/
+ * access_directory.py, access_roles.py, access_bindings.py, access_audit.py, generated into ./generated/; code review 07:F8 step 2).
+ * Narrowed on purpose: a binding's `scope_type` is one of the CHECK constraint's six (the server types it as a string). */
+export type ScopeRef = DirWire.AssignScope;
 
-export interface DirectoryUser {
-  id: string;
-  name: string;
-  username: string;
-  is_admin: boolean;
-  active: boolean;
-  source: 'both' | 'ha_directory' | 'vms';
-  sync_status: 'verified' | 'stale' | 'removed' | 'unavailable' | 'unknown' | 'dev';
-  synced_at: string | null;
-  first_seen_at: string | null;
-  last_seen_at: string | null;
-  groups: { id: string; name: string }[];
-  bindings: AccessBinding[];
-  is_self: boolean;
-  /** CR-008: the per-user remote-access flag (SmplWise Arx, remote.policy = flag). */
-  remote_access?: boolean;
-  /** CR-008 amendment: what admits the user remotely - their own flag, or the administrator default (the installation setting
-   * remote.admins_default, not the user's switch); null when nothing does. `remote_admin_default`: the default would admit them
-   * without the flag. */
-  remote_access_basis?: 'flag' | 'admin_default' | null;
-  remote_admin_default?: boolean;
-  /** CR-008 P2: the last remote sign-in (ISO time) and how many remote sign-ins are active now. */
-  remote_last_sign_in?: string | null;
-  remote_sessions?: number;
-}
+export type AccessBinding = Omit<GroupWire.AccessGroupBinding, 'scope_type'> & { scope_type: ScopeRef['type'] };
 
-export interface ScopeRef {
-  /** T055: 'camera' = a single camera (the picker lists only cameras wholly inside the caller's reach). */
-  /** CR-033 D2: 'access_control_station' = one WisKey station (listed by name in the same scope picker). */
-  type: 'installation' | 'site' | 'building' | 'floor' | 'camera' | 'access_control_station';
-  id: string;
-  name: string;
-}
+/** One person of the directory. `source` 'local' = an Arx-only identity (USR2); a delegated administrator gets the directory details
+ * blanked. CR-008: `remote_access_basis` = what admits the user remotely (their own flag, the administrator default, or 'local' for an
+ * Arx-only identity); null when nothing does. */
+export type DirectoryUser = Omit<DirWire.DirectoryUser, 'bindings'> & { bindings: AccessBinding[] };
 
-export interface DirectoryResponse {
-  users: DirectoryUser[];
-  directory: { paired: boolean; last_directory_at: string | null; users: number };
-  revision: number;
-  can_assign: boolean;
-  /** T082: a delegated administrator (site admin) - only what they may assign, inside their own scopes. */
-  delegated?: boolean;
-  /** Every scope node where the caller holds rbac.assign (the scope picker). */
-  assign_scopes?: ScopeRef[];
-  /** Role ids the caller may hand out (all for a system administrator, the allow-list for a delegated one). */
-  assignable_roles?: string[];
-  /** CR-008 P2: `flag` = turning a user's remote flag off ends their remote sign-ins at once. */
-  remote_policy?: 'flag' | 'any_role';
-}
+/** T082: `delegated` = a delegated administrator (only what they may assign, inside their own scopes). CR-008 P2: `remote_policy`
+ * (absent for a delegated administrator) `flag` = turning a user's remote flag off ends their remote sign-ins at once. */
+export type DirectoryResponse = Omit<DirWire.Directory, 'users' | 'remote_policy'> & { users: DirectoryUser[]; remote_policy?: 'flag' | 'any_role' };
 
 export interface RoleInfo {
   id: string;
@@ -93,17 +46,8 @@ export interface RoleInfo {
   updated_by_username?: string | null;
 }
 
-export interface RolesResponse {
-  roles: RoleInfo[];
-  labels: Record<string, string>;
-  sensitive: string[];
-  system_permissions?: string[];
-  /** WXPERM: legacy permission name -> the permission it stands for (a role listing the old name holds the new one). */
-  legacy_permissions?: Record<string, string>;
-  delegable_roles?: string[];
-  can_manage_roles?: boolean;
-  delegated?: boolean;
-}
+/** The role catalogue (`roles`: built-in roles, then the live custom roles; each fits RoleInfo). */
+export type RolesResponse = RolesWire.RoleCatalogue;
 
 /** Who a role change touches, computed before saving (T082). */
 export interface RoleImpact {
@@ -135,43 +79,22 @@ type GroupsResponse = Omit<GroupWire.AccessGroupList, 'groups'> & { groups: Acce
 /** Who a group change touches, computed by the server before saving (T082). */
 export type GroupImpact = GroupWire.AccessGroupImpact;
 
-export interface PreviewResponse {
-  user_id: string;
-  scope_type: string;
-  scope_id: string;
-  scope_name: string;
-  active: boolean;
-  allowed: string[];
-  denied: string[];
-  labels: Record<string, string>;
-  bindings: AccessBinding[];
-  revision: number;
-}
+/** Effective permissions of a user at a scope; `limited_to_own`: a delegated administrator sees at most what they hold there. */
+export type PreviewResponse = Omit<AuditWire.AccessPreview, 'bindings'> & { bindings: AccessBinding[] };
 
-export interface AuditRow {
-  id?: string;
-  at: string;
-  actor_username: string | null;
-  action: string;
-  decision: string;
-  resource_type: string | null;
-  resource_id: string | null;
-  reason: string | null;
-  permission_revision?: string | number | null;
-  details: Record<string, unknown>;
-}
+export type AuditRow = AuditWire.AuditRow;
 
 export const listUsers = () => get<DirectoryResponse>('identity/users');
 /** CR-008: turn a user's remote access (SmplWise Arx) on or off - system administrators; turning it off ends the user's
  * remote sessions at once. */
 export const setRemoteAccess = (userId: string, enabled: boolean) =>
   put<{ user_id: string; remote_access: boolean; sessions_ended: number }>(`access/users/${encodeURIComponent(userId)}/remote-access`, { enabled });
-export const syncDirectory = () => post<{ requested: boolean; note?: string; result?: unknown }>('identity/sync');
+export const syncDirectory = () => post<DirWire.DirectorySync>('identity/sync');
 export const listRoles = () => get<RolesResponse>('access/roles');
 // CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by T076-T080 (users, groups and roles).
-export const listBindings = () => get<{ bindings: AccessBinding[]; revision: number }>('access/bindings');
+export const listBindings = () => get<Omit<BindingWire.BindingList, 'bindings'> & { bindings: AccessBinding[] }>('access/bindings');
 export const createBinding = (body: { subject_kind: 'user' | 'group'; subject_id: string; role_id: string; scope_type: string; scope_id: string; effect?: 'allow' | 'deny'; expires_at?: string | null }) =>
-  post<AccessBinding & { revision: number }>('access/bindings', body);
+  post<AccessBinding & Pick<BindingWire.BindingCreated, 'revision'>>('access/bindings', body);
 export const revokeBinding = (id: string) => del(path`access/bindings/${id}`);
 export const listGroups = () => get<GroupsResponse>('access/groups');
 export const createGroup = (name: string) => post<AccessGroup>('access/groups', { name });
@@ -191,7 +114,7 @@ export const listAudit = (opts: { prefix?: string; actor?: string; resourceId?: 
   if (opts.resourceId) q.set('resource_id', opts.resourceId);
   if (opts.limit) q.set('limit', String(opts.limit));
   const qs = q.toString();
-  return get<{ rows: AuditRow[] }>(`audit${qs ? `?${qs}` : ''}`);
+  return get<AuditWire.AuditPage>(`audit${qs ? `?${qs}` : ''}`);
 };
 
 export const SYNC_LABEL: Record<DirectoryUser['sync_status'], string> = {
