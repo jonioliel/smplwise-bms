@@ -387,13 +387,14 @@ _GRANTS: ContextVar[tuple[tuple[str, Decision], ...]] = ContextVar("sw_grants", 
 
 def _reset_grants() -> None:
     _GRANTS.set(())
+    _CUSTOM_CACHE.clear()  # SINGLETONS-REST-2480: the per-(database, revision) role cache; a pure cache, refilled on the next read
 
 
 from .test_reset import register_reset  # noqa: E402 - imports nothing from the package
 
 # RELEASE-2450-TRAIN gate run 1: a test that calls require() outside a request (the main context) left its grant behind, and
 # test_rbac_camera_scope's "nothing leaks out of a request's context" saw it; every test starts with no grant.
-register_reset(__name__, ("_GRANTS",), _reset_grants)
+register_reset(__name__, ("_GRANTS", "_CUSTOM_CACHE"), _reset_grants)
 
 
 def last_grant(action: str | None = None) -> Decision | None:

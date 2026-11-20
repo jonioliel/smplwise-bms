@@ -48,6 +48,7 @@ from ..config import Settings
 from ..errors import ApiError
 from ..rbac import LOCAL_ADMIN_PERMISSIONS, Principal
 from .session_cache import SessionCache
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.local_identity")
 
@@ -1567,3 +1568,12 @@ def reset_for_tests() -> None:
 
 
 _ = dataclasses  # kept for type tooling
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    with _flag_lock:
+        _flag.update(value=None, at=0.0)
+
+
+register_reset(__name__, ("_flag",), _reset_for_tests)  # SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

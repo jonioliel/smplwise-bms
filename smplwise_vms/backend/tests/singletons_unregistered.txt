@@ -134,17 +134,8 @@ smplwise.db._schema_cache
 smplwise.db._stray_logged
 smplwise.db._tx_end
 # - auth / session / identity / RBAC: out of this row on purpose (their tests reset them in their own fixtures)
-smplwise.auth._gate_wait_limiters
-smplwise.rbac._CUSTOM_CACHE
 smplwise.services.bridge_keys._BOOT_HW
-smplwise.services.ha_user_auth._REVOKED_TABLE
-smplwise.services.ha_user_auth._core_base
-smplwise.services.ha_user_auth._rejected
-smplwise.services.ha_user_auth._xff_refused
-smplwise.services.local_identity._flag
 smplwise.services.local_identity._pending
-smplwise.services.local_passwords._dummy
-smplwise.services.local_passwords._lists
 smplwise.services.local_reset._senders
 smplwise.services.revocation._generation
 smplwise.services.revocation._marks
