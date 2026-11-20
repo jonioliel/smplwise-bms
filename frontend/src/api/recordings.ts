@@ -1,11 +1,13 @@
 /** Recording search and playback sessions against the add-on backend (chapters 23/24). */
 import { apiUrl, del, get, path, post, query } from './client';
+import type * as GroupWire from './generated/wire-playback-groups';
 import type * as PbWire from './generated/wire-playback';
 import type * as RecWire from './generated/wire-recordings';
 
-/* The recording search and playback sessions are the backend's response models (smplwise_vms/backend/smplwise/wire/recordings.py,
- * playback.py, generated into ./generated/; code review 07:F8 step 2). Narrowed on purpose: a segment's `kind` and a session's `state`
- * (the documented sets; the server types them as strings) and the media anchor (a document chapter 24 fills, null until then). */
+/* The recording search, playback sessions and groups are the backend's response models (smplwise_vms/backend/smplwise/wire/recordings.py,
+ * playback.py, playback_groups.py, generated into ./generated/; code review 07:F8 step 2). Narrowed on purpose: a segment's `kind` and a
+ * session's `state` (the documented sets; the server types them as strings), the media anchor (a document chapter 24 fills, null until
+ * then) and the group's sync report members (the browser's own measurement, stored as sent). */
 type RecordingSegment = Omit<RecWire.RecordingSegment, 'kind'> & { kind: 'continuous' | 'motion' | 'alarm' | 'event' | 'manual' | 'unknown' };
 
 export type RecordingsResponse = Omit<RecWire.RecordingSearch, 'segments'> & { segments: RecordingSegment[] };
@@ -124,24 +126,10 @@ export interface SyncStats {
   missing: string[];
   members: Record<string, SyncMember>;
 }
-interface SyncReport {
-  p95_s: number | null;
-  quality: SyncQuality;
-  samples: number;
-  partial: boolean;
-  members: Record<string, SyncMember>;
-  reported_at: string;
-}
+type SyncReport = Omit<GroupWire.SyncReport, 'quality' | 'members'> & { quality: SyncQuality; members: Record<string, SyncMember> };
 
-export interface PlaybackGroup {
-  id: string;
-  requested_at: string;
-  generation: number;
-  sessions: PlaybackSession[];
-  missing: Record<string, string>;
-  sync: 'best_effort';
-  sync_report?: SyncReport | null;
-}
+/** CR-024: `sync` 'experimental_cross_recorder' (with `experimental` / `recorders`) only for members on different recorders. */
+export type PlaybackGroup = Omit<GroupWire.PlaybackGroup, 'sessions' | 'sync_report'> & { sessions: PlaybackSession[]; sync_report: SyncReport | null };
 
 export const createGroup = async (cameraIds: string[], startAt: string) => {
   const g = await post<PlaybackGroup>('playback/groups', { camera_ids: cameraIds, start_at: startAt });
@@ -154,7 +142,7 @@ export const closeGroup = (id: string) => {
   return del(path`playback/groups/${id}`);
 };
 export const reportGroupSync = (id: string, stats: SyncStats) =>
-  post<{ ok: boolean; sync_report: SyncReport }>(path`playback/groups/${id}/sync`, { p95_s: stats.p95, quality: stats.quality, samples: stats.samples, partial: stats.partial, members: stats.members });
+  post<Omit<GroupWire.GroupSyncStored, 'sync_report'> & { sync_report: SyncReport }>(path`playback/groups/${id}/sync`, { p95_s: stats.p95, quality: stats.quality, samples: stats.samples, partial: stats.partial, members: stats.members });
 
 /** JPEG frame from the recording at a UTC instant (T044); 404 when there is no picture there. */
 export const frameUrl = (cameraId: string, atIso: string) => apiUrl(path`cameras/${cameraId}/frame` + query({ at: atIso }));
