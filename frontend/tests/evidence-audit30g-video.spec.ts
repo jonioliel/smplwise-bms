@@ -126,7 +126,9 @@ test.describe('finding 12 / 6: the live event screen uses sw-page and sw-badge',
           const own = root.querySelectorAll('h1').length;
           const page = root.querySelector('sw-page')!;
           const h1 = page.shadowRoot!.querySelector('h1');
-          const badges = [...root.querySelectorAll<HTMLElement>('sw-badge[filled]')].filter((b) => b.getClientRects().length);
+          // CR-CMP2-TABLES-2450: the recent-incidents table is the shared sw-table, its status cells draw inside the table's shadow root
+          const tables = [...root.querySelectorAll('sw-table')].map((t) => t.shadowRoot).filter((x): x is ShadowRoot => !!x);
+          const badges = [root, ...tables].flatMap((n) => [...n.querySelectorAll<HTMLElement>('sw-badge[filled]')]).filter((b) => b.getClientRects().length);
           const parse = (s: string) => (s.match(/[\d.]+/g) ?? []).map(Number);
           const lum = ([r, g, b]: number[]) => {
             const f = (v: number) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
