@@ -700,4 +700,10 @@ def q(value: str) -> str:
     return quote(value, safe="")
 
 
-register_reset(__name__, ("_TOKENS", "_REFUSED"), clear_cache)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)
+def _reset_all_for_tests() -> None:
+    """Test seam: the module's existing reset, then the remaining module-level tables back to a fresh process (smplwise.test_reset; product code never calls it)."""
+    clear_cache()
+    _LOGIN_LOCKS.clear()
+
+
+register_reset(__name__, ("_TOKENS", "_REFUSED", "_LOGIN_LOCKS"), _reset_all_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

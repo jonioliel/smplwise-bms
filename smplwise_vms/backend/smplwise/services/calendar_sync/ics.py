@@ -23,6 +23,7 @@ from zoneinfo import ZoneInfo
 from ..calendar import recurrence as rec
 from . import credentials
 from .adapter import Binding, ConnectionInfo, ExtCalendar, ExtEvent, Health, OutEvent, PullResult, PushResult, SyncError
+from ...test_reset import register_reset
 
 UTC = dt.timezone.utc
 MAX_BYTES = 5 * 1024 * 1024
@@ -362,3 +363,11 @@ class IcsInAdapter:
 
 
 __all__ = ["IcsInAdapter", "FETCH", "parse", "events_of", "check_url", "normalise_url"]
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _LAST.clear()
+
+
+register_reset(__name__, ("_LAST",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

@@ -56,6 +56,7 @@ from typing import Any, Callable
 from . import confirm_words
 from . import wiskey_versions as wv
 from .wiskey_distribution_digest import digest as tree_digest, digest_rows, files as tree_files
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.wiskey.managed")
 
@@ -1235,3 +1236,12 @@ def startup_safe(db: Any, settings: Any) -> None:
         startup_reconcile(db, settings)
     except Exception as exc:  # noqa: BLE001 - start-up must not fail
         log.warning("wiskey managed start-up reconcile failed (%s)", type(exc).__name__)
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _BUNDLE_CACHE.clear()
+    _BUNDLE_CACHE.update({"key": None, "value": None})
+
+
+register_reset(__name__, ("_BUNDLE_CACHE",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

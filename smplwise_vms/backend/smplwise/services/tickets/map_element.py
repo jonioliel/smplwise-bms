@@ -25,6 +25,7 @@ from ...db import now_iso
 from ..plan_geometry import DEFAULT_LEVEL_ID
 from . import map_image
 from .store import table_missing
+from ...test_reset import register_reset
 
 SEP = " · "
 KINDS = ("anchor", "object")
@@ -352,3 +353,11 @@ def picture(conn: sqlite3.Connection, ticket_id: str) -> str | None:
                 _snapshot_cache.pop(next(iter(_snapshot_cache)), None)
             _snapshot_cache[stamp] = svg
     return svg
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _snapshot_cache.clear()
+
+
+register_reset(__name__, ("_snapshot_cache",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

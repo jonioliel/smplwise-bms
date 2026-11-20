@@ -35,6 +35,7 @@ from ..rbac import Principal, note_grant
 from . import ha_actions, ha_bridge, ha_client, media_model as mm, media_profiles as profiles, media_query, media_store as store
 from . import service_identity
 from .timeutil import parse_utc
+from ..test_reset import register_reset
 
 EXPIRY_MAX_S = 60.0
 POWER_GAP_MS = 2000  # the least time between two power commands of one device
@@ -872,3 +873,12 @@ def on_action_confirmed(conn: sqlite3.Connection, action_id: str) -> None:
     if r is not None:
         store.note_recent(conn, r["device_key"], r["recent_kind"], r["recent_id"])
         conn.execute("UPDATE media_commands SET recent_kind = NULL WHERE action_id = ?", (action_id,))
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _KEY_WINDOWS.clear()
+    _LIMIT_WINDOWS.clear()
+
+
+register_reset(__name__, ("_KEY_WINDOWS", "_LIMIT_WINDOWS"), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

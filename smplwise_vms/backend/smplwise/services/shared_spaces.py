@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Iterable
 
 from . import wall_path
+from ..test_reset import register_reset
 
 # The membership tolerances, in metres: a wall or connector point within this of the room's outline is inside (the
 # room's own walls lie on it); a point item (object, label, anchor) within POINT_TOL_M.
@@ -1937,3 +1938,11 @@ def zone_in_share(conn: sqlite3.Connection, zone_id: str) -> Group | None:
         if g.zone_id == zone_id or any(s.other_zone_id == zone_id for s in g.shares):
             return g
     return None
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _SUBSET_CACHE.clear()
+
+
+register_reset(__name__, ("_SUBSET_CACHE",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

@@ -12,6 +12,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..db import get_setting, now_iso
+from ..test_reset import register_reset
 
 MAX_CAMERAS = 12
 MAX_STATE_ENTITIES = 8
@@ -242,3 +243,12 @@ def remote_refusal_needed(conn: sqlite3.Connection, user_id: str) -> bool:
 
 def dumps(cfg: dict[str, Any]) -> str:
     return json.dumps(cfg, ensure_ascii=False, separators=(",", ":"))
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _hello.clear()
+    _open.clear()
+
+
+register_reset(__name__, ("_hello", "_open"), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)
