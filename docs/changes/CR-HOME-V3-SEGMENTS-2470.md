@@ -99,12 +99,31 @@ URL / download within 15 s. NOT investigated (session stopped for usage); see "R
 - Mobile / tablet projects of the home behaviour specs; the entry check (`branch_check.sh`) - not queued.
 - No lab / device test (UI only).
 
+## The bill-file failure - root cause (follow-up session 20.11)
+
+Not a product defect of this row, and not new: a race in the spec, present on the base as well.
+
+- Reproduced on a Vite dev server (`--workers=1`, desktop): the branch fails the test; the BASE code (`git checkout 521165ad4 --
+  frontend/src`, same server, same spec) fails it too - **2 passed / 6 failed of 8 runs on the base** (1 of 2, then 1 of 6). The
+  earlier "passes on the base" was a lucky run.
+- An instrumented copy of the test (a context-level `page` / `download` / `framenavigated` log with timestamps, deleted afterwards)
+  shows the product doing the right thing on both codes: the click opens the empty tab inside the gesture, `energy/bills/b1/pdf` is
+  fetched, the blob navigation is handed over as a **download** (headless Chromium has no PDF viewer, so the tab stays `about:blank`
+  - as `openBillFile` intends). Branch: 3 of 3 downloads; base: 1 of 1.
+- The spec added its `tab.on('download')` listener only after `Promise.all([waitForEvent('popup'), click()])` resolved. The click's
+  protocol round trip and the page's own `window.open` -> fetch -> blob -> navigation run concurrently; the download event arrived
+  0-30 ms before the click resolved in 3 of the 4 instrumented runs (base and branch alike), so the listener came too late and the
+  15 s poll could only time out. Which side wins depends on load (the dev server's module graph, the runner), not on `sw-segmented`:
+  the bills screen with one account draws no segmented group, and `sw-home`'s delegated click handler does not act on
+  `data-p3-bill-open` (the button has its own `@click`).
+- Fix: the spec hunk of `origin/pilot/FLAKY-SWEEP-2480` (603ddb110), taken verbatim - the download is recorded from the moment a new
+  tab exists (`page.context().on('page', p => p.on('download', ...))`); the assertion is unchanged (the file request, then a download
+  or a blob URL in THAT tab within 15 s). Byte-identical to the sweep's hunk, so merging both branches is conflict-free. No product
+  change: nothing in `home-p3-bills.ts` was wrong, and the home look is untouched.
+
 ## Remains (before this row boards a train)
 
-1. The bill-file failure above: find why the popup does not get the blob URL on this branch (the bills screen draws no segmented group
-   with one account; suspect an event / timing side effect of the new element in `sw-home` or `home-p3`), fix, re-run
-   `home-v3-followup-a`.
-2. Runner pixel check without `-u` of the three home pixel files (expected to pass, see the A/B), then the entry check.
+1. Runner pixel check without `-u` of the three home pixel files (expected to pass, see the A/B), then the entry check.
 
 ## Open questions (recommendation taken, for the owner's page)
 
