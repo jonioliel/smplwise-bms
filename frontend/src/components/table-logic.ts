@@ -87,3 +87,20 @@ export function rowFocusStep(key: string, from: number, count: number): number {
       return -1;
   }
 }
+
+/** CR-CMP2-GEN-REST-2460: one run of rows under a group heading row (`head`), or the rows before the first heading (`head` null). */
+interface RowSegment<R> {
+  head: R | null;
+  rows: R[];
+}
+
+/** The rows split at their group heading rows, in order: each heading opens a segment (its own `<tbody>`, the heading its first row);
+ * rows before the first heading form a segment without one (left out when there are none). A table without headings is one segment. */
+export function groupSegments<R>(rows: readonly R[], isHead: (row: R) => boolean): RowSegment<R>[] {
+  const out: RowSegment<R>[] = [{ head: null, rows: [] }];
+  for (const r of rows) {
+    if (isHead(r)) out.push({ head: r, rows: [] });
+    else out[out.length - 1].rows.push(r);
+  }
+  return out[0].rows.length || out.length === 1 ? out : out.slice(1);
+}
