@@ -30,6 +30,7 @@ from ..services import devices as dsvc
 from ..services.timeutil import parse_utc
 from .media import _principal_for_ws
 from ._common import rid as _rid
+from ..test_reset import register_reset
 
 router = APIRouter()
 log = logging.getLogger("smplwise.ha")
@@ -926,3 +927,11 @@ async def ha_ws(websocket: WebSocket) -> None:
         pass
     finally:
         ha_sync.unsubscribe(q)
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _INFLIGHT.clear()
+
+
+register_reset(__name__, ("_INFLIGHT",), _reset_for_tests)  # CR-SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

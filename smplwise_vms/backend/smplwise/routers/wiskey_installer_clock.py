@@ -29,6 +29,7 @@ from ..services import wiskey_installer as wi
 from ..services import wiskey_installer_clock as wc
 from ._common import raw_body as _raw_body
 from .wiskey_installer_common import WriteBody, Write, installer_gate, installer_reader, phrase_for_station, read, station_for_write, station_or_404
+from ..test_reset import register_reset
 
 router = APIRouter()
 ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
@@ -164,3 +165,6 @@ def clock_station_sync(request: Request, station_id: str, principal: Principal =
 
 def reset() -> None:
     CHECKS.reset()
+
+
+register_reset(__name__, ("CHECKS",), reset)  # CR-SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

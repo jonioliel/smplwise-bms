@@ -57,6 +57,7 @@ from ..services.calendar import model
 from ..services.calendar.access import Ctx, Denied, get_visible
 from . import calendar as cal_mod
 from .calendar import Body, _audit, _body, _errors, module_gate
+from ..test_reset import register_reset
 
 router = APIRouter(dependencies=[Depends(module_gate)])
 public_router = APIRouter()
@@ -477,3 +478,11 @@ install_log_filter()
 
 
 __all__ = ["router", "public_router", "render", "DOC_PATH_RE", "RedactFeedToken"]
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _RATE.clear()
+
+
+register_reset(__name__, ("_RATE",), _reset_for_tests)  # CR-SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

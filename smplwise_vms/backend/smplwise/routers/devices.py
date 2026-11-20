@@ -44,6 +44,7 @@ from ..services import building_scope, door_authority, ha_bridge, ha_client, ha_
 from ..services import service_identity
 from ..services.timeutil import parse_utc
 from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
+from ..test_reset import register_reset
 
 router = APIRouter()
 READ = "devices.read"
@@ -1009,3 +1010,11 @@ def bulk_status(bulk_id: str, request: Request, principal: Principal = Depends(c
         commit_now(conn)  # a fresh read snapshot
         b = bulk.load(conn, bulk_id)
     return b
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _last_refresh.clear()
+
+
+register_reset(__name__, ("_last_refresh",), _reset_for_tests)  # CR-SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

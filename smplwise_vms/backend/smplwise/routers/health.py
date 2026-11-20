@@ -26,6 +26,7 @@ from ..services import process_stats
 from ..services.ttl_cache import TtlCache
 from ._common import rid as _rid
 from .storage import local_state
+from ..test_reset import register_reset
 
 router = APIRouter()
 
@@ -223,3 +224,12 @@ def health_logs_export(body: LogExportBody, request: Request, principal: Princip
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     return Response(content=json.dumps(doc, ensure_ascii=False, indent=1), media_type="application/json",
                     headers={"Content-Disposition": f'attachment; filename="arx-logs-{stamp}.json"', "Cache-Control": "no-store"})
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _EVENTS_COUNT.clear()
+    _RENDERER.clear()
+
+
+register_reset(__name__, ("_EVENTS_COUNT", "_RENDERER"), _reset_for_tests)  # CR-SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

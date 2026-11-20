@@ -22,6 +22,7 @@ from ..rbac import Principal
 from ..services import wiskey_installer_technical as wt
 from ._common import raw_body as _raw_body
 from .wiskey_installer_common import Write, WriteBody, installer_gate, installer_reader, phrase_for_station, read, station_for_write, station_or_404
+from ..test_reset import register_reset
 
 router = APIRouter()
 ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
@@ -120,3 +121,6 @@ def technical_update(request: Request, station_id: str, door: int, principal: Pr
 
 def reset() -> None:
     REPORTS.reset()
+
+
+register_reset(__name__, ("REPORTS",), reset)  # CR-SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

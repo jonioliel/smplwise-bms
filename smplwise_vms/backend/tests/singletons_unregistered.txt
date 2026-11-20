@@ -7,19 +7,7 @@
 # CR-BE-COMPLEXITY-2450 (19.11): the walk now also sees singletons of a class defined in another module of the package;
 # 26 of the 30 it found register a reset, the 4 marked below are recorded.
 
-smplwise.routers.access_control_command.RELAYS
 smplwise.routers.calendar_feeds._FILTER
-smplwise.routers.cameras._CAPS_CACHE  # shared class (TtlCache); routers are another agent's files on 19.11
-smplwise.routers.cameras._ZONES_CACHE  # shared class (TtlCache); routers are another agent's files on 19.11
-smplwise.routers.frames.MEMO
-smplwise.routers.health._EVENTS_COUNT  # shared class (TtlCache); routers are another agent's files on 19.11
-smplwise.routers.media.REGISTRY
-smplwise.routers.notifications.ACTION_FAILURES
-smplwise.routers.notifications.ACTION_GLOBAL
-smplwise.routers.water.CSV_LIMIT
-smplwise.routers.water.MANUAL_LIMIT
-smplwise.routers.wiskey_installer_clock.CHECKS
-smplwise.routers.wiskey_installer_technical.REPORTS
 smplwise.services.access_grants.WORKER
 smplwise.services.access_service_writer.LAST
 smplwise.services.alarm_codes.LOCKOUT
@@ -128,17 +116,6 @@ smplwise.services.wiskey_triage.LIMITS
 # module changes at run time. Those whose module already had a reset function now register it (42 modules); constant
 # registries are in tests/singletons_constant_tables.txt; the rest are recorded here, grouped by why.
 # - routers: another agent's files on 19.11
-smplwise.routers.alarm._PASS_THROUGH
-smplwise.routers.calendar_feeds._RATE
-smplwise.routers.cases._integrity_last
-smplwise.routers.devices._last_refresh
-smplwise.routers.frames._flights
-smplwise.routers.frigate._ASSET_SEMS
-smplwise.routers.generator._DETECT_CALLS
-smplwise.routers.ha._INFLIGHT
-smplwise.routers.health._RENDERER
-smplwise.routers.media._cap_audited
-smplwise.routers.readiness._last_check
 smplwise.routers.transit._CHECK
 smplwise.routers.transit._REFRESH
 # - the SQLite lock / pool bookkeeping: process-wide by design (read by /health); a reset while a lock is held would corrupt it
