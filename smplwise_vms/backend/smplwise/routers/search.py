@@ -12,8 +12,8 @@ from fastapi import APIRouter, Depends, Query, Request
 from ..auth import current_principal_ro, get_read_conn
 from ..rbac import INSTALLATION, Principal, authorize, bindings_of
 from ..errors import ApiError
-from ..services import devices as dsvc
 from ..services import ha_scope
+from ..services import search_store as store
 from ..services import semantic
 from ..services.access import camera_scope, visible_camera_ids
 from .settings import read_settings
@@ -29,7 +29,7 @@ def _visible_floors(conn: sqlite3.Connection, principal: Principal, permission: 
     """None = installation-wide; otherwise the floors the caller may read with `permission`."""
     if authorize(conn, principal, permission, INSTALLATION).allowed:
         return None
-    return {f["id"] for f in conn.execute("SELECT id FROM floors WHERE deleted_at IS NULL").fetchall() if authorize(conn, principal, permission, ("floor", f["id"])).allowed}
+    return {f["id"] for f in store.live_floor_ids(conn) if authorize(conn, principal, permission, ("floor", f["id"])).allowed}
 
 
 def search_allowed(conn: sqlite3.Connection, principal: Principal) -> bool:
@@ -71,9 +71,7 @@ def search(
         return {"q": q, "results": [], "counts": {}}
     floors = {
         f["id"]: dict(f)
-        for f in conn.execute(
-            "SELECT f.id, f.name, f.building_id, b.name AS building_name FROM floors f JOIN buildings b ON b.id = f.building_id WHERE f.deleted_at IS NULL AND b.deleted_at IS NULL ORDER BY b.name, f.sort_order, f.name"
-        ).fetchall()
+        for f in store.live_floors_with_building(conn)
     }
     map_floors = _visible_floors(conn, principal, "map.read")
 
@@ -100,7 +98,7 @@ def search(
     mirrored = {k: [(fid, home) for fid, home in pairs if home not in map_denied] for k, pairs in mirrored.items()}
 
     # rooms / zones (only those marked searchable)
-    for z in conn.execute("SELECT id, floor_id, name, kind FROM spatial_zones WHERE deleted_at IS NULL AND searchable = 1 ORDER BY name").fetchall():
+    for z in store.searchable_zones(conn):
         shown = [fid for fid in [z["floor_id"], *([] if z["floor_id"] in map_denied else shared_floors.get(z["id"], []))] if floor_ok(fid)]
         if not _contains(z["name"], needle) or not shown:
             continue
@@ -111,13 +109,13 @@ def search(
     # cameras (scope: the cameras the caller may see on a map; unplaced cameras for installation-wide readers)
     cam_ids = visible_camera_ids(conn, principal, "map.read")
     live_ids = visible_camera_ids(conn, principal, "video.live")  # TOPPILL-295: a camera the caller may not watch is not a hit either
-    placed = {r["resource_id"]: r["floor_id"] for r in conn.execute("SELECT resource_id, floor_id FROM map_anchors WHERE resource_type = 'camera' AND effective_to IS NULL").fetchall()}
+    placed = {r["resource_id"]: r["floor_id"] for r in store.placed_cameras(conn)}
     for (rtype, rid), pairs in mirrored.items():  # a camera of a shared room the caller reaches only through the other floor
         if rtype == "camera" and (rid not in placed or not floor_ok(placed[rid])):
             ok = next((fid for fid, _home in pairs if floor_ok(fid)), None)
             if ok:
                 placed[rid] = ok
-    for c in conn.execute("SELECT id, alias, name_source, channel FROM cameras WHERE enabled = 1 ORDER BY sort_order, channel").fetchall():
+    for c in store.enabled_cameras(conn):
         if (cam_ids is not None and c["id"] not in cam_ids) or (live_ids is not None and c["id"] not in live_ids):
             continue
         title = c["alias"] or c["name_source"] or c["id"]
@@ -137,7 +135,7 @@ def search(
     for fid, f in floors.items():
         if _contains(f["name"], needle) and floor_ok(fid):
             add("floor", {"id": fid, "title": f["name"], "subtitle": f["building_name"], "route": f"/explore/floors/{fid}", "floor_id": fid})
-    for b in conn.execute("SELECT id, name FROM buildings WHERE deleted_at IS NULL ORDER BY name").fetchall():
+    for b in store.live_buildings(conn):
         if not _contains(b["name"], needle):
             continue
         if not any(floor_ok(fid) for fid, f in floors.items() if f["building_id"] == b["id"]) and not authorize(conn, principal, "map.read", ("building", b["id"])).allowed:
@@ -151,8 +149,8 @@ def search(
     from ..rbac import permissions_anywhere
 
     alarm_view = "alarm.view" in permissions_anywhere(conn, principal)
-    ent_placed = {r["resource_id"]: r["floor_id"] for r in conn.execute("SELECT resource_id, floor_id FROM map_anchors WHERE resource_type = 'ha_entity' AND effective_to IS NULL").fetchall()}
-    denied_homes = {f["id"] for f in conn.execute("SELECT id FROM floors WHERE deleted_at IS NULL").fetchall()
+    ent_placed = {r["resource_id"]: r["floor_id"] for r in store.placed_entities(conn)}
+    denied_homes = {f["id"] for f in store.live_floor_ids(conn)
                     if authorize(conn, principal, "entity.state.read", ("floor", f["id"])).reason == "explicit_deny"} if mirrored and ent_floors is not None else set()
     for (rtype, rid), pairs in mirrored.items():  # CR-009: an entity of a shared room, through the other floor (deny on its home wins)
         if rtype == "ha_entity" and ent_floors is not None and ent_placed.get(rid) not in ent_floors:
@@ -161,8 +159,7 @@ def search(
                 ent_placed[rid] = ok
     # HA-2026-11-COMPAT-2404: `name` is the full name Home Assistant shows; the state's friendly name (the pre-2026.11 name while
     # Home Assistant keeps a compat name) finds an entity by the name the operator knew before the migration
-    for e in conn.execute("SELECT entity_id, name, original_name, domain, area_name, CASE WHEN json_valid(attributes_json) THEN json_extract(attributes_json, '$.friendly_name') END AS friendly_name "
-                          "FROM ha_entities WHERE disabled = 0 AND " + dsvc.NOT_SCHEDULER_SQL + " ORDER BY name, entity_id").fetchall():
+    for e in store.searchable_entities(conn):
         if not (_contains(e["name"], needle) or _contains(e["original_name"], needle) or _contains(e["entity_id"], needle) or _contains(e["area_name"], needle)
                 or _contains(e["friendly_name"] if isinstance(e["friendly_name"], str) else None, needle)):
             continue

@@ -20,6 +20,7 @@ from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize
 from ..services import playback as pb
 from ..services import playback_groups as pg
+from ..services import playback_groups_store as store
 from ..services import recorder_clock
 from ..services.access import camera_scope
 from ..services.timeutil import iso_utc, parse_utc
@@ -146,7 +147,7 @@ def seek_group(group_id: str, body: SeekBody, request: Request, principal: Princ
                 pb.close(settings, existing.pop(cid), "revoked")
                 group.missing[cid] = "forbidden"
     cam_ids = list(existing) + [c for c in group.missing if c not in existing and scope.allows(c)]
-    cams = [c for c in (conn.execute("SELECT * FROM cameras WHERE id = ?", (cid,)).fetchone() for cid in cam_ids) if c]
+    cams = [c for c in (store.camera(conn, cid) for cid in cam_ids) if c]
     group.generation += 1
     group.requested_at = start
     _start_many(settings, conn, principal, cams, start, s["time.zone"], s["playback.max_sessions"], group, existing)

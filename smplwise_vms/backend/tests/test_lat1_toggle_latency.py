@@ -308,16 +308,15 @@ def _hold_write_lock(app, seconds: float):
     return t, release
 
 
-def test_the_command_is_recorded_before_it_leaves_and_waits_for_a_short_write_lock(lat_app):
-    """SEC246 L3 (owner 2026-10-11): record, then send. LAT1 made the call independent of SQLite's write lock (fire first); the
-    owner chose a durable record first. A writer holding the lock for 1.5 s (inside the record budget, routers/ha.PENDING_WAIT_S)
-    therefore delays the call until the lock is free - the record (the pending ha_actions row and the `attempt` audit row) is
-    committed before the command leaves - and the call then goes out at once. The pre-SEC246 bound (dispatch < 400 ms under a held
-    lock) no longer applies by design; the idle path keeps its LAT1 bound (test_toggle_reaches_ha_and_pushes_back_without_waiting)."""
+HOLD_S = 1.5
+
+
+def _dispatch_under_held_write_lock(lat_app, hold_s: float = HOLD_S):
+    """Hold the write lock for `hold_s`, send one toggle and wait for it at the fake HA. Asserts on the way that the record was
+    durable before the call arrived (SEC246 L3). Returns (dispatch_ms, response, payload the fake HA received)."""
     from smplwise.routers import ha as ha_router
 
     app, c, fake = lat_app
-    hold_s = 1.5
     assert hold_s < ha_router.PENDING_WAIT_S
     t, release = _hold_write_lock(app, hold_s)
     t0 = time.perf_counter()
@@ -336,9 +335,20 @@ def test_the_command_is_recorded_before_it_leaves_and_waits_for_a_short_write_lo
     p.join(timeout=30)
     t.join(timeout=5)
     print(f"\nSEC246 L3 write lock held {hold_s} s: dispatch {dispatch_ms:.1f} ms, response {(result['t'] - t0) * 1000:.1f} ms")
-    assert dispatch_ms >= (hold_s * 1000) * 0.8, f"the call left after {dispatch_ms:.0f} ms, before the record could be written"
-    assert dispatch_ms < (hold_s * 1000 + 400) * sw_time_factor(), f"the call waited {dispatch_ms:.0f} ms after the lock was free"
-    r = result["r"]
+    return dispatch_ms, result["r"], payload
+
+
+def test_the_command_is_recorded_before_it_leaves_and_waits_for_a_short_write_lock(lat_app):
+    """SEC246 L3 (owner 2026-10-11): record, then send. LAT1 made the call independent of SQLite's write lock (fire first); the
+    owner chose a durable record first. A writer holding the lock for 1.5 s (inside the record budget, routers/ha.PENDING_WAIT_S)
+    therefore delays the call until the lock is free - the record (the pending ha_actions row and the `attempt` audit row) is
+    committed before the command leaves. The pre-SEC246 bound (dispatch < 400 ms under a held lock) no longer applies by design;
+    the idle path keeps its LAT1 bound (test_toggle_reaches_ha_and_pushes_back_without_waiting). CR-BE-FOLLOWUPS-2470: this
+    ordering check has no wall-clock ceiling and stays blocking; "the call then goes out at once" is the upper bound in
+    test_the_recorded_command_leaves_promptly_once_the_write_lock_is_free (timing lane)."""
+    app, c, fake = lat_app
+    dispatch_ms, r, payload = _dispatch_under_held_write_lock(lat_app)
+    assert dispatch_ms >= (HOLD_S * 1000) * 0.8, f"the call left after {dispatch_ms:.0f} ms, before the record could be written"
     assert r.status_code == 202, r.text
     a = r.json()
     assert a["status"] == "pending" and payload["request_id"] == a["id"]
@@ -346,6 +356,17 @@ def test_the_command_is_recorded_before_it_leaves_and_waits_for_a_short_write_lo
         rows = conn.execute("SELECT decision, reason, details_json FROM audit_log WHERE action = 'ha.action' AND resource_id = ?", (ENTITY,)).fetchall()
     mine = [r for r in rows if json.loads(r["details_json"] or "{}").get("id") == a["id"]]
     assert [x["reason"] for x in mine][:1] == ["attempt"] and len(mine) == 2, [tuple(x) for x in mine]
+
+
+@pytest.mark.timing_lane
+def test_the_recorded_command_leaves_promptly_once_the_write_lock_is_free(lat_app):
+    """CR-BE-FOLLOWUPS-2470: the wall-clock half of the held-lock case - once the 1.5 s writer lets go, the recorded call leaves
+    within 400 ms (scaled by sw_time_factor). The bound failed under load on old and new code alike, so it runs in the timing
+    lane like test_toggle_reaches_ha_and_pushes_back_without_waiting (docs/testing/GATE_LANES.md); the record-before-send
+    ordering stays blocking in the test above."""
+    dispatch_ms, r, _ = _dispatch_under_held_write_lock(lat_app)
+    assert r.status_code == 202, r.text
+    assert dispatch_ms < (HOLD_S * 1000 + 400) * sw_time_factor(), f"the call waited {dispatch_ms:.0f} ms after the lock was free"
 
 
 def test_a_command_whose_record_cannot_be_written_in_time_is_never_sent(lat_app):

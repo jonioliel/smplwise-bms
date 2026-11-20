@@ -12,6 +12,7 @@ from typing import Any
 from ...db import get_setting, new_id, now_iso, set_setting
 from . import model
 from .model import Invalid
+from ...test_reset import register_reset
 
 log = logging.getLogger(__name__)
 
@@ -330,3 +331,11 @@ def retention_sweep(conn: sqlite3.Connection, now: dt.datetime | None = None) ->
         conn.execute("DELETE FROM notice_reads WHERE notice_id = ?", (nid,))
         conn.execute("DELETE FROM notices WHERE id = ?", (nid,))
     return n
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _LAST_SWEEP.clear()
+
+
+register_reset(__name__, ("_LAST_SWEEP",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

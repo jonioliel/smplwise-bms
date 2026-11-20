@@ -34,6 +34,7 @@ from ..db import set_setting as put_setting
 from ..db import unlocked
 from ..rbac import INSTALLATION, Principal, require
 from ..services import announce_screens as scr
+from ..services import announcements_store as store
 from ..services import announce_templates as tpl
 from ..services import announce_translate as tr
 from ..services import announcements as svc
@@ -126,7 +127,7 @@ def emergency(body: EmergencyBody, request: Request, principal: Principal = Depe
 def get_config(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, svc.CONFIGURE, INSTALLATION)
     info = [{"entity_id": r[0], "name": r[1] or r[0], "platform": r[2] or "", "cloud": (r[2] or "") in svc.CLOUD_PLATFORMS}
-            for r in conn.execute("SELECT entity_id, name, platform FROM ha_entities WHERE entity_id LIKE 'tts.%' AND disabled = 0 AND removed_at IS NULL ORDER BY entity_id LIMIT 50").fetchall()]
+            for r in store.tts_engine_rows(conn)]
     engines = [i["entity_id"] for i in info]  # the speech engines the home system exposes (read from it, never typed)
     return {"config": svc.config(conn), "speakers": svc.admin_targets(conn), "engines": engines, "engine_info": info, "history": svc.history(conn, 10), "templates": tpl.load(conn),
             "screen_options": scr.admin_screens(conn)}

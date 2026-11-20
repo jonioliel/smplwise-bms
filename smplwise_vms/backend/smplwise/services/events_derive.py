@@ -22,6 +22,7 @@ from ..db import Database, now_iso
 from ..errors import ApiError
 from . import recordings
 from .timeutil import UTC, iso_utc, local_day_bounds, parse_utc, zone
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.events")
 STATE: dict[str, Any] = {"last_run": None, "last_ok": None, "last_error": None, "derived": 0}
@@ -98,3 +99,12 @@ def prune(db: Database, retention_days: int) -> int:
     cutoff = iso_utc(dt.datetime.now(UTC) - dt.timedelta(days=retention_days))
     with db.connection() as conn:
         return conn.execute("DELETE FROM events WHERE occurred_at < ?", (cutoff,)).rowcount
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    STATE.clear()
+    STATE.update({"last_run": None, "last_ok": None, "last_error": None, "derived": 0})
+
+
+register_reset(__name__, ("STATE",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

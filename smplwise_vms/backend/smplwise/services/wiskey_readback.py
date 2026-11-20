@@ -78,6 +78,19 @@ def last_negotiated() -> dict[str, Any] | None:
         return dict(_LAST) if _LAST is not None else None
 
 
+def _reset_last() -> None:
+    global _LAST
+    with _LAST_LOCK:
+        _LAST = None
+
+
+from ..test_reset import register_reset  # noqa: E402 - imports nothing from the package
+
+# RELEASE-2450-TRAIN gate run 2: the singleton inventory saw `_LAST` whenever another test had imported this module first (flaky);
+# every test starts with no negotiation on record.
+register_reset(__name__, ("_LAST",), _reset_last)
+
+
 class LiveReadback:
     def __init__(self, settings: Any, *, sync: Any = None, clock: Callable[[], float] = time.monotonic,
                  gate: Callable[[str], bool] | None = None) -> None:

@@ -988,4 +988,10 @@ def _reset_for_tests() -> None:
     reset_health()
 
 
-register_reset(__name__, ("_OWNED", "_HEALTH"), _reset_for_tests)  # CR-BE-COMPLEXITY-2450: a shared-class singleton; -B: and the health table (tests/test_singletons_registered.py)
+def _reset_all_for_tests() -> None:
+    """Test seam: the module's existing reset, then the remaining module-level tables back to a fresh process (smplwise.test_reset; product code never calls it)."""
+    _reset_for_tests()
+    _TESTS.clear()
+
+
+register_reset(__name__, ("_OWNED", "_HEALTH", "_TESTS"), _reset_all_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

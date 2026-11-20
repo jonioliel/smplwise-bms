@@ -11,6 +11,7 @@ from typing import Any, Callable
 
 from . import building_report as rep
 from .bill_pdf import _limits, run_report_child
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.insights.pdf")
 MAX_PAGES = 40
@@ -47,3 +48,12 @@ def render(model: dict[str, Any], engine: str | None = None) -> bytes:
 
 def _run(job: dict[str, Any], timeout_s: float) -> tuple[bytes, str | None]:
     return run_report_child(job, timeout_s, module="smplwise.services.building_report_engine", what="building report pdf", error=PdfError, logger=log)
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    LAST_ENGINE.clear()
+    LAST_ENGINE.update({"engine": None})
+
+
+register_reset(__name__, ("LAST_ENGINE",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

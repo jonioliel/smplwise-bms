@@ -12,8 +12,9 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import now_iso, permission_revision
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
+from ..services import access_bindings_store as store
 from ..services import revocation
-from ..services.rbac_admin import BindingBody, _active_bindings_sql, _binding_dict, _terminate, affected_users, assigns_anywhere, delegated_sees, full_authority, insert_binding, revoke_one, validate_binding
+from ..services.rbac_admin import BindingBody, _binding_dict, _terminate, affected_users, assigns_anywhere, delegated_sees, full_authority, insert_binding, revoke_one, validate_binding
 
 router = APIRouter()
 
@@ -25,7 +26,7 @@ router = APIRouter()
 def list_bindings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     if not assigns_anywhere(conn, principal):
         require(conn, principal, "rbac.assign", INSTALLATION)
-    rows = conn.execute(_active_bindings_sql(), (now_iso(),)).fetchall()
+    rows = store.active_bindings(conn, now_iso())
     if not full_authority(conn, principal):
         rows = [b for b in rows if delegated_sees(conn, principal, b)]
     return {"bindings": [_binding_dict(conn, b) for b in rows], "revision": permission_revision(conn)}
@@ -39,7 +40,7 @@ def create_binding(body: BindingBody, request: Request, principal: Principal = D
         _terminate(conn, settings_of(request), affected_users(conn, body.subject_kind, body.subject_id))
     else:
         revocation.changed(affected_users(conn, body.subject_kind, body.subject_id))  # the shell shows what was granted
-    row = conn.execute("SELECT * FROM bindings WHERE id = ?", (bid,)).fetchone()
+    row = store.binding(conn, bid)
     return {**_binding_dict(conn, row), "revision": rev}
 
 
@@ -47,7 +48,7 @@ def create_binding(body: BindingBody, request: Request, principal: Principal = D
 def revoke_binding(binding_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     if not assigns_anywhere(conn, principal):
         require(conn, principal, "rbac.assign", INSTALLATION)
-    b = conn.execute("SELECT * FROM bindings WHERE id = ? AND revoked_at IS NULL", (binding_id,)).fetchone()
+    b = store.live_binding(conn, binding_id)
     if not b:
         raise ApiError(404, "not_found", "השיוך לא נמצא או כבר בוטל.")
     rev = revoke_one(conn, principal, request, b)

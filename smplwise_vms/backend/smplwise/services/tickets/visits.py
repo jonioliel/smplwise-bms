@@ -45,6 +45,7 @@ from ...errors import ApiError
 from . import notify_bridge, settings_doc, store, store_visits
 from .access import module_on, text
 from .timeutil import iso_s_or_none, parse_utc, zone_of
+from ...test_reset import register_reset
 
 log = logging.getLogger("smplwise.tickets.visits")
 
@@ -568,3 +569,13 @@ def look(conn, visit_id: str, now: dt.datetime) -> bool:
     audit(conn, actor=None, action="tickets.visit.missed", decision="allowed", resource_type="ticket", resource_id=t["id"],
           details={"visit_id": v["id"], "number": t["number"], "notified": bool(notified), "vendor_message": messaged, "silent": not recent})
     return True
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    STATS.clear()
+    STATS.update({"last_run_at": None, "looked": 0, "missed": 0, "notified": 0, "errors": 0})
+    _LAST.clear()
+
+
+register_reset(__name__, ("STATS", "_LAST"), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

@@ -13,6 +13,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import get_setting, permission_revision, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, all_roles, authorize, require
+from ..services import access_directory_store as store
 from ..services import ha_client
 from ..services.rbac_admin import _delegated_directory, _rid, _users, assign_scopes, assigns_anywhere, delegable_roles, full_authority
 
@@ -31,7 +32,7 @@ def list_users(principal: Principal = Depends(current_principal_ro), conn: sqlit
         "directory": {
             "paired": bool(get_setting(conn, "bridge.paired_at")),
             "last_directory_at": get_setting(conn, "bridge.directory_at") or None,
-            "users": conn.execute("SELECT COUNT(*) FROM ha_users").fetchone()[0],
+            "users": store.ha_user_count(conn),
         },
         "revision": permission_revision(conn),
         "can_assign": authorize(conn, principal, "rbac.assign", INSTALLATION).allowed,

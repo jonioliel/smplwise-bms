@@ -4,7 +4,10 @@ parameters, the rules and the template checks in one body), recorded BEFORE the 
 The corpus (tests/fixtures/automation_blueprints_char_2450.json, format: tests/support/char_corpus.py) is the 8 built-in blueprints and
 up to 60 seeded mutations of each (header values, parameter keys / types / labels / domains / roles, duplicate and unused parameters,
 rules, template keys and mode, trigger / condition / action steps, parameter references and conversions), plus non-object definitions,
-with the whole answer: every problem in order, or the exception the unchanged code raised. The replay must give the same answer."""
+with the whole answer: every problem in order, or the exception the unchanged code raised. The replay must give the same answer.
+
+CR-IFC-SPLIT-2460 updated 16 cases on purpose (95, 123, 144, 160, 164, 168, 180, 215, 266, 272, 284, 295, 313, 317, 320, 364): a list or
+object as a trigger / condition type raised TypeError; each now records the problem list (the type "not allowed")."""
 from __future__ import annotations
 
 import pytest

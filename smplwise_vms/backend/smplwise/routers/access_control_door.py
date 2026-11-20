@@ -15,7 +15,7 @@ from ..auth import get_conn, settings_of
 from ..db import Database, get_setting
 from ..errors import ApiError
 from ..rbac import Principal, note_grant
-from ..services import bridge_rotation, door_authority, ha_bridge, intercom_client, intercom_sync, trusted_door
+from ..services import bridge_rotation, door_authority, ha_bridge, intercom_client, intercom_sync, savepoints, trusted_door
 from ..services.access_control_core import tile_action_answer, tile_action_id, tile_action_pending
 from ..services.timeutil import parse_utc
 from ._common import raw_body as _raw_body
@@ -166,7 +166,7 @@ def _perform_signed(act: _Action, station_id: str, lock: int, request_id: str, n
             raise
     finally:
         settle()
-        act.conn.execute("BEGIN")  # deferred, lock-free: nothing more is written on the request connection
+        savepoints.begin_deferred(act.conn)  # deferred, lock-free: nothing more is written on the request connection
     outcome, code = trusted_door.classify(answer, request_id)
     if outcome == "sent":
         act.outcome("ok", None, {"result": {"accepted": True}, "code": code})

@@ -76,6 +76,7 @@ from ..rbac import INSTALLATION, require
 from . import nvr, nvr_settings
 from .access import camera_scope, require_camera
 from .recorders import registry
+from ..test_reset import register_reset
 
 log = logging.getLogger(__name__)
 
@@ -936,3 +937,12 @@ def threads_idle(lock: Any, threads: dict[Any, threading.Thread], timeout: float
 def wait_idle(timeout: float = 30.0) -> bool:
     """Tests: True once no runner of this process is alive."""
     return threads_idle(_live_lock, _live, timeout)
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _item_started.clear()
+    _live.clear()
+
+
+register_reset(__name__, ("_item_started", "_live"), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

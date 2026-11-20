@@ -15,6 +15,7 @@ from ..db import Database, database_of, unlocked
 from ..errors import ApiError, not_found
 from ..rbac import INSTALLATION, Principal, require
 from ..services import push as svc
+from ..services import push_store as store
 from ._common import rid as _rid
 
 router = APIRouter()
@@ -113,13 +114,13 @@ def subscribe(body: SubscriptionIn, request: Request, principal: Principal = Dep
 
 @router.delete("/push/subscriptions/{sub_id}", status_code=204)
 def unsubscribe(sub_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Response:
-    r = conn.execute("SELECT id, user_id, endpoint FROM push_subscriptions WHERE id = ?", (sub_id,)).fetchone()
+    r = store.subscription(conn, sub_id)
     if r is None or r["user_id"] != principal.user_id:
         if r is not None:  # another user's subscription answers exactly like a missing one; the attempt is audited
             audit(conn, actor=principal, action="push.subscription.delete", decision="denied", resource_type="push_subscription", resource_id=sub_id,
                   reason="not_owner", request_id=_rid(request))
         raise not_found("ההרשמה להתראות לא נמצאה.")
-    conn.execute("DELETE FROM push_subscriptions WHERE id = ?", (sub_id,))
+    store.delete_subscription(conn, sub_id)
     audit(conn, actor=principal, action="push.subscription.delete", decision="allowed", resource_type="push_subscription", resource_id=sub_id,
           request_id=_rid(request), details={"endpoint_host": svc.endpoint_host(r["endpoint"])})
     return Response(status_code=204)
@@ -143,7 +144,7 @@ def test_push(request: Request, principal: Principal = Depends(current_principal
     """Send a test notification to the caller's own devices now (3 per minute per user)."""
     if not svc.take_token(principal.user_id, "test"):
         raise ApiError(429, "rate_limited", "יותר מדי התראות בדיקה. נסו שוב בעוד דקה.", retryable=True)
-    if not conn.execute("SELECT 1 FROM push_subscriptions WHERE user_id = ?", (principal.user_id,)).fetchone():
+    if not store.user_subscription_row(conn, principal.user_id):
         raise ApiError(409, "push_not_subscribed", "המכשיר הזה (וכל מכשיר אחר שלך) עדיין לא נרשם להתראות.")
     audit(conn, actor=principal, action="push.test", decision="allowed", resource_type="user", resource_id=principal.user_id, request_id=_rid(request))
     db: Database = request.app.state.db

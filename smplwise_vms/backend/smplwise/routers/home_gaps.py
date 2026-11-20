@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends
 
 from ..auth import current_principal_ro, get_read_conn
 from ..rbac import INSTALLATION, Principal, require
+from ..services import home_gaps_store as store
 from ..services import home_interface as hi
 from ..services.alarm import ACTIONS
 
@@ -47,13 +48,7 @@ def alarm_log(conn: sqlite3.Connection, principal: Principal, now: dt.datetime |
     if not scope.any_view():
         require(conn, principal, VIEW, INSTALLATION)  # the audited 403
     since = _iso((now or dt.datetime.now(dt.timezone.utc)) - dt.timedelta(days=DAYS))
-    rows = conn.execute(
-        "SELECT a.entity_id, a.action_id, a.requested_at, a.confirmed_at, a.principal_user_id, u.display_name, u.username "
-        "FROM ha_actions a LEFT JOIN users u ON u.id = a.principal_user_id "
-        "WHERE a.action_id LIKE 'alarm_control_panel.alarm_%' AND a.status = 'confirmed' AND a.requested_at >= ? "
-        "ORDER BY a.requested_at DESC LIMIT 400",
-        (since,),
-    ).fetchall()
+    rows = store.confirmed_alarm_actions(conn, since)
     out: list[dict[str, Any]] = []
     for r in rows:
         mode = MODE_OF.get(r["action_id"])

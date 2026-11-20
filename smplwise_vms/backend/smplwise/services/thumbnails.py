@@ -22,6 +22,7 @@ from .child_env import minimal_env
 from .timeutil import parse_utc
 
 import datetime as dt
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.thumbs")
 
@@ -310,3 +311,12 @@ def prune(settings: Settings, retention_days: int) -> int:
     if removed:
         INDEX.invalidate(d)
     return removed
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    STATE.clear()
+    STATE.update({"queued": 0, "generated": 0, "failed": 0, "last_error": None, "busy": None})
+
+
+register_reset(__name__, ("STATE",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)
