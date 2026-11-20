@@ -1,28 +1,12 @@
 /** Recording search and playback sessions against the add-on backend (chapters 23/24). */
 import { apiUrl, del, get, path, post, query } from './client';
+import type * as RecWire from './generated/wire-recordings';
 
-interface RecordingSegment {
-  start_at: string; // UTC ISO
-  end_at: string;
-  kind: 'continuous' | 'motion' | 'alarm' | 'event' | 'manual' | 'unknown';
-  track_id: number;
-  start_raw: string;
-  end_raw: string;
-}
+/* The recording search is the backend's response model (smplwise_vms/backend/smplwise/wire/recordings.py, generated into ./generated/;
+ * code review 07:F8 step 2). Narrowed on purpose: a segment's `kind` (the documented set; the server types it as a string). */
+type RecordingSegment = Omit<RecWire.RecordingSegment, 'kind'> & { kind: 'continuous' | 'motion' | 'alarm' | 'event' | 'manual' | 'unknown' };
 
-export interface RecordingsResponse {
-  camera_id: string;
-  from: string;
-  to: string;
-  track_id: number | null;
-  segments: RecordingSegment[];
-  coverage: 'complete' | 'partial' | 'unknown';
-  matches: number;
-  pages: number;
-  searched_at: string;
-  timezone: string;
-  note: string;
-}
+export type RecordingsResponse = Omit<RecWire.RecordingSearch, 'segments'> & { segments: RecordingSegment[] };
 
 export const recordingsForDay = (cameraId: string, date: string) => get<RecordingsResponse>(path`cameras/${cameraId}/recordings` + query({ date }));
 
@@ -186,15 +170,5 @@ export const reportGroupSync = (id: string, stats: SyncStats) =>
 export const frameUrl = (cameraId: string, atIso: string) => apiUrl(path`cameras/${cameraId}/frame` + query({ at: atIso }));
 
 /** RECORDED-DAYS-MONTH-2407: local dates of one month (YYYY-MM, the installation's zone) with any recording of a camera. */
-interface RecordedDaysResponse {
-  camera_id: string;
-  month: string;
-  timezone: string;
-  days: string[];
-  source: 'daily_distribution' | 'segment_search' | 'record_dates' | 'future';
-  coverage: 'complete' | 'partial';
-  through: string | null;
-  searched_at: string;
-  note: string;
-}
+type RecordedDaysResponse = Omit<RecWire.RecordedDays, 'source'> & { source: 'daily_distribution' | 'segment_search' | 'record_dates' | 'future' };
 export const recordedDays = (cameraId: string, month: string) => get<RecordedDaysResponse>(path`cameras/${cameraId}/recordings/days` + query({ month }));
