@@ -98,12 +98,15 @@ function flatten(table, prefix = '', out = {}) {
 function catalogueRow(cat) {
   const he = flatten(cat.tables.he);
   const target = cat.tables[LANG] ? flatten(cat.tables[LANG]) : null;
-  const row = { name: cat.name, keys: 0, missing: 0, identical: 0, hebrew: 0, gap: 0, hasTable: !!target, devMarked: cat.devMarked.includes(LANG), gapKeys: [] };
+  const row = { name: cat.name, keys: 0, missing: 0, identical: 0, hebrew: 0, gap: 0, hasTable: !!target, devMarked: cat.devMarked.includes(LANG), gapKeys: [], missingKeys: [] };
   for (const [key, heText] of Object.entries(he)) {
     row.keys++;
     const v = target ? target[key] : undefined;
     const heHasHeb = HEB.test(heText);
-    if (v === undefined) row.missing++;
+    if (v === undefined) {
+      row.missing++;
+      row.missingKeys.push(key);
+    }
     else if (v === heText && heHasHeb) row.identical++;
     else if (HEB.test(v)) row.hebrew++;
     const shown = v ?? heText;
