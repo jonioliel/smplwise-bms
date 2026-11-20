@@ -74,12 +74,13 @@ export interface TestResult {
   model?: string | null;
   firmware?: string | null;
   channels?: number | null;
-  /** CR-025 (Provision-ISR): how the candidate authenticates; `insecure` = Basic over plain HTTP. */
-  transport?: { scheme: string; auth: string | null; insecure: boolean };
+  /** CR-025 (Provision-ISR): how the candidate authenticates; `insecure` = Basic over plain HTTP. `auth` is absent from a Frigate test
+   * (services/connection_probe sends only `scheme` / `insecure` there - the generated RecorderProbe type showed it). */
+  transport?: { scheme: string; auth?: string | null; insecure: boolean };
   /** CR-025: warning codes for the settings screen (basic_over_http, tls_trust_any, vendor_auth_version). */
   warnings?: string[];
   /** CR-025: the device's HTTPS certificate (SHA-256) so the form can pin it; `matches_pin` null = nothing pinned yet. */
-  certificate?: { sha256: string; self_signed: boolean | null; matches_pin: boolean | null };
+  certificate?: { sha256: string; self_signed: boolean | null; matches_pin: boolean | null } | null;
   /** CR-025: "pin" chosen and no fingerprint yet - pin the certificate shown before saving. */
   pin_required?: boolean;
   /** NN5-F1B (Frigate): `nvr_not_supported` carries the version found and the minimum the product needs. */

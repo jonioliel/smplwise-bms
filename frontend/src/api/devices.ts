@@ -6,232 +6,89 @@
 import { get, post, put } from './client';
 import { entityLabel } from '../i18n/entity-label';
 import type { HaSyncState } from './ha';
+import type * as Wire from './generated/wire-devices';
 import type { HomeView } from './home-config';
 import type { UnlockReason } from '../screens/lock-reason';
 import { tr } from '../i18n/msg/api-devices';
 
 export type { UnlockReason };
 
-export interface DeviceCounts {
-  entities: number;
-  lights: number;
-  lights_on: number;
-  switches: number;
-  switches_on: number;
-  /** SWITCH-LIGHT-DIMMER-2331: the switch.* entities among `switches` (no input_boolean helper). The synoptic option
-   * "מפסקים בעמודת התאורה = כל המפסקים" (ui.xs syn_switches=all) adds them to its lights column. Absent from an older server. */
-  switch_entities?: number;
-  switch_entities_on?: number;
-  covers: number;
-  covers_open: number;
-  climate: number;
-  climate_active: number;
-  /** Heating (a climate entity that cannot cool - a thermostat, a heat pump): its own group, never part of `climate`. */
-  heating: number;
-  heating_active: number;
-  media: number;
-  media_on: number;
-  locks: number;
-  locks_locked: number;
-  /** The alarm panel's state (armed_away, disarmed, ...), null when the scope has no panel. */
-  alarm: string | null;
-  cameras: number;
-  sensors: number;
-}
+/* The wire shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/devices.py), generated into
+ * ./generated/wire-devices.ts: a field the server renames or drops is a compile error here (code review 07:F8 step 2). Kept optional on
+ * purpose (the demo trees and an older server lack them): the switch.* counts, the area row's indicators, the tree's / area's `can_*` flags,
+ * a row's `activity` / `activity_kind`. Narrowed on purpose: a row's `activity_kind`, `climate_kind`, `kind` and `bulk_reason` to the closed
+ * sets the services fix, a card's `id` to CardId. `sync` keeps api/ha.ts's HaSyncState (the same document; the demo trees build it). */
 
-export interface DeviceArea {
-  area_id: string;
-  name: string;
-  icon: string | null;
-  floor_id: string | null;
+/** The per-kind counts of a scope. SWITCH-LIGHT-DIMMER-2331: `switch_entities(_on)` = the switch.* entities among `switches` (no
+ * input_boolean helper) - the synoptic option "מפסקים בעמודת התאורה = כל המפסקים" adds them to its lights column; absent from an older
+ * server. Heating (a climate entity that cannot cool) is its own group, never part of `climate`. `alarm`: the panel's state, null = no panel. */
+export type DeviceCounts = Omit<Wire.DeviceCounts, 'switch_entities' | 'switch_entities_on'> & Partial<Pick<Wire.DeviceCounts, 'switch_entities' | 'switch_entities_on'>>;
+
+/** CR-007 slice 3 `can_bulk`: the caller may start a bulk action here. Release 0.1.149 (the area row's indicators, api/area-row.ts): this
+ * area's own climate.* units, the room temperature (null = unknown) and the open doors / windows. K88 `map`: the plan room linked to this
+ * area - "הצג על המפה"; null = not linked. */
+export interface DeviceArea extends Pick<Wire.DeviceTreeArea, 'area_id' | 'name' | 'icon' | 'floor_id' | 'has_camera'>,
+  Partial<Pick<Wire.DeviceTreeArea, 'can_bulk' | 'climate' | 'temperature' | 'open_count' | 'map'>> {
   counts: DeviceCounts;
-  has_camera: boolean;
-  /** CR-007 slice 3: the caller may start a bulk action here (devices.control_bulk over something placed on their floors). */
-  can_bulk?: boolean;
-  /** Release 0.1.149 (the area row's indicators, api/area-row.ts): this area's own climate.* units, the room temperature
-   * (the area's temperature sensor, else the air conditioners' own reading; null = unknown) and the open doors / windows. */
-  climate?: ClimateSummary[];
-  temperature?: number | null;
-  open_count?: number;
-  /** K88: the plan room linked to this area (floor = the map's floor id, not the platform's) - "הצג על המפה"; null = not linked. */
-  map?: AreaMapLink | null;
-}
-
-/** K88: where an area sits on the maps - the plan floor and the linked room. */
-interface AreaMapLink {
-  floor_id: string;
-  zone_id: string;
 }
 
 /** CR-007 slice 4: the building/floor "מזגני הקומה" strip - mode + target only, never the full card. */
-export interface ClimateSummary {
-  entity_id: string;
-  name: string;
-  area_name: string | null;
-  hvac_mode: string | null;
-  hvac_action: string | null;
-  current_temperature: number | null;
-  target_temperature: number | null;
-  unit: string;
-  available: boolean;
-}
+export type ClimateSummary = Wire.DeviceClimateSummary;
 
-export interface DeviceFloor {
-  /** An HA floor id, or `none` for the "ללא קומה" bucket of areas that belong to no floor. */
-  floor_id: string;
-  name: string;
-  level: number | null;
-  icon: string | null;
+/** `floor_id` is an HA floor id, or `none` for the "ללא קומה" bucket of areas that belong to no floor. */
+export interface DeviceFloor extends Pick<Wire.DeviceTreeFloor, 'floor_id' | 'name' | 'level' | 'icon' | 'climate'>, Partial<Pick<Wire.DeviceTreeFloor, 'can_bulk'>> {
   areas: DeviceArea[];
   counts: DeviceCounts;
-  /** CR-007 slice 3: the caller may start a bulk action on this floor. */
-  can_bulk?: boolean;
-  /** CR-007 slice 4: this floor's climate entities (climate.* only), for the "מזגני הקומה" strip. */
-  climate: ClimateSummary[];
 }
 
-export interface DeviceTree {
+/** `scoped`: the caller holds devices.read on some floors only (the tree is narrowed to what is placed there). `home`: what the home
+ * screen's widgets show now (api/home-config.ts types the home screen module's document). */
+export interface DeviceTree extends Pick<Wire.DeviceTree, 'building_climate' | 'scoped'>, Partial<Pick<Wire.DeviceTree, 'can_bulk'>> {
   floors: DeviceFloor[];
-  unassigned: { area_id: 'unassigned'; name: string; counts: DeviceCounts };
+  unassigned: Omit<Wire.DeviceUnassigned, 'area_id' | 'counts'> & { area_id: 'unassigned'; counts: DeviceCounts };
   building: DeviceCounts;
-  /** CR-007 slice 4: every climate.* entity in the building, for the building card's own strip. */
-  building_climate: ClimateSummary[];
-  /** True when the caller holds devices.read on some floors only: the tree is narrowed to what is placed there. */
-  scoped: boolean;
-  /** CR-007 slice 3: the caller may start a bulk action on the whole building (devices.control_bulk installation-wide). */
-  can_bulk?: boolean;
   sync: HaSyncState;
-  /** Owner notes 2026-09-30: what the home screen's header widgets (clock / weather / Jewish-calendar times) show now. */
   home?: HomeView;
 }
 
 export type CardId = 'lighting' | 'switches' | 'climate' | 'heating' | 'covers' | 'security' | 'media' | 'sensors';
 export const CARD_IDS: CardId[] = ['lighting', 'switches', 'climate', 'heating', 'covers', 'security', 'media', 'sensors'];
 
-export interface DeviceRow {
-  entity_id: string;
-  name: string;
+/** The fields a card row is narrowed on, or that only some routes add (typed by the row types that carry them below). */
+type RowNarrowed = 'activity' | 'activity_kind' | 'climate_kind' | 'kind' | 'bulk_reason' | 'card' | 'area_id' | 'area_name' | 'floor_id' | 'floor_name' | 'unlock_reason' | 'can_unlock';
+
+/** One card row (services/devices.card_row): the fields every row carries, then each card's own (absent elsewhere). `can_control`
+ * (CR-007 slice 2): devices.control or ha.entity.control at this entity's own floor scope - controls render only when true. `alarm_managed`
+ * (CR-010 review B1): owned by the alarm section, read-only everywhere else. CR-019 (switch rows, for a bulk holder): `bulk_protected` is
+ * the administrator's mark (left out of group actions only), `bulk_reason` what a group action does with it ("unclassified" was removed by
+ * the owner decision of 2026-10-02; never emitted). `bulk_excluded` (re-review M1): why a bulk action would not reach the row, or null.
+ * SWITCH-LIGHT-DIMMER-2331 `dimmable`: the server's verdict, read only through `isDimmable`. `power`: an outlet's linked power sensor
+ * (null / absent = show no power). */
+export interface DeviceRow extends Omit<Wire.DeviceRow, RowNarrowed> {
   /** Fallbacks for `name` when the server has none (or sends the entity id): see i18n/entity-label.ts. Never shown as an id. */
   original_name?: string | null;
   device_name?: string | null;
-  domain: string;
-  device_class: string | null;
-  state: string | null;
-  available: boolean;
-  fresh: boolean;
-  /** The domain's own "on": lit, switched on, open, heating/cooling, playing, locked. */
-  active: boolean;
-  icon: string | null;
-  last_changed: string | null;
-  /** CR-007 slice 2: devices.control or ha.entity.control at this entity's own floor scope. Controls render only
-   * when this is true - the read-only rendering from slice 1 stays for everyone else. */
-  can_control: boolean;
-  /** CR-032: the server marks an electrical device whose activity popup exists (long press / menu item); `activity_kind` picks the icon and wording. Never guessed client side. */
+  /** CR-032: the server marks an electrical device whose activity popup exists; `activity_kind` picks the icon and wording. Never guessed client side. */
   activity?: boolean;
   activity_kind?: import('./device-activity').ActivityKind | null;
-  /** A lock / alarm panel: the permissions that operate it; the activity entry needs one of them. */
-  activity_permissions?: string[];
-  /** An outlet's linked power sensor (null / absent = show no power). */
-  power?: { entity_id: string; value: number | null; unit: string } | null;
-  /** CR-010 review B1: owned by the alarm section (a zone's bypass control, the panel) - read-only everywhere else. */
-  alarm_managed?: boolean;
-  managed_label?: string;
-  /** CR-019 (switch rows, for a bulk holder): `bulk_protected` is the administrator's mark (a protected switch is left out of
-   * group actions only); `bulk_reason` says what a group action does with it - "allowed" (the default, including a switch nobody has judged yet), "protected"
-   * (the administrator's mark: left out of group actions only) or "doors_layer" / "alarm_managed" (never). The owner decision of
-   * 2026-10-02 (CR-019 section 16) removed "unclassified"; the backend never emits it. */
-  bulk_protected?: boolean;
-  bulk_reason?: 'allowed' | 'protected' | 'doors_layer' | 'alarm_managed';
-  /** Re-review M1 (tiles' panel rows): why a bulk action would not reach this row (the bulk resolve's own rules), or null. */
-  bulk_excluded?: string | null;
-  // lighting
-  brightness_pct?: number | null;
-  color_mode?: string | null;
-  /** SWITCH-LIGHT-DIMMER-2331: the server's verdict (services/devices.is_dimmable) - a light.* that really takes a brightness. False
-   * for an on/off-only light and for a switch typed as a light. Read only through `isDimmable`. */
-  dimmable?: boolean;
-  // climate (climate.*) and fan / humidifier
-  hvac_mode?: string | null;
-  hvac_action?: string | null;
   /** The climate group this entity is in (heating = cannot cool; automatic from its modes, or an administrator's override). */
   climate_kind?: 'ac' | 'heating';
-  current_temperature?: number | null;
-  target_temperature?: number | null;
-  target_temp_low?: number | null;
-  target_temp_high?: number | null;
-  fan_mode?: string | null;
-  preset_mode?: string | null;
-  /** CR-007 slice 2: what this climate entity itself reports it supports - the controls offer nothing else. */
-  hvac_modes?: string[] | null;
-  fan_modes?: string[] | null;
-  min_temp?: number | null;
-  max_temp?: number | null;
-  target_temp_step?: number | null;
-  percentage?: number | null;
-  current_humidity?: number | null;
-  target_humidity?: number | null;
-  unit?: string | null;
-  // CR-007 slice 4: climate in full - preset, swing, target humidity; a humidifier's own mode
-  preset_modes?: string[] | null;
-  swing_mode?: string | null;
-  swing_modes?: string[] | null;
-  min_humidity?: number | null;
-  max_humidity?: number | null;
-  mode?: string | null;
-  available_modes?: string[] | null;
-  // covers
-  position?: number | null;
-  tilt?: number | null;
-  moving?: boolean;
-  /** CR-007 slice 4: a door / garage / gate cover - a passage, not a shutter. Read-only (`can_control` is already
-   * false here, server-side); shown with door/garage wording and icon instead of the shutter controls. */
-  door_class?: boolean;
-  // security
   kind?: 'lock' | 'alarm' | 'camera' | 'binary_sensor';
-  has_camera?: boolean;
-  still_url?: string | null;
-  armed?: boolean;
-  locked?: boolean;
-  /** CR-033 D6: a WisKey door - it cannot be locked from Arx, so "lock all" skips it. */
-  wiskey_door?: boolean;
-  // media
-  media_title?: string | null;
-  source?: string | null;
-  volume_pct?: number | null;
-  muted?: boolean | null;
-  // sensors
-  value?: number | null;
-  on?: boolean | null;
-  battery_level?: number | null;
-  // CARD1: a robot vacuum listed with the switches (its card in the activity window shows these; the tile is read-only)
-  fan_speed?: string | null;
-  status?: string | null;
-  /** CR-007 slice 4: the sensors card's own grouping (device class, or "other"). Display only. */
-  group?: string;
+  bulk_reason?: 'allowed' | 'protected' | 'doors_layer' | 'alarm_managed';
 }
 
-export interface DeviceCard {
+export interface DeviceCard extends Omit<Wire.DeviceCard, 'id' | 'entities'> {
   id: CardId;
-  label: string;
   entities: DeviceRow[];
-  count: number;
-  active: number;
 }
 
-export interface DeviceAreaDetail {
-  area: { area_id: string; name: string; icon: string | null; floor_id: string | null; floor_name: string | null; level: number | null; map?: AreaMapLink | null };
-  /** The areas of the same floor (this one included), for the chip row. Empty for the unassigned bucket. */
-  floor_areas: { area_id: string; name: string; icon: string | null; counts: DeviceCounts }[];
+/** One area's cards. `floor_areas`: the areas of the same floor (this one included) for the chip row, empty for the unassigned bucket.
+ * `can_bulk` (CR-007 slice 3), `can_mark_bulk_protected` (CR-019, system.configure; only for a bulk holder), `can_assign_area` (CR-007
+ * slice 4: the unassigned bucket itself, system.configure). */
+export interface DeviceAreaDetail extends Pick<Wire.DeviceArea, 'area' | 'scoped'>, Partial<Pick<Wire.DeviceArea, 'can_bulk' | 'can_mark_bulk_protected' | 'can_assign_area'>> {
+  floor_areas: (Omit<Wire.DeviceAreaSibling, 'counts'> & { counts: DeviceCounts })[];
   cards: Record<CardId, DeviceCard>;
   counts: DeviceCounts;
-  scoped: boolean;
-  /** CR-007 slice 3: the caller may start a bulk action on this area. */
-  can_bulk?: boolean;
-  /** CR-019: the caller may protect a switch from group actions (system.configure). */
-  can_mark_bulk_protected?: boolean;
-  /** CR-007 slice 4: the caller may assign an entity of the "ללא שיוך" bucket to an area (system.configure); true
-   * only when this is the unassigned bucket itself. */
-  can_assign_area?: boolean;
   sync: HaSyncState;
 }
 
@@ -243,30 +100,22 @@ export const TILE_KINDS: TileKind[] = ['lights', 'switches', 'covers', 'climate'
 export type ItemsScope = 'building' | 'floor' | 'area';
 
 /** A row of the tiles' panel: the area card's own row plus its place (and, for a lock, whether this caller may unlock). */
-export interface DeviceItem extends DeviceRow {
+export interface DeviceItem extends DeviceRow, Pick<Wire.DeviceRow, 'can_unlock'> {
   area_id: string;
   area_name: string;
   floor_id: string | null;
   floor_name: string | null;
-  can_unlock?: boolean;
   /** UNLOCK-REASON-2370: why a lock row cannot be unlocked (`ok` when it can) - one of the closed set the server's `unlock_reason` returns. */
   unlock_reason?: UnlockReason;
 }
 
-export interface DeviceItems {
+/** active = lit / on / open / heating-cooling / playing / locked / armed; unavailable apart from both. `can_mark_bulk_protected`: the
+ * caller may protect switches from group actions (system.configure) - the switches list only. */
+export interface DeviceItems extends Pick<Wire.DeviceItems, 'id' | 'name' | 'floor_name' | 'counts' | 'truncated' | 'scoped'>,
+  Partial<Pick<Wire.DeviceItems, 'can_bulk' | 'can_mark_bulk_protected'>> {
   kind: TileKind;
   scope: ItemsScope;
-  id: string;
-  name: string;
-  floor_name: string | null;
-  /** active = lit / on / open / heating-cooling / playing / locked / armed; unavailable apart from both. */
-  counts: { total: number; active: number; inactive: number; unavailable: number };
-  floors: { floor_id: string; name: string; level: number | null; areas: { area_id: string; name: string; items: DeviceItem[] }[] }[];
-  truncated: boolean;
-  scoped: boolean;
-  can_bulk?: boolean;
-  /** The caller may protect switches from group actions (system.configure) - the switches list only. */
-  can_mark_bulk_protected?: boolean;
+  floors: (Omit<Wire.DeviceItemsFloor, 'areas'> & { areas: (Omit<Wire.DeviceItemsArea, 'items'> & { items: DeviceItem[] })[] })[];
   sync?: HaSyncState;
 }
 
@@ -288,11 +137,7 @@ export function itemsQuery(kind: TileKind, scope: ItemsScope = 'building', id = 
 /** "רענן מ-Home Assistant" (CR-007 HA refresh): re-read HA's entity / device / area / floor registries now.
  * `devices.read`; one per user per 10 s (429 `refresh_rate_limited`, details.retry_after_s); 503 while HA is not
  * connected. The open screens also receive the `structure_changed` push when something moved. */
-interface DevicesRefreshResult {
-  changed: boolean;
-  last_registry_at: string | null;
-  sync: HaSyncState;
-}
+type DevicesRefreshResult = Omit<Wire.DeviceRefresh, 'sync'> & { sync: HaSyncState };
 export const refreshDevicesFromHa = () => post<DevicesRefreshResult>('devices/refresh');
 /** Owner rule 2026-10-20: an operator never sees a raw entity id - a row whose name is empty or is the id gets the fallback chain's label. */
 export function withFriendlyNames(d: DeviceAreaDetail): DeviceAreaDetail {
@@ -311,22 +156,14 @@ export interface EntityRow extends DeviceRow {
 export const getEntityRows = (ids: string[]) => get<{ entities: EntityRow[] }>(`devices/entities?ids=${encodeURIComponent(ids.slice(0, 80).join(','))}`);
 
 /** One device of the editor's whole-installation list (GET /devices/entity-pool, system.configure). */
-export interface PoolEntity {
-  entity_id: string;
-  name: string;
+export interface PoolEntity extends Omit<Wire.DevicePoolEntity, 'card'> {
   card: CardId;
-  domain: string;
-  group: string | null;
-  door: boolean;
-  area_id: string | null;
-  area_name: string | null;
-  state: string | null;
 }
-export const getEntityPool = () => get<{ entities: PoolEntity[]; truncated: boolean }>('devices/entity-pool');
+export const getEntityPool = () => get<Omit<Wire.DeviceEntityPool, 'entities'> & { entities: PoolEntity[] }>('devices/entity-pool');
 
 /** CR-007 slice 4: assign an entity to an HA area (the "ללא שיוך" bucket's own action) - a Home Assistant config
  * write through the bridge, system.configure, audited. */
-export const assignEntityArea = (entityId: string, areaId: string) => put<{ entity_id: string; area_id: string; area_name: string }>(`devices/entities/${encodeURIComponent(entityId)}/area`, { area_id: areaId });
+export const assignEntityArea = (entityId: string, areaId: string) => put<Wire.DeviceAreaAssigned>(`devices/entities/${encodeURIComponent(entityId)}/area`, { area_id: areaId });
 
 /** Per-card empty state, our own wording following the same idea as DomusUI's empty sections (extraction §3.4):
  * say what is missing and what would fill it. `GET /devices/building` (the same counts as the tree's `building`)
