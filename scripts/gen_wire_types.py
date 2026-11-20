@@ -80,13 +80,28 @@ def wire_models(response_model: Any) -> tuple[type, ...]:
     return ()
 
 
+# CR-RESPONSE-MODELS-C-2470: a router module's second APIRouter whose routes are part of the same family (routers/calendar.py answers its
+# module state and settings on `open_router`, outside the module gate). Read after `router`, in this order.
+EXTRA_ROUTERS = ("open_router",)
+
+
+def module_routes(mod: Any) -> list[Any]:
+    """The routes of a router module: `router`, then the extra routers it has (EXTRA_ROUTERS)."""
+    out = list(mod.router.routes)
+    for attr in EXTRA_ROUTERS:
+        extra = getattr(mod, attr, None)
+        if extra is not None:
+            out += list(extra.routes)
+    return out
+
+
 def _routes(modules: tuple[str, ...]) -> list[tuple[str, str, tuple[type, ...]]]:
     from fastapi.routing import APIRoute
 
     out: list[tuple[str, str, tuple[type, ...]]] = []
     for name in modules:
         mod = importlib.import_module(f"smplwise.routers.{name}")
-        for r in mod.router.routes:
+        for r in module_routes(mod):
             if not isinstance(r, APIRoute):
                 continue
             models = wire_models(r.response_model)
