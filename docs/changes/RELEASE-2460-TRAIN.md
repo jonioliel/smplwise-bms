@@ -55,7 +55,7 @@ Commit fb9615d63.
 |---|---|
 | fb9615d63 | design ratchet (section 3) |
 | b248252f3 | unused-exports baseline: one entry no longer on a list pruned (`src/map/still-bake.ts#VARIANTS`; `--update-baseline`, file-local 54 -> 53) |
-| (this note's commit) | merge interaction ROUTE-CHAR x BE-FOLLOWUPS: `test_route_char_2460::test_patch_a_site` pinned the old untrimmed site name in the `site.update` audit row; BE-FOLLOWUPS makes the edit trim like create (its intended fix). The characterisation now expects the trimmed name in the answer and the audit row |
+| 8a8d6d63c | merge interaction ROUTE-CHAR x BE-FOLLOWUPS: `test_route_char_2460::test_patch_a_site` pinned the old untrimmed site name in the `site.update` audit row; BE-FOLLOWUPS makes the edit trim like create (its intended fix). The characterisation now expects the trimmed name in the answer and the audit row |
 
 ## 5. Tests actually run before the gate
 
@@ -76,19 +76,59 @@ the main checkout. The workstation ran at 100 % CPU (other agents) the whole tim
 | Runner (`~/work/t2460-train`, `nice -n 19`): Playwright unit config, all `unit-*.spec.ts`, workers 2, retries 1 | ebc43c5da | **5067 passed, 10 skipped, 0 failed, 0 flaky** (2.4 min) |
 | `bundle-budget.mjs --dir ../smplwise_vms/www --enforce` (the built UI) | d2805ac5e | entry raw 2,819,864 B, gzip 810,373 B; budget 849,000 / 2,951,000 (lowered by the bridge row) - OK; 0 `.map` |
 | backend guard set, first run (`-p no:xdist`; 20 files: singletons, build guards, SQL boundary, wire route coverage, both route-char files, IFC x3, blueprints x2, switch-protection reach, wire routers B, version, release-notes marker, router helpers, setting callers, async routes, golive check, db gate) | 16beb26e2 (version bumped during the run) | 2 failed: `test_version::test_versions_agree` (the version files changed under the running test - not a defect) and `test_route_char_2460::test_patch_a_site` (merge interaction, fixed above). The count line was hidden (`-q` twice) |
-| backend guard set again (21 files, + `test_catalog`) | GUARDS_SHA | GUARDS_RESULT |
+| backend guard set again (21 files, + `test_catalog`) | 8a8d6d63c (content) | **1335 passed, 0 failed** (20.6 min) |
 
 ## 6. Version and built UI
 
 | Commit | What |
 |---|---|
 | ebc43c5da | release: 2.46.0 - version (`config.yaml`, `Dockerfile`, `smplwise/__init__.py`), CHANGELOG (bilingual, with the bridge Install line of CR-BRIDGE-BUMP-RATCHETS-2460 section 1.2), API inventory regenerated (`scripts/api_inventory.py`: 1910 routes, unchanged; only the version line). No migration (0216 stays the last). Bridge 0.10.8 |
+| d2805ac5e | release: 2.46.0 - rebuilt UI at ebc43c5da (`~/work/build_ui2460.sh`, the 2.45.0 script renamed; rc=0; 323 maps archived to `~/smplwise-results/sourcemaps/2.46.0`; tarball sha256 `c25ebcd5...7f3d0d2d` checked after the copy; 0 `.map`, 0 `sourceMappingURL`; entry gzip 810,373 B, 2.45.0: 807,673 B) |
 
 ## 7. Release gate
 
-GATE_PLACEHOLDER
+Run 1: `~/wait_gate_2460.sh` -> `GATE_EARLY_FAILFAST=continue GATE_TOTAL_SECS=12000 nice -n 10 ~/gate2/release_gate2.sh release/2460-train
+--full` (base v2.45.0, no selection: the full tier L with the full backend) on 8a8d6d63c. The waiter first waited for the nightly on
+main (95ff81727, it held the tests lock from 02:20 to 05:16 UTC), then ran `~/prune_gate_dirs.sh` (lead: runner disk 83 % -> 39 %) and
+started the gate at 05:17 UTC.
+
+**Run 1 result (8a8d6d63c, 178 min wall, load up to 57.4): FAIL** - 1 hard failure (spec lint), 1 test failure, 62 flaky (failed once,
+passed alone). Counts: preview 23,011 passed; dev 1,126; fixture 28; visual 72 (0 changed); pixel 372; backend 28,097 passed, 1 failed,
+3 flaky; tsc, build, fe_static (ESLint, bundle budget, unused exports), release_check, addon_build (Supervisor-like image) PASS.
+
+| Failure | Cause | Fix |
+|---|---|---|
+| [lint] `pixel-sw-tabs.spec.ts:163` (hard) | the new TABS specimen spec read the fill strip's geometry 5 lines after the zones tab click with no animation wait (`scripts/gate/lint_spec_waits.py`, GATE-FAST-2291) | e3f7530df: `settle(page)` before the measurement; the lint on the file and `--new-since v2.45.0`: 0 findings |
+| backend `test_gate_always_run::test_every_package_scanner_is_listed_or_reviewed` (failed twice) | merge interaction: BE-FOLLOWUPS' new docstring in `test_push_golive_check.py` names `git ls-files`, which the scanner detector matches | b7347a56a: reviewed as `not_scanners` (it asks `git check-ignore` about fixed paths, walks nothing); PC 19 passed |
+| backend `test_singletons_registered` (flaky: failed in shard 2, passed alone) | order leak: `services.intercom_media._fake_from_env` is None at import and a FakeProvider after a test used `SW_FAKE_STATION_MEDIA` (the readback `_LAST` pattern) | 443875ff4: the module's reset puts it back to None; PC `test_intercom_media` + `test_singletons_registered` in one process: 1 failed before, 39 passed after |
+| backend `test_setup_wizard::test_unknown_step_rate_limit_and_audit`, `test_plan_detect_baseline` (flaky) | load: the 5 s check rate limit ran out while the first check ran at load ~50 / the detector's 15 s budget (also flaky in 2.45.0) | not changed (the wizard test passes alone on the PC: 1 passed) |
+
+The 59 flaky preview tests (each passed alone; listed in `gate_release-2460-train_8a8d6d63c.gate2.md`) were timeouts and visibility
+waits of a 3-hour run at load 40-57: the automation builder on the phone, settings multimedia on the phone, the tickets layouts / costs,
+WisKey station media, 3D plan units, and a few single ones (evidence-automations-list was not among them in the end).
+
+| Run | Sha | Result |
+|---|---|---|
+| 1 - `release_gate2.sh release/2460-train --full` (base v2.45.0, full tier, full backend) | 8a8d6d63c | **FAIL** (above) |
+| fix forward | 443875ff4, b7347a56a (backend), e3f7530df (spec lint); no `frontend/src` change since the UI build at ebc43c5da, so the built UI stands | - |
+| 2 - targeted (`--after gate_release-2460-train_8a8d6d63c.json`, base 8a8d6d63c) | e3f7530df | **PASS** in 16 min (load up to 27.6): 0 hard, 0 test failures, 0 flaky; selection backend 238 / 1020 files, frontend 44 / 1186 specs; backend 7,111 passed; preview 873; dev 13; pixel 4; tsc, build, fe_static, release_check, addon_build PASS |
+
+Release decision basis: run 1 (full tier, full backend) + run 2 (targeted on the fixes), the gate tool's own rule (as 2.43.8 - 2.45.0).
+`scripts/release_check.py` at the train head: only `[FAIL] git tag v2.46.0 not yet`; RESULT: ready for the owner's approval.
 
 ## 8. Release - NOT done by this agent
 
 Main push, tag `v2.46.0`, `#addon` refresh, the lab install and the ONE Home Assistant Core restart for bridge 0.10.8: the lead runs them
-(owner pre-approved 2.46.0 including one HA restart). Lab steps: `docs/changes/CR-BRIDGE-BUMP-RATCHETS-2460.md` section 1.1.
+(owner pre-approved 2.46.0 including one HA restart). Same publish steps as 2.45.0: `git push origin release/2460-train:main`
+(fast-forward from 95ff81727), `git tag -a v2.46.0` on the train head + push, `#addon` refresh (strip only `//# sourceMappingURL`
+lines). Lab: `docs/changes/CR-BRIDGE-BUMP-RATCHETS-2460.md` section 1.1 - install 2.46.0; before the restart the bridge status must read
+`update_pending`, installed 0.10.8, active 0.10.7 (stop on `error` / `not_available`); restart Home Assistant **Core only**, once; after
+it: no `smplwise_bridge` setup error, status `active` 0.10.8 and paired, the directory push time moves within ~60 s, the Lovelace
+resource `?v=0.10.8` (browser refresh), `wiskey_execute_policy` unchanged. Rollback: reinstall 2.45.0 (copies 0.10.7 back) + one more
+Core restart (a new owner approval).
+
+## 9. Runner housekeeping
+
+Removed after use: `~/work/t2460-train`, `~/work/t2460-out`, `~/work/rel-build2460` (worktrees), `/tmp/ui2460.tgz`. Left: the scripts
+`~/wait_gate_2460.sh`, `~/wait_gate_2460b.sh`, `~/work/build_ui2460.sh` (a few hundred bytes each). Not mine and left in place:
+`~/work/tabs2460` and `~/work/tabs2460-out` (the TABS row's job; its baselines are committed in 19019064b).
