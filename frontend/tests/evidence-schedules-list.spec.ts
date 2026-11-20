@@ -4,6 +4,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ScheduleDemoStore } from '../src/api/schedules-mock';
 import { ApiError } from '../src/api/client';
+import { appReady } from './helpers/app-ready';
+import { settle } from './helpers/settle';
 
 // CR-014 S3: the schedules list ("תזמונים", the second tab of the home area), its drawer, the trash, the review list and
 // הגדרות › תזמונים - in demo mode (no backend: api/schedules-mock.ts answers, personas through localStorage
@@ -103,7 +105,7 @@ async function open(page: Page, hash: string, control: Control = {}) {
   }, control);
   await page.goto('about:blank');
   await page.goto(`/?design=a&sched_view=cards&page_size=50&fit=off#${hash}`); // POLISH-295: these specs read every card on one page; the product default is rows, 10 / 7 a page (evidence-polish-295)
-  await page.waitForSelector('sw-app');
+  await appReady(page); // FLAKY-SWEEP-2480: the shell's first load is over (helpers/app-ready.ts); `ready` then gets its 5 s for the screen
 }
 
 const phone = (info: Info) => info.project.name === 'mobile';
@@ -115,7 +117,7 @@ const hashOf = (page: Page) => page.evaluate(() => location.hash);
 
 async function shot(page: Page, name: string, info: Info) {
   fs.mkdirSync(EVIDENCE, { recursive: true });
-  await page.waitForTimeout(150);
+  await settle(page); // FLAKY-SWEEP-2480: every finite animation has ended (was a fixed 150 ms)
   await page.screenshot({ path: path.join(EVIDENCE, `${name}-${size(info)}.png`) });
 }
 
@@ -652,8 +654,7 @@ async function openApi(page: Page, hash: string) {
   await pinClock(page);
   await page.goto('about:blank');
   await page.goto(`/?design=a&sched_view=cards&page_size=50&fit=off#${hash}`); // POLISH-295: these specs read every card on one page; the product default is rows, 10 / 7 a page (evidence-polish-295)
-  await page.waitForSelector('sw-app');
-  await page.waitForTimeout(600);
+  await appReady(page); // FLAKY-SWEEP-2480: the session, the settings and the route's chunk are in (was a fixed 600 ms after the element)
 }
 
 const rowTabs = (page: Page) => page.locator('sw-app .subnav sw-tabs a').allTextContents();

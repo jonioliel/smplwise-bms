@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ADMIN, installFrigate, newFrigateMock } from './frigate-mocks';
+import { gotoApp } from './helpers/app-ready';
 
 // CR-WISKEY-HMAC-ROTATION-295: the "Bridge key" card in Settings › Connections against a MOCKED backend (fake data, synthetic key ids
 // only, never key material): ready / off (switch disabled without the go-live permit) / rotating / needs attention / reminder due /
@@ -55,7 +56,7 @@ const SCREENS: [string, unknown][] = [
 for (const [name, body] of SCREENS) {
   test(`bridge key card: ${name}`, async ({ page }) => {
     await setup(page, body);
-    await page.goto('/?design=a#/system/setup');
+    await gotoApp(page, '/?design=a#/system/setup'); // FLAKY-SWEEP-2480: the shell's first load is over (helpers/app-ready.ts)
     const card = page.locator(`${C} [data-bridge-key]`);
     await expect(card).toBeVisible({ timeout: 20_000 });
     await expect(card).not.toContainText('undefined');
@@ -65,6 +66,9 @@ for (const [name, body] of SCREENS) {
       document.documentElement.setAttribute('dir', 'ltr');
       (document.querySelector('sw-app')?.shadowRoot?.querySelector('system-setup')?.shadowRoot?.querySelector('sw-bridge-key-card') as (HTMLElement & { requestUpdate(): void }) | null)?.requestUpdate();
     });
+    // FLAKY-SWEEP-2480: the English words are a lazy pack (CR-I18N-LAZY-LANG-2443, 1.4 MB): wait until it is in and the page asked to
+    // render again (i18n/lang-packs.ts marks <html data-lang-words>), not a fixed 5 s for the fetch + parse on a loaded runner
+    await page.locator('html[data-lang-words="en"]').waitFor({ state: 'attached', timeout: 0 });
     await expect(card).toContainText('Bridge key');
     await shot(page, `${name}-en`);
   });
@@ -72,7 +76,7 @@ for (const [name, body] of SCREENS) {
 
 test('the switch is disabled without the permit; rotate asks once and sends confirm', async ({ page }) => {
   const calls = await setup(page, status());
-  await page.goto('/?design=a#/system/setup');
+  await gotoApp(page, '/?design=a#/system/setup');
   await expect(page.locator(`${C} [data-bridge-key]`)).toBeVisible({ timeout: 20_000 });
   await page.locator(`${C} [data-bridge-key-rotate]`).click();
   await expect(page.locator(`${C} [data-bridge-key-confirm="routine"]`)).toBeVisible();
@@ -83,18 +87,19 @@ test('the switch is disabled without the permit; rotate asks once and sends conf
 
   const p2 = await page.context().newPage();
   await setup(p2, status({ enabled: false, go_live_permitted: false, can_start: false, blocked_by: 'rotation_off' }));
-  await p2.goto('/?design=a#/system/setup');
+  await gotoApp(p2, '/?design=a#/system/setup'); // FLAKY-SWEEP-2480: the second page's cold start is not a 5 s assertion budget
+  await expect(p2.locator(`${C} [data-bridge-key]`)).toBeVisible({ timeout: 20_000 }); // the card has its status, as on the first page
   await expect(p2.locator(`${C} [data-bridge-key-switch]`)).toHaveAttribute('disabled', '');
   await expect(p2.locator(`${C} [data-bridge-key-rotate]`)).toHaveAttribute('disabled', '');
 });
 
 test('hidden on 403; an error is shown otherwise', async ({ page }) => {
   await setup(page, null, 403);
-  await page.goto('/?design=a#/system/setup');
+  await gotoApp(page, '/?design=a#/system/setup');
   await expect(page.locator('sw-app system-setup sw-secrets-card')).toBeAttached({ timeout: 20_000 });
   await expect(page.locator(`${C} [data-bridge-key]`)).toHaveCount(0);
   const p2 = await page.context().newPage();
   await setup(p2, null, 500);
-  await p2.goto('/?design=a#/system/setup');
+  await gotoApp(p2, '/?design=a#/system/setup');
   await expect(p2.locator(`${C} p.err`)).toBeVisible({ timeout: 20_000 });
 });

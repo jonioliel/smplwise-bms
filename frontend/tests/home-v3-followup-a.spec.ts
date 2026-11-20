@@ -78,13 +78,16 @@ test.describe('HOME-V3-FOLLOWUP-A-2431 bill file', () => {
 
   test('"show bill" opens the latest issued bill file, a row opens its own; nothing without a bill', async ({ page }) => {
     const { pdf } = await open(page, 'bills');
+    // FLAKY-SWEEP-2480: a new tab's download is recorded from the moment the tab exists. The listener used to be added after
+    // `Promise.all([popup, click])` resolved; the click resolves later than the popup, and on a loaded runner the blob navigation had
+    // already been handed over as a download by then - the event was missed and the poll below ran out (2.43.9, 2.45.0).
+    const handedOver = new Set<Page>();
+    page.context().on('page', (p) => p.on('download', () => handedOver.add(p)));
     // the periods arrive oldest first; the latest previous bill (b1) is the card's
     const [tab] = await Promise.all([page.waitForEvent('popup'), inHome(page).locator('.bill-now [data-p3-bill-open="b1"]').click()]);
     // the tab shows the file (a browser with a PDF viewer) or hands it over as a download (headless / a phone without one)
-    let handed = false;
-    tab.on('download', () => { handed = true; });
     await expect.poll(() => pdf).toEqual(['energy/bills/b1/pdf']);
-    await expect.poll(() => handed || tab.url().startsWith('blob:'), { timeout: 15_000 }).toBe(true);
+    await expect.poll(() => handedOver.has(tab) || tab.url().startsWith('blob:'), { timeout: 15_000 }).toBe(true);
     await tab.close();
     const row = inHome(page).locator('.blr [data-p3-bill-open="b2"]');
     await expect(row).toHaveAttribute('aria-label', /^הצג חשבון /);

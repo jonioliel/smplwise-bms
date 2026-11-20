@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { settlePage } from './pixel-settle';
+import { appReady } from './helpers/app-ready';
 import { PICKER_SKINS, SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // Design foundation (owner 2026-10-01): one shared structure, skins = tokens + a bounded rule set, light / dark for the whole shell.
@@ -41,7 +42,7 @@ async function open(page: Page, hash: string, query = '') {
   // performance:full is pinned: the pixel baselines are the classic skin at full, and the auto probe (a blurred layer for ~700 ms at idle) must not run
   // inside the screenshot window (it turns the whole page's LCD text antialiasing to greyscale while it is mounted)
   await page.goto(`/?design=a&look=performance:full${query}#${hash}`);
-  await page.waitForSelector('sw-app');
+  await appReady(page); // FLAKY-SWEEP-2480: the session, the settings and the route's chunk are in (helpers/app-ready.ts)
   await settlePage(page); // not a fixed sleep: on a busy runner the map's late fixture answers / buttons missed the old 900 ms window
 }
 
@@ -183,29 +184,41 @@ test.describe('design foundation', () => {
     });
   });
 
+  // FLAKY-SWEEP-2480: one test per skin x scheme x screen. The matrix used to load five pages (four screens and the dialog) in ONE
+  // test - five cold starts, five settles and five screenshots at the phone's 2.6x pixel ratio, ~40 s of a 60 s budget on an idle
+  // workstation - and timed out on the mobile project in every gate of 19.11 (16 of the 23 flaky/timeout rows of this file). Each
+  // test now loads one page; the pictures and the names are the same.
   test.describe('evidence matrix', () => {
     test.skip(!!process.env.SW_SHOTS_OFF, 'SW_SHOTS_OFF=1');
     for (const skin of SKINS) {
       for (const scheme of SCHEMES) {
-        test(`${skin} ${scheme}`, async ({ page }, info) => {
-          test.skip(info.project.name === 'tablet', 'two widths are enough');
-          fs.mkdirSync(EVIDENCE, { recursive: true });
-          const q = `&skin=${skin}&scheme=${scheme}`;
-          for (const s of [...SCREENS, DESIGN_CARD]) {
+        const q = `&skin=${skin}&scheme=${scheme}`;
+        const ownSkin = async (page: Page) => {
+          if (skin !== 'classic' || scheme === 'dark') {
+            await expect(page.locator('html')).toHaveAttribute('data-skin', skin);
+            await expect(page.locator('html')).toHaveAttribute('data-theme', scheme);
+          }
+        };
+        for (const s of [...SCREENS, DESIGN_CARD]) {
+          test(`${skin} ${scheme} ${s.id}`, async ({ page }, info) => {
+            test.skip(info.project.name === 'tablet', 'two widths are enough');
+            fs.mkdirSync(EVIDENCE, { recursive: true });
             await open(page, s.hash, q);
-            if (skin !== 'classic' || scheme === 'dark') {
-              await expect(page.locator('html')).toHaveAttribute('data-skin', skin);
-              await expect(page.locator('html')).toHaveAttribute('data-theme', scheme);
-            }
+            await ownSkin(page);
             await page.screenshot({ path: path.join(EVIDENCE, `${skin}-${scheme}-${s.id}-${view(info)}.png`) });
             if (s.id === 'home' && view(info) === '390') {
               // the phone's equivalent of the building tree panel: the floor cards carry every area row, count and the floor menu
               await page.locator('devices-building').evaluate((el) => el.shadowRoot!.querySelector('section.fcard')!.scrollIntoView({ block: 'start' }));
-              await page.waitForTimeout(300);
+              await settlePage(page); // the scroll has landed and nothing moves (was a fixed 300 ms)
               await page.screenshot({ path: path.join(EVIDENCE, `${skin}-${scheme}-floors-390.png`) });
             }
-          }
+          });
+        }
+        test(`${skin} ${scheme} dialog`, async ({ page }, info) => {
+          test.skip(info.project.name === 'tablet', 'two widths are enough');
+          fs.mkdirSync(EVIDENCE, { recursive: true });
           await open(page, '/devices', q);
+          await ownSkin(page);
           await openDialog(page);
           await page.screenshot({ path: path.join(EVIDENCE, `${skin}-${scheme}-dialog-${view(info)}.png`) });
         });

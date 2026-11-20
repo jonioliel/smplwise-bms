@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { inPageCheck, summarize } from './layout-guard';
 import { ADMIN, installFrigate, newControlMock, newFrigateMock, openApp, type FrigateControlMock, type FrigateMock } from './frigate-mocks';
 import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
+import { settle } from './helpers/settle';
 
 // FRGD (owner 2026-10-07): the Frigate user interface, polished and completed - the restyled review screen (cards AND a table view, the
 // state chips, the keys behind one help button, the drawer with "ייצוא הקטע"), and Settings > the Frigate recorder as one tabbed
@@ -184,33 +185,36 @@ test.describe('review: the restyled screen', () => {
     expect(noPerm.hits.some((h) => h.includes('control/policy'))).toBe(false);
   });
 
-  test('layout guard: cards and table in four skins, light and dark', async ({ page }) => {
-    test.skip(test.info().project.name === 'tablet', 'two projects are enough');
-    const errors: string[] = [];
-    page.on('pageerror', (e) => errors.push(e.message));
-    const m = newFrigateMock({ perms: ALL_PERMS, ctl: newControlMock({ classes: { ...ALL_ON } }) });
-    await installFrigate(page, m);
-    const findings: { cls: string }[] = [];
-    for (const view of ['cards', 'table'] as const) {
-      for (const skin of SKIN_IDS) {
-        for (const scheme of ['light', 'dark'] as const) {
-          await page.goto('about:blank');
-          await page.goto(`/?design=a&skin=${skin}&scheme=${scheme}#/investigate/reviews`);
-          await page.waitForSelector(`${SCREEN} frigate-review-card`);
+  // FLAKY-SWEEP-2480: one test per skin x scheme. The guard used to load the screen 16 times in ONE test (a fresh load for each of
+  // 2 views x 4 skins x light / dark) and timed out in four of the five gate runs of 19.11 (60 s for 16 cold starts on a loaded
+  // runner). Each case now loads the screen once and checks both views - the table is the same screen after the view switch.
+  for (const skin of SKIN_IDS) {
+    for (const scheme of ['light', 'dark'] as const) {
+      test(`layout guard: cards and table, ${skin} ${scheme}`, async ({ page }) => {
+        test.skip(test.info().project.name === 'tablet', 'two projects are enough');
+        const errors: string[] = [];
+        page.on('pageerror', (e) => errors.push(e.message));
+        const m = newFrigateMock({ perms: ALL_PERMS, ctl: newControlMock({ classes: { ...ALL_ON } }) });
+        await installFrigate(page, m);
+        await openApp(page, '/investigate/reviews', `&skin=${skin}&scheme=${scheme}`);
+        await page.waitForSelector(`${SCREEN} frigate-review-card`);
+        const findings: { cls: string }[] = [];
+        for (const view of ['cards', 'table'] as const) {
           await page.locator(`${SCREEN} [data-review-view-${view}]`).click();
-          await cards(page).nth(1).locator('[data-review-select]').check();
+          const pick = cards(page).nth(1).locator('[data-review-select]');
+          if (!(await pick.isChecked())) await pick.check(); // the selection is kept across the view switch
           await page.evaluate(() => document.fonts.ready);
-          await page.waitForTimeout(150);
+          await settle(page); // the view switch and the selection have finished animating (was a fixed 150 ms)
           const found = await page.evaluate(inPageCheck, { ctx: `${view} ${skin} ${scheme}`, bubble: '.card, .chip', skip: '.skl, sw-icon, svg, img', roots: [SCREEN] });
           findings.push(...found.filter((f) => f.cls !== 'target' && f.cls !== 'floating'));
           if (skin === 'bubble') await shot(page, `review-${view}-bubble`, scheme);
         }
-      }
+        const { lines } = summarize(findings as never);
+        expect(errors, 'page errors').toEqual([]);
+        expect(lines, 'layout findings').toEqual([]);
+      });
     }
-    const { lines } = summarize(findings as never);
-    expect(errors, 'page errors').toEqual([]);
-    expect(lines, 'layout findings').toEqual([]);
-  });
+  }
 });
 
 // ------------------------------------------------------------------------------------------------ settings: the management card

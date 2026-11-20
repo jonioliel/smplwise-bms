@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installMessagingMock, waUrl } from './messaging-mocks';
+import { gotoApp } from './helpers/app-ready';
+import { settle } from './helpers/settle';
 
 // CALMSG-POLISH-2331: before / after evidence of the calendars and messaging settings polish - Settings › יומנים (five tabs),
 // Settings › חיבורי יומן, Settings › ערוץ ההודעות and the calendars page views, at desktop 1440x900 / 1920x1080, tablet 1180x820 /
@@ -36,7 +38,7 @@ const CAL: [string, string, string][] = [
 
 async function measure(page: Page) {
   await page.evaluate(() => document.fonts.ready);
-  await page.waitForTimeout(450);
+  await settle(page); // FLAKY-SWEEP-2480: every finite animation has ended (was a fixed 450 ms)
   return page.evaluate(() => {
     const main = document.querySelector('sw-app')?.shadowRoot?.querySelector('main');
     return { v: Math.max(0, (main?.scrollHeight ?? 0) - (main?.clientHeight ?? 0)), h: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth) };
@@ -63,7 +65,7 @@ test.describe('CALMSG-POLISH-2331 evidence', () => {
       for (const [sz, w, h] of sizes()) {
         await page.setViewportSize({ width: w, height: h });
         await page.goto('about:blank');
-        await page.goto(`/?design=a&skin=classic&scheme=light#${hash}`);
+        await gotoApp(page, `/?design=a&skin=classic&scheme=light#${hash}`); // FLAKY-SWEEP-2480: helpers/app-ready.ts
         await expect(page.locator(`sw-app ${ready}`).first()).toBeVisible();
         const m = await measure(page);
         log.push([PHASE, name, sz, m.v, m.h].join('\t'));
@@ -72,7 +74,7 @@ test.describe('CALMSG-POLISH-2331 evidence', () => {
         if (!view || sz === '1440') await page.screenshot({ path: path.join(OUT, `${name}-${sz}.png`), animations: 'disabled' });
         if (!view && (sz === '1440' || sz === '390')) {
           await page.goto('about:blank');
-          await page.goto(`/?design=a&skin=classic&scheme=dark#${hash}`);
+          await gotoApp(page, `/?design=a&skin=classic&scheme=dark#${hash}`);
           await expect(page.locator(`sw-app ${ready}`).first()).toBeVisible();
           await measure(page);
           await page.screenshot({ path: path.join(OUT, `${name}-${sz}-dark.png`), animations: 'disabled' });

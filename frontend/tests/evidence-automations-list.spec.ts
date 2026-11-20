@@ -4,6 +4,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resetAutomationsMock, type AutomationsMockStore, type MockUserId } from '../src/api/automations-mock';
 import { ApiError } from '../src/api/client';
+import { appReady } from './helpers/app-ready';
+import { settle } from './helpers/settle';
 
 // CR-017 S3: the automations screen ("אוטומציות", the third tab of the home area), its drawer (detail, "למה זה רץ", versions, dry-run, trash), the scenes panel
 // with the capture editor, the script runner and הגדרות › אוטומציות, in demo mode (no backend: api/automations-mock.ts answers; the persona, the state and the
@@ -57,9 +59,14 @@ async function open(page: Page, hash: string, size: Size = '1440', control: Cont
   // POLISH2-295: the cards have their own page size (6 / 1 by default); these card specs keep the earlier one-page-of-12 / 9 reading
   const knob = (control.view ?? 'cards') === 'cards' ? `&page_size=${perPage(size)}` : '';
   await page.goto(`/?design=a&fit=off${knob}#${hash}`);
-  await page.waitForSelector('sw-app');
+  await appReady(page); // FLAKY-SWEEP-2480: the shell's first load is over (helpers/app-ready.ts); `ready` then gets its 5 s for the screen itself
 }
 
+/** FLAKY-SWEEP-2480: the size loops of this file pin their own viewport, so the phone project only adds the phone size. On the mobile
+ * project (Pixel 7, 2.6x pixels, touch) the 1440 and 820 passes drew a desktop-sized page at seven times the pixels and wrote the same
+ * picture names as the desktop project (the later run overwrote them): the file averaged 15.8 s a test on mobile against 5.2 s on
+ * desktop in the 2.45.0 gate and timed out there. The desktop project still runs every size. */
+const sizesHere = <T extends Size>(list: readonly T[]): T[] => (test.info().project.name === 'mobile' && list.includes('390' as T) ? list.filter((x) => x === '390') : [...list]);
 const scr = (page: Page) => page.locator('sw-app devices-automations');
 /** The cards these specs read on one page: 12 on a desktop, 9 on a phone (pinned with ?page_size=; the product defaults are rows 12 / 7 and cards 6 / 1). */
 const perPage = (size: Size) => (size === '390' ? 9 : 12);
@@ -70,7 +77,7 @@ const hashOf = (page: Page) => page.evaluate(() => location.hash);
 
 async function shot(page: Page, name: string, size: Size, scheme: 'light' | 'dark' = 'light') {
   fs.mkdirSync(EVIDENCE, { recursive: true });
-  await page.waitForTimeout(250);
+  await settle(page); // FLAKY-SWEEP-2480: every finite animation has ended (was a fixed 250 ms)
   await page.screenshot({ path: path.join(EVIDENCE, `${name}-${size}${scheme === 'dark' ? '-dark' : ''}.png`) });
 }
 
@@ -80,7 +87,7 @@ async function ready(page: Page) {
 
 test.describe('the list (installer)', () => {
   test('automations: the tab row, the header, one card per automation, chips, the sentence', async ({ page }) => {
-    for (const size of ['1440', '820', '390'] as const) {
+    for (const size of sizesHere(['1440', '820', '390'] as const)) {
       await open(page, '/devices/automations', size);
       await ready(page);
       await expect(cards(page)).toHaveCount(perPage(size));
@@ -122,7 +129,7 @@ test.describe('the list (installer)', () => {
   });
 
   test('POLISH-295 rows (the default): one 52 px row per automation, the sentence on one line, a chip only for a real fault, every row on one screen', async ({ page }) => {
-    for (const size of ['1440', '390'] as const) {
+    for (const size of sizesHere(['1440', '390'] as const)) {
       await open(page, '/devices/automations', size, { view: 'rows' });
       await ready(page);
       const rows = scr(page).locator('[data-auto-rows] automation-row');
@@ -159,7 +166,7 @@ test.describe('the list (installer)', () => {
   });
 
   test('dark scheme (devices.scheme): the same screen, dark glass', async ({ page }) => {
-    for (const size of ['1440', '390'] as const) {
+    for (const size of sizesHere(['1440', '390'] as const)) {
       await open(page, '/devices/automations', size, { scheme: 'dark' });
       await ready(page);
       await expect(scr(page)).toHaveAttribute('data-devices-scheme', 'dark');
@@ -268,7 +275,7 @@ test.describe('toggle, filters, the segments', () => {
 
 test.describe('the detail drawer', () => {
   test('detail: the sentence, כאשר · אם · אז, the devices it touches, the last runs, the actions', async ({ page }) => {
-    for (const size of ['1440', '390'] as const) {
+    for (const size of sizesHere(['1440', '390'] as const)) {
       await open(page, '/devices/automations', size);
       await ready(page);
       await card(page, 'תנועה בפרוזדור').locator('a.name').click();
@@ -554,7 +561,7 @@ test.describe('scenes', () => {
   });
 
   test('a new scene: pick the devices, "צלם מצב נוכחי", correct a value in the table, save; edit it; delete it with the undo', async ({ page }) => {
-    for (const size of ['1440', '390'] as const) {
+    for (const size of sizesHere(['1440', '390'] as const)) {
       await open(page, '/devices/automations/scenes', size);
       await ready(page);
       await scr(page).locator('[data-auto-new]').click();
@@ -662,7 +669,7 @@ test.describe('scripts', () => {
   });
 
   test('a script with fields: "הפעל…" opens its sheet with the short form; the run sends the values', async ({ page }) => {
-    for (const size of ['1440', '390'] as const) {
+    for (const size of sizesHere(['1440', '390'] as const)) {
       await open(page, '/devices/automations/scripts', size);
       await ready(page);
       await script(page, 'תריסים לפי אחוז').locator('[data-script-run]').click();
@@ -702,7 +709,7 @@ test.describe('scripts', () => {
 
 test.describe('the three users', () => {
   test('household editor (floor 1, saving through the delegation): the floors, the toggles, the new button', async ({ page }) => {
-    for (const size of ['1440', '390'] as const) {
+    for (const size of sizesHere(['1440', '390'] as const)) {
       await open(page, '/devices/automations', size, { user: 'household' });
       await ready(page);
       await shot(page, '80-household', size);
@@ -722,7 +729,7 @@ test.describe('the three users', () => {
   });
 
   test('household editor with the delegation off: the strip says what still works; saving is disabled with the reason', async ({ page }) => {
-    for (const size of ['1440', '390'] as const) {
+    for (const size of sizesHere(['1440', '390'] as const)) {
       await open(page, '/devices/automations', size, { user: 'household', delegation: false });
       await ready(page);
       await expect(scr(page).locator('[data-auto-banner="delegation_off"]')).toContainText('שמירה דורשת מנהל');
@@ -736,7 +743,7 @@ test.describe('the three users', () => {
   });
 
   test('script runner (decision 1b, no view-only access): no automations segment, no automation card, no new button', async ({ page }) => {
-    for (const size of ['1440', '390'] as const) {
+    for (const size of sizesHere(['1440', '390'] as const)) {
       await open(page, '/devices/automations', size, { user: 'runner' });
       await expect(scr(page).locator('[data-screen="devices-automations"]')).toHaveAttribute('data-segment', 'scripts');
       await shot(page, '82-runner', size);
@@ -756,7 +763,7 @@ test.describe('the three users', () => {
 
 test.describe('states', () => {
   test('loading: skeleton cards, no spinner text', async ({ page }) => {
-    for (const size of ['1440', '390'] as const) {
+    for (const size of sizesHere(['1440', '390'] as const)) {
       await open(page, '/devices/automations?state=loading', size);
       await expect(scr(page).locator('[data-auto-state="loading"]')).toBeVisible();
       await expect(scr(page).locator('[data-auto-state="loading"] .skl').first()).toBeVisible();
@@ -777,7 +784,7 @@ test.describe('states', () => {
   });
 
   test('error: the list cannot load; "נסו שוב" loads it once the platform answers', async ({ page }) => {
-    for (const size of ['1440', '390'] as const) {
+    for (const size of sizesHere(['1440', '390'] as const)) {
       await open(page, '/devices/automations', size, { error: true });
       await expect(scr(page).locator('[data-auto-state="error"]')).toBeVisible();
       await shot(page, '92-state-error', size);
@@ -801,7 +808,7 @@ test.describe('states', () => {
   });
 
   test('offline: the last list stays with one strip and a retry; a configuration API that is down only blocks saving', async ({ page }) => {
-    for (const size of ['1440', '390'] as const) {
+    for (const size of sizesHere(['1440', '390'] as const)) {
       await open(page, '/devices/automations', size, { offline: true });
       await ready(page);
       await expect(scr(page).locator('[data-auto-banner="offline"]')).toContainText('תשתית המערכת אינה זמינה כרגע');
@@ -1004,8 +1011,7 @@ async function openApi(page: Page, hash: string, size: Size = '1440') {
   });
   await page.goto('about:blank');
   await page.goto(`/?design=a&fit=off#${hash}`);
-  await page.waitForSelector('sw-app');
-  await page.waitForTimeout(600);
+  await appReady(page); // FLAKY-SWEEP-2480: the session, the settings and the route's chunk are in (was a fixed 600 ms after the element)
 }
 
 const rowTabs = (page: Page) => page.locator('sw-app .subnav sw-tabs a').allTextContents();
@@ -1169,7 +1175,7 @@ test.describe('the editors over the list (S3 x S4 wiring)', () => {
     // 5-9 s each, so the default 60 s ran out at a random call (goto / setViewportSize / screenshot). Nothing hangs: a budget, not a bug.
     test.setTimeout(240_000);
     for (const scheme of ['light', 'dark'] as const) {
-      for (const size of ['1440', '820', '390'] as const) {
+      for (const size of sizesHere(['1440', '820', '390'] as const)) {
         await open(page, '/devices/automations/1727700000002/edit', size, { scheme });
         const b = scr(page).locator('automation-builder');
         await expect(b.locator('[data-name-input]')).toHaveValue('תנועה בפרוזדור');
@@ -1223,7 +1229,7 @@ test.describe('evidence matrix: the three kinds and the settings tab at 1440 / 8
       // 55-66 s on the 2.27.2 build and on the 2.28.0 train alike (measured 30.10: same load times, the screenshots cost ~2x desktop) -
       // the 60 s default was never this test's budget, the same as the five-load test above (120 s)
       test.setTimeout(150_000);
-      for (const size of ['1440', '820', '390'] as const) {
+      for (const size of sizesHere(['1440', '820', '390'] as const)) {
         await open(page, '/devices/automations', size, { scheme });
         await ready(page);
         await expect(cards(page)).toHaveCount(perPage(size));
