@@ -530,3 +530,48 @@ def test_round_trip_through_the_routes_keeps_the_published_structure(settings, w
         back = got[plan_ifc.global_id(floor_id, "walls", w)]
         assert all(math.isclose(a, b, abs_tol=1e-4) for p, q in zip(back["polyline"], w["polyline"]) for a, b in zip(p, q))
         assert back["thickness_m"] == w["thickness_m"] and back["kind"] == w["kind"]
+
+
+def test_a_full_skipped_list_does_not_change_the_reason_an_opening_of_a_skipped_wall_gets(monkeypatch):
+    """CR-BE-FOLLOWUPS-2470 (CR-IFC-SPLIT-2460 Q1 "a"): a wall skipped for its storey after the report's row list was full gave its
+    openings the reason of the last LISTED row, not its own. The cap limits the listed rows only; the counts by reason are the same."""
+    data = _foreign(extra=[f"#150=IFCBUILDINGSTOREY('{_g(50)}',$,'First',$,$,#13,$,$,.ELEMENT.,3000.);",
+                           f"#19=IFCWALLSTANDARDCASE('{_g(51)}',$,'Orphan',$,$,#22,#28,$);"])  # in no storey, read before Wall-1 (#29)
+    full = _read(data, width_px=640, height_px=400, elevation=2.9)["ifc"]  # First chosen: Wall-1 and its door are on Ground
+    monkeypatch.setattr(plan_ifc_read, "MAX_SKIPPED_ROWS", 1)
+    capped = _read(data, width_px=640, height_px=400, elevation=2.9)["ifc"]
+    assert full["skipped_by_reason"]["no_storey"] == 1 and full["skipped_by_reason"]["other_storey"] >= 2, full["skipped_by_reason"]
+    assert [r["reason"] for r in capped["skipped"]] == ["no_storey"] and capped["skipped_total"] == full["skipped_total"]
+    assert capped["skipped_by_reason"] == full["skipped_by_reason"]
+
+
+@pytest.mark.parametrize("shape", ["walls_not_a_list", "level_id_a_list", "wall_id_an_object"])
+def test_export_of_a_wrongly_typed_stored_document_is_a_clean_422(settings, world, shape):
+    """CR-BE-FOLLOWUPS-2470 (CR-IFC-SPLIT-2460 Q2): plan_ifc.build raises TypeError / ValueError on wrongly typed collections or ids.
+    The save path validates the document, so such a shape reaches the export only from a stored row written another way (an old
+    version, a restore); the route refuses it with the standard envelope instead of a 500."""
+    c, ids, vid = world
+    _calibrate(c, vid)
+    g = c.get(f"/api/v1/plan-versions/{vid}/geometry?draft=true").json()
+    s = _sample()
+    doc = dict(g["doc"], **{k: s[k] for k in ("levels", "walls", "openings", "labels", "objects", "connectors", "groups", "circuits")})
+    r = c.put(f"/api/v1/plan-versions/{vid}/geometry", json={"doc": doc, "base_revision": g["geometry"]["revision"]})
+    assert r.status_code == 200, r.text
+    r = c.post(f"/api/v1/plan-versions/{vid}/geometry/publish")
+    assert r.status_code == 200, r.text
+    assert c.get(f"/api/v1/plan-versions/{vid}/export.ifc").status_code == 200
+    bad = json.loads(json.dumps(doc))
+    if shape == "walls_not_a_list":
+        bad["walls"] = 7
+    elif shape == "level_id_a_list":
+        bad["walls"][0]["level_id"] = ["L0"]
+    else:
+        bad["openings"][0]["wall_id"] = {"id": bad["openings"][0]["wall_id"]}
+    with sqlite3.connect(settings.db_path) as con:
+        con.execute("UPDATE plan_geometry SET doc_json = ? WHERE plan_version_id = ? AND status = 'published'", (json.dumps(bad), vid))
+    before = len(_audit(settings, "geometry.ifc.export"))
+    r = c.get(f"/api/v1/plan-versions/{vid}/export.ifc")
+    assert r.status_code == 422, r.text
+    body = r.json()
+    assert body["code"] == "geometry_structure" and body["user_message"] and body["correlation_id"] and body["details"]["error"] in ("TypeError", "ValueError")
+    assert len(_audit(settings, "geometry.ifc.export")) == before, "nothing was exported"
