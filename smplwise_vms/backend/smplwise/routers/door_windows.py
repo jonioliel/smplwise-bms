@@ -37,6 +37,8 @@ from ..services import door_windows_engine as dwe
 from ..services import door_windows_store as store
 from ..services import door_windows_watch as dww
 from ..services import special_days
+from ..wire import door_windows as W
+from ..wire import wire
 from ._common import rid as _rid
 
 router = APIRouter()
@@ -91,7 +93,7 @@ def _occ_view(r: sqlite3.Row, labels: dict[str, dw.Door], rule_names: dict[str, 
             "unconfirmed_at": r["unconfirmed_at"], "last_reason": r["last_reason"], "resolution": r["resolution"], "resolved_at": r["resolved_at"]}
 
 
-@router.get("/doors/windows/state")
+@router.get("/doors/windows/state", **wire(W.DwState))
 def windows_state(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Everything the door-windows screen shows to this person: the switch and tier, the doors they may see (and which they may manage or
     override), the rules touching those doors, and the occurrences of the next 7 days plus every open alarm on them."""
@@ -153,7 +155,7 @@ def _body_doors(body: RuleBody) -> list[tuple[str, int]]:
     return out
 
 
-@router.post("/doors/windows/rules/preview")
+@router.post("/doors/windows/rules/preview", **wire(W.DwRulePreview))
 def preview_rule(body: RuleBody, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The compiled occurrences of the next 7 days per door, without saving (no engine call)."""
     dw.require_doors(conn, principal, _body_doors(body), dw.MANAGE, "door.window.preview")
@@ -192,12 +194,12 @@ def _save(request: Request, principal: Principal, conn: sqlite3.Connection, body
     return out
 
 
-@router.post("/doors/windows/rules", status_code=201)
+@router.post("/doors/windows/rules", status_code=201, **wire(W.DwRuleSaved))
 def create_rule(body: RuleBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     return _save(request, principal, conn, body, None)
 
 
-@router.put("/doors/windows/rules/{rule_id}")
+@router.put("/doors/windows/rules/{rule_id}", **wire(W.DwRuleSaved))
 def update_rule(body: RuleBody, request: Request, rule_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     return _save(request, principal, conn, body, rule_id)
@@ -213,7 +215,7 @@ class ArmBody(BaseModel):
     confirmed: Any = None
 
 
-@router.post("/doors/windows/rules/{rule_id}/arm")
+@router.post("/doors/windows/rules/{rule_id}/arm", **wire(W.DwRuleOne))
 def arm_rule(body: ArmBody, request: Request, rule_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
              conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Arm (or return to simulation) an event rule whose trigger is Home Assistant / an Arx automation (CR-039 9.4). Arming is refused while the
@@ -238,7 +240,7 @@ def arm_rule(body: ArmBody, request: Request, rule_id: str = Path(min_length=1, 
     return {"rule": view}
 
 
-@router.post("/doors/windows/rules/{rule_id}/token")
+@router.post("/doors/windows/rules/{rule_id}/token", **wire(W.DwToken))
 def regenerate_token(body: ConfirmBody, request: Request, rule_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
                      conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A new secret for a Home Assistant event rule (the old one stops working at once). Shown ONCE in this answer, stored as SHA-256 only."""
@@ -257,7 +259,7 @@ def regenerate_token(body: ConfirmBody, request: Request, rule_id: str = Path(mi
     return {"token": token, "snippet": dwt.snippet(rule_id, token)}
 
 
-@router.post("/doors/windows/rules/{rule_id}/{action}")
+@router.post("/doors/windows/rules/{rule_id}/{action}", **wire(W.DwRuleOne))
 def rule_action(body: ConfirmBody, request: Request, rule_id: str = Path(min_length=1, max_length=64), action: Literal["enable", "pause", "retire"] = Path(),
                 principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _confirmed(body.confirmed)
@@ -275,7 +277,7 @@ def rule_action(body: ConfirmBody, request: Request, rule_id: str = Path(min_len
     return {"rule": view}
 
 
-@router.post("/doors/windows/occurrences/{occ_id}/end-now")
+@router.post("/doors/windows/occurrences/{occ_id}/end-now", **wire(W.DwOccurrenceOne))
 def end_now(body: ConfirmBody, request: Request, occ_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
             conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The guard override (CR-039 2 / 7.1): end a running window of one door now. The engine is told to pause the door's program (the close
@@ -323,7 +325,7 @@ class CheckedBody(BaseModel):
     confirmed: Any = None
 
 
-@router.post("/doors/windows/occurrences/{occ_id}/confirm-closed")
+@router.post("/doors/windows/occurrences/{occ_id}/confirm-closed", **wire(W.DwOccurrenceOne))
 def confirm_closed(body: CheckedBody, request: Request, occ_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The manual relock check (CR-039 4.4 step 4): a person looked at the door or its camera. Only an unconfirmed relock can be confirmed."""
@@ -359,7 +361,7 @@ _REFUSAL_TEXT = {
 }
 
 
-@router.post("/doors/windows/doors/{station_id}/{relay}/open-for")
+@router.post("/doors/windows/doors/{station_id}/{relay}/open-for", **wire(W.DwOpenFor))
 def open_for(body: OpenForBody, request: Request, station_id: str = Path(min_length=1, max_length=128), relay: int = Path(ge=1, le=64),
              principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The `arx_button` source (CR-039 9.1): "hold this door open for N hours", a person's confirmed click. `access.windows.manage` on the door
@@ -383,7 +385,7 @@ def open_for(body: OpenForBody, request: Request, station_id: str = Path(min_len
     return {"decision": d.as_dict()}
 
 
-@router.post("/doors/windows/doors/{station_id}/{relay}/foreign-handled")
+@router.post("/doors/windows/doors/{station_id}/{relay}/foreign-handled", **wire(W.DwDoorHandled))
 def foreign_handled(body: ConfirmBody, request: Request, station_id: str = Path(min_length=1, max_length=128), relay: int = Path(ge=1, le=64),
                     principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A person marks a door's foreign program as dealt with after an emergency LOCK paused it (CR-039 19.3): they enabled it again in the
@@ -401,7 +403,7 @@ def foreign_handled(body: ConfirmBody, request: Request, station_id: str = Path(
 
 # ---------------------------------------------------------------- DOORWRITE-297: the door's program - dry run and "write again"
 
-@router.get("/doors/windows/doors/{station_id}/{relay}/program/preview")
+@router.get("/doors/windows/doors/{station_id}/{relay}/program/preview", **wire(W.DwProgramPreviewOne))
 def program_preview(request: Request, station_id: str = Path(min_length=1, max_length=128), relay: int = Path(ge=1, le=64),
                     principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The dry run of the door's program write: what Arx would write, whether it is valid, what the engine holds now and what the write
@@ -420,7 +422,7 @@ _APPLY_REFUSAL = {"prepared": "התוכנית מוכנה בלבד: אין כתי
                   "preview_stale": "התוכנית השתנתה מאז התצוגה המקדימה. פתחו אותה שוב."}
 
 
-@router.post("/doors/windows/doors/{station_id}/{relay}/program/apply")
+@router.post("/doors/windows/doors/{station_id}/{relay}/program/apply", **wire(W.DwProgramApplied))
 def program_apply(body: ProgramApplyBody, request: Request, station_id: str = Path(min_length=1, max_length=128), relay: int = Path(ge=1, le=64),
                   principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A person's "write again" for one door after a drift, a failed write or a wait: clears the door's hold and writes now (read first,
@@ -456,7 +458,7 @@ def program_apply(body: ProgramApplyBody, request: Request, station_id: str = Pa
     return {"result": result}
 
 
-@router.get("/doors/windows/calendar")
+@router.get("/doors/windows/calendar", **wire(W.DwCalendar))
 def get_calendar(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     if not dw.visible_doors(conn, principal) and not authorize(conn, principal, dw.MANAGE, INSTALLATION).allowed:
         raise ApiError(403, "forbidden", "אין הרשאה.")
@@ -479,7 +481,7 @@ class CalendarBody(BaseModel):
     confirmed: Any = None
 
 
-@router.put("/doors/windows/calendar")
+@router.put("/doors/windows/calendar", **wire(W.DwCalendarSaved))
 def put_calendar(body: CalendarBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Installation-wide special days (`none` removes one). `access.windows.manage` at the installation (CR-039 10.4)."""
     _confirmed(body.confirmed)
@@ -501,7 +503,7 @@ def put_calendar(body: CalendarBody, request: Request, principal: Principal = De
     return {"saved": len(body.days)}
 
 
-@router.get("/doors/windows/settings")
+@router.get("/doors/windows/settings", **wire(W.DwSettings))
 def get_window_settings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, CONFIGURE, INSTALLATION)
     return {"settings": dw.settings_view(conn), "go_live_permitted": dwe.program_ready(), "program_engine_built": dwe.program_engine_built()}
@@ -512,7 +514,7 @@ class SettingsBody(BaseModel):
     confirmed: Any = None
 
 
-@router.put("/doors/windows/settings")
+@router.put("/doors/windows/settings", **wire(W.DwSettingsSaved))
 def put_window_settings(body: SettingsBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, CONFIGURE, INSTALLATION)
     _confirmed(body.confirmed)
@@ -531,7 +533,7 @@ class FlagsBody(BaseModel):
     confirmed: Any = None
 
 
-@router.put("/doors/windows/doors/{station_id}/{relay}/flags")
+@router.put("/doors/windows/doors/{station_id}/{relay}/flags", **wire(W.DwDoorFlags))
 def put_door_flags(body: FlagsBody, request: Request, station_id: str = Path(min_length=1, max_length=128), relay: int = Path(ge=1, le=64),
                    principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Mark a door exterior (owner decision 2026-10-13: interior doors first). System administrator."""
@@ -546,7 +548,7 @@ def put_door_flags(body: FlagsBody, request: Request, station_id: str = Path(min
 
 # ================================================================ emergency
 
-@router.get("/doors/emergency/state")
+@router.get("/doors/emergency/state", **wire(W.DwEmergencyState))
 def emergency_state(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The visible state (CR-039 8.1): the active incident (the red strip) for everyone who sees doors, and - for the holders of an
     emergency permission - the switches, the scopes they may press in and the recent history."""
@@ -590,7 +592,7 @@ class PrepareBody(BaseModel):
     drill: bool = False
 
 
-@router.post("/doors/emergency/prepare")
+@router.post("/doors/emergency/prepare", **wire(W.DwPrepared))
 def emergency_prepare(body: PrepareBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     return de.prepare(conn, settings_of(request), principal, action=body.action, kind=body.kind, scope_type=body.scope_type, scope_id=body.scope_id,
                       incident_id=body.incident_id, drill=body.drill, now=now_utc(), dev_mode=_dev(request))
@@ -609,7 +611,7 @@ def _request_id(value: str) -> str:
     return value
 
 
-@router.post("/doors/emergency/incidents", status_code=201)
+@router.post("/doors/emergency/incidents", status_code=201, **wire(W.DwIncidentOne))
 def emergency_start(body: StartBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     rid = _request_id(body.client_request_id)
     if store.incident_by_request_id(conn, rid):
@@ -639,7 +641,7 @@ class ReleaseBody(BaseModel):
     client_request_id: str = Field(min_length=8, max_length=64)
 
 
-@router.post("/doors/emergency/incidents/{incident_id}/release")
+@router.post("/doors/emergency/incidents/{incident_id}/release", **wire(W.DwIncidentOne))
 def emergency_release(body: ReleaseBody, request: Request, incident_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     rid = _request_id(body.client_request_id)
@@ -660,7 +662,7 @@ class RetryOpenBody(BaseModel):
     confirm_door: str = Field(min_length=1, max_length=120)
 
 
-@router.post("/doors/emergency/incidents/{incident_id}/retry-open")
+@router.post("/doors/emergency/incidents/{incident_id}/retry-open", **wire(W.DwIncidentOne))
 def emergency_retry_open(body: RetryOpenBody, request: Request, incident_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
                          conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """WKOPENUNK-295: the explicit new OPEN attempt for ONE door whose OPEN ended UNKNOWN (system administrator, confirmation by the door's name, one at a time)."""
@@ -687,13 +689,13 @@ class RevokeGrantBody(BaseModel):
     confirmed: Any = None
 
 
-@router.get("/doors/emergency/grants")
+@router.get("/doors/emergency/grants", **wire(W.DwGrants))
 def emergency_grants(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """EMROLE-295: who holds the emergency-open role, and the people / places a grant may name (system administrators and security managers)."""
     return deg.view(conn, principal)
 
 
-@router.post("/doors/emergency/grants", status_code=201)
+@router.post("/doors/emergency/grants", status_code=201, **wire(W.DwGrantOne))
 def emergency_grant(body: GrantBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """EMROLE-295: give the built-in emergency-open role to one person, with an expiry (default from the settings)."""
     _confirmed(body.confirmed)
@@ -702,14 +704,14 @@ def emergency_grant(body: GrantBody, request: Request, principal: Principal = De
     return {"grant": out}
 
 
-@router.post("/doors/emergency/grants/{binding_id}/revoke")
+@router.post("/doors/emergency/grants/{binding_id}/revoke", **wire(W.DwGrantRevoked))
 def emergency_grant_revoke(body: RevokeGrantBody, request: Request, binding_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
                            conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _confirmed(body.confirmed)
     return deg.revoke(conn, settings_of(request), request, principal, binding_id, dev_mode=_dev(request))
 
 
-@router.get("/doors/emergency/incidents/{incident_id}")
+@router.get("/doors/emergency/incidents/{incident_id}", **wire(W.DwIncidentOne))
 def emergency_incident(incident_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal_ro),
                        conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     perms = permissions_anywhere(conn, principal)
@@ -721,7 +723,7 @@ def emergency_incident(incident_id: str = Path(min_length=1, max_length=64), pri
     return {"incident": de.incident_view(conn, row)}
 
 
-@router.get("/doors/emergency/settings")
+@router.get("/doors/emergency/settings", **wire(W.DwEmergencySettingsOne))
 def get_emergency_settings(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, CONFIGURE, INSTALLATION)
     return {"settings": de.settings_view(conn, settings_of(request))}
@@ -731,7 +733,7 @@ class EmergencySettingsBody(SettingsBody):
     confirm_engine_off: Any = None  # SPLITSWITCH2-297: the explicit confirmation of turning the emergency-buttons switch off
 
 
-@router.put("/doors/emergency/settings")
+@router.put("/doors/emergency/settings", **wire(W.DwEmergencySettingsSaved))
 def put_emergency_settings(body: EmergencySettingsBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, CONFIGURE, INSTALLATION)
     _confirmed(body.confirmed)
@@ -754,7 +756,7 @@ class AttestBody(BaseModel):
     confirmed: Any = None
 
 
-@router.post("/doors/emergency/attestation")
+@router.post("/doors/emergency/attestation", **wire(W.DwAttested))
 def post_attestation(body: AttestBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """CR-039 8.9: the life-safety acknowledgement (read, then accepted), recorded by hash and version, audited with the person."""
     require(conn, principal, CONFIGURE, INSTALLATION)
