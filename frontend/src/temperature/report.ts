@@ -101,6 +101,9 @@ export class TempReport extends LitElement {
     @media (max-width: 600px) {
       .presets button,
       .sw { min-block-size: 44px; }
+      /* RELEASE-2450-TRAIN: the language / layout keys are sw-segmented (CR-CMP2-SEGMENTED-C-2450); on a phone they keep the 44 px
+         key the hand-built .seg buttons had (evidence-temperature TEMPREP-295, mobile) */
+      sw-segmented { --sw-seg-h: 44px; }
       .sw input { inline-size: 22px; block-size: 22px; }
     }
   `];
