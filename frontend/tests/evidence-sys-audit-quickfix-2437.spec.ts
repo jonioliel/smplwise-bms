@@ -122,7 +122,7 @@ test.describe('finding 3: dark scheme, the selected settings tab / severity pill
   const CASES: [name: string, hash: string, sel: string, track: boolean][] = [
     ['tickets-settings-tabs', '/system/tickets', "button[role='tab'][aria-selected='true']", false],
     ['tickets-settings-segments', '/system/tickets?tab=display', ".seg button[aria-pressed='true']", false],
-    ['notifications-severity', '/system/notifications', ".sevseg button[aria-pressed='true']", true],
+    ['notifications-severity', '/system/notifications', ".sevseg button[aria-checked='true']", true],
   ];
   for (const [name, hash, sel, track] of CASES) {
     test(name, async ({ page }) => {
