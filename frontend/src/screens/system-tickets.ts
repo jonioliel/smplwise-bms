@@ -158,6 +158,10 @@ export class SystemTickets extends LitElement {
       --sw-seg-gap: 2px;
       --sw-seg-h: var(--sw-touch-desktop);
       --sw-seg-divider: 0 solid transparent;
+      /* CR-SEG-MODULE-LOOK-2470: the sw-segmented default is the module look now; this key keeps the old default values it used */
+      --sw-seg-key-pad: 14px;
+      --sw-seg-fs: var(--sw-fs-md);
+      --sw-seg-fw: var(--sw-fw-semibold);
       /* AUDIT30-C-TICKETS (#3, #4, Q3 option 1): the chosen key of every segment on this page (the name's gender, the long press) is
          the Blue Wash pair - in dark the old light thumb under --dv-text read white on white (1:1) */
       --sw-seg-on-bg: var(--sw-accent-soft);

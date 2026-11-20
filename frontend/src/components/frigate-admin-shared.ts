@@ -281,6 +281,8 @@ export const adminStyles = css`
     --sw-seg-on-fw: var(--sw-fw-medium);
     --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-text));
     --sw-disabled-opacity: 0.6;
+    /* CR-SEG-MODULE-LOOK-2470: the sw-segmented default is the module look now; this key keeps the old default values it used */
+    --sw-seg-on-bg: var(--sw-seg-key, var(--sw-surface));
   }
   .row {
     display: flex;

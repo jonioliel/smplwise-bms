@@ -69,7 +69,7 @@ export class AccessRequestDialog extends LitElement {
       .sec > h4 .sp { flex: 1; }
       /* CR-CMP2-SEGMENTED-C-2450: the dialog's choices are sw-segmented (block: the keys share the row), its own key through the knobs */
       sw-segmented { --sw-seg-track: var(--sw-surface-2); --sw-seg-gap: 4px; --sw-seg-h: var(--sw-touch-desktop, 44px); --sw-seg-key-pad: 10px; --sw-seg-fs: var(--sw-fs-sm);
-        --sw-seg-fw: 400; --sw-seg-on-fw: 600; --sw-seg-on-bg: var(--sw-seg-key, var(--sw-surface-solid)); --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-heading)); }
+        --sw-seg-fw: 400; --sw-seg-on-fw: 600; --sw-seg-on-bg: var(--sw-seg-key, var(--sw-surface-solid)); --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-heading)); --sw-seg-radius: var(--sw-r-md); --sw-seg-btn-radius: var(--sw-r-sm); }
       .f2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
       textarea.in { min-block-size: 76px; padding-block: 8px; resize: vertical; }
       select.in { appearance: auto; }

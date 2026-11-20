@@ -111,14 +111,8 @@ export class HomeScreenOptionsForm extends LitElement {
       padding: 0 10px;
       max-inline-size: 100%;
     }
-    /* CR-CMP2-SEGMENTED-C-2450: the choices are sw-segmented (the settings track); the 32 px key with the medium label stays */
-    sw-segmented {
-      --sw-seg-h: 32px;
-      --sw-seg-key-pad: 12px;
-      --sw-seg-fs: 1em;
-      --sw-seg-fw: var(--sw-fw-medium);
-      --sw-seg-on-fw: var(--sw-fw-semibold);
-    }
+    /* CR-SEG-MODULE-LOOK-2470 (owner, 20.11): the choices are sw-segmented in its default, the module look, like every settings page
+       (the panel's own 32 px key with the medium label went) */
     .pick {
       all: unset;
       box-sizing: border-box;

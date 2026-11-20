@@ -797,6 +797,10 @@ export class WiskeyEvents extends LitElement {
       --sw-seg-ico-pad: 10px;
       --sw-seg-on-bg: var(--sw-seg-key, var(--sw-surface-solid));
       --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-heading));
+      /* CR-SEG-MODULE-LOOK-2470: the sw-segmented default is the module look now; this key keeps the old default values it used */
+      --sw-seg-key-pad: 14px;
+      --sw-seg-fs: var(--sw-fs-md);
+      --sw-seg-fw: var(--sw-fw-semibold);
     }
     .g {
       display: inline-flex;

@@ -80,6 +80,8 @@ export class CameraSourceDialog extends LitElement {
       --sw-seg-on-fw: 600;
       --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-accent, var(--sw-text)));
       --sw-seg-on-shadow: 0 1px 3px rgba(0, 0, 0, 0.16);
+      /* CR-SEG-MODULE-LOOK-2470: the sw-segmented default is the module look now; this key keeps the old default values it used */
+      --sw-seg-on-bg: var(--sw-seg-key, var(--sw-surface));
     }
     .lead,
     .note {
