@@ -158,7 +158,9 @@ def test_patch_a_site(settings):
     assert c.patch(f"{API}/sites/{ids['site']}", json={"name": ""}).status_code == 422
     assert c.patch(f"{API}/sites/nope", json={"name": "x"}).status_code == 404
     rows = [json.loads(r["details_json"]) for r in audit_rows(app, "site.update", "allowed") if r["resource_id"] == ids["site"]]
-    assert rows == [{"name": "  אתר מעודכן", "address": "רחוב 2", "sort_order": 3}]
+    # CR-BE-FOLLOWUPS-2470: the edit trims the name like create does, and the audit row holds the stored (trimmed) fields
+    assert site["name"] == "אתר מעודכן"
+    assert rows == [{"name": "אתר מעודכן", "address": "רחוב 2", "sort_order": 3}]
 
 
 # ---------------------------------------------------------------- evidence signing key rotation (T067)
