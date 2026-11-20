@@ -8,8 +8,9 @@
  */
 import { ArxAuthError } from './auth';
 import { lit } from '../i18n/local-identity';
-import { getPasskey, type RequestOptionsJSON } from './webauthn';
+import { getPasskey } from './webauthn';
 import type * as LocalWire from '../api/generated/wire-local-identity';
+import type * as PkWire from '../api/generated/wire-local-passkeys';
 
 /* The sign-in answers are the backend's response models (smplwise_vms/backend/smplwise/wire/local_identity.py, generated into
  * ../api/generated/wire-local-identity.ts; code review 07:F8 step 2): a session (200) or the pending second-factor step (202, `methods`
@@ -44,14 +45,14 @@ export async function localSignIn(username: string, password: string): Promise<L
 
 /** USR2 phase 4: answer the pending second step with a passkey (options bound to the pending cookie, then the assertion). */
 export async function localPasskeySecondFactor(): Promise<LocalSignIn> {
-  const opts = await call<{ publicKey: RequestOptionsJSON }>('api/v1/auth/local/sign-in/passkey/options', { method: 'POST', body: '{}' });
+  const opts = await call<PkWire.AssertionOptions>('api/v1/auth/local/sign-in/passkey/options', { method: 'POST', body: '{}' });
   const credential = await getPasskey(opts.data.publicKey);
   return (await call<LocalSignIn>('api/v1/auth/local/sign-in/passkey', { method: 'POST', body: JSON.stringify({ credential }) })).data;
 }
 
 /** USR2 phase 4: passkey first - a discoverable passkey with on-device verification, no username, no password. */
 export async function localPasskeySignIn(): Promise<LocalSignIn> {
-  const opts = await call<{ publicKey: RequestOptionsJSON }>('api/v1/auth/local/passkey/options', { method: 'POST', body: '{}' });
+  const opts = await call<PkWire.AssertionOptions>('api/v1/auth/local/passkey/options', { method: 'POST', body: '{}' });
   const credential = await getPasskey(opts.data.publicKey);
   return (await call<LocalSignIn>('api/v1/auth/local/passkey', { method: 'POST', body: JSON.stringify({ credential }) })).data;
 }
