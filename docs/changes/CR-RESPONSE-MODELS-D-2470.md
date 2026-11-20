@@ -3,7 +3,9 @@
 Branch `pilot/CR-RESPONSE-MODELS-D-2470`, base `origin/release/2450-train` (`521165ad4`) with `origin/pilot/CR-ROUTER-SQL-C-2450`
 (`d228cb84c`) and `origin/pilot/CR-ROUTE-CHAR-2460` (`345bea645`) merged. Target 2.47.0. Code review 07:F8 step 2 (MASTER_PLAN 3.6).
 No route, status code, key, value, number type or key order changed; no migration; no version bump; no pixel change expected.
-Stopped early (owner's weekly usage limit): 16 of the 61 routers are done, the rest is listed below.
+Stopped early (owner's weekly usage limit). The first session modelled 13 routers of the block (its note said 16; the table below
+lists 13); a second session (20.11) applied and tested the parked recordings / playback / playback_groups models, so 16 of the 61
+are done (counted from the wire modules that exist for `FAMILIES_D`), the other 45 are listed below.
 
 ## What changed
 
@@ -26,6 +28,9 @@ Stopped early (owner's weekly usage limit): 16 of the 61 routers are done, the r
 | popup_layout | `wire/popup_layout.py` | `api/popup-layout.ts` | `7b4b09895` |
 | home_interface, home_v3 | `wire/home_interface.py`, `wire/home_v3.py` | `home/home-api.ts`, `home/sw-home-admin.ts`, `home/sw-home.ts`, `home/home-intercom.ts` | `f30fd12f0` |
 | me | `wire/me.py` (interface block = `HomePolicy`) | `api/types.ts` (`Me`), `api/me-prefs.ts` | `fd1e5a0af` |
+| recordings | `wire/recordings.py` (search + recorded days) | `api/recordings.ts` | `5173914fb` |
+| playback | `wire/playback.py` (session, list, close) | `api/recordings.ts` | `25e377087` |
+| playback_groups | `wire/playback_groups.py` (members = `playback.PlaybackSession`) | `api/recordings.ts` | `bfcb39b05` |
 
 Key order: models declare the routes' own order (fields of `{**a, **b}` answers are written out, not inherited), so the JSON is
 byte-identical, not only equal.
@@ -36,6 +41,12 @@ byte-identical, not only equal.
 2. `AuditRow.id` typed `string` (server: integer); `permission_revision` `string | number`.
 3. `POST /auth/second-factor/confirm|disable` answer without `policy`; the client assigned it to the full status type. The card never
    read `policy`; its state type now says so (`components/sw-second-factor.ts`).
+6. Playback groups: the client typed `sync` as `'best_effort'` only and `sync_report` as optional; the server also answers
+   `'experimental_cross_recorder'` with `experimental` / `recorders` (CR-024), and always sends `sync_report` (null until a report).
+7. Playback sessions: `username`, `bytes_down`, `seconds` are on every session answer (the client only had them on the list).
+8. The parked playback model declared `time_precision: Literal["keyframe_limited"]` (what the relay sends today); tsc then refused
+   `investigate-event-detail.ts`, which compares it with `'verified'`. The model now declares the contract's set
+   (`contracts/schemas/playback-session.schema.json`: verified | keyframe_limited | estimated | unknown) - a one-line fix.
 4. The administrator's passkey removal was typed as a bare summary (it carries `user_id`, `removed`, `sessions_ended`, ...).
 5. Home policy / overview fields the client had optional (`choose`, `kiosk_exit`, `wallpaper`, `guests`, `room_wallpapers`, `weather`,
    `unlock_reason`, `can_unlock`) are always sent.
@@ -52,18 +63,40 @@ byte-identical, not only equal.
 | `scripts/gen_wire_types.py --check` | rc 0 |
 | Frontend `npx tsc --noEmit -p tsconfig.tests.json` | 1 error (unused import in `home/sw-home-admin.ts`), fixed; the re-run after the fix: NOT_RUN (the fix only removes the import) |
 
-NOT_RUN: ESLint, frontend unit specs, browser specs (Vite dev server), runner, the full backend suite, `test_get_routes_read_conn.py`,
-`unused-exports.mjs` / `api-client-check.mjs`.
+NOT_RUN (first session): ESLint, frontend unit specs, browser specs (Vite dev server), runner, the full backend suite,
+`test_get_routes_read_conn.py`, `unused-exports.mjs` / `api-client-check.mjs`.
+
+### Second session (20.11): recordings, playback, playback_groups
+
+The parked models were applied as written except `PlaybackSession.time_precision` (drift item 8) and one stray blank line the
+parked patch added in `routers/playback.py`. Workstation, same venv and oracle (`SW_WIRE_STRICT=1`, `SW_WIRE_COVERAGE_DIR` set);
+the workstation was heavily loaded by parallel agents.
+
+| What | Result |
+|---|---|
+| test_recordings, test_recorded_days, test_playback_release, test_playback_sync, test_multi_nvr, test_provision_p3_wiring, test_nvr_less | 116 passed, 0 failed |
+| test_wire_routers_d_2470, test_routers_table_2440 (route table), test_wire_route_coverage_2460, test_playback_cap, test_playback_scrub_2341, test_playback_stall_settings | 108 passed, 0 failed |
+| test_exports, test_multi_nvr_live, test_installation_capabilities, test_playback_timing_t074 | 73 tests: 72 passed, 1 failed - `test_multi_nvr_live::test_disabling_a_recorder_applies_at_once...` (`two.hits` showed one alertStream request to the disabled recorder: the event listener thread, not a playback route); re-run alone: 1 passed. Load-sensitive, not caused by the models |
+| Oracle coverage (`scripts/wire_route_coverage.py` over the runs) | all 14 modelled routes of the three routers compared at least once except `GET /playback/sessions/{session_id}` (no test reaches its 200; model shared with create / seek, which were compared) |
+| `scripts/gen_wire_types.py --check` | rc 0 |
+| ruff (F, E402) on the three wire modules and routers | all checks passed |
+| `npx tsc --noEmit -p tsconfig.json` | first run with the parked model: 1 error (TS2367, `investigate-event-detail.ts` compares `time_precision` with `'verified'`); after the fix: rc 0 |
+| `npx tsc --noEmit -p tsconfig.tests.json` (also the re-run the first session left NOT_RUN) | rc 0 (final tree) |
+| ESLint on `api/recordings.ts` + the three generated files, and on all 29 frontend `.ts` files the branch changes against `521165ad4` | rc 0, no findings |
+
+NOT_RUN (second session): tsc on the two intermediate commits (`5173914fb`, `25e377087`; only the final tree was compiled), frontend
+unit / browser specs, the runner, the full backend suite, `test_playback_race.py` / `test_playback_stress_2332.py` (load-sensitive,
+the workstation was saturated), `test_get_routes_read_conn.py` (started, had not finished at the time limit), `unused-exports.mjs` /
+`api-client-check.mjs`.
 
 ## Remaining (45 routers)
 
-Parked, written but untested (patch kept outside the repo, not committed): recordings, playback, playback_groups.
 Not started: access_control_capture, _diag, _door, _door_tech, _ops, _people, _profiles, _station_ops, _station_people, _triage,
 _wa_queue, access_grants, announcements, app_brand, app_refresh, app_secrets, automation_blueprints, automation_ext,
 calendar_attendees, camera_image_health, device_layouts, door_automations, exports, fleet, floor_images, frames, frigate_control,
 health, incidents, media, messaging_accounts, nvr_privacy, nvr_write, occupancy, offline_field, partner, plan_area_links, plan_catalog,
 plan_geometry, plan_package, push, skins, storage, tickets_admin_settings, transit (settings_patch/* and access_control_command have no
-routes). Also open: a test reaching `GET /home/room-wallpapers`.
+routes). Also open: tests reaching `GET /home/room-wallpapers` and a 200 of `GET /playback/sessions/{session_id}`.
 
 ## Open questions (recommendation first)
 
