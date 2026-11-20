@@ -1,6 +1,12 @@
 """Constants for the SMPLWISE bridge."""
 DOMAIN = "smplwise_bridge"
-VERSION = "0.10.7"
+VERSION = "0.10.8"
+# 0.10.8 (CR-BRIDGE-BUMP-RATCHETS-2460, owner decision N38 of 19.11): the version label of what already shipped after 0.10.7 without
+# a bump - CR-BRIDGE-GAPS-2438 (indexed entity lookup, the announced cast origin ages out after 600 s, `no_signing_key` push reason,
+# `sync_directory` coalesced to one trailing push per 2 s, named POST timeouts, a control message carrying `reply_to` / `ok` refused
+# before the MAC, one config store per judgement) and CR-BRIDGE-COMMON-2440 (the duplicated helpers live once, in _common.py; no
+# answer, refusal code or signature byte changed). No code change in this version; the bump makes the add-on report
+# `update_pending` until Home Assistant has loaded these files. Needs one Home Assistant restart (by the owner) to load.
 # 0.10.7 (CR-BRIDGE-RUNTIME-2436, code review 2026-11-13 report 05 P1-11 / P1-12): the import-time distribution digest is computed once and
 # never stops the import (a stray symlink, a non-regular file or a missing manifest -> LOADED_DISTRIBUTION None, which WisKey's readiness
 # reader reports as a digest mismatch); the directory pushes are the entry's background tasks (cancelled at unload); the unload saves a
