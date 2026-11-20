@@ -6,6 +6,7 @@
 import { api, del, get, patch, path, post, put, query } from './client';
 import type { SpatialZone, ZonePoint } from './types';
 import type * as ZoneWire from './generated/wire-zones';
+import type * as SuggestWire from './generated/wire-camera-suggest';
 import { tr } from '../i18n/msg/api-home';
 
 export type { SpatialZone, ZonePoint } from './types';
@@ -45,11 +46,7 @@ export const updateZone = (id: string, body: { revision: number; name?: string; 
 // ---------------------------------------------------------------- the zone's camera (CAMSUGGEST138-295)
 
 /** The camera pin an editor accepted for a zone from the nearest-camera suggestions (null = none). Never set automatically. */
-export interface ZoneCameraLink {
-  zone_id: string;
-  anchor_id: string | null;
-  updated_at: string | null;
-}
+export type ZoneCameraLink = SuggestWire.ZoneCameraLink; // wire/camera_suggest.py (generated: ./generated/wire-camera-suggest.ts)
 export const getZoneCamera = (zoneId: string) => get<ZoneCameraLink>(path`zones/${zoneId}/suggested-camera`);
 export const acceptZoneCamera = (zoneId: string, anchorId: string) => put<ZoneCameraLink>(path`zones/${zoneId}/suggested-camera`, { anchor_id: anchorId });
 export const clearZoneCamera = (zoneId: string) => api<ZoneCameraLink>(path`zones/${zoneId}/suggested-camera`, { method: 'DELETE' });
