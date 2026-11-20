@@ -321,7 +321,8 @@ export const settingsKitStyles = css`
   }
   /* CR-CMP2-TABLES-REST-2470 (owner N10): the role matrix is the shared sw-table inside its card (bare static-rows) - the base reading
      size and 10 / 8 px cells of the old table.set-matrix, never wider than the card; the tick in the success ink and the dash in the
-     quiet ink reach its shadow root through the yes / no parts */
+     quiet ink reach its shadow root through the yes / no parts. The tables carry keep-columns (CR-CMP2-GEN-REST-2460: a small grid
+     that fits a phone keeps its columns there instead of the label / value stack; a no-op until that sw-table option lands) */
   sw-table.set-matrix {
     --sw-table-min: 0;
     --sw-table-fs: var(--sw-fs-base);

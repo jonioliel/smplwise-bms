@@ -442,7 +442,7 @@ export class SystemAutomations extends LitElement {
       ...(this.draft.device_test_enabled ? [{ key: 'test', label: tr('בדיקה על ההתקן'), align: 'center' as const, width: '72px', cellAttrs: () => ({ 'data-col-device-test': true }), render: (r: Role) => tick(r.run && r.edit) }] : []),
     ];
     return html`<sw-card heading=${tr('מי רשאי')} data-card="who">
-      <sw-table class="mtx set-matrix" bare static-rows data-roles-matrix .columns=${cols as unknown as TableColumn[]} .rows=${ROLE_ROWS as unknown as Record<string, unknown>[]}
+      <sw-table class="mtx set-matrix" bare static-rows keep-columns data-roles-matrix .columns=${cols as unknown as TableColumn[]} .rows=${ROLE_ROWS as unknown as Record<string, unknown>[]}
         .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-role': String(r.id) })}></sw-table>
       ${this.row(tr('הרשאות ותפקידים'), tr('ההקצאה למשתמשים ולקומות במסך "משתמשים והרשאות".'), html`<a class="link" href="#/system/access" data-link-access>${tr('למסך המשתמשים')}</a>`)}
     </sw-card>`;

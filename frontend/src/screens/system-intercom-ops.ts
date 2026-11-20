@@ -836,15 +836,15 @@ export class SystemIntercomOps extends LitElement {
         <div class="two">
           <div>
             <h3>${T.byStation}</h3>
-            <sw-table class="t" bare static-rows data-ev-stations rowKey="station_id" .columns=${this.stationCols() as unknown as TableColumn[]} .rows=${rep!.by_station as unknown as Record<string, unknown>[]}
+            <sw-table class="t" bare static-rows keep-columns data-ev-stations rowKey="station_id" .columns=${this.stationCols() as unknown as TableColumn[]} .rows=${rep!.by_station as unknown as Record<string, unknown>[]}
               .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-ev-station': String(r.station_id) })}></sw-table>
           </div>
           <div>
             <h3>${T.anomalies}</h3>
-            <sw-table class="t" bare static-rows data-ev-anomalies rowKey="code" .columns=${countCols(T.anomalies, ANOMALY_HE) as unknown as TableColumn[]} .rows=${countRows(rep!.anomalies)}
+            <sw-table class="t" bare static-rows keep-columns data-ev-anomalies rowKey="code" .columns=${countCols(T.anomalies, ANOMALY_HE) as unknown as TableColumn[]} .rows=${countRows(rep!.anomalies)}
               .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-ev-anomaly': String(r.code) })}></sw-table>
             <h3>${T.methods}</h3>
-            <sw-table class="t" bare static-rows data-ev-methods rowKey="code" .columns=${countCols(T.methods, METHOD_HE) as unknown as TableColumn[]} .rows=${countRows(rep!.methods)}
+            <sw-table class="t" bare static-rows keep-columns data-ev-methods rowKey="code" .columns=${countCols(T.methods, METHOD_HE) as unknown as TableColumn[]} .rows=${countRows(rep!.methods)}
               .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-ev-method': String(r.code) })}></sw-table>
           </div>
         </div>`}

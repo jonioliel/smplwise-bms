@@ -553,7 +553,7 @@ export class SystemSchedules extends LitElement {
       { key: 'sensitive', label: tr('רגיש'), align: 'center', render: (r) => cell(r.sensitive) },
     ];
     return html`<sw-card heading=${tr('מי רשאי מה')} data-sched-roles>
-      <sw-table class="set-matrix" bare static-rows data-sched-roles-table rowKey="role" .columns=${cols as unknown as TableColumn[]} .rows=${ROLE_ROWS as unknown as Record<string, unknown>[]}
+      <sw-table class="set-matrix" bare static-rows keep-columns data-sched-roles-table rowKey="role" .columns=${cols as unknown as TableColumn[]} .rows=${ROLE_ROWS as unknown as Record<string, unknown>[]}
         .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-sched-role': String(r.role) })}></sw-table>
       <p class="muted rolesnote">${tr('ברירות המחדל. ניהול תזמונים ותזמון פעולות רגישות (אזעקה, צופרים, מנעולים, דלתות ושערים) ניתנים במפורש לכל משתמש או תפקיד, בהיקף שבחרתם.')}</p>
       <sw-button size="sm" data-open-access @click=${() => navigate('/system/access')}>${tr('משתמשים והרשאות')}</sw-button>
