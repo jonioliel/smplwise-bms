@@ -333,6 +333,8 @@ consistent copy.
   Sessions are capped (`playback.max_sessions`) and expire after `playback.lease_s` without a socket;
   leftovers are removed on start-up. Precision is labelled `keyframe_limited`: the first frame is the
   key frame at or after the requested time (typically 2–4 s to first frame on the lab NVR).
+- Page fit (2.43.9, 2.44.0): the recordings page fits the screen without scrolling, including the 2x2 grid and the
+  diagnostics row (shown by default). A long list of recordings is paged, not scrolled.
 - A gap is shown as a gap. Requesting a time without recording starts at the next segment (and says
   so) or reports "no recording" — it never switches to live.
 - Stall detection (2.0.0): no media progress for `playback.stall_s` (default 5 s) while a recording should
@@ -1623,3 +1625,39 @@ fixes; a faster 3D screen on phones. Bridge 0.9.4 (allowlist picker) needs one r
 **Install notes.** 2.6.4 adds migrations 0094..0106, 2.7.0 adds 0107..0114, 2.7.1 adds 0115..0117, 2.7.2 adds 0118, 2.7.3 adds none and
 2.8.0 adds 0119 (elevators) and 0120 (dashboard indexes), 2.9.0 adds 0121 (door-system write journal), 2.9.1 adds 0122 (elevator "show travelling" option) and 0123 (requests opened from alerts), 2.9.2 adds 0124 (temperature control), 2.9.3 adds 0125 (temperature phase 3), 0126 (external-access identity) and 0127 (access-request form), 2.10.0 adds 0128..0135 (vendor report queue, bulk people, passkeys only, generator routing, arrival and cards, door automations, station access, bridge key set), 2.10.1 adds none, 2.11.0 adds 0136..0145 (off-box backup, door windows and emergency, door-automation hardening, bridge key activation, revoke proof, vendor marker, group-grant deny flag, event-triggered door windows, WhatsApp pacing, WisKey intents and feature registry). Bridge 0.9.2 (from 2.7.1), bridge 0.9.4 (2.10.0) and bridge 0.9.5 (2.11.0) each need one restart of the home system. Reload the
 installed web app once after each update.
+
+## Releases 2.43.9 to 2.45.0: what changed for users
+
+No migration and no change to the bridge (it stays 0.10.7) in any of the three, so the home system needs no restart. Reload the
+installed web app once after each update. Nothing new switches itself on. The end-user description (Hebrew, then English) is in
+`docs/user-guide/he/16-whats-new-2439-2450_HE.md`.
+
+**Redacted log export (2.44.0).** Settings > Health and jobs shows a card "ייצוא יומן מצונזר" to a user who may manage the system
+settings (`system.configure`; the server checks it again). The user picks a window (15 minutes to 24 hours, default one hour) and a
+level (information and above by default; warnings and errors; errors only). The file is created only after the confirmation dialog,
+and holds the latest log lines with each line's request id, the system checks and a recommendation for each problem. Passwords,
+tokens, credentials inside addresses, IP and MAC addresses, serial numbers, phone numbers and e-mail are hidden; video, pictures
+and plans are never included. Every export is written to the audit log. Failures say why (not allowed, consent missing, export failed).
+
+**English tariff names (2.44.0).** In the time-of-use tariff editor each season, day type and band has an optional "שם באנגלית"
+field (up to 40 characters, no Hebrew letters; empty is allowed). The English interface shows the English name in the editor, the
+tariff list, the bill wizard and the bill card; the Hebrew interface and the Hebrew bill paper and PDF never change. The Israeli
+template already carries English names (Summer / Winter / Transition, Weekdays / Fridays and holiday eves / Shabbat and holidays,
+Off-peak / Peak).
+
+**Shared look (2.44.0 and 2.45.0).** The hand-built on/off switches on the notification, automation, schedule, remote editor, alarm,
+branding, mapping, history map, incident and privacy mask screens are the system's shared switch (size and colours change
+slightly; row switches and the home screen switch keep their own look). Short messages (toasts) on 39 screens come from one
+controller: a second message gets its full time and none appears after leaving the screen. Most hand-built segmented choosers
+(settings, calendars, tickets, notifications, access, WisKey) are one shared segmented control, chip rows are one chip chooser and
+form drop-downs sit in the shared field; the glass screens keep their look. The electricity and water tables, generator,
+maintenance, temperature log, recent incidents, waste, read receipts and the fleet report use the shared table (same header and
+state colours, a row opens by click, Enter or Space; at 1024 px wide the table fits its card without sideways scrolling).
+
+**"Not yet" states in electricity and water (2.45.0).** An account without a customer, an active period or a next period, and a bill
+whose total the user may not see, show a dash or "אין עדיין" instead of an error, NaN or 0.
+
+**Other fixes.** 2.43.9: the English, Arabic and Russian packs load only when chosen; an ended phone-app session stops at once;
+the TV board shows feed values as plain text. 2.44.0: a tap on a folding heading or label in a phone bottom sheet is no longer lost.
+2.45.0: a hidden alarm zone and a camera sync that succeeded on no recorder no longer break their screens; a permission on a deleted
+site or building no longer applies to its floors in a notice's audience and its read receipts.
