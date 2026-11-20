@@ -9,6 +9,7 @@ import { isApi } from './session';
 import { tr } from '../i18n/msg/api-home';
 import type * as SyncWire from './generated/wire-calendar-sync';
 import type * as FeedWire from './generated/wire-calendar-feeds';
+import type * as CalWire from './generated/wire-calendar';
 
 export type CalType = 'room' | 'team' | 'maintenance' | 'event';
 export type CalColor = 'blue' | 'rose' | 'cyan' | 'orange' | 'violet' | 'brown' | 'magenta' | 'slate';
@@ -29,135 +30,77 @@ export const CAL_TYPES: readonly CalType[] = ['room', 'team', 'maintenance', 'ev
 export const CAL_COLORS: readonly CalColor[] = ['blue', 'rose', 'cyan', 'orange', 'violet', 'brown', 'magenta', 'slate'];
 export const CAL_ROLES: readonly CalRole[] = ['view', 'book', 'edit', 'manage'];
 
-export interface Person { id: string; name: string }
-interface SyncInfo { state: 'ok' | 'error' | 'paused' | 'needs_reauth' | 'revoked' | 'pending'; provider: 'ical' | 'ics_in' | 'ics_out' | 'google' | 'microsoft'; direction: string; detail?: string; dedicated?: boolean }
+/* The calendar, entry, occurrence, request and preview shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/
+ * calendar.py, generated into ./generated/wire-calendar.ts): a field the server renames or drops is a compile error here (code review
+ * 07:F8 step 2). Narrowed on purpose: the enumerations to the module's own types (stored text on the server); optional on purpose: the
+ * fields the demo store (calendars/demo.ts) does not build. The settings document stays hand-typed (its own versioning, stored as is). */
+export type Person = CalWire.CalPerson;
+interface SyncInfo extends Pick<CalWire.CalSync, 'direction'>, Partial<Pick<CalWire.CalSync, 'detail' | 'dedicated'>> {
+  state: 'ok' | 'error' | 'paused' | 'needs_reauth' | 'revoked' | 'pending';
+  provider: 'ical' | 'ics_in' | 'ics_out' | 'google' | 'microsoft';
+}
 
-export interface Calendar {
-  id: string;
-  name: string;
+export interface Calendar
+  extends Pick<CalWire.CalCalendar, 'id' | 'name' | 'tz' | 'approval_timeout_h' | 'capacity' | 'floor_id' | 'area_ref' | 'pending_count' | 'archived' | 'revision'>,
+    Partial<Pick<CalWire.CalCalendar, 'description' | 'buffer_after_min' | 'buffer_before_min' | 'slot_step_min' | 'min_minutes' | 'max_minutes' | 'horizon_days' | 'lead_min'>> {
   type: CalType;
-  description?: string;
   color: CalColor;
-  tz: string;
+  /** the server answers null only for a calendar whose owner was removed from the users table */
   owner: Person;
   my_role: CalRole | null;
   visibility: 'members' | 'busy_to_all' | 'details_to_all';
   approval_mode: ApprovalMode;
-  approval_timeout_h: number | null;
-  capacity: number | null;
   equipment: Equipment[];
-  floor_id: string | null;
-  area_ref: string | null;
   conflict_policy?: 'exclusive' | 'overlap';
-  buffer_after_min?: number;
-  buffer_before_min?: number;
-  slot_step_min?: number;
-  min_minutes?: number | null;
-  max_minutes?: number | null;
-  horizon_days?: number;
   overlap_override: OverlapMode | null;
   /** CAL-GRID-EDIT-2343: the per-calendar rule for moving an approved booking (default re-approval) */
   approved_move?: ApprovedMove;
   /** CAL-GRID-EDIT-2343: the open hours in force ({weekdays ISO 1-7, start, end}); null = always open; absent = unknown (no hint) */
   open_hours?: OpenHours | null;
-  lead_min?: number;
   sync: SyncInfo | null;
-  pending_count: number;
-  archived: boolean;
-  revision: number;
   /** demo / UI only: a floor's display name (the server answers floor_id; the screen resolves the name from the building tree) */
   floor_name?: string;
 }
 
-export interface Occurrence {
-  occurrence_id: string;
-  event_id: string;
-  calendar_id: string;
-  room_calendar_ids: string[];
-  start: string;
-  end: string;
-  all_day?: boolean;
-  title: string | null;
+/** One occurrence as this viewer may see it. CAL-GRID-EDIT-2343: `can_edit` (the PATCH decides again), `revision`, `local_start`;
+ * `held` = the approved slot a change request keeps until the decision; `held_slot` = this row IS such a kept slot (dotted, never dragged). */
+export interface Occurrence
+  extends Pick<CalWire.CalOccurrence, 'occurrence_id' | 'event_id' | 'calendar_id' | 'room_calendar_ids' | 'start' | 'end' | 'title' | 'on_behalf_label' | 'organizer' | 'recurring'>,
+    Partial<Pick<CalWire.CalOccurrence, 'all_day' | 'contested' | 'can_edit' | 'revision' | 'local_start' | 'held' | 'held_slot'>> {
   state: EntryState;
   kind: EntryKind;
-  on_behalf_label: string | null;
-  organizer: Person | null;
-  recurring: boolean;
-  contested?: boolean;
   sync_flag?: 'conflict' | 'deleted_external' | null;
-  /** CAL-GRID-EDIT-2343: may this viewer move / resize it (the PATCH decides again), its revision and local start */
-  can_edit?: boolean;
-  revision?: number;
-  local_start?: string;
-  /** a change request: the approved slot it keeps until the decision */
-  held?: { calendar_id: string; start: string; end: string } | null;
-  /** this row IS such a kept slot (drawn dotted, never dragged) */
-  held_slot?: boolean;
 }
 
-export interface RoomDay {
-  calendar_id: string;
-  name: string;
-  capacity: number | null;
-  equipment: Equipment[];
-  open: { from: string; to: string }[];
-  entries: Occurrence[];
-}
+export type RoomDay = Omit<CalWire.CalRoomDay, 'equipment' | 'entries'> & { equipment: Equipment[]; entries: Occurrence[] };
 
-export interface CalEvent {
-  id: string;
-  calendar_id: string;
+/** CAL-GRID-EDIT-2343: `held` = the approved slot a change request keeps. */
+export interface CalEvent
+  extends Pick<CalWire.CalEvent, 'id' | 'calendar_id' | 'title' | 'notes' | 'start' | 'end' | 'all_day' | 'tz' | 'rrule' | 'contested' | 'on_behalf_label' | 'headcount'
+    | 'organizer' | 'revision' | 'recurring'>,
+    Partial<Pick<CalWire.CalEvent, 'source' | 'sync_flag' | 'held'>> {
   kind: EntryKind;
-  title: string | null;
-  notes: string | null;
-  start: string;
-  end: string;
-  all_day: boolean;
-  tz: string;
-  rrule: string | null;
   state: EntryState;
-  contested: boolean;
-  on_behalf_label: string | null;
   on_behalf_kind: OnBehalfKind | null;
-  headcount: number | null;
-  organizer: Person | null;
-  revision: number;
-  recurring: boolean;
-  source?: string;
-  sync_flag?: string | null;
-  can: { edit: boolean; cancel: boolean; approve: boolean; restore?: boolean };
-  rooms: { room_calendar_id: string; state: EntryState; contested: boolean }[];
-  /** CAL-GRID-EDIT-2343: the approved slot a change request keeps */
-  held?: { calendar_id: string; start: string; end: string } | null;
+  can: Omit<CalWire.CalEventCan, 'restore'> & Partial<Pick<CalWire.CalEventCan, 'restore'>>;
+  rooms: (Omit<CalWire.CalEventRoom, 'state'> & { state: EntryState })[];
 }
 
-export interface CalRequest {
-  event_id: string;
-  room_calendar_id: string | null;
-  calendar: { id: string; name: string; color: CalColor };
+/** A request waiting for this manager. CAL-GRID-EDIT-2343: `change_of` = a change of an approved booking, the slot it keeps until the
+ * decision. The server always sends `title`; the demo store may leave it null. */
+export interface CalRequest
+  extends Pick<CalWire.CalRequest, 'event_id' | 'room_calendar_id' | 'start' | 'end' | 'recurring' | 'organizer' | 'on_behalf_label' | 'headcount' | 'contested'
+    | 'competing_count' | 'conflicts_now' | 'requested_at' | 'revision'>,
+    Partial<Pick<CalWire.CalRequest, 'queue_position' | 'suggested' | 'change_of'>> {
+  calendar: Omit<CalWire.CalRequestCalendar, 'color'> & { color: CalColor };
   title: string | null;
   kind: EntryKind;
-  start: string;
-  end: string;
-  recurring: boolean;
-  organizer: Person | null;
-  on_behalf_label: string | null;
-  headcount: number | null;
-  contested: boolean;
-  competing_count: number;
-  conflicts_now: number;
-  requested_at: string;
-  revision: number;
-  queue_position?: number;
-  suggested?: boolean;
   /** demo / UI: a recurring summary (the server sends `recurring` only) */
   recurring_summary?: string;
   guests_count?: number;
-  /** CAL-GRID-EDIT-2343: a change of an approved booking - the slot it keeps until the decision */
-  change_of?: { calendar_id: string; start: string; end: string } | null;
 }
 
-export interface Member { subject_kind: 'user' | 'role' | 'department' | 'everyone'; subject_id: string; label: string; cal_role: CalRole }
+export type Member = CalWire.CalMember;
 
 export interface CalSettings {
   enabled: boolean;
@@ -203,8 +146,8 @@ export interface CalSettings {
 export type CalUi = Pick<CalSettings, 'contested_order' | 'displace_approver' | 'override_scope' | 'phone_time_picker' | 'reauth_mode' | 'sync_conflict_display' | 'tablet_panels'
   | 'resident_pending_display' | 'resident_cancel_until' | 'resident_rooms' | 'purge_confirm' | 'loading_style' | 'allow_displace' | 'guest_details_enabled'> & { grid_edit?: GridEdit };
 
-export interface ModuleState {
-  enabled: boolean;
+/** `can`: the module's permissions held anywhere (the server answers every permission short name). */
+export interface ModuleState extends Pick<CalWire.CalModuleState, 'enabled'> {
   menu_position: MenuPosition;
   can: { view: boolean; book: boolean; book_for_others: boolean; manage: boolean; maintenance: boolean; guests: boolean; configure: boolean; connect: boolean };
   ui?: Partial<CalUi>;
@@ -256,8 +199,8 @@ type FeedIssued = Omit<FeedWire.CalFeedIssued, 'feed'> & { feed: Feed };
 /** A flagged entry (wire: CalSyncFlag); narrowed: the calendar colour, the flag kinds and the entry state; `title` may be null in the demo store. */
 export type SyncFlag = Omit<SyncWire.CalSyncFlag, 'calendar' | 'title' | 'flag' | 'state'> & { calendar: { id: string; name: string; color: CalColor }; title: string | null; flag: 'conflict' | 'deleted_external'; state: EntryState };
 
-interface MaintOverlap { event_id: string; calendar_id: string; start: string; end: string; title: string | null; organizer: Person | null; state: EntryState }
-export interface MaintPreview { overlaps: MaintOverlap[]; mode: OverlapMode; alternatives: { start: string; end: string }[] }
+type MaintOverlap = Omit<CalWire.CalOverlap, 'state'> & { state: EntryState };
+export type MaintPreview = Omit<CalWire.CalMaintPreview, 'overlaps' | 'mode'> & { overlaps: MaintOverlap[]; mode: OverlapMode };
 
 export interface NewEvent {
   calendar_id: string;
@@ -286,7 +229,11 @@ export interface EventPatch {
   scope?: 'occurrence' | 'following' | 'series';
   occurrence_start?: string;
 }
-export interface EventPreview { conflicts: { calendar_id: string; start: string; end: string; title: string | null; state: EntryState }[]; needs_approval_by: string[]; outside_hours: boolean; holiday_hits: string[]; capacity_ok: boolean }
+/** The server's conflict names the entry (`event_id`), never its title; the demo store and the edit form's own contested slot carry a
+ * `title` instead (so the clash hint names the entry only there). `contested` / `suggestions` (free slots nearby) are not built by the demo store. */
+type PreviewConflict = Omit<CalWire.CalConflict, 'state' | 'event_id'> & Partial<Pick<CalWire.CalConflict, 'event_id'>> & { state: EntryState; title?: string | null };
+export type EventPreview = Omit<CalWire.CalEventPreview, 'conflicts' | 'contested' | 'suggestions'> & Partial<Pick<CalWire.CalEventPreview, 'contested' | 'suggestions'>>
+  & { conflicts: PreviewConflict[] };
 
 /** The wire calls. One object so the demo can stand in for it as a whole (calendars/demo.ts implements the same shape). */
 export interface CalendarsApi {
@@ -304,7 +251,8 @@ export interface CalendarsApi {
   roomsDay(date: string): Promise<{ rooms: RoomDay[] }>;
   createEvent(body: NewEvent): Promise<{ event: CalEvent; state: EntryState }>;
   previewEvent(body: NewEvent): Promise<EventPreview>;
-  event(id: string): Promise<{ event: CalEvent }>;
+  /** The server also answers the approval history and the guest count / visibility (the demo store answers the entry only). */
+  event(id: string): Promise<{ event: CalEvent } & Partial<Omit<CalWire.CalEventDetail, 'event'>>>;
   cancelEvent(id: string, revision: number, occurrenceStart?: string): Promise<{ event: CalEvent }>;
   withdrawEvent(id: string, revision: number): Promise<{ event: CalEvent; change_withdrawn?: boolean }>;
   /** CAL-GRID-EDIT-2343: a move / resize / edit, and "בטל" after a delete */
