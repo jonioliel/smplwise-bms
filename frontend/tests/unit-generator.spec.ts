@@ -131,7 +131,7 @@ test.describe('generator: alerts and routing', () => {
     expect(new Date(q.from!).getDate()).toBe(28);
     expect(filterQuery({ ...EMPTY_FILTER, ack: 'yes' }, 'g1', now).ack).toBe(true);
   });
-  const items = (level: 'minimal' | 'typical' | 'full'): PolicyItem[] => typesFor(level).map((t) => ({ key: t.key, group: t.group, title: t.title, title_en: '', default_severity: 'alert', event: '', available: t.available, needs: t.needs, message: '{name}', policy: null }));
+  const items = (level: 'minimal' | 'typical' | 'full'): PolicyItem[] => typesFor(level).map((t) => ({ key: t.key, group: t.group, title: t.title, title_en: '', default_severity: 'alert', event: false, available: t.available, needs: t.needs, message: '{name}', policy: null }));
   test('routing groups: a group with no available type is hidden; unavailable rows stay in a visible group', () => {
     const keys = (l: 'minimal' | 'typical' | 'full') => routeGroups(GROUPS, items(l)).map((g) => g.key);
     expect(keys('minimal')).toEqual(['engine', 'comm']);
