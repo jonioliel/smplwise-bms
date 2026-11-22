@@ -6,7 +6,8 @@
  */
 import type { IconName } from '../components/sw-icon';
 import { canAnywhere } from './session';
-import { activateScene, automations, runScriptNow, type ItemKind } from './automations';
+// PERF-2490: the automations model (with its adapters) loads with the first scene / script launch, not with the home screen
+import type { ItemKind } from './automations';
 import { navigate } from '../router';
 import { tr } from '../i18n/msg/api-home';
 
@@ -88,6 +89,7 @@ export async function runLaunch(item: LaunchItem): Promise<void> {
   if (item.kind === 'quick') return;
   // a scene / script is addressed by its automations item id, not its entity id: the list (the same gate as apply / run) resolves it
   const kind: ItemKind = item.kind;
+  const { activateScene, automations, runScriptNow } = await import('./automations');
   const { items } = await automations().list({ kind, limit: 500 });
   const found = items.find((x) => x.entity_id === item.id);
   if (!found) throw new Error(item.kind === 'scene' ? tr('הסצנה לא נמצאה') : tr('הסקריפט לא נמצא'));

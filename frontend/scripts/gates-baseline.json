@@ -2,14 +2,14 @@
   "_comment": "CR-FE-GATES-ENFORCE-2442: the baselines of the blocking frontend checks (docs/changes/CR-FE-GATES-ENFORCE-2442.md). bundle: the entry chunk of `vite build` (dist) measured by scripts/bundle-budget.mjs; budget = measured x (1 + marginPct/100), rounded up to 1000 B. unusedExports: the exports scripts/unused-exports.mjs may still report (module#name); a new one fails, the lists only shrink (--update-baseline prunes).",
   "bundle": {
     "measured": {
-      "gzip": 807703,
-      "raw": 2810184,
-      "on": "2026-11-19, vite build of pilot/CR-BRIDGE-BUMP-RATCHETS-2460 on release/2450-train 521165ad4 (2.45.0), Windows workstation; the train's own 2.45.0 build (smplwise_vms/www, runner) has entry gzip 807666 / raw 2810141. Lowered from measured 1069016 (owner N39): the language packs left the entry (CR-I18N-LAZY-LANG-2443), -24 % gzip since 2.43.8"
+      "gzip": 638012,
+      "raw": 2204929,
+      "on": "2026-11-22, vite build of pilot/PERF-2490 on release/2470-train 092bbc9a1 (2.47.0), Windows workstation. Lowered from measured 807703 (2.45.0; the 2.47.0 entry was 811918 gzip / 2824884 raw): the home media drawer, the device popup, the closing prompt, two user-menu sections, the cast screen, the push settings, the schedule dialogs and the automations model left the entry (docs/changes/PERF-2490.md), -21 % gzip"
     },
     "marginPct": 5,
     "budget": {
-      "gzip": 849000,
-      "raw": 2951000
+      "gzip": 670000,
+      "raw": 2316000
     },
     "mocksInEntry": 0
   },
