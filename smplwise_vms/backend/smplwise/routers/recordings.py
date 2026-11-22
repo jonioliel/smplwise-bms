@@ -17,6 +17,8 @@ from ..services import recordings_store as store
 from ..services.access import require_camera
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from ..services.settings_store import setting_value
+from ..wire import recordings as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -29,7 +31,7 @@ def camera_for_playback(conn: sqlite3.Connection, principal: Principal, camera_i
     return cam
 
 
-@router.get("/cameras/{camera_id}/recordings")
+@router.get("/cameras/{camera_id}/recordings", **wire(W.RecordingSearch))
 def camera_recordings(
     camera_id: str,
     request: Request,
@@ -57,7 +59,7 @@ def camera_recordings(
     return out
 
 
-@router.get("/cameras/{camera_id}/recordings/days")
+@router.get("/cameras/{camera_id}/recordings/days", **wire(W.RecordedDays))
 def camera_recorded_days(
     camera_id: str,
     request: Request,

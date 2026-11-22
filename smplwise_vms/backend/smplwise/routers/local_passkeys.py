@@ -54,6 +54,9 @@ from ..services import second_factor as sf
 from .. import guarded_route
 from ._common import rid as _rid
 from .local_identity import _error, _public_guard, _success, _user_row
+from ..wire import local_passkeys as W
+from ..wire import wire
+from ..wire.local_identity import LocalSignInSession
 
 router = APIRouter()
 
@@ -84,7 +87,7 @@ def _ip_limit(request: Request, key: str, limits: list[tuple[float, int]]) -> JS
     return None
 
 
-@public_post("/auth/local/sign-in/passkey/options")
+@public_post("/auth/local/sign-in/passkey/options", **wire(W.AssertionOptions))
 async def second_step_options(request: Request) -> Response:
     refused = _ip_limit(request, "lpko", OPTIONS_LIMITS)
     if refused is not None:
@@ -93,7 +96,7 @@ async def second_step_options(request: Request) -> Response:
     return JSONResponse(out)
 
 
-@public_post("/auth/local/sign-in/passkey")
+@public_post("/auth/local/sign-in/passkey", **wire(LocalSignInSession))
 async def second_step_passkey(body: CredentialBody, request: Request) -> Response:
     refused = _ip_limit(request, "lsf", SECOND_STEP_LIMITS)  # one budget with the TOTP code step
     if refused is not None:
@@ -102,7 +105,7 @@ async def second_step_passkey(body: CredentialBody, request: Request) -> Respons
     return _success(request, r)
 
 
-@public_post("/auth/local/passkey/options")
+@public_post("/auth/local/passkey/options", **wire(W.AssertionOptions))
 async def passwordless_options(request: Request) -> Response:
     refused = _ip_limit(request, "lpkp", OPTIONS_LIMITS)  # review F10: its own budget - never starves the second-step options
     if refused is not None:
@@ -111,7 +114,7 @@ async def passwordless_options(request: Request) -> Response:
     return JSONResponse(await run_in_threadpool(lpk.passwordless_options, request.app.state.db, addr))
 
 
-@public_post("/auth/local/passkey")
+@public_post("/auth/local/passkey", **wire(LocalSignInSession))
 async def passwordless_sign_in(body: CredentialBody, request: Request) -> Response:
     import asyncio
 
@@ -139,14 +142,14 @@ def _self(request: Request, principal: Principal, conn: sqlite3.Connection) -> l
     return s
 
 
-@router.get("/auth/passkeys")
+@router.get("/auth/passkeys", **wire(W.OwnPasskeys))
 def own_passkeys(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     s = _self(request, principal, conn)
     return {**lpk.summary(conn, s.user_id), "recent_auth": lpk.recent_auth(conn, s),
             "recent_auth_left_s": max(0, int(lpk.RECENT_AUTH_S - (time.time() - s.chain_started_at))), "totp": sf.is_enrolled(conn, s.user_id)}
 
 
-@router.post("/auth/passkeys/register/options")
+@router.post("/auth/passkeys/register/options", **wire(W.RegistrationOptions))
 def register_options(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     s = _self(request, principal, conn)
     return lpk.registration_options(conn, s)
@@ -158,7 +161,7 @@ class RegisterBody(BaseModel):
     label: str | None = Field(default=None, max_length=lpk.LABEL_MAX)
 
 
-@router.post("/auth/passkeys/register", status_code=201)
+@router.post("/auth/passkeys/register", status_code=201, **wire(W.PasskeyRegistered))
 def register(body: RegisterBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     s = _self(request, principal, conn)
     out = lpk.register(conn, settings_of(request), request, s, body.credential, body.label, _rid(request))
@@ -172,7 +175,7 @@ class LabelBody(BaseModel):
     label: str | None = Field(default=None, max_length=lpk.LABEL_MAX)
 
 
-@router.patch("/auth/passkeys/{pk_id}")
+@router.patch("/auth/passkeys/{pk_id}", **wire(W.PasskeySummary))
 def rename(pk_id: str, body: LabelBody, request: Request, principal: Principal = Depends(current_principal),
            conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     s = _self(request, principal, conn)
@@ -189,7 +192,7 @@ class RemoveBody(BaseModel):
     code: str | None = Field(default=None, max_length=16)
 
 
-@router.delete("/auth/passkeys/{pk_id}")
+@router.delete("/auth/passkeys/{pk_id}", **wire(W.PasskeyRemoved))
 def remove_own(pk_id: str, request: Request, body: RemoveBody | None = None, principal: Principal = Depends(current_principal),
                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A fresh sign-in (< 5 min, with the factor) or the current TOTP code: a stolen session alone cannot strip a factor."""
@@ -215,7 +218,7 @@ class FirstBody(BaseModel):
     on: bool
 
 
-@router.put("/auth/passkeys/first")
+@router.put("/auth/passkeys/first", **wire(W.PasskeySummary))
 def own_first(body: FirstBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     s = _self(request, principal, conn)
     return lpk.set_first(conn, s, body.on, _rid(request))
@@ -226,7 +229,7 @@ class OnlyBody(BaseModel):
     on: bool
 
 
-@router.put("/auth/passkeys/only")
+@router.put("/auth/passkeys/only", **wire(W.PasskeySummary))
 def own_only(body: OnlyBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """usr2-passkeys-only-mode: the user's own switch (on needs a working passkey, the owner switch and a fresh sign-in)."""
     s = _self(request, principal, conn)
@@ -235,7 +238,7 @@ def own_only(body: OnlyBody, request: Request, principal: Principal = Depends(cu
 
 # ---------------------------------------------------------------- administration
 
-@router.put("/identity/local-users/{user_id}/passkey-only")
+@router.put("/identity/local-users/{user_id}/passkey-only", **wire(W.UserPasskeys))
 def admin_only(user_id: str, body: OnlyBody, request: Request, principal: Principal = Depends(current_principal),
                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A system administrator switches the passkeys-only mode of a local user on (the user needs a working passkey) or off (the
@@ -257,14 +260,14 @@ def admin_only(user_id: str, body: OnlyBody, request: Request, principal: Princi
     return {"user_id": user_id, **out}
 
 
-@router.get("/identity/local-users/{user_id}/passkeys")
+@router.get("/identity/local-users/{user_id}/passkeys", **wire(W.UserPasskeys))
 def user_passkeys(user_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "identity.directory.read", INSTALLATION)
     _user_row(conn, user_id)
     return {"user_id": user_id, **lpk.summary(conn, user_id)}
 
 
-@router.delete("/identity/local-users/{user_id}/passkeys/{pk_id}")
+@router.delete("/identity/local-users/{user_id}/passkeys/{pk_id}", **wire(W.UserPasskeyRemoved))
 def admin_remove(user_id: str, pk_id: str, request: Request, body: RemoveBody | None = None, principal: Principal = Depends(current_principal),
                  conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A lost / suspected passkey (the CR-011 administrator reset, for one passkey): every local session of the user ends, a pending

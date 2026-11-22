@@ -14,6 +14,7 @@ import { paged } from './home-logic';
 import { relTime } from './home-api';
 import { registerMoreTile } from './more-registry';
 import { ApiError, del, describeError, get, post } from '../api/client';
+import type * as V3Wire from '../api/generated/wire-home-v3';
 import { getCallLog, type CallLogRow } from '../api/intercom-calls';
 import { canAnywhere } from '../api/session';
 import { commandId } from '../api/request-id';
@@ -25,7 +26,7 @@ interface Visitor {
   id: string; state: string | null; confirmed: boolean; valid_from: string | null; valid_until: string | null; end_reason?: string | null;
   doors: { station_id: string; name: string; relays: number[] }[]; visitor: { name: string | null; number: string | null }; own: boolean;
 }
-interface GuestDoor { station_id: string; relay: number; name: string; station_name: string }
+type GuestDoor = V3Wire.GuestDoor; // wire/home_v3.py (../api/generated/wire-home-v3.ts)
 interface Person { id: string; display_name: string; active: boolean; valid_from: string | null; valid_until: string | null; stations: { station_id: string; enabled: boolean; doors: number[] }[] }
 interface Draft { name: string; phone: string; door: string; day: 'today' | 'tom'; from: number; to: number; busy: boolean; error: string }
 
@@ -59,7 +60,7 @@ async function loadCalls(h: HomeHost) {
 async function loadGuests(h: HomeHost) {
   if (!guestsOk(h)) { st.guestsOn = false; st.guestsLoaded = true; return; }
   try {
-    const [v, d] = await Promise.all([get<{ visitors: Visitor[] }>('access/visitors?mine=true'), get<{ doors: GuestDoor[] }>('home/guest-doors')]);
+    const [v, d] = await Promise.all([get<{ visitors: Visitor[] }>('access/visitors?mine=true'), get<V3Wire.GuestDoors>('home/guest-doors')]);
     st.guests = v.visitors.filter((g) => g.own);
     st.doors = d.doors;
     st.guestsOn = true;
