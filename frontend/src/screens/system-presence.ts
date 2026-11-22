@@ -1,9 +1,13 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-card';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
 import '../components/sw-toggle';
 import '../components/sw-field';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import './system-building-presence';
 import { describeError } from '../api/client';
 import { dayTimeText } from '../api/day-format';
@@ -17,7 +21,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { parseRoute, replaceRoute } from '../router';
 import { pt } from '../i18n/presence';
 import { BP } from '../i18n/building-presence';
-import { settingsWrapFootStyles, settingsPillSegKeyStyles } from '../styles/settings';
+import { settingsWrapFootStyles } from '../styles/settings';
 import { okLineStyles, errLineStyles } from '../styles/fragments';
 import { tr } from '../i18n/msg/system-b';
 import './system-presence-places'; // WHOIN034-295: the place editors and the "מי במבנה" thresholds
@@ -120,24 +124,9 @@ export class SystemPresence extends LitElement {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
-    .seg button {
-      transition: transform var(--sw-t-press) var(--sw-ease);
-    }
-    .seg button:active {
-      transform: scale(var(--sw-press-scale));
-    }
     @media (pointer: coarse) {
-      .chk,
-      .seg button {
+      .chk {
         min-block-size: 44px;
-      }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .seg button {
-        transition-duration: 0ms;
-      }
-      .seg button:active {
-        transform: none;
       }
     }
     .glass {
@@ -150,45 +139,31 @@ export class SystemPresence extends LitElement {
       flex: 1 1 200px;
       min-width: 0;
     }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: var(--sw-fs-sm);
+    /* CR-CMP2-TABLES-REST-2470 (owner N10): the registered devices are the shared table inside the card (no second card, never wider
+       than the card: the shared sensors line is cut with an ellipsis, its full text the cell's title) */
+    sw-table[data-presence-table] {
+      --sw-table-min: 0;
+      --sw-table-trunc: 220px;
     }
-    th,
-    td {
-      text-align: start;
-      padding: 6px 8px;
-      border-block-end: 1px solid var(--sw-border);
-      vertical-align: top;
-    }
-    th {
-      color: var(--sw-text-2);
-      font-weight: var(--sw-fw-bold);
-      font-size: var(--sw-fs-xs);
-      letter-spacing: 0.03em;
-      background: var(--sw-surface-2);
-    }
-    td {
-      font-variant-numeric: tabular-nums;
-    }
-    td:first-child {
-      font-weight: var(--sw-fw-bold);
-      color: var(--sw-heading, var(--sw-text));
-    }
-    .wrap {
-      overflow-x: auto;
-    }
-    .seg {
-      display: inline-flex;
+    /* CR-CMP2-SEGMENTED-B-2450: the presence pages' round pill keys (the bordered pill track, 13 px keys; 40 / 44 px under a finger)
+       drawn by sw-segmented through its knobs */
+    sw-segmented {
+      --sw-seg-border: var(--sw-border);
+      --sw-seg-radius: var(--sw-r-pill);
+      --sw-seg-btn-radius: var(--sw-r-pill);
+      --sw-seg-pad: 2px;
+      --sw-seg-track: var(--sw-surface-2);
+      --sw-seg-h: 28px;
+      --sw-seg-fs: var(--sw-fs-sm);
+      --sw-seg-fw: var(--sw-fw-regular);
       justify-self: start;
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-pill);
-      padding: 2px;
-      background: var(--sw-surface-2);
-      flex-wrap: wrap;
     }
-    ${settingsPillSegKeyStyles}
+    @media (pointer: coarse) {
+      sw-segmented {
+        --sw-seg-h: 44px;
+        --sw-seg-key-pad: 16px;
+      }
+    }
     @media (max-width: 767px) {
       .row {
         flex-direction: column;
@@ -307,19 +282,22 @@ export class SystemPresence extends LitElement {
   private renderDevices() {
     if (this.devices === null) return nothing;
     const fmt = (iso: string | null | undefined) => (iso ? dayTimeText(iso) : '—');
+    const sharing = (d: PresenceDevice) => SENSOR_KEYS.filter((k) => d.status.sensors[k] === 'on').map((k) => SENSOR_LABEL[k]).join(', ') || '—';
+    // CR-CMP2-TABLES-REST-2470 (owner N10): the person, the device over its platform and version, what it shares, inside the building (a
+    // shared tone chip: yes ok, no neutral), the last report, whether it takes push notifications. Read only.
+    const cols: TableColumn<PresenceDevice>[] = [
+      { key: 'user', label: tr('משתמש'), render: (d) => html`<span class="t1">${d.user?.display_name ?? ''}</span>` },
+      { key: 'name', label: tr('מכשיר'), render: (d) => html`${d.name}<span class="t2">${d.platform === 'ios' ? 'iPhone' : 'Android'} · ${d.app_version ?? ''}</span>` },
+      { key: 'sharing', label: tr('משתף'), kind: 'truncate', cellTitle: sharing, render: sharing },
+      { key: 'inside', label: tr('במבנה'), kind: 'status',
+        render: (d) => (d.presence.inside === null || d.presence.inside === undefined ? html`<span class="mut">—</span>` : html`<span class="chip" data-tone=${d.presence.inside ? 'ok' : nothing}>${d.presence.inside ? tr('כן') : tr('לא')}</span>`) },
+      { key: 'last', label: tr('דיווח אחרון'), kind: 'muted', render: (d) => html`<span class="num">${fmt(d.last_event_at ?? d.last_seen_at)}</span>` },
+      { key: 'push', label: tr('התראות'), render: (d) => (d.push.registered ? tr('רשום') : html`<span class="mut">—</span>`) },
+    ];
     return html`<sw-card heading=${tr('מכשירים רשומים')} subheading=${this.devices.length ? tr('{n} מכשירים', { n: this.devices.length }) : tr('אין מכשירים רשומים')} data-presence-devices>
       ${this.devices.length
-        ? html`<div class="wrap"><table>
-            <thead><tr><th>${tr('משתמש')}</th><th>${tr('מכשיר')}</th><th>${tr('משתף')}</th><th>${tr('במבנה')}</th><th>${tr('דיווח אחרון')}</th><th>${tr('התראות')}</th></tr></thead>
-            <tbody>${this.devices.map((d) => html`<tr data-presence-device=${d.device_id}>
-              <td>${d.user?.display_name ?? ''}</td>
-              <td>${d.name}<div class="muted">${d.platform === 'ios' ? 'iPhone' : 'Android'} · ${d.app_version ?? ''}</div></td>
-              <td>${SENSOR_KEYS.filter((k) => d.status.sensors[k] === 'on').map((k) => SENSOR_LABEL[k]).join(', ') || '—'}</td>
-              <td>${d.presence.inside === true ? tr('כן') : d.presence.inside === false ? tr('לא') : '—'}</td>
-              <td>${fmt(d.last_event_at ?? d.last_seen_at)}</td>
-              <td>${d.push.registered ? tr('רשום') : '—'}</td>
-            </tr>`)}</tbody>
-          </table></div>`
+        ? html`<sw-table bare static-rows data-presence-table rowKey="device_id" .columns=${cols as unknown as TableColumn[]} .rows=${this.devices as unknown as Record<string, unknown>[]}
+            .rowAttrs=${(d: Record<string, unknown>) => ({ 'data-presence-device': String(d.device_id) })}></sw-table>`
         : nothing}
     </sw-card>`;
   }
@@ -343,8 +321,8 @@ export class SystemPresence extends LitElement {
 
   render() {
     const editable = this.canEdit && isApi();
-    const seg = (p: Page, key: 'segGeneral' | 'segPlaces' | 'segScreen') => html`<button type="button" aria-pressed=${String(this.page === p)} data-presence-page=${p} @click=${() => this.setPage(p)}>${pt(key)}</button>`;
-    const pages = html`<div class="seg" role="group" data-presence-pages>${seg('general', 'segGeneral')}${seg('places', 'segPlaces')}${seg('screen', 'segScreen')}<button type="button" aria-pressed=${String(this.page === 'building')} data-presence-page="building" @click=${() => this.setPage('building')}>${BP.tab}</button></div>`;
+    const pages = html`<sw-segmented data-presence-pages value=${this.page} @change=${(e: CustomEvent<SegmentedChange>) => this.setPage(e.detail.value as Page)}
+      .options=${[{ value: 'general', label: pt('segGeneral'), attrs: { 'data-presence-page': 'general' } }, { value: 'places', label: pt('segPlaces'), attrs: { 'data-presence-page': 'places' } }, { value: 'screen', label: pt('segScreen'), attrs: { 'data-presence-page': 'screen' } }, { value: 'building', label: BP.tab, attrs: { 'data-presence-page': 'building' } }]}></sw-segmented>`;
     if (this.page === 'building') return html`${pages}<system-building-presence ?editable=${editable}></system-building-presence>`;
     if (this.page === 'places') return html`${pages}<system-presence-places .settings=${this.saved} ?editable=${editable} @saved=${(e: CustomEvent<PresenceSettings>) => this.adopt(e.detail)}></system-presence-places>`;
     if (this.page === 'screen') return html`${pages}<system-presence-screen .settings=${this.saved} ?editable=${editable} @saved=${(e: CustomEvent<PresenceSettings>) => this.adopt(e.detail)}></system-presence-screen>`;
@@ -367,7 +345,8 @@ export class SystemPresence extends LitElement {
             <option value="server" ?selected=${d.wifi_match_mode === 'server'}>${tr('בשרת (גיבוב)')}</option>
           </select></sw-field></div>
         <div class="row" data-presence-row="value-check"><span class="lbl">${pt('valueCheck')}<span class="muted">${pt('valueCheckHint')}</span></span>
-          <div class="seg" role="group" aria-label=${pt('valueCheck')} data-presence-value-check>${VALUE_CHECK_MODES.map((m: ValueCheck) => html`<button type="button" data-v=${m} aria-pressed=${String(valueCheckOf(d.value_check) === m)} ?disabled=${!editable || this.busy} @click=${() => this.patch({ value_check: m })}>${pt(`valueCheck_${m}`)}</button>`)}</div></div>
+          <sw-segmented label=${pt('valueCheck')} data-presence-value-check value=${valueCheckOf(d.value_check)} ?disabled=${!editable || this.busy} @change=${(e: CustomEvent<SegmentedChange>) => this.patch({ value_check: e.detail.value as ValueCheck })}
+      .options=${VALUE_CHECK_MODES.map((m: ValueCheck) => ({ value: m, label: pt(`valueCheck_${m}`), attrs: { 'data-v': m } }))}></sw-segmented></div>
         <div class="row" data-presence-row="notice"><span class="lbl">${tr('הודעה לעובדים')}<span class="muted">${tr('גרסה {n}; שינוי בטקסט מעלה את הגרסה וכל מכשיר מאשר מחדש', { n: d.notice_version })}</span></span></div>
         <textarea data-presence-notice placeholder=${tr('טקסט ההודעה לעובדים (ניסוח משפטי של בעל המערכת)')} .value=${d.notice_text} ?disabled=${!editable || this.busy} @input=${(e: Event) => this.patch({ notice_text: (e.target as HTMLTextAreaElement).value })}></textarea>
         <div class="row" data-presence-row="retention"><span class="lbl">${tr('שמירת יומן הדיווחים')}</span>

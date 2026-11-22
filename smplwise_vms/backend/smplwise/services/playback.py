@@ -21,6 +21,7 @@ from ..config import Settings
 from ..errors import ApiError
 from . import go2rtc as g2
 from .timeutil import UTC, compact_wall, iso_utc, zone
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.playback")
 
@@ -434,3 +435,6 @@ def to_dict(session: PlaybackSession, lease_s: int) -> dict[str, Any]:
         "bytes_down": session.bytes_down,
         "seconds": int(time.time() - session.created),
     }
+
+
+register_reset(__name__, ("_OWNED",), _OWNED.written.clear)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)

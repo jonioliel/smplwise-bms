@@ -162,16 +162,11 @@ export const ticketListFrameStyles = css`
     font-size: var(--sw-fs-sm);
     color: var(--dv-text-2);
   }
-  .vsw button .lbl {
+  .vsw::part(label) {
     font-weight: 600;
   }
-  .vsw button[aria-checked='true'] .ic,
-  .vsw button[aria-checked='true'] svg {
+  .vsw::part(icon-on) {
     color: var(--dv-accent-text);
-  }
-  .seg.scope button small,
-  .seg.stf button small {
-    margin-inline-start: 6px;
   }
   /* a count on a department chip is a small badge, never read as part of the name */
   .rooms .rc small {
@@ -204,20 +199,18 @@ export const ticketListFrameStyles = css`
     .frow .sep {
       display: none;
     }
-    .vsw button .lbl {
+    .vsw::part(label) {
       display: none;
     }
-    .dh-det .seg.scope {
+    /* CR-CMP2-SEGMENTED-C-2450: the scope keys (sw-segmented) share the full-width row equally, 44 px tall */
+    .dh-det sw-segmented.scope {
       order: 0;
+      display: flex;
       inline-size: 100%;
-      box-sizing: border-box;
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      border-radius: var(--sw-r-xl);
-    }
-    .dh-det .seg.scope button {
-      padding-inline: 6px;
-      min-block-size: 44px;
+      --sw-seg-radius: var(--sw-r-xl);
+      --sw-seg-h: 44px;
+      --sw-seg-key-pad: 6px;
+      --sw-seg-key-flex: 1 1 0;
     }
     .dh-det .filterbtn {
       order: 2;

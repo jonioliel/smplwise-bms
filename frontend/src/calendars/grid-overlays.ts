@@ -3,6 +3,8 @@ import { deepFocusables } from '../components/sw-drawer';
 import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { dateInputLang } from '../api/day-format';
 import type { Calendar, OnBehalfKind, Occurrence } from '../api/calendars';
 import { attendeeSlot, type CalCtx } from './ctx';
@@ -274,8 +276,8 @@ export class CalQuickCreate extends LitElement {
       <div class="qr"><sw-icon name="pin" size="16"></sw-icon><div class="qv"><span class="sel" style=${`--h:${colorVar(cal?.color)}`}><span class="dot"></span>
           <select aria-label=${tr('יומן')} data-cal-qc="calendar" @change=${(e: Event) => this.set({ calId: (e.target as HTMLSelectElement).value })}>${cals.map((c) => html`<option value=${c.id} ?selected=${c.id === d.calId}>${c.name}</option>`)}</select>
           <sw-icon name="chevronDown" size="14"></sw-icon></span>${cal?.floor_name || (cal && cal.approval_mode !== 'none' && cal.my_role !== 'manage') ? html`<span class="muted">${[cal?.floor_name, cal && cal.approval_mode !== 'none' && cal.my_role !== 'manage' ? tr('באישור') : ''].filter(Boolean).join(' · ')}</span>` : nothing}</div></div>
-      <div class="qr"><sw-icon name="refresh" size="16"></sw-icon><div class="qv"><div class="seg" role="group" aria-label=${tr('חזרה')}>
-        ${([['none', tr('פעם אחת')], ['weekly', tr('כל {day}', { day: DAY_LONG[d.day.getDay()] })], ['daily', tr('כל יום')]] as [Repeat, string][]).map(([k, v]) => html`<button type="button" aria-pressed=${String(d.repeat === k)} data-cal-qc-repeat=${k} @click=${() => this.set({ repeat: k })}>${v}</button>`)}</div>
+      <div class="qr"><sw-icon name="refresh" size="16"></sw-icon><div class="qv"><sw-segmented label=${tr('חזרה')} value=${d.repeat} @change=${(e: CustomEvent<SegmentedChange>) => this.set({ repeat: e.detail.value as Repeat })}
+        .options=${([['none', tr('פעם אחת')], ['weekly', tr('כל {day}', { day: DAY_LONG[d.day.getDay()] })], ['daily', tr('כל יום')]] as [Repeat, string][]).map(([k, v]) => ({ value: k, label: v, attrs: { 'data-cal-qc-repeat': k } }))}></sw-segmented>
         ${d.repeat !== 'none' ? html`<span class="tm"><input type="number" min="2" max="104" class="num" style="inline-size:64px" aria-label=${tr('מספר מועדים')} data-cal-qc="count" .value=${String(d.count)} @change=${(e: Event) => this.set({ count: Math.min(104, Math.max(2, parseInt((e.target as HTMLInputElement).value, 10) || 2)) })}> <span class="muted">${tr('מועדים')}</span></span>` : nothing}</div></div>
       <div class="qr"><sw-icon name="user" size="16"></sw-icon><div class="qv">${this.organizer(d, ctx)}</div></div>
       <div class="qr"><sw-icon name="users" size="16"></sw-icon><div class="qv"><span class="step"><button type="button" aria-label=${tr('פחות משתתפים')} data-cal-qc-step="-1" @click=${() => this.set({ headcount: Math.max(0, d.headcount - 1) })}>−</button>

@@ -35,6 +35,7 @@ from . import notify_policy
 from . import notify_recipients
 from .notify_visibility import principal_of
 from .timeutil import iso_utc, parse_utc
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.generator")
 
@@ -816,3 +817,6 @@ def recipient_users(conn: sqlite3.Connection, n: dict[str, Any]) -> list[str]:
         if p is not None and authorize(conn, p, "generator.view", INSTALLATION).allowed:
             ok.append(uid)
     return ok
+
+
+register_reset(__name__, ("_SINCE", "_PREV"), reset)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

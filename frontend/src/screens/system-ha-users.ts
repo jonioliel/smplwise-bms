@@ -17,6 +17,7 @@ import { bidi } from '../i18n/bidi';
 import { ht, type HaUsersTextKey } from '../i18n/ha-users';
 import { accessKey, canCreate, confirmMatches, draftProblems, emptyDraft, newRequestKey, repairKey, rowActions, stateKey, type Draft } from './ha-users-logic';
 import { ltrStyles } from '../styles/fragments';
+import { ToastController } from '../components/toast-controller';
 
 /**
  * USR1 (docs/design/USR1_HA_USERS_FROM_ARX.md): Settings › משתמשים והרשאות › משתמשי מערכת הבית (tab `ha-users` of system-access).
@@ -34,7 +35,11 @@ export class SwHaUsers extends LitElement {
   @state() private view: HaUsersView | null = null;
   @state() private loadState: 'loading' | 'ready' | 'forbidden' | 'error' = 'loading';
   @state() private error = '';
-  @state() private ok = '';
+  /** CR-CMP2-SELECTS-2450 (07:F12): the ok line has no timer (it stays until the next message); the controller owns it. */
+  private readonly okLine = new ToastController(this, { ms: 0 });
+  private get ok(): string {
+    return this.okLine.text;
+  }
   @state() private busy = false;
   @state() private checking = false;
   @state() private createOpen = false;
@@ -108,7 +113,7 @@ export class SwHaUsers extends LitElement {
   }
 
   private flash(text: string): void {
-    this.ok = text;
+    this.okLine.show(text);
     this.error = '';
   }
 

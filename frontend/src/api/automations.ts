@@ -890,6 +890,20 @@ export function parseTrigger(raw: unknown, ctx: ModelContext = {}): TriggerBlock
   const r = raw as Raw;
   const type = r.trigger ?? r.platform;
   if (typeof type !== 'string') return lockedFor(raw, 'trigger', ctx, 'unknown');
+  const special = specialTrigger(raw, r, type, ctx);
+  if (special) return special;
+  const idv = r.id;
+  if (idv !== undefined && typeof idv !== 'string') return mkLocked(raw, 'unsupported_step', 'trigger', ctx);
+  const common = { uid: (ctx.uid ?? newUid)(), kind: 'typed' as const, raw, ...(typeof idv === 'string' ? { id: idv } : {}) };
+  return typedTrigger(raw, r, type, common, ctx);
+}
+
+/** The common part of a typed trigger: its uid, `kind` and raw, and the trigger's `id` when it has one. */
+type TriggerCommon = { uid: string; kind: 'typed'; raw: unknown; id?: string };
+
+/** CR-FE-COMPLEXITY-2450 (split of parseTrigger, moved verbatim): the device and template triggers, purpose triggers and any trigger
+ * holding a template; null = none of these (a plain typed trigger follows). */
+function specialTrigger(raw: unknown, r: Raw, type: string, ctx: ModelContext): TriggerBlock | LockedBlock | null {
   if (type === 'device') {
     if (ctx.wallButtons && !hasTemplate(raw) && isButtonTrigger(r)) {
       const b = { uid: (ctx.uid ?? newUid)(), kind: 'typed' as const, raw, type: 'button' as const, device_id: r.device_id as string, domain: r.domain as string,
@@ -908,9 +922,11 @@ export function parseTrigger(raw: unknown, ctx: ModelContext = {}): TriggerBlock
   if (type === 'template') return mkLocked(raw, 'template', 'trigger', ctx);
   if (type.includes('.')) return mkLocked(raw, 'purpose_trigger', 'trigger', ctx);
   if (hasTemplate(raw)) return mkLocked(raw, 'template', 'trigger', ctx);
-  const idv = r.id;
-  if (idv !== undefined && typeof idv !== 'string') return mkLocked(raw, 'unsupported_step', 'trigger', ctx);
-  const common = { uid: (ctx.uid ?? newUid)(), kind: 'typed' as const, raw, ...(typeof idv === 'string' ? { id: idv } : {}) };
+  return null;
+}
+
+/** CR-FE-COMPLEXITY-2450 (split of parseTrigger, moved verbatim): the typed trigger kinds of v1; any other kind is locked. */
+function typedTrigger(raw: unknown, r: Raw, type: string, common: TriggerCommon, ctx: ModelContext): TriggerBlock | LockedBlock {
   const head = ['trigger', 'platform', 'id'];
   const bad = (hint: LockedReason = 'unsupported_step') => mkLocked(raw, hint, 'trigger', ctx);
   switch (type) {
@@ -972,24 +988,17 @@ export function parseCondition(raw: unknown, ctx: ModelContext = {}, inGroup = f
   const bad = (hint: LockedReason = 'unsupported_step') => lockedFor(raw, 'condition', ctx, hint);
   if (!container && hasTemplate(raw)) return mkLocked(raw, 'template', 'condition', ctx);
   const common = { uid: (ctx.uid ?? newUid)(), kind: 'typed' as const, raw };
+  return typedCondition(r, type, common, ctx, inGroup, bad);
+}
+
+/** The common part of a typed condition: its uid, `kind` and raw. */
+type ConditionCommon = { uid: string; kind: 'typed'; raw: unknown };
+
+/** CR-FE-COMPLEXITY-2450 (split of parseCondition, moved verbatim): the typed condition kinds; `bad` locks the raw with a reason. */
+function typedCondition(r: Raw, type: string, common: ConditionCommon, ctx: ModelContext, inGroup: boolean, bad: (hint?: LockedReason) => LockedBlock): ConditionBlock | LockedBlock {
   const head = ['condition'];
   switch (type) {
-    case 'state': {
-      if (!onlyKeys(r, [...head, 'entity_id', 'state', 'for'])) return bad();
-      const ids = entityList(r.entity_id); const f = parseDuration(r.for);
-      const st = Array.isArray(r.state) ? r.state : [r.state];
-      if (!ids || f === 'invalid' || !st.length || !st.every((s) => typeof s === 'string')) return bad();
-      const state = Array.isArray(r.state) ? (r.state as string[]) : (r.state as string);
-      const sensor = ctx.shabbatSensor;
-      if (sensor && ids.length === 1 && ids[0] === sensor && !f && (state === 'on' || state === 'off')) {
-        return finish<ConditionBlock>({ ...common, type: 'shabbat', mode: state === 'on' ? 'only_holy_days' : 'not_holy_days' }, 'condition', ctx);
-      }
-      const pres = ctx.presenceEntity;
-      if (pres && ids.length === 1 && ids[0] === pres && !f && (state === 'on' || state === 'off')) {
-        return finish<ConditionBlock>({ ...common, type: 'presence', mode: state === 'on' ? 'someone' : 'nobody', where: 'building' }, 'condition', ctx);
-      }
-      return finish<ConditionBlock>({ ...common, type: 'state', entity_ids: ids, state, ...(f ? { for: f } : {}) }, 'condition', ctx);
-    }
+    case 'state': return stateCondition(r, common, ctx, bad);
     case 'numeric_state': {
       if (!onlyKeys(r, [...head, 'entity_id', 'above', 'below'])) return bad();
       const ids = entityList(r.entity_id); const above = num(r.above); const below = num(r.below);
@@ -1022,6 +1031,26 @@ export function parseCondition(raw: unknown, ctx: ModelContext = {}, inGroup = f
     default: return bad('unknown');
   }
 }
+
+/** CR-FE-COMPLEXITY-2450 (split of parseCondition, moved verbatim): a `state` condition - the Shabbat sensor's and the building presence
+ * entity's on/off are their own blocks. */
+function stateCondition(r: Raw, common: ConditionCommon, ctx: ModelContext, bad: (hint?: LockedReason) => LockedBlock): ConditionBlock | LockedBlock {
+  const head = ['condition'];
+  if (!onlyKeys(r, [...head, 'entity_id', 'state', 'for'])) return bad();
+  const ids = entityList(r.entity_id); const f = parseDuration(r.for);
+  const st = Array.isArray(r.state) ? r.state : [r.state];
+  if (!ids || f === 'invalid' || !st.length || !st.every((s) => typeof s === 'string')) return bad();
+  const state = Array.isArray(r.state) ? (r.state as string[]) : (r.state as string);
+  const sensor = ctx.shabbatSensor;
+  if (sensor && ids.length === 1 && ids[0] === sensor && !f && (state === 'on' || state === 'off')) {
+    return finish<ConditionBlock>({ ...common, type: 'shabbat', mode: state === 'on' ? 'only_holy_days' : 'not_holy_days' }, 'condition', ctx);
+  }
+  const pres = ctx.presenceEntity;
+  if (pres && ids.length === 1 && ids[0] === pres && !f && (state === 'on' || state === 'off')) {
+    return finish<ConditionBlock>({ ...common, type: 'presence', mode: state === 'on' ? 'someone' : 'nobody', where: 'building' }, 'condition', ctx);
+  }
+  return finish<ConditionBlock>({ ...common, type: 'state', entity_ids: ids, state, ...(f ? { for: f } : {}) }, 'condition', ctx);
+}
 const parseConditions = (v: unknown, ctx: ModelContext): Array<ConditionBlock | LockedBlock> => toList(v).map((c) => parseCondition(c, ctx));
 
 // ---- parse: actions
@@ -1048,6 +1077,27 @@ export function parseAction(raw: unknown, ctx: ModelContext = {}): ActionBlock |
   const r = raw;
   const bad = (hint: LockedReason = 'unsupported_step') => lockedFor(raw, 'action', ctx, hint);
   const mk = <T extends ActionBlock>(b: unknown): T => finish<T>({ ...(b as object), uid: (ctx.uid ?? newUid)() }, 'action', ctx);
+  const flow = flowAction(raw, r, ctx, bad, mk);
+  if (flow) return flow;
+  if (typeof r.condition === 'string' && !('action' in r) && !('service' in r)) {
+    const c = parseCondition(raw, ctx);
+    if (c.kind === 'locked') return { ...c, effects: 'none' };
+    return mk<ActionBlock>({ kind: 'typed', raw, type: 'condition', condition: c });
+  }
+  if ('type' in r && 'device_id' in r && 'domain' in r) return mkLocked(raw, 'device', 'action', ctx);
+  const svc = r.action ?? r.service;
+  if (svc === undefined) return bad(); // variables, wait_*, parallel, sequence, event, scene ... : known, not typed
+  if (typeof svc !== 'string') return lockedFor(raw, 'action', ctx, 'unknown');
+  if (hasTemplate(raw)) return mkLocked(raw, 'template', 'action', ctx);
+  if (!onlyKeys(r, ['action', 'service', 'target', 'data', 'entity_id'])) return bad();
+  return serviceAction(raw, r, svc, ctx, bad, mk);
+}
+
+/** Builds a typed action block (with a fresh uid and its sentence). */
+type MakeAction = <T extends ActionBlock>(b: unknown) => T;
+
+/** CR-FE-COMPLEXITY-2450 (split of parseAction, moved verbatim): the flow steps choose / if / repeat / delay / stop; null = none of them. */
+function flowAction(raw: Raw, r: Raw, ctx: ModelContext, bad: (hint?: LockedReason) => LockedBlock, mk: MakeAction): ActionBlock | LockedBlock | null {
   if ('choose' in r) {
     if (!onlyKeys(r, ['choose', 'default']) || !Array.isArray(r.choose)) return bad();
     const opts: Array<{ conditions: Array<ConditionBlock | LockedBlock>; sequence: Block[] }> = [];
@@ -1076,17 +1126,12 @@ export function parseAction(raw: unknown, ctx: ModelContext = {}): ActionBlock |
     if (!onlyKeys(r, ['stop']) || typeof r.stop !== 'string') return bad();
     return mk<ActionBlock>({ kind: 'typed', raw, type: 'stop', message: r.stop });
   }
-  if (typeof r.condition === 'string' && !('action' in r) && !('service' in r)) {
-    const c = parseCondition(raw, ctx);
-    if (c.kind === 'locked') return { ...c, effects: 'none' };
-    return mk<ActionBlock>({ kind: 'typed', raw, type: 'condition', condition: c });
-  }
-  if ('type' in r && 'device_id' in r && 'domain' in r) return mkLocked(raw, 'device', 'action', ctx);
-  const svc = r.action ?? r.service;
-  if (svc === undefined) return bad(); // variables, wait_*, parallel, sequence, event, scene ... : known, not typed
-  if (typeof svc !== 'string') return lockedFor(raw, 'action', ctx, 'unknown');
-  if (hasTemplate(raw)) return mkLocked(raw, 'template', 'action', ctx);
-  if (!onlyKeys(r, ['action', 'service', 'target', 'data', 'entity_id'])) return bad();
+  return null;
+}
+
+/** CR-FE-COMPLEXITY-2450 (split of parseAction, moved verbatim): a service call the model types (its role, targets, data and the
+ * notify step's critical sound); a refused service is locked with its reason. */
+function serviceAction(raw: Raw, r: Raw, svc: string, ctx: ModelContext, bad: (hint?: LockedReason) => LockedBlock, mk: MakeAction): ActionBlock | LockedBlock {
   const cls = classifyAction(svc, ctx);
   if (!cls.ok) return mkLocked(raw, cls.reason, 'action', ctx);
   let ids: string[] | null = [];

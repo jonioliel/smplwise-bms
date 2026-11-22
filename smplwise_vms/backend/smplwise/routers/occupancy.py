@@ -17,6 +17,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
+from ..services import occupancy_store as store
 from ..services import zone_counts as zc
 from ._common import rid as _rid
 
@@ -95,9 +96,9 @@ def delete_mapping(request: Request, mapping_id: str = Path(min_length=1, max_le
 def _visible_areas(conn: sqlite3.Connection, principal: Principal) -> dict[str, str | None]:
     """area id -> its name, for the areas whose every feeding camera the caller may see."""
     cams: dict[str, list[str | None]] = {}
-    for r in conn.execute("SELECT m.area_id, c.id AS camera_id FROM zone_count_map m LEFT JOIN cameras c ON c.recorder_id = m.recorder_id AND c.source_ref = m.camera_key").fetchall():
+    for r in store.area_camera_rows(conn):
         cams.setdefault(r["area_id"], []).append(r["camera_id"])
-    names = {r["area_id"]: r["name"] for r in conn.execute("SELECT area_id, name FROM ha_areas").fetchall()}
+    names = {r["area_id"]: r["name"] for r in store.area_name_rows(conn)}
     out: dict[str, str | None] = {}
     for area, ids in cams.items():
         ok = all(authorize(conn, principal, VIEW, ("camera", cid) if cid else INSTALLATION).allowed for cid in ids)

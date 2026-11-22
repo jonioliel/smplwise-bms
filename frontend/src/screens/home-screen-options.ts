@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import {
   CHOICES, defaultQuick, QUICK_KINDS, SUMMARY_KINDS,
   type ChoiceKey, type HomeScreenForm, type HomeScreenOptions, type QuickKind, type SummaryKind,
@@ -109,17 +111,14 @@ export class HomeScreenOptionsForm extends LitElement {
       padding: 0 10px;
       max-inline-size: 100%;
     }
-    .seg {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 2px;
-      padding: 3px;
-      background: var(--sw-surface-3);
-      border-radius: var(--sw-r-md);
-      inline-size: fit-content;
-      max-inline-size: 100%;
+    /* CR-CMP2-SEGMENTED-C-2450: the choices are sw-segmented (the settings track); the 32 px key with the medium label stays */
+    sw-segmented {
+      --sw-seg-h: 32px;
+      --sw-seg-key-pad: 12px;
+      --sw-seg-fs: 1em;
+      --sw-seg-fw: var(--sw-fw-medium);
+      --sw-seg-on-fw: var(--sw-fw-semibold);
     }
-    .seg button,
     .pick {
       all: unset;
       box-sizing: border-box;
@@ -132,12 +131,6 @@ export class HomeScreenOptionsForm extends LitElement {
       color: var(--sw-text-2);
       font-weight: var(--sw-fw-medium);
       cursor: pointer;
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-on-bg, var(--sw-seg-key, var(--sw-surface)));
-      color: var(--sw-seg-on-text, var(--sw-seg-key-ink, var(--sw-accent-text)));
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
-      font-weight: var(--sw-fw-semibold);
     }
     .picks {
       display: flex;
@@ -205,16 +198,16 @@ export class HomeScreenOptionsForm extends LitElement {
     this.emit({ ...this.value, screen: { ...this.value.screen, ...patch } });
   }
 
-  private seg<T extends string>(key: string, values: readonly T[], on: T, label: (v: T) => string, set: (v: T) => void) {
-    return html`<span class="seg" role="group" data-hs-option=${key}>${values.map(
-      (v) => html`<button type="button" data-hs-value=${v} aria-pressed=${String(v === on)} ?disabled=${!this.editable} @click=${() => v !== on && set(v)}>${label(v)}</button>`,
-    )}</span>`;
+  /** CR-CMP2-SEGMENTED-C-2450: sw-segmented, named by its row's caption; a press on the chosen key changes nothing (as before). */
+  private seg<T extends string>(key: string, name: string, values: readonly T[], on: T, label: (v: T) => string, set: (v: T) => void) {
+    return html`<sw-segmented label=${name} data-hs-option=${key} value=${on} ?disabled=${!this.editable} @change=${(e: CustomEvent<SegmentedChange>) => e.detail.value !== on && set(e.detail.value as T)}
+      .options=${values.map((v) => ({ value: v, label: label(v), attrs: { 'data-hs-value': v } }))}></sw-segmented>`;
   }
 
   private choice(key: ChoiceKey) {
     const values = CHOICES[key] as readonly string[];
     const on = this.value.screen[key] as string;
-    return html`<div class="f"><span class="k">${hs(LABEL_KEY[key])}</span>${this.seg(key, values, on, (v) => hs(`${VALUE_PREFIX[key]}${v}` as HsKey), (v) => this.setScreen({ [key]: v } as Partial<HomeScreenOptions>))}</div>`;
+    return html`<div class="f"><span class="k">${hs(LABEL_KEY[key])}</span>${this.seg(key, hs(LABEL_KEY[key]), values, on, (v) => hs(`${VALUE_PREFIX[key]}${v}` as HsKey), (v) => this.setScreen({ [key]: v } as Partial<HomeScreenOptions>))}</div>`;
   }
 
   private toggleTile(k: SummaryKind) {
@@ -272,8 +265,8 @@ export class HomeScreenOptionsForm extends LitElement {
     const v = this.value;
     if (!v) return nothing;
     return html`<div class="grid" data-home-screen-options>
-      <div class="f"><span class="k">${hs('defaultView')}</span>${this.seg('default_view', ['cards', 'tiles'] as const, v.view, (x) => hs(x === 'cards' ? 'viewCards' : 'viewTiles'), (x) => this.emit({ ...v, view: x }))}</div>
-      <div class="f"><span class="k">${hs('infoRow')}</span>${this.seg('info_style', INFO_STYLES, v.info, (x) => hs(`info_${x}` as HsKey), (x) => this.emit({ ...v, info: x }))}</div>
+      <div class="f"><span class="k">${hs('defaultView')}</span>${this.seg('default_view', hs('defaultView'), ['cards', 'tiles'] as const, v.view, (x) => hs(x === 'cards' ? 'viewCards' : 'viewTiles'), (x) => this.emit({ ...v, view: x }))}</div>
+      <div class="f"><span class="k">${hs('infoRow')}</span>${this.seg('info_style', hs('infoRow'), INFO_STYLES, v.info, (x) => hs(`info_${x}` as HsKey), (x) => this.emit({ ...v, info: x }))}</div>
       ${this.summary()}
       ${this.choice('summary_chooser')}
       ${this.quickEditor()}

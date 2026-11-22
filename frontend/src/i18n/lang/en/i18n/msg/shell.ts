@@ -180,6 +180,10 @@ export const en = {
   'כדי להשתמש במערכת {from} יש להפעיל באפליקציה: {missing}. לאחר ההפעלה טענו את המסך מחדש.': 'To use the system {from} turn on in the app: {missing}. Then reload the screen.',
   'מהאפליקציה': 'from the app',
   'ההרשאות שלך עודכנו': 'Your permissions were updated',
+  // CR-SHELL-EXTRACT-B-2450: the note while the first /me read fails and is asked again (SESSION-DEMO-WS-2435)
+  'אין חיבור לשרת': 'No connection to the server',
+  'מנסה להתחבר שוב…': 'Trying to reconnect…',
+  'נסה עכשיו': 'Try now',
   'אזור WisKey מוסתר': 'The WisKey area is hidden',
   'מנהל המערכת הסתיר את אזור WisKey עבור כל המשתמשים, בהגדרות ‹ מתגי מסכי כניסה. אפשר להציג אותו מחדש שם.': 'A system administrator hid the WisKey area for all users in Settings \u203a Entrance screen switches. It can be shown again there.',
   'חזרה למפת הקומה': 'Back to the floor map',

@@ -19,6 +19,7 @@ from .text_hygiene import csv_cell
 from ..timeutil import zone
 from . import fields, naming, present, store, table_present
 from .access import Seen, Viewer
+from ...test_reset import register_reset
 
 RATE_S = 60.0  # one export per minute per user
 # CR-TK-MONEY-UTILS (01:F-15): this module's OWN limiter instance (one successful export per RATE_S per user); the table
@@ -135,3 +136,6 @@ def filename(conn: sqlite3.Connection, lang: str = "he") -> str:
 def describe(query: Any, columns: tuple[str, ...]) -> dict[str, Any]:
     """The audit details of an export: the filter and the columns (never a row)."""
     return {"filters": query.filters.as_dict(), "sort": query.sort_text, "columns": list(columns)}
+
+
+register_reset(__name__, ("_RATE",), reset_rate)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)

@@ -28,6 +28,8 @@ import { formatMoney } from '../tickets/cost-model';
 import { asHandledDays, HANDLED_DEFAULT, installationHandledDays, readStoredPeriod, storePeriod, type HandledDays } from '../tickets/handler-load';
 import { ot, type OverviewTextKey } from '../tickets/overview-text';
 import '../components/sw-state-panel';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import {
   agenda, APPROVALS_SHOWN, approvalsTotal, dailyTotals, dayKey, daysOfPeriod, deptComparison, FOLD_STORAGE_KEY, foldedOf, handlerRows, kpiDeltas, lanes, METER_SEGMENTS,
   overdueRows, OVERDUE_SHOWN, overviewSettingsOf, packPages, filledSpans, parseKpiStore, paymentDates, paymentOverdueRows, paymentsTotal, payWhen, periodOfDays, rfqStageOf, rollKpis, serverPaymentDates, shortDay, signed, sortDepartments, splitVendors,
@@ -146,7 +148,10 @@ export class TicketsOverview extends LitElement {
     .dh { position: static; padding-block-start: 0; }
     .crumbs { font-size: var(--sw-fs-sm); color: var(--dv-text-2); margin-block-end: 2px; }
     .titles { min-inline-size: 0; }
-    .seg button small { font-size: var(--sw-fs-xs); color: var(--dv-text-2); font-weight: var(--sw-fw-semibold); font-variant-numeric: tabular-nums; margin-inline-start: 6px; }
+    /* CR-CMP2-TABS-2460: the departments choice is sw-segmented (radio, the glass sm key and plain counts of styles/media-glass.ts) in a
+       box of its own: that box scrolls sideways on a paged desktop and fades at the end that hides more (updated() measures it) */
+    .depts { display: flex; min-inline-size: 0; max-inline-size: 100%; }
+    .depts > sw-segmented { --sw-seg-wrap: nowrap; max-inline-size: none; }
     .offline-top { position: sticky; inset-block-start: 0; z-index: 16; margin: 0 -36px -16px; padding: 8px 36px; background: linear-gradient(var(--dv-warning-soft), var(--dv-warning-soft)), var(--dv-surface-solid); border-block-end: 1px solid color-mix(in srgb, var(--dv-warning) 38%, transparent); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); color: var(--au-warn-text); display: flex; align-items: center; gap: 8px; }
     /* the numbers row: the RFQ board's tiles */
     .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--sw-s-3); }
@@ -337,7 +342,6 @@ export class TicketsOverview extends LitElement {
     .paged .dh-det .depts { flex: 0 1 auto; min-inline-size: 0; overflow-x: auto; scrollbar-width: none; }
     .paged .dh-det .depts.over:dir(rtl) { -webkit-mask-image: linear-gradient(to left, transparent, #000 28px); mask-image: linear-gradient(to left, transparent, #000 28px); }
     .paged .dh-det .depts.over:dir(ltr) { -webkit-mask-image: linear-gradient(to right, transparent, #000 28px); mask-image: linear-gradient(to right, transparent, #000 28px); }
-    .paged .dh-det .depts > button { flex: none; }
     .paged .dh-det .amb { white-space: nowrap; }
     .pager { display: inline-flex; align-items: center; gap: 2px; flex: none; }
     .pager .pgb { all: unset; box-sizing: border-box; display: grid; place-items: center; inline-size: 34px; block-size: 34px; border-radius: 50%; color: var(--dv-text-2); cursor: pointer; }
@@ -371,8 +375,11 @@ export class TicketsOverview extends LitElement {
     }
     @media (max-width: 767px) {
       .amb, .hide-ph { display: none; }
-      .dh-det .seg { inline-size: 100%; box-sizing: border-box; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-radius: var(--sw-r-xl); }
-      .dh-det .seg button { min-inline-size: 0; padding-inline: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      /* the phone: two departments a line, a long name ends in an ellipsis (the keys and their labels through sw-segmented's parts) */
+      .dh-det .depts { inline-size: 100%; }
+      .depts > sw-segmented { --sw-seg-wrap: wrap; --sw-seg-key-flex: 1 1 calc(50% - 2px); --sw-seg-key-pad: 6px; --sw-seg-radius: var(--sw-r-xl); flex: 1 1 auto; max-inline-size: 100%; }
+      .depts > sw-segmented::part(key) { min-inline-size: 0; overflow: hidden; }
+      .depts > sw-segmented::part(label) { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .dh-det .grow { display: none; }
       .offline-top { margin: 0 -14px -10px; padding: 8px 14px; }
       .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -406,7 +413,7 @@ export class TicketsOverview extends LitElement {
       .closedrows .cr.rq { grid-template-columns: auto minmax(0, 1fr); }
       .closedrows .cr.rq .tags { grid-column: 2; justify-content: flex-start; }
       .closedrows .cr[data-pay-row] .back { display: none; }
-      .w > header .pseg button { min-block-size: 36px; }
+      .w > header .pseg { --sw-seg-h: 36px; }
     }
     @media (pointer: coarse) {
       .tree .row, .closedrows .cr, .tl { min-block-size: 44px; }
@@ -790,10 +797,12 @@ export class TicketsOverview extends LitElement {
     return html`<header class="dh" data-overview-header>
       ${this.offline && this.lastOk ? html`<div class="offline-top" role="status" data-offline>${tIcon('offline')}${ot('offline', { time: timeText(this.lastOk) })}</div>` : nothing}
       ${this.screen === 'ready' || this.screen === 'loading' ? html`<div class="dh-det">
-        ${depts.length > 1 ? html`<div class="seg sm depts" role="radiogroup" aria-label=${ot('deptGroup')} data-dept-chips>
-          <button type="button" role="radio" aria-checked=${String(!this.dept)} data-dept="" @click=${() => this.setDept('')}>${ot(all ? 'allDepts' : 'allMyDepts')}<small>${total}</small></button>
-          ${depts.map((x) => html`<button type="button" role="radio" aria-checked=${String(this.dept === x.id)} data-dept=${x.id} @click=${() => this.setDept(x.id)}>${bidi(x.name)}<small>${x.count}</small></button>`)}
-        </div>` : nothing}
+        ${depts.length > 1 ? html`<div class="depts" data-dept-chips><sw-segmented radio size="sm" label=${ot('deptGroup')} value=${this.dept}
+          .options=${[
+            { value: '', label: ot(all ? 'allDepts' : 'allMyDepts'), count: String(total), attrs: { 'data-dept': '' } },
+            ...depts.map((x) => ({ value: x.id, label: bidi(x.name), count: String(x.count), attrs: { 'data-dept': x.id } })),
+          ]}
+          @change=${(e: CustomEvent<SegmentedChange>) => { e.stopPropagation(); this.setDept(e.detail.value); }}></sw-segmented></div>` : nothing}
         ${this.lastOk ? html`<span class="amb" data-updated>${ot('updated', { when: '' }).trim()} <em>${this.now.getTime() - this.lastOk.getTime() < 60_000 ? ot('justNow') : relTime(this.lastOk.toISOString(), this.now)}</em></span>` : nothing}
         <span class="grow"></span>
         ${pages ? this.pager(pages) : nothing}
@@ -987,7 +996,8 @@ export class TicketsOverview extends LitElement {
   // card 5
   private periodSeg(): TemplateResult {
     const p = this.chosenPeriod();
-    return html`<div class="seg sm pseg" role="radiogroup" aria-label=${ot('thPeriod')} data-period-seg>${DASH_PERIODS.map((x) => html`<button type="button" role="radio" aria-checked=${String(p === x)} data-period=${x} @click=${() => this.setPeriod(x)}>${ot(`pd_${x}` as OverviewTextKey)}</button>`)}</div>`;
+    return html`<sw-segmented class="pseg" radio size="sm" label=${ot('thPeriod')} data-period-seg value=${p} @change=${(e: CustomEvent<SegmentedChange>) => this.setPeriod(e.detail.value as DashPeriod)}
+      .options=${DASH_PERIODS.map((x) => ({ value: x, label: ot(`pd_${x}` as OverviewTextKey), attrs: { 'data-period': x } }))}></sw-segmented>`;
   }
 
   private throughputCard(): TemplateResult {

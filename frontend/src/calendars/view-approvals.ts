@@ -2,6 +2,8 @@ import { uiLocale } from '../i18n/locale';
 import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-dialog';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { ApiError, describeError } from '../api/client';
@@ -279,10 +281,8 @@ export class CalViewApprovals extends LitElement {
     return html`
       <section class="panel main" data-approvals>
         <div class="ph">
-          <div class="seg" role="group" aria-label=${tr('בקשות')}>
-            <button type="button" aria-pressed=${String(this.seg === 'pending')} data-seg="pending" @click=${() => { this.seg = 'pending'; this.page = 1; }}>${tr('ממתינות')} <span class="num">${this.reqs.length}</span></button>
-            <button type="button" aria-pressed=${String(this.seg === 'decided')} data-seg="decided" @click=${() => { this.seg = 'decided'; this.page = 1; }}>${tr('הוחלטו לאחרונה')}</button>
-          </div>
+          <sw-segmented label=${tr('בקשות')} value=${this.seg} @change=${(e: CustomEvent<SegmentedChange>) => { this.seg = e.detail.value as 'pending' | 'decided'; this.page = 1; }}
+            .options=${[{ value: 'pending', label: tr('ממתינות'), count: String(this.reqs.length), attrs: { 'data-seg': 'pending' } }, { value: 'decided', label: tr('הוחלטו לאחרונה'), attrs: { 'data-seg': 'decided' } }]}></sw-segmented>
           <span class="sp"></span>
           ${this.device === 'phone' ? nothing : this.managedDots()}
         </div>

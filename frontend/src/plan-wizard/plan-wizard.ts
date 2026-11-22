@@ -13,6 +13,7 @@ import { LitElement, html, nothing, svg, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-icon';
+import '../components/sw-tabs';
 import '../components/sw-dialog';
 import type { IconName } from '../components/sw-icon';
 import { navigate } from '../router';
@@ -975,10 +976,12 @@ export class PlanWizardScreen extends LitElement {
       ? tr('{set} מתוך {total} מצלמות סומנו. בחר מצלמה ולחץ על המפה במקום שבו היא מותקנת; מצלמה שלא תסמן לא תוצב.', { set: camsSet, total: cams.length })
       : devs.length ? tr('{auto} מתוך {total} הוצבו לבד, לפי האזור והסוג. את השאר בוחרים ומסמנים על המפה.', { auto, total: devs.length }) : tr('אין התקנים שמחכים למקום באזורים של החדרים האלה. אפשר להציב התקנים אחר כך מהמפה.');
     return html`<h2>${tr('מיקום התקנים')}</h2>
-      ${cams.length ? html`<div class="seg" role="tablist" aria-label=${tr('מה מציבים')} data-wz-dev-tabs>
-          <button role="tab" data-wz-tab="devices" aria-selected=${tab === 'devices' ? 'true' : 'false'} @click=${() => pick('devices')}><sw-icon name="sensor" size="15"></sw-icon>${tr('התקנים')}<span class="num">${devs.length}</span></button>
-          <button role="tab" data-wz-tab="cameras" aria-selected=${tab === 'cameras' ? 'true' : 'false'} @click=${() => pick('cameras')}><sw-icon name="camera" size="15"></sw-icon>${tr('מצלמות')}<span class="num">${camsSet ? `${camsSet}/${cams.length}` : cams.length}</span></button>
-        </div>` : nothing}
+      ${cams.length ? html`<sw-tabs controlled variant="pill" fill="always" group-label=${tr('מה מציבים')} data-wz-dev-tabs .active=${tab}
+          .items=${[
+            { id: 'devices', label: tr('התקנים'), glyph: html`<sw-icon name="sensor" size="15"></sw-icon>`, pill: devs.length, attrs: { 'data-wz-tab': 'devices' } },
+            { id: 'cameras', label: tr('מצלמות'), glyph: html`<sw-icon name="camera" size="15"></sw-icon>`, pill: camsSet ? `${camsSet}/${cams.length}` : cams.length, attrs: { 'data-wz-tab': 'cameras' } },
+          ]}
+          @change=${(e: CustomEvent<{ id: string }>) => { e.stopPropagation(); pick(e.detail.id as 'devices' | 'cameras'); }}></sw-tabs>` : nothing}
       <p>${intro}</p>
       <div class="devs" data-wz-devs role=${cams.length ? 'tabpanel' : nothing}>${list.slice(page * size, page * size + size).map((d) => {
         const cam = isCamera(d);

@@ -267,39 +267,20 @@ export const adminStyles = css`
     color: var(--sw-text-2);
     font-size: var(--sw-fs-sm);
   }
-  .seg {
-    display: inline-flex;
-    gap: 2px;
-    padding: 3px;
-    border-radius: var(--sw-r-pill);
-    background: var(--sw-surface-3);
-    max-inline-size: 100%;
-  }
-  .seg button {
-    min-block-size: 32px;
-    padding-inline: var(--sw-s-3);
-    border: 0;
-    border-radius: var(--sw-r-pill);
-    background: transparent;
-    color: var(--sw-text-2);
-    font: inherit;
-    font-size: var(--sw-fs-xs);
-    font-weight: var(--sw-fw-medium);
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  .seg button[aria-pressed='true'] {
-    background: var(--sw-seg-key, var(--sw-surface));
-    color: var(--sw-seg-key-ink, var(--sw-text));
-    box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
-  }
-  .seg button:disabled {
-    cursor: not-allowed;
-    opacity: 0.6;
-  }
-  .seg button:focus-visible {
-    outline: var(--sw-focus-w) solid var(--sw-focus);
-    outline-offset: 2px;
+  /* CR-CMP2-SEGMENTED-C-2450: the panels' segmented choices (the config panel's zones / settings, the auto-profile mode) are
+     sw-segmented; the pill track and the 32 px pill key with the extra-small medium label, the chosen key in the text ink, stay */
+  sw-segmented {
+    --sw-seg-pad: 3px;
+    --sw-seg-gap: 2px;
+    --sw-seg-radius: var(--sw-r-pill);
+    --sw-seg-btn-radius: var(--sw-r-pill);
+    --sw-seg-h: 32px;
+    --sw-seg-key-pad: var(--sw-s-3);
+    --sw-seg-fs: var(--sw-fs-xs);
+    --sw-seg-fw: var(--sw-fw-medium);
+    --sw-seg-on-fw: var(--sw-fw-medium);
+    --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-text));
+    --sw-disabled-opacity: 0.6;
   }
   .row {
     display: flex;

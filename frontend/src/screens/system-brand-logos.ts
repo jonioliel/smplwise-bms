@@ -30,7 +30,8 @@ import {
 } from '../design/brand-logo';
 import { t, type I18nKey } from '../i18n/he';
 import { settingsStyles } from '../styles/settings';
-import { segThumbStyles } from '../styles/fragments';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { ToastController } from '../components/toast-controller';
 
 type Tab = 'files' | 'look' | 'title' | 'preview';
@@ -122,8 +123,7 @@ export class SystemBrandLogos extends LitElement {
       transform: scale(var(--sw-press-scale));
     }
     @media (hover: hover) and (pointer: fine) {
-      .tabs button:hover:not([aria-selected='true']),
-      .seg button:hover:not([aria-pressed='true']):not(:disabled) {
+      .tabs button:hover:not([aria-selected='true']) {
         color: var(--sw-text);
         background: var(--sw-hover-wash);
       }
@@ -136,7 +136,6 @@ export class SystemBrandLogos extends LitElement {
     }
     .tabs button:focus-visible,
     .opt:focus-visible,
-    .seg button:focus-visible,
     .drop:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: var(--sw-focus-offset);
@@ -227,41 +226,10 @@ export class SystemBrandLogos extends LitElement {
     .inp:disabled {
       opacity: var(--sw-disabled-opacity, 0.5);
     }
-    .seg {
-      display: inline-flex;
-      flex-wrap: wrap;
-      /* FIX2200: the padding counts inside the width, so a wrapped row (the five company sizes on a phone) never pokes 8 px past the card */
-      box-sizing: border-box;
-      max-inline-size: 100%;
-      padding: 3px;
-      gap: 2px;
-      background: var(--sw-surface-3);
-      border-radius: var(--sw-r-sm);
+    /* CR-CMP2-SELECTS-2450 (owner N11): the keys are sw-segmented - the same key as the skin card above it on this page
+       (system-design); it wraps inside the card on a phone (the five company sizes) */
+    sw-segmented {
       align-self: flex-start;
-    }
-    /* LOOK-POLISH-2331: the key of the skin card above it on the same page (system-design): 36 px, 14 px, the selected key in the
-       accent ink on a lifted thumb (it was 28 px / 12.5 px with a plain-text selected key) */
-    .seg button {
-      all: unset;
-      box-sizing: border-box;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0 14px;
-      min-block-size: 36px;
-      border-radius: var(--sw-r-sm);
-      color: var(--sw-text-2);
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-medium);
-      white-space: nowrap;
-    }
-    ${segThumbStyles}
-    .seg button[disabled] {
-      cursor: default;
-    }
-    .seg button[disabled]:not([aria-pressed='true']) {
-      opacity: 0.6;
     }
     .ctlrow {
       display: flex;
@@ -295,12 +263,10 @@ export class SystemBrandLogos extends LitElement {
     }
     /* a phone: a wrapped key row fills its lines evenly instead of leaving a ragged track */
     @media (max-width: 599px) {
-      .seg {
+      sw-segmented {
         display: flex;
         align-self: stretch;
-      }
-      .seg button {
-        flex: 1 1 auto;
+        --sw-seg-key-flex: 1 1 auto;
       }
     }
     .lbox {
@@ -729,22 +695,22 @@ export class SystemBrandLogos extends LitElement {
     const noDark = d.darkMode === 'file' && !this.saved.files.dark;
     return html`<div class="fld"><span class="lbl">${t('brandLogos.sizeLabel')}<span class="muted">${t('brandLogos.sizeHint')}</span></span>
         <div class="ctlrow">
-          <span class="seg" role="group" aria-label=${t('brandLogos.sizeLabel')} data-logo-size>
-            ${LOGO_SIZES.map((s) => html`<button type="button" aria-pressed=${d.size === s ? 'true' : 'false'} data-size=${s} ?disabled=${!this.canEdit} @click=${() => this.set('size', s)}>${t(`brandLogos.size_${s}` as I18nKey)}</button>`)}
-          </span>
+          <sw-segmented label=${t('brandLogos.sizeLabel')} data-logo-size value=${d.size} ?disabled=${!this.canEdit}
+            .options=${LOGO_SIZES.map((v) => ({ value: v, label: t(`brandLogos.size_${v}` as I18nKey), attrs: { 'data-size': v } }))}
+            @change=${(e: CustomEvent<SegmentedChange>) => this.set('size', e.detail.value as typeof d.size)}></sw-segmented>
           <span class="muted ltr px" data-logo-size-px>${Math.round(36 * sc)}px · ${Math.round(28 * sc)}px</span>
         </div></div>
       <div class="fld"><span class="lbl">${t('brandLogos.companySizeLabel')}<span class="muted">${t('brandLogos.companySizeHint')}</span></span>
         <div class="ctlrow">
-          <span class="seg" role="group" aria-label=${t('brandLogos.companySizeLabel')} data-logo-company-size>
-            ${COMPANY_SIZES.map((s) => html`<button type="button" aria-pressed=${d.companySize === s ? 'true' : 'false'} data-company-size=${s} ?disabled=${!this.canEdit} @click=${() => this.set('companySize', s)}>${t(s === 'same' ? 'brandLogos.csize_same' : (`brandLogos.size_${s}` as I18nKey))}</button>`)}
-          </span>
+          <sw-segmented label=${t('brandLogos.companySizeLabel')} data-logo-company-size value=${d.companySize} ?disabled=${!this.canEdit}
+            .options=${COMPANY_SIZES.map((v) => ({ value: v, label: t(v === 'same' ? 'brandLogos.csize_same' : (`brandLogos.size_${v}` as I18nKey)), attrs: { 'data-company-size': v } }))}
+            @change=${(e: CustomEvent<SegmentedChange>) => this.set('companySize', e.detail.value as typeof d.companySize)}></sw-segmented>
           <span class="muted ltr px" data-logo-company-size-px>${Math.round(34 * csc)}px</span>
         </div></div>
       <div class="fld"><span class="lbl">${t('brandLogos.sideLabel')}<span class="muted">${t('brandLogos.sideHint')}</span></span>
-        <span class="seg" role="group" aria-label=${t('brandLogos.sideLabel')} data-logo-side>
-          ${LOGO_SIDES.map((s) => html`<button type="button" aria-pressed=${d.logoSide === s ? 'true' : 'false'} data-side=${s} ?disabled=${!this.canEdit} @click=${() => this.set('logoSide', s)}>${t(`brandLogos.side_${s}` as I18nKey)}</button>`)}
-        </span></div>
+        <sw-segmented label=${t('brandLogos.sideLabel')} data-logo-side value=${d.logoSide} ?disabled=${!this.canEdit}
+            .options=${LOGO_SIDES.map((v) => ({ value: v, label: t(`brandLogos.side_${v}` as I18nKey), attrs: { 'data-side': v } }))}
+            @change=${(e: CustomEvent<SegmentedChange>) => this.set('logoSide', e.detail.value as typeof d.logoSide)}></sw-segmented></div>
       <div class="fld"><span class="lbl">${t('brandLogos.darkLabel')}<span class="muted">${t('brandLogos.darkHint')}</span></span>
         <div class="opts" role="group" aria-label=${t('brandLogos.darkLabel')} data-logo-darkmode>
           ${DARK_MODES.map((m) => html`<button type="button" class="opt" aria-pressed=${d.darkMode === m ? 'true' : 'false'} data-dark-mode=${m} ?disabled=${!this.canEdit} @click=${() => this.set('darkMode', m)}>
@@ -762,7 +728,9 @@ export class SystemBrandLogos extends LitElement {
         <label class="fld"><span class="lbl">${t('brandLogos.nameLabel')}<span class="muted">${t('brandLogos.nameHint')}</span></span>
           <input class="inp" maxlength="60" data-brand-name .value=${d.companyName} ?disabled=${!this.canEdit} @input=${(e: Event) => this.set('companyName', (e.target as HTMLInputElement).value)} /></label>
         <div class="fld"><span class="lbl">${t('brandLogos.kindLabel')}</span>
-          <span class="seg" role="group" aria-label=${t('brandLogos.kindLabel')}>${COMPANY_KINDS.map((k) => html`<button type="button" aria-pressed=${d.kind === k ? 'true' : 'false'} data-kind=${k} ?disabled=${!this.canEdit} @click=${() => this.set('kind', k)}>${t(`brandLogos.kind_${k}` as I18nKey)}</button>`)}</span></div>
+          <sw-segmented label=${t('brandLogos.kindLabel')} value=${d.kind} ?disabled=${!this.canEdit}
+            .options=${COMPANY_KINDS.map((v) => ({ value: v, label: t(`brandLogos.kind_${v}` as I18nKey), attrs: { 'data-kind': v } }))}
+            @change=${(e: CustomEvent<SegmentedChange>) => this.set('kind', e.detail.value as typeof d.kind)}></sw-segmented></div>
       </div>
       <div class="g2">
         <label class="fld"><span class="lbl">${t('brandLogos.projectLabel')}<span class="muted">${t('brandLogos.projectHint')}</span></span>
@@ -771,7 +739,9 @@ export class SystemBrandLogos extends LitElement {
           <input class="inp ltr" maxlength="40" data-brand-prefix .value=${d.titlePrefix} ?disabled=${!this.canEdit} @input=${(e: Event) => this.set('titlePrefix', (e.target as HTMLInputElement).value)} /></label>
       </div>
       <div class="fld"><span class="lbl">${t('brandLogos.modeLabel')}</span>
-        <span class="seg" role="group" aria-label=${t('brandLogos.modeLabel')} data-logo-titlemode>${TITLE_MODES.map((m) => html`<button type="button" aria-pressed=${d.titleMode === m ? 'true' : 'false'} data-title-mode=${m} ?disabled=${!this.canEdit} @click=${() => this.set('titleMode', m)}>${t(`brandLogos.tmode_${m}` as I18nKey)}</button>`)}</span></div>
+        <sw-segmented label=${t('brandLogos.modeLabel')} data-logo-titlemode value=${d.titleMode} ?disabled=${!this.canEdit}
+            .options=${TITLE_MODES.map((v) => ({ value: v, label: t(`brandLogos.tmode_${v}` as I18nKey), attrs: { 'data-title-mode': v } }))}
+            @change=${(e: CustomEvent<SegmentedChange>) => this.set('titleMode', e.detail.value as typeof d.titleMode)}></sw-segmented></div>
       ${this.renderTabDemo()}`;
   }
 

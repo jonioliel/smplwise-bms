@@ -8,6 +8,7 @@ import type { GeomConnector, GeometryDoc, GeomObject, GeomOpening, GeomWall, Pt 
 import type { LinkTargetFloor } from '../map/connector-targets';
 import type { MapBundle } from './maps';
 import type { PlanVersion } from './types';
+import type * as PlanWire from './generated/wire-plans';
 
 export interface GeometryRow {
   id: string | null;
@@ -458,10 +459,8 @@ interface DxfBlock {
   size_m: [number, number];
   suggested: { catalog_id: string | null; name: string };
 }
-export interface DxfEntities {
-  asset_id: string;
-  units: string;
-  metres_per_unit: number | null;
+/** The envelope is the backend's response model (wire/plans.py `PlanDxfEntities`, generated); the layer and block rows are typed here. */
+export interface DxfEntities extends Pick<PlanWire.PlanDxfEntities, 'asset_id' | 'units' | 'metres_per_unit'> {
   layers: DxfEntityLayer[];
   blocks: DxfBlock[];
   targets: { id: DxfTarget; label: string }[];

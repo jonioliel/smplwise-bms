@@ -344,42 +344,40 @@ export const remoteStyles = css`
   }
 
   /* ---- segmented control, toggles, buttons ---- */
-  .seg {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    background: var(--mr-surface-3);
-    border-radius: 999px;
-    padding: 3px;
-    max-inline-size: 100%;
+  /* CR-CMP2-TABS-2460: the tab strips (the remote's pad / sources / apps, the player panel's library and zones) are sw-tabs (pill,
+     filling the drawer's width) - the hand-built .seg tab strip is gone; the keys keep the 44 px of the .seg keys */
+  sw-tabs[variant='pill'] {
+    /* the remote's 44 px keys (the old .seg strip), 14 px sides */
+    --sw-tabs-key-h: 44px;
+    --sw-tabs-key-pad: 14px;
+    /* the remote's own palette (devices.scheme, not the app's theme) through the tokens the pill reads - the skins' pill rules read
+       the same tokens, so the track, the thumb and the inks follow the sheet under every skin */
+    --sw-surface-3: var(--mr-surface-3);
+    --sw-text: var(--mr-text);
+    --sw-text-2: var(--mr-text-2);
+    --sw-accent-text: var(--mr-text);
+    --sw-seg-key: var(--mr-seg-thumb);
+    --sw-seg-key-ink: var(--mr-text);
+    --sw-seg-thumb-shadow: var(--mr-shadow-control);
+    --sw-tabs-fs: var(--sw-fs-base);
   }
-  .seg button {
-    flex: 1;
-    border: 0;
-    background: transparent;
-    border-radius: 999px;
-    padding: 6px 14px;
-    font-size: var(--sw-fs-base);
-    font-weight: 600;
-    min-block-size: 44px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    white-space: nowrap;
-    color: var(--mr-text);
-    transition: background var(--mr-motion) var(--mr-ease), color var(--mr-motion);
-  }
-  .seg.sm button {
-    min-block-size: 44px;
-    font-size: var(--sw-fs-base);
-    padding: 4px 12px;
-  }
-  .seg button[aria-selected='true'],
-  .seg button[aria-checked='true'],
-  .seg button[aria-pressed='true'] {
-    background: var(--mr-seg-thumb);
-    box-shadow: var(--mr-shadow-control);
+  /* CR-CMP2-SEGMENTED-C-2450: the radio groups (audio output, pad type, the remote editor's scope) are sw-segmented, drawn as the
+     remote's old .seg strip through its knobs - the pill track, the 44 px keys, the --mr thumb */
+  sw-segmented {
+    --sw-seg-border: transparent;
+    --sw-seg-track: var(--mr-surface-3);
+    --sw-seg-radius: 999px;
+    --sw-seg-btn-radius: 999px;
+    --sw-seg-pad: 3px;
+    --sw-seg-gap: 2px;
+    --sw-seg-h: 44px;
+    --sw-seg-key-pad: 12px;
+    --sw-seg-fs: var(--sw-fs-base);
+    --sw-seg-fw: 600;
+    --sw-seg-fg: var(--mr-text);
+    --sw-seg-on-bg: var(--mr-seg-thumb);
+    --sw-seg-on-fg: var(--mr-text);
+    --sw-seg-on-shadow: var(--mr-shadow-control);
   }
   .btn {
     display: inline-flex;

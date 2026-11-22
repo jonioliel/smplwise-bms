@@ -38,6 +38,7 @@ from ..connection_store import SecretError, open_partner_secret, seal_partner_se
 from ..tickets.ratelimit import ScopedRateLimiter
 from . import core, ssrf
 from .core import PartnerError, iso, parse_iso, utcnow
+from ...test_reset import register_reset
 
 log = logging.getLogger("smplwise.partner.webhooks")
 
@@ -919,3 +920,13 @@ async def worker_loop(db: Database, settings: Any, every_s: float = 5.0) -> None
             await run_in_threadpool(deliver_due, db, settings)
         except Exception:  # noqa: BLE001 - the worker never dies
             log.warning("partner delivery pass failed", exc_info=True)
+
+
+def _reset_all_for_tests() -> None:
+    """Test seam: the module's existing reset, then the remaining module-level tables back to a fresh process (smplwise.test_reset; product code never calls it)."""
+    _OUT.clear()
+    STATS.clear()
+    STATS.update({"payload_invalid": 0, "hook_failures": 0, "enqueued": 0})
+
+
+register_reset(__name__, ("_OUT", "STATS"), _reset_all_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

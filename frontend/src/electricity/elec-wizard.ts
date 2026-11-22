@@ -7,6 +7,9 @@
  */
 import { html, nothing } from 'lit';
 import '../components/sw-button';
+import '../components/sw-field';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { customElement, property, state } from 'lit/decorators.js';
 import {
   AUTO_LABEL, elec, elecCustomerNumberError, elecErrorText, elecFieldErrors, elecMeters, elecToday, type Account, type AutoMode, type Customer, type ElecMeter, type PriceMode, type Tariff, type VatRates,
@@ -18,12 +21,14 @@ import './elec-formula-editor';
 import './meter-picker';
 import type { ElecFormulaEditor, FormulaChange } from './elec-formula-editor';
 import { astToTokens, parseTokens, presetTokens, type Tok } from './elec-formula';
-import { MONTH_NAMES, addDays, billNumber, f2, f4, fmtDate, fmtRange, isIsoDate, monthName, nextPeriods, periodContaining, r2 } from './elec-format';
+import { MONTH_NAMES, NO_VALUE, addDays, billNumber, customerName, f2, f4, fmtDate, fmtRange, isIsoDate, monthName, nextPeriods, periodContaining, r2 } from './elec-format';
 import { go, href, route } from './elec-routes';
 import { meterNames } from './meter-name';
 import { dateInputLang } from '../api/day-format';
 import { tr } from '../i18n/msg/electricity';
 import { touName } from './elec-tou';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 
 const STEPS = [tr('בחירת מונים'), tr('נוסחת החשבון'), tr('מחיר ומע״מ'), tr('תקופת חיוב'), tr('כרטיס לקוח'), tr('סיכום והפקה')];
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -129,7 +134,7 @@ export class ElecAccountWizard extends ElecBase {
         this.firstStart = a.first_period_start;
         this.auto = a.auto_mode;
         this.accName = a.name;
-        this.existingId = a.customer.id;
+        this.existingId = a.customer?.id ?? ''; // CR-RESPONSE-MODELS-FOLLOWUP-2450: null when the customer row is gone (edit never sends it)
         this.custMode = 'existing';
         this.reached = 6;
       }
@@ -148,7 +153,7 @@ export class ElecAccountWizard extends ElecBase {
   }
   private cust(): { name: string; number: string; count: number } {
     if (this.custMode === 'existing') {
-      const c = this.customers.find((x) => x.id === this.existingId) ?? (this.account ? { name: this.account.customer.name, customer_number: this.account.customer.customer_number, account_count: 1 } : null);
+      const c = this.customers.find((x) => x.id === this.existingId) ?? (this.account ? { name: customerName(this.account), customer_number: this.account.customer?.customer_number ?? NO_VALUE, account_count: 1 } : null);
       return c ? { name: c.name, number: c.customer_number, count: c.account_count } : { name: '', number: this.nextNo, count: 0 };
     }
     return { name: this.nc.name, number: this.nc.customer_number || this.nextNo, count: 0 };
@@ -295,10 +300,8 @@ export class ElecAccountWizard extends ElecBase {
       <div class="fld"><label for="numv">${tr('ערך')}</label>
         <input id="numv" class="ltr ${this.numErr ? 'err' : ''}" data-number-input inputmode="decimal" .value=${this.numVal} @input=${(e: Event) => { this.numVal = (e.target as HTMLInputElement).value; this.numErr = ''; }} @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.confirmNumber()} />
         ${this.numErr ? html`<div class="msg" role="alert">${this.numErr}</div>` : nothing}</div>
-      <div class="seg" role="group" aria-label=${tr('סוג')}>
-        <button type="button" data-number-kind="pct" aria-pressed=${this.numPct} @click=${() => (this.numPct = true)}>${tr('אחוז')}</button>
-        <button type="button" data-number-kind="num" aria-pressed=${!this.numPct} @click=${() => (this.numPct = false)}>${tr('מספר')}</button>
-      </div>
+      <sw-segmented label=${tr('סוג')} value=${this.numPct ? 'pct' : 'num'} @change=${(e: CustomEvent<SegmentedChange>) => (this.numPct = e.detail.value === 'pct')}
+        .options=${[{ value: 'pct', label: tr('אחוז'), attrs: { 'data-number-kind': 'pct' } }, { value: 'num', label: tr('מספר'), attrs: { 'data-number-kind': 'num' } }]}></sw-segmented>
       <sw-button variant="primary" slot="actions" data-number-ok @click=${() => this.confirmNumber()}>${tr('הוספה')}</sw-button>
       <sw-button slot="actions" @click=${() => (this.numOpen = false)}>${tr('ביטול')}</sw-button>
     </elec-dialog>`;
@@ -338,20 +341,29 @@ export class ElecAccountWizard extends ElecBase {
     return this.sampleResult !== null && this.sampleResult > 0 ? this.sampleResult : 0;
   }
 
+  /** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): the next periods as the shared sw-table (bare in its card, read-only). */
+  private periodColumns(customerNumber: string): TableColumn<{ from: string; to: string }>[] {
+    return [
+      { key: 'period', label: tr('תקופה'), render: (p) => html`<span class="num">${fmtRange(p.from, p.to)}</span>` },
+      { key: 'number', label: tr('מספר חיוב'), render: (p) => html`<span class="num">${billNumber(p.to, customerNumber, '')}</span>` },
+    ];
+  }
+
   private renderStep4() {
     const anch = this.months === 2 ? this.anchorMonth : 1;
     const periods = isIsoDate(this.firstStart) ? nextPeriods(this.firstStart, this.months, this.anchorDay, anch, '', 3) : [];
     const c = this.cust();
+    const dayBad = this.anchorDay < 1 || this.anchorDay > 28;
     return html`<div class="form">
-        <div class="fld"><span class="lbl" id="len">${tr('אורך תקופה')}</span><div class="seg" role="group" aria-labelledby="len"><button type="button" data-months="1" aria-pressed=${this.months === 1} ?disabled=${this.edit} @click=${() => (this.months = 1)}>${tr('חודשית')}</button><button type="button" data-months="2" aria-pressed=${this.months === 2} ?disabled=${this.edit} @click=${() => (this.months = 2)}>${tr('דו-חודשית')}</button></div></div>
-        ${this.months === 2 ? html`<div class="fld"><label for="am">${tr('חודש פתיחת המחזור')}</label><select id="am" data-anchor-month ?disabled=${this.edit} @change=${(e: Event) => (this.anchorMonth = Number((e.target as HTMLSelectElement).value))}>${MONTH_NAMES.map((m, i) => html`<option value=${i + 1} ?selected=${this.anchorMonth === i + 1}>${m}</option>`)}</select></div>` : nothing}
-        <div class="fld"><label for="ad">${tr('יום תחילת תקופה')}</label><div class="unit"><input id="ad" class="ltr" type="number" min="1" max="28" data-anchor-day ?disabled=${this.edit} .value=${String(this.anchorDay)} @input=${(e: Event) => (this.anchorDay = Number((e.target as HTMLInputElement).value))} /><span>${tr('בחודש')}</span></div>
-          ${this.anchorDay < 1 || this.anchorDay > 28 ? html`<div class="msg" role="alert">${tr('היום חייב להיות בין 1 ל-28')}</div>` : nothing}</div>
-        <div class="fld"><label for="fs">${tr('תחילת החיוב הראשון')}</label><input id="fs" type="date" lang=${dateInputLang()} class="ltr ${isIsoDate(this.firstStart) ? '' : 'err'}" data-first-start ?disabled=${this.edit} .value=${this.firstStart} @change=${(e: Event) => (this.firstStart = (e.target as HTMLInputElement).value)} />
-          ${isIsoDate(this.firstStart) ? nothing : html`<div class="msg" role="alert">${tr('צריך לבחור תאריך')}</div>`}</div>
+        <div class="fld"><span class="lbl" id="len">${tr('אורך תקופה')}</span><sw-segmented label=${tr('אורך תקופה')} ?disabled=${this.edit} value=${String(this.months)} @change=${(e: CustomEvent<SegmentedChange>) => (this.months = Number(e.detail.value) as 1 | 2)}
+        .options=${[{ value: '1', label: tr('חודשית'), attrs: { 'data-months': '1' } }, { value: '2', label: tr('דו-חודשית'), attrs: { 'data-months': '2' } }]}></sw-segmented></div>
+        ${this.months === 2 ? html`<sw-field class="fld" label=${tr('חודש פתיחת המחזור')}><select id="am" data-anchor-month ?disabled=${this.edit} @change=${(e: Event) => (this.anchorMonth = Number((e.target as HTMLSelectElement).value))}>${MONTH_NAMES.map((m, i) => html`<option value=${i + 1} ?selected=${this.anchorMonth === i + 1}>${m}</option>`)}</select></sw-field>` : nothing}
+        <sw-field class="fld" label=${tr('יום תחילת תקופה')} unit=${tr('בחודש')}><input id="ad" class="ltr ${dayBad ? 'err' : ''}" type="number" min="1" max="28" data-anchor-day aria-invalid=${dayBad ? 'true' : 'false'} ?disabled=${this.edit} .value=${String(this.anchorDay)} @input=${(e: Event) => (this.anchorDay = Number((e.target as HTMLInputElement).value))} />
+          ${dayBad ? html`<div class="msg" role="alert" slot="message">${tr('היום חייב להיות בין 1 ל-28')}</div>` : nothing}</sw-field>
+        <sw-field class="fld" label=${tr('תחילת החיוב הראשון')}><input id="fs" type="date" lang=${dateInputLang()} class="ltr ${isIsoDate(this.firstStart) ? '' : 'err'}" aria-invalid=${isIsoDate(this.firstStart) ? 'false' : 'true'} data-first-start ?disabled=${this.edit} .value=${this.firstStart} @change=${(e: Event) => (this.firstStart = (e.target as HTMLInputElement).value)} />
+          ${isIsoDate(this.firstStart) ? nothing : html`<div class="msg" role="alert" slot="message">${tr('צריך לבחור תאריך')}</div>`}</sw-field>
       </div>
-      <div class="card flush soft"><div class="hd"><b class="h3">${tr('התקופות הבאות')}</b></div>${periods.length ? html`<table class="t" data-periods><thead><tr><th>${tr('תקופה')}</th><th>${tr('מספר חיוב')}</th></tr></thead><tbody>
-        ${periods.map((p) => html`<tr><td><span class="num">${fmtRange(p.from, p.to)}</span></td><td class="num" style="text-align:start">${billNumber(p.to, c.number, '')}</td></tr>`)}</tbody></table>` : html`<div class="mut" style="padding:0 16px 14px">${tr('בחרו תאריך התחלה')}</div>`}</div>`;
+      <div class="card flush soft"><div class="hd"><b class="h3">${tr('התקופות הבאות')}</b></div>${periods.length ? html`<sw-table bare static-rows class="t" data-periods .columns=${this.periodColumns(c.number) as unknown as TableColumn[]} .rows=${periods as unknown as Record<string, unknown>[]}></sw-table>` : html`<div class="mut" style="padding:0 16px 14px">${tr('בחרו תאריך התחלה')}</div>`}</div>`;
   }
 
   private renderStep5() {
@@ -365,7 +377,8 @@ export class ElecAccountWizard extends ElecBase {
     const ex = this.customers.find((c) => c.id === this.existingId);
     const q = this.custQ.trim();
     const list = this.customers.filter((c) => !q || c.name.includes(q) || c.customer_number.includes(q));
-    return html`${this.edit ? alertBox('info', html`${tr('הלקוח של חשבון קיים לא משתנה כאן.')} <b>${this.account?.customer.name}</b>`) : html`<div class="seg" style="align-self:flex-start" role="group" aria-label=${tr('לקוח')}><button type="button" data-cust-mode="new" aria-pressed=${this.custMode === 'new'} @click=${() => (this.custMode = 'new')}>${tr('לקוח חדש')}</button><button type="button" data-cust-mode="existing" aria-pressed=${this.custMode === 'existing'} @click=${() => (this.custMode = 'existing')}>${tr('לקוח קיים')}</button></div>`}
+    return html`${this.edit ? alertBox('info', html`${tr('הלקוח של חשבון קיים לא משתנה כאן.')} <b>${this.account ? customerName(this.account) : ''}</b>`) : html`<sw-segmented label=${tr('לקוח')} style="align-self:flex-start" value=${this.custMode} @change=${(e: CustomEvent<SegmentedChange>) => (this.custMode = e.detail.value as 'new' | 'existing')}
+        .options=${[{ value: 'new', label: tr('לקוח חדש'), attrs: { 'data-cust-mode': 'new' } }, { value: 'existing', label: tr('לקוח קיים'), attrs: { 'data-cust-mode': 'existing' } }]}></sw-segmented>`}
       ${this.edit ? nothing : this.custMode === 'existing'
         ? html`<input type="search" data-cust-search style="max-inline-size:none" aria-label=${tr('חיפוש לקוח')} placeholder=${tr('חיפוש לקוח')} .value=${this.custQ} @input=${(e: Event) => (this.custQ = (e.target as HTMLInputElement).value)} />
             <div class="list" role="radiogroup" aria-label=${tr('לקוח קיים')} data-cust-list>${list.map((c) => html`<label class="li ${c.id === this.existingId ? 'sel' : ''}" data-cust-row=${c.id}><input type="radio" name="cust" .checked=${c.id === this.existingId} @change=${() => (this.existingId = c.id)} /><span class="ind"></span><div class="grow"><div class="t1">${c.name}</div><div class="t2">${tr('מספר לקוח')} ${n(c.customer_number)} · ${c.account_count} ${tr('חשבונות')}</div></div></label>`)}
@@ -428,10 +441,11 @@ export class ElecAccountWizard extends ElecBase {
     const set = (k: 'name' | 'price' | 'from', v: string) => (this.tf = { ...this.tf, [k]: v, err: { ...this.tf.err, [k]: '' } });
     return html`<elec-dialog heading=${tr('תעריף חדש')} ?open=${this.tariffOpen} data-tariff-dialog @close=${() => (this.tariffOpen = false)}>
       <div class="form">
-        <div class="fld wide"><label for="tn">${tr('שם התעריף')}</label><input id="tn" class="${f.err.name ? 'err' : ''}" data-tariff-name .value=${f.name} @input=${(e: Event) => set('name', (e.target as HTMLInputElement).value)} />${f.err.name ? html`<div class="msg" role="alert">${f.err.name}</div>` : nothing}</div>
-        <div class="fld"><label for="tp">${tr('מחיר לקוט״ש')}</label><div class="unit"><input id="tp" class="ltr ${f.err.price ? 'err' : ''}" data-tariff-price inputmode="decimal" .value=${f.price} @input=${(e: Event) => set('price', (e.target as HTMLInputElement).value)} /><span>₪</span></div>${f.err.price ? html`<div class="msg" role="alert">${f.err.price}</div>` : nothing}</div>
-        <div class="fld"><span class="lbl">${tr('המחיר שהוזן')}</span><div class="seg" role="group" aria-label=${tr('סוג מחיר')}><button type="button" data-tariff-mode="ex_vat" aria-pressed=${f.mode === 'ex_vat'} @click=${() => (this.tf = { ...f, mode: 'ex_vat' })}>${tr('לפני מע״מ')}</button><button type="button" data-tariff-mode="inc_vat" aria-pressed=${f.mode === 'inc_vat'} @click=${() => (this.tf = { ...f, mode: 'inc_vat' })}>${tr('כולל מע״מ')}</button></div></div>
-        <div class="fld"><label for="tf">${tr('בתוקף מתאריך')}</label><input id="tf" type="date" lang=${dateInputLang()} class="ltr ${f.err.from ? 'err' : ''}" data-tariff-from .value=${f.from} @change=${(e: Event) => set('from', (e.target as HTMLInputElement).value)} />${f.err.from ? html`<div class="msg" role="alert">${f.err.from}</div>` : nothing}</div>
+        <sw-field class="fld wide" label=${tr('שם התעריף')}><input id="tn" class="${f.err.name ? 'err' : ''}" aria-invalid=${f.err.name ? 'true' : 'false'} data-tariff-name .value=${f.name} @input=${(e: Event) => set('name', (e.target as HTMLInputElement).value)} />${f.err.name ? html`<div class="msg" role="alert" slot="message">${f.err.name}</div>` : nothing}</sw-field>
+        <sw-field class="fld" label=${tr('מחיר לקוט״ש')} unit="₪"><input id="tp" class="ltr ${f.err.price ? 'err' : ''}" aria-invalid=${f.err.price ? 'true' : 'false'} data-tariff-price inputmode="decimal" .value=${f.price} @input=${(e: Event) => set('price', (e.target as HTMLInputElement).value)} />${f.err.price ? html`<div class="msg" role="alert" slot="message">${f.err.price}</div>` : nothing}</sw-field>
+        <div class="fld"><span class="lbl">${tr('המחיר שהוזן')}</span><sw-segmented label=${tr('סוג מחיר')} value=${f.mode} @change=${(e: CustomEvent<SegmentedChange>) => (this.tf = { ...f, mode: e.detail.value as 'ex_vat' | 'inc_vat' })}
+        .options=${[{ value: 'ex_vat', label: tr('לפני מע״מ'), attrs: { 'data-tariff-mode': 'ex_vat' } }, { value: 'inc_vat', label: tr('כולל מע״מ'), attrs: { 'data-tariff-mode': 'inc_vat' } }]}></sw-segmented></div>
+        <sw-field class="fld" label=${tr('בתוקף מתאריך')}><input id="tf" type="date" lang=${dateInputLang()} class="ltr ${f.err.from ? 'err' : ''}" aria-invalid=${f.err.from ? 'true' : 'false'} data-tariff-from .value=${f.from} @change=${(e: Event) => set('from', (e.target as HTMLInputElement).value)} />${f.err.from ? html`<div class="msg" role="alert" slot="message">${f.err.from}</div>` : nothing}</sw-field>
       </div>
       ${f.error ? alertBox('err', f.error) : nothing}
       <sw-button variant="primary" slot="actions" data-tariff-save ?disabled=${f.busy} @click=${() => void this.saveTariff()}>${tr('שמירה')}</sw-button>

@@ -1,9 +1,10 @@
-import { LitElement, html, css, nothing } from 'lit';
+import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import './sw-dropdown';
 import './sw-icon';
 import type { DdPanel, DdRing, DdSize, DdStyle } from './sw-dropdown';
 import { motionReduced } from '../design/apply';
+import { tabPillShown } from './segmented-logic';
 import { fadeOf, moreSides, nextIndex, pageDelta, rovingStop, revealDelta, wheelDelta, wheelPixels, type Extent, type Side } from './tab-strip';
 import type { IconName } from './sw-icon';
 
@@ -23,8 +24,20 @@ export interface TabItem {
   /** SERVICEIA1-295: a shorter label the bar shows when the host asks for short labels (`short-labels`, the phone rows). */
   short?: string;
   /** SERVICEIA1-295 / CR-LIVEEVENT100: a small red dot after the label (the bar forms; the dropdown uses `alert`): something waits inside
-   * this entry (an open incident on the live event tab). */
-  dot?: boolean;
+   * this entry (an open incident on the live event tab). CR-CMP2-SEGMENTED-C-2450: `'warn'` draws it in the warning ink (attention, not
+   * an alarm). */
+  dot?: boolean | 'warn';
+  /** CR-CMP2-SEGMENTED-C-2450: the dot's accessible name ("needs attention"); without it the dot is decorative (aria-hidden). */
+  dotLabel?: string;
+  /** CR-CMP2-SEGMENTED-C-2450: data-* hooks copied onto the tab element (a strip that moved here keeps its specs' hooks). */
+  attrs?: Readonly<Record<string, string>>;
+  /** CR-CMP2-TABS-2460: a count pill after the label (the bar forms; a `<small>`, part `pill`): how many things the tab holds, or a
+   * short figure such as "2/5". Unlike `count` ("(12)", the quiet figure of the settings tabs) it is a rounded pill; `badge` stays the
+   * red "something waits for you" number. An empty string draws nothing. */
+  pill?: number | string;
+  /** CR-CMP2-TABS-2460: the screen's own icon at the start of the label (the bar forms): an `sw-icon`, or the app's inline `svg.ic`
+   * glyph (sized to the label here, as the screens' own rule did). Decorative - the label names the tab. The dropdown reads `icon`. */
+  glyph?: TemplateResult;
 }
 
 /** The look of a tab bar (0.1.148, `ui.tabs` styles - shell/nav.ts tabStyleOf): the narrow segmented pill, the underline row,
@@ -42,6 +55,13 @@ const ADAPTIVE_MAX_ITEMS = 3;
  * kept in view. The host may ask for taller touch targets with `--sw-tab-min-h` (the shell's phone rows: 44 px): the pill track
  * and the compact row stay slim and the hit area grows around them (the compact row's extra hit height overlaps the empty
  * space below it, so the row takes no more room). `underline` (boolean) is the older spelling of `variant="underline"`.
+ *
+ * CR-CMP2-TABS-2460 (the tab strips the screens drew as segments moved here): an item may carry a count `pill` and a `glyph` (the
+ * screen's icon); `fill` stretches the bar over its box with equal tabs (always, or on a phone). Knobs of the pill:
+ * --sw-tabs-pill-bg / --sw-tabs-pill-on-bg (the wash), --sw-tabs-pill-fg (its ink off the chosen tab), --sw-tabs-pill-pad / --sw-tabs-pill-min-w (its size: `transparent`, 0, 0 make
+ * it a plain figure, as a glass toolbar's neighbours show their counts); --sw-tabs-fs (the label size); --sw-tabs-key-h (the pill's
+ * key, 28 px; the track is 6 px taller); --sw-tabs-key-pad (the key's side padding, 12 px). A host with its own palette
+ * (the glass screens, the remote) maps the tokens the pill and the skins read (--sw-surface-3, --sw-text-2, --sw-seg-key ...) on it.
  */
 @customElement('sw-tabs')
 export class SwTabs extends LitElement {
@@ -72,6 +92,13 @@ export class SwTabs extends LitElement {
    * marks it `role="tabpanel"` and names it by the selected tab's label (an id reference cannot cross the shadow root, so the name is the
    * label text, not `aria-labelledby`). Leave empty for tabs that navigate (links): the page itself is the panel. */
   @property() panel = '';
+  /** CR-CMP2-TABS-2460: the bar fills the width of its box and the tabs share it equally (a tab never narrower than its label: a row
+   * too long for its box still scrolls sideways). `always`, or `phone` - only below 768 px (the phone rows of the devices strips).
+   * The bar forms only; the dropdown has its own `block`. */
+  @property({ reflect: true }) fill?: 'always' | 'phone';
+  /** CR-CMP2-TABS-2460: a press only reports (`change`); the selected tab stays `active` until the host sets a new one (the strips
+   * that moved here showed their model's value: a view switch the editor refuses - code that does not parse - keeps its tab). */
+  @property({ type: Boolean }) controlled = false;
 
   static styles = css`
     :host {
@@ -198,7 +225,7 @@ export class SwTabs extends LitElement {
       color: var(--sw-text-2);
       text-decoration: none;
       font: inherit;
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-tabs-fs, var(--sw-fs-sm));
       font-weight: var(--sw-fw-medium);
       cursor: pointer;
       white-space: nowrap;
@@ -277,6 +304,83 @@ export class SwTabs extends LitElement {
       background: var(--sw-danger);
       flex: none;
     }
+    .tdot.warn {
+      background: var(--sw-warning);
+    }
+    /* CR-CMP2-TABS-2460: the count pill - the label's own ink on a soft wash of it (it follows the chosen key's ink, light and dark);
+       a host whose neighbours show plain figures (the glass toolbars) turns the wash off through the knobs and keeps its width */
+    .cpill {
+      display: inline-grid;
+      place-items: center;
+      box-sizing: border-box;
+      min-inline-size: var(--sw-tabs-pill-min-w, 18px);
+      block-size: 18px;
+      padding-inline: var(--sw-tabs-pill-pad, 5px);
+      border-radius: 999px;
+      background: var(--sw-tabs-pill-bg, color-mix(in srgb, currentColor 12%, transparent));
+      color: var(--sw-tabs-pill-fg, inherit);
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-semibold);
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      unicode-bidi: isolate;
+      flex: none;
+    }
+    .on .cpill {
+      background: var(--sw-tabs-pill-on-bg, var(--sw-tabs-pill-bg, color-mix(in srgb, currentColor 14%, transparent)));
+      color: inherit;
+    }
+    /* CR-CMP2-TABS-2460: the screen's icon before the label; the app's inline svg.ic glyph is sized by the label's font here (the
+       host's own svg.ic rule does not reach into this shadow root), an sw-icon sizes itself */
+    .gl {
+      display: inline-flex;
+      flex: none;
+      line-height: 0;
+    }
+    .gl > svg {
+      inline-size: 1.15em;
+      block-size: 1.15em;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    /* CR-CMP2-TABS-2460: the bar fills its box, the tabs share the width (never narrower than the label: then the row scrolls) */
+    :host([fill='always']) {
+      display: flex;
+      inline-size: 100%;
+    }
+    :host([fill='always']) .row {
+      flex: 1 0 auto;
+    }
+    :host([fill='always']) .row > a,
+    :host([fill='always']) .row > button {
+      flex: 1 1 0;
+      justify-content: center;
+    }
+    :host([fill='always']) .lbl {
+      flex: 1 1 auto;
+      justify-content: center;
+    }
+    @media (max-width: 767px) {
+      :host([fill='phone']) {
+        display: flex;
+        inline-size: 100%;
+      }
+      :host([fill='phone']) .row {
+        flex: 1 0 auto;
+      }
+      :host([fill='phone']) .row > a,
+      :host([fill='phone']) .row > button {
+        flex: 1 1 0;
+        justify-content: center;
+      }
+      :host([fill='phone']) .lbl {
+        flex: 1 1 auto;
+        justify-content: center;
+      }
+    }
 
     /* ---- dropdown (0.1.153): one chip + a popover list; nothing to scroll or fade, and the chip's dot / hit area stick out of the box ---- */
     :host([data-variant='dropdown']) {
@@ -294,6 +398,10 @@ export class SwTabs extends LitElement {
     }
 
     /* ---- pill: the narrow segmented control (the track is 34 px; a taller hit area grows around it) ---- */
+    :host([data-variant='pill']) {
+      /* CR-CMP2-TABS-2460: the key's height is a knob (--sw-tabs-key-h, 28 px); the track is the key and 3 px around it */
+      --_trk: calc(var(--sw-tabs-key-h, 28px) + 6px);
+    }
     :host([data-variant='pill']) .row {
       padding-inline: 3px;
     }
@@ -301,18 +409,18 @@ export class SwTabs extends LitElement {
       content: '';
       position: absolute;
       inset-inline: 0;
-      inset-block: max(0px, calc((var(--_h) - 34px) / 2));
+      inset-block: max(0px, calc((var(--_h) - var(--_trk)) / 2));
       background: var(--sw-surface-3);
       border-radius: var(--sw-r-md);
     }
     :host([data-variant='pill']) a,
     :host([data-variant='pill']) button {
-      min-block-size: max(34px, var(--_h));
+      min-block-size: max(var(--_trk), var(--_h));
       padding-inline: 1px;
     }
     :host([data-variant='pill']) .lbl {
-      min-block-size: 28px;
-      padding: 0 12px;
+      min-block-size: var(--sw-tabs-key-h, 28px);
+      padding: 0 var(--sw-tabs-key-pad, 12px);
       border-radius: var(--sw-r-sm);
       box-sizing: border-box;
       justify-content: center;
@@ -541,6 +649,19 @@ export class SwTabs extends LitElement {
     if (changed.has('active') || changed.has('items') || changed.has('variant') || changed.has('underline') || changed.has('adaptive')) this.revealActive();
     this.updateFade();
     this.markPanel();
+    if (changed.has('items')) this.applyHooks();
+  }
+
+  /** CR-CMP2-SEGMENTED-C-2450: an item's `attrs` (data-* hooks) on its tab element; a hook an item dropped is removed. */
+  private applyHooks() {
+    const tabs = [...this.renderRoot.querySelectorAll<HTMLElement>('.row > a, .row > button')];
+    this.items.filter((it) => !it.divider).forEach((it, i) => {
+      const el = tabs[i];
+      if (!el) return;
+      const want = it.attrs ?? {};
+      for (const a of [...el.attributes]) if (a.name.startsWith('data-') && !(a.name in want)) el.removeAttribute(a.name);
+      for (const [name, v] of Object.entries(want)) if (el.getAttribute(name) !== v) el.setAttribute(name, v);
+    });
   }
 
   /** Which physical edges hide tabs (`data-fade`, direction-agnostic: compares the tabs' boxes with the viewport's box) and which
@@ -590,7 +711,7 @@ export class SwTabs extends LitElement {
   }
 
   private choose(item: TabItem) {
-    this.active = item.id;
+    if (!this.controlled) this.active = item.id;
     this.dispatchEvent(new CustomEvent('change', { detail: { id: item.id }, bubbles: true, composed: true }));
   }
 
@@ -607,7 +728,7 @@ export class SwTabs extends LitElement {
     if (this.mode === 'dropdown') {
       return html`<sw-dropdown ?block=${this.block} ?tall=${this.tall} dd-style=${this.ddStyle} dd-size=${this.ddSize} dd-ring=${this.ddRing} dd-panel=${this.ddPanel} .items=${this.items} .value=${this.active} .label=${this.groupLabel} @change=${this.onPick}></sw-dropdown>`;
     }
-    const label = (it: TabItem) => html`<span class="lbl">${this.shortLabels && it.short ? it.short : it.label}${it.count !== undefined ? html`<span class="count">(${it.count})</span>` : ''}${it.badge ? html`<span class="tbadge" data-tab-badge=${it.id}>${it.badge}</span>` : ''}${it.dot && !it.badge ? html`<span class="tdot" data-tab-dot=${it.id} aria-hidden="true"></span>` : ''}</span>`;
+    const label = (it: TabItem) => html`<span class="lbl">${it.glyph ? html`<span class="gl" part="glyph" aria-hidden="true">${it.glyph}</span>` : ''}${this.shortLabels && it.short ? it.short : it.label}${it.count !== undefined ? html`<span class="count">(${it.count})</span>` : ''}${tabPillShown(it.pill) ? html`<small class="cpill" part="pill">${it.pill}</small>` : ''}${it.badge ? html`<span class="tbadge" data-tab-badge=${it.id}>${it.badge}</span>` : ''}${it.dot && !it.badge ? html`<span class=${it.dot === 'warn' ? 'tdot warn' : 'tdot'} data-tab-dot=${it.id} role=${it.dotLabel ? 'img' : nothing} aria-label=${it.dotLabel || nothing} aria-hidden=${it.dotLabel ? nothing : 'true'}></span>` : ''}</span>`;
     // A11Y-R4-LEFTOVERS-2380: a real tablist. Every entry is a tab (a link keeps its href and aria-current, a button takes aria-selected in
     // place of the old pressed state); only the selected tab is in the Tab order (roving tabindex) - the arrow keys, Home and End walk
     // the others (onKey). A strip with no selected tab keeps its first tab reachable.

@@ -4,6 +4,9 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-drawer';
 import '../components/sw-dialog';
+import '../components/sw-segmented';
+import '../components/sw-tabs';
+import type { SegmentedChange } from '../components/sw-segmented';
 import './scenario-recipients';
 import { aIcon } from '../components/automation-icons';
 import { automationsStyles } from '../styles/automations-glass';
@@ -280,10 +283,9 @@ export class ScenariosPanel extends LitElement {
     const g = n;
     return html`<div class="grp" data-group=${sp}>
       <div class="grp-h">
-        <div class="seg sm" role="radiogroup" aria-label=${tr('חיבור')}>
-          <button type="button" role="radio" aria-checked=${String(g.op === 'and')} @click=${() => this.setAt(path, (x) => ({ ...(x as typeof g), op: 'and' }))}>${sct('and')}</button>
-          <button type="button" role="radio" aria-checked=${String(g.op === 'or')} @click=${() => this.setAt(path, (x) => ({ ...(x as typeof g), op: 'or' }))}>${sct('or')}</button>
-        </div>
+        <sw-segmented radio size="sm" label=${tr('חיבור')} value=${g.op}
+          @change=${(e: CustomEvent<SegmentedChange>) => { const op = e.detail.value === 'or' ? 'or' : 'and'; this.setAt(path, (x) => ({ ...(x as typeof g), op })); }}
+          .options=${[{ value: 'and', label: sct('and') }, { value: 'or', label: sct('or') }]}></sw-segmented>
         <button type="button" class="btn sm" data-add-leaf @click=${() => this.addLeaf(path)}>${aIcon('plus')}${sct('addCondition')}</button>
         ${path.length < 3 ? html`<button type="button" class="btn sm" @click=${() => this.addGroup(path)}>${aIcon('plus')}${sct('addGroup')}</button>` : nothing}
         ${path.length ? html`<button type="button" class="btn sm" @click=${() => this.setAt(path, () => null)}>${sct('remove')}</button>` : nothing}
@@ -492,7 +494,9 @@ export class ScenariosPanel extends LitElement {
         ${this.status?.kill_switch ? html`<div class="kill" role="alert">${sct('killOn')}</div>` : nothing}
         ${e.warnings?.map((w) => html`<div class="banner warn" role="status">${w.message}</div>`)}
         ${e.state_reason_text ? html`<div class="banner bad" role="status" data-state-reason=${e.state_reason ?? ''}>${e.state_reason_text}</div>` : nothing}
-        <div class="seg sm" role="tablist"><button type="button" role="tab" aria-selected=${String(this.view === 'edit')} @click=${() => (this.view = 'edit')}>${sct('when')}</button>${e.id ? html`<button type="button" role="tab" aria-selected=${String(this.view === 'runs')} data-scen-runs-tab @click=${() => void this.showRuns()}>${sct('runs')}</button>` : nothing}</div>
+        <sw-tabs controlled variant="pill" class="sm" .active=${this.view}
+          .items=${[{ id: 'edit', label: sct('when') }, ...(e.id ? [{ id: 'runs', label: sct('runs'), attrs: { 'data-scen-runs-tab': '' } }] : [])]}
+          @change=${(ev: CustomEvent<{ id: string }>) => { ev.stopPropagation(); if (ev.detail.id === 'runs') void this.showRuns(); else this.view = 'edit'; }}></sw-tabs>
         ${this.view === 'runs' ? this.runsView() : html`
           <div class="two"><label class="fld">${sct('name')}<input data-scen-name maxlength="120" .value=${this.name} ?disabled=${!manage} @input=${(ev: Event) => (this.name = (ev.target as HTMLInputElement).value)} /></label>
             <label class="fld">${sct('description')}<input maxlength="1000" .value=${this.description} ?disabled=${!manage} @input=${(ev: Event) => (this.description = (ev.target as HTMLInputElement).value)} /></label></div>

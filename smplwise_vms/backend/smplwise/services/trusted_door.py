@@ -35,6 +35,7 @@ from ..config import Settings
 from ..db import get_setting
 from ..errors import ApiError
 from . import ha_client, trusted_caller
+from ..test_reset import register_reset
 
 FLAG_KEY = "doors.trusted_path"
 FLAG_VALUES = ("off", "on")
@@ -196,3 +197,6 @@ OUTCOME_TEXT = {
 
 def refusal_text(code: str | None) -> str:
     return REFUSAL_TEXT.get(code or "", OUTCOME_TEXT["refused"])
+
+
+register_reset(__name__, ("_STATUS_HITS",), reset_status_rate)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

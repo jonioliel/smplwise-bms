@@ -73,6 +73,20 @@ export const calCss = css`
     cursor: pointer; white-space: nowrap; min-block-size: 30px; }
   .seg button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface-solid)); color: var(--sw-seg-key-ink, var(--sw-heading)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
   .seg button[disabled] { opacity: var(--sw-disabled-opacity); cursor: default; }
+  /* CR-CMP2-SEGMENTED-B-2450 (owner N11): the module's segmented controls are sw-segmented; these knobs keep the module's key (the pill
+     track, 13 px labels, the chosen key in the heading ink and semibold) through its shadow root. The .seg rules above stay for the
+     provider tab strip (a tablist, system-calendar-sync). */
+  sw-segmented {
+    --sw-seg-radius: var(--sw-r-pill);
+    --sw-seg-btn-radius: var(--sw-r-pill);
+    --sw-seg-h: 30px;
+    --sw-seg-key-pad: 12px;
+    --sw-seg-fs: var(--sw-fs-sm);
+    --sw-seg-fw: var(--sw-fw-regular, 400);
+    --sw-seg-on-fw: var(--sw-fw-semibold);
+    --sw-seg-on-bg: var(--sw-seg-key, var(--sw-surface-solid));
+    --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-heading));
+  }
 
   /* the calendar's colour dot / square */
   .dot { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--h, var(--cal-slate)); flex: none; }
@@ -132,6 +146,7 @@ export const calCss = css`
   /* AUDIT30-F5 (touch): on a coarse pointer every control of the module is a 44 px target (COMPONENT_RULES §1) */
   @media (pointer: coarse) {
     .btn, .btn.sm, .chipb, .seg button { min-block-size: 44px; }
+    sw-segmented { --sw-seg-h: 44px; }
     .btn.icon, .pager .btn { inline-size: 44px; }
   }
 

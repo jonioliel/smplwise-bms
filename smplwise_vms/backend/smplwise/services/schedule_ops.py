@@ -29,6 +29,7 @@ from . import schedule_model as model
 from . import schedule_policy as policy
 from . import schedule_view as view
 from . import schedules as store
+from ..test_reset import register_reset
 
 WRITES_PER_MIN = 30
 PREVIEWS_PER_MIN = 60
@@ -1393,3 +1394,6 @@ def _run_summary(w: W, slot: dict[str, Any]) -> str:
         label = (policy.SCHEDULE_ACTIONS.get(info["class"], {}).get(a["service"]) or {}).get("label") or ""
     text = f"{label} · {info['name']}" if label and info else (a.get("service") or "")
     return text + (f" ועוד {len(acts) - 1}" if len(acts) > 1 else "")
+
+
+register_reset(__name__, ("_RATE", "_LAST_RUN"), reset_limits)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

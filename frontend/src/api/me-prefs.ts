@@ -4,15 +4,14 @@
  * and, for a holder of `screen.personalize` only, `home.personal` - the user's own home-screen direction and widgets
  * (api/home.ts) and, likewise, `multimedia.personal` (CR-015, the screens page: api/media-personal.ts). Null resets a key to its default. */
 import { get, put } from './client';
+import type * as MeWire from './generated/wire-me';
 
 /** The wire shape of a navigation size (validated in the backend, services/nav_size.py; parsed by shell/nav-size.ts). */
 export type NavSizeWire = { mode: 'rel'; preset: 's' | 'm' | 'l' | 'xl' } | { mode: 'free'; icon: number; label: number; item: number };
 
-interface MyPrefs {
+/** `GET|PUT /me/prefs` (wire/me.py `MyPrefs`; the values are typed here, the server passes each validated value through). */
+interface MyPrefs extends Omit<MeWire.MyPrefs, 'prefs'> {
   prefs: { 'nav.order': string[]; 'ui.nav_size'?: NavSizeWire; 'ui.look'?: Record<string, unknown> | null; 'ui.background'?: string | null; 'ui.tabs_mode'?: string | null; 'ui.tabs_mode_groups'?: Record<string, string> | null; 'ui.dd_style'?: string | null; 'ui.dd_style_groups'?: Record<string, string> | null; 'ui.dd_phone'?: string | null; 'ui.dd_settings_nav'?: string | null; 'ui.lang'?: string | null; 'ui.dd_search'?: string | null; 'ui.dd_picker'?: string | null; 'ui.dd_place'?: string | null; 'ui.dd_size'?: string | null; 'ui.dd_size_groups'?: Record<string, string> | null; 'ui.dd_ring'?: string | null; 'ui.dd_ring_groups'?: Record<string, string> | null; 'ui.dd_panel'?: string | null; 'ui.dd_panel_groups'?: Record<string, string> | null; 'wiskey.density'?: string | null; 'wiskey.wall'?: string | null; 'plan.quality'?: string | null; 'video.transport'?: string | null; 'setup.hint'?: unknown; 'home.personal'?: unknown; 'devices.area_row'?: unknown; 'multimedia.personal'?: unknown };
-  /** The keys the user set themselves (the rest are defaults). */
-  stored: string[];
-  updated_at: string | null;
 }
 
 export const getMyPrefs = () => get<MyPrefs>('me/prefs');

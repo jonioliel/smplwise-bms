@@ -1,6 +1,8 @@
 import { LitElement, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import type { RouteState } from '../router';
 import { navigate } from '../router';
 import { ApiError } from '../api/client';
@@ -144,10 +146,8 @@ export class InfraReport extends LitElement {
         <b data-month>${monthLabel(this.month, this.rlang)}</b>
         <button data-next aria-label=${ix('nextMonth')} ?disabled=${!canGoNext(this.month, now)} @click=${() => this.setMonth(shiftMonth(this.month, 1))}><sw-icon name="chevron" size="18"></sw-icon></button>
       </div>
-      <div class="seg" role="group" aria-label=${ix('language')}>
-        <button data-lang="he" aria-pressed=${this.rlang === 'he'} @click=${() => this.setLang('he')}>${ix('langHe')}</button>
-        <button data-lang="en" aria-pressed=${this.rlang === 'en'} @click=${() => this.setLang('en')}>${ix('langEn')}</button>
-      </div>
+      <sw-segmented label=${ix('language')} value=${this.rlang} @change=${(e: CustomEvent<SegmentedChange>) => this.setLang(e.detail.value as IxLang)}
+        .options=${[{ value: 'he', label: ix('langHe'), attrs: { 'data-lang': 'he' } }, { value: 'en', label: ix('langEn'), attrs: { 'data-lang': 'en' } }]}></sw-segmented>
       <span class="sp"></span>
       <button class="btn pri" data-download ?disabled=${this.phase !== 'ready' || this.busy} @click=${() => void this.download()}><sw-icon name="download"></sw-icon>${this.busy ? ix('downloading') : ix('download')}</button>
       ${this.model && this.phase === 'ready' ? html`<span class="muted num" data-generated>${ix('generatedAt', { t: fmtWhen(new Date(this.model.generated * 1000).toISOString(), this.model.zone) })}</span>` : nothing}

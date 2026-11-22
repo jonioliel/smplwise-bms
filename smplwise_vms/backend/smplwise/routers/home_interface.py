@@ -23,6 +23,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..rbac import INSTALLATION, Principal, require
 from ..services import device_bulk as bulk
+from ..services import home_interface_store as store
 from ..services import device_types
 from ..services import devices as svc
 from ..services import door_authority, intercom_doors
@@ -30,11 +31,13 @@ from ..services import ha_scope
 from ..services import home_interface as hi
 from ..services import switch_protection
 from ._common import rid as _rid
+from ..wire import home_interface as W
+from ..wire import wire
 
 router = APIRouter()
 
 
-@router.get("/home/interface")
+@router.get("/home/interface", **wire(W.HomePolicy))
 def my_interface(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The caller's interface policy: which interface opens, whether they may switch, home-only / wall-panel lock, rooms and categories."""
     return hi.effective(conn, principal.user_id)
@@ -45,7 +48,7 @@ class InterfaceBody(BaseModel):
     interface: Literal["home", "full"]
 
 
-@router.put("/me/interface")
+@router.put("/me/interface", **wire(W.HomePolicy))
 def switch_interface(body: InterfaceBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The caller switches between the home and the full interface (the personal menu); 403 interface_locked when the policy says no."""
     try:
@@ -163,7 +166,7 @@ def _weather(conn: sqlite3.Connection) -> dict[str, Any] | None:
     """The outside temperature and condition of the installation's first available weather entity (the strip's weather line), or None."""
     import json
 
-    r = conn.execute("SELECT state, attributes_json FROM ha_entities WHERE domain = 'weather' AND removed_at IS NULL AND disabled = 0 AND available = 1 ORDER BY entity_id LIMIT 1").fetchone()
+    r = store.first_weather(conn)
     if r is None:
         return None
     try:
@@ -174,7 +177,7 @@ def _weather(conn: sqlite3.Connection) -> dict[str, Any] | None:
     return {"t": round(t) if isinstance(t, (int, float)) and not isinstance(t, bool) else None, "text": WEATHER_HE.get(r["state"] or "", "")}
 
 
-@router.get("/home/overview")
+@router.get("/home/overview", **wire(W.HomeOverview))
 def overview(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The home interface's rooms (floors -> rooms with lights, on/off switches, climate, shutters and locks), as the caller may see them."""
     return build_overview(conn, principal)
@@ -188,13 +191,13 @@ class PrefsBody(BaseModel):
     layout: dict[str, Any] | None = None
 
 
-@router.get("/home/prefs")
+@router.get("/home/prefs", **wire(W.HomePrefs))
 def my_prefs(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The caller's own favourites per room and layout, and the administrator's starting favourites."""
     return hi.get_prefs(conn, principal.user_id)
 
 
-@router.put("/home/prefs")
+@router.put("/home/prefs", **wire(W.HomePrefs))
 def put_prefs(body: PrefsBody, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Save the caller's own favourites (rooms named in the body) and layout (keys named in the body)."""
     return hi.set_prefs(conn, principal.user_id, body.model_dump(exclude_none=True))
@@ -205,13 +208,13 @@ def put_prefs(body: PrefsBody, principal: Principal = Depends(current_principal)
 ADMIN = "rbac.assign"
 
 
-@router.get("/home/policies")
+@router.get("/home/policies", **wire(W.HomePolicies))
 def policies(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Every person's interface policy (user management, the home interface page). rbac.assign."""
     require(conn, principal, ADMIN, INSTALLATION)
     from ..db import get_setting
 
-    seed = {row["room_key"]: hi._loads(row["items_json"]) or [] for row in conn.execute("SELECT room_key, items_json FROM home_favourites_seed").fetchall()}
+    seed = {row["room_key"]: hi._loads(row["items_json"]) or [] for row in store.favourites_seed_rows(conn)}
     return {"users": hi.list_policies(conn), "modules": list(hi.MODULES), "seed": seed, "kiosk_code_set": bool(get_setting(conn, hi.KIOSK_CODE_KEY))}
 
 
@@ -229,7 +232,7 @@ class PolicyBody(BaseModel):
     guests: bool | None = None  # HOME-V3-P1-2430: may invite a guest from the home interface (never a grant)
 
 
-@router.put("/home/policies/{user_id}")
+@router.put("/home/policies/{user_id}", **wire(W.HomePolicy))
 def put_policy(user_id: str, body: PolicyBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Set one person's interface policy (default interface, switch, home only, wall panel, rooms, categories). rbac.assign; audited."""
     require(conn, principal, ADMIN, INSTALLATION)
@@ -251,7 +254,7 @@ class SeedBody(BaseModel):
     seed: dict[str, list[dict[str, Any]]]
 
 
-@router.put("/home/seed")
+@router.put("/home/seed", **wire(W.HomeSeed))
 def put_seed(body: SeedBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The starting favourites per room that people who never edited a room see. rbac.assign; audited."""
     require(conn, principal, ADMIN, INSTALLATION)
@@ -266,7 +269,7 @@ class KioskCodeBody(BaseModel):
     code: str | None = Field(None, max_length=16)
 
 
-@router.put("/home/kiosk-code")
+@router.put("/home/kiosk-code", **wire(W.KioskCodeSet))
 def put_kiosk_code(body: KioskCodeBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Set (4-8 digits) or clear the wall panels' exit code. rbac.assign; audited (never the code itself)."""
     require(conn, principal, ADMIN, INSTALLATION)
@@ -281,7 +284,7 @@ class KioskExitBody(BaseModel):
     code: str = Field(..., min_length=1, max_length=16)
 
 
-@router.post("/home/kiosk/exit")
+@router.post("/home/kiosk/exit", **wire(W.HomeOk))
 def kiosk_exit(body: KioskExitBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The wall panel's exit: true when the code is the administrator's exit code (5 tries per 5 minutes; audited)."""
     ok = hi.check_kiosk_code(conn, principal.user_id, body.code)
@@ -301,14 +304,14 @@ class InstallBody(BaseModel):
     wallpaper: Literal["none", "gallery", "gallery_image"] | None = None
 
 
-@router.get("/home/settings")
+@router.get("/home/settings", **wire(W.HomeSettingsView))
 def get_install_settings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The home interface's installation settings: default interface of new people, wall-panel exit, room wallpaper. rbac.assign."""
     require(conn, principal, ADMIN, INSTALLATION)
     return {"settings": hi.install_settings(conn), "values": {k: list(v) for k, v in hi.INSTALL_VALUES.items()}, "gallery": list(hi.GALLERY)}
 
 
-@router.put("/home/settings")
+@router.put("/home/settings", **wire(W.HomeSettingsSaved))
 def put_install_settings(body: InstallBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Change the home interface's installation settings. Existing people keep their policy rows. rbac.assign; audited."""
     require(conn, principal, ADMIN, INSTALLATION)
@@ -336,7 +339,7 @@ def _switch_rows(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     entities = [e for e in all_entities if e["domain"] == "switch" and not svc.is_scheduler(conn, e["entity_id"])]
     floors, areas = svc.load_structure(conn, all_entities)
     types = {r["entity_id"]: r for r in device_types.listing(conn, entities, floors, areas)}
-    prot = {r["entity_id"]: dict(r) for r in conn.execute("SELECT * FROM device_bulk_protected").fetchall()}
+    prot = {r["entity_id"]: dict(r) for r in store.bulk_protected_rows(conn)}
     policy = bulk.SwitchPolicy(conn)
     media_managed = dev._media_managed(conn)
     out = []
@@ -364,7 +367,7 @@ def _switch_rows(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     return out
 
 
-@router.get("/home/switches")
+@router.get("/home/switches", **wire(W.SwitchClasses))
 def list_switch_classes(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The administrator's switch classification list (light / not a light / protected, with the system's suggestions). system.configure:
     the permission of Settings > device types and protected switches, whose stores this writes."""
@@ -380,7 +383,7 @@ class SwitchClassBody(BaseModel):
     mark: Literal["light", "not_light", "protected"]
 
 
-@router.post("/home/switches")
+@router.post("/home/switches", **wire(W.SwitchClassesSaved))
 def set_switch_classes(body: SwitchClassBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Mark many switches at once: `light` (device type light, protection removed), `not_light` (a light type dropped - back to
     automatic, or `switch` when the name alone would make it a light - and protection removed), `protected` (not a light, and out of
@@ -445,7 +448,7 @@ def _wall_room(conn: sqlite3.Connection, room_key: str) -> None:
         raise hi.HomeInterfaceError(422, "validation", "החדר אינו תקין.")
 
 
-@router.put("/home/wallpaper/{room_key}")
+@router.put("/home/wallpaper/{room_key}", **wire(W.WallpaperSaved))
 def put_wallpaper(room_key: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal),
                         conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Upload the caller's own picture for one room's screen (JPEG / PNG, <= 2 MB; re-encoded: pixels rebuilt, EXIF dropped, long side
@@ -463,11 +466,7 @@ def put_wallpaper(room_key: str, request: Request, file: UploadFile = File(...),
         mime, data = sanitize_image(raw, max_bytes=hi.WALL_IMAGE_BYTES, max_side=hi.WALL_IMAGE_SIDE)
     except LogoError as exc:
         raise hi.HomeInterfaceError(422, "image_refused", WALL_REFUSED.get(str(exc), "התמונה נדחתה."), details={"reason": str(exc)}) from None
-    conn.execute(
-        """INSERT INTO home_room_image (user_id, room_key, mime, data_b64, bytes, updated_at) VALUES (?, ?, ?, ?, ?, ?)
-           ON CONFLICT(user_id, room_key) DO UPDATE SET mime = excluded.mime, data_b64 = excluded.data_b64, bytes = excluded.bytes, updated_at = excluded.updated_at""",
-        (principal.user_id, room_key, mime, base64.b64encode(data).decode("ascii"), len(data), now_iso()),
-    )
+    store.upsert_room_image(conn, principal.user_id, room_key, mime, base64.b64encode(data).decode("ascii"), len(data), now_iso())
     walls = dict(hi.get_prefs(conn, principal.user_id)["layout"].get("wallpapers") or {})
     walls[room_key] = "img"
     prefs = hi.set_prefs(conn, principal.user_id, {"layout": {"wallpapers": walls}})
@@ -482,17 +481,17 @@ def get_wallpaper(room_key: str, principal: Principal = Depends(current_principa
     import base64
 
     _wall_room(conn, room_key)
-    r = conn.execute("SELECT mime, data_b64 FROM home_room_image WHERE user_id = ? AND room_key = ?", (principal.user_id, room_key)).fetchone()
+    r = store.room_image(conn, principal.user_id, room_key)
     if r is None or hi.install_settings(conn)["wallpaper"] != "gallery_image":
         raise hi.HomeInterfaceError(404, "not_found", "אין תמונה.")
     return Response(base64.b64decode(r["data_b64"]), media_type=r["mime"], headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"})
 
 
-@router.delete("/home/wallpaper/{room_key}")
+@router.delete("/home/wallpaper/{room_key}", **wire(W.WallpaperRemoved))
 def delete_wallpaper(room_key: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Remove the caller's own picture for one room (the room goes back to no wallpaper)."""
     _wall_room(conn, room_key)
-    conn.execute("DELETE FROM home_room_image WHERE user_id = ? AND room_key = ?", (principal.user_id, room_key))
+    store.delete_room_image(conn, principal.user_id, room_key)
     walls = dict(hi.get_prefs(conn, principal.user_id)["layout"].get("wallpapers") or {})
     if walls.get(room_key) == "img":
         walls.pop(room_key)

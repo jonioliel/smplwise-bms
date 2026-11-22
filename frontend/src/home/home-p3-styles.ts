@@ -95,7 +95,7 @@ export const homeP3Styles = css`
   .ovl .dpad .rb.xl { font-size: 16px; font-weight: 600; background: var(--hs-accent); color: var(--hs-on-accent, #fff); }
   .grp-list { display: grid; gap: 4px; inline-size: 100%; }
   /* the tablet's 56 px target rule inside the phase 3 sheets too (the round-27 sheets drew 54) */
-  @media (min-width: 900px), (min-width: 701px) and (orientation: landscape) { .sheet.v3 .rb { inline-size: 56px; block-size: 56px; } .sheet.v3 .hsw, .sheet.v3 .hbtn, .sheet.v3 .chip2, .sheet.v3 .seg button { min-block-size: 56px; } }
+  @media (min-width: 900px), (min-width: 701px) and (orientation: landscape) { .sheet.v3 .rb { inline-size: 56px; block-size: 56px; } .sheet.v3 .hsw, .sheet.v3 .hbtn, .sheet.v3 .chip2 { min-block-size: 56px; } .sheet.v3 sw-segmented { --sw-seg-h: 56px; } }
 
   /* ---- 1024 tablets */
   @media (max-width: 1100px) and (min-width: 900px), (max-width: 1100px) and (min-width: 701px) and (orientation: landscape) {

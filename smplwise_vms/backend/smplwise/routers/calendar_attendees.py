@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, permissions_anywhere, require
+from ..services import calendar_attendees_store as store
 from ..services.calendar import attendee_notices as notices
 from ..services.calendar import attendees as att
 from ..services.calendar import events as cal_events
@@ -79,13 +80,12 @@ def on_create(ctx: Ctx, request: Request, out: dict[str, Any], items: list[dict[
 
 def snapshot(conn: sqlite3.Connection, eid: str) -> dict[str, Any] | None:
     """What a change notice is about: time, recurrence, rooms of the entry and its overrides."""
-    ev = conn.execute("SELECT * FROM cal_events WHERE id = ?", (eid,)).fetchone()
+    ev = store.event(conn, eid)
     if ev is None:
         return None
     root = ev["override_of"] or ev["id"]
-    fam = conn.execute("SELECT id, starts_at, ends_at, all_day, tz, rrule, exdates_json, state FROM cal_events WHERE id = ? OR override_of = ? ORDER BY id", (root, root)).fetchall()
-    rooms = conn.execute("SELECT event_id, room_calendar_id, state FROM cal_event_rooms WHERE event_id IN (SELECT id FROM cal_events WHERE id = ? OR override_of = ?) ORDER BY event_id, room_calendar_id",
-                         (root, root)).fetchall()
+    fam = store.family_rows(conn, root)
+    rooms = store.family_room_rows(conn, root)
     return {"root": root, "family": [tuple(r) for r in fam], "rooms": [tuple(r) for r in rooms], "state": ev["state"]}
 
 
@@ -149,10 +149,10 @@ def on_cancel(ctx: Ctx, eid: str, before: dict[str, Any] | None, body: dict[str,
         return
     conn = ctx.conn
     root = before["root"]
-    ev = conn.execute("SELECT * FROM cal_events WHERE id = ?", (eid,)).fetchone()
+    ev = store.event(conn, eid)
     if ev is None:
         return
-    rootrow = conn.execute("SELECT * FROM cal_events WHERE id = ?", (root,)).fetchone()
+    rootrow = store.event(conn, root)
     if rootrow is not None and rootrow["state"] == "cancelled":
         notices.enqueue_cancel(conn, root, now, ctx.principal.user_id)
     elif ev["override_of"] and ev["state"] == "cancelled":
@@ -164,7 +164,7 @@ def on_cancel(ctx: Ctx, eid: str, before: dict[str, Any] | None, body: dict[str,
 
 def on_restore(conn: sqlite3.Connection, eid: str, now: dt.datetime) -> int:
     """THE UNDO HOOK for the delete-with-undo flow (pilot/CAL-GRID-EDIT-2343): a restored entry drops its queued cancel notices."""
-    ev = conn.execute("SELECT id, override_of FROM cal_events WHERE id = ?", (eid,)).fetchone()
+    ev = store.event_override_of(conn, eid)
     return notices.retract_cancel(conn, (ev["override_of"] or ev["id"]) if ev else eid, now)
 
 

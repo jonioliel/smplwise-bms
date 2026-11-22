@@ -1,6 +1,9 @@
 import { LitElement, html, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-dialog';
+import '../components/sw-segmented';
+import '../components/sw-field';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-icon';
 import { ApiError, describeError } from '../api/client';
 import { dateInputLang } from '../api/day-format';
@@ -90,14 +93,14 @@ export class MaintTaskForm extends LitElement {
   private text(k: 'title' | 'notes', label: MtKey, multiline = false): TemplateResult {
     return html`<div class="fld"><label for=${`f-${k}`}>${mt(label)}</label>
       ${multiline
-        ? html`<textarea id=${`f-${k}`} class="inp" maxlength="2000" .value=${this.d[k]} @input=${(e: Event) => this.set(k, (e.target as HTMLTextAreaElement).value)}></textarea>`
-        : html`<input id=${`f-${k}`} class="inp" maxlength="120" .value=${this.d[k]} aria-invalid=${String(!!this.errors[k])} data-maint-field=${k}
-            @input=${(e: Event) => this.set(k, (e.target as HTMLInputElement).value)}>`}${this.err(k)}</div>`;
+        ? html`<sw-field><textarea id=${`f-${k}`} maxlength="2000" .value=${this.d[k]} @input=${(e: Event) => this.set(k, (e.target as HTMLTextAreaElement).value)}></textarea></sw-field>`
+        : html`<sw-field><input id=${`f-${k}`} maxlength="120" .value=${this.d[k]} aria-invalid=${String(!!this.errors[k])} data-maint-field=${k}
+            @input=${(e: Event) => this.set(k, (e.target as HTMLInputElement).value)}></sw-field>`}${this.err(k)}</div>`;
   }
 
   private date(k: 'due_date' | 'anchor_date', label: MtKey): TemplateResult {
-    return html`<div class="fld"><label for=${`f-${k}`}>${mt(label)}</label><input id=${`f-${k}`} class="inp num" type="date" lang=${dateInputLang()} .value=${this.d[k]} aria-invalid=${String(!!this.errors[k])}
-      data-maint-field=${k} @input=${(e: Event) => this.set(k, (e.target as HTMLInputElement).value)}>${this.err(k)}</div>`;
+    return html`<div class="fld"><label for=${`f-${k}`}>${mt(label)}</label><sw-field><input id=${`f-${k}`} class="num" type="date" lang=${dateInputLang()} .value=${this.d[k]} aria-invalid=${String(!!this.errors[k])}
+      data-maint-field=${k} @input=${(e: Event) => this.set(k, (e.target as HTMLInputElement).value)}></sw-field>${this.err(k)}</div>`;
   }
 
   private vendorField(o: Options): TemplateResult {
@@ -105,14 +108,14 @@ export class MaintTaskForm extends LitElement {
     const mark = vendorMark(v);
     const required = this.d.kind === 'vendor_document';
     return html`<div class="fld"><label for="f-vendor">${mt('fVendor')}</label>
-      <select id="f-vendor" class="inp" aria-invalid=${String(!!this.errors.vendor_id)} data-maint-field="vendor_id" @change=${(e: Event) => this.set('vendor_id', (e.target as HTMLSelectElement).value)}>
+      <sw-field><select id="f-vendor" aria-invalid=${String(!!this.errors.vendor_id)} data-maint-field="vendor_id" @change=${(e: Event) => this.set('vendor_id', (e.target as HTMLSelectElement).value)}>
         ${required ? nothing : html`<option value="" ?selected=${!this.d.vendor_id}>${mt('fVendorNone')}</option>`}
         ${required && !this.d.vendor_id ? html`<option value="" selected disabled>${mt('fVendor')}</option>` : nothing}
         ${o.vendors.map((x) => {
           const m = vendorMark(x);
           return html`<option value=${x.id} ?selected=${x.id === this.d.vendor_id}>${x.name}${m && m.look !== 'ok' ? ` · ${m.text}` : ''}</option>`;
         })}
-      </select>
+      </select></sw-field>
       ${mark && mark.look !== 'ok' && this.d.kind !== 'vendor_document' ? html`<span class="chip" data-look=${mark.look} data-maint-vendor-mark>${mark.text}</span>` : nothing}${this.err('vendor_id')}</div>`;
   }
 
@@ -122,20 +125,20 @@ export class MaintTaskForm extends LitElement {
     const ge = o.generators ?? [];
     if (!el.length && !ge.length) return nothing;
     return html`<div class="fld"><label for="f-asset">${mt('fAsset')}</label>
-      <select id="f-asset" class="inp" data-maint-field="asset" @change=${(e: Event) => this.set('asset', (e.target as HTMLSelectElement).value)}>
+      <sw-field><select id="f-asset" data-maint-field="asset" @change=${(e: Event) => this.set('asset', (e.target as HTMLSelectElement).value)}>
         <option value="" ?selected=${!this.d.asset}>${mt('fAssetNone')}</option>
         ${el.length ? html`<optgroup label=${mt('elevator')}>${el.map((x) => html`<option value=${`elevator:${x.id}`} ?selected=${this.d.asset === `elevator:${x.id}`}>${x.name}</option>`)}</optgroup>` : nothing}
         ${ge.length ? html`<optgroup label=${mt('generator')}>${ge.map((x) => html`<option value=${`generator:${x.id}`} ?selected=${this.d.asset === `generator:${x.id}`}>${x.name}</option>`)}</optgroup>` : nothing}
-      </select></div>`;
+      </select></sw-field></div>`;
   }
 
   private intervalField(): TemplateResult {
     const optional = this.d.kind === 'certificate' || this.d.kind === 'vendor_document';
     return html`<div class="row"><div class="fld"><label for="f-every">${mt('fInterval')}</label>
-        <input id="f-every" class="inp num" inputmode="numeric" .value=${this.d.every} placeholder=${optional ? mt('fIntervalNone') : ''} aria-invalid=${String(!!this.errors.every)} data-maint-field="every"
-          @input=${(e: Event) => this.set('every', (e.target as HTMLInputElement).value.replace(/[^0-9]/g, '').slice(0, 3))}>${this.err('every')}</div>
-      <div class="fld"><label for="f-unit" class="lbl">&nbsp;</label><select id="f-unit" class="inp" aria-label=${mt('fInterval')} @change=${(e: Event) => this.set('unit', (e.target as HTMLSelectElement).value as Draft['unit'])}>
-        ${INTERVAL_UNITS.map((u) => html`<option value=${u} ?selected=${this.d.unit === u}>${mt(`fUnit_${u}` as MtKey)}</option>`)}</select></div></div>`;
+        <sw-field><input id="f-every" class="num" inputmode="numeric" .value=${this.d.every} placeholder=${optional ? mt('fIntervalNone') : ''} aria-invalid=${String(!!this.errors.every)} data-maint-field="every"
+          @input=${(e: Event) => this.set('every', (e.target as HTMLInputElement).value.replace(/[^0-9]/g, '').slice(0, 3))}></sw-field>${this.err('every')}</div>
+      <div class="fld"><label for="f-unit" class="lbl">&nbsp;</label><sw-field><select id="f-unit" aria-label=${mt('fInterval')} @change=${(e: Event) => this.set('unit', (e.target as HTMLSelectElement).value as Draft['unit'])}>
+        ${INTERVAL_UNITS.map((u) => html`<option value=${u} ?selected=${this.d.unit === u}>${mt(`fUnit_${u}` as MtKey)}</option>`)}</select></sw-field></div></div>`;
   }
 
   private checklist(): TemplateResult {
@@ -144,13 +147,13 @@ export class MaintTaskForm extends LitElement {
     const num = (v: string) => (v.trim() === '' || Number.isNaN(Number(v)) ? null : Number(v));
     return html`<div class="fld"><span class="lbl">${mt('fChecklist')}</span><div class="items" data-maint-checklist>
       ${items.map((it, i) => html`<div class="item" data-maint-item=${i}>
-        <div class="fld"><label for=${`it-${it._id}`}>${mt('fItemLabel')} ${i + 1}</label><input id=${`it-${it._id}`} class="inp" maxlength="120" .value=${it.label} @input=${(e: Event) => upd(i, { label: (e.target as HTMLInputElement).value })}></div>
-        <div class="fld"><label for=${`ik-${it._id}`}>${mt('fItemKind')}</label><select id=${`ik-${it._id}`} class="inp" @change=${(e: Event) => upd(i, { kind: (e.target as HTMLSelectElement).value as 'check' })}>
-          ${(['check', 'number', 'text'] as const).map((k) => html`<option value=${k} ?selected=${(it.kind ?? 'check') === k}>${mt(k === 'check' ? 'fItemCheck' : k === 'number' ? 'fItemNumber' : 'fItemText')}</option>`)}</select></div>
+        <div class="fld"><label for=${`it-${it._id}`}>${mt('fItemLabel')} ${i + 1}</label><sw-field><input id=${`it-${it._id}`} maxlength="120" .value=${it.label} @input=${(e: Event) => upd(i, { label: (e.target as HTMLInputElement).value })}></sw-field></div>
+        <div class="fld"><label for=${`ik-${it._id}`}>${mt('fItemKind')}</label><sw-field><select id=${`ik-${it._id}`} @change=${(e: Event) => upd(i, { kind: (e.target as HTMLSelectElement).value as 'check' })}>
+          ${(['check', 'number', 'text'] as const).map((k) => html`<option value=${k} ?selected=${(it.kind ?? 'check') === k}>${mt(k === 'check' ? 'fItemCheck' : k === 'number' ? 'fItemNumber' : 'fItemText')}</option>`)}</select></sw-field></div>
         <button type="button" class="btn sm ghost" aria-label=${`${mt('fItemRemove')} ${i + 1}`} @click=${() => this.set('checklist', items.filter((_x, n) => n !== i))}><sw-icon name="trash" size="14"></sw-icon></button>
         <div class="range">
-          ${it.kind === 'number' ? html`<label class="mut" for=${`mn-${it._id}`}>${mt('fItemMin')}</label><input id=${`mn-${it._id}`} class="inp num" inputmode="decimal" .value=${it.min ?? ''} @input=${(e: Event) => upd(i, { min: num((e.target as HTMLInputElement).value) })}>
-            <label class="mut" for=${`mx-${it._id}`}>${mt('fItemMax')}</label><input id=${`mx-${it._id}`} class="inp num" inputmode="decimal" .value=${it.max ?? ''} @input=${(e: Event) => upd(i, { max: num((e.target as HTMLInputElement).value) })}>` : nothing}
+          ${it.kind === 'number' ? html`<label class="mut" for=${`mn-${it._id}`}>${mt('fItemMin')}</label><sw-field><input id=${`mn-${it._id}`} class="num" inputmode="decimal" .value=${it.min ?? ''} @input=${(e: Event) => upd(i, { min: num((e.target as HTMLInputElement).value) })}></sw-field>
+            <label class="mut" for=${`mx-${it._id}`}>${mt('fItemMax')}</label><sw-field><input id=${`mx-${it._id}`} class="num" inputmode="decimal" .value=${it.max ?? ''} @input=${(e: Event) => upd(i, { max: num((e.target as HTMLInputElement).value) })}></sw-field>` : nothing}
           <label class="check"><input type="checkbox" .checked=${it.required !== false} @change=${(e: Event) => upd(i, { required: (e.target as HTMLInputElement).checked })}>${mt('fItemRequired')}</label>
           ${this.err(`item${i}`)}
         </div></div>`)}
@@ -165,33 +168,34 @@ export class MaintTaskForm extends LitElement {
     const leadDefault = o.defaults.lead_days[k];
     const ledgerKinds: TaskKind[] = ['certificate', 'vendor_document'];
     return html`<div class="form" data-maint-form=${k}>
-      ${!this.taskId && ledgerKinds.includes(k) ? html`<div class="seg" role="group" aria-label=${mt('fKind')} data-maint-form-kind>
-        ${ledgerKinds.map((x) => html`<button type="button" aria-pressed=${String(k === x)} data-kind=${x} @click=${() => { this.d = { ...newDraft(x), title: this.d.title, vendor_id: this.d.vendor_id }; this.errors = {}; }}>${mt(x === 'certificate' ? 'kindCerts' : 'kindVendorDocs')}</button>`)}</div>` : nothing}
+      ${!this.taskId && ledgerKinds.includes(k) ? html`<sw-segmented label=${mt('fKind')} data-maint-form-kind value=${k}
+        @change=${(e: CustomEvent<SegmentedChange>) => { const x = e.detail.value as TaskKind; this.d = { ...newDraft(x), title: this.d.title, vendor_id: this.d.vendor_id }; this.errors = {}; }}
+        .options=${ledgerKinds.map((x) => ({ value: x, label: mt(x === 'certificate' ? 'kindCerts' : 'kindVendorDocs'), attrs: { 'data-kind': x } }))}></sw-segmented>` : nothing}
       ${this.text('title', 'fTitle')}
       <div class="row">
         ${k === 'vendor_document'
-          ? html`<div class="fld"><label for="f-doc">${mt('fDocType')}</label><select id="f-doc" class="inp" data-maint-field="doc_type" @change=${(e: Event) => this.set('doc_type', (e.target as HTMLSelectElement).value as Draft['doc_type'])}>
-              ${DOC_TYPES.map((d) => html`<option value=${d} ?selected=${this.d.doc_type === d}>${docTypeText(d)}</option>`)}</select></div>`
-          : html`<div class="fld"><label for="f-cat">${mt('fCategory')}</label><select id="f-cat" class="inp" @change=${(e: Event) => this.set('category', (e.target as HTMLSelectElement).value)}>
-              ${CATEGORIES.map((c) => html`<option value=${c} ?selected=${this.d.category === c}>${categoryText(c)}</option>`)}</select></div>`}
-        ${k === 'vendor_document' ? nothing : html`<div class="fld"><label for="f-place">${mt('fPlace')}</label><select id="f-place" class="inp" data-maint-field="place" @change=${(e: Event) => this.set('place', (e.target as HTMLSelectElement).value)}>
+          ? html`<div class="fld"><label for="f-doc">${mt('fDocType')}</label><sw-field><select id="f-doc" data-maint-field="doc_type" @change=${(e: Event) => this.set('doc_type', (e.target as HTMLSelectElement).value as Draft['doc_type'])}>
+              ${DOC_TYPES.map((d) => html`<option value=${d} ?selected=${this.d.doc_type === d}>${docTypeText(d)}</option>`)}</select></sw-field></div>`
+          : html`<div class="fld"><label for="f-cat">${mt('fCategory')}</label><sw-field><select id="f-cat" @change=${(e: Event) => this.set('category', (e.target as HTMLSelectElement).value)}>
+              ${CATEGORIES.map((c) => html`<option value=${c} ?selected=${this.d.category === c}>${categoryText(c)}</option>`)}</select></sw-field></div>`}
+        ${k === 'vendor_document' ? nothing : html`<div class="fld"><label for="f-place">${mt('fPlace')}</label><sw-field><select id="f-place" data-maint-field="place" @change=${(e: Event) => this.set('place', (e.target as HTMLSelectElement).value)}>
           ${o.placeless || !places.length ? html`<option value="" ?selected=${!this.d.place}>${mt('fPlaceNone')}</option>` : nothing}
-          ${places.map((p) => html`<option value=${p.value} ?selected=${this.d.place === p.value}>${p.label}</option>`)}</select></div>`}
+          ${places.map((p) => html`<option value=${p.value} ?selected=${this.d.place === p.value}>${p.label}</option>`)}</select></sw-field></div>`}
       </div>
       ${k === 'vendor_document' ? nothing : this.assetField(o)}
       ${this.vendorField(o)}
       <div class="row">${plan ? this.date('anchor_date', 'fFirstDate') : this.date('due_date', 'fValidUntil')}
-        <div class="fld"><label for="f-lead">${mt('fLead')}</label><input id="f-lead" class="inp num" inputmode="numeric" .value=${this.d.lead} placeholder=${String(leadDefault)}
-          aria-describedby="f-lead-h" aria-invalid=${String(!!this.errors.lead)} data-maint-field="lead" @input=${(e: Event) => this.set('lead', (e.target as HTMLInputElement).value.replace(/[^0-9]/g, '').slice(0, 3))}>
+        <div class="fld"><label for="f-lead">${mt('fLead')}</label><sw-field><input id="f-lead" class="num" inputmode="numeric" .value=${this.d.lead} placeholder=${String(leadDefault)}
+          aria-describedby="f-lead-h" aria-invalid=${String(!!this.errors.lead)} data-maint-field="lead" @input=${(e: Event) => this.set('lead', (e.target as HTMLInputElement).value.replace(/[^0-9]/g, '').slice(0, 3))}></sw-field>
           <span class="mut" id="f-lead-h">${mt('fLeadHint', { n: leadDefault })}</span>${this.err('lead')}</div></div>
       ${this.intervalField()}
-      <div class="fld"><label for="f-owner">${mt('fOwner')}</label><select id="f-owner" class="inp" @change=${(e: Event) => this.set('owner_user_id', (e.target as HTMLSelectElement).value)}>
-        <option value="" ?selected=${!this.d.owner_user_id}>${mt('fOwnerNone')}</option>${o.people.map((p) => html`<option value=${p.id} ?selected=${p.id === this.d.owner_user_id}>${p.name}</option>`)}</select></div>
+      <div class="fld"><label for="f-owner">${mt('fOwner')}</label><sw-field><select id="f-owner" @change=${(e: Event) => this.set('owner_user_id', (e.target as HTMLSelectElement).value)}>
+        <option value="" ?selected=${!this.d.owner_user_id}>${mt('fOwnerNone')}</option>${o.people.map((p) => html`<option value=${p.id} ?selected=${p.id === this.d.owner_user_id}>${p.name}</option>`)}</select></sw-field></div>
       ${plan ? this.checklist() : nothing}
       ${this.ticketsOn && o.tickets_on && k !== 'vendor_document' ? html`<div class="fld" data-maint-auto-ticket>
         <label class="check"><input type="checkbox" .checked=${this.d.auto_ticket} @change=${(e: Event) => this.set('auto_ticket', (e.target as HTMLInputElement).checked)}>${mt('fAutoTicket')}</label>
-        ${this.d.auto_ticket ? html`<select class="inp" aria-label=${mt('fDepartment')} aria-invalid=${String(!!this.errors.department_id)} data-maint-field="department_id" @change=${(e: Event) => this.set('department_id', (e.target as HTMLSelectElement).value)}>
-          <option value="" ?selected=${!this.d.department_id} disabled>${mt('fDepartmentPick')}</option>${o.departments.map((x) => html`<option value=${x.id} ?selected=${x.id === this.d.department_id}>${x.name}</option>`)}</select>${this.err('department_id')}` : nothing}</div>` : nothing}
+        ${this.d.auto_ticket ? html`<sw-field><select aria-label=${mt('fDepartment')} aria-invalid=${String(!!this.errors.department_id)} data-maint-field="department_id" @change=${(e: Event) => this.set('department_id', (e.target as HTMLSelectElement).value)}>
+          <option value="" ?selected=${!this.d.department_id} disabled>${mt('fDepartmentPick')}</option>${o.departments.map((x) => html`<option value=${x.id} ?selected=${x.id === this.d.department_id}>${x.name}</option>`)}</select></sw-field>${this.err('department_id')}` : nothing}</div>` : nothing}
       ${this.text('notes', 'fNotes', true)}
       ${this.error ? html`<div class="alert err" role="alert" data-maint-form-error>${this.error}</div>` : nothing}
     </div>`;

@@ -13,6 +13,8 @@ import { ct, type CostTextKey } from './cost-text'; // slice 9
 import { loct } from './org-locations-text';
 import { navForAssign, navForPreview, navSwitch, type NavAnswer } from './assign-nav-model';
 import { outsideBlock, staffBlock, usersBlock, whatsappNote, type ReadyItem } from './readiness-model';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { insuranceMark } from '../maintenance/model'; // MAINT215B: the supplier insurance mark of the picker
 
 /** The dialog's three groups (owner 2026-10-14): handlers with an account, employees without one, vendors and contacts. TKSTAFF2: the
@@ -214,14 +216,14 @@ export class ExternalAssign implements ReactiveController {
    * second line says why; choosing it shows the reason with the link to the setting. `counts` = how many handlers of each handler
    * group the server listed. */
   renderKinds(t: TicketDetail, counts: HandlerCounts): TemplateResult {
+    // CR-CMP2-SEGMENTED-C-2450: the shared sw-segmented with two-line keys; a blocked group is `dimmed` (still chosen - the reason shows)
     const item = (k: AssignKind, label: TicketTextKey, sub: TicketTextKey) => {
       const why = this.blocked(t, k, k === 'person' ? null : counts[k]);
-      return html`<button type="button" role="radio" aria-checked=${String(this.kind === k)} class=${why ? 'off' : ''} data-assign-kind=${k}
-        data-kind-blocked=${why?.key ?? ''} @click=${() => this.setKind(k)}><b>${tt(label)}</b><small>${tt(why ? why.text : sub)}</small></button>`;
+      return { value: k, label: tt(label), sub: tt(why ? why.text : sub), dimmed: !!why, attrs: { 'data-assign-kind': k, 'data-kind-blocked': why?.key ?? '' } };
     };
-    return html`<div class="seg xkinds" role="radiogroup" aria-label=${tt('fAssignee')} data-assign-kinds>
-      ${item('user', 'asgInside', 'asgInsideSub')}${item('employee', 'asgGroupEmployees', 'asgEmployeesSub')}${item('person', 'asgOutside', 'asgOutsideSub')}
-    </div>`;
+    return html`<sw-segmented class="xkinds" radio block label=${tt('fAssignee')} data-assign-kinds value=${this.kind}
+      @change=${(e: CustomEvent<SegmentedChange>) => this.setKind(e.detail.value as AssignKind)}
+      .options=${[item('user', 'asgInside', 'asgInsideSub'), item('employee', 'asgGroupEmployees', 'asgEmployeesSub'), item('person', 'asgOutside', 'asgOutsideSub')]}></sw-segmented>`;
   }
 
   private row(t: TicketDetail, c: ExternalAssignee): TemplateResult {
@@ -307,8 +309,9 @@ export class ExternalAssign implements ReactiveController {
     if (!opt) return nothing;
     const value = this.costClaim ?? opt.default;
     return html`<div class="fld" data-cost-claim=${value}><span>${ct('mode')}</span>
-      <span class="seg sm" role="radiogroup" aria-label=${ct('mode')}>${opt.choices.map((m) => html`<button type="button" role="radio" aria-checked=${String(value === m)}
-        data-cost-claim-mode=${m} ?disabled=${this.lend.busy()} @click=${() => { this.costClaim = m; this.host.requestUpdate(); }}>${ct(`m_${m}` as CostTextKey)}</button>`)}</span></div>`;
+      <sw-segmented radio size="sm" label=${ct('mode')} value=${value} ?disabled=${this.lend.busy()}
+        @change=${(e: CustomEvent<SegmentedChange>) => { this.costClaim = e.detail.value as typeof value; this.host.requestUpdate(); }}
+        .options=${opt.choices.map((m) => ({ value: m, label: ct(`m_${m}` as CostTextKey), attrs: { 'data-cost-claim-mode': m } }))}></sw-segmented></div>`;
   }
 
   /** CR-ORG-LOCATIONS: the switch (hidden without coordinates). Toggling asks the server for the exact text again, so the preview shows what is sent. */
@@ -380,57 +383,32 @@ export const externalAssignStyles = css`
     clip-path: inset(50%);
     white-space: nowrap;
   }
-  .xkinds {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* CR-CMP2-SEGMENTED-C-2450: the three groups are sw-segmented's two-line keys (block: three equal tiles), shaped through its knobs */
+  sw-segmented.xkinds {
     inline-size: 100%;
+    --sw-seg-h: 52px;
+    --sw-seg-key-pad: 6px;
+    --sw-seg-fw: 700;
+    --sw-seg-on-fw: 700;
+    --sw-seg-sub-fg: var(--dv-text-3);
+    --sw-seg-dim-fg: var(--dv-text-3);
+    --sw-seg-dim-sub-fg: var(--sw-warning);
   }
-  .xkinds button {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1px;
-    min-block-size: 52px;
-    padding-inline: 6px;
-  }
-  .xkinds small {
-    font-size: var(--sw-fs-xs);
-    font-weight: 500;
-    color: var(--dv-text-3);
-    text-align: center;
-  }
-  .xkinds b,
-  .xkinds small {
-    min-inline-size: 0;
-    overflow-wrap: anywhere;
-  }
-  /* a phone: the three kinds are rows of one column (three tiles with two lines each do not fit a 320 px dialog). As specific as a
-     skin's segmented-control rule (and later in the host's sheet list), so a pill track never cuts the first and last rows' text */
+  /* a phone: the three kinds are rows of one column (three tiles with two lines each do not fit a 320 px dialog) */
   @media (max-width: 560px) {
-    :host .seg.xkinds {
-      grid-template-columns: minmax(0, 1fr);
-      border-radius: var(--sw-r-lg);
-      padding: 4px;
+    sw-segmented.xkinds {
+      --sw-seg-axis: column;
+      --sw-seg-key-axis: row;
+      --sw-seg-key-justify: space-between;
+      --sw-seg-h: 44px;
+      --sw-seg-key-pad: 14px;
+      --sw-seg-radius: var(--sw-r-lg);
+      --sw-seg-pad: 4px;
+      --sw-seg-btn-radius: var(--sw-r-md);
     }
-    :host .seg.xkinds button {
-      flex-direction: row;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-      min-block-size: 44px;
-      padding-inline: 14px;
-      border-radius: var(--sw-r-md);
-    }
-    .xkinds small {
+    sw-segmented.xkinds::part(sub) {
       text-align: end;
     }
-  }
-  /* a group that cannot be used now: dimmed, its second line says why (owner 2026-10-14) */
-  .xkinds button.off b {
-    color: var(--dv-text-3);
-  }
-  .xkinds button.off small {
-    color: var(--sw-warning);
   }
   .xreason {
     display: flex;

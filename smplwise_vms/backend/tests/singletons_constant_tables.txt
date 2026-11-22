@@ -1,0 +1,22 @@
+# Module-level tables that tests/test_singletons_registered.py counts (a function of the module changes them) but that are
+# CONSTANT for a running process: registries the package fills while it imports and wires itself up, never per request.
+# One `module.NAME` per line with the reason; a reset would empty a registry the next test needs. A listed name the walk no
+# longer counts, or that registers a reset, fails the test (stale entry). CR-BE-COMPLEXITY-B-2450 (19.11).
+
+smplwise.test_reset._ATTRS  # the reset registry itself
+smplwise.test_reset._RESETS  # the reset registry itself
+smplwise.guarded_route._CLASSES  # one route class per guard, built by the @guarded decorators at import
+smplwise.services.announce_translate.PROVIDERS  # translation provider factories; register() at import
+smplwise.services.calendar.attendee_notices.CHANNELS  # attendee notice channels; register_channel() is the plug point at import
+smplwise.services.calendar_sync.registry._FACTORIES  # calendar provider factories; register() at import
+smplwise.services.energy_settings.SPECS  # setting specs; register() at import of each energy module
+smplwise.services.messaging_runtime._DEPARTMENTS  # department providers; register_departments() at import
+smplwise.services.messaging_runtime._LABELS  # label renderers; register_label_renderer() at import
+smplwise.services.messaging_runtime._MODULE_LABELS  # label renderers per module; register_label_renderer() at import
+smplwise.services.messaging_runtime._USE_PROVIDERS  # usage providers; register_uses() at import
+smplwise.services.notify.RECIPIENT_RULES  # recipient rules per alert family; register_rule() at import
+smplwise.services.notify_channels.CHANNELS  # notification channels; register() at import (mobile_push, e-mail, WhatsApp)
+smplwise.services.notify_whatsapp.RESOLVERS  # phone resolvers; register_resolver() at import
+smplwise.services.recorders.registry.SPEC_BY_ID  # recorder vendor specs; register_vendor() at import
+smplwise.services.recorders.registry.VENDORS  # recorder vendor adapters; register_vendor() at import
+smplwise.services.tickets.contact_reports.PROVIDERS  # contact report providers; register() at import (temperature_vendor_reports)

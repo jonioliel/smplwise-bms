@@ -372,7 +372,10 @@ def _number(value: Any) -> float | None:
 def check_arguments(service: str, data: dict[str, Any], entity: dict[str, Any] | None = None, *, dynamic: bool = True) -> tuple[list[dict[str, str]], dict[str, Any]]:
     """Validate a service's argument values (§5.2 types / ranges; with `dynamic` also §5.4: the entity's own modes and
     ranges). Returns (problems, cleaned data). A problem is `{"code", "message", "arg"}`; codes: `code_not_allowed`,
-    `argument_not_allowed`, `required`, `out_of_range`, `invalid_value`, `argument_conflict`."""
+    `argument_not_allowed`, `required`, `out_of_range`, `invalid_value`, `argument_conflict`.
+
+    CR-BE-COMPLEXITY-B-2450: one helper per argument kind and one per check after the loop, called in the order the checks
+    always ran, so the problems and the cleaned values come out the same (tests/test_schedule_policy_char_2450.py)."""
     problems: list[dict[str, str]] = []
     if contains_code(data):
         return [{"code": "code_not_allowed", "message": "אסור לשמור קוד בתוך תזמון.", "arg": "code"}], {}
@@ -385,84 +388,123 @@ def check_arguments(service: str, data: dict[str, Any], entity: dict[str, Any] |
             continue
         kind = spec["type"]
         if kind in ("int", "float"):
-            num = _number(value)
-            if num is None or (kind == "int" and num != int(num)):
-                problems.append({"code": "invalid_value", "message": f"{arg_label(name)} חייב להיות מספר{' שלם' if kind == 'int' else ''}.", "arg": name})
-                continue
-            lo, hi = spec.get("min"), spec.get("max")
-            if name == "temperature":
-                lo, hi = _temperature_range(entity if dynamic else None)
-            elif dynamic and entity is not None and name in ("value", "humidity"):
-                lo, hi = _entity_range(entity, name, lo, hi)
-            elif dynamic and entity is not None and name == "volume_level":
-                ceiling = _number(entity.get("volume_ceiling"))
-                if ceiling is not None:
-                    hi = min(hi if hi is not None else 1.0, ceiling)  # the multimedia volume ceiling of the device (CR-016 10.1), never above it
-            if lo is not None and hi is not None and not lo <= num <= hi:
-                problems.append({"code": "out_of_range", "message": f"{arg_label(name)} מחוץ לטווח {_fmt(lo)}–{_fmt(hi)}.", "arg": name})
-                continue
-            if dynamic and entity is not None and name == "value" and not _on_step(entity, num):
-                step = _number((entity.get("attributes") or {}).get("step")) or 1
-                problems.append({"code": "out_of_range", "message": f"{arg_label(name)}: רק בקפיצות של {_fmt(step)}.", "arg": name})
-                continue
-            cleaned[name] = int(num) if kind == "int" or (isinstance(value, int) and not isinstance(value, bool)) else value
+            _check_number_arg(name, value, spec, kind, entity, dynamic, problems, cleaned)
         elif kind == "enum":
-            choices = list(spec["choices"])
-            if not isinstance(value, str) or value not in choices:
-                problems.append({"code": "invalid_value", "message": f"{arg_label(name)}: ערך לא מוכר.", "arg": name})
-                continue
-            if name == "hvac_mode" and dynamic:
-                offered = _attr_list(entity, "hvac_modes")
-                if offered is not None and value not in offered:
-                    problems.append({"code": "invalid_value", "message": "המזגן אינו תומך במצב הפעולה הזה.", "arg": name})
-                    continue
-            cleaned[name] = value
+            _check_enum_arg(name, value, spec, entity, dynamic, problems, cleaned)
         elif kind == "str":
-            lo, hi = int(spec.get("min", 1)), int(spec.get("max", 40))
-            if not isinstance(value, str) or not lo <= len(value.strip()) <= hi or any(ord(c) < 32 or ord(c) == 127 for c in value):
-                problems.append({"code": "invalid_value", "message": f"{arg_label(name)}: טקסט באורך {lo}–{hi} תווים.", "arg": name})
-                continue
-            value = value.strip()
-            if dynamic:
-                offered = (siren_tones(entity) or None) if name == "tone" else _attr_list(entity, OFFERED_LIST.get(name, ""))
-                if name == "source" and entity is not None:
-                    hidden = set(entity.get("hidden_sources") or [])  # a source the multimedia administrator hid is never a schedule's value
-                    offered = [s for s in (offered or []) if s not in hidden]
-                if offered is not None and value not in offered:
-                    problems.append({"code": "invalid_value", "message": f"{arg_label(name)}: ערך שההתקן אינו מציע.", "arg": name})
-                    continue
-            cleaned[name] = value
+            _check_str_arg(name, value, spec, entity, dynamic, problems, cleaned)
         elif kind == "vars":
-            bad = _check_vars(value, entity if dynamic else None, dynamic)
-            if bad:
-                problems.append({**bad, "arg": name})
-                continue
-            cleaned[name] = dict(value)
+            _check_vars_arg(name, value, entity, dynamic, problems, cleaned)
         else:  # an unknown spec type is never accepted
             problems.append({"code": "argument_not_allowed", "message": f"ארגומנט לא מאושר: {name}", "arg": name})
     if dynamic and entity is not None:
-        for name in list(cleaned):
-            if not arg_capable(service, name, entity):
-                problems.append({"code": "argument_not_allowed", "message": f"{arg_label(name)}: ההתקן אינו תומך בכך.", "arg": name})
-                cleaned.pop(name, None)
-        if service == "script.turn_on":
-            fields = entity.get("script_fields")
-            given = (data or {}).get("variables") if isinstance((data or {}).get("variables"), dict) else {}
-            for key, f in (fields or {}).items():
-                if f.get("required") and "default" not in f and key not in given:
-                    problems.append({"code": "required", "message": f"חסר משתנה חובה של הסקריפט: {f.get('name') or key}", "arg": "variables"})
+        _check_entity_fit(service, data, entity, problems, cleaned)
     if service in SERVICE_ARGS:
-        for name, spec in specs.items():
-            if spec.get("required") and name not in (data or {}):
-                problems.append({"code": "required", "message": f"חסר ארגומנט: {arg_label(name)}", "arg": name})
-        for group in SERVICE_EXCLUSIVE.get(service, []):
-            if sum(1 for n in group if n in (data or {})) > 1:
-                problems.append({"code": "argument_conflict", "message": "אי אפשר לציין גם " + " וגם ".join(arg_label(n) for n in group) + ".", "arg": group[0]})
+        _check_required_and_exclusive(service, specs, data, problems)
     if dynamic and service == "cover.set_cover_position" and entity is not None:
-        attrs = entity.get("attributes") or {}
-        if attrs.get("current_position") is None and not int(entity.get("supported_features") or 0) & 4:
-            problems.append({"code": "argument_not_allowed", "message": "התריס אינו תומך בקביעת מיקום.", "arg": "position"})
+        _check_cover_position(entity, problems)
     return problems, cleaned
+
+
+def _check_number_arg(name: str, value: Any, spec: dict[str, Any], kind: str, entity: dict[str, Any] | None, dynamic: bool,
+                      problems: list[dict[str, str]], cleaned: dict[str, Any]) -> None:
+    """An int / float argument: a number (a whole one for int), inside its range (the entity's own with `dynamic`), on the entity's step."""
+    num = _number(value)
+    if num is None or (kind == "int" and num != int(num)):
+        problems.append({"code": "invalid_value", "message": f"{arg_label(name)} חייב להיות מספר{' שלם' if kind == 'int' else ''}.", "arg": name})
+        return
+    lo, hi = spec.get("min"), spec.get("max")
+    if name == "temperature":
+        lo, hi = _temperature_range(entity if dynamic else None)
+    elif dynamic and entity is not None and name in ("value", "humidity"):
+        lo, hi = _entity_range(entity, name, lo, hi)
+    elif dynamic and entity is not None and name == "volume_level":
+        ceiling = _number(entity.get("volume_ceiling"))
+        if ceiling is not None:
+            hi = min(hi if hi is not None else 1.0, ceiling)  # the multimedia volume ceiling of the device (CR-016 10.1), never above it
+    if lo is not None and hi is not None and not lo <= num <= hi:
+        problems.append({"code": "out_of_range", "message": f"{arg_label(name)} מחוץ לטווח {_fmt(lo)}–{_fmt(hi)}.", "arg": name})
+        return
+    if dynamic and entity is not None and name == "value" and not _on_step(entity, num):
+        step = _number((entity.get("attributes") or {}).get("step")) or 1
+        problems.append({"code": "out_of_range", "message": f"{arg_label(name)}: רק בקפיצות של {_fmt(step)}.", "arg": name})
+        return
+    cleaned[name] = int(num) if kind == "int" or (isinstance(value, int) and not isinstance(value, bool)) else value
+
+
+def _check_enum_arg(name: str, value: Any, spec: dict[str, Any], entity: dict[str, Any] | None, dynamic: bool,
+                    problems: list[dict[str, str]], cleaned: dict[str, Any]) -> None:
+    """An enum argument: one of its choices (and, for hvac_mode with `dynamic`, one the entity offers)."""
+    choices = list(spec["choices"])
+    if not isinstance(value, str) or value not in choices:
+        problems.append({"code": "invalid_value", "message": f"{arg_label(name)}: ערך לא מוכר.", "arg": name})
+        return
+    if name == "hvac_mode" and dynamic:
+        offered = _attr_list(entity, "hvac_modes")
+        if offered is not None and value not in offered:
+            problems.append({"code": "invalid_value", "message": "המזגן אינו תומך במצב הפעולה הזה.", "arg": name})
+            return
+    cleaned[name] = value
+
+
+def _check_str_arg(name: str, value: Any, spec: dict[str, Any], entity: dict[str, Any] | None, dynamic: bool,
+                   problems: list[dict[str, str]], cleaned: dict[str, Any]) -> None:
+    """A text argument: its length, no control character, and with `dynamic` a value the entity offers (never a hidden source)."""
+    lo, hi = int(spec.get("min", 1)), int(spec.get("max", 40))
+    if not isinstance(value, str) or not lo <= len(value.strip()) <= hi or any(ord(c) < 32 or ord(c) == 127 for c in value):
+        problems.append({"code": "invalid_value", "message": f"{arg_label(name)}: טקסט באורך {lo}–{hi} תווים.", "arg": name})
+        return
+    value = value.strip()
+    if dynamic:
+        offered = (siren_tones(entity) or None) if name == "tone" else _attr_list(entity, OFFERED_LIST.get(name, ""))
+        if name == "source" and entity is not None:
+            hidden = set(entity.get("hidden_sources") or [])  # a source the multimedia administrator hid is never a schedule's value
+            offered = [s for s in (offered or []) if s not in hidden]
+        if offered is not None and value not in offered:
+            problems.append({"code": "invalid_value", "message": f"{arg_label(name)}: ערך שההתקן אינו מציע.", "arg": name})
+            return
+    cleaned[name] = value
+
+
+def _check_vars_arg(name: str, value: Any, entity: dict[str, Any] | None, dynamic: bool,
+                    problems: list[dict[str, str]], cleaned: dict[str, Any]) -> None:
+    """A script's `variables` (_check_vars)."""
+    bad = _check_vars(value, entity if dynamic else None, dynamic)
+    if bad:
+        problems.append({**bad, "arg": name})
+        return
+    cleaned[name] = dict(value)
+
+
+def _check_entity_fit(service: str, data: dict[str, Any], entity: dict[str, Any], problems: list[dict[str, str]], cleaned: dict[str, Any]) -> None:
+    """With `dynamic` and a known entity: an argument the entity cannot take is dropped; a script's required variables are given."""
+    for name in list(cleaned):
+        if not arg_capable(service, name, entity):
+            problems.append({"code": "argument_not_allowed", "message": f"{arg_label(name)}: ההתקן אינו תומך בכך.", "arg": name})
+            cleaned.pop(name, None)
+    if service == "script.turn_on":
+        fields = entity.get("script_fields")
+        given = (data or {}).get("variables") if isinstance((data or {}).get("variables"), dict) else {}
+        for key, f in (fields or {}).items():
+            if f.get("required") and "default" not in f and key not in given:
+                problems.append({"code": "required", "message": f"חסר משתנה חובה של הסקריפט: {f.get('name') or key}", "arg": "variables"})
+
+
+def _check_required_and_exclusive(service: str, specs: dict[str, dict[str, Any]], data: dict[str, Any], problems: list[dict[str, str]]) -> None:
+    """A known service: its required arguments are given, and no two of an exclusive group are."""
+    for name, spec in specs.items():
+        if spec.get("required") and name not in (data or {}):
+            problems.append({"code": "required", "message": f"חסר ארגומנט: {arg_label(name)}", "arg": name})
+    for group in SERVICE_EXCLUSIVE.get(service, []):
+        if sum(1 for n in group if n in (data or {})) > 1:
+            problems.append({"code": "argument_conflict", "message": "אי אפשר לציין גם " + " וגם ".join(arg_label(n) for n in group) + ".", "arg": group[0]})
+
+
+def _check_cover_position(entity: dict[str, Any], problems: list[dict[str, str]]) -> None:
+    """A cover that reports no position and has no set-position feature cannot take one."""
+    attrs = entity.get("attributes") or {}
+    if attrs.get("current_position") is None and not int(entity.get("supported_features") or 0) & 4:
+        problems.append({"code": "argument_not_allowed", "message": "התריס אינו תומך בקביעת מיקום.", "arg": "position"})
 
 
 def _fmt(v: float) -> str:

@@ -2,6 +2,8 @@ import { localeFor } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-dialog';
 import { describeError } from '../api/client';
 import { createReportLink, downloadReportPdf, getReportLinks, getReportPreview, revokeReportLink, sendReportLink, type LinkSendResponse, type ReportLinkCreated, type ReportModel, type ReportParams, type ReportRange, type TempUnit } from '../api/temperature';
@@ -64,9 +66,6 @@ export class TempReport extends LitElement {
     .ulist { display: grid; gap: 4px; max-block-size: 220px; overflow: auto; }
     .sw { display: inline-flex; align-items: center; gap: 8px; font-size: var(--sw-fs-sm); cursor: pointer; }
     .sw input { inline-size: 18px; block-size: 18px; accent-color: var(--sw-accent); }
-    .seg { display: inline-flex; background: var(--sw-surface-2); border-radius: var(--sw-r-pill); padding: 3px; gap: 2px; }
-    .seg button { border: 0; background: transparent; border-radius: var(--sw-r-pill); padding: 5px 14px; font: inherit; font-size: var(--sw-fs-sm); color: var(--sw-text-2); cursor: pointer; }
-    .seg button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface)); color: var(--sw-seg-key-ink, var(--sw-text)); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); font-weight: var(--sw-fw-semibold); }
     .paper { background: var(--sw-surface-solid); border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 18px 20px; box-shadow: var(--sw-shadow-2); display: grid; gap: 10px; min-inline-size: 0; }
     .ph { display: flex; justify-content: space-between; gap: 10px; border-block-end: 2px solid var(--sw-text); padding-block-end: 6px; }
     .ph h3 { margin: 0; font-size: var(--sw-fs-lg); }
@@ -100,7 +99,11 @@ export class TempReport extends LitElement {
       .st { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
     @media (max-width: 600px) {
-      .presets button, .seg button, .sw { min-block-size: 44px; }
+      .presets button,
+      .sw { min-block-size: 44px; }
+      /* RELEASE-2450-TRAIN: the language / layout keys are sw-segmented (CR-CMP2-SEGMENTED-C-2450); on a phone they keep the 44 px
+         key the hand-built .seg buttons had (evidence-temperature TEMPREP-295, mobile) */
+      sw-segmented { --sw-seg-h: 44px; }
       .sw input { inline-size: 22px; block-size: 22px; }
     }
   `];
@@ -312,18 +315,16 @@ export class TempReport extends LitElement {
               ${this.units.map((u) => html`<label class="sw"><input type="checkbox" .checked=${p.units.includes(u.id)} data-rep-unit=${u.id}
                 @change=${(e: Event) => this.set({ units: (e.target as HTMLInputElement).checked ? [...p.units, u.id] : p.units.filter((x) => x !== u.id) })} />${u.name}${u.area_name ? html` <span class="hint">· ${u.area_name}</span>` : nothing}</label>`)}</div></div>
             <div class="f2">
-              <div class="field"><span class="lbl">${tt('repLang')}</span><span class="seg" role="group"><button type="button" aria-pressed=${String(p.lang === 'he')} data-rep-lang="he" @click=${() => this.set({ lang: 'he' })}>עברית</button>
-                <button type="button" aria-pressed=${String(p.lang === 'en')} data-rep-lang="en" @click=${() => this.set({ lang: 'en' })}>English</button></span></div>
+              <div class="field"><span class="lbl">${tt('repLang')}</span><sw-segmented value=${p.lang} @change=${(e: CustomEvent<SegmentedChange>) => this.set({ lang: e.detail.value as 'he' | 'en' })}
+                .options=${[{ value: 'he', label: 'עברית', attrs: { 'data-rep-lang': 'he' } }, { value: 'en', label: 'English', attrs: { 'data-rep-lang': 'en' } }]}></sw-segmented></div>
               <div class="field"><span class="lbl">${tt('repContent')}</span>
                 <label class="sw"><input type="checkbox" .checked=${p.chart !== false} @change=${(e: Event) => this.set({ chart: (e.target as HTMLInputElement).checked })} />${tt('repChart')}</label>
                 <label class="sw"><input type="checkbox" .checked=${p.signature !== false} @change=${(e: Event) => this.set({ signature: (e.target as HTMLInputElement).checked })} data-rep-sig />${tt('repSig')}</label>
                 <label class="sw"><input type="checkbox" .checked=${p.events !== false} @change=${(e: Event) => this.set({ events: (e.target as HTMLInputElement).checked })} />${tt('repEvents')}</label>
                 <label class="sw"><input type="checkbox" .checked=${p.samples === true} @change=${(e: Event) => this.set({ samples: (e.target as HTMLInputElement).checked })} data-rep-samples />${tt('repSamples')}</label></div>
             </div>
-            <div class="field" data-rep-layout><span class="lbl">${tt('repLayout')}</span><span class="seg" role="group">
-              <button type="button" aria-pressed=${String(p.layout !== 'haccp')} data-rep-layout-btn="standard" @click=${() => this.setLayout('standard')}>${tt('repStandard')}</button>
-              <button type="button" aria-pressed=${String(p.layout === 'haccp')} data-rep-layout-btn="haccp"
-                @click=${() => this.setLayout('haccp')}>${tt('repHaccp')}</button></span>
+            <div class="field" data-rep-layout><span class="lbl">${tt('repLayout')}</span><sw-segmented value=${p.layout === 'haccp' ? 'haccp' : 'standard'} @change=${(e: CustomEvent<SegmentedChange>) => this.setLayout(e.detail.value as 'standard' | 'haccp')}
+              .options=${[{ value: 'standard', label: tt('repStandard'), attrs: { 'data-rep-layout-btn': 'standard' } }, { value: 'haccp', label: tt('repHaccp'), attrs: { 'data-rep-layout-btn': 'haccp' } }]}></sw-segmented>
               ${p.layout === 'haccp' ? html`<span class="hint">${tt('repHaccpHint')}</span>` : nothing}</div>
             <span class="hint">${tt('repEngine')}</span>
           </div>

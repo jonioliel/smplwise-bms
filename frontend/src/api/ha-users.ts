@@ -7,39 +7,22 @@
  */
 import { get, post } from './client';
 import { isApi } from './session';
+import type * as Wire from './generated/wire-ha-users';
 
 type ManagedState = 'active' | 'inactive' | 'needs_repair';
 export type AccessState = 'unknown' | 'ok' | 'not_authorised' | 'unavailable' | 'not_configured' | 'failed';
-export type Transport = 'supervisor' | 'token' | 'none';
+export type Transport = Wire.HaUserList['transport'];
 
-export interface ManagedUser {
-  ha_user_id: string;
-  username: string;
-  display_name: string;
-  role_id: string;
-  role_name: string;
-  scope_type: string;
-  scope_id: string;
-  scope_name: string;
-  state: ManagedState;
-  repair: string | null;
-  person: boolean;
-  created_at: string;
-  created_by_name: string | null;
-  is_self: boolean;
-}
+/* The wire shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/ha_users.py, generated into
+ * ./generated/wire-ha-users.ts): a renamed or dropped field is a compile error here (code review 07:F8 step 2). Narrowed on purpose:
+ * a listed user is never `creating` / `deleted` and always has its home-system id (the list holds only the three live states), and the
+ * access state is one of the probe's known results. */
+export type ManagedUser = Omit<Wire.HaUserRow, 'ha_user_id' | 'state'> & { ha_user_id: string; state: ManagedState };
 
-export interface HaUsersView {
+export type HaUsersView = Omit<Wire.HaUserList, 'users' | 'access'> & {
   users: ManagedUser[];
-  can_manage: boolean;
-  actor_ha_admin: boolean;
-  transport: Transport;
   access: { state: AccessState; checked_at: string | null };
-  roles: { id: string; name: string }[];
-  scopes: { type: string; id: string; name: string }[];
-  password: { min_length: number; max_length: number };
-  limit: number;
-}
+};
 
 interface CreateRequest {
   display_name: string;
@@ -95,8 +78,8 @@ export const haUsersApi = {
     if (u) u.state = active ? 'active' : 'inactive';
     return { user: clone(u as ManagedUser) };
   },
-  async remove(id: string, confirmUsername: string): Promise<{ deleted: string; already_gone: boolean }> {
-    if (isApi()) return post<{ deleted: string; already_gone: boolean }>(`/ha-users/${encodeURIComponent(id)}/delete`, { confirm_username: confirmUsername });
+  async remove(id: string, confirmUsername: string): Promise<Wire.HaUserDeleted> {
+    if (isApi()) return post<Wire.HaUserDeleted>(`/ha-users/${encodeURIComponent(id)}/delete`, { confirm_username: confirmUsername });
     demo.users = demo.users.filter((x) => x.ha_user_id !== id);
     return { deleted: id, already_gone: false };
   },

@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-dialog';
 import { describeError } from '../api/client';
 import { createUnit, deleteUnit, listCandidates, listManaged, updateUnit, type Candidate, type ManageResponse, type UnitKind } from '../api/temperature';
@@ -86,9 +88,6 @@ export class TempWizard extends LitElement {
     .rule[data-off] .txt { opacity: 0.55; }
     .tpl { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
     .gprev { display: flex; gap: 16px; align-items: center; }
-    .seg { display: inline-flex; background: var(--sw-surface-2); border-radius: var(--sw-r-pill); padding: 3px; gap: 2px; flex-wrap: wrap; }
-    .seg button { border: 0; background: transparent; border-radius: var(--sw-r-pill); padding: 5px 12px; font: inherit; font-size: var(--sw-fs-sm); color: var(--sw-text-2); cursor: pointer; }
-    .seg button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface)); color: var(--sw-seg-key-ink, var(--sw-text)); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); font-weight: var(--sw-fw-semibold); }
     .opts { display: flex; flex-wrap: wrap; gap: 6px 16px; }
     .opts.scroll { max-block-size: 160px; overflow: auto; }
     .summ { display: grid; gap: 4px; font-size: var(--sw-fs-sm); flex: 1; }
@@ -331,9 +330,8 @@ export class TempWizard extends LitElement {
     const preview = { low: d.low, high: d.high, value: null, value_last: null };
     return html`<div class="gprev">${gauge(preview, 'ok', null, 120)}
         <div style="flex:1;display:grid;gap:10px">
-          ${this.isClimate ? html`<div class="field"><span class="lbl">${tt('bandMode')}</span><span class="seg" role="group">
-            <button type="button" aria-pressed=${String(d.band_mode === 'fixed')} data-band="fixed" @click=${() => this.patch({ band_mode: 'fixed' })}>${tt('bandFixed')}</button>
-            <button type="button" aria-pressed=${String(d.band_mode === 'setpoint')} data-band="setpoint" @click=${() => this.patch({ band_mode: 'setpoint' })}>${tt('bandSetpoint')}</button></span>
+          ${this.isClimate ? html`<div class="field"><span class="lbl">${tt('bandMode')}</span><sw-segmented value=${d.band_mode} @change=${(e: CustomEvent<SegmentedChange>) => this.patch({ band_mode: e.detail.value as 'fixed' | 'setpoint' })}
+            .options=${[{ value: 'fixed', label: tt('bandFixed'), attrs: { 'data-band': 'fixed' } }, { value: 'setpoint', label: tt('bandSetpoint'), attrs: { 'data-band': 'setpoint' } }]}></sw-segmented>
             ${d.band_mode === 'setpoint' ? html`<label class="sw">${tt('tolerance')}<input class="in n" type="number" step="0.5" min="0.1" max="20" .value=${String(this.rule<number>('setpoint_tolerance'))}
                 @change=${(e: Event) => this.setRule('setpoint_tolerance', this.num(e))} data-w-tol /></label><span class="hint">${tt('bandSetpointHint', { v: `±${this.rule<number>('setpoint_tolerance')}°` })}</span>` : nothing}</div>` : nothing}
           <div class="f2">
@@ -360,8 +358,8 @@ export class TempWizard extends LitElement {
     const users = this.users.filter((u) => !uq || u.name.toLowerCase().includes(uq) || u.username.toLowerCase().includes(uq)).slice(0, 80);
     const hard = this.rule<number>('defrost_hard_margin');
     return html`<div class="field"><span class="lbl">${tt('who')}</span>
-        <span class="seg" role="group"><button type="button" aria-pressed=${String(!d.ownRecipients)} data-who="default" @click=${() => this.patch({ ownRecipients: false })}>${tt('whoDefault')}</button>
-          <button type="button" aria-pressed=${String(d.ownRecipients)} data-who="own" @click=${() => this.patch({ ownRecipients: true })}>${tt('whoOwn')}</button></span>
+        <sw-segmented value=${d.ownRecipients ? 'own' : 'default'} @change=${(e: CustomEvent<SegmentedChange>) => this.patch({ ownRecipients: e.detail.value === 'own' })}
+          .options=${[{ value: 'default', label: tt('whoDefault'), attrs: { 'data-who': 'default' } }, { value: 'own', label: tt('whoOwn'), attrs: { 'data-who': 'own' } }]}></sw-segmented>
         ${d.ownRecipients ? html`<div style="display:grid;gap:8px">
           <span class="hint">${tt('roles')}</span><div class="opts">${ROLE_KEYS.map(([id, label]) => html`<label class="sw"><input type="checkbox" .checked=${d.recipients.roles.includes(id)}
             @change=${(e: Event) => this.patch({ recipients: { ...d.recipients, roles: toggle(d.recipients.roles, id, (e.target as HTMLInputElement).checked) } })} />${label}</label>`)}</div>
@@ -382,8 +380,9 @@ export class TempWizard extends LitElement {
         <span class="hint">${tt('alarmsNever')}</span></div>
       ${this.phase3Rules()}
       <div class="field"><span class="lbl">${tt('defrost')}</span>
-        <span class="seg" role="group" data-w-defrost>${(['learn', 'fixed', 'none'] as const).map((m) => html`<button type="button" aria-pressed=${String(d.defrost_mode === m)} data-mode=${m}
-          @click=${() => this.patch({ defrost_mode: m, defrost_windows: m === 'fixed' && !d.defrost_windows.length ? [{ start: '03:00', minutes: 30 }] : d.defrost_windows })}>${tt(m === 'learn' ? 'modeLearn' : m === 'fixed' ? 'modeFixed' : 'modeNone')}</button>`)}</span>
+        <sw-segmented data-w-defrost value=${d.defrost_mode}
+          @change=${(e: CustomEvent<SegmentedChange>) => { const m = e.detail.value as 'learn' | 'fixed' | 'none'; this.patch({ defrost_mode: m, defrost_windows: m === 'fixed' && !d.defrost_windows.length ? [{ start: '03:00', minutes: 30 }] : d.defrost_windows }); }}
+          .options=${(['learn', 'fixed', 'none'] as const).map((m) => ({ value: m, label: tt(m === 'learn' ? 'modeLearn' : m === 'fixed' ? 'modeFixed' : 'modeNone'), attrs: { 'data-mode': m } }))}></sw-segmented>
         <span class="hint">${tt(d.defrost_mode === 'learn' ? 'defrostLearnHint' : d.defrost_mode === 'fixed' ? 'defrostFixedHint' : 'defrostNoneHint')}</span>
         ${d.defrost_mode === 'fixed' ? html`<div style="display:grid;gap:6px">${d.defrost_windows.map((w, i) => html`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" data-w-window=${i}>
             <input class="in" style="inline-size:auto" type="time" lang=${dateInputLang()} .value=${w.start} aria-label=${tt('start')} @change=${(e: Event) => this.patch({ defrost_windows: d.defrost_windows.map((x, j) => (j === i ? { ...x, start: (e.target as HTMLInputElement).value } : x)) })} />

@@ -3,10 +3,14 @@ import { subscribeClock } from '../api/clock-ticker';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-card';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
 import '../components/sw-toggle';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import './automation-drawer';
 import './scenario-settings';
 import '../components/sw-list-display-settings';
@@ -110,17 +114,10 @@ export class SystemAutomations extends LitElement {
       background: var(--sw-stale-soft);
       color: var(--sw-warning-text);
     }
-    /* SCHED-POLISH-2331 -> SHARED-POLISH-2342: the role matrix is the shared table.set-matrix of styles/settings.ts (header in text-2 /
-       600, the role name in the heading ink); only its foot margin and the link stay here */
-    table.mtx {
+    /* SCHED-POLISH-2331 -> SHARED-POLISH-2342 -> CR-CMP2-TABLES-REST-2470: the role matrix is the shared sw-table.set-matrix of
+       styles/settings.ts; only its foot margin stays here */
+    sw-table.mtx {
       margin-block-end: var(--sw-s-3);
-    }
-    .mtx .c {
-      text-align: center;
-      inline-size: 72px;
-    }
-    .yes {
-      color: var(--sw-success-text);
     }
     .no {
       color: var(--sw-text-3);
@@ -323,9 +320,6 @@ export class SystemAutomations extends LitElement {
         max-inline-size: none;
         inline-size: 100%;
       }
-      .mtx .c {
-        inline-size: auto;
-      }
     }
   `, bubbleChrome];
 
@@ -435,13 +429,21 @@ export class SystemAutomations extends LitElement {
   }
 
   private who(): TemplateResult {
-    const tick = (on: boolean) => (on ? html`<sw-icon class="yes" name="check" size=${16} role="img" aria-label=${tr('כן')}></sw-icon>` : html`<span class="no" aria-label=${tr('לא')}>—</span>`);
+    // the tick keeps its class as the specs' hook (`tr[data-role] .yes`); its look comes through the shared yes / no parts
+    const tick = (on: boolean) => (on ? html`<sw-icon class="yes" part="yes" name="check" size=${16} role="img" aria-label=${tr('כן')}></sw-icon>` : html`<span class="no" part="no" aria-label=${tr('לא')}>—</span>`);
     const codeOn = (id: string, fixed: boolean | null) => (fixed !== null ? fixed : this.draft.code_view_roles.includes(id));
+    type Role = (typeof ROLE_ROWS)[number];
+    // CR-CMP2-TABLES-REST-2470 (owner N10): the role (its floors scope under it), then one centred column per right (72 px, narrower on a phone: min(72px, 16vw))
+    const cols: TableColumn<Role>[] = [
+      { key: 'label', label: tr('תפקיד'), render: (r) => html`<span class="t1">${r.label}</span>${r.scope ? html`<span class="t2">${r.scope}</span>` : nothing}` },
+      { key: 'run', label: tr('הפעלה'), align: 'center', width: 'min(72px, 16vw)', render: (r) => tick(r.run) },
+      { key: 'edit', label: tr('יצירה ועריכה'), align: 'center', width: 'min(72px, 16vw)', render: (r) => tick(r.edit) },
+      { key: 'code', label: tr('קוד'), align: 'center', width: 'min(72px, 16vw)', render: (r) => tick(codeOn(r.id, r.codeFixed)) },
+      ...(this.draft.device_test_enabled ? [{ key: 'test', label: tr('בדיקה על ההתקן'), align: 'center' as const, width: 'min(72px, 16vw)', cellAttrs: () => ({ 'data-col-device-test': true }), render: (r: Role) => tick(r.run && r.edit) }] : []),
+    ];
     return html`<sw-card heading=${tr('מי רשאי')} data-card="who">
-      <table class="mtx set-matrix" data-roles-matrix>
-        <thead><tr><th scope="col">${tr('תפקיד')}</th><th scope="col" class="c">${tr('הפעלה')}</th><th scope="col" class="c">${tr('יצירה ועריכה')}</th><th scope="col" class="c">${tr('קוד')}</th>${this.draft.device_test_enabled ? html`<th scope="col" class="c" data-col-device-test>${tr('בדיקה על ההתקן')}</th>` : nothing}</tr></thead>
-        <tbody>${ROLE_ROWS.map((r) => html`<tr data-role=${r.id}><td>${r.label}${r.scope ? html`<small>${r.scope}</small>` : nothing}</td><td class="c">${tick(r.run)}</td><td class="c">${tick(r.edit)}</td><td class="c">${tick(codeOn(r.id, r.codeFixed))}</td>${this.draft.device_test_enabled ? html`<td class="c">${tick(r.run && r.edit)}</td>` : nothing}</tr>`)}</tbody>
-      </table>
+      <sw-table class="mtx set-matrix" bare static-rows keep-columns data-roles-matrix .columns=${cols as unknown as TableColumn[]} .rows=${ROLE_ROWS as unknown as Record<string, unknown>[]}
+        .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-role': String(r.id) })}></sw-table>
       ${this.row(tr('הרשאות ותפקידים'), tr('ההקצאה למשתמשים ולקומות במסך "משתמשים והרשאות".'), html`<a class="link" href="#/system/access" data-link-access>${tr('למסך המשתמשים')}</a>`)}
     </sw-card>`;
   }
@@ -470,7 +472,10 @@ export class SystemAutomations extends LitElement {
   private prechecks(): TemplateResult {
     const d = this.draft;
     const [wlo, whi] = AUTOMATION_SETTING_RANGES.conflict_window_min;
-    const seg = <T extends string>(attr: string, value: T, opts: Array<[T, string]>, set: (v: T) => void) => html`<div class="seg" role="group" aria-label=${attr}>${opts.map(([v, l]) => html`<button type="button" aria-pressed=${String(value === v)} data-seg=${`${attr}:${v}`} @click=${() => set(v)}>${l}</button>`)}</div>`;
+    // CR-CMP2-SELECTS-2450 (owner N11): the shared segmented control; each key keeps its data-seg hook
+    const seg = <T extends string>(attr: string, value: T, opts: Array<[T, string]>, set: (v: T) => void) =>
+      html`<sw-segmented label=${attr} value=${value} .options=${opts.map(([v, l]) => ({ value: v, label: l, attrs: { 'data-seg': `${attr}:${v}` } }))}
+        @change=${(e: CustomEvent<SegmentedChange>) => set(e.detail.value as T)}></sw-segmented>`;
     return html`<sw-card heading=${tr('בדיקות לפני שמירה')} data-card="prechecks">
       ${this.row(tr('בדיקות לפני שמירה'), tr('התנגשויות, התקן לא זמין, כפתור שכבר בשימוש'), this.tog(tr('בדיקות לפני שמירה'), d.precheck_enabled, (v) => this.set({ precheck_enabled: v }), 'precheck_enabled'))}
       ${d.precheck_enabled ? html`
@@ -545,7 +550,8 @@ export class SystemAutomations extends LitElement {
     return html`<sw-card heading=${tr('פעולות רגישות')} data-card="sensitive">
       ${this.row(tr('הכלל'), tr('אזעקה, מנעולים, דלתות, שערים וצופרים מותרים באוטומציות כמו כל פעולה, ועוברים את אותן בדיקות הרשאה כמו שליטה ידנית. קודים לעולם לא נשמרים.'), html`<span class="tag ok"><sw-icon name="check" size=${12}></sw-icon>${tr('החלטת הבעלים')}</span>`)}
       ${this.row(tr('צ׳יפ אזהרה על צעד רגיש'), tr('מוצג בעורך וברשימה'), this.tog(tr('צ׳יפ אזהרה על צעד רגיש'), this.draft.sensitive_warning, (v) => this.set({ sensitive_warning: v }), 'sensitive_warning'))}
-      ${this.row(tr('צבע הצ׳יפ'), tr('צהוב או אדום'), html`<div class="seg" role="group" aria-label=${tr('צבע הצ׳יפ')}><button type="button" aria-pressed=${String(this.draft.sensitive_chip === 'amber')} data-sensitive-chip="amber" @click=${() => this.set({ sensitive_chip: 'amber' })}>${tr('צהוב')}</button><button type="button" aria-pressed=${String(this.draft.sensitive_chip === 'red')} data-sensitive-chip="red" @click=${() => this.set({ sensitive_chip: 'red' })}>${tr('אדום')}</button></div>`)}
+      ${this.row(tr('צבע הצ׳יפ'), tr('צהוב או אדום'), html`<sw-segmented label=${tr('צבע הצ׳יפ')} value=${this.draft.sensitive_chip} @change=${(e: CustomEvent<SegmentedChange>) => this.set({ sensitive_chip: e.detail.value as 'amber' | 'red' })}
+        .options=${[{ value: 'amber', label: tr('צהוב'), attrs: { 'data-sensitive-chip': 'amber' } }, { value: 'red', label: tr('אדום'), attrs: { 'data-sensitive-chip': 'red' } }]}></sw-segmented>`)}
       ${this.notify.length ? html`<div class="row"><div class="lbl"><span>${tr('יעדי התראה מאושרים')}</span><span class="muted">${tr('רק אליהם אפשר לשלוח התראה מאוטומציה')}</span></div><div class="chipsrow" role="group" aria-label=${tr('יעדי התראה')}>${this.notify.map((n) => {
         const on = approved.has(n.name);
         return html`<button type="button" class="rc" aria-pressed=${String(on)} data-notify=${n.action} @click=${() => this.set({ notify_targets: on ? this.draft.notify_targets.filter((x) => x !== n.name) : [...this.draft.notify_targets, n.name] })}>${on ? html`<sw-icon name="check" size=${14}></sw-icon>` : nothing}${n.name}</button>`;
@@ -575,7 +581,8 @@ export class SystemAutomations extends LitElement {
 
   private display(): TemplateResult {
     return html`<sw-card heading=${tr('הצגה')} data-card="display">
-      ${this.row(tr('מסנן בטלפון'), tr('מקופל: "סינון" אחד · שורות: כל הבקרים מוצגים'), html`<div class="seg" role="group" aria-label=${tr('מסנן בטלפון')}><button type="button" aria-pressed=${String(this.draft.phone_filter === 'fold')} data-phone-filter="fold" @click=${() => this.set({ phone_filter: 'fold' })}>${tr('מקופל')}</button><button type="button" aria-pressed=${String(this.draft.phone_filter === 'rows')} data-phone-filter="rows" @click=${() => this.set({ phone_filter: 'rows' })}>${tr('שורות')}</button></div>`)}
+      ${this.row(tr('מסנן בטלפון'), tr('מקופל: "סינון" אחד · שורות: כל הבקרים מוצגים'), html`<sw-segmented label=${tr('מסנן בטלפון')} value=${this.draft.phone_filter} @change=${(e: CustomEvent<SegmentedChange>) => this.set({ phone_filter: e.detail.value as 'fold' | 'rows' })}
+        .options=${[{ value: 'fold', label: tr('מקופל'), attrs: { 'data-phone-filter': 'fold' } }, { value: 'rows', label: tr('שורות'), attrs: { 'data-phone-filter': 'rows' } }]}></sw-segmented>`)}
       ${this.row(tr('"+ חדש" אחד ששואל "מתי?"'), tr('"בשעות קבועות" פותח תזמון חדש; "כשמשהו קורה" פותח את הבונה. כבוי = לכל לשונית הכפתור שלה.'), this.tog(tr('חדש ששואל מתי'), this.draft.ask_when_on_new, (v) => this.set({ ask_when_on_new: v }), 'ask_when_on_new'))}
     </sw-card>`;
   }

@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any
 from ...errors import ApiError
 from .provision_isr import AlarmTracker, ProvisionIsrAdapter
 from .provision_push import PushListener, PushReceiver
+from ...test_reset import register_reset
 
 if TYPE_CHECKING:
     from ..events_ingest import AlertStreamListener
@@ -285,3 +286,12 @@ def run_loop(listener: "AlertStreamListener", *, adapter: ProvisionIsrAdapter | 
     st.connected = False
     if receiver is not None:
         unregister_push(listener.recorder_id)  # L4: the loop ended (recorder stopped, disabled or removed)
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _RECEIVERS.clear()
+    _SINKS.clear()
+
+
+register_reset(__name__, ("_RECEIVERS", "_SINKS"), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

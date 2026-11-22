@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-drawer';
 import '../components/sw-dialog';
 import '../components/sw-button';
+import '../components/sw-field';
 import '../components/sw-state-panel';
 import './ui';
 import { ApiError, describeError } from '../api/client';
@@ -267,7 +268,7 @@ export class WaterMeterCard extends MeterCardBase<MeterDetail, 'remove' | 'repla
   }
 
   private field(id: string, label: string, value: string, set: (v: string) => void, o: { type?: string; wide?: boolean; suffix?: string } = {}) {
-    return html`<div class="fld ${o.wide ? 'wide' : ''}"><label for=${id}>${label}</label><div class="inp"><input id=${id} type=${o.type ?? 'text'} inputmode=${o.type ? 'text' : 'decimal'} .value=${value} @input=${(e: Event) => set((e.target as HTMLInputElement).value)} />${o.suffix ? html`<span class="mut">${o.suffix}</span>` : nothing}</div></div>`;
+    return html`<sw-field class="fld ${o.wide ? 'wide' : ''}" label=${label} unit=${o.suffix ?? ''}><input id=${id} type=${o.type ?? 'text'} inputmode=${o.type ? 'text' : 'decimal'} .value=${value} @input=${(e: Event) => set((e.target as HTMLInputElement).value)} /></sw-field>`;
   }
 
   protected renderDialogs() {
@@ -279,7 +280,7 @@ export class WaterMeterCard extends MeterCardBase<MeterDetail, 'remove' | 'repla
       </sw-dialog>
       <sw-dialog ?open=${this.dlg === 'rename'} heading=${wt('renameTitle')} data-meter-rename-dialog @close=${() => (this.dlg = '')}>
         <div class="form">${this.field('wrn', wt('meterName'), this.f1, (v) => (this.f1 = v), { type: 'text', wide: true })}
-          <div class="fld wide"><label for="wkd">${wt('meterKind')}</label><div class="inp"><select id="wkd" @change=${(e: Event) => (this.kind = (e.target as HTMLSelectElement).value)}>${METER_KINDS.map((k) => html`<option value=${k} ?selected=${k === this.kind}>${kindLabel(k)}</option>`)}</select></div></div>${err}</div>
+          <sw-field class="fld wide" label=${wt('meterKind')}><select id="wkd" @change=${(e: Event) => (this.kind = (e.target as HTMLSelectElement).value)}>${METER_KINDS.map((k) => html`<option value=${k} ?selected=${k === this.kind}>${kindLabel(k)}</option>`)}</select></sw-field>${err}</div>
         ${foot(wt('save'))}
       </sw-dialog>
       <sw-dialog ?open=${this.dlg === 'replace'} heading=${wt('replace')} data-meter-replace-dialog @close=${() => (this.dlg = '')}>
@@ -290,7 +291,7 @@ export class WaterMeterCard extends MeterCardBase<MeterDetail, 'remove' | 'repla
       <sw-dialog ?open=${this.dlg === 'reading'} heading=${wt('manualReading')} data-meter-reading-dialog @close=${() => (this.dlg = '')}>
         <div class="form">${this.field('wra', wt('readingAt'), this.f1, (v) => (this.f1 = v), { type: 'datetime-local', wide: true })}
           ${this.field('wrv', wt('readingValue'), this.f2, (v) => (this.f2 = v))}
-          <div class="fld"><label for="wru">${wt('fUnit')}</label><div class="inp"><select id="wru" @change=${(e: Event) => (this.unit = (e.target as HTMLSelectElement).value as 'm3' | 'L')}><option value="m3" ?selected=${this.unit === 'm3'}>${wt('m3')}</option><option value="L" ?selected=${this.unit === 'L'}>${wt('litre')}</option></select></div></div>
+          <sw-field class="fld" label=${wt('fUnit')}><select id="wru" @change=${(e: Event) => (this.unit = (e.target as HTMLSelectElement).value as 'm3' | 'L')}><option value="m3" ?selected=${this.unit === 'm3'}>${wt('m3')}</option><option value="L" ?selected=${this.unit === 'L'}>${wt('litre')}</option></select></sw-field>
           ${this.field('wrn2', wt('readingNote'), this.f3, (v) => (this.f3 = v), { type: 'text', wide: true })}${err}</div>
         ${foot(wt('save'))}
       </sw-dialog>`;

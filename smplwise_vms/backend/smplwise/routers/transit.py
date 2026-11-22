@@ -23,6 +23,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
+from ..services import transit_store as store
 from ..services.transit import catalogue, health, model, poller, stride
 from ._common import rid as _rid
 
@@ -97,7 +98,7 @@ def put_settings(body: ConfigIn, request: Request, principal: Principal = Depend
         new = model.normalize_config({**old, **patch}, strict=True)
     except model.Invalid as exc:
         raise ApiError(422, "validation", str(exc), details={"field": exc.field})
-    have = conn.execute("SELECT COUNT(*) FROM transit_stops").fetchone()[0] > 0
+    have = store.stop_count(conn) > 0
     for s in new["stops"]:  # a stop must exist in the local catalogue once there is one; its catalogue name is the default display name
         row = catalogue.get(conn, s["code"]) if have else None
         if have and row is None:

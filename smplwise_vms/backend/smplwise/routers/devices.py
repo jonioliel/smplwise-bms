@@ -39,9 +39,12 @@ from ..services import device_activity
 from ..services import device_bulk as bulk
 from ..services import device_types
 from ..services import devices as svc
+from ..services import devices_store as store
 from ..services import building_scope, door_authority, ha_bridge, ha_client, ha_scope, ha_sync, home_screen, switch_protection, user_prefs
 from ..services import service_identity
 from ..services.timeutil import parse_utc
+from ..wire import devices as W
+from ..wire import wire
 from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
 
 router = APIRouter()
@@ -100,7 +103,7 @@ _configure_holder_early_ro = read_gate(lambda conn, principal: require(conn, pri
 _configure_holder_ro = _configure_holder_early_ro
 
 
-@router.get("/devices/tree")
+@router.get("/devices/tree", **wire(W.DeviceTree))
 def tree(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     reads = _RequestReads(conn)
     entities, scoped = _visible_entities(conn, principal, reads)
@@ -124,7 +127,7 @@ def tree(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Con
     return body
 
 
-@router.get("/devices/home-candidates")
+@router.get("/devices/home-candidates", **wire(W.DeviceHomeCandidates))
 def home_candidates(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Edit mode of the home screen: the mirrored `weather.*` and `sensor.*` entities the widgets can be pointed at.
     system.configure (the setting's own permission) - a viewer gets no entity list."""
@@ -136,7 +139,7 @@ ENTITY_ROWS_MAX = 80
 ENTITY_POOL_MAX = 3000
 
 
-@router.get("/devices/entities")
+@router.get("/devices/entities", **wire(W.DeviceRows))
 def entity_rows(
     ids: str = Query(..., min_length=1, max_length=8000),
     principal: Principal = Depends(current_principal_ro),
@@ -162,7 +165,7 @@ def entity_rows(
     return {"entities": rows}
 
 
-@router.get("/devices/{entity_id}/activity")
+@router.get("/devices/{entity_id}/activity", **wire(W.DeviceActivity))
 def device_activity_feed(
     entity_id: str,
     since: str | None = Query(None, max_length=40), until: str | None = Query(None, max_length=40),
@@ -176,7 +179,7 @@ def device_activity_feed(
     A lock or alarm panel needs the permission that operates it (door.unlock / alarm.arm; alarm.view too for a panel). Only the domains of
     services/device_activity.ACTIVITY_DOMAINS: any other entity is 404. Read-only; never calls Home Assistant."""
     placed, _scoped = ha_scope.scoped_rows(conn, principal, READ, [{"entity_id": entity_id}])  # devices.read at the entity's placement (audited 403 when held nowhere)
-    row = conn.execute("SELECT entity_id, name, domain, device_class FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
+    row = store.live_entity_brief(conn, entity_id)
     if not placed or row is None or row["domain"] not in device_activity.ACTIVITY_DOMAINS:
         raise ApiError(404, "not_found", "ההתקן לא נמצא.")
     perms = device_activity.SECURITY_PERMISSIONS.get(row["domain"])
@@ -192,13 +195,13 @@ def device_activity_feed(
         raise ApiError(422, "validation", "פרמטר לא תקין: " + ("cursor" if str(exc) == "cursor" else "since / until חייבים להיות UTC (Z).")) from exc
     ck = None
     if row["domain"] == "climate":
-        ck = svc.climate_kind_overrides(conn).get(entity_id) or svc.climate_kind_auto(json.loads(conn.execute("SELECT attributes_json FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()[0] or "{}"))
+        ck = svc.climate_kind_overrides(conn).get(entity_id) or svc.climate_kind_auto(json.loads(store.entity_attributes_json(conn, entity_id) or "{}"))
     out["entity"] = {"entity_id": entity_id, "name": row["name"] or entity_id, "domain": row["domain"], "activity_kind": device_activity.activity_kind(row["domain"], row["device_class"], ck, row["name"], device_types.overrides(conn).get(entity_id)),
                      "virtual": row["domain"] in device_activity.VIRTUAL_DOMAINS, "power": device_activity.linked_power(conn, entity_id)}
     return out
 
 
-@router.get("/devices/entity-pool")
+@router.get("/devices/entity-pool", **wire(W.DeviceEntityPool))
 def entity_pool(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Every entity the area screens can show, compactly (id, name, card, domain, sensor group, area) - the layout editor's
     "all the installation's devices" list for a custom card and for the sensors card's main strip, including devices that
@@ -212,7 +215,7 @@ def entity_pool(principal: Principal = Depends(current_principal_ro), conn: sqli
     return {"entities": out, "truncated": len(entities) > ENTITY_POOL_MAX}
 
 
-@router.get("/devices/building")
+@router.get("/devices/building", **wire(W.DeviceBuilding))
 def building(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     entities, scoped = _visible_entities(conn, principal)
     t = svc.build_tree(conn, entities, scoped=scoped)
@@ -226,7 +229,7 @@ def building(principal: Principal = Depends(current_principal_ro), conn: sqlite3
     }
 
 
-@router.get("/devices/areas/{area_id}")
+@router.get("/devices/areas/{area_id}", **wire(W.DeviceArea))
 def area(area_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """`area_id` is an HA area id, or `unassigned` for the entities that belong to no area."""
     reads = _RequestReads(conn)
@@ -272,7 +275,7 @@ def area(area_id: str, principal: Principal = Depends(current_principal_ro), con
 ItemKind = Literal["lights", "switches", "covers", "climate", "heating", "media", "locks", "alarm"]
 
 
-@router.get("/devices/items")
+@router.get("/devices/items", **wire(W.DeviceItems))
 def items(
     principal: Principal = Depends(current_principal_ro),
     conn: sqlite3.Connection = Depends(get_read_conn),
@@ -367,7 +370,7 @@ _refresh_lock = threading.Lock()
 _last_refresh: dict[str, float] = {}
 
 
-@router.post("/devices/refresh")
+@router.post("/devices/refresh", **wire(W.DeviceRefresh))
 def refresh_from_ha(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """"רענן מ-Home Assistant": re-read HA's entity / device / area / floor registries now instead of waiting for the
     next registry event or the periodic refresh (CR-007 HA refresh). Read-only towards HA - the same listings the sync
@@ -423,7 +426,7 @@ def _protect_refusal(conn: sqlite3.Connection, entity_id: str, action: str, poli
     """Why this id cannot take `action` (None = it can): not_switch (not a switch of the catalogue), not_markable (a
     Scheduler component switch - not a device), and - to protect or unprotect - alarm_managed / media_managed /
     doors_layer (never in a group action whatever the mark: the row is read-only). Approving an auto row is only a review."""
-    row = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
+    row = store.live_entity_domain(conn, entity_id)
     if not row or row["domain"] != "switch":
         return "not_switch"
     if svc.is_scheduler(conn, entity_id):  # CR-014: a schedule's switch is not a device
@@ -445,7 +448,7 @@ def _media_managed(conn: sqlite3.Connection) -> set[str]:
     return media_store.managed_entities(conn)  # CR-016 review M4: operated from "מולטימדיה" only, never in a group action
 
 
-@router.get("/devices/bulk-protected")
+@router.get("/devices/bulk-protected", **wire(W.DeviceSwitchProtectionList))
 def list_bulk_protected(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Every switch with its protection (manual / auto, the classifier's category and rule, reviewed or not, who and when),
     its place and state and whether a group action would include it - the review list of "מתגים מוגנים" (CR-019 section 7.3).
@@ -453,7 +456,7 @@ def list_bulk_protected(principal: Principal = Depends(current_principal_ro), co
     require(conn, principal, "system.configure", INSTALLATION)
     policy = bulk.SwitchPolicy(conn)
     media_managed = _media_managed(conn)
-    rows_p = {r["entity_id"]: dict(r) for r in conn.execute("SELECT * FROM device_bulk_protected").fetchall()}
+    rows_p = {r["entity_id"]: dict(r) for r in store.bulk_protected(conn)}
     entities = svc.load_entities(conn)
     floors, areas = svc.load_structure(conn, entities)
     fname = {f["floor_id"]: f["name"] for f in floors}
@@ -496,7 +499,7 @@ def list_bulk_protected(principal: Principal = Depends(current_principal_ro), co
     }
 
 
-@router.post("/devices/bulk-protected")
+@router.post("/devices/bulk-protected", **wire(W.DeviceBatch))
 def set_bulk_protected_many(request: Request, principal: Principal = Depends(_configure_holder_early_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Protect, remove protection from, or approve (confirm an automatic protection of) many switches in one call - the
     review list's "הגן" / "הסר הגנה" / "אשר". system.configure, checked before the body; JSON only; 1..PROTECT_MAX ids, each
@@ -525,14 +528,14 @@ def set_bulk_protected_many(request: Request, principal: Principal = Depends(_co
     return {"results": results, "changed": changed, "refused": sum(1 for r in results if not r["ok"])}
 
 
-@router.put("/devices/entities/{entity_id}/bulk-protected")
+@router.put("/devices/entities/{entity_id}/bulk-protected", **wire(W.DeviceSwitchProtected))
 def set_bulk_protected(entity_id: str, request: Request, principal: Principal = Depends(_configure_holder_early_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Protect one switch from group actions (or remove its protection) - an administrator's statement that it must not go
     off (or on) with the lights (system.configure, checked before the body; JSON only; audited, refusals too). Removing
     protection is permanent against the classifier (verdict `admin_cleared`). A switch the alarm section or the multimedia
     screens own, or one on the map's door layer, is never in a group action whatever its mark: 409."""
     body = _json_body(request, raw, ProtectBody)
-    row = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
+    row = store.live_entity_domain(conn, entity_id)
     if not row:
         raise ApiError(404, "not_found", "הישות לא נמצאה בקטלוג.")
     if row["domain"] != "switch":
@@ -563,7 +566,7 @@ class ClimateKindBody(BaseModel):
     kind: Literal["auto", "ac", "heating"]
 
 
-@router.get("/devices/climate-kinds")
+@router.get("/devices/climate-kinds", **wire(W.DeviceClimateKinds))
 def list_climate_kinds(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Every climate entity with the group it is in, the group its own modes say and the administrator's override (the
     settings screen's list; system.configure, like the override itself)."""
@@ -582,23 +585,20 @@ def list_climate_kinds(principal: Principal = Depends(current_principal_ro), con
     return {"climate": out}
 
 
-@router.put("/devices/entities/{entity_id}/climate-kind")
+@router.put("/devices/entities/{entity_id}/climate-kind", **wire(W.DeviceClimateKind))
 def set_climate_kind(entity_id: str, body: ClimateKindBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Override the group of a climate entity - air conditioning (ac) or heating - or return it to automatic (its own
     hvac_modes decide). system.configure; audited. Only a climate entity has a group."""
     require(conn, principal, "system.configure", INSTALLATION)
-    row = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
+    row = store.live_entity_domain(conn, entity_id)
     if not row:
         raise ApiError(404, "not_found", "הישות לא נמצאה בקטלוג.")
     if row["domain"] != "climate":
         raise ApiError(422, "validation", "רק התקן אקלים (climate) משויך למיזוג או לחימום.")
     if body.kind == "auto":
-        conn.execute("DELETE FROM device_climate_kind WHERE entity_id = ?", (entity_id,))
+        store.delete_climate_kind(conn, entity_id)
     else:
-        conn.execute(
-            "INSERT INTO device_climate_kind(entity_id, kind, set_by, set_by_username, set_at) VALUES (?,?,?,?,?) ON CONFLICT(entity_id) DO UPDATE SET kind = excluded.kind, set_by = excluded.set_by, set_by_username = excluded.set_by_username, set_at = excluded.set_at",
-            (entity_id, body.kind, principal.user_id, principal.username, now_iso()),
-        )
+        store.upsert_climate_kind(conn, entity_id, body.kind, principal.user_id, principal.username, now_iso())
     audit(conn, actor=principal, action="devices.climate_kind", decision="allowed", resource_type="ha_entity", resource_id=entity_id,
           request_id=_rid(request), details={"kind": body.kind})
     e = next((x for x in svc.load_entities(conn) if x["entity_id"] == entity_id), None)
@@ -623,7 +623,7 @@ class DeviceTypeManyBody(DeviceTypeBody):
     entity_ids: list[Annotated[str, Field(min_length=1, max_length=255)]] = Field(min_length=1, max_length=device_types.BULK_MAX)
 
 
-@router.get("/devices/device-types")
+@router.get("/devices/device-types", **wire(W.DeviceTypes))
 def list_device_types(principal: Principal = Depends(_configure_holder_early_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Every switch-wired device (a switch, a virtual on/off helper) with its type now, the type its name gives (`auto`), the administrator's
     fixed type (`set`, or None = automatic), the types it may take and its place - the Settings list. system.configure."""
@@ -632,7 +632,7 @@ def list_device_types(principal: Principal = Depends(_configure_holder_early_ro)
     return {"devices": device_types.listing(conn, entities, floors, areas), "kinds": list(device_types.ALL_KINDS)}
 
 
-@router.put("/devices/entities/{entity_id}/device-type")
+@router.put("/devices/entities/{entity_id}/device-type", **wire(W.DeviceTypeSet))
 def set_device_type(entity_id: str, request: Request, principal: Principal = Depends(_configure_holder_early_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Fix the type of one switch-wired device, or return it to automatic (`auto`: its name decides again). system.configure, checked before
     the body; JSON only; audited (`devices.device_type`; a refusal too). Presentation only - the controls stay the entity's own domain's."""
@@ -654,7 +654,7 @@ class BulkOnBody(BaseModel):
     allowed: bool
 
 
-@router.put("/devices/entities/{entity_id}/bulk-on")
+@router.put("/devices/entities/{entity_id}/bulk-on", **wire(W.DeviceBulkOn))
 def set_bulk_on(entity_id: str, request: Request, principal: Principal = Depends(_configure_holder_early_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """SEC246 L2 (owner 2026-10-11): include one device the administrator typed as a valve / water heater in the bulk "turn everything on"
     (`switches_on`), or leave it out again (the default). system.configure, checked before the body; JSON only; audited
@@ -672,7 +672,7 @@ def set_bulk_on(entity_id: str, request: Request, principal: Principal = Depends
     return {"entity_id": entity_id, "changed": changed, "bulk_on_allowed": entity_id in device_types.bulk_on_allowed(conn), "kind": kind}
 
 
-@router.post("/devices/device-types")
+@router.post("/devices/device-types", **wire(W.DeviceBatch))
 def set_device_types(request: Request, principal: Principal = Depends(_configure_holder_early_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Fix one type on many switch-wired devices at once (or return them all to automatic) - the Settings list's group change.
     system.configure, checked before the body; JSON only; 1..BULK_MAX ids, each handled once in the order given. Per id
@@ -711,7 +711,7 @@ def _configure_holder(principal: Principal = Depends(current_principal), conn: s
     return principal
 
 
-@router.put("/devices/entities/{entity_id}/area")
+@router.put("/devices/entities/{entity_id}/area", **wire(W.DeviceAreaAssigned))
 def assign_area(entity_id: str, request: Request, principal: Principal = Depends(_configure_holder_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """CR-007 slice 4: assign an entity of the "ללא שיוך" bucket (or move any entity) to an HA area - a Home
     Assistant CONFIG write, never a domain service call, through the bridge's own registry-write path
@@ -731,10 +731,10 @@ def assign_area(entity_id: str, request: Request, principal: Principal = Depends
     except ValidationError as exc:
         fields = sorted({".".join(str(p) for p in err["loc"]) or "body" for err in exc.errors()})
         raise ApiError(422, "validation", "הבקשה אינה תקינה: " + ", ".join(fields), details={"fields": fields}) from None
-    erow = conn.execute("SELECT entity_id, area_id FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
+    erow = store.live_entity_area(conn, entity_id)
     if not erow:
         raise ApiError(404, "not_found", "הישות לא נמצאה בקטלוג.")
-    arow = conn.execute("SELECT area_id, name, floor_id FROM ha_areas WHERE area_id = ?", (body.area_id,)).fetchone()
+    arow = store.area(conn, body.area_id)
     if not arow:
         raise ApiError(404, "area_not_found", "האזור לא נמצא.")
     settings = settings_of(request)
@@ -764,11 +764,8 @@ def assign_area(entity_id: str, request: Request, principal: Principal = Depends
     if not ok:
         status = 404 if error in ("entity_not_found", "area_not_found") else 502
         raise ApiError(status, "bridge_error", "תשתית המערכת דחתה את שיוך האזור.", details={"error": error})
-    frow = conn.execute("SELECT name FROM ha_floors WHERE floor_id = ?", (arow["floor_id"],)).fetchone() if arow["floor_id"] else None
-    conn.execute(
-        "UPDATE ha_entities SET area_id = ?, area_name = ?, ha_floor_id = ?, ha_floor_name = ?, updated_at = ? WHERE entity_id = ?",
-        (arow["area_id"], arow["name"], arow["floor_id"], frow["name"] if frow else None, now_iso(), entity_id),
-    )
+    frow = store.floor_name(conn, arow["floor_id"]) if arow["floor_id"] else None
+    store.set_entity_area(conn, entity_id, arow["area_id"], arow["name"], arow["floor_id"], frow["name"] if frow else None, now_iso())
     return {"entity_id": entity_id, "area_id": arow["area_id"], "area_name": arow["name"]}
 
 
@@ -873,7 +870,7 @@ def _envelope(act: _Refusals, body: BulkBody) -> dt.datetime:
         raise act.refuse(ApiError(409, "expired", "הבקשה פגה לפני שהגיעה לשרת, ולכן לא נשלח דבר. אם השעון במכשיר שלכם אינו מדויק, תקנו אותו."))
     if expires > now + dt.timedelta(seconds=bulk.EXPIRY_MAX_S):
         raise act.refuse(ApiError(422, "expires_too_far", f"תוקף הבקשה חייב להסתיים תוך {int(bulk.EXPIRY_MAX_S)} שניות."))
-    seen = act.conn.execute("SELECT id FROM device_bulk_actions WHERE principal_user_id = ? AND client_request_id = ?", (act.principal.user_id, body.client_request_id)).fetchone()
+    seen = store.bulk_action_by_client_request(act.conn, act.principal.user_id, body.client_request_id)
     if seen:
         raise act.refuse(ApiError(409, "duplicate_command", "הפקודה הזו כבר נשלחה (אותו מזהה פקודה), ולכן לא נשלחה שוב.", details={"bulk_id": seen["id"]}))
     return min(expires, now + dt.timedelta(seconds=bulk.SEND_WITHIN_S))
@@ -886,7 +883,7 @@ def _only(raw: str | None) -> set[str] | None:
     return {x.strip() for x in raw.split(",") if x.strip()}
 
 
-@router.get("/devices/actions/preview")
+@router.get("/devices/actions/preview", **wire(W.DeviceBulkPreview))
 def bulk_preview(
     principal: Principal = Depends(_bulk_reader),
     conn: sqlite3.Connection = Depends(get_read_conn),
@@ -916,7 +913,7 @@ class BulkPreviewBody(BaseModel):
     building: str | None = Field(None, min_length=1, max_length=64)
 
 
-@router.post("/devices/actions/preview")
+@router.post("/devices/actions/preview", **wire(W.DeviceBulkPreview))
 def bulk_preview_post(body: BulkPreviewBody, principal: Principal = Depends(_bulk_reader), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """`GET /devices/actions/preview` with its fields in a JSON body - the client uses it when the query would be long (a
     narrowed tiles panel's `only`). Read-only like the GET: the same permission, the same reply, sends nothing."""
@@ -934,7 +931,7 @@ def _preview(conn: sqlite3.Connection, principal: Principal, scope: Scope, id: s
         raise
 
 
-@router.post("/devices/actions", status_code=202)
+@router.post("/devices/actions", status_code=202, **wire(W.DeviceBulkRun))
 def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Turn off the lights / close the covers / turn off the climate / turn off the screens / turn everything off for
     the building, an HA floor or an HA area. Body: `{scope, id, kind, confirmed, client_request_id, expires_at,
@@ -1000,7 +997,7 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder_ro), 
     return out
 
 
-@router.get("/devices/actions/{bulk_id}")
+@router.get("/devices/actions/{bulk_id}", **wire(W.DeviceBulkRun))
 def bulk_status(bulk_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """A bulk request's per-entity outcomes (queued / accepted / confirmed / not_confirmed / refused / unknown), the
     counts and `done`. Its own requester, or a system administrator."""

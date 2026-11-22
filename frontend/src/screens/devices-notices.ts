@@ -1,10 +1,12 @@
-import { LitElement, html, nothing } from 'lit';
+import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { ApiError, describeError } from '../api/client';
 import { archiveNotice, audienceOptions, audiencePreview, listBoards, listNotices, markRead, resendNotice, type Board, type Notice, type NoticesList } from '../api/notices';
 import { nt } from '../i18n/notices';
@@ -30,7 +32,20 @@ import { liftRef, liftedReset } from '../components/top-layer';
  */
 @customElement('devices-notices')
 export class DevicesNotices extends LitElement {
-  static styles = [noticesCss, placesCss, devicesNoticesCss, liftedReset];
+  static styles = [
+    noticesCss,
+    placesCss,
+    devicesNoticesCss,
+    liftedReset,
+    // CR-CMP2-SEGMENTED-C-2450: the boards segment is sw-segmented (the module's knobs in notices/styles.ts); a phone keeps its 44 px key
+    css`
+      @media (max-width: 767px) {
+        sw-segmented {
+          --sw-seg-h: var(--sw-touch);
+        }
+      }
+    `,
+  ];
 
   @state() private data: NoticesList | null = null;
   @state() private manager = false;
@@ -135,7 +150,10 @@ export class DevicesNotices extends LitElement {
             <div class="panel flush main">
               ${tree.length ? placesSelect(tree, place, (id) => (this.place = id)) : nothing}
               <div class="toolbar">
-                ${this.manager ? html`<div class="seg" role="group" aria-label=${nt('colBoards')}>${(['all', 'mine', 'tv'] as Seg[]).map((s) => html`<button type="button" aria-pressed=${String(this.seg === s)} @click=${() => (this.seg = s)}>${nt(s === 'all' ? 'segAll' : s === 'mine' ? 'segMine' : 'segTv')}</button>`)}</div>` : nothing}
+                ${this.manager
+                  ? html`<sw-segmented label=${nt('colBoards')} value=${this.seg} @change=${(e: CustomEvent<SegmentedChange>) => (this.seg = e.detail.value as Seg)}
+                      .options=${(['all', 'mine', 'tv'] as Seg[]).map((s) => ({ value: s, label: nt(s === 'all' ? 'segAll' : s === 'mine' ? 'segMine' : 'segTv') }))}></sw-segmented>`
+                  : nothing}
                 <span class="sp"></span>
                 <label class="search"><sw-icon name="search" size="14" aria-hidden="true"></sw-icon><input type="search" placeholder=${nt('search')} aria-label=${nt('search')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)}></label>
               </div>

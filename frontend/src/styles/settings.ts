@@ -1,5 +1,5 @@
 import { css } from 'lit';
-import { errLineStyles, okLineStyles, segThumbPlainStyles } from './fragments';
+import { errLineStyles, okLineStyles } from './fragments';
 
 /**
  * SET-polish (2026-10-10): the ONE stylesheet of the settings screens (הגדרות › *). Every `system-*` screen used to carry its
@@ -80,6 +80,31 @@ export const settingsSegStyles = css`
     outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: -2px;
   }
+  /* CR-CMP2-SEGMENTED-B-2450: styles/media-glass.ts draws sw-segmented as the glass key through these knobs; a host that takes this
+     sheet after the glass one gets the settings key back, as its hand-built .seg did (the later .seg rules won). unset = inherit, so the
+     knobs a host sets on itself (TKUI6, system-tickets) still reach the key. */
+  sw-segmented {
+    --sw-seg-border: unset;
+    --sw-seg-track: unset;
+    --sw-seg-radius: unset;
+    --sw-seg-btn-radius: unset;
+    --sw-seg-pad: unset;
+    --sw-seg-gap: unset;
+    --sw-seg-h: unset;
+    --sw-seg-key-pad: unset;
+    --sw-seg-key-min-w: unset;
+    --sw-seg-fs: unset;
+    --sw-seg-fw: unset;
+    --sw-seg-fg: unset;
+    --sw-seg-on-bg: unset;
+    --sw-seg-on-fg: unset;
+    --sw-seg-on-shadow: unset;
+    --sw-seg-count-bg: unset;
+    --sw-seg-count-on-bg: unset;
+    --sw-seg-count-fs: unset;
+    --sw-seg-count-pad: unset;
+    --sw-seg-count-min-w: unset;
+  }
 `;
 
 /** R5-SYSTEM-297: the settings ladder (the HOMEFABLE pattern - hero / card / well - on every הגדרות page). A screen that does not
@@ -149,7 +174,8 @@ export const settingsLadderStyles = css`
  *   .set-choices / label.set-choice   a radio / checkbox tile list: the checked tile carries the accent (TABSMODE-POLISH-2331)
  *   .set-chips label         a toggle chip whose checkbox stays in the tab order, visually hidden (LOOK-POLISH-2331)
  *   select.set-select        the settings select look, for a select that is not wrapped in sw-field (SCHED-POLISH-2331)
- *   table.set-matrix         a role x permission table in the settings ladder (SCHED-POLISH-2331, the access screens)
+ *   sw-table.set-matrix      a role x permission table in the settings ladder (SCHED-POLISH-2331, the access screens; the shared
+ *                            sw-table since CR-CMP2-TABLES-REST-2470: a tick carries part="yes", a dash part="no")
  *   .foot.sticky             a card footer whose save stays in view on a phone (INSIGHTS-POLISH-2331) */
 export const settingsKitStyles = css`
   .set-col {
@@ -293,32 +319,24 @@ export const settingsKitStyles = css`
     outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: 1px;
   }
-  table.set-matrix {
-    inline-size: 100%;
-    border-collapse: collapse;
-    font-size: var(--sw-fs-base);
+  /* CR-CMP2-TABLES-REST-2470 (owner N10): the role matrix is the shared sw-table inside its card (bare static-rows) - the base reading
+     size and 10 / 8 px cells of the old table.set-matrix, never wider than the card; the tick in the success ink and the dash in the
+     quiet ink reach its shadow root through the yes / no parts. The tables carry keep-columns (CR-CMP2-GEN-REST-2460: a small grid
+     that fits a phone keeps its columns there instead of the label / value stack; a no-op until that sw-table option lands) */
+  sw-table.set-matrix {
+    --sw-table-min: 0;
+    --sw-table-fs: var(--sw-fs-base);
+    /* RELEASE-2470-TRAIN: a phone keeps the matrix's columns (keep-columns), so the side padding narrows with the viewport
+       (8 px from an 800 px wide window as before, 4 px at 390 px) to keep the grid inside its card (layout-visdiff-246
+       settings-automations at 390 px: the 4-5 right columns pushed main 5 px wide) */
+    --sw-table-cell-pad: 10px clamp(var(--sw-s-1), 1vw, var(--sw-s-2));
   }
-  .set-matrix th {
-    text-align: start;
-    font-weight: var(--sw-fw-semibold);
-    color: var(--sw-text-2);
-    font-size: var(--sw-fs-sm);
-    padding: 6px 8px 8px;
-    border-block-end: 1px solid var(--sw-border-strong);
+  sw-table.set-matrix::part(yes) {
+    color: var(--sw-success-text);
+    vertical-align: middle;
   }
-  .set-matrix td {
-    padding: 10px 8px;
-    border-block-start: 1px solid var(--sw-border);
-    color: var(--sw-heading, var(--sw-text));
-    font-weight: var(--sw-fw-medium);
-  }
-  .set-matrix tbody tr:first-child td {
-    border-block-start: 0;
-  }
-  .set-matrix td small {
-    display: block;
+  sw-table.set-matrix::part(no) {
     color: var(--sw-text-3);
-    font-size: var(--sw-fs-xs);
   }
   @media (hover: hover) and (pointer: fine) {
     label.set-choice:hover:not(:has(input:disabled)):not(:has(input:checked)) {
@@ -401,18 +419,6 @@ export const settingsMutedHintStyles = css`
   }
 `;
 
-/** A pill key that is off, and the keyboard ring of a pill key (system-design, system-look). */
-export const settingsSegKeyStateStyles = css`
-  .seg button[disabled] {
-    cursor: default;
-    opacity: 0.6;
-  }
-  .seg button:focus-visible {
-    outline: var(--sw-focus-w) solid var(--sw-focus);
-    outline-offset: 1px;
-  }
-`;
-
 /** The save row of a look card and its status lines (system-design, system-look). */
 export const settingsFootStatusStyles = css`
   .foot {
@@ -434,26 +440,6 @@ export const settingsWrapFootStyles = css`
     flex-wrap: wrap;
     align-items: center;
     margin-block-start: 12px;
-  }
-`;
-
-/** The round pill keys of the presence settings: the key, the chosen key and its keyboard ring (system-presence,
- * system-building-presence). The track differs between the two and stays local. */
-export const settingsPillSegKeyStyles = css`
-  .seg button {
-    border: 0;
-    background: transparent;
-    font: inherit;
-    font-size: var(--sw-fs-sm);
-    padding: 4px 14px;
-    border-radius: var(--sw-r-pill);
-    color: var(--sw-text-2);
-    cursor: pointer;
-  }
-  ${segThumbPlainStyles}
-  .seg button:focus-visible {
-    outline: var(--sw-focus-w) solid var(--sw-focus);
-    outline-offset: 2px;
   }
 `;
 

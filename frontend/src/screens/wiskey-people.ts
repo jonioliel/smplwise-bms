@@ -7,6 +7,8 @@ import '../components/sw-icon';
 import '../components/sw-button';
 import '../components/sw-state-panel';
 import '../components/sw-dropdown';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import type { DropdownChange, DropdownItem } from '../components/sw-dropdown';
 import type { IconName } from '../components/sw-icon';
 import '../components/sw-avatar';
@@ -795,9 +797,8 @@ export class WiskeyPeople extends LitElement {
     if (!this.phone) views.push(['table', pt('view.table'), 'menu']);
     return html`
       ${ready
-        ? html`<div class="seg" slot="actions" role="group" aria-label=${pt('view.label')}>
-            ${views.map(([id, label, icon]) => html`<button type="button" data-people-view=${id} aria-pressed=${view === id} aria-label=${label} title=${label} @click=${() => this.setView(id)}><sw-icon name=${icon as 'grid'} size=${16}></sw-icon></button>`)}
-          </div>`
+        ? html`<sw-segmented slot="actions" data-people-views labels="none" label=${pt('view.label')} value=${view} @change=${(e: CustomEvent<SegmentedChange>) => this.setView(e.detail.value as PeopleView)}
+            .options=${views.map(([id, label, icon]) => ({ value: id, label, title: label, icon: html`<sw-icon name=${icon as 'grid'} size=${16}></sw-icon>`, attrs: { 'data-people-view': id } }))}></sw-segmented>`
         : nothing}
       ${ready
         ? html`<sw-button slot="actions" variant=${this.selecting ? 'primary' : 'secondary'} icon="check" iconOnly data-people-select-mode label=${this.selecting ? pt('action.select_off') : pt('action.select')} aria-pressed=${this.selecting}
@@ -1119,7 +1120,6 @@ export class WiskeyPeople extends LitElement {
     }
     .search input:focus-visible,
     .fchip input:focus-visible,
-    .seg button:focus-visible,
     .cbx:focus-visible,
     .linkbtn:focus-visible,
     .clear:focus-visible,
@@ -1129,26 +1129,24 @@ export class WiskeyPeople extends LitElement {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: var(--sw-focus-offset);
     }
-    .seg {
-      display: inline-flex;
-      border: 1px solid var(--sw-border-strong);
-      border-radius: var(--sw-r-md);
+    /* CR-CMP2-SEGMENTED-C-2450: the view switch is sw-segmented (icon-only keys); it keeps its bordered row of 44 px square keys
+       (no sunken track), the chosen key on the accent wash */
+    sw-segmented[data-people-views] {
+      --sw-seg-border: var(--sw-border-strong);
+      --sw-seg-track: var(--sw-surface);
+      --sw-seg-radius: var(--sw-r-md);
+      --sw-seg-btn-radius: 0;
+      --sw-seg-pad: 0;
+      --sw-seg-gap: 0;
+      --sw-seg-h: 44px;
+      --sw-seg-key-min-w: 44px;
+      --sw-seg-ico-pad: 0;
+      --sw-seg-on-bg: var(--sw-accent-soft);
+      --sw-seg-on-fg: var(--sw-accent-text);
+      --sw-seg-on-shadow: none;
+    }
+    sw-segmented[data-people-views]::part(track) {
       overflow: hidden;
-      background: var(--sw-surface);
-    }
-    .seg button {
-      inline-size: 44px;
-      block-size: 44px;
-      display: grid;
-      place-items: center;
-      border: 0;
-      background: transparent;
-      color: var(--sw-text-2);
-      cursor: pointer;
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-accent-soft);
-      color: var(--sw-accent-text);
     }
     sw-button {
       min-block-size: 44px;

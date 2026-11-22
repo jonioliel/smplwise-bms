@@ -54,6 +54,7 @@ from ..rbac import Principal
 from . import wiskey_feature_exec as fx
 from . import wiskey_peer as wp
 from .wiskey_capture_port import PortError
+from ..test_reset import register_reset
 
 COMMAND = "features/people_csv_preview"
 FEATURE = "people_csv"
@@ -527,3 +528,6 @@ def operation_of_job(conn: sqlite3.Connection, job_id: str) -> str | None:
     r = conn.execute("SELECT request_id FROM wiskey_feature_intents WHERE feature = ? AND parameter_reference = ? ORDER BY rowid DESC LIMIT 1",
                      (FEATURE, reference_of(job_id))).fetchone()
     return operation_of(conn, r[0]) if r else None
+
+
+register_reset(__name__, ("_HELD",), reset_for_tests)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

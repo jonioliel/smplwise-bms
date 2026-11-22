@@ -14,6 +14,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import bump_permission_revision, new_id, now_iso
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, authorize, require
+from ..services import anchors_store as store
 from ..services import door_authority, floor_images, plan_anchor_scope, plan_bakes
 from ..services.access import camera_reach_for_placement, camera_scope, floor_reach, require_camera_placement, require_floor_read
 from ._common import rid as _rid
@@ -22,6 +23,8 @@ from ..services.timeutil import parse_utc
 from .plans import needs_alignment, version_at, version_row
 from .settings import read_settings
 from ..services.settings_store import setting_value
+from ..wire import anchors as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -92,20 +95,20 @@ def camera_row(r: sqlite3.Row) -> dict[str, Any]:
 def removed_recorder_cameras(conn: sqlite3.Connection) -> set[str]:
     """CR-024: the cameras of recorders an administrator removed (disabled and invisible; their rows and history are kept)."""
     try:
-        return {r[0] for r in conn.execute("SELECT c.id FROM cameras c JOIN recorders r ON r.id = c.recorder_id WHERE r.removed_at IS NOT NULL").fetchall()}
+        return {r[0] for r in store.removed_recorder_camera_rows(conn)}
     except sqlite3.OperationalError:  # a database before 0055
         return set()
 
 
 def get_anchor(conn: sqlite3.Connection, anchor_id: str) -> sqlite3.Row:
-    row = conn.execute("SELECT * FROM map_anchors WHERE id = ? AND effective_to IS NULL", (anchor_id,)).fetchone()
+    row = store.live_anchor(conn, anchor_id)
     if not row:
         raise not_found("העוגן לא נמצא.")
     return row
 
 
 def _current_version(conn: sqlite3.Connection, floor_id: str) -> sqlite3.Row | None:
-    return conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? AND status = 'published'", (floor_id,)).fetchone()
+    return store.published_version(conn, floor_id)
 
 
 def _zones_for(conn: sqlite3.Connection, floor_id: str) -> list[dict[str, Any]]:
@@ -124,11 +127,11 @@ def _marked_zones(conn: sqlite3.Connection, floor_id: str, can_name: Any = None)
 
 
 def _editor_version(conn: sqlite3.Connection, floor_id: str) -> sqlite3.Row | None:
-    draft = conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? AND status = 'draft' ORDER BY created_at DESC LIMIT 1", (floor_id,)).fetchone()
+    draft = store.newest_draft(conn, floor_id)
     return draft or _current_version(conn, floor_id)
 
 
-@router.get("/floors/{floor_id}/map")
+@router.get("/floors/{floor_id}/map", **wire(W.FloorMap))
 def floor_map(floor_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), draft: bool = False, at: str | None = None) -> dict[str, Any]:
     """Everything the map needs in one call. `draft=true` (editors) prefers the latest draft background; `at=<UTC>`
     returns the version that was published at that instant and the anchors effective then (historical map, T038)."""
@@ -143,7 +146,7 @@ def floor_map(floor_id: str, request: Request, principal: Principal = Depends(cu
     can_publish = authorize(conn, principal, "map.publish", ("floor", floor_id)).allowed
     at_iso: str | None = None
     history: str | None = None
-    history_from = conn.execute("SELECT MIN(published_at) FROM plan_versions WHERE floor_id = ? AND published_at IS NOT NULL", (floor_id,)).fetchone()[0]
+    history_from = store.first_published_at(conn, floor_id)
     if at:
         try:
             at_iso = parse_utc(at).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -153,12 +156,12 @@ def floor_map(floor_id: str, request: Request, principal: Principal = Depends(cu
         # the floor's map history begins with its first publish; from then on the version and the anchors of that instant
         history = "exact"
         version = version_at(conn, floor_id, at_iso)
-        anchors = conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_from <= ? AND (effective_to IS NULL OR effective_to > ?) ORDER BY layer_id, resource_id", (floor_id, at_iso, at_iso)).fetchall()
+        anchors = store.floor_anchors_at(conn, floor_id, at_iso)
     else:
         # before the history begins (or without `at`): the current map, so older events still get a map
         history = "current" if at_iso else None
         version = _editor_version(conn, floor_id) if (draft and can_edit and not at_iso) else _current_version(conn, floor_id)
-        anchors = conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL ORDER BY layer_id, resource_id", (floor_id,)).fetchall()
+        anchors = store.floor_anchors(conn, floor_id)
     # T055: a camera the caller cannot see is not in the bundle - not as an anchor, not in the camera list; a
     # camera-only reader gets camera anchors alone
     anchors = [a for a in anchors if (cam_scope.allows(a["resource_id"]) if a["resource_type"] == "camera" else not camera_only)]
@@ -224,7 +227,7 @@ def floor_map(floor_id: str, request: Request, principal: Principal = Depends(cu
     # CR-024 section 7.2: a disabled recorder's cameras keep their place on the map but are marked `recorder_enabled: false`
     # (no live picture, no snapshot, not offered for a saved view) - the same flag `GET /cameras` carries
     cameras = {r["id"]: dict(camera_row(r), recorder_enabled=not is_disabled(r["recorder_id"]))
-               for r in conn.execute("SELECT * FROM cameras ORDER BY sort_order, channel").fetchall()
+               for r in store.cameras_in_order(conn)
                if r["id"] not in hidden and (cam_scope.allows(r["id"]) or (placeable is not None and placeable.allows(r["id"])))}
     from ..services import ha_bridge, ha_history, ha_sync
 
@@ -257,7 +260,7 @@ def floor_map(floor_id: str, request: Request, principal: Principal = Depends(cu
             # CR-TIMESCRUB101 section 6: with the time scrub on, the past of presence sensors needs history.presence - the bundle
             # at an instant must not hand out what the snapshot locks (flag off: exactly today's bundle)
             hide_past_presence = timescrub.enabled(read_settings(conn)) and not authorize(conn, principal, "history.presence", ("floor", floor_id)).allowed
-        for r in conn.execute(f"SELECT * FROM ha_entities WHERE entity_id IN ({','.join('?' * len(entity_ids))})", entity_ids).fetchall():
+        for r in store.entities(conn, entity_ids):
             e = ha_sync.entity_row(r)
             if hide_past_presence and timescrub.layer_of(r["domain"], r["device_class"], r["entity_id"], None) == "presence":
                 states_at[r["entity_id"]] = {"state": None, "changed_at": None, "known": False, "reason": "לא מורשה", "source": "vms"}
@@ -283,7 +286,7 @@ def floor_map(floor_id: str, request: Request, principal: Principal = Depends(cu
 
         is_draft_geometry = geometry_row is not None and geometry_row["status"] == "draft"
         switch_ids = sorted({c["switch_entity_id"] for c in circuits})
-        rows = {r["entity_id"]: ha_sync.entity_row(r) for r in conn.execute(f"SELECT * FROM ha_entities WHERE entity_id IN ({','.join('?' * len(switch_ids))})", switch_ids).fetchall()}
+        rows = {r["entity_id"]: ha_sync.entity_row(r) for r in store.entities(conn, switch_ids)}
         hist = ha_history.state_at(conn, switch_ids, at_iso) if at_iso else {}
         for c in circuits:
             eid = c["switch_entity_id"]
@@ -358,8 +361,7 @@ def _scrub_instant(value: str | None, name: str) -> str:
 def _note_presence_view(conn: sqlite3.Connection, principal: Principal, floor_id: str, request: Request) -> None:
     """Section 6: one audit row per (user, floor, UTC day) whenever the presence layer was served - never one per cursor move."""
     day = now_iso()[:10]
-    seen = conn.execute("SELECT 1 FROM audit_log WHERE action = 'history.presence.view' AND actor_user_id = ? AND resource_id = ? AND substr(at, 1, 10) = ? LIMIT 1",
-                        (principal.user_id, floor_id, day)).fetchone()
+    seen = store.presence_view_noted(conn, principal.user_id, floor_id, day)
     if seen is None:
         audit(conn, actor=principal, action="history.presence.view", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request))
 
@@ -368,7 +370,7 @@ def _scrub_cameras(conn: sqlite3.Connection, principal: Principal, floor_id: str
     """The floor's current camera anchors the caller may play back (video.playback per camera), and whether any event of them is readable."""
     play = camera_scope(conn, principal, "video.playback")
     ev = camera_scope(conn, principal, "events.read")
-    ids = sorted({r[0] for r in conn.execute("SELECT resource_id FROM map_anchors WHERE floor_id = ? AND resource_type = 'camera' AND effective_to IS NULL", (floor_id,)).fetchall()})
+    ids = sorted({r[0] for r in store.floor_camera_ids(conn, floor_id)})
     gone = removed_recorder_cameras(conn)
     allowed = [c for c in ids if c not in gone and play.allows(c)]
     cameras_ok = bool(allowed) or authorize(conn, principal, "video.playback", ("floor", floor_id)).allowed
@@ -376,7 +378,7 @@ def _scrub_cameras(conn: sqlite3.Connection, principal: Principal, floor_id: str
     return allowed, cameras_ok, events_ok
 
 
-@router.get("/floors/{floor_id}/history/snapshot")
+@router.get("/floors/{floor_id}/history/snapshot", **wire(W.FloorHistorySnapshot))
 def floor_history_snapshot(floor_id: str, request: Request, at: str | None = None, principal: Principal = Depends(current_principal_ro),
                            conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The floor at one instant, layer by layer, each authorised on its own (a layer the caller may not see: `not_permitted`, no data)."""
@@ -395,7 +397,7 @@ def floor_history_snapshot(floor_id: str, request: Request, at: str | None = Non
     return out
 
 
-@router.get("/floors/{floor_id}/history/range")
+@router.get("/floors/{floor_id}/history/range", **wire(W.FloorHistoryRange))
 def floor_history_range(floor_id: str, request: Request, frm: str | None = Query(default=None, alias="from"), to: str | None = None,
                         layers: str | None = None, step: int | None = Query(default=None, ge=1, le=86400),
                         principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
@@ -461,11 +463,11 @@ class AnchorPatch(BaseModel):
     label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
 
 
-@router.get("/floors/{floor_id}/anchors")
+@router.get("/floors/{floor_id}/anchors", **wire(W.AnchorList))
 def list_anchors(floor_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, "map.read", ("floor", floor_id))
-    rows = conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL ORDER BY layer_id, resource_id", (floor_id,)).fetchall()
+    rows = store.floor_anchors(conn, floor_id)
     scope = camera_scope(conn, principal, "map.read")  # T055: a denied camera's anchor is not listed
     gone = removed_recorder_cameras(conn)  # CR-024: a removed recorder's cameras are not on the current map
     return {"anchors": [anchor_row(r) for r in rows if r["resource_type"] != "camera" or (scope.allows(r["resource_id"]) and r["resource_id"] not in gone)]}
@@ -475,21 +477,21 @@ def _shared_error(exc: Exception) -> ApiError:
     return ApiError(exc.status, exc.code, exc.message, details=exc.details)  # type: ignore[attr-defined]
 
 
-@router.post("/floors/{floor_id}/anchors", status_code=201)
+@router.post("/floors/{floor_id}/anchors", status_code=201, **wire(W.Anchor))
 def create_anchor(floor_id: str, body: AnchorIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, "placement.edit", ("floor", floor_id))
     version = _editor_version(conn, floor_id)
     if not version:
         raise conflict("no_plan", "לקומה אין תוכנית; העלה תוכנית לפני הצבת פריטים.")
-    if body.resource_type == "camera" and not conn.execute("SELECT 1 FROM cameras WHERE id = ?", (body.resource_id,)).fetchone():
+    if body.resource_type == "camera" and not store.camera_exists(conn, body.resource_id):
         raise ApiError(422, "validation", "המצלמה אינה רשומה במערכת.")
     if body.resource_type == "camera":
         # T055 B1: placing a camera widens who reaches it - only an editor who already reaches it on its current chain
         # (or holds placement.edit installation-wide, minus its denied cameras) may put it on this floor
         require_camera_placement(conn, principal, body.resource_id)
     if body.resource_type == "ha_entity":
-        ent = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (body.resource_id,)).fetchone()
+        ent = store.live_entity_domain(conn, body.resource_id)
         if not ent:
             raise ApiError(422, "validation", "ההתקן אינו בקטלוג המערכת.")
         from ..services import devices as _dsvc  # CR-014: a schedule is not a placeable device
@@ -499,16 +501,13 @@ def create_anchor(floor_id: str, body: AnchorIn, request: Request, principal: Pr
         if body.layer_id == "cameras":  # default layer by domain unless the editor chose one
             body.layer_id = "doors" if ent["domain"] in ("lock", "cover") else "lights" if ent["domain"] in ("light", "switch", "fan") else "sensors"
         _require_door_placement(conn, principal, request, body.resource_id, floor_id)
-    dup = conn.execute("SELECT id FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL AND resource_type = ? AND resource_id = ?", (floor_id, body.resource_type, body.resource_id)).fetchone()
+    dup = store.placed_anchor(conn, floor_id, body.resource_type, body.resource_id)
     if dup:
         raise conflict("already_placed", "הפריט כבר מוצב על הקומה הזו.", anchor_id=dup["id"])
     aid, now = new_id(), now_iso()
-    conn.execute(
-        """INSERT INTO map_anchors(id, floor_id, plan_version_id, resource_type, resource_id, x, y, rotation_degrees, field_of_view_degrees, layer_id, label, revision, effective_from, created_by, updated_by, updated_at, coverage_radius, coverage_polygon, label_pos, level_id, mount_height_m, tilt_deg)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (aid, floor_id, version["id"], body.resource_type, body.resource_id, body.x, body.y, body.rotation_degrees, body.field_of_view_degrees, body.layer_id, body.label, now, principal.user_id, principal.user_id, now,
-         body.coverage_radius, _check_polygon(body.coverage_polygon), body.label_pos, body.level_id or None, body.mount_height_m, body.tilt_deg),
-    )
+    store.insert_anchor(conn, (aid, floor_id, version["id"], body.resource_type, body.resource_id, body.x, body.y, body.rotation_degrees, body.field_of_view_degrees, body.layer_id, body.label, now,
+                               principal.user_id, principal.user_id, now, body.coverage_radius, _check_polygon(body.coverage_polygon), body.label_pos, body.level_id or None, body.mount_height_m,
+                               body.tilt_deg))
     door = body.resource_type == "ha_entity" and door_authority.is_door_entity(conn, body.resource_id)
     audit(conn, actor=principal, action="anchor.create", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
           details={"anchor_id": aid, "resource": f"{body.resource_type}:{body.resource_id}", "x": body.x, "y": body.y, **({"door": True} if door else {})})
@@ -554,7 +553,7 @@ class RealignIn(BaseModel):
     mode: str = Field(pattern="^(crop|accept)$")
 
 
-@router.post("/floors/{floor_id}/anchors/realign")
+@router.post("/floors/{floor_id}/anchors/realign", **wire(W.AnchorRealigned))
 def realign_anchors(floor_id: str, body: RealignIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """S4: items placed on an earlier plan version. `crop` maps them through the two crops when both versions come from
     the same asset / page / rotation (a re-crop keeps the drawing, so the maths is exact); `accept` re-stamps them on the
@@ -564,8 +563,8 @@ def realign_anchors(floor_id: str, body: RealignIn, request: Request, principal:
     version = _editor_version(conn, floor_id) or _current_version(conn, floor_id)
     if not version:
         raise conflict("no_plan", "לקומה אין תוכנית.")
-    versions = {r["id"]: r for r in conn.execute("SELECT * FROM plan_versions WHERE floor_id = ?", (floor_id,)).fetchall()}
-    anchors = conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL AND plan_version_id != ?", (floor_id, version["id"])).fetchall()
+    versions = {r["id"]: r for r in store.floor_versions(conn, floor_id)}
+    anchors = store.floor_anchors_off_version(conn, floor_id, version["id"])
     moved: list[str] = []
     skipped: list[str] = []
     now = now_iso()
@@ -581,16 +580,16 @@ def realign_anchors(floor_id: str, body: RealignIn, request: Request, principal:
             sx, sy = oc["x"] + a["x"] * oc["w"], oc["y"] + a["y"] * oc["h"]
             nx, ny = (sx - nc["x"]) / nc["w"], (sy - nc["y"]) / nc["h"]
             nx, ny = round(max(0.0, min(1.0, nx)), 4), round(max(0.0, min(1.0, ny)), 4)
-            conn.execute("UPDATE map_anchors SET x = ?, y = ?, plan_version_id = ?, revision = revision + 1, updated_by = ?, updated_at = ? WHERE id = ?", (nx, ny, version["id"], principal.user_id, now, a["id"]))
+            store.move_anchor(conn, a["id"], nx, ny, version["id"], principal.user_id, now)
         else:
-            conn.execute("UPDATE map_anchors SET plan_version_id = ?, revision = revision + 1, updated_by = ?, updated_at = ? WHERE id = ?", (version["id"], principal.user_id, now, a["id"]))
+            store.rebase_anchor(conn, a["id"], version["id"], principal.user_id, now)
         moved.append(a["id"])
     audit(conn, actor=principal, action="anchor.realign", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
           details={"mode": body.mode, "version_id": version["id"], "moved": len(moved), "skipped": len(skipped)})
     return {"mode": body.mode, "version_id": version["id"], "moved": len(moved), "skipped": len(skipped), "needs_alignment": bool(skipped)}
 
 
-@router.patch("/map-anchors/{anchor_id}")
+@router.patch("/map-anchors/{anchor_id}", **wire(W.Anchor))
 def update_anchor(anchor_id: str, body: AnchorPatch, request: Request, from_floor_id: str | None = None, principal: Principal = Depends(current_principal),
                   conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     a = get_anchor(conn, anchor_id)
@@ -630,8 +629,7 @@ def update_anchor(anchor_id: str, body: AnchorPatch, request: Request, from_floo
     if not fields:
         return anchor_row(a)  # nothing changed: no revision bump, no audit row (ruling R-P4-T3-1)
     before = {k: a[k] for k in fields}
-    sets = ", ".join(f"{k} = ?" for k in fields)
-    conn.execute(f"UPDATE map_anchors SET {sets}, revision = revision + 1, updated_by = ?, updated_at = ? WHERE id = ?", (*fields.values(), principal.user_id, now_iso(), anchor_id))
+    store.patch_anchor(conn, anchor_id, fields, principal.user_id, now_iso())
     audit(conn, actor=principal, action="anchor.update", decision="allowed", resource_type="floor", resource_id=a["floor_id"], request_id=_rid(request),
           details={"anchor_id": anchor_id, "before": before, "after": fields, **({"via_floor_id": from_floor_id} if via is not None else {})})
     return anchor_row(get_anchor(conn, anchor_id))
@@ -649,7 +647,7 @@ def delete_anchor(anchor_id: str, request: Request, from_floor_id: str | None = 
     if door:
         _require_door_placement(conn, principal, request, a["resource_id"], a["floor_id"], "anchor.delete")  # SEC-WXD M2: the same reach as placing it
     now = now_iso()
-    conn.execute("UPDATE map_anchors SET effective_to = ?, updated_by = ?, updated_at = ? WHERE id = ?", (now, principal.user_id, now, anchor_id))
+    store.end_anchor(conn, anchor_id, principal.user_id, now)
     from ..services import geometry_store
 
     unbound = geometry_store.unbind_anchor(conn, a["floor_id"], a["resource_type"], a["resource_id"], principal.user_id, now,
@@ -669,4 +667,4 @@ def delete_anchor(anchor_id: str, request: Request, from_floor_id: str | None = 
     if ended:
         from ..services import revocation
 
-        revocation.mark([r[0] for r in conn.execute("SELECT id FROM users").fetchall()])
+        revocation.mark(store.user_ids(conn))

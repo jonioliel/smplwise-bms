@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-state-panel';
 import '../components/sw-pager';
 import { PageFit } from '../components/page-fit';
@@ -139,8 +141,8 @@ export class EmergencyReadinessPage extends LitElement {
       <div class="top"><div><h1>${em('title')}</h1><p class="sub">${em('sub')}</p></div><span class="sp"></span>
         <div class="meta"><span class="vbadge" data-look=${VERDICT_LOOK[d.verdict]} data-emerg-verdict=${d.verdict}><sw-icon name=${VERDICT_ICON[d.verdict]} size="18"></sw-icon>${em(`verdict_${d.verdict}` as EmKey)}</span>
           <span class="mut num">${em('checkedAt', { t: fmtInstant(d.checked_at) })}</span>
-          <div class="seg noprint" role="group" data-emerg-views>${(['list', 'contacts', 'history', ...(d.can.manage ? ['settings'] : [])] as View[]).map((v) => html`<button type="button" aria-pressed=${String(this.view === v)} data-emerg-view=${v}
-            @click=${() => { this.view = v; }}>${em(({ list: 'viewList', contacts: 'viewContacts', history: 'viewHistory', settings: 'viewSettings' } as Record<View, EmKey>)[v])}</button>`)}</div>
+          <sw-segmented class="noprint" data-emerg-views value=${this.view} @change=${(e: CustomEvent<SegmentedChange>) => { this.view = e.detail.value as View; }}
+            .options=${(['list', 'contacts', 'history', ...(d.can.manage ? ['settings'] : [])] as View[]).map((v) => ({ value: v, label: em(({ list: 'viewList', contacts: 'viewContacts', history: 'viewHistory', settings: 'viewSettings' } as Record<View, EmKey>)[v]), attrs: { 'data-emerg-view': v } }))}></sw-segmented>
           <button type="button" class="btn noprint" data-emerg-print @click=${() => window.print()}><sw-icon name="download" size="16"></sw-icon>${em('print')}</button></div></div>
       ${d.banners.length ? html`<div class="banners" data-emerg-banners>${d.banners.map((b) => html`<div class="banner" data-banner=${b.code}><sw-icon name="warning" size="18"></sw-icon>${em(`banner_${b.code}` as EmKey) === `banner_${b.code}` ? b.text : em(`banner_${b.code}` as EmKey)}</div>`)}</div>` : nothing}
       ${this.view === 'list' ? this.listBody(d, counts, shown, groups) : this.view === 'contacts' ? html`<emergency-contacts-panel .manage=${d.can.manage}></emergency-contacts-panel>` : this.view === 'history' ? html`<emergency-history-panel></emergency-history-panel>` : html`<emergency-settings-panel></emergency-settings-panel>`}

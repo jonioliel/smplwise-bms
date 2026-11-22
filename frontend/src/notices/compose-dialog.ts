@@ -1,6 +1,8 @@
 import { LitElement, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-icon';
 import '../components/sw-dialog';
 import { describeError } from '../api/client';
@@ -209,7 +211,8 @@ export class NoticeCompose extends LitElement {
           <div class="fld"><label for="nt-title">${nt('fTitle')}</label><input id="nt-title" class="inp" maxlength="120" .value=${d.title} @input=${(e: Event) => this.set({ title: (e.target as HTMLInputElement).value })}></div>
           <div class="fld"><label for="nt-body">${nt('fBody')}</label><textarea id="nt-body" class="inp" maxlength="2000" .value=${d.body} @input=${(e: Event) => this.set({ body: (e.target as HTMLTextAreaElement).value })}></textarea></div>
           <div class="r">
-            <div class="fld"><span class="lbl">${nt('fSeverity')}</span><div class="seg" role="group" data-sev>${sevs.map((s) => html`<button aria-pressed=${String(d.severity === s)} @click=${() => this.set({ severity: s })}>${nt(SEV_KEY[s])}</button>`)}</div></div>
+            <div class="fld"><span class="lbl">${nt('fSeverity')}</span><sw-segmented label=${nt('fSeverity')} data-sev value=${d.severity} @change=${(e: CustomEvent<SegmentedChange>) => this.set({ severity: e.detail.value as typeof d.severity })}
+              .options=${sevs.map((s) => ({ value: s, label: nt(SEV_KEY[s]) }))}></sw-segmented></div>
             <div class="fld"><span class="lbl">&nbsp;</span><label class="ck"><input type="checkbox" .checked=${d.pinned} @change=${(e: Event) => this.set({ pinned: (e.target as HTMLInputElement).checked })}>${nt('fPinned')}</label></div>
           </div>
           <div class="r">
@@ -225,7 +228,8 @@ export class NoticeCompose extends LitElement {
         </div>
         <div class="form">
           <div class="fld"><span class="lbl">${nt('fAudience')}</span>
-            <div class="seg" role="group" data-aud>${auds.map((a) => html`<button aria-pressed=${String(d.aud === a)} data-a=${a} @click=${() => this.set({ aud: a })}>${nt(a === 'all' ? 'audAll' : a === 'place' ? 'audPlace' : a === 'group' ? 'audGroup' : 'audTv')}</button>`)}</div>
+            <sw-segmented data-aud value=${d.aud} @change=${(e: CustomEvent<SegmentedChange>) => this.set({ aud: e.detail.value as typeof d.aud })}
+              .options=${auds.map((a) => ({ value: a, label: nt(a === 'all' ? 'audAll' : a === 'place' ? 'audPlace' : a === 'group' ? 'audGroup' : 'audTv'), attrs: { 'data-a': a } }))}></sw-segmented>
             ${d.aud === 'place' ? html`<div class="chips">${this.floors.map((f) => html`<button class="pick" aria-pressed=${String(d.floors.includes(f.id))} @click=${() => this.set({ floors: this.toggle(d.floors, f.id) })}>${f.building} · ${f.name}</button>`)}</div>` : nothing}
             ${d.aud === 'group' ? html`<div class="chips">${this.groups.map((g) => html`<button class="pick" aria-pressed=${String(d.groups.includes(g.id))} @click=${() => this.set({ groups: this.toggle(d.groups, g.id) })}>${g.name}</button>`)}
               ${this.roles.map((r) => html`<button class="pick" aria-pressed=${String(d.roles.includes(r.id))} @click=${() => this.set({ roles: this.toggle(d.roles, r.id) })}>${r.name}</button>`)}</div>` : nothing}

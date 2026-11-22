@@ -32,12 +32,12 @@ from ..errors import ApiError, conflict, not_found
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import bundle as bundle_svc
 from ..services import geometry_store as store
+from ..services import plan_catalog_store
 from ..services import plan_anchor_scope as anchor_scope
 from ..services import plan_package as pkg_svc
 from ..services import signing
 from ._common import rid as _rid
 from .catalog import get_floor
-from .plan_catalog import _INSERT as CATALOG_INSERT
 from .plan_catalog import COLUMNS as CATALOG_COLUMNS
 from .plan_catalog import _ts as catalog_ts
 from .plan_geometry import NO_CACHE, _editable, _export_doc, _export_zones, _floor, _layers
@@ -213,7 +213,7 @@ def import_package(version_id: str, request: Request, mode: Literal["replace", "
     try:
         now = catalog_ts()
         for item in out["_to_add"]:
-            conn.execute(CATALOG_INSERT, (item["id"], *[item["values"][c] for c in CATALOG_COLUMNS], principal.user_id, item["created_at"] or now, now))
+            plan_catalog_store.insert_item(conn, (item["id"], *[item["values"][c] for c in CATALOG_COLUMNS], principal.user_id, item["created_at"] or now, now))
         row = store.save_draft(conn, v, out["doc"], base_revision, principal.user_id)
     except ApiError:
         rollback_and_restart(conn)

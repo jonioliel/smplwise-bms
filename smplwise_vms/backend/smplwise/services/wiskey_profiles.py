@@ -47,6 +47,7 @@ import re
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -186,7 +187,10 @@ class DraftError(ValueError):
 def normalize_draft(values: Any, known_stations: set[str] | None = None) -> dict[str, Any]:
     """The draft as it will be sent: `{photo_enabled, fields, groups}` with every item in WisKey's exact key set. Raises DraftError
     with every problem found (`{path, code}`), so the editor can mark them all at once. `known_stations`: the stations Arx knows (a
-    group may keep a station id Arx does not know - it is kept, never dropped - but a NEW one must be known)."""
+    group may keep a station id Arx does not know - it is kept, never dropped - but a NEW one must be known).
+
+    CR-BE-COMPLEXITY-B-2450: the fields, their ids and conditions, the groups and their ids are checked by one helper each, in the
+    order they always were (`bad` keeps the first 50 problems in that order; tests/test_wiskey_profiles_char_2450.py)."""
     problems: list[dict[str, str]] = []
 
     def bad(path: str, code: str) -> None:
@@ -203,6 +207,17 @@ def normalize_draft(values: Any, known_stations: set[str] | None = None) -> dict
         raise DraftError([{"path": "fields", "code": "too_many" if fields_in is not None else "shape"}])
     if groups_in is None or len(groups_in) > GROUPS_MAX:
         raise DraftError([{"path": "groups", "code": "too_many" if groups_in is not None else "shape"}])
+    fields = _draft_fields(fields_in, bad)
+    _draft_field_links(fields, bad)
+    groups = _draft_groups(groups_in, known_stations, bad)
+    _draft_group_ids(groups, bad)
+    if problems:
+        raise DraftError(problems)
+    return {"photo_enabled": values["photo_enabled"], "fields": fields, "groups": groups}
+
+
+def _draft_fields(fields_in: list[Any], bad: Callable[[str, str], None]) -> list[dict[str, Any]]:
+    """Every field in WisKey's exact key set; a field that is not a closed object is reported and left out."""
     fields: list[dict[str, Any]] = []
     for i, f in enumerate(fields_in):
         p = f"fields.{i}"
@@ -244,6 +259,11 @@ def normalize_draft(values: Any, known_stations: set[str] | None = None) -> dict
             "type": kind if kind in FIELD_TYPES else "text", "required": f.get("required") is True, "unique": f.get("unique") is True,
             "depends_on": {"field_id": dep["field_id"], "value": dep["value"]} if dep else None,
         })
+    return fields
+
+
+def _draft_field_links(fields: list[dict[str, Any]], bad: Callable[[str, str], None]) -> None:
+    """Duplicate field ids, and each condition: the parent exists, is not the field itself, no cycle."""
     ids = [f["id"] for f in fields]
     for i, fid in enumerate(ids):
         if fid and ids.count(fid) > 1:
@@ -268,6 +288,11 @@ def normalize_draft(values: Any, known_stations: set[str] | None = None) -> dict
             seen.add(at)
             nxt = (by_id.get(at) or {}).get("depends_on")
             at = nxt["field_id"] if nxt else ""
+
+
+def _draft_groups(groups_in: list[Any], known_stations: set[str] | None, bad: Callable[[str, str], None]) -> list[dict[str, Any]]:
+    """Every group in WisKey's exact key set (stations sorted, a new one must be known); a group that is not a closed object is
+    reported and left out."""
     groups: list[dict[str, Any]] = []
     for i, g in enumerate(groups_in):
         p = f"groups.{i}"
@@ -300,13 +325,15 @@ def normalize_draft(values: Any, known_stations: set[str] | None = None) -> dict
                         break
             item["station_ids"] = sorted(set(clean))
         groups.append(item)
+    return groups
+
+
+def _draft_group_ids(groups: list[dict[str, Any]], bad: Callable[[str, str], None]) -> None:
+    """Duplicate group ids."""
     gids = [g["id"] for g in groups]
     for i, gid in enumerate(gids):
         if gid and gids.count(gid) > 1:
             bad(f"groups.{i}.id", "duplicate")
-    if problems:
-        raise DraftError(problems)
-    return {"photo_enabled": values["photo_enabled"], "fields": fields, "groups": groups}
 
 
 def removed_definitions(before: dict[str, Any], after: dict[str, Any]) -> list[str]:

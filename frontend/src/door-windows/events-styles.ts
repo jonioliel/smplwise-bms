@@ -25,11 +25,7 @@ export const dweCss = css`
     min-inline-size: 0; inline-size: 100%; box-sizing: border-box;
   }
   input[inputmode='numeric'], input.code, input[type='time'], input[type='date'] { direction: ltr; text-align: start; }
-  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
-  .seg button {
-    font: inherit; padding: 6px 12px; border-radius: var(--sw-r-pill); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); cursor: pointer;
-  }
-  .seg button[aria-pressed='true'] { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); }
+  /* CR-CMP2-SEGMENTED-C-2450: the single choices (rule source, generator, hours) are sw-chip-choice - the chip look lives there */
   .doors { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; max-block-size: 260px; overflow: auto; padding: 4px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); }
   .doors label, label.chk { display: flex; gap: 8px; align-items: center; padding: 4px 6px; border-radius: var(--sw-r-sm); }
   .doors label, .doors .st, label.chk { min-inline-size: 0; overflow-wrap: anywhere; }
@@ -42,7 +38,7 @@ export const dweCss = css`
   }
   .num { direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
   @media (max-width: 767px) and (pointer: coarse) {
-    .seg button, input[type='text'], input[type='date'], input[type='time'], select { min-block-size: 44px; }
+    input[type='text'], input[type='date'], input[type='time'], select { min-block-size: 44px; }
     .doors label, label.chk { min-block-size: 44px; }
     input[type='checkbox'], input[type='radio'] { inline-size: 22px; block-size: 22px; }
   }

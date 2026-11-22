@@ -40,6 +40,7 @@ from ..db import Database, get_setting, new_id, now_iso, set_setting
 from ..errors import ApiError
 from ..rbac import Principal, is_system_admin
 from . import presence_values as pv
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.presence")
 
@@ -1239,3 +1240,6 @@ def janitor(db: Database) -> dict[str, int]:
         messages = conn.execute("DELETE FROM mobile_push_messages WHERE expires_at < ?", (iso(now - dt.timedelta(days=1)),)).rowcount
         devices = conn.execute("DELETE FROM mobile_devices WHERE revoked_at IS NOT NULL AND revoked_at < ?", (iso(now - dt.timedelta(days=REVOKED_KEEP_DAYS)),)).rowcount
     return {"events": events, "messages": messages, "devices": devices}
+
+
+register_reset(__name__, ("_BUCKETS", "TOKEN_FAILURES", "TOKEN_FAILURES_ALL", "_GATE_AUDITED", "_FLOOD_LOGGED"), reset_limits)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

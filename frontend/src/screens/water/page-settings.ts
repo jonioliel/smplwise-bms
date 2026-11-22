@@ -1,8 +1,13 @@
 import { LitElement, html, nothing } from 'lit';
 import '../../components/sw-button';
+import '../../components/sw-field';
+import '../../components/sw-segmented';
+import type { SegmentedChange } from '../../components/sw-segmented';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../../components/sw-icon';
 import '../../components/sw-state-panel';
+import '../../components/sw-table';
+import type { TableColumn } from '../../components/sw-table';
 import '../../electricity/elec-ui'; // elec-dialog (the electricity confirmation dialog)
 import { ApiError, describeError } from '../../api/client';
 import { DEFAULT_RULES, DEFAULT_SNOOZE, readableAlerts, water, type AlertsConfig, type LeakRules } from '../../api/water';
@@ -18,6 +23,7 @@ import { wt } from '../../water/i18n';
 import { SkinController } from '../../design/skin';
 import { bubbleChrome } from '../../styles/bubble-chrome';
 import { dateInputLang } from '../../api/day-format';
+import { ToastController } from '../../components/toast-controller';
 
 type Section = 'prices' | 'alerts';
 const MAX_CHOICES = [1440, 10080, 43200];
@@ -55,7 +61,10 @@ export class WaterSettingsPage extends LitElement {
   @state() private addN = '30';
   @state() private addU: 'min' | 'hour' | 'day' = 'min';
   @state() private snoozeErr = '';
-  @state() private notice = '';
+  private readonly toaster = new ToastController(this, { ms: 4000 }); // CR-CMP2-SELECTS-2450 (07:F12 adoption)
+  private get notice(): string {
+    return this.toaster.text;
+  }
   @state() private vf: VersionForm | null = null;
   @state() private vErr = '';
   @state() private busy = false;
@@ -103,8 +112,7 @@ export class WaterSettingsPage extends LitElement {
   }
 
   private flash(t: string) {
-    this.notice = t;
-    window.setTimeout(() => (this.notice = ''), 4000);
+    this.toaster.show(t);
   }
 
   // ---------------------------------------------------------------- tariffs
@@ -156,6 +164,40 @@ export class WaterSettingsPage extends LitElement {
     return l.startsWith('#/system/') ? l : INFRA_SETTINGS_HREF;
   }
 
+  /** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): a tariff's versions as the shared sw-table (bare in the tariff's card, read-only; row
+   * hook `data-version`): from when (+ the current / locked chips in the shared tones), the water / sewage prices and the price with VAT
+   * (LTR figures at the reading end), and a manager's delete key. */
+  private versionColumns(t: Tariff, vat: string | null, manage: boolean): TableColumn<Tariff['versions'][number]>[] {
+    return [
+      {
+        key: 'from',
+        label: wt('colFrom'),
+        render: (v) =>
+          html`<span class="num">${fmtDate(v.effective_from)}</span> ${t.current?.id === v.id ? html`<span class="chip" data-tone="ok" data-nodot>${wt('current')}</span>` : nothing}${v.locked ? html` <span class="chip" data-nodot data-locked>${wt('locked')}</span>` : nothing}`,
+      },
+      { key: 'water', label: wt('colWaterM3'), kind: 'num', render: (v) => fmtIls(v.water_price) },
+      { key: 'sewage', label: wt('colSewageM3'), kind: 'num', render: (v) => fmtIls(v.sewage_price) },
+      {
+        key: 'inc',
+        label: wt('colIncVat'),
+        kind: 'num',
+        render: (v) => {
+          const inc = v.price_inc_vat ?? priceIncVat(v.water_price, v.sewage_price, v.price_mode, t.vat_rate_percent ?? vat);
+          return inc === null ? '-' : fmtIls(inc);
+        },
+      },
+      {
+        key: 'act',
+        label: '',
+        kind: 'actions',
+        render: (v) =>
+          manage && !v.locked && t.versions.length > 1
+            ? html`<sw-button variant="ghost" size="sm" iconOnly icon="trash" label=${wt('delVersion')} ?disabled=${this.busy} @click=${() => void this.deleteVersion(t, v)}></sw-button>`
+            : nothing,
+      },
+    ];
+  }
+
   private renderPrices() {
     if (!this.access.manage && !this.access.bills) return html`<sw-state-panel state="forbidden" compact></sw-state-panel>`;
     if (this.tariffs === null) return skeletonCard();
@@ -167,13 +209,8 @@ export class WaterSettingsPage extends LitElement {
         ${this.tariffs.map((t) => html`<div class="card flush" data-tariff=${t.id}>
           <div class="hd" style="padding:14px 16px 0"><b>${t.name}</b><span class="sp"></span><span class="mut">${wt('usedBy', { n: t.used_by })}</span>
             ${manage ? html`<sw-button size="sm" data-new-version @click=${() => this.openVersion(t)}>${wt('newVersion')}</sw-button>` : nothing}</div>
-          <div class="scrollx"><table class="t"><thead><tr><th>${wt('colFrom')}</th><th class="n">${wt('colWaterM3')}</th><th class="n">${wt('colSewageM3')}</th><th class="n">${wt('colIncVat')}</th><th></th></tr></thead>
-            <tbody>${t.versions.map((v) => {
-              const inc = v.price_inc_vat ?? priceIncVat(v.water_price, v.sewage_price, v.price_mode, t.vat_rate_percent ?? vat);
-              return html`<tr data-version=${v.id}><td class="num" style="text-align:start">${fmtDate(v.effective_from)} ${t.current?.id === v.id ? html`<span class="chip c-ok nodot">${wt('current')}</span>` : nothing}${v.locked ? html` <span class="chip c-mut nodot" data-locked>${wt('locked')}</span>` : nothing}</td>
-                <td class="n"><span class="num">${fmtIls(v.water_price)}</span></td><td class="n"><span class="num">${fmtIls(v.sewage_price)}</span></td><td class="n"><span class="num">${inc === null ? '-' : fmtIls(inc)}</span></td>
-                <td class="n">${manage && !v.locked && t.versions.length > 1 ? html`<sw-button variant="ghost" size="sm" iconOnly icon="trash" label=${wt('delVersion')} ?disabled=${this.busy} @click=${() => void this.deleteVersion(t, v)}></sw-button>` : nothing}</td></tr>`;
-            })}</tbody></table></div></div>`)}
+          <sw-table bare static-rows class="t" .columns=${this.versionColumns(t, vat, manage) as unknown as TableColumn[]} .rows=${t.versions as unknown as Record<string, unknown>[]}
+            .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-version': String(r.id) })}></sw-table></div>`)}
         ${manage ? html`<sw-button icon="plus" style="align-self:flex-start" data-new-tariff @click=${() => this.openVersion(null)}>${wt('newTariff')}</sw-button>` : nothing}`;
     const right = html`<div class="card" data-card="shared"><div class="hd"><b>${wt('sharedTitle')}</b></div>
       <div class="mut" style="margin-block-end:10px">${wt('sharedNote')}</div>
@@ -188,13 +225,12 @@ export class WaterSettingsPage extends LitElement {
     const set = (k: keyof VersionForm, v: string) => (this.vf = { ...f, [k]: v } as VersionForm);
     return html`<elec-dialog open heading=${f.tariffId ? wt('newVersion') : wt('newTariff')} data-dialog="version" @close=${() => (this.vf = null)}>
       <div class="formgrid">
-        ${f.tariffId ? nothing : html`<div class="fld wide"><label for="wtn">${wt('tariffName')}</label><input id="wtn" data-tariff-name .value=${f.name} @input=${(e: Event) => set('name', (e.target as HTMLInputElement).value)} /></div>`}
-        <div class="fld"><label for="wtf">${wt('colFrom')}</label><input id="wtf" type="date" lang=${dateInputLang()} class="ltr" .value=${f.from} @change=${(e: Event) => set('from', (e.target as HTMLInputElement).value)} /></div>
-        <div class="fld"><span class="lbl">${wt('priceMode')}</span><div class="seg" role="group" aria-label=${wt('priceMode')}>
-          <button type="button" aria-pressed=${f.mode === 'ex_vat' ? 'true' : 'false'} @click=${() => set('mode', 'ex_vat')}>${wt('modeEx')}</button>
-          <button type="button" aria-pressed=${f.mode === 'inc_vat' ? 'true' : 'false'} @click=${() => set('mode', 'inc_vat')}>${wt('modeInc')}</button></div></div>
-        <div class="fld"><label for="wtw">${wt('colWaterM3')}</label><input id="wtw" class="ltr" inputmode="decimal" data-water-price .value=${f.water} @input=${(e: Event) => set('water', (e.target as HTMLInputElement).value)} /></div>
-        <div class="fld"><label for="wts">${wt('colSewageM3')}</label><input id="wts" class="ltr" inputmode="decimal" data-sewage-price .value=${f.sewage} @input=${(e: Event) => set('sewage', (e.target as HTMLInputElement).value)} /></div>
+        ${f.tariffId ? nothing : html`<sw-field class="fld wide" label=${wt('tariffName')}><input id="wtn" data-tariff-name .value=${f.name} @input=${(e: Event) => set('name', (e.target as HTMLInputElement).value)} /></sw-field>`}
+        <sw-field class="fld" label=${wt('colFrom')}><input id="wtf" type="date" lang=${dateInputLang()} class="ltr" .value=${f.from} @change=${(e: Event) => set('from', (e.target as HTMLInputElement).value)} /></sw-field>
+        <div class="fld"><span class="lbl">${wt('priceMode')}</span><sw-segmented label=${wt('priceMode')} value=${f.mode} @change=${(e: CustomEvent<SegmentedChange>) => set('mode', e.detail.value as 'ex_vat' | 'inc_vat')}
+          .options=${[{ value: 'ex_vat', label: wt('modeEx') }, { value: 'inc_vat', label: wt('modeInc') }]}></sw-segmented></div>
+        <sw-field class="fld" label=${wt('colWaterM3')} unit="₪"><input id="wtw" class="ltr" inputmode="decimal" data-water-price .value=${f.water} @input=${(e: Event) => set('water', (e.target as HTMLInputElement).value)} /></sw-field>
+        <sw-field class="fld" label=${wt('colSewageM3')} unit="₪"><input id="wts" class="ltr" inputmode="decimal" data-sewage-price .value=${f.sewage} @input=${(e: Event) => set('sewage', (e.target as HTMLInputElement).value)} /></sw-field>
       </div>
       ${this.vErr ? html`<div class="alert err" role="alert">${this.vErr}</div>` : nothing}
       <sw-button variant="primary" slot="actions" data-confirm ?disabled=${this.busy} @click=${() => void this.saveVersion()}>${wt('save')}</sw-button>
@@ -271,9 +307,8 @@ export class WaterSettingsPage extends LitElement {
     const sec = this.section;
     const go = (s: Section) => navigate('/infra/water/settings', { set: s });
     return html`<div class="page" data-water="settings" data-state="ready" data-section=${sec}>
-      <div class="seg sect-nav" role="group" aria-label=${wt('sections')} data-set-nav>
-        ${this.access.manage || this.access.bills ? html`<button type="button" data-set="prices" aria-pressed=${sec === 'prices' ? 'true' : 'false'} @click=${() => go('prices')}>${wt('sTariffs')}</button>` : nothing}
-        <button type="button" data-set="alerts" aria-pressed=${sec === 'alerts' ? 'true' : 'false'} @click=${() => go('alerts')}>${wt('sAlerts')}</button></div>
+      <sw-segmented class="sect-nav" label=${wt('sections')} data-set-nav value=${sec} @change=${(e: CustomEvent<SegmentedChange>) => go(e.detail.value as typeof sec)}
+        .options=${[...(this.access.manage || this.access.bills ? [{ value: 'prices', label: wt('sTariffs'), attrs: { 'data-set': 'prices' } }] : []), { value: 'alerts', label: wt('sAlerts'), attrs: { 'data-set': 'alerts' } }]}></sw-segmented>
       ${this.notice ? html`<div class="notice" role="status" data-notice>${this.notice}</div>` : nothing}
       ${sec === 'prices' ? this.renderPrices() : this.renderAlerts()}
       ${this.renderVersionDialog()}

@@ -5,6 +5,8 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-drawer';
 import '../components/sw-dialog';
+import '../components/sw-chip-choice';
+import type { ChipChoiceChange } from '../components/sw-chip-choice';
 import '../components/sw-state-panel';
 import { liftRef, liftedReset } from '../components/top-layer';
 import '../door-windows/emergency';
@@ -92,18 +94,18 @@ export class DoorWindowsScreen extends LitElement {
     input[type='text']:focus-visible, input[type='date']:focus-visible, input[type='time']:focus-visible, select:focus-visible, textarea:focus-visible {
       outline: none; border-color: var(--sw-accent); box-shadow: 0 0 0 3px var(--sw-accent-soft);
     }
-    .seg { display: flex; flex-wrap: wrap; gap: 6px; }
-    .seg button, .days button {
+    .days button {
       font: inherit; padding: 6px 12px; min-block-size: 32px; border-radius: var(--sw-r-pill); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); cursor: pointer;
       transition: background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
     }
-    .seg button:active, .days button:active { transform: scale(0.97); }
-    .seg button:focus-visible, .days button:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
+    .days button:active { transform: scale(0.97); }
+    .days button:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
     @media (hover: hover) and (pointer: fine) {
-      .seg button:hover:not([aria-pressed='true']), .days button:hover:not([aria-pressed='true']) { border-color: var(--sw-border-strong); background: var(--sw-surface-2); }
+      .days button:hover:not([aria-pressed='true']) { border-color: var(--sw-border-strong); background: var(--sw-surface-2); }
     }
-    @media (pointer: coarse) { .seg button, .days button { min-block-size: 44px; } }
-    .seg button[aria-pressed='true'], .days button[aria-pressed='true'] { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); }
+    @media (pointer: coarse) { .days button { min-block-size: 44px; } }
+    /* CR-CMP2-SEGMENTED-C-2450: the kind choice is sw-chip-choice (the same chip look); the days stay a multi-choice row here */
+    .days button[aria-pressed='true'] { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); }
     .days { display: flex; flex-wrap: wrap; gap: 6px; }
     .range { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .doors { display: grid; gap: 4px; max-block-size: 260px; overflow: auto; padding: 4px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); }
@@ -546,9 +548,8 @@ export class DoorWindowsScreen extends LitElement {
       <div class="form" data-dw-editor>
         <div class="field"><label for="dw-name">${dwt('fName')}</label>
           <input id="dw-name" type="text" maxlength="60" placeholder=${dwt('fNamePh')} .value=${dr.name} @input=${(e: Event) => this.patch((d) => (d.name = (e.target as HTMLInputElement).value))}></div>
-        <div class="field"><span class="lbl">${dwt('fKind')}</span><div class="seg" role="group">
-          ${(['weekly', 'once'] as const).map((k) => html`<button type="button" aria-pressed=${String(dr.kind === k)} ?disabled=${!!dr.id} data-dw-kind=${k}
-              @click=${() => this.patch((d) => (d.kind = k))}>${dwt(`kind_${k}` as DwtKey)}</button>`)}</div></div>
+        <div class="field"><span class="lbl">${dwt('fKind')}</span><sw-chip-choice label=${dwt('fKind')} value=${dr.kind} ?disabled=${!!dr.id} @change=${(e: CustomEvent<ChipChoiceChange>) => this.patch((d) => (d.kind = e.detail.value as typeof d.kind))}
+          .options=${(['weekly', 'once'] as const).map((k) => ({ value: k, label: dwt(`kind_${k}` as DwtKey), attrs: { 'data-dw-kind': k } }))}></sw-chip-choice></div>
         <div class="field"><span class="lbl">${dwt('fDoors')}</span>
           <div class="doors" data-dw-doors>${stations.map((st) => html`${st ? html`<div class="st">${st}</div>` : nothing}
             ${doors.filter((x) => x.station_name === st).map((x) => html`<label><input type="checkbox" data-dw-door=${x.key} .checked=${dr.doors.has(x.key)}

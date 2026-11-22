@@ -7,27 +7,18 @@
 import { ApiError, put } from './client';
 import { invalidateSettings } from './prefs';
 import type { PopupAlert } from './home-screen';
+import type * as PopupWire from './generated/wire-popup-layout';
 
 /** Every section of the pop-up, in today's fixed order. */
 export const POPUP_SECTIONS = ['quick', 'lighting', 'switches', 'climate', 'heating', 'covers', 'media', 'sensors', 'cameras', 'scenes', 'schedules', 'events'] as const;
 /** The sections whose single items the manager may hide / reorder. */
 export const POPUP_ITEM_SECTIONS = ['lighting', 'switches', 'climate', 'heating', 'covers', 'media', 'sensors', 'cameras'] as const;
 
-interface PopupItems {
-  order: string[];
-  hidden: string[];
-}
-export interface PopupLayout {
-  /** Section ids in the order shown; a section missing from the list follows, in today's order. */
-  sections: string[];
-  hidden: string[];
-  items: Record<string, PopupItems>;
-}
-export interface PopupState {
-  version: number;
-  site: PopupLayout | null;
-  areas: Record<string, PopupLayout>;
-}
+/* The layout document is the backend's response model (smplwise_vms/backend/smplwise/wire/popup_layout.py, generated into
+ * ./generated/wire-popup-layout.ts; code review 07:F8 step 2). A layout: section ids in the order shown (a section missing from the list
+ * follows, in today's order), the hidden sections, and per item section the entity order and the hidden entities. */
+export type PopupLayout = PopupWire.PopupLayoutDoc;
+export type PopupState = PopupWire.Popup;
 
 export const EMPTY_LAYOUT: PopupLayout = { sections: [], hidden: [], items: {} };
 
@@ -40,7 +31,7 @@ const strings = (v: unknown, allowed?: readonly string[]): string[] => {
 export function layoutOf(raw: unknown): PopupLayout | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const o = raw as Record<string, unknown>;
-  const items: Record<string, PopupItems> = {};
+  const items: PopupLayout['items'] = {};
   if (o.items && typeof o.items === 'object') {
     for (const [sec, v] of Object.entries(o.items as Record<string, unknown>)) {
       if (!(POPUP_ITEM_SECTIONS as readonly string[]).includes(sec) || !v || typeof v !== 'object') continue;
@@ -68,11 +59,7 @@ export function popupOf(raw: unknown): PopupState {
   return out;
 }
 
-interface PopupSaved {
-  popup: PopupState;
-  popup_alert: PopupAlert;
-  affected_areas?: number;
-}
+type PopupSaved = PopupWire.PopupSaved;
 
 /** Save one area's layout (`layout` null = back to the site default) or, with `areaId` null, the site default. A stale `version` throws an
  * ApiError with code `version_conflict` unless `force`. `alert` (site saves, and area saves by an installation manager) sets the alert choice. */
@@ -81,7 +68,7 @@ export async function savePopupLayout(areaId: string | null, version: number, la
   const body: Record<string, unknown> = { version, layout };
   if (opts.force) body.force = true;
   if (opts.alert) body.popup_alert = opts.alert;
-  const r = await put<{ popup: unknown; popup_alert: PopupAlert; affected_areas?: number }>(path, body);
+  const r = await put<PopupSaved>(path, body);
   invalidateSettings();
   return { popup: popupOf(r.popup), popup_alert: r.popup_alert, affected_areas: r.affected_areas };
 }

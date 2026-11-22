@@ -5,6 +5,8 @@ import './wk-talk-button';
 import './wk-listen-button';
 import './wk-action-button';
 import './sw-icon';
+import './sw-segmented';
+import type { SegmentedChange } from './sw-segmented';
 import type { SwLivePlayer } from './sw-live-player';
 import { startProfile, type MediaProfileId, type StationMedia } from '../api/station-media';
 import { effectiveTransport, productSettings } from '../api/prefs';
@@ -96,45 +98,37 @@ export class WkStationLive extends LitElement {
       flex-wrap: wrap;
       min-inline-size: 0;
     }
-    .seg {
-      display: inline-flex;
-      align-items: stretch;
-      border: 1px solid var(--sw-border-strong);
-      border-radius: var(--sw-r-sm);
+    /* CR-CMP2-SEGMENTED-C-2450: the quality choice is sw-segmented and keeps its bordered row of 44 px keys split by a line (no
+       sunken track), the chosen key on the accent wash */
+    sw-segmented {
+      --sw-seg-border: var(--sw-border-strong);
+      --sw-seg-track: var(--sw-surface);
+      --sw-seg-radius: var(--sw-r-sm);
+      --sw-seg-btn-radius: 0;
+      --sw-seg-pad: 0;
+      --sw-seg-gap: 0;
+      --sw-seg-divider: 1px solid var(--sw-border);
+      --sw-seg-h: var(--sw-touch-desktop, 44px);
+      --sw-seg-key-min-w: var(--sw-touch-desktop, 44px);
+      --sw-seg-key-pad: var(--sw-s-3);
+      --sw-seg-fs: var(--sw-fs-sm);
+      --sw-seg-fw: var(--sw-fw-regular);
+      --sw-seg-on-fw: var(--sw-fw-semibold);
+      --sw-seg-on-bg: var(--sw-accent-soft);
+      --sw-seg-on-fg: var(--sw-accent-text);
+      --sw-seg-on-shadow: none;
+    }
+    sw-segmented::part(track) {
       overflow: hidden;
-      background: var(--sw-surface);
-    }
-    .seg button {
-      min-block-size: var(--sw-touch-desktop, 44px);
-      min-inline-size: var(--sw-touch-desktop, 44px);
-      padding-inline: var(--sw-s-3);
-      border: 0;
-      background: transparent;
-      color: var(--sw-text-2);
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      cursor: pointer;
-    }
-    .seg button + button {
-      border-inline-start: 1px solid var(--sw-border);
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-accent-soft);
-      color: var(--sw-accent-text);
-      font-weight: var(--sw-fw-semibold);
-    }
-    .seg button:focus-visible {
-      outline: var(--sw-focus-w) solid var(--sw-focus);
-      outline-offset: calc(-1 * var(--sw-focus-w));
     }
     .lbl {
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-3);
     }
     @media (max-width: 1100px) {
-      .seg button {
-        min-block-size: 44px;
-        min-inline-size: 44px;
+      sw-segmented {
+        --sw-seg-h: 44px;
+        --sw-seg-key-min-w: 44px;
       }
     }
   `;
@@ -204,11 +198,9 @@ export class WkStationLive extends LitElement {
       ${v && v.profiles.length > 1 && path
         ? html`<div class="bar">
             <span class="lbl" id="q">${t.live.quality}</span>
-            <div class="seg" role="group" aria-labelledby="q" data-wk-quality>
-              ${v.profiles.map(
-                (p) => html`<button type="button" data-profile=${p.id} aria-pressed=${String(p.id === this.profile)} @click=${() => (this.profile = p.id)}>${p.id === 'main' ? t.live.main : t.live.sub}</button>`,
-              )}
-            </div>
+            <sw-segmented label=${t.live.quality} data-wk-quality value=${this.profile ?? ''}
+              @change=${(e: CustomEvent<SegmentedChange>) => { const p = v.profiles.find((x) => x.id === e.detail.value); if (p) this.profile = p.id; }}
+              .options=${v.profiles.map((p) => ({ value: p.id, label: p.id === 'main' ? t.live.main : t.live.sub, attrs: { 'data-profile': p.id } }))}></sw-segmented>
           </div>`
         : nothing}
       ${!this.talkHere

@@ -4,6 +4,9 @@ import { classMap } from 'lit/directives/class-map.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
 import './sw-drawer';
+import './sw-segmented';
+import './sw-tabs';
+import type { SegmentedChange } from './sw-segmented';
 import './media-remote-pad';
 import './media-player-panel';
 import '../screens/multimedia-remote-editor';
@@ -665,7 +668,9 @@ export class MediaRemote extends LitElement {
     const tab = tabs.includes(this.tab) ? this.tab : 'pad';
     return html`${this.audioSwitch(d, L.main)}${this.volumeRow(d, L.main)}${L.main.includes('recent') ? this.recent(d) : nothing}
       ${tabs.length > 1
-        ? html`<div class="seg" role="tablist" aria-label=${tr('שלט')}>${tabs.map((t) => html`<button type="button" role="tab" aria-selected=${String(tab === t)} data-mr-tab=${t} @click=${() => (this.tab = t)}>${t === 'pad' ? tr('שלט') : t === 'sources' ? tr('מקורות') : tr('אפליקציות')}</button>`)}</div>`
+        ? html`<sw-tabs controlled variant="pill" fill="always" group-label=${tr('שלט')} .active=${tab}
+            .items=${tabs.map((t) => ({ id: t, label: t === 'pad' ? tr('שלט') : t === 'sources' ? tr('מקורות') : tr('אפליקציות'), attrs: { 'data-mr-tab': t } }))}
+            @change=${(e: CustomEvent<{ id: string }>) => { e.stopPropagation(); this.tab = e.detail.id as RemoteTab; }}></sw-tabs>`
         : nothing}
       ${tab === 'sources' ? this.sources(d) : tab === 'apps' ? this.apps(d) : html`<div class=${classMap({ rpad: true, shake: this.shaking })} data-mr-pad>${this.padContent(d, L, false)}</div>`}`;
   }
@@ -673,10 +678,12 @@ export class MediaRemote extends LitElement {
   private audioSwitch(d: MediaDeviceDetail, main: RemoteSection[]): TemplateResult | typeof nothing {
     if (!d.audio_link || !d.can.control || !main.includes('vol')) return nothing;
     const cur = volumeTarget(d, this.audio);
-    return html`<div class="seg sm" role="radiogroup" aria-label=${tr('יציאת שמע')} data-mr-audio>
-      <button type="button" role="radio" aria-checked=${String(cur === 'screen')} @click=${() => (this.audio = 'screen')}>${ic('tv')}${tr('רמקולי המסך')}</button>
-      <button type="button" role="radio" aria-checked=${String(cur === 'linked')} @click=${() => (this.audio = 'linked')}>${ic('speaker')}${bidi(d.audio_link.name)}</button>
-    </div>`;
+    return html`<sw-segmented radio block size="sm" label=${tr('יציאת שמע')} data-mr-audio value=${cur}
+      @change=${(e: CustomEvent<SegmentedChange>) => (this.audio = e.detail.value === 'linked' ? 'linked' : 'screen')}
+      .options=${[
+        { value: 'screen', label: tr('רמקולי המסך'), icon: ic('tv') },
+        { value: 'linked', label: bidi(d.audio_link.name), icon: ic('speaker') },
+      ]}></sw-segmented>`;
   }
 
   private volumeRow(d: MediaDeviceDetail, main: RemoteSection[]): TemplateResult | typeof nothing {
@@ -814,7 +821,11 @@ export class MediaRemote extends LitElement {
     if (!center && !hasVol && !hasCh) return html``; // nothing to draw (a slider-only volume has no rocker)
     const cls = center ? 'pgrid' : hasVol && hasCh ? 'pgrid duo' : 'pgrid solo';
     return html`${showMode
-        ? html`<div class="seg sm" role="radiogroup" aria-label=${tr('סוג משטח')} style="inline-size:auto"><button type="button" role="radio" aria-checked=${String(this.pad === 'dpad')} @click=${() => (this.pad = 'dpad')}>${tr('חצים')}</button><button type="button" role="radio" aria-checked=${String(this.pad === 'touch')} @click=${() => (this.pad = 'touch')}>${ic('touch')}${tr('משטח')}</button></div>`
+        ? html`<sw-segmented radio size="sm" label=${tr('סוג משטח')} value=${this.pad} @change=${(e: CustomEvent<SegmentedChange>) => (this.pad = e.detail.value === 'touch' ? 'touch' : 'dpad')}
+            .options=${[
+              { value: 'dpad', label: tr('חצים') },
+              { value: 'touch', label: tr('משטח'), icon: ic('touch') },
+            ]}></sw-segmented>`
         : nothing}
       <div class=${cls}>
         ${center ? (hasVol ? this.rocker(d, 'vol') : html`<div class="col"></div>`) : hasVol ? this.rocker(d, 'vol') : nothing}

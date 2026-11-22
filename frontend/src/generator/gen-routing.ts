@@ -1,6 +1,12 @@
 import { LitElement, html, nothing } from 'lit';
+import { live } from 'lit/directives/live.js';
 import '../components/sw-button';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { customElement, property, state } from 'lit/decorators.js';
+import '../components/sw-table';
+import '../components/sw-toggle';
+import type { TableColumn } from '../components/sw-table';
 import '../components/sw-icon';
 import '../components/sw-drawer';
 import '../components/sw-state-panel';
@@ -21,6 +27,11 @@ const S = G.settings;
 const SEVS: Severity[] = ['critical', 'alert', 'info'];
 const DEFAULT_POLICY: PolicyBodyValue = { enabled: true, severity: null, recipients: { roles: [], users: [] }, channels: [], quiet_mode: 'matrix', escalate: false, after_s: 0, escalate_after_s: 0, row_version: 0 };
 const chLabel = (c: string) => (S.ch as Record<string, string>)[c] ?? c;
+/** CR-CMP2-GEN-REST-2460 (owner N10): a severity in the shared tables is a shared tone chip (the phone list keeps `.sev`) */
+const SEV_TONE: Record<Severity, 'bad' | 'warn' | 'info'> = { critical: 'bad', alert: 'warn', info: 'info' };
+const sevChip = (s: Severity) => html`<span class="chip" data-tone=${SEV_TONE[s]}>${G.alerts.sev[s]}</span>`;
+/** a row of the alert-type matrix: an alert type, or the heading of its group (`grp`) */
+type MatrixRow = { key: string; grp?: string; item?: PolicyItem };
 
 /**
  * הגדרות › תשתיות › גנרטור › ניתוב התראות (CR-031 GEN1): per generator and per alert type - recipients (roles and named users), channels, severity, quiet hours,
@@ -198,7 +209,7 @@ export class GenRouting extends LitElement {
   private chips(rec: { roles: string[]; users: string[] }, inherited = false) {
     if (rec.roles.length === 0 && rec.users.length === 0) return html`<span class="mut">${S.noRec}</span>`;
     const names = new Map(this.users.map((u) => [u.id, u.name || u.username]));
-    return html`<span class="rec ${inherited ? 'mut' : ''}" title=${inherited ? grt('inheritedFrom') : ''}>${rec.roles.map((r) => html`<span>${(S.roleNames as Record<string, string>)[r] ?? r}</span>`)}${rec.users.map((u) => html`<span class="usr">${names.get(u) ?? u}</span>`)}</span>`;
+    return html`<span class="rec ${inherited ? 'mut' : ''}" part="rec" title=${inherited ? grt('inheritedFrom') : ''}>${rec.roles.map((r) => html`<span part="rec-item">${(S.roleNames as Record<string, string>)[r] ?? r}</span>`)}${rec.users.map((u) => html`<span class="usr" part="rec-item usr">${names.get(u) ?? u}</span>`)}</span>`;
   }
   private recChips(i: PolicyItem) {
     const e = effectiveRecipients(i, this.data?.severity_defaults);
@@ -206,21 +217,33 @@ export class GenRouting extends LitElement {
   }
   private chIconsOf(channels: string[]) {
     const on = new Set(['inbox', ...channels]);
-    return html`<span class="chs">${['inbox', ...(this.data?.severity_channels ?? [])].map((c) => html`<span class="ch ${on.has(c) ? 'on' : ''}" title=${c === 'inbox' ? S.inboxAlways : chLabel(c)}>${c === 'inbox' ? html`<sw-icon name="bell" size="14"></sw-icon>` : chLabel(c)}</span>`)}</span>`;
+    return this.chList(['inbox', ...(this.data?.severity_channels ?? [])], on);
+  }
+  /** the channel chips (inbox first, always on): classes for the phone list, parts for the shared tables */
+  private chList(all: string[], on: Set<string>) {
+    return html`<span class="chs" part="chs">${all.map((c) => html`<span class="ch ${on.has(c) ? 'on' : ''}" part=${on.has(c) ? 'ch on' : 'ch'} title=${c === 'inbox' ? S.inboxAlways : chLabel(c)}>${c === 'inbox' ? html`<sw-icon name="bell" size="14"></sw-icon>` : chLabel(c)}</span>`)}</span>`;
   }
   private chIcons(i: PolicyItem) {
     const p = i.policy;
     const dflt = this.data?.severity_defaults?.[p?.severity ?? i.default_severity];
     const on = new Set(['inbox', ...(p?.channels.length ? p.channels : (dflt?.channels ?? []))]);
-    return html`<span class="chs">${['inbox', ...(this.data?.channels ?? [])].map((c) => html`<span class="ch ${on.has(c) ? 'on' : ''}" title=${c === 'inbox' ? S.inboxAlways : chLabel(c)}>${c === 'inbox' ? html`<sw-icon name="bell" size="14"></sw-icon>` : chLabel(c)}</span>`)}</span>`;
+    return this.chList(['inbox', ...(this.data?.channels ?? [])], on);
   }
 
   private severityTable(data: PoliciesResponse) {
     const dflt = data.severity_defaults ?? { critical: null, alert: null, info: null };
-    const note = (sev: Severity) => (sev === 'critical' ? html`<div class="mut" data-critical-note>${grt('criticalNote', { n: data.critical_escalate_after_min })}</div>` : nothing);
+    const note = (sev: Severity) => (sev === 'critical' ? html`<span class="t2" data-critical-note>${grt('criticalNote', { n: data.critical_escalate_after_min })}</span>` : nothing);
+    // CR-CMP2-GEN-REST-2460 (owner N10): the shared table (module skin data-gen-table); a row opens the severity's default (row-select:
+    // a tab stop, Enter / Space, the arrow walk)
+    const columns: TableColumn<{ key: Severity }>[] = [
+      { key: 'sev', label: S.colSev, kind: 'status', render: (r) => html`${sevChip(r.key)}${note(r.key)}` },
+      { key: 'rec', label: S.colRec, render: (r) => this.chips(dflt[r.key]?.recipients ?? { roles: [], users: [] }) },
+      { key: 'ch', label: S.colCh, render: (r) => this.chIconsOf(dflt[r.key]?.channels ?? []) },
+    ];
     return html`<div class="row"><span class="h3">${grt('defaultsTitle')}</span><span class="mut">${grt('defaultsSub')}</span></div>
-      <div class="card flush" data-severity-defaults><div class="scrollx"><table class="t routing"><tbody>${SEVS.map((sev) => html`<tr class="pick" data-severity-row=${sev} @click=${() => this.editSeverity(sev)}>
-        <td><span class="sev ${sev}">${G.alerts.sev[sev]}</span>${note(sev)}</td><td>${this.chips(dflt[sev]?.recipients ?? { roles: [], users: [] })}</td><td>${this.chIconsOf(dflt[sev]?.channels ?? [])}</td></tr>`)}</tbody></table></div></div>`;
+      <div class="card flush" data-severity-defaults><sw-table bare data-gen-table data-gen-routing-table rowKey="key" .columns=${columns as unknown as TableColumn[]}
+        .rows=${SEVS.map((key) => ({ key }))} .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-severity-row': String(r.key) })}
+        @row-select=${(e: CustomEvent<{ id: string }>) => this.editSeverity(e.detail.id as Severity)}></sw-table></div>`;
   }
 
   private sevDrawer() {
@@ -255,7 +278,8 @@ export class GenRouting extends LitElement {
     return html`<sw-drawer modal .open=${!!i} heading=${i ? fill(S.editTitle, { name: i.title }) : ''} @close=${() => (this.editing = null)} data-drawer="routing">
       ${i ? html`<div class="drawer-body">
         <label class="row"><input type="checkbox" .checked=${d.enabled} @change=${() => this.patch({ enabled: !d.enabled })} data-enabled /> <span>${S.active}</span></label>
-        <div class="fld"><label>${S.severity}</label><div class="seg" role="group" data-severity>${SEVS.map((s) => html`<button aria-pressed=${(d.severity ?? i.default_severity) === s} @click=${() => this.patch({ severity: s })}>${G.alerts.sev[s]}</button>`)}</div></div>
+        <div class="fld"><label>${S.severity}</label><sw-segmented data-severity value=${d.severity ?? i.default_severity} @change=${(e: CustomEvent<SegmentedChange>) => this.patch({ severity: e.detail.value as Severity })}
+          .options=${SEVS.map((s) => ({ value: s, label: G.alerts.sev[s] }))}></sw-segmented></div>
         ${eff.roles.length + eff.users.length > 0 ? nothing : html`<div class="notice warnbox" data-empty-note>${S.routingEmpty}: ${S.routingEmptyShort}</div>`}
         ${hasRecipients(d) || eff.roles.length + eff.users.length === 0 ? nothing : html`<div class="mut" data-inherited>${grt('inheritedFrom')}: ${this.chips(eff, true)}</div>`}
         <div class="fld"><label>${S.recRoles}</label><div class="chooser" data-roles>${data.roles.map((r) => chk(r.label, d.recipients.roles.includes(r.id), () => this.patch({ recipients: { ...d.recipients, roles: this.toggle(d.recipients.roles, r.id) } })))}</div></div>
@@ -263,7 +287,8 @@ export class GenRouting extends LitElement {
           ${this.users.length > 6 ? html`<input type="search" placeholder=${G.history.search} .value=${this.userQ} @input=${(e: Event) => (this.userQ = (e.target as HTMLInputElement).value)} />` : nothing}
           <div class="chooser users" data-users>${users.map((u) => chk(u.name || u.username, d.recipients.users.includes(u.id), () => this.patch({ recipients: { ...d.recipients, users: this.toggle(d.recipients.users, u.id) } })))}</div></div>` : nothing}
         <div class="fld"><label>${S.channels}</label><div class="chooser" data-channels>${chk(S.inboxAlways, true, () => undefined, true)}${data.channels.map((c) => chk(chLabel(c), d.channels.includes(c), () => this.patch({ channels: this.toggle(d.channels, c) })))}${data.channels_reserved.map((c) => chk(chLabel(c), false, () => undefined, true, S.soon))}</div></div>
-        <div class="fld"><label>${S.quietHours}</label>${critical ? html`<div class="mut" data-quiet-critical>${grt('criticalQuiet')}</div>` : html`<div class="seg" role="group" data-quiet>${(data.quiet_modes as ('pass' | 'matrix' | 'hold')[]).map((m) => html`<button aria-pressed=${d.quiet_mode === m} @click=${() => this.patch({ quiet_mode: m })}>${S.quietLong[m]}</button>`)}</div>`}</div>
+        <div class="fld"><label>${S.quietHours}</label>${critical ? html`<div class="mut" data-quiet-critical>${grt('criticalQuiet')}</div>` : html`<sw-segmented data-quiet value=${d.quiet_mode} @change=${(e: CustomEvent<SegmentedChange>) => this.patch({ quiet_mode: e.detail.value as 'pass' | 'matrix' | 'hold' })}
+          .options=${(data.quiet_modes as ('pass' | 'matrix' | 'hold')[]).map((m) => ({ value: m, label: S.quietLong[m] }))}></sw-segmented>`}</div>
         <div class="fld"><label>${S.escalate}</label>${critical ? html`<div class="mut" data-escalate-critical>${grt('criticalNote', { n: data.critical_escalate_after_min })}</div>` : html`<div class="row"><input type="checkbox" .checked=${d.escalate} @change=${() => this.patch({ escalate: !d.escalate })} data-escalate />
           ${d.escalate ? html`<input type="number" min="1" style="inline-size:90px" .value=${String(Math.round((d.escalate_after_s || data.critical_escalate_after_min * 60) / 60))} @change=${(e: Event) => this.patch({ escalate_after_s: Math.max(1, Number((e.target as HTMLInputElement).value) || 1) * 60 })} data-escalate-min /> <span class="mut">${S.escalateAfter}</span>` : nothing}</div>`}</div>
         <div class="fld"><label for="tpl">${S.message}</label>
@@ -285,13 +310,62 @@ export class GenRouting extends LitElement {
     const q = this.q.trim().toLowerCase();
     const match = (i: PolicyItem) => !q || i.title.toLowerCase().includes(q);
     const active = data.items.filter((i) => i.available && (i.policy?.enabled ?? true)).length;
-    const row = (i: PolicyItem) => {
-      const p = i.policy;
-      const on = p?.enabled ?? true;
-      if (!i.available) return html`<tr class="off na" data-type=${i.key}><td class="c1 c"><input type="checkbox" disabled /></td><td class="b">${i.title}</td><td colspan="5"><span class="chip c-mut nodot">${fill(S.needs, { n: i.needs ?? '' })}</span></td></tr>`;
-      return html`<tr class="pick ${on ? '' : 'off'}" data-type=${i.key} @click=${() => this.edit(i)}><td class="c1 c"><input type="checkbox" .checked=${on} aria-label=${S.colOn} @click=${(e: Event) => e.stopPropagation()} @change=${async (e: Event) => { const v = (e.target as HTMLInputElement).checked; try { const saved = await putPolicy(this.device.id, i.key, { enabled: v, row_version: p?.row_version }); this.data = { ...data, items: data.items.map((x) => (x.key === i.key ? { ...x, policy: saved } : x)) }; } catch (er) { this.fail = describeError(er); await this.load(); } }} /></td>
-        <td class="b">${i.title}</td><td><span class="sev ${p?.severity ?? i.default_severity}">${G.alerts.sev[p?.severity ?? i.default_severity]}</span></td><td>${this.recChips(i)}</td><td>${this.chIcons(i)}</td>
-        <td class="c"><span class="mut">${S.quiet[p?.quiet_mode ?? 'matrix']}</span></td><td class="c">${(p?.severity ?? i.default_severity) === 'critical' ? html`<span class="chip c-ok nodot" title=${grt('criticalNote', { n: data.critical_escalate_after_min })}>${grt('always')}</span>` : p?.escalate ? html`<span class="chip c-ok nodot">v</span>` : html`<span class="mut">-</span>`}</td></tr>`;
+    // CR-CMP2-GEN-REST-2460 (owner N10): the alert-type matrix is the shared table - a group heading row per group (groupHeading), the "on"
+    // switch a sw-toggle (it saves at once and never opens the row), the recipient / channel chips the module's look through parts, a
+    // type that is off dimmed (part "off"), a type without its sensor muted with the sensor it needs. A row opens the type's editor.
+    const dim = (on: boolean, v: unknown) => html`<span part=${on ? nothing : 'off'}>${v}</span>`;
+    const setOn = async (i: PolicyItem, v: boolean) => {
+      try {
+        const saved = await putPolicy(this.device.id, i.key, { enabled: v, row_version: i.policy?.row_version });
+        this.data = { ...this.data!, items: this.data!.items.map((x) => (x.key === i.key ? { ...x, policy: saved } : x)) };
+      } catch (er) {
+        this.fail = describeError(er);
+        await this.load();
+      }
+    };
+    const sevOf = (i: PolicyItem) => i.policy?.severity ?? i.default_severity;
+    const columns: TableColumn<MatrixRow>[] = [
+      {
+        key: 'on',
+        label: S.colOn,
+        align: 'center',
+        render: ({ item: i }) => {
+          const on = i!.available && (i!.policy?.enabled ?? true);
+          return html`<sw-toggle .checked=${live(on)} ?disabled=${!i!.available} labelHidden label=${`${S.colOn}: ${i!.title}`} data-type-on
+            @click=${(e: Event) => e.stopPropagation()} @change=${(e: CustomEvent<{ checked: boolean }>) => void setOn(i!, e.detail.checked)}></sw-toggle>`;
+        },
+      },
+      {
+        key: 'title',
+        label: S.colAlert,
+        render: ({ item: i }) => (i!.available ? dim(i!.policy?.enabled ?? true, html`<span class="t1">${i!.title}</span>`) : html`<span class="mut">${i!.title}</span><span class="t2" data-needs>${fill(S.needs, { n: i!.needs ?? '' })}</span>`),
+      },
+      { key: 'sev', label: S.colSev, kind: 'status', render: ({ item: i }) => (i!.available ? dim(i!.policy?.enabled ?? true, sevChip(sevOf(i!))) : nothing) },
+      { key: 'rec', label: S.colRec, render: ({ item: i }) => (i!.available ? dim(i!.policy?.enabled ?? true, this.recChips(i!)) : nothing) },
+      { key: 'ch', label: S.colCh, render: ({ item: i }) => (i!.available ? dim(i!.policy?.enabled ?? true, this.chIcons(i!)) : nothing) },
+      { key: 'quiet', label: S.colQuiet, align: 'center', render: ({ item: i }) => (i!.available ? dim(i!.policy?.enabled ?? true, html`<span class="mut">${S.quiet[i!.policy?.quiet_mode ?? 'matrix']}</span>`) : nothing) },
+      {
+        key: 'esc',
+        label: S.escalateShort,
+        align: 'center',
+        render: ({ item: i }) =>
+          !i!.available
+            ? nothing
+            : dim(
+                i!.policy?.enabled ?? true,
+                sevOf(i!) === 'critical'
+                  ? html`<span class="chip" data-tone="ok" data-nodot title=${grt('criticalNote', { n: data.critical_escalate_after_min })}>${grt('always')}</span>`
+                  : i!.policy?.escalate
+                    ? html`<span class="chip" data-tone="ok" data-nodot>v</span>`
+                    : html`<span class="mut">-</span>`,
+              ),
+      },
+    ];
+    const matrixRows: MatrixRow[] = groups.flatMap((g) => [{ key: `group:${g.key}`, grp: g.title }, ...g.items.filter(match).map((i) => ({ key: i.key, item: i }))]);
+    const matrixHooks = (r: Record<string, unknown>) => {
+      const m = r as MatrixRow;
+      if (!m.item) return { 'data-group': m.key.slice(6) };
+      return { 'data-type': m.item.key, 'data-na': !m.item.available, 'data-off': m.item.available && !(m.item.policy?.enabled ?? true) };
     };
     const phoneRow = (i: PolicyItem) => !i.available
       ? html`<div class="li dis"><div class="grow"><div class="t1">${i.title}</div><div class="t2">${fill(S.needs, { n: i.needs ?? '' })}</div></div></div>`
@@ -303,8 +377,9 @@ export class GenRouting extends LitElement {
       <div class="notice"><sw-icon name="info" size="18"></sw-icon><span>${S.routingNote}</span></div>
       <div class="row"><span class="h3">${S.subs.routing}</span><span class="mut">${fill(S.activeCount, { n: active })}${data.total - data.available ? ` · ${fill(S.noSensor, { n: data.total - data.available })}` : ''}</span><div class="sp"></div>
         <input type="search" placeholder=${G.history.search} aria-label=${G.history.search} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></div>
-      <div class="card flush hide-phone"><div class="scrollx"><table class="t routing"><thead><tr><th class="c">${S.colOn}</th><th>${S.colAlert}</th><th>${S.colSev}</th><th>${S.colRec}</th><th>${S.colCh}</th><th class="c">${S.colQuiet}</th><th class="c">${S.escalateShort}</th></tr></thead>
-        <tbody>${groups.map((g) => html`<tr class="grp"><td colspan="7">${g.title}</td></tr>${g.items.filter(match).map(row)}`)}</tbody></table></div></div>
+      <div class="card flush hide-phone" data-routing-matrix><sw-table bare data-gen-table data-gen-routing-table rowKey="key" .columns=${columns as unknown as TableColumn[]}
+        .rows=${matrixRows as unknown as Record<string, unknown>[]} .groupHeading=${(r: Record<string, unknown>) => (r as MatrixRow).grp ?? null} .rowAttrs=${matrixHooks}
+        @row-select=${(e: CustomEvent<{ row: MatrixRow }>) => e.detail.row.item && this.edit(e.detail.row.item)}></sw-table></div>
       <div class="list only-phone" style="flex-direction:column">${groups.map((g) => html`<div class="h3">${g.title}</div>${g.items.filter(match).map(phoneRow)}`)}</div>
       ${this.msg ? html`<div class="mut" role="status" data-saved>${this.msg}</div>` : nothing}${!this.editing && this.fail ? html`<div class="bad" role="alert">${this.fail}</div>` : nothing}
       <div class="row"><sw-button ?disabled=${this.busy} @click=${() => this.reset()} data-reset>${S.reset}</sw-button></div>

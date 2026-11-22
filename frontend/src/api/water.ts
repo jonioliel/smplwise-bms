@@ -9,154 +9,34 @@ import { apiUrl, del, get, patch, post, put } from './client';
 import { isApi } from './session';
 import type { SnoozeSettings } from './water-billing';
 import { tr } from '../i18n/msg/api-electricity';
+import type * as Wire from './generated/wire-consumption';
 
-export type MeterKind = 'main' | 'sub' | 'irrigation' | 'cooling' | 'pool' | 'other';
-export type MeterState = 'reporting' | 'not_reporting' | 'paused' | 'retired';
+/* The wire shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/water.py), generated into
+ * ./generated/wire-consumption.ts: a change of the contract is a compile error here and in the screens (code review 07:F8 step 2). */
+export type MeterKind = Wire.WaterMeter['kind'];
+export type MeterState = Wire.WaterMeter['state'];
 
-export interface Meter {
-  id: string;
-  display_name: string;
-  medium: string;
-  kind: MeterKind;
-  unit: string;
-  device_name: string | null;
-  area_id: string | null;
-  area_name: string | null;
-  floor_id: string | null;
-  floor_name: string | null;
-  status: 'active' | 'paused' | 'retired';
-  status_reason: string | null;
-  max_flow_lph: number;
-  revision: number;
-  created_at: string;
-  retired_at: string | null;
-  muted_until: string | null;
-  state: MeterState;
-  last_report_at: string | null;
-  value_l: number | null;
-  today_l: number | null;
-  month_l: number | null;
-  /** water.manage only */
-  source_ref?: string;
-  rules?: Record<string, unknown>;
-}
-
-export interface Epoch {
-  id: string;
-  started_at: string;
-  ended_at: string | null;
-  start_reading_l: number | null;
-  end_reading_l: number | null;
-  reason: 'first' | 'replaced' | 'source_changed' | string;
-  note: string | null;
-}
-
+/** A meter as the list answers it; `source_ref` and `rules` (its own leak-rule overrides) for water.manage only. */
+export type Meter = Omit<Wire.WaterMeter, 'epochs' | 'warning'>;
+export type Epoch = Wire.WaterEpoch;
 export interface MeterDetail extends Meter {
   epochs: Epoch[];
 }
+export type Candidate = Wire.WaterCandidate;
+/** The reads answer this shape without a backend too (an empty range), so the display total and the unit are not required here. */
+export type Consumption = Pick<Wire.WaterConsumption, 'from' | 'to' | 'items' | 'total_litres' | 'previous_total_litres' | 'bucket' | 'series'>;
 
-export interface Candidate {
-  ref: string;
-  name: string;
-  device_name: string | null;
-  area_id: string | null;
-  area_name: string | null;
-  floor_name: string | null;
-  unit: string | null;
-  verdict: 'accepted' | 'warning' | 'rejected';
-  code: string;
-  message: string;
-  already_meter_id: string | null;
-}
+export type EventKind = Wire.WaterEvent['kind'];
+export type WaterEvent = Wire.WaterEvent;
+export type EventsSummary = Wire.WaterEventsKpi;
 
-interface SeriesItem {
-  start: string;
-  end: string;
-  date?: string;
-  litres: number | null;
-}
+/** The leak rules the screens read (the night window and the night-flow thresholds are always there; the other rules when the server sent them). */
+export type LeakRules = Pick<Wire.WaterRules, 'night_from' | 'night_to' | 'night_min_lph' | 'night_min_intervals'> & Partial<Wire.WaterRules>;
 
-interface ConsumptionItem {
-  meter_id: string;
-  display_name: string;
-  kind: MeterKind;
-  area_name: string | null;
-  floor_name: string | null;
-  litres: number | null;
-  previous_litres: number | null;
-  share: number | null;
-  coverage: string;
-}
+export type AlertsConfig = Pick<Wire.WaterAlerts, 'snooze_limits' | 'row_version' | 'can_edit'> & { rules: LeakRules; snooze: SnoozeSettings };
 
-export interface Consumption {
-  from: string;
-  to: string;
-  items: ConsumptionItem[];
-  total_litres: number | null;
-  previous_total_litres: number | null;
-  bucket?: '1h' | '1d';
-  series?: SeriesItem[];
-}
-
-export type EventKind = 'night_flow' | 'abnormal' | 'burst' | 'offline' | 'health';
-
-export interface WaterEvent {
-  id: string;
-  meter_id: string;
-  meter_name: string;
-  meter_kind: MeterKind;
-  area_name: string | null;
-  floor_name: string | null;
-  kind: EventKind;
-  severity: 'warning' | 'alarm';
-  opened_at: string;
-  closed_at: string | null;
-  close_reason: string | null;
-  value: Record<string, unknown>;
-  suppressed: string | null;
-  ack_at: string | null;
-  ack_by_display: string | null;
-  can_ack: boolean;
-  snoozed_until: string | null;
-  can_snooze: boolean;
-}
-
-export interface EventsSummary {
-  open: number;
-  acked: number;
-  last_7d: number;
-  open_leaks: number;
-  snoozed: number;
-}
-
-export interface LeakRules {
-  night_from: string;
-  night_to: string;
-  night_min_lph: number;
-  night_min_intervals: number;
-  [k: string]: unknown;
-}
-
-export interface AlertsConfig {
-  rules: LeakRules;
-  snooze: SnoozeSettings;
-  snooze_limits: { min: number; max: number; count: number };
-  row_version: number;
-  can_edit: boolean;
-}
-
-export interface ManualReading {
-  id: string;
-  read_at: string;
-  litres: number | null;
-  typed_value: string;
-  typed_unit: 'L' | 'm3';
-  effect: string;
-  effect_reason: string | null;
-  note: string | null;
-  created_at: string;
-  voided_at: string | null;
-}
+export type ManualReading = Wire.WaterManualReading;
+type SeriesItem = Wire.WaterSeriesPoint;
 
 const W = 'infra/water/';
 const qs = (o: Record<string, string | number | boolean | undefined>): string => {
@@ -171,9 +51,9 @@ export const DEFAULT_RULES: LeakRules = { night_from: '01:00', night_to: '05:00'
 export const DEFAULT_SNOOZE: SnoozeSettings = { durations: [15, 60, 240, 1440], default: 60, max: 10080 };
 
 export const water = {
-  listMeters: async (): Promise<Meter[]> => (isApi() ? (await get<{ items: Meter[] }>(`${W}meters`)).items : []),
+  listMeters: async (): Promise<Meter[]> => (isApi() ? (await get<Wire.WaterMeterList>(`${W}meters`)).items : []),
   meter: (id: string) => get<MeterDetail>(`${W}meters/${encodeURIComponent(id)}`),
-  candidates: async (q = ''): Promise<Candidate[]> => (isApi() ? (await get<{ items: Candidate[] }>(`${W}candidates${qs({ q, include_rejected: true })}`)).items : []),
+  candidates: async (q = ''): Promise<Candidate[]> => (isApi() ? (await get<Wire.WaterCandidateList>(`${W}candidates${qs({ q, include_rejected: true })}`)).items : []),
   createMeter: (body: { source_ref: string; display_name?: string; kind?: MeterKind }) => post<MeterDetail & { warning: string | null }>(`${W}meters`, body),
   patchMeter: (m: Pick<Meter, 'id' | 'revision'>, body: Partial<Pick<Meter, 'display_name' | 'kind' | 'area_id' | 'max_flow_lph'>> & { status?: 'active' | 'paused' }) =>
     patch<MeterDetail>(`${W}meters/${encodeURIComponent(m.id)}`, { revision: m.revision, ...body }),
@@ -181,17 +61,17 @@ export const water = {
   replaceMeter: (m: Pick<Meter, 'id' | 'revision'>, body: { old_final_reading_l?: number; new_start_reading_l?: number; note?: string }) =>
     post<MeterDetail>(`${W}meters/${encodeURIComponent(m.id)}/replace`, { revision: m.revision, ...body }),
   series: async (id: string, bucket: '15m' | '1h' | '1d', from: string, to: string): Promise<SeriesItem[]> =>
-    isApi() ? (await get<{ items: SeriesItem[] }>(`${W}meters/${encodeURIComponent(id)}/series${qs({ from, to, bucket })}`)).items : [],
+    isApi() ? (await get<Wire.WaterSeries>(`${W}meters/${encodeURIComponent(id)}/series${qs({ from, to, bucket })}`)).items : [],
   consumption: async (from: string, to: string, bucket?: '1h' | '1d'): Promise<Consumption> =>
     isApi() ? get<Consumption>(`${W}consumption${qs({ from, to, bucket })}`) : { from, to, items: [], total_litres: null, previous_total_litres: null, series: [] },
   consumptionCsvUrl: (from: string, to: string, lang: 'he' | 'en') => apiUrl(`${W}consumption.csv${qs({ from, to, lang })}`),
-  manualReadings: async (id: string): Promise<ManualReading[]> => (isApi() ? (await get<{ items: ManualReading[] }>(`${W}meters/${encodeURIComponent(id)}/manual-readings`)).items : []),
+  manualReadings: async (id: string): Promise<ManualReading[]> => (isApi() ? (await get<Wire.WaterManualReadings>(`${W}meters/${encodeURIComponent(id)}/manual-readings`)).items : []),
   addManual: (id: string, body: { read_at: string; value: string; unit: 'L' | 'm3'; note?: string }) =>
-    post<{ effect: string; reason: string | null; litres: number | null; id?: string }>(`${W}meters/${encodeURIComponent(id)}/manual-readings`, body),
+    post<Wire.WaterManualReadingResult>(`${W}meters/${encodeURIComponent(id)}/manual-readings`, body),
   undoManual: (id: string, readingId: string) => post<ManualReading>(`${W}meters/${encodeURIComponent(id)}/manual-readings/${encodeURIComponent(readingId)}/undo`, {}),
   events: async (state: 'open' | 'all', meterId?: string): Promise<{ items: WaterEvent[]; summary: EventsSummary }> => {
     if (!isApi()) return { items: [], summary: { open: 0, acked: 0, last_7d: 0, open_leaks: 0, snoozed: 0 } };
-    const r = await get<{ items: WaterEvent[]; summary: EventsSummary }>(`${W}events${qs({ state, meter_id: meterId })}`);
+    const r = await get<Wire.WaterEvents>(`${W}events${qs({ state, meter_id: meterId })}`);
     if (!meterId) setOpenAlertCount(r.summary.open);
     return r;
   },
@@ -258,7 +138,7 @@ export function lastNightWindow(rules: Pick<LeakRules, 'night_from' | 'night_to'
 }
 
 /** The lowest hourly flow inside a night window (litres per hour), or null without readings. */
-export function nightFloor(items: SeriesItem[]): number | null {
+export function nightFloor(items: Pick<SeriesItem, 'start' | 'end' | 'litres'>[]): number | null {
   const v = items.map((i) => i.litres).filter((x): x is number => x !== null && x !== undefined);
   return v.length ? Math.round(Math.min(...v) * 10) / 10 : null;
 }

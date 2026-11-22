@@ -616,20 +616,7 @@ class Worker:
             self._update(job_id, payload=payload)
         payload.bytes_done = done_bytes
         if disk_full and not cancelled:
-            free_mb = int(disk_full.get("free") or 0) // MB
-            _count("paused_disk_full")
-            payload.pauses += 1
-            delay = PAUSE_BACKOFF_S[min(payload.pauses, len(PAUSE_BACKOFF_S)) - 1]
-            payload.resume_after = iso_utc(_now() + dt.timedelta(seconds=delay))
-            pending = [x for x in payload.files if x.state not in ("downloaded", "remuxed", "failed", "skipped")]
-            base_need = estimate_with_unknown(pending) if pending else 0
-            # the aborted file counts at least as far as it got (an unknown size would otherwise count as a guess)
-            payload.need_bytes = max(base_need, int(disk_full.get("reached") or 0) + sum(x.size or 0 for x in pending[1:]))
-            log.warning("export %s paused (%d in a row, next try in >= %d s): %d MB free on the data disk, minimum %d MB, needs >= %d MB",
-                        job_id, payload.pauses, delay, free_mb, min_mb, payload.need_bytes // MB)
-            self._update(job_id, state=PAUSED, payload=payload,
-                         progress=min(0.95, done_bytes / total_expected) if total_expected else None,
-                         error=f"הייצוא הושהה: בדיסק של התוסף נשארו {free_mb} MB פנויים (המינימום {min_mb} MB). הוא ימשיך לבד כשיתפנה מקום, או מ'אחסון' › 'המשך ייצואים'.")
+            self._pause(job_id, payload, disk_full, min_mb, done_bytes, total_expected)
             return
         payload.pauses, payload.resume_after, payload.need_bytes = 0, None, 0  # a pass without a pause ends the back-off
         if cancelled:
@@ -644,12 +631,59 @@ class Worker:
 
             self._finish(job_id, d, payload, ok_files, row, ts=vendor_io.handles(source))
         except Exception as exc:
+            free = free_bytes(settings)
+            if (isinstance(exc, OSError) and _is_disk_full(exc)) or (free is not None and free < min_mb * MB):
+                # T068-EDGE-2450: the disk filled while the export was being finished (the remux, the zip, the manifest): the
+                # same pause as during a download - not the raw fallback, which wrote a "done" export without its manifest
+                log.warning("export %s: the data disk filled while the export was being finished (%s)", job_id, type(exc).__name__)
+                kept = self._unfinish(d, payload)
+                self._pause(job_id, payload, {"free": free or 0, "reached": done_bytes}, min_mb, kept, total_expected)
+                return
             log.exception("export %s post-processing failed", job_id)
             payload.remux = "failed"
             payload.note = f"post-processing failed: {type(exc).__name__}"
             self._deliver_raw(d, payload, ok_files)
         state = "done" if all(f.state in ("downloaded", "remuxed") for f in payload.files) else "partial"
         self._update(job_id, state=state, progress=1.0, payload=payload, error=None if state == "done" else "חלק מהקבצים לא ירדו; הייצוא חלקי")
+
+    def _pause(self, job_id: str, payload: Payload, disk_full: dict[str, Any], min_mb: int, done_bytes: int, total_expected: int | None) -> None:
+        """Pause the job for a full data disk (T068): back-off, what it still needs, the operator's message."""
+        free_mb = int(disk_full.get("free") or 0) // MB
+        _count("paused_disk_full")
+        payload.bytes_done = done_bytes
+        payload.pauses += 1
+        delay = PAUSE_BACKOFF_S[min(payload.pauses, len(PAUSE_BACKOFF_S)) - 1]
+        payload.resume_after = iso_utc(_now() + dt.timedelta(seconds=delay))
+        pending = [x for x in payload.files if x.state not in ("downloaded", "remuxed", "failed", "skipped")]
+        base_need = estimate_with_unknown(pending) if pending else 0
+        # the aborted file counts at least as far as it got (an unknown size would otherwise count as a guess)
+        payload.need_bytes = max(base_need, int(disk_full.get("reached") or 0) + sum(x.size or 0 for x in pending[1:]))
+        log.warning("export %s paused (%d in a row, next try in >= %d s): %d MB free on the data disk, minimum %d MB, needs >= %d MB",
+                    job_id, payload.pauses, delay, free_mb, min_mb, payload.need_bytes // MB)
+        self._update(job_id, state=PAUSED, payload=payload,
+                     progress=min(0.95, done_bytes / total_expected) if total_expected else None,
+                     error=f"הייצוא הושהה: בדיסק של התוסף נשארו {free_mb} MB פנויים (המינימום {min_mb} MB). הוא ימשיך לבד כשיתפנה מקום, או מ'אחסון' › 'המשך ייצואים'.")
+
+    @staticmethod
+    def _unfinish(d: Path, payload: Payload) -> int:
+        """T068-EDGE-2450: undo a finish the full disk cut off, so the resumed job finishes from a clean folder. Kept: the downloaded
+        files still on disk whole (they are not fetched again); removed: everything the finish wrote (clip, parts, list, manifest).
+        A file the finish had already consumed (renamed into the clip, remuxed and deleted) is downloaded again. Returns the bytes kept."""
+        keep: set[str] = set()
+        kept = 0
+        for idx, f in enumerate(payload.files):
+            src = d / f"{idx:03d}.ps"
+            if f.state == "downloaded" and src.is_file() and src.stat().st_size == f.bytes:
+                keep.add(src.name)
+                kept += f.bytes
+            elif f.state in ("downloaded", "remuxed"):
+                f.state, f.bytes = "pending", 0
+        for p in d.iterdir() if d.is_dir() else ():
+            if p.is_file() and p.name not in keep:
+                p.unlink(missing_ok=True)
+        payload.output = payload.output_name = payload.manifest = payload.sha256 = payload.actual_from = payload.actual_to = None
+        payload.media_type, payload.container, payload.remux, payload.note = "application/octet-stream", "unknown", "pending", ""
+        return kept
 
     def _finish(self, job_id: str, d: Path, payload: Payload, files: list[ExportFile], row: sqlite3.Row, ts: bool = False) -> None:
         ff = ffmpeg_path()

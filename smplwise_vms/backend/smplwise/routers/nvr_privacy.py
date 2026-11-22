@@ -22,6 +22,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..recorder_scope import camera_settings
 from ..services import nvr_privacy, nvr_write_guard
+from ..services import nvr_privacy_store as store
 from ..services.access import require_camera
 from ._common import rid as _rid
 from .nvr_write import _camera_config_scope, _require_read
@@ -52,7 +53,7 @@ class ApplyIn(PreviewIn):
 
 
 def _camera(conn: sqlite3.Connection, camera_id: str) -> sqlite3.Row:
-    cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    cam = store.camera(conn, camera_id)
     if not cam or cam["channel"] is None:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.", details={"camera_id": camera_id})
     return cam

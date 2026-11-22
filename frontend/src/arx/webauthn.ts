@@ -22,7 +22,7 @@ export function bytesToB64url(value: ArrayBuffer | Uint8Array): string {
 
 type Descriptor = { type: 'public-key'; id: string; transports?: string[] };
 
-export interface CreationOptionsJSON {
+interface CreationOptionsJSON {
   rp: { id: string; name: string };
   user: { id: string; name: string; displayName: string };
   challenge: string;
@@ -33,7 +33,7 @@ export interface CreationOptionsJSON {
   excludeCredentials?: Descriptor[];
 }
 
-export interface RequestOptionsJSON {
+interface RequestOptionsJSON {
   challenge: string;
   rpId: string;
   timeout?: number;

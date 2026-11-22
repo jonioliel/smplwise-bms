@@ -3,6 +3,7 @@
 // Family words only: no platform, product or protocol names, no internal terms.
 import { uiLocale } from '../i18n/locale';
 import { tr } from '../i18n/msg/home';
+import type * as Wire from '../api/generated/wire-consumption';
 
 /** The six categories phase 3 adds (services/home_interface.MODULES_P3; an administrator can hide each per person). */
 export const P3_MODULES = ['media', 'announce', 'bills', 'water', 'systems', 'map'] as const;
@@ -93,7 +94,39 @@ export function periodName(from: string, to: string): string {
   return `${a.getUTCDate()}.${a.getUTCMonth() + 1} - ${b.getUTCDate()}.${b.getUTCMonth() + 1}`;
 }
 
+/** CR-RESPONSE-MODELS-FOLLOWUP-2450: the accounts the bill screen offers (GET energy/accounts, the generated answer): every account not paused. */
+export const billAccounts = (r: Pick<Wire.EnergyAccountList, 'items'>): Wire.EnergyAccount[] => r.items.filter((a) => a.status !== 'paused');
+
+/** The previous bills worth a line (GET energy/accounts/{id}/periods, newest first): a real bill (not a draft, not cancelled) with an amount.
+ * `total` is absent from an answer without the money permission, so such a bill is left out instead of drawn as 0 ₪. */
+export const billsWithTotal = <P extends Pick<Wire.EnergyAccountPeriod, 'bill'>>(periods: P[]): P[] =>
+  periods.filter((x) => x.bill && x.bill.state !== 'void' && x.bill.state !== 'draft' && money(x.bill.total) != null);
+
+/** The price per kWh of the house (GET energy/tariffs, the generated answer): the first fixed tariff whose current version has a price above 0;
+ * null when there is none (no tariff, a tariff without a current version, a time-of-use tariff, a price the server left null). */
+export function fixedTariffPrice(r: Pick<Wire.EnergyTariffList, 'items'>): number | null {
+  const fixed = r.items.find((x) => x.kind === 'fixed' && x.current?.price);
+  const v = fixed?.current?.price ? parseFloat(fixed.current.price) : NaN;
+  return Number.isFinite(v) && v > 0 ? v : null;
+}
+
 // ---------------------------------------------------------------- water
+
+/** What the water screen and its hub tile show. `today` / `month` null = no meter has a reading yet ("no data yet", never 0); `week` null = the
+ * consumption read failed or sent no series. */
+export interface WaterView { today: number | null; month: number | null; leaks: number; week: Pick<Wire.WaterTotalPoint, 'start' | 'litres'>[] | null; meters: number }
+
+/** CR-RESPONSE-MODELS-FOLLOWUP-2450: the water view from the generated answers of GET infra/water/meters, events/summary and consumption
+ * (the last two may have failed: their fallbacks carry only the field read here). Retired meters are left out. */
+export function waterView(
+  m: { items: Pick<Wire.WaterMeter, 'status' | 'today_l' | 'month_l'>[] },
+  s: Pick<Wire.WaterEventsSummary, 'open_leaks'>,
+  c: Pick<Wire.WaterConsumption, 'series'>,
+): WaterView {
+  const live = m.items.filter((x) => x.status !== 'retired');
+  const sum = (k: 'today_l' | 'month_l') => (live.some((x) => x[k] != null) ? live.reduce((a, x) => a + (x[k] ?? 0), 0) : null);
+  return { today: sum('today_l'), month: sum('month_l'), leaks: s.open_leaks ?? 0, week: c.series ?? null, meters: live.length };
+}
 
 const HE_DAY = [tr('א׳'), tr('ב׳'), tr('ג׳'), tr('ד׳'), tr('ה׳'), tr('ו׳'), tr('ש׳')];
 /** The week's bars: seven local days ending today, each with its litres (null = no reading). */

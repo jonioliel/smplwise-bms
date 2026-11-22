@@ -1,6 +1,8 @@
 import { LitElement, html, nothing, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-state-panel';
 import { describeError } from '../api/client';
 import type { Occurrence, OverlapMode } from '../api/calendars';
@@ -114,10 +116,8 @@ export class CalViewMaint extends LitElement {
     const can = this.ctx.access.can.maintenance;
     return html`<section class="panel" data-maint-list>
       <div class="ph">
-        <div class="seg" role="group" aria-label=${tr('חלונות')}>
-          <button type="button" aria-pressed=${String(this.seg === 'next')} data-seg="next" @click=${() => { this.seg = 'next'; this.page = 1; }}>${tr('הבאים')} <span class="num">${this.wins.filter((w) => w.o.end >= now).length}</span></button>
-          <button type="button" aria-pressed=${String(this.seg === 'past')} data-seg="past" @click=${() => { this.seg = 'past'; this.page = 1; }}>${tr('השבוע שעבר')}</button>
-        </div>
+        <sw-segmented label=${tr('חלונות')} value=${this.seg} @change=${(e: CustomEvent<SegmentedChange>) => { this.seg = e.detail.value as 'next' | 'past'; this.page = 1; }}
+          .options=${[{ value: 'next', label: tr('הבאים'), count: String(this.wins.filter((w) => w.o.end >= now).length), attrs: { 'data-seg': 'next' } }, { value: 'past', label: tr('השבוע שעבר'), attrs: { 'data-seg': 'past' } }]}></sw-segmented>
         <span class="sp"></span>
         <span class="mode"><sw-icon name="info" size="14"></sw-icon>${tr('מעל הזמנה מאושרת:')} <b>${OVERLAP_SHORT[this.overlap]}</b></span>
       </div>

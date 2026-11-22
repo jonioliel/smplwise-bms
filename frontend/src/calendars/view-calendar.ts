@@ -1,6 +1,9 @@
 import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
+import { ToastController } from '../components/toast-controller';
 import { ApiError, describeError } from '../api/client';
 import type { Calendar, NewEvent, Occurrence } from '../api/calendars';
 import { CAL_EVENTS, emit, visibleCals, type CalCtx } from './ctx';
@@ -28,7 +31,7 @@ const UNDO_TOAST_MS = 6000; // the organizer's cancel / move notice waits as lon
 
 interface Col { key: string; day: Date; cal?: Calendar }
 interface Drag { occ: Occurrence; mode: 'move' | 'resize'; col: number; s: number; e: number; grab: number; hint: Hint | null; same: boolean }
-interface Toast { text: string; undo: boolean; bad: boolean; id: number }
+interface Toast { text: string; undo: boolean; bad: boolean }
 
 /**
  * CALENDARS-UI-2310 slice A: יומנים › יומן - month / week / day with the calendar switcher (the approved round-8 mock-up). The switcher
@@ -213,7 +216,13 @@ export class CalViewCalendar extends LitElement {
   @state() private lifted = '';
   @state() private hover: { col: number; m: number } | null = null;
   @state() private ring: { col: number; x: number; y: number } | null = null;
-  @state() private toast: Toast | null = null;
+  /** CR-CMP2-SELECTS-2450 (07:F12): the grid's toast - its time, then a 200 ms exit (`leaving`) so the slide-out plays. Tone: 'undo' |
+   * 'bad' | '' (the two never come together). */
+  private readonly toaster = new ToastController<'undo' | 'bad'>(this, { ms: 3400, exitMs: 200 });
+  private get toast(): Toast | null {
+    const t = this.toaster;
+    return t.text ? { text: t.text, undo: t.tone === 'undo', bad: t.tone === 'bad' } : null;
+  }
   @state() private toastIn = false;
   @state() private coach = true;
   @state() private live = '';
@@ -222,7 +231,6 @@ export class CalViewCalendar extends LitElement {
   private undoStack = new UndoStack();
   private press: Press | null = null;
   private pressTimer = 0;
-  private toastTimer = 0;
   private seriesTimer = 0;
   private kb: KbSel | null = null;
   private lastClick: { id: string; t: number } | null = null;
@@ -270,7 +278,6 @@ export class CalViewCalendar extends LitElement {
     document.removeEventListener('keydown', this.onDocKey);
     document.removeEventListener('pointerdown', this.onDocDown);
     clearTimeout(this.pressTimer);
-    clearTimeout(this.toastTimer);
     clearTimeout(this.seriesTimer);
   }
 
@@ -414,7 +421,7 @@ export class CalViewCalendar extends LitElement {
       </section>
       ${collapse && this.switcherOpen && !this.resident ? html`<div class="scrim" @click=${() => (this.switcherOpen = false)}></div>${this.switcher(false, true)}` : nothing}
       ${this.overlay()}
-      <div class="toasts">${this.toast ? html`<div class=${`toast${this.toastIn ? ' in' : ''}${this.toast.bad ? ' bad' : ''}`} role="status" data-cal-grid-toast>
+      <div class="toasts">${this.toast ? html`<div class=${`toast${this.toastIn && !this.toaster.leaving ? ' in' : ''}${this.toast.bad ? ' bad' : ''}`} role="status" data-cal-grid-toast>
         <span>${this.toast.text}</span>${this.toast.undo ? html`<button type="button" class="tb" data-cal-undo @click=${() => void this.undo()}>${tr('בטל')}</button>` : nothing}</div>` : nothing}</div>
       <div class="vh" aria-live="polite" data-cal-live>${this.live}</div>`;
   }
@@ -430,9 +437,8 @@ export class CalViewCalendar extends LitElement {
       <span class="sp"></span>
       ${collapse && !this.resident ? html`<button type="button" class="btn sm" data-cal-switcher-open aria-expanded=${String(this.switcherOpen)} @click=${() => (this.switcherOpen = true)}>
         <sw-icon name="calendar" size="16"></sw-icon><span class="num">${shown}</span> ${tr('יומנים')}</button>` : nothing}
-      ${modes.length > 1 ? html`<div class="seg" role="group" aria-label=${tr('תצוגה')}>
-        ${modes.map((m) => html`<button type="button" aria-pressed=${String(this.mode === m)} data-cal-mode=${m} @click=${() => this.setMode(m)}>${{ month: tr('חודש'), week: tr('שבוע'), day: tr('יום') }[m]}</button>`)}
-      </div>` : nothing}
+      ${modes.length > 1 ? html`<sw-segmented label=${tr('תצוגה')} value=${this.mode} @change=${(e: CustomEvent<SegmentedChange>) => this.setMode(e.detail.value as typeof this.mode)}
+        .options=${modes.map((m) => ({ value: m, label: { month: tr('חודש'), week: tr('שבוע'), day: tr('יום') }[m], attrs: { 'data-cal-mode': m } }))}></sw-segmented>` : nothing}
     </div>`;
   }
 
@@ -1318,14 +1324,9 @@ export class CalViewCalendar extends LitElement {
   }
 
   private showToast(text: string, undo: boolean, bad = false): void {
-    clearTimeout(this.toastTimer);
-    this.toast = { text, undo: undo && this.undoStack.size > 0, bad, id: Date.now() };
+    this.toaster.show(text, { tone: bad ? 'bad' : undo && this.undoStack.size > 0 ? 'undo' : '', ms: undo ? UNDO_TOAST_MS : 3400 });
     this.toastIn = false;
     requestAnimationFrame(() => requestAnimationFrame(() => (this.toastIn = true)));
-    this.toastTimer = window.setTimeout(() => {
-      this.toastIn = false;
-      this.toastTimer = window.setTimeout(() => (this.toast = null), 200);
-    }, undo ? UNDO_TOAST_MS : 3400);
   }
 
   private pushUndo(u: UndoItem): void {

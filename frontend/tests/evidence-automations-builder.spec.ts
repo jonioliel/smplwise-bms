@@ -973,7 +973,8 @@ test.describe('automation builder: dry-run, run now, enable, delete and the unsa
     }
     const active = await page.evaluate(() => { let a: Element | null = document.activeElement; while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement; return a?.closest('automation-builder') !== null || !!(a as HTMLElement | null)?.closest?.('dialog'); });
     expect(active).toBe(true);
-    const tabs = await page.locator(`${tag} .shsub .seg button`).first().boundingBox();
+    // CR-CMP2-TABS-2460: the builder / code switch under the header is sw-tabs (its tabs live in the strip's shadow root)
+    const tabs = await page.locator(`${tag} .shsub [data-view-toggle] [role="tab"]`).first().boundingBox();
     expect(Math.round(tabs!.height)).toBeGreaterThanOrEqual(40); // sub-pixel layout (39.99999) is 40 px
   });
 });

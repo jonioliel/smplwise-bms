@@ -24,7 +24,8 @@ import { onTicketNames } from '../tickets/naming';
 import { REVIEW_SEGMENTS, handlersSegments, missingItems, type HandlersSegment } from '../tickets/readiness-model';
 import { handlersGlass } from '../tickets/handlers-glass';
 import { asHandledDays, HANDLED_DEFAULT, HANDLED_PERIODS, loadsFromBoard, managedDepartments, readStoredPeriod, storePeriod, withHandled, type HandledDays, type MemberLoad } from '../tickets/handler-load';
-import { rovingIndex } from '../tickets/settings-tabs';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { tIcon } from '../tickets/icons';
 import { tt } from '../tickets/text';
 import { handlerDepartments } from '../tickets/dept-handlers-model';
@@ -106,9 +107,6 @@ export class TicketsHandlersPage extends LitElement {
       gap: 22px;
       min-inline-size: 0;
     }
-    .dh-det .seg small {
-      margin-inline-start: 4px;
-    }
     /* WP3 (POLISH-4): the toolbar is the list's (tickets/list-toolbar.ts); the period and the "new" key keep their places at its end, and
        the row wraps when the department filter, the period and the search do not share one line (a tablet) */
     .dh-det.tb {
@@ -174,11 +172,6 @@ export class TicketsHandlersPage extends LitElement {
     @media (max-width: 767px) {
       .dh-det {
         gap: 10px;
-      }
-      .dh-det.tb > .seg {
-        grid-template-columns: repeat(var(--segs, 3), minmax(0, 1fr));
-        grid-auto-flow: row;
-        overflow: visible;
       }
       .dh-det .grow {
         display: none;
@@ -390,17 +383,6 @@ export class TicketsHandlersPage extends LitElement {
     return managedDepartments(this.meta?.departments ?? []);
   }
 
-  /** The segments are a radio group: the arrow keys move between them (the visual order follows the text direction). */
-  private onSegKey = (e: KeyboardEvent) => {
-    const segs = this.segments();
-    const i = segs.indexOf(this.seg);
-    const n = rovingIndex(e.key, i, segs.length, getComputedStyle(this).direction === 'rtl');
-    if (n === null) return;
-    e.preventDefault();
-    this.setSeg(segs[n]);
-    void this.updateComplete.then(() => (this.renderRoot.querySelector(`[data-handlers-tabs] [data-seg="${this.seg}"]`) as HTMLElement | null)?.focus());
-  };
-
   /** What sending outside still needs - shown only when something is missing (clean operator screens). */
   private strip(): TemplateResult | typeof nothing {
     const items = missingItems(this.readiness);
@@ -464,9 +446,8 @@ export class TicketsHandlersPage extends LitElement {
     const inner = html`
       <header class="dh" data-tickets-header>
         <div class="dh-det tb" role="group" aria-label=${tt('hdTitle')} data-toolbar>
-          <div class="seg sm" role="radiogroup" aria-label=${tt('hdTitle')} data-handlers-tabs style=${`--segs:${segs.length}`} @keydown=${this.onSegKey}>
-            ${segs.map((id) => html`<button type="button" role="radio" aria-checked=${String(this.seg === id)} tabindex=${this.seg === id ? '0' : '-1'} data-seg=${id} @click=${() => this.setSeg(id)}>${tt(`hdSeg_${id}` as 'hdSeg_handlers')}${this.counts[id] === undefined ? nothing : html`<small>${this.counts[id]}</small>`}</button>`)}
-          </div>
+          <sw-segmented radio roving size="sm" label=${tt('hdTitle')} data-handlers-tabs value=${this.seg} @change=${(e: CustomEvent<SegmentedChange>) => this.setSeg(e.detail.value as HandlersSegment)}
+            .options=${segs.map((id) => ({ value: id, label: tt(`hdSeg_${id}` as 'hdSeg_handlers'), count: this.counts[id] === undefined ? undefined : String(this.counts[id]), attrs: { 'data-seg': id } }))}></sw-segmented>
           ${canFilter ? html`<span class="fanchor">
             ${filterToggle(this.filterOpen, chips.length, () => (this.filterOpen = !this.filterOpen))}
             ${this.phone ? nothing : panel}

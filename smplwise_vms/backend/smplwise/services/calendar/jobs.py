@@ -12,6 +12,7 @@ from ...audit import audit
 from ...db import Database, get_setting
 from ..janitors import Every
 from . import decisions, guests, model, occ
+from ...test_reset import register_reset
 
 log = logging.getLogger(__name__)
 LAST_KEY = "calendar.janitor.last_roll"
@@ -89,3 +90,11 @@ def sync_tick(db: Database, data_dir) -> None:
         sync_run(db, data_dir)
     except Exception:  # noqa: BLE001 - housekeeping never stops the janitor tick
         log.warning("calendar sync failed", exc_info=True)
+
+
+def _reset_ticks() -> None:
+    _TICK.reset()
+    _SYNC_TICK.reset()
+
+
+register_reset(__name__, ("_TICK", "_SYNC_TICK"), _reset_ticks)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)

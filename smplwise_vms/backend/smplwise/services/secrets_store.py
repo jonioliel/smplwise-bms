@@ -29,6 +29,7 @@ from typing import Any
 from ..config import Settings
 from ..db import now_iso
 from .connection_store import SecretError, open_app_secret, seal_app_secret
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.secrets_store")
 
@@ -364,3 +365,11 @@ def status(conn: sqlite3.Connection, settings: Settings) -> list[dict[str, Any]]
         out.append({"name": spec.name, "label_he": spec.label_he, "label_en": spec.label_en, "restart_required": spec.restart_required,
                     "testable": spec.test is not None, **item})
     return out
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    LINGERING_OPTIONS.clear()
+
+
+register_reset(__name__, ("LINGERING_OPTIONS",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

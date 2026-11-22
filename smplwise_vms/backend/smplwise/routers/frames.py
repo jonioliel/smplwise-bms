@@ -26,6 +26,7 @@ from ..config import Settings
 from ..db import unlocked
 from ..errors import ApiError, not_found
 from ..rbac import Principal
+from ..services import frames_store as store
 from ..services import playback, recordings, thumbnails
 from ..services.access import require_camera
 from ..services.timeutil import UTC, iso_utc, parse_utc
@@ -235,7 +236,7 @@ def camera_frame(camera_id: str, request: Request, at: str = Query(..., min_leng
     """JPEG frame from the camera's recording nearest to `at` (UTC, within SEARCH_WINDOW_S in the same recording); the picture's own
     instant is in `X-Frame-At`. 404 when no recording lies within that window."""
     require_camera(conn, principal, camera_id, "video.playback")  # T055: audited, and 403 before 404
-    cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    cam = store.camera(conn, camera_id)
     if not cam:
         raise not_found("המצלמה לא נמצאה.")
     try:

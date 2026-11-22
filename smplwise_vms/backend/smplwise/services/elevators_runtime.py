@@ -32,6 +32,7 @@ from . import elevator_alerts as alerts
 from . import elevators as el
 from . import notify
 from .timeutil import iso_utc
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.elevators")
 
@@ -267,3 +268,6 @@ class Runner:
 
 
 RUNNER = Runner()
+
+
+register_reset(__name__, ("_PENDING", "_DEAD", "_LAST"), reset)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

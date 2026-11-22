@@ -34,7 +34,7 @@ from typing import Any, Callable
 import httpx
 
 from ..config import Settings
-from ..db import Database, has_column, now_iso, retry_locked
+from ..db import Database, has_column, is_storage_full, log_storage_full, now_iso, retry_locked
 from ..recorder_scope import PRIMARY
 from .timeutil import UTC, iso_utc, nvr_wall_to_utc, zone
 from . import xmlsafe
@@ -544,9 +544,12 @@ class AlertStreamListener:
             else:
                 self._handle(p.alert)
             self.queue.done(True)
-        except Exception:  # noqa: BLE001 - one bad alert (or a database busy past the retries) must not stop the writer
+        except Exception as exc:  # noqa: BLE001 - one bad alert (or a database busy past the retries) must not stop the writer
             self.queue.done(False)
-            log.exception("alert handling failed")
+            if is_storage_full(exc):  # T068-EDGE-2450: one line a minute, not a traceback per alert (counted in the queue's `failed`)
+                log_storage_full(log, f"alert stream {self.recorder_id}")
+            else:
+                log.exception("alert handling failed")
 
     def _drain(self, generation: int) -> None:
         while not self.stop.is_set() and generation == self.generation:

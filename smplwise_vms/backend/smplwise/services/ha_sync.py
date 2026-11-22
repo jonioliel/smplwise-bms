@@ -25,7 +25,7 @@ import time
 from typing import Any
 
 from ..config import Settings
-from ..db import Database, now_iso, retry_locked
+from ..db import Database, is_storage_full, log_storage_full, now_iso, retry_locked
 from ..errors import ApiError
 from ..test_reset import register_reset
 from . import ha_client, loop_thread_stop, site_location
@@ -889,8 +889,11 @@ class HaSync:
                 return
             try:
                 on_state_changed(db, data)
-            except Exception:
-                log.exception("state update failed for %s", eid)
+            except Exception as exc:
+                if is_storage_full(exc):  # T068-EDGE-2450: one line a minute on a full disk, not a traceback per state change
+                    log_storage_full(log, "HA state updates")
+                else:
+                    log.exception("state update failed for %s", eid)
 
         def on_message(msg: dict[str, Any]) -> None:
             from . import automation_ext  # KAV079-295: a frame of a "detect by pressing" subscription (time-limited, its own ids)

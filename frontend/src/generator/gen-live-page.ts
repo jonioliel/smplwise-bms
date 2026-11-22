@@ -1,7 +1,12 @@
 import { LitElement, html, svg, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
+import '../components/sw-table';
+import '../components/sw-load-bar';
+import type { TableColumn } from '../components/sw-table';
 import './gen-chart-set';
 import { getLive, loadViewMode, saveViewMode, type GenDevice, type GenRange, type LiveResponse, type ViewMode } from '../api/generator';
 import { navigate } from '../router';
@@ -142,18 +147,38 @@ export class GenLivePage extends LitElement {
       ${d.capabilities.values < d.capabilities.values_total ? html`<div class="mut" style="margin-block-start:10px">${fill(G.live.counts, { n: d.capabilities.values, total: d.capabilities.values_total })}${this.manage ? html` · <a class="lnk" href="#/system/infra/generator/mapping?device=${encodeURIComponent(d.id)}">${G.live.mapping}</a>` : nothing}</div>` : nothing}</div>`;
   }
 
+  /** CR-CMP2-GEN-REST-2460 (owner N10): the phase table is the shared sw-table (the module skin, data-gen-table) - the phase, then voltage,
+   * current and power (figures at the reading end) and the shared load bar (sw-load-bar: warning above 80 %, danger above 90 %); the
+   * totals of a three-phase set are its foot row. A read-only grid of figures: no row opens anything. A phone keeps the columns (a small
+   * grid; keep-columns) and the load bar steps out there, as before. Stopped engine: dashes and empty bars. */
   private phaseCard(t: PhaseTable, stale: boolean, run: boolean) {
     const dash = '-';
-    const cell = (c: string, r: PhaseTable['rows'][number]) =>
-      c === 'v' ? html`<td class="num">${run && r.v !== null ? `${fmtNum(r.v)} V` : dash}</td>`
-      : c === 'a' ? html`<td class="num">${run && r.a !== null ? `${fmtNum(r.a)} A` : dash}</td>`
-      : c === 'kw' ? html`<td class="num">${run && r.kw !== null ? `${fmtNum(r.kw)} kW` : dash}</td>`
-      : html`<td><div class="pbar"><i class=${(r.pct ?? 0) > 90 ? 'err' : (r.pct ?? 0) > 80 ? 'warn' : ''} style="inline-size:${Math.min(100, run ? r.pct ?? 0 : 0)}%"></i></div></td>`;
-    const head = [t.hz !== null && this.device.capabilities.roles.includes('gen_hz') ? html`${G.phase.freq} <span class="num">${run ? `${fmtNum(t.hz, 1)} Hz` : dash}</span>` : nothing, t.pf !== null ? html`${G.phase.pf} <span class="num">${run ? fmtNum(t.pf, 2) : dash}</span>` : nothing];
+    type Row = PhaseTable['rows'][number];
+    const fig = (v: number | null, unit: string, digits?: number) => (run && v !== null ? `${fmtNum(v, digits)} ${unit}` : dash);
+    const label = (r: Row) => (r.label ? `L${r.label}` : G.phase.generator);
+    const colOf = (c: PhaseTable['cols'][number]): TableColumn<Row> =>
+      c === 'v'
+        ? { key: 'v', label: G.phase.v, kind: 'num', render: (r) => fig(r.v, 'V'), foot: t.multi ? () => (run && t.avgV !== null ? html`<bdi>${G.phase.avg} <span class="num">${fmtNum(t.avgV)} V</span></bdi>` : dash) : undefined }
+        : c === 'a'
+          ? { key: 'a', label: G.phase.a, kind: 'num', render: (r) => fig(r.a, 'A'), foot: t.multi ? () => fig(t.sumA, 'A') : undefined }
+          : c === 'kw'
+            ? { key: 'kw', label: G.phase.kw, kind: 'num', render: (r) => fig(r.kw, 'kW'), foot: t.multi ? () => fig(t.totalKw, 'kW') : undefined }
+            : {
+                key: 'bar',
+                label: G.phase.bar,
+                hideBelow: 'phone',
+                render: (r) => html`<sw-load-bar .value=${run ? r.pct ?? 0 : 0} warn-above="80" bad-above="90" label=${`${G.phase.bar} ${label(r)}`}></sw-load-bar>`,
+              };
+    const columns: TableColumn<Row>[] = [
+      { key: 'label', label: t.multi ? G.phase.phase : '', render: (r) => html`<span class="t1">${label(r)}</span>`, foot: t.multi ? () => G.phase.total : undefined },
+      ...t.cols.map(colOf),
+    ];
+    // the frequency and the power factor beside the title, " · " between them (they ran together)
+    const head = [t.hz !== null && this.device.capabilities.roles.includes('gen_hz') ? html`${G.phase.freq} <span class="num">${run ? `${fmtNum(t.hz, 1)} Hz` : dash}</span>` : null, t.pf !== null ? html`${G.phase.pf} <span class="num">${run ? fmtNum(t.pf, 2) : dash}</span>` : null].filter((x) => x !== null).map((x, i) => (i ? html` · ${x}` : x));
     return html`<div class="card flush ${stale ? 'stale' : ''}" data-card="phases"><div class="hd"><span class="h3">${t.multi ? G.live.phaseTitle : G.live.phaseTitleOne}</span><div class="sp"></div><span class="mut">${head}</span></div>
-      <div class="scrollx"><table class="t phase"><thead><tr><th>${t.multi ? G.phase.phase : ''}</th>${t.cols.map((c) => html`<th>${G.phase[c]}</th>`)}</tr></thead>
-      <tbody>${t.rows.map((r) => html`<tr><td class="b">${r.label ? `L${r.label}` : G.phase.generator}</td>${t.cols.map((c) => cell(c, r))}</tr>`)}</tbody>
-      ${t.multi ? html`<tfoot><tr><td>${G.phase.total}</td>${t.cols.map((c) => c === 'v' ? html`<td class="num">${run && t.avgV !== null ? `${G.phase.avg} ${fmtNum(t.avgV)} V` : dash}</td>` : c === 'a' ? html`<td class="num">${run && t.sumA !== null ? `${fmtNum(t.sumA)} A` : dash}</td>` : c === 'kw' ? html`<td class="num">${run && t.totalKw !== null ? `${fmtNum(t.totalKw)} kW` : dash}</td>` : html`<td></td>`)}</tr></tfoot>` : nothing}</table></div></div>`;
+      <sw-table bare static-rows keep-columns data-gen-table data-gen-phase rowKey="key" .columns=${columns as unknown as TableColumn[]}
+        .rows=${t.rows.map((r) => ({ ...r, key: r.label ?? 'gen' })) as unknown as Record<string, unknown>[]}
+        .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-phase': String(r.key) })}></sw-table></div>`;
   }
 
   render() {
@@ -179,9 +204,11 @@ export class GenLivePage extends LitElement {
     const pulse = toneOfEngine(plan.engine);
     const status = this.statusText(d.name, plan.engine, plan.onGen, plan.mode, plan.mainsOn, plan.showAts);
     const modeSwitch = (gauges.length || caps.size) ? html`<div class="row"><span class="h3">${this.view === 'gauges' ? G.live.viewGauges : G.live.historyTitle}</span><div class="sp"></div>
-      ${this.view === 'charts' ? html`<div class="seg" role="group" aria-label=${G.charts.title} data-range>${RANGE_SET.map((r) => html`<button aria-pressed=${this.range === r} @click=${() => (this.range = r)}>${G.charts.ranges[r]}</button>`)}</div>
+      ${this.view === 'charts' ? html`<sw-segmented label=${G.charts.title} data-range value=${this.range} @change=${(e: CustomEvent<SegmentedChange>) => (this.range = e.detail.value as GenRange)}
+          .options=${RANGE_SET.map((r) => ({ value: r, label: G.charts.ranges[r] }))}></sw-segmented>
         <a class="btn sm" href="#/infra/generator/charts?device=${encodeURIComponent(d.id)}" data-full-view><sw-icon name="expand" size="16"></sw-icon> ${G.live.fullView}</a>` : nothing}
-      <div class="seg" role="group" aria-label=${G.live.viewLabel} data-view-mode><button aria-pressed=${this.view === 'gauges'} @click=${() => this.setView('gauges')}>${G.live.viewGauges}</button><button aria-pressed=${this.view === 'charts'} @click=${() => this.setView('charts')}>${G.live.viewCharts}</button></div></div>` : nothing;
+      <sw-segmented label=${G.live.viewLabel} data-view-mode value=${this.view} @change=${(e: CustomEvent<SegmentedChange>) => this.setView(e.detail.value as ViewMode)}
+          .options=${[{ value: 'gauges', label: G.live.viewGauges }, { value: 'charts', label: G.live.viewCharts }]}></sw-segmented></div>` : nothing;
     const dials = gauges.length ? html`<div class="gauges n${gauges.length} ${stale ? 'stale' : ''}" data-view="gauges">${gauges.map(gaugeSvg)}</div>` : nothing;
     const charts = html`<gen-chart-set data-view="charts" .deviceId=${d.id} .roles=${d.capabilities.roles} .range=${this.range} mode="cards" @metric-open=${(e: CustomEvent<string>) => navigate(`/infra/generator/charts`, { device: d.id, metric: e.detail })}></gen-chart-set>`;
     return html`<div class="col" data-gen-live data-availability=${availability}>

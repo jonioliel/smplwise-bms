@@ -12,6 +12,8 @@ import '../components/sw-table';
 import '../components/sw-dropdown';
 import '../components/sw-dialog';
 import '../components/sw-drawer';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import './wiskey-event-drawer';
 import './wiskey-events-export';
 import type { TableColumn } from '../components/sw-table';
@@ -513,10 +515,11 @@ export class WiskeyEvents extends LitElement {
       <sw-button size="lg" class="ib" ?block=${ph} data-wiskey-print ?disabled=${demo || !count} @click=${() => this.print()}><span class="bl">${glyph('print', 15)}<span class="lbl">${ev('print')}</span></span></sw-button>
       ${ph
         ? nothing
-        : html`<div class="seg" role="group" aria-label=${ev('viewGroup')}>
-            <button type="button" data-wiskey-view="list" aria-pressed=${String(!table)} title=${ev('viewList')} aria-label=${ev('viewList')} @click=${() => this.setView('list')}><sw-icon name="list" size=${16}></sw-icon></button>
-            <button type="button" data-wiskey-view="table" aria-pressed=${String(table)} title=${ev('viewTable')} aria-label=${ev('viewTable')} @click=${() => this.setView('table')}>${glyph('table', 16)}</button>
-          </div>`}
+        : html`<sw-segmented labels="none" label=${ev('viewGroup')} value=${table ? 'table' : 'list'} @change=${(e: CustomEvent<SegmentedChange>) => this.setView(e.detail.value === 'table' ? 'table' : 'list')}
+            .options=${[
+              { value: 'list', label: ev('viewList'), title: ev('viewList'), icon: html`<sw-icon name="list" size=${16}></sw-icon>`, attrs: { 'data-wiskey-view': 'list' } },
+              { value: 'table', label: ev('viewTable'), title: ev('viewTable'), icon: glyph('table', 16), attrs: { 'data-wiskey-view': 'table' } },
+            ]}></sw-segmented>`}
       ${demo ? nothing : html`<sw-button size="lg" class="ib" ?block=${ph} data-wiskey-events-refresh variant="ghost" icon="refresh" ?disabled=${this.feed.snap.busy} @click=${() => this.refresh()}><span class="lbl">${ev('refresh')}</span></sw-button>`}
     </div>`;
   }
@@ -782,31 +785,18 @@ export class WiskeyEvents extends LitElement {
       clip-path: inset(50%);
       white-space: nowrap;
     }
-    .seg {
-      display: inline-flex;
-      padding: 3px;
-      gap: 2px;
-      border-radius: var(--sw-r-pill);
-      background: var(--sw-surface-3);
-    }
-    .seg button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-inline-size: var(--_t);
-      min-block-size: var(--_t);
-      padding: 0 10px;
-      border: 0;
-      border-radius: var(--sw-r-pill);
-      background: transparent;
-      color: var(--sw-text-2);
-      font: inherit;
-      cursor: pointer;
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-key, var(--sw-surface-solid));
-      color: var(--sw-seg-key-ink, var(--sw-heading));
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
+    /* CR-CMP2-SEGMENTED-C-2450: the list / table switch is sw-segmented (icon-only keys); it keeps its pill track and the screen's
+       touch-size pill key, the chosen key solid in the heading ink */
+    sw-segmented {
+      --sw-seg-pad: 3px;
+      --sw-seg-gap: 2px;
+      --sw-seg-radius: var(--sw-r-pill);
+      --sw-seg-btn-radius: var(--sw-r-pill);
+      --sw-seg-h: var(--_t);
+      --sw-seg-key-min-w: var(--_t);
+      --sw-seg-ico-pad: 10px;
+      --sw-seg-on-bg: var(--sw-seg-key, var(--sw-surface-solid));
+      --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-heading));
     }
     .g {
       display: inline-flex;

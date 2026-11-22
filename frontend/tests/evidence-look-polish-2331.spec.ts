@@ -90,7 +90,7 @@ test.describe('LOOK-POLISH-2331 wall users (הגדרות › מסכי קיר)', 
       await installWall(page, PROFILES);
       await page.setViewportSize({ width: w, height: h });
       await page.goto('/?design=a&look=performance:full#/system/wall');
-      await expect(page.locator(w <= 720 ? 'system-wall [data-wall-card]' : 'system-wall [data-wall-row]')).toHaveCount(3);
+      await expect(page.locator(w <= 767 ? 'system-wall [data-wall-card]' : 'system-wall [data-wall-row]')).toHaveCount(3);
       await settlePage(page);
       await noSideScroll(page);
       await shot(page, `wall-list-${name}`);

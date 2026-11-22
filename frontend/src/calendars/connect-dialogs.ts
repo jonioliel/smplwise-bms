@@ -2,6 +2,8 @@ import { LitElement, html, nothing, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-dialog';
 import '../components/sw-toggle';
 import { describeError, resourceUrl } from '../api/client';
@@ -245,8 +247,8 @@ export class CalConnectDialog extends LitElement {
           <li>${tr('הרשאת Microsoft Graph מסוג Delegated: Calendars.ReadWrite (או Calendars.Read)')}</li><li>${tr('מדביקים כאן את Application (client) ID')}</li></ol>`}
         ${this.conn ? nothing : html`<div class="fld"><label for="cl">${tr('שם')}</label><input id="cl" class="inp" maxlength="80" placeholder=${tr('למשל: היומן של המשרד')} .value=${this.label}
           @input=${(e: Event) => (this.label = (e.target as HTMLInputElement).value)}></div>
-          <div class="fld"><span class="lbl">${tr('הרשאה')}</span><div class="seg" role="radiogroup" aria-label=${tr('הרשאה')}>${(['read_write', 'read'] as const).map((v) => html`<button type="button" role="radio"
-            aria-checked=${String(this.scope === v)} aria-pressed=${String(this.scope === v)} data-scope=${v} @click=${() => (this.scope = v)}>${v === 'read' ? tr('קריאה בלבד') : tr('קריאה וכתיבה')}</button>`)}</div></div>`}
+          <div class="fld"><span class="lbl">${tr('הרשאה')}</span><sw-segmented radio label=${tr('הרשאה')} value=${this.scope} @change=${(e: CustomEvent<SegmentedChange>) => (this.scope = e.detail.value as 'read_write' | 'read')}
+            .options=${(['read_write', 'read'] as const).map((v) => ({ value: v, label: v === 'read' ? tr('קריאה בלבד') : tr('קריאה וכתיבה'), attrs: { 'data-scope': v } }))}></sw-segmented></div>`}
         <div class="fld"><label for="ci">Client ID</label><input id="ci" class="inp ltr" dir="ltr" autocomplete="off" spellcheck="false" data-client-id .value=${this.clientId}
           @input=${(e: Event) => (this.clientId = (e.target as HTMLInputElement).value)}></div>
         ${card === 'google' ? html`<div class="fld"><label for="cs">Client secret</label><input id="cs" class="inp ltr" dir="ltr" type="password" autocomplete="off" data-client-secret
@@ -326,10 +328,10 @@ export class CalConnectDialog extends LitElement {
       <div class="fld"><label for="bc">${tr('יומן ב־Arx')}</label><select id="bc" class="inp" data-bind-cal @change=${(e: Event) => (this.bCal = (e.target as HTMLSelectElement).value)}>
         <option value="" ?selected=${!this.bCal}>${tr('בחירה…')}</option>${mine.map((c) => html`<option value=${c.id} ?selected=${c.id === this.bCal}>${c.name}</option>`)}</select></div>
       ${mine.length ? nothing : html`<p class="fine" data-bind-none>${tr('אין יומן שיש לך בו הרשאת עריכה. שיוך דורש חיבור יומנים וגם עריכה ביומן.')}</p>`}
-      <div class="fld"><span class="lbl">${tr('כיוון')}</span><div class="seg" role="radiogroup" aria-label=${tr('כיוון')}>${dirs.map((d) => html`<button type="button" role="radio" aria-checked=${String(this.bDir === d)}
-        aria-pressed=${String(this.bDir === d)} data-dir=${d} @click=${() => (this.bDir = d)}>${DIR_HE[d]}</button>`)}</div></div>
-      <div class="fld"><span class="lbl">${tr('מה עובר')}</span><div class="seg" role="radiogroup" aria-label=${tr('מה עובר')}>${(['busy', 'titles', 'details'] as const).map((d) => html`<button type="button"
-        role="radio" aria-checked=${String(this.bDetail === d)} aria-pressed=${String(this.bDetail === d)} data-detail=${d} @click=${() => (this.bDetail = d)}>${DETAIL_HE[d]}</button>`)}</div></div>
+      <div class="fld"><span class="lbl">${tr('כיוון')}</span><sw-segmented radio label=${tr('כיוון')} value=${this.bDir} @change=${(e: CustomEvent<SegmentedChange>) => (this.bDir = e.detail.value as typeof this.bDir)}
+        .options=${dirs.map((d) => ({ value: d, label: DIR_HE[d], attrs: { 'data-dir': d } }))}></sw-segmented></div>
+      <div class="fld"><span class="lbl">${tr('מה עובר')}</span><sw-segmented radio label=${tr('מה עובר')} value=${this.bDetail} @change=${(e: CustomEvent<SegmentedChange>) => (this.bDetail = e.detail.value as typeof this.bDetail)}
+        .options=${(['busy', 'titles', 'details'] as const).map((d) => ({ value: d, label: DETAIL_HE[d], attrs: { 'data-detail': d } }))}></sw-segmented></div>
       ${this.bDir === 'two_way' ? html`<p class="fine" data-two-way-note>${tr('דו־כיווני רק ליומן שנוצר עבור Arx (לא יומן אישי). שינויים מבחוץ מתקבלים; התנגשות שומרת את שתי ההזמנות ומסמנת להחלטה.')}</p>` : nothing}
       ${writeBlocked ? html`<p class="fine" data-bind-readonly>${tr('היומן הזה אצל הספק לקריאה בלבד; אפשר רק ייבוא.')}</p>` : nothing}`}
       ${this.error ? html`<div class="err" role="alert" data-connect-error>${this.error}</div>` : nothing}</div>
@@ -411,8 +413,8 @@ export class CalConnectDialog extends LitElement {
       ${(this.feeds ?? []).length && this.feedMaxAge !== null ? html`<p class="fine" data-feed-renew-hint>${tr('"חידוש קישור" נותן כתובת חדשה בתוקף {age}; הכתובת הקודמת מפסיקה לעבוד ויש לעדכן אותה באפליקציית היומן.', { age: feedMaxAgeHe(this.feedMaxAge) })}</p>` : nothing}
       ${this.feedsEnabled ? html`<div class="list" role="group" aria-label=${tr('יומנים לפיד חדש')}>${mine.map((c) => html`<label class="check"><input type="checkbox" data-feed-cal=${c.id} .checked=${this.fCals.includes(c.id)}
         @change=${(e: Event) => (this.fCals = (e.target as HTMLInputElement).checked ? [...this.fCals, c.id] : this.fCals.filter((x) => x !== c.id))}>${c.name}</label>`)}</div>
-        <div class="seg" role="radiogroup" aria-label=${tr('מה עובר')}>${(['busy', 'titles'] as const).map((d) => html`<button type="button" role="radio" aria-checked=${String(this.fDetail === d)}
-          aria-pressed=${String(this.fDetail === d)} data-feed-detail=${d} @click=${() => (this.fDetail = d)}>${DETAIL_HE[d]}</button>`)}</div>` : nothing}
+        <sw-segmented radio label=${tr('מה עובר')} value=${this.fDetail} @change=${(e: CustomEvent<SegmentedChange>) => (this.fDetail = e.detail.value as typeof this.fDetail)}
+          .options=${(['busy', 'titles'] as const).map((d) => ({ value: d, label: DETAIL_HE[d], attrs: { 'data-feed-detail': d } }))}></sw-segmented>` : nothing}
       ${this.error ? html`<div class="err" role="alert" data-connect-error>${this.error}</div>` : nothing}</div>
       <button slot="footer" type="button" class="btn" @click=${() => this.close()}>${tr('סגירה')}</button>
       ${this.feedsEnabled ? html`<button slot="footer" type="button" class="btn pri" data-feed-create ?disabled=${this.busy || !this.fCals.length}

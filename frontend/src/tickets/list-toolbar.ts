@@ -137,7 +137,8 @@ export const ticketToolbarStyles = css`
     min-inline-size: 160px;
     max-inline-size: 340px;
   }
-  .tb > .seg {
+  .tb > .seg,
+  .tb > sw-segmented {
     flex: none;
   }
   .pact {
@@ -359,7 +360,7 @@ export const ticketToolbarStyles = css`
   }
   @media (max-width: 1279px) {
     /* the label of the active view hides first: the icons keep their names in aria-label and title */
-    .pact .vsw button .lbl {
+    .pact .vsw::part(label) {
       display: none;
     }
   }
@@ -384,6 +385,21 @@ export const ticketToolbarStyles = css`
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    /* CR-CMP2-SEGMENTED-C-2450: the same full-width row of equal 44 px keys for sw-segmented (the handlers' segments), through its knobs */
+    .tb > sw-segmented {
+      order: 0;
+      display: flex;
+      inline-size: 100%;
+      --sw-seg-radius: var(--sw-r-xl);
+      --sw-seg-h: 44px;
+      --sw-seg-key-pad: 6px;
+      --sw-seg-key-flex: 1 1 0;
+    }
+    .tb > sw-segmented::part(label) {
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .tb .search {
       order: 1;

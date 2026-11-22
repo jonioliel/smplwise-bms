@@ -6,6 +6,8 @@ import '../components/sw-drawer';
 import '../components/sw-dialog';
 import '../components/sw-dropdown';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-state-panel';
 import '../components/frigate-review-card';
 import '../components/frigate-review-detail';
@@ -465,7 +467,6 @@ export class InvestigateReviews extends LitElement {
       box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight));
     }
     .layers button:focus-visible,
-    .seg button:focus-visible,
     .ib:focus-visible,
     .linkbtn:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
@@ -544,14 +545,13 @@ export class InvestigateReviews extends LitElement {
     /* POLISH4-WP2: the drawer's small controls answer on pointer-down (a pressed wash - a colour change, so it also holds under reduced
        motion); the touch tap flash is off */
     .dnav button,
-    .seg button,
     .ib,
     .linkbtn {
       -webkit-tap-highlight-color: transparent;
     }
     .dnav button:active:not(:disabled),
-    .seg button:active:not(:disabled),
-    .ib:active:not(:disabled) {
+    .ib:active:not(:disabled),
+    sw-segmented[data-review-view]::part(key):active {
       background: var(--sw-pressed-wash);
     }
     .linkbtn:active {
@@ -597,33 +597,14 @@ export class InvestigateReviews extends LitElement {
       white-space: nowrap;
     }
     /* the view switch and the help: a quiet segmented pair and one icon button */
-    .seg {
-      display: inline-flex;
-      gap: 2px;
-      padding: 3px;
-      border-radius: var(--sw-r-pill);
-      background: var(--sw-surface-3);
-    }
-    .seg button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      min-inline-size: 36px;
-      min-block-size: 34px;
-      padding-inline: var(--sw-s-2);
-      border: 0;
-      border-radius: var(--sw-r-pill);
-      background: transparent;
-      color: var(--sw-text-2);
-      font: inherit;
-      font-size: var(--sw-fs-xs);
-      cursor: pointer;
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-key, var(--sw-surface));
-      color: var(--sw-seg-key-ink, var(--sw-text));
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
+    /* CR-CMP2-SEGMENTED-C-2450: the view switch is sw-segmented (icon-only keys); its pill track and 36 x 34 keys through the knobs */
+    sw-segmented[data-review-view] {
+      --sw-seg-radius: var(--sw-r-pill);
+      --sw-seg-btn-radius: var(--sw-r-pill);
+      --sw-seg-h: 34px;
+      --sw-seg-key-min-w: 36px;
+      --sw-seg-ico-pad: var(--sw-s-2);
+      --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-text));
     }
     .ib {
       display: inline-flex;
@@ -864,10 +845,11 @@ export class InvestigateReviews extends LitElement {
           </button>`)}
         </div>
         <span class="grow"></span>
-        <div class="seg" role="group" aria-label=${r.view} data-review-view>
-          <button type="button" aria-pressed=${String(this.view === 'cards')} title=${r.viewCards} aria-label=${r.viewCards} data-review-view-cards @click=${() => this.setView('cards')}><sw-icon name="grid" size="15"></sw-icon></button>
-          <button type="button" aria-pressed=${String(this.view === 'table')} title=${r.viewTable} aria-label=${r.viewTable} data-review-view-table @click=${() => this.setView('table')}><sw-icon name="list" size="15"></sw-icon></button>
-        </div>
+        <sw-segmented labels="none" label=${r.view} data-review-view value=${this.view} @change=${(e: CustomEvent<SegmentedChange>) => this.setView(e.detail.value === 'table' ? 'table' : 'cards')}
+          .options=${[
+            { value: 'cards', label: r.viewCards, icon: html`<sw-icon name="grid" size="15"></sw-icon>`, attrs: { 'data-review-view-cards': '' } },
+            { value: 'table', label: r.viewTable, icon: html`<sw-icon name="list" size="15"></sw-icon>`, attrs: { 'data-review-view-table': '' } },
+          ]}></sw-segmented>
         <button type="button" class="ib" title=${r.keysTitle} aria-label=${r.keysTitle} data-review-keys @click=${() => (this.keysOpen = true)}><sw-icon name="help" size="16"></sw-icon></button>
         ${this.canReview ? html`<sw-button size="sm" icon="check" data-review-mark-shown ?disabled=${!list.items.some((i) => !i.reviewed)} @click=${() => this.markShown()}>${r.markShown}</sw-button>` : nothing}
       </div>

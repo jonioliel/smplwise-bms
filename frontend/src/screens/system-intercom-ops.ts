@@ -2,11 +2,14 @@ import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page';
+import '../components/sw-field';
 import '../components/sw-state-panel';
 import '../components/sw-kpi';
 import '../components/sw-button';
 import '../components/sw-dialog';
 import '../components/wk-ops-charts';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import { settingsStyles, settingsTabNavStyles, settingsFieldLabelStyles } from '../styles/settings';
 import { ApiError } from '../api/client';
 import type { DisplayZone } from '../api/intercom';
@@ -78,6 +81,14 @@ function failure(err: unknown): { s: 'error'; code: string; message: string; sta
  * does not offer shows as unavailable - never guessed. Each tab loads only when shown; each part says its own state (loading / empty /
  * error / ready). The page never names the intercom platform.
  */
+/** CR-CMP2-TABLES-REST-2470: a count per code (anomalies, identification methods) as table rows, in the server's order */
+const countRows = (m: Record<string, number>): Record<string, unknown>[] => Object.entries(m).map(([code, n]) => ({ code, n }));
+/** the two columns of such a table: the code's name under the section's own title, and its total as a figure */
+const countCols = (title: string, names: Record<string, string>): TableColumn<{ code: string; n: number }>[] => [
+  { key: 'code', label: title, render: (r) => he(names, r.code) },
+  { key: 'n', label: T.total, kind: 'num' },
+];
+
 @customElement('system-intercom-ops')
 export class SystemIntercomOps extends LitElement {
   @property() view = '';
@@ -159,23 +170,11 @@ export class SystemIntercomOps extends LitElement {
         margin-block-end: 12px;
       }
       ${settingsFieldLabelStyles}
-      label.f select,
-      label.f input {
-        font: inherit;
-        font-size: var(--sw-fs-md);
-        min-block-size: 40px;
-        padding: 0 10px;
-        border: 1px solid var(--sw-border-strong, var(--sw-border));
-        border-radius: var(--sw-r-md);
-        background: var(--sw-surface);
-        color: var(--sw-text);
+      /* CR-CMP2-SEGMENTED-B-2450 (owner N10): the filter selects and the search field sit in sw-field (the shared field look, native
+         controls, one look for the whole toolbar) */
+      label.f sw-field {
         min-inline-size: 0;
         max-inline-size: 100%;
-      }
-      label.f select:focus-visible,
-      label.f input:focus-visible {
-        outline: var(--sw-focus-w) solid var(--sw-focus);
-        outline-offset: 1px;
       }
       .list {
         display: grid;
@@ -363,23 +362,11 @@ export class SystemIntercomOps extends LitElement {
         grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
         gap: 16px;
       }
-      table.t {
-        inline-size: 100%;
-        border-collapse: collapse;
-        font-size: var(--sw-fs-sm);
-      }
-      table.t th,
-      table.t td {
-        text-align: start;
-        padding: 6px 8px;
-        border-block-end: 1px solid var(--sw-border);
-      }
-      table.t th {
-        color: var(--sw-text-3);
-        font-weight: var(--sw-fw-medium);
-      }
-      table.t td.n {
-        font-variant-numeric: tabular-nums;
+      /* CR-CMP2-TABLES-REST-2470 (owner N10): the report's three tables are the shared table, bare in the section (never wider than
+         their column) */
+      sw-table.t {
+        --sw-table-min: 0;
+        --sw-table-cell-pad: 7px 10px;
       }
       .exp {
         display: grid;
@@ -430,6 +417,16 @@ export class SystemIntercomOps extends LitElement {
   private get stations(): OpsStation[] {
     const s = this.overview?.summary;
     return s && s.state === 'ready' ? s.data.stations : [];
+  }
+
+  /** CR-CMP2-TABLES-REST-2470 (owner N10): the report's per-station table - the station, then its three counts as figures */
+  private stationCols(): TableColumn<{ station_id: string; granted: number; denied: number; other: number }>[] {
+    return [
+      { key: 'station_id', label: T.table.station, render: (r) => this.name(r.station_id) },
+      { key: 'granted', label: T.granted, kind: 'num' },
+      { key: 'denied', label: T.denied, kind: 'num' },
+      { key: 'other', label: T.other, kind: 'num' },
+    ];
   }
 
   private name(id: string): string {
@@ -554,10 +551,10 @@ export class SystemIntercomOps extends LitElement {
 
   private stationSelect(value: string, on: (v: string) => void, attr: string): TemplateResult {
     return html`<label class="f">${T.filterStation}
-      <select data-filter=${attr} .value=${value} @change=${(e: Event) => on((e.target as HTMLSelectElement).value)}>
+      <sw-field><select data-filter=${attr} .value=${value} @change=${(e: Event) => on((e.target as HTMLSelectElement).value)}>
         <option value="">${T.all}</option>
         ${this.stations.map((s) => html`<option value=${s.id} ?selected=${s.id === value}>${s.name}</option>`)}
-      </select></label>`;
+      </select></sw-field></label>`;
   }
 
   private meter(label: string, v: CapacityValues, attr: string): TemplateResult {
@@ -620,10 +617,10 @@ export class SystemIntercomOps extends LitElement {
       <section class="part" data-ops>
         <header><div><h2>${T.opsTitle}</h2><p class="hint">${T.opsHint}</p></div></header>
         <div class="filters">
-          <label class="f">${T.filterKind}<select data-filter="kind" .value=${f.kind} @change=${(e: Event) => set({ kind: (e.target as HTMLSelectElement).value })}>
-            ${['all', 'sync', 'bulk', 'csv'].map((k) => html`<option value=${k} ?selected=${k === f.kind}>${k === 'all' ? T.all : KIND_HE[k]}</option>`)}</select></label>
-          <label class="f">${T.filterState}<select data-filter="state" .value=${f.state} @change=${(e: Event) => set({ state: (e.target as HTMLSelectElement).value })}>
-            ${['all', 'pending', 'failed', 'verified', 'settled', 'saved'].map((k) => html`<option value=${k} ?selected=${k === f.state}>${k === 'all' ? T.all : STATE_HE[k]}</option>`)}</select></label>
+          <label class="f">${T.filterKind}<sw-field><select data-filter="kind" .value=${f.kind} @change=${(e: Event) => set({ kind: (e.target as HTMLSelectElement).value })}>
+            ${['all', 'sync', 'bulk', 'csv'].map((k) => html`<option value=${k} ?selected=${k === f.kind}>${k === 'all' ? T.all : KIND_HE[k]}</option>`)}</select></sw-field></label>
+          <label class="f">${T.filterState}<sw-field><select data-filter="state" .value=${f.state} @change=${(e: Event) => set({ state: (e.target as HTMLSelectElement).value })}>
+            ${['all', 'pending', 'failed', 'verified', 'settled', 'saved'].map((k) => html`<option value=${k} ?selected=${k === f.state}>${k === 'all' ? T.all : STATE_HE[k]}</option>`)}</select></sw-field></label>
           ${this.stationSelect(f.station_id, (v) => set({ station_id: v }), 'station')}
           <sw-button size="sm" icon="refresh" @click=${() => void this.loadOps()} data-ops-refresh>${T.refresh}</sw-button>
         </div>
@@ -734,14 +731,14 @@ export class SystemIntercomOps extends LitElement {
     return html`<section class="part" data-timeline>
       <header><div><h2>${T.invTitle}</h2><p class="hint">${T.invHint}</p></div></header>
       <div class="filters">
-        <label class="f">${T.invSource}<select data-filter="source" .value=${f.source} @change=${(e: Event) => set({ source: (e.target as HTMLSelectElement).value })}>
-          ${['all', 'access', 'change', 'sync'].map((k) => html`<option value=${k} ?selected=${k === f.source}>${k === 'all' ? T.all : SOURCE_HE[k]}</option>`)}</select></label>
+        <label class="f">${T.invSource}<sw-field><select data-filter="source" .value=${f.source} @change=${(e: Event) => set({ source: (e.target as HTMLSelectElement).value })}>
+          ${['all', 'access', 'change', 'sync'].map((k) => html`<option value=${k} ?selected=${k === f.source}>${k === 'all' ? T.all : SOURCE_HE[k]}</option>`)}</select></sw-field></label>
         ${this.stationSelect(f.station_id, (v) => set({ station_id: v }), 'station')}
-        <label class="f">${T.invFrom}<select data-filter="period" .value=${String(f.period)} @change=${(e: Event) => set({ period: Number((e.target as HTMLSelectElement).value) })}>
-          ${PERIODS.map((d) => html`<option value=${d} ?selected=${d === f.period}>${d === 1 ? tr('24 שעות') : T.days(d)}</option>`)}</select></label>
+        <label class="f">${T.invFrom}<sw-field><select data-filter="period" .value=${String(f.period)} @change=${(e: Event) => set({ period: Number((e.target as HTMLSelectElement).value) })}>
+          ${PERIODS.map((d) => html`<option value=${d} ?selected=${d === f.period}>${d === 1 ? tr('24 שעות') : T.days(d)}</option>`)}</select></sw-field></label>
         ${can.names
-          ? html`<label class="f">${T.filterSearch}<input type="search" data-filter="query" .value=${f.query} maxlength="128"
-              @change=${(e: Event) => set({ query: (e.target as HTMLInputElement).value.trim() })} /></label>`
+          ? html`<label class="f">${T.filterSearch}<sw-field><input type="search" data-filter="query" .value=${f.query} maxlength="128"
+              @change=${(e: Event) => set({ query: (e.target as HTMLInputElement).value.trim() })} /></sw-field></label>`
           : nothing}
       </div>
       ${st ??
@@ -798,12 +795,12 @@ export class SystemIntercomOps extends LitElement {
         ? html`<section class="part" data-trend>
             <header><div><h2>${T.trendTitle}${sel ? ` · ${sel.name}` : ''}</h2><p class="hint">${T.trendHint}</p></div></header>
             <div class="filters">
-              <label class="f">${T.filterStation}<select data-filter="trend-station" .value=${this.trendStation} @change=${(e: Event) => (this.trendStation = (e.target as HTMLSelectElement).value)}>
-                ${rows.map((r) => html`<option value=${r.station_id} ?selected=${r.station_id === this.trendStation}>${r.name}</option>`)}</select></label>
-              <label class="f">${tr('טווח')}<select data-filter="trend-days" .value=${String(this.trendDays)} @change=${(e: Event) => {
+              <label class="f">${T.filterStation}<sw-field><select data-filter="trend-station" .value=${this.trendStation} @change=${(e: Event) => (this.trendStation = (e.target as HTMLSelectElement).value)}>
+                ${rows.map((r) => html`<option value=${r.station_id} ?selected=${r.station_id === this.trendStation}>${r.name}</option>`)}</select></sw-field></label>
+              <label class="f">${tr('טווח')}<sw-field><select data-filter="trend-days" .value=${String(this.trendDays)} @change=${(e: Event) => {
                 this.trendDays = Number((e.target as HTMLSelectElement).value);
                 void this.loadCapacity();
-              }}>${[7, 30, 90, 365].map((d) => html`<option value=${d} ?selected=${d === this.trendDays}>${T.days(d)}</option>`)}</select></label>
+              }}>${[7, 30, 90, 365].map((d) => html`<option value=${d} ?selected=${d === this.trendDays}>${T.days(d)}</option>`)}</select></sw-field></label>
             </div>
             <wk-ops-trend-chart .points=${series} .limit=${sel?.users.limit ?? null} label=${T.table.users} .fmt=${(iso: string) => this.time(iso)}></wk-ops-trend-chart>
           </section>`
@@ -822,8 +819,8 @@ export class SystemIntercomOps extends LitElement {
       <header><div><h2>${T.evTitle}</h2><p class="hint">${T.evHint}</p></div></header>
       <div class="filters">
         ${this.stationSelect(f.station_id, (v) => set({ station_id: v }), 'station')}
-        <label class="f">${T.invFrom}<select data-filter="period" .value=${String(f.period)} @change=${(e: Event) => set({ period: Number((e.target as HTMLSelectElement).value) })}>
-          ${PERIODS.map((d) => html`<option value=${d} ?selected=${d === f.period}>${d === 1 ? tr('24 שעות') : T.days(d)}</option>`)}</select></label>
+        <label class="f">${T.invFrom}<sw-field><select data-filter="period" .value=${String(f.period)} @change=${(e: Event) => set({ period: Number((e.target as HTMLSelectElement).value) })}>
+          ${PERIODS.map((d) => html`<option value=${d} ?selected=${d === f.period}>${d === 1 ? tr('24 שעות') : T.days(d)}</option>`)}</select></sw-field></label>
       </div>
       ${st ??
       html`
@@ -839,20 +836,16 @@ export class SystemIntercomOps extends LitElement {
         <div class="two">
           <div>
             <h3>${T.byStation}</h3>
-            <table class="t" data-ev-stations>
-              <thead><tr><th scope="col">${T.table.station}</th><th scope="col">${T.granted}</th><th scope="col">${T.denied}</th><th scope="col">${T.other}</th></tr></thead>
-              <tbody>${rep!.by_station.map((r) => html`<tr><td>${this.name(r.station_id)}</td><td class="n">${r.granted}</td><td class="n">${r.denied}</td><td class="n">${r.other}</td></tr>`)}</tbody>
-            </table>
+            <sw-table class="t" bare static-rows keep-columns data-ev-stations rowKey="station_id" .columns=${this.stationCols() as unknown as TableColumn[]} .rows=${rep!.by_station as unknown as Record<string, unknown>[]}
+              .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-ev-station': String(r.station_id) })}></sw-table>
           </div>
           <div>
             <h3>${T.anomalies}</h3>
-            <table class="t" data-ev-anomalies>
-              <tbody>${Object.entries(rep!.anomalies).map(([k, n]) => html`<tr><td>${he(ANOMALY_HE, k)}</td><td class="n">${n}</td></tr>`)}</tbody>
-            </table>
+            <sw-table class="t" bare static-rows keep-columns data-ev-anomalies rowKey="code" .columns=${countCols(T.anomalies, ANOMALY_HE) as unknown as TableColumn[]} .rows=${countRows(rep!.anomalies)}
+              .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-ev-anomaly': String(r.code) })}></sw-table>
             <h3>${T.methods}</h3>
-            <table class="t" data-ev-methods>
-              <tbody>${Object.entries(rep!.methods).map(([k, n]) => html`<tr><td>${he(METHOD_HE, k)}</td><td class="n">${n}</td></tr>`)}</tbody>
-            </table>
+            <sw-table class="t" bare static-rows keep-columns data-ev-methods rowKey="code" .columns=${countCols(T.methods, METHOD_HE) as unknown as TableColumn[]} .rows=${countRows(rep!.methods)}
+              .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-ev-method': String(r.code) })}></sw-table>
           </div>
         </div>`}
     </section>`;

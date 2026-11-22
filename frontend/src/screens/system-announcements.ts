@@ -6,6 +6,8 @@ import '../components/sw-button';
 import '../components/sw-toggle';
 import '../components/sw-state-panel';
 import '../components/sw-icon';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import './system-announce-templates';
 import {
   ANNOUNCE_CATEGORIES, ANNOUNCE_LANGS, ANNOUNCE_QUIET_MODES, ANNOUNCE_SCREEN_RANGE, ANNOUNCE_TRANSLATE_TARGETS, announceAreas, announceConfig, announcePutConfig, announceSpeak, announceTest,
@@ -19,11 +21,25 @@ import { announceLang, announceText, announceUiLang } from '../i18n/announce';
 import { clampScreenNumber, patchScreen, screenTargets, type ScreenNumberField } from '../announce/model';
 import { dateInputLang } from '../api/day-format';
 import { applyAnnounceHidden } from '../shell/nav';
+import '../components/sw-field';
 
 const flash = (ms = 3000) => new Promise((r) => setTimeout(r, ms));
 /** POLISH4-WP8: the load-failure panel's heading and retry key (the error itself is the hint); the tab's four languages */
 const LOAD_FAILED: Record<string, string> = { he: 'לא הצלחנו לקרוא את הגדרות ההכרזות', en: 'The announcement settings could not be read', ru: 'Не удалось загрузить настройки объявлений', ar: 'تعذّر تحميل إعدادات الإعلانات' };
 const RETRY: Record<string, string> = { he: 'נסו שוב', en: 'Try again', ru: 'Повторить', ar: 'حاول مرة أخرى' };
+
+type HistoryRow = AnnounceConfigAnswer['history'][number];
+/** CR-CMP2-TABLES-REST-2470 (owner N10 / N21): an attempt's outcome in the shared status tones - spoken ok, failed bad, held back warn,
+ * still on its way info, cancelled neutral */
+const HISTORY_TONE: Record<string, string> = { sent: 'ok', failed: 'bad', limited: 'warn', refused: 'warn', pending: 'info', queued: 'info' };
+/** CR-CMP2-TABLES-REST-2470: the last attempts on the shared table - when, source, the text (one line, its full text the cell's title), the
+ * outcome chip. The phone row (< 600 px) is "when · [outcome]" over the source, the text under it. */
+const historyColumns = (t: ReturnType<typeof announceText>): TableColumn<HistoryRow>[] => [
+  { key: 'at', label: t.colWhen, card: 'title', render: (h) => html`<span class="num">${new Intl.DateTimeFormat(localeFor(announceLang()), { dateStyle: 'short', timeStyle: 'short' }).format(new Date(h.at))}</span>` },
+  { key: 'source', label: t.colSource, kind: 'muted', card: 'meta', render: (h) => t.src[h.source] ?? h.source },
+  { key: 'message', label: t.colText, kind: 'truncate', card: 'show', cellTitle: (h) => h.message, render: (h) => h.message },
+  { key: 'status', label: t.colStatus, kind: 'status', card: 'badge', render: (h) => html`<span class="chip" data-tone=${HISTORY_TONE[h.status] ?? nothing}>${t.status[h.status] ?? h.status}</span>` },
+];
 
 /**
  * MU2 הגדרות › מולטימדיה › "הכרזות קוליות" (administrator, `system.configure`; local network only): the switch, the speech engine, the language,
@@ -51,12 +67,14 @@ export class SystemAnnouncements extends LitElement {
     .row:last-child { border-block-end: 0; }
     .lbl { display: flex; flex-direction: column; gap: 2px; min-inline-size: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-medium); }
     .muted { font-size: var(--sw-fs-xs); color: var(--sw-text-3); font-weight: var(--sw-fw-regular); }
-    input[type='text'], input[type='number'], input[type='time'], select {
+    /* CR-CMP2-SELECTS-2450 (owner N10): the selects sit in sw-field (the shared field look); the inputs keep this rule */
+    input[type='text'], input[type='number'], input[type='time'] {
       box-sizing: border-box; min-block-size: 36px; padding-inline: 10px; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm);
       background: var(--sw-surface); color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); max-inline-size: 100%;
     }
     input[type='text'] { inline-size: 260px; }
     input[data-ltr] { direction: ltr; text-align: start; }
+    sw-field > select { min-block-size: 36px; } /* the row's inputs are 36 px: the field keeps the row even */
     input[type='number'], input[type='time'] { inline-size: 90px; }
     .grow { flex: 1; min-inline-size: 200px; inline-size: auto; }
     .inl { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -68,25 +86,20 @@ export class SystemAnnouncements extends LitElement {
       padding: 6px 14px; border-radius: var(--sw-r-pill); background: var(--sw-success-soft); color: var(--sw-success-text); font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-medium); box-shadow: var(--sw-shadow-2); }
     .err { padding: 10px 12px; border-radius: var(--sw-r-md); background: var(--sw-danger-soft); color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
-    table { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-sm); }
-    th, td { text-align: start; padding: 6px 8px; border-block-end: 1px solid var(--sw-border); }
-    td.msg { max-inline-size: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* CR-CMP2-TABLES-REST-2470 (owner N10): the history is the shared table inside its card - no second card, never wider than the card,
+       the text cut at the old 280 px */
+    sw-table[data-announce-history] { --sw-table-min: 0; --sw-table-trunc: 280px; --sw-table-cell-pad: 8px 10px; }
     label.pick { cursor: pointer; }
     label.pick input { inline-size: 18px; block-size: 18px; margin: 0; accent-color: var(--sw-accent); }
-    input:focus-visible, select:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; }
+    input:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; }
     @media (pointer: coarse) {
-      input[type='text'], input[type='number'], input[type='time'], select, label.pick { min-block-size: 44px; }
+      input[type='text'], input[type='number'], input[type='time'], sw-field > select, label.pick { min-block-size: 44px; }
     }
     @media (max-width: 600px) { input[type='text'] { inline-size: 100%; } }
-    /* the phone: a history entry is two lines (when, source and status, then the message in full) instead of a four-column row that ran
-       off the card; a row's controls take the full width under their label */
+    /* the phone: a row's controls take the full width under their label (the history rows are the shared table's phone rows) */
     @media (max-width: 767px) {
       .row > .inl { inline-size: 100%; }
-      .row > .inl > select { flex: 1 1 140px; min-inline-size: 0; }
-      table[data-announce-history] tr { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 2px 10px; padding-block: 8px; border-block-end: 1px solid var(--sw-border); }
-      table[data-announce-history] td { padding: 0; border: 0; }
-      table[data-announce-history] td.msg { grid-column: 1 / -1; grid-row: 2; max-inline-size: none; white-space: normal; overflow-wrap: anywhere; color: var(--sw-text-2); }
-      table[data-announce-history] td:last-child { justify-self: end; }
+      .row > .inl > sw-field { flex: 1 1 140px; min-inline-size: 0; }
     }
   `];
 
@@ -181,8 +194,8 @@ export class SystemAnnouncements extends LitElement {
         <div class="row"><span class="lbl">${t.to}</span>
           <input type="time" lang=${dateInputLang()} data-announce-quiet-to .value=${q.to} @change=${(e: Event) => void this.save({ quiet: { to: (e.target as HTMLInputElement).value } })} /></div>
         <div class="row"><span class="lbl">${t.mode}</span>
-          <select data-announce-quiet-mode aria-label=${t.mode} @change=${(e: Event) => void this.save({ quiet: { mode: (e.target as HTMLSelectElement).value as AnnounceQuietMode } })}>
-            ${ANNOUNCE_QUIET_MODES.map((m) => html`<option value=${m} ?selected=${q.mode === m}>${{ suppress: t.modeSuppress, lower: t.modeLower, queue: t.modeQueue, allow: t.modeAllow }[m]}</option>`)}</select></div>
+          <sw-field><select data-announce-quiet-mode aria-label=${t.mode} @change=${(e: Event) => void this.save({ quiet: { mode: (e.target as HTMLSelectElement).value as AnnounceQuietMode } })}>
+            ${ANNOUNCE_QUIET_MODES.map((m) => html`<option value=${m} ?selected=${q.mode === m}>${{ suppress: t.modeSuppress, lower: t.modeLower, queue: t.modeQueue, allow: t.modeAllow }[m]}</option>`)}</select></sw-field></div>
         ${q.mode === 'lower' ? html`<div class="row"><span class="lbl">${t.nightVolume}</span>
           <input type="number" min="0" max="100" data-announce-night-volume .value=${q.night_volume === null ? '' : String(q.night_volume)} @change=${(e: Event) => void this.save({ quiet: { night_volume: this.pct(e) } })} /></div>` : nothing}
       </sw-card>
@@ -190,12 +203,12 @@ export class SystemAnnouncements extends LitElement {
         <div class="row"><span class="lbl">${t.routingEnabled}<span class="muted">${t.routingHint}</span></span>
           <sw-toggle label=${t.routingEnabled} labelHidden .checked=${n.enabled} data-announce-routing-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ notify: { enabled: e.detail.checked } })}></sw-toggle></div>
         <div class="row"><span class="lbl">${t.routingRoom}</span>
-          <select data-announce-routing-room aria-label=${t.routingRoom} @change=${(e: Event) => void this.save({ notify: { scope: 'area', ref: (e.target as HTMLSelectElement).value } })}>
+          <sw-field><select data-announce-routing-room aria-label=${t.routingRoom} @change=${(e: Event) => void this.save({ notify: { scope: 'area', ref: (e.target as HTMLSelectElement).value } })}>
             <option value="" ?selected=${!rooms.some((r) => r.id === n.ref)}>${t.routingNone}</option>
-            ${rooms.map((r) => html`<option value=${r.id} ?selected=${n.scope === 'area' && r.id === n.ref}>${r.name}</option>`)}</select></div>
+            ${rooms.map((r) => html`<option value=${r.id} ?selected=${n.scope === 'area' && r.id === n.ref}>${r.name}</option>`)}</select></sw-field></div>
         <div class="row"><span class="lbl">${t.minSeverity}</span>
-          <select data-announce-routing-severity aria-label=${t.minSeverity} @change=${(e: Event) => void this.save({ notify: { min_severity: (e.target as HTMLSelectElement).value as 'info' | 'alert' | 'critical' } })}>
-            ${(['info', 'alert', 'critical'] as const).map((s) => html`<option value=${s} ?selected=${n.min_severity === s}>${t.severity[s]}</option>`)}</select></div>
+          <sw-field><select data-announce-routing-severity aria-label=${t.minSeverity} @change=${(e: Event) => void this.save({ notify: { min_severity: (e.target as HTMLSelectElement).value as 'info' | 'alert' | 'critical' } })}>
+            ${(['info', 'alert', 'critical'] as const).map((s) => html`<option value=${s} ?selected=${n.min_severity === s}>${t.severity[s]}</option>`)}</select></sw-field></div>
         <div class="row"><span class="lbl">${t.categories}</span>
           <span class="inl">${ANNOUNCE_CATEGORIES.map((c) => html`<label class="pick"><input type="checkbox" data-announce-routing-category=${c} .checked=${n.categories.includes(c)}
             @change=${(e: Event) => void this.save({ notify: { categories: ANNOUNCE_CATEGORIES.filter((x) => (x === c ? (e.target as HTMLInputElement).checked : n.categories.includes(x))) } })} />${t.category[c]}</label>`)}</span></div>
@@ -240,12 +253,12 @@ export class SystemAnnouncements extends LitElement {
         <label class="pick"><input type="checkbox" .checked=${o.allowed} data-announce-screen-allow @change=${(e: Event) => apply(o.key, { allowed: (e.target as HTMLInputElement).checked })} />${o.name}
           <span class="muted">${o.kind === 'board' ? t.screensKindBoard : t.screensKindWall}</span></label>
         <span class="inl">
-          <select data-announce-screen-area aria-label=${t.screensArea} ?disabled=${!o.allowed} @change=${(e: Event) => apply(o.key, { area_id: (e.target as HTMLSelectElement).value || null })}>
+          <sw-field><select data-announce-screen-area aria-label=${t.screensArea} ?disabled=${!o.allowed} @change=${(e: Event) => apply(o.key, { area_id: (e.target as HTMLSelectElement).value || null })}>
             <option value="" ?selected=${!o.area_id}>${t.screensNoArea}</option>
-            ${rooms.map((r) => html`<option value=${r.id} ?selected=${r.id === o.area_id}>${r.name}</option>`)}</select>
-          <select data-announce-screen-device aria-label=${t.screensDevice} ?disabled=${!o.allowed} @change=${(e: Event) => apply(o.key, { device_key: (e.target as HTMLSelectElement).value || null })}>
+            ${rooms.map((r) => html`<option value=${r.id} ?selected=${r.id === o.area_id}>${r.name}</option>`)}</select></sw-field>
+          <sw-field><select data-announce-screen-device aria-label=${t.screensDevice} ?disabled=${!o.allowed} @change=${(e: Event) => apply(o.key, { device_key: (e.target as HTMLSelectElement).value || null })}>
             <option value="" ?selected=${!o.device_key}>${t.screensNoDevice}</option>
-            ${devices.map((x) => html`<option value=${x.key} ?selected=${x.key === o.device_key}>${x.name}</option>`)}</select>
+            ${devices.map((x) => html`<option value=${x.key} ?selected=${x.key === o.device_key}>${x.name}</option>`)}</select></sw-field>
         </span></div>`) : html`<div class="muted" data-announce-screens-none>${t.screensNone}</div>`}
     </sw-card>`;
   }
@@ -259,10 +272,10 @@ export class SystemAnnouncements extends LitElement {
     const when = tc.approval ? new Intl.DateTimeFormat(localeFor(announceLang()), { dateStyle: 'short', timeStyle: 'short' }).format(new Date(tc.approval.at)) : '';
     return html`<sw-card heading=${t.translateCard} subheading=${t.translateHint} data-announce-translate-card>
       <div class="row"><span class="lbl">${t.translateProvider}</span>
-        <select data-announce-translate-provider aria-label=${t.translateProvider} @change=${(e: Event) => void this.save({ translate: { provider: (e.target as HTMLSelectElement).value, ...(tc.enabled ? { enabled: false } : {}) } })}>
+        <sw-field><select data-announce-translate-provider aria-label=${t.translateProvider} @change=${(e: Event) => void this.save({ translate: { provider: (e.target as HTMLSelectElement).value, ...(tc.enabled ? { enabled: false } : {}) } })}>
           <option value="off" ?selected=${tc.provider === 'off'}>${t.translateProviderOff}</option>
           <option value="google" ?selected=${tc.provider === 'google'}>${t.translateProviderGoogle}</option>
-          <option value="cloud" ?selected=${tc.provider === 'cloud'}>${t.translateProviderCloud}</option></select></div>
+          <option value="cloud" ?selected=${tc.provider === 'cloud'}>${t.translateProviderCloud}</option></select></sw-field></div>
       <div class="row"><span class="lbl">${t.translateApprove}${approved ? html`<span class="muted" data-announce-translate-approved>${t.translateApprovedBy} ${tc.approval?.by ?? '—'} · ${when}</span>` : html`<span class="muted">${t.translateNotApproved}</span>`}</span>
         <sw-button size="sm" data-announce-translate-approve ?disabled=${tc.provider === 'off' || approved} @click=${() => void this.save({ translate: { approve: true } })}>${t.translateApproveAction}</sw-button></div>
       <div class="row"><span class="lbl">${t.translateEnabled}${tc.provider === 'cloud' ? html`<span class="muted" data-announce-translate-key>${tc.key_set ? t.cloudKeySet : t.cloudKeyMissing}</span>` : nothing}</span>
@@ -322,9 +335,9 @@ export class SystemAnnouncements extends LitElement {
         <div class="row"><span class="lbl">${t.enabled}<span class="muted">${t.enabledHint}</span></span>
           <sw-toggle label=${t.enabled} labelHidden .checked=${cf.enabled} data-announce-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ enabled: e.detail.checked })}></sw-toggle></div>
         <div class="row"><span class="lbl">${t.engine}<span class="muted">${t.engineHint}</span>${(d.engine_info ?? []).some((x) => x.entity_id === cf.engine && x.cloud) ? html`<span class="muted" data-announce-cloud-warn>${t.engineCloudWarn}</span>` : nothing}</span>
-          <select data-ltr data-announce-engine aria-label=${t.engine} @change=${(e: Event) => void this.save({ engine: (e.target as HTMLSelectElement).value })}>
+          <sw-field><select data-ltr data-announce-engine aria-label=${t.engine} @change=${(e: Event) => void this.save({ engine: (e.target as HTMLSelectElement).value })}>
             <option value="" ?selected=${cf.engine === ''}>—</option>
-            ${[...new Set([...d.engines, ...(cf.engine ? [cf.engine] : [])])].map((x) => html`<option value=${x} ?selected=${x === cf.engine}>${(d.engine_info ?? []).find((i) => i.entity_id === x)?.name ?? x}</option>`)}</select></div>
+            ${[...new Set([...d.engines, ...(cf.engine ? [cf.engine] : [])])].map((x) => html`<option value=${x} ?selected=${x === cf.engine}>${(d.engine_info ?? []).find((i) => i.entity_id === x)?.name ?? x}</option>`)}</select></sw-field></div>
         <div class="row"><span class="lbl">${t.emergencyLangs}</span>
           <span class="inl">${ANNOUNCE_LANGS.map((l) => html`<label class="pick"><input type="checkbox" data-announce-emergency-lang=${l} .checked=${(cf.emergency_languages ?? []).includes(l)}
             @change=${(e: Event) => void this.save({ emergency_languages: this.emergencyLangs(l, (e.target as HTMLInputElement).checked) })} />${t.langName[l]}</label>`)}</span></div>
@@ -344,17 +357,15 @@ export class SystemAnnouncements extends LitElement {
       <sw-card heading=${t.speakers} subheading=${t.speakersHint}>${this.speakerRows(t)}</sw-card>
       ${this.areas.length ? html`<sw-card heading=${t.say} data-announce-now>
         <div class="row">
-          <span class="inl"><select data-announce-room @change=${(e: Event) => (this.room = (e.target as HTMLSelectElement).value)} aria-label=${t.room}>${this.areas.map((a) => html`<option value=${a.area_id} ?selected=${a.area_id === this.room}>${[a.floor_name, a.name].filter(Boolean).join(' · ')}</option>`)}</select>
+          <span class="inl"><sw-field><select data-announce-room @change=${(e: Event) => (this.room = (e.target as HTMLSelectElement).value)} aria-label=${t.room}>${this.areas.map((a) => html`<option value=${a.area_id} ?selected=${a.area_id === this.room}>${[a.floor_name, a.name].filter(Boolean).join(' · ')}</option>`)}</select></sw-field>
           <input type="text" class="grow" maxlength=${cf.max_text} data-announce-text aria-label=${t.text} .value=${this.text} @input=${(e: Event) => (this.text = (e.target as HTMLInputElement).value)} />
           <input type="number" min="0" max="100" data-announce-send-volume aria-label=${t.volume} placeholder="%" .value=${this.vol} @input=${(e: Event) => (this.vol = (e.target as HTMLInputElement).value)} /></span>
           <sw-button size="sm" variant="primary" icon="check" data-announce-send ?disabled=${!this.text.trim() || !this.room || this.busy !== ''}
             @click=${() => void this.run('send', async () => { await announceSpeak({ scope: 'area', ref: this.room, text: this.text, ...(this.vol.trim() === '' ? {} : { volume: Number(this.vol) }) }); this.text = ''; })}>${t.send}</sw-button>
         </div></sw-card>` : nothing}
       <sw-card heading=${t.history}>
-        ${d.history.length ? html`<table data-announce-history><tbody>${d.history.map((h) => html`<tr>
-          <td>${new Intl.DateTimeFormat(localeFor(announceLang()), { dateStyle: 'short', timeStyle: 'short' }).format(new Date(h.at))}</td>
-          <td>${t.src[h.source] ?? h.source}</td><td class="msg">${h.message}</td><td>${t.status[h.status] ?? h.status}</td></tr>`)}</tbody></table>`
-          : html`<div class="muted">${t.empty}</div>`}
+        <sw-table bare static-rows data-announce-history .columns=${historyColumns(t) as unknown as TableColumn[]} .rows=${d.history as unknown as Record<string, unknown>[]}
+          .rowAttrs=${(h: Record<string, unknown>) => ({ 'data-announce-row': String(h.id), 'data-status': String(h.status) })}><div slot="empty" class="muted" data-announce-empty>${t.empty}</div></sw-table>
       </sw-card>
       ${this.saved ? html`<div class="ok" role="status"><sw-icon name="check" size="16"></sw-icon>${this.saved}</div>` : nothing}
     </div>`;

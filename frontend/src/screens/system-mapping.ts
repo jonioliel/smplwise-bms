@@ -2,6 +2,8 @@ import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-card';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-dialog';
@@ -219,36 +221,6 @@ export class SystemMapping extends LitElement {
     .set .h {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
-    }
-    .seg {
-      display: inline-flex;
-      flex-wrap: wrap;
-      gap: 2px;
-      padding: 2px;
-      border-radius: var(--sw-r-md);
-      background: var(--sw-surface-2);
-      inline-size: fit-content;
-      max-inline-size: 100%;
-    }
-    .seg button {
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      border: 0;
-      background: none;
-      color: var(--sw-text-2);
-      padding: 6px 12px;
-      min-block-size: 34px;
-      border-radius: calc(var(--sw-r-md) - 2px);
-      cursor: pointer;
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-key, var(--sw-surface));
-      color: var(--sw-seg-key-ink, var(--sw-heading));
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
-      font-weight: var(--sw-fw-semibold);
-    }
-    .seg button:disabled {
-      cursor: not-allowed;
     }
     .msg {
       font-size: var(--sw-fs-sm);
@@ -494,8 +466,9 @@ export class SystemMapping extends LitElement {
     const d = this.data!;
     const row = <K extends keyof MappingSettings>(k: K) => html`<div class="set" data-mapping-setting=${k}>
       <span class="l">${SETTING_TEXT[k].label}</span><span class="h">${SETTING_TEXT[k].hint}</span>
-      <span class="seg" role="group" aria-label=${SETTING_TEXT[k].label}>${(MAPPING_SETTING_CHOICES[k] as readonly MappingSettings[K][]).map((v) => html`<button type="button" aria-pressed=${String(d.settings[k] === v)} data-mapping-option=${v}
-        @click=${() => void this.setSetting(k, v)}>${(SETTING_TEXT[k].options as Record<string, string>)[v as string]}</button>`)}</span></div>`;
+      <sw-segmented label=${SETTING_TEXT[k].label} value=${String(d.settings[k])}
+        @change=${(e: CustomEvent<SegmentedChange>) => { const v = (MAPPING_SETTING_CHOICES[k] as readonly MappingSettings[K][]).find((x) => String(x) === e.detail.value); if (v !== undefined) void this.setSetting(k, v); }}
+        .options=${(MAPPING_SETTING_CHOICES[k] as readonly MappingSettings[K][]).map((v) => ({ value: String(v), label: (SETTING_TEXT[k].options as Record<string, string>)[v as string], attrs: { 'data-mapping-option': String(v) } }))}></sw-segmented></div>`;
     return html`<sw-card heading=${tr('איך המיפוי מתנהג')} data-mapping-settings>${row('floor_inherit')}${row('auto_insert')}${row('new_token')}${this.renderReach()}</sw-card>`;
   }
 
@@ -508,8 +481,8 @@ export class SystemMapping extends LitElement {
     return html`<div class="set" data-mapping-setting="building_reach">
       <span class="l">${tr('הרשאת בניין לפי')}</span>
       <span class="h">${cur === 'map_and_mapping' ? tr('מי שקיבל הרשאה לבניין שולט בהתקנים שמוצבים במפות הקומות שלו, וגם בהתקנים שהאזור שלהם ממופה לבניין.') : tr('מי שקיבל הרשאה לבניין שולט בהתקנים שמוצבים במפות הקומות שלו בלבד.')} ${tr('חל רק כשריבוי בניינים פעיל.')}${d.can_set_reach ? '' : ` ${tr('רק מנהל הרשאות יכול לשנות.')}`}</span>
-      <span class="seg" role="group" aria-label=${tr('הרשאת בניין לפי')}>${BUILDING_REACH_CHOICES.map((v) => html`<button type="button" aria-pressed=${String(cur === v)} data-mapping-option=${v} ?disabled=${!can}
-        @click=${() => void this.setReach(v)}>${BUILDING_REACH_TEXT[v]}</button>`)}</span></div>`;
+      <sw-segmented label=${tr('הרשאת בניין לפי')} value=${cur} ?disabled=${!can} @change=${(e: CustomEvent<SegmentedChange>) => void this.setReach(e.detail.value as (typeof BUILDING_REACH_CHOICES)[number])}
+        .options=${BUILDING_REACH_CHOICES.map((v) => ({ value: v, label: BUILDING_REACH_TEXT[v], attrs: { 'data-mapping-option': v } }))}></sw-segmented></div>`;
   }
 
   private async setReach(mode: BuildingReach) {

@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-card';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-state-panel';
@@ -212,8 +214,8 @@ export class TicketsMessageTemplates extends LitElement {
     return html`<div class="pick" data-template-picker>
       <label class="fld">${mtt('tplPurpose')}<select class="in" data-template-purpose @change=${(e: Event) => this.choose({ purpose: (e.target as HTMLSelectElement).value as MessagePurpose })}>
         ${v.purposes.map((p) => html`<option value=${p} ?selected=${p === this.purpose}>${purposeLabel(p)}</option>`)}</select></label>
-      <span class="seg" role="radiogroup" aria-label=${mtt('tplLang')}>${v.langs.map((l) => html`<button type="button" role="radio" aria-pressed=${String(l === this.tplLang)}
-        aria-checked=${String(l === this.tplLang)} data-template-lang=${l} @click=${() => this.choose({ lang: l })}>${mtt(`lang_${l}` as MessageTextKey)}</button>`)}</span>
+      <sw-segmented radio label=${mtt('tplLang')} value=${this.tplLang} @change=${(e: CustomEvent<SegmentedChange>) => this.choose({ lang: e.detail.value as typeof this.tplLang })}
+        .options=${v.langs.map((l) => ({ value: l, label: mtt(`lang_${l}` as MessageTextKey), attrs: { 'data-template-lang': l } }))}></sw-segmented>
       <label class="fld">${mtt('tplDept')}<select class="in" data-template-dept @change=${(e: Event) => this.choose({ dept: (e.target as HTMLSelectElement).value })}>
         <option value="" ?selected=${!this.dept}>${mtt('tplAllDepts')}</option>
         ${v.departments.map((d) => html`<option value=${d.id} ?selected=${d.id === this.dept}>${bidi(d.name)}</option>`)}</select></label>

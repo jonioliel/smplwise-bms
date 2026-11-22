@@ -1,8 +1,12 @@
 import { LitElement, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../../components/sw-icon';
+import '../../components/sw-segmented';
+import type { SegmentedChange } from '../../components/sw-segmented';
 import '../../components/sw-button';
 import '../../components/sw-state-panel';
+import '../../components/sw-table';
+import type { TableColumn } from '../../components/sw-table';
 import { describeError } from '../../api/client';
 import { DEFAULT_RULES, nightFlows, readableAlerts, water, type Consumption, type LeakRules, type Meter, type WaterEvent } from '../../api/water';
 import { navigate } from '../../router';
@@ -57,6 +61,43 @@ function usageBars(c: Consumption, r: Range, rules: Pick<LeakRules, 'night_from'
     by.set(k, e);
   }
   return [...by.entries()].map(([k, e]) => ({ label: String(e.d.getDate()), value: e.value, night: e.night, leak: leakDays.has(k), title: `${p2(e.d.getDate())}.${p2(e.d.getMonth() + 1)}: ${fmtM3(e.value)} ${wt('m3')}, ${wt('night')} ${Math.round(e.night * 1000)} ${wt('litre')}` }));
+}
+
+type UsageItem = Consumption['items'][number];
+
+/** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): the per-meter table as the shared sw-table (read-only; row hook `data-meter`) - the name,
+ * the area (its floor steps out below 1024 px), the usage (an LTR figure at the reading end), the share bar (its look through the
+ * `share` / `share-track` / `share-fill` parts), the change against the previous range (a rise in the danger ink, a fall in the success
+ * ink: the `up` / `down` parts) and the night flow. The table is the page's last card and its scroll box (the header row stays in place). */
+function usageColumns(o: {
+  byM: Map<string, Meter>;
+  night: Record<string, number | null | 'off'>;
+  change: (l: number | null, p: number | null) => number | null;
+  sign: (v: number | null) => string;
+}): TableColumn<UsageItem>[] {
+  return [
+    { key: 'name', label: wt('colName'), render: (i) => html`<b>${i.display_name}</b>` },
+    { key: 'area', label: wt('colArea'), render: (i) => html`${i.area_name ?? '-'}<span class="mut hb-tablet">${i.floor_name ? ` · ${i.floor_name}` : ''}</span>` },
+    { key: 'usage', label: wt('colUsage'), kind: 'num', render: (i) => fmtM3(i.litres === null ? null : i.litres / 1000) },
+    {
+      key: 'share',
+      label: wt('colShare'),
+      render: (i) => {
+        const share = i.share === null ? 0 : Math.round(i.share * 100);
+        return html`<span part="share"><i part="share-track"><b part="share-fill" style="width:${share}%"></b></i><span class="num mut">${share}%</span></span>`;
+      },
+    },
+    {
+      key: 'vs',
+      label: wt('colVsPrev'),
+      kind: 'num',
+      render: (i) => {
+        const ch = o.change(i.litres, i.previous_litres);
+        return html`<span part=${ch === null || ch === 0 ? nothing : ch > 0 ? 'up' : 'down'}>${o.sign(ch)}</span>`;
+      },
+    },
+    { key: 'night', label: wt('colNight'), kind: 'num', render: (i) => (o.byM.has(i.meter_id) ? nightText(o.night[i.meter_id]) : '-') },
+  ];
 }
 
 /**
@@ -156,7 +197,8 @@ export class WaterUsagePage extends LitElement {
 
   private renderHead() {
     return html`<div class="row head">
-      <div class="seg ranges" role="group" aria-label=${wt('range')} data-ranges>${(['today', '7d', '30d', 'prev'] as Range[]).map((r) => html`<button type="button" aria-pressed=${this.range === r ? 'true' : 'false'} data-range=${r} @click=${() => this.setRange(r)}>${wt(RANGE_KEY[r])}</button>`)}</div>
+      <sw-segmented class="ranges" label=${wt('range')} data-ranges value=${this.range} @change=${(e: CustomEvent<SegmentedChange>) => this.setRange(e.detail.value as Range)}
+        .options=${(['today', '7d', '30d', 'prev'] as Range[]).map((r) => ({ value: r, label: wt(RANGE_KEY[r]), attrs: { 'data-range': r } }))}></sw-segmented>
       <span class="sp"></span>
       <sw-button icon="download" data-csv ?disabled=${this.phase !== 'ready' || !this.data?.items.length} @click=${() => this.csv()}>${wt('csv')}</sw-button>
     </div>`;
@@ -206,16 +248,9 @@ export class WaterUsagePage extends LitElement {
           <div class="legend"><span><i style="background:var(--sw-accent)"></i>${wt('legendDay')}</span><span><i style="background:color-mix(in srgb, var(--sw-heading, var(--sw-text)) 55%, var(--sw-surface-3))"></i>${wt('legendNight', { w })}</span><span><i style="background:var(--sw-danger)"></i>${wt('legendLeak')}</span></div></div>
         <div class="usage-chart" data-usage-chart>${waterBarChart(bars, `${wt('dailyUsage')} · ${wt(RANGE_KEY[this.range])}`, (v) => v.toFixed(v < 10 ? 2 : 1), this.chartW)}</div>
       </div>
-      <div class="card flush scrollx desk-only fitbox"><table class="t" data-usage-table>
-        <thead><tr><th>${wt('colName')}</th><th>${wt('colArea')}</th><th class="n">${wt('colUsage')}</th><th>${wt('colShare')}</th><th class="n">${wt('colVsPrev')}</th><th class="n">${wt('colNight')}</th></tr></thead>
-        <tbody>${items.map((i) => {
-          const ch = change(i.litres, i.previous_litres);
-          const share = i.share === null ? 0 : Math.round(i.share * 100);
-          return html`<tr data-meter=${i.meter_id}><td class="b">${i.display_name}</td><td>${i.area_name ?? '-'}<span class="mut dsk">${i.floor_name ? ` · ${i.floor_name}` : ''}</span></td>
-            <td class="n"><span class="num">${fmtM3(i.litres === null ? null : i.litres / 1000)}</span></td>
-            <td><span class="share"><i><b style="width:${share}%"></b></i><span class="num mut">${share}%</span></span></td>
-            <td class="n ${cls(ch)}"><span class="num">${sign(ch)}</span></td><td class="n"><span class="num">${byM.has(i.meter_id) ? nightText(this.night[i.meter_id]) : '-'}</span></td></tr>`;
-        })}</tbody></table></div>
+      <sw-table class="t card flush desk-only fitbox" static-rows data-usage-table .rows=${items as unknown as Record<string, unknown>[]}
+        .columns=${usageColumns({ byM, night: this.night, change, sign }) as unknown as TableColumn[]}
+        .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-meter': String(r.meter_id) })}></sw-table>
       <div class="list phone-only" style="flex-direction:column" data-usage-rows>${items.map((i) => {
         const ch = change(i.litres, i.previous_litres);
         return html`<div class="li"><div class="grow"><div class="t1">${i.display_name}</div><div class="t2">${i.area_name ?? ''} · <span class="num">${i.share === null ? 0 : Math.round(i.share * 100)}%</span> · ${wt('vsPrevShort')} <span class="num ${cls(ch)}">${sign(ch)}</span> · ${wt('night')} ${nightText(this.night[i.meter_id])}</div></div>

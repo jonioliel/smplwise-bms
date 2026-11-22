@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { liftToTopLayer, liftedHostReset } from '../components/top-layer';
 import { tr } from '../i18n/msg/media';
+import { ToastController } from '../components/toast-controller';
 
 /**
  * CR-020 S2: the short toast after a stream change. "נשמר" with "בטל" for 10 seconds (the press on "בטל" IS the confirmation of the
@@ -18,7 +19,8 @@ export class NvrUndoToast extends LitElement {
   @property() linkHref = '';
   @property({ type: Number }) duration = 10_000;
   @property({ type: Boolean }) busy = false;
-  private timer: ReturnType<typeof setTimeout> | null = null;
+  /** CR-CMP2-SELECTS-2450 (07:F12): the shared clock; the text stays the parent's `message`, the clock only says when it ran out. */
+  private readonly clock = new ToastController(this, { onExpire: () => this.dispatchEvent(new CustomEvent('dismiss', { bubbles: true, composed: true })) });
 
   static styles = [liftedHostReset, css`
     :host {
@@ -77,20 +79,14 @@ export class NvrUndoToast extends LitElement {
   `];
 
   private arm() {
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = this.duration > 0 ? setTimeout(() => this.dispatchEvent(new CustomEvent('dismiss', { bubbles: true, composed: true })), this.duration) : null;
+    this.clock.clear();
+    if (this.message) this.clock.show(this.message, { ms: this.duration > 0 ? this.duration : 0 });
   }
 
   protected updated(changed: PropertyValues) {
     if (changed.has('message') || changed.has('duration')) this.arm();
     // DIALOG-TOPLAYER-2381: the undo stays readable and pressable above an sw-dialog opened during its 10 s (e.g. the next confirmation)
     if (this.message) liftToTopLayer(this);
-  }
-
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = null;
   }
 
   render() {

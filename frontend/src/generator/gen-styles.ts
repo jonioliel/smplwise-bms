@@ -101,6 +101,26 @@ export const genCss = css`
     background: var(--sw-surface-3);
     color: var(--sw-text-2);
   }
+  /* CR-CMP2-TABLES-GENMAINT-2450 (owner N10): the generator's data tables are the shared sw-table (data-gen-table). It keeps the module's
+     header band, reading size and 12 px cells (table.t), is never wider than its card (no sideways scroll), and its cells wrap as table.t's
+     did - figures, status chips and the row's keys stay on one line. A table inside a card is "bare". */
+  sw-table[data-gen-table] {
+    --sw-table-min: 0;
+    --sw-table-head-bg: var(--sw-surface-2);
+    --sw-table-cell-pad: 12px;
+    --sw-table-fs: var(--sw-fs-md);
+  }
+  :host([data-skin='bubble']) sw-table[data-gen-table] {
+    --sw-table-head-bg: transparent;
+  }
+  sw-table[data-gen-table]::part(cell) {
+    white-space: normal;
+  }
+  sw-table[data-gen-table]::part(cell-num),
+  sw-table[data-gen-table]::part(cell-status),
+  sw-table[data-gen-table]::part(cell-actions) {
+    white-space: nowrap;
+  }
 
   /* power flow */
   svg.flow {
@@ -358,24 +378,6 @@ export const genCss = css`
   .stale {
     opacity: 0.55;
     filter: grayscale(0.5);
-  }
-  .pbar {
-    block-size: 6px;
-    border-radius: var(--sw-r-pill);
-    background: var(--sw-surface-3);
-    overflow: hidden;
-    min-inline-size: 70px;
-  }
-  .pbar i {
-    display: block;
-    block-size: 100%;
-    background: var(--sw-accent);
-  }
-  .pbar i.warn {
-    background: var(--sw-warning);
-  }
-  .pbar i.err {
-    background: var(--sw-danger);
   }
   .last-seen {
     font-size: var(--sw-fs-sm);
@@ -707,33 +709,23 @@ export const genCss = css`
     resize: vertical;
   }
 
-  /* routing */
-  table.routing th.c,
-  table.routing td.c {
-    text-align: center;
+  /* routing - CR-CMP2-GEN-REST-2460 (owner N10): the severity defaults and the alert-type matrix are the shared sw-table (group heading rows,
+     the "on" switch a sw-toggle). The recipient / channel chips keep the module look: the phone list and the drawers reach them by class,
+     the tables (a module class does not reach their shadow root) by part. A type that is off is dimmed (part "off"); the toggle is not. */
+  sw-table[data-gen-routing-table] {
+    --sw-table-group-pad: 7px 12px;
   }
-  table.routing tr.grp td {
-    background: var(--sw-surface-2);
-    font-weight: 700;
-    color: var(--sw-heading);
-    font-size: var(--sw-fs-sm);
-    padding: 7px 12px;
-  }
-  table.routing tr.off td:not(.c1) {
+  sw-table[data-gen-routing-table]::part(off) {
     opacity: 0.5;
   }
-  table.routing tr.na td {
-    color: var(--sw-text-3);
-  }
-  table.routing tr.pick {
-    cursor: pointer;
-  }
-  .chs {
+  .chs,
+  sw-table[data-gen-routing-table]::part(chs) {
     display: inline-flex;
     gap: 4px;
     flex-wrap: wrap;
   }
-  .ch {
+  .ch,
+  sw-table[data-gen-routing-table]::part(ch) {
     min-inline-size: 28px;
     block-size: 28px;
     padding-inline: 8px;
@@ -746,7 +738,8 @@ export const genCss = css`
     font-size: var(--sw-fs-xs);
     font-weight: 600;
   }
-  .ch.on {
+  .ch.on,
+  sw-table[data-gen-routing-table]::part(ch on) {
     background: var(--sw-accent-soft);
     color: var(--sw-accent-text);
     border-color: color-mix(in srgb, var(--sw-accent) 35%, transparent);
@@ -756,12 +749,14 @@ export const genCss = css`
     border-style: dashed;
     border-color: var(--sw-border-strong, var(--sw-border));
   }
-  .rec {
+  .rec,
+  sw-table[data-gen-routing-table]::part(rec) {
     display: inline-flex;
     gap: 4px;
     flex-wrap: wrap;
   }
-  .rec span {
+  .rec span,
+  sw-table[data-gen-routing-table]::part(rec-item) {
     padding: 1px 8px;
     border-radius: var(--sw-r-pill);
     background: var(--sw-accent-soft);
@@ -770,7 +765,8 @@ export const genCss = css`
     font-weight: 600;
     white-space: nowrap;
   }
-  .rec span.usr {
+  .rec span.usr,
+  sw-table[data-gen-routing-table]::part(rec-item usr) {
     background: var(--sw-success-soft);
     color: var(--sw-success);
   }
@@ -912,9 +908,8 @@ export const genCss = css`
     .gauge svg {
       max-inline-size: 120px;
     }
-    table.t.phase td,
-    table.t.phase th {
-      padding-block: 8px;
+    sw-table[data-gen-phase] {
+      --sw-table-cell-pad: 8px 12px;
     }
   }
   @media (max-width: 1100px) {
@@ -993,14 +988,9 @@ export const genCss = css`
     .map-row {
       grid-template-columns: minmax(0, 1fr);
     }
-    table.phase td:nth-child(5),
-    table.phase th:nth-child(5) {
-      display: none;
-    }
-    table.phase td,
-    table.phase th {
-      padding-inline: 8px;
-      white-space: nowrap;
+    /* CR-CMP2-GEN-REST-2460: the phase table keeps its columns on a phone (keep-columns; the load bar steps out: hideBelow) */
+    sw-table[data-gen-phase] {
+      --sw-table-cell-pad: 12px 8px;
     }
   }
 `;

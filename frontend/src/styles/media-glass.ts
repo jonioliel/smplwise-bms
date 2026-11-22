@@ -315,6 +315,62 @@ export const mediaGlassControls = css`
     min-block-size: 30px;
     font-size: var(--sw-fs-sm);
   }
+  /* CR-CMP2-SEGMENTED-B-2450 (owner N11; the glass hosts keep their look): the shared segmented control sw-segmented drawn as the glass
+     .seg above - the track, the thumb (--mm-seg-thumb / --mm-seg-fg-on, POLISH2-295), the 32 / 30 px keys - through its --sw-seg-* knobs.
+     A host that also takes styles/settings.ts after this sheet hands the knobs back to the settings key (settingsSegKnobsReset). */
+  sw-segmented {
+    --sw-seg-border: transparent;
+    --sw-seg-track: var(--dv-surface-3);
+    --sw-seg-radius: var(--dv-radius-control);
+    --sw-seg-btn-radius: var(--dv-radius-control);
+    --sw-seg-pad: 3px;
+    --sw-seg-gap: 2px;
+    --sw-seg-h: 32px;
+    --sw-seg-key-pad: 16px;
+    --sw-seg-fs: var(--sw-fs-base);
+    --sw-seg-fw: 600;
+    --sw-seg-fg: var(--mm-seg-fg, var(--dv-text));
+    --sw-seg-on-bg: var(--mm-seg-thumb);
+    --sw-seg-on-fg: var(--mm-seg-fg-on, var(--dv-text));
+    --sw-seg-on-shadow: var(--dv-shadow-control);
+    --sw-seg-count-bg: transparent;
+    --sw-seg-count-on-bg: transparent;
+    /* the glass count is a plain small figure (.seg button small), no pill: without these the schedules' state strip grew ~50 px at
+       1440 px and pushed the "new" key to a row of its own (visual-matrix devices-schedules, RELEASE-2450-TRAIN phase 1) */
+    --sw-seg-count-fs: var(--sw-fs-xs);
+    --sw-seg-count-pad: 0;
+    --sw-seg-count-min-w: 0;
+  }
+  sw-segmented[size='sm'] {
+    --sw-seg-h: 30px;
+    --sw-seg-key-pad: 12px;
+    --sw-seg-fs: var(--sw-fs-sm);
+  }
+  /* CR-CMP2-TABS-2460: the tab strips of the glass hosts (the devices kind strips, the scenario editor's when / runs) are sw-tabs
+     (pill). The glass palette follows devices.scheme, not the app's theme, so it is mapped onto the tokens the pill and the skins' pill
+     rules read: the glass track, the --mm thumb and inks; the counts stay plain small figures, as the glass state strip beside them
+     shows its own (a pill per kind would also widen the toolbar - the RELEASE-2450-TRAIN 1440 px lesson) */
+  sw-tabs[variant='pill'] {
+    --sw-surface-3: var(--dv-surface-3);
+    --sw-text: var(--dv-text);
+    --sw-text-2: var(--mm-seg-fg, var(--dv-text));
+    --sw-text-3: var(--dv-text-2);
+    --sw-accent-text: var(--mm-seg-fg-on, var(--dv-text));
+    --sw-seg-key: var(--mm-seg-thumb);
+    --sw-seg-key-ink: var(--mm-seg-fg-on, var(--dv-text));
+    --sw-seg-thumb-shadow: var(--dv-shadow-control);
+    --sw-tabs-pill-bg: transparent;
+    --sw-tabs-pill-fg: var(--dv-text-2);
+    --sw-tabs-pill-pad: 0;
+    --sw-tabs-pill-min-w: 0;
+    /* the glass key: 32 px (30 px for .sm), the label at the glass size */
+    --sw-tabs-key-h: 32px;
+    --sw-tabs-fs: var(--sw-fs-base);
+  }
+  sw-tabs[variant='pill'].sm {
+    --sw-tabs-key-h: 30px;
+    --sw-tabs-fs: var(--sw-fs-sm);
+  }
   /* round keys, the power button, the volume rocker, the remote button */
   .rb {
     position: relative;
@@ -750,6 +806,16 @@ export const mediaGlassControls = css`
       min-block-size: 44px;
       min-inline-size: 44px; /* UXFIX-A11Y-295: the icon-only view switch was 37 px wide */
     }
+    sw-segmented,
+    sw-segmented[size='sm'] {
+      --sw-seg-h: 44px;
+      --sw-seg-key-min-w: 44px;
+    }
+    sw-tabs[variant='pill'],
+    sw-tabs[variant='pill'].sm {
+      --sw-tabs-key-h: 44px;
+      --sw-tabs-key-pad: 8px; /* the glass phone key (the four kinds share a 358 px row) */
+    }
     .rb {
       inline-size: 44px;
       block-size: 44px;
@@ -894,6 +960,10 @@ export const mediaBubbleKnobs = css`
   }
   /* the bubble skin's targets: every control at least the desktop touch dial (44 / 32) and 44 px in touch layouts (the layout guard);
      the page header no longer sticks (a floating bar over the rows is the one thing the owner's rule forbids) */
+  :host([data-skin='bubble']) sw-segmented,
+  :host([data-skin='bubble']) sw-segmented[size='sm'] {
+    --sw-seg-h: var(--sw-touch-desktop, 44px);
+  }
   :host([data-skin='bubble']) .btn,
   :host([data-skin='bubble']) .btn.sm,
   :host([data-skin='bubble']) .seg button,
@@ -961,6 +1031,10 @@ export const mediaBubbleKnobs = css`
     mask-image: none;
   }
   @media (max-width: 1100px) {
+    :host([data-skin='bubble']) sw-segmented,
+    :host([data-skin='bubble']) sw-segmented[size='sm'] {
+      --sw-seg-h: 44px;
+    }
     :host([data-skin='bubble']) .btn,
     :host([data-skin='bubble']) .btn.sm,
     :host([data-skin='bubble']) .seg button,

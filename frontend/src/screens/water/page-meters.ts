@@ -5,6 +5,8 @@ import '../../components/sw-place-tree';
 import '../../components/sw-button';
 import '../../components/sw-dialog';
 import '../../components/sw-state-panel';
+import '../../components/sw-table';
+import type { TableColumn } from '../../components/sw-table';
 import '../../water/meter-card';
 import { describeError } from '../../api/client';
 import { areaKey, buildWaterAreaTree, DEFAULT_RULES, nightFlows, readableAlerts, water, type Candidate, type LeakRules, type Meter, type MeterKind, type WaterEvent } from '../../api/water';
@@ -153,14 +155,26 @@ export class WaterMetersPage extends MetersPageBase<Meter, WaterAccess> {
     </div>`;
   }
 
+  /** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): the meters table is the shared sw-table - the name, the area (its floor steps out at
+   * the module's narrow edge, `narrow`), the readings in m³ (LTR figures at the reading end; the month steps out at `narrow`), the night flow (a leak's in the
+   * danger ink through the `bad` part) and the state chip (meterChip carries the shared tone). The table is the list's card and its
+   * scroll box (the header row stays in place); a row opens the meter card (click, Enter / Space; the block arrows walk the rows). Row
+   * hook `data-meter`. */
+  private tableColumns(): TableColumn<Meter>[] {
+    return [
+      { key: 'name', label: wt('colName'), render: (m) => html`<b>${m.display_name}</b>` },
+      { key: 'area', label: wt('colArea'), render: (m) => html`${m.area_name ?? '-'}${this.narrow ? nothing : html`<span class="mut">${m.floor_name ? ` · ${m.floor_name}` : ''}</span>`}` },
+      { key: 'value', label: wt('colReading'), kind: 'num', render: (m) => m3OfL(m.value_l) },
+      { key: 'today', label: wt('colToday'), kind: 'num', render: (m) => m3OfL(m.today_l) },
+      ...(this.narrow ? [] : [{ key: 'month', label: wt('colMonth'), kind: 'num', render: (m) => m3OfL(m.month_l) } satisfies TableColumn<Meter>]),
+      { key: 'night', label: wt('colNight'), kind: 'num', render: (m) => html`<span part=${alertOf(m.id, this.open) === 'leak' ? 'bad' : nothing}>${nightText(this.night[m.id])}</span>` },
+      { key: 'state', label: wt('colState'), kind: 'status', render: (m) => this.chip(m) },
+    ];
+  }
+
   protected renderTable(list: Meter[]) {
-    return html`<div class="card flush scrollx desk-only"><table class="t" data-meters-table>
-      <thead><tr><th>${wt('colName')}</th><th>${wt('colArea')}</th><th class="n">${wt('colReading')}</th><th class="n">${wt('colToday')}</th><th class="n dsk">${wt('colMonth')}</th><th class="n">${wt('colNight')}</th><th>${wt('colState')}</th></tr></thead>
-      <tbody>${list.map((m) => html`<tr class="pick" tabindex="0" data-meter=${m.id} @click=${() => this.openMeter(m)} @keydown=${(e: KeyboardEvent) => this.onKey(e, m)}>
-        <td class="b">${m.display_name}</td><td>${m.area_name ?? '-'}<span class="mut dsk">${m.floor_name ? ` · ${m.floor_name}` : ''}</span></td>
-        <td class="n"><span class="num">${m3OfL(m.value_l)}</span></td><td class="n"><span class="num">${m3OfL(m.today_l)}</span></td><td class="n dsk"><span class="num">${m3OfL(m.month_l)}</span></td>
-        <td class="n"><span class="num ${alertOf(m.id, this.open) === 'leak' ? 'bad' : ''}">${nightText(this.night[m.id])}</span></td>
-        <td>${this.chip(m)}</td></tr>`)}</tbody></table></div>`;
+    return html`<sw-table class="t card flush scrollx desk-only" data-meters-table .columns=${this.tableColumns() as unknown as TableColumn[]} .rows=${list as unknown as Record<string, unknown>[]}
+      .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-meter': String(r.id) })} @row-select=${(e: CustomEvent<{ row: Record<string, unknown> }>) => this.openMeter(e.detail.row as unknown as Meter)}></sw-table>`;
   }
 
   protected renderCards(list: Meter[]) {
@@ -219,8 +233,7 @@ export class WaterMetersPage extends MetersPageBase<Meter, WaterAccess> {
     try {
       await water.createMeter({ source_ref: c.ref, display_name: this.newName.trim(), kind: this.newKind });
       this.setParams({ add: null });
-      this.notice = wt('added');
-      window.setTimeout(() => (this.notice = ''), 5000);
+      this.toaster.show(wt('added'), { ms: 5000 });
       await this.load(false);
     } catch (err) {
       this.addError = describeError(err);
@@ -243,7 +256,7 @@ export class WaterMetersPage extends MetersPageBase<Meter, WaterAccess> {
               const off = c.verdict === 'rejected' || !!c.already_meter_id;
               return html`<div class="li ${off ? 'dis' : 'pick'}" role="button" tabindex=${off ? -1 : 0} aria-disabled=${off ? 'true' : 'false'} aria-pressed=${this.picked?.ref === c.ref ? 'true' : 'false'} data-cand=${c.ref}
                 @click=${() => this.pick(c)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.pick(c); } }}>
-                <div class="grow"><div class="t1">${c.device_name || c.name}</div><div class="t2 wrap">${[c.area_name, c.unit].filter(Boolean).join(' · ')}${c.verdict !== 'accepted' && c.message ? html` · <span class=${c.verdict === 'rejected' ? 'bad' : ''}>${c.message}</span>` : nothing}</div></div>
+                <div class="grow"><div class="t1">${c.device_name || c.name}</div><div class="t2 wrap">${[c.area_name, c.unit].filter(Boolean).join(' · ')}${c.verdict !== 'ok' && c.message ? html` · <span class=${c.verdict === 'rejected' ? 'bad' : ''}>${c.message}</span>` : nothing}</div></div>
                 ${off ? html`<span class="chip c-mut nodot">${wt('candRejected')}</span>` : nothing}</div>`;
             })
           : nothing}

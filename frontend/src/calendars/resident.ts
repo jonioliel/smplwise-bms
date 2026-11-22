@@ -2,6 +2,8 @@ import { HandModal } from '../components/hand-modal';
 import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-state-panel';
 import { describeError } from '../api/client';
 import type { Calendar, Equipment, Occurrence, RoomDay } from '../api/calendars';
@@ -367,8 +369,8 @@ export class CalResident extends LitElement {
       <div class="shead"><span class="sq" style=${`--h:${colorVar(cal.color)}`}></span><div class="grow"><b class="ell" title=${r.name}>${r.name}</b>
         <span class="sub">${this.dayIdx === 0 ? tr('היום') : this.dayIdx === 1 ? tr('מחר') : DAY_SHORT[this.day.getDay()]} · ${DAY_LONG[this.day.getDay()]} ${ddmm(this.day)}${approval ? ` · ${tr('כל בקשה באישור')}` : ''}</span></div>
         <button type="button" class="btn icon" aria-label=${tr('חזרה לחדרים')} data-res-back @click=${() => { this.roomId = ''; this.start = null; }}><sw-icon name="chevron" size="16"></sw-icon></button></div>
-      <div class="seg dur" role="radiogroup" aria-label=${tr('משך')}>${DURATIONS.map(([m, l]) => html`<button type="button" role="radio" aria-pressed=${String(this.duration === m)} aria-checked=${String(this.duration === m)} data-res-dur=${m}
-        @click=${() => { this.duration = m; this.start = null; }}>${l}</button>`)}</div>
+      <sw-segmented radio class="dur" label=${tr('משך')} value=${String(this.duration)} @change=${(e: CustomEvent<SegmentedChange>) => { this.duration = Number(e.detail.value); this.start = null; }}
+        .options=${DURATIONS.map(([m, l]) => ({ value: String(m), label: l, attrs: { 'data-res-dur': String(m) } }))}></sw-segmented>
       ${timeline ? this.timelineView(r) : this.gridView(r)}
       <button type="button" class="btn pri go" data-res-continue ?disabled=${!sel} @click=${() => { this.evTitle = ''; this.people = Math.max(1, this.headcount || 1); this.actionError = ''; this.sheet = { kind: 'confirm' }; }}>
         <sw-icon name="check" size="16"></sw-icon>${sel && end ? html`${tr('המשך')} · <span class="num ltr">${hm(sel)}–${hm(end)}</span>` : tr('בחירת שעת התחלה')}</button>
@@ -446,9 +448,9 @@ export class CalResident extends LitElement {
     const p = pageOf(list, this.page, perPageFor(this.lists.paged, this.per, list.length));
     return html`<section class="panel" data-res-view="mine">
       ${this.done ? html`<div class="done" role="status" data-res-done><sw-icon name="check" size="18"></sw-icon><div><b>${this.done}</b><span class="muted">${tr('תקבל הודעה כשיוחלט')}</span></div></div>` : nothing}
-      <div class="seg" style="align-self:center;flex:none" role="radiogroup" aria-label=${tr('הזמנות')}><button type="button" role="radio" aria-pressed=${String(!this.past)} aria-checked=${String(!this.past)} data-res-upcoming
-        @click=${() => { this.past = false; this.mine = null; void this.loadMine(); }}>${tr('קרובות')}</button>
-        <button type="button" role="radio" aria-pressed=${String(this.past)} aria-checked=${String(this.past)} data-res-past @click=${() => { this.past = true; this.mine = null; void this.loadMine(); }}>${tr('הסתיימו')}</button></div>
+      <sw-segmented radio style="align-self:center;flex:none" label=${tr('הזמנות')} value=${this.past ? 'past' : 'upcoming'}
+        @change=${(e: CustomEvent<SegmentedChange>) => { this.past = e.detail.value === 'past'; this.mine = null; void this.loadMine(); }}
+        .options=${[{ value: 'upcoming', label: tr('קרובות'), attrs: { 'data-res-upcoming': '' } }, { value: 'past', label: tr('הסתיימו'), attrs: { 'data-res-past': '' } }]}></sw-segmented>
       ${list.length ? html`<div class="list" style="display:grid;grid-template-columns:minmax(0,1fr);align-content:start" data-fit="148">${p.items.map((o) => this.booking(o))}</div>${this.pager(p.page, p.pages)}`
         : html`<div class="center"><sw-state-panel icon="calendar" state="empty" data-res-state="mine-empty" heading=${this.past ? tr('אין הזמנות שהסתיימו') : tr('אין לך הזמנות קרובות')}
           hint=${this.past ? tr('הזמנות שהסתיימו נשמרות כאן 30 יום.') : tr('חדר פנוי אפשר להזמין בלשונית "הזמנת חדר".')} actionLabel=${this.past ? '' : tr('הזמנת חדר')} @action=${() => (this.tab = 'book')}></sw-state-panel></div>`}

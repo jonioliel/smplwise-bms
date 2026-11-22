@@ -1,6 +1,8 @@
 import { html, nothing, type TemplateResult } from 'lit';
 import '../components/sw-icon';
 import '../components/sw-button';
+// CR-CMP2-SEGMENTED-C-2450: drawn inside home-edit-panel, which registers sw-segmented
+import type { SegmentedChange } from '../components/sw-segmented';
 import { bidi } from '../i18n/bidi';
 import { tr } from '../i18n/msg/screens';
 import { AGENDA_CALENDARS_MAX, AGENDA_DAYS, AGENDA_DAYS_LABEL, agendaWhen, LABEL_MAX, QUICK_ACTION_LABEL, QUICK_ACTIONS, TILE_STYLE_LABEL, TILE_STYLES, type HomeCandidates, type HomeConfig, type LaunchItemCfg, type TileStyle } from '../api/home-config';
@@ -22,7 +24,8 @@ export interface Bv1EditHost {
 /** "כרטיס | אריח" for the clock / weather (drawn by the Bubble skin only; the hint says so). */
 export function styleRow(h: Bv1EditHost, id: 'clock' | 'weather'): TemplateResult {
   const cur = h.config[id].style;
-  return html`<div class="f">${tr('תצוגה בסגנון Bubble')}<span class="seg" role="group" aria-label=${id === 'clock' ? tr('תצוגת השעון') : tr('תצוגת מזג האוויר')}>${TILE_STYLES.map((s: TileStyle) => html`<button type="button" data-home-style=${`${id}:${s}`} aria-pressed=${String(cur === s)} @click=${() => h.setConfig((c) => (c[id].style = s))}>${TILE_STYLE_LABEL[s]}</button>`)}</span></div>`;
+  return html`<div class="f">${tr('תצוגה בסגנון Bubble')}<sw-segmented label=${id === 'clock' ? tr('תצוגת השעון') : tr('תצוגת מזג האוויר')} value=${cur} @change=${(e: CustomEvent<SegmentedChange>) => h.setConfig((c) => (c[id].style = e.detail.value as TileStyle))}
+    .options=${TILE_STYLES.map((s: TileStyle) => ({ value: s, label: TILE_STYLE_LABEL[s], attrs: { 'data-home-style': `${id}:${s}` } }))}></sw-segmented></div>`;
 }
 
 /** The agenda: a checklist of the mirrored calendars (each with its next event as a hint), up to six, and the horizon. */
@@ -45,7 +48,8 @@ export function agendaBody(h: Bv1EditHost): TemplateResult {
         : html`<div class="err" data-home-agenda-none>${tr('לא נמצאו יומנים בקטלוג.')}</div>`}
       ${chosen.filter((id) => !cals.some((c) => c.entity_id === id)).map((id) => html`<label class="check" data-home-agenda-cal-row=${id}><input type="checkbox" data-home-agenda-cal=${id} checked @change=${(e: Event) => toggle(id, (e.target as HTMLInputElement).checked)} />${id}<span class="val">${tr('לא בקטלוג')}</span></label>`)}
     </div>
-    <div class="f">${tr('טווח')}<span class="seg" role="group" aria-label=${tr('טווח היומן')}>${AGENDA_DAYS.map((d) => html`<button type="button" data-home-agenda-days=${d} aria-pressed=${String(cfg.days === d)} @click=${() => h.setConfig((c) => (c.agenda.days = d))}>${AGENDA_DAYS_LABEL[d]}</button>`)}</span></div>`;
+    <div class="f">${tr('טווח')}<sw-segmented label=${tr('טווח היומן')} value=${String(cfg.days)} @change=${(e: CustomEvent<SegmentedChange>) => h.setConfig((c) => (c.agenda.days = AGENDA_DAYS.find((d) => String(d) === e.detail.value) ?? c.agenda.days))}
+      .options=${AGENDA_DAYS.map((d) => ({ value: String(d), label: AGENDA_DAYS_LABEL[d], attrs: { 'data-home-agenda-days': String(d) } }))}></sw-segmented></div>`;
 }
 
 /** The launcher: the items in order (move / rename / remove) and a row of "add" selects for screens, scenes, scripts and quick actions. */

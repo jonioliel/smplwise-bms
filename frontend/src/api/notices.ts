@@ -6,9 +6,14 @@ import { api, del, get, patch, post, put } from './client';
 import type { Display, Tv2Defaults, TvDefaults } from '../notice-tv/tv-logic';
 import type { TvFitDefaults } from '../notices/display-fit-model';
 import type { Severity } from './types';
+import type * as Wire from './generated/wire-notices';
 
 export type { Severity } from './types'; // CR-API-PATHS-2439 (07:F21): one definition
-type NoticeState = 'draft' | 'scheduled' | 'active' | 'expired' | 'archived';
+/* The answers of the module-gated routes are the backend's response models (smplwise_vms/backend/smplwise/wire/notices.py), generated into
+ * ./generated/wire-notices.ts: a field the server renames or drops is a compile error here (code review 07:F8 step 2). Kept by hand on
+ * purpose: the audience (a stored document), a board's `display` (the TV page's own document, notice-tv/tv-logic), the TV option defaults,
+ * and the answers of the routes that answer while the module is off (module, settings, logos, news sources - not modelled yet). Fields an
+ * older server lacks stay optional (`can.delete`, the list defaults past `default_severity`, the audience options' `areas`). */
 
 export interface Audience {
   everyone?: boolean;
@@ -18,63 +23,24 @@ export interface Audience {
   roles?: string[];
 }
 
-export interface Notice {
-  id: string;
-  title: string;
-  body: string;
-  severity: Severity;
-  starts_at: string;
-  ends_at: string | null;
-  pinned: boolean;
-  state: NoticeState;
-  dwell_s: number | null;
-  when_text: string | null;
-  published_at: string | null;
-  updated_at: string;
-  boards: string[];
-  read?: boolean;
+export interface Notice extends Omit<Wire.NoticeRow, 'audience' | 'created_at'> {
   audience?: Audience;
-  status?: 'draft' | 'published' | 'archived';
-  reads?: number;
-  push_requested?: boolean;
-  pushed_at?: string | null;
-  /** BOARD-MGMT-2381: how many times "שלח שוב" sent the notice again (0 = never) */
-  push_generation?: number;
 }
 
-interface NoticesCan {
-  view: boolean;
-  manage: boolean;
-  manage_all: boolean;
-  push: boolean;
-  boards: boolean;
-  configure: boolean;
-  /** NOTICEDEL-295: `notices.delete` (absent from older servers) */
-  delete?: boolean;
-}
+/** NOTICEDEL-295: `delete` (`notices.delete`) is absent from older servers. */
+type NoticesCan = Omit<Wire.NoticesCan, 'delete'> & Partial<Pick<Wire.NoticesCan, 'delete'>>;
 
-export interface NoticesList {
+export interface NoticesList extends Omit<Wire.NoticesList, 'notices' | 'can' | 'defaults'> {
   notices: Notice[];
   can: NoticesCan;
-  now: string;
-  defaults: { default_days: number; default_severity: 'info' | 'alert'; push_default?: 'by_severity' | 'always' | 'never'; home_empty?: 'hide' | 'line'; show_places_tree?: boolean };
+  defaults: Pick<Wire.NoticesDefaults, 'default_days' | 'default_severity'> & Partial<Omit<Wire.NoticesDefaults, 'default_days' | 'default_severity'>>;
 }
 
-export interface Board {
-  id: string;
-  name: string;
-  slug: string;
-  enabled: boolean;
-  display?: Display;
-  has_token?: boolean;
-  /** NOTICEPERM-295: the link token is also stored sealed, so an administrator can copy the SAME link again. */
-  has_stored_link?: boolean;
-  token_rotated_at?: string | null;
-  last_seen_at?: string | null;
-  item_count?: number;
-  created_at?: string;
-  updated_at?: string;
-}
+/** A board: the name fields always; the rest only for notices.boards (a notice manager's list carries the names only). NOTICEPERM-295:
+ * `has_stored_link` - the link token is also stored sealed, so an administrator can copy the SAME link again. */
+export type Board = Wire.NoticeBoardBrief & Partial<Omit<Wire.NoticeBoard, keyof Wire.NoticeBoardBrief | 'display'>> & { display?: Display };
+type FullBoard = Omit<Wire.NoticeBoard, 'display'> & { display: Display };
+type NoticePush = Wire.NoticePush;
 
 interface NoticesSettings {
   enabled: boolean;
@@ -182,45 +148,44 @@ export const uploadCompanyLogo = (file: File) => {
 export const removeCompanyLogo = () => del('notices/settings/logo');
 
 export const listNotices = (scope: 'mine' | 'all') => get<NoticesList>(`notices?scope=${scope}`);
-export const createNotice = (body: NoticeInput) => post<{ notice: Notice; push?: { requested: boolean; sent: boolean; recipients: number } }>('notices', body);
+export const createNotice = (body: NoticeInput) => post<{ notice: Notice; push?: NoticePush }>('notices', body);
 export const patchNotice = (id: string, body: Partial<NoticeInput>) => patch<{ notice: Notice }>(`notices/${encodeURIComponent(id)}`, body);
 export const publishNotice = (id: string, push?: boolean) =>
-  post<{ notice: Notice; push?: { requested: boolean; sent: boolean; recipients: number } }>(`notices/${encodeURIComponent(id)}/publish`, push === undefined ? undefined : { push });
+  post<{ notice: Notice; push: NoticePush }>(`notices/${encodeURIComponent(id)}/publish`, push === undefined ? undefined : { push });
 /** BOARD-MGMT-2381 (owner 03.11, answer 6A): the manual "שלח שוב" of a published notice - never called automatically after an edit. */
 export const resendNotice = (id: string) =>
-  post<{ notice: Notice; push: { requested: boolean; sent: boolean; recipients: number; generation?: number; error?: string } }>(`notices/${encodeURIComponent(id)}/resend`);
+  post<{ notice: Notice; push: NoticePush }>(`notices/${encodeURIComponent(id)}/resend`);
 export const archiveNotice = (id: string) => post<{ notice: Notice }>(`notices/${encodeURIComponent(id)}/archive`);
 /** NOTICEDEL-295: `confirmLive` is the extra step for a notice that is on air (the server answers 409 `confirm_live_required` without it). */
 export const deleteNotice = (id: string, confirmLive = false) => del(`notices/${encodeURIComponent(id)}${confirmLive ? '?confirm_live=true' : ''}`);
-export const markRead = (id: string) => post<{ read: boolean }>(`notices/${encodeURIComponent(id)}/read`);
-export const audiencePreview = (audience: Audience) => post<{ users: number; in_scope: boolean }>('notices/audience/preview', { audience });
+export const markRead = (id: string) => post<Wire.NoticeRead>(`notices/${encodeURIComponent(id)}/read`);
+export const audiencePreview = (audience: Audience) => post<Wire.NoticeAudiencePreview>('notices/audience/preview', { audience });
 export const audienceOptions = () =>
-  get<{ floors: { id: string; name: string; building: string }[]; areas?: { id: string; name: string; floor: string }[]; groups: { id: string; name: string }[]; roles: { id: string; name: string }[] }>('notices/audience/options');
+  get<Omit<Wire.NoticeAudienceOptions, 'areas'> & Partial<Pick<Wire.NoticeAudienceOptions, 'areas'>>>('notices/audience/options');
 
-/** NOTICEPAGE-295: "מי קרא" - names only while the installation shows them (`reads_names`); else the two counts. */
-export interface ReadsAnswer {
-  audience: number;
-  read: number;
-  users?: { user_id: string; name: string; place?: string; read_at: string }[];
-  unread?: { user_id: string; name: string; place?: string }[];
+/** NOTICEPAGE-295: "מי קרא" - names only while the installation shows them (`reads_names`); else the two counts. `place` is absent from
+ * a server before NOTICEPAGE-295. */
+export interface ReadsAnswer extends Pick<Wire.NoticeReads, 'audience' | 'read'> {
+  users?: (Omit<Wire.NoticeReader, 'place'> & Partial<Pick<Wire.NoticeReader, 'place'>>)[];
+  unread?: (Omit<Wire.NoticeNonReader, 'place'> & Partial<Pick<Wire.NoticeNonReader, 'place'>>)[];
 }
 export const getReads = (id: string) => get<ReadsAnswer>(`notices/${encodeURIComponent(id)}/reads`);
 
-export const listBoards = () => get<{ boards: Board[]; full: boolean; max?: number; remote?: boolean }>('notices/boards');
+export const listBoards = () => get<{ boards: Board[]; full: boolean } & Partial<Pick<Wire.NoticeBoardListFull, 'max' | 'remote'>>>('notices/boards');
 export const getBoard = (id: string) =>
-  get<{ board: Board; notices: { id: string; title: string; severity: Severity; starts_at: string; ends_at: string | null; pinned: boolean; state: NoticeState; position: number }[] }>(
+  get<Omit<Wire.NoticeBoardDetail, 'board'> & { board: FullBoard }>(
     `notices/boards/${encodeURIComponent(id)}`,
   );
-export const createBoard = (body: { name: string; slug: string; display?: Partial<Display> }) => post<{ board: Board; token: string }>('notices/boards', body);
+export const createBoard = (body: { name: string; slug: string; display?: Partial<Display> }) => post<Omit<Wire.NoticeBoardCreated, 'board'> & { board: FullBoard }>('notices/boards', body);
 export const patchBoard = (id: string, body: { name?: string; enabled?: boolean; display?: Partial<Display> | Record<string, unknown> }) =>
-  patch<{ board: Board }>(`notices/boards/${encodeURIComponent(id)}`, body);
-export const rotateBoardToken = (id: string) => post<{ token: string; board: Board }>(`notices/boards/${encodeURIComponent(id)}/rotate-token`);
-export const getBoardLink = (id: string) => get<{ token: string }>(`notices/boards/${encodeURIComponent(id)}/link`);
+  patch<{ board: FullBoard }>(`notices/boards/${encodeURIComponent(id)}`, body);
+export const rotateBoardToken = (id: string) => post<Omit<Wire.NoticeBoardNewToken, 'board'> & { board: FullBoard }>(`notices/boards/${encodeURIComponent(id)}/rotate-token`);
+export const getBoardLink = (id: string) => get<Wire.NoticeBoardLink>(`notices/boards/${encodeURIComponent(id)}/link`);
 // CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by NOTICEPERM-295 (permanent TV link).
-export const issueBoardLink = (id: string) => post<{ token: string; board: Board }>(`notices/boards/${encodeURIComponent(id)}/issue-link`);
+export const issueBoardLink = (id: string) => post<Omit<Wire.NoticeBoardNewToken, 'board'> & { board: FullBoard }>(`notices/boards/${encodeURIComponent(id)}/issue-link`);
 export const deleteBoard = (id: string) => del(`notices/boards/${encodeURIComponent(id)}`);
-export const putBoardItems = (id: string, notice_ids: string[]) => put<{ notice_ids: string[] }>(`notices/boards/${encodeURIComponent(id)}/items`, { notice_ids });
-export const boardControl = (id: string, cmd: 'next' | 'prev' | 'pause' | 'play') => post<{ control: { seq: number; cmd: string } }>(`notices/boards/${encodeURIComponent(id)}/control`, { cmd });
+export const putBoardItems = (id: string, notice_ids: string[]) => put<Wire.NoticeBoardItems>(`notices/boards/${encodeURIComponent(id)}/items`, { notice_ids });
+export const boardControl = (id: string, cmd: 'next' | 'prev' | 'pause' | 'play') => post<Wire.NoticeBoardControl>(`notices/boards/${encodeURIComponent(id)}/control`, { cmd });
 
 /** The TV link of a board: the page next to the application root, the token in the fragment (never sent to a server). */
 export function boardLink(slug: string, token: string, origin?: string): string {
@@ -229,27 +194,12 @@ export function boardLink(slug: string, token: string, origin?: string): string 
 }
 
 // ---- NOTICESLIDES-295: promo slides (one slide may be shown on several boards) and the building photo of template 2
-export interface Slide {
-  id: string;
-  title: string;
-  text: string;
-  seconds: number | null;
-  has_image: boolean;
-  stamp: string;
-  boards: string[];
-}
-export interface SlidesDoc {
-  slides: Slide[];
-  limit: number;
-  seconds: { min: number; max: number };
-  photo?: { has: boolean; stamp: string };
-  /** LOBBY-STYLES-2300: the building at night (the luxury lobby styles) */
-  photo_night?: { has: boolean; stamp: string };
-}
+export type Slide = Wire.NoticeSlide;
+export type SlidesDoc = Wire.NoticeSlides;
 // CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by NOTICESLIDES-295 (promo slides).
 export const listSlides = () => get<SlidesDoc>('notices/promo-slides/all');
 export const boardSlides = (boardId: string) => get<SlidesDoc>(`notices/boards/${encodeURIComponent(boardId)}/slides`);
-export const createSlide = (body: { title: string; text?: string; seconds?: number | null; board_ids?: string[] }) => post<{ id: string } & SlidesDoc>('notices/promo-slides', body);
+export const createSlide = (body: { title: string; text?: string; seconds?: number | null; board_ids?: string[] }) => post<Wire.NoticeSlideCreated>('notices/promo-slides', body);
 export const patchSlide = (id: string, body: { title?: string; text?: string; seconds?: number | null; board_ids?: string[] }) =>
   patch<SlidesDoc>(`notices/promo-slides/${encodeURIComponent(id)}`, body);
 export const deleteSlide = (id: string) => api<SlidesDoc>(`notices/promo-slides/${encodeURIComponent(id)}`, { method: 'DELETE' });

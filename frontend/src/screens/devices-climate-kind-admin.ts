@@ -7,16 +7,12 @@ import { bidi } from '../i18n/bidi';
 import { entityLabel, TECH_ID_ATTR } from '../i18n/entity-label';
 import { DevicesOverrideAdmin, overrideTableStyles } from './devices-override-admin';
 import { tr } from '../i18n/msg/devices';
+import type * as Wire from '../api/generated/wire-devices';
 
 type ClimateKindSetting = 'auto' | 'ac' | 'heating';
 
-interface ClimateKindRow {
-  entity_id: string;
-  name: string;
-  area_name: string | null;
-  state: string | null;
-  available: boolean;
-  hvac_modes: string[] | null;
+/** GET /devices/climate-kinds (the backend's response model, api/generated/wire-devices.ts), narrowed on purpose to the two groups. */
+interface ClimateKindRow extends Omit<Wire.DeviceClimateKindRow, 'kind' | 'auto' | 'set'> {
   kind: 'ac' | 'heating';
   auto: 'ac' | 'heating';
   set: 'ac' | 'heating' | null;

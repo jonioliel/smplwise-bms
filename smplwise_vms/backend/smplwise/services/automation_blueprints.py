@@ -243,10 +243,26 @@ def _refs(node: Any, out: list[tuple[str, str | None]]) -> None:
 
 # test-only: no product caller; used by tests/test_automation_blueprints_80.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def validate_definition(bp: Any) -> list[str]:
-    """The problems of one blueprint definition (empty = acceptable). Pure; closed: anything not listed is a problem."""
+    """The problems of one blueprint definition (empty = acceptable). Pure; closed: anything not listed is a problem.
+
+    CR-BE-COMPLEXITY-B-2450: one helper per part (header, parameters, rules, template references, template steps), called in the
+    order the checks always ran, so the problems come out in the same order (tests/test_automation_blueprints_char_2450.py)."""
     errs: list[str] = []
     if not isinstance(bp, dict):
         return ["definition is not an object"]
+    _header_problems(bp, errs)
+    keys = _parameter_problems(bp, errs)
+    _rule_problems(bp, keys, errs)
+    tpl = bp.get("template")
+    if not isinstance(tpl, dict) or set(tpl) - {"mode", "triggers", "conditions", "actions"}:
+        return errs + ["template: keys must be mode / triggers / conditions / actions"]
+    _template_ref_problems(tpl, keys, errs)
+    _template_step_problems(tpl, keys, errs)
+    return errs
+
+
+def _header_problems(bp: dict[str, Any], errs: list[str]) -> None:
+    """Unknown keys, the id, the version, the category, the title and the description."""
     unknown = set(bp) - {"id", "version", "category", "icon", "title", "description", "parameters", "rules", "template"}
     if unknown:
         errs.append(f"unknown keys {sorted(unknown)}")
@@ -259,6 +275,10 @@ def validate_definition(bp: Any) -> list[str]:
     for k, lim in (("title", 80), ("description", 300)):
         if not isinstance(bp.get(k), str) or not bp[k].strip() or len(bp[k]) > lim:
             errs.append(f"bad {k}")
+
+
+def _parameter_problems(bp: dict[str, Any], errs: list[str]) -> dict[str, dict[str, Any]]:
+    """The parameters (1-12, unique keys, type, label, domains and role of an entity parameter). Returns them by key."""
     params = bp.get("parameters")
     keys: dict[str, dict[str, Any]] = {}
     if not isinstance(params, list) or not params or len(params) > 12:
@@ -281,34 +301,53 @@ def validate_definition(bp: Any) -> list[str]:
                 errs.append(f"{p['key']}: forbidden domain for a controlled entity")
             if p.get("role") not in ("watch", "control"):
                 errs.append(f"{p['key']}: role must be watch or control")
+    return keys
+
+
+def _rule_problems(bp: dict[str, Any], keys: dict[str, dict[str, Any]], errs: list[str]) -> None:
+    """Each rule compares two declared parameters."""
     for r in bp.get("rules") or []:
-        if not isinstance(r, dict) or r.get("rule") not in ("lt", "ne") or r.get("a") not in keys or r.get("b") not in keys:
+        if not isinstance(r, dict) or r.get("rule") not in ("lt", "ne") or not _declared(r.get("a"), keys) or not _declared(r.get("b"), keys):
             errs.append("bad rule")
-    tpl = bp.get("template")
-    if not isinstance(tpl, dict) or set(tpl) - {"mode", "triggers", "conditions", "actions"}:
-        return errs + ["template: keys must be mode / triggers / conditions / actions"]
+
+
+def _template_ref_problems(tpl: dict[str, Any], keys: dict[str, dict[str, Any]], errs: list[str]) -> None:
+    """The template's mode, and its parameter references: declared, a known conversion, every parameter used."""
     if tpl.get("mode") not in ("single", "restart"):
         errs.append("template: mode must be single or restart")
     refs: list[tuple[str, str | None]] = []
     _refs(tpl, refs)
-    used = {k for k, _a in refs}
+    used = {k for k, _a in refs if _hashable(k)}
     for k, as_ in refs:
-        if k not in keys:
+        if not _declared(k, keys):
             errs.append(f"template uses undeclared parameter {k}")
         elif as_ not in (None, "duration", "offset_text"):
             errs.append(f"{k}: bad conversion {as_}")
     for k in keys:
         if k not in used:
             errs.append(f"parameter {k} is never used")
+
+
+def _hashable(v: Any) -> bool:
+    """CR-IFC-SPLIT-2460: a JSON list or object (unhashable) where a name belongs is a problem like any unknown name, never a TypeError."""
+    return not isinstance(v, (dict, list, set))
+
+
+def _declared(k: Any, keys: dict[str, dict[str, Any]]) -> bool:
+    return _hashable(k) and k in keys
+
+
+def _template_step_problems(tpl: dict[str, Any], keys: dict[str, dict[str, Any]], errs: list[str]) -> None:
+    """The template's triggers, conditions and actions: allowed types and keys, at least one trigger and one action."""
     for i, t in enumerate(tpl.get("triggers") or []):
-        if not isinstance(t, dict) or t.get("trigger") not in ALLOWED_TRIGGERS:
+        if not isinstance(t, dict) or not _hashable(t.get("trigger")) or t.get("trigger") not in ALLOWED_TRIGGERS:
             errs.append(f"triggers.{i}: trigger type not allowed")
         elif set(t) - ALLOWED_TRIGGERS[t["trigger"]]:
             errs.append(f"triggers.{i}: keys not allowed")
     if not tpl.get("triggers"):
         errs.append("template: a trigger is required")
     for i, c in enumerate(tpl.get("conditions") or []):
-        if not isinstance(c, dict) or c.get("condition") not in ALLOWED_CONDITIONS:
+        if not isinstance(c, dict) or not _hashable(c.get("condition")) or c.get("condition") not in ALLOWED_CONDITIONS:
             errs.append(f"conditions.{i}: condition type not allowed")
         elif set(c) - ALLOWED_CONDITIONS[c["condition"]]:
             errs.append(f"conditions.{i}: keys not allowed")
@@ -316,7 +355,6 @@ def validate_definition(bp: Any) -> list[str]:
         errs.append("template: an action is required")
     for i, a in enumerate(tpl.get("actions") or []):
         errs.extend(_action_problems(i, a, keys))
-    return errs
 
 
 def _action_problems(i: int, a: Any, keys: dict[str, dict[str, Any]]) -> list[str]:
@@ -329,7 +367,7 @@ def _action_problems(i: int, a: Any, keys: dict[str, dict[str, Any]]) -> list[st
     svc = a["action"]
     out: list[str] = []
     if isinstance(svc, dict):
-        p = keys.get(svc.get("$param"))
+        p = keys.get(svc.get("$param")) if _hashable(svc.get("$param")) else None
         if p is None or p.get("type") != "notify_target" or set(svc) != {"$param"}:
             out.append(f"actions.{i}: a parameter may stand for a notify target only")
     elif not isinstance(svc, str) or svc not in ALLOWED_SERVICES:

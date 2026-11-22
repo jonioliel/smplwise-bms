@@ -6,6 +6,8 @@ import type { GroupBy, MediaDevice, MediaLayout, Size } from '../api/media-scree
 import { bidi } from '../i18n/bidi';
 import { applyMediaGlass, mediaGlassStyles } from '../styles/media-glass';
 import { mIcon, nameText } from '../components/media-icons';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { GROUP_LABEL, SIZE_LABEL, cardOf, editGroups, moveFloor, moveInGroup, moveOnto, setCard, setGroupBy, togglePin, type FloorRef } from './multimedia-layout';
 import { tr } from '../i18n/msg/media';
 
@@ -278,7 +280,9 @@ export class MultimediaEditPanel extends LitElement {
         <button type="button" class="ib" data-mm-down ?disabled=${index === count - 1} aria-label=${tr('אחר את {name}', { name: d.name })} title=${tr('אחר')} @click=${() => this.move(d.key, 1)}>${mIcon('arrowDown')}</button>
       </div>
       <div class="l2">
-        ${this.simple ? nothing : html`<span class="seg sm" role="group" aria-label=${tr('גודל: {name}', { name: d.name })}>${SIZES.map((s) => html`<button type="button" data-mm-size=${`${d.key}:${s}`} aria-pressed=${String(c.size === s)} ?disabled=${!c.on} @click=${() => this.change(setCard(l, d.key, { size: s }))}>${SIZE_LABEL[s]}</button>`)}</span>`}
+        ${this.simple ? nothing : html`<sw-segmented size="sm" label=${tr('גודל: {name}', { name: d.name })} value=${c.size} ?disabled=${!c.on}
+          @change=${(e: CustomEvent<SegmentedChange>) => this.change(setCard(l, d.key, { size: SIZES.find((s) => s === e.detail.value) ?? c.size }))}
+          .options=${SIZES.map((s) => ({ value: s, label: SIZE_LABEL[s], attrs: { 'data-mm-size': `${d.key}:${s}` } }))}></sw-segmented>`}
         <span class="sp"></span>
         ${personal ? nothing : html`<button type="button" class="ib" data-mm-pin=${d.key} aria-pressed=${String(pinned)} aria-label=${tr('מועדף: {name}', { name: d.name })} title=${tr('מועדף')} @click=${() => this.change(togglePin(l, d.key))}>${mIcon('star')}</button>
           ${this.simple ? nothing : html`<button type="button" class="ib" data-mm-phone-toggle=${d.key} aria-expanded=${String(open)} aria-label=${tr('בנייד: {name}', { name: d.name })} title=${tr('בנייד')} @click=${() => this.togglePhone(d.key)}>${mIcon('phone')}${custom ? html`<i class="dot" aria-hidden="true"></i>` : nothing}</button>`}`}
@@ -302,7 +306,8 @@ export class MultimediaEditPanel extends LitElement {
     const floorsOn = this.scope === 'all' && l.group_by === 'floor' && this.floors.length > 1;
     return html`<section class="panel glass" data-mm-edit aria-label=${tr('הגדרות · {heading}', { heading: this.heading })}>
       <div class="lbl" id="mm-grp">${tr('קיבוץ')}
-        <span class="seg sm" role="group" aria-labelledby="mm-grp" data-mm-groupby>${GROUPS.map((g) => html`<button type="button" data-mm-group=${g} aria-pressed=${String(l.group_by === g)} @click=${() => this.change(setGroupBy(l, g))}>${GROUP_LABEL[g]}</button>`)}</span>
+        <sw-segmented size="sm" label=${tr('קיבוץ')} data-mm-groupby value=${l.group_by} @change=${(e: CustomEvent<SegmentedChange>) => this.change(setGroupBy(l, GROUPS.find((g) => g === e.detail.value) ?? l.group_by))}
+          .options=${GROUPS.map((g) => ({ value: g, label: GROUP_LABEL[g], attrs: { 'data-mm-group': g } }))}></sw-segmented>
       </div>
       ${floorsOn ? html`<div data-mm-floors-col>
         <h3 id="mm-floors">${tr('סדר הקומות')}</h3>

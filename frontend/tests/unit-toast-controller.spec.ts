@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
-import { ToastController, TOAST_DEFAULT_MS, type ToastTimers } from '../src/components/toast-controller';
+import { ToastController, ToastStackController, TOAST_DEFAULT_MS, type ToastTimers } from '../src/components/toast-controller';
 
 // CR-UI-CONTROLLERS-2440 (07:F12): the shared flash-message timer. Node only: a fake host and a fake clock.
 //   npx playwright test -c playwright.unit.config.ts tests/unit-toast-controller.spec.ts
@@ -181,4 +181,111 @@ test('the real clock: without a fake, the message expires on its own', async () 
   expect(toast.text).toBe('נשמר');
   await new Promise((r) => setTimeout(r, 120));
   expect(toast.text).toBe('');
+});
+
+// CR-CMP2-SELECTS-2450: the exit phase, onExpire and the stack (the last 7 copies of 07:F12).
+
+test('exitMs: after its time the message stays for the exit phase with `leaving` true, then goes', () => {
+  const h = fakeHost();
+  const clock = fakeClock();
+  const toast = new ToastController<'undo' | 'bad'>(h.host, { ms: 1000, exitMs: 200, timers: clock.timers });
+  toast.show('הועבר', { tone: 'undo' });
+  expect(toast.leaving).toBe(false);
+  clock.advance(1000);
+  expect([toast.text, toast.tone, toast.leaving]).toEqual(['הועבר', 'undo', true]);
+  const during = h.updates();
+  clock.advance(199);
+  expect(toast.text).toBe('הועבר');
+  clock.advance(1);
+  expect([toast.text, toast.leaving]).toEqual(['', false]);
+  expect(h.updates()).toBe(during + 1);
+  expect(clock.pending()).toBe(0);
+});
+
+test('exitMs: a new message during the fade replaces it and gets its full time; the same message comes back', () => {
+  const h = fakeHost();
+  const clock = fakeClock();
+  const toast = new ToastController(h.host, { ms: 1000, exitMs: 200, timers: clock.timers });
+  toast.show('א');
+  clock.advance(1100); // in the fade
+  expect(toast.leaving).toBe(true);
+  toast.show('ב');
+  expect([toast.text, toast.leaving, clock.pending()]).toEqual(['ב', false, 1]);
+  clock.advance(999);
+  expect([toast.text, toast.leaving]).toEqual(['ב', false]);
+  clock.advance(1);
+  expect(toast.leaving).toBe(true);
+  const before = h.updates();
+  toast.show('ב');
+  expect([toast.text, toast.leaving]).toEqual(['ב', false]);
+  expect(h.updates()).toBe(before + 1); // the fade is undone on screen
+  toast.clear();
+  expect([toast.text, toast.leaving, clock.pending()]).toEqual(['', false, 0]);
+});
+
+test('onExpire: only when the time ran out on its own (after the exit phase), never on clear, replace or disconnect', () => {
+  const h = fakeHost();
+  const clock = fakeClock();
+  let expired = 0;
+  const toast = new ToastController(h.host, { ms: 500, exitMs: 100, timers: clock.timers, onExpire: () => (expired += 1) });
+  toast.show('א');
+  clock.advance(500);
+  expect(expired).toBe(0); // still fading
+  clock.advance(100);
+  expect(expired).toBe(1);
+  toast.show('ב');
+  toast.show('ג'); // replaced
+  toast.clear();
+  toast.show('ד');
+  toast.hostDisconnected();
+  clock.advance(10_000);
+  expect(expired).toBe(1);
+  toast.show('ה', { ms: 0 }); // no clock, no expiry
+  clock.advance(10_000);
+  expect(expired).toBe(1);
+});
+
+test('stack: several messages at once, each with its own clock, oldest first', () => {
+  const h = fakeHost();
+  const clock = fakeClock();
+  const stack = new ToastStackController(h.host, { ms: 3200, timers: clock.timers });
+  expect(h.controllers).toEqual([stack]);
+  const a = stack.push('א');
+  clock.advance(1000);
+  const b = stack.push('ב', { tone: 'ok' });
+  expect(stack.items.map((t) => [t.id, t.text, t.tone])).toEqual([[a, 'א', ''], [b, 'ב', 'ok']]);
+  expect(a).not.toBe(b);
+  clock.advance(2200); // the first one's time: only it goes
+  expect(stack.items.map((t) => t.text)).toEqual(['ב']);
+  clock.advance(999);
+  expect(stack.items.map((t) => t.text)).toEqual(['ב']);
+  clock.advance(1);
+  expect(stack.items).toEqual([]);
+  expect(clock.pending()).toBe(0);
+  expect(stack.push('')).toBe(0);
+  expect(stack.items).toEqual([]);
+});
+
+test('stack: remove, clear, ms 0 and disconnect', () => {
+  const h = fakeHost();
+  const clock = fakeClock();
+  const stack = new ToastStackController(h.host, { timers: clock.timers });
+  const a = stack.push('א');
+  stack.push('ב', { ms: 0 });
+  expect(clock.pending()).toBe(1);
+  stack.remove(a);
+  expect([stack.items.map((t) => t.text), clock.pending()]).toEqual([['ב'], 0]);
+  const before = h.updates();
+  stack.remove(a); // already gone: no update
+  expect(h.updates()).toBe(before);
+  clock.advance(1_000_000);
+  expect(stack.items.map((t) => t.text)).toEqual(['ב']);
+  stack.clear();
+  expect(stack.items).toEqual([]);
+  stack.push('ג');
+  stack.push('ד');
+  const kept = h.updates();
+  stack.hostDisconnected();
+  expect([stack.items, clock.pending()]).toEqual([[], 0]);
+  expect(h.updates()).toBe(kept); // no update asked of a host that left
 });

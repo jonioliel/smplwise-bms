@@ -380,7 +380,7 @@ export class SystemDevices extends LitElement {
     this.message = '';
     try {
       const r = await syncCameras();
-      this.message = `${tr('סנכרון הושלם: {channels} ערוצים ({created} חדשים, {updated} עודכנו)', { channels: r.channels, created: r.created, updated: r.updated })}${r.recorder.model ? ` · ${r.recorder.model}` : ''}`;
+      this.message = `${tr('סנכרון הושלם: {channels} ערוצים ({created} חדשים, {updated} עודכנו)', { channels: r.channels, created: r.created, updated: r.updated })}${r.recorder?.model ? ` · ${r.recorder.model}` : ''}`;
       await this.reload();
     } catch (err) {
       this.error = describeError(err);

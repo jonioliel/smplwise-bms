@@ -129,7 +129,8 @@ const SHARED = css`
  */
 @customElement('sw-second-factor')
 export class SwSecondFactor extends LitElement {
-  @state() private status: SecondFactorStatus | null = null;
+  /** The own status (confirm / disable answer without the installation policy, which this card does not show). */
+  @state() private status: Omit<SecondFactorStatus, 'policy'> | null = null;
   @state() private enrolment: Enrolment | null = null;
   @state() private disabling = false;
   @state() private code = '';

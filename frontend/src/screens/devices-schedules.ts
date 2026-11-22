@@ -4,6 +4,10 @@ import { live } from 'lit/directives/live.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-dialog';
 import '../components/sw-page';
+import '../components/sw-segmented';
+import '../components/sw-tabs';
+import type { TabItem } from '../components/sw-tabs';
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-dropdown';
 import '../components/sw-schedule-bar';
 import '../components/sw-pager';
@@ -87,7 +91,6 @@ import {
 } from './schedules-logic';
 import { toneColor } from '../components/sw-schedule-bar';
 import { SkinController } from '../design/skin';
-import { tablistKeydown } from '../components/a11y-keys';
 import { readStoredJson, storedText, writeStoredJson } from '../api/safe-storage';
 import { FrameCoalescer } from '../components/frame-coalescer';
 import { devicesSchedulesStyles } from './devices-schedules-css';
@@ -698,7 +701,8 @@ export class DevicesSchedules extends LitElement {
       ${this.phone && rooms !== nothing ? html`<div class="dh-row fl">${rooms}</div>` : nothing}
       ${tools ? html`<div class="dh-det" data-sched-toolbar>
         ${this.renderSegments()}
-        ${all.length ? html`<div class="seg sm stf" role="radiogroup" aria-label=${tr('סינון לפי מצב')} ?data-open=${this.filtersOpen}>${STATE_SEGMENTS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id || 'all'} @click=${() => this.setFilter({ state: s.id as StateFilter })}>${s.label}<small>${sc[s.id]}</small></button>`)}</div>` : nothing}
+        ${all.length ? html`<sw-segmented class="stf" radio size="sm" label=${tr('סינון לפי מצב')} ?data-open=${this.filtersOpen} value=${f.state} @change=${(e: CustomEvent<SegmentedChange>) => this.setFilter({ state: e.detail.value as StateFilter })}
+          .options=${STATE_SEGMENTS.map((s) => ({ value: s.id, label: s.label, count: String(sc[s.id]), attrs: { 'data-state-filter': s.id || 'all' } }))}></sw-segmented>` : nothing}
         ${attention ? html`<button type="button" class="rc attn" data-open-review data-sched-attention @click=${() => this.go('review')}><i class="wdot" aria-hidden="true"></i>${pl('review')}<small>${attention}</small></button>` : nothing}
         ${all.length ? html`<button type="button" class="btn foldbtn" data-filters-toggle aria-label=${tr('סינון')} title=${tr('סינון')} aria-expanded=${String(this.filtersOpen)} @click=${() => (this.filtersOpen = !this.filtersOpen)}>${aIcon('filter')}<span class="lbl">${tr('סינון')}</span>${extra ? html`<small>${extra}</small>` : nothing}</button>` : nothing}
         <span class="grow"></span>
@@ -712,7 +716,9 @@ export class DevicesSchedules extends LitElement {
 
   /** Cards · table · week: the view switch sits where the media pages keep their floor menu (the end of the title row). */
   private viewSwitch(): TemplateResult {
-    return html`<div class="seg sm views" role="group" aria-label=${tr('תצוגה')}>${VIEWS.map((v) => html`<button type="button" data-view-btn=${v} aria-pressed=${String(this.view === v)} aria-label=${VIEW_LABEL[v]()} title=${VIEW_LABEL[v]()} @click=${() => this.setView(v)}>${aIcon(VIEW_ICON[v])}</button>`)}</div>`;
+    // CR-CMP2-SEGMENTED-C-2450: sw-segmented with icon-only keys (each named by its label, which is also its tooltip)
+    return html`<sw-segmented class="views" size="sm" labels="none" label=${tr('תצוגה')} value=${this.view} @change=${(e: CustomEvent<SegmentedChange>) => this.setView(e.detail.value as ListView)}
+      .options=${VIEWS.map((v) => ({ value: v, label: VIEW_LABEL[v](), icon: aIcon(VIEW_ICON[v]), attrs: { 'data-view-btn': v } }))}></sw-segmented>`;
   }
 
   /** The strip of "קברניט": תזמונים (this screen) first, then the automations screen's segments. Shown only when there is a second segment to go to. */
@@ -720,10 +726,14 @@ export class DevicesSchedules extends LitElement {
     const others = this.kavarnit.automations ? SEGMENTS.filter((s) => (this.autoKinds ? this.autoKinds.includes(s.kind) : s.id === 'automations')) : [];
     if (!others.length) return nothing;
     const n = this.status?.counts.visible;
-    return html`<div class="seg kinds" role="tablist" aria-label=${tr('קברניט')} data-kavarnit-segments @keydown=${tablistKeydown}>
-      <button type="button" role="tab" aria-selected="true" data-segment="schedules">${tr('תזמונים')}${n === undefined ? nothing : html` <small>${n}</small>`}</button>
-      ${others.map((s) => html`<button type="button" role="tab" aria-selected="false" data-segment=${s.id} @click=${() => navigate(itemPath(s.id))}>${s.label}${this.autoCounts ? html` <small>${this.autoCounts[s.kind]}</small>` : nothing}</button>`)}
-    </div>`;
+    // CR-CMP2-TABS-2460: sw-tabs (pill, controlled), the same strip as the automations screen's: data-segment hooks, the counts as
+    // `<small>` figures, the phone row shared equally; תזמונים is this screen, every other tab opens its kind on the automations screen
+    const items: TabItem[] = [
+      { id: 'schedules', label: tr('תזמונים'), pill: n, attrs: { 'data-segment': 'schedules' } },
+      ...others.map((s) => ({ id: s.id, label: s.label, pill: this.autoCounts ? this.autoCounts[s.kind] : undefined, attrs: { 'data-segment': s.id } })),
+    ];
+    return html`<sw-tabs controlled variant="pill" fill="phone" class="kinds" group-label=${tr('קברניט')} data-kavarnit-segments .items=${items} active="schedules"
+      @change=${(e: CustomEvent<{ id: string }>) => { e.stopPropagation(); const s = others.find((x) => x.id === e.detail.id); if (s) navigate(itemPath(s.id)); }}></sw-tabs>`;
   }
 
   private dd(attr: string, label: string, value: string, items: DropdownItem[], on: (v: string) => void): TemplateResult {
