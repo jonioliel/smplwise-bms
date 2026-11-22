@@ -212,7 +212,7 @@ def decide(ctx: Ctx, settings: dict[str, Any], eid: str, body: dict[str, Any], n
         raise model.Invalid("except_occurrences: local starts of a series", "except_occurrences")
     # nothing is written before every refusal (ApiError commits the transaction): the exdates are stored after the conflict check
     spans = [(o.start_utc, o.end_utc) for o in occ.event_occurrences(conn, ev, settings, now) if o.key not in set(excepts)]
-    held = occ.blockers(conn, holder, spans, settings, exclude=occ.family(conn, eid), states=("confirmed",))
+    held = events.name_conflicts(ctx, occ.blockers(conn, holder, spans, settings, exclude=occ.family(conn, eid), states=("confirmed",)))
     if held:
         if body.get("displace_existing") is not True:
             raise ApiError(409, "slot_held", "החלון כבר תפוס על ידי אירוע שאושר קודם.", details={"conflicts": held})
@@ -331,7 +331,7 @@ def maintenance_place(ctx: Ctx, settings: dict[str, Any], body: dict[str, Any], 
                            details={"overlaps": _overlap_view(ctx, overlaps), "alternatives": _alternatives(conn, settings, rooms, m["start"], m["end"])})
     own = occ.blockers(conn, cal, [(o.start_utc, o.end_utc) for o in m["occs"]], settings)
     if own:
-        raise ApiError(409, "conflict", "כבר יש חלון תחזוקה באותו זמן ביומן הזה.", details={"conflicts": own})
+        raise ApiError(409, "conflict", "כבר יש חלון תחזוקה באותו זמן ביומן הזה.", details={"conflicts": events.name_conflicts(ctx, own)})
     title = model._text(body.get("title"), "title", 1, 120)
     notes = model._text(body.get("notes") or "", "notes", 0, 2000)
     dev = body.get("expected_deviation")

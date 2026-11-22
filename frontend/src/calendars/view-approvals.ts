@@ -7,6 +7,7 @@ import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { ApiError, describeError } from '../api/client';
+import { calErrorText } from './conflict-hint';
 import type { CalRequest, Occurrence } from '../api/calendars';
 import { CAL_EVENTS, emit, type CalCtx } from './ctx';
 import { calCss } from './styles';
@@ -250,8 +251,9 @@ export class CalViewApprovals extends LitElement {
 
   private errText(e: unknown): string {
     if (e instanceof ApiError) {
-      if (e.code === 'slot_held') return tr('החלון כבר תפוס על ידי הזמנה שאושרה קודם. אפשר לאשר עם דחיקה או לדחות.');
-      if (e.code === 'displace_disabled') return tr('בהתקנה הזאת אי אפשר לדחוק הזמנה שאושרה. אפשר לדחות את הבקשה.');
+      // RESPONSE-HINTS-2480: the refusal also says which approved entry holds the window, and when
+      if (e.code === 'slot_held') return calErrorText(e, tr('החלון כבר תפוס על ידי הזמנה שאושרה קודם. אפשר לאשר עם דחיקה או לדחות.'));
+      if (e.code === 'displace_disabled') return calErrorText(e, tr('בהתקנה הזאת אי אפשר לדחוק הזמנה שאושרה. אפשר לדחות את הבקשה.'));
       if (e.status === 403) return tr('דחיקה של הזמנה מאושרת דורשת את אישור מנהל היומן עצמו.');
       if (e.code === 'stale') return tr('הבקשה עודכנה בינתיים. הרשימה רועננה.');
     }

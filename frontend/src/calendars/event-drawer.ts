@@ -13,6 +13,7 @@ import { calCss } from './styles';
 import { tr } from '../i18n/msg/calendars';
 import { BEHALF_LABEL, localInstant, repeatSummary, rruleOf, type Repeat } from './booking-logic';
 import { editableInDrawer } from './event-drawer-logic';
+import { calErrorText } from './conflict-hint';
 import './attendees-section'; // CAL-ATTENDEES-2343: the "מוזמנים" section (self-contained; reads / writes its own API)
 import type { CalAttendeesSection } from './attendees-section';
 import { errLineStyles } from '../styles/fragments';
@@ -252,7 +253,7 @@ export class CalEventDrawer extends LitElement {
         : r.event.state === 'pending' ? tr('השינויים נשמרו · ממתין לאישור') : tr('השינויים נשמרו'));
       this.close();
     } catch (e) {
-      this.error = describeError(e);
+      this.error = calErrorText(e);
     } finally {
       this.busy = false;
     }
@@ -363,7 +364,7 @@ export class CalEventDrawer extends LitElement {
       emit(this, CAL_EVENTS.toast, r.state === 'pending' ? tr('הבקשה נשלחה לאישור') : tr('ההזמנה נשמרה'));
       this.close();
     } catch (e) {
-      this.error = describeError(e);
+      this.error = calErrorText(e);
       if (e instanceof ApiError && Array.isArray((e.body.details as { suggestions?: unknown }).suggestions)) {
         this.suggestions = ((e.body.details as { suggestions: { start: string; end: string }[] }).suggestions).slice(0, 3);
       }
@@ -547,7 +548,7 @@ export class CalEventDrawer extends LitElement {
       </div>
       <div class="scale num"><span>07:00</span><span>12:00</span><span>17:00</span><span>22:00</span></div>
       ${!this.preview || this.editMode ? nothing : clash
-        ? html`<span class="hint bad" data-cal-avail="clash"><sw-icon name="warning" size="14"></sw-icon><span class="ell"><b>${n > 1 ? html`<span class="num">${conflicts.length}</span> ${tr('מועדים מתנגשים')}` : tr('המועד תפוס')}</b>${conflicts[0] ? html` · <span class="num">${ddmm(new Date(conflicts[0].start))} ${hm(conflicts[0].start)}</span>${conflicts[0].title ? ` (${conflicts[0].title})` : ''}` : nothing}</span></span>
+        ? html`<span class="hint bad" data-cal-avail="clash"><sw-icon name="warning" size="14"></sw-icon><span class="ell"><b>${n > 1 ? html`<span class="num">${conflicts.length}</span> ${tr('מועדים מתנגשים')}` : tr('המועד תפוס')}</b>${conflicts[0] ? html` · <span class="num ltr">${ddmm(new Date(conflicts[0].start))} ${hm(conflicts[0].start)}–${hm(conflicts[0].end)}</span>${conflicts[0].title !== undefined ? ` (${conflicts[0].title ?? tr('הזמנה אחרת')})` : ''}` : nothing}</span></span>
           ${nextFree ? html`<div class="sugg"><button type="button" class="num ltr" data-cal-suggest @click=${() => this.take(nextFree)}>${hm(nextFree.start)}–${hm(nextFree.end)}</button></div>` : nothing}`
         : html`<span class="hint ok" data-cal-avail="free"><sw-icon name="check" size="14"></sw-icon><span class="ell"><b>${n > 1 ? html`${tr('פנוי בכל')} <span class="num">${n}</span> ${tr('המועדים')}` : tr('פנוי')}</b>${gap ? html` · ${tr('כולל')} <span class="num">${gap}</span> ${tr('דק׳ הפסקה אחרי')}` : nothing}</span></span>`}`;
   }
