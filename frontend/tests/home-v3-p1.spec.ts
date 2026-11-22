@@ -76,14 +76,17 @@ async function audit(page: Page, min: number) {
     const hs = root.querySelector('.hs') as HTMLElement;
     if (hs.scrollWidth - hs.clientWidth > 1) out.push('hs-x');
     const small: string[] = [];
-    for (const el of Array.from(root.querySelectorAll<HTMLElement>('#main button, #main a[href], .ovl button'))) {
+    // CR-HOME-V3-SEGMENTS-2470: a segmented choice is sw-segmented - its keys sit in the component's shadow root, measured too
+    const segs = Array.from(root.querySelectorAll('#main sw-segmented, .ovl sw-segmented'));
+    const segKeys = segs.flatMap((s) => Array.from(s.shadowRoot?.querySelectorAll<HTMLElement>('button') ?? []));
+    for (const el of [...Array.from(root.querySelectorAll<HTMLElement>('#main button, #main a[href], .ovl button')), ...segKeys]) {
       const r = el.getBoundingClientRect();
       if (!r.width || !r.height || el.closest('.cover')) continue;
       const after = getComputedStyle(el, '::after');
       const grow = after.content !== 'none' && after.position === 'absolute' ? Math.max(0, -parseFloat(after.top || '0')) + Math.max(0, -parseFloat(after.bottom || '0')) : 0;
       if (Math.min(r.width, r.height + grow) < m - 0.5) small.push(`${el.tagName.toLowerCase()}.${el.className}[${el.getAttribute('aria-label') ?? el.textContent?.trim().slice(0, 16)}] ${Math.round(r.width)}x${Math.round(r.height)}`);
     }
-    const text = (root as unknown as { textContent: string }).textContent + ' ' + Array.from(root.querySelectorAll('[aria-label]')).map((e) => e.getAttribute('aria-label')).join(' ');
+    const text = (root as unknown as { textContent: string }).textContent + ' ' + segs.map((s) => s.shadowRoot?.textContent ?? '').join(' ') + ' ' + Array.from(root.querySelectorAll('[aria-label]')).map((e) => e.getAttribute('aria-label')).join(' ');
     return { out, small, text, dir: getComputedStyle(hs).direction };
   }, min);
 }
