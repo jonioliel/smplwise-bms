@@ -11,6 +11,8 @@ import '../components/sw-state-panel';
 import '../components/sw-page';
 import '../components/sw-card';
 import '../components/sw-tabs';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import { describeError } from '../api/client';
 import { calendarsApi, type CalSettings, type Calendar, type CalendarsApi, type OverlapMode } from '../api/calendars';
 import { attendeesApi, type AttendeePolicy, type AttendeeSettings } from '../api/calendar-attendees';
@@ -105,6 +107,18 @@ const OVERLAP_HINT: Record<OverlapMode, string> = {
  * /calendar/settings); the navigation follows a change of the placement at once. Without calendar.configure everything is read-only.
  * Paging instead of a page scroll (owner rule 2026-10-24): the rows that fit the panel are shown, the rest on the next page.
  */
+/** CR-CMP2-TABLES-REST-2470 (owner N10): the permissions table - the permission (its name in the heading ink), who holds it by default,
+ * sensitive as a shared warn chip */
+type PermRow = readonly [string, string, boolean];
+function permCols(): TableColumn[] {
+  const cols: TableColumn<PermRow>[] = [
+    { key: '0', label: tr('הרשאה'), render: (r) => html`<span class="t1">${r[0]}</span>` },
+    { key: '1', label: tr('מי מחזיק כברירת מחדל'), render: (r) => r[1] },
+    { key: '2', label: tr('רגישה'), kind: 'status', render: (r) => (r[2] ? html`<span class="chip" data-tone="warn">${tr('רגישה')}</span>` : html`<span class="mut">—</span>`) },
+  ];
+  return cols as unknown as TableColumn[];
+}
+
 @customElement('system-calendars')
 export class SystemCalendars extends LitElement {
   static styles = [calCss, liftedReset, css`
@@ -179,6 +193,11 @@ export class SystemCalendars extends LitElement {
     table.t tr:last-child td { border-block-end: 0; }
     table.t .n { font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
     table.t select.inp { min-block-size: 34px; font-size: var(--sw-fs-sm); inline-size: auto; max-inline-size: 220px; }
+    /* CR-CMP2-TABLES-REST-2470 (owner N10): the system permissions the calendar roles lean on - the shared table in the column (no card of
+       its own, never wider than the column; the holders' line wraps as the old cells did, the chip never breaks) */
+    sw-table[data-calset-perms] { --sw-table-min: 0; --sw-table-cell-pad: 8px 10px; }
+    sw-table[data-calset-perms]::part(cell) { white-space: normal; }
+    sw-table[data-calset-perms]::part(cell-status) { white-space: nowrap; }
     .cname { display: flex; align-items: center; gap: 8px; min-inline-size: 0; max-inline-size: 260px; }
     .danger { background: var(--sw-danger-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-danger) 40%, transparent); }
     .banner { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--sw-r-lg); background: var(--sw-warning-soft); font-size: var(--sw-fs-sm); }
@@ -634,9 +653,7 @@ export class SystemCalendars extends LitElement {
             <span class="dot" style=${`--h:${colorVar(c.color)}`}></span><div class="grow"><div class="name ell" title=${c.name}>${c.name}</div><div class="sub ell">${TYPE_LABEL[c.type]} · ${tr('מנהל:')} ${c.owner.name || tr('חסר')}${c.my_role ? ` · ${tr('שלך:')} ${ROLE_LABEL[c.my_role]}` : ''}</div></div>
             <span class="chip acc">${tr('חברים ותפקידים')}</span></a>`)}</div></div>${this.pager(p.page, p.pages)}</div>
         <div class="col wide-only"><h3>${tr('הרשאות במערכת שהתפקיד ביומן נשען עליהן')}</h3>
-          <table class="t"><thead><tr><th>${tr('הרשאה')}</th><th>${tr('מי מחזיק כברירת מחדל')}</th><th>${tr('רגישה')}</th></tr></thead><tbody>
-          ${PERMS.map(([a, b, sens]) => html`<tr><td><span class="n">${a}</span></td><td>${b}</td><td>${sens ? html`<span class="chip warn">${tr('רגישה')}</span>` : html`<span class="muted">—</span>`}</td></tr>`)}
-          </tbody></table><p class="lead">${tr('את ההרשאות עצמן נותנים בהגדרות ‹ משתמשים והרשאות.')}</p></div>
+          <sw-table bare static-rows data-calset-perms rowKey="0" .columns=${permCols()} .rows=${PERMS as unknown as Record<string, unknown>[]}></sw-table><p class="lead">${tr('את ההרשאות עצמן נותנים בהגדרות ‹ משתמשים והרשאות.')}</p></div>
       </div>`;
   }
 

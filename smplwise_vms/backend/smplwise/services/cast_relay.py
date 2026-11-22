@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable
 from urllib.parse import parse_qsl, urlsplit
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.cast")
 
@@ -429,3 +430,11 @@ class RelayServer:
 
 
 SERVER = RelayServer()
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _PROBES.clear()
+
+
+register_reset(__name__, ("_PROBES",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

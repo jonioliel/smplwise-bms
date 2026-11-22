@@ -50,6 +50,8 @@ PINNED = frozenset({
     ("smplwise/services/wiskey_channels.py", "stations/test_unlock"),  # the channel allowlist (a list of names, not a send)
     # DOORWIN-295 re-pin on integ/293 (sites added after 2.4.10, reviewed - neither sends anything):
     ("smplwise/services/elevators.py", "door_open"),  # CR-INFRA-ELEVATORS: an elevator's binary-sensor ROLE name (read only)
+    # RELEASE-2450-TRAIN re-pin (CR-RESPONSE-MODELS-B-2450, reviewed - sends nothing): the elevator state literal of the response type
+    ("smplwise/wire/elevators.py", "door_open"),
     ("smplwise/services/intercom_authority.py", "door_open"),  # the command -> scope classification table (a lookup, not a send)
     ("smplwise/services/intercom_authority.py", "stations/test_unlock"),  # same table
     # 2.16.0 integration re-pin (reviewed - neither sends anything):

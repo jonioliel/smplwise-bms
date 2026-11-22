@@ -1,5 +1,6 @@
 import { LitElement, html, nothing } from 'lit';
 import '../../components/sw-button';
+import '../../components/sw-field';
 import '../../components/sw-segmented';
 import type { SegmentedChange } from '../../components/sw-segmented';
 import { customElement, property, state } from 'lit/decorators.js';
@@ -224,12 +225,12 @@ export class WaterSettingsPage extends LitElement {
     const set = (k: keyof VersionForm, v: string) => (this.vf = { ...f, [k]: v } as VersionForm);
     return html`<elec-dialog open heading=${f.tariffId ? wt('newVersion') : wt('newTariff')} data-dialog="version" @close=${() => (this.vf = null)}>
       <div class="formgrid">
-        ${f.tariffId ? nothing : html`<div class="fld wide"><label for="wtn">${wt('tariffName')}</label><input id="wtn" data-tariff-name .value=${f.name} @input=${(e: Event) => set('name', (e.target as HTMLInputElement).value)} /></div>`}
-        <div class="fld"><label for="wtf">${wt('colFrom')}</label><input id="wtf" type="date" lang=${dateInputLang()} class="ltr" .value=${f.from} @change=${(e: Event) => set('from', (e.target as HTMLInputElement).value)} /></div>
+        ${f.tariffId ? nothing : html`<sw-field class="fld wide" label=${wt('tariffName')}><input id="wtn" data-tariff-name .value=${f.name} @input=${(e: Event) => set('name', (e.target as HTMLInputElement).value)} /></sw-field>`}
+        <sw-field class="fld" label=${wt('colFrom')}><input id="wtf" type="date" lang=${dateInputLang()} class="ltr" .value=${f.from} @change=${(e: Event) => set('from', (e.target as HTMLInputElement).value)} /></sw-field>
         <div class="fld"><span class="lbl">${wt('priceMode')}</span><sw-segmented label=${wt('priceMode')} value=${f.mode} @change=${(e: CustomEvent<SegmentedChange>) => set('mode', e.detail.value as 'ex_vat' | 'inc_vat')}
           .options=${[{ value: 'ex_vat', label: wt('modeEx') }, { value: 'inc_vat', label: wt('modeInc') }]}></sw-segmented></div>
-        <div class="fld"><label for="wtw">${wt('colWaterM3')}</label><input id="wtw" class="ltr" inputmode="decimal" data-water-price .value=${f.water} @input=${(e: Event) => set('water', (e.target as HTMLInputElement).value)} /></div>
-        <div class="fld"><label for="wts">${wt('colSewageM3')}</label><input id="wts" class="ltr" inputmode="decimal" data-sewage-price .value=${f.sewage} @input=${(e: Event) => set('sewage', (e.target as HTMLInputElement).value)} /></div>
+        <sw-field class="fld" label=${wt('colWaterM3')} unit="₪"><input id="wtw" class="ltr" inputmode="decimal" data-water-price .value=${f.water} @input=${(e: Event) => set('water', (e.target as HTMLInputElement).value)} /></sw-field>
+        <sw-field class="fld" label=${wt('colSewageM3')} unit="₪"><input id="wts" class="ltr" inputmode="decimal" data-sewage-price .value=${f.sewage} @input=${(e: Event) => set('sewage', (e.target as HTMLInputElement).value)} /></sw-field>
       </div>
       ${this.vErr ? html`<div class="alert err" role="alert">${this.vErr}</div>` : nothing}
       <sw-button variant="primary" slot="actions" data-confirm ?disabled=${this.busy} @click=${() => void this.saveVersion()}>${wt('save')}</sw-button>

@@ -25,6 +25,8 @@ from ..services import calendar_store as store
 from ..services.calendar import calendars as cals
 from ..services.calendar import decisions, events, guests, jobs, model, occ
 from ..services.calendar.access import Ctx, Denied, get_visible, scope_of
+from ..wire import calendar as W
+from ..wire import wire
 from ._common import rid as _rid
 
 OFF_HE = "מודול היומנים כבוי בהגדרות המערכת."
@@ -92,7 +94,7 @@ def _instant(v: str | None, field: str) -> dt.datetime:
 
 # ---------------------------------------------------------------- module state and settings (answer while the module is off)
 
-@open_router.get("/calendar/module")
+@open_router.get("/calendar/module", **wire(W.CalModuleState))
 def module_state(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     s = model.read_settings(conn)
     anywhere = set(permissions_anywhere(conn, principal))
@@ -102,7 +104,7 @@ def module_state(principal: Principal = Depends(current_principal_ro), conn: sql
             "ui": {k: s[k] for k in model.UI_CHOICES} | {"allow_displace": s["allow_displace"], "guest_details_enabled": s["guest_details_enabled"]}}
 
 
-@open_router.get("/calendar/settings")
+@open_router.get("/calendar/settings", **wire(W.CalSettingsView))
 def get_settings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     anywhere = set(permissions_anywhere(conn, principal))
     if model.PERM_VIEW not in anywhere and model.PERM_CONFIGURE not in anywhere:
@@ -110,7 +112,7 @@ def get_settings(principal: Principal = Depends(current_principal_ro), conn: sql
     return {"settings": model.read_settings(conn), "can_configure": model.PERM_CONFIGURE in anywhere}
 
 
-@open_router.put("/calendar/settings")
+@open_router.put("/calendar/settings", **wire(W.CalSettingsSaved))
 def put_settings(body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, model.PERM_CONFIGURE, INSTALLATION)
     with _errors(conn, principal, request):
@@ -131,7 +133,7 @@ def put_settings(body: Body, request: Request, principal: Principal = Depends(cu
     return {"settings": new, "erase_preview": preview}
 
 
-@open_router.post("/calendar/guests/purge")
+@open_router.post("/calendar/guests/purge", **wire(W.CalGuestsPurged))
 def purge_guests(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """C4: destroys every guest name and phone now. Counts only in the audit row."""
     require(conn, principal, model.PERM_CONFIGURE, INSTALLATION)
@@ -142,14 +144,14 @@ def purge_guests(request: Request, principal: Principal = Depends(current_princi
 
 # ---------------------------------------------------------------- calendars
 
-@router.get("/calendar/calendars")
+@router.get("/calendar/calendars", **wire(W.CalCalendarList))
 def list_calendars(type: str | None = Query(default=None), include_archived: int = Query(default=0), principal: Principal = Depends(current_principal_ro),
                    conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _need_view(conn, principal)
     return {"calendars": cals.listing(Ctx(conn, principal), type_=type, include_archived=bool(include_archived))}
 
 
-@router.post("/calendar/calendars", status_code=201)
+@router.post("/calendar/calendars", status_code=201, **wire(W.CalCalendarOne))
 def create_calendar(body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     data = _body(body)
     area = data.get("area_ref")
@@ -163,7 +165,7 @@ def create_calendar(body: Body, request: Request, principal: Principal = Depends
         return {"calendar": cals.serialize(conn, row, ctx.role_in(row))}
 
 
-@router.get("/calendar/calendars/{cid}")
+@router.get("/calendar/calendars/{cid}", **wire(W.CalCalendarDetail))
 def get_calendar(cid: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     ctx = Ctx(conn, principal)
     cal = get_visible(ctx, cid)
@@ -171,7 +173,7 @@ def get_calendar(cid: str, principal: Principal = Depends(current_principal_ro),
     return {"calendar": cals.serialize(conn, cal, role), "members_summary": {"count": store.member_count(conn, cid)}}
 
 
-@router.patch("/calendar/calendars/{cid}")
+@router.patch("/calendar/calendars/{cid}", **wire(W.CalCalendarOne))
 def patch_calendar(cid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     cal = get_visible(ctx, cid)
@@ -192,7 +194,7 @@ def patch_calendar(cid: str, body: Body, request: Request, principal: Principal 
         return {"calendar": cals.serialize(conn, row, ctx.role_in(row))}
 
 
-@router.post("/calendar/calendars/{cid}/archive")
+@router.post("/calendar/calendars/{cid}/archive", **wire(W.CalCalendarArchived))
 def archive_calendar(cid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     cal = get_visible(ctx, cid)
@@ -202,7 +204,7 @@ def archive_calendar(cid: str, body: Body, request: Request, principal: Principa
     return {"calendar": cals.serialize(conn, store.calendar(conn, cid), "manage"), "cancelled": len(cancelled)}
 
 
-@router.post("/calendar/calendars/{cid}/restore")
+@router.post("/calendar/calendars/{cid}/restore", **wire(W.CalCalendarOne))
 def restore_calendar(cid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     cal = get_visible(ctx, cid, include_archived=True)
@@ -212,7 +214,7 @@ def restore_calendar(cid: str, request: Request, principal: Principal = Depends(
     return {"calendar": cals.serialize(conn, store.calendar(conn, cid), "manage")}
 
 
-@router.get("/calendar/calendars/{cid}/members")
+@router.get("/calendar/calendars/{cid}/members", **wire(W.CalMembers))
 def get_members(cid: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     cal = get_visible(ctx, cid)
@@ -222,7 +224,7 @@ def get_members(cid: str, request: Request, principal: Principal = Depends(curre
         return {"members": cals.members(conn, cid)}
 
 
-@router.put("/calendar/calendars/{cid}/members")
+@router.put("/calendar/calendars/{cid}/members", **wire(W.CalMembers))
 def put_members(cid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     cal = get_visible(ctx, cid)
@@ -236,7 +238,7 @@ def put_members(cid: str, body: Body, request: Request, principal: Principal = D
 
 # ---------------------------------------------------------------- entries
 
-@router.get("/calendar/occurrences")
+@router.get("/calendar/occurrences", **wire(W.CalOccurrences))
 def get_occurrences(frm: str = Query(alias="from"), to: str = Query(), calendars: str = Query(default=""), kinds: str = Query(default=""), states: str = Query(default=""),
                     principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _need_view(conn, principal)
@@ -247,7 +249,7 @@ def get_occurrences(frm: str = Query(alias="from"), to: str = Query(), calendars
     return events.occurrences(Ctx(conn, principal), a, b, calendars=split(calendars), kinds=split(kinds), states=split(states))
 
 
-@router.get("/calendar/rooms/day")
+@router.get("/calendar/rooms/day", **wire(W.CalRoomsDay))
 def rooms_day(date: str = Query(), calendars: str = Query(default=""), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _need_view(conn, principal)
     try:
@@ -274,7 +276,7 @@ def rooms_day(date: str = Query(), calendars: str = Query(default=""), principal
     return {"rooms": rooms}
 
 
-@router.post("/calendar/availability")
+@router.post("/calendar/availability", **wire(W.CalAvailability))
 def availability(body: Body, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _need_view(conn, principal)
     d = _body(body)
@@ -303,7 +305,7 @@ def availability(body: Body, principal: Principal = Depends(current_principal_ro
     return {"free": free[:20], "nearest": nearest[:20]}
 
 
-@router.post("/calendar/events", status_code=201)
+@router.post("/calendar/events", status_code=201, **wire(W.CalEventCreated))
 def create_event(body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     with _errors(conn, principal, request):
@@ -319,14 +321,14 @@ def create_event(body: Body, request: Request, principal: Principal = Depends(cu
         return out
 
 
-@router.post("/calendar/events/preview")
+@router.post("/calendar/events/preview", **wire(W.CalEventPreview))
 def preview_event(body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     with _errors(conn, principal, request):
         return events.preview(ctx, model.read_settings(conn), _body(body), _now())
 
 
-@router.get("/calendar/events/{eid}")
+@router.get("/calendar/events/{eid}", **wire(W.CalEventDetail))
 def get_event(eid: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     ctx = Ctx(conn, principal)
     ev, cal, role = events.get_row(ctx, eid)
@@ -340,7 +342,7 @@ def get_event(eid: str, principal: Principal = Depends(current_principal_ro), co
             "guests_visible": bool(role == "manage" or authorize(conn, principal, model.PERM_GUESTS, scope_of(cal)).allowed)}
 
 
-@router.patch("/calendar/events/{eid}")
+@router.patch("/calendar/events/{eid}", **wire(W.CalEventUpdated))
 def patch_event(eid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     with _errors(conn, principal, request):
@@ -370,7 +372,7 @@ def patch_event(eid: str, body: Body, request: Request, principal: Principal = D
         return out
 
 
-@router.post("/calendar/events/{eid}/restore")
+@router.post("/calendar/events/{eid}/restore", **wire(W.CalEventRestored))
 def restore_event(eid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """CAL-GRID-EDIT-2343: the grid's "בטל" after a delete (a single entry, inside the undo window)."""
     ctx = _ctx(request, conn, principal)
@@ -380,7 +382,7 @@ def restore_event(eid: str, body: Body, request: Request, principal: Principal =
         return out
 
 
-@router.post("/calendar/events/{eid}/cancel")
+@router.post("/calendar/events/{eid}/cancel", **wire(W.CalEventOne))
 def cancel_event(eid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     with _errors(conn, principal, request):
@@ -393,7 +395,7 @@ def cancel_event(eid: str, body: Body, request: Request, principal: Principal = 
         return out
 
 
-@router.post("/calendar/events/{eid}/withdraw")
+@router.post("/calendar/events/{eid}/withdraw", **wire(W.CalEventOne))
 def withdraw_event(eid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     with _errors(conn, principal, request):
@@ -409,7 +411,7 @@ def _guest_access(ctx: Ctx, ev: sqlite3.Row, cal: sqlite3.Row, role: str | None,
         raise Denied(model.PERM_GUESTS, cal["id"], "manage")
 
 
-@router.get("/calendar/events/{eid}/guests")
+@router.get("/calendar/events/{eid}/guests", **wire(W.CalGuests))
 def get_guests(eid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     ev, cal, role = events.get_row(ctx, eid)
@@ -431,7 +433,7 @@ def delete_guests(eid: str, request: Request, principal: Principal = Depends(cur
     return Response(status_code=204)
 
 
-@router.get("/me/calendar")
+@router.get("/me/calendar", **wire(W.CalMine))
 def my_calendar(frm: str | None = Query(default=None, alias="from"), to: str | None = Query(default=None), principal: Principal = Depends(current_principal_ro),
                 conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _need_view(conn, principal)
@@ -449,7 +451,7 @@ def my_calendar(frm: str | None = Query(default=None, alias="from"), to: str | N
 
 # ---------------------------------------------------------------- approvals and maintenance
 
-@router.get("/calendar/requests")
+@router.get("/calendar/requests", **wire(W.CalRequests))
 def list_requests(state: str = Query(default="pending"), calendars: str = Query(default=""), principal: Principal = Depends(current_principal_ro),
                   conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _need_view(conn, principal)
@@ -459,7 +461,7 @@ def list_requests(state: str = Query(default="pending"), calendars: str = Query(
                                           order=model.read_settings(conn)["contested_order"])}
 
 
-@router.post("/calendar/requests/{eid}/decide")
+@router.post("/calendar/requests/{eid}/decide", **wire(W.CalDecided))
 def decide_request(eid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     with _errors(conn, principal, request):
@@ -468,7 +470,7 @@ def decide_request(eid: str, body: Body, request: Request, principal: Principal 
         return out
 
 
-@router.post("/calendar/requests/{eid}/reopen")
+@router.post("/calendar/requests/{eid}/reopen", **wire(W.CalEventOne))
 def reopen_request(eid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     with _errors(conn, principal, request):
@@ -487,7 +489,7 @@ def _maint_guard(ctx: Ctx, data: dict[str, Any]) -> None:
             raise Denied(model.PERM_MAINTENANCE, room["id"], "view")  # he must see what he displaces
 
 
-@router.post("/calendar/maintenance/preview")
+@router.post("/calendar/maintenance/preview", **wire(W.CalMaintPreview))
 def maintenance_preview(body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     with _errors(conn, principal, request):
@@ -495,7 +497,7 @@ def maintenance_preview(body: Body, request: Request, principal: Principal = Dep
         return decisions.maintenance_preview(ctx, model.read_settings(conn), _body(body), _now())
 
 
-@router.post("/calendar/maintenance", status_code=201)
+@router.post("/calendar/maintenance", status_code=201, **wire(W.CalMaintPlaced))
 def maintenance_place(body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     with _errors(conn, principal, request):

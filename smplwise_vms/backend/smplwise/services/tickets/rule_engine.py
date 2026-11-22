@@ -31,6 +31,7 @@ from ...errors import ApiError
 from ..timeutil import iso_utc, parse_utc
 from . import access, create, model, notify_bridge, rules_doc, sla, store, store_rules
 from .timeutil import zone_of
+from ...test_reset import register_reset
 
 log = logging.getLogger("smplwise.tickets.rules")
 
@@ -300,3 +301,13 @@ def dry_run(conn, principal: Any, raw: Any, now: dt.datetime | None = None) -> d
                     "description": rules_doc.render(rule["description"], values, multiline=True, max_len=model.DESCRIPTION_MAX),
                     "department": dept.get("name") or "", "priority": (pr or {}).get("name") or ""},
     }
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    STATS.clear()
+    STATS.update({"last_run_at": None, "created": 0, "absorbed": 0, "suppressed": 0, "refused": 0, "cleared": 0, "closed": 0, "errors": 0})
+    _LAST.clear()
+
+
+register_reset(__name__, ("STATS", "_LAST"), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

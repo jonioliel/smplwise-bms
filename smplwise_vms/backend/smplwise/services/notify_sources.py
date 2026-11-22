@@ -728,4 +728,10 @@ def second_factor_reset(conn: sqlite3.Connection, user_id: str) -> None:
                                          initiator_user_id=user_id, link="#/system/notifications", origin={"kind": "second_factor"}))
 
 
-register_reset(__name__, ("_SINCE", "_UPDATE", "_HANDLED"), reset)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)
+def _reset_all_for_tests() -> None:
+    """Test seam: the module's existing reset, then the remaining module-level tables back to a fresh process (smplwise.test_reset; product code never calls it)."""
+    reset()
+    _LAST_FAILED.clear()
+
+
+register_reset(__name__, ("_SINCE", "_UPDATE", "_HANDLED", "_LAST_FAILED"), _reset_all_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

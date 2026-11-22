@@ -15,6 +15,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..errors import ApiError, not_found
 from ..rbac import Principal, require
 from ..services import floor_images as fi
+from ..services import floor_images_store as store
 from ._common import rid as _rid
 from .catalog import get_floor
 
@@ -98,7 +99,7 @@ def put_floor_image_layout(floor_id: str, body: LayoutIn, request: Request, prin
     coordinates (0..1 inside the plan; a little outside is allowed), and the image opacity."""
     get_floor(conn, floor_id)
     require(conn, principal, "map.edit", ("floor", floor_id))
-    if not conn.execute("SELECT 1 FROM floor_images WHERE floor_id = ?", (floor_id,)).fetchone():
+    if not store.floor_image_row(conn, floor_id):
         raise ApiError(409, "no_image", "לקומה אין תמונה; העלו תמונה לפני היישור.")
     try:
         layout = fi.save_layout(conn, floor_id, body.corners, body.opacity, principal.user_id)

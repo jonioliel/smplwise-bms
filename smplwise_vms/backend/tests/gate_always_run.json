@@ -65,6 +65,7 @@
  },
  "not_scanners": {
   "test_gate2_select.py": "names 'ls-files' inside a unit-test string; a gate-2 core file anyway",
+  "test_push_golive_check.py": "names 'git ls-files' in a docstring (CR-BE-FOLLOWUPS-2470); asks git check-ignore about a few fixed paths, walks nothing",
   "test_remote_hardening.py": "reorders app.router.routes of its own test app; walks nothing"
  }
 }

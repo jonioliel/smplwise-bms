@@ -22,6 +22,7 @@ import {
 } from './home-logic';
 import * as act from './home-actions';
 import { api, apiUrl, post, describeError } from '../api/client';
+import type * as HiWire from '../api/generated/wire-home-interface';
 import { GALLERY, galleryCss, switchUserMode } from './home-wall';
 import { notify } from '../api/notifications';
 import { snapshotUrl } from '../api/media';
@@ -1664,7 +1665,7 @@ export class SwHome extends LitElement implements P3Host {
   }
 
   a_wallDel() {
-    void api<{ layout: HomeLayout }>(`home/wallpaper/${encodeURIComponent(this.room)}`, { method: 'DELETE' })
+    void api<Omit<HiWire.WallpaperRemoved, 'layout'> & { layout: HomeLayout }>(`home/wallpaper/${encodeURIComponent(this.room)}`, { method: 'DELETE' })
       .then((r) => { this.prefs = { ...this.prefs, layout: r.layout }; this.toast(tr('התמונה הוסרה')); })
       .catch((err) => this.toast(describeError(err)));
   }
@@ -1678,7 +1679,7 @@ export class SwHome extends LitElement implements P3Host {
     if (f.size > 2_000_000) return this.toast(tr('התמונה גדולה מ-2 MB.'));
     const form = new FormData();
     form.append('file', f);
-    void api<{ layout: HomeLayout }>(`home/wallpaper/${encodeURIComponent(this.room)}`, { method: 'PUT', body: form })
+    void api<Omit<HiWire.WallpaperSaved, 'layout'> & { layout: HomeLayout }>(`home/wallpaper/${encodeURIComponent(this.room)}`, { method: 'PUT', body: form })
       .then((r) => { this.wallStamp = Date.now(); this.prefs = { ...this.prefs, layout: r.layout }; this.toast(tr('התמונה נשמרה כרקע')); })
       .catch((err) => this.toast(describeError(err)));
   }

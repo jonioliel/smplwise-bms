@@ -6,67 +6,32 @@
  */
 import { get, post, put } from './client';
 import { commandId } from './request-id';
+import type * as Wire from './generated/wire-door-windows';
+
+/* The wire shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/door_windows.py), generated into
+ * ./generated/wire-door-windows.ts: a field the server renames or drops is a compile error here (code review 07:F8 step 2). Narrowed on
+ * purpose: the occurrence / incident / door-result states, the trigger-log source and decision, the holiday kinds and the emergency
+ * scope types to their closed lists (stored text on the server). Optional on purpose (an older server, the demo / test stores): a door's
+ * `program`, a rule's `hidden_doors`, the DOORWIN2 additions of the states, the incident's `foreign_paused` / `doors`, and the
+ * emergency settings added after the first release. */
 
 export type Tier = 'program' | 'prepared';
 export type RuleKind = 'weekly' | 'once' | 'event';
 export type TriggerSource = 'ha_event' | 'arx_automation';
-type RuleState = 'draft' | 'enabled' | 'paused' | 'retired';
 export type CalendarPolicy = 'skip_holidays' | 'holidays_like_friday' | 'ignore_calendar';
 export type OccState =
   | 'prepared' | 'planned' | 'armed' | 'starting' | 'active' | 'not_started' | 'ending' | 'relock_unconfirmed'
   | 'closed_confirmed' | 'cancelled' | 'superseded' | 'elapsed';
 
-export interface DoorRow {
-  key: string;
-  station_id: string;
-  relay: number;
-  label: string;
-  station_name: string;
-  name: string;
-  zone: string;
-  manage: boolean;
-  cancel: boolean;
-  exterior: boolean;
-}
+export type DoorRow = Omit<Wire.DwDoor, 'program'> & Partial<Pick<Wire.DwDoor, 'program'>>;
 
-export interface Period {
-  weekday: number | null;
-  on_date: string | null;
-  start: string;
-  end: string;
-}
+export type Period = Wire.DwPeriod;
 
-export interface Rule {
-  id: string;
-  name: string;
-  kind: RuleKind;
-  state: RuleState;
-  calendar_policy: CalendarPolicy;
-  notes: string;
-  revision: number;
-  updated_at: string | null;
-  approved: boolean;
-  manageable?: boolean;
-  doors: { station_id: string; relay: number; key: string; label: string; visible: boolean }[];
-  periods: Period[];
-  /** DOORWIN2-295: an `event` rule's trigger (never the token: only whether one exists) and the Home Assistant action text with a placeholder. */
-  trigger?: RuleTrigger | null;
-  snippet?: string;
-}
+/** `manageable` only in the screen state; DOORWIN2-295: an `event` rule's `trigger` (never the token: only whether one exists) and
+ * `snippet`, the Home Assistant action text with a placeholder. */
+export type Rule = Omit<Wire.DwRule, 'hidden_doors'> & Partial<Pick<Wire.DwRule, 'hidden_doors'>>;
 
-export interface RuleTrigger {
-  source: TriggerSource;
-  duration_s: number;
-  automation_id: string | null;
-  allowed_from: string | null;
-  allowed_to: string | null;
-  max_per_day: number;
-  cooldown_s: number;
-  arm_state: 'simulate' | 'armed';
-  has_token: boolean;
-  token_set_at: string | null;
-  can_arm: boolean;
-}
+export type RuleTrigger = Wire.DwTrigger;
 
 interface TriggerBody {
   source: TriggerSource;
@@ -79,52 +44,19 @@ interface TriggerBody {
   regenerate_token?: boolean;
 }
 
-export interface TriggerLogRow {
-  at: string;
+export interface TriggerLogRow extends Omit<Wire.DwTriggerLog, 'source' | 'decision'> {
   source: 'arx_button' | 'arx_automation' | 'ha_event';
-  door: string;
   decision: 'started' | 'extended' | 'simulated' | 'refused';
-  reason: string | null;
-  end_at: string | null;
 }
 
-export interface ForeignPaused {
-  door: string;
-  station_id: string;
-  relay: number;
-  label: string;
-  incident_id: string | null;
-  paused_at: string | null;
-}
+export type ForeignPaused = Wire.DwForeignPaused;
 
-export interface Occurrence {
-  id: string;
-  door: string;
-  label: string;
-  rule_id: string | null;
-  rule_name: string;
-  start_at: string;
-  end_at: string;
-  zone: string;
-  state: OccState;
-  tier: Tier;
-  retries: number;
-  unconfirmed_at: string | null;
-  last_reason: string | null;
-  resolution: string | null;
-  resolved_at: string | null;
-}
+export type Occurrence = Omit<Wire.DwOccurrence, 'state'> & { state: OccState };
 
-export interface WindowsState {
-  enabled: boolean;
-  tier: Tier;
-  go_live_permitted: boolean;
-  settings: Record<string, string>;
-  can: { manage: boolean; cancel: boolean; configure: boolean };
+export interface WindowsState extends Omit<Wire.DwState, 'doors' | 'rules' | 'occurrences' | 'automation_actor' | 'foreign_paused' | 'triggers'> {
   doors: DoorRow[];
   rules: Rule[];
   occurrences: Occurrence[];
-  now: string;
   /** DOORWIN2-295 */
   automation_actor?: boolean;
   foreign_paused?: ForeignPaused[];
@@ -143,10 +75,7 @@ export interface RuleBody {
   enable?: boolean;
 }
 
-export interface PreviewReply {
-  tier: Tier;
-  doors: { door: string; label: string; zone: string; errors: string[]; occurrences: { start_at: string; end_at: string; token: string }[] }[];
-}
+export type PreviewReply = Wire.DwRulePreview;
 
 const W = 'doors/windows';
 
@@ -159,38 +88,26 @@ export const endNow = (occurrenceId: string) => post<{ occurrence: Occurrence }>
 export const confirmClosed = (occurrenceId: string, checked: 'camera' | 'door') =>
   post<{ occurrence: Occurrence }>(`${W}/occurrences/${encodeURIComponent(occurrenceId)}/confirm-closed`, { checked, confirmed: true });
 /** DOORWIN2-295: the answer of a save carries the trigger token ONCE (and the Home Assistant action text with it) for a new `ha_event` rule. */
-export interface RuleSaved {
-  rule: Rule;
-  token?: string;
-  snippet?: string;
-}
+export type RuleSaved = Omit<Wire.DwRuleSaved, 'rule'> & { rule: Rule };
 export const armRule = (id: string, armed: boolean) => post<{ rule: Rule }>(`${W}/rules/${encodeURIComponent(id)}/arm`, { armed, confirmed: true });
-export const newToken = (id: string) => post<{ token: string; snippet: string }>(`${W}/rules/${encodeURIComponent(id)}/token`, { confirmed: true });
+export const newToken = (id: string) => post<Wire.DwToken>(`${W}/rules/${encodeURIComponent(id)}/token`, { confirmed: true });
 export const openFor = (station: string, relay: number, durationS: number) =>
-  post<{ decision: { decision: string; end_at: string | null } }>(`${W}/doors/${encodeURIComponent(station)}/${relay}/open-for`, { duration_s: durationS, confirmed: true });
+  post<Wire.DwOpenFor>(`${W}/doors/${encodeURIComponent(station)}/${relay}/open-for`, { duration_s: durationS, confirmed: true });
 // CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by DOORWIN2 (door windows).
-export const foreignHandled = (station: string, relay: number) => post<{ handled: boolean }>(`${W}/doors/${encodeURIComponent(station)}/${relay}/foreign-handled`, { confirmed: true });
+export const foreignHandled = (station: string, relay: number) => post<Wire.DwDoorHandled>(`${W}/doors/${encodeURIComponent(station)}/${relay}/foreign-handled`, { confirmed: true });
 
-export interface HolidayRow {
-  date: string;
-  kind: 'holiday' | 'holiday_eve' | 'regular' | 'closed';
-  name_he: string;
-  source: 'generated' | 'manual';
+export interface HolidayRow extends Omit<Wire.DwHoliday, 'generated_kind'> {
   generated_kind: 'holiday' | 'holiday_eve' | null;
 }
-export interface CalendarReply {
-  days: { on_date: string; scope_key: string; day_type: string; label: string | null }[];
-  generator: 'israel' | 'none';
-  holidays: HolidayRow[];
-}
+export type CalendarReply = Omit<Wire.DwCalendar, 'generator' | 'holidays'> & { generator: 'israel' | 'none'; holidays: HolidayRow[] };
 export const getCalendar = () => get<CalendarReply>(`${W}/calendar`);
 export const putCalendarDay = (onDate: string, dayType: HolidayRow['kind'] | 'none', label = '') =>
-  put<{ saved: number }>(`${W}/calendar`, { days: [{ on_date: onDate, day_type: dayType, label }], confirmed: true });
+  put<Wire.DwCalendarSaved>(`${W}/calendar`, { days: [{ on_date: onDate, day_type: dayType, label }], confirmed: true });
 
 /** SPLITSWITCH-297: `go_live_permitted` = the permit AND the door-window program engine's own flag (independent of emergency buttons). */
-export const getWindowSettings = () => get<{ settings: Record<string, string>; go_live_permitted: boolean; program_engine_built?: boolean }>(`${W}/settings`);
+export const getWindowSettings = () => get<Omit<Wire.DwSettings, 'program_engine_built'> & Partial<Pick<Wire.DwSettings, 'program_engine_built'>>>(`${W}/settings`);
 export const putWindowSettings = (changes: Record<string, string>) =>
-  put<{ settings: Record<string, string>; changed: string[] }>(`${W}/settings`, { changes, confirmed: true });
+  put<Wire.DwSettingsSaved>(`${W}/settings`, { changes, confirmed: true });
 
 // ---------------------------------------------------------------- emergency
 
@@ -198,62 +115,32 @@ export type EmergencyKind = 'lock_secure' | 'open';
 type ScopeType = 'installation' | 'site' | 'building';
 export type DoorResult = 'pending' | 'sent' | 'acknowledged' | 'refused' | 'unknown' | 'skipped';
 
-export interface Scope {
-  scope_type: ScopeType;
-  scope_id: string;
-  name: string;
-  doors: number;
-}
+export type Scope = Wire.DwEmergencyScope;
 
-export interface Incident {
-  id: string;
-  kind: EmergencyKind;
-  kind_label: string;
-  drill: boolean;
+type IncidentDoor = Omit<Wire.DwIncidentDoor, 'state'> & { state: DoorResult };
+
+/** `can_release` / `can_retry_open` (WKOPENUNK-295 / EMROLE-295: a system administrator, or a holder of the emergency-open role, may start
+ * one explicit new OPEN attempt for a door whose OPEN ended unknown) only on the active incident of the state. */
+export interface Incident extends Omit<Wire.DwIncident, 'state' | 'scope_type' | 'doors' | 'foreign_paused'> {
   state: 'applying' | 'in_effect' | 'in_effect_partial' | 'releasing' | 'released' | 'released_partial';
   scope_type: ScopeType;
-  scope_id: string;
-  scope_name: string;
-  requested_at: string;
-  released_at: string | null;
-  reason: string;
-  counts: { total: number; ok: number; failed: number; unknown: number };
-  first_sent_ms: number | null;
-  last_sent_ms: number | null;
-  superseded_by: string | null;
-  foreign_paused?: { door: string; label: string }[];
-  can_release?: boolean;
-  /** WKOPENUNK-295 / EMROLE-295: a system administrator, or a holder of the emergency-open role, may start one explicit new OPEN attempt for a door whose OPEN ended unknown. */
-  can_retry_open?: boolean;
-  doors?: { door: string; label: string; phase: 'apply' | 'release'; state: DoorResult; attempts: number; code: string | null }[];
+  foreign_paused?: Wire.DwIncidentForeign[];
+  doors?: IncidentDoor[];
 }
 
-export interface EmergencyState {
-  enabled: boolean;
-  open_enabled: boolean;
-  hold_ms: number;
-  /** `grant` (EMROLE-295): the person may give / take away the emergency-open role (a system administrator or a security manager). */
-  can: { lock: boolean; open: boolean; grant?: boolean };
+/** `can.grant` (EMROLE-295): the person may give / take away the emergency-open role (a system administrator or a security manager).
+ * DOORWIN2-295: `home_widget` (the optional home-screen entry) and the doors whose own program an emergency LOCK paused. */
+export interface EmergencyState extends Pick<Wire.DwEmergencyState, 'enabled' | 'open_enabled' | 'hold_ms'> {
+  can: Omit<Wire.DwEmergencyCan, 'grant'> & Partial<Pick<Wire.DwEmergencyCan, 'grant'>>;
   active: Incident | null;
   drill?: Incident | null;
   scopes?: Record<EmergencyKind, Scope[]>;
   recent?: Incident[];
-  /** DOORWIN2-295: the optional home-screen entry (`doors.emergency.home_widget`); the doors whose own program an emergency LOCK paused. */
   home_widget?: boolean;
   foreign_paused?: ForeignPaused[];
 }
 
-export interface Prepared {
-  confirm_token: string;
-  expires_at: string;
-  doors: number;
-  kind: EmergencyKind;
-  action: 'start' | 'release';
-  drill: boolean;
-  scope_type: ScopeType;
-  scope_id: string;
-  scope_name: string;
-}
+export type Prepared = Omit<Wire.DwPrepared, 'scope_type'> & { scope_type: ScopeType };
 
 const E = 'doors/emergency';
 
@@ -269,35 +156,18 @@ export const releaseIncident = (id: string, token: string) =>
   post<{ incident: Incident }>(`${E}/incidents/${encodeURIComponent(id)}/release`, { confirm_token: token, confirmed: true, client_request_id: commandId() });
 export const getIncident = (id: string) => get<{ incident: Incident }>(`${E}/incidents/${encodeURIComponent(id)}`);
 
-export interface EmergencySettings {
-  'doors.emergency.enabled': string;
-  'doors.emergency.open_enabled': string;
-  'doors.emergency.automations': string;
-  'doors.emergency.hold_ms': string;
-  'doors.emergency.announce_phrase'?: string;
-  'doors.emergency.home_widget'?: string;
-  /** SPLITSWITCH2-297: the emergency-buttons master switch (setting; default on; settings managers only; OFF needs confirmation). Absent = on. */
-  'doors.emergency.engine_switch'?: string;
-  /** EMROLE-295: the expiry offered when a grant names none (hours, 0 = none), the longest a security manager may give, and the two switches. */
-  'doors.emergency.grant.default_hours'?: string;
-  'doors.emergency.grant.max_hours'?: string;
-  'doors.emergency.grant.by_security_manager'?: string;
-  'doors.emergency.retry_open.by_holders'?: string;
-  /** SPLITSWITCH-297: the permit AND the emergency engine's own flag (independent of door-window programs). */
-  go_live_permitted: boolean;
-  live_engine_built?: boolean;
-  emergency_engine_built?: boolean;
-  /** permit + engine flag, before the settings switch (so the screen can tell "not approved in this version" from "switched off") */
-  build_ready?: boolean;
-  open_available: boolean;
-  attested: boolean;
-  attestation: { version: number; text: string };
-}
+/** SPLITSWITCH2-297 `doors.emergency.engine_switch`: the emergency-buttons master switch (absent = on); EMROLE-295: the grant expiry
+ * settings and the two switches; SPLITSWITCH-297 `go_live_permitted`: the permit AND the emergency engine's own flag; `build_ready`:
+ * permit + engine flag before the settings switch (so the screen can tell "not approved in this version" from "switched off"). */
+export type EmergencySettings = Omit<Wire.DwEmergencySettings, LaterSettingKeys> & Partial<Pick<Wire.DwEmergencySettings, LaterSettingKeys>>;
+type LaterSettingKeys = 'doors.emergency.announce_phrase' | 'doors.emergency.home_widget' | 'doors.emergency.engine_switch'
+  | 'doors.emergency.grant.default_hours' | 'doors.emergency.grant.max_hours' | 'doors.emergency.grant.by_security_manager'
+  | 'doors.emergency.retry_open.by_holders' | 'live_engine_built' | 'emergency_engine_built' | 'build_ready' | 'lock_available';
 
 export const getEmergencySettings = () => get<{ settings: EmergencySettings }>(`${E}/settings`);
 export const putEmergencySettings = (changes: Record<string, string>, confirmEngineOff = false) =>
   put<{ settings: EmergencySettings; changed: string[] }>(`${E}/settings`, { changes, confirmed: true, ...(confirmEngineOff ? { confirm_engine_off: true } : {}) });
-export const attest = (version: number) => post<{ attested: boolean; version: number }>(`${E}/attestation`, { version, accepted: true, confirmed: true });
+export const attest = (version: number) => post<Wire.DwAttested>(`${E}/attestation`, { version, accepted: true, confirmed: true });
 
 /** WKOPENUNK-295: one explicit new OPEN attempt for ONE door whose OPEN ended unknown; the person types the door's name (the server checks it) - never automatic. */
 export const retryOpenDoor = (incidentId: string, stationId: string, relay: number, confirmDoor: string) =>
@@ -305,34 +175,10 @@ export const retryOpenDoor = (incidentId: string, stationId: string, relay: numb
 
 // ---------------------------------------------------------------- EMROLE-295: who holds the emergency-open role
 
-interface GrantHolder {
-  id: string;
-  subject_kind: 'user' | 'group';
-  subject_id: string;
-  name: string;
-  scope_type: string;
-  scope_id: string;
-  scope_name: string;
-  expires_at: string | null;
-  created_at: string;
-  assigned_by: string | null;
-  assigned_by_name: string;
-  role_name: string;
-}
-
-export interface GrantsView {
-  basis: 'system_admin' | 'security_manager';
-  default_hours: number;
-  max_hours: number;
-  can_no_expiry: boolean;
-  holders: GrantHolder[];
-  candidates: { id: string; name: string }[];
-  scopes: { scope_type: 'installation' | 'site' | 'building'; scope_id: string; name: string }[];
-  role_name: string;
-}
+export type GrantsView = Omit<Wire.DwGrants, 'scopes'> & { scopes: (Omit<Wire.DwGrantScope, 'scope_type'> & { scope_type: ScopeType })[] };
 
 export const getEmergencyGrants = () => get<GrantsView>(`${E}/grants`);
 /** Give the built-in emergency-open role to one person; `expires_at` is a UTC instant (Z), `noExpiry` is for a system administrator only. */
 export const grantEmergencyOpen = (userId: string, scope: { scope_type: string; scope_id: string }, expiresAt: string | null, noExpiry: boolean) =>
-  post<{ grant: { id: string; expires_at: string | null } }>(`${E}/grants`, { user_id: userId, ...scope, expires_at: noExpiry ? null : expiresAt, no_expiry: noExpiry, confirmed: true });
-export const revokeEmergencyGrant = (bindingId: string) => post<{ revoked: string }>(`${E}/grants/${encodeURIComponent(bindingId)}/revoke`, { confirmed: true });
+  post<Wire.DwGrantOne>(`${E}/grants`, { user_id: userId, ...scope, expires_at: noExpiry ? null : expiresAt, no_expiry: noExpiry, confirmed: true });
+export const revokeEmergencyGrant = (bindingId: string) => post<Wire.DwGrantRevoked>(`${E}/grants/${encodeURIComponent(bindingId)}/revoke`, { confirmed: true });

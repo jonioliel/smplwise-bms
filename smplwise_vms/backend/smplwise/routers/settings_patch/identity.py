@@ -12,6 +12,7 @@ from ...db import get_setting
 from ...errors import ApiError
 from ...rbac import Principal
 from ...services import confirm_words
+from ...services import settings_patch_identity_store as store
 from ...services.settings_store import DEFAULTS
 from .._common import rid as _rid
 from . import Patch
@@ -217,7 +218,7 @@ def local_switch_applied(patch: Patch) -> None:
 
         ended = local_identity.revoke_all(conn, "feature_off") if local_switch == "off" else 0
         if local_switch == "off":  # USR2-P2B: every live self-service reset code ends with the switch (migration 0097's trigger does it too)
-            conn.execute("DELETE FROM auth_local_reset_codes")
+            store.delete_local_reset_codes(conn)
         audit(conn, actor=principal, action="identity.local.feature_enabled" if local_switch == "on" else "identity.local.feature_disabled", decision="allowed",
               resource_type="installation", resource_id="local_identity", request_id=_rid(request),
               details={"sessions_ended": ended} if ended else None)

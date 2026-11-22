@@ -385,6 +385,17 @@ def require(conn: sqlite3.Connection, principal: Principal, permission: str, tar
 _GRANTS: ContextVar[tuple[tuple[str, Decision], ...]] = ContextVar("sw_grants", default=())
 
 
+def _reset_grants() -> None:
+    _GRANTS.set(())
+
+
+from .test_reset import register_reset  # noqa: E402 - imports nothing from the package
+
+# RELEASE-2450-TRAIN gate run 1: a test that calls require() outside a request (the main context) left its grant behind, and
+# test_rbac_camera_scope's "nothing leaks out of a request's context" saw it; every test starts with no grant.
+register_reset(__name__, ("_GRANTS",), _reset_grants)
+
+
 def last_grant(action: str | None = None) -> Decision | None:
     grants = _GRANTS.get()
     if not grants:

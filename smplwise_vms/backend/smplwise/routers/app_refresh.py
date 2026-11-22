@@ -42,6 +42,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, authorize, is_system_admin, note_grant
 from ..remote_channel import is_remote
 from ..services import app_refresh as svc
+from ..services import app_refresh_store as store
 from ..services import app_session as xs
 from ..services import ha_user_auth as hua
 from ._common import db_of as _db, rid as _rid
@@ -416,7 +417,7 @@ def end_families(request: Request, caller: Caller = Depends(session_caller), use
         touch_user(conn, caller.principal)
         _may_manage(conn, caller, target, request)
         reason = "signed_out_everywhere" if target == caller.principal.user_id else "revoked_all_by_admin"
-        devices = [r["device_id"] for r in conn.execute("SELECT device_id FROM app_refresh_families WHERE user_id = ? AND revoked_at IS NULL", (target,)).fetchall()]
+        devices = [r["device_id"] for r in store.live_family_devices(conn, target)]
         n = svc.revoke_user(conn, target, reason, actor=caller.principal, request_id=_rid(request))
         svc.release_pins(conn, devices, reason, actor=caller.principal, request_id=_rid(request))  # Q296: only the user's own end
     return {"families_ended": n}
@@ -431,7 +432,7 @@ class KeyResetIn(BaseModel):
 
 
 def _device_owner(conn, device_id: str) -> str | None:
-    r = conn.execute("SELECT user_id FROM mobile_devices WHERE id = ?", (device_id[:64],)).fetchone()
+    r = store.device_owner_row(conn, device_id[:64])
     return r["user_id"] if r else None
 
 

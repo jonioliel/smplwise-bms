@@ -42,6 +42,7 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeout
 from typing import Any, Iterable
 from urllib.parse import parse_qsl, urlsplit
+from ..test_reset import register_reset
 
 ALLOWED_SCHEMES = ("rtsp://", "rtsps://")
 MAX_SOURCE_LEN = 2048
@@ -249,3 +250,11 @@ def go2rtc_targets(go2rtc_url: str | None) -> list[tuple[frozenset[str], frozens
         hosts |= set(cached[1])
     ports = set(GO2RTC_PORTS) | ({port} if port else set())
     return [(frozenset(hosts), frozenset(ports))]
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _RESOLVED.clear()
+
+
+register_reset(__name__, ("_RESOLVED",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

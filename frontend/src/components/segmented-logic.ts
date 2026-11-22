@@ -33,3 +33,14 @@ export function segmentedTabStop(values: readonly string[], value: string, enabl
   if (at >= 0 && enabled[at]) return at;
   return enabled.indexOf(true);
 }
+
+/** CR-CMP2-TABS-2460 (components/sw-chip-choice.ts): is this chip on? One choice: it is the value; `multi`: it is one of the values. */
+export function chipOn(value: string, current: string, multi: boolean, values: readonly string[]): boolean {
+  return multi ? values.includes(value) : value === current;
+}
+
+/** CR-CMP2-TABS-2460 (components/sw-tabs.ts): the count pill of a tab draws only a real figure - a number (0 included) or a non-empty
+ * string; `undefined`, `null` and `''` draw nothing. */
+export function tabPillShown(pill: number | string | null | undefined): boolean {
+  return pill !== undefined && pill !== null && pill !== '';
+}

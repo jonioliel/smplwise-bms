@@ -22,7 +22,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..auth import current_principal, get_conn
 from ..errors import ApiError
 from ..rbac import Principal
+from ..services import home_wall_events_store as store
 from ..services import home_interface as hi
+from ..wire import home_wall_events as W
+from ..wire import wire
 
 router = APIRouter()
 FAMILY_TYPES = ("team", "event")
@@ -44,7 +47,7 @@ def _family_calendars(ctx: Any) -> list[sqlite3.Row]:
     from ..services.calendar.access import get_visible
 
     out = []
-    for r in ctx.conn.execute("SELECT id FROM cal_calendars WHERE archived_at IS NULL AND type IN (?, ?) ORDER BY name_key", FAMILY_TYPES).fetchall():
+    for r in store.family_calendar_ids(ctx.conn, FAMILY_TYPES):
         try:
             cal = get_visible(ctx, r["id"])
         except ApiError:
@@ -55,7 +58,7 @@ def _family_calendars(ctx: Any) -> list[sqlite3.Row]:
     return out
 
 
-@router.post("/home/wall/events", status_code=201)
+@router.post("/home/wall/events", status_code=201, **wire(W.WallEventCreated))
 def wall_event(body: WallEventBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     from . import calendar as cr
     from ..services.calendar import events, model

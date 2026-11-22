@@ -4,35 +4,21 @@
  * types each may take); this module never guesses a type from a name. No Lit and no DOM, so the unit specs import it directly.
  */
 import { tr } from '../i18n/msg/devices';
+import type * as Wire from '../api/generated/wire-devices';
 
 export type FixedKind = 'switch' | 'outlet' | 'light' | 'fan' | 'heater' | 'water_heater' | 'valve';
 export type TypeSetting = FixedKind | 'auto';
 
-export interface DeviceTypeRow {
-  entity_id: string;
-  name: string;
-  domain: string;
-  device_class: string | null;
-  area_id: string | null;
-  area_name: string | null;
-  floor_id: string | null;
-  floor_name: string | null;
-  state: string | null;
-  available: boolean;
-  /** The type now: the fixed one, else the automatic one. */
+/** GET /devices/device-types: the backend's response model (smplwise/wire/devices.py, generated into api/generated/wire-devices.ts), narrowed
+ * on purpose to the fixed kinds: `kind` = the type now (the fixed one, else the automatic one), `auto` = the type the name (or the outlet
+ * device class) gives, `set` = the administrator's fixed type (null = automatic), `options` = the types this device may take (a virtual
+ * helper is never an outlet). SEC246 L2 (owner 2026-10-11) `bulk_on_allowed`: a device typed as a valve or a water heater stays out of
+ * "הדלק הכל" unless this is on (per device, default off); absent on an older server. */
+export interface DeviceTypeRow extends Omit<Wire.DeviceTypeRow, 'kind' | 'auto' | 'set' | 'options' | 'bulk_on_allowed'> {
   kind: FixedKind;
-  /** The type the name (or the outlet device class) gives. */
   auto: FixedKind;
-  /** The administrator's fixed type, or null = automatic. */
   set: FixedKind | null;
-  /** The types this device may take (a virtual helper is never an outlet). */
   options: FixedKind[];
-  set_by: string | null;
-  set_at: string | null;
-  /**
-   * SEC246 L2 (owner 2026-10-11): a device the administrator typed as a valve or a water heater stays out of "הדלק הכל" unless this is on
-   * (per device, default off). Absent on an older server.
-   */
   bulk_on_allowed?: boolean;
 }
 
