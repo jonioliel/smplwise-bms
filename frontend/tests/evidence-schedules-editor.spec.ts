@@ -427,7 +427,7 @@ test.describe('sensitive schedules', () => {
     await expect(dialog.locator('[data-lowering-warning]')).toContainText('שער חניה');
     await expect(dialog.locator('[data-lowering-ok]')).toHaveAttribute('disabled', '');
     await shot(page, 'editor-lowering-1440');
-    await dialog.locator('[data-lowering-ack]').check();
+    await dialog.locator('[data-lowering-ack]').click();
     await expect(dialog.locator('[data-lowering-ok]')).not.toHaveAttribute('disabled', '');
     await dialog.locator('[data-lowering-ok]').click();
     await expect(editor(page).locator('[data-note]')).toContainText('נשמרו');
@@ -852,7 +852,7 @@ test.describe('S3 integration: the routes and the shared dialog', () => {
     const dlg = page.locator('schedule-lowering-dialog');
     await expect(dlg.locator('[data-lowering-warning]')).toContainText('השחזור יחזיר תזמון שמנטרל אזעקה');
     await expect(dlg.locator('[data-lowering-code]')).toBeVisible();
-    await dlg.locator('[data-lowering-ack]').check();
+    await dlg.locator('[data-lowering-ack]').click();
     await expect(dlg.locator('[data-lowering-ok]')).toHaveAttribute('disabled', ''); // the code is still missing
     await dlg.locator('[data-lowering-code]').fill('1234');
     await dlg.locator('[data-lowering-ok]').click();

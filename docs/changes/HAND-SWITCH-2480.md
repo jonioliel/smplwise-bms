@@ -42,6 +42,26 @@ Dead CSS of the converted boxes removed where nothing else used it: `temp-settin
 `system-update.ts` (`.chk input`, `.chk .box`), `schedule-slot-panel.ts`, `schedule-drawer.ts`, `nvr-connection-form.ts`
 (`:not([type='checkbox'])` guards with no check box left).
 
+## Acknowledgements ("I agree" / "I confirm" / accept terms) - owner decision 22.11
+
+The owner approved the comparison page and decided, against the earlier recommendation to keep them, that the single-statement
+acknowledgement boxes become the same switch. The action button still waits until the switch is on (no logic changed):
+
+- Lit screens (`sw-toggle size="sm" labelHidden in-label`, the hook moved to the switch host): `access-external/request-dialog`
+  (`data-told`), `screens/access-external` approve "told" (`data-approve-told`), the Frigate "supervised" box
+  (`frigate-admin-shared` `supervisedBox`, `frigate-config-panel`, `frigate-control-settings`, `investigate-reviews`
+  `data-review-export-supervised`), `sw-bridge-key-revoke` (`data-bridge-key-revoke-ack`), `sw-offbox-backup` key export
+  (`data-offbox-ack`), `plan-package-dialog` foreign package x2 (`data-pkg-accept-foreign`), `schedule-lowering-dialog`
+  (`data-lowering-ack`), `system-readiness` printed guide (new hook `data-readiness-printed`), `wiskey-profiles` confirm
+  (`data-pf-confirm-check`), `wiskey-station-people` accept duplicate (`data-station-check-accept`), `tickets/costs-tab` expired
+  quote (`data-quote-expired-ok`), `notices/delete-dialog` live notice (`data-delete-live`).
+- Public pages (hand-built DOM, no Lit): the vendor arrival notice (`public-ticket/arrival/arrival-card`, `data-arrival-ack`) and the
+  RFQ arrival terms (`public-ticket/rfq/rfq-page-terms`, `data-rfq-terms-ack`) keep the native check box (form semantics,
+  keyboard, `checked`) with `role="switch"`, drawn as the same compact 32 x 18 track in their own sheets (`arrival-card.css`,
+  `claim.css` `.swc-check input[role='switch']`), tokens only.
+- CSS: the dead `input` rules of those rows went (`.sup input`, `label.ack input` x2, `.check input`); `access-external/styles.ts`
+  gives a `label.cb` that holds a switch a 32 px first column (it was 22 px for the box).
+
 ## Kept on purpose (recorded, recommendation taken)
 
 There is no shared check-box component; these stay native check boxes (they still count in the ratchet) until one exists:
@@ -57,11 +77,8 @@ There is no shared check-box component; these stay native check boxes (they stil
   `media-admin-list` / `wiskey-people` / `system-xs-options` / `tickets/table-toolbar` column choosers, `elevator-settings` include
   list, `system-multimedia` extra keys, `notices/display-info` info kinds, `display-transit` stops, `calendars` lists,
   `live-camera` human / vehicle targets, `explore-plan-import` layers, `schedule-entity-picker`, `maintenance/emergency-config`).
-- **Acknowledgements and attestations** ("I confirm ..."): `sw-bridge-key-revoke`, `sw-offbox-backup` key export, the Frigate
-  "supervised" box (`frigate-admin-shared`, `frigate-config-panel`, `frigate-control-settings`, `investigate-reviews`),
-  `schedule-lowering-dialog`, `notices/delete-dialog`, `plan-package-dialog` (foreign package), `wiskey-profiles` confirm,
-  `wiskey-station-people` accept duplicate, `tickets/costs-tab` expired quote, `access-external` told / gone checklist,
-  `system-access-parity` checklist, `system-readiness` printed, `maintenance/round-run` (a round checklist).
+- **Multi-item checklists** (tick each item; not one "I agree"): `access-external` gone checklist, `system-access-parity`
+  checklist, `maintenance/round-run` (the "out of range" mark of a round reading).
 - **`shell/sw-home-personal.ts`**: the personal home widget list mirrors `screens/home-edit-panel.ts` (out of scope tonight); converting
   one of the two would split the same list's look.
 - **Owner N12, allow-listed in `scripts/design_ratchet.py`** (not counted any more): the home `<button class="hsw" role="switch">`

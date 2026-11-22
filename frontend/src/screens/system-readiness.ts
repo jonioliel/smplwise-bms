@@ -6,6 +6,7 @@ import { tr } from '../i18n/msg/system-b';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-page';
 import '../components/sw-button';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-icon';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
@@ -250,7 +251,7 @@ export class SystemReadiness extends LitElement {
       ${done
         ? nothing
         : html`<div class="form"><label>${tr('שם הלקוח')}<input class="inp" type="text" maxlength="120" .value=${this.customer} @input=${(e: Event) => (this.customer = (e.target as HTMLInputElement).value)} data-customer></label>
-            <label class="inline"><input type="checkbox" .checked=${this.printed} @change=${(e: Event) => (this.printed = (e.target as HTMLInputElement).checked)}>${tr('המדריך המודפס נמסר')}</label></div>`}
+            <label class="inline"><sw-toggle size="sm" labelHidden in-label label=${tr('המדריך המודפס נמסר')} data-readiness-printed .checked=${this.printed} @change=${(e: Event) => (this.printed = toggled(e))}></sw-toggle>${tr('המדריך המודפס נמסר')}</label></div>`}
       ${!done && !h.advice_met ? html`<p class="warn" data-below-advice><sw-icon name="info" size=${13}></sw-icon>${h.blockers.length ? tr('המסירה תירשם כמוקדמת: ציון {score} ו־{n} חסמים.', { score: r.score, n: h.blockers.length }) : tr('המסירה תירשם כמוקדמת: ציון {score}.', { score: r.score })}</p>` : nothing}
       <div class="btns"><sw-button size="sm" variant=${done ? 'secondary' : 'primary'} ?disabled=${this.busy} data-handover-btn @click=${() => void this.recordHandover(!done)}>${done ? tr('ביטול רישום המסירה') : h.advice_met ? tr('רישום מסירה') : tr('רישום מסירה מוקדמת')}</sw-button></div>
     </div>`;

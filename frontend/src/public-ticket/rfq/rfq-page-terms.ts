@@ -157,7 +157,7 @@ function termsOnly(host: TermsHost, v: RfqView, ui: ArrivalUi, act: (action: Arr
     h('h3', { class: 'swc-sub' }, host.t('termsSchedule')), list,
     h('div', { class: 'swc-total-row swc-grand' }, h('span', null, host.totalLabel()), h('span', { class: 'swc-amount', attrs: { dir: 'ltr' } }, host.money(s.total_minor, s.currency))));
   if (!terms.can.confirm && !terms.can.propose) return card;
-  const box = h('input', { attrs: { type: 'checkbox', 'data-rfq-terms-ack': true }, on: { change: (e) => { ui.ack = (e.target as HTMLInputElement).checked; host.render(); } } });
+  const box = h('input', { attrs: { type: 'checkbox', role: 'switch', 'data-rfq-terms-ack': true }, on: { change: (e) => { ui.ack = (e.target as HTMLInputElement).checked; host.render(); } } });
   (box as HTMLInputElement).checked = ui.ack;
   card.appendChild(h('label', { class: 'swc-check' }, box, h('span', null, host.t('termsAck'))));
   const actions = h('div', { class: 'swc-row swc-actions' },

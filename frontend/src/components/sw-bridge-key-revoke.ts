@@ -2,6 +2,7 @@ import { localeFor } from '../i18n/locale';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-button';
+import { toggled } from './sw-toggle';
 import './sw-dialog';
 import { describeError } from '../api/client';
 import { revealNewCode, revokeBridgeKey, type BridgeKeyStatus, type RevealResult } from '../api/bridge-key';
@@ -104,10 +105,7 @@ export class SwBridgeKeyRevoke extends LitElement {
       margin-block-start: 10px;
       font-size: var(--sw-fs-sm);
     }
-    label.ack input {
-      margin-block-start: 3px;
-      inline-size: 18px;
-      block-size: 18px;
+    label.ack sw-toggle {
       flex: none;
     }
     .field {
@@ -229,8 +227,8 @@ export class SwBridgeKeyRevoke extends LitElement {
       </ul>
       ${wiskey
         ? html`<div class="warn" role="alert" data-bridge-key-revoke-wiskey>${bkt('rvWiskeyWarn')}</div>
-            <label class="ack"><input type="checkbox" data-bridge-key-revoke-ack .checked=${this.ack}
-              @change=${(e: Event) => (this.ack = (e.target as HTMLInputElement).checked)} />${bkt('rvWiskeyAck')}</label>`
+            <label class="ack"><sw-toggle size="sm" labelHidden in-label label=${bkt('rvWiskeyAck')} data-bridge-key-revoke-ack .checked=${this.ack}
+              @change=${(e: Event) => (this.ack = toggled(e))}></sw-toggle>${bkt('rvWiskeyAck')}</label>`
         : nothing}
       ${this.error ? html`<p class="err" role="alert">${this.error}</p>` : nothing}
       <div class="foot">

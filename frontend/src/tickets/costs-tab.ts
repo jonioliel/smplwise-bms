@@ -230,8 +230,9 @@ export class TicketCostsTab extends LitElement {
 
   private expiredField(q: Quote, kind: Exclude<QDialog, null>['kind']): TemplateResult | typeof nothing {
     if (!this.expiredNeeded(q, kind)) return nothing;
-    return html`<label class="chk" data-quote-expired-confirm><input type="checkbox" data-quote-expired-ok .checked=${this.expiredOk}
-      @change=${(e: Event) => { this.expiredOk = (e.target as HTMLInputElement).checked; this.err = ''; }} />${qt('expiredConfirmSentence', { date: validDayText(q.valid_until) })}</label>`;
+    const sentence = qt('expiredConfirmSentence', { date: validDayText(q.valid_until) });
+    return html`<label class="chk" data-quote-expired-confirm><sw-toggle size="sm" labelHidden in-label label=${sentence} data-quote-expired-ok .checked=${this.expiredOk}
+      @change=${(e: Event) => { this.expiredOk = toggled(e); this.err = ''; }}></sw-toggle>${sentence}</label>`;
   }
 
   private openDialog(kind: Exclude<QDialog, null>['kind'], q: Quote): void {

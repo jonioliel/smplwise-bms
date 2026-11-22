@@ -1,6 +1,7 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-dialog';
 import { ApiError, describeError } from '../api/client';
 import { deleteNotice } from '../api/notices';
@@ -60,7 +61,7 @@ export class NoticeDelete extends LitElement {
     if (!n) return html`<sw-dialog></sw-dialog>`;
     return html`<sw-dialog open data-delete-dialog heading=${nt('delTitle')} @close=${() => this.close()}>
       <p data-delete-line>${nt('delBody', { title: n.title })}</p>
-      ${isLive(n) ? html`<label class="ck"><input type="checkbox" data-delete-live .checked=${this.ticked} @change=${(e: Event) => (this.ticked = (e.target as HTMLInputElement).checked)}>${nt(isUrgentLive(n) ? 'delUrgentTick' : 'delLiveTick')}</label>` : nothing}
+      ${isLive(n) ? html`<label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt(isUrgentLive(n) ? 'delUrgentTick' : 'delLiveTick')} data-delete-live .checked=${this.ticked} @change=${(e: Event) => (this.ticked = toggled(e))}></sw-toggle>${nt(isUrgentLive(n) ? 'delUrgentTick' : 'delLiveTick')}</label>` : nothing}
       ${this.err ? html`<p class="err" role="alert" data-delete-error>${this.err}</p>` : nothing}
       <sw-button slot="footer" variant="ghost" @click=${() => this.close()}>${nt('cancel')}</sw-button>
       <sw-button slot="footer" variant="danger" data-delete-confirm ?disabled=${!canConfirmDelete(n, this.ticked, this.busy)} @click=${() => this.confirm()}>${nt('delConfirm')}</sw-button>

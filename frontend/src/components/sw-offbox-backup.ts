@@ -579,8 +579,8 @@ export class SwOffboxBackup extends LitElement {
             ${isExport
               ? html`<ul class="keyfacts" data-offbox-key-facts>
                   <li>${obt('keyExportWhat')}</li><li>${obt('keyExportNoRestore')}</li><li>${obt('keyExportLost')}</li><li>${obt('keyExportStore')}</li></ul>
-                <label class="ack"><input type="checkbox" data-offbox-ack .checked=${this.acked}
-                  @change=${(e: Event) => { this.acked = (e.target as HTMLInputElement).checked; }} /><span>${obt('keyExportAck')}</span></label>`
+                <label class="ack"><sw-toggle size="sm" labelHidden in-label label=${obt('keyExportAck')} data-offbox-ack .checked=${this.acked}
+                  @change=${(e: Event) => { this.acked = toggled(e); }}></sw-toggle><span>${obt('keyExportAck')}</span></label>`
               : nothing}
             <div class="muted">${obt(isExport ? 'keyExportConfirm' : 'keyRotateConfirm')}</div>
             <input class="confirm-in" data-ltr data-offbox-confirm placeholder=${word} .value=${this.confirm} @input=${(e: Event) => { this.confirm = (e.target as HTMLInputElement).value; }} />`}

@@ -567,8 +567,8 @@ export class WiskeyProfilesScreen extends LitElement {
       : pft('confirmTextNoAccess', { from, to: from + 1 });
     return html`<sw-dialog open heading=${pft('confirmTitle')} @close=${() => (this.confirmOpen = false)} data-pf-confirm>
       <p data-pf-confirm-sentence>${sentence}</p>
-      <label class="ck"><input type="checkbox" .checked=${this.confirmChecked} data-pf-confirm-check
-        @change=${(e: Event) => (this.confirmChecked = (e.target as HTMLInputElement).checked)} /> ${pft('confirmCheck')}</label>
+      <label class="ck"><sw-toggle size="sm" labelHidden in-label label=${pft('confirmCheck')} .checked=${this.confirmChecked} data-pf-confirm-check
+        @change=${(e: Event) => (this.confirmChecked = toggled(e))}></sw-toggle> ${pft('confirmCheck')}</label>
       <div slot="footer" class="dlg-acts">
         <sw-button variant="ghost" data-pf-confirm-cancel @click=${() => (this.confirmOpen = false)}>${pft('cancel')}</sw-button>
         <sw-button variant="primary" icon="check" ?disabled=${!this.confirmChecked || this.busy} data-pf-confirm-send @click=${() => void this.apply()}>

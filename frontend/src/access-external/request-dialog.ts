@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-icon';
 import '../components/sw-dialog';
 import '../components/sw-segmented';
@@ -457,7 +458,7 @@ export class AccessRequestDialog extends LitElement {
     const dir = lang === 'he' || lang === 'ar' ? 'rtl' : 'ltr';
     return html`<section class="sec" data-sec="notice"><h4><sw-icon name="shield" size="14"></sw-icon>${rt('notice')}<span class="sp"></span><span class="chip" data-tone="off">${rt('noticeLang', { lang: rt(`lang_${lang}` as RtKey), v: n?.version ?? 'n2' })}</span></h4>
       <div class="ntext" dir=${dir} lang=${lang} data-notice-text>${n?.text ?? rt('loading')}</div>
-      <label class="cb" ?data-invalid=${!!e.told}><input type="checkbox" data-told .checked=${this.f.told} @change=${(ev: Event) => this.set({ told: (ev.target as HTMLInputElement).checked })} /><span><b dir=${dir} lang=${lang}>${n?.attest ?? ''}</b></span></label>
+      <label class="cb" ?data-invalid=${!!e.told}><sw-toggle size="sm" labelHidden in-label label=${n?.attest ?? ''} data-told .checked=${this.f.told} @change=${(ev: Event) => this.set({ told: toggled(ev) })}></sw-toggle><span><b dir=${dir} lang=${lang}>${n?.attest ?? ''}</b></span></label>
       ${this.err(e, 'told')}</section>`;
   }
 

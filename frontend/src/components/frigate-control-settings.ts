@@ -1,6 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import './sw-toggle';
+import { toggled } from './sw-toggle';
 import './sw-button';
 import './sw-dialog';
 import './sw-tabs';
@@ -291,7 +291,7 @@ export class FrigateControlSettings extends LitElement {
     const blocked = !!kind && !!this.first && !this.first.done[kind] && !this.first.can_supervise;
     return html`<sw-dialog open heading=${`${t.undo}: ${changeLine(u.row)}`} data-fcs-confirm @close=${() => (this.undoing = null)}>
       <div class="form">
-        ${needSup ? html`<label class="sup" data-supervised-box=${kind}><input type="checkbox" .checked=${u.supervised} @change=${(e: Event) => (this.undoing = { ...u, supervised: (e.target as HTMLInputElement).checked })} /><span><b>${t.supervised.label}</b> · ${t.supervised.hint}</span></label>` : nothing}
+        ${needSup ? html`<label class="sup" data-supervised-box=${kind}><sw-toggle size="sm" labelHidden in-label label=${t.supervised.label} .checked=${u.supervised} @change=${(e: Event) => (this.undoing = { ...u, supervised: toggled(e) })}></sw-toggle><span><b>${t.supervised.label}</b> · ${t.supervised.hint}</span></label>` : nothing}
         ${blocked ? html`<div class="err" data-fcs-undo-blocked>${t.supervised.need}</div>` : nothing}
         ${u.error ? html`<div class="err" role="alert" data-fcs-undo-error>${u.error}</div>` : nothing}
       </div>

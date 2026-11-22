@@ -72,7 +72,7 @@ test('delete: a notice on air needs the tick, then goes with confirm_live; the l
   await expect(dlg.locator('[data-delete-line]')).toContainText('"הפסקת מים מחר"');
   await expect(dlg.locator('[data-delete-line]')).toContainText('אי אפשר לשחזר');
   await expect(dlg.locator('[data-delete-confirm]')).toHaveAttribute('disabled', '');
-  await dlg.locator('[data-delete-live]').check();
+  await dlg.locator('[data-delete-live]').click();
   await expect(dlg.locator('[data-delete-confirm]')).not.toHaveAttribute('disabled', '');
   await dlg.locator('[data-delete-confirm]').click();
   await expect(page.locator('sw-app devices-notices .toast')).toContainText('נמחקה');

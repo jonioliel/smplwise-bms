@@ -40,7 +40,7 @@ async function confirm(panel: ReturnType<Page['locator']>, supervise: boolean) {
   await expect(dlg.locator('[data-fcp-ok]')).toBeVisible();
   if (supervise) {
     await expect(dlg.locator('[data-fcp-ok]')).toHaveAttribute('disabled', '');
-    await dlg.locator('[data-supervised-box] input').check();
+    await dlg.locator('[data-supervised-box] sw-toggle').click();
   }
   await dlg.locator('[data-fcp-ok]').click();
   await expect(panel.locator('[data-fcp-confirm]')).toHaveCount(0);

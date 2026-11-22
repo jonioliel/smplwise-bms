@@ -202,6 +202,41 @@
   height: 22px;
 }
 
+/* HAND-SWITCH-2480 (owner): an acknowledgement (the RFQ terms) is a switch - the native check box drawn as the compact 32 x 18 track */
+.swc-check input[role='switch'] {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 18px;
+  margin: 0;
+  border-radius: var(--sw-r-pill);
+  background: var(--sw-border-strong);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.swc-check input[role='switch']::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  margin-block: auto;
+  inset-inline-start: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--sw-text-inverse);
+  transition: inset-inline-start 0.12s;
+}
+
+.swc-check input[role='switch']:checked {
+  background: var(--sw-accent);
+}
+
+.swc-check input[role='switch']:checked::after {
+  inset-inline-start: 16px;
+}
+
 .swc-seg {
   display: flex;
   border: 1px solid var(--swc-border);

@@ -1,7 +1,7 @@
 import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import '../components/sw-toggle';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-drawer';
@@ -778,7 +778,7 @@ export class AccessExternalScreen extends LitElement {
             <div class="field"><label for="vu">${xt('ap_until')}</label><input id="vu" class="in num" type="date" lang=${dateInputLang()} .value=${this.apUntil} min=${localDate(vf, this.tz)} max=${lastDay(vu, this.tz)} aria-invalid=${win.error ? 'true' : 'false'} @input=${(e: Event) => (this.apUntil = (e.target as HTMLInputElement).value)} /></div></div>
             <span class="note" style=${win.error ? 'color:var(--sw-danger-text);font-weight:600' : ''} data-window-hint>${winHint}</span></section>
           <section class="sec"><h4><sw-icon name="clock" size="14"></sw-icon>${xt('ap_hours')}</h4><b class="num">${hoursText({ timing: scope?.timing ?? g.timing, valid_from: vf, valid_until: vu }, this.tz)}</b></section>
-          ${needTold ? html`<label class="cb"><input type="checkbox" data-approve-told .checked=${this.apTold} @change=${(e: Event) => (this.apTold = (e.target as HTMLInputElement).checked)} /><span>${xt('ap_told')}</span></label>` : nothing}
+          ${needTold ? html`<label class="cb"><sw-toggle size="sm" labelHidden in-label label=${xt('ap_told')} data-approve-told .checked=${this.apTold} @change=${(e: Event) => (this.apTold = toggled(e))}></sw-toggle><span>${xt('ap_told')}</span></label>` : nothing}
         </div>
         <div class="stack">
           <div class="callout" data-tone="acc"><sw-icon name="shield" size="18"></sw-icon><div><b>${xt('ap_nothingTitle')}</b>${xt('ap_nothingText')}</div></div>

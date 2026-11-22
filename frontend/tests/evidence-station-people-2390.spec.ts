@@ -112,7 +112,7 @@ test('a possible duplicate blocks adopt until the operator says it is another pe
   await expect(page.locator(`${VIEW} [data-station-check-match="p1"]`)).toContainText('דנה כהן');
   const confirm = page.locator(`${VIEW} [data-station-action-confirm]`);
   await expect(confirm).toHaveJSProperty('disabled', true);
-  await page.locator(`${VIEW} [data-station-check-accept]`).check();
+  await page.locator(`${VIEW} [data-station-check-accept]`).click();
   await expect(confirm).toHaveJSProperty('disabled', false);
   await confirm.click();
   await expect(page.locator(`${VIEW} [data-station-result]`)).toHaveAttribute('data-station-result', 'ok');
