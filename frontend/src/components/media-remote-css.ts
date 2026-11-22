@@ -157,6 +157,10 @@ export const remoteTokens = css`
 export const remoteStyles = css`
   :host {
     display: contents;
+    /* COLOR-LITERAL-A-2480: fixed values this sheet repeated, written once (the same literals): the ink on the accent fill (white in
+       both schemes, unlike --mr-text-inverse) and the volume knob's shadow */
+    --mr-on-accent-ink: #fff;
+    --mr-knob-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
     font-family: var(--mr-font);
     color: var(--mr-text);
     /* the drawer (sw-drawer, modal) reads these: its panel surface, title, hairlines and buttons follow the remote's scheme */
@@ -403,7 +407,7 @@ export const remoteStyles = css`
   .btn.primary {
     background: var(--mr-accent);
     border-color: transparent;
-    color: #fff;
+    color: var(--mr-on-accent-ink);
     box-shadow: 0 6px 16px var(--mr-accent-glow);
   }
   .btn.quiet {
@@ -496,7 +500,7 @@ export const remoteStyles = css`
     border-radius: 50%;
     background: var(--sw-toggle-thumb);
     margin-block-start: -9px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--mr-knob-shadow), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
   }
   .rng::-moz-range-thumb {
     inline-size: 26px;
@@ -504,7 +508,7 @@ export const remoteStyles = css`
     border: 0;
     border-radius: 50%;
     background: var(--sw-toggle-thumb);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+    box-shadow: var(--mr-knob-shadow);
   }
   .rng:focus-visible {
     outline: 2px solid var(--mr-focus);
@@ -1111,7 +1115,7 @@ export const remoteStyles = css`
   }
   .srci[aria-checked='true'] .gi.src {
     background: var(--mr-accent);
-    color: #fff;
+    color: var(--mr-on-accent-ink);
   }
   .srci .ck {
     position: absolute;
