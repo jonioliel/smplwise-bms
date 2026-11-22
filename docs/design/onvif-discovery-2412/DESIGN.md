@@ -1,5 +1,9 @@
 # ONVIF-DISCOVERY-2412 - Find cameras on the network and add them without a recorder
 
+> **Status 2026-11-22 - owner decisions recorded (section 13).** The owner answered the eight design questions (Q54-Q61 of
+> `questions_all_open_2026-11-22`; every answer is the recommendation). Phase 1 is decided for the 2.5x series; section 14 lists
+> the build rows. Wherever the text below says "recommended" or "optional later" it is read together with section 13.
+
 Row `FEATURE-DESIGNS-SEC-2490`, branch `pilot/FEATURE-DESIGNS-SEC-2490` (from `origin/main` @ `51da93753`). Target: 2.49.0
 design round. **Design only - no product code, no migration, no dependency, no device contacted.** The mock-up is
 `docs/design/onvif-discovery-2412/mockup.html`.
@@ -83,9 +87,9 @@ camera." / "I can turn the feature off, or limit it to one network range." / "I 
 
 The add-on cannot send multicast to the LAN (bridge network). Three engines, chosen by capability, all read-only:
 
-1. **Unicast WS-Discovery sweep** (default, no new infrastructure). Arx sends a WS-Discovery `Probe` (SOAP-over-UDP, types
+1. **Unicast WS-Discovery sweep** (default, no new infrastructure; owner decision 2026-11-22, Q55: probe each address of the range directly). Arx sends a WS-Discovery `Probe` (SOAP-over-UDP, types
    `dn:NetworkVideoTransmitter tds:Device`) **unicast** to UDP 3702 of each address in an administrator-entered range (default: the
-   /24 of the HA host's LAN address, max /22 = 1024 addresses), paced (default 50 packets/s), two rounds, 4 s listen window. Most
+   /24 of the HA host's LAN address, max /22 = 1024 addresses; owner decision 2026-11-22, Q56: **only the site's own network, up to 1,024 addresses** - the setting `cameras.discovery_allowed_ranges` may only narrow this, and any range outside the host's own private interface networks is refused), paced (default 50 packets/s), two rounds, 4 s listen window. Most
    ONVIF cameras answer a unicast Probe; the container's NAT carries the reply back. Optional second pass
    (`cameras.discovery_http_fallback`, off): an unauthenticated `GetSystemDateAndTime` POST to `http://<addr>:80/onvif/device_service`
    for addresses that answered nothing - catches cameras that ignore unicast probes.
@@ -198,7 +202,7 @@ Settings (`services/settings_store.DEFAULTS`; changed by `system.configure`):
 | `cameras.discovery_allow_other_host` | on\|off | off |
 | `cameras.discovery_plaintext_password` | on\|off | off |
 | `cameras.discovery_job_ttl_min` | 5-60 | 15 |
-| `cameras.discovery_notify_new` | off\|on (later: a weekly passive check that reports new devices) | off |
+| `cameras.discovery_notify_new` | off\|on (weekly passive check that reports new devices: **not built now**, owner decision 2026-11-22, Q60; the key is reserved only) | off |
 
 ## 7. API sketch
 
@@ -295,17 +299,35 @@ separate approval. Evidence redacted (no addresses, serials, MACs).
 | later: ONVIF-NVR-CHANNEL | "add to recorder" through S3 behind the writes switch | 1 d |
 | **Phase 1 total** | | **≈ 9 agent-days** (≈ 5 calendar days with 2 agents) |
 
-## 13. Open questions (with recommendations)
+## 13. Owner decisions (2026-11-22)
 
-1. **Scope and timing** (the backlog card leaves both to the owner): (a) phase 1 as above in the 2.5x line [recommended]; (b) later.
-2. **How to find cameras:** (a) Arx asks each address in a range directly (works without changing anything) [recommended];
-   (b) also ask the video server (go2rtc) to search after a lab check; (c) through the bridge on the platform (needs a platform
-   restart).
-3. **Range limit:** (a) the site's own network only, up to 1024 addresses [recommended]; (b) any private range the admin types.
-4. **Same password for all:** (a) allowed, one attempt per camera, never repeated automatically [recommended]; (b) one camera at a
-   time only.
-5. **Found cameras that are already behind the recorder:** (a) shown as "already through the recorder", cannot be added [recommended];
-   (b) can be added as a separate camera too.
-6. **A device that looks like a recorder:** (a) offer "add as a recorder" in the existing recorder wizard [recommended]; (b) ignore.
-7. **Periodic "new camera on the network" notice:** (a) not now [recommended]; (b) weekly passive check, off by default.
-8. **Phase 2 "add as a channel of the recorder"** (a write to the NVR): (a) later, behind the writes switch [recommended]; (b) never.
+All answers come from the owner's pasted answers of the night of 2026-11-22 to `questions_all_open_2026-11-22` (Q54-Q61). He
+changed none of the recommendations in this group; the unanswered items took the recommendation, as he set as a standing rule.
+
+| # | Question | Decision (owner decision, 2026-11-22) |
+|---|---|---|
+| Q54 | Scope and timing | **Phase 1 as described, in the 2.5x series.** |
+| Q55 | How to find cameras | **Arx probes each address of the range directly** (unicast WS-Discovery; works without changing anything). go2rtc and bridge engines stay optional later engines (not decided now). |
+| Q56 | Range limit | **Only the site's own network, up to 1,024 addresses.** An arbitrary private range typed by the administrator is not allowed. |
+| Q57 | Same password for all | **Allowed: one attempt per camera, never repeated automatically** (section 4.3 rules unchanged). |
+| Q58 | Cameras already coming through the recorder | **Marked "already through the recorder" and cannot be added** (not even as a separate camera). Cameras already added without a recorder are marked "already in the system". |
+| Q59 | A device that looks like a recorder | **Offer "add as a recorder" in the existing recorder wizard** (pre-filled), not as a camera. |
+| Q60 | Weekly "new camera on the network" notice | **Not now.** No periodic scan is built; `cameras.discovery` stays `manual`/`off`. |
+| Q61 | Phase 2: add as a channel of the recorder | **Later, behind the NVR writes switch** (and the owner's per-site approval); not in phase 1. |
+
+No question of this document remains open.
+
+## 14. Build rows (phase 1, 2.5x series)
+
+| Row | Content (as section 12, with the decisions applied) | Estimate |
+|---|---|---|
+| ONVIF-CLIENT | SOAP client with the Get* allow-list, WS-Security digest + HTTP Digest, defensive XML, Media1/Media2, fake device fixture | 2 d |
+| ONVIF-DISCOVER | unicast sweep **only** (Q55), range clamp to the site network and 1,024 addresses (Q56), known-device marking: standalone / behind recorder / looks like a recorder (Q58, Q59), scan job store, rate limits; **no** weekly job (Q60) | 2 d |
+| ONVIF-API | router, wire module, settings, audit, preview form, batch add; the add route **refuses** a device marked behind-the-recorder (Q58); "looks like a recorder" returns the wizard pre-fill payload (Q59); migration for origin columns | 1.5 d |
+| ONVIF-UI | three-step wizard in the standalone card; behind-the-recorder rows disabled with the reason; "add as a recorder" action opening the recorder wizard; same-password one-attempt UI (Q57) | 2.5 d |
+| ONVIF-LAB-DOCS | lab read-only run (with approval), DOCS.md / DOCS_HE.md, bilingual notes, balanced security review | 1 d |
+| **Phase 1 total** | | **about 9 agent-days** (about 5 calendar days with 2 agents) |
+
+Decided for later, not built in phase 1: ONVIF-NVR-CHANNEL (add as a recorder channel, behind the NVR writes switch, about 1 d,
+Q61). Not decided and not scheduled: ONVIF-BRIDGE (multicast through the bridge) and the go2rtc engine, which remain optional
+engines. Dropped for now: the weekly new-camera alert (Q60). Tasks are not added to `management/tasks.json` by this document.

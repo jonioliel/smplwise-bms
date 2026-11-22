@@ -1,5 +1,10 @@
 # T095 - Full second factor for Arx: one policy, step-up for sensitive actions, passkeys for everyone
 
+> **Status 2026-11-22 - owner decisions recorded (section 13).** The owner answered the design questions (Q44-Q53 of
+> `questions_all_open_2026-11-22`; wherever the text below says "open" or "recommended" it was written before the answers and
+> is superseded by section 13). Decided: build after 2.49.0 as one train. Section 14 lists the resulting build rows. Defaults of
+> every switch still equal today until the owner turns the feature on.
+
 Row `FEATURE-DESIGNS-SEC-2490`, branch `pilot/FEATURE-DESIGNS-SEC-2490` (from `origin/main` @ `51da93753`). Target: 2.49.0
 design round. **Design only - no product code, no migration, no setting is added by this document.** The owner decides whether
 and when anything here is built. The mock-up is `docs/design/full-2fa-t095/mockup.html`.
@@ -11,7 +16,7 @@ T095), `private/planning/WORK_PLAN_2448_2449_2026-11-19.md`, the owner's recorde
 
 Owner constraints carried into every section:
 
-- **"MFA later"** (07.11, round 24, 4.1 ג: "not now, talk later"). This design changes nothing by itself. Every default below
+- **"MFA later"** (07.11, round 24, 4.1 ג: "not now, talk later"; **superseded 2026-11-22, owner decision: build after 2.49.0 as one train**). This design document changes nothing by itself. Every default below
   keeps today's behaviour; no user is forced into anything until the owner switches a setting on.
 - **Nearly everything is also a setting** (round 32). Each behaviour has a key, a default equal to today, and a place in the UI.
 - **No HA branding** outside הגדרות › מערכת (`docs/design/UI_COPY_RULES.md`): user-facing copy says "חשבון המערכת", never
@@ -99,16 +104,16 @@ Keystore key in `mobile/` (`AppLock.kt` is a local `BIOMETRIC_WEAK | DEVICE_CRED
 | CR-011 | Form | Answer | Status |
 |---|---|---|---|
 | Q1 who at sign-in | q20 | develop it, **do not force**; he picks who later (optional + per-user/role policy) | binding; shipped as `optional` + overrides |
-| Q4 freshness | q22 | not understood | **open** (re-asked below, plain words) |
+| Q4 freshness | q22 | not understood | **decided 2026-11-22** (owner decision, Q46): 5 minutes |
 | Q5 app proof | q23 ב | biometric **or the phone's screen code** | binding → `biometric_or_screen_lock` default |
 | Q6 browser disarm fallback | q24 א | personal alarm code | binding |
 | Q7 passkeys | q25 א | browsers + PWA, then the app | binding |
-| Q8 own TOTP | q26 א | "don't build" (he asked what it is) | **contradiction**: TOTP shipped in 2.2.0 citing "owner decisions 2026-10-06". Recorded, not resolved - re-asked below. |
+| Q8 own TOTP | q26 א | "don't build" (he asked what it is) | **contradiction**: TOTP shipped in 2.2.0 citing "owner decisions 2026-10-06". Recorded, then **decided 2026-11-22** (owner decision, Q47): keep TOTP as one method next to passkeys. |
 | - remember browser | q27 ב | remember-this-browser only for non-sensitive actions + a cookie/storage notice | binding |
 | Q9 reset | q28 ב | from anywhere (with own step-up) - weaker than recommended, risk flagged | binding → `factor_reset_channel = any` |
 | - wall tablets | q29 א | exempt | binding |
 | Q11 push approval | q30 | not understood | **open** - out of scope here |
-| Q2, Q3, Q10 | - | never asked in the form | **open** |
+| Q2, Q3, Q10 | - | never asked in the form | **decided 2026-11-22** (owner decisions Q45, Q51, Q52) |
 | round 24 4.1 | - | "MFA not now, talk later" | binding: design only, defaults = today |
 
 ## 3. User stories per role
@@ -185,7 +190,7 @@ enrolment page, and must enrol before anything else (`ENROL_PATHS`, already buil
 `security.step_up` = `off` (default) | `on`. When on:
 
 - **Registry** `services/step_up.py: ACTIONS` - a closed, code-level list of sensitive action ids with a Hebrew label each.
-  The setting `security.step_up_scope` picks the group (owner Q3, open): `alarm` (disarm, bypass) | `alarm_doors` (+ door/lock
+  The setting `security.step_up_scope` picks the group (owner decision 2026-11-22: all sensitive, including every settings, users and permissions change): `alarm` (disarm, bypass) | `alarm_doors` (+ door/lock
   unlock, alarm codes/PINs, remote alarm settings) | `all_sensitive` (+ roles and remote flag, user management, `system.configure`
   settings, revoking others' sessions, factor reset, NVR writes, bridge-key reveal, restore, update). Recommended
   `all_sensitive`. Never in the list: arming, lights, everyday device control, service-identity actions, the remote kill switch
@@ -199,7 +204,7 @@ enrolment page, and must enrol before anything else (`ENROL_PATHS`, already buil
 - **Verify** `POST /auth/step-up/verify {challenge_id, method, proof}` → a mark on the session: `step_up_at`, `step_up_method`,
   `step_up_scope` (`action` or `window`). Stored on `auth_local_sessions` / app sessions (new columns) and in the in-memory
   `RemoteSession` for HA sessions. Never on the HA token, never in a client cookie.
-- **Freshness** `security.step_up_minutes` 0-30, default 5 (owner Q4, open; 0 = every action). A mark is valid for the window
+- **Freshness** `security.step_up_minutes` 0-30, default 5 (owner decision 2026-11-22: 5 minutes after one approval; 0 = every action). A mark is valid for the window
   for every action in the scope, except `security.step_up_once_actions` (default: factor reset, role change to system admin,
   restore) which always need a fresh, action-bound proof.
 - **Channel** `security.step_up_local` = off (default; the local network keeps today's behaviour) | on.
@@ -219,6 +224,13 @@ Proof methods (each also a setting under `security.step_up_methods`, all enabled
 | `alarm_pin` | personal alarm code (CR-010) | alarm actions only | owner q24 א; the fallback for a browser without a passkey |
 | `recovery_code` | - | **not** a step-up method | recovery codes only restore sign-in / re-enrol |
 
+**Step-up switch (owner decision 2026-11-22, note on Q45/Q46).** `security.step_up` is the single switch the owner asked for:
+when it is `off`, no step-up prompt appears anywhere and the second factor is asked **only at the initial sign-in** (per the
+sign-in policy, 4.1). When it is `on`, the scope above applies with the 5-minute grace. The switch is shown on the admin policy
+tab with a plain sentence ("ask for another confirmation before sensitive actions", Hebrew in the UI), it is changeable only by
+`system.configure`, switching it `off` while on is itself a step-up action, and every change is audited. The alarm-disarm and
+zone-bypass gates follow the same switch (no separate carve-out).
+
 ### 4.3 Passkeys for every user
 
 Lift the `not_local_identity` gate behind `security.passkeys_all_users` (off by default). An HA user can then register passkeys
@@ -233,7 +245,19 @@ The app creates an EC P-256 key in the Keystore (`setUserAuthenticationRequired(
 BIOMETRIC_STRONG | DEVICE_CREDENTIAL)` on API 30+ per owner q23 ב, or `BIOMETRIC_STRONG` only when the setting says so;
 `setInvalidatedByBiometricEnrollment(true)`; StrongBox when present). Registration needs a fresh sign-in or an existing factor
 (otherwise a stolen cookie enrols the attacker's phone), is announced to the user's other devices and audited. The page asks the
-app through the existing `window.ArxApp` bridge; the prompt shows the action text. Attestation: not now (Q10, recommended).
+app through the existing `window.ArxApp` bridge; the prompt shows the action text. Attestation: **yes** (owner decision 2026-11-22, Q52) - see section 4.4a.
+
+### 4.4a Hardware attestation of the phone key (owner decision 2026-11-22, Q52: yes)
+
+Designed as **optional per platform with a fallback**, never a hard dependency. `security.device_key_attestation` =
+`off` | `preferred` | `required`. Android: the Keystore key is generated with an attestation challenge (the registration nonce);
+the server verifies the certificate chain offline against the pinned Google hardware attestation roots shipped with the add-on
+(no network lookup, no external provider) and records `attested = hardware | software | none` and the security level on the
+`auth_device_keys` row. `preferred`: an unattested key is accepted but labelled "not hardware-verified" and the admin compliance
+view counts it. `required`: an unattested key is refused at registration with a plain reason. Fallback: a phone or ROM that
+cannot attest (old API, no TEE/StrongBox attestation, a custom ROM) still registers under `preferred`; under `required` the user
+uses a passkey or TOTP instead. iOS: not in scope until an iOS app exists; the same column and setting are reused (App Attest)
+later. A broken or expired root list degrades to `none` with a health warning, never to a silent pass.
 
 ### 4.5 Recovery codes
 
@@ -244,10 +268,19 @@ re-enrolment of a new factor before anything else; it never satisfies step-up. U
 
 ### 4.6 Factor reset by an administrator
 
+**Owner decision 2026-11-22 (Q53): keep "from anywhere, with admin approval"** - the owner kept his earlier answer (q28 ב) over the security recommendation (local network only). The recorded risk and mitigations follow the mechanics.
+
 Owner q28 ב: from anywhere, with the administrator's own step-up (`security.factor_reset_channel` = `any`, default per the owner's
 answer; `local` remains selectable). Always: `step_up_once` action, audited, the target notified in-app and on their other devices,
 all the target's remote sessions and device keys revoked, never on oneself, never on the last administrator without a second
 administrator present (the existing `recovery_path_exists` rule). The owner can always enter through Ingress (break glass).
+
+Recorded risk (T5): anyone who steals an administrator's signed-in session **and** can satisfy that administrator's step-up could
+reset another user's factors from outside the building. Mitigations: the administrator's own fresh, action-bound step-up (never
+the 5-minute grace); a typed confirmation of the target's name; the target is notified in-app and on all other devices at once;
+all of the target's sessions, device keys and passkeys are revoked and the next sign-in forces re-enrolment (plus a new recovery
+batch when enabled); the audit row names the administrator, the channel and the address class; the reset is rate limited (3 per
+administrator per hour); `security.factor_reset_channel` stays a setting so the owner can switch to `local` at any time.
 
 ## 5. Flows
 
@@ -305,7 +338,7 @@ channel only unless noted - `routers/settings_patch/identity.py`):
 | `security.factor_policy` | `optional`\|`admins`\|`sensitive`\|`all` | from `security.second_factor_policy` / `remote.require_mfa_admin` | `sensitive` |
 | `security.factor_methods` | csv `ha_mfa,totp,passkey,device_key` | all | all |
 | `security.factor_wall_exempt` | on\|off | on | on |
-| `security.remote_long_lived_tokens` | `allow`\|`refuse_under_policy`\|`refuse` | `allow` | `refuse_under_policy` |
+| `security.remote_long_lived_tokens` | `allow`\|`refuse_under_policy`\|`refuse` | `allow` | `allow` (**owner decision 2026-11-22, Q48**; `refuse_under_policy`, the security recommendation, stays selectable) |
 | `security.step_up` | off\|on | off | on |
 | `security.step_up_scope` | `alarm`\|`alarm_doors`\|`all_sensitive` | `all_sensitive` (inert while off) | `all_sensitive` |
 | `security.step_up_minutes` | 0-30 | 5 | 5 |
@@ -313,6 +346,8 @@ channel only unless noted - `routers/settings_patch/identity.py`):
 | `security.step_up_methods` | csv `passkey,device_key,totp,alarm_pin` | all | all |
 | `security.device_key_auth` | `biometric`\|`biometric_or_screen_lock` | `biometric_or_screen_lock` (owner q23 ב) | same |
 | `security.passkeys_all_users` | off\|on | off | on |
+| `security.device_key_attestation` | `off`\|`preferred`\|`required` | `off` | `preferred` (owner decision 2026-11-22, Q52) |
+| `security.remote_token_max_days` | 0-365 | 0 (no limit) | 0 (mitigation knob for Q48) |
 | `security.recovery_codes` | off\|on | off | on |
 | `security.factor_reset_channel` | `local`\|`any` | `any` (owner q28 ב) | `any` (owner) |
 | `security.remember_browser_days` | 0-30 | 0 | 0-14 |
@@ -357,7 +392,7 @@ Front end: `src/api/step-up.ts` (thin, typed from generated wire), an intercepto
 | T3 | phishing (real-time relay) | passkeys and the device key bind the origin; TOTP/alarm PIN remain relayable | TOTP users stay phishable - UI nudges to passkeys |
 | T4 | hostile network | TLS (Cloudflare) as today | - |
 | T5 | insider admin abusing reset | admin's own step-up (once), typed confirm, target notified on all devices, audit, never self | owner chose reset from anywhere: a stolen admin session **plus** the admin's factor is enough - documented |
-| T6 | long-lived token bypass | `refuse_under_policy` | default `allow` until the owner switches (MFA later) |
+| T6 | long-lived token bypass | **owner decision 2026-11-22: stays allowed while the rule is active.** Mitigations: a per-user token list (created, last used, last address class) with one-click revoke and revoke-all; an audit row on every first use of a token from outside and on every revoke; an optional maximum token age (`security.remote_token_max_days`, default 0 = unlimited); an owner notice when a token is first used from a new address class; `refuse_under_policy` remains one setting flip away | accepted by the owner: a stolen long-lived token skips the second factor until it is revoked |
 | T7 | recovery code theft | 10 codes, scrypt, single use, use notifies, forces re-enrolment, never step-up | printed codes are as safe as the paper |
 | T8 | challenge replay / cross-action | nonce bound to user+session+action+resource, 60 s, single use; signed string contains origin and action | - |
 | T9 | downgrade to the weakest method | `step_up_methods` setting; alarm PIN only for alarm actions; recovery never step-up | owner may allow weak methods |
@@ -421,13 +456,13 @@ unlocked for real - step-up is proven on a no-op test action (`step_up.test`) bu
 
 ## 11. Rollout
 
-0. Owner decision (this document's questions). Nothing built before that ("MFA later").
+0. Owner decisions recorded 2026-11-22 (section 13); build after 2.49.0 as one train.
 1. Ship code with every switch off = today's behaviour byte for byte (characterisation tests on sign-in and the gated routes).
 2. Owner enrols himself (passkey + recovery codes) from the account page.
 3. Owner turns on step-up with scope `alarm` for a week, then `all_sensitive`.
 4. Owner turns on the sign-in policy `admins`, watches the compliance preview, then `sensitive`; LLAT `refuse_under_policy`.
 5. Android device key with the next app release.
-Each step is a setting flip, reversible from Ingress.
+Each step is a setting flip, reversible from Ingress. (Step 4: the long-lived token setting stays `allow` by the owner's decision of 2026-11-22; the token list, audit and revoke of row 2FA-TOKENS are the mitigation.)
 
 ## 12. Effort (rows that fit one agent each)
 
@@ -449,22 +484,44 @@ Each step is a setting flip, reversible from Ingress.
 
 Push approval (CR-011 D) stays out: it needs CR-012 and the owner did not understand the question (q30).
 
-## 13. Open questions (with recommendations)
+## 13. Owner decisions (2026-11-22)
 
-1. **When** to build (round 24: "MFA later"): (a) schedule after 2.49.0 as one train [recommended - the design is ready and the
-   long-lived-token gap is open]; (b) only the step-up part now; (c) keep waiting.
-2. **Q3 - which actions need a fresh proof:** (a) disarm + bypass; (b) + doors and alarm codes; (c) + every setting, user and role
-   change [recommended].
-3. **Q4 - how long a proof lasts (plain words: "after you approve once, for how many minutes the system will not ask again"):**
-   (a) every action; (b) 5 minutes [recommended]; (c) 15 minutes.
-4. **Q8 contradiction - Arx's own authenticator-app codes (TOTP):** the 06.10 answer said "don't build", yet it shipped in 2.2.0.
-   (a) keep it as one method next to passkeys [recommended - it is the only option on a browser without passkeys]; (b) hide it for
-   new enrolments; (c) remove it.
-5. **Long-lived tokens from outside** when the policy is on: (a) refused for users under the policy [recommended]; (b) refused for
-   everyone; (c) allowed.
-6. **Recovery codes:** (a) on, 10 per user [recommended]; (b) off (administrator reset only).
-7. **Passkeys for all users** (today only Arx-only users): (a) yes [recommended]; (b) no.
-8. **Q2 - in the app, may password + the phone's device key count as the sign-in second factor:** (a) yes [recommended]; (b) no.
-9. **Q10 - hardware attestation of the phone key:** (a) not now [recommended]; (b) yes.
-10. **Factor reset from anywhere** (q28 ב, already answered): confirm keeping it after reading the risk (T5): (a) keep "from
-    anywhere with own approval" (owner's answer); (b) switch to local network only [recommended by security].
+All answers come from the owner's pasted answers of the night of 2026-11-22 to `questions_all_open_2026-11-22` (Q44-Q53).
+Items he did not change took the recommendation. "Recorded risk" marks the two places where the owner chose against the
+security recommendation.
+
+| # | Question | Decision (owner decision, 2026-11-22) |
+|---|---|---|
+| Q44 | When to build | **After 2.49.0, as one train.** Supersedes "MFA later" (round 24, 07.11). |
+| Q45 | Which actions need a fresh proof (Q3) | **Alarm disarm and zone bypass, and every settings, users and permissions change** (`all_sensitive`). **Owner note: add a setting that turns step-up off, so the second factor is asked only at the initial sign-in** - this is `security.step_up` (section 4.2). |
+| Q46 | How long a proof lasts (Q4) | **5 minutes** after one approval (`security.step_up_minutes` = 5). |
+| Q47 | Arx's own authenticator-app codes (the q26 contradiction) | **Keep TOTP as one method next to passkeys.** The contradiction is closed. |
+| Q48 | Long-lived token from outside while the rule is active (T6) | **Allowed, as today** (owner chose this over the recommendation `refuse_under_policy`). **Recorded risk**; mitigations in T6 (token list and revoke, audit, optional max age, new-address notice); the stricter setting stays selectable. |
+| Q49 | Recovery codes | **Yes: 10 single-use codes per user.** |
+| Q50 | Passkeys for all users | **Yes** (`security.passkeys_all_users` on when the feature is enabled). |
+| Q51 | In the app, password + phone key counts as the second factor (Q2) | **Yes.** |
+| Q52 | Phone hardware attestation (Q10) | **Yes** (owner chose; the recommendation was "not now"). Designed as optional per platform with a fallback (4.4a). |
+| Q53 | Reset of auth methods from anywhere | **Keep "from anywhere, with admin approval"** (owner kept q28 ב over the local-only recommendation). **Recorded risk**; mitigations in 4.6. |
+
+No question of this document remains open. Still out of scope and unchanged: push approval (CR-011 D, needs CR-012; the owner did
+not understand q30) and the service-identity exemption (owner 18.10).
+
+## 14. Build rows (planned for the 2FA train after 2.49.0)
+
+The rows of section 12 stand, with these changes from the decisions above (estimates in agent-days). Everything ships with every
+switch off = today's behaviour; the owner enables features in the rollout order of section 11.
+
+| Row | Change from the decisions | Estimate |
+|---|---|---|
+| 2FA-STEPUP-CORE | `security.step_up` off-switch semantics (off = sign-in only), `all_sensitive` scope and 5-minute window as the values used when step-up is enabled | inside 2 d |
+| 2FA-STEPUP-GATES | alarm disarm / zone bypass and every settings, users and permissions route in the registry; the ratchet test fails on an ungated route | inside 1.5 d |
+| 2FA-TOKENS (new) | long-lived token stays allowed: per-user token list, revoke / revoke-all, first-use-from-outside audit and owner notice, optional `security.remote_token_max_days`; tests | 1.5 d |
+| 2FA-DEVICEKEY-ATTEST (new) | Keystore attestation challenge, offline chain verification against pinned roots, `attested` column, `security.device_key_attestation`, fallback and compliance counts | 1.5 d |
+| 2FA-RECOVERY | 10 codes per user (decided) | inside 1.5 d |
+| 2FA-PASSKEYS-ALL | passkeys for all users (decided) | inside 1.5 d |
+| 2FA-RESET-HARDENING (new) | admin reset from anywhere with the mitigations of 4.6: fresh action-bound step-up, rate limit, notices, revoke-all, forced re-enrolment; tests | 1 d |
+| all other rows | unchanged from section 12 | unchanged |
+
+Total: **about 23 agent-days** (the 19 of section 12 plus 4 for the three new rows), about 12-14 calendar days with 3 agents. New
+rows depend on: TOKENS on POLICY and PROVENANCE; DEVICEKEY-ATTEST on DEVICEKEY-SRV; RESET-HARDENING on STEPUP-CORE and RECOVERY.
+Tasks are not added to `management/tasks.json` by this document; the lead creates them when the train is scheduled.
