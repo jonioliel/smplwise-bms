@@ -1,5 +1,16 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.47.0 (pilot) - Units inside the fields; more tables on the shared table; home choices on the shared selector; code-review clean-up
+
+### שופר - Improved
+- חשמל ומים: יחידת המידה (₪, %, קוט״ש, מ״ק, ימים, חודשים) מוצגת בתוך שדה הקלט במקום לידו - בעורך מחירי התעו״ז, בהגדרות התעריף והמע״מ, בפרטי העסק, באשף החשבון, בהחלפת מונה, בשמירת הנתונים ובדיאלוגים של מוני המים ותעריפי המים. בטלפון טבלת מחירי התעו״ז מוצגת ככרטיס לכל פס במקום גלילה הצידה. - Electricity and water: the unit (₪, %, kWh, m³, days, months) is shown inside the input instead of beside it - in the time-of-use price editor, the tariff and VAT settings, the business details, the account wizard, meter replacement, data retention and the water meter and tariff dialogs. On a phone the time-of-use price table shows a card per band instead of a sideways scroll.
+- טבלאות: היסטוריית ההכרזות, הרשאות לוחות הזמנים, מכשירי הנוכחות, דוח אירועי האינטרקום, משתמשי הקיר, יומן שליחת ההתראות, הרשאות האוטומציות והיומנים, מטריצת ההתראות של המקליט, אישור ההתקנה ולוחות המודעות עברו לטבלה המשותפת: כותרות, גווני מצב אחידים, ניווט מקלדת בלוחות המודעות ובלי גלילה הצידה. - Tables: the announcement history, schedule permissions, presence devices, the intercom events report, wall users, the notification delivery log, automation and calendar permissions, the recorder notification matrix, the installer confirmation and the notice boards use the shared table: headings, shared status tones, keyboard navigation in the notice boards and no sideways scroll.
+- מסך הבית: כל בוררי הבחירה במסך הבית (מקום, קומה, מצב מיזוג, מסננים, לשוניות, תקופה ועוד) הם הבורר המשותף, עם מקלדת מלאה; המראה של מסך הבית לא השתנה, ומתגי השורות ומתג הבית נשארו כפי שהיו. - Home screen: every choosing control on the home screen (place, floor, climate mode, filters, tabs, period and more) is the shared selector with full keyboard support; the home screen looks the same, and the row switches and the home switch are unchanged.
+- סקירת קוד: לכל המסלולים של 30 נתבי שרת נוספים יש מודל תשובה מוגדר, וטיפוסי הממשק נוצרים ממנו (התשובות עצמן לא השתנו). - Code review: every route of 30 more server routers has a declared response model and the interface types are generated from it (the answers themselves are unchanged).
+
+### התקנה - Install
+- אין מיגרציה חדשה ואין שינוי בגשר (0.10.8). - No new migration and no bridge change (0.10.8).
+
 ## 2.46.0 (pilot) - Bridge 0.10.8; shared tab strips and generator tables; plan export and site edit checks; code-review clean-up
 
 ### תוקן - Fixed
