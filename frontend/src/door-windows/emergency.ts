@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-sheet';
@@ -278,8 +279,8 @@ export class DoorEmergencySheet extends LitElement {
         <select id="scope" data-em-scope .value=${this.scopeKey} @change=${(e: Event) => { this.scopeKey = (e.target as HTMLSelectElement).value; this.armIdle(); }}>
           ${all.map((s) => html`<option value=${`${s.scope_type}:${s.scope_id}`} ?selected=${`${s.scope_type}:${s.scope_id}` === this.scopeKey}>${s.name} · ${dwt('emDoors', { n: s.doors })}</option>`)}
         </select></div>` : all.length === 1 ? html`<div class="note" data-em-scope-one>${all[0].name}</div>` : nothing}
-      <label class="drill"><input type="checkbox" data-em-drill .checked=${this.drill || forced} ?disabled=${forced}
-        @change=${(e: Event) => { this.drill = (e.target as HTMLInputElement).checked; this.armIdle(); }}>${forced ? dwt('emDrillForced') : dwt('emDrill')}</label>
+      <label class="drill"><sw-toggle size="sm" labelHidden in-label label=${forced ? dwt('emDrillForced') : dwt('emDrill')} data-em-drill .checked=${this.drill || forced} ?disabled=${forced}
+        @change=${(e: Event) => { this.drill = toggled(e); this.armIdle(); }}></sw-toggle>${forced ? dwt('emDrillForced') : dwt('emDrill')}</label>
       ${d?.can.lock && lock ? html`<door-hold-button data-em-kind="lock_secure" icon="lock" .holdMs=${hold} label=${dwt('emLock')}
           sub=${`${dwt('emDoors', { n: lock.doors })} · ${dwt('emLockSub')}`} @held=${() => this.held('lock_secure')}></door-hold-button>` : nothing}
       ${d?.can.open && open ? html`<door-hold-button fill data-em-kind="open" icon="unlock" .holdMs=${hold} ?disabled=${!openUsable} label=${dwt('emOpen')}

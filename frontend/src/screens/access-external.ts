@@ -1,6 +1,7 @@
 import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-drawer';
@@ -1107,7 +1108,7 @@ export class AccessExternalScreen extends LitElement {
                 <div><span>${xt('r_local')}</span><b>${r.local_approvers === 'on' ? xt('r_yes') : xt('r_no')}</b></div>`
             : nothing}
         </div>
-        <div class="lockrow" data-extended-identity="locked"><sw-icon name="lock" size="18"></sw-icon><div><b>${xt('extTitle')}</b>${xt('extText')}</div><input type="checkbox" disabled aria-label=${xt('extTitle')} /></div>
+        <div class="lockrow" data-extended-identity="locked"><sw-icon name="lock" size="18"></sw-icon><div><b>${xt('extTitle')}</b>${xt('extText')}</div><sw-toggle size="sm" labelHidden disabled label=${xt('extTitle')}></sw-toggle></div>
       </section>
     </aside>`;
   }

@@ -1,4 +1,5 @@
 import { html, nothing, type LitElement, type ReactiveController, type TemplateResult } from 'lit';
+import { toggled } from '../components/sw-toggle';
 import { classMap } from 'lit/directives/class-map.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import '../components/sw-button';
@@ -1915,7 +1916,7 @@ export class DevicesLayoutController implements ReactiveController {
       ${this.renderEntities(key, it)}
       ${this.renderMainPicker(key, it)}
       ${this.canArrange(key) ? html`<button type="button" class="btn" data-layout-tiles-open @click=${() => this.enterTiles(key)}>${tr('סידור התקנים בכרטיס')}${arranged(it) ? ` (${tr('מסודר')})` : ''}…</button>` : nothing}
-      <label class="lay-check"><input type="checkbox" data-layout-hidden .checked=${it.hidden} @change=${(e: Event) => this.patch(key, { hidden: (e.target as HTMLInputElement).checked })} />${tr('מוסתר לכולם')}</label>
+      <label class="lay-check"><sw-toggle size="sm" labelHidden in-label label=${tr('מוסתר לכולם')} data-layout-hidden .checked=${it.hidden} @change=${(e: Event) => this.patch(key, { hidden: toggled(e) })}></sw-toggle>${tr('מוסתר לכולם')}</label>
       </div>
       ${(key.startsWith('camera:') && this.variant === 'desktop') || desk
         ? html`<div class="lay-grp" data-layout-section="actions">
@@ -1966,7 +1967,7 @@ export class DevicesLayoutController implements ReactiveController {
           <button type="button" data-layout-tile-move="later" ?disabled=${i === list.length - 1} @click=${() => this.moveTile(key, id, i + 1)}>${tr('אחר')}</button>
           <button type="button" data-layout-tile-move="last" ?disabled=${i === list.length - 1} @click=${() => this.moveTile(key, id, list.length - 1)}>${tr('אחרון')}</button>
         </div></div>
-      <label class="lay-check"><input type="checkbox" data-layout-tile-hidden .checked=${t.hidden} @change=${(e: Event) => this.patchTile(key, id, { hidden: (e.target as HTMLInputElement).checked })} />${tr('מוסתר (עדיין נספר במונים של הכרטיס)')}</label>
+      <label class="lay-check"><sw-toggle size="sm" labelHidden in-label label=${tr('מוסתר (עדיין נספר במונים של הכרטיס)')} data-layout-tile-hidden .checked=${t.hidden} @change=${(e: Event) => this.patchTile(key, id, { hidden: toggled(e) })}></sw-toggle>${tr('מוסתר (עדיין נספר במונים של הכרטיס)')}</label>
       <div class="lay-tacts">${reset}</div>
     </aside>`;
   }

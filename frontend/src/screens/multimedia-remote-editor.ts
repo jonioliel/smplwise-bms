@@ -13,8 +13,7 @@ import { moveSection, setMore, toggleSection } from '../components/media-remote-
 import { remoteStyles } from '../components/media-remote-css';
 import { integrationName, integrationTitle } from './media-integration-names';
 import { tr } from '../i18n/msg/media';
-import '../components/sw-toggle';
-import { switchPress } from '../components/sw-toggle';
+import { switchPress, toggled } from '../components/sw-toggle';
 import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
 import { live } from 'lit/directives/live.js';
@@ -470,7 +469,7 @@ export class MediaRemoteEditor extends LitElement {
       const behind = this.cfg.more.includes(s.id);
       return html`<div class="row ${s.on ? '' : 'off'}" data-ed-section=${s.id} draggable="true" @dragstart=${d.start} @dragover=${d.over} @drop=${d.drop}>
         <span class="grip" aria-hidden="true">${ic('grip')}</span><span class="nm">${SECTION_SHORT[s.id]}</span>
-        <label class="fold"><input type="checkbox" .checked=${behind} ?disabled=${!s.on} aria-label=${tr('מאחורי "עוד מקשים": {name}', { name: SECTION_SHORT[s.id] })} @change=${(e: Event) => (this.cfg = setMore(this.cfg, s.id, (e.target as HTMLInputElement).checked))} />${tr('מקופל')}</label>
+        <label class="fold"><sw-toggle size="sm" labelHidden in-label data-ed-fold .checked=${behind} ?disabled=${!s.on} label=${tr('מאחורי "עוד מקשים": {name}', { name: SECTION_SHORT[s.id] })} @change=${(e: Event) => (this.cfg = setMore(this.cfg, s.id, toggled(e)))}></sw-toggle>${tr('מקופל')}</label>
         <button type="button" class="ib" aria-label=${tr('הקדם: {name}', { name: SECTION_SHORT[s.id] })} ?disabled=${i === 0} @click=${() => this.moveIn('sections', index, rows[i - 1].index)}>${ic('up')}</button>
         <button type="button" class="ib" aria-label=${tr('אחר: {name}', { name: SECTION_SHORT[s.id] })} ?disabled=${i === rows.length - 1} @click=${() => this.moveIn('sections', index, rows[i + 1].index)}>${ic('down')}</button>
         <sw-toggle .checked=${live(s.on)} label=${tr('הצג: {name}', { name: SECTION_SHORT[s.id] })} labelHidden @change=${switchPress(s.on, () => (this.cfg = toggleSection(this.cfg, s.id, !s.on)))}></sw-toggle>

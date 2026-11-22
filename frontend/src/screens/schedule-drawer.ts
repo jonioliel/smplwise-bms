@@ -40,8 +40,7 @@ import {
 } from './schedules-logic';
 import { toneColor } from '../components/sw-schedule-bar';
 import { tr } from '../i18n/msg/automation';
-import '../components/sw-toggle';
-import { switchPress } from '../components/sw-toggle';
+import { switchPress, toggled } from '../components/sw-toggle';
 
 /** How an action ended, for the screen's note or the drawer's status line. */
 export interface ActionResult {
@@ -122,8 +121,7 @@ export class ScheduleActions extends LitElement {
       min-block-size: 44px;
       font-size: var(--sw-fs-md);
     }
-    input[type='radio'],
-    input[type='checkbox'] {
+    input[type='radio'] {
       inline-size: 17px;
       block-size: 17px;
       accent-color: var(--dv-accent);
@@ -278,7 +276,7 @@ export class ScheduleActions extends LitElement {
           )}</div>`
         : html`<p>${s.slots[0] ? `${windowText(s.slots[0])} · ${slotChips(s.slots[0], s).map((c) => `${c.label} · ${c.devices.join(', ')}`).join(' | ')}` : ''}</p>`}
       ${runNeedsConfirm(d.slot === null ? undefined : s.slots[d.slot]) ? html`<p>${tr('הפעולה תפעיל התקנים פיזיים מיד.')}</p>` : nothing}
-      ${s.conditions.items.length ? html`<label class="check"><input type="checkbox" .checked=${d.skip} @change=${(e: Event) => (this.dialog = { ...d, skip: (e.target as HTMLInputElement).checked })} data-run-skip />${tr('להריץ גם אם התנאים אינם מתקיימים')}</label>` : nothing}
+      ${s.conditions.items.length ? html`<label class="check"><sw-toggle size="sm" labelHidden in-label label=${tr('להריץ גם אם התנאים אינם מתקיימים')} .checked=${d.skip} @change=${(e: Event) => (this.dialog = { ...d, skip: toggled(e) })} data-run-skip></sw-toggle>${tr('להריץ גם אם התנאים אינם מתקיימים')}</label>` : nothing}
       ${d.error ? html`<div class="err" role="alert" data-actions-error>${d.error}</div>` : nothing}
       ${this.buttons('run', tr('הרץ'), tr('מריץ…'), d, () => (lowering ? this.askLoweringForRun(d) : void this.submit()), { disabled: !can })}
     </div></sw-dialog>`;

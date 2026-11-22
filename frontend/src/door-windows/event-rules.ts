@@ -1,5 +1,6 @@
 import { LitElement, html, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-drawer';
@@ -235,15 +236,15 @@ export class DoorEventRules extends LitElement {
           <div class="field"><label for="dwe-cap">${dwe('fMaxPerDay')}</label>${text('dwe-cap', dr.maxPerDay, (d, v) => (d.maxPerDay = v))}</div>
           <div class="field"><label for="dwe-cool">${dwe('fCooldownMin')}</label>${text('dwe-cool', dr.cooldownMin, (d, v) => (d.cooldownMin = v))}</div>
         </div>
-        <div class="field"><label class="chk"><input type="checkbox" data-dw-limit .checked=${dr.limitHours}
-            @change=${(e: Event) => this.patch((d) => (d.limitHours = (e.target as HTMLInputElement).checked))}>${dwe('fAllowedLimit')}</label>
+        <div class="field"><label class="chk"><sw-toggle size="sm" labelHidden in-label label=${dwe('fAllowedLimit')} data-dw-limit .checked=${dr.limitHours}
+            @change=${(e: Event) => this.patch((d) => (d.limitHours = toggled(e)))}></sw-toggle>${dwe('fAllowedLimit')}</label>
           ${dr.limitHours ? html`<div class="row2">
             <label class="muted">${dwe('fAllowedFrom')} <input type="time" lang=${dateInputLang()} step="900" .value=${dr.from} @change=${(e: Event) => this.patch((d) => (d.from = (e.target as HTMLInputElement).value))}></label>
             <label class="muted">${dwe('fAllowedTo')} <input type="time" lang=${dateInputLang()} step="900" .value=${dr.to === '24:00' ? '23:59' : dr.to} @change=${(e: Event) => this.patch((d) => (d.to = (e.target as HTMLInputElement).value))}></label>
           </div>` : html`<span class="muted">${dwe('fAllowedAll')}</span>`}
           <span class="chip num">${dwe('capQuiet', { from: lim.quiet[0], to: lim.quiet[1] })}</span></div>
-        ${dr.id && dr.source === 'ha_event' ? html`<label class="chk"><input type="checkbox" data-dw-regenerate .checked=${dr.regenerate}
-            @change=${(e: Event) => this.patch((d) => (d.regenerate = (e.target as HTMLInputElement).checked))}>${dwe('fRegenerate')}</label>` : nothing}
+        ${dr.id && dr.source === 'ha_event' ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${dwe('fRegenerate')} data-dw-regenerate .checked=${dr.regenerate}
+            @change=${(e: Event) => this.patch((d) => (d.regenerate = toggled(e)))}></sw-toggle>${dwe('fRegenerate')}</label>` : nothing}
         ${this.draftError ? html`<div class="err" role="alert" data-dw-error>${this.draftError}</div>` : nothing}
       </div>
       <div slot="footer" class="footer">

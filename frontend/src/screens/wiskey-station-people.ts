@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import { live } from 'lit/directives/live.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-badge';
@@ -252,7 +253,7 @@ export class WiskeyStationPeople extends LitElement {
             @input=${(e: Event) => (this.query = (e.target as HTMLInputElement).value)} />
         </label>
         ${hiddenCount
-          ? html`<label class="check"><input type="checkbox" data-station-people-show-ignored .checked=${this.showIgnored} @change=${(e: Event) => (this.showIgnored = (e.target as HTMLInputElement).checked)} />
+          ? html`<label class="check"><sw-toggle size="sm" labelHidden in-label label=${st('show_ignored')} data-station-people-show-ignored .checked=${this.showIgnored} @change=${(e: Event) => (this.showIgnored = toggled(e))}></sw-toggle>
               <span>${st('show_ignored')} (${hiddenCount})</span></label>`
           : nothing}
       </div>

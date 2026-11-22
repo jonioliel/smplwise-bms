@@ -75,7 +75,7 @@ test('the view lists station-only users across stations, says why a station was 
   await expect(page.locator(`${VIEW} [data-station-people-station="park"]`)).toHaveAttribute('data-station-state', 'error');
   await expect(page.locator(`${VIEW} [data-station-people-station="lab"]`)).toHaveAttribute('data-station-state', 'numbers_hidden');
   expect(m.reads.sort()).toEqual(['gate', 'lobby', 'park'].sort()); // the hidden-number station is never read
-  await page.locator(`${VIEW} [data-station-people-show-ignored]`).check();
+  await page.locator(`${VIEW} [data-station-people-show-ignored]`).click();
   await expect(row(page, '2005')).toHaveAttribute('data-station-user-ignored', 'true');
   await page.locator(`${VIEW} [data-station-people-search]`).fill('2003');
   await expect(page.locator(`${VIEW} [data-station-user]`)).toHaveCount(1);
@@ -144,7 +144,7 @@ test('ignore hides the row (reversible) and delete needs the typed number', asyn
   await expect(page.locator(`${VIEW} [data-station-result]`)).toHaveAttribute('data-station-result', 'ok');
   await page.locator(`${VIEW} [data-station-action-close]`).click();
   await expect(row(page, '2003')).toHaveCount(0);
-  await page.locator(`${VIEW} [data-station-people-show-ignored]`).check();
+  await page.locator(`${VIEW} [data-station-people-show-ignored]`).click();
   await row(page, '2003').locator('[data-station-user-act="unignore"]').click();
   await page.locator(`${VIEW} [data-station-action-confirm]`).click();
   await page.locator(`${VIEW} [data-station-action-close]`).click();

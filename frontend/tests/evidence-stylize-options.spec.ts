@@ -30,7 +30,7 @@ test.describe('stylize options and layer memory (SW A)', () => {
     const opts = editor.locator('[data-stylize-opts]');
     await expect(opts).toBeVisible();
     await opts.locator('select[aria-label="מילוי חדרים"]').selectOption('tint');
-    await editor.locator('label.chk input[type=checkbox]').last().check();
+    await editor.locator('label.chk sw-toggle').last().click();
     await editor.getByRole('button', { name: 'עבד תצוגה מקדימה' }).click();
     await expect(editor.locator('[data-stylize-caption]')).toContainText('גוון לכל חדר', { timeout: 60000 });
     await expect(editor.locator('[data-stylize-caption]')).toContainText('עם קווים דקים');

@@ -126,19 +126,19 @@ test('settings > devices: a fixed valve / water heater can be included in "הד�
   const visible = (sel: string) => card.locator(sel).locator('visible=true').first();
 
   // automatic types (even a name that reads as a tap) never show the switch: only the administrator's fixed type counts
-  await expect(card.locator('input[data-type-bulk-on]')).toHaveCount(0);
+  await expect(card.locator('sw-toggle[data-type-bulk-on]')).toHaveCount(0);
   await visible('select[data-type-select="switch.tap"]').selectOption('valve');
   await expect.poll(() => calls.length).toBe(1);
-  const box = visible('input[data-type-bulk-on="switch.tap"]');
-  await expect(box).not.toBeChecked();
+  const box = visible('sw-toggle[data-type-bulk-on="switch.tap"]');
+  await expect(box).not.toHaveAttribute('checked');
   await expect(card.locator('[data-entity="switch.tap"] label.bulk-on').locator('visible=true')).toContainText('לכלול בהדלק הכל');
-  await box.check();
+  await box.click();
   await expect.poll(() => calls.length).toBe(2);
   expect(calls[1]).toEqual({ method: 'PUT', path: 'devices/entities/switch.tap/bulk-on', body: { allowed: true } });
-  await expect(visible('input[data-type-bulk-on="switch.tap"]')).toBeChecked();
+  await expect(visible('sw-toggle[data-type-bulk-on="switch.tap"]')).toHaveAttribute('checked', '');
   // a plain type has no such switch
   await visible('select[data-type-select="switch.relay3"]').selectOption('light');
   await expect.poll(() => calls.length).toBe(3);
-  await expect(card.locator('input[data-type-bulk-on="switch.relay3"]')).toHaveCount(0);
+  await expect(card.locator('sw-toggle[data-type-bulk-on="switch.relay3"]')).toHaveCount(0);
   await expect(card).not.toContainText(/Home Assistant|\bHA\b/);
 });

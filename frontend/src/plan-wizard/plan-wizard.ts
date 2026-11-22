@@ -11,6 +11,7 @@ import { uiLocale } from '../i18n/locale';
 import { tr } from '../i18n/msg/plan-wizard';
 import { LitElement, html, nothing, svg, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-tabs';
@@ -941,7 +942,7 @@ export class PlanWizardScreen extends LitElement {
       })}</div>
       <div class="rnote">${unnamed ? html`<span class="warn">${unnamed === 1 ? tr('חדר אחד עוד בלי שם') : tr('{n} חדרים עוד בלי שם', { n: unnamed })}</span>` : html`<span>${tr('{n} מקושרים לאזורים קיימים', { n: this.rooms.filter((r) => this.areaOf(r.name)).length })}</span>`}
         ${pages > 1 ? html`<span class="pager"><button aria-label=${tr('הקודם')} ?disabled=${page <= 0} @click=${() => (this.roomsPage = page - 1)}><sw-icon name="chevron" size="16"></sw-icon></button><span class="num">${page + 1} / ${pages}</span><button aria-label=${tr('הבא')} ?disabled=${page >= pages - 1} @click=${() => (this.roomsPage = page + 1)}><sw-icon name="chevronBack" size="16"></sw-icon></button></span>` : nothing}</div>
-      ${this.existingAuto ? html`<label class="check"><input type="checkbox" .checked=${this.replaceAuto} @change=${(e: Event) => (this.replaceAuto = (e.target as HTMLInputElement).checked)} />${this.existingAuto === 1 ? tr('להחליף חדר אוטומטי קודם בקומה') : tr('להחליף {n} חדרים אוטומטיים קודמים בקומה', { n: this.existingAuto })}</label>` : nothing}`;
+      ${this.existingAuto ? html`<label class="check"><sw-toggle size="sm" labelHidden in-label label=${this.existingAuto === 1 ? tr('להחליף חדר אוטומטי קודם בקומה') : tr('להחליף {n} חדרים אוטומטיים קודמים בקומה', { n: this.existingAuto })} .checked=${this.replaceAuto} @change=${(e: Event) => (this.replaceAuto = toggled(e))}></sw-toggle>${this.existingAuto === 1 ? tr('להחליף חדר אוטומטי קודם בקומה') : tr('להחליף {n} חדרים אוטומטיים קודמים בקומה', { n: this.existingAuto })}</label>` : nothing}`;
   }
 
   private sideStyle() {
@@ -952,7 +953,7 @@ export class PlanWizardScreen extends LitElement {
     return html`<h2>${tr('סגנון וריהוט')}</h2><p>${tr('ערכה קובעת חומרים וריהוט התחלתי לכל חדר לפי הסוג שלו. אפשר לשנות אחר כך חדר־חדר בסטודיו.')}</p>
       <div class="presets" role="radiogroup" aria-label=${tr('ערכת סגנון')}>${KITS.map((k) => html`<button class="preset" role="radio" data-kit=${k.id} aria-checked=${k.id === this.kit ? 'true' : 'false'} aria-pressed=${k.id === this.kit ? 'true' : 'false'}
           @click=${() => { this.kit = k.id; if (k.id === 'empty') this.furniture = false; else if (this.prefs.furniture) this.furniture = true; }}><span class="sw" aria-hidden="true">${sw(k)}</span><span class="tx"><b>${k.he}</b><span>${k.note}</span></span></button>`)}</div>
-      <label class="check"><input type="checkbox" data-wz-furniture .checked=${this.furniture} ?disabled=${this.kit === 'empty'} @change=${(e: Event) => (this.furniture = (e.target as HTMLInputElement).checked)} /><sw-icon name="cube" size="16"></sw-icon>${tr('להציב ריהוט התחלתי')}</label>
+      <label class="check"><sw-toggle size="sm" labelHidden in-label label=${tr('להציב ריהוט התחלתי')} data-wz-furniture .checked=${this.furniture} ?disabled=${this.kit === 'empty'} @change=${(e: Event) => (this.furniture = toggled(e))}></sw-toggle><sw-icon name="cube" size="16"></sw-icon>${tr('להציב ריהוט התחלתי')}</label>
 `;
   }
 
@@ -1067,8 +1068,8 @@ export class PlanWizardScreen extends LitElement {
         ${bad ? html`<span class="note" style="color:var(--sw-danger-text)">${tr('הסף התחתון חייב להיות נמוך מהעליון.')}</span>` : nothing}
         <label>${tr('פריט "לבדיקה" שלא בדקת')}<select .value=${d.unreviewed} @change=${(e: Event) => set({ unreviewed: (e.target as HTMLSelectElement).value as WizardPrefs['unreviewed'] })}><option value="as_detected" ?selected=${d.unreviewed === 'as_detected'}>${tr('נכנס כמו שזוהה')}</option><option value="reject" ?selected=${d.unreviewed === 'reject'}>${tr('לא נכנס')}</option></select></label>
         <label>${tr('ערכת סגנון ראשונה')}<select .value=${d.kit} @change=${(e: Event) => set({ kit: (e.target as HTMLSelectElement).value as KitId })}>${KITS.map((k) => html`<option value=${k.id} ?selected=${k.id === d.kit}>${k.he}</option>`)}</select></label>
-        <label class="check"><input type="checkbox" .checked=${d.furniture} @change=${(e: Event) => set({ furniture: (e.target as HTMLInputElement).checked })} />${tr('להציב ריהוט התחלתי')}</label>
-        <label class="check"><input type="checkbox" .checked=${d.auto_place} @change=${(e: Event) => set({ auto_place: (e.target as HTMLInputElement).checked })} />${tr('להציב התקנים לבד לפי האזור')}</label>
+        <label class="check"><sw-toggle size="sm" labelHidden in-label label=${tr('להציב ריהוט התחלתי')} .checked=${d.furniture} @change=${(e: Event) => set({ furniture: toggled(e) })}></sw-toggle>${tr('להציב ריהוט התחלתי')}</label>
+        <label class="check"><sw-toggle size="sm" labelHidden in-label label=${tr('להציב התקנים לבד לפי האזור')} .checked=${d.auto_place} @change=${(e: Event) => set({ auto_place: toggled(e) })}></sw-toggle>${tr('להציב התקנים לבד לפי האזור')}</label>
         <span class="note">${tr('ברירת המחדל: מעל 80% נכנס, בין 50% ל־80% לבדיקה ונכנס כמו שזוהה אם דילגת, מתחת ל־50% לא נכנס בלי אישור.')}</span>
       </div>
       <div slot="footer" style="display:flex;gap:8px;justify-content:flex-end">

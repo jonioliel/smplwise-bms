@@ -1,5 +1,6 @@
 import { LitElement, html, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-drawer';
 import { ApiError, describeError } from '../api/client';
@@ -114,8 +115,8 @@ export class DoorEmergencyGrants extends LitElement {
           <div class="field"><label for="dwg-expiry">${dwt('grExpiry')}</label>
             <input id="dwg-expiry" type="datetime-local" lang=${dateInputLang()} data-dw-grant-expiry .value=${this.expiry} ?disabled=${this.noExpiry}
               @input=${(e: Event) => (this.expiry = (e.target as HTMLInputElement).value)}></div>
-          ${v.can_no_expiry ? html`<label class="occ"><input type="checkbox" data-dw-grant-noexpiry .checked=${this.noExpiry}
-            @change=${(e: Event) => (this.noExpiry = (e.target as HTMLInputElement).checked)}> ${dwt('grNoExpiry')}</label>` : nothing}
+          ${v.can_no_expiry ? html`<label class="occ"><sw-toggle size="sm" labelHidden in-label label=${dwt('grNoExpiry')} data-dw-grant-noexpiry .checked=${this.noExpiry}
+            @change=${(e: Event) => (this.noExpiry = toggled(e))}></sw-toggle> ${dwt('grNoExpiry')}</label>` : nothing}
         </section>
       </div>` : nothing}
       ${this.error ? html`<div class="err" role="alert" data-dw-grants-error>${this.error}</div>` : nothing}

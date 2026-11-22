@@ -301,7 +301,7 @@ test.describe('day view, the slot panel, phone', () => {
     const first = editor(page).locator('sw-schedule-grid .slot').first();
     await first.click();
     // the companion of a cover slot does not exist (no off counterpart): the helper is not offered
-    await expect(editor(page).locator('schedule-slot-panel sw-toggle')).toHaveCount(0);
+    await expect(editor(page).locator('schedule-slot-panel sw-toggle:not([size="sm"])')).toHaveCount(0); // the small switches of the bool fields (HAND-SWITCH-2480) are not the helper
     await mount(page, '4d6e0a');
     await editor(page).locator('[data-view-btn="day"]').click();
     await editor(page).locator('sw-schedule-grid .slot').first().click();
@@ -384,7 +384,7 @@ test.describe('conditions', () => {
     await expect(cond.locator('[data-cond-type="and"]')).toHaveAttribute('aria-pressed', 'true');
     await cond.locator('[data-cond-type="or"]').click();
     await expect(cond.locator('[data-cond-type="or"]')).toHaveAttribute('aria-pressed', 'true');
-    await cond.locator('[data-cond-track]').check();
+    await cond.locator('[data-cond-track]').click();
     // no window end on the off pin: the tracking warning appears
     await expect(cond.locator('[data-cond-warnings]')).toContainText('שעת סיום');
     // removing the preset condition clears it and the preset chip

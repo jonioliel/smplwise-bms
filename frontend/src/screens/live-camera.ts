@@ -1,5 +1,6 @@
 import { LitElement, html, nothing, svg } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-page';
 import '../components/sw-camera-tile';
 import '../components/sw-badge';
@@ -325,7 +326,7 @@ export class LiveCamera extends LitElement {
         : html`<div class="note">${tr('הלוח הזה לא נקרא מהמקליט')}${s.unsupported[tab] ? ` (${s.unsupported[tab]})` : ''}.</div>`}
       ${tab === 'record' && s.record
         ? html`<div class="note" style="margin-block-start:6px">${tr('ברירת מחדל: {mode}', { mode: s.record.default_mode ?? '—' })} · ${tr('לפני אירוע {n} שנ׳', { n: s.record.pre_record_s ?? '—' })} · ${tr('אחרי {n} שנ׳', { n: s.record.post_record_s ?? '—' })} · ${tr('הקלטה {state}', { state: s.record.enabled ? tr('פעילה') : tr('כבויה') })} · ${tr('לוח {state}', { state: s.record.schedule_enabled === false ? tr('כבוי (מקליט לפי ברירת המחדל)') : tr('פעיל') })}
-            ${e ? html`<label style="display:inline-flex;gap:4px;align-items:center;margin-inline-start:8px"><input type="checkbox" data-sched-enabled .checked=${e.schedule_enabled !== false} @change=${(ev: Event) => (this.schedEdit = { ...e, schedule_enabled: (ev.target as HTMLInputElement).checked })} /> ${tr('לוח פעיל')}</label>` : nothing}</div>`
+            ${e ? html`<label style="display:inline-flex;gap:4px;align-items:center;margin-inline-start:8px"><sw-toggle size="sm" labelHidden in-label label=${tr('לוח פעיל')} data-sched-enabled .checked=${e.schedule_enabled !== false} @change=${(ev: Event) => (this.schedEdit = { ...e, schedule_enabled: toggled(ev) })}></sw-toggle> ${tr('לוח פעיל')}</label>` : nothing}</div>`
         : nothing}
       ${e
         ? html`<div class="legend" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-block-start:8px" data-sched-editor>
@@ -428,10 +429,10 @@ export class LiveCamera extends LitElement {
     return html`<div class="legend" data-smart-editor style="display:grid;gap:8px;margin-block-start:8px">
       <div class="note">${tr('בחר כלל ולחץ על התמונה כדי לצייר: קו =')} <strong>${tr('שתי')}</strong> ${tr('לחיצות (התחלה וסוף — לחיצה נוספת מזיזה את הסוף); אזור פריצה =')} <strong>${tr('4 עד 10')}</strong> ${tr('לחיצות (נקודה לכל פינה), ואז ישר "שמור למקליט" למטה — אין צורך לסגור את הצורה. "אדם" / "רכב" = סינון אזעקות שווא (רק מטרה מסוג זה מפעילה).')}</div>
       ${ed.line ? html`<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-smart-lines>
-          <label class="note" style="display:inline-flex;align-items:center;gap:4px"><input type="checkbox" data-smart-line-enabled .checked=${ed.line.enabled} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, enabled: (e.target as HTMLInputElement).checked } })} /> ${tr('חציית קו פעילה')}</label>
+          <label class="note" style="display:inline-flex;align-items:center;gap:4px"><sw-toggle size="sm" labelHidden in-label label=${tr('חציית קו פעילה')} data-smart-line-enabled .checked=${ed.line.enabled} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, enabled: toggled(e) } })}></sw-toggle> ${tr('חציית קו פעילה')}</label>
           ${ed.line.lines.map((l) => html`<span style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--sw-border);border-radius:var(--sw-r-sm);padding:4px 8px" data-smart-line=${l.id}>
             <sw-chip ?selected=${ed.tool.type === 'line' && ed.tool.id === l.id} data-smart-pick-line=${l.id} @click=${() => (this.smartEdit = { ...ed, tool: { type: 'line', id: l.id } })}>${tr('קו {id}', { id: l.id })}${l.points.length === 2 && !(l.points[0][0] === 0 && l.points[0][1] === 1000) ? '' : ` · ${tr('לא מצויר')}`}</sw-chip>
-            <label class="note"><input type="checkbox" .checked=${l.enabled} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, enabled: (e.target as HTMLInputElement).checked } : x)) } })} /> ${tr('פעיל')}</label>
+            <label class="note"><sw-toggle size="sm" labelHidden in-label label=${tr('פעיל')} .checked=${l.enabled} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, enabled: toggled(e) } : x)) } })}></sw-toggle> ${tr('פעיל')}</label>
             <select class="note" aria-label=${tr('כיוון')} .value=${l.direction} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, direction: (e.target as HTMLSelectElement).value } : x)) } })}>${['any', 'left-right', 'right-left'].map((d) => html`<option value=${d} ?selected=${d === l.direction}>${dir(d)}</option>`)}</select>
             <label class="note">${tr('רגישות')} <input type="range" min="1" max="100" .value=${String(l.sensitivity)} @input=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, sensitivity: Number((e.target as HTMLInputElement).value) } : x)) } })} /> ${l.sensitivity}</label>
             <label class="note"><input type="checkbox" .checked=${l.human} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, human: (e.target as HTMLInputElement).checked } : x)) } })} /> ${tr('אדם')}</label>
@@ -439,7 +440,7 @@ export class LiveCamera extends LitElement {
           </span>`)}
         </div>` : nothing}
       ${ed.field ? html`<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-smart-regions>
-          <label class="note" style="display:inline-flex;align-items:center;gap:4px"><input type="checkbox" data-smart-field-enabled .checked=${ed.field.enabled} @change=${(e: Event) => (this.smartEdit = { ...ed, field: { ...ed.field!, enabled: (e.target as HTMLInputElement).checked } })} /> ${tr('פריצה לאזור פעילה')}</label>
+          <label class="note" style="display:inline-flex;align-items:center;gap:4px"><sw-toggle size="sm" labelHidden in-label label=${tr('פריצה לאזור פעילה')} data-smart-field-enabled .checked=${ed.field.enabled} @change=${(e: Event) => (this.smartEdit = { ...ed, field: { ...ed.field!, enabled: toggled(e) } })}></sw-toggle> ${tr('פריצה לאזור פעילה')}</label>
           ${ed.field.regions.map((r) => html`<span style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--sw-border);border-radius:var(--sw-r-sm);padding:4px 8px" data-smart-region=${r.id}>
             <sw-chip ?selected=${ed.tool.type === 'field' && ed.tool.id === r.id} data-smart-pick-region=${r.id} @click=${() => (this.smartEdit = { ...ed, tool: { type: 'field', id: r.id } })}>${tr('אזור {id}', { id: r.id })} · ${tr('{n} נק׳', { n: r.points.length })}</sw-chip>
             <sw-button size="sm" variant="ghost" data-smart-region-clear=${r.id} @click=${() => (this.smartEdit = { ...ed, field: { ...ed.field!, regions: ed.field!.regions.map((x) => (x.id === r.id ? { ...x, points: [] } : x)) } })}>${tr('נקה')}</sw-button>
@@ -525,8 +526,8 @@ export class LiveCamera extends LitElement {
     return html`<div class="note" style="margin-block-start:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-osd>
       <span>${tr('שם במקליט:')} <b data-osd-nvr-name>${o.nvr_name ?? '—'}</b>${same ? ` ${tr('(זהה לשם ב־Arx)')}` : ` · ${tr('ב־Arx: {name}', { name: o.vms_name })}`}</span>
       <sw-button size="sm" icon="edit" ?disabled=${this.osdBusy || same} data-osd-write-name @click=${() => this.osdAction(tr('שם הערוץ'), () => writeChannelName(this.cam!.id))}>${tr('כתוב את השם מ־Arx למקליט')}</sw-button>
-      ${o.channel_name ? html`<label style="display:inline-flex;gap:4px;align-items:center"><input type="checkbox" data-osd-name-enabled .checked=${o.channel_name.enabled} ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction(tr('שם על התמונה'), () => setOsd(this.cam!.id, { name_enabled: (e.target as HTMLInputElement).checked }))} /> ${tr('שם על התמונה')}</label>` : nothing}
-      ${o.datetime ? html`<label style="display:inline-flex;gap:4px;align-items:center"><input type="checkbox" data-osd-datetime-enabled .checked=${o.datetime.enabled} ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction(tr('חותמת זמן'), () => setOsd(this.cam!.id, { datetime_enabled: (e.target as HTMLInputElement).checked }))} /> ${tr('חותמת זמן')}</label>
+      ${o.channel_name ? html`<label style="display:inline-flex;gap:4px;align-items:center"><sw-toggle size="sm" labelHidden in-label label=${tr('שם על התמונה')} data-osd-name-enabled .checked=${o.channel_name.enabled} ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction(tr('שם על התמונה'), () => setOsd(this.cam!.id, { name_enabled: toggled(e) }))}></sw-toggle> ${tr('שם על התמונה')}</label>` : nothing}
+      ${o.datetime ? html`<label style="display:inline-flex;gap:4px;align-items:center"><sw-toggle size="sm" labelHidden in-label label=${tr('חותמת זמן')} data-osd-datetime-enabled .checked=${o.datetime.enabled} ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction(tr('חותמת זמן'), () => setOsd(this.cam!.id, { datetime_enabled: toggled(e) }))}></sw-toggle> ${tr('חותמת זמן')}</label>
         <sw-field><select aria-label=${tr('פורמט תאריך')} data-osd-date-style ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction(tr('פורמט תאריך'), () => setOsd(this.cam!.id, { date_style: (e.target as HTMLSelectElement).value }))}>${o.date_styles.map((d) => html`<option value=${d} ?selected=${d === o.datetime!.date_style}>${d}</option>`)}</select></sw-field>` : nothing}
       ${this.osdMsg ? html`<span data-osd-msg>${this.osdMsg}</span>` : nothing}
     </div>`;
@@ -817,7 +818,7 @@ export class LiveCamera extends LitElement {
       <sw-button size="sm" variant="ghost" @click=${() => this.fillMotion(true)}>${tr('בחר הכל')}</sw-button>
       <sw-button size="sm" variant="ghost" @click=${() => this.fillMotion(false)}>${tr('נקה')}</sw-button>
       <label class="note" style="display:inline-flex;align-items:center;gap:6px">${tr('רגישות')} <input type="range" min=${this.zones?.sensitivity_caps?.min ?? 0} max=${this.zones?.sensitivity_caps?.max ?? 100} step=${this.zones?.sensitivity_caps?.step ?? 20} .value=${String(e.sensitivity)} data-motion-sensitivity @input=${(ev: Event) => (this.motionEdit = { ...e, sensitivity: Number((ev.target as HTMLInputElement).value) })} /> <b class="ltr">${e.sensitivity}</b></label>
-      <label class="note" style="display:inline-flex;align-items:center;gap:6px"><input type="checkbox" .checked=${e.enabled} data-motion-enabled @change=${(ev: Event) => (this.motionEdit = { ...e, enabled: (ev.target as HTMLInputElement).checked })} /> ${tr('זיהוי תנועה פעיל')}</label>
+      <label class="note" style="display:inline-flex;align-items:center;gap:6px"><sw-toggle size="sm" labelHidden in-label label=${tr('זיהוי תנועה פעיל')} .checked=${e.enabled} data-motion-enabled @change=${(ev: Event) => (this.motionEdit = { ...e, enabled: toggled(ev) })}></sw-toggle> ${tr('זיהוי תנועה פעיל')}</label>
       <span class="grow"></span>
       <sw-button variant="primary" size="sm" icon="check" ?disabled=${!changed || this.motionBusy} data-motion-save @click=${() => (this.motionConfirm = true)}>${tr('שמור למקליט')}</sw-button>
       <sw-button size="sm" variant="ghost" icon="close" ?disabled=${this.motionBusy} data-motion-cancel @click=${() => (this.motionEdit = null)}>${tr('ביטול')}</sw-button>

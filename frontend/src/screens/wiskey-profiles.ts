@@ -8,7 +8,7 @@ import '../components/sw-button';
 import '../components/sw-badge';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
-import '../components/sw-toggle';
+import { toggled } from '../components/sw-toggle';
 import type { RouteState } from '../router';
 import { ApiError, describeError } from '../api/client';
 import { isApi } from '../api/session';
@@ -452,9 +452,9 @@ export class WiskeyProfilesScreen extends LitElement {
           <sw-dropdown block data-pf-field-type label=${pft('type')} .value=${f.type}
             .items=${FIELD_TYPES.map((t) => ({ id: t, label: pftDynamic(`type_${t}`, 'type_text') }))}
             @change=${(e: CustomEvent<DropdownChange>) => this.setField(i, { type: e.detail.id as ProfileField['type'] })}></sw-dropdown></div>
-        <label class="ck"><input type="checkbox" .checked=${f.required} data-pf-field-required @change=${(e: Event) => this.setField(i, { required: (e.target as HTMLInputElement).checked })} />
+        <label class="ck"><sw-toggle size="sm" labelHidden in-label label=${pft('required')} .checked=${f.required} data-pf-field-required @change=${(e: Event) => this.setField(i, { required: toggled(e) })}></sw-toggle>
           ${pft('required')}</label>
-        <label class="ck"><input type="checkbox" .checked=${f.unique} data-pf-field-unique @change=${(e: Event) => this.setField(i, { unique: (e.target as HTMLInputElement).checked })} />
+        <label class="ck"><sw-toggle size="sm" labelHidden in-label label=${pft('unique')} .checked=${f.unique} data-pf-field-unique @change=${(e: Event) => this.setField(i, { unique: toggled(e) })}></sw-toggle>
           ${pft('unique')}</label>
         <div class="f"><span>${pft('dependsOn')}</span>
           <sw-dropdown block data-pf-field-parent label=${pft('dependsOn')} .value=${f.depends_on?.field_id ?? ''}

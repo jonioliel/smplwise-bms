@@ -365,7 +365,7 @@ test.describe('players page (mocked backend)', () => {
     await expect(panel.locator('[data-mm-size]')).toHaveCount(0); // a player card has one size
     await expect(panel.locator('[data-mm-phone-toggle]')).toHaveCount(0);
     await shot(page, 'players-edit', '1440');
-    await panel.locator('[data-mm-on="mp-off"]').uncheck();
+    await panel.locator('[data-mm-on="mp-off"]').click();
     await panel.locator('[data-mm-pin="mp-per"]').click();
     await panel.locator('[data-mm-row="mp-hal"] [data-mm-up]').click();
     await shot(page, 'players-edit-changed', '1440');

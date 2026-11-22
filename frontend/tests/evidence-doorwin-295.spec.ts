@@ -131,8 +131,8 @@ test('emergency: off -> drill forced; hold, the server\'s prepare, one confirm, 
   await s.locator('[data-dw-emergency]').click();
   const sheet = s.locator('door-emergency-sheet');
   await expect(sheet.locator('[data-em-step="choose"]')).toBeVisible();
-  await expect(sheet.locator('[data-em-drill]')).toBeChecked();
-  await expect(sheet.locator('[data-em-drill]')).toBeDisabled();
+  await expect(sheet.locator('[data-em-drill]')).toHaveAttribute('checked', '');
+  await expect(sheet.locator('[data-em-drill]')).toHaveAttribute('disabled', '');
   await shot(page, info, '06-emergency-choose');
   // a short tap does nothing
   await sheet.locator('door-hold-button[data-em-kind="lock_secure"] button').click();
@@ -184,8 +184,8 @@ test('settings: a system administrator sees the switches; real emergency activat
   await s.locator('[data-dw-settings-btn]').click();
   await expect(s.locator('[data-dw-settings]')).toBeVisible();
   await expect(s.locator('[data-dw-golive]')).toBeVisible();
-  await expect(s.locator('[data-dw-switch="doors.emergency.enabled"] input')).toBeDisabled();
-  await expect(s.locator('[data-dw-switch="doors.emergency.open_enabled"] input')).toBeDisabled();
+  await expect(s.locator('[data-dw-switch="doors.emergency.enabled"] sw-toggle')).toHaveAttribute('disabled', '');
+  await expect(s.locator('[data-dw-switch="doors.emergency.open_enabled"] sw-toggle')).toHaveAttribute('disabled', '');
   await expect(s.locator('[data-dw-programs-golive]')).toBeVisible();
   await shot(page, info, '10-settings');
 });
@@ -196,9 +196,9 @@ test('settings: door-window programs and emergency buttons are independent (SPLI
   await s.locator('[data-dw-settings-btn]').click();
   await expect(s.locator('[data-dw-settings]')).toBeVisible();
   await expect(s.locator('[data-dw-programs-golive]')).toHaveCount(0);
-  await expect(s.locator('[data-dw-switch="doors.windows.enabled"] input')).toBeEnabled();
+  await expect(s.locator('[data-dw-switch="doors.windows.enabled"] sw-toggle')).not.toHaveAttribute('disabled');
   await expect(s.locator('[data-dw-golive]')).toBeVisible();
-  await expect(s.locator('[data-dw-switch="doors.emergency.enabled"] input')).toBeDisabled();
+  await expect(s.locator('[data-dw-switch="doors.emergency.enabled"] sw-toggle')).toHaveAttribute('disabled', '');
 });
 
 test('English, left to right, dark', async ({ page }, info) => {
@@ -214,11 +214,11 @@ test('settings: the emergency-buttons switch is on by default; turning it off as
   const { mock } = await boot(page);
   const s = page.locator(SCREEN);
   await s.locator('[data-dw-settings-btn]').click();
-  const sw = s.locator('[data-dw-switch="doors.emergency.engine_switch"] input');
-  await expect(sw).toBeChecked();
-  await expect(sw).toBeEnabled();
+  const sw = s.locator('[data-dw-switch="doors.emergency.engine_switch"] sw-toggle');
+  await expect(sw).toHaveAttribute('checked', '');
+  await expect(sw).not.toHaveAttribute('disabled');
   await expect(s.locator('[data-dw-engine-off]')).toHaveCount(0);
-  await sw.uncheck();
+  await sw.click();
   await expect(s.locator('[data-dw-engine-off]')).toBeVisible();
   await s.locator('[data-dw-settings-save]').click();
   // asked first: nothing sent yet. The sw-dialog host has no box of its own (a fixed backdrop inside), so check its button.

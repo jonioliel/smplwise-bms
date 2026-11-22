@@ -186,8 +186,8 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
     // stations: gate (one relay) and lobby (two relays: keep only the first)
     const gate = editor(page).locator('[data-wiskey-editor-station="gate"]');
     const lobby = editor(page).locator('[data-wiskey-editor-station="lobby"]');
-    await gate.locator('[data-wiskey-editor-station-toggle]').check();
-    await lobby.locator('[data-wiskey-editor-station-toggle]').check();
+    await gate.locator('[data-wiskey-editor-station-toggle]').click();
+    await lobby.locator('[data-wiskey-editor-station-toggle]').click();
     await expect(lobby.locator('[data-wiskey-editor-lock]')).toHaveCount(2);
     await lobby.locator('[data-wiskey-editor-lock="2"]').uncheck();
     await expect(editor(page).locator('[data-wiskey-editor-stations-count]')).toHaveAttribute('data-wiskey-editor-stations-count', '2');

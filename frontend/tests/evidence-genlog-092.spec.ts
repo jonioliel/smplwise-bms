@@ -59,7 +59,7 @@ test.describe('generator run log', () => {
     await page.goto(url('/system/infra/generator/log'));
     const s = page.locator('sw-app gen-settings [data-section="log"]');
     await expect(s).toBeVisible();
-    await expect(s.locator('[data-log-enabled]')).toBeChecked();
+    await expect(s.locator('[data-log-enabled]')).toHaveAttribute('checked', '');
     await expect(s.locator('[data-log-set]')).toHaveCount(3);
     await expect(s.locator('[data-log-set="min_run_s"]')).toHaveValue('60');
   });

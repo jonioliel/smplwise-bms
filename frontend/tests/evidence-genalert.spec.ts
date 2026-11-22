@@ -66,7 +66,7 @@ test.describe('genalert evidence', () => {
     if (!phone) {
       await page.locator(`${R} [data-type="battery_low"] >> visible=true`).first().click({ force: true });
       await page.waitForSelector(`${R} [data-escalate]`);
-      await page.locator(`${R} [data-escalate]`).check();
+      await page.locator(`${R} [data-escalate]`).click();
       await expect(page.locator(`${R} [data-escalate-min]`)).toBeVisible();
       await expect(page.locator(`${R} [data-quiet] button`)).toHaveCount(3);
       await shoot(page, 'routing-alert-type-editor');

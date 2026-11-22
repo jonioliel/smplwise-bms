@@ -269,13 +269,13 @@ test.describe('the area row against the devices fixture backend', () => {
       const sec = page.locator('system-diagnostics sw-card[data-devices-settings]');
       await expect(sec).toBeVisible({ timeout: 30000 });
       const ed = sec.locator('area-row-editor');
-      await expect(ed.locator('[data-area-item-on="climate"]')).toBeChecked();
-      await expect(ed.locator('[data-area-item-on="temperature"]')).not.toBeChecked();
-      await ed.locator('[data-area-item-on="temperature"]').check();
+      await expect(ed.locator('[data-area-item-on="climate"]')).toHaveAttribute('checked', '');
+      await expect(ed.locator('[data-area-item-on="temperature"]')).not.toHaveAttribute('checked');
+      await ed.locator('[data-area-item-on="temperature"]').click();
       await ed.locator('[data-area-item-earlier="temperature"]').click();
       await ed.locator('[data-area-climate]').selectOption('icon');
-      await ed.locator('[data-area-show-empty]').check();
-      await ed.locator('[data-floor-item-on="sensors"]').uncheck();
+      await ed.locator('[data-area-show-empty]').click();
+      await ed.locator('[data-floor-item-on="sensors"]').click();
       await sec.scrollIntoViewIfNeeded();
       await shot(page, 'settings-area-row', testInfo);
       const saved = page.waitForResponse((r) => r.url().endsWith('/api/v1/settings') && r.request().method() === 'PATCH');
@@ -306,11 +306,11 @@ test.describe('the area row against the devices fixture backend', () => {
       await expect(ed.locator('[data-phone-cut]')).toHaveCount(1);
       expect(await ed.locator('[data-area-row-items] > li').evaluateAll((els) => els.slice(0, 5).map((e) => e.getAttribute('data-area-item') ?? 'cut'))).toEqual(['climate', 'lights', 'switches', 'cut', 'media']);
       // "רק כשפתוח": on for open doors and locks, off for counters; only the items that have an idle state carry it
-      await ed.locator('[data-area-item-on="openings"]').check();
-      await ed.locator('[data-area-item-on="locks"]').check();
-      await expect(ed.locator('[data-area-item-only="openings"]')).toBeChecked();
-      await expect(ed.locator('[data-area-item-only="locks"]')).toBeChecked();
-      await expect(ed.locator('[data-area-item-only="lights"]')).not.toBeChecked();
+      await ed.locator('[data-area-item-on="openings"]').click();
+      await ed.locator('[data-area-item-on="locks"]').click();
+      await expect(ed.locator('[data-area-item-only="openings"]')).toHaveAttribute('checked', '');
+      await expect(ed.locator('[data-area-item-only="locks"]')).toHaveAttribute('checked', '');
+      await expect(ed.locator('[data-area-item-only="lights"]')).not.toHaveAttribute('checked');
       await expect(ed.locator('[data-area-item-only="climate"]')).toHaveCount(0);
       // "מוביל": the areas with several A/C list their units; choose one for the living room
       await ed.locator('[data-area-climate-mode]').selectOption('lead');
@@ -400,8 +400,8 @@ test.describe('the area row against the devices fixture backend', () => {
       await page.locator('sw-app sw-user-menu [data-menu-account]').click();
       await page.locator('sw-app sw-user-menu [data-my-home] summary').click();
       const mine = page.locator('sw-app sw-user-menu sw-home-personal [data-home-personal-area-row] area-row-editor');
-      await expect(mine.locator('[data-area-item-on="climate"]')).toBeChecked({ timeout: 15000 });
-      await mine.locator('[data-area-item-on="temperature"]').check();
+      await expect(mine.locator('[data-area-item-on="climate"]')).toHaveAttribute('checked', '', { timeout: 15000 });
+      await mine.locator('[data-area-item-on="temperature"]').click();
       await expect.poll(async () => (await (await request.get('/api/v1/me/prefs')).json()).prefs['devices.area_row']).toEqual({ items: ['climate', 'lights', 'switches', 'media', 'temperature'] });
       expect((await (await request.get('/api/v1/settings')).json()).settings['devices.area_row']).toEqual(DEFAULT_ROWS['devices.area_row']);
       await page.keyboard.press('Escape');

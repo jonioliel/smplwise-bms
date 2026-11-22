@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import { toggled as switched } from '../components/sw-toggle';
 import { describeError } from '../api/client';
 import { getAlertSettings, putAlertSettings, type AlertChannel, type AlertSettings, type AlertSettingsBody, type AlertState, type AlertStateSettings } from '../api/elevators';
 import { listGroups, listUsers, type AccessGroup, type DirectoryUser } from '../api/access';
@@ -112,7 +113,7 @@ export class ElevatorAlerts extends LitElement {
     return html`<div class="card" data-elevator-alerts>
       <div class="b">${elt('alertsTitle')}</div>
       <div class="col">
-        <label class="sw"><input type="checkbox" data-elevator-alert="master" .checked=${s.enabled} ?disabled=${!s.can_edit || this.busy} @change=${(e: Event) => void this.save({ enabled: (e.target as HTMLInputElement).checked })} /> ${elt('alertsMaster')}</label>
+        <label class="sw"><sw-toggle size="sm" labelHidden in-label label=${elt('alertsMaster')} data-elevator-alert="master" .checked=${s.enabled} ?disabled=${!s.can_edit || this.busy} @change=${(e: Event) => void this.save({ enabled: switched(e) })}></sw-toggle> ${elt('alertsMaster')}</label>
         <div class="mut">${s.enabled ? elt('alertsRule') : elt('alertsOff')}</div>
         ${!s.can_edit ? html`<div class="mut" data-elevator-alerts-readonly>${elt('alertsReadOnly')}</div>` : nothing}
         ${s.states_order.map((st) => this.stateCard(st))}
