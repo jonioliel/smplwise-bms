@@ -94,3 +94,22 @@ test('the screen is a settings tab for system.configure holders only, with a sea
   const none = visibleGroups(true, () => false).flatMap((g) => g.entries).map((e) => e.href);
   expect(none).not.toContain('#/system/readiness');
 });
+
+// CMP2-POLISH-2480 (owner N49): the success / warning badges keep their fills; the label is the dark ink of that fill (>= 4.5:1, light
+// and dark token values), not white (white on #22c55e / #f59e0b is about 2.3:1 / 2.1:1)
+test('the readiness badges: dark ink on the success / warning fills', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../src/screens/system-readiness.ts', import.meta.url), 'utf8');
+  expect(src).toMatch(/\.badge\.attention \{\s*background: var\(--sw-warning\);\s*color: var\(--sw-on-warning\);/);
+  expect(src).toMatch(/\.badge\.ok \{\s*background: var\(--sw-success\);\s*color: var\(--sw-on-success\);/);
+  const lum = (hex: string) => {
+    const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  };
+  const ratio = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
+  const tokens = readFileSync(new URL('../src/design/tokens.ts', import.meta.url), 'utf8');
+  const pair = (name: string) => tokens.match(new RegExp(`'${name}': lt\\('(#[0-9a-f]{6})', '(#[0-9a-f]{6})'\\)`))!.slice(1, 3);
+  const ink = (name: string) => tokens.match(new RegExp(`'${name}': same\\('(#[0-9a-f]{6})'\\)`))![1];
+  for (const [fill, on] of [['--sw-success', '--sw-on-success'], ['--sw-warning', '--sw-on-warning']] as const)
+    for (const bg of pair(fill)) expect(ratio(ink(on), bg), `${on} on ${fill} ${bg}`).toBeGreaterThanOrEqual(4.5);
+});

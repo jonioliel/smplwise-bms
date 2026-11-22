@@ -310,9 +310,11 @@ export class InvestigateEvents extends LitElement {
     }
     /* CR-CMP2-TABS-2460: the handling-state and view rows are sw-chip-choice, at this toolbar's 28 px chip (the sw-chip size they had) */
     /* CR-CMP2-POLISH-2470: their chosen chip follows the installation's selected-chip look again (selected-look="setting", ui.chip_selected) */
+    /* CMP2-POLISH-2480 (owner N48): on a phone too the chips stay 28 px tall (as before 2.46.0); a finger still gets a 44 px hit area */
     sw-chip-choice.evc {
       --sw-chipc-gap: 4px;
       --sw-chipc-h: 28px;
+      --sw-chipc-touch-h: 28px;
       --sw-chipc-pad: 11px;
       --sw-chipc-fs: var(--sw-fs-sm);
     }

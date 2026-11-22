@@ -51,6 +51,8 @@ export interface ChipChoiceChange<V extends string = string> {
  *    accent field, an accent ring and a check mark; soft / filled / dark through the `--sw-chip-on-*` knobs design/css.ts sets on
  *    <html data-chip-on>). For the rows that were sw-chip rows (the events centre). The default (`accent`) is the accent-filled chip
  *    and its `--sw-chipc-on-*` knobs, unchanged for every other row.
+ *  - CMP2-POLISH-2480 (owner N48): under a coarse pointer a chip grows to 44 px unless the host sets `--sw-chipc-touch-h` (its drawn
+ *    height there, e.g. the events centre's 28 px); the hit area is 44 px tall either way (an invisible ::after).
  */
 @customElement('sw-chip-choice')
 export class SwChipChoice<V extends string = string> extends LitElement {
@@ -177,9 +179,19 @@ export class SwChipChoice<V extends string = string> extends LitElement {
       font-variant-numeric: tabular-nums;
       line-height: 1;
     }
+    /* under a finger a chip is 44 px tall by default. CMP2-POLISH-2480 (owner N48): a host may keep its chip at its own height there
+       (--sw-chipc-touch-h, e.g. the events centre's 28 px) - the hit area stays 44 px tall, an invisible ::after centred on the chip
+       (the styles/focus-policy.ts .sw-hit rule; ::before is the check mark of the selected look) */
     @media (pointer: coarse) {
       button {
-        min-block-size: max(44px, var(--sw-chipc-h, 32px));
+        position: relative;
+        min-block-size: max(var(--sw-chipc-touch-h, 44px), var(--sw-chipc-h, 32px));
+      }
+      button::after {
+        content: '';
+        position: absolute;
+        inset-inline: 0;
+        inset-block: min(0px, calc((100% - 44px) / 2));
       }
     }
     @media (prefers-reduced-motion: reduce) {

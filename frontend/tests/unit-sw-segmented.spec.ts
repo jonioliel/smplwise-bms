@@ -287,7 +287,8 @@ test.describe('sw-chip-choice: the contract in the source and its adopters', () 
     expect(styles).not.toMatch(/#[0-9a-f]{3,8}|rgba?\(/i);
     expect(src).toMatch(/background: var\(--sw-chipc-on-bg, var\(--sw-accent\)\);/);
     expect(src).toMatch(/color: var\(--sw-chipc-on-fg, var\(--sw-text-inverse\)\);/);
-    expect(src).toMatch(/@media \(pointer: coarse\) \{\s*button \{\s*min-block-size: max\(44px,/);
+    // CMP2-POLISH-2480: 44 px unless the host keeps its own height (--sw-chipc-touch-h); the hit area is 44 px either way (see below)
+    expect(src).toMatch(/@media \(pointer: coarse\) \{\s*button \{\s*position: relative;\s*min-block-size: max\(var\(--sw-chipc-touch-h, 44px\),/);
     expect(src).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*button \{\s*transition-duration: 0ms;/);
     expect(src).toMatch(/\.row \{[^}]*flex-wrap: wrap;/);
   });
@@ -303,8 +304,7 @@ test.describe('sw-chip-choice: the contract in the source and its adopters', () 
     // home panel's summary tiles are a `multi` row
     'screens/investigate-events.ts',
     'shell/sw-home-personal.ts',
-    // CR-CMP2-POLISH-2470: the generator routing drawers' recipient / channel choosers (multi)
-    'generator/gen-routing.ts',
+    // (CMP2-POLISH-2480, owner N47: the generator routing drawers' recipient / channel choosers stay checkbox boxes - not adopted)
   ];
   test('adoption: these screens draw their single-choice chip rows with sw-chip-choice (no hand-built `.seg` row comes back)', () => {
     const bad: string[] = [];
@@ -357,22 +357,29 @@ test.describe('sw-chip-choice: the selected-chip setting, the events centre, the
     expect(ev).toContain('data-events-view');
   });
 
-  test('the generator routing drawers: the choosers are sw-chip-choice multi in the module look, the hooks kept, no checkbox labels', () => {
+  // CMP2-POLISH-2480 (owner N48, 23.11): the events centre's chips are 28 px on a phone again, the finger keeps a 44 px hit area
+  test('coarse pointer: a chip grows to 44 px unless the host keeps its height (--sw-chipc-touch-h); the hit area stays 44 px', () => {
+    expect(styles).toMatch(/@media \(pointer: coarse\) \{\s*button \{\s*position: relative;\s*min-block-size: max\(var\(--sw-chipc-touch-h, 44px\), var\(--sw-chipc-h, 32px\)\);/);
+    expect(styles).toMatch(/button::after \{\s*content: '';\s*position: absolute;\s*inset-inline: 0;\s*inset-block: min\(0px, calc\(\(100% - 44px\) \/ 2\)\);/);
+    const ev = read('screens/investigate-events.ts');
+    expect(ev).toMatch(/sw-chip-choice\.evc \{[^}]*--sw-chipc-h: 28px;\s*--sw-chipc-touch-h: 28px;/);
+  });
+
+  // CMP2-POLISH-2480 (owner N47, 23.11): the generator routing drawers keep the module's checkbox boxes - the square stays, the chosen
+  // box takes the accent wash and rim; the sw-chip-choice chooser of CR-CMP2-POLISH-2470 was reverted
+  test('the generator routing drawers: the recipient / channel choosers are checkbox boxes (the square kept), the hooks kept', () => {
     const r = read('generator/gen-routing.ts');
-    expect(r).toContain('html`<sw-chip-choice multi label=${label} .options=${options} .values=${on}');
-    expect(r).not.toMatch(/<label class="\$\{on \? 'on' : ''\}/);
-    expect(r).not.toMatch(/<label class="on dis"><input type="checkbox"/);
-    // two drawers x (roles, users, channels); the inbox is always on and cannot be turned off
-    expect(r.match(/<div class="chooser" data-roles>\$\{chooser\(/g) ?? []).toHaveLength(2);
-    expect(r.match(/<div class="chooser users" data-users>\$\{chooser\(/g) ?? []).toHaveLength(2);
-    expect(r.match(/<div class="chooser" data-channels>\$\{chooser\(S\.channels, \[INBOX,/g) ?? []).toHaveLength(2);
-    expect(r).toContain("const INBOX: ChipChoiceOption = { value: 'inbox', label: S.inboxAlways, disabled: true };");
-    expect(r.match(/\['inbox', \.\.\.d\.channels\]/g) ?? []).toHaveLength(2);
+    expect(r).not.toContain('<sw-chip-choice');
+    // two drawers x (roles, users, channels) - each a box of <label><input type="checkbox"> rows
+    expect(r.match(/<div class="chooser" data-roles>\$\{data\.roles\.map\(\(r\) => chk\(/g) ?? []).toHaveLength(2);
+    expect(r.match(/<div class="chooser users" data-users>\$\{users\.map\(\(u\) => chk\(/g) ?? []).toHaveLength(2);
+    expect(r.match(/<div class="chooser" data-channels>/g) ?? []).toHaveLength(2);
+    expect(r.match(/<input type="checkbox" \.checked=\$\{on\}/g) ?? []).toHaveLength(2);
+    // the inbox is always on and cannot be turned off
+    expect(r).toContain('<label class="on dis"><input type="checkbox" checked disabled /> ${S.inboxAlways}</label>');
     const st = read('generator/gen-styles.ts');
-    const block = st.slice(st.indexOf('.chooser sw-chip-choice {'), st.indexOf('.chooser sw-chip-choice::part(row)'));
-    for (const k of ['--sw-chipc-h: var(--elec-touch);', '--sw-chipc-radius: var(--sw-r-sm);', '--sw-chipc-bg: var(--gen-surface);', '--sw-chipc-border: var(--sw-border);', '--sw-chipc-on-bg: var(--sw-accent-soft);', '--sw-chipc-on-border: var(--sw-accent);', '--sw-chipc-on-fg: var(--sw-text);'])
-      expect(block, k).toContain(k);
-    expect(st).toMatch(/\.chooser sw-chip-choice::part\(row\) \{\s*display: grid;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
-    expect(st).not.toMatch(/\.chooser label/);
+    expect(st).toMatch(/\.chooser \{\s*display: grid;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+    expect(st).toMatch(/\.chooser label\.on \{\s*border-color: var\(--sw-accent\);\s*background: var\(--sw-accent-soft\);/);
+    expect(st).not.toContain('.chooser sw-chip-choice');
   });
 });

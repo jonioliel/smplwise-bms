@@ -51,15 +51,15 @@ test.describe('genalert evidence', () => {
     // the critical default: roles, a channel, the delay
     await page.locator(`${R} [data-severity-row="critical"]`).click();
     await page.waitForSelector(`${R} [data-drawer="severity"] [data-critical-delay]`);
-    await page.locator(`${R} [data-drawer="severity"] [data-roles] button`).first().click();
-    await page.locator(`${R} [data-drawer="severity"] [data-channels] button`).nth(1).click();
+    await page.locator(`${R} [data-drawer="severity"] [data-roles] label`).first().click();
+    await page.locator(`${R} [data-drawer="severity"] [data-channels] label`).nth(1).click();
     await shoot(page, 'routing-critical-default-editor');
     await page.locator(`${R} [data-save-severity]`).click();
     await expect(page.locator(`${R} [data-drawer="severity"] [data-critical-delay]`)).toHaveCount(0);
     await expect(page.locator(`${R} [data-routing-empty]`)).toHaveCount(0); // somebody is set now: the first-run state is gone
     await page.locator(`${R} [data-severity-row="alert"]`).click();
     await page.waitForSelector(`${R} [data-drawer="severity"] [data-roles]`);
-    await page.locator(`${R} [data-drawer="severity"] [data-roles] button`).nth(1).click();
+    await page.locator(`${R} [data-drawer="severity"] [data-roles] label`).nth(1).click();
     await page.locator(`${R} [data-save-severity]`).click();
     await expect(page.locator(`${R} [data-routing-empty]`)).toHaveCount(0);
     await shoot(page, 'routing-configured');
