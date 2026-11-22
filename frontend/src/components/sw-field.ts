@@ -14,6 +14,12 @@ export class SwField extends LitElement {
   @property() label = '';
   @property() hint = '';
   @property({ type: Boolean, reflect: true }) inline = false;
+  /** NATIVE-SELECT-B-2480: the field draws no box of its own (`display: contents`): the slotted control keeps its place in the screen's
+   * row or grid and its own width, the screen keeps its own label and form layout (a module skin - calendars `.inp`, tickets `.in` -
+   * sits in the outer tree and outranks every ::slotted() rule here, so the module look stays). The control takes the shared field's
+   * states and look only where the screen's skin leaves them unset. Use it for a select that moves into the shared field while its
+   * form keeps the module's own label (owner N10 + the standing look rule: module looks stay). No `label` / `hint` / `unit` with it. */
+  @property({ type: Boolean, reflect: true }) flow = false;
   /** DROPDOWNFIT-295: the slotted `<select>` takes the SAME look as the `capsule` sw-dropdown (height, ring, radius, font, icon + chevron spacing), at the
    * dropdown size dial `dd-size` (sm | md | lg). The label fits (fit-text.ts) instead of being cut. Without it the field is the plain form field. */
   @property({ type: Boolean, reflect: true }) capsule = false;
@@ -50,6 +56,9 @@ export class SwField extends LitElement {
       gap: 6px;
       min-inline-size: 0;
     }
+    :host([flow]) {
+      display: contents;
+    }
     :host([inline]) {
       flex-direction: row;
       align-items: center;
@@ -65,10 +74,14 @@ export class SwField extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
+    :host(:not([flow])) ::slotted(input),
+    :host(:not([flow])) ::slotted(select),
+    :host(:not([flow])) ::slotted(textarea) {
+      inline-size: 100%;
+    }
     ::slotted(input),
     ::slotted(select),
     ::slotted(textarea) {
-      inline-size: 100%;
       box-sizing: border-box;
       min-block-size: var(--sw-ctl-h-md);
       padding: 5px 10px;
