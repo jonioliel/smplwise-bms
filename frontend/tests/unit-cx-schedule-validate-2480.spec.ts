@@ -1,6 +1,6 @@
 import { test } from '@playwright/test';
-import type { ArgSpec, DraftAction, DraftSlot, ScheduleDraft } from '../src/api/schedules';
-import { validateDraft, type ConditionView, type EntityMeta, type MetaMap } from '../src/screens/schedule-edit-logic';
+import type { ArgSpec, ConditionView, DraftAction, DraftSlot, ScheduleDraft } from '../src/api/schedules';
+import { validateDraft, type EntityMeta, type MetaMap } from '../src/screens/schedule-edit-logic';
 import { expectRecorded } from './cx-record';
 
 // COMPLEXITY-3-2480: characterisation of the schedule editor's validateDraft (screens/schedule-edit-logic.ts) before its per-action check
