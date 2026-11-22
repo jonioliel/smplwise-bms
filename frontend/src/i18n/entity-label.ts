@@ -1,8 +1,11 @@
 /**
  * Owner rule (2026-10-20): an operator screen never shows a raw Home Assistant entity id (`sensor.x`, `climate.x`, ...).
- * One shared fallback chain for every label: name -> original name -> device / unit name -> a neutral Hebrew label,
+ * One shared fallback chain for every label: name -> original name -> device / unit name -> a neutral label (interface language),
  * never the id. Only the settings / explore screens that deliberately show ids may print them (see `techIdLine`).
  */
+
+import { docLang, registerCatalogue } from './core';
+import { packTable } from './lang-packs';
 
 /** A Home Assistant entity id: `<domain>.<object_id>`, lower-case, no spaces. A Hebrew or spaced name never matches. */
 const ENTITY_ID_RE = /^[a-z_]+\.[a-z0-9_]+$/;
@@ -19,20 +22,29 @@ const ENTITY_DOMAINS = [
 /** Finds an entity id inside free text (the unit-test scan of rendered text / title / aria-label). */
 export const ENTITY_ID_SCAN_RE = new RegExp(`(?:^|[^a-z0-9_.])((?:${[...ENTITY_DOMAINS].sort((a, b) => b.length - a.length).join('|')})\.[a-z0-9_]+)`);
 
+/** The neutral Hebrew label (the product's language); `neutralLabel()` gives it in the interface language. */
 export const NEUTRAL_LABEL = 'התקן ללא שם';
-const NEUTRAL_BY_DOMAIN: Record<string, string> = {
+// I18N-EN-2490: a catalogue (he / en) - the English is in the language pack (src/i18n/lang/en/i18n/entity-label.ts) and follows the
+// document language. Keys: `any` the general label, otherwise the entity domain.
+const he = {
+  any: NEUTRAL_LABEL,
   light: 'תאורה ללא שם', switch: 'מתג ללא שם', cover: 'תריס ללא שם', climate: 'מזגן ללא שם', fan: 'מאוורר ללא שם', humidifier: 'מכשיר אדים ללא שם',
   media_player: 'נגן ללא שם', lock: 'מנעול ללא שם', alarm_control_panel: 'אזעקה', camera: 'מצלמה ללא שם', sensor: 'חיישן ללא שם', binary_sensor: 'חיישן ללא שם',
 };
+type Key = keyof typeof he;
+const en: Partial<Record<Key, string>> = packTable<typeof import('./lang/en/i18n/entity-label').en>('en', 'i18n/entity-label', 'en');
+const TABLES: Record<'he' | 'en', Partial<Record<Key, string>>> = { he, en };
+registerCatalogue('i18n/entity-label', { he, en });
 
-/** The neutral label for an entity id's domain (the id itself is only read to pick the domain, never printed). */
+/** The neutral label for an entity id's domain, in the interface language (the id itself is only read to pick the domain, never printed). */
 export function neutralLabel(entityId?: string | null): string {
   const domain = (entityId ?? '').split('.')[0];
-  return NEUTRAL_BY_DOMAIN[domain] ?? NEUTRAL_LABEL;
+  const key: Key = Object.prototype.hasOwnProperty.call(he, domain) && domain !== 'any' ? (domain as Key) : 'any';
+  return TABLES[docLang(['en'])][key] ?? he[key];
 }
 
 /** The first candidate that is a real name (non-empty, not an entity id), else `neutral`. */
-export function friendlyLabel(candidates: ReadonlyArray<string | null | undefined>, neutral: string = NEUTRAL_LABEL): string {
+export function friendlyLabel(candidates: ReadonlyArray<string | null | undefined>, neutral: string = neutralLabel()): string {
   for (const c of candidates) {
     const t = (c ?? '').trim();
     if (t && !looksLikeEntityId(t)) return t;
