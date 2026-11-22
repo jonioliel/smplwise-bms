@@ -434,6 +434,7 @@ export class SwPlanCanvas extends LitElement {
       block-size: 100%;
       min-block-size: 320px;
       background: var(--sw-map-bg);
+      --pc-white: #fff; /* COLOR-LITERAL-B-2480: the white outline / label ink of the markers and handles (one literal, six rules) */
       overflow: hidden;
       touch-action: none;
       user-select: none;
@@ -502,7 +503,7 @@ export class SwPlanCanvas extends LitElement {
     }
     .handle.range {
       fill: var(--sw-accent);
-      stroke: #fff;
+      stroke: var(--pc-white);
       cursor: ns-resize;
     }
     .handle-line {
@@ -539,7 +540,7 @@ export class SwPlanCanvas extends LitElement {
       opacity: 0.18;
     }
     .marker .pin {
-      stroke: #fff;
+      stroke: var(--pc-white);
       stroke-width: 2.5;
       filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.28));
     }
@@ -549,7 +550,7 @@ export class SwPlanCanvas extends LitElement {
     }
     .marker .icon {
       fill: none;
-      stroke: #fff;
+      stroke: var(--pc-white);
       stroke-width: 1.8;
       stroke-linecap: round;
       stroke-linejoin: round;
@@ -566,7 +567,7 @@ export class SwPlanCanvas extends LitElement {
       stroke: var(--sw-surface);
     }
     .marker.cluster .count {
-      fill: #fff;
+      fill: var(--pc-white);
       font: 700 12px var(--sw-font, inherit);
       text-anchor: middle;
       dominant-baseline: central;
@@ -704,12 +705,12 @@ export class SwPlanCanvas extends LitElement {
     }
     .tribune-entry circle {
       fill: var(--sw-accent);
-      stroke: #fff;
+      stroke: var(--pc-white);
       stroke-width: 1.5;
     }
     .tribune-entry path {
       fill: none;
-      stroke: #fff;
+      stroke: var(--pc-white);
       stroke-width: 1.6;
     }
     .tribune-entry rect {
