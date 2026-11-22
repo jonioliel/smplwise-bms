@@ -123,6 +123,11 @@ selector that no longer exists), so the list stays exact.
 | `py -3.12 scripts/design_ratchet.py --base origin/release/2470-train` | workstation | no count above the baseline (scroll-container 13 of 13, px-literal 25486 = the train) |
 | new `tests/layout-scroll-audit-2480.spec.ts` (8: alarm cards, alarm list, external grants, people list x 1366x768 / 1440x900; paged and `long_lists=scroll`; next page draws other items) | runner | **NOT_RUN** - built (head + base rc=0) at `7cd5dc301`, then the 2.47.0 release gate started and the runner stopped answering; the job waits in its gate loop. The later head only changes the 1024-wide short-window / 560-600 px edge, not these viewports |
 | `tests/visual-matrix.spec.ts -g security-alarm` (6 baselines, no `-u`), `layout-noscroll-1366 -g alarm`, `evidence-polish4-wp8`, `evidence-whoin034-295`, `evidence-alarm` | runner | **NOT_RUN** (same job) |
+| 2a (GridFit, `152087c0c`): `npx tsc --noEmit -p tsconfig.json`, `npx eslint` on grid-fit / page-fit / security-alarm | workstation | tsc exit 0, eslint 0 problems |
+| 2a: `design_ratchet.py` | workstation | no count above the baseline (px-literal 25485, scroll-container 13) |
+| 2a: `test_scroll_allow_2480.py` + `test_build_guards_2438.py` | workstation, `.venv`, `-p no:xdist` | 14 passed |
+| 2a: `tests/layout-scroll-audit-2480.spec.ts --project=desktop` (8, incl. the new alarm fill / column assertions) | workstation, Vite dev server of the branch source | 8 passed (7.0 m) |
+| 2a: measurement + capture pass (42 sensors; 1280 / 1366 / 1440 / 1920 desktop, 1024 landscape tablet, 390 phone; cards + list; before = the 2.47.0 `www` build) | workstation | 12 + 12 measured, numbers in 2a |
 
 Pixel baselines: none changed. Expected pixel-neutral: the demo data (6 sensors, the external mock's 14 grants at 1440x900, 3 people) fits
 one page, so no pager is drawn and the region looks as before (a scroll region that did not overflow drew no scrollbar either). The
