@@ -305,20 +305,8 @@ def _feed(raw: Any) -> dict[str, str] | None:
     return out
 
 
-def normalize_display(raw: Any, *, strict: bool = False) -> dict[str, Any]:
-    """The stored / sent display settings with every key present and every value inside its range. `strict` (a PATCH from the API)
-    refuses out-of-range values instead of replacing them by the default, so a manager learns why a save was refused."""
-    src = raw if isinstance(raw, dict) else {}
-    d = default_display()
-
-    def take(key: str, ok: bool, value: Any) -> None:
-        if key not in src:
-            return
-        if ok:
-            d[key] = value
-        elif strict:
-            raise Invalid(f"display.{key}", "ערך לא תקין.")
-
+def _display_scalars(src: dict[str, Any], take: Any) -> None:
+    """The board's top-level choices (template ... logos), each through `take` (kept when valid; strict refuses)."""
     v = src.get("template")
     take("template", v in (1, 2, 3), v)
     v = src.get("lang")
@@ -346,7 +334,11 @@ def normalize_display(raw: Any, *, strict: bool = False) -> dict[str, Any]:
     take("saver", v in SAVERS, v)
     v = src.get("logos")
     take("logos", v in LOGO_LAYOUTS, v)
-    for key in ALL_TV_CHOICES:  # TVOPT-295 / BOARDV2-297: kept only when the board chose its own value; null = follow the default
+
+
+def _display_tv_choices(src: dict[str, Any], d: dict[str, Any], strict: bool) -> None:
+    """TVOPT-295 / BOARDV2-297: kept only when the board chose its own value; null = follow the default."""
+    for key in ALL_TV_CHOICES:
         if key not in src or src[key] is None:
             continue
         v = src[key]
@@ -354,9 +346,10 @@ def normalize_display(raw: Any, *, strict: bool = False) -> dict[str, Any]:
             d[key] = v
         elif strict:
             raise Invalid(f"display.{key}", "ערך לא תקין.")
-    v = src.get("place")
-    take("place", isinstance(v, str) and len(v.strip()) <= PLACE_MAX and not any(ord(c) < 32 for c in v), v.strip() if isinstance(v, str) else "")
 
+
+def _display_blocks(src: dict[str, Any], d: dict[str, Any], strict: bool) -> None:
+    """The on / off blocks and the order of the info chips."""
     blocks = src.get("blocks") if isinstance(src.get("blocks"), dict) else {}
     for k in ("clock", "hebdate", "welcome", "weather", "promo", "news", "company_logo", "info_show"):
         if k in blocks:
@@ -372,6 +365,10 @@ def normalize_display(raw: Any, *, strict: bool = False) -> dict[str, Any]:
             d["blocks"]["info"] = list(dict.fromkeys(info))
         elif strict:
             raise Invalid("display.blocks.info", "ערך לא תקין.")
+
+
+def _display_weather_news(src: dict[str, Any], d: dict[str, Any], strict: bool) -> None:
+    """The weather hours, the news speed and its feeds (https only, at most NEWS_FEEDS_MAX)."""
     w = src.get("weather") if isinstance(src.get("weather"), dict) else {}
     if "hours" in w:
         if w["hours"] in (3, 5, 8):
@@ -387,6 +384,10 @@ def normalize_display(raw: Any, *, strict: bool = False) -> dict[str, Any]:
         if strict and (len(cleaned) != len(feeds) or len(feeds) > NEWS_FEEDS_MAX):
             raise Invalid("display.news.feeds", "כתובת RSS: https בלבד, עד 6 מקורות.")
         d["news"]["feeds"] = cleaned
+
+
+def _display_night(src: dict[str, Any], d: dict[str, Any], strict: bool) -> None:
+    """The night mode (on, from, to, dim) and the burn-in shift."""
     ni = src.get("night") if isinstance(src.get("night"), dict) else {}
     d["night"]["enabled"] = _bool(ni.get("enabled"), d["night"]["enabled"])
     d["night"]["from"] = _hm(ni.get("from"), d["night"]["from"])
@@ -399,6 +400,30 @@ def normalize_display(raw: Any, *, strict: bool = False) -> dict[str, Any]:
             raise Invalid("display.night.dim", "ערך לא תקין.")
     bi = src.get("burn_in") if isinstance(src.get("burn_in"), dict) else {}
     d["burn_in"]["shift"] = _bool(bi.get("shift"), d["burn_in"]["shift"])
+
+
+def normalize_display(raw: Any, *, strict: bool = False) -> dict[str, Any]:
+    """The stored / sent display settings with every key present and every value inside its range. `strict` (a PATCH from the API)
+    refuses out-of-range values instead of replacing them by the default, so a manager learns why a save was refused."""
+    src = raw if isinstance(raw, dict) else {}
+    d = default_display()
+
+    def take(key: str, ok: bool, value: Any) -> None:
+        if key not in src:
+            return
+        if ok:
+            d[key] = value
+        elif strict:
+            raise Invalid(f"display.{key}", "ערך לא תקין.")
+
+    _display_scalars(src, take)
+    _display_tv_choices(src, d, strict)
+    v = src.get("place")
+    take("place", isinstance(v, str) and len(v.strip()) <= PLACE_MAX and not any(ord(c) < 32 for c in v), v.strip() if isinstance(v, str) else "")
+
+    _display_blocks(src, d, strict)
+    _display_weather_news(src, d, strict)
+    _display_night(src, d, strict)
     if "transit" in src:  # BUSTIMES-295: the per-screen bus-times block (an old board without the key reads the defaults)
         try:
             d["transit"] = transit_model.normalize_screen(src["transit"], strict=strict)
