@@ -5,7 +5,6 @@
   "i18n/access-external: gone_word": "a confirmation word the user types; the check compares it in Hebrew (stays Hebrew by design)",
   "i18n/announce: langName.he": "the language names itself in every language",
   "tickets/text: lang_he": "the language names itself in every language",
-  "msg/plan-wizard: חדר בלי שם יקבל \"חדר 7\", ואפשר לשנות אחר כך": "quotes the default room name the wizard stores (Hebrew data)",
   "tickets/rfq-text: previewNumber": "shows a template token as written ({number}); it is not filled"
  },
  "lang": "en",
@@ -13,7 +12,6 @@
   "i18n/access-external: del_word",
   "i18n/access-external: gone_word",
   "i18n/announce: langName.he",
-  "msg/plan-wizard: חדר בלי שם יקבל \"חדר 7\", ואפשר לשנות אחר כך",
   "tickets/text: lang_he"
  ],
  "placeholderKeys": [

@@ -54,6 +54,7 @@ from ..audit import audit
 from ..db import get_setting, now_iso
 from ..errors import ApiError
 from ..rbac import Principal
+from . import default_names as dn
 from . import door_automation, door_path, door_run_guard, door_windows, intercom_sync, trusted_caller
 
 FLAG_KEY = "doors.conversion"
@@ -327,7 +328,7 @@ def _hm(raw: Any) -> str | None:
     return f"{m.group(1)}:{m.group(2)}" if m else None
 
 
-def program_plan(conn: sqlite3.Connection, schedule_id: str, *, today: dt.date | None = None) -> dict[str, Any]:
+def program_plan(conn: sqlite3.Connection, schedule_id: str, *, today: dt.date | None = None, lang: str = "he") -> dict[str, Any]:
     """M3 preview for one schedule: {available, reason, program: {name, days, periods, doors}, body (internal)}."""
     out: dict[str, Any] = {"available": False, "reason": None, "program": None}
     row = conn.execute("SELECT schedule_id, item_json FROM schedule_cache WHERE schedule_id = ?", (schedule_id,)).fetchone()
@@ -390,8 +391,8 @@ def program_plan(conn: sqlite3.Connection, schedule_id: str, *, today: dt.date |
         end = "24:00" if end == "00:00" else end
         periods.extend({"weekday": d, "start": start, "end": end} for d in days)
     doors = res.doors()
-    name = str(item.get("name") or "").strip()[: door_windows.NAME_MAX] or "חלון פתיחה"
-    body = {"name": name, "kind": "weekly", "calendar_policy": "ignore_calendar", "notes": "הועבר מתזמון שפתח את הדלת",
+    name = str(item.get("name") or "").strip()[: door_windows.NAME_MAX] or dn.name("door_window", lang)
+    body = {"name": name, "kind": "weekly", "calendar_policy": "ignore_calendar", "notes": dn.name("door_window.moved_note", lang),
             "doors": [{"station_id": s, "relay": relay} for s, relay in doors], "periods": periods}
     quiet = (door_windows.setting(conn, "doors.windows.quiet_from"), door_windows.setting(conn, "doors.windows.quiet_to"))
     try:
@@ -622,7 +623,7 @@ def _hand_over(conn: sqlite3.Connection, principal: Principal, schedule_id: str,
                sched_writer: SchedWriter) -> dict[str, Any]:
     """M3: everything checked first (the door window's own rules and rights included), then the schedule switched off through the
     existing write path, then the draft window (Arx's own tables only - nothing reaches WisKey before a person enables it)."""
-    plan = program_plan(conn, schedule_id)
+    plan = program_plan(conn, schedule_id, lang=dn.lang_of(conn, principal))  # I18N-EN-2490 (owner N53): the window's default name
     if not plan["available"]:
         raise ApiError(409, "action_not_offered", UNAVAILABLE_TEXT.get(plan["reason"] or "invalid", UNAVAILABLE_TEXT["invalid"]), details={"reason": plan["reason"]})
     body = plan["body"]

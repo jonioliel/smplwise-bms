@@ -5,8 +5,8 @@
   "keys": 29430,
   "missing": 20,
   "identical": 3,
-  "hebrew": 1,
-  "gap": 5,
+  "hebrew": 0,
+  "gap": 4,
   "placeholder": 1,
   "hardcodedModules": 46,
   "hardcodedLiterals": 3762,
@@ -45,24 +45,6 @@
    ],
    "missingKeys": [],
    "placeholderKeys": []
-  },
-  {
-   "name": "msg/plan-wizard",
-   "keys": 208,
-   "missing": 0,
-   "identical": 0,
-   "hebrew": 1,
-   "gap": 1,
-   "placeholder": 0,
-   "hasTable": true,
-   "devMarked": false,
-   "gapKeys": [
-    "חדר בלי שם יקבל \"חדר 7\", ואפשר לשנות אחר כך"
-   ],
-   "missingKeys": [],
-   "placeholderKeys": [],
-   "unused": 0,
-   "unusedKeys": []
   },
   {
    "name": "tickets/text",
@@ -1735,6 +1717,22 @@
   {
    "name": "msg/plan-view-card",
    "keys": 112,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "placeholder": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
+  },
+  {
+   "name": "msg/plan-wizard",
+   "keys": 208,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
