@@ -10,6 +10,7 @@ import { SLA_COUNTERS, SLA_THRESHOLDS, slaRowChanges, splitMinutes, type Duratio
 import { ticketSettingsCss } from './settings-styles';
 import { tt, type TicketTextKey } from './text';
 import { hostBlockStyles } from '../styles/fragments';
+import '../components/sw-field';
 
 type Draft = Partial<Record<SlaThreshold, { raw: string; unit: DurationUnit }> & Record<SlaCounter, string>>;
 const UNITS: DurationUnit[] = ['min', 'h', 'd'];
@@ -97,10 +98,10 @@ export class TicketsSlaGrid extends LitElement {
     return html`<span class="cell">
       <input class="in" inputmode="numeric" maxlength="6" aria-label=${label} placeholder=${tt('slaOff')} aria-invalid=${String(bad)} ?disabled=${this.readonly || this.busy}
         data-sla=${`${r.priority_key}:${k}`} .value=${c.raw} @input=${(e: Event) => this.set(r, k, { raw: (e.target as HTMLInputElement).value })} />
-      <select class="in" aria-label=${`${label} · ${tt('unit_h')}`} ?disabled=${this.readonly || this.busy} data-sla-unit=${`${r.priority_key}:${k}`}
+      <sw-field flow><select class="in" aria-label=${`${label} · ${tt('unit_h')}`} ?disabled=${this.readonly || this.busy} data-sla-unit=${`${r.priority_key}:${k}`}
         @change=${(e: Event) => this.set(r, k, { unit: (e.target as HTMLSelectElement).value as DurationUnit })}>
         ${UNITS.map((u) => html`<option value=${u} ?selected=${c.unit === u}>${tt(`unit_${u}` as TicketTextKey)}</option>`)}
-      </select></span>`;
+      </select></sw-field></span>`;
   }
 
   private counterInput(r: SlaRow, k: SlaCounter, invalid: Set<string>): TemplateResult {

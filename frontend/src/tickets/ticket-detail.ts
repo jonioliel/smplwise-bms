@@ -56,6 +56,7 @@ import { locationPicker } from './location-picker';
 import { OTHER, editStartPick, otherTooLong, ticketEditLocationBody } from './org-locations-model';
 import { loct } from './org-locations-text';
 import { dateInputLang } from '../api/day-format';
+import '../components/sw-field';
 
 interface EditForm {
   title: string; description: string; department_id: string; category_id: string; priority_id: string;
@@ -1183,8 +1184,8 @@ export class TicketDetailView extends LitElement {
           <label class="fld"><span>${tt('fTitle')} <b class="req">*</b></span><input class="inp" maxlength="120" data-edit-title .value=${e.title} ?disabled=${!can.has('title')} @input=${(ev: Event) => set({ title: (ev.target as HTMLInputElement).value })} /></label>
           <label class="fld"><span>${tt('fDescription')}</span><textarea class="inp" maxlength="4000" data-edit-description .value=${e.description} ?disabled=${!can.has('description')} @input=${(ev: Event) => set({ description: (ev.target as HTMLTextAreaElement).value })}></textarea></label>
           ${can.has('department_id') || can.has('category_id') || can.has('priority_id') ? html`<div class="two">
-            ${can.has('department_id') && depts.length > 1 ? html`<label class="fld"><span>${tt('fDepartment')}</span><select class="inp" data-edit-department @change=${(ev: Event) => set({ department_id: (ev.target as HTMLSelectElement).value, category_id: '', priority_id: '' })}>${depts.map((x) => html`<option value=${x.id} ?selected=${x.id === e.department_id}>${x.name}</option>`)}</select></label>` : nothing}
-            ${can.has('category_id') && dept ? html`<label class="fld"><span>${tt('fCategory')}</span><select class="inp" data-edit-category @change=${(ev: Event) => set({ category_id: (ev.target as HTMLSelectElement).value })}><option value="" ?selected=${!e.category_id}>${tt('fNoCategory')}</option>${dept.categories.map((c) => html`<option value=${c.id} ?selected=${c.id === e.category_id}>${c.name}</option>`)}</select></label>` : nothing}
+            ${can.has('department_id') && depts.length > 1 ? html`<label class="fld"><span>${tt('fDepartment')}</span><sw-field flow><select class="inp" data-edit-department @change=${(ev: Event) => set({ department_id: (ev.target as HTMLSelectElement).value, category_id: '', priority_id: '' })}>${depts.map((x) => html`<option value=${x.id} ?selected=${x.id === e.department_id}>${x.name}</option>`)}</select></sw-field></label>` : nothing}
+            ${can.has('category_id') && dept ? html`<label class="fld"><span>${tt('fCategory')}</span><sw-field flow><select class="inp" data-edit-category @change=${(ev: Event) => set({ category_id: (ev.target as HTMLSelectElement).value })}><option value="" ?selected=${!e.category_id}>${tt('fNoCategory')}</option>${dept.categories.map((c) => html`<option value=${c.id} ?selected=${c.id === e.category_id}>${c.name}</option>`)}</select></sw-field></label>` : nothing}
           </div>` : nothing}
           ${can.has('priority_id') && dept ? html`<div class="fld"><span>${tt('fPriority')}</span><div class="prio" role="radiogroup" aria-label=${tt('fPriority')}>${dept.priorities.map((p) => html`<button type="button" class="rc" role="radio" aria-checked=${String(p.id === e.priority_id)} data-edit-priority=${p.key} @click=${() => set({ priority_id: p.id })}><i class=${`dot ${priorityTone(p) === 'bad' ? 'bad' : priorityTone(p) === 'info' ? 'run' : ''}`}></i>${p.name}</button>`)}</div></div>` : nothing}
           ${can.has('location_id') && (can.has('place_text') || this.editLocs?.locations.length) ? html`<div style="display:contents" data-edit-location>${locationPicker({

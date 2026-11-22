@@ -16,6 +16,7 @@ import { tIcon } from './icons';
 import { ticketDetailStyles, ticketFormStyles } from './styles';
 import { MAP_TEXT } from './map-text';
 import { MAP_PICK_HEX } from '../styles/status-palette';
+import '../components/sw-field';
 
 export { MAP_TEXT };
 
@@ -248,9 +249,9 @@ export class TicketMapPicker extends LitElement {
     return html`<sw-dialog open wide heading=${MAP_TEXT.pickTitle} data-map-picker @close=${() => this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }))}>
       <div class="form">
         <label class="fld"><span>${MAP_TEXT.pickFloor}</span>
-          <select class="inp" data-map-floor ?disabled=${!floors?.length} @change=${(ev: Event) => void this.pickFloor((ev.target as HTMLSelectElement).value)}>
+          <sw-field flow><select class="inp" data-map-floor ?disabled=${!floors?.length} @change=${(ev: Event) => void this.pickFloor((ev.target as HTMLSelectElement).value)}>
             ${(floors ?? []).map((f) => html`<option value=${f.id} ?selected=${f.id === this.floor}>${bidi(f.label)}</option>`)}
-          </select></label>
+          </select></sw-field></label>
         ${this.loading || floors === null ? html`<div class="state" role="status" aria-busy="true" data-map-loading>${MAP_TEXT.pickLoading}</div>`
           : b && b.planStatus === 'none' ? html`<div class="state" data-map-noplan>${MAP_TEXT.pickNoPlan}</div>`
           : b ? html`${this.elements.length ? html`<div class="hint">${MAP_TEXT.pickHint}</div>` : html`<div class="state" data-map-empty>${MAP_TEXT.pickNone}</div>`}

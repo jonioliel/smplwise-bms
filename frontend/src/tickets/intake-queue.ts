@@ -11,6 +11,7 @@ import { intakeApi, type IntakeDraft, type IntakeDraftRow, type IntakeEditKey, t
 import { itx, type IntakeKey } from '../i18n/intake';
 import { allEvidence, fieldValue, flagKeys, PAGE_SIZE, pager, segments, urgencyTone } from './intake-model';
 import { errLineStyles } from '../styles/fragments';
+import '../components/sw-field';
 
 const REASONS: RejectReason[] = ['not_a_request', 'duplicate', 'spam', 'abusive', 'out_of_scope', 'test'];
 const PRIORITIES = ['urgent', 'high', 'normal', 'low'] as const;
@@ -199,14 +200,14 @@ export class TicketsIntakeChip extends LitElement {
       ${flags.length ? html`<div class="flags">${flags.map((k) => html`<span class="tag" data-tone=${k === 'safety' ? 'danger' : 'warning'}>${itx(k)}</span>`)}</div>` : nothing}
       ${this.text(d)}
       <div class="grid">
-        <label class="f">${itx('department')}<select data-intake-field="department_id" .value=${dept} @change=${(e: Event) => void this.saveEdit('department_id', (e.target as HTMLSelectElement).value)}>
-          <option value="">${itx('pickDept')}</option>${this.deptOptions().map((x) => html`<option value=${x.id} ?selected=${x.id === dept}>${x.name}</option>`)}</select></label>
+        <label class="f">${itx('department')}<sw-field flow><select data-intake-field="department_id" .value=${dept} @change=${(e: Event) => void this.saveEdit('department_id', (e.target as HTMLSelectElement).value)}>
+          <option value="">${itx('pickDept')}</option>${this.deptOptions().map((x) => html`<option value=${x.id} ?selected=${x.id === dept}>${x.name}</option>`)}</select></sw-field></label>
         <label class="f">${itx('category')}<small>${itx(`conf_${d.suggestion.category.confidence}` as IntakeKey)}</small>
-          <select data-intake-field="category_id" @change=${(e: Event) => void this.saveEdit('category_id', (e.target as HTMLSelectElement).value)}>
-          <option value="">${itx('none')}</option>${cats.map((c) => html`<option value=${c.id} ?selected=${c.id === fieldValue(d, 'category_id')}>${c.name}</option>`)}</select></label>
+          <sw-field flow><select data-intake-field="category_id" @change=${(e: Event) => void this.saveEdit('category_id', (e.target as HTMLSelectElement).value)}>
+          <option value="">${itx('none')}</option>${cats.map((c) => html`<option value=${c.id} ?selected=${c.id === fieldValue(d, 'category_id')}>${c.name}</option>`)}</select></sw-field></label>
         <label class="f">${itx('urgency')}<small>${itx(`conf_${d.suggestion.urgency.confidence}` as IntakeKey)}</small>
-          <select data-intake-field="priority_key" @change=${(e: Event) => void this.saveEdit('priority_key', (e.target as HTMLSelectElement).value)}>
-          ${PRIORITIES.map((k) => html`<option value=${k} ?selected=${k === fieldValue(d, 'priority_key')}>${this.urgencyLabel(k)}</option>`)}</select></label>
+          <sw-field flow><select data-intake-field="priority_key" @change=${(e: Event) => void this.saveEdit('priority_key', (e.target as HTMLSelectElement).value)}>
+          ${PRIORITIES.map((k) => html`<option value=${k} ?selected=${k === fieldValue(d, 'priority_key')}>${this.urgencyLabel(k)}</option>`)}</select></sw-field></label>
         <label class="f">${itx('place')}<small>${itx(`conf_${d.suggestion.place.confidence}` as IntakeKey)}</small>
           <input data-intake-field="place_other" maxlength="200" dir="auto" .value=${fieldValue(d, 'place_other')} @change=${(e: Event) => void this.saveEdit('place_other', (e.target as HTMLInputElement).value)} /></label>
         <label class="f" style="grid-column: 1 / -1">${itx('titleField')}<input data-intake-field="title" maxlength="120" dir="auto" .value=${fieldValue(d, 'title')}

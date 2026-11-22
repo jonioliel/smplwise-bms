@@ -30,6 +30,7 @@ import { ticketsLang } from './text';
 import { ticketDetailStyles, ticketFormStyles } from './styles';
 import { costCardStyles, costDialogStyles } from './cost-styles';
 import { onTicketNames } from './naming';
+import '../components/sw-field';
 
 type Simple = 'approve' | 'reject' | 'markPaid' | 'unmarkPaid' | 'reopen';
 type Dialog =
@@ -513,8 +514,8 @@ export class TicketCostCard extends LitElement {
         const total = lineTotal(l);
         const bad = this.tried && !!lineProblem(l);
         return html`<div class="line" data-line=${i} data-line-kind=${l.kind} aria-invalid=${String(bad)}>
-          <label class="fld"><span>${ct('lineKind')}</span><select class="inp" data-line-kind-select @change=${(e: Event) => { const k = (e.target as HTMLSelectElement).value as LineKind; this.lines = this.lines.map((x, j) => (j === i ? { ...blankLine(k, rateMinor), description: x.description } : x)); }}>
-            ${LINE_KINDS.map((k) => html`<option value=${k} ?selected=${k === l.kind}>${ct(`k_${k}` as CostTextKey)}</option>`)}</select></label>
+          <label class="fld"><span>${ct('lineKind')}</span><sw-field flow><select class="inp" data-line-kind-select @change=${(e: Event) => { const k = (e.target as HTMLSelectElement).value as LineKind; this.lines = this.lines.map((x, j) => (j === i ? { ...blankLine(k, rateMinor), description: x.description } : x)); }}>
+            ${LINE_KINDS.map((k) => html`<option value=${k} ?selected=${k === l.kind}>${ct(`k_${k}` as CostTextKey)}</option>`)}</select></sw-field></label>
           ${field(i, l, 'description', ct('description'), 'text', true)}
           ${l.kind === 'labor' ? html`${field(i, l, 'hours', ct('hours'), 'decimal')}${field(i, l, 'rate', ct('rate'), 'decimal')}`
             : l.kind === 'parts' ? html`${field(i, l, 'quantity', ct('quantity'), 'decimal')}${field(i, l, 'unit_price', ct('unitPrice'), 'decimal')}`
@@ -581,11 +582,11 @@ export class TicketCostCard extends LitElement {
     const rateBp = d.settings?.vat_rate_bp ?? 1800;
     return html`<sw-dialog open wide heading=${ct('onBehalfTitle')} data-dialog="cost-on-behalf" @close=${this.onDialogClose}>
       <div class="form">
-        ${targets.length > 1 ? html`<label class="fld"><span>${ct('assignment')}</span><select class="inp" data-ob-assignment @change=${(e: Event) => set({ assignment: (e.target as HTMLSelectElement).value })}>
-          ${targets.map((a) => html`<option value=${a.id} ?selected=${a.id === f.assignment}>${a.name}</option>`)}</select></label>` : nothing}
+        ${targets.length > 1 ? html`<label class="fld"><span>${ct('assignment')}</span><sw-field flow><select class="inp" data-ob-assignment @change=${(e: Event) => set({ assignment: (e.target as HTMLSelectElement).value })}>
+          ${targets.map((a) => html`<option value=${a.id} ?selected=${a.id === f.assignment}>${a.name}</option>`)}</select></sw-field></label>` : nothing}
         <div class="two">
-          ${currencies.length > 1 ? html`<label class="fld"><span>${ct('currency')}</span><select class="inp" data-ob-currency @change=${(e: Event) => set({ currency: (e.target as HTMLSelectElement).value })}>
-            ${currencies.map((x) => html`<option value=${x} ?selected=${x === f.currency}>${x}</option>`)}</select></label>` : nothing}
+          ${currencies.length > 1 ? html`<label class="fld"><span>${ct('currency')}</span><sw-field flow><select class="inp" data-ob-currency @change=${(e: Event) => set({ currency: (e.target as HTMLSelectElement).value })}>
+            ${currencies.map((x) => html`<option value=${x} ?selected=${x === f.currency}>${x}</option>`)}</select></sw-field></label>` : nothing}
           ${!exempt && !f.noCharge ? html`<div class="fld"><span>${ct('vatToggle')}</span><sw-segmented radio size="sm" label=${ct('vatToggle')} value=${f.include ? 'included' : 'excluded'} @change=${(e: CustomEvent<SegmentedChange>) => set({ include: e.detail.value === 'included' })}
             .options=${[{ value: 'excluded', label: ct('amountsExcl'), attrs: { 'data-ob-vat': 'excluded' } }, { value: 'included', label: ct('amountsIncl'), attrs: { 'data-ob-vat': 'included' } }]}></sw-segmented></div>` : nothing}
         </div>

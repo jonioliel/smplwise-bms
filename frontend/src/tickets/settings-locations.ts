@@ -18,6 +18,7 @@ import {
 } from './org-locations-model';
 import { loct, type LocTextKey } from './org-locations-text';
 import { confirmDialog } from '../components/confirm-dialog';
+import '../components/sw-field';
 
 const PROBLEM_TEXT: Record<LocationProblem, LocTextKey> = {
   required: 'err_required', too_long: 'err_too_long', duplicate: 'err_duplicate', address: 'err_address', url: 'err_url', coords: 'err_coords',
@@ -261,10 +262,10 @@ export class TicketsLocationsSettings extends LitElement {
     if (this.areas === null && !this.draft.plan_zone_id) return nothing;
     const cur = this.draft.plan_zone_id;
     return html`<label class="fld wide">${loct('fArea')}
-      <select class="in" data-location-field="plan_zone_id" ?disabled=${this.busy} @change=${(e: Event) => this.set('plan_zone_id', (e.target as HTMLSelectElement).value)}>
+      <sw-field flow><select class="in" data-location-field="plan_zone_id" ?disabled=${this.busy} @change=${(e: Event) => this.set('plan_zone_id', (e.target as HTMLSelectElement).value)}>
         <option value="" ?selected=${!cur}>${loct('areaNone')}</option>
         ${areaChoices(this.areas, cur).map((o) => html`<option value=${o.id} ?selected=${o.id === cur}>${o.missing ? loct('areaMissing') : bidi(o.label)}</option>`)}
-      </select>${this.err(p, 'plan_zone_id')}</label>`;
+      </select></sw-field>${this.err(p, 'plan_zone_id')}</label>`;
   }
 
   private areaName(l: OrgLocationAdmin): string {
@@ -327,10 +328,10 @@ export class TicketsLocationsSettings extends LitElement {
     if (!this.depts.length || !active.length) return nothing;
     return html`<sw-card heading=${loct('deptTitle')} subheading=${loct('deptSub')} data-card="locations-departments">
       ${this.depts.map((d) => html`<div class="row" data-location-dept=${d.id}><span class="lbl">${bidi(d.name)}</span>
-        <span class="end"><select class="in" aria-label=${`${loct('deptTitle')} · ${d.name}`} ?disabled=${this.busy} @change=${(e: Event) => void this.setDept(d.id, (e.target as HTMLSelectElement).value)}>
+        <span class="end"><sw-field flow><select class="in" aria-label=${`${loct('deptTitle')} · ${d.name}`} ?disabled=${this.busy} @change=${(e: Event) => void this.setDept(d.id, (e.target as HTMLSelectElement).value)}>
           <option value="" ?selected=${!a.department_defaults[d.id]}>${loct('deptNone')}</option>
           ${active.map((l) => html`<option value=${l.id} ?selected=${a.department_defaults[d.id] === l.id}>${bidi(l.name)}</option>`)}
-        </select></span></div>`)}
+        </select></sw-field></span></div>`)}
     </sw-card>`;
   }
 

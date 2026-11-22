@@ -18,6 +18,7 @@ import {
 } from './rules-model';
 import { rlt, type RulesTextKey } from './rules-text';
 import { confirmDialog } from '../components/confirm-dialog';
+import '../components/sw-field';
 
 const PROBLEM_TEXT: Record<RuleProblem, RulesTextKey> = {
   required: 'err_required', too_long: 'err_too_long', placeholder: 'err_placeholder', range: 'err_range', integer: 'err_integer',
@@ -343,30 +344,30 @@ export class TicketsRulesSettings extends LitElement {
     return html`<div class="editor" data-rule-editor=${this.editing}>
       <label class="fld wide">${rlt('fName')}<input class="in" data-rule-field="name" maxlength=${d.bounds.name_max} aria-invalid=${inv('name')} .value=${r.name}
         @input=${onIn('name')} />${this.err(p, 'name')}</label>
-      <label class="fld">${rlt('fSource')}<select class="in" data-rule-field="source" aria-invalid=${inv('source')} @change=${onSel('source')}>
-        ${sources.map((s) => html`<option value=${s.key} ?selected=${s.key === r.source}>${s.label}</option>`)}</select>${this.err(p, 'source')}</label>
+      <label class="fld">${rlt('fSource')}<sw-field flow><select class="in" data-rule-field="source" aria-invalid=${inv('source')} @change=${onSel('source')}>
+        ${sources.map((s) => html`<option value=${s.key} ?selected=${s.key === r.source}>${s.label}</option>`)}</select></sw-field>${this.err(p, 'source')}</label>
       <label class="fld">${rlt('fHold')}<input class="in num" inputmode="numeric" dir="ltr" data-rule-field="hold_min" aria-invalid=${inv('hold_min')} .value=${r.hold_min}
         @input=${onIn('hold_min')} />${this.err(p, 'hold_min')}</label>
       <label class="fld wide">${rlt('fSubject')}<input class="in" dir="ltr" data-rule-field="subject_id" maxlength="200" placeholder=${rlt('fSubjectPh')}
         aria-invalid=${inv('subject_id')} .value=${r.subject_id} @input=${onIn('subject_id')} />${this.err(p, 'subject_id')}</label>
-      <label class="fld">${rlt('fDept')}<select class="in" data-rule-field="department_id" aria-invalid=${inv('department_id')} @change=${onSel('department_id')}>
+      <label class="fld">${rlt('fDept')}<sw-field flow><select class="in" data-rule-field="department_id" aria-invalid=${inv('department_id')} @change=${onSel('department_id')}>
         ${dept ? nothing : html`<option value="" selected>—</option>`}
-        ${d.departments.map((x) => html`<option value=${x.id} ?selected=${x.id === r.department_id}>${bidi(x.name)}</option>`)}</select>${this.err(p, 'department_id')}</label>
-      <label class="fld">${rlt('fPriority')}<select class="in" data-rule-field="priority_id" aria-invalid=${inv('priority_id')} @change=${onSel('priority_id')}>
+        ${d.departments.map((x) => html`<option value=${x.id} ?selected=${x.id === r.department_id}>${bidi(x.name)}</option>`)}</select></sw-field>${this.err(p, 'department_id')}</label>
+      <label class="fld">${rlt('fPriority')}<sw-field flow><select class="in" data-rule-field="priority_id" aria-invalid=${inv('priority_id')} @change=${onSel('priority_id')}>
         <option value="" ?selected=${!r.priority_id}>${rlt('fPriorityDefault')}</option>
-        ${(dept?.priorities ?? []).map((x) => html`<option value=${x.id} ?selected=${x.id === r.priority_id}>${bidi(x.name)}</option>`)}</select>${this.err(p, 'priority_id')}</label>
-      ${dept?.categories.length ? html`<label class="fld">${rlt('fCategory')}<select class="in" data-rule-field="category_id" aria-invalid=${inv('category_id')} @change=${onSel('category_id')}>
+        ${(dept?.priorities ?? []).map((x) => html`<option value=${x.id} ?selected=${x.id === r.priority_id}>${bidi(x.name)}</option>`)}</select></sw-field>${this.err(p, 'priority_id')}</label>
+      ${dept?.categories.length ? html`<label class="fld">${rlt('fCategory')}<sw-field flow><select class="in" data-rule-field="category_id" aria-invalid=${inv('category_id')} @change=${onSel('category_id')}>
         <option value="" ?selected=${!r.category_id}>${rlt('fCategoryNone')}</option>
-        ${dept.categories.map((x) => html`<option value=${x.id} ?selected=${x.id === r.category_id}>${bidi(x.name)}</option>`)}</select>${this.err(p, 'category_id')}</label>` : nothing}
+        ${dept.categories.map((x) => html`<option value=${x.id} ?selected=${x.id === r.category_id}>${bidi(x.name)}</option>`)}</select></sw-field>${this.err(p, 'category_id')}</label>` : nothing}
       <label class="fld">${rlt('fLimit')}<input class="in num" inputmode="numeric" dir="ltr" data-rule-field="daily_limit" placeholder=${rlt('fLimitPh', { n: d.daily_limit_default })}
         aria-invalid=${inv('daily_limit')} .value=${r.daily_limit} @input=${onIn('daily_limit')} />${this.err(p, 'daily_limit')}</label>
       <label class="fld wide">${rlt('fTitle')}<input class="in" data-rule-field="title" maxlength=${d.bounds.title_max} aria-invalid=${inv('title')} .value=${r.title}
         @input=${onIn('title')} />${this.err(p, 'title')}</label>
       <label class="fld wide">${rlt('fDescription')}<textarea class="in" data-rule-field="description" maxlength=${d.bounds.description_max} aria-invalid=${inv('description')}
         .value=${r.description} @input=${onIn('description')}></textarea>${this.err(p, 'description')}<span class="hint" data-rule-placeholders>${rlt('fPlaceholders')} <span dir="ltr">${d.bounds.placeholders.map((x) => `{${x}}`).join(' ')}</span></span></label>
-      <label class="fld wide">${rlt('fOnClear')}<select class="in" data-rule-field="on_clear" @change=${onSel('on_clear')}>
+      <label class="fld wide">${rlt('fOnClear')}<sw-field flow><select class="in" data-rule-field="on_clear" @change=${onSel('on_clear')}>
         <option value="comment" ?selected=${r.on_clear === 'comment'}>${rlt('onClearComment')}</option>
-        <option value="comment_close" ?selected=${r.on_clear === 'comment_close'}>${rlt('onClearClose')}</option></select></label>
+        <option value="comment_close" ?selected=${r.on_clear === 'comment_close'}>${rlt('onClearClose')}</option></select></sw-field></label>
       <div class="checks wide"><label><input type="checkbox" data-rule-field="enabled" .checked=${r.enabled}
         @change=${(e: Event) => this.set('enabled', (e.target as HTMLInputElement).checked)} /> ${rlt('fEnabled')}</label></div>
       <div class="acts wide">

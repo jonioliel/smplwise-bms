@@ -34,6 +34,7 @@ import { xt } from '../i18n/access-external';
 import { avatarInitials } from '../components/avatar-initials';
 import { MARKER_FILTERS, byMarker, carriesMarker, filterKey, markerView, type MarkerFilter } from './vendor-marker';
 import { hostBlockStyles } from '../styles/fragments';
+import '../components/sw-field';
 
 /** The languages by their own names (the page and the messages of a contact speak it). */
 /** The tile / avatar letters: the one product rule (components/avatar-initials.ts), CR-INITIALS-2443 (review 08:F09, owner O6=a). */
@@ -476,8 +477,8 @@ export class TicketsContacts extends LitElement {
 
   /** A manager's new row: the department it is created in and, for a vendor / contact, whether every department gets it. */
   private mgrCreateFields(kind: ContactKind): TemplateResult {
-    return html`${this.mine.length > 1 ? html`<label class="fld"><span>${tt('dmCreateIn')}</span><select class="in" data-field="mgr_department"
-        @change=${(e: Event) => (this.mgrDept = (e.target as HTMLSelectElement).value)}>${this.mine.map((id) => html`<option value=${id} ?selected=${id === this.mgrDept}>${this.deptName(id)}</option>`)}</select></label>` : nothing}
+    return html`${this.mine.length > 1 ? html`<label class="fld"><span>${tt('dmCreateIn')}</span><sw-field flow><select class="in" data-field="mgr_department"
+        @change=${(e: Event) => (this.mgrDept = (e.target as HTMLSelectElement).value)}>${this.mine.map((id) => html`<option value=${id} ?selected=${id === this.mgrDept}>${this.deptName(id)}</option>`)}</select></sw-field></label>` : nothing}
       ${mayShare(kind) ? html`<div class="row wide"><span class="lbl">${tt('dmShared')}<span class="muted">${tt('dmSharedHint')}</span></span>
         <sw-toggle label=${tt('dmShared')} labelHidden .checked=${this.mgrShared} data-field="mgr_shared" @change=${(e: CustomEvent<{ checked: boolean }>) => (this.mgrShared = e.detail.checked)}></sw-toggle></div>` : nothing}`;
   }
@@ -687,8 +688,8 @@ export class TicketsContacts extends LitElement {
           .options=${(['excluded', 'included'] as const).map((v) => ({ value: v, label: v === 'excluded' ? ct('amountsExcl') : ct('amountsIncl'), attrs: { 'data-field': `vat_default:${v}` } }))}></sw-segmented></div>`}
       ${rates ? html`<label class="fld"><span>${ct('ctRate')}</span><input class="in" inputmode="decimal" dir="ltr" maxlength="20" data-field="labor_rate"
           aria-invalid=${String(rateBad)} .value=${d.labor_rate} @input=${(e: Event) => this.set({ labor_rate: (e.target as HTMLInputElement).value })} /></label>
-        <label class="fld"><span>${ct('ctRateCurrency')}</span><select class="in" data-field="rate_currency" ?disabled=${!d.labor_rate.trim()}
-          @change=${(e: Event) => this.set({ rate_currency: (e.target as HTMLSelectElement).value })}>${CURRENCIES.map((cur) => html`<option value=${cur} ?selected=${cur === d.rate_currency}>${cur}</option>`)}</select></label>` : nothing}`;
+        <label class="fld"><span>${ct('ctRateCurrency')}</span><sw-field flow><select class="in" data-field="rate_currency" ?disabled=${!d.labor_rate.trim()}
+          @change=${(e: Event) => this.set({ rate_currency: (e.target as HTMLSelectElement).value })}>${CURRENCIES.map((cur) => html`<option value=${cur} ?selected=${cur === d.rate_currency}>${cur}</option>`)}</select></sw-field></label>` : nothing}`;
   }
 
   private editorCard(c: Contact | null): TemplateResult {
@@ -706,9 +707,9 @@ export class TicketsContacts extends LitElement {
         <label class="fld"><span>${tt('ctName')} *</span><input class="in" maxlength="80" data-field="display_name" aria-invalid=${String(!!this.problem && !d.display_name.trim())}
           .value=${d.display_name} @input=${(e: Event) => this.set({ display_name: (e.target as HTMLInputElement).value })} /></label>
         ${employee ? nothing : html`<label class="fld"><span>${tt('ctCompany')}</span><input class="in" maxlength="80" data-field="company" .value=${d.company} @input=${(e: Event) => this.set({ company: (e.target as HTMLInputElement).value })} /></label>`}
-        ${d.kind === 'person' ? html`<label class="fld"><span>${tt('ctVendor')}</span><select class="in" data-field="vendor_id" @change=${(e: Event) => this.set({ vendor_id: (e.target as HTMLSelectElement).value })}>
+        ${d.kind === 'person' ? html`<label class="fld"><span>${tt('ctVendor')}</span><sw-field flow><select class="in" data-field="vendor_id" @change=${(e: Event) => this.set({ vendor_id: (e.target as HTMLSelectElement).value })}>
           <option value="" ?selected=${!d.vendor_id}>${tt('ctVendorNone')}</option>
-          ${vendors.map((v) => html`<option value=${v.id} ?selected=${v.id === d.vendor_id}>${v.display_name}</option>`)}</select></label>` : nothing}
+          ${vendors.map((v) => html`<option value=${v.id} ?selected=${v.id === d.vendor_id}>${v.display_name}</option>`)}</select></sw-field></label>` : nothing}
         <label class="fld"><span>${tt('ctPhone')}</span><input class="in" type="tel" dir="ltr" maxlength="40" autocomplete="off" data-field="phone"
           placeholder=${c && c.has_phone && !c.phone_full ? c.phone ?? '' : ''} .value=${d.phone} @input=${(e: Event) => this.set({ phone: (e.target as HTMLInputElement).value })} />
           <span class="hint">${tt('ctPhoneHint')}</span>
@@ -724,8 +725,8 @@ export class TicketsContacts extends LitElement {
         <label class="fld"><span>${tt('ctEmail')}</span><input class="in" type="email" dir="ltr" maxlength="254" autocomplete="off" data-field="email" .value=${d.email}
           @input=${(e: Event) => this.set({ email: (e.target as HTMLInputElement).value })} /></label>
         ${seg(tt('ctChannel'), CONTACT_CHANNELS, d.preferred_channel, (v) => tt(`ch_${v}` as TicketTextKey), (v) => this.set({ preferred_channel: v }), 'channel')}
-        <label class="fld"><span>${tt('ctLang')}</span><select class="in" data-field="lang" @change=${(e: Event) => this.set({ lang: (e.target as HTMLSelectElement).value as ContactLang })}>
-          ${CONTACT_LANGS.map((l) => html`<option value=${l} ?selected=${l === d.lang}>${LANG_NAMES[l]}</option>`)}</select></label>
+        <label class="fld"><span>${tt('ctLang')}</span><sw-field flow><select class="in" data-field="lang" @change=${(e: Event) => this.set({ lang: (e.target as HTMLSelectElement).value as ContactLang })}>
+          ${CONTACT_LANGS.map((l) => html`<option value=${l} ?selected=${l === d.lang}>${LANG_NAMES[l]}</option>`)}</select></sw-field></label>
         ${employee || this.mgr ? nothing : seg(xt('vm_kind'), ['temporary', 'permanent'] as const, d.permanent_vendor ? 'permanent' : 'temporary', (v) => xt(v === 'permanent' ? 'vm_permanent' : 'vm_temporary'), (v) => this.set({ permanent_vendor: v === 'permanent' }), 'marker')}
         ${employee ? nothing : html`${seg(tt('ctHistory'), ['default', 'on', 'off'] as const, d.share_history, (v) => tt(`hist_${v}` as TicketTextKey), (v) => this.set({ share_history: v }), 'history')}
         <div class="row wide"><span class="lbl">${tt('ctRequireCode')}<span class="muted">${tt('ctRequireCodeSub')}</span></span>

@@ -25,6 +25,7 @@ import { tIcon } from './icons';
 import { tt } from './text';
 import { hostBlockStyles } from '../styles/fragments';
 import { avatarInitials } from '../components/avatar-initials';
+import '../components/sw-field';
 
 type Role = 'manager' | 'member';
 type Lang = 'he' | 'en' | 'ar' | 'ru';
@@ -249,10 +250,10 @@ export class TicketsHandlersMembers extends LitElement {
       <input class="in tel" type="tel" dir="ltr" inputmode="tel" autocomplete="off" maxlength="40" aria-label=${`${tt('hdMobile')} · ${m.name}`}
         placeholder=${tt('hdMobile')} .value=${dr.phone} ?disabled=${this.busy} data-member-mobile-input
         @input=${(e: Event) => this.setDraft(m, { phone: (e.target as HTMLInputElement).value })}>
-      <select class="in" aria-label=${tt('hdMobileLang')} ?disabled=${this.busy} data-member-mobile-lang
+      <sw-field flow><select class="in" aria-label=${tt('hdMobileLang')} ?disabled=${this.busy} data-member-mobile-lang
         @change=${(e: Event) => this.setDraft(m, { lang: (e.target as HTMLSelectElement).value as Lang })}>
         ${LANGS.map((l) => html`<option value=${l} ?selected=${dr.lang === l}>${tt(`lang_${l}`)}</option>`)}
-      </select>
+      </select></sw-field>
       <sw-button size="sm" ?disabled=${this.busy || !dirty} data-member-mobile-save
         @click=${() => void this.saveStaff(m, { phone: dr.phone.trim() || null, lang: dr.lang })}>${tt('hdMobileSave')}</sw-button>
       ${m.mobile && m.mobile_confirmed === false ? html`<span class="chip warn" data-member-mobile-pending>${tt('hdMobilePending')}</span>` : nothing}
@@ -344,10 +345,10 @@ export class TicketsHandlersMembers extends LitElement {
         <input class="in tel" type="tel" dir="ltr" inputmode="tel" autocomplete="off" maxlength="40" aria-label=${`${tt('hdMobile')} · ${m.name}`}
           placeholder=${m.mobile ?? tt('hdMobile')} .value=${dr.phone} ?disabled=${this.busy} data-member-mobile-input
           @input=${(e: Event) => (this.drafts = { ...this.drafts, [m.id]: { ...dr, phone: (e.target as HTMLInputElement).value } })}>
-        <select class="in" aria-label=${tt('hdMobileLang')} ?disabled=${this.busy} data-member-mobile-lang
+        <sw-field flow><select class="in" aria-label=${tt('hdMobileLang')} ?disabled=${this.busy} data-member-mobile-lang
           @change=${(e: Event) => (this.drafts = { ...this.drafts, [m.id]: { ...dr, lang: (e.target as HTMLSelectElement).value as Lang } })}>
           ${LANGS.map((l) => html`<option value=${l} ?selected=${dr.lang === l}>${tt(`lang_${l}`)}</option>`)}
-        </select>
+        </select></sw-field>
         <sw-button size="sm" ?disabled=${this.busy || !dirty} data-member-mobile-save
           @click=${() => void this.saveManagerMobile(d, m, { ...(dr.phone.trim() !== (mm.mobile_full ? m.mobile ?? '' : '') ? { phone: dr.phone.trim() || null } : {}), lang: dr.lang })}>${tt('hdMobileSave')}</sw-button>
         ${m.mobile && !mm.mobile_full ? html`<span class="chip xs" data-member-mobile-masked>${tt('dmMasked')}</span>` : nothing}
@@ -397,16 +398,16 @@ export class TicketsHandlersMembers extends LitElement {
       ...(this.directory?.groups ?? []).filter((g) => !d.members.some((m) => m.kind === 'group' && m.id === g.id)).map((g) => ({ v: `group:${g.id}`, label: `${g.name} (${tt('depGroupTag')})` })),
     ];
     return html`<div class="glass addp" data-members-add role="group" aria-label=${tt('u6AddMember')}>
-      ${depts.length > 1 ? html`<select class="in" data-member-dept-pick aria-label=${tt('hdDepartment')} @change=${(e: Event) => { this.addDept = (e.target as HTMLSelectElement).value; this.pick = ''; }}>
-        ${depts.map((x) => html`<option value=${x.id} ?selected=${x.id === d.id}>${bidi(x.name)}</option>`)}</select>` : nothing}
-      <select class="in" data-member-pick aria-label=${tt('hdMemberPick')} @change=${(e: Event) => (this.pick = (e.target as HTMLSelectElement).value)}>
+      ${depts.length > 1 ? html`<sw-field flow><select class="in" data-member-dept-pick aria-label=${tt('hdDepartment')} @change=${(e: Event) => { this.addDept = (e.target as HTMLSelectElement).value; this.pick = ''; }}>
+        ${depts.map((x) => html`<option value=${x.id} ?selected=${x.id === d.id}>${bidi(x.name)}</option>`)}</select></sw-field>` : nothing}
+      <sw-field flow><select class="in" data-member-pick aria-label=${tt('hdMemberPick')} @change=${(e: Event) => (this.pick = (e.target as HTMLSelectElement).value)}>
         <option value="" ?selected=${!this.pick}>${tt('hdMemberPick')}</option>
         ${options.map((o) => html`<option value=${o.v} ?selected=${this.pick === o.v}>${o.label}</option>`)}
-      </select>
-      ${this.manager ? nothing : html`<select class="in" data-member-new-role aria-label=${tt('depMembers')} @change=${(e: Event) => (this.newRole = (e.target as HTMLSelectElement).value as Role)}>
+      </select></sw-field>
+      ${this.manager ? nothing : html`<sw-field flow><select class="in" data-member-new-role aria-label=${tt('depMembers')} @change=${(e: Event) => (this.newRole = (e.target as HTMLSelectElement).value as Role)}>
         <option value="member" ?selected=${this.newRole === 'member'}>${tt('hdRole_member')}</option>
         <option value="manager" ?selected=${this.newRole === 'manager'}>${tt('hdRole_manager')}</option>
-      </select>`}
+      </select></sw-field>`}
       <button type="button" class="btn primary" data-member-add ?disabled=${this.busy || !this.pick} @click=${() => this.add()}>${tIcon('plus')}${tt('depMemberAdd')}</button>
     </div>`;
   }

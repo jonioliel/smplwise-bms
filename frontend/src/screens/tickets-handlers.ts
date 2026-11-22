@@ -40,6 +40,7 @@ import { ticketChipSelected } from '../tickets/chip-selected'; // AUDIT30-C-TICK
  * strip ONLY when something is missing. Three segments:
  *   מטפלים     the department members with an account (tickets/handlers-members.ts: the member routes, unchanged rules) and the
  *              employees WITHOUT an account (the directory locked to the kind "employee": they get the handler link like a vendor);
+import '../components/sw-field';
  *   ספקים      the vendors (the directory locked to "vendor");
  *   אנשי קשר   the contacts (persons; one may work for a vendor).
  * The directory component and its API are slice 4's (tickets/contacts-directory.ts): create / edit / deactivate / erase / export need
@@ -405,9 +406,9 @@ export class TicketsHandlersPage extends LitElement {
     if (this.seg !== 'handlers' || !this.loads) return nothing;
     const cur = this.period ?? this.installDefault;
     return html`<label class="hperiod" data-handled-period-wrap><span class="vh">${tt('u6HandledPeriodLabel')}</span>
-      <select class="in" data-handled-period aria-label=${tt('u6HandledPeriodLabel')} @change=${this.onPeriod}>
+      <sw-field flow><select class="in" data-handled-period aria-label=${tt('u6HandledPeriodLabel')} @change=${this.onPeriod}>
         ${HANDLED_PERIODS.map((d) => html`<option value=${String(d)} ?selected=${cur === d}>${tt('u6Handled')} · ${tt(`u6HandledP${d}` as 'u6HandledP7')}</option>`)}
-      </select></label>`;
+      </select></sw-field></label>`;
   }
 
   private body(): TemplateResult {

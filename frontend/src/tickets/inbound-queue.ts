@@ -13,6 +13,7 @@ import { ticketDetailStyles } from './styles';
 import { mtt } from './messages-text';
 import { tIcon } from './icons';
 import { when } from './ticket-messages';
+import '../components/sw-field';
 
 /**
  * CR-038 slice 5b (9.6 step 4, review T13-2): the WhatsApp replies that could not be matched to one ticket. A manager of a candidate
@@ -142,9 +143,9 @@ export class TicketsInboundChip extends LitElement {
           <small>${mtt('inbFrom', { sender: bidi(it.sender || '-'), when: when(it.received_at) })}</small>
           ${it.claimed_by_me ? html`<div class="txt" data-inbound-text>${it.text ?? ''}</div>
             <div class="row">
-              <select class="inp" data-inbound-ticket @change=${(e: Event) => (this.pick = { ...this.pick, [it.id]: (e.target as HTMLSelectElement).value })}>
+              <sw-field flow><select class="inp" data-inbound-ticket @change=${(e: Event) => (this.pick = { ...this.pick, [it.id]: (e.target as HTMLSelectElement).value })}>
                 ${it.tickets.map((t) => html`<option value=${t.id} ?selected=${(this.pick[it.id] ?? it.tickets[0]?.id) === t.id}>#${t.number} · ${bidi(t.title)}</option>`)}
-              </select>
+              </select></sw-field>
               <button type="button" class="btn sm primary" data-inbound-attach ?disabled=${this.busy || !it.tickets.length}
                 @click=${() => void this.act(() => messagesApi().attach(it.id, this.pick[it.id] ?? it.tickets[0]?.id ?? ''))}>${tIcon('check')}${mtt('inbAttach', { number: it.tickets.find((t) => t.id === (this.pick[it.id] ?? it.tickets[0]?.id))?.number ?? '' })}</button>
               <button type="button" class="btn sm quiet" data-inbound-dismiss ?disabled=${this.busy} @click=${() => void this.act(() => messagesApi().dismiss(it.id))}>${tIcon('x')}${mtt('inbDismiss')}</button>

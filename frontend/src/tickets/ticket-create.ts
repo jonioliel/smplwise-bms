@@ -26,6 +26,7 @@ import { ticketsLocationsApi, type LocationsAnswer } from '../api/tickets-locati
 import { locationPicker } from './location-picker';
 import { OTHER, defaultPick, locationBody, otherTooLong } from './org-locations-model';
 import { loct } from './org-locations-text';
+import '../components/sw-field';
 
 /**
  * CR-038 `<ticket-create .open .meta mode="sheet|dialog">`: the create form (D22: a side sheet - the automation builder's 620 px sheet - or a
@@ -326,18 +327,18 @@ export class TicketCreate extends LitElement {
       ${this.mapElement && !this.device ? html`<div class="hint" data-create-map-element>${tIcon('layers')}${MAP_TEXT.createLine}: ${bidi([this.mapElement.name, this.mapElement.floorName].filter(Boolean).join(' · '))}</div>` : nothing}
       <div class="two">
         <label class="fld"><span>${tt('fDepartment')}</span>
-          <select class="inp" data-create-department @change=${(e: Event) => this.pickDepartment((e.target as HTMLSelectElement).value)}>${depts.map((x) => html`<option value=${x.id} ?selected=${x.id === this.dept}>${x.name}</option>`)}</select></label>
+          <sw-field flow><select class="inp" data-create-department @change=${(e: Event) => this.pickDepartment((e.target as HTMLSelectElement).value)}>${depts.map((x) => html`<option value=${x.id} ?selected=${x.id === this.dept}>${x.name}</option>`)}</select></sw-field></label>
         <label class="fld"><span>${tt('fCategory')}</span>
-          <select class="inp" data-create-category @change=${(e: Event) => this.pickCategory((e.target as HTMLSelectElement).value)}>
+          <sw-field flow><select class="inp" data-create-category @change=${(e: Event) => this.pickCategory((e.target as HTMLSelectElement).value)}>
             <option value="" ?selected=${!this.category}>${tt('fNoCategory')}</option>
             ${(d?.categories ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.category}>${c.name}</option>`)}
-          </select></label>
+          </select></sw-field></label>
       </div>
       ${d?.templates?.length ? html`<label class="fld"><span>${tt('tplCard')}</span>
-        <select class="inp" data-create-template @change=${(e: Event) => this.applyTemplate((e.target as HTMLSelectElement).value)}>
+        <sw-field flow><select class="inp" data-create-template @change=${(e: Event) => this.applyTemplate((e.target as HTMLSelectElement).value)}>
           <option value="">${tt('tplAny')}</option>
           ${d.templates.map((t) => html`<option value=${t.id}>${t.name}</option>`)}
-        </select></label>` : nothing}
+        </select></sw-field></label>` : nothing}
       <label class="fld"><span>${tt('fTitle')} <b class="req">*</b></span>
         <input class="inp" maxlength="120" autocomplete="off" data-create-title placeholder=${tt('fTitlePh')} aria-invalid=${String(titleMissing)} .value=${this.ttl} @input=${(e: Event) => this.onTitle((e.target as HTMLInputElement).value)} />
         ${titleMissing ? html`<span class="err" role="alert">${tt('createNeed')}</span>` : nothing}</label>

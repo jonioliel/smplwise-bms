@@ -21,6 +21,7 @@ import { qt, type QuoteTextKey } from './quote-text';
 import { ticketDetailStyles, ticketFormStyles } from './styles';
 import { costCardStyles, costDialogStyles } from './cost-styles';
 import { dateInputLang } from '../api/day-format';
+import '../components/sw-field';
 
 const PROBLEM_TEXT: Record<string, QuoteTextKey> = { lines: 'obLinesRequired', kind: 'obLinesRequired', work_format: 'obWorkFormat', work_range: 'obWorkRange', work_order: 'obWorkOrder', valid_format: 'obValidFormat', valid_range: 'obValidRange' };
 
@@ -130,8 +131,8 @@ export class TicketQuoteForm extends LitElement {
         const total = lineTotal(l);
         const bad = this.tried && !!lineProblem(l);
         return html`<div class="line" data-line=${i} data-line-kind=${l.kind} aria-invalid=${String(bad)}>
-          <label class="fld"><span>${ct('lineKind')}</span><select class="inp" data-line-kind-select @change=${(e: Event) => { const k = (e.target as HTMLSelectElement).value as LineKind; this.set({ lines: f.lines.map((x, j) => (j === i ? { ...blankLine(k, rateMinor), description: x.description } : x)) }); }}>
-            ${kinds.map((k) => html`<option value=${k} ?selected=${k === l.kind}>${ct(`k_${k}` as CostTextKey)}</option>`)}</select></label>
+          <label class="fld"><span>${ct('lineKind')}</span><sw-field flow><select class="inp" data-line-kind-select @change=${(e: Event) => { const k = (e.target as HTMLSelectElement).value as LineKind; this.set({ lines: f.lines.map((x, j) => (j === i ? { ...blankLine(k, rateMinor), description: x.description } : x)) }); }}>
+            ${kinds.map((k) => html`<option value=${k} ?selected=${k === l.kind}>${ct(`k_${k}` as CostTextKey)}</option>`)}</select></sw-field></label>
           ${field(i, l, 'description', ct('description'), 'text', true)}
           ${l.kind === 'labor' ? html`${field(i, l, 'hours', ct('hours'), 'decimal')}${field(i, l, 'rate', ct('rate'), 'decimal')}`
             : l.kind === 'parts' ? html`${field(i, l, 'quantity', ct('quantity'), 'decimal')}${field(i, l, 'unit_price', ct('unitPrice'), 'decimal')}`
@@ -166,8 +167,8 @@ export class TicketQuoteForm extends LitElement {
         <div class="banner info" role="note" data-ob-notice>${cIcon('lock')}<div>${bidi(qt('obNotice', { vendor: target.name }))}</div></div>
         ${target.replaces ? html`<span class="muted" data-ob-replaces>${qt('obReplaces')}</span>` : nothing}
         <div class="two">
-          ${currencies.length > 1 ? html`<label class="fld"><span>${ct('currency')}</span><select class="inp" data-ob-currency @change=${(e: Event) => this.set({ currency: (e.target as HTMLSelectElement).value })}>
-            ${currencies.map((x) => html`<option value=${x} ?selected=${x === f.currency}>${x}</option>`)}</select></label>` : nothing}
+          ${currencies.length > 1 ? html`<label class="fld"><span>${ct('currency')}</span><sw-field flow><select class="inp" data-ob-currency @change=${(e: Event) => this.set({ currency: (e.target as HTMLSelectElement).value })}>
+            ${currencies.map((x) => html`<option value=${x} ?selected=${x === f.currency}>${x}</option>`)}</select></sw-field></label>` : nothing}
           ${exempt ? nothing : html`<div class="fld"><span>${ct('vatToggle')}</span><sw-segmented radio size="sm" label=${ct('vatToggle')} value=${f.include ? 'included' : 'excluded'} @change=${(e: CustomEvent<SegmentedChange>) => this.set({ include: e.detail.value === 'included' })}
             .options=${[{ value: 'excluded', label: ct('amountsExcl'), attrs: { 'data-ob-vat': 'excluded' } }, { value: 'included', label: ct('amountsIncl'), attrs: { 'data-ob-vat': 'included' } }]}></sw-segmented></div>`}
         </div>

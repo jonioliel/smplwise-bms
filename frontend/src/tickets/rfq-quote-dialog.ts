@@ -16,6 +16,7 @@ import { dayToIso } from './rfq-model';
 import { rfqError } from './rfq-new';
 import { ticketsLang } from './text';
 import { dateInputLang } from '../api/day-format';
+import '../components/sw-field';
 
 /**
  * TKRFQ2 `<tickets-rfq-quote-dialog .rfq .vendor .open>`: a quote entered on the vendor's behalf (the manual channel: the manager spoke
@@ -108,8 +109,8 @@ export class TicketsRfqQuoteDialog extends LitElement {
   private line(l: EditLine, i: number): TemplateResult {
     const prob = this.tried ? lineProblem(l) : '';
     return html`<div class="qline" data-q-line=${i}>
-      <label class="fld">${rt('qKind')}<select class="inp" data-q-kind @change=${(e: Event) => this.setKind(i, (e.target as HTMLSelectElement).value as LineKind)}>
-        ${this.kinds().map((k) => html`<option value=${k} ?selected=${l.kind === k}>${ct(`k_${k}` as CostTextKey)}</option>`)}</select></label>
+      <label class="fld">${rt('qKind')}<sw-field flow><select class="inp" data-q-kind @change=${(e: Event) => this.setKind(i, (e.target as HTMLSelectElement).value as LineKind)}>
+        ${this.kinds().map((k) => html`<option value=${k} ?selected=${l.kind === k}>${ct(`k_${k}` as CostTextKey)}</option>`)}</select></sw-field></label>
       <label class="fld desc">${rt('qDescription')}<input class="inp" maxlength="120" .value=${l.description} aria-invalid=${String(prob === 'description')} data-q-field="description"
         @input=${(e: Event) => this.setLine(i, { description: (e.target as HTMLInputElement).value })} /></label>
       ${l.kind === 'labor' ? html`${this.num(i, 'hours', rt('qHours'), prob === 'hours')}${this.num(i, 'rate', rt('qRate'), prob === 'rate')}`
@@ -128,8 +129,8 @@ export class TicketsRfqQuoteDialog extends LitElement {
         <div class="qlines" role="group" aria-label=${rt('qLines')}>${this.lines.map((l, i) => this.line(l, i))}</div>
         <div><button type="button" class="btn sm quiet" data-q-add ?disabled=${this.lines.length >= 30} @click=${() => (this.lines = [...this.lines, blankLine(this.kinds()[0] ?? 'labor')])}>${tIcon('plus')}${rt('qAddLine')}</button></div>
         <div class="frm">
-          <label class="fld">${rt('qCurrency')}<select class="inp" data-q-currency @change=${(e: Event) => (this.currency = (e.target as HTMLSelectElement).value)}>
-            ${this.currencies.map((c) => html`<option value=${c} ?selected=${c === this.currency}>${c}</option>`)}</select></label>
+          <label class="fld">${rt('qCurrency')}<sw-field flow><select class="inp" data-q-currency @change=${(e: Event) => (this.currency = (e.target as HTMLSelectElement).value)}>
+            ${this.currencies.map((c) => html`<option value=${c} ?selected=${c === this.currency}>${c}</option>`)}</select></sw-field></label>
           <label class="chk"><input type="checkbox" data-q-vat .checked=${this.includesVat} @change=${(e: Event) => (this.includesVat = (e.target as HTMLInputElement).checked)} />${rt('qIncludesVat')}</label>
           <label class="fld">${rt('qWindowFrom')}<input class="inp" type="date" lang=${dateInputLang()} .value=${this.from} @change=${(e: Event) => (this.from = (e.target as HTMLInputElement).value)} /></label>
           <label class="fld">${rt('qWindowTo')}<input class="inp" type="date" lang=${dateInputLang()} .value=${this.to} min=${this.from || ''} @change=${(e: Event) => (this.to = (e.target as HTMLInputElement).value)} /></label>

@@ -29,6 +29,7 @@ import { tt, ticketsLang } from './text';
 import { payFromProposal, payProblems, payWire, proposalLines, type MgrDue, type MgrPay } from './rfq-terms-model';
 import type { FileRow } from './rfq-files';
 import { dateInputLang } from '../api/day-format';
+import '../components/sw-field';
 
 interface DraftOut { vendorId: string; name: string; text: string; send: boolean; notify: boolean; source?: { kind: 'award'; id: string } }
 
@@ -311,8 +312,8 @@ export class TicketsRfqCompare extends LitElement {
           ${p.items.length < 5 ? html`<button type="button" class="btn sm" @click=${() => upd((c) => { c.items.push({ kind: 'progress', mode: 'percent', value: '', date: '' }); })}>${rt('pyAddProgress')}</button>` : nothing}</div>
         <div class="frm" data-cmp-pay-final>
           <span class="mut">${rt('pk_final')}</span>
-          <select class="inp" aria-label=${rt('pk_final')} @change=${(e: Event) => upd((c) => { c.due = (e.target as HTMLSelectElement).value as MgrDue; })}>
-            ${([['completion', 'pdDone'], ['date', 'pdOnDate'], ['after_completion', 'pdAfterShort']] as const).map(([v, k]) => html`<option value=${v} ?selected=${p.due === v}>${rt(k)}</option>`)}</select>
+          <sw-field flow><select class="inp" aria-label=${rt('pk_final')} @change=${(e: Event) => upd((c) => { c.due = (e.target as HTMLSelectElement).value as MgrDue; })}>
+            ${([['completion', 'pdDone'], ['date', 'pdOnDate'], ['after_completion', 'pdAfterShort']] as const).map(([v, k]) => html`<option value=${v} ?selected=${p.due === v}>${rt(k)}</option>`)}</select></sw-field>
           ${p.due === 'date' ? html`<input class="inp" type="date" lang=${dateInputLang()} aria-label=${rt('pyDate')} .value=${p.date} @change=${(e: Event) => upd((c) => { c.date = (e.target as HTMLInputElement).value; })} />` : nothing}
           ${p.due === 'after_completion' ? html`<input class="inp" inputmode="numeric" dir="ltr" aria-label=${rt('pdAfterShort')} .value=${p.days} @change=${(e: Event) => upd((c) => { c.days = (e.target as HTMLInputElement).value.trim(); })} />` : nothing}
         </div>

@@ -6,6 +6,7 @@ import { listIcon } from './list-icons';
 import { lt, type ListTextKey } from './list-text';
 import { tIcon } from './icons';
 import { panelSection, type ActiveChip } from './list-toolbar';
+import '../components/sw-field';
 
 /**
  * TKUI4 (release 2.6.0): the filter row of the cards and the board (mock-up v5 "סינון"): hidden until the "סינון" button asks for it, then
@@ -29,11 +30,11 @@ export function filterRow(rows: readonly CardItem[], f: CardFilters, change: (ne
       ${prios.map((p) => html`<button type="button" class="rc sm" aria-pressed=${String(f.priority.includes(p.key))} data-f-priority=${p.key} @click=${() => change({ ...f, priority: toggleIn(f.priority, p.key) })}>${bidi(p.name)}</button>`)}
     </div>`, 'priority') : nothing}
     ${panelSection(lt('lfHandler'), html`<label class="vh" for="f-handler">${lt('lfHandler')}</label>
-      <select id="f-handler" data-f-handler .value=${f.handler} @change=${(e: Event) => change({ ...f, handler: (e.target as HTMLSelectElement).value })}>
+      <sw-field flow><select id="f-handler" data-f-handler .value=${f.handler} @change=${(e: Event) => change({ ...f, handler: (e.target as HTMLSelectElement).value })}>
         <option value="" ?selected=${f.handler === ''}>${lt('lfAnyHandler')}</option>
         <option value="none" ?selected=${f.handler === 'none'}>${lt('lfNoHandler')}</option>
         ${who.map((h) => html`<option value=${h.key} ?selected=${f.handler === h.key}>${h.name}</option>`)}
-      </select>`, 'handler')}
+      </select></sw-field>`, 'handler')}
     ${flags.length ? panelSection(lt('tbFlags'), html`<div class="fchips">
       ${flags.map((k) => html`<button type="button" class="rc sm" aria-pressed=${String(f.flags.includes(k))} data-f-flag=${k} @click=${() => change({ ...f, flags: toggleIn(f.flags, k) })}>${k === 'stuck' ? tIcon('warning') : k === 'cost' ? listIcon('coin') : listIcon('hand')}${lt(FLAG_LABEL[k])}</button>`)}
     </div>`, 'flags') : nothing}

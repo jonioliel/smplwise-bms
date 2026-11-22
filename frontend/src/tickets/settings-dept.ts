@@ -20,6 +20,7 @@ import { effectiveLinks, intIn, windowProblem } from './durations';
 import { ticketSettingsCss } from './settings-styles';
 import { tt, type TicketTextKey } from './text';
 import { dateInputLang } from '../api/day-format';
+import '../components/sw-field';
 
 type Directory = { users: { id: string; name: string }[]; groups: { id: string; name: string }[] };
 interface Drafts {
@@ -192,14 +193,14 @@ export class TicketsDeptEditor extends LitElement {
         <button type="button" class="tag" aria-pressed=${String(this.catSel === c.id)} data-cat=${c.id} @click=${() => { this.catSel = this.catSel === c.id ? '' : c.id; this.set({ cat: undefined }); }}>${parentName(c) ? `${bidi(parentName(c) ?? '')} ‹ ` : ''}${bidi(c.name)}</button>
         <button type="button" class="rm" aria-label=${`${tt('depRemove')} ${c.name}`} data-cat-remove=${c.id} ?disabled=${this.busy} @click=${() => void this.act(() => ticketsApi().deleteCategory(c.id))}>×</button></span>`) : html`<span class="muted">${tt('depCatNone')}</span>`}</div>
       ${sel && draft ? html`<div class="fields" data-cat-editor=${sel.id}>
-        <label class="fld">${tt('catParent')}<select class="in" data-cat-parent @change=${(e: Event) => this.set({ cat: { ...draft, parent: (e.target as HTMLSelectElement).value } })}>
+        <label class="fld">${tt('catParent')}<sw-field flow><select class="in" data-cat-parent @change=${(e: Event) => this.set({ cat: { ...draft, parent: (e.target as HTMLSelectElement).value } })}>
           <option value="" ?selected=${!draft.parent}>${tt('catNoParent')}</option>
           ${live.filter((c) => c.id !== sel.id && !c.parent_id).map((c) => html`<option value=${c.id} ?selected=${draft.parent === c.id}>${c.name}</option>`)}
-        </select></label>
-        <label class="fld">${tt('catDefaultPrio')}<select class="in" data-cat-prio @change=${(e: Event) => this.set({ cat: { ...draft, prio: (e.target as HTMLSelectElement).value } })}>
+        </select></sw-field></label>
+        <label class="fld">${tt('catDefaultPrio')}<sw-field flow><select class="in" data-cat-prio @change=${(e: Event) => this.set({ cat: { ...draft, prio: (e.target as HTMLSelectElement).value } })}>
           <option value="" ?selected=${!draft.prio}>${tt('catNoPrio')}</option>
           ${d.priorities.filter((p) => p.active).map((p) => html`<option value=${p.id} ?selected=${draft.prio === p.id}>${p.name}</option>`)}
-        </select></label>
+        </select></sw-field></label>
         <label class="fld">${tt('catDomains')}<input class="in" dir="ltr" maxlength="400" data-cat-domains aria-invalid=${String(domainsBad)} placeholder="climate, fan" .value=${draft.domains}
           @input=${(e: Event) => this.set({ cat: { ...draft, domains: (e.target as HTMLInputElement).value } })} /><span>${tt('catDomainsSub')}</span></label>
       </div>
@@ -229,14 +230,14 @@ export class TicketsDeptEditor extends LitElement {
         ${d.can_edit_members ? html`<button type="button" class="rm" data-member-remove ?disabled=${this.busy} @click=${() => void this.act(() => ticketsApi().deleteMember(d.id, m.kind, m.id))}>${tt('depRemove')}</button>` : nothing}
       </div>`) : html`<span class="muted">${tt('depNoMembers')}</span>`}</div>
       ${d.can_edit_members ? html`<div class="add">
-        <select class="in" data-member-pick aria-label=${tt('depMemberPick')} @change=${(e: Event) => this.set({ member: (e.target as HTMLSelectElement).value })}>
+        <sw-field flow><select class="in" data-member-pick aria-label=${tt('depMemberPick')} @change=${(e: Event) => this.set({ member: (e.target as HTMLSelectElement).value })}>
           <option value="" ?selected=${!this.dr.member}>${tt('depMemberPick')}</option>
           ${memberOptions.map((o) => html`<option value=${o.v} ?selected=${this.dr.member === o.v}>${o.label}</option>`)}
-        </select>
-        <select class="in" data-member-new-role aria-label=${tt('depMembers')} @change=${(e: Event) => this.set({ role: (e.target as HTMLSelectElement).value as 'manager' | 'member' })}>
+        </select></sw-field>
+        <sw-field flow><select class="in" data-member-new-role aria-label=${tt('depMembers')} @change=${(e: Event) => this.set({ role: (e.target as HTMLSelectElement).value as 'manager' | 'member' })}>
           <option value="member" ?selected=${(this.dr.role ?? 'member') === 'member'}>${tt('depMember')}</option>
           <option value="manager" ?selected=${this.dr.role === 'manager'}>${tt('depManager')}</option>
-        </select>
+        </select></sw-field>
         <sw-button size="sm" icon="plus" ?disabled=${this.busy || !this.dr.member} data-member-add @click=${() => { const [kind, ...rest] = (this.dr.member ?? '').split(':'); void this.act(() => ticketsApi().putMember(d.id, kind as 'user' | 'group', rest.join(':'), this.dr.role ?? 'member'), () => this.set({ member: '' })); }}>${tt('depMemberAdd')}</sw-button>
       </div>` : nothing}</div>`;
   }
@@ -250,10 +251,10 @@ export class TicketsDeptEditor extends LitElement {
         <span class="end start">
           <input class="in" maxlength="30" aria-label=${`${tt('depPrioName')} · ${p.name}`} data-prio-name=${p.key} .value=${p.name}
             @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value.trim(); if (v && v !== p.name) void this.act(() => ticketsApi().patchPriority(p.id, { name: v })); }} />
-          <select class="in" aria-label=${`${tt('depPrioSeverity')} · ${p.name}`} data-prio-severity=${p.key} ?disabled=${this.busy}
+          <sw-field flow><select class="in" aria-label=${`${tt('depPrioSeverity')} · ${p.name}`} data-prio-severity=${p.key} ?disabled=${this.busy}
             @change=${(e: Event) => void this.act(() => ticketsApi().patchPriority(p.id, { notify_severity: (e.target as HTMLSelectElement).value as Severity }))}>
             ${SEVERITIES.map((s) => html`<option value=${s} ?selected=${p.severity === s}>${tt(`sev_${s}` as TicketTextKey)}</option>`)}
-          </select></span>
+          </select></sw-field></span>
         <span class="end">
           ${p.is_default ? html`<span class="tag ok" data-prio-default=${p.key}>${tt('depDefault')}</span>`
             : html`<button type="button" class="rc" data-prio-make-default=${p.key} ?disabled=${this.busy || !p.active} @click=${() => void this.act(() => ticketsApi().patchPriority(p.id, { is_default: true }))}>${tt('depMakeDefault')}</button>`}
@@ -351,12 +352,12 @@ export class TicketsDeptEditor extends LitElement {
     return html`<div class="fields" data-tpl-form=${t?.id ?? 'new'}>
         <label class="fld">${tt('tplName')}<input class="in" maxlength="60" data-tpl-name .value=${f.name} @input=${(e: Event) => upd({ name: (e.target as HTMLInputElement).value })} /></label>
         <label class="fld">${tt('tplTitle')}<input class="in" maxlength="120" data-tpl-title .value=${f.title} @input=${(e: Event) => upd({ title: (e.target as HTMLInputElement).value })} /></label>
-        <label class="fld">${tt('tplCategory')}<select class="in" data-tpl-category @change=${(e: Event) => upd({ category_id: (e.target as HTMLSelectElement).value })}>
+        <label class="fld">${tt('tplCategory')}<sw-field flow><select class="in" data-tpl-category @change=${(e: Event) => upd({ category_id: (e.target as HTMLSelectElement).value })}>
           <option value="" ?selected=${!f.category_id}>${tt('tplAny')}</option>
-          ${this.dept.categories.filter((c) => c.active).map((c) => html`<option value=${c.id} ?selected=${f.category_id === c.id}>${c.name}</option>`)}</select></label>
-        <label class="fld">${tt('tplPriority')}<select class="in" data-tpl-priority @change=${(e: Event) => upd({ priority_key: (e.target as HTMLSelectElement).value })}>
+          ${this.dept.categories.filter((c) => c.active).map((c) => html`<option value=${c.id} ?selected=${f.category_id === c.id}>${c.name}</option>`)}</select></sw-field></label>
+        <label class="fld">${tt('tplPriority')}<sw-field flow><select class="in" data-tpl-priority @change=${(e: Event) => upd({ priority_key: (e.target as HTMLSelectElement).value })}>
           <option value="" ?selected=${!f.priority_key}>${tt('tplAny')}</option>
-          ${PRIORITY_KEYS.map((k) => html`<option value=${k} ?selected=${f.priority_key === k}>${this.dept.priorities.find((p) => p.key === k)?.name ?? k}</option>`)}</select></label>
+          ${PRIORITY_KEYS.map((k) => html`<option value=${k} ?selected=${f.priority_key === k}>${this.dept.priorities.find((p) => p.key === k)?.name ?? k}</option>`)}</select></sw-field></label>
       </div>
       <label class="fld">${tt('tplBody')}<textarea class="in" maxlength="4000" data-tpl-body .value=${f.body} @input=${(e: Event) => upd({ body: (e.target as HTMLTextAreaElement).value })}></textarea></label>
       <div class="add">

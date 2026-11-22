@@ -10,6 +10,7 @@ import { intakeApi, type KnownNumber } from '../api/tickets-intake';
 import { itx } from '../i18n/intake';
 import { ticketSettingsCss } from './settings-styles';
 import { INTAKE_LIMITS, intakeOf, limitedInt, numberPatch, plausiblePhone, subControlsEnabled, type IntakeLimitKey } from './intake-model';
+import '../components/sw-field';
 
 const NUMBER_ROWS: Array<{ key: IntakeLimitKey; label: Parameters<typeof itx>[0] }> = [
   { key: 'coalesce_min', label: 'coalesce' }, { key: 'sender_per_day', label: 'perDay' }, { key: 'sender_per_week', label: 'perWeek' },
@@ -177,9 +178,9 @@ export class TicketsIntakeSettings extends LitElement {
       ${this.toggle('enabled', 'enabled', s.enabled)}
       ${this.toggle('whatsapp', 'whatsapp', s.whatsapp, off)}
       <div class="row"><span class="lbl">${itx('defaultDept')}</span>
-        <select class="in" data-intake="default_department" aria-label=${itx('defaultDept')} ?disabled=${this.busy || off}
+        <sw-field flow><select class="in" data-intake="default_department" aria-label=${itx('defaultDept')} ?disabled=${this.busy || off}
           @change=${(e: Event) => void this.save({ default_department: (e.target as HTMLSelectElement).value })}>
-          <option value="">${itx('pickDept')}</option>${depts.map((d) => html`<option value=${d.id} ?selected=${d.id === s.default_department}>${d.name}</option>`)}</select></div>
+          <option value="">${itx('pickDept')}</option>${depts.map((d) => html`<option value=${d.id} ?selected=${d.id === s.default_department}>${d.name}</option>`)}</select></sw-field></div>
       ${this.toggle('approvalReply', 'approval_reply', s.approval_reply, off)}
       ${this.toggle('unlistedReply', 'unlisted_reply', s.unlisted_reply, off)}
       <div class="row"><span class="lbl">${itx('classifier')}</span>

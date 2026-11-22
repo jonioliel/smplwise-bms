@@ -9,6 +9,7 @@ import {
 import { dateInputLang } from '../api/day-format';
 import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
+import '../components/sw-field';
 
 interface MetaDept { id: string; name: string; pending: number; priorities: { id: string; key: string; name: string }[] }
 interface Meta {
@@ -109,11 +110,11 @@ export class TicketNotifyMatrix extends LitElement {
       <span class="end nm-chips" data-notify-pick=${kind}>
         ${picked.map((id) => html`<span class="nm-chip">${nameOf(id)}<button type="button" class="nm-x" aria-label=${nmt('remove', { name: nameOf(id) })}
           ?disabled=${this.off} @click=${() => set(toggleId(picked, id))}>×</button></span>`)}
-        <select class="in" aria-label=${nmt(kind === 'users' ? 'addUser' : 'addRole')} ?disabled=${this.off} data-notify-add=${kind}
+        <sw-field flow><select class="in" aria-label=${nmt(kind === 'users' ? 'addUser' : 'addRole')} ?disabled=${this.off} data-notify-add=${kind}
           @change=${(e: Event) => { const s = e.target as HTMLSelectElement; if (s.value) set(toggleId(picked, s.value)); s.value = ''; }}>
           <option value="">${nmt(kind === 'users' ? 'addUser' : 'addRole')}</option>
           ${all.filter((x) => !picked.includes(x.id)).map((x) => html`<option value=${x.id}>${x.name}</option>`)}
-        </select></span></div>`;
+        </select></sw-field></span></div>`;
   }
 
   private deptSection(n: NotifyDoc): TemplateResult {
@@ -182,11 +183,11 @@ export class TicketNotifyMatrix extends LitElement {
           <sw-button size="sm" variant="primary" data-notify-time-save ?disabled=${!dirty || this.busy} @click=${() => void this.save({ digest_time: this.time })}>${nmt('save')}</sw-button></span></div>
       ${n.matrix_enabled && this.meta ? html`
         <div class="row"><span class="lbl">${nmt('dept')}</span>
-          <select class="in" aria-label=${nmt('dept')} data-notify-dept .value=${this.dept}
+          <sw-field flow><select class="in" aria-label=${nmt('dept')} data-notify-dept .value=${this.dept}
             @change=${(e: Event) => { this.dept = (e.target as HTMLSelectElement).value; this.deptTime = null; }}>
             <option value="*">${nmt('allDepts')}</option>
             ${this.meta.departments.map((d) => html`<option value=${d.id} ?selected=${this.dept === d.id}>${d.name}${d.pending ? ` (${d.pending})` : ''}</option>`)}
-          </select></div>
+          </select></sw-field></div>
         ${this.deptSection(n)}
         <div class="row"><span class="lbl">${nmt('events')}</span></div>
         ${this.meta.sources.map((s) => this.pick(s, n.matrix))}

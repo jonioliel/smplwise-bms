@@ -8,6 +8,7 @@ import { COMPARE_PLACES, HANDLER_NUMBERS, overviewSettingsOf, parseBusyInput, pa
 import { ot, type OverviewTextKey } from './overview-text';
 import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
+import '../components/sw-field';
 
 /**
  * MGRDASH phase 1: the manager overview's rows of Settings > the module > display (owner decisions 2026-10-17) - who sees a handler's own
@@ -89,10 +90,10 @@ export class TicketOverviewSettings extends LitElement {
       if (v !== s.deptStuck) void this.save({ dash_dept_stuck: v });
     };
     return html`<div class="row"><span class="lbl">${ot('setDigestHour')}<span class="muted">${ot('setDigestHourSub')}</span></span>
-        <select class="num-in" style="inline-size:auto;min-inline-size:104px;text-align:start" aria-label=${ot('setDigestHour')} data-digest-hour ?disabled=${this.disabled || this.busy}
+        <sw-field flow><select class="num-in" style="inline-size:auto;min-inline-size:104px;text-align:start" aria-label=${ot('setDigestHour')} data-digest-hour ?disabled=${this.disabled || this.busy}
           @change=${(e: Event) => void this.save({ dash_digest_hour: Number((e.target as HTMLSelectElement).value) })}>
           ${Array.from({ length: 24 }, (_, h) => html`<option value=${h} ?selected=${h === s.digestHour}>${hh(h)}</option>`)}
-        </select></div>
+        </select></sw-field></div>
       <div class="row"><span class="lbl">${ot('setDeptStuck')}<span class="muted">${ot('setDeptStuckSub')}</span></span>
         <input type="text" inputmode="numeric" maxlength="3" size="4" class="num-in" .value=${String(s.deptStuck)} aria-label=${ot('setDeptStuck')}
           aria-invalid=${String(this.bad === 'stuck')} data-dept-stuck ?disabled=${this.disabled || this.busy} @change=${onStuck} /></div>

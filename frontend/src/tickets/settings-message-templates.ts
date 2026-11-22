@@ -15,6 +15,7 @@ import { messagesApi, type MessageLang, type MessagePurpose, type MessageTemplat
 import { ticketSettingsCss } from './settings-styles';
 import { mtt, type MessageTextKey } from './messages-text';
 import { purposeLabel } from './ticket-messages';
+import '../components/sw-field';
 
 /**
  * CR-038 slice 5b: Settings › the module › "תבניות הודעה" (9.7, D26; tickets.configure - the texts reach outsiders, every save is audited
@@ -212,13 +213,13 @@ export class TicketsMessageTemplates extends LitElement {
 
   private picker(v: TemplatesView): TemplateResult {
     return html`<div class="pick" data-template-picker>
-      <label class="fld">${mtt('tplPurpose')}<select class="in" data-template-purpose @change=${(e: Event) => this.choose({ purpose: (e.target as HTMLSelectElement).value as MessagePurpose })}>
-        ${v.purposes.map((p) => html`<option value=${p} ?selected=${p === this.purpose}>${purposeLabel(p)}</option>`)}</select></label>
+      <label class="fld">${mtt('tplPurpose')}<sw-field flow><select class="in" data-template-purpose @change=${(e: Event) => this.choose({ purpose: (e.target as HTMLSelectElement).value as MessagePurpose })}>
+        ${v.purposes.map((p) => html`<option value=${p} ?selected=${p === this.purpose}>${purposeLabel(p)}</option>`)}</select></sw-field></label>
       <sw-segmented radio label=${mtt('tplLang')} value=${this.tplLang} @change=${(e: CustomEvent<SegmentedChange>) => this.choose({ lang: e.detail.value as typeof this.tplLang })}
         .options=${v.langs.map((l) => ({ value: l, label: mtt(`lang_${l}` as MessageTextKey), attrs: { 'data-template-lang': l } }))}></sw-segmented>
-      <label class="fld">${mtt('tplDept')}<select class="in" data-template-dept @change=${(e: Event) => this.choose({ dept: (e.target as HTMLSelectElement).value })}>
+      <label class="fld">${mtt('tplDept')}<sw-field flow><select class="in" data-template-dept @change=${(e: Event) => this.choose({ dept: (e.target as HTMLSelectElement).value })}>
         <option value="" ?selected=${!this.dept}>${mtt('tplAllDepts')}</option>
-        ${v.departments.map((d) => html`<option value=${d.id} ?selected=${d.id === this.dept}>${bidi(d.name)}</option>`)}</select></label>
+        ${v.departments.map((d) => html`<option value=${d.id} ?selected=${d.id === this.dept}>${bidi(d.name)}</option>`)}</select></sw-field></label>
     </div>`;
   }
 

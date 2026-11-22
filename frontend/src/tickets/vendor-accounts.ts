@@ -25,6 +25,7 @@ import {
 } from './vendor-account-model';
 import { dateInputLang } from '../api/day-format';
 import { t } from '../i18n/he';
+import '../components/sw-field';
 
 const BUCKET_TEXT: Record<Bucket, CostTextKey> = { due: 'vaDue', paid: 'vaPaid', open: 'vaOpen' };
 type Phase = 'loading' | 'ready' | 'error' | 'forbidden';
@@ -294,22 +295,22 @@ export class TicketsVendorAccounts extends LitElement {
     return html`<div class="filters" role="group" aria-label=${ct('vaFilters')} data-va-filters>
       <label>${ct('from')}<input class="in" type="date" lang=${dateInputLang()} data-va-from .value=${f.from} max=${f.to || ''} @change=${(e: Event) => this.setFilter('from', (e.target as HTMLInputElement).value)} /></label>
       <label>${ct('to')}<input class="in" type="date" lang=${dateInputLang()} data-va-to .value=${f.to} min=${f.from || ''} aria-invalid=${bad ? 'true' : 'false'} @change=${(e: Event) => this.setFilter('to', (e.target as HTMLInputElement).value)} /></label>
-      <label>${ct('vaVendor')}<select class="in" data-va-vendor @change=${(e: Event) => this.setFilter('vendor', (e.target as HTMLSelectElement).value)}>
+      <label>${ct('vaVendor')}<sw-field flow><select class="in" data-va-vendor @change=${(e: Event) => this.setFilter('vendor', (e.target as HTMLSelectElement).value)}>
         <option value="" ?selected=${!f.vendor}>${ct('vaAllVendors')}</option>
         ${vendors.map((v) => html`<option value=${v.key} ?selected=${f.vendor === v.key}>${v.label || ct('noLabel')}</option>`)}
-      </select></label>
-      <label>${ct('vaDepartment')}<select class="in" data-va-department @change=${(e: Event) => this.setFilter('department', (e.target as HTMLSelectElement).value)}>
+      </select></sw-field></label>
+      <label>${ct('vaDepartment')}<sw-field flow><select class="in" data-va-department @change=${(e: Event) => this.setFilter('department', (e.target as HTMLSelectElement).value)}>
         <option value="" ?selected=${!f.department}>${ct('vaAllDepartments')}</option>
         ${depts.map((x) => html`<option value=${x.id} ?selected=${f.department === x.id}>${x.name || ct('noLabel')}</option>`)}
-      </select></label>
-      <label>${ct('currency')}<select class="in" data-va-currency @change=${(e: Event) => this.setFilter('currency', (e.target as HTMLSelectElement).value)}>
+      </select></sw-field></label>
+      <label>${ct('currency')}<sw-field flow><select class="in" data-va-currency @change=${(e: Event) => this.setFilter('currency', (e.target as HTMLSelectElement).value)}>
         <option value="" ?selected=${!f.currency}>${ct('allCurrencies')}</option>
         ${CURRENCIES.map((c) => html`<option value=${c} ?selected=${f.currency === c}>${c}</option>`)}
-      </select></label>
-      <label>${ct('vaColStatus')}<select class="in" data-va-status @change=${(e: Event) => this.setFilter('bucket', (e.target as HTMLSelectElement).value)}>
+      </select></sw-field></label>
+      <label>${ct('vaColStatus')}<sw-field flow><select class="in" data-va-status @change=${(e: Event) => this.setFilter('bucket', (e.target as HTMLSelectElement).value)}>
         <option value="" ?selected=${!f.bucket}>${ct('vaAllStatuses')}</option>
         ${BUCKETS.map((b) => html`<option value=${b} ?selected=${f.bucket === b}>${ct(BUCKET_TEXT[b])}</option>`)}
-      </select></label>
+      </select></sw-field></label>
     </div>`;
   }
 

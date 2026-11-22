@@ -32,6 +32,7 @@ import { loct } from './org-locations-text';
 import type { FileRow } from './rfq-files';
 import { DEFAULT_LIMITS, displayName, formatBytes, localKind } from './rfq-files-model';
 import { dateInputLang } from '../api/day-format';
+import '../components/sw-field';
 
 /** RFQATT: a file picked in the sheet, uploaded onto the draft right after it is created (never part of the create body). */
 interface LocalFile { key: string; file: File; caption: string; visible: boolean; url: string }
@@ -380,9 +381,9 @@ export class TicketsRfqNew extends LitElement {
             aria-describedby="e-title" @input=${(e: Event) => this.set('title', (e.target as HTMLInputElement).value)} />${this.err('title', p)}</label>
           <label class="fld wide">${rt('fDescription')}<textarea class="inp" data-rfq-description maxlength=${DESCRIPTION_MAX} .value=${d.description}
             @input=${(e: Event) => this.set('description', (e.target as HTMLTextAreaElement).value)}></textarea>${this.err('description', p)}</label>
-          <label class="fld">${rt('fDepartment')}<select class="inp" data-rfq-department aria-invalid=${this.inv('department', p)} @change=${(e: Event) => this.setDept((e.target as HTMLSelectElement).value)}>
+          <label class="fld">${rt('fDepartment')}<sw-field flow><select class="inp" data-rfq-department aria-invalid=${this.inv('department', p)} @change=${(e: Event) => this.setDept((e.target as HTMLSelectElement).value)}>
             ${depts.map((x) => html`<option value=${x.id} ?selected=${x.id === d.department_id}>${bidi(x.name)}</option>`)}
-          </select>${this.err('department', p)}</label>
+          </select></sw-field>${this.err('department', p)}</label>
           ${locationPicker({ ans: this.locs, pick: d.location_pick ?? OTHER, other: d.place_text, disabled: this.busy, error: this.err('place', p), label: rt('fPlace'), rfqPlaceAttr: true,
             onPick: (v) => { this.pickTouched = true; this.d = { ...this.d, location_pick: v, location_nav: false }; },
             onOther: (v) => { this.pickTouched = true; this.set('place_text', v.slice(0, PLACE_MAX * 2)); } })}
