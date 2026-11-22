@@ -457,10 +457,10 @@
   },
   {
    "file": "screens/access-external.ts",
-   "selector": ":host([data-long-lists='scroll']) .tcard.grants > .gl-body",
+   "selector": ".tcard.grants > .gl-body",
    "kind": "long-lists-scroll",
    "screen": "external access (grants)",
-   "reason": "FIXED here: the grants list pages; this is the scroll setting"
+   "reason": "FIXED here: paged on a desktop (data-pages-on clips it); this rule = the long-lists scroll setting and 1024x560-600"
   },
   {
    "file": "screens/area-quick-sheet-css.ts",
@@ -918,10 +918,10 @@
   },
   {
    "file": "screens/security-alarm.ts",
-   "selector": ":host([data-long-lists='scroll']) .areas",
+   "selector": ".areas",
    "kind": "long-lists-scroll",
    "screen": "alarm - sensors",
-   "reason": "FIXED here: the sensors page; this is the scroll setting"
+   "reason": "FIXED here: paged from 1024x560 (data-pages-on clips it); this rule = the long-lists scroll setting and a short desktop window"
   },
   {
    "file": "screens/system-access.ts",

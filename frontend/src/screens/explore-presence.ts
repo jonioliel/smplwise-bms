@@ -123,7 +123,7 @@ export class ExplorePresence extends LitElement {
     input[type='search']:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; }
     ul { list-style: none; margin: 0; padding: 0; overflow: auto; flex: 1; min-block-size: 0; overscroll-behavior: contain; }
     /* SCROLL-AUDIT-2480: the measured pages (desktop, long lists paged) - the list clips and shows the rows that fit */
-    @media (min-width: 1024px) and (min-height: 560px) { :host([data-long-lists='paged']) ul { overflow: hidden; } }
+    :host([data-pages-on]) ul { overflow: hidden; }
     .lhead sw-pager { margin-inline-start: auto; align-self: center; }
     li { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-block-end: 1px solid var(--sw-border); }
     li:last-child { border-block-end: 0; }
@@ -326,6 +326,7 @@ export class ExplorePresence extends LitElement {
     const list = this.shown(d);
     const now = Date.now();
     // the measured pages: a new counter filter, search or set of people starts at page 1 (the poll with the same people keeps the page)
+    this.toggleAttribute('data-pages-on', this.fit.on);
     this.fit.sync(list.length, `${this.kpi}|${this.query}|${list.map((p) => p.user_id).join(',')}`);
     return html`<section class="panel listpanel" data-presence-list>
       <div class="lhead"><h2>${pt('listTitle')}</h2><small data-presence-count>${pt('listCount', { n: list.length })}</small>${this.fit.on && this.fit.pages > 1 ? html`<sw-pager data-presence-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}</div>

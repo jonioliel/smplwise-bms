@@ -94,9 +94,9 @@ export class SecurityAlarm extends LitElement {
   /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
   readonly bubbleSkin = new SkinController(this);
   /** SCROLL-AUDIT-2480 (owner rule: a control screen never scrolls; long lists page): from 1024 px the sensors region takes the room the
-   * page leaves and shows the sensors that fit; the rest are on the next pages (`sw-pager` at the end of the toolbar). The long lists
+   * page leaves and (from 1024x560, `data-pages-on`) shows the sensors that fit; the rest are on the next pages (`sw-pager` at the end of the toolbar). The long lists
    * set to scroll (הגדרות › כללי › עיצוב הממשק): every sensor is drawn and the region scrolls inside itself, as before. */
-  private fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('.areas'), () => true, '(min-width: 1024px)');
+  private fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('.areas'), () => true);
   @property() panelId = '';
   @state() private data: AlarmPanels | null = null;
   @state() private error = '';
@@ -943,15 +943,15 @@ export class SecurityAlarm extends LitElement {
       .areas {
         flex: 1 1 0;
         min-block-size: 0;
-        overflow: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
         /* room for the cards' shadow and focus ring inside the region */
         padding: 2px 4px 6px;
         margin-inline: -4px;
       }
-      /* the long lists set to scroll: every sensor is drawn and the region scrolls inside itself */
-      :host([data-long-lists='scroll']) .areas {
-        overflow-y: auto;
-        overscroll-behavior: contain;
+      /* SCROLL-AUDIT-2480: the measured pages are in force (long lists paged) - the region clips and shows the sensors that fit */
+      :host([data-pages-on]) .areas {
+        overflow: hidden;
       }
     }
     /* the bubble skin: the list and its rows are flat layers, the view switch a pill track */
@@ -1316,6 +1316,7 @@ export class SecurityAlarm extends LitElement {
     };
     const list = this.zoneView === 'list';
     // the measured pages: the sensors in reading order (area by area); a new filter, view, panel or set of sensors starts at page 1
+    this.toggleAttribute('data-pages-on', this.fit.on);
     this.fit.sync(zones.length, `${p.entity_id}|${this.filter}|${this.zoneView}|${zones.map((z) => z.entity_id).join(',')}`);
     let at = 0;
     const paged = [...groups.entries()]

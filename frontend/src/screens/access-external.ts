@@ -95,10 +95,10 @@ type Dialog =
 @customElement('access-external-screen')
 export class AccessExternalScreen extends LitElement {
   readonly bubbleSkin = new SkinController(this);
-  /** SCROLL-AUDIT-2480 (owner rule: a control screen never scrolls; long lists page): where the page fits the window (the desktop rule
-   * below), the grants list shows the rows that fit its card; the rest are on the next pages (`sw-pager` at the end of the filters row).
+  /** SCROLL-AUDIT-2480 (owner rule: a control screen never scrolls; long lists page): on a desktop window (from 1024x560;
+   * the list card is bounded by the desktop rule below from 1024x600), the grants list shows the rows that fit its card; the rest are on the next pages (`sw-pager` at the end of the filters row).
    * The long lists set to scroll (הגדרות › כללי › עיצוב הממשק): every row is drawn and the list scrolls inside its card, as before. */
-  private fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('.gl-body[role="list"]'), () => true, '(min-width: 1024px) and (min-height: 600px)');
+  private fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('.gl-body[role="list"]'), () => true);
   @property({ attribute: false }) route: RouteState | null = null;
   @state() private data: GrantsReply | null = null;
   @state() private error = '';
@@ -296,9 +296,9 @@ export class AccessExternalScreen extends LitElement {
         .main > .kpis { flex: none; }
         .main > .tcard.grants { flex: 1 1 auto; min-block-size: 0; display: flex; flex-direction: column; }
         .tcard.grants > .filters, .tcard.grants > .gl-h, .tcard.grants > .legend { flex: none; }
-        .tcard.grants > .gl-body { flex: 1 1 auto; min-block-size: 0; overflow: hidden; }
-        /* SCROLL-AUDIT-2480: the long lists set to scroll - every row is drawn and the list scrolls inside its card */
-        :host([data-long-lists='scroll']) .tcard.grants > .gl-body { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--sw-border-strong) transparent; }
+        .tcard.grants > .gl-body { flex: 1 1 auto; min-block-size: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--sw-border-strong) transparent; }
+        /* SCROLL-AUDIT-2480: the measured pages are in force (long lists paged) - the list clips and shows the rows that fit */
+        :host([data-pages-on]) .tcard.grants > .gl-body { overflow: hidden; }
         .main > [data-pending-panel] { flex: 0 1 auto; min-block-size: 0; max-block-size: 38%; overflow-y: auto; scrollbar-width: thin; }
         .side { min-block-size: 0; overflow-y: auto; align-content: start; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--sw-border-strong) transparent; }
       }
@@ -1145,6 +1145,7 @@ export class AccessExternalScreen extends LitElement {
     const off = !this.data?.enabled;
     const rows = visible(grants, this.query);
     // the measured pages: a new filter, search, door, source or set of grants starts at page 1 (a state update of the same rows keeps it)
+    this.toggleAttribute('data-pages-on', this.fit.on);
     this.fit.sync(rows.length, `${this.query.filter}|${this.query.q}|${this.query.station}|${this.query.source}|${rows.map((g) => g.id).join(',')}`);
     const stations: DropdownItem[] = [{ id: '', label: xt('allDoors') }, ...stationsOf(grants).map((s) => ({ id: s.id, label: s.name }))];
     const sources: DropdownItem[] = [{ id: '', label: xt('allSources') }, { id: 'ticket', label: xt('srcTicket') }, { id: 'rfq_order', label: xt('srcRfq') }, { id: 'manual', label: xt('srcManual') }];
