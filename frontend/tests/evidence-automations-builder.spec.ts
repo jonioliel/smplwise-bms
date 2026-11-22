@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { ApiError } from '../src/api/client';
 import { resetAutomationsMock, type AutomationsMockStore, type MockUserId } from '../src/api/automations-mock';
 import { AUTOMATION_SETTINGS_DEFAULT, type AutomationDraft, type ItemKind } from '../src/api/automations';
+import { gotoApp } from './helpers/app-ready';
+import { skipDesktopSizeOnPhone } from './helpers/phone-project';
 
 // CR-017 S4: the editors - `<automation-builder>`, `<script-editor>`, `<scene-editor>` - in the static preview with a MOCKED backend (page.route on
 // api/v1, the pattern of evidence-media-screens.spec.ts): every `automations/*` route is answered by the S0 client's own MOCK store (the fixture house,
@@ -27,14 +29,28 @@ interface St {
   statusDelay: number;
   failGet: boolean;
   eventLog: boolean;
+  /** FLAKY-SWEEP-2480: `automations/*` requests being answered right now (see openStyleguideWithEditors) */
+  inflight: number;
 }
 
 const fresh = (user: MockUserId = 'installer', opts: { delegation?: boolean; schedulerPresent?: boolean } = {}): St => ({
-  user, store: resetAutomationsMock({ user, ...opts }), calls: [], statusDelay: 0, failGet: false, eventLog: true,
+  user, store: resetAutomationsMock({ user, ...opts }), calls: [], statusDelay: 0, failGet: false, eventLog: true, inflight: 0,
 });
 
 async function install(page: Page, st: St) {
   await page.route('**/api/v1/**', async (route: Route) => {
+    const auto = /\/api\/v1\/automations(\/|\?|$)/.test(route.request().url());
+    if (auto) st.inflight += 1;
+    try {
+      await answer(route, st);
+    } finally {
+      if (auto) st.inflight -= 1;
+    }
+  });
+}
+
+async function answer(route: Route, st: St) {
+  {
     const req = route.request();
     const url = new URL(req.url());
     const p = url.pathname.replace(/^.*\/api\/v1\//, '');
@@ -77,7 +93,7 @@ async function install(page: Page, st: St) {
       throw e;
     }
     return json({ code: 'not_found', user_message: '׳׳ ׳ ׳׳¦׳', retryable: false, correlation_id: '', details: {} }, 404);
-  });
+  }
 }
 
 type Tag = 'automation-builder' | 'script-editor' | 'scene-editor';
@@ -89,11 +105,16 @@ interface Mount { itemId?: string; mode?: 'edit' | 'create'; scheme?: 'light' | 
  * dropped (GATE2360-A: mounted on the style guide alone, the editors were never defined and all 150 tests timed out). */
 async function openStyleguideWithEditors(page: Page, st: St) {
   await page.goto('about:blank');
-  await page.goto('/?design=a#/devices/automations');
-  await page.waitForFunction(() => ['automation-builder', 'script-editor', 'scene-editor'].every((t) => !!customElements.get(t)), undefined, { timeout: 20_000 });
+  // FLAKY-SWEEP-2480: the shell's first load is over (helpers/app-ready.ts) - the session, the settings and the list's route chunk, which
+  // brings the three editors - instead of a 20 s budget for the whole cold start (2.46.0 gate, mobile: ran out at L93)
+  await gotoApp(page, '/?design=a#/devices/automations');
+  await page.waitForFunction(() => ['automation-builder', 'script-editor', 'scene-editor'].every((t) => !!customElements.get(t)));
   await page.evaluate(() => (location.hash = '#/system/styleguide'));
   await expect(page.locator('sw-app devices-automations')).toHaveCount(0, { timeout: 10_000 });
-  await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => undefined); // the shell polls: a busy machine may never go idle
+  // FLAKY-SWEEP-2480: what the list asked for must be answered before the record is cleared. This waited up to 8 s for "network idle",
+  // which never comes while the shell warms the common screens' chunks after the first load (warmCommonScreens), so every mount paid
+  // the full 8 s on a loaded runner. The condition itself: no `automations/*` request of this test is still being answered.
+  await expect.poll(() => st.inflight).toBe(0);
   st.calls.length = 0;
   await page.evaluate(() => {
     const w = window as unknown as { __ev?: unknown[]; __setItems?: Array<[string, string]> };
@@ -105,6 +126,7 @@ async function openStyleguideWithEditors(page: Page, st: St) {
 
 /** Boots the static app with the mocked backend and mounts an editor the way S3's lists do. */
 async function mount(page: Page, st: St, tag: Tag, o: Mount = {}, size: Size = '1440') {
+  skipDesktopSizeOnPhone(SIZES[size].width); // FLAKY-SWEEP-2480: helpers/phone-project.ts
   await page.setViewportSize(SIZES[size]);
   await install(page, st);
   const errors: string[] = [];
@@ -194,6 +216,7 @@ test.describe('automation builder: the installer', () => {
     test.setTimeout(420_000);
     const st = fresh();
     const entities = ['entry_sunset', 'hall_motion', 'all_left', 'door_open', 'bed_ac_clock', 'salon_buttons', 'light_by_lux', 'vacation_freeze', 'boiler_morning', 'alarm_morning', 'leak_alert'];
+    skipDesktopSizeOnPhone(SIZES['1440'].width); // FLAKY-SWEEP-2480: helpers/phone-project.ts
     await install(page, st);
     await page.setViewportSize(SIZES['1440']);
     await openStyleguideWithEditors(page, st);

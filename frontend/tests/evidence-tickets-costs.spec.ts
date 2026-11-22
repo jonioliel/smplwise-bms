@@ -114,9 +114,11 @@ test.describe('TKUI3 costs tab evidence', () => {
     await shot(page, 'costs-partial');
     await t.locator('[data-pick-approve]').click();
     await t.locator('sw-dialog[data-dialog="quote-partial"] [data-dialog-ok]').click();
-    expect(m.calls.find((c) => /quotes\/q-2\/approve$/.test(c.path))?.body).toMatchObject({ revision: 1, line_indexes: [0, 1] });
     const send = t.locator('sw-dialog[data-dialog="send-vendor"]');
+    // FLAKY-SWEEP-2480: the send dialog opens from the server's answer (costs-tab afterDecision), so the request is recorded once it is
+    // there; read straight after the click, the call list was still empty on a loaded runner (2.46.0 gate, mobile)
     await expect(send).toHaveAttribute('data-send-decision', 'partially_approved');
+    expect(m.calls.find((c) => /quotes\/q-2\/approve$/.test(c.path))?.body).toMatchObject({ revision: 1, line_indexes: [0, 1] });
     await send.locator('[data-send-text]').fill('שלום, אושרו העבודה והמדחס. אפשר מחר מ-08:00.');
     await send.locator('[data-send-notify]').uncheck();
     await send.locator('[data-send-ok]').click();
@@ -146,9 +148,9 @@ test.describe('TKUI3 costs tab evidence', () => {
     const dlg = card.locator('sw-dialog[data-dialog="cost-approve"]');
     await expect(dlg.locator('[data-dialog-ok]')).toHaveText('אישור כולל החריג');
     await dlg.locator('[data-dialog-ok-noexc]').click();
-    expect(m.calls.find((c) => /costs\/clm-1\/approve$/.test(c.path))?.body).toMatchObject({ exceptional: 'exclude', revision_id: 'rev-1' });
     const send = t.locator('sw-dialog[data-dialog="send-vendor"]');
-    await expect(send).toHaveAttribute('data-send-subject', 'claim');
+    await expect(send).toHaveAttribute('data-send-subject', 'claim'); // FLAKY-SWEEP-2480: opened by the answer - the request is in by now
+    expect(m.calls.find((c) => /costs\/clm-1\/approve$/.test(c.path))?.body).toMatchObject({ exceptional: 'exclude', revision_id: 'rev-1' });
     await send.locator('[data-send-cancel]').click();
     expect(vendorPosts(m)).toHaveLength(0);
   });

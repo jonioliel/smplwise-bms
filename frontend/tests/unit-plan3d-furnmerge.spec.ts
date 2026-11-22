@@ -4,12 +4,14 @@ import { buildScene } from '../src/map/scene-builder';
 import { DEFAULT_REAL, INSTANCE_KEEP_TRIS, RealMaterials, applyBackdrop, buildExterior, buildReal, keepInstanced, paintSky, type RealModels } from '../src/map/scene-real';
 import { lightRecipe } from '../src/map/sun';
 import { houseInput } from './lookdev/house';
+import { nodeCanvasDocument } from './helpers/node-canvas-stub';
 
 // PLAN3D-FURNMERGE-2434: the level-3 furniture merge (static object / family parts and kit tiles merged per level and
 // material, picked by triangle range), and the studio backdrop over the realistic level's sky. Node only.
 
 // the contact / disc / band textures paint on a canvas: in Node a canvas without a 2D context (the textures stay blank)
-(globalThis as { document?: unknown }).document ??= { createElement: () => ({ width: 0, height: 0, getContext: () => null }) };
+// FLAKY-SWEEP-2480: only while this file runs, restored after it (helpers/node-canvas-stub.ts: a stub left on the worker broke later specs)
+nodeCanvasDocument();
 
 type Built = ReturnType<typeof buildReal>;
 const tris = (o: Object3D): number => {

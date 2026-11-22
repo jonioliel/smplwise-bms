@@ -10,12 +10,14 @@ import { PLAN_VIEW_CARD_DIALS, PLAN_VIEW_FLAGS, HINT_HE } from '../src/screens/p
 import type { ScenePart } from '../src/map/scene-builder';
 import { SHADOW_PENUMBRA_M, shadowPenumbraTexels } from '../src/map/sun';
 import { houseInput } from './lookdev/house';
+import { nodeCanvasDocument } from './helpers/node-canvas-stub';
 
 // PLAN3D-LEVEL3-2435: the realistic level, round 3 - floor reflections (the alpha code, the reflectivity table, the dial), the
 // generated floor surface (roughness / AO and the joints' normals), the soft contact shadows (shape, kept out of GTAO's pass)
 // and the refined furniture families. Node only.
 
-(globalThis as { document?: unknown }).document ??= { createElement: () => ({ width: 0, height: 0, getContext: () => null }) };
+// FLAKY-SWEEP-2480: only while this file runs, restored after it (helpers/node-canvas-stub.ts: a stub left on the worker broke later specs)
+nodeCanvasDocument();
 
 const noModels = { pending: 0, version: 1, template: () => null } as unknown as RealModels;
 function build(level: string | null) {

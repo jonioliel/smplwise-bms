@@ -1,6 +1,7 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { buildScene, type SceneDescription } from '../src/map/scene-builder';
 import { houseInput } from './lookdev/house';
+import { realisticDescription } from './helpers/plan-3d-wait';
 
 /*
  * Plan Studio 6 look-dev round 3 (docs/design/studio6/ROUND3_CRITIQUE.md): the regressions behind the ten gaps, asserted on
@@ -41,7 +42,7 @@ async function showHouse(el: Locator, rung: 'lite' | 'realistic', level: string 
   const desc = buildScene(houseInput({ level, walk: false, realistic: true }));
   await el.locator(rung === 'lite' ? '[data-quality-3-lite]' : '[data-quality-3]').click();
   await expect(el).toHaveAttribute('data-rung', rung);
-  await expect.poll(() => el.evaluate((n) => !!(n as unknown as Probe).description?.real), { timeout: 30000 }).toBe(true);
+  await realisticDescription(el); // FLAKY-SWEEP-2480: waited for inside the page (helpers/plan-3d-wait.ts), no Node-side poll budget
   await el.evaluate((n, a) => { const e = n as unknown as Probe; e.activeLevel = a.level; e.description = a.desc; e.setTimeHour(13); }, { desc, level });
   await expect(el).toHaveAttribute('data-parts', String(desc.parts.length));
   await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).view.realPending), { timeout: 180_000 }).toBe(0);

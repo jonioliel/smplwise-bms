@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { resetAutomationsMock, type AutomationsMockStore, type MockUserId } from '../src/api/automations-mock';
 import { ApiError } from '../src/api/client';
 import { appReady } from './helpers/app-ready';
+import { skipDesktopSizeOnPhone } from './helpers/phone-project';
 import { settle } from './helpers/settle';
 
 // CR-017 S3: the automations screen ("אוטומציות", the third tab of the home area), its drawer (detail, "למה זה רץ", versions, dry-run, trash), the scenes panel
@@ -38,6 +39,7 @@ interface Control {
 }
 
 async function open(page: Page, hash: string, size: Size = '1440', control: Control = {}) {
+  skipDesktopSizeOnPhone(SIZES[size].width); // FLAKY-SWEEP-2480: a desktop-sized page is not the phone project's (helpers/phone-project.ts)
   await page.setViewportSize(SIZES[size]);
   // demo mode whatever runs on the preview's proxy target: no backend answers this page
   await page.route('**/api/v1/**', (route) => route.abort());
@@ -1001,6 +1003,7 @@ async function install(page: Page, st: ApiState) {
 }
 
 async function openApi(page: Page, hash: string, size: Size = '1440') {
+  skipDesktopSizeOnPhone(SIZES[size].width); // FLAKY-SWEEP-2480: helpers/phone-project.ts
   await page.setViewportSize(SIZES[size]);
   await page.addInitScript(() => {
     try {
