@@ -32,6 +32,8 @@ export class SystemAnnounceTemplates extends LitElement {
     .grid { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 8px 10px; align-items: center; padding-block: 10px 4px; }
     input, textarea, select { box-sizing: border-box; min-block-size: 36px; padding-inline: 10px; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); background: var(--sw-surface); color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); inline-size: 100%; }
     textarea { padding: 8px 10px; resize: vertical; min-block-size: 56px; }
+    /* NATIVE-SELECT-A-2480: the select sits in sw-field; its block padding stays the browser's 0 (the field's 5 px would make it taller) */
+    select { padding-block: 0; }
     .bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding-block-start: 10px; }
     ${errLineStyles}
     @media (pointer: coarse) {

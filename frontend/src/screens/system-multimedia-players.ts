@@ -122,6 +122,10 @@ export class SystemMultimediaPlayers extends LitElement {
       font: inherit;
       font-size: var(--sw-fs-sm);
     }
+    /* NATIVE-SELECT-A-2480: the select sits in sw-field; its block padding stays the browser's 0 (the field's 5 px would make it taller) */
+    select {
+      padding-block: 0;
+    }
     input[type='text'] {
       min-inline-size: 200px;
     }

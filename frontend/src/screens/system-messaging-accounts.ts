@@ -174,6 +174,10 @@ export class SystemMessagingAccounts extends LitElement {
     .in.num {
       inline-size: 96px;
     }
+    /* NATIVE-SELECT-A-2480: the select sits in sw-field; its block padding stays the browser's 0 (the field's 5 px would make it taller) */
+    select.in {
+      padding-block: 0;
+    }
     /* a stacked row: the label is a line, not a 220 px flex basis (which is a HEIGHT in a column) */
     .row.stack .lbl {
       flex: none;

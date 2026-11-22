@@ -85,6 +85,8 @@ export class SwHaUsers extends LitElement {
     .in { box-sizing: border-box; min-block-size: 36px; padding-inline: 10px; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm);
       background: var(--sw-surface-solid); color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); inline-size: 100%; min-inline-size: 0; }
     .in[aria-invalid='true'] { border-color: var(--sw-danger); }
+    /* NATIVE-SELECT-A-2480: the select sits in sw-field; its block padding stays the browser's 0 (the field's 5 px would make it taller) */
+    select.in { padding-block: 0; }
     .in:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: 1px; }
     .ferr { color: var(--sw-danger-text); font-size: var(--sw-fs-xs); }
     .form label.check { flex-direction: row; align-items: center; gap: var(--sw-s-2); }

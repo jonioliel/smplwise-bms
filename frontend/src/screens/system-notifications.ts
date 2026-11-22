@@ -325,6 +325,10 @@ export class SystemNotifications extends LitElement {
         vertical-align: middle;
         block-size: 56px;
       }
+      /* NATIVE-SELECT-A-2480: the select sits in sw-field; its block padding stays the browser's 0 (the field's 5 px would make it taller) */
+      select.inp {
+        padding-block: 0;
+      }
       /* NATIVE-SELECT-A-2480: the recipient select sits in the shared field; the field keeps the select's own width in the cell */
       .mx td > sw-field {
         display: inline-flex;
