@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installMulti } from './multi-nvr-mock';
+import { appReady } from './helpers/app-ready';
 
 // CR-024 (multi-NVR) against a MOCKED backend (tests/multi-nvr-mock.ts): the recorders card in Settings › connections (list, connection,
 // rename, disable, add), the recorder filter and recorder names in the camera settings table, the wall's and the event log's recorder
@@ -22,7 +23,7 @@ async function shot(page: Page, name: string) {
 async function open(page: Page, hash: string) {
   await page.goto('about:blank');
   await page.goto(`/?design=a#${hash}`);
-  await page.waitForSelector('sw-app');
+  await appReady(page); // FLAKY-SWEEP-2480: the shell's first load is over (helpers/app-ready.ts); the screen's own wait keeps its budget
 }
 
 const FORBIDDEN = /Home Assistant|Ingress|Supervisor|add-on|Add-on/;

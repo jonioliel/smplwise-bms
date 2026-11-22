@@ -2,6 +2,7 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { appReady } from './helpers/app-ready';
 
 // UI round 1b (owner 2026-09-30): the size of the navigation (side rail and phone bottom bar) is a setting -
 // הגדרות › כללי › גודל הניווט: an installation default and a personal override (personal wins, "ברירת מחדל של המערכת"
@@ -25,7 +26,7 @@ async function shot(page: Page, name: string) {
 async function open(page: Page, hash: string) {
   await page.goto('about:blank');
   await page.goto(`/?design=a#${hash}`);
-  await page.waitForSelector('sw-app');
+  await appReady(page); // FLAKY-SWEEP-2480: the shell's first load is over (helpers/app-ready.ts); the screen's own wait keeps its budget
   await page.waitForTimeout(500);
 }
 

@@ -2,6 +2,7 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { appReady } from './helpers/app-ready';
 
 // INVREST-POLISH-2331: the investigation leftovers (cases list, one case, exports, the event page) against a faked backend
 // (page.route; no device, no recorder, invented sample data). Asserted (desktop / tablet): the page itself does not scroll - the
@@ -142,6 +143,7 @@ async function open(page: Page, hash: string, ready: string) {
   await installApi(page);
   await page.goto('about:blank');
   await page.goto(`/?design=a#${hash}`);
+  await appReady(page); // FLAKY-SWEEP-2480: the shell's first load is over (helpers/app-ready.ts); the screen's own wait keeps its budget
   await page.waitForSelector(ready, { state: 'visible', timeout: 15_000 });
   await page.evaluate(() => document.fonts.ready);
   await page.mouse.move(2, 300);

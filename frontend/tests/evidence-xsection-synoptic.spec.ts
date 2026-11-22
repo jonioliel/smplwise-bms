@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { appReady } from './helpers/app-ready';
 
 // Release 2.29.0 (owner decisions 2026-10-29): the building cross-section on the floors screen, the synoptic map tab and the (off by default) fire-alarm UI.
 // Static demo build, no backend: `?xsdemo=N` makes N floors, `?xs_<option>=value` overrides an option, `?firemock=alarm` is the labelled demo fire source.
@@ -34,6 +35,7 @@ async function noScroll(page: Page, sel: string) {
 async function open(page: Page, url: string) {
   await page.goto(url);
   await page.reload();
+  await appReady(page); // FLAKY-SWEEP-2480: the shell's first load is over (helpers/app-ready.ts); the screen's own wait keeps its budget
 }
 
 test.describe('cross-section on the floors screen', () => {

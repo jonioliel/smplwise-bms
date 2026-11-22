@@ -123,6 +123,10 @@ test.describe('door technical writes', () => {
     await inDt(page, '[data-wk-dt-send]').click();
     await expect(inDt(page, '[data-wk-dt-result="hold:1"][data-status="acknowledged"]')).toBeVisible();
     expect(dt.posts[1].body).toMatchObject({ revision: 2 });
+    // FLAKY-SWEEP-2480: the result line is drawn from the write's answer, the door's new revision (3) only from the READ that follows it
+    // (wk-door-tech execute -> load); a delete pressed in between went out with revision 2 (2.46.0 gate, desktop). The list shows the
+    // new name once that read is in.
+    await expect(inDt(page, '[data-wk-dt-hold="1"]')).toContainText('שעות לובי חדשות');
     await inDt(page, '[data-wk-dt-hold-delete="1"]').click();
     await expect(inDt(page, '[data-wk-dt-confirm="hold_delete"]')).toBeVisible();
     await inDt(page, '[data-wk-dt-send]').click();

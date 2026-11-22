@@ -2,6 +2,7 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gotoApp } from './helpers/app-ready';
 
 // DATASTORE-295 phase 2: Settings › אבחון › גיבוי ושחזור - the off-box copies card, the encryption key and the restore drill, against a
 // MOCKED wire contract of routers/backup_offbox.py and routers/backup.py (invented targets, no real host or key):
@@ -120,7 +121,7 @@ async function setup(page: Page): Promise<Mock> {
 }
 
 async function open(page: Page) {
-  await page.goto('/?design=a#/system/diagnostics?tab=backup');
+  await gotoApp(page, '/?design=a#/system/diagnostics?tab=backup'); // FLAKY-SWEEP-2480: the shell's first load is over (helpers/app-ready.ts); the screen's own wait keeps its budget
   const card = page.locator('sw-offbox-backup');
   await expect(card.locator('[data-offbox-target="t1"]')).toBeVisible();
   return card;

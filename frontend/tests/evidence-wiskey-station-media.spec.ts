@@ -213,18 +213,24 @@ test.describe('station media: two-way talk (full duplex, WKF01F02-295)', () => {
     await expect(talkLine(page)).toHaveText('זמן הדיבור הסתיים');
   });
 
-  test('busy, a blocked microphone, a refused start', async ({ page }, info) => {
+  // FLAKY-SWEEP-2480: one test per problem (it booted the screen three times in one 60 s budget: 55.8 s and a timeout on the phone in
+  // the 2.46.0 gate); the same checks, the same picture
+  test('busy: the push-to-talk is off and the line says the station talks with another operator', async ({ page }, info) => {
     await boot(page, { mode: 'video_talk', busy: true });
     await openDrawer(page, 'gate');
     await expect(ptt(page)).toBeDisabled();
     await expect(inDrawer(page, 'wk-talk-button [data-wk-talk-line]')).toHaveText('העמדה בדיבור עם מפעיל אחר');
     await shot(page, info, 'talk-busy-light');
-    await page.goto('about:blank');
+  });
+
+  test('a blocked microphone: the push-to-talk is off and the line names the problem', async ({ page }) => {
     await boot(page, { mode: 'video_talk', mic: 'denied' });
     await openDrawer(page, 'gate');
     await expect(ptt(page)).toBeDisabled();
     await expect(talkLine(page)).toHaveAttribute('data-problem', 'denied');
-    await page.goto('about:blank');
+  });
+
+  test('a refused start: the line names it, one start request, never retried', async ({ page }) => {
     const { mm } = await boot(page, { mode: 'video_talk', startFail: { status: 409, code: 'intercom_talk_user_busy' } });
     await openDrawer(page, 'gate');
     await ptt(page).click();
