@@ -43,6 +43,7 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from ..db import get_setting, now_iso
 from .connection_store import SecretError, open_bridge_key, seal_bridge_key
+from ..test_reset import register_reset
 
 KID_RE = re.compile(r"^g[0-9]{1,9}-(legacy|[0-9a-f]{8})$")
 LEGACY_KID = "g0-legacy"
@@ -439,3 +440,12 @@ def iso_at(epoch: float) -> str:
 
 def epoch_of(iso: str | None) -> float | None:
     return _epoch(iso)
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    NONCES.clear()
+    REFUSALS.clear()
+
+
+register_reset(__name__, ("NONCES", "REFUSALS"), _reset_for_tests)  # SINGLETONS-REST-2480 group 5: module-level tables (tests/test_singletons_registered.py)

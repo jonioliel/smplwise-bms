@@ -75,6 +75,7 @@ from typing import Any, Callable
 from . import intercom_adapter as ad
 from . import intercom_client
 from . import wiskey_write_limits as wl
+from ..test_reset import register_reset
 
 CHANNEL = "schedules"  # services/wiskey_channels.py SCHEDULES
 LANE = "schedules"  # intercom_sync: no lane of its own -> a read slot and the read buckets; Limits below add the rest
@@ -667,3 +668,6 @@ def reason(code: str | None) -> str:
 def reset() -> None:
     PREVIEWS.reset()
     LIMITS.reset()
+
+
+register_reset(__name__, ("LIMITS", "PREVIEWS"), reset)  # SINGLETONS-REST-2480 group 4: module-level tables (tests/test_singletons_registered.py)

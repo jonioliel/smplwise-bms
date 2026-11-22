@@ -9,8 +9,6 @@
 
 smplwise.routers.calendar_feeds._FILTER
 smplwise.services.access_grants.WORKER
-smplwise.services.access_service_writer.LAST
-smplwise.services.alarm_codes.LOCKOUT
 smplwise.services.app_session.CACHE
 smplwise.services.app_session._FILTER
 smplwise.services.automation_ext.LISTENERS
@@ -18,12 +16,9 @@ smplwise.services.automation_ext._LISTENER
 smplwise.services.automation_transport._TRANSPORT
 smplwise.services.automations.MIRROR
 smplwise.services.autosync.PERIODIC
-smplwise.services.bridge_keys.NONCES
-smplwise.services.bridge_keys.REFUSALS
 smplwise.services.calendar_sync.credentials.RUNTIME
 smplwise.services.camera_image_health.POLLER
 smplwise.services.camera_sources.POLLER
-smplwise.services.capture_lease.GUARDS
 smplwise.services.capture_lease.REG
 smplwise.services.cast_relay.INDEX
 smplwise.services.cast_relay.SERVER
@@ -32,7 +27,6 @@ smplwise.services.device_bulk.RUNNER
 smplwise.services.door_windows.WORKER
 smplwise.services.elevators_runtime.RUNNER
 smplwise.services.energy_sampler.SAMPLER
-smplwise.services.events_cache.CACHE
 smplwise.services.events_ingest.LISTENER
 smplwise.services.events_ingest.QUEUE
 smplwise.services.events_ingest.STATE
@@ -42,8 +36,6 @@ smplwise.services.ha_camera_streams._TRANSPORT
 smplwise.services.ha_client._BRIDGE_POOL
 smplwise.services.ha_client._REST_POOL
 smplwise.services.ha_sync.SYNC
-smplwise.services.ha_user_auth.LIMITER
-smplwise.services.ha_user_auth.REFUSAL_AUDITS
 smplwise.services.ha_user_auth.STORE
 smplwise.services.intercom_adapter.ADAPTER
 smplwise.services.intercom_calls.BOOK
@@ -56,17 +48,14 @@ smplwise.services.intercom_media._local
 smplwise.services.intercom_messaging_adapter.MESSAGING
 smplwise.services.lease_events.TRANSPORT
 smplwise.services.lease_events.WORKER
-smplwise.services.live_codec.BUDGET
 smplwise.services.local_identity.CACHE
 smplwise.services.local_identity.TIERS
 smplwise.services.local_passwords.ADMISSION
-smplwise.services.media_commands.BUCKETS
 smplwise.services.media_store.INDEX
 smplwise.services.notices.listener.SERVER
 smplwise.services.notices.sources.NEWS
 smplwise.services.notify_policy.BY_KEY
 smplwise.services.notify_sources.MONITOR
-smplwise.services.partner.core.USAGE
 smplwise.services.plan_ifc.STAR
 smplwise.services.playback.REGISTRY
 smplwise.services.push.NOTIFIER
@@ -74,43 +63,28 @@ smplwise.services.recorder_health.POLLER
 smplwise.services.scenarios.RUNNER
 smplwise.services.schedules.MIRROR
 smplwise.services.schedules._TRANSPORT
-smplwise.services.second_factor.FAILURES
 smplwise.services.semantic.EXTERNAL_TEMPLATE
 smplwise.services.semantic.LOCAL
 smplwise.services.source_policy._RESOLVER
-smplwise.services.station_people.CACHE
-smplwise.services.station_people.PIN_BUDGET
 smplwise.services.temperature_runtime.RUNNER
 smplwise.services.temperature_vendor_reports.PROVIDER
 smplwise.services.thumbnails.INDEX
 smplwise.services.thumbnails.WORKER
-smplwise.services.tickets.dashboard.CACHE
 smplwise.services.tickets.external.DISPATCH
 smplwise.services.tickets.keyring.KEYS
 smplwise.services.tickets.messaging.RUNTIME
-smplwise.services.tickets.public_log._LINES
 smplwise.services.tickets.public_runtime.RUNTIME
 smplwise.services.tickets.public_server.SERVER
 smplwise.services.tickets.public_store.NO_GRANT
 smplwise.services.transit.poller.HEALTH
 smplwise.services.transit.poller.POLLER
 smplwise.services.water_sampler.SAMPLER
-smplwise.services.wiskey_access_diag.AUDIT_GATE
 smplwise.services.wiskey_background_feed.FEED
-smplwise.services.wiskey_door_tech.LIMITS
-smplwise.services.wiskey_installer.LIMITS
 smplwise.services.wiskey_installer_lifecycle.FLOWS
 smplwise.services.wiskey_installer_lifecycle._TRANSPORT
 smplwise.services.wiskey_join_live.MANAGER
 smplwise.services.wiskey_peer._SEAL
-smplwise.services.wiskey_profiles.REVIEWS
-smplwise.services.wiskey_schedule_writes.LIMITS
-smplwise.services.wiskey_schedule_writes.PREVIEWS
-smplwise.services.wiskey_station_ops.HEALTH
-smplwise.services.wiskey_station_ops.LIMITS
-smplwise.services.wiskey_station_ops.SEEN
 smplwise.services.wiskey_triage.FEED
-smplwise.services.wiskey_triage.LIMITS
 
 # CR-BE-COMPLEXITY-B-2450 (19.11): the walk now also counts module-level dicts / lists / sets / deques that a function of their
 # module changes at run time. Those whose module already had a reset function now register it (42 modules); constant
@@ -145,11 +119,8 @@ smplwise.services.energy_billing_adapter._SETTINGS
 smplwise.services.events_ingest.EXTRA
 smplwise.services.events_ingest._GAP_FAILED
 smplwise.services.events_ingest._subscribers
-smplwise.services.exports.STATS
 smplwise.services.ha_sync._subscribers
 smplwise.services.intercom_sync._subscribers
-smplwise.services.media_store.ARTWORK
-smplwise.services.media_store.QUEUE_CACHE
 # - start-up wiring (set again by every app start; until then it still points at the previous app's database / settings)
 smplwise.services.announcements._DB
 smplwise.services.announcements._SETTINGS

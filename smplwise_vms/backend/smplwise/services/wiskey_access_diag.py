@@ -41,6 +41,7 @@ from typing import Any
 from . import intercom_adapter as ad
 from . import intercom_client
 from .intercom_client import IntercomError
+from ..test_reset import register_reset
 
 CHANNEL = "diagnostics"  # services/wiskey_channels.py DIAGNOSTICS
 WRITE_CHANNEL = "access_review"  # services/wiskey_channels.py ACCESS_REVIEW
@@ -717,3 +718,6 @@ AUDIT_GATE = AuditGate()
 
 def reset() -> None:
     AUDIT_GATE.reset()
+
+
+register_reset(__name__, ("AUDIT_GATE",), reset)  # SINGLETONS-REST-2480 group 4: module-level tables (tests/test_singletons_registered.py)

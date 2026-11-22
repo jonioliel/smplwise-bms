@@ -879,6 +879,7 @@ def _reset_for_tests() -> None:
     """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
     _KEY_WINDOWS.clear()
     _LIMIT_WINDOWS.clear()
+    BUCKETS.clear()  # SINGLETONS-REST-2480 group 5
 
 
-register_reset(__name__, ("_KEY_WINDOWS", "_LIMIT_WINDOWS"), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)
+register_reset(__name__, ("BUCKETS", "_KEY_WINDOWS", "_LIMIT_WINDOWS"), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

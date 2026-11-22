@@ -1890,6 +1890,8 @@ def _reset_for_tests() -> None:
     _core_base.clear()
     _xff_refused.clear()
     _REVOKED_TABLE["seen"] = False
+    LIMITER.clear()  # group 5: the sign-in hit windows (in memory; a fresh process restores them from its own database)
+    REFUSAL_AUDITS.clear()
 
 
-register_reset(__name__, ("_REVOKED_TABLE", "_core_base", "_rejected", "_xff_refused"), _reset_for_tests)  # SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)
+register_reset(__name__, ("LIMITER", "REFUSAL_AUDITS", "_REVOKED_TABLE", "_core_base", "_rejected", "_xff_refused"), _reset_for_tests)  # SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)
