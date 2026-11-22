@@ -412,7 +412,7 @@ test.describe('settings: the Frigate management card', () => {
     await panel.locator('[data-fe-duration]').fill('900');
     await panel.locator('[data-fe-create]').click();
     await expect(panel.locator('[data-fe-error]')).toHaveText('משך בין 1 ל־600 שניות');
-    await panel.locator('[data-fe-open]').check();
+    await panel.locator('[data-fe-open]').click();
     await panel.locator('[data-fe-sub-label]').fill('טכנאי');
     await noOverflow(page);
     await shot(page, 'settings-events', 'light');

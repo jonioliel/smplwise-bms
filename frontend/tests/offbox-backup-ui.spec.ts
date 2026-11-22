@@ -202,7 +202,7 @@ test('restore from a copy: the scope starts from the setting, the safety passwor
   await card.locator('[data-offbox-target="t1"] [data-offbox-restore-open]').click();
   const dlg = card.locator('[data-offbox-restore-dialog]');
   await dlg.locator('[data-offbox-prepare]').click();
-  await expect(dlg.locator('[data-offbox-restore-access]')).not.toBeChecked();
+  await expect(dlg.locator('[data-offbox-restore-access]')).not.toHaveAttribute('checked');
   const safety = dlg.locator('[data-offbox-restore-safety]');
   await expect(safety).toHaveAttribute('type', 'password');
   await expect(safety).toHaveAttribute('placeholder', /12/);

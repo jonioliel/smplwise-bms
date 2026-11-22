@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from './sw-toggle';
 import './sw-button';
 import './sw-dialog';
 import './sw-field';
@@ -407,7 +408,7 @@ export class NvrConnectionForm extends LitElement {
       </select></sw-field>`;
     }
     if (f.kind === 'bool') {
-      return html`<label class="chk"><input type="checkbox" data-conn-field=${key} .checked=${d.extra[key] === true} @change=${(e: Event) => this.setDraft({ extra: { ...d.extra, [key]: (e.target as HTMLInputElement).checked } })} />${f.label}</label>`;
+      return html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${f.label} data-conn-field=${key} .checked=${d.extra[key] === true} @change=${(e: Event) => this.setDraft({ extra: { ...d.extra, [key]: toggled(e) } })}></sw-toggle>${f.label}</label>`;
     }
     const isPort = f.kind === 'port';
     const value = key === 'host' ? d.host : key === 'http_port' ? d.http_port : key === 'rtsp_port' ? d.rtsp_port : key === 'username' ? d.username : String(d.extra[key] ?? '');
@@ -623,7 +624,7 @@ export class NvrConnectionForm extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     @media (max-width: 767px) {
-      input:not([type='checkbox']),
+      input,
       select {
         min-block-size: 44px;
       }
