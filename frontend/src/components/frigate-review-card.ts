@@ -219,7 +219,7 @@ export class FrigateReviewCard extends LitElement {
       inline-size: 6px;
       block-size: 6px;
       border-radius: 50%;
-      background: #fff;
+      background: var(--sw-on-video);
     }
     .over {
       position: absolute;

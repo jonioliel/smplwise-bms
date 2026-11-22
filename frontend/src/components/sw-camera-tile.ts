@@ -141,6 +141,8 @@ export class SwCameraTile extends LitElement {
       transition: box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
       isolation: isolate;
       outline: none;
+      /* COLOR-LITERAL-A-2480: the stamp / meta ink shadow, written once (the same literal) */
+      --ct-ink-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
     }
     /* R5-LIVE-297 (mobile-native, emil press): the lift follows a hovering pointer only (a tapped tile kept it on a phone), and a
        tile answers the pointer-down at once - it sinks a step, the shadow drops */
@@ -294,7 +296,7 @@ export class SwCameraTile extends LitElement {
       color: var(--sw-on-video);
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-semibold);
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+      text-shadow: 0 1px 2px var(--sw-video-scrim);
       max-inline-size: calc(100% - 20px);
       overflow: hidden;
       text-overflow: ellipsis;
@@ -472,7 +474,7 @@ export class SwCameraTile extends LitElement {
       font-family: var(--sw-font-mono);
       font-size: var(--sw-fs-2xs);
       color: var(--sw-on-video);
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      text-shadow: var(--ct-ink-shadow);
       direction: ltr;
     }
     :host([compact]) .stamp {
@@ -484,7 +486,7 @@ export class SwCameraTile extends LitElement {
       inset-block-end: 8px;
       font-size: var(--sw-fs-xs);
       color: var(--sw-on-video-2);
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      text-shadow: var(--ct-ink-shadow);
     }
   `;
 

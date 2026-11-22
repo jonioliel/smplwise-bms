@@ -28,6 +28,9 @@ export class SwFloorIso extends LitElement {
       display: inline-block;
       inline-size: var(--w, 132px);
       flex-shrink: 0;
+      /* COLOR-LITERAL-A-2480: the drawing's fixed face and edge colours, written once (the same literals) */
+      --fi-face: #ffffff;
+      --fi-edge: #b7c3d4;
     }
     svg {
       display: block;
@@ -43,21 +46,21 @@ export class SwFloorIso extends LitElement {
       fill: #cfd7e3;
     }
     .top {
-      fill: #ffffff;
-      stroke: #b7c3d4;
+      fill: var(--fi-face);
+      stroke: var(--fi-edge);
       stroke-width: 1.2;
       stroke-linejoin: round;
     }
     .room {
       fill: none;
-      stroke: #b7c3d4;
+      stroke: var(--fi-edge);
       stroke-width: 1;
       stroke-linejoin: round;
     }
     /* the true isometric: a token colour per face, sides darkened, the plate as the slab top */
     polygon.plate {
-      fill: #ffffff;
-      stroke: #b7c3d4;
+      fill: var(--fi-face);
+      stroke: var(--fi-edge);
       stroke-width: 1;
       stroke-linejoin: round;
     }
