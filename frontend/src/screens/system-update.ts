@@ -163,10 +163,8 @@ export class SystemUpdate extends LitElement {
       flex-wrap: wrap;
       margin-block-start: 12px;
     }
-    /* CR-CMP2-SEGMENTED-B-2450: the update page's keys keep their 44 px height (sw-segmented) */
-    sw-segmented {
-      --sw-seg-h: 44px;
-    }
+    /* SEG-MODULE-LOOK-2480 (owner Q5 / Q6, 22.11): the update page's keys are sw-segmented in its default, the module look - 28 px on
+       a desktop like every settings page, 44 px under a finger on a phone (the page's own 44 px desktop key went) */
     .note {
       padding: 10px 0;
       border-block-end: 1px solid var(--sw-border);
