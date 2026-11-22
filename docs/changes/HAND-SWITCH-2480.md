@@ -83,6 +83,24 @@ The hooks moved from `<input>` to the `sw-toggle` host, so the specs that drove 
 (`evidence-media-remote`: `sw-toggle:not([data-ed-fold])`; `evidence-schedules-editor`: the helper switch is the non-`sm` one).
 `unit-board-answers-2400` reads the new handler text. New backend test: `test_the_owner_kept_switches_are_not_counted`.
 
-## Tests run
+## Tests run (22.11, all on the workstation; the runner was held by the 2.47.0 release gate)
 
-See the final report of the row (filled in after the runs).
+- `tsc --noEmit`: PASS (after every group and after the train merge). ESLint on every changed source file: PASS.
+- `scripts/design_ratchet.py`: no count above the baseline (hand-switch 173). Backend `test_build_guards_2438.py`: 11 passed.
+- Playwright, desktop project, `--workers=1`, against the branch build:
+  - batch 1 (temperature, notices, notice delete, system update apply, area row, door windows, device types, board answers, wall
+    hide): 140 passed, 1 failed, 8 skipped - the failure (`evidence-wall-hide`, `:checked` on a sw-toggle) fixed in c978b17a4,
+    the spec then 3 / 3 passed.
+  - batch 2 (the other 33 changed spec files): 258 passed, 6 failed, 62 skipped, 31 did not run. Fixed: `evidence-media-screens:663`
+    (two switches in a remote section row; 6e3e46f54, then passed). Not this branch: `evidence-grants3-295:93` x2 (the public
+    ticket page needs the public build; fails the same on the base), `evidence-media-remote` (imports `/src/...`, a dev-server
+    spec - 31 "did not run" behind it), `evidence-frigate-ui:187` and `evidence-k88-plan-advanced:104` (time-outs under load,
+    both passed on a rerun).
+  - the base `092bbc9a1` was run with the same 11 evidence specs for the before / after screenshots: 183 passed, 2 failed (the same
+    two grants3 public-page tests).
+- NOT RUN: the pixel specs and the full lanes on the runner (`~/work/hsw.sh HEAD 092bbc9a1` is ready there: every spec with a
+  linux baseline without `-u`, the changed functional specs, a before / after capture). Pixel baselines: none refreshed yet - the
+  runner pixel check decides which ones move (`evidence-wiskey-installer`, `pixel-plan-wizard-2433` are the likely ones).
+
+Before / after: `private/planning/hand_switch_compare_2026-11-22.html` (152 screens from the workstation evidence specs, cropped to
+the changed area; some differences are live data such as the clock).
