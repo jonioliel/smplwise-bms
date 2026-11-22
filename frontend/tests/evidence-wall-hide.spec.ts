@@ -69,7 +69,7 @@ test.describe('wall arrangement: "מוצגת" per camera', () => {
     await openDialog(page);
     expect(await rowIds(page)).toEqual(['c1', 'c2', 'c3', 'c4', 'c5']);
     await expect(page.locator('live-wall [data-wall-show]')).toHaveCount(5);
-    await expect(page.locator('live-wall [data-wall-show]:checked')).toHaveCount(5);
+    await expect(page.locator('live-wall sw-toggle[data-wall-show][checked]')).toHaveCount(5);
 
     await page.locator('live-wall [data-wall-show="c2"]').click();
     expect(await rowIds(page)).toEqual(['c1', 'c3', 'c4', 'c5', 'c2']); // the hidden camera moves to the end
@@ -77,7 +77,7 @@ test.describe('wall arrangement: "מוצגת" per camera', () => {
     await expect(row).toHaveAttribute('data-wall-row-hidden', '');
     expect(Number(await row.evaluate((el) => getComputedStyle(el).opacity))).toBeLessThan(1); // dimmed
     await expect(page.locator('live-wall [data-wall-show="c2"]')).not.toHaveAttribute('checked');
-    await expect(page.locator('live-wall [data-wall-show]:checked')).toHaveCount(4); // the moved rows keep their own switch
+    await expect(page.locator('live-wall sw-toggle[data-wall-show][checked]')).toHaveCount(4); // the moved rows keep their own switch
     // still reorderable / unhideable: the width select and "show" work, but it cannot move up past a shown camera
     await expect(page.locator('live-wall [data-wall-span="c2"]')).toBeEnabled();
     await expect(page.locator('live-wall [data-wall-move-up="c2"]')).toBeDisabled();
@@ -138,6 +138,6 @@ test.describe('wall arrangement: "מוצגת" per camera', () => {
     await expect(page.locator('live-wall [data-wall-all-hidden]')).toBeVisible();
     await expect(page.locator('live-wall sw-camera-tile[data-cam]')).toHaveCount(0);
     await openDialog(page);
-    await expect(page.locator('live-wall [data-wall-show]:checked')).toHaveCount(0);
+    await expect(page.locator('live-wall sw-toggle[data-wall-show][checked]')).toHaveCount(0);
   });
 });
