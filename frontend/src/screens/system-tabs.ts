@@ -18,6 +18,7 @@ import { tst } from '../i18n/tab-sections';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsStyles } from '../styles/settings';
 import { tr } from '../i18n/msg/system-b';
+import '../components/sw-field';
 
 /** The names of the bar styles (הגדרות › לשוניות › סגנון סרגל). */
 const STYLE_LABEL: Record<TabStyle, string> = { pill: tr('כמוסבה'), underline: tr('פס תחתון'), 'underline-compact': tr('פס תחתון קומפקטי') };
@@ -529,9 +530,9 @@ export class SystemTabsConfig extends LitElement {
       return html`<div class="srow" data-style-level=${lv}>
         <span class="lbl">${title}<span class="muted">${hint}</span></span>
         <span class="ctl">
-          <select data-style-default=${lv} aria-label=${title} ?disabled=${!this.canEdit} @change=${(e: Event) => this.setLevelStyle(lv, (e.target as HTMLSelectElement).value as TabStyle)}>
+          <sw-field><select data-style-default=${lv} aria-label=${title} ?disabled=${!this.canEdit} @change=${(e: Event) => this.setLevelStyle(lv, (e.target as HTMLSelectElement).value as TabStyle)}>
             ${LEVEL_OPTIONS[lv].map((s) => html`<option value=${s} ?selected=${s === current}>${STYLE_LABEL[s]}${s === TAB_STYLE_DEFAULTS[LEVEL_KEY[lv]] ? ` ${tr('(ברירת מחדל)')}` : ''}</option>`)}
-          </select>
+          </select></sw-field>
           <sw-tabs class="preview" .items=${SAMPLE} active="a" .variant=${current} data-style-preview=${lv}></sw-tabs>
         </span>
       </div>`;
@@ -549,10 +550,10 @@ export class SystemTabsConfig extends LitElement {
     return html`<div class="srow" data-tickets-section-row>
       <span class="lbl">${tst('ticketsSingleRowLabel')}<span class="muted">${tst('ticketsSingleRowHint')}</span></span>
       <span class="ctl">
-        <select data-tickets-section-row-select aria-label=${tst('ticketsSingleRowLabel')} ?disabled=${!this.canEdit} @change=${(e: Event) => { this.draftSectionRow = normalizeTicketsSectionRow((e.target as HTMLSelectElement).value); this.message = ''; }}>
+        <sw-field><select data-tickets-section-row-select aria-label=${tst('ticketsSingleRowLabel')} ?disabled=${!this.canEdit} @change=${(e: Event) => { this.draftSectionRow = normalizeTicketsSectionRow((e.target as HTMLSelectElement).value); this.message = ''; }}>
           <option value="hide_single" ?selected=${cur === 'hide_single'}>${tst('ticketsSingleRowHide')}</option>
           <option value="always" ?selected=${cur === 'always'}>${tst('ticketsSingleRowShow')}</option>
-        </select>
+        </select></sw-field>
       </span>
     </div>`;
   }
@@ -570,10 +571,10 @@ export class SystemTabsConfig extends LitElement {
         : html`<div class="srow" data-style-row=${def.id}>
             <span class="lbl">${tr('סגנון סרגל')}<span class="muted">${tr('רמה {n}', { n: def.level })}</span></span>
             <span class="ctl">
-              <select data-style-section=${def.id} aria-label=${`${tr('סגנון סרגל')}: ${def.label}`} ?disabled=${!this.canEdit} @change=${(e: Event) => this.setSectionStyle(def, (e.target as HTMLSelectElement).value as TabStyle | '')}>
+              <sw-field><select data-style-section=${def.id} aria-label=${`${tr('סגנון סרגל')}: ${def.label}`} ?disabled=${!this.canEdit} @change=${(e: Event) => this.setSectionStyle(def, (e.target as HTMLSelectElement).value as TabStyle | '')}>
                 <option value="" ?selected=${own === ''}>${tr('לפי ברירת המחדל של הרמה')}</option>
                 ${(['pill', 'underline', 'underline-compact'] as TabStyle[]).map((s) => html`<option value=${s} ?selected=${own === s}>${STYLE_LABEL[s]}</option>`)}
-              </select>
+              </select></sw-field>
             </span>
           </div>`}
       ${def.id === 'tickets' ? this.renderSectionRowSetting() : nothing}

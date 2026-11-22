@@ -18,6 +18,7 @@ import {
   type DemoDataset, type DemoInfo, type DemoScenario, type KpiKey, type ReadinessCheck, type ReadinessReport, type ReadinessStatus,
 } from '../api/readiness';
 import { SkinController } from '../design/skin';
+import '../components/sw-field';
 
 const STATUS_ICON: Record<ReadinessStatus, string> = { ok: 'check', attention: 'info', blocked: 'warning', pending: 'clock', not_applicable: 'minus' };
 const RING_R = 54;
@@ -281,9 +282,9 @@ export class SystemReadiness extends LitElement {
     const blocked = isApi() && d !== null && !d.can_run;
     return html`<sw-dialog ?open=${this.demoOpen} heading=${tr('מצב הדגמה')} subheading=${tr('התקנה לדוגמה על מסד נתונים נפרד')} ?locked=${this.busy} @close=${() => (this.demoOpen = false)} data-demo-dialog>
       <div class="sform">
-        <label><span>${tr('מערך נתונים')}</span><select class="inp" .value=${this.demoSet.dataset} @change=${(e: Event) => (this.demoSet = { ...this.demoSet, dataset: (e.target as HTMLSelectElement).value as DemoDataset })} data-demo-dataset>${(d?.datasets ?? (['residential', 'office', 'retail'] as DemoDataset[])).map((x) => html`<option value=${x} ?selected=${this.demoSet.dataset === x}>${DATASET_TEXT[x]}</option>`)}</select></label>
-        <label><span>${tr('תרחיש')}</span><select class="inp" .value=${this.demoSet.scenario} @change=${(e: Event) => (this.demoSet = { ...this.demoSet, scenario: (e.target as HTMLSelectElement).value as DemoScenario })} data-demo-scenario>${(d?.scenarios ?? (['normal', 'cameras_offline', 'new_installation'] as DemoScenario[])).map((x) => html`<option value=${x} ?selected=${this.demoSet.scenario === x}>${SCENARIO_TEXT[x]}</option>`)}</select></label>
-        <label><span>${tr('משך')}</span><select class="inp" .value=${String(this.demoSet.hours)} @change=${(e: Event) => (this.demoSet = { ...this.demoSet, hours: Number((e.target as HTMLSelectElement).value) })} data-demo-hours>${DEMO_HOURS.map((h) => html`<option value=${h} ?selected=${this.demoSet.hours === h}>${h === 24 ? tr('עד 24 שעות (מקסימום)') : tr('{n} ש׳', { n: h })}</option>`)}</select></label>
+        <label><span>${tr('מערך נתונים')}</span><sw-field><select class="inp" .value=${this.demoSet.dataset} @change=${(e: Event) => (this.demoSet = { ...this.demoSet, dataset: (e.target as HTMLSelectElement).value as DemoDataset })} data-demo-dataset>${(d?.datasets ?? (['residential', 'office', 'retail'] as DemoDataset[])).map((x) => html`<option value=${x} ?selected=${this.demoSet.dataset === x}>${DATASET_TEXT[x]}</option>`)}</select></sw-field></label>
+        <label><span>${tr('תרחיש')}</span><sw-field><select class="inp" .value=${this.demoSet.scenario} @change=${(e: Event) => (this.demoSet = { ...this.demoSet, scenario: (e.target as HTMLSelectElement).value as DemoScenario })} data-demo-scenario>${(d?.scenarios ?? (['normal', 'cameras_offline', 'new_installation'] as DemoScenario[])).map((x) => html`<option value=${x} ?selected=${this.demoSet.scenario === x}>${SCENARIO_TEXT[x]}</option>`)}</select></sw-field></label>
+        <label><span>${tr('משך')}</span><sw-field><select class="inp" .value=${String(this.demoSet.hours)} @change=${(e: Event) => (this.demoSet = { ...this.demoSet, hours: Number((e.target as HTMLSelectElement).value) })} data-demo-hours>${DEMO_HOURS.map((h) => html`<option value=${h} ?selected=${this.demoSet.hours === h}>${h === 24 ? tr('עד 24 שעות (מקסימום)') : tr('{n} ש׳', { n: h })}</option>`)}</select></sw-field></label>
         <p class="warn"><sw-icon name="warning" size=${14}></sw-icon>${tr('הנתונים מדומים ונפרדים מההתקנה האמיתית. פעולות למצלמות, לדלתות ולמכשירים חסומות. כל המשתמשים רואים שההדגמה פועלת. ההדגמה מסתיימת בעצמה, ואיתחול המערכת מסיים אותה. הפעלה ויציאה נרשמות באודיט.')}</p>
         ${blocked ? html`<p class="err" role="alert" data-demo-denied>${tr('אין לך הרשאה להפעיל הדגמה (נדרשת ההרשאה "הפעלת מצב הדגמה").')}</p>` : nothing}
         ${this.demoError ? html`<p class="err" role="alert" data-demo-error>${this.demoError}</p>` : nothing}
