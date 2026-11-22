@@ -1032,7 +1032,7 @@ export class SecurityAlarm extends LitElement {
       this.data = data;
       if (isApi()) noteAlarmPanels(this.data.panels.length); // the navigation's "is there a panel" answer, refreshed for free
       this.error = '';
-      this.watched = new Set(this.data.panels.flatMap((p) => [p.entity_id, ...p.zones.flatMap((z) => [z.entity_id, ...z.aux, ...(z.bypass ? [z.bypass.entity_id] : [])]), ...p.unpaired_controls.map((c) => c.entity_id)]));
+      this.watched = new Set(this.data.panels.flatMap((p) => [p.entity_id, ...p.zones.flatMap((z) => [z.entity_id, ...(z.aux ?? []), ...(z.bypass ? [z.bypass.entity_id] : [])]), ...p.unpaired_controls.map((c) => c.entity_id)]));
     } catch (err) {
       if (!current()) return;
       if (!quiet || !this.data) this.error = describeError(err);
@@ -1332,7 +1332,7 @@ export class SecurityAlarm extends LitElement {
     const toggle = b
       ? html`<div class="bypass"><sw-toggle .checked=${live(z.bypassed)} label=${tr('עקיפת {name}', { name: z.name })} labelHidden data-bypass=${z.entity_id}
             ?disabled=${!canToggle || this.busy} title=${canToggle ? '' : tr('אין הרשאה או שהמתג אינו זמין')}
-            @change=${switchPress(z.bypassed, () => this.start({ kind: 'bypass', action: z.bypassed ? 'bypass_off' : 'bypass_on', panel: p, zone: z, prompt: p.code.bypass, needsConfirm: true }))}></sw-toggle>${tr('עקיפה')}</div>`
+            @change=${switchPress(!!z.bypassed, () => this.start({ kind: 'bypass', action: z.bypassed ? 'bypass_off' : 'bypass_on', panel: p, zone: z, prompt: p.code.bypass, needsConfirm: true }))}></sw-toggle>${tr('עקיפה')}</div>`
       : html`<span></span>`;
     if (row) {
       return html`<article class="zrow" data-tone=${st.tone} data-zone=${z.entity_id}>

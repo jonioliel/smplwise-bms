@@ -15,6 +15,7 @@ from ...config import Settings
 from ...errors import ApiError
 from .. import nvr
 from .frigate import VENDOR, FrigateAdapter
+from ...test_reset import register_reset
 
 STILL_TTL_S = 2.0
 # 2.27.3: the /data copy of a Frigate camera's picture (routers/cameras.py snapshot route) lives at most this long however high
@@ -194,3 +195,6 @@ def snapshot(settings: Settings, recorder_id: str, source_ref: str) -> bytes:
     ensure_nvr(settings)
     ensure_recorder_enabled(settings)
     return still(FrigateAdapter(recorder_id, settings), source_ref)[0]
+
+
+register_reset(__name__, ("_STILLS", "_INFLIGHT"), clear_stills)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

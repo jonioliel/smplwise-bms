@@ -4,7 +4,7 @@ import type { BillSummary } from '../api/electricity-billing';
 import '../components/sw-table';
 import type { TableColumn } from '../components/sw-table';
 import { billCellChip, billChip } from './elec-ui';
-import { f2, fmtDate, fmtRange } from './elec-format';
+import { f2, fmtDate, fmtRange, ilsOr } from './elec-format';
 import { href, go, route } from './elec-routes';
 import { tr } from '../i18n/msg/electricity';
 
@@ -29,7 +29,7 @@ function columns(compact: boolean): TableColumn<BillSummary>[] {
         ] satisfies TableColumn<BillSummary>[])),
     { key: 'period', label: tr('תקופה'), render: (b) => html`<span class="num">${fmtRange(b.period.from, b.period.to)}</span>` },
     { key: 'kwh', label: tr('קוט״ש'), kind: 'num', render: (b) => f2(b.kwh) },
-    { key: 'total', label: tr('סה״כ לתשלום'), kind: 'num', render: (b) => `${f2(b.total)} ₪` },
+    { key: 'total', label: tr('סה״כ לתשלום'), kind: 'num', render: (b) => ilsOr(b.total) },
     { key: 'state', label: tr('מצב'), kind: 'status', render: (b) => billCellChip(b.state) },
     { key: 'issued', label: tr('הונפק'), hideBelow: 'tablet', render: (b) => html`<span class="num">${b.issue_date ? fmtDate(b.issue_date) : '-'}</span>` },
   ];
@@ -41,7 +41,7 @@ export function billsTable(list: BillSummary[], o: { phone: boolean; compact?: b
       ${list.map(
         (b) => html`<a class="li" href=${href.bill(b.id)} data-bill-row=${b.id} data-bill-state=${b.state}>
           <div class="grow"><div class="t1">${b.number ? html`<span class="num">${b.number}</span>` : tr('טיוטה')} · ${b.account_name}</div><div class="t2">${fmtRange(b.period.from, b.period.to)} · <span class="num">${f2(b.kwh)}</span> ${tr('קוט״ש')}</div></div>
-          <div style="text-align:end"><b class="num">${f2(b.total)} ₪</b><div style="margin-block-start:4px">${billChip(b.state)}</div></div>
+          <div style="text-align:end"><b class="num">${ilsOr(b.total)}</b><div style="margin-block-start:4px">${billChip(b.state)}</div></div>
         </a>`,
       )}
     </div>`;

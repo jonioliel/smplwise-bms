@@ -2,9 +2,15 @@
 import { api, apiUrl, del, get, patch, post, upload } from './client';
 import type { WallPlanSetting } from '../map/wall-plan-mode';
 import { tr } from '../i18n/msg/api-media';
+import type * as Wire from './generated/wire-wall';
+
+/* The wire shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/wall.py), generated into ./generated/wire-wall.ts:
+ * a field the server renames or drops is a compile error here (code review 07:F8 step 2). Kept by hand: WallConfig (the stored wall
+ * configuration document, validated by services/wall.WallConfig on write; the wire passes it through). Narrowed on purpose: `config`,
+ * `last_channel` (the two channels), `desktop` / `has_other_roles` / `foldable_open` / `critical_close_s` optional (an older server). */
 
 type WallLayout = 'auto' | 'tablet-landscape' | 'tablet-portrait' | 'single';
-type WallStatus = 'connected' | 'not_connected' | 'never' | 'disabled';
+type WallStatus = Wire.WallProfile['status'];
 
 export interface WallWindow { days: number[]; from: string; to: string }
 export interface WallConfig {
@@ -29,46 +35,21 @@ export interface WallConfig {
   offline: { show_last_frame_s: number; then: 'clock' };
 }
 
-export interface WallDisplayConfig {
-  title: string;
-  area_id: string | null;
-  floor_id: string | null;
-  version: number;
-  config: WallConfig;
-  cameras: { id: string; name: string }[];
-  server_time: string;
-  zone: string;
-  alerts: WallAlert[];
-}
+export type WallDisplayConfig = Omit<Wire.WallConfig, 'config'> & { config: WallConfig };
 
-export interface WallState { id: string; state: string | null; unit: string | null; name: string }
+export type WallState = Wire.WallState;
 
-export interface WallProfile {
-  user_id: string;
-  username: string;
-  display_name: string;
-  title: string;
-  area_id: string | null;
-  floor_id: string | null;
-  enabled: boolean;
-  remote_allowed: boolean;
+export interface WallProfile extends Omit<Wire.WallProfile, 'config' | 'last_channel' | 'desktop' | 'has_other_roles'> {
   /** "מסך קיר גם במחשב" (WALL-FOLLOWUPS-2390): the wall display also takes over a desktop-class browser (no touch: a mini-PC behind a
    * wall monitor). A field of the profile, not of `config`, since WALL-ANSWERS-2400 (a rollback cannot reset the configuration). Absent = false. */
   desktop?: boolean;
-  version: number;
   config: WallConfig;
-  status: WallStatus;
-  connections: number;
-  last_seen_at: string | null;
   last_channel: 'local' | 'remote' | null;
-  created_at: string;
-  updated_at: string;
-  camera_names: string[];
   has_other_roles?: boolean;
 }
 
 export const getWallConfig = () => get<WallDisplayConfig>('wall/config');
-export const getWallStates = (ids: string[]) => get<{ states: WallState[] }>(`wall/states?ids=${encodeURIComponent(ids.join(','))}`);
+export const getWallStates = (ids: string[]) => get<Wire.WallStates>(`wall/states?ids=${encodeURIComponent(ids.join(','))}`);
 export const wallSocketUrl = (): string => {
   const u = new URL(apiUrl('wall/ws'));
   u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -76,10 +57,10 @@ export const wallSocketUrl = (): string => {
 };
 
 /** WALL-ANSWERS-2400: how an unfolded foldable is classified, installation-wide (device-class.ts `FoldableOpen`). */
-export type WallFoldableOpen = 'tablet' | 'phone';
-export const listWallProfiles = () => get<{ profiles: WallProfile[]; max_profiles: number; foldable_open?: WallFoldableOpen }>('wall/profiles');
-export const patchWallSettings = (body: { foldable_open: WallFoldableOpen }) => patch<{ foldable_open: WallFoldableOpen }>('wall/settings', body);
-export const wallCandidates = () => get<{ users: { id: string; username: string; display_name: string }[] }>('wall/candidates');
+export type WallFoldableOpen = Wire.WallSettings['foldable_open'];
+export const listWallProfiles = () => get<Omit<Wire.WallProfiles, 'profiles' | 'foldable_open'> & { profiles: WallProfile[]; foldable_open?: WallFoldableOpen }>('wall/profiles');
+export const patchWallSettings = (body: { foldable_open: WallFoldableOpen }) => patch<Wire.WallSettings>('wall/settings', body);
+export const wallCandidates = () => get<Wire.WallCandidates>('wall/candidates');
 export const createWallProfile = (body: { user_id: string; title: string; floor_id?: string | null; area_id?: string | null; cameras?: string[] }) => post<WallProfile>('wall/profiles', body);
 export const patchWallProfile = (userId: string, body: { title?: string; area_id?: string | null; enabled?: boolean; remote_allowed?: boolean; desktop?: boolean; config?: Partial<Record<keyof WallConfig, unknown>> }) =>
   patch<WallProfile>(`wall/profiles/${encodeURIComponent(userId)}`, body);
@@ -89,39 +70,27 @@ export const removeWallProfile = (userId: string) => del(`wall/profiles/${encode
 export const WALL_STATUS_LABEL: Record<WallStatus, string> = { connected: tr('מחובר'), not_connected: tr('לא מחובר'), never: tr('טרם התחבר'), disabled: tr('מושבת') };
 
 // ---- WDX: alert tiles and the picture frame
-type WallAlertSeverity = 'info' | 'alert' | 'critical';
-export interface WallAlert {
-  id: string;
-  source: string;
-  category: string;
-  severity: WallAlertSeverity;
-  title: string;
-  place: string | null;
-  body: string;
-  count: number;
-  first_at: string;
-  last_at: string;
-  camera_id: string | null;
-}
+export type WallAlert = Wire.WallAlert;
 // CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by CR-030 (wall alert tiles).
-export const getWallAlerts = () => get<{ alerts: WallAlert[] }>('wall/alerts');
+export const getWallAlerts = () => get<Wire.WallAlerts>('wall/alerts');
 /** ANNOUNCEB-295: the voice announcement this wall display shows right now (text only), and how often to ask (0 = this display is not an announcement screen). */
-export const getWallAnnouncement = () => get<{ poll_s: number; announcement: import('../announce/screen-overlay').ScreenAnnouncement | null;
+export const getWallAnnouncement = () => get<Omit<Wire.WallAnnouncement, 'announcement' | 'critical_close_s'> & { announcement: import('../announce/screen-overlay').ScreenAnnouncement | null;
   /** ANNOUNCE-297: an emergency one cannot be closed on the display for this many seconds (absent on an older server) */ critical_close_s?: number }>('wall/announcement');
-export const ackWallAlert = (id: string) => post<{ acknowledged: boolean }>(`wall/alerts/${encodeURIComponent(id)}/ack`);
-export const getFrameList = () => get<{ photos: { id: string; w: number; h: number }[] }>('wall/frame/list');
+export const ackWallAlert = (id: string) => post<Wire.WallAcknowledged>(`wall/alerts/${encodeURIComponent(id)}/ack`);
+export const getFrameList = () => get<Wire.WallPhotos>('wall/frame/list');
 export const frameUrl = (id: string) => apiUrl(`wall/frame/${encodeURIComponent(id)}`);
 
-export interface PhotoSet { id: string; name: string; count: number; bytes: number; used_by: string[] }
-interface PhotoSetsResponse { sets: PhotoSet[]; limits: { max_files: number; max_bytes: number; formats: string[] } }
+/** A photo set in the listing (`used_by` is listing-only on the wire; the screens read it from the listing). */
+export type PhotoSet = Required<Wire.WallPhotoSet>;
+type PhotoSetsResponse = Omit<Wire.WallPhotoSets, 'sets'> & { sets: PhotoSet[] };
 export const listPhotoSets = () => get<PhotoSetsResponse>('wall/photo-sets');
-export const createPhotoSet = (name: string) => post<PhotoSet>('wall/photo-sets', { name });
-export const deletePhotoSet = (id: string) => api<{ deleted: boolean; profiles_turned_off: number }>(`wall/photo-sets/${encodeURIComponent(id)}`, { method: 'DELETE' });
-export const listSetPhotos = (id: string) => get<{ photos: { id: string; w: number; h: number }[] }>(`wall/photo-sets/${encodeURIComponent(id)}/photos`);
+export const createPhotoSet = (name: string) => post<Wire.WallPhotoSet>('wall/photo-sets', { name });
+export const deletePhotoSet = (id: string) => api<Wire.WallPhotoSetDeleted>(`wall/photo-sets/${encodeURIComponent(id)}`, { method: 'DELETE' });
+export const listSetPhotos = (id: string) => get<Wire.WallPhotos>(`wall/photo-sets/${encodeURIComponent(id)}/photos`);
 export const photoPreviewUrl = (set: string, photo: string) => apiUrl(`wall/photo-sets/${encodeURIComponent(set)}/photos/${encodeURIComponent(photo)}`);
 export const deleteSetPhoto = (set: string, photo: string) => del(`wall/photo-sets/${encodeURIComponent(set)}/photos/${encodeURIComponent(photo)}`);
 export const uploadSetPhoto = (set: string, file: File) => {
   const form = new FormData();
   form.append('file', file, file.name);
-  return upload<{ id: string; w: number; h: number; bytes: number }>(`wall/photo-sets/${encodeURIComponent(set)}/upload`, form);
+  return upload<Wire.WallPhotoUploaded>(`wall/photo-sets/${encodeURIComponent(set)}/upload`, form);
 };

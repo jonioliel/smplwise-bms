@@ -56,6 +56,7 @@ from ..config import Settings
 from ..db import get_setting, set_setting
 from ..relay_url import check_relay_url
 from .timeutil import iso_utc
+from ..test_reset import register_reset
 
 DEFAULT_BASE = "http://supervisor"
 BASE_URL: str | None = None      # tests / a developer: a local fake Supervisor (then no `in_addon` is needed)
@@ -455,3 +456,12 @@ def take_check() -> tuple[bool, int]:
 def reset_limits() -> None:
     with _LOCK:
         _CHECKS.clear()
+
+
+def _reset_all_for_tests() -> None:
+    """Test seam: the module's existing reset, then the remaining module-level tables back to a fresh process (smplwise.test_reset; product code never calls it)."""
+    reset_limits()
+    _LISTED_VIDEO.clear()
+
+
+register_reset(__name__, ("_CHECKS", "_LISTED_VIDEO"), _reset_all_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

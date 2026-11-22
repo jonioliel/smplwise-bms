@@ -29,6 +29,7 @@ from ...errors import ApiError
 from .base import (ChannelInfo, ChannelReading, DiskReading, HealthReading, RecorderCapabilities, RecorderHealth, StreamEncoding, StreamOptions,
                    StreamSnapshot, WriteOutcome)
 from .frigate_http import (IMAGE_MAX_BYTES, OPENAPI_MAX_BYTES, PLAYLIST_MAX_BYTES, SEGMENT_MAX_BYTES, FrigateHttp, q)
+from ...test_reset import register_reset
 
 VENDOR = "frigate"
 MIN_VERSION = (0, 18)              # owner decision 2026-10-05: minimum Frigate 0.18
@@ -589,3 +590,6 @@ def register(*, selectable: bool = False) -> Callable[[], None] | None:
     # (it is go2rtc's), so the form default is 554
     spec = registry.VendorSpec(VENDOR, "Frigate", "available" if selectable else "planned", {"http_port": DEFAULT_PORT, "rtsp_port": 554}, fields)
     return registry.register_vendor(spec, FrigateAdapter)
+
+
+register_reset(__name__, ("_CONFIG", "_CERTS"), clear_cache)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

@@ -42,6 +42,7 @@ from . import autosync, bridge_install, bridge_keys as bk, events_ingest, ha_cli
 from . import go2rtc as g2
 from .timeutil import site_zone_name, zone
 from ..mode import installation_mode, is_ha_only
+from ..test_reset import register_reset
 
 STEPS = ("install", "nvr", "ha", "go2rtc", "floor", "camera")
 TITLES = {
@@ -1011,3 +1012,6 @@ def run_check(settings: Settings, step_id: str, inputs: dict[str, Any]) -> dict[
         result = _timed_out(step_id)
     _remember(step_id, result)
     return result
+
+
+register_reset(__name__, ("_live", "_inflight", "_last_check", "_go2rtc_ok"), reset)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

@@ -246,6 +246,11 @@ const ADOPTED = [
   // tiles) is sw-chip-choice multi since CR-CMP2-TABS-2460
   // CR-CMP2-TABS-2460: the tickets overview's department choice (a radio group in a box that scrolls sideways)
   'screens/tickets-overview.ts',
+  // CR-HOME-V3-SEGMENTS-2470: the home v3 operator screen (sw-home's seg() serves its screens and the v3 modules, home-p3's seg() phase 3)
+  // and the home widgets' edit-bar size choice. The home .hsw and the row switches are not segmented controls and stay (owner N12).
+  'home/sw-home.ts',
+  'home/home-p3.ts',
+  'screens/home-widgets.ts',
 ];
 
 test('adoption: the adopted screens draw every segmented control with sw-segmented', () => {

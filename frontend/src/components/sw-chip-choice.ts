@@ -4,7 +4,7 @@ import { chipOn, segmentedFocusStep } from './segmented-logic';
 import { chipSelected, chipSelectedCheck, chipSelectedHover } from '../styles/chip-selected';
 
 /** One chip of a chip choice. */
-export interface ChipChoiceOption<V extends string = string> {
+interface ChipChoiceOption<V extends string = string> {
   value: V;
   label: string;
   disabled?: boolean;

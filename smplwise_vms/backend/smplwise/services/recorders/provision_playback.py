@@ -55,6 +55,7 @@ from ..timeutil import iso_utc
 from . import provision_isr as pisr
 from . import provision_isr_xml as px
 from . import provision_time as pt
+from ...test_reset import register_reset
 
 PLAYBACK_COMMANDS = frozenset({"GetRecordType", "SearchRecordDate", "SearchByTime", "GetSnapshotByTime", "GetDateAndTime"})
 
@@ -690,3 +691,12 @@ def export_url(settings: Settings, stored: str) -> str:
     if not settings.nvr_host or not settings.nvr_user or not settings.nvr_password:
         raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו.")
     return f"rtsp://{quote(settings.nvr_user, safe='')}:{quote(settings.nvr_password, safe='')}@{settings.nvr_host}:{settings.nvr_rtsp_port}{path}"
+
+
+def _reset_all_for_tests() -> None:
+    """Test seam: the module's existing reset, then the remaining module-level tables back to a fresh process (smplwise.test_reset; product code never calls it)."""
+    clear_caches()
+    _SEARCH_LOCKS.clear()
+
+
+register_reset(__name__, ("_ZONES", "_TYPES", "_SEARCH_LOCKS"), _reset_all_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

@@ -129,6 +129,8 @@ export const en = {
   'טיוטה אוטומטית': 'Automatic draft',
   'לא ניתן לטעון את ההיסטוריה': 'The history could not be loaded',
   'אין עדיין נתוני עבר לחשבון': 'No past data for the account yet',
+  'אין עדיין תקופה פעילה': 'No active period yet',
+  'אין עדיין תקופה הבאה': 'No next period yet',
   'אין נתונים': 'No data',
   'חלקי': 'Partial',
   'צריכה לפי תקופה': 'Usage by period',

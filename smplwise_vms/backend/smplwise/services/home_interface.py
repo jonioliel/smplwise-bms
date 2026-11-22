@@ -29,6 +29,7 @@ from typing import Any
 from ..db import get_setting, now_iso, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, is_system_admin
+from ..test_reset import register_reset
 
 INTERFACES = ("home", "full")
 # the home interface's categories an administrator can hide (the mockup's admin page; "scenes" and "security" added: the alarm panel
@@ -715,3 +716,6 @@ def reset_state_for_tests() -> None:
     with _LOCK:
         _GATE_AUDITED.clear()
         _KIOSK_FAILS.clear()
+
+
+register_reset(__name__, ("_GATE_AUDITED", "_KIOSK_FAILS"), reset_state_for_tests)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

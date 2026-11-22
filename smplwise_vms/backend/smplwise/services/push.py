@@ -58,6 +58,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from ..db import Database, new_id, now_iso
 from ..rbac import Principal
 from .delayed_worker import heap_wait, wait_idle
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.push")
 
@@ -830,3 +831,15 @@ def wake_all() -> None:
 
 
 NOTIFIER = PushNotifier()
+
+
+def _reset_all_for_tests() -> None:
+    """Test seam: the module's existing reset, then the remaining module-level tables back to a fresh process (smplwise.test_reset; product code never calls it)."""
+    reset_limits()
+    STATS.clear()
+    STATS.update({"queued": 0, "sent": 0, "retried": 0, "gone": 0, "failed": 0, "refused": 0, "retry_skipped": 0, "rate_limited": 0,
+                         "dropped_queue": 0, "dropped_shutdown": 0, "last_error": None, "last_sent_at": None})
+    _KEYS.clear()
+
+
+register_reset(__name__, ("_BUCKETS", "STATS", "_KEYS"), _reset_all_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

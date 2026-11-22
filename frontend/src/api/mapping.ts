@@ -7,42 +7,28 @@ import { isApi } from './session';
 import { productSettings } from './prefs';
 import { emptyState, MAPPING_SETTINGS_DEFAULT, settingsOf, stateOf, type CurrentLinks, type HaLabel, type MapItem, type MappingSettings, type MappingState, type OurFloor, type Plan } from './mapping-engine';
 import { tr } from '../i18n/msg/api-home';
+import type * as Wire from './generated/wire-home-mapping';
 
-export interface MappingVersion {
-  number: number;
+/* The wire shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/home_mapping.py, generated into
+ * ./generated/wire-home-mapping.ts): a field the server renames or drops is a compile error here (code review 07:F8 step 2). Narrowed:
+ * a version's `kind` (the apply kinds + restore), the stored assistant state (`unknown`, read through mapping-engine.stateOf), the seen
+ * item keys; optional for the demo store and older servers: the reach fields and the label registry. */
+export interface MappingVersion extends Omit<Wire.HomeMappingVersion, 'kind'> {
   kind: 'apply' | 'confirm' | 'auto' | 'restore';
-  restored_from: number | null;
-  created_at: string;
-  by: string;
-  summary: Record<string, unknown>;
-  note: string;
-  current: boolean;
 }
-
-interface MappingBuilding {
-  id: string;
-  name: string;
-  is_shared: boolean;
-  floors: { id: string; name: string; level: number }[];
-}
-
-export interface MappingRead {
-  site: { id: string; name: string };
+type MappingBuilding = Wire.HomeMappingBuilding;
+export interface MappingRead extends Pick<Wire.HomeMappingRead, 'site' | 'revision' | 'multi_building' | 'can_toggle'>, Partial<Pick<Wire.HomeMappingRead, 'can_set_reach'>> {
   state: unknown;
-  revision: number;
   settings: MappingSettings;
-  multi_building: boolean;
-  can_toggle: boolean;
-  /** Round 14 (owner 02.11): "הרשאת בניין לפי" - what a building-scoped role binding reaches while the multi-building switch is on. */
+  /** Round 14 (owner 02.11): "הרשאת בניין לפי" - what a building-scoped role binding reaches while the multi-building switch is on;
+   * only an administrator of roles (`can_set_reach`: rbac.roles.manage across the installation) changes it. */
   building_reach?: BuildingReach;
-  /** Only an administrator of roles (rbac.roles.manage across the installation) changes it. */
-  can_set_reach?: boolean;
   versions: MappingVersion[];
   seen: string[] | null;
   items: {
-    floors: { id: string; name: string; level: number | null }[];
+    floors: Wire.HomeMappingPlatformFloor[];
     /** `labels`: the area's label NAMES (HA-LABELS-SYNC-2351, synced read-only from the home system). */
-    areas: { id: string; name: string; floor_id: string | null; labels?: string[] }[];
+    areas: (Omit<Wire.HomeMappingPlatformArea, 'labels'> & Partial<Pick<Wire.HomeMappingPlatformArea, 'labels'>>)[];
     /** HA-LABELS-SYNC-2351: the home system's label registry (absent on a server before 2.35.1). */
     labels?: HaLabel[];
     /** When the label registry was last listed; null = never (an old core, or not synced yet). */
@@ -51,7 +37,6 @@ export interface MappingRead {
   buildings: MappingBuilding[];
   links: Required<CurrentLinks>;
 }
-
 /** What the screens work with: the raw answer plus the engine's shapes. */
 export interface MappingData extends MappingRead {
   parsed: MappingState;
@@ -145,14 +130,14 @@ export async function loadMapping(siteId: string): Promise<MappingData> {
   return toData(await get<MappingRead>(`sites/${encodeURIComponent(siteId)}/mapping`));
 }
 
-export async function saveState(siteId: string, state: MappingState, revision: number): Promise<{ revision: number }> {
+export async function saveState(siteId: string, state: MappingState, revision: number): Promise<Wire.HomeMappingRevision> {
   if (!isApi()) {
     const s = await demoStore();
     s.read.state = clone(state);
     s.read.revision += 1;
     return { revision: s.read.revision };
   }
-  return put<{ revision: number }>(`sites/${encodeURIComponent(siteId)}/mapping/state`, { state, revision });
+  return put<Wire.HomeMappingRevision>(`sites/${encodeURIComponent(siteId)}/mapping/state`, { state, revision });
 }
 
 export async function saveSettings(siteId: string, change: Partial<MappingSettings>): Promise<{ settings: MappingSettings }> {
@@ -161,52 +146,48 @@ export async function saveSettings(siteId: string, change: Partial<MappingSettin
     s.read.settings = { ...s.read.settings, ...change };
     return { settings: s.read.settings };
   }
-  return put<{ settings: MappingSettings }>(`sites/${encodeURIComponent(siteId)}/mapping/settings`, change);
+  return put<Wire.HomeMappingSettingsAnswer>(`sites/${encodeURIComponent(siteId)}/mapping/settings`, change); // the generated settings type must stay assignable to the engine's MappingSettings
 }
 
 /** Round 14 (owner 02.11): map placement only, or map placement + the home's area mapping (the default). */
-export type BuildingReach = 'map_and_mapping' | 'map';
+export type BuildingReach = Wire.HomeMappingReach['mode'];
 export const BUILDING_REACH_CHOICES: readonly BuildingReach[] = ['map_and_mapping', 'map'];
 export const BUILDING_REACH_TEXT: Record<BuildingReach, string> = { map_and_mapping: tr('מפה + מיפוי אזורים'), map: tr('מיקום במפה') };
 
-export async function setBuildingReach(mode: BuildingReach): Promise<{ mode: BuildingReach }> {
+export async function setBuildingReach(mode: BuildingReach): Promise<Wire.HomeMappingReach> {
   if (!isApi()) {
     (await demoStore()).read.building_reach = mode;
     return { mode };
   }
-  return put<{ mode: BuildingReach }>('home/building-reach', { mode });
+  return put<Wire.HomeMappingReach>('home/building-reach', { mode });
 }
 
-export async function setMultiBuilding(enabled: boolean): Promise<{ enabled: boolean }> {
+export async function setMultiBuilding(enabled: boolean): Promise<Wire.HomeMappingMulti> {
   if (!isApi()) {
     (await demoStore()).read.multi_building = enabled;
     window.dispatchEvent(new CustomEvent('sw-multi-building', { detail: { enabled } }));
     return { enabled };
   }
-  const r = await put<{ enabled: boolean }>('home/multi-building', { enabled });
+  const r = await put<Wire.HomeMappingMulti>('home/multi-building', { enabled });
   window.dispatchEvent(new CustomEvent('sw-multi-building', { detail: r }));
   return r;
 }
 
-export interface ApplyResult {
-  version: number;
-  revision: number;
-  created: { buildings: { id: string; name: string }[]; floors: { id: string; name: string; building_id: string }[] };
-}
-
+/** The demo answers the version and what was created; the server also sends the counts and the rows now (`counts`, `links`). */
+export type ApplyResult = Pick<Wire.HomeMappingApply, 'version' | 'revision' | 'created'>;
 export async function applyMapping(siteId: string, body: { state: MappingState; revision?: number; plan: Plan; kind?: 'apply' | 'confirm' | 'auto'; note?: string; summary?: Record<string, unknown> }): Promise<ApplyResult> {
   if (!isApi()) return demoApply(await demoStore(), body);
   return post<ApplyResult>(`sites/${encodeURIComponent(siteId)}/mapping/apply`, body);
 }
 
-export async function restoreVersion(siteId: string, n: number): Promise<{ version: number }> {
+export async function restoreVersion(siteId: string, n: number): Promise<Pick<Wire.HomeMappingRestore, 'version'>> {
   if (!isApi()) {
     const s = await demoStore();
     const v = s.versions.find((x) => x.v.number === n);
     if (!v) throw new Error('not found');
     return demoRecord(s, 'restore', v.state, v.links, v.items, { restored_from: n }, n);
   }
-  return post<{ version: number }>(`sites/${encodeURIComponent(siteId)}/mapping/versions/${n}/restore`);
+  return post<Wire.HomeMappingRestore>(`sites/${encodeURIComponent(siteId)}/mapping/versions/${n}/restore`);
 }
 
 function demoRecord(s: DemoStore, kind: MappingVersion['kind'], state: unknown, links: Required<CurrentLinks>, items: string[], summary: Record<string, unknown>, from: number | null = null) {

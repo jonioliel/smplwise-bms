@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
+import { settle } from './helpers/settle';
 
 // CR-CMP2-TABS-2460: the tab strip `sw-tabs` with what the strips that moved to it needed - a count pill per item, the screen's icon,
 // the full-width row (`fill`) and the controlled mode - plus sw-chip-choice's icon / count / multi rows. A specimen sheet drawn with the
@@ -160,6 +161,7 @@ test.describe('pixel: sw-tabs', () => {
     await expect(zones.locator('[role="tab"]', { hasText: 'אזור 2' }).locator('small')).toHaveText('כבוי');
     // fill: the bar spans its box and the tabs share it equally; the icon is decorative
     const fill = sheet.locator('sw-tabs[data-spec-strip="fill"]');
+    await settle(page); // the zones click above moves a thumb (motion): measure the strips at rest
     const boxW = await fill.evaluate((el) => el.parentElement!.getBoundingClientRect().width);
     const hostW = await fill.evaluate((el) => el.getBoundingClientRect().width);
     expect(Math.abs(hostW - boxW)).toBeLessThanOrEqual(1);

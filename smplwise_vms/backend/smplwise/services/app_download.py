@@ -25,6 +25,7 @@ from urllib.parse import urlsplit
 
 from ..db import get_setting
 from ..errors import ApiError
+from ..test_reset import register_reset
 
 KEY_URL = "app.android_url"
 KEY_VERSION = "app.android_version"
@@ -195,3 +196,6 @@ def public_offer(conn: sqlite3.Connection, downloads_dir: Path | None = None) ->
         "version": version if _VERSION_RE.fullmatch(version) else "",
         "sha256": sha if _SHA_RE.fullmatch(sha) else "",
     }}
+
+
+register_reset(__name__, ("_cache",), reset_cache_for_tests)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

@@ -34,6 +34,7 @@ from . import intercom_writes as iw
 from . import redact
 from .access_grant_engine import EngineError, plan_overrides
 from .bulk_people_engine import BulkEngine, BulkPerson, WiskeyBulkEngine
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.bulk_people")
 
@@ -958,3 +959,6 @@ def settings_view(conn: sqlite3.Connection) -> dict[str, Any]:
 
 def set_enabled(conn: sqlite3.Connection, value: str) -> None:
     set_setting(conn, FLAG_KEY, value)
+
+
+register_reset(__name__, ("_export_last",), reset_for_tests)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

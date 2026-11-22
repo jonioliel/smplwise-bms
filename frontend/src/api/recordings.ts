@@ -1,47 +1,23 @@
 /** Recording search and playback sessions against the add-on backend (chapters 23/24). */
 import { apiUrl, del, get, path, post, query } from './client';
+import type * as GroupWire from './generated/wire-playback-groups';
+import type * as PbWire from './generated/wire-playback';
+import type * as RecWire from './generated/wire-recordings';
 
-interface RecordingSegment {
-  start_at: string; // UTC ISO
-  end_at: string;
-  kind: 'continuous' | 'motion' | 'alarm' | 'event' | 'manual' | 'unknown';
-  track_id: number;
-  start_raw: string;
-  end_raw: string;
-}
+/* The recording search, playback sessions and groups are the backend's response models (smplwise_vms/backend/smplwise/wire/recordings.py,
+ * playback.py, playback_groups.py, generated into ./generated/; code review 07:F8 step 2). Narrowed on purpose: a segment's `kind` and a
+ * session's `state` (the documented sets; the server types them as strings), the media anchor (a document chapter 24 fills, null until
+ * then) and the group's sync report members (the browser's own measurement, stored as sent). */
+type RecordingSegment = Omit<RecWire.RecordingSegment, 'kind'> & { kind: 'continuous' | 'motion' | 'alarm' | 'event' | 'manual' | 'unknown' };
 
-export interface RecordingsResponse {
-  camera_id: string;
-  from: string;
-  to: string;
-  track_id: number | null;
-  segments: RecordingSegment[];
-  coverage: 'complete' | 'partial' | 'unknown';
-  matches: number;
-  pages: number;
-  searched_at: string;
-  timezone: string;
-  note: string;
-}
+export type RecordingsResponse = Omit<RecWire.RecordingSearch, 'segments'> & { segments: RecordingSegment[] };
 
 export const recordingsForDay = (cameraId: string, date: string) => get<RecordingsResponse>(path`cameras/${cameraId}/recordings` + query({ date }));
 
-export interface PlaybackSession {
-  id: string;
-  camera_id: string;
-  generation: number;
+export type PlaybackSession = Omit<PbWire.PlaybackSession, 'state' | 'media_anchor'> & {
   state: 'creating' | 'buffering' | 'playing' | 'paused' | 'seeking' | 'ended' | 'expired' | 'failed' | 'closed';
-  requested_at: string;
-  actual_start_at: string | null;
-  actual_end_at: string | null;
   media_anchor: { source_at: string; media_pts_seconds: number; verified: boolean } | null;
-  time_precision: 'verified' | 'keyframe_limited' | 'estimated' | 'unknown';
-  media_handle: string | null;
-  expires_at: string;
-  capabilities: { seek: boolean; pause: boolean; frame_step: boolean; supported_speeds: number[] };
-  playback_end_at: string;
-  moved_to_next_segment?: boolean;
-}
+};
 
 /** Sessions and groups this page opened; released with a beacon when the page is left, so a closed tab never holds a quota slot. */
 const openSessions = new Set<string>();
@@ -66,7 +42,7 @@ export const closePlayback = (id: string) => {
   return del(path`playback/sessions/${id}`);
 };
 // CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by T028/T029 (playback sessions).
-export const listPlayback = () => get<{ sessions: (PlaybackSession & { username: string; bytes_down: number; seconds: number })[]; max_sessions: number; lease_s: number }>('playback/sessions');
+export const listPlayback = () => get<Omit<PbWire.PlaybackSessions, 'sessions'> & { sessions: PlaybackSession[] }>('playback/sessions');
 
 /** ws(s):// URL of a session's relay socket for one generation (works under Ingress). */
 export function playbackWsUrl(session: PlaybackSession): string {
@@ -150,24 +126,10 @@ export interface SyncStats {
   missing: string[];
   members: Record<string, SyncMember>;
 }
-interface SyncReport {
-  p95_s: number | null;
-  quality: SyncQuality;
-  samples: number;
-  partial: boolean;
-  members: Record<string, SyncMember>;
-  reported_at: string;
-}
+type SyncReport = Omit<GroupWire.SyncReport, 'quality' | 'members'> & { quality: SyncQuality; members: Record<string, SyncMember> };
 
-export interface PlaybackGroup {
-  id: string;
-  requested_at: string;
-  generation: number;
-  sessions: PlaybackSession[];
-  missing: Record<string, string>;
-  sync: 'best_effort';
-  sync_report?: SyncReport | null;
-}
+/** CR-024: `sync` 'experimental_cross_recorder' (with `experimental` / `recorders`) only for members on different recorders. */
+export type PlaybackGroup = Omit<GroupWire.PlaybackGroup, 'sessions' | 'sync_report'> & { sessions: PlaybackSession[]; sync_report: SyncReport | null };
 
 export const createGroup = async (cameraIds: string[], startAt: string) => {
   const g = await post<PlaybackGroup>('playback/groups', { camera_ids: cameraIds, start_at: startAt });
@@ -180,21 +142,11 @@ export const closeGroup = (id: string) => {
   return del(path`playback/groups/${id}`);
 };
 export const reportGroupSync = (id: string, stats: SyncStats) =>
-  post<{ ok: boolean; sync_report: SyncReport }>(path`playback/groups/${id}/sync`, { p95_s: stats.p95, quality: stats.quality, samples: stats.samples, partial: stats.partial, members: stats.members });
+  post<Omit<GroupWire.GroupSyncStored, 'sync_report'> & { sync_report: SyncReport }>(path`playback/groups/${id}/sync`, { p95_s: stats.p95, quality: stats.quality, samples: stats.samples, partial: stats.partial, members: stats.members });
 
 /** JPEG frame from the recording at a UTC instant (T044); 404 when there is no picture there. */
 export const frameUrl = (cameraId: string, atIso: string) => apiUrl(path`cameras/${cameraId}/frame` + query({ at: atIso }));
 
 /** RECORDED-DAYS-MONTH-2407: local dates of one month (YYYY-MM, the installation's zone) with any recording of a camera. */
-interface RecordedDaysResponse {
-  camera_id: string;
-  month: string;
-  timezone: string;
-  days: string[];
-  source: 'daily_distribution' | 'segment_search' | 'record_dates' | 'future';
-  coverage: 'complete' | 'partial';
-  through: string | null;
-  searched_at: string;
-  note: string;
-}
+type RecordedDaysResponse = Omit<RecWire.RecordedDays, 'source'> & { source: 'daily_distribution' | 'segment_search' | 'record_dates' | 'future' };
 export const recordedDays = (cameraId: string, month: string) => get<RecordedDaysResponse>(path`cameras/${cameraId}/recordings/days` + query({ month }));

@@ -13,6 +13,7 @@ from typing import Any
 from ..config import Settings
 from . import playback as pb
 from .timeutil import iso_utc
+from ..test_reset import register_reset
 
 
 @dataclass
@@ -68,3 +69,11 @@ def expire_empty() -> None:
     for gid, group in list(GROUPS.items()):
         if not any(s.state not in ("closed", "expired", "failed") for s in sessions_of(group)) and time.time() - group.created > 60:
             GROUPS.pop(gid, None)
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    GROUPS.clear()
+
+
+register_reset(__name__, ("GROUPS",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

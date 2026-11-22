@@ -157,6 +157,7 @@ def reset_for_tests() -> None:
 
 
 from .timeutil import iso_utc
+from ..test_reset import register_reset
 iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
@@ -1278,3 +1279,12 @@ def simulate(conn: sqlite3.Connection, principal: Principal, row: sqlite3.Row, a
     would = all(g["ok"] for g in gates) and any(d["decision"] == "would_open" for d in doors)
     _audit(conn, principal, "door_automation.simulate", "allowed", row["id"], None, rid, at=iso(at), would_send=would)
     return {"at": iso(at), "gates": gates, "doors": doors, "would_send": would}
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    STATS.clear()
+    STATS.update({"dropped": 0, "handled": 0})
+
+
+register_reset(__name__, ("STATS",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

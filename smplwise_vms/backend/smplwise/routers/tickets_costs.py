@@ -37,8 +37,11 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import Principal
+from ..services import savepoints
 from ..services.tickets import access, cost_files, cost_storage, costs, costs_report, image_intake, present, quotes, service, store, store_costs
 from ..services.tickets.access import Seen, Viewer, text
+from ..wire import tickets_costs as W
+from ..wire import wire
 from ._common import rid as _rid
 from ._tickets_common import invalid
 from .tickets import ID, module_gate
@@ -133,7 +136,7 @@ def _need_report(conn, viewer: Viewer, action: str, rid: str | None) -> None:
         raise _deny(conn, viewer, action, None, costs.COSTS_VIEW, rid)
 
 
-@router.get("/tickets/costs/report")
+@router.get("/tickets/costs/report", **wire(W.CostReport))
 def cost_report(request: Request, group_by: str = Query("vendor", max_length=16), date_from: str | None = Query(None, alias="from", max_length=10),
                 date_to: str | None = Query(None, alias="to", max_length=10), status: str | None = Query(None, max_length=40),
                 currency: str | None = Query(None, max_length=3), vendor: str | None = Query(None, max_length=64),
@@ -149,7 +152,7 @@ def cost_report(request: Request, group_by: str = Query("vendor", max_length=16)
     return out
 
 
-@router.get("/tickets/costs/claims")
+@router.get("/tickets/costs/claims", **wire(W.AccountClaims))
 def cost_claims(request: Request, date_from: str | None = Query(None, alias="from", max_length=10), date_to: str | None = Query(None, alias="to", max_length=10),
                 status: str | None = Query(None, max_length=40), currency: str | None = Query(None, max_length=3),
                 vendor: str | None = Query(None, max_length=64), department: str | None = Query(None, max_length=64),
@@ -182,7 +185,7 @@ class BulkPaidBody(BaseModel):
     payment_date: str = Field(max_length=10)
 
 
-@router.post("/tickets/costs/mark-paid")
+@router.post("/tickets/costs/mark-paid", **wire(W.BulkPaidAnswer))
 def post_mark_paid_bulk(body: BulkPaidBody, request: Request, principal: Principal = Depends(current_principal),
                         conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """TK258: "סימון כשולם" for several approved claims at once, one payment reference and date. A result per item, never one
@@ -235,7 +238,7 @@ def _mark_one(conn: sqlite3.Connection, viewer: Viewer, it: BulkPaidItem, ref: s
         return {**out, "result": "not_approved", "revision": claim["revision"]}
     if it.revision is not None and int(claim["revision"]) != it.revision:
         return {**out, "result": "stale", "revision": claim["revision"]}
-    conn.execute("SAVEPOINT tk258_mark_paid")
+    savepoints.savepoint(conn, "tk258_mark_paid")
     try:
         fresh = costs.mark_paid(conn, claim, by=viewer.uid, revision=int(claim["revision"]), payment_ref=ref, payment_date=day, at=at)
         _audit(conn, viewer, "ticket.cost.mark_paid", seen, fresh, rid, revision_id=fresh.get("current_revision_id"),
@@ -243,14 +246,12 @@ def _mark_one(conn: sqlite3.Connection, viewer: Viewer, it: BulkPaidItem, ref: s
         store.insert_event(conn, seen.row["id"], "cost_decision", actor_kind="user", actor_user_id=viewer.uid, actor_name=service.actor_name(viewer),
                            assignment_id=fresh["assignment_id"], data={"claim_id": fresh["id"], "action": "mark_paid"})
     except costs.CostRefused as exc:
-        conn.execute("ROLLBACK TO tk258_mark_paid")
-        conn.execute("RELEASE tk258_mark_paid")
+        savepoints.rollback_savepoint(conn, "tk258_mark_paid")
         return {**out, "result": "stale" if exc.code == "claim_stale" else "not_approved", "revision": claim["revision"]}
     except Exception:
-        conn.execute("ROLLBACK TO tk258_mark_paid")
-        conn.execute("RELEASE tk258_mark_paid")
+        savepoints.rollback_savepoint(conn, "tk258_mark_paid")
         raise
-    conn.execute("RELEASE tk258_mark_paid")
+    savepoints.release_savepoint(conn, "tk258_mark_paid")
     return {**out, "result": "paid", "revision": fresh["revision"]}
 
 
@@ -282,7 +283,7 @@ def cost_export(request: Request, group_by: str = Query("vendor", max_length=16)
 
 # ---------------------------------------------------------------- one ticket's claims
 
-@router.get("/tickets/{ticket_id}/costs")
+@router.get("/tickets/{ticket_id}/costs", **wire(W.TicketCosts))
 def get_costs(ticket_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return _answer(conn, Viewer(conn, principal), ticket_id)
 
@@ -293,7 +294,7 @@ class RequirementBody(BaseModel):
     mode: Literal["required", "optional", "off"]
 
 
-@router.post("/tickets/{ticket_id}/costs/requirement")
+@router.post("/tickets/{ticket_id}/costs/requirement", **wire(W.TicketCosts))
 def post_requirement(body: RequirementBody, request: Request, ticket_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
                      conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
@@ -331,22 +332,20 @@ def _with_budget(conn: sqlite3.Connection, seen: Seen, body: DecisionBody, decid
     overrun per budget, to repeat it with `budget_confirm: true`. Nothing is ever refused for the budget itself."""
     from ..services.tickets import budgets
 
-    conn.execute("SAVEPOINT svc215_budget")
+    savepoints.savepoint(conn, "svc215_budget")
     try:
         fresh = decide()
         info = budgets.after_approval(conn, seen.row, fresh, at)
     except BaseException:
-        conn.execute("ROLLBACK TO svc215_budget")
-        conn.execute("RELEASE svc215_budget")
+        savepoints.rollback_savepoint(conn, "svc215_budget")
         raise
     over = [x for x in info if x["state"] == "exceeded"]
     if over and budgets.cfg(conn)["require_confirmation"] and not body.budget_confirm:
-        conn.execute("ROLLBACK TO svc215_budget")
-        conn.execute("RELEASE svc215_budget")
+        savepoints.rollback_savepoint(conn, "svc215_budget")
         raise ApiError(409, "budget_confirm_required", text(conn, "אישור זה חורג מהתקציב. אשרו את החריגה כדי להמשיך."),
                        details={"budgets": [{**budgets.present_row(conn, x["budget"]), "overrun_minor": x["overrun_minor"],
                                              "remaining_minor": x["remaining_minor"]} for x in over]})
-    conn.execute("RELEASE svc215_budget")
+    savepoints.release_savepoint(conn, "svc215_budget")
     return fresh, info
 
 
@@ -355,7 +354,7 @@ AUDIT_ACTIONS = {"approve": "ticket.cost.approve", "adjust": "ticket.cost.adjust
                  "unmark-paid": "ticket.cost.unmark_paid", "reopen-window": "ticket.cost.reopen_window"}
 
 
-@router.post("/tickets/{ticket_id}/costs/{claim_id}/{action}")
+@router.post("/tickets/{ticket_id}/costs/{claim_id}/{action}", **wire(W.TicketCosts))
 def post_decision(body: DecisionBody, request: Request, ticket_id: str = Path(..., pattern=ID), claim_id: str = Path(..., pattern=ID),
                   action: Literal["approve", "adjust", "reject", "mark-paid", "unmark-paid", "reopen-window"] = Path(...),
                   principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
@@ -429,7 +428,7 @@ class QuoteDecisionBody(BaseModel):
     reason: str | None = Field(default=None, max_length=5000)
 
 
-@router.post("/tickets/{ticket_id}/costs/quotes/{quote_id}/{action}")
+@router.post("/tickets/{ticket_id}/costs/quotes/{quote_id}/{action}", **wire(W.TicketCosts))
 def post_quote_decision(body: QuoteDecisionBody, request: Request, ticket_id: str = Path(..., pattern=ID), quote_id: str = Path(..., pattern=ID),
                         action: Literal["approve", "reject"] = Path(...), principal: Principal = Depends(current_principal),
                         conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
@@ -462,7 +461,7 @@ def post_quote_decision(body: QuoteDecisionBody, request: Request, ticket_id: st
 
 # ---------------------------------------------------------------- on the vendor's behalf (a paper invoice): pending files, then the claim
 
-@router.post("/tickets/{ticket_id}/costs/files", status_code=201)
+@router.post("/tickets/{ticket_id}/costs/files", status_code=201, **wire(W.PendingCostFile))
 def post_cost_file(request: Request, ticket_id: str = Path(..., pattern=ID), file: UploadFile = File(...),
                    principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
@@ -507,7 +506,7 @@ class OnBehalfBody(BaseModel):
     documents: list[dict[str, Any]] = Field(default_factory=list, max_length=3)
 
 
-@router.post("/tickets/{ticket_id}/costs", status_code=201)
+@router.post("/tickets/{ticket_id}/costs", status_code=201, **wire(W.TicketCosts))
 def post_on_behalf(body: OnBehalfBody, request: Request, ticket_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
@@ -602,7 +601,7 @@ def _need_configure(conn, viewer: Viewer, action: str, rid: str | None) -> None:
         raise ApiError(403, "forbidden", text(conn, "אין הרשאה לפעולה הזו."), details={"permission": access.CONFIGURE})
 
 
-@router.get("/tickets/costs/departments")
+@router.get("/tickets/costs/departments", **wire(W.DepartmentCostsAnswer))
 def get_department_costs(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
     _need_configure(conn, viewer, "ticket.department.costs", _rid(request))
@@ -614,7 +613,7 @@ def get_department_costs(request: Request, principal: Principal = Depends(curren
                                                   "allowed_line_kinds": settings_doc.read(conn)["costs"]["allowed_line_kinds"]}}
 
 
-@router.put("/tickets/costs/departments/{dept_id}")
+@router.put("/tickets/costs/departments/{dept_id}", **wire(W.DepartmentCostsAnswer))
 def put_department_costs(body: DepartmentCostsBody, request: Request, dept_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
                          conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)

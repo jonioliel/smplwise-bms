@@ -10,6 +10,9 @@ import { markStillCameras } from './frigate';
 import { resolveBundleBakes } from './bakes';
 import type { BundleBakes } from '../map/still-bake';
 import type { Anchor, Camera, CircuitState, FloorMap, GeometryRef, PlanAsset, PlanVersion, SpatialZone } from './types';
+import type * as CamWire from './generated/wire-cameras';
+import type * as PlanWire from './generated/wire-plans';
+import type * as AnchorWire from './generated/wire-anchors';
 import type { GeomLevel } from '../map/geometry';
 import { demoCameras, demoFloors, demoPlan, demoSite } from '../fixtures/demo';
 import type { StateKind } from '../components/sw-badge';
@@ -186,18 +189,13 @@ export const createVersion = (floorId: string, body: { asset_id: string; page: n
   post<PlanVersion>(path`floors/${floorId}/plan-versions`, body);
 export const publishVersion = (versionId: string) => post<PlanVersion>(path`plan-versions/${versionId}/publish`);
 
-/** What publishing or restoring a version means: geometry changes against the published one and the fate of every placed item (T038). */
-export interface VersionDiff {
+/** What publishing or restoring a version means: geometry changes against the published one and the fate of every placed item (T038).
+ * The backend's response model (wire/plans.py `PlanDiff`, generated); the two versions keep the client's PlanVersion shape. */
+export type VersionDiff = Omit<PlanWire.PlanDiff, 'from' | 'to' | 'anchors'> & {
   from: PlanVersion | null;
   to: PlanVersion;
-  geometry: { same: boolean; changes: { field: string; from: unknown; to: unknown }[] };
-  anchors: {
-    total: number;
-    carried: number;
-    needs_alignment: number;
-    items: { anchor_id: string; resource_type: 'camera' | 'ha_entity'; resource_id: string; name: string; on_version_id: string; outcome: 'carried' | 'needs_alignment' }[];
-  };
-}
+  anchors: Omit<PlanWire.PlanDiffAnchors, 'items'> & { items: (Omit<PlanWire.PlanDiffItem, 'resource_type'> & { resource_type: 'camera' | 'ha_entity' })[] };
+};
 export const versionDiff = (versionId: string, against?: string) => get<VersionDiff>(path`plan-versions/${versionId}/diff` + query({ against }));
 /** Restore an archived version as a new published copy; `revision` and the expected published id make a concurrent change a clear 409. */
 export const rollbackVersion = (versionId: string, revision: number, expectedPublishedId: string | null) =>
@@ -219,13 +217,13 @@ export const createAnchor = (floorId: string, body: { resource_type: 'camera' | 
 export const updateAnchor = (id: string, body: { revision: number; x?: number; y?: number; rotation_degrees?: number; field_of_view_degrees?: number | null; label?: string | null; coverage_radius?: number | null; coverage_polygon?: [number, number][] | null; label_pos?: string; level_id?: string | null; mount_height_m?: number | null; tilt_deg?: number | null }, fromFloorId?: string) =>
   patch<Anchor>(path`map-anchors/${id}` + query({ from_floor_id: fromFloorId }), body);
 /** S4: items placed on an earlier plan version - mapped through the crops (`crop`) or re-stamped after a visual check (`accept`). */
-export const realignAnchors = (floorId: string, mode: 'crop' | 'accept') => post<{ mode: string; moved: number; skipped: number; needs_alignment: boolean }>(path`floors/${floorId}/anchors/realign`, { mode });
+export const realignAnchors = (floorId: string, mode: 'crop' | 'accept') => post<AnchorWire.AnchorRealigned>(path`floors/${floorId}/anchors/realign`, { mode });
 export const deleteAnchor = (id: string, fromFloorId?: string) => del(path`map-anchors/${id}` + query({ from_floor_id: fromFloorId }));
 
 // ---- cameras ----
 
 /** CR-024: `recorders` names the recorders of the visible cameras (a recorder filter is shown only with two or more). */
-export const listCameras = () => get<{ cameras: Camera[]; recorders?: { id: string; name: string; vendor?: string | null }[]; recorder: { id: string; name: string; model: string | null; firmware: string | null; last_seen_at: string | null } | null; can_sync: boolean }>('cameras')
+export const listCameras = () => get<Omit<CamWire.CameraList, 'cameras' | 'recorders' | 'media'> & { cameras: Camera[]; recorders?: CamWire.CameraList['recorders'] }>('cameras')
   // NN5-F1B: cameras of a Frigate recorder without a restream are stills (live_kind), so the live screens do not open a stream for them
   .then(async (r) => {
     await markStillCameras(r.cameras);
@@ -233,7 +231,7 @@ export const listCameras = () => get<{ cameras: Camera[]; recorders?: { id: stri
     if (isApi() && !cap('nvr')) return { ...r, cameras: visibleCameras(r.cameras, false), recorders: r.recorders ? visibleRecorderGroups(r.recorders, false) : r.recorders, recorder: null };
     return r;
   });
-export const syncCameras = () => post<{ channels: number; created: number; updated: number; recorder: { model: string | null; firmware: string | null } }>('cameras/sync');
+export const syncCameras = () => post<CamWire.CameraSync>('cameras/sync');
 export const registerCamera = (body: { channel: number; alias: string }) => post<Camera>('cameras', body);
 export const updateCamera = (id: string, body: { alias?: string; sort_order?: number; enabled?: boolean; grid_col_span?: number; wall_hidden?: boolean }) => patch<Camera>(path`cameras/${id}`, body);
 
@@ -245,13 +243,11 @@ interface DxfLayer {
   frozen: boolean;
   color: number | null;
 }
-export interface DxfDetails {
-  asset_id: string;
-  adapter: { library: string; license: string; drawable: string[]; note: string };
+/* The envelope is the backend's response model (wire/plans.py `PlanDxf`, generated); `info` / `render` are the stored DXF records,
+ * typed here. */
+export interface DxfDetails extends Pick<PlanWire.PlanDxf, 'asset_id' | 'adapter' | 'options' | 'units_choices'> {
   info: { version: string; units_code: number; units: string; layers: DxfLayer[]; entity_counts: Record<string, number>; unsupported: Record<string, number>; extent: { minx: number; miny: number; maxx: number; maxy: number; width: number; height: number } | null; drawable: number; warnings: string[] } | null;
-  options: { layers: string[] | null; units: string | null };
   render: { width: number; height: number; px_per_unit: number; units: string; meters_per_px: number | null; rendered: number; skipped: Record<string, number>; layers: string[]; partial: boolean } | null;
-  units_choices: string[];
 }
 export const getDxf = (assetId: string) => get<DxfDetails>(path`plan-assets/${assetId}/dxf`);
 export const setDxf = (assetId: string, body: { layers: string[] | null; units: string | null }) => put<DxfDetails>(path`plan-assets/${assetId}/dxf`, body);

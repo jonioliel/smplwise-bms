@@ -30,6 +30,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..errors import ApiError, forbidden
 from ..rbac import Principal
 from ..services import door_automation as da
+from ..services import door_automations_store as store
 from ._common import rid as _rid
 
 router = APIRouter()
@@ -107,9 +108,9 @@ def list_blocks(principal: Principal = Depends(current_principal_ro), conn: sqli
     if not da.holds_anywhere(conn, principal):
         raise forbidden(permission=da.AUTOMATE)
     if automation_id:
-        rows = conn.execute("SELECT * FROM door_automations WHERE deleted_at IS NULL AND automation_item_id = ?", (automation_id,)).fetchall()
+        rows = store.automation_rows(conn, automation_id)
     else:
-        rows = conn.execute("SELECT * FROM door_automations WHERE deleted_at IS NULL ORDER BY created_at").fetchall()
+        rows = store.all_rows(conn)
     return {"items": [da.view(conn, r) for r in rows], "status": da.status(conn, principal)}
 
 

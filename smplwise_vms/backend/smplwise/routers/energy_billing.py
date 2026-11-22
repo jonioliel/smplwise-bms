@@ -23,6 +23,7 @@ from ..audit import audit
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import energy_billing as eb
+from ..services import energy_billing_store as store
 from ..services import energy_billing_pdf as pdfseam
 from ..services import energy_calendar as ecal
 from ..services import energy_formula as fx
@@ -34,6 +35,7 @@ from ..services import energy_tou as tou
 from ..services import safe_paths
 from ..services.energy_billing_provider import get_provider
 from ..services.energy_consumption import meter_window
+from ..wire import energy_billing as W, wire
 from ._common import db_of as _db, is_json as _is_json, raw_body as _raw_body, rid as _rid
 
 router = APIRouter()
@@ -292,26 +294,20 @@ def _user_key(principal: Principal) -> str:
 
 # ====================================================================== customers
 
-@router.get("/energy/customers")
+@router.get("/energy/customers", **wire(W.EnergyCustomerList))
 def list_customers(principal: Principal = Depends(_customers_read), conn: sqlite3.Connection = Depends(get_read_conn),
                    q: str | None = Query(None, max_length=80), limit: int = Query(200, ge=1, le=500), offset: int = Query(0, ge=0)) -> dict[str, Any]:
     contact = _has(conn, principal, BILLS) or _has(conn, principal, MANAGE)
-    sql = "SELECT * FROM energy_customers WHERE deleted_at IS NULL"
-    args: list[Any] = []
-    if q:
-        sql += " AND (name LIKE ? OR customer_number LIKE ?)"
-        args += [f"%{q}%", f"%{q}%"]
-    total = conn.execute(f"SELECT COUNT(*) FROM ({sql})", args).fetchone()[0]
-    rows = conn.execute(sql + " ORDER BY customer_number LIMIT ? OFFSET ?", (*args, limit, offset)).fetchall()
+    total, rows = store.customers_page(conn, q, limit, offset)
     return {"items": [eb.customer_dict(conn, r, contact) for r in rows], "total": total}
 
 
-@router.get("/energy/customers/next-number")
+@router.get("/energy/customers/next-number", **wire(W.EnergyNextNumber))
 def next_number(principal: Principal = Depends(_manage), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return {"customer_number": eb.next_customer_number(conn)}
 
 
-@router.post("/energy/customers", status_code=201)
+@router.post("/energy/customers", status_code=201, **wire(W.EnergyCustomer))
 def create_customer(request: Request, principal: Principal = Depends(_manage), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body = _parse(request, raw, CustomerCreate)
     cid = eb.create_customer(conn, principal.user_id, body.model_dump())
@@ -319,20 +315,19 @@ def create_customer(request: Request, principal: Principal = Depends(_manage), r
     return eb.customer_dict(conn, eb.get_customer(conn, cid), True)
 
 
-@router.get("/energy/customers/{cid}")
+@router.get("/energy/customers/{cid}", **wire(W.EnergyCustomer))
 def get_customer(cid: str, principal: Principal = Depends(_customers_read), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     bills = _has(conn, principal, BILLS)
     contact = bills or _has(conn, principal, MANAGE)
     row = eb.get_customer(conn, cid)
     out = eb.customer_dict(conn, row, contact)
-    out["accounts"] = [{"id": a["id"], "name": a["name"], "status": a["status"]}
-                       for a in conn.execute("SELECT id, name, status FROM energy_accounts WHERE customer_id = ? AND deleted_at IS NULL ORDER BY name", (cid,)).fetchall()]
+    out["accounts"] = [{"id": a["id"], "name": a["name"], "status": a["status"]} for a in store.customer_accounts(conn, cid)]
     if bills:
-        out["bills"] = [eb.bill_summary(conn, b) for b in conn.execute("SELECT * FROM energy_bills WHERE customer_id = ? ORDER BY period_end DESC, revision DESC LIMIT 24", (cid,)).fetchall()]
+        out["bills"] = [eb.bill_summary(conn, b) for b in store.customer_bills(conn, cid)]
     return out
 
 
-@router.patch("/energy/customers/{cid}")
+@router.patch("/energy/customers/{cid}", **wire(W.EnergyCustomer))
 def patch_customer(cid: str, request: Request, principal: Principal = Depends(_manage), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body = _parse(request, raw, CustomerPatch)
     changed = eb.update_customer(conn, cid, body.model_dump(exclude_unset=True))
@@ -349,26 +344,15 @@ def delete_customer(cid: str, request: Request, base_revision: int = Query(...),
 
 # ====================================================================== accounts
 
-@router.get("/energy/accounts")
+@router.get("/energy/accounts", **wire(W.EnergyAccountList))
 def list_accounts(request: Request, principal: Principal = Depends(_view), conn: sqlite3.Connection = Depends(get_read_conn), customer_id: str | None = Query(None, max_length=64),
                   q: str | None = Query(None, max_length=80), status: Literal["active", "paused"] | None = None) -> dict[str, Any]:
     money = _has(conn, principal, BILLS)
-    sql = "SELECT * FROM energy_accounts WHERE deleted_at IS NULL"
-    args: list[Any] = []
-    if customer_id:
-        sql += " AND customer_id = ?"
-        args.append(customer_id)
-    if q:
-        sql += " AND name LIKE ?"
-        args.append(f"%{q}%")
-    if status:
-        sql += " AND status = ?"
-        args.append(status)
     provider = get_provider(conn, settings_of(request))
-    return {"items": [eb.account_dict(conn, provider, r, money) for r in conn.execute(sql + " ORDER BY name", args).fetchall()]}
+    return {"items": [eb.account_dict(conn, provider, r, money) for r in store.accounts(conn, customer_id, q, status)]}
 
 
-@router.post("/energy/accounts", status_code=201)
+@router.post("/energy/accounts", status_code=201, **wire(W.EnergyAccount))
 def create_account(request: Request, principal: Principal = Depends(_manage), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body = _parse(request, raw, AccountCreate)
     provider = get_provider(conn, settings_of(request))
@@ -380,12 +364,12 @@ def create_account(request: Request, principal: Principal = Depends(_manage), ra
     return eb.account_dict(conn, provider, eb.get_account(conn, aid), _has(conn, principal, BILLS))
 
 
-@router.get("/energy/accounts/{aid}")
+@router.get("/energy/accounts/{aid}", **wire(W.EnergyAccount))
 def get_account(aid: str, request: Request, principal: Principal = Depends(_view), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return eb.account_dict(conn, get_provider(conn, settings_of(request)), eb.get_account(conn, aid), _has(conn, principal, BILLS))
 
 
-@router.patch("/energy/accounts/{aid}")
+@router.patch("/energy/accounts/{aid}", **wire(W.EnergyAccount))
 def patch_account(aid: str, request: Request, principal: Principal = Depends(_manage), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body = _parse(request, raw, AccountPatch)
     data = body.model_dump(exclude_unset=True)
@@ -409,7 +393,7 @@ def delete_account(aid: str, request: Request, base_revision: int = Query(...), 
     return Response(status_code=204)
 
 
-@router.get("/energy/accounts/{aid}/periods")
+@router.get("/energy/accounts/{aid}/periods", **wire(W.EnergyAccountPeriods))
 def account_periods(aid: str, principal: Principal = Depends(_view), conn: sqlite3.Connection = Depends(get_read_conn),
                     past: int = Query(6, ge=0, le=24), future: int = Query(1, ge=0, le=6)) -> dict[str, Any]:
     acc = eb.get_account(conn, aid)
@@ -417,14 +401,13 @@ def account_periods(aid: str, principal: Principal = Depends(_view), conn: sqlit
     today = _today(acc["timezone"])
     out = []
     for p in per.periods_between(eb.cycle_of(acc), today, past, future, today):
-        b = conn.execute("SELECT * FROM energy_bills WHERE account_id = ? AND period_start = ? AND period_end = ? AND state != 'void' ORDER BY revision DESC LIMIT 1",
-                         (aid, p.start.isoformat(), p.end.isoformat())).fetchone()
+        b = store.period_bill(conn, aid, p.start, p.end)
         state = "future" if p.start > today else ("open" if p.end > today else ("billed" if b is not None and b["state"] != "draft" else ("draft" if b is not None else "open")))
         out.append({**p.as_api(), "end_exclusive": p.end.isoformat(), "state": state, "bill": eb.bill_summary(conn, b, money) if b is not None else None})
     return {"periods": out}
 
 
-@router.get("/energy/accounts/{aid}/history")
+@router.get("/energy/accounts/{aid}/history", **wire(W.EnergyAccountHistory))
 def account_history(aid: str, request: Request, principal: Principal = Depends(_view), conn: sqlite3.Connection = Depends(get_read_conn),
                     past: int = Query(12, ge=1, le=24)) -> dict[str, Any]:
     """Consumption per billing period, also for periods without a bill (from the readings with the account formula), and the
@@ -433,7 +416,7 @@ def account_history(aid: str, request: Request, principal: Principal = Depends(_
     return eb.account_history(conn, get_provider(conn, settings_of(request)), acc, past, _has(conn, principal, BILLS))
 
 
-@router.get("/energy/accounts/{aid}/status")
+@router.get("/energy/accounts/{aid}/status", **wire(W.EnergyAccountStatus))
 def account_status(aid: str, request: Request, principal: Principal = Depends(_view), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     acc = eb.get_account(conn, aid)
     provider = get_provider(conn, settings_of(request))
@@ -457,11 +440,10 @@ def account_status(aid: str, request: Request, principal: Principal = Depends(_v
     return out
 
 
-@router.get("/energy/accounts/{aid}/bills")
+@router.get("/energy/accounts/{aid}/bills", **wire(W.EnergyBillList))
 def account_bills(aid: str, principal: Principal = Depends(_bills), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     eb.get_account(conn, aid)
-    rows = conn.execute("SELECT * FROM energy_bills WHERE account_id = ? ORDER BY period_end DESC, revision DESC", (aid,)).fetchall()
-    return {"items": [eb.bill_summary(conn, r) for r in rows]}
+    return {"items": [eb.bill_summary(conn, r) for r in store.account_bills(conn, aid)]}
 
 
 # ====================================================================== formula
@@ -473,7 +455,7 @@ def _last_full_month(tz: str) -> per.Period:
     return per.Period(prev, first)
 
 
-@router.post("/energy/formula/check")
+@router.post("/energy/formula/check", **wire(W.EnergyFormulaCheck))
 def formula_check(request: Request, principal: Principal = Depends(_view_or_manage), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     body = _parse(request, raw, FormulaCheck)
     provider = get_provider(conn, settings_of(request))
@@ -510,7 +492,7 @@ def formula_check(request: Request, principal: Principal = Depends(_view_or_mana
     return out
 
 
-@router.post("/energy/formula/preset")
+@router.post("/energy/formula/preset", **wire(W.EnergyFormulaPreset))
 def formula_preset(request: Request, principal: Principal = Depends(_view_or_manage), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     body = _parse(request, raw, PresetIn)
     try:
@@ -530,10 +512,10 @@ def _price(v: Any) -> px.Decimal:
         raise ApiError(422, "validation", "המחיר חייב להיות מספר חיובי עם עד 4 ספרות אחרי הנקודה.", details={"fields": ["price"]}) from None
 
 
-@router.get("/energy/tariffs")
+@router.get("/energy/tariffs", **wire(W.EnergyTariffList))
 def list_tariffs(principal: Principal = Depends(_money_read), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     today = _today(_tz(conn))
-    return {"items": [eb.tariff_dict(conn, r, today) for r in conn.execute("SELECT * FROM energy_tariffs WHERE deleted_at IS NULL ORDER BY name").fetchall()]}
+    return {"items": [eb.tariff_dict(conn, r, today) for r in store.tariffs(conn)]}
 
 
 def _version_value(kind: str, price: Any, definition: dict[str, Any] | None) -> tuple[px.Decimal | None, Any]:
@@ -552,26 +534,25 @@ def _version_value(kind: str, price: Any, definition: dict[str, Any] | None) -> 
     return _price(price), None
 
 
-@router.post("/energy/tariffs", status_code=201)
+@router.post("/energy/tariffs", status_code=201, **wire(W.EnergyTariff))
 def create_tariff(request: Request, principal: Principal = Depends(_manage), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body = _parse(request, raw, TariffCreate)
     price, definition = _version_value(body.kind, body.price, body.definition)
     mode = body.price_mode or eb.read_settings(conn)["default_price_mode"]
     tid = eb.new_id()
     now = eb.now_iso()
-    conn.execute("INSERT INTO energy_tariffs(id, name, kind, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                 (tid, body.name.strip(), body.kind, principal.user_id, now, now))
+    store.insert_tariff(conn, tid, body.name.strip(), body.kind, principal.user_id, now)
     eb.add_tariff_version(conn, tid, principal.user_id, body.effective_from, price, mode, definition)
     audit(conn, actor=principal, action="energy.tariff.create", decision="allowed", resource_type="energy_tariff", resource_id=tid, request_id=_rid(request),
           details={"kind": body.kind})
     return eb.tariff_dict(conn, eb.get_tariff(conn, tid), _today(_tz(conn)))
 
 
-@router.patch("/energy/tariffs/{tid}")
+@router.patch("/energy/tariffs/{tid}", **wire(W.EnergyTariff))
 def patch_tariff(tid: str, request: Request, principal: Principal = Depends(_manage), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body = _parse(request, raw, TariffPatch)
     eb.get_tariff(conn, tid)
-    conn.execute("UPDATE energy_tariffs SET name = ?, updated_at = ? WHERE id = ?", (body.name.strip(), eb.now_iso(), tid))
+    store.rename_tariff(conn, tid, body.name.strip(), eb.now_iso())
     audit(conn, actor=principal, action="energy.tariff.update", decision="allowed", resource_type="energy_tariff", resource_id=tid, request_id=_rid(request))
     return eb.tariff_dict(conn, eb.get_tariff(conn, tid), _today(_tz(conn)))
 
@@ -594,7 +575,8 @@ def _base_changed(base: VersionBase, target: sqlite3.Row) -> bool:
         return True
 
 
-@router.post("/energy/tariffs/{tid}/versions", status_code=201)
+@router.post("/energy/tariffs/{tid}/versions", status_code=201, **wire(W.EnergyTariff),
+             responses={200: {"model": W.EnergyPlanPreview | W.EnergyTariffCorrected, "description": "A correction: the plan, or the applied correction"}})
 def add_version(tid: str, request: Request, principal: Principal = Depends(_manage), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)):
     body = _parse(request, raw, VersionCreate)
     tariff = eb.get_tariff(conn, tid)
@@ -602,11 +584,11 @@ def add_version(tid: str, request: Request, principal: Principal = Depends(_mana
     mode = body.price_mode or eb.read_settings(conn)["default_price_mode"]
     today = _today(_tz(conn))
     if body.replace_version_id:
-        target = conn.execute("SELECT * FROM energy_tariff_versions WHERE id = ? AND tariff_id = ?", (body.replace_version_id, tid)).fetchone()
+        target = store.tariff_version(conn, tid, body.replace_version_id)
         if not target:
             raise ApiError(404, "not_found", "גרסת המחיר לא נמצאה.")
     else:
-        target = conn.execute("SELECT * FROM energy_tariff_versions WHERE tariff_id = ? AND effective_from = ?", (tid, body.effective_from.isoformat())).fetchone()
+        target = store.tariff_version_from(conn, tid, body.effective_from)
     if not target:
         vid = eb.add_tariff_version(conn, tid, principal.user_id, body.effective_from, price, mode, definition)
         audit(conn, actor=principal, action="energy.tariff.version.create", decision="allowed", resource_type="energy_tariff", resource_id=tid, request_id=_rid(request),
@@ -633,7 +615,7 @@ def delete_version(tid: str, vid: str, request: Request, principal: Principal = 
 
 # ---------------------------------------------------------------- EL5: time-of-use templates, check, special days
 
-@router.get("/energy/tou/templates")
+@router.get("/energy/tou/templates", **wire(W.EnergyTouTemplates))
 def tou_templates(principal: Principal = Depends(_money_read)) -> dict[str, Any]:
     return {"items": [{"id": k, "name_he": t["name_he"], "name_en": t["name_en"], "source_he": t["source_he"], "source_en": t["source_en"],
                        "definition": t["build"]()} for k, t in tou.TEMPLATES.items()]}
@@ -651,7 +633,7 @@ def _structure_grid(definition: dict[str, Any]) -> dict[str, Any] | None:
         return None
 
 
-@router.post("/energy/tou/check")
+@router.post("/energy/tou/check", **wire(W.EnergyTouCheck))
 def tou_check(request: Request, principal: Principal = Depends(_money_read), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
     """Validate a time-of-use definition without saving: the normalised definition and the day grid per season and day type,
     or the first error (code, path, Hebrew message). The grid is also returned when only prices are missing."""
@@ -666,16 +648,15 @@ def tou_check(request: Request, principal: Principal = Depends(_money_read), raw
 
 def _tou_drafts_on(conn: sqlite3.Connection, day: dt.date) -> int:
     """Draft bills of time-of-use accounts whose period contains `day` (they show the old day type until recalculated)."""
-    return conn.execute("""SELECT COUNT(*) FROM energy_bills b JOIN energy_accounts a ON a.id = b.account_id JOIN energy_tariffs t ON t.id = a.tariff_id
-                           WHERE b.state = 'draft' AND t.kind = 'tou' AND b.period_start <= ? AND b.period_end > ?""", (day.isoformat(), day.isoformat())).fetchone()[0]
+    return store.tou_drafts_on(conn, day)
 
 
-@router.get("/energy/calendar")
+@router.get("/energy/calendar", **wire(W.EnergyCalendarYear))
 def calendar_year(principal: Principal = Depends(_view), conn: sqlite3.Connection = Depends(get_read_conn), year: int | None = Query(None)) -> dict[str, Any]:
     return ecal.year_view(conn, year or _today(_tz(conn)).year)
 
 
-@router.put("/energy/calendar/days/{day}")
+@router.put("/energy/calendar/days/{day}", **wire(W.EnergyCalendarYear))
 def calendar_set_day(day: dt.date, request: Request, principal: Principal = Depends(_manage), raw: bytes = Depends(_raw_body),
                      conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body = _parse(request, raw, CalendarDayIn)
@@ -685,7 +666,7 @@ def calendar_set_day(day: dt.date, request: Request, principal: Principal = Depe
     return {**ecal.year_view(conn, day.year), "drafts_to_recalculate": _tou_drafts_on(conn, day)}
 
 
-@router.delete("/energy/calendar/days/{day}")
+@router.delete("/energy/calendar/days/{day}", **wire(W.EnergyCalendarYear))
 def calendar_remove_day(day: dt.date, request: Request, principal: Principal = Depends(_manage), conn: sqlite3.Connection = Depends(get_conn),
                         base_revision: int | None = Query(None)) -> dict[str, Any]:
     ecal.remove_override(conn, day, base_revision)
@@ -694,7 +675,7 @@ def calendar_remove_day(day: dt.date, request: Request, principal: Principal = D
     return {**ecal.year_view(conn, day.year), "drafts_to_recalculate": _tou_drafts_on(conn, day)}
 
 
-@router.put("/energy/calendar/settings")
+@router.put("/energy/calendar/settings", **wire(W.EnergyCalendarYear))
 def calendar_settings(request: Request, principal: Principal = Depends(_manage), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn),
                       year: int | None = Query(None)) -> dict[str, Any]:
     body = _parse(request, raw, CalendarSettingsIn)
@@ -706,7 +687,7 @@ def calendar_settings(request: Request, principal: Principal = Depends(_manage),
 
 def _vat_list(conn: sqlite3.Connection) -> dict[str, Any]:
     today = _today(_tz(conn)).isoformat()
-    items = [{"id": r["id"], "effective_from": r["effective_from"], "rate_percent": r["rate_percent"]} for r in conn.execute("SELECT * FROM energy_vat_rates ORDER BY effective_from").fetchall()]
+    items = [{"id": r["id"], "effective_from": r["effective_from"], "rate_percent": r["rate_percent"]} for r in store.vat_rate_rows(conn)]
     cur = None
     for it in items:
         if it["effective_from"] <= today:
@@ -714,12 +695,12 @@ def _vat_list(conn: sqlite3.Connection) -> dict[str, Any]:
     return {"items": items, "current": cur}
 
 
-@router.get("/energy/vat-rates")
+@router.get("/energy/vat-rates", **wire(W.EnergyVatRates))
 def list_vat(principal: Principal = Depends(_money_read), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return _vat_list(conn)
 
 
-@router.post("/energy/vat-rates", status_code=201)
+@router.post("/energy/vat-rates", status_code=201, **wire(W.EnergyVatRates))
 def create_vat(request: Request, principal: Principal = Depends(_manage), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body = _parse(request, raw, VatCreate)
     try:
@@ -741,13 +722,13 @@ def delete_vat(vid: str, request: Request, principal: Principal = Depends(_manag
 
 # ====================================================================== billing settings and logo
 
-@router.get("/energy/billing-settings")
+@router.get("/energy/billing-settings", **wire(W.EnergyBillingSettings))
 def get_settings(principal: Principal = Depends(_money_read), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     # pdf_engine: which PDF engine this installation really renders with (start-up self-check; a silent fallback is visible)
     return {**eb.read_settings(conn), "pdf_engine": pdfseam.engine_status()}
 
 
-@router.put("/energy/billing-settings")
+@router.put("/energy/billing-settings", **wire(W.EnergyBillingSettings))
 def put_settings(request: Request, principal: Principal = Depends(_manage), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body = _parse(request, raw, SettingsPut)
     patch = body.model_dump(exclude_unset=True, exclude_none=True)
@@ -757,7 +738,7 @@ def put_settings(request: Request, principal: Principal = Depends(_manage), raw:
     return out
 
 
-@router.put("/energy/billing-settings/logo")
+@router.put("/energy/billing-settings/logo", **wire(W.EnergyLogoSaved))
 def put_logo(request: Request, principal: Principal = Depends(_manage), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     media = (request.headers.get("content-type") or "").split(";", 1)[0].strip().lower()
     if media not in ("image/png", "image/jpeg"):
@@ -785,37 +766,12 @@ def get_logo(request: Request, principal: Principal = Depends(_money_read), conn
 
 # ====================================================================== bills
 
-@router.get("/energy/bills")
+@router.get("/energy/bills", **wire(W.EnergyBillsPage))
 def list_bills(principal: Principal = Depends(_bills), conn: sqlite3.Connection = Depends(get_read_conn), account_id: str | None = Query(None, max_length=64),
                customer_id: str | None = Query(None, max_length=64), state: Literal["draft", "issued", "sent", "paid", "void"] | None = None,
                from_: dt.date | None = Query(None, alias="from"), to: dt.date | None = None, q: str | None = Query(None, max_length=80),
                limit: int = Query(200, ge=1, le=500), offset: int = Query(0, ge=0)) -> dict[str, Any]:
-    where = ["1=1"]
-    args: list[Any] = []
-    if account_id:
-        where.append("b.account_id = ?")
-        args.append(account_id)
-    if customer_id:
-        where.append("b.customer_id = ?")
-        args.append(customer_id)
-    if from_:
-        where.append("b.period_end > ?")
-        args.append(from_.isoformat())
-    if to:
-        where.append("b.period_start <= ?")
-        args.append(to.isoformat())
-    if q:
-        where.append("(b.number LIKE ? OR a.name LIKE ? OR c.name LIKE ? OR c.customer_number LIKE ?)")
-        args += [f"%{q}%"] * 4
-    base = f"FROM energy_bills b LEFT JOIN energy_accounts a ON a.id = b.account_id LEFT JOIN energy_customers c ON c.id = b.customer_id WHERE {' AND '.join(where)}"
-    counts = {s: 0 for s in ("draft", "issued", "sent", "paid", "void")}
-    for r in conn.execute(f"SELECT b.state, COUNT(*) {base} GROUP BY b.state", args).fetchall():
-        counts[r[0]] = r[1]
-    if state:
-        base += " AND b.state = ?"
-        args.append(state)
-    total = conn.execute(f"SELECT COUNT(*) {base}", args).fetchone()[0]
-    rows = conn.execute(f"SELECT b.* {base} ORDER BY b.period_end DESC, b.created_at DESC LIMIT ? OFFSET ?", (*args, limit, offset)).fetchall()
+    rows, total, counts = store.bills_page(conn, account_id=account_id, customer_id=customer_id, state=state, from_=from_, to=to, q=q, limit=limit, offset=offset)
     return {"items": [eb.bill_summary(conn, r) for r in rows], "total": total, "counts": counts, "revision": enotify.state(conn)["revision"]}
 
 
@@ -825,7 +781,7 @@ def _etag_matches(header: str | None, etag: str) -> bool:
     return any(t.strip() == "*" or t.strip().removeprefix("W/") == etag for t in header.split(","))
 
 
-@router.get("/energy/bills/state")
+@router.get("/energy/bills/state", **wire(W.EnergyBillsState))
 def bills_state(request: Request, principal: Principal = Depends(_bills), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
     """ELECBILL77: the bills screen's live state for cheap polling - counts by state, the automatic generation's runs and a `revision` that moves
     when any bill is created, edited, issued, paid, voided, deleted or gets its stored PDF. It is also the ETag (`"<revision>"`): a poll that sends
@@ -839,7 +795,7 @@ def bills_state(request: Request, principal: Principal = Depends(_bills), conn: 
     return JSONResponse(body, headers=headers)
 
 
-@router.post("/energy/accounts/{aid}/bills", status_code=201)
+@router.post("/energy/accounts/{aid}/bills", status_code=201, **wire(W.EnergyBill))
 def create_bill(aid: str, request: Request, principal: Principal = Depends(_bills), raw: bytes = Depends(_raw_body), rconn: sqlite3.Connection = Depends(get_read_conn)) -> JSONResponse:
     body = _parse(request, raw, BillCreate)
     existing = eb.by_create_request(rconn, body.client_request_id)
@@ -868,24 +824,23 @@ def _same_request(conn: sqlite3.Connection, row: sqlite3.Row, aid: str) -> JSONR
     return JSONResponse(status_code=200, content=eb.bill_dict(conn, row))
 
 
-@router.get("/energy/bills/{bid}")
+@router.get("/energy/bills/{bid}", **wire(W.EnergyBill))
 def get_bill(bid: str, principal: Principal = Depends(_bills), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return eb.bill_dict(conn, eb.get_bill(conn, bid))
 
 
-@router.get("/energy/bills/{bid}/events")
+@router.get("/energy/bills/{bid}/events", **wire(W.EnergyBillEvents))
 def bill_events(bid: str, principal: Principal = Depends(_bills), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     eb.get_bill(conn, bid)
-    rows = conn.execute("SELECT * FROM energy_bill_events WHERE bill_id = ? ORDER BY at, rowid", (bid,)).fetchall()
     return {"items": [{"at": r["at"], "action": r["action"], "actor": {"kind": r["actor_kind"], "display_name": r["actor_name"]},
-                       "details": json.loads(r["details_json"]) if r["details_json"] else None} for r in rows]}
+                       "details": json.loads(r["details_json"]) if r["details_json"] else None} for r in store.bill_events(conn, bid)]}
 
 
 def _replaces(conn: sqlite3.Connection, bill: sqlite3.Row) -> sqlite3.Row | None:
     return eb.get_bill(conn, bill["replaces_bill_id"]) if bill["replaces_bill_id"] else None
 
 
-@router.post("/energy/bills/{bid}/recalculate")
+@router.post("/energy/bills/{bid}/recalculate", **wire(W.EnergyBill))
 def recalculate(bid: str, request: Request, principal: Principal = Depends(_bills), raw: bytes = Depends(_raw_body), rconn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     body = _parse(request, raw, RowVersionIn)
     bill = eb.get_bill(rconn, bid)
@@ -906,7 +861,7 @@ def delete_bill(bid: str, request: Request, row_version: int = Query(...), princ
     return Response(status_code=204)
 
 
-@router.post("/energy/bills/{bid}/issue")
+@router.post("/energy/bills/{bid}/issue", **wire(W.EnergyBill))
 def issue(bid: str, request: Request, principal: Principal = Depends(_bills), raw: bytes = Depends(_raw_body), rconn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     body = _parse(request, raw, IssueIn)
     bill = eb.get_bill(rconn, bid)
@@ -944,7 +899,7 @@ def issue(bid: str, request: Request, principal: Principal = Depends(_bills), ra
         return eb.bill_dict(w, eb.get_bill(w, bid))
 
 
-@router.post("/energy/bills/{bid}/sent")
+@router.post("/energy/bills/{bid}/sent", **wire(W.EnergyBill))
 def mark_sent(bid: str, request: Request, principal: Principal = Depends(_bills), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body = _parse(request, raw, SentIn)
     bill = eb.get_bill(conn, bid)
@@ -953,7 +908,7 @@ def mark_sent(bid: str, request: Request, principal: Principal = Depends(_bills)
     return eb.bill_dict(conn, eb.get_bill(conn, bid))
 
 
-@router.post("/energy/bills/{bid}/paid")
+@router.post("/energy/bills/{bid}/paid", **wire(W.EnergyBill))
 def mark_paid(bid: str, request: Request, principal: Principal = Depends(_bills), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body = _parse(request, raw, PaidIn)
     bill = eb.get_bill(conn, bid)
@@ -962,14 +917,14 @@ def mark_paid(bid: str, request: Request, principal: Principal = Depends(_bills)
     return eb.bill_dict(conn, eb.get_bill(conn, bid))
 
 
-@router.post("/energy/bills/{bid}/void")
+@router.post("/energy/bills/{bid}/void", **wire(W.EnergyBill))
 def void(bid: str, request: Request, principal: Principal = Depends(_bills), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body = _parse(request, raw, VoidIn)
     eb.void_bill(conn, bid, body.reason, principal, _rid(request), body.row_version)
     return eb.bill_dict(conn, eb.get_bill(conn, bid))
 
 
-@router.post("/energy/bills/{bid}/correct", status_code=201)
+@router.post("/energy/bills/{bid}/correct", status_code=201, **wire(W.EnergyBill))
 def correct(bid: str, request: Request, principal: Principal = Depends(_bills), raw: bytes = Depends(_raw_body), rconn: sqlite3.Connection = Depends(get_read_conn)) -> JSONResponse:
     body = _parse(request, raw, CorrectIn)
     existing = eb.by_create_request(rconn, body.client_request_id)
@@ -1056,22 +1011,16 @@ def bill_pdf(bid: str, request: Request, copy: bool = False, principal: Principa
                 pass
             tmp.replace(path)
             with _db(request).write_aside(label="energy.bill.pdf.store") as w:
-                cur = w.execute("UPDATE energy_bills SET pdf_path = ?, pdf_sha256 = ? WHERE id = ? AND pdf_path IS NULL", (rel, hashlib.sha256(content).hexdigest(), bid))
-                if cur.rowcount:
+                if store.mark_pdf_stored(w, bid, rel, hashlib.sha256(content).hexdigest()):
                     eb.pdf_event(w, bid, "pdf", None, {"engine": eb.pdf_engine_name()})
     audit(conn, actor=principal, action="energy.bill.pdf", decision="allowed", resource_type="energy_bill", resource_id=bid, request_id=_rid(request), details={"watermark": watermark})
     name = (bill["number"] or f"draft-{bid}").replace("/", "_")
     return Response(content=content, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{name}.pdf"', "Cache-Control": "private, no-store"})
 
 
-@router.get("/energy/auto-runs")
+@router.get("/energy/auto-runs", **wire(W.EnergyAutoRuns))
 def auto_runs(principal: Principal = Depends(_bills), conn: sqlite3.Connection = Depends(get_read_conn), account_id: str | None = Query(None, max_length=64),
               limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
-    sql = "SELECT * FROM energy_auto_runs"
-    args: list[Any] = []
-    if account_id:
-        sql += " WHERE account_id = ?"
-        args.append(account_id)
-    rows = conn.execute(sql + " ORDER BY updated_at DESC LIMIT ?", (*args, limit)).fetchall()
+    rows = store.auto_runs(conn, account_id, limit)
     return {"items": [{"account_id": r["account_id"], "period": {"from": r["period_start"], "to": (eb._date(r["period_end"]) - dt.timedelta(days=1)).isoformat()},
                        "status": r["status"], "bill_id": r["bill_id"], "error_code": r["error_code"], "attempts": r["attempts"], "updated_at": r["updated_at"]} for r in rows]}

@@ -27,10 +27,13 @@ test('D2: the edit bar reserves its measured height in the last sheet, so no dir
 test('D2: the edit controls are tokens, 44 px on touch, hover gated, pressed on pointer-down', () => {
   const s = read('screens/home-widgets.ts') + read('screens/home-widgets-css.ts'); // CR-STRUCT-CSS-SPLIT-2442: the sheets moved to the second file
   expect(s).not.toMatch(/border-radius:\s*999px/);
-  const bar = s.slice(s.indexOf('    .wg-e {'), s.indexOf('    .seg button[aria-pressed'));
+  // the edit bar's rules, up to the next section (CR-HOME-V3-SEGMENTS-2470: the old end marker, the size keys' chosen rule, is gone)
+  const bar = s.slice(s.indexOf('    .wg-e {'), s.indexOf('    /* QUICKHIDE-295'));
   expect(bar).toContain('border-radius: var(--sw-r-lg);');
   expect(bar).toMatch(/@media \(pointer: coarse\) \{\n\s+\.grip,\n\s+\.eb \{\n\s+inline-size: 44px;\n\s+block-size: 44px;/);
-  expect(bar).toMatch(/\.seg button \{\n\s+min-block-size: 44px;\n\s+min-inline-size: 44px;/);
+  // CR-HOME-V3-SEGMENTS-2470: the size choice is sw-segmented; its 44 px on touch is the component's key height and minimum width
+  // knobs - the same two sizes the hand-built `.seg button` rule pinned (and the track still drops its padding there)
+  expect(bar).toMatch(/\.wg-e sw-segmented \{\n\s+--sw-seg-pad: 0;\n\s+--sw-seg-h: 44px;\n\s+--sw-seg-key-min-w: 44px;/);
   expect(bar).toMatch(/@media \(hover: hover\) and \(pointer: fine\) \{\n\s+\.grip:hover,/);
   expect(bar).toContain('background: var(--sw-pressed-wash);');
   // no hover rule of the file outside a hover gate

@@ -4,6 +4,7 @@
 // POST /home/tickets/{id}/photos (routers/home_ticket_photo.py): the caller's own NEW ticket, JPEG / PNG, at most 8 MB, at most three;
 // the server re-encodes it (EXIF and location never stored). The checks here only spare a useless upload; the server decides.
 import { post, upload } from '../api/client';
+import type * as WallWire from '../api/generated/wire-home-wall-events';
 import { tr } from '../i18n/msg/home';
 
 export const PHOTO_TYPES = ['image/jpeg', 'image/png'];
@@ -11,7 +12,7 @@ export const PHOTO_MAX_BYTES = 8 * 1024 * 1024;
 export const PHOTOS_MAX = 3;
 
 export const wallEvent = (body: { calendar_id?: string; title: string; start: string; end: string }) =>
-  post<{ event: { id: string }; state: string }>('home/wall/events', body);
+  post<Omit<WallWire.WallEventCreated, 'event'> & { event: { id: string } }>('home/wall/events', body); // wire/home_wall_events.py; the event is the calendar's document
 
 export function ticketPhoto(id: string, file: Blob, name = 'photo.jpg') {
   const form = new FormData();

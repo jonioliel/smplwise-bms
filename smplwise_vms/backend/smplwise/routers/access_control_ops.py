@@ -32,7 +32,7 @@ from ..audit import audit
 from ..auth import current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..errors import ApiError
 from ..rbac import Principal
-from ..services import intercom_authority as ia
+from ..services import intercom_authority as ia, savepoints
 from ..services import wiskey_ops_views as ov
 from ._common import raw_body as _raw_body, rid as _rid
 from .access_control import CommandEnvelope, _Action, _envelope, _parse
@@ -256,7 +256,7 @@ def cancel_job(
         act.outcome("unknown", type(exc).__name__, {"error": type(exc).__name__})
         raise
     finally:
-        conn.execute("BEGIN")  # deferred: takes no lock; nothing more is written on this connection
+        savepoints.begin_deferred(conn)  # deferred: takes no lock; nothing more is written on this connection
     job = reply["cancel"]
     act.outcome("ok", None, {"result": {"state": job["state"], "revision": job["revision"]}})
     return {"status": "completed", "command_id": act.details["command_id"], "at": reply.get("fetched_at"), "job": job}

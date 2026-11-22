@@ -16,6 +16,7 @@ from ..db import now_iso
 from ..errors import conflict, not_found
 from ..rbac import INSTALLATION, Principal, require
 from ..services import plan_area_links as links
+from ..services import plan_area_links_store as store
 from ._common import rid as _rid
 
 router = APIRouter()
@@ -59,7 +60,7 @@ def apply_area_links(body: LinksIn, request: Request, principal: Principal = Dep
         if item.zone_id in seen:
             continue
         seen.add(item.zone_id)
-        z = conn.execute("SELECT id, floor_id, revision, ha_area_id FROM spatial_zones WHERE id = ? AND deleted_at IS NULL", (item.zone_id,)).fetchone()
+        z = store.live_zone(conn, item.zone_id)
         if not z:
             raise not_found("האזור לא נמצא.")
         require(conn, principal, "placement.edit", ("floor", z["floor_id"]))
@@ -75,7 +76,7 @@ def apply_area_links(body: LinksIn, request: Request, principal: Principal = Dep
     for z, area_id in plan:
         if (z["ha_area_id"] or None) == area_id:
             continue
-        conn.execute("UPDATE spatial_zones SET ha_area_id = ?, revision = revision + 1, updated_at = ? WHERE id = ?", (area_id, now, z["id"]))
+        store.set_zone_area(conn, z["id"], area_id, now)
         changed += 1
         details.append({"zone_id": z["id"], "floor_id": z["floor_id"], "area_id": area_id})
     guard.check()

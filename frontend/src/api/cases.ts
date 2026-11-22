@@ -5,10 +5,11 @@
 import { api, apiUrl, del, get, patch, path, post, query } from './client';
 import { tr } from '../i18n/msg/api-video';
 import { isoZ } from './day-format';
+import type * as Wire from './generated/wire-cases';
 
 export type CaseStatus = 'open' | 'in_review' | 'closed';
 type CaseItemKind = 'event' | 'clip' | 'note' | 'snapshot';
-export type Preservation = 'preserved' | 'preserving' | 'nvr_only' | 'missing' | 'unknown' | 'not_in_bundle' | 'none';
+export type Preservation = Wire.CaseItem['preservation'];
 
 export const CASE_STATUS_LABEL: Record<CaseStatus, string> = { open: tr('פתוח'), in_review: tr('בבדיקה'), closed: tr('סגור') };
 export const PRESERVATION_LABEL: Record<Preservation, string> = {
@@ -21,33 +22,17 @@ export const PRESERVATION_LABEL: Record<Preservation, string> = {
   none: '',
 };
 
-interface CaseCounts {
-  items: number;
-  events: number;
-  clips: number;
-  notes: number;
-  snapshots: number;
-  preserved: number;
-}
-
-export interface Case {
-  id: string;
-  title: string;
-  description: string;
+/* The wire shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/cases.py, generated into
+ * ./generated/wire-cases.ts): a field the server renames or drops is a compile error here (code review 07:F8 step 2). Kept by hand:
+ * the stored documents (an imported case's provenance, an imported item's origin, the bundle report's signature / origin). Narrowed:
+ * the stored strings `status` / `kind` / `origin` to the values the screens know. */
+export interface Case
+  extends Pick<Wire.CaseRow, 'id' | 'title' | 'description' | 'tags' | 'owner_user_id' | 'owner_username' | 'revision' | 'created_at' | 'updated_at' | 'closed_at' | 'counts'> {
   status: CaseStatus;
-  tags: string[];
-  owner_user_id: string;
-  owner_username: string;
-  revision: number;
-  created_at: string;
-  updated_at: string;
-  closed_at: string | null;
-  counts: CaseCounts;
   /** T050 import: 'imported' = the case came from an evidence bundle; provenance says from where. */
   origin?: 'local' | 'imported';
   provenance?: CaseProvenance | null;
 }
-
 /** Where an imported case came from (recorded at import; the bundle verified cleanly then). */
 interface CaseProvenance {
   source_installation_id: string | null;
@@ -89,37 +74,17 @@ interface ItemOrigin {
   stored: boolean;
 }
 
-export interface CaseItem {
-  id: string;
-  case_id: string;
+export interface CaseItem
+  extends Pick<Wire.CaseItem, 'id' | 'case_id' | 'camera_id' | 'camera_name' | 'event_id' | 'export_job_id' | 'from_at' | 'to_at' | 'note' | 'added_by_username' | 'created_at' | 'preservation' | 'export'>,
+    Partial<Pick<Wire.CaseItem, 'file_path' | 'file_sha256' | 'file_url' | 'imported'>> {
   kind: CaseItemKind;
-  camera_id: string | null;
-  camera_name: string | null;
-  event_id: string | null;
-  event: { type: string; occurred_at: string; ended_at: string | null; severity: string; confidence: string; thumbnail?: string; acked_at: string | null; source: string } | null;
-  export_job_id: string | null;
-  from_at: string | null;
-  to_at: string | null;
-  note: string;
-  added_by_username: string;
-  created_at: string;
-  preservation: Preservation;
-  export: { id: string; state: string; progress: number; download_ready: boolean; error: string | null } | null;
-  file_path?: string | null;
-  file_sha256?: string | null;
-  file_url?: string | null;
-  imported?: boolean;
+  /** The event's summary; an imported item's event is the copy the bundle carried (a stored document). */
+  event: { type: string; occurred_at: string; ended_at: string | null; severity: string; confidence: string; thumbnail?: string | null; acked_at: string | null; source: string } | null;
   origin?: ItemOrigin | null;
 }
-
-export interface CaseDetail extends Case {
+export interface CaseDetail extends Case, Pick<Wire.CaseDetail, 'hidden_items' | 'can_manage' | 'checked'> {
   items: CaseItem[];
-  hidden_items: number;
-  can_manage: boolean;
-  /** false when the NVR could not be asked (no NVR configured or check=false): preservation reads "unknown". */
-  checked: boolean;
 }
-
 export interface NewCaseItem {
   kind: CaseItemKind;
   event_id?: string;
@@ -134,7 +99,7 @@ export function listCases(opts: { status?: CaseStatus; q?: string } = {}) {
   if (opts.status) p.set('status', opts.status);
   if (opts.q) p.set('q', opts.q);
   const qs = p.toString();
-  return get<{ cases: Case[]; can_manage: boolean; can_import?: boolean }>(`cases${qs ? `?${qs}` : ''}`);
+  return get<Omit<Wire.CaseList, 'cases'> & { cases: Case[] }>(`cases${qs ? `?${qs}` : ''}`);
 }
 export const createCase = (body: { title: string; description?: string; tags?: string[]; status?: CaseStatus }) => post<Case>('cases', body);
 export const getCase = (id: string, check = true) => get<CaseDetail>(path`cases/${id}` + query({ check: check ? undefined : false }));
@@ -146,40 +111,24 @@ export const preserveCaseItem = (id: string, itemId: string) => post<CaseItem>(p
 
 /** A bookmark on the playback timeline (T049): an event / clip item of a case, for one camera and local day.
  * `nvr` = the NVR still has to serve it (no copy yet); preserved / preserving follow the export job. */
-export interface Bookmark {
-  id: string;
-  case_id: string;
-  case_title: string;
+export interface Bookmark extends Pick<Wire.CaseBookmark, 'id' | 'case_id' | 'case_title' | 'event_id' | 'note' | 'added_by_username' | 'preservation'> {
   case_status: CaseStatus;
   kind: CaseItemKind;
-  event_id: string | null;
+  /** a bookmark is an event / clip item: its window is always set */
   from_at: string;
   to_at: string;
-  note: string;
-  added_by_username: string;
-  preservation: 'preserved' | 'preserving' | 'nvr';
-}
-export const BOOKMARK_LABEL: Record<Bookmark['preservation'], string> = { preserved: tr('עותק שמור'), preserving: tr('מעתיק מה־NVR…'), nvr: tr('סימנייה ל־NVR') };
-export const listBookmarks = (cameraId: string, date: string) => get<{ bookmarks: Bookmark[] }>(`cases/bookmarks?camera_id=${encodeURIComponent(cameraId)}&date=${encodeURIComponent(date)}`);
+}export const BOOKMARK_LABEL: Record<Bookmark['preservation'], string> = { preserved: tr('עותק שמור'), preserving: tr('מעתיק מה־NVR…'), nvr: tr('סימנייה ל־NVR') };
+export const listBookmarks = (cameraId: string, date: string) => get<Omit<Wire.CaseBookmarks, 'bookmarks'> & { bookmarks: Bookmark[] }>(`cases/bookmarks?camera_id=${encodeURIComponent(cameraId)}&date=${encodeURIComponent(date)}`);
 
 const isoSec = (d: Date) => isoZ(d);
 /** A clip bookmark around an instant (default 15 s before, 45 s after). */
 export const clipAround = (at: Date, beforeS = 15, afterS = 45) => ({ from_at: isoSec(new Date(at.getTime() - beforeS * 1000)), to_at: isoSec(new Date(at.getTime() + afterS * 1000)) });
 
 /** Evidence bundle of a case (T050): one ZIP with a manifest and a SHA-256 per file; verification recomputes them. */
-export interface Bundle {
-  name: string;
-  bytes: number;
-  created_at: string;
-  download_url: string;
-  sha256?: string;
-  files?: number;
-  skipped?: { item_id: string; reason: string }[];
-  /** Key id the bundle's manifest was signed with (T067); null for bundles made before 0.1.40. */
-  signed?: string | null;
-  signature?: { alg: string; kid: string };
-}
-/** Verdict on the manifest signature: integrity since export, and whether the key belongs to this installation. */
+/** One answer type for a listed bundle (`signed`) and a new one (`sha256`, `files`, `skipped`, `signature`). */
+export type Bundle = Pick<Wire.CaseBundleFile, 'name' | 'bytes' | 'created_at' | 'download_url'> &
+  Partial<Pick<Wire.CaseBundleFile, 'signed'>> &
+  Partial<Pick<Wire.CaseBundle, 'sha256' | 'files' | 'skipped' | 'signature'>>;/** Verdict on the manifest signature: integrity since export, and whether the key belongs to this installation. */
 export interface SignatureVerdict {
   present: boolean;
   valid: boolean;
@@ -189,14 +138,10 @@ export interface SignatureVerdict {
   trust: 'installation' | 'embedded_key_only' | 'unsigned';
   reason?: string | null;
 }
-export interface SigningInfo {
-  alg: string;
-  active: string | null;
+/** Narrowed: a key's id, public half and creation time (always written with the key). */
+export type SigningInfo = Omit<Wire.CaseSigning, 'keys'> & {
   keys: { kid: string; alg: string; public_key: string; created_at: string; retired_at: string | null }[];
-  trust: string;
-  can_rotate: boolean;
-}
-export type BundleFileStatus = 'ok' | 'mismatch' | 'missing' | 'corrupt';
+};export type BundleFileStatus = 'ok' | 'mismatch' | 'missing' | 'corrupt';
 export const FILE_STATUS_LABEL: Record<BundleFileStatus, string> = { ok: tr('תואם'), mismatch: tr('שונה'), missing: tr('חסר'), corrupt: tr('פגום') };
 /** The producing installation as the manifest names it; `confirmed_by_signature` = signed by a key of this installation. */
 interface BundleOrigin {
@@ -224,44 +169,18 @@ export const PRODUCER_LABEL: Record<Producer, string> = {
   other: tr('התקנה אחרת'),
   unknown: tr('לא ידוע (חבילה ללא מזהה התקנה)'),
 };
-export interface BundleVerification {
-  ok: boolean;
-  schema: string | null;
-  schema_version?: number | null;
-  supported?: boolean;
-  case?: string;
-  generated_at?: string;
-  manifest_ok: boolean | null;
-  files: { path: string; status: BundleFileStatus; expected: string; actual: string | null; bytes?: number | null }[];
-  extra: string[];
-  errors: string[];
-  signature?: SignatureVerdict;
-  authenticity?: string;
-  origin?: BundleOrigin | null;
-  counts?: Record<BundleFileStatus | 'extra', number>;
-  /** Plain-language verdict: a matching hash = unchanged since export, not proof that the footage is genuine. */
-  summary?: string;
-  bundle?: { sha256: string; bytes: number; name: string | null };
-  already_imported?: { case_id: string; title: string } | null;
-  importable?: boolean;
-}
-interface BundleImport {
+/** The verification report; `case` / `generated_at` only when the manifest was readable. Plain-language `summary`: a matching hash =
+ * unchanged since export, not proof that the footage is genuine. Kept by hand: the signature verdict and the origin (report documents). */
+export type BundleVerification = Omit<Wire.CaseVerify, 'files' | 'signature' | 'origin' | 'counts'> & {
+  files: (Omit<Wire.CaseVerifyFile, 'status'> & { status: BundleFileStatus })[];
+  signature: SignatureVerdict;
+  origin: BundleOrigin | null;
+  counts: Record<BundleFileStatus | 'extra', number>;
+};
+type BundleImport = Omit<Wire.CaseImport, 'case' | 'report'> & {
   case: Case;
-  items: number;
-  files: number;
-  bytes: number;
-  bundle: { sha256: string; bytes: number; name: string | null };
   report: Pick<BundleVerification, 'ok' | 'summary' | 'counts' | 'origin' | 'signature' | 'schema' | 'schema_version' | 'authenticity'>;
-}
-export interface CaseIntegrity {
-  case_id: string;
-  checked_at: string;
-  ok: boolean;
-  files: { item_id: string; kind: CaseItemKind; status: 'ok' | 'mismatch' | 'missing'; expected: string; actual: string | null }[];
-  hidden_items: number;
-  note: string;
-}
-export const getSigning = () => get<SigningInfo>('evidence/signing');
+};export type CaseIntegrity = Omit<Wire.CaseIntegrity, 'files'> & { files: (Omit<Wire.CaseIntegrityFile, 'kind'> & { kind: CaseItemKind })[] };export const getSigning = () => get<SigningInfo>('evidence/signing');
 export const rotateSigning = () => post<SigningInfo>('evidence/signing/rotate');
 export const createBundle = (id: string) => post<Bundle>(path`cases/${id}/bundle`);
 export const listBundles = (id: string) => get<{ bundles: Bundle[] }>(path`cases/${id}/bundles`);

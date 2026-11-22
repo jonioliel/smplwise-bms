@@ -23,6 +23,7 @@ from ..config import Settings
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
+from ..services import app_secrets_store as store
 from ..services import secrets_store
 from ..services.connection_store import SecretError
 from ._common import raw_body as _raw_body, rid as _rid
@@ -152,7 +153,7 @@ def _probe_wiskey(conn: sqlite3.Connection, settings: Settings, value: str) -> s
     _, overview = intercom_sync.SYNC.served(settings)
     if overview is None:
         return "wiskey_unavailable"
-    overrides = {r[0] for r in conn.execute("SELECT station_id FROM wiskey_station_credentials").fetchall()}
+    overrides = {r[0] for r in store.station_credential_ids(conn)}
     for station in overview.get("stations", []):
         if not station.get("camera_entity") or not station.get("online") or station["id"] in overrides:
             continue

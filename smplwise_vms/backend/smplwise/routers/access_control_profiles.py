@@ -49,7 +49,7 @@ from ..errors import ApiError
 from ..rbac import Principal
 from ..services import intercom_adapter as ad
 from ..services import intercom_authority as ia
-from ..services import intercom_sync
+from ..services import intercom_sync, savepoints
 from ..services import wiskey_profiles as wp
 from ._common import raw_body as _raw_body, rid as _rid
 from .access_control import CommandEnvelope, _Action, _envelope, _parse
@@ -330,7 +330,7 @@ def profiles_apply(request: Request, principal: Principal = Depends(_editor_ro),
         wp.REVIEWS.settle(review, "unknown")
         raise
     finally:
-        act.conn.execute("BEGIN")  # deferred: takes no lock; nothing more is written on this connection
+        savepoints.begin_deferred(act.conn)  # deferred: takes no lock; nothing more is written on this connection
     receipt = reply["receipt"]
     ad.ADAPTER.cache.invalidate()  # the Settings view's cached groups / versions are stale now
     back = _readback(request, principal.user_id, review)

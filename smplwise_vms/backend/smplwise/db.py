@@ -339,6 +339,36 @@ def is_storage_full(exc: BaseException) -> bool:
     return getattr(exc, "sqlite_errorcode", None) == SQLITE_FULL or "disk is full" in str(exc).lower()
 
 
+STORAGE_FULL_LOG_EVERY_S = 60.0
+_storage_full_log: dict[str, list[float]] = {}  # writer -> [monotonic time of its last line, refusals since that line]
+_storage_full_lock = threading.Lock()
+
+
+def log_storage_full(logger: logging.Logger, what: str) -> None:
+    """T068-EDGE-2450: a write refused because the data disk is full, from a writer that runs all the time (the alert stream, the HA
+    state feed). One plain line per writer per STORAGE_FULL_LOG_EVERY_S with the number of refusals since its last line - never a
+    traceback per write, which flooded the log (onto the disk that is already full) several times a second. The health summary
+    says the disk is full; the writers' own counters keep the exact numbers."""
+    now = time.monotonic()
+    with _storage_full_lock:
+        entry = _storage_full_log.setdefault(what, [float("-inf"), 0])
+        entry[1] += 1
+        if now - entry[0] < STORAGE_FULL_LOG_EVERY_S:
+            return
+        n, entry[0], entry[1] = entry[1], now, 0
+    logger.error("%s: the data disk is full - %d write(s) refused since the last such line; nothing is stored until space is freed", what, n)
+
+
+def _reset_storage_full_log() -> None:
+    with _storage_full_lock:
+        _storage_full_log.clear()
+
+
+from .test_reset import register_reset  # noqa: E402 - imports nothing from the package
+
+register_reset(__name__, ("_storage_full_log",), _reset_storage_full_log)
+
+
 def _caller(depth: int) -> str:
     try:
         f = sys._getframe(depth)

@@ -42,6 +42,7 @@ from typing import Any
 from . import wiskey_media_bridge as bridge
 from . import wiskey_media_contract as w10
 from .wiskey_direct_discovery import Capabilities, DirectDiscovery, TimeObservation
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.wiskey.media_caps")
 
@@ -287,3 +288,12 @@ def listing(settings: Any, conn: Any, choice: str, *, read: bool = True) -> Sign
         return _store(entry)
     finally:
         _LOCK.release()
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    READS.clear()
+    READS.update({"started": 0})
+
+
+register_reset(__name__, ("READS",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

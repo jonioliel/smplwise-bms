@@ -26,9 +26,11 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import get_setting, new_id, now_iso, set_setting
 from ..errors import ApiError, conflict, validation
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import building_scope
+from ..services import building_scope, home_mapping_store as store
 from ._common import rid as _rid
 from .catalog import P_CONTENT, get_site
+from ..wire import home_mapping as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -62,38 +64,18 @@ def _settings(raw: str | None) -> dict[str, str]:
     return out
 
 
-def _state_row(conn: sqlite3.Connection, site_id: str) -> sqlite3.Row | None:
-    return conn.execute("SELECT * FROM home_mapping_state WHERE site_id = ?", (site_id,)).fetchone()
-
-
-def _site_buildings(conn: sqlite3.Connection, site_id: str) -> list[sqlite3.Row]:
-    return conn.execute("SELECT * FROM buildings WHERE site_id = ? AND deleted_at IS NULL ORDER BY sort_order, name", (site_id,)).fetchall()
-
-
-def _site_floors(conn: sqlite3.Connection, site_id: str) -> list[sqlite3.Row]:
-    return conn.execute(
-        "SELECT f.* FROM floors f JOIN buildings b ON b.id = f.building_id WHERE b.site_id = ? AND b.deleted_at IS NULL AND f.deleted_at IS NULL ORDER BY f.level DESC, f.sort_order",
-        (site_id,),
-    ).fetchall()
-
-
-def site_rows(conn: sqlite3.Connection, site_id: str) -> dict[str, list[dict[str, Any]]]:
-    """The mapping rows that concern this site: floor / area rows on its floors, area rows taken off every floor (they name no place),
-    and area -> building rows of its buildings. Sorted, so two snapshots compare as JSON."""
-    floors = {r["id"] for r in _site_floors(conn, site_id)}
-    buildings = {r["id"] for r in _site_buildings(conn, site_id)}
-    fl = [{"ha_floor_id": r[0], "floor_id": r[1]} for r in conn.execute("SELECT ha_floor_id, floor_id FROM home_floor_links ORDER BY ha_floor_id").fetchall() if r[1] in floors]
-    ar = [{"area_id": r[0], "floor_id": r[1]} for r in conn.execute("SELECT area_id, floor_id FROM home_area_links ORDER BY area_id").fetchall() if r[1] is None or r[1] in floors]
-    bl = [{"area_id": r[0], "building_id": r[1]} for r in conn.execute("SELECT area_id, building_id FROM home_area_buildings ORDER BY area_id").fetchall() if r[1] in buildings]
-    return {"floors": fl, "areas": ar, "buildings": bl}
+# CR-ROUTER-SQL-2450: the queries live in services/home_mapping_store.py; the old names stay importable from here
+_state_row = store.state_row
+_site_buildings = store.site_buildings
+_site_floors = store.site_floors
+site_rows = store.site_rows
+_labels = store.labels
+_write_rows = store.write_rows
+_new_version = store.new_version
 
 
 def _versions(conn: sqlite3.Connection, site_id: str) -> list[dict[str, Any]]:
-    rows = conn.execute(
-        "SELECT v.number, v.kind, v.restored_from, v.created_at, v.created_by, v.summary_json, v.note, u.display_name, u.username "
-        "FROM home_mapping_versions v LEFT JOIN users u ON u.id = v.created_by WHERE v.site_id = ? ORDER BY v.number DESC LIMIT 50",
-        (site_id,),
-    ).fetchall()
+    rows = store.version_rows(conn, site_id)
     out = []
     for i, r in enumerate(rows):
         try:
@@ -106,27 +88,14 @@ def _versions(conn: sqlite3.Connection, site_id: str) -> list[dict[str, Any]]:
 
 
 def _can_toggle(conn: sqlite3.Connection, principal: Principal) -> bool:
-    sites = [r[0] for r in conn.execute("SELECT id FROM sites WHERE deleted_at IS NULL").fetchall()]
+    sites = store.live_site_ids(conn)
     return bool(sites) and all(authorize(conn, principal, P_CONTENT, ("site", s)).allowed for s in sites)
 
-
-def _labels(conn: sqlite3.Connection) -> tuple[dict[str, list[str]], list[dict[str, Any]], str | None]:
-    """HA-LABELS-SYNC-2351: the home system's labels as the sync mirrored them (read-only). Returns each area's label NAMES in the area's
-    own order (what the engine's "בתווית" rules and label conflicts read; an id the label table does not know is skipped), the label
-    catalogue with how many areas carry each, and when the label registry was last listed (None = never: an old core, or not synced yet)."""
-    by_area: dict[str, list[str]] = {}
-    for r in conn.execute("SELECT al.area_id, l.name FROM ha_area_labels al JOIN ha_labels l ON l.label_id = al.label_id ORDER BY al.area_id, al.position").fetchall():
-        by_area.setdefault(r["area_id"], []).append(r["name"])
-    catalogue = [{"id": r["label_id"], "name": r["name"], "color": r["color"], "icon": r["icon"], "areas": r["n"]} for r in conn.execute(
-        "SELECT l.label_id, l.name, l.color, l.icon, (SELECT COUNT(*) FROM ha_area_labels al JOIN ha_areas a ON a.area_id = al.area_id WHERE al.label_id = l.label_id) AS n"
-        " FROM ha_labels l ORDER BY l.position, l.name").fetchall()]
-    row = conn.execute("SELECT synced_at FROM ha_label_sync WHERE id = 1").fetchone()
-    return by_area, catalogue, row["synced_at"] if row else None
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------- read
 
-@router.get("/sites/{site_id}/mapping")
+@router.get("/sites/{site_id}/mapping", **wire(W.HomeMappingRead))
 def read_mapping(site_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Everything the assistant needs: its stored state and settings, the versions, the item keys the last apply saw, the platform's floors
     and areas (the registry - complete, independent of the caller's device reach), our buildings with their floors, and the current rows."""
@@ -137,7 +106,7 @@ def read_mapping(site_id: str, principal: Principal = Depends(current_principal_
         state = json.loads(st["state_json"]) if st and st["state_json"] else None
     except ValueError:
         state = None
-    last = conn.execute("SELECT items_json FROM home_mapping_versions WHERE site_id = ? ORDER BY number DESC LIMIT 1", (site_id,)).fetchone()
+    last = store.last_items(conn, site_id)
     try:
         seen = json.loads(last["items_json"]) if last else None
     except ValueError:
@@ -148,9 +117,9 @@ def read_mapping(site_id: str, principal: Principal = Depends(current_principal_
     buildings = [{"id": b["id"], "name": b["name"], "is_shared": bool(b["is_shared"]) if "is_shared" in b.keys() else False, "floors": floors_by_b.get(b["id"], [])} for b in _site_buildings(conn, site_id)]
     area_labels, labels, labels_synced_at = _labels(conn)
     items = {
-        "floors": [{"id": r["floor_id"], "name": r["name"], "level": r["level"]} for r in conn.execute("SELECT floor_id, name, level FROM ha_floors ORDER BY position, name").fetchall()],
+        "floors": [{"id": r["floor_id"], "name": r["name"], "level": r["level"]} for r in store.platform_floors(conn)],
         "areas": [{"id": r["area_id"], "name": r["name"], "floor_id": r["floor_id"], "labels": area_labels.get(r["area_id"], [])}
-                  for r in conn.execute("SELECT area_id, name, floor_id FROM ha_areas ORDER BY position, name").fetchall()],
+                  for r in store.platform_areas(conn)],
         "labels": labels,
         "labels_synced_at": labels_synced_at,
     }
@@ -193,13 +162,13 @@ def _save_state(conn: sqlite3.Connection, site_id: str, raw: str, principal: Pri
         raise conflict("stale_revision", "המיפוי השתנה בינתיים במקום אחר. טענו מחדש והמשיכו.", revision=cur)
     now = now_iso()
     if st:
-        conn.execute("UPDATE home_mapping_state SET state_json = ?, revision = ?, updated_at = ?, updated_by = ? WHERE site_id = ?", (raw, cur + 1, now, principal.user_id, site_id))
+        store.update_state(conn, site_id, raw, cur + 1, now, principal.user_id)
     else:
-        conn.execute("INSERT INTO home_mapping_state(site_id, state_json, settings_json, revision, updated_at, updated_by) VALUES (?, ?, '{}', ?, ?, ?)", (site_id, raw, cur + 1, now, principal.user_id))
+        store.insert_state(conn, site_id, raw, cur + 1, now, principal.user_id)
     return cur + 1
 
 
-@router.put("/sites/{site_id}/mapping/state")
+@router.put("/sites/{site_id}/mapping/state", **wire(W.HomeMappingRevision))
 def put_state(site_id: str, body: StateIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The assistant's draft (the mark, the token table, the rules, the manual decisions). Stored as sent; the browser reads it back
     through stateOf(). A stale revision answers 409 (two people mapping at once)."""
@@ -217,7 +186,7 @@ class SettingsIn(BaseModel):
     new_token: Literal["new_first", "existing_first", "unassigned_first"] | None = None
 
 
-@router.put("/sites/{site_id}/mapping/settings")
+@router.put("/sites/{site_id}/mapping/settings", **wire(W.HomeMappingSettingsAnswer))
 def put_settings(site_id: str, body: SettingsIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_site(conn, site_id)
     require(conn, principal, P_CONTENT, ("site", site_id))
@@ -227,9 +196,9 @@ def put_settings(site_id: str, body: SettingsIn, request: Request, principal: Pr
     cur.update(change)
     raw = json.dumps(cur, separators=(",", ":"))
     if st:
-        conn.execute("UPDATE home_mapping_state SET settings_json = ?, updated_at = ?, updated_by = ? WHERE site_id = ?", (raw, now_iso(), principal.user_id, site_id))
+        store.update_settings(conn, site_id, raw, now_iso(), principal.user_id)
     else:
-        conn.execute("INSERT INTO home_mapping_state(site_id, state_json, settings_json, revision, updated_at, updated_by) VALUES (?, '{}', ?, 0, ?, ?)", (site_id, raw, now_iso(), principal.user_id))
+        store.insert_settings(conn, site_id, raw, now_iso(), principal.user_id)
     audit(conn, actor=principal, action="home.mapping.settings", decision="allowed", resource_type="site", resource_id=site_id, request_id=_rid(request), details=change)
     return {"settings": cur}
 
@@ -238,10 +207,10 @@ class MultiIn(BaseModel):
     enabled: bool
 
 
-@router.put("/home/multi-building")
+@router.put("/home/multi-building", **wire(W.HomeMappingMulti))
 def put_multi_building(body: MultiIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The multi-building view of the home screen: OFF by default (owner 31.10). Off = the exact one-building home; the mapping data stays."""
-    sites = [r[0] for r in conn.execute("SELECT id FROM sites WHERE deleted_at IS NULL").fetchall()]
+    sites = store.live_site_ids(conn)
     if not sites:
         raise validation("אין אתר במערכת.")
     for s in sites:
@@ -260,7 +229,7 @@ class ReachIn(BaseModel):
     mode: Literal["map_and_mapping", "map"]
 
 
-@router.put("/home/building-reach")
+@router.put("/home/building-reach", **wire(W.HomeMappingReach))
 def put_building_reach(body: ReachIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Round 14 (owner 02.11): what a building-scoped role binding reaches - map placement, or map placement + the home's area mapping."""
     # it changes who reaches which device, like a role edit: the full authority over roles (rbac.roles.manage across the installation)
@@ -317,48 +286,8 @@ class ApplyIn(BaseModel):
     summary: dict[str, Any] = Field(default_factory=dict)
 
 
-def _write_rows(conn: sqlite3.Connection, plan: PlanIn, bref: dict[str, str], fref: dict[str, str], who: str) -> dict[str, int]:
-    now = now_iso()
-    n = {"floor_rows": 0, "floor_rows_removed": 0, "area_rows": 0, "area_rows_removed": 0, "building_rows": 0, "building_rows_removed": 0}
-    for r in plan.floors:
-        if r.floor is None:
-            n["floor_rows_removed"] += conn.execute("DELETE FROM home_floor_links WHERE ha_floor_id = ?", (r.ha_floor_id,)).rowcount
-            continue
-        conn.execute("INSERT INTO home_floor_links(ha_floor_id, floor_id, updated_at, updated_by) VALUES (?, ?, ?, ?) "
-                     "ON CONFLICT(ha_floor_id) DO UPDATE SET floor_id = excluded.floor_id, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
-                     (r.ha_floor_id, fref[r.floor], now, who))
-        n["floor_rows"] += 1
-    for a in plan.areas:
-        if a.floor == "auto":
-            n["area_rows_removed"] += conn.execute("DELETE FROM home_area_links WHERE area_id = ?", (a.area_id,)).rowcount
-        elif a.floor != "keep":
-            conn.execute("INSERT INTO home_area_links(area_id, floor_id, updated_at, updated_by) VALUES (?, ?, ?, ?) "
-                         "ON CONFLICT(area_id) DO UPDATE SET floor_id = excluded.floor_id, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
-                         (a.area_id, fref[a.floor] if a.floor is not None else None, now, who))
-            n["area_rows"] += 1
-        if a.building is None:
-            n["building_rows_removed"] += conn.execute("DELETE FROM home_area_buildings WHERE area_id = ?", (a.area_id,)).rowcount
-        else:
-            conn.execute("INSERT INTO home_area_buildings(area_id, building_id, updated_at, updated_by) VALUES (?, ?, ?, ?) "
-                         "ON CONFLICT(area_id) DO UPDATE SET building_id = excluded.building_id, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
-                         (a.area_id, bref[a.building], now, who))
-            n["building_rows"] += 1
-    return n
 
-
-def _new_version(conn: sqlite3.Connection, site_id: str, *, kind: str, state_raw: str, before: dict[str, Any], after: dict[str, Any], items: list[str],
-                 summary: dict[str, Any], note: str, who: str, restored_from: int | None = None) -> int:
-    num = (conn.execute("SELECT MAX(number) FROM home_mapping_versions WHERE site_id = ?", (site_id,)).fetchone()[0] or 0) + 1
-    conn.execute(
-        "INSERT INTO home_mapping_versions(site_id, number, kind, restored_from, state_json, rows_before_json, rows_after_json, items_json, summary_json, note, created_at, created_by) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (site_id, num, kind, restored_from, state_raw, json.dumps(before, ensure_ascii=False), json.dumps(after, ensure_ascii=False), json.dumps(items, ensure_ascii=False),
-         json.dumps(summary, ensure_ascii=False)[:20000], note, now_iso(), who),
-    )
-    return num
-
-
-@router.post("/sites/{site_id}/mapping/apply")
+@router.post("/sites/{site_id}/mapping/apply", **wire(W.HomeMappingApply))
 def apply_mapping(site_id: str, body: ApplyIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """One transaction: create the new buildings / floors of the plan, write the rows, store the state, record a version, audit. Every id is
     checked first (a building / floor of THIS site, a platform floor / area the registry lists or a row already names); anything wrong answers
@@ -396,17 +325,16 @@ def apply_mapping(site_id: str, body: ApplyIn, request: Request, principal: Prin
 
     for f in plan.new_floors:
         bcheck(f.building)
-    known_hf = {r[0] for r in conn.execute("SELECT floor_id FROM ha_floors").fetchall()} | {r[0] for r in conn.execute("SELECT ha_floor_id FROM home_floor_links").fetchall()}
-    known_ha = ({r[0] for r in conn.execute("SELECT area_id FROM ha_areas").fetchall()} | {r[0] for r in conn.execute("SELECT area_id FROM home_area_links").fetchall()}
-                | {r[0] for r in conn.execute("SELECT area_id FROM home_area_buildings").fetchall()})
-    current_floor_rows = {r[0]: r[1] for r in conn.execute("SELECT ha_floor_id, floor_id FROM home_floor_links").fetchall()}
+    known_hf = store.known_platform_floors(conn)
+    known_ha = store.known_platform_areas(conn)
+    current_floor_rows = store.floor_link_map(conn)
     for r in plan.floors:
         if r.ha_floor_id not in known_hf:
             raise validation("הקומה לא נמצאה ברשימת הקומות של מערכת הבית.", ha_floor_id=r.ha_floor_id)
         if r.floor is not None:
             fcheck(r.floor)
         prev = current_floor_rows.get(r.ha_floor_id)
-        if prev and prev not in floors and conn.execute("SELECT 1 FROM floors WHERE id = ? AND deleted_at IS NULL", (prev,)).fetchone():
+        if prev and prev not in floors and store.live_floor_exists(conn, prev):
             require(conn, principal, P_CONTENT, ("floor", prev))  # taking a platform floor from another site's floor edits that floor too
     for a in plan.areas:
         if a.area_id not in known_ha:
@@ -422,8 +350,8 @@ def apply_mapping(site_id: str, body: ApplyIn, request: Request, principal: Prin
     created_b: list[dict[str, str]] = []
     for nb in plan.new_buildings:
         bid = new_id()
-        sort = (conn.execute("SELECT MAX(sort_order) FROM buildings WHERE site_id = ? AND deleted_at IS NULL", (site_id,)).fetchone()[0] or 0) + 1
-        conn.execute("INSERT INTO buildings(id, site_id, name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", (bid, site_id, nb.name.strip(), sort, now, now))
+        sort = store.next_building_sort(conn, site_id)
+        store.insert_building(conn, bid, site_id, nb.name.strip(), sort, now)
         audit(conn, actor=principal, action="building.create", decision="allowed", resource_type="building", resource_id=bid, request_id=_rid(request),
               details={"name": nb.name, "site_id": site_id, "via": "home.mapping.apply"})
         bref[f"new:{nb.key}"] = bid
@@ -433,7 +361,7 @@ def apply_mapping(site_id: str, body: ApplyIn, request: Request, principal: Prin
     for nf in plan.new_floors:
         fid = new_id()
         b = bref[nf.building]
-        conn.execute("INSERT INTO floors(id, building_id, name, level, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", (fid, b, nf.name.strip(), nf.level, nf.level, now, now))
+        store.insert_floor(conn, fid, b, nf.name.strip(), nf.level, now)
         audit(conn, actor=principal, action="floor.create", decision="allowed", resource_type="floor", resource_id=fid, request_id=_rid(request),
               details={"name": nf.name, "building_id": b, "level": nf.level, "via": "home.mapping.apply"})
         fref[f"new:{nf.key}"] = fid
@@ -444,7 +372,7 @@ def apply_mapping(site_id: str, body: ApplyIn, request: Request, principal: Prin
     items = list(dict.fromkeys(plan.items))
     if body.kind != "apply":
         # "אשר" / auto-insert apply a few new names: the items the last version saw stay seen
-        last = conn.execute("SELECT items_json FROM home_mapping_versions WHERE site_id = ? ORDER BY number DESC LIMIT 1", (site_id,)).fetchone()
+        last = store.last_items(conn, site_id)
         try:
             prev_items = json.loads(last["items_json"]) if last else []
         except ValueError:
@@ -458,13 +386,13 @@ def apply_mapping(site_id: str, body: ApplyIn, request: Request, principal: Prin
     return {"version": num, "revision": st_rev, "created": {"buildings": created_b, "floors": created_f}, "counts": counts, "links": after}
 
 
-@router.post("/sites/{site_id}/mapping/versions/{number}/restore")
+@router.post("/sites/{site_id}/mapping/versions/{number}/restore", **wire(W.HomeMappingRestore))
 def restore_version(site_id: str, number: int, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """"חזרה לגרסה זו": a NEW version whose rows and state are the chosen version's. Only this site's rows change; rows that name a floor or
     a building deleted since are skipped (counted)."""
     get_site(conn, site_id)
     require(conn, principal, P_CONTENT, ("site", site_id))
-    v = conn.execute("SELECT * FROM home_mapping_versions WHERE site_id = ? AND number = ?", (site_id, number)).fetchone()
+    v = store.version(conn, site_id, number)
     if not v:
         raise ApiError(404, "not_found", "הגרסה לא נמצאה.")
     guard = building_scope.RemapGuard(conn, principal, P_CONTENT)  # round 14: an area leaving its building needs that building's edit too
@@ -473,34 +401,28 @@ def restore_version(site_id: str, number: int, request: Request, principal: Prin
     floors = {r["id"] for r in _site_floors(conn, site_id)}
     buildings = {r["id"] for r in _site_buildings(conn, site_id)}
     for r in before["floors"]:
-        conn.execute("DELETE FROM home_floor_links WHERE ha_floor_id = ?", (r["ha_floor_id"],))
+        store.delete_floor_link(conn, r["ha_floor_id"])
     for r in before["areas"]:
-        conn.execute("DELETE FROM home_area_links WHERE area_id = ?", (r["area_id"],))
+        store.delete_area_link(conn, r["area_id"])
     for r in before["buildings"]:
-        conn.execute("DELETE FROM home_area_buildings WHERE area_id = ?", (r["area_id"],))
+        store.delete_area_building(conn, r["area_id"])
     now = now_iso()
     skipped = 0
     for r in target.get("floors", []):
         if r["floor_id"] not in floors:
             skipped += 1
             continue
-        conn.execute("INSERT INTO home_floor_links(ha_floor_id, floor_id, updated_at, updated_by) VALUES (?, ?, ?, ?) "
-                     "ON CONFLICT(ha_floor_id) DO UPDATE SET floor_id = excluded.floor_id, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
-                     (r["ha_floor_id"], r["floor_id"], now, principal.user_id))
+        store.put_floor_link(conn, r["ha_floor_id"], r["floor_id"], now, principal.user_id)
     for r in target.get("areas", []):
         if r["floor_id"] is not None and r["floor_id"] not in floors:
             skipped += 1
             continue
-        conn.execute("INSERT INTO home_area_links(area_id, floor_id, updated_at, updated_by) VALUES (?, ?, ?, ?) "
-                     "ON CONFLICT(area_id) DO UPDATE SET floor_id = excluded.floor_id, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
-                     (r["area_id"], r["floor_id"], now, principal.user_id))
+        store.include_area(conn, r["area_id"], r["floor_id"], now, principal.user_id)
     for r in target.get("buildings", []):
         if r["building_id"] not in buildings:
             skipped += 1
             continue
-        conn.execute("INSERT INTO home_area_buildings(area_id, building_id, updated_at, updated_by) VALUES (?, ?, ?, ?) "
-                     "ON CONFLICT(area_id) DO UPDATE SET building_id = excluded.building_id, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
-                     (r["area_id"], r["building_id"], now, principal.user_id))
+        store.put_area_building(conn, r["area_id"], r["building_id"], now, principal.user_id)
     after = site_rows(conn, site_id)
     guard.check()
     rev = _save_state(conn, site_id, v["state_json"], principal, None)

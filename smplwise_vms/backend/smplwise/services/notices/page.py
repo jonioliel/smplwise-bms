@@ -7,6 +7,7 @@ from __future__ import annotations
 import re
 import threading
 from pathlib import Path
+from ...test_reset import register_reset
 
 PAGE = "notice-tv.html"
 _REF = re.compile(r"""(?:\./|/|\b)assets/([A-Za-z0-9_.-]+\.(?:js|css|woff2))""")
@@ -65,3 +66,11 @@ def asset(www_dir: str | Path | None, name: str) -> tuple[bytes, str] | None:
         return None
     kind = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".woff2": "font/woff2"}[f.suffix]
     return f.read_bytes(), kind
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _cache.clear()
+
+
+register_reset(__name__, ("_cache",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

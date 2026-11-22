@@ -14,8 +14,11 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import get_setting, new_id, now_iso, set_setting, unlocked
 from ..errors import ApiError, conflict, not_found, validation
 from ..rbac import INSTALLATION, Principal, authorize, require
+from ..services import catalog_store as store
 from ..services.safe_paths import confine  # BACKEND-SAFETY-2435: stored picture paths stay inside catalog_images
 from ._common import rid as _rid
+from ..wire import catalog as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -102,48 +105,48 @@ def _still_there(request: Request, rel: str, check: Callable[[], Any]) -> None:
         raise
 
 
-@router.post("/sites/{site_id}/image")
+@router.post("/sites/{site_id}/image", **wire(W.CatalogSite))
 def site_image_upload(site_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_site(conn, site_id)
     require(conn, principal, P_CONTENT, ("site", site_id))
     with unlocked(conn):  # decoding and re-encoding the image runs without the write lock
         rel = _store_image(request, "site", site_id, file)
     _still_there(request, rel, lambda: get_site(conn, site_id))
-    conn.execute("UPDATE sites SET image_path = ?, updated_at = ? WHERE id = ?", (rel, now_iso(), site_id))
+    store.set_site_image(conn, site_id, rel, now_iso())
     audit(conn, actor=principal, action="site.update", decision="allowed", resource_type="site", resource_id=site_id, request_id=_rid(request), details={"image": True})
     return site_row(get_site(conn, site_id))
 
 
-@router.delete("/sites/{site_id}/image")
+@router.delete("/sites/{site_id}/image", **wire(W.CatalogSite))
 def site_image_delete(site_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     r = get_site(conn, site_id)
     require(conn, principal, P_CONTENT, ("site", site_id))
     if r["image_path"]:
         _unlink_stored(request, r["image_path"])
-    conn.execute("UPDATE sites SET image_path = NULL, updated_at = ? WHERE id = ?", (now_iso(), site_id))
+    store.set_site_image(conn, site_id, None, now_iso())
     audit(conn, actor=principal, action="site.update", decision="allowed", resource_type="site", resource_id=site_id, request_id=_rid(request), details={"image": False})
     return site_row(get_site(conn, site_id))
 
 
-@router.post("/buildings/{building_id}/image")
+@router.post("/buildings/{building_id}/image", **wire(W.CatalogBuilding))
 def building_image_upload(building_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_building(conn, building_id)
     require(conn, principal, P_CONTENT, ("building", building_id))
     with unlocked(conn):  # decoding and re-encoding the image runs without the write lock
         rel = _store_image(request, "building", building_id, file)
     _still_there(request, rel, lambda: get_building(conn, building_id))
-    conn.execute("UPDATE buildings SET image_path = ?, updated_at = ? WHERE id = ?", (rel, now_iso(), building_id))
+    store.set_building_image(conn, building_id, rel, now_iso())
     audit(conn, actor=principal, action="building.update", decision="allowed", resource_type="building", resource_id=building_id, request_id=_rid(request), details={"image": True})
     return building_row(get_building(conn, building_id))
 
 
-@router.delete("/buildings/{building_id}/image")
+@router.delete("/buildings/{building_id}/image", **wire(W.CatalogBuilding))
 def building_image_delete(building_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     r = get_building(conn, building_id)
     require(conn, principal, P_CONTENT, ("building", building_id))
     if r["image_path"]:
         _unlink_stored(request, r["image_path"])
-    conn.execute("UPDATE buildings SET image_path = NULL, updated_at = ? WHERE id = ?", (now_iso(), building_id))
+    store.set_building_image(conn, building_id, None, now_iso())
     audit(conn, actor=principal, action="building.update", decision="allowed", resource_type="building", resource_id=building_id, request_id=_rid(request), details={"image": False})
     return building_row(get_building(conn, building_id))
 
@@ -168,10 +171,10 @@ def catalog_image(kind: str, obj_id: str, request: Request, principal: Principal
 
 def floor_row(conn: sqlite3.Connection, r: sqlite3.Row, mirrored: dict[tuple[str, str], list[tuple[str, str]]] | None = None) -> dict[str, Any]:
     """`mirrored`: services/shared_spaces.mirrored_anchor_floors, when the caller already has it (the site tree)."""
-    published = conn.execute("SELECT id, width_px, height_px, published_at FROM plan_versions WHERE floor_id = ? AND status = 'published'", (r["id"],)).fetchone()
-    draft = conn.execute("SELECT id FROM plan_versions WHERE floor_id = ? AND status = 'draft' ORDER BY created_at DESC LIMIT 1", (r["id"],)).fetchone()
-    anchors = conn.execute("SELECT COUNT(*) FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL", (r["id"],)).fetchone()[0]
-    cameras = conn.execute("SELECT COUNT(*) FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL AND resource_type = 'camera'", (r["id"],)).fetchone()[0]
+    published = store.published_plan(conn, r["id"])
+    draft = store.newest_draft_plan(conn, r["id"])
+    anchors = store.floor_anchor_count(conn, r["id"])
+    cameras = store.floor_camera_count(conn, r["id"])
     # CR-009: what a room another floor shares with this one adds (the card shows it as "משותף", counted once per device)
     if mirrored is None:
         from ..services.shared_spaces import mirrored_anchor_floors
@@ -199,21 +202,21 @@ def floor_row(conn: sqlite3.Connection, r: sqlite3.Row, mirrored: dict[tuple[str
 
 
 def get_site(conn: sqlite3.Connection, site_id: str) -> sqlite3.Row:
-    row = conn.execute("SELECT * FROM sites WHERE id = ? AND deleted_at IS NULL", (site_id,)).fetchone()
+    row = store.live_site(conn, site_id)
     if not row:
         raise not_found("האתר לא נמצא.")
     return row
 
 
 def get_building(conn: sqlite3.Connection, building_id: str) -> sqlite3.Row:
-    row = conn.execute("SELECT * FROM buildings WHERE id = ? AND deleted_at IS NULL", (building_id,)).fetchone()
+    row = store.live_building(conn, building_id)
     if not row:
         raise not_found("המבנה לא נמצא.")
     return row
 
 
 def get_floor(conn: sqlite3.Connection, floor_id: str) -> sqlite3.Row:
-    row = conn.execute("SELECT * FROM floors WHERE id = ? AND deleted_at IS NULL", (floor_id,)).fetchone()
+    row = store.live_floor(conn, floor_id)
     if not row:
         raise not_found("הקומה לא נמצאה.")
     return row
@@ -221,7 +224,7 @@ def get_floor(conn: sqlite3.Connection, floor_id: str) -> sqlite3.Row:
 
 # ---------- tree ----------
 
-@router.get("/sites")
+@router.get("/sites", **wire(W.CatalogSites))
 def list_sites(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), tree: bool = Query(True)) -> dict[str, Any]:
     """Only nodes the caller may read appear; a site is listed when the caller can read it or any child."""
     all_read = authorize(conn, principal, P_READ, INSTALLATION).allowed
@@ -235,13 +238,13 @@ def list_sites(principal: Principal = Depends(current_principal_ro), conn: sqlit
     # a shared room opens the floors that show the room only for a binding on the camera itself)
     cam_floors = set() if all_read else camera_reach_floors(conn, principal, P_READ)
     sites_out: list[dict[str, Any]] = []
-    for s in conn.execute("SELECT * FROM sites WHERE deleted_at IS NULL ORDER BY sort_order, name").fetchall():
+    for s in store.live_sites(conn):
         site_ok = all_read or authorize(conn, principal, P_READ, ("site", s["id"])).allowed
         buildings_out: list[dict[str, Any]] = []
-        for b in conn.execute("SELECT * FROM buildings WHERE site_id = ? AND deleted_at IS NULL ORDER BY sort_order, name", (s["id"],)).fetchall():
+        for b in store.site_buildings(conn, s["id"]):
             building_ok = site_ok or authorize(conn, principal, P_READ, ("building", b["id"])).allowed
             floors_out: list[dict[str, Any]] = []
-            for f in conn.execute("SELECT * FROM floors WHERE building_id = ? AND deleted_at IS NULL ORDER BY level DESC, sort_order, name", (b["id"],)).fetchall():
+            for f in store.building_floors(conn, b["id"]):
                 if building_ok or authorize(conn, principal, P_READ, ("floor", f["id"])).allowed or f["id"] in cam_floors:
                     floors_out.append(floor_row(conn, f, mirrored))
             if building_ok or floors_out:
@@ -273,24 +276,41 @@ class SitePatch(BaseModel):
     sort_order: int | None = None
 
 
-@router.post("/sites", status_code=201)
+@router.post("/sites", status_code=201, **wire(W.CatalogSite))
 def create_site(body: SiteIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, P_SYSTEM, INSTALLATION)
     sid, now = new_id(), now_iso()
-    conn.execute("INSERT INTO sites(id, name, address, timezone, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                 (sid, body.name.strip(), body.address.strip(), body.timezone, body.sort_order, now, now))
+    store.insert_site(conn, sid, body.name.strip(), body.address.strip(), body.timezone, body.sort_order, now)
     audit(conn, actor=principal, action="site.create", decision="allowed", resource_type="site", resource_id=sid, request_id=_rid(request), details={"name": body.name})
     return site_row(get_site(conn, sid))
 
 
-@router.patch("/sites/{site_id}")
+def _site_patch_fields(body: SitePatch) -> dict[str, Any]:
+    """CR-BE-FOLLOWUPS-2470: the edit trims name and address like create does, refuses a name that is only blanks and a
+    time zone the zone database does not know (the same check as the installation's `time.zone` setting)."""
+    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    for key in ("name", "address"):
+        if key in fields:
+            fields[key] = fields[key].strip()
+    if "name" in fields and not fields["name"]:
+        raise validation("שם האתר לא יכול להיות ריק.", name=body.name)
+    if "timezone" in fields:
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+        try:
+            ZoneInfo(fields["timezone"])
+        except (ZoneInfoNotFoundError, ValueError):
+            raise validation("אזור זמן לא מוכר.", timezone=fields["timezone"])
+    return fields
+
+
+@router.patch("/sites/{site_id}", **wire(W.CatalogSite))
 def update_site(site_id: str, body: SitePatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_site(conn, site_id)
     require(conn, principal, P_CONTENT, ("site", site_id))
-    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    fields = _site_patch_fields(body)
     if fields:
-        sets = ", ".join(f"{k} = ?" for k in fields)
-        conn.execute(f"UPDATE sites SET {sets}, updated_at = ? WHERE id = ?", (*fields.values(), now_iso(), site_id))
+        store.patch_row(conn, "sites", site_id, fields, now_iso())
     audit(conn, actor=principal, action="site.update", decision="allowed", resource_type="site", resource_id=site_id, request_id=_rid(request), details=fields)
     return site_row(get_site(conn, site_id))
 
@@ -299,10 +319,10 @@ def update_site(site_id: str, body: SitePatch, request: Request, principal: Prin
 def delete_site(site_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> None:
     get_site(conn, site_id)
     require(conn, principal, P_SYSTEM, INSTALLATION)
-    n = conn.execute("SELECT COUNT(*) FROM buildings WHERE site_id = ? AND deleted_at IS NULL", (site_id,)).fetchone()[0]
+    n = store.live_building_count(conn, site_id)
     if n:
         raise conflict("has_children", "לאתר יש מבנים; מחק או העבר אותם קודם.", buildings=n)
-    conn.execute("UPDATE sites SET deleted_at = ?, updated_at = ? WHERE id = ?", (now_iso(), now_iso(), site_id))
+    store.soft_delete_site(conn, site_id, now_iso(), now_iso())
     audit(conn, actor=principal, action="site.delete", decision="allowed", resource_type="site", resource_id=site_id, request_id=_rid(request))
 
 
@@ -320,17 +340,17 @@ class BuildingPatch(BaseModel):
     is_shared: bool | None = None
 
 
-@router.post("/sites/{site_id}/buildings", status_code=201)
+@router.post("/sites/{site_id}/buildings", status_code=201, **wire(W.CatalogBuilding))
 def create_building(site_id: str, body: BuildingIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_site(conn, site_id)
     require(conn, principal, P_CONTENT, ("site", site_id))
     bid, now = new_id(), now_iso()
-    conn.execute("INSERT INTO buildings(id, site_id, name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", (bid, site_id, body.name.strip(), body.sort_order, now, now))
+    store.insert_building(conn, bid, site_id, body.name.strip(), body.sort_order, now)
     audit(conn, actor=principal, action="building.create", decision="allowed", resource_type="building", resource_id=bid, request_id=_rid(request), details={"name": body.name, "site_id": site_id})
     return building_row(get_building(conn, bid))
 
 
-@router.patch("/buildings/{building_id}")
+@router.patch("/buildings/{building_id}", **wire(W.CatalogBuilding))
 def update_building(building_id: str, body: BuildingPatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_building(conn, building_id)
     require(conn, principal, P_CONTENT, ("building", building_id))
@@ -338,8 +358,7 @@ def update_building(building_id: str, body: BuildingPatch, request: Request, pri
     if "is_shared" in fields:
         fields["is_shared"] = 1 if fields["is_shared"] else 0
     if fields:
-        sets = ", ".join(f"{k} = ?" for k in fields)
-        conn.execute(f"UPDATE buildings SET {sets}, updated_at = ? WHERE id = ?", (*fields.values(), now_iso(), building_id))
+        store.patch_row(conn, "buildings", building_id, fields, now_iso())
     audit(conn, actor=principal, action="building.update", decision="allowed", resource_type="building", resource_id=building_id, request_id=_rid(request), details=fields)
     return building_row(get_building(conn, building_id))
 
@@ -348,10 +367,10 @@ def update_building(building_id: str, body: BuildingPatch, request: Request, pri
 def delete_building(building_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> None:
     b = get_building(conn, building_id)
     require(conn, principal, P_CONTENT, ("site", b["site_id"]))
-    n = conn.execute("SELECT COUNT(*) FROM floors WHERE building_id = ? AND deleted_at IS NULL", (building_id,)).fetchone()[0]
+    n = store.live_floor_count(conn, building_id)
     if n:
         raise conflict("has_children", "למבנה יש קומות; מחק אותן קודם.", floors=n)
-    conn.execute("UPDATE buildings SET deleted_at = ?, updated_at = ? WHERE id = ?", (now_iso(), now_iso(), building_id))
+    store.soft_delete_building(conn, building_id, now_iso(), now_iso())
     audit(conn, actor=principal, action="building.delete", decision="allowed", resource_type="building", resource_id=building_id, request_id=_rid(request))
 
 
@@ -370,17 +389,17 @@ class FloorPatch(BaseModel):
     ha_area_id: str | None = Field(default=None, max_length=120)
 
 
-@router.post("/buildings/{building_id}/floors", status_code=201)
+@router.post("/buildings/{building_id}/floors", status_code=201, **wire(W.CatalogFloor))
 def create_floor(building_id: str, body: FloorIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_building(conn, building_id)
     require(conn, principal, P_CONTENT, ("building", building_id))
     fid, now = new_id(), now_iso()
-    conn.execute("INSERT INTO floors(id, building_id, name, level, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", (fid, building_id, body.name.strip(), body.level, body.sort_order, now, now))
+    store.insert_floor(conn, fid, building_id, body.name.strip(), body.level, body.sort_order, now)
     audit(conn, actor=principal, action="floor.create", decision="allowed", resource_type="floor", resource_id=fid, request_id=_rid(request), details={"name": body.name, "building_id": building_id, "level": body.level})
     return floor_row(conn, get_floor(conn, fid))
 
 
-@router.get("/floors/{floor_id}")
+@router.get("/floors/{floor_id}", **wire(W.CatalogFloorRead))
 def read_floor(floor_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     f = get_floor(conn, floor_id)
     from ..services.access import require_floor_read
@@ -391,14 +410,13 @@ def read_floor(floor_id: str, principal: Principal = Depends(current_principal_r
     return {"floor": floor_row(conn, f), "building": building_row(b), "site": site_row(s)}
 
 
-@router.patch("/floors/{floor_id}")
+@router.patch("/floors/{floor_id}", **wire(W.CatalogFloor))
 def update_floor(floor_id: str, body: FloorPatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, P_CONTENT, ("floor", floor_id))
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
     if fields:
-        sets = ", ".join(f"{k} = ?" for k in fields)
-        conn.execute(f"UPDATE floors SET {sets}, updated_at = ? WHERE id = ?", (*fields.values(), now_iso(), floor_id))
+        store.patch_row(conn, "floors", floor_id, fields, now_iso())
     audit(conn, actor=principal, action="floor.update", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request), details=fields)
     return floor_row(conn, get_floor(conn, floor_id))
 
@@ -408,19 +426,19 @@ def delete_floor(floor_id: str, request: Request, principal: Principal = Depends
     """A floor with anchors is not deleted silently: 409 unless force=true, which tombstones the anchors first."""
     f = get_floor(conn, floor_id)
     require(conn, principal, P_CONTENT, ("building", f["building_id"]))
-    anchors = conn.execute("SELECT COUNT(*) FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL", (floor_id,)).fetchone()[0]
+    anchors = store.floor_anchor_count(conn, floor_id)
     if anchors and not force:
         raise conflict("has_anchors", "על הקומה מוצבים פריטים; אשר מחיקה מפורשת (force) או הסר אותם קודם.", anchors=anchors)
     now = now_iso()
     if anchors:
-        conn.execute("UPDATE map_anchors SET effective_to = ?, updated_at = ?, updated_by = ? WHERE floor_id = ? AND effective_to IS NULL", (now, now, principal.user_id, floor_id))
-    conn.execute("UPDATE plan_versions SET status = 'archived', archived_at = ? WHERE floor_id = ? AND status != 'archived'", (now, floor_id))
-    conn.execute("UPDATE floors SET deleted_at = ?, updated_at = ? WHERE id = ?", (now, now, floor_id))
+        store.end_floor_anchors(conn, floor_id, now, principal.user_id)
+    store.archive_floor_plans(conn, floor_id, now)
+    store.soft_delete_floor(conn, floor_id, now)
     from ..services import revocation, shared_spaces
 
     ended = shared_spaces.end_for_floor(conn, floor_id, principal.user_id, now)  # review L5: no live share or member row outlives the floor
     if ended["shares"]:
-        revocation.mark([r[0] for r in conn.execute("SELECT id FROM users").fetchall()])  # reach through the room narrows now
+        revocation.mark(store.user_ids(conn))  # reach through the room narrows now
         audit(conn, actor=principal, action="zone.unshare", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
               details={"reason": "floor_deleted", "shares_ended": len(ended["shares"]), "rooms_without_members": ended["zones"]})
     from ..services.skins import store as skins_store
@@ -444,10 +462,10 @@ def delete_floor(floor_id: str, request: Request, principal: Principal = Depends
 # knows a building, so a building level can be added later without touching the rows.
 
 def _live_floor_ids(conn: sqlite3.Connection) -> set[str]:
-    return {r[0] for r in conn.execute("SELECT id FROM floors WHERE deleted_at IS NULL").fetchall()}
+    return store.live_floor_ids(conn)
 
 
-@router.get("/home-links")
+@router.get("/home-links", **wire(W.CatalogHomeLinks))
 def list_home_links(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The rows whose floor the caller may read (an area taken off every floor has no floor and is always listed: it names no place)."""
     live = _live_floor_ids(conn)
@@ -465,18 +483,18 @@ def list_home_links(principal: Principal = Depends(current_principal_ro), conn: 
             seen[fid] = floor_reach(conn, principal, fid, P_READ) is not None
         return seen[fid]
 
-    floors = [{"ha_floor_id": r["ha_floor_id"], "floor_id": r["floor_id"]} for r in conn.execute("SELECT ha_floor_id, floor_id FROM home_floor_links ORDER BY ha_floor_id").fetchall() if readable(r["floor_id"])]
-    areas = [{"area_id": r["area_id"], "floor_id": r["floor_id"]} for r in conn.execute("SELECT area_id, floor_id FROM home_area_links ORDER BY area_id").fetchall() if r["floor_id"] is None or readable(r["floor_id"])]
+    floors = [{"ha_floor_id": r["ha_floor_id"], "floor_id": r["floor_id"]} for r in store.floor_link_rows(conn) if readable(r["floor_id"])]
+    areas = [{"area_id": r["area_id"], "floor_id": r["floor_id"]} for r in store.area_link_rows(conn) if r["floor_id"] is None or readable(r["floor_id"])]
     # MAPPING-ASSIST-2330: the area -> building rows of the home's site level (an area the mapping assistant put in a building where none of
     # our floors fits), for buildings the caller may read (the building itself, or one of its floors)
     buildings: list[dict[str, str]] = []
     try:
-        rows = conn.execute("SELECT a.area_id, a.building_id FROM home_area_buildings a JOIN buildings b ON b.id = a.building_id AND b.deleted_at IS NULL ORDER BY a.area_id").fetchall()
+        rows = store.area_building_rows(conn)
     except sqlite3.OperationalError:  # before migration 0189
         rows = []
     if rows:
         floors_of: dict[str, list[str]] = {}
-        for r in conn.execute("SELECT id, building_id FROM floors WHERE deleted_at IS NULL").fetchall():
+        for r in store.live_floor_buildings(conn):
             floors_of.setdefault(r[1], []).append(r[0])
         b_ok: dict[str, bool] = {}
         for r in rows:
@@ -495,7 +513,7 @@ class HomeLinkIn(BaseModel):
     areas: dict[str, Literal["include", "exclude", "auto"]] | None = Field(default=None, max_length=500)
 
 
-@router.put("/floors/{floor_id}/home-link")
+@router.put("/floors/{floor_id}/home-link", **wire(W.CatalogHomeLinks))
 def put_home_link(floor_id: str, body: HomeLinkIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Whoever may edit the floor (site.content.configure on it) - and on every other floor a row is taken from. Unknown platform ids
     answer 422, except ids already in a row (a dangling row never blocks a save). Audited as floor.home_link."""
@@ -513,10 +531,10 @@ def put_home_link(floor_id: str, body: HomeLinkIn, request: Request, principal: 
             hid = (raw or "").strip()
             if hid and len(hid) <= 120 and hid not in want:
                 want.append(hid)
-        current = {r[0]: r[1] for r in conn.execute("SELECT ha_floor_id, floor_id FROM home_floor_links").fetchall()}
+        current = store.floor_links(conn)
         taken: set[str] = set()
         for hid in want:
-            if hid not in current and not conn.execute("SELECT 1 FROM ha_floors WHERE floor_id = ?", (hid,)).fetchone():
+            if hid not in current and not store.platform_floor_known(conn, hid):
                 raise validation("הקומה לא נמצאה ברשימת הקומות של מערכת הבית.", ha_floor_id=hid)
             if current.get(hid) not in (None, floor_id) and current[hid] in live:
                 taken.add(current[hid])
@@ -524,36 +542,30 @@ def put_home_link(floor_id: str, body: HomeLinkIn, request: Request, principal: 
             require(conn, principal, P_CONTENT, ("floor", fid))  # taking a platform floor from another floor is that floor's edit too
         for hid, fid in current.items():
             if fid == floor_id and hid not in want:
-                conn.execute("DELETE FROM home_floor_links WHERE ha_floor_id = ?", (hid,))
+                store.delete_floor_link(conn, hid)
         for hid in want:
-            conn.execute("INSERT INTO home_floor_links(ha_floor_id, floor_id, updated_at, updated_by) VALUES (?, ?, ?, ?) "
-                         "ON CONFLICT(ha_floor_id) DO UPDATE SET floor_id = excluded.floor_id, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
-                         (hid, floor_id, now, principal.user_id))
+            store.put_floor_link(conn, hid, floor_id, now, principal.user_id)
         details["ha_floor_ids"] = want
         if taken:
             details["taken_from_floors"] = sorted(taken)
     if body.areas is not None:
-        current = {r[0]: r[1] for r in conn.execute("SELECT area_id, floor_id FROM home_area_links").fetchall()}
+        current = store.area_links(conn)
         changes: dict[str, str] = {}
         for raw, mode in body.areas.items():
             aid = (raw or "").strip()
             if not aid or len(aid) > 120:
                 continue
-            if mode != "auto" and aid not in current and not conn.execute("SELECT 1 FROM ha_areas WHERE area_id = ?", (aid,)).fetchone():
+            if mode != "auto" and aid not in current and not store.platform_area_known(conn, aid):
                 raise validation("האזור לא נמצא ברשימת האזורים.", area_id=aid)
             prev = current.get(aid)
             if prev is not None and prev != floor_id and prev in live:
                 require(conn, principal, P_CONTENT, ("floor", prev))  # the row belongs to another floor: moving or clearing it edits that floor too
             if mode == "include":
-                conn.execute("INSERT INTO home_area_links(area_id, floor_id, updated_at, updated_by) VALUES (?, ?, ?, ?) "
-                             "ON CONFLICT(area_id) DO UPDATE SET floor_id = excluded.floor_id, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
-                             (aid, floor_id, now, principal.user_id))
+                store.include_area(conn, aid, floor_id, now, principal.user_id)
             elif mode == "exclude":
-                conn.execute("INSERT INTO home_area_links(area_id, floor_id, updated_at, updated_by) VALUES (?, NULL, ?, ?) "
-                             "ON CONFLICT(area_id) DO UPDATE SET floor_id = NULL, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
-                             (aid, now, principal.user_id))
+                store.exclude_area(conn, aid, now, principal.user_id)
             else:
-                conn.execute("DELETE FROM home_area_links WHERE area_id = ?", (aid,))
+                store.delete_area_link(conn, aid)
             changes[aid] = mode
         details["areas"] = changes
     guard.check()

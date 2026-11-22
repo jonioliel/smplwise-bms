@@ -22,12 +22,14 @@ import {
 } from './home-logic';
 import * as act from './home-actions';
 import { api, apiUrl, post, describeError } from '../api/client';
+import type * as HiWire from '../api/generated/wire-home-interface';
 import { GALLERY, galleryCss, switchUserMode } from './home-wall';
 import { notify } from '../api/notifications';
 import { snapshotUrl } from '../api/media';
 import { stillIntervalMs } from '../api/frigate';
 import { callResult } from './home-v3-words';
-import { diffWords, num1 } from './home-p3-logic';
+import { diffWords, fixedTariffPrice, num1 } from './home-p3-logic';
+import type { EnergyTariffList } from '../api/generated/wire-consumption';
 import { getCallLog, type CallLogRow } from '../api/intercom-calls';
 import { subscribeHa } from '../api/ha';
 import { relTime } from './home-api';
@@ -42,6 +44,8 @@ import './sw-home-call';
 import type { HomeCallsState, SwHomeCall } from './sw-home-call';
 import '../components/wk-talk-button';
 import '../components/sw-camera-tile';
+import '../components/sw-segmented'; // CR-HOME-V3-SEGMENTS-2470: seg() below (and home-p3's)
+import type { SegmentOption } from '../components/sw-segmented';
 import { STILL_REFRESH_MS } from '../components/sw-live-player';
 // HOME-V3-P1-2430: the v3 screens register themselves (home-ext.ts); sw-home only wires the registry in
 import { homeV3Styles } from './home-styles-v3';
@@ -289,10 +293,7 @@ export class SwHome extends LitElement implements P3Host {
 
   private async loadPrice() {
     try {
-      const r = await get<{ items: { kind: string; current: { price?: string | null } | null }[] }>('energy/tariffs');
-      const fixed = r.items.find((x) => x.kind === 'fixed' && x.current?.price);
-      const v = fixed ? parseFloat(String(fixed.current?.price)) : NaN;
-      this.price = Number.isFinite(v) && v > 0 ? v : null;
+      this.price = fixedTariffPrice(await get<EnergyTariffList>('energy/tariffs'));
     } catch {
       this.price = null;
     }
@@ -1038,8 +1039,12 @@ export class SwHome extends LitElement implements P3Host {
     return html`<div class="pager" role="group" aria-label="${tr('דפדוף')}"><button class="rb" data-act="page" data-key=${key} data-d="-1" ?disabled=${p === 0} aria-label="${tr('הקודם')}">${hi('back')}</button><span class="pg num" aria-live="polite">${p + 1} ${tr('מתוך')} ${pages}</span><button class="rb" data-act="page" data-key=${key} data-d="1" ?disabled=${p >= pages - 1} aria-label="${tr('הבא')}">${hi('fwd')}</button></div>`;
   }
 
+  /** CR-HOME-V3-SEGMENTS-2470 (owner N11): a one-of-N choice is the shared `sw-segmented`. Each key carries its `data-act` / `data-v`
+   *  (the component's `attrs`), so the press still reaches the ONE delegated click handler (`onClick` reads `composedPath()`, which
+   *  runs through the key inside the component's open shadow root) - the `a_*` handlers and the screens' specs are unchanged. The
+   *  component's own `change` is not listened to here (the click already carries the choice). */
   seg(a: string, opts: [string, string][], cur: string, label: string) {
-    return html`<div class="seg" role="group" aria-label=${label}>${opts.map(([v, t]) => html`<button data-act=${a} data-v=${v} aria-pressed=${String(v === cur)}>${t}</button>`)}</div>`;
+    return html`<sw-segmented label=${label} value=${cur} .options=${opts.map(([v, t]): SegmentOption => ({ value: v, label: t, attrs: { 'data-act': a, 'data-v': v } }))}></sw-segmented>`;
   }
 
   scopeSeg() {
@@ -1666,7 +1671,7 @@ export class SwHome extends LitElement implements P3Host {
   }
 
   a_wallDel() {
-    void api<{ layout: HomeLayout }>(`home/wallpaper/${encodeURIComponent(this.room)}`, { method: 'DELETE' })
+    void api<Omit<HiWire.WallpaperRemoved, 'layout'> & { layout: HomeLayout }>(`home/wallpaper/${encodeURIComponent(this.room)}`, { method: 'DELETE' })
       .then((r) => { this.prefs = { ...this.prefs, layout: r.layout }; this.toast(tr('התמונה הוסרה')); })
       .catch((err) => this.toast(describeError(err)));
   }
@@ -1680,7 +1685,7 @@ export class SwHome extends LitElement implements P3Host {
     if (f.size > 2_000_000) return this.toast(tr('התמונה גדולה מ-2 MB.'));
     const form = new FormData();
     form.append('file', f);
-    void api<{ layout: HomeLayout }>(`home/wallpaper/${encodeURIComponent(this.room)}`, { method: 'PUT', body: form })
+    void api<Omit<HiWire.WallpaperSaved, 'layout'> & { layout: HomeLayout }>(`home/wallpaper/${encodeURIComponent(this.room)}`, { method: 'PUT', body: form })
       .then((r) => { this.wallStamp = Date.now(); this.prefs = { ...this.prefs, layout: r.layout }; this.toast(tr('התמונה נשמרה כרקע')); })
       .catch((err) => this.toast(describeError(err)));
   }

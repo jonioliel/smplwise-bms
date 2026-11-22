@@ -67,6 +67,19 @@ def test_a_definition_outside_the_closed_format_is_refused():
     assert _mut("motion_light_timer", lambda bp: bp["template"]["actions"].append({"action": {"$param": "lights"}, "data": {}}))
 
 
+@pytest.mark.parametrize("bad", [{"a": 1}, ["state"]])
+def test_a_list_or_object_where_a_name_belongs_is_a_problem_never_a_type_error(bad):
+    """CR-IFC-SPLIT-2460: these raised TypeError (unhashable) before; each is now the problem an unknown name gets."""
+    assert "triggers.0: trigger type not allowed" in _mut("motion_light_timer", lambda bp: bp["template"]["triggers"][0].update({"trigger": bad}))
+    errs = _mut("motion_light_timer", lambda bp: bp["template"]["conditions"].append({"condition": bad}))
+    assert any(e.endswith("condition type not allowed") for e in errs), errs
+    assert "bad rule" in _mut("motion_light_timer", lambda bp: bp.update({"rules": [{"rule": "lt", "a": bad, "b": "lights"}]}))
+    errs = _mut("motion_light_timer", lambda bp: bp["template"]["actions"].append({"action": "light.turn_off", "target": {"entity_id": {"$param": bad}}}))
+    assert f"template uses undeclared parameter {bad}" in errs, errs
+    errs = _mut("motion_light_timer", lambda bp: bp["template"]["actions"].append({"action": {"$param": bad}, "data": {}}))
+    assert any("a parameter may stand for a notify target only" in e for e in errs), errs
+
+
 def test_check_config_is_an_independent_second_line_against_door_actions():
     class E(bps.Env):
         notify_targets = (NOTIFY,)

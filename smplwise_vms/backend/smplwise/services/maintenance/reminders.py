@@ -26,6 +26,7 @@ from typing import Any
 
 from ..janitors import Every
 from . import access, model
+from ...test_reset import register_reset
 
 log = logging.getLogger(__name__)
 
@@ -209,3 +210,6 @@ def janitor(db: Any) -> None:
 def reset_for_tests() -> None:
     _CHECK.reset()
     _CHECK.seconds = _DEFAULT_EVERY_S
+
+
+register_reset(__name__, ("_CHECK",), reset_for_tests)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)

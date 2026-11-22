@@ -39,6 +39,7 @@ from ..errors import ApiError
 from ..rbac import Principal
 from . import ha_bridge, ha_client, media_model as mm, media_profiles as profiles, media_store as store
 from . import service_identity
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.media")
 
@@ -445,3 +446,12 @@ def library_page(conn: Any, settings: Settings, principal: Principal, cat: store
     else:
         ordered = [i for i in ordered if not (entries.get(i["item_ref"]) or {}).get("hidden")]
     return {"kind": kind, "items": ordered[max(0, offset):max(0, offset) + PAGE_SIZE], "curated": curated, "read_at": _iso_now(), "provider": provider}
+
+
+def _reset_all_for_tests() -> None:
+    """Test seam: the module's existing reset, then the remaining module-level tables back to a fresh process (smplwise.test_reset; product code never calls it)."""
+    clear()
+    _NAMES.clear()
+
+
+register_reset(__name__, ("_ITEMS", "_QUEUES", "_LIBRARY", "_FAILED", "_READS", "_KEY", "ENTRY", "_NAMES"), _reset_all_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

@@ -470,37 +470,51 @@ export function buildPrimitives(doc: GeometryDoc, width: number, height: number,
       curvedWall(w, width, height, pxPerM, byWall.get(w.id) ?? [], prims, geo, arcs);
       continue;
     }
-    const pts: Pt[] = w.polyline.map((p) => [p[0] * width, p[1] * height]);
-    const cum = cumulative(pts);
-    const total = cum[cum.length - 1];
-    if (total <= 1e-6) continue;
-    const wpx = Math.max(1, (w.thickness_m || DEFAULT_WALL_THICKNESS_M) * pxPerM);
-    geo.set(w.id, { pts, cum, wpx });
-    const cuts = (byWall.get(w.id) ?? []).map((o): [number, number] => {
-      const c = (o.t || 0) * total;
-      const half = ((o.width_m || 0) * pxPerM) / 2;
-      return [Math.max(0, c - half), Math.min(total, c + half)];
-    });
-    cuts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-    const keep: [number, number][] = [];
-    let cursor = 0;
-    for (const [a, b] of cuts) {
-      if (a > cursor) keep.push([cursor, a]);
-      cursor = Math.max(cursor, b);
-    }
-    if (cursor < total) keep.push([cursor, total]);
-    const glass = w.kind === 'glass';
-    let part = 0;
-    for (const [s0, s1] of keep) {
-      if (s1 - s0 <= 0.01) continue;
-      const seg = subPolyline(pts, cum, s0, s1);
-      if (s0 <= 0) seg[0] = extend(seg[0], seg[1], wpx / 2);
-      if (s1 >= total) seg[seg.length - 1] = extend(seg[seg.length - 1], seg[seg.length - 2], wpx / 2);
-      prims.push(glass ? { kind: 'wall', id: w.id, part, points: seg.map(rp), width: r2(wpx), glass: true } : { kind: 'wall', id: w.id, part, points: seg.map(rp), width: r2(wpx) });
-      part += 1;
-    }
-    if (glass) prims.push(glazingPrimitive(w, pts, cum, wpx, pxPerM, cuts, rp, r2));
+    straightWall(w, width, height, pxPerM, byWall.get(w.id) ?? [], prims, geo);
   }
+  openingPrimitives(doc, pxPerM, geo, arcs, prims);
+  labelPrimitives(doc, width, height, level, prims);
+  connectorPrimitives(doc, width, height, pxPerM, prims);
+  objectPrimitives(doc, width, height, pxPerM, level, catalog, prims);
+  return prims;
+}
+
+/** CR-FE-COMPLEXITY-2450 (split of buildPrimitives, moved verbatim): a straight wall cut by its openings (free ends grown by half the thickness), and a window wall's glazing. */
+function straightWall(w: GeomWall, width: number, height: number, pxPerM: number, openings: readonly GeomOpening[], prims: Primitive[], geo: Map<string, { pts: Pt[]; cum: number[]; wpx: number }>): void {
+  const pts: Pt[] = w.polyline.map((p) => [p[0] * width, p[1] * height]);
+  const cum = cumulative(pts);
+  const total = cum[cum.length - 1];
+  if (total <= 1e-6) return;
+  const wpx = Math.max(1, (w.thickness_m || DEFAULT_WALL_THICKNESS_M) * pxPerM);
+  geo.set(w.id, { pts, cum, wpx });
+  const cuts = openings.map((o): [number, number] => {
+    const c = (o.t || 0) * total;
+    const half = ((o.width_m || 0) * pxPerM) / 2;
+    return [Math.max(0, c - half), Math.min(total, c + half)];
+  });
+  cuts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const keep: [number, number][] = [];
+  let cursor = 0;
+  for (const [a, b] of cuts) {
+    if (a > cursor) keep.push([cursor, a]);
+    cursor = Math.max(cursor, b);
+  }
+  if (cursor < total) keep.push([cursor, total]);
+  const glass = w.kind === 'glass';
+  let part = 0;
+  for (const [s0, s1] of keep) {
+    if (s1 - s0 <= 0.01) continue;
+    const seg = subPolyline(pts, cum, s0, s1);
+    if (s0 <= 0) seg[0] = extend(seg[0], seg[1], wpx / 2);
+    if (s1 >= total) seg[seg.length - 1] = extend(seg[seg.length - 1], seg[seg.length - 2], wpx / 2);
+    prims.push(glass ? { kind: 'wall', id: w.id, part, points: seg.map(rp), width: r2(wpx), glass: true } : { kind: 'wall', id: w.id, part, points: seg.map(rp), width: r2(wpx) });
+    part += 1;
+  }
+  if (glass) prims.push(glazingPrimitive(w, pts, cum, wpx, pxPerM, cuts, rp, r2));
+}
+
+/** CR-FE-COMPLEXITY-2450 (split of buildPrimitives, moved verbatim): door leaves and arcs, window glass and passages, centred on their wall (by arc length on a curved wall). */
+function openingPrimitives(doc: GeometryDoc, pxPerM: number, geo: Map<string, { pts: Pt[]; cum: number[]; wpx: number }>, arcs: Map<string, { pts: Pt[]; bulges: number[]; cum: number[] }>, prims: Primitive[]): void {
   for (const o of [...doc.openings].sort(byId)) {
     const g = geo.get(o.wall_id);
     if (!g) continue;
@@ -517,10 +531,18 @@ export function buildPrimitives(doc: GeometryDoc, width: number, height: number,
       prims.push({ kind: 'window', id: o.id, gap, lines: [[rp(add(g0, nl, q)), rp(add(g1, nl, q))], [rp(add(g0, nl, -q)), rp(add(g1, nl, -q))]] });
     } else prims.push({ kind: 'passage', id: o.id, gap });
   }
+}
+
+/** CR-FE-COMPLEXITY-2450 (split of buildPrimitives, moved verbatim): the text labels of the shown level. */
+function labelPrimitives(doc: GeometryDoc, width: number, height: number, level: string | null, prims: Primitive[]): void {
   for (const lb of [...doc.labels].sort(byId)) {
     if (level !== null && lb.level_id !== level && !lb.shared) continue;
     prims.push({ kind: 'label', id: lb.id, x: r2(lb.position[0] * width), y: r2(lb.position[1] * height), text: String(lb.text ?? ''), size: r2(lb.size || 14) });
   }
+}
+
+/** CR-FE-COMPLEXITY-2450 (split of buildPrimitives, moved verbatim): the connectors (stairs, ramps ...) with their arrow and label. */
+function connectorPrimitives(doc: GeometryDoc, width: number, height: number, pxPerM: number, prims: Primitive[]): void {
   const levels = new Map<string, GeomLevel>(doc.levels.map((l) => [l.id, l]));
   for (const c of [...doc.connectors].sort(byId)) {
     const pts: Pt[] = c.polyline.map((p) => [p[0] * width, p[1] * height]);
@@ -533,6 +555,10 @@ export function buildPrimitives(doc: GeometryDoc, width: number, height: number,
     prims.push({ kind: 'connector', id: c.id, ckind: c.kind || 'stairs', points: pts.map(rp), width: r2(Math.max(1, (c.width_m || 1) * pxPerM)), arrow: { from: rp(tail), to: rp(pts[pts.length - 1]) },
       label: connectorLabel(levels, c), lx: r2(mid[0]), ly: r2(mid[1]), level_from: c.level_from, level_to: c.level_to ?? null });
   }
+}
+
+/** CR-FE-COMPLEXITY-2450 (split of buildPrimitives, moved verbatim): the library objects of the shown level (shape, icon, colour from the catalogue; tribune steps; circuit and anchor). */
+function objectPrimitives(doc: GeometryDoc, width: number, height: number, pxPerM: number, level: string | null, catalog: CatalogLookup | undefined, prims: Primitive[]): void {
   const circuitOf = new Map<string, string>();
   for (const k of [...doc.circuits].sort(byId)) for (const mid of k.member_ids) if (!circuitOf.has(mid)) circuitOf.set(mid, k.id);
   for (const o of [...doc.objects].sort(byId)) {
@@ -560,7 +586,6 @@ export function buildPrimitives(doc: GeometryDoc, width: number, height: number,
       color: item && (COLOR_TOKENS as readonly string[]).includes(item.color_token) ? item.color_token : 'object', level_id: o.level_id, cx: r2(cx), cy: r2(cy), w: r2(hw * 2), h: r2(hd * 2),
       rotation: r2(rot), corners, label: o.label || null, circuit_id: circuitOf.get(o.id) ?? null, anchor: ref && ref.resource_id ? `${ref.resource_type}:${ref.resource_id}` : null, steps });
   }
-  return prims;
 }
 
 // ---------------------------------------------------------------- editor maths

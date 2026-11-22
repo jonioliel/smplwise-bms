@@ -26,6 +26,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, permissions_anywhere, require
 from ..services import bridge_install, bridge_rotation_peer as peer_mod, building_scope, device_activity, door_authority, door_path_guard, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, intercom_doors, media_store
 from ..services import bridge_discovery, push_queue, service_identity
+from ..services import ha_store as store
 from ..services import devices as dsvc
 from ..services.timeutil import parse_utc
 from .media import _principal_for_ws
@@ -51,7 +52,7 @@ def _grant_label(permission: str) -> str:
 
 
 def _entity(conn: sqlite3.Connection, entity_id: str) -> dict[str, Any]:
-    row = conn.execute("SELECT * FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
+    row = store.entity_row(conn, entity_id)
     if not row:
         raise ApiError(404, "not_found", "הישות לא נמצאה בקטלוג.")
     return ha_sync.entity_row(row)
@@ -66,7 +67,7 @@ def status(request: Request, principal: Principal = Depends(current_principal_ro
     return {
         "configured": ha_client.configured(settings),
         "sync": ha_sync.STATE.as_dict(),
-        "bridge": {"paired": ha_bridge.is_paired_secret(conn) and bool(paired_at), "paired_at": paired_at, "directory_users": conn.execute("SELECT COUNT(*) FROM ha_users").fetchone()[0], "last_directory_at": get_setting(conn, "bridge.directory_at") or None},
+        "bridge": {"paired": ha_bridge.is_paired_secret(conn) and bool(paired_at), "paired_at": paired_at, "directory_users": store.directory_user_count(conn), "last_directory_at": get_setting(conn, "bridge.directory_at") or None},
         "integration": bridge_install.status(conn=conn),
         "can_configure": authorize(conn, principal, "system.configure", INSTALLATION).allowed,
     }
@@ -88,23 +89,7 @@ def list_entities(
     placements = _placements(conn)
     if not wide and not floors:
         require(conn, principal, "entity.state.read", INSTALLATION)
-    sql = "SELECT * FROM ha_entities WHERE removed_at IS NULL"
-    args: list[Any] = []
-    if not include_disabled:
-        sql += " AND disabled = 0"
-    if domain:
-        sql += " AND domain = ?"
-        args.append(domain)
-    if area:
-        sql += " AND (area_id = ? OR area_name = ?)"
-        args.extend([area, area])
-    if q:
-        sql += " AND (entity_id LIKE ? OR name LIKE ? OR area_name LIKE ?)"
-        like = f"%{q}%"
-        args.extend([like, like, like])
-    sql += " ORDER BY domain, name, entity_id LIMIT ?"
-    args.append(limit)
-    rows = [ha_sync.entity_row(r) for r in conn.execute(sql, args).fetchall()]
+    rows = [ha_sync.entity_row(r) for r in store.list_entity_rows(conn, include_disabled=include_disabled, domain=domain, area=area, q=q, limit=limit)]
     from ..services import alarm as alarm_svc
 
     managed = alarm_svc.managed_controls(conn)
@@ -131,12 +116,12 @@ def list_entities(
     domains: dict[str, int] = {}
     areas: list[dict[str, Any]] = []
     if wide:
-        for r in conn.execute("SELECT domain, COUNT(*) AS n FROM ha_entities WHERE removed_at IS NULL AND disabled = 0 GROUP BY domain").fetchall():
+        for r in store.domain_counts(conn):
             domains[r["domain"]] = r["n"]
-        areas = [dict(r) for r in conn.execute("SELECT DISTINCT area_id, area_name FROM ha_entities WHERE removed_at IS NULL AND area_id IS NOT NULL ORDER BY area_name").fetchall()]
+        areas = [dict(r) for r in store.area_rows(conn)]
     else:  # floor-scoped readers: the filter chips describe only what they may see (review of 2026-09-30, F1)
         seen_areas: dict[Any, dict[str, Any]] = {}
-        for r in conn.execute("SELECT entity_id, domain, area_id, area_name FROM ha_entities WHERE removed_at IS NULL AND disabled = 0").fetchall():
+        for r in store.chip_rows(conn):
             if not ha_scope.entity_visible(wide, floors, placements, r["entity_id"]):
                 continue
             domains[r["domain"]] = domains.get(r["domain"], 0) + 1
@@ -170,7 +155,7 @@ def get_entity(entity_id: str, principal: Principal = Depends(current_principal_
         # of lock.unlock IS "ok", so the two cannot disagree. A reason code only (nothing about the configuration).
         e["unlock_reason"] = door_authority.unlock_reason(conn, principal, entity_id, wiskey=wiskey, alarm_managed=bool(e["alarm_managed"]), can_control=bool(e["can_control"]))
         e["actions"] = [{**a, "granted": e["unlock_reason"] == "ok", "reason": e["unlock_reason"]} if a["id"] == "lock.unlock" else a for a in e["actions"]]
-    e["recent_actions"] = [] if not (e["can_control"] or authorize(conn, principal, "system.configure", INSTALLATION).allowed) else [dict(r) for r in conn.execute("SELECT id, action_id, status, requested_at, confirmed_at, principal_username, error FROM ha_actions WHERE entity_id = ? ORDER BY requested_at DESC, rowid DESC LIMIT 5", (entity_id,)).fetchall()]
+    e["recent_actions"] = [] if not (e["can_control"] or authorize(conn, principal, "system.configure", INSTALLATION).allowed) else [dict(r) for r in store.recent_actions(conn, entity_id)]
     return e
 
 
@@ -286,7 +271,7 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
         raise ApiError(422, "validation", "expires_at חייב להיות UTC (Z).")
     if expires < dt.datetime.now(dt.timezone.utc):
         raise ApiError(409, "expired", "הבקשה פגה; נסה שוב.")
-    existing = conn.execute("SELECT * FROM ha_actions WHERE principal_user_id = ? AND client_request_id = ?", (principal.user_id, body.client_request_id)).fetchone()
+    existing = store.action_for_request(conn, principal.user_id, body.client_request_id)
     if existing:
         return _action_row(conn, existing["id"])  # idempotent: a duplicate click never sends twice
     spec, data = ha_bridge.validate_action(body.allowed_action_id, entity_id, body.arguments)
@@ -317,11 +302,10 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
     cleaned = {k: v for k, v in data.items() if k != "entity_id"}
     row_args = (aid, entity_id, body.allowed_action_id, json.dumps(cleaned, ensure_ascii=False), principal.user_id, principal.username, body.client_request_id, "pending", now,
                 ha_bridge.expectation_for(spec, e.get("attributes")), "bridge")
-    insert_sql = "INSERT INTO ha_actions(id, entity_id, action_id, arguments_json, principal_user_id, principal_username, client_request_id, status, requested_at, expected_state, via) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING"
     if not paired:
         with db.write_aside(label="ha.action not paired") as w:
-            w.execute(insert_sql, row_args)
-            w.execute("UPDATE ha_actions SET status = 'failed', error = 'bridge_not_paired', responded_at = ? WHERE id = ?", (now_iso(), aid))
+            store.insert_action(w, row_args)
+            store.fail_not_paired(w, now_iso(), aid)
             audit(w, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="bridge_not_paired",
                   request_id=rid, details={"action": body.allowed_action_id, "id": aid})
         raise ApiError(503, "bridge_not_paired", "פעולות אלו דורשות את הגשר מותקן ומצומד.", details={"action_id": aid})
@@ -334,14 +318,14 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
         if other is not None:
             other.wait(20)
         with db.connection(mode="read", label="ha.action duplicate") as r:
-            again = r.execute("SELECT id FROM ha_actions WHERE principal_user_id = ? AND client_request_id = ?", key).fetchone()
+            again = store.action_id_for_request(r, key)
             if again:
                 return _action_row(r, again["id"])
         raise ApiError(409, "duplicate_in_flight", "הבקשה כבר נשלחה; רעננו.")
     # the request's read snapshot may predate a duplicate that finished a moment ago (it held the claim until its row was
     # committed): look again on a fresh snapshot now that this request holds the claim - a duplicate click never sends twice
     with db.connection(mode="read", label="ha.action recheck") as r:
-        again = r.execute("SELECT id FROM ha_actions WHERE principal_user_id = ? AND client_request_id = ?", key).fetchone()
+        again = store.action_id_for_request(r, key)
         if again:
             _unclaim(key, claim)
             return _action_row(r, again["id"])
@@ -358,7 +342,7 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
             start = timing.clock()
             with db.write_aside(label="ha.action pending", wait_s=PENDING_WAIT_S, priority=True) as w:
                 timing.span("pending_wait", start)
-                w.execute(insert_sql, row_args)
+                store.insert_action(w, row_args)
                 audit(w, actor=principal, action="ha.action", decision="allowed", resource_type="ha_entity", resource_id=entity_id, reason="attempt",
                       request_id=rid, details={"action": body.allowed_action_id, "id": aid, "phase": "attempt", "arguments": body.arguments,
                                                "sensitive": spec["sensitive"], **({"service_identity": True} if "on_behalf_of" in subj else {})})
@@ -391,8 +375,8 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
 
             def _failed() -> None:
                 with db.write_aside(label="ha.action failed") as w:
-                    w.execute(insert_sql, row_args)
-                    w.execute("UPDATE ha_actions SET status = ?, error = ?, responded_at = ? WHERE id = ?", (row_status, err_code, now_iso(), aid))
+                    store.insert_action(w, row_args)
+                    store.set_action_status(w, row_status, err_code, now_iso(), aid)
                     audit(w, actor=principal, action="ha.action", decision="allowed", resource_type="ha_entity", resource_id=entity_id, reason=err_code,
                           request_id=rid, details={"action": body.allowed_action_id, "id": aid, "status": row_status})
 
@@ -406,8 +390,8 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
 
         def _answer() -> dict[str, Any]:
             with db.write_aside(label="ha.action answer") as w:
-                w.execute(insert_sql, row_args)
-                w.execute("UPDATE ha_actions SET status = ?, error = ?, responded_at = ? WHERE id = ?", (status, error, now_iso(), aid))
+                store.insert_action(w, row_args)
+                store.set_action_status(w, status, error, now_iso(), aid)
                 device_activity.note_context(w, aid, result, principal.user_id, principal.username)  # DEVHIST: HA's context id of the command -> the person behind the state change
                 audit(w, actor=principal, action="ha.action", decision="allowed" if ok else "denied", resource_type="ha_entity", resource_id=entity_id, reason=error,
                       request_id=rid, details={"action": body.allowed_action_id, "id": aid, "arguments": body.arguments, "sensitive": spec["sensitive"]})
@@ -434,7 +418,7 @@ def _door_gate(conn: sqlite3.Connection, principal: Principal, request: Request,
     if row is not None:
         station = row["config_entry_id"]
     else:
-        reg = conn.execute("SELECT config_entry_id FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
+        reg = store.entity_config_entry(conn, entity_id)
         station = (reg["config_entry_id"] if reg else None) or ""
     decision = door_authority.check(conn, principal, station, None, entity_id=entity_id, dev_mode=bool(settings_of(request).dev_user))
     if decision.allowed:
@@ -454,7 +438,7 @@ def _building_gate(conn: sqlite3.Connection, principal: Principal, request: Requ
     control keeps its own audited 403 and learns nothing about where the entity is. No `building` = nothing here, exactly as before."""
     if body.building is None:
         return
-    row = conn.execute("SELECT * FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
+    row = store.entity_row(conn, entity_id)
     entity = ha_sync.entity_row(row) if row else {"entity_id": entity_id, "area_id": None}
     try:
         building_scope.require_entity(conn, body.building, entity)
@@ -756,13 +740,10 @@ def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Co
     for u in users:
         if not u.get("id"):
             continue
-        conn.execute(
-            "INSERT INTO ha_users(id, name, username, is_active, is_admin, group_ids_json, synced_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, username = excluded.username, is_active = excluded.is_active, is_admin = excluded.is_admin, group_ids_json = excluded.group_ids_json, synced_at = excluded.synced_at",
-            (u["id"], u.get("name"), u.get("username"), 1 if u.get("is_active", True) else 0, 1 if u.get("is_admin") else 0, json.dumps(u.get("group_ids") or []), now),
-        )
+        store.upsert_directory_user(conn, u["id"], u.get("name"), u.get("username"), 1 if u.get("is_active", True) else 0, 1 if u.get("is_admin") else 0, json.dumps(u.get("group_ids") or []), now)
     ids = [u["id"] for u in users if u.get("id")]
     if ids:
-        conn.execute(f"UPDATE ha_users SET is_active = 0 WHERE id NOT IN ({','.join('?' * len(ids))})", ids)
+        store.deactivate_directory_users_except(conn, ids)
     _apply_directory_to_users(conn, request, {u["id"]: u for u in users if u.get("id")})
     from ..services.tickets import staff_links  # TKSTAFF1 (R7 a): a deactivated user's no-login staff links die with the push
 
@@ -817,10 +798,10 @@ def _apply_directory_to_users(conn: sqlite3.Connection, request: Request, pushed
     cannot lock the installation."""
     from ..services import revocation
 
-    admins = {r["subject_id"] for r in conn.execute("SELECT subject_id FROM bindings WHERE subject_kind = 'user' AND role_id = 'system_admin' AND scope_type = 'installation' AND effect = 'allow' AND revoked_at IS NULL").fetchall()}
+    admins = {r["subject_id"] for r in store.installation_admin_rows(conn)}
     disabled: list[str] = []
     # CR-008: first seen through Arx. USR2 R11: `source = 'local'` rows (Arx-only identities) are never mirrored or dropped here
-    for r in conn.execute("SELECT id, active FROM users WHERE source IN ('ingress', 'remote') AND substr(id, 1, 2) <> 'l_'").fetchall():
+    for r in store.mirrored_user_rows(conn):
         p = pushed.get(r["id"])
         if p is None:
             active_now = 1 if r["id"] in admins else 0
@@ -828,7 +809,7 @@ def _apply_directory_to_users(conn: sqlite3.Connection, request: Request, pushed
             active_now = 1 if p.get("is_active", True) else 0
         if active_now == r["active"]:
             continue
-        conn.execute("UPDATE users SET active = ? WHERE id = ?", (active_now, r["id"]))
+        store.set_user_active(conn, active_now, r["id"])
         audit(conn, actor=None, action="identity.user_enabled" if active_now else "identity.user_disabled", decision="allowed", resource_type="user", resource_id=r["id"],
               reason="ha_directory" if p is not None else "missing_from_directory", request_id=_rid(request))
         if not active_now:

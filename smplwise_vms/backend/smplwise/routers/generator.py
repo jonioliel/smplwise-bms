@@ -25,6 +25,9 @@ from ..services import generator_catalog as cat
 from ..services import generator_core as core
 from ..services import generator_history as history
 from ..services import generator_log as glog
+from ..services import generator_store as store
+from ..wire import generator as W
+from ..wire import wire
 
 router = APIRouter()
 VIEW, MANAGE = "generator.view", "generator.manage"
@@ -62,7 +65,7 @@ def _mirror_connected() -> bool:
 
 
 def _device(conn: sqlite3.Connection, device_id: str) -> sqlite3.Row:
-    row = conn.execute("SELECT * FROM generator_devices WHERE id = ? AND status <> 'removed'", (device_id,)).fetchone()
+    row = store.live_device(conn, device_id)
     if row is None:
         raise ApiError(404, "generator_not_found", "הגנרטור לא נמצא.")
     return row
@@ -71,7 +74,7 @@ def _device(conn: sqlite3.Connection, device_id: str) -> sqlite3.Row:
 def _area_name(conn: sqlite3.Connection, area_id: str | None) -> str | None:
     if not area_id:
         return None
-    r = conn.execute("SELECT name FROM ha_areas WHERE area_id = ?", (area_id,)).fetchone()
+    r = store.area_name(conn, area_id)
     return r["name"] if r else None
 
 
@@ -89,7 +92,7 @@ def _device_out(conn: sqlite3.Connection, d: sqlite3.Row, *, detail: bool, value
         "id": d["id"], "name": d["name"], "area_id": d["area_id"], "area_name": _area_name(conn, d["area_id"]), "status": d["status"], "source_kind": d["source_kind"],
         "rated_kw": d["rated_kw"], "rated_kva": d["rated_kva"], "fuel_type": d["fuel_type"], "detected_at": d["detected_at"], "last_seen_at": d["last_seen_at"], "revision": d["revision"],
         "availability": avail, "stale": avail != "online", "core_met": cat.is_core_met(roles),
-        "open_alerts": open_alerts if open_alerts is not None else conn.execute("SELECT COUNT(*) FROM generator_alerts WHERE device_id = ? AND cleared_at IS NULL", (d["id"],)).fetchone()[0],
+        "open_alerts": open_alerts if open_alerts is not None else store.open_alert_count(conn, d["id"]),
         "capabilities": {"roles": sorted(roles), "values": sum(1 for r in roles if r in value_roles), "values_total": len(value_roles),
                          "alert_types": len(types_ok), "alert_types_total": len(cat.ALERT_TYPES),
                          "disabled_roles": core.disabled_roles(conn, d["id"]),
@@ -106,12 +109,12 @@ def _device_out(conn: sqlite3.Connection, d: sqlite3.Row, *, detail: bool, value
 # ---------------------------------------------------------------- devices
 
 def _open_counts(conn: sqlite3.Connection) -> dict[str, int]:
-    return {r[0]: r[1] for r in conn.execute("SELECT device_id, COUNT(*) FROM generator_alerts WHERE cleared_at IS NULL GROUP BY device_id").fetchall()}
+    return store.open_alert_counts(conn)
 
 
-@router.get("/generator/devices")
+@router.get("/generator/devices", **wire(W.GeneratorDeviceList))
 def list_devices(principal: Principal = Depends(_view_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    rows = conn.execute("SELECT * FROM generator_devices WHERE status <> 'removed' ORDER BY name, id").fetchall()
+    rows = store.live_devices(conn)
     values, counts = core.read_values_bulk(conn), _open_counts(conn)
     devices = [_device_out(conn, d, detail=False, values=values.get(d["id"], {}), open_alerts=counts.get(d["id"], 0)) for d in rows]
     return {"devices": devices, "detected": sum(1 for d in rows if d["status"] == "detected"), "partial": sum(1 for d in rows if d["status"] == "partial"),
@@ -119,15 +122,15 @@ def list_devices(principal: Principal = Depends(_view_ro), conn: sqlite3.Connect
             "log_enabled": glog.enabled(conn)}  # GENLOG092-295: the run-log page is shown only while its switch is on
 
 
-@router.get("/generator/devices/live")
+@router.get("/generator/devices/live", **wire(W.GeneratorLiveAll))
 def live_all(principal: Principal = Depends(_view_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """One call for a generator picker and the home widget: every generator's availability, engine state, mode, supply source, mains, load,
     fuel and open alerts. GENWIDGET 2.9.3 (additive): the summary also carries the roles the power-flow derivation of the live screen reads
     (running flag, mains voltages, the breakers, load-on-mains), `roles` lists the mapped role keys (capability set, no entity ids) and
     `open_critical` counts the open critical alerts, so the home widget derives mains / generator exactly as the generator screen does."""
-    rows = conn.execute("SELECT id, name, area_id, status FROM generator_devices WHERE status <> 'removed' ORDER BY name, id").fetchall()
+    rows = store.live_devices_brief(conn)
     values, counts, connected = core.read_values_bulk(conn), _open_counts(conn), _mirror_connected()
-    critical = {r[0]: r[1] for r in conn.execute("SELECT device_id, COUNT(*) FROM generator_alerts WHERE cleared_at IS NULL AND severity = 'critical' GROUP BY device_id").fetchall()}
+    critical = store.open_critical_counts(conn)
     keys = ("engine_state", "controller_mode", "supply_source", "ats_position", "mains_available", "on_load", "gen_kw", "load_pct", "fuel_pct", "battery_v",
             "generator_running", "mains_v_l1", "mains_v_l2", "mains_v_l3", "mains_breaker_closed", "load_on_mains", "generator_breaker_closed")
     items = []
@@ -140,12 +143,12 @@ def live_all(principal: Principal = Depends(_view_ro), conn: sqlite3.Connection 
     return {"devices": items, "open_alerts": sum(counts.values()), "at": now_iso()}
 
 
-@router.get("/generator/devices/{device_id}")
+@router.get("/generator/devices/{device_id}", **wire(W.GeneratorDevice))
 def get_device(device_id: str, principal: Principal = Depends(_view_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return _device_out(conn, _device(conn, device_id), detail=True)
 
 
-@router.get("/generator/devices/{device_id}/live")
+@router.get("/generator/devices/{device_id}/live", **wire(W.GeneratorLive))
 def get_live(device_id: str, principal: Principal = Depends(_view_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     d = _device(conn, device_id)
     values = core.read_values(conn, d["id"])
@@ -153,7 +156,7 @@ def get_live(device_id: str, principal: Principal = Depends(_view_ro), conn: sql
     return {"id": d["id"], "availability": avail, "stale": avail != "online", "values": _values_out(values), "at": now_iso()}
 
 
-@router.post("/generator/devices/detect")
+@router.post("/generator/devices/detect", **wire(W.GeneratorDetect))
 def run_detect(principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     now = time.monotonic()
     if len(_DETECT_CALLS) == 3 and now - _DETECT_CALLS[0] < 60:
@@ -169,14 +172,14 @@ class ManualBody(_Body):
     name: str | None = Field(default=None, max_length=80)
 
 
-@router.get("/generator/device-candidates")
+@router.get("/generator/device-candidates", **wire(W.GeneratorDeviceCandidates))
 def device_candidates(q: str = Query("", max_length=80), limit: int = Query(50, ge=1, le=200), principal: Principal = Depends(_manage_ro),
                       conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The manual pick: registry devices (display names only) with how many generator roles Arx can map on each."""
     by_device = core._device_entities(conn)
-    taken = {r[0] for r in conn.execute("SELECT source_device_ref FROM generator_devices WHERE status <> 'removed'").fetchall()}
+    taken = store.taken_device_refs(conn)
     items = []
-    for d in conn.execute("SELECT * FROM ha_devices WHERE removed_at IS NULL").fetchall():
+    for d in store.live_registry_devices(conn):
         name = core._device_name(d)
         if q and q.lower() not in name.lower():
             continue
@@ -188,7 +191,7 @@ def device_candidates(q: str = Query("", max_length=80), limit: int = Query(50, 
     return {"items": items[:limit]}
 
 
-@router.post("/generator/devices", status_code=201)
+@router.post("/generator/devices", status_code=201, **wire(W.GeneratorDevice))
 def add_device(body: ManualBody, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     gid = core.add_manual(conn, body.ha_device_id, body.name)
     if gid is None:
@@ -207,7 +210,7 @@ class DeviceBody(_Body):
     revision: int | None = None
 
 
-@router.put("/generator/devices/{device_id}")
+@router.put("/generator/devices/{device_id}", **wire(W.GeneratorDevice))
 def update_device(device_id: str, body: DeviceBody, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     d = _device(conn, device_id)
     if body.revision is not None and body.revision != d["revision"]:
@@ -226,18 +229,18 @@ def update_device(device_id: str, body: DeviceBody, principal: Principal = Depen
         stored[device_id] = part
         core.jset(conn, "generator.thresholds", stored)
     if sets:
-        conn.execute(f"UPDATE generator_devices SET {', '.join(f'{k} = ?' for k in sets)}, revision = revision + 1 WHERE id = ?", (*sets.values(), device_id))
+        store.update_device(conn, device_id, sets)
     audit(conn, actor=principal, action="generator.device.update", decision="allowed", resource_type="generator_device", resource_id=device_id)
     return _device_out(conn, _device(conn, device_id), detail=True)
 
 
 # ---------------------------------------------------------------- sensor mapping
 
-@router.get("/generator/devices/{device_id}/roles")
+@router.get("/generator/devices/{device_id}/roles", **wire(W.GeneratorRoleMappings))
 def get_roles(device_id: str, principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _device(conn, device_id)
-    mapped = {r["role"]: r for r in conn.execute("SELECT * FROM generator_roles WHERE device_id = ?", (device_id,)).fetchall()}
-    names = {r["entity_id"]: (r["name"] or r["original_name"] or "") for r in conn.execute("SELECT entity_id, name, original_name FROM ha_entities").fetchall()}
+    mapped = {r["role"]: r for r in store.device_roles(conn, device_id)}
+    names = {r["entity_id"]: (r["name"] or r["original_name"] or "") for r in store.entity_names(conn)}
     cands = core.candidates(conn, device_id)
     overrides = core.overrides(conn, device_id)
     disabled = set(core.disabled_roles(conn, device_id))
@@ -254,13 +257,13 @@ class RolesBody(_Body):
     roles: dict[str, str | None]
 
 
-@router.put("/generator/devices/{device_id}/roles")
+@router.put("/generator/devices/{device_id}/roles", **wire(W.GeneratorDevice))
 def put_roles(device_id: str, body: RolesBody, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _device(conn, device_id)
     for role, eid in body.roles.items():
         if role not in cat.ROLES:
             raise ApiError(422, "validation", "תפקיד חיישן לא מוכר.", details={"fields": [f"roles.{role}"]})
-        if eid is not None and conn.execute("SELECT 1 FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (eid,)).fetchone() is None:
+        if eid is not None and not store.live_entity_exists(conn, eid):
             raise ApiError(422, "role_unmapped", "החיישן לא נמצא.", details={"fields": [f"roles.{role}"]})
     stored = core.jget(conn, "generator.role_overrides", {})
     stored = stored if isinstance(stored, dict) else {}
@@ -273,7 +276,7 @@ def put_roles(device_id: str, body: RolesBody, principal: Principal = Depends(_m
 
 # ---------------------------------------------------------------- history
 
-@router.get("/generator/devices/{device_id}/history")
+@router.get("/generator/devices/{device_id}/history", **wire(W.GeneratorHistory))
 def get_history(device_id: str, roles: str = Query("", max_length=400), range: Literal["1h", "24h", "7d", "30d", "custom"] = "24h",
                 start: str | None = Query(None, alias="from", max_length=40), end: str | None = Query(None, alias="to", max_length=40),
                 max_points: int = Query(history.DEFAULT_POINTS, ge=10, le=history.MAX_POINTS), principal: Principal = Depends(_view_ro),
@@ -298,7 +301,7 @@ def get_history(device_id: str, roles: str = Query("", max_length=400), range: L
 
 # ---------------------------------------------------------------- GENLOG092-295: the run log (start tests, mains-failure runs, hours, fuel)
 
-@router.get("/generator/devices/{device_id}/runs")
+@router.get("/generator/devices/{device_id}/runs", **wire(W.GeneratorRuns))
 def get_runs(device_id: str, range: Literal["7d", "30d", "90d", "365d", "custom"] = "30d", start: str | None = Query(None, alias="from", max_length=40),  # noqa: A002
              end: str | None = Query(None, alias="to", max_length=40), kind: Literal["test", "mains_failure", "manual", "other"] | None = None,
              page: int = Query(1, ge=1, le=10000), page_size: int = Query(8, ge=1, le=glog.PAGE_MAX),
@@ -322,7 +325,7 @@ def get_runs(device_id: str, range: Literal["7d", "30d", "90d", "365d", "custom"
 
 # ---------------------------------------------------------------- alerts
 
-@router.get("/generator/alerts")
+@router.get("/generator/alerts", **wire(W.GeneratorAlertList))
 def get_alerts(device_id: str | None = None, state: Literal["open", "closed"] | None = None, severity: Literal["critical", "alert", "info"] | None = None,
                type: str | None = Query(None, max_length=40), ack: bool | None = None, start: str | None = Query(None, alias="from", max_length=40),
                end: str | None = Query(None, alias="to", max_length=40), before: str | None = Query(None, max_length=40), limit: int = Query(50, ge=1, le=200),
@@ -330,7 +333,7 @@ def get_alerts(device_id: str | None = None, state: Literal["open", "closed"] | 
     return alerts.list_alerts(conn, device_id=device_id, state=state, severity=severity, key=type, ack=ack, start=start, end=end, before=before, limit=limit)
 
 
-@router.get("/generator/alerts/{alert_id}")
+@router.get("/generator/alerts/{alert_id}", **wire(W.GeneratorAlertDetail))
 def get_alert(alert_id: str, principal: Principal = Depends(_view_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     d = alerts.alert_detail(conn, alert_id)
     if d is None:
@@ -346,14 +349,14 @@ class MuteBody(_Body):
     hours: int = Field(default=24, ge=1, le=alerts.MUTE_MAX_H)
 
 
-@router.post("/generator/alerts/{alert_id}/ack")
+@router.post("/generator/alerts/{alert_id}/ack", **wire(W.GeneratorAlertDetail))
 def ack_alert(alert_id: str, body: AckBody | None = None, principal: Principal = Depends(_view_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     if alerts.acknowledge(conn, principal, alert_id, body.note if body else None) == "not_found":
         raise not_found("ההתראה לא נמצאה.")
     return alerts.alert_detail(conn, alert_id) or {}
 
 
-@router.post("/generator/alerts/{alert_id}/mute")
+@router.post("/generator/alerts/{alert_id}/mute", **wire(W.GeneratorMuted))
 def mute_alert(alert_id: str, body: MuteBody | None = None, principal: Principal = Depends(_view_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     until = alerts.mute(conn, principal, alert_id, body.hours if body else 24)
     if until is None:
@@ -361,7 +364,7 @@ def mute_alert(alert_id: str, body: MuteBody | None = None, principal: Principal
     return {"muted_until": until}
 
 
-@router.post("/generator/devices/{device_id}/alerts/ack-all")
+@router.post("/generator/devices/{device_id}/alerts/ack-all", **wire(W.GeneratorAcknowledged))
 def ack_all(device_id: str, principal: Principal = Depends(_view_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _device(conn, device_id)
     return {"acknowledged": alerts.acknowledge_all(conn, principal, device_id)}
@@ -369,7 +372,7 @@ def ack_all(device_id: str, principal: Principal = Depends(_view_w), conn: sqlit
 
 # ---------------------------------------------------------------- routing
 
-@router.get("/generator/devices/{device_id}/policies")
+@router.get("/generator/devices/{device_id}/policies", **wire(W.GeneratorPolicies))
 def get_policies(device_id: str, principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _device(conn, device_id)
     out = alerts.list_policies(conn, device_id)
@@ -418,7 +421,7 @@ def _whatsapp_change(conn: sqlite3.Connection, device_id: str, alert_key: str, b
     return False
 
 
-@router.put("/generator/devices/{device_id}/policies/{alert_key}")
+@router.put("/generator/devices/{device_id}/policies/{alert_key}", **wire(W.GeneratorPolicy))
 def put_policy(device_id: str, alert_key: str, body: PolicyBody, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _device(conn, device_id)
     if alert_key not in cat.TYPE_BY_KEY:
@@ -444,7 +447,7 @@ class SeverityRoutingBody(_Body):
     row_version: int | None = None
 
 
-@router.put("/generator/devices/{device_id}/severity-routing/{severity}")
+@router.put("/generator/devices/{device_id}/severity-routing/{severity}", **wire(W.GeneratorSeverityRouting))
 def put_severity_routing(device_id: str, severity: str, body: SeverityRoutingBody, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """GENALERT-295: the default recipients and channels of one severity on this generator (what an alert type without its own choice inherits)."""
     _device(conn, device_id)
@@ -460,7 +463,7 @@ class PreviewBody(_Body):
     template_he: str | None = Field(default=None, max_length=alerts.TEMPLATE_MAX)
 
 
-@router.post("/generator/devices/{device_id}/policies/{alert_key}/preview")
+@router.post("/generator/devices/{device_id}/policies/{alert_key}/preview", **wire(W.GeneratorPreview))
 def preview_policy(device_id: str, alert_key: str, body: PreviewBody, principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The message as it would read, with sample values; nothing is stored or sent."""
     _device(conn, device_id)
@@ -472,7 +475,7 @@ def preview_policy(device_id: str, alert_key: str, body: PreviewBody, principal:
         raise ApiError(400, exc.code, exc.message, details=exc.details) from None
 
 
-@router.post("/generator/devices/{device_id}/policies/reset")
+@router.post("/generator/devices/{device_id}/policies/reset", **wire(W.GeneratorPoliciesReset))
 def reset_policies(device_id: str, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _device(conn, device_id)
     return {"reset": alerts.reset_policies(conn, principal, device_id)}
@@ -501,12 +504,12 @@ def _settings_out(conn: sqlite3.Connection) -> dict[str, Any]:
             "log_enabled": glog.enabled(conn), "log": glog.settings(conn), "log_specs": glog.specs_out()}
 
 
-@router.get("/generator/settings")
+@router.get("/generator/settings", **wire(W.GeneratorSettings))
 def get_settings(principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return _settings_out(conn)
 
 
-@router.put("/generator/settings")
+@router.put("/generator/settings", **wire(W.GeneratorSettings))
 def put_settings(body: SettingsBody, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     sent = body.model_fields_set
     if "integration_domains" in sent and body.integration_domains is not None:

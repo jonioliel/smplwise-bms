@@ -20,6 +20,7 @@ from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize
 from ..services import playback as pb
 from ..services import playback_groups as pg
+from ..services import playback_groups_store as store
 from ..services import recorder_clock
 from ..services.access import camera_scope
 from ..services.timeutil import iso_utc, parse_utc
@@ -28,6 +29,8 @@ from .recordings import camera_for_playback
 from .settings import read_settings
 from ..services.settings_store import setting_value
 from ._common import rid as _rid
+from ..wire import playback_groups as W
+from ..wire import wire
 
 router = APIRouter()
 GAP_TOLERANCE_S = 60  # a member whose next recording starts later than this is a gap, not a late starter
@@ -87,7 +90,7 @@ def _start_many(settings: Settings, conn: sqlite3.Connection, principal: Princip
             pb.close(settings, x)
 
 
-@router.post("/playback/groups", status_code=201)
+@router.post("/playback/groups", status_code=201, **wire(W.PlaybackGroup))
 def create_group(body: GroupBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     settings = settings_of(request)
     ids = list(dict.fromkeys(body.camera_ids))
@@ -126,7 +129,7 @@ def create_group(body: GroupBody, request: Request, principal: Principal = Depen
     return pg.to_dict(group, s["playback.lease_s"])
 
 
-@router.post("/playback/groups/{group_id}/seek")
+@router.post("/playback/groups/{group_id}/seek", **wire(W.PlaybackGroup))
 def seek_group(group_id: str, body: SeekBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     settings = settings_of(request)
     group = _owned(conn, principal, group_id)
@@ -146,7 +149,7 @@ def seek_group(group_id: str, body: SeekBody, request: Request, principal: Princ
                 pb.close(settings, existing.pop(cid), "revoked")
                 group.missing[cid] = "forbidden"
     cam_ids = list(existing) + [c for c in group.missing if c not in existing and scope.allows(c)]
-    cams = [c for c in (conn.execute("SELECT * FROM cameras WHERE id = ?", (cid,)).fetchone() for cid in cam_ids) if c]
+    cams = [c for c in (store.camera(conn, cid) for cid in cam_ids) if c]
     group.generation += 1
     group.requested_at = start
     _start_many(settings, conn, principal, cams, start, s["time.zone"], s["playback.max_sessions"], group, existing)
@@ -167,7 +170,7 @@ class SyncReport(BaseModel):
 SYNC_QUALITIES = ("waiting", "synced", "slight", "out_of_sync")
 
 
-@router.post("/playback/groups/{group_id}/sync")
+@router.post("/playback/groups/{group_id}/sync", **wire(W.GroupSyncStored))
 def report_sync(group_id: str, body: SyncReport, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Store the measurement on the group (owner only). Nothing is seeked here: the browser re-seeks a late tile alone."""
     group = _owned(conn, principal, group_id)
@@ -182,13 +185,13 @@ def report_sync(group_id: str, body: SyncReport, principal: Principal = Depends(
     return {"ok": True, "sync_report": group.sync_report}
 
 
-@router.get("/playback/groups/{group_id}")
+@router.get("/playback/groups/{group_id}", **wire(W.PlaybackGroup))
 def get_group(group_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     group = _owned(conn, principal, group_id)
     return pg.to_dict(group, setting_value(conn, "playback.lease_s"))
 
 
-@router.post("/playback/groups/{group_id}/close")
+@router.post("/playback/groups/{group_id}/close", **wire(W.GroupClosed))
 def close_group_beacon(group_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Same as DELETE, reachable by navigator.sendBeacon on page unload."""
     group = _owned(conn, principal, group_id)
@@ -198,7 +201,7 @@ def close_group_beacon(group_id: str, request: Request, principal: Principal = D
     return {"id": group.id, "state": "closed"}
 
 
-@router.delete("/playback/groups/{group_id}")
+@router.delete("/playback/groups/{group_id}", **wire(W.GroupClosed))
 def close_group(group_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     group = _owned(conn, principal, group_id)
     pg.close_group(settings_of(request), group)

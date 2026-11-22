@@ -1,142 +1,61 @@
 // Shapes returned by the add-on backend (smplwise_vms/backend). Keep in step with the routers.
 
-export interface Me {
-  /** CR-LOGOS295: the company logo / name, logo size, dark-background mode and the browser-tab title parts (design/brand-logo.ts). */
-  brand?: import('../design/brand-logo').BrandView;
-  user: { id: string; username: string; display_name: string; source: 'ingress' | 'dev' | 'remote' };
-  /** CR-008: the entry channel - `remote` through SmplWise Arx (`/arx/`), `local` through Ingress (or a developer backend). */
-  channel?: 'remote' | 'local';
-  /** CR-008: the remote.* settings the Arx client needs; null outside the remote channel. */
-  remote?: Record<string, string | number> | null;
-  bindings: { id: string; role_id: string; role_name: string; scope_type: string; scope_id: string; scope_name: string; effect: string }[];
-  permissions_installation: string[];
-  /** Held at any scope (union of the allow bindings, minus installation-wide denies): what the shell may show. */
-  permissions_any?: string[];
-  has_access: boolean;
-  permission_revision: number;
-  /** T055: false once Home Assistant disabled the user (every request is refused from then on). */
-  active?: boolean;
-  /** T055: hash of everything this user's access depends on; moves exactly when their permissions may have changed. */
-  permissions_fingerprint?: string;
-  /** T055: /me?known=<fingerprint> - whether it moved since. */
-  permissions_changed?: boolean;
-  /** CR-030: presence of an enabled wall profile; `desktop` (WALL-FOLLOWUPS-2390): the wall display also takes over a desktop-class browser;
-   * `foldable_open` (WALL-ANSWERS-2400): an unfolded foldable counts as a tablet (default) or a phone. Absent in an older answer: false / tablet. */
-  /** HOME-SIMPLE-2420: which interface opens (home / full), the switch, home-only and the wall-panel lock (absent on an older add-on). */
-  interface?: import('../home/home-api').InterfacePolicy | null;
-  wall?: { enabled: boolean; profile_version: number; desktop?: boolean; foldable_open?: 'tablet' | 'phone' } | null;
-  bootstrap_state: string;
-  /** NVR-less mode (owner request 2026-09-29): `ha_only` when the add-on options name no NVR host - the shell hides the
-   * NVR areas for everyone. Absent on an older backend (= full). */
-  mode?: 'full' | 'ha_only';
-  /** CR-022 section 8: a saved / removed NVR connection waits for a restart. Present only for holders of system.configure. */
-  connection_pending_restart?: boolean;
-  /** NN1: what this installation has (NVR, media server, Home Assistant ...), derived by the server; the shell hides what cannot work.
-   * Booleans for everyone; `recorders` only for whoever may read the NVR configuration (CR-022). */
-  capabilities?: import('./capabilities').Capabilities;
-  /** CR-027: what the required-sensors policy says about this caller on this channel; present once a policy was ever written,
-   * null when it applies to nobody. `blocked` is what the shell acts on (the server refuses every other request too). */
+/* `GET /me` is the backend's response model (smplwise_vms/backend/smplwise/wire/me.py, generated into ./generated/wire-me.ts; code review
+ * 07:F8 step 2): a key the server renames or drops is a compile error here. The blocks other modules own keep their client types
+ * (narrowed on purpose: the server passes them through as documents) - the brand view (design/brand-logo.ts, LOGOS-295), the home
+ * interface policy (HOME-SIMPLE-2420, null on an add-on whose migration has not run), the capabilities (NN1: booleans for everyone,
+ * `recorders` only for whoever may read the NVR configuration), the presence gate (CR-027: present once a policy was ever written, null
+ * when it applies to nobody; `blocked` is what the shell acts on), the remote.* settings (CR-008: null outside the remote channel), the
+ * tickets module's display names (CR-038 D33), the demo banner (CR-READY96) and the wall presence (CR-030). Present only for some
+ * callers: `connection_pending_restart` / `readiness` (system.configure), `presence_gate`, `local_identity` (an Arx-only identity).
+ * `user.source` is the principal's source (`ingress`, `dev`, `remote`, `bearer`, `local` ...). */
+type MeWire = import('./generated/wire-me').Me;
+export type Me = Omit<MeWire, 'brand' | 'interface' | 'capabilities' | 'presence_gate' | 'remote' | 'modules' | 'demo' | 'wall'> & {
+  brand: import('../design/brand-logo').BrandView;
+  interface: import('../home/home-api').InterfacePolicy | null;
+  capabilities: import('./capabilities').Capabilities;
   presence_gate?: import('./presence').PresenceGate | null;
-  /** CR-038 section 6: the optional modules the shell offers - the tickets module's switch (permissions decide the rest) and its
-   * display name per language (owner decision D33: every text that names the module is rendered through tickets/naming.ts). Absent on
-   * an older backend (= off). */
-  /** CR-READY96: the last RECORDED readiness score (system.configure holders only; null until the first check) and the demo-mode state every signed-in user is told. */
-  readiness?: { score: number; level: 'building' | 'almost' | 'ready'; at: string } | null;
-  demo?: import('./readiness').DemoState;
-  modules?: { tickets: boolean; notices?: boolean /* CR-NOTICE106 */; tickets_name?: Partial<Record<import('../tickets/naming').TicketLang, import('../tickets/naming').TicketName>>; tickets_long_press?: 'sheet' | 'menu' /* D17 (slice 3) */; incidents?: boolean /* CR-LIVEEVENT100: the live event mode switch (OFF by default) */; announce?: boolean /* FIX2200: announce.enabled - the הכרזות tab */ };
-}
+  remote: Record<string, string | number> | null;
+  modules: Omit<MeWire['modules'], 'tickets_name'> & { tickets_name: Partial<Record<import('../tickets/naming').TicketLang, import('../tickets/naming').TicketName>> };
+  demo: import('./readiness').DemoState;
+  wall: (Omit<NonNullable<MeWire['wall']>, 'foldable_open'> & { foldable_open: 'tablet' | 'phone' }) | null;
+};
 
-export interface Site {
-  id: string;
-  name: string;
-  address: string;
-  timezone: string;
-  sort_order: number;
-  updated_at: string;
-  /** R1 (0.1.67): a photo of the site, served by the API (null without one). */
-  image_url?: string | null;
+/* Site / building / floor are the backend's response models (smplwise_vms/backend/smplwise/wire/catalog.py, generated into
+ * ./generated/wire-catalog.ts): a field the server renames or drops is a compile error here (code review 07:F8 step 2). Optional on
+ * purpose: the picture, the shared flags and counts (the demo tree has none of them) and the tree children (absent with `?tree=false`). */
+type WireSite = import('./generated/wire-catalog').CatalogSite;
+type WireBuilding = import('./generated/wire-catalog').CatalogBuilding;
+type WireFloor = import('./generated/wire-catalog').CatalogFloor;
+
+export interface Site extends Pick<WireSite, 'id' | 'name' | 'address' | 'timezone' | 'sort_order' | 'updated_at'>, Partial<Pick<WireSite, 'image_url'>> {
   buildings?: Building[];
 }
 
-export interface Building {
-  id: string;
-  site_id: string;
-  name: string;
-  sort_order: number;
-  updated_at: string;
-  image_url?: string | null;
-  /** MULTIBUILDING-HOME-2330: the site's shared building ("משותף": parking, main electrical room, garden) - listed last on the home
-   * screen with its own icon and colour, unchecked by default in "כבה הכל באתר". Absent on an older server = false. */
-  is_shared?: boolean;
+export interface Building extends Pick<WireBuilding, 'id' | 'site_id' | 'name' | 'sort_order' | 'updated_at'>, Partial<Pick<WireBuilding, 'image_url' | 'is_shared'>> {
+  /** MULTIBUILDING-HOME-2330: `is_shared` = the site's shared building ("משותף": parking, main electrical room, garden) - listed last on
+   * the home screen with its own icon and colour, unchecked by default in "כבה הכל באתר". */
   floors?: Floor[];
 }
 
-export interface Floor {
-  id: string;
-  building_id: string;
-  name: string;
-  level: number;
-  sort_order: number;
-  ha_area_id: string | null;
-  has_plan: boolean;
-  published_version_id: string | null;
-  plan_width_px: number | null;
-  plan_height_px: number | null;
-  draft_version_id: string | null;
-  anchor_count: number;
-  camera_count: number;
-  /** CR-009: the anchors / cameras of rooms other floors share with this one (their home floor counts them). */
-  shared_anchor_count?: number;
-  shared_camera_count?: number;
-  updated_at: string;
-}
+/** CR-009: `shared_anchor_count` / `shared_camera_count` = the anchors / cameras of rooms other floors share with this one. */
+export type Floor = Omit<WireFloor, 'shared_anchor_count' | 'shared_camera_count'> & Partial<Pick<WireFloor, 'shared_anchor_count' | 'shared_camera_count'>>;
 
-export interface SitesResponse {
-  sites: Site[];
-  can_create_site: boolean;
-}
+export type SitesResponse = Omit<import('./generated/wire-catalog').CatalogSites, 'sites'> & { sites: Site[] };
 
-export interface PlanAsset {
-  /** pdf / dxf / image, from the server's content sniffing (T065). */
-  kind?: 'pdf' | 'dxf' | 'image';
-  id: string;
-  floor_id: string;
-  original_name: string;
-  mime: string;
-  sha256: string;
-  bytes: number;
-  page_count: number;
-  created_at: string;
-  pages: { page: number; preview_url: string }[];
-}
+/* The plan asset and version fields are the backend's response models (smplwise_vms/backend/smplwise/wire/plans.py, generated into
+ * ./generated/wire-plans.ts; code review 07:F8 step 2): a field the server renames or drops is a compile error here. Fields the demo
+ * plans and older bundles leave out stay optional; `crop` / `calibration` (stored documents) keep their hand-written shapes. */
+type PlanAssetWire = import('./generated/wire-plans').PlanAsset;
+type PlanVersionWire = import('./generated/wire-plans').PlanVersionListed;
+export interface PlanAsset extends Pick<PlanAssetWire, 'id' | 'floor_id' | 'original_name' | 'mime' | 'sha256' | 'bytes' | 'page_count' | 'created_at' | 'pages'>, Partial<Pick<PlanAssetWire, 'kind'>> {}
 
-export interface PlanVersion {
-  id: string;
-  floor_id: string;
-  asset_id: string;
-  page: number;
-  rotation: number;
+export interface PlanVersion
+  extends Pick<PlanVersionWire, 'id' | 'floor_id' | 'asset_id' | 'page' | 'rotation' | 'width_px' | 'height_px' | 'scale_m_per_px' | 'status' | 'revision' | 'notes' | 'created_at' | 'published_at' | 'image_url'>,
+    Partial<Pick<PlanVersionWire, 'archived_at' | 'created_by' | 'published_by' | 'anchors_on' | 'render_mode' | 'stylized_url' | 'source_url'>> {
   crop: { x: number; y: number; w: number; h: number } | null;
-  width_px: number;
-  height_px: number;
-  scale_m_per_px: number | null;
   /** Calibration record (Plan Studio): two-point pairs, or a door-width estimate (status "estimated", phase 3). */
   calibration?: { method: string; status?: 'measured' | 'estimated'; pairs: { a: [number, number]; b: [number, number]; metres: number }[]; residual_pct: number | null; reason?: string | null } | null;
-  status: 'draft' | 'published' | 'archived';
-  revision: number;
-  notes: string;
-  created_at: string;
-  published_at: string | null;
-  archived_at?: string | null;
-  created_by?: string | null;
-  published_by?: string | null;
-  /** Active anchors placed on this version (version history, T038). */
-  anchors_on?: number;
-  image_url: string;
-  /** 'stylized' serves the SMPLWISE-language rendering as the map background (the source stays). */
-  render_mode?: 'source' | 'stylized';
-  stylized_url?: string | null;
-  source_url?: string;
 }
 
 /** Plan Studio (T084): the structure document the map bundle points to - fetched separately and cached by hash. */
@@ -150,41 +69,20 @@ export interface GeometryRef {
   view_hash?: string;
 }
 
-export interface Camera {
-  id: string;
-  recorder_id: string;
-  channel: number;
-  name: string;
-  name_source: string;
-  alias: string | null;
-  enabled: boolean;
-  sort_order: number;
-  /** T091: how many grid columns wide this camera's tile is on the all-cameras grid (1-4, default 1). */
-  grid_col_span: number;
-  /** Wall arrangement: "לא להציג" - left out of the all-cameras wall and the kiosk pages derived from it (absent = shown). */
-  wall_hidden?: boolean;
-  main_track: number | null;
-  sub_track: number | null;
+/* The camera fields are the backend's response model (smplwise_vms/backend/smplwise/wire/cameras.py `CameraRow` / `CameraListed`,
+ * generated into ./generated/wire-cameras.ts): a field the server renames or drops is a compile error here (code review 07:F8 step 2).
+ * Narrowed on purpose: `status` (the registry's three states), `stream` / `encoding` (stored documents the server passes through), and
+ * the list-only fields stay optional (a row from PATCH / POST and the demo cameras have none of them). Client-only: `still_refresh_s`. */
+type CameraWire = import('./generated/wire-cameras').CameraListed;
+export interface Camera
+  extends Pick<CameraWire, 'id' | 'recorder_id' | 'channel' | 'name' | 'name_source' | 'alias' | 'enabled' | 'sort_order' | 'grid_col_span' | 'main_track' | 'sub_track' | 'last_seen_at'>,
+    Partial<Pick<CameraWire, 'wall_hidden' | 'can_view_live' | 'recorder_name' | 'recorder_enabled' | 'live_kind' | 'video_source' | 'standalone' | 'area_id'>> {
   status: 'online' | 'offline' | 'unknown';
-  last_seen_at: string | null;
   stream?: { codec?: string; resolution?: string; fps?: number; bitrate_kbps?: number } | null;
   /** CR-008 D7: the main / sub stream encodings the discovery read from the NVR, with the WebRTC verdict of each. */
   encoding?: CameraEncoding | null;
-  can_view_live?: boolean;
-  /** CR-024: the recorder's name, given only when the installation has two or more recorders. */
-  recorder_name?: string | null;
-  /** CR-024: false while the camera's recorder is disabled (the camera stays listed, not offered for live). */
-  recorder_enabled?: boolean;
-  /** NN5-F1B: `still` = the camera has no live stream (a Frigate recorder in F1): its tile shows a refreshing snapshot. Absent = a stream. */
-  live_kind?: 'stream' | 'still';
-  /** NN5-F1B: seconds between refreshes of the still (the tile never goes below 5). */
+  /** NN5-F1B: seconds between refreshes of the still (the tile never goes below 5; set by the client, api/frigate.ts). */
   still_refresh_s?: number;
-  /** CAMERA-STREAM-SOURCES-2410: where the video comes from - the recorder (default) or the camera's own RTSP address. */
-  video_source?: 'nvr' | 'manual';
-  /** CAMERA-STREAM-SOURCES-2410: a camera without a recorder - live and snapshots only (no recordings, playback, NVR events or reboot). */
-  standalone?: boolean;
-  /** CAMERA-STREAM-SOURCES-2410: the area a camera without a recorder belongs to (a home-platform area id), if one was chosen. */
-  area_id?: string | null;
 }
 
 /** One stream's encoding as the NVR reports it (services/stream_codecs.py); `webrtc` = can a browser decode it there. */
@@ -213,42 +111,24 @@ export interface CameraEncoding {
   hint?: string | null;
 }
 
-export interface Anchor {
-  id: string;
-  floor_id: string;
-  plan_version_id: string;
-  resource_type: 'camera' | 'ha_entity';
-  resource_id: string;
-  position: { x: number; y: number };
-  rotation_degrees: number;
-  field_of_view_degrees: number | null;
-  /** Manual coverage (R2): cone radius as a fraction of the plan width; null = the default illustration. */
-  coverage_radius?: number | null;
+/* The anchor fields are the backend's response model (smplwise_vms/backend/smplwise/wire/anchors.py `Anchor` / `MapAnchor`, generated into
+ * ./generated/wire-anchors.ts; code review 07:F8 step 2). Narrowed on purpose: `coverage_polygon` (pairs), `camera` / `entity` (the
+ * client's Camera and catalogue entity types), `shared` (map/shared-space); the fields older bundles and the demo map leave out stay
+ * optional. */
+type AnchorWire = import('./generated/wire-anchors').MapAnchor;
+export interface Anchor
+  extends Pick<AnchorWire, 'id' | 'floor_id' | 'plan_version_id' | 'resource_type' | 'resource_id' | 'position' | 'rotation_degrees' | 'field_of_view_degrees' | 'layer_id' | 'label' | 'revision' | 'effective_from' | 'effective_to' | 'updated_at'>,
+    Partial<Pick<AnchorWire, 'coverage_radius' | 'level_id' | 'mount_height_m' | 'tilt_deg' | 'room_candidate' | 'shared_member'>> {
   /** Manual coverage (R2): a free polygon [[x, y], ...] normalized to the plan; null = the cone. */
   coverage_polygon?: [number, number][] | null;
   /** R4: where the name label sits - auto | top | bottom | left | right. */
   label_pos?: string | null;
-  /** Plan Studio level of the floor (null = the default level). */
-  level_id?: string | null;
-  /** T087: metres above the level's floor and the downward tilt in degrees; null = the kind's default (map/anchor-3d.ts). */
-  mount_height_m?: number | null;
-  tilt_deg?: number | null;
-  layer_id: string;
-  label: string | null;
-  revision: number;
-  effective_from: string;
-  effective_to: string | null;
-  updated_at: string;
   camera?: Camera | null;
   /** Synced Home Assistant entity for ha_entity anchors (actions present only with ha.entity.control on the floor). */
   entity?: import('./ha').HaEntity | null;
   /** CR-009: an anchor of a room another floor shares with this one - its real id, its home floor, and its position in
    * this plan's coordinates; edits go through ?from_floor_id. */
   shared?: import('../map/shared-space').SharedAnchorMark;
-  /** CR-009: this floor's anchor lies in a shared room but is not a member - shown here only; the editor may add it. */
-  room_candidate?: string;
-  /** CR-009: this floor's anchor is a member of the shared room (zone id): shown on every floor of it. */
-  shared_member?: string;
 }
 
 export interface ZonePoint {
@@ -256,28 +136,16 @@ export interface ZonePoint {
   y: number;
 }
 
-/** Named room / area polygon on a floor (normalized plan coordinates, origin top-left). */
-export interface SpatialZone {
-  id: string;
-  floor_id: string;
-  plan_version_id: string | null;
-  name: string;
+/** Named room / area polygon on a floor (normalized plan coordinates, origin top-left). The fields are the backend's response model
+ * (smplwise_vms/backend/smplwise/wire/zones.py `Zone`, generated into ./generated/wire-zones.ts; code review 07:F8 step 2). Narrowed on
+ * purpose: `kind` / `source` (the values the server writes), `shared` (map/shared-space); the fields the demo rooms leave out stay
+ * optional. */
+type ZoneWire = import('./generated/wire-zones').Zone;
+export interface SpatialZone
+  extends Pick<ZoneWire, 'id' | 'floor_id' | 'plan_version_id' | 'name' | 'polygon' | 'color' | 'searchable' | 'revision' | 'created_at' | 'updated_at'>,
+    Partial<Pick<ZoneWire, 'label_pos' | 'level_id' | 'ceiling_height_m' | 'tags' | 'area_id'>> {
   kind: 'room' | 'zone' | 'corridor' | 'outdoor' | 'service';
-  polygon: ZonePoint[];
-  color: string;
   source: 'auto' | 'manual';
-  searchable: boolean;
-  /** R4: where the name label sits - auto | top | bottom | left | right. */
-  label_pos?: string;
-  level_id?: string | null;
-  ceiling_height_m?: number | null;
-  /** Free-text tags (T085), as walls and objects of the structure document carry them; [] when none. */
-  tags?: string[];
-  /** K88: the area of the device tree this room stands for (null = not linked). Local link only; nothing is written to the platform. */
-  area_id?: string | null;
-  revision: number;
-  created_at: string;
-  updated_at: string;
   /** CR-009: a room shown on more than one floor - "mirror" (another floor's room, polygon in this plan's coordinates)
    * or "home" (this floor's room that other floors show). */
   shared?: import('../map/shared-space').SharedZoneMark;
@@ -299,7 +167,11 @@ export interface CircuitState {
   actions: import('./ha').HaActionSpec[];
 }
 
-export interface FloorMap {
+/** The floor map bundle (`GET /floors/{id}/map`, smplwise_vms/backend/smplwise/wire/anchors.py `FloorMap`, generated into
+ * ./generated/wire-anchors.ts). The scalar fields come from the generated type; the parts other modules own (geometry reference, levels,
+ * circuits, floor pictures, bakes, the HA history coverage, the permissions) keep their typed client shapes. */
+type FloorMapWire = import('./generated/wire-anchors').FloorMap;
+export interface FloorMap extends Pick<FloorMapWire, 'needs_alignment'>, Partial<Pick<FloorMapWire, 'catalog_revision' | 'at' | 'history' | 'history_from' | 'reach'>> {
   floor: Floor;
   building: Building;
   site: Site;
@@ -307,8 +179,7 @@ export interface FloorMap {
   /** Reference to the structure document of the shown version: the draft (else the published one) for an editor bundle,
    * the row in force at the instant for an exact-history bundle, else the published one; null when none. */
   geometry?: GeometryRef | null;
-  /** T085: the library revision the map needs, the levels of the referenced document and the circuit switch states. */
-  catalog_revision?: string;
+  /** T085: the levels of the referenced document and the circuit switch states. */
   levels?: import('../map/geometry').GeomLevel[];
   circuit_states?: Record<string, CircuitState>;
   /** K88: the floor's own images (urls relative to the API root) and their alignment; null when none. */
@@ -317,11 +188,6 @@ export interface FloorMap {
   bakes?: import('../map/still-bake').BundleBakes | null;
   anchors: Anchor[];
   zones?: SpatialZone[];
-  needs_alignment: boolean;
-  /** Set when the bundle was requested at an instant (historical map, T038). */
-  at?: string | null;
-  history?: 'exact' | 'current' | null;
-  history_from?: string | null;
   /** Coverage of the local HA state history (present in a historical bundle). */
   ha_history?: { from: string | null; to: string | null; rows: number; retention_days: number; forward_fill_max_s: number } | null;
   permissions: { edit: boolean; publish: boolean; import: boolean; structure: boolean };
