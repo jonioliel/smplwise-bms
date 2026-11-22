@@ -867,6 +867,73 @@ function isStr(v: unknown): v is string {
   return typeof v === 'string';
 }
 
+/** A stored line back, or null when it is not one (no object, an unknown kind). A line without a key gets a fresh one. */
+function parseLine(l: unknown): LineDraft | null {
+  if (!l || typeof l !== 'object') return null;
+  const x = l as Record<string, unknown>;
+  if (!LINE_KINDS.includes(x.kind as LineKind)) return null;
+  return {
+    key: isStr(x.key) ? x.key : newLine('labor').key,
+    kind: x.kind as LineKind,
+    description: isStr(x.description) ? x.description : '',
+    hours: isStr(x.hours) ? x.hours : '',
+    rate: isStr(x.rate) ? x.rate : '',
+    quantity: isStr(x.quantity) ? x.quantity : '',
+    unit_price: isStr(x.unit_price) ? x.unit_price : '',
+    amount: isStr(x.amount) ? x.amount : '',
+  };
+}
+
+/** A stored form back (its lines in order), or null when it or any line is not ours. */
+function parseForm(f: Record<string, unknown>): ClaimForm | null {
+  if (!Array.isArray(f.lines) || !isStr(f.currency)) return null;
+  const lines: LineDraft[] = [];
+  for (const l of f.lines as unknown[]) {
+    const line = parseLine(l);
+    if (!line) return null;
+    lines.push(line);
+  }
+  return {
+    lines,
+    currency: f.currency as string,
+    include_vat: f.include_vat === true,
+    no_charge: f.no_charge === true,
+    vendor_ref: isStr(f.vendor_ref) ? f.vendor_ref : '',
+    notes: isStr(f.notes) ? f.notes : '',
+  };
+}
+
+/** A stored page back, or null when it is not one. An upload that was in flight is waiting again; "uploaded" without a file id is local. */
+function parsePage(p: unknown): ClaimPage | null {
+  const y = p as Record<string, unknown>;
+  if (!y || !isStr(y.key) || !isStr(y.requestId) || (y.kind !== 'photo' && y.kind !== 'pdf')) return null;
+  const st = y.state as PageState;
+  const state: PageState = st === 'uploading' ? 'local' : (['local', 'uploaded', 'failed', 'refused'] as PageState[]).includes(st) ? st : 'local';
+  return {
+    key: y.key,
+    kind: y.kind,
+    name: isStr(y.name) ? y.name : '',
+    bytes: typeof y.bytes === 'number' ? y.bytes : 0,
+    requestId: y.requestId,
+    fileId: isStr(y.fileId) ? y.fileId : null,
+    state: state === 'uploaded' && !isStr(y.fileId) ? 'local' : state,
+    error: isStr(y.error) ? y.error : null,
+  };
+}
+
+/** A stored document back (its pages in order), or null when it or any page is not ours. */
+function parseDocument(d: unknown): ClaimDocument | null {
+  const x = d as Record<string, unknown>;
+  if (!x || !isStr(x.key) || !DOCUMENT_KEY_RE.test(x.key) || (x.kind !== 'photo' && x.kind !== 'pdf') || !Array.isArray(x.pages)) return null;
+  const pages: ClaimPage[] = [];
+  for (const p of x.pages as unknown[]) {
+    const page = parsePage(p);
+    if (!page) return null;
+    pages.push(page);
+  }
+  return { key: x.key, kind: x.kind, pages, finished: x.finished === true };
+}
+
 /** A stored draft back, or null when it is missing or not ours. An upload that was in flight is waiting again (same id). */
 export function parseDraft(text: string | null | undefined): ClaimDraft | null {
   if (!text) return null;
@@ -879,56 +946,15 @@ export function parseDraft(text: string | null | undefined): ClaimDraft | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
   if (r.v !== 1 || !r.form || typeof r.form !== 'object' || !r.docs || typeof r.docs !== 'object') return null;
-  const f = r.form as Record<string, unknown>;
-  if (!Array.isArray(f.lines) || !isStr(f.currency)) return null;
-  const lines: LineDraft[] = [];
-  for (const l of f.lines as unknown[]) {
-    if (!l || typeof l !== 'object') return null;
-    const x = l as Record<string, unknown>;
-    if (!LINE_KINDS.includes(x.kind as LineKind)) return null;
-    lines.push({
-      key: isStr(x.key) ? x.key : newLine('labor').key,
-      kind: x.kind as LineKind,
-      description: isStr(x.description) ? x.description : '',
-      hours: isStr(x.hours) ? x.hours : '',
-      rate: isStr(x.rate) ? x.rate : '',
-      quantity: isStr(x.quantity) ? x.quantity : '',
-      unit_price: isStr(x.unit_price) ? x.unit_price : '',
-      amount: isStr(x.amount) ? x.amount : '',
-    });
-  }
-  const form: ClaimForm = {
-    lines,
-    currency: f.currency as string,
-    include_vat: f.include_vat === true,
-    no_charge: f.no_charge === true,
-    vendor_ref: isStr(f.vendor_ref) ? f.vendor_ref : '',
-    notes: isStr(f.notes) ? f.notes : '',
-  };
+  const form = parseForm(r.form as Record<string, unknown>);
+  if (!form) return null;
   const dd = (r.docs as Record<string, unknown>).docs;
   if (!Array.isArray(dd)) return null;
   const docs: ClaimDocument[] = [];
   for (const d of dd as unknown[]) {
-    const x = d as Record<string, unknown>;
-    if (!x || !isStr(x.key) || !DOCUMENT_KEY_RE.test(x.key) || (x.kind !== 'photo' && x.kind !== 'pdf') || !Array.isArray(x.pages)) return null;
-    const pages: ClaimPage[] = [];
-    for (const p of x.pages as unknown[]) {
-      const y = p as Record<string, unknown>;
-      if (!y || !isStr(y.key) || !isStr(y.requestId) || (y.kind !== 'photo' && y.kind !== 'pdf')) return null;
-      const st = y.state as PageState;
-      const state: PageState = st === 'uploading' ? 'local' : (['local', 'uploaded', 'failed', 'refused'] as PageState[]).includes(st) ? st : 'local';
-      pages.push({
-        key: y.key,
-        kind: y.kind,
-        name: isStr(y.name) ? y.name : '',
-        bytes: typeof y.bytes === 'number' ? y.bytes : 0,
-        requestId: y.requestId,
-        fileId: isStr(y.fileId) ? y.fileId : null,
-        state: state === 'uploaded' && !isStr(y.fileId) ? 'local' : state,
-        error: isStr(y.error) ? y.error : null,
-      });
-    }
-    docs.push({ key: x.key, kind: x.kind, pages, finished: x.finished === true });
+    const doc = parseDocument(d);
+    if (!doc) return null;
+    docs.push(doc);
   }
   const s = r.submit as Record<string, unknown> | null | undefined;
   const submit = s && isStr(s.crid) && UUID_RE.test(s.crid) ? { crid: s.crid, pending: s.pending === true } : null;
