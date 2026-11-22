@@ -167,7 +167,7 @@ jobs kept the load at 7-29 during these runs)
   session-me-failure / home-v3-followup-a / plan-editor-hot (desktop + mobile), automations-list + frigate-ui (desktop),
   design-foundation + frigate-ui (mobile), layout-tickets-map (desktop), then at the final head the three tsc projects,
   a11y-dialog-focus (all projects, x3) and home-v3-followup-a. Their results are NOT known to this note.
-- Final head tsc on the PC: see the report (run after the runner was lost).
+- Head 1ef374de8 on the PC (after the runner was lost): `tsc -p tsconfig.tests.json` (src + tests) rc 0 (1,573 s on the loaded PC), `tsc -p tsconfig.scripts.json` rc 0. The last train merge on top of it (092bbc9a1, the 2.47.0 rebuilt UI) changes nothing under `frontend/src` or `frontend/tests`, so the result stands for the pushed head. Spec lint `lint_spec_waits.py --new-since origin/release/2470-train`: 0 findings (no spec file added; the four new files are helpers).
 - "Unable to capture screenshot" (Chromium refusing a capture: public-ui5 phone, and in the gate lists notice-tv-bustimes-295,
   evidence-audit30a-glass-bridge, design-foundation tesla dark, automations-list tablet) is a separate cause, not addressed here.
 - Analysed, not changed: unit-plan3d-zoom L62 (the zoom never moved within the poll; cause not proven), unit-plan-3d-odd L164 (300 s
