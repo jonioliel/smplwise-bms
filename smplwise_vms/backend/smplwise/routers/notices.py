@@ -36,6 +36,8 @@ from ..services.notices import router_store as rstore
 from ..services.transit import model as transit_model
 from ..db import get_setting
 from ..services.notices.model import PERM_BOARDS, PERM_DELETE, PERM_MANAGE, PERM_PUSH, PERM_VIEW, Invalid
+from ..wire import wire
+from ..wire import notices as W
 from ._common import rid as _rid
 
 ID = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
@@ -390,13 +392,13 @@ class TvDefaultsIn(BaseModel):
     safe_margin: StrictInt | None = None
 
 
-@router.get("/notices/tv-defaults")
+@router.get("/notices/tv-defaults", **wire(W.NoticeTvDefaults))
 def get_tv_defaults(principal: Principal = Depends(_boards_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     st = store.settings(conn)
     return {"tv_defaults": st["tv_defaults"], "tv2_defaults": st["tv2_defaults"]}
 
 
-@router.put("/notices/tv-defaults")
+@router.put("/notices/tv-defaults", **wire(W.NoticeTvDefaults))
 def put_tv_defaults(body: TvDefaultsIn, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """TVOPT-295: the defaults every board follows where it did not choose its own value - the same permission as a board's screen
     settings (notices.boards)."""
@@ -427,7 +429,7 @@ def _board_or_404(conn: sqlite3.Connection, board_id: str) -> dict[str, Any]:
     return b
 
 
-@router.get("/notices/boards")
+@router.get("/notices/boards", **wire(W.NoticeBoardListBrief | W.NoticeBoardListFull))
 def list_boards(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Every board for notices.boards; the enabled boards' names only for a notice manager (the compose dialog's chips)."""
     can = _can(conn, principal)
@@ -439,7 +441,7 @@ def list_boards(principal: Principal = Depends(current_principal_ro), conn: sqli
     return {"boards": [_board_out(b, counts) for b in store.list_boards(conn)], "full": True, "max": s["boards_max"], "remote": s["boards_remote"]}
 
 
-@router.post("/notices/boards")
+@router.post("/notices/boards", **wire(W.NoticeBoardCreated))
 def create_board(body: BoardIn, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     s = store.settings(conn)
     if len(store.list_boards(conn)) >= s["boards_max"]:
@@ -457,7 +459,7 @@ def create_board(body: BoardIn, request: Request, principal: Principal = Depends
     return {"board": _board_out(board, {}), "token": token}
 
 
-@router.get("/notices/boards/{board_id}")
+@router.get("/notices/boards/{board_id}", **wire(W.NoticeBoardDetail))
 def get_board(board_id: str, principal: Principal = Depends(_boards_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     b = _board_or_404(conn, board_id)
     items = store.board_notices(conn, b["id"])
@@ -466,7 +468,7 @@ def get_board(board_id: str, principal: Principal = Depends(_boards_ro), conn: s
             "notices": [{**_notice_brief(n), "state": model.effective_state(n, now), "position": n["position"]} for n in items]}
 
 
-@router.patch("/notices/boards/{board_id}")
+@router.patch("/notices/boards/{board_id}", **wire(W.NoticeBoardOnly))
 def patch_board(board_id: str, body: BoardPatch, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     b = _board_or_404(conn, board_id)
     cols: dict[str, Any] = {}
@@ -505,7 +507,7 @@ def patch_board(board_id: str, body: BoardPatch, request: Request, principal: Pr
     return {"board": _board_out(nb, store.item_counts(conn))}
 
 
-@router.post("/notices/boards/{board_id}/rotate-token")
+@router.post("/notices/boards/{board_id}/rotate-token", **wire(W.NoticeBoardNewToken))
 def rotate_token(board_id: str, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     b = _board_or_404(conn, board_id)
     token = store.rotate_token(conn, b["id"], principal.user_id)
@@ -514,7 +516,7 @@ def rotate_token(board_id: str, request: Request, principal: Principal = Depends
     return {"token": token, "board": _board_out(store.get_board(conn, b["id"]), store.item_counts(conn))}  # type: ignore[arg-type]
 
 
-@router.get("/notices/boards/{board_id}/link")
+@router.get("/notices/boards/{board_id}/link", **wire(W.NoticeBoardLink))
 def stored_link(board_id: str, request: Request, response: Response, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """NOTICEPERM-295: the permanent TV link - the SAME token every time, for an administrator only (notices.boards). Never logged; the audit row carries no value."""
     b = _board_or_404(conn, board_id)
@@ -530,7 +532,7 @@ def stored_link(board_id: str, request: Request, response: Response, principal: 
     return {"token": token}
 
 
-@router.post("/notices/boards/{board_id}/issue-link")
+@router.post("/notices/boards/{board_id}/issue-link", **wire(W.NoticeBoardNewToken))
 def issue_link(board_id: str, request: Request, response: Response, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """NOTICEPERM-295: for a board saved before the stored token existed (hash only): create the stored token ONCE (the old link stops working,
     as in a re-issue). A board that already has one answers 409 - read it with GET .../link."""
@@ -544,7 +546,7 @@ def issue_link(board_id: str, request: Request, response: Response, principal: P
     return {"token": token, "board": _board_out(store.get_board(conn, b["id"]), store.item_counts(conn))}  # type: ignore[arg-type]
 
 
-@router.delete("/notices/boards/{board_id}")
+@router.delete("/notices/boards/{board_id}", **wire(W.NoticeDeleted))
 def delete_board(board_id: str, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     b = _board_or_404(conn, board_id)
     store.delete_board(conn, b["id"], principal.user_id)
@@ -552,7 +554,7 @@ def delete_board(board_id: str, request: Request, principal: Principal = Depends
     return {"deleted": True}
 
 
-@router.put("/notices/boards/{board_id}/items")
+@router.put("/notices/boards/{board_id}/items", **wire(W.NoticeBoardItems))
 def put_items(board_id: str, body: ItemsIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _need_anywhere(conn, principal, PERM_MANAGE)
     b = _board_or_404(conn, board_id)
@@ -565,7 +567,7 @@ def put_items(board_id: str, body: ItemsIn, request: Request, principal: Princip
     return {"notice_ids": [n["id"] for n in store.board_notices(conn, b["id"])]}
 
 
-@router.post("/notices/boards/{board_id}/preview")
+@router.post("/notices/boards/{board_id}/preview", **wire(W.NoticeBoardFeed))
 def preview(board_id: str, body: PreviewIn, request: Request, principal: Principal = Depends(_boards_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The Settings preview: the TV's own payload through the session, with the draft display settings when given."""
     b = _board_or_404(conn, board_id)
@@ -578,12 +580,12 @@ def preview(board_id: str, body: PreviewIn, request: Request, principal: Princip
     return disp.preview_feed(conn, b, d, settings_of(request).data_dir)
 
 
-@router.get("/notices/boards/{board_id}/preview")
+@router.get("/notices/boards/{board_id}/preview", **wire(W.NoticeBoardFeed))
 def preview_get(board_id: str, request: Request, principal: Principal = Depends(_boards_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return disp.preview_feed(conn, _board_or_404(conn, board_id), None, settings_of(request).data_dir)
 
 
-@router.post("/notices/boards/{board_id}/transit")
+@router.post("/notices/boards/{board_id}/transit", **wire(W.NoticeTransitDigest))
 def preview_board_transit(board_id: str, body: PreviewIn, principal: Principal = Depends(_boards_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """BUSTIMES-295: the digest the Settings preview draws (the saved settings, or a draft `display`)."""
     b = _board_or_404(conn, board_id)
@@ -594,7 +596,7 @@ def preview_board_transit(board_id: str, body: PreviewIn, principal: Principal =
     return disp.preview_transit(conn, b, d, store.utcnow())
 
 
-@router.post("/notices/boards/{board_id}/control")
+@router.post("/notices/boards/{board_id}/control", **wire(W.NoticeBoardControl))
 def control(board_id: str, body: ControlIn, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Section 8.6: next / previous / pause / play on the real TVs of a board, through the feed's `control` field (a 60 s lease)."""
     b = _board_or_404(conn, board_id)
@@ -692,7 +694,7 @@ def _visible(conn: sqlite3.Connection, principal: Principal, n: dict[str, Any], 
     return model.effective_state(n, now) == "active" and aud.in_audience(conn, principal.user_id, aud.parse(n["audience_json"]), cache=cache)
 
 
-@router.get("/notices")
+@router.get("/notices", **wire(W.NoticesList))
 def list_notices(scope: Literal["mine", "all"] = "mine", principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     can = _can(conn, principal)
     if scope == "all":
@@ -714,7 +716,7 @@ def list_notices(scope: Literal["mine", "all"] = "mine", principal: Principal = 
             "can": can, "now": model.iso(now), "defaults": {k: store.settings(conn)[k] for k in ("default_days", "default_severity", "push_default", "home_empty", "show_places_tree")}}
 
 
-@router.post("/notices/audience/preview")
+@router.post("/notices/audience/preview", **wire(W.NoticeAudiencePreview))
 def audience_preview(body: AudienceIn, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _need_anywhere(conn, principal, PERM_MANAGE)
     try:
@@ -724,7 +726,7 @@ def audience_preview(body: AudienceIn, principal: Principal = Depends(current_pr
     return {"users": len(aud.resolve_users(conn, a)), "in_scope": _may_manage(conn, principal, a)}
 
 
-@router.get("/notices/audience/options")
+@router.get("/notices/audience/options", **wire(W.NoticeAudienceOptions))
 def audience_options(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The floors, groups and built-in roles the compose dialog offers (names only)."""
     _need_anywhere(conn, principal, PERM_MANAGE)
@@ -746,7 +748,7 @@ def _get_visible(conn: sqlite3.Connection, principal: Principal, notice_id: str)
     return n, can
 
 
-@router.get("/notices/{notice_id}")
+@router.get("/notices/{notice_id}", **wire(W.NoticeOne))
 def get_notice(notice_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _need_reader(conn, principal)
     n, can = _get_visible(conn, principal, notice_id)
@@ -764,7 +766,7 @@ def _window(conn: sqlite3.Connection, severity: str, starts: dt.datetime | None,
     return model.iso(start), (model.iso(end) if end else None)
 
 
-@router.post("/notices")
+@router.post("/notices", **wire(W.NoticeCreated))
 def create_notice(body: NoticeIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _need_anywhere(conn, principal, PERM_MANAGE)
     try:
@@ -809,7 +811,7 @@ def _managed(conn: sqlite3.Connection, principal: Principal, notice_id: str) -> 
     return n
 
 
-@router.patch("/notices/{notice_id}")
+@router.patch("/notices/{notice_id}", **wire(W.NoticeOne))
 def patch_notice(notice_id: str, body: NoticePatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     n = _managed(conn, principal, notice_id)
     if n["status"] == "archived":
@@ -863,7 +865,7 @@ def patch_notice(notice_id: str, body: NoticePatch, request: Request, principal:
     return {"notice": _notice_out(n2, store.utcnow(), store.boards_of(conn, [notice_id])[notice_id], manager=True)}
 
 
-@router.post("/notices/{notice_id}/publish")
+@router.post("/notices/{notice_id}/publish", **wire(W.NoticeWithPush))
 def publish(notice_id: str, request: Request, body: PublishIn | None = None, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     n = _managed(conn, principal, notice_id)
     if n["status"] != "draft":
@@ -877,7 +879,7 @@ def publish(notice_id: str, request: Request, body: PublishIn | None = None, pri
     return {"notice": _notice_out(n2, store.utcnow(), store.boards_of(conn, [notice_id])[notice_id], manager=True), "push": push_res}  # type: ignore[arg-type]
 
 
-@router.post("/notices/{notice_id}/resend")
+@router.post("/notices/{notice_id}/resend", **wire(W.NoticeWithPush))
 def resend(notice_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """BOARD-MGMT-2381 (owner 03.11, answer 6A): the manual "שלח שוב" - the notice as it is now, to its audience, once more. Never automatic.
     Needs what an explicit push tick needs: notices.manage on the notice's audience and notices.push. Only a published notice that is
@@ -902,7 +904,7 @@ def resend(notice_id: str, request: Request, principal: Principal = Depends(curr
     return {"notice": _notice_out(n2, store.utcnow(), store.boards_of(conn, [notice_id])[notice_id], manager=True), "push": res}  # type: ignore[arg-type]
 
 
-@router.post("/notices/{notice_id}/archive")
+@router.post("/notices/{notice_id}/archive", **wire(W.NoticeOne))
 def archive(notice_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     before = _managed(conn, principal, notice_id)
     store.archive(conn, notice_id, principal.user_id)
@@ -916,7 +918,7 @@ def archive(notice_id: str, request: Request, principal: Principal = Depends(cur
 EMERGENCY_PERM = "emergency.manage"  # NOTICEDEL-295: the building's emergency right; an URGENT notice that is on air is an emergency notice
 
 
-@router.delete("/notices/{notice_id}")
+@router.delete("/notices/{notice_id}", **wire(W.NoticeDeleted))
 def delete_notice(notice_id: str, request: Request, confirm_live: bool = False, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """NOTICEDEL-295: real deletion. A draft goes as before (`notices.manage` inside the audience scope). A published / archived notice needs
     `notices.delete` too; one that is on air needs `confirm_live=true` (the screen's extra explicit step); an URGENT one that is on air is
@@ -940,7 +942,7 @@ def delete_notice(notice_id: str, request: Request, confirm_live: bool = False, 
     return {"deleted": True}
 
 
-@router.post("/notices/{notice_id}/read")
+@router.post("/notices/{notice_id}/read", **wire(W.NoticeRead))
 def mark_read(notice_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _need_reader(conn, principal)
     _get_visible(conn, principal, notice_id)
@@ -948,7 +950,7 @@ def mark_read(notice_id: str, principal: Principal = Depends(current_principal),
     return {"read": True}
 
 
-@router.get("/notices/{notice_id}/reads")
+@router.get("/notices/{notice_id}/reads", **wire(W.NoticeReads))
 def reads(notice_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Who read (owner decision 2026-10-24: names visible to notice managers; `notices.reads_names = false` -> counts only)."""
     n = _managed(conn, principal, notice_id)
@@ -1083,18 +1085,18 @@ def _slides_out(conn: sqlite3.Connection, board_id: str | None = None) -> dict[s
     return out
 
 
-@router.get("/notices/promo-slides/all")  # a one-segment GET would be taken by /notices/{notice_id}
+@router.get("/notices/promo-slides/all", **wire(W.NoticeSlides))  # a one-segment GET would be taken by /notices/{notice_id}
 def list_slides(principal: Principal = Depends(_boards_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return _slides_out(conn)
 
 
-@router.get("/notices/boards/{board_id}/slides")
+@router.get("/notices/boards/{board_id}/slides", **wire(W.NoticeSlides))
 def board_slides(board_id: str, principal: Principal = Depends(_boards_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _board_or_404(conn, board_id)
     return _slides_out(conn, board_id)
 
 
-@router.post("/notices/promo-slides")
+@router.post("/notices/promo-slides", **wire(W.NoticeSlideCreated))
 def create_slide(body: SlideIn, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     try:
         sid = sl.create(conn, principal.user_id, body.model_dump())
@@ -1104,7 +1106,7 @@ def create_slide(body: SlideIn, request: Request, principal: Principal = Depends
     return {"id": sid, **_slides_out(conn)}
 
 
-@router.patch("/notices/promo-slides/{slide_id}")
+@router.patch("/notices/promo-slides/{slide_id}", **wire(W.NoticeSlides))
 def patch_slide(slide_id: str, body: SlidePatch, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _slide_or_404(conn, slide_id)
     try:
@@ -1115,7 +1117,7 @@ def patch_slide(slide_id: str, body: SlidePatch, request: Request, principal: Pr
     return _slides_out(conn)
 
 
-@router.delete("/notices/promo-slides/{slide_id}")
+@router.delete("/notices/promo-slides/{slide_id}", **wire(W.NoticeSlides))
 def delete_slide(slide_id: str, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _slide_or_404(conn, slide_id)
     sl.delete(conn, slide_id)
@@ -1123,7 +1125,7 @@ def delete_slide(slide_id: str, request: Request, principal: Principal = Depends
     return _slides_out(conn)
 
 
-@router.put("/notices/promo-slides/{slide_id}/image")
+@router.put("/notices/promo-slides/{slide_id}/image", **wire(W.NoticeSlides))
 def put_slide_image(slide_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _slide_or_404(conn, slide_id)
     data = file.file.read(sl.SLIDE_IMAGE_BYTES + 1)
@@ -1135,7 +1137,7 @@ def put_slide_image(slide_id: str, request: Request, file: UploadFile = File(...
     return _slides_out(conn)
 
 
-@router.delete("/notices/promo-slides/{slide_id}/image")
+@router.delete("/notices/promo-slides/{slide_id}/image", **wire(W.NoticeSlides))
 def delete_slide_image(slide_id: str, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _slide_or_404(conn, slide_id)
     sl.remove_image(conn, principal.user_id, slide_id)
@@ -1153,7 +1155,7 @@ def get_slide_image(slide_id: str, principal: Principal = Depends(_boards_ro), c
     return Response(base64.b64decode(r["image_b64"]), media_type=r["image_mime"] or "image/png", headers={"Cache-Control": "private, max-age=60"})
 
 
-@router.put("/notices/boards/{board_id}/slides")
+@router.put("/notices/boards/{board_id}/slides", **wire(W.NoticeSlides))
 def put_board_slides(board_id: str, body: SlideOrderIn, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _board_or_404(conn, board_id)
     try:
@@ -1164,8 +1166,8 @@ def put_board_slides(board_id: str, body: SlideOrderIn, request: Request, princi
     return _slides_out(conn, board_id)
 
 
-@router.put("/notices/boards/{board_id}/photo")
-@router.put("/notices/boards/{board_id}/photo-night")
+@router.put("/notices/boards/{board_id}/photo", **wire(W.NoticeSlides))
+@router.put("/notices/boards/{board_id}/photo-night", **wire(W.NoticeSlides))
 def put_board_photo(board_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _board_or_404(conn, board_id)
     night = request.url.path.endswith("/photo-night")  # LOBBY-STYLES-2300: the building at night (same table, link position 1)
@@ -1178,8 +1180,8 @@ def put_board_photo(board_id: str, request: Request, file: UploadFile = File(...
     return _slides_out(conn, board_id)
 
 
-@router.delete("/notices/boards/{board_id}/photo")
-@router.delete("/notices/boards/{board_id}/photo-night")
+@router.delete("/notices/boards/{board_id}/photo", **wire(W.NoticeSlides))
+@router.delete("/notices/boards/{board_id}/photo-night", **wire(W.NoticeSlides))
 def delete_board_photo(board_id: str, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _board_or_404(conn, board_id)
     sl.drop_photo(conn, board_id, request.url.path.endswith("/photo-night"))

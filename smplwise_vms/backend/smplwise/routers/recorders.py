@@ -34,6 +34,8 @@ from ..recorder_scope import PRIMARY, next_id, settings_for, valid_id
 from ..services import autosync, confirm_words, connection_store, events_ingest, nvr, nvr_write_switch, recorder_live
 from ..services import recorders_store as store
 from ..services.recorders import registry
+from ..wire import recorders as W
+from ..wire import wire
 from ._common import rid as _rid
 from . import nvr_connection as nc
 
@@ -181,7 +183,7 @@ def _primary_present(conn: sqlite3.Connection) -> bool:
 
 # ---------------------------------------------------------------- routes
 
-@router.get("/recorders")
+@router.get("/recorders", **wire(W.RecorderList))
 def list_recorders(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
                    include_removed: bool = False) -> dict[str, Any]:
     """Every recorder of the installation with its status, camera counts and declared capabilities (removed ones on request)."""
@@ -195,7 +197,7 @@ def list_recorders(request: Request, principal: Principal = Depends(current_prin
             "restart": nc._restart_mode(settings), "pending_restart": any(r["pending_restart"] for r in items)}
 
 
-@router.get("/recorders/{recorder_id}")
+@router.get("/recorders/{recorder_id}", **wire(W.Recorder))
 def get_recorder(recorder_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """One recorder (status, cameras, capabilities; the connection detail for system.configure only)."""
     _may_read(conn, principal)
@@ -239,7 +241,7 @@ def create_recorder_row(conn: sqlite3.Connection, rid: str, name: str, vendor: s
     store.upsert_recorder(conn, rid, name, now_iso(), vendor, order)
 
 
-@router.post("/recorders", status_code=201)
+@router.post("/recorders", status_code=201, **wire(W.RecorderAdded))
 def add_recorder(request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(nc._raw_body),
                  conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Add a recorder: vendor, connection, name. Tested server-side first (CR-022 section 6.4: an unreachable NVR only with
@@ -271,7 +273,7 @@ def add_recorder(request: Request, principal: Principal = Depends(_admin_ro), ra
             "recorder": recorder_view(conn, request, rid, _row(conn, rid), admin=True)}
 
 
-@router.patch("/recorders/{recorder_id}")
+@router.patch("/recorders/{recorder_id}", **wire(W.RecorderUpdated))
 def update_recorder(recorder_id: str, request: Request, background: BackgroundTasks, principal: Principal = Depends(_admin_ro),
                     raw: bytes = Depends(nc._raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Rename, reorder, set the recorder's time zone, enable / disable. Disable / enable apply AT ONCE (owner 2026-10-04): a
@@ -314,7 +316,7 @@ def update_recorder(recorder_id: str, request: Request, background: BackgroundTa
     return {"saved": True, "restart_required": view["pending_restart"], "recorder": view}
 
 
-@router.delete("/recorders/{recorder_id}")
+@router.delete("/recorders/{recorder_id}", **wire(W.RecorderRemoved))
 def remove_recorder(recorder_id: str, request: Request, background: BackgroundTasks, principal: Principal = Depends(_admin_ro),
                     raw: bytes = Depends(nc._raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Remove (typed "הסר" + `if_revision` of the connection): secrets cleared, the recorder marked removed, its cameras disabled
@@ -335,7 +337,7 @@ def remove_recorder(recorder_id: str, request: Request, background: BackgroundTa
     return {"removed": True, "restart_required": True, "recorder_id": recorder_id, "revision": revision, "cameras_disabled": disabled}
 
 
-@router.get("/recorders/{recorder_id}/connection")
+@router.get("/recorders/{recorder_id}/connection", **wire(W.RecorderConnection))
 def get_recorder_connection(recorder_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The recorder's stored connection (the shape of GET /nvr/connection; never the password)."""
     require(conn, principal, PERMISSION, INSTALLATION)
@@ -343,7 +345,7 @@ def get_recorder_connection(recorder_id: str, request: Request, principal: Princ
     return nc.connection_view(conn, request, recorder_id)
 
 
-@router.post("/recorders/{recorder_id}/connection/test")
+@router.post("/recorders/{recorder_id}/connection/test", **wire(W.RecorderProbe))
 def test_recorder_connection(recorder_id: str, request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(nc._raw_body),
                              conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A read-only test of a candidate connection for this recorder (CR-022 section 6.3 rules); one audit row, no other write."""
@@ -352,7 +354,7 @@ def test_recorder_connection(recorder_id: str, request: Request, principal: Prin
     return nc.do_test(request, principal, raw, conn, recorder_id)
 
 
-@router.put("/recorders/{recorder_id}/connection")
+@router.put("/recorders/{recorder_id}/connection", **wire(W.RecorderConnectionSaved))
 def save_recorder_connection(recorder_id: str, request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(nc._raw_body),
                              conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Test, then store this recorder's connection (if_revision required; a destination another recorder uses = 409 recorder_duplicate)."""
@@ -392,7 +394,7 @@ def _writes_admin(conn: sqlite3.Connection, principal: Principal) -> None:
         require(conn, principal, perm, INSTALLATION)
 
 
-@router.get("/recorders/{recorder_id}/writes")
+@router.get("/recorders/{recorder_id}/writes", **wire(W.RecorderWrites))
 def get_recorder_writes(recorder_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The switch "אפשר שינויי הגדרות ב־NVR" of one recorder (on / off, the vendor default, who changed it last and when)."""
     require(conn, principal, PERMISSION, INSTALLATION)
@@ -401,7 +403,7 @@ def get_recorder_writes(recorder_id: str, request: Request, principal: Principal
     return {**nvr_write_switch.state(conn, recorder_id, vendor, extra), "can_change": authorize(conn, principal, "nvr.configure", INSTALLATION).allowed}
 
 
-@router.patch("/recorders/{recorder_id}/writes")
+@router.patch("/recorders/{recorder_id}/writes", **wire(W.RecorderWrites))
 def set_recorder_writes(recorder_id: str, request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(nc._raw_body),
                         conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Turn the switch on (`confirm: true` required - the screen's dialog) or off (never confirmed: a safety action). Needs
@@ -414,7 +416,7 @@ def set_recorder_writes(recorder_id: str, request: Request, principal: Principal
     return {**out, "can_change": True}
 
 
-@router.get("/recorders/{recorder_id}/health")
+@router.get("/recorders/{recorder_id}/health", **wire(W.RecorderHealth))
 def recorder_health(recorder_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """A live, read-only check of one recorder (one deviceInfo GET, at most 4 s). Model, firmware and the outcome code only."""
     _may_read(conn, principal)

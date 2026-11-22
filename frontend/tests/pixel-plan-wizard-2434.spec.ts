@@ -64,7 +64,7 @@ test.describe('the plan wizard, round 2 (pixel-stable)', () => {
     await page.mouse.click(box.x + box.width * 0.2, box.y + box.height * 0.8);
     await expect(page.locator(`${W} [data-dev="demo-cam-entry"][data-dev-kind="camera"] rect`)).toHaveCount(1);
     await expect(side.locator('[data-dev-row="demo-cam-entry"] .w')).toHaveText('הוצבה במקום שסימנת');
-    await expect(side.locator('[data-wz-tab="cameras"] .num')).toHaveText('1/3');
+    await expect(side.locator('[data-wz-tab="cameras"] small')).toHaveText('1/3'); // CR-CMP2-TABS-2460: sw-tabs' count pill
     await side.locator('[data-dev-row="demo-cam-terrace"]').click();
     await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.2);
     // take the second one off again: back to waiting, not placed

@@ -13,15 +13,18 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import get_setting, permission_revision, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, all_roles, authorize, require
+from ..services import access_directory_store as store
 from ..services import ha_client
 from ..services.rbac_admin import _delegated_directory, _rid, _users, assign_scopes, assigns_anywhere, delegable_roles, full_authority
+from ..wire import access_directory as W
+from ..wire import wire
 
 router = APIRouter()
 
 
 # ---------------------------------------------------------------- directory
 
-@router.get("/identity/users")
+@router.get("/identity/users", **wire(W.Directory))
 def list_users(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     if not authorize(conn, principal, "identity.directory.read", INSTALLATION).allowed and assigns_anywhere(conn, principal):
         return _delegated_directory(conn, principal)
@@ -31,7 +34,7 @@ def list_users(principal: Principal = Depends(current_principal_ro), conn: sqlit
         "directory": {
             "paired": bool(get_setting(conn, "bridge.paired_at")),
             "last_directory_at": get_setting(conn, "bridge.directory_at") or None,
-            "users": conn.execute("SELECT COUNT(*) FROM ha_users").fetchone()[0],
+            "users": store.ha_user_count(conn),
         },
         "revision": permission_revision(conn),
         "can_assign": authorize(conn, principal, "rbac.assign", INSTALLATION).allowed,
@@ -43,7 +46,7 @@ def list_users(principal: Principal = Depends(current_principal_ro), conn: sqlit
     }
 
 
-@router.post("/identity/sync")
+@router.post("/identity/sync", **wire(W.DirectorySync))
 def sync_directory(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Ask the bridge integration to push the HA user directory now (it pushes every 60 s anyway)."""
     require(conn, principal, "system.configure", INSTALLATION)

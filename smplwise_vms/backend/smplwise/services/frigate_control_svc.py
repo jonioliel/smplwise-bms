@@ -28,6 +28,7 @@ from ..rbac import INSTALLATION, Principal, authorize, require
 from .access import require_camera
 from .recorders import frigate_control as fc
 from .recorders.frigate import FrigateAdapter
+from ..test_reset import register_reset
 
 CLASSES = ("analytics", "record", "profile", "review", "events", "ptz", "exports", "cases", "config")
 PERMISSION = {"analytics": "analytics.control", "record": "analytics.record_control", "profile": "analytics.profile",
@@ -456,3 +457,11 @@ def changes(conn: sqlite3.Connection, recorder_id: str, *, limit: int = 100, cam
             continue
         out.append(change_view(r))
     return out
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _LEASES.clear()
+
+
+register_reset(__name__, ("_LEASES",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

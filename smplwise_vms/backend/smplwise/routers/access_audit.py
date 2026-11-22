@@ -10,11 +10,14 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
-from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, normalize_username
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..db import permission_revision
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, effective_permissions, require, scope_name
+from ..services import access_audit_store as store
 from ..services.rbac_admin import PERMISSION_LABELS, _scope_exists, _user_bindings, delegated_sees, full_authority, rendered_labels
+from ..wire import access_audit as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -27,7 +30,7 @@ class PreviewBody(BaseModel):
     scope_id: str = Field(default="*", min_length=1, max_length=200)
 
 
-@router.post("/access/preview")
+@router.post("/access/preview", **wire(W.AccessPreview))
 def preview(body: PreviewBody, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Effective permissions of a user at a scope, computed server-side; no impersonation (§12)."""
     scope = (body.scope_type, body.scope_id)
@@ -35,7 +38,7 @@ def preview(body: PreviewBody, principal: Principal = Depends(current_principal)
         require(conn, principal, "rbac.assign", scope)
     if not _scope_exists(conn, *scope):
         raise ApiError(422, "scope_unknown", "ההיקף לא נמצא.")
-    u = conn.execute("SELECT * FROM users WHERE id = ?", (body.user_id,)).fetchone()
+    u = store.user_row(conn, body.user_id)
     subject = Principal(user_id=body.user_id, username=(u["username"] if u else ""), display_name=(u["display_name"] if u else ""), source=(u["source"] if u else "ingress"))
     active = bool(u["active"]) if u else True
     allowed = effective_permissions(conn, subject, scope) if active else []
@@ -59,7 +62,7 @@ def preview(body: PreviewBody, principal: Principal = Depends(current_principal)
     }
 
 
-@router.get("/audit")
+@router.get("/audit", **wire(W.AuditPage))
 def list_audit(
     principal: Principal = Depends(current_principal_ro),
     conn: sqlite3.Connection = Depends(get_read_conn),
@@ -77,43 +80,8 @@ def list_audit(
     or `remote_refusals` (every denied row of the remote channel - remote_not_allowed, csrf_refused, rate limits, a
     revoked sign-in, the remote live-stream cap)."""
     require(conn, principal, "audit.read", INSTALLATION)
-    detail = "COALESCE(CASE WHEN json_valid(details_json) THEN json_extract(details_json, '$.{0}') END, '')"
-    remote_row = f"({detail.format('channel')} = 'remote' OR action LIKE 'auth.remote%')"
-    if view == "remote_sign_ins":
-        sql = "SELECT * FROM audit_log WHERE action LIKE 'auth.remote%'"
-        args: list[Any] = []
-    elif view == "remote_refusals":
-        sql = f"SELECT * FROM audit_log WHERE decision = 'denied' AND {remote_row}"
-        args = []
-    else:
-        sql = "SELECT * FROM audit_log WHERE action LIKE ?"
-        args = [prefix + "%"]
-    if channel == "remote":
-        sql += f" AND {remote_row}"
-    elif channel == "bearer":
-        sql += f" AND {detail.format('via')} = 'bearer'"
-    elif channel == "local":
-        sql += f" AND NOT {remote_row}"
-    # CR-AUTODOORS-295: `automation` = the rows of the automation operators (actor `automation:<block id>`, e.g. a door an
-    # automation opened); `person` = everything else
-    if actor_kind == "automation":
-        sql += " AND actor_user_id LIKE 'automation:%'"
-    elif actor_kind == "person":
-        sql += " AND (actor_user_id IS NULL OR actor_user_id NOT LIKE 'automation:%')"
-    if actor:
-        # HA 2026.10 normalises usernames (strip + casefold, core#175613): "Joni" finds the rows written as "joni" before
-        # or after a rename. SQLite's LOWER() is ASCII-only, so the same Python normalisation runs on both sides.
-        # A name that is empty once normalised matches nothing (never the rows without an actor).
-        conn.create_function("sw_username_norm", 1, normalize_username, deterministic=True)
-        sql += " AND actor_username IS NOT NULL AND sw_username_norm(actor_username) = ?"
-        args.append(normalize_username(actor) or "\x00")
-    if resource_id:
-        sql += " AND resource_id = ?"
-        args.append(resource_id)
-    sql += " ORDER BY rowid DESC LIMIT ?"
-    args.append(limit)
     rows = []
-    for r in conn.execute(sql, args).fetchall():
+    for r in store.audit_rows(conn, view, prefix, channel, actor_kind, actor, resource_id, limit):
         d = dict(r)
         try:
             d["details"] = json.loads(d.pop("details_json") or "{}")

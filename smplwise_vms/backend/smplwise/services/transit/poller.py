@@ -132,6 +132,7 @@ _LAST_CATALOGUE_TRY: dict[str, dt.datetime] = {}
 
 
 from ..timeutil import iso_or_none
+from ...test_reset import register_reset
 _iso = iso_or_none  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
@@ -345,3 +346,12 @@ class Poller:
 
 
 POLLER = Poller()
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _LAST_CATALOGUE_TRY.clear()
+    _PROVIDERS.clear()
+
+
+register_reset(__name__, ("_LAST_CATALOGUE_TRY", "_PROVIDERS"), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

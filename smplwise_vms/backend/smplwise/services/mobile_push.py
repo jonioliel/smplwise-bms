@@ -506,4 +506,11 @@ def _reset_for_tests() -> None:
     reset_health()
 
 
-register_reset(__name__, ("_TEST_BUCKETS", "HEALTH", "_URL_LOGGED"), _reset_for_tests)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)
+def _reset_all_for_tests() -> None:
+    """Test seam: the module's existing reset, then the remaining module-level tables back to a fresh process (smplwise.test_reset; product code never calls it)."""
+    _reset_for_tests()
+    STATS.clear()
+    STATS.update({"sent": 0, "gone": 0, "failed": 0, "retried": 0, "skipped_unconfigured": 0, "config_errors": 0, "last_error": None, "last_sent_at": None})
+
+
+register_reset(__name__, ("_TEST_BUCKETS", "HEALTH", "_URL_LOGGED", "STATS"), _reset_all_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

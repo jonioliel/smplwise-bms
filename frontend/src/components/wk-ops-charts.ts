@@ -3,6 +3,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { TrendPoint } from '../api/intercom-ops';
 import { T, barPath, compact, dayLabel, linePath, nearest, niceMax, stackBars, ticks, trendPoints } from '../screens/intercom-ops-logic';
 import { tr } from '../i18n/msg/components';
+import './sw-table';
+import type { TableColumn } from './sw-table';
 
 /**
  * WISKEY-OPS-VIEWS-2400: the two charts of Settings › תפעול האינטרקום (the data-viz method; the reasoning and the validated palette are in
@@ -130,26 +132,12 @@ const shared = css`
   .tw {
     overflow-x: auto;
   }
-  table {
-    border-collapse: collapse;
-    inline-size: 100%;
+  /* CR-CMP2-TABLES-REST-2470 (owner N10): the numbers twin of a chart is the shared table (bare, read only, never wider than the chart;
+     the chart's 4 / 8 px compact rows) */
+  sw-table[data-chart-table] {
+    --sw-table-min: 0;
+    --sw-table-cell-pad: 4px 8px;
     margin-block-start: 8px;
-    font-size: var(--sw-fs-sm);
-    color: var(--sw-text-2);
-  }
-  th,
-  td {
-    padding: 4px 8px;
-    border-block-end: 1px solid var(--c-grid);
-    text-align: start;
-    font-weight: var(--sw-fw-regular, 400);
-  }
-  th {
-    color: var(--sw-text-3);
-    font-weight: var(--sw-fw-medium);
-  }
-  td.n {
-    font-variant-numeric: tabular-nums;
   }
   .sr {
     position: absolute;
@@ -191,6 +179,13 @@ interface DayCount {
 }
 
 /** Entries per day: granted (slot 1) with denied stacked on top (slot 2). */
+/** CR-CMP2-TABLES-REST-2470: the day chart's numbers twin - the day, granted and denied as figures */
+const dayCols = (): TableColumn<DayCount>[] => [
+  { key: 'day', label: tr('יום'), render: (d) => dayLabel(d.day) },
+  { key: 'granted', label: T.granted, kind: 'num' },
+  { key: 'denied', label: T.denied, kind: 'num' },
+];
+
 @customElement('wk-ops-day-chart')
 export class WkOpsDayChart extends Sized {
   @property({ attribute: false }) days: DayCount[] = [];
@@ -275,10 +270,7 @@ export class WkOpsDayChart extends Sized {
       <div class="legend" data-chart-legend><span><i class="lg"></i>${T.granted}</span><span><i class="ld"></i>${T.denied}</span></div>
       <button type="button" class="tgl" data-chart-table-toggle aria-expanded=${this.table} @click=${() => (this.table = !this.table)}>${this.table ? T.hideTable : T.showTable}</button>
       <div class=${this.table ? 'tw' : 'sr'}>
-        <table data-chart-table>
-          <thead><tr><th scope="col">${tr('יום')}</th><th scope="col">${T.granted}</th><th scope="col">${T.denied}</th></tr></thead>
-          <tbody>${days.map((d) => html`<tr><td>${dayLabel(d.day)}</td><td class="n">${d.granted}</td><td class="n">${d.denied}</td></tr>`)}</tbody>
-        </table>
+        <sw-table bare static-rows keep-columns data-chart-table rowKey="day" .columns=${dayCols() as unknown as TableColumn[]} .rows=${days as unknown as Record<string, unknown>[]}></sw-table>
       </div>
     `;
   }
@@ -291,6 +283,14 @@ export class WkOpsTrendChart extends Sized {
   @property({ type: Number }) limit: number | null = null;
   @property() label = '';
   @property({ type: Number }) height = 180;
+  /** CR-CMP2-TABLES-REST-2470: the trend's numbers twin - when sampled, the count as a figure */
+  private tableCols(): TableColumn<TrendPoint>[] {
+    return [
+      { key: 'at', label: T.sampledAt, render: (p) => this.fmt(p.at) },
+      { key: 'users', label: this.label, kind: 'num' },
+    ];
+  }
+
   /** formats an instant for the tooltip and the table (the screen passes its zone-aware formatter) */
   @property({ attribute: false }) fmt: (iso: string) => string = (iso) => iso;
   @state() private hot = -1;
@@ -388,10 +388,7 @@ export class WkOpsTrendChart extends Sized {
         : nothing}
       <button type="button" class="tgl" data-chart-table-toggle aria-expanded=${this.table} @click=${() => (this.table = !this.table)}>${this.table ? T.hideTable : T.showTable}</button>
       <div class=${this.table ? 'tw' : 'sr'}>
-        <table data-chart-table>
-          <thead><tr><th scope="col">${T.sampledAt}</th><th scope="col">${this.label}</th></tr></thead>
-          <tbody>${usable.map((p) => html`<tr><td>${this.fmt(p.at)}</td><td class="n">${p.users}</td></tr>`)}</tbody>
-        </table>
+        <sw-table bare static-rows keep-columns data-chart-table rowKey="at" .columns=${this.tableCols() as unknown as TableColumn[]} .rows=${usable as unknown as Record<string, unknown>[]}></sw-table>
       </div>
     `;
   }

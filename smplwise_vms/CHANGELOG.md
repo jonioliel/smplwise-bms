@@ -1,5 +1,22 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.46.0 (pilot) - Bridge 0.10.8; shared tab strips and generator tables; plan export and site edit checks; code-review clean-up
+
+### תוקן - Fixed
+- אתרים: עריכת אתר מנקה רווחים בשם ובכתובת כמו ביצירה, ומסרבת לשם ריק או לאזור זמן לא מוכר (קודם נשמר כל ערך). - Sites: editing a site trims the name and address as creating one does, and refuses a blank name or an unknown time zone (any value was stored before).
+- תוכניות: ייצוא IFC של תוכנית שהמבנה השמור שלה פגום מחזיר הודעה ברורה ("פתחו אותה בעורך ושמרו שוב") במקום שגיאת שרת, ופריט פגום בודד (מידות, כיול, עוגן) מדולג במקום להכשיל את כל הייצוא. - Plans: an IFC export of a plan whose stored structure is damaged answers a clear message ("open it in the editor and save it again") instead of a server error, and a single malformed entry (dimensions, calibration, an anchor) is skipped instead of failing the whole export.
+- תוכניות: בקריאת IFC, פתחים של קיר שדולג נספרים תחת הסיבה של הקיר עצמו. - Plans: when an IFC file is read, the openings of a skipped wall are counted under that wall's own reason.
+
+### שופר - Improved
+- לשוניות: תשע שורות לשוניות (נגן המדיה, השלט, עורך התרחישים, עורך האוטומציות, בדיקת התקן, אשף התוכנית ומסכי האוטומציות ולוחות הזמנים) הן עכשיו רכיב הלשוניות המשותף: מקלדת מלאה (חצים, Home / End, Enter), מונים בגלולה קטנה. - Tabs: nine tab strips (the media player, the remote, the scenario editor, the automation editor, the device test, the plan wizard and the automations and schedules screens) are now the shared tab component: full keyboard (arrows, Home / End, Enter) and counts in a small pill.
+- מרכז האירועים, סקירת הקריאות ולוח הבית האישי: שורות השבבים הן בורר השבבים המשותף, עם סמלים ומונים. - Events centre, tickets overview and the personal home panel: the chip rows are the shared chip chooser, with icons and counts.
+- גנרטור: טבלת הפאזות וניתוב ההתראות עברו לטבלה המשותפת (כותרות קבוצה, מתג אחיד לכל סוג התראה, פס עומס משותף); בטלפון טבלת הפאזות שומרת על העמודות. - Generator: the phase table and the alert routing use the shared table (group headings, the shared switch for each alert type, a shared load bar); on a phone the phase table keeps its columns.
+- סקירת קוד: השאילתות של 68 נתבי שרת נוספים (כולל נתב מערכת הבית) עברו למודולי אחסון; קורא ה-IFC פוצל לחלקים קטנים מאחורי קורפוס הקלטה; כל המסלולים עם מודל תשובה נבדקים מול השרת האמיתי; לכל טבלת מצב ברמת מודול יש איפוס לבדיקות. - Code review: the queries of 68 more server routers (the home-system router included) moved into store modules; the IFC reader was split into small parts behind a recorded corpus; every route with a response model is checked against the real server; every module-level state table has a test reset.
+
+### התקנה - Install
+- גשר 0.10.8: נדרשת הפעלה מחדש אחת של מערכת הבית כדי לטעון אותו (השינויים בגשר מ־2.43.8 נטענים בה). - Bridge 0.10.8: one home-system restart is needed to load it (it also loads the bridge changes shipped since 2.43.8).
+- אין מיגרציה חדשה. - No new migration.
+
 ## 2.45.0 (pilot) - Shared tables, segmented keys and fields; two screen crashes fixed; code-review clean-up
 
 ### תוקן - Fixed
@@ -28,6 +45,7 @@
 - מתגים: מתגי ההפעלה שנבנו ידנית בהתראות, באוטומציות, בלוחות הזמנים, בעורך השלט, באזעקה, במיתוג, במיפוי, במפת ההיסטוריה, בהגדרות האירועים ובמסיכות הפרטיות הם עכשיו המתג האחיד של המערכת. הגודל והצבעים שלהם משתנים מעט. - Switches: the hand-built on/off switches in notifications, automations, schedules, the remote editor, the alarm, branding, mapping, the history map, the incident settings and the privacy masks are now the system's shared switch, so their size and colours change slightly.
 - הודעות קצרות: 32 מסכים משתמשים בבקר הודעות אחד. הודעה שנייה מקבלת תמיד את מלוא הזמן שלה, ושום הודעה לא מופיעה אחרי שעוזבים את המסך. - Short messages: 32 screens use one message controller. A second message always gets its full time, and nothing appears after you leave the screen.
 - חשמל ומים: כרטיס הלקוח משתמש בטופס משותף אחד (אותם שדות ואותן בדיקות). - Electricity and water: the customer card uses one shared form (the same fields and checks).
+- הקלטות: עמוד ההקלטות נכנס במלואו למסך גם כששורת האבחון מוצגת (הייתה גלישה של כמה פיקסלים). - Recordings: the recordings page fits the screen even with the diagnostics row shown (it overflowed by a few pixels).
 - לחיצה על כותרת מתקפלת או על תווית בגיליון תחתון בטלפון כבר לא הולכת לאיבוד. - A tap on a folding heading or a label in a phone bottom sheet is no longer lost.
 - לוח הטלוויזיה: אותיות לטיניות וספרות בסגנונות Lumen, ‏Axis ו-Prism מוצגות בגופן IBM Plex הנכון. - TV board: Latin letters and digits in the Lumen, Axis and Prism styles are drawn in the right IBM Plex font.
 - מסכי הבית והאזור: פחות חישובים כפולים בכל ציור ובכל עדכון. - Home and area screens: fewer repeated computations on every draw and update.

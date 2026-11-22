@@ -30,6 +30,13 @@ import type { Severity, Weekday } from './types';
 import { tr } from '../i18n/msg/api-notify';
 import { isoZ } from './day-format';
 import { packTable } from '../i18n/lang-packs';
+import type * as Wire from './generated/wire-notifications';
+
+/* The answers of routers/notifications.py are the backend's response models (smplwise_vms/backend/smplwise/wire/notifications.py), generated
+ * into ./generated/wire-notifications.ts (CR-RESPONSE-MODELS-C-2470, code review 07:F8 step 2): the types of this contract are the generated
+ * ones with the closed vocabularies narrowed (category, channel, subject kind, recipient rule: plain strings on the wire), so a field the
+ * server renames, drops or retypes is a compile error here. Fields the server always sends but the demo store (./notifications-mock.ts)
+ * does not build stay optional, marked in place. */
 
 // ------------------------------------------------------------------------------------------------ vocabulary (§1)
 
@@ -41,41 +48,31 @@ export type SubjectKind = 'camera' | 'entity' | 'area' | 'alarm_panel' | 'door' 
 export type NotifyState = 'open' | 'acknowledged' | 'resolved';
 export type { Weekday } from './types'; // CR-API-PATHS-2439 (07:F21): one definition (the same seven values)
 
-export interface Delivery {
-  id: string;
-  notification_id: string;
-  user_display: string;
+export interface Delivery extends Omit<Wire.NotifyDelivery, 'channel' | 'title' | 'source' | 'mode'> {
   channel: Channel;
-  /** push host / "טלפון: <label>" / masked email - never an endpoint or an address. */
-  target: string;
-  status: 'queued' | 'sent' | 'retry' | 'failed' | 'gone' | 'skipped';
-  /** 'quiet_hours' | 'category_off' | 'rate_limited' | 'no_reach' | 'muted' | http_<n> | an SMTP class ... */
-  reason: string | null;
-  attempt: number;
-  at: string;
+  /** always sent (the notification's title and source, the delivery mode); optional for the demo store. `target`: a push host, a phone
+   * label or a masked address - never an endpoint or an address. `reason`: quiet_hours | category_off | rate_limited | no_reach | muted |
+   * http_<n> | an SMTP class ... */
+  title?: string;
+  source?: string;
+  mode?: string;
 }
 
-export interface TimelineEntry {
-  at: string;
+export interface TimelineEntry extends Omit<Wire.NotificationTimelineEntry, 'kind' | 'channel'> {
   kind: 'created' | 'folded' | 'escalated' | 'acknowledged' | 'resolved' | 'delivery_failed';
-  step?: number;
-  count?: number;
-  by_display?: string;
   channel?: Channel;
 }
 
 /** What the inbox returns; never contains a person's name (beyond `acked_by_display`, a colleague who acknowledged) or an image URL. */
-export interface Notification {
-  id: string;
+export interface Notification extends Omit<Wire.Notification, 'category' | 'subject' | 'place_name' | 'timeline' | 'my_deliveries' | 'digest'> {
   /** e.g. 'camera.offline', 'rule.alert', 'sensor.leak', 'automation.failed'. */
   source: string;
   category: Category;
-  severity: Severity;
   /** Hebrew, built server-side from a template; <= 80 chars. */
   title: string;
   /** <= 180 chars. */
   body: string;
-  subject: { kind: SubjectKind; id: string | null; area_id: string | null };
+  subject: Omit<Wire.NotificationSubject, 'kind'> & { kind: SubjectKind };
   /** The place the server names (an area, else the station or the camera of a row without an HA area); read first by the screens. */
   place_name?: string | null;
   /** A hash route inside Arx, e.g. '#/investigate/events/<id>'. */
@@ -96,7 +93,7 @@ export interface Notification {
   /** Doorbell rows only: the deep-link target of "פתח דלת"; `can_open` = the caller holds the door-open permission there. Never a token. */
   door: { id: string; name: string; can_open: boolean } | null;
   timeline: TimelineEntry[];
-  my_deliveries: { channel: Channel; status: Delivery['status']; reason: string | null; at: string }[];
+  my_deliveries: (Omit<Wire.NotificationOwnDelivery, 'channel'> & { channel: Channel })[];
   /** TKNOTIFMATRIX: a `ticket.digest` row only - the tickets it summarises that the READER may see now (rendered per request, never
    *  pushed); `hidden` = listed tickets he may not see (not named). */
   digest?: { total: number; hidden: number; items: { ticket_id: string; number: number | null; title: string; event: string; event_label: string }[] };
@@ -120,25 +117,15 @@ export interface EscalationSettings {
   to: 'managers' | string[];
 }
 export type EmailSecurity = 'starttls' | 'tls' | 'none';
-export interface EmailSettings {
-  configured: boolean;
-  host: string;
-  port: number;
-  security: EmailSecurity;
-  user: string;
-  /** The password is write-only: the API only says whether one is set. */
-  password_set: boolean;
-  from: string;
-  recipients: string[];
-  last_test: { at: string; ok: boolean; detail: string } | null;
-}
+/** The password is write-only: the API only says whether one is set (`password_set`). `GET / PUT notify/email` add `link_base`. */
+export type EmailSettings = Wire.EmailSettings;
 export type LockscreenLevel = 'generic' | 'type_place' | 'full';
 export type RetentionDays = 7 | 14 | 30 | 60 | 90;
 export type CenterLayout = 'sheet' | 'page';
 export type FailuresAudience = 'admins' | 'visible';
 
 /** ONE row for the installation; `notify.manage` only (owner 4ב, 5, 6א, 7, 8א, 10ב). */
-export interface NotifySettings {
+export interface NotifySettings extends Omit<Wire.NotifySettings, 'quiet' | 'pass_through' | 'escalation' | 'lockscreen' | 'image_in_push' | 'companion' | 'retention_days' | 'deliveries_retention_days'> {
   quiet: QuietHours;
   /** What is still sent during quiet hours; default: critical true, the others false. */
   pass_through: PassThrough;
@@ -147,7 +134,7 @@ export interface NotifySettings {
   /** Fixed false in v1 (a later step); shown disabled as "בקרוב". */
   image_in_push: false;
   /** A later step; shown disabled as "בקרוב". */
-  companion: { critical_sound_safety: boolean };
+  companion: Pick<Wire.CompanionSettings, 'critical_sound_safety'> & Partial<Wire.CompanionSettings>;
   retention_days: RetentionDays;
   /** Owner decision 2026-10-01 (settings key `notify.center_layout`): the desktop center is a glass sheet at the content's start edge or a full screen. */
   center_layout: CenterLayout;
@@ -162,10 +149,7 @@ export interface NotifySettings {
 }
 
 /** Per source, installation-wide (`notify.manage`). */
-export interface NotifyPolicy {
-  source: string;
-  enabled: boolean;
-  severity: Severity;
+export interface NotifyPolicy extends Omit<Wire.NotifyPolicy, 'category' | 'recipients' | 'channels' | 'label' | 'subject_kind' | 'resolves'> {
   category: Category;
   /** The condition must hold this long (door open 600, offline 120). */
   after_s: number;
@@ -177,7 +161,10 @@ export interface NotifyPolicy {
   recipients: { rule: 'scope' | 'managers' | 'initiator' | 'users' | 'generator' | 'ticket_managers' | 'ticket_assignee' | 'rfq_managers' | 'elevator' | 'temperature' | 'energy_bills' | 'water' | 'maintenance' | 'scenario' | 'notice' | 'calendar_attendee' | 'bridge_key_owner'; user_ids?: string[] }; // bridge_key_owner: WXH-LEFTOVERS-2405; elevator: CR-INFRA-ELEVATORS 2.8.0; energy_bills: ELECBILL77; maintenance: CR-MAINT215
   /** inbox is fixed on; ha_mobile is fixed false (reserved); whatsapp is a real channel since NOTIFWA (off by default). */
   channels: { inbox: true; webpush: boolean; email: boolean; app?: boolean; announce?: boolean; ha_mobile: false; whatsapp: boolean };
-  revision: number;
+  /** always sent (the catalogue's label, subject kind, whether the source resolves); optional for the demo store */
+  label?: string;
+  subject_kind?: string;
+  resolves?: boolean;
 }
 
 // ------------------------------------------------------------------------------------------------ requests and replies (§2)
@@ -197,9 +184,7 @@ export interface InboxPage {
   next_before: string | null;
 }
 /** GET /notifications/summary: the user-menu chip and the avatar dot. `by_category` = unread rows per category. */
-export interface NotifySummary {
-  unread: number;
-  open_critical: number;
+export interface NotifySummary extends Pick<Wire.NotificationSummary, 'unread' | 'open_critical'>, Partial<Pick<Wire.NotificationSummary, 'center_layout' | 'quiet_active' | 'quiet_until'>> {
   by_category: Partial<Record<Category, number>>;
 }
 export type SnoozeChoice = 60 | 'until_morning';
@@ -225,14 +210,12 @@ export interface EmailBody {
   recipients: string[];
 }
 /** `detail` is the SMTP class: dns, connect, tls, auth, refused, timeout. */
-export interface EmailTestResult { ok: boolean; detail: string }
+export type EmailTestResult = Pick<Wire.EmailTestAnswer, 'ok' | 'detail'> & Partial<Wire.EmailTestAnswer>;
 
 export interface DeliveryQuery { status?: Delivery['status']; channel?: Channel; since?: string; limit?: number }
 /** GET /notify/stats: per-channel counters for the last 24 h plus the push worker's STATS (the shapes inside are open). */
-export interface NotifyStats {
-  since: string;
-  channels: Partial<Record<Channel, { sent: number; failed: number; skipped: Record<string, number> }>>;
-  worker: Record<string, number>;
+export interface NotifyStats extends Pick<Wire.NotifyStats, 'since' | 'worker'>, Partial<Pick<Wire.NotifyStats, 'by_source' | 'push_devices' | 'app_relay'>> {
+  channels: Partial<Record<Channel, Wire.ChannelCounts>>;
 }
 
 export const SEVERITIES: readonly Severity[] = ['info', 'alert', 'critical'];
@@ -1231,13 +1214,13 @@ export const httpNotify: NotifyAdapter = {
     const list = rows<Notification>(await get<unknown>(`notifications${qs({ state: q.state, category: q.category, severity_min: q.severity_min, before: q.before, limit })}`), 'notifications');
     return { notifications: list, next_before: list.length >= limit ? list[list.length - 1].last_at : null };
   }),
-  summary: () => call('user', () => get<NotifySummary>('notifications/summary')),
+  summary: () => call('user', () => get<Wire.NotificationSummary>('notifications/summary')),
   read: (id) => call('item', async () => rowOrNull(await post<unknown>(`notifications/${enc(id)}/read`))),
   readAll: () => call('user', async () => { await post('notifications/read-all'); }),
   snooze: (id, minutes) => call('item', async () => rowOrNull(await post<unknown>(`notifications/${enc(id)}/snooze`, { minutes }))),
   ack: (id) => call('ack', async () => rowOrNull(await post<unknown>(`notifications/${enc(id)}/ack`))),
   snapshotUrl: (id) => apiUrl(`notifications/${enc(id)}/snapshot`),
-  test: () => call('user', () => post<{ sent: number }>('notifications/test')),
+  test: () => call('user', () => post<Wire.PushTestAnswer>('notifications/test')),
   deliveries: (id) => call('user', async () => rows<Delivery>(await get<unknown>(`notifications/deliveries${qs({ notification_id: id })}`), 'deliveries')),
   action: (t, a) => call('action', async () => { await post('notifications/action', { t, a }); }),
   // the existing WisKey release route (routers/access_control.py): `confirmed` is sent only after the in-app confirmation; `origin` names the notification
@@ -1246,8 +1229,8 @@ export const httpNotify: NotifyAdapter = {
   saveSettings: (body, base) => call('settings', () => api<NotifySettings>('notify/settings', { method: 'PUT', body: JSON.stringify({ ...body, base_revision: base }), headers: { 'If-Match': String(base) } })),
   policies: () => call('policy', async () => rows<NotifyPolicy>(await get<unknown>('notify/policies'), 'policies')),
   savePolicy: (source, body, base) => call('policy', () => api<NotifyPolicy>(`notify/policies/${enc(source)}`, { method: 'PUT', body: JSON.stringify({ ...body, base_revision: base }), headers: { 'If-Match': String(base) } })),
-  saveEmail: (body) => call('email', () => put<EmailSettings>('notify/email', body)),
-  testEmail: () => call('email_test', () => post<EmailTestResult>('notify/email/test')),
+  saveEmail: (body) => call('email', () => put<Wire.EmailSettingsView>('notify/email', body)),
+  testEmail: () => call('email_test', () => post<Wire.EmailTestAnswer>('notify/email/test')),
   adminDeliveries: (q = {}) => call('admin', async () => rows<Delivery>(await get<unknown>(`notify/deliveries${qs({ status: q.status, channel: q.channel, since: q.since, limit: q.limit })}`), 'deliveries')),
   stats: () => call('admin', () => get<NotifyStats>('notify/stats')),
 };

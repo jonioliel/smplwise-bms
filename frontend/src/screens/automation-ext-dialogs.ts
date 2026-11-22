@@ -7,6 +7,7 @@ import {
 } from '../api/automations-ext';
 import { runAction } from '../api/ha';
 import { describeError } from '../api/client';
+import '../components/sw-tabs';
 import { icon } from './automation-builder-icons';
 import { tr } from '../i18n/msg/automation';
 
@@ -143,9 +144,9 @@ export class KavDeviceTest extends LitElement {
     const end = this.flags?.device_test_end ?? 'ask';
     const endText = end === 'ask' ? tr('לשאול') : end === 'restore' ? tr('החזרה למצב הקודם') : tr('להשאיר כמו שהוא');
     return html`<div class="dlg-body" data-kav-device-test>
-        ${this.source === 'schedule' ? nothing : html`<div class="seg" role="tablist" aria-label=${tr('סוג הבדיקה')} data-kav-test-mode>
-          <button type="button" role="tab" aria-selected=${String(this.mode === 'dry')} data-m="dry" @click=${() => this.setMode('dry')}>${tr('בלי להפעיל כלום')}</button>
-          <button type="button" role="tab" aria-selected=${String(this.mode === 'dev')} data-m="dev" @click=${() => this.setMode('dev')}>${tr('על ההתקן')}</button></div>`}
+        ${this.source === 'schedule' ? nothing : html`<sw-tabs controlled variant="pill" group-label=${tr('סוג הבדיקה')} data-kav-test-mode .active=${this.mode}
+          .items=${[{ id: 'dry', label: tr('בלי להפעיל כלום'), attrs: { 'data-m': 'dry' } }, { id: 'dev', label: tr('על ההתקן'), attrs: { 'data-m': 'dev' } }]}
+          @change=${(e: CustomEvent<{ id: string }>) => { e.stopPropagation(); this.setMode(e.detail.id as 'dry' | 'dev'); }}></sw-tabs>`}
         ${this.mode === 'dry' ? this.renderDry() : this.renderDev()}
       </div>
       <div class="kav-foot">

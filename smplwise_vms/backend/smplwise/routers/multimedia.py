@@ -36,6 +36,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import device_bulk as bulk
 from ..services import ha_bridge, ha_client, ha_sync, ma_direct, media_commands, media_groups, media_layout, media_model as mm, media_profiles as profiles, media_query, media_queue, media_store as store, user_prefs
+from ..services import multimedia_store as rstore
 from ..services import service_identity
 from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
 from .devices import _envelope
@@ -369,7 +370,7 @@ class DeviceRemoteBody(_Body):
 
 def _remote_early(key: str, request: Request, principal: Principal = Depends(_reader_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
     """`media.layout` at the screen's anchor BEFORE the body is read (403 before 422; the read-gate pattern): 404 for a screen the caller may not see."""
-    r = conn.execute("SELECT anchor_entity_id, approved, kind FROM media_devices WHERE device_key = ? AND removed_at IS NULL", (key,)).fetchone()
+    r = rstore.screen_anchor(conn, key)
     access = store.Access(conn, principal, (store.PERM_READ, store.PERM_LAYOUT))
     if r is None or not r["approved"] or r["kind"] != "screen" or not access.has(store.PERM_READ, r["anchor_entity_id"]):
         raise ApiError(404, "not_found", "המסך לא נמצא.")
@@ -558,11 +559,11 @@ def _place_device(request: Request, conn: sqlite3.Connection, principal: Princip
     """Place a device in an HA area (CR-016 7.1: "חדר" for an unplaced speaker): the one Home Assistant CONFIG write this product makes, through the
     bridge's `set_entity_area` path (the anchor entity), exactly as the devices area's assign route does - system.configure, two-phase audit (the attempt
     row is committed before Home Assistant is asked), the local mirror updated at once."""
-    row = conn.execute("SELECT anchor_entity_id FROM media_devices WHERE device_key = ? AND removed_at IS NULL", (key,)).fetchone()
+    row = rstore.device_anchor(conn, key)
     if row is None or not row["anchor_entity_id"]:
         raise ApiError(404, "not_found", "ההתקן לא נמצא.")
     entity_id = row["anchor_entity_id"]
-    arow = conn.execute("SELECT area_id, name, floor_id FROM ha_areas WHERE area_id = ?", (area_id,)).fetchone()
+    arow = rstore.ha_area(conn, area_id)
     if not arow:
         raise ApiError(404, "area_not_found", "האזור לא נמצא.")
     settings = settings_of(request)
@@ -572,7 +573,7 @@ def _place_device(request: Request, conn: sqlite3.Connection, principal: Princip
     secret = ha_bridge.signing_key(conn)
     if not secret or not get_setting(conn, "bridge.paired_at"):
         raise ApiError(503, "bridge_not_paired", "שיוך אזור דורש את הגשר מותקן ומצומד.")
-    old = conn.execute("SELECT area_id FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
+    old = rstore.entity_area(conn, entity_id)
     bridge_rid = uuid.uuid4().hex[:12]
     payload = ha_bridge.sign(secret, {"user_id": principal.user_id, "entity_id": entity_id, "area_id": area_id, "request_id": bridge_rid})
     audit(conn, actor=principal, action="media.place", decision="allowed", resource_type="media_device", resource_id=key, request_id=rid,
@@ -590,9 +591,8 @@ def _place_device(request: Request, conn: sqlite3.Connection, principal: Princip
           details={"area_id": area_id, "phase": "outcome", "request": bridge_rid})
     if not ok:
         raise ApiError(404 if error in ("entity_not_found", "area_not_found") else 502, "bridge_error", "תשתית המערכת דחתה את שיוך האזור.", details={"error": error})
-    frow = conn.execute("SELECT name FROM ha_floors WHERE floor_id = ?", (arow["floor_id"],)).fetchone() if arow["floor_id"] else None
-    conn.execute("UPDATE ha_entities SET area_id = ?, area_name = ?, ha_floor_id = ?, ha_floor_name = ?, updated_at = ? WHERE entity_id = ?",
-                 (arow["area_id"], arow["name"], arow["floor_id"], frow["name"] if frow else None, now_iso(), entity_id))
+    frow = rstore.ha_floor_name(conn, arow["floor_id"]) if arow["floor_id"] else None
+    rstore.set_entity_area(conn, entity_id, arow["area_id"], arow["name"], arow["floor_id"], frow["name"] if frow else None, now_iso())
 
 
 @router.put("/multimedia/admin/devices/{key}")
@@ -601,7 +601,7 @@ def admin_update_device(key: str, request: Request, background: BackgroundTasks,
     nullable = {"display_name", "kind", "profile", "audio_link_key", "volume_max", "volume_night"}  # null clears these; a null flag or list is "not given"
     fields = {f: getattr(body, f) for f in body.model_fields_set if getattr(body, f) is not None or f in nullable}
     area_id = fields.pop("area_id", None)
-    if conn.execute("SELECT 1 FROM media_devices WHERE device_key = ? AND removed_at IS NULL", (key,)).fetchone() is None:
+    if not rstore.device_exists(conn, key):
         raise ApiError(404, "not_found", "ההתקן לא נמצא.")
     if area_id:
         _place_device(request, conn, principal, key, area_id)
@@ -1000,7 +1000,7 @@ def groups_volume(leader_key: str, request: Request, principal: Principal = Depe
 
 
 def _preset_out(conn: sqlite3.Connection, principal: Principal, preset_id: str) -> dict[str, Any]:
-    row = conn.execute("SELECT * FROM media_group_presets WHERE preset_id = ?", (preset_id,)).fetchone()
+    row = rstore.group_preset(conn, preset_id)
     return media_groups._preset_dict(conn, media_groups.load_catalog(conn), store.Access(conn, principal), row)
 
 
@@ -1050,7 +1050,7 @@ def apply_preset(preset_id: str, request: Request, principal: Principal = Depend
     """Start a saved group with one tap (decision 3א): the group as a DIFF against the leader's live group - leave the extras, join the missing, then the saved
     volumes clamped to each room's ceilings - in three ordered phases, an outcome per room. The same permission, confirmation and bridge rules as a join."""
     act, body, not_after = _group_request(request, conn, principal, raw, GroupApplyBody, preset_id[:64])
-    row = conn.execute("SELECT * FROM media_group_presets WHERE preset_id = ?", (preset_id,)).fetchone()
+    row = rstore.group_preset(conn, preset_id)
     if row is None:
         raise act.refuse(media_commands.err(404, "not_found"))
     settings, secret = _group_bridge(request, conn, principal, act)

@@ -30,6 +30,7 @@ import httpx
 from ..config import Settings
 from ..errors import ApiError
 from . import redact
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.go2rtc")
 
@@ -805,3 +806,12 @@ def delete_listed(client: Any, names: list[str], owns: Callable[[str], bool]) ->
             client.delete_stream(name)
             n += 1
     return n
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _REGISTERED.clear()
+    _SOURCE_DIGEST.clear()
+
+
+register_reset(__name__, ("_REGISTERED", "_SOURCE_DIGEST"), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

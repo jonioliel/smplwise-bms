@@ -1,13 +1,15 @@
 // HOME-V3-GAPS-2436: the alarm's arm / disarm changes for the home diary's "אזעקה" filter (mockup v3 `S.events`, kind `alarm`):
 // GET /home/alarm-log (routers/home_gaps.py) - only changes the panel confirmed, only panels the person may view, the last 7 days.
 import { get } from '../api/client';
+import type * as GapsWire from '../api/generated/wire-home-gaps';
 import { canAnywhere } from '../api/session';
 import type { HomeHost } from './home-ext';
 import { tr } from '../i18n/msg/home';
 
 type AlarmChange = 'arm_away' | 'arm_home' | 'arm_night' | 'arm_vacation' | 'arm_custom_bypass' | 'disarm';
-interface AlarmLogItem { at: string; panel: string; action: AlarmChange; by: string | null; me: boolean }
-export const getAlarmLog = () => get<{ items: AlarmLogItem[]; days: number }>('home/alarm-log');
+/** The backend's response model (wire/home_gaps.py, ../api/generated/wire-home-gaps.ts); `action` narrowed to the panel's modes. */
+type AlarmLogItem = Omit<GapsWire.AlarmLogItem, 'action'> & { action: AlarmChange };
+export const getAlarmLog = () => get<Omit<GapsWire.AlarmLog, 'items'> & { items: AlarmLogItem[] }>('home/alarm-log');
 
 /** The diary's words for an alarm change (mockup: 'האזעקה נדרכה למצב "בבית"', 'האזעקה נוטרלה: יונתן'). */
 export function alarmChangeText(i: Pick<AlarmLogItem, 'action' | 'by' | 'me'>): string {

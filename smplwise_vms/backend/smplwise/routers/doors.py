@@ -45,6 +45,8 @@ from ..rbac import INSTALLATION, ROLES, STATION, Principal, authorize, require, 
 from ..services import (bridge_rotation, door_authority, door_blocks, door_conversion, door_overrides, door_path, door_path_guard, ha_bridge, intercom_doors, intercom_sync,
                         revocation, trusted_door)
 from ..services import doors_store as store
+from ..wire import doors as W
+from ..wire import wire
 from ._common import rid as _rid
 from . import access as acc
 
@@ -77,7 +79,7 @@ def _station_view(conn: sqlite3.Connection, s: dict[str, Any]) -> dict[str, Any]
     }
 
 
-@router.get("/intercom/door-map")
+@router.get("/intercom/door-map", **wire(W.DoorMap))
 def door_map(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Every WisKey lock entity with its mapping (and whether it resolves right now), the `single_relay` suggestion for
     the unambiguous ones, the stations of the WisKey copy with their relays and placement, and the sites and buildings a
@@ -114,7 +116,7 @@ class MappingBody(BaseModel):
     confirmed: Any = None
 
 
-@router.put("/intercom/door-map/{entity_id}")
+@router.put("/intercom/door-map/{entity_id}", **wire(W.DoorMappingSet))
 def set_door_mapping(body: MappingBody, request: Request, entity_id: str = Path(min_length=3, max_length=255), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Manual mapping (`source = manual`): the administrator picks the relay of one WisKey lock entity."""
     require(conn, principal, CONFIGURE, INSTALLATION)
@@ -126,7 +128,7 @@ def set_door_mapping(body: MappingBody, request: Request, entity_id: str = Path(
     return {"mapping": row}
 
 
-@router.delete("/intercom/door-map/{entity_id}")
+@router.delete("/intercom/door-map/{entity_id}", **wire(W.DoorMappingCleared))
 def clear_door_mapping(request: Request, entity_id: str = Path(min_length=3, max_length=255), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, CONFIGURE, INSTALLATION)
     removed = intercom_doors.clear_mapping(conn, entity_id)
@@ -138,7 +140,7 @@ class ConfirmBody(BaseModel):
     confirmed: Any = None
 
 
-@router.post("/intercom/door-map/apply-suggestions")
+@router.post("/intercom/door-map/apply-suggestions", **wire(W.DoorSuggestionsApplied))
 def apply_suggestions(body: ConfirmBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Store every current `single_relay` suggestion (unambiguous: one relay, one WisKey lock entity on that station)."""
     require(conn, principal, CONFIGURE, INSTALLATION)
@@ -158,7 +160,7 @@ class PlacementBody(BaseModel):
     confirmed: Any = None
 
 
-@router.put("/intercom/stations/{station_id}/placement")
+@router.put("/intercom/stations/{station_id}/placement", **wire(W.DoorStationPlaced))
 def place_station(body: PlacementBody, request: Request, station_id: str = Path(min_length=1, max_length=MAX_ID), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Place a station under a building or a site (or nowhere: installation bindings only)."""
     require(conn, principal, CONFIGURE, INSTALLATION)
@@ -195,7 +197,7 @@ def _builtin_answer(role_id: str, perms: list[str]) -> str:
     return "yes" if DOOR_OPEN in perms else "per_user"
 
 
-@router.get("/access/door-grants")
+@router.get("/access/door-grants", **wire(W.DoorGrants))
 def door_grants(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The "פתיחת דלתות" card: per user and group whether this card granted door opening (`granted`), and the other
     bindings that also let them open (listed read-only as "שיוך אחר"); per role whether it includes door opening, custom
@@ -253,7 +255,7 @@ class SubjectSwitch(BaseModel):
     confirmed: Any = None
 
 
-@router.post("/access/door-grants/subjects")
+@router.post("/access/door-grants/subjects", **wire(W.DoorSubjectSwitched))
 def switch_subject(body: SubjectSwitch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """On: one `door_opener` binding at installation scope ("כל הדלתות"), through the same checks as any binding (delegation,
     known subject, no duplicate) and recorded as this card's. Off: revoke exactly the door_opener bindings this card
@@ -290,7 +292,7 @@ class RoleSwitch(BaseModel):
     confirmed: Any = None
 
 
-@router.put("/access/door-grants/roles/{role_id}")
+@router.put("/access/door-grants/roles/{role_id}", **wire(W.DoorRoleSwitched))
 def switch_role(role_id: str, body: RoleSwitch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Add `access.doors.open` to a CUSTOM role's sensitive list, or remove it AND its legacy name `access.release` (the role's
     revision and the permission revision move, as any role edit). Built-in roles are never changed by a setting (owner
@@ -339,7 +341,7 @@ def _settings_view(conn: sqlite3.Connection) -> dict[str, Any]:
             "lock_jobs": door_path_guard.wiskey_lock_jobs(conn), "conversion": door_conversion.mode(conn)}
 
 
-@router.get("/doors/settings")
+@router.get("/doors/settings", **wire(W.DoorSettings))
 def door_settings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, CONFIGURE, INSTALLATION)
     return _settings_view(conn)
@@ -352,7 +354,7 @@ class DoorSettingsBody(BaseModel):
     confirmed: Any = None
 
 
-@router.put("/doors/settings")
+@router.put("/doors/settings", **wire(W.DoorSettings))
 def set_door_settings(body: DoorSettingsBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """`doors.trusted_path`: `off` (default; the interim transport) or `on` (the signed door_open only). Switching on is an
     owner-approved step and is refused while no bridge offering door_open is known (fail closed).
@@ -392,7 +394,7 @@ def set_door_settings(body: DoorSettingsBody, request: Request, principal: Princ
     return _settings_view(conn)
 
 
-@router.post("/doors/requests/{request_id}/status")
+@router.post("/doors/requests/{request_id}/status", **wire(W.DoorOpenStatus))
 def door_status(request: Request, request_id: str = Path(min_length=36, max_length=36), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The read-only `door_open_status` of one open (decision DR-11: an unknown outcome is resolved only by reading, never by
     signing the open again). Only the person whose open it was, or a system administrator; signed mode only - the interim
@@ -428,7 +430,7 @@ def door_status(request: Request, request_id: str = Path(min_length=36, max_leng
 
 # ---------------------------------------------------------------- the read-only door-path inventory (D7)
 
-@router.get("/intercom/door-path-inventory")
+@router.get("/intercom/door-path-inventory", **wire(W.DoorPathInventory))
 def door_path_inventory(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """"פריטים שפותחים דלתות": the automations, scripts, scenes, schedules and home-screen launcher buttons whose steps open
     a WisKey door (directly or through a group, an area, a device or a nested script / scene / automation, resolved
@@ -441,7 +443,7 @@ def door_path_inventory(request: Request, principal: Principal = Depends(current
 
 # ---------------------------------------------------------------- disable and list, event door jobs, hand-over (WXD10A / WXD10B)
 
-@router.get("/intercom/door-path-conversion")
+@router.get("/intercom/door-path-conversion", **wire(W.DoorConversionList))
 def door_path_conversion(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """READ ONLY: the inventory's items with what may be done to each (disable, convert to an Arx door job, hand over to a door
     window) and why not, the register of what was done, and the switch `doors.conversion`. An empty inventory answers
@@ -465,7 +467,7 @@ def _writers(request: Request, conn: sqlite3.Connection, principal: Principal) -
     return (lambda: auto_router._bridge_writer(request, conn, principal)), (lambda: sched_router._bridge_writer(request, conn, principal))
 
 
-@router.post("/intercom/door-path-conversion/actions")
+@router.post("/intercom/door-path-conversion/actions", **wire(W.DoorConversionDone))
 def door_path_conversion_act(body: DoorConversionBody, request: Request, principal: Principal = Depends(current_principal),
                              conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """One confirmed action on ONE listed item: `disable` (the existing write path), `convert_event_job` (M1: the automation's direct
@@ -478,7 +480,7 @@ def door_path_conversion_act(body: DoorConversionBody, request: Request, princip
                                dev_mode=bool(settings_of(request).dev_user), auto_writer=auto_w, sched_writer=sched_w, rid=_rid(request))
 
 
-@router.post("/intercom/door-path-conversion/records/{record_id}/undo")
+@router.post("/intercom/door-path-conversion/records/{record_id}/undo", **wire(W.DoorConversionUndone))
 def door_path_conversion_undo(body: ConfirmBody, request: Request, record_id: str = Path(min_length=4, max_length=64), principal: Principal = Depends(current_principal),
                               conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Reverse one action of the register (same switch, confirmation, audit `door.path_restored`): a disabled item is enabled again
@@ -491,7 +493,7 @@ def door_path_conversion_undo(body: ConfirmBody, request: Request, record_id: st
 
 # ---------------------------------------------------------------- the blocks screen: what the door path blocks, and the one release (WXUNBLK)
 
-@router.get("/doors/blocks")
+@router.get("/doors/blocks", **wire(W.DoorBlocks))
 def door_blocks_list(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """"חסימות פתיחת דלתות": the entities the door path blocks (template / universal ones, while a WisKey door exists) with their
     state - blocked, or released by an administrator (why, who, when) - and the saved automations, scripts, scenes, schedules and
@@ -507,7 +509,7 @@ class EntityBlockBody(BaseModel):
     confirmed: Any = None
 
 
-@router.put("/doors/blocks/entities/{entity_id}")
+@router.put("/doors/blocks/entities/{entity_id}", **wire(W.DoorEntityBlock))
 def set_entity_block(body: EntityBlockBody, request: Request, entity_id: str = Path(min_length=3, max_length=255), principal: Principal = Depends(current_principal),
                      conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Release ONE blocked entity (`unblocked: true`, with a note saying why - required) or block it again (`unblocked: false`).

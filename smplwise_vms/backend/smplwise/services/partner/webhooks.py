@@ -922,4 +922,11 @@ async def worker_loop(db: Database, settings: Any, every_s: float = 5.0) -> None
             log.warning("partner delivery pass failed", exc_info=True)
 
 
-register_reset(__name__, ("_OUT",), _OUT.clear)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)
+def _reset_all_for_tests() -> None:
+    """Test seam: the module's existing reset, then the remaining module-level tables back to a fresh process (smplwise.test_reset; product code never calls it)."""
+    _OUT.clear()
+    STATS.clear()
+    STATS.update({"payload_invalid": 0, "hook_failures": 0, "enqueued": 0})
+
+
+register_reset(__name__, ("_OUT", "STATS"), _reset_all_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)
