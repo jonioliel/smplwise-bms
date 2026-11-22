@@ -8,6 +8,15 @@ export class SwToggle extends LitElement {
   @property() label = '';
   /** Keep `label` as the switch's accessible name but do not render it (the row already shows the text). */
   @property({ type: Boolean }) labelHidden = false;
+  /**
+   * HAND-SWITCH-2480: the switch that replaced a native check box inside a `<label>`. The enclosing `<label>` keeps working as its
+   * label (a press on the label's text flips the switch, as it flipped the check box); opt-in, so the older switches that sit inside a
+   * label keep their behaviour.
+   */
+  @property({ type: Boolean, attribute: 'in-label' }) inLabel = false;
+  /** HAND-SWITCH-2480 (owner N13 "smaller toggles are fine"): the attribute `size="sm"` is the compact 32 x 18 track for the rows where a
+   * check box stood (styled by the attribute, so set it in the markup). */
+  @property() size: 'md' | 'sm' = 'md';
 
   static styles = css`
     :host {
@@ -67,6 +76,23 @@ export class SwToggle extends LitElement {
     :host(:not([disabled])) span {
       cursor: pointer;
     }
+    /* HAND-SWITCH-2480: the compact track (32 x 18, thumb 14) for the rows where a check box stood - the row keeps its height */
+    :host([size='sm']) button {
+      inline-size: 32px;
+      block-size: 18px;
+    }
+    :host([size='sm']) button::after {
+      inset-block-start: 2px;
+      inset-inline-start: 2px;
+      inline-size: 14px;
+      block-size: 14px;
+    }
+    :host([size='sm'][checked]) button::after {
+      transform: translateX(-14px);
+    }
+    :host-context([dir='ltr'][size='sm'][checked]) button::after {
+      transform: translateX(14px);
+    }
     /* UIPOLISH-2320 (owner 1B, 31.10): on a phone the 24 px track gets a 44 px tall touch target - a transparent ::before (free: the thumb is
        ::after) that grows ONLY in the block axis. No inline extension: a ::before wider than the 42 px track is horizontal overflow and
        tripped the 320 px clipped-content guard (layout-devices-break-297), which is why POLISH-PHONE-2310 dropped the old 50 x 44 slop.
@@ -77,6 +103,9 @@ export class SwToggle extends LitElement {
         position: absolute;
         inset-inline: 0;
         inset-block: -10px;
+      }
+      :host([size='sm']) button::before {
+        inset-block: -13px;
       }
     }
   `;
@@ -90,6 +119,31 @@ export class SwToggle extends LitElement {
     this.addEventListener('click', (e) => {
       if (e.composedPath()[0] === this) this.flip();
     });
+  }
+
+  private labelEl: HTMLLabelElement | null = null;
+
+  /** HAND-SWITCH-2480: a press on the enclosing label (not on the switch, not on another control inside the label) flips the switch. */
+  private readonly onLabelClick = (e: MouseEvent) => {
+    if (!this.inLabel || e.defaultPrevented) return;
+    const path = e.composedPath();
+    if (path.includes(this)) return;
+    const first = path[0];
+    const ctl = first instanceof Element ? first.closest('a, button, input, select, textarea, sw-toggle, sw-button') : null;
+    if (ctl && this.labelEl?.contains(ctl)) return; // a link or another control inside the label keeps its own press
+    this.flip();
+  };
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.labelEl = this.closest('label');
+    this.labelEl?.addEventListener('click', this.onLabelClick);
+  }
+
+  disconnectedCallback() {
+    this.labelEl?.removeEventListener('click', this.onLabelClick);
+    this.labelEl = null;
+    super.disconnectedCallback();
   }
 
   private flip() {
@@ -115,6 +169,11 @@ export function switchPress(shown: boolean, act: () => void): (e: Event) => void
     (e.currentTarget as SwToggle).checked = shown;
     act();
   };
+}
+
+/** HAND-SWITCH-2480: the new value in a sw-toggle's `change` handler (the switch that replaced a check box read `e.target.checked`). */
+export function toggled(e: Event): boolean {
+  return (e.target as SwToggle).checked;
 }
 
 declare global {
