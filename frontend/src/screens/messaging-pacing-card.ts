@@ -13,6 +13,7 @@ import { mp, type MpKey } from '../i18n/messaging-pacing';
 import { BURST_RANGE, MINUTE_RANGE, changedWaits, intValue, span, tone, waitValue, wiskeyReasonKey } from '../messaging/pacing-model';
 import { timeText } from '../api/day-format';
 import { hostBlockStyles, ltrStyles } from '../styles/fragments';
+import '../components/sw-field';
 
 /**
  * CR-WA-PACING-295: the shared send budget (Settings > messaging channel). One card: the mode (conservative by default), whether WisKey
@@ -165,10 +166,10 @@ export class MessagingPacingCard extends LitElement {
       ${this.error ? html`<div class="msg err" role="alert" data-error>${this.error}</div>` : nothing}
       ${this.ok ? html`<div class="msg ok" role="status" data-ok>${this.ok}</div>` : nothing}
       <div class="row"><span class="lbl">${mp('mode')}</span>
-        <span class="ctl"><select class="in" data-pacing-mode aria-label=${mp('mode')} ?disabled=${!this.editable || this.busy}
+        <span class="ctl"><sw-field flow><select class="in" data-pacing-mode aria-label=${mp('mode')} ?disabled=${!this.editable || this.busy}
           @change=${(e: Event) => void this.save({ mode: (e.target as HTMLSelectElement).value as PacingMode })}>
           ${PACING_MODES.map((m) => html`<option value=${m} ?selected=${m === v.mode}>${mp(`mode_${m}` as MpKey)}</option>`)}
-        </select></span></div>
+        </select></sw-field></span></div>
       <div class="row"><span class="lbl">${mp('wiskey')}</span>
         <sw-toggle label=${mp('wiskey')} labelHidden data-pacing-wiskey .checked=${v.wiskey_shared} ?disabled=${!this.editable || this.busy}
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ wiskey_shared: e.detail.checked })}></sw-toggle></div>

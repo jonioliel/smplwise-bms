@@ -10,6 +10,7 @@ import { tr } from '../i18n/msg/components';
 import './sw-toggle';
 import { switchPress } from './sw-toggle';
 import { live } from 'lit/directives/live.js';
+import './sw-field';
 export type { FieldChoice };
 const clampNum = (n: number, min: number, max: number): number => Math.min(max, Math.max(min, n));
 
@@ -154,7 +155,7 @@ export class ScriptFieldsForm extends LitElement {
       case 'boolean':
         return html`<sw-toggle .checked=${live(v === true)} label=${f.name} labelHidden data-field=${f.key} @change=${switchPress(v === true, () => this.set(f.key, v !== true))}></sw-toggle>`;
       case 'select':
-        return html`<select class="inp" aria-label=${f.name} data-field=${f.key} @change=${(e: Event) => this.set(f.key, (e.target as HTMLSelectElement).value)}>${s.options.map((o) => html`<option value=${o} ?selected=${v === o}>${o}</option>`)}</select>`;
+        return html`<sw-field flow><select class="inp" aria-label=${f.name} data-field=${f.key} @change=${(e: Event) => this.set(f.key, (e.target as HTMLSelectElement).value)}>${s.options.map((o) => html`<option value=${o} ?selected=${v === o}>${o}</option>`)}</select></sw-field>`;
       case 'text':
         return html`<input class="inp" type="text" maxlength=${s.max ?? 200} .value=${typeof v === 'string' ? v : ''} aria-label=${f.name} data-field=${f.key} @input=${(e: Event) => this.set(f.key, (e.target as HTMLInputElement).value)} />`;
       case 'entity': {
@@ -162,7 +163,7 @@ export class ScriptFieldsForm extends LitElement {
         const dflt = (Array.isArray(f.default) ? f.default : f.default ? [f.default] : []).map(String);
         const options = [...base, ...dflt.filter((d) => !base.some((b) => b.value === d)).map((d) => ({ value: d, label: d.split('.').slice(1).join('.').replace(/_/g, ' ') }))];
         const cur = Array.isArray(v) ? String(v[0] ?? '') : String(v ?? '');
-        return html`<select class="inp" aria-label=${f.name} data-field=${f.key} @change=${(e: Event) => { const x = (e.target as HTMLSelectElement).value; this.set(f.key, Array.isArray(f.default) ? [x] : x); }}>${options.map((o) => html`<option value=${o.value} ?selected=${cur === o.value}>${o.label}</option>`)}</select>`;
+        return html`<sw-field flow><select class="inp" aria-label=${f.name} data-field=${f.key} @change=${(e: Event) => { const x = (e.target as HTMLSelectElement).value; this.set(f.key, Array.isArray(f.default) ? [x] : x); }}>${options.map((o) => html`<option value=${o.value} ?selected=${cur === o.value}>${o.label}</option>`)}</select></sw-field>`;
       }
       default: return nothing;
     }

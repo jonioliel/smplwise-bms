@@ -21,6 +21,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { techDetailsStyles } from '../styles/tech-details';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
+import '../components/sw-field';
 
 const CERTAINTY_KIND: Record<Certainty, StateKind> = { measured: 'recorded', inferred: 'unknown', command: 'partial', availability: 'stale' };
 import { closePlayback, createPlayback, playbackWsUrl, type PlaybackSession } from '../api/recordings';
@@ -605,10 +606,10 @@ export class InvestigateEventDetail extends LitElement {
             </div>`)}</div>
           ${this.routeCases !== null
             ? html`<div class="routeconfirm" data-route-confirm>
-                <select aria-label=${tr('תיק')} data-route-case .value=${this.routeCase} @change=${(e: Event) => (this.routeCase = (e.target as HTMLSelectElement).value)}>
+                <sw-field flow><select aria-label=${tr('תיק')} data-route-case .value=${this.routeCase} @change=${(e: Event) => (this.routeCase = (e.target as HTMLSelectElement).value)}>
                   <option value="" ?selected=${!this.routeCase}>${tr('תיק חדש')}</option>
                   ${(this.routeCases ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.routeCase}>${c.title}</option>`)}
-                </select>
+                </select></sw-field>
                 <sw-button variant="primary" size="sm" icon="case" ?disabled=${!picks.size || this.routeBusy} data-route-confirm-button @click=${() => this.confirmRoute()}>${this.routeBusy ? tr('מוסיף…') : tr('אשר מסלול לתיק ({n})', { n: picks.size })}</sw-button>
                 ${this.routeDone ? html`<span class="ok" data-route-done role="status">${tr('נוסף לתיק „{title}”', { title: this.routeDone.title })}${this.routeDone.skipped.length ? ` · ${tr('{n} דולגו', { n: this.routeDone.skipped.length })}` : ''} · <a href=${`#/investigate/cases/${this.routeDone.case_id}`}>${tr('פתח')}</a></span>` : nothing}
                 ${this.routeError ? html`<span class="err" role="alert" data-route-error>${this.routeError}</span>` : nothing}

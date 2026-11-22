@@ -21,6 +21,7 @@ import { invalidateSettings, productSettings } from '../api/prefs';
 import { patchSettings } from '../api/media';
 import { settingsStyles } from '../styles/settings';
 import { dayMonthTimeText } from '../api/day-format';
+import './sw-field';
 
 type Dialog = null | 'export' | 'rotate' | { remove: OffboxTarget } | { restore: OffboxTarget } | { gdrive: OffboxTarget } | { gdiag: OffboxTarget };
 
@@ -264,10 +265,10 @@ export class SwOffboxBackup extends LitElement {
       ${CONFIG_FIELDS[kind].map((k) => {
         const v = f.config[k];
         if (k === 'prune_mode') {
-          return html`<label class="row"><span class="lbl">${obt('prune_mode')}</span><select class="ctl" data-f="prune_mode" .value=${String(v ?? 'delete')}
+          return html`<label class="row"><span class="lbl">${obt('prune_mode')}</span><sw-field flow><select class="ctl" data-f="prune_mode" .value=${String(v ?? 'delete')}
             @change=${(e: Event) => this.setCfg(k, (e.target as HTMLSelectElement).value)}>
               <option value="delete" ?selected=${v !== 'trash'}>${obt('prune_delete')}</option>
-              <option value="trash" ?selected=${v === 'trash'}>${obt('prune_trash')}</option></select></label>`;
+              <option value="trash" ?selected=${v === 'trash'}>${obt('prune_trash')}</option></select></sw-field></label>`;
         }
         if (k in GDRIVE_NUMBERS) {
           const r = GDRIVE_NUMBERS[k];

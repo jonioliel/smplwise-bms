@@ -4,6 +4,7 @@ import { MAX_MINUTES } from '../api/automations-presence';
 import { FORMS, type FormCtx } from './automation-block-forms';
 import { CONDITION_TYPES, TRIGGER_TYPES, type BlockTypeDef } from './automation-editor-logic';
 import { tr } from '../i18n/msg/automation';
+import '../components/sw-field';
 
 /**
  * PRESENCE-2280 (mockup round 7, state "cockpit"): the two presence blocks of the automation builder, registered the way automation-block-forms.ts
@@ -38,7 +39,7 @@ function sensorPicker(fc: FormCtx, current: readonly string[]): TemplateResult {
 
 function buildingEmptyForm(fc: FormCtx): TemplateResult {
   const b = fc.block as unknown as { sensors: string[]; minutes: number };
-  return html`<div class="frow"><div class="fld"><label>${tr('מה')}</label><select class="selx" aria-label=${tr('מה')} data-fld="presence.what"><option selected>${tr('המבנה התרוקן')}</option></select></div>
+  return html`<div class="frow"><div class="fld"><label>${tr('מה')}</label><sw-field flow><select class="selx" aria-label=${tr('מה')} data-fld="presence.what"><option selected>${tr('המבנה התרוקן')}</option></select></sw-field></div>
     <div class="fld sm"><label>${tr('במשך (דקות)')}</label><label class="inp"><input class="n" type="number" min="1" max=${MAX_MINUTES} step="1" data-fld="presence.minutes" aria-label=${tr('דקות')} .value=${String(b.minutes)}
       @change=${(e: Event) => fc.patch((x) => { const n = Math.round(Number((e.target as HTMLInputElement).value)); x.minutes = Number.isFinite(n) ? Math.min(MAX_MINUTES, Math.max(1, n)) : 15; })} /></label></div></div>
     ${sensorPicker(fc, b.sensors)}`;
@@ -46,8 +47,8 @@ function buildingEmptyForm(fc: FormCtx): TemplateResult {
 
 function roomOccupiedForm(fc: FormCtx): TemplateResult {
   const b = fc.block as unknown as { mode: string; sensors: string[] };
-  return html`<div class="frow"><div class="fld"><label>${tr('מצב')}</label><select class="selx" aria-label=${tr('מצב')} data-fld="presence.mode" @change=${(e: Event) => fc.patch((x) => { x.mode = (e.target as HTMLSelectElement).value; })}>
-      <option value="occupied" ?selected=${b.mode === 'occupied'}>${tr('יש נוכחות')}</option><option value="empty" ?selected=${b.mode === 'empty'}>${tr('אין נוכחות')}</option></select></div></div>
+  return html`<div class="frow"><div class="fld"><label>${tr('מצב')}</label><sw-field flow><select class="selx" aria-label=${tr('מצב')} data-fld="presence.mode" @change=${(e: Event) => fc.patch((x) => { x.mode = (e.target as HTMLSelectElement).value; })}>
+      <option value="occupied" ?selected=${b.mode === 'occupied'}>${tr('יש נוכחות')}</option><option value="empty" ?selected=${b.mode === 'empty'}>${tr('אין נוכחות')}</option></select></sw-field></div></div>
     ${sensorPicker(fc, b.sensors)}`;
 }
 

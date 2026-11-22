@@ -5,6 +5,7 @@ import { icon } from './automation-builder-icons';
 import { AutomationEditorBase } from './automation-editor-base';
 import { CAPTURE_DOMAIN_LABEL, clone, entityIcon, memberFields, memberNumber, setMemberField, type MemberField } from './automation-editor-logic';
 import { tr } from '../i18n/msg/automation';
+import '../components/sw-field';
 
 /**
  * CR-017 S4: the scene editor (CR §4.3): the members of a scene and the values of each, as a table; "צלם מצב נוכחי" reads the current state of the
@@ -140,8 +141,8 @@ export class SceneEditor extends AutomationEditorBase {
 
   private field(m: SceneMember, f: MemberField) {
     if (f.kind === 'select') {
-      return html`<div class="fld"><label>${f.label}</label><select class="selx" data-fld=${`${m.entity_id}.${f.key}`} aria-label=${f.label} @change=${(e: Event) => this.setMembers((l) => l.map((x) => (x.entity_id === m.entity_id ? setMemberField(x, f, (e.target as HTMLSelectElement).value) : x)))}>
-        ${(f.options?.some((o) => o.value === m.state) ? f.options : [...(f.options ?? []), { value: m.state, label: m.state }]).map((o) => html`<option value=${o.value} ?selected=${o.value === m.state}>${o.label}</option>`)}</select></div>`;
+      return html`<div class="fld"><label>${f.label}</label><sw-field flow><select class="selx" data-fld=${`${m.entity_id}.${f.key}`} aria-label=${f.label} @change=${(e: Event) => this.setMembers((l) => l.map((x) => (x.entity_id === m.entity_id ? setMemberField(x, f, (e.target as HTMLSelectElement).value) : x)))}>
+        ${(f.options?.some((o) => o.value === m.state) ? f.options : [...(f.options ?? []), { value: m.state, label: m.state }]).map((o) => html`<option value=${o.value} ?selected=${o.value === m.state}>${o.label}</option>`)}</select></sw-field></div>`;
     }
     const v = memberNumber(m, f);
     return html`<div class="fld"><label>${f.label}</label><label class="inp"><input class="n" type="text" inputmode="decimal" data-fld=${`${m.entity_id}.${f.key}`} aria-label=${f.label} .value=${v === null ? '' : String(v)}

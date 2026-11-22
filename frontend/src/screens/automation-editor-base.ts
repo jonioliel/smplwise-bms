@@ -36,6 +36,7 @@ import {
 import { KeyedMemo } from './editor-guards';
 import { GATE_TEXT, saveGateOf, warningsOnly, type SaveGate } from './automation-save-gate';
 import { tr } from '../i18n/msg/automation';
+import '../components/sw-field';
 
 /** CR-EDITORS-MEMO-2440 (06:INFILE-1): the button row of a dialog's footer (it was written out eight times). */
 const dlgFoot = (buttons: TemplateResult): TemplateResult => html`<div slot="footer" style="display:flex;gap:8px;justify-content:flex-end;inline-size:100%">${buttons}</div>`;
@@ -1535,8 +1536,8 @@ export abstract class AutomationEditorBase extends LitElement {
       <summary>${icon('chevronDown')}${tr('אפשרויות')} · ${MODE_SUMMARY[d.mode] ?? ''}</summary>
       <div class="opts-wrap" ?inert=${this.hardReadOnly}>
         <div class="frow">
-          <div class="fld"><label>${tr('אם מופעלת שוב בזמן ריצה')}</label><select class="selx" data-fld="mode" aria-label=${tr('מצב')} @change=${(e: Event) => this.setField('mode', (e.target as HTMLSelectElement).value)}>
-            ${(['single', 'restart', 'queued', 'parallel'] as const).map((m) => html`<option value=${m} ?selected=${d.mode === m}>${MODE_LABEL[m]}</option>`)}</select></div>
+          <div class="fld"><label>${tr('אם מופעלת שוב בזמן ריצה')}</label><sw-field flow><select class="selx" data-fld="mode" aria-label=${tr('מצב')} @change=${(e: Event) => this.setField('mode', (e.target as HTMLSelectElement).value)}>
+            ${(['single', 'restart', 'queued', 'parallel'] as const).map((m) => html`<option value=${m} ?selected=${d.mode === m}>${MODE_LABEL[m]}</option>`)}</select></sw-field></div>
           ${d.mode === 'queued' || d.mode === 'parallel' ? html`<div class="fld sm"><label>${tr('מקסימום')}</label><label class="inp"><input class="n" data-fld="max" type="text" inputmode="numeric" aria-label=${tr('מקסימום')} .value=${d.max == null ? '' : String(d.max)} @change=${(e: Event) => { const n = parseInt((e.target as HTMLInputElement).value, 10); this.setField('max', Number.isFinite(n) && n > 0 ? n : null); }} /></label></div>` : nothing}
         </div>
         <div class="fld full"><label>${tr('תיאור')}</label><label class="inp"><input data-fld="description" aria-label=${tr('תיאור')} placeholder=${tr('לא חובה')} .value=${d.description ?? ''} @input=${(e: Event) => this.setField('description', (e.target as HTMLInputElement).value)} /></label></div>

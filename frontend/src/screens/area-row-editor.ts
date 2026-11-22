@@ -8,6 +8,7 @@ import {
   type AreaItem, type AreaRow, type ClimateDisplay, type ClimateMode, type FloorItem, type FloorRow,
 } from '../api/area-row';
 import { tr } from '../i18n/msg/devices';
+import '../components/sw-field';
 
 export interface AreaRowChange {
   area: AreaRow;
@@ -196,24 +197,24 @@ export class AreaRowEditor extends LitElement {
       </ul>
       <div class="row">
         <label for="are-climate">${tr('המזגן מציג')}</label>
-        <select id="are-climate" data-area-climate ?disabled=${dis} @change=${(e: Event) => this.emit({ ...this.area, climate: (e.target as HTMLSelectElement).value as ClimateDisplay }, this.floor)}>
+        <sw-field flow><select id="are-climate" data-area-climate ?disabled=${dis} @change=${(e: Event) => this.emit({ ...this.area, climate: (e.target as HTMLSelectElement).value as ClimateDisplay }, this.floor)}>
           ${CLIMATE_DISPLAYS.map((d) => html`<option value=${d} ?selected=${this.area.climate === d}>${CLIMATE_DISPLAY_LABEL[d]}</option>`)}
-        </select>
+        </select></sw-field>
       </div>
       <div class="row">
         <label for="are-cmode">${tr('כמה מזגנים באזור')}</label>
-        <select id="are-cmode" data-area-climate-mode ?disabled=${dis} @change=${(e: Event) => this.emit({ ...this.area, climate_mode: (e.target as HTMLSelectElement).value as ClimateMode }, this.floor)}>
+        <sw-field flow><select id="are-cmode" data-area-climate-mode ?disabled=${dis} @change=${(e: Event) => this.emit({ ...this.area, climate_mode: (e.target as HTMLSelectElement).value as ClimateMode }, this.floor)}>
           ${CLIMATE_MODES.map((m) => html`<option value=${m} ?selected=${this.area.climate_mode === m}>${CLIMATE_MODE_LABEL[m]}</option>`)}
-        </select>
+        </select></sw-field>
       </div>
       ${this.area.climate_mode === 'lead' && this.multi?.length
         ? html`<ul aria-label=${tr('המזגן המוביל')} data-climate-leads>
             ${this.multi.map((a) => html`<li data-climate-lead-area=${a.area_id}>
               <label for=${`lead-${a.area_id}`} style="flex:1">${a.name}</label>
-              <select id=${`lead-${a.area_id}`} data-climate-lead=${a.area_id} ?disabled=${dis} @change=${(e: Event) => this.setLead(a.area_id, (e.target as HTMLSelectElement).value)}>
+              <sw-field flow><select id=${`lead-${a.area_id}`} data-climate-lead=${a.area_id} ?disabled=${dis} @change=${(e: Event) => this.setLead(a.area_id, (e.target as HTMLSelectElement).value)}>
                 <option value="" ?selected=${!this.area.climate_lead[a.area_id]}>${tr('הפועל הראשון')}</option>
                 ${a.climate.map((c) => html`<option value=${c.entity_id} ?selected=${this.area.climate_lead[a.area_id] === c.entity_id}>${c.name}</option>`)}
-              </select>
+              </select></sw-field>
             </li>`)}
           </ul>`
         : nothing}

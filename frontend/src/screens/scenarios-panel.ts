@@ -23,6 +23,7 @@ import {
 import type { DrawerResult } from './automation-drawer';
 import { dateInputLang } from '../api/day-format';
 import { tr } from '../i18n/msg/automation';
+import '../components/sw-field';
 
 const CMP_TEXT: Record<Cmp, string> = { is_true: tr('כן'), is_false: tr('לא'), gt: '>', ge: '≥', lt: '<', le: '≤', eq: '=', ne: '≠', between: tr('בין'), outside: tr('מחוץ ל'), in_set: tr('אחד מ') };
 const TRI: Record<Tri, { mark: string; cls: string }> = { TRUE: { mark: '✓', cls: 't' }, FALSE: { mark: '✗', cls: 'f' }, UNKNOWN: { mark: '?', cls: 'u' } };
@@ -241,17 +242,17 @@ export class ScenariosPanel extends LitElement {
     const num = (v: string) => (v === '' ? undefined : Number(v));
     return html`<div class="leaf" data-leaf=${sp}>
       ${snap ? html`<span class=${`tri ${TRI[snap.result].cls}`} title=${snap.reason ?? ''}>${TRI[snap.result].mark}</span>` : nothing}
-      <select aria-label=${sct('signal')} @change=${(e: Event) => { const ns = this.sig((e.target as HTMLSelectElement).value); if (ns) this.setAt(path, () => newLeaf(ns)); }}>
+      <sw-field flow><select aria-label=${sct('signal')} @change=${(e: Event) => { const ns = this.sig((e.target as HTMLSelectElement).value); if (ns) this.setAt(path, () => newLeaf(ns)); }}>
         ${groups.map((g) => html`<optgroup label=${g}>${signals.filter((x) => x.module_label === g).map((x) => html`<option value=${x.id} ?selected=${x.id === leaf.signal}>${x.label}</option>`)}</optgroup>`)}
-      </select>
+      </select></sw-field>
       ${s && s.subject !== 'none' && s.subject !== 'window'
         ? s.subject === 'flag'
           ? html`<input aria-label=${sct('flagName')} .value=${leaf.subject ?? ''} pattern="[a-z][a-z0-9_]{1,39}" @change=${(e: Event) => upd({ subject: (e.target as HTMLInputElement).value.trim() })} />`
-          : html`<select aria-label=${sct('subject')} @change=${(e: Event) => upd({ subject: (e.target as HTMLSelectElement).value })}>${s.subjects.map((x) => html`<option value=${x.id} ?selected=${x.id === leaf.subject}>${bidi(x.name)}</option>`)}</select>`
+          : html`<sw-field flow><select aria-label=${sct('subject')} @change=${(e: Event) => upd({ subject: (e.target as HTMLSelectElement).value })}>${s.subjects.map((x) => html`<option value=${x.id} ?selected=${x.id === leaf.subject}>${bidi(x.name)}</option>`)}</select></sw-field>`
         : nothing}
       ${s?.subject === 'window' && leaf.window ? this.windowEditor(leaf, upd) : nothing}
-      ${s ? html`<select aria-label=${tr('השוואה')} @change=${(e: Event) => { const c = (e.target as HTMLSelectElement).value as Cmp; upd({ cmp: c, value: c === 'between' || c === 'outside' ? [2, 8] : c === 'is_true' || c === 'is_false' ? undefined : typeof leaf.value === 'number' ? leaf.value : 0 }); }}>
-        ${cmpsFor(s.kind).map((c) => html`<option value=${c} ?selected=${c === leaf.cmp}>${CMP_TEXT[c]}</option>`)}</select>` : nothing}
+      ${s ? html`<sw-field flow><select aria-label=${tr('השוואה')} @change=${(e: Event) => { const c = (e.target as HTMLSelectElement).value as Cmp; upd({ cmp: c, value: c === 'between' || c === 'outside' ? [2, 8] : c === 'is_true' || c === 'is_false' ? undefined : typeof leaf.value === 'number' ? leaf.value : 0 }); }}>
+        ${cmpsFor(s.kind).map((c) => html`<option value=${c} ?selected=${c === leaf.cmp}>${CMP_TEXT[c]}</option>`)}</select></sw-field>` : nothing}
       ${s && (s.kind === 'number' || s.kind === 'count') && !Array.isArray(leaf.value) && leaf.cmp !== 'is_true' && leaf.cmp !== 'is_false'
         ? html`<input type="number" aria-label=${sct('value')} .value=${String(leaf.value ?? '')} step=${s.kind === 'count' ? '1' : '0.1'} @change=${(e: Event) => upd({ value: Number((e.target as HTMLInputElement).value) })} />${s.unit ? html`<span class="hint">${s.unit}</span>` : nothing}` : nothing}
       ${Array.isArray(leaf.value) ? html`<input type="number" class="sm" aria-label=${tr('מ')} .value=${String(leaf.value[0])} @change=${(e: Event) => upd({ value: [Number((e.target as HTMLInputElement).value), Number((leaf.value as number[])[1])] })} />–<input type="number" class="sm" aria-label=${tr('עד')} .value=${String(leaf.value[1])} @change=${(e: Event) => upd({ value: [Number((leaf.value as number[])[0]), Number((e.target as HTMLInputElement).value)] })} />` : nothing}
@@ -298,22 +299,22 @@ export class ScenariosPanel extends LitElement {
     const set = (next: Action) => { const actions = [...this.draft.actions]; actions[i] = next; this.draft = { ...this.draft, actions }; this.dry = null; };
     const off = this.status && !this.status.actions[a.type];
     return html`<div class="act" data-action=${a.type}>
-      <select aria-label=${tr('פעולה')} @change=${(e: Event) => { const t = (e.target as HTMLSelectElement).value; set(t === 'notify' ? { type: 'notify', to: { roles: [], users: [] } } : t === 'set_flag' ? { type: 'set_flag', flag: 'flag_1', value: true } : { type: 'create_service_request', department_id: '' }); }}>
+      <sw-field flow><select aria-label=${tr('פעולה')} @change=${(e: Event) => { const t = (e.target as HTMLSelectElement).value; set(t === 'notify' ? { type: 'notify', to: { roles: [], users: [] } } : t === 'set_flag' ? { type: 'set_flag', flag: 'flag_1', value: true } : { type: 'create_service_request', department_id: '' }); }}>
         <option value="notify" ?selected=${a.type === 'notify'}>${sct('actNotify')}</option>
         ${this.cat?.tickets_on || a.type === 'create_service_request' ? html`<option value="create_service_request" ?selected=${a.type === 'create_service_request'}>${sct('actTicket')}</option>` : nothing}
         <option value="set_flag" ?selected=${a.type === 'set_flag'}>${sct('actFlag')}</option>
-      </select>
+      </select></sw-field>
       ${a.type === 'notify' ? html`<scenario-recipients data-notify-to .choices=${this.choices} .value=${{ users: a.to?.users ?? [], roles: a.to?.roles ?? [] }}
         @change=${(e: CustomEvent<{ value: { users: string[]; roles: string[] } }>) => set({ ...a, to: e.detail.value })}></scenario-recipients>` : nothing}
-      ${a.type === 'create_service_request' ? html`<select aria-label=${sct('department')} data-department @change=${(e: Event) => set({ ...a, department_id: (e.target as HTMLSelectElement).value })}>
+      ${a.type === 'create_service_request' ? html`<sw-field flow><select aria-label=${sct('department')} data-department @change=${(e: Event) => set({ ...a, department_id: (e.target as HTMLSelectElement).value })}>
           <option value="" ?selected=${!a.department_id}>${sct('departmentPick')}</option>
           ${(this.choices?.departments ?? []).map((d) => html`<option value=${d.id} ?selected=${d.id === a.department_id}>${bidi(d.name)}</option>`)}
           ${a.department_id && !(this.choices?.departments ?? []).some((d) => d.id === a.department_id) ? html`<option value=${a.department_id} selected>${a.department_id}</option>` : nothing}
-        </select>
+        </select></sw-field>
         <input aria-label=${sct('ticketTitle')} placeholder=${sct('ticketTitle')} .value=${a.title ?? ''} @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value.trim(); set({ ...a, title: v || undefined }); }} />
         ${this.cat && !this.cat.tickets_on ? html`<span class="err">${sct('ticketsOff')}</span>` : nothing}` : nothing}
       ${a.type === 'set_flag' ? html`<input aria-label=${sct('flagName')} .value=${a.flag} @change=${(e: Event) => set({ ...a, flag: (e.target as HTMLInputElement).value.trim() })} />
-        <select aria-label=${sct('flagValue')} @change=${(e: Event) => set({ ...a, value: (e.target as HTMLSelectElement).value === 'true' })}><option value="true" ?selected=${a.value}>${tr('כן')}</option><option value="false" ?selected=${!a.value}>${tr('לא')}</option></select>` : nothing}
+        <sw-field flow><select aria-label=${sct('flagValue')} @change=${(e: Event) => set({ ...a, value: (e.target as HTMLSelectElement).value === 'true' })}><option value="true" ?selected=${a.value}>${tr('כן')}</option><option value="false" ?selected=${!a.value}>${tr('לא')}</option></select></sw-field>` : nothing}
       ${off ? html`<span class="hint" data-action-off>${sct('actionOff')}</span>` : nothing}
       <button type="button" class="btn sm" aria-label=${sct('remove')} @click=${() => { this.draft = { ...this.draft, actions: this.draft.actions.filter((_, j) => j !== i) }; }}>${aIcon('close')}</button>
     </div>`;
@@ -333,7 +334,7 @@ export class ScenariosPanel extends LitElement {
       html`<label class="fld">${label}<input type="number" min="0" .value=${String(o[k] ?? '')} placeholder=${d && k in d ? String((d as Record<string, unknown>)[k]) : ''} @change=${(e: Event) => set(k, (e.target as HTMLInputElement).value)} /></label>`;
     return html`<details><summary>${sct('options')}</summary><div class="two">
       ${num('cooldown_s', sct('cooldown'))}${num('clear_after_s', sct('clearAfter'))}${num('for_s', sct('forS'))}${num('unknown_grace_s', sct('grace'))}
-      <label class="fld">${sct('onUnknown')}<select @change=${(e: Event) => set('on_unknown', (e.target as HTMLSelectElement).value)}><option value="hold" ?selected=${o.on_unknown !== 'treat_as_false'}>${sct('onUnknownHold')}</option><option value="treat_as_false" ?selected=${o.on_unknown === 'treat_as_false'}>${sct('onUnknownFalse')}</option></select></label>
+      <label class="fld">${sct('onUnknown')}<sw-field flow><select @change=${(e: Event) => set('on_unknown', (e.target as HTMLSelectElement).value)}><option value="hold" ?selected=${o.on_unknown !== 'treat_as_false'}>${sct('onUnknownHold')}</option><option value="treat_as_false" ?selected=${o.on_unknown === 'treat_as_false'}>${sct('onUnknownFalse')}</option></select></sw-field></label>
       ${num('max_fires_per_day', sct('maxFires'))}${num('max_tickets_per_day', sct('maxTickets'))}
     </div></details>`;
   }

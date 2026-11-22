@@ -6,6 +6,7 @@ import { describeError } from '../api/client';
 import { confirmEnrolment, disableSecondFactor, factorOverrides, factorUsers, resetFactor, secondFactorStatus, setFactorOverride, startEnrolment, type Enrolment, type FactorOverride, type FactorOverrides, type SecondFactorStatus } from '../api/second-factor';
 import { t } from '../i18n/he';
 import { dayText } from '../api/day-format';
+import './sw-field';
 
 /** The otpauth link as an inline SVG QR code (one path, no data: URL, so the strict remote CSP is untouched). */
 export function qrSvg(text: string, px = 168) {
@@ -383,9 +384,9 @@ export class SwSecondFactorPolicy extends LitElement {
   render() {
     if (this.value === undefined) return nothing;
     return html`<div class="row" data-sf-policy-row>
-        <select data-sf-policy-select aria-label=${t('secondFactor.overrideLabel')} ?disabled=${this.busy} @change=${(e: Event) => void this.change(e)}>
+        <sw-field flow><select data-sf-policy-select aria-label=${t('secondFactor.overrideLabel')} ?disabled=${this.busy} @change=${(e: Event) => void this.change(e)}>
           ${(['inherit', 'optional', 'required'] as const).map((v) => html`<option value=${v} ?selected=${this.value === v}>${t(v === 'inherit' ? 'secondFactor.overrideInherit' : v === 'optional' ? 'secondFactor.overrideOptional' : 'secondFactor.overrideRequired')}</option>`)}
-        </select>
+        </select></sw-field>
       </div>
       ${this.error ? html`<div class="err" role="alert" data-sf-policy-error>${this.error}</div>` : nothing}`;
   }

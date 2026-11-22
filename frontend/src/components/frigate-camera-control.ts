@@ -11,6 +11,7 @@ import {
 } from '../api/frigate-control';
 import { he } from '../i18n/he';
 import { ToastController } from './toast-controller';
+import './sw-field';
 
 interface Pending {
   group: SwitchGroup | 'profile';
@@ -232,14 +233,14 @@ export class FrigateCameraControl extends LitElement {
       ${d ? this.group('record', c.record, d.writable.record) : nothing}
       ${pr ? html`<div class="row" data-fcc-profile>
         <h4>${c.profile}</h4>
-        <select aria-label=${c.profile} .value=${pr.active ?? ''} ?disabled=${this.busy} @change=${(e: Event) => {
+        <sw-field flow><select aria-label=${c.profile} .value=${pr.active ?? ''} ?disabled=${this.busy} @change=${(e: Event) => {
           const el = e.currentTarget as HTMLSelectElement;
           const prev = pr.active ?? '';
           this.ask({ group: 'profile', feature: 'profile', to: el.value || null, undo: () => (el.value = prev) });
         }}>
           <option value="">${c.noProfile}</option>
           ${pr.names.map((n) => html`<option value=${n} ?selected=${n === pr.active}>${n}</option>`)}
-        </select>
+        </select></sw-field>
       </div>` : nothing}
       ${this.msg ? html`<div class=${`msg ${this.msg.tone}`} role=${this.msg.tone === 'err' ? 'alert' : 'status'} data-fcc-msg>${this.msg.text}</div>` : nothing}
       ${this.dialog()}

@@ -14,6 +14,7 @@ import { applyMapping, saveState, setMultiBuilding, type MappingData } from '../
 import { OneAtATime } from './editor-guards';
 import { tr } from '../i18n/msg/media';
 import { mappingAssistantStyles } from './mapping-assistant-css';
+import '../components/sw-field';
 
 /**
  * MAPPING-ASSIST-2330 `<mapping-assistant>` - the approved round-10 mockup v3: one question first ("איך הבניין מסומן בשמות שלכם?"), the
@@ -465,7 +466,7 @@ export class MappingAssistant extends LitElement {
       <button class="grip" draggable="true" aria-label=${tr('גרור את "{token}" על סימון אחר כדי לאחד', { token: r.token })} title=${tr('גרירה על שורה אחרת = אותו בניין')}
         @dragstart=${(e: DragEvent) => { this.dragTok = r.token; e.dataTransfer?.setData('text/plain', r.token); }} @dragend=${() => (this.dragTok = '')}><sw-icon name="grip" size=${16}></sw-icon></button>
       <span class="tok"><span class="g ${this.isShared(r.target) ? 'sh' : !r.target ? 'un' : ''}" title=${r.token}>${r.token}</span>${sepNote(r)}${r.merged ? html`<span class="tag m" data-ma-merged>${tr('מאוחד')}</span>` : nothing}${r.manual ? html`<span class="tag">${tr('נוסף ידנית')}</span>` : nothing}</span>
-      <select data-ma-target=${r.token} aria-label=${tr('הבניין של "{token}"', { token: r.token })} @change=${(e: Event) => this.setToken(r.token, (e.target as HTMLSelectElement).value)}>${this.targetOptions(r.target, r.token)}</select>
+      <sw-field flow><select data-ma-target=${r.token} aria-label=${tr('הבניין של "{token}"', { token: r.token })} @change=${(e: Event) => this.setToken(r.token, (e.target as HTMLSelectElement).value)}>${this.targetOptions(r.target, r.token)}</select></sw-field>
       <span class="c"><b>${tr('{floors} קומות, {areas} אזורים', { floors: r.stat.floors, areas: r.stat.areas })}</b>${!r.target ? html`<small>${tr('אין בניין "{token}" - חדש? קיים?', { token: r.token })}</small>` : r.own ? nothing : html`<small>${tr('לפי שם הבניין')}</small>`}</span>
       <span class="samp">${r.stat.samples.slice(0, 4).map((s) => html`<span title=${s}><bdi>${s}</bdi></span>`)}${r.stat.floors + r.stat.areas > 4 ? html`<span>+${r.stat.floors + r.stat.areas - 4}</span>` : nothing}</span>
     </div>`);
@@ -516,12 +517,12 @@ export class MappingAssistant extends LitElement {
           : html`<span class="tag ok"><sw-icon name="check" size=${12}></sw-icon>${tr('נקבע')}</span>`;
       return html`<div class="lv" data-ma-level=${q.id}>
         <span class="t"><b><bdi>${it?.name ?? q.rest}</bdi></b><small>${this.bName(to)} · ${q.answer?.t === 'floor' ? tr('לקומה קיימת') : tr('קומה "{rest}"', { rest: q.rest })}</small></span>
-        <select data-ma-level-pick=${q.id} aria-label=${tr('המפלס של "{name}"', { name: it?.name ?? q.rest })} @change=${(e: Event) => this.setLevel(q.id, parse((e.target as HTMLSelectElement).value))}>
+        <sw-field flow><select data-ma-level-pick=${q.id} aria-label=${tr('המפלס של "{name}"', { name: it?.name ?? q.rest })} @change=${(e: Event) => this.setLevel(q.id, parse((e.target as HTMLSelectElement).value))}>
           <option value="" ?selected=${!cur}>${tr('בחרו מפלס')}</option>
           ${existing.length ? html`<optgroup label=${tr('זהה לקומה קיימת')}>${existing.map((f) => html`<option value=${`f:${f.id}`} ?selected=${cur === `f:${f.id}`}>${tr('{name} (מפלס {level})', { name: f.name, level: f.level })}</option>`)}</optgroup>` : nothing}
           <optgroup label=${tr('מפלס לקומה חדשה')}>${levels.map((n) => html`<option value=${`l:${n}`} ?selected=${cur === `l:${n}`}>${tr('מפלס {n}', { n })}</option>`)}</optgroup>
           <option value="skip" ?selected=${cur === 'skip'}>${tr('דלג - מפלס 0, כמו היום')}</option>
-        </select>
+        </select></sw-field>
         ${tag}
       </div>`;
     });

@@ -24,6 +24,7 @@ import {
 } from './schedule-edit-logic';
 import { dateInputLang } from '../api/day-format';
 import { tr } from '../i18n/msg/automation';
+import '../components/sw-field';
 
 /**
  * CR-014 S4: the editor of one slot (mockup 05 / 06, the card under the board): when it runs, when its window ends, what it
@@ -401,9 +402,9 @@ export class ScheduleSlotPanel extends LitElement {
     const id = `${which}-${s.uid}`;
     return html`<div class="f">
       <label for=${id}>${which === 'start' ? tr('משעה (רגע הביצוע)') : tr('עד שעה (סוף חלון)')}</label>
-      <select id=${id} ?disabled=${this.readOnly} data-time-kind=${which} @change=${(e: Event) => this.setTime(which, { kind: (e.target as HTMLSelectElement).value as TimeKind })}>
+      <sw-field flow><select id=${id} ?disabled=${this.readOnly} data-time-kind=${which} @change=${(e: Event) => this.setTime(which, { kind: (e.target as HTMLSelectElement).value as TimeKind })}>
         ${kinds.map((k) => html`<option value=${k} ?selected=${p.kind === k}>${KIND_LABEL[k]}</option>`)}
-      </select>
+      </select></sw-field>
       ${p.kind === 'fixed'
         ? html`<input type="time" lang=${dateInputLang()} step="60" ?disabled=${this.readOnly} data-time=${which} aria-label=${which === 'start' ? tr('שעת התחלה') : tr('שעת סיום')} .value=${p.time} @change=${(e: Event) => (e.target as HTMLInputElement).value && this.setTime(which, { time: (e.target as HTMLInputElement).value })} />`
         : p.kind === 'sunrise' || p.kind === 'sunset'
@@ -485,10 +486,10 @@ export class ScheduleSlotPanel extends LitElement {
         }
         if (f.choices && f.choices.length) {
           return html`<div class="arg" data-var=${f.name}><label for=${key}>${label}</label>
-            <select id=${key} ?disabled=${ro} @change=${(e: Event) => this.setVar(group, f.name, (e.target as HTMLSelectElement).value)}>
+            <sw-field flow><select id=${key} ?disabled=${ro} @change=${(e: Event) => this.setVar(group, f.name, (e.target as HTMLSelectElement).value)}>
               ${f.required ? nothing : html`<option value="" ?selected=${v === undefined}>${tr('ללא')}</option>`}
               ${f.choices.map((c) => html`<option value=${c} ?selected=${v === c}>${c}</option>`)}
-            </select></div>`;
+            </select></sw-field></div>`;
         }
         if (f.type === 'int' || f.type === 'float') {
           return html`<div class="arg" data-var=${f.name}><label for=${key}>${label}</label>
@@ -530,10 +531,10 @@ export class ScheduleSlotPanel extends LitElement {
     if (spec.choices && spec.choices.length) {
       return html`<div class="arg" data-arg=${spec.name}>
         <label for=${key}>${label}</label>
-        <select id=${key} ?disabled=${ro} @change=${(e: Event) => this.setArg(group, spec.name, (e.target as HTMLSelectElement).value)}>
+        <sw-field flow><select id=${key} ?disabled=${ro} @change=${(e: Event) => this.setArg(group, spec.name, (e.target as HTMLSelectElement).value)}>
           ${spec.required ? nothing : html`<option value="" ?selected=${v === undefined}>${tr('ללא שינוי')}</option>`}
           ${spec.choices.map((c) => html`<option value=${c} ?selected=${v === c}>${spec.name === 'hvac_mode' ? HVAC_WORDS[c] ?? c : c}</option>`)}
-        </select>
+        </select></sw-field>
       </div>`;
     }
     if (spec.type === 'bool') {
@@ -590,12 +591,12 @@ export class ScheduleSlotPanel extends LitElement {
       </div>
       <div class="f">
         <label for=${id}>${tr('פעולה')}</label>
-        <select id=${id} ?disabled=${this.readOnly || !catalog.length} data-service @change=${(e: Event) => this.onService(group, (e.target as HTMLSelectElement).value)}>
+        <sw-field flow><select id=${id} ?disabled=${this.readOnly || !catalog.length} data-service @change=${(e: Event) => this.onService(group, (e.target as HTMLSelectElement).value)}>
           ${known || !catalog.length ? nothing : html`<option value=${group.service} selected>${actionLabel({ service: group.service })}</option>`}
           ${!catalog.length ? html`<option value=${group.service} selected>${actionLabel({ service: group.service, data: group.data })}</option>` : nothing}
           ${common.map((a) => html`<option value=${a.service} ?selected=${a.service === group.service}>${serviceWord(a.service, a.label)}</option>`)}
           ${advanced.length ? html`<optgroup label=${tr('מתקדם')}>${advanced.map((a) => html`<option value=${a.service} ?selected=${a.service === group.service}>${serviceWord(a.service, a.label)}</option>`)}</optgroup>` : nothing}
-        </select>
+        </select></sw-field>
       </div>
       ${specs.map((sp) => this.renderArg(group, sp))}
     </div>`;
@@ -638,14 +639,14 @@ export class ScheduleSlotPanel extends LitElement {
               <div class="groups">
                 ${groups.length ? groups.map((g, i) => this.renderGroup(g, i)) : html`<div class="empty" data-slot-empty><sw-icon name="info" size="16"></sw-icon>${tr('בחרו פעולה: הוסיפו התקנים לתזמון בכפתור "בחירת התקנים".')}</div>`}
                 ${!this.readOnly && addable.length
-                  ? html`<select class="add-ent" aria-label=${tr('הוספת התקן לפעולה')} data-add-entity @change=${(e: Event) => {
+                  ? html`<sw-field flow><select class="add-ent" aria-label=${tr('הוספת התקן לפעולה')} data-add-entity @change=${(e: Event) => {
                       const el = e.target as HTMLSelectElement;
                       if (el.value) this.addEntity(el.value);
                       el.value = '';
                     }}>
                       <option value="">${tr('הוספת התקן למשבצת…')}</option>
                       ${addable.map((id) => html`<option value=${id}>${this.meta.get(id)?.name ?? id}</option>`)}
-                    </select>`
+                    </select></sw-field>`
                   : nothing}
               </div>
             </div>

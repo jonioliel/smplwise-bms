@@ -35,6 +35,7 @@ import { dateInputLang } from '../api/day-format';
 import { PollController } from '../components/poll-controller';
 import { errLineStyles } from '../styles/fragments';
 import { ToastController } from '../components/toast-controller';
+import '../components/sw-field';
 
 const POLL_MS = 15_000;
 const EM_POLL_MS = 5_000;
@@ -567,8 +568,8 @@ export class DoorWindowsScreen extends LitElement {
             @change=${(e: Event) => this.patch((d) => (d.date = (e.target as HTMLInputElement).value))}></div>
           <div class="field">${this.renderRanges(dr.ranges, (fn) => this.patch((d) => fn(d.ranges)))}</div>` : nothing}
         ${dr.kind === 'weekly' ? html`<div class="field"><label for="dw-cal">${dwt('fCalendar')}</label>
-          <select id="dw-cal" @change=${(e: Event) => this.patch((d) => (d.calendar = (e.target as HTMLSelectElement).value as CalendarPolicy))}>
-            ${CALENDARS.map((c) => html`<option value=${c} ?selected=${dr.calendar === c}>${dwt(`cal_${c}` as DwtKey)}</option>`)}</select></div>` : nothing}
+          <sw-field flow><select id="dw-cal" @change=${(e: Event) => this.patch((d) => (d.calendar = (e.target as HTMLSelectElement).value as CalendarPolicy))}>
+            ${CALENDARS.map((c) => html`<option value=${c} ?selected=${dr.calendar === c}>${dwt(`cal_${c}` as DwtKey)}</option>`)}</select></sw-field></div>` : nothing}
         ${this.preview ? html`<div class="preview card" data-dw-preview><b>${dwt('previewTitle')}</b>
           <span class="muted">${this.preview.tier === 'prepared' ? dwt('previewPrepared') : dwt('previewEngine')}</span>
           ${this.preview.doors.map((p) => html`<div><b>${p.label}</b>

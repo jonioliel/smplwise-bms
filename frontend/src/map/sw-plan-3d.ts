@@ -38,6 +38,7 @@ import { t } from '../i18n/he';
 import { TIME_BAND_HE, hourLabel, moodInstant, resolveSite, siteInstant, siteLocal, timeBand, type LightMood, type ResolvedSite } from './sun';
 import { dateInputLang } from '../api/day-format';
 import { ToastController } from '../components/toast-controller';
+import '../components/sw-field';
 export { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS } from './timing';
 /** The browser's cache of the viewer's own mode (api/plan-quality.ts; the server keeps it per user in /me/prefs). */
 export { QUALITY_KEY } from '../api/plan-quality';
@@ -2204,10 +2205,10 @@ export class SwPlan3d extends LitElement {
         <sw-chip data-preset-iso ?selected=${preset === 'iso'} @click=${() => this.pickPreset('iso')}>${tr('איזומטרי')}</sw-chip>
         <sw-chip data-preset-persp ?selected=${preset === 'persp'} @click=${() => this.pickPreset('persp')}>${tr('פרספקטיבה')}</sw-chip>
         ${this.cameras.length
-          ? html`<select data-preset-camera aria-label=${tr('מבט מהמצלמה')} .value=${cameraId} @change=${(e: Event) => this.onCameraChange(e)}>
+          ? html`<sw-field flow><select data-preset-camera aria-label=${tr('מבט מהמצלמה')} .value=${cameraId} @change=${(e: Event) => this.onCameraChange(e)}>
               <option value="">${tr('מבט מהמצלמה…')}</option>
               ${this.cameras.map((c) => html`<option value=${c.id} ?selected=${c.id === cameraId}>${c.label}</option>`)}
-            </select>`
+            </select></sw-field>`
           : nothing}
         <span class="sep" aria-hidden="true"></span>
         <sw-chip data-quality-auto title=${tr('אוטומטי: מתחיל ברמת ברירת המחדל ויורד רמה כשהמכשיר איטי')} ?selected=${this.mode === 'auto'} @click=${() => this.setMode('auto')}>${tr('אוטומטי')}</sw-chip>

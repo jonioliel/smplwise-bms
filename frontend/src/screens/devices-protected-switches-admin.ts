@@ -15,6 +15,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { dayTimeText } from '../api/day-format';
 import { DevicesOverrideListAdmin, OVERRIDE_PAGE as PAGE, overrideListStyles, overrideTableStyles } from './devices-override-admin';
 import { tr } from '../i18n/msg/devices';
+import '../components/sw-field';
 
 interface ListReply {
   switches: ProtectedSwitchRow[];
@@ -175,15 +176,15 @@ export class DevicesProtectedSwitches extends DevicesOverrideListAdmin<Protected
         : nothing}
       <div class="bar">
         <input type="search" data-protected-search placeholder=${tr('חיפוש לפי שם, אזור או מזהה…')} aria-label=${tr('חיפוש מתגים')} .value=${f.q} @input=${(e: Event) => this.setFilter({ q: (e.target as HTMLInputElement).value })} />
-        <select data-protected-status aria-label=${tr('סטטוס')} @change=${(e: Event) => this.setFilter({ status: (e.target as HTMLSelectElement).value as StatusFilter })}>
+        <sw-field flow><select data-protected-status aria-label=${tr('סטטוס')} @change=${(e: Event) => this.setFilter({ status: (e.target as HTMLSelectElement).value as StatusFilter })}>
           <option value="" ?selected=${!f.status}>${tr('הכל')}</option>
           <option value="protected" ?selected=${f.status === 'protected'}>${tr('מוגנים')}</option>
           <option value="suggested" ?selected=${f.status === 'suggested'}>${tr('מוצעים להגנה')}</option>
           <option value="unprotected" ?selected=${f.status === 'unprotected'}>${tr('לא מוגנים')}</option>
-        </select>
-        <select data-protected-category aria-label=${tr('קטגוריה')} @change=${(e: Event) => this.setFilter({ category: (e.target as HTMLSelectElement).value })}><option value="">${tr('כל הקטגוריות')}</option>${this.categories.map((c) => html`<option value=${c.id} ?selected=${f.category === c.id}>${c.label}</option>`)}</select>
-        <select data-protected-floor aria-label=${tr('קומה')} @change=${(e: Event) => this.setFilter({ floor: (e.target as HTMLSelectElement).value, area: '' })}><option value="">${tr('כל הקומות')}</option>${floors.map(([id, n]) => html`<option value=${id} ?selected=${f.floor === id}>${n}</option>`)}</select>
-        <select data-protected-area aria-label=${tr('אזור')} @change=${(e: Event) => this.setFilter({ area: (e.target as HTMLSelectElement).value })}><option value="">${tr('כל האזורים')}</option>${areas.map(([id, n]) => html`<option value=${id} ?selected=${f.area === id}>${n}</option>`)}</select>
+        </select></sw-field>
+        <sw-field flow><select data-protected-category aria-label=${tr('קטגוריה')} @change=${(e: Event) => this.setFilter({ category: (e.target as HTMLSelectElement).value })}><option value="">${tr('כל הקטגוריות')}</option>${this.categories.map((c) => html`<option value=${c.id} ?selected=${f.category === c.id}>${c.label}</option>`)}</select></sw-field>
+        <sw-field flow><select data-protected-floor aria-label=${tr('קומה')} @change=${(e: Event) => this.setFilter({ floor: (e.target as HTMLSelectElement).value, area: '' })}><option value="">${tr('כל הקומות')}</option>${floors.map(([id, n]) => html`<option value=${id} ?selected=${f.floor === id}>${n}</option>`)}</select></sw-field>
+        <sw-field flow><select data-protected-area aria-label=${tr('אזור')} @change=${(e: Event) => this.setFilter({ area: (e.target as HTMLSelectElement).value })}><option value="">${tr('כל האזורים')}</option>${areas.map(([id, n]) => html`<option value=${id} ?selected=${f.area === id}>${n}</option>`)}</select></sw-field>
         ${filtersActive(f) ? html`<sw-button size="sm" variant="ghost" data-protected-reset @click=${() => { this.f = { ...NO_FILTERS, sort: f.sort }; this.shown = PAGE; }}>${tr('נקה סינון')}</sw-button>` : nothing}
       </div>
       <div class="note" data-protected-counts>${countsLine(list.length, rows, this.summary)}</div>

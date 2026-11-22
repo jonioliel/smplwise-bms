@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { tr } from '../i18n/msg/shell';
 import { UI_LANGS, currentUiLang, setUiLang, type UiLang } from '../i18n/ui-lang';
+import '../components/sw-field';
 
 /** Each language is named in itself, whatever the interface language is. */
 export const UI_LANG_NAMES: Record<UiLang, string> = { he: 'עברית', en: 'English' };
@@ -79,9 +80,9 @@ export class SwLangPrefs extends LitElement {
     return html`
       <div class="row">
         <label for="ui-lang">${tr('שפת הממשק')}</label>
-        <select id="ui-lang" data-my-ui-lang ?disabled=${this.busy} @change=${(e: Event) => void this.pick(e.target as HTMLSelectElement)}>
+        <sw-field flow><select id="ui-lang" data-my-ui-lang ?disabled=${this.busy} @change=${(e: Event) => void this.pick(e.target as HTMLSelectElement)}>
           ${UI_LANGS.map((l) => html`<option value=${l} lang=${l} ?selected=${now === l}>${UI_LANG_NAMES[l]}</option>`)}
-        </select>
+        </select></sw-field>
       </div>
       <p class="note" data-my-ui-lang-note>${tr('חל על כל המסכים ועל כל מכשיר שבו נכנסים בחשבון הזה.')} ${tr('הדף ייטען מחדש בשפה שנבחרה.')}</p>
       ${this.failed ? html`<p class="err" role="alert" data-my-ui-lang-error>${tr('השמירה נכשלה')}</p>` : nothing}

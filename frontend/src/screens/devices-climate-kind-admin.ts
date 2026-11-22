@@ -8,6 +8,7 @@ import { entityLabel, TECH_ID_ATTR } from '../i18n/entity-label';
 import { DevicesOverrideAdmin, overrideTableStyles } from './devices-override-admin';
 import { tr } from '../i18n/msg/devices';
 import type * as Wire from '../api/generated/wire-devices';
+import '../components/sw-field';
 
 type ClimateKindSetting = 'auto' | 'ac' | 'heating';
 
@@ -91,11 +92,11 @@ export class DevicesClimateKindAdmin extends DevicesOverrideAdmin<ClimateKindRow
           (r) => html`<tr data-entity=${r.entity_id}>
             <td>${bidi(entityLabel(r))}<div class="muted tech" ${TECH_ID_ATTR} dir="ltr" title=${tr('מזהה טכני (להעתקה)')}>${r.entity_id}</div></td>
             <td>${r.area_name ?? tr('ללא שיוך')}</td>
-            <td><select data-climate-kind=${r.entity_id} aria-label=${tr('סוג {name}', { name: entityLabel(r) })} ?disabled=${this.busyId === r.entity_id} @change=${(e: Event) => void this.choose(r, (e.target as HTMLSelectElement).value as ClimateKindSetting)}>
+            <td><sw-field flow><select data-climate-kind=${r.entity_id} aria-label=${tr('סוג {name}', { name: entityLabel(r) })} ?disabled=${this.busyId === r.entity_id} @change=${(e: Event) => void this.choose(r, (e.target as HTMLSelectElement).value as ClimateKindSetting)}>
               <option value="auto" ?selected=${r.set === null}>${tr('אוטומטי ({type})', { type: KIND_HE[r.auto] })}</option>
               <option value="ac" ?selected=${r.set === 'ac'}>${tr('מיזוג')}</option>
               <option value="heating" ?selected=${r.set === 'heating'}>${tr('חימום')}</option>
-            </select></td>
+            </select></sw-field></td>
           </tr>`,
         )}</tbody>
       </table>

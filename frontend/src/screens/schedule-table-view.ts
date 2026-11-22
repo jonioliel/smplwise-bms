@@ -29,6 +29,7 @@ import { activateKeydown } from '../components/a11y-keys'; // CR-A11Y-ROWS-2443 
  */
 
 const HVAC_WORDS: Record<string, string> = { cool: tr('קירור'), heat: tr('חימום'), heat_cool: tr('אוטומטי'), auto: tr('אוטומטי'), dry: tr('ייבוש'), fan_only: tr('מאוורר') };
+import '../components/sw-field';
 const ADVANCED = new Set(['cover.stop_cover', 'cover.set_cover_tilt_position', 'climate.set_fan_mode', 'climate.set_preset_mode', 'fan.set_percentage']);
 
 @customElement('schedule-table-view')
@@ -318,10 +319,10 @@ export class ScheduleTableView extends LitElement {
     for (const sp of specs) {
       const v = d[sp.name];
       if (sp.name === 'hvac_mode' && sp.choices?.length) {
-        parts.push(html`<select ?disabled=${ro} aria-label=${tr('מצב פעולה')} @change=${(e: Event) => this.setArg(slot, 'hvac_mode', (e.target as HTMLSelectElement).value)}>
+        parts.push(html`<sw-field flow><select ?disabled=${ro} aria-label=${tr('מצב פעולה')} @change=${(e: Event) => this.setArg(slot, 'hvac_mode', (e.target as HTMLSelectElement).value)}>
           ${sp.required ? nothing : html`<option value="" ?selected=${v === undefined}>${tr('ללא שינוי')}</option>`}
           ${sp.choices.map((c) => html`<option value=${c} ?selected=${v === c}>${HVAC_WORDS[c] ?? c}</option>`)}
-        </select>`);
+        </select></sw-field>`);
       } else if (sp.name === 'temperature') {
         parts.push(html`<input class="num" type="number" step="0.5" min=${sp.min ?? nothing} max=${sp.max ?? nothing} ?disabled=${ro} aria-label=${tr('טמפרטורה')} .value=${v === undefined ? '' : String(v)} @change=${(e: Event) => this.setArg(slot, 'temperature', (e.target as HTMLInputElement).value === '' ? undefined : Number((e.target as HTMLInputElement).value))} /><span class="unit">°</span>`);
       } else if (sp.name === 'brightness' || sp.name === 'brightness_pct') {
@@ -369,11 +370,11 @@ export class ScheduleTableView extends LitElement {
             ? html`<span class="unit">${tr('בחרו פעולה')}</span>`
             : groups.length > 1
               ? html`<span class="chip">${tr('{n} פעולות', { n: groups.length })}</span>`
-              : html`<select ?disabled=${ro || !catalog.length} data-cell="service" aria-label=${tr('פעולה, משבצת {n}', { n: display })} @click=${(e: Event) => e.stopPropagation()} @change=${(e: Event) => this.setService(slot, (e.target as HTMLSelectElement).value)}>
+              : html`<sw-field flow><select ?disabled=${ro || !catalog.length} data-cell="service" aria-label=${tr('פעולה, משבצת {n}', { n: display })} @click=${(e: Event) => e.stopPropagation()} @change=${(e: Event) => this.setService(slot, (e.target as HTMLSelectElement).value)}>
                   ${catalog.length ? nothing : html`<option selected>${actionLabel({ service: g.service, data: g.data })}</option>`}
                   ${catalog.filter((a) => !ADVANCED.has(a.service)).map((a) => html`<option value=${a.service} ?selected=${a.service === g.service}>${serviceWord(a.service, a.label)}</option>`)}
                   ${catalog.some((a) => ADVANCED.has(a.service)) ? html`<optgroup label=${tr('מתקדם')}>${catalog.filter((a) => ADVANCED.has(a.service)).map((a) => html`<option value=${a.service} ?selected=${a.service === g.service}>${serviceWord(a.service, a.label)}</option>`)}</optgroup>` : nothing}
-                </select>`}
+                </select></sw-field>`}
         ${pair !== null ? html`<span class="chip" title=${tr('משבצת כיבוי בסיום')}>${tr('כיבוי בסיום')}</span>` : nothing}
       </td>
       <td class="val-cell" data-label="ערך" @click=${(e: Event) => e.stopPropagation()}>${groups.length === 1 && !locked ? this.renderValue(slot, ro) : html`<span class="unit">—</span>`}</td>

@@ -15,6 +15,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { dayTimeText } from '../api/day-format';
 import { DevicesOverrideListAdmin, OVERRIDE_PAGE as PAGE, overrideListStyles, overrideTableStyles } from './devices-override-admin';
 import { tr } from '../i18n/msg/devices';
+import '../components/sw-field';
 
 /**
  * הגדרות › חשמל והתקנים › סוגי התקנים (DEVTYPE, owner 2026-10-09): the type of every switch-wired device - a boiler, a tap, a light on a
@@ -122,11 +123,11 @@ export class DevicesTypeAdmin extends DevicesOverrideListAdmin<DeviceTypeRow, Ty
   }
 
   private typeSelect(r: DeviceTypeRow) {
-    return html`<select data-type-select=${r.entity_id} aria-label=${tr('סוג {name}', { name: r.name })} ?disabled=${this.busyId === r.entity_id || this.busy}
+    return html`<sw-field flow><select data-type-select=${r.entity_id} aria-label=${tr('סוג {name}', { name: r.name })} ?disabled=${this.busyId === r.entity_id || this.busy}
       @change=${(e: Event) => void this.chooseOne(r, (e.target as HTMLSelectElement).value as TypeSetting)}>
       <option value="auto" ?selected=${r.set === null}>${tr('אוטומטי ({type})', { type: KIND_HE[r.auto] })}</option>
       ${r.options.map((k) => html`<option value=${k} ?selected=${r.set === k}>${KIND_HE[k]}</option>`)}
-    </select>`;
+    </select></sw-field>`;
   }
 
   render() {
@@ -153,17 +154,17 @@ export class DevicesTypeAdmin extends DevicesOverrideListAdmin<DeviceTypeRow, Ty
       ${rows.length
         ? html`<div class="bar">
               <input type="search" data-type-search placeholder=${tr('חיפוש לפי שם, אזור או מזהה…')} aria-label=${tr('חיפוש התקנים')} .value=${f.q} @input=${(e: Event) => this.setFilter({ q: (e.target as HTMLInputElement).value })} />
-              <select data-type-filter-kind aria-label=${tr('סוג')} @change=${(e: Event) => this.setFilter({ kind: (e.target as HTMLSelectElement).value as '' | FixedKind })}>
+              <sw-field flow><select data-type-filter-kind aria-label=${tr('סוג')} @change=${(e: Event) => this.setFilter({ kind: (e.target as HTMLSelectElement).value as '' | FixedKind })}>
                 <option value="" ?selected=${!f.kind}>${tr('כל הסוגים')}</option>
                 ${KIND_ORDER.map((k) => html`<option value=${k} ?selected=${f.kind === k}>${KIND_HE[k]}</option>`)}
-              </select>
-              <select data-type-filter-source aria-label=${tr('מקור')} @change=${(e: Event) => this.setFilter({ source: (e.target as HTMLSelectElement).value as SourceFilter })}>
+              </select></sw-field>
+              <sw-field flow><select data-type-filter-source aria-label=${tr('מקור')} @change=${(e: Event) => this.setFilter({ source: (e.target as HTMLSelectElement).value as SourceFilter })}>
                 <option value="" ?selected=${!f.source}>${tr('אוטומטי וידני')}</option>
                 <option value="auto" ?selected=${f.source === 'auto'}>${tr('אוטומטי')}</option>
                 <option value="manual" ?selected=${f.source === 'manual'}>${tr('ידני')} (${ltrNum(manualCount)})</option>
-              </select>
-              <select data-type-floor aria-label=${tr('קומה')} @change=${(e: Event) => this.setFilter({ floor: (e.target as HTMLSelectElement).value, area: '' })}><option value="">${tr('כל הקומות')}</option>${floors.map(([id, n]) => html`<option value=${id} ?selected=${f.floor === id}>${n}</option>`)}</select>
-              <select data-type-area aria-label=${tr('אזור')} @change=${(e: Event) => this.setFilter({ area: (e.target as HTMLSelectElement).value })}><option value="">${tr('כל האזורים')}</option>${areas.map(([id, n]) => html`<option value=${id} ?selected=${f.area === id}>${n}</option>`)}</select>
+              </select></sw-field>
+              <sw-field flow><select data-type-floor aria-label=${tr('קומה')} @change=${(e: Event) => this.setFilter({ floor: (e.target as HTMLSelectElement).value, area: '' })}><option value="">${tr('כל הקומות')}</option>${floors.map(([id, n]) => html`<option value=${id} ?selected=${f.floor === id}>${n}</option>`)}</select></sw-field>
+              <sw-field flow><select data-type-area aria-label=${tr('אזור')} @change=${(e: Event) => this.setFilter({ area: (e.target as HTMLSelectElement).value })}><option value="">${tr('כל האזורים')}</option>${areas.map(([id, n]) => html`<option value=${id} ?selected=${f.area === id}>${n}</option>`)}</select></sw-field>
               ${typeFiltersActive(f) ? html`<sw-button size="sm" variant="ghost" data-type-reset @click=${() => this.setFilter({ ...NO_TYPE_FILTERS })}>${tr('נקה סינון')}</sw-button>` : nothing}
             </div>
             <div class="note" data-type-counts>${list.length === rows.length ? tr('{n} התקנים', { n: ltrNum(rows.length) }) : tr('{n} מתוך {total} התקנים', { n: ltrNum(list.length), total: ltrNum(rows.length) })}</div>`
@@ -181,10 +182,10 @@ export class DevicesTypeAdmin extends DevicesOverrideListAdmin<DeviceTypeRow, Ty
             <span data-type-selected>${tr('נבחרו {n}', { n: ltrNum(this.selected.size) })}</span>
             <sw-button size="sm" data-type-all ?disabled=${!list.length} @click=${() => (this.selected = new Set([...this.selected, ...list.map((r) => r.entity_id)]))}>${tr('בחר הכול')} (${ltrNum(list.length)})</sw-button>
             <sw-button size="sm" variant="ghost" data-type-clear ?disabled=${!this.selected.size} @click=${() => (this.selected = new Set())}>${tr('נקה בחירה')}</sw-button>
-            <select data-type-bulk-kind aria-label=${tr('סוג לנבחרים')} @change=${(e: Event) => (this.bulkKind = (e.target as HTMLSelectElement).value as TypeSetting)}>
+            <sw-field flow><select data-type-bulk-kind aria-label=${tr('סוג לנבחרים')} @change=${(e: Event) => (this.bulkKind = (e.target as HTMLSelectElement).value as TypeSetting)}>
               ${KIND_ORDER.map((k) => html`<option value=${k} ?selected=${this.bulkKind === k}>${KIND_HE[k]}</option>`)}
               <option value="auto" ?selected=${this.bulkKind === 'auto'}>${tr('החזר לאוטומטי')}</option>
-            </select>
+            </select></sw-field>
             <sw-button size="sm" variant="primary" data-type-bulk-apply ?disabled=${!target.ids.length || this.busy} @click=${() => (this.confirm = { kind: this.bulkKind, ids: target.ids })}>${tr('החל על הנבחרים')}${target.ids.length ? ` (${ltrNum(target.ids.length)})` : ''}</sw-button>
             ${target.skipped ? html`<span class="muted" data-type-skipped>${tr('{n} לא יכולים לקבל את הסוג הזה', { n: ltrNum(target.skipped) })}</span>` : nothing}
           </div>`

@@ -23,6 +23,7 @@ import {
 import { rt, type RtKey } from '../i18n/access-request';
 import { xtLang } from '../i18n/access-external';
 import { dateInputLang, timeText } from '../api/day-format';
+import '../components/sw-field';
 
 /**
  * ACCESSREQ-293: the manual "request external access" form, built from the owner-approved mockup
@@ -306,7 +307,7 @@ export class AccessRequestDialog extends LitElement {
           <div class="field"><label for="np-co">${rt('company')}</label><input id="np-co" class="in" autocomplete="off" maxlength="80" list="vendors" .value=${np.company} @input=${(ev: Event) => upd({ company: (ev.target as HTMLInputElement).value })} />
             <datalist id="vendors">${this.vendors.map((v) => html`<option value=${v.display_name}></option>`)}</datalist></div>
           <div class="field"><label for="np-ph">${rt('whatsapp')}</label><input id="np-ph" class="in num" type="tel" inputmode="tel" autocomplete="off" placeholder="05X-XXXXXXX" style="text-align:start" aria-invalid=${e.npPhone ? 'true' : 'false'} .value=${np.phone} @input=${(ev: Event) => upd({ phone: (ev.target as HTMLInputElement).value })} />${this.err(e, 'npPhone')}</div>
-          <div class="field"><label for="np-lang">${rt('msgLang')}</label><select id="np-lang" class="in" @change=${(ev: Event) => upd({ lang: (ev.target as HTMLSelectElement).value as Lang })}>${LANGS.map((l) => html`<option value=${l} ?selected=${np.lang === l}>${rt(`lang_${l}` as RtKey)}</option>`)}</select></div>
+          <div class="field"><label for="np-lang">${rt('msgLang')}</label><sw-field flow><select id="np-lang" class="in" @change=${(ev: Event) => upd({ lang: (ev.target as HTMLSelectElement).value as Lang })}>${LANGS.map((l) => html`<option value=${l} ?selected=${np.lang === l}>${rt(`lang_${l}` as RtKey)}</option>`)}</select></sw-field></div>
         </div>
         <div class="row"><span class="chip" data-tone="warn"><sw-icon name="mail" size="13"></sw-icon>${rt('onSave')}</span></div>`;
     }
@@ -335,8 +336,8 @@ export class AccessRequestDialog extends LitElement {
     const f = this.f;
     const tk = ticketsEnabled(); // owner rule 2026-10-20: no ticket link while the tickets module is off
     return html`<section class="sec" data-sec="purpose"><h4>${tk ? html`<sw-icon name="ticket" size="14"></sw-icon>` : nothing}${rt('purpose')}<span class="chip" data-tone="off">${rt('optional')}</span></h4>
-      <div class="f2">${tk ? html`<div class="field"><label for="tk">${rt('ticket')}</label><select id="tk" class="in" @change=${(ev: Event) => this.changeTicket((ev.target as HTMLSelectElement).value)}>
-          <option value="" ?selected=${!f.ticketId}>${rt('none')}</option>${this.tickets.map((t) => html`<option value=${t.id} ?selected=${f.ticketId === t.id}>#${t.number} · ${t.title}</option>`)}</select></div>` : nothing}
+      <div class="f2">${tk ? html`<div class="field"><label for="tk">${rt('ticket')}</label><sw-field flow><select id="tk" class="in" @change=${(ev: Event) => this.changeTicket((ev.target as HTMLSelectElement).value)}>
+          <option value="" ?selected=${!f.ticketId}>${rt('none')}</option>${this.tickets.map((t) => html`<option value=${t.id} ?selected=${f.ticketId === t.id}>#${t.number} · ${t.title}</option>`)}</select></sw-field></div>` : nothing}
         <div class="field"><label for="pu">${rt('purposeVisit')}</label><input id="pu" class="in" autocomplete="off" maxlength=${PURPOSE_MAX} aria-invalid=${e.purpose ? 'true' : 'false'} .value=${f.purpose} @input=${(ev: Event) => this.set({ purpose: (ev.target as HTMLInputElement).value })} />${this.err(e, 'purpose')}</div></div>
       ${tk && f.ticketId ? html`<div class="row"><span class="chip" data-tone="acc"><sw-icon name="info" size="13"></sw-icon>${rt('endsWithTicket')}</span></div>` : nothing}</section>`;
   }

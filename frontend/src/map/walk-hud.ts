@@ -457,7 +457,7 @@ export class SwWalkHud extends LitElement {
     const kinds = KINDS.filter((k) => this.starts.some((s) => s.kind === k));
     return html`<div class="walkbar" role="group" aria-label=${t('walk.bar')} data-walk-bar>
       <button type="button" class="btn ghost" data-walk-exit @click=${() => this.emit('hud-exit', null)}>${t('walk.exit')}</button>
-      <select data-walk-start aria-label=${t('walk.standAt')} @change=${(e: Event) => {
+      <sw-field flow><select data-walk-start aria-label=${t('walk.standAt')} @change=${(e: Event) => {
         const sel = e.target as HTMLSelectElement;
         const id = sel.value;
         sel.value = '';
@@ -465,7 +465,7 @@ export class SwWalkHud extends LitElement {
       }}>
         <option value="">${t('walk.standAt')}</option>
         ${kinds.map((k) => html`<optgroup label=${kindTitle(k)}>${this.starts.filter((q) => q.kind === k).map((q) => html`<option value=${q.id}>${q.label || kindTitle(k)}</option>`)}</optgroup>`)}
-      </select>
+      </select></sw-field>
       ${this.routeButton()}
       ${this.fields()}
     </div>`;

@@ -5,6 +5,7 @@ import { icon } from './automation-builder-icons';
 import { AutomationEditorBase } from './automation-editor-base';
 import { FIELD_KIND_LABEL, ROOT, clone, fieldSummary, newField, type FieldKind } from './automation-editor-logic';
 import { tr } from '../i18n/msg/automation';
+import '../components/sw-field';
 
 const FIELD_ICON: Record<string, string> = { number: 'thermo', entity: 'layers', boolean: 'check', select: 'list', text: 'edit', locked: 'lock' };
 const FIELD_KINDS: FieldKind[] = ['number', 'boolean', 'select', 'text', 'entity'];
@@ -141,8 +142,8 @@ export class ScriptEditor extends AutomationEditorBase {
         <div class="fld"><label>${tr('מפתח (לטינית)')}</label><label class="inp"><input data-fld="field.key" aria-label=${tr('מפתח')} dir="ltr" .value=${f.key} @change=${(e: Event) => set((x) => { x.key = (e.target as HTMLInputElement).value.trim(); })} /></label></div>
       </div>
       <div class="frow">
-        <div class="fld"><label>${tr('סוג')}</label><select class="selx" data-fld="field.kind" aria-label=${tr('סוג')} @change=${(e: Event) => { const k = (e.target as HTMLSelectElement).value as FieldKind; set((x) => { x.selector = newField(k, []).selector; x.default = undefined; }); }}>
-          ${FIELD_KINDS.map((k) => html`<option value=${k} ?selected=${s.kind === k}>${FIELD_KIND_LABEL[k]}</option>`)}</select></div>
+        <div class="fld"><label>${tr('סוג')}</label><sw-field flow><select class="selx" data-fld="field.kind" aria-label=${tr('סוג')} @change=${(e: Event) => { const k = (e.target as HTMLSelectElement).value as FieldKind; set((x) => { x.selector = newField(k, []).selector; x.default = undefined; }); }}>
+          ${FIELD_KINDS.map((k) => html`<option value=${k} ?selected=${s.kind === k}>${FIELD_KIND_LABEL[k]}</option>`)}</select></sw-field></div>
         <div class="fld sm"><label>${tr('חובה')}</label><div class="rolechips"><button type="button" aria-pressed=${f.required} data-field-required @click=${() => set((x) => { x.required = !x.required; })}>${f.required ? tr('חובה') : tr('לא חובה')}</button></div></div>
       </div>
       ${s.kind === 'number' ? html`<div class="frow"><div class="fld sm"><label>${tr('מינימום')}</label>${num(s.min, (n) => set((x) => { if (x.selector.kind === 'number') x.selector.min = n ?? 0; }), 'field.min')}</div>

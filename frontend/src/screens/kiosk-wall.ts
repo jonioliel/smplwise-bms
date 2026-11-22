@@ -17,6 +17,7 @@ import { isOnWall } from './wall-arrangement';
 import { timeText } from '../api/day-format';
 import '../components/sw-brand';
 import { tr } from '../i18n/msg/media';
+import '../components/sw-field';
 
 /** Saved view = the URL: #/kiosk/all?cameras=a,b,c&cols=3&rows=2&rotate=30 (seconds per page; 0 = no rotation).
  * Default 3×2: with nine sub streams at once the lab NVR / relay let the last tiles stall (live review F15). */
@@ -676,9 +677,9 @@ export class KioskWall extends LitElement {
         <span class="spacer"></span>
         <sw-badge kind="live" label=${tr('{n} מצלמות · {online} חיות', { n: api ? this.selected.length : demo.length, online })}></sw-badge>
         ${api && this.pages > 1 ? html`<span class="pill" data-kiosk-page>${tr('עמוד {page}/{pages}', { page: pageIndex + 1, pages: this.pages })}${this.view.rotate ? tr(' · כל {rotate} שנ׳', { rotate: this.view.rotate }) : ''}</span>` : nothing}
-        ${api ? html`<select class="layout" data-kiosk-layout aria-label=${tr('פריסה')} @change=${(e: Event) => this.setLayout((e.target as HTMLSelectElement).value)}>
+        ${api ? html`<sw-field flow><select class="layout" data-kiosk-layout aria-label=${tr('פריסה')} @change=${(e: Event) => this.setLayout((e.target as HTMLSelectElement).value)}>
           ${this.layoutChoices().map(([c, r]) => html`<option value=${`${c}x${r}`} ?selected=${c === this.view.cols && r === this.view.rows}>${c}×${r} · ${tr('{n} מצלמות בעמוד', { n: c * r })}</option>`)}
-        </select>` : nothing}
+        </select></sw-field>` : nothing}
         ${api && this.health ? html`<span class="pill" data-kiosk-health data-status=${this.health.status}>${tr('מערכת:')} ${STATUS_LABEL[this.health.status]}${this.health.items.filter((i) => i.status !== 'ok').length ? ` · ${this.health.items.filter((i) => i.status !== 'ok').map((i) => i.label).join(', ')}` : ''}</span>` : nothing}
         <span class="clock" data-kiosk-clock><b>${this.clock.time || '—'}</b><span>${this.clock.date}</span></span>
         <a class="exit" href="#/live/wall" data-kiosk-exit title=${tr('חזרה למערכת (משתמש קיוסק בלבד נשאר כאן)')}>${tr('יציאה')}</a>

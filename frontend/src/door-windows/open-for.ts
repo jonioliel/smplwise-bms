@@ -12,6 +12,7 @@ import { hm } from './logic';
 import { hourChoices, plannedEnd, reasonKey, refusalReason } from './events-logic';
 import { dwCss } from './styles';
 import { dweCss } from './events-styles';
+import '../components/sw-field';
 
 /**
  * DOORWIN3-295 / CR-039 9.1: "open for N hours" - the `arx_button` source. A person picks a door they manage and a whole number of hours,
@@ -80,8 +81,8 @@ export class DoorOpenFor extends LitElement {
     return html`<sw-dialog open heading=${dwe('ofTitle')} @close=${() => this.close()} data-dw-openfor>
       ${!this.doors.length ? html`<div class="muted" data-dw-openfor-none>${dwe('ofNoDoors')}</div>` : this.step === 'choose' ? html`<div class="form">
         <div class="field"><label for="dwo-door">${dwe('ofDoor')}</label>
-          <select id="dwo-door" data-dw-openfor-door @change=${(e: Event) => (this.door = (e.target as HTMLSelectElement).value)}>
-            ${this.doors.map((d) => html`<option value=${d.key} ?selected=${d.key === this.door}>${d.label}</option>`)}</select></div>
+          <sw-field flow><select id="dwo-door" data-dw-openfor-door @change=${(e: Event) => (this.door = (e.target as HTMLSelectElement).value)}>
+            ${this.doors.map((d) => html`<option value=${d.key} ?selected=${d.key === this.door}>${d.label}</option>`)}</select></sw-field></div>
         <div class="field"><span class="lbl">${dwe('ofHours')}</span><sw-chip-choice label=${dwe('ofHours')} data-dw-openfor-hours value=${String(this.hours)} @change=${(e: CustomEvent<ChipChoiceChange>) => (this.hours = Number(e.detail.value))}
           .options=${hourChoices(this.maxHours).map((n) => ({ value: String(n), label: dwe('ofHoursN', { n }), attrs: { 'data-dw-hours': String(n) } }))}></sw-chip-choice></div>
         ${this.error ? html`<div class="err" role="alert" data-dw-error>${this.error}</div>` : nothing}

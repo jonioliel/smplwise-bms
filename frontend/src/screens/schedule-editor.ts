@@ -117,6 +117,7 @@ import './automation-ext-dialogs';
 import { tr } from '../i18n/msg/automation';
 import { t } from '../i18n/he';
 import { browserSession, dropStored, storeText, storedText } from '../api/safe-storage';
+import '../components/sw-field';
 
 /**
  * CR-014 S4: the schedule editor (mockup 05-09, 17-19 editor level, 21, 24-25).
@@ -1692,9 +1693,9 @@ export class ScheduleEditor extends LitElement {
         <span class="sp"></span>
         ${this.view === 'table'
           ? nothing
-          : html`<label class="snap">${tr('הצמדה')} <select data-snap aria-label=${tr('הצמדת זמן')} .value=${String(this.snap)} @change=${(e: Event) => (this.snap = Number((e.target as HTMLSelectElement).value))}>
+          : html`<label class="snap">${tr('הצמדה')} <sw-field flow><select data-snap aria-label=${tr('הצמדת זמן')} .value=${String(this.snap)} @change=${(e: Event) => (this.snap = Number((e.target as HTMLSelectElement).value))}>
               ${[5, 15, 30].map((n) => html`<option value=${n} ?selected=${this.snap === n}>${tr('{n} דק׳', { n })}</option>`)}
-            </select></label>`}
+            </select></sw-field></label>`}
         ${ro || this.view === 'table' ? nothing : html`<sw-button size="sm" icon="plus" data-add-slot @click=${() => this.onAddButton()}>${tr('משבצת')}</sw-button>`}
       </div>
       ${this.view === 'table' ? nothing : this.renderLegend()}

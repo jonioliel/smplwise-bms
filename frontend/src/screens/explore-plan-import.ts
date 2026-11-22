@@ -689,9 +689,9 @@ export class ExplorePlanImport extends LitElement {
               <td><label for=${`dxf-map-layer-${i}`} class="ltr">${l.name}</label>${l.in_render ? nothing : html` <span class="note">${tr('(לא מצוירת)')}</span>`}</td>
               <td><span class="ltr">${l.count}</span>${l.count ? html` <span class="note ltr kinds">${Object.entries(l.kinds).map(([k, n]) => `${k} ${n}`).join(', ')}</span>` : nothing}</td>
               <td class="ltr sample">${l.sample}</td>
-              <td><select id=${`dxf-map-layer-${i}`} data-dxf-map-target aria-label=${tr('יעד לשכבה {name}', { name: l.name })} ?disabled=${!l.count || this.importing} @change=${(e: Event) => this.setLayerTarget(l.name, (e.target as HTMLSelectElement).value as DxfTarget)}>
+              <td><sw-field flow><select id=${`dxf-map-layer-${i}`} data-dxf-map-target aria-label=${tr('יעד לשכבה {name}', { name: l.name })} ?disabled=${!l.count || this.importing} @change=${(e: Event) => this.setLayerTarget(l.name, (e.target as HTMLSelectElement).value as DxfTarget)}>
                 ${ent.targets.map((t) => html`<option value=${t.id} ?selected=${(this.layerMap[l.name] ?? 'ignore') === t.id}>${t.label}</option>`)}
-              </select></td>
+              </select></sw-field></td>
             </tr>`)}
           </tbody>
         </table>
@@ -706,10 +706,10 @@ export class ExplorePlanImport extends LitElement {
                     <td><label for=${`dxf-map-block-${i}`} class="ltr">${b.name}</label></td>
                     <td class="ltr">${b.count}</td>
                     <td class="ltr nowrap">${b.size_m[0].toFixed(2)} × ${b.size_m[1].toFixed(2)}</td>
-                    <td><select id=${`dxf-map-block-${i}`} data-dxf-block-target aria-label=${tr('פריט לבלוק {name}', { name: b.name })} ?disabled=${this.importing} @change=${(e: Event) => this.setBlockItem(b.name, (e.target as HTMLSelectElement).value || null)}>
+                    <td><sw-field flow><select id=${`dxf-map-block-${i}`} data-dxf-block-target aria-label=${tr('פריט לבלוק {name}', { name: b.name })} ?disabled=${this.importing} @change=${(e: Event) => this.setBlockItem(b.name, (e.target as HTMLSelectElement).value || null)}>
                       ${b.suggested.catalog_id === null ? html`<option value="" data-dxf-block-none ?selected=${(this.blockMap[b.name] ?? null) === null}>${tr('לא עצם (דלת/חלון)')}</option>` : nothing}
                       ${ent.catalog_choices.filter((c) => c.id !== null).map((c) => html`<option value=${c.id ?? ''} ?selected=${this.blockMap[b.name] === c.id}>${c.name}</option>`)}
-                    </select></td>
+                    </select></sw-field></td>
                   </tr>`)}
                 </tbody>
               </table>

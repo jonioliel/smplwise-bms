@@ -14,6 +14,7 @@ import { AUTO_CLOSE_MS, RESULT_TONE, holdProgress, incidentLines, nextStep, retr
 import { dwCss } from './styles';
 import { timeText } from '../api/day-format';
 import { uiLocale } from '../i18n/locale';
+import '../components/sw-field';
 
 /** While doors are still being sent, the incident is read again this often. */
 const FOLLOW_MS = 1500;
@@ -275,9 +276,9 @@ export class DoorEmergencySheet extends LitElement {
     return html`<div class="em" data-em-step="choose">
       ${forced ? html`<div class="callout" data-tone="warn"><sw-icon name="info"></sw-icon><span>${dwt('emOff')}</span></div>` : nothing}
       ${all.length > 1 ? html`<div class="row"><label for="scope">${dwt('emScope')}</label>
-        <select id="scope" data-em-scope .value=${this.scopeKey} @change=${(e: Event) => { this.scopeKey = (e.target as HTMLSelectElement).value; this.armIdle(); }}>
+        <sw-field flow><select id="scope" data-em-scope .value=${this.scopeKey} @change=${(e: Event) => { this.scopeKey = (e.target as HTMLSelectElement).value; this.armIdle(); }}>
           ${all.map((s) => html`<option value=${`${s.scope_type}:${s.scope_id}`} ?selected=${`${s.scope_type}:${s.scope_id}` === this.scopeKey}>${s.name} · ${dwt('emDoors', { n: s.doors })}</option>`)}
-        </select></div>` : all.length === 1 ? html`<div class="note" data-em-scope-one>${all[0].name}</div>` : nothing}
+        </select></sw-field></div>` : all.length === 1 ? html`<div class="note" data-em-scope-one>${all[0].name}</div>` : nothing}
       <label class="drill"><input type="checkbox" data-em-drill .checked=${this.drill || forced} ?disabled=${forced}
         @change=${(e: Event) => { this.drill = (e.target as HTMLInputElement).checked; this.armIdle(); }}>${forced ? dwt('emDrillForced') : dwt('emDrill')}</label>
       ${d?.can.lock && lock ? html`<door-hold-button data-em-kind="lock_secure" icon="lock" .holdMs=${hold} label=${dwt('emLock')}

@@ -462,10 +462,10 @@ export class NvrCameraEditor extends LitElement {
     const cur = String(d[f as keyof Draft] ?? '');
     return html`<label class="f ${bad ? 'bad' : ''}" data-field=${f}>
       <span class="l">${label}</span>
-      <select data-f=${f} aria-label=${label} title=${lock ?? ''} ?disabled=${!!lock || this.busy} @change=${(e: Event) => (f === 'codec' ? void this.onCodec((e.target as HTMLSelectElement).value) : this.set(f as keyof Draft, (e.target as HTMLSelectElement).value as never))}>
+      <sw-field flow><select data-f=${f} aria-label=${label} title=${lock ?? ''} ?disabled=${!!lock || this.busy} @change=${(e: Event) => (f === 'codec' ? void this.onCodec((e.target as HTMLSelectElement).value) : this.set(f as keyof Draft, (e.target as HTMLSelectElement).value as never))}>
         ${cur === '' || !values.includes(cur) ? html`<option value="" selected disabled>—</option>` : nothing}
         ${values.map((v) => html`<option value=${v} ?selected=${v === cur}>${shown ? shown(v) : v}</option>`)}
-      </select>
+      </select></sw-field>
     </label>`;
   }
 

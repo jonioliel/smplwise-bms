@@ -10,6 +10,7 @@ import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
 import { GROUP_LABEL, SIZE_LABEL, cardOf, editGroups, moveFloor, moveInGroup, moveOnto, setCard, setGroupBy, togglePin, type FloorRef } from './multimedia-layout';
 import { tr } from '../i18n/msg/media';
+import '../components/sw-field';
 
 const SIZES: Size[] = ['s', 'm', 'l'];
 const GROUPS: GroupBy[] = ['floor', 'area', 'none'];
@@ -290,10 +291,10 @@ export class MultimediaEditPanel extends LitElement {
       ${personal || this.simple || !open ? nothing : html`<div class="phone" data-mm-phone=${d.key}>
         <span class="pl">${tr('בנייד')}</span>
         <label class="check"><input type="checkbox" data-mm-phone-on=${d.key} .checked=${phoneOn} aria-label=${tr('הצג בנייד: {name}', { name: d.name })} @change=${(e: Event) => { const v = (e.target as HTMLInputElement).checked; this.change(setCard(l, d.key, { phone_on: v === c.on ? null : v })); }} />${tr('הצג')}</label>
-        <select data-mm-phone-size=${d.key} aria-label=${tr('גודל בנייד: {name}', { name: d.name })} ?disabled=${!phoneOn} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; this.change(setCard(l, d.key, { phone_size: v === 's' || v === 'm' ? v : null })); }}>
+        <sw-field flow><select data-mm-phone-size=${d.key} aria-label=${tr('גודל בנייד: {name}', { name: d.name })} ?disabled=${!phoneOn} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; this.change(setCard(l, d.key, { phone_size: v === 's' || v === 'm' ? v : null })); }}>
           <option value="" ?selected=${!c.phone_size}>${tr('אוטומטי ({size})', { size: SIZE_LABEL[c.size === 'l' ? 'm' : c.size] })}</option>
           <option value="s" ?selected=${c.phone_size === 's'}>${SIZE_LABEL.s}</option><option value="m" ?selected=${c.phone_size === 'm'}>${SIZE_LABEL.m}</option>
-        </select>
+        </select></sw-field>
       </div>`}
     </div>`;
   }

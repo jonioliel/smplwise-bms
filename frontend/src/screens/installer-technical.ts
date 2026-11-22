@@ -25,6 +25,7 @@ import {
 } from '../api/installer';
 import { fill, installerText as T, technicalText as X } from '../i18n/wiskey-installer';
 import { formatTime } from './wiskey-format';
+import '../components/sw-field';
 
 const LOCAL_ZONE = { kind: 'iana' as const, name: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' };
 const showValue = (k: string) => (v: unknown) =>
@@ -197,10 +198,10 @@ export class InstallerTechnical extends LitElement {
       <sw-card>
         <div class="pickrow">
           <label class="f"><span>${X.pick}</span>
-            <select class="pick" .value=${this.stationId} @change=${(e: Event) => this.pick((e.target as HTMLSelectElement).value)} data-station-pick>
+            <sw-field flow><select class="pick" .value=${this.stationId} @change=${(e: Event) => this.pick((e.target as HTMLSelectElement).value)} data-station-pick>
               <option value="" ?selected=${!this.stationId}>—</option>
               ${this.stations.map((s) => html`<option value=${s.id} ?selected=${s.id === this.stationId}>${s.name}${s.online ? '' : ` (${T.offline})`}</option>`)}
-            </select></label>
+            </select></sw-field></label>
           <sw-button variant="secondary" ?disabled=${!this.stationId || this.loading} @click=${() => void this.load(true)} data-reread>${v ? X.reread : X.read}</sw-button>
         </div>
         <div class="hint">${v?.fetched_at ? fill(X.readAt, { at: formatTime(v.report.checked_at ?? v.fetched_at, uiLocale(), LOCAL_ZONE) }) : X.pickHint}</div>

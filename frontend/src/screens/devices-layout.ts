@@ -19,6 +19,7 @@ import { getEntityPool, type PoolEntity } from '../api/devices';
 import { tr } from '../i18n/msg/devices';
 import { gridsKey, jsonClone } from './devices-shared'; // CR-G1-HOME-AREA-2440 (06:PERF-6, 06:DUP-10)
 import { bulkSelect, CARD_TYPES, CARDS_VERSION, findSlot, groupPicks, isCardType, libraryTypes, newCardKey, nextTitle, type AreaEntity, type PickEntity } from './devices-layout-cards';
+import '../components/sw-field';
 
 /**
  * CR-007 slice 6b: the layout editor of the device screens (owner decisions 7.11; docs/design/DEVICE_THEMES.md §7).
@@ -1879,10 +1880,10 @@ export class DevicesLayoutController implements ReactiveController {
       <div class="lay-f"><label for="lay-title">${tr('כותרת')}</label>
         <input id="lay-title" type="text" maxlength="60" data-layout-title .value=${it.title ?? ''} placeholder=${label} @input=${(e: Event) => this.patch(key, { title: (e.target as HTMLInputElement).value.trim() ? (e.target as HTMLInputElement).value : null })} /></div>
       <div class="lay-f"><label for="lay-icon">${tr('אייקון')}</label>
-        <select id="lay-icon" data-layout-icon @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; this.patch(key, { icon: v ? (v as LayoutIcon) : null }); }}>
+        <sw-field flow><select id="lay-icon" data-layout-icon @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; this.patch(key, { icon: v ? (v as LayoutIcon) : null }); }}>
           <option value="" ?selected=${!it.icon}>${tr('ברירת המחדל')}</option>
           ${LAYOUT_ICONS.map((i) => html`<option value=${i} ?selected=${it.icon === i}>${ICON_HE[i]}</option>`)}
-        </select></div>
+        </select></sw-field></div>
       <div class="lay-f"><span class="lbl">${tr('גודל טקסט')}</span>
         <span class="lay-seg" role="group" aria-label=${tr('גודל טקסט')}>
           ${(['sm', 'md', 'lg'] as const).map((t) => html`<button type="button" data-layout-text=${t} aria-pressed=${String(it.text === t)} @click=${() => this.patch(key, { text: t })}>${t === 'sm' ? tr('קטן') : t === 'md' ? tr('רגיל') : tr('גדול')}</button>`)}

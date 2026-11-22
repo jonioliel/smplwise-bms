@@ -12,6 +12,7 @@ import { describeError } from '../api/client';
 import { ACTIVE_STATES, doorsPaused, getBridgeKey, resumeRotation, setBridgeKeySettings, setOwnerContacts, startRotation, type BridgeKeyStatus, type RotationMode, type WatchdogCondition } from '../api/bridge-key';
 import { bkt, bktCode, bktLang } from '../i18n/bridge-key';
 import { hostBlockStyles, ltrStyles } from '../styles/fragments';
+import './sw-field';
 
 function when(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -205,11 +206,11 @@ export class SwBridgeKeyCard extends LitElement {
             <sw-button size="sm" variant="ghost" ?disabled=${this.busy} aria-label=${`${bkt('ownerRemove')} ${u.name}`} data-bridge-key-owner-remove
               @click=${() => save(oc.ids.filter((x) => x !== u.id))}>${bkt('ownerRemove')}</sw-button></span>`)}</span>
           ${free.length && oc.ids.length < oc.max
-            ? html`<select aria-label=${bkt('ownerAdd')} ?disabled=${this.busy} data-bridge-key-owner-add
+            ? html`<sw-field flow><select aria-label=${bkt('ownerAdd')} ?disabled=${this.busy} data-bridge-key-owner-add
                 @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; if (v) save([...oc.ids, v]); }}>
                 <option value="" selected>${bkt('ownerAdd')}</option>
                 ${free.map((c) => html`<option value=${c.id}>${c.name}</option>`)}
-              </select>`
+              </select></sw-field>`
             : nothing}
         </span>
       </div>
@@ -278,10 +279,10 @@ export class SwBridgeKeyCard extends LitElement {
         <span class="lbl">${bkt('reminder')}</span>
         <span class="acts">
           ${s.reminder_due ? html`<sw-badge kind="stale" label=${bkt('reminderDue')} data-bridge-key-reminder-due></sw-badge>` : nothing}
-          <select aria-label=${bkt('reminder')} ?disabled=${this.busy} data-bridge-key-reminder
+          <sw-field flow><select aria-label=${bkt('reminder')} ?disabled=${this.busy} data-bridge-key-reminder
             @change=${(e: Event) => { const n = Number((e.target as HTMLSelectElement).value); void this.run(async () => { await setBridgeKeySettings({ reminder_days: n }); this.saved = true; }); }}>
             ${s.reminder_values.map((n) => html`<option value=${n} ?selected=${n === s.reminder_days}>${n ? bkt('reminderDays', { n }) : bkt('reminderOff')}</option>`)}
-          </select>
+          </select></sw-field>
         </span>
       </div>
       ${this.renderOwners(s)}

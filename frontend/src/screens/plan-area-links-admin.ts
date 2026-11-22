@@ -346,10 +346,10 @@ export class PlanAreaLinksAdmin extends LitElement {
                 <td class="room">${bidi(r.zone_name || tr('חדר ללא שם'))}<div class="muted">${zoneKindLabel(r.kind as ZoneKind)}<span class="phone"> · ${bidi(r.floor_name)}</span></div></td>
                 <td class="floor">${bidi(r.floor_name)}<div class="muted">${bidi(r.building_name)}</div></td>
                 <td class="area">
-                  <select data-area-link-select aria-label=${tr('האזור של {name}', { name: r.zone_name || tr('החדר') })} ?disabled=${this.busy} @change=${(e: Event) => void this.apply([{ zone_id: r.zone_id, area_id: (e.target as HTMLSelectElement).value || null }], tr('עודכן'))}>
+                  <sw-field flow><select data-area-link-select aria-label=${tr('האזור של {name}', { name: r.zone_name || tr('החדר') })} ?disabled=${this.busy} @change=${(e: Event) => void this.apply([{ zone_id: r.zone_id, area_id: (e.target as HTMLSelectElement).value || null }], tr('עודכן'))}>
                     <option value="" ?selected=${!r.area_id}>${r.status === 'suggested' ? tr('ללא קישור (יש הצעה)') : tr('ללא קישור')}</option>
                     ${t.areas.map((a) => html`<option value=${a.area_id} ?selected=${r.area_id === a.area_id}>${bidi(a.name)}${a.floor_name ? ` · ${bidi(a.floor_name)}` : ''}</option>`)}
-                  </select>
+                  </select></sw-field>
                   ${r.status === 'suggested' && r.suggestion ? html`<div class="sugline muted" data-area-link-suggestion><sw-icon name="link" size=${12}></sw-icon>${tr('הצעה:')} ${bidi(r.suggestion.area_name)} · ${score(r.suggestion.score)}</div>` : nothing}
                   ${r.dangling ? html`<div class="gone"><sw-icon name="warning" size=${12}></sw-icon>${tr('האזור שהיה מקושר כבר לא קיים')}</div>` : nothing}
                 </td>

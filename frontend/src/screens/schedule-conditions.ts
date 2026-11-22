@@ -7,6 +7,7 @@ import type { SegmentedChange } from '../components/sw-segmented';
 import { MATCH_LABEL, PRESET_LABEL, getConditionCandidates, type ConditionCandidate, type ConditionPreset, type ConditionView, type DraftCondition, type DraftConditions, type MatchType, type Problem, type ShabbatSensor } from '../api/schedules';
 import { activePreset, addCondition, applyPreset, clearConditions, describeCondition, newCondition, removeCondition, stateChoices, updateCondition } from './schedule-edit-logic';
 import { tr } from '../i18n/msg/automation';
+import '../components/sw-field';
 
 /**
  * CR-014 S4: the condition builder (SCHEDULER_API §2.4, §12.5) - one block for the whole schedule (the component keeps the
@@ -298,16 +299,16 @@ export class ScheduleConditions extends LitElement {
       <div class="nm">${name}${c.attribute !== 'state' ? html`<small>${c.attribute}</small>` : nothing}${view?.readable && view.state !== null ? html`<small>${tr('כרגע: {state}', { state: view.state })}</small>` : nothing}</div>
       ${this.readOnly ? nothing : html`<sw-button size="sm" variant="ghost" iconOnly icon="close" label=${tr('הסרת התנאי')} data-condition-remove @click=${() => this.emit(removeCondition(this.conditions, i))}></sw-button>`}
       <div class="ctl">
-        <select ?disabled=${this.readOnly} aria-label=${tr('סוג ההשוואה')} data-condition-op @change=${(e: Event) => this.emit(updateCondition(this.conditions, i, { match_type: (e.target as HTMLSelectElement).value as MatchType }))}>
+        <sw-field flow><select ?disabled=${this.readOnly} aria-label=${tr('סוג ההשוואה')} data-condition-op @change=${(e: Event) => this.emit(updateCondition(this.conditions, i, { match_type: (e.target as HTMLSelectElement).value as MatchType }))}>
           ${ops.map((o) => html`<option value=${o} ?selected=${c.match_type === o}>${MATCH_LABEL[o]}</option>`)}
-        </select>
+        </select></sw-field>
         ${numeric
           ? html`<input class="val" type="number" ?disabled=${this.readOnly} aria-label=${tr('ערך')} data-condition-value .value=${String(c.value)} @change=${(e: Event) => this.emit(updateCondition(this.conditions, i, { value: Number((e.target as HTMLInputElement).value) }))} />`
           : choices.length
-            ? html`<select ?disabled=${this.readOnly} aria-label=${tr('ערך')} data-condition-value @change=${(e: Event) => this.emit(updateCondition(this.conditions, i, { value: (e.target as HTMLSelectElement).value }))}>
+            ? html`<sw-field flow><select ?disabled=${this.readOnly} aria-label=${tr('ערך')} data-condition-value @change=${(e: Event) => this.emit(updateCondition(this.conditions, i, { value: (e.target as HTMLSelectElement).value }))}>
                 ${choices.some((x) => x.value === c.value) ? nothing : html`<option value=${String(c.value)} selected>${String(c.value)}</option>`}
                 ${choices.map((x) => html`<option value=${x.value} ?selected=${c.value === x.value}>${x.label}</option>`)}
-              </select>`
+              </select></sw-field>`
             : html`<input class="val" type="text" ?disabled=${this.readOnly} aria-label=${tr('ערך')} data-condition-value .value=${String(c.value)} @change=${(e: Event) => this.emit(updateCondition(this.conditions, i, { value: (e.target as HTMLInputElement).value }))} />`}
       </div>
     </div>`;

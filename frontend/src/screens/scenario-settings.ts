@@ -9,6 +9,7 @@ import { getScenarioSettings, saveScenarioSettings, scenarioChoices, type Scenar
 import { sct, type SctKey } from '../i18n/scenarios';
 import { settingsStyles } from '../styles/settings';
 import { dateInputLang } from '../api/day-format';
+import '../components/sw-field';
 
 type Settings = Record<string, unknown>;
 
@@ -115,9 +116,9 @@ export class ScenarioSettings extends LitElement {
       <div class="grid">
         ${BOOLS.map(([k, label]) => html`<div class="row"><span>${sct(label)}</span><sw-toggle data-key=${k} .checked=${this.draft[k] === true} @change=${(e: Event) => this.set(k, (e as CustomEvent<{ checked: boolean }>).detail.checked)}></sw-toggle></div>`)}
         ${NUMS.map(([k, label, lo, hi]) => html`<label>${sct(label)}<input type="number" data-key=${k} min=${lo} max=${hi} .value=${String(this.draft[k] ?? '')} @change=${(e: Event) => this.set(k, Number((e.target as HTMLInputElement).value))} /></label>`)}
-        <label>${sct('setAfterSource')}<select data-key="scenarios.after_hours_source" @change=${(e: Event) => this.set('scenarios.after_hours_source', (e.target as HTMLSelectElement).value)}>
+        <label>${sct('setAfterSource')}<sw-field flow><select data-key="scenarios.after_hours_source" @change=${(e: Event) => this.set('scenarios.after_hours_source', (e.target as HTMLSelectElement).value)}>
           <option value="window" ?selected=${this.draft['scenarios.after_hours_source'] !== 'calendar'}>${sct('setAfterWindow')}</option>
-          <option value="calendar" ?selected=${this.draft['scenarios.after_hours_source'] === 'calendar'}>${sct('setAfterCalendar')}</option></select></label>
+          <option value="calendar" ?selected=${this.draft['scenarios.after_hours_source'] === 'calendar'}>${sct('setAfterCalendar')}</option></select></sw-field></label>
         ${this.windowRow()}
         <label>${sct('setRecipients')}<scenario-recipients data-key="scenarios.default_recipients" .choices=${this.choices} .value=${rec}
           @change=${(e: CustomEvent<{ value: { users: string[]; roles: string[] } }>) => this.set('scenarios.default_recipients', e.detail.value)}></scenario-recipients></label>

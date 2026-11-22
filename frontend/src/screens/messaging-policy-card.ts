@@ -13,6 +13,7 @@ import { blocksEverything, minutesValue, pageOf, phoneDigits } from '../messagin
 import { timeText } from '../api/day-format';
 import { PollController } from '../components/poll-controller';
 import { hostBlockStyles, ltrStyles } from '../styles/fragments';
+import '../components/sw-field';
 
 /**
  * WAPACE-295: the WhatsApp send policy (Settings > messaging channel). Two blocks in one card: the allow-list of handlers and providers
@@ -169,8 +170,8 @@ export class MessagingPolicyCard extends LitElement {
           @input=${(e: Event) => (this.phone = (e.target as HTMLInputElement).value)}></label>
         <label>${mw('label')}<input class="in" maxlength="80" data-add="label" .value=${this.label} ?disabled=${this.busy}
           @input=${(e: Event) => (this.label = (e.target as HTMLInputElement).value)}></label>
-        <label>${mw('role')}<select class="in" data-add="role" ?disabled=${this.busy} @change=${(e: Event) => (this.newRole = (e.target as HTMLSelectElement).value as PolicyRole)}>
-          ${POLICY_ROLES.map((r) => html`<option value=${r} ?selected=${r === this.newRole}>${mw(`role_${r}` as MwKey)}</option>`)}</select></label>
+        <label>${mw('role')}<sw-field flow><select class="in" data-add="role" ?disabled=${this.busy} @change=${(e: Event) => (this.newRole = (e.target as HTMLSelectElement).value as PolicyRole)}>
+          ${POLICY_ROLES.map((r) => html`<option value=${r} ?selected=${r === this.newRole}>${mw(`role_${r}` as MwKey)}</option>`)}</select></sw-field></label>
         <sw-button size="sm" variant="primary" data-add-button ?disabled=${this.busy} @click=${() => this.add()}>${mw('add')}</sw-button></div>` : nothing}
       <div class="sect" data-policy-self>
         <div class="head"><strong>${mw('selfTitle')}</strong>

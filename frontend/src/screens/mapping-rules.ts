@@ -9,6 +9,7 @@ import { html, nothing } from 'lit';
 import { moveRule, ruleCounts, type Rule, type RuleKind } from '../api/mapping-engine';
 import { MappingAssistant, POS_TEXT, RULE_LABEL } from './mapping-assistant';
 import { tr } from '../i18n/msg/media';
+import '../components/sw-field';
 
 export function renderRules(h: MappingAssistant) {
   const m = h.model();
@@ -29,12 +30,12 @@ export function renderRules(h: MappingAssistant) {
           @keydown=${(e: KeyboardEvent) => { if (e.key === 'ArrowUp' && i > 0) { e.preventDefault(); move(i, i - 1); } if (e.key === 'ArrowDown' && i < rules.length - 1) { e.preventDefault(); move(i, i + 1); } }}><sw-icon name="grip" size=${16}></sw-icon></button>
         <span class="n">${i + 1}</span>
         <span class="sent">
-          <select aria-label=${tr('סוג הכלל')} data-ma-rule-kind @change=${(e: Event) => upd(i, { kind: (e.target as HTMLSelectElement).value as RuleKind })}>${(Object.keys(RULE_LABEL) as RuleKind[]).map((k) => html`<option value=${k} ?selected=${r.kind === k}>${RULE_LABEL[k]}</option>`)}</select>
+          <sw-field flow><select aria-label=${tr('סוג הכלל')} data-ma-rule-kind @change=${(e: Event) => upd(i, { kind: (e.target as HTMLSelectElement).value as RuleKind })}>${(Object.keys(RULE_LABEL) as RuleKind[]).map((k) => html`<option value=${k} ?selected=${r.kind === k}>${RULE_LABEL[k]}</option>`)}</select></sw-field>
           ${r.kind === 'table'
             ? html`<span class="k">${tr('{title}, {length} סימונים', { title: POS_TEXT[st.spec.position].title, length: m.rows.length })}</span>`
             : html`<input class="tx" data-ma-rule-value aria-label=${tr('הערך')} maxlength="80" .value=${r.value} placeholder=${r.kind === 'regex' ? '^B(\\d)-' : tr('למשל חניון')} @input=${(e: Event) => upd(i, { value: (e.target as HTMLInputElement).value })} />`}
         </span>
-        ${r.kind === 'table' ? html`<span class="to k">${tr('← לפי הטבלה')}</span>` : html`<select class="to" aria-label=${tr('לאיזה בניין')} data-ma-rule-to @change=${(e: Event) => upd(i, { to: h.parseTarget((e.target as HTMLSelectElement).value) })}>${toOpts(r)}</select>`}
+        ${r.kind === 'table' ? html`<span class="to k">${tr('← לפי הטבלה')}</span>` : html`<sw-field flow><select class="to" aria-label=${tr('לאיזה בניין')} data-ma-rule-to @change=${(e: Event) => upd(i, { to: h.parseTarget((e.target as HTMLSelectElement).value) })}>${toOpts(r)}</select></sw-field>`}
         <span class="cnt" data-ma-rule-count>${tr('{floors} קומות, {areas} אזורים', { floors: counts[r.id]?.floors ?? 0, areas: counts[r.id]?.areas ?? 0 })}</span>
         <span class="acts"><button class="ib" aria-label=${r.on ? tr('השבת את הכלל') : tr('הפעל את הכלל')} title=${r.on ? tr('השבת') : tr('הפעל')} aria-pressed=${String(r.on)} @click=${() => upd(i, { on: !r.on })}><sw-icon name=${r.on ? 'eye' : 'minus'} size=${16}></sw-icon></button>
           ${r.kind === 'table' && rules.filter((x) => x.kind === 'table').length === 1 ? nothing : html`<button class="ib" aria-label=${tr('מחק את הכלל')} data-ma-rule-delete @click=${() => h.setState({ ...st, rules: rules.filter((_, j) => j !== i) }, true)}><sw-icon name="trash" size=${16}></sw-icon></button>`}</span>

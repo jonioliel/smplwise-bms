@@ -8,6 +8,7 @@ import { groupPicker, pickerEntities, INSTALLATION_WIDE, SCENE_CAPTURE_DOMAINS, 
 
 import { ATTR_DEFS, STATE_OPTIONS, domainOf, visibleAttrs, withValue, ON_OFF } from '../screens/automations-logic';
 import { tr } from '../i18n/msg/components';
+import './sw-field';
 export { ATTR_DEFS, STATE_OPTIONS, visibleAttrs, withValue };
 
 /**
@@ -403,7 +404,7 @@ export class SceneCapture extends LitElement {
   private stateCell(m: SceneMember): TemplateResult {
     const opts = STATE_OPTIONS[domainOf(m.entity_id)] ?? ON_OFF;
     const all = opts.some((o) => o.value === m.state) ? opts : [...opts, { value: m.state, label: m.state }];
-    return html`<select class="inp" aria-label=${`${tr('מצב')} · ${this.nameOf(m.entity_id)}`} data-row-state=${m.entity_id} ?disabled=${this.readOnly} @change=${(e: Event) => this.setRow(m.entity_id, { state: (e.target as HTMLSelectElement).value })}>${all.map((o) => html`<option value=${o.value} ?selected=${o.value === m.state}>${o.label}</option>`)}</select>`;
+    return html`<sw-field flow><select class="inp" aria-label=${`${tr('מצב')} · ${this.nameOf(m.entity_id)}`} data-row-state=${m.entity_id} ?disabled=${this.readOnly} @change=${(e: Event) => this.setRow(m.entity_id, { state: (e.target as HTMLSelectElement).value })}>${all.map((o) => html`<option value=${o.value} ?selected=${o.value === m.state}>${o.label}</option>`)}</select></sw-field>`;
   }
 
   private valuesCell(m: SceneMember): TemplateResult {

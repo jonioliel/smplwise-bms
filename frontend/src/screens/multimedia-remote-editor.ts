@@ -18,6 +18,7 @@ import { switchPress } from '../components/sw-toggle';
 import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
 import { live } from 'lit/directives/live.js';
+import '../components/sw-field';
 
 /**
  * "עריכת השלט" (CR-015 §7.3): the remote's editor, drawn inside the open remote (media-remote.ts) instead of the pad. Reached from
@@ -492,7 +493,7 @@ export class MediaRemoteEditor extends LitElement {
         <span class="grip" aria-hidden="true">${ic('grip')}</span>
         <span class=${x.kind === 'app' ? 'gi' : 'gi src'} style=${x.kind === 'app' ? `--a1:${t.a1};--a2:${t.a2}` : ''}>${ic('', glyphPath(x.glyph))}</span>
         <input type="text" .value=${x.label} maxlength="40" placeholder=${x.orig} aria-label=${tr('שם: {orig}', { orig: x.orig })} @input=${(e: Event) => patch(i, { label: (e.target as HTMLInputElement).value })} />
-        <select aria-label=${tr('סמל: {orig}', { orig: x.orig })} @change=${(e: Event) => patch(i, { glyph: (e.target as HTMLSelectElement).value as Glyph })}>${(Object.keys(GLYPH_NAMES) as Glyph[]).map((g) => html`<option value=${g} ?selected=${x.glyph === g}>${GLYPH_NAMES[g]}</option>`)}</select>
+        <sw-field flow><select aria-label=${tr('סמל: {orig}', { orig: x.orig })} @change=${(e: Event) => patch(i, { glyph: (e.target as HTMLSelectElement).value as Glyph })}>${(Object.keys(GLYPH_NAMES) as Glyph[]).map((g) => html`<option value=${g} ?selected=${x.glyph === g}>${GLYPH_NAMES[g]}</option>`)}</select></sw-field>
         <button type="button" class="ib" aria-label=${tr('הקדם: {orig}', { orig: x.orig })} ?disabled=${i === 0} @click=${() => this.moveIn(list, i, i - 1)}>${ic('up')}</button>
         <button type="button" class="ib" aria-label=${tr('אחר: {orig}', { orig: x.orig })} ?disabled=${i === items.length - 1} @click=${() => this.moveIn(list, i, i + 1)}>${ic('down')}</button>
         <sw-toggle .checked=${live(!x.hidden)} label=${tr('הצג: {orig}', { orig: x.orig })} labelHidden @change=${switchPress(!x.hidden, () => patch(i, { hidden: !x.hidden }))}></sw-toggle>

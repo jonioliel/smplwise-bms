@@ -8,6 +8,7 @@ import { html, nothing } from 'lit';
 import { answer, exceptionOrder, itemKey, leaveAllUnassigned, newBuildingName, targetKey, type Question, type Target } from '../api/mapping-engine';
 import { MappingAssistant } from './mapping-assistant';
 import { tr } from '../i18n/msg/media';
+import '../components/sw-field';
 
 function questionText(h: MappingAssistant, q: Question): { name: string; where: string; ask: string } {
   const it = q.item;
@@ -49,9 +50,9 @@ function renderQuestion(h: MappingAssistant, q: Question) {
   if (!opts.some((o) => o.t === 'none') && q.kind === 'no_mark') opts.push({ t: 'none' });
   const existingFirst = q.kind === 'unknown_token' && s.new_token === 'existing_first';
   const decide = (t: Target) => h.setState(answer(h.st, q, t));
-  const picker = html`<select data-ma-pick aria-label=${tr('בניין קיים')} @change=${(e: Event) => { const t = h.parseTarget((e.target as HTMLSelectElement).value); if (t) decide(t); }}>
+  const picker = html`<sw-field flow><select data-ma-pick aria-label=${tr('בניין קיים')} @change=${(e: Event) => { const t = h.parseTarget((e.target as HTMLSelectElement).value); if (t) decide(t); }}>
     <option value="" selected>${q.kind === 'unknown_token' ? tr('שייך לבניין קיים…') : tr('בניין אחר…')}</option>
-    ${h.data.buildings.map((b) => html`<option value=${`b:${b.id}`}>${b.name}</option>`)}</select>`;
+    ${h.data.buildings.map((b) => html`<option value=${`b:${b.id}`}>${b.name}</option>`)}</select></sw-field>`;
   const btns = opts.map((o, i) => {
     const l = optionLabel(h, q, o, i);
     return html`<button type="button" class="press ${i === 0 && !existingFirst ? 'rec' : ''}" data-ma-answer=${targetKey(o)} @click=${() => decide(o)}>${l.t}${l.s ? html`<small>${l.s}</small>` : nothing}</button>`;

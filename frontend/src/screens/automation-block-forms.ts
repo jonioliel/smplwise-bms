@@ -67,7 +67,7 @@ const FLD_LABEL: Record<string, string> = {
 const aria = (attr: string | undefined, label?: string): string => label ?? FLD_LABEL[attr ?? ''] ?? FLD_LABEL[(attr ?? '').split('.').pop() ?? ''] ?? '';
 function sel(value: string, opts: readonly Choice[], on: (v: string) => void, attr = '', cls = '', label?: string): TemplateResult {
   const list = opts.some((o) => o.value === value) || value === '' ? opts : [...opts, { value, label: value }];
-  return html`<select class="selx ${cls}" data-fld=${attr} aria-label=${aria(attr, label)} @change=${(e: Event) => on((e.target as HTMLSelectElement).value)}>${list.map((o) => html`<option value=${o.value} ?selected=${o.value === value}>${o.label}</option>`)}</select>`;
+  return html`<sw-field flow><select class="selx ${cls}" data-fld=${attr} aria-label=${aria(attr, label)} @change=${(e: Event) => on((e.target as HTMLSelectElement).value)}>${list.map((o) => html`<option value=${o.value} ?selected=${o.value === value}>${o.label}</option>`)}</select></sw-field>`;
 }
 function numIn(value: number | null | undefined, on: (n: number | null) => void, o: { unit?: string; min?: number; max?: number; step?: number; attr?: string; ph?: string; label?: string } = {}): TemplateResult {
   return html`<label class="inp"><input class="n" type="text" inputmode="decimal" data-fld=${o.attr ?? ''} aria-label=${aria(o.attr, o.label)} placeholder=${o.ph ?? ''} .value=${value === null || value === undefined ? '' : String(value)}

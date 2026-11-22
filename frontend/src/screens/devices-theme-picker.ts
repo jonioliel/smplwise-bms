@@ -4,6 +4,7 @@ import { styleMap } from 'lit/directives/style-map.js';
 import { DEVICE_PALETTES, LAYOUT_ROLE_IDS } from '../styles/devices-palettes';
 import type { DevicesScheme } from './devices-style';
 import { tr } from '../i18n/msg/devices';
+import '../components/sw-field';
 
 export interface DevicesPick {
   key: 'devices.theme' | 'devices.scheme';
@@ -174,11 +175,11 @@ export class DevicesThemePicker extends LitElement {
       </div>
       <div class="scheme">
         <span class="lbl">${tr('בהיר או כהה')}<span class="muted">${tr('ברירת המחדל בהיר, כמו שאר המערכת. "לפי המכשיר" עובר לכהה רק במכשיר שמוגדר כהה. חל על סגנון הזכוכית.')}</span></span>
-        <select data-set-devices-scheme ?disabled=${this.disabled} @change=${(e: Event) => this.pick('devices.scheme', (e.target as HTMLSelectElement).value)}>
+        <sw-field flow><select data-set-devices-scheme ?disabled=${this.disabled} @change=${(e: Event) => this.pick('devices.scheme', (e.target as HTMLSelectElement).value)}>
           <option value="light" ?selected=${this.scheme === 'light'}>${tr('בהיר')}</option>
           <option value="dark" ?selected=${this.scheme === 'dark'}>${tr('כהה')}</option>
           <option value="auto" ?selected=${this.scheme === 'auto'}>${tr('לפי המכשיר')}</option>
-        </select>
+        </select></sw-field>
       </div>`;
   }
 }

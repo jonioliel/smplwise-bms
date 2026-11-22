@@ -15,6 +15,7 @@ import {
 } from '../api/partners';
 import { pt, ptCode, ptLang } from '../i18n/partners';
 import { hostBlockStyles, ltrStyles } from '../styles/fragments';
+import './sw-field';
 
 type Tab = 'partners' | 'tokens' | 'endpoints' | 'log' | 'settings';
 
@@ -223,9 +224,9 @@ export class SwPartnerApiCard extends LitElement {
   private renderRestriction(kind: string, ids: Set<string>, onKind: (k: string) => void, onIds: (s: Set<string>) => void) {
     const s = this.s!;
     return html`<span class="chips"><span class="val">${pt('restriction')}</span>
-        <select aria-label=${pt('restriction')} @change=${(e: Event) => onKind((e.target as HTMLSelectElement).value)}>
+        <sw-field flow><select aria-label=${pt('restriction')} @change=${(e: Event) => onKind((e.target as HTMLSelectElement).value)}>
           ${s.restriction_kinds.map((k) => html`<option value=${k} ?selected=${k === kind}>${ptCode('rk_', k)}</option>`)}
-        </select></span>
+        </select></sw-field></span>
       ${kind !== 'installation' ? html`<span class="chips">${this.placeOptions(kind).map((p) => html`<label><input type="checkbox" .checked=${ids.has(p.id)}
         @change=${() => onIds(this.toggleIn(ids, p.id))} />${p.name}</label>`)}</span>` : nothing}`;
   }
@@ -246,10 +247,10 @@ export class SwPartnerApiCard extends LitElement {
       this.fToken = { ...this.fToken, label: '', scopes: new Set(), ids: new Set(), depts: new Set(), cidrs: '', days: 0 };
     }, pt('saved'));
     return html`<div class="form" data-partner-token-form>
-        <span class="chips"><select aria-label=${pt('choosePartner')} @change=${(e: Event) => (this.fToken = { ...f, client: (e.target as HTMLSelectElement).value })}>
+        <span class="chips"><sw-field flow><select aria-label=${pt('choosePartner')} @change=${(e: Event) => (this.fToken = { ...f, client: (e.target as HTMLSelectElement).value })}>
           <option value="">${pt('choosePartner')}</option>
           ${this.clients.filter((c) => c.state === 'active').map((c) => html`<option value=${c.id} ?selected=${c.id === f.client}>${c.label}</option>`)}
-        </select>
+        </select></sw-field>
         <input type="text" maxlength="80" .value=${f.label} placeholder=${pt('label')} aria-label=${pt('label')} @input=${(e: Event) => (this.fToken = { ...f, label: (e.target as HTMLInputElement).value })} /></span>
         <span class="chips"><span class="val">${pt('scopes')}</span>${s.scopes.map((sc) => html`<label><input type="checkbox" .checked=${f.scopes.has(sc)}
           data-partner-scope=${sc} @change=${() => (this.fToken = { ...f, scopes: this.toggleIn(f.scopes, sc) })} />${ptCode('sc_', sc)}</label>`)}</span>
@@ -285,10 +286,10 @@ export class SwPartnerApiCard extends LitElement {
       this.fEp = { ...this.fEp, label: '', url: '', events: new Set(), ids: new Set() };
     }, pt('saved'));
     return html`<div class="form" data-partner-endpoint-form>
-        <span class="chips"><select aria-label=${pt('choosePartner')} @change=${(e: Event) => (this.fEp = { ...f, client: (e.target as HTMLSelectElement).value })}>
+        <span class="chips"><sw-field flow><select aria-label=${pt('choosePartner')} @change=${(e: Event) => (this.fEp = { ...f, client: (e.target as HTMLSelectElement).value })}>
           <option value="">${pt('choosePartner')}</option>
           ${this.clients.filter((c) => c.state === 'active').map((c) => html`<option value=${c.id} ?selected=${c.id === f.client}>${c.label}</option>`)}
-        </select>
+        </select></sw-field>
         <input type="text" maxlength="80" .value=${f.label} placeholder=${pt('label')} aria-label=${pt('label')} @input=${(e: Event) => (this.fEp = { ...f, label: (e.target as HTMLInputElement).value })} /></span>
         <input type="url" class="ltr" maxlength="2048" .value=${f.url} placeholder=${pt('url', { ports: s.allowed_ports.join(' / ') })} aria-label=${pt('url', { ports: s.allowed_ports.join(' / ') })}
           data-partner-url @input=${(e: Event) => (this.fEp = { ...f, url: (e.target as HTMLInputElement).value })} />

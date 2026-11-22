@@ -5,6 +5,7 @@ import { describeError } from '../api/client';
 import { addShareMember, listShareMembers, removeShareMember, type ShareMember, type ShareMembers } from '../api/zones';
 import { bidi } from '../i18n/bidi';
 import { tr } from '../i18n/msg/components';
+import './sw-field';
 
 const KIND: Record<ShareMember['kind'], string> = { camera: tr('מצלמה'), door: tr('עמדת דלת'), device: tr('התקן'), station: tr('עמדת WisKey') };
 
@@ -182,10 +183,10 @@ export class SwShareMembers extends LitElement {
       ${d.can_manage
         ? html`<div class="add">
             <input class="search" type="search" data-member-search aria-label=${tr('חיפוש מצלמה, עמדה או התקן להוספה')} placeholder=${tr('חיפוש מצלמה, עמדה או התקן')} .value=${this.q} @input=${(e: Event) => { this.q = (e.target as HTMLInputElement).value; this.pick = ''; }} />
-            <select data-member-pick aria-label=${tr('בחר מצלמה, עמדה או התקן להוספה')} .value=${this.pick} @change=${(e: Event) => (this.pick = (e.target as HTMLSelectElement).value)}>
+            <sw-field flow><select data-member-pick aria-label=${tr('בחר מצלמה, עמדה או התקן להוספה')} .value=${this.pick} @change=${(e: Event) => (this.pick = (e.target as HTMLSelectElement).value)}>
               <option value="">${tr('בחר מצלמה, התקן או עמדת WisKey…')}</option>
               ${cands.map((c) => html`<option value=${`${c.resource_type}|${c.resource_id}`}>${KIND[c.kind]} · ${c.name} · ${this.where(c)}</option>`)}
-            </select>
+            </select></sw-field>
             <sw-button size="sm" icon="plus" data-member-add ?disabled=${this.busy || !chosen} @click=${() => chosen && this.change(chosen, true)}>${tr('הוסף')}</sw-button>
           </div>
           <div class="note">${tr('חבר מוצג בכל הקומות של החלל, לכל מי שמורשה לראות אותו. הוספה והסרה דורשות הרשאת עריכה והצבה בשתי הקומות.')}</div>`

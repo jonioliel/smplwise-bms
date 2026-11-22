@@ -4,6 +4,7 @@ import { transportLabel } from '../api/prefs';
 import { cachedVideoPolicy, loadVideoPolicy, setPersonalTransport } from '../api/video-transport';
 import { normalizeChoice, type TransportChoice, type VideoPolicy } from '../api/video-policy';
 import { tr } from '../i18n/msg/shell';
+import '../components/sw-field';
 
 /**
  * החשבון שלי › וידאו (VIDEO-TRANSPORT-2400, owner decision 2026-11-04): the viewer's own live-video transport, stored on the server per
@@ -86,10 +87,10 @@ export class SwVideoPrefs extends LitElement {
     return html`
       <div class="row">
         <label for="vid-transport">${tr('העברת וידאו חי')}</label>
-        <select id="vid-transport" data-my-video-transport ?disabled=${this.busy || !p} @change=${(e: Event) => void this.pick(e.target as HTMLSelectElement)}>
+        <sw-field flow><select id="vid-transport" data-my-video-transport ?disabled=${this.busy || !p} @change=${(e: Event) => void this.pick(e.target as HTMLSelectElement)}>
           <option value="" ?selected=${own === ''}>${tr('כמו ההגדרה של המערכת ({mode})', { mode: transportLabel(p?.installation ?? 'auto') })}</option>
           ${choices.map((c) => html`<option value=${c} ?selected=${own === c}>${transportLabel(c)}</option>`)}
-        </select>
+        </select></sw-field>
       </div>
       <p class="note" data-my-video-note>${tr('חל על כל המסכים ועל כל מכשיר שבו נכנסים בחשבון הזה.')}</p>
       ${!p ? html`<p class="note" data-my-video-unavailable>${tr('ההגדרה האישית אינה זמינה כרגע')}</p>` : nothing}

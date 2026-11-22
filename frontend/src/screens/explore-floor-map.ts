@@ -2986,7 +2986,7 @@ export class ExploreFloorMap extends LitElement {
     const set = (v: string) => (this.actionArgs = { ...this.actionArgs, [key]: v });
     const at = e.attributes as Record<string, unknown>;
     const choices = this.argChoices(e, arg);
-    if (choices.length) return html`<select class="arg" data-action-arg=${key} aria-label=${arg.name} @change=${(ev: Event) => set((ev.target as HTMLSelectElement).value)}>${choices.map((c) => html`<option value=${c} ?selected=${c === value}>${ARG_CHOICE_HE[c] ?? c}</option>`)}</select>`;
+    if (choices.length) return html`<sw-field flow><select class="arg" data-action-arg=${key} aria-label=${arg.name} @change=${(ev: Event) => set((ev.target as HTMLSelectElement).value)}>${choices.map((c) => html`<option value=${c} ?selected=${c === value}>${ARG_CHOICE_HE[c] ?? c}</option>`)}</select></sw-field>`;
     if (arg.type === 'int' || arg.type === 'float') {
       const min = arg.name === 'volume_level' ? 0 : arg.name === 'value' ? ((at.min as number) ?? arg.min) : arg.name === 'temperature' ? ((at.min_temp as number) ?? 5) : arg.min;
       const max = arg.name === 'volume_level' ? 100 : arg.name === 'value' ? ((at.max as number) ?? arg.max) : arg.name === 'temperature' ? ((at.max_temp as number) ?? 35) : arg.max;

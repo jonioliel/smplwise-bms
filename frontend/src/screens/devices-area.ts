@@ -50,6 +50,7 @@ import { BP } from '../i18n/building-presence';
 import { LongListsController } from '../api/long-lists';
 import { tr } from '../i18n/msg/devices';
 import { FrameCoalescer } from '../components/frame-coalescer';
+import '../components/sw-field';
 
 export { rowLabel };
 
@@ -1840,10 +1841,10 @@ export class DevicesArea extends LitElement {
     if (!this.mayPersonalize) return nothing;
     const own = this.personalDesign();
     return html`<span class="design-personal" data-design-personal><label>${tr('כיוון תצוגה (רק אצלי)')}
-      <select data-design-personal-select @change=${(ev: Event) => this.setPersonalDesign(((ev.target as HTMLSelectElement).value as AreaDesign | ''))}>
+      <sw-field flow><select data-design-personal-select @change=${(ev: Event) => this.setPersonalDesign(((ev.target as HTMLSelectElement).value as AreaDesign | ''))}>
         <option value="" ?selected=${!own}>${tr('ברירת המערכת')} · ${AREA_DESIGN_LABEL[this.installationDesign]}</option>
         ${AREA_DESIGNS.map((k) => html`<option value=${k} ?selected=${own === k}>${AREA_DESIGN_LABEL[k]}</option>`)}
-      </select></label></span>`;
+      </select></sw-field></label></span>`;
   }
 
   /** CR-007 6c: a card's devices as arranged - one grid of TILE_COLS columns in the saved order, each tile with its
@@ -2106,10 +2107,10 @@ export class DevicesArea extends LitElement {
       ${this.assignError ? html`<div class="assign-err" data-assign-error>${this.assignError}</div>` : nothing}
       ${this.assignAreas === null
         ? html`<div class="assign-muted">${tr('טוען אזורים…')}</div>`
-        : html`<select class="assign-select" data-assign-select aria-label=${tr('אזור')} @change=${(e: Event) => (this.assignTarget = (e.target as HTMLSelectElement).value)}>
+        : html`<sw-field flow><select class="assign-select" data-assign-select aria-label=${tr('אזור')} @change=${(e: Event) => (this.assignTarget = (e.target as HTMLSelectElement).value)}>
             <option value="" ?selected=${!this.assignTarget} disabled>${tr('בחרו אזור')}</option>
             ${this.assignAreas.map((a) => html`<option value=${a.area_id} ?selected=${a.area_id === this.assignTarget}>${bidi(a.name)}${a.floor_name ? ` · ${bidi(a.floor_name)}` : ''}</option>`)}
-          </select>`}
+          </select></sw-field>`}
       <div class="assign-actions">
         <sw-button data-assign-cancel autofocus @click=${this.closeAssign}>${tr('ביטול')}</sw-button>
         <sw-button data-assign-confirm variant="primary" ?disabled=${!this.assignTarget || this.assignBusy} @click=${() => void this.confirmAssign()}>${tr('שייך')}</sw-button>

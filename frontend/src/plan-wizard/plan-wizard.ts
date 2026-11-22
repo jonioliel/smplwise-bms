@@ -32,6 +32,7 @@ import {
 } from './wizard-model';
 import { candidateGeometry, detectOverlay, devicesOverlay, itemPoint, roomColour, roomsOverlay, type CandidateGeometry } from './wizard-draw';
 import { wizardStyles } from './wizard-styles';
+import '../components/sw-field';
 
 const STEPS = [tr('העלאה'), tr('זיהוי'), tr('בדיקה'), tr('חדרים'), tr('סגנון'), tr('התקנים'), tr('סיום')] as const;
 const ROOMS_PAGE = 8;
@@ -1065,8 +1066,8 @@ export class PlanWizardScreen extends LitElement {
           <label>${tr('לא נכנס בלי אישור מתחת ל־(%)')}<input type="number" min="5" max="99" .value=${String(d.review_min)} @input=${(e: Event) => set({ review_min: Math.round(Number((e.target as HTMLInputElement).value)) })} /></label>
         </div>
         ${bad ? html`<span class="note" style="color:var(--sw-danger-text)">${tr('הסף התחתון חייב להיות נמוך מהעליון.')}</span>` : nothing}
-        <label>${tr('פריט "לבדיקה" שלא בדקת')}<select .value=${d.unreviewed} @change=${(e: Event) => set({ unreviewed: (e.target as HTMLSelectElement).value as WizardPrefs['unreviewed'] })}><option value="as_detected" ?selected=${d.unreviewed === 'as_detected'}>${tr('נכנס כמו שזוהה')}</option><option value="reject" ?selected=${d.unreviewed === 'reject'}>${tr('לא נכנס')}</option></select></label>
-        <label>${tr('ערכת סגנון ראשונה')}<select .value=${d.kit} @change=${(e: Event) => set({ kit: (e.target as HTMLSelectElement).value as KitId })}>${KITS.map((k) => html`<option value=${k.id} ?selected=${k.id === d.kit}>${k.he}</option>`)}</select></label>
+        <label>${tr('פריט "לבדיקה" שלא בדקת')}<sw-field flow><select .value=${d.unreviewed} @change=${(e: Event) => set({ unreviewed: (e.target as HTMLSelectElement).value as WizardPrefs['unreviewed'] })}><option value="as_detected" ?selected=${d.unreviewed === 'as_detected'}>${tr('נכנס כמו שזוהה')}</option><option value="reject" ?selected=${d.unreviewed === 'reject'}>${tr('לא נכנס')}</option></select></sw-field></label>
+        <label>${tr('ערכת סגנון ראשונה')}<sw-field flow><select .value=${d.kit} @change=${(e: Event) => set({ kit: (e.target as HTMLSelectElement).value as KitId })}>${KITS.map((k) => html`<option value=${k.id} ?selected=${k.id === d.kit}>${k.he}</option>`)}</select></sw-field></label>
         <label class="check"><input type="checkbox" .checked=${d.furniture} @change=${(e: Event) => set({ furniture: (e.target as HTMLInputElement).checked })} />${tr('להציב ריהוט התחלתי')}</label>
         <label class="check"><input type="checkbox" .checked=${d.auto_place} @change=${(e: Event) => set({ auto_place: (e.target as HTMLInputElement).checked })} />${tr('להציב התקנים לבד לפי האזור')}</label>
         <span class="note">${tr('ברירת המחדל: מעל 80% נכנס, בין 50% ל־80% לבדיקה ונכנס כמו שזוהה אם דילגת, מתחת ל־50% לא נכנס בלי אישור.')}</span>

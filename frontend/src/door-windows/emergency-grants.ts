@@ -8,6 +8,7 @@ import { getEmergencyGrants, grantEmergencyOpen, revokeEmergencyGrant, type Gran
 import { DWT_KEYS, dwt, type DwtKey } from '../i18n/door-windows';
 import { defaultExpiryValue, expiryToUtc, grantProblem } from './grants-logic';
 import { dwCss } from './styles';
+import '../components/sw-field';
 
 /**
  * EMROLE-295 (owner decisions 2026-10-24): who holds the built-in emergency-open role - a guard, a temporary guard, a reception desk clerk -
@@ -105,12 +106,12 @@ export class DoorEmergencyGrants extends LitElement {
         </section>
         <section>
           <div class="field"><label for="dwg-person">${dwt('grPerson')}</label>
-            <select id="dwg-person" data-dw-grant-person @change=${(e: Event) => (this.person = (e.target as HTMLSelectElement).value)}>
+            <sw-field flow><select id="dwg-person" data-dw-grant-person @change=${(e: Event) => (this.person = (e.target as HTMLSelectElement).value)}>
               <option value="" ?selected=${this.person === ''}>${dwt('grChoose')}</option>
-              ${v.candidates.map((c) => html`<option value=${c.id} ?selected=${c.id === this.person}>${c.name}</option>`)}</select></div>
+              ${v.candidates.map((c) => html`<option value=${c.id} ?selected=${c.id === this.person}>${c.name}</option>`)}</select></sw-field></div>
           ${v.scopes.length > 1 ? html`<div class="field"><label for="dwg-place">${dwt('grPlace')}</label>
-            <select id="dwg-place" data-dw-grant-place @change=${(e: Event) => (this.place = (e.target as HTMLSelectElement).value)}>
-              ${v.scopes.map((s) => html`<option value=${`${s.scope_type}:${s.scope_id}`} ?selected=${`${s.scope_type}:${s.scope_id}` === this.place}>${s.name}</option>`)}</select></div>` : nothing}
+            <sw-field flow><select id="dwg-place" data-dw-grant-place @change=${(e: Event) => (this.place = (e.target as HTMLSelectElement).value)}>
+              ${v.scopes.map((s) => html`<option value=${`${s.scope_type}:${s.scope_id}`} ?selected=${`${s.scope_type}:${s.scope_id}` === this.place}>${s.name}</option>`)}</select></sw-field></div>` : nothing}
           <div class="field"><label for="dwg-expiry">${dwt('grExpiry')}</label>
             <input id="dwg-expiry" type="datetime-local" lang=${dateInputLang()} data-dw-grant-expiry .value=${this.expiry} ?disabled=${this.noExpiry}
               @input=${(e: Event) => (this.expiry = (e.target as HTMLInputElement).value)}></div>

@@ -39,6 +39,7 @@ import { refreshIncidents } from '../incidents/store';
 import { SkinController } from '../design/skin';
 import { tr } from '../i18n/msg/investigate';
 import { ToastController } from '../components/toast-controller';
+import '../components/sw-field';
 
 type Part = 'cams' | 'map' | 'doors' | 'chain';
 type Look = 'ok' | 'warn' | 'alarm' | 'off' | 'unk' | 'acc';
@@ -838,8 +839,8 @@ export class InvestigateIncidents extends LitElement {
       </sw-sheet>
       <sw-sheet ?open=${this.sheet === 'manual'} narrow heading=${it('openManualTitle')} data-incident-manual-sheet @close=${() => (this.sheet = null)}>
         <div class="form">
-          <label>${it('manualFloor')}<select data-incident-manual-floor .value=${this.manualFloor} @change=${(e: Event) => (this.manualFloor = (e.target as HTMLSelectElement).value)}>
-            ${this.manualFloors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.manualFloor}>${f.label}</option>`)}</select></label>
+          <label>${it('manualFloor')}<sw-field flow><select data-incident-manual-floor .value=${this.manualFloor} @change=${(e: Event) => (this.manualFloor = (e.target as HTMLSelectElement).value)}>
+            ${this.manualFloors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.manualFloor}>${f.label}</option>`)}</select></sw-field></label>
           <label>${it('manualTitle')}<input maxlength="120" placeholder=${it('manualDefault')} .value=${this.manualTitle} @input=${(e: Event) => (this.manualTitle = (e.target as HTMLInputElement).value)} /></label>
           <p>${it('physicalNote')}</p>
           <div class="acts"><sw-button @click=${() => (this.sheet = null)}>${it('cancel')}</sw-button><sw-button variant="primary" data-incident-manual-open ?disabled=${this.busy || !this.manualFloor} @click=${() => void this.doManual()}>${it('manualOpen')}</sw-button></div>

@@ -21,6 +21,7 @@ import { fx } from '../i18n/frigate-text';
 import { adminStyles } from './frigate-admin-shared';
 import { dayTimeText } from '../api/day-format';
 import { ToastController } from './toast-controller';
+import './sw-field';
 
 type Tab = 'classes' | 'profiles' | 'config' | 'exports' | 'cases' | 'events' | 'log' | 'supervision';
 const TABS: Tab[] = ['classes', 'profiles', 'config', 'exports', 'cases', 'events', 'log', 'supervision'];
@@ -260,10 +261,10 @@ export class FrigateControlSettings extends LitElement {
         <h4>${t.rules}</h4>
         ${prof.alarm_states.filter((s) => ['disarmed', 'armed_home', 'armed_away', 'armed_night'].includes(s)).map((s) => html`<div class="row">
           <span>${alarmText(s)}</span>
-          <select aria-label=${alarmText(s)} data-fcs-rule=${s} .value=${prof.rules[s] ?? ''} ?disabled=${lock} @change=${(e: Event) => void this.rule(s, e)}>
+          <sw-field flow><select aria-label=${alarmText(s)} data-fcs-rule=${s} .value=${prof.rules[s] ?? ''} ?disabled=${lock} @change=${(e: Event) => void this.rule(s, e)}>
             <option value="">${t.rulesNone}</option>
             ${prof.names.map((n) => html`<option value=${n} ?selected=${prof.rules[s] === n}>${n}</option>`)}
-          </select>
+          </select></sw-field>
         </div>`)}
       </div>` : nothing}
       <frigate-auto-profile recorder-id=${this.recorderId} .first=${this.first} .canConfigure=${can('system.configure')} .canProfile=${canAnywhere('analytics.profile')} @frigate-changed=${() => void this.afterWrite()}></frigate-auto-profile>`;

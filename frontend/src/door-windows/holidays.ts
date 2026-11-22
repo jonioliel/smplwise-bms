@@ -16,6 +16,7 @@ import { KIND_TONE, canReset, holidayMonths, kindChoices, validDay, type DayKind
 import { dwCss } from './styles';
 import { dweCss } from './events-styles';
 import { dateInputLang } from '../api/day-format';
+import '../components/sw-field';
 
 const GENERATORS = ['israel', 'none'] as const;
 type Pending = { text: string; run: () => Promise<unknown> };
@@ -148,8 +149,8 @@ export class DoorHolidays extends LitElement {
         <div class="row2">
           <div class="field"><label for="dwh-date">${dwe('hlColDate')}</label><input id="dwh-date" type="date" lang=${dateInputLang()} min=${this.today} .value=${this.add.date}
             @change=${(e: Event) => (this.add = { ...this.add, date: (e.target as HTMLInputElement).value })}></div>
-          <div class="field"><label for="dwh-kind">${dwe('hlColKind')}</label><select id="dwh-kind" @change=${(e: Event) => (this.add = { ...this.add, kind: (e.target as HTMLSelectElement).value as DayKind })}>
-            ${kindChoices(null).map((k) => html`<option value=${k} ?selected=${this.add.kind === k}>${this.kindWord(k)}</option>`)}</select></div>
+          <div class="field"><label for="dwh-kind">${dwe('hlColKind')}</label><sw-field flow><select id="dwh-kind" @change=${(e: Event) => (this.add = { ...this.add, kind: (e.target as HTMLSelectElement).value as DayKind })}>
+            ${kindChoices(null).map((k) => html`<option value=${k} ?selected=${this.add.kind === k}>${this.kindWord(k)}</option>`)}</select></sw-field></div>
           <div class="field"><label for="dwh-label">${dwe('hlLabel')}</label><input id="dwh-label" type="text" maxlength="60" .value=${this.add.label}
             @input=${(e: Event) => (this.add = { ...this.add, label: (e.target as HTMLInputElement).value })}></div>
         </div>
@@ -167,11 +168,11 @@ export class DoorHolidays extends LitElement {
         ${r.source === 'manual' && r.generated_kind ? html`<span class="chip" data-tone="off">${dwe('hlWas', { kind: this.kindWord(r.generated_kind) })}</span>` : nothing}
       </span>
       ${this.canManage ? html`<span class="acts">
-        <select aria-label=${dwe('hlColKind')} data-dw-kind-pick @change=${(e: Event) => {
+        <sw-field flow><select aria-label=${dwe('hlColKind')} data-dw-kind-pick @change=${(e: Event) => {
           const v = (e.target as HTMLSelectElement).value as DayKind;
           (e.target as HTMLSelectElement).value = r.kind; // the shown value changes only after the confirmed save
           if (v !== r.kind) this.askKind(r, v);
-        }}>${kindChoices(r).map((k) => html`<option value=${k} ?selected=${r.kind === k}>${this.kindWord(k)}</option>`)}</select>
+        }}>${kindChoices(r).map((k) => html`<option value=${k} ?selected=${r.kind === k}>${this.kindWord(k)}</option>`)}</select></sw-field>
         ${canReset(r) ? html`<sw-button size="sm" variant="ghost" icon="refresh" data-dw-reset @click=${() => this.askReset(r)}>${dwe(r.generated_kind ? 'hlReset' : 'hlRemove')}</sw-button>` : nothing}
       </span>` : nothing}
     </li>`;

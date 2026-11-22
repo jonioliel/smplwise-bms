@@ -31,6 +31,7 @@ import {
   type WriteOutcome,
 } from '../api/installer';
 import { fill, installerText as T, lifecycleText as L } from '../i18n/wiskey-installer';
+import '../components/sw-field';
 
 type Station = { id: string; name: string; online: boolean };
 
@@ -264,9 +265,9 @@ export class InstallerLifecycle extends LitElement {
       body = html`<div class="grid2">
           ${this.field('name')}${this.field('host')}${this.field('username')}${this.field('password', 'password', step === 'reconfigure' ? L.passwordKeep : '')}
           <label class="f"><span>${L.fields.scheme}</span>
-            <select .value=${String(this.form.scheme)} ?disabled=${this.busy} data-flow-field="scheme" @change=${(e: Event) => (this.form = { ...this.form, scheme: (e.target as HTMLSelectElement).value })}>
+            <sw-field flow><select .value=${String(this.form.scheme)} ?disabled=${this.busy} data-flow-field="scheme" @change=${(e: Event) => (this.form = { ...this.form, scheme: (e.target as HTMLSelectElement).value })}>
               ${(f.choices.scheme ?? ['http', 'https']).map((o) => html`<option value=${String(o)} ?selected=${String(o) === this.form.scheme}>${o}</option>`)}
-            </select></label>
+            </select></sw-field></label>
           ${this.field('port', 'number')}${this.field('rtsp_port', 'number')}
         </div>
         <label class="opt"><input type="checkbox" .checked=${this.form.verify_ssl === true} ?disabled=${this.busy} data-flow-field="verify_ssl"
@@ -287,9 +288,9 @@ export class InstallerLifecycle extends LitElement {
     } else if (step === 'mapping') {
       body = html`<div class="msg warn" role="status">${L.pulseWarn}</div>
         <label class="f"><span>${L.fields.api_id}</span>
-          <select .value=${String(this.form.api_id)} ?disabled=${this.busy} data-flow-field="api_id" @change=${(e: Event) => (this.form = { ...this.form, api_id: (e.target as HTMLSelectElement).value })}>
+          <sw-field flow><select .value=${String(this.form.api_id)} ?disabled=${this.busy} data-flow-field="api_id" @change=${(e: Event) => (this.form = { ...this.form, api_id: (e.target as HTMLSelectElement).value })}>
             ${(f.choices.api_id ?? []).map((o) => html`<option value=${String(o)} ?selected=${String(o) === this.form.api_id}>${o}</option>`)}
-          </select></label>`;
+          </select></sw-field></label>`;
     } else if (step === 'confirm_mapping') {
       body = html`<div class="radios" role="radiogroup" aria-label=${L.fields.result}>
         ${(f.choices.result ?? []).map(
@@ -416,10 +417,10 @@ export class InstallerLifecycle extends LitElement {
               <div class="hint">${L.reHint}</div>
               <div class="pickrow">
                 <label class="f"><span>${L.station}</span>
-                  <select class="pick" @change=${(e: Event) => (this.reStation = (e.target as HTMLSelectElement).value)} data-re-pick>
+                  <sw-field flow><select class="pick" @change=${(e: Event) => (this.reStation = (e.target as HTMLSelectElement).value)} data-re-pick>
                     <option value="" ?selected=${!this.reStation}>—</option>
                     ${stations.map((s) => html`<option value=${s.id} ?selected=${s.id === this.reStation}>${s.name}</option>`)}
-                  </select></label>
+                  </select></sw-field></label>
                 <sw-button variant="secondary" ?disabled=${!this.reStation || this.busy} @click=${() => void this.begin('reconfigure')} data-re-start>${L.reStart}</sw-button>
               </div>
             </sw-card>`}
@@ -427,15 +428,15 @@ export class InstallerLifecycle extends LitElement {
         <div class="hint">${L.removeHint}</div>
         <div class="pickrow">
           <label class="f"><span>${L.source}</span>
-            <select class="pick" @change=${(e: Event) => ((this.source = (e.target as HTMLSelectElement).value), (this.impact = null))} data-source-pick>
+            <sw-field flow><select class="pick" @change=${(e: Event) => ((this.source = (e.target as HTMLSelectElement).value), (this.impact = null))} data-source-pick>
               <option value="" ?selected=${!this.source}>—</option>
               ${stations.map((s) => html`<option value=${s.id} ?selected=${s.id === this.source}>${s.name}</option>`)}
-            </select></label>
+            </select></sw-field></label>
           <label class="f"><span>${L.target}</span>
-            <select class="pick" @change=${(e: Event) => ((this.target = (e.target as HTMLSelectElement).value), (this.impact = null))} data-target-pick>
+            <sw-field flow><select class="pick" @change=${(e: Event) => ((this.target = (e.target as HTMLSelectElement).value), (this.impact = null))} data-target-pick>
               <option value="" ?selected=${!this.target}>${L.noTarget}</option>
               ${stations.filter((s) => s.id !== this.source).map((s) => html`<option value=${s.id} ?selected=${s.id === this.target}>${s.name}</option>`)}
-            </select></label>
+            </select></sw-field></label>
           <sw-button variant="secondary" ?disabled=${!this.source || this.reviewing} @click=${() => void this.review()} data-review>${L.review}</sw-button>
         </div>
         ${this.reviewing ? html`<sw-state-panel state="loading" heading=${T.loading} compact></sw-state-panel>` : nothing}

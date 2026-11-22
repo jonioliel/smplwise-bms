@@ -39,6 +39,7 @@ import {
   type StationMeta,
 } from '../api/installer';
 import { fill, installerText as T, platformText as X, technicalText as D } from '../i18n/wiskey-installer';
+import '../components/sw-field';
 
 const EMPTY_META = (): StationMeta => ({
   zone: '',
@@ -263,10 +264,10 @@ export class InstallerPlatform extends LitElement {
     return html`<sw-card heading=${X.metaTitle} data-meta>
       <div class="hint">${X.metaHint}</div>
       <div class="pickrow"><label class="f"><span>${D.pick}</span>
-        <select class="pick" @change=${(e: Event) => this.pickMeta((e.target as HTMLSelectElement).value)} data-meta-pick>
+        <sw-field flow><select class="pick" @change=${(e: Event) => this.pickMeta((e.target as HTMLSelectElement).value)} data-meta-pick>
           <option value="" ?selected=${!this.metaStation}>—</option>
           ${this.stations.map((s) => html`<option value=${s.id} ?selected=${s.id === this.metaStation}>${s.name}</option>`)}
-        </select></label></div>
+        </select></sw-field></label></div>
       ${m && w
         ? html`<div class="grid2">
               <label class="f"><span>${X.zone}</span><input dir="auto" .value=${m.zone ?? ''} @input=${(e: Event) => (this.meta = { ...m, zone: (e.target as HTMLInputElement).value })} data-meta-field="zone" /></label>
@@ -356,10 +357,10 @@ export class InstallerPlatform extends LitElement {
           }} /><span dir="auto">${s.name}</span></label>`)}
       </div>
       <div class="grid2">
-        <label class="f"><span>${X.door}</span><select @change=${(e: Event) => ((this.door = Number((e.target as HTMLSelectElement).value)), (this.preview = null))} data-change-door>
-          <option value="1" ?selected=${this.door === 1}>1</option><option value="2" ?selected=${this.door === 2}>2</option></select></label>
-        <label class="f"><span>${X.mode}</span><select @change=${(e: Event) => ((this.changeMode = (e.target as HTMLSelectElement).value as 'config' | 'maintenance'), (this.preview = null))} data-change-mode>
-          <option value="config" ?selected=${this.changeMode === 'config'}>${X.modeNow}</option><option value="maintenance" ?selected=${this.changeMode === 'maintenance'}>${X.modeWindow}</option></select></label>
+        <label class="f"><span>${X.door}</span><sw-field flow><select @change=${(e: Event) => ((this.door = Number((e.target as HTMLSelectElement).value)), (this.preview = null))} data-change-door>
+          <option value="1" ?selected=${this.door === 1}>1</option><option value="2" ?selected=${this.door === 2}>2</option></select></sw-field></label>
+        <label class="f"><span>${X.mode}</span><sw-field flow><select @change=${(e: Event) => ((this.changeMode = (e.target as HTMLSelectElement).value as 'config' | 'maintenance'), (this.preview = null))} data-change-mode>
+          <option value="config" ?selected=${this.changeMode === 'config'}>${X.modeNow}</option><option value="maintenance" ?selected=${this.changeMode === 'maintenance'}>${X.modeWindow}</option></select></sw-field></label>
         <label class="f"><span>${D.fields.doorName}</span><input dir="auto" .value=${String(this.changes.doorName ?? '')} @input=${(e: Event) => setChange('doorName', (e.target as HTMLInputElement).value)} data-change-field="doorName" /></label>
         <label class="f"><span>${D.fields.openDuration}</span><input inputmode="numeric" dir="ltr" .value=${String(this.changes.openDuration ?? '')}
           @input=${(e: Event) => {
@@ -506,9 +507,9 @@ export class InstallerPlatform extends LitElement {
       <div class="foot"><sw-button variant="secondary" @click=${() => void this.download()} data-export>${X.export}</sw-button></div>
       <label class="f"><span>${X.importLabel}</span><input type="file" accept="application/json,.json" @change=${(e: Event) => void this.readFile(e)} data-import-file /></label>
       ${Object.keys(this.importMap).map((k) => html`<label class="f"><span dir="auto">${k} → ${X.mapTo}</span>
-        <select @change=${(e: Event) => ((this.importMap = { ...this.importMap, [k]: (e.target as HTMLSelectElement).value }), (this.importReview = null))} data-import-map=${k}>
+        <sw-field flow><select @change=${(e: Event) => ((this.importMap = { ...this.importMap, [k]: (e.target as HTMLSelectElement).value }), (this.importReview = null))} data-import-map=${k}>
           <option value="" ?selected=${!this.importMap[k]}>—</option>${this.stations.map((s) => html`<option value=${s.id} ?selected=${s.id === this.importMap[k]}>${s.name}</option>`)}
-        </select></label>`)}
+        </select></sw-field></label>`)}
       ${this.importError ? html`<div class="msg err" role="alert">${this.importError}</div>` : nothing}
       ${this.importContent
         ? html`<div class="foot"><sw-button variant="secondary" ?disabled=${!mapped} @click=${async () => {

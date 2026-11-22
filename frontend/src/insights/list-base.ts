@@ -11,6 +11,7 @@ import { insightsAccess, onInsightsAccess, STATUS_EVENT, type InsightsAccess } f
 import { ALL_PLACES, customRange, placeTree, type PlaceNode } from './model';
 import { ix } from '../i18n/insights';
 import { SkinController } from '../design/skin';
+import '../components/sw-field';
 
 type ListPhase = 'loading' | 'ready' | 'error' | 'off' | 'forbidden';
 const RANGES: readonly [RangeId, 'r24h' | 'r7d' | 'r30d' | 'rCustom'][] = [['24h', 'r24h'], ['7d', 'r7d'], ['30d', 'r30d'], ['custom', 'rCustom']];
@@ -86,8 +87,8 @@ export abstract class InsightList<A> extends LitElement {
   /** The phone form of the tree: one chip-shaped picker. */
   protected placeSelect(nodes: readonly PlaceNode[]): TemplateResult {
     return html`<label class="chip place-m" data-place-select><sw-icon name="pin"></sw-icon>
-      <select aria-label=${ix('places')} style="border:0;background:none;color:inherit;font:inherit" @change=${(e: Event) => (this.place = (e.target as HTMLSelectElement).value)}>
-        ${nodes.map((n) => html`<option value=${n.id} ?selected=${n.id === this.place}>${n.depth ? '  ' : ''}${n.name} (${n.count})</option>`)}</select></label>`;
+      <sw-field flow><select aria-label=${ix('places')} style="border:0;background:none;color:inherit;font:inherit" @change=${(e: Event) => (this.place = (e.target as HTMLSelectElement).value)}>
+        ${nodes.map((n) => html`<option value=${n.id} ?selected=${n.id === this.place}>${n.depth ? '  ' : ''}${n.name} (${n.count})</option>`)}</select></sw-field></label>`;
   }
 
   protected tree(nodes: readonly PlaceNode[]): TemplateResult {

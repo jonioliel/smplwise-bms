@@ -1181,10 +1181,10 @@ function renderItemTags(tags: string[] | undefined, set: (tags: string[]) => voi
 /** Select by tag (T085): a small picker beside the level chips over the canvas - the tags of what the level filter shows,
  * each with how many walls, objects and zones carry it there; picking one selects them all in the select tool. */
 export function renderTagPicker(tags: TagChip[], onPick: (tag: string) => void): TemplateResult {
-  return html`<select class="tagpick" data-tag-select aria-label="בחירה לפי תגית" title="בוחר את כל הקירות, העצמים והאזורים עם התגית, במפלס המוצג"
+  return html`<sw-field flow><select class="tagpick" data-tag-select aria-label="בחירה לפי תגית" title="בוחר את כל הקירות, העצמים והאזורים עם התגית, במפלס המוצג"
     @change=${(e: Event) => { const s = e.target as HTMLSelectElement; const t = s.value; s.value = ''; if (t) onPick(t); }}>
     <option value="" selected>בחירה לפי תגית…</option>${tags.map((t) => html`<option value=${t.tag}>${t.tag} (${t.count})</option>`)}
-  </select>`;
+  </select></sw-field>`;
 }
 
 interface MultiView {

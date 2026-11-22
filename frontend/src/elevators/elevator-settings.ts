@@ -22,6 +22,7 @@ import { canAnywhere } from '../api/session';
 import { loadHomeSettings, saveHomeSettings, type ElevatorsCfg, type HomeSettings } from '../api/home';
 import { elecCss } from '../electricity/styles';
 import { SkinController } from '../design/skin';
+import '../components/sw-field';
 
 const ROLE_LABEL: Record<ElevatorRole, EltKey> = {
   moving_up: 'roleMovingUp', moving_down: 'roleMovingDown', waiting: 'roleWaiting', fault: 'roleFault', fire_service: 'roleFireService', door_open: 'roleDoorOpen', out_of_service: 'roleOutOfService',
@@ -169,12 +170,12 @@ export class ElevatorSettings extends LitElement {
         <label class="row" data-travel-option><input type="checkbox" data-travel-toggle .checked=${d.showTravel} @change=${(e: Event) => this.setDraft({ showTravel: (e.target as HTMLInputElement).checked })} /> ${elt('travelOption')}</label>
         <div class="mut">${elt('travelOptionHint')}</div>
         <div class="map" data-roles>${ELEVATOR_ROLES.filter((r) => SHOWN_ROLES.includes(r) || !!d.sensors[r]).map((r) => html`<label for=${`el-${r}`}>${elt(ROLE_LABEL[r])}</label>
-          <select id=${`el-${r}`} data-role=${r} @change=${(e: Event) => this.setDraft({ sensors: { ...d.sensors, [r]: (e.target as HTMLSelectElement).value } })}>${this.options(d.sensors[r])}</select>`)}
+          <sw-field flow><select id=${`el-${r}`} data-role=${r} @change=${(e: Event) => this.setDraft({ sensors: { ...d.sensors, [r]: (e.target as HTMLSelectElement).value } })}>${this.options(d.sensors[r])}</select></sw-field>`)}
           <span class="mut">${elt('futureRoles')}</span><span class="mut" data-roles-future>${elt('futureNone')}</span></div>
         <div class="col" style="gap:8px" data-extras><span class="b">${elt('extras')}</span>
           ${d.extras.map((x, i) => html`<div class="xrow" data-extra=${i}>
             <input aria-label=${elt('extraLabel')} placeholder=${elt('extraLabel')} maxlength="40" .value=${x.label} @input=${(e: Event) => this.setDraft({ extras: d.extras.map((y, j) => (j === i ? { ...y, label: (e.target as HTMLInputElement).value } : y)) })} />
-            <select aria-label=${elt('extras')} @change=${(e: Event) => this.setDraft({ extras: d.extras.map((y, j) => (j === i ? { ...y, entity_id: (e.target as HTMLSelectElement).value } : y)) })}>${this.options(x.entity_id)}</select>
+            <sw-field flow><select aria-label=${elt('extras')} @change=${(e: Event) => this.setDraft({ extras: d.extras.map((y, j) => (j === i ? { ...y, entity_id: (e.target as HTMLSelectElement).value } : y)) })}>${this.options(x.entity_id)}</select></sw-field>
             <button type="button" class="btn sm" aria-label=${elt('remove')} @click=${() => this.setDraft({ extras: d.extras.filter((_y, j) => j !== i) })}><sw-icon name="trash" size="16"></sw-icon></button></div>`)}
           ${d.extras.length < MAX_EXTRAS ? html`<div><button type="button" class="btn sm" data-add-extra @click=${() => this.setDraft({ extras: [...d.extras, { entity_id: '', label: '' }] })}><sw-icon name="plus" size="16"></sw-icon> ${elt('addExtra')}</button></div>` : nothing}
         </div>

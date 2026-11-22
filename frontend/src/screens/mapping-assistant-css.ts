@@ -1076,6 +1076,7 @@ export const mappingAssistantStyles = css`
         text-align: end;
       }
       .tk > select,
+      .tk > sw-field > select,
       .tk > .selc {
         grid-area: s;
       }

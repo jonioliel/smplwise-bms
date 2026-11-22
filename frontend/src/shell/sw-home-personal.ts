@@ -35,6 +35,7 @@ import '../components/sw-segmented';
 import '../components/sw-chip-choice';
 import type { ChipChoiceChange } from '../components/sw-chip-choice';
 import type { SegmentedChange } from '../components/sw-segmented';
+import '../components/sw-field';
 
 
 /**
@@ -289,9 +290,9 @@ export class SwHomePersonal extends LitElement {
           }}
           .options=${[{ value: '', label: tr('ברירת מחדל'), attrs: { 'data-home-personal-site-entry': '' } }, ...(['site', 'last', 'fixed'] as const).map((v) => ({ value: v, label: hs(`se_${v}`), attrs: { 'data-home-personal-site-entry': v } }))]}></sw-segmented>
         ${own.site_entry === 'fixed'
-          ? html`<select data-home-personal-site-building aria-label=${hs('siteEntryBuilding')} ?disabled=${this.busy} @change=${(e: Event) => this.setScreen({ site_entry_building: (e.target as HTMLSelectElement).value })}>
+          ? html`<sw-field flow><select data-home-personal-site-building aria-label=${hs('siteEntryBuilding')} ?disabled=${this.busy} @change=${(e: Event) => this.setScreen({ site_entry_building: (e.target as HTMLSelectElement).value })}>
               ${this.buildings.map((b) => html`<option value=${b.id} ?selected=${own.site_entry_building === b.id}>${b.name}</option>`)}
-            </select>`
+            </select></sw-field>`
           : nothing}
       </div>
       ${shared

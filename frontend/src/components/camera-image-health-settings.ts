@@ -261,11 +261,11 @@ export class CameraImageHealthSettings extends LitElement {
     const ids = r.user_ids ?? [];
     return html`<div class="row" data-cih-recipients>
       <span class="k">${cit('recipients')}</span>
-      <select aria-label=${cit('recipients')} data-cih-rule @change=${(e: Event) => {
+      <sw-field flow><select aria-label=${cit('recipients')} data-cih-rule @change=${(e: Event) => {
         const rule = (e.target as HTMLSelectElement).value as NotifyPolicy['recipients']['rule'];
         this.ruleDraft = rule === 'users' ? { rule, user_ids: ids } : { rule };
         this.msg = null;
-      }}>${(RULES.includes(r.rule) ? RULES : [...RULES, r.rule]).map((x) => html`<option value=${x} .selected=${r.rule === x}>${RECIPIENT_LABEL[x]}</option>`)}</select>
+      }}>${(RULES.includes(r.rule) ? RULES : [...RULES, r.rule]).map((x) => html`<option value=${x} .selected=${r.rule === x}>${RECIPIENT_LABEL[x]}</option>`)}</select></sw-field>
       ${r.rule === 'users'
         ? this.users.map((u) => this.chip(ids.includes(u.id), u.name, `user:${u.id}`, () => {
             this.ruleDraft = { rule: 'users', user_ids: ids.includes(u.id) ? ids.filter((x) => x !== u.id) : [...ids, u.id] };

@@ -9,6 +9,7 @@ import { can } from '../api/session';
 import { deniedNote } from './lock-reason';
 import { tr } from '../i18n/msg/devices';
 import { t } from '../i18n/he';
+import '../components/sw-field';
 
 /**
  * CR-007 single-entity controls, shared by the area screen (devices-area.ts) and the overview tiles' panel
@@ -535,28 +536,28 @@ export class DeviceControls implements ReactiveController {
               <sw-button size="sm" iconOnly icon="plus" label=${tr('העלאת טמפרטורה')} data-control="temp-up" ?disabled=${target >= max} @click=${() => setTemp(clamp(target + step))}></sw-button>`
           : nothing}
         ${modes.length
-          ? html`<select class="ctl-select" data-control="mode" aria-label=${tr('מצב פעולה')} ?disabled=${modePending} @change=${changeMode}>
+          ? html`<sw-field flow><select class="ctl-select" data-control="mode" aria-label=${tr('מצב פעולה')} ?disabled=${modePending} @change=${changeMode}>
               ${modes.includes(mode) ? nothing : html`<option value="" selected disabled>${HVAC_HE[mode] ?? (mode || tr('מצב'))}</option>`}
               ${modes.map((m) => html`<option value=${m} ?selected=${m === mode}>${HVAC_HE[m] ?? m}</option>`)}
-            </select>`
+            </select></sw-field>`
           : nothing}
         ${fanModes.length
-          ? html`<select class="ctl-select" data-control="fan-mode" aria-label=${tr('מצב מאוורר')} ?disabled=${fanPending} @change=${changeFan}>
+          ? html`<sw-field flow><select class="ctl-select" data-control="fan-mode" aria-label=${tr('מצב מאוורר')} ?disabled=${fanPending} @change=${changeFan}>
               ${fanModes.includes(fan) ? nothing : html`<option value="" selected disabled>${climateWord('fan', fan) || tr('מאוורר')}</option>`}
               ${fanModes.map((m) => html`<option value=${m} ?selected=${m === fan}>${climateWord('fan', m)}</option>`)}
-            </select>`
+            </select></sw-field>`
           : nothing}
         ${presetModes.length
-          ? html`<select class="ctl-select" data-control="preset-mode" aria-label=${tr('מצב מוגדר מראש')} ?disabled=${presetPending} @change=${changePreset}>
+          ? html`<sw-field flow><select class="ctl-select" data-control="preset-mode" aria-label=${tr('מצב מוגדר מראש')} ?disabled=${presetPending} @change=${changePreset}>
               ${presetModes.includes(preset) ? nothing : html`<option value="" selected disabled>${climateWord('preset', preset) || tr('מצב מוגדר')}</option>`}
               ${presetModes.map((m) => html`<option value=${m} ?selected=${m === preset}>${climateWord('preset', m)}</option>`)}
-            </select>`
+            </select></sw-field>`
           : nothing}
         ${swingModes.length
-          ? html`<select class="ctl-select" data-control="swing-mode" aria-label=${tr('מצב נדנוד')} ?disabled=${swingPending} @change=${changeSwing}>
+          ? html`<sw-field flow><select class="ctl-select" data-control="swing-mode" aria-label=${tr('מצב נדנוד')} ?disabled=${swingPending} @change=${changeSwing}>
               ${swingModes.includes(swing) ? nothing : html`<option value="" selected disabled>${climateWord('swing', swing) || tr('נדנוד')}</option>`}
               ${swingModes.map((m) => html`<option value=${m} ?selected=${m === swing}>${climateWord('swing', m)}</option>`)}
-            </select>`
+            </select></sw-field>`
           : nothing}
         ${humidity !== null && humidity !== undefined
           ? html`<sw-button size="sm" iconOnly icon="minus" label=${tr('הפחתת לחות יעד')} data-control="humidity-down" ?disabled=${humidity <= humMin} @click=${() => setHumidity(Math.max(humMin, humidity - 5))}></sw-button>
@@ -594,10 +595,10 @@ export class DeviceControls implements ReactiveController {
     const setHumidityH = (next: number) => void this.run(humKeyH, 'humidifier', entityId, 'humidifier.set_humidity', { humidity: next }, next, (s) => this.setCmd(humKeyH, s), { label: tr('לחות יעד {n}%', { n: next }) });
     return html`<div class="ctl-row" data-control="humidifier">
       ${modesH.length
-        ? html`<select class="ctl-select" data-control="mode" aria-label=${tr('מצב לחות')} ?disabled=${modePendingH} @change=${changeModeH}>
+        ? html`<sw-field flow><select class="ctl-select" data-control="mode" aria-label=${tr('מצב לחות')} ?disabled=${modePendingH} @change=${changeModeH}>
             ${modesH.includes(modeH) ? nothing : html`<option value="" selected disabled>${climateWord('hmode', modeH) || tr('מצב')}</option>`}
             ${modesH.map((m) => html`<option value=${m} ?selected=${m === modeH}>${climateWord('hmode', m)}</option>`)}
-          </select>`
+          </select></sw-field>`
         : nothing}
       ${humidityH !== null && humidityH !== undefined
         ? html`<sw-button size="sm" iconOnly icon="minus" label=${tr('הפחתת לחות יעד')} data-control="humidity-down" ?disabled=${humidityH <= humMinH} @click=${() => setHumidityH(Math.max(humMinH, humidityH - 5))}></sw-button>

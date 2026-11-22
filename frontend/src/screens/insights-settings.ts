@@ -18,6 +18,7 @@ import { ix, type IxKey } from '../i18n/insights';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { leadReserveStyles } from '../styles/lead-reserve';
+import '../components/sw-field';
 
 const SWITCH_LABEL: Record<SwitchKey, IxKey> = { 'insights.doors.enabled': 'swDoors', 'insights.waste.enabled': 'swWaste', 'reports.building.enabled': 'swReport' };
 const DOOR_CLASSES = ['door', 'window', 'opening', 'garage_door'];
@@ -188,8 +189,8 @@ export class InsightsSettings extends LitElement {
     return html`<div class="card" data-default-sections><div class="ch-h"><h2>${ix('sectionsGroup')}</h2></div><div class="pad"><span class="checks">${SECTION_IDS.map(
       (s) => html`<label><input type="checkbox" data-section=${s} .checked=${this.sections.has(s)} @change=${() => { const n = new Set(this.sections); if (n.has(s)) n.delete(s); else n.add(s); if (n.size) this.sections = n; this.requestUpdate(); }} />${ix(`sec_${s}` as IxKey)}</label>`,
     )}</span>
-      <label class="formrow" style="margin-block-start:12px">${ix('runsModeTitle')}<select class="inp" data-runs-mode @change=${(e: Event) => (this.runsMode = (e.target as HTMLSelectElement).value as RunsMode)}>
-        ${RUNS_MODES.map((m) => html`<option value=${m} ?selected=${m === this.runsMode}>${ix(`runs_${m}` as IxKey)}</option>`)}</select>
+      <label class="formrow" style="margin-block-start:12px">${ix('runsModeTitle')}<sw-field flow><select class="inp" data-runs-mode @change=${(e: Event) => (this.runsMode = (e.target as HTMLSelectElement).value as RunsMode)}>
+        ${RUNS_MODES.map((m) => html`<option value=${m} ?selected=${m === this.runsMode}>${ix(`runs_${m}` as IxKey)}</option>`)}</select></sw-field>
         ${hasField(this.bad, 'report.generator_runs') ? html`<span class="ferr">${ix('fieldInvalid')}</span>` : nothing}</label></div></div>`;
   }
 
@@ -204,10 +205,10 @@ export class InsightsSettings extends LitElement {
     const ok = !!ed.pair.sensor_entity_id;
     return html`<sw-dialog open heading=${ix('pairEdit')} @close=${() => (this.editing = null)}>
       ${this.entitiesError ? html`<div class="banner bad" role="alert">${ix('pairsLoadError')}</div>` : nothing}
-      <div class="formrow">${ix('pairDoor')}<select class="inp" data-pair-door aria-label=${ix('pairDoor')} @change=${(e: Event) => set({ sensor_entity_id: (e.target as HTMLSelectElement).value })}>
-        <option value="" ?selected=${!ed.pair.sensor_entity_id}></option>${doors.map((d) => html`<option value=${d.entity_id} ?selected=${d.entity_id === ed.pair.sensor_entity_id}>${label(d)}</option>`)}</select></div>
-      <div class="formrow">${ix('pairLock')}<select class="inp" data-pair-lock aria-label=${ix('pairLock')} @change=${(e: Event) => set({ lock_entity_id: (e.target as HTMLSelectElement).value || null })}>
-        <option value="" ?selected=${!ed.pair.lock_entity_id}>${ix('pairNoLock')}</option>${locks.map((d) => html`<option value=${d.entity_id} ?selected=${d.entity_id === ed.pair.lock_entity_id}>${label(d)}</option>`)}</select></div>
+      <div class="formrow">${ix('pairDoor')}<sw-field flow><select class="inp" data-pair-door aria-label=${ix('pairDoor')} @change=${(e: Event) => set({ sensor_entity_id: (e.target as HTMLSelectElement).value })}>
+        <option value="" ?selected=${!ed.pair.sensor_entity_id}></option>${doors.map((d) => html`<option value=${d.entity_id} ?selected=${d.entity_id === ed.pair.sensor_entity_id}>${label(d)}</option>`)}</select></sw-field></div>
+      <div class="formrow">${ix('pairLock')}<sw-field flow><select class="inp" data-pair-lock aria-label=${ix('pairLock')} @change=${(e: Event) => set({ lock_entity_id: (e.target as HTMLSelectElement).value || null })}>
+        <option value="" ?selected=${!ed.pair.lock_entity_id}>${ix('pairNoLock')}</option>${locks.map((d) => html`<option value=${d.entity_id} ?selected=${d.entity_id === ed.pair.lock_entity_id}>${label(d)}</option>`)}</select></sw-field></div>
       <div class="formrow">${ix('pairRex')}<div class="checks scrollbox">${rex.map((d) => html`<label><input type="checkbox" data-pair-rex .checked=${ed.pair.rex_entity_ids.includes(d.entity_id)}
         ?disabled=${!ed.pair.rex_entity_ids.includes(d.entity_id) && ed.pair.rex_entity_ids.length >= 4}
         @change=${() => set({ rex_entity_ids: this.toggleIn(ed.pair.rex_entity_ids, d.entity_id) })} />${label(d)}</label>`)}</div></div>
@@ -267,11 +268,11 @@ export class InsightsSettings extends LitElement {
       ${!on && d.problems.length ? html`<div class="pad ferr" data-delivery-problems>${ix('deliverySetupMissing')} ${d.problems.map((p) => this.problemText(p)).join(' · ')}</div>` : nothing}
       ${!d.can_enable && !on ? html`<div class="pad muted">${ix('deliveryNeedsAdmin')}</div>` : nothing}
       <div class="fields">
-        <label>${ix('deliveryDom')}<select class="inp" data-delivery-dom @change=${(e: Event) => this.setDel({ dom: Number((e.target as HTMLSelectElement).value) })}>
-          ${Array.from({ length: 28 }, (_, i) => i + 1).map((n) => html`<option value=${n} ?selected=${n === this.dv('dom')}>${n}</option>`)}</select></label>
+        <label>${ix('deliveryDom')}<sw-field flow><select class="inp" data-delivery-dom @change=${(e: Event) => this.setDel({ dom: Number((e.target as HTMLSelectElement).value) })}>
+          ${Array.from({ length: 28 }, (_, i) => i + 1).map((n) => html`<option value=${n} ?selected=${n === this.dv('dom')}>${n}</option>`)}</select></sw-field></label>
         <label>${ix('deliveryAt')}<input class="inp" type="time" lang=${dateInputLang()} data-delivery-at .value=${this.dv('at')} @input=${(e: Event) => this.setDel({ at: (e.target as HTMLInputElement).value })} /></label>
-        <label>${ix('deliveryLang')}<select class="inp" data-delivery-lang @change=${(e: Event) => this.setDel({ lang: (e.target as HTMLSelectElement).value as 'he' | 'en' })}>
-          <option value="he" ?selected=${this.dv('lang') === 'he'}>עברית</option><option value="en" ?selected=${this.dv('lang') === 'en'}>English</option></select></label>
+        <label>${ix('deliveryLang')}<sw-field flow><select class="inp" data-delivery-lang @change=${(e: Event) => this.setDel({ lang: (e.target as HTMLSelectElement).value as 'he' | 'en' })}>
+          <option value="he" ?selected=${this.dv('lang') === 'he'}>עברית</option><option value="en" ?selected=${this.dv('lang') === 'en'}>English</option></select></sw-field></label>
         <label>${ix('deliveryChannels')}<span class="checks">
           <label><input type="checkbox" data-delivery-email .checked=${this.dv('email')} @change=${(e: Event) => this.setDel({ email: (e.target as HTMLInputElement).checked })} />${ix('chEmail')}</label>
           <label><input type="checkbox" data-delivery-whatsapp .checked=${wa} @change=${(e: Event) => this.setDel({ whatsapp: (e.target as HTMLInputElement).checked })} />${ix('chWhatsapp')}</label></span>

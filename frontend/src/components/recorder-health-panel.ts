@@ -518,11 +518,11 @@ export class RecorderHealthPanel extends LitElement {
         const inherit = cont.includes(r.id) ? tr('כמו המקליט (רציפה)') : tr('כמו המקליט (לא רציפה)');
         return html`<div class="pc-h">${r.name}</div>
           <div class="pc-list">${list.map((c) => html`<label class="pc-row"><span>${c.name}</span>
-            <select data-rh-camera-id=${c.id} aria-label=${c.name} .value=${map[c.id] ?? ''} @change=${(e: Event) => choose(c.id, (e.target as HTMLSelectElement).value)}>
+            <sw-field flow><select data-rh-camera-id=${c.id} aria-label=${c.name} .value=${map[c.id] ?? ''} @change=${(e: Event) => choose(c.id, (e.target as HTMLSelectElement).value)}>
               <option value="" ?selected=${!map[c.id]}>${inherit}</option>
               <option value="continuous" ?selected=${map[c.id] === 'continuous'}>${tr('רציפה')}</option>
               <option value="events" ?selected=${map[c.id] === 'events'}>${tr('לא רציפה')}</option>
-            </select></label>`)}</div>`;
+            </select></sw-field></label>`)}</div>`;
       })}
     </details>`;
   }

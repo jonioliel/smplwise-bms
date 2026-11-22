@@ -11,6 +11,7 @@ import {
   spokenLangOf, templateName, toggleLang, type Texts,
 } from '../announce/model';
 import { announceText, announceUiLang } from '../i18n/announce';
+import '../components/sw-field';
 
 const flash = (ms = 3500) => new Promise((r) => setTimeout(r, ms));
 
@@ -214,10 +215,10 @@ export class DevicesAnnounce extends LitElement {
       <div class="grid">
         <div class="panel" data-announce-form>
           <div class="row"><span class="lbl">${t.where}</span>
-            <select data-announce-where aria-label=${t.where} @change=${(e: Event) => (this.room = (e.target as HTMLSelectElement).value)}>
+            <sw-field flow><select data-announce-where aria-label=${t.where} @change=${(e: Event) => (this.room = (e.target as HTMLSelectElement).value)}>
               <option value=${ALL_ROOMS} ?selected=${this.room === ALL_ROOMS}>${t.wholeBuilding}</option>
               ${f.areas.map((a) => html`<option value=${a.area_id} ?selected=${a.area_id === this.room}>${[a.floor_name, a.name].filter(Boolean).join(' · ')}</option>`)}
-            </select></div>
+            </select></sw-field></div>
           ${offered ? html`<div class="row"><span class="lbl">${t.channels}</span>
             <button class="chip" type="button" data-announce-via="speakers" aria-pressed=${String(this.viaSpeakers)} @click=${() => (this.viaSpeakers = !this.viaSpeakers)}>${t.channelSpeakers}</button>
             <button class="chip" type="button" data-announce-via="screens" aria-pressed=${String(this.viaScreens)} @click=${() => (this.viaScreens = !this.viaScreens)}>${t.channelScreens}</button></div>` : nothing}
@@ -225,10 +226,10 @@ export class DevicesAnnounce extends LitElement {
             ${ANNOUNCE_LANGS.map((l) => html`<button class="chip" type="button" data-announce-lang=${l} aria-pressed=${String(this.langs.includes(l))} @click=${() => this.setLang(l)}>${t.langName[l]}</button>`)}
             ${f.translate_enabled ? html`<button class="chip" type="button" data-announce-translate aria-busy=${this.busy === 'translate' ? 'true' : 'false'} ?disabled=${!canTranslate(true, this.texts) || this.busy !== ''} @click=${() => void this.runTranslate()}>${this.busy === 'translate' ? t.translating : t.translate}</button>` : nothing}</div>
           <div class="row"><span class="lbl">${t.template}</span>
-            <select data-announce-template aria-label=${t.template} @change=${(e: Event) => this.pickTemplate((e.target as HTMLSelectElement).value)}>
+            <sw-field flow><select data-announce-template aria-label=${t.template} @change=${(e: Event) => this.pickTemplate((e.target as HTMLSelectElement).value)}>
               <option value="" ?selected=${this.tpl === ''}>${t.noTemplate}</option>
               ${routine.map((x) => html`<option value=${x.id} ?selected=${x.id === this.tpl}>${templateName(x, ui)}</option>`)}
-            </select></div>
+            </select></sw-field></div>
           ${ANNOUNCE_LANGS.filter((l) => this.langs.includes(l)).map((l) => html`<div class="part"><span class="part-h"><span class="lbl">${t.langName[l]}</span>
             ${this.machine.has(l) && (this.texts[l] ?? '').trim() ? html`<span class="mt" data-announce-machine=${l}>${t.machineBadge}</span>` : nothing}</span>
             <textarea data-announce-text=${l} dir=${l === 'he' || l === 'ar' ? 'rtl' : 'ltr'} lang=${l} maxlength=${f.max_text} aria-label=${this.machine.has(l) ? `${t.langName[l]} · ${t.machineBadge}` : t.langName[l]} .value=${this.texts[l] ?? ''}
