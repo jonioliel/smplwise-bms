@@ -24,6 +24,9 @@ export const tempCss = css`
   }
   :host {
     --tc-ok: var(--sw-success);
+    /* COLOR-LITERAL-B-2480: the white ink and the lit top edge of the two solid alert badges, one literal each */
+    --tc-on-solid: #fff;
+    --tc-solid-edge: rgba(255, 255, 255, 0.22);
     --tc-warn: var(--sw-warning);
     --tc-alarm: var(--sw-danger);
     --tc-off: var(--sw-offline);
@@ -49,8 +52,8 @@ export const tempCss = css`
   }
   /* R5-MEDIA-ENERGY-297 (status as a filled field, not a wash): an alerting badge is a solid pill of a deep status colour under white text
      (both at least 4.5:1 in light and dark; the raw status tokens are too light for white), with the elevators' lit top edge */
-  [data-look='alarm'] .badge, .badge[data-look='alarm'] { background: var(--tc-alarm-solid); color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22); }
-  [data-look='warn'] .badge, .badge[data-look='warn'] { background: var(--tc-warn-solid); color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22); }
+  [data-look='alarm'] .badge, .badge[data-look='alarm'] { background: var(--tc-alarm-solid); color: var(--tc-on-solid); box-shadow: inset 0 1px 0 var(--tc-solid-edge); }
+  [data-look='warn'] .badge, .badge[data-look='warn'] { background: var(--tc-warn-solid); color: var(--tc-on-solid); box-shadow: inset 0 1px 0 var(--tc-solid-edge); }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
   /* POLISH-CONTROL-297: the chip's word is set one step larger (the audit's smallest text was these tags) and its tone colour is the
      theme's readable text token, never the raw status colour; a neutral chip reads in the full text colour */

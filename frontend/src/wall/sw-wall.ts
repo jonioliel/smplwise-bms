@@ -113,6 +113,7 @@ export class SwWall extends LitElement {
   static styles = css`
     :host {
       position: fixed;
+      --wl-text-shade: rgba(0, 0, 0, 0.75); /* COLOR-LITERAL-B-2480: the text shadow over a photo (two rules) */
       inset: 0;
       display: block;
       direction: rtl;
@@ -804,7 +805,7 @@ export class SwWall extends LitElement {
       gap: calc(18px * var(--s, 1));
       align-items: center;
       direction: rtl;
-      text-shadow: 0 2px 14px rgba(0, 0, 0, 0.75);
+      text-shadow: 0 2px 14px var(--wl-text-shade);
     }
     .takeover .titles b {
       display: block;
@@ -856,7 +857,7 @@ export class SwWall extends LitElement {
       inset-block-end: calc(28px * var(--s, 1));
       inset-inline-end: calc(32px * var(--s, 1));
       text-align: end;
-      text-shadow: 0 2px 14px rgba(0, 0, 0, 0.75);
+      text-shadow: 0 2px 14px var(--wl-text-shade);
       color: var(--sw-on-video);
       direction: rtl;
     }

@@ -10,6 +10,7 @@ export const wizardStyles = css`
   :host {
     display: block;
     position: relative;
+    --wz-paper: #fff; /* COLOR-LITERAL-B-2480: the white plan paper and crop field (two rules) */
     min-block-size: 0;
     --wz-sure: var(--sw-accent);
     --wz-check: var(--sw-warning);
@@ -153,7 +154,7 @@ export const wizardStyles = css`
     max-block-size: 100%;
     border-radius: 4px;
     box-shadow: 0 8px 24px rgba(20, 30, 50, 0.16), 0 1px 3px rgba(20, 30, 50, 0.1);
-    background: #fff;
+    background: var(--wz-paper);
   }
   svg.plan [data-cand],
   svg.plan [data-room] {
@@ -506,7 +507,7 @@ export const wizardStyles = css`
   .q-crop {
     border-radius: var(--sw-r-md);
     overflow: hidden;
-    background: #fff;
+    background: var(--wz-paper);
     border: 1px solid var(--sw-border);
     block-size: 150px;
     direction: ltr;
