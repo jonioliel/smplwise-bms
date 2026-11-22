@@ -16,6 +16,7 @@ import { tr, trLang, type TrKey } from '../i18n/transit';
 import { canAdd, clampInt, moveStop, stopsBody } from '../transit/model';
 import { noticesCss } from '../notices/styles';
 import { PollController } from '../components/poll-controller';
+import '../components/sw-field';
 
 /**
  * BUSTIMES-295: הגדרות › תחבורה ציבורית (#/system/transit). The installation's part of the feature: the module switch, up to four stops
@@ -240,8 +241,8 @@ export class SystemTransit extends LitElement {
     return html`<div class="panel" data-transit-search><div class="hd"><h2>${tr('searchCard')}</h2></div>
       ${catalogue.count === 0 ? html`<p class="hint">${tr('catalogueEmpty')}</p>` : html`<div class="form" @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.runSearch()}>
         <div class="r">
-          <div class="fld"><label for="tr-city">${tr('city')}</label><select id="tr-city" class="inp" data-v=${this.city} .value=${this.city} @change=${(e: Event) => (this.city = (e.target as HTMLSelectElement).value)}>
-            <option value="">${tr('cityAny')}</option>${this.cities.map((c) => html`<option value=${c} ?selected=${c === this.city}>${c}</option>`)}</select></div>
+          <div class="fld"><label for="tr-city">${tr('city')}</label><sw-field><select id="tr-city" class="inp" data-v=${this.city} .value=${this.city} @change=${(e: Event) => (this.city = (e.target as HTMLSelectElement).value)}>
+            <option value="">${tr('cityAny')}</option>${this.cities.map((c) => html`<option value=${c} ?selected=${c === this.city}>${c}</option>`)}</select></sw-field></div>
           <div class="fld"><label for="tr-q">${tr('nameFilter')}</label><input id="tr-q" class="inp" maxlength="60" .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)}></div>
           <div class="fld"><label for="tr-code">${tr('codeFilter')}</label><input id="tr-code" class="inp ltr" inputmode="numeric" maxlength="8" .value=${this.code} @input=${(e: Event) => (this.code = (e.target as HTMLInputElement).value)}></div>
         </div>

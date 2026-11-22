@@ -76,6 +76,7 @@ import { setLongPressMode } from '../tickets/device-entry';
 import { dateInputLang, dayText, isoZ } from '../api/day-format';
 import { ticketChipSelected } from '../tickets/chip-selected'; // AUDIT30-C-TICKETS: one selected chip look (#4)
 import { tr } from '../i18n/msg/system-b';
+import '../components/sw-field';
 
 type Tab = (typeof SETTINGS_TABS)[number];
 const TABS = SETTINGS_TABS;
@@ -735,10 +736,10 @@ export class SystemTickets extends LitElement {
   private awardNoticeRow(doc: SettingsDoc): TemplateResult {
     const mode = doc.rfq?.award_notice ?? 'confirm';
     return html`<div class="row"><span class="lbl">${qst('anSetting')}<span class="muted">${qst('anSettingSub')}</span></span>
-      <select class="in" data-inst-award-notice aria-label=${qst('anSetting')} ?disabled=${this.busy}
+      <sw-field><select class="in" data-inst-award-notice aria-label=${qst('anSetting')} ?disabled=${this.busy}
         @change=${(e: Event) => void this.saveDoc({ rfq: { award_notice: (e.target as HTMLSelectElement).value as 'confirm' | 'auto' | 'off' } })}>
         ${(['confirm', 'auto', 'off'] as const).map((m) => html`<option value=${m} ?selected=${mode === m}>${qst(`anMode_${m}`)}</option>`)}
-      </select></div>`;
+      </select></sw-field></div>`;
   }
 
   /** RFQPAY2 (owner 2026-10-17): hours between two reminders of the same overdue instalments (default 24; 0 = once only). */
@@ -1047,15 +1048,15 @@ export class SystemTickets extends LitElement {
     return html`<sw-card heading=${tt('permGrantCard')} data-card="grant">
       ${mayAssign ? html`
         <div class="row"><span class="lbl">${tt('permGrantUser')}</span>
-          <select class="in" data-grant-user aria-label=${tt('permGrantPick')} @change=${(e: Event) => (this.grantUser = (e.target as HTMLSelectElement).value)}>
+          <sw-field><select class="in" data-grant-user aria-label=${tt('permGrantPick')} @change=${(e: Event) => (this.grantUser = (e.target as HTMLSelectElement).value)}>
             <option value="" ?selected=${!this.grantUser}>${tt('permGrantPick')}</option>
             ${(this.directory?.users ?? []).map((u) => html`<option value=${u.id} ?selected=${u.id === this.grantUser}>${u.name}</option>`)}
-          </select></div>
+          </select></sw-field></div>
         ${this.grantUser ? html`
           <div class="row"><span class="lbl">${tt('permGrantScope')}</span>
-            <select class="in" data-grant-scope aria-label=${tt('permGrantScope')} @change=${(e: Event) => (this.grantScope = (e.target as HTMLSelectElement).value)}>
+            <sw-field><select class="in" data-grant-scope aria-label=${tt('permGrantScope')} @change=${(e: Event) => (this.grantScope = (e.target as HTMLSelectElement).value)}>
               ${(this.scopes ?? [{ type: 'installation', id: '*', label: tt('permScopeAll') }]).map((s) => html`<option value=${`${s.type}:${s.id}`} ?selected=${this.grantScope === `${s.type}:${s.id}`}>${s.label}</option>`)}
-            </select></div>
+            </select></sw-field></div>
           <div class="row"><span class="lbl">${tt('permGrantUntil')}</span>
             <input class="in" type="date" lang=${dateInputLang()} min=${today} data-grant-until aria-label=${tt('permGrantUntil')} .value=${this.grantUntil} @input=${(e: Event) => (this.grantUntil = (e.target as HTMLInputElement).value)} /></div>
           <div class="chipsrow" data-grant-perms>${PERMS.map((p) => {

@@ -23,6 +23,7 @@ import {
   DEPT_SEP, LABEL_MAX, PACING_KEYS, accountOf, accountWarnings, chipTone, displayLabel, draftFrom, isDirty, manualProblem, newManualKey, pacingProblem,
   stateWord, toPutBody, useOptions, useWarnings, usesOf, usesText, warningText, type Draft, type DraftAccount,
 } from '../messaging/accounts-model';
+import '../components/sw-field';
 
 /**
  * CR-038 slice 5a: Settings › ערוץ ההודעות (`#/system/messaging-accounts`, section 9.9.3; the approved mock-up's "ערוץ ההודעות" settings tab,
@@ -497,18 +498,18 @@ export class SystemMessagingAccounts extends LitElement {
     const open = this.openDepts[use.key] ?? depts.some((d) => !!draft.uses[`${use.key}${DEPT_SEP}${d.id}`]);
     return html`<div class="usegroup" data-use=${use.key}>
       <div class="row"><span class="lbl">${use.label}<span class="muted">${sub}${use.queued ? ` · ${wt('queued', { n: use.queued })}` : ''}</span>${this.warnChips(useWarnings(view, use.key, null))}</span>
-        <span class="ctl"><select class="in" data-use-pick=${use.key} aria-label=${use.label} ?disabled=${!this.editable || this.busy} @change=${(e: Event) => this.setUse(use.key, (e.target as HTMLSelectElement).value)}>
+        <span class="ctl"><sw-field><select class="in" data-use-pick=${use.key} aria-label=${use.label} ?disabled=${!this.editable || this.busy} @change=${(e: Event) => this.setUse(use.key, (e.target as HTMLSelectElement).value)}>
           ${useOptions(view, draft, use).map((o) => html`<option value=${o.value} ?selected=${o.value === value}>${o.label}</option>`)}
-        </select></span></div>
+        </select></sw-field></span></div>
       ${use.per_department && depts.length ? html`
         <button type="button" class="linkbtn depts" aria-expanded=${String(open)} data-depts-toggle=${use.key} @click=${() => (this.openDepts = { ...this.openDepts, [use.key]: !open })}><sw-icon name="chevronDown" size="14"></sw-icon>${wt('deptsToggle', { n: depts.length })}</button>
         ${open ? depts.map((d) => {
           const k = `${use.key}${DEPT_SEP}${d.id}`;
           const dv = draft.uses[k] ?? '';
           return html`<div class="row dept" data-dept-row=${d.id}><span class="lbl">${bidi(d.name)}<span class="muted">${dv ? wt('deptOwn') : wt('deptDefault')}</span>${this.warnChips(useWarnings(view, use.key, d.id))}</span>
-            <span class="ctl"><select class="in" data-dept-pick=${k} aria-label=${d.name} ?disabled=${!this.editable || this.busy} @change=${(e: Event) => this.setUse(k, (e.target as HTMLSelectElement).value)}>
+            <span class="ctl"><sw-field><select class="in" data-dept-pick=${k} aria-label=${d.name} ?disabled=${!this.editable || this.busy} @change=${(e: Event) => this.setUse(k, (e.target as HTMLSelectElement).value)}>
               ${useOptions(view, draft, use, true).map((o) => html`<option value=${o.value} ?selected=${o.value === dv}>${o.label}</option>`)}
-            </select></span></div>`;
+            </select></sw-field></span></div>`;
         }) : nothing}` : nothing}
     </div>`;
   }
