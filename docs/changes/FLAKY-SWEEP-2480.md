@@ -179,3 +179,65 @@ jobs kept the load at 7-29 during these runs)
   while `load()` after a write is in flight (a visible change: needs the look rule's comparison first).
 - Test count effect: about 110 phone-project duplicates of desktop-sized tests are now skipped (builder 41, automations-list 37,
   multimedia 15, plus the mixed size loops); the gate's preview count is far above its 0.7 drop threshold (23,070 against 14,971).
+
+## Session 3 (23.11): main 619f94d04 merged; DOOR-TECH-REREAD (owner Q11) - a product change, the look rule applies
+
+Owner Q11 ("the door technician screen's hold buttons and the read after a write") = fix it, after a comparison page. The comparison
+page (private, not in git): `private/planning/door_tech_2480_compare_2026-11-23.html` (frames from `vite preview` builds of this branch
+before / after the change, mocked backend with WisKey's compare-and-swap and the read after the write held; desktop 1440 and phone 390).
+
+### Cause (`frontend/src/components/wk-door-tech.ts`, `execute`)
+
+A write runs `running = key` (every write button locked, the dialog locked: one write at a time), then on the answer clears it and
+runs `load()` - the READ of the view and of every door's hold draft - and, for a code, `loadCodes()`. Between the answer and the end
+of that read the screen showed the state from BEFORE the write (the old schedule name; a code slot still "not set") with every button
+open, and a button pressed then built its confirmation from that old state: a hold delete / edit carried the revision the write had just
+replaced (WisKey: `revision_conflict`), a code form asked the wrong "current code" question. The session-2 recommendation (lock the hold
+buttons while that read is out) would have fixed the revision but added a visible lock after every write.
+
+### Fix (no lock, no stale write)
+
+1. **The write's own answer is drawn at once** (`applyAnswer`, pure readers `holdAfter` / `codeAfter` in `src/api/door-tech.ts`): an
+   acknowledged hold save gives the door's new draft (its new revision and policy - WisKey's answer is the same projection as the hold
+   read), an acknowledged delete gives "no draft", an acknowledged code write gives the slot's presence (WisKey's read-back; never a
+   value). Anything else (refused / not sent / unknown / partial / an odd shape) changes nothing until the read.
+2. **A press while the read is out is kept, not locked** (`afterRead`): the button stays enabled (no `disabled` flip), shows `busy`
+   (progress cursor, `aria-busy`), and its action runs once the read is in, against the fresh state - so the confirmation carries the
+   fresh revision. Every write button goes through it (hold edit / delete / editor save, program apply / resume / pause / remove, code
+   set / clear); a later press replaces an earlier kept one; switching tab or closing the dialog drops it. Nothing is sent without its
+   confirmation, and `send()` still refuses while a write is out (two presses of "send" = one POST).
+3. The editor closes on an acknowledged save in the same update as the new draft is drawn (no frame with the editor gone and the old
+   list shown).
+
+The idle look (no write in flight) is unchanged: the door-tech pixel baselines are not touched.
+
+### Tests
+
+- `tests/unit-wiskey-door-tech.spec.ts`: `holdAfter` / `codeAfter` - only an acknowledged answer is drawn; every other status and odd
+  shape gives `undefined`.
+- `tests/evidence-wiskey-door-tech.spec.ts`, two new tests (mock: `holdReads` holds every read of the dialog until released;
+  `strictRevision` refuses a hold write with a stale revision like WisKey):
+  - after an acknowledged save with the following read held: the new name is drawn, edit / delete are not disabled; a delete pressed
+    then opens nothing and sends nothing (busy) until the read is released, then its confirmation; two clicks of "send" -> exactly one
+    POST, revision 3 (the save's), never 2. A MutationObserver in the dialog's shadow root records every state of the hold buttons:
+    between the save's "acknowledged" and the delete's own "sending" no hold button was ever `disabled` (a one-frame lock would be
+    recorded).
+  - a code write with the read held: the slot shows "set" at once; "clear" pressed then opens the clear form (with the current-code
+    field) only after the read, one POST in all.
+- The session-2 wait in the "hold-open schedule" test (the new name before the delete) stays; it is now satisfied from the answer.
+
+### "Unable to capture screenshot" (owner Q29: its own row, not fixed here) - where it was seen
+
+Chromium's `Page.captureScreenshot` refusing a capture ("Protocol error (Page.captureScreenshot): Unable to capture screenshot"), not a
+wait or a race in the spec:
+
+| where | spec / test | project | run |
+|---|---|---|---|
+| runner after-run `after-ui5` (d2c43dabf, 22.11) | evidence-public-ui5 L273 and L323 (full-page captures; tests this row did not touch) | mobile | `~/work/flaky-out/after-ui5.log` |
+| 2.46.0 gate flaky list (`gate_release-2460-train_8a8d6d63c`) | notice-tv-bustimes-295 | see the gate JSON | gate report |
+| same | evidence-audit30a-glass-bridge | see the gate JSON | gate report |
+| same | evidence-design-foundation (tesla dark) | see the gate JSON | gate report |
+| same | evidence-automations-list | tablet | gate report |
+
+Common thread seen so far: full-page or tall captures under machine load. Suggested own row: count it per gate from the Playwright JSON
+(error text match), try `scale: 'css'` / a capped clip on the full-page captures, and quarantine-with-expiry the specs that only fail so.

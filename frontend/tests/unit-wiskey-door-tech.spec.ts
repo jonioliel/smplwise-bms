@@ -2,9 +2,11 @@ import { test, expect } from '@playwright/test';
 import { ApiError } from '../src/api/client';
 import {
   WEEK,
+  codeAfter,
   codeBody,
   codeFormProblem,
   emptyBody,
+  holdAfter,
   normalized,
   outcomeOf,
   phraseFor,
@@ -15,6 +17,8 @@ import {
   statusTone,
   toBody,
   weekLines,
+  type DoorTechKind,
+  type DoorTechOutcome,
   type DoorTechReply,
   type PolicyBody,
 } from '../src/api/door-tech';
@@ -56,6 +60,28 @@ test('runWrite: the server success is the status (acknowledged / partial), a fai
   });
   expect(failed.status).toBe('unknown');
   expect(calls).toBe(2);
+});
+
+test('DOOR-TECH-REREAD-2480: only an acknowledged answer is drawn before the read - a hold save\'s new draft, a delete\'s "no draft", a code slot\'s presence', () => {
+  const draft = { door: 1, revision: 3, policy: { timezone: 'Asia/Jerusalem', name: 'Lobby', weekly: {}, holidays: [] } };
+  const out = (kind: DoorTechKind, status: DoorTechOutcome['status'], data: Record<string, unknown> | null): DoorTechOutcome => ({ kind, status, code: null, retry_after_s: null, data });
+  expect(holdAfter(out('hold_save', 'acknowledged', { draft, active: false, blocker: null }))).toEqual(draft);
+  expect(holdAfter(out('hold_delete', 'acknowledged', { deleted: true }))).toBeNull();
+  // nothing usable: the screen keeps what it shows until the read (undefined, never a guessed state)
+  for (const status of ['refused', 'not_sent', 'unknown', 'partial', 'sending', 'sent'] as const) {
+    expect(holdAfter(out('hold_save', status, { draft }))).toBeUndefined();
+    expect(holdAfter(out('hold_delete', status, { deleted: true }))).toBeUndefined();
+    expect(codeAfter(out('code_write', status, { slot: 2, configured: true }))).toBeUndefined();
+  }
+  expect(holdAfter(out('hold_save', 'acknowledged', null))).toBeUndefined();
+  expect(holdAfter(out('hold_save', 'acknowledged', { draft: null }))).toBeUndefined();
+  expect(holdAfter(out('hold_save', 'acknowledged', { draft: { ...draft, revision: null } }))).toBeUndefined();
+  expect(holdAfter(out('hold_delete', 'acknowledged', {}))).toBeUndefined();
+  expect(holdAfter(out('program_save', 'acknowledged', { draft }))).toBeUndefined();
+  expect(codeAfter(out('code_write', 'acknowledged', { slot: 2, configured: true }))).toBe(true);
+  expect(codeAfter(out('code_write', 'acknowledged', { slot: 2, configured: false }))).toBe(false);
+  expect(codeAfter(out('code_write', 'acknowledged', { slot: 2, configured: null }))).toBeUndefined();
+  expect(codeAfter(out('hold_save', 'acknowledged', { configured: true }))).toBeUndefined();
 });
 
 test('the result line: done, partly done, "WisKey סירב: <reason>", not sent with the reason, no clear answer', () => {
