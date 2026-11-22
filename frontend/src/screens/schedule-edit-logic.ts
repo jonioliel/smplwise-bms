@@ -396,6 +396,75 @@ function sameAction(a: DraftAction, b: DraftAction): boolean {
   return a.service === b.service && a.entity_id === b.entity_id && stable(a.data) === stable(b.data);
 }
 
+type Report = (path: string, code: string, message: string) => void;
+
+/** A script's variables: the required ones present, nothing the script does not declare (the server checks types and ranges). */
+function varsProblems(spec: ArgSpec, a: DraftAction, path: string, err: Report): void {
+  const vars = (a.data.variables ?? {}) as Record<string, unknown>;
+  for (const f of spec.fields ?? []) if (f.required && (vars[f.name] === undefined || vars[f.name] === '')) err(`${path}.data.variables`, 'required', tr('חסר משתנה חובה של הסקריפט: {name}', { name: f.label ?? f.name }));
+  for (const k of Object.keys(vars)) if (!(spec.fields ?? []).some((f) => f.name === k)) err(`${path}.data.variables`, 'argument_not_allowed', tr('לסקריפט אין משתנה בשם {name}.', { name: k }));
+}
+
+/** One argument of a catalogue service against the action's data: present when required, a number in range, one of the choices. */
+function argProblems(spec: ArgSpec, a: DraftAction, path: string, err: Report): void {
+  if (spec.type === 'vars') {
+    varsProblems(spec, a, path, err);
+    return;
+  }
+  const v = a.data[spec.name];
+  const label = spec.label ?? argLabel(spec.name);
+  if (v === undefined || v === null || v === '') {
+    // brightness / brightness_pct are alternatives; hvac_mode is optional for set_temperature
+    if (spec.required) err(`${path}.data.${spec.name}`, 'required', tr('נדרש ערך: {label}.', { label }));
+    return;
+  }
+  if ((spec.type === 'int' || spec.type === 'float') && (typeof v !== 'number' || Number.isNaN(v))) {
+    err(`${path}.data.${spec.name}`, 'type', tr('{label}: נדרש מספר.', { label }));
+  } else if (typeof v === 'number' && ((spec.min !== undefined && v < spec.min) || (spec.max !== undefined && v > spec.max))) {
+    err(`${path}.data.${spec.name}`, 'out_of_range', tr('{label} מחוץ לטווח {min}–{max}.', { label, min: spec.min ?? '', max: spec.max ?? '' }));
+  } else if (spec.choices && spec.choices.length && typeof v === 'string' && !spec.choices.includes(v) && !(spec.name === 'hvac_mode' && v === 'off')) {
+    err(`${path}.data.${spec.name}`, 'choice', tr('{label}: ערך לא זמין להתקן.', { label }));
+  }
+}
+
+/** What the device itself limits: its minimum temperature, and the codes a panel or a lock needs (§5.6). */
+function deviceProblems(a: DraftAction, m: EntityMeta, path: string, ctx: ValidationCtx, err: Report, warn: Report): void {
+  const t = a.data.temperature;
+  const min = Number(m.attributes.min_temp ?? NaN);
+  const max = Number(m.attributes.max_temp ?? NaN);
+  if (typeof t === 'number' && Number.isFinite(min) && t < min) err(`${path}.data.temperature`, 'out_of_range', tr('טמפרטורה מחוץ לטווח {min}–{max}.', { min, max: Number.isFinite(max) ? max : '' }));
+  // §5.6: a code is never stored in a schedule: a panel or lock that needs one cannot be scheduled for that action
+  const wasThere = ctx.original?.slots.some((o) => o.actions.some((x) => sameAction(x, a)));
+  const armNeedsCode = ARM_SERVICES.includes(a.service) && m.attributes.code_arm_required === true;
+  const disarmNeedsCode = a.service === 'alarm_control_panel.alarm_disarm' && !!m.attributes.code_format;
+  if (armNeedsCode || disarmNeedsCode) {
+    if (wasThere) warn(path, 'alarm_may_need_code', tr('לוח האזעקה עשוי לדרוש קוד, ותזמון אינו שומר קודים.'));
+    else err(path, 'alarm_code_needed', tr('לוח האזעקה דורש קוד לפעולה זו. תזמון אינו שומר קודים, ולכן אי אפשר לתזמן אותה.'));
+  }
+  if ((a.service === 'lock.lock' || a.service === 'lock.unlock') && m.attributes.code_format) {
+    if (!wasThere) err(path, 'lock_code_needed', tr('המנעול דורש קוד. תזמון אינו שומר קודים, ולכן אי אפשר לתזמן אותו.'));
+  }
+}
+
+/** One action of a slot: its device (in the catalogue, selectable), its service, no code, its arguments, the device's limits. */
+function actionProblems(a: DraftAction, path: string, ctx: ValidationCtx, err: Report, warn: Report): void {
+  if (!a.entity_id) {
+    err(path, 'action_without_entity', tr('הפעולה אינה מותרת בתזמון.'));
+    return;
+  }
+  const m = ctx.meta.get(a.entity_id);
+  if (!m) return; // not in the catalogue and not on the schedule: the server decides
+  if (!m.selectable && m.reason) {
+    const unchanged = ctx.original?.slots.some((o) => o.actions.some((x) => sameAction(x, a)));
+    if (!unchanged) err(`${path}.entity_id`, m.reason.code, m.reason.message);
+  }
+  const svc = m.actions.find((x) => x.service === a.service);
+  if (m.actions.length && !svc) err(`${path}.service`, 'action_not_allowed', tr('הפעולה אינה מותרת בתזמון.'));
+  if ('code' in a.data) err(`${path}.data.code`, 'code_not_allowed', tr('אסור לשמור קוד בתוך תזמון.'));
+  for (const spec of svc?.args ?? []) argProblems(spec, a, path, err);
+  deviceProblems(a, m, path, ctx, err, warn);
+}
+
 /** The client-side checks of a draft. Messages are the server's, in Hebrew, so a refusal reads the same either way. */
 export function validateDraft(draft: ScheduleDraft, ctx: ValidationCtx): { errors: Problem[]; warnings: Problem[] } {
   const errors: Problem[] = [];
@@ -420,60 +489,7 @@ export function validateDraft(draft: ScheduleDraft, ctx: ValidationCtx): { error
     if (start && stop && sl.stop !== '00:00:00' && timeMinutes(stop, ctx.sun) <= timeMinutes(start, ctx.sun)) err(`slots[${i}].stop`, 'order', tr('שעת הסיום לפני שעת ההתחלה.'));
     if (!sl.actions.length) err(`slots[${i}].actions`, 'required', tr('לכל משבצת נדרשת פעולה.'));
     if (sl.actions.length > 20) err(`slots[${i}].actions`, 'too_many', tr('יותר מדי פעולות במשבצת אחת.'));
-    sl.actions.forEach((a, j) => {
-      const path = `slots[${i}].actions[${j}]`;
-      if (!a.entity_id) {
-        err(path, 'action_without_entity', tr('הפעולה אינה מותרת בתזמון.'));
-        return;
-      }
-      const m = ctx.meta.get(a.entity_id);
-      if (!m) return; // not in the catalogue and not on the schedule: the server decides
-      if (!m.selectable && m.reason) {
-        const unchanged = ctx.original?.slots.some((o) => o.actions.some((x) => sameAction(x, a)));
-        if (!unchanged) err(`${path}.entity_id`, m.reason.code, m.reason.message);
-      }
-      const svc = m.actions.find((x) => x.service === a.service);
-      if (m.actions.length && !svc) err(`${path}.service`, 'action_not_allowed', tr('הפעולה אינה מותרת בתזמון.'));
-      if ('code' in a.data) err(`${path}.data.code`, 'code_not_allowed', tr('אסור לשמור קוד בתוך תזמון.'));
-      for (const spec of svc?.args ?? []) {
-        if (spec.type === 'vars') {
-          // a script's variables: the required ones present, nothing the script does not declare (the server checks types and ranges)
-          const vars = (a.data.variables ?? {}) as Record<string, unknown>;
-          for (const f of spec.fields ?? []) if (f.required && (vars[f.name] === undefined || vars[f.name] === '')) err(`${path}.data.variables`, 'required', tr('חסר משתנה חובה של הסקריפט: {name}', { name: f.label ?? f.name }));
-          for (const k of Object.keys(vars)) if (!(spec.fields ?? []).some((f) => f.name === k)) err(`${path}.data.variables`, 'argument_not_allowed', tr('לסקריפט אין משתנה בשם {name}.', { name: k }));
-          continue;
-        }
-        const v = a.data[spec.name];
-        const label = spec.label ?? argLabel(spec.name);
-        if (v === undefined || v === null || v === '') {
-          // brightness / brightness_pct are alternatives; hvac_mode is optional for set_temperature
-          if (spec.required) err(`${path}.data.${spec.name}`, 'required', tr('נדרש ערך: {label}.', { label }));
-          continue;
-        }
-        if ((spec.type === 'int' || spec.type === 'float') && (typeof v !== 'number' || Number.isNaN(v))) {
-          err(`${path}.data.${spec.name}`, 'type', tr('{label}: נדרש מספר.', { label }));
-        } else if (typeof v === 'number' && ((spec.min !== undefined && v < spec.min) || (spec.max !== undefined && v > spec.max))) {
-          err(`${path}.data.${spec.name}`, 'out_of_range', tr('{label} מחוץ לטווח {min}–{max}.', { label, min: spec.min ?? '', max: spec.max ?? '' }));
-        } else if (spec.choices && spec.choices.length && typeof v === 'string' && !spec.choices.includes(v) && !(spec.name === 'hvac_mode' && v === 'off')) {
-          err(`${path}.data.${spec.name}`, 'choice', tr('{label}: ערך לא זמין להתקן.', { label }));
-        }
-      }
-      const t = a.data.temperature;
-      const min = Number(m.attributes.min_temp ?? NaN);
-      const max = Number(m.attributes.max_temp ?? NaN);
-      if (typeof t === 'number' && Number.isFinite(min) && t < min) err(`${path}.data.temperature`, 'out_of_range', tr('טמפרטורה מחוץ לטווח {min}–{max}.', { min, max: Number.isFinite(max) ? max : '' }));
-      // §5.6: a code is never stored in a schedule: a panel or lock that needs one cannot be scheduled for that action
-      const wasThere = ctx.original?.slots.some((o) => o.actions.some((x) => sameAction(x, a)));
-      const armNeedsCode = ARM_SERVICES.includes(a.service) && m.attributes.code_arm_required === true;
-      const disarmNeedsCode = a.service === 'alarm_control_panel.alarm_disarm' && !!m.attributes.code_format;
-      if (armNeedsCode || disarmNeedsCode) {
-        if (wasThere) warn(path, 'alarm_may_need_code', tr('לוח האזעקה עשוי לדרוש קוד, ותזמון אינו שומר קודים.'));
-        else err(path, 'alarm_code_needed', tr('לוח האזעקה דורש קוד לפעולה זו. תזמון אינו שומר קודים, ולכן אי אפשר לתזמן אותה.'));
-      }
-      if ((a.service === 'lock.lock' || a.service === 'lock.unlock') && m.attributes.code_format) {
-        if (!wasThere) err(path, 'lock_code_needed', tr('המנעול דורש קוד. תזמון אינו שומר קודים, ולכן אי אפשר לתזמן אותו.'));
-      }
-    });
+    sl.actions.forEach((a, j) => actionProblems(a, `slots[${i}].actions[${j}]`, ctx, err, warn));
   });
 
   for (const [a, b] of findOverlaps(draft.slots, ctx.sun)) err(`slots[${b}]`, 'slots_overlap', tr('משבצת {n} חופפת למשבצת {other}.', { n: b + 1, other: a + 1 }));
