@@ -210,7 +210,7 @@ export class WkInstallerConfirm extends LitElement {
             <div>${r.body}</div>
             ${r.extra ? r.extra() : nothing}
             ${r.diff && r.diff.length
-              ? html`<sw-table bare static-rows data-diff rowKey="key" .columns=${diffCols(show) as unknown as TableColumn[]} .rows=${r.diff as unknown as Record<string, unknown>[]}
+              ? html`<sw-table bare static-rows keep-columns data-diff rowKey="key" .columns=${diffCols(show) as unknown as TableColumn[]} .rows=${r.diff as unknown as Record<string, unknown>[]}
                   .rowAttrs=${(d: Record<string, unknown>) => ({ 'data-key': String(d.key), 'data-changed': !!d.changed })}></sw-table>`
               : nothing}
             ${r.typed
