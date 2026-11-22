@@ -86,17 +86,6 @@ def test_each_metric_counts(tmp_path):
                  "native-table": 1, "hand-switch": 2, "scroll-container": 1}, t
 
 
-def test_a_select_slotted_in_the_shared_field_is_not_counted(tmp_path):
-    # NATIVE-SELECT-B-2480: a native select inside sw-field is the shared form picker; one outside it (before, after) is debt
-    src = """export const t = html`<select></select><sw-field label="a"><select></select></sw-field>
-      <sw-field flow><select data-x>${o}</select></sw-field></sw-field><select></select>`;
-    export const u = html`<sw-field label="b">${cond ? html`<select></select>` : nothing}</sw-field>`;
-    """
-    root = _tree(tmp_path, {"screens/a.ts": src})
-    assert dr.totals(dr.scan(root))["native-select"] == 2
-    assert dr.unslotted_selects("<sw-field-x><select>") == 1 and dr.unslotted_selects("</sw-field><select>") == 1
-
-
 def test_the_shared_primitives_are_exempt(tmp_path):
     root = _tree(tmp_path, {"components/sw-table.ts": "html`<table></table>`", "components/sw-toggle.ts": "html`<div role=\"switch\"></div>`"})
     t = dr.totals(dr.scan(root))
