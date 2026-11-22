@@ -8,7 +8,7 @@ import { ALARM_HE } from '../api/devices';
 import { createClockSubscription } from '../api/clock-ticker';
 import {
   calendarText, clockParts, forecastIsDaily, sinceText, untilText, forecastLabel, forecastShown, hasValue, hebrewDate, NO_DATA, QUICK_ACTION_LABEL, SIZE_LABEL, SIZES, valueText, WEATHER_FIELD_LABEL, WEATHER_HE, weatherGlyph,
-  type Avail, type HomeConfig, type HomeData, type QuickAction, type WeatherField, type WeatherGlyph, type WidgetId, type WidgetItem,
+  type Avail, type HomeConfig, type HomeData, type QuickAction, type Size, type WeatherField, type WeatherGlyph, type WidgetId, type WidgetItem,
 } from '../api/home-config';
 import { ltrNum, bidi } from '../i18n/bidi';
 import { canAnywhere, isApi } from '../api/session';
@@ -20,6 +20,8 @@ import { PollController } from '../components/poll-controller'; // CR-HOME-RELOA
 import { SkinController } from '../design/skin';
 import { LookController } from '../design/look';
 import '../components/sw-pill';
+import '../components/sw-segmented'; // CR-HOME-V3-SEGMENTS-2470: the edit bar's size choice
+import type { SegmentedChange, SegmentOption } from '../components/sw-segmented';
 import { renderAgenda, renderClockTile, renderLauncher, renderWeatherTile, type Bv1Host, type LaunchState } from './home-widgets-bv1';
 import { renderElevators } from '../elevators/home-widget'; // CR-INFRA-ELEVATORS 2.8.0
 import { renderTemperature } from '../temperature/home-widget'; // CR-INFRA-TEMPERATURE phase 3
@@ -334,7 +336,7 @@ export class HomeWidgetsView extends LitElement {
       </button>
       <button type="button" class="eb" data-home-move-earlier=${it.id} aria-label=${`הקדם את ${name}`} title="הקדם" ?disabled=${pos <= 0} @click=${() => this.emit('home-widget-move', { id: it.id, to: pos - 1 })}><sw-icon name=${earlier} size=${14}></sw-icon></button>
       <button type="button" class="eb" data-home-move-later=${it.id} aria-label=${`אחר את ${name}`} title="אחר" ?disabled=${pos >= last} @click=${() => this.emit('home-widget-move', { id: it.id, to: pos + 1 })}><sw-icon name=${later} size=${14}></sw-icon></button>
-      <span class="seg" role="group" aria-label=${`גודל: ${name}`}>${SIZES.map((s) => html`<button type="button" data-home-size=${`${it.id}:${s}`} aria-pressed=${String(it.size === s)} @click=${() => this.emit('home-widget-size', { id: it.id, size: s })}>${SIZE_LABEL[s]}</button>`)}</span>
+      <sw-segmented label=${`גודל: ${name}`} value=${it.size} .options=${SIZES.map((s): SegmentOption<Size> => ({ value: s, label: SIZE_LABEL[s], attrs: { 'data-home-size': `${it.id}:${s}` } }))} @change=${(e: CustomEvent<SegmentedChange<Size>>) => { e.stopPropagation(); this.emit('home-widget-size', { id: it.id, size: e.detail.value }); }}></sw-segmented>
       <button type="button" class="eb" data-home-widget-settings=${it.id} aria-label=${`הגדרות: ${name}`} title="הגדרות" @click=${() => this.emit('home-widget-edit', { id: it.id })}><sw-icon name="edit" size=${14}></sw-icon></button>
       <button type="button" class="eb x" data-home-hide=${it.id} aria-label=${`הסתר את ${name}`} title="הסתר" @click=${() => this.emit('home-widget-toggle', { id: it.id })}><svg viewBox="0 0 24 24" aria-hidden="true">${EYE_OFF}</svg></button>
     </div>`;
