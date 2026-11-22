@@ -31,7 +31,7 @@ async function specimen(page: Page, scheme: 'light' | 'dark', opts: { skin?: str
     sheet.setAttribute('data-check-specimen', '');
     sheet.style.cssText =
       'position:fixed;inset:0;z-index:2147483647;overflow:hidden;padding:20px 16px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px;' +
-      'align-items:flex-start;background:var(--sw-surface);color:var(--sw-text);font-family:var(--sw-font, inherit);font-size:var(--sw-fs-base);';
+      'align-items:flex-start;background:var(--sw-surface-solid);color:var(--sw-text);font-family:var(--sw-font, inherit);font-size:var(--sw-fs-base);';
     const row = (into: HTMLElement = sheet, css = '') => {
       const r = document.createElement('div');
       r.style.cssText = `display:flex;flex-wrap:wrap;align-items:center;gap:10px 22px;max-inline-size:100%;${css}`;

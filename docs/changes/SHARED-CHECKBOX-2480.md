@@ -103,15 +103,21 @@ Specs to adjust per converted screen (the HAND-SWITCH recipe): `.check()` / `.un
 
 ## Tests run (22.11, workstation only - the runner was held by the 2.47.0 release gate, owner override "no runner today")
 
-See the final report of the row for the exact counts; summary at commit time:
-
-- `npx tsc --noEmit`: PASS.
+- `npx tsc --noEmit`: PASS (twice, the second after the `delegatesFocus` change).
+- ESLint on the changed source files: PASS (the spec files are outside the lint config).
 - `scripts/design_ratchet.py --base origin/release/2470-train`: no count above the baseline (all counts unchanged).
+- `node scripts/unused-exports.mjs --enforce`: OK (no export outside the baseline).
+- `node scripts/bundle-budget.mjs --dir dist --enforce` on this branch's own build: within budget (entry gzip 813659 B, budget 849000).
 - `tests/unit-sw-checkbox-2480.spec.ts`: 7 passed.
 - Token / skin unit specs touched by the new token group (`unit-design-tokens`, `unit-designtokens-297`, `unit-token-lint`,
   `unit-palettes`, `unit-skinfound-297`, `unit-polish-phone-297`, `unit-skincomp-297`, `unit-switch-contrast-2380`,
   `unit-brand-colors`, `unit-hud-opaque`, `unit-menu-surfaces`): 92 passed.
-- `tests/pixel-sw-checkbox.spec.ts` (desktop + mobile, against this branch's own `vite build` on a private port): see the report.
+- `tests/pixel-sw-checkbox.spec.ts`, desktop + mobile, `--workers=1`, against this branch's own `vite build` (preview on a private
+  port): run 1 - 10 passed, 3 failed, 5 skipped (the focus test x2: `host.focus()` did not reach the box -> `delegatesFocus`; the
+  comparison capture hit the 60 s test timeout -> its own 10 min timeout); run 2 after the fixes - **13 passed, 5 skipped** (the four
+  pixel-stable shots without a baseline on this OS, the comparison capture on mobile). The comparison capture was then re-run alone
+  (1 passed) after the specimen sheet moved to the opaque `--sw-surface-solid` (the Soft skin's translucent surface showed the
+  screen behind it).
 - NOT RUN: the Linux pixel baselines of `pixel-sw-checkbox` (none exist - the two pixel-stable tests SKIP until the runner creates
   them: `run_smart.py preview <branch> tests/pixel-sw-checkbox.spec.ts --project=desktop --project=mobile -u --workers=1 --machine runner`),
-  the full lanes, the bundle budget check on the runner build.
+  the full lanes, the existing pixel specs (no screen changes here; the shell import draws nothing until a screen uses the element).
