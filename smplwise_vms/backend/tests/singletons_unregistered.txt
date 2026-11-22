@@ -54,17 +54,13 @@ smplwise.services.local_passwords.ADMISSION
 smplwise.services.media_store.INDEX
 smplwise.services.notices.listener.SERVER
 smplwise.services.notices.sources.NEWS
-smplwise.services.notify_policy.BY_KEY
 smplwise.services.notify_sources.MONITOR
-smplwise.services.plan_ifc.STAR
 smplwise.services.playback.REGISTRY
 smplwise.services.push.NOTIFIER
 smplwise.services.recorder_health.POLLER
 smplwise.services.scenarios.RUNNER
 smplwise.services.schedules.MIRROR
 smplwise.services.schedules._TRANSPORT
-smplwise.services.semantic.EXTERNAL_TEMPLATE
-smplwise.services.semantic.LOCAL
 smplwise.services.source_policy._RESOLVER
 smplwise.services.temperature_runtime.RUNNER
 smplwise.services.temperature_vendor_reports.PROVIDER
@@ -75,7 +71,6 @@ smplwise.services.tickets.keyring.KEYS
 smplwise.services.tickets.messaging.RUNTIME
 smplwise.services.tickets.public_runtime.RUNTIME
 smplwise.services.tickets.public_server.SERVER
-smplwise.services.tickets.public_store.NO_GRANT
 smplwise.services.transit.poller.HEALTH
 smplwise.services.transit.poller.POLLER
 smplwise.services.water_sampler.SAMPLER
@@ -129,4 +124,4 @@ smplwise.services.cast_sessions._SETTINGS
 smplwise.services.playback._INSTANCE
 smplwise.remote_channel._CSP_MODE
 smplwise.remote_channel._MIC_MODE
-# - no reset function in the module yet (adding one is the next step of this seam)
+# - no reset function in the module yet: none left (SINGLETONS-REST-2480 registered them, 22.11)

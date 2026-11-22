@@ -1,6 +1,0 @@
-{
-"auth.py": {"attrs": ["_gate_wait_limiters"], "body": ["_gate_wait_limiters.clear()"]},
-"services/ha_user_auth.py": {"attrs": ["_REVOKED_TABLE", "_core_base", "_rejected", "_xff_refused"], "body": ["with _cache_lock:", "    _rejected.clear()", "_core_base.clear()", "_xff_refused.clear()", "_REVOKED_TABLE[\"seen\"] = False"]},
-"services/local_identity.py": {"attrs": ["_flag"], "body": ["with _flag_lock:", "    _flag.update(value=None, at=0.0)"]},
-"services/local_passwords.py": {"attrs": ["_dummy", "_lists"], "body": ["with _dummy_lock:", "    _dummy.clear()", "with _lists_lock:", "    _lists.clear()"]}
-}
