@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-dialog';
 import '../components/sw-button';
 import { settingsStyles } from '../styles/settings';
@@ -215,7 +216,7 @@ export class TicketsIntakeChip extends LitElement {
       ${this.rejectOpen ? html`<div class="bar" data-intake-reject-bar>
         ${REASONS.map((r) => html`<sw-button size="sm" ?disabled=${this.busy} data-intake-reason=${r}
           @click=${() => void this.run(async () => { await intakeApi.reject(d, r, this.block); return itx('rejected'); })}>${itx(`reason_${r}` as IntakeKey)}</sw-button>`)}
-        <label class="bar"><input type="checkbox" data-intake-block .checked=${this.block} @change=${(e: Event) => (this.block = (e.target as HTMLInputElement).checked)} />${itx('block')}</label></div>` : nothing}
+        <label class="bar"><sw-toggle size="sm" labelHidden in-label label=${itx('block')} data-intake-block .checked=${this.block} @change=${(e: Event) => (this.block = toggled(e))}></sw-toggle>${itx('block')}</label></div>` : nothing}
       <div class="bar">
         <sw-button variant="primary" ?disabled=${this.busy || !dept} data-intake-approve
           @click=${() => void this.run(async () => { const r = await intakeApi.approve(d); return `${itx('approved')} #${r.number}`; })}>${itx('approve')}</sw-button>

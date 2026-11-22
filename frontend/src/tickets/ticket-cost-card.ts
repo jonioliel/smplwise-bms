@@ -1,5 +1,6 @@
 import { LitElement, html, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import { repeat } from 'lit/directives/repeat.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import '../components/sw-dialog';
@@ -589,7 +590,7 @@ export class TicketCostCard extends LitElement {
           ${!exempt && !f.noCharge ? html`<div class="fld"><span>${ct('vatToggle')}</span><sw-segmented radio size="sm" label=${ct('vatToggle')} value=${f.include ? 'included' : 'excluded'} @change=${(e: CustomEvent<SegmentedChange>) => set({ include: e.detail.value === 'included' })}
             .options=${[{ value: 'excluded', label: ct('amountsExcl'), attrs: { 'data-ob-vat': 'excluded' } }, { value: 'included', label: ct('amountsIncl'), attrs: { 'data-ob-vat': 'included' } }]}></sw-segmented></div>` : nothing}
         </div>
-        <label class="chk"><input type="checkbox" data-ob-no-charge .checked=${f.noCharge} @change=${(e: Event) => set({ noCharge: (e.target as HTMLInputElement).checked })} />${ct('noCharge')}</label>
+        <label class="chk"><sw-toggle size="sm" labelHidden in-label label=${ct('noCharge')} data-ob-no-charge .checked=${f.noCharge} @change=${(e: Event) => set({ noCharge: toggled(e) })}></sw-toggle>${ct('noCharge')}</label>
         ${f.noCharge ? nothing : html`${this.lineEditor(f.currency, claim?.labor_rate_minor)}${this.preview(vatModeFor(exempt, f.include, false), rateBp, f.currency)}`}
         <div class="two">
           <label class="fld"><span>${ct('invoiceNo')}</span><input class="inp" maxlength="40" dir="auto" data-ob-ref .value=${f.vendorRef} @input=${(e: Event) => set({ vendorRef: (e.target as HTMLInputElement).value })} /></label>

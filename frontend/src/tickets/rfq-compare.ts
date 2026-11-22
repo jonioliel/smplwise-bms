@@ -1,5 +1,6 @@
 import { LitElement, html, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-dialog';
 import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
@@ -239,10 +240,10 @@ export class TicketsRfqCompare extends LitElement {
     return html`<div class="draft" data-cmp-notice=${q.vendor_id} data-notice-mode=${mode}>
       <b>${bidi(this.name(q))} · ${rt('anTitle')}</b>
       ${blocked ? html`<div class="banner warn" role="status" data-cmp-notice-blocked>${rt('anCannot', { why: rt(`anWhy_${p.refusals[0]}` as RfqTextKey) })}</div>` : nothing}
-      ${mode === 'confirm' ? html`<label class="chk"><input type="checkbox" data-cmp-notice-send .checked=${!blocked && !off} ?disabled=${blocked || this.busy}
-          @change=${(e: Event) => toggle((e.target as HTMLInputElement).checked)} />${rt('anSend')}</label>`
-        : html`<p class="note">${rt('anAuto')}</p><label class="chk"><input type="checkbox" data-cmp-notice-skip .checked=${off} ?disabled=${this.busy}
-          @change=${(e: Event) => toggle(!(e.target as HTMLInputElement).checked)} />${rt('anAutoSkip')}</label>`}
+      ${mode === 'confirm' ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${rt('anSend')} data-cmp-notice-send .checked=${!blocked && !off} ?disabled=${blocked || this.busy}
+          @change=${(e: Event) => toggle(toggled(e))}></sw-toggle>${rt('anSend')}</label>`
+        : html`<p class="note">${rt('anAuto')}</p><label class="chk"><sw-toggle size="sm" labelHidden in-label label=${rt('anAutoSkip')} data-cmp-notice-skip .checked=${off} ?disabled=${this.busy}
+          @change=${(e: Event) => toggle(!toggled(e))}></sw-toggle>${rt('anAutoSkip')}</label>`}
       <p class="note" dir="auto" style="white-space:pre-line" data-cmp-notice-text lang=${p.lang}>${p.text}</p>
       <p class="note">${rt('anNote')}</p>
     </div>`;
@@ -297,7 +298,7 @@ export class TicketsRfqCompare extends LitElement {
     return html`<div class="stack" data-cmp-terms=${q.quote_id}>
       <b>${bidi(this.name(q))} · ${rt('pyRow')}</b>
       ${lines.length ? html`<ul class="thr">${lines.map((l) => html`<li>${l}</li>`)}</ul>` : html`<p class="note">${rt('pyNone')}</p>`}
-      <label class="chk"><input type="checkbox" data-cmp-pay-edit .checked=${!!p} @change=${(e: Event) => this.setPay(q.quote_id, (e.target as HTMLInputElement).checked ? payFromProposal(q.payment_proposal) : null)} />${rt('pyEdit')}</label>
+      <label class="chk"><sw-toggle size="sm" labelHidden in-label label=${rt('pyEdit')} data-cmp-pay-edit .checked=${!!p} @change=${(e: Event) => this.setPay(q.quote_id, toggled(e) ? payFromProposal(q.payment_proposal) : null)}></sw-toggle>${rt('pyEdit')}</label>
       ${p ? html`<p class="note">${rt('pyEditNote')}</p>
         ${p.items.map((it, i) => html`<div class="frm" data-cmp-pay-item=${i}>
           <span class="mut">${rt(it.kind === 'advance' ? 'pk_advance' : 'pk_progress')}</span>
@@ -512,10 +513,10 @@ export class TicketsRfqCompare extends LitElement {
     const others = list.filter((x) => !x.source);
     const set = (x: DraftOut, patch: Partial<DraftOut>) => (this.drafts = (this.drafts ?? []).map((y) => (y === x ? { ...y, ...patch } : y)));
     const block = (x: DraftOut) => html`<div class="draft" data-cmp-draft=${x.vendorId} data-draft-kind=${x.source ? 'winner' : 'other'}>
-      <label class="chk"><input type="checkbox" data-draft-send .checked=${x.send} @change=${(e: Event) => set(x, { send: (e.target as HTMLInputElement).checked })} />${rt('msgSendThis', { name: x.name })}</label>
+      <label class="chk"><sw-toggle size="sm" labelHidden in-label label=${rt('msgSendThis', { name: x.name })} data-draft-send .checked=${x.send} @change=${(e: Event) => set(x, { send: toggled(e) })}></sw-toggle>${rt('msgSendThis', { name: x.name })}</label>
       <label class="fld"><span class="vh">${rt('writeVendor')}</span><textarea class="inp" maxlength="2000" data-draft-text .value=${x.text} ?disabled=${!x.send}
         @input=${(e: Event) => set(x, { text: (e.target as HTMLTextAreaElement).value })}></textarea></label>
-      <label class="chk"><input type="checkbox" .checked=${x.notify} ?disabled=${!x.send} @change=${(e: Event) => set(x, { notify: (e.target as HTMLInputElement).checked })} />${rt('msgNotify')}</label>
+      <label class="chk"><sw-toggle size="sm" labelHidden in-label label=${rt('msgNotify')} .checked=${x.notify} ?disabled=${!x.send} @change=${(e: Event) => set(x, { notify: toggled(e) })}></sw-toggle>${rt('msgNotify')}</label>
     </div>`;
     return html`<sw-dialog open ?locked=${this.busy} wide heading=${rt('msgTitle')} subheading=${rt('msgBody')} data-cmp-drafts @close=${() => !this.busy && (this.drafts = null)}>
       <div class="stack">

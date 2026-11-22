@@ -121,7 +121,7 @@ test.describe('requests for quotation - manager UI (TKRFQ2)', () => {
     await sheet.locator('[data-rfq-vendor="ct-kortek"] input[type="checkbox"]').first().check();
     await expect(sheet.locator('[data-rfq-chosen]')).toContainText('2');
     // the code of a vendor whose own setting requires it is locked on
-    await expect(sheet.locator('[data-rfq-code="ct-kortek"] input')).toBeDisabled();
+    await expect(sheet.locator('[data-rfq-code="ct-kortek"] sw-toggle')).toHaveAttribute('disabled', '');
     await expect(sheet.locator('[data-rfq-preview]')).toContainText('תחזוקת גנרטור חצי שנתית');
     await expect(sheet.locator('[data-rfq-preview]')).toContainText('אלון ד.');
     await expect(sheet.locator('[data-rfq-preview]')).not.toContainText('₪');
@@ -257,8 +257,8 @@ test.describe('requests for quotation - manager UI (TKRFQ2)', () => {
     await c.locator('[data-cmp-confirm-ok]').click();
     const drafts = c.locator('[data-cmp-drafts]');
     await expect(c.locator('[data-cmp-drafts] [data-cmp-draft]').first()).toBeVisible();
-    await expect(c.locator('[data-draft-kind="winner"] [data-draft-send]')).toBeChecked();
-    for (const x of await c.locator('[data-draft-kind="other"] [data-draft-send]').all()) await expect(x).not.toBeChecked();
+    await expect(c.locator('[data-draft-kind="winner"] [data-draft-send]')).toHaveAttribute('checked', '');
+    for (const x of await c.locator('[data-draft-kind="other"] [data-draft-send]').all()) await expect(x).not.toHaveAttribute('checked');
     await shot(page, 'compare-drafts', 'light', 'classic', false);
     const award = posts(m2, /awards$/)[0];
     expect(award?.body).toMatchObject({ kinds: ['labor'], finalize: true });
@@ -324,7 +324,7 @@ test.describe('requests for quotation - manager UI (TKRFQ2)', () => {
     await b.locator('[data-rfq-more]').click();
     await shot(page, 'board-more', 'light', 'classic', false);
     await b.locator('[data-more="cancel"]').click();
-    await expect(b.locator('[data-cancel-notify]')).toBeChecked();
+    await expect(b.locator('[data-cancel-notify]')).toHaveAttribute('checked', '');
     await shot(page, 'board-cancel', 'light', 'classic', false);
     await b.locator('[data-dlg-reason]').fill('התקציב הוקפא');
     await b.locator('[data-dlg-ok="cancel"]').click();

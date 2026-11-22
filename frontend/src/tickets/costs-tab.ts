@@ -1,5 +1,6 @@
 import { LitElement, html, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-dialog';
 import '../components/sw-segmented';
@@ -553,7 +554,7 @@ export class TicketCostsTab extends LitElement {
         <label class="fld"><span>${qt('sendText')}</span>
           <textarea class="inp draft" rows="5" maxlength=${VENDOR_TEXT_MAX} dir="auto" data-send-text .value=${s.text}
             @input=${(e: Event) => { if (this.send) this.send = { ...this.send, text: (e.target as HTMLTextAreaElement).value }; this.sendErr = ''; }}></textarea></label>
-        <label class="chk"><input type="checkbox" data-send-notify .checked=${s.notify} @change=${(e: Event) => { if (this.send) this.send = { ...this.send, notify: (e.target as HTMLInputElement).checked }; }} />${qt('sendNotify')}</label>
+        <label class="chk"><sw-toggle size="sm" labelHidden in-label label=${qt('sendNotify')} data-send-notify .checked=${s.notify} @change=${(e: Event) => { if (this.send) this.send = { ...this.send, notify: toggled(e) }; }}></sw-toggle>${qt('sendNotify')}</label>
         ${this.sendErr ? html`<div class="err" role="alert" data-send-error>${this.sendErr}</div>` : nothing}
       </div>
       <div slot="footer" class="sheetfoot">

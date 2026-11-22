@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import { repeat } from 'lit/directives/repeat.js';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { automationsStyles } from '../styles/automations-glass';
@@ -179,8 +180,8 @@ export class TicketsRfqFiles extends LitElement {
           : r.caption ? html`<small data-rfq-file-caption-ro>${bidi(r.caption)}</small>` : nothing}
       </span>
       <span class="acts">
-        ${can ? html`<label class="chk" data-rfq-file-visible><input type="checkbox" .checked=${r.visible} ?disabled=${this.busy}
-            @change=${(e: Event) => this.emit('file-visible', { key: r.key, visible: (e.target as HTMLInputElement).checked })} />${rt('fVisible')}</label>` : nothing}
+        ${can ? html`<label class="chk" data-rfq-file-visible><sw-toggle size="sm" labelHidden in-label label=${rt('fVisible')} .checked=${r.visible} ?disabled=${this.busy}
+            @change=${(e: Event) => this.emit('file-visible', { key: r.key, visible: toggled(e) })}></sw-toggle>${rt('fVisible')}</label>` : nothing}
         ${r.href ? html`<a class="btn sm quiet" href=${r.href} target="_blank" rel="noopener noreferrer" ?download=${r.kind !== 'image'} data-rfq-file-open>
             ${r.kind === 'image' ? tIcon('eye') : rIcon('download')}<span>${r.kind === 'image' ? rt('fOpen') : rt('fDownload')}</span></a>` : nothing}
         ${can ? html`<button type="button" class="ibtn" ?disabled=${this.busy} aria-label=${rt('fRemove', { name: r.name })} data-rfq-file-remove

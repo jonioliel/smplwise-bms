@@ -118,7 +118,7 @@ test.describe('TKUI3 costs tab evidence', () => {
     const send = t.locator('sw-dialog[data-dialog="send-vendor"]');
     await expect(send).toHaveAttribute('data-send-decision', 'partially_approved');
     await send.locator('[data-send-text]').fill('שלום, אושרו העבודה והמדחס. אפשר מחר מ-08:00.');
-    await send.locator('[data-send-notify]').uncheck();
+    await send.locator('[data-send-notify]').click();
     await send.locator('[data-send-ok]').click();
     await expect(t.locator('sw-dialog[data-dialog="send-vendor"]')).toHaveCount(0);
     const posts = vendorPosts(m);
