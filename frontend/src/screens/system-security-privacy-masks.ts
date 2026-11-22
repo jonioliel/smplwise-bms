@@ -101,6 +101,8 @@ export class SystemSecurityPrivacyMasks extends LitElement {
   static styles = css`
     :host {
       display: contents;
+      /* COLOR-LITERAL-A-2480: the fill of an active mask region (editor frame and list thumbnail), written once (the same literal) */
+      --pm-fill: rgba(0, 0, 0, 0.78);
     }
     /* CAMADMIN-POLISH-2331: the editor is one container. Narrow (a phone, a narrow pane): one column - the cameras as a strip, the toolbar
        and the picture, the regions and the history, the review button in a footer that sticks to the bottom of the view. Wide (760 px of
@@ -310,7 +312,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       pointer-events: none;
     }
     .frame svg polygon {
-      fill: rgba(0, 0, 0, 0.78);
+      fill: var(--pm-fill);
       stroke: var(--sw-on-video);
       stroke-width: 1.5;
       vector-effect: non-scaling-stroke;
@@ -532,7 +534,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       block-size: 100%;
     }
     .thumb svg polygon {
-      fill: rgba(0, 0, 0, 0.78);
+      fill: var(--pm-fill);
       stroke: var(--sw-on-video);
       stroke-width: 1;
       vector-effect: non-scaling-stroke;

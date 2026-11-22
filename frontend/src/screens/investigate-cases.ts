@@ -459,6 +459,8 @@ export class InvestigateCaseDetail extends LitElement {
        leaves it: each column scrolls in its own box, the header actions never leave the screen. Narrower: one column, the page
        scrolls (a phone). */
     :host {
+      /* COLOR-LITERAL-A-2480: the ink shadow of the text on the video, written once (the same literal) */
+      --ic-ink-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
       display: flex;
       flex-direction: column;
       min-block-size: 0;
@@ -557,7 +559,7 @@ export class InvestigateCaseDetail extends LitElement {
       font-family: var(--sw-font-mono);
       font-size: var(--sw-fs-xs);
       direction: ltr;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      text-shadow: var(--ic-ink-shadow);
     }
     .video .demo {
       position: absolute;
@@ -582,9 +584,9 @@ export class InvestigateCaseDetail extends LitElement {
       font-size: var(--sw-fs-xs);
     }
     .bar sw-button {
-      --sw-text-2: #fff;
-      --sw-text: #fff;
-      --sw-surface-3: rgba(255, 255, 255, 0.14);
+      --sw-text-2: var(--sw-on-video);
+      --sw-text: var(--sw-on-video);
+      --sw-surface-3: var(--sw-video-hover);
     }
     .bar .track {
       flex: 1;
@@ -597,7 +599,7 @@ export class InvestigateCaseDetail extends LitElement {
       display: block;
       inline-size: 35%;
       block-size: 100%;
-      background: #fff;
+      background: var(--sw-on-video);
     }
     .clips {
       display: grid;
@@ -631,7 +633,7 @@ export class InvestigateCaseDetail extends LitElement {
       color: var(--sw-on-video);
       font-size: var(--sw-fs-2xs);
       font-family: var(--sw-font-mono);
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      text-shadow: var(--ic-ink-shadow);
     }
     /* a missing clip is a danger field, not a grey hole: the name reads as a title, the reason as a filled badge */
     .clip.missing {

@@ -120,6 +120,8 @@ export class SystemNotifications extends LitElement {
     css`
       :host {
         --nt-sheet-w: 480px;
+        /* COLOR-LITERAL-A-2480: the lock-screen preview's inner bezel ring, written once (the same literal) */
+        --nt-bezel-ring: rgba(255, 255, 255, 0.08);
       }
       /* AUDIT30-I4 / I6: the page frame is sw-page (its title, its crumb); the media page keeps its inline padding */
       sw-page.page {
@@ -588,8 +590,8 @@ export class SystemNotifications extends LitElement {
         border-radius: 34px;
         overflow: hidden;
         background: radial-gradient(500px 340px at 20% -10%, #8fb4ff 0%, transparent 60%), radial-gradient(420px 300px at 100% 100%, #ffb36b 0%, transparent 55%), linear-gradient(180deg, #1b2a4a, #0b1020);
-        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35), inset 0 0 0 7px var(--sw-video-bg), inset 0 0 0 8px rgba(255, 255, 255, 0.08);
-        color: #fff;
+        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35), inset 0 0 0 7px var(--sw-video-bg), inset 0 0 0 8px var(--nt-bezel-ring);
+        color: var(--sw-on-video);
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -600,7 +602,7 @@ export class SystemNotifications extends LitElement {
       .lphone.sel {
         opacity: 1;
         transform: translateY(-4px);
-        box-shadow: 0 22px 54px rgba(0, 0, 0, 0.42), inset 0 0 0 7px var(--sw-video-bg), inset 0 0 0 8px rgba(255, 255, 255, 0.08), 0 0 0 3px var(--dv-accent);
+        box-shadow: 0 22px 54px rgba(0, 0, 0, 0.42), inset 0 0 0 7px var(--sw-video-bg), inset 0 0 0 8px var(--nt-bezel-ring), 0 0 0 3px var(--dv-accent);
       }
       :host([data-devices-scheme='dark']) .lphone {
         background: radial-gradient(500px 340px at 20% -10%, #2a3f6e 0%, transparent 60%), radial-gradient(420px 300px at 100% 100%, #5a3a16 0%, transparent 55%), linear-gradient(180deg, #0a0d16, #000);
@@ -619,7 +621,7 @@ export class SystemNotifications extends LitElement {
         padding: 0 10px;
         border-radius: 999px;
         background: rgba(0, 0, 0, 0.45);
-        color: #fff;
+        color: var(--sw-on-video);
         font-size: var(--sw-fs-xs);
         font-weight: var(--sw-fw-semibold);
         display: inline-flex;

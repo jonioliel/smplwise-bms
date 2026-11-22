@@ -640,7 +640,7 @@ export class DevicesCameraCard extends LitElement {
       // DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8A): the enlarged picture is the system's one dialog (sw-dialog xl: the scrim, the opaque
       // box, the camera's name and the close button on top, focus trap, Escape, focus return) instead of a bare picture on the scrim
       html`<style>
-          .view { position: relative; aspect-ratio: 16 / 9; background: var(--sw-video-bg, #000); border-radius: var(--sw-r-md); overflow: hidden; }
+          .view { position: relative; aspect-ratio: 16 / 9; background: var(--sw-video-bg); border-radius: var(--sw-r-md); overflow: hidden; }
           .view > * { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; object-fit: contain; }
         </style>
         <sw-dialog open xl heading=${name} @close=${() => this.closeBig()}>

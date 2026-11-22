@@ -572,11 +572,15 @@ export class MediaPlayerCard extends LitElement {
       background: var(--sw-video-scrim-strong);
       color: var(--sw-on-video);
     }
+    /* COLOR-LITERAL-A-2480: the Bubble skin's quiet well under the player keys and pills, written once (the same literal) */
+    :host([data-skin='bubble']) {
+      --mpc-well: rgba(0, 0, 0, 0.1);
+    }
     :host([data-skin='bubble']) .pk.idle,
     :host([data-skin='bubble']) .pw,
     :host([data-skin='bubble']) .rb,
     :host([data-skin='bubble']) .vb {
-      background: rgba(0, 0, 0, 0.1);
+      background: var(--mpc-well);
       color: inherit;
     }
     :host([data-skin='bubble']) .pw.on {
@@ -600,7 +604,7 @@ export class MediaPlayerCard extends LitElement {
       min-block-size: var(--sw-touch-desktop);
       border: 0;
       border-radius: var(--sw-r-pill);
-      background: rgba(0, 0, 0, 0.1);
+      background: var(--mpc-well);
       color: inherit;
       box-shadow: none;
       padding-inline: 12px;
@@ -617,7 +621,7 @@ export class MediaPlayerCard extends LitElement {
     :host([data-skin='bubble']) .vmorph sw-pill {
       flex: 1 1 120px;
       min-inline-size: 0;
-      --pill-base: rgba(0, 0, 0, 0.1);
+      --pill-base: var(--mpc-well);
       --sw-pill-h: 44px;
     }
     :host([data-skin='bubble']) .pcard.morph .cov {

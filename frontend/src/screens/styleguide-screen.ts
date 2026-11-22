@@ -191,7 +191,7 @@ export class StyleguideScreen extends LitElement {
       position: absolute;
       inset-inline-start: 6px;
       inset-block-end: 5px;
-      color: #fff;
+      color: var(--sw-on-video);
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
       direction: ltr;
     }
