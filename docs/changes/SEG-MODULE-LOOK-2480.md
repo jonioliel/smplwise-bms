@@ -56,7 +56,7 @@ All on the workstation (Windows) unless marked runner; real runs, demo fixtures,
   specs), 17.0 min. The 6 failures are all `pixel-sw-segmented` (the component specimen, light + dark x desktop / tablet / mobile) - the
   intended look change, reviewed image by image. No other baseline moved (the WisKey / intercom files pass 1 of the held row saw move do
   not move at this head).
-- Runner pass 2 (baseline refresh of `pixel-sw-segmented` only): queued behind other jobs on the shared lock at the time of this commit; see the next commit.
+- Runner pass 2 (same folder, lock, nice, 2 workers) at 581478e0b: `--update-snapshots=changed tests/pixel-sw-segmented.spec.ts` rewrote exactly the 6 specimen baselines (`sw-segmented-{light,dark}-{desktop,tablet,mobile}-linux.png`, each identical to the actual reviewed in pass 1), then the file without `-u`: 12 passed, 0 failed. No other baseline taken.
 
 ## NOT_RUN
 
