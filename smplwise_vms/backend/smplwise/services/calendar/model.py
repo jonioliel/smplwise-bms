@@ -156,10 +156,8 @@ def hours_doc(doc: Any, field: str = "hours_json") -> dict[str, Any]:
     return {"weekdays": sorted(days), "start": s, "end": e}
 
 
-def calendar_values(body: dict[str, Any], *, creating: bool, current: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Validates the writable fields of a calendar (only the keys present); returns column values."""
-    out: dict[str, Any] = {}
-    cur = current or {}
+def _identity_values(body: dict[str, Any], creating: bool, cur: dict[str, Any], out: dict[str, Any]) -> None:
+    """Name, type (fixed after the create), description, colour, zone and area."""
     if "name" in body:
         out["name"] = _text(body["name"], "name", 1, 80)
     if "type" in body:
@@ -174,7 +172,10 @@ def calendar_values(body: dict[str, Any], *, creating: bool, current: dict[str, 
         out["tz"] = zone(body["tz"])
     if "area_ref" in body:
         out["area_ref"] = None if body["area_ref"] in (None, "") else _text(body["area_ref"], "area_ref", 1, 64)
-    typ = out.get("type") or cur.get("type")
+
+
+def _room_values(body: dict[str, Any], typ: Any, out: dict[str, Any]) -> None:
+    """Capacity and equipment, which only a room calendar carries."""
     if "capacity" in body:
         out["capacity"] = None if body["capacity"] is None else _int(body["capacity"], "capacity", 1, 2000)
     if "equipment" in body:
@@ -184,6 +185,10 @@ def calendar_values(body: dict[str, Any], *, creating: bool, current: dict[str, 
         out["equipment_json"] = json.dumps(sorted(set(eq)))
     if typ and typ != "room" and (out.get("capacity") or out.get("equipment_json") not in (None, "[]")):
         raise Invalid("capacity and equipment are for room calendars", "capacity")
+
+
+def _booking_values(body: dict[str, Any], out: dict[str, Any]) -> None:
+    """The conflict policy, the buffers, the slot step, the booking length, the lead time and the horizon."""
     if "conflict_policy" in body:
         out["conflict_policy"] = _choice(body["conflict_policy"], "conflict_policy", ("exclusive", "overlap"))
     for f in ("buffer_before_min", "buffer_after_min"):
@@ -198,6 +203,10 @@ def calendar_values(body: dict[str, Any], *, creating: bool, current: dict[str, 
         out["lead_min"] = _int(body["lead_min"], "lead_min", 0, 20160)
     if "horizon_days" in body:
         out["horizon_days"] = _int(body["horizon_days"], "horizon_days", 1, 730)
+
+
+def _hours_values(body: dict[str, Any], cur: dict[str, Any], out: dict[str, Any]) -> None:
+    """The hours mode and document; custom hours need a document (this body's or the stored one)."""
     if "hours_mode" in body:
         out["hours_mode"] = _choice(body["hours_mode"], "hours_mode", HOURS_MODES)
     if "hours_json" in body:
@@ -205,6 +214,10 @@ def calendar_values(body: dict[str, Any], *, creating: bool, current: dict[str, 
     mode = out.get("hours_mode") or cur.get("hours_mode") or "always"
     if mode == "custom" and (out.get("hours_json") or cur.get("hours_json")) is None:
         raise Invalid("hours_json is required for custom hours", "hours_json")
+
+
+def _approval_values(body: dict[str, Any], out: dict[str, Any]) -> None:
+    """The holiday rule, the approval mode and timeout, the overlap override, the approved move and the visibility."""
     if "holiday_rule" in body:
         out["holiday_rule"] = _choice(body["holiday_rule"], "holiday_rule", HOLIDAY_RULES)
     if "approval_mode" in body:
@@ -217,6 +230,18 @@ def calendar_values(body: dict[str, Any], *, creating: bool, current: dict[str, 
         out["approved_move"] = _choice(body["approved_move"], "approved_move", APPROVED_MOVE)
     if "visibility" in body:
         out["visibility"] = _choice(body["visibility"], "visibility", VISIBILITIES)
+
+
+def calendar_values(body: dict[str, Any], *, creating: bool, current: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Validates the writable fields of a calendar (only the keys present); returns column values."""
+    out: dict[str, Any] = {}
+    cur = current or {}
+    _identity_values(body, creating, cur, out)
+    typ = out.get("type") or cur.get("type")
+    _room_values(body, typ, out)
+    _booking_values(body, out)
+    _hours_values(body, cur, out)
+    _approval_values(body, out)
     mn, mx = out.get("min_minutes", cur.get("min_minutes")), out.get("max_minutes", cur.get("max_minutes"))
     if mn and mx and mn > mx:
         raise Invalid("min_minutes > max_minutes", "min_minutes")
