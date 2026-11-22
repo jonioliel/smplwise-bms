@@ -24,6 +24,8 @@ from ..services import building_presence_history as bph
 from ..services import ha_sync
 from ..services import presence_people as people_svc
 from ._common import rid as _rid
+from ..wire import building_presence as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -58,7 +60,7 @@ class RoomIn(BaseModel):
     area_id: str | None = None
 
 
-@router.get("/presence/building")
+@router.get("/presence/building", **wire(W.BuildingPresenceBuildingSnapshot))
 def building_snapshot(request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
     """The live anonymous occupancy of the building and its rooms from the tagged presence sensors (presence.building.view); `configured: false` while none is tagged."""
     db = request.app.state.db
@@ -72,7 +74,7 @@ def building_snapshot(request: Request, principal: Principal = Depends(_principa
         return bp.snapshot(conn, fresh=bool(ha_sync.STATE.connected))
 
 
-@router.get("/presence/area/{area_id}")
+@router.get("/presence/area/{area_id}", **wire(W.BuildingPresenceAreaPresenceLine))
 def area_presence_line(area_id: str, request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
     """AREA-PRESENCE-LINE-2351: who / how many are in one area now, for the area screen's presence line.
 
@@ -99,7 +101,7 @@ def area_presence_line(area_id: str, request: Request, principal: Principal = De
         return out
 
 
-@router.get("/presence/building/sensors")
+@router.get("/presence/building/sensors", **wire(W.BuildingPresenceBuildingSensors))
 def building_sensors(request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
     """The presence / motion sensors that can be tagged, with their tag and the two settings (system.configure)."""
     with request.app.state.db.connection(mode="read", label="presence.building.sensors") as conn:
@@ -108,7 +110,7 @@ def building_sensors(request: Request, principal: Principal = Depends(_principal
         return bp.list_for_settings(conn)
 
 
-@router.put("/presence/building/sensors")
+@router.put("/presence/building/sensors", **wire(W.BuildingPresenceSetBuildingSensors))
 def set_building_sensors(body: SensorsIn, request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
     """Replace the tagged set (system.configure; binary sensors only; audited with entity ids)."""
     with request.app.state.db.connection(label="presence.building.tag") as conn:
@@ -125,7 +127,7 @@ def set_building_sensors(body: SensorsIn, request: Request, principal: Principal
         return bp.list_for_settings(conn)
 
 
-@router.put("/presence/building/settings")
+@router.put("/presence/building/settings", **wire(W.BuildingPresenceSetBuildingSettings))
 def set_building_settings(body: SettingsIn, request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
     """The debounce hold (seconds) and the empty timeout (minutes) (system.configure; audited)."""
     with request.app.state.db.connection(label="presence.building.settings") as conn:
@@ -156,7 +158,7 @@ def set_building_sensor_room(body: RoomIn, request: Request, principal: Principa
         return bp.list_for_settings(conn)
 
 
-@router.get("/presence/building/history")
+@router.get("/presence/building/history", **wire(W.BuildingPresenceBuildingHistory))
 def building_history(request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
     """How much history is kept (count, oldest) and for how long (system.configure)."""
     with request.app.state.db.connection(mode="read", label="presence.building.history") as conn:
@@ -165,7 +167,7 @@ def building_history(request: Request, principal: Principal = Depends(_principal
         return bph.summary(conn)
 
 
-@router.delete("/presence/building/history")
+@router.delete("/presence/building/history", **wire(W.BuildingPresencePurgeBuildingHistory))
 def purge_building_history(request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
     """Erase the whole presence history now (system.configure; audited with the number of rows)."""
     with request.app.state.db.connection(label="presence.building.purge") as conn:

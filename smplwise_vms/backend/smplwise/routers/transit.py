@@ -26,6 +26,8 @@ from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import transit_store as store
 from ..services.transit import catalogue, health, model, poller, stride
 from ._common import rid as _rid
+from ..wire import transit as W
+from ..wire import wire
 
 router = APIRouter()
 NO_RIGHT = "אין הרשאה להגדרות תחבורה ציבורית."
@@ -63,7 +65,7 @@ def _doc(conn: sqlite3.Connection, can: dict[str, bool]) -> dict[str, Any]:
             "limits": _limits(), "can": can}
 
 
-@router.get("/transit/settings")
+@router.get("/transit/settings", **wire(W.TransitSettings))
 def get_settings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return _doc(conn, _read(conn, principal))
 
@@ -89,7 +91,7 @@ class ConfigIn(BaseModel):
     show_distance: bool | None = None
 
 
-@router.put("/transit/settings")
+@router.put("/transit/settings", **wire(W.TransitPutSettings))
 def put_settings(body: ConfigIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
     old = _config(conn)
@@ -115,13 +117,13 @@ def put_settings(body: ConfigIn, request: Request, principal: Principal = Depend
     return _doc(conn, {"configure": True, "boards": authorize(conn, principal, "notices.boards", INSTALLATION).allowed})
 
 
-@router.get("/transit/cities")
+@router.get("/transit/cities", **wire(W.TransitCities))
 def get_cities(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _read(conn, principal)
     return {"cities": catalogue.cities(conn)}
 
 
-@router.get("/transit/stops")
+@router.get("/transit/stops", **wire(W.TransitSearchStops))
 def search_stops(city: str = Query(default="", max_length=80), q: str = Query(default="", max_length=60), limit: int = Query(default=catalogue.SEARCH_MAX, ge=1, le=100),
                  principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The search runs on the LOCAL catalogue (city exact, name words, or a code) - no third-party call."""
@@ -129,7 +131,7 @@ def search_stops(city: str = Query(default="", max_length=80), q: str = Query(de
     return {"stops": catalogue.search(conn, city=city.strip(), q=q, limit=limit), "catalogue": catalogue.status(conn)}
 
 
-@router.get("/transit/status")
+@router.get("/transit/status", **wire(W.TransitStatus))
 def get_status(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _read(conn, principal)
     return {"health": health.view(conn, dt.datetime.now(dt.timezone.utc)), "catalogue": catalogue.status(conn)}
@@ -138,7 +140,7 @@ def get_status(principal: Principal = Depends(current_principal_ro), conn: sqlit
 _REFRESH: dict[str, threading.Thread | None] = {"t": None}
 
 
-@router.post("/transit/catalogue/refresh")
+@router.post("/transit/catalogue/refresh", **wire(W.TransitRefreshCatalogue))
 def refresh_catalogue(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Download the catalogue now (the nightly job does it by itself). It runs in the background (about 6 MB); poll `/transit/status`."""
     require(conn, principal, "system.configure", INSTALLATION)

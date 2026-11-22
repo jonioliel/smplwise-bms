@@ -1,0 +1,138 @@
+"""Response models of routers/access_control_writes.py (RESPONSE-MODELS-E-2480, code review 07:F8 step 2)."""
+from __future__ import annotations
+
+from typing import Any
+
+from . import ExactModel, Num
+
+# routes without a JSON body
+NO_JSON: frozenset[str] = frozenset()
+# JSON routes without a model yet: no test reaches a successful answer (or the answer is not one object); counted by the ratchet
+# (scripts/wire_ratchet.py) until they are modelled
+UNMODELLED: frozenset[str] = frozenset({'POST /intercom/people/{user_id}/cards/{card_id}/remove', 'POST /intercom/people/{user_id}/temporary-cancel', 'POST /intercom/people/{user_id}/unarchive'})
+
+
+class AccessControlWritesPersonArchivePersonStation(ExactModel):
+    station_id: str
+    enabled: bool
+    doors: list[Num]
+    sync_state: str
+    last_error: Any
+    desired_revision: Num
+    applied_revision: Num
+
+
+class AccessControlWritesPersonArchivePersonCard(ExactModel):
+    id: str
+    masked_number: str
+    label: str
+    card_type: str
+    enabled: bool
+
+
+class AccessControlWritesPersonArchivePersonTimingDraft(ExactModel):
+    mode: str
+    timezone: str
+    days: list[str]
+    dates: list[Any]
+    periods: list[dict[str, str]]
+
+
+class AccessControlWritesPersonArchivePerson(ExactModel):
+    id: str
+    employee_no: str
+    display_name: str
+    active: bool
+    valid_from: Any
+    valid_until: str
+    revision: Num
+    access_category: str
+    access_known: bool
+    stations_known: bool
+    redacted_fields: list[Any]
+    operator_editable: Any
+    group_ids: list[str]
+    stations: list[AccessControlWritesPersonArchivePersonStation]
+    phone: str
+    identity_locked: bool
+    pin_configured: bool
+    credentials_known: bool
+    cards: list[AccessControlWritesPersonArchivePersonCard]
+    permission_overrides: dict[str, Any]
+    has_timing: bool
+    archived: bool
+    responsible_person: str
+    access_purpose: str
+    photo_configured: bool
+    timing_draft: AccessControlWritesPersonArchivePersonTimingDraft | None
+    timing_policy: Any
+    level: str
+
+
+class AccessControlWritesPersonArchiveSync(ExactModel):
+    state: str
+    connected: bool
+    last_error: Any
+    reconnects: Num
+    started_at: str
+    fetched_at: str
+    refreshes: Num
+    sequence: Num
+    wiskey_version: str
+
+
+class AccessControlWritesPersonArchive(ExactModel):
+    """Archive a person (WisKey `users/archive`): the identity, its history and every pending cleanup are kept, the person is switched off and leaves the active directory; the stations follow."""
+    state: str
+    configured: bool
+    last_error: Any
+    fetched_at: str
+    person: AccessControlWritesPersonArchivePerson
+    sync: AccessControlWritesPersonArchiveSync
+    command_id: str
+    effect: str
+    pending: bool
+
+
+class AccessControlWritesPersonSetActivePerson(ExactModel):
+    id: str
+    employee_no: str
+    display_name: str
+    active: bool
+    valid_from: Any
+    valid_until: str
+    revision: Num
+    access_category: str
+    access_known: bool
+    stations_known: bool
+    redacted_fields: list[Any]
+    operator_editable: Any
+    group_ids: list[str]
+    stations: list[AccessControlWritesPersonArchivePersonStation]
+    phone: str
+    identity_locked: bool
+    pin_configured: bool
+    credentials_known: bool
+    cards: list[AccessControlWritesPersonArchivePersonCard]
+    permission_overrides: dict[str, Any]
+    has_timing: bool
+    archived: bool
+    responsible_person: str
+    access_purpose: str
+    photo_configured: bool
+    timing_draft: AccessControlWritesPersonArchivePersonTimingDraft
+    timing_policy: Any
+    level: str
+
+
+class AccessControlWritesPersonSetActive(ExactModel):
+    """Switch a person on or off (WisKey `users/set_active`)."""
+    state: str
+    configured: bool
+    last_error: Any
+    fetched_at: str
+    person: AccessControlWritesPersonSetActivePerson
+    sync: AccessControlWritesPersonArchiveSync
+    command_id: str
+    effect: str
+    pending: bool

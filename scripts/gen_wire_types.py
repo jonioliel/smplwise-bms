@@ -10,7 +10,7 @@ declarations, plus one map `<Family>Routes` from `'METHOD /api/v1/path'` to the 
 types instead of writing the wire shapes by hand, so `tsc` fails when a response changes and the client was not adapted.
 
 Step 1 of the finding (`frontend/scripts/api-client-check.mjs`) checks that every client PATH exists; this file checks the SHAPES.
-The backend tests `tests/test_wire_consumption_2450.py`, `tests/test_wire_routers_b_2450.py` and `tests/test_wire_routers_c_2470.py` run `--check`, so a model change without the regenerated file fails the gate.
+The backend tests `tests/test_wire_consumption_2450.py`, `tests/test_wire_routers_b_2450.py`, `tests/test_wire_routers_c_2470.py`, `..._d_2470.py` and `..._e_2480.py` run `--check`, so a model change without the regenerated file fails the gate.
 No application start, no database: the router modules are imported and their route tables read."""
 from __future__ import annotations
 
@@ -135,6 +135,29 @@ FAMILIES_D: dict[str, tuple[str, tuple[str, ...]]] = {
     "Transit": ("wire-transit.ts", ("transit",)),
 }
 FAMILIES.update(FAMILIES_D)
+
+# RESPONSE-MODELS-E-2480: every other router module, one generated file each (tests/test_wire_routers_e_2480.py checks the block; the
+# ratchet scripts/wire_ratchet.py counts what is still unmodelled across the whole application). Kept as its own block like FAMILIES_D.
+FAMILIES_E: dict[str, tuple[str, tuple[str, ...]]] = {
+    "AccessControlReads": ("wire-access-control-reads.ts", ("access_control_reads",)),
+    "AccessControlWrites": ("wire-access-control-writes.ts", ("access_control_writes",)),
+    "Automations": ("wire-automations.ts", ("automations",)),
+    "Backup": ("wire-backup.ts", ("backup",)),
+    "Brand": ("wire-brand.ts", ("brand",)),
+    "BridgeKey": ("wire-bridge-key.ts", ("bridge_key",)),
+    "BuildingPresence": ("wire-building-presence.ts", ("building_presence",)),
+    "BulkPeople": ("wire-bulk-people.ts", ("bulk_people",)),
+    "CameraSources": ("wire-camera-sources.ts", ("camera_sources",)),
+    "CaptureLease": ("wire-capture-lease.ts", ("capture_lease",)),
+    "Cast": ("wire-cast.ts", ("cast",)),
+    "Ha": ("wire-ha.ts", ("ha",)),
+    "IntercomListen": ("wire-intercom-listen.ts", ("intercom_listen",)),
+    "IntercomMedia": ("wire-intercom-media.ts", ("intercom_media",)),
+    "Quiet": ("wire-quiet.ts", ("quiet",)),
+    "Settings": ("wire-settings.ts", ("settings",)),
+    "WiskeyPairing": ("wire-wiskey-pairing.ts", ("wiskey_pairing",)),
+}
+FAMILIES.update(FAMILIES_E)
 
 
 def wire_models(response_model: Any) -> tuple[type, ...]:

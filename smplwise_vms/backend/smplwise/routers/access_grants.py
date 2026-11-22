@@ -65,6 +65,8 @@ from ..services import access_grants_store as store
 from ..services import access_grants as ag
 from ..services import access_request as ar
 from ._common import db_of as _db, rid as _rid
+from ..wire import access_grants as W
+from ..wire import wire
 
 router = APIRouter()
 _ID = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
@@ -175,7 +177,7 @@ class AttachIn(BaseModel):
 _SCREEN_KEYS = ("digest_channel", "digest_day", "digest_hour", "name_sync", "placement", "arrival_after_grant")
 
 
-@router.get("/access-grants")
+@router.get("/access-grants", **wire(W.AccessGrantsGrants))
 def list_grants(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), all: bool = False) -> dict[str, Any]:
     # SHAREDID-293: the screen's rules panel (every reader sees the limits; changing them stays a system administrator's), the screen's own
     # settings and whether the caller is a system administrator (who alone sees the settings button, the manual closure and the attach)
@@ -209,7 +211,7 @@ def _requester_or_403(conn: sqlite3.Connection, principal: Principal, request: R
         raise forbidden(permission=ag.PERMISSION, target_type="installation", target_id="*", reason="no_binding")
 
 
-@router.get("/access-grants/grantable-doors")
+@router.get("/access-grants/grantable-doors", **wire(W.AccessGrantsGrantableDoors))
 def grantable_doors(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
                     ticket_id: str | None = Query(None, max_length=64, pattern=_ID)) -> dict[str, Any]:
     """ACCESSREQ-293: the form's doors - every station of the served WisKey copy with its doors and whether the caller may request /
@@ -218,7 +220,7 @@ def grantable_doors(request: Request, principal: Principal = Depends(current_pri
     return ar.grantable_doors(conn, principal, ticket_id)
 
 
-@router.get("/access-grants/approvers")
+@router.get("/access-grants/approvers", **wire(W.AccessGrantsApprovers))
 def approvers(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
               stations: str = Query("", max_length=1024), credential: Literal["pin", "none", "card"] = "pin") -> dict[str, Any]:
     """ACCESSREQ-293: who holds the approve permissions on every chosen station (display names; the caller only when he is a system
@@ -230,7 +232,7 @@ def approvers(request: Request, principal: Principal = Depends(current_principal
     return ar.approvers(conn, principal, sorted(ids), credential)
 
 
-@router.get("/access-grants/notice")
+@router.get("/access-grants/notice", **wire(W.AccessGrantsNotice))
 def notice(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
            lang: str = Query("he", max_length=8)) -> dict[str, Any]:
     """ACCESSREQ-293: the privacy notice (n2) and the attestation in the person's language, from access_grants.notice_text (the
@@ -288,7 +290,7 @@ def push_name(request: Request, link_id: str = Path(..., pattern=_ID), principal
     return ax.push_name(_db(request), principal, link_id, _rid(request))
 
 
-@router.get("/access-grants/settings")
+@router.get("/access-grants/settings", **wire(W.AccessGrantsSettings))
 def get_settings(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require_system_admin(conn, principal, action="settings.read", request_id=_rid(request), details={"keys": list(ag.KEYS)},
                          text="רק מנהל מערכת יכול לצפות בהגדרה זו.")
@@ -338,23 +340,23 @@ def put_settings(body: SettingsIn, request: Request, principal: Principal = Depe
         return {**ag.settings_view(conn), **ax.settings_view(conn)}
 
 
-@router.post("/access-grants/revoke-all")
+@router.post("/access-grants/revoke-all", **wire(W.AccessGrantsRevokeAll))
 def revoke_all(body: ConfirmIn, request: Request, principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     return {"revoked": ag.revoke_all(_db(request), principal, body.confirm, _rid(request))}
 
 
-@router.post("/access-grants/links")
+@router.post("/access-grants/links", **wire(W.AccessGrantsMatchLink))
 def match_link(body: LinkIn, request: Request, principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     link = ag.match_link(_db(request), principal, body.contact_id, body.wiskey_person_id, _rid(request))
     return {"link": {"id": link["id"], "origin": link["origin"], "state": link["state"]}}
 
 
-@router.delete("/access-grants/links/{link_id}")
+@router.delete("/access-grants/links/{link_id}", **wire(W.AccessGrantsUnlink))
 def unlink(request: Request, link_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     return ag.unlink(_db(request), principal, link_id, _rid(request))
 
 
-@router.post("/access-grants/links/{link_id}/delete-person")
+@router.post("/access-grants/links/{link_id}/delete-person", **wire(W.AccessGrantsDeletePerson))
 def delete_person(body: ConfirmIn, request: Request, link_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     return ag.delete_person_now(_db(request), principal, link_id, body.confirm, _rid(request))
 
@@ -366,12 +368,12 @@ def pending_contacts(principal: Principal = Depends(current_principal_ro), conn:
     return ag.pending_list(conn, principal)
 
 
-@router.post("/access-grants/pending-contacts/{contact_id}/accept")
+@router.post("/access-grants/pending-contacts/{contact_id}/accept", **wire(W.AccessGrantsAcceptContact))
 def accept_contact(request: Request, contact_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     return ag.accept_pending_contact(_db(request), principal, contact_id, _rid(request))
 
 
-@router.post("/access-grants/pending-contacts/{contact_id}/reject")
+@router.post("/access-grants/pending-contacts/{contact_id}/reject", **wire(W.AccessGrantsRejectContact))
 def reject_contact(request: Request, contact_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     return ag.reject_pending_contact(_db(request), principal, contact_id, _rid(request))
 
@@ -381,7 +383,7 @@ def entrance(body: EntranceIn, request: Request, station_id: str = Path(..., pat
     return ag.set_entrance(_db(request), principal, station_id, body.entrance, _rid(request))
 
 
-@router.post("/access-grants")
+@router.post("/access-grants", **wire(W.AccessGrantsRequestGrant))
 def request_grant(body: GrantIn, request: Request, principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     """A manual request: `tickets.manage` + `tickets.external` (installation), or the grant permission somewhere (CR 3.2)."""
     db = _db(request)
@@ -435,7 +437,7 @@ def _visible_or_404(conn: sqlite3.Connection, principal: Principal, grant_id: st
     return g
 
 
-@router.get("/access-grants/{grant_id}")
+@router.get("/access-grants/{grant_id}", **wire(W.AccessGrantsOne))
 def one(grant_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     grant = ag.present(conn, principal, _visible_or_404(conn, principal, grant_id))
     if grant.get("closure"):  # SHAREDID-293: the closure's evidence reference, to a system administrator only
@@ -448,7 +450,7 @@ def _answer(request: Request, principal: Principal, g: dict[str, Any]) -> dict[s
         return {"grant": ag.present(conn, principal, ag.grant_row(conn, g["id"]) or g)}
 
 
-@router.post("/access-grants/{grant_id}/approve")
+@router.post("/access-grants/{grant_id}/approve", **wire(W.AccessGrantsApprove))
 def approve(body: ApproveIn, request: Request, grant_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     g = ag.approve(_db(request), principal, grant_id, body.revision, doors=body.doors, valid_from=body.valid_from, valid_until=body.valid_until, told=body.told,
                    request_id=_rid(request), code_mode=body.code_mode)
@@ -460,12 +462,12 @@ def refuse(body: RevisionIn, request: Request, grant_id: str = Path(..., pattern
     return _answer(request, principal, ag.refuse(_db(request), principal, grant_id, body.revision, _rid(request)))
 
 
-@router.post("/access-grants/{grant_id}/revoke")
+@router.post("/access-grants/{grant_id}/revoke", **wire(W.AccessGrantsRevoke))
 def revoke(request: Request, grant_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     return _answer(request, principal, ag.revoke(_db(request), principal, grant_id, _rid(request)))
 
 
-@router.post("/access-grants/{grant_id}/rotate")
+@router.post("/access-grants/{grant_id}/rotate", **wire(W.AccessGrantsRotate))
 def rotate(body: RevisionIn, request: Request, grant_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     return _answer(request, principal, ag.rotate(_db(request), principal, grant_id, body.revision, _rid(request)))
 

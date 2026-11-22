@@ -77,6 +77,10 @@ def legacy_json(content: Any, had_annotation: bool = True) -> Any:
 
 # routes that had no return annotation before their model (FastAPI used jsonable_encoder + JSONResponse for them)
 UNANNOTATED: set[str] = {"POST /api/v1/energy/tariffs/{tid}/versions"}
+# RESPONSE-MODELS-E-2480: the routes of FAMILIES_E that had no return annotation before their model (one block, merge-friendly)
+UNANNOTATED_E: frozenset[str] = frozenset({
+})
+UNANNOTATED |= UNANNOTATED_E
 
 
 def install() -> None:
@@ -95,7 +99,7 @@ def install() -> None:
         ctx = kw.get("endpoint_ctx") or {}
         route = str(ctx.get("path") or ctx.get("function") or "?")
         modelled = json.loads(out) if isinstance(out, (bytes, bytearray)) else json.loads(json.dumps(out))
-        before = legacy_json(kw["response_content"], route not in UNANNOTATED)
+        before = legacy_json(kw["response_content"], route.replace(" /arx/", " /", 1) not in UNANNOTATED)  # the Arx mount too
         order: list[str] = []
         diff = same(modelled, before, "$", order)
         if order:

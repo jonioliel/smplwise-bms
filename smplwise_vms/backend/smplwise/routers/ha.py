@@ -31,6 +31,8 @@ from ..services import devices as dsvc
 from ..services.timeutil import parse_utc
 from .media import _principal_for_ws
 from ._common import rid as _rid
+from ..wire import ha as W
+from ..wire import wire
 
 router = APIRouter()
 log = logging.getLogger("smplwise.ha")
@@ -60,7 +62,7 @@ def _entity(conn: sqlite3.Connection, entity_id: str) -> dict[str, Any]:
 
 # ---------------------------------------------------------------- catalogue
 
-@router.get("/ha/status")
+@router.get("/ha/status", **wire(W.HaStatus))
 def status(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     settings = settings_of(request)
     paired_at = get_setting(conn, "bridge.paired_at") or None
@@ -73,7 +75,7 @@ def status(request: Request, principal: Principal = Depends(current_principal_ro
     }
 
 
-@router.get("/ha/entities")
+@router.get("/ha/entities", **wire(W.HaEntities))
 def list_entities(
     principal: Principal = Depends(current_principal_ro),
     conn: sqlite3.Connection = Depends(get_read_conn),
@@ -131,7 +133,7 @@ def list_entities(
     return {"entities": out, "domains": domains, "areas": areas, "sync": ha_sync.STATE.as_dict(), "can_control": authorize(conn, principal, "ha.entity.control", INSTALLATION).allowed or bool(_visible_floors(conn, principal, "ha.entity.control")[1])}
 
 
-@router.get("/ha/entities/{entity_id}")
+@router.get("/ha/entities/{entity_id}", **wire(W.HaEntity))
 def get_entity(entity_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     if not _entity_allowed(conn, principal, entity_id, "entity.state.read"):
         require(conn, principal, "entity.state.read", INSTALLATION)
@@ -180,7 +182,7 @@ def _action_row(conn: sqlite3.Connection, action_id: str) -> dict[str, Any]:
     return ha_actions.action_row(conn, action_id)  # shared with the devices area's bulk actions (CR-007 slice 3)
 
 
-@router.post("/ha/entities/{entity_id}/actions", status_code=202)
+@router.post("/ha/entities/{entity_id}/actions", status_code=202, **wire(W.HaRunAction))
 def run_action(entity_id: str, body: ActionBody, request: Request, response: Response, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """LAT1 (2026-10-08): every check runs on the request's READ connection (no SQLite write lock is taken before the
     command leaves), then the durable record - the pending ha_actions row and the `ha.action` attempt audit row - is committed
@@ -507,7 +509,7 @@ def _refuse_media_managed(conn: sqlite3.Connection, principal: Principal, reques
     raise ApiError(409, "use_media_screen", "המסך נשלט ממסך המולטימדיה.", details={"action": action_id, "route": "/multimedia/screens"})
 
 
-@router.get("/ha/actions/{action_id}")
+@router.get("/ha/actions/{action_id}", **wire(W.HaAction))
 def get_action(action_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Poll a pending action: confirmed when the entity reached the expected state after the request, unknown after 20 s."""
     a = _action_row(conn, action_id)
@@ -552,7 +554,7 @@ def _dev_only(settings: Settings) -> None:
         raise ApiError(404, "not_found", "לא נמצא.")
 
 
-@dev_router.post("/ha/dev/states")
+@dev_router.post("/ha/dev/states", **wire(W.HaDevStates))
 def dev_states(body: DevStatesIn, request: Request, background: BackgroundTasks, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Inject entity states as if Home Assistant sent them (the same upsert and the same push the sync uses), for live
     specs and manual checks without a Home Assistant. Developer identity mode only; system.configure; audited."""
@@ -582,7 +584,7 @@ class DevRegistryIn(BaseModel):
     labels: list[dict[str, Any]] | None = Field(default=None, max_length=200)  # HA-LABELS-SYNC-2351: None = keep the label mirror
 
 
-@dev_router.post("/ha/dev/registry")
+@dev_router.post("/ha/dev/registry", **wire(W.HaDevRegistry))
 def dev_registry(body: DevRegistryIn, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Inject entity / device / area / floor registries as if Home Assistant sent them (the same mapping and the same
     writes the sync's registry refresh uses), for the CR-007 devices specs without a Home Assistant. Developer identity
@@ -627,7 +629,7 @@ def dev_registry(body: DevRegistryIn, request: Request, principal: Principal = D
 
 # ---------------------------------------------------------------- bridge pairing + directory (integration side)
 
-@router.post("/ha/bridge/install")
+@router.post("/ha/bridge/install", **wire(W.HaBridgeInstallNow))
 def bridge_install_now(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Copy the integration into Home Assistant's config directory again and re-announce it (system.configure)."""
     require(conn, principal, "system.configure", INSTALLATION)
@@ -645,7 +647,7 @@ def _lease_repair(reason: str) -> None:
     lease_events.WORKER.request_reset(reason)
 
 
-@router.get("/ha/bridge/pairing")
+@router.get("/ha/bridge/pairing", **wire(W.HaPairing))
 def pairing(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), regenerate: bool = False) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
     from ..services import bridge_key_revocation as bkr
@@ -701,7 +703,7 @@ def _directory_screened(message: dict[str, Any], request: Request) -> None:
         raise
 
 
-@router.post("/ha/bridge/ping")
+@router.post("/ha/bridge/ping", **wire(W.HaBridgePing))
 def bridge_ping(message: dict[str, Any], conn: sqlite3.Connection = Depends(conn_after(_ping_screened))) -> dict[str, Any]:
     """Called by the integration during its config flow: proves the pairing code and marks the bridge paired."""
     if "purpose" in message:  # WXH-LEFTOVERS-2405: `purpose` marks a message Arx signs FOR the bridge (cast origin, key status) - never a ping
@@ -717,7 +719,7 @@ def bridge_ping(message: dict[str, Any], conn: sqlite3.Connection = Depends(conn
     return {"ok": True, "paired_at": get_setting(conn, "bridge.paired_at")}
 
 
-@router.post("/ha/bridge/directory")
+@router.post("/ha/bridge/directory", **wire(W.HaBridgeDirectory))
 def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Connection = Depends(conn_after(_directory_screened))) -> dict[str, Any]:
     """Signed user directory push from the integration (id, name, username, active, admin, groups)."""
     try:

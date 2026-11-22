@@ -23,6 +23,8 @@ from ..services.calendar import events as cal_events
 from ..services.calendar import model
 from ..services.calendar.access import Ctx, Denied, get_visible
 from . import calendar as cal_router
+from ..wire import calendar_attendees as W
+from ..wire import wire
 
 router = APIRouter(dependencies=[Depends(cal_router.module_gate)])
 Body = cal_router.Body
@@ -176,13 +178,13 @@ if on_restore not in cal_events.ON_EVENT_RESTORED:
 
 # ---------------------------------------------------------------- the attendee routes
 
-@router.get("/calendar/events/{eid}/attendees")
+@router.get("/calendar/events/{eid}/attendees", **wire(W.CalendarAttendeesAttendees))
 def list_attendees(eid: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     return att.view(ctx, eid)
 
 
-@router.post("/calendar/events/{eid}/attendees", status_code=201)
+@router.post("/calendar/events/{eid}/attendees", status_code=201, **wire(W.CalendarAttendeesAddAttendees))
 def add_attendees(eid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     now = _now()
@@ -199,7 +201,7 @@ def add_attendees(eid: str, body: Body, request: Request, principal: Principal =
         return att.view(ctx, st.root_id) | {"added": ids}
 
 
-@router.patch("/calendar/events/{eid}/attendees/{aid}")
+@router.patch("/calendar/events/{eid}/attendees/{aid}", **wire(W.CalendarAttendeesPatchAttendee))
 def patch_attendee(eid: str, aid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     with cal_router._errors(conn, principal, request):
@@ -216,7 +218,7 @@ def patch_attendee(eid: str, aid: str, body: Body, request: Request, principal: 
         return att.view(ctx, st.root_id)
 
 
-@router.delete("/calendar/events/{eid}/attendees/{aid}")
+@router.delete("/calendar/events/{eid}/attendees/{aid}", **wire(W.CalendarAttendeesDeleteAttendee))
 def delete_attendee(eid: str, aid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     now = _now()
@@ -231,7 +233,7 @@ def delete_attendee(eid: str, aid: str, request: Request, principal: Principal =
         return att.view(ctx, st.root_id)
 
 
-@router.put("/calendar/events/{eid}/attendees/me")
+@router.put("/calendar/events/{eid}/attendees/me", **wire(W.CalendarAttendeesRespond))
 def respond(eid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The attendee's own answer: accepted | declined | tentative."""
     ctx = _ctx(request, conn, principal)
@@ -246,7 +248,7 @@ def respond(eid: str, body: Body, request: Request, principal: Principal = Depen
         return att.view(ctx, st.root_id)
 
 
-@router.get("/calendar/attendees/directory")
+@router.get("/calendar/attendees/directory", **wire(W.CalendarAttendeesDirectory))
 def directory(q: str = Query(default="", max_length=60), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The picker's search: users (holders of calendar.book) and residents (holders of calendar.book_for_others / calendar.manage). Names only."""
     held = set(permissions_anywhere(conn, principal))
@@ -257,14 +259,14 @@ def directory(q: str = Query(default="", max_length=60), principal: Principal = 
     return {"results": att.directory(ctx, q, residents=residents), "residents": residents}
 
 
-@router.get("/calendar/calendars/{cid}/attendee-policy")
+@router.get("/calendar/calendars/{cid}/attendee-policy", **wire(W.CalendarAttendeesPolicy))
 def get_policy(cid: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     ctx = Ctx(conn, principal)
     cal = get_visible(ctx, cid)
     return {"policy": att.policy_of(conn, cal["id"]), "can_edit": ctx.role_in(cal) == "manage"}
 
 
-@router.put("/calendar/calendars/{cid}/attendee-policy")
+@router.put("/calendar/calendars/{cid}/attendee-policy", **wire(W.CalendarAttendeesPolicy))
 def put_policy(cid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     cal = get_visible(ctx, cid)
@@ -281,7 +283,7 @@ def put_policy(cid: str, body: Body, request: Request, principal: Principal = De
         return {"policy": att.policy_of(conn, cid), "can_edit": True}
 
 
-@router.get("/calendar/attendee-settings")
+@router.get("/calendar/attendee-settings", **wire(W.CalendarAttendeesSettings))
 def get_settings(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     held = set(permissions_anywhere(conn, principal))
     if model.PERM_CONFIGURE not in held and model.PERM_VIEW not in held:
@@ -289,7 +291,7 @@ def get_settings(request: Request, principal: Principal = Depends(current_princi
     return {"settings": att.read_settings(conn), "channels": notices.channels_view(request.app.state.db), "can_configure": model.PERM_CONFIGURE in held}
 
 
-@router.put("/calendar/attendee-settings")
+@router.put("/calendar/attendee-settings", **wire(W.CalendarAttendeesPutSettings))
 def put_settings(body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, model.PERM_CONFIGURE, INSTALLATION)
     with cal_router._errors(conn, principal, request):

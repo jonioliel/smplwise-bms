@@ -30,6 +30,8 @@ from ..rbac import Principal
 from ..services import intercom_adapter as adapter
 from ..services import intercom_authority as ia
 from ._common import rid as _rid
+from ..wire import access_control_reads as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -100,14 +102,14 @@ def _group_filter(auth: ia.Authority, request: Request, current_group: str | Non
 
 # ---------------------------------------------------------------- features and stations (access.read)
 
-@router.get("/access-control/features")
+@router.get("/access-control/features", **wire(W.AccessControlReadsFeatures))
 def features(request: Request, auth: ia.Authority = Depends(_gate(ia.READ))) -> dict[str, Any]:
     """Which native features the installed WisKey offers (its `api.commands`), per feature: `{available, reason}`; null
     `available` while there is no served copy yet. WisKey facts only - a screen hides what is not available."""
     return adapter.ADAPTER.features(settings_of(request), auth)
 
 
-@router.get("/access-control/stations")
+@router.get("/access-control/stations", **wire(W.AccessControlReadsStations))
 def stations(request: Request, auth: ia.Authority = Depends(_gate(ia.READ))) -> dict[str, Any]:
     """The stations the caller sees (`access.read` on each): online, call state (no caller name), sync state, doors, camera
     id; `technical` (model, firmware, capabilities, clock, event stream) with `access.stations.read` on the station, else
@@ -125,7 +127,7 @@ def station(request: Request, auth: ia.Authority = Depends(_gate(ia.READ)), stat
 
 # ---------------------------------------------------------------- one station's technical reads (access.stations.read)
 
-@router.get("/access-control/stations/{station_id}/programs")
+@router.get("/access-control/stations/{station_id}/programs", **wire(W.AccessControlReadsDoorPrograms))
 def door_programs(request: Request, auth: ia.Authority = Depends(_gate(ia.STATIONS_READ)), station_id: str = Path(min_length=1, max_length=MAX_ID, pattern=ID_PATTERN)) -> dict[str, Any]:
     """The station's door programs (hold-open programs on the device, `programs`) and saved drafts (`saved`), each with its
     weekly windows and holidays. View only (edits are the write phase's). Reply: `{state, ..., fresh, programs, sync}`."""
@@ -140,7 +142,7 @@ def hold_schedule(request: Request, auth: ia.Authority = Depends(_gate(ia.STATIO
     return adapter.ADAPTER.hold_schedule(settings_of(request), auth, station_id, door)
 
 
-@router.get("/access-control/stations/{station_id}/codes")
+@router.get("/access-control/stations/{station_id}/codes", **wire(W.AccessControlReadsCodesPresence))
 def codes_presence(request: Request, auth: ia.Authority = Depends(_gate(ia.STATIONS_READ)), station_id: str = Path(min_length=1, max_length=MAX_ID, pattern=ID_PATTERN)) -> dict[str, Any]:
     """Whether the station's public door codes are set - presence only, per slot (`configured` true / false / null); never a
     value. WisKey reads the device for it (cached five minutes). Reply: `{state, ..., fresh, codes, sync}`."""
@@ -149,33 +151,33 @@ def codes_presence(request: Request, auth: ia.Authority = Depends(_gate(ia.STATI
 
 # ---------------------------------------------------------------- the Settings status page (access.admin.read)
 
-@router.get("/access-control/status/stations")
+@router.get("/access-control/status/stations", **wire(W.AccessControlReadsStatusStations))
 def status_stations(request: Request, auth: ia.Authority = Depends(_gate(ia.ADMIN_READ))) -> dict[str, Any]:
     """The status page's station list (`access.read` and `access.admin.read` on each), as GET /access-control/stations."""
     return adapter.ADAPTER.status_stations(settings_of(request), auth)
 
 
-@router.get("/access-control/stations/{station_id}/health")
+@router.get("/access-control/stations/{station_id}/health", **wire(W.AccessControlReadsHealth))
 def health(request: Request, auth: ia.Authority = Depends(_gate(ia.ADMIN_READ)), station_id: str = Path(min_length=1, max_length=MAX_ID, pattern=ID_PATTERN)) -> dict[str, Any]:
     """One station's health card: polling, request times, access sync worker, event stream, clock. Reply: `{state, ...,
     fresh, health, sync}`."""
     return adapter.ADAPTER.health(settings_of(request), auth, station_id)
 
 
-@router.get("/access-control/stations/{station_id}/health/history")
+@router.get("/access-control/stations/{station_id}/health/history", **wire(W.AccessControlReadsHealthHistory))
 def health_history(request: Request, auth: ia.Authority = Depends(_gate(ia.ADMIN_READ)), station_id: str = Path(min_length=1, max_length=MAX_ID, pattern=ID_PATTERN)) -> dict[str, Any]:
     """Seven days of one station's health samples (online, poll time, sync, event stream). Reply: `{state, ..., history}`."""
     return adapter.ADAPTER.health_history(settings_of(request), auth, station_id)
 
 
-@router.get("/access-control/status/sync")
+@router.get("/access-control/status/sync", **wire(W.AccessControlReadsSyncStatus))
 def sync_status(request: Request, auth: ia.Authority = Depends(_gate(ia.ADMIN_READ))) -> dict[str, Any]:
     """Per-station sync counts (pending people, operations by state, revocations, card / PIN removals, deletions) and their
     totals - over the stations the caller sees on the status page only. No person in it. Reply: `{state, ..., sync_status}`."""
     return adapter.ADAPTER.sync_status(settings_of(request), auth)
 
 
-@router.get("/access-control/status/conflicts")
+@router.get("/access-control/status/conflicts", **wire(W.AccessControlReadsConflicts))
 def conflicts(request: Request, auth: ia.Authority = Depends(_gate(ia.ADMIN_READ))) -> dict[str, Any]:
     """Sync conflicts and errors per (person or removal, station). Installation-wide in WisKey: `access.admin.read`
     unrestricted (a station-scoped administrator gets an audited 403); the person on a row as the people rules allow on its
@@ -183,7 +185,7 @@ def conflicts(request: Request, auth: ia.Authority = Depends(_gate(ia.ADMIN_READ
     return adapter.ADAPTER.conflicts(settings_of(request), auth, _rid(request))
 
 
-@router.get("/access-control/status/alerts")
+@router.get("/access-control/status/alerts", **wire(W.AccessControlReadsAlerts))
 def alerts(
     request: Request,
     auth: ia.Authority = Depends(_gate(ia.ADMIN_READ)),
@@ -197,7 +199,7 @@ def alerts(
     return adapter.ADAPTER.alerts(settings_of(request), auth, kind=kind, include_suppressed=include_suppressed, offset=offset, limit=limit)
 
 
-@router.get("/access-control/status/audit")
+@router.get("/access-control/status/audit", **wire(W.AccessControlReadsWiskeyAudit))
 def wiskey_audit(
     request: Request,
     auth: ia.Authority = Depends(_gate(ia.ADMIN_READ)),
@@ -219,7 +221,7 @@ def wiskey_audit(
 
 # ---------------------------------------------------------------- people (access.people.read)
 
-@router.get("/access-control/people")
+@router.get("/access-control/people", **wire(W.AccessControlReadsPeople))
 def people(
     request: Request,
     auth: ia.Authority = Depends(_gate(ia.PEOPLE_READ)),
@@ -267,7 +269,7 @@ def person_photo(request: Request, auth: ia.Authority = Depends(_gate(ia.PEOPLE_
 
 # ---------------------------------------------------------------- events (access.events.read)
 
-@router.get("/access-control/events")
+@router.get("/access-control/events", **wire(W.AccessControlReadsEvents))
 def events(
     request: Request,
     auth: ia.Authority = Depends(_gate(ia.EVENTS_READ)),
@@ -329,7 +331,7 @@ def events_export(
                     headers={"Content-Disposition": 'attachment; filename="access-events.csv"', "Cache-Control": "private, no-store", "X-Export-Rows": str(rows)})
 
 
-@router.get("/access-control/events/{event_id}")
+@router.get("/access-control/events/{event_id}", **wire(W.AccessControlReadsEventDetail))
 def event_detail(request: Request, auth: ia.Authority = Depends(_gate(ia.EVENTS_READ)), event_id: str = Path(min_length=1, max_length=MAX_ID, pattern=ID_PATTERN)) -> dict[str, Any]:
     """One event with WisKey's evidence (how the identity and the time were established - flags, no person field); 404
     `intercom_event_not_found` when there is no such event or the caller may not see it. Reply: `{state, ..., event, sync}`."""
@@ -357,7 +359,7 @@ def event_portrait(
 
 # ---------------------------------------------------------------- groups, policy versions, schedules
 
-@router.get("/access-control/groups")
+@router.get("/access-control/groups", **wire(W.AccessControlReadsGroups))
 def groups(request: Request, auth: ia.Authority = Depends(_gate(ia.PEOPLE_READ))) -> dict[str, Any]:
     """The person groups the caller may see (all for a caller who sees everyone; otherwise the groups whose every station
     they see) with the stations each grants, the photo switch and - for `access.people.sensitive` or the Settings status -
@@ -365,27 +367,27 @@ def groups(request: Request, auth: ia.Authority = Depends(_gate(ia.PEOPLE_READ))
     return adapter.ADAPTER.groups(settings_of(request), auth)
 
 
-@router.get("/access-control/groups/versions")
+@router.get("/access-control/groups/versions", **wire(W.AccessControlReadsGroupVersions))
 def group_versions(request: Request, auth: ia.Authority = Depends(_gate(ia.ADMIN_READ)), offset: int = Query(0, ge=0, le=10_000), limit: int = Query(20, ge=1, le=50)) -> dict[str, Any]:
     """The history of the groups and fields policy (revision, when, which kind of change, how many fields / groups changed;
     never who). `access.admin.read` unrestricted. Reply: `{state, ..., fresh, versions, sync}`."""
     return adapter.ADAPTER.group_versions(settings_of(request), auth, offset, limit, _rid(request))
 
 
-@router.get("/access-control/schedules")
+@router.get("/access-control/schedules", **wire(W.AccessControlReadsSchedulesLibrary))
 def schedules_library(request: Request, auth: ia.Authority = Depends(_gate(ia.STATIONS_READ))) -> dict[str, Any]:
     """WisKey's device schedule library ("לוחות זמנים של דלתות"): weekly windows and holidays. Installation-wide in WisKey:
     `access.stations.read` unrestricted. Reply: `{state, ..., fresh, schedules, sync}`."""
     return adapter.ADAPTER.schedules(settings_of(request), auth, "library", _rid(request))
 
 
-@router.get("/access-control/schedules/plans")
+@router.get("/access-control/schedules/plans", **wire(W.AccessControlReadsSchedulesPlans))
 def schedules_plans(request: Request, auth: ia.Authority = Depends(_gate(ia.STATIONS_READ))) -> dict[str, Any]:
     """The schedule deployment plans per station with their last check (blockers, resources). Reply as the library."""
     return adapter.ADAPTER.schedules(settings_of(request), auth, "plans", _rid(request))
 
 
-@router.get("/access-control/schedules/operations")
+@router.get("/access-control/schedules/operations", **wire(W.AccessControlReadsSchedulesOperations))
 def schedules_operations(request: Request, auth: ia.Authority = Depends(_gate(ia.STATIONS_READ))) -> dict[str, Any]:
     """The schedule operations (jobs, archive, journal, claims; `writes_enabled`). Reply as the library."""
     return adapter.ADAPTER.schedules(settings_of(request), auth, "operations", _rid(request))
@@ -393,7 +395,7 @@ def schedules_operations(request: Request, auth: ia.Authority = Depends(_gate(ia
 
 # ---------------------------------------------------------------- the parity report (CR-036 6.2, slice S12)
 
-@router.get("/access-control/parity")
+@router.get("/access-control/parity", **wire(W.AccessControlReadsParityReport))
 def parity_report(
     request: Request,
     auth: ia.Authority = Depends(_gate(ia.ADMIN_READ)),

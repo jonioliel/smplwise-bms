@@ -44,6 +44,8 @@ from ..services import bridge_key_revocation as bkr
 from ..services import bridge_rotation as br
 from ..services import second_factor as sf
 from ._common import rid as _rid
+from ..wire import bridge_key as W
+from ..wire import wire
 
 router = APIRouter()
 CONFIGURE = "system.configure"
@@ -99,7 +101,7 @@ def _refused(exc: br.RotationRefused) -> ApiError:
     return ApiError(exc.status, exc.code, MESSAGES.get(exc.code, MESSAGES["validation"]))
 
 
-@router.get("/system/bridge-key")
+@router.get("/system/bridge-key", **wire(W.BridgeKeyBridgeKey))
 def get_bridge_key(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _gate(conn, request, principal, "bridge.key.read")
     if not (br.mode(conn) == "on" and br.go_live_permitted()) or bkr.is_revoked(conn):
@@ -124,7 +126,7 @@ class SettingsBody(BaseModel):
     reminder_days: Literal[0, 30, 90, 180, 365] | None = None
 
 
-@router.put("/system/bridge-key/settings")
+@router.put("/system/bridge-key/settings", **wire(W.BridgeKeyPutBridgeKeySettings))
 def put_bridge_key_settings(body: SettingsBody, request: Request, principal: Principal = Depends(current_principal),
                             conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _gate(conn, request, principal, "settings.changed")
@@ -156,7 +158,7 @@ class StartBody(BaseModel):
     confirm: bool
 
 
-@router.post("/system/bridge-key/rotations")
+@router.post("/system/bridge-key/rotations", **wire(W.BridgeKeyStartRotation))
 def start_rotation(body: StartBody, request: Request, principal: Principal = Depends(current_principal_ro),
                    conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _gate(conn, request, principal, "bridge.rotation.requested", ROTATE)
@@ -171,7 +173,7 @@ def start_rotation(body: StartBody, request: Request, principal: Principal = Dep
     return {"rotation": br.public(rot)}
 
 
-@router.post("/system/bridge-key/rotations/{rotation_id}/resume")
+@router.post("/system/bridge-key/rotations/{rotation_id}/resume", **wire(W.BridgeKeyResumeRotation))
 def resume_rotation(rotation_id: str, request: Request, principal: Principal = Depends(current_principal_ro),
                     conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _gate(conn, request, principal, "bridge.rotation.resume", ROTATE)
