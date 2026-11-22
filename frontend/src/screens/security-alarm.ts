@@ -6,6 +6,8 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
+import '../components/sw-pager';
+import { PageFit } from '../components/page-fit';
 import {
   ARM_LABEL,
   CODE_ERROR_LABEL,
@@ -91,6 +93,10 @@ function when(iso: string | null): string {
 export class SecurityAlarm extends LitElement {
   /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
   readonly bubbleSkin = new SkinController(this);
+  /** SCROLL-AUDIT-2480 (owner rule: a control screen never scrolls; long lists page): from 1024 px the sensors region takes the room the
+   * page leaves and shows the sensors that fit; the rest are on the next pages (`sw-pager` at the end of the toolbar). The long lists
+   * set to scroll (הגדרות › כללי › עיצוב הממשק): every sensor is drawn and the region scrolls inside itself, as before. */
+  private fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('.areas'), () => true, '(min-width: 1024px)');
   @property() panelId = '';
   @state() private data: AlarmPanels | null = null;
   @state() private error = '';
@@ -937,11 +943,15 @@ export class SecurityAlarm extends LitElement {
       .areas {
         flex: 1 1 0;
         min-block-size: 0;
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        /* room for the cards' shadow and focus ring inside the scroller */
+        overflow: hidden;
+        /* room for the cards' shadow and focus ring inside the region */
         padding: 2px 4px 6px;
         margin-inline: -4px;
+      }
+      /* the long lists set to scroll: every sensor is drawn and the region scrolls inside itself */
+      :host([data-long-lists='scroll']) .areas {
+        overflow-y: auto;
+        overscroll-behavior: contain;
       }
     }
     /* the bubble skin: the list and its rows are flat layers, the view switch a pill track */
@@ -1305,6 +1315,12 @@ export class SecurityAlarm extends LitElement {
       faults: p.zones.filter((z) => z.fault || z.tamper).length,
     };
     const list = this.zoneView === 'list';
+    // the measured pages: the sensors in reading order (area by area); a new filter, view, panel or set of sensors starts at page 1
+    this.fit.sync(zones.length, `${p.entity_id}|${this.filter}|${this.zoneView}|${zones.map((z) => z.entity_id).join(',')}`);
+    let at = 0;
+    const paged = [...groups.entries()]
+      .map(([area, zs]) => [area, zs, zs.filter(() => this.fit.shows(at++))] as const)
+      .filter(([, , shown]) => shown.length > 0);
     return html`<div class="toolbar">
         <div class="chips" role="group" aria-label=${tr('סינון חיישנים')}>${FILTERS.map((f) => html`<button type="button" aria-pressed=${this.filter === f.id} data-filter=${f.id} @click=${() => (this.filter = f.id)}>${f.label}${f.id !== 'all' && n[f.id] ? html`<span class="n">${n[f.id]}</span>` : nothing}</button>`)}</div>
         <div class="end">
@@ -1313,15 +1329,16 @@ export class SecurityAlarm extends LitElement {
             <button type="button" aria-pressed=${!list} aria-label=${tr('כרטיסים')} title=${tr('כרטיסים')} data-alarm-view-cards @click=${() => this.setZoneView('cards')}><sw-icon name="grid" size=${15}></sw-icon></button>
             <button type="button" aria-pressed=${list} aria-label=${tr('רשימה')} title=${tr('רשימה')} data-alarm-view-list @click=${() => this.setZoneView('list')}><sw-icon name="list" size=${15}></sw-icon></button>
           </div>
+          ${this.fit.on && this.fit.pages > 1 ? html`<span class="pg"><sw-pager data-alarm-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager></span>` : nothing}
         </div>
       </div>
       ${!p.zones.length
         ? html`<sw-state-panel icon="sensor" compact state="empty" heading=${tr('אין חיישנים ללוח הזה')} hint=${tr('החיישנים מגיעים מאותה מערכת אזעקה. מנהל המערכת יכול לשייך חיישנים ידנית בהגדרות ‹ אבטחה ‹ ניהול אזעקה.')}></sw-state-panel>`
         : !zones.length
           ? html`<sw-state-panel icon="filter" compact state="empty" heading=${tr('אין חיישנים שמתאימים לסינון')} data-alarm-filter-empty actionLabel=${tr('הצג הכל')} @action=${() => (this.filter = 'all')}></sw-state-panel>`
-          : html`<div class="areas ${list ? 'list' : ''}">${[...groups.entries()].map(([area, zs]) => html`<section data-area=${area}><h3>${area}<span class="n">${zs.length}</span></h3>${list
-              ? html`<div class="zlist" data-alarm-zones="list">${zs.map((z) => this.renderZone(p, z, true))}</div>`
-              : html`<div class="grid" data-alarm-zones="cards">${zs.map((z) => this.renderZone(p, z, false))}</div>`}</section>`)}</div>`}`;
+          : html`<div class="areas ${list ? 'list' : ''}">${paged.map(([area, zs, shown]) => html`<section data-area=${area}><h3>${area}<span class="n">${zs.length}</span></h3>${list
+              ? html`<div class="zlist" data-alarm-zones="list">${shown.map((z) => this.renderZone(p, z, true))}</div>`
+              : html`<div class="grid" data-alarm-zones="cards">${shown.map((z) => this.renderZone(p, z, false))}</div>`}</section>`)}</div>`}`;
   }
 
   private renderZone(p: AlarmPanel, z: AlarmZone, row = false) {
@@ -1335,7 +1352,7 @@ export class SecurityAlarm extends LitElement {
             @change=${switchPress(!!z.bypassed, () => this.start({ kind: 'bypass', action: z.bypassed ? 'bypass_off' : 'bypass_on', panel: p, zone: z, prompt: p.code.bypass, needsConfirm: true }))}></sw-toggle>${tr('עקיפה')}</div>`
       : html`<span></span>`;
     if (row) {
-      return html`<article class="zrow" data-tone=${st.tone} data-zone=${z.entity_id}>
+      return html`<article class="zrow" data-fit-item data-tone=${st.tone} data-zone=${z.entity_id}>
         <span class="zicon" aria-hidden="true"><sw-icon name=${icon} size=${15}></sw-icon></span>
         <div class="zname" title=${z.name}>${z.zone_number !== null ? html`<span class="hint">${z.zone_number} · </span>` : nothing}${z.name}</div>
         <span class="zstate" data-zone-state>${st.label}</span>
@@ -1349,7 +1366,7 @@ export class SecurityAlarm extends LitElement {
         </div>
       </article>`;
     }
-    return html`<article class="zone" data-tone=${st.tone} data-zone=${z.entity_id}>
+    return html`<article class="zone" data-fit-item data-tone=${st.tone} data-zone=${z.entity_id}>
       <span class="zicon" aria-hidden="true"><sw-icon name=${icon} size=${18}></sw-icon></span>
       <div class="zname" title=${z.name}>${z.zone_number !== null ? html`<span class="hint">${z.zone_number} · </span>` : nothing}${z.name}</div>
       ${toggle}

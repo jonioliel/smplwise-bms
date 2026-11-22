@@ -150,6 +150,8 @@ export interface ExternalOptions {
   readNow?: 'still' | 'settled' | 'error';
   /** GRANTS3-295: the cards switch is on and the list carries an active card grant (g15) waiting for its card */
   cards?: boolean;
+  /** SCROLL-AUDIT-2480: this many more active grants (copies of g03 with their own ids and names), so the list has more than fits */
+  more?: number;
 }
 
 // GRANTS3-295: an active CARD grant waiting for its card (invented sample data) and the owner's per-grant history (ids / codes only)
@@ -173,6 +175,10 @@ export async function installExternalMock(page: Page, o: ExternalOptions = {}): 
   const admin = o.systemAdmin ?? true;
   const grants = o.empty ? [] : SAMPLE.map((s) => grantOf(s));
   if (o.cards && !o.empty) grants.unshift({ ...grantOf(CARD_GRANT), credential: 'card', code_state: 'not_needed', card_state: 'awaiting' });
+  if (o.more && !o.empty) {
+    const base = SAMPLE.find((s) => s.id === 'g03')!;
+    for (let i = 1; i <= o.more; i++) grants.push(grantOf({ ...base, id: `gm${String(i).padStart(2, '0')}`, name: `${base.name} ${i}`, number: `····${String(i).padStart(2, '0')}` }));
+  }
   const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
   const extra = ['access.external.grant', 'tickets.configure'];
   await page.route('**/api/v1/me', (route) => {

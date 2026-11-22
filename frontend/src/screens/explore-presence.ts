@@ -4,6 +4,8 @@ import '../components/sw-icon';
 import '../components/sw-page';
 import '../components/sw-state-panel';
 import '../components/sw-segmented';
+import '../components/sw-pager';
+import { PageFit } from '../components/page-fit';
 import type { SegmentedChange } from '../components/sw-segmented';
 import '../map/sw-plan-canvas';
 import { describeError } from '../api/client';
@@ -48,6 +50,10 @@ const DEMO: PeopleResponse = {
 @customElement('explore-presence')
 export class ExplorePresence extends LitElement {
   readonly bubbleSkin = new SkinController(this);
+  /** SCROLL-AUDIT-2480 (owner rule: a control screen never scrolls; long lists page): on a desktop window the people list shows the rows
+   * that fit its panel; the rest are on the next pages (`sw-pager` in the list's heading). The long lists set to scroll (הגדרות › כללי ›
+   * עיצוב הממשק), a tablet or a phone: every row is drawn and the list scrolls inside its panel, as before. */
+  private fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('ul[data-presence-people]'), () => true);
   @state() private data: PeopleResponse | null = null;
   @state() private error = '';
   @state() private floor: string | null = null;
@@ -116,6 +122,9 @@ export class ExplorePresence extends LitElement {
     }
     input[type='search']:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; }
     ul { list-style: none; margin: 0; padding: 0; overflow: auto; flex: 1; min-block-size: 0; overscroll-behavior: contain; }
+    /* SCROLL-AUDIT-2480: the measured pages (desktop, long lists paged) - the list clips and shows the rows that fit */
+    @media (min-width: 1024px) and (min-height: 560px) { :host([data-long-lists='paged']) ul { overflow: hidden; } }
+    .lhead sw-pager { margin-inline-start: auto; align-self: center; }
     li { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-block-end: 1px solid var(--sw-border); }
     li:last-child { border-block-end: 0; }
     .av {
@@ -316,12 +325,14 @@ export class ExplorePresence extends LitElement {
     }
     const list = this.shown(d);
     const now = Date.now();
+    // the measured pages: a new counter filter, search or set of people starts at page 1 (the poll with the same people keeps the page)
+    this.fit.sync(list.length, `${this.kpi}|${this.query}|${list.map((p) => p.user_id).join(',')}`);
     return html`<section class="panel listpanel" data-presence-list>
-      <div class="lhead"><h2>${pt('listTitle')}</h2><small data-presence-count>${pt('listCount', { n: list.length })}</small></div>
+      <div class="lhead"><h2>${pt('listTitle')}</h2><small data-presence-count>${pt('listCount', { n: list.length })}</small>${this.fit.on && this.fit.pages > 1 ? html`<sw-pager data-presence-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}</div>
       <input type="search" .value=${this.query} placeholder=${pt('search')} aria-label=${pt('search')} data-presence-search
         @input=${(e: Event) => { this.query = (e.target as HTMLInputElement).value; }} />
       ${list.length
-        ? html`<ul data-presence-people>${list.map((p) => html`<li data-presence-person=${p.user_id}>
+        ? html`<ul data-presence-people>${list.filter((_, i) => this.fit.shows(i)).map((p) => html`<li data-fit-item data-presence-person=${p.user_id}>
             <span class="av" aria-hidden="true">${p.name.trim().slice(0, 1)}</span>
             <span class="who"><b>${p.name}</b><small>${[p.floor_name || p.site_name || pt('siteOnly'), p.zone_name].filter(Boolean).join(' · ')}</small></span>
             <span class="src" title=${pt(SOURCE_KEY[p.source])}><sw-icon name=${SOURCE_ICON[p.source]} size="12"></sw-icon>${agoLabel(p.at, now)}</span>

@@ -9,6 +9,8 @@ import '../components/sw-dropdown';
 import '../components/sw-chip-choice';
 import type { ChipChoiceChange } from '../components/sw-chip-choice';
 import '../components/sw-state-panel';
+import '../components/sw-pager';
+import { PageFit } from '../components/page-fit';
 import '../access-external/identity-card';
 import '../access-external/request-dialog';
 import '../access-external/wiskey-visits-panel'; // WISKEY-VISITS-2407: visits / guest templates / the record of an invitation
@@ -93,6 +95,10 @@ type Dialog =
 @customElement('access-external-screen')
 export class AccessExternalScreen extends LitElement {
   readonly bubbleSkin = new SkinController(this);
+  /** SCROLL-AUDIT-2480 (owner rule: a control screen never scrolls; long lists page): where the page fits the window (the desktop rule
+   * below), the grants list shows the rows that fit its card; the rest are on the next pages (`sw-pager` at the end of the filters row).
+   * The long lists set to scroll (הגדרות › כללי › עיצוב הממשק): every row is drawn and the list scrolls inside its card, as before. */
+  private fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('.gl-body[role="list"]'), () => true, '(min-width: 1024px) and (min-height: 600px)');
   @property({ attribute: false }) route: RouteState | null = null;
   @state() private data: GrantsReply | null = null;
   @state() private error = '';
@@ -290,7 +296,9 @@ export class AccessExternalScreen extends LitElement {
         .main > .kpis { flex: none; }
         .main > .tcard.grants { flex: 1 1 auto; min-block-size: 0; display: flex; flex-direction: column; }
         .tcard.grants > .filters, .tcard.grants > .gl-h, .tcard.grants > .legend { flex: none; }
-        .tcard.grants > .gl-body { flex: 1 1 auto; min-block-size: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--sw-border-strong) transparent; }
+        .tcard.grants > .gl-body { flex: 1 1 auto; min-block-size: 0; overflow: hidden; }
+        /* SCROLL-AUDIT-2480: the long lists set to scroll - every row is drawn and the list scrolls inside its card */
+        :host([data-long-lists='scroll']) .tcard.grants > .gl-body { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--sw-border-strong) transparent; }
         .main > [data-pending-panel] { flex: 0 1 auto; min-block-size: 0; max-block-size: 38%; overflow-y: auto; scrollbar-width: thin; }
         .side { min-block-size: 0; overflow-y: auto; align-content: start; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--sw-border-strong) transparent; }
       }
@@ -1136,6 +1144,8 @@ export class AccessExternalScreen extends LitElement {
   private list(grants: Grant[]): TemplateResult {
     const off = !this.data?.enabled;
     const rows = visible(grants, this.query);
+    // the measured pages: a new filter, search, door, source or set of grants starts at page 1 (a state update of the same rows keeps it)
+    this.fit.sync(rows.length, `${this.query.filter}|${this.query.q}|${this.query.station}|${this.query.source}|${rows.map((g) => g.id).join(',')}`);
     const stations: DropdownItem[] = [{ id: '', label: xt('allDoors') }, ...stationsOf(grants).map((s) => ({ id: s.id, label: s.name }))];
     const sources: DropdownItem[] = [{ id: '', label: xt('allSources') }, { id: 'ticket', label: xt('srcTicket') }, { id: 'rfq_order', label: xt('srcRfq') }, { id: 'manual', label: xt('srcManual') }];
     let body: TemplateResult;
@@ -1148,7 +1158,7 @@ export class AccessExternalScreen extends LitElement {
         actionLabel=${!empty ? xt('showAllOpen') : canAsk ? rt('newBtn') : ''} @action=${() => (canAsk ? this.openRequest() : (this.query = { filter: 'live', q: '', station: '', source: '' }))}></sw-state-panel></div>`;
     } else {
       body = html`<div class="gl-h" aria-hidden="true"><span>${xt('colPerson')}</span><span>${xt('colDoors')}</span><span>${xt('colWindow')}</span><span>${xt('colState')}</span><span>${xt('colCode')}</span><span></span></div>
-        <div class="gl-body" role="list">${rows.map((g) => html`<button type="button" role="listitem" class="gl-r" data-grant=${g.id} data-ui-state=${uiState(g)} aria-current=${String(this.sel === g.id)} @click=${() => this.openDrawer(g.id)}>
+        <div class="gl-body" role="list">${rows.filter((_, i) => this.fit.shows(i)).map((g) => html`<button type="button" role="listitem" class="gl-r" data-fit-item data-grant=${g.id} data-ui-state=${uiState(g)} aria-current=${String(this.sel === g.id)} @click=${() => this.openDrawer(g.id)}>
           <span class="pn"><b>${this.name(g)}</b><small>${[g.company, xt(g.category === 'contractor' ? 'contractor' : 'visitor')].filter(Boolean).join(' · ')}</small><span class="sr">${xt(SRC_KEY[g.source] ?? 'srcManual')}${g.source_ref ? html` <span class="num">${g.source_ref}</span>` : nothing}</span></span>
           <span class="doors">${this.doorChips(g)}</span>
           <span class="win"><span class="num">${datesText(g.valid_from, g.valid_until, this.tz)}</span><small class="num">${hoursText(g, this.tz)}</small></span>
@@ -1162,6 +1172,7 @@ export class AccessExternalScreen extends LitElement {
         <sw-dropdown tall .items=${stations} .value=${this.query.station} label=${xt('colDoors')} @change=${(e: CustomEvent<{ id: string }>) => (this.query = { ...this.query, station: e.detail.id })}></sw-dropdown>
         <sw-dropdown tall .items=${sources} .value=${this.query.source} label=${xt('source')} @change=${(e: CustomEvent<{ id: string }>) => (this.query = { ...this.query, source: e.detail.id })}></sw-dropdown>
         <span class="chip" data-tone="acc" data-shown>${xt('shown', { n: rows.length })}</span>
+        ${this.fit.on && this.fit.pages > 1 ? html`<sw-pager data-grants-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}
       </div>
       ${body}
       <div class="legend"><span><sw-icon name="lock" size="14"></sw-icon>${xt('legendCode')}</span><span><sw-icon name="help" size="14"></sw-icon>${xt('legendVerified')}</span></div>
