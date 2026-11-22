@@ -32,6 +32,11 @@ client, `fields` / `problems` added by the global validation handler), then one 
 
 ## Tests
 
-See the final report of the row for the exact runs. No runner use (the 2.47.0 gate holds it).
+On the PC (no runner use: the 2.47.0 gate holds it):
+- `pytest -q tests/test_error_contract_inventory_2490.py` (main checkout `.venv`): 7 passed (252 s on a loaded PC; the run on
+  the real code parses ~1 100 modules and takes ~100 s of it).
+- `ruff check` (rule set F, as the backend lane) on the script and the test: clean.
+- `python scripts/error_contract_inventory.py --json`: the numbers quoted in ADR-019.
+- NOT_RUN: the full backend suite, frontend checks (no frontend file changed), Playwright, pixel specs (no UI change).
 
 Rollback: delete the four files / the DECISIONS row; nothing at run time depends on them.
