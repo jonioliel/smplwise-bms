@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { appReady } from './helpers/app-ready';
 
 // A11Y-2310: sw-dialog declares aria-modal="true", so keyboard focus must stay inside it (sw-sheet and sw-drawer already trap Tab),
 // Escape closes it and focus returns to the control that opened it. A throwaway dialog is mounted on the style guide (demo data, no backend).
@@ -7,8 +8,7 @@ import { test, expect, type Page } from '@playwright/test';
 async function mount(page: Page) {
   await page.goto('about:blank');
   await page.goto('/?design=a#/styleguide');
-  await page.waitForSelector('sw-app');
-  await page.waitForTimeout(800);
+  await appReady(page); // FLAKY-SWEEP-2480: the shell's first load is over (was a fixed 800 ms after the element)
   await page.evaluate(() => {
     const opener = document.createElement('button');
     opener.id = 'a11y-opener';
@@ -22,7 +22,9 @@ async function mount(page: Page) {
     opener.focus();
     dlg.open = true;
   });
-  await page.waitForTimeout(400);
+  // FLAKY-SWEEP-2480: the dialog moves the focus in once it has rendered and opened; a fixed 400 ms was outlasted on a loaded runner
+  // (2.46.0 gate: "inside" false at the first read). The tests below start from that state.
+  await expect.poll(async () => (await where(page)).inside).toBe(true);
 }
 
 /** The deep active element's id/label, or '' */
