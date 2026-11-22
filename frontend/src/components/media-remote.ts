@@ -5,6 +5,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
 import './sw-drawer';
 import './sw-segmented';
+import './sw-tabs';
 import type { SegmentedChange } from './sw-segmented';
 import './media-remote-pad';
 import './media-player-panel';
@@ -667,7 +668,9 @@ export class MediaRemote extends LitElement {
     const tab = tabs.includes(this.tab) ? this.tab : 'pad';
     return html`${this.audioSwitch(d, L.main)}${this.volumeRow(d, L.main)}${L.main.includes('recent') ? this.recent(d) : nothing}
       ${tabs.length > 1
-        ? html`<div class="seg" role="tablist" aria-label=${tr('שלט')}>${tabs.map((t) => html`<button type="button" role="tab" aria-selected=${String(tab === t)} data-mr-tab=${t} @click=${() => (this.tab = t)}>${t === 'pad' ? tr('שלט') : t === 'sources' ? tr('מקורות') : tr('אפליקציות')}</button>`)}</div>`
+        ? html`<sw-tabs controlled variant="pill" fill="always" group-label=${tr('שלט')} .active=${tab}
+            .items=${tabs.map((t) => ({ id: t, label: t === 'pad' ? tr('שלט') : t === 'sources' ? tr('מקורות') : tr('אפליקציות'), attrs: { 'data-mr-tab': t } }))}
+            @change=${(e: CustomEvent<{ id: string }>) => { e.stopPropagation(); this.tab = e.detail.id as RemoteTab; }}></sw-tabs>`
         : nothing}
       ${tab === 'sources' ? this.sources(d) : tab === 'apps' ? this.apps(d) : html`<div class=${classMap({ rpad: true, shake: this.shaking })} data-mr-pad>${this.padContent(d, L, false)}</div>`}`;
   }

@@ -11,6 +11,8 @@ import '../components/sw-toggle';
 import '../components/sw-dialog';
 import '../components/sw-tabs';
 import '../components/sw-state-panel';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import { qrSvg } from '../components/sw-second-factor';
 import { ApiError, describeError } from '../api/client';
 import {
@@ -63,6 +65,9 @@ export class SystemNotices extends LitElement {
          form); the short fields (days, connections, the night hours, the dim level, the forecast hours, the feed and notice pickers) keep
          their 90 px */
       sw-field.short { inline-size: 90px; }
+      /* CR-CMP2-TABLES-REST-2470 (owner N10): the boards and a board's notices are the shared table inside their panel (no second card,
+         never wider than the panel; the module's 10 / 12 px cells) */
+      sw-table.t { --sw-table-min: 0; --sw-table-cell-pad: 10px 12px; }
       .tpls { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
       .tpl { font: inherit; text-align: start; display: grid; gap: 6px; padding: 10px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); background: var(--sw-surface-2); color: var(--sw-text); cursor: pointer; }
       .tpl[aria-pressed='true'] { border-color: var(--sw-accent); box-shadow: inset 0 0 0 1px var(--sw-accent); background: var(--sw-accent-soft); }
@@ -395,10 +400,13 @@ export class SystemNotices extends LitElement {
 
   // ---------------------------------------------------------------- boards list
 
-  private seenBadge(b: Board) {
+  /** CR-CMP2-TABLES-REST-2470: the module badge on the phone cards; inside the shared table the same state in the shared tones (online ok,
+   * idle / never warn, off neutral) */
+  private seenBadge(b: Board, inTable = false) {
     const st = seenState(b, Date.now());
     const look = st === 'online' ? 'ok' : st === 'off' ? 'off' : 'unk';
     const label = st === 'online' ? nt('bOnline') : st === 'off' ? nt('bDisabled') : st === 'never' ? nt('bNever') : nt('bIdle');
+    if (inTable) return html`<span class="chip" data-tone=${look === 'ok' ? 'ok' : look === 'unk' ? 'warn' : nothing}>${label}</span>`;
     return html`<span class="badge" data-look=${look}>${label}</span>`;
   }
 
@@ -410,13 +418,21 @@ export class SystemNotices extends LitElement {
     return `${tpl} · ${theme} · ${d.rotate_s} ${nt('seconds')}`;
   }
 
+  /** CR-CMP2-TABLES-REST-2470 (owner N10): the boards on the shared table - the state chip (shared tones), the name over its display line,
+   * the address (an LTR isolate), the notices count, last seen, the row's keys. A row opens its board through row-select (a click, or
+   * Enter / Space on the row's tab stop; the arrows walk the rows); a key in the row stops its own click. */
   private boardsTable() {
-    return html`<table class="t"><thead><tr><th>${nt('bState')}</th><th>${nt('bName')}</th><th>${nt('bAddress')}</th><th>${nt('bItems')}</th><th>${nt('bSeen')}</th><th></th></tr></thead><tbody>
-      ${this.boards.map((b) => html`<tr class="go" tabindex="0" data-board=${b.slug} @click=${() => this.goBoard(b)} @keydown=${activateKeydown(() => this.goBoard(b))}>
-        <td>${this.seenBadge(b)}</td><td><span class="t1">${b.name}</span><span class="t2">${this.summary(b)}</span></td>
-        <td class="ltr mut">/b/${b.slug}</td><td class="num">${b.item_count ?? 0}</td><td class="num mut">${agoText(b.last_seen_at, Date.now())}</td>
-        <td class="act">${this.rowActions(b)}</td></tr>`)}
-      </tbody></table>`;
+    const cols: TableColumn<Board>[] = [
+      { key: 'state', label: nt('bState'), kind: 'status', render: (b) => this.seenBadge(b, true) },
+      { key: 'name', label: nt('bName'), kind: 'truncate', cellTitle: (b) => b.name, render: (b) => html`<span class="t1">${b.name}</span><span class="t2">${this.summary(b)}</span>` },
+      { key: 'slug', label: nt('bAddress'), kind: 'muted', render: (b) => html`<bdi dir="ltr">/b/${b.slug}</bdi>` },
+      { key: 'items', label: nt('bItems'), kind: 'num', render: (b) => String(b.item_count ?? 0) },
+      { key: 'seen', label: nt('bSeen'), kind: 'muted', render: (b) => agoText(b.last_seen_at, Date.now()) },
+      { key: 'act', label: '', kind: 'actions', render: (b) => this.rowActions(b) },
+    ];
+    return html`<sw-table class="t" bare data-boards-table rowKey="slug" .columns=${cols as unknown as TableColumn[]} .rows=${this.boards as unknown as Record<string, unknown>[]}
+      .rowAttrs=${(b: Record<string, unknown>) => ({ 'data-board': String(b.slug) })}
+      @row-select=${(e: CustomEvent<{ row: Record<string, unknown> }>) => this.goBoard(e.detail.row as unknown as Board)}></sw-table>`;
   }
 
   /** NOTICEPOLISH-295: a row's actions - "הפעלה" for a disabled board, "העתקת קישור" for a system administrator, "פתיחה". */
@@ -709,17 +725,24 @@ export class SystemNotices extends LitElement {
     const candidates = this.notices.filter((n) => !onBoard.has(n.id) && (n.state === 'active' || n.state === 'scheduled' || n.state === 'draft'));
     const manage = !!this.s?.can.manage;
     const editable = (id: string) => manage && this.notices.some((x) => x.id === id && x.state !== 'archived' && x.state !== 'expired');
+    // CR-CMP2-TABLES-REST-2470 (owner N10): the board's notices on the shared table - severity (+ pinned) as a shared tone chip (info /
+    // warn / bad; a notice that is not active is neutral), the title, the time window, edit / remove at the reading end
+    const tone = (n: Notice) => (n.state !== 'active' ? undefined : n.severity === 'critical' ? 'bad' : n.severity === 'alert' ? 'warn' : 'info');
+    const noticeCols: TableColumn<Notice>[] = [
+      { key: 'sev', label: nt('colState'), kind: 'status', render: (n) => html`<span class="chip" data-tone=${tone(n) ?? nothing}>${nt(SEV_KEY[n.severity])}${n.pinned ? ' · ' + nt('pinned') : ''}</span>` },
+      { key: 'title', label: nt('colNotice'), kind: 'truncate', cellTitle: (n) => n.title, render: (n) => html`<span class="t1">${n.title}</span>` },
+      { key: 'window', label: nt('colWindow'), kind: 'muted', render: (n) => windowText(n) },
+      { key: 'act', label: '', kind: 'actions', render: (n) => html`${editable(n.id) ? html`<sw-button size="sm" data-edit-notice @click=${() => this.editNotice(n.id)}>${nt('edit')}</sw-button>` : nothing}
+          <sw-button size="sm" @click=${() => this.removeItem(n.id)}>${nt('removeFromBoard')}</sw-button>` },
+    ];
     // NOTICEADD-295: the mockup's "הודעה חדשה ללוח" (2.16.0 offered only the picker of existing notices, and drew nothing without one)
     return html`<div class="panel flush">
       <div class="toolbar"><h2>${nt('boardNotices')}</h2><span class="chip num">${d.notices.filter((n) => n.state === 'active').length} ${nt('kpiActive')}</span><span class="sp"></span>
         ${candidates.length ? html`<sw-field class="short"><select data-add-notice @change=${(e: Event) => this.addItem((e.target as HTMLSelectElement).value)}><option value="">${nt('addToBoard')}…</option>
           ${candidates.map((n) => html`<option value=${n.id}>${n.title}</option>`)}</select></sw-field>` : nothing}
         ${manage ? html`<sw-button variant="primary" icon="plus" data-board-compose @click=${() => this.newNotice(d.board.id)}>${nt('newForBoard')}</sw-button>` : nothing}</div>
-      ${d.notices.length ? html`<table class="t"><thead><tr><th>${nt('colState')}</th><th>${nt('colNotice')}</th><th>${nt('colWindow')}</th><th></th></tr></thead><tbody>
-        ${d.notices.map((n) => html`<tr data-look=${n.state === 'active' ? SEV_LOOK[n.severity] : 'off'} data-board-notice=${n.id}><td><span class="badge" data-look=${n.state === 'active' ? SEV_LOOK[n.severity] : 'off'}>${nt(SEV_KEY[n.severity])}${n.pinned ? ' · ' + nt('pinned') : ''}</span></td>
-          <td><span class="t1">${n.title}</span></td><td class="num mut">${windowText(n)}</td>
-          <td class="act">${editable(n.id) ? html`<sw-button size="sm" data-edit-notice @click=${() => this.editNotice(n.id)}>${nt('edit')}</sw-button>` : nothing}
-            <sw-button size="sm" @click=${() => this.removeItem(n.id)}>${nt('removeFromBoard')}</sw-button></td></tr>`)}</tbody></table>`
+      ${d.notices.length ? html`<sw-table class="t" bare static-rows data-board-notices .columns=${noticeCols as unknown as TableColumn[]} .rows=${d.notices as unknown as Record<string, unknown>[]}
+          .rowAttrs=${(n: Record<string, unknown>) => ({ 'data-board-notice': String(n.id), 'data-look': n.state === 'active' ? SEV_LOOK[n.severity as Notice['severity']] : 'off' })}></sw-table>`
         : html`<sw-state-panel icon="inbox" state="empty" heading=${nt('boardEmpty')}
             actionLabel=${manage ? nt('newForBoard') : ''} @action=${() => this.newNotice(d.board.id)}></sw-state-panel>`}
     </div>`;

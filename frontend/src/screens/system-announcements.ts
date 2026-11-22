@@ -6,6 +6,8 @@ import '../components/sw-button';
 import '../components/sw-toggle';
 import '../components/sw-state-panel';
 import '../components/sw-icon';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import './system-announce-templates';
 import {
   ANNOUNCE_CATEGORIES, ANNOUNCE_LANGS, ANNOUNCE_QUIET_MODES, ANNOUNCE_SCREEN_RANGE, ANNOUNCE_TRANSLATE_TARGETS, announceAreas, announceConfig, announcePutConfig, announceSpeak, announceTest,
@@ -25,6 +27,19 @@ const flash = (ms = 3000) => new Promise((r) => setTimeout(r, ms));
 /** POLISH4-WP8: the load-failure panel's heading and retry key (the error itself is the hint); the tab's four languages */
 const LOAD_FAILED: Record<string, string> = { he: 'לא הצלחנו לקרוא את הגדרות ההכרזות', en: 'The announcement settings could not be read', ru: 'Не удалось загрузить настройки объявлений', ar: 'تعذّر تحميل إعدادات الإعلانات' };
 const RETRY: Record<string, string> = { he: 'נסו שוב', en: 'Try again', ru: 'Повторить', ar: 'حاول مرة أخرى' };
+
+type HistoryRow = AnnounceConfigAnswer['history'][number];
+/** CR-CMP2-TABLES-REST-2470 (owner N10 / N21): an attempt's outcome in the shared status tones - spoken ok, failed bad, held back warn,
+ * still on its way info, cancelled neutral */
+const HISTORY_TONE: Record<string, string> = { sent: 'ok', failed: 'bad', limited: 'warn', refused: 'warn', pending: 'info', queued: 'info' };
+/** CR-CMP2-TABLES-REST-2470: the last attempts on the shared table - when, source, the text (one line, its full text the cell's title), the
+ * outcome chip. The phone row (< 600 px) is "when · [outcome]" over the source, the text under it. */
+const historyColumns = (t: ReturnType<typeof announceText>): TableColumn<HistoryRow>[] => [
+  { key: 'at', label: t.colWhen, card: 'title', render: (h) => html`<span class="num">${new Intl.DateTimeFormat(localeFor(announceLang()), { dateStyle: 'short', timeStyle: 'short' }).format(new Date(h.at))}</span>` },
+  { key: 'source', label: t.colSource, kind: 'muted', card: 'meta', render: (h) => t.src[h.source] ?? h.source },
+  { key: 'message', label: t.colText, kind: 'truncate', card: 'show', cellTitle: (h) => h.message, render: (h) => h.message },
+  { key: 'status', label: t.colStatus, kind: 'status', card: 'badge', render: (h) => html`<span class="chip" data-tone=${HISTORY_TONE[h.status] ?? nothing}>${t.status[h.status] ?? h.status}</span>` },
+];
 
 /**
  * MU2 הגדרות › מולטימדיה › "הכרזות קוליות" (administrator, `system.configure`; local network only): the switch, the speech engine, the language,
@@ -71,9 +86,9 @@ export class SystemAnnouncements extends LitElement {
       padding: 6px 14px; border-radius: var(--sw-r-pill); background: var(--sw-success-soft); color: var(--sw-success-text); font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-medium); box-shadow: var(--sw-shadow-2); }
     .err { padding: 10px 12px; border-radius: var(--sw-r-md); background: var(--sw-danger-soft); color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
-    table { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-sm); }
-    th, td { text-align: start; padding: 6px 8px; border-block-end: 1px solid var(--sw-border); }
-    td.msg { max-inline-size: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* CR-CMP2-TABLES-REST-2470 (owner N10): the history is the shared table inside its card - no second card, never wider than the card,
+       the text cut at the old 280 px */
+    sw-table[data-announce-history] { --sw-table-min: 0; --sw-table-trunc: 280px; --sw-table-cell-pad: 8px 10px; }
     label.pick { cursor: pointer; }
     label.pick input { inline-size: 18px; block-size: 18px; margin: 0; accent-color: var(--sw-accent); }
     input:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; }
@@ -81,15 +96,10 @@ export class SystemAnnouncements extends LitElement {
       input[type='text'], input[type='number'], input[type='time'], sw-field > select, label.pick { min-block-size: 44px; }
     }
     @media (max-width: 600px) { input[type='text'] { inline-size: 100%; } }
-    /* the phone: a history entry is two lines (when, source and status, then the message in full) instead of a four-column row that ran
-       off the card; a row's controls take the full width under their label */
+    /* the phone: a row's controls take the full width under their label (the history rows are the shared table's phone rows) */
     @media (max-width: 767px) {
       .row > .inl { inline-size: 100%; }
       .row > .inl > sw-field { flex: 1 1 140px; min-inline-size: 0; }
-      table[data-announce-history] tr { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 2px 10px; padding-block: 8px; border-block-end: 1px solid var(--sw-border); }
-      table[data-announce-history] td { padding: 0; border: 0; }
-      table[data-announce-history] td.msg { grid-column: 1 / -1; grid-row: 2; max-inline-size: none; white-space: normal; overflow-wrap: anywhere; color: var(--sw-text-2); }
-      table[data-announce-history] td:last-child { justify-self: end; }
     }
   `];
 
@@ -354,10 +364,8 @@ export class SystemAnnouncements extends LitElement {
             @click=${() => void this.run('send', async () => { await announceSpeak({ scope: 'area', ref: this.room, text: this.text, ...(this.vol.trim() === '' ? {} : { volume: Number(this.vol) }) }); this.text = ''; })}>${t.send}</sw-button>
         </div></sw-card>` : nothing}
       <sw-card heading=${t.history}>
-        ${d.history.length ? html`<table data-announce-history><tbody>${d.history.map((h) => html`<tr>
-          <td>${new Intl.DateTimeFormat(localeFor(announceLang()), { dateStyle: 'short', timeStyle: 'short' }).format(new Date(h.at))}</td>
-          <td>${t.src[h.source] ?? h.source}</td><td class="msg">${h.message}</td><td>${t.status[h.status] ?? h.status}</td></tr>`)}</tbody></table>`
-          : html`<div class="muted">${t.empty}</div>`}
+        <sw-table bare static-rows data-announce-history .columns=${historyColumns(t) as unknown as TableColumn[]} .rows=${d.history as unknown as Record<string, unknown>[]}
+          .rowAttrs=${(h: Record<string, unknown>) => ({ 'data-announce-row': String(h.id), 'data-status': String(h.status) })}><div slot="empty" class="muted" data-announce-empty>${t.empty}</div></sw-table>
       </sw-card>
       ${this.saved ? html`<div class="ok" role="status"><sw-icon name="check" size="16"></sw-icon>${this.saved}</div>` : nothing}
     </div>`;

@@ -13,6 +13,7 @@ import { uiLocale } from '../i18n/locale';
 import { tr as trTime } from '../i18n/msg/time'; // CR-I18N-DATES-2442: the relative-time and weekday words; CR-I18N-UNITS-2442: the durations and the weather units
 
 import { tr } from '../i18n/msg/api-home';
+import type * as Wire from './generated/wire-devices';
 
 export type Direction = 'a' | 'b' | 'c';
 export const DIRECTIONS: Direction[] = ['a', 'b', 'c'];
@@ -436,16 +437,18 @@ export function agendaOf(raw: unknown): AgendaData | null {
   return { calendars, events };
 }
 
-/** GET /devices/home-candidates. */
+/** GET /devices/home-candidates (the backend's response model DeviceHomeCandidates, api/generated/wire-devices.ts; the weather and calendar
+ * entries are the home screen module's documents, typed here). */
 export interface HomeCandidates {
   weather: { entity_id: string; name: string; state: string | null; values?: WeatherData['values']; forecast?: ForecastEntry[]; forecast_len?: number; offers?: WeatherField[] }[];
-  alarms: { entity_id: string; name: string; state: string | null }[];
-  sensors: { entity_id: string; name: string; state: string | null; unit?: string | null; device_class: string | null; suggested: boolean; binary?: boolean }[];
+  alarms: Wire.DeviceHomeEntity[];
+  /** `unit` / `binary` stay optional (the demo candidates and an older server lack them). */
+  sensors: (Omit<Wire.DeviceHomeSensor, 'unit' | 'binary'> & Partial<Pick<Wire.DeviceHomeSensor, 'unit' | 'binary'>>)[];
   suggested_calendar?: Partial<Record<CalendarField, string>>;
   /** BV1: the mirrored calendars (with their next event), scenes and scripts the agenda / launcher may be pointed at. */
   calendars?: { entity_id: string; name: string; state: string | null; event: AgendaEvent | null }[];
-  scenes?: { entity_id: string; name: string; state: string | null }[];
-  scripts?: { entity_id: string; name: string; state: string | null }[];
+  scenes?: Wire.DeviceHomeEntity[];
+  scripts?: Wire.DeviceHomeEntity[];
 }
 
 const UNAVAILABLE = new Set(['', 'unavailable', 'unknown']);

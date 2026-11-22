@@ -8,7 +8,10 @@ duplicated, malformed or not objects; opening positions and kinds; object catalo
 elevations; connector kinds, levels and polylines; wall paths, bulges and thickness; north / schema / calibration), zones (valid, on
 another level, broken polygons), anchors, catalog items, one level or all, and the frame size. The answer is the sha256 and length of the
 written IFC text (byte-identical: the entity numbering follows the order of writing) and the counts per collection, or the exception the
-unchanged code raised. The replay must give the same answer."""
+unchanged code raised. The replay must give the same answer.
+
+CR-IFC-SPLIT-2460 updated five cases on purpose (3, 7, 54, 66, 99): their document's `dimensions` is not an object, which raised
+AttributeError; build now treats it as absent, and each case records the file written for the document without it."""
 from __future__ import annotations
 
 import hashlib

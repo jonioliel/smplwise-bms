@@ -26,6 +26,8 @@ import '../components/nvr-connection-form';
 import '../components/nvr-recorders-card';
 import '../components/frigate-summary';
 import '../components/sw-secrets-card'; // TKSECRETS2: הגדרות › חיבורים › סודות
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import '../components/sw-bridge-key-card'; // CR-WISKEY-HMAC-ROTATION-295: הגדרות › חיבורים › מפתח הגשר (system administrator)
 import '../components/sw-partner-api-card'; // PARTNERAPI113-295: הגדרות › חיבורים › ממשק לשותפים (partner.manage, system administrator)
 import { tr } from '../i18n/msg/system-b';
@@ -452,20 +454,25 @@ export class SystemSetup extends LitElement {
     const yes = (v: boolean | null) =>
       v === null
         ? '—'
-        : html`<span class=${`yn ${v ? 'on' : 'off'}`} role="img" aria-label=${v ? tr('נשלחת') : tr('לא נשלחת')}><sw-icon name=${v ? 'check' : 'close'} size=${12}></sw-icon></span>`;
+        : html`<span class=${`yn ${v ? 'on' : 'off'}`} part=${`yn ${v ? 'yn-on' : 'yn-off'}`} role="img" aria-label=${v ? tr('נשלחת') : tr('לא נשלחת')}><sw-icon name=${v ? 'check' : 'close'} size=${12}></sw-icon></span>`;
+    type Ch = NonNullable<typeof n>['channels'][number];
+    // CR-CMP2-TABLES-REST-2470 (owner N10): the channel matrix on the shared table - the channel number, the camera (it wraps), the motion
+    // mark (its tinted chip through the yn parts; cell hook data-nvr-motion), the smart events as figures, the row's "enable" key
+    const cols: TableColumn<Ch>[] = [
+      { key: 'channel', label: tr('ערוץ'), kind: 'num', align: 'start' },
+      { key: 'name', label: tr('מצלמה'), cellAttrs: () => ({ 'data-nvr-cam': true }) },
+      { key: 'motion', label: tr('תנועה'), cellAttrs: (c) => ({ 'data-nvr-motion': c.motion.supported ? String(c.motion.center) : 'none' }),
+        render: (c) => (c.motion.supported ? yes(c.motion.center) : html`<span class="mut">${tr('לא מוגדר')}</span>`) },
+      { key: 'smart', label: tr('אירועים חכמים'), render: (c) => (c.smart_supported ? html`<span class="num">${c.smart_center}/${c.smart_supported}</span>` : html`<span class="mut">${tr('אין')}</span>`) },
+      { key: 'act', label: tr('פעולה'), kind: 'actions',
+        render: (c) => (n?.can_write && c.motion.supported && !c.motion.center ? html`<sw-button size="sm" data-nvr-enable-one=${c.channel} @click=${() => this.planNotify([c.channel], false, true)}>${tr('הפעל')}</sw-button>` : nothing) },
+    ];
     return html`<sw-card heading=${tr('התראות מה־NVR (Notify Surveillance Center)')} subheading=${tr('אילו ערוצים מודיעים ל־Arx על תנועה ועל אירועים חכמים · כתיבה מאושרת ל־NVR, עם החזר')} data-nvr-notify>
       ${this.notifyError ? html`<div class="msg err" role="alert" data-nvr-notify-error><sw-icon name="warning" size=${13}></sw-icon>${this.notifyError}</div>` : nothing}
       ${!n
         ? this.notifyError ? nothing : html`<div class="hint">${tr('קורא את הגדרות ה־NVR…')}</div>`
-        : html`<div class="tablewrap"><table class="matrix" data-nvr-matrix>
-            <thead><tr><th scope="col">${tr('ערוץ')}</th><th scope="col">${tr('מצלמה')}</th><th scope="col">${tr('תנועה')}</th><th scope="col">${tr('אירועים חכמים')}</th><th scope="col"><span class="sr">${tr('פעולה')}</span></th></tr></thead>
-            <tbody>${n.channels.map((c) => html`<tr data-nvr-channel=${c.channel}>
-              <td class="ltr num">${c.channel}</td><td>${c.name}</td>
-              <td data-nvr-motion=${c.motion.supported ? String(c.motion.center) : 'none'}>${c.motion.supported ? yes(c.motion.center) : html`<span class="dim">${tr('לא מוגדר')}</span>`}</td>
-              <td class="num">${c.smart_supported ? html`<span class="ltr">${c.smart_center}/${c.smart_supported}</span>` : html`<span class="dim">${tr('אין')}</span>`}</td>
-              <td class="act">${n.can_write && c.motion.supported && !c.motion.center ? html`<sw-button size="sm" data-nvr-enable-one=${c.channel} @click=${() => this.planNotify([c.channel], false, true)}>${tr('הפעל')}</sw-button>` : nothing}</td>
-            </tr>`)}</tbody>
-          </table></div>
+        : html`<sw-table class="matrix" bare static-rows data-nvr-matrix rowKey="channel" .columns=${cols as unknown as TableColumn[]} .rows=${n.channels as unknown as Record<string, unknown>[]}
+            .rowAttrs=${(c: Record<string, unknown>) => ({ 'data-nvr-channel': String(c.channel) })}></sw-table>
           <div class="hint legend"><span class="yn on"><sw-icon name="check" size=${12}></sw-icon></span> ${tr('ההתראה נשלחת ל־Arx ·')} <span class="yn off"><sw-icon name="close" size=${12}></sw-icon></span> ${tr('הערוץ מקליט אבל לא מודיע · אירועים חכמים = חציית קו, פריצה לאזור, כניסה ויציאה מאזור (רק במצלמות שמגדירות אותם).')}</div>
           ${n.can_write
             ? html`<div class="actions">
@@ -566,51 +573,34 @@ export class SystemSetup extends LitElement {
   static styles = [settingsStyles, css`
     /* SETUPPLAN-POLISH-2331: the channel matrix is a dense data table (ui-ux-pro-max: tabular numerals, a quiet header, a row
        hover under a pointer that hovers, a scroll box of its own so a 16-channel recorder never widens the page on a phone) */
-    .tablewrap {
-      overflow-x: auto;
+    /* CR-CMP2-TABLES-REST-2470 (owner N10): the channel matrix is the shared table on the well (a 16-channel recorder never widens the page:
+       the camera names wrap, the table is never wider than the card) */
+    sw-table.matrix {
+      --sw-table-min: 0;
+      --sw-table-head-bg: transparent;
+      --sw-table-cell-pad: 8px 12px;
       margin-block: var(--sw-s-2);
       border-radius: var(--sw-r-md);
       background: var(--sw-well, var(--sw-surface-2));
-      -webkit-overflow-scrolling: touch;
     }
-    .matrix {
-      inline-size: 100%;
-      border-collapse: collapse;
-      font-size: var(--sw-fs-sm);
-    }
-    .matrix th,
-    .matrix td {
-      text-align: start;
-      padding: 8px 12px;
-      border-block-end: 1px solid var(--sw-border);
-      vertical-align: middle;
-      white-space: nowrap;
-    }
-    .matrix td:nth-child(2) {
+    sw-table.matrix::part(cell) {
       white-space: normal;
-      min-inline-size: 120px;
     }
-    .matrix tbody tr:last-child td {
-      border-block-end: 0;
+    sw-table.matrix::part(yn) {
+      display: inline-grid;
+      place-items: center;
+      inline-size: 22px;
+      block-size: 22px;
+      border-radius: var(--sw-r-pill);
+      vertical-align: middle;
     }
-    .matrix th {
+    sw-table.matrix::part(yn-on) {
+      background: var(--sw-success-soft);
+      color: var(--sw-success-text);
+    }
+    sw-table.matrix::part(yn-off) {
+      background: var(--sw-surface-3);
       color: var(--sw-text-2);
-      font-weight: var(--sw-fw-semibold);
-      font-size: var(--sw-fs-xs);
-    }
-    .matrix .num {
-      font-variant-numeric: tabular-nums;
-    }
-    .matrix .act {
-      text-align: end;
-    }
-    .matrix .dim {
-      color: var(--sw-text-3);
-    }
-    @media (hover: hover) and (pointer: fine) {
-      .matrix tbody tr:hover td {
-        background: var(--sw-hover-wash);
-      }
     }
     /* a yes / no mark: a drawn check or cross in a small tinted chip (the success / neutral tones of the fact rows) */
     .yn {

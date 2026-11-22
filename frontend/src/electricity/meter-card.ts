@@ -3,6 +3,7 @@ import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-drawer';
 import '../components/sw-dialog';
 import '../components/sw-button';
+import '../components/sw-field';
 import '../components/sw-state-panel';
 import './meter-readings';
 import { ApiError, describeError } from '../api/client';
@@ -326,6 +327,7 @@ export class ElecMeterCard extends MeterCardBase<MeterDetail, 'remove' | 'replac
   }
 
   protected renderDialogs() {
+    const finalBad = !!this.replaceError && !this.finalReading;
     return html`
       <sw-dialog ?open=${this.dlg === 'remove'} heading=${tr('הסרת המונה')} data-meter-remove-dialog @close=${() => (this.dlg = '')}>
         <div>${tr('המונה יוסר מהרשימה. הנתונים שנאספו יישמרו.')}</div>
@@ -355,9 +357,9 @@ export class ElecMeterCard extends MeterCardBase<MeterDetail, 'remove' | 'replac
       </sw-dialog>
       <sw-dialog ?open=${this.dlg === 'replace'} heading=${tr('החלפת מונה')} data-meter-replace-dialog @close=${() => (this.dlg = '')}>
         <div class="form">
-          <div class="fld"><label for="fr">${tr('קריאה סופית של המונה הישן')}</label><div class="inp ${this.replaceError && !this.finalReading ? 'err' : ''}"><input id="fr" data-replace-final inputmode="decimal" .value=${this.finalReading} @input=${(e: Event) => (this.finalReading = (e.target as HTMLInputElement).value)} /><span class="mut">${tr('קוט״ש')}</span></div></div>
-          <div class="fld"><label for="sr">${tr('קריאת התחלה של המונה החדש')}</label><div class="inp"><input id="sr" data-replace-start inputmode="decimal" .value=${this.startReading} @input=${(e: Event) => (this.startReading = (e.target as HTMLInputElement).value)} /><span class="mut">${tr('קוט״ש')}</span></div></div>
-          <div class="fld wide"><label for="nt">${tr('הערה (לא חובה)')}</label><div class="inp"><input id="nt" data-replace-note .value=${this.note} @input=${(e: Event) => (this.note = (e.target as HTMLInputElement).value)} /></div></div>
+          <sw-field class="fld" label=${tr('קריאה סופית של המונה הישן')} unit=${tr('קוט״ש')}><input id="fr" class=${finalBad ? 'err' : ''} aria-invalid=${finalBad ? 'true' : 'false'} data-replace-final inputmode="decimal" .value=${this.finalReading} @input=${(e: Event) => (this.finalReading = (e.target as HTMLInputElement).value)} /></sw-field>
+          <sw-field class="fld" label=${tr('קריאת התחלה של המונה החדש')} unit=${tr('קוט״ש')}><input id="sr" data-replace-start inputmode="decimal" .value=${this.startReading} @input=${(e: Event) => (this.startReading = (e.target as HTMLInputElement).value)} /></sw-field>
+          <sw-field class="fld wide" label=${tr('הערה (לא חובה)')}><input id="nt" data-replace-note .value=${this.note} @input=${(e: Event) => (this.note = (e.target as HTMLInputElement).value)} /></sw-field>
           ${this.replaceError ? html`<div class="alert err wide" role="alert" data-replace-error>${this.replaceError}</div>` : nothing}
         </div>
         <sw-button slot="footer" variant="primary" data-replace-save ?disabled=${this.busy} @click=${() => void this.replace()}>${tr('החלפה')}</sw-button>

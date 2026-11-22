@@ -3,81 +3,55 @@
  * `system.configure`; the list is readable by whoever may read the NVR configuration. Local channel only (never remote).
  * Every change waits for a restart (`restart_required`, `pending_restart`). The password is write-only. */
 import { api, get, patch, post, put } from './client';
-import type { ConnectionBody, NvrConnection, SaveResult, TestResult } from './nvr-connection';
+import type { ConnectionBody, NvrConnection } from './nvr-connection';
+import type * as Wire from './generated/wire-recorders';
 import { tr } from '../i18n/msg/api-video';
 
 export const PRIMARY_RECORDER = 'nvr-1';
 
-type RecorderState = 'online' | 'error' | 'unknown' | 'pending_restart' | 'disabled' | 'removed' | 'not_configured' | 'unreadable' | 'refused';
+/* The wire shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/recorders.py), generated into
+ * ./generated/wire-recorders.ts: a field the server renames or drops is a compile error here (code review 07:F8 step 2). The connection
+ * routes answer routers/nvr_connection.py's view / save / test - the same shapes as `/nvr/connection` (./nvr-connection.ts types those for
+ * the installation-level route; the recorder routes are typed with the generated ones, and the shared form checks they still fit).
+ * Kept optional on purpose: `primary_has_history` (absent on an older server). Narrowed on purpose: the connection's `extra` (the
+ * vendor's stored options, scalars - the form's own type), `saved` / `restart_required: true` (a save that did not happen is an error, not an
+ * answer; every save waits for a restart). */
+type RecorderState = Wire.RecorderStatus['state'];
+type RecorderConnection = Omit<Wire.RecorderConnection, 'extra'> & Pick<NvrConnection, 'extra'>;
+type RecorderConnectionSaved = Omit<Wire.RecorderConnectionSaved, 'extra' | 'saved' | 'restart_required'> & Pick<NvrConnection, 'extra'> & { saved: true; restart_required: true };
 
-export interface Recorder {
-  id: string;
-  primary: boolean;
-  name: string;
-  vendor: string;
-  vendor_label: string;
-  enabled: boolean;
-  removed: boolean;
-  removed_at: string | null;
-  sort_order: number;
-  time_zone: string | null;
-  model: string | null;
-  firmware: string | null;
-  last_seen_at: string | null;
-  cameras: number;
-  cameras_enabled: number;
-  status: { state: RecorderState; error: string | null; events_connected: boolean; discovery_last_ok: string | null };
-  pending_restart: boolean;
-  capabilities: Record<string, unknown>;
-  /** system.configure holders only; never a password. */
-  connection?: Pick<NvrConnection, 'vendor' | 'host' | 'http_port' | 'rtsp_port' | 'username' | 'has_password' | 'state' | 'revision' | 'updated_at' | 'vendor_locked'>;
-}
+export type Recorder = Wire.Recorder;
 
-export interface RecorderList {
-  recorders: Recorder[];
+export type RecorderList = Omit<Wire.RecorderList, 'primary_has_history'> & {
   /** No recorder left and history under the first id: a new recorder gets a new id (the card shows the add form). */
   primary_has_history?: boolean;
-  count: number;
-  can_manage: boolean;
-  restart: 'addon' | 'manual';
-  pending_restart: boolean;
-}
+};
 
 export const enc = encodeURIComponent;
 
 export const listRecorders = (includeRemoved = false) => get<RecorderList>(`recorders${includeRemoved ? '?include_removed=true' : ''}`);
 export const addRecorder = (body: ConnectionBody & { name: string; save_untested?: boolean; confirm_text?: string }) =>
-  post<{ saved: true; restart_required: true; recorder_id: string; untested: boolean; device: SaveResult['device']; recorder: Recorder }>('recorders', body);
+  post<Wire.RecorderAdded>('recorders', body);
 export const updateRecorder = (id: string, body: { name?: string; enabled?: boolean; sort_order?: number; time_zone?: string }) =>
-  patch<{ saved: true; restart_required: boolean; recorder: Recorder }>(`recorders/${enc(id)}`, body);
-type Removed = { removed: true; restart_required: true; recorder_id: string; revision: number; cameras_disabled: number };
+  patch<Wire.RecorderUpdated>(`recorders/${enc(id)}`, body);
+type Removed = Wire.RecorderRemoved;
 /** `DELETE` with a body (the typed word and the connection's revision). */
 export const removeRecorder = (id: string, confirm_text: string, if_revision: number): Promise<Removed> =>
   api<Removed>(`recorders/${enc(id)}`, { method: 'DELETE', body: JSON.stringify({ confirm_text, if_revision }) });
-export const recorderConnection = (id: string) => get<NvrConnection>(`recorders/${enc(id)}/connection`);
+export const recorderConnection = (id: string) => get<RecorderConnection>(`recorders/${enc(id)}/connection`);
 export const testRecorderConnection = (id: string, body: ConnectionBody & { use_stored_password?: boolean }) =>
-  post<TestResult>(`recorders/${enc(id)}/connection/test`, body);
+  post<Wire.RecorderProbe>(`recorders/${enc(id)}/connection/test`, body);
 export const saveRecorderConnection = (id: string, body: ConnectionBody & { save_untested?: boolean; confirm_text?: string; if_revision: number }) =>
-  put<SaveResult>(`recorders/${enc(id)}/connection`, body);
+  put<RecorderConnectionSaved>(`recorders/${enc(id)}/connection`, body);
 /** NVR-H264-BULK-2341: the per-recorder switch "אפשר שינויי הגדרות ב־NVR". Reading needs `system.configure`; changing it needs
  * `system.configure` AND `nvr.configure` (`can_change`). Turning it on needs `confirm: true` (the dialog); turning it off never does.
- * Applies at once (no restart); every change is audited. Local channel only. */
-export interface RecorderWrites {
-  recorder_id: string;
-  vendor: string | null;
-  /** false: the vendor has no encoding writes through Arx (Frigate, "no NVR") - the switch is not shown. */
-  supported: boolean;
-  enabled: boolean;
-  /** false = never switched: the vendor default applies (`default`). */
-  explicit: boolean;
-  default: boolean;
-  last_change: { at: string; by: string | null; enabled: boolean } | null;
-  can_change: boolean;
-}
+ * Applies at once (no restart); every change is audited. Local channel only. `supported` false: the vendor has no encoding writes through
+ * Arx (Frigate, "no NVR") - the switch is not shown; `explicit` false = never switched (the vendor `default` applies). */
+export type RecorderWrites = Wire.RecorderWrites;
 export const recorderWrites = (id: string) => get<RecorderWrites>(`recorders/${enc(id)}/writes`);
 export const setRecorderWrites = (id: string, enabled: boolean, confirm = false) =>
   patch<RecorderWrites>(`recorders/${enc(id)}/writes`, enabled ? { enabled, confirm } : { enabled });
-export const recorderHealth = (id: string) => get<{ recorder_id: string; online: boolean; model: string | null; firmware: string | null; error: string | null }>(`recorders/${enc(id)}/health`);
+export const recorderHealth = (id: string) => get<Wire.RecorderHealth>(`recorders/${enc(id)}/health`);
 
 /** Operator wording of a recorder's state (one short word or phrase; no infrastructure names). */
 export const STATE_TEXT: Record<RecorderState, string> = {

@@ -19,7 +19,10 @@ from ..errors import forbidden, validation
 from ..mode import installation_mode
 from ..rbac import INSTALLATION, Principal, bindings_of, effective_permissions, has_any_binding, permissions_anywhere, permissions_fingerprint
 from ..services import brand_assets, revocation
+from ..services import me_store as store
 from ..services import user_events, user_prefs
+from ..wire import me as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -45,7 +48,7 @@ def _active(conn: sqlite3.Connection, principal: Principal) -> bool:
     return not is_disabled(conn, principal.user_id)
 
 
-@router.get("/me")
+@router.get("/me", **wire(W.Me))
 def me(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
        known: str | None = Query(None, max_length=64)) -> dict:
     """Who the caller is and what they may do - computed on this request, never cached (T055). `known` = the
@@ -85,7 +88,7 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
         from ..services.ha_user_auth import session_of
 
         s = session_of(request)
-        cred = conn.execute("SELECT must_change, reset_mode FROM auth_local_credentials WHERE user_id = ?", (principal.user_id,)).fetchone()
+        cred = store.local_credential(conn, principal.user_id)
         admin = local_identity.holds_admin(conn, principal.user_id)
         extra["local_identity"] = {
             "admin_permissions": admin,
@@ -202,14 +205,14 @@ def _prefs_of(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
     hide = () if may_personalize(conn, principal) else user_prefs.PERSONAL_KEYS
     return user_prefs.get_prefs(conn, principal.user_id, hide)
 
-@router.get("/me/prefs")
+@router.get("/me/prefs", **wire(W.MyPrefs))
 def get_my_prefs(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The caller's own interface preferences - every known key with its value or default (`stored` names the keys the
     user set). Another user's preferences are never readable."""
     return _prefs_of(conn, principal)
 
 
-@router.put("/me/prefs")
+@router.put("/me/prefs", **wire(W.MyPrefs))
 def put_my_prefs(body: PrefsPatch, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Set or reset (null) the caller's own preferences; `nav.order` keeps the known tab ids in the given order, drops
     unknown ids and appends the missing ones in the default order. Presentation only: no permission changes."""

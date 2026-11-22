@@ -29,6 +29,7 @@ from ...audit import audit
 from ...db import Database
 from . import model, notify_bridge, sla, store, stuck
 from . import store_acceptance as sa
+from ...test_reset import register_reset
 
 log = logging.getLogger("smplwise.tickets.acceptance")
 
@@ -269,3 +270,12 @@ def _finish(conn: sqlite3.Connection, ticket_id: str, state: str, outcome: str, 
 
 def _note(conn: sqlite3.Connection, ticket_id: str, kind: str, stamp: str, data: dict[str, Any]) -> None:
     store.insert_event(conn, ticket_id, kind, actor_kind="system", via="system", at=stamp, data=data)
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    STATS.clear()
+    STATS.update({"adopted": 0, "started": 0, "accepted": 0, "flagged": 0, "reopened": 0, "restarted": 0, "overridden": 0, "errors": 0})
+
+
+register_reset(__name__, ("STATS",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

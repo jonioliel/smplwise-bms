@@ -24,6 +24,7 @@ from ..config import Settings
 from ..db import Database
 from . import offbox_gdrive, offbox_runtime, offbox_store
 from .backup_offbox import CredentialRef, OffboxError
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.backup.gdrive")
 
@@ -149,3 +150,11 @@ def disconnect(db: Database, settings: Settings, target_id: str, actor: str | No
         offbox_store.clear_secret(conn, target_id, "refresh_token")
         offbox_store.set_enabled(conn, target_id, False, actor)
     return {"had_token": bool(token), "revoked": revoked}
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _PENDING.clear()
+
+
+register_reset(__name__, ("_PENDING",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

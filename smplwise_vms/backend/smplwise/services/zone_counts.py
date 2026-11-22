@@ -40,6 +40,7 @@ _last_prune: dict[str, float] = {}
 
 
 from .timeutil import iso_utc
+from ..test_reset import register_reset
 _iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
@@ -256,3 +257,11 @@ def sample_quietly(conn: sqlite3.Connection) -> None:
         sample(conn)
     except Exception:  # noqa: BLE001
         logging.getLogger("smplwise.zone_counts").exception("zone count sampling failed")
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _last_prune.clear()
+
+
+register_reset(__name__, ("_last_prune",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

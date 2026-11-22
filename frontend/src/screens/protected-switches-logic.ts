@@ -6,51 +6,20 @@
  * merely SUGGESTS ("מוצע להגנה"): a suggestion is not protected and is still included until the administrator approves it.
  */
 import { tr } from '../i18n/msg/media';
+import type * as Wire from '../api/generated/wire-devices';
 
-export interface ProtectedSwitchRow {
-  entity_id: string;
-  name: string;
-  area_id: string | null;
-  area_name: string | null;
-  floor_id: string | null;
-  floor_name: string | null;
-  state: string | null;
-  available: boolean;
-  /** An administrator's protection (enforced). */
-  protected: boolean;
-  /** A classifier suggestion nobody approved: shown here, never enforced. */
-  suggested: boolean;
+/* GET /devices/bulk-protected: the backend's response models (smplwise/wire/devices.py, generated into api/generated/wire-devices.ts). Narrowed
+ * on purpose: `source` to its two values; kept optional (an older server): `media_managed`, the summary's `gone_protected`. `protected`: an
+ * administrator's protection (enforced); `suggested`: a classifier suggestion nobody approved - shown here, never enforced. */
+export interface ProtectedSwitchRow extends Omit<Wire.DeviceSwitchProtection, 'source' | 'media_managed'> {
   source: 'manual' | 'auto' | null;
-  category: string | null;
-  category_label: string | null;
-  rule: string | null;
-  reviewed: boolean | null;
-  included: boolean;
-  reason: string;
-  reason_label: string | null;
-  alarm_managed: boolean;
-  doors_layer: boolean;
   media_managed?: boolean;
-  marked_by: string | null;
-  marked_at: string | null;
-  reviewed_by: string | null;
-  reviewed_at: string | null;
 }
 
-export interface ProtectedSummary {
-  switches: number;
-  protected: number;
-  suggested: number;
-  unprotected: number;
-  gone_protected?: number;
-}
+export type ProtectedSummary = Omit<Wire.DeviceSwitchSummary, 'gone_protected'> & Partial<Pick<Wire.DeviceSwitchSummary, 'gone_protected'>>;
 
-export interface ProtectedCategory {
-  id: string;
-  label: string;
-}
+export type ProtectedCategory = Wire.DeviceCategory;
 
-/** `approve` protects the suggested rows (the strip); `dismiss` rejects a suggestion (the server action is `unprotect`). */
 export type ProtectAction = 'protect' | 'unprotect' | 'approve' | 'dismiss';
 type ApiAction = 'protect' | 'unprotect' | 'approve';
 export const apiAction = (a: ProtectAction): ApiAction => (a === 'dismiss' ? 'unprotect' : a);

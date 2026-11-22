@@ -2,6 +2,8 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-dialog';
 import './sw-button';
+import './sw-table';
+import type { TableColumn } from './sw-table';
 import { settingsStyles } from '../styles/settings';
 import { outcomeOf, type DiffRow, type WriteOutcome } from '../api/installer';
 import { fill, installerText as T } from '../i18n/wiskey-installer';
@@ -34,6 +36,15 @@ export interface ConfirmRequest {
  * dangerous action, then ONE send with an honest wait (elapsed seconds against WisKey's own limit; the dialog cannot be closed while the
  * call is out) and the outcome in words: done, refused (nothing changed), not sent, or unknown (it may have happened - check first).
  */
+type DiffLine = NonNullable<ConfirmRequest['diff']>[number];
+/** CR-CMP2-TABLES-REST-2470 (owner N10): what will change - the setting, its value before and after; a changed row's new value in the
+ * heading ink and weight, an unchanged row quiet */
+const diffCols = (show: (row: DiffLine, v: unknown) => string): TableColumn<DiffLine>[] => [
+  { key: 'label', label: T.confirm.willChange, render: (d) => (d.changed ? d.label : html`<span class="mut">${d.label}</span>`) },
+  { key: 'before', label: T.confirm.before, render: (d) => (d.changed ? show(d, d.before) : html`<span class="mut">${show(d, d.before)}</span>`) },
+  { key: 'after', label: T.confirm.after, render: (d) => (d.changed ? html`<span class="t1">${show(d, d.after)}</span>` : html`<span class="mut">${show(d, d.after)}</span>`) },
+];
+
 @customElement('wk-installer-confirm')
 export class WkInstallerConfirm extends LitElement {
   @property({ attribute: false }) request: ConfirmRequest | null = null;
@@ -55,30 +66,17 @@ export class WkInstallerConfirm extends LitElement {
         gap: 12px;
         line-height: 1.5;
       }
-      table {
-        inline-size: 100%;
-        border-collapse: collapse;
+      /* CR-CMP2-TABLES-REST-2470 (owner N10): what will change is the shared table in the dialog (no card of its own, never wider than the
+         dialog; values wrap anywhere, as before). A changed row's new value is in the heading ink and weight, an unchanged row is quiet. */
+      sw-table[data-diff] {
+        --sw-table-min: 0;
+        --sw-table-cell-pad: 6px 8px;
         font-variant-numeric: tabular-nums;
       }
-      th,
-      td {
-        text-align: start;
-        padding: 6px 8px;
-        border-block-end: 1px solid var(--sw-border);
-        vertical-align: top;
+      sw-table[data-diff]::part(cell) {
+        white-space: normal;
         overflow-wrap: anywhere;
-      }
-      th {
-        color: var(--sw-text-3);
-        font-weight: var(--sw-fw-medium);
-        font-size: var(--sw-fs-sm);
-      }
-      tr[data-changed] td.after {
-        font-weight: var(--sw-fw-semibold);
-        color: var(--sw-text);
-      }
-      tr:not([data-changed]) td {
-        color: var(--sw-text-3);
+        vertical-align: top;
       }
       .typed {
         display: flex;
@@ -212,14 +210,8 @@ export class WkInstallerConfirm extends LitElement {
             <div>${r.body}</div>
             ${r.extra ? r.extra() : nothing}
             ${r.diff && r.diff.length
-              ? html`<table data-diff>
-                  <thead><tr><th>${T.confirm.willChange}</th><th>${T.confirm.before}</th><th>${T.confirm.after}</th></tr></thead>
-                  <tbody>
-                    ${r.diff.map(
-                      (d) => html`<tr ?data-changed=${d.changed} data-key=${d.key}><td>${d.label}</td><td>${show(d, d.before)}</td><td class="after">${show(d, d.after)}</td></tr>`,
-                    )}
-                  </tbody>
-                </table>`
+              ? html`<sw-table bare static-rows keep-columns data-diff rowKey="key" .columns=${diffCols(show) as unknown as TableColumn[]} .rows=${r.diff as unknown as Record<string, unknown>[]}
+                  .rowAttrs=${(d: Record<string, unknown>) => ({ 'data-key': String(d.key), 'data-changed': !!d.changed })}></sw-table>`
               : nothing}
             ${r.typed
               ? html`<label class="typed">

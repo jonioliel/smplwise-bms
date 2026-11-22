@@ -21,7 +21,7 @@ from smplwise.db import Database, now_iso
 from smplwise.main import create_app
 from smplwise.services import health_report as hr
 from smplwise.services import backup as backup_svc
-from smplwise.services import secrets_store
+from smplwise.services import autosync, events_derive, events_ingest, secrets_store, thumbnails
 from smplwise.services.tickets import public_portal
 from smplwise.services.transit import health as transit_health
 
@@ -100,6 +100,13 @@ def _run(settings, monkeypatch, name: str) -> dict:
     monkeypatch.setattr(transit_health, "view", lambda _conn, _now: dict(transit))
     backups = [] if name in NO_BACKUPS else [{"name": "arx-backup-1.zip", "kind": "manual", "created_at": now_iso()}]
     monkeypatch.setattr(backup_svc, "list_backups", lambda _s: list(backups))
+    # RELEASE-2450-TRAIN gate run 1: the report reads four module-level job states that no per-test reset puts back yet
+    # (tests/singletons_unregistered.txt); a test earlier in the same shard left one of them failed and `default_no_probe` came out
+    # `error`. The characterisation starts from their import-time values.
+    monkeypatch.setattr(events_ingest, "STATE", events_ingest.IngestState())
+    monkeypatch.setattr(events_derive, "STATE", {"last_run": None, "last_ok": None, "last_error": None, "derived": 0})
+    monkeypatch.setattr(autosync, "STATE", dict(autosync._EMPTY_STATE))
+    monkeypatch.setattr(thumbnails, "STATE", {"queued": 0, "generated": 0, "failed": 0, "last_error": None, "busy": None})
     hr.invalidate()
     with Database(settings.db_path).connection() as conn:
         return _project(hr.build(s, conn, probe=probe))

@@ -20,6 +20,7 @@ from ..mode import describe as describe_mode
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import autosync, connection_store, events_cache, events_derive, events_ingest, ha_client, ha_sync, stream_codecs
 from ..services import health_report as health_report_svc
+from ..services import health_store as store
 from ..services import log_export
 from ..services import media_reach
 from ..services import process_stats
@@ -48,9 +49,9 @@ def _write_lock_view(conn: sqlite3.Connection, principal: Principal) -> dict[str
 def _push_view(conn: sqlite3.Connection) -> dict[str, Any]:
     from ..services import push as push_svc
 
-    row = conn.execute("SELECT COUNT(*), COUNT(DISTINCT user_id) FROM push_subscriptions").fetchone()
+    row = store.push_subscription_counts(conn)
     return {**push_svc.STATS, "running": push_svc.NOTIFIER.running, "subscriptions": row[0], "subscribed_users": row[1],
-            "key_created": conn.execute("SELECT 1 FROM push_vapid WHERE id = 1").fetchone() is not None}
+            "key_created": store.push_key_row(conn) is not None}
 
 
 def _remote_view(conn: sqlite3.Connection, settings: Any) -> dict[str, Any]:
@@ -87,7 +88,7 @@ _RENDERER: dict[str, str] = {}  # PATH value -> renderer name: the directories a
 
 
 def _events_stored(conn: sqlite3.Connection, settings: Any) -> int:
-    return _EVENTS_COUNT.load(str(settings.db_path), lambda: conn.execute("SELECT COUNT(*) FROM events").fetchone()[0])
+    return _EVENTS_COUNT.load(str(settings.db_path), lambda: store.event_count(conn))
 
 
 def _renderer() -> str:
@@ -121,7 +122,7 @@ def health(request: Request, principal: Principal = Depends(current_principal_ro
         "version": __version__,
         # NVR-less mode: `mode` ha_only and nvr.state not_configured - neutral, never a failure of the add-on
         **describe_mode(settings),
-        "db": {"ok": conn.execute("SELECT 1").fetchone()[0] == 1, "permission_revision": permission_revision(conn), "write_lock": _write_lock_view(conn, principal),
+        "db": {"ok": store.select_one(conn) == 1, "permission_revision": permission_revision(conn), "write_lock": _write_lock_view(conn, principal),
                **(stats.get("db") or {})},
         # soak measurement (diagnostics only): coarse counters, no paths or names
         **({"process": stats["process"]} if diagnostics else {}),
@@ -133,7 +134,7 @@ def health(request: Request, principal: Principal = Depends(current_principal_ro
         "media": media,
         # CR-022 section 8: the stored NVR connection changed since this process started (a boolean; never a connection detail)
         "connection_pending_restart": connection_store.any_pending_restart(conn, settings),  # CR-024: any recorder's change
-        "discovery": {**autosync.STATE, "cameras": conn.execute("SELECT COUNT(*) FROM cameras").fetchone()[0], "interval_s": autosync.INTERVAL_S},
+        "discovery": {**autosync.STATE, "cameras": store.camera_count(conn), "interval_s": autosync.INTERVAL_S},
         # CR-008 D7: how many main / sub streams play over WebRTC (ok / no / unknown), from the last discovery - counts
         # only; the cameras and their hints are in /health/report (system.configure)
         "video_codecs": stream_codecs.summary(conn),

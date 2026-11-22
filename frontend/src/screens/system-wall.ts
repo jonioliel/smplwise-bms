@@ -10,6 +10,8 @@ import '../components/sw-field';
 import '../components/sw-dialog';
 import '../components/sw-drawer';
 import '../components/sw-state-panel';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import './wall-photo-sets';
 import { describeError } from '../api/client';
 import { loadTree } from '../api/catalog';
@@ -80,6 +82,11 @@ export class SystemWall extends LitElement {
   /** WALL-ANSWERS-2400: how an unfolded foldable is classified, for every wall display of the installation (admin only, audited). */
   @state() private foldable: WallFoldableOpen = 'tablet';
   @state() private foldableBusy = false;
+  /** CR-CMP2-TABLES-REST-2470: the list is a table from 768 px (the shared phone edge), cards below it - one of them is drawn, never both
+   * (a hidden card's keys came first for a page query: the table's keys sit in the shared table's own shadow root) */
+  private readonly phoneMq = window.matchMedia('(max-width: 767px)');
+  @state() private phone = this.phoneMq.matches;
+  private readonly onPhone = () => (this.phone = this.phoneMq.matches);
   @state() private removing: WallProfile | null = null;
   @state() private photoSets: PhotoSet[] = [];
   @state() private managingPhotos = false;
@@ -100,13 +107,13 @@ export class SystemWall extends LitElement {
       .msg { display: inline-flex; align-items: center; gap: 6px; min-block-size: 28px; padding: 2px 12px; border-radius: var(--sw-r-pill); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); max-inline-size: 100%; overflow-wrap: anywhere; }
       .msg.err { background: var(--sw-danger-soft); color: var(--sw-danger-text); }
       .msg sw-icon { flex: none; }
-      /* the list: a card with a quiet header row; the row is the unit (hover wash), the name leads */
-      table { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-base); }
-      th { text-align: start; color: var(--sw-text-2); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); padding: 12px 16px; border-block-end: 1px solid var(--sw-border); white-space: nowrap; }
-      td { padding: 12px 16px; border-block-start: 1px solid var(--sw-border); vertical-align: middle; }
-      tbody tr:first-child td { border-block-start: 0; }
-      tbody tr { transition: background var(--sw-t-hover) var(--sw-ease-color); }
-      @media (hover: hover) and (pointer: fine) { tbody tr:hover { background: var(--sw-hover-wash); } }
+      /* the list: CR-CMP2-TABLES-REST-2470 (owner N10) the shared table inside the card - the reading size and 12 / 16 px cells of the old
+         list, never wider than the card (the cells wrap as the old ones did; badges, figures and keys stay on one line); the overload
+         warning in the warning ink through the warn part */
+      sw-table[data-wall-table] { --sw-table-min: 0; --sw-table-fs: var(--sw-fs-base); --sw-table-cell-pad: 12px 16px; }
+      sw-table[data-wall-table]::part(cell) { white-space: normal; }
+      sw-table[data-wall-table]::part(cell-status), sw-table[data-wall-table]::part(cell-actions) { white-space: nowrap; }
+      sw-table[data-wall-table]::part(warn) { display: flex; align-items: center; gap: 6px; color: var(--sw-warning-text); }
       .who { min-inline-size: 0; }
       .who b { display: block; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); overflow-wrap: anywhere; }
       .who span, .muted { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
@@ -115,11 +122,10 @@ export class SystemWall extends LitElement {
       .seen { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
       .acts { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
       ${srOnlyStyles}
-      .cards { display: none; gap: var(--sw-s-3); }
+      .cards { display: grid; gap: var(--sw-s-3); }
       .card { display: grid; gap: var(--sw-s-2); }
       .card .row { display: flex; justify-content: space-between; gap: var(--sw-s-2); align-items: center; min-inline-size: 0; }
       .card .acts { justify-content: flex-start; padding-block-start: var(--sw-s-2); border-block-start: 1px solid var(--sw-border); }
-      @media (max-width: 720px) { .table-card { display: none; } .cards { display: grid; } }
       /* the drawer: headed groups divided by a hairline; a setting line wraps its control under the label on a narrow drawer */
       .sec { display: grid; gap: var(--sw-s-2); padding-block: var(--sw-s-4); border-block-start: 1px solid var(--sw-border); }
       .sec:first-child { padding-block-start: 0; border-block-start: 0; }
@@ -159,8 +165,15 @@ export class SystemWall extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
+    this.phoneMq.addEventListener('change', this.onPhone);
+    this.phone = this.phoneMq.matches;
     void this.load();
     this.poll.every('profiles', POLL_MS, () => this.load(true), { when: () => !this.editing && !this.adding });
+  }
+
+  disconnectedCallback(): void {
+    this.phoneMq.removeEventListener('change', this.onPhone);
+    super.disconnectedCallback();
   }
 
   private async load(quiet = false): Promise<void> {
@@ -336,20 +349,19 @@ export class SystemWall extends LitElement {
         actionLabel=${this.max > 0 ? trMsg('הוספת משתמש מסך') : ''} @action=${() => void this.openAdd()}></sw-state-panel>`;
     }
     const overload = (p: WallProfile) => (p.config.cameras.length > MAX_PER_PAGE ? html`<div class="warn"><sw-icon name="warning" size=${14}></sw-icon>${trMsg('מעל {MAX_PER_PAGE} זרמים - בדוק שהמקליט עומד בעומס', { MAX_PER_PAGE })}</div>` : nothing);
-    return html`<sw-card flush class="table-card"><table data-wall-table>
-        <thead><tr><th scope="col">${trMsg('משתמש')}</th><th scope="col">${trMsg('מצב')}</th><th scope="col">${trMsg('נראה לאחרונה')}</th><th scope="col">${trMsg('מצלמות')}</th><th scope="col">${trMsg('התראות')}</th><th scope="col"><span class="sr">${trMsg('פעולות')}</span></th></tr></thead>
-        <tbody>${rows.map(
-          (p) => html`<tr data-wall-row=${p.user_id}>
-            <td class="who"><b>${p.title}</b><span>${p.username}</span></td>
-            <td>${this.statusBadge(p)}</td>
-            <td>${this.seen(p)}</td>
-            <td><span class="num">${this.cams(p)}</span>${overload(p)}</td>
-            <td>${p.config.alerts.enabled ? trMsg('פעילות') : html`<span class="muted">${trMsg('כבויות')}</span>`}</td>
-            <td>${this.actions(p)}</td>
-          </tr>`,
-        )}</tbody>
-      </table></sw-card>
-      <div class="cards">${rows.map(
+    // CR-CMP2-TABLES-REST-2470 (owner N10): the wall users on the shared table - the title over the user name (an LTR isolate), the
+    // state badge, when last seen (+ "remote"), the cameras (+ the overload warning), the alerts, the row's three keys at the reading end
+    const cols: TableColumn<WallProfile>[] = [
+      { key: 'title', label: trMsg('משתמש'), render: (p) => html`<span class="t1">${p.title}</span><span class="t2"><bdi dir="ltr">${p.username}</bdi></span>` },
+      { key: 'status', label: trMsg('מצב'), kind: 'status', render: (p) => this.statusBadge(p) },
+      { key: 'seen', label: trMsg('נראה לאחרונה'), render: (p) => html`${this.rel(p.last_seen_at)}${p.last_channel === 'remote' ? html` <sw-badge kind="neutral" label=${trMsg('מרחוק')}></sw-badge>` : nothing}` },
+      { key: 'cams', label: trMsg('מצלמות'), render: (p) => html`${this.cams(p)}${p.config.cameras.length > MAX_PER_PAGE ? html`<span class="t2" part="warn"><sw-icon name="warning" size=${14}></sw-icon>${trMsg('מעל {MAX_PER_PAGE} זרמים - בדוק שהמקליט עומד בעומס', { MAX_PER_PAGE })}</span>` : nothing}` },
+      { key: 'alerts', label: trMsg('התראות'), render: (p) => (p.config.alerts.enabled ? trMsg('פעילות') : html`<span class="mut">${trMsg('כבויות')}</span>`) },
+      { key: 'acts', label: trMsg('פעולות'), kind: 'actions', render: (p) => this.actions(p) },
+    ];
+    if (!this.phone) return html`<sw-card flush class="table-card"><sw-table bare static-rows data-wall-table rowKey="user_id" .columns=${cols as unknown as TableColumn[]} .rows=${rows as unknown as Record<string, unknown>[]}
+        .rowAttrs=${(p: Record<string, unknown>) => ({ 'data-wall-row': String(p.user_id) })}></sw-table></sw-card>`;
+    return html`<div class="cards">${rows.map(
         (p) => html`<sw-card class="card" data-wall-card=${p.user_id}>
           <div class="row"><span class="who"><b>${p.title}</b><span>${p.username}</span></span>${this.statusBadge(p)}</div>
           <div class="row"><span class="muted">${this.seen(p)}</span><span class="muted num">${trMsg('מצלמות: {cams}', { cams: this.cams(p) })}</span></div>

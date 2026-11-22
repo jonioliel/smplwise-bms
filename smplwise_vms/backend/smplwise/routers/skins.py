@@ -22,6 +22,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import plan_anchor_scope as anchor_scope
 from ..services.skins import provider as prov
+from ..services import skins_store
 from ..services.skins import store
 from ._common import rid as _rid
 from .catalog import get_floor
@@ -55,7 +56,7 @@ def _provider(request: Request, conn: sqlite3.Connection) -> prov.SkinProvider:
 
 
 def _last_test(conn: sqlite3.Connection) -> dict[str, Any] | None:
-    r = conn.execute("SELECT created_at, status, http_status, error_code, model FROM plan_skin_renders WHERE test = 1 ORDER BY created_at DESC, rowid DESC LIMIT 1").fetchone()
+    r = skins_store.last_test_render(conn)
     return dict(r) if r else None
 
 

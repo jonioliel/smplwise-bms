@@ -31,6 +31,7 @@ from . import automation_policy as pol
 from . import automation_transport as tr
 from . import ha_sync
 from .timeutil import iso_utc, parse_utc
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.automations")
 
@@ -691,3 +692,11 @@ def janitor(db: Database, settings: dict[str, Any]) -> dict[str, int]:
         out["ops"] = conn.execute("DELETE FROM automation_ops WHERE requested_at < ? AND status != 'pending'", (_iso(now - dt.timedelta(days=OP_KEEP_DAYS)),)).rowcount
         conn.execute("UPDATE automation_trash SET restored_at = NULL WHERE restored_at LIKE '~%' AND substr(restored_at, instr(restored_at, ':') + 1) < ?", (_iso(now - dt.timedelta(hours=1)),))
     return out
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _STORM_AUDITED.clear()
+
+
+register_reset(__name__, ("_STORM_AUDITED",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

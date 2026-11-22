@@ -21,6 +21,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request, Response
 
 from ..errors import not_found
+from ..services import app_brand_store as store
 from ..services import brand_assets as ba
 from ._common import db_of as _db
 from .brand import _image, _variant
@@ -36,7 +37,7 @@ def _logos(conn: sqlite3.Connection) -> dict[str, dict[str, Any] | None]:
     out: dict[str, dict[str, Any] | None] = {v: None for v in ba.VARIANTS}
     st = ba.stamps(conn)
     try:
-        rows = conn.execute("SELECT variant, stamp, mime, width, height FROM brand_assets WHERE kind = ?", (ba.KIND,)).fetchall()
+        rows = store.logo_rows(conn, ba.KIND)
     except sqlite3.Error:
         return out
     for r in rows:

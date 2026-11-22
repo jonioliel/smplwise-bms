@@ -51,8 +51,9 @@ from ..audit import audit
 from ..auth import current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..errors import ApiError, forbidden
 from ..rbac import Principal
+from ..services import access_control_diag_store as store
 from ..services import intercom_authority as ia
-from ..services import intercom_sync
+from ..services import intercom_sync, savepoints
 from ..services import wiskey_access_diag as diag
 from ._common import raw_body as _raw_body, rid as _rid
 from .access_control import CommandEnvelope, _Action, _envelope, _parse
@@ -231,9 +232,7 @@ def _arx_actors(conn: sqlite3.Connection, receipts: list[dict[str, Any]]) -> Non
     ids = [r["id"] for r in receipts if r]
     if not ids:
         return
-    marks = ",".join("?" for _ in ids)
-    found = {row["receipt_id"]: row["actor_name"] or row["actor_user_id"] for row in conn.execute(
-        f"SELECT receipt_id, actor_user_id, actor_name FROM wiskey_access_review_decisions WHERE receipt_id IN ({marks})", ids).fetchall()}
+    found = {row["receipt_id"]: row["actor_name"] or row["actor_user_id"] for row in store.review_actor_rows(conn, ids)}
     for r in receipts:
         if r:
             r["arx_actor"] = found.get(r["id"])
@@ -338,14 +337,13 @@ def diag_review_decide(request: Request, principal: Principal = Depends(_decider
                            details=details) from None
         raise
     finally:
-        act.conn.execute("BEGIN")  # deferred: takes no lock; nothing more is written on this connection
+        savepoints.begin_deferred(act.conn)  # deferred: takes no lock; nothing more is written on this connection
     receipt = reply["decision"]["receipt"]
     act.outcome("ok", None, {"receipt_id": receipt["id"]})
     try:
         with request.app.state.db.write_aside() as w:
-            w.execute(
-                "INSERT OR IGNORE INTO wiskey_access_review_decisions(receipt_id, user_id, station_id, lock_id, person_revision, decision, reason, cadence_days, "
-                "decided_at, due_at, actor_user_id, actor_name, command_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            store.record_review_decision(
+                w,
                 (receipt["id"], body.user_id, body.station_id, body.lock_id, body.person_revision, receipt["decision"], receipt["reason"] or reason,
                  receipt["cadence_days"] or body.cadence_days, receipt["at"] or "", receipt["due_at"] or "", principal.user_id, principal.display_name or "",
                  act.details["command_id"], datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")),

@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .. import connection_store
+from ...test_reset import register_reset
 
 PREFIX = "calendar.conn."
 TENANT_DEFAULT = "common"
@@ -155,3 +156,11 @@ RUNTIME = Runtime()
 
 __all__ = ["RUNTIME", "client", "set_client", "secret", "has_secret", "set_secret", "clear_secret", "clear_all", "status",
            "cached_access", "remember_access", "forget_access"]
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _ACCESS.clear()
+
+
+register_reset(__name__, ("_ACCESS",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

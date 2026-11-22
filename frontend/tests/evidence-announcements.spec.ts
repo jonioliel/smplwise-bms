@@ -79,7 +79,7 @@ test.describe('settings: voice announcements', () => {
     await expect(test1).not.toHaveAttribute('disabled', '');
     await test1.click();
     await expect.poll(() => m.calls.some((c) => c.path === 'test' && c.body?.ref === 'sp-1' && c.body?.scope === 'device')).toBe(true);
-    await expect(tab(page).locator('[data-announce-history] tr')).toHaveCount(1);
+    await expect(tab(page).locator('[data-announce-history] tr[data-announce-row]')).toHaveCount(1);
     await shot(page, 'announce-on');
     await shot(page, 'announce');
     expect(errors).toEqual([]);
