@@ -226,6 +226,21 @@ The idle look (no write in flight) is unchanged: the door-tech pixel baselines a
     field) only after the read, one POST in all.
 - The session-2 wait in the "hold-open schedule" test (the new name before the delete) stays; it is now satisfied from the answer.
 
+### Proof (PC, `vite build` + `vite preview` of this branch before / after the change, `--workers=2`, retries 0, PC at ~100 % CPU)
+
+| run | build | result |
+|---|---|---|
+| unit-wiskey-door-tech (Node) | 5efb30eb1 sources | 9 passed |
+| evidence-wiskey-door-tech, desktop + mobile | after | 18 passed (4.6 min) |
+| the two new DOOR-TECH-REREAD tests, desktop + mobile | before (a62523974) | 4 failed - they catch the race (old name drawn after the answer; the code slot still "not set") |
+| comparison script, desktop + mobile | before / after | before: the delete pressed mid-read sent revision 2 -> `refused revision_conflict`; after: it waited for the read, sent revision 3 -> `acknowledged` |
+| ESLint `wk-door-tech.ts`, `door-tech.ts` | - | 0 problems |
+
+Runner: `~/work/chain5.sh 5efb30eb1` (each run under `flock ~/.smplwise-tests.lock`): door-tech evidence + pixel x3 (desktop +
+mobile), the unit spec, then the chain3 / chain4 items that never ran (after-prev-b / -c / -d, layout-tickets-map, the three tsc
+projects, a11y-dialog-focus x3). Results land in `~/work/flaky-out/summary.txt`; see the report of this session for what was in when
+it ended.
+
 ### "Unable to capture screenshot" (owner Q29: its own row, not fixed here) - where it was seen
 
 Chromium's `Page.captureScreenshot` refusing a capture ("Protocol error (Page.captureScreenshot): Unable to capture screenshot"), not a
