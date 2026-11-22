@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -121,6 +121,16 @@ async function shot(page: Page, name: string) {
 }
 
 /** The owner's rule (24.10): a control screen never scrolls - neither the page nor the shell's main area. */
+/** SCROLL-AUDIT-2480: from 1024x560 the people list pages (the rows that fit its panel, `sw-pager` in the list heading) instead of
+ * scrolling: the list's own count names every listed person, the page draws the first rows (all of them when they fit). */
+async function expectListed(scr: Locator, n: number, timeout = 5000) {
+  await expect(scr.locator('[data-presence-count]')).toContainText(String(n), { timeout });
+  const drawn = await scr.locator('[data-presence-person]').count();
+  expect(drawn, 'rows drawn on the page').toBeGreaterThan(0);
+  expect(drawn, 'rows drawn on the page').toBeLessThanOrEqual(n);
+  if (drawn < n) await expect(scr.locator('sw-pager[data-presence-pager]')).toBeVisible();
+}
+
 async function noPageScroll(page: Page) {
   const r = await page.evaluate(() => {
     const main = document.querySelector('sw-app')?.shadowRoot?.querySelector('main') as HTMLElement | null;
@@ -148,7 +158,7 @@ test.describe('מפה › מי במבנה (WHOIN034-295)', () => {
         await expect(scr.locator('[data-presence-seg]')).toBeVisible();
         await expect(scr.locator('[data-presence-list]')).toBeHidden();
       } else {
-        await expect(scr.locator('[data-presence-person]')).toHaveCount(12);
+        await expectListed(scr, 12);
         await expect(scr.locator('[data-presence-person="u0"]')).toContainText('לובי');
         await expect(scr.locator('[data-presence-hidden-note]')).toContainText('2');
       }
@@ -172,7 +182,7 @@ test.describe('מפה › מי במבנה (WHOIN034-295)', () => {
     await mock(page);
     await open(page, '/explore/presence');
     const scr = page.locator('sw-app explore-presence');
-    await expect(scr.locator('[data-presence-person]')).toHaveCount(12, { timeout: 15000 });
+    await expectListed(scr, 12, 15000);
     await scr.locator('[data-presence-kpi="site"]').click();
     await expect(scr.locator('[data-presence-person]')).toHaveCount(1);
     await expect(scr.locator('[data-presence-person="u11"]')).toBeVisible();

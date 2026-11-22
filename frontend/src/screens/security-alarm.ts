@@ -969,21 +969,23 @@ export class SecurityAlarm extends LitElement {
       .areas.flat.list {
         display: block;
       }
-      /* one line of state: every item keeps its height equal (the rows are counted from it); the state and the flags (tamper,
-         low battery, caused the alarm) never shrink, the area and the time give way with an ellipsis */
+      /* one line of state: every item keeps one height (the rows are counted from it). The state word and the flags (tamper, low
+         battery, caused the alarm) come first; the area and the time follow and, when the card is too narrow for them, wrap to a
+         second line that is clipped - they leave whole, never as a cut word */
       .areas.flat .zsub {
-        flex-wrap: nowrap;
+        line-height: 1.5;
+        max-block-size: calc(var(--sw-fs-lg) * 1.5);
         overflow: hidden;
-        white-space: nowrap;
       }
       .areas.flat .zsub > * {
-        flex: none;
+        white-space: nowrap;
+        order: 2;
       }
-      .areas.flat .zsub > :not(.zstate, .flag) {
-        flex: 0 1 auto;
-        min-inline-size: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
+      .areas.flat .zsub > .zstate {
+        order: 0;
+      }
+      .areas.flat .zsub > .flag {
+        order: 1;
       }
       .areas.flat .zrow {
         box-sizing: border-box;
