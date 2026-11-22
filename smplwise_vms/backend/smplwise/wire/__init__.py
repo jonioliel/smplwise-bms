@@ -77,6 +77,15 @@ class WireModel(BaseModel):
         return out
 
 
+class ExactModel(WireModel):
+    """A wire model whose values are never converted (RESPONSE-MODELS-E-2480): pydantic's strict mode, so `2.0` never becomes `2` in an
+    `int` field, `1` never `True` in a `bool` field and `"5"` never `5` in a number. A value of another type is drift like any other
+    (strict tests: refused; otherwise the object goes out as the route built it), so the answer stays byte-identical even where the
+    model was written from recorded answers and the code alone. Nested dicts are still read into nested models."""
+
+    model_config = ConfigDict(extra="allow", protected_namespaces=(), strict=True)
+
+
 def wire(model: Any) -> dict[str, Any]:
     """The route-decorator arguments of a modelled answer: the model (or a union of models when the route answers one of several
     shapes), and keys the route did not set stay absent."""
