@@ -12,13 +12,15 @@ from ..auth import current_principal_ro, get_read_conn
 from ..rbac import INSTALLATION, LEGACY_PERMISSIONS, Principal, ROLES, authorize, require, role_name
 from ..services import access_roles_store as store
 from ..services.rbac_admin import SENSITIVE, SYSTEM_PERMISSIONS, _custom_role_dict, assigns_anywhere, delegable_roles, delegation_block, full_authority, rendered_labels
+from ..wire import access_roles as W
+from ..wire import wire
 
 router = APIRouter()
 
 
 # ---------------------------------------------------------------- roles
 
-@router.get("/access/roles")
+@router.get("/access/roles", **wire(W.RoleCatalogue))
 def list_roles(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The role catalogue. A delegated administrator (rbac.assign somewhere, no directory right) gets only the roles
     they may hand out - the wizard never offers system_admin, site_admin or anything off the allow-list."""

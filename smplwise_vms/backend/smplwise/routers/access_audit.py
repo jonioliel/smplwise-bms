@@ -16,6 +16,8 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, effective_permissions, require, scope_name
 from ..services import access_audit_store as store
 from ..services.rbac_admin import PERMISSION_LABELS, _scope_exists, _user_bindings, delegated_sees, full_authority, rendered_labels
+from ..wire import access_audit as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -28,7 +30,7 @@ class PreviewBody(BaseModel):
     scope_id: str = Field(default="*", min_length=1, max_length=200)
 
 
-@router.post("/access/preview")
+@router.post("/access/preview", **wire(W.AccessPreview))
 def preview(body: PreviewBody, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Effective permissions of a user at a scope, computed server-side; no impersonation (§12)."""
     scope = (body.scope_type, body.scope_id)
@@ -60,7 +62,7 @@ def preview(body: PreviewBody, principal: Principal = Depends(current_principal)
     }
 
 
-@router.get("/audit")
+@router.get("/audit", **wire(W.AuditPage))
 def list_audit(
     principal: Principal = Depends(current_principal_ro),
     conn: sqlite3.Connection = Depends(get_read_conn),

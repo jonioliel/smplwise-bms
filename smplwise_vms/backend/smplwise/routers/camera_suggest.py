@@ -20,6 +20,8 @@ from ..db import get_setting, now_iso, set_setting
 from ..errors import ApiError, not_found
 from ..rbac import Principal, require
 from ..services import camera_suggest_store as store
+from ..wire import camera_suggest as W
+from ..wire import wire
 from ._common import rid as _rid
 
 router = APIRouter()
@@ -53,14 +55,14 @@ def _link_view(conn: sqlite3.Connection, zone_id: str) -> dict[str, Any]:
     return {"zone_id": zone_id, "anchor_id": a["id"], "updated_at": d.get("updated_at")} if a else empty
 
 
-@router.get("/zones/{zone_id}/suggested-camera")
+@router.get("/zones/{zone_id}/suggested-camera", **wire(W.ZoneCameraLink))
 def get_zone_camera(zone_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     z = _zone(conn, zone_id)
     require(conn, principal, "map.read", ("floor", z["floor_id"]))
     return _link_view(conn, zone_id)
 
 
-@router.put("/zones/{zone_id}/suggested-camera")
+@router.put("/zones/{zone_id}/suggested-camera", **wire(W.ZoneCameraLink))
 def accept_zone_camera(zone_id: str, request: Request, body: LinkIn, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The editor accepted a suggestion: the camera pin becomes the zone's camera. The pin must be a live camera pin on the same floor."""
     z = _zone(conn, zone_id)
@@ -75,7 +77,7 @@ def accept_zone_camera(zone_id: str, request: Request, body: LinkIn, principal: 
     return {"zone_id": zone_id, "anchor_id": a["id"], "updated_at": ts}
 
 
-@router.delete("/zones/{zone_id}/suggested-camera")
+@router.delete("/zones/{zone_id}/suggested-camera", **wire(W.ZoneCameraLink))
 def clear_zone_camera(zone_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     z = _zone(conn, zone_id)
     require(conn, principal, "placement.edit", ("floor", z["floor_id"]))

@@ -24,6 +24,8 @@ from ..errors import ApiError
 from ..rbac import Principal
 from ..services import home_wall_events_store as store
 from ..services import home_interface as hi
+from ..wire import home_wall_events as W
+from ..wire import wire
 
 router = APIRouter()
 FAMILY_TYPES = ("team", "event")
@@ -56,7 +58,7 @@ def _family_calendars(ctx: Any) -> list[sqlite3.Row]:
     return out
 
 
-@router.post("/home/wall/events", status_code=201)
+@router.post("/home/wall/events", status_code=201, **wire(W.WallEventCreated))
 def wall_event(body: WallEventBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     from . import calendar as cr
     from ..services.calendar import events, model

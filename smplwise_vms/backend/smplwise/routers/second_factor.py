@@ -32,6 +32,8 @@ from ..services import capture_lease, notify_sources, presence
 from ..services import second_factor as sf
 from ..services import second_factor_store as store
 from ._common import rid as _rid
+from ..wire import second_factor as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -69,12 +71,12 @@ def _fail(exc: sf.SecondFactorError) -> ApiError:
     return ApiError(429 if exc.code == "locked" else 400 if exc.code == "invalid" else 409, f"second_factor_{exc.code}", exc.message, retryable=exc.code == "locked")
 
 
-@router.get("/auth/second-factor")
+@router.get("/auth/second-factor", **wire(W.OwnFactor))
 def own_status(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return {**sf.status(conn, principal.user_id), "policy": sf.policy(conn)}
 
 
-@router.post("/auth/second-factor/enroll")
+@router.post("/auth/second-factor/enroll", **wire(W.Enrolment))
 def enroll(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _limit(principal)
     if sf.is_enrolled(conn, principal.user_id):
@@ -82,7 +84,7 @@ def enroll(request: Request, principal: Principal = Depends(current_principal), 
     return sf.begin_enrolment(conn, settings_of(request), principal.user_id, principal.username or principal.display_name or principal.user_id)
 
 
-@router.post("/auth/second-factor/confirm")
+@router.post("/auth/second-factor/confirm", **wire(W.FactorStatus))
 def confirm(body: CodeBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _limit(principal)
     if sf.is_enrolled(conn, principal.user_id):
@@ -107,7 +109,7 @@ def confirm(body: CodeBody, request: Request, principal: Principal = Depends(cur
     return sf.status(conn, principal.user_id)
 
 
-@router.post("/auth/second-factor/disable")
+@router.post("/auth/second-factor/disable", **wire(W.FactorStatus))
 def disable(body: CodeBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _limit(principal)
     if not sf.is_enrolled(conn, principal.user_id):
@@ -128,13 +130,13 @@ def disable(body: CodeBody, request: Request, principal: Principal = Depends(cur
     return sf.status(conn, principal.user_id)
 
 
-@router.get("/auth/second-factor/users")
+@router.get("/auth/second-factor/users", **wire(W.EnrolledUsers))
 def list_users(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
     return {"policy": sf.policy(conn), "users": [{"user_id": uid, **info} for uid, info in sorted(sf.enrolled_users(conn).items())]}
 
 
-@router.get("/auth/second-factor/overrides")
+@router.get("/auth/second-factor/overrides", **wire(W.Overrides))
 def list_overrides(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
     return {"policy": sf.policy(conn), **sf.overrides(conn)}
@@ -144,7 +146,7 @@ class OverrideBody(BaseModel):
     policy: str = Field(max_length=16)
 
 
-@router.put("/auth/second-factor/overrides/{kind}/{subject_id}")
+@router.put("/auth/second-factor/overrides/{kind}/{subject_id}", **wire(W.OverrideSet))
 def set_override(kind: str, subject_id: str, body: OverrideBody, request: Request, principal: Principal = Depends(current_principal),
                  conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """TFA2 (owner decision 2026-10-06: optional, never forced; he decides later who must use it): `required` / `optional` for ONE user or
@@ -204,7 +206,7 @@ class ResetBody(BaseModel):
     code: str | None = Field(default=None, max_length=16)
 
 
-@router.delete("/auth/second-factor/users/{user_id}")
+@router.delete("/auth/second-factor/users/{user_id}", **wire(W.FactorReset))
 def admin_reset(user_id: str, request: Request, body: ResetBody | None = None, principal: Principal = Depends(current_principal),
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Recovery for a lost authenticator (owner decision 2026-10-06: an administrator may reset from anywhere). Removes the
