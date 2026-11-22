@@ -1,15 +1,16 @@
 {
  "totals": {
   "lang": "en",
-  "catalogues": 149,
-  "keys": 29382,
+  "catalogues": 151,
+  "keys": 29430,
   "missing": 20,
   "identical": 3,
   "hebrew": 1,
   "gap": 5,
+  "placeholder": 1,
   "hardcodedModules": 46,
-  "hardcodedLiterals": 3806,
-  "hardcodedFiles": 183
+  "hardcodedLiterals": 3762,
+  "hardcodedFiles": 181
  },
  "catalogues": [
   {
@@ -19,27 +20,31 @@
    "identical": 2,
    "hebrew": 0,
    "gap": 2,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [
     "gone_word",
     "del_word"
    ],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/announce",
-   "keys": 148,
+   "keys": 152,
    "missing": 0,
    "identical": 1,
    "hebrew": 0,
    "gap": 1,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [
     "langName.he"
    ],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "msg/plan-wizard",
@@ -48,12 +53,16 @@
    "identical": 0,
    "hebrew": 1,
    "gap": 1,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [
     "חדר בלי שם יקבל \"חדר 7\", ואפשר לשנות אחר כך"
    ],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "tickets/text",
@@ -62,6 +71,7 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 1,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [
@@ -72,7 +82,8 @@
     "lang_en",
     "lang_ar",
     "lang_ru"
-   ]
+   ],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/access-diag",
@@ -81,10 +92,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/access-events",
@@ -93,10 +106,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/access-messaging",
@@ -105,10 +120,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/access-parity",
@@ -117,10 +134,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/access-people",
@@ -129,10 +148,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/access-request",
@@ -141,10 +162,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/access-schedules",
@@ -153,10 +176,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/access-status",
@@ -165,10 +190,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/access-writes",
@@ -177,10 +204,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/app-signin",
@@ -189,10 +218,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/backup-offbox",
@@ -201,10 +232,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/backup-offbox-restore",
@@ -213,10 +246,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/backup-password",
@@ -225,10 +260,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/bridge-key",
@@ -237,10 +274,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/building-presence",
@@ -249,10 +288,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/bulk-people",
@@ -261,10 +302,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/camera-image-health",
@@ -273,12 +316,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
    "missingKeys": [
     "stateOff"
-   ]
+   ],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/camera-reboot",
@@ -287,10 +332,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/camera-sources",
@@ -299,10 +346,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/confirm-dialog",
@@ -311,10 +360,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/confirm-words",
@@ -323,10 +374,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/door-automation",
@@ -335,10 +388,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/door-blocks",
@@ -347,10 +402,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/door-windows",
@@ -359,10 +416,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/door-windows-events",
@@ -371,10 +430,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/door-windows-widget",
@@ -383,10 +444,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/elevators",
@@ -395,10 +458,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/emergency",
@@ -407,10 +472,40 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
+  },
+  {
+   "name": "i18n/entity-label",
+   "keys": 13,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "placeholder": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "missingKeys": [],
+   "placeholderKeys": []
+  },
+  {
+   "name": "i18n/event-codes",
+   "keys": 31,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "placeholder": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/fleet-report",
@@ -419,10 +514,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/generator-escalation",
@@ -431,10 +528,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/generator-log",
@@ -443,10 +542,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/generator-routing",
@@ -455,10 +556,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/generator-widget",
@@ -467,10 +570,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/ha-events",
@@ -479,10 +584,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/ha-users",
@@ -491,10 +598,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/he",
@@ -503,10 +612,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/home-live",
@@ -515,10 +626,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/home-screen",
@@ -527,10 +640,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/home-widget-failure",
@@ -539,10 +654,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/incidents",
@@ -551,10 +668,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/incoming-calls",
@@ -563,10 +682,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/ingest-reason",
@@ -575,10 +696,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/insights",
@@ -587,10 +710,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/intake",
@@ -599,10 +724,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/local-identity",
@@ -611,10 +738,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/log-export",
@@ -623,10 +752,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/maintenance",
@@ -635,10 +766,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/messaging-accounts",
@@ -647,10 +780,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/messaging-pacing",
@@ -659,10 +794,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/messaging-policy",
@@ -671,10 +808,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/notice-chips",
@@ -683,10 +822,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/notices",
@@ -695,10 +836,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/notify-matrix",
@@ -707,10 +850,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/notify-whatsapp",
@@ -719,10 +864,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/partners",
@@ -731,10 +878,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/passkey-only",
@@ -743,10 +892,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/plan-curves",
@@ -755,10 +906,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/plan-glass",
@@ -767,10 +920,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/plan-ifc",
@@ -779,10 +934,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/plan-package",
@@ -791,10 +948,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/polish",
@@ -803,10 +962,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/presence",
@@ -815,6 +976,7 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
@@ -822,7 +984,8 @@
     "uuid",
     "major",
     "minor"
-   ]
+   ],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/privacy-mask",
@@ -831,10 +994,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/quiet-windows",
@@ -843,10 +1008,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/rfq-notify",
@@ -855,10 +1022,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/scenarios",
@@ -867,10 +1036,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/schedule-editor",
@@ -879,10 +1050,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/search-access",
@@ -891,10 +1064,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/security-public",
@@ -903,10 +1078,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/settings-cards",
@@ -915,10 +1092,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/station-people",
@@ -927,10 +1106,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/station-permissions",
@@ -939,10 +1120,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/tab-sections",
@@ -951,10 +1134,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/temperature",
@@ -963,6 +1148,7 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
@@ -971,7 +1157,8 @@
     "windowText",
     "csv",
     "tpl"
-   ]
+   ],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/transit",
@@ -980,10 +1167,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/tts-default",
@@ -992,10 +1181,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/vendor-reports",
@@ -1004,10 +1195,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/wa-installed",
@@ -1016,10 +1209,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/wiskey-door-tech",
@@ -1028,10 +1223,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/wiskey-embed",
@@ -1040,10 +1237,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/wiskey-installer",
@@ -1052,10 +1251,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/wiskey-managed",
@@ -1064,10 +1265,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/wiskey-profiles",
@@ -1076,10 +1279,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/wiskey-station-listen",
@@ -1088,10 +1293,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/wiskey-station-media",
@@ -1100,10 +1307,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/wiskey-station-ops",
@@ -1112,10 +1321,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/wiskey-stations",
@@ -1124,10 +1335,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/wiskey-switches",
@@ -1136,10 +1349,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/wiskey-triage",
@@ -1148,10 +1363,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "i18n/xsection",
@@ -1160,10 +1377,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "msg/api-automation",
@@ -1172,10 +1391,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/api-core",
@@ -1184,10 +1407,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/api-devices",
@@ -1196,10 +1423,16 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 1
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 1,
+   "unusedKeys": [
+    " · תפוס כרגע"
+   ]
   },
   {
    "name": "msg/api-electricity",
@@ -1208,10 +1441,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/api-home",
@@ -1220,10 +1457,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/api-media",
@@ -1232,10 +1473,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/api-notify",
@@ -1244,10 +1489,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/api-plan-view",
@@ -1256,10 +1505,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/api-system",
@@ -1268,10 +1521,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/api-video",
@@ -1280,10 +1537,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/automation",
@@ -1292,10 +1553,16 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 1
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 1,
+   "unusedKeys": [
+    "ו"
+   ]
   },
   {
    "name": "msg/calendars",
@@ -1304,10 +1571,16 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 1
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 1,
+   "unusedKeys": [
+    "שוכפל ל־{when}"
+   ]
   },
   {
    "name": "msg/components",
@@ -1316,10 +1589,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/devices",
@@ -1328,10 +1605,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/electricity",
@@ -1340,10 +1621,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/home",
@@ -1352,10 +1637,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/investigate",
@@ -1364,10 +1653,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/live",
@@ -1376,10 +1669,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/map",
@@ -1388,10 +1685,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/media",
@@ -1400,10 +1701,20 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 5
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 5,
+   "unusedKeys": [
+    "אזור חדש",
+    "אזורים חדשים",
+    "אשר",
+    "החלט",
+    "{n} זרמים"
+   ]
   },
   {
    "name": "msg/misc",
@@ -1412,10 +1723,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/plan-view-card",
@@ -1424,10 +1739,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/screens",
@@ -1436,10 +1755,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/shell",
@@ -1448,10 +1771,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/system-a",
@@ -1460,10 +1787,19 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 4
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 4,
+   "unusedKeys": [
+    "בוטל:",
+    "רשימות ארוכות מאוד",
+    "עמודים",
+    "גלילה מלאה"
+   ]
   },
   {
    "name": "msg/system-b",
@@ -1472,10 +1808,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/time",
@@ -1484,10 +1824,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "msg/wiskey",
@@ -1496,10 +1840,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "unused": 0
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
   },
   {
    "name": "screens/settings-nav-strings",
@@ -1508,10 +1856,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "screens/tabs-place-strings",
@@ -1520,10 +1870,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/board-text",
@@ -1532,10 +1884,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/calendar-text",
@@ -1544,10 +1898,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/conversation-text",
@@ -1556,10 +1912,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/cost-text",
@@ -1568,12 +1926,14 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
    "missingKeys": [
     "vaColTicket"
-   ]
+   ],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/delete-text",
@@ -1582,10 +1942,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/device-text",
@@ -1594,10 +1956,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/drawer-text",
@@ -1606,6 +1970,7 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
@@ -1613,7 +1978,8 @@
     "eta_date",
     "w_stuck",
     "photosMore"
-   ]
+   ],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/list-text",
@@ -1622,10 +1988,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/map-text",
@@ -1634,10 +2002,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/messages-text",
@@ -1646,10 +2016,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/org-locations-text",
@@ -1658,10 +2030,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/overview-text",
@@ -1670,10 +2044,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/quote-text",
@@ -1682,10 +2058,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/rfq-settings-text",
@@ -1694,10 +2072,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/rfq-text",
@@ -1706,6 +2086,7 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 1,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
@@ -1714,6 +2095,9 @@
     "boardSub",
     "sourceTicket",
     "awardedAmount"
+   ],
+   "placeholderKeys": [
+    "previewNumber"
    ]
   },
   {
@@ -1723,10 +2107,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/table-text",
@@ -1735,10 +2121,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/text-deptmgr",
@@ -1747,10 +2135,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/text-needsreview",
@@ -1759,10 +2149,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/text-otp",
@@ -1771,10 +2163,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/text-s4",
@@ -1783,10 +2177,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/text-ui6",
@@ -1795,10 +2191,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/visits-settings-text",
@@ -1807,10 +2205,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "tickets/work-calendar-text",
@@ -1819,10 +2219,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   },
   {
    "name": "water/i18n",
@@ -1831,10 +2233,12 @@
    "identical": 0,
    "hebrew": 0,
    "gap": 0,
+   "placeholder": 0,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [],
-   "missingKeys": []
+   "missingKeys": [],
+   "placeholderKeys": []
   }
  ],
  "hardcoded": [
@@ -2014,7 +2418,7 @@
    "module": "screens/system-*",
    "kind": "app",
    "files": 18,
-   "literals": 313,
+   "literals": 315,
    "fileList": [
     {
      "file": "screens/system-access.ts",
@@ -2082,7 +2486,7 @@
     },
     {
      "file": "screens/system-wall.ts",
-     "literals": 170
+     "literals": 172
     },
     {
      "file": "screens/system-wiskey-validation.ts",
@@ -2259,26 +2663,6 @@
    ]
   },
   {
-   "module": "i18n",
-   "kind": "app",
-   "files": 3,
-   "literals": 102,
-   "fileList": [
-    {
-     "file": "i18n/entity-label.ts",
-     "literals": 13
-    },
-    {
-     "file": "i18n/event-codes.ts",
-     "literals": 33
-    },
-    {
-     "file": "i18n/nav-labels.ts",
-     "literals": 56
-    }
-   ]
-  },
-  {
    "module": "screens/home-*",
    "kind": "app",
    "files": 5,
@@ -2407,6 +2791,18 @@
     {
      "file": "tickets/table-styles.ts",
      "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "i18n",
+   "kind": "app",
+   "files": 1,
+   "literals": 56,
+   "fileList": [
+    {
+     "file": "i18n/nav-labels.ts",
+     "literals": 56
     }
    ]
   },
