@@ -1162,14 +1162,8 @@ class CandidateError(ValueError):
         self.ids = ids or []
 
 
-def merge_candidates(doc: Mapping[str, Any], candidates: Mapping[str, Any], accepted: list[str], edits: Mapping[str, Any] | None, replace_auto: bool,
-                     new_id_fn: Any = new_id) -> tuple[dict[str, Any], dict[str, Any]]:
-    """The accepted candidates merged into a copy of the draft (design 9.5): every candidate must carry a candidate id
-    ("auto-" / "imp-") and source; edits touch the editable fields only (never id, source or confidence); an accepted
-    opening's wall_id must be a string; with replace_auto the draft's unlocked items of the candidates' sources go first
-    (a removed wall takes its other openings with it, counted apart as removed_manual_openings; a locked wall keeps its
-    openings); an accepted opening needs its wall accepted or still in the draft; an accepted id that already exists in
-    the draft is re-issued and the openings pointing to it follow. Returns the merged document and the counts."""
+def _candidate_pool(candidates: Mapping[str, Any]) -> dict[str, tuple[str, dict[str, Any]]]:
+    """Every candidate by id with its collection (a copy): each must carry a candidate id ("auto-" / "imp-") and source, once."""
     pool: dict[str, tuple[str, dict[str, Any]]] = {}
     for coll in CANDIDATE_COLLECTIONS:
         for item in candidates.get(coll) or []:
@@ -1180,10 +1174,11 @@ def merge_candidates(doc: Mapping[str, Any], candidates: Mapping[str, Any], acce
             if item["id"] in pool:
                 raise CandidateError("duplicate_candidate", "אותו מועמד נשלח פעמיים.", [item["id"]])
             pool[item["id"]] = (coll, copy.deepcopy(item))
-    unknown = [i for i in accepted if i not in pool]
-    if unknown:
-        raise CandidateError("unknown_candidate", "מועמד שאושר לא נמצא בין המועמדים שנשלחו.", unknown)
-    chosen = {i: pool[i] for i in dict.fromkeys(accepted)}
+    return pool
+
+
+def _apply_edits(chosen: dict[str, tuple[str, dict[str, Any]]], edits: Mapping[str, Any] | None) -> None:
+    """The edits of the accepted candidates, editable fields only (never id, source or confidence)."""
     for cid, patch in (edits or {}).items():
         if cid in chosen and isinstance(patch, dict):
             coll, item = chosen[cid]
@@ -1194,39 +1189,42 @@ def merge_candidates(doc: Mapping[str, Any], candidates: Mapping[str, Any], acce
             if coll == "walls" and "polyline" in patch and "bulges" not in patch and isinstance(item.get("bulges"), list) \
                     and isinstance(item.get("polyline"), list) and len(item["bulges"]) != max(0, len(item["polyline"]) - 1):
                 del item["bulges"]
-    bad_hosts = [i for i, (coll, item) in chosen.items() if coll == "openings" and not isinstance(item.get("wall_id"), str)]
-    if bad_hosts:  # a list or a dict here would be unhashable below (review of ac60773)
-        raise CandidateError("candidate_shape", "לפתח חייב להיות מזהה קיר מסוג טקסט.", bad_hosts)
-    out = copy.deepcopy(dict(doc))
-    for coll in CANDIDATE_COLLECTIONS:
-        if not isinstance(out.get(coll), list):
-            out[coll] = []
+
+
+def _replace_auto(out: dict[str, Any], chosen: dict[str, tuple[str, dict[str, Any]]]) -> tuple[int, int]:
+    """replace_auto: the draft's items of the accepted candidates' sources go (in place); returns (removed, removed_manual_openings)."""
     removed = 0
     removed_manual_openings = 0
-    if replace_auto:
-        # the draft's items of the accepted candidates' sources go; a locked item (user-protected) stays, and so do the
-        # openings of a locked wall (openings carry no lock of their own)
-        sources = {item.get("source") for _c, item in chosen.values()}
+    # the draft's items of the accepted candidates' sources go; a locked item (user-protected) stays, and so do the
+    # openings of a locked wall (openings carry no lock of their own)
+    sources = {item.get("source") for _c, item in chosen.values()}
 
-        def _replaced(item: Any) -> bool:
-            return isinstance(item, dict) and item.get("source") in sources and item.get("locked") is not True
+    def _replaced(item: Any) -> bool:
+        return isinstance(item, dict) and item.get("source") in sources and item.get("locked") is not True
 
-        gone = {w.get("id") for w in out["walls"] if _replaced(w) and isinstance(w.get("id"), str)}
-        kept_walls = {w.get("id") for w in out["walls"] if isinstance(w, dict) and not _replaced(w) and isinstance(w.get("id"), str)}
-        for coll in ("walls", "objects"):
-            before = len(out[coll])
-            out[coll] = [i for i in out[coll] if not _replaced(i)]
-            removed += before - len(out[coll])
-        openings = []
-        for o in out["openings"]:
-            host = o.get("wall_id") if isinstance(o, dict) else None
-            if _replaced(o) and not (isinstance(host, str) and host in kept_walls):
-                removed += 1
-            elif isinstance(host, str) and host in gone:  # an opening of another source goes with its removed wall, as the editor's remove does
-                removed_manual_openings += 1
-            else:
-                openings.append(o)
-        out["openings"] = openings
+    gone = {w.get("id") for w in out["walls"] if _replaced(w) and isinstance(w.get("id"), str)}
+    kept_walls = {w.get("id") for w in out["walls"] if isinstance(w, dict) and not _replaced(w) and isinstance(w.get("id"), str)}
+    for coll in ("walls", "objects"):
+        before = len(out[coll])
+        out[coll] = [i for i in out[coll] if not _replaced(i)]
+        removed += before - len(out[coll])
+    openings = []
+    for o in out["openings"]:
+        host = o.get("wall_id") if isinstance(o, dict) else None
+        if _replaced(o) and not (isinstance(host, str) and host in kept_walls):
+            removed += 1
+        elif isinstance(host, str) and host in gone:  # an opening of another source goes with its removed wall, as the editor's remove does
+            removed_manual_openings += 1
+        else:
+            openings.append(o)
+    out["openings"] = openings
+    return removed, removed_manual_openings
+
+
+def _append_chosen(out: dict[str, Any], chosen: dict[str, tuple[str, dict[str, Any]]], new_id_fn: Any) -> tuple[dict[str, int], int]:
+    """The accepted candidates appended to the draft (in place): an accepted opening needs its wall accepted or still in the draft; an
+    accepted id that already exists in the draft is re-issued and the openings pointing to it follow. Returns the counts and how many
+    ids were re-issued."""
     existing = {item["id"] for coll in COLLECTIONS for item in out.get(coll) or [] if isinstance(item, dict) and isinstance(item.get("id"), str)}
     accepted_walls = {i for i, (coll, _item) in chosen.items() if coll == "walls"}
     orphans = [i for i, (coll, item) in chosen.items() if coll == "openings" and item.get("wall_id") not in accepted_walls and item.get("wall_id") not in existing]
@@ -1240,4 +1238,30 @@ def merge_candidates(doc: Mapping[str, Any], candidates: Mapping[str, Any], acce
             item["wall_id"] = remap[item["wall_id"]]
         out[coll].append(item)
         counts[coll] += 1
-    return out, {"accepted": counts, "removed_auto": removed, "removed_manual_openings": removed_manual_openings, "reided": len(remap)}
+    return counts, len(remap)
+
+
+def merge_candidates(doc: Mapping[str, Any], candidates: Mapping[str, Any], accepted: list[str], edits: Mapping[str, Any] | None, replace_auto: bool,
+                     new_id_fn: Any = new_id) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The accepted candidates merged into a copy of the draft (design 9.5): every candidate must carry a candidate id
+    ("auto-" / "imp-") and source; edits touch the editable fields only (never id, source or confidence); an accepted
+    opening's wall_id must be a string; with replace_auto the draft's unlocked items of the candidates' sources go first
+    (a removed wall takes its other openings with it, counted apart as removed_manual_openings; a locked wall keeps its
+    openings); an accepted opening needs its wall accepted or still in the draft; an accepted id that already exists in
+    the draft is re-issued and the openings pointing to it follow. Returns the merged document and the counts."""
+    pool = _candidate_pool(candidates)
+    unknown = [i for i in accepted if i not in pool]
+    if unknown:
+        raise CandidateError("unknown_candidate", "מועמד שאושר לא נמצא בין המועמדים שנשלחו.", unknown)
+    chosen = {i: pool[i] for i in dict.fromkeys(accepted)}
+    _apply_edits(chosen, edits)
+    bad_hosts = [i for i, (coll, item) in chosen.items() if coll == "openings" and not isinstance(item.get("wall_id"), str)]
+    if bad_hosts:  # a list or a dict here would be unhashable below (review of ac60773)
+        raise CandidateError("candidate_shape", "לפתח חייב להיות מזהה קיר מסוג טקסט.", bad_hosts)
+    out = copy.deepcopy(dict(doc))
+    for coll in CANDIDATE_COLLECTIONS:
+        if not isinstance(out.get(coll), list):
+            out[coll] = []
+    removed, removed_manual_openings = _replace_auto(out, chosen) if replace_auto else (0, 0)
+    counts, reided = _append_chosen(out, chosen, new_id_fn)
+    return out, {"accepted": counts, "removed_auto": removed, "removed_manual_openings": removed_manual_openings, "reided": reided}
