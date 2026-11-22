@@ -184,11 +184,11 @@ test.describe('CR-CAMVF-295 live camera viewfinder', () => {
     const row = s.locator('[data-setting="camera_viewfinder"]');
     await row.waitFor();
     await row.scrollIntoViewIfNeeded();
-    await expect(row.locator('[data-ui-drawer="camera_viewfinder:off"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(row.locator('[data-ui-drawer="camera_viewfinder:off"]')).toHaveAttribute('aria-checked', 'true');
     await shot(page, 'settings-off');
     await row.locator('[data-ui-drawer="camera_viewfinder:on"]').click();
     await expect.poll(() => mock.calls.filter((c) => c.method === 'PUT' && c.path === 'tickets/settings').at(-1)?.body).toMatchObject({ ui: { camera_viewfinder: true } });
-    await expect(row.locator('[data-ui-drawer="camera_viewfinder:on"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(row.locator('[data-ui-drawer="camera_viewfinder:on"]')).toHaveAttribute('aria-checked', 'true');
     await row.locator('[data-ui-drawer="camera_viewfinder:off"]').click();
     await expect.poll(() => mock.calls.filter((c) => c.method === 'PUT' && c.path === 'tickets/settings').at(-1)?.body).toMatchObject({ ui: { camera_viewfinder: false } });
   });

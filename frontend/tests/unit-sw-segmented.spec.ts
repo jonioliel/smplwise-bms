@@ -67,10 +67,11 @@ test.describe('sw-segmented: the contract in the source', () => {
 
   test('accessible: a named group of toggle buttons (aria-pressed), the arrows move the focus', () => {
     expect(src).toMatch(/role=\$\{radio \? 'radiogroup' : 'group'\} aria-label=\$\{this\.label \|\| nothing\}/);
-    // CR-CMP2-SEGMENTED-B-2450: a radio group keeps its radios (role + aria-checked) and the aria-pressed the look reads
+    // CR-CMP2-SEGMENTED-B-2450: a radio group keeps its radios (role + aria-checked); A11Y-AUDIT-2490 (owner N51): a radio carries no
+    // aria-pressed beside aria-checked (axe aria-allowed-attr), a plain group's toggle keys keep aria-pressed
     expect(src).toMatch(/const on = o\.value === this\.value;/);
     expect(src).toMatch(/role=\$\{radio \? 'radio' : nothing\} aria-checked=\$\{radio \? String\(on\) : nothing\}/);
-    expect(src).toMatch(/<button type="button" part=\$\{on \? 'key key-on' : 'key'\} class=\$\{cls \|\| nothing\} aria-pressed=\$\{on \? 'true' : 'false'\}/);
+    expect(src).toMatch(/<button type="button" part=\$\{on \? 'key key-on' : 'key'\} class=\$\{cls \|\| nothing\} aria-pressed=\$\{radio \? nothing : on \? 'true' : 'false'\}/);
     expect(src).toMatch(/@keydown=\$\{this\.onKey\}/);
     expect(src).toMatch(/button:focus-visible \{\s*outline: var\(--sw-focus-w, 2px\) solid var\(--sw-focus\);/);
   });
@@ -82,7 +83,8 @@ test.describe('sw-segmented: the contract in the source', () => {
       expect(src, knob).toContain(`var(${knob}`);
       expect(settings, knob).toContain(`var(${knob}`);
     }
-    expect(src).toMatch(/\.seg button\[aria-pressed='true'\] \{[^}]*background: var\(--sw-seg-on-bg, var\(--sw-seg-key, var\(--sw-surface\)\)\);[^}]*color: var\(--sw-seg-on-fg, var\(--sw-seg-key-ink, var\(--sw-accent-text\)\)\);/);
+    // the chosen key reads either marker (a radio's aria-checked, a toggle key's aria-pressed)
+    expect(src).toMatch(/\.seg button\[aria-checked='true'\],\s+\.seg button\[aria-pressed='true'\] \{[^}]*background: var\(--sw-seg-on-bg, var\(--sw-seg-key, var\(--sw-surface\)\)\);[^}]*color: var\(--sw-seg-on-fg, var\(--sw-seg-key-ink, var\(--sw-accent-text\)\)\);/);
     // tokens only: no colour literal
     expect(src.split('static styles')[1]).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i);
   });
