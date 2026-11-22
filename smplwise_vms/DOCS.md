@@ -1661,3 +1661,35 @@ whose total the user may not see, show a dash or "אין עדיין" instead of 
 the TV board shows feed values as plain text. 2.44.0: a tap on a folding heading or label in a phone bottom sheet is no longer lost.
 2.45.0: a hidden alarm zone and a camera sync that succeeded on no recorder no longer break their screens; a permission on a deleted
 site or building no longer applies to its floors in a notice's audience and its read receipts.
+
+## Releases 2.46.0 and 2.47.0: what changed for users
+
+2.46.0 ships bridge 0.10.8, so the home system needs one restart to load it; 2.47.0 has no new migration and no bridge change.
+Reload the installed web app once after each update. Nothing new switches itself on. The end-user description (Hebrew, then
+English) is in `docs/user-guide/he/17-whats-new-2460-2470_HE.md`.
+
+**Sites and plans (2.46.0).** Editing a site trims the name and address as creating one does, and refuses a blank name or an unknown
+time zone. An IFC export of a plan whose stored structure is damaged answers "open it in the editor and save it again"; a single
+damaged entry (dimensions, calibration or an anchor) is skipped instead of failing the export. When an IFC file is read, the openings
+of a skipped wall are counted under that wall's own reason.
+
+**Tabs, chips and the generator (2.46.0).** Nine tab strips (media player, remote, scenario editor, automation editor, device test,
+plan wizard, automations and schedules screens) are one shared tab component with full keyboard use (arrows, Home, End, Enter) and
+counts in a small pill. The chip rows of the events centre, the tickets overview and the personal home panel are one chip chooser. The
+generator phase table and alert routing use the shared table (group headings, one switch per alert type, a load bar); on a phone the
+phase table keeps its columns.
+
+**Fields with a unit (2.47.0).** The unit (₪, %, kWh, m3, days, months, years) sits inside the field frame on the reading end (left in
+Hebrew, right in English); the number never runs under it. It covers the tariff prices and VAT, business details, the account
+wizard, meter replacement, data retention (electricity and water) and the water tariff prices, which now show ₪. The time-of-use
+prices are a shared table (a row per band, a column per season; stacked cards on a phone). Generator settings keep their units in the
+labels.
+
+**Shared tables in Settings (2.47.0).** Announcement history (now with headers), "who may do what" in automations and schedules,
+registered presence devices, the intercom events report, wall users, the notification delivery log, calendar permissions, the
+recorder notification matrix and the notice boards use the shared table: same header and state colours, no sideways scroll, boards
+open by keyboard. Wall users switch to cards at 768 px and below (was 721).
+
+**Server (2.46.0 and 2.47.0).** More server routes are defined exactly against the client types; answers and values are unchanged.
+If the home screen segments row ships in 2.47.0, the home screen's choosing controls become the shared segmented control with the
+home look kept (row switches and the home switch unchanged).
