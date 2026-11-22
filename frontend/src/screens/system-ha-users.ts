@@ -18,6 +18,7 @@ import { ht, type HaUsersTextKey } from '../i18n/ha-users';
 import { accessKey, canCreate, confirmMatches, draftProblems, emptyDraft, newRequestKey, repairKey, rowActions, stateKey, type Draft } from './ha-users-logic';
 import { ltrStyles } from '../styles/fragments';
 import { ToastController } from '../components/toast-controller';
+import '../components/sw-field';
 
 /**
  * USR1 (docs/design/USR1_HA_USERS_FROM_ARX.md): Settings › משתמשים והרשאות › משתמשי מערכת הבית (tab `ha-users` of system-access).
@@ -279,10 +280,10 @@ export class SwHaUsers extends LitElement {
           <span class="hint">${ht('fPasswordHint', { min: v.password.min_length })}</span>${err('password')}</label>
         <label>${ht('fPassword2')}<input class="in ltr" dir="ltr" type="password" autocomplete="new-password" maxlength=${v.password.max_length} data-f-password2
           aria-invalid=${String(!!p.password2)} .value=${this.draft.password2} @input=${(e: Event) => this.field('password2', (e.target as HTMLInputElement).value)} />${err('password2')}</label>
-        <label>${ht('fRole')}<select class="in" data-f-role .value=${this.draft.role_id} @change=${(e: Event) => this.field('role_id', (e.target as HTMLSelectElement).value)}>
-          ${v.roles.map((r) => html`<option value=${r.id} ?selected=${r.id === this.draft.role_id}>${r.name}</option>`)}</select>${err('role_id')}</label>
-        ${v.scopes.length > 1 ? html`<label>${ht('fScope')}<select class="in" data-f-scope .value=${this.draft.scope} @change=${(e: Event) => this.field('scope', (e.target as HTMLSelectElement).value)}>
-          ${v.scopes.map((s) => html`<option value=${`${s.type}:${s.id}`} ?selected=${`${s.type}:${s.id}` === this.draft.scope}>${s.name}</option>`)}</select></label>` : nothing}
+        <label>${ht('fRole')}<sw-field><select class="in" data-f-role .value=${this.draft.role_id} @change=${(e: Event) => this.field('role_id', (e.target as HTMLSelectElement).value)}>
+          ${v.roles.map((r) => html`<option value=${r.id} ?selected=${r.id === this.draft.role_id}>${r.name}</option>`)}</select></sw-field>${err('role_id')}</label>
+        ${v.scopes.length > 1 ? html`<label>${ht('fScope')}<sw-field><select class="in" data-f-scope .value=${this.draft.scope} @change=${(e: Event) => this.field('scope', (e.target as HTMLSelectElement).value)}>
+          ${v.scopes.map((s) => html`<option value=${`${s.type}:${s.id}`} ?selected=${`${s.type}:${s.id}` === this.draft.scope}>${s.name}</option>`)}</select></sw-field></label>` : nothing}
         <label class="check"><sw-toggle data-f-person .checked=${this.draft.create_person} @change=${(e: Event) => (this.draft = { ...this.draft, create_person: (e.target as HTMLInputElement).checked })}></sw-toggle>${ht('fPerson')}</label>
         ${this.formError ? html`<span class="msg err" role="alert" data-form-error><sw-icon name="warning" size=${13}></sw-icon>${this.formError}</span>` : nothing}
       </form>

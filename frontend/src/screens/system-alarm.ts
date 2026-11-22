@@ -29,6 +29,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { dayTimeText } from '../api/day-format';
 import { confirmDialog } from '../components/confirm-dialog';
+import '../components/sw-field';
 
 const STRATEGY: Record<string, string> = {
   device: 'אותו device',
@@ -77,6 +78,12 @@ const shared = css`
     unicode-bidi: isolate;
     font-family: var(--sw-font-mono);
     font-size: var(--sw-fs-xs);
+  }
+  /* NATIVE-SELECT-A-2480: the selects sit in the shared field (sw-field); the field keeps the select's own place in the line (a table
+     cell, a row), the look below stays the screen's */
+  sw-field {
+    display: inline-flex;
+    max-inline-size: 100%;
   }
   select,
   input {
@@ -259,16 +266,16 @@ export class SystemAlarmSettings extends LitElement {
     const c = this.cfg;
     const ro = !this.canEdit || this.busy;
     const s = c.settings;
-    const yesNo = (key: string, on: boolean, yes: string, no: string, attr: string) => html`<select data-alarm-setting=${attr} ?disabled=${ro} @change=${(e: Event) => void this.setting(key, (e.target as HTMLSelectElement).value)}>
-      <option value="true" ?selected=${on}>${yes}</option><option value="false" ?selected=${!on}>${no}</option></select>`;
+    const yesNo = (key: string, on: boolean, yes: string, no: string, attr: string) => html`<sw-field><select data-alarm-setting=${attr} ?disabled=${ro} @change=${(e: Event) => void this.setting(key, (e.target as HTMLSelectElement).value)}>
+      <option value="true" ?selected=${on}>${yes}</option><option value="false" ?selected=${!on}>${no}</option></select></sw-field>`;
     return html`<div class="panels" data-alarm-settings>
       <sw-card heading="אזעקה · מדיניות" subheading="מה מותר מחוץ לרשת המקומית (SmplWise Arx), ואיזה קוד מקליד משתמש שחייב קוד. ההרשאות (צפייה, דריכה, נטרול ועקיפה) נקבעות בתפקידים; המדיניות לכל משתמש - במשתמשים והרשאות.">
         <div class="row"><span class="lbl">שליטה מרחוק<span class="muted">alarm.remote_control - כבוי: אין דריכה, נטרול או עקיפה מחוץ לרשת המקומית.</span></span>${yesNo('alarm.remote_control', s.remote_control, 'מותרת', 'חסומה', 'remote_control')}</div>
         <div class="row"><span class="lbl">נטרול ועקיפה מרחוק<span class="muted">alarm.remote_disarm - כבוי: מבחוץ אפשר רק לדרוך ולהחזיר חיישן להגנה.</span></span>${yesNo('alarm.remote_disarm', s.remote_disarm, 'מותרים', 'חסומים', 'remote_disarm')}</div>
         <div class="row"><span class="lbl">ללא קוד גם מרחוק<span class="muted">alarm.remote_codeless - פעיל (ברירת מחדל, החלטת בעלים): משתמש "ללא קוד" דורך ומנטרל ללא קוד גם מבחוץ. נעילה ביומטרית קיימת רק באפליקציית האנדרואיד ורק אם הופעלה; בדפדפן אין נעילה כזו. כבוי: מבחוץ כל אחד מקליד קוד.</span></span>${yesNo('alarm.remote_codeless', s.remote_codeless, 'פעיל', 'כבוי', 'remote_codeless')}</div>
         <div class="row"><span class="lbl">הקוד שמקליד משתמש שחייב קוד<span class="muted">alarm.code_mode - קוד אישי (ברירת מחדל): לכל משתמש קוד Arx משלו, שמור כ-hash בלבד, והמערכת שולחת ללוח את קוד הלוח השמור; קוד הלוח: המשתמש מקליד את קוד הלוח עצמו.</span></span>
-          <select data-alarm-setting="code_mode" ?disabled=${ro} @change=${(e: Event) => void this.setting('alarm.code_mode', (e.target as HTMLSelectElement).value)}>
-            <option value="personal_pin" ?selected=${s.code_mode === 'personal_pin'}>קוד אישי לכל משתמש</option><option value="panel_code" ?selected=${s.code_mode === 'panel_code'}>קוד הלוח</option></select></div>
+          <sw-field><select data-alarm-setting="code_mode" ?disabled=${ro} @change=${(e: Event) => void this.setting('alarm.code_mode', (e.target as HTMLSelectElement).value)}>
+            <option value="personal_pin" ?selected=${s.code_mode === 'personal_pin'}>קוד אישי לכל משתמש</option><option value="panel_code" ?selected=${s.code_mode === 'panel_code'}>קוד הלוח</option></select></sw-field></div>
         ${this.message ? html`<div class="ok" role="status">${this.message}</div>` : nothing}${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
       </sw-card>
       ${c.fallback_controls?.length || c.not_alarm?.length
@@ -320,7 +327,7 @@ export class SystemAlarmSettings extends LitElement {
     const pairValue = o?.bypass_entity_id === '' ? '__none' : o?.bypass_entity_id ? o.bypass_entity_id : '__auto';
     return html`<tr data-pair-row=${z.entity_id}>
       <td>${z.name}<div class="ltr">${z.entity_id}</div></td>
-      <td><select data-pair-select ?disabled=${ro} @change=${(e: Event) => {
+      <td><sw-field><select data-pair-select ?disabled=${ro} @change=${(e: Event) => {
         const v = (e.target as HTMLSelectElement).value;
         void this.run(async () => {
           if (v === '__auto') return deleteOverride(z.entity_id);
@@ -338,13 +345,13 @@ export class SystemAlarmSettings extends LitElement {
         <option value="__auto" ?selected=${pairValue === '__auto'}>אוטומטי${current && pairValue === '__auto' ? ` (${current})` : ''}</option>
         <option value="__none" ?selected=${pairValue === '__none'}>ללא עקיפה</option>
         ${controls.map((cc) => html`<option value=${cc.entity_id} ?selected=${pairValue === cc.entity_id}>${cc.entity_id}</option>`)}
-      </select></td>
+      </select></sw-field></td>
       <td>${z.bypass ? STRATEGY[z.bypass.strategy] ?? z.bypass.strategy : '—'}</td>
       <td>${panels.length > 1
-        ? html`<select data-zone-panel ?disabled=${ro} @change=${(e: Event) => {
+        ? html`<sw-field><select data-zone-panel ?disabled=${ro} @change=${(e: Event) => {
             const v = (e.target as HTMLSelectElement).value;
             void this.run(() => putOverride(z.entity_id, { panel_entity_id: v || null, bypass_entity_id: o?.bypass_entity_id ?? null }), 'השיוך נשמר');
-          }}><option value="" ?selected=${z.shared}>משותף</option>${panels.map((x) => html`<option value=${x.entity_id} ?selected=${!z.shared && x.entity_id === p.entity_id}>${x.name}</option>`)}</select>`
+          }}><option value="" ?selected=${z.shared}>משותף</option>${panels.map((x) => html`<option value=${x.entity_id} ?selected=${!z.shared && x.entity_id === p.entity_id}>${x.name}</option>`)}</select></sw-field>`
         : '—'}</td>
       <td><sw-button size="sm" variant="ghost" data-zone-exclude ?disabled=${ro} @click=${() => void this.run(() => putOverride(z.entity_id, { excluded: true }), 'החיישן הוצא מהרשימה')}>הוצא</sw-button></td>
     </tr>`;
@@ -407,8 +414,8 @@ export class SystemAlarmUser extends LitElement {
     if (!this.pol) return this.error ? html`<div class="err">${this.error}</div>` : nothing;
     const p = this.pol;
     const ro = !this.canEdit || this.busy;
-    const sel = (key: 'arm_policy' | 'disarm_policy', v: CodePolicy) => html`<select data-alarm-policy=${key} ?disabled=${ro} @change=${(e: Event) => void this.run(() => setUserAlarmPolicy(this.userId, { [key]: (e.target as HTMLSelectElement).value as CodePolicy, ...(this.self && this.current ? { current_pin: this.current } : {}) }), 'נשמר')}>
-      <option value="code_required" ?selected=${v === 'code_required'}>חייב קוד</option><option value="no_code" ?selected=${v === 'no_code'}>ללא קוד</option></select>`;
+    const sel = (key: 'arm_policy' | 'disarm_policy', v: CodePolicy) => html`<sw-field><select data-alarm-policy=${key} ?disabled=${ro} @change=${(e: Event) => void this.run(() => setUserAlarmPolicy(this.userId, { [key]: (e.target as HTMLSelectElement).value as CodePolicy, ...(this.self && this.current ? { current_pin: this.current } : {}) }), 'נשמר')}>
+      <option value="code_required" ?selected=${v === 'code_required'}>חייב קוד</option><option value="no_code" ?selected=${v === 'no_code'}>ללא קוד</option></select></sw-field>`;
     return html`<div data-alarm-user=${this.userId}>
       ${this.self
         ? html`<div class="row"><span class="lbl">הקוד האישי הנוכחי שלך<span class="muted">את המדיניות והקוד של עצמך משנים רק עם הקוד הנוכחי - או שמנהל מערכת אחר משנה אותם.</span></span>

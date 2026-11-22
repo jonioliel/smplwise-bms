@@ -15,6 +15,7 @@ import { can, isApi } from '../api/session';
 import { statusStyles } from '../access-control/status-css';
 import { wmt, wmtOf, type WmKey } from '../i18n/wiskey-managed';
 import { shownConfirmWord } from '../i18n/confirm-words';
+import '../components/sw-field';
 
 type Pending =
   | { kind: 'switch'; name: SwitchName; next: OnOff }
@@ -196,10 +197,10 @@ export class SystemSecurityWiskeyManaged extends LitElement {
         <p class="x">${wmt('keepText')}</p>
       </div>
       <div class="keep">
-        <select aria-label=${wmt('keepLabel')} data-wm-keep-select ?disabled=${!this.canEdit || this.keepSaving || v.running}
+        <sw-field><select aria-label=${wmt('keepLabel')} data-wm-keep-select ?disabled=${!this.canEdit || this.keepSaving || v.running}
           @change=${(e: Event) => { this.keepDraft = Number((e.target as HTMLSelectElement).value); this.keepNote = ''; }}>
           ${options.map((n) => html`<option value=${String(n)} ?selected=${n === value}>${n}</option>`)}
-        </select>
+        </select></sw-field>
         <sw-button variant="secondary" data-wm-keep-save ?disabled=${!dirty || !this.canEdit || this.keepSaving}
           @click=${() => void this.saveKeep()}>${wmt('keepSave')}</sw-button>
       </div>
