@@ -1691,5 +1691,5 @@ recorder notification matrix and the notice boards use the shared table: same he
 open by keyboard. Wall users switch to cards at 768 px and below (was 721).
 
 **Server (2.46.0 and 2.47.0).** More server routes are defined exactly against the client types; answers and values are unchanged.
-If the home screen segments row ships in 2.47.0, the home screen's choosing controls become the shared segmented control with the
+In 2.47.0 the home screen's choosing controls become the shared segmented control with the
 home look kept (row switches and the home switch unchanged).
