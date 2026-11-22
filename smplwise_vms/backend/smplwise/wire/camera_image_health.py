@@ -107,36 +107,3 @@ class CameraImageHealthSettings(ExactModel):
     ranges: CameraImageHealthSettingsRanges
     cameras: list[CameraImageHealthSettingsCamera]
     source: str
-
-
-class CameraImageHealthReferenceCameraMetrics(ExactModel):
-    brightness: Num = None
-    sharpness: Num = None
-    diff: Any = None
-    shift_pct: Any = None
-    corr: Any = None
-
-
-class CameraImageHealthReferenceCamera(ExactModel):
-    id: str
-    name: str
-    state: str
-    issues: list[Any]
-    texts: list[Any]
-    sampled_at: str | None
-    attempted_at: str | None
-    source: str | None
-    error: Any
-    error_text: Any
-    metrics: CameraImageHealthReferenceCameraMetrics
-    reference: CameraImageHealthResultsCameraReference | None
-
-
-class CameraImageHealthReference(ExactModel):
-    """CAMHEALTH091: make the latest sample the camera's reference view (`set`) or forget it (`clear`; the next usable sample becomes it)."""
-    enabled: bool
-    interval_s: Num
-    checked_at: str | None
-    counts: dict[str, Any]
-    cameras: list[CameraImageHealthReferenceCamera]
-    can_manage: bool

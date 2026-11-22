@@ -37,6 +37,8 @@ from ..services import wiskey_wa_queue as wq
 from ..services.intercom_messaging_adapter import paced_listed
 from . import access_control_messaging as base
 from . import access_control_template_v2 as tv2
+from ..wire import access_control_wa_queue as W
+from ..wire import wire
 
 router = APIRouter()
 OPERATION_PATTERN = r"^tpl(?:q|v3)-[A-Za-z0-9-]{8,64}$"
@@ -70,7 +72,7 @@ class InstalledSettingsBody(BaseModel):
     send_pacing_v1: Any = None
 
 
-@router.get("/access-control/messaging/installed")
+@router.get("/access-control/messaging/installed", **wire(W.AccessControlWaQueueInstalledOverview))
 def installed_overview(request: Request, principal: Principal = Depends(base._configure_gate),
                        conn: Any = Depends(get_read_conn)) -> dict[str, Any]:
     """The gates (messaging switch, template switch, code permit), what WisKey's join selects now, the registry by source, the queue journal."""

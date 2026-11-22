@@ -80,7 +80,7 @@ def put_settings(request: Request, body: dict[str, Any] = Body(...), principal: 
     return _settings_answer(conn)
 
 
-@router.post("/camera-image-health/{camera_id}/reference", **wire(W.CameraImageHealthReference))
+@router.post("/camera-image-health/{camera_id}/reference", **wire(W.CameraImageHealthResults))
 def reference(camera_id: str, request: Request, body: dict[str, Any] = Body(...), principal: Principal = Depends(current_principal),
               conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """CAMHEALTH091: make the latest sample the camera's reference view (`set`) or forget it (`clear`; the next usable sample becomes it)."""

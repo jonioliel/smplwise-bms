@@ -129,7 +129,7 @@ def person_archive(request: Request, user_id: str = Path(min_length=1, max_lengt
                   native={"user_id": user_id, "revision": body.revision, "confirmed": True}, confirm="העברת אדם לארכיון דורשת אישור מפורש.")
 
 
-@router.post("/intercom/people/{user_id}/unarchive")
+@router.post("/intercom/people/{user_id}/unarchive", **wire(W.AccessControlWritesPersonUnarchive))
 def person_unarchive(request: Request, user_id: str = Path(min_length=1, max_length=128), auth: ia.Authority = Depends(people_writer()), raw: bytes = Depends(_raw_body),
                      conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Restore a person from the archive (WisKey `users/unarchive`): the record comes back SWITCHED OFF (WisKey's own rule - it is
@@ -140,7 +140,7 @@ def person_unarchive(request: Request, user_id: str = Path(min_length=1, max_len
                   native={"user_id": user_id, "revision": body.revision, "confirmed": True}, confirm="שחזור אדם מהארכיון דורש אישור מפורש.")
 
 
-@router.post("/intercom/people/{user_id}/active", **wire(W.AccessControlWritesPersonSetActive))
+@router.post("/intercom/people/{user_id}/active", **wire(W.AccessControlWritesPersonArchive))
 def person_set_active(request: Request, user_id: str = Path(min_length=1, max_length=128), auth: ia.Authority = Depends(people_writer()), raw: bytes = Depends(_raw_body),
                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Switch a person on or off (WisKey `users/set_active`). Body: `{active, revision, client_request_id, expires_at}`. An archived
@@ -152,7 +152,7 @@ def person_set_active(request: Request, user_id: str = Path(min_length=1, max_le
                   native={"user_id": user_id, "revision": body.revision, "active": body.active})
 
 
-@router.post("/intercom/people/{user_id}/temporary-cancel")
+@router.post("/intercom/people/{user_id}/temporary-cancel", **wire(W.AccessControlWritesPersonUnarchive))
 def person_temporary_cancel(request: Request, user_id: str = Path(min_length=1, max_length=128), auth: ia.Authority = Depends(people_writer()), raw: bytes = Depends(_raw_body),
                             conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """End a visitor's or a contractor's access early (WisKey `users/temporary_cancel`): the credentials and every rule stay, the
@@ -166,7 +166,7 @@ def person_temporary_cancel(request: Request, user_id: str = Path(min_length=1, 
                   native={"user_id": user_id, "revision": body.revision, "reason_code": body.reason_code}, confirm="סיום גישה זמנית דורש אישור מפורש.")
 
 
-@router.post("/intercom/people/{user_id}/cards", **wire(W.AccessControlWritesPersonSetActive))
+@router.post("/intercom/people/{user_id}/cards", **wire(W.AccessControlWritesPersonArchive))
 def person_card_add(request: Request, user_id: str = Path(min_length=1, max_length=128), auth: ia.Authority = Depends(people_writer()), raw: bytes = Depends(_raw_body),
                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Add one card by its number (WisKey `cards/add`): `{card_no, label, enabled, revision, client_request_id, expires_at}`. A
@@ -179,7 +179,7 @@ def person_card_add(request: Request, user_id: str = Path(min_length=1, max_leng
                   native={"user_id": user_id, "revision": body.revision, "data": card})
 
 
-@router.post("/intercom/people/{user_id}/cards/{card_id}/remove")
+@router.post("/intercom/people/{user_id}/cards/{card_id}/remove", **wire(W.AccessControlWritesPersonUnarchive))
 def person_card_remove(request: Request, user_id: str = Path(min_length=1, max_length=128), card_id: str = Path(min_length=1, max_length=64), auth: ia.Authority = Depends(people_writer()),
                        raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Remove one saved card (WisKey `cards/remove`) by its id (the editor projection's card id; never a number). Body: `{revision,
@@ -194,7 +194,7 @@ def person_card_remove(request: Request, user_id: str = Path(min_length=1, max_l
                   sensitive=True, native={"user_id": user_id, "revision": body.revision, "card_id": card_id}, confirm="הסרת כרטיס דורשת אישור מפורש.")
 
 
-@router.put("/intercom/people/{user_id}/photo", **wire(W.AccessControlWritesPersonSetActive))
+@router.put("/intercom/people/{user_id}/photo", **wire(W.AccessControlWritesPersonPhotoSet))
 def person_photo_set(request: Request, user_id: str = Path(min_length=1, max_length=128), auth: ia.Authority = Depends(people_writer()), raw: bytes = Depends(_raw_body),
                      conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Set or remove the person's photo (WisKey `users/update` with `photo`): `{photo: "data:image/jpeg;base64,..." | null,

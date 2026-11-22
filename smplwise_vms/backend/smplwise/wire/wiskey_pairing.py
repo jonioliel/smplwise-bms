@@ -28,7 +28,7 @@ class WiskeyPairingPairingStatusLineFacts(ExactModel):
     present: bool = None
     can_sign: bool = None
     fingerprint: str | None = None
-    kid: str = None
+    kid: str | None = None
     source: str | None = None
     feed_video: bool = None
     feed_talk: bool = None

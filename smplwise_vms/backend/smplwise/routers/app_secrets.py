@@ -96,7 +96,7 @@ def save_secret(name: str, request: Request, principal: Principal = Depends(_adm
     return {"saved": True, "restart_required": spec.restart_required, "secret": _item(conn, settings_of(request), name)}
 
 
-@router.delete("/system/secrets/{name}")
+@router.delete("/system/secrets/{name}", **wire(W.AppSecretsClearSecret))
 def clear_secret(name: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, PERMISSION, INSTALLATION)
     spec = _spec(name)

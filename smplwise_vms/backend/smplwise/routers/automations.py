@@ -327,7 +327,7 @@ def review(request: Request, principal: Principal = Depends(_auto_gate), conn: s
     return runs.review(_ctx(request, conn, principal))
 
 
-@router.get("/automations/compat")
+@router.get("/automations/compat", **wire(WM.AutomationsCompat))
 def compat(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """HA 2026.10 compatibility scan of the mirrored automations and scripts (read-only, system.configure).
 

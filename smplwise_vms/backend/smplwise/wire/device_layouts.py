@@ -9,7 +9,7 @@ from . import ExactModel, Num
 NO_JSON: frozenset[str] = frozenset()
 # JSON routes without a model yet: no test reaches a successful answer (or the answer is not one object); counted by the ratchet
 # (scripts/wire_ratchet.py) until they are modelled
-UNMODELLED: frozenset[str] = frozenset({'DELETE /devices/layouts/{scope}/{scope_id}'})
+UNMODELLED: frozenset[str] = frozenset()
 
 
 class DeviceLayoutsLayoutDesktopLayout(ExactModel):
@@ -21,7 +21,7 @@ class DeviceLayoutsLayoutDesktopLayout(ExactModel):
 class DeviceLayoutsLayoutDesktop(ExactModel):
     layout: DeviceLayoutsLayoutDesktopLayout
     revision: Num
-    updated_by: str
+    updated_by: str | None
     updated_at: str
 
 
@@ -32,7 +32,14 @@ class DeviceLayoutsLayout(ExactModel):
     can_edit: bool
     narrowed: bool
     desktop: DeviceLayoutsLayoutDesktop | None
-    phone: Any
+    phone: DeviceLayoutsLayoutDesktop | None
+
+
+class DeviceLayoutsPutLayoutDesktop(ExactModel):
+    layout: DeviceLayoutsLayoutDesktopLayout
+    revision: Num
+    updated_by: str
+    updated_at: str
 
 
 class DeviceLayoutsPutLayout(ExactModel):
@@ -41,8 +48,18 @@ class DeviceLayoutsPutLayout(ExactModel):
     id: str
     can_edit: bool
     narrowed: bool
-    desktop: DeviceLayoutsLayoutDesktop
-    phone: DeviceLayoutsLayoutDesktop | None
+    desktop: DeviceLayoutsPutLayoutDesktop | None
+    phone: DeviceLayoutsPutLayoutDesktop | None
+
+
+class DeviceLayoutsResetLayout(ExactModel):
+    """Back to the automatic layout: `all` ("אפס לברירת מחדל": desktop and phone) or one variant (`phone`: "חזור לאוטומטי" - the phone layout is derived from the desktop one again)."""
+    scope: str
+    id: str
+    can_edit: bool
+    narrowed: bool
+    desktop: DeviceLayoutsPutLayoutDesktop | None
+    phone: Any
 
 
 class DeviceLayoutsCopyToAllAreasSource(ExactModel):
@@ -50,8 +67,8 @@ class DeviceLayoutsCopyToAllAreasSource(ExactModel):
     id: str
     can_edit: bool
     narrowed: bool
-    desktop: DeviceLayoutsLayoutDesktop
-    phone: Any
+    desktop: DeviceLayoutsPutLayoutDesktop
+    phone: DeviceLayoutsPutLayoutDesktop | None
 
 
 class DeviceLayoutsCopyToAllAreas(ExactModel):

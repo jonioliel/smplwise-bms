@@ -7,7 +7,7 @@ from . import ExactModel
 NO_JSON: frozenset[str] = frozenset()
 # JSON routes without a model yet: no test reaches a successful answer (or the answer is not one object); counted by the ratchet
 # (scripts/wire_ratchet.py) until they are modelled
-UNMODELLED: frozenset[str] = frozenset({'DELETE /system/secrets/{name}', 'POST /system/secrets/{name}/test'})
+UNMODELLED: frozenset[str] = frozenset({'POST /system/secrets/{name}/test'})
 
 
 class AppSecretsSecretsSecret(ExactModel):
@@ -45,5 +45,11 @@ class AppSecretsSaveSecretSecret(ExactModel):
 
 class AppSecretsSaveSecret(ExactModel):
     saved: bool
+    restart_required: bool
+    secret: AppSecretsSaveSecretSecret
+
+
+class AppSecretsClearSecret(ExactModel):
+    cleared: bool
     restart_required: bool
     secret: AppSecretsSaveSecretSecret

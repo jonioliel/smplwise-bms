@@ -21,7 +21,7 @@ class CastConfigRelay(ExactModel):
 
 class CastConfigBridge(ExactModel):
     paired: bool
-    version: str
+    version: str | None
     required: str
     ready: bool
 
@@ -34,11 +34,18 @@ class CastConfig(ExactModel):
     reason: str | None
 
 
+class CastPutConfigBridge(ExactModel):
+    paired: bool
+    version: str
+    required: str
+    ready: bool
+
+
 class CastPutConfig(ExactModel):
     changed: list[str]
     config: dict[str, Any]
     relay: CastConfigRelay
-    bridge: CastConfigBridge
+    bridge: CastPutConfigBridge
     ready: bool
     reason: str | None
 
@@ -104,7 +111,7 @@ class CastTargetsTarget(ExactModel):
 
 class CastTargets(ExactModel):
     ready: bool
-    reason: Any
+    reason: str | None
     targets: list[CastTargetsTarget]
     blocked_display: str
     main_possible: bool

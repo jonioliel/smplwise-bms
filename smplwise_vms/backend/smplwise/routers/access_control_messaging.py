@@ -47,6 +47,8 @@ from ..services import intercom_messaging as M
 from ..services import wiskey_wa_queue
 from ..services.intercom_messaging_adapter import MESSAGING, SendResult
 from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
+from ..wire import access_control_messaging as W
+from ..wire import wire
 
 router = APIRouter()
 log = logging.getLogger("smplwise.intercom")
@@ -149,7 +151,7 @@ def _quota(cfg: dict[str, Any], conn: sqlite3.Connection, status: dict[str, Any]
     return mine
 
 
-@router.get("/access-control/messaging")
+@router.get("/access-control/messaging", **wire(W.AccessControlMessagingMessagingConfig))
 def messaging_config(request: Request, auth: ia.Authority = Depends(_gate)) -> dict[str, Any]:
     """What the message dialog needs to know, for THIS caller: `feature` (an administrator switched messaging on), `enabled` (and the
     messaging service is connected), the administrator's `free_text` / `bulk_max`, `text_max`, the approved `templates` (+ their
@@ -553,7 +555,7 @@ def _settings_reply(request: Request, conn: sqlite3.Connection, user_id: str, cf
     return {**_feed(settings), "settings": cfg, "limits": M.limits(), "service": service, "consent": consent}
 
 
-@router.get("/access-control/messaging/settings")
+@router.get("/access-control/messaging/settings", **wire(W.AccessControlMessagingMessagingSettings))
 def messaging_settings(request: Request, principal: Principal = Depends(_configure_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The administrator's message settings (`system.configure`): the master switch, free text, the bulk and hourly limits, the
     organization name, the messaging account, the TEMPLATES and the catalogue's `revision` - plus the limits the editor validates against

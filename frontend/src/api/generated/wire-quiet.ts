@@ -25,9 +25,44 @@ export interface QuietStartWindow {
   seconds_left: number;
 }
 
+export interface QuietStopWindow {
+  id: string;
+  scope_type: string;
+  scope_id: string;
+  label: string;
+  started_at: string;
+  ends_at: string;
+  active: boolean;
+  ended_at: string;
+  end_reason: string;
+  seconds_left: number;
+}
+
+export interface QuietWindows {
+  enabled: boolean;
+  windows: QuietWindowsWindow[];
+  now: string;
+  can_configure: boolean;
+}
+
+export interface QuietWindowsWindow {
+  id: string;
+  scope_type: string;
+  scope_id: string;
+  label: string;
+  started_at: string;
+  ends_at: string;
+  active: boolean;
+  ended_at: unknown;
+  end_reason: string | null;
+  seconds_left: number;
+}
+
 /** The answer of every modelled route of this family: `'METHOD path'` -> type. */
 export interface QuietRoutes {
+  "GET /api/v1/quiet/windows": QuietWindows;
   "POST /api/v1/quiet/windows": QuietStartWindow;
+  "POST /api/v1/quiet/windows/{window_id}/stop": QuietStopWindow;
   "GET /api/v1/quiet/settings": QuietSettings;
   "PUT /api/v1/quiet/settings": QuietPutSettings;
 }

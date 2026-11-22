@@ -11,7 +11,7 @@ from . import ExactModel, Num
 NO_JSON: frozenset[str] = frozenset()
 # JSON routes without a model yet: no test reaches a successful answer (or the answer is not one object); counted by the ratchet
 # (scripts/wire_ratchet.py) until they are modelled
-UNMODELLED: frozenset[str] = frozenset({'GET /automations/compat', 'POST /automations/automation/{item_id}/disable', 'POST /automations/automation/{item_id}/enable', 'POST /automations/automation/{item_id}/run', 'POST /automations/scene/{item_id}/apply', 'POST /automations/script/{item_id}/run', 'POST /automations/script/{item_id}/stop', 'POST /automations/trash/{trash_id}/restore', 'POST /automations/{kind}', 'POST /automations/{kind}/{item_id}/copy', 'POST /automations/{kind}/{item_id}/delete', 'POST /automations/{kind}/{item_id}/versions/{version_id}/restore', 'PUT /automations/{kind}/{item_id}', 'PUT /automations/{kind}/{item_id}/code'})
+UNMODELLED: frozenset[str] = frozenset({'POST /automations/automation/{item_id}/disable', 'POST /automations/automation/{item_id}/enable', 'POST /automations/automation/{item_id}/run', 'POST /automations/scene/{item_id}/apply', 'POST /automations/script/{item_id}/run', 'POST /automations/script/{item_id}/stop', 'POST /automations/trash/{trash_id}/restore', 'POST /automations/{kind}', 'POST /automations/{kind}/{item_id}/copy', 'POST /automations/{kind}/{item_id}/delete', 'POST /automations/{kind}/{item_id}/versions/{version_id}/restore', 'PUT /automations/{kind}/{item_id}', 'PUT /automations/{kind}/{item_id}/code'})
 
 
 class AutomationsAutomationsStatusScopeFloor(ExactModel):
@@ -126,7 +126,7 @@ class AutomationsCatalogScene(ExactModel):
 class AutomationsCatalogScript(ExactModel):
     entity_id: str
     name: str
-    fields_: list[dict[str, Any]] = Field(alias='fields')
+    fields: list[dict[str, Any]]
 
 
 class AutomationsCatalogArea(ExactModel):
@@ -201,6 +201,15 @@ class AutomationsReviewItem(ExactModel):
 class AutomationsReview(ExactModel):
     """§3.1 row 22 - the administrator's review list (installation-wide automation.manage)."""
     items: list[AutomationsReviewItem]
+
+
+class AutomationsCompat(ExactModel):
+    """HA 2026.10 compatibility scan of the mirrored automations and scripts (read-only, system.configure)."""
+    scanned: Num
+    mirror_seen_at: Any
+    counts: dict[str, Any]
+    items: list[Any]
+    truncated: bool
 
 
 class AutomationsPreviewError(ExactModel):

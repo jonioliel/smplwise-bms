@@ -139,8 +139,11 @@ FAMILIES.update(FAMILIES_D)
 # RESPONSE-MODELS-E-2480: every other router module, one generated file each (tests/test_wire_routers_e_2480.py checks the block; the
 # ratchet scripts/wire_ratchet.py counts what is still unmodelled across the whole application). Kept as its own block like FAMILIES_D.
 FAMILIES_E: dict[str, tuple[str, tuple[str, ...]]] = {
+    "AccessControlMessaging": ("wire-access-control-messaging.ts", ("access_control_messaging",)),
     "AccessControlReads": ("wire-access-control-reads.ts", ("access_control_reads",)),
     "AccessControlWrites": ("wire-access-control-writes.ts", ("access_control_writes",)),
+    "AccessStationPermissions": ("wire-access-station-permissions.ts", ("access_station_permissions",)),
+    "AccessWiskeyVisits": ("wire-access-wiskey-visits.ts", ("access_wiskey_visits",)),
     "Automations": ("wire-automations.ts", ("automations",)),
     "Backup": ("wire-backup.ts", ("backup",)),
     "Brand": ("wire-brand.ts", ("brand",)),
@@ -151,11 +154,21 @@ FAMILIES_E: dict[str, tuple[str, tuple[str, ...]]] = {
     "CaptureLease": ("wire-capture-lease.ts", ("capture_lease",)),
     "Cast": ("wire-cast.ts", ("cast",)),
     "Ha": ("wire-ha.ts", ("ha",)),
+    "IntercomCalls": ("wire-intercom-calls.ts", ("intercom_calls",)),
     "IntercomListen": ("wire-intercom-listen.ts", ("intercom_listen",)),
     "IntercomMedia": ("wire-intercom-media.ts", ("intercom_media",)),
     "Quiet": ("wire-quiet.ts", ("quiet",)),
     "Settings": ("wire-settings.ts", ("settings",)),
+    "WiskeyInstallerClock": ("wire-wiskey-installer-clock.ts", ("wiskey_installer_clock",)),
+    "WiskeyInstallerLifecycle": ("wire-wiskey-installer-lifecycle.ts", ("wiskey_installer_lifecycle",)),
+    "WiskeyInstallerPlatform": ("wire-wiskey-installer-platform.ts", ("wiskey_installer_platform",)),
+    "WiskeyInstallerTechnical": ("wire-wiskey-installer-technical.ts", ("wiskey_installer_technical",)),
+    "WiskeyLineage": ("wire-wiskey-lineage.ts", ("wiskey_lineage",)),
+    "WiskeyManaged": ("wire-wiskey-managed.ts", ("wiskey_managed",)),
     "WiskeyPairing": ("wire-wiskey-pairing.ts", ("wiskey_pairing",)),
+    "WiskeyRelayMap": ("wire-wiskey-relay-map.ts", ("wiskey_relay_map",)),
+    "WiskeySwitches": ("wire-wiskey-switches.ts", ("wiskey_switches",)),
+    "WiskeyValidation": ("wire-wiskey-validation.ts", ("wiskey_validation",)),
 }
 FAMILIES.update(FAMILIES_E)
 

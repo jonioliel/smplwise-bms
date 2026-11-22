@@ -143,7 +143,7 @@ def set_building_settings(body: SettingsIn, request: Request, principal: Princip
         return {"settings": cfg}
 
 
-@router.put("/presence/building/room")
+@router.put("/presence/building/room", **wire(W.BuildingPresenceSetBuildingSensorRoom))
 def set_building_sensor_room(body: RoomIn, request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
     """Place a tagged sensor in a room (area_id) or back to its own (null) (system.configure; audited)."""
     with request.app.state.db.connection(label="presence.building.room") as conn:

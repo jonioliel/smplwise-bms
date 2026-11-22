@@ -156,6 +156,15 @@ export interface AutomationsCatalogScript {
   fields: Record<string, unknown>[];
 }
 
+/** HA 2026.10 compatibility scan of the mirrored automations and scripts (read-only, system.configure). */
+export interface AutomationsCompat {
+  scanned: number;
+  mirror_seen_at: unknown;
+  counts: Record<string, unknown>;
+  items: unknown[];
+  truncated: boolean;
+}
+
 /** §3.1 row 17 - no execution: the current truth of each typed condition from the mirror and the device diff. */
 export interface AutomationsDryRun {
   conditions: Record<string, unknown>[];
@@ -567,6 +576,7 @@ export interface AutomationsRoutes {
   "GET /api/v1/automations/trash": AutomationsTrash;
   "POST /api/v1/automations/trash/{trash_id}/purge": AutomationsPurgeTrash;
   "GET /api/v1/automations/review": AutomationsReview;
+  "GET /api/v1/automations/compat": AutomationsCompat;
   "POST /api/v1/automations/preview": AutomationsPreview;
   "POST /api/v1/automations/scene/capture": AutomationsCaptureScene;
   "GET /api/v1/automations": AutomationsItems;

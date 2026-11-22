@@ -251,7 +251,7 @@ RATE_LIMITED_CODE = intercom_sync.RATE_LIMITED
 SAVE_NOTE = "WisKey שמר את הרשומה. הסנכרון לתחנות מתבצע על ידי WisKey בנפרד - מצב הסנכרון של כל תחנה מוצג ברשומה."
 
 
-@router.post("/intercom/people")
+@router.post("/intercom/people", **wire(W.AccessControlPeoplePersonCreate))
 def person_create(request: Request, auth: ia.Authority = Depends(people_writer()), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Create a person in WisKey (`users/create`). Body: `{data: PersonData, sync_now, client_request_id, expires_at}`;
     `data` needs at least `display_name` and `employee_no`. Refused before sending (each refusal audited): a malformed

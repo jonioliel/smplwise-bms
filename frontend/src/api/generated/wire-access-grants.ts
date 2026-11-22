@@ -80,10 +80,174 @@ export interface AccessGrantsApproversApprover {
   me: boolean;
 }
 
+/** SHAREDID-293 (owner decision 7): attach the WisKey person one lost create of this grant produced (system administrators only). */
+export interface AccessGrantsAttachRecovered {
+  link: AccessGrantsGrantsGrantLink;
+  grant: AccessGrantsAttachRecoveredGrant;
+}
+
+export interface AccessGrantsAttachRecoveredGrant {
+  grant_state: string;
+  needs_push: boolean;
+  pending_sync: boolean;
+  scope_verified: boolean;
+  revoke_proof: string;
+  scope_verified_at: unknown;
+  doors_state: unknown;
+  id: string;
+  revision: number;
+  state: string;
+  end_reason: string;
+  source: string;
+  source_ref: unknown;
+  person: AccessGrantsOneGrantPerson;
+  doors: AccessGrantsRequestGrantGrantDoor[];
+  valid_from: string;
+  valid_until: string;
+  timing: unknown;
+  credential: string;
+  outside_window: boolean;
+  code_mode: string;
+  first_entry_at: unknown;
+  pending_amendment: unknown;
+  approved_by: string;
+  approved_at: string;
+  code_state: string;
+  code_due_at: string;
+  code_sends: number;
+  card_state: unknown;
+  notice: AccessGrantsRequestGrantGrantNoticeItem[];
+  attention: string;
+  linked: boolean;
+  company: string;
+  category: string;
+  created_at: string;
+  updated_at: string;
+  ended_at: string;
+  revoking_since: string;
+  approved_by_name: string;
+  link: AccessGrantsGrantsGrantLink;
+  create_unresolved: boolean;
+  closure: unknown;
+  purpose: unknown;
+  notes: unknown;
+  self_requested: boolean;
+}
+
+/** SHAREDID-293 (owner decision 3): a system administrator closes by hand a revocation whose person is not found any more. */
+export interface AccessGrantsConfirmGone {
+  grant: AccessGrantsConfirmGoneGrant;
+}
+
+export interface AccessGrantsConfirmGoneGrant {
+  grant_state: string;
+  needs_push: boolean;
+  pending_sync: boolean;
+  scope_verified: boolean;
+  revoke_proof: unknown;
+  scope_verified_at: unknown;
+  doors_state: unknown;
+  id: string;
+  revision: number;
+  state: string;
+  end_reason: string;
+  source: string;
+  source_ref: unknown;
+  person: AccessGrantsOneGrantPerson;
+  doors: AccessGrantsRequestGrantGrantDoor[];
+  valid_from: string;
+  valid_until: string;
+  timing: unknown;
+  credential: string;
+  outside_window: boolean;
+  code_mode: string;
+  first_entry_at: unknown;
+  pending_amendment: unknown;
+  approved_by: string;
+  approved_at: string;
+  code_state: string;
+  code_due_at: string;
+  code_sends: number;
+  card_state: unknown;
+  notice: AccessGrantsRequestGrantGrantNoticeItem[];
+  attention: string;
+  linked: boolean;
+  company: string;
+  category: string;
+  created_at: string;
+  updated_at: string;
+  ended_at: string;
+  revoking_since: string;
+  approved_by_name: string;
+  link: AccessGrantsGrantsGrantLink;
+  create_unresolved: boolean;
+  closure: AccessGrantsConfirmGoneGrantClosure;
+  purpose: unknown;
+  notes: unknown;
+  self_requested: boolean;
+}
+
+export interface AccessGrantsConfirmGoneGrantClosure {
+  kind: string;
+  closed_at: string;
+  closed_by_name: string;
+  reappeared_at: unknown;
+}
+
 export interface AccessGrantsDeletePerson {
   link_id: string;
   outcome: string;
   pending: boolean;
+}
+
+/** SHAREDID-293 (owner decision 4): the last weekly period, over the grants the caller may see. */
+export interface AccessGrantsDigest {
+  digest: AccessGrantsDigestDigest;
+}
+
+export interface AccessGrantsDigestDigest {
+  period: AccessGrantsDigestDigestPeriod;
+  schedule: AccessGrantsDigestDigestSchedule;
+  counts: Record<string, unknown>;
+  slow_revokes: unknown[];
+  approvers: AccessGrantsDigestDigestApprover[];
+  gaps: AccessGrantsDigestDigestGap[];
+}
+
+export interface AccessGrantsDigestDigestApprover {
+  user_id: string;
+  name: string;
+  count: number;
+}
+
+export interface AccessGrantsDigestDigestGap {
+  kind: string;
+  grant_id: string;
+  contact_id: string;
+  name: string;
+}
+
+export interface AccessGrantsDigestDigestPeriod {
+  from: string;
+  until: string;
+}
+
+export interface AccessGrantsDigestDigestSchedule {
+  day: number;
+  hour: number;
+  channel: string;
+}
+
+/** GRANTSMIN-295 (CR 2.3 / T12): per person, where Arx and WisKey differ - from what Arx stored; no WisKey read. */
+export interface AccessGrantsDrift {
+  drift: AccessGrantsDriftDrift;
+}
+
+export interface AccessGrantsDriftDrift {
+  enabled: boolean;
+  name_sync: string;
+  rows: unknown[];
+  in_sync: number;
 }
 
 /** ACCESSREQ-293: the form's doors - every station of the served WisKey copy with its doors and whether the caller may request / approve it (owner decision b), with the copy's freshness (`as_of`, `reachable`). */
@@ -93,7 +257,7 @@ export interface AccessGrantsGrantableDoors {
   max_days: number;
   tickets_requester: boolean;
   system_admin: boolean;
-  as_of: string;
+  as_of: string | null;
   reachable: boolean;
   has_copy: boolean;
 }
@@ -206,6 +370,55 @@ export interface AccessGrantsGrantsWiskey {
   has_copy: boolean;
 }
 
+/** SHAREDID-293: the access-control identity card of one directory person (link, live grant, unresolved create, allowed actions). */
+export interface AccessGrantsIdentity {
+  identity: AccessGrantsIdentityIdentity;
+}
+
+export interface AccessGrantsIdentityIdentity {
+  contact_id: string;
+  link: AccessGrantsIdentityIdentityLink | null;
+  live_grant: AccessGrantsIdentityIdentityLiveGrant | null;
+  unresolved: AccessGrantsIdentityIdentityUnresolved | null;
+  name_sync: string;
+  permanent_vendor: boolean;
+  can: AccessGrantsIdentityIdentityCan;
+  history: AccessGrantsIdentityIdentityHistoryItem[];
+}
+
+export interface AccessGrantsIdentityIdentityCan {
+  link: boolean;
+  unlink: boolean;
+  delete: boolean;
+  attach: boolean;
+  push_name: boolean;
+}
+
+export interface AccessGrantsIdentityIdentityHistoryItem {
+  action: string;
+  at: string;
+}
+
+export interface AccessGrantsIdentityIdentityLink {
+  id: string;
+  origin: string;
+  state: string;
+  linked_at: string;
+  name_drift: boolean;
+}
+
+export interface AccessGrantsIdentityIdentityLiveGrant {
+  id: string;
+  state: string;
+}
+
+export interface AccessGrantsIdentityIdentityUnresolved {
+  count: number;
+  grant_id: string;
+  started_at: string;
+  op_id: string | null;
+}
+
 export interface AccessGrantsMatchLink {
   link: AccessGrantsGrantsGrantLink;
 }
@@ -227,13 +440,118 @@ export interface AccessGrantsOneGrant {
   needs_push: boolean;
   pending_sync: boolean;
   scope_verified: boolean;
-  revoke_proof: unknown;
-  scope_verified_at: unknown;
-  doors_state: string;
+  revoke_proof: string | null;
+  scope_verified_at: string | null;
+  doors_state: string | null;
   id: string;
   revision: number;
   state: string;
-  end_reason: unknown;
+  end_reason: string | null;
+  source: string;
+  source_ref: unknown;
+  person: AccessGrantsOneGrantPerson;
+  doors: AccessGrantsRequestGrantGrantDoor[];
+  valid_from: string;
+  valid_until: string;
+  timing: unknown;
+  credential: string;
+  outside_window: boolean;
+  code_mode: string;
+  first_entry_at: unknown;
+  pending_amendment: unknown;
+  approved_by: string | null;
+  approved_at: string | null;
+  code_state: string;
+  code_due_at: string | null;
+  code_sends: number;
+  card_state: unknown;
+  notice: AccessGrantsRequestGrantGrantNoticeItem[];
+  attention: string | null;
+  linked: boolean;
+  company: string;
+  category: string;
+  created_at: string;
+  updated_at: string;
+  ended_at: string | null;
+  revoking_since: string | null;
+  approved_by_name: string | null;
+  link: AccessGrantsGrantsGrantLink | null;
+  create_unresolved: boolean;
+  closure: AccessGrantsOneGrantClosure | null;
+  purpose: unknown;
+  notes: unknown;
+  self_requested: boolean;
+}
+
+export interface AccessGrantsOneGrantClosure {
+  kind: string;
+  closed_at: string;
+  closed_by_name: string;
+  reappeared_at: string | null;
+  reference: string;
+}
+
+export interface AccessGrantsOneGrantPerson {
+  contact_id: string;
+  name: string;
+  pending: boolean;
+  number: string;
+}
+
+/** SECFIX2-295 (owner 2026-10-21): the technicians vendors typed on the arrival page that nobody decided yet - for the holders of the accept / reject authority only (the same check; 403 otherwise). */
+export interface AccessGrantsPendingContacts {
+  pending: unknown[];
+  retention_days: number;
+  max_per_vendor: number;
+  tickets_on: boolean;
+}
+
+/** SHAREDID-293 (owner decision 5): write the Arx name to the WisKey person Arx created. */
+export interface AccessGrantsPushName {
+  link_id: string;
+  outcome: string;
+  drift: boolean;
+}
+
+/** EXTERNALBUILD-297 (X1): the read-only readiness check (system administrator) - which prerequisites of the external access are in place and which are missing, in plain Hebrew. */
+export interface AccessGrantsReadiness {
+  ready: boolean;
+  missing: string[];
+  unknown: string[];
+  summary: string;
+  lines: AccessGrantsReadinessLine[];
+  at: string;
+}
+
+export interface AccessGrantsReadinessLine {
+  key: string;
+  label: string;
+  state: string;
+  reason: string;
+  text: string;
+  required: boolean;
+  fallback?: boolean;
+  provider?: string;
+  direct_selected?: boolean;
+  count?: number;
+}
+
+export interface AccessGrantsRefuse {
+  grant: AccessGrantsRefuseGrant;
+}
+
+export interface AccessGrantsRefuseGrant {
+  grant_state: string;
+  needs_push: boolean;
+  pending_sync: boolean;
+  scope_verified: boolean;
+  revoke_proof: unknown;
+  scope_verified_at: unknown;
+  doors_state: unknown;
+  id: string;
+  revision: number;
+  state: string;
+  end_reason: string;
   source: string;
   source_ref: unknown;
   person: AccessGrantsOneGrantPerson;
@@ -259,7 +577,7 @@ export interface AccessGrantsOneGrant {
   category: string;
   created_at: string;
   updated_at: string;
-  ended_at: unknown;
+  ended_at: string;
   revoking_since: unknown;
   approved_by_name: unknown;
   link: unknown;
@@ -268,13 +586,6 @@ export interface AccessGrantsOneGrant {
   purpose: unknown;
   notes: unknown;
   self_requested: boolean;
-}
-
-export interface AccessGrantsOneGrantPerson {
-  contact_id: string;
-  name: string;
-  pending: boolean;
-  number: string;
 }
 
 export interface AccessGrantsRejectContact {
@@ -511,19 +822,30 @@ export interface AccessGrantsUnlink {
 /** The answer of every modelled route of this family: `'METHOD path'` -> type. */
 export interface AccessGrantsRoutes {
   "GET /api/v1/access-grants": AccessGrantsGrants;
+  "GET /api/v1/access-grants/digest": AccessGrantsDigest;
   "GET /api/v1/access-grants/grantable-doors": AccessGrantsGrantableDoors;
   "GET /api/v1/access-grants/approvers": AccessGrantsApprovers;
   "GET /api/v1/access-grants/notice": AccessGrantsNotice;
+  "GET /api/v1/access-grants/drift": AccessGrantsDrift;
+  "GET /api/v1/access-grants/contacts/{contact_id}/identity": AccessGrantsIdentity;
+  "POST /api/v1/access-grants/links/{link_id}/push-name": AccessGrantsPushName;
   "GET /api/v1/access-grants/settings": AccessGrantsSettings;
+  "GET /api/v1/access-grants/readiness": AccessGrantsReadiness;
+  "PUT /api/v1/access-grants/settings": AccessGrantsSettings;
   "POST /api/v1/access-grants/revoke-all": AccessGrantsRevokeAll;
   "POST /api/v1/access-grants/links": AccessGrantsMatchLink;
   "DELETE /api/v1/access-grants/links/{link_id}": AccessGrantsUnlink;
   "POST /api/v1/access-grants/links/{link_id}/delete-person": AccessGrantsDeletePerson;
+  "GET /api/v1/access-grants/pending-contacts": AccessGrantsPendingContacts;
   "POST /api/v1/access-grants/pending-contacts/{contact_id}/accept": AccessGrantsAcceptContact;
   "POST /api/v1/access-grants/pending-contacts/{contact_id}/reject": AccessGrantsRejectContact;
   "POST /api/v1/access-grants": AccessGrantsRequestGrant;
   "GET /api/v1/access-grants/{grant_id}": AccessGrantsOne;
   "POST /api/v1/access-grants/{grant_id}/approve": AccessGrantsApprove;
+  "POST /api/v1/access-grants/{grant_id}/refuse": AccessGrantsRefuse;
   "POST /api/v1/access-grants/{grant_id}/revoke": AccessGrantsRevoke;
   "POST /api/v1/access-grants/{grant_id}/rotate": AccessGrantsRotate;
+  "POST /api/v1/access-grants/{grant_id}/read-now": AccessGrantsRotate;
+  "POST /api/v1/access-grants/{grant_id}/confirm-gone": AccessGrantsConfirmGone;
+  "POST /api/v1/access-grants/{grant_id}/attach-recovered": AccessGrantsAttachRecovered;
 }

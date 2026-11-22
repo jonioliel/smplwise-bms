@@ -161,7 +161,7 @@ export interface HealthHealthEventsCache {
   enabled: boolean;
   hits: number;
   misses: number;
-  hit_rate: unknown;
+  hit_rate: number | null;
   stale: number;
   expired: number;
   evictions: number;

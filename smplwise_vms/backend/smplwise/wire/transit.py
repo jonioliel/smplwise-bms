@@ -9,7 +9,7 @@ from . import ExactModel, Num
 NO_JSON: frozenset[str] = frozenset()
 # JSON routes without a model yet: no test reaches a successful answer (or the answer is not one object); counted by the ratchet
 # (scripts/wire_ratchet.py) until they are modelled
-UNMODELLED: frozenset[str] = frozenset({'POST /transit/check'})
+UNMODELLED: frozenset[str] = frozenset()
 
 
 class TransitSettingsCatalogue(ExactModel):
@@ -26,10 +26,10 @@ class TransitSettingsHealth(ExactModel):
     outage: bool
     outage_since: Any
     outage_warn_h: Num
-    last_good_at: Any
+    last_good_at: str | None
     codes_in_use: Num
     age_s: Any
-    last_ok_at: Any
+    last_ok_at: str | None
     errors: Num
     consecutive_errors: Num
     last_error: Any
@@ -105,26 +105,68 @@ class TransitSearchStopsStop(ExactModel):
     lon: Num
 
 
-class TransitSearchStopsCatalogue(ExactModel):
-    count: Num
-    date: str
-    ok_at: str
-    error: Any
-    error_at: Any
-
-
 class TransitSearchStops(ExactModel):
     """The search runs on the LOCAL catalogue (city exact, name words, or a code) - no third-party call."""
     stops: list[TransitSearchStopsStop]
-    catalogue: TransitSearchStopsCatalogue
+    catalogue: TransitSettingsCatalogue
+
+
+class TransitStatusHealth(ExactModel):
+    enabled: bool
+    state: str
+    outage: bool
+    outage_since: str | None
+    outage_warn_h: Num
+    last_good_at: Any
+    codes_in_use: Num
+    age_s: Any
+    last_ok_at: Any
+    errors: Num
+    consecutive_errors: Num
+    last_error: str | None
+    last_error_at: str | None
+    backoff_until: str | None
 
 
 class TransitStatus(ExactModel):
-    health: TransitSettingsHealth
-    catalogue: TransitSearchStopsCatalogue
+    health: TransitStatusHealth
+    catalogue: TransitSettingsCatalogue
 
 
 class TransitRefreshCatalogue(ExactModel):
     """Download the catalogue now (the nightly job does it by itself)."""
     started: bool
     running: bool
+
+
+class TransitCheckNowCheck(ExactModel):
+    codes: Num
+    fetched: Num
+    ok: bool
+    error: str | None
+    skipped: str | None
+    retry_after_s: Num | None
+    at: str
+
+
+class TransitCheckNowHealth(ExactModel):
+    enabled: bool
+    state: str
+    outage: bool
+    outage_since: str | None
+    outage_warn_h: Num
+    last_good_at: str | None
+    codes_in_use: Num
+    age_s: Any
+    last_ok_at: str | None
+    errors: Num
+    consecutive_errors: Num
+    last_error: str | None
+    last_error_at: str | None
+    backoff_until: str | None
+
+
+class TransitCheckNow(ExactModel):
+    """Ask the source ONCE now for the configured stops and answer the new health (`system.configure`, audited `transit.check`, one check per 30 s per installation)."""
+    check: TransitCheckNowCheck
+    health: TransitCheckNowHealth

@@ -3,25 +3,23 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import Field
-
 from . import ExactModel, Num
 
 # routes without a JSON body
 NO_JSON: frozenset[str] = frozenset({'GET /access-control/events/export.csv', 'GET /access-control/events/{event_id}/portrait', 'GET /access-control/people/{user_id}/photo'})
 # JSON routes without a model yet: no test reaches a successful answer (or the answer is not one object); counted by the ratchet
 # (scripts/wire_ratchet.py) until they are modelled
-UNMODELLED: frozenset[str] = frozenset({'GET /access-control/people/{user_id}', 'GET /access-control/stations/{station_id}', 'GET /access-control/stations/{station_id}/doors/{door}/hold'})
+UNMODELLED: frozenset[str] = frozenset()
 
 
 class AccessControlReadsFeaturesApi(ExactModel):
-    version: Num
-    min_client: Num
+    version: Num | None
+    min_client: Num | None
 
 
 class AccessControlReadsFeaturesFeaturesPeople(ExactModel):
-    available: bool
-    reason: Any
+    available: bool | None
+    reason: str | None
 
 
 class AccessControlReadsFeaturesFeatures(ExactModel):
@@ -53,21 +51,21 @@ class AccessControlReadsFeaturesSync(ExactModel):
     connected: bool
     last_error: Any
     reconnects: Num
-    started_at: str
-    fetched_at: str
+    started_at: str | None
+    fetched_at: str | None
     refreshes: Num
     sequence: Num
-    wiskey_version: str
+    wiskey_version: str | None
 
 
 class AccessControlReadsFeatures(ExactModel):
     """Which native features the installed WisKey offers (its `api.commands`), per feature: `{available, reason}`; null `available` while there is no served copy yet."""
     state: str
     configured: bool
-    last_error: Any
+    last_error: str | None
     fetched_at: Any
     client_api: Num
-    api: AccessControlReadsFeaturesApi
+    api: AccessControlReadsFeaturesApi | None
     features: AccessControlReadsFeaturesFeatures
     sync: AccessControlReadsFeaturesSync
 
@@ -105,22 +103,10 @@ class AccessControlReadsStationsStation(ExactModel):
     locks: list[dict[str, Any]]
     has_camera: bool
     camera_entity: str | None
-    last_seen: str
+    last_seen: str | None
     zone: AccessControlReadsStationsStationZone | None
-    technical: AccessControlReadsStationsStationTechnical
-    errors: AccessControlReadsStationsStationErrors
-
-
-class AccessControlReadsStationsSync(ExactModel):
-    state: str
-    connected: bool
-    last_error: Any
-    reconnects: Num
-    started_at: str | None
-    fetched_at: str | None
-    refreshes: Num
-    sequence: Num
-    wiskey_version: str | None
+    technical: AccessControlReadsStationsStationTechnical | None
+    errors: AccessControlReadsStationsStationErrors | None
 
 
 class AccessControlReadsStations(ExactModel):
@@ -132,7 +118,87 @@ class AccessControlReadsStations(ExactModel):
     fresh: bool
     stations: list[AccessControlReadsStationsStation] | None
     default_zone: AccessControlReadsStationsStationZone | None
-    sync: AccessControlReadsStationsSync
+    sync: AccessControlReadsFeaturesSync
+
+
+class AccessControlReadsStationStationLock(ExactModel):
+    physical_index: Num
+    name: str
+
+
+class AccessControlReadsStationStationTechnicalCapabilities(ExactModel):
+    max_users: Num
+    max_cards: Num
+    cards_per_person: Num
+    pin_min: Num
+    pin_max: Num
+    card_min: Any
+    card_max: Any
+    name_max: Num
+    pin_mode: Any
+    pin_writable: bool
+    schedules: bool
+
+
+class AccessControlReadsStationStationTechnicalClock(ExactModel):
+    source: str
+    status: str
+    zone: dict[str, str]
+    device_zone: Any
+    skew_seconds: Num
+    time_mode: str
+    drift_state: Any
+    checked_at: Any
+    error: Any
+
+
+class AccessControlReadsStationStationTechnicalEventStatus(ExactModel):
+    stream: str
+    history: str
+    reconnects: Num
+    last_frame_at: Any
+    recovered_until: Any
+
+
+class AccessControlReadsStationStationTechnical(ExactModel):
+    loaded: bool
+    model: str
+    firmware: str
+    capabilities: AccessControlReadsStationStationTechnicalCapabilities
+    clock: AccessControlReadsStationStationTechnicalClock
+    event_status: AccessControlReadsStationStationTechnicalEventStatus
+    scanned_at: Any
+    scanning: bool
+    reconciled_at: Any
+    last_poll_ms: Num
+
+
+class AccessControlReadsStationStation(ExactModel):
+    id: str
+    name: str
+    online: bool
+    call_state: str
+    sync_state: str
+    lock_enabled: bool
+    locks: list[AccessControlReadsStationStationLock]
+    has_camera: bool
+    camera_entity: str
+    last_seen: str
+    zone: AccessControlReadsStationsStationZone
+    technical: AccessControlReadsStationStationTechnical
+    errors: Any
+
+
+class AccessControlReadsStation(ExactModel):
+    """One station, as in the list; 404 `intercom_station_not_found` when there is no such station or the caller may not see it."""
+    state: str
+    configured: bool
+    last_error: str | None
+    fetched_at: str | None
+    fresh: bool
+    sync: AccessControlReadsFeaturesSync
+    station: AccessControlReadsStationStation | None
+    default_zone: AccessControlReadsStationsStationZone | None
 
 
 class AccessControlReadsDoorProgramsProgramsProgram(ExactModel):
@@ -163,9 +229,27 @@ class AccessControlReadsDoorPrograms(ExactModel):
     """The station's door programs (hold-open programs on the device, `programs`) and saved drafts (`saved`), each with its weekly windows and holidays."""
     state: str
     configured: bool
-    last_error: Any
-    fetched_at: str
-    programs: AccessControlReadsDoorProgramsPrograms
+    last_error: str | None
+    fetched_at: str | None
+    programs: AccessControlReadsDoorProgramsPrograms | None
+    sync: AccessControlReadsFeaturesSync
+    fresh: bool
+
+
+class AccessControlReadsHoldScheduleHold(ExactModel):
+    draft: dict[str, Any]
+    active: bool
+    blocker: str
+    timezone: str
+
+
+class AccessControlReadsHoldSchedule(ExactModel):
+    """The hold-open schedule draft of one door (`door` = the relay's physical index); 404 `intercom_lock_unknown` for a relay the station does not have."""
+    state: str
+    configured: bool
+    last_error: str | None
+    fetched_at: str | None
+    hold: AccessControlReadsHoldScheduleHold | None
     sync: AccessControlReadsFeaturesSync
     fresh: bool
 
@@ -192,22 +276,38 @@ class AccessControlReadsCodesPresence(ExactModel):
     """Whether the station's public door codes are set - presence only, per slot (`configured` true / false / null); never a value."""
     state: str
     configured: bool
-    last_error: Any
-    fetched_at: str
-    codes: AccessControlReadsCodesPresenceCodes
+    last_error: str | None
+    fetched_at: str | None
+    codes: AccessControlReadsCodesPresenceCodes | None
     sync: AccessControlReadsFeaturesSync
     fresh: bool
+
+
+class AccessControlReadsStatusStationsStation(ExactModel):
+    id: str
+    name: str
+    online: bool
+    call_state: str
+    sync_state: str
+    lock_enabled: bool
+    locks: list[dict[str, Any]]
+    has_camera: bool
+    camera_entity: str | None
+    last_seen: str
+    zone: AccessControlReadsStationsStationZone | None
+    technical: AccessControlReadsStationsStationTechnical
+    errors: AccessControlReadsStationsStationErrors
 
 
 class AccessControlReadsStatusStations(ExactModel):
     """The status page's station list (`access.read` and `access.admin.read` on each), as GET /access-control/stations."""
     state: str
     configured: bool
-    last_error: Any
-    fetched_at: str
+    last_error: str | None
+    fetched_at: str | None
     fresh: bool
-    stations: list[AccessControlReadsStationsStation]
-    default_zone: AccessControlReadsStationsStationZone
+    stations: list[AccessControlReadsStatusStationsStation] | None
+    default_zone: AccessControlReadsStationsStationZone | None
     sync: AccessControlReadsFeaturesSync
 
 
@@ -270,9 +370,9 @@ class AccessControlReadsHealth(ExactModel):
     """One station's health card: polling, request times, access sync worker, event stream, clock."""
     state: str
     configured: bool
-    last_error: Any
-    fetched_at: str
-    health: AccessControlReadsHealthHealth
+    last_error: str | None
+    fetched_at: str | None
+    health: AccessControlReadsHealthHealth | None
     sync: AccessControlReadsFeaturesSync
     fresh: bool
 
@@ -295,9 +395,9 @@ class AccessControlReadsHealthHistory(ExactModel):
     """Seven days of one station's health samples (online, poll time, sync, event stream)."""
     state: str
     configured: bool
-    last_error: Any
-    fetched_at: str
-    history: AccessControlReadsHealthHistoryHistory
+    last_error: str | None
+    fetched_at: str | None
+    history: AccessControlReadsHealthHistoryHistory | None
     sync: AccessControlReadsFeaturesSync
     fresh: bool
 
@@ -329,7 +429,7 @@ class AccessControlReadsSyncStatus(ExactModel):
     last_error: str | None
     fetched_at: str | None
     sync_status: AccessControlReadsSyncStatusSyncStatus | None
-    sync: AccessControlReadsStationsSync
+    sync: AccessControlReadsFeaturesSync
     fresh: bool
 
 
@@ -351,9 +451,9 @@ class AccessControlReadsConflicts(ExactModel):
     """Sync conflicts and errors per (person or removal, station)."""
     state: str
     configured: bool
-    last_error: Any
-    fetched_at: str
-    conflicts: list[AccessControlReadsConflictsConflict]
+    last_error: str | None
+    fetched_at: str | None
+    conflicts: list[AccessControlReadsConflictsConflict] | None
     sync: AccessControlReadsFeaturesSync
 
 
@@ -384,7 +484,7 @@ class AccessControlReadsAlertsAlerts(ExactModel):
     suppressed_count: Num
     offset: Num
     limit: Num
-    next_offset: Any
+    next_offset: Num | None
     complete: bool
     thresholds_seconds: AccessControlReadsAlertsAlertsThresholdsSeconds
     station_thresholds_seconds: dict[str, Any]
@@ -395,11 +495,11 @@ class AccessControlReadsAlerts(ExactModel):
     """Fleet alerts of the stations the caller sees on the status page, paged and counted over those (`total`, `active_count`, `suppressed_count`)."""
     state: str
     configured: bool
-    last_error: Any
-    fetched_at: str
-    alerts: AccessControlReadsAlertsAlerts
+    last_error: str | None
+    fetched_at: str | None
+    alerts: AccessControlReadsAlertsAlerts | None
     sync: AccessControlReadsFeaturesSync
-    fresh: bool
+    fresh: bool = None
 
 
 class AccessControlReadsWiskeyAuditAuditRecord(ExactModel):
@@ -407,7 +507,7 @@ class AccessControlReadsWiskeyAuditAuditRecord(ExactModel):
     time: str
     action: str
     actor_name: str
-    fields_: list[str] = Field(alias='fields')
+    fields: list[str]
     revision_before: Num | None
     revision_after: Num
     reason_code: Any
@@ -426,32 +526,127 @@ class AccessControlReadsWiskeyAudit(ExactModel):
     """The intercom's own action log ("פעולות שנעשו בחלון האינטרקום": what was done in its own panel; Arx's actions are in Arx's audit)."""
     state: str
     configured: bool
-    last_error: Any
-    fetched_at: str
-    audit: AccessControlReadsWiskeyAuditAudit
+    last_error: str | None
+    fetched_at: str | None
+    audit: AccessControlReadsWiskeyAuditAudit | None
     sync: AccessControlReadsFeaturesSync
 
 
-class AccessControlReadsPeopleSync(ExactModel):
-    state: str
-    connected: bool
-    last_error: Any
-    reconnects: Num
-    started_at: Any
-    fetched_at: Any
-    refreshes: Num
-    sequence: Num
-    wiskey_version: Any
+class AccessControlReadsPeoplePeopleRecord(ExactModel):
+    id: str
+    display_name: str
+    active: bool
+    archived: bool
+    valid_from: str | None
+    valid_until: str
+    revision: Num
+    access_category: str
+    user_type: str
+    identity_locked: bool
+    employee_no: str | None
+    group_ids: list[str]
+    stations: list[dict[str, Any]]
+    stations_known: bool
+    timing: Any
+    level: str
+    editable: bool
+    phone: Any
+    phone_set: bool | None
+    credentials: dict[str, Any] | None
+    photo_configured: Any
+    profile: Any
+    responsible_person: Any
+    access_purpose: Any
+
+
+class AccessControlReadsPeoplePeople(ExactModel):
+    records: list[AccessControlReadsPeoplePeopleRecord]
+    total: Num
+    total_all: Num | None
+    offset: Num
+    limit: Num
+    next_offset: Num | None
+    previous_offset: Num | None
+    snapshot: str
+    stale: bool
+    complete: bool
+    incomplete_reason: Any
+    sort: str
+    employee_no_visible: bool
 
 
 class AccessControlReadsPeople(ExactModel):
     """One page of the people the caller may see (a person is visible through an assignment on a station where the caller holds `access.people.read`)."""
     state: str
     configured: bool
-    last_error: str
-    fetched_at: Any
-    people: Any
-    sync: AccessControlReadsPeopleSync
+    last_error: str | None
+    fetched_at: str | None
+    people: AccessControlReadsPeoplePeople | None
+    sync: AccessControlReadsFeaturesSync
+
+
+class AccessControlReadsPersonPersonStation(ExactModel):
+    station_id: str
+    enabled: bool
+    doors: list[Num]
+    sync_state: str
+    last_sync_at: str
+    last_error: str | None
+
+
+class AccessControlReadsPersonPersonTiming(ExactModel):
+    mode: str
+    timezone: str
+    days: list[str]
+    dates: list[Any]
+    periods: list[dict[str, str]]
+    enforcement: str
+
+
+class AccessControlReadsPersonPersonCredentials(ExactModel):
+    pin: bool
+    cards: Num
+
+
+class AccessControlReadsPersonPersonProfile(ExactModel):
+    department: str
+
+
+class AccessControlReadsPersonPerson(ExactModel):
+    id: str
+    display_name: str
+    active: bool
+    archived: bool
+    valid_from: Any
+    valid_until: str
+    revision: Num
+    access_category: str
+    user_type: str
+    identity_locked: bool
+    employee_no: str
+    group_ids: list[str]
+    stations: list[AccessControlReadsPersonPersonStation]
+    stations_known: bool
+    timing: AccessControlReadsPersonPersonTiming | None
+    level: str
+    editable: bool
+    phone: str | None
+    phone_set: bool | None
+    credentials: AccessControlReadsPersonPersonCredentials | None
+    photo_configured: bool | None
+    profile: AccessControlReadsPersonPersonProfile | None
+    responsible_person: str | None
+    access_purpose: str | None
+
+
+class AccessControlReadsPerson(ExactModel):
+    """One person at the caller's level (`level` names / sensitive; `editable`; the visible assignments with their sync state; groups, validity, timing; phone, photo flag and profile values at the sensitive level only); 404 `intercom_person_not_fo"""
+    state: str
+    configured: bool
+    last_error: str | None
+    fetched_at: str | None
+    person: AccessControlReadsPersonPerson | None
+    sync: AccessControlReadsFeaturesSync
 
 
 class AccessControlReadsEventsEventsRecord(ExactModel):
@@ -460,19 +655,19 @@ class AccessControlReadsEventsEventsRecord(ExactModel):
     timestamp: str
     received_at: str
     time_source: str
-    person_name: str
+    person_name: str | None
     authentication: str
     result: str
     event_type: str
     recovered: bool
     door: Num
-    employee_no: str
-    portrait: bool
+    employee_no: str | None
+    portrait: bool | None
 
 
 class AccessControlReadsEventsEvents(ExactModel):
     records: list[AccessControlReadsEventsEventsRecord]
-    next: str
+    next: str | None
     retention_days: Num
     capacity: Num
     membership_basis: Any
@@ -489,7 +684,7 @@ class AccessControlReadsEvents(ExactModel):
     last_error: str | None
     fetched_at: str | None
     events: AccessControlReadsEventsEvents | None
-    sync: AccessControlReadsStationsSync
+    sync: AccessControlReadsFeaturesSync
 
 
 class AccessControlReadsEventDetailEventEvidence(ExactModel):
@@ -534,9 +729,9 @@ class AccessControlReadsEventDetail(ExactModel):
     """One event with WisKey's evidence (how the identity and the time were established - flags, no person field); 404 `intercom_event_not_found` when there is no such event or the caller may not see it."""
     state: str
     configured: bool
-    last_error: Any
-    fetched_at: str
-    event: AccessControlReadsEventDetailEvent
+    last_error: str | None
+    fetched_at: str | None
+    event: AccessControlReadsEventDetailEvent | None
     sync: AccessControlReadsFeaturesSync
 
 
@@ -551,16 +746,16 @@ class AccessControlReadsGroupsGroups(ExactModel):
     revision: Num
     photo_enabled: bool
     groups: list[AccessControlReadsGroupsGroupsGroup]
-    fields_: list[dict[str, Any]] = Field(alias='fields')
+    fields: list[dict[str, Any]]
 
 
 class AccessControlReadsGroups(ExactModel):
     """The person groups the caller may see (all for a caller who sees everyone; otherwise the groups whose every station they see) with the stations each grants, the photo switch and - for `access.people.sensitive` or the Settings status - the cu"""
     state: str
     configured: bool
-    last_error: Any
-    fetched_at: str
-    groups: AccessControlReadsGroupsGroups
+    last_error: str | None
+    fetched_at: str | None
+    groups: AccessControlReadsGroupsGroups | None
     sync: AccessControlReadsFeaturesSync
     fresh: bool
 
@@ -588,9 +783,9 @@ class AccessControlReadsGroupVersions(ExactModel):
     """The history of the groups and fields policy (revision, when, which kind of change, how many fields / groups changed; never who)."""
     state: str
     configured: bool
-    last_error: Any
-    fetched_at: str
-    versions: AccessControlReadsGroupVersionsVersions
+    last_error: str | None
+    fetched_at: str | None
+    versions: AccessControlReadsGroupVersionsVersions | None
     sync: AccessControlReadsFeaturesSync
     fresh: bool
 
@@ -621,7 +816,7 @@ class AccessControlReadsSchedulesLibrary(ExactModel):
     last_error: str | None
     fetched_at: str | None
     schedules: list[AccessControlReadsSchedulesLibrarySchedule] | None
-    sync: AccessControlReadsStationsSync
+    sync: AccessControlReadsFeaturesSync
     fresh: bool
 
 
@@ -650,9 +845,9 @@ class AccessControlReadsSchedulesPlans(ExactModel):
     """The schedule deployment plans per station with their last check (blockers, resources)."""
     state: str
     configured: bool
-    last_error: Any
-    fetched_at: str
-    schedules: list[AccessControlReadsSchedulesPlansSchedule]
+    last_error: str | None
+    fetched_at: str | None
+    schedules: list[AccessControlReadsSchedulesPlansSchedule] | None
     sync: AccessControlReadsFeaturesSync
     fresh: bool
 
@@ -690,9 +885,9 @@ class AccessControlReadsSchedulesOperations(ExactModel):
     """The schedule operations (jobs, archive, journal, claims; `writes_enabled`)."""
     state: str
     configured: bool
-    last_error: Any
-    fetched_at: str
-    schedules: AccessControlReadsSchedulesOperationsSchedules
+    last_error: str | None
+    fetched_at: str | None
+    schedules: AccessControlReadsSchedulesOperationsSchedules | None
     sync: AccessControlReadsFeaturesSync
     fresh: bool
 
@@ -743,7 +938,7 @@ class AccessControlReadsParityReport(ExactModel):
     """Side-by-side check of the native screens: per screen (stations, people, the entry log of the last `hours`, groups, the schedule library, fleet alerts) the count and a keyed digest of what a direct unfiltered read of the same WisKey command """
     state: str
     configured: bool
-    last_error: Any
-    fetched_at: str
-    parity: AccessControlReadsParityReportParity
+    last_error: str | None
+    fetched_at: str | None
+    parity: AccessControlReadsParityReportParity | None
     sync: AccessControlReadsFeaturesSync

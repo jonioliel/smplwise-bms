@@ -50,7 +50,7 @@ export interface CastConfig {
 
 export interface CastConfigBridge {
   paired: boolean;
-  version: string;
+  version: string | null;
   required: string;
   ready: boolean;
 }
@@ -66,9 +66,16 @@ export interface CastPutConfig {
   changed: string[];
   config: Record<string, unknown>;
   relay: CastConfigRelay;
-  bridge: CastConfigBridge;
+  bridge: CastPutConfigBridge;
   ready: boolean;
   reason: string | null;
+}
+
+export interface CastPutConfigBridge {
+  paired: boolean;
+  version: string;
+  required: string;
+  ready: boolean;
 }
 
 export interface CastPutScreen {
@@ -178,7 +185,7 @@ export interface CastStopSessionSession {
 
 export interface CastTargets {
   ready: boolean;
-  reason: unknown;
+  reason: string | null;
   targets: CastTargetsTarget[];
   blocked_display: string;
   main_possible: boolean;

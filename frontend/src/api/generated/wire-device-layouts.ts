@@ -14,8 +14,8 @@ export interface DeviceLayoutsCopyToAllAreasSource {
   id: string;
   can_edit: boolean;
   narrowed: boolean;
-  desktop: DeviceLayoutsLayoutDesktop;
-  phone: unknown;
+  desktop: DeviceLayoutsPutLayoutDesktop;
+  phone: DeviceLayoutsPutLayoutDesktop | null;
 }
 
 /** The screen's stored layout (desktop and phone; null = automatic) - everyone who reads the device screens. */
@@ -25,13 +25,13 @@ export interface DeviceLayoutsLayout {
   can_edit: boolean;
   narrowed: boolean;
   desktop: DeviceLayoutsLayoutDesktop | null;
-  phone: unknown;
+  phone: DeviceLayoutsLayoutDesktop | null;
 }
 
 export interface DeviceLayoutsLayoutDesktop {
   layout: DeviceLayoutsLayoutDesktopLayout;
   revision: number;
-  updated_by: string;
+  updated_by: string | null;
   updated_at: string;
 }
 
@@ -47,13 +47,31 @@ export interface DeviceLayoutsPutLayout {
   id: string;
   can_edit: boolean;
   narrowed: boolean;
-  desktop: DeviceLayoutsLayoutDesktop;
-  phone: DeviceLayoutsLayoutDesktop | null;
+  desktop: DeviceLayoutsPutLayoutDesktop | null;
+  phone: DeviceLayoutsPutLayoutDesktop | null;
+}
+
+export interface DeviceLayoutsPutLayoutDesktop {
+  layout: DeviceLayoutsLayoutDesktopLayout;
+  revision: number;
+  updated_by: string;
+  updated_at: string;
+}
+
+/** Back to the automatic layout: `all` ("אפס לברירת מחדל": desktop and phone) or one variant (`phone`: "חזור לאוטומטי" - the phone layout is derived from the desktop one again). */
+export interface DeviceLayoutsResetLayout {
+  scope: string;
+  id: string;
+  can_edit: boolean;
+  narrowed: boolean;
+  desktop: DeviceLayoutsPutLayoutDesktop | null;
+  phone: unknown;
 }
 
 /** The answer of every modelled route of this family: `'METHOD path'` -> type. */
 export interface DeviceLayoutsRoutes {
   "GET /api/v1/devices/layouts/{scope}/{scope_id}": DeviceLayoutsLayout;
   "PUT /api/v1/devices/layouts/{scope}/{scope_id}": DeviceLayoutsPutLayout;
+  "DELETE /api/v1/devices/layouts/{scope}/{scope_id}": DeviceLayoutsResetLayout;
   "POST /api/v1/devices/layouts/area/{scope_id}/copy-to-all-areas": DeviceLayoutsCopyToAllAreas;
 }

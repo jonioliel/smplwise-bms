@@ -39,7 +39,7 @@ class SettingsBody(BaseModel):
     confirmed: Any = None
 
 
-@router.get("/quiet/windows")
+@router.get("/quiet/windows", **wire(W.QuietWindows))
 def list_windows(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     now = qw.now_utc()
     return {"enabled": qw.enabled(conn), "windows": qw.list_for(conn, principal, now), "now": iso_utc(now),
@@ -51,7 +51,7 @@ def start_window(body: StartBody, request: Request, principal: Principal = Depen
     return qw.start(conn, principal, body.scope_type, body.scope_id, body.minutes, _rid(request))
 
 
-@router.post("/quiet/windows/{window_id}/stop")
+@router.post("/quiet/windows/{window_id}/stop", **wire(W.QuietStopWindow))
 def stop_window(request: Request, window_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     return qw.stop(conn, principal, window_id, _rid(request))

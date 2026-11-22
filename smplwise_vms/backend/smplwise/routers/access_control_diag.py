@@ -57,6 +57,8 @@ from ..services import intercom_sync, savepoints
 from ..services import wiskey_access_diag as diag
 from ._common import raw_body as _raw_body, rid as _rid
 from .access_control import CommandEnvelope, _Action, _envelope, _parse
+from ..wire import access_control_diag as W
+from ..wire import wire
 
 router = APIRouter()
 API = "/access-control/diag"
@@ -151,7 +153,7 @@ def _at(value: str | None) -> str:
 
 # ---------------------------------------------------------------- the bootstrap
 
-@router.get(API)
+@router.get(API, **wire(W.AccessControlDiagDiagHome))
 def diag_home(request: Request, auth: ia.Authority = Depends(_gate)) -> dict[str, Any]:
     """The views the installed WisKey offers, what this caller may do there, and the doors to pick from. No WisKey call."""
     api = _api(request)
@@ -174,7 +176,7 @@ def diag_home(request: Request, auth: ia.Authority = Depends(_gate)) -> dict[str
 
 # ---------------------------------------------------------------- pickers, scenario, compare
 
-@router.get(f"{API}/options")
+@router.get(f"{API}/options", **wire(W.AccessControlDiagDiagOptions))
 def diag_options(request: Request, auth: ia.Authority = Depends(_people_gate), kind: Literal["person", "group"] = "person",
                  query: str = Query("", max_length=128), offset: int = Query(0, ge=0, le=100_000), limit: int = Query(25, ge=1, le=100)) -> dict[str, Any]:
     _require_feature(request, "pickers")
@@ -183,7 +185,7 @@ def diag_options(request: Request, auth: ia.Authority = Depends(_people_gate), k
     return _read(request, auth, "options", lambda call: diag.options(call, kind, query.strip(), offset, limit), diag.project_options)
 
 
-@router.get(f"{API}/scenario")
+@router.get(f"{API}/scenario", **wire(W.AccessControlDiagDiagScenario))
 def diag_scenario(request: Request, auth: ia.Authority = Depends(_people_gate), user_id: str = Query(min_length=1, max_length=128, pattern=ID_PATTERN),
                   station_id: str = Query(min_length=1, max_length=128, pattern=ID_PATTERN), lock_id: int = Query(1, ge=1, le=2),
                   at: str | None = Query(None, max_length=48)) -> dict[str, Any]:
@@ -196,7 +198,7 @@ def diag_scenario(request: Request, auth: ia.Authority = Depends(_people_gate), 
     return out
 
 
-@router.get(f"{API}/compare")
+@router.get(f"{API}/compare", **wire(W.AccessControlDiagDiagCompare))
 def diag_compare(request: Request, auth: ia.Authority = Depends(_people_gate), left_kind: Literal["person", "group"] = "person",
                  left_id: str = Query(min_length=1, max_length=128, pattern=ID_PATTERN), right_kind: Literal["person", "group"] = "person",
                  right_id: str = Query(min_length=1, max_length=128, pattern=ID_PATTERN)) -> dict[str, Any]:
@@ -213,7 +215,7 @@ def _door(name: str, value: str) -> tuple[str, int]:
     return m.group(1), int(m.group(2))
 
 
-@router.get(f"{API}/compare-doors")
+@router.get(f"{API}/compare-doors", **wire(W.AccessControlDiagDiagCompareDoors))
 def diag_compare_doors(request: Request, auth: ia.Authority = Depends(_people_gate), left: str = Query(min_length=3, max_length=131),
                        right: str = Query(min_length=3, max_length=131)) -> dict[str, Any]:
     _require_feature(request, "compare_doors")
@@ -238,7 +240,7 @@ def _arx_actors(conn: sqlite3.Connection, receipts: list[dict[str, Any]]) -> Non
             r["arx_actor"] = found.get(r["id"])
 
 
-@router.get(f"{API}/reviews")
+@router.get(f"{API}/reviews", **wire(W.AccessControlDiagDiagReviews))
 def diag_reviews(request: Request, auth: ia.Authority = Depends(_people_gate), station_id: str = Query(min_length=1, max_length=128, pattern=ID_PATTERN),
                  lock_id: int = Query(1, ge=1, le=2), state: Literal["all", "pending", "due", "stale", "completed", "followup", "archived"] = "all",
                  offset: int = Query(0, ge=0, le=100_000), limit: int = Query(50, ge=1, le=100), snapshot: str = Query("", max_length=64, pattern=r"^[a-f0-9]*$")) -> dict[str, Any]:
@@ -251,7 +253,7 @@ def diag_reviews(request: Request, auth: ia.Authority = Depends(_people_gate), s
     return out
 
 
-@router.get(f"{API}/reviews/preview")
+@router.get(f"{API}/reviews/preview", **wire(W.AccessControlDiagDiagReviewPreview))
 def diag_review_preview(request: Request, auth: ia.Authority = Depends(_people_gate), user_id: str = Query(min_length=1, max_length=128, pattern=ID_PATTERN),
                         station_id: str = Query(min_length=1, max_length=128, pattern=ID_PATTERN), lock_id: int = Query(1, ge=1, le=2)) -> dict[str, Any]:
     _require_feature(request, "reviews")
@@ -293,7 +295,7 @@ WISKEY_REFUSALS = {
 }
 
 
-@router.post(f"{API}/reviews/decide")
+@router.post(f"{API}/reviews/decide", **wire(W.AccessControlDiagDiagReviewDecide))
 def diag_review_decide(request: Request, principal: Principal = Depends(_decider_ro), raw: bytes = Depends(_raw_body),
                        conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     act = _Action(request, conn, principal, DECIDE_ACTION, "-", resource_type="intercom_person")
@@ -356,7 +358,7 @@ def diag_review_decide(request: Request, principal: Principal = Depends(_decider
 
 # ---------------------------------------------------------------- data quality, lifecycle, sync
 
-@router.get(f"{API}/quality")
+@router.get(f"{API}/quality", **wire(W.AccessControlDiagDiagQuality))
 def diag_quality(request: Request, auth: ia.Authority = Depends(_people_gate), kind: Literal["all", "missing", "invalid", "duplicate"] = "all",
                  state: Literal["all", "current", "archived"] = "current", offset: int = Query(0, ge=0, le=100_000), limit: int = Query(50, ge=1, le=100),
                  snapshot: str = Query("", max_length=64, pattern=r"^[a-f0-9]*$")) -> dict[str, Any]:
@@ -367,14 +369,14 @@ def diag_quality(request: Request, auth: ia.Authority = Depends(_people_gate), k
     return _read(request, auth, "quality", lambda call: diag.quality(call, kind, state, offset, limit, snapshot), lambda raw: diag.project_quality(raw, employee_no=emp))
 
 
-@router.get(f"{API}/lifecycle")
+@router.get(f"{API}/lifecycle", **wire(W.AccessControlDiagDiagLifecycle))
 def diag_lifecycle(request: Request, auth: ia.Authority = Depends(_people_gate), days: int = Query(30, ge=1, le=365)) -> dict[str, Any]:
     _require_feature(request, "lifecycle")
     emp, cred = _employee_no(auth), auth.unrestricted(ia.PEOPLE_SENSITIVE)
     return _read(request, auth, "lifecycle", lambda call: diag.lifecycle(call, days), lambda raw: diag.project_lifecycle(raw, employee_no=emp, credentials=cred))
 
 
-@router.get(f"{API}/sync")
+@router.get(f"{API}/sync", **wire(W.AccessControlDiagDiagSync))
 def diag_sync(request: Request, auth: ia.Authority = Depends(_gate)) -> dict[str, Any]:
     _require_feature(request, "sync")
     return _read(request, auth, "diagnostics", diag.sync_diagnostics, diag.project_sync)
@@ -382,7 +384,7 @@ def diag_sync(request: Request, auth: ia.Authority = Depends(_gate)) -> dict[str
 
 # ---------------------------------------------------------------- station permission audit
 
-@router.get(f"{API}/stations/{{station_id}}/permission-audit")
+@router.get(f"{API}/stations/{{station_id}}/permission-audit", **wire(W.AccessControlDiagDiagPermissionAudit))
 def diag_permission_audit(request: Request, auth: ia.Authority = Depends(_people_gate),
                           station_id: str = Path(min_length=1, max_length=128, pattern=ID_PATTERN)) -> dict[str, Any]:
     _require_feature(request, "permission_audit")

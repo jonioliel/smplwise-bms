@@ -8,11 +8,41 @@ export interface IntercomMediaStationMedia {
   station_id: string;
   mode: string;
   state: string;
-  reason: unknown;
-  video: IntercomMediaStationMediaVideo;
-  talk: IntercomMediaStationMediaTalk;
+  reason: string | null;
+  video: IntercomMediaStationMediaVideo | null;
+  talk: IntercomMediaStationMediaTalk | null;
   listen: boolean;
-  expires_at: string;
+  expires_at: string | null;
+}
+
+/** WISKEY-TALK-DIAL-2382: whether the stations screen's video and talk can come from WisKey (`access.station_media_provider = auto`) and every reason they cannot (`missing`: `wiskey_unreachable`, `api_incompatible`, `video_not_listed`, `talk_n */
+export interface IntercomMediaStationMediaReadiness {
+  choice: string;
+  active: string;
+  mode: string;
+  wiskey: IntercomMediaStationMediaReadinessWiskey;
+  missing: string[];
+  video_ready: boolean;
+  talk_ready: boolean;
+}
+
+export interface IntercomMediaStationMediaReadinessWiskey {
+  reachable: boolean;
+  video_listed: boolean;
+  talk_listed: boolean;
+  signing: boolean;
+  listed_in: unknown;
+  capabilities: IntercomMediaStationMediaReadinessWiskeyCapabilities;
+}
+
+export interface IntercomMediaStationMediaReadinessWiskeyCapabilities {
+  state: string;
+  video_listed: boolean;
+  talk_listed: boolean;
+  reason: string;
+  reason_kind: unknown;
+  source: unknown;
+  read_at: unknown;
 }
 
 export interface IntercomMediaStationMediaTalk {
@@ -39,15 +69,16 @@ export interface IntercomMediaStationMediaVideo {
 
 export interface IntercomMediaStationMediaVideoPaths {
   main?: string;
+  sub?: string;
 }
 
 export interface IntercomMediaStationMediaVideoProfile {
   id: string;
   codec: string;
   transports: string[];
-  width: unknown;
-  height: unknown;
-  fps: unknown;
+  width: number | null;
+  height: number | null;
+  fps: number | null;
 }
 
 export interface IntercomMediaStationMediaVideoTransport {
@@ -60,6 +91,7 @@ export interface IntercomMediaStationMediaVideoTransport {
 
 export interface IntercomMediaStationMediaVideoTransportPlans {
   main: string;
+  sub?: string;
 }
 
 /** Reserves the station's talker slot for the caller. */
@@ -85,6 +117,7 @@ export interface IntercomMediaTalkStop {
 /** The answer of every modelled route of this family: `'METHOD path'` -> type. */
 export interface IntercomMediaRoutes {
   "GET /api/v1/access-control/stations/{station_id}/media": IntercomMediaStationMedia;
+  "GET /api/v1/access-control/station-media/readiness": IntercomMediaStationMediaReadiness;
   "POST /api/v1/access-control/stations/{station_id}/talk": IntercomMediaTalkStart;
   "POST /api/v1/access-control/talk/{session_id}/stop": IntercomMediaTalkStop;
 }

@@ -199,7 +199,7 @@ def _freshness() -> dict[str, Any]:
         return {"as_of": None, "reachable": False, "has_copy": False}
 
 
-@router.get("/access-grants/digest")
+@router.get("/access-grants/digest", **wire(W.AccessGrantsDigest))
 def get_digest(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """SHAREDID-293 (owner decision 4): the last weekly period, over the grants the caller may see."""
     return {"digest": ax.digest(conn, principal)}
@@ -247,7 +247,7 @@ def ia_valid(station_id: str) -> bool:
     return ia.valid_id(station_id) and station_id not in ("*", "all")
 
 
-@router.get("/access-grants/drift")
+@router.get("/access-grants/drift", **wire(W.AccessGrantsDrift))
 def get_drift(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """GRANTSMIN-295 (CR 2.3 / T12): per person, where Arx and WisKey differ - from what Arx stored; no WisKey read."""
     return {"drift": ax.drift(conn, principal)}
@@ -277,14 +277,14 @@ def export_csv(request: Request, principal: Principal = Depends(current_principa
     })
 
 
-@router.get("/access-grants/contacts/{contact_id}/identity")
+@router.get("/access-grants/contacts/{contact_id}/identity", **wire(W.AccessGrantsIdentity))
 def identity(contact_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro),
              conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """SHAREDID-293: the access-control identity card of one directory person (link, live grant, unresolved create, allowed actions)."""
     return {"identity": ax.identity_of(conn, principal, contact_id)}
 
 
-@router.post("/access-grants/links/{link_id}/push-name")
+@router.post("/access-grants/links/{link_id}/push-name", **wire(W.AccessGrantsPushName))
 def push_name(request: Request, link_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     """SHAREDID-293 (owner decision 5): write the Arx name to the WisKey person Arx created."""
     return ax.push_name(_db(request), principal, link_id, _rid(request))
@@ -297,7 +297,7 @@ def get_settings(request: Request, principal: Principal = Depends(current_princi
     return {**ag.settings_view(conn), **ax.settings_view(conn)}
 
 
-@router.get("/access-grants/readiness")
+@router.get("/access-grants/readiness", **wire(W.AccessGrantsReadiness))
 def get_readiness(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """EXTERNALBUILD-297 (X1): the read-only readiness check (system administrator) - which prerequisites of the external access are in
     place and which are missing, in plain Hebrew. Sends nothing to WisKey, WhatsApp or a station; changes nothing."""
@@ -307,7 +307,7 @@ def get_readiness(request: Request, principal: Principal = Depends(current_princ
     return access_readiness.readiness(conn, _db(request))
 
 
-@router.put("/access-grants/settings")
+@router.put("/access-grants/settings", **wire(W.AccessGrantsSettings))
 def put_settings(body: SettingsIn, request: Request, principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     db = _db(request)
     with db.connection(label="access_grants.settings") as conn:
@@ -361,7 +361,7 @@ def delete_person(body: ConfirmIn, request: Request, link_id: str = Path(..., pa
     return ag.delete_person_now(_db(request), principal, link_id, body.confirm, _rid(request))
 
 
-@router.get("/access-grants/pending-contacts")
+@router.get("/access-grants/pending-contacts", **wire(W.AccessGrantsPendingContacts))
 def pending_contacts(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """SECFIX2-295 (owner 2026-10-21): the technicians vendors typed on the arrival page that nobody decided yet - for the holders of
     the accept / reject authority only (the same check; 403 otherwise). No phone number; the ticket number only while tickets are on."""
@@ -457,7 +457,7 @@ def approve(body: ApproveIn, request: Request, grant_id: str = Path(..., pattern
     return _answer(request, principal, g)
 
 
-@router.post("/access-grants/{grant_id}/refuse")
+@router.post("/access-grants/{grant_id}/refuse", **wire(W.AccessGrantsRefuse))
 def refuse(body: RevisionIn, request: Request, grant_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     return _answer(request, principal, ag.refuse(_db(request), principal, grant_id, body.revision, _rid(request)))
 
@@ -504,20 +504,20 @@ def history(grant_id: str = Path(..., pattern=_ID), principal: Principal = Depen
     return JSONResponse({"history": access_history.history(conn, principal, grant_id)}, headers={"Cache-Control": "private, no-store"})
 
 
-@router.post("/access-grants/{grant_id}/read-now")
+@router.post("/access-grants/{grant_id}/read-now", **wire(W.AccessGrantsRotate))
 def read_now(request: Request, grant_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     """SHAREDID-293: "read back now" - the worker reads this grant now (its own holds apply)."""
     return _answer(request, principal, ax.read_now(_db(request), principal, grant_id, _rid(request)))
 
 
-@router.post("/access-grants/{grant_id}/confirm-gone")
+@router.post("/access-grants/{grant_id}/confirm-gone", **wire(W.AccessGrantsConfirmGone))
 def confirm_gone(body: GoneIn, request: Request, grant_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     """SHAREDID-293 (owner decision 3): a system administrator closes by hand a revocation whose person is not found any more."""
     g = ax.confirm_gone(_db(request), principal, grant_id, reference=body.reference, confirm=body.confirm, checks=body.checks, request_id=_rid(request))
     return _answer(request, principal, g)
 
 
-@router.post("/access-grants/{grant_id}/attach-recovered")
+@router.post("/access-grants/{grant_id}/attach-recovered", **wire(W.AccessGrantsAttachRecovered))
 def attach_recovered(body: AttachIn, request: Request, grant_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     """SHAREDID-293 (owner decision 7): attach the WisKey person one lost create of this grant produced (system administrators only)."""
     out = ax.attach_recovered(_db(request), principal, grant_id, op_id=body.op_id, wiskey_person_id=body.wiskey_person_id, evidence_ref=body.evidence_ref,

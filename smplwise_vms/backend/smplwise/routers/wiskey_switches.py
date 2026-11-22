@@ -24,6 +24,8 @@ from ..errors import ApiError
 from ..rbac import Principal, require_system_admin
 from ..services import wiskey_switches as ws
 from ._common import rid as _rid
+from ..wire import wiskey_switches as W
+from ..wire import wire
 
 router = APIRouter()
 BASE = "/wiskey/switches"
@@ -47,14 +49,14 @@ def _admin_or_403(conn: sqlite3.Connection, principal: Principal, request: Reque
                          text="רק מנהל מערכת יכול לשנות הגדרה זו." if action == "settings.changed" else "רק מנהל מערכת יכול לצפות בהגדרה זו.")
 
 
-@router.get(BASE)
+@router.get(BASE, **wire(W.WiskeySwitchesSwitches))
 def get_switches(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """SMALLFIXA-295 (review 3 G-01): the four wiskey.acr5_* switches and the consumer's go-live permit, plus (S1) wiskey.auto_install and its build permit (system administrator)."""
     _admin_or_403(conn, principal, request, "settings.read", len(ws.ALL_SWITCHES))
     return ws.view(conn)
 
 
-@router.put(BASE)
+@router.put(BASE, **wire(W.WiskeySwitchesSwitches))
 def put_switches(body: SwitchesIn, request: Request, principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     """SMALLFIXA-295 (review 3 G-01): set wiskey.acr5_* switches, all or nothing; a permit key is refused; audited (system administrator)."""
     with request.app.state.db.connection(label="wiskey.switches") as conn:

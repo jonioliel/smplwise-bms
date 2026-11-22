@@ -9,7 +9,7 @@ from . import ExactModel, Num
 NO_JSON: frozenset[str] = frozenset()
 # JSON routes without a model yet: no test reaches a successful answer (or the answer is not one object); counted by the ratchet
 # (scripts/wire_ratchet.py) until they are modelled
-UNMODELLED: frozenset[str] = frozenset({'GET /system/bridge-key/notice', 'POST /system/bridge-key/revoke', 'POST /system/bridge-key/revoke/reveal', 'PUT /system/bridge-key/owner-contacts'})
+UNMODELLED: frozenset[str] = frozenset()
 
 
 class BridgeKeyBridgeKeyKey(ExactModel):
@@ -127,8 +127,10 @@ class BridgeKeyBridgeKeyNoticeBanner(ExactModel):
 
 class BridgeKeyBridgeKeyWatchdogItem(ExactModel):
     code: str
-    rotation_id: str
+    rotation_id: str = None
     since: str
+    arx_generation: Num = None
+    bridge_generation: Num = None
 
 
 class BridgeKeyBridgeKeyHandOverLastRotation(ExactModel):
@@ -143,18 +145,18 @@ class BridgeKeyBridgeKeyHandOverLastRotation(ExactModel):
 
 
 class BridgeKeyBridgeKeyHandOver(ExactModel):
-    key_generation: Num
+    key_generation: Num | None
     last_rotation: BridgeKeyBridgeKeyHandOverLastRotation | None
     anchor_decrease_available: bool
-    bridge_generation: Any
+    bridge_generation: Num | None
 
 
 class BridgeKeyBridgeKeyRevocation(ExactModel):
     state: str
-    id: Any
-    revoked_at: Any
-    revoked_by_name: Any
-    repaired_at: Any
+    id: str | None
+    revoked_at: str | None
+    revoked_by_name: str | None
+    repaired_at: str | None
     reveals: Num
     last_reveal_at: Any
     wiskey_present: bool
@@ -243,9 +245,9 @@ class BridgeKeyPutBridgeKeySettingsHandOver(ExactModel):
 
 class BridgeKeyPutBridgeKeySettingsRevocation(ExactModel):
     state: str
-    id: Any
-    revoked_at: Any
-    revoked_by_name: Any
+    id: str | None
+    revoked_at: str | None
+    revoked_by_name: str | None
     repaired_at: Any
     reveals: Num
     last_reveal_at: Any
@@ -302,3 +304,153 @@ class BridgeKeyResumeRotationRotation(ExactModel):
 
 class BridgeKeyResumeRotation(ExactModel):
     rotation: BridgeKeyResumeRotationRotation
+
+
+class BridgeKeyPutOwnerContactsOwnerContactsUser(ExactModel):
+    id: str
+    name: str
+    valid: bool
+
+
+class BridgeKeyPutOwnerContactsOwnerContacts(ExactModel):
+    ids: list[str]
+    users: list[BridgeKeyPutOwnerContactsOwnerContactsUser]
+    candidates: list[BridgeKeyBridgeKeyOwnerContactsCandidate]
+    set: bool
+    max: Num
+    recipients: Num
+
+
+class BridgeKeyPutOwnerContactsRevocation(ExactModel):
+    state: str
+    id: Any
+    revoked_at: Any
+    revoked_by_name: Any
+    repaired_at: Any
+    reveals: Num
+    last_reveal_at: Any
+    wiskey_present: bool
+    announce_path: bool
+    paired_at: str
+
+
+class BridgeKeyPutOwnerContacts(ExactModel):
+    """WXH-LEFTOVERS-2405: the owner contacts for the bridge-key notices (system administrator; active system administrators only)."""
+    enabled: bool
+    go_live_permitted: bool
+    peer_available: bool
+    adopted: bool
+    key: Any
+    keys: list[Any]
+    rotation: Any
+    last: Any
+    history: list[Any]
+    reminder_days: Num
+    reminder_values: list[Num]
+    reminder_due: bool
+    can_start: bool
+    blocked_by: str
+    automatic: str
+    owner_contacts: BridgeKeyPutOwnerContactsOwnerContacts
+    notice_banner: BridgeKeyBridgeKeyNoticeBanner
+    watchdog: list[Any]
+    hand_over: BridgeKeyPutBridgeKeySettingsHandOver
+    revocation: BridgeKeyPutOwnerContactsRevocation
+
+
+class BridgeKeyRevokeBridgeKeyStatusKey(ExactModel):
+    kid: str
+    generation: Num
+    state: str
+    created_at: str
+    activated_at: str
+    verify_until: Any
+    ended_at: str
+
+
+class BridgeKeyRevokeBridgeKeyStatusLast(ExactModel):
+    id: str
+    mode: str
+    state: str
+    kid_from: str
+    kid_to: str
+    gen_from: Num
+    gen_to: Num
+    overlap_s: Num
+    started_at: str
+    t0_at: str
+    switched_at: Any
+    ended_at: str
+    result_code: str
+    peer_retire_ok: Any
+    anchor_eligible: bool
+    steps: list[Any]
+
+
+class BridgeKeyRevokeBridgeKeyStatusOwnerContacts(ExactModel):
+    ids: list[Any]
+    users: list[Any]
+    candidates: list[dict[str, str]]
+    set: bool
+    max: Num
+    recipients: Num
+
+
+class BridgeKeyRevokeBridgeKeyStatusHandOver(ExactModel):
+    key_generation: Num
+    last_rotation: BridgeKeyBridgeKeyHandOverLastRotation | None
+    anchor_decrease_available: bool
+    bridge_generation: Any
+
+
+class BridgeKeyRevokeBridgeKeyStatusRevocation(ExactModel):
+    state: str
+    id: str
+    revoked_at: str
+    revoked_by_name: str
+    repaired_at: Any
+    reveals: Num
+    last_reveal_at: Any
+    wiskey_present: bool
+    announce_path: bool
+    paired_at: Any
+    step_up_ready: bool
+
+
+class BridgeKeyRevokeBridgeKeyStatus(ExactModel):
+    enabled: bool
+    go_live_permitted: bool
+    peer_available: bool
+    adopted: bool
+    key: Any
+    keys: list[BridgeKeyRevokeBridgeKeyStatusKey]
+    rotation: Any
+    last: BridgeKeyRevokeBridgeKeyStatusLast | None
+    history: list[BridgeKeyRevokeBridgeKeyStatusLast]
+    reminder_days: Num
+    reminder_values: list[Num]
+    reminder_due: bool
+    can_start: bool
+    blocked_by: str
+    automatic: str
+    owner_contacts: BridgeKeyRevokeBridgeKeyStatusOwnerContacts
+    notice_banner: BridgeKeyBridgeKeyNoticeBanner
+    watchdog: list[Any]
+    hand_over: BridgeKeyRevokeBridgeKeyStatusHandOver
+    revocation: BridgeKeyRevokeBridgeKeyStatusRevocation
+
+
+class BridgeKeyRevokeBridgeKey(ExactModel):
+    """The emergency revocation (system administrator)."""
+    revoked: bool
+    revocation_id: str
+    announced: bool
+    notice: str
+    status: BridgeKeyRevokeBridgeKeyStatus
+
+
+class BridgeKeyRevealNewCode(ExactModel):
+    """The new pairing code after an emergency revocation, for the manual entry in the bridge."""
+    pairing_code: str
+    addon_url: str
+    revocation_id: str

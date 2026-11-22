@@ -118,7 +118,7 @@ def stations(request: Request, auth: ia.Authority = Depends(_gate(ia.READ))) -> 
     return adapter.ADAPTER.stations(settings_of(request), auth)
 
 
-@router.get("/access-control/stations/{station_id}")
+@router.get("/access-control/stations/{station_id}", **wire(W.AccessControlReadsStation))
 def station(request: Request, auth: ia.Authority = Depends(_gate(ia.READ)), station_id: str = Path(min_length=1, max_length=MAX_ID, pattern=ID_PATTERN)) -> dict[str, Any]:
     """One station, as in the list; 404 `intercom_station_not_found` when there is no such station or the caller may not
     see it. Reply: `{state, ..., station, default_zone, sync}`."""
@@ -134,7 +134,7 @@ def door_programs(request: Request, auth: ia.Authority = Depends(_gate(ia.STATIO
     return adapter.ADAPTER.door_programs(settings_of(request), auth, station_id)
 
 
-@router.get("/access-control/stations/{station_id}/doors/{door}/hold")
+@router.get("/access-control/stations/{station_id}/doors/{door}/hold", **wire(W.AccessControlReadsHoldSchedule))
 def hold_schedule(request: Request, auth: ia.Authority = Depends(_gate(ia.STATIONS_READ)), station_id: str = Path(min_length=1, max_length=MAX_ID, pattern=ID_PATTERN),
                   door: int = Path(ge=1, le=2)) -> dict[str, Any]:
     """The hold-open schedule draft of one door (`door` = the relay's physical index); 404 `intercom_lock_unknown` for a
@@ -250,7 +250,7 @@ def people(
     return adapter.ADAPTER.people(settings_of(request), auth, query=query, filters=filters, offset=offset, limit=limit, snapshot=snapshot)
 
 
-@router.get("/access-control/people/{user_id}")
+@router.get("/access-control/people/{user_id}", **wire(W.AccessControlReadsPerson))
 def person(request: Request, auth: ia.Authority = Depends(_gate(ia.PEOPLE_READ)), user_id: str = Path(min_length=1, max_length=MAX_ID, pattern=ID_PATTERN)) -> dict[str, Any]:
     """One person at the caller's level (`level` names / sensitive; `editable`; the visible assignments with their sync
     state; groups, validity, timing; phone, photo flag and profile values at the sensitive level only); 404

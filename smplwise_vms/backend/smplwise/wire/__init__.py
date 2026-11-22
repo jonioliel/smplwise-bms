@@ -68,7 +68,10 @@ class WireModel(BaseModel):
                 raise
             first = exc.errors(include_url=False)[0]
             _drift(cls.__name__, f"{'.'.join(str(p) for p in first.get('loc', ()))}: {first.get('type')}")
-            return cls.model_construct(_fields_set=set(data), **data)
+            # RESPONSE-MODELS-E-2480: the set keys by FIELD name - a key declared with an alias (`fields_ = Field(alias="fields")`)
+            # was set under its alias and then dropped by exclude_unset (found by the oracle: the fallback lost the key)
+            by_alias = {f.alias: n for n, f in cls.model_fields.items() if f.alias}
+            return cls.model_construct(_fields_set={by_alias.get(k, k) for k in data}, **data)
         extra = out.__pydantic_extra__
         if extra:
             if strict():

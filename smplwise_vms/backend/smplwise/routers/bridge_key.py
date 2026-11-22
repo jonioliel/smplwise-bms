@@ -194,7 +194,7 @@ class ContactsBody(BaseModel):
     user_ids: list[str]
 
 
-@router.put("/system/bridge-key/owner-contacts")
+@router.put("/system/bridge-key/owner-contacts", **wire(W.BridgeKeyPutOwnerContacts))
 def put_owner_contacts(body: ContactsBody, request: Request, principal: Principal = Depends(current_principal),
                        conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """WXH-LEFTOVERS-2405: the owner contacts for the bridge-key notices (system administrator; active system administrators only)."""
@@ -208,7 +208,7 @@ def put_owner_contacts(body: ContactsBody, request: Request, principal: Principa
     return br.view(conn, request.app.state.settings.data_dir, _peer(request))
 
 
-@router.get("/system/bridge-key/notice")
+@router.get("/system/bridge-key/notice", **wire(W.BridgeKeyBridgeKeyNoticeBanner))
 def get_bridge_key_notice(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """WXH-LEFTOVERS-2405: the Settings banner of an open bridge-key notice while no owner contact is set (read only)."""
     _gate(conn, request, principal, "bridge.key.read")
@@ -223,7 +223,7 @@ class RevokeBody(BaseModel):
     wiskey_acknowledged: bool = False
 
 
-@router.post("/system/bridge-key/revoke")
+@router.post("/system/bridge-key/revoke", **wire(W.BridgeKeyRevokeBridgeKey))
 def revoke_bridge_key(body: RevokeBody, request: Request, principal: Principal = Depends(current_principal_ro),
                       conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The emergency revocation (system administrator). Runs in a write transaction of its own, under the rotation lock, so no rotation step
@@ -261,7 +261,7 @@ class RevealBody(BaseModel):
     code: str | None = Field(default=None, max_length=16)
 
 
-@router.post("/system/bridge-key/revoke/reveal")
+@router.post("/system/bridge-key/revoke/reveal", **wire(W.BridgeKeyRevealNewCode))
 def reveal_new_code(request: Request, body: RevealBody | None = None, principal: Principal = Depends(current_principal),
                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The new pairing code after an emergency revocation, for the manual entry in the bridge. Any system administrator, after a fresh

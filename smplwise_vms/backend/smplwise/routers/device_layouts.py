@@ -561,7 +561,7 @@ def put_layout(scope: str, scope_id: str, request: Request, principal: Principal
     return _record(conn, principal, scope, scope_id)
 
 
-@router.delete("/devices/layouts/{scope}/{scope_id}")
+@router.delete("/devices/layouts/{scope}/{scope_id}", **wire(W.DeviceLayoutsResetLayout))
 def reset_layout(
     scope: str,
     scope_id: str,

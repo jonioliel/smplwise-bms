@@ -112,13 +112,40 @@ def test_model_names_are_unique_across_the_wire_package():
     assert not dup, dup
 
 
+def test_the_fallback_keeps_aliased_keys(monkeypatch):
+    """Outside strict mode a value of another type sends the route's own object - including a key declared under an alias (`fields`,
+    `schema`, a key that is no Python name). Before this row the fallback marked the ALIAS as set, and exclude_unset dropped the key
+    (the oracle caught it: `GET /api/v1/access-control/groups` lost `fields`)."""
+    import json
+
+    from pydantic import Field
+
+    monkeypatch.setenv("SW_WIRE_STRICT", "0")
+
+    class Item(ExactModel):
+        fields_: list[str] = Field(alias="fields")
+        n: int
+
+    class Answer(ExactModel):
+        items: list[Item]
+
+    built = {"items": [{"fields": ("a", "b"), "n": 1, "extra": True}]}  # a tuple: strict list refuses it -> fallback
+    out = Answer.model_validate(built)
+    sent = json.loads(Answer.__pydantic_serializer__.to_json(out, by_alias=True, exclude_unset=True, warnings=False))
+    assert sent == {"items": [{"fields": ["a", "b"], "n": 1, "extra": True}]}
+
+
 def test_the_generated_client_types_are_current():
     assert GEN.main(["--check"]) == 0
 
 
 @pytest.mark.parametrize("name", sorted(ROUTERS))
 def test_the_route_map_names_every_modelled_route(name):
-    text = (ROOT / "frontend" / "src" / "api" / "generated" / ROUTERS[name]).read_text(encoding="utf-8")
+    path = ROOT / "frontend" / "src" / "api" / "generated" / ROUTERS[name]
+    if not any(GEN.wire_models(r.response_model) for _k, r in _routes(name)):
+        assert not path.exists(), "a router without a modelled route has no generated file"
+        return
+    text = path.read_text(encoding="utf-8")
     no_json = importlib.import_module(f"smplwise.wire.{name}").NO_JSON
     for key, r in _routes(name):
         if key not in no_json and GEN.wire_models(r.response_model):

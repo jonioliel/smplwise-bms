@@ -7,22 +7,77 @@
 export interface AccessControlPeoplePeopleEditorContext {
   state: string;
   configured: boolean;
-  last_error: unknown;
-  fetched_at: string;
-  context: Record<string, unknown>;
+  last_error: string | null;
+  fetched_at: string | null;
+  context: Record<string, unknown> | null;
   sync: AccessControlPeoplePeopleEditorContextSync;
 }
 
 export interface AccessControlPeoplePeopleEditorContextSync {
   state: string;
   connected: boolean;
-  last_error: unknown;
+  last_error: string | null;
   reconnects: number;
-  started_at: string;
-  fetched_at: string;
+  started_at: string | null;
+  fetched_at: string | null;
   refreshes: number;
   sequence: number;
-  wiskey_version: string;
+  wiskey_version: string | null;
+}
+
+/** Create a person in WisKey (`users/create`). */
+export interface AccessControlPeoplePersonCreate {
+  state: string;
+  configured: boolean;
+  last_error: unknown;
+  fetched_at: string;
+  person: AccessControlPeoplePersonCreatePerson;
+  sync: AccessControlPeoplePersonPinGenerateSync;
+  command_id: string;
+  note: string;
+  effect: string;
+  pending: boolean;
+}
+
+export interface AccessControlPeoplePersonCreatePerson {
+  id: string;
+  employee_no: string;
+  display_name: string;
+  active: boolean;
+  valid_from: unknown;
+  valid_until: string;
+  revision: number;
+  access_category: string;
+  access_known: boolean;
+  stations_known: boolean;
+  redacted_fields: unknown[];
+  operator_editable: unknown;
+  group_ids: string[];
+  stations: AccessControlPeoplePersonCreatePersonStation[];
+  phone: string | null;
+  identity_locked: boolean;
+  pin_configured: boolean | null;
+  credentials_known: boolean;
+  cards: AccessControlPeoplePersonEditorPersonCard[] | null;
+  permission_overrides: AccessControlPeoplePersonEditorPersonPermissionOverrides;
+  has_timing: boolean;
+  archived: boolean;
+  responsible_person: string | null;
+  access_purpose: string | null;
+  photo_configured: boolean | null;
+  timing_draft: unknown;
+  timing_policy: unknown;
+  level: string;
+}
+
+export interface AccessControlPeoplePersonCreatePersonStation {
+  station_id: string;
+  enabled: boolean;
+  doors: number[];
+  sync_state: string;
+  last_error: unknown;
+  desired_revision: number;
+  applied_revision: number | null;
 }
 
 /** Delete a person from WisKey (`users/delete`). */
@@ -32,7 +87,7 @@ export interface AccessControlPeoplePersonDelete {
   last_error: unknown;
   fetched_at: string;
   deleted: AccessControlPeoplePersonDeleteDeleted;
-  sync: AccessControlPeoplePeopleEditorContextSync;
+  sync: AccessControlPeoplePersonPinGenerateSync;
   command_id: string;
   note: string;
   effect: string;
@@ -47,10 +102,10 @@ export interface AccessControlPeoplePersonDeleteDeleted {
 export interface AccessControlPeoplePersonEditor {
   state: string;
   configured: boolean;
-  last_error: unknown;
-  fetched_at: string;
-  person: AccessControlPeoplePersonEditorPerson;
-  sync: AccessControlPeoplePeopleEditorContextSync;
+  last_error: string | null;
+  fetched_at: string | null;
+  person: AccessControlPeoplePersonEditorPerson | null;
+  sync: AccessControlPeoplePersonEditorSync;
 }
 
 export interface AccessControlPeoplePersonEditorPerson {
@@ -73,7 +128,7 @@ export interface AccessControlPeoplePersonEditorPerson {
   pin_configured: boolean | null;
   credentials_known: boolean;
   cards: AccessControlPeoplePersonEditorPersonCard[] | null;
-  permission_overrides: Record<string, unknown>;
+  permission_overrides: AccessControlPeoplePersonEditorPersonPermissionOverrides;
   has_timing: boolean;
   archived: boolean;
   responsible_person: string | null;
@@ -92,12 +147,16 @@ export interface AccessControlPeoplePersonEditorPersonCard {
   enabled: boolean;
 }
 
+export interface AccessControlPeoplePersonEditorPersonPermissionOverrides {
+  events?: string;
+}
+
 export interface AccessControlPeoplePersonEditorPersonStation {
   station_id: string;
   enabled: boolean;
   doors: number[];
   sync_state: string;
-  last_error: unknown;
+  last_error: string | null;
   desired_revision: number;
   applied_revision: number;
 }
@@ -124,18 +183,42 @@ export interface AccessControlPeoplePersonEditorPersonTimingPolicySchedule {
   periods: Record<string, string>[];
 }
 
+export interface AccessControlPeoplePersonEditorSync {
+  state: string;
+  connected: boolean;
+  last_error: unknown;
+  reconnects: number;
+  started_at: string | null;
+  fetched_at: string | null;
+  refreshes: number;
+  sequence: number;
+  wiskey_version: string | null;
+}
+
 /** A free six-digit PIN from WisKey (`users/pin_generate`; body `{user_id}`, "" for a person not saved yet). */
 export interface AccessControlPeoplePersonPinGenerate {
   state: string;
   configured: boolean;
-  last_error: unknown;
-  fetched_at: string;
-  pin: AccessControlPeoplePersonPinGeneratePin;
-  sync: AccessControlPeoplePeopleEditorContextSync;
+  last_error: string | null;
+  fetched_at: string | null;
+  pin: AccessControlPeoplePersonPinGeneratePin | null;
+  sync: AccessControlPeoplePersonPinGenerateSync;
 }
 
 export interface AccessControlPeoplePersonPinGeneratePin {
   pin: string;
+}
+
+export interface AccessControlPeoplePersonPinGenerateSync {
+  state: string;
+  connected: boolean;
+  last_error: unknown;
+  reconnects: number;
+  started_at: string;
+  fetched_at: string;
+  refreshes: number;
+  sequence: number;
+  wiskey_version: string;
 }
 
 /** Update a person in WisKey (`users/update`, compare-and-set on `revision`). */
@@ -145,7 +228,7 @@ export interface AccessControlPeoplePersonUpdate {
   last_error: unknown;
   fetched_at: string;
   person: AccessControlPeoplePersonUpdatePerson;
-  sync: AccessControlPeoplePeopleEditorContextSync;
+  sync: AccessControlPeoplePersonPinGenerateSync;
   command_id: string;
   note: string;
   effect: string;
@@ -166,17 +249,17 @@ export interface AccessControlPeoplePersonUpdatePerson {
   redacted_fields: unknown[];
   operator_editable: unknown;
   group_ids: string[];
-  stations: AccessControlPeoplePersonEditorPersonStation[];
+  stations: AccessControlPeoplePersonCreatePersonStation[];
   phone: string;
   identity_locked: boolean;
   pin_configured: boolean;
   credentials_known: boolean;
   cards: AccessControlPeoplePersonEditorPersonCard[];
-  permission_overrides: Record<string, unknown>;
+  permission_overrides: AccessControlPeoplePersonEditorPersonPermissionOverrides;
   has_timing: boolean;
   archived: boolean;
-  responsible_person: string;
-  access_purpose: string;
+  responsible_person: string | null;
+  access_purpose: string | null;
   photo_configured: boolean;
   timing_draft: AccessControlPeoplePersonEditorPersonTimingDraft | null;
   timing_policy: AccessControlPeoplePersonEditorPersonTimingPolicy | null;
@@ -188,6 +271,7 @@ export interface AccessControlPeopleRoutes {
   "GET /api/v1/intercom/people-editor/context": AccessControlPeoplePeopleEditorContext;
   "GET /api/v1/intercom/people/{user_id}/editor": AccessControlPeoplePersonEditor;
   "POST /api/v1/intercom/people/pin-generate": AccessControlPeoplePersonPinGenerate;
+  "POST /api/v1/intercom/people": AccessControlPeoplePersonCreate;
   "PUT /api/v1/intercom/people/{user_id}": AccessControlPeoplePersonUpdate;
   "POST /api/v1/intercom/people/{user_id}/delete": AccessControlPeoplePersonDelete;
 }

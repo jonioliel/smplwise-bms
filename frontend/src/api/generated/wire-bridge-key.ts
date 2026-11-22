@@ -27,10 +27,10 @@ export interface BridgeKeyBridgeKey {
 }
 
 export interface BridgeKeyBridgeKeyHandOver {
-  key_generation: number;
+  key_generation: number | null;
   last_rotation: BridgeKeyBridgeKeyHandOverLastRotation | null;
   anchor_decrease_available: boolean;
-  bridge_generation: unknown;
+  bridge_generation: number | null;
 }
 
 export interface BridgeKeyBridgeKeyHandOverLastRotation {
@@ -132,10 +132,10 @@ export interface BridgeKeyBridgeKeyOwnerContactsCandidate {
 
 export interface BridgeKeyBridgeKeyRevocation {
   state: string;
-  id: unknown;
-  revoked_at: unknown;
-  revoked_by_name: unknown;
-  repaired_at: unknown;
+  id: string | null;
+  revoked_at: string | null;
+  revoked_by_name: string | null;
+  repaired_at: string | null;
   reveals: number;
   last_reveal_at: unknown;
   wiskey_present: boolean;
@@ -173,8 +173,10 @@ export interface BridgeKeyBridgeKeyRotationStep {
 
 export interface BridgeKeyBridgeKeyWatchdogItem {
   code: string;
-  rotation_id: string;
+  rotation_id?: string;
   since: string;
+  arx_generation?: number;
+  bridge_generation?: number;
 }
 
 export interface BridgeKeyPutBridgeKeySettings {
@@ -257,6 +259,58 @@ export interface BridgeKeyPutBridgeKeySettingsLast {
 
 export interface BridgeKeyPutBridgeKeySettingsRevocation {
   state: string;
+  id: string | null;
+  revoked_at: string | null;
+  revoked_by_name: string | null;
+  repaired_at: unknown;
+  reveals: number;
+  last_reveal_at: unknown;
+  wiskey_present: boolean;
+  announce_path: boolean;
+  paired_at: string | null;
+}
+
+/** WXH-LEFTOVERS-2405: the owner contacts for the bridge-key notices (system administrator; active system administrators only). */
+export interface BridgeKeyPutOwnerContacts {
+  enabled: boolean;
+  go_live_permitted: boolean;
+  peer_available: boolean;
+  adopted: boolean;
+  key: unknown;
+  keys: unknown[];
+  rotation: unknown;
+  last: unknown;
+  history: unknown[];
+  reminder_days: number;
+  reminder_values: number[];
+  reminder_due: boolean;
+  can_start: boolean;
+  blocked_by: string;
+  automatic: string;
+  owner_contacts: BridgeKeyPutOwnerContactsOwnerContacts;
+  notice_banner: BridgeKeyBridgeKeyNoticeBanner;
+  watchdog: unknown[];
+  hand_over: BridgeKeyPutBridgeKeySettingsHandOver;
+  revocation: BridgeKeyPutOwnerContactsRevocation;
+}
+
+export interface BridgeKeyPutOwnerContactsOwnerContacts {
+  ids: string[];
+  users: BridgeKeyPutOwnerContactsOwnerContactsUser[];
+  candidates: BridgeKeyBridgeKeyOwnerContactsCandidate[];
+  set: boolean;
+  max: number;
+  recipients: number;
+}
+
+export interface BridgeKeyPutOwnerContactsOwnerContactsUser {
+  id: string;
+  name: string;
+  valid: boolean;
+}
+
+export interface BridgeKeyPutOwnerContactsRevocation {
+  state: string;
   id: unknown;
   revoked_at: unknown;
   revoked_by_name: unknown;
@@ -265,7 +319,7 @@ export interface BridgeKeyPutBridgeKeySettingsRevocation {
   last_reveal_at: unknown;
   wiskey_present: boolean;
   announce_path: boolean;
-  paired_at: string | null;
+  paired_at: string;
 }
 
 export interface BridgeKeyResumeRotation {
@@ -291,6 +345,104 @@ export interface BridgeKeyResumeRotationRotation {
   steps: BridgeKeyBridgeKeyLastStep[];
 }
 
+/** The new pairing code after an emergency revocation, for the manual entry in the bridge. */
+export interface BridgeKeyRevealNewCode {
+  pairing_code: string;
+  addon_url: string;
+  revocation_id: string;
+}
+
+/** The emergency revocation (system administrator). */
+export interface BridgeKeyRevokeBridgeKey {
+  revoked: boolean;
+  revocation_id: string;
+  announced: boolean;
+  notice: string;
+  status: BridgeKeyRevokeBridgeKeyStatus;
+}
+
+export interface BridgeKeyRevokeBridgeKeyStatus {
+  enabled: boolean;
+  go_live_permitted: boolean;
+  peer_available: boolean;
+  adopted: boolean;
+  key: unknown;
+  keys: BridgeKeyRevokeBridgeKeyStatusKey[];
+  rotation: unknown;
+  last: BridgeKeyRevokeBridgeKeyStatusLast | null;
+  history: BridgeKeyRevokeBridgeKeyStatusLast[];
+  reminder_days: number;
+  reminder_values: number[];
+  reminder_due: boolean;
+  can_start: boolean;
+  blocked_by: string;
+  automatic: string;
+  owner_contacts: BridgeKeyRevokeBridgeKeyStatusOwnerContacts;
+  notice_banner: BridgeKeyBridgeKeyNoticeBanner;
+  watchdog: unknown[];
+  hand_over: BridgeKeyRevokeBridgeKeyStatusHandOver;
+  revocation: BridgeKeyRevokeBridgeKeyStatusRevocation;
+}
+
+export interface BridgeKeyRevokeBridgeKeyStatusHandOver {
+  key_generation: number;
+  last_rotation: BridgeKeyBridgeKeyHandOverLastRotation | null;
+  anchor_decrease_available: boolean;
+  bridge_generation: unknown;
+}
+
+export interface BridgeKeyRevokeBridgeKeyStatusKey {
+  kid: string;
+  generation: number;
+  state: string;
+  created_at: string;
+  activated_at: string;
+  verify_until: unknown;
+  ended_at: string;
+}
+
+export interface BridgeKeyRevokeBridgeKeyStatusLast {
+  id: string;
+  mode: string;
+  state: string;
+  kid_from: string;
+  kid_to: string;
+  gen_from: number;
+  gen_to: number;
+  overlap_s: number;
+  started_at: string;
+  t0_at: string;
+  switched_at: unknown;
+  ended_at: string;
+  result_code: string;
+  peer_retire_ok: unknown;
+  anchor_eligible: boolean;
+  steps: unknown[];
+}
+
+export interface BridgeKeyRevokeBridgeKeyStatusOwnerContacts {
+  ids: unknown[];
+  users: unknown[];
+  candidates: Record<string, string>[];
+  set: boolean;
+  max: number;
+  recipients: number;
+}
+
+export interface BridgeKeyRevokeBridgeKeyStatusRevocation {
+  state: string;
+  id: string;
+  revoked_at: string;
+  revoked_by_name: string;
+  repaired_at: unknown;
+  reveals: number;
+  last_reveal_at: unknown;
+  wiskey_present: boolean;
+  announce_path: boolean;
+  paired_at: unknown;
+  step_up_ready: boolean;
+}
+
 export interface BridgeKeyStartRotation {
   rotation: BridgeKeyBridgeKeyLast;
 }
@@ -301,4 +453,8 @@ export interface BridgeKeyRoutes {
   "PUT /api/v1/system/bridge-key/settings": BridgeKeyPutBridgeKeySettings;
   "POST /api/v1/system/bridge-key/rotations": BridgeKeyStartRotation;
   "POST /api/v1/system/bridge-key/rotations/{rotation_id}/resume": BridgeKeyResumeRotation;
+  "PUT /api/v1/system/bridge-key/owner-contacts": BridgeKeyPutOwnerContacts;
+  "GET /api/v1/system/bridge-key/notice": BridgeKeyBridgeKeyNoticeBanner;
+  "POST /api/v1/system/bridge-key/revoke": BridgeKeyRevokeBridgeKey;
+  "POST /api/v1/system/bridge-key/revoke/reveal": BridgeKeyRevealNewCode;
 }

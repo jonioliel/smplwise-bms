@@ -27,7 +27,7 @@ export interface BuildingPresenceAreaPresenceLineSensors {
 /** How much history is kept (count, oldest) and for how long (system.configure). */
 export interface BuildingPresenceBuildingHistory {
   rows: number;
-  oldest: unknown;
+  oldest: string | null;
   retention_days: number;
   enabled: boolean;
 }
@@ -96,6 +96,24 @@ export interface BuildingPresencePurgeBuildingHistory {
   enabled: boolean;
 }
 
+/** Place a tagged sensor in a room (area_id) or back to its own (null) (system.configure; audited). */
+export interface BuildingPresenceSetBuildingSensorRoom {
+  sensors: BuildingPresenceSetBuildingSensorRoomSensor[];
+  rooms: BuildingPresenceBuildingSensorsRoom[];
+  settings: Record<string, unknown>;
+}
+
+export interface BuildingPresenceSetBuildingSensorRoomSensor {
+  entity_id: string;
+  name: string;
+  area_id: string;
+  area_name: string;
+  device_class: string;
+  tagged: boolean;
+  state: string;
+  placed?: boolean;
+}
+
 /** Replace the tagged set (system.configure; binary sensors only; audited with entity ids). */
 export interface BuildingPresenceSetBuildingSensors {
   sensors: BuildingPresenceSetBuildingSensorsSensor[];
@@ -125,6 +143,7 @@ export interface BuildingPresenceRoutes {
   "GET /api/v1/presence/building/sensors": BuildingPresenceBuildingSensors;
   "PUT /api/v1/presence/building/sensors": BuildingPresenceSetBuildingSensors;
   "PUT /api/v1/presence/building/settings": BuildingPresenceSetBuildingSettings;
+  "PUT /api/v1/presence/building/room": BuildingPresenceSetBuildingSensorRoom;
   "GET /api/v1/presence/building/history": BuildingPresenceBuildingHistory;
   "DELETE /api/v1/presence/building/history": BuildingPresencePurgeBuildingHistory;
 }

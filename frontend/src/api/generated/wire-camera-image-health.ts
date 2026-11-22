@@ -37,39 +37,6 @@ export interface CameraImageHealthCheckCameraMetrics {
   corr: unknown;
 }
 
-/** CAMHEALTH091: make the latest sample the camera's reference view (`set`) or forget it (`clear`; the next usable sample becomes it). */
-export interface CameraImageHealthReference {
-  enabled: boolean;
-  interval_s: number;
-  checked_at: string | null;
-  counts: Record<string, unknown>;
-  cameras: CameraImageHealthReferenceCamera[];
-  can_manage: boolean;
-}
-
-export interface CameraImageHealthReferenceCamera {
-  id: string;
-  name: string;
-  state: string;
-  issues: unknown[];
-  texts: unknown[];
-  sampled_at: string | null;
-  attempted_at: string | null;
-  source: string | null;
-  error: unknown;
-  error_text: unknown;
-  metrics: CameraImageHealthReferenceCameraMetrics;
-  reference: CameraImageHealthResultsCameraReference | null;
-}
-
-export interface CameraImageHealthReferenceCameraMetrics {
-  brightness?: number;
-  sharpness?: number;
-  diff?: unknown;
-  shift_pct?: unknown;
-  corr?: unknown;
-}
-
 /** CAMHEALTH091: the image health of every camera the caller may watch live (names, states and numbers only). */
 export interface CameraImageHealthResults {
   enabled: boolean;
@@ -139,5 +106,5 @@ export interface CameraImageHealthRoutes {
   "POST /api/v1/camera-image-health/check": CameraImageHealthCheck;
   "GET /api/v1/camera-image-health/settings": CameraImageHealthSettings;
   "PUT /api/v1/camera-image-health/settings": CameraImageHealthSettings;
-  "POST /api/v1/camera-image-health/{camera_id}/reference": CameraImageHealthReference;
+  "POST /api/v1/camera-image-health/{camera_id}/reference": CameraImageHealthResults;
 }

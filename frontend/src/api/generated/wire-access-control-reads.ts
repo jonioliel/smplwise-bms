@@ -7,11 +7,11 @@
 export interface AccessControlReadsAlerts {
   state: string;
   configured: boolean;
-  last_error: unknown;
-  fetched_at: string;
-  alerts: AccessControlReadsAlertsAlerts;
+  last_error: string | null;
+  fetched_at: string | null;
+  alerts: AccessControlReadsAlertsAlerts | null;
   sync: AccessControlReadsFeaturesSync;
-  fresh: boolean;
+  fresh?: boolean;
 }
 
 export interface AccessControlReadsAlertsAlerts {
@@ -21,7 +21,7 @@ export interface AccessControlReadsAlertsAlerts {
   suppressed_count: number;
   offset: number;
   limit: number;
-  next_offset: unknown;
+  next_offset: number | null;
   complete: boolean;
   thresholds_seconds: AccessControlReadsAlertsAlertsThresholdsSeconds;
   station_thresholds_seconds: Record<string, unknown>;
@@ -52,9 +52,9 @@ export interface AccessControlReadsAlertsAlertsThresholdsSeconds {
 export interface AccessControlReadsCodesPresence {
   state: string;
   configured: boolean;
-  last_error: unknown;
-  fetched_at: string;
-  codes: AccessControlReadsCodesPresenceCodes;
+  last_error: string | null;
+  fetched_at: string | null;
+  codes: AccessControlReadsCodesPresenceCodes | null;
   sync: AccessControlReadsFeaturesSync;
   fresh: boolean;
 }
@@ -81,9 +81,9 @@ export interface AccessControlReadsCodesPresenceCodesSlot {
 export interface AccessControlReadsConflicts {
   state: string;
   configured: boolean;
-  last_error: unknown;
-  fetched_at: string;
-  conflicts: AccessControlReadsConflictsConflict[];
+  last_error: string | null;
+  fetched_at: string | null;
+  conflicts: AccessControlReadsConflictsConflict[] | null;
   sync: AccessControlReadsFeaturesSync;
 }
 
@@ -105,9 +105,9 @@ export interface AccessControlReadsConflictsConflictPerson {
 export interface AccessControlReadsDoorPrograms {
   state: string;
   configured: boolean;
-  last_error: unknown;
-  fetched_at: string;
-  programs: AccessControlReadsDoorProgramsPrograms;
+  last_error: string | null;
+  fetched_at: string | null;
+  programs: AccessControlReadsDoorProgramsPrograms | null;
   sync: AccessControlReadsFeaturesSync;
   fresh: boolean;
 }
@@ -140,9 +140,9 @@ export interface AccessControlReadsDoorProgramsProgramsSavedItem {
 export interface AccessControlReadsEventDetail {
   state: string;
   configured: boolean;
-  last_error: unknown;
-  fetched_at: string;
-  event: AccessControlReadsEventDetailEvent;
+  last_error: string | null;
+  fetched_at: string | null;
+  event: AccessControlReadsEventDetailEvent | null;
   sync: AccessControlReadsFeaturesSync;
 }
 
@@ -191,12 +191,12 @@ export interface AccessControlReadsEvents {
   last_error: string | null;
   fetched_at: string | null;
   events: AccessControlReadsEventsEvents | null;
-  sync: AccessControlReadsStationsSync;
+  sync: AccessControlReadsFeaturesSync;
 }
 
 export interface AccessControlReadsEventsEvents {
   records: AccessControlReadsEventsEventsRecord[];
-  next: string;
+  next: string | null;
   retention_days: number;
   capacity: number;
   membership_basis: unknown;
@@ -212,31 +212,31 @@ export interface AccessControlReadsEventsEventsRecord {
   timestamp: string;
   received_at: string;
   time_source: string;
-  person_name: string;
+  person_name: string | null;
   authentication: string;
   result: string;
   event_type: string;
   recovered: boolean;
   door: number;
-  employee_no: string;
-  portrait: boolean;
+  employee_no: string | null;
+  portrait: boolean | null;
 }
 
 /** Which native features the installed WisKey offers (its `api.commands`), per feature: `{available, reason}`; null `available` while there is no served copy yet. */
 export interface AccessControlReadsFeatures {
   state: string;
   configured: boolean;
-  last_error: unknown;
+  last_error: string | null;
   fetched_at: unknown;
   client_api: number;
-  api: AccessControlReadsFeaturesApi;
+  api: AccessControlReadsFeaturesApi | null;
   features: AccessControlReadsFeaturesFeatures;
   sync: AccessControlReadsFeaturesSync;
 }
 
 export interface AccessControlReadsFeaturesApi {
-  version: number;
-  min_client: number;
+  version: number | null;
+  min_client: number | null;
 }
 
 export interface AccessControlReadsFeaturesFeatures {
@@ -264,8 +264,8 @@ export interface AccessControlReadsFeaturesFeatures {
 }
 
 export interface AccessControlReadsFeaturesFeaturesPeople {
-  available: boolean;
-  reason: unknown;
+  available: boolean | null;
+  reason: string | null;
 }
 
 export interface AccessControlReadsFeaturesSync {
@@ -273,20 +273,20 @@ export interface AccessControlReadsFeaturesSync {
   connected: boolean;
   last_error: unknown;
   reconnects: number;
-  started_at: string;
-  fetched_at: string;
+  started_at: string | null;
+  fetched_at: string | null;
   refreshes: number;
   sequence: number;
-  wiskey_version: string;
+  wiskey_version: string | null;
 }
 
 /** The history of the groups and fields policy (revision, when, which kind of change, how many fields / groups changed; never who). */
 export interface AccessControlReadsGroupVersions {
   state: string;
   configured: boolean;
-  last_error: unknown;
-  fetched_at: string;
-  versions: AccessControlReadsGroupVersionsVersions;
+  last_error: string | null;
+  fetched_at: string | null;
+  versions: AccessControlReadsGroupVersionsVersions | null;
   sync: AccessControlReadsFeaturesSync;
   fresh: boolean;
 }
@@ -314,9 +314,9 @@ export interface AccessControlReadsGroupVersionsVersionsRecord {
 export interface AccessControlReadsGroups {
   state: string;
   configured: boolean;
-  last_error: unknown;
-  fetched_at: string;
-  groups: AccessControlReadsGroupsGroups;
+  last_error: string | null;
+  fetched_at: string | null;
+  groups: AccessControlReadsGroupsGroups | null;
   sync: AccessControlReadsFeaturesSync;
   fresh: boolean;
 }
@@ -339,9 +339,9 @@ export interface AccessControlReadsGroupsGroupsGroup {
 export interface AccessControlReadsHealth {
   state: string;
   configured: boolean;
-  last_error: unknown;
-  fetched_at: string;
-  health: AccessControlReadsHealthHealth;
+  last_error: string | null;
+  fetched_at: string | null;
+  health: AccessControlReadsHealthHealth | null;
   sync: AccessControlReadsFeaturesSync;
   fresh: boolean;
 }
@@ -405,9 +405,9 @@ export interface AccessControlReadsHealthHealthRequests {
 export interface AccessControlReadsHealthHistory {
   state: string;
   configured: boolean;
-  last_error: unknown;
-  fetched_at: string;
-  history: AccessControlReadsHealthHistoryHistory;
+  last_error: string | null;
+  fetched_at: string | null;
+  history: AccessControlReadsHealthHistoryHistory | null;
   sync: AccessControlReadsFeaturesSync;
   fresh: boolean;
 }
@@ -426,13 +426,31 @@ export interface AccessControlReadsHealthHistoryHistoryRecord {
   events: string;
 }
 
+/** The hold-open schedule draft of one door (`door` = the relay's physical index); 404 `intercom_lock_unknown` for a relay the station does not have. */
+export interface AccessControlReadsHoldSchedule {
+  state: string;
+  configured: boolean;
+  last_error: string | null;
+  fetched_at: string | null;
+  hold: AccessControlReadsHoldScheduleHold | null;
+  sync: AccessControlReadsFeaturesSync;
+  fresh: boolean;
+}
+
+export interface AccessControlReadsHoldScheduleHold {
+  draft: Record<string, unknown>;
+  active: boolean;
+  blocker: string;
+  timezone: string;
+}
+
 /** Side-by-side check of the native screens: per screen (stations, people, the entry log of the last `hours`, groups, the schedule library, fleet alerts) the count and a keyed digest of what a direct unfiltered read of the same WisKey command */
 export interface AccessControlReadsParityReport {
   state: string;
   configured: boolean;
-  last_error: unknown;
-  fetched_at: string;
-  parity: AccessControlReadsParityReportParity;
+  last_error: string | null;
+  fetched_at: string | null;
+  parity: AccessControlReadsParityReportParity | null;
   sync: AccessControlReadsFeaturesSync;
 }
 
@@ -482,22 +500,117 @@ export interface AccessControlReadsParityReportParityWindow {
 export interface AccessControlReadsPeople {
   state: string;
   configured: boolean;
-  last_error: string;
-  fetched_at: unknown;
-  people: unknown;
-  sync: AccessControlReadsPeopleSync;
+  last_error: string | null;
+  fetched_at: string | null;
+  people: AccessControlReadsPeoplePeople | null;
+  sync: AccessControlReadsFeaturesSync;
 }
 
-export interface AccessControlReadsPeopleSync {
+export interface AccessControlReadsPeoplePeople {
+  records: AccessControlReadsPeoplePeopleRecord[];
+  total: number;
+  total_all: number | null;
+  offset: number;
+  limit: number;
+  next_offset: number | null;
+  previous_offset: number | null;
+  snapshot: string;
+  stale: boolean;
+  complete: boolean;
+  incomplete_reason: unknown;
+  sort: string;
+  employee_no_visible: boolean;
+}
+
+export interface AccessControlReadsPeoplePeopleRecord {
+  id: string;
+  display_name: string;
+  active: boolean;
+  archived: boolean;
+  valid_from: string | null;
+  valid_until: string;
+  revision: number;
+  access_category: string;
+  user_type: string;
+  identity_locked: boolean;
+  employee_no: string | null;
+  group_ids: string[];
+  stations: Record<string, unknown>[];
+  stations_known: boolean;
+  timing: unknown;
+  level: string;
+  editable: boolean;
+  phone: unknown;
+  phone_set: boolean | null;
+  credentials: Record<string, unknown> | null;
+  photo_configured: unknown;
+  profile: unknown;
+  responsible_person: unknown;
+  access_purpose: unknown;
+}
+
+/** One person at the caller's level (`level` names / sensitive; `editable`; the visible assignments with their sync state; groups, validity, timing; phone, photo flag and profile values at the sensitive level only); 404 `intercom_person_not_fo */
+export interface AccessControlReadsPerson {
   state: string;
-  connected: boolean;
-  last_error: unknown;
-  reconnects: number;
-  started_at: unknown;
-  fetched_at: unknown;
-  refreshes: number;
-  sequence: number;
-  wiskey_version: unknown;
+  configured: boolean;
+  last_error: string | null;
+  fetched_at: string | null;
+  person: AccessControlReadsPersonPerson | null;
+  sync: AccessControlReadsFeaturesSync;
+}
+
+export interface AccessControlReadsPersonPerson {
+  id: string;
+  display_name: string;
+  active: boolean;
+  archived: boolean;
+  valid_from: unknown;
+  valid_until: string;
+  revision: number;
+  access_category: string;
+  user_type: string;
+  identity_locked: boolean;
+  employee_no: string;
+  group_ids: string[];
+  stations: AccessControlReadsPersonPersonStation[];
+  stations_known: boolean;
+  timing: AccessControlReadsPersonPersonTiming | null;
+  level: string;
+  editable: boolean;
+  phone: string | null;
+  phone_set: boolean | null;
+  credentials: AccessControlReadsPersonPersonCredentials | null;
+  photo_configured: boolean | null;
+  profile: AccessControlReadsPersonPersonProfile | null;
+  responsible_person: string | null;
+  access_purpose: string | null;
+}
+
+export interface AccessControlReadsPersonPersonCredentials {
+  pin: boolean;
+  cards: number;
+}
+
+export interface AccessControlReadsPersonPersonProfile {
+  department: string;
+}
+
+export interface AccessControlReadsPersonPersonStation {
+  station_id: string;
+  enabled: boolean;
+  doors: number[];
+  sync_state: string;
+  last_sync_at: string;
+  last_error: string | null;
+}
+
+export interface AccessControlReadsPersonPersonTiming {
+  mode: string;
+  timezone: string;
+  days: string[];
+  dates: unknown[];
+  periods: Record<string, string>[];
+  enforcement: string;
 }
 
 /** WisKey's device schedule library ("לוחות זמנים של דלתות"): weekly windows and holidays. */
@@ -507,7 +620,7 @@ export interface AccessControlReadsSchedulesLibrary {
   last_error: string | null;
   fetched_at: string | null;
   schedules: AccessControlReadsSchedulesLibrarySchedule[] | null;
-  sync: AccessControlReadsStationsSync;
+  sync: AccessControlReadsFeaturesSync;
   fresh: boolean;
 }
 
@@ -534,9 +647,9 @@ export interface AccessControlReadsSchedulesLibraryScheduleWeekly {
 export interface AccessControlReadsSchedulesOperations {
   state: string;
   configured: boolean;
-  last_error: unknown;
-  fetched_at: string;
-  schedules: AccessControlReadsSchedulesOperationsSchedules;
+  last_error: string | null;
+  fetched_at: string | null;
+  schedules: AccessControlReadsSchedulesOperationsSchedules | null;
   sync: AccessControlReadsFeaturesSync;
   fresh: boolean;
 }
@@ -574,9 +687,9 @@ export interface AccessControlReadsSchedulesOperationsSchedulesJob {
 export interface AccessControlReadsSchedulesPlans {
   state: string;
   configured: boolean;
-  last_error: unknown;
-  fetched_at: string;
-  schedules: AccessControlReadsSchedulesPlansSchedule[];
+  last_error: string | null;
+  fetched_at: string | null;
+  schedules: AccessControlReadsSchedulesPlansSchedule[] | null;
   sync: AccessControlReadsFeaturesSync;
   fresh: boolean;
 }
@@ -602,6 +715,86 @@ export interface AccessControlReadsSchedulesPlansScheduleReport {
   users: Record<string, unknown>;
 }
 
+/** One station, as in the list; 404 `intercom_station_not_found` when there is no such station or the caller may not see it. */
+export interface AccessControlReadsStation {
+  state: string;
+  configured: boolean;
+  last_error: string | null;
+  fetched_at: string | null;
+  fresh: boolean;
+  sync: AccessControlReadsFeaturesSync;
+  station: AccessControlReadsStationStation | null;
+  default_zone: AccessControlReadsStationsStationZone | null;
+}
+
+export interface AccessControlReadsStationStation {
+  id: string;
+  name: string;
+  online: boolean;
+  call_state: string;
+  sync_state: string;
+  lock_enabled: boolean;
+  locks: AccessControlReadsStationStationLock[];
+  has_camera: boolean;
+  camera_entity: string;
+  last_seen: string;
+  zone: AccessControlReadsStationsStationZone;
+  technical: AccessControlReadsStationStationTechnical;
+  errors: unknown;
+}
+
+export interface AccessControlReadsStationStationLock {
+  physical_index: number;
+  name: string;
+}
+
+export interface AccessControlReadsStationStationTechnical {
+  loaded: boolean;
+  model: string;
+  firmware: string;
+  capabilities: AccessControlReadsStationStationTechnicalCapabilities;
+  clock: AccessControlReadsStationStationTechnicalClock;
+  event_status: AccessControlReadsStationStationTechnicalEventStatus;
+  scanned_at: unknown;
+  scanning: boolean;
+  reconciled_at: unknown;
+  last_poll_ms: number;
+}
+
+export interface AccessControlReadsStationStationTechnicalCapabilities {
+  max_users: number;
+  max_cards: number;
+  cards_per_person: number;
+  pin_min: number;
+  pin_max: number;
+  card_min: unknown;
+  card_max: unknown;
+  name_max: number;
+  pin_mode: unknown;
+  pin_writable: boolean;
+  schedules: boolean;
+}
+
+export interface AccessControlReadsStationStationTechnicalClock {
+  source: string;
+  status: string;
+  zone: Record<string, string>;
+  device_zone: unknown;
+  skew_seconds: number;
+  time_mode: string;
+  drift_state: unknown;
+  checked_at: unknown;
+  error: unknown;
+}
+
+export interface AccessControlReadsStationStationTechnicalEventStatus {
+  stream: string;
+  history: string;
+  reconnects: number;
+  last_frame_at: unknown;
+  recovered_until: unknown;
+}
+
 /** The stations the caller sees (`access.read` on each): online, call state (no caller name), sync state, doors, camera id; `technical` (model, firmware, capabilities, clock, event stream) with `access.stations.read` on the station, else null; */
 export interface AccessControlReadsStations {
   state: string;
@@ -611,7 +804,7 @@ export interface AccessControlReadsStations {
   fresh: boolean;
   stations: AccessControlReadsStationsStation[] | null;
   default_zone: AccessControlReadsStationsStationZone | null;
-  sync: AccessControlReadsStationsSync;
+  sync: AccessControlReadsFeaturesSync;
 }
 
 export interface AccessControlReadsStationsStation {
@@ -624,10 +817,10 @@ export interface AccessControlReadsStationsStation {
   locks: Record<string, unknown>[];
   has_camera: boolean;
   camera_entity: string | null;
-  last_seen: string;
+  last_seen: string | null;
   zone: AccessControlReadsStationsStationZone | null;
-  technical: AccessControlReadsStationsStationTechnical;
-  errors: AccessControlReadsStationsStationErrors;
+  technical: AccessControlReadsStationsStationTechnical | null;
+  errors: AccessControlReadsStationsStationErrors | null;
 }
 
 export interface AccessControlReadsStationsStationErrors {
@@ -653,28 +846,32 @@ export interface AccessControlReadsStationsStationZone {
   name: string;
 }
 
-export interface AccessControlReadsStationsSync {
-  state: string;
-  connected: boolean;
-  last_error: unknown;
-  reconnects: number;
-  started_at: string | null;
-  fetched_at: string | null;
-  refreshes: number;
-  sequence: number;
-  wiskey_version: string | null;
-}
-
 /** The status page's station list (`access.read` and `access.admin.read` on each), as GET /access-control/stations. */
 export interface AccessControlReadsStatusStations {
   state: string;
   configured: boolean;
-  last_error: unknown;
-  fetched_at: string;
+  last_error: string | null;
+  fetched_at: string | null;
   fresh: boolean;
-  stations: AccessControlReadsStationsStation[];
-  default_zone: AccessControlReadsStationsStationZone;
+  stations: AccessControlReadsStatusStationsStation[] | null;
+  default_zone: AccessControlReadsStationsStationZone | null;
   sync: AccessControlReadsFeaturesSync;
+}
+
+export interface AccessControlReadsStatusStationsStation {
+  id: string;
+  name: string;
+  online: boolean;
+  call_state: string;
+  sync_state: string;
+  lock_enabled: boolean;
+  locks: Record<string, unknown>[];
+  has_camera: boolean;
+  camera_entity: string | null;
+  last_seen: string;
+  zone: AccessControlReadsStationsStationZone | null;
+  technical: AccessControlReadsStationsStationTechnical;
+  errors: AccessControlReadsStationsStationErrors;
 }
 
 /** Per-station sync counts (pending people, operations by state, revocations, card / PIN removals, deletions) and their totals - over the stations the caller sees on the status page only. */
@@ -684,7 +881,7 @@ export interface AccessControlReadsSyncStatus {
   last_error: string | null;
   fetched_at: string | null;
   sync_status: AccessControlReadsSyncStatusSyncStatus | null;
-  sync: AccessControlReadsStationsSync;
+  sync: AccessControlReadsFeaturesSync;
   fresh: boolean;
 }
 
@@ -712,9 +909,9 @@ export interface AccessControlReadsSyncStatusSyncStatusStation {
 export interface AccessControlReadsWiskeyAudit {
   state: string;
   configured: boolean;
-  last_error: unknown;
-  fetched_at: string;
-  audit: AccessControlReadsWiskeyAuditAudit;
+  last_error: string | null;
+  fetched_at: string | null;
+  audit: AccessControlReadsWiskeyAuditAudit | null;
   sync: AccessControlReadsFeaturesSync;
 }
 
@@ -742,7 +939,9 @@ export interface AccessControlReadsWiskeyAuditAuditRecord {
 export interface AccessControlReadsRoutes {
   "GET /api/v1/access-control/features": AccessControlReadsFeatures;
   "GET /api/v1/access-control/stations": AccessControlReadsStations;
+  "GET /api/v1/access-control/stations/{station_id}": AccessControlReadsStation;
   "GET /api/v1/access-control/stations/{station_id}/programs": AccessControlReadsDoorPrograms;
+  "GET /api/v1/access-control/stations/{station_id}/doors/{door}/hold": AccessControlReadsHoldSchedule;
   "GET /api/v1/access-control/stations/{station_id}/codes": AccessControlReadsCodesPresence;
   "GET /api/v1/access-control/status/stations": AccessControlReadsStatusStations;
   "GET /api/v1/access-control/stations/{station_id}/health": AccessControlReadsHealth;
@@ -752,6 +951,7 @@ export interface AccessControlReadsRoutes {
   "GET /api/v1/access-control/status/alerts": AccessControlReadsAlerts;
   "GET /api/v1/access-control/status/audit": AccessControlReadsWiskeyAudit;
   "GET /api/v1/access-control/people": AccessControlReadsPeople;
+  "GET /api/v1/access-control/people/{user_id}": AccessControlReadsPerson;
   "GET /api/v1/access-control/events": AccessControlReadsEvents;
   "GET /api/v1/access-control/events/{event_id}": AccessControlReadsEventDetail;
   "GET /api/v1/access-control/groups": AccessControlReadsGroups;

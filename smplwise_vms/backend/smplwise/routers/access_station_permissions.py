@@ -26,6 +26,8 @@ from ..errors import ApiError
 from ..rbac import Principal, require_system_admin
 from ..services import access_station_permissions as sp
 from ._common import db_of as _db, rid as _rid
+from ..wire import access_station_permissions as W
+from ..wire import wire
 
 router = APIRouter()
 _ID = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
@@ -53,7 +55,7 @@ def _admin_only(conn: sqlite3.Connection, principal: Principal, request: Request
     require_system_admin(conn, principal, action=action, request_id=_rid(request), details={"keys": keys}, text="רק מנהל מערכת יכול לטפל בהגדרה זו.")
 
 
-@router.get(f"{_BASE}/settings")
+@router.get(f"{_BASE}/settings", **wire(W.AccessStationPermissionsSettings))
 def get_settings(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _admin_only(conn, principal, request, "settings.read", list(sp.KEYS))
     return sp.settings_view(conn)

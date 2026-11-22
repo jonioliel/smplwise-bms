@@ -164,7 +164,7 @@ _CHECK_LOCK = threading.Lock()
 _configure_ro = read_gate(lambda conn, principal: require(conn, principal, "system.configure", INSTALLATION))
 
 
-@router.post("/transit/check")
+@router.post("/transit/check", **wire(W.TransitCheckNow))
 def check_now(request: Request, principal: Principal = Depends(_configure_ro)) -> dict[str, Any]:
     """Ask the source ONCE now for the configured stops and answer the new health (`system.configure`, audited `transit.check`, one check per
     30 s per installation). The loop polls only stops a screen uses, so an idle installation would keep showing its last failure; this check is

@@ -203,7 +203,7 @@ def _station_plans(request: Request, auth: ia.Authority, d: im.Descriptor) -> di
     return {"choice": pol["choice"], "source": pol["source"], "channel": pol["channel"], "order": pol["order"], "plans": plans}
 
 
-@router.get("/access-control/station-media/readiness")
+@router.get("/access-control/station-media/readiness", **wire(W.IntercomMediaStationMediaReadiness))
 def station_media_readiness(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """WISKEY-TALK-DIAL-2382: whether the stations screen's video and talk can come from WisKey (`access.station_media_provider = auto`)
     and every reason they cannot (`missing`: `wiskey_unreachable`, `api_incompatible`, `video_not_listed`, `talk_not_listed`,

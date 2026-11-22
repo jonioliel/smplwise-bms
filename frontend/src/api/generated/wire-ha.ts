@@ -152,9 +152,9 @@ export interface HaEntitiesSync {
   reconnects: number;
   sequence: number;
   entities: number;
-  started_at: unknown;
-  ha_version: unknown;
-  last_registry_error: unknown;
+  started_at: string | null;
+  ha_version: string | null;
+  last_registry_error: string | null;
   last_structure_at: string | null;
   registry_events: number;
   auth_refusals: number;
@@ -182,8 +182,8 @@ export interface HaEntity {
   hidden: boolean;
   supported_features: number;
   state: string;
-  last_changed: string;
-  last_updated: string;
+  last_changed: string | null;
+  last_updated: string | null;
   state_seen_at: string;
   available: boolean;
   removed_at: string | null;
@@ -202,6 +202,7 @@ export interface HaEntity {
   actions: Record<string, unknown>[];
   recent_actions: HaEntityRecentAction[];
   unlock_reason?: string;
+  wiskey_door?: boolean;
 }
 
 export interface HaEntityPlacement {
@@ -227,6 +228,7 @@ export interface HaPairing {
   paired_at: string | null;
   announced: boolean;
   announce_path: boolean;
+  revoked?: boolean;
 }
 
 /** LAT1 (2026-10-08): every check runs on the request's READ connection (no SQLite write lock is taken before the command leaves), then the durable record - the pending ha_actions row and the `ha.action` attempt audit row - is committed in one */
@@ -241,7 +243,7 @@ export interface HaRunAction {
   error?: string | null;
   requested_at?: string;
   responded_at?: string;
-  confirmed_at?: unknown;
+  confirmed_at?: string | null;
   expected_state?: string | null;
   observed_state?: unknown;
   via?: string;
@@ -273,7 +275,7 @@ export interface HaStatus {
 
 export interface HaStatusBridge {
   paired: boolean;
-  paired_at: string;
+  paired_at: string | null;
   directory_users: number;
   last_directory_at: string | null;
 }
@@ -287,7 +289,7 @@ export interface HaStatusIntegration {
   last_run: string | null;
   last_error: unknown;
   discovery_posted_at: string | null;
-  active_version: string;
+  active_version: string | null;
   up_to_date: boolean;
   state: string;
   addon_url: string;
@@ -310,9 +312,9 @@ export interface HaStatusSync {
   reconnects: number;
   sequence: number;
   entities: number;
-  started_at: unknown;
-  ha_version: unknown;
-  last_registry_error: unknown;
+  started_at: string | null;
+  ha_version: string | null;
+  last_registry_error: string | null;
   last_structure_at: string | null;
   registry_events: number;
   auth_refusals: number;

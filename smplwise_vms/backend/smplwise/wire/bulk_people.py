@@ -3,8 +3,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import Field
-
 from . import ExactModel, Num
 
 # routes without a JSON body
@@ -29,7 +27,7 @@ class BulkPeopleSettingsWiskeyCsv(ExactModel):
     blockers: list[str]
     mode: str
     modes: list[str]
-    fields_: list[str] = Field(alias='fields')
+    fields: list[str]
 
 
 class BulkPeopleSettings(ExactModel):
@@ -54,7 +52,7 @@ class BulkPeopleStageImportJobReportItem(ExactModel):
     row: Num
     status: str
     codes: list[str]
-    fields_: list[str] = Field(alias='fields')
+    fields: list[str]
 
 
 class BulkPeopleStageImportJobProgress(ExactModel):
@@ -92,7 +90,7 @@ class BulkPeopleStageEditJobReportItem(ExactModel):
     row: Num
     status: str
     codes: list[Any]
-    fields_: list[str] = Field(alias='fields')
+    fields: list[str]
 
 
 class BulkPeopleStageEditJob(ExactModel):
@@ -130,7 +128,7 @@ class BulkPeopleDryRunJobPlanItem(ExactModel):
     op: str
     person_id: str | None
     revision: Num | None
-    fields_: list[str] = Field(alias='fields')
+    fields: list[str]
     data: str
 
 
@@ -160,7 +158,7 @@ class BulkPeopleDryRunRow(ExactModel):
     person_id: str | None
     status: str
     codes: list[str]
-    fields_: list[str] = Field(alias='fields')
+    fields: list[str]
     name: str = None
     diff: list[dict[str, Any]] = None
 

@@ -107,7 +107,7 @@ export interface WiskeyPairingPairingStatusLineFacts {
   present?: boolean;
   can_sign?: boolean;
   fingerprint?: string | null;
-  kid?: string;
+  kid?: string | null;
   source?: string | null;
   feed_video?: boolean;
   feed_talk?: boolean;

@@ -9,24 +9,26 @@ from . import ExactModel, Num
 NO_JSON: frozenset[str] = frozenset({'GET /access-control/stations/{station_id}/thumbnail.jpg'})
 # JSON routes without a model yet: no test reaches a successful answer (or the answer is not one object); counted by the ratchet
 # (scripts/wire_ratchet.py) until they are modelled
-UNMODELLED: frozenset[str] = frozenset({'GET /access-control/station-media/readiness'})
+UNMODELLED: frozenset[str] = frozenset()
 
 
 class IntercomMediaStationMediaVideoProfile(ExactModel):
     id: str
     codec: str
     transports: list[str]
-    width: Any
-    height: Any
-    fps: Any
+    width: Num | None
+    height: Num | None
+    fps: Num | None
 
 
 class IntercomMediaStationMediaVideoPaths(ExactModel):
     main: str = None
+    sub: str = None
 
 
 class IntercomMediaStationMediaVideoTransportPlans(ExactModel):
     main: str
+    sub: str = None
 
 
 class IntercomMediaStationMediaVideoTransport(ExactModel):
@@ -64,11 +66,41 @@ class IntercomMediaStationMedia(ExactModel):
     station_id: str
     mode: str
     state: str
-    reason: Any
-    video: IntercomMediaStationMediaVideo
-    talk: IntercomMediaStationMediaTalk
+    reason: str | None
+    video: IntercomMediaStationMediaVideo | None
+    talk: IntercomMediaStationMediaTalk | None
     listen: bool
-    expires_at: str
+    expires_at: str | None
+
+
+class IntercomMediaStationMediaReadinessWiskeyCapabilities(ExactModel):
+    state: str
+    video_listed: bool
+    talk_listed: bool
+    reason: str
+    reason_kind: Any
+    source: Any
+    read_at: Any
+
+
+class IntercomMediaStationMediaReadinessWiskey(ExactModel):
+    reachable: bool
+    video_listed: bool
+    talk_listed: bool
+    signing: bool
+    listed_in: Any
+    capabilities: IntercomMediaStationMediaReadinessWiskeyCapabilities
+
+
+class IntercomMediaStationMediaReadiness(ExactModel):
+    """WISKEY-TALK-DIAL-2382: whether the stations screen's video and talk can come from WisKey (`access.station_media_provider = auto`) and every reason they cannot (`missing`: `wiskey_unreachable`, `api_incompatible`, `video_not_listed`, `talk_n"""
+    choice: str
+    active: str
+    mode: str
+    wiskey: IntercomMediaStationMediaReadinessWiskey
+    missing: list[str]
+    video_ready: bool
+    talk_ready: bool
 
 
 class IntercomMediaTalkStart(ExactModel):

@@ -9,7 +9,7 @@ from . import ExactModel, Num
 NO_JSON: frozenset[str] = frozenset()
 # JSON routes without a model yet: no test reaches a successful answer (or the answer is not one object); counted by the ratchet
 # (scripts/wire_ratchet.py) until they are modelled
-UNMODELLED: frozenset[str] = frozenset({'POST /intercom/people/{user_id}/cards/{card_id}/remove', 'POST /intercom/people/{user_id}/temporary-cancel', 'POST /intercom/people/{user_id}/unarchive'})
+UNMODELLED: frozenset[str] = frozenset()
 
 
 class AccessControlWritesPersonArchivePersonStation(ExactModel):
@@ -94,7 +94,51 @@ class AccessControlWritesPersonArchive(ExactModel):
     pending: bool
 
 
-class AccessControlWritesPersonSetActivePerson(ExactModel):
+class AccessControlWritesPersonUnarchivePerson(ExactModel):
+    id: str
+    employee_no: str
+    display_name: str
+    active: bool
+    valid_from: Any
+    valid_until: str
+    revision: Num
+    access_category: str
+    access_known: bool
+    stations_known: bool
+    redacted_fields: list[Any]
+    operator_editable: Any
+    group_ids: list[str]
+    stations: list[AccessControlWritesPersonArchivePersonStation]
+    phone: str
+    identity_locked: bool
+    pin_configured: bool
+    credentials_known: bool
+    cards: list[AccessControlWritesPersonArchivePersonCard]
+    permission_overrides: dict[str, Any]
+    has_timing: bool
+    archived: bool
+    responsible_person: str
+    access_purpose: str
+    photo_configured: bool
+    timing_draft: Any
+    timing_policy: Any
+    level: str
+
+
+class AccessControlWritesPersonUnarchive(ExactModel):
+    """Restore a person from the archive (WisKey `users/unarchive`): the record comes back SWITCHED OFF (WisKey's own rule - it is switched on separately)."""
+    state: str
+    configured: bool
+    last_error: Any
+    fetched_at: str
+    person: AccessControlWritesPersonUnarchivePerson
+    sync: AccessControlWritesPersonArchiveSync
+    command_id: str
+    effect: str
+    pending: bool
+
+
+class AccessControlWritesPersonPhotoSetPerson(ExactModel):
     id: str
     employee_no: str
     display_name: str
@@ -125,13 +169,13 @@ class AccessControlWritesPersonSetActivePerson(ExactModel):
     level: str
 
 
-class AccessControlWritesPersonSetActive(ExactModel):
-    """Switch a person on or off (WisKey `users/set_active`)."""
+class AccessControlWritesPersonPhotoSet(ExactModel):
+    """Set or remove the person's photo (WisKey `users/update` with `photo`): `{photo: "data:image/jpeg;base64,..." | null, revision, sync_now, client_request_id, expires_at}` - a JPEG of at most 512 x 512 and 32 KB, checked here exactly as WisKey"""
     state: str
     configured: bool
     last_error: Any
     fetched_at: str
-    person: AccessControlWritesPersonSetActivePerson
+    person: AccessControlWritesPersonPhotoSetPerson
     sync: AccessControlWritesPersonArchiveSync
     command_id: str
     effect: str

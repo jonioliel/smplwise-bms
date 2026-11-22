@@ -85,20 +85,20 @@ export interface AccessControlWritesPersonArchiveSync {
   wiskey_version: string;
 }
 
-/** Switch a person on or off (WisKey `users/set_active`). */
-export interface AccessControlWritesPersonSetActive {
+/** Set or remove the person's photo (WisKey `users/update` with `photo`): `{photo: "data:image/jpeg;base64,..." | null, revision, sync_now, client_request_id, expires_at}` - a JPEG of at most 512 x 512 and 32 KB, checked here exactly as WisKey */
+export interface AccessControlWritesPersonPhotoSet {
   state: string;
   configured: boolean;
   last_error: unknown;
   fetched_at: string;
-  person: AccessControlWritesPersonSetActivePerson;
+  person: AccessControlWritesPersonPhotoSetPerson;
   sync: AccessControlWritesPersonArchiveSync;
   command_id: string;
   effect: string;
   pending: boolean;
 }
 
-export interface AccessControlWritesPersonSetActivePerson {
+export interface AccessControlWritesPersonPhotoSetPerson {
   id: string;
   employee_no: string;
   display_name: string;
@@ -129,10 +129,57 @@ export interface AccessControlWritesPersonSetActivePerson {
   level: string;
 }
 
+/** Restore a person from the archive (WisKey `users/unarchive`): the record comes back SWITCHED OFF (WisKey's own rule - it is switched on separately). */
+export interface AccessControlWritesPersonUnarchive {
+  state: string;
+  configured: boolean;
+  last_error: unknown;
+  fetched_at: string;
+  person: AccessControlWritesPersonUnarchivePerson;
+  sync: AccessControlWritesPersonArchiveSync;
+  command_id: string;
+  effect: string;
+  pending: boolean;
+}
+
+export interface AccessControlWritesPersonUnarchivePerson {
+  id: string;
+  employee_no: string;
+  display_name: string;
+  active: boolean;
+  valid_from: unknown;
+  valid_until: string;
+  revision: number;
+  access_category: string;
+  access_known: boolean;
+  stations_known: boolean;
+  redacted_fields: unknown[];
+  operator_editable: unknown;
+  group_ids: string[];
+  stations: AccessControlWritesPersonArchivePersonStation[];
+  phone: string;
+  identity_locked: boolean;
+  pin_configured: boolean;
+  credentials_known: boolean;
+  cards: AccessControlWritesPersonArchivePersonCard[];
+  permission_overrides: Record<string, unknown>;
+  has_timing: boolean;
+  archived: boolean;
+  responsible_person: string;
+  access_purpose: string;
+  photo_configured: boolean;
+  timing_draft: unknown;
+  timing_policy: unknown;
+  level: string;
+}
+
 /** The answer of every modelled route of this family: `'METHOD path'` -> type. */
 export interface AccessControlWritesRoutes {
   "POST /api/v1/intercom/people/{user_id}/archive": AccessControlWritesPersonArchive;
-  "POST /api/v1/intercom/people/{user_id}/active": AccessControlWritesPersonSetActive;
-  "POST /api/v1/intercom/people/{user_id}/cards": AccessControlWritesPersonSetActive;
-  "PUT /api/v1/intercom/people/{user_id}/photo": AccessControlWritesPersonSetActive;
+  "POST /api/v1/intercom/people/{user_id}/unarchive": AccessControlWritesPersonUnarchive;
+  "POST /api/v1/intercom/people/{user_id}/active": AccessControlWritesPersonArchive;
+  "POST /api/v1/intercom/people/{user_id}/temporary-cancel": AccessControlWritesPersonUnarchive;
+  "POST /api/v1/intercom/people/{user_id}/cards": AccessControlWritesPersonArchive;
+  "POST /api/v1/intercom/people/{user_id}/cards/{card_id}/remove": AccessControlWritesPersonUnarchive;
+  "PUT /api/v1/intercom/people/{user_id}/photo": AccessControlWritesPersonPhotoSet;
 }

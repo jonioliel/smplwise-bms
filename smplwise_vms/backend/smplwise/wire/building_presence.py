@@ -9,7 +9,7 @@ from . import ExactModel, Num
 NO_JSON: frozenset[str] = frozenset()
 # JSON routes without a model yet: no test reaches a successful answer (or the answer is not one object); counted by the ratchet
 # (scripts/wire_ratchet.py) until they are modelled
-UNMODELLED: frozenset[str] = frozenset({'PUT /presence/building/room'})
+UNMODELLED: frozenset[str] = frozenset()
 
 
 class BuildingPresenceBuildingSnapshotRoom(ExactModel):
@@ -110,10 +110,28 @@ class BuildingPresenceSetBuildingSettings(ExactModel):
     settings: dict[str, Any]
 
 
+class BuildingPresenceSetBuildingSensorRoomSensor(ExactModel):
+    entity_id: str
+    name: str
+    area_id: str
+    area_name: str
+    device_class: str
+    tagged: bool
+    state: str
+    placed: bool = None
+
+
+class BuildingPresenceSetBuildingSensorRoom(ExactModel):
+    """Place a tagged sensor in a room (area_id) or back to its own (null) (system.configure; audited)."""
+    sensors: list[BuildingPresenceSetBuildingSensorRoomSensor]
+    rooms: list[BuildingPresenceBuildingSensorsRoom]
+    settings: dict[str, Any]
+
+
 class BuildingPresenceBuildingHistory(ExactModel):
     """How much history is kept (count, oldest) and for how long (system.configure)."""
     rows: Num
-    oldest: Any
+    oldest: str | None
     retention_days: Num
     enabled: bool
 

@@ -21,9 +21,9 @@ class HaStatusSync(ExactModel):
     reconnects: Num
     sequence: Num
     entities: Num
-    started_at: Any
-    ha_version: Any
-    last_registry_error: Any
+    started_at: str | None
+    ha_version: str | None
+    last_registry_error: str | None
     last_structure_at: str | None
     registry_events: Num
     auth_refusals: Num
@@ -32,7 +32,7 @@ class HaStatusSync(ExactModel):
 
 class HaStatusBridge(ExactModel):
     paired: bool
-    paired_at: str
+    paired_at: str | None
     directory_users: Num
     last_directory_at: str | None
 
@@ -53,7 +53,7 @@ class HaStatusIntegration(ExactModel):
     last_run: str | None
     last_error: Any
     discovery_posted_at: str | None
-    active_version: str
+    active_version: str | None
     up_to_date: bool
     state: str
     addon_url: str
@@ -122,9 +122,9 @@ class HaEntitiesSync(ExactModel):
     reconnects: Num
     sequence: Num
     entities: Num
-    started_at: Any
-    ha_version: Any
-    last_registry_error: Any
+    started_at: str | None
+    ha_version: str | None
+    last_registry_error: str | None
     last_structure_at: str | None
     registry_events: Num
     auth_refusals: Num
@@ -176,8 +176,8 @@ class HaEntity(ExactModel):
     hidden: bool
     supported_features: Num
     state: str
-    last_changed: str
-    last_updated: str
+    last_changed: str | None
+    last_updated: str | None
     state_seen_at: str
     available: bool
     removed_at: str | None
@@ -196,6 +196,7 @@ class HaEntity(ExactModel):
     actions: list[dict[str, Any]]
     recent_actions: list[HaEntityRecentAction]
     unlock_reason: str = None
+    wiskey_door: bool = None
 
 
 class HaRunActionTimingMs(ExactModel):
@@ -220,7 +221,7 @@ class HaRunAction(ExactModel):
     error: str | None = None
     requested_at: str = None
     responded_at: str = None
-    confirmed_at: Any = None
+    confirmed_at: str | None = None
     expected_state: str | None = None
     observed_state: Any = None
     via: str = None
@@ -279,6 +280,7 @@ class HaPairing(ExactModel):
     paired_at: str | None
     announced: bool
     announce_path: bool
+    revoked: bool = None
 
 
 class HaBridgePing(ExactModel):

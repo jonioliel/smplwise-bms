@@ -3,6 +3,39 @@
 // sent as null instead); `unknown` is a value the backend passes through as stored. Code review 07:F8 step 2.
 /* eslint-disable */
 
+/** Ask the source ONCE now for the configured stops and answer the new health (`system.configure`, audited `transit.check`, one check per 30 s per installation). */
+export interface TransitCheckNow {
+  check: TransitCheckNowCheck;
+  health: TransitCheckNowHealth;
+}
+
+export interface TransitCheckNowCheck {
+  codes: number;
+  fetched: number;
+  ok: boolean;
+  error: string | null;
+  skipped: string | null;
+  retry_after_s: number | null;
+  at: string;
+}
+
+export interface TransitCheckNowHealth {
+  enabled: boolean;
+  state: string;
+  outage: boolean;
+  outage_since: string | null;
+  outage_warn_h: number;
+  last_good_at: string | null;
+  codes_in_use: number;
+  age_s: unknown;
+  last_ok_at: string | null;
+  errors: number;
+  consecutive_errors: number;
+  last_error: string | null;
+  last_error_at: string | null;
+  backoff_until: string | null;
+}
+
 export interface TransitCities {
   cities: string[];
 }
@@ -41,15 +74,7 @@ export interface TransitRefreshCatalogue {
 /** The search runs on the LOCAL catalogue (city exact, name words, or a code) - no third-party call. */
 export interface TransitSearchStops {
   stops: TransitSearchStopsStop[];
-  catalogue: TransitSearchStopsCatalogue;
-}
-
-export interface TransitSearchStopsCatalogue {
-  count: number;
-  date: string;
-  ok_at: string;
-  error: unknown;
-  error_at: unknown;
+  catalogue: TransitSettingsCatalogue;
 }
 
 export interface TransitSearchStopsStop {
@@ -87,10 +112,10 @@ export interface TransitSettingsHealth {
   outage: boolean;
   outage_since: unknown;
   outage_warn_h: number;
-  last_good_at: unknown;
+  last_good_at: string | null;
   codes_in_use: number;
   age_s: unknown;
-  last_ok_at: unknown;
+  last_ok_at: string | null;
   errors: number;
   consecutive_errors: number;
   last_error: unknown;
@@ -117,8 +142,25 @@ export interface TransitSettingsLimits {
 }
 
 export interface TransitStatus {
-  health: TransitSettingsHealth;
-  catalogue: TransitSearchStopsCatalogue;
+  health: TransitStatusHealth;
+  catalogue: TransitSettingsCatalogue;
+}
+
+export interface TransitStatusHealth {
+  enabled: boolean;
+  state: string;
+  outage: boolean;
+  outage_since: string | null;
+  outage_warn_h: number;
+  last_good_at: unknown;
+  codes_in_use: number;
+  age_s: unknown;
+  last_ok_at: unknown;
+  errors: number;
+  consecutive_errors: number;
+  last_error: string | null;
+  last_error_at: string | null;
+  backoff_until: string | null;
 }
 
 /** The answer of every modelled route of this family: `'METHOD path'` -> type. */
@@ -129,4 +171,5 @@ export interface TransitRoutes {
   "GET /api/v1/transit/stops": TransitSearchStops;
   "GET /api/v1/transit/status": TransitStatus;
   "POST /api/v1/transit/catalogue/refresh": TransitRefreshCatalogue;
+  "POST /api/v1/transit/check": TransitCheckNow;
 }

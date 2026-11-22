@@ -24,6 +24,8 @@ from .access_control_base import CAPTURE, MANAGE, MAX_STATION_ID, log
 from .access_control_command import CommandEnvelope, SEND_WITHIN_S, _Action, _envelope, _parse, _perform
 from .access_control_door import _NOT_SENT_CODES, _NOT_SENT_ERRORS
 from .access_control_people import _person_summary, gated, people_writer
+from ..wire import access_control_capture as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -363,7 +365,7 @@ def _lease_cancel(request: Request, act: _Action, capture: Any) -> dict[str, Any
     raise ApiError(504, "intercom_outcome_unknown", "לא ידוע אם הביטול התקבל. הקריאה בוטלה בצד Arx.", details={"outcome": "unknown", "capture": CAPTURES.view(capture)})
 
 
-@router.get("/intercom/stations/{station_id}/card-readers")
+@router.get("/intercom/stations/{station_id}/card-readers", **wire(W.AccessControlCaptureCardReaders))
 def card_readers(request: Request, station_id: str, auth: ia.Authority = Depends(_capturer_ro)) -> dict[str, Any]:
     """The station's card readers (WisKey `cards/reader_capabilities`, a read that reaches the device - WisKey allows it
     35 s): `readers` (0 = the station's default reader) and the card-number length bounds. A station that advertises
@@ -380,7 +382,7 @@ def card_readers(request: Request, station_id: str, auth: ia.Authority = Depends
                                       who=auth.principal.user_id, timeout=intercom_sync.READERS_TIMEOUT_S)
 
 
-@router.post("/intercom/people/{user_id}/card-capture")
+@router.post("/intercom/people/{user_id}/card-capture", **wire(W.AccessControlCaptureCardCaptureStart))
 def card_capture_start(request: Request, user_id: str, auth: ia.Authority = Depends(_capture_starter_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Start reading a card at a station (WisKey `cards/capture_start`, PHYSICAL: the station's reader enters card-
     collection mode). Body: `{station_id, reader_id, revision, confirmed, client_request_id, expires_at}`; `confirmed:
@@ -455,7 +457,7 @@ def card_capture_start(request: Request, user_id: str, auth: ia.Authority = Depe
     return reply
 
 
-@router.get("/intercom/card-capture/{session_id}")
+@router.get("/intercom/card-capture/{session_id}", **wire(W.AccessControlCaptureCardCaptureStatus))
 def card_capture_status(session_id: str, auth: ia.Authority = Depends(_capturer_ro)) -> dict[str, Any]:
     """The caller's own capture session as SMPLWISE's poller last read it from WisKey (no WisKey traffic per request):
     `state` preparing | waiting | captured | applying (active) or error | cancelled | cancel_unknown | expired | lost |
@@ -469,7 +471,7 @@ def card_capture_status(session_id: str, auth: ia.Authority = Depends(_capturer_
     return {"capture": CAPTURES.view(capture)}
 
 
-@router.post("/intercom/card-capture/{session_id}/cancel")
+@router.post("/intercom/card-capture/{session_id}/cancel", **wire(W.AccessControlCaptureCardCaptureCancel))
 def card_capture_cancel(request: Request, session_id: str, auth: ia.Authority = Depends(_capturer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Cancel the caller's own capture (WisKey `cards/capture_cancel`): WisKey stops waiting for a card and drops the
     session. Body `{}` (JSON). WisKey's reader timeout is the firmware's own: cancelling is not proof the reader left
@@ -513,7 +515,7 @@ def card_capture_cancel(request: Request, session_id: str, auth: ia.Authority = 
     return reply
 
 
-@router.post("/intercom/card-capture/{session_id}/confirm")
+@router.post("/intercom/card-capture/{session_id}/confirm", **wire(W.AccessControlCaptureCardCaptureConfirm))
 def card_capture_confirm(request: Request, session_id: str, auth: ia.Authority = Depends(_capturer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Add the collected card to the person (WisKey `cards/capture_confirm`, a people write: the card, enabled, goes to
     the person's existing station assignments with WisKey's immediate sync - it opens their doors). Body: `{label,

@@ -9,28 +9,28 @@ from . import ExactModel, Num
 NO_JSON: frozenset[str] = frozenset()
 # JSON routes without a model yet: no test reaches a successful answer (or the answer is not one object); counted by the ratchet
 # (scripts/wire_ratchet.py) until they are modelled
-UNMODELLED: frozenset[str] = frozenset({'POST /intercom/people'})
+UNMODELLED: frozenset[str] = frozenset()
 
 
 class AccessControlPeoplePeopleEditorContextSync(ExactModel):
     state: str
     connected: bool
-    last_error: Any
+    last_error: str | None
     reconnects: Num
-    started_at: str
-    fetched_at: str
+    started_at: str | None
+    fetched_at: str | None
     refreshes: Num
     sequence: Num
-    wiskey_version: str
+    wiskey_version: str | None
 
 
 class AccessControlPeoplePeopleEditorContext(ExactModel):
     """What the editor needs from WisKey's `overview` beyond the entry center (intercom_sync.project_editor_context): the stations with their relays and whether each can take a keypad PIN, the HA display zone, WisKey's `api.capabilities`, whether """
     state: str
     configured: bool
-    last_error: Any
-    fetched_at: str
-    context: dict[str, Any]
+    last_error: str | None
+    fetched_at: str | None
+    context: dict[str, Any] | None
     sync: AccessControlPeoplePeopleEditorContextSync
 
 
@@ -39,7 +39,7 @@ class AccessControlPeoplePersonEditorPersonStation(ExactModel):
     enabled: bool
     doors: list[Num]
     sync_state: str
-    last_error: Any
+    last_error: str | None
     desired_revision: Num
     applied_revision: Num
 
@@ -50,6 +50,10 @@ class AccessControlPeoplePersonEditorPersonCard(ExactModel):
     label: str
     card_type: str
     enabled: bool
+
+
+class AccessControlPeoplePersonEditorPersonPermissionOverrides(ExactModel):
+    events: str = None
 
 
 class AccessControlPeoplePersonEditorPersonTimingDraft(ExactModel):
@@ -94,7 +98,7 @@ class AccessControlPeoplePersonEditorPerson(ExactModel):
     pin_configured: bool | None
     credentials_known: bool
     cards: list[AccessControlPeoplePersonEditorPersonCard] | None
-    permission_overrides: dict[str, Any]
+    permission_overrides: AccessControlPeoplePersonEditorPersonPermissionOverrides
     has_timing: bool
     archived: bool
     responsible_person: str | None
@@ -105,28 +109,107 @@ class AccessControlPeoplePersonEditorPerson(ExactModel):
     level: str
 
 
+class AccessControlPeoplePersonEditorSync(ExactModel):
+    state: str
+    connected: bool
+    last_error: Any
+    reconnects: Num
+    started_at: str | None
+    fetched_at: str | None
+    refreshes: Num
+    sequence: Num
+    wiskey_version: str | None
+
+
 class AccessControlPeoplePersonEditor(ExactModel):
     """One person for editing (WisKey `users/get`): the read projection plus phone, the PIN flag, the cards in WisKey's masked form (`•••• 1234` - the full number never leaves WisKey), the overrides, `identity_locked`, `has_timing`, each assignmen"""
     state: str
     configured: bool
-    last_error: Any
-    fetched_at: str
-    person: AccessControlPeoplePersonEditorPerson
-    sync: AccessControlPeoplePeopleEditorContextSync
+    last_error: str | None
+    fetched_at: str | None
+    person: AccessControlPeoplePersonEditorPerson | None
+    sync: AccessControlPeoplePersonEditorSync
 
 
 class AccessControlPeoplePersonPinGeneratePin(ExactModel):
     pin: str
 
 
+class AccessControlPeoplePersonPinGenerateSync(ExactModel):
+    state: str
+    connected: bool
+    last_error: Any
+    reconnects: Num
+    started_at: str
+    fetched_at: str
+    refreshes: Num
+    sequence: Num
+    wiskey_version: str
+
+
 class AccessControlPeoplePersonPinGenerate(ExactModel):
     """A free six-digit PIN from WisKey (`users/pin_generate`; body `{user_id}`, "" for a person not saved yet)."""
     state: str
     configured: bool
+    last_error: str | None
+    fetched_at: str | None
+    pin: AccessControlPeoplePersonPinGeneratePin | None
+    sync: AccessControlPeoplePersonPinGenerateSync
+
+
+class AccessControlPeoplePersonCreatePersonStation(ExactModel):
+    station_id: str
+    enabled: bool
+    doors: list[Num]
+    sync_state: str
+    last_error: Any
+    desired_revision: Num
+    applied_revision: Num | None
+
+
+class AccessControlPeoplePersonCreatePerson(ExactModel):
+    id: str
+    employee_no: str
+    display_name: str
+    active: bool
+    valid_from: Any
+    valid_until: str
+    revision: Num
+    access_category: str
+    access_known: bool
+    stations_known: bool
+    redacted_fields: list[Any]
+    operator_editable: Any
+    group_ids: list[str]
+    stations: list[AccessControlPeoplePersonCreatePersonStation]
+    phone: str | None
+    identity_locked: bool
+    pin_configured: bool | None
+    credentials_known: bool
+    cards: list[AccessControlPeoplePersonEditorPersonCard] | None
+    permission_overrides: AccessControlPeoplePersonEditorPersonPermissionOverrides
+    has_timing: bool
+    archived: bool
+    responsible_person: str | None
+    access_purpose: str | None
+    photo_configured: bool | None
+    timing_draft: Any
+    timing_policy: Any
+    level: str
+
+
+class AccessControlPeoplePersonCreate(ExactModel):
+    """Create a person in WisKey (`users/create`)."""
+    state: str
+    configured: bool
     last_error: Any
     fetched_at: str
-    pin: AccessControlPeoplePersonPinGeneratePin
-    sync: AccessControlPeoplePeopleEditorContextSync
+    person: AccessControlPeoplePersonCreatePerson
+    sync: AccessControlPeoplePersonPinGenerateSync
+    command_id: str
+    note: str
+    effect: str
+    pending: bool
 
 
 class AccessControlPeoplePersonUpdatePerson(ExactModel):
@@ -143,17 +226,17 @@ class AccessControlPeoplePersonUpdatePerson(ExactModel):
     redacted_fields: list[Any]
     operator_editable: Any
     group_ids: list[str]
-    stations: list[AccessControlPeoplePersonEditorPersonStation]
+    stations: list[AccessControlPeoplePersonCreatePersonStation]
     phone: str
     identity_locked: bool
     pin_configured: bool
     credentials_known: bool
     cards: list[AccessControlPeoplePersonEditorPersonCard]
-    permission_overrides: dict[str, Any]
+    permission_overrides: AccessControlPeoplePersonEditorPersonPermissionOverrides
     has_timing: bool
     archived: bool
-    responsible_person: str
-    access_purpose: str
+    responsible_person: str | None
+    access_purpose: str | None
     photo_configured: bool
     timing_draft: AccessControlPeoplePersonEditorPersonTimingDraft | None
     timing_policy: AccessControlPeoplePersonEditorPersonTimingPolicy | None
@@ -167,7 +250,7 @@ class AccessControlPeoplePersonUpdate(ExactModel):
     last_error: Any
     fetched_at: str
     person: AccessControlPeoplePersonUpdatePerson
-    sync: AccessControlPeoplePeopleEditorContextSync
+    sync: AccessControlPeoplePersonPinGenerateSync
     command_id: str
     note: str
     effect: str
@@ -185,7 +268,7 @@ class AccessControlPeoplePersonDelete(ExactModel):
     last_error: Any
     fetched_at: str
     deleted: AccessControlPeoplePersonDeleteDeleted
-    sync: AccessControlPeoplePeopleEditorContextSync
+    sync: AccessControlPeoplePersonPinGenerateSync
     command_id: str
     note: str
     effect: str

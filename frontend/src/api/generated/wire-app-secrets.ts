@@ -3,6 +3,12 @@
 // sent as null instead); `unknown` is a value the backend passes through as stored. Code review 07:F8 step 2.
 /* eslint-disable */
 
+export interface AppSecretsClearSecret {
+  cleared: boolean;
+  restart_required: boolean;
+  secret: AppSecretsSaveSecretSecret;
+}
+
 export interface AppSecretsSaveSecret {
   saved: boolean;
   restart_required: boolean;
@@ -46,4 +52,5 @@ export interface AppSecretsSecretsSecret {
 export interface AppSecretsRoutes {
   "GET /api/v1/system/secrets": AppSecretsSecrets;
   "PUT /api/v1/system/secrets/{name}": AppSecretsSaveSecret;
+  "DELETE /api/v1/system/secrets/{name}": AppSecretsClearSecret;
 }

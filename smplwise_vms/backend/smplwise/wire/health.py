@@ -140,7 +140,7 @@ class HealthHealthEventsCache(ExactModel):
     enabled: bool
     hits: Num
     misses: Num
-    hit_rate: Any
+    hit_rate: Num | None
     stale: Num
     expired: Num
     evictions: Num

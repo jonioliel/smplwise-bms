@@ -29,6 +29,8 @@ from ..services import wiskey_installer as wi
 from ..services import wiskey_installer_clock as wc
 from ._common import raw_body as _raw_body
 from .wiskey_installer_common import WriteBody, Write, installer_gate, installer_reader, phrase_for_station, read, station_for_write, station_or_404
+from ..wire import wiskey_installer_clock as W
+from ..wire import wire
 
 router = APIRouter()
 ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
@@ -69,7 +71,7 @@ def _part(request: Request, principal: Principal, name: str) -> dict[str, Any]:
         return {"state": "error", "error": {"code": exc.code, "wiskey_code": (exc.details or {}).get("wiskey_code"), "message": exc.user_message}, "fetched_at": None, "data": None}
 
 
-@router.get("/access-control/installer/clock")
+@router.get("/access-control/installer/clock", **wire(W.WiskeyInstallerClockClockView))
 def clock_view(request: Request, principal: Principal = Depends(installer_reader)) -> dict[str, Any]:
     stations = wi.stations(settings_of(request))
     settings = _part(request, principal, "settings")
