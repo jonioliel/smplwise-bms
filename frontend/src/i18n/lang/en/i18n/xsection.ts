@@ -6,7 +6,7 @@ export const en = {
   sectionTitle: 'Building cross-section', sectionAria: 'Building cross-section, floor by floor', sectionEmptyTitle: 'Building cross-section',
   sectionEmptyBody: 'Appears once the building has a first floor', sectionOpenBtn: 'Section', sectionSheetTitle: 'Building cross-section', close: 'Close',
   ground: 'Ground', level: 'Level {n}', target: 'Target {n}', noData: 'No data', noDataSince: 'No data from the floor', hot: 'Hot', cold: 'Cold', alert: 'Alert',
-  avgTemp: 'Average', lightsOn: 'on', hotCount: '{n} hot', coldCount: '{n} cold', noDataCount: '{n} without data', stairs: 'Stairs', lift: 'Lift',
+  avgTemp: 'Average', lightsOn: 'on', hotCount: '{n} hot', coldCount: '{n} cold', noDataCount: '{n} without data', stairs: 'Stairs', lift: 'Elevator',
   floorLabel: '{name}: {temp}, lights {lit}{alert}', noTemp: 'No temperature data', degrees: '{n} degrees', litOf: '{lit} of {lights}', openFloor: 'Open {name}',
   tileFor: 'Section: {name}', linksTitle: 'Links between floors', linksSub: 'Stairs and lifts that connect floors (published structure)',
   linksPending: '(the twin is not published yet)', linksFolded: '{n} links · the lines are drawn on the section', synTitle: 'Synoptic map', synSub: 'The whole building as a status board · {n} floors', synAll: 'Whole building', synFloor: 'Floor',
