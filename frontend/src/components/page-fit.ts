@@ -20,7 +20,7 @@ import { LongListsController } from '../api/long-lists';
  * card is drawn, the pager shows one page and the host carries `data-long-lists="scroll"`, so the screen's CSS lets the region scroll
  * inside itself. `mq` is the screen's desktop edge (default FIT_MQ). A region without `<section>` elements is one section.
  */
-const FIT_MQ = '(min-width: 1024px) and (min-height: 560px)';
+export const FIT_MQ = '(min-width: 1024px) and (min-height: 560px)';
 
 /** CR-CMP2-TABLES-GENMAINT-2450: a row region that is a shared `sw-table` draws its rows inside the table's shadow root (the row hook
  * `data-fit-item` comes through `rowAttrs`), where the region's own `querySelectorAll` does not reach. The items in reading order: the

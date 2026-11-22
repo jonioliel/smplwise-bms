@@ -37,6 +37,49 @@ Each rule was read in its file and classified:
 `ui.long_lists = scroll` (and a desktop window shorter than 560 px): each region keeps its own `overflow-y: auto` and scrolls inside itself as before. No media-query strings were added (the px-literal ratchet stays at the train's count).
 With few items (the demo data, every pixel baseline) nothing visible changes: one page, no pager.
 
+### 2a. The alarm sensors: the page is the grid that fits (owner, 2026-11-22 comparison)
+
+Owner decision on the first comparison: external grants and the people list ACCEPTED; the alarm sensors to be fixed first. What the
+captures showed (42 sensors, 6 areas): in the cards view at 1440x900 page 1 held 4 sensors in ONE column and two thirds of the width
+stayed empty; the list view stopped about a row above the region's bottom (60 px at 1440x900). Cause: `PageFit` pages whole rows in
+reading order section by section, and the alarm's areas pack side by side (`.areas` is a grid of area columns) - the first area to
+run out of height ended page 1.
+
+Fix: `components/grid-fit.ts` (`GridFit`, new; the same desktop edge `FIT_MQ` and long-lists setting as `PageFit`, which now exports
+`FIT_MQ`):
+1. probe - every sensor drawn in the grouped (areas side by side) layout; if nothing overflows, that layout stays and nothing pages
+   (a small installation and every pixel baseline look as before);
+2. otherwise the screen draws the sensors in ONE grid (`.areas.flat`): the cards' columns come from the region's real width
+   (`repeat(auto-fill, minmax(19em, 1fr))`, about 266 px - a usual sensor name is not cut), the rows from its real height
+   (`floor((room + gap) / (card + gap))` at the cards' natural height), a page = columns x rows; the row height is stretched to
+   `(room - gaps) / rows` (`--fit-row-h`) so every page but the last reaches the region's bottom edge. The list view: one column, the rows
+   that fit the height, stretched the same way.
+3. The one grid has no area headings: each sensor names its area in its second line (`.zarea`, after the state word). The second line
+   stays one line in the grid (the state and the flags never shrink; area and time give way with an ellipsis), so all items have one
+   height. Measured again on a region resize and a new set (filter, view, panel, sensors), never on a live state update.
+Phone and portrait tablet: unchanged (below the desktop edge every sensor is drawn by area and the page scrolls, as in 2.47.0).
+`ui.long_lists = scroll`: the grouped layout scrolling inside its region, as in 2.47.0.
+
+Measured (42 sensors, mocked backend, Chromium; "room left" = between the lowest item and the region's content bottom):
+
+| Window | Cards: first version | Cards: now | List: first version | List: now |
+|---|---|---|---|---|
+| 1280x800 | 3 per page, 1 column | 9 (3 x 3), 5 pages, room left 0 | 5 per page, 25 px left | 5, 9 pages, room left 0 (+1 px card border) |
+| 1366x768 | 3 per page, 1 column | 12 (4 x 3), 4 pages | 4 per page, 57 px left | 5, 9 pages |
+| 1440x900 | 4 per page, 1 column | 16 (4 x 4), 3 pages | 6 per page, 60 px left | 7, 6 pages |
+| 1920x1080 | 6 per page, 1 column | 36 (6 x 6), 2 pages | 8 per page, 36 px left | 10, 5 pages |
+| 1024x768 (landscape tablet, the desktop edge) | 2 per page, 1 column | 9 (3 x 3), 5 pages | 4 per page, 45 px left | 5, 9 pages |
+| 390x844 phone | unchanged (all 42 by area, the page scrolls) | unchanged | unchanged | unchanged |
+
+`tests/layout-scroll-audit-2480.spec.ts` now also asserts, for the alarm cases, at least 4 card columns and at most 3 px of room left
+below a full page (both views).
+
+Comparison page (local): `private/planning/scroll_alarm_2480_compare_2026-11-23.html` (images in the sibling folder): before = 2.47.0
+(`619f94d04`, the region scrolls) / after, desktop 1440 + 1920 and phone 390, cards and list, with the numbers per window.
+
+Owner decision Q20 (a later row, NOT in this branch): the tickets table pages as the next row; the case-details dialog stays a scrolling
+document (question 2 below, answered a).
+
 ## 3. The offenders that remain (listed, not fixed - each needs its own page / section work)
 
 Priority by how often operators use the screen:

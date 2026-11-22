@@ -14,6 +14,8 @@ import { settlePage } from './pixel-settle';
 // For each, at 1366x768 and 1440x900 with more items than fit: paged (the default) - the region does not overflow, fewer items are
 // drawn, the pager shows and its next page draws other items, the document / shell main do not scroll; `?long_lists=scroll` - every
 // item is drawn, no pager, the region scrolls inside itself (overflow-y auto), the page still does not.
+// The alarm sensors page as one grid (components/grid-fit.ts): the cards take at least four columns and every page but the last reaches
+// the region's bottom edge, in both views (the first version paged by area: one column of four cards, two thirds of the width empty).
 // SCROLL_SHOTS=<dir> also saves a screenshot of every case (the before / after comparison; run it on the base commit too - the
 // assertions are skipped there with SCROLL_SHOTS_ONLY=1).
 //   SW_BASE_URL=http://127.0.0.1:<port>/ npx playwright test tests/layout-scroll-audit-2480.spec.ts --project=desktop
@@ -147,7 +149,13 @@ const measure = (page: Page, c: Case) =>
     };
     const root = (find(app) as HTMLElement | null)?.shadowRoot;
     const r = root?.querySelector<HTMLElement>(region) ?? null;
+    const drawn = [...(root?.querySelectorAll<HTMLElement>(item) ?? [])].map((el) => el.getBoundingClientRect());
+    const rb = r?.getBoundingClientRect();
+    const padEnd = r ? parseFloat(getComputedStyle(r).paddingBottom) || 0 : 0;
     return {
+      // the columns of the first row, and the room left between the lowest item and the region's content bottom
+      cols: drawn.filter((b) => Math.abs(b.top - (drawn[0]?.top ?? 0)) <= 2).length,
+      gapBelow: rb && drawn.length ? Math.round(rb.bottom - padEnd - Math.max(...drawn.map((b) => b.bottom))) : -1,
       items: root?.querySelectorAll(item).length ?? 0,
       ids: [...(root?.querySelectorAll<HTMLElement>(item) ?? [])].map((el) => el.dataset.zone ?? el.dataset.grant ?? el.dataset.presencePerson ?? '').join(','),
       pager: !!root?.querySelector(pager),
@@ -204,6 +212,14 @@ test.describe('SCROLL-AUDIT-2480: the alarm sensors, the external grants and the
         expect(paged.overflowY).toBe('hidden');
         expect(paged.regionOver, 'the drawn page fits its region').toBeLessThanOrEqual(1);
         expect(paged.pager).toBe(true);
+        // the alarm sensors (owner, first comparison: "page 1 shows four sensors in one column, two thirds of the width empty"): a page
+        // is the grid that fits - the cards take the columns of the region's width, and the page reaches the region's bottom edge
+        // (the rows stretch; the list's card border is the only room left)
+        if (c.id === 'alarm-cards') expect(paged.cols, 'card columns on a page').toBeGreaterThanOrEqual(4);
+        if (c.id.startsWith('alarm-')) {
+          expect(paged.gapBelow, 'room left below the page').toBeGreaterThanOrEqual(-1);
+          expect(paged.gapBelow, 'room left below the page').toBeLessThanOrEqual(3);
+        }
 
         // the next page draws other items and still fits
         await open(page, c, '');
