@@ -26,6 +26,7 @@ from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize
 from ..services import go2rtc as g2
 from ..services import playback as pb
+from ..services import playback_store as store
 from ..services import recordings
 from ..services.access import require_camera
 from ..services.leases import CameraLease
@@ -36,6 +37,8 @@ from .recordings import camera_for_playback
 from .settings import read_settings
 from ..services.settings_store import setting_value
 from ._common import rid as _rid
+from ..wire import playback as W
+from ..wire import wire
 
 log = logging.getLogger("smplwise.playback")
 router = APIRouter()
@@ -76,7 +79,7 @@ def _owned(conn: sqlite3.Connection, principal: Principal, session_id: str) -> p
     return session
 
 
-@router.post("/playback/sessions", status_code=201)
+@router.post("/playback/sessions", status_code=201, **wire(W.PlaybackSession))
 def create_session(body: CreateBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     settings = settings_of(request)
     cam = camera_for_playback(conn, principal, body.camera_id)
@@ -100,7 +103,7 @@ def create_session(body: CreateBody, request: Request, principal: Principal = De
     return out
 
 
-@router.get("/playback/sessions")
+@router.get("/playback/sessions", **wire(W.PlaybackSessions))
 def list_sessions(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     s = read_settings(conn)
     admin = authorize(conn, principal, "system.configure", INSTALLATION).allowed
@@ -108,20 +111,20 @@ def list_sessions(principal: Principal = Depends(current_principal_ro), conn: sq
     return {"sessions": [pb.to_dict(x, s["playback.lease_s"]) for x in sessions], "max_sessions": s["playback.max_sessions"], "lease_s": s["playback.lease_s"]}
 
 
-@router.get("/playback/sessions/{session_id}")
+@router.get("/playback/sessions/{session_id}", **wire(W.PlaybackSession))
 def get_session(session_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     session = _owned(conn, principal, session_id)
     return pb.to_dict(session, setting_value(conn, "playback.lease_s"))
 
 
-@router.post("/playback/sessions/{session_id}/seek")
+@router.post("/playback/sessions/{session_id}/seek", **wire(W.PlaybackSession))
 def seek_session(session_id: str, body: SeekBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     settings = settings_of(request)
     session = _owned(conn, principal, session_id)
     if session.state in ("closed", "expired"):
         raise ApiError(409, "session_over", "סשן הניגון הסתיים; פתח ניגון חדש.")
     decision = require_camera(conn, principal, session.camera_id, "video.playback")  # T055: a seek is a new request - re-checked
-    cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (session.camera_id,)).fetchone()
+    cam = store.camera(conn, session.camera_id)
     try:
         start = parse_utc(body.start_at)
     except ValueError:
@@ -137,7 +140,7 @@ def seek_session(session_id: str, body: SeekBody, request: Request, principal: P
     return out
 
 
-@router.delete("/playback/sessions/{session_id}")
+@router.delete("/playback/sessions/{session_id}", **wire(W.PlaybackClosed))
 def close_session(session_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     session = _owned(conn, principal, session_id)
     pb.close(settings_of(request), session)
@@ -147,7 +150,7 @@ def close_session(session_id: str, request: Request, principal: Principal = Depe
     return {"id": session.id, "state": session.state}
 
 
-@router.post("/playback/sessions/{session_id}/close")
+@router.post("/playback/sessions/{session_id}/close", **wire(W.PlaybackClosed))
 def close_session_beacon(session_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Same as DELETE, reachable by navigator.sendBeacon on page unload (a beacon can only POST)."""
     session = _owned(conn, principal, session_id)

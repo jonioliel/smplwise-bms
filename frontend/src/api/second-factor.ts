@@ -1,44 +1,32 @@
 /** K11: the optional TOTP second factor (routes/second_factor.py). The secret is shown once, at enrolment, and never again. */
 import { api, get, post, put } from './client';
+import type * as SfWire from './generated/wire-second-factor';
 
-export interface SecondFactorStatus {
-  enabled: boolean;
-  enabled_at: string | null;
-  last_used_at: string | null;
-  policy: 'optional' | 'admins';
-}
+/* The shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/second_factor.py, generated into
+ * ./generated/wire-second-factor.ts; code review 07:F8 step 2). */
+export type SecondFactorStatus = SfWire.OwnFactor;
 
-export interface Enrolment {
-  /** Base32, for typing into the authenticator app by hand. */
-  secret: string;
-  otpauth_uri: string;
-  issuer: string;
-}
-
-interface FactorUsers {
-  policy: 'optional' | 'admins';
-  users: { user_id: string; enabled_at: string | null; last_used_at: string | null }[];
-}
+export type Enrolment = SfWire.Enrolment;
 
 export const secondFactorStatus = () => get<SecondFactorStatus>('auth/second-factor');
 export const startEnrolment = () => post<Enrolment>('auth/second-factor/enroll');
-export const confirmEnrolment = (code: string) => post<SecondFactorStatus>('auth/second-factor/confirm', { code });
-export const disableSecondFactor = (code: string) => post<SecondFactorStatus>('auth/second-factor/disable', { code });
-export const factorUsers = () => get<FactorUsers>('auth/second-factor/users');
+export const confirmEnrolment = (code: string) => post<SfWire.FactorStatus>('auth/second-factor/confirm', { code });
+export const disableSecondFactor = (code: string) => post<SfWire.FactorStatus>('auth/second-factor/disable', { code });
+export const factorUsers = () => get<SfWire.EnrolledUsers>('auth/second-factor/users');
 /** An administrator who has a factor sends their own current code (security review 2.2.0 M1); never their own user id (that is `disable`). */
 export const resetFactor = (userId: string, ownCode?: string) =>
-  api<{ user_id: string; removed: boolean }>(`auth/second-factor/users/${encodeURIComponent(userId)}`, {
+  api<SfWire.FactorReset>(`auth/second-factor/users/${encodeURIComponent(userId)}`, {
     method: 'DELETE',
     ...(ownCode ? { headers: { 'X-Arx-Second-Factor': ownCode } } : {}),
   });
 
 /** TFA2: per-user and per-role override on top of the global policy (inherit = no stored row). system.configure. */
 export type FactorOverride = 'inherit' | 'optional' | 'required';
-export interface FactorOverrides {
-  policy: 'optional' | 'admins';
-  user: Record<string, 'optional' | 'required'>;
-  role: Record<string, 'optional' | 'required'>;
-}
+/** Narrowed on purpose: a stored override is `optional` or `required` (`inherit` deletes the row; the server types the value as a string). */
+export type FactorOverrides = Omit<SfWire.Overrides, 'user' | 'role'> & {
+  user: Record<string, Exclude<FactorOverride, 'inherit'>>;
+  role: Record<string, Exclude<FactorOverride, 'inherit'>>;
+};
 export const factorOverrides = () => get<FactorOverrides>('auth/second-factor/overrides');
 export const setFactorOverride = (kind: 'user' | 'role', subjectId: string, policy: FactorOverride) =>
-  put<FactorOverrides & { kind: string; subject_id: string }>(`auth/second-factor/overrides/${kind}/${encodeURIComponent(subjectId)}`, { policy });
+  put<FactorOverrides & Pick<SfWire.OverrideSet, 'kind' | 'subject_id' | 'policy'>>(`auth/second-factor/overrides/${kind}/${encodeURIComponent(subjectId)}`, { policy });

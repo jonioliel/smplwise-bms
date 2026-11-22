@@ -11,6 +11,9 @@
  */
 import { css, html, nothing, type TemplateResult } from 'lit';
 import '../components/sw-button';
+import '../components/sw-field';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import { customElement, property } from 'lit/decorators.js';
 import { ElecBase, n } from './elec-ui';
 import { f4 } from './elec-format';
@@ -39,17 +42,28 @@ export class ElecTouEditor extends ElecBase {
         flex-direction: column;
         gap: 14px;
       }
-      table.t td.pc {
-        padding: 6px 8px;
-        min-inline-size: 120px;
+      /* CR-FIELD-UNIT-2470: the price grid (sw-table): the band's swatch and name, a price field of one fixed width with the ₪ inside
+         its frame; the price cells sit on 8 px so four seasons fit the dialog */
+      sw-table.t {
+        --sw-table-cell-pad: 8px 10px;
       }
-      table.t td.pc .unit {
-        display: flex;
+      sw-table.t::part(tou-band) {
+        display: inline-flex;
         align-items: center;
-        gap: 6px;
+        flex-wrap: wrap;
+        gap: 4px 6px;
       }
-      table.t td.pc input {
-        inline-size: 110px;
+      sw-table.t::part(tou-swatch) {
+        inline-size: 12px;
+        block-size: 12px;
+        border-radius: var(--sw-r-2xs);
+        border: 1px solid var(--sw-border-strong);
+        flex: none;
+      }
+      sw-table.t::part(tou-price) {
+        inline-size: 128px;
+        max-inline-size: 100%;
+        gap: 4px;
       }
       .hint {
         font-size: var(--sw-fs-sm);
@@ -172,26 +186,41 @@ export class ElecTouEditor extends ElecBase {
   }
 
   // ------------------------------------------------------------------ prices
+  /** CR-FIELD-UNIT-2470 (owner N10): the prices are the shared sw-table (bare in the card, read-only rows; row hook `data-tou-band`), one
+   * row per band and one column per season. Each price is the shared field with the ₪ unit inside its frame (`data-tou-price` on the
+   * input; a price the server refused keeps the `err` class and is aria-invalid) and the other side of the VAT as its hint. A band a
+   * season never uses shows a dash. On a phone the rows stack (each price under its season's caption): nothing scrolls sideways. */
   private prices(d: TouDefinition): TemplateResult {
-    const rate = this.vatRate;
-    return html`<div class="card flush" data-tou-prices>
+    type Band = TouDefinition['bands'][number];
+    return html`<div class="card" data-tou-prices>
       <div class="hd"><b class="h3">${tr('מחירים לקוט״ש')}</b><span class="sp"></span><span class="hint">${this.priceMode === 'inc_vat' ? tr('המחירים כוללים מע״מ') : tr('המחירים לפני מע״מ')}</span></div>
-      <div class="scrollx"><table class="t">
-        <thead><tr><th>${tr('פס')}</th>${d.seasons.map((s) => html`<th>${touName('seasons', s)}</th>`)}</tr></thead>
-        <tbody>${d.bands.map((b) => html`<tr><td class="b"><span class="sw" style="background:${bandColor(d, b.id)}"></span>${touName('bands', b)}${b.id === d.default_band ? html` <span class="hint">(${tr('שאר השעות')})</span>` : nothing}</td>
-          ${d.seasons.map((s) => {
-            const used = bandsUsed(d, s.id).includes(b.id);
-            const v = d.prices[s.id]?.[b.id] ?? '';
-            const path = `prices.${s.id}.${b.id}`;
-            if (!used && (v === '' || v === null)) return html`<td class="pc"><span class="hint">-</span></td>`;
-            const num = Number(v);
-            const other = rate !== null && v !== '' && Number.isFinite(num) ? (this.priceMode === 'ex_vat' ? num * (1 + rate) : num / (1 + rate)) : null;
-            return html`<td class="pc"><div class="unit"><input class="ltr ${this.bad(path) ? 'err' : ''}" inputmode="decimal" aria-label=${tr('{band} ב{season}', { band: touName('bands', b), season: touName('seasons', s) })} data-tou-price=${`${s.id}:${b.id}`} .value=${v ?? ''} ?disabled=${this.readonly}
-              @input=${(e: Event) => this.edit((x) => { (x.prices[s.id] ??= {})[b.id] = (e.target as HTMLInputElement).value.trim() || null; })} /><span>₪</span></div>
-              ${other !== null ? html`<div class="hint">${this.priceMode === 'ex_vat' ? tr('כולל מע״מ') : tr('לפני מע״מ')} ${n(f4(other))}</div>` : nothing}</td>`;
-          })}</tr>`)}</tbody>
-      </table></div>
+      <sw-table bare static-rows class="t" .columns=${this.priceColumns(d) as unknown as TableColumn[]} .rows=${d.bands as unknown as Record<string, unknown>[]}
+        .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-tou-band': (r as unknown as Band).id })}></sw-table>
     </div>`;
+  }
+  private priceColumns(d: TouDefinition): TableColumn<TouDefinition['bands'][number]>[] {
+    return [
+      {
+        key: 'band',
+        label: tr('פס'),
+        render: (b) => html`<span part="tou-band"><span part="tou-swatch" style="background:${bandColor(d, b.id)}"></span><b>${touName('bands', b)}</b>${b.id === d.default_band ? html`<span class="mut">(${tr('שאר השעות')})</span>` : nothing}</span>`,
+      },
+      ...d.seasons.map(
+        (s): TableColumn<TouDefinition['bands'][number]> => ({ key: `season-${s.id}`, label: touName('seasons', s), render: (b) => this.priceCell(d, s, b) }),
+      ),
+    ];
+  }
+  private priceCell(d: TouDefinition, s: TouDefinition['seasons'][number], b: TouDefinition['bands'][number]): TemplateResult {
+    const v = d.prices[s.id]?.[b.id] ?? '';
+    if (!bandsUsed(d, s.id).includes(b.id) && (v === '' || v === null)) return html`<span class="mut">-</span>`;
+    const rate = this.vatRate;
+    const num = Number(v);
+    const other = rate !== null && v !== '' && Number.isFinite(num) ? (this.priceMode === 'ex_vat' ? num * (1 + rate) : num / (1 + rate)) : null;
+    const hint = other !== null ? `${this.priceMode === 'ex_vat' ? tr('כולל מע״מ') : tr('לפני מע״מ')} ${f4(other)}` : '';
+    const bad = !!this.bad(`prices.${s.id}.${b.id}`);
+    return html`<sw-field part="field tou-price" unit="₪" hint=${hint}><input class="ltr ${bad ? 'err' : ''}" inputmode="decimal" aria-label=${tr('{band} ב{season}', { band: touName('bands', b), season: touName('seasons', s) })}
+      aria-invalid=${bad ? 'true' : 'false'} data-tou-price=${`${s.id}:${b.id}`} .value=${v ?? ''} ?disabled=${this.readonly}
+      @input=${(e: Event) => this.edit((x) => { (x.prices[s.id] ??= {})[b.id] = (e.target as HTMLInputElement).value.trim() || null; })} /></sw-field>`;
   }
 
   // ------------------------------------------------------------------ hours

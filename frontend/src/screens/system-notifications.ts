@@ -10,6 +10,8 @@ import type { SegmentedChange } from '../components/sw-segmented';
 import { switchPress } from '../components/sw-toggle';
 import '../components/sw-page';
 import '../components/sw-tabs';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import '../pwa/notifications-settings';
 import '../components/notify-whatsapp-section'; // NOTIFWA: the WhatsApp section, one separable element
 import '../components/notify-whatsapp-mine'; // NOTIFWA review F2: the user's own number and consent
@@ -58,8 +60,9 @@ type Phase = 'loading' | 'ready' | 'user' | 'error';
 interface Person { id: string; name: string }
 const DEMO_USERS: Person[] = [{ id: 'u-yoni', name: 'יוני' }, { id: 'u-dana', name: 'דנה' }, { id: 'u-uri', name: 'אורי' }, { id: 'u-roni', name: 'רוני' }];
 const RULES: NotifyPolicy['recipients']['rule'][] = ['scope', 'managers', 'initiator', 'users'];
-const STATUS_ICON: Record<Delivery['status'], string> = { sent: 'check', failed: 'warning', gone: 'warning', skipped: 'moon', queued: 'clock', retry: 'refresh' };
-const STATUS_TONE: Record<Delivery['status'], string> = { sent: 'ok', failed: 'bad', gone: 'bad', skipped: 'skp', queued: 'skp', retry: 'skp' };
+/** CR-CMP2-TABLES-REST-2470 (owner N10 / N21): a delivery's outcome in the shared status tones - sent ok, failed / gone bad, the rest
+ * (skipped, queued, retry) neutral */
+const STATUS_TONE: Record<Delivery['status'], 'ok' | 'bad' | undefined> = { sent: 'ok', failed: 'bad', gone: 'bad', skipped: undefined, queued: undefined, retry: undefined };
 
 /** The log table reaches back 14 days; the failures panel above it counts the last 24 hours (each is labelled with its own window). */
 const s14 = () => tr('{n} יום', { n: 14 });
@@ -734,55 +737,20 @@ export class SystemNotifications extends LitElement {
       .pushcard .acts span.door .ic {
         color: var(--nt-sev-alert);
       }
-      /* the log */
-      .lgw {
-        overflow-x: auto;
+      /* the log: CR-CMP2-TABLES-REST-2470 (owner N10) the shared table in its own frame (the module's border and header band); the
+         notification and reason columns are cut with an ellipsis (their full text is the cell's title), never wider than the section */
+      sw-table[data-log-table] {
+        --sw-table-min: 0;
+        --sw-table-head-bg: var(--nt-matrix-head);
+        --sw-table-cell-pad: 9px 8px;
+        border-color: var(--dv-border);
         border-radius: var(--sw-r-lg);
-        border: 1px solid var(--dv-border);
+        box-shadow: none;
       }
-      .lg {
-        inline-size: 100%;
-        border-collapse: separate;
-        border-spacing: 0;
-        font-size: var(--sw-fs-sm);
-      }
-      .lg th {
-        font-size: var(--sw-fs-xs);
-        font-weight: var(--sw-fw-semibold);
+      .lg-empty {
+        text-align: center;
+        padding: 18px;
         color: var(--dv-text-3);
-        text-align: start;
-        padding: 8px;
-        background: var(--nt-matrix-head);
-        border-block-end: 1px solid var(--dv-border);
-        white-space: nowrap;
-      }
-      .lg td {
-        padding: 9px 8px;
-        border-block-end: 1px solid var(--dv-border);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-inline-size: 260px;
-      }
-      .lg tr:last-child td {
-        border-block-end: 0;
-      }
-      .lg td .ic {
-        font-size: var(--sw-fs-md);
-        vertical-align: -2px;
-        margin-inline-end: 4px;
-      }
-      .lg .ok {
-        color: var(--dv-success);
-        font-weight: var(--sw-fw-semibold);
-      }
-      .lg .bad {
-        color: var(--dv-danger);
-        font-weight: var(--sw-fw-semibold);
-      }
-      .lg .skp {
-        color: var(--dv-text-3);
-        font-weight: var(--sw-fw-semibold);
       }
       .fails {
         display: grid;
@@ -1308,7 +1276,23 @@ export class SystemNotifications extends LitElement {
     return html`<section class="glass sec" data-set-section="log" id="sec-log"><header><h2>${nIcon('inbox')}${SECTIONS[8].label}</h2><div class="sp"><span class="tag" data-log-window>${s14()}</span><sw-segmented size="sm" label=${tr('סינון היומן')} value=${this.onlyFailed ? 'failed' : 'all'} @change=${(ev: CustomEvent<SegmentedChange>) => (this.onlyFailed = ev.detail.value === 'failed')}
         .options=${[{ value: 'all', label: tr('הכל'), attrs: { 'data-log-filter': 'all' } }, { value: 'failed', label: tr('רק כשלים'), count: fails || undefined, attrs: { 'data-log-filter': 'failed' } }]}></sw-segmented></div></header>
       <div class="fails" data-fail-panel>${cards.map((c) => html`<div class="fstat ${c.tone}" data-fail-card=${c.channel}><span class="ch">${c.label} · ${tr('24 שעות')}</span><b class="n">${c.failed > 0 ? c.failed : c.sent}</b><small>${c.failed > 0 ? tr('נכשלו') : tr('נשלחו')}${c.skipped ? ` · ${tr('{n} לא נשלחו', { n: c.skipped })}` : ''}</small></div>`)}</div>
-      <div class="lgw"><table class="lg"><thead><tr><th>${tr('שעה')}</th><th>${tr('התראה')}</th><th>${tr('משתמש')}</th><th>${tr('ערוץ')}</th><th>${tr('מצב')}</th><th>${tr('סיבה')}</th></tr></thead><tbody>${list.length ? list.map((d) => html`<tr data-log-row=${d.id} data-log-status=${d.status}><td class="n" style="direction:rtl">${relativeTime(d.at, this.now, this.tz)}</td><td>${this.titles[d.notification_id] ?? '—'}</td><td>${d.user_display}</td><td>${nIcon(d.channel === 'email' ? 'mail' : d.channel === 'whatsapp' ? 'chat' : 'phone')}${CHANNEL_LABEL[d.channel]}</td><td class=${STATUS_TONE[d.status]}>${nIcon(STATUS_ICON[d.status])}${DELIVERY_STATUS_LABEL[d.status]}</td><td>${deliveryReasonText(d.reason) || '—'}</td></tr>`) : html`<tr><td colspan="6" style="text-align:center;padding:18px;color:var(--dv-text-3)">${tr('אין רשומות')}</td></tr>`}</tbody></table></div></section>`;
+      <sw-table static-rows data-log-table .columns=${this.logColumns() as unknown as TableColumn[]} .rows=${list as unknown as Record<string, unknown>[]}
+        .rowAttrs=${(d: Record<string, unknown>) => ({ 'data-log-row': String(d.id), 'data-log-status': String(d.status) })}><div slot="empty" class="lg-empty" data-log-empty>${tr('אין רשומות')}</div></sw-table></section>`;
+  }
+
+  /** CR-CMP2-TABLES-REST-2470 (owner N10): the delivery log on the shared table - when (relative), the notification, the person, the
+   * channel (its name: the module's pictograms are styled by the screen and do not reach the table), the outcome chip in the shared tones, the reason. */
+  private logColumns(): TableColumn<Delivery>[] {
+    const reason = (d: Delivery) => deliveryReasonText(d.reason) || '—';
+    const title = (d: Delivery) => this.titles[d.notification_id] ?? '—';
+    return [
+      { key: 'at', label: tr('שעה'), kind: 'muted', render: (d) => relativeTime(d.at, this.now, this.tz) },
+      { key: 'title', label: tr('התראה'), kind: 'truncate', cellTitle: title, render: title },
+      { key: 'user', label: tr('משתמש'), render: (d) => d.user_display },
+      { key: 'channel', label: tr('ערוץ'), render: (d) => CHANNEL_LABEL[d.channel] },
+      { key: 'status', label: tr('מצב'), kind: 'status', render: (d) => html`<span class="chip" data-tone=${STATUS_TONE[d.status] ?? nothing}>${DELIVERY_STATUS_LABEL[d.status]}</span>` },
+      { key: 'reason', label: tr('סיבה'), kind: 'truncate', cellTitle: reason, render: reason },
+    ];
   }
 
   private renderPicker() {

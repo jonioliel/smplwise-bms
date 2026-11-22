@@ -17,6 +17,8 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, ROLES, ROLE_NAMES_HE, all_roles, require, role_name
 from ..services import access_custom_roles_store as store
 from ..services import revocation
+from ..wire import wire
+from ..wire.access_custom_roles import CustomRole, CustomRoleDeleted, CustomRolePreview, CustomRoleUpdated, DelegationSaved, DelegationState
 from ..services.rbac_admin import DEFAULT_DELEGABLE, PERMISSION_LABELS, SENSITIVE, _check_delegable_flag, _custom_role_dict, _rid, _role_impact, _terminate, _validate_role_body, delegable_roles, delegation_block, rendered_labels
 
 router = APIRouter()
@@ -56,7 +58,7 @@ class DelegationBody(BaseModel):
     delegable_roles: list[str] = Field(default_factory=list, max_length=50)
 
 
-@router.post("/access/roles", status_code=201)
+@router.post("/access/roles", status_code=201, **wire(CustomRole))
 def create_custom_role(body: CustomRoleBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "rbac.roles.manage", INSTALLATION)
     perms, sens = _validate_role_body(body.permissions, body.sensitive)
@@ -71,7 +73,7 @@ def create_custom_role(body: CustomRoleBody, request: Request, principal: Princi
     return _custom_role_dict(conn, store.custom_role(conn, rid))
 
 
-@router.post("/access/roles/preview")
+@router.post("/access/roles/preview", **wire(CustomRolePreview))
 def preview_role_change(body: RolePreviewBody, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Before saving: who holds the role today (users, groups, scopes) and which permissions the change adds or removes."""
     require(conn, principal, "rbac.roles.manage", INSTALLATION)
@@ -81,7 +83,7 @@ def preview_role_change(body: RolePreviewBody, principal: Principal = Depends(cu
     return {**_role_impact(conn, body.role_id, sorted(set(perms) | set(sens))), "labels": rendered_labels(conn)}
 
 
-@router.patch("/access/roles/{role_id}")
+@router.patch("/access/roles/{role_id}", **wire(CustomRoleUpdated))
 def update_custom_role(role_id: str, body: CustomRolePatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "rbac.roles.manage", INSTALLATION)
     if role_id in ROLES:
@@ -105,7 +107,7 @@ def update_custom_role(role_id: str, body: CustomRolePatch, request: Request, pr
     return {**_custom_role_dict(conn, store.custom_role(conn, role_id)), "impact": impact}
 
 
-@router.delete("/access/roles/{role_id}")
+@router.delete("/access/roles/{role_id}", **wire(CustomRoleDeleted))
 def delete_custom_role(role_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "rbac.roles.manage", INSTALLATION)
     if role_id in ROLES:
@@ -131,7 +133,7 @@ DELEGATION_RULES = [
 ]
 
 
-@router.get("/access/delegation")
+@router.get("/access/delegation", **wire(DelegationState))
 def get_delegation(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "identity.directory.read", INSTALLATION)
     blocked = {rid: delegation_block(conn, rid) for rid in all_roles(conn)}
@@ -139,7 +141,7 @@ def get_delegation(principal: Principal = Depends(current_principal_ro), conn: s
             "blocked": {k: v for k, v in blocked.items() if v}, "revision": permission_revision(conn)}
 
 
-@router.put("/access/delegation")
+@router.put("/access/delegation", **wire(DelegationSaved))
 def set_delegation(body: DelegationBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Replace the allow-list (rbac.roles.manage). Built-in roles live in the setting,
     custom roles in their own `delegable` flag - this call keeps both in step, so the list sent is the whole truth."""

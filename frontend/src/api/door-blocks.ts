@@ -8,73 +8,28 @@
  * The switch is on the entity only. Entity ids are keys here; the item rows carry names only.
  */
 import { get, put } from './client';
+import type * as Wire from './generated/wire-doors';
 
-export type BlockState = 'blocked' | 'unblocked' | 'door';
+/* The wire shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/doors.py), generated into
+ * ./generated/wire-doors.ts (code review 07:F8 step 2). Narrowed on purpose: an item's `kind` to the saved-item kinds. */
+export type BlockState = Wire.DoorBlockEntity['state'];
 
-interface DoorBlockOverride {
-  note: string;
-  /** The administrator's name (the id when no name was known). */
-  by: string;
-  /** UTC instant. */
-  at: string;
-}
+/** One entity: `door` = mapped to an intercom door, never released here; `stale` = a release whose entity is gone (or no longer
+ * blocked), listed so it can be taken back; `override` = who released it (the name, the id when no name was known), when (UTC) and why;
+ * `used_by` = names of the saved items that use it (alphabetical, a few), `used_more` how many more there are. */
+export type DoorBlockEntity = Wire.DoorBlockEntity;
 
-export interface DoorBlockEntity {
-  entity_id: string;
-  name: string;
-  domain: string;
-  platform: string | null;
-  area: string | null;
-  /** `door`: mapped to an intercom door - never released here. */
-  state: BlockState;
-  overridable: boolean;
-  /** A release whose entity is gone (or no longer blocked): listed so it can be taken back. */
-  stale: boolean;
-  override: DoorBlockOverride | null;
-  /** Names of the saved items that use it (alphabetical, a few) and how many more there are. */
-  used_by: string[];
-  used_more: number;
-}
+export type DoorBlockDevice = Wire.DoorBlockDevice;
 
-export interface DoorBlockDevice {
-  name: string;
-  state: 'blocked' | 'unblocked';
-}
-
-export interface DoorBlockItem {
-  key: string;
+/** One saved item the door path refuses: `blocked` = still refused now (after the releases; false: only released devices stood in its
+ * way); `opens_door` = a real WisKey door step (stays refused whatever is released); `guard` / `why` / `reasons` are the server's Hebrew. */
+export interface DoorBlockItem extends Omit<Wire.DoorBlockItem, 'kind'> {
   kind: 'automation' | 'script' | 'scene' | 'schedule' | 'launcher';
-  kind_text: string;
-  name: string;
-  state: string;
-  /** Still refused now (after the releases). False: only released devices stood in its way. */
-  blocked: boolean;
-  /** Has a real WisKey door step: stays refused whatever is released. */
-  opens_door: boolean;
-  /** The server's Hebrew for what the guard does and, for a door item, why (`why`). */
-  guard: string;
-  why: string | null;
-  /** Why it cannot be resolved (the server's Hebrew, deduplicated). */
-  reasons: string[];
-  devices: DoorBlockDevice[];
-  devices_more: number;
 }
 
-export interface DoorBlocks {
-  wiskey_present: boolean;
-  generated_at: string;
-  entities: DoorBlockEntity[];
-  items: DoorBlockItem[];
-  counts: { entities: number; blocked: number; unblocked: number; items: number; items_blocked: number };
-  truncated: boolean;
-}
+export type DoorBlocks = Omit<Wire.DoorBlocks, 'items'> & { items: DoorBlockItem[] };
 
-export interface EntityBlockReply {
-  entity_id: string;
-  state: 'blocked' | 'unblocked';
-  override: DoorBlockOverride | null;
-  changed: boolean;
-}
+export type EntityBlockReply = Wire.DoorEntityBlock;
 
 export const getDoorBlocks = () => get<DoorBlocks>('doors/blocks');
 

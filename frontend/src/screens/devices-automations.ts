@@ -7,6 +7,8 @@ import './automation-editors';
 import '../components/sw-dialog';
 import '../components/sw-page';
 import '../components/sw-segmented';
+import '../components/sw-tabs';
+import type { TabItem } from '../components/sw-tabs';
 import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-automation-card';
 import '../components/sw-automation-row';
@@ -48,7 +50,6 @@ import type { AutomationDrawer } from './automation-drawer';
 import type { CardAction } from '../components/sw-automation-card';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
-import { tablistKeydown } from '../components/a11y-keys';
 import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
 
 /** 0.1.154: the schedules screen, the first segment of "קברניט" (its address is unchanged). */
@@ -220,9 +221,6 @@ export class DevicesAutomations extends LitElement {
     :host([data-sens='red']) {
       --au-sens-bg: var(--dv-danger-soft);
       --au-sens-fg: var(--dv-danger);
-    }
-    .dh-det .seg.kinds button {
-      padding-inline: 14px;
     }
     .dh-det .grow {
       min-inline-size: 0;
@@ -405,13 +403,9 @@ export class DevicesAutomations extends LitElement {
       .dh-det {
         gap: 10px;
       }
-      .dh-det .seg.kinds {
+      /* CR-CMP2-TABS-2460: the kind strip takes the first line of the phone toolbar (sw-tabs fill="phone" shares it equally) */
+      .dh-det sw-tabs.kinds {
         order: 1;
-        inline-size: 100%;
-      }
-      .dh-det .seg.kinds button {
-        flex: 1;
-        padding-inline: 8px;
       }
       .dh-det .stf {
         order: 2;
@@ -844,6 +838,25 @@ export class DevicesAutomations extends LitElement {
     return (this.items ?? []).filter((i) => i.kind === kind && !(kind === 'scene' && i.hidden));
   }
 
+  /** CR-CMP2-TABS-2460: the kind strip (תזמונים · אוטומציות · סצנות · סקריפטים · תרחישים) is sw-tabs (pill, controlled): each tab keeps
+   * its data-segment hook and its count (a `<small>`, the plain glass figure), the strip fills the phone row; תזמונים and תרחישים
+   * navigate, a kind switches the segment (or opens it from the scenarios view). */
+  private kindTabs(kinds: readonly ItemKind[], counts: ReturnType<typeof countsOf>, seg: Segment, sv: boolean, scenOk: boolean): TemplateResult {
+    const items: TabItem[] = [
+      ...(this.kavarnit.schedules ? [{ id: 'schedules', label: tr('תזמונים'), pill: this.schedCount ?? undefined, attrs: { 'data-segment': 'schedules' } }] : []),
+      ...SEGMENTS.filter((s) => kinds.includes(s.kind)).map((s) => ({ id: s.id, label: s.label, pill: counts[s.kind], attrs: { 'data-segment': s.id } })),
+      ...(scenOk ? [{ id: 'scenarios', label: sct('tab'), attrs: { 'data-segment': 'scenarios' } }] : []),
+    ];
+    const go = (id: string) => {
+      if (id === 'schedules') navigate(SCHEDULES_PATH);
+      else if (id === 'scenarios') navigate('/devices/automations/scenarios');
+      else if (sv) navigate(itemPath(id as Segment));
+      else this.setSegment(id as Segment);
+    };
+    return html`<sw-tabs controlled variant="pill" fill="phone" class="kinds" group-label=${tr('סוג')} .items=${items} .active=${sv ? 'scenarios' : seg}
+      @change=${(e: CustomEvent<{ id: string }>) => { e.stopPropagation(); go(e.detail.id); }}></sw-tabs>`;
+  }
+
   private header(seg: Segment): TemplateResult {
     const def = segmentOf(seg);
     const all = this.segItems(seg);
@@ -867,7 +880,7 @@ export class DevicesAutomations extends LitElement {
     <header class="dh" data-auto-header>
       ${this.phone && rooms !== nothing ? html`<div class="dh-row fl">${rooms}</div>` : nothing}
       ${tools || (sv && scenOk) ? html`<div class="dh-det">
-        ${kinds.length > 1 || scenOk || (this.kavarnit.schedules && kinds.length) ? html`<div class="seg kinds" role="tablist" aria-label=${tr('סוג')} @keydown=${tablistKeydown}>${this.kavarnit.schedules ? html`<button type="button" role="tab" aria-selected="false" data-segment="schedules" @click=${() => navigate(SCHEDULES_PATH)}>${tr('תזמונים')}${this.schedCount === null ? nothing : html` <small>${this.schedCount}</small>`}</button>` : nothing}${SEGMENTS.filter((s) => kinds.includes(s.kind)).map((s) => html`<button type="button" role="tab" aria-selected=${String(seg === s.id && !sv)} data-segment=${s.id} @click=${() => (sv ? navigate(itemPath(s.id)) : this.setSegment(s.id))}>${s.label} <small>${counts[s.kind]}</small></button>`)}${scenOk ? html`<button type="button" role="tab" aria-selected=${String(sv)} data-segment="scenarios" @click=${() => navigate('/devices/automations/scenarios')}>${sct('tab')}</button>` : nothing}</div>` : nothing}
+        ${kinds.length > 1 || scenOk || (this.kavarnit.schedules && kinds.length) ? this.kindTabs(kinds, counts, seg, sv, scenOk) : nothing}
         ${def.kind === 'automation' && all.length && !sv ? html`<sw-segmented class="stf" radio size="sm" label=${tr('סינון לפי מצב')} ?data-open=${this.filtersOpen} value=${f.state} @change=${(e: CustomEvent<SegmentedChange>) => this.setFilter({ state: e.detail.value as StateFilter })}
           .options=${STATE_FILTERS_OF(extFlags(this.status?.ui ?? null).precheck).map((s) => ({ value: s.id, label: s.label, count: String(sc[s.id]), attrs: { 'data-state-filter': s.id } }))}></sw-segmented>` : nothing}
         ${def.kind === 'automation' && all.length && !sv ? html`<button type="button" class="btn foldbtn" data-fold-toggle aria-expanded=${String(this.filtersOpen)} @click=${() => (this.filtersOpen = !this.filtersOpen)}>${aIcon('filter')}${tr('סינון')}${active ? html` <small>${active}</small>` : nothing}</button>` : nothing}

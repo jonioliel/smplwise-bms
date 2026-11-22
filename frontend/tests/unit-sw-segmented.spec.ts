@@ -255,7 +255,15 @@ const ADOPTED = [
   'screens/home-screen-options.ts',
   // the provider strip of system-calendar-sync is a tab strip: sw-tabs (pill) since CR-CMP2-SEGMENTED-C-2450; its other choices are here
   'screens/system-calendar-sync.ts',
-  // screens/home-edit-bv1.ts draws it too (registered by home-edit-panel); shell/sw-home-personal.ts keeps one multi-choice row
+  // screens/home-edit-bv1.ts draws it too (registered by home-edit-panel); shell/sw-home-personal.ts's multi-choice row (the summary
+  // tiles) is sw-chip-choice multi since CR-CMP2-TABS-2460
+  // CR-CMP2-TABS-2460: the tickets overview's department choice (a radio group in a box that scrolls sideways)
+  'screens/tickets-overview.ts',
+  // CR-HOME-V3-SEGMENTS-2470: the home v3 operator screen (sw-home's seg() serves its screens and the v3 modules, home-p3's seg() phase 3)
+  // and the home widgets' edit-bar size choice. The home .hsw and the row switches are not segmented controls and stay (owner N12).
+  'home/sw-home.ts',
+  'home/home-p3.ts',
+  'screens/home-widgets.ts',
 ];
 
 test('adoption: the adopted screens draw every segmented control with sw-segmented', () => {
@@ -275,11 +283,14 @@ test.describe('sw-chip-choice: the contract in the source and its adopters', () 
   const src = read('components/sw-chip-choice.ts');
 
   test('controlled, a named group of toggle buttons, the arrows move the focus, the data-* hooks land on the chips', () => {
-    expect(src).toMatch(/new CustomEvent<ChipChoiceChange<V>>\('change', \{ detail: \{ value: o\.value \}, bubbles: true, composed: true \}\)/);
+    // CR-CMP2-TABS-2460: a multi row also says which state the press asks for (unit-sw-tabs-2460.spec.ts pins `multi`)
+    expect(src).toMatch(/const detail: ChipChoiceChange<V> = this\.multi \? \{ value: o\.value, pressed: !this\.on\(o\) \} : \{ value: o\.value \};/);
+    expect(src).toMatch(/new CustomEvent<ChipChoiceChange<V>>\('change', \{ detail, bubbles: true, composed: true \}\)/);
     expect(src).not.toMatch(/this\.value\s*=[^=]/);
     expect(src).toMatch(/if \(this\.disabled \|\| o\.disabled\) return;/);
     expect(src).toMatch(/role="group" aria-label=\$\{this\.label \|\| nothing\}/);
-    expect(src).toMatch(/aria-pressed=\$\{o\.value === this\.value \? 'true' : 'false'\}/);
+    expect(src).toMatch(/const on = this\.on\(o\);/);
+    expect(src).toMatch(/aria-pressed=\$\{on \? 'true' : 'false'\}/);
     expect(src).toMatch(/segmentedFocusStep\(e\.key, from,/);
     expect(src).toMatch(/if \(a\.name\.startsWith\('data-'\) && !\(a\.name in want\)\) c\.removeAttribute\(a\.name\);/);
   });
@@ -301,6 +312,10 @@ test.describe('sw-chip-choice: the contract in the source and its adopters', () 
     'screens/door-windows.ts',
     'screens/access-external.ts',
     'screens/wiskey-access-diag.ts',
+    // CR-CMP2-TABS-2460: the events centre's handling-state and view rows (they were sw-chip rows in a `.seg` span); the personal
+    // home panel's summary tiles are a `multi` row
+    'screens/investigate-events.ts',
+    'shell/sw-home-personal.ts',
   ];
   test('adoption: these screens draw their single-choice chip rows with sw-chip-choice (no hand-built `.seg` row comes back)', () => {
     const bad: string[] = [];

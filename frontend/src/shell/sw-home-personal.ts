@@ -31,8 +31,9 @@ import { hs } from '../i18n/home-screen';
 import { tr } from '../i18n/msg/shell';
 import { firstRead, noChoices, readOwnChoices } from './home-personal-read';
 import type { AreaRowChange } from '../screens/area-row-editor';
-import { segThumbPlainStyles } from '../styles/fragments';
 import '../components/sw-segmented';
+import '../components/sw-chip-choice';
+import type { ChipChoiceChange } from '../components/sw-chip-choice';
 import type { SegmentedChange } from '../components/sw-segmented';
 
 
@@ -98,13 +99,14 @@ export class SwHomePersonal extends LitElement {
       min-block-size: 32px;
       padding: 0 8px;
     }
-    /* the summary tiles stay a hand-built row: it is a multi-choice (each tile on or off), not one of N */
-    .seg {
-      display: inline-flex;
-      background: var(--sw-surface-3);
-      padding: 2px;
-      border-radius: 999px;
-      gap: 1px;
+    /* CR-CMP2-TABS-2460: the summary tiles (a multi-choice - each tile on or off, "follow the installation" beside them) are
+       sw-chip-choice multi, at this panel's compact size: the 28 px chip, the small label, the 0.45 disabled dimming */
+    sw-chip-choice.tiles {
+      --sw-chipc-h: 28px;
+      --sw-chipc-pad: 10px;
+      --sw-chipc-fs: var(--sw-fs-xs);
+      --sw-chipc-gap: 4px;
+      --sw-disabled-opacity: 0.45;
     }
     /* CR-CMP2-SEGMENTED-C-2450: the one-of-N choices are sw-segmented, in this panel's compact pill (2 px track, 1 px apart, the 28 px
        key with the small label, the plain chosen key of segThumbPlainStyles and the panel's 0.45 disabled dimming) */
@@ -122,21 +124,6 @@ export class SwHomePersonal extends LitElement {
       --sw-disabled-opacity: 0.45;
       /* CR-SEG-MODULE-LOOK-2470: the sw-segmented default is the module look now; this key keeps the old default values it used */
       --sw-seg-on-bg: var(--sw-seg-key, var(--sw-surface));
-    }
-    .seg button {
-      border: 0;
-      background: transparent;
-      padding: 2px 10px;
-      min-block-size: 28px;
-      font: inherit;
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-2);
-      border-radius: 999px;
-      cursor: pointer;
-    }
-    ${segThumbPlainStyles}
-    .seg button:disabled {
-      opacity: 0.45;
     }
     .w {
       border-block-start: 1px solid var(--sw-border);
@@ -282,10 +269,9 @@ export class SwHomePersonal extends LitElement {
       ${site.summary_chooser === 'user'
         ? html`<div class="row" data-home-personal-tiles>
             <span class="lbl">${hs('personalTiles')}</span>
-            <span class="seg" role="group" aria-label=${hs('personalTiles')}>
-              <button type="button" data-home-personal-tile="" aria-pressed=${String(tiles === null)} ?disabled=${this.busy} @click=${() => this.setScreen({ summary_tiles: undefined })}>${hs('personalFollow')}</button>
-              ${SUMMARY_KINDS.map((k) => html`<button type="button" data-home-personal-tile=${k} aria-pressed=${String(tiles !== null && tiles.includes(k))} ?disabled=${this.busy} @click=${() => toggle(k)}>${hs(`k_${k}`)}</button>`)}
-            </span>
+            <sw-chip-choice multi class="tiles" label=${hs('personalTiles')} ?disabled=${this.busy} .values=${tiles === null ? [''] : tiles}
+              .options=${[{ value: '', label: hs('personalFollow'), attrs: { 'data-home-personal-tile': '' } }, ...SUMMARY_KINDS.map((k) => ({ value: k, label: hs(`k_${k}`), attrs: { 'data-home-personal-tile': k } }))]}
+              @change=${(e: CustomEvent<ChipChoiceChange>) => { e.stopPropagation(); if (e.detail.value) toggle(e.detail.value as SummaryKind); else this.setScreen({ summary_tiles: undefined }); }}></sw-chip-choice>
           </div>`
         : nothing}
       ${this.siteChoices()}`;

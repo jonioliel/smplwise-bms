@@ -55,6 +55,8 @@ from ..services import calendar_feeds_store as store
 from ..services.calendar import calendars as cals
 from ..services.calendar import model
 from ..services.calendar.access import Ctx, Denied, get_visible
+from ..wire import calendar_feeds as W
+from ..wire import wire
 from . import calendar as cal_mod
 from .calendar import Body, _audit, _body, _errors, module_gate
 
@@ -185,7 +187,7 @@ def _remote(request: Request) -> bool:
     return is_remote(request)
 
 
-@router.get("/calendar/feeds")
+@router.get("/calendar/feeds", **wire(W.CalFeedList))
 def list_feeds(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """CALCONNECT-2330: the outgoing iCal feeds (never their tokens) and whether `feeds_enabled` is on. Round 14: per feed `can_remote`
     (may THIS caller change the remote switch now), `detail_effective`, `expires_at`; `local` (false on the remote channel, where the
@@ -197,7 +199,7 @@ def list_feeds(request: Request, principal: Principal = Depends(current_principa
             "enabled": bool(s["feeds_enabled"]), "local": not _remote(request), "default_max_age_days": s["feed_max_age_days"]}
 
 
-@router.post("/calendar/feeds", status_code=201)
+@router.post("/calendar/feeds", status_code=201, **wire(W.CalFeedIssued))
 def create_feed(body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """`{calendar_ids, detail: busy|titles}`; `edit`+ in each calendar; the path with its token is answered ONCE. A new feed is never remote."""
     _need(conn, principal)
@@ -226,7 +228,7 @@ def create_feed(body: Body, request: Request, principal: Principal = Depends(cur
         return {"feed": _out(_row(conn, fid), _expiry_map(conn), ctx), "path": _path(token)}
 
 
-@router.post("/calendar/feeds/{fid}/rotate")
+@router.post("/calendar/feeds/{fid}/rotate", **wire(W.CalFeedIssued))
 def rotate_feed(fid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """"Renew link": a new token (answered once); the old address stops at once; its expiry is fixed again from now with the CURRENT
     default (`feed_max_age_days`). The remote switch is kept. Creator or admin."""
@@ -245,7 +247,7 @@ def rotate_feed(fid: str, request: Request, principal: Principal = Depends(curre
         return {"feed": _out(_row(conn, fid), _expiry_map(conn), ctx), "path": _path(token)}
 
 
-@router.post("/calendar/feeds/{fid}/revoke")
+@router.post("/calendar/feeds/{fid}/revoke", **wire(W.CalFeedOne))
 def revoke_feed(fid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Ends the feed (its address answers 404 from now on). Creator or admin."""
     _need(conn, principal)
@@ -260,7 +262,7 @@ def revoke_feed(fid: str, request: Request, principal: Principal = Depends(curre
         return {"feed": _out(_row(conn, fid), _expiry_map(conn), ctx)}
 
 
-@router.put("/calendar/feeds/{fid}/remote")
+@router.put("/calendar/feeds/{fid}/remote", **wire(W.CalFeedOne))
 def set_feed_remote(fid: str, body: Body, request: Request, principal: Principal = Depends(current_principal),
                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """CAL-FEED-REVIEW-2351: `{enabled: bool}` - may this feed's address answer on the remote channel (default off). A LOCAL session only

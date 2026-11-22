@@ -6,6 +6,8 @@ import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
 import '../components/sw-toggle';
 import '../components/sw-field';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import './system-building-presence';
 import { describeError } from '../api/client';
 import { dayTimeText } from '../api/day-format';
@@ -137,34 +139,11 @@ export class SystemPresence extends LitElement {
       flex: 1 1 200px;
       min-width: 0;
     }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: var(--sw-fs-sm);
-    }
-    th,
-    td {
-      text-align: start;
-      padding: 6px 8px;
-      border-block-end: 1px solid var(--sw-border);
-      vertical-align: top;
-    }
-    th {
-      color: var(--sw-text-2);
-      font-weight: var(--sw-fw-bold);
-      font-size: var(--sw-fs-xs);
-      letter-spacing: 0.03em;
-      background: var(--sw-surface-2);
-    }
-    td {
-      font-variant-numeric: tabular-nums;
-    }
-    td:first-child {
-      font-weight: var(--sw-fw-bold);
-      color: var(--sw-heading, var(--sw-text));
-    }
-    .wrap {
-      overflow-x: auto;
+    /* CR-CMP2-TABLES-REST-2470 (owner N10): the registered devices are the shared table inside the card (no second card, never wider
+       than the card: the shared sensors line is cut with an ellipsis, its full text the cell's title) */
+    sw-table[data-presence-table] {
+      --sw-table-min: 0;
+      --sw-table-trunc: 220px;
     }
     /* CR-SEG-MODULE-LOOK-2470 (owner, 20.11): the presence pages draw sw-segmented's own default, the module look (their bordered
        pill track with the plain chosen key went) */
@@ -289,19 +268,22 @@ export class SystemPresence extends LitElement {
   private renderDevices() {
     if (this.devices === null) return nothing;
     const fmt = (iso: string | null | undefined) => (iso ? dayTimeText(iso) : '—');
+    const sharing = (d: PresenceDevice) => SENSOR_KEYS.filter((k) => d.status.sensors[k] === 'on').map((k) => SENSOR_LABEL[k]).join(', ') || '—';
+    // CR-CMP2-TABLES-REST-2470 (owner N10): the person, the device over its platform and version, what it shares, inside the building (a
+    // shared tone chip: yes ok, no neutral), the last report, whether it takes push notifications. Read only.
+    const cols: TableColumn<PresenceDevice>[] = [
+      { key: 'user', label: tr('משתמש'), render: (d) => html`<span class="t1">${d.user?.display_name ?? ''}</span>` },
+      { key: 'name', label: tr('מכשיר'), render: (d) => html`${d.name}<span class="t2">${d.platform === 'ios' ? 'iPhone' : 'Android'} · ${d.app_version ?? ''}</span>` },
+      { key: 'sharing', label: tr('משתף'), kind: 'truncate', cellTitle: sharing, render: sharing },
+      { key: 'inside', label: tr('במבנה'), kind: 'status',
+        render: (d) => (d.presence.inside === null || d.presence.inside === undefined ? html`<span class="mut">—</span>` : html`<span class="chip" data-tone=${d.presence.inside ? 'ok' : nothing}>${d.presence.inside ? tr('כן') : tr('לא')}</span>`) },
+      { key: 'last', label: tr('דיווח אחרון'), kind: 'muted', render: (d) => html`<span class="num">${fmt(d.last_event_at ?? d.last_seen_at)}</span>` },
+      { key: 'push', label: tr('התראות'), render: (d) => (d.push.registered ? tr('רשום') : html`<span class="mut">—</span>`) },
+    ];
     return html`<sw-card heading=${tr('מכשירים רשומים')} subheading=${this.devices.length ? tr('{n} מכשירים', { n: this.devices.length }) : tr('אין מכשירים רשומים')} data-presence-devices>
       ${this.devices.length
-        ? html`<div class="wrap"><table>
-            <thead><tr><th>${tr('משתמש')}</th><th>${tr('מכשיר')}</th><th>${tr('משתף')}</th><th>${tr('במבנה')}</th><th>${tr('דיווח אחרון')}</th><th>${tr('התראות')}</th></tr></thead>
-            <tbody>${this.devices.map((d) => html`<tr data-presence-device=${d.device_id}>
-              <td>${d.user?.display_name ?? ''}</td>
-              <td>${d.name}<div class="muted">${d.platform === 'ios' ? 'iPhone' : 'Android'} · ${d.app_version ?? ''}</div></td>
-              <td>${SENSOR_KEYS.filter((k) => d.status.sensors[k] === 'on').map((k) => SENSOR_LABEL[k]).join(', ') || '—'}</td>
-              <td>${d.presence.inside === true ? tr('כן') : d.presence.inside === false ? tr('לא') : '—'}</td>
-              <td>${fmt(d.last_event_at ?? d.last_seen_at)}</td>
-              <td>${d.push.registered ? tr('רשום') : '—'}</td>
-            </tr>`)}</tbody>
-          </table></div>`
+        ? html`<sw-table bare static-rows data-presence-table rowKey="device_id" .columns=${cols as unknown as TableColumn[]} .rows=${this.devices as unknown as Record<string, unknown>[]}
+            .rowAttrs=${(d: Record<string, unknown>) => ({ 'data-presence-device': String(d.device_id) })}></sw-table>`
         : nothing}
     </sw-card>`;
   }

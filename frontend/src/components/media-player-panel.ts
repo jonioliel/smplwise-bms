@@ -8,6 +8,8 @@ import './sw-button';
 import './media-player-volume';
 import './media-queue-list';
 import './media-library-browse';
+import './sw-tabs';
+import type { TabItem } from './sw-tabs';
 import type { PlayItemEvent } from './media-library-browse';
 import { ApiError } from '../api/client';
 import { PollController } from './poll-controller';
@@ -968,9 +970,22 @@ export class MediaPlayerPanel extends LitElement {
     const cur = d.live.now.title;
     const inLibrary = browse && (this.libTab === LIBRARY_TAB || !tabs.length);
     const tab = inLibrary ? null : (pickTab(tabs, this.libTab === LIBRARY_TAB ? null : this.libTab) as LibraryKind);
-    const tabRow = html`<div class="seg full sm" role="tablist" aria-label=${tr('ספרייה')} data-pn-libtabs>${tabs.map((k) => html`<button type="button" role="tab" aria-selected=${String(tab === k)} data-pn-libtab=${k}
-        @click=${() => { this.libTab = k; if (!this.lib[k]) void this.loadLib(d.key, k); }}>${LIBRARY_TAB_LABEL[k]}</button>`)}
-      ${browse ? html`<button type="button" role="tab" aria-selected=${String(inLibrary)} data-pn-libtab=${LIBRARY_TAB} @click=${() => (this.libTab = LIBRARY_TAB)}>${LIBRARY_TAB_TEXT}</button>` : nothing}</div>`;
+    // CR-CMP2-TABS-2460: the library's tab strip is sw-tabs (pill, filling the panel's width); each tab keeps its data-pn-libtab hook
+    const libItems: TabItem[] = [
+      ...tabs.map((k) => ({ id: k, label: LIBRARY_TAB_LABEL[k], attrs: { 'data-pn-libtab': k } })),
+      ...(browse ? [{ id: LIBRARY_TAB, label: LIBRARY_TAB_TEXT, attrs: { 'data-pn-libtab': LIBRARY_TAB } }] : []),
+    ];
+    const pickLib = (id: string) => {
+      if (id === LIBRARY_TAB) {
+        this.libTab = LIBRARY_TAB;
+        return;
+      }
+      const k = id as LibraryKind;
+      this.libTab = k;
+      if (!this.lib[k]) void this.loadLib(d.key, k);
+    };
+    const tabRow = html`<sw-tabs controlled variant="pill" fill="always" group-label=${tr('ספרייה')} data-pn-libtabs .items=${libItems} .active=${inLibrary ? LIBRARY_TAB : (tab ?? '')}
+      @change=${(e: CustomEvent<{ id: string }>) => { e.stopPropagation(); pickLib(e.detail.id); }}></sw-tabs>`;
     if (inLibrary || tab === null) {
       return html`${tabRow}<media-library-browse .deviceKey=${d.key} .canSearch=${!!d.caps.search} .canPlay=${d.can.control && !greyed(d)} .enqueueOk=${enqueueOffered(d)}
         .pending=${this.pend} .current=${cur} @play-item=${(e: CustomEvent<PlayItemEvent>) => this.onBrowseItem(e.detail)}></media-library-browse>`;
@@ -1057,7 +1072,9 @@ export class MediaPlayerPanel extends LitElement {
     const z = zones.length ? zoneView(d, zid) : null;
     const second = !!z && !z.main;
     const zoneTabs = zones.length > 1
-      ? html`<div class="seg full" role="tablist" aria-label=${tr('אזור')} data-pn-zones>${zones.map((x) => html`<button type="button" role="tab" aria-selected=${String(x.id === zid)} data-pn-zone=${x.id} @click=${() => (this.zone = x.id)}>${x.name}${!x.main ? html` <small>${x.power === 'on' ? tr('פועל') : tr('כבוי')}</small>` : nothing}</button>`)}</div>`
+      ? html`<sw-tabs controlled variant="pill" fill="always" group-label=${tr('אזור')} data-pn-zones .active=${zid}
+          .items=${zones.map((x): TabItem => ({ id: x.id, label: x.name, pill: x.main ? undefined : x.power === 'on' ? tr('פועל') : tr('כבוי'), attrs: { 'data-pn-zone': x.id } }))}
+          @change=${(e: CustomEvent<{ id: string }>) => { e.stopPropagation(); this.zone = e.detail.id; }}></sw-tabs>`
       : nothing;
     if (vo) return html`${zoneTabs}<div class="roff" data-pn-viewonly>${ic('receiver')}<b>${second ? (z?.power === 'on' ? tr('פועל') : tr('כבוי')) : mode === 'on' ? d.live.now.label || tr('דולק') : tr('כבוי')}</b></div>`;
     if (!second && mode === 'off') return html`${zoneTabs}${this.bigPower(d, vo)}<div class="dimmed" aria-hidden="true" inert>${this.receiverControls(d, null)}</div>`;

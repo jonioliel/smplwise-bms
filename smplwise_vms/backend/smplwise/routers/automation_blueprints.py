@@ -22,6 +22,7 @@ from ..auth import current_principal_ro, get_conn, get_read_conn
 from ..errors import ApiError
 from ..rbac import Principal
 from ..services import automation_blueprints as bps
+from ..services import automation_blueprints_store as store
 from ..services import automation_model as model
 from ..services import automation_ops as ops
 from ..services import automation_scope as scope
@@ -69,9 +70,7 @@ class _Env(bps.Env):
         return domain in bps.FORBIDDEN_DOMAINS or self.ctx.entity_class(entity_id) is not None or entity_id in self._doorish
 
     def area_entities(self, by: str, ident: str, domains: list[str]) -> list[str] | None:
-        col = "ha_floor_id" if by == "floor" else "area_id"
-        rows = self.ctx.conn.execute(
-            f"SELECT entity_id, domain FROM ha_entities WHERE removed_at IS NULL AND {col} = ? ORDER BY entity_id", (ident,)).fetchall()
+        rows = store.area_entity_rows(self.ctx.conn, by, ident)
         if not rows:
             return None
         return [r["entity_id"] for r in rows if r["domain"] in domains]

@@ -13,6 +13,8 @@ import '../components/sw-toggle';
 import '../components/sw-badge';
 import '../components/sw-state-panel';
 import '../components/sw-list-display-settings';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import { ApiError, patch } from '../api/client';
 import { isApi } from '../api/session';
 import { invalidateSettings, productSettings } from '../api/prefs';
@@ -251,43 +253,8 @@ export class SystemSchedules extends LitElement {
     .classgrid + .grouplabel {
       margin-block-start: var(--sw-s-4);
     }
-    table {
-      inline-size: 100%;
-      border-collapse: collapse;
-      font-size: var(--sw-fs-base);
-    }
-    th {
-      font-size: var(--sw-fs-sm);
-      color: var(--sw-text-2);
-      font-weight: var(--sw-fw-semibold);
-      text-align: center;
-      padding: 6px 8px 8px;
-      border-block-end: 1px solid var(--sw-border-strong);
-    }
-    th:first-child,
-    td:first-child {
-      text-align: start;
-    }
-    td {
-      text-align: center;
-      padding: 10px 8px;
-      border-block-end: 1px solid var(--sw-border);
-    }
-    td:first-child {
-      color: var(--sw-heading, var(--sw-text));
-      font-weight: var(--sw-fw-medium);
-    }
-    tbody tr:last-child td {
-      border-block-end: 0;
-    }
     .rolesnote {
       margin: 12px 0 10px;
-    }
-    td.yes {
-      color: var(--sw-success-text);
-    }
-    td.no {
-      color: var(--sw-text-3);
     }
     .savebar {
       max-inline-size: none;
@@ -573,10 +540,21 @@ export class SystemSchedules extends LitElement {
   }
 
   private renderRoles() {
-    const cell = (on: boolean, scoped = false) => html`<td class=${on ? 'yes' : 'no'}>${on ? html`<sw-icon name="check" size=${16} role="img" aria-label=${tr('כן')}></sw-icon>${scoped ? html`<span class="muted"> ${tr('בהיקף')}</span>` : nothing}` : html`<span aria-label=${tr('לא')}>—</span>`}</td>`;
+    type RoleRow = (typeof ROLE_ROWS)[number];
+    const cell = (on: boolean, scoped = false) =>
+      on
+        ? html`<sw-icon part="yes" name="check" size=${16} role="img" aria-label=${tr('כן')}></sw-icon>${scoped ? html`<span class="mut"> ${tr('בהיקף')}</span>` : nothing}`
+        : html`<span part="no" aria-label=${tr('לא')}>—</span>`;
+    // CR-CMP2-TABLES-REST-2470 (owner N10): the role (its name in the heading ink), then one centred column per right
+    const cols: TableColumn<RoleRow>[] = [
+      { key: 'role', label: tr('תפקיד'), render: (r) => html`<span class="t1">${r.role}</span>` },
+      { key: 'view', label: tr('צפייה'), align: 'center', render: (r) => cell(r.view) },
+      { key: 'manage', label: tr('ניהול'), align: 'center', render: (r) => cell(r.manage, r.scoped) },
+      { key: 'sensitive', label: tr('רגיש'), align: 'center', render: (r) => cell(r.sensitive) },
+    ];
     return html`<sw-card heading=${tr('מי רשאי מה')} data-sched-roles>
-      <table><thead><tr><th scope="col">${tr('תפקיד')}</th><th scope="col">${tr('צפייה')}</th><th scope="col">${tr('ניהול')}</th><th scope="col">${tr('רגיש')}</th></tr></thead>
-        <tbody>${ROLE_ROWS.map((r) => html`<tr><td>${r.role}</td>${cell(r.view)}${cell(r.manage, r.scoped)}${cell(r.sensitive)}</tr>`)}</tbody></table>
+      <sw-table class="set-matrix" bare static-rows keep-columns data-sched-roles-table rowKey="role" .columns=${cols as unknown as TableColumn[]} .rows=${ROLE_ROWS as unknown as Record<string, unknown>[]}
+        .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-sched-role': String(r.role) })}></sw-table>
       <p class="muted rolesnote">${tr('ברירות המחדל. ניהול תזמונים ותזמון פעולות רגישות (אזעקה, צופרים, מנעולים, דלתות ושערים) ניתנים במפורש לכל משתמש או תפקיד, בהיקף שבחרתם.')}</p>
       <sw-button size="sm" data-open-access @click=${() => navigate('/system/access')}>${tr('משתמשים והרשאות')}</sw-button>
     </sw-card>`;

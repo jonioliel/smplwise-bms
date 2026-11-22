@@ -34,6 +34,8 @@ import { sWater } from './home-p3-water';
 import { sSystems } from './home-p3-systems';
 import { sMap } from './home-p3-map';
 import { tr } from '../i18n/msg/home';
+import '../components/sw-segmented'; // CR-HOME-V3-SEGMENTS-2470: seg() below
+import type { SegmentedChange, SegmentOption } from '../components/sw-segmented';
 
 /** What phase 3 uses of <sw-home> (members that are private there; reached through this interface, never changed in shape). */
 export interface P3Host {
@@ -405,8 +407,9 @@ export class P3 {
     return html`<span class="dst" data-tone=${tone}><i class="dot"></i><span class="clamp1">${text}</span></span>`;
   }
 
+  /** CR-HOME-V3-SEGMENTS-2470: the shared `sw-segmented` (controlled: a press reports, the screen re-renders `cur`). */
   seg(opts: [string, string][], cur: string, label: string, on: (v: string) => void) {
-    return html`<div class="seg" role="group" aria-label=${label}>${opts.map(([v, t]) => html`<button aria-pressed=${String(v === cur)} @click=${() => on(v)}>${t}</button>`)}</div>`;
+    return html`<sw-segmented label=${label} value=${cur} .options=${opts.map(([v, t]): SegmentOption => ({ value: v, label: t }))} @change=${(e: CustomEvent<SegmentedChange>) => on(e.detail.value)}></sw-segmented>`;
   }
 
   paged<T>(key: string, list: T[], per: number) {

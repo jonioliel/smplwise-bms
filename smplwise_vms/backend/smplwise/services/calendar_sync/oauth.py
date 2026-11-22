@@ -36,6 +36,7 @@ import httpx
 
 from . import credentials
 from .adapter import NeedsReauth, RateLimited, SyncError
+from ...test_reset import register_reset
 
 # ---------------------------------------------------------------- endpoints (fixed; never taken from a request or a provider answer)
 
@@ -382,3 +383,11 @@ def google_revoke(refresh_token: str) -> bool:
 
 __all__ = ["OAuthError", "google_start", "google_complete", "microsoft_start", "microsoft_poll", "access_token", "google_revoke", "cancel",
            "pending", "scopes_for", "validate_client"]
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _PENDING.clear()
+
+
+register_reset(__name__, ("_PENDING",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

@@ -34,9 +34,9 @@ test('the new cards are there, off by default, and a switch reveals its rows', a
     await expect(wall.locator('[data-setting="wall_double_ms"]')).toHaveCount(0);
     await wall.locator('[data-toggle="wall_buttons_editable"]').click();
     await expect(wall.locator('[data-setting="wall_double_ms"]')).toHaveText(/400/);
-    await expect(tab(page).locator('[data-col-device-test]')).toHaveCount(0);
+    await expect(tab(page).locator('[data-roles-matrix] tr[data-role="viewer"] [data-col-device-test]')).toHaveCount(0); // CR-CMP2-TABLES-REST-2470: the column's cell hook
     await checks.locator('[data-toggle="device_test_enabled"]').click();
-    await expect(tab(page).locator('[data-col-device-test]')).toHaveCount(1);
+    await expect(tab(page).locator('[data-roles-matrix] tr[data-role="viewer"] [data-col-device-test]')).toHaveCount(1); // CR-CMP2-TABLES-REST-2470: the column's cell hook
     await checks.locator('[data-toggle="precheck_enabled"]').click();
     await expect(checks.locator('[data-setting="conflict_window_min"]')).toHaveText(/10/);
     await expect(checks.locator('[data-seg="button_reuse:warn"]')).toHaveAttribute('aria-pressed', 'true');

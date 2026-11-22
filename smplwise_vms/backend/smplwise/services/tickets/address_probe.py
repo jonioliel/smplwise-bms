@@ -21,6 +21,7 @@ from typing import Any, Callable
 from urllib.parse import urlsplit
 
 from .links import PublicUrlError, split_base, validate_public_base_url
+from ...test_reset import register_reset
 
 TIMEOUT_S = 5.0
 READ_MAX = 4096
@@ -149,3 +150,11 @@ def probe(base_url: str, *, resolve: Callable[[str], list[str]] | None = None,
         else:
             out["listener"] = {"seen": False}
     return out
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _calls.clear()
+
+
+register_reset(__name__, ("_calls",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

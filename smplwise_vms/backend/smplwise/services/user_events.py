@@ -9,6 +9,7 @@ from __future__ import annotations
 import queue
 import threading
 from typing import Any
+from ..test_reset import register_reset
 
 _subs: dict[str, list[queue.Queue]] = {}
 _lock = threading.Lock()
@@ -49,3 +50,13 @@ def publish(user_id: str, kind: str, payload: dict[str, Any]) -> int:
 def listeners(user_id: str) -> int:
     with _lock:
         return len(_subs.get(user_id, ()))
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    STATS.clear()
+    STATS.update({"published": 0, "dropped": 0})
+    _subs.clear()
+
+
+register_reset(__name__, ("STATS", "_subs"), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../../components/sw-button';
+import '../../components/sw-field';
 import '../../components/sw-state-panel';
 import { describeError } from '../../api/client';
 import { estimateBytes, getRetention, putRetention, RETENTION_RANGES, type EnergySettings, type RetentionKey, type RetentionPatch } from '../../api/electricity-meters';
@@ -193,9 +194,9 @@ export class ElecSettingsRetention extends LitElement {
         return html`<div class="rowx" data-retention=${r.key}>
           <div class="grow"><div class="t1">${r.label}</div>
             <div class="t2">${tr('{min} עד {max}', { min: range.min, max: range.max })} · ${tr('בשימוש')} <span class="num" data-usage>${d.usage[r.usage] == null ? '-' : fmtMb(d.usage[r.usage]!)}</span>${edited && r.key !== 'draft_retention_days' ? html` · ${tr('הערכה לערך החדש')} <span class="num" data-estimate>${fmtMb(estimateBytes(r.key, n, d.meter_count))}</span>` : nothing}</div></div>
-          <div class="fld"><div class="inp ${err ? 'err' : ''}"><input inputmode="numeric" data-retention-input=${r.key} aria-label=${r.label} aria-invalid=${err ? 'true' : 'false'} ?disabled=${!this.editable(r)} .value=${this.values[r.key] ?? ''}
-            @input=${(e: Event) => { this.saved = false; this.values = { ...this.values, [r.key]: (e.target as HTMLInputElement).value }; }} /><span class="mut">${UNIT_TEXT[range.unit] ?? range.unit}</span></div>
-            ${err ? html`<div class="msg" role="alert" data-retention-error=${r.key}>${err}</div>` : nothing}</div>
+          <sw-field class="fld" unit=${UNIT_TEXT[range.unit] ?? range.unit}><input class="ltr ${err ? 'err' : ''}" inputmode="numeric" data-retention-input=${r.key} aria-label=${r.label} aria-invalid=${err ? 'true' : 'false'} ?disabled=${!this.editable(r)} .value=${this.values[r.key] ?? ''}
+            @input=${(e: Event) => { this.saved = false; this.values = { ...this.values, [r.key]: (e.target as HTMLInputElement).value }; }} />
+            ${err ? html`<div class="msg" role="alert" slot="message" data-retention-error=${r.key}>${err}</div>` : nothing}</sw-field>
         </div>`;
       })}</div>
       ${this.saveError ? html`<div class="alert err" role="alert" style="margin-block-start:12px" data-save-error>${this.saveError}</div>` : nothing}

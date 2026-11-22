@@ -43,6 +43,7 @@ from ..auth import current_principal_ro, get_conn, get_read_conn
 from ..db import now_iso
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize
+from ..services import device_layouts_store as store
 from ..services import camera_cards
 from ..services import devices as svc
 from ..services import ha_scope
@@ -439,11 +440,7 @@ def _parse(request: Request, raw: bytes, model: type[BaseModel]) -> BaseModel:
 
 
 def _row(conn: sqlite3.Connection, scope: str, scope_id: str, variant: str) -> dict[str, Any] | None:
-    r = conn.execute(
-        "SELECT l.layout_json, l.revision, l.updated_by, l.updated_at, u.display_name, u.username FROM device_layouts l LEFT JOIN users u ON u.id = l.updated_by"
-        " WHERE l.scope = ? AND l.scope_id = ? AND l.variant = ?",
-        (scope, scope_id, variant),
-    ).fetchone()
+    r = store.layout_row(conn, scope, scope_id, variant)
     if not r:
         return None
     return {"layout": json.loads(r["layout_json"]), "revision": r["revision"], "updated_by": r["display_name"] or r["username"] or r["updated_by"], "updated_at": r["updated_at"]}
@@ -504,10 +501,10 @@ def _prune_vanished(conn: sqlite3.Connection, principal: Principal, request: Req
     known = set(_known_areas(conn))
     if not known:
         return
-    rows = conn.execute("SELECT scope_id, COUNT(*) AS n FROM device_layouts WHERE scope = 'area' GROUP BY scope_id").fetchall()
+    rows = store.area_layout_counts(conn)
     stale = [(r["scope_id"], int(r["n"])) for r in rows if r["scope_id"] not in known and r["scope_id"] != svc.UNASSIGNED]
     for scope_id, n in stale:
-        conn.execute("DELETE FROM device_layouts WHERE scope = 'area' AND scope_id = ?", (scope_id,))
+        store.delete_area_layouts(conn, scope_id)
         audit(conn, actor=principal, action="devices.layout.prune", decision="allowed", resource_type="device_layout_area", resource_id=scope_id,
               request_id=_rid(request), details={"scope": "area", "id": scope_id, "count": n})
     if stale:
@@ -515,18 +512,13 @@ def _prune_vanished(conn: sqlite3.Connection, principal: Principal, request: Req
 
 
 def _revision(conn: sqlite3.Connection, scope: str, scope_id: str, variant: str) -> int:
-    r = conn.execute("SELECT revision FROM device_layouts WHERE scope = ? AND scope_id = ? AND variant = ?", (scope, scope_id, variant)).fetchone()
+    r = store.revision_row(conn, scope, scope_id, variant)
     return int(r["revision"]) if r else 0
 
 
 def _write(conn: sqlite3.Connection, principal: Principal, scope: str, scope_id: str, variant: str, layout_json: str) -> int:
     rev = _revision(conn, scope, scope_id, variant) + 1
-    conn.execute(
-        "INSERT INTO device_layouts(scope, scope_id, variant, layout_json, revision, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-        " ON CONFLICT(scope, scope_id, variant) DO UPDATE SET layout_json = excluded.layout_json, revision = excluded.revision,"
-        " updated_by = excluded.updated_by, updated_at = excluded.updated_at",
-        (scope, scope_id, variant, layout_json, rev, principal.user_id, now_iso()),
-    )
+    store.upsert_layout(conn, scope, scope_id, variant, layout_json, rev, principal.user_id, now_iso())
     return rev
 
 
@@ -587,7 +579,7 @@ def reset_layout(
         if revision != current:
             raise ApiError(409, "layout_conflict", "מישהו אחר שמר את הפריסה בינתיים. טענו אותה מחדש.", details={"revision": current})
     before = {v: _revision(conn, scope, scope_id, v) for v in variants}
-    conn.execute(f"DELETE FROM device_layouts WHERE scope = ? AND scope_id = ? AND variant IN ({', '.join('?' * len(variants))})", (scope, scope_id, *variants))
+    store.delete_variants(conn, scope, scope_id, variants)
     audit(conn, actor=principal, action="devices.layout.reset", decision="allowed", resource_type=f"device_layout_{scope}", resource_id=scope_id,
           request_id=_rid(request), details={"scope": scope, "id": scope_id, "variant": variant, "revision": before})
     return _record(conn, principal, scope, scope_id)
@@ -607,7 +599,7 @@ def copy_to_all_areas(scope_id: str, request: Request, principal: Principal = De
         raise ApiError(409, "nothing_to_copy", "לאזור הזה אין פריסה שמורה להעתקה. שמרו אותה קודם.")
     if body.revision != src_rev:
         raise ApiError(409, "layout_conflict", "מישהו אחר שמר את הפריסה בינתיים. טענו אותה מחדש.", details={"revision": src_rev})
-    src = {r["variant"]: r["layout_json"] for r in conn.execute("SELECT variant, layout_json FROM device_layouts WHERE scope = 'area' AND scope_id = ?", (scope_id,)).fetchall()}
+    src = {r["variant"]: r["layout_json"] for r in store.area_layout_rows(conn, scope_id)}
     _prune_vanished(conn, principal, request)
     targets = [a for a in [*_known_areas(conn), svc.UNASSIGNED] if a != scope_id]
     for area_id in targets:
@@ -615,7 +607,7 @@ def copy_to_all_areas(scope_id: str, request: Request, principal: Principal = De
         if "phone" in src:
             _write(conn, principal, "area", area_id, "phone", _portable(src["phone"]))
         else:
-            conn.execute("DELETE FROM device_layouts WHERE scope = 'area' AND scope_id = ? AND variant = 'phone'", (area_id,))
+            store.delete_area_phone_layout(conn, area_id)
     audit(conn, actor=principal, action="devices.layout.copy", decision="allowed", resource_type="device_layout_area", resource_id=scope_id,
           request_id=_rid(request), details={"scope": "area", "id": scope_id, "revision": src_rev, "areas": len(targets)})
     return {"copied_to": len(targets), "source": _record(conn, principal, "area", scope_id)}
