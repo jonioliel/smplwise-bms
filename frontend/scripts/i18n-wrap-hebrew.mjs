@@ -280,6 +280,7 @@ for (const file of FILES) {
   // ---- html`` / svg``
   function htmlTemplate(tpl) {
     // a stream of items: { ch, pos } for each raw character, { expr, start, end } for each ${...}
+    /** @type {{ ch?: string, pos?: number, expr?: any, start?: number, end?: number }[]} */
     const items = [];
     const pushRaw = (from, to) => {
       for (let i = from; i < to; i++) items.push({ ch: text[i], pos: i });
