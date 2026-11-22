@@ -14,6 +14,15 @@ export const homeMockupStyles = css`${unsafeCSS(String.raw`:host {
   --hs-fs-xs: var(--sw-fs-xs, 12px); --hs-fs-sm: var(--sw-fs-sm, 13px); --hs-fs-base: var(--sw-fs-base, 14px);
   --hs-r-sm: var(--sw-r-sm, 8px); --hs-shadow-1: var(--sw-shadow-1, 0 1px 2px rgba(0,0,0,.2)); --hs-gap-lg: var(--sw-gap-lg, 24px);
   --hs-rail-text: var(--sw-rail-text, currentColor);
+  /* COLOR-LITERAL-B-2480: the neutral inks the rules below (and home-styles-v3 / -p3 / -extra, always loaded after this sheet) repeat - one
+     definition each, the same value in every theme and scheme (no theme block sets them) */
+  --hs-white: #ffffff;
+  --hs-black: #000000;
+  --hs-scrim: rgba(0,0,0,.6);
+  --hs-cam-black: #0a0a09;
+  --hs-cam-off-ink: #b3ada2;
+  --hs-hover-light: #fbfaf8;
+  --hs-thumb-shadow: rgba(0,0,0,.35);
   display: block; font-family: var(--hs-font); line-height: 1.4; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; overscroll-behavior: none;
 }
 :host *, :host *::before, :host *::after { box-sizing: border-box; }
@@ -77,7 +86,7 @@ button { cursor: pointer; }
 .hbtn {display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-block-size: var(--hit); padding: 0 22px; border-radius: var(--r-ctl); background: var(--hs-surface-3); color: var(--hs-heading); font-size: var(--f-body); font-weight: 600; white-space: nowrap; min-inline-size: 0; transition: transform 120ms var(--hs-ease), background-color var(--hs-t-med) ease;}
 .hs .hbtn, .ovl .hbtn {border: 0; background: var(--hs-surface-3); padding: 0 22px;}
 .hbtn .hi {inline-size: 22px; block-size: 22px;}
-.hs .hbtn.strong, .ovl .hbtn.strong {background: var(--hs-accent); color: #fff;}
+.hs .hbtn.strong, .ovl .hbtn.strong {background: var(--hs-accent); color: var(--hs-white);}
 .hs .hbtn.quiet, .ovl .hbtn.quiet {background: transparent; color: var(--hs-text-2);}
 .hbtn.xl {min-block-size: 72px; font-size: 20px; border-radius: 20px;}
 .hbtn.wide {inline-size: min(360px, 100%);}
@@ -90,7 +99,7 @@ button { cursor: pointer; }
 .hs .rb, .ovl .rb {background: var(--hs-surface-3);}
 .rb.xl {inline-size: 72px; block-size: 72px;}
 .rb.xl .hi {inline-size: 32px; block-size: 32px;}
-.ovl .rb.onpic {background: rgba(0,0,0,.6); color: #fff;}
+.ovl .rb.onpic {background: var(--hs-scrim); color: var(--hs-white);}
 .lamp {inline-size: var(--hit); block-size: var(--hit); border-radius: 50%; display: inline-grid; place-items: center; flex: none; color: var(--hs-text-2); transition: transform 120ms var(--hs-ease), background-color var(--hs-t-med) ease, color var(--hs-t-med) ease;}
 .hs .lamp {background: var(--hs-surface-3);}
 .hs .lamp[aria-pressed="true"] {background: var(--hs-lamp-on); color: var(--hs-lit);}
@@ -99,10 +108,10 @@ button { cursor: pointer; }
 .seg button {position: relative; min-block-size: 48px; padding: 0 20px !important; border-radius: 12px; color: var(--hs-text-2); font-size: var(--f-body); font-weight: 500; white-space: nowrap; transition: transform 120ms var(--hs-ease), background-color var(--hs-t-med) ease, color var(--hs-t-med) ease;}
 .seg button::after {content: ""; position: absolute; inset: -4px 0;}
 .hs .seg button[aria-pressed="true"], .ovl .seg button[aria-pressed="true"] {background: var(--hs-surface-3); color: var(--hs-heading); font-weight: 600;}
-:host([data-hs-scheme="light"]) .hs .seg button[aria-pressed="true"], :host([data-hs-scheme="light"]) .ovl .seg button[aria-pressed="true"] {background: #fff;}
+:host([data-hs-scheme="light"]) .hs .seg button[aria-pressed="true"], :host([data-hs-scheme="light"]) .ovl .seg button[aria-pressed="true"] {background: var(--hs-white);}
 .hsw {inline-size: 68px; block-size: var(--hit); display: inline-grid; place-items: center; flex: none;}
 .hsw i {inline-size: 64px; block-size: 36px; border-radius: 18px; background: var(--hs-surface-3); position: relative; transition: background-color var(--hs-t-med) ease;}
-.hsw i::after {content: ""; position: absolute; inset-block-start: 4px; inset-inline-start: 4px; inline-size: 28px; block-size: 28px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform var(--hs-t-med) var(--hs-ease);}
+.hsw i::after {content: ""; position: absolute; inset-block-start: 4px; inset-inline-start: 4px; inline-size: 28px; block-size: 28px; border-radius: 50%; background: var(--hs-white); box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform var(--hs-t-med) var(--hs-ease);}
 .hsw[aria-checked="true"] i {background: var(--hs-accent);}
 .hsw[aria-checked="true"] i::after {transform: translateX(-28px);}
 .dot {inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--c, var(--hs-offline)); flex: none; display: inline-block;}
@@ -115,15 +124,15 @@ button { cursor: pointer; }
 .empty .hi {inline-size: 44px; block-size: 44px; color: var(--hs-text-3); margin-block-end: 6px;}
 .empty p {max-inline-size: 36ch; font-size: var(--f-body);}
 .scene-pic {position: absolute; inset: 0; inline-size: 100%; block-size: 100%; display: block;}
-.cap {position: absolute; inset-inline: 0; inset-block-end: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; background: rgba(0,0,0,.6); color: #fff; font-size: var(--f-sm); font-weight: 500; pointer-events: none;}
+.cap {position: absolute; inset-inline: 0; inset-block-end: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; background: var(--hs-scrim); color: var(--hs-white); font-size: var(--f-sm); font-weight: 500; pointer-events: none;}
 .live {display: inline-flex; align-items: center; gap: 6px; font-size: 14px; flex: none; --c: #3ddc84;}
-.live.onpic {background: rgba(0,0,0,.6); color: #fff; padding: 6px 12px; border-radius: 999px;}
+.live.onpic {background: var(--hs-scrim); color: var(--hs-white); padding: 6px 12px; border-radius: 999px;}
 .cam-off {position: absolute; inset: 0; display: grid; justify-items: center; align-content: center; gap: 6px; text-align: center; padding: 16px 16px 44px; color: var(--hs-text-2); background: var(--hs-surface-2); font-size: var(--f-body);}
 .cam-off .hi {inline-size: 34px; block-size: 34px; color: var(--hs-text-3);}
 .cam-off small {font-size: 14px; color: var(--hs-text-3);}
 .cam-off.big {background: #161514; color: #e9e5de; padding: 24px; font-size: 22px;}
-.cam-off.big small {color: #b3ada2; font-size: 17px; max-inline-size: 34ch;}
-.cam-off.big .hi {inline-size: 56px; block-size: 56px; color: #b3ada2;}
+.cam-off.big small {color: var(--hs-cam-off-ink); font-size: 17px; max-inline-size: 34ch;}
+.cam-off.big .hi {inline-size: 56px; block-size: 56px; color: var(--hs-cam-off-ink);}
 .hs {display: grid; grid-template-columns: 112px minmax(0, 1fr); grid-template-rows: 72px minmax(0, 1fr); block-size: 100vh; block-size: 100dvh; inline-size: 100vw; overflow: hidden; background: var(--hs-bg); color: var(--hs-text); font-size: var(--f-body); line-height: 1.4;}
 .hs.bare {grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr);}
 .hs.bare .hs-main {grid-row: 1; grid-column: 1; padding: 24px;}
@@ -147,7 +156,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .st-pill.quiet {color: var(--hs-text-2);}
 .hs .st-pill.quiet {background: transparent; padding: 0 6px;}
 .st-pill .hi {inline-size: 20px; block-size: 20px;}
-.hs .st-pill.call {background: var(--hs-accent); color: #fff;}
+.hs .st-pill.call {background: var(--hs-accent); color: var(--hs-white);}
 .st-btn, .st-me {position: relative; inline-size: var(--hit); block-size: var(--hit); border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--hs-heading);}
 .st-btn .count {position: absolute; inset-block-start: 6px; inset-inline-end: 4px; min-inline-size: 22px; block-size: 22px; border-radius: 11px; background: var(--hs-warning); color: #2b1c00; font-size: 13px; font-weight: 700; display: grid; place-items: center; padding: 0 5px;}
 .av {inline-size: 44px; block-size: 44px; border-radius: 50%; background: var(--hs-surface-3); color: var(--hs-heading); display: grid; place-items: center; font-weight: 600; font-size: 18px; flex: none;}
@@ -226,7 +235,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .room-body {flex: 1; min-block-size: 0; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px;}
 .room-body.solo {grid-template-columns: minmax(0, 820px);}
 .pane.pic.tall {flex: 1; min-block-size: 200px; padding: 0 !important;}
-.hs .pane.pic.tall {background: #000;}
+.hs .pane.pic.tall {background: var(--hs-black);}
 .pane {padding: 16px 20px 18px; display: flex; flex-direction: column; gap: 8px; overflow: hidden;}
 .pane > .bar {min-block-size: var(--hit); flex: none;}
 .lights-pane .pager {margin-block-start: auto;}
@@ -294,16 +303,16 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .drow .hbtn {min-inline-size: 96px;}
 .visitors {gap: 4px;}
 .vrow {display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; align-items: center; gap: 14px; flex: 1; min-block-size: 68px; max-block-size: 96px;}
-.vp {position: relative; inline-size: 96px; block-size: 60px; border-radius: 12px; overflow: hidden; background: #000;}
+.vp {position: relative; inline-size: 96px; block-size: 60px; border-radius: 12px; overflow: hidden; background: var(--hs-black);}
 .vn {display: grid; min-inline-size: 0;}
 .vn b {font-weight: 600; color: var(--hs-heading);}
 .vr {display: grid; justify-items: end; font-size: var(--f-sm); color: var(--hs-text-2); max-inline-size: 16ch; text-align: end;}
 .vres {color: var(--ct, var(--hs-text-2)); font-weight: 500;}
 .hscrim {position: fixed; inset: 0; z-index: 40; background: var(--hs-overlay); transition: opacity 240ms ease;}
-.hscrim.solid {background: #0a0a09;}
+.hscrim.solid {background: var(--hs-cam-black);}
 .hscrim.clear {background: rgba(0,0,0,.28);}
 .call {position: fixed; inset: 0; z-index: 41; display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(320px, 1fr); background: var(--hs-bg); transition: opacity 260ms ease, transform 320ms var(--hs-ease-drawer);}
-.call-video {position: relative; overflow: hidden; background: #000;}
+.call-video {position: relative; overflow: hidden; background: var(--hs-black);}
 .call-video .live {position: absolute; inset-block-start: 20px; inset-inline-start: 20px;}
 .call-side {display: flex; flex-direction: column; justify-content: center; gap: 10px; padding: 40px 36px; min-inline-size: 0; background: var(--hs-surface);}
 .call-side h1 {font-size: 36px; overflow-wrap: anywhere;}
@@ -317,13 +326,13 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .cam-grid.n2 {grid-template: minmax(0, 1fr) / repeat(2, minmax(0, 1fr));}
 .cam-grid.n3, .cam-grid.n4 {grid-template-columns: repeat(2, minmax(0, 1fr));}
 .cam-t {overflow: hidden; border-radius: var(--r-tile) !important; transition: transform 140ms var(--hs-ease);}
-.hs .cam-t {background: #000;}
+.hs .cam-t {background: var(--hs-black);}
 .cam-t:active {transform: scale(.985);}
-.camfull {position: fixed; inset: 0; z-index: 41; background: #0a0a09; transition: opacity 220ms ease, transform 260ms var(--hs-ease);}
+.camfull {position: fixed; inset: 0; z-index: 41; background: var(--hs-cam-black); transition: opacity 220ms ease, transform 260ms var(--hs-ease);}
 .cf-pic {position: absolute; inset: 0;}
-.cf-bar {position: absolute; inset-inline: 0; inset-block-start: 0; display: flex; align-items: center; gap: 16px; padding: 20px 24px; color: #fff;}
+.cf-bar {position: absolute; inset-inline: 0; inset-block-start: 0; display: flex; align-items: center; gap: 16px; padding: 20px 24px; color: var(--hs-white);}
 .cf-t {flex: 1; min-inline-size: 0; display: flex; align-items: center; gap: 12px; font-size: 22px;}
-.cf-t b {font-weight: 600; background: rgba(0,0,0,.6); padding: 8px 16px; border-radius: 999px;}
+.cf-t b {font-weight: 600; background: var(--hs-scrim); padding: 8px 16px; border-radius: 999px;}
 .cf-nav {display: flex; gap: 10px;}
 .en-body {flex: 1; min-block-size: 0; display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 16px;}
 .legend {display: flex; gap: 18px; font-size: var(--f-sm); color: var(--hs-text-2);}
@@ -592,7 +601,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .hs .hbtn.strong:hover, .ovl .hbtn.strong:hover {background: var(--hs-accent-hover);}
 .hs-nav a:not([aria-current]):hover, .mrow:hover {background: var(--hs-surface-2); color: var(--hs-heading);}
 .hs .scene:hover, .hs .chip2:not([aria-pressed="true"]):hover, .hs .ltile:not(.is-on):hover, .hs .zrow:not([aria-pressed="true"]):hover, .tile:has(> .cover:hover) {background: var(--hs-surface-2);}
-:host([data-hs-scheme="light"]) .hs .scene:hover, :host([data-hs-scheme="light"]) .hs .chip2:not([aria-pressed="true"]):hover, :host([data-hs-scheme="light"]) .hs .ltile:not(.is-on):hover, :host([data-hs-scheme="light"]) .hs .zrow:not([aria-pressed="true"]):hover, :host([data-hs-scheme="light"]) .tile:has(> .cover:hover) {background: #fbfaf8;}
+:host([data-hs-scheme="light"]) .hs .scene:hover, :host([data-hs-scheme="light"]) .hs .chip2:not([aria-pressed="true"]):hover, :host([data-hs-scheme="light"]) .hs .ltile:not(.is-on):hover, :host([data-hs-scheme="light"]) .hs .zrow:not([aria-pressed="true"]):hover, :host([data-hs-scheme="light"]) .tile:has(> .cover:hover) {background: var(--hs-hover-light);}
 }
 @media (prefers-reduced-motion: reduce) {
 .hs-main.enter > *, .app-root.enter {animation: hs-fade 160ms ease both; animation-delay: 0ms !important; animation-duration: 160ms !important;}
@@ -692,7 +701,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .wdg .dn {flex: 1;}
 .wdg .dn b {font-size: var(--f-body);}
 .wdg .pm {flex: none;}
-.wg-btn.pic {position: relative; overflow: hidden; display: block; background: #000;}
+.wg-btn.pic {position: relative; overflow: hidden; display: block; background: var(--hs-black);}
 .wdg.editing > :not(.wg-ed) {pointer-events: none; opacity: .35;}
 .wg-ed {position: absolute !important; inset: 0; z-index: 3 !important; display: flex; flex-wrap: wrap; align-items: center; align-content: center; justify-content: center; gap: 6px; padding: 4px;}
 .hs .wg-ed .rb {background: var(--hs-surface-3);}
@@ -722,7 +731,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .hs.v2 .drow {grid-template-columns: var(--hit) minmax(0, 1fr) auto var(--hit); gap: 12px;}
 .cam-t {position: relative;}
 .cam-t .star {position: absolute !important; inset-block-start: 8px; left: 8px; z-index: 2 !important;}
-.hs .cam-t .rb.star {background: rgba(0,0,0,.6); color: #fff;}
+.hs .cam-t .rb.star {background: var(--hs-scrim); color: var(--hs-white);}
 .pick-list.wide {inline-size: 100%;}
 @media (min-width: 1400px) and (min-height: 860px) {
 .hs.v2 {grid-template-columns: 116px minmax(0, 1fr); grid-template-rows: 80px minmax(0, 1fr) auto;}
@@ -873,7 +882,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .hs .lamp.ld[aria-pressed="true"] {background: var(--hs-accent-soft); color: var(--hs-accent-text);}
 .hs .ltile.ld.is-on > .hi {color: var(--hs-accent-text);}
 .arow.kept .ai {background: var(--hs-surface-3); color: var(--hs-text-2);}
-.hs .hbtn.strong, .ovl .hbtn.strong, .hs .st-pill.call {color: var(--hs-on-accent, #fff);}
+.hs .hbtn.strong, .ovl .hbtn.strong, .hs .st-pill.call {color: var(--hs-on-accent, var(--hs-white));}
 ::selection {color: var(--hs-on-accent, #fff);}
 .theme-grid {flex: 1; min-block-size: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 14px; margin-block: 4px 12px;}
 .thm {display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 10px; padding: 12px !important; text-align: start; color: var(--hs-heading); outline: 2px solid transparent; outline-offset: -2px; border-radius: var(--r-tile) !important; transition: transform 120ms var(--hs-ease), outline-color var(--hs-t-med) ease;}

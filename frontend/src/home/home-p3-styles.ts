@@ -10,7 +10,7 @@ export const homeP3Styles = css`
   .foot-note .hi { inline-size: 18px; block-size: 18px; flex: none; }
   .pane .mid, .vrow .mid { font-size: 22px; font-weight: 600; color: var(--hs-heading); line-height: 1.25; }
   .dst { max-inline-size: 100%; min-inline-size: 0; } .dst > .clamp1 { min-inline-size: 0; }
-  .hs .rb.play, .ovl .rb.play { background: var(--hs-accent); color: var(--hs-on-accent, #fff); }
+  .hs .rb.play, .ovl .rb.play { background: var(--hs-accent); color: var(--hs-on-accent, var(--hs-white)); }
   .hs .rb.play:disabled { background: var(--hs-surface-3); color: var(--hs-text-2); }
   .cur { font-size: .7em; font-weight: 500; color: var(--hs-text-2); } .huge .cur { font-size: .4em; }
 
@@ -29,8 +29,8 @@ export const homeP3Styles = css`
   .volr input { -webkit-appearance: none; appearance: none; inline-size: 100%; block-size: var(--hit); margin: 0; background: transparent; cursor: pointer; }
   .volr input:disabled { cursor: default; opacity: .5; }
   .volr input::-webkit-slider-runnable-track { block-size: 10px; border-radius: 5px; background: linear-gradient(to left, var(--hs-accent-text) var(--v, 0%), var(--hs-surface-3) var(--v, 0%)); /* taste-skill-ignore: a hard-stop fill for the slider's value, not a decorative gradient */ }
-  .volr input::-webkit-slider-thumb { -webkit-appearance: none; inline-size: 28px; block-size: 28px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); margin-block-start: -9px; }
-  .volr input::-moz-range-track { block-size: 10px; border-radius: 5px; background: var(--hs-surface-3); } .volr input::-moz-range-thumb { inline-size: 28px; block-size: 28px; border: 0; border-radius: 50%; background: #fff; }
+  .volr input::-webkit-slider-thumb { -webkit-appearance: none; inline-size: 28px; block-size: 28px; border-radius: 50%; background: var(--hs-white); box-shadow: 0 1px 4px var(--hs-thumb-shadow); margin-block-start: -9px; }
+  .volr input::-moz-range-track { block-size: 10px; border-radius: 5px; background: var(--hs-surface-3); } .volr input::-moz-range-thumb { inline-size: 28px; block-size: 28px; border: 0; border-radius: 50%; background: var(--hs-white); }
   .md-src { grid-column: 1 / -1; display: flex; gap: 8px; min-inline-size: 0; overflow: hidden; }
   .md-src .chip2, .chipset .chip2 { padding: 0 16px !important; gap: 8px; background: var(--hs-surface-3); flex: 0 1 auto; white-space: nowrap; min-inline-size: var(--hit); justify-content: center; }
   .md-src .chip2[aria-pressed="true"], .ovl .chipset .chip2[aria-pressed="true"] { background: var(--hs-accent-soft); color: var(--hs-accent-text); font-weight: 600; }
@@ -92,7 +92,7 @@ export const homeP3Styles = css`
   .dlg-acts.three { grid-template-columns: repeat(3, minmax(0, 1fr)); } .sheet.v3 .dlg-acts .hbtn { padding: 0 12px; }
   .rm { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; justify-items: center; gap: 14px; margin-block: 8px; inline-size: 100%; }
   .rm-col { display: grid; gap: 10px; justify-items: center; } .dpad { display: grid; grid-template-columns: repeat(3, auto); gap: 8px; place-items: center; }
-  .ovl .dpad .rb.xl { font-size: 16px; font-weight: 600; background: var(--hs-accent); color: var(--hs-on-accent, #fff); }
+  .ovl .dpad .rb.xl { font-size: 16px; font-weight: 600; background: var(--hs-accent); color: var(--hs-on-accent, var(--hs-white)); }
   .grp-list { display: grid; gap: 4px; inline-size: 100%; }
   /* the tablet's 56 px target rule inside the phase 3 sheets too (the round-27 sheets drew 54) */
   @media (min-width: 900px), (min-width: 701px) and (orientation: landscape) { .sheet.v3 .rb { inline-size: 56px; block-size: 56px; } .sheet.v3 .hsw, .sheet.v3 .hbtn, .sheet.v3 .chip2, .sheet.v3 .seg button { min-block-size: 56px; } }

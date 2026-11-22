@@ -6,7 +6,7 @@ import { css } from 'lit';
 export const homeExtraStyles = css`
   sw-camera-tile.scene-pic { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; display: block; border-radius: inherit; overflow: hidden; }
   .cf-pic sw-camera-tile.scene-pic { border-radius: 0; }
-  .rb.armed { background: var(--hs-accent) !important; color: var(--hs-on-accent, #fff) !important; outline: 2px solid var(--hs-accent-text); outline-offset: 2px; }
+  .rb.armed { background: var(--hs-accent) !important; color: var(--hs-on-accent, var(--hs-white)) !important; outline: 2px solid var(--hs-accent-text); outline-offset: 2px; }
   .vp.vp-ic { display: grid; place-items: center; background: var(--hs-surface-3); color: var(--hs-text-2); }
   .empty.loading .hi { animation: hs-fade 900ms ease infinite alternate; }
   .kiosk-pad { inline-size: min(380px, calc(100vw - 32px)); }
@@ -41,7 +41,7 @@ export const homeExtraStyles = css`
   .crow .vp.vp-ic { block-size: 64px; border-radius: 12px; }
   .crow .vp.vp-ic .hi { inline-size: 28px; block-size: 28px; }
   .fld2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; inline-size: 100%; }
-  .pinsheet .rb.play { color: var(--hs-on-accent, #fff); }
+  .pinsheet .rb.play { color: var(--hs-on-accent, var(--hs-white)); }
   /* the v3 sheets keep the home interface's touch target (the mockup drew 54 px; the tablet rule is the full --hit) */
   @media (min-width: 900px), (min-width: 701px) and (orientation: landscape) {
     .ovl .sheet.v3 .rb, .ovl .sheet.v3 .hbtn, .ovl .sheet.v3 .chip2, .ovl .sheet.v3 .seg button { min-block-size: 56px; }
