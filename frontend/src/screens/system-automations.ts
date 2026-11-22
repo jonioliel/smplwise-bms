@@ -9,6 +9,8 @@ import '../components/sw-button';
 import '../components/sw-toggle';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
+import '../components/sw-table';
+import type { TableColumn } from '../components/sw-table';
 import './automation-drawer';
 import './scenario-settings';
 import '../components/sw-list-display-settings';
@@ -112,17 +114,10 @@ export class SystemAutomations extends LitElement {
       background: var(--sw-stale-soft);
       color: var(--sw-warning-text);
     }
-    /* SCHED-POLISH-2331 -> SHARED-POLISH-2342: the role matrix is the shared table.set-matrix of styles/settings.ts (header in text-2 /
-       600, the role name in the heading ink); only its foot margin and the link stay here */
-    table.mtx {
+    /* SCHED-POLISH-2331 -> SHARED-POLISH-2342 -> CR-CMP2-TABLES-REST-2470: the role matrix is the shared sw-table.set-matrix of
+       styles/settings.ts; only its foot margin stays here */
+    sw-table.mtx {
       margin-block-end: var(--sw-s-3);
-    }
-    .mtx .c {
-      text-align: center;
-      inline-size: 72px;
-    }
-    .yes {
-      color: var(--sw-success-text);
     }
     .no {
       color: var(--sw-text-3);
@@ -325,9 +320,6 @@ export class SystemAutomations extends LitElement {
         max-inline-size: none;
         inline-size: 100%;
       }
-      .mtx .c {
-        inline-size: auto;
-      }
     }
   `, bubbleChrome];
 
@@ -437,13 +429,21 @@ export class SystemAutomations extends LitElement {
   }
 
   private who(): TemplateResult {
-    const tick = (on: boolean) => (on ? html`<sw-icon class="yes" name="check" size=${16} role="img" aria-label=${tr('כן')}></sw-icon>` : html`<span class="no" aria-label=${tr('לא')}>—</span>`);
+    // the tick keeps its class as the specs' hook (`tr[data-role] .yes`); its look comes through the shared yes / no parts
+    const tick = (on: boolean) => (on ? html`<sw-icon class="yes" part="yes" name="check" size=${16} role="img" aria-label=${tr('כן')}></sw-icon>` : html`<span class="no" part="no" aria-label=${tr('לא')}>—</span>`);
     const codeOn = (id: string, fixed: boolean | null) => (fixed !== null ? fixed : this.draft.code_view_roles.includes(id));
+    type Role = (typeof ROLE_ROWS)[number];
+    // CR-CMP2-TABLES-REST-2470 (owner N10): the role (its floors scope under it), then one centred column per right (72 px, narrower on a phone: min(72px, 16vw))
+    const cols: TableColumn<Role>[] = [
+      { key: 'label', label: tr('תפקיד'), render: (r) => html`<span class="t1">${r.label}</span>${r.scope ? html`<span class="t2">${r.scope}</span>` : nothing}` },
+      { key: 'run', label: tr('הפעלה'), align: 'center', width: 'min(72px, 16vw)', render: (r) => tick(r.run) },
+      { key: 'edit', label: tr('יצירה ועריכה'), align: 'center', width: 'min(72px, 16vw)', render: (r) => tick(r.edit) },
+      { key: 'code', label: tr('קוד'), align: 'center', width: 'min(72px, 16vw)', render: (r) => tick(codeOn(r.id, r.codeFixed)) },
+      ...(this.draft.device_test_enabled ? [{ key: 'test', label: tr('בדיקה על ההתקן'), align: 'center' as const, width: 'min(72px, 16vw)', cellAttrs: () => ({ 'data-col-device-test': true }), render: (r: Role) => tick(r.run && r.edit) }] : []),
+    ];
     return html`<sw-card heading=${tr('מי רשאי')} data-card="who">
-      <table class="mtx set-matrix" data-roles-matrix>
-        <thead><tr><th scope="col">${tr('תפקיד')}</th><th scope="col" class="c">${tr('הפעלה')}</th><th scope="col" class="c">${tr('יצירה ועריכה')}</th><th scope="col" class="c">${tr('קוד')}</th>${this.draft.device_test_enabled ? html`<th scope="col" class="c" data-col-device-test>${tr('בדיקה על ההתקן')}</th>` : nothing}</tr></thead>
-        <tbody>${ROLE_ROWS.map((r) => html`<tr data-role=${r.id}><td>${r.label}${r.scope ? html`<small>${r.scope}</small>` : nothing}</td><td class="c">${tick(r.run)}</td><td class="c">${tick(r.edit)}</td><td class="c">${tick(codeOn(r.id, r.codeFixed))}</td>${this.draft.device_test_enabled ? html`<td class="c">${tick(r.run && r.edit)}</td>` : nothing}</tr>`)}</tbody>
-      </table>
+      <sw-table class="mtx set-matrix" bare static-rows keep-columns data-roles-matrix .columns=${cols as unknown as TableColumn[]} .rows=${ROLE_ROWS as unknown as Record<string, unknown>[]}
+        .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-role': String(r.id) })}></sw-table>
       ${this.row(tr('הרשאות ותפקידים'), tr('ההקצאה למשתמשים ולקומות במסך "משתמשים והרשאות".'), html`<a class="link" href="#/system/access" data-link-access>${tr('למסך המשתמשים')}</a>`)}
     </sw-card>`;
   }

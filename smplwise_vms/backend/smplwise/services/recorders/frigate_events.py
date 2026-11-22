@@ -29,6 +29,7 @@ from ...db import now_iso, retry_locked
 from ...errors import ApiError
 from .. import zone_counts
 from ..timeutil import iso_utc
+from ...test_reset import register_reset
 
 if TYPE_CHECKING:
     import sqlite3
@@ -728,3 +729,11 @@ def _apply_frames(listener: "AlertStreamListener", reviews: list[Any], transitio
         publish(ev)
         listener.state.last_event_at = ev["occurred_at"]
         listener.state.events_stored += 1
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    STATES.clear()
+
+
+register_reset(__name__, ("STATES",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

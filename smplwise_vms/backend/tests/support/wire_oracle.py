@@ -22,6 +22,7 @@ from pydantic import TypeAdapter
 
 _LEGACY = TypeAdapter(dict[str, Any])
 _INSTALLED = False
+_DUMP: Any = None  # set by _record_coverage() when SW_WIRE_COVERAGE_DIR is given
 CHECKED: dict[str, int] = {}  # "METHOD path" -> answers compared (the characterisation tests read it)
 ORDER_DIFFS: dict[str, set[str]] = {}  # "METHOD path" -> JSON paths of objects whose key order the model changed
 
@@ -102,7 +103,31 @@ def install() -> None:
         if diff:
             raise WireMismatch(f"{route}: the modelled answer differs from the route's own dict at {diff}")
         CHECKED[route] = CHECKED.get(route, 0) + 1
+        if CHECKED[route] == 1 and _DUMP is not None:
+            _DUMP()  # a route seen for the first time: the file is current even if the run is stopped before it ends
         return out
 
     fr.serialize_response = checked
     _INSTALLED = True
+    _record_coverage()
+
+
+def _record_coverage() -> None:
+    """CR-ROUTE-CHAR-2460: `SW_WIRE_COVERAGE_DIR=<dir>` writes, when the test process ends, the routes this process compared
+    (`<dir>/oracle-<pid>.json`, {"METHOD path": answers}); `scripts/wire_route_coverage.py` lists the modelled routes no file names.
+    One file per process, so xdist workers and parallel runs never write the same file. The file is also rewritten whenever a route is
+    compared for the first time (at most once per modelled route), so a stopped run still leaves what it saw."""
+    out = os.environ.get("SW_WIRE_COVERAGE_DIR")
+    if not out:
+        return
+    import atexit
+    from pathlib import Path
+
+    def dump() -> None:
+        d = Path(out)
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"oracle-{os.getpid()}.json").write_text(json.dumps(CHECKED, indent=0, sort_keys=True), encoding="utf-8")
+
+    global _DUMP
+    _DUMP = dump
+    atexit.register(dump)

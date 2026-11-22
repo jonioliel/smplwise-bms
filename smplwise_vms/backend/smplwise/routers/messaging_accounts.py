@@ -34,6 +34,7 @@ from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, is_system_admin, require
 from ..services import ha_client
+from ..services import messaging_accounts_store as store
 from ..services import messaging_accounts as ma
 from ..services import messaging_runtime as mr
 from ..services import wa_pacing, wa_policy
@@ -388,7 +389,7 @@ def port_principal_barred(conn: sqlite3.Connection, principal: Principal) -> str
     installation scope) and never a home-system administrator. Fail closed on both."""
     if is_system_admin(conn, principal.user_id):
         return "system_admin_not_allowed"
-    row = conn.execute("SELECT is_admin FROM ha_users WHERE id = ?", (principal.user_id,)).fetchone()
+    row = store.ha_user_admin_row(conn, principal.user_id)
     if row is not None and row["is_admin"]:
         return "ha_admin_not_allowed"
     return None

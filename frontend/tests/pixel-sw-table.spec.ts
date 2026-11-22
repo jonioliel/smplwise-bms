@@ -3,7 +3,8 @@ import fs from 'node:fs';
 
 // CR-CMP2-TABLES-2450 (owner N10): the shared table `sw-table`, pinned on its own - a specimen of the shared cell vocabulary the hand-built
 // tables move onto (a t1 / t2 name cell, a number column, a muted column, status chips in every tone, an actions column, a truncated
-// column, a selected row) inside a card (`bare`) and as its own card, light and dark, classic skin, no server. The screens that moved
+// column, a selected row; CR-CMP2-GEN-REST-2460: a group heading row) inside a card (`bare`) and as its own card, light and dark, classic
+// skin, no server. The screens that moved
 // are pinned by their own shots. Titles carry "pixel-stable" (the gate's pixel lane). Baselines are per OS: the Linux ones are generated
 // on the runner with --update-snapshots, looked at, then committed; on an OS without a baseline the check is skipped.
 //   run_smart.py preview <branch> tests/pixel-sw-table.spec.ts --project=desktop --project=mobile -u --workers=1 --machine runner
@@ -24,7 +25,7 @@ async function specimen(page: Page, scheme: 'light' | 'dark') {
   await page.evaluate(() => {
     type Row = Record<string, unknown>;
     type Col = { key: string; label: string; kind?: string | string[]; render?: (r: Row) => unknown; hideBelow?: string; cellAttrs?: (r: Row) => Record<string, string> };
-    type Tbl = HTMLElement & { columns: Col[]; rows: Row[]; rowKey: string; selected: string | null; rowAttrs?: (r: Row) => Record<string, unknown> };
+    type Tbl = HTMLElement & { columns: Col[]; rows: Row[]; rowKey: string; selected: string | null; rowAttrs?: (r: Row) => Record<string, unknown>; groupHeading?: (r: Row) => string | null };
     const el = (tag: string, cls: string, text: string, attrs: Record<string, string> = {}) => {
       const n = document.createElement(tag);
       if (cls) n.className = cls;
@@ -71,12 +72,14 @@ async function specimen(page: Page, scheme: 'light' | 'dark') {
       t.columns = columns;
       t.rows = data;
       t.rowKey = 'id';
-      t.rowAttrs = (r) => ({ 'data-specimen-row': String(r.id), 'data-tone': (r.tone as string) || null });
+      t.rowAttrs = (r) => (r.group ? { 'data-specimen-group': String(r.id) } : { 'data-specimen-row': String(r.id), 'data-tone': (r.tone as string) || null });
+      t.groupHeading = (r) => (r.group ? String(r.group) : null);
       for (const [k, v] of Object.entries(attrs)) t.setAttribute(k, v);
       return t;
     };
     // 1) its own card, a selected row, rows that answer the keyboard
-    const own = make({ 'focus-rows': '', 'data-specimen': 'own' }, rows.slice(0, 3));
+    // CR-CMP2-GEN-REST-2460: a group heading row between the first row and the next two (the first row stands before any group)
+    const own = make({ 'focus-rows': '', 'data-specimen': 'own' }, [rows[0], { id: 'g1', group: 'מים ותשתיות' }, ...rows.slice(1, 3)]);
     own.selected = 'r2';
     // 2) inside a card (bare), a read-only list
     const card = document.createElement('div');
@@ -128,7 +131,15 @@ test.describe('pixel: sw-table', () => {
     expect(num[1]).toBe('ltr');
     // the reading end in the table; the phone card stack starts every cell at the reading start again
     expect(info.project.name === 'mobile' ? ['start', 'right'] : ['end', 'left']).toContain(num[0]);
-    // keyboard: Enter picks, ArrowDown walks to the next row (desktop: the rows are a table, not the phone stack)
+    // CR-CMP2-GEN-REST-2460: the group heading row is one band across every column, carries its hook, is no tab stop and is never picked
+    const grp = own.locator('tr[data-specimen-group="g1"]');
+    await expect(grp).toHaveCount(1);
+    await expect(grp.locator('th')).toHaveAttribute('colspan', '5');
+    await expect(grp.locator('th')).toHaveAttribute('scope', 'rowgroup');
+    await expect(grp).toHaveText('מים ותשתיות');
+    await expect(grp).not.toHaveAttribute('tabindex', /.*/);
+    await expect(own.locator('tbody')).toHaveCount(2);
+    // keyboard: Enter picks, ArrowDown walks to the next row - over the group heading (desktop: the rows are a table, not the phone stack)
     await page.evaluate(() => {
       (window as unknown as Win).tblSeen = [];
       document.querySelector('[data-table-specimen]')?.addEventListener('row-select', (e) => (window as unknown as Win).tblSeen.push((e as CustomEvent<{ id: string }>).detail.id));
@@ -139,6 +150,8 @@ test.describe('pixel: sw-table', () => {
     await page.keyboard.press('End');
     await expect(own.locator('tr[data-specimen-row="r3"]')).toBeFocused();
     await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => (window as unknown as Win).tblSeen)).toEqual(['r3']);
+    await grp.click();
     expect(await page.evaluate(() => (window as unknown as Win).tblSeen)).toEqual(['r3']);
     // a read-only list: no tab stop, no pointer, a click fires nothing
     const bare = page.locator('[data-table-specimen] sw-table[data-specimen="bare"]');

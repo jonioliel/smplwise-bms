@@ -212,7 +212,7 @@ class _Frame:
     """Plan pixels -> metres, y mirrored (origin bottom-left)."""
 
     def __init__(self, doc: dict[str, Any], width_px: float, height_px: float) -> None:
-        scale, estimated = effective_scale(doc)
+        scale, estimated = effective_scale({"dimensions": _dimensions(doc)})
         self.scale = float(scale)
         self.estimated = estimated
         self.w = float(width_px)
@@ -230,6 +230,12 @@ class _Frame:
         x, y = float(d[0]), -float(d[1])
         n = math.hypot(x, y) or 1.0
         return (x / n, y / n)
+
+
+def _dimensions(doc: dict[str, Any]) -> dict[str, Any]:
+    """The document's dimensions; anything but an object counts as none (CR-IFC-SPLIT-2460: never an AttributeError)."""
+    dims = doc.get("dimensions")
+    return dims if isinstance(dims, dict) else {}
 
 
 def _num(v: Any, default: float) -> float:
@@ -372,7 +378,8 @@ def _ifc_head(w: Writer, ctx: Ref, units: Ref, doc: dict[str, Any], *, floor_id:
               doc_hash: str | None) -> tuple[Ref, Ref]:
     """The project (with its property set), the site and the building, aggregated. Returns (the building, its placement)."""
     project = w.s.add("IFCPROJECT", global_id(floor_id, "project", version_id), None, clean_text(floor_name or version_id) or version_id, None, None, None, None, [ctx], units)
-    cal = ((doc.get("dimensions") or {}).get("calibration") or {}).get("status") or "missing"
+    calibration = _dimensions(doc).get("calibration")
+    cal = (calibration.get("status") if isinstance(calibration, dict) else None) or "missing"
     w.pset(project, f"project:{version_id}", {"PlanVersionId": version_id, "FloorId": floor_id, "Stage": stage, "ScaleStatus": cal, "DocHash": doc_hash,
                                                 "NorthDeg": _num(doc.get("north_deg"), 0.0), "Generator": f"{APP_NAME} plan_ifc {VERSION}",
                                                 "SchemaVersion": str(doc.get("schema_version") or "")})
@@ -522,7 +529,8 @@ def _ifc_objects(w: Writer, floor_id: str, doc: dict[str, Any], items: dict[str,
         lv = level_of(ob)
         if lv is None or not isinstance(ob.get("position"), (list, tuple)) or len(ob["position"]) != 2:
             continue
-        item = items.get(str(ob.get("item_id"))) or {}
+        item = items.get(str(ob.get("item_id")))
+        item = item if isinstance(item, dict) else {}  # a catalog entry that is not an object counts as none
         ifc = item.get("ifc") if isinstance(item.get("ifc"), dict) else plan_catalog.DEFAULT_IFC
         cls = str(ifc.get("class") or plan_catalog.DEFAULT_IFC["class"]).upper()
         ptype = str(ifc.get("predefined_type") or "USERDEFINED").upper()
@@ -573,7 +581,7 @@ def _ifc_anchors(w: Writer, floor_id: str, anchors: list[dict[str, Any]] | None,
     """The anchors (the caller's visible ones only) as proxies on the default level."""
     lv0 = by_level.get(default_level) or (next(iter(by_level.values())) if by_level else None)
     if lv0 is not None:
-        for a in sorted(anchors or [], key=lambda a: (str(a.get("resource_type")), str(a.get("resource_id")))):
+        for a in sorted((a for a in anchors or [] if isinstance(a, dict)), key=lambda a: (str(a.get("resource_type")), str(a.get("resource_id")))):
             try:
                 centre = frame.m((float(a["x"]), float(a["y"])))
             except (KeyError, TypeError, ValueError):

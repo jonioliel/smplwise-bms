@@ -38,6 +38,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationError
 from ..audit import audit
 from ..auth import settings_of
 from ..errors import ApiError
+from ..services import access_control_station_people_store as store
 from ..services import intercom_client, intercom_sync
 from ..services import intercom_authority as ia
 from ..services import intercom_writes as iw
@@ -398,10 +399,7 @@ def _begin(request: Request, auth: ia.Authority, action: str, raw: bytes, model:
     if expires > now + timedelta(seconds=EXPIRY_MAX_S):
         raise refuse(ApiError(422, "expires_too_far", f"תוקף הבקשה חייב להסתיים תוך {int(EXPIRY_MAX_S)} שניות."), env)
     since = (now - timedelta(seconds=DEDUPE_WINDOW_S)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    seen = auth.conn.execute(
-        "SELECT 1 FROM audit_log WHERE action = ? AND actor_user_id = ? AND at >= ? AND details_json LIKE ? AND details_json LIKE ? LIMIT 1",
-        (action, auth.principal.user_id, since, f'%"client_request_id": "{body.client_request_id}"%', '%"phase": "attempt"%'),
-    ).fetchone()
+    seen = store.attempt_seen(auth.conn, action, auth.principal.user_id, since, f'%"client_request_id": "{body.client_request_id}"%', '%"phase": "attempt"%')
     if seen:
         raise refuse(ApiError(409, "intercom_duplicate_command", "הפקודה הזו כבר נשלחה (אותו מזהה פקודה), ולכן לא נשלחה שוב."), env)
     if len(set(body.station_ids)) != len(body.station_ids) or any(not isinstance(s, str) or not re.match(STATION_ID, s) for s in body.station_ids):

@@ -42,6 +42,7 @@ from ...rbac import Principal
 from ..notify_recipients import expand
 from . import settings_doc, store
 from .notify_sources import RULE_ASSIGNEE, SOURCE_DEFS, SUBJECT
+from ...test_reset import register_reset
 
 log = logging.getLogger("smplwise.tickets.notify_matrix")
 
@@ -370,3 +371,11 @@ def detail_for(conn: sqlite3.Connection, principal: Principal, params: dict[str,
                     "event_label": LABELS.get(i["s"], i["s"])})
     total = params.get("total")
     return {"total": total if isinstance(total, int) else len(items), "items": out, "hidden": len(items) - len(out)}
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _LAST.clear()
+
+
+register_reset(__name__, ("_LAST",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

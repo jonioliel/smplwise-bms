@@ -1,47 +1,29 @@
 /** USR2 phase 4: passkeys of an Arx-only (local) identity (routers/local_passkeys.py). Lists never carry a credential id or a key. */
 import { api, get, patch, post, put } from './client';
-import type { CreationOptionsJSON } from '../arx/webauthn';
+import type * as PkWire from './generated/wire-local-passkeys';
 
-export interface PasskeyView {
-  id: string;
-  label: string | null;
-  created_at: string;
-  last_used_at: string | null;
-  synced: boolean;
-  backed_up: boolean;
-  transports: string[];
-  usable: boolean;
-  user_verifying: boolean;
-}
+/* The shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/local_passkeys.py, generated into
+ * ./generated/wire-local-passkeys.ts; code review 07:F8 step 2). */
+export type PasskeyView = PkWire.Passkey;
 
-export interface PasskeySummary {
-  available: boolean;
-  rp_id: string | null;
-  origin: string | null;
-  first_allowed: boolean;
-  first_on: boolean;
-  only_on?: boolean;
-  only_effective?: boolean;
-  credentials: PasskeyView[];
-  recent_auth?: boolean;
-  recent_auth_left_s?: number;
-  totp?: boolean;
-}
+/** A user's passkeys and modes; the caller's own answer (`ownPasskeys`) adds whether the session is a fresh sign-in and whether TOTP is
+ * enrolled - optional here so one state type serves both screens. */
+export type PasskeySummary = PkWire.PasskeySummary & Partial<Pick<PkWire.OwnPasskeys, 'recent_auth' | 'recent_auth_left_s' | 'totp'>>;
 
-export const ownPasskeys = () => get<PasskeySummary>('auth/passkeys');
-export const registrationOptions = () => post<{ publicKey: CreationOptionsJSON; user_verification_required: boolean }>('auth/passkeys/register/options');
+export const ownPasskeys = () => get<PkWire.OwnPasskeys>('auth/passkeys');
+export const registrationOptions = () => post<PkWire.RegistrationOptions>('auth/passkeys/register/options');
 export const registerPasskey = (credential: Record<string, unknown>, label?: string) =>
-  post<{ passkey: PasskeyView; first_factor: boolean }>('auth/passkeys/register', { credential, ...(label ? { label } : {}) });
+  post<PkWire.PasskeyRegistered>('auth/passkeys/register', { credential, ...(label ? { label } : {}) });
 // CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by USR2 phase 4 (passkeys).
 export const renamePasskey = (id: string, label: string) => patch<PasskeySummary>(`auth/passkeys/${encodeURIComponent(id)}`, { label });
 export const removePasskey = (id: string, code?: string) =>
-  api<PasskeySummary & { removed: string }>(`auth/passkeys/${encodeURIComponent(id)}`, { method: 'DELETE', ...(code ? { body: JSON.stringify({ code }) } : {}) });
+  api<PkWire.PasskeyRemoved>(`auth/passkeys/${encodeURIComponent(id)}`, { method: 'DELETE', ...(code ? { body: JSON.stringify({ code }) } : {}) });
 export const setPasskeyFirst = (on: boolean) => put<PasskeySummary>('auth/passkeys/first', { on });
 
 /** Administration: identity.directory.read to list, identity.local.manage to remove (with the administrator's own TOTP code when enrolled). */
-export const userPasskeys = (userId: string) => get<PasskeySummary & { user_id: string }>(`identity/local-users/${encodeURIComponent(userId)}/passkeys`);
+export const userPasskeys = (userId: string) => get<PkWire.UserPasskeys>(`identity/local-users/${encodeURIComponent(userId)}/passkeys`);
 export const adminRemovePasskey = (userId: string, id: string, ownCode?: string) =>
-  api<PasskeySummary>(`identity/local-users/${encodeURIComponent(userId)}/passkeys/${encodeURIComponent(id)}`, {
+  api<PkWire.UserPasskeyRemoved>(`identity/local-users/${encodeURIComponent(userId)}/passkeys/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     ...(ownCode ? { headers: { 'X-Arx-Second-Factor': ownCode } } : {}),
   });
@@ -49,4 +31,4 @@ export const adminRemovePasskey = (userId: string, id: string, ownCode?: string)
 /** usr2-passkeys-only-mode: password sign-in refused for the user. Self: a working passkey + a fresh sign-in; administrator: identity.local.manage (off = the recovery). */
 export const setPasskeyOnly = (on: boolean) => put<PasskeySummary>('auth/passkeys/only', { on });
 export const adminSetPasskeyOnly = (userId: string, on: boolean) =>
-  put<PasskeySummary & { user_id: string }>(`identity/local-users/${encodeURIComponent(userId)}/passkey-only`, { on });
+  put<PkWire.UserPasskeys>(`identity/local-users/${encodeURIComponent(userId)}/passkey-only`, { on });

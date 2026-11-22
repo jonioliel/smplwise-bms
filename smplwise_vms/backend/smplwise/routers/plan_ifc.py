@@ -36,6 +36,7 @@ from .plans import get_version
 router = APIRouter()
 
 UNCALIBRATED_HE = "התוכנית לא מכוילת; כייל אותה (שתי נקודות) לפני ייצוא או ייבוא של IFC."
+EXPORT_STRUCTURE_HE = "מבנה המסמך השמור אינו תקין; לא ניתן לייצא אותו ל־IFC. פתח את המבנה בעורך ושמור אותו מחדש."
 IFC_MESSAGES = {
     "ifc_not_step": "הקובץ אינו קובץ IFC תקין (טקסט ISO 10303-21).",
     "ifc_compressed": "קובץ IFC דחוס (ifczip) אינו נתמך; פתח אותו ושלח את קובץ ה־IFC עצמו.",
@@ -65,10 +66,15 @@ def export_ifc(version_id: str, request: Request, draft: bool = False, level: st
     floor = get_floor(conn, v["floor_id"])
     row = store.working_doc(conn, v)[1] if draft else store.published_row(conn, v["id"])
     stamp = (row["updated_at"] if draft else row["published_at"] or row["created_at"]) if row is not None else v["created_at"]
-    data, counts = plan_ifc.build(doc, _export_zones(conn, principal, v), int(v["width_px"]), int(v["height_px"]), floor_id=v["floor_id"],
-                                  floor_name=(floor["name"] if floor is not None else "") or "", version_id=v["id"], stage="draft" if draft else "published", level=level,
-                                  anchors=pkg_svc.anchor_records(conn, v["floor_id"], principal), items=plan_catalog.item_index(conn),
-                                  generated_at=str(stamp or "1970-01-01T00:00:00Z"), doc_hash=store.doc_hash(doc))
+    zones, anchors, items = _export_zones(conn, principal, v), pkg_svc.anchor_records(conn, v["floor_id"], principal), plan_catalog.item_index(conn)
+    try:
+        data, counts = plan_ifc.build(doc, zones, int(v["width_px"]), int(v["height_px"]), floor_id=v["floor_id"],
+                                      floor_name=(floor["name"] if floor is not None else "") or "", version_id=v["id"], stage="draft" if draft else "published",
+                                      level=level, anchors=anchors, items=items, generated_at=str(stamp or "1970-01-01T00:00:00Z"), doc_hash=store.doc_hash(doc))
+    except (TypeError, ValueError) as exc:
+        # CR-BE-FOLLOWUPS-2470 (CR-IFC-SPLIT-2460 Q2): a stored document with a wrongly typed collection or id (`"walls": 7`, a list as
+        # level_id) - the save path validates, so only a row written another way gets here - is a refusal, never a 500
+        raise ApiError(422, "geometry_structure", EXPORT_STRUCTURE_HE, details={"error": type(exc).__name__})
     audit(conn, actor=principal, action="geometry.ifc.export", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
           details={"version_id": v["id"], "stage": "draft" if draft else "published", "level": level, "bytes": len(data), **counts})
     return Response(content=data, media_type="application/x-step", headers={"Content-Disposition": f'attachment; filename="plan-{v["id"]}.ifc"', **NO_CACHE})

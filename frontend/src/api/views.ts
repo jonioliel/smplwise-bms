@@ -1,22 +1,11 @@
 /** Saved views (live review F3): a named set of cameras with a cols × rows layout that opens the live wall or the
  * kiosk. Personal views belong to their owner; shared views need rbac.assign and are visible to everyone. */
 import { del, get, path, post, put } from './client';
+import type * as Wire from './generated/wire-views';
 
-export interface SavedView {
-  id: string;
-  name: string;
-  cameras: string[];
-  camera_names: string[];
-  hidden_cameras: number;
-  cols: number;
-  rows: number;
-  shared: boolean;
-  kiosk: boolean;
-  owner_user_id: string;
-  owner_username: string | null;
-  created_at: string;
-  updated_at: string;
-}
+/* The wire shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/views.py), generated into
+ * ./generated/wire-views.ts: a field the server renames or drops is a compile error here (code review 07:F8 step 2). */
+export type SavedView = Wire.SavedViewRow;
 
 export interface ViewBody {
   name: string;
@@ -27,7 +16,7 @@ export interface ViewBody {
   kiosk: boolean;
 }
 
-export const listViews = () => get<{ views: SavedView[]; can_share: boolean; can_manage_all: boolean }>('views');
+export const listViews = () => get<Wire.SavedViewList>('views');
 export const createView = (body: ViewBody) => post<SavedView>('views', body);
 export const updateView = (id: string, body: ViewBody) => put<SavedView>(path`views/${id}`, body);
 export const deleteView = (id: string) => del(path`views/${id}`);

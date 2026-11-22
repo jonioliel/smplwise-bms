@@ -34,7 +34,10 @@ async function audit(page: Page, minTarget: number) {
     if (hs && hs.scrollHeight - hs.clientHeight > 1) overflow.push(`hs ${hs.scrollHeight}>${hs.clientHeight}`);
     if (hs && hs.scrollWidth - hs.clientWidth > 1) overflow.push(`hs-x ${hs.scrollWidth}>${hs.clientWidth}`);
     const small: string[] = [];
-    for (const el of Array.from(root.querySelectorAll<HTMLElement>('.hs button, .hs a[href], .hs input[type=range]'))) {
+    // CR-HOME-V3-SEGMENTS-2470: a segmented choice is sw-segmented - its keys sit in the component's shadow root, measured too
+    const segs = Array.from(root.querySelectorAll('.hs sw-segmented'));
+    const segKeys = segs.flatMap((s) => Array.from(s.shadowRoot?.querySelectorAll<HTMLElement>('button') ?? []));
+    for (const el of [...Array.from(root.querySelectorAll<HTMLElement>('.hs button, .hs a[href], .hs input[type=range]')), ...segKeys]) {
       const r = el.getBoundingClientRect();
       if (!r.width || !r.height) continue;
       const cs = getComputedStyle(el);
@@ -45,7 +48,7 @@ async function audit(page: Page, minTarget: number) {
       const grow = after.content !== 'none' && after.position === 'absolute' ? Math.max(0, -parseFloat(after.top || '0')) + Math.max(0, -parseFloat(after.bottom || '0')) : 0;
       if (Math.min(r.width, r.height + grow) < min - 0.5) small.push(`${el.tagName.toLowerCase()}.${el.className}[${el.getAttribute('aria-label') ?? el.textContent?.trim().slice(0, 20)}] ${Math.round(r.width)}x${Math.round(r.height)}`);
     }
-    const text = (root as unknown as { textContent: string }).textContent ?? '';
+    const text = ((root as unknown as { textContent: string }).textContent ?? '') + ' ' + segs.map((s) => s.shadowRoot?.textContent ?? '').join(' ');
     const labels = Array.from(root.querySelectorAll('[aria-label]')).map((e) => e.getAttribute('aria-label')).join(' ');
     return { overflow, small, text: text + ' ' + labels, dir: getComputedStyle(hs ?? host).direction, scrollTop: main?.scrollTop ?? 0 };
   }, minTarget);

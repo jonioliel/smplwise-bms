@@ -693,4 +693,10 @@ def export_url(settings: Settings, stored: str) -> str:
     return f"rtsp://{quote(settings.nvr_user, safe='')}:{quote(settings.nvr_password, safe='')}@{settings.nvr_host}:{settings.nvr_rtsp_port}{path}"
 
 
-register_reset(__name__, ("_ZONES", "_TYPES"), clear_caches)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)
+def _reset_all_for_tests() -> None:
+    """Test seam: the module's existing reset, then the remaining module-level tables back to a fresh process (smplwise.test_reset; product code never calls it)."""
+    clear_caches()
+    _SEARCH_LOCKS.clear()
+
+
+register_reset(__name__, ("_ZONES", "_TYPES", "_SEARCH_LOCKS"), _reset_all_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

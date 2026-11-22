@@ -67,9 +67,6 @@ export const devicesSchedulesStyles = [bubbleChrome, ...automationsStyles, media
     .rc[aria-pressed='true']::before {
       ${chipSelectedCheck}
     }
-    .dh-det .seg.kinds button {
-      padding-inline: 14px;
-    }
     .dh-det .grow {
       min-inline-size: 0;
     }
@@ -941,13 +938,9 @@ export const devicesSchedulesStyles = [bubbleChrome, ...automationsStyles, media
       .dh-det {
         gap: 10px;
       }
-      .dh-det .seg.kinds {
+      /* CR-CMP2-TABS-2460: the kind strip takes the first line of the phone toolbar (sw-tabs fill="phone" shares it equally) */
+      .dh-det sw-tabs.kinds {
         order: 1;
-        inline-size: 100%;
-      }
-      .dh-det .seg.kinds button {
-        flex: 1;
-        padding-inline: 8px;
       }
       .dh-det .stf {
         order: 2;

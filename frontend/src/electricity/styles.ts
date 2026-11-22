@@ -433,6 +433,17 @@ export const elecCss = css`
   .fld .msg.warn-msg {
     color: var(--sw-warning-text);
   }
+  /* CR-FIELD-UNIT-2470: a shared field in a module form (sw-field class="fld") reads as the module's own .fld - the .fld rules above give
+     its column, gap and message, this its label; the control keeps the module's input look (the module's input rules outrank the
+     field's ::slotted ones); a unit inside the frame sits on the module's inset (12 px padding + the 1 px frame) */
+  sw-field.fld::part(label) {
+    font-size: var(--sw-fs-sm);
+    color: var(--sw-text-2);
+    font-weight: var(--sw-fw-medium);
+  }
+  sw-field {
+    --sw-field-unit-inset: 13px;
+  }
   .names {
     display: flex;
     flex-direction: column;

@@ -12,6 +12,7 @@ from pathlib import Path
 from contextlib import contextmanager
 import time
 from .wiskey_distribution_digest import digest
+from ..test_reset import register_reset
 
 try:  # POSIX only (the add-on runs on Linux); absent on the Windows development workstation
     import fcntl as _fcntl
@@ -336,3 +337,11 @@ def save_observation(db, journal, answer, state):
                 ),
             )
             return "recorded"
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _HELD.clear()
+
+
+register_reset(__name__, ("_HELD",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

@@ -4,6 +4,8 @@ import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-dialog';
 import '../components/sw-block-card';
 import '../components/sw-toggle';
+import '../components/sw-tabs';
+import type { TabItem } from '../components/sw-tabs';
 import './automation-templates';
 import './automation-entity-picker';
 import './automation-code';
@@ -317,12 +319,8 @@ export abstract class AutomationEditorBase extends LitElement {
         padding: 0 16px 6px;
         display: none;
       }
-      .shsub .seg {
-        inline-size: 100%;
-      }
-      .shsub .seg button {
-        flex: 1;
-        min-block-size: 40px;
+      .shsub sw-tabs {
+        --sw-tab-min-h: 40px;
       }
       .shb {
         flex: 1;
@@ -745,7 +743,7 @@ export abstract class AutomationEditorBase extends LitElement {
           inline-size: 44px;
           block-size: 44px;
         }
-        .shh .seg.top {
+        .shh sw-tabs.top {
           display: none;
         }
         .shsub {
@@ -1478,9 +1476,14 @@ export abstract class AutomationEditorBase extends LitElement {
     const pl = this.draft && this.env ? placeChips(this.item, this.draft, this.env) : { floors: '', areas: '', more: 0 };
     const sub = this.isNew ? (this.templateName ? tr('מתבנית "{name}"', { name: this.templateName }) : this.subtitleNew()) : null;
     const cm = this.codeMode;
-    const seg = cm !== 'hidden' ? html`<div class="seg top" role="tablist" aria-label=${tr('תצוגה')} data-view-toggle>
-      <button type="button" role="tab" aria-selected=${this.view === 'builder'} data-view="builder" @click=${() => this.setView('builder')}>${icon('blocks')}${tr('בונה')}</button>
-      <button type="button" role="tab" aria-selected=${this.view === 'code'} data-view="code" @click=${() => this.setView('code')}>${icon('code')}${tr('קוד')}</button></div>` : nothing;
+    // CR-CMP2-TABS-2460: the builder / code switch is sw-tabs (pill, controlled: a refused switch - code that does not parse - keeps
+    // its tab); the header copy hides on a phone, where the copy under the header fills the sheet's width
+    const views: TabItem[] = [
+      { id: 'builder', label: tr('בונה'), glyph: icon('blocks'), attrs: { 'data-view': 'builder' } },
+      { id: 'code', label: tr('קוד'), glyph: icon('code'), attrs: { 'data-view': 'code' } },
+    ];
+    const seg = (cls: string, fill: boolean) => html`<sw-tabs controlled variant="pill" class=${cls} fill=${fill ? 'always' : nothing} group-label=${tr('תצוגה')} data-view-toggle .items=${views} .active=${this.view}
+      @change=${(e: CustomEvent<{ id: string }>) => { e.stopPropagation(); this.setView(e.detail.id as 'builder' | 'code'); }}></sw-tabs>`;
     const on = this.item ? this.item.state !== 'off' : true;
     const tgl = this.kind === 'automation' && !this.isNew && this.item?.can.toggle && !this.hardReadOnly
       ? html`<sw-toggle class="tgl" labelHidden label=${tr('פעילה')} .checked=${on} ?disabled=${this.busy !== ''} data-enable-toggle @change=${(e: CustomEvent<{ checked: boolean }>) => void this.toggleEnabled(e.detail.checked)}></sw-toggle>` : nothing;
@@ -1491,9 +1494,9 @@ export abstract class AutomationEditorBase extends LitElement {
           <input class="namein" data-name-input aria-label=${this.nameLabel} placeholder=${this.nameLabel} .value=${name} ?disabled=${this.hardReadOnly} @input=${(e: Event) => this.setName((e.target as HTMLInputElement).value)} />
           <small>${sub ?? html`${pl.floors ? html`${icon('layers', 13)}<span>${pl.floors}</span>` : nothing}${pl.areas ? html`<span>${pl.areas}${pl.more ? ` ${pl.more}+` : ''}</span>` : nothing}`}</small>
         </div>
-        ${seg}${tgl}
+        ${cm !== 'hidden' ? seg('top', false) : nothing}${tgl}
       </header>
-      ${cm !== 'hidden' ? html`<div class="shsub">${seg}</div>` : nothing}`;
+      ${cm !== 'hidden' ? html`<div class="shsub">${seg('sub', true)}</div>` : nothing}`;
   }
 
   protected setName(v: string) {

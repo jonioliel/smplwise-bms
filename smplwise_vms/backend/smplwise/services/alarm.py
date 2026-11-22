@@ -24,6 +24,7 @@ import sqlite3
 import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Iterable
+from ..test_reset import register_reset
 
 # Home Assistant's AlarmControlPanelEntityFeature bits
 ARM_HOME, ARM_AWAY, ARM_NIGHT, TRIGGER, ARM_CUSTOM_BYPASS, ARM_VACATION = 1, 2, 4, 8, 16, 32
@@ -685,3 +686,13 @@ def summary_counts(panels: list[dict[str, Any]]) -> dict[str, Any]:
     zones = [z for p in panels for z in p["zones"]]
     return {"panels": len(panels), "zones": len({z["entity_id"] for z in zones}), "open": len({z["entity_id"] for z in zones if z["open"]}),
             "bypassed": len({z["entity_id"] for z in zones if z["bypassed"]}), "faults": len({z["entity_id"] for z in zones if z["fault"]})}
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    MANAGED_STATS.clear()
+    MANAGED_STATS.update({"hits": 0, "misses": 0})
+    _MANAGED_CACHE.clear()
+
+
+register_reset(__name__, ("MANAGED_STATS", "_MANAGED_CACHE"), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

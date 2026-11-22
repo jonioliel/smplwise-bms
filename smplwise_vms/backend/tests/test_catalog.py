@@ -43,3 +43,28 @@ def test_audit_rows_written(client, settings):
         actions = [r[0] for r in conn.execute("SELECT action FROM audit_log ORDER BY id").fetchall()]
     assert actions[0] == "rbac.bootstrap_admin"
     assert "site.create" in actions and "floor.create" in actions
+
+
+def test_site_edit_trims_like_create_and_refuses_an_unknown_time_zone(client, settings):
+    """CR-BE-FOLLOWUPS-2470: PATCH /sites/{id} stored the name untrimmed (create trims) and took any time-zone string."""
+    from smplwise.db import Database
+
+    ids = seed_tree(client)
+    url = f"/api/v1/sites/{ids['site']}"
+    r = client.patch(url, json={"name": "  אתר חדש  ", "address": "  רחוב 2 ", "timezone": "Europe/London"})
+    assert r.status_code == 200, r.text
+    assert r.json()["name"] == "אתר חדש" and r.json()["address"] == "רחוב 2" and r.json()["timezone"] == "Europe/London"
+
+    for bad in ("Mars/Olympus", "../etc/passwd", ""):
+        r = client.patch(url, json={"timezone": bad})
+        assert r.status_code == 422, (bad, r.text)
+        body = r.json()
+        assert body["code"] == "validation" and body["user_message"] and body["correlation_id"] and "timezone" in body["details"]
+    r = client.patch(url, json={"name": "   "})
+    assert r.status_code == 422 and r.json()["code"] == "validation" and "name" in r.json()["details"]
+
+    site = next(s for s in client.get("/api/v1/sites").json()["sites"] if s["id"] == ids["site"])
+    assert site["name"] == "אתר חדש" and site["timezone"] == "Europe/London", "a refused edit changes nothing"
+    with Database(settings.db_path).connection() as conn:
+        updates = [r[0] for r in conn.execute("SELECT details_json FROM audit_log WHERE action = 'site.update'").fetchall()]
+    assert len(updates) == 1, "only the accepted edit is audited"

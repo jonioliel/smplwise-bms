@@ -25,6 +25,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, is_system_admin, require
 from ..services import demo_mode, fleet_keys
 from ..services import fleet_report as fr
+from ..services import fleet_store as store
 from ._common import rid as _rid
 
 router = APIRouter()
@@ -79,16 +80,14 @@ def put_fleet_report(body: SwitchIn, request: Request, principal: Principal = De
             if not fr.SILENT_MIN_H <= body.silent_after_h <= fr.SILENT_MAX_H:
                 raise ApiError(422, "silent_after_out_of_range", _TEXT["silent_after_out_of_range"])
             old = fr.silent_after_h(conn)
-            conn.execute("INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                         (fr.SILENT_KEY, str(body.silent_after_h)))
+            store.upsert_setting(conn, fr.SILENT_KEY, str(body.silent_after_h))
             audit(conn, actor=principal, action="settings.changed", decision="allowed", resource_type="installation", resource_id=RES,
                   request_id=_rid(request), details={"key": fr.SILENT_KEY, "before": old, "after": body.silent_after_h})
         if body.enabled is not None:
             was_on = fr.switch_on(conn)
             before = "on" if was_on else "off"
             after = "on" if body.enabled else "off"
-            conn.execute("INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                         (fr.SWITCH, "true" if body.enabled else "false"))
+            store.upsert_setting(conn, fr.SWITCH, "true" if body.enabled else "false")
             audit(conn, actor=principal, action="settings.changed", decision="allowed", resource_type="installation", resource_id=RES,
                   request_id=_rid(request), details={"key": fr.SWITCH, "before": before, "after": after})
             if body.enabled:

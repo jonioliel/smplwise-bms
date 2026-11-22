@@ -18,6 +18,8 @@ from ..errors import ApiError, forbidden, not_found
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import views_store as store
 from ..services.access import camera_allowed, visible_camera_ids
+from ..wire import wire
+from ..wire.views import SavedViewDeleted, SavedViewList, SavedViewRow
 from ._common import rid as _rid
 
 router = APIRouter()
@@ -83,7 +85,7 @@ def _check_cameras(conn: sqlite3.Connection, principal: Principal, cameras: list
     return seen
 
 
-@router.get("/views")
+@router.get("/views", **wire(SavedViewList))
 def list_views(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The caller's own views plus every shared view; cameras the caller may not watch are left out and counted."""
     visible = visible_camera_ids(conn, principal, "video.live")
@@ -96,7 +98,7 @@ def list_views(principal: Principal = Depends(current_principal_ro), conn: sqlit
     }
 
 
-@router.post("/views", status_code=201)
+@router.post("/views", status_code=201, **wire(SavedViewRow))
 def create_view(body: ViewBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     if body.shared and not _can_manage_shared(conn, principal):
         require(conn, principal, "rbac.assign", INSTALLATION)  # audited refusal
@@ -116,7 +118,7 @@ def _load(conn: sqlite3.Connection, view_id: str) -> sqlite3.Row:
     return row
 
 
-@router.put("/views/{view_id}")
+@router.put("/views/{view_id}", **wire(SavedViewRow))
 def update_view(view_id: str, body: ViewBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     row = _load(conn, view_id)
     if not _can_edit(conn, principal, row):
@@ -130,7 +132,7 @@ def update_view(view_id: str, body: ViewBody, request: Request, principal: Princ
     return _view_dict(store.view(conn, view_id), None, _names(conn))
 
 
-@router.delete("/views/{view_id}")
+@router.delete("/views/{view_id}", **wire(SavedViewDeleted))
 def delete_view(view_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     row = _load(conn, view_id)
     if not _can_edit(conn, principal, row):

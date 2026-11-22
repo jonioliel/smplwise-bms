@@ -54,6 +54,11 @@ const he = {
   send: 'הכרז',
   history: 'הכרזות אחרונות',
   empty: 'עדיין לא הוכרז דבר.',
+  /** CR-CMP2-TABLES-REST-2470: the history table's column titles (the shared table draws a header) */
+  colWhen: 'מתי',
+  colSource: 'מקור',
+  colText: 'הכרזה',
+  colStatus: 'מצב',
   saved: 'נשמר',
   sent: 'ההכרזה נשלחה',
   forbidden: 'נדרשת הרשאת מנהל מערכת.',

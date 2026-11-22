@@ -9,7 +9,7 @@ import {
 
 function row(id: string, over: Partial<ProtectedSwitchRow> = {}): ProtectedSwitchRow {
   return {
-    entity_id: `switch.${id}`, name: id, area_id: null, area_name: null, floor_id: null, floor_name: null, state: 'off', available: true,
+    entity_id: `switch.${id}`, name: id, area_id: null, area_name: null, floor_id: null, floor_name: null, state: 'off', available: true, platform: null,
     protected: false, suggested: false, source: null, category: null, category_label: null, rule: null, reviewed: null, included: true, reason: 'allowed', reason_label: null,
     alarm_managed: false, doors_layer: false, media_managed: false, marked_by: null, marked_at: null, reviewed_by: null, reviewed_at: null, ...over,
   };

@@ -61,6 +61,7 @@ from ..db import set_setting
 from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, Principal, authorize, is_system_admin, permissions_anywhere, require, require_system_admin
 from ..services import access_external as ax
+from ..services import access_grants_store as store
 from ..services import access_grants as ag
 from ..services import access_request as ar
 from ._common import db_of as _db, rid as _rid
@@ -395,7 +396,7 @@ def request_grant(body: GrantIn, request: Request, principal: Principal = Depend
         vf, vu = ag.parse_window(body.valid_from, body.valid_until, ag.max_days(conn), ag.now())
         if body.credential == "card" and not ag.cards_enabled(conn):  # GRANTS3-295 (X5): built, behind its own switch (off by default)
             raise ApiError(409, "access_grant_cards_off", "גישה בכרטיס לאדם חיצוני כבויה.")
-        if body.ticket_id and conn.execute("SELECT 1 FROM tickets WHERE id = ?", (body.ticket_id,)).fetchone() is None:
+        if body.ticket_id and store.ticket_row(conn, body.ticket_id) is None:
             raise ApiError(404, "ticket_not_found", "הקריאה לא נמצאה.")
         purpose = ar.clean_text(body.purpose, "purpose", ar.PURPOSE_MAX)
         notes = ar.clean_text(body.notes, "notes", ar.NOTES_MAX, multiline=True)

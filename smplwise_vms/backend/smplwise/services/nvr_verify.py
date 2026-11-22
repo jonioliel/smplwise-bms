@@ -45,6 +45,7 @@ from ..errors import ApiError
 from . import go2rtc as g2
 from . import live_codec, nvr, nvr_batch
 from .recorders import registry
+from ..test_reset import register_reset
 
 log = logging.getLogger(__name__)
 
@@ -526,3 +527,11 @@ def _recheck_thread(db: Any, settings: Settings, batch_id: str, ids: set[str]) -
 def wait_idle(timeout: float = 30.0) -> bool:
     """Tests: True once no re-check thread of this process is alive."""
     return nvr_batch.threads_idle(_running_lock, _running, timeout)
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _running.clear()
+
+
+register_reset(__name__, ("_running",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

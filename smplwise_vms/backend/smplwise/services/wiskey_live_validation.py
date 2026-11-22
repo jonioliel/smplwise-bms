@@ -47,6 +47,7 @@ from typing import Any, Callable, Iterable, Mapping
 
 from ..rbac import Principal
 from . import wiskey_feature_exec as fx
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.wiskey.validation")
 
@@ -1028,3 +1029,11 @@ def pulse_done_for(conn: sqlite3.Connection, parent_run_id: str, station_id: str
     """Whether this station already had its ONE pulse attempt in this check run (any outcome: nothing is retried)."""
     return conn.execute("SELECT 1 FROM wiskey_validation_runs u JOIN wiskey_validation_results r ON r.run_id=u.id "
                         "WHERE u.parent_run_id=? AND u.kind='pulse' AND r.station_id=? LIMIT 1", (parent_run_id, station_id)).fetchone() is not None
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _ACTIVE.clear()
+
+
+register_reset(__name__, ("_ACTIVE",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

@@ -38,8 +38,9 @@ from pydantic import ConfigDict
 from ..auth import current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..errors import ApiError
 from ..rbac import Principal
+from ..services import access_control_station_ops_store as store
 from ..services import intercom_authority as ia
-from ..services import intercom_sync
+from ..services import intercom_sync, savepoints
 from ..services import wiskey_station_ops as ops
 from ._common import raw_body as _raw_body, rid as _rid
 from .access_control import MAX_STATION_ID, CommandEnvelope, _Action, _envelope, _parse, _station
@@ -112,11 +113,7 @@ def _last_runs(conn: sqlite3.Connection, station_id: str) -> dict[str, Any]:
     outcome row has not been written yet), `acknowledged` / `completed`, `failed` (WisKey answered a failure), `not_sent` (refused
     before sending) or `unknown`; with WisKey's / Arx's code and the time."""
     since = (datetime.now(timezone.utc) - timedelta(days=HISTORY_DAYS)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    marks = ",".join("?" for _ in ops.AUDIT_ACTIONS)
-    rows = conn.execute(
-        f"SELECT at, action, decision, reason, details_json FROM audit_log WHERE at >= ? AND action IN ({marks}) AND resource_id = ? ORDER BY id DESC LIMIT 60",
-        (since, *ops.AUDIT_ACTIONS, station_id),
-    ).fetchall()
+    rows = store.station_op_rows(conn, since, ops.AUDIT_ACTIONS, station_id)
     by_audit = {op.audit: op for op in ops.OPS.values()}
     out: dict[str, Any] = {name: None for name in ops.OPS}
     now = datetime.now(timezone.utc)
@@ -251,7 +248,7 @@ def _perform(act: _Action, op: ops.Op, station_id: str, not_after: datetime) -> 
         act.outcome("unknown", type(exc).__name__, {"error": type(exc).__name__})
         raise
     finally:
-        act.conn.execute("BEGIN")  # deferred: takes no lock; nothing more is written on this connection
+        savepoints.begin_deferred(act.conn)  # deferred: takes no lock; nothing more is written on this connection
     ops.LIMITS.sent(station_id, op.action)
     data = reply["maintenance"]
     act.outcome("ok", None, {"result": op.summary(data)})
