@@ -260,6 +260,8 @@ test.describe('settings and the announce form', () => {
     await via.first().click(); // speakers off: screens only
     await p2.locator('devices-announce [data-announce-send]').click();
     await expect.poll(() => calls2.some((c) => c.method === 'POST' && c.path === '' && c.body?.speakers === false && c.body?.screens === true)).toBe(true);
+    // the sent form clears itself when the answer arrives: type again only after that, or the late clear wipes the new text (a race)
+    await expect(p2.locator('devices-announce [data-announce-text="he"]')).toHaveValue('');
     await p2.locator('devices-announce [data-announce-text="he"]').fill('בדיקה');
     await expect(p2.locator('devices-announce [data-announce-send]')).not.toHaveAttribute('disabled', '');
     await via.nth(1).click(); // screens off too: nothing to send to
