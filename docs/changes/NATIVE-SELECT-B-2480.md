@@ -55,8 +55,8 @@ Fixed by the revert rule above.
 ## Tests actually run (workstation)
 
 - `npx tsc --noEmit -p tsconfig.json`: exit 0 (after each group and at the merged head); `-p tsconfig.tests.json`: exit 0.
-- ESLint on the 128 touched source files (+ the new spec): exit 0. `node scripts/unused-exports.mjs --enforce`: FAIL on 2 exports in
-  `src/arx/webauthn.ts` (`RequestOptionsJSON` ...) - a file this row does not touch; it comes with the 2.47.0 train.
+- ESLint on the 128 touched source files (+ the new spec): exit 0. `node scripts/unused-exports.mjs --enforce`: OK at 4021e1a91 (earlier FAIL on 2 exports in
+  `src/arx/webauthn.ts` - not this row; fixed by the train in 4d244a419, merged).
 - `py -3.12 scripts/design_ratchet.py`: no count above the baseline; native-select 56.
 - Unit (`playwright.unit.config.ts`): tickets group, 31 specs reading the files: 288 passed, 1 skipped. Shared + module groups, 129
   specs reading the files: 1025 passed, 10 skipped, 1 failed - `unit-swlogo-295` reads `docs/brand/` which is outside this worktree's
