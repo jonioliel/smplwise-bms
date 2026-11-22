@@ -44,7 +44,7 @@ There are 1 478 sites that can answer 422 in the main app (public app excluded).
 | `fields` | 442 | 96 | `details={"fields": ["station_id"]}` (`routers/access_control_capture.py:376`) |
 | other keys only | 272 | 88 | `reason` (69), `path` (24), `error` (13), `max`, `id`, `issues`, `choices`, `locks`, ... |
 | `field` (one name) | 178 | 44 | `details={"field": exc.field}` (`routers/calendar.py:58`) |
-| `key` | 26 | 9 | `services/generator_log.py`, `scenario` settings |
+| `key` | 26 | 9 | `services/generator_log.py` (`Invalid(key)`) |
 | `errors` (issue list) | 14 | 11 | `details={"errors": [{"path", "code", "message"}]}` (`services/automation_ops.py:206`) |
 | dynamic | 21 | 16 | `details=exc.details` |
 
@@ -66,7 +66,7 @@ And the same key has several forms:
 
 | Client | What it reads from an error | Depends on |
 |---|---|---|
-| Web UI (same image, ADR-015: the only supported client of `/api/v1`) | `code`, `user_message`, status everywhere; `details.*` in about 70 places | `details.fields` as NAMES (insights, electricity customer number, maintenance task form, water customers, meter readings), as a MAP (electricity billing wizard) and as OBJECTS `{field, code}` (tickets RFQ compare, tickets locations, tickets rules, tickets contacts directory, messaging accounts); `details.field` (NVR connection form, NVR camera edit), `details.errors` 6 (automations, scenarios panel, schedule editor, electricity settings, access messaging), `details.key` 1 (scenario settings), `details.problems` 1 (access profiles); the rest read endpoint extras (`retry_after_s`, `outcome`, `wiskey_code`, `capture`, `run_id`, `can_skip`, ...) |
+| Web UI (shipped in the same image as the backend) | `code`, `user_message`, status everywhere; `details.*` in about 70 places | `details.fields` as NAMES (insights, electricity customer number, maintenance task form, water customers, meter readings), as a MAP (electricity billing wizard) and as OBJECTS `{field, code}` (tickets RFQ compare, tickets locations, tickets rules, tickets contacts directory, messaging accounts); `details.field` (NVR connection form, NVR camera edit), `details.errors` 6 (automations, scenarios panel, schedule editor, electricity settings, access messaging), `details.key` 1 (scenario settings), `details.problems` 1 (access profiles); the rest read endpoint extras (`retry_after_s`, `outcome`, `wiskey_code`, `capture`, `run_id`, `can_skip`, ...) |
 | HA bridge (`custom_components/smplwise_bridge`, released separately) | the HTTP status only: pairing ping 200 / 401 / other (`config_flow.py:43`), directory push 200 / other (`__init__.py:638`) | nothing in the body |
 | Phone apps (`docs/api/mobile-presence-contract.md` v2.2) | the five keys, the stable `code`s of the contract, `details.reason` / `details.required` of `csrf_refused` | codes, not field keys |
 | Public pages (`/t/*`, CR-038: a SECOND FastAPI app, `services/tickets/public_app.py`) | `{code, retry_after_s?, attempts_left?, fields?: [{field, code}], version?}` - no `user_message` by design (the page holds the words in four languages, nothing is echoed) | its own vocabulary; 107 error sites, all inside the public app |
@@ -119,7 +119,7 @@ Who sends extra keys today:
 2. **`details.field` (one name) everywhere.** Loses the multi-field refusals (442 sites already name several). Rejected.
 3. **RFC 9457 `application/problem+json`** (`type`, `title`, `status`, `detail`, `errors`). Changes the top-level envelope that the UI,
    the phone-app contract and the fixtures rely on, for no user benefit. Rejected.
-4. **Big bang: rewrite every 422 to a new key in one release.** ~650 sites and ~30 screen readers at once; one missed reader is a
+4. **Big bang: rewrite every 422 to a new key in one release.** About 270 legacy sites (plus ~50 computed ones) and ~30 screen readers at once; one missed reader is a
    silent regression (the message under the wrong field). Rejected.
 5. **Chosen: canonical `details.fields` (names) + optional `details.problems` (per-field reasons), dual-emitted next to the legacy
    key, migrated family by family behind one frontend reader, legacy keys removed by a ratchet.** The majority form already is
@@ -204,18 +204,20 @@ Every step is a separate row, pixel-neutral, with its tests; no step needs a new
 **Step 1..n - family by family.** For each family: (a) its screens read through `fieldsOf` / `problemsOf`; (b) its routers raise
 `field_error(...)` / `exc.to_api_error()` with the legacy key still sent; (c) its API tests assert `details.fields`; (d) one release
 later, after the inventory shows no frontend reader of the legacy key in that family, the legacy key goes, with a changelog line.
-Order (largest legacy count and clearest owner first; the ratchet table of the inventory gives the current numbers):
+Order (the families whose service classes already carry `fields` first, then the largest legacy counts; "legacy" = the inventory's
+422 sites with `details.field`, `details.key`, an `errors` issue list or `fields` as objects / a map - 270 today; 48 more sites build
+`fields` at run time and are classified by each family row by reading them):
 
-| Order | Family | Legacy today | Note |
+| Order | Family (inventory `family_of`) | Legacy sites today | Note |
 |---|---|---|---|
-| 1 | ServiceInvalid adopters: calendar, notices, transit, emergency, maintenance, temperature, insights, generator | `field`, `key`, `(code, fields)` | the classes already set `fields`; routers switch to `to_api_error()` |
-| 2 | access control / WisKey (`access_control_*`, `wiskey_*`) | mostly canonical `fields`; template / WA-queue `errors` | add `problems`, move `errors` issue lists |
-| 3 | electricity and water billing | `fields` as a map | map -> `fields` + `problems[].message`; `elecFieldErrors()` reads `problemsOf` |
-| 4 | tickets (main-app routes), messaging accounts, notify | `fields` as objects `{field, code}` | objects -> `problems`, then `fields` -> names; the public page reader (`frontend/src/public-ticket/api.ts` `failure()`) reads `fields` objects of the PUBLIC app and stays as it is |
-| 5 | automations, blueprints, scenarios, schedules | `errors` issue lists `{path, code, message}` | -> `problems`; the forwarded `(status, payload)` replies are checked to be `ApiError.payload()` |
-| 6 | NVR (`nvr_*`), recorders, device layouts, wall | `field`, `errors` strings / `{loc, msg}` | |
-| 7 | presence, mobile notifications | few | contract v2.3 note (additive) |
-| 8 | everything else, then the hand-built envelopes (`local_identity._error`, `local_passkeys:300`) -> `ApiError` | | |
+| 1 | ServiceInvalid adopters: calendar (11), transit (2), notices (1), plus emergency, maintenance, temperature, insights, generator | 14 + the `key` / `(code, fields)` translations | the classes already set `fields`; routers switch to `to_api_error()` |
+| 2 | presence (35), mobile (1) | 36 | mostly `field`; contract v2.3 note for the phone-app routes (additive) |
+| 3 | NVR (28), recorders (26 + 4), connection (2), camera (5), device layouts, wall (1) | 66 | `field`, `errors` as strings / `{loc, msg}` |
+| 4 | tickets (main-app routes, 41), messaging accounts, notifications (6), notify (1) | 48 | `fields` as objects `{field, code}`: objects -> `problems`, then `fields` -> names; the public page reader (`frontend/src/public-ticket/api.ts` `failure()`) reads the PUBLIC app's `fields` objects and stays as it is |
+| 5 | access control / WisKey (25; 44 sites already canonical) | 25 | template / WA-queue / schedule-writes `errors` issue lists -> `problems` |
+| 6 | automations (2), scenarios (3 + 2), schedules (1), blueprints | 8 | `errors` issue lists `{path, code, message}` -> `problems`; the forwarded `(status, payload)` replies are checked to be `ApiError.payload()` |
+| 7 | electricity (2) and water billing | 2 + computed | `fields` as a map (built at run time, so the scan undercounts) -> names + `problems[].message`; `elecFieldErrors()` reads `problemsOf` |
+| 8 | the rest (app 15, media 9, home 6, local 6, incidents 4, settings 4, door 4, ...), then the hand-built envelopes (`local_identity._error`, `local_passkeys:300`) -> `ApiError` | ~70 | |
 
 **L14 steps (after Step 0, in parallel with the families).** (1) the observing base model and `SW_REQUEST_STRICT=1` in the backend
 test settings; (2) the 134 tolerant web-UI models and 24 nested ones adopt it family by family (same order as above); (3) a model
