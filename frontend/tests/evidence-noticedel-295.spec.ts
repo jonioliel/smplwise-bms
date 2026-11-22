@@ -134,9 +134,9 @@ test('settings screen: the places-tree switch saves show_places_tree', async ({ 
   const { patches } = await install(page);
   await page.goto('about:blank');
   await page.goto(url('/system/notices'));
-  const sw = page.locator('sw-app [data-places-tree-setting] input');
-  await expect(sw).toBeChecked();
-  await sw.uncheck();
+  const sw = page.locator('sw-app [data-places-tree-setting] sw-toggle');
+  await expect(sw).toHaveAttribute('checked', '');
+  await sw.click();
   await expect.poll(() => patches.length).toBeGreaterThan(0);
   expect(patches[0]).toEqual({ show_places_tree: false });
 });

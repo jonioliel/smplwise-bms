@@ -1,5 +1,6 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import { live } from 'lit/directives/live.js';
 import { transitOf, type TransitGroup, type TransitLayout, type TransitScreen } from '../notice-tv/transit-logic';
 import type { Display } from '../notice-tv/tv-logic';
@@ -66,7 +67,7 @@ export class NoticeDisplayTransit extends LitElement {
     const mode = windowMode(s.window_min);
     const picked = s.stops.length ? s.stops : stops.map((x) => x.code);
     return html`<div class="blk" data-transit-block>
-      <label class="ck"><input type="checkbox" data-transit-show .checked=${s.enabled} @change=${(e: Event) => this.emit({ enabled: (e.target as HTMLInputElement).checked })}><b>${tr('scrTitle')}</b> - ${tr('scrShow')}</label>
+      <label class="ck"><sw-toggle size="sm" labelHidden in-label label=${`${tr('scrTitle')} - ${tr('scrShow')}`} data-transit-show .checked=${s.enabled} @change=${(e: Event) => this.emit({ enabled: toggled(e) })}></sw-toggle><b>${tr('scrTitle')}</b> - ${tr('scrShow')}</label>
       ${!usable ? html`<div class="sub"><span class="hint" data-transit-unavailable>${this.failed ? tr('forbiddenHint') : tr('scrOffModule')}</span>
         <a href="#/system/transit">${tr('scrGo')}</a></div>` : nothing}
       ${s.enabled && usable ? html`

@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-dialog';
@@ -207,7 +208,7 @@ export class NoticeDisplaySlides extends LitElement {
     const photo = this.doc?.photo;
     const photoNight = this.doc?.photo_night;
     return html`<div class="blk" data-slides>
-        <div class="head"><label class="ck"><input type="checkbox" data-promo .checked=${!!this.display.blocks.promo} @change=${(e: Event) => this.emitPromo((e.target as HTMLInputElement).checked)}>${nt('slidesBlock')}</label>
+        <div class="head"><label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('slidesBlock')} data-promo .checked=${!!this.display.blocks.promo} @change=${(e: Event) => this.emitPromo(toggled(e))}></sw-toggle>${nt('slidesBlock')}</label>
           <span class="st num" data-slides-count>${nt('slidesCount', { n: slides.length, s: total })}</span></div>
         <div class="slides" data-slide-grid>${slides.map((s) => html`<div class="slide" data-slide=${s.id}><div class="im">${s.has_image ? html`<img alt="" src=${slideImageUrl(s)}>` : html`<sw-icon name="image" size="22"></sw-icon>`}</div>
             <div class="cap"><b>${s.title}</b><sw-button size="sm" data-slide-edit @click=${() => this.openEdit(s)}>${nt('edit')}</sw-button></div></div>`)}

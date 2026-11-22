@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import { nc } from '../i18n/notice-chips';
 import { noticesCss } from './styles';
 import { SOURCE_MAX, addSource, canInvert, offerable, removeSource, sourceName, toggleInvert, type InfoSourcesPatch, type SourceEntity, type SourceKind } from './info-chips-model';
@@ -69,9 +70,9 @@ export class NoticeInfoSources extends LitElement {
       ${list.length ? html`<ul class="picked" data-info-source-list>${list.map((id) => {
         const name = sourceName(cands, id);
         return html`<li class=${name === null ? 'gone' : ''} data-info-source-item=${id}><span>${name ?? nc('gone')}</span>
-          ${canInvert(id) ? html`<label class="inv" title=${invHint}><input type="checkbox" data-info-source-invert
-            aria-label=${nc('invertOne', { n: name ?? nc('gone') })} .checked=${inv.includes(id)} ?disabled=${this.disabled}
-            @change=${(e: Event) => this.send({ [`${kind}_inverted`]: toggleInvert(list, inv, id, (e.target as HTMLInputElement).checked) })}>${nc('invert')}</label>` : nothing}
+          ${canInvert(id) ? html`<label class="inv" title=${invHint}><sw-toggle size="sm" labelHidden in-label data-info-source-invert
+            label=${nc('invertOne', { n: name ?? nc('gone') })} .checked=${inv.includes(id)} ?disabled=${this.disabled}
+            @change=${(e: Event) => this.send({ [`${kind}_inverted`]: toggleInvert(list, inv, id, toggled(e)) })}></sw-toggle>${nc('invert')}</label>` : nothing}
           <button type="button" aria-label=${nc('removeOne', { n: name ?? nc('gone') })} ?disabled=${this.disabled} @click=${() => this.emit(kind, removeSource(list, id))}>${nc('remove')}</button></li>`;
       })}</ul>` : html`<span class="mut" data-info-source-none>${nc('none')}</span>`}
       <div class="row">
