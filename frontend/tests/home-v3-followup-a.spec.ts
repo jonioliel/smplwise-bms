@@ -49,12 +49,15 @@ async function audit(page: Page, min: number) {
     const hs = root.querySelector('.hs') as HTMLElement;
     if (hs.scrollWidth - hs.clientWidth > 1) out.push('hs-x');
     const small: string[] = [];
-    for (const el of Array.from(root.querySelectorAll<HTMLElement>('#main button, #main a[href]'))) {
+    // CR-HOME-V3-SEGMENTS-2470: a segmented choice is sw-segmented - its keys sit in the component's shadow root, measured too
+    const segs = Array.from(root.querySelectorAll('#main sw-segmented'));
+    const segKeys = segs.flatMap((s) => Array.from(s.shadowRoot?.querySelectorAll<HTMLElement>('button') ?? []));
+    for (const el of [...Array.from(root.querySelectorAll<HTMLElement>('#main button, #main a[href]')), ...segKeys]) {
       const r = el.getBoundingClientRect();
       if (!r.width || !r.height) continue;
       if (Math.min(r.width, r.height) < m - 0.5) small.push(`${el.tagName.toLowerCase()}.${el.className}[${el.getAttribute('aria-label') ?? el.textContent?.trim().slice(0, 16)}] ${Math.round(r.width)}x${Math.round(r.height)}`);
     }
-    const text = (root as unknown as { textContent: string }).textContent + ' ' + Array.from(root.querySelectorAll('[aria-label]')).map((e) => e.getAttribute('aria-label')).join(' ');
+    const text = (root as unknown as { textContent: string }).textContent + ' ' + segs.map((s) => s.shadowRoot?.textContent ?? '').join(' ') + ' ' + Array.from(root.querySelectorAll('[aria-label]')).map((e) => e.getAttribute('aria-label')).join(' ');
     return { out, small, text, dir: getComputedStyle(hs).direction };
   }, min);
 }
@@ -78,13 +81,16 @@ test.describe('HOME-V3-FOLLOWUP-A-2431 bill file', () => {
 
   test('"show bill" opens the latest issued bill file, a row opens its own; nothing without a bill', async ({ page }) => {
     const { pdf } = await open(page, 'bills');
+    // FLAKY-SWEEP-2480: a new tab's download is recorded from the moment the tab exists. The listener used to be added after
+    // `Promise.all([popup, click])` resolved; the click resolves later than the popup, and on a loaded runner the blob navigation had
+    // already been handed over as a download by then - the event was missed and the poll below ran out (2.43.9, 2.45.0).
+    const handedOver = new Set<Page>();
+    page.context().on('page', (p) => p.on('download', () => handedOver.add(p)));
     // the periods arrive oldest first; the latest previous bill (b1) is the card's
     const [tab] = await Promise.all([page.waitForEvent('popup'), inHome(page).locator('.bill-now [data-p3-bill-open="b1"]').click()]);
     // the tab shows the file (a browser with a PDF viewer) or hands it over as a download (headless / a phone without one)
-    let handed = false;
-    tab.on('download', () => { handed = true; });
     await expect.poll(() => pdf).toEqual(['energy/bills/b1/pdf']);
-    await expect.poll(() => handed || tab.url().startsWith('blob:'), { timeout: 15_000 }).toBe(true);
+    await expect.poll(() => handedOver.has(tab) || tab.url().startsWith('blob:'), { timeout: 15_000 }).toBe(true);
     await tab.close();
     const row = inHome(page).locator('.blr [data-p3-bill-open="b2"]');
     await expect(row).toHaveAttribute('aria-label', /^הצג חשבון /);
