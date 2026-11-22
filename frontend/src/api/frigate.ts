@@ -19,6 +19,7 @@ import type { Camera } from './types';
 import { he } from '../i18n/he';
 import { tr as trTime } from '../i18n/msg/time'; // CR-I18N-UNITS-2442: the short durations
 import { dayTimeText, timeText, dayMonthText } from './day-format';
+import type * as Wire from './generated/wire-frigate';
 
 // ---- what a recorder offers (the capability summary) ----
 
@@ -116,65 +117,44 @@ export function summaryRows(c: FrigateCapabilities): { key: string; label: strin
 }
 
 // ---- the wire (F1A) ----
+/* The wire shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/frigate.py), generated into
+ * ./generated/wire-frigate.ts: a field the server renames or drops is a compile error here (code review 07:F8 step 2). Narrowed on
+ * purpose: the discovered `features` to FrigateFeature, `retention` to a document, a review's `severity` and its object / zone lists to
+ * strings, a camera's `key` (a listed Frigate camera always has its key) and `frigate_enabled` (the stored stream flag). Kept optional on
+ * purpose (an older server): the status's `sync` / `live` / `events` blocks and the live block's counts, a review's `camera_name`,
+ * `sub_labels`, `detections`, `detection_ids`. */
 
-interface WireRecorder {
-  id: string;
-  name: string;
-  enabled: boolean;
-  firmware: string | null;
-}
+type WireRecorder = Wire.FrigateRecorderBrief;
 
-export interface WireStatus {
-  version: string | null;
-  version_ok: boolean;
+export interface WireStatus extends Pick<Wire.FrigateStatus, 'version' | 'version_ok' | 'cameras' | 'detectors'> {
   features: Partial<Record<FrigateFeature, boolean | null>>;
   retention: Record<string, unknown> | null;
-  detectors: { name: string; type: string }[] | null;
-  cameras: number;
-  sync?: { last_poll_error?: string | null; ws_state?: string | null } | null;
+  sync?: Partial<Wire.FrigateSync> | null;
   /** TKFRIGLIVE: `cameras_live` / `cameras_total` / `reason` (a code: off | no_go2rtc_url | no_streams | no_match | partial; legacy flag_off) */
-  live?: { mode: 'still' | 'restream'; cameras_live?: number; cameras_total?: number; reason?: string | null };
-  events?: { last_event_seen_at: string | null; last_poll_at: string | null; stale: boolean; loop_running?: boolean } | null;
+  live?: Pick<Wire.FrigateLive, 'mode'> & Partial<Pick<Wire.FrigateLive, 'cameras_live' | 'cameras_total' | 'reason'>>;
+  events?: Pick<Wire.FrigateEventsHealth, 'last_event_seen_at' | 'last_poll_at' | 'stale'> & Partial<Pick<Wire.FrigateEventsHealth, 'loop_running'>> | null;
 }
 
-export interface WireCamera {
-  id: string;
+export interface WireCamera extends Pick<Wire.FrigateCamera, 'id' | 'enabled'> {
   key: string;
   name: string;
-  enabled: boolean;
   frigate_enabled: boolean;
 }
 
-interface WireReview {
-  id: string;
-  recorder_id: string;
-  camera_id: string | null;
-  camera_key: string;
+interface WireReview extends Pick<Wire.FrigateReview, 'id' | 'recorder_id' | 'camera_id' | 'camera_key' | 'start' | 'end' | 'open' | 'duration_s' | 'reviewed' | 'thumbnail'>,
+  Partial<Pick<Wire.FrigateReview, 'detections'>> {
   camera_name?: string;
   severity: 'alert' | 'detection';
-  start: string;
-  end: string | null;
-  open: boolean;
-  duration_s: number | null;
   objects: string[];
   zones: string[];
   sub_labels?: string[];
-  detections?: number;
   /** the tracked-object ids of the item (the detail route only); the event controls act on these */
   detection_ids?: string[];
-  reviewed: boolean | null;
-  /** an absolute server path (`/api/v1/frigate/{rid}/reviews/{id}/thumbnail`), never a Frigate URL */
-  thumbnail: string;
 }
 
-interface WireSummary {
-  severity: Record<string, { total: number; unreviewed: number }>;
-  unreviewed_by_camera: Record<string, number>;
-}
+type WireSummary = Pick<Wire.FrigateReviewSummary, 'severity' | 'unreviewed_by_camera'>;
 
-interface WireActivity {
-  buckets: { start: number; motion: number; cameras: string[] }[];
-}
+type WireActivity = Pick<Wire.FrigateActivity, 'buckets'>;
 
 /** The wire answers are small and change slowly: one minute of memory keeps a 30 s poll from asking three questions each time. */
 const MEMO_MS = 60_000;
@@ -194,7 +174,7 @@ const missing = (e: unknown) => e instanceof ApiError && (e.status === 404 || e.
 async function frigateRecorders(): Promise<WireRecorder[]> {
   return memoised('recorders', async () => {
     try {
-      return (await get<{ recorders: WireRecorder[] }>('frigate/recorders')).recorders.filter((r) => r.enabled);
+      return (await get<Wire.FrigateRecorderList>('frigate/recorders')).recorders.filter((r) => r.enabled);
     } catch (e) {
       if (missing(e) || (e instanceof ApiError && e.status === 403)) return [];
       throw e;
@@ -203,13 +183,13 @@ async function frigateRecorders(): Promise<WireRecorder[]> {
 }
 
 const statusOf = (rid: string) => memoised(`status:${rid}`, () => get<WireStatus>(`frigate/${encodeURIComponent(rid)}/status`));
-const camerasOf = (rid: string) => memoised(`cameras:${rid}`, () => get<{ cameras: WireCamera[] }>(`frigate/${encodeURIComponent(rid)}/cameras`).then((r) => r.cameras));
+const camerasOf = (rid: string) => memoised(`cameras:${rid}`, () => get<Omit<Wire.FrigateCameras, 'cameras'> & { cameras: WireCamera[] }>(`frigate/${encodeURIComponent(rid)}/cameras`).then((r) => r.cameras));
 /** Arx's cameras of a Frigate recorder (the admin forms pick one): memoised like the other small answers. */
 export const frigateCameras = (rid: string): Promise<WireCamera[]> => camerasOf(rid);
 
 /** What a saved recorder offers, from `status` and its camera list (the settings card). */
 export async function recorderCapabilities(rid: string): Promise<FrigateCapabilities> {
-  const [st, cams] = await Promise.all([get<WireStatus>(`frigate/${encodeURIComponent(rid)}/status`), get<{ cameras: WireCamera[] }>(`frigate/${encodeURIComponent(rid)}/cameras`).then((r) => r.cameras).catch(() => null)]);
+  const [st, cams] = await Promise.all([get<WireStatus>(`frigate/${encodeURIComponent(rid)}/status`), get<Omit<Wire.FrigateCameras, 'cameras'> & { cameras: WireCamera[] }>(`frigate/${encodeURIComponent(rid)}/cameras`).then((r) => r.cameras).catch(() => null)]);
   return capabilitiesOf(st, cams);
 }
 
@@ -544,7 +524,7 @@ export async function listReviews(f: ReviewFilters, cursor: string | null = null
         items = items.concat(spans);
         counts.motion = Math.max(0, counts.motion) + spans.length;
       } else {
-        const page = await get<{ items: WireReview[]; next_before: number | null }>(path`frigate/${rid}/reviews` + `?${reviewQuery(f, before[r.id] ?? null, now)}`);
+        const page = await get<Omit<Wire.FrigateReviewPage, 'items'> & { items: WireReview[] }>(path`frigate/${rid}/reviews` + `?${reviewQuery(f, before[r.id] ?? null, now)}`);
         items = items.concat(page.items.map(itemOf));
         if (page.next_before != null) next[r.id] = page.next_before;
       }

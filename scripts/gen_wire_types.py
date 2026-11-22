@@ -10,7 +10,7 @@ declarations, plus one map `<Family>Routes` from `'METHOD /api/v1/path'` to the 
 types instead of writing the wire shapes by hand, so `tsc` fails when a response changes and the client was not adapted.
 
 Step 1 of the finding (`frontend/scripts/api-client-check.mjs`) checks that every client PATH exists; this file checks the SHAPES.
-The backend tests `tests/test_wire_consumption_2450.py` and `tests/test_wire_routers_b_2450.py` run `--check`, so a model change without the regenerated file fails the gate.
+The backend tests `tests/test_wire_consumption_2450.py`, `tests/test_wire_routers_b_2450.py` and `tests/test_wire_routers_c_2470.py` run `--check`, so a model change without the regenerated file fails the gate.
 No application start, no database: the router modules are imported and their route tables read."""
 from __future__ import annotations
 
@@ -49,6 +49,21 @@ FAMILIES: dict[str, tuple[str, tuple[str, ...]]] = {
     "Elevators": ("wire-elevators.ts", ("elevators",)),
     "Zones": ("wire-zones.ts", ("zones",)),
     "Cameras": ("wire-cameras.ts", ("cameras",)),
+    # CR-RESPONSE-MODELS-C-2470: the routers whose SQL moved in CR-ROUTER-SQL-B-2450, one file per router
+    "CalendarFeeds": ("wire-calendar-feeds.ts", ("calendar_feeds",)),
+    "DoorWindows": ("wire-door-windows.ts", ("door_windows",)),
+    "Frigate": ("wire-frigate.ts", ("frigate",)),
+    "Devices": ("wire-devices.ts", ("devices",)),
+    "Generator": ("wire-generator.ts", ("generator",)),
+    "Doors": ("wire-doors.ts", ("doors",)),
+    "Rules": ("wire-rules.ts", ("rules",)),
+    "Notices": ("wire-notices.ts", ("notices",)),
+    "TicketsCosts": ("wire-tickets-costs.ts", ("tickets_costs",)),
+    "Views": ("wire-views.ts", ("views",)),
+    "AccessCustomRoles": ("wire-access-custom-roles.ts", ("access_custom_roles",)),
+    "Recorders": ("wire-recorders.ts", ("recorders",)),
+    "Calendar": ("wire-calendar.ts", ("calendar",)),
+    "Notifications": ("wire-notifications.ts", ("notifications",)),
 }
 
 IDENT = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
@@ -65,13 +80,28 @@ def wire_models(response_model: Any) -> tuple[type, ...]:
     return ()
 
 
+# CR-RESPONSE-MODELS-C-2470: a router module's second APIRouter whose routes are part of the same family (routers/calendar.py answers its
+# module state and settings on `open_router`, outside the module gate). Read after `router`, in this order.
+EXTRA_ROUTERS = ("open_router",)
+
+
+def module_routes(mod: Any) -> list[Any]:
+    """The routes of a router module: `router`, then the extra routers it has (EXTRA_ROUTERS)."""
+    out = list(mod.router.routes)
+    for attr in EXTRA_ROUTERS:
+        extra = getattr(mod, attr, None)
+        if extra is not None:
+            out += list(extra.routes)
+    return out
+
+
 def _routes(modules: tuple[str, ...]) -> list[tuple[str, str, tuple[type, ...]]]:
     from fastapi.routing import APIRoute
 
     out: list[tuple[str, str, tuple[type, ...]]] = []
     for name in modules:
         mod = importlib.import_module(f"smplwise.routers.{name}")
-        for r in mod.router.routes:
+        for r in module_routes(mod):
             if not isinstance(r, APIRoute):
                 continue
             models = wire_models(r.response_model)

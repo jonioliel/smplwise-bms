@@ -7,6 +7,7 @@ import { ltrIsolate } from '../i18n/bidi';
 import { dayTimeText } from './day-format';
 import { tr } from '../i18n/msg/api-devices';
 import type * as GroupWire from './generated/wire-access-groups';
+import type * as RoleWire from './generated/wire-access-custom-roles';
 
 export interface AccessBinding {
   id: string;
@@ -105,17 +106,11 @@ export interface RolesResponse {
   delegated?: boolean;
 }
 
-/** Who a role change touches, computed before saving (T082). */
-export interface RoleImpact {
-  role_id: string | null;
-  added: string[];
-  removed: string[];
-  bindings: number;
-  users: { id: string; name: string }[];
-  groups: { id: string; name: string }[];
-  scopes: string[];
-  labels?: Record<string, string>;
-}
+/* The custom-role answers are the backend's response models (smplwise_vms/backend/smplwise/wire/access_custom_roles.py, generated into
+ * ./generated/wire-access-custom-roles.ts; code review 07:F8 step 2). RoleInfo stays hand-written: the role LIST (built-in and custom
+ * roles together) is routers/access.py's, not modelled yet; a created / updated custom role (RoleWire.CustomRole) fits it. */
+/** Who a role change touches, computed before saving (T082); the preview adds the permission labels. */
+export type RoleImpact = RoleWire.CustomRoleImpact & Partial<Pick<RoleWire.CustomRolePreview, 'labels'>>;
 export interface CustomRoleBody {
   name: string;
   description: string;
@@ -228,10 +223,10 @@ export function fmtWhen(iso: string | null | undefined): string {
   return ltrIsolate(dayTimeText(d));
 }
 
-export const createRole = (body: CustomRoleBody) => post<RoleInfo>('access/roles', body);
-export const updateRole = (id: string, body: CustomRoleBody & { revision: number }) => patch<RoleInfo & { impact: RoleImpact }>(path`access/roles/${id}`, body);
+export const createRole = (body: CustomRoleBody) => post<RoleWire.CustomRole>('access/roles', body);
+export const updateRole = (id: string, body: CustomRoleBody & { revision: number }) => patch<RoleWire.CustomRoleUpdated>(path`access/roles/${id}`, body);
 export const deleteRole = (id: string) => del(path`access/roles/${id}`);
-export const previewRole = (body: { role_id?: string | null; permissions: string[]; sensitive: string[] }) => post<RoleImpact>('access/roles/preview', body);
+export const previewRole = (body: { role_id?: string | null; permissions: string[]; sensitive: string[] }) => post<RoleWire.CustomRolePreview>('access/roles/preview', body);
 // CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by T082 (delegated permissions).
-export const getDelegation = () => get<{ delegable_roles: string[]; default: string[]; rules: string[]; blocked: Record<string, string>; revision: number }>('access/delegation');
-export const setDelegation = (roles: string[]) => put<{ delegable_roles: string[]; revision: number }>('access/delegation', { delegable_roles: roles });
+export const getDelegation = () => get<RoleWire.DelegationState>('access/delegation');
+export const setDelegation = (roles: string[]) => put<RoleWire.DelegationSaved>('access/delegation', { delegable_roles: roles });

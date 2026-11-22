@@ -48,7 +48,7 @@ def modelled_routes() -> list[dict]:
     out: list[dict] = []
     for _family, (_file, modules) in gen.FAMILIES.items():
         for name in modules:
-            for r in importlib.import_module(f"smplwise.routers.{name}").router.routes:
+            for r in gen.module_routes(importlib.import_module(f"smplwise.routers.{name}")):
                 if not isinstance(r, APIRoute):
                     continue
                 modelled = bool(gen.wire_models(r.response_model))

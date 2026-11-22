@@ -11,6 +11,7 @@
 import { get, post } from './client';
 import { tr } from '../i18n/msg/api-devices';
 import { isoZ } from './day-format';
+import type * as Wire from './generated/wire-devices';
 
 export type BulkScope = 'building' | 'floor' | 'area';
 /** CR-007 slice 4: covers_open / covers_stop / covers_position are the area's own "כל התריסים" group control
@@ -50,35 +51,19 @@ export const BULK_KIND_LABEL: Record<BulkKind, string> = {
 
 export const BULK_SCOPE_LABEL: Record<BulkScope, string> = { building: tr('המבנה'), floor: tr('קומה'), area: tr('אזור') };
 
-export interface BulkTarget {
-  entity_id: string;
-  name: string;
-  domain: string;
-  action_id: string;
-  state: string | null;
-  area_id: string | null;
-  area_name: string | null;
-}
+/* The wire shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/devices.py, generated into
+ * ./generated/wire-devices.ts): a field the server renames or drops is a compile error here (code review 07:F8 step 2). Narrowed on
+ * purpose: `scope`, `kind`, `status` and the outcome counts to their closed sets, `skipped` to its known keys. A bulk record's `items` are
+ * typed here (the server declares them as documents: a media group operation reports per device, services/media_groups). Kept optional:
+ * `server_time_ms` / `position` (an older server). */
+export type BulkTarget = Omit<Wire.DeviceBulkTarget, 'args'>;
 
-export interface BulkPreview {
+export interface BulkPreview extends Omit<Wire.DeviceBulkPreview, 'scope' | 'kind' | 'targets' | 'skipped' | 'server_time_ms' | 'position'> {
   scope: BulkScope;
-  id: string;
-  name: string;
-  floor_name: string | null;
   kind: BulkKind;
-  kind_label: string;
-  count: number;
-  /** BUILDING-SCOPE-CONTROL-2351: the building the server cut the scope to (absent = no building named). */
-  building_id?: string;
   targets: BulkTarget[];
-  by_domain: Record<string, number>;
-  domain_labels: Record<string, string>;
   /** sensitive_type (SEC246 L2): typed valves / water heaters left out of "הדלק הכל" (also listed in `excluded`). */
-  skipped: { already: number; unavailable: number; sensitive_type?: number };
-  excluded: { entity_id: string; name: string; domain: string; reason: string; reason_label: string }[];
-  never_included: Record<string, number>;
-  digest: string;
-  note: string;
+  skipped: { already: number; unavailable: number; not_confirmed?: number; sensitive_type?: number };
   /** The server's clock (epoch ms) when it answered: the request's expiry is computed on the server's time line. */
   server_time_ms?: number;
   /** CR-007 slice 4: the requested position (covers_position only) - echoed back for the confirmation dialog. */
@@ -99,19 +84,12 @@ interface BulkItem {
   sent: boolean;
 }
 
-export interface BulkRecord {
-  id: string;
+export interface BulkRecord extends Omit<Wire.DeviceBulkRun, 'scope' | 'kind' | 'status' | 'counts' | 'items'> {
   scope: BulkScope;
-  scope_id: string;
-  scope_name: string | null;
   kind: BulkKind;
-  kind_label: string;
   status: 'sending' | 'waiting' | 'done';
-  done: boolean;
-  all_confirmed: boolean;
   counts: Record<BulkOutcome, number> & { total: number };
   items: BulkItem[];
-  note: string;
 }
 
 export const OUTCOME_LABEL: Record<BulkOutcome, string> = {

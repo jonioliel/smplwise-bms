@@ -6,7 +6,8 @@ import { bulkHeadline, type BulkRecord } from '../src/api/device-bulk';
 
 function record(counts: Partial<BulkRecord['counts']>, done = true): BulkRecord {
   const base = { queued: 0, accepted: 0, confirmed: 0, sent: 0, not_confirmed: 0, refused: 0, unknown: 0, total: 0 };
-  return { id: 'b', scope: 'area', scope_id: 'a', scope_name: null, kind: 'covers_stop', kind_label: 'x', status: done ? 'done' : 'waiting', done, all_confirmed: false, counts: { ...base, ...counts }, items: [], note: '' } as BulkRecord;
+  return { id: 'b', scope: 'area', scope_id: 'a', scope_name: null, kind: 'covers_stop', kind_label: 'x', status: done ? 'done' : 'waiting', done, all_confirmed: false, counts: { ...base, ...counts }, items: [], note: '',
+    requested_at: '2026-11-19T10:00:00Z', not_after: null, sent_at: null, done_at: null, principal_user_id: 'u', principal_username: null, origin: 'devices' } as BulkRecord;
 }
 
 test('all sent reads "נשלח", never "לא בוצע"', () => {
