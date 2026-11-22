@@ -1,6 +1,7 @@
 import { localeFor } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-icon';
 import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
@@ -318,10 +319,10 @@ export class TempReport extends LitElement {
               <div class="field"><span class="lbl">${tt('repLang')}</span><sw-segmented value=${p.lang} @change=${(e: CustomEvent<SegmentedChange>) => this.set({ lang: e.detail.value as 'he' | 'en' })}
                 .options=${[{ value: 'he', label: 'עברית', attrs: { 'data-rep-lang': 'he' } }, { value: 'en', label: 'English', attrs: { 'data-rep-lang': 'en' } }]}></sw-segmented></div>
               <div class="field"><span class="lbl">${tt('repContent')}</span>
-                <label class="sw"><input type="checkbox" .checked=${p.chart !== false} @change=${(e: Event) => this.set({ chart: (e.target as HTMLInputElement).checked })} />${tt('repChart')}</label>
-                <label class="sw"><input type="checkbox" .checked=${p.signature !== false} @change=${(e: Event) => this.set({ signature: (e.target as HTMLInputElement).checked })} data-rep-sig />${tt('repSig')}</label>
-                <label class="sw"><input type="checkbox" .checked=${p.events !== false} @change=${(e: Event) => this.set({ events: (e.target as HTMLInputElement).checked })} />${tt('repEvents')}</label>
-                <label class="sw"><input type="checkbox" .checked=${p.samples === true} @change=${(e: Event) => this.set({ samples: (e.target as HTMLInputElement).checked })} data-rep-samples />${tt('repSamples')}</label></div>
+                <label class="sw"><sw-toggle size="sm" labelHidden in-label label=${tt('repChart')} .checked=${p.chart !== false} @change=${(e: Event) => this.set({ chart: toggled(e) })}></sw-toggle>${tt('repChart')}</label>
+                <label class="sw"><sw-toggle size="sm" labelHidden in-label label=${tt('repSig')} .checked=${p.signature !== false} @change=${(e: Event) => this.set({ signature: toggled(e) })} data-rep-sig></sw-toggle>${tt('repSig')}</label>
+                <label class="sw"><sw-toggle size="sm" labelHidden in-label label=${tt('repEvents')} .checked=${p.events !== false} @change=${(e: Event) => this.set({ events: toggled(e) })}></sw-toggle>${tt('repEvents')}</label>
+                <label class="sw"><sw-toggle size="sm" labelHidden in-label label=${tt('repSamples')} .checked=${p.samples === true} @change=${(e: Event) => this.set({ samples: toggled(e) })} data-rep-samples></sw-toggle>${tt('repSamples')}</label></div>
             </div>
             <div class="field" data-rep-layout><span class="lbl">${tt('repLayout')}</span><sw-segmented value=${p.layout === 'haccp' ? 'haccp' : 'standard'} @change=${(e: CustomEvent<SegmentedChange>) => this.setLayout(e.detail.value as 'standard' | 'haccp')}
               .options=${[{ value: 'standard', label: tt('repStandard'), attrs: { 'data-rep-layout-btn': 'standard' } }, { value: 'haccp', label: tt('repHaccp'), attrs: { 'data-rep-layout-btn': 'haccp' } }]}></sw-segmented>

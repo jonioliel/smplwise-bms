@@ -487,7 +487,7 @@ test.describe('temperature evidence', () => {
     await d.locator('[data-temp-ticket-btn]').click();
     const t = d.locator('temp-ticket');
     await expect(t.locator('[data-ticket-dept]')).toHaveValue('dept-maintenance');
-    await expect(t.locator('[data-ticket-chart]')).toBeChecked();
+    await expect(t.locator('[data-ticket-chart]')).toHaveAttribute('checked', '');
     await page.screenshot({ path: path.join(OUT, `p3-ticket-${test.info().project.name}.png`) });
     await t.locator('[data-ticket-open]').click();
     await expect(page.locator('sw-app infra-temperature .toast')).toContainText('#41');
@@ -524,7 +524,7 @@ test.describe('temperature evidence', () => {
   test('TEMPREP-295: the report type switches both ways and gives back the range and the signature it changed', async ({ page }) => {
     const { r, asked } = await openReport(page);
     const sig = r.locator('[data-rep-sig]');
-    await sig.uncheck();
+    await sig.click();
     await expect(r.locator('[data-rep-paper] .sig')).toHaveCount(0);
     for (let round = 0; round < 2; round++) { // back and forth, twice
       await r.locator('[data-rep-layout-btn="haccp"]').click();
@@ -532,14 +532,14 @@ test.describe('temperature evidence', () => {
       await expect(r.locator('[data-rep-paper] h3')).toContainText('HACCP');
       expect(await pressed(r, '[data-rep-range="month"]')).toBe('true'); // the month so far: it has data, last month may not
       expect(await pressed(r, '[data-rep-range="24h"]')).toBe('false');
-      await expect(sig).toBeChecked(); // a compliance report always has the signature line
+      await expect(sig).toHaveAttribute('checked', ''); // a compliance report always has the signature line
       await expect(r.locator('[data-rep-paper] .sig > div')).toHaveCount(3);
       await r.locator('[data-rep-layout-btn="standard"]').click();
       await expect(r.locator('[data-rep-daily]')).toHaveCount(0);
       await expect(r.locator('[data-rep-paper] h3')).not.toContainText('HACCP');
       expect(await pressed(r, '[data-rep-layout-btn="standard"]')).toBe('true');
       expect(await pressed(r, '[data-rep-range="24h"]')).toBe('true'); // what HACCP changed is given back
-      await expect(sig).not.toBeChecked();
+      await expect(sig).not.toHaveAttribute('checked');
       await expect(r.locator('[data-rep-paper] .sig')).toHaveCount(0);
     }
     const last = asked[asked.length - 1];
@@ -579,10 +579,10 @@ test.describe('temperature evidence', () => {
   test('TEMPREP-295: the "every sample" switch - off by default, a preview, the size guard, both types, in the export', async ({ page }) => {
     const { r, asked } = await openReport(page);
     const sw = r.locator('[data-rep-samples]');
-    await expect(sw).not.toBeChecked();
+    await expect(sw).not.toHaveAttribute('checked');
     await expect(r.locator('[data-rep-samples-block]')).toHaveCount(0);
     expect(asked.every((u) => u.searchParams.get('samples') === null)).toBe(true);
-    await sw.check();
+    await sw.click();
     await expect(r.locator('[data-rep-samples-table] tbody tr[data-out]')).toHaveCount(1);
     await expect(r.locator('[data-rep-samples-table] tbody tr').first()).toContainText('4°');
     await expect(r.locator('[data-rep-samples-block]')).toContainText('24');
@@ -604,7 +604,7 @@ test.describe('temperature evidence', () => {
     const q = new URL((await pdf).url()).searchParams;
     expect(q.get('samples')).toBe('1');
     expect(q.get('layout')).toBe('haccp');
-    await sw.uncheck();
+    await sw.click();
     await expect(r.locator('[data-rep-samples-block]')).toHaveCount(0);
     expect(asked[asked.length - 1].searchParams.get('samples')).toBeNull();
     if (test.info().project.name === 'mobile') { // 44px targets on a phone only
