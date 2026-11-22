@@ -704,7 +704,7 @@ test.describe('multimedia screens (mocked backend)', () => {
     await expect.poll(() => st.calls.filter((c) => c.path === 'multimedia/admin/links').at(-1)?.body).toMatchObject({ op: 'link', device_key: 'md-kitchen' });
     await expect(sys.locator('[data-mm-suggestions]')).toHaveCount(0);
     // the remote's default sections
-    await sys.locator('[data-mm-section="colors"] sw-toggle').click();
+    await sys.locator('[data-mm-section="colors"] sw-toggle:not([data-mm-more])').click();
     await sys.locator('[data-mm-save-remote]').click();
     await expect.poll(() => st.calls.find((c) => c.path === 'multimedia/remote-default' && c.method === 'PUT')?.body).toBeTruthy();
     const sections = (st.calls.find((c) => c.path === 'multimedia/remote-default' && c.method === 'PUT')!.body as { sections: { id: string; on: boolean }[] }).sections;

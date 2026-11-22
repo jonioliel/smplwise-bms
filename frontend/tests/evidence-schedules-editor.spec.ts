@@ -305,7 +305,7 @@ test.describe('day view, the slot panel, phone', () => {
     await mount(page, '4d6e0a');
     await editor(page).locator('[data-view-btn="day"]').click();
     await editor(page).locator('sw-schedule-grid .slot').first().click();
-    const toggle = editor(page).locator('schedule-slot-panel sw-toggle');
+    const toggle = editor(page).locator('schedule-slot-panel sw-toggle:not([size="sm"])');
     await expect(toggle).toHaveCount(1);
     await expect(toggle).toHaveAttribute('checked', '');
     await toggle.locator('button').click(); // remove the paired off pin
