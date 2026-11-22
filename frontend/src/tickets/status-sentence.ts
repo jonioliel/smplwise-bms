@@ -180,6 +180,55 @@ export function sentenceAwaitsHandler(status: TicketStatus): boolean {
   return status === 'new' || status === 'returned';
 }
 
+/** `assigned`: the requester's word, an internal handler, or an outside one by what the link says (opened / sent / unknown). */
+function assignedSentence(t: SentenceTicket, name: string, req: boolean, hd: boolean, now: Date): string {
+  if (req) return s('sn_assigned_requester');
+  if (t.assignee?.kind !== 'contact') return hd ? s('sn_assigned_user_handler') : s('sn_assigned_user', { name });
+  const opened = linkOpened(t);
+  if (opened === true) return s('sn_assigned_opened', { name });
+  if (opened === false) {
+    const ch = t.link?.sent_via ?? currentAssignment(t)?.channel ?? '';
+    const via = ch === 'whatsapp' ? s('via_whatsapp') : ch === 'email' ? s('via_email') : '';
+    const when = relTime(t.link?.sent_at ?? t.assignee?.since ?? t.last_activity_at, now);
+    return s('sn_assigned_sent', { name, via, when });
+  }
+  return s('sn_assigned_contact', { name });
+}
+
+/** `done`: since when, and for a manager / approver the state of the cost claim. */
+function doneSentence(t: SentenceTicket, role: ViewerRole, name: string, req: boolean, hd: boolean, now: Date): string {
+  const when = relTime(doneAt(t), now);
+  if (req) return s('sn_done_requester');
+  if (hd) return s('sn_done_handler', { when });
+  const claim = t.cost?.status;
+  if (claim === 'submitted') return t.cost?.can_decide ? s('sn_done_claim_mine', { name, when }) : s('sn_done_claim_other', { name, when });
+  if (claim === 'awaiting') return s('sn_done_claim_awaiting', { name, when });
+  return role === 'manager' ? s('sn_done', { name, when }) : s('sn_done_other', { name, when });
+}
+
+/** `returned`: the return reason clipped into the room the template leaves. */
+function returnedSentence(t: SentenceTicket, name: string, req: boolean): string {
+  if (req) return s('sn_returned_requester');
+  const reason = returnReason(t);
+  if (!reason) return s('sn_returned_plain');
+  const head = s('sn_returned', { name, reason: '\u0000' });
+  const room = SENTENCE_MAX - (head.length - 1);
+  return head.replace('\u0000', clip(reason, room));
+}
+
+/** `closed` / `cancelled`: when (and by whom / a duplicate of), the close note as the tail except for the requester. */
+function finalSentence(t: SentenceTicket, req: boolean, now: Date): string {
+  if (t.status === 'closed') {
+    const when = relTime(t.closed_at ?? t.last_activity_at, now);
+    const head = t.closed_by_name ? s('sn_closed', { when, who: t.closed_by_name }) : s('sn_closed_plain', { when });
+    return req ? head : withTail(head, t.close_note ?? '');
+  }
+  const head = s('sn_cancelled', { when: relTime(t.closed_at ?? t.last_activity_at, now) });
+  const dup = t.duplicate_of ? s('sn_duplicate', { n: t.duplicate_of.number }) : '';
+  const withDup = dup ? `${head} · ${dup}` : head;
+  return req ? withDup : withTail(withDup, t.close_note ?? '');
+}
+
 /** The one-sentence status, as the viewer reads it (manager wording unless the role has its own). */
 export function sentenceFor(t: SentenceTicket, role: ViewerRole = 'manager', now: Date = new Date()): string {
   const name = handlerName(t);
@@ -189,19 +238,8 @@ export function sentenceFor(t: SentenceTicket, role: ViewerRole = 'manager', now
   switch (t.status) {
     case 'new':
       return req ? s('sn_new_requester') : s('sn_new', { when: relTime(t.created_at, now), who: t.created_by.name });
-    case 'assigned': {
-      if (req) return s('sn_assigned_requester');
-      if (t.assignee?.kind !== 'contact') return hd ? s('sn_assigned_user_handler') : s('sn_assigned_user', { name });
-      const opened = linkOpened(t);
-      if (opened === true) return s('sn_assigned_opened', { name });
-      if (opened === false) {
-        const ch = t.link?.sent_via ?? currentAssignment(t)?.channel ?? '';
-        const via = ch === 'whatsapp' ? s('via_whatsapp') : ch === 'email' ? s('via_email') : '';
-        const when = relTime(t.link?.sent_at ?? t.assignee?.since ?? t.last_activity_at, now);
-        return s('sn_assigned_sent', { name, via, when });
-      }
-      return s('sn_assigned_contact', { name });
-    }
+    case 'assigned':
+      return assignedSentence(t, name, req, hd, now);
     case 'acknowledged':
       return req ? s('sn_ack_requester', { eta }) : hd ? s('sn_ack_handler', { eta }) : s('sn_ack', { name, eta });
     case 'in_progress':
@@ -210,34 +248,13 @@ export function sentenceFor(t: SentenceTicket, role: ViewerRole = 'manager', now
       return t.eta_at ? s('sn_progress_eta', { name, eta }) : s('sn_progress_quiet', { name, when: relTime(t.last_activity_at, now) });
     case 'waiting_part':
       return req ? s('sn_part_requester') : hd ? s('sn_part_handler', { eta }) : s('sn_part', { name, eta });
-    case 'done': {
-      const when = relTime(doneAt(t), now);
-      if (req) return s('sn_done_requester');
-      if (hd) return s('sn_done_handler', { when });
-      const claim = t.cost?.status;
-      if (claim === 'submitted') return t.cost?.can_decide ? s('sn_done_claim_mine', { name, when }) : s('sn_done_claim_other', { name, when });
-      if (claim === 'awaiting') return s('sn_done_claim_awaiting', { name, when });
-      return role === 'manager' ? s('sn_done', { name, when }) : s('sn_done_other', { name, when });
-    }
-    case 'returned': {
-      if (req) return s('sn_returned_requester');
-      const reason = returnReason(t);
-      if (!reason) return s('sn_returned_plain');
-      const head = s('sn_returned', { name, reason: '\u0000' });
-      const room = SENTENCE_MAX - (head.length - 1);
-      return head.replace('\u0000', clip(reason, room));
-    }
-    case 'closed': {
-      const when = relTime(t.closed_at ?? t.last_activity_at, now);
-      const head = t.closed_by_name ? s('sn_closed', { when, who: t.closed_by_name }) : s('sn_closed_plain', { when });
-      return req ? head : withTail(head, t.close_note ?? '');
-    }
-    case 'cancelled': {
-      const head = s('sn_cancelled', { when: relTime(t.closed_at ?? t.last_activity_at, now) });
-      const dup = t.duplicate_of ? s('sn_duplicate', { n: t.duplicate_of.number }) : '';
-      const withDup = dup ? `${head} · ${dup}` : head;
-      return req ? withDup : withTail(withDup, t.close_note ?? '');
-    }
+    case 'done':
+      return doneSentence(t, role, name, req, hd, now);
+    case 'returned':
+      return returnedSentence(t, name, req);
+    case 'closed':
+    case 'cancelled':
+      return finalSentence(t, req, now);
     default:
       return statusLabel(t.status);
   }
