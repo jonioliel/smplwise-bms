@@ -109,3 +109,41 @@ def datetime_shim(now_fn) -> _types.SimpleNamespace:
     shim = _types.SimpleNamespace(**{k: v for k, v in vars(_dt).items() if not k.startswith("__")})
     shim.datetime = _Datetime
     return shim
+
+
+class ManualClock:
+    """TIMING-LANE-2480: a monotonic clock that only moves when the test says so (`advance`). Patch it over the clock a module
+    reads (`time_shim(monotonic=clock)`, or a constructor's `clock=` / `monotonic=` seam) so a window, a cool-down or a rate limit
+    sees exactly the time the test means, however slowly a loaded machine runs the requests in between. Thread-safe."""
+
+    def __init__(self, start: float = 1_000_000.0) -> None:
+        import threading
+
+        self._now = float(start)
+        self._lock = threading.Lock()
+
+    def __call__(self) -> float:
+        with self._lock:
+            return self._now
+
+    def advance(self, seconds: float) -> float:
+        with self._lock:
+            self._now += float(seconds)
+            return self._now
+
+
+def time_shim(*, monotonic: Callable[[], float] | None = None, wall: Callable[[], float] | None = None) -> Any:
+    """A stand-in for a module's `import time` (patch it over one module: `monkeypatch.setattr(mod, "time", time_shim(...))`) whose
+    `monotonic()` / `time()` read the given callables; every other name (`sleep`, `perf_counter`, ...) is the real one. The module
+    patched is the only one that sees the pinned clock - `time` itself, and every other module, keep the real clock."""
+
+    class _Shim:
+        def __getattr__(self, name: str) -> Any:
+            return getattr(time, name)
+
+    shim = _Shim()
+    if monotonic is not None:
+        shim.monotonic = monotonic  # type: ignore[attr-defined]
+    if wall is not None:
+        shim.time = wall  # type: ignore[attr-defined]
+    return shim

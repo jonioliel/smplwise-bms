@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import time
 
 import httpx
 import pytest
@@ -392,10 +393,14 @@ def _from(app, ip: str):
 
 def test_sec217_global_failure_flood_never_locks_out_a_valid_token(world):
     """Security review 2.16.0 finding 1.1: 300+ junk credentials per minute spread over many networks must not 429 a partner whose
-    token authenticates; the failures themselves still get 429 once the installation-wide window is full."""
+    token authenticates; the failures themselves still get 429 once the installation-wide window is full.
+    TIMING-LANE-2480: the failure windows count per minute of the app's own clock; it is pinned here (PartnerApp's `clock` seam), so the
+    320 failures all fall inside one minute however slowly a loaded machine serves them (on the gate runner they spread past 60 s and the
+    first ones left the window before the 300th)."""
     cid = _client(world)
     t = _token(world, cid, scopes=["elevators.read"])
-    app = PartnerApp(world["db"])
+    at = time.time()
+    app = PartnerApp(world["db"], clock=lambda: at)
     junk = {"Authorization": "Bearer arxp_" + "B" * 43}
     codes = []
     for i in range(320):  # 32 /24 networks x 10 failures: every per-network window stays under its limit of 20
