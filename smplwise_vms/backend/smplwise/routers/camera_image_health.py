@@ -21,6 +21,7 @@ from ..db import database_of, unlocked
 from ..errors import ApiError, not_found
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import camera_image_health as cih
+from ..services import camera_image_health_store as store
 from ..services.access import visible_camera_ids
 from ._common import rid as _rid
 
@@ -85,7 +86,7 @@ def reference(camera_id: str, request: Request, body: dict[str, Any] = Body(...)
     action = body.get("action") if isinstance(body, dict) else None
     if action not in ("set", "clear"):
         raise ApiError(422, "validation", "פעולה לא מוכרת.", details={"field": "action"})
-    if conn.execute("SELECT 1 FROM cameras WHERE id = ?", (camera_id,)).fetchone() is None:
+    if store.camera_row(conn, camera_id) is None:
         raise not_found("המצלמה לא נמצאה.")
     if action == "set":
         st = cih.STORE.get(camera_id)

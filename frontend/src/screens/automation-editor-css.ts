@@ -312,6 +312,18 @@ export const editorShared = [
       color: var(--dv-text);
       box-shadow: var(--dv-shadow-control, 0 1px 4px rgba(0, 0, 0, 0.18));
     }
+    /* CR-CMP2-TABS-2460: the editors' tab strips (builder / code, the device test's mode) are sw-tabs (pill), in the sheet's palette
+       (devices.scheme, not the app's theme) through the tokens the pill and the skins' pill rules read - the .seg look above */
+    sw-tabs[variant='pill'] {
+      --sw-surface-3: var(--dv-surface-3);
+      --sw-text: var(--dv-text);
+      --sw-text-2: var(--dv-text-2);
+      --sw-accent-text: var(--dv-text);
+      --sw-seg-key: var(--ab-seg-thumb);
+      --sw-seg-key-ink: var(--dv-text);
+      --sw-seg-thumb-shadow: var(--dv-shadow-control);
+      --sw-tabs-key-h: 30px;
+    }
     @media (max-width: 767px) {
       .btn {
         min-block-size: 44px;

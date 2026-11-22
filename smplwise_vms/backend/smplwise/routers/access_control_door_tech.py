@@ -46,9 +46,10 @@ from ..audit import audit
 from ..auth import current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..errors import ApiError, forbidden
 from ..rbac import Principal
+from ..services import access_control_door_tech_store as store
 from ..services import confirm_words
 from ..services import intercom_authority as ia
-from ..services import intercom_client, intercom_sync
+from ..services import intercom_client, intercom_sync, savepoints
 from ..services import wiskey_door_tech as dt
 from ._common import raw_body as _raw_body
 from .access_control import MAX_STATION_ID, CommandEnvelope, _Action, _envelope, _parse, _station
@@ -247,7 +248,7 @@ def _perform(act: _Action, kind: dt.Kind, station_id: str, target: int, sender: 
             act.outcome("unknown", type(exc).__name__, {"error": type(exc).__name__})
             raise
         finally:
-            act.conn.execute("BEGIN")  # deferred: takes no lock; nothing more is written on this connection
+            savepoints.begin_deferred(act.conn)  # deferred: takes no lock; nothing more is written on this connection
     finally:
         dt.LIMITS.done(station_id)
     dt.LIMITS.sent(user, station_id, kind, target)
@@ -278,11 +279,7 @@ def _history(conn: sqlite3.Connection, station_id: str) -> list[dict[str, Any]]:
     """The station's recent door writes (any actor), newest first: one entry per command (`acknowledged` / `partial` / `refused` /
     `unknown`, or `sent` while the outcome row is not written yet), or per refusal before sending (`not_sent`)."""
     since = (datetime.now(timezone.utc) - timedelta(days=HISTORY_DAYS)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    marks = ",".join("?" for _ in dt.AUDIT_ACTIONS)
-    rows = conn.execute(
-        f"SELECT at, action, reason, details_json FROM audit_log WHERE at >= ? AND action IN ({marks}) AND resource_id = ? ORDER BY id DESC LIMIT 120",
-        (since, *dt.AUDIT_ACTIONS, station_id),
-    ).fetchall()
+    rows = store.door_write_rows(conn, since, dt.AUDIT_ACTIONS, station_id)
     by_audit = {k.audit: k for k in dt.KINDS.values()}
     out: list[dict[str, Any]] = []
     settled: set[str] = set()

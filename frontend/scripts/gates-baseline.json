@@ -2,14 +2,14 @@
   "_comment": "CR-FE-GATES-ENFORCE-2442: the baselines of the blocking frontend checks (docs/changes/CR-FE-GATES-ENFORCE-2442.md). bundle: the entry chunk of `vite build` (dist) measured by scripts/bundle-budget.mjs; budget = measured x (1 + marginPct/100), rounded up to 1000 B. unusedExports: the exports scripts/unused-exports.mjs may still report (module#name); a new one fails, the lists only shrink (--update-baseline prunes).",
   "bundle": {
     "measured": {
-      "gzip": 1069016,
-      "raw": 3609730,
-      "on": "2026-11-18, vite build of pilot/CR-W3B-FE-COMBINED-2443 (FE-1..FE-8 + TSCONFIG-SPLIT on the 2.43.8 train c68904139), Windows workstation; the train's own 2.43.8 build (smplwise_vms/www, runner) has entry gzip 1069859 / raw 3612094 - the rise from 856557 is the train (I18N-COMBINED-C dictionaries in the entry: 64 modules, 1178.7 KB source), not this branch"
+      "gzip": 807703,
+      "raw": 2810184,
+      "on": "2026-11-19, vite build of pilot/CR-BRIDGE-BUMP-RATCHETS-2460 on release/2450-train 521165ad4 (2.45.0), Windows workstation; the train's own 2.45.0 build (smplwise_vms/www, runner) has entry gzip 807666 / raw 2810141. Lowered from measured 1069016 (owner N39): the language packs left the entry (CR-I18N-LAZY-LANG-2443), -24 % gzip since 2.43.8"
     },
-    "marginPct": 3,
+    "marginPct": 5,
     "budget": {
-      "gzip": 1102000,
-      "raw": 3719000
+      "gzip": 849000,
+      "raw": 2951000
     },
     "mocksInEntry": 0
   },
@@ -108,7 +108,6 @@
       "src/map/material-resolve.ts#LIGHT_DEFAULT",
       "src/map/plan-symbols.ts#SYMBOLS",
       "src/map/quality-ladder.ts#wallDisplayMode",
-      "src/map/still-bake.ts#VARIANTS",
       "src/map/wall-path.ts#MAX_SEGMENTS",
       "src/map/wall-path.ts#MAX_STEP",
       "src/map/wall-path.ts#TOL_PX",

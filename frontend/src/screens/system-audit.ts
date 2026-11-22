@@ -13,6 +13,7 @@ import '../components/sw-chip';
 import '../components/sw-avatar';
 import '../components/sw-icon';
 import type { TableColumn } from '../components/sw-table';
+import type * as AuditWire from '../api/generated/wire-access-audit';
 import { demoAudit } from '../fixtures/catalog';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -29,20 +30,8 @@ const columns: TableColumn[] = [
   { key: 'rev', label: 'rev', ltr: true, render: () => html`7` },
 ];
 
-interface AuditRow {
-  id: number;
-  at: string;
-  actor_user_id: string | null;
-  actor_username: string | null;
-  action: string;
-  resource_type: string | null;
-  resource_id: string | null;
-  decision: string;
-  reason: string | null;
-  request_id: string | null;
-  permission_revision: number | null;
-  details: Record<string, unknown>;
-}
+/** One audit row - the backend's response model (wire/access_audit.py, ./api/generated/wire-access-audit.ts). */
+type AuditRow = AuditWire.AuditRow;
 
 const PREFIXES: { id: string; label: string }[] = [
   { id: '', label: tr('כל הפעולות') },
@@ -137,7 +126,7 @@ export class SystemAudit extends LitElement {
       if (this.actor.trim()) q.set('actor', this.actor.trim());
       if (this.channel) q.set('channel', this.channel);
       if (this.view) q.set('view', this.view);
-      const r = await get<{ rows: AuditRow[] }>(`/audit?${q.toString()}`);
+      const r = await get<AuditWire.AuditPage>(`/audit?${q.toString()}`);
       this.rows = r.rows;
       this.error = '';
     } catch (err) {

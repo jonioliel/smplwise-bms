@@ -21,7 +21,7 @@ from ..auth import current_principal_ro, get_read_conn, read_gate, settings_of
 from ..db import Database, commit_now, get_setting
 from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, Principal, STATION, authorize
-from ..services import capture_lease, door_authority, intercom_authority as ia, intercom_client, intercom_sync
+from ..services import capture_lease, door_authority, intercom_authority as ia, intercom_client, intercom_sync, savepoints
 from ..services.access_control_core import PERSON, command_already_sent
 from ..services.timeutil import parse_utc
 from ._common import is_json as _is_json, rid as _rid
@@ -360,7 +360,7 @@ def _perform(
         act.outcome("unknown", type(exc).__name__, {"error": type(exc).__name__})
         raise
     finally:
-        act.conn.execute("BEGIN")  # deferred: takes no lock, cannot wait on a busy database; nothing more is written here
+        savepoints.begin_deferred(act.conn)  # deferred: takes no lock, cannot wait on a busy database; nothing more is written here
     act.outcome("ok", None, {"result": summary(reply[key]) if summary else reply[key]})
     reply["command_id"] = act.details["command_id"]
     if act.resource_type == PERSON and act.action != "intercom.card_capture.start":

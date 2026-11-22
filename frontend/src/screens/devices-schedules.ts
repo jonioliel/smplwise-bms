@@ -5,6 +5,8 @@ import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-dialog';
 import '../components/sw-page';
 import '../components/sw-segmented';
+import '../components/sw-tabs';
+import type { TabItem } from '../components/sw-tabs';
 import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-dropdown';
 import '../components/sw-schedule-bar';
@@ -89,7 +91,6 @@ import {
 } from './schedules-logic';
 import { toneColor } from '../components/sw-schedule-bar';
 import { SkinController } from '../design/skin';
-import { tablistKeydown } from '../components/a11y-keys';
 import { readStoredJson, storedText, writeStoredJson } from '../api/safe-storage';
 import { FrameCoalescer } from '../components/frame-coalescer';
 import { devicesSchedulesStyles } from './devices-schedules-css';
@@ -725,10 +726,14 @@ export class DevicesSchedules extends LitElement {
     const others = this.kavarnit.automations ? SEGMENTS.filter((s) => (this.autoKinds ? this.autoKinds.includes(s.kind) : s.id === 'automations')) : [];
     if (!others.length) return nothing;
     const n = this.status?.counts.visible;
-    return html`<div class="seg kinds" role="tablist" aria-label=${tr('קברניט')} data-kavarnit-segments @keydown=${tablistKeydown}>
-      <button type="button" role="tab" aria-selected="true" data-segment="schedules">${tr('תזמונים')}${n === undefined ? nothing : html` <small>${n}</small>`}</button>
-      ${others.map((s) => html`<button type="button" role="tab" aria-selected="false" data-segment=${s.id} @click=${() => navigate(itemPath(s.id))}>${s.label}${this.autoCounts ? html` <small>${this.autoCounts[s.kind]}</small>` : nothing}</button>`)}
-    </div>`;
+    // CR-CMP2-TABS-2460: sw-tabs (pill, controlled), the same strip as the automations screen's: data-segment hooks, the counts as
+    // `<small>` figures, the phone row shared equally; תזמונים is this screen, every other tab opens its kind on the automations screen
+    const items: TabItem[] = [
+      { id: 'schedules', label: tr('תזמונים'), pill: n, attrs: { 'data-segment': 'schedules' } },
+      ...others.map((s) => ({ id: s.id, label: s.label, pill: this.autoCounts ? this.autoCounts[s.kind] : undefined, attrs: { 'data-segment': s.id } })),
+    ];
+    return html`<sw-tabs controlled variant="pill" fill="phone" class="kinds" group-label=${tr('קברניט')} data-kavarnit-segments .items=${items} active="schedules"
+      @change=${(e: CustomEvent<{ id: string }>) => { e.stopPropagation(); const s = others.find((x) => x.id === e.detail.id); if (s) navigate(itemPath(s.id)); }}></sw-tabs>`;
   }
 
   private dd(attr: string, label: string, value: string, items: DropdownItem[], on: (v: string) => void): TemplateResult {

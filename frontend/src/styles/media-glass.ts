@@ -346,6 +346,31 @@ export const mediaGlassControls = css`
     --sw-seg-key-pad: 12px;
     --sw-seg-fs: var(--sw-fs-sm);
   }
+  /* CR-CMP2-TABS-2460: the tab strips of the glass hosts (the devices kind strips, the scenario editor's when / runs) are sw-tabs
+     (pill). The glass palette follows devices.scheme, not the app's theme, so it is mapped onto the tokens the pill and the skins' pill
+     rules read: the glass track, the --mm thumb and inks; the counts stay plain small figures, as the glass state strip beside them
+     shows its own (a pill per kind would also widen the toolbar - the RELEASE-2450-TRAIN 1440 px lesson) */
+  sw-tabs[variant='pill'] {
+    --sw-surface-3: var(--dv-surface-3);
+    --sw-text: var(--dv-text);
+    --sw-text-2: var(--mm-seg-fg, var(--dv-text));
+    --sw-text-3: var(--dv-text-2);
+    --sw-accent-text: var(--mm-seg-fg-on, var(--dv-text));
+    --sw-seg-key: var(--mm-seg-thumb);
+    --sw-seg-key-ink: var(--mm-seg-fg-on, var(--dv-text));
+    --sw-seg-thumb-shadow: var(--dv-shadow-control);
+    --sw-tabs-pill-bg: transparent;
+    --sw-tabs-pill-fg: var(--dv-text-2);
+    --sw-tabs-pill-pad: 0;
+    --sw-tabs-pill-min-w: 0;
+    /* the glass key: 32 px (30 px for .sm), the label at the glass size */
+    --sw-tabs-key-h: 32px;
+    --sw-tabs-fs: var(--sw-fs-base);
+  }
+  sw-tabs[variant='pill'].sm {
+    --sw-tabs-key-h: 30px;
+    --sw-tabs-fs: var(--sw-fs-sm);
+  }
   /* round keys, the power button, the volume rocker, the remote button */
   .rb {
     position: relative;
@@ -785,6 +810,11 @@ export const mediaGlassControls = css`
     sw-segmented[size='sm'] {
       --sw-seg-h: 44px;
       --sw-seg-key-min-w: 44px;
+    }
+    sw-tabs[variant='pill'],
+    sw-tabs[variant='pill'].sm {
+      --sw-tabs-key-h: 44px;
+      --sw-tabs-key-pad: 8px; /* the glass phone key (the four kinds share a 358 px row) */
     }
     .rb {
       inline-size: 44px;

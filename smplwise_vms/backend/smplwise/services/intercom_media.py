@@ -1664,8 +1664,12 @@ def iso(epoch: float) -> str:
 
 def _reset_for_tests() -> None:
     """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    global _fake_from_env
     _LEASED.clear()
     _LEASE_TIMERS.clear()
+    # RELEASE-2460-TRAIN: the env fake (SW_FAKE_STATION_MEDIA) is None at import and a FakeProvider once a test asked for it, so the
+    # singleton inventory saw it only after such a test ran in the same process (2.46.0 gate run 1)
+    _fake_from_env = None
 
 
-register_reset(__name__, ("_LEASED", "_LEASE_TIMERS"), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)
+register_reset(__name__, ("_LEASED", "_LEASE_TIMERS", "_fake_from_env"), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)

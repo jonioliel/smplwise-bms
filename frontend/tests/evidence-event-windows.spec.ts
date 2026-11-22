@@ -26,7 +26,7 @@ test.describe('event windows (SW A)', () => {
     await open(page, '/investigate/events');
     const centre = page.locator('investigate-events');
     await expect(centre.locator('sw-table')).toBeVisible({ timeout: 15000 });
-    await centre.locator('sw-chip[data-mode-windows]').click();
+    await centre.locator('[data-mode-windows]').click(); // CR-CMP2-TABS-2460: a chip of sw-chip-choice
     await expect(centre.locator('sw-table')).toBeVisible({ timeout: 15000 });
     const rows = centre.locator('sw-table tbody tr');
     await expect.poll(async () => rows.count(), { timeout: 15000 }).toBeGreaterThan(0);
@@ -54,8 +54,8 @@ test.describe('event windows (SW A)', () => {
 
     // the view choice is remembered
     await open(page, '/investigate/events');
-    await expect(page.locator('investigate-events sw-chip[data-mode-windows]')).toHaveAttribute('selected', '');
-    await page.locator('investigate-events sw-chip', { hasText: 'אירועים' }).first().click();
+    await expect(page.locator('investigate-events [data-mode-windows]')).toHaveAttribute('aria-pressed', 'true');
+    await page.locator('investigate-events [data-mode-raw]').click();
     await expect(page.locator('investigate-events sw-table img.thumb, investigate-events sw-table tbody tr').first()).toBeVisible({ timeout: 15000 });
   });
 });

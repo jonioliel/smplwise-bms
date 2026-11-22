@@ -18,6 +18,20 @@ spec = importlib.util.spec_from_file_location("push_golive_check", ROOT / "scrip
 pgc = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pgc)
 
+
+def _git_work_tree_root() -> bool:
+    """CR-BE-FOLLOWUPS-2470: whether ROOT is the top of a git work tree. A plain copy of the tree (an archive, a copied folder) has no
+    git: `git check-ignore` / `git ls-files` cannot answer there, and the tests that ask git skip with a reason instead of failing."""
+    try:
+        r = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--show-toplevel"], capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return r.returncode == 0 and bool(r.stdout.strip()) and Path(r.stdout.strip()).resolve() == ROOT.resolve()
+
+
+IN_GIT = _git_work_tree_root()
+needs_git = pytest.mark.skipif(not IN_GIT, reason="needs a git checkout of the repository (git check-ignore); this copy is not a git work tree")
+
 PLACEHOLDER_PEM = "-----BEGIN PRIVATE KEY-----\nPLACEHOLDER-NOT-A-KEY\n-----END PRIVATE KEY-----\n"
 SA_EMAIL = "relay@example-project.iam.gserviceaccount.com"
 KEY_ID = "ABCDE12345"
@@ -39,7 +53,10 @@ def _run(argv: list[str], capsys) -> tuple[int, str]:
 def test_dry_run_with_fakes_passes_and_prints_no_token(capsys):
     code, out = _run(["dry-run"], capsys)
     assert code == 0, out
-    assert "FAIL" not in out and "16 passed" in out
+    if IN_GIT:
+        assert "FAIL" not in out and "16 passed" in out
+    else:  # outside a checkout the tracked-files check cannot run: listed as not run, never as passed or failed
+        assert "FAIL" not in out and "15 passed" in out and "NOT_RUN  no secret-shaped file is tracked by git" in out
     assert "rt_" not in out and "dryrun-" not in out  # neither a relay token nor the throwaway server key reaches the report
     assert "NOT_RUN  Worker typecheck" in out  # without --worker the Worker's own checks are listed as not run, never as passed
 
@@ -54,6 +71,7 @@ def test_preflight_accepts_well_formed_files_and_prints_no_value(tmp_path, capsy
     assert "PLACEHOLDER" not in out and SA_EMAIL not in out and "example-project" not in out and "ab" * 32 not in out and KEY_ID not in out
 
 
+@needs_git
 def test_git_ignored_inside_outside_the_repository():
     # git check-ignore works on paths that do not exist yet: secrets/ is ignored, a file next to the code is not, outside = cannot be added
     assert pgc._git_ignored(ROOT / "secrets" / "firebase-relay-service-account.json") is True
@@ -118,13 +136,17 @@ def test_health_refuses_a_bad_address_before_any_request(url, capsys):
     assert code == 2 and "FAIL" not in out
 
 
-def test_secret_shaped_file_patterns_and_git_ignore():
+def test_secret_shaped_file_patterns():
     tracked_bad = ["secrets/x.p8", "a/b/AuthKey_ABCDE12345.p8", "firebase-relay-service-account.json", "mobile/android/app/google-services.json", "x/.dev.vars",
                    "ios/GoogleService-Info.plist", "keystore.properties", "upload.jks", "release.keystore", "profile.mobileprovision"]
     assert all(any(rx.search(p) for rx in pgc.FORBIDDEN_TRACKED) for p in tracked_bad)
     fine = ["services/push-relay/src/index.ts", "docs/operations/ARX_PUSH_RELAY_DEPLOY_HE.md", "scripts/push_golive_check.py", "services/push-relay/wrangler.toml"]
     assert not any(rx.search(p) for rx in pgc.FORBIDDEN_TRACKED for p in fine)
-    # the folders the owner session writes into must be ignored by git (git check-ignore works on paths that do not exist yet)
+
+
+@needs_git
+def test_the_folders_the_owner_session_writes_into_are_ignored_by_git():
+    # git check-ignore works on paths that do not exist yet
     for p in ("secrets/firebase-relay-service-account.json", "secrets/AuthKey_ABCDE12345.p8", "secrets/push-relay-server-keys.txt", "services/push-relay/.dev.vars"):
         r = subprocess.run(["git", "-C", str(ROOT), "check-ignore", "-q", p], timeout=30)
         assert r.returncode == 0, f"{p} is not ignored by git"

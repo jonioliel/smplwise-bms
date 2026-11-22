@@ -16,6 +16,8 @@ from ..rbac import INSTALLATION, Principal, require
 from ..services import rules as svc
 from ..services import rules_store as store
 from ..services.access import require_camera, row_scope
+from ..wire import wire
+from ..wire.rules import AlarmRule, AlarmRuleList, RuleAlertList, RuleAlertRow, RuleDryRun
 from ._common import rid as _rid
 from ..services.settings_store import setting_value
 
@@ -114,7 +116,7 @@ def _with_counts(conn: sqlite3.Connection, rules: list[dict[str, Any]]) -> list[
     return rules
 
 
-@router.get("/rules")
+@router.get("/rules", **wire(AlarmRuleList))
 def list_rules(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "rules.manage", INSTALLATION)
     rows = [svc.row_to_rule(r) for r in store.rules(conn)]
@@ -122,7 +124,7 @@ def list_rules(principal: Principal = Depends(current_principal_ro), conn: sqlit
             "sources": ["alertstream", "recording", "system", "ha"], "action_kinds": list(svc.ACTION_KINDS), "days": list(svc.DAYS)}
 
 
-@router.post("/rules", status_code=201)
+@router.post("/rules", status_code=201, **wire(AlarmRule))
 def create_rule(body: RuleIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "rules.manage", INSTALLATION)
     if any(a.kind == "ha_notify" for a in body.actions):
@@ -141,7 +143,7 @@ def create_rule(body: RuleIn, request: Request, principal: Principal = Depends(c
 _alert_scope_sql = store.alert_scope_clause  # the caller's reach over rule_alerts as a WHERE fragment (T055 M3); the builder lives in the store
 
 
-@router.get("/rules/alerts")
+@router.get("/rules/alerts", **wire(RuleAlertList))
 def list_alerts(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), unacked: bool = False, limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
     """Alerts raised by local rules, filtered to the caller's cameras (events.read). `unacked` counts the open alerts
     in the caller's scope (CR-013: the shell's red dot and the user menu's count) - never installation-wide. Read-only:
@@ -157,7 +159,7 @@ def list_alerts(principal: Principal = Depends(current_principal_ro), conn: sqli
     return {"alerts": rows, "unacked": open_}
 
 
-@router.post("/rules/alerts/{alert_id}/ack")
+@router.post("/rules/alerts/{alert_id}/ack", **wire(RuleAlertRow))
 def ack_alert(alert_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "events.ack", INSTALLATION)
     a = store.alert(conn, alert_id)
@@ -175,7 +177,7 @@ def ack_alert(alert_id: str, request: Request, principal: Principal = Depends(cu
     return svc.alert_row(r)
 
 
-@router.post("/rules/dry-run")
+@router.post("/rules/dry-run", **wire(RuleDryRun))
 def dry_run(body: DryRunIn, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Replay stored events through a rule (stored or inline) and explain every decision; nothing is written or sent."""
     require(conn, principal, "rules.manage", INSTALLATION)
@@ -189,13 +191,13 @@ def dry_run(body: DryRunIn, principal: Principal = Depends(current_principal), c
     return {"rule_name": rule["name"], **svc.dry_run(conn, rule, body.hours, setting_value(conn, "time.zone"))}
 
 
-@router.get("/rules/{rule_id}")
+@router.get("/rules/{rule_id}", **wire(AlarmRule))
 def get_rule(rule_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "rules.manage", INSTALLATION)
     return _with_counts(conn, [svc.row_to_rule(_get(conn, rule_id))])[0]
 
 
-@router.patch("/rules/{rule_id}")
+@router.patch("/rules/{rule_id}", **wire(AlarmRule))
 def update_rule(rule_id: str, body: RulePatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "rules.manage", INSTALLATION)
     if any(a.kind == "ha_notify" for a in body.actions):

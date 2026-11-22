@@ -285,11 +285,30 @@ def create_site(body: SiteIn, request: Request, principal: Principal = Depends(c
     return site_row(get_site(conn, sid))
 
 
+def _site_patch_fields(body: SitePatch) -> dict[str, Any]:
+    """CR-BE-FOLLOWUPS-2470: the edit trims name and address like create does, refuses a name that is only blanks and a
+    time zone the zone database does not know (the same check as the installation's `time.zone` setting)."""
+    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    for key in ("name", "address"):
+        if key in fields:
+            fields[key] = fields[key].strip()
+    if "name" in fields and not fields["name"]:
+        raise validation("שם האתר לא יכול להיות ריק.", name=body.name)
+    if "timezone" in fields:
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+        try:
+            ZoneInfo(fields["timezone"])
+        except (ZoneInfoNotFoundError, ValueError):
+            raise validation("אזור זמן לא מוכר.", timezone=fields["timezone"])
+    return fields
+
+
 @router.patch("/sites/{site_id}", **wire(W.CatalogSite))
 def update_site(site_id: str, body: SitePatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_site(conn, site_id)
     require(conn, principal, P_CONTENT, ("site", site_id))
-    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    fields = _site_patch_fields(body)
     if fields:
         store.patch_row(conn, "sites", site_id, fields, now_iso())
     audit(conn, actor=principal, action="site.update", decision="allowed", resource_type="site", resource_id=site_id, request_id=_rid(request), details=fields)

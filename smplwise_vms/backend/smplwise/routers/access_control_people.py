@@ -16,7 +16,7 @@ from ..auth import current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal
-from ..services import intercom_authority as ia, intercom_adapter, intercom_client, intercom_sync, intercom_writes as iw
+from ..services import intercom_authority as ia, intercom_adapter, intercom_client, intercom_sync, intercom_writes as iw, savepoints
 from ..services.access_control_core import PERSON, PersonData
 from ._common import raw_body as _raw_body, rid as _rid
 from .access_control_base import CAPTURE, MANAGE, PIN_GENERATE
@@ -237,7 +237,7 @@ def person_pin_generate(request: Request, response: Response, auth: ia.Authority
         act.outcome("unknown", type(exc).__name__, {})
         raise
     finally:
-        conn.execute("BEGIN")  # deferred, lock-free (as _perform): nothing more is written on the request's connection
+        savepoints.begin_deferred(conn)  # deferred, lock-free (as _perform): nothing more is written on the request's connection
     pin = reply.get("pin")
     state = reply.get("state")
     outcome = "ok" if pin is not None else ("not_sent" if state not in ("error", "forbidden", "unsupported") or reply.get("last_error") in ("busy", RATE_LIMITED_CODE) else "failed")

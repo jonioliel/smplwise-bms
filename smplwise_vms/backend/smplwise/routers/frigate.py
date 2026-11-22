@@ -41,6 +41,8 @@ from ..services.recorders import frigate_playback as fp
 from ..services.recorders.frigate import FrigateAdapter
 from .recorders import PERMISSION, _may_read
 from ..services.settings_store import setting_value
+from ..wire import frigate as W
+from ..wire import wire
 from ._common import rid as _rid
 from ..test_reset import register_reset
 
@@ -104,7 +106,7 @@ def _frigate_info(conn: sqlite3.Connection, rid: str) -> dict[str, Any]:
 
 # ---------------------------------------------------------------------------------------------- recorders and status
 
-@router.get("/frigate/recorders")
+@router.get("/frigate/recorders", **wire(W.FrigateRecorderList))
 def list_recorders(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The recorders whose vendor is Frigate (names and ids only: never an address, a user name or a secret)."""
     _may_read(conn, principal)
@@ -112,7 +114,7 @@ def list_recorders(principal: Principal = Depends(current_principal_ro), conn: s
     return {"recorders": [{"id": r["id"], "name": r["name"] or r["id"], "enabled": bool(r["enabled"]), "firmware": r["firmware"]} for r in rows]}
 
 
-@router.get("/frigate/{recorder_id}/status")
+@router.get("/frigate/{recorder_id}/status", **wire(W.FrigateStatus))
 def status(recorder_id: str, request: Request, refresh: bool = Query(False), principal: Principal = Depends(current_principal_ro),
            conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Capability discovery (version, minimum, discovered `features` with the scrubbed config summary), the event-sync state and
@@ -146,7 +148,7 @@ def status(recorder_id: str, request: Request, refresh: bool = Query(False), pri
     }
 
 
-@router.post("/frigate/{recorder_id}/discover")
+@router.post("/frigate/{recorder_id}/discover", **wire(W.FrigateDiscover))
 def discover(recorder_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Re-read Frigate's camera list and import it into Arx (read-only toward Frigate; `cameras.sync` is audited). Disabled cameras
     are kept as disabled rows; a camera that left the config is marked, never deleted."""
@@ -155,7 +157,7 @@ def discover(recorder_id: str, request: Request, principal: Principal = Depends(
     return autosync.sync_cameras(settings_of(request), conn, actor=principal, request_id=_rid(request), reason="manual", recorder_id=recorder_id)
 
 
-@router.get("/frigate/{recorder_id}/cameras")
+@router.get("/frigate/{recorder_id}/cameras", **wire(W.FrigateCameras))
 def cameras(recorder_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The recorder's cameras as Arx holds them (id, name, channel, enabled in Arx, enabled in Frigate, status, link to the same
     place on another recorder), limited to the cameras the caller may see."""
@@ -187,7 +189,7 @@ def _scope_sql(conn: sqlite3.Connection, principal: Principal) -> tuple[str, lis
     return store.scope_clause(sc)
 
 
-@router.get("/frigate/{recorder_id}/reviews")
+@router.get("/frigate/{recorder_id}/reviews", **wire(W.FrigateReviewPage))
 def list_reviews(recorder_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
                  severity: str | None = Query(None, pattern="^(alert|detection)$"), camera_id: str | None = Query(None, max_length=64),
                  reviewed: bool | None = Query(None), from_: str | None = Query(None, alias="from"), to: str | None = Query(None),
@@ -224,7 +226,7 @@ def _review_row(conn: sqlite3.Connection, principal: Principal, recorder_id: str
     return row
 
 
-@router.get("/frigate/{recorder_id}/reviews/summary")
+@router.get("/frigate/{recorder_id}/reviews/summary", **wire(W.FrigateReviewSummary))
 def reviews_summary(recorder_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
                     days: int = Query(7, ge=1, le=60)) -> dict[str, Any]:
     """Counts of the caller's unreviewed review items per severity and per camera over the last `days` days."""
@@ -242,7 +244,7 @@ def reviews_summary(recorder_id: str, request: Request, principal: Principal = D
     return {"recorder_id": recorder_id, "days": days, "severity": by_sev, "unreviewed_by_camera": by_cam}
 
 
-@router.get("/frigate/{recorder_id}/reviews/{review_id}")
+@router.get("/frigate/{recorder_id}/reviews/{review_id}", **wire(W.FrigateReview))
 def get_review(recorder_id: str, review_id: str, request: Request, principal: Principal = Depends(current_principal_ro),
                conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _adapter(conn, request, recorder_id)
@@ -280,7 +282,7 @@ class ReviewedIn(BaseModel):
     reviewed: bool = True
 
 
-@router.post("/frigate/{recorder_id}/reviews/reviewed")
+@router.post("/frigate/{recorder_id}/reviews/reviewed", **wire(W.FrigateReviewed))
 def mark_reviewed(recorder_id: str, body: ReviewedIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Mark review items reviewed (or not) for the CALLER, in bulk. Arx's state first; Frigate is written only when the `review` write class is on and the caller holds analytics.review (the `mirror` answer says what happened). Every item must
     be visible to the caller (events.read on its camera); the first one that is not fails the whole request."""
@@ -302,7 +304,7 @@ def mark_reviewed(recorder_id: str, body: ReviewedIn, request: Request, principa
     return {"recorder_id": recorder_id, "reviewed": body.reviewed, "count": len(ids), "mirror": mirror}
 
 
-@router.get("/frigate/{recorder_id}/activity")
+@router.get("/frigate/{recorder_id}/activity", **wire(W.FrigateActivity))
 def activity(recorder_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
              from_: str | None = Query(None, alias="from"), to: str | None = Query(None)) -> dict[str, Any]:
     """The MOTION layer: Frigate's motion activity density (30 s buckets with the cameras involved) for a window of at most 24 h.
@@ -343,7 +345,7 @@ def snapshot(recorder_id: str, camera_id: str, request: Request, h: int | None =
 
 # ---------------------------------------------------------------------------------------------- recordings and playback
 
-@router.get("/frigate/{recorder_id}/cameras/{camera_id}/recordings")
+@router.get("/frigate/{recorder_id}/cameras/{camera_id}/recordings", **wire(W.FrigateRecordings))
 def recordings(recorder_id: str, camera_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
                from_: str | None = Query(None, alias="from"), to: str | None = Query(None)) -> dict[str, Any]:
     """Recording coverage of one camera for a window of at most 24 h (default: the last 6 h): merged ranges, the covered ratio, the
@@ -362,7 +364,7 @@ def recordings(recorder_id: str, camera_id: str, request: Request, principal: Pr
     return out
 
 
-@router.get("/frigate/{recorder_id}/cameras/{camera_id}/recordings/summary")
+@router.get("/frigate/{recorder_id}/cameras/{camera_id}/recordings/summary", **wire(W.FrigateRecordingsSummary))
 def recordings_summary(recorder_id: str, camera_id: str, request: Request, principal: Principal = Depends(current_principal_ro),
                        conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Per-day (site-local) counts of events, motion, objects and recorded seconds, from Frigate's summary. The site's IANA zone is
@@ -381,7 +383,7 @@ def recordings_summary(recorder_id: str, camera_id: str, request: Request, princ
     return {"recorder_id": recorder_id, "camera_id": camera_id, "timezone": tz, "days": days}
 
 
-@router.get("/frigate/{recorder_id}/cameras/{camera_id}/playback")
+@router.get("/frigate/{recorder_id}/cameras/{camera_id}/playback", **wire(W.FrigatePlaybackPlan))
 def playback_plan(recorder_id: str, camera_id: str, request: Request, start: str = Query(...), end: str = Query(...), principal: Principal = Depends(current_principal_ro),
                   conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The playback resolution for a window: an HLS playlist served through Arx, the anchor facts (marked UNPROVEN) and the coverage
@@ -524,7 +526,7 @@ def review_clip(recorder_id: str, review_id: str, request: Request, supervised: 
     return _clip_response(conn, principal, a, recorder_id, "review", supervised, request, lambda: a.open_review_clip(review_id), row["camera_id"])
 
 
-@router.get("/frigate/{recorder_id}/cameras/{camera_id}/export-plan")
+@router.get("/frigate/{recorder_id}/cameras/{camera_id}/export-plan", **wire(W.FrigateExportPlan))
 def export_plan(recorder_id: str, camera_id: str, request: Request, start: str = Query(...), end: str = Query(...), principal: Principal = Depends(current_principal_ro),
                 conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Clip export DESIGN only: nothing is requested from Frigate and nothing is created (`executed: false`)."""
@@ -536,7 +538,7 @@ def export_plan(recorder_id: str, camera_id: str, request: Request, start: str =
     return fp.export_plan(recorder_id, cam["source_ref"], s, e, camera_ref=camera_id)
 
 
-@router.get("/frigate/{recorder_id}/storage")
+@router.get("/frigate/{recorder_id}/storage", **wire(W.FrigateStorage))
 def storage(recorder_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Storage as Frigate reports it: per-camera usage and bandwidth (MB, MB/h) and the recording policy (names of cameras only)."""
     _may_read(conn, principal)

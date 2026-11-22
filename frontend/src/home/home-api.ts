@@ -4,6 +4,7 @@
 import { uiLocale } from '../i18n/locale';
 import type { HomeModuleP3 } from './home-p3-logic'; // HOME-V3-P3-2432
 import { get, put } from '../api/client';
+import type * as HiWire from '../api/generated/wire-home-interface';
 import { listCameras } from '../api/maps';
 import { listMeters, meterSeries } from '../api/electricity-meters';
 import { notify, type Notification } from '../api/notifications';
@@ -17,62 +18,34 @@ export type HomeModule = 'lights' | 'climate' | 'shades' | 'doors' | 'cameras' |
   | HomeModuleP3 // HOME-V3-P3-2432
   | 'recordings' | 'log' | 'intercom'; // HOME-V3-FOLLOWUP-A-2431: their own categories (were under cameras / doors)
 
-export interface InterfacePolicy {
-  default_interface: Interface;
-  may_switch: boolean;
-  home_only: boolean;
-  kiosk: boolean;
-  kiosk_area_id: string | null;
-  rooms: string[] | null;
-  modules: HomeModule[] | null;
-  interface: Interface;
-  configured: boolean;
-  admin: boolean;
-  kiosk_code_set: boolean;
-  /** HOME-SIMPLE-2421: the installation asks this person to choose at the first sign-in (the welcome screen saves it) */
-  choose?: boolean;
-  /** HOME-SIMPLE-2421: 'none' = a wall panel never leaves its room (no exit code) */
-  kiosk_exit?: 'code' | 'none';
-  /** HOME-SIMPLE-2421: the room wallpaper the installation offers */
-  wallpaper?: 'none' | 'gallery' | 'gallery_image';
-  /** HOME-V3-P1-2430: the home administrator marked this person for guest invitations (never a grant by itself) */
-  guests?: boolean;
-  /** HOME-V3-P1-2430: the administrator's wallpaper per room for everyone ('g:<gallery>' | 'img') */
-  room_wallpapers?: Record<string, string>;
-}
+/* The policy, the overview and the preferences are the backend's response models (smplwise_vms/backend/smplwise/wire/home_interface.py,
+ * generated into ../api/generated/wire-home-interface.ts; code review 07:F8 step 2): `WireOf` keeps every key of the generated row (a key the
+ * server renames or drops is a compile error) and narrows on purpose what the server passes through as a document - the room keys and
+ * categories of a policy, the values a device row reads from Home Assistant, the person's favourites and layout. */
+type WireOf<W, N extends Partial<Record<keyof W, unknown>>> = Omit<W, keyof N> & N;
+
+/** HOME-SIMPLE-2421: `choose` = the installation asks this person to choose at the first sign-in (the welcome screen saves it); `kiosk_exit`
+ * 'none' = a wall panel never leaves its room; `wallpaper` = the room wallpaper the installation offers. HOME-V3-P1-2430: `guests` = the
+ * home administrator marked this person for guest invitations (never a grant by itself); `room_wallpapers` = the administrator's wallpaper
+ * per room for everyone ('g:<gallery>' | 'img'). */
+export type InterfacePolicy = WireOf<HiWire.HomePolicy, { rooms: string[] | null; modules: HomeModule[] | null }>;
 
 // ---------------------------------------------------------------- wire shapes (GET /home/overview)
 
-interface WireRow {
-  entity_id: string;
-  name: string;
-  domain: string;
-  state: string | null;
-  available: boolean;
-  active: boolean;
-  can_control: boolean;
-}
-interface WireLight extends WireRow { brightness_pct: number | null; dimmable: boolean; kind: 'light' | 'switch'; protected?: boolean; load_type?: string | null }
-interface WireClimate extends WireRow {
+type HaRow = { name: string; state: string | null; available: boolean; active: boolean };
+type WireLight = WireOf<HiWire.HomeLight, HaRow & { brightness_pct: number | null; dimmable: boolean }> & Partial<Pick<HiWire.HomeSwitch, 'protected'>> & { load_type?: string | null };
+type WireClimate = WireOf<HiWire.HomeClimate, HaRow & {
   climate_kind: string | null; hvac_mode: string | null; hvac_modes: string[] | null; hvac_action: string | null;
   current_temperature: number | null; target_temperature: number | null; min_temp: number | null; max_temp: number | null; target_temp_step: number | null;
   preset_mode: string | null; preset_modes: string[] | null; unit: string | null;
-}
-interface WireCover extends WireRow { position: number | null; moving: boolean }
-interface WireLock extends WireRow { locked: boolean; wiskey_door: boolean; unlock_reason?: string; can_unlock?: boolean }
-interface WireRoom {
-  id: string; name: string; floor_id: string; temperature: number | null; open_count: number; can_bulk: boolean;
+}>;
+type WireCover = WireOf<HiWire.HomeShade, HaRow & { position: number | null; moving: boolean }>;
+type WireLock = WireOf<HiWire.HomeLock, HaRow & { locked: boolean }>;
+type WireRoom = WireOf<HiWire.HomeRoom, {
+  name: string; temperature: number | null; open_count: number;
   lights: WireLight[]; switches: WireLight[]; climate: WireClimate[]; shades: WireCover[]; locks: WireLock[];
-}
-export interface Overview {
-  weather?: { t: number | null; text: string } | null;
-  floors: { id: string; name: string; rooms: string[] }[];
-  rooms: WireRoom[];
-  can_bulk: boolean;
-  scoped: boolean;
-  modules: HomeModule[];
-  policy: InterfacePolicy;
-}
+}>;
+export type Overview = WireOf<HiWire.HomeOverview, { rooms: WireRoom[]; modules: HomeModule[]; policy: InterfacePolicy }>;
 
 type FavType = 'scene' | 'light' | 'switch' | 'climate' | 'shade' | 'cam' | 'door' | 'allLights' | 'energy' | 'security';
 export interface Fav { t: FavType; id?: string; w?: 1 | 2 }
@@ -94,7 +67,7 @@ export interface HomeLayout {
    * its first day (Sunday) */
   cal_week?: 'next' | 'week';
 }
-export interface HomePrefs { favourites: Record<string, Fav[]>; layout: HomeLayout; seed: Record<string, Fav[]> }
+export type HomePrefs = WireOf<HiWire.HomePrefs, { favourites: Record<string, Fav[]>; layout: HomeLayout; seed: Record<string, Fav[]> }>;
 
 // CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by HOME-SIMPLE-2420 (home interface).
 export const getInterface = () => get<InterfacePolicy>('home/interface');

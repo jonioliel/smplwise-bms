@@ -50,8 +50,9 @@ from ..auth import current_principal_ro, get_conn, get_read_conn, read_gate, set
 from ..db import set_setting
 from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, Principal, require
+from ..services import access_control_triage_store as store
 from ..services import intercom_authority as ia
-from ..services import intercom_sync
+from ..services import intercom_sync, savepoints
 from ..services import wiskey_triage as tr
 from ._common import raw_body as _raw_body, rid as _rid
 from .access_control import MAX_STATION_ID, CommandEnvelope, _Action, _envelope, _parse, _station
@@ -106,10 +107,7 @@ def _recent(conn: sqlite3.Connection) -> dict[str, Any]:
     """The newest outcome per conflict (`<station>:<person>`) and per alert (`<station>:<kind>`) in the last HISTORY_DAYS days, any actor:
     `status` sent (an attempt with no outcome row yet) | acknowledged | completed | failed (WisKey refused: `code`) | not_sent | unknown."""
     since = (datetime.now(timezone.utc) - timedelta(days=HISTORY_DAYS)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    rows = conn.execute(
-        "SELECT at, action, resource_id, reason, details_json FROM audit_log WHERE at >= ? AND action IN (?, ?, ?) ORDER BY id DESC LIMIT 400",
-        (since, tr.AUDIT_RESOLVE, tr.AUDIT_DELETION, tr.AUDIT_ALERT),
-    ).fetchall()
+    rows = store.triage_rows(conn, since, tr.AUDIT_RESOLVE, tr.AUDIT_DELETION, tr.AUDIT_ALERT)
     conflicts: dict[str, Any] = {}
     alerts: dict[str, Any] = {}
     now = datetime.now(timezone.utc)
@@ -221,7 +219,7 @@ def _run(act: _Action, cls: str, target: str, key: str, send: Any, project: Any,
         act.outcome("unknown", type(exc).__name__, {"error": type(exc).__name__})
         raise
     finally:
-        act.conn.execute("BEGIN")  # deferred: takes no lock; nothing more is written on this connection
+        savepoints.begin_deferred(act.conn)  # deferred: takes no lock; nothing more is written on this connection
     tr.LIMITS.sent(cls, target)
     return reply
 

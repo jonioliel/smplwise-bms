@@ -28,6 +28,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import incidents as svc
+from ..services import incidents_store as store
 from ..services.access import require_camera
 from ._common import rid as _rid
 
@@ -138,7 +139,7 @@ class OpenIn(BaseModel):
 def open_incident(body: OpenIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _gate(conn)
     if body.event_id:
-        ev = conn.execute("SELECT id, camera_id, type, occurred_at, source, details_json FROM events WHERE id = ?", (body.event_id,)).fetchone()
+        ev = store.event(conn, body.event_id)
         if ev is None:
             raise ApiError(404, "not_found", "האירוע לא נמצא.")
         if ev["camera_id"]:
@@ -168,7 +169,7 @@ def open_incident(body: OpenIn, request: Request, principal: Principal = Depends
         if a["resource_type"] == "camera":
             name = svc._camera_names(conn).get(a["resource_id"], a["label"] or a["resource_id"])
         else:
-            e = conn.execute("SELECT name FROM ha_entities WHERE entity_id = ?", (a["resource_id"],)).fetchone()
+            e = store.entity_name_row(conn, a["resource_id"])
             name = (e["name"] if e and e["name"] else None) or a["label"] or a["resource_id"]
         try:
             row, merged = svc.open_incident(conn, source="manual", title=(body.title or "").strip() or f"אירוע ידני · {name}", floor_id=a["floor_id"], x=a["x"], y=a["y"],
@@ -177,7 +178,7 @@ def open_incident(body: OpenIn, request: Request, principal: Principal = Depends
         except svc.Disabled:
             raise _off() from None
     elif body.alarm_panel:
-        if conn.execute("SELECT 1 FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (body.alarm_panel,)).fetchone() is None:
+        if store.live_entity_row(conn, body.alarm_panel) is None:
             raise ApiError(404, "not_found", "לוח האזעקה לא נמצא.")
         anchor, title = svc.alarm_location(conn, body.alarm_panel)
         require(conn, principal, ACK, ("floor", anchor["floor_id"]) if anchor else INSTALLATION)

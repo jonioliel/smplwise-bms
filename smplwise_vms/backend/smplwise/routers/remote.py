@@ -35,6 +35,7 @@ from ..errors import ApiError, unauthenticated
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..remote_channel import channel_of, is_remote
 from ..services import app_download, ha_user_auth as hua, presence
+from ..services import remote_store as store
 from ._common import rid as _rid
 
 router = APIRouter()
@@ -151,14 +152,14 @@ class RemoteFlag(BaseModel):
 def set_remote_access(user_id: str, body: RemoteFlag, request: Request, principal: Principal = Depends(current_principal),
                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
-    known = conn.execute("SELECT 1 FROM users WHERE id = ? UNION SELECT 1 FROM ha_users WHERE id = ?", (user_id, user_id)).fetchone()
+    known = store.user_known(conn, user_id)
     if not known:
         raise ApiError(404, "user_unknown", "המשתמש לא נמצא בספריית המערכת.")
     before = hua.has_flag(conn, user_id)
     if body.enabled:
-        conn.execute("INSERT OR IGNORE INTO remote_access_users(user_id, granted_by, granted_at) VALUES (?, ?, ?)", (user_id, principal.user_id, now_iso()))
+        store.grant_remote_access(conn, user_id, principal.user_id, now_iso())
     else:
-        conn.execute("DELETE FROM remote_access_users WHERE user_id = ?", (user_id,))
+        store.revoke_remote_access(conn, user_id)
     dropped = 0
     # what admits the user after this change: the flag just set, else the administrator default (CR-008 amendment)
     basis = hua.remote_basis(conn, user_id)
@@ -320,7 +321,7 @@ def _local_revoke(request: Request, principal: Principal, admin: bool, *, chain_
             if owner != principal.user_id and not admin:
                 require(conn, principal, "system.configure", INSTALLATION)  # 403, audited
             reason = "logout" if owner == principal.user_id else "admin"
-            agents = tuple(r["user_agent"] or "" for r in conn.execute("SELECT user_agent FROM auth_local_sessions WHERE chain_id = ?", (chain_id,)).fetchall())
+            agents = tuple(r["user_agent"] or "" for r in store.chain_user_agents(conn, chain_id))
             ended = local_identity.revoke_chain(conn, chain_id, reason)
             ends_current = current == "l:" + chain_id
             target = owner
@@ -460,13 +461,10 @@ def _count_csp(db, items: list[tuple[str, str, str]]) -> None:
     with db.connection(label="csp-report") as conn:
         now = now_iso()
         for disposition, directive, blocked in items:
-            known = conn.execute("SELECT 1 FROM csp_reports WHERE disposition = ? AND directive = ? AND blocked = ?", (disposition, directive, blocked)).fetchone()
-            if not known and conn.execute("SELECT COUNT(*) FROM csp_reports").fetchone()[0] >= CSP_ROWS_MAX:
+            known = store.csp_counter(conn, disposition, directive, blocked)
+            if not known and store.csp_row_count(conn) >= CSP_ROWS_MAX:
                 directive, blocked = "other", "other"
-            conn.execute(
-                """INSERT INTO csp_reports(disposition, directive, blocked, count, first_at, last_at) VALUES (?, ?, ?, 1, ?, ?)
-                   ON CONFLICT(disposition, directive, blocked) DO UPDATE SET count = count + 1, last_at = excluded.last_at""",
-                (disposition, directive, blocked, now, now))
+            store.count_csp(conn, disposition, directive, blocked, now)
 
 
 @router.post("/csp-report", status_code=204)
@@ -504,7 +502,7 @@ def list_csp_reports(principal: Principal = Depends(current_principal_ro), conn:
     from ..remote_channel import CSP, CSP_STRICT, csp_enforcing
 
     require(conn, principal, "system.configure", INSTALLATION)
-    rows = [dict(r) for r in conn.execute("SELECT disposition, directive, blocked, count, first_at, last_at FROM csp_reports ORDER BY count DESC, last_at DESC").fetchall()]
+    rows = [dict(r) for r in store.csp_reports(conn)]
     return {"mode": "enforce" if csp_enforcing() else "report_only", "rows": rows, "total": sum(r["count"] for r in rows),
             "policy": {"enforced": CSP_STRICT if csp_enforcing() else CSP, "report_only": None if csp_enforcing() else CSP_STRICT}}
 
@@ -512,7 +510,7 @@ def list_csp_reports(principal: Principal = Depends(current_principal_ro), conn:
 @router.delete("/csp-reports")
 def clear_csp_reports(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
-    n = conn.execute("DELETE FROM csp_reports").rowcount
+    n = store.clear_csp_reports(conn)
     audit(conn, actor=principal, action="remote.csp_reports_cleared", decision="allowed", resource_type="installation", resource_id="*",
           request_id=_rid(request), details={"rows": n})
     return {"cleared": n}

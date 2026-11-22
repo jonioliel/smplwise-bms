@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
+from ..services import frigate_control_store as store
 from ..services import frigate_control_svc as svc
 from ..services.access import camera_allowed, require_camera
 from ..services.recorders import frigate_control as fc
@@ -141,7 +142,7 @@ def set_feature(recorder_id: str, camera_id: str, feature: str, body: SwitchIn, 
     """Switch ONE feature of ONE camera (never all cameras). Recording-affecting features (`enabled`, `recordings`, `snapshots`) need
     `confirm: true`; footage is not kept while recording is off."""
     fc.feature_class(feature)
-    row = conn.execute("SELECT * FROM cameras WHERE id = ? AND recorder_id = ?", (camera_id, recorder_id)).fetchone()
+    row = store.recorder_camera(conn, camera_id, recorder_id)
     cls = fc.feature_class(feature)
     require_camera(conn, principal, camera_id, svc.PERMISSION[cls])  # 403 before 404
     if row is None:

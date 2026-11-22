@@ -39,6 +39,8 @@ from ..services.timeutil import iso_utc, parse_utc
 from ._common import rid as _rid
 from ..services.settings_store import setting_value
 from ..test_reset import register_reset
+from ..wire import notifications as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -75,7 +77,7 @@ def _expected_revision(if_match: str | None, body_revision: Any) -> int | None:
 
 # ================================================================ every signed-in user
 
-@router.get("/notifications")
+@router.get("/notifications", **wire(W.NotificationPage))
 def list_notifications(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
                        state: Literal["open", "all"] = "all", category: str | None = Query(None, max_length=32), severity_min: Literal["info", "alert", "critical"] | None = None,
                        unread: bool = False, before: str | None = Query(None, max_length=40), limit: int = Query(50, ge=1, le=200)) -> dict[str, Any]:
@@ -90,14 +92,14 @@ def list_notifications(request: Request, principal: Principal = Depends(current_
     return notify.list_for(conn, principal, state=state, category=category, severity_min=severity_min, unread=unread, before=before, limit=limit, data_dir=settings_of(request).data_dir)
 
 
-@router.get("/notifications/summary")
+@router.get("/notifications/summary", **wire(W.NotificationSummary))
 def notifications_summary(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """`{unread, open_critical, by_category}` - the user-menu chip and the avatar dot (visible rows only) - plus what the center needs from the
     installation's settings, which only an administrator may read: `center_layout` (sheet | page) and `quiet_active` / `quiet_until`."""
     return {**notify.summary(conn, principal), **notify.center_state(conn, _tz(conn))}
 
 
-@router.post("/notifications/read-all")
+@router.post("/notifications/read-all", **wire(W.NotificationsReadAll))
 def read_all(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     n = notify.read_all(conn, principal)
     return {"marked": n, **notify.summary(conn, principal)}
@@ -109,7 +111,7 @@ class SnoozeIn(BaseModel):
     minutes: Literal[60, "until_morning"]
 
 
-@router.get("/notifications/deliveries")
+@router.get("/notifications/deliveries", **wire(W.NotifyDeliveryList))
 def my_deliveries(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), notification_id: str | None = Query(None, max_length=64)) -> dict[str, Any]:
     """The caller's OWN delivery rows (what was sent to their devices, what was held back and why)."""
     rows = store.own_deliveries(conn, principal.user_id, notification_id)
@@ -126,7 +128,7 @@ def my_deliveries(principal: Principal = Depends(current_principal_ro), conn: sq
     return {"deliveries": out[:200]}
 
 
-@router.post("/notifications/test")
+@router.post("/notifications/test", **wire(W.PushTestAnswer))
 def test_notification(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A test push to the caller's own registered devices (3 per minute per user, the same bucket as /push/test)."""
     if not push_svc.take_token(principal.user_id, "test"):
@@ -187,7 +189,7 @@ def _remote_gate(request: Request) -> Principal | None:
     return resolve_remote_first(request)
 
 
-@router.post("/notifications/action")
+@router.post("/notifications/action", **wire(W.PushActionAnswer))
 def push_action(request: Request, session: Principal | None = Depends(_remote_gate), body: ActionIn = Body(...)) -> dict[str, Any]:
     """A push button (ack / snooze) pressed from the service worker. The single-use token is the credential (plus, on the remote channel, a live
     Arx session of THE SAME user). It is bound to (notification, user, action), expires with the push, and is re-checked against the user's
@@ -223,13 +225,13 @@ def _row_or_404(conn: sqlite3.Connection, principal: Principal, nid: str):
     return got
 
 
-@router.get("/notifications/{nid}")
+@router.get("/notifications/{nid}", **wire(W.Notification))
 def get_notification(nid: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     row, rec, reach = _row_or_404(conn, principal, nid)
     return notify.serialize(conn, row, principal, reach, rec, settings_of(request).data_dir)
 
 
-@router.post("/notifications/{nid}/read")
+@router.post("/notifications/{nid}/read", **wire(W.Notification))
 def mark_read(nid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     if not notify.mark_read(conn, principal, nid):
         raise _not_found()
@@ -237,7 +239,7 @@ def mark_read(nid: str, request: Request, principal: Principal = Depends(current
     return notify.serialize(conn, row, principal, reach, rec, settings_of(request).data_dir)
 
 
-@router.post("/notifications/{nid}/snooze")
+@router.post("/notifications/{nid}/snooze", **wire(W.Notification))
 def snooze(nid: str, body: SnoozeIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Snooze for the caller only: 60 minutes, or "until_morning" (the next end of the quiet window, in the installation zone). Answers the updated row."""
     until = notify.snooze(conn, principal, nid, body.minutes, _tz(conn))
@@ -247,7 +249,7 @@ def snooze(nid: str, body: SnoozeIn, request: Request, principal: Principal = De
     return notify.serialize(conn, row, principal, reach, rec, settings_of(request).data_dir)
 
 
-@router.post("/notifications/{nid}/ack")
+@router.post("/notifications/{nid}/ack", **wire(W.Notification))
 def ack(nid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Acknowledge (shared): stops escalation, audited `notify.ack`. 403 `ack_not_allowed` unless the caller's `can_ack`."""
     result = notify.acknowledge(conn, principal, nid)
@@ -295,13 +297,13 @@ def _delivery(conn: sqlite3.Connection, r: sqlite3.Row, with_user: bool = True) 
     return d
 
 
-@router.get("/notify/settings")
+@router.get("/notify/settings", **wire(W.NotifySettings))
 def get_settings(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _manager(conn, principal)
     return nsettings.load(conn, settings_of(request))
 
 
-@router.put("/notify/settings")
+@router.put("/notify/settings", **wire(W.NotifySettings))
 def put_settings(request: Request, body: dict[str, Any] = Body(...), if_match: str | None = Header(None), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Quiet hours and the pass-through matrix, escalation, lock-screen level, retention, the reserved Companion flag. A full GET body may be
     sent back as it is (the read-only fields - email, updated_at - are ignored; the mail block has its own route). With a revision (If-Match
@@ -324,7 +326,7 @@ def _policy_view(p: dict[str, Any], audience: str = "admins") -> dict[str, Any]:
     return {**p, "label": policies.BY_KEY[p["source"]].label, "subject_kind": policies.BY_KEY[p["source"]].subject, "resolves": policies.BY_KEY[p["source"]].resolves}
 
 
-@router.get("/notify/policies")
+@router.get("/notify/policies", **wire(W.NotifyPolicyList))
 def list_policies(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _manager(conn, principal)
     audience = nsettings.failures_audience(conn)
@@ -332,7 +334,7 @@ def list_policies(principal: Principal = Depends(current_principal_ro), conn: sq
             "recipient_rules": list(policies.RECIPIENT_RULES)}
 
 
-@router.get("/notify/policies/{source}")
+@router.get("/notify/policies/{source}", **wire(W.NotifyPolicy))
 def get_policy(source: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _manager(conn, principal)
     p = policies.get_policy(conn, source)
@@ -341,7 +343,7 @@ def get_policy(source: str, principal: Principal = Depends(current_principal_ro)
     return _policy_view(p, nsettings.failures_audience(conn))
 
 
-@router.put("/notify/policies/{source}")
+@router.put("/notify/policies/{source}", **wire(W.NotifyPolicy))
 def put_policy(source: str, request: Request, body: dict[str, Any] = Body(...), if_match: str | None = Header(None), principal: Principal = Depends(current_principal),
                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Change one source's policy (enabled, severity, category, how long the condition must hold, fold window, resolve notice, recipients,
@@ -366,14 +368,14 @@ def put_policy(source: str, request: Request, body: dict[str, Any] = Body(...), 
     return _policy_view(policies.get_policy(conn, source), nsettings.failures_audience(conn))  # type: ignore[arg-type]
 
 
-@router.get("/notify/email")
+@router.get("/notify/email", **wire(W.EmailSettingsView))
 def get_email(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The outgoing-mail block of the settings: host / port / security / user / from / recipients / last test and `password_set` - never the password."""
     _manager(conn, principal)
     return email_svc.email_view(conn, settings_of(request).data_dir)
 
 
-@router.put("/notify/email")
+@router.put("/notify/email", **wire(W.EmailSettingsView))
 def put_email(request: Request, body: dict[str, Any] = Body(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Outgoing mail: host, port, security (starttls | tls | none), user, from, recipients (1-10 addresses) and the password. The password is
     WRITE-ONLY: omitted or empty = unchanged; it goes to <data>/secrets/notify_email (mode 600) and the answer only says `password_set`. 422
@@ -395,7 +397,7 @@ EMAIL_TEST_MESSAGES = {
 }
 
 
-@router.post("/notify/email/test")
+@router.post("/notify/email/test", **wire(W.EmailTestAnswer))
 def test_email(request: Request, body: dict[str, Any] | None = Body(None), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Any:
     """Send one test mail through the real code path to each configured recipient (or, with `{"to": <one of them>}`, only to that one), 3 a minute.
     `{ok, detail, message, delivered, total}`: `detail` is `ok` or the failure class (dns, connect, tls, auth, refused, timeout) - never a
@@ -422,7 +424,7 @@ def test_email(request: Request, body: dict[str, Any] | None = Body(None), princ
     return {"ok": ok, "detail": detail, "message": EMAIL_TEST_MESSAGES.get(detail, detail), "delivered": delivered, "total": total}
 
 
-@router.get("/notify/deliveries")
+@router.get("/notify/deliveries", **wire(W.NotifyDeliveryList))
 def all_deliveries(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), status: str | None = Query(None, max_length=16),
                    channel: Literal["webpush", "email", "app", "announce", "whatsapp"] | None = None, since: str | None = Query(None, max_length=40), limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
     """Everyone's delivery log (masked targets): `status=failed` (or `failures`: failed and gone) for the failures panel."""
@@ -438,7 +440,7 @@ def all_deliveries(principal: Principal = Depends(current_principal_ro), conn: s
     return {"deliveries": [_delivery(conn, r) for r in rows]}
 
 
-@router.get("/notify/stats")
+@router.get("/notify/stats", **wire(W.NotifyStats))
 def stats(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Per-channel counters for the last 24 hours - `channels[<channel>] = {sent, failed, skipped: {<reason>: n}}` (failed counts failed and gone) -
     the push worker's own counters as `worker` (no endpoints, no ids), plus the notification volume `by_source` (what the settings tab's volume

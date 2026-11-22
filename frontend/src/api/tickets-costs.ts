@@ -13,6 +13,12 @@ import { dispositionName, saveBlob } from './download';
 import { isApi } from './session';
 import { mockCosts } from './tickets-costs-mock';
 import type { MessageDraft, QuoteBlock } from './tickets-quotes';
+import type * as Wire from './generated/wire-tickets-costs';
+
+/* The answers of routers/tickets_costs.py are the backend's response models (smplwise_vms/backend/smplwise/wire/tickets_costs.py), generated
+ * into ./generated/wire-tickets-costs.ts: a field the server renames, drops or retypes is a compile error here (code review 07:F8 step 2).
+ * The types below are the generated ones with the closed vocabularies narrowed (status, kind, mode: plain strings on the wire) and the
+ * documents the server passes through as stored (a revision's lines and exceptional lines, a quote's lines) typed by hand. */
 
 export type CostMode = 'required' | 'optional' | 'off';
 export type CostStatus = 'not_required' | 'awaiting' | 'submitted' | 'rejected' | 'approved' | 'paid';
@@ -25,13 +31,8 @@ export const LINE_KINDS: readonly LineKind[] = ['labor', 'parts', 'travel', 'oth
 export const CURRENCIES: readonly string[] = ['ILS', 'USD', 'EUR', 'GBP', 'CHF', 'CAD', 'AUD'];
 
 /** `GET tickets/{id}` › `cost`: the chip for everyone who sees the ticket; the rest only with tickets.costs.view on its place. */
-export interface TicketCostBlock {
+export interface TicketCostBlock extends Omit<Wire.TicketCostBlock, 'status'> {
   status: CostStatus;
-  can_view: boolean;
-  total_minor?: number | null;
-  currency?: string | null;
-  can_decide?: boolean;
-  can_set_requirement?: boolean;
 }
 
 /** A stored line of a revision (the server's `Line.as_json`). */
@@ -52,37 +53,21 @@ export type LineInput =
   | { kind: 'parts'; description: string; quantity: string; unit_price: string }
   | { kind: 'travel' | 'other'; description?: string; amount: string };
 
-interface CostPage { id: string; kind: 'photo' | 'pdf'; bytes: number; name: string; width?: number | null; height?: number | null }
-export interface CostDocument { no: number; kind: 'photo' | 'pdf'; pages: CostPage[] }
+interface CostPage extends Omit<Wire.CostPage, 'kind' | 'width' | 'height'> { kind: 'photo' | 'pdf'; width?: number | null; height?: number | null }
+export interface CostDocument extends Omit<Wire.CostDocument, 'kind' | 'pages'> { kind: 'photo' | 'pdf'; pages: CostPage[] }
 
-export interface CostRevision {
-  id: string;
-  seq: number;
+export interface CostRevision extends Omit<Wire.CostRevision, 'source' | 'kind' | 'lines' | 'vat_mode' | 'documents' | 'exceptional' | 'basis' | 'created_by_kind' | 'created_by_name'> {
   source: 'vendor' | 'manager';
   kind: 'submission' | 'adjustment' | 'on_behalf';
-  based_on: string | null;
-  no_charge: boolean;
   lines: StoredLine[];
-  labor_minor: number;
-  parts_minor: number;
-  travel_minor: number;
-  other_minor: number;
-  subtotal_minor: number;
   vat_mode: VatMode;
-  vat_rate_bp: number;
-  vat_minor: number;
-  net_minor: number;
-  total_minor: number;
-  currency: string;
-  vendor_ref: string | null;
-  notes: string | null;
-  reason?: string | null;
-  created_at: string;
   created_by_kind?: 'contact' | 'user';
   created_by_name?: string;
   documents: CostDocument[];
   /** TKDETAILBE (contract 5.2): the lines of this revision outside the baseline (or outside the allowed kinds without one) */
   exceptional?: ExceptionalLine[];
+  /** CR-CLAIM-PREFILL: what the demand was compared with (always sent; optional for the demo store) */
+  basis?: Record<string, unknown> | null;
 }
 
 /** TKDETAILBE (5.2): an exceptional line of a payment demand - `not_in_quote` against a baseline, `kind_not_allowed` without one. */
@@ -96,61 +81,25 @@ export interface ExceptionalLine {
 }
 
 /** TKDETAILBE (5.2): the approved quote a payment demand was validated against. */
-interface ClaimBaseline { quote_id: string; version: number; total_minor: number | null; currency: string; state?: string; subtotal_minor?: number | null; line_kinds?: LineKind[] }
+interface ClaimBaseline extends Omit<Wire.ClaimBaseline, 'state' | 'subtotal_minor' | 'line_kinds'> { state?: string; subtotal_minor?: number | null; line_kinds?: LineKind[] }
 
 type DecisionAction = 'approve' | 'adjust' | 'reject' | 'mark_paid' | 'unmark_paid' | 'reopen_window' | 'override_close' | 'superseded' | 'requirement';
-export interface CostDecision {
-  id: string;
+export interface CostDecision extends Omit<Wire.CostDecision, 'action' | 'internal_note'> {
   action: DecisionAction;
-  revision_id: string | null;
-  reason: string | null;
-  amount_minor: number | null;
-  payment_ref: string | null;
-  /** the deciding user's name ('' for a vendor's own supersede) */
-  by: string;
-  at: string;
+  /** TKFIX260: the manager's internal note (always sent; optional for the demo store) */
+  internal_note?: string | null;
 }
 
 /** One claim (one per external assignment). Without tickets.costs.view only the first block of fields arrives. */
-export interface CostClaim {
-  id: string;
-  assignment_id: string;
+export interface CostClaim extends Omit<Wire.CostClaim, 'status' | 'revisions' | 'decisions' | 'baseline' | 'kind_deltas' | 'quote_check'> {
   status: ClaimStatus;
-  required: boolean;
-  claim_until: string | null;
-  window_open: boolean;
-  missing: boolean;
-  revision?: number;
-  currency?: string;
-  no_charge?: boolean;
-  current_revision_id?: string | null;
-  approved_revision_id?: string | null;
-  approved_total_minor?: number | null;
-  approved_at?: string | null;
-  approved_by?: string | null;
-  paid_at?: string | null;
-  payment_ref?: string | null;
-  payment_date?: string | null;
-  /** the approved total once approved / paid, else the current revision's */
-  total_minor?: number | null;
-  high_amount?: boolean;
-  vendor?: string;
-  contact_name?: string;
-  labor_rate_minor?: number | null;
-  rate_currency?: string | null;
-  vat_exempt?: boolean;
-  reopen_used?: boolean;
   revisions?: CostRevision[];
   decisions?: CostDecision[];
   /** TKDETAILBE (5.2, full view): the baseline, the difference from it (same currency only) and whether exceptional lines wait */
   baseline?: ClaimBaseline | null;
-  delta_minor?: number | null;
   kind_deltas?: Record<LineKind, number> | null;
-  needs_review?: boolean;
   /** CR-CLAIM-PREFILL (full view): the demand against the approved quote or the instalment it named - flags only, never a refusal */
   quote_check?: QuoteCheck | null;
-  /** CR-CLAIM-PREFILL (0117): the instalment this claim demands (one claim per instalment), else null */
-  instalment_index?: number | null;
 }
 
 type QuoteCheckFlag = 'above_quote' | 'below_quote' | 'lines_differ' | 'currency';
@@ -168,12 +117,8 @@ interface QuoteCheck {
   above_reason: string | null;
 }
 
-interface CostSettingsBrief { currencies: string[]; vat_rate_bp: number; review_flag_above_minor: number; max_claim_total_minor: number; require_invoice: boolean }
-export interface ExternalAssignment {
-  id: string;
-  name: string;
-  assigned_at: string;
-  ended_at: string | null;
+type CostSettingsBrief = Wire.CostSettingsBrief;
+export interface ExternalAssignment extends Omit<Wire.CostExternalAssignment, 'cost_claim' | 'quote_mode' | 'quote_capable'> {
   cost_claim: CostMode | null;
   /** TKDETAILBE: the quote requirement of the assignment (null on an older server = optional) */
   quote_mode?: CostMode | null;
@@ -182,9 +127,7 @@ export interface ExternalAssignment {
 }
 
 /** `GET tickets/{id}/costs` (and the answer of every cost write). */
-export interface TicketCosts {
-  ticket_id: string;
-  number: number;
+export interface TicketCosts extends Pick<Wire.TicketCosts, 'ticket_id' | 'number'> {
   cost: TicketCostBlock;
   claims: CostClaim[];
   settings?: CostSettingsBrief;
@@ -194,18 +137,9 @@ export interface TicketCosts {
 }
 
 /** HARDEN271 + COSTINST: one instalment of the award's payment schedule as the work order's Costs tab lists it (`none` = no demand yet). */
-export interface InstalmentDemandRow {
-  id: string;
-  index: number;
+export interface InstalmentDemandRow extends Omit<Wire.InstalmentDemandRow, 'kind' | 'status' | 'award_id' | 'rfq_id' | 'timing' | 'can_pay' | 'moved'> {
   kind: 'advance' | 'progress' | 'final';
   status: 'none' | 'open' | 'paid' | 'cancelled';
-  /** null / absent without tickets.costs.view: dates and status only (owner decision 2026-10-19) */
-  amount_minor: number | null;
-  currency: string | null;
-  due_date: string | null;
-  created_at: string | null;
-  paid_at: string | null;
-  cancelled_at: string | null;
   /** COSTINST (absent on an older server): the award / request the "mark paid" route needs, where the instalment stands, and whether
    * this viewer may mark it paid (the dashboard payments card's rule) */
   award_id?: string | null;
@@ -247,7 +181,7 @@ export interface OnBehalfBody {
   no_charge?: boolean;
   documents: { file_ids: string[] }[];
 }
-export interface PendingFile { id: string; kind: 'photo' | 'pdf'; bytes: number; width: number | null; height: number | null }
+export interface PendingFile extends Omit<Wire.PendingCostFile, 'kind'> { kind: 'photo' | 'pdf' }
 
 // ---------------------------------------------------------------- the report (11A.9)
 
@@ -255,63 +189,24 @@ type ReportGroupBy = 'vendor' | 'department' | 'device' | 'room' | 'month';
 export type ReportStatus = 'submitted' | 'approved' | 'paid';
 /** `vendor` (the vendor grouping's key) and `department` (an id): TK258's filters, also taken by the report and the export. */
 export interface ReportQuery { group_by: ReportGroupBy; from?: string; to?: string; status?: ReportStatus[]; currency?: string; vendor?: string; department?: string }
-export interface ReportGroupRow {
-  key: string;
-  label: string;
-  currency: string;
-  approved_minor: number;
-  pending_minor: number;
-  claims: number;
-  tickets: number;
-  labor_minor: number;
-  parts_minor: number;
-  travel_minor: number;
-  other_minor: number;
-}
-export interface ReportTotal { currency: string; approved_minor: number; pending_minor: number; claims: number; tickets: number }
-export interface CostReport { group_by: ReportGroupBy; groups: ReportGroupRow[]; totals: ReportTotal[]; claims: number }
+export type ReportGroupRow = Wire.CostReportGroup;
+export type ReportTotal = Wire.CostReportTotal;
+export interface CostReport extends Omit<Wire.CostReport, 'group_by'> { group_by: ReportGroupBy }
 
 // ---------------------------------------------------------------- TK258: the vendors account ("חשבון ספקים")
 
 /** One claim of `GET tickets/costs/claims`: the counted amount in ITS currency (approved total once approved / paid). */
-export interface AccountClaim {
-  claim_id: string;
-  ticket_id: string | null;
-  number: number | null;
-  title: string;
-  department_id: string;
-  department: string;
-  vendor_key: string;
-  vendor: string;
+export interface AccountClaim extends Omit<Wire.AccountClaim, 'status'> {
   status: ReportStatus;
-  currency: string;
-  amount_minor: number;
-  /** the claim's optimistic revision (sent back with "mark as paid") */
-  revision: number;
-  submitted_at: string | null;
-  approved_at: string | null;
-  paid_at: string | null;
-  payment_date: string | null;
-  payment_ref: string | null;
-  period_at: string | null;
-  can_mark_paid: boolean;
 }
-export interface AccountClaims {
+export interface AccountClaims extends Omit<Wire.AccountClaims, 'rows'> {
   rows: AccountClaim[];
-  truncated: boolean;
-  vendors: { key: string; label: string }[];
-  departments: { id: string; name: string }[];
-  /** tickets.costs anywhere (the bulk action is offered at all) */
-  can_mark_paid: boolean;
 }
 export type AccountQuery = Omit<ReportQuery, 'group_by'>;
 export interface BulkPaidItem { ticket_id: string; claim_id: string; revision?: number }
 export type BulkPaidResult = 'paid' | 'already_paid' | 'not_found' | 'forbidden' | 'not_approved' | 'stale';
-export interface BulkPaidAnswer {
-  results: { ticket_id: string; claim_id: string; number?: number; result: BulkPaidResult; revision?: number }[];
-  paid: number;
-  already_paid: number;
-  failed: number;
+export interface BulkPaidAnswer extends Omit<Wire.BulkPaidAnswer, 'results'> {
+  results: (Omit<Wire.BulkPaidResult, 'result'> & { result: BulkPaidResult })[];
 }
 
 // ---------------------------------------------------------------- settings (11A.14) and department defaults (11A.1)
@@ -329,17 +224,15 @@ export interface CostsSettings {
   allowed_line_kinds?: LineKind[];
 }
 export interface CostsSettingsDoc { revision: number; costs: CostsSettings }
-export interface DepartmentCosts {
-  id: string;
-  key: string;
-  name: string;
-  active: boolean;
+export interface DepartmentCosts extends Omit<Wire.DepartmentCosts, 'active' | 'cost_claim' | 'allowed_line_kinds'> {
+  /** the stored 0 / 1 on the wire (the demo store says true / false); read as a truth value only */
+  active: number | boolean;
   cost_claim: CostMode | null;
   claim_window_days: number | null;
   /** TKDETAILBE: the department's allowed cost line kinds; null = the installation default */
   allowed_line_kinds?: LineKind[] | null;
 }
-export interface DepartmentCostsAnswer { departments: DepartmentCosts[]; installation: { mode: CostMode; claim_window_days: number; allowed_line_kinds?: LineKind[] } }
+export interface DepartmentCostsAnswer { departments: DepartmentCosts[]; installation: Omit<Wire.DepartmentCostsInstallation, 'mode' | 'allowed_line_kinds'> & { mode: CostMode; allowed_line_kinds?: LineKind[] } }
 /** `PUT tickets/costs/departments/{id}`: the requirement and window are always written (null = the installation's); the kinds only when sent. */
 export interface DepartmentCostsBody { cost_claim: CostMode | null; claim_window_days: number | null; allowed_line_kinds?: LineKind[] | null }
 
