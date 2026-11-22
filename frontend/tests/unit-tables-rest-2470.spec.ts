@@ -49,7 +49,7 @@ test.describe('CR-CMP2-TABLES-REST-2470: the moved tables', () => {
 
   test('the role matrix is the shared sw-table.set-matrix: never wider than its card, the tick and the dash through parts', () => {
     const st = read('styles/settings.ts');
-    expect(st).toMatch(/sw-table\.set-matrix \{\s*--sw-table-min: 0;\s*--sw-table-fs: var\(--sw-fs-base\);\s*--sw-table-cell-pad: 10px 8px;/);
+    expect(st).toMatch(/sw-table\.set-matrix \{\s*--sw-table-min: 0;\s*--sw-table-fs: var\(--sw-fs-base\);\s*(?:\/\*[\s\S]*?\*\/\s*)?--sw-table-cell-pad: 10px clamp\(var\(--sw-s-1\), 1vw, var\(--sw-s-2\)\);/);
     expect(st).toMatch(/sw-table\.set-matrix::part\(yes\) \{\s*color: var\(--sw-success-text\);/);
     expect(st).toMatch(/sw-table\.set-matrix::part\(no\) \{\s*color: var\(--sw-text-3\);/);
     expect(st).not.toMatch(/(?<![-\w])table\.set-matrix \{|\.set-matrix (th|td)\b/); // the hand-built table rules are gone
