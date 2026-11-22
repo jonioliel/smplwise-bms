@@ -393,6 +393,8 @@ const SEG_INVENTORY: [file: string, chosen: string][] = [
   // with it now (where a screen kept a dark pill its knobs read --sw-seg-key / --sw-seg-key-ink); elevators/elevator-settings and
   // screens/explore-presence no longer interpolate segThumbPlainStyles; home-screen-options, home-edit-panel / -bv1 and the
   // one-of-N choices of shell/sw-home-personal moved too
+  // CR-HOME-V3-SEGMENTS-2470: screens/home-widgets (the edit bar's size choice) draws it too and no longer interpolates
+  // segThumbPlainStyles (its knobs keep the key-ink chosen label); the home v3 screen's keys read the home --hs-* tokens (outside this lint)
   ['components/sw-segmented.ts', ".seg button[aria-pressed='true']"],
   ['styles/fragments.ts', ".seg button[aria-pressed='true']"],
   ['styles/settings.ts', ".seg button[aria-selected='true']"],
