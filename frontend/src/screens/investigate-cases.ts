@@ -460,7 +460,7 @@ export class InvestigateCaseDetail extends LitElement {
        scrolls (a phone). */
     :host {
       /* COLOR-LITERAL-A-2480: the ink shadow of the text on the video, written once (the same literal) */
-      --ic-ink-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      --ic-ink-shadow: 0 1px 2px color-mix(in srgb, var(--sw-video-shadow-ink) 60%, transparent);
       display: flex;
       flex-direction: column;
       min-block-size: 0;

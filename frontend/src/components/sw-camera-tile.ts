@@ -142,7 +142,7 @@ export class SwCameraTile extends LitElement {
       isolation: isolate;
       outline: none;
       /* COLOR-LITERAL-A-2480: the stamp / meta ink shadow, written once (the same literal) */
-      --ct-ink-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      --ct-ink-shadow: 0 1px 2px color-mix(in srgb, var(--sw-video-shadow-ink) 60%, transparent);
     }
     /* R5-LIVE-297 (mobile-native, emil press): the lift follows a hovering pointer only (a tapped tile kept it on a phone), and a
        tile answers the pointer-down at once - it sinks a step, the shadow drops */

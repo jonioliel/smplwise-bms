@@ -62,8 +62,13 @@ def _not_design_or_data(rel: str) -> bool:
     return not (rel.startswith("design/") or rel.startswith("fixtures/") or rel.endswith("-mock.ts"))
 
 
+def _colour_counted(rel: str) -> bool:
+    # styles/devices-palettes.ts is the device palettes data file (owner Q24, 2026-11-22): its colours are the palette values themselves
+    return _not_design_or_data(rel) and rel != "styles/devices-palettes.ts"
+
+
 METRICS: dict[str, tuple[re.Pattern[str] | None, Callable[[str], bool], str]] = {
-    "color-literal": (None, _not_design_or_data, "hex / rgb() / hsl() colour outside src/design (use a --sw-* token)"),
+    "color-literal": (None, _colour_counted, "hex / rgb() / hsl() colour outside src/design (use a --sw-* token)"),
     "px-literal": (_PX, _not_design_or_data, "px value outside src/design (use a size / spacing token)"),
     "undefined-token": (None, lambda rel: True, "var(--sw-x) without a fallback where --sw-x is defined nowhere"),
     "native-dialog": (_NATIVE_DIALOG, lambda rel: True, "window.confirm / alert / prompt (use sw-dialog)"),

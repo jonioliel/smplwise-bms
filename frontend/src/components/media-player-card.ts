@@ -235,7 +235,7 @@ export class MediaPlayerCard extends LitElement {
       font-size: var(--sw-fs-2xs);
       font-weight: 700;
       color: var(--sw-on-video);
-      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+      text-shadow: 0 1px 4px color-mix(in srgb, var(--sw-video-shadow-ink) 40%, transparent);
     }
     .cov .live i {
       inline-size: 6px;

@@ -247,7 +247,7 @@ export class InvestigateEventDetail extends LitElement {
       inset-inline-end: 12px;
       inset-block-end: 12px;
       color: var(--sw-on-video);
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      text-shadow: 0 1px 2px color-mix(in srgb, var(--sw-video-shadow-ink) 60%, transparent);
       font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-semibold);
       overflow-wrap: anywhere;

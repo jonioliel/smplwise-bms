@@ -175,7 +175,7 @@ export class MediaScreenCard extends LitElement {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      text-shadow: 0 1px 8px rgba(0, 0, 0, 0.3);
+      text-shadow: 0 1px 8px color-mix(in srgb, var(--sw-video-shadow-ink) 30%, transparent);
     }
     .shot .ov small {
       font-size: var(--sw-fs-sm);

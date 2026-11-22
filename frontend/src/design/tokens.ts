@@ -369,6 +369,7 @@ export const TOKEN_GROUPS: TokenGroup[] = [
     tokens: {
       '--sw-on-video': same('#ffffff'), // text and icons over video
       '--sw-on-video-2': same('rgba(255, 255, 255, 0.72)'), // secondary text over video
+      '--sw-video-shadow-ink': same('#000000'), // the ink of a text shadow drawn over video (used with color-mix for its alpha)
       '--sw-video-scrim': same('rgba(0, 0, 0, 0.55)'), // a HUD pill's backdrop
       '--sw-video-scrim-strong': same('rgba(0, 0, 0, 0.72)'), // a HUD panel's backdrop (controls bar, the error card)
       '--sw-video-line': same('rgba(255, 255, 255, 0.18)'), // a hairline on video (tile borders, dividers in the HUD)

@@ -301,7 +301,7 @@ export class DevicesCameraCard extends LitElement {
       color: var(--sw-on-video);
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-semibold);
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      text-shadow: 0 1px 2px color-mix(in srgb, var(--sw-video-shadow-ink) 60%, transparent);
     }
     .shade {
       position: absolute;
