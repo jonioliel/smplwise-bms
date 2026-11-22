@@ -91,8 +91,8 @@ export class MediaPlayerCard extends LitElement {
       inset: -35%;
       filter: blur(var(--mm-art-glow-blur)) saturate(1.5);
       opacity: var(--mm-art-glow-alpha);
-      -webkit-mask-image: linear-gradient(180deg, #000 22%, transparent 88%);
-      mask-image: linear-gradient(180deg, #000 22%, transparent 88%);
+      -webkit-mask-image: var(--mm-fade-art);
+      mask-image: var(--mm-fade-art);
     }
     .gbox::after {
       content: '';
@@ -213,7 +213,7 @@ export class MediaPlayerCard extends LitElement {
       inset-block-end: 6px;
       block-size: 3px;
       border-radius: var(--sw-r-pill);
-      background: rgba(255, 255, 255, 0.25);
+      background: var(--mm-on-art-track);
       z-index: 3;
       overflow: hidden;
     }
@@ -255,7 +255,7 @@ export class MediaPlayerCard extends LitElement {
       inset: 0;
       display: grid;
       place-items: center;
-      background: rgba(0, 0, 0, 0.32);
+      background: var(--mm-on-art-pending);
       z-index: 4;
       -webkit-backdrop-filter: var(--sw-perf-blur, blur(3px));
       backdrop-filter: var(--sw-perf-blur, blur(3px));
@@ -264,7 +264,7 @@ export class MediaPlayerCard extends LitElement {
       inline-size: 26px;
       block-size: 26px;
       border-radius: 50%;
-      border: 3px solid rgba(255, 255, 255, 0.35);
+      border: 3px solid var(--mm-on-art-spinner);
       border-top-color: var(--sw-on-video);
       animation: mm-spin calc(var(--sw-t-med) * 4) linear infinite;
     }

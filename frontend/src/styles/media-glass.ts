@@ -42,6 +42,16 @@ export const MEDIA_KNOBS: Record<string, string> = {
 };
 
 export const mediaGlassKnobs = css`
+  /* COLOR-LITERAL-A-2480: fixed values the media sheets repeated, written once (the same literals, not themed, not scheme-dependent):
+     the fade masks of the art glow and of the scrolling chip rows, and the ink of the progress track / pending veil / spinner drawn
+     ON the cover art. On every host that carries mediaGlassStyles, whatever its style attribute. */
+  :host {
+    --mm-fade-art: linear-gradient(180deg, #000 22%, transparent 88%);
+    --mm-fade-row: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
+    --mm-on-art-track: rgba(255, 255, 255, 0.25);
+    --mm-on-art-pending: rgba(0, 0, 0, 0.32);
+    --mm-on-art-spinner: rgba(255, 255, 255, 0.35);
+  }
   :host([data-devices-style='glass']) {
     --mm-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0) 46%);
     --mm-accent-glow: rgba(0, 122, 255, 0.3);

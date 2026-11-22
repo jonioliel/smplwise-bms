@@ -35,7 +35,7 @@ export class MediaNowHero extends LitElement {
       isolation: isolate;
       overflow: hidden;
       border-radius: var(--sw-r-xl);
-      background: linear-gradient(135deg, var(--a1, #111827), var(--a2, #3f4a5c));
+      background: linear-gradient(135deg, var(--a1), var(--a2));
       color: var(--sw-text);
       container-type: inline-size;
     }
@@ -71,7 +71,7 @@ export class MediaNowHero extends LitElement {
       border-radius: var(--sw-r-lg);
       overflow: hidden;
       position: relative;
-      background: linear-gradient(135deg, var(--a1, #111827), var(--a2, #3f4a5c));
+      background: linear-gradient(135deg, var(--a1), var(--a2));
       display: grid;
       place-items: center;
       color: var(--sw-on-video);

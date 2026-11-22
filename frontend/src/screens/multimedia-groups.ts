@@ -115,8 +115,8 @@ export class MultimediaGroups extends MediaScreenBase<PlayerStatus, PlayerDevice
       inset: -35%;
       filter: blur(var(--mm-art-glow-blur)) saturate(1.5);
       opacity: var(--mm-art-glow-alpha);
-      -webkit-mask-image: linear-gradient(180deg, #000 22%, transparent 88%);
-      mask-image: linear-gradient(180deg, #000 22%, transparent 88%);
+      -webkit-mask-image: var(--mm-fade-art);
+      mask-image: var(--mm-fade-art);
     }
     .gbox::after {
       content: '';

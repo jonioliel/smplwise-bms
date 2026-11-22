@@ -248,7 +248,7 @@ export const remoteStyles = css`
     block-size: 64px;
     border-radius: 15px;
     overflow: hidden;
-    color: #fff;
+    color: var(--sw-on-video);
     background: var(--mr-screen-off);
     box-shadow: 0 8px 20px rgb(var(--art, 20 24 34) / 0.35);
     display: grid;
@@ -494,7 +494,7 @@ export const remoteStyles = css`
     inline-size: 26px;
     block-size: 26px;
     border-radius: 50%;
-    background: #fff;
+    background: var(--sw-toggle-thumb);
     margin-block-start: -9px;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
   }
@@ -503,7 +503,7 @@ export const remoteStyles = css`
     block-size: 26px;
     border: 0;
     border-radius: 50%;
-    background: #fff;
+    background: var(--sw-toggle-thumb);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
   }
   .rng:focus-visible {
@@ -556,7 +556,7 @@ export const remoteStyles = css`
     position: relative;
     display: grid;
     place-items: center;
-    color: #fff;
+    color: var(--sw-on-video);
     background: linear-gradient(135deg, var(--a1), var(--a2));
     flex: none;
     overflow: hidden;
