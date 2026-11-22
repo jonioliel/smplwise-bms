@@ -10,6 +10,7 @@ import { eventDuration, eventText, eventValue, heldText, hhmm } from './model';
 import { tempCss } from './styles';
 import { tt, ttLang } from '../i18n/temperature';
 import { dayMonthText } from '../api/day-format';
+import '../components/sw-field';
 
 const PAGE = 200;
 
@@ -125,15 +126,15 @@ export class TempLog extends LitElement {
         </div></div>
       <div class="tcard">
         <div class="filters">
-          <select aria-label=${tt('colUnit')} data-f="unit" @change=${(e: Event) => this.set({ unit: (e.target as HTMLSelectElement).value || undefined })}>
-            <option value="">${tt('allUnits')}</option>${this.units.map((u) => html`<option value=${u.id} ?selected=${this.q.unit === u.id}>${u.name}</option>`)}</select>
-          <select aria-label=${tt('colEvent')} data-f="kind" @change=${(e: Event) => this.set({ kind: (e.target as HTMLSelectElement).value || undefined })}>
+          <sw-field flow><select aria-label=${tt('colUnit')} data-f="unit" @change=${(e: Event) => this.set({ unit: (e.target as HTMLSelectElement).value || undefined })}>
+            <option value="">${tt('allUnits')}</option>${this.units.map((u) => html`<option value=${u.id} ?selected=${this.q.unit === u.id}>${u.name}</option>`)}</select></sw-field>
+          <sw-field flow><select aria-label=${tt('colEvent')} data-f="kind" @change=${(e: Event) => this.set({ kind: (e.target as HTMLSelectElement).value || undefined })}>
             <option value="">${tt('allKinds')}</option><option value="temp">${tt('kTemp')}</option><option value="door">${tt('kDoor')}</option><option value="offline">${tt('kOffline')}</option>
-            <option value="defrost">${tt('kDefrost')}</option><option value="health">${tt('kHealth')}</option><option value="maint">${tt('maintBtn')}</option><option value="act">${tt('kAct')}</option></select>
-          <select aria-label=${tt('colSev')} data-f="severity" @change=${(e: Event) => this.set({ severity: (e.target as HTMLSelectElement).value || undefined })}>
-            <option value="">${tt('allSev')}</option><option value="alarm">${tt('sevAlarm')}</option><option value="warning">${tt('sevWarning')}</option><option value="info">${tt('sevInfo')}</option></select>
-          <select aria-label=${tt('colTime')} data-f="range" @change=${(e: Event) => this.set({ range: (e.target as HTMLSelectElement).value as RangeKey })}>
-            <option value="24h">${tt('rng24')}</option><option value="7d">${tt('rng7')}</option><option value="30d">${tt('rng30')}</option></select>
+            <option value="defrost">${tt('kDefrost')}</option><option value="health">${tt('kHealth')}</option><option value="maint">${tt('maintBtn')}</option><option value="act">${tt('kAct')}</option></select></sw-field>
+          <sw-field flow><select aria-label=${tt('colSev')} data-f="severity" @change=${(e: Event) => this.set({ severity: (e.target as HTMLSelectElement).value || undefined })}>
+            <option value="">${tt('allSev')}</option><option value="alarm">${tt('sevAlarm')}</option><option value="warning">${tt('sevWarning')}</option><option value="info">${tt('sevInfo')}</option></select></sw-field>
+          <sw-field flow><select aria-label=${tt('colTime')} data-f="range" @change=${(e: Event) => this.set({ range: (e.target as HTMLSelectElement).value as RangeKey })}>
+            <option value="24h">${tt('rng24')}</option><option value="7d">${tt('rng7')}</option><option value="30d">${tt('rng30')}</option></select></sw-field>
           <span class="sp"></span><span class="chip" data-tone="acc" data-temp-count>${tt('count', { n: this.total })}</span>
         </div>
         ${this.error ? html`<p class="err" role="alert">${this.error}</p>` : nothing}

@@ -26,6 +26,7 @@ import { SkinController } from '../design/skin';
 import { dateInputLang } from '../api/day-format';
 import { tr } from '../i18n/msg/electricity';
 import { ltrStyles } from '../styles/fragments';
+import '../components/sw-field';
 
 export type ReadingsDialog = '' | 'reading' | 'calibrate' | 'undo-reading' | 'undo-calibration';
 export interface OpenDialogDetail {
@@ -410,8 +411,8 @@ export class ElecReadingDialogs extends LitElement {
           ${this.fieldMsg('when')}</div>
         <div class="fld"><label for="rv">${tr('קריאת המונה')}</label>
           <div class="inp ${this.fieldErrors.value ? 'err' : ''}"><input id="rv" data-reading-value inputmode="decimal" autocomplete="off" dir="ltr" .value=${this.value} @input=${(e: Event) => set('value', (e.target as HTMLInputElement).value)} />
-            <select data-reading-unit aria-label=${tr('יחידה')} @change=${(e: Event) => { this.unit = (e.target as HTMLSelectElement).value as ReadingUnit; this.schedule(); }}>
-              ${UNITS.map((u) => html`<option value=${u.id} ?selected=${u.id === this.unit}>${u.label}</option>`)}</select></div>
+            <sw-field flow><select data-reading-unit aria-label=${tr('יחידה')} @change=${(e: Event) => { this.unit = (e.target as HTMLSelectElement).value as ReadingUnit; this.schedule(); }}>
+              ${UNITS.map((u) => html`<option value=${u.id} ?selected=${u.id === this.unit}>${u.label}</option>`)}</select></sw-field></div>
           ${this.fieldMsg('value')}</div>
         <div class="fld wide"><label for="rn">${tr('הערה (לא חובה)')}</label><div class="inp"><input id="rn" data-reading-note maxlength="500" .value=${this.note} @input=${(e: Event) => set('note', (e.target as HTMLInputElement).value)} /></div></div>
         <div class="wide">${this.readingPreview()}</div>
@@ -445,8 +446,8 @@ export class ElecReadingDialogs extends LitElement {
             .options=${[{ value: 'anchor', label: tr('לפי קריאה ידנית'), disabled: !anchors.length, attrs: { 'data-cal-mode': 'anchor' } }, { value: 'offset', label: tr('הזנה ידנית'), attrs: { 'data-cal-mode': 'offset' } }]}></sw-segmented></div>
         ${this.mode === 'anchor'
           ? html`<div class="fld wide"><label for="ca">${tr('קריאה')}</label>
-              <div class="inp ${this.fieldErrors.anchor ? 'err' : ''}"><select id="ca" data-cal-anchor @change=${(e: Event) => set('anchor', (e.target as HTMLSelectElement).value)}>
-                ${anchors.map((r) => html`<option value=${r.id!} ?selected=${r.id === this.anchor}>${fmtDateTime(r.read_at)} · ${fmtReading(r.value_kwh)} ${tr('קוט״ש')}</option>`)}</select></div>
+              <div class="inp ${this.fieldErrors.anchor ? 'err' : ''}"><sw-field flow><select id="ca" data-cal-anchor @change=${(e: Event) => set('anchor', (e.target as HTMLSelectElement).value)}>
+                ${anchors.map((r) => html`<option value=${r.id!} ?selected=${r.id === this.anchor}>${fmtDateTime(r.read_at)} · ${fmtReading(r.value_kwh)} ${tr('קוט״ש')}</option>`)}</select></sw-field></div>
               ${this.fieldMsg('anchor')}</div>`
           : html`<div class="fld wide"><label for="co">${tr('הפרש (קוט״ש)')}</label>
               <div class="inp ${this.fieldErrors.offset ? 'err' : ''}"><input id="co" data-cal-offset inputmode="decimal" dir="ltr" .value=${this.offset} @input=${(e: Event) => set('offset', (e.target as HTMLInputElement).value)} /></div>

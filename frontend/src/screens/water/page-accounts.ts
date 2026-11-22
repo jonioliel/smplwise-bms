@@ -22,6 +22,7 @@ import { dateInputLang } from '../../api/day-format';
 import { toneOf } from '../../electricity/table-tones';
 import '../../components/sw-table';
 import type { TableColumn } from '../../components/sw-table';
+import '../../components/sw-field';
 
 const BASE = '/infra/water/accounts';
 /** CR-CMP2-TABLES-CONSUMPTION-2450: a chip carries the module class (cards, phone rows) and the shared `data-tone` (a `sw-table` cell). */
@@ -304,15 +305,15 @@ export class WaterAccountsPage extends LitElement {
       <div class="col">
         <div class="formgrid">
           ${this.fld('name', wt('accName'), html`<input id="wa-name" name="name" class=${this.errs.name ? 'err' : ''} .value=${f.name} @input=${(e: Event) => this.setF('name', (e.target as HTMLInputElement).value)} />`, true)}
-          ${this.fld('customer_id', wt('accCustomer'), html`<select id="wa-customer_id" name="customer_id" @change=${(e: Event) => this.setF('customer_id', (e.target as HTMLSelectElement).value)}><option value="" ?selected=${!f.customer_id}>${wt('accPickCustomer')}</option>${this.customers.map((c) => html`<option value=${c.id} ?selected=${c.id === f.customer_id}>${c.name} · ${c.customer_number}</option>`)}</select>`)}
-          ${this.fld('tariff_id', wt('accTariff'), html`<select id="wa-tariff_id" name="tariff_id" @change=${(e: Event) => this.setF('tariff_id', (e.target as HTMLSelectElement).value)}><option value="" ?selected=${!f.tariff_id}>-</option>${this.tariffs.map((t) => html`<option value=${t.id} ?selected=${t.id === f.tariff_id}>${t.name}</option>`)}</select>`)}
+          ${this.fld('customer_id', wt('accCustomer'), html`<sw-field flow><select id="wa-customer_id" name="customer_id" @change=${(e: Event) => this.setF('customer_id', (e.target as HTMLSelectElement).value)}><option value="" ?selected=${!f.customer_id}>${wt('accPickCustomer')}</option>${this.customers.map((c) => html`<option value=${c.id} ?selected=${c.id === f.customer_id}>${c.name} · ${c.customer_number}</option>`)}</select></sw-field>`)}
+          ${this.fld('tariff_id', wt('accTariff'), html`<sw-field flow><select id="wa-tariff_id" name="tariff_id" @change=${(e: Event) => this.setF('tariff_id', (e.target as HTMLSelectElement).value)}><option value="" ?selected=${!f.tariff_id}>-</option>${this.tariffs.map((t) => html`<option value=${t.id} ?selected=${t.id === f.tariff_id}>${t.name}</option>`)}</select></sw-field>`)}
         </div>
         <div class="fld"><span class="lbl">${wt('accFormula')}</span>
           ${f.keepAst && this.acc ? html`<div class="mut" data-formula-kept>${this.acc.formula.sentence_he}</div>` : nothing}
           <div class="list" data-formula-terms>${f.terms.map((t, i) => html`<div class="row" style="flex-wrap:nowrap" data-term=${i}>
             <sw-segmented label=${wt('accFormula')} value=${t.sign > 0 ? '+' : '-'} @change=${(e: CustomEvent<SegmentedChange>) => this.setTerm(i, { sign: e.detail.value === '+' ? 1 : -1 })}
             .options=${[{ value: '+', label: '+', attrs: { 'data-sign': '+' } }, { value: '-', label: '−', attrs: { 'data-sign': '-' } }]}></sw-segmented>
-            <select aria-label=${wt('accPickMeter')} style="flex:1" @change=${(e: Event) => this.setTerm(i, { meter_id: (e.target as HTMLSelectElement).value })}>${meterOpts(t.meter_id)}</select>
+            <sw-field flow><select aria-label=${wt('accPickMeter')} style="flex:1" @change=${(e: Event) => this.setTerm(i, { meter_id: (e.target as HTMLSelectElement).value })}>${meterOpts(t.meter_id)}</select></sw-field>
             <sw-button variant="ghost" size="sm" iconOnly icon="close" label=${wt('remove')} @click=${() => (this.form = { ...this.form, terms: f.terms.filter((_, j) => j !== i), keepAst: null })}></sw-button></div>`)}</div>
           <div class="row">
             <sw-button size="sm" data-add-plus @click=${() => (this.form = { ...f, terms: [...f.terms, { sign: 1, meter_id: '' }], keepAst: null })}>${wt('accAddPlus')}</sw-button>
@@ -325,7 +326,7 @@ export class WaterAccountsPage extends LitElement {
             .options=${[{ value: '1', label: wt('accMonthly') }, { value: '2', label: wt('accBimonthly') }]}></sw-segmented></div>
           ${this.fld('period_anchor_day', wt('accAnchorDay'), html`<input id="wa-period_anchor_day" type="number" min="1" max="31" class="ltr" .value=${String(f.period_anchor_day)} @input=${(e: Event) => this.setF('period_anchor_day', Math.min(31, Math.max(1, Number((e.target as HTMLInputElement).value) || 1)))} />`)}
           ${this.fld('first_period_start', wt('accFirstStart'), html`<input id="wa-first_period_start" type="date" lang=${dateInputLang()} class="ltr ${this.errs.first_period_start ? 'err' : ''}" .value=${f.first_period_start} @change=${(e: Event) => this.setF('first_period_start', (e.target as HTMLInputElement).value)} />`)}
-          ${this.fld('auto_mode', wt('accAuto'), html`<select id="wa-auto_mode" @change=${(e: Event) => this.setF('auto_mode', (e.target as HTMLSelectElement).value as AutoMode)}>${(['off', 'draft', 'issue'] as AutoMode[]).map((m) => html`<option value=${m} ?selected=${m === f.auto_mode}>${AUTO_LABEL[m]}</option>`)}</select>`)}
+          ${this.fld('auto_mode', wt('accAuto'), html`<sw-field flow><select id="wa-auto_mode" @change=${(e: Event) => this.setF('auto_mode', (e.target as HTMLSelectElement).value as AutoMode)}>${(['off', 'draft', 'issue'] as AutoMode[]).map((m) => html`<option value=${m} ?selected=${m === f.auto_mode}>${AUTO_LABEL[m]}</option>`)}</select></sw-field>`)}
           ${id ? html`<div class="fld"><span class="lbl">${wt('accStatus')}</span><sw-segmented label=${wt('accStatus')} value=${f.status} @change=${(e: CustomEvent<SegmentedChange>) => this.setF('status', e.detail.value as 'active' | 'paused')}
             .options=${[{ value: 'active', label: wt('accActive') }, { value: 'paused', label: wt('accPaused') }]}></sw-segmented></div>` : nothing}
         </div>

@@ -14,6 +14,7 @@ import { tt, type TtKey } from '../i18n/temperature';
 import { dateInputLang } from '../api/day-format';
 import { confirmDialog } from '../components/confirm-dialog';
 import { errLineStyles } from '../styles/fragments';
+import '../components/sw-field';
 
 const ROLE_KEYS: [string, string][] = [['viewer', 'צופים'], ['operator', 'מפעילים'], ['site_admin', 'מנהלי אתר'], ['system_admin', 'מנהלי מערכת']];
 type Defaults = Record<string, boolean | number | string>;
@@ -250,12 +251,12 @@ export class TempWizard extends LitElement {
     return html`<div class="f2">
         <div class="field"><label for="w-name">${tt('name')}</label><input id="w-name" class="in" .value=${this.d.name} placeholder=${tt('namePh')} maxlength="60"
           @input=${(e: Event) => this.patch({ name: (e.target as HTMLInputElement).value })} data-w-name /></div>
-        <div class="field"><label for="w-area">${tt('area')}</label><select id="w-area" class="in" @change=${(e: Event) => this.patch({ area_id: (e.target as HTMLSelectElement).value || null })} data-w-area>
+        <div class="field"><label for="w-area">${tt('area')}</label><sw-field flow><select id="w-area" class="in" @change=${(e: Event) => this.patch({ area_id: (e.target as HTMLSelectElement).value || null })} data-w-area>
           <option value="" ?selected=${!this.d.area_id}>${tt('noArea')}</option>
-          ${(this.meta?.areas ?? []).map((a) => html`<option value=${a.area_id} ?selected=${this.d.area_id === a.area_id}>${a.name}${a.floor_name ? ` · ${a.floor_name}` : ''}</option>`)}</select></div>
+          ${(this.meta?.areas ?? []).map((a) => html`<option value=${a.area_id} ?selected=${this.d.area_id === a.area_id}>${a.name}${a.floor_name ? ` · ${a.floor_name}` : ''}</option>`)}</select></sw-field></div>
       </div>
-      <div class="field"><label for="w-kind">${tt('kind')}</label><select id="w-kind" class="in" @change=${(e: Event) => this.patch({ kind: (e.target as HTMLSelectElement).value as UnitKind })} data-w-kind>
-        ${(this.meta?.kinds ?? []).map((k) => html`<option value=${k} ?selected=${this.d.kind === k}>${tt(KIND_KEY[k])}</option>`)}</select></div>
+      <div class="field"><label for="w-kind">${tt('kind')}</label><sw-field flow><select id="w-kind" class="in" @change=${(e: Event) => this.patch({ kind: (e.target as HTMLSelectElement).value as UnitKind })} data-w-kind>
+        ${(this.meta?.kinds ?? []).map((k) => html`<option value=${k} ?selected=${this.d.kind === k}>${tt(KIND_KEY[k])}</option>`)}</select></sw-field></div>
       <div class="field"><span class="lbl">${tt('tempSensor')} <span class="chip" data-tone="err">${tt('required')}</span></span>
         <input class="in" type="search" placeholder=${tt('searchTemp')} .value=${this.qt} @input=${(e: Event) => { this.qt = (e.target as HTMLInputElement).value; }} aria-label=${tt('searchTemp')} />
         ${this.sensorList('temp')}<span class="hint">${tt('tempHint')}${this.isClimate ? html` · ${tt('climateHint')}` : nothing}</span></div>

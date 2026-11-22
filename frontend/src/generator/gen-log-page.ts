@@ -16,6 +16,7 @@ import { genCss } from './gen-styles';
 import { fmtDateTime, fmtNum } from './gen-logic';
 import { glt, type GltKey } from '../i18n/generator-log';
 import { t } from '../i18n/he';
+import '../components/sw-field';
 
 const RANGES: RunRange[] = ['7d', '30d', '90d', '365d'];
 const KINDS: RunKind[] = ['test', 'mains_failure', 'manual', 'other'];
@@ -145,8 +146,8 @@ export class GenLogPage extends LitElement {
       <div class="row"><span class="h2">${glt('title')}</span><div class="sp"></div>
         <sw-segmented label=${glt('title')} data-log-range value=${this.range} @change=${(e: CustomEvent<SegmentedChange>) => this.set({ range: e.detail.value as RunRange })}
           .options=${RANGES.map((r) => ({ value: r, label: glt(`r${r}` as GltKey), attrs: { 'data-range': r } }))}></sw-segmented>
-        <select aria-label=${glt('colKind')} .value=${this.kind} data-log-kind @change=${(e: Event) => this.set({ kind: (e.target as HTMLSelectElement).value as RunKind | '' })}>
-          <option value="" ?selected=${this.kind === ''}>${glt('kindAll')}</option>${KINDS.map((k) => html`<option value=${k} ?selected=${this.kind === k}>${glt(`kind_${k}` as GltKey)}</option>`)}</select></div>
+        <sw-field flow><select aria-label=${glt('colKind')} .value=${this.kind} data-log-kind @change=${(e: Event) => this.set({ kind: (e.target as HTMLSelectElement).value as RunKind | '' })}>
+          <option value="" ?selected=${this.kind === ''}>${glt('kindAll')}</option>${KINDS.map((k) => html`<option value=${k} ?selected=${this.kind === k}>${glt(`kind_${k}` as GltKey)}</option>`)}</select></sw-field></div>
       ${this.strip(d)}
       ${cur ? html`<div class="notice" data-log-current><sw-icon name="bolt" size="18"></sw-icon><span>${glt('runningNow', { kind: glt(`kind_${cur.kind}` as GltKey), d: durText(cur.duration_s) })}</span></div>` : nothing}
       <div class="split">

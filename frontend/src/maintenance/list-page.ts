@@ -24,6 +24,7 @@ import './task-form';
 import './vendor-card';
 import './round-run';
 import { ToastController } from '../components/toast-controller';
+import '../components/sw-field';
 
 const COLLAPSED_KEY = 'sw.maintenance.collapsed';
 /** CR-CMP2-TABLES-GENMAINT-2450 (owner N10): a row's state in the table is a shared tone chip (the phone cards keep the module badge) */
@@ -362,8 +363,8 @@ export class MaintListPage extends LitElement {
         <aside class="panel flush tree-w"><sw-place-tree .rows=${rows} .selected=${this.place} heading=${mt('places')} foldLabel=${mt('fold')} unfoldLabel=${mt('unfold')} data-maint-tree
           @place-select=${(e: CustomEvent<string>) => { this.place = e.detail; }} @place-toggle=${(e: CustomEvent<string>) => this.toggleFold(e.detail)}></sw-place-tree></aside>
         <div class="panel flush">
-          <div class="tree-m"><select aria-label=${mt('place')} data-maint-place-select @change=${(e: Event) => { this.place = (e.target as HTMLSelectElement).value; }}>
-            ${treeRows(list).map((r) => html`<option value=${r.id} ?selected=${r.id === this.place}>${r.depth ? '– ' : ''}${r.name} (${r.count})</option>`)}</select></div>
+          <div class="tree-m"><sw-field flow><select aria-label=${mt('place')} data-maint-place-select @change=${(e: Event) => { this.place = (e.target as HTMLSelectElement).value; }}>
+            ${treeRows(list).map((r) => html`<option value=${r.id} ?selected=${r.id === this.place}>${r.depth ? '– ' : ''}${r.name} (${r.count})</option>`)}</select></sw-field></div>
           <div class="toolbar">
             ${segs.length ? html`<sw-segmented label=${mt(this.page === 'ledger' ? 'kindFilter' : this.page === 'plans' ? 'requestFilter' : 'freqFilter')} data-maint-segs value=${this.seg} @change=${(e: CustomEvent<SegmentedChange>) => { this.seg = e.detail.value as typeof this.seg; }}
               .options=${segs.map((s) => ({ value: s.key, label: mt(s.label), attrs: { 'data-seg': s.key } }))}></sw-segmented>` : nothing}

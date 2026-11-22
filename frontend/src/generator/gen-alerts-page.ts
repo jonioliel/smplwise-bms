@@ -18,6 +18,7 @@ import { SkinController } from '../design/skin';
 import { genCss } from './gen-styles';
 import { activeFilters, alertCounts, durationMin, EMPTY_FILTER, filterQuery, fill, fmtDateTime, fmtDuration, fmtNum, matchesText, sortOpen, type HistoryFilter } from './gen-logic';
 import { dateInputLang } from '../api/day-format';
+import '../components/sw-field';
 
 const G = he.generator;
 const POLL_MS = 15_000;
@@ -146,7 +147,7 @@ export class GenAlertsPage extends LitElement {
     const f = this.filter;
     const types = (this.device.alert_types ?? []).filter((t) => t.available);
     const shown = this.rows.filter((a) => matchesText(a, f.text));
-    const sel = (label: string, key: keyof HistoryFilter, opts: [string, string][]) => html`<select aria-label=${label} .value=${String(f[key])} @change=${(e: Event) => this.setFilter({ [key]: (e.target as HTMLSelectElement).value } as Partial<HistoryFilter>)} data-filter=${key}>${[['', `${label}: ${G.history.all}`] as [string, string], ...opts].map(([v, l]) => html`<option value=${v} ?selected=${f[key] === v}>${l}</option>`)}</select>`;
+    const sel = (label: string, key: keyof HistoryFilter, opts: [string, string][]) => html`<sw-field flow><select aria-label=${label} .value=${String(f[key])} @change=${(e: Event) => this.setFilter({ [key]: (e.target as HTMLSelectElement).value } as Partial<HistoryFilter>)} data-filter=${key}>${[['', `${label}: ${G.history.all}`] as [string, string], ...opts].map(([v, l]) => html`<option value=${v} ?selected=${f[key] === v}>${l}</option>`)}</select></sw-field>`;
     // CR-CMP2-TABLES-GENMAINT-2450 (owner N10): the history is the shared table - its cells in the shared vocabulary (tone chips, mut, num)
     const ackCell = (a: GenAlert) => (a.acknowledged ? html`${a.acked_by ? '' : G.alerts.ackedBy} <span class="mut num">${fmtDateTime(a.acked_at)}</span>` : a.state === 'open' ? html`<span class="chip" data-tone="warn">${G.alerts.pending}</span>` : html`<span class="mut">${G.alerts.notNeeded}</span>`);
     const stateCell = (a: GenAlert) => (a.state === 'open' ? html`<span class="chip" data-tone="bad">${G.alerts.open}</span>` : html`<span class="mut">${G.alerts.cleared} <span class="num">${fmtDateTime(a.cleared_at)}</span></span>`);

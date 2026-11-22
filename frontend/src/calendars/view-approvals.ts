@@ -14,6 +14,7 @@ import { tr } from '../i18n/msg/calendars';
 import { addDays, colorVar, ddmm, DAY_SHORT, hm, pageOf, queueOrder, rowsThatFit, startOfDay, whenText } from './model';
 import { LongListsController, perPageFor } from '../api/long-lists';
 import { errLineStyles } from '../styles/fragments';
+import '../components/sw-field';
 
 /** One decision the viewer made in this session (the "הוחלטו לאחרונה" segment). */
 interface Decided { r: CalRequest; decision: 'approve' | 'reject'; at: Date; displaced: boolean }
@@ -407,9 +408,9 @@ export class CalViewApprovals extends LitElement {
         <span class="chipcell">${l.holder ? html`<span class="chip ok">${tr('מאושר · מחזיק את החלון')}</span>`
           : html`<span class="chip dash num">${tr('בקשה {n}', { n: reqs.indexOf(l) + 1 })}${l.req?.requested_at ? html` · ${hm(l.req.requested_at)}` : nothing}</span>${l.req?.suggested && order !== 'manual' ? html`<span class="chip acc" data-first-in-line>${tr('ראשון בתור')}</span>` : nothing}`}</span></div>`)}</div>
       <div class="axis"><span class="num">${hm(a)}</span><span class="num">${hm(mid)}</span><span class="num">${hm(b)}</span></div>
-      ${reqs.length > 1 && choice === 'approve' ? html`<label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">${tr('איזו בקשה לאשר')}</span><select class="inp" data-pick @change=${(e: Event) => (this.pick = (e.target as HTMLSelectElement).value)}>
+      ${reqs.length > 1 && choice === 'approve' ? html`<label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">${tr('איזו בקשה לאשר')}</span><sw-field flow><select class="inp" data-pick @change=${(e: Event) => (this.pick = (e.target as HTMLSelectElement).value)}>
         ${order === 'manual' ? html`<option value="" ?selected=${!this.pick}>${tr('בחירה…')}</option>` : nothing}
-        ${reqs.map((l, i) => html`<option value=${l.id} ?selected=${l.id === this.pick}>${i + 1}. ${l.title}</option>`)}</select></label>` : nothing}
+        ${reqs.map((l, i) => html`<option value=${l.id} ?selected=${l.id === this.pick}>${i + 1}. ${l.title}</option>`)}</select></sw-field></label>` : nothing}
       <div role="radiogroup" aria-label=${tr('מה לעשות')} style="display:flex;flex-direction:column;gap:8px">
         <button type="button" class="opt" role="radio" aria-checked=${String(choice === 'approve')} aria-disabled=${String(approveBlocked)} data-choice="approve"
           @click=${() => { if (!approveBlocked) this.choice = 'approve'; }}><span class="rad"></span><span>

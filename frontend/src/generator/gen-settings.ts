@@ -23,6 +23,7 @@ import { fill, fmtDateTime } from './gen-logic';
 import { generatorAccess } from './access';
 import { glt, type GltKey } from '../i18n/generator-log';
 import { tr } from '../i18n/msg/misc';
+import '../components/sw-field';
 
 const S = he.generator.settings;
 // GENLOG092-295: 'log' = the run log's switch and every threshold / window of it
@@ -197,8 +198,8 @@ export class GenSettings_ extends LitElement {
         const opts = [...(r.candidates ?? [])];
         if (r.entity_id && !opts.some((o) => o.entity_id === r.entity_id)) opts.unshift({ entity_id: r.entity_id, name: r.entity_name ?? r.entity_id, unit: r.unit, score: 0 });
         return html`<div class="map-row" data-role=${r.role}><div><span class="b">${r.label}</span> ${r.core ? html`<span class="chip c-acc nodot">${S.mapCore}</span>` : nothing}${r.disabled_in_source && !r.mapped ? html`<div class="mut">${S.mapDisabled}</div>` : nothing}</div>
-          <select aria-label=${r.label} .value=${cur ?? ''} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; const orig = r.entity_id ?? ''; const next = { ...this.roleEdits }; if (v === orig) delete next[r.role]; else next[r.role] = v === '' ? null : v; this.roleEdits = next; }}>
-            <option value="" ?selected=${!cur}>${r.mapped ? S.mapClear : S.mapNone}</option>${opts.map((o) => html`<option value=${o.entity_id} ?selected=${o.entity_id === cur}>${o.name}${o.unit ? ` (${o.unit})` : ''}</option>`)}</select>
+          <sw-field flow><select aria-label=${r.label} .value=${cur ?? ''} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; const orig = r.entity_id ?? ''; const next = { ...this.roleEdits }; if (v === orig) delete next[r.role]; else next[r.role] = v === '' ? null : v; this.roleEdits = next; }}>
+            <option value="" ?selected=${!cur}>${r.mapped ? S.mapClear : S.mapNone}</option>${opts.map((o) => html`<option value=${o.entity_id} ?selected=${o.entity_id === cur}>${o.name}${o.unit ? ` (${o.unit})` : ''}</option>`)}</select></sw-field>
           <span class="chip c-${r.mapped ? (r.mapped_by === 'manual' ? 'acc' : 'ok') : 'mut'} nodot">${r.mapped ? (r.mapped_by === 'manual' ? S.mapManual : S.mapAuto) : S.mapNone}</span></div>`;
       })}</div>
       <div class="row"><sw-button variant="primary" ?disabled=${this.busy || !dirty} @click=${() => this.run(async () => { this.device = await putRoles(this.device!.id, this.roleEdits); this.roleEdits = {}; await this.loadRoles(); })} data-save-mapping>${S.save}</sw-button></div></div>`;

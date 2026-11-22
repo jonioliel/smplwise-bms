@@ -4,6 +4,7 @@ import '../components/sw-icon';
 import { nt } from '../i18n/notices';
 
 import { PLACE_ALL, type PlaceNode, visibleNodes } from './places-model';
+import '../components/sw-field';
 
 export * from './places-model';
 
@@ -21,8 +22,8 @@ export const placesCss = css`
 
 /** The phone's select over the same nodes (the page draws it inside the list panel). */
 export function placesSelect(nodes: readonly PlaceNode[], value: string, onPick: (id: string) => void) {
-  return html`<div class="tree-m"><select aria-label=${nt('placeSelect')} data-place-select @change=${(e: Event) => onPick((e.target as HTMLSelectElement).value)}>
-    ${nodes.map((p) => html`<option value=${p.id} ?selected=${p.id === value}>${p.depth ? '- '.repeat(p.depth) : ''}${p.name} (${p.count})</option>`)}</select></div>`;
+  return html`<div class="tree-m"><sw-field flow><select aria-label=${nt('placeSelect')} data-place-select @change=${(e: Event) => onPick((e.target as HTMLSelectElement).value)}>
+    ${nodes.map((p) => html`<option value=${p.id} ?selected=${p.id === value}>${p.depth ? '- '.repeat(p.depth) : ''}${p.name} (${p.count})</option>`)}</select></sw-field></div>`;
 }
 
 @customElement('notice-places')

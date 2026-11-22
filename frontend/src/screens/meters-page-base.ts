@@ -10,6 +10,7 @@ import { navigate } from '../router';
 import { SkinController } from '../design/skin';
 import { PollController } from '../components/poll-controller';
 import { ToastController } from '../components/toast-controller';
+import '../components/sw-field';
 
 /**
  * CR-DUP-METERS-2440 (code review 06:DUP-2): the meters page of a metered utility, written once. `screens/electricity/page-meters.ts` and
@@ -361,9 +362,9 @@ export abstract class MetersPageBase<M extends { id: string }, A extends MetersA
       <label class="inp"><sw-icon name="search" size="16"></sw-icon><input type="search" data-meters-search placeholder=${t.search} aria-label=${t.search} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>
       <div class="seg desk-only" role="group" aria-label=${t.view}><button type="button" aria-pressed=${this.view === 'cards' ? 'true' : 'false'} data-view="cards" @click=${() => this.setView('cards')}>${t.cards}</button><button type="button" aria-pressed=${this.view === 'table' ? 'true' : 'false'} data-view="table" @click=${() => this.setView('table')}>${t.table}</button></div>
       <span class="sp"></span>
-      <label class="inp phone-only"><select data-area-select aria-label=${t.area} @change=${(e: Event) => this.setParams({ area: (e.target as HTMLSelectElement).value || null })}>
+      <label class="inp phone-only"><sw-field flow><select data-area-select aria-label=${t.area} @change=${(e: Event) => this.setParams({ area: (e.target as HTMLSelectElement).value || null })}>
         <option value="" ?selected=${!this.areaFilter}>${t.allAreas}</option>
-        ${tree.flatMap((f) => f.areas.map((a) => html`<option value=${a.area_id} ?selected=${a.area_id === this.areaFilter}>${a.name}</option>`))}</select></label>
+        ${tree.flatMap((f) => f.areas.map((a) => html`<option value=${a.area_id} ?selected=${a.area_id === this.areaFilter}>${a.name}</option>`))}</select></sw-field></label>
       ${this.addButton()}
     </div>`;
   }

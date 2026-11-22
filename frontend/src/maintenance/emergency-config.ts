@@ -10,6 +10,7 @@ import { parseThreshold } from './emergency-model';
 import { maintCss } from './styles';
 import { confirmDialog } from '../components/confirm-dialog';
 import { errLineStyles, okLineStyles } from '../styles/fragments';
+import '../components/sw-field';
 
 const ITEM_IDS = ['E01', 'E02', 'E03', 'E04', 'E05', 'E06', 'E07', 'E09', 'E10', 'E11', 'E12', 'E14', 'E17', 'E18', 'E19'];
 
@@ -187,10 +188,10 @@ export class EmergencySettingsPanel extends LitElement {
         ${bound.length ? bound.map((t) => html`<span class="chip" data-look="ok">${t.title}${t.due_date ? ` · ${t.due_date}` : ''}
           <button type="button" class="btn sm" data-emerg-unbind=${t.id} @click=${() => void this.put({ bindings: { [t.id]: null } })}>${em('sUnbind')}</button></span>`) : html`<span class="mut">${em('sNoneBound')}</span>`}
         <span class="sp"></span>
-        ${sug.length ? html`<select class="inp" data-emerg-bind=${s} aria-label=${em('sPick')} @change=${(e: Event) => {
+        ${sug.length ? html`<sw-field flow><select class="inp" data-emerg-bind=${s} aria-label=${em('sPick')} @change=${(e: Event) => {
           const id = (e.target as HTMLSelectElement).value;
           if (id) void this.put({ bindings: { [id]: s } });
-        }}><option value="">${em('sPick')}</option>${sug.map((t) => html`<option value=${t.id}>${t.title}${t.due_date ? ` · ${t.due_date}` : ''}</option>`)}</select>` : html`<span class="mut">${em('sNoSuggest')}</span>`}
+        }}><option value="">${em('sPick')}</option>${sug.map((t) => html`<option value=${t.id}>${t.title}${t.due_date ? ` · ${t.due_date}` : ''}</option>`)}</select></sw-field>` : html`<span class="mut">${em('sNoSuggest')}</span>`}
       </div>`;
     })}</section>`;
   }

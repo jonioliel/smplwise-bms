@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { nc } from '../i18n/notice-chips';
 import { noticesCss } from './styles';
 import { SOURCE_MAX, addSource, canInvert, offerable, removeSource, sourceName, toggleInvert, type InfoSourcesPatch, type SourceEntity, type SourceKind } from './info-chips-model';
+import '../components/sw-field';
 
 /**
  * TV-CHIPS-2381 (owner 03.11, Q4 = A): the sources of the parking and gym chips in Settings › Notice board (the defaults card, next to
@@ -75,10 +76,10 @@ export class NoticeInfoSources extends LitElement {
           <button type="button" aria-label=${nc('removeOne', { n: name ?? nc('gone') })} ?disabled=${this.disabled} @click=${() => this.emit(kind, removeSource(list, id))}>${nc('remove')}</button></li>`;
       })}</ul>` : html`<span class="mut" data-info-source-none>${nc('none')}</span>`}
       <div class="row">
-        <select id=${sel} class="inp" data-info-source-pick .value=${this.pick[kind]} ?disabled=${this.disabled || full || !offer.length}
+        <sw-field flow><select id=${sel} class="inp" data-info-source-pick .value=${this.pick[kind]} ?disabled=${this.disabled || full || !offer.length}
           @change=${(e: Event) => (this.pick = { ...this.pick, [kind]: (e.target as HTMLSelectElement).value })}>
           <option value="">${offer.length ? nc('pick') : nc('noCandidates')}</option>
-          ${offer.map((c) => html`<option value=${c.entity_id}>${c.name}</option>`)}</select>
+          ${offer.map((c) => html`<option value=${c.entity_id}>${c.name}</option>`)}</select></sw-field>
         <button type="button" class="add" data-info-source-add ?disabled=${this.disabled || full || !this.pick[kind]}
           @click=${() => { const id = this.pick[kind]; this.pick = { ...this.pick, [kind]: '' }; this.emit(kind, addSource(list, id)); }}>${nc('add')}</button>
         ${full ? html`<span class="mut">${nc('max', { n: SOURCE_MAX })}</span>` : nothing}

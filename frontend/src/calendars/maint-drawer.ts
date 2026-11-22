@@ -11,6 +11,7 @@ import { calCss } from './styles';
 import { tr } from '../i18n/msg/calendars';
 import { addDays, colorVar, ddmm, hm, isoDate, OVERLAP_LABEL, sameDay, STATE_LABEL } from './model';
 import { errLineStyles } from '../styles/fragments';
+import '../components/sw-field';
 
 /** What saving does in each overlap mode (contract section 8, C3; the warning itself is shown in every mode). */
 const MODE_TEXT: Record<OverlapMode, string> = {
@@ -202,8 +203,8 @@ export class CalMaintDrawer extends LitElement {
         data-maint-drawer data-mode=${mode} @close=${this.onDrawerClose}>
         <div class="content">
           ${!cals.length ? html`<div class="note warn" data-no-maint-cal><div><b>${tr('אין יומן אחזקה שאפשר להציב בו')}</b><span class="muted">${tr('מנהל המערכת יוצר יומן מסוג אחזקה במסך ניהול יומנים.')}</span></div></div>` : nothing}
-          <div class="fld"><label for="mc">${tr('יומן')}</label><select id="mc" class="inp" .value=${this.calId} @change=${(e: Event) => { this.calId = (e.target as HTMLSelectElement).value; this.schedule(); }}>
-            ${cals.map((c) => html`<option value=${c.id} ?selected=${c.id === this.calId}>${c.name}</option>`)}</select></div>
+          <div class="fld"><label for="mc">${tr('יומן')}</label><sw-field flow><select id="mc" class="inp" .value=${this.calId} @change=${(e: Event) => { this.calId = (e.target as HTMLSelectElement).value; this.schedule(); }}>
+            ${cals.map((c) => html`<option value=${c.id} ?selected=${c.id === this.calId}>${c.name}</option>`)}</select></sw-field></div>
           <div class="fld"><label for="mt">${tr('כותרת')}</label><input id="mt" class="inp" maxlength="120" placeholder=${tr('למשל: החלפת גוף תאורה ובדיקת גלאים')} .value=${this.evTitle}
             @input=${(e: Event) => (this.evTitle = (e.target as HTMLInputElement).value)} data-maint-title></div>
           <div class="fld"><span class="lbl">${tr('מתי')}</span><div class="ctls">

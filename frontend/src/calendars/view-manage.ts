@@ -16,6 +16,7 @@ import { tr } from '../i18n/msg/calendars';
 import { APPROVAL_LABEL, APPROVED_MOVE_LABEL, colorVar, OVERLAP_SHORT, pageOf, PROVIDER_LABEL, ROLE_HINT, ROLE_LABEL, rowsThatFit, STRICTNESS, TYPE_LABEL } from './model';
 import { LongListsController, perPageFor } from '../api/long-lists';
 import { errLineStyles } from '../styles/fragments';
+import '../components/sw-field';
 
 const TYPE_ICON: Record<CalType, 'door' | 'users' | 'wrench' | 'calendar'> = { room: 'door', team: 'users', maintenance: 'wrench', event: 'calendar' };
 const KIND_LABEL: Record<Member['subject_kind'], string> = { user: tr('משתמש'), role: tr('תפקיד'), department: tr('מחלקה'), everyone: tr('כולם') };
@@ -450,8 +451,8 @@ export class CalViewManage extends LitElement {
     const owner = this.isOwner(c, m);
     return html`<div class="row" data-member=${`${m.subject_kind}:${m.subject_id}`}><div class="grow"><div class="name ell">${m.label || m.subject_id}</div>
       <div class="sub">${KIND_LABEL[m.subject_kind]}${owner ? ` · ${tr('מנהל אחראי')}` : ''}</div></div>
-      ${c.my_role === 'manage' && !owner ? html`<select class="inp" style="inline-size:auto;min-block-size:36px" aria-label=${tr('תפקיד')} @change=${(e: Event) => this.setRole(m, (e.target as HTMLSelectElement).value as CalRole)}>
-        ${CAL_ROLES.map((r) => html`<option value=${r} ?selected=${m.cal_role === r}>${ROLE_LABEL[r]}</option>`)}</select>` : html`<span class=${`chip ${m.cal_role === 'manage' ? 'acc' : ''}`}>${ROLE_LABEL[m.cal_role]}</span>`}</div>`;
+      ${c.my_role === 'manage' && !owner ? html`<sw-field flow><select class="inp" style="inline-size:auto;min-block-size:36px" aria-label=${tr('תפקיד')} @change=${(e: Event) => this.setRole(m, (e.target as HTMLSelectElement).value as CalRole)}>
+        ${CAL_ROLES.map((r) => html`<option value=${r} ?selected=${m.cal_role === r}>${ROLE_LABEL[r]}</option>`)}</select></sw-field>` : html`<span class=${`chip ${m.cal_role === 'manage' ? 'acc' : ''}`}>${ROLE_LABEL[m.cal_role]}</span>`}</div>`;
   }
 
   private setRole(m: Member, r: CalRole): void {
@@ -469,14 +470,14 @@ export class CalViewManage extends LitElement {
     const taken = new Set((this.members ?? []).map((m) => `${m.subject_kind}:${m.subject_id}`));
     const full = (this.members?.length ?? 0) >= MAX_MEMBERS;
     return html`<div class="addrow" data-add-row>
-      <select class="inp k" aria-label=${tr('סוג')} @change=${(e: Event) => { this.addKind = (e.target as HTMLSelectElement).value as Member['subject_kind']; this.addId = ''; }}>
-        ${(['user', 'role', 'department', 'everyone'] as const).map((k) => html`<option value=${k} ?selected=${k === this.addKind}>${KIND_LABEL[k]}</option>`)}</select>
+      <sw-field flow><select class="inp k" aria-label=${tr('סוג')} @change=${(e: Event) => { this.addKind = (e.target as HTMLSelectElement).value as Member['subject_kind']; this.addId = ''; }}>
+        ${(['user', 'role', 'department', 'everyone'] as const).map((k) => html`<option value=${k} ?selected=${k === this.addKind}>${KIND_LABEL[k]}</option>`)}</select></sw-field>
       ${this.addKind === 'everyone' ? html`<span class="grow muted">${tr('כל מי שיש לו צפייה ביומנים')}</span>`
-        : opts.length ? html`<select class="inp" aria-label=${tr('מי')} @change=${(e: Event) => (this.addId = (e.target as HTMLSelectElement).value)} data-add-who>
-            <option value="" ?selected=${!this.addId}>${tr('בחירה…')}</option>${opts.filter((o) => !taken.has(`${this.addKind}:${o.id}`) && o.id !== c.owner?.id).map((o) => html`<option value=${o.id}>${o.name}</option>`)}</select>`
+        : opts.length ? html`<sw-field flow><select class="inp" aria-label=${tr('מי')} @change=${(e: Event) => (this.addId = (e.target as HTMLSelectElement).value)} data-add-who>
+            <option value="" ?selected=${!this.addId}>${tr('בחירה…')}</option>${opts.filter((o) => !taken.has(`${this.addKind}:${o.id}`) && o.id !== c.owner?.id).map((o) => html`<option value=${o.id}>${o.name}</option>`)}</select></sw-field>`
         : html`<input class="inp" aria-label=${tr('מזהה')} placeholder=${this.addKind === 'department' ? tr('מזהה המחלקה') : tr('מזהה')} .value=${this.addId} @input=${(e: Event) => (this.addId = (e.target as HTMLInputElement).value.trim())} data-add-who>`}
-      <select class="inp k" aria-label=${tr('תפקיד')} @change=${(e: Event) => (this.addRole = (e.target as HTMLSelectElement).value as CalRole)}>
-        ${CAL_ROLES.map((r) => html`<option value=${r} ?selected=${r === this.addRole}>${ROLE_LABEL[r]}</option>`)}</select>
+      <sw-field flow><select class="inp k" aria-label=${tr('תפקיד')} @change=${(e: Event) => (this.addRole = (e.target as HTMLSelectElement).value as CalRole)}>
+        ${CAL_ROLES.map((r) => html`<option value=${r} ?selected=${r === this.addRole}>${ROLE_LABEL[r]}</option>`)}</select></sw-field>
       <button type="button" class="btn sm pri" ?disabled=${full || (this.addKind !== 'everyone' && !this.addId) || taken.has(`${this.addKind}:${this.addKind === 'everyone' ? '*' : this.addId}`)} data-add-confirm
         @click=${() => this.add(opts)}>${tr('הוספה')}</button>
       ${full ? html`<span class="err">${tr('הגעת ל-{n} שורות. אפשר לצרף תפקיד או מחלקה במקום אנשים בודדים.', { n: MAX_MEMBERS })}</span>` : nothing}
@@ -528,18 +529,18 @@ export class CalViewManage extends LitElement {
           .options=${CAL_TYPES.map((t) => ({ value: t, label: TYPE_LABEL[t], disabled: !!edit && d.type !== t, attrs: { 'data-f-type': t } }))}></sw-segmented></div>
         <div class="fld"><span class="lbl">${tr('צבע')}</span><div class="hues" role="group" aria-label=${tr('צבע')}>${HUES.map((h) => html`<button type="button" class="hue" style=${`--h:${colorVar(h)}`} aria-pressed=${String(d.color === h)}
           aria-label=${h} data-f-color=${h} @click=${() => set({ color: h })}></button>`)}</div></div>
-        <div class="fld"><label for="co">${tr('מנהל')}</label><select id="co" class="inp" @change=${(e: Event) => set({ owner: (e.target as HTMLSelectElement).value })}>
-          <option value="" ?selected=${!d.owner}>${edit ? edit.owner?.name || tr('ללא שינוי') : tr('אני')}</option>${this.people.filter((p) => !edit || p.id !== edit.owner?.id).map((p) => html`<option value=${p.id} ?selected=${d.owner === p.id}>${p.name}</option>`)}</select></div>
+        <div class="fld"><label for="co">${tr('מנהל')}</label><sw-field flow><select id="co" class="inp" @change=${(e: Event) => set({ owner: (e.target as HTMLSelectElement).value })}>
+          <option value="" ?selected=${!d.owner}>${edit ? edit.owner?.name || tr('ללא שינוי') : tr('אני')}</option>${this.people.filter((p) => !edit || p.id !== edit.owner?.id).map((p) => html`<option value=${p.id} ?selected=${d.owner === p.id}>${p.name}</option>`)}</select></sw-field></div>
         ${room ? html`<div class="fld"><label for="cc">${tr('מקומות')}</label><input id="cc" class="inp num" type="number" min="1" max="2000" inputmode="numeric" .value=${d.capacity}
           @input=${(e: Event) => set({ capacity: (e.target as HTMLInputElement).value })}></div>` : nothing}
-        <div class="fld"><label for="ca">${tr('אישור')}</label><select id="ca" class="inp" @change=${(e: Event) => set({ approval: (e.target as HTMLSelectElement).value as ApprovalMode })} data-f-approval>
-          ${(Object.keys(APPROVAL_LABEL) as ApprovalMode[]).map((m) => html`<option value=${m} ?selected=${d.approval === m}>${APPROVAL_LABEL[m]}</option>`)}</select></div>
+        <div class="fld"><label for="ca">${tr('אישור')}</label><sw-field flow><select id="ca" class="inp" @change=${(e: Event) => set({ approval: (e.target as HTMLSelectElement).value as ApprovalMode })} data-f-approval>
+          ${(Object.keys(APPROVAL_LABEL) as ApprovalMode[]).map((m) => html`<option value=${m} ?selected=${d.approval === m}>${APPROVAL_LABEL[m]}</option>`)}</select></sw-field></div>
         ${d.approval !== 'none' ? html`<div class="fld"><span class="lbl">${tr('הזזת הזמנה מאושרת')}</span><sw-segmented label=${tr('הזזת הזמנה מאושרת')} data-f-approved-move value=${d.approvedMove} @change=${(e: CustomEvent<SegmentedChange>) => set({ approvedMove: e.detail.value as ApprovedMove })}
           .options=${(Object.keys(APPROVED_MOVE_LABEL) as ApprovedMove[]).map((m) => ({ value: m, label: APPROVED_MOVE_LABEL[m], attrs: { 'data-f-approved-move-opt': m } }))}></sw-segmented></div>` : nothing}
         ${room ? html`<div class="fld"><label for="cv">${tr('חפיפת תחזוקה')}</label>${overrides.length
-          ? html`<select id="cv" class="inp" @change=${(e: Event) => set({ override: (e.target as HTMLSelectElement).value as OverlapMode | '' })} data-f-override>
+          ? html`<sw-field flow><select id="cv" class="inp" @change=${(e: Event) => set({ override: (e.target as HTMLSelectElement).value as OverlapMode | '' })} data-f-override>
               <option value="" ?selected=${!d.override}>${tr('לפי ההתקנה ({mode})', { mode: OVERLAP_SHORT[this.instOverlap] })}</option>
-              ${overrides.map((m) => html`<option value=${m} ?selected=${d.override === m}>${OVERLAP_SHORT[m]}</option>`)}</select>`
+              ${overrides.map((m) => html`<option value=${m} ?selected=${d.override === m}>${OVERLAP_SHORT[m]}</option>`)}</select></sw-field>`
           : html`<span class="muted" data-f-override-off>${tr('לפי ההתקנה ({mode}). ההגדרות לא מאפשרות ליומן לקבוע אחרת.', { mode: OVERLAP_SHORT[this.instOverlap] })}</span>`}</div>` : nothing}
         ${room ? html`<div class="fld"><label for="cb">${tr('הפסקה אחרי')}</label><input id="cb" class="inp num" type="number" min="0" max="240" inputmode="numeric" placeholder=${tr('דקות')} .value=${d.buffer}
           @input=${(e: Event) => set({ buffer: (e.target as HTMLInputElement).value })}></div>` : nothing}

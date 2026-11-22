@@ -17,6 +17,7 @@ import {
 import { PROVIDER_LABEL } from './model';
 import { calCss } from './styles';
 import { tr } from '../i18n/msg/calendars';
+import '../components/sw-field';
 
 /** What the dialog is for: connecting / re-authorising one provider, binding calendars of a connection, or the outgoing iCal feeds. */
 export type ConnectMode = { kind: 'connect'; card: ProviderCard; conn: Connection | null } | { kind: 'bind'; conn: Connection } | { kind: 'feeds' };
@@ -323,10 +324,10 @@ export class CalConnectDialog extends LitElement {
       ${conn.bindings.length ? html`<div class="list">${conn.bindings.map((b) => html`<div class="item" data-bound=${b.calendar_id}><span class="grow ell">${this.cals.find((c) => c.id === b.calendar_id)?.name ?? tr('יומן')}</span>
         <span class="chip">${DIR_HE[b.direction] ?? b.direction}</span><button type="button" class="btn sm bad" data-unbind ?disabled=${this.busy} @click=${() => void this.unbind(b.calendar_id)}>${tr('הסרה')}</button></div>`)}</div>` : nothing}
       ${this.ext === null && !this.error ? html`<div class="spin" role="status" aria-label=${tr('טוען')}></div>` : html`
-      <div class="fld"><label for="be">${tr('יומן אצל {name}', { name: PROVIDER_LABEL[cardOf(conn.provider)] })}</label><select id="be" class="inp" data-bind-ext @change=${(e: Event) => (this.bExt = (e.target as HTMLSelectElement).value)}>
-        ${ext.map((e) => html`<option value=${e.id_ref} ?selected=${e.id_ref === this.bExt}>${e.name}${e.can_write ? '' : ` (${tr('קריאה בלבד')})`}</option>`)}</select></div>
-      <div class="fld"><label for="bc">${tr('יומן ב־Arx')}</label><select id="bc" class="inp" data-bind-cal @change=${(e: Event) => (this.bCal = (e.target as HTMLSelectElement).value)}>
-        <option value="" ?selected=${!this.bCal}>${tr('בחירה…')}</option>${mine.map((c) => html`<option value=${c.id} ?selected=${c.id === this.bCal}>${c.name}</option>`)}</select></div>
+      <div class="fld"><label for="be">${tr('יומן אצל {name}', { name: PROVIDER_LABEL[cardOf(conn.provider)] })}</label><sw-field flow><select id="be" class="inp" data-bind-ext @change=${(e: Event) => (this.bExt = (e.target as HTMLSelectElement).value)}>
+        ${ext.map((e) => html`<option value=${e.id_ref} ?selected=${e.id_ref === this.bExt}>${e.name}${e.can_write ? '' : ` (${tr('קריאה בלבד')})`}</option>`)}</select></sw-field></div>
+      <div class="fld"><label for="bc">${tr('יומן ב־Arx')}</label><sw-field flow><select id="bc" class="inp" data-bind-cal @change=${(e: Event) => (this.bCal = (e.target as HTMLSelectElement).value)}>
+        <option value="" ?selected=${!this.bCal}>${tr('בחירה…')}</option>${mine.map((c) => html`<option value=${c.id} ?selected=${c.id === this.bCal}>${c.name}</option>`)}</select></sw-field></div>
       ${mine.length ? nothing : html`<p class="fine" data-bind-none>${tr('אין יומן שיש לך בו הרשאת עריכה. שיוך דורש חיבור יומנים וגם עריכה ביומן.')}</p>`}
       <div class="fld"><span class="lbl">${tr('כיוון')}</span><sw-segmented radio label=${tr('כיוון')} value=${this.bDir} @change=${(e: CustomEvent<SegmentedChange>) => (this.bDir = e.detail.value as typeof this.bDir)}
         .options=${dirs.map((d) => ({ value: d, label: DIR_HE[d], attrs: { 'data-dir': d } }))}></sw-segmented></div>

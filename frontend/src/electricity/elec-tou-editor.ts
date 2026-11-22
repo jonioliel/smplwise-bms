@@ -235,10 +235,10 @@ export class ElecTouEditor extends ElecBase {
         <div class="bar" role="img" aria-label=${`${name}: ` + cells.map((c) => `${c.from}-${c.to} ${this.bandName(c.band)}`).join(', ')}>${cells.map((c) => html`<i style="inline-size:${width(c.from, c.to)}%;background:${bandColor(d, c.band)}" title=${`${c.from}-${c.to} ${this.bandName(c.band)}`} data-cell=${c.band}></i>`)}</div>
         <div class="ticks" aria-hidden="true"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
         ${ranges.map((r, j) => html`<div class="rng" data-tou-range=${`${sid}:${did}:${j}`}>
-          <select aria-label=${tr('משעה')} ?disabled=${this.readonly} @change=${(e: Event) => this.edit((x) => { x.schedule[sid][did][j][0] = (e.target as HTMLSelectElement).value; })}>${QUARTERS.slice(0, 96).map((q) => html`<option .selected=${q === r[0]} value=${q}>${q}</option>`)}</select>
+          <sw-field flow><select aria-label=${tr('משעה')} ?disabled=${this.readonly} @change=${(e: Event) => this.edit((x) => { x.schedule[sid][did][j][0] = (e.target as HTMLSelectElement).value; })}>${QUARTERS.slice(0, 96).map((q) => html`<option .selected=${q === r[0]} value=${q}>${q}</option>`)}</select></sw-field>
           <span>${tr('עד')}</span>
-          <select aria-label=${tr('עד שעה')} ?disabled=${this.readonly} @change=${(e: Event) => this.edit((x) => { x.schedule[sid][did][j][1] = (e.target as HTMLSelectElement).value; })}>${QUARTERS.slice(1).map((q) => html`<option .selected=${q === r[1]} value=${q}>${q}</option>`)}</select>
-          <select aria-label=${tr('פס')} ?disabled=${this.readonly} @change=${(e: Event) => this.edit((x) => { x.schedule[sid][did][j][2] = (e.target as HTMLSelectElement).value; })}>${d.bands.map((b) => html`<option .selected=${b.id === r[2]} value=${b.id}>${touName('bands', b)}</option>`)}</select>
+          <sw-field flow><select aria-label=${tr('עד שעה')} ?disabled=${this.readonly} @change=${(e: Event) => this.edit((x) => { x.schedule[sid][did][j][1] = (e.target as HTMLSelectElement).value; })}>${QUARTERS.slice(1).map((q) => html`<option .selected=${q === r[1]} value=${q}>${q}</option>`)}</select></sw-field>
+          <sw-field flow><select aria-label=${tr('פס')} ?disabled=${this.readonly} @change=${(e: Event) => this.edit((x) => { x.schedule[sid][did][j][2] = (e.target as HTMLSelectElement).value; })}>${d.bands.map((b) => html`<option .selected=${b.id === r[2]} value=${b.id}>${touName('bands', b)}</option>`)}</select></sw-field>
           ${this.readonly ? nothing : html`<sw-button variant="ghost" size="sm" iconOnly icon="close" label=${tr('הסרת טווח')} data-tou-remove @click=${() => this.edit((x) => { x.schedule[sid][did].splice(j, 1); if (!x.schedule[sid][did].length) delete x.schedule[sid][did]; })}></sw-button>`}
         </div>`)}
         ${this.readonly || !others.length ? nothing : html`<div><sw-button variant="ghost" size="sm" data-tou-add=${`${sid}:${did}`} @click=${() => this.edit((x) => { ((x.schedule[sid] ??= {})[did] ??= []).push(['17:00', '22:00', others[0].id]); })}>${tr('+ טווח שעות')}</sw-button></div>`}
@@ -284,8 +284,8 @@ export class ElecTouEditor extends ElecBase {
   // ------------------------------------------------------------------ structure
   private structure(d: TouDefinition): TemplateResult {
     const ro = this.readonly;
-    const dtSel = (value: string | null, path: string, set: (x: TouDefinition, v: string | null) => void, allowNone: boolean) => html`<select class="${this.bad(path) ? 'err' : ''}" ?disabled=${ro} @change=${(e: Event) => this.edit((x) => set(x, (e.target as HTMLSelectElement).value || null))}>
-      ${allowNone ? html`<option value="" .selected=${value === null}>${tr('ללא שינוי')}</option>` : nothing}${d.day_types.map((t) => html`<option value=${t.id} .selected=${t.id === value}>${touName('day_types', t)}</option>`)}</select>`;
+    const dtSel = (value: string | null, path: string, set: (x: TouDefinition, v: string | null) => void, allowNone: boolean) => html`<sw-field flow><select class="${this.bad(path) ? 'err' : ''}" ?disabled=${ro} @change=${(e: Event) => this.edit((x) => set(x, (e.target as HTMLSelectElement).value || null))}>
+      ${allowNone ? html`<option value="" .selected=${value === null}>${tr('ללא שינוי')}</option>` : nothing}${d.day_types.map((t) => html`<option value=${t.id} .selected=${t.id === value}>${touName('day_types', t)}</option>`)}</select></sw-field>`;
     return html`<details class="card" data-tou-structure ?open=${!!this.errorPath && /^(seasons|bands|week|holiday|day_types|default_band)/.test(this.errorPath)}>
       <summary>${tr('מבנה התעריף: עונות, פסים וימים')}</summary>
       <div class="stru">
@@ -314,7 +314,7 @@ export class ElecTouEditor extends ElecBase {
             })}></sw-button>`}</div>
             ${this.nameEn('bands', i, b.id, b.name_en)}`)}
           ${ro || d.bands.length >= 8 ? nothing : html`<div><sw-button size="sm" data-tou-add-band @click=${() => this.edit((x) => { x.bands.push({ id: freshId('band', x.bands.map((b) => b.id)), name_he: 'פס חדש' }); })}>${tr('+ פס')}</sw-button></div>`}
-          <div class="fld"><label>${tr('שאר השעות שייכות ל')}</label><select ?disabled=${ro} @change=${(e: Event) => this.edit((x) => { x.default_band = (e.target as HTMLSelectElement).value; })}>${d.bands.map((b) => html`<option value=${b.id} .selected=${b.id === d.default_band}>${touName('bands', b)}</option>`)}</select></div>
+          <div class="fld"><label>${tr('שאר השעות שייכות ל')}</label><sw-field flow><select ?disabled=${ro} @change=${(e: Event) => this.edit((x) => { x.default_band = (e.target as HTMLSelectElement).value; })}>${d.bands.map((b) => html`<option value=${b.id} .selected=${b.id === d.default_band}>${touName('bands', b)}</option>`)}</select></sw-field></div>
           <b>${tr('סוגי ימים')}</b>
           <div class="dt" data-tou-day-types>${d.day_types.map((t, i) => html`<span class="${this.bad(`day_types[${i}]`)}">${t.name_he}</span>${this.nameEn('day_types', i, t.id, t.name_en)}`)}</div>
           <b>${tr('ימים')}</b>

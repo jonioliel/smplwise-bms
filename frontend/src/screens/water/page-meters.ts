@@ -18,6 +18,7 @@ import { wt } from '../../water/i18n';
 import { fmtM3 } from '../../water/billing-format';
 import { bubbleChrome } from '../../styles/bubble-chrome';
 import { MetersPageBase, metersGridCss, metersResponsiveCss, type MetersFrameState, type MetersPageTexts } from '../meters-page-base';
+import '../../components/sw-field';
 
 /**
  * תשתיות › מים › מונים (CR-WATER78 section 5.1): `screens/electricity/page-meters.ts` with the water adapter - the head row (search, כרטיסים /
@@ -264,7 +265,7 @@ export class WaterMetersPage extends MetersPageBase<Meter, WaterAccess> {
       ${this.picked
         ? html`<div class="formgrid">
             <div class="fld"><label for="wnm">${wt('meterName')}</label><div class="inp"><input id="wnm" data-add-name .value=${this.newName} @input=${(e: Event) => (this.newName = (e.target as HTMLInputElement).value)} /></div></div>
-            <div class="fld"><label for="wnk">${wt('meterKind')}</label><div class="inp"><select id="wnk" data-add-kind @change=${(e: Event) => (this.newKind = (e.target as HTMLSelectElement).value as MeterKind)}>${METER_KINDS.map((k) => html`<option value=${k} ?selected=${k === this.newKind}>${kindLabel(k)}</option>`)}</select></div></div>
+            <div class="fld"><label for="wnk">${wt('meterKind')}</label><div class="inp"><sw-field flow><select id="wnk" data-add-kind @change=${(e: Event) => (this.newKind = (e.target as HTMLSelectElement).value as MeterKind)}>${METER_KINDS.map((k) => html`<option value=${k} ?selected=${k === this.newKind}>${kindLabel(k)}</option>`)}</select></sw-field></div></div>
           </div>`
         : nothing}
       ${this.addError ? html`<div class="alert err" role="alert" data-add-error>${this.addError}</div>` : nothing}

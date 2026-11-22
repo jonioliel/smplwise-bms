@@ -21,6 +21,7 @@ import { PRESETS, detectPreset, parseTokens, presetTokens, sentence, textToToken
 import { tr } from '../i18n/msg/electricity';
 import '../components/sw-table';
 import type { TableColumn } from '../components/sw-table';
+import '../components/sw-field';
 
 /** CR-CMP2-TABLES-CONSUMPTION-2450 (owner N10): the preview as the shared sw-table (bare in the card, read-only): each meter's consumption,
  * the account's result in the foot row (a negative result in the danger ink through the `bad` part; hook `data-formula-result`). */
@@ -255,9 +256,9 @@ export class ElecFormulaEditor extends LitElement {
       ${this.preset === 'mainsub' || this.preset === 'pct'
         ? html`<div class="row">
             <div class="fld" style="min-inline-size:200px"><label for="main">${this.preset === 'pct' ? tr('מונה') : tr('מונה ראשי')}</label>
-              <select id="main" data-preset-main @change=${(e: Event) => { this.mainId = (e.target as HTMLSelectElement).value; this.applyPreset(this.preset); }}>
+              <sw-field flow><select id="main" data-preset-main @change=${(e: Event) => { this.mainId = (e.target as HTMLSelectElement).value; this.applyPreset(this.preset); }}>
                 ${this.meters.map((m) => html`<option value=${m.id} ?selected=${m.id === this.mainId}>${m.name}</option>`)}
-              </select></div>
+              </select></sw-field></div>
             ${this.preset === 'pct'
               ? html`<div class="fld" style="inline-size:120px"><label for="pct">${tr('אחוז')}</label><input id="pct" class="ltr" data-preset-pct inputmode="decimal" .value=${this.pctVal} @input=${(e: Event) => { this.pctVal = (e.target as HTMLInputElement).value; if (Number(this.pctVal) > 0) this.applyPreset('pct'); }} /></div>`
               : nothing}

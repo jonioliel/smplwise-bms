@@ -2,6 +2,7 @@ import { LitElement, html } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { nt } from '../i18n/notices';
 import { noticesCss } from './styles';
+import '../components/sw-field';
 
 /**
  * NOTICEPAGE-295: the board setting "ווידג׳ט בבית כשאין הודעות" (`home_empty`): hide the home widget (the default) or show one
@@ -15,10 +16,10 @@ export class NoticeHomeEmpty extends LitElement {
 
   render() {
     return html`<div class="fld"><label for="ns-home-empty">${nt('dHomeEmpty')}</label>
-      <select id="ns-home-empty" class="inp" data-v=${this.value} data-home-empty .value=${this.value}
+      <sw-field flow><select id="ns-home-empty" class="inp" data-v=${this.value} data-home-empty .value=${this.value}
         @change=${(e: Event) => this.dispatchEvent(new CustomEvent<'hide' | 'line'>('home-empty-change', { detail: (e.target as HTMLSelectElement).value as 'hide' | 'line', bubbles: true, composed: true }))}>
         <option value="hide" ?selected=${this.value === 'hide'}>${nt('dHomeEmptyHide')}</option>
-        <option value="line" ?selected=${this.value === 'line'}>${nt('dHomeEmptyLine')}</option></select></div>`;
+        <option value="line" ?selected=${this.value === 'line'}>${nt('dHomeEmptyLine')}</option></select></sw-field></div>`;
   }
 }
 

@@ -14,6 +14,7 @@ import { tr } from '../i18n/msg/calendars';
 import { BEHALF_LABEL, repeatSummary, type Repeat } from './booking-logic';
 import { deleteLabel, durText, instantAt, openOn, placePopover, type Hint } from './grid-logic';
 import { errLineStyles } from '../styles/fragments';
+import '../components/sw-field';
 
 /** The quick create's draft (the selection on the grid + what the popover adds). Minutes are local minutes of `day`. */
 export interface QuickDraft {
@@ -242,8 +243,8 @@ export class CalQuickCreate extends LitElement {
 
   private organizer(d: QuickDraft, ctx: CalCtx) {
     if (ctx.access.can.book_for_others) {
-      return html`<span class="sel plain"><select aria-label=${tr('בשם')} data-cal-qc="behalf" @change=${(e: Event) => this.set({ behalf: (e.target as HTMLSelectElement).value as OnBehalfKind })}>
-          ${(Object.keys(BEHALF_LABEL) as OnBehalfKind[]).map((k) => html`<option value=${k} ?selected=${d.behalf === k}>${k === 'self' ? tr('בשמי') : tr('בשם {who}', { who: BEHALF_LABEL[k] })}</option>`)}</select><sw-icon name="chevronDown" size="14"></sw-icon></span>
+      return html`<span class="sel plain"><sw-field flow><select aria-label=${tr('בשם')} data-cal-qc="behalf" @change=${(e: Event) => this.set({ behalf: (e.target as HTMLSelectElement).value as OnBehalfKind })}>
+          ${(Object.keys(BEHALF_LABEL) as OnBehalfKind[]).map((k) => html`<option value=${k} ?selected=${d.behalf === k}>${k === 'self' ? tr('בשמי') : tr('בשם {who}', { who: BEHALF_LABEL[k] })}</option>`)}</select></sw-field><sw-icon name="chevronDown" size="14"></sw-icon></span>
         ${d.behalf !== 'self' ? html`<input class="fi" style="inline-size:140px" maxlength="80" data-cal-qc="behalf-label" .value=${d.behalfLabel} placeholder=${tr('שם ה{who}', { who: BEHALF_LABEL[d.behalf] })}
           aria-label=${tr('שם ה{who}', { who: BEHALF_LABEL[d.behalf] })} @input=${(e: Event) => this.set({ behalfLabel: (e.target as HTMLInputElement).value })}>` : nothing}`;
     }
@@ -274,7 +275,7 @@ export class CalQuickCreate extends LitElement {
           <input type="time" lang=${dateInputLang()} step=${step} aria-label=${tr('שעת סיום')} data-cal-qc="to" .value=${mm(Math.min(d.e, 1439))} ?disabled=${d.allDay} @change=${(e: Event) => this.time('e', (e.target as HTMLInputElement).value)}></span>
         <label class="ck"><input type="checkbox" data-cal-qc="allday" .checked=${d.allDay} @change=${(e: Event) => this.allDay((e.target as HTMLInputElement).checked)}>${tr('כל היום')}</label></div></div>
       <div class="qr"><sw-icon name="pin" size="16"></sw-icon><div class="qv"><span class="sel" style=${`--h:${colorVar(cal?.color)}`}><span class="dot"></span>
-          <select aria-label=${tr('יומן')} data-cal-qc="calendar" @change=${(e: Event) => this.set({ calId: (e.target as HTMLSelectElement).value })}>${cals.map((c) => html`<option value=${c.id} ?selected=${c.id === d.calId}>${c.name}</option>`)}</select>
+          <sw-field flow><select aria-label=${tr('יומן')} data-cal-qc="calendar" @change=${(e: Event) => this.set({ calId: (e.target as HTMLSelectElement).value })}>${cals.map((c) => html`<option value=${c.id} ?selected=${c.id === d.calId}>${c.name}</option>`)}</select></sw-field>
           <sw-icon name="chevronDown" size="14"></sw-icon></span>${cal?.floor_name || (cal && cal.approval_mode !== 'none' && cal.my_role !== 'manage') ? html`<span class="muted">${[cal?.floor_name, cal && cal.approval_mode !== 'none' && cal.my_role !== 'manage' ? tr('באישור') : ''].filter(Boolean).join(' · ')}</span>` : nothing}</div></div>
       <div class="qr"><sw-icon name="refresh" size="16"></sw-icon><div class="qv"><sw-segmented label=${tr('חזרה')} value=${d.repeat} @change=${(e: CustomEvent<SegmentedChange>) => this.set({ repeat: e.detail.value as Repeat })}
         .options=${([['none', tr('פעם אחת')], ['weekly', tr('כל {day}', { day: DAY_LONG[d.day.getDay()] })], ['daily', tr('כל יום')]] as [Repeat, string][]).map(([k, v]) => ({ value: k, label: v, attrs: { 'data-cal-qc-repeat': k } }))}></sw-segmented>

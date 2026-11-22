@@ -9,6 +9,7 @@ import type { MaintAccess } from './access';
 import { answerBody, answered, issueKeys, missingRequired, outOfRange, rangeText, resumeIndex, roundViewOf, saveRoundView, type RunDraft as Draft } from './model';
 import type { RoundView } from '../api/maintenance';
 import { maintCss } from './styles';
+import '../components/sw-field';
 
 /**
  * The round run (mockup v2: one checkpoint per screen, large targets): yes / no, a number judged against its range (a person may
@@ -246,8 +247,8 @@ export class MaintRoundRun extends LitElement {
     const depts = r.request_departments ?? [];
     return html`<div class="req" data-maint-request=${it.key}><span>${mt('openRequest')}</span>
       ${opened ? html`<a class="chip" data-look="ok" href=${`#/tickets/${encodeURIComponent(opened)}`}>${mt('requestOpened')}</a>`
-        : html`${!r.task.department_id && depts.length > 1 ? html`<select class="inp" style="inline-size:auto" aria-label=${mt('fDepartment')} @change=${(e: Event) => { this.dept = (e.target as HTMLSelectElement).value; }}>
-              ${depts.map((x) => html`<option value=${x.id} ?selected=${x.id === this.dept}>${x.name}</option>`)}</select>` : nothing}
+        : html`${!r.task.department_id && depts.length > 1 ? html`<sw-field flow><select class="inp" style="inline-size:auto" aria-label=${mt('fDepartment')} @change=${(e: Event) => { this.dept = (e.target as HTMLSelectElement).value; }}>
+              ${depts.map((x) => html`<option value=${x.id} ?selected=${x.id === this.dept}>${x.name}</option>`)}</select></sw-field>` : nothing}
             <button type="button" class="btn sm" ?disabled=${this.busy || (!r.task.department_id && !depts.length)} data-maint-request-open @click=${() => void this.request(it.key)}>${mt('openRequestBtn')}</button>`}
     </div>`;
   }

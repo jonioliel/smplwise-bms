@@ -17,6 +17,7 @@ import type { MaintAccess } from './access';
 import { fmtDate, fmtInstant, kindText, stickerUrl } from './model';
 import { maintCss } from './styles';
 import { ToastController } from '../components/toast-controller';
+import '../components/sw-field';
 
 /** A sticker's QR code as one inline SVG path (no data: URL - the strict remote CSP stays untouched), like the second-factor enrolment. */
 function qrPath(text: string): { d: string; size: number } {
@@ -197,7 +198,7 @@ export class MaintTagsPage extends LitElement {
     const devices = [...new Map(this.tasks.filter((t) => t.entity_id).map((t) => [t.entity_id!, t.entity_name || t.entity_id!])).entries()];
     return html`<sw-dialog open heading=${mt('newTag')} data-maint-tag-form @close=${() => { this.creating = false; }}>
       <div class="form">
-        <div class="fld"><label for="tg-t">${mt('tagFor')}</label><select id="tg-t" class="inp" data-maint-tag-target @change=${(e: Event) => {
+        <div class="fld"><label for="tg-t">${mt('tagFor')}</label><sw-field flow><select id="tg-t" class="inp" data-maint-tag-target @change=${(e: Event) => {
           const v = (e.target as HTMLSelectElement).value;
           const task = this.tasks.find((x) => `task:${x.id}` === v);
           this.draft = { ...this.draft, target: v, label: this.draft.label || task?.title || '' };
@@ -205,7 +206,7 @@ export class MaintTagsPage extends LitElement {
           <option value="" ?selected=${!this.draft.target} disabled>${mt('tagFor')}</option>
           <optgroup label=${mt('tagTask')}>${this.tasks.map((t) => html`<option value=${`task:${t.id}`}>${t.title} · ${kindText(t.kind)}</option>`)}</optgroup>
           ${devices.length ? html`<optgroup label=${mt('tagDevice')}>${devices.map(([id, name]) => html`<option value=${`entity:${id}`}>${name}</option>`)}</optgroup>` : nothing}
-        </select></div>
+        </select></sw-field></div>
         <div class="fld"><label for="tg-l">${mt('tagLabel')}</label><input id="tg-l" class="inp" maxlength="120" .value=${this.draft.label} @input=${(e: Event) => { this.draft = { ...this.draft, label: (e.target as HTMLInputElement).value }; }}></div>
         <div class="fld"><span class="lbl">${mt('tagMedium')}</span><sw-segmented label=${mt('tagMedium')} value=${this.draft.medium} @change=${(e: CustomEvent<SegmentedChange>) => { this.draft = { ...this.draft, medium: e.detail.value as 'qr' | 'nfc' }; }}
           .options=${(['qr', 'nfc'] as const).map((m) => ({ value: m, label: m.toUpperCase() }))}></sw-segmented></div>

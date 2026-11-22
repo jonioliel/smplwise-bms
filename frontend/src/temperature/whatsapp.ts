@@ -12,6 +12,7 @@ import { tempCss } from './styles';
 import { TT_KEYS, tt, type TtKey } from '../i18n/temperature';
 import { dateInputLang } from '../api/day-format';
 import { errLineStyles } from '../styles/fragments';
+import '../components/sw-field';
 
 type Freq = 'daily' | 'weekly' | 'monthly';
 
@@ -231,8 +232,8 @@ export class TempWa extends LitElement {
             <label class="sw"><input type="checkbox" .checked=${this.scheduled} @change=${(e: Event) => { this.scheduled = (e.target as HTMLInputElement).checked; }} data-wa-sched />${tt('waSchedule')}</label>
             ${this.scheduled ? html`<div class="r"><sw-segmented value=${this.freq} @change=${(e: CustomEvent<SegmentedChange>) => { this.freq = e.detail.value as Freq; }}
                 .options=${(['daily', 'weekly', 'monthly'] as Freq[]).map((f) => ({ value: f, label: tt(f === 'daily' ? 'waDaily' : f === 'weekly' ? 'waWeekly' : 'waMonthly') }))}></sw-segmented>
-              ${this.freq === 'weekly' ? html`<select class="in" aria-label=${tt('waWeekly')} @change=${(e: Event) => { this.dow = Number((e.target as HTMLSelectElement).value); }}>
-                ${[0, 1, 2, 3, 4, 5, 6].map((d) => html`<option value=${d} ?selected=${this.dow === d}>${tt(`dow${d}` as TtKey)}</option>`)}</select>` : nothing}
+              ${this.freq === 'weekly' ? html`<sw-field flow><select class="in" aria-label=${tt('waWeekly')} @change=${(e: Event) => { this.dow = Number((e.target as HTMLSelectElement).value); }}>
+                ${[0, 1, 2, 3, 4, 5, 6].map((d) => html`<option value=${d} ?selected=${this.dow === d}>${tt(`dow${d}` as TtKey)}</option>`)}</select></sw-field>` : nothing}
               ${this.freq === 'monthly' ? html`<label class="sw">${tt('waDom')}<input class="in" type="number" min="1" max="28" style="inline-size:70px" .value=${String(this.dom)}
                 @change=${(e: Event) => { this.dom = Math.max(1, Math.min(28, Number((e.target as HTMLInputElement).value) || 1)); }} /></label>` : nothing}
               <span>${tt('waAt')}</span><input class="in" type="time" lang=${dateInputLang()} .value=${this.at} @change=${(e: Event) => { this.at = (e.target as HTMLInputElement).value; }} aria-label=${tt('waAt')} /></div>` : nothing}

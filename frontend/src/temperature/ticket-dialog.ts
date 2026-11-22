@@ -7,6 +7,7 @@ import { getTicketDraft, openTicket, type TicketDraft } from '../api/temperature
 import { tempCss } from './styles';
 import { tt, ttLang } from '../i18n/temperature';
 import { errLineStyles } from '../styles/fragments';
+import '../components/sw-field';
 
 /**
  * CR-INFRA-TEMPERATURE phase 3 (idea 11): "קריאת שירות" from a unit's detail - a ticket in the service module, opened AS the person, through
@@ -90,9 +91,9 @@ export class TempTicket extends LitElement {
         ${!d ? (this.err ? html`<p class="err" role="alert">${this.err}</p>` : html`<div class="skl" style="block-size:200px"></div>`)
           : !d.departments.length ? html`<p class="hint" data-ticket-nodept>${tt('ticketNoDept')}</p>`
           : html`<div class="field"><label class="l" for="tk-dept">${tt('ticketDept')}</label>
-              <select id="tk-dept" class="in" data-ticket-dept @change=${(e: Event) => { this.dept = (e.target as HTMLSelectElement).value; }}>
+              <sw-field flow><select id="tk-dept" class="in" data-ticket-dept @change=${(e: Event) => { this.dept = (e.target as HTMLSelectElement).value; }}>
                 <option value="" ?selected=${!this.dept}>${tt('ticketChoose')}</option>
-                ${d.departments.map((x) => html`<option value=${x.id} ?selected=${this.dept === x.id}>${x.name}</option>`)}</select></div>
+                ${d.departments.map((x) => html`<option value=${x.id} ?selected=${this.dept === x.id}>${x.name}</option>`)}</select></sw-field></div>
             <div class="field"><label class="l" for="tk-subj">${tt('ticketSubject')}</label><input id="tk-subj" class="in" maxlength="200" .value=${this.subject}
               @input=${(e: Event) => { this.subject = (e.target as HTMLInputElement).value; }} data-ticket-title /></div>
             <div class="field"><label class="l" for="tk-desc">${tt('ticketDesc')}</label><textarea id="tk-desc" class="in" maxlength="4000" .value=${this.desc}

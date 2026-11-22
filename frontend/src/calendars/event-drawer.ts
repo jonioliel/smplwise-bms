@@ -16,6 +16,7 @@ import { editableInDrawer } from './event-drawer-logic';
 import './attendees-section'; // CAL-ATTENDEES-2343: the "מוזמנים" section (self-contained; reads / writes its own API)
 import type { CalAttendeesSection } from './attendees-section';
 import { errLineStyles } from '../styles/fragments';
+import '../components/sw-field';
 
 /**
  * CALENDARS-UI-2310 slice A: the new / edit booking drawer (the approved round-8 mock-up, screen 4). Permission-aware: an operator books for
@@ -42,7 +43,7 @@ export class CalEventDrawer extends LitElement {
     .lockline { display: flex; align-items: center; gap: 8px; color: var(--sw-text-2); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); padding: 8px 12px; border-radius: var(--sw-r-md);
       background: var(--sw-surface-3); }
     .ctls { display: flex; gap: 8px; min-inline-size: 0; align-items: center; }
-    .ctls > .inp { flex: 1; }
+    .ctls > .inp, .ctls > sw-field > .inp { flex: 1; }
     .ctls > .short { flex: 0 0 104px; }
     .selrow { position: relative; display: flex; align-items: center; }
     .selrow .dot { position: absolute; inset-inline-start: 12px; pointer-events: none; }
@@ -80,7 +81,7 @@ export class CalEventDrawer extends LitElement {
     @media (max-width: 699px) {
       .content { gap: 8px; }
       .ctls { flex-wrap: wrap; }
-      .ctls > .inp { flex: 1 1 120px; }
+      .ctls > .inp, .ctls > sw-field > .inp { flex: 1 1 120px; }
       .inp { min-block-size: 44px; }
     }
   `];
@@ -481,23 +482,23 @@ export class CalEventDrawer extends LitElement {
         ${!list.length ? html`<div class="note warn" role="note"><sw-icon name="lock" size="18"></sw-icon><div><b>${tr('אין יומן שאפשר להזמין בו')}</b><span class="muted">${tr('מנהל היומן יכול לתת הרשאה.')}</span></div></div>` : nothing}
         <div class="fld"><label for="cal">${tr('יומן')}</label>
           <div class="selrow"><span class="dot" style=${`--h:${colorVar(cal?.color)}`}></span>
-            <select id="cal" class="inp" data-cal-field="calendar" .value=${this.calId} ?disabled=${series} @change=${(e: Event) => (this.calId = (e.target as HTMLSelectElement).value)}>
-              ${list.map((c) => html`<option value=${c.id} ?selected=${c.id === this.calId}>${c.name}</option>`)}</select><sw-icon name="chevronDown" size="16"></sw-icon></div></div>
+            <sw-field flow><select id="cal" class="inp" data-cal-field="calendar" .value=${this.calId} ?disabled=${series} @change=${(e: Event) => (this.calId = (e.target as HTMLSelectElement).value)}>
+              ${list.map((c) => html`<option value=${c.id} ?selected=${c.id === this.calId}>${c.name}</option>`)}</select></sw-field><sw-icon name="chevronDown" size="16"></sw-icon></div></div>
         <div class="fld"><label for="t">${tr('כותרת')}</label><input id="t" class="inp" maxlength="200" data-cal-field="title" .value=${this.evTitle} placeholder=${tr('למשל: ישיבת צוות')} @input=${(e: Event) => (this.evTitle = (e.target as HTMLInputElement).value)}></div>
         <div class="fld"><span class="lbl">${tr('מתי')}</span><div class="ctls">
           <input type="date" lang=${dateInputLang()} class="inp" aria-label=${tr('תאריך')} data-cal-field="date" .value=${this.date} ?disabled=${series} @change=${(e: Event) => (this.date = (e.target as HTMLInputElement).value)}>
           <input type="time" lang=${dateInputLang()} class="inp short" aria-label=${tr('שעת התחלה')} step=${stepOf(cal) * 60} data-cal-field="from" .value=${this.from} ?disabled=${series} @change=${(e: Event) => (this.from = (e.target as HTMLInputElement).value)}>
           <input type="time" lang=${dateInputLang()} class="inp short" aria-label=${tr('שעת סיום')} step=${stepOf(cal) * 60} data-cal-field="to" .value=${this.to} ?disabled=${series} @change=${(e: Event) => (this.to = (e.target as HTMLInputElement).value)}></div></div>
         ${ev ? nothing : html`<div class="fld"><label for="rep">${tr('חזרה')}</label><div class="ctls">
-          <select id="rep" class="inp" data-cal-field="repeat" .value=${this.repeat} @change=${(e: Event) => (this.repeat = (e.target as HTMLSelectElement).value as Repeat)}>
-            <option value="none" ?selected=${this.repeat === 'none'}>${tr('פעם אחת')}</option><option value="weekly" ?selected=${this.repeat === 'weekly'}>${tr('כל שבוע')}</option><option value="daily" ?selected=${this.repeat === 'daily'}>${tr('כל יום')}</option></select>
+          <sw-field flow><select id="rep" class="inp" data-cal-field="repeat" .value=${this.repeat} @change=${(e: Event) => (this.repeat = (e.target as HTMLSelectElement).value as Repeat)}>
+            <option value="none" ?selected=${this.repeat === 'none'}>${tr('פעם אחת')}</option><option value="weekly" ?selected=${this.repeat === 'weekly'}>${tr('כל שבוע')}</option><option value="daily" ?selected=${this.repeat === 'daily'}>${tr('כל יום')}</option></select></sw-field>
           ${this.repeat !== 'none' ? html`<input type="number" class="inp short num" min="2" max="104" aria-label=${tr('מספר מועדים')} data-cal-field="count" .value=${String(this.count)} @input=${(e: Event) => (this.count = parseInt((e.target as HTMLInputElement).value, 10) || 2)}>` : nothing}</div></div>`}
         ${!ev && this.repeat !== 'none' && start ? html`<div class="fld"><span></span><span class="hint num" data-cal-repeat-summary><sw-icon name="refresh" size="14"></sw-icon><span class="ell">${repeatSummary(this.repeat, this.count, start)}</span></span></div>` : nothing}
         <div class="fld top"><span class="lbl">${tr('הזמינות')}</span><div class="col">${ev ? this.editAvailability(start, end, hint) : this.availability(start, end, conflicts)}</div></div>
         ${behalfOk ? html`
           <div class="fld"><label for="bh">${tr('בשם')}</label><div class="ctls">
-            <select id="bh" class="inp short" data-cal-field="behalf" .value=${this.behalf} @change=${(e: Event) => (this.behalf = (e.target as HTMLSelectElement).value as OnBehalfKind)}>
-              ${(Object.keys(BEHALF_LABEL) as OnBehalfKind[]).map((k) => html`<option value=${k} ?selected=${k === this.behalf}>${BEHALF_LABEL[k]}</option>`)}</select>
+            <sw-field flow><select id="bh" class="inp short" data-cal-field="behalf" .value=${this.behalf} @change=${(e: Event) => (this.behalf = (e.target as HTMLSelectElement).value as OnBehalfKind)}>
+              ${(Object.keys(BEHALF_LABEL) as OnBehalfKind[]).map((k) => html`<option value=${k} ?selected=${k === this.behalf}>${BEHALF_LABEL[k]}</option>`)}</select></sw-field>
             ${this.behalf !== 'self' ? html`<input class="inp" maxlength="80" aria-label=${tr('שם ה{who}', { who: BEHALF_LABEL[this.behalf] })} data-cal-field="behalf-label" .value=${this.behalfLabel} placeholder=${tr('שם ה{who}', { who: BEHALF_LABEL[this.behalf] })} @input=${(e: Event) => (this.behalfLabel = (e.target as HTMLInputElement).value)}>` : nothing}</div></div>`
           : html`<div class="lockline" data-cal-behalf-locked><sw-icon name="lock" size="16"></sw-icon><span>${tr('הזמנה בשם צוות, חוג או לקוח - למי שקיבל את ההרשאה')}</span></div>`}
         <div class="fld"><label for="hc">${tr('משתתפים')}</label><div class="ctls">

@@ -9,6 +9,7 @@ import { fmtKwh } from './format';
 import { meterNames, meterSearchText } from './meter-name';
 import { elecCss } from './styles';
 import { tr } from '../i18n/msg/electricity';
+import '../components/sw-field';
 
 /** One row, whichever source it came from. `sensor`: an infrastructure sensor shown in 'choose' mode for its reason only (never selectable). */
 interface Pick {
@@ -250,10 +251,10 @@ export class ElecMeterPicker extends LitElement {
           <input type="search" data-picker-search placeholder=${choose ? tr('חיפוש מונה לפי שם') : tr('חיפוש לפי שם')} aria-label=${choose ? tr('חיפוש מונה לפי שם') : tr('חיפוש לפי שם')} .value=${this.q} @input=${this.onSearch} />
         </label>
         <label class="inp">
-          <select data-picker-area aria-label=${tr('אזור')} @change=${this.onArea}>
+          <sw-field flow><select data-picker-area aria-label=${tr('אזור')} @change=${this.onArea}>
             <option value="" ?selected=${!this.area}>${tr('כל האזורים')}</option>
             ${[...new Set([...areas, this.area].filter(Boolean))].map((a) => html`<option value=${a} ?selected=${a === this.area}>${a}</option>`)}
-          </select>
+          </select></sw-field>
         </label>
       </div>
       ${this.rejected ? html`<div class="alert err" role="alert" data-picker-reject><span class="x" aria-hidden="true">!</span><div><b>${meterNames({ name: this.rejected.name, device_name: this.rejected.device, entity_name: this.rejected.entity }).primary}</b> ${tr('לא נבחר.')} ${this.rejected.message}</div></div>` : nothing}

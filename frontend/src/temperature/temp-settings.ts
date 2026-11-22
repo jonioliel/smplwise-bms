@@ -8,6 +8,7 @@ import { tempCss } from './styles';
 import { tt, type TtKey } from '../i18n/temperature';
 import { ticketsEnabled } from '../tickets/gate';
 import { dateInputLang, dayTimeText } from '../api/day-format';
+import '../components/sw-field';
 
 type Val = boolean | number | string | string[];
 const GROUPS: { title: TtKey; keys: [string, TtKey][] }[] = [
@@ -224,8 +225,8 @@ export class TempSettings extends LitElement {
     if (spec.type === 'bool') return html`<input type="checkbox" .checked=${Boolean(v)} data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLInputElement).checked }; }} />`;
     if (spec.type === 'hhmm') return html`<input type="time" lang=${dateInputLang()} .value=${String(v)} data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLInputElement).value }; }} />`;
     if (spec.type === 'choice') {
-      return html`<select data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLSelectElement).value }; }}>
-        ${(spec.choices ?? []).map((c) => html`<option value=${c} ?selected=${v === c}>${(CHOICE_LABEL[`${key}:${c}`] ?? CHOICE_LABEL[c]) ? tt(CHOICE_LABEL[`${key}:${c}`] ?? CHOICE_LABEL[c]) : c}</option>`)}</select>`;
+      return html`<sw-field flow><select data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLSelectElement).value }; }}>
+        ${(spec.choices ?? []).map((c) => html`<option value=${c} ?selected=${v === c}>${(CHOICE_LABEL[`${key}:${c}`] ?? CHOICE_LABEL[c]) ? tt(CHOICE_LABEL[`${key}:${c}`] ?? CHOICE_LABEL[c]) : c}</option>`)}</select></sw-field>`;
     }
     if (spec.type === 'text') {
       return html`<input type="text" maxlength=${spec.max ?? 300} class="txtin" .value=${String(v ?? '')} data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLInputElement).value.trim() }; }} />`;

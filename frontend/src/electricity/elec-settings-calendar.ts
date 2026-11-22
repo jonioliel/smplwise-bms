@@ -125,7 +125,7 @@ export class ElecSettingsCalendar extends ElecBase {
       ${edit ? html`<div class="card" data-calendar-add><div class="hd"><b class="h3">${tr('הוספת יום')}</b></div>
         <div class="form">
           <div class="fld"><label for="cd">${tr('תאריך')}</label><input id="cd" type="date" lang=${dateInputLang()} class="ltr ${this.addErr ? 'err' : ''}" data-add-date .value=${this.add.date} @change=${(e: Event) => { this.add = { ...this.add, date: (e.target as HTMLInputElement).value }; this.addErr = ''; }} />${this.addErr ? html`<div class="msg" role="alert">${this.addErr}</div>` : nothing}</div>
-          <div class="fld"><label for="ck">${tr('נחשב')}</label><select id="ck" data-add-kind @change=${(e: Event) => (this.add = { ...this.add, kind: (e.target as HTMLSelectElement).value as CalendarDay['kind'] })}>${KINDS.map((k) => html`<option value=${k.id} .selected=${k.id === this.add.kind}>${k.label}</option>`)}</select></div>
+          <div class="fld"><label for="ck">${tr('נחשב')}</label><sw-field flow><select id="ck" data-add-kind @change=${(e: Event) => (this.add = { ...this.add, kind: (e.target as HTMLSelectElement).value as CalendarDay['kind'] })}>${KINDS.map((k) => html`<option value=${k.id} .selected=${k.id === this.add.kind}>${k.label}</option>`)}</select></sw-field></div>
           <div class="fld wide"><label for="cn">${tr('שם (לא חובה)')}</label><input id="cn" data-add-name maxlength="60" .value=${this.add.name} @input=${(e: Event) => (this.add = { ...this.add, name: (e.target as HTMLInputElement).value })} /></div>
         </div>
         <div class="row" style="margin-block-start:12px"><sw-button variant="primary" data-add-day ?disabled=${this.busy} @click=${() => this.addDay()}>${tr('הוספה')}</sw-button></div></div>` : nothing}

@@ -10,6 +10,7 @@ import { em } from '../i18n/emergency';
 import { mt, type MtKey } from '../i18n/maintenance';
 import { refreshMaintenance } from './access';
 import { maintCss } from './styles';
+import '../components/sw-field';
 
 const LEAD_KEY = (k: TaskKind) => `maintenance.lead_days.${k}`;
 const BUILT_IN: Record<TaskKind, string> = { certificate: '30', preventive: '7', round: '0', vendor_document: '30' };
@@ -160,12 +161,12 @@ export class MaintSettings extends LitElement {
             @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ [REMINDERS]: String(e.detail.checked) })}></sw-toggle></div>
         <div class="grid4">
           ${num(CHECK_MIN, 'chk-min', 'setMinutes')}${num(LOG_KEEP, 'log-keep', 'daysUnit')}
-          <div class="fld"><label for="rv">${mt('setRoundView')}</label><select id="rv" class="inp" data-maint-setting=${ROUND_VIEW} .value=${this.draft[ROUND_VIEW] ?? 'step'}
+          <div class="fld"><label for="rv">${mt('setRoundView')}</label><sw-field flow><select id="rv" class="inp" data-maint-setting=${ROUND_VIEW} .value=${this.draft[ROUND_VIEW] ?? 'step'}
             @change=${(e: Event) => { this.draft = { ...this.draft, [ROUND_VIEW]: (e.target as HTMLSelectElement).value }; }}>
-            <option value="step" ?selected=${this.draft[ROUND_VIEW] !== 'list'}>${mt('viewStep')}</option><option value="list" ?selected=${this.draft[ROUND_VIEW] === 'list'}>${mt('viewList')}</option></select><span class="mut">${mt('setRoundViewHint')}</span></div>
-          <div class="fld"><label for="cm">${mt('setCloseMode')}</label><select id="cm" class="inp" data-maint-setting=${CLOSE_MODE} .value=${this.draft[CLOSE_MODE] ?? 'ask'}
+            <option value="step" ?selected=${this.draft[ROUND_VIEW] !== 'list'}>${mt('viewStep')}</option><option value="list" ?selected=${this.draft[ROUND_VIEW] === 'list'}>${mt('viewList')}</option></select></sw-field><span class="mut">${mt('setRoundViewHint')}</span></div>
+          <div class="fld"><label for="cm">${mt('setCloseMode')}</label><sw-field flow><select id="cm" class="inp" data-maint-setting=${CLOSE_MODE} .value=${this.draft[CLOSE_MODE] ?? 'ask'}
             @change=${(e: Event) => { this.draft = { ...this.draft, [CLOSE_MODE]: (e.target as HTMLSelectElement).value }; }}>
-            ${(['ask', 'auto', 'off'] as const).map((m) => html`<option value=${m} ?selected=${(this.draft[CLOSE_MODE] ?? 'ask') === m}>${mt(`setCloseMode_${m}` as MtKey)}</option>`)}</select></div>
+            ${(['ask', 'auto', 'off'] as const).map((m) => html`<option value=${m} ?selected=${(this.draft[CLOSE_MODE] ?? 'ask') === m}>${mt(`setCloseMode_${m}` as MtKey)}</option>`)}</select></sw-field></div>
           ${num(FILE_MAX, 'file-max', 'fileAdd')}
         </div>
         <div><h4>${mt('setInsurance')}</h4>
