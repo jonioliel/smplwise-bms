@@ -1,7 +1,9 @@
 # FLAKY-SWEEP-2480 - the repeat offenders of the 19.11 gates (target 2.48.0)
 
-Branch `pilot/FLAKY-SWEEP-2480`, base `origin/release/2450-train` (521165ad4). Partial: stopped early (weekly usage limit);
-what is done, what was measured and what remains are listed below.
+Branch `pilot/FLAKY-SWEEP-2480`, first base `origin/release/2450-train` (521165ad4); session 2 (22.11) merged
+`origin/release/2470-train` twice (e07db2469, 104bd90b2 = 2.47.0 + HOME-V3-SEGMENTS, no conflicts) and continued the sweep with the
+2.46.0 gate's flaky list. Session 1 is described first, session 2 at the end. Test code only, except the session-1 `lang-packs.ts`
+attribute (nothing reads it, no CSS selects it: no pixel effect). Nothing a user can see changed, so no comparison page and no baseline.
 
 ## Input and ranking
 
@@ -94,3 +96,86 @@ bridge-key / session-me-failure. 5x after-runs exist only for design-foundation 
 - Backend timing tests: none in the flaky lists of these reports, so nothing moved to `timing_lane`.
 - design-foundation / tickets / frigate test titles changed (split): quarantine or selection lists keyed by the old titles need none
   (none found); `gate_durations.json` keeps per-file numbers.
+
+## Session 2 (22.11): the 2.46.0 gate list (`gate_release-2460-train_8a8d6d63c`, 62 flaky) and the 2.45.0 gate reports
+
+Read on the runner (read-only): the gate2 report and every Playwright JSON of `gate_release-2460-train_8a8d6d63c` and
+`gate_release-2450-train_521165ad4`, with the first error line and the duration of each failing attempt, and the per-file / per-project
+durations (mobile against desktop).
+
+### Causes and fixes
+
+9. **Desktop-sized pages on the phone project** (most of the 2.46.0 mobile rows). The phone project is Pixel 7 at device scale 2.625;
+   a spec that pins 1440 x 900 (automations-builder `mount`, automations-list `open` / `openApi` default size) or 1440 x 2400
+   (system-multimedia via `media-players-harness` `openSize`) drew the desktop page there at ~7x the pixels (3780 x 6300 per frame for
+   multimedia) and wrote the desktop project's picture names. Gate durations: builder mobile 25.3 s a test vs 12.5 s desktop (12
+   timeouts), multimedia mobile 46.1 s vs 33.3 s (8 timeouts), mostly "taking page screenshot" at the end of the budget. New
+   `tests/helpers/phone-project.ts` `skipDesktopSizeOnPhone(width)`: such a test is skipped on the phone project only; desktop and
+   tablet run it as before, and every phone-sized test still runs on the phone project.
+10. **builder mount: an 8 s "network idle" wait that never ends** (the shell warms the common screens' chunks after the first load), so
+    each of ~150 mounts paid the full 8 s under load. It now waits for the shell (`gotoApp`) and until no `automations/*` request of the
+    test is still being answered (an in-flight counter in the route), which is what the clearing of the call record needs.
+11. **Reading the request record before the request**: tickets-costs (partial approval, payment demand) read `m.calls` right after the
+    click; the bodies are now read once the send dialog that the server's answer opens is shown (costs-tab `afterDecision`).
+    wiskey-door-tech: the delete went out with the old revision because the result line comes from the write's answer and the new
+    revision only from the read after it (`execute -> load`); the test waits for that read (the new name in the list).
+12. **A Node stub leaking across spec files**: unit-plan3d-furnmerge / -level3 put `document = { createElement }` on `globalThis` at
+    module level and never removed it. Later files of the same worker (and the collection phase) then failed: lit-html
+    `createTreeWalker is not a function` (unit-plan3d-real, 0 ms), `Invalid URL` (unit-video-sub-fallback-2402, its `??=` kept the
+    stub). New `tests/helpers/node-canvas-stub.ts`: installed in `beforeAll`, restored in `afterAll`.
+13. **Node-side polls of a busy 3D page**: `description.real` was polled with 20 / 30 s budgets while the page's main thread rebuilt the
+    level-3 graph (every poll is a page evaluation queued behind that work). `tests/helpers/plan-3d-wait.ts` `realisticDescription`
+    waits inside the page, one host update / element update / frame at a time (look-r3, odd, realistic). The realistic door test slept
+    400 / 900 / 300 ms; it now applies each description through the element's update and waits in the page until scene-three's door
+    animations list is empty before reading the graph.
+14. **Overgrown tests split** (the session-1 pattern): layout-tickets-s4 (one test per skin x theme x screen, 180 s each, after
+    `appReady`), layout-tickets-drawer five skins x light / dark (one per skin and scheme), wiskey-station-media busy / blocked
+    microphone / refused start (three tests), public-ui5 four languages (one per language). Same checks, same picture names.
+15. **`appReady` after the page load** in nav-size, multi-nvr, device-types-admin-ui, xsection-synoptic, syn-columns-2321,
+    offbox-backup-ui, offbox-gdrive-diagnose-2351, invrest-polish, tickets-drawer, maintenance; a11y-dialog-focus also replaced its
+    800 / 400 ms sleeps with the shell flag and "the focus is inside the dialog".
+
+Kept: the home-v3-followup-a bill-file listener hunk (session 1) survives both merges (the 2.46.0 note names it as the fix of the
+HOME-V3-SEGMENTS "show bill" failure).
+
+### Proof (runner, own worktree `~/work/flaky`, `nice -n 19`, `--workers=2` unless noted, retries 0, no gate running; other agents'
+jobs kept the load at 7-29 during these runs)
+
+| run | head | result |
+|---|---|---|
+| tsc `tsconfig.json` / `tsconfig.tests.json` / `tsconfig.scripts.json` after the first merge | e07db2469 | rc 0 / 0 / 0 |
+| tsc tests | 4d2528461, 2129754f3 | rc 0, rc 0 |
+| builder, mobile, BEFORE (load ~7) | e07db2469 | 50 passed (234 s) - not reproduced at this load |
+| builder, desktop + mobile, after | 4d2528461 | 59 passed, 41 skipped (desktop sizes on the phone), 149 s |
+| Node stubs BEFORE: furnmerge, level3, real, video-sub-fallback, one worker | e07db2469 | rc 1 at collection: `l.createTreeWalker is not a function` (reproduced) |
+| Node stubs after (+ unit-i18n-core), one worker | 4d2528461 | 30 passed |
+| tickets-costs, desktop + mobile, `--repeat-each=3` | 4d2528461 | 42 passed |
+| system-multimedia, desktop + mobile | 4d2528461 | 15 passed, 15 skipped (mobile) |
+| automations-list, mobile | 4d2528461 | 12 passed, 37 skipped |
+| realistic door test, desktop + tablet, `--repeat-each=3` | 4d2528461 | 6 passed |
+| unit-plan-3d-realistic + look-r3, desktop | 4d2528461 | 7 passed, 1 skipped |
+| wiskey-station-media + door-tech, desktop + mobile, `--repeat-each=2` | 2129754f3 | 124 passed |
+| the ten `appReady` specs, all projects | 2129754f3 | 255 passed, 48 skipped |
+| tickets-drawer / s4 layout guards, desktop + mobile | 2129754f3 | 76 passed, 56 skipped |
+| public-ui5, desktop + mobile | d2c43dabf | 25 passed, 1 skipped, **2 failed** - both in tests this row did not touch (L273, L323, phone): `page.screenshot` "Protocol error (Page.captureScreenshot): Unable to capture screenshot" on a full-page capture; the four per-language tests passed |
+| tickets, calmsg-polish-2331, schedules-list, calendars-settings-2310 (session-1 NOT_RUN items), desktop + mobile | d2c43dabf | 215 passed, 12 skipped, **1 failed**: schedules-list L679 (mobile) "schedule.manage without devices.read", `[data-sched-grid]` not found 5 s after the shell flag - not in any gate list; not analysed further (runner lost, see below) |
+
+### NOT_RUN / open (session 2)
+
+- The runner stopped answering SSH while the 2.47.0 release gate ran (coordinator: start nothing there). Already queued on the runner,
+  each behind the gate-wait loop of `~/work/flaky-run.sh` (results land in `~/work/flaky-out/summary.txt`): bridge-key /
+  session-me-failure / home-v3-followup-a / plan-editor-hot (desktop + mobile), automations-list + frigate-ui (desktop),
+  design-foundation + frigate-ui (mobile), layout-tickets-map (desktop), then at the final head the three tsc projects,
+  a11y-dialog-focus (all projects, x3) and home-v3-followup-a. Their results are NOT known to this note.
+- Final head tsc on the PC: see the report (run after the runner was lost).
+- "Unable to capture screenshot" (Chromium refusing a capture: public-ui5 phone, and in the gate lists notice-tv-bustimes-295,
+  evidence-audit30a-glass-bridge, design-foundation tesla dark, automations-list tablet) is a separate cause, not addressed here.
+- Analysed, not changed: unit-plan3d-zoom L62 (the zoom never moved within the poll; cause not proven), unit-plan-3d-odd L164 (300 s
+  test budget), wiskey-schedule-writes mobile L112 and wiskey-station-media every-skin (phone, load only; no race found),
+  evidence-multibuilding-home-2330 (a fit finding, not a wait), audit30g-video / events-polish (failed in the 2.45.0 retry too, i.e.
+  not flaky there, and absent from the 2.46.0 list).
+- Product race found (not changed, test-only row): wk-door-tech shows a write's result before the read that follows it, so the hold
+  delete button offers the old revision for that moment; a fast user would get a conflict. Recommendation: disable the hold actions
+  while `load()` after a write is in flight (a visible change: needs the look rule's comparison first).
+- Test count effect: about 110 phone-project duplicates of desktop-sized tests are now skipped (builder 41, automations-list 37,
+  multimedia 15, plus the mixed size loops); the gate's preview count is far above its 0.7 drop threshold (23,070 against 14,971).
