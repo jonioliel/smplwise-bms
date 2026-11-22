@@ -180,8 +180,8 @@ test('"must change at the first sign-in" is on by default and the administrator 
   const calls = await open(page, { [`POST ${API}`]: created });
   await fill(page, 'dana', 'דנה', [PW, PW]);
   const must = page.locator(`${TAB} [data-local-pw-must="create"]`);
-  await expect(must).toBeChecked();
-  await must.uncheck();
+  await expect(must).toHaveAttribute('checked', '');
+  await must.click();
   await page.locator(`${TAB} [data-local-create-save]`).click();
   await expect(page.locator(`${TAB} [data-local-done]`)).toBeVisible();
   await expect(page.locator(`${TAB} [data-local-done]`)).not.toContainText('יתבקש');
@@ -257,7 +257,7 @@ test('set password on an existing user: the pair is checked, the PUT carries it,
   const form = page.locator(`${TAB} [data-local-pw-form]`);
   await expect(form).toContainText('כל הכניסות הפעילות של המשתמש מסתיימות');
   await expect(form).toContainText('המשתמש חייב להחליף סיסמה בכניסה הבאה');
-  await expect(form.locator('[data-local-pw-must="user"]')).toBeChecked();
+  await expect(form.locator('[data-local-pw-must="user"]')).toHaveAttribute('checked', '');
   await form.locator('[data-local-pw="user"]').fill(PW);
   await form.locator('[data-local-pw-again="user"]').fill('something else 123');
   await form.locator('[data-local-pw-save]').click();

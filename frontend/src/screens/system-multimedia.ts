@@ -5,7 +5,7 @@ import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-card';
 import '../components/sw-button';
-import '../components/sw-toggle';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
@@ -401,7 +401,7 @@ export class SystemMultimedia extends LitElement {
       ${r.sections.map((s, i) => html`<div class="sec" data-mm-section=${s.id}>
         <sw-toggle label=${`${tr('הצג')}: ${SECTION_LABEL[s.id]}`} labelHidden .checked=${s.on} @change=${(e: CustomEvent<{ checked: boolean }>) => this.setSection(s.id, { on: e.detail.checked })}></sw-toggle>
         <span class="nm">${SECTION_LABEL[s.id]}</span>
-        <label class="f inline"><input type="checkbox" .checked=${r.more.includes(s.id)} ?disabled=${!s.on} aria-label=${`${tr('מאחורי "עוד מקשים"')}: ${SECTION_LABEL[s.id]}`} @change=${(e: Event) => this.setSection(s.id, { more: (e.target as HTMLInputElement).checked })} />${tr('מאחורי "עוד מקשים"')}</label>
+        <label class="f inline"><sw-toggle size="sm" labelHidden in-label .checked=${r.more.includes(s.id)} ?disabled=${!s.on} label=${`${tr('מאחורי "עוד מקשים"')}: ${SECTION_LABEL[s.id]}`} @change=${(e: Event) => this.setSection(s.id, { more: toggled(e) })}></sw-toggle>${tr('מאחורי "עוד מקשים"')}</label>
         <button type="button" class="ib" aria-label=${tr('הקדם: {name}', { name: SECTION_LABEL[s.id] })} ?disabled=${i === 0} @click=${() => this.moveSection(s.id, -1)}><sw-icon name="arrowUp" size=${14}></sw-icon></button>
         <button type="button" class="ib" aria-label=${tr('אחר: {name}', { name: SECTION_LABEL[s.id] })} ?disabled=${i === r.sections.length - 1} @click=${() => this.moveSection(s.id, 1)}><sw-icon name="arrowDown" size=${14}></sw-icon></button>
       </div>`)}

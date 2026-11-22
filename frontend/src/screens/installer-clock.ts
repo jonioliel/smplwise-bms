@@ -1,6 +1,7 @@
 import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-badge';
@@ -252,7 +253,7 @@ export class InstallerClock extends LitElement {
       typed: st.name,
       danger: true,
       maxSeconds: 55,
-      extra: () => html`<label class="opt"><input type="checkbox" .checked=${this.copySystem} @change=${(e: Event) => (this.copySystem = (e.target as HTMLInputElement).checked)} data-copy-system />
+      extra: () => html`<label class="opt"><sw-toggle size="sm" labelHidden in-label label=${C.copySystem} .checked=${this.copySystem} @change=${(e: Event) => (this.copySystem = toggled(e))} data-copy-system></sw-toggle>
         <span>${C.copySystem}</span></label>`,
       send: (typed) => syncStationClock(st.id, s.revision, this.copySystem, typed ?? ''),
       done: (reply) => {

@@ -1,6 +1,7 @@
 import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-badge';
@@ -156,8 +157,8 @@ export class InstallerTechnical extends LitElement {
       </div>
       ${d.values.relayReverseEnabled !== undefined
         ? html`<div class="relay">
-            <label class="opt"><input type="checkbox" .checked=${!!draft.relayReverseEnabled} ?disabled=${!editable} data-field="relayReverseEnabled"
-              @change=${(e: Event) => this.setDraft(n, 'relayReverseEnabled', (e.target as HTMLInputElement).checked)} />
+            <label class="opt"><sw-toggle size="sm" labelHidden in-label label=${X.fields.relayReverseEnabled} .checked=${!!draft.relayReverseEnabled} ?disabled=${!editable} data-field="relayReverseEnabled"
+              @change=${(e: Event) => this.setDraft(n, 'relayReverseEnabled', toggled(e))}></sw-toggle>
               <span>${X.fields.relayReverseEnabled}: <b>${draft.relayReverseEnabled ? X.relayOn : X.relayOff}</b></span></label>
             ${draft.relayReverseEnabled !== d.values.relayReverseEnabled ? html`<div class="msg warn" role="status">${X.relayWarn}</div>` : nothing}
           </div>`
