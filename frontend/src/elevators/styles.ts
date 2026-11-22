@@ -13,6 +13,9 @@ import type { Chip, Look } from './model';
  * fire-service crimson (owner decision 9a). Motion stops under prefers-reduced-motion.
  */
 export const elevatorCss = css`
+  /* COLOR-LITERAL-B-2480: the literals this sheet repeats (the white ink on the solid state fills, the fallbacks, the door panels), one
+     value in every skin and scheme */
+  :host { --el-white: #fff; --el-ink: #1b2433; --el-shade: #0002; --el-door: #c6cede; --el-door-off: #cfd5e1; }
   [data-look='wait'] { --el-c: var(--sw-el-wait); }
   [data-look='act'] { --el-c: var(--sw-el-act); }
   [data-look='fault'] { --el-c: var(--sw-el-fault); }
@@ -29,7 +32,7 @@ export const elevatorCss = css`
     border-radius: 999px;
     padding: 4px 12px;
     background: var(--el-c);
-    color: #fff;
+    color: var(--el-white);
     font-size: var(--sw-fs-base);
     font-weight: 700;
     letter-spacing: -0.005em;
@@ -44,8 +47,8 @@ export const elevatorCss = css`
   /* out of service is a calm outlined chip (ELEVFIX-297, was a loud diagonal stripe): a tinted fill, an outline and its own icon and word, so it
      is told apart by more than its colour; the text follows the theme's text colour (readable in light and dark) */
   .el-badge[data-look='off'] {
-    background: color-mix(in srgb, var(--el-c) 13%, var(--sw-surface, #fff));
-    color: color-mix(in srgb, var(--el-c) 72%, var(--sw-text, #1b2433));
+    background: color-mix(in srgb, var(--el-c) 13%, var(--sw-surface, var(--el-white)));
+    color: color-mix(in srgb, var(--el-c) 72%, var(--sw-text, var(--el-ink)));
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--el-c) 50%, transparent);
   }
   .el-badge { max-inline-size: 100%; box-sizing: border-box; }
@@ -59,17 +62,17 @@ export const elevatorCss = css`
     position: relative;
     flex: none;
     box-sizing: border-box;
-    background: linear-gradient(color-mix(in srgb, var(--sw-surface, #fff) 70%, transparent), color-mix(in srgb, var(--sw-surface, #fff) 30%, transparent));
+    background: linear-gradient(color-mix(in srgb, var(--sw-surface, var(--el-white)) 70%, transparent), color-mix(in srgb, var(--sw-surface, var(--el-white)) 30%, transparent));
     border: calc(var(--ei) * 0.04 + 1px) solid var(--el-c);
-    box-shadow: inset 0 0 0 calc(var(--ei) * 0.05) color-mix(in srgb, #fff 45%, transparent), var(--sw-shadow-1, 0 6px 16px #0002);
+    box-shadow: inset 0 0 0 calc(var(--ei) * 0.05) color-mix(in srgb, var(--el-white) 45%, transparent), var(--sw-shadow-1, 0 6px 16px var(--el-shade));
     display: flex;
     overflow: hidden;
   }
   .eicon u {
     flex: 1;
-    background: linear-gradient(90deg, #c6cede, #eef1f7 45%, #c6cede);
+    background: linear-gradient(90deg, var(--el-door), #eef1f7 45%, var(--el-door));
     margin-block-start: calc(var(--ei) * 0.13);
-    border-inline: 1px solid #0002;
+    border-inline: 1px solid var(--el-shade);
     transition: margin 0.4s ease;
   }
   .eicon u:first-of-type {
@@ -84,7 +87,7 @@ export const elevatorCss = css`
     block-size: calc(var(--ei) * 0.29);
     border-radius: 0 0 calc(var(--ei) * 0.13) calc(var(--ei) * 0.13);
     background: var(--el-c);
-    color: #fff;
+    color: var(--el-white);
     display: grid;
     place-items: center;
   }
@@ -92,7 +95,7 @@ export const elevatorCss = css`
      in operation they are shut (ELEVDOORS-293) */
   .eicon[data-doors='open'] u:first-of-type { margin-inline-end: calc(var(--ei) * 0.14); }
   .eicon[data-look='off'] u {
-    background: linear-gradient(90deg, #cfd5e1, #e4e8f0 45%, #cfd5e1);
+    background: linear-gradient(90deg, var(--el-door-off), #e4e8f0 45%, var(--el-door-off));
   }
   .eicon[data-look='off'] { opacity: 0.8; }
   @media (prefers-reduced-motion: no-preference) {
@@ -116,7 +119,7 @@ export const elevatorCss = css`
     font-size: var(--sw-fs-state);
     font-weight: var(--sw-fw-medium);
     color: var(--sw-text-2);
-    background: color-mix(in srgb, var(--sw-text, #1b2433) 6%, transparent);
+    background: color-mix(in srgb, var(--sw-text, var(--el-ink)) 6%, transparent);
     border: 0;
     border-radius: 999px;
     padding: 3px 10px;
@@ -129,7 +132,7 @@ export const elevatorCss = css`
     background: color-mix(in srgb, var(--sw-text-3) 45%, transparent);
     display: inline-block;
   }
-  .led[data-on='true'] { background: color-mix(in srgb, var(--el-c) 20%, var(--sw-surface, #fff)); color: var(--sw-heading, var(--sw-text)); font-weight: var(--sw-fw-bold); }
+  .led[data-on='true'] { background: color-mix(in srgb, var(--el-c) 20%, var(--sw-surface, var(--el-white))); color: var(--sw-heading, var(--sw-text)); font-weight: var(--sw-fw-bold); }
   .led[data-on='true'] i { background: var(--el-c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--el-c) 30%, transparent); }
   .led[data-on='null'] i { background: transparent; border: 1px dashed var(--sw-text-3); box-sizing: border-box; }
   .led[data-na] { opacity: 0.45; }
