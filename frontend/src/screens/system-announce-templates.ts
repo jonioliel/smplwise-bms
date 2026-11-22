@@ -7,6 +7,7 @@ import { describeError } from '../api/client';
 import { blankTemplate, cleanTemplates, NAME_MAX, removeTemplate, setField, setKind, templateName, templatesProblem, TEMPLATES_MAX, TEXT_MAX } from '../announce/model';
 import { announceText, announceUiLang } from '../i18n/announce';
 import { errLineStyles } from '../styles/fragments';
+import '../components/sw-field';
 
 /**
  * ANNOUNCE-295: הגדרות › מולטימדיה › הכרזות קוליות › "תבניות הודעה". The ready-made announcements (routine and emergency; Hebrew, English, Russian) as one list
@@ -84,9 +85,9 @@ export class SystemAnnounceTemplates extends LitElement {
         <summary>${templateName(x, ui) || x.id} <span class="muted">${x.kind === 'emergency' ? t.kindEmergency : t.kindRoutine}</span></summary>
         <div class="grid">
           <span>${t.kind}</span>
-          <select data-announce-template-kind aria-label=${t.kind} @change=${(e: Event) => this.edit(setKind(this.draft, x.id, (e.target as HTMLSelectElement).value as AnnounceTemplateKind))}>
+          <sw-field><select data-announce-template-kind aria-label=${t.kind} @change=${(e: Event) => this.edit(setKind(this.draft, x.id, (e.target as HTMLSelectElement).value as AnnounceTemplateKind))}>
             <option value="routine" ?selected=${x.kind === 'routine'}>${t.kindRoutine}</option>
-            <option value="emergency" ?selected=${x.kind === 'emergency'}>${t.kindEmergency}</option></select>
+            <option value="emergency" ?selected=${x.kind === 'emergency'}>${t.kindEmergency}</option></select></sw-field>
           ${ANNOUNCE_LANGS.map((l) => html`
             <span>${t.tplName} · ${t.langName[l]}</span>
             <input type="text" maxlength=${NAME_MAX} data-announce-template-name=${l} dir=${l === 'he' ? 'rtl' : 'ltr'} aria-label=${`${t.tplName} ${t.langName[l]}`} .value=${x.name[l] ?? ''}

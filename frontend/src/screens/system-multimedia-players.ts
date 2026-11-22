@@ -33,6 +33,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { dateInputLang } from '../api/day-format';
 import { tr } from '../i18n/msg/system-b';
 import { errLineStyles } from '../styles/fragments';
+import '../components/sw-field';
 
 const flash = (ms = 3000) => new Promise((r) => setTimeout(r, ms));
 /** The kinds a speaker / player / receiver card may be set to (settings choose; the detected kind is the default). */
@@ -500,15 +501,15 @@ export class SystemMultimediaPlayers extends LitElement {
           <input type="text" .value=${d.name} maxlength="60" data-mm-name=${d.key} @change=${(e: Event) => void this.patchDevice(d, { display_name: (e.target as HTMLInputElement).value })} />
         </label>
         <label class="f">${tr('סוג')}
-          ${d.kind === 'group' ? html`<span>${ANY_KIND_LABEL.group}</span>` : html`<select data-mm-kind=${d.key} @change=${(e: Event) => void this.patchDevice(d, { kind: (e.target as HTMLSelectElement).value as AdminDevice['kind'] })}>
+          ${d.kind === 'group' ? html`<span>${ANY_KIND_LABEL.group}</span>` : html`<sw-field><select data-mm-kind=${d.key} @change=${(e: Event) => void this.patchDevice(d, { kind: (e.target as HTMLSelectElement).value as AdminDevice['kind'] })}>
             ${KIND_CHOICES.map((k) => html`<option value=${k} ?selected=${d.kind === k}>${ANY_KIND_LABEL[k]}</option>`)}
-          </select>`}
+          </select></sw-field>`}
         </label>
         <span class="f">${tr('זיהוי')}<sw-badge kind=${d.confidence === 'weak' ? 'stale' : 'neutral'} label=${CONFIDENCE_LABEL[d.confidence]}></sw-badge></span>
         <label class="f">${tr('חדר')}
           ${unplaced && this.areas.length
-            ? html`<select data-mm-area=${d.key} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; if (v) void this.patchDevice(d, { area_id: v }); }}>
-                <option value="" selected>${tr('ללא חדר')}</option>${this.areas.map((a) => html`<option value=${a.id}>${a.name}${a.floor_name ? ` · ${a.floor_name}` : ''}</option>`)}</select>`
+            ? html`<sw-field><select data-mm-area=${d.key} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; if (v) void this.patchDevice(d, { area_id: v }); }}>
+                <option value="" selected>${tr('ללא חדר')}</option>${this.areas.map((a) => html`<option value=${a.id}>${a.name}${a.floor_name ? ` · ${a.floor_name}` : ''}</option>`)}</select></sw-field>`
             : html`<span data-mm-place=${d.key}>${place || tr('ללא חדר')}</span>`}
         </label>
         ${d.zones?.length ? html`<span class="f">${tr('אזורים')}<span>${d.zones.map((z) => z.name).join(' · ')}</span></span>` : nothing}
@@ -516,10 +517,10 @@ export class SystemMultimediaPlayers extends LitElement {
       </div>
       <div class="line">
         ${d.kind !== 'receiver' && d.kind !== 'group' ? html`<label class="f">${tr('מגבר מקושר')}
-          <select data-mm-link=${d.key} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; void this.patchDevice(d, { audio_link_key: v || null }); }}>
+          <sw-field><select data-mm-link=${d.key} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; void this.patchDevice(d, { audio_link_key: v || null }); }}>
             <option value="" ?selected=${!d.audio_link_key}>${tr('ללא')}</option>
             ${amps.map((r) => html`<option value=${r.key} ?selected=${d.audio_link_key === r.key}>${r.name}</option>`)}
-          </select></label>` : nothing}
+          </select></sw-field></label>` : nothing}
         <label class="f">${tr('תקרת עוצמה')}
           <input type="number" min="0" max="100" .value=${d.volume_max === null ? '' : String(d.volume_max)} placeholder=${tr('ללא')} data-mm-volmax=${d.key}
             @change=${(e: Event) => { const n = parseCeiling((e.target as HTMLInputElement).value); if (n !== 'invalid') void this.patchDevice(d, { volume_max: n }); }} />

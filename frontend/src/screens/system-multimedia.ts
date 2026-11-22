@@ -33,6 +33,7 @@ import { castSentence } from './media-cast-label';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsStyles } from '../styles/settings';
 import { tr } from '../i18n/msg/system-b';
+import '../components/sw-field';
 
 const PROFILES = Object.keys(PROFILE_LABEL) as ProfileId[];
 const flash = (ms = 3000) => new Promise((r) => setTimeout(r, ms));
@@ -332,9 +333,9 @@ export class SystemMultimedia extends LitElement {
           <input type="text" .value=${d.name} maxlength="60" data-mm-name=${d.key} @change=${(e: Event) => void this.updateDevice(d, { display_name: (e.target as HTMLInputElement).value })} />
         </label>
         <label class="f">${tr('סוג')}
-          <select data-mm-kind=${d.key} @change=${(e: Event) => void this.updateDevice(d, { kind: (e.target as HTMLSelectElement).value as AdminDevice['kind'] })}>
+          <sw-field><select data-mm-kind=${d.key} @change=${(e: Event) => void this.updateDevice(d, { kind: (e.target as HTMLSelectElement).value as AdminDevice['kind'] })}>
             ${(Object.keys(KIND_LABEL) as MediaKind[]).map((k) => html`<option value=${k} ?selected=${d.kind === k}>${KIND_LABEL[k]}</option>`)}
-          </select>
+          </select></sw-field>
         </label>
         <span class="f">${tr('זיהוי')}<sw-badge kind=${d.confidence === 'weak' ? 'stale' : 'neutral'} label=${CONFIDENCE_LABEL[d.confidence]}></sw-badge></span>
         <span class="f">${tr('מיקום')}<span>${[d.floor_name, d.area_name].filter(Boolean).join(' ‹ ') || '—'}</span></span>
@@ -343,16 +344,16 @@ export class SystemMultimedia extends LitElement {
       <div class="line">
         <label class="f inline">${tr('מסך ציבורי')}<sw-toggle label=${`${tr('מסך ציבורי')}: ${d.name}`} labelHidden .checked=${d.public} ?disabled=${d.kind !== 'screen'} data-mm-public=${d.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.updateDevice(d, { public: e.detail.checked })}></sw-toggle></label>
         <label class="f">${tr('פרופיל')}
-          <select data-mm-profile=${d.key} ?disabled=${d.kind !== 'screen'} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; void this.updateDevice(d, { profile: v === '' ? null : (v as ProfileId) }); }}>
+          <sw-field><select data-mm-profile=${d.key} ?disabled=${d.kind !== 'screen'} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; void this.updateDevice(d, { profile: v === '' ? null : (v as ProfileId) }); }}>
             <option value="" ?selected=${d.profile_source === 'auto'}>${tr('זיהוי אוטומטי')} · ${PROFILE_LABEL[d.profile]}</option>
             ${PROFILES.map((p) => html`<option value=${p} ?selected=${d.profile_source === 'manual' && d.profile === p}>${PROFILE_LABEL[p]}</option>`)}
-          </select>
+          </select></sw-field>
         </label>
         <label class="f">${tr('מגבר מקושר')}
-          <select data-mm-link=${d.key} ?disabled=${d.kind !== 'screen'} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; void this.updateDevice(d, { audio_link_key: v || null, ...(v ? {} : { audio_default: 'screen' as const }) }); }}>
+          <sw-field><select data-mm-link=${d.key} ?disabled=${d.kind !== 'screen'} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; void this.updateDevice(d, { audio_link_key: v || null, ...(v ? {} : { audio_default: 'screen' as const }) }); }}>
             <option value="" ?selected=${!d.audio_link_key}>${tr('ללא')}</option>
             ${receivers.map((r) => html`<option value=${r.key} ?selected=${d.audio_link_key === r.key}>${r.name}</option>`)}
-          </select>
+          </select></sw-field>
         </label>
         <span class="f">${tr('שמע ברירת מחדל')}
           <sw-segmented label=${tr('שמע ברירת מחדל')} value=${d.audio_default} ?disabled=${!d.audio_link_key}
