@@ -3067,12 +3067,13 @@ export class SwApp extends LitElement {
     const first = this.userName.split(/\s+/)[0] || tr('חשבון');
     // review M6: the settings (#/system/...) are reached from here, so the avatar is the active item there
     const here = areaOf(this.route) === 'system';
-    // A11Y-AUDIT-2490 (owner N50): the avatar's initials are a picture of the name, not its text - hidden from the name computation, so
-    // the key's visible text is the first name, which its label (תפריט המשתמש · <name>) contains (WCAG 2.5.3 label in name)
+    // A11Y-AUDIT-2490 (owner N50): the avatar's initials are a picture of the name, not its text - drawn by CSS (sw-avatar decorative)
+    // and hidden from screen readers, so the key's visible text is the first name, which its label (תפריט המשתמש · <name>) contains
+    // (WCAG 2.5.3 label in name; axe reads the on-screen text nodes, aria-hidden alone does not take them out)
     return html`<button type="button" class=${classMap({ me: true, [where]: true, open: this.menuOpen, active: here })} ?data-profile-menu=${where === 'rail'} ?data-nav-me=${where === 'bottom'} data-has-alerts=${n ? 'true' : 'false'}
       aria-current=${here ? 'page' : 'false'} aria-haspopup="dialog" aria-expanded=${this.menuOpen ? 'true' : 'false'} aria-label=${this.userLabel()} title=${this.userLabel()}
       @click=${(e: Event) => (this.menuOpen ? this.closeMenu(false) : this.openMenu(e.currentTarget as HTMLElement))}>
-      <span class="ic" aria-hidden="true"><span class="av"><sw-avatar name=${this.userName} size=${where === 'rail' ? this.nav.avatar : this.nav.pAvatar}></sw-avatar>${n ? html`<i class="dot" data-alert-dot aria-hidden="true"></i>` : nothing}</span></span><span class="lbl">${first}</span>
+      <span class="ic" aria-hidden="true"><span class="av"><sw-avatar decorative name=${this.userName} size=${where === 'rail' ? this.nav.avatar : this.nav.pAvatar}></sw-avatar>${n ? html`<i class="dot" data-alert-dot aria-hidden="true"></i>` : nothing}</span></span><span class="lbl">${first}</span>
     </button>`;
   }
 
