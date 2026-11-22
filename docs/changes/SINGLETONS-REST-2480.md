@@ -1,6 +1,9 @@
-# SINGLETONS-REST-2480 - per-test resets for the remaining module-level tables (groups 1-3 done)
+# SINGLETONS-REST-2480 - per-test resets for the remaining module-level tables (groups 1-5 done)
 
 Branch `pilot/SINGLETONS-REST-2480`, base `origin/release/2450-train` + merge of `origin/pilot/CR-SINGLETON-RESETS-2460` (1f9ba5c01). Target 2.48.0.
+22.11: `origin/release/2470-train` (2c211966d) merged in (678f9e8e5); conflicts only in the imports of routers/generator.py and
+routers/notifications.py (the row's `test_reset` import next to the train's `wire` imports, both kept). The train moved again (2.47.0 release
+commits, 4d244a419) and was merged once more (4325b027c, no conflicts; backend: only the version in smplwise/__init__.py).
 
 ## Done: group 1 (routers), commit bfffdb3e5
 - 17 router modules register a per-test reset (`register_reset`) for 23 names: access_control_command.RELAYS, alarm._PASS_THROUGH, calendar_feeds._RATE,
@@ -31,10 +34,49 @@ Branch `pilot/SINGLETONS-REST-2480`, base `origin/release/2450-train` + merge of
 - Group 3 targeted (singleton test, test_rbac, test_rbac_groups, test_ha_users, test_local_identity, test_local_identity_units, test_authrevoke_2435, test_authorize_active_2438), `git archive` copy of the group 3 head: 203 passed, 2 failed with FileNotFoundError (test_rbac::test_contract_authorization_vectors, test_ha_users::test_263_the_add_on_option_is_gone read repo files outside backend/, missing in the archive copy); re-run in the real worktree: 2 passed.
 - NOT_RUN: the 36 router files, the wider billing/energy/water/auth areas, the runner.
 
+## Done: group 4 (WisKey write limits and reviews), commit dc28c8eb8
+- wiskey_door_tech, wiskey_installer, wiskey_schedule_writes, wiskey_station_ops, wiskey_triage, wiskey_profiles and wiskey_access_diag register
+  their existing module `reset()` unchanged (10 names: LIMITS x5, PREVIEWS, SEEN, HEALTH, REVIEWS, AUDIT_GATE). The tests already called them in
+  their own fixtures.
+
+## Done: group 5 (process-local caches, counters, limiters), commit dc28c8eb8
+- New resets: alarm_codes.LOCKOUT (its existing `reset()`), bridge_keys.NONCES/REFUSALS (not `_BOOT_HW`), capture_lease.GUARDS (the three flags;
+  not REG), access_service_writer.LAST (a fresh PathRecord; not the installed writer), live_codec.BUDGET, second_factor.FAILURES (the in-memory
+  fallback), station_people.CACHE/PIN_BUDGET, tickets.dashboard.CACHE, events_cache.CACHE (entries + stats, not `enabled`), partner.core.USAGE
+  (pending usage), tickets.public_log._LINES, exports.STATS, media_store.ARTWORK/QUEUE_CACHE.
+- Extended resets: media_commands (+BUCKETS), ha_user_auth (+LIMITER, the sign-in hit windows, and +REFUSAL_AUDITS).
+- 29 names left `singletons_unregistered.txt`.
+
+## Constant objects (commit 487b10a49)
+- notify_policy.BY_KEY, plan_ifc.STAR, semantic.LOCAL/EXTERNAL_TEMPLATE, tickets.public_store.NO_GRANT: counted by the class rule, never changed
+  after import (grep) - moved to `singletons_constant_tables.txt` with their reason. The to-do list holds 107 names now (was 182 at the row's start).
+
+## Still listed on purpose (after group 5)
+- Threads, workers, pollers, servers and transports (WORKER, POLLER, RUNNER, SERVER, LISTENER, _TRANSPORT, the HA client pools): a reset would have
+  to stop or replace a live object; their tests manage them.
+- Registries with lifecycle: capture_lease.REG, intercom_* (BOOK, CAPTURES, MEDIA, LISTEN ...), wiskey_installer_lifecycle.FLOWS,
+  media_store.INDEX (has a `loaded` flag the sync sets), events_ingest.EXTRA/_subscribers, tickets.keyring.KEYS.
+
+## Tests 22.11 (PC, main checkout venv Python 3.12, `-p no:xdist -o addopts=`; the PC was at 100 % CPU from other agents throughout)
+- `tests/test_singletons_registered.py`: 4 passed on the first merge (678f9e8e5) and 4 passed on 487b10a49 (groups 4-5 + constant list).
+- `py -3.12 -m ruff check smplwise`: all checks passed on dc28c8eb8.
+- Targeted, 48 files (every test file of the group 4-5 modules: the WisKey limits / station ops / profiles / triage / access diag / door tech /
+  installer files, alarm, notify_sources, bridge key files, capture_lease files, live_h265, live_socket_caps, second_factor, events_cache,
+  exports, media_commands, media_sync, media_review_fixes, tickets_mgrdash_*, tickets_public_server, partner_api_113, refusal_audit_throttle,
+  block_counters_sec3, templink, ha_users, the singleton test), `-m "not timing_lane"`, on dc28c8eb8: 1646 passed, 2 skipped, 1 failed in 2 h 56 min.
+  The failure, test_partner_api_113::test_sec217_global_failure_flood_never_locks_out_a_valid_token, asserts that 320 failed requests fill a
+  60-second window (300 / minute); requests 301-320 still got 401, i.e. the 320 requests took longer than a minute on the loaded PC. The window is
+  the per-instance `PartnerApp.limiter`, which no reset of this row touches. Re-run of the whole file alone on 487b10a49: 126 passed.
+- Runner, full backend suite (4 niced shards, no xdist on the runner) on dc28c8eb8: STOPPED, not completed. It was ended when the 2.47.0 gate
+  started (at about 10 %: 3144 passed, 0 failed, 0 errors so far); the lead then froze the runner, so the full run is NOT_RUN. Script for the re-run
+  after the gate verdict: `private/planning/SINGLETONS-REST-2480_runner_be.sh <sha>` (records exact PIDs in ~/work/singrest-results/pids.txt).
+
 - Kept on purpose: energy_billing_adapter._SETTINGS, announcements/cast_sessions _DB/_SETTINGS, playback._INSTANCE, remote_channel modes (start-up wiring: a
   per-test reset would break app fixtures that outlive one test); bridge_keys._BOOT_HW and revocation._generation/_marks (replay / revocation bookkeeping,
   not caches); local_identity._pending, local_reset._senders (pending logins, sender threads); app_session.CACHE, local_identity.CACHE/TIERS (hold sockets to
   close and ended keys); all of smplwise.db (lock / pool bookkeeping).
 
 ## Open questions (recommendation)
-1. Run the 36-file router set and the groups 2-3 areas on the runner when a slot is free (recommended: yes).
+1. Run the full backend suite on the runner once the 2.47.0 gate verdict is in (recommended: yes, with the script above; it covers the 36 router
+   files and the groups 2-5 areas that are NOT_RUN in full).
+2. The partner flood test is wall-clock sensitive (320 requests inside 60 s); mark it `timing_lane` in a separate row (recommended: yes, not here).
