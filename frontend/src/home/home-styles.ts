@@ -91,7 +91,7 @@ button { cursor: pointer; }
 .hbtn.xl {min-block-size: 72px; font-size: 20px; border-radius: 20px;}
 .hbtn.wide {inline-size: min(360px, 100%);}
 .hbtn.sm {font-size: var(--f-sm); padding: 0 18px !important;}
-.hbtn:active, .rb:active, .lamp:active, .chip2:active, .scene:active, .seg button:active, .ltile:active, .zrow:active, .mrow:active {transform: scale(.97);}
+.hbtn:active, .rb:active, .lamp:active, .chip2:active, .scene:active, .ltile:active, .zrow:active, .mrow:active {transform: scale(.97);}
 .hbtn:disabled, .rb:disabled {opacity: .38; cursor: default; transform: none;}
 .hbtn[aria-pressed] .off-t, .hbtn[aria-pressed="false"] .on-t {display: none;}
 .hbtn[aria-pressed="false"] .off-t {display: inline;}
@@ -103,12 +103,21 @@ button { cursor: pointer; }
 .lamp {inline-size: var(--hit); block-size: var(--hit); border-radius: 50%; display: inline-grid; place-items: center; flex: none; color: var(--hs-text-2); transition: transform 120ms var(--hs-ease), background-color var(--hs-t-med) ease, color var(--hs-t-med) ease;}
 .hs .lamp {background: var(--hs-surface-3);}
 .hs .lamp[aria-pressed="true"] {background: var(--hs-lamp-on); color: var(--hs-lit);}
-.seg {display: inline-flex; padding: 4px; border-radius: var(--r-ctl); background: var(--hs-surface-2); gap: 2px; max-inline-size: 100%;}
-:host([data-hs-scheme="light"]) .seg {background: var(--hs-surface-3);}
-.seg button {position: relative; min-block-size: 48px; padding: 0 20px !important; border-radius: 12px; color: var(--hs-text-2); font-size: var(--f-body); font-weight: 500; white-space: nowrap; transition: transform 120ms var(--hs-ease), background-color var(--hs-t-med) ease, color var(--hs-t-med) ease;}
-.seg button::after {content: ""; position: absolute; inset: -4px 0;}
-.hs .seg button[aria-pressed="true"], .ovl .seg button[aria-pressed="true"] {background: var(--hs-surface-3); color: var(--hs-heading); font-weight: 600;}
-:host([data-hs-scheme="light"]) .hs .seg button[aria-pressed="true"], :host([data-hs-scheme="light"]) .ovl .seg button[aria-pressed="true"] {background: var(--hs-white);}
+/* CR-HOME-V3-SEGMENTS-2470 (owner N11): a one-of-N choice is the shared sw-segmented. The home key reaches it through the component's
+   knobs: every rule the hand-built group had (track, key, chosen key) is now a host rule in the same place and context, so the cascade
+   between them is the one it was. Kept as the home drew it: no edge on the track, no wrapping, a key no narrower than its words (min
+   auto), the line height of the home text (the label sits on the same pixel row), the 4 px taller hit area (::after), the .97
+   press, no hover wash, the home focus ring. */
+sw-segmented {flex: 0 1 auto; --sw-seg-pad: 4px; --sw-seg-radius: var(--r-ctl); --sw-seg-track: var(--hs-surface-2); --sw-seg-gap: 2px; --sw-seg-wrap: nowrap; --sw-seg-axis: row;
+  --sw-seg-h: 48px; --sw-seg-key-pad: 20px; --sw-seg-btn-radius: 12px; --sw-seg-fg: var(--hs-text-2); --sw-seg-fs: var(--f-body); --sw-seg-fw: 500; --sw-seg-key-min-w: auto; --sw-seg-key-flex: 0 1 auto; --sw-seg-divider: 0 solid transparent;
+  --sw-press-scale: .97; --sw-t-press: 120ms; --sw-t-hover: var(--hs-t-med); --sw-ease-color: ease; --sw-hover-wash: transparent; --sw-text: var(--hs-text-2);}
+sw-segmented::part(track) {border: 0;}
+sw-segmented::part(key) {line-height: inherit;}
+sw-segmented::part(key)::after {content: ""; position: absolute; inset: -4px 0;}
+sw-segmented::part(key):focus-visible {outline: 3px solid var(--hs-focus); outline-offset: 3px;}
+:host([data-hs-scheme="light"]) sw-segmented {--sw-seg-track: var(--hs-surface-3);}
+.hs sw-segmented, .ovl sw-segmented {--sw-seg-on-bg: var(--hs-surface-3); --sw-seg-on-fg: var(--hs-heading); --sw-seg-on-fw: 600; --sw-seg-on-shadow: none;}
+:host([data-hs-scheme="light"]) .hs sw-segmented, :host([data-hs-scheme="light"]) .ovl sw-segmented {--sw-seg-on-bg: var(--hs-white);}
 .hsw {inline-size: 68px; block-size: var(--hit); display: inline-grid; place-items: center; flex: none;}
 .hsw i {inline-size: 64px; block-size: 36px; border-radius: 18px; background: var(--hs-surface-3); position: relative; transition: background-color var(--hs-t-med) ease;}
 .hsw i::after {content: ""; position: absolute; inset-block-start: 4px; inset-inline-start: 4px; inline-size: 28px; block-size: 28px; border-radius: 50%; background: var(--hs-white); box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform var(--hs-t-med) var(--hs-ease);}
@@ -516,8 +525,8 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .fav > .muted {grid-column: 1 / -1;}
 .home-rooms {flex: 1.1 1 0; gap: 8px;}
 .home-rooms .bar h2 {display: none;}
-.home-rooms .seg {inline-size: 100%;}
-.seg button {flex: 1 0 auto; min-inline-size: 48px; padding: 0 12px !important; min-block-size: 40px;}
+.home-rooms sw-segmented {inline-size: 100%;}
+sw-segmented {--sw-seg-key-flex: 1 0 auto; --sw-seg-key-min-w: 48px; --sw-seg-key-pad: 12px; --sw-seg-h: 40px;}
 .room-grid {grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;}
 .room {padding: 12px 14px;}
 .room .lamp {inset-block-end: 10px; inset-inline-end: 10px; inline-size: 44px; block-size: 44px;}
@@ -541,7 +550,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .thermo {flex: 1; padding: 14px 16px 16px;}
 .dial-wrap {inline-size: min(100%, 40vh);}
 .hs-head .acts .hbtn {max-inline-size: 46vw;}
-.thermo .seg {inline-size: 100%;}
+.thermo sw-segmented {inline-size: 100%;}
 .door-list {grid-template-rows: repeat(3, minmax(0, 1fr)) auto; flex: 1.3 1 0; gap: 10px;}
 .drow {padding: 0 14px; gap: 12px;}
 .drow .hbtn {min-inline-size: 76px; padding: 0 14px;}
@@ -617,7 +626,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .pick-grid {display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-block-start: 10px;}
 .picker .mrow {background: var(--hs-surface-3); min-block-size: 64px; padding: 0 16px !important; display: grid; grid-template-columns: minmax(0, 1fr); align-content: center; gap: 0;}
 .picker .mrow[aria-current] {background: var(--hs-accent-soft);}
-.picker .seg {justify-self: start; margin-block-start: 8px;}
+.picker sw-segmented {justify-self: start; margin-block-start: 8px;}
 @media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
 .pick-grid {grid-template-columns: minmax(0, 1fr);}
 .picker .mrow {min-block-size: 52px;}
@@ -795,7 +804,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .hs.v2 .hs-head {min-block-size: 52px; margin-block-end: 4px; gap: 8px;}
 .hs.v2 .hs-main > .bar {min-block-size: 48px; gap: 8px;}
 .hs.v2 .bar.wrap {gap: 6px;}
-.hs.v2 .seg button {padding: 0 10px !important; font-size: 14px;}
+.hs.v2 sw-segmented {--sw-seg-key-pad: 10px; --sw-seg-fs: 14px;}
 .hs-head .acts {gap: 6px; flex-wrap: wrap; justify-content: flex-end;}
 .hs.v2 .dial-wrap {inline-size: min(100%, 29vh);}
 .hs.v2 .thermo {padding: 10px 12px 12px; gap: 6px;}
@@ -906,22 +915,22 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .theme-grid {grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-block: 2px 8px;}
 .thm {padding: 8px !important; gap: 6px;}
 .thm-t .muted {display: none;}
-.hs.v2 .seg {max-inline-size: 100%;}
-.hs.v2 .hs-head .seg button {padding: 0 8px !important; font-size: 13px;}
+.hs.v2 sw-segmented {max-inline-size: 100%;}
+.hs.v2 .hs-head sw-segmented {--sw-seg-key-pad: 8px; --sw-seg-fs: 13px;}
 }
 @media (hover: hover) and (pointer: fine) {
 :host([data-hs-scheme="light"]) .hs .scene:hover, :host([data-hs-scheme="light"]) .hs .chip2:not([aria-pressed="true"]):hover, :host([data-hs-scheme="light"]) .hs .ltile:not(.is-on):hover, :host([data-hs-scheme="light"]) .hs .zrow:not([aria-pressed="true"]):hover, :host([data-hs-scheme="light"]) .tile:has(> .cover:hover) {background: var(--hs-surface-2);}
 .hs .chip3:hover, .hs .tb-room:hover {background: var(--hs-surface-2);}
 }
-:host([data-hs-scheme="light"]) .hs .seg button[aria-pressed="true"], :host([data-hs-scheme="light"]) .ovl .seg button[aria-pressed="true"] {background: var(--hs-surface);}
+:host([data-hs-scheme="light"]) .hs sw-segmented, :host([data-hs-scheme="light"]) .ovl sw-segmented {--sw-seg-on-bg: var(--hs-surface);}
 .tabsrow {flex: none;}
 @media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
 .lcard.sw > .lamp {grid-column: 1; grid-row: 1;}
 .lcard.sw > .ln {grid-column: 2; grid-row: 1;}
 .lcard.sw > .swc {grid-column: 3; grid-row: 1;}
 .lcard.sw > .star {grid-column: 4; grid-row: 1;}
-.hs.v2 .tabsrow .seg {inline-size: 100%;}
-.hs.v2 .tabsrow .seg button {flex: 1 1 auto; padding: 0 6px !important; font-size: 13.5px;}
+.hs.v2 .tabsrow sw-segmented {inline-size: 100%;}
+.hs.v2 .tabsrow sw-segmented {--sw-seg-key-flex: 1 1 auto; --sw-seg-key-pad: 6px; --sw-seg-fs: 13.5px;}
 .hs.v2 .tabsrow {min-block-size: 44px;}
 }
 .hs.v2 .di {background: transparent; inline-size: 32px; color: var(--ct, var(--hs-text-2));}

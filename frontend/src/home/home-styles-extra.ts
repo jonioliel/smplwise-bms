@@ -44,7 +44,8 @@ export const homeExtraStyles = css`
   .pinsheet .rb.play { color: var(--hs-on-accent, var(--hs-white)); }
   /* the v3 sheets keep the home interface's touch target (the mockup drew 54 px; the tablet rule is the full --hit) */
   @media (min-width: 900px), (min-width: 701px) and (orientation: landscape) {
-    .ovl .sheet.v3 .rb, .ovl .sheet.v3 .hbtn, .ovl .sheet.v3 .chip2, .ovl .sheet.v3 .seg button { min-block-size: 56px; }
+    .ovl .sheet.v3 .rb, .ovl .sheet.v3 .hbtn, .ovl .sheet.v3 .chip2 { min-block-size: 56px; }
+    .ovl .sheet.v3 sw-segmented { --sw-seg-h: 56px; } /* CR-HOME-V3-SEGMENTS-2470: the segmented key through its knob */
     .ovl .sheet.v3 .rb { min-inline-size: 56px; }
   }
   @media (max-width: 700px), (max-width: 899px) and (orientation: portrait) { .fld2 { grid-template-columns: minmax(0, 1fr); gap: 6px; } .pb-days .pbd { min-inline-size: 5ch; font-size: 14px; } }
@@ -118,6 +119,6 @@ export const homeExtraStyles = css`
      with "היומן שלנו / חדרים משותפים" (each control takes its share, nothing wraps). */
   .week .wd[data-past]:not([aria-pressed="true"]) { color: var(--hs-text-2); }
   .week .wd[data-past]:not([aria-pressed="true"]) b { opacity: .7; }
-  .hs.v2 .tabsrow:has(> .seg + .seg) { flex-wrap: nowrap; gap: 6px; }
-  .hs.v2 .tabsrow > .seg + .seg, .hs.v2 .tabsrow > .seg:has(+ .seg) { inline-size: auto; flex: 1 1 auto; min-inline-size: 0; }
+  .hs.v2 .tabsrow:has(> sw-segmented + sw-segmented) { flex-wrap: nowrap; gap: 6px; }
+  .hs.v2 .tabsrow > sw-segmented + sw-segmented, .hs.v2 .tabsrow > sw-segmented:has(+ sw-segmented) { inline-size: auto; flex: 1 1 auto; min-inline-size: 0; }
 `;
