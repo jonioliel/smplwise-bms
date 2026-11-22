@@ -245,7 +245,9 @@ def _ts(s: dict[str, Any] | bool, indent: str) -> str:
     if "const" in s:
         return _lit(s["const"])
     if "enum" in s:
-        return _union([_lit(v) for v in s["enum"]])
+        # RESPONSE-MODELS-E-2480: sorted - typing caches Literal[...] by its (unordered) set of values, so Literal["auto", "manual"]
+        # can come back as an earlier module's Literal["manual", "auto"]: the order depended on what the process imported first
+        return _union(sorted(_lit(v) for v in s["enum"]))
     for key in ("anyOf", "oneOf"):
         if key in s:
             return _union([_ts(x, indent) for x in s[key]])

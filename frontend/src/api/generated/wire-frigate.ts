@@ -149,7 +149,7 @@ export interface FrigateLive {
 
 /** The optional mirror of the reviewed state toward Frigate (services/frigate_control_svc.mirror_reviewed). */
 export interface FrigateMirror {
-  state: "off" | "not_permitted" | "failed" | "done";
+  state: "done" | "failed" | "not_permitted" | "off";
   count: number;
   code?: string;
 }

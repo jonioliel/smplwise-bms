@@ -325,7 +325,7 @@ export interface AccessControlReadsGroupsGroups {
   revision: number;
   photo_enabled: boolean;
   groups: AccessControlReadsGroupsGroupsGroup[];
-  fields: Record<string, unknown>[];
+  fields: Record<string, unknown>[] | null;
 }
 
 export interface AccessControlReadsGroupsGroupsGroup {

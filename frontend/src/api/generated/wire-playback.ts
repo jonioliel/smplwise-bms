@@ -30,7 +30,7 @@ export interface PlaybackSession {
   actual_start_at: string | null;
   actual_end_at: string | null;
   media_anchor: unknown;
-  time_precision: "verified" | "keyframe_limited" | "estimated" | "unknown";
+  time_precision: "estimated" | "keyframe_limited" | "unknown" | "verified";
   media_handle: string | null;
   expires_at: string;
   capabilities: PlaybackCapabilities;

@@ -18,7 +18,7 @@ export interface CalSyncAuthorizeResult {
  * device code never leave the server.
  */
 export interface CalSyncAuthorizeStart {
-  flow: "paste" | "device";
+  flow: "device" | "paste";
   authorize_url?: string;
   redirect_prefix?: string;
   user_code?: string;
@@ -32,7 +32,7 @@ export interface CalSyncBinding {
   connection_id: string;
   calendar_id: string;
   direction: "export" | "import" | "two_way";
-  detail: "busy" | "titles" | "details";
+  detail: "busy" | "details" | "titles";
   dedicated: boolean;
 }
 
@@ -49,10 +49,10 @@ export interface CalSyncCalendarRef {
 
 export interface CalSyncConnection {
   id: string;
-  provider: "ics_out" | "ics_in" | "google" | "microsoft";
+  provider: "google" | "ics_in" | "ics_out" | "microsoft";
   label: string;
   scope: "read" | "read_write";
-  state: "ok" | "needs_reauth" | "error" | "paused" | "revoked";
+  state: "error" | "needs_reauth" | "ok" | "paused" | "revoked";
   owner: CalSyncUser;
   last_sync_at: string | null;
   next_sync_at: string | null;
@@ -73,7 +73,7 @@ export interface CalSyncConnectionBinding {
   id: string;
   calendar_id: string;
   direction: "export" | "import" | "two_way";
-  detail: "busy" | "titles" | "details";
+  detail: "busy" | "details" | "titles";
   dedicated: boolean;
 }
 
@@ -122,7 +122,7 @@ export interface CalSyncNow {
 }
 
 export interface CalSyncProvider {
-  provider: "ics_out" | "ics_in" | "google" | "microsoft";
+  provider: "google" | "ics_in" | "ics_out" | "microsoft";
   adapter_available: boolean;
 }
 

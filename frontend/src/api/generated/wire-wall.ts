@@ -12,7 +12,7 @@ export interface WallAlert {
   id: string;
   source: string;
   category: string;
-  severity: "info" | "alert" | "critical";
+  severity: "alert" | "critical" | "info";
   title: string;
   place: string | null;
   body: string;
@@ -132,7 +132,7 @@ export interface WallProfile {
   desktop: boolean;
   version: number;
   config: Record<string, unknown>;
-  status: "disabled" | "connected" | "never" | "not_connected";
+  status: "connected" | "disabled" | "never" | "not_connected";
   connections: number;
   last_seen_at: string | null;
   last_channel: string | null;
@@ -150,7 +150,7 @@ export interface WallProfileRemoved {
 export interface WallProfiles {
   profiles: WallProfile[];
   max_profiles: number;
-  foldable_open: "tablet" | "phone";
+  foldable_open: "phone" | "tablet";
 }
 
 export interface WallSeen {
@@ -159,7 +159,7 @@ export interface WallSeen {
 
 /** WALL-ANSWERS-2400: how an unfolded foldable is classified (`tablet` = the wall display, default; `phone` = the application). */
 export interface WallSettings {
-  foldable_open: "tablet" | "phone";
+  foldable_open: "phone" | "tablet";
 }
 
 export interface WallState {

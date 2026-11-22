@@ -32,9 +32,9 @@ export interface HomeFloor {
 }
 
 export interface HomeInstallSettings {
-  default_mode: "full_all" | "home_regular" | "choose";
+  default_mode: "choose" | "full_all" | "home_regular";
   kiosk_exit: "code" | "none";
-  wallpaper: "none" | "gallery" | "gallery_image";
+  wallpaper: "gallery" | "gallery_image" | "none";
 }
 
 /** A light, or a switch typed as a light (`kind`), as the caller may see it. */
@@ -96,20 +96,20 @@ export interface HomePolicies {
  * force home and no switch; `rooms` / `modules` null = all; `choose` = nobody configured the person and the installation asks first.
  */
 export interface HomePolicy {
-  default_interface: "home" | "full";
+  default_interface: "full" | "home";
   may_switch: boolean;
   home_only: boolean;
   kiosk: boolean;
   kiosk_area_id: string | null;
   rooms: unknown[] | null;
   modules: unknown[] | null;
-  interface: "home" | "full";
+  interface: "full" | "home";
   configured: boolean;
   admin: boolean;
   kiosk_code_set: boolean;
   choose: boolean;
   kiosk_exit: "code" | "none";
-  wallpaper: "none" | "gallery" | "gallery_image";
+  wallpaper: "gallery" | "gallery_image" | "none";
   guests: boolean;
   room_wallpapers: Record<string, string>;
 }
@@ -188,7 +188,7 @@ export interface HomeUserPolicy {
   display_name: string;
   source: string;
   system_admin: boolean;
-  default_interface: "home" | "full";
+  default_interface: "full" | "home";
   may_switch: boolean;
   home_only: boolean;
   kiosk: boolean;
@@ -230,7 +230,7 @@ export interface SwitchClassRow {
   class: "light" | "not_light" | "protected";
   suggest: "light" | "protected" | null;
   suggest_reason: string | null;
-  locked: "alarm_managed" | "media_managed" | "doors_layer" | null;
+  locked: "alarm_managed" | "doors_layer" | "media_managed" | null;
 }
 
 export interface SwitchClassSummary {

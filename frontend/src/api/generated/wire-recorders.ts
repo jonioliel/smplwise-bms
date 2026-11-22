@@ -55,7 +55,7 @@ export interface RecorderConnection {
   extra: Record<string, unknown>;
   has_password: boolean;
   state: string;
-  source: "ui" | "addon_import" | "legacy" | null;
+  source: "addon_import" | "legacy" | "ui" | null;
   revision: number | null;
   updated_at: string | null;
   updated_by: string | null;
@@ -94,7 +94,7 @@ export interface RecorderConnectionSaved {
   extra: Record<string, unknown>;
   has_password: boolean;
   state: string;
-  source: "ui" | "addon_import" | "legacy" | null;
+  source: "addon_import" | "legacy" | "ui" | null;
   revision: number;
   updated_at: string | null;
   updated_by: string | null;
@@ -171,7 +171,7 @@ export interface RecorderRemoved {
 }
 
 export interface RecorderStatus {
-  state: "removed" | "disabled" | "pending_restart" | "unreadable" | "refused" | "not_configured" | "error" | "online" | "unknown";
+  state: "disabled" | "error" | "not_configured" | "online" | "pending_restart" | "refused" | "removed" | "unknown" | "unreadable";
   error: string | null;
   events_connected: boolean;
   discovery_last_ok: string | null;

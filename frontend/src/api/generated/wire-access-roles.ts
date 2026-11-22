@@ -18,7 +18,7 @@ export interface CatalogueRole {
   sensitive_included: string[];
   sensitive_missing: string[];
   system_role: boolean;
-  delegation_block: "role_unknown" | "system_role" | "assign_role" | "sensitive_custom_role" | null;
+  delegation_block: "assign_role" | "role_unknown" | "sensitive_custom_role" | "system_role" | null;
   created_by_username?: string | null;
   updated_by_username?: string | null;
   updated_at?: string;

@@ -63,7 +63,7 @@ export interface NoticeBoardControl {
 
 export interface NoticeBoardControlLease {
   seq: number;
-  cmd: "next" | "prev" | "pause" | "play";
+  cmd: "next" | "pause" | "play" | "prev";
 }
 
 /** `POST /notices/boards`: the board and its link token (shown once). */
@@ -98,11 +98,11 @@ export interface NoticeBoardFeed {
 export interface NoticeBoardItem {
   id: string;
   title: string;
-  severity: "info" | "alert" | "critical";
+  severity: "alert" | "critical" | "info";
   starts_at: string;
   ends_at: string | null;
   pinned: boolean;
-  state: "draft" | "scheduled" | "active" | "expired" | "archived";
+  state: "active" | "archived" | "draft" | "expired" | "scheduled";
   position: number;
 }
 
@@ -201,12 +201,12 @@ export interface NoticeReads {
 export interface NoticeRow {
   id: string;
   title: string;
-  severity: "info" | "alert" | "critical";
+  severity: "alert" | "critical" | "info";
   starts_at: string;
   ends_at: string | null;
   pinned: boolean;
   body: string;
-  state: "draft" | "scheduled" | "active" | "expired" | "archived";
+  state: "active" | "archived" | "draft" | "expired" | "scheduled";
   dwell_s: number | null;
   when_text: string | null;
   published_at: string | null;
@@ -214,7 +214,7 @@ export interface NoticeRow {
   boards: string[];
   read?: boolean;
   audience?: Record<string, unknown>;
-  status?: "draft" | "published" | "archived";
+  status?: "archived" | "draft" | "published";
   created_at?: string;
   push_requested?: boolean;
   pushed_at?: string | null;
@@ -261,7 +261,7 @@ export interface NoticeSlides {
  * digest's own values (the screen settings, the cached rows grouped for the TV).
  */
 export interface NoticeTransitDigest {
-  state: "off" | "fresh" | "cached" | "expired";
+  state: "cached" | "expired" | "fresh" | "off";
   now?: unknown;
   fetched_at?: unknown;
   age_s?: unknown;
@@ -312,8 +312,8 @@ export interface NoticesCan {
 
 export interface NoticesDefaults {
   default_days: number;
-  default_severity: "info" | "alert";
-  push_default: "by_severity" | "always" | "never";
+  default_severity: "alert" | "info";
+  push_default: "always" | "by_severity" | "never";
   home_empty: "hide" | "line";
   show_places_tree: boolean;
 }

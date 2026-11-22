@@ -12,12 +12,12 @@ export interface CalAvailability {
 export interface CalCalendar {
   id: string;
   name: string;
-  type: "room" | "team" | "maintenance" | "event";
+  type: "event" | "maintenance" | "room" | "team";
   description: string;
   color: string;
   tz: string;
   owner: CalPerson | null;
-  my_role: "view" | "book" | "edit" | "manage" | null;
+  my_role: "book" | "edit" | "manage" | "view" | null;
   visibility: string;
   approval_mode: string;
   approval_timeout_h: number | null;
@@ -228,10 +228,10 @@ export interface CalMaintPreview {
 }
 
 export interface CalMember {
-  subject_kind: "user" | "role" | "department" | "everyone";
+  subject_kind: "department" | "everyone" | "role" | "user";
   subject_id: string;
   label: string;
-  cal_role: "view" | "book" | "edit" | "manage";
+  cal_role: "book" | "edit" | "manage" | "view";
 }
 
 export interface CalMembers {

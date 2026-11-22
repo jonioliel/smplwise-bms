@@ -746,7 +746,7 @@ class AccessControlReadsGroupsGroups(ExactModel):
     revision: Num
     photo_enabled: bool
     groups: list[AccessControlReadsGroupsGroupsGroup]
-    fields: list[dict[str, Any]]
+    fields: list[dict[str, Any]] | None  # null without access.people.sensitive
 
 
 class AccessControlReadsGroups(ExactModel):

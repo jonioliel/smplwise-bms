@@ -30,7 +30,7 @@ export interface AccessGroup {
 /** An active binding of the group (services/rbac_admin._binding_dict); `via_group` is null here (the group's own binding). */
 export interface AccessGroupBinding {
   id: string;
-  subject_kind: "user" | "group";
+  subject_kind: "group" | "user";
   subject_id: string;
   subject_name: string;
   role_id: string;
@@ -61,7 +61,7 @@ export interface AccessGroupDeleted {
 /** `POST /access/groups/{id}/impact`: the preview of a group change (computed in a savepoint that is rolled back). */
 export interface AccessGroupImpact {
   group_id: string;
-  op: "bind" | "unbind" | "members";
+  op: "bind" | "members" | "unbind";
   revision: number;
   scopes: AccessImpactScope[];
   users: AccessImpactUser[];
@@ -95,7 +95,7 @@ export interface AccessImpactScope {
 export interface AccessImpactUser {
   id: string;
   name: string;
-  change: "member" | "added" | "removed";
+  change: "added" | "member" | "removed";
   added: string[];
   removed: string[];
   scopes: AccessImpactUserScope[];

@@ -11,7 +11,7 @@ export interface AssertionOptions {
 export interface AuthenticatorSelection {
   residentKey: "required";
   requireResidentKey: boolean;
-  userVerification: "required" | "preferred";
+  userVerification: "preferred" | "required";
 }
 
 /** PublicKeyCredentialCreationOptions (JSON form) for `navigator.credentials.create`. */
@@ -44,7 +44,7 @@ export interface CredentialParam {
  */
 export interface LocalSignInSession {
   user: LocalSignInUser;
-  second_factor: "none" | "required" | "enroll_required";
+  second_factor: "enroll_required" | "none" | "required";
   must_change_password: boolean;
   session_expires_in: number;
 }
@@ -152,7 +152,7 @@ export interface RequestOptions {
   challenge: string;
   rpId: string;
   timeout: number;
-  userVerification: "required" | "preferred";
+  userVerification: "preferred" | "required";
   allowCredentials: CredentialDescriptor[];
 }
 

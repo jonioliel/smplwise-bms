@@ -26,7 +26,7 @@ export interface ElevatorAlerts {
   states: Record<string, ElevatorAlertState>;
   row_version: number;
   roles: ElevatorAlertRole[];
-  channels: ("push" | "app" | "whatsapp")[];
+  channels: ("app" | "push" | "whatsapp")[];
   states_order: string[];
   can_edit: boolean;
   can_whatsapp: boolean;
@@ -81,7 +81,7 @@ export interface ElevatorManageList {
  * live on / off.
  */
 export interface ElevatorManaged {
-  state: "fire_service" | "fault" | "out_of_service" | "moving_up" | "moving_down" | "door_open" | "waiting" | "active" | "travelling" | "unknown";
+  state: "active" | "door_open" | "fault" | "fire_service" | "moving_down" | "moving_up" | "out_of_service" | "travelling" | "unknown" | "waiting";
   reason: string;
   partial: boolean;
   stale: boolean;
@@ -106,7 +106,7 @@ export interface ElevatorOperator {
   name: string;
   area_id: string | null;
   area_name: string | null;
-  state: "fire_service" | "fault" | "out_of_service" | "moving_up" | "moving_down" | "door_open" | "waiting" | "active" | "travelling" | "unknown";
+  state: "active" | "door_open" | "fault" | "fire_service" | "moving_down" | "moving_up" | "out_of_service" | "travelling" | "unknown" | "waiting";
   reason: string;
   partial: boolean;
   stale: boolean;
