@@ -42,8 +42,9 @@ import type * as Wire from './generated/wire-notifications';
 
 export type { Severity } from './types'; // CR-API-PATHS-2439 (07:F21): one definition
 export type Category = 'safety' | 'alerts' | 'doors' | 'device_faults' | 'automations' | 'system' | 'security' | 'tickets' | 'maintenance' | 'building'; // building: NOTICEPUSH-295 (the notice board); tickets: CR-038; maintenance: CR-MAINT215 (owner answer 24.10 q20)
-/** inbox, webpush, email, app (CR-027), whatsapp (NOTIFWA: the user's own number; sends only while its master switch is on). Reserved (enum value only): ha_mobile (Companion step). */
-export type Channel = 'inbox' | 'webpush' | 'email' | 'ha_mobile' | 'whatsapp' | 'app';
+/** inbox, webpush, email, app (CR-027), whatsapp (NOTIFWA: the user's own number; sends only while its master switch is on), announce (ANN2: spoken in a
+ * room; RESPONSE-HINTS-2480 put it in the channel lists). Reserved (enum value only): ha_mobile (Companion step). */
+export type Channel = 'inbox' | 'webpush' | 'email' | 'ha_mobile' | 'whatsapp' | 'app' | 'announce';
 export type SubjectKind = 'camera' | 'entity' | 'area' | 'alarm_panel' | 'door' | 'schedule' | 'automation' | 'bulk_job' | 'system' | 'session' | 'generator' | 'ticket' | 'rfq' | 'elevator' | 'temperature' | 'maintenance' | 'notice'; // notice: NOTICEPUSH-295; maintenance: CR-MAINT215; rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
 export type NotifyState = 'open' | 'acknowledged' | 'resolved';
 export type { Weekday } from './types'; // CR-API-PATHS-2439 (07:F21): one definition (the same seven values)
@@ -239,7 +240,7 @@ export const NOTIFY_SETTING_KEYS = { center_layout: 'notify.center_layout', fail
 export const FAILURE_SOURCES: readonly string[] = ['schedule.not_confirmed', 'automation.failed'];
 export const LOCKSCREEN_LEVELS: readonly LockscreenLevel[] = ['generic', 'type_place', 'full'];
 export const LOCKSCREEN_LABEL: Record<LockscreenLevel, string> = { generic: tr('גנרי'), type_place: tr('סוג ומקום'), full: tr('מלא') };
-export const CHANNEL_LABEL: Record<Channel, string> = { inbox: tr('מרכז'), webpush: tr('דחיפה'), email: tr('דוא"ל'), ha_mobile: 'Companion', whatsapp: 'WhatsApp', app: tr('אפליקציה') };
+export const CHANNEL_LABEL: Record<Channel, string> = { inbox: tr('מרכז'), webpush: tr('דחיפה'), email: tr('דוא"ל'), ha_mobile: 'Companion', whatsapp: 'WhatsApp', app: tr('אפליקציה'), announce: tr('הכרזה') };
 /** Channels a v1 policy can switch; the rest are reserved. */
 const EDITABLE_CHANNELS: readonly Channel[] = ['webpush', 'email', 'app']; // CR-027: app = the SmplWise Arx phone app through the push relay
 const RESERVED_CHANNELS: readonly Channel[] = ['ha_mobile']; // NOTIFWA: whatsapp left the reserved list (its policy flag is editable; the section in Settings holds its master switch)
@@ -722,7 +723,7 @@ export function deliveryReasonText(reason: string | null): string {
   return reason;
 }
 export const DELIVERY_STATUS_LABEL: Record<Delivery['status'], string> = { queued: tr('ממתין'), sent: tr('נשלח'), retry: tr('ינסה שוב'), failed: tr('נכשל'), gone: tr('ההרשמה בוטלה'), skipped: tr('לא נשלח') };
-const channelTo = (c: Channel): string => (c === 'email' ? tr('בדוא"ל') : c === 'inbox' ? tr('למרכז') : tr('לטלפון'));
+const channelTo = (c: Channel): string => (c === 'email' ? tr('בדוא"ל') : c === 'inbox' ? tr('למרכז') : c === 'announce' ? tr('בהכרזה') : tr('לטלפון'));
 const isFailed = (s: Delivery['status']) => s === 'failed' || s === 'gone';
 interface DeliveryLine { tone: 'ok' | 'bad' | 'held' | 'pending'; text: string; at: string | null }
 /** The detail view's "my delivery" line: "נשלח לטלפון · 14:02" / "לא נשלח · שעות שקט" / "המסירה לטלפון נכשלה · 14:02". Sent wins over a failure on another
@@ -1033,7 +1034,7 @@ interface ChannelCell {
 export function channelCell(policy: Pick<NotifyPolicy, 'channels'>, channel: Channel, settings?: Pick<NotifySettings, 'email'> | null, wa?: { enabled: boolean } | null): ChannelCell {
   if (channel === 'inbox') return { on: true, editable: false, note: 'always' };
   if (RESERVED_CHANNELS.includes(channel)) return { on: false, editable: false, note: 'soon' };
-  const on = !!policy.channels[channel as 'webpush' | 'email' | 'app' | 'whatsapp'];
+  const on = !!policy.channels[channel as 'webpush' | 'email' | 'app' | 'whatsapp' | 'announce'];
   const unconf = (channel === 'email' && settings && !settings.email.configured) || (channel === 'whatsapp' && wa && !wa.enabled);
   return { on, editable: true, note: unconf ? 'unconfigured' : null };
 }
@@ -1054,6 +1055,12 @@ export function channelStatus(channel: Channel, settings: Pick<NotifySettings, '
   if (channel === 'app') return { state: 'on', text: tr('לפי המכשירים שנרשמו באפליקציה') };
   if (channel === 'whatsapp') return !wa ? { state: 'off', text: tr('כבוי') } : !wa.mapped ? { state: 'unconfigured', text: tr('לא נבחר חשבון') } : wa.enabled ? { state: 'on', text: tr('למספר האישי של המשתמש') } : { state: 'off', text: tr('כבוי') };
   return { state: 'soon', text: tr('בקרוב') };
+}
+/** RESPONSE-HINTS-2480 (owner N58): the spoken-announcement channel in the "ערוצים" section - on while at least one source routes to it
+ * (`channels.announce` of its policy); the room or speaker and the categories are the announcements settings' (`announce.notify`). */
+export function announceStatus(policies: readonly Pick<NotifyPolicy, 'channels'>[]): { state: 'on' | 'off'; text: string } {
+  const n = policies.filter((p) => p.channels.announce).length;
+  return n ? { state: 'on', text: tr('{n} מקורות מנותבים להכרזה', { n }) } : { state: 'off', text: tr('כבוי') };
 }
 export const policyBody = (p: NotifyPolicy): PolicyBody => ({
   enabled: p.enabled, severity: p.severity, after_s: p.after_s, dedupe_window_s: p.dedupe_window_s, resolve_notice: p.resolve_notice, recipients: p.recipients, channels: p.channels,

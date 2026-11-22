@@ -18,7 +18,7 @@ import '../components/notify-whatsapp-mine'; // NOTIFWA review F2: the user's ow
 import { waNotify, type WaNotifyView } from '../api/notify-whatsapp';
 import {
   CENTER_LAYOUTS, CENTER_LAYOUT_LABEL, CHANNEL_LABEL, DELIVERY_STATUS_LABEL, FAILURES_AUDIENCES, FAILURE_SOURCES, LOCKSCREEN_LABEL, LOCKSCREEN_LEVELS, RECIPIENT_LABEL, RETENTION_CHOICES,
-  SEVERITIES, SEVERITY_LABEL, SOURCE_CATALOG, TICKET_SOURCES, RFQ_SOURCES, MAINTENANCE_SOURCES, NOTICE_SOURCES, WEEKDAYS, WEEKDAY_LETTER, channelCell, channelStatus, clockText, deliveryReasonText, errorCode, hhmmToMin, notify, notifyErrorText,
+  SEVERITIES, SEVERITY_LABEL, SOURCE_CATALOG, TICKET_SOURCES, RFQ_SOURCES, MAINTENANCE_SOURCES, NOTICE_SOURCES, WEEKDAYS, WEEKDAY_LETTER, announceStatus, channelCell, channelStatus, clockText, deliveryReasonText, errorCode, hhmmToMin, notify, notifyErrorText,
   policyBody, recipientsRuleFor, relativeTime, settingsBody, validateSettings, parseRecipients, NOTIFY_ERROR_LABEL,
   type CenterLayout, type Channel, type Delivery, type EmailSecurity, type EscalationSettings, type FailuresAudience, type LockscreenLevel, type NotifyPolicy,
   type NotifySettings, type NotifyStats, type RetentionDays, type Severity, type Weekday,
@@ -1113,9 +1113,10 @@ export class SystemNotifications extends LitElement {
     const mail = channelCell(p, 'email', s);
     const app = channelCell(p, 'app', s);
     const wa = channelCell(p, 'whatsapp', s, this.wa); // NOTIFWA: editable; "unconfigured" while the channel's master switch is off
+    const ann = channelCell(p, 'announce', s); // RESPONSE-HINTS-2480 (owner N58): spoken in the room the announcement settings name
     const unconfTitle: Partial<Record<Channel, string>> = { email: tr('הדוא"ל לא מוגדר'), whatsapp: tr('וואטסאפ כבוי') };
     const chip = (c: Channel, cell: ReturnType<typeof channelCell>, icon: string) => html`<button type="button" class=${classMap({ chip: true, unconf: cell.note === 'unconfigured' })} aria-pressed=${String(cell.on)} data-pol-ch=${`${p.source}:${c}`} title=${cell.note === 'unconfigured' ? unconfTitle[c] ?? '' : ''} @click=${() => this.patchPolicy(p.source, (x) => policyWithChannel(x, c, !cell.on))}>${nIcon(icon)}${CHANNEL_LABEL[c]}</button>`;
-    return html`<span class="chs"><span class="chip lock" title=${tr('תמיד')}>${nIcon('inbox')}${CHANNEL_LABEL.inbox}</span>${chip('webpush', push, 'phone')}${chip('email', mail, 'mail')}${chip('app', app, 'phone')}${chip('whatsapp', wa, 'chat')}<span class="chip soon" aria-disabled="true" title=${tr('Companion – בקרוב')} aria-label=${tr('Companion – בקרוב')}>${nIcon('phone')}</span></span>`;
+    return html`<span class="chs"><span class="chip lock" title=${tr('תמיד')}>${nIcon('inbox')}${CHANNEL_LABEL.inbox}</span>${chip('webpush', push, 'phone')}${chip('email', mail, 'mail')}${chip('app', app, 'phone')}${chip('whatsapp', wa, 'chat')}${chip('announce', ann, 'horn')}<span class="chip soon" aria-disabled="true" title=${tr('Companion – בקרוב')} aria-label=${tr('Companion – בקרוב')}>${nIcon('phone')}</span></span>`;
   }
   private tog(on: boolean, attr: string, label: string, click: () => void, disabled = false) {
     // CR-CMP2-TOAST-2440 (06:CMP-2 step 2, owner O13 a): the shared sw-toggle instead of a hand-built track (switchPress: the model's value)
@@ -1254,6 +1255,7 @@ export class SystemNotifications extends LitElement {
     const push = channelStatus('webpush', s, this.devices);
     const mail = channelStatus('email', s, this.devices);
     const wa = channelStatus('whatsapp', s, this.devices, this.wa ? { enabled: this.wa.enabled, mapped: this.wa.account.mapped } : null);
+    const ann = announceStatus(this.policies);
     const pill = (state: string, text: string) => html`<span class="tag ${state === 'on' || state === 'always' ? 'ok' : state === 'soon' ? 'soon' : ''}">${state === 'on' || state === 'always' ? tr('פעיל') : text}</span>`;
     return html`<section class="glass sec" data-set-section="chan" id="sec-chan"><header><h2>${nIcon('phone')}${SECTIONS[7].label}</h2></header>
       <div class="frow"><div class="l"><b>${tr('מרכז ההתראות במחשב')}</b></div><div class="r"><sw-segmented size="sm" label=${tr('מרכז ההתראות במחשב')} value=${s.center_layout} @change=${(ev: CustomEvent<SegmentedChange>) => this.patchSettings({ center_layout: ev.detail.value as CenterLayout })}
@@ -1265,6 +1267,7 @@ export class SystemNotifications extends LitElement {
         <div class="chc" data-channel="app"><span class="ring">${nIcon('phone')}</span><b>${tr('אפליקציה לנייד')}</b><small>${tr('לפי המכשירים שנרשמו באפליקציה · שעות השקט כמו דחיפה')}</small>${pill('on', '')}</div>
         <div class="chc soon" data-channel="ha_mobile"><span class="ring">${nIcon('phone')}</span><b>Companion</b><small>${tr('טלפונים לפי משתמש')}</small><span class="tag soon">${tr('בקרוב')}</span></div>
         <div class="chc" data-channel="whatsapp"><span class="ring">${nIcon('chat')}</span><b>WhatsApp</b><small>${wa.text}</small>${pill(wa.state, wa.text)}</div>
+        <div class="chc" data-channel="announce"><span class="ring">${nIcon('horn')}</span><b>${CHANNEL_LABEL.announce}</b><small>${ann.state === 'on' ? ann.text : tr('נשמעת ברמקול שנבחר בהגדרות ההכרזות')}</small>${pill(ann.state, ann.text)}</div>
       </div>
       <div class="devbox"><arx-notifications-settings devices-only embedded></arx-notifications-settings><notify-whatsapp-mine></notify-whatsapp-mine></div></section>`;
   }

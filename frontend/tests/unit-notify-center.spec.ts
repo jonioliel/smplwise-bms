@@ -213,7 +213,8 @@ test.describe('the delivery log', () => {
     const m = resetNotifyMock({ viewer: 'admin' });
     const stats = await m.stats();
     const cards = failurePanel(stats);
-    expect(cards.map((c) => c.channel).sort()).toEqual(['email', 'webpush']);
+    expect(cards.map((c) => c.channel).sort()).toEqual(['announce', 'email', 'webpush']); // RESPONSE-HINTS-2480: the mock speaks one announcement
+    expect(cards.find((c) => c.channel === 'announce')!.label).toBe('הכרזה');
     const push = cards.find((c) => c.channel === 'webpush')!;
     expect(push.failed).toBe(2);
     expect(push.tone).toBe('bad');
