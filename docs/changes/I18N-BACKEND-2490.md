@@ -123,6 +123,89 @@ All on the workstation (Windows, Python 3.12, the main repo's `.venv`), 2026-11-
 * Frontend `tsc`: NOT_RUN - no frontend file changed.
 * Runner (slot B, `~/work/slotb.sh`): queued behind three other slot-B jobs at the time of this commit - lint (`scripts/gate/lint_backend.py --strict`), `gen_wire_types --check` and 178 backend test files (the 24 above, every test file that reads `user_message` or sets `ui.lang`, the package-walking meta tests, the wire tests). Result: NOT_RUN until a later commit records it.
 
+## 5. Second pass: RBAC administration, notification policies, automation sentences, health report, codec hint
+
+Same mechanism, same rule: a user-visible text is a `Msg` whose string value IS the Hebrew the code wrote before; only the edge that
+answers one request renders it in the requester's `ui.lang`. `generator_catalog` is NOT converted: it is a data catalogue that already
+carries both languages (`AlertType.title_he` / `title_en`, stored as `generator_alert_types.title_he` / `title_en` and compared by
+tests/test_generator.py); its role labels are served by routers/generator.py (a later pass).
+
+### 5.1 Per module (lines with Hebrew literals at `1a7913b32` -> now; catalogue keys)
+
+| module | before | after | keys | what is now in the user's language | what stays Hebrew on purpose (and why) |
+| --- | ---: | ---: | ---: | --- | --- |
+| `services/rbac_admin.py` | 202 | 171 | `perm.*` 171, `rbac.*` 30 (`services/rbac_admin_text.py`) | every permission label (`PERMISSION_LABELS` values are `Msg`s; `rendered_labels(conn, lang)` fills the tickets `{module}` token with the module's name in that language), the scope picker's "the whole installation" / "site · X", every refusal of the binding / custom-role writes (the 30 texts, incl. `LOCAL_*_HE`) | the 171 remaining lines are the label table itself (the Hebrew source of each `Msg`, proven equal by a test); other modules' f-strings that quote a label (`automation_scope`, `schedule_view`, `routers/ha.py`) read the Hebrew - those sentences belong to those modules |
+| `services/notify_policy.py` | 149 | 139 | `notify.label.*` 157 (131 own + tickets module + 26 generator types from their `title_en`), `notify.*` 12 (`services/notify_policy_text.py`) | each source's settings label (GET / PUT `/notify/policies`), the 10 policy-edit refusals, the 404 / 412 of the policy routes | a source's title, body and resolve text and `SEVERITY_LABEL_HE`: written into the notification row and sent by push, e-mail, the phone app and WhatsApp (stored + sent) |
+| `services/automation_text.py` (+ `building_presence_blocks` sentences) | 117 (+10) | 17 (+5) | `auto.*` 311 (164 words + 147 per-service verb / label / word, `services/automation_text_i18n.py`) | every trigger / condition / action / item sentence and locked-block label, the action picker labels, the building-presence sentences | the remaining 17 lines are `ACTION_VERBS` (the Hebrew source of the verb keys, a test keeps both tables in step) and docstrings; the 5 left in `building_presence_blocks` are its `validate()` problems (another producer); `automation_trace`'s run summary ("רצה ב־...") and `automation_ext`'s schedule step sentence are their own f-strings (later) |
+| `services/health_report.py` | 75 | 0 | `health.*` 108 (`services/health_report_text.py`) | every check label and detail of `/health/report`, every top-bar item of `/health/summary`, and therefore the health labels quoted in readiness' "connections" facts | - (the fleet report, the notification monitor and `readiness.evaluate` read it without a user: Hebrew) |
+| `services/stream_codecs.py` | 7 | 7 | `codec.*` 6 | the main-stream hint (`main_hint`) in the wizard's codec warning, the camera capabilities `video.hint`, the health report's `main_not_webrtc` | `camera_name()`'s "ערוץ N" fallback (also written to the NVR's channel name by `nvr_settings`), the NVR menu path (the device's own English words); the 7 remaining lines are the inline catalogue and comments |
+
+English is written by hand with the words of the frontend's English catalogue: api-automation.ts / time.ts (the client mirror of the
+sentences: every key of api/automations.ts and api/automations-presence.ts), api-notify.ts and tickets/*.ts (source labels), misc.ts
+(the access-control permission labels of access-control/access.ts), api-system.ts (health words). Where the frontend shares one key
+between a status label and a sentence word (`מופעל` -> "On", `נפתח` -> "Opening", `ננעל` -> "Locked"), the sentence uses the verb form
+that reads as a sentence ("is on", "opens", "locks").
+
+### 5.2 Mechanism additions
+
+* `i18n.Cat` / `cat()` / `join()`: a sentence made of parts (a `Msg` and data, a list joined by "or" / "and"). Its string value is the
+  concatenation of the parts' Hebrew (so `" או ".join(...)` and `s += f", אם ..."` keep their bytes) and each part renders on its own.
+  copy / deepcopy / pickle keep the parts.
+* Edges added: `routers/health.py` (report, summary), `routers/cameras.py` (capabilities `video`), `routers/notifications.py` (policy
+  list / one / put), `routers/access_roles.py`, `access_audit.py`, `access_custom_roles.py`, `access_groups.py` (`labels`),
+  `access_directory.py` (`assign_scopes`, the delegated directory), `routers/ha_users.py` (`scopes`), `routers/automations.py` (every
+  answer through `_out` / `_reply`), `routers/automation_blueprints.py` (preview, instantiate), `routers/automation_ext.py` (conflicts,
+  wall buttons, device tests). A Hebrew reader of the automation routes gets the `Msg`s as they are (no copy of the answer).
+* Errors raised with a `Msg` (`rbac.*`, `notify.*`) reach English users through the error envelope of section 2 with no change there.
+
+### 5.3 Tests (second pass)
+
+`tests/test_i18n_backend_2490b.py` (new): the namespaces and `Cat` / `join` (Hebrew bytes, English, JSON, copies); the codec hint
+(Hebrew literal, English, data kept); the health report and summary per user (Hebrew labels / details as before, English without a
+Hebrew letter, same ids and statuses, readiness' connections facts in English) and its background readers (Hebrew); every notification
+source label a `Msg` with its old Hebrew, stored texts plain Hebrew, the policy list / one / 422 / 404 per user; every permission label a
+`Msg`, the role catalogue labels (`{module}` filled with "Tickets" in English), the scope picker and the 422 `role_unknown` per user; the
+verb tables in step, a full automation sentence in Hebrew (old bytes) and English, locked labels, building-presence sentences, and the
+automation preview per user (same machine fields).
+
+Runs, 2026-11-23:
+
+* Workstation (Windows, Python 3.12, the main `.venv`): `test_i18n_backend_2490b.py` (13), `test_i18n_backend_2490.py` (14),
+  `test_singletons_registered.py` (4), `test_automation_text.py` (6): 37 passed, exit 0. `test_fake_doorwin_closed_rule_sr1.py` after the
+  pin below: exit 0.
+* **Hebrew byte-identity, golden run on the runner** (slot A, Linux, Python 3.12): the same scratch pytest plugin as section 4, widened
+  (wraps `stream_codecs.main_hint` / `hints` / `summary`, `health_report.build` / `summary` / the video and recorder-clock checks,
+  `notify_policy.render` / `validate_update`, the rbac_admin refusals and checks, every public sentence function of `automation_text`
+  and its re-exports in `automation_model`, `ApiError.payload`, and the body of every TestClient response), base `1a7913b32` and this
+  pass side by side in 6 shards each, over the same 218 test files (every file that touches these modules, their routes or
+  `PERMISSION_LABELS`). Base: 7,382 passed, 4 failed, 2 skipped, 3 xfailed. Pass 2: 7,382 passed, 4 failed, 2 skipped, 3 xfailed.
+  Failures: `test_media_groups.py` x3 in BOTH (a `TypeError` in `/multimedia/groups/join`, unrelated, already at the base);
+  `test_soak_edges_2450.py::test_d1_...` base only (timing); `test_fake_doorwin_closed_rule_sr1.py::test_ha_lock_service_sites_are_pinned`
+  pass 2 only - the new English verb table names `lock.unlock` as a key; pinned in commit `7a22a3975` (a label, never a call).
+  Compared: 4,274 tests that produced records (226,927 records: 48,923 HTTP bodies, 8,368 error envelopes, ~171,000 sentence results,
+  the health / codec / notify / rbac results), and in them every string holding a Hebrew letter (329,780) as a per-test multiset after
+  normalising noise (timestamps, ids, sizes, numbers); also the static tables (every source label, every permission label, the severity
+  words): equal. 24 tests differ: 2 are `test_i18n_backend_2490.py` tests whose user is English (readiness' connections facts now carry
+  the health labels in English - the intended change); 22 are noise: zipped backup archives whose bytes fall in the Hebrew range (6),
+  random ids / key fingerprints inside Hebrew data texts (7), the NVR clock-drift sign measured against the wall clock (7),
+  background-thread timing (2: `backup.failed` in `test_notify_sources`, a WisKey station name in `test_wiskey_final281`). No Hebrew text
+  produced by the converted modules differs. Not covered by this golden run: the `_out` / `_reply` edges of the three automation routers
+  (added after the run's snapshot; Hebrew path = the value unchanged) - covered by the head run below.
+* Runner, pushed head: `scripts/gate/lint_backend.py --strict` 0 findings (ruff 0.17.5), `scripts/gen_wire_types.py --check` exit 0.
+  Runner slot B at `7a22a3975`: the 30 automation route test files (every file that calls `/automations`, `/automation-blueprints`,
+  `/automations-ext` or the automations fixture), `test_i18n_backend_2490.py`, `test_i18n_backend_2490b.py`,
+  `test_fake_doorwin_closed_rule_sr1.py`, `test_health_report.py`, `test_health_summary.py`, `test_notify_core.py`, `test_access.py`,
+  `test_custom_roles.py`, `test_ha_users.py`, `test_capabilities.py`, `test_media_groups.py`: 774 passed, 3 failed - the same three
+  `test_media_groups.py` tests that fail at the base (see above).
+* Frontend `tsc`: NOT_RUN - no frontend file changed.
+
+### 5.4 Next producers (not in this pass)
+
+`rbac.role_name` / `scope_name` (rbac.py: role and scope names on the same screens), `routers/generator.py` role labels, the tickets
+module's notification titles, `automation_trace` run summaries and `automation_ext` schedule step sentences, `building_presence_blocks`
+and `automation_scope` / `schedule_view` refusal sentences (they quote the permission labels in Hebrew), and the remaining modules of
+section 1's list (`wiskey_pairing`, `offbox_gdrive_diagnose`, `schedule_ops`, `ha_bridge`, `plan_geometry`, ...).
+
 ## Rollback
 
 Revert the branch's commits. Nothing stored changes shape or content, so no data step.
