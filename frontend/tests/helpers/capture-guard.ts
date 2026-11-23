@@ -26,7 +26,7 @@ const REFUSED = /Unable to capture screenshot/i;
 const TRIES = 4;
 const MARK = Symbol.for('smplwise.captureGuard');
 
-type Shoot = (this: unknown, options?: unknown) => Promise<Buffer>;
+export type Shoot = (this: unknown, options?: unknown) => Promise<Buffer>;
 
 /** where in the spec the capture was asked for (first stack frame inside tests/) */
 function callSite(): string {
@@ -50,7 +50,7 @@ function dimensions(b: Buffer): string {
   return '?';
 }
 
-function guard(original: Shoot, pageOf: (self: unknown) => Page | null): Shoot {
+export function guardShot(original: Shoot, pageOf: (self: unknown) => Page | null): Shoot {
   const wrapped: Shoot = async function (this: unknown, options?: unknown) {
     const log = process.env.SW_SHOT_LOG;
     const site = log ? callSite() : '';
@@ -98,9 +98,9 @@ export function installCaptureGuard(): void {
         try {
           const pageProto = Object.getPrototypeOf(page) as { screenshot: Shoot };
           const locatorProto = Object.getPrototypeOf(page.locator('html')) as { screenshot: Shoot };
-          if (!(pageProto.screenshot as unknown as Record<symbol, boolean>)[MARK]) pageProto.screenshot = guard(pageProto.screenshot, (s) => s as Page);
+          if (!(pageProto.screenshot as unknown as Record<symbol, boolean>)[MARK]) pageProto.screenshot = guardShot(pageProto.screenshot, (s) => s as Page);
           if (!(locatorProto.screenshot as unknown as Record<symbol, boolean>)[MARK]) {
-            locatorProto.screenshot = guard(locatorProto.screenshot, (s) => (s as { page(): Page }).page());
+            locatorProto.screenshot = guardShot(locatorProto.screenshot, (s) => (s as { page(): Page }).page());
           }
         } catch { /* unguarded, never broken */ }
       };
