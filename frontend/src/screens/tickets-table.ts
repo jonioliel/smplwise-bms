@@ -5,6 +5,8 @@ import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-dialog';
 import '../tickets/table-toolbar';
 import '../tickets/table-bulk';
+import '../components/sw-pager';
+import { PageFit } from '../components/page-fit';
 import { automationsStyles } from '../styles/automations-glass';
 import { applyAutomationsGlass } from '../styles/glass';
 import { SkinController } from '../design/skin';
@@ -34,7 +36,7 @@ import { ticketsLang } from '../tickets/text';
 import { dlt } from '../tickets/delete-text';
 import { openOverlay, menuKey } from '../tickets/overlay-menu';
 import { can, isApi } from '../api/session';
-import { setCostColumns, monthlyParams, type MonthlyGroup, fitTable, parseTableMid, tableMinWidth, COLUMN_WIDTH_PX, SELECT_COL_PX } from '../tickets/table-model';
+import { setCostColumns, monthlyParams, type MonthlyGroup, fitTable, parseTableMid, tableMinWidth, COLUMN_WIDTH_PX, SELECT_COL_PX, fillHeight } from '../tickets/table-model';
 import { costCell, costStatusTone } from '../tickets/cost-model';
 import { ct, type CostTextKey } from '../tickets/cost-text';
 
@@ -114,6 +116,24 @@ export class TicketsTable extends LitElement {
     if (Math.abs(w - this.fitWidth) >= 1) this.fitWidth = w;
   });
   private live = new LiveRefresh(() => this.tick()); // 2.5.4: the one shared poller (20 s, visible, focus)
+  /**
+   * TICKETS-PAGING-2490 (owner rule 2026-10-24: a control screen never scrolls; owner decision Q20: the tickets table pages): while the
+   * host gives the table a fixed region (`fill`: from a tablet up; a phone shows the compact list and its page scrolls, as before - at
+   * 390x844 the screen's header leaves room for one compact row) the loaded rows are cut into pages that fit that region - measured from the real rows (components/page-fit.ts: whole rows, the sticky head counted on
+   * every page), so a page fills the card and nothing scrolls. The pager (and "load more" on the last page while the server has more)
+   * sits at the end of the toolbar row. The installation's long-lists setting `scroll` keeps the old inner scroll. The operator's place
+   * is kept (`keep`): a resize, the bulk bar, a poll, "load more" (its first new row) and a deleted row stay on the page that holds the
+   * row first on screen; a new filter, sort, density or view starts at page 1.
+   * Selection across pages (explicit): a row's box, Space and Shift ranges work in list order across pages; the header box and Ctrl+A
+   * take the rows of THIS page only (the other pages keep their state); the bulk bar says how many selected rows are on other pages and
+   * offers "select all N" = every LOADED row (the rows the server has not sent yet are never selected).
+   */
+  private fit = new PageFit(this, () => this.fitRegion(), () => this.fill && this.screen === 'ready' && !!this.rows?.length, 'all', { keep: true, content: true });
+  /** the shown columns the pages were measured with (other columns can change the rows' height: measure again) */
+  private fitCols = '';
+  /** the row height that filled the last full page (the last page's rows take it too, so every page's rows look alike) */
+  private fillH = 0;
+  private fillRaf = 0;
   private toastTimer = 0;
   private offNames: (() => void) | null = null;
 
@@ -143,6 +163,35 @@ export class TicketsTable extends LitElement {
     }
     .statebox {
       padding-block: 40px;
+    }
+    /* TICKETS-PAGING-2490: the pages (the fit controller). While they are in force the region clips (it never scrolls); while there
+       is more than one page it keeps the whole room (every page ends at the same edge; the measure saw the same height). A toast floats
+       over the screen instead of pushing the rows down (a moving edge would re-cut the pages), above the bulk bar while it shows. */
+    :host([data-pages-on]) .tw {
+      overflow-y: hidden;
+    }
+    :host([data-pages-many]) .tw {
+      flex: 1 1 0;
+    }
+    :host([data-pages-many]) tbody tr[data-fit-item] {
+      block-size: var(--fit-row-h, auto);
+    }
+    .tpager {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sw-s-2);
+      flex: none;
+    }
+    :host([data-pages-on]) .toast {
+      position: fixed;
+      inset-block-end: var(--toast-lift, var(--sw-s-6));
+      inset-inline: 0;
+      z-index: 40;
+      inline-size: fit-content;
+      max-inline-size: calc(100% - var(--sw-s-8));
+      box-sizing: border-box;
+      margin: 0 auto;
+      box-shadow: var(--dv-shadow-2);
     }
     /* TKUI4: the bulk bar floats at the bottom of the screen over the rows (sticky: the selection is always one tap from its actions) */
     tickets-table-bulk {
@@ -179,10 +228,21 @@ export class TicketsTable extends LitElement {
     this.fitObs.disconnect();
     this.live.stop();
     window.clearTimeout(this.toastTimer);
+    cancelAnimationFrame(this.fillRaf);
   }
 
   /** 2.5.5: the open cell menu lives in the top layer, outside the table's scroll box: put it next to its trigger after every render. */
   protected updated(changed: PropertyValues<this>): void {
+    const cols = this.phone ? '' : this.shownColumns().join(',');
+    if (cols !== this.fitCols) {
+      this.fitCols = cols;
+      this.fit.refit();
+    }
+    this.fillRows();
+    // the floating toast clears the bulk bar (its actions stay reachable while the toast is up)
+    const bulk = this.fit.on ? this.renderRoot.querySelector('tickets-table-bulk') : null;
+    if (bulk) this.style.setProperty('--toast-lift', `${Math.ceil(window.innerHeight - bulk.getBoundingClientRect().top) + 8}px`);
+    else this.style.removeProperty('--toast-lift');
     this.placeMenu();
     if ((changed as Map<PropertyKey, unknown>).has('rows')) this.tellHolders();
   }
@@ -211,6 +271,52 @@ export class TicketsTable extends LitElement {
 
   protected willUpdate(changed: PropertyValues<this>): void {
     if (this.booted && (changed.has('scope') || changed.has('base') || changed.has('extra'))) this.reloadIfNeeded();
+    // TICKETS-PAGING-2490: the set the pages are measured for (a new query, density or layout starts at page 1), then what the CSS reads
+    this.fit.sync(this.rows?.length ?? 0, `${this.key}|${this.density}|${this.fill ? 1 : 0}`);
+    this.toggleAttribute('data-pages-on', this.fit.on);
+    this.toggleAttribute('data-pages-many', this.fit.on && this.fit.pages > 1);
+  }
+
+  /** TICKETS-PAGING-2490: the region the pages fit - the table card. */
+  private fitRegion(): HTMLElement | null {
+    return this.renderRoot.querySelector<HTMLElement>('[data-table-wrap]');
+  }
+
+  /**
+   * TICKETS-PAGING-2490: a page's rows reach the card's bottom edge (owner, the alarm comparison 2026-11-22: a page that stops a row
+   * short looks unfinished). The pages are cut on the rows' own heights; after each draw the rows go back to them and, before the
+   * frame is painted, the rows of a page that is not the last are stretched over the room left (`--fit-row-h`: a row's minimum
+   * height); the last page takes the same height when it has the room. One page: the card follows its rows, as before.
+   */
+  private fillRows(): void {
+    this.style.removeProperty('--fit-row-h');
+    cancelAnimationFrame(this.fillRaf);
+    if (!this.fit.on || this.fit.pages <= 1) return;
+    this.fillRaf = requestAnimationFrame(() => {
+      const r = this.fitRegion();
+      const rows = r ? [...r.querySelectorAll<HTMLElement>('tbody tr[data-fit-item]')] : [];
+      if (!r || !rows.length || !this.fit.on || this.fit.pages <= 1) return;
+      const room = r.getBoundingClientRect().top + r.clientTop + r.clientHeight - rows[rows.length - 1].getBoundingClientRect().bottom;
+      const h = fillHeight(rows.map((x) => x.getBoundingClientRect().height), room - 1); // a pixel spare: rounding never overflows
+      const last = this.fit.page === this.fit.pages;
+      if (!last) this.fillH = h;
+      const use = last ? Math.min(this.fillH, h) : h;
+      if (use > 0) this.style.setProperty('--fit-row-h', `${use}px`);
+    });
+  }
+
+  /** The rows drawn now with their index in the loaded list (every row while the pages are not in force). */
+  private drawn(rows: readonly TableRow[]): [TableRow, number][] {
+    const out: [TableRow, number][] = [];
+    rows.forEach((r, i) => {
+      if (this.fit.shows(i)) out.push([r, i]);
+    });
+    return out;
+  }
+
+  /** The ids of the rows on this page (the header box and Ctrl+A act on them). */
+  private pageIds(): string[] {
+    return this.drawn(this.rows ?? []).map(([r]) => r.id);
   }
 
   /** POLISH-LEFTOVERS-2341: the handler filter's people (whoever holds a loaded row) for the host's panel, when they change */
@@ -275,6 +381,7 @@ export class TicketsTable extends LitElement {
       const prev = more ? this.rows ?? [] : [];
       const seen = new Set(prev.map((r) => r.id));
       this.rows = [...prev, ...page.items.filter((r) => !seen.has(r.id))];
+      if (more) this.fit.reveal(prev.length); // TICKETS-PAGING-2490: "load more" shows the page of its first new row
       this.next = page.next_cursor;
       this.pages = more ? this.pages + 1 : 1;
       // the selection keeps what is still on the screen (a poll, a filter change)
@@ -425,6 +532,7 @@ export class TicketsTable extends LitElement {
   }
 
   private focusRow(i: number): void {
+    this.fit.reveal(i); // TICKETS-PAGING-2490: the arrows, Home and End cross the pages
     this.focusIdx = i;
     void this.updateComplete.then(() => (this.renderRoot.querySelector(`tbody tr[data-row-index="${i}"]`) as HTMLElement | null)?.focus());
   }
@@ -453,7 +561,7 @@ export class TicketsTable extends LitElement {
     if (inField) return;
     if ((e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey) && this.canSelect()) {
       e.preventDefault();
-      this.selected = new Set(this.ids());
+      this.selected = new Set([...this.selected, ...this.pageIds()]); // TICKETS-PAGING-2490: the page; other pages keep their state
       return;
     }
     const rowEl = e.composedPath().find((n) => n instanceof HTMLElement && n.matches('tbody tr')) as HTMLElement | undefined;
@@ -671,7 +779,7 @@ export class TicketsTable extends LitElement {
 
   private header(): TemplateResult {
     const sort = this.layout.sort;
-    const ids = this.ids();
+    const ids = this.pageIds(); // TICKETS-PAGING-2490: the rows of this page
     const ps = pageState(ids, this.selected);
     return html`<thead><tr>
       ${this.canSelect() ? html`<th class="ck" scope="col"><label class="ckb"><span class="vh">${tbt('selectPage')}</span><input type="checkbox" data-select-page .checked=${ps === 'all'} .indeterminate=${ps === 'some'}
@@ -708,22 +816,25 @@ export class TicketsTable extends LitElement {
   private table(rows: TableRow[]): TemplateResult {
     const select = this.canSelect();
     const cols = this.shownColumns();
-    return html`<div class="tw" data-table-wrap>
+    // the row Tab reaches: the focused one while it is on this page, else the first row of the page
+    const tabAt = this.focusIdx >= 0 && this.fit.shows(this.focusIdx) ? this.focusIdx : this.fit.first;
+    // TICKETS-PAGING-2490: the <section> lets the pages count the sticky head above the rows of every page (page-fit.ts: a section's heading)
+    return html`<div class="tw" data-table-wrap><section class="tsec">
       <table class="tt" style=${`min-inline-size:${tableMinWidth(cols, select)}px`} data-min-width=${tableMinWidth(cols, select)} role="grid" aria-label=${tbt('tableLabel')} aria-rowcount=${rows.length + 1} aria-multiselectable=${String(select)} aria-describedby="kbhelp" data-tickets-table @keydown=${this.onKey}>
         ${this.colgroup(cols, select)}
         ${this.header()}
-        <tbody>${repeat(rows, (r) => r.id, (r, i) => {
+        <tbody>${repeat(this.drawn(rows), ([r]) => r.id, ([r, i]) => {
           const sel = this.selected.has(r.id);
-          return html`<tr data-row=${r.id} data-row-index=${i} data-status=${r.status} aria-rowindex=${i + 2} aria-selected=${select ? String(sel) : nothing} ?data-picked=${this.picked === r.id}
-              tabindex=${this.focusIdx === i || (this.focusIdx < 0 && i === 0) ? '0' : '-1'} @focus=${() => (this.focusIdx = i)} @click=${(e: MouseEvent) => this.onRowClick(e, r)}>
+          return html`<tr data-row=${r.id} data-row-index=${i} data-status=${r.status} aria-rowindex=${i + 2} aria-selected=${select ? String(sel) : nothing} ?data-picked=${this.picked === r.id} data-fit-item
+              tabindex=${i === tabAt ? '0' : '-1'} @focus=${() => (this.focusIdx = i)} @click=${(e: MouseEvent) => this.onRowClick(e, r)}>
             ${select ? html`<td class="ck"><label class="ckb"><span class="vh">${tbt('selectRow', { n: r.number })}</span><input type="checkbox" tabindex="-1" data-select=${r.id} .checked=${sel}
               @click=${(e: MouseEvent) => this.onCheck(e, r.id)} /></label></td>` : nothing}
             ${this.shownColumns().map((c) => (c === 'sentence' ? html`<td class="c-sentence"><span class="cv" title=${this.sentenceOf(r)} data-row-sentence>${this.sentenceOf(r)}</span></td>` : this.cell(r, c)))}
           </tr>`;
         })}</tbody>
-      </table>
+      </table></section>
       <span class="vh" id="kbhelp">${tbt('keyboardHelp')}</span>
-      ${this.next ? html`<div class="more"><button type="button" class="btn" data-load-more ?disabled=${this.loadingMore} @click=${() => void this.load(true)}>${tbt('loadMore')}</button></div>` : nothing}
+      ${this.next && !this.fit.on ? html`<div class="more"><button type="button" class="btn" data-load-more ?disabled=${this.loadingMore} @click=${() => void this.load(true)}>${tbt('loadMore')}</button></div>` : nothing}
     </div>`;
   }
 
@@ -738,6 +849,19 @@ export class TicketsTable extends LitElement {
       </a>`)}
     </nav>
     ${this.next ? html`<div class="more"><button type="button" class="btn" data-load-more ?disabled=${this.loadingMore} @click=${() => void this.load(true)}>${tbt('loadMore')}</button></div>` : nothing}`;
+  }
+
+  /** TICKETS-PAGING-2490: the pages of the rows and, on the last page while the server has more, "load more" - at the end of the toolbar row. */
+  private pagerSlot(): TemplateResult | typeof nothing {
+    if (!this.fit.on) return nothing;
+    const pages = this.fit.pages;
+    const at = this.fit.page;
+    const more = !!this.next && at === pages;
+    if (pages <= 1 && !more) return nothing;
+    return html`<span slot="pager" class="tpager">
+      ${more ? html`<button type="button" class="btn sm" data-load-more ?disabled=${this.loadingMore} @click=${() => void this.load(true)}>${tbt('loadMore')}</button>` : nothing}
+      ${pages > 1 ? html`<sw-pager data-table-pager .page=${at} .pages=${pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}
+    </span>`;
   }
 
   private skeleton(): TemplateResult {
@@ -765,16 +889,18 @@ export class TicketsTable extends LitElement {
     const rows = this.rows ?? [];
     const picked = rows.filter((r) => this.selected.has(r.id));
     const showBulk = this.canSelect() && picked.length > 0;
+    const onPage = new Set(this.pageIds());
     return html`<div data-screen="tickets-table" data-view="table">
       ${html`<tickets-table-toolbar .layout=${this.layout} .extra=${this.extra} .meta=${this.meta} .holders=${holdersOf(rows)} .current=${viewDoc({ scope: this.scope, ...this.base }, this.extra, this.layout)}
             .count=${this.screen === 'ready' ? rows.length : null} ?more=${!!this.next} ?phone=${this.phone} ?canExport=${!!this.meta?.can.manage} ?exporting=${this.exporting} .defaultView=${this.defaultView} ?hostFilters=${this.hostFilters} .fitted=${this.fittedColumns()}
             @layout-change=${(e: CustomEvent<{ layout: TableLayout }>) => this.setLayout(e.detail.layout)} @extra-change=${(e: CustomEvent<{ extra: ExtraFilters }>) => this.setExtra(e.detail.extra)}
             @view-apply=${(e: CustomEvent<{ view: SavedView }>) => this.applySaved(e.detail.view)} @default-view=${(e: CustomEvent<{ id: string | null }>) => (this.defaultView = e.detail.id ?? '')}
             .sentence=${this.fittedTable().sentence} .sentenceFitted=${this.fittedTable().sentenceFitted} @sentence-change=${this.onSentenceToggle}
-            @export-csv=${() => void this.exportCsv()} @monthly-report=${(e: CustomEvent<{ from: string; to: string; group: MonthlyGroup }>) => void this.monthlyReport(e.detail)}></tickets-table-toolbar>`}
+            @export-csv=${() => void this.exportCsv()} @monthly-report=${(e: CustomEvent<{ from: string; to: string; group: MonthlyGroup }>) => void this.monthlyReport(e.detail)}>${this.pagerSlot()}</tickets-table-toolbar>`}
       ${this.toast ? html`<div class=${`banner toast ${this.toast.tone === 'bad' ? 'bad' : 'info'}`} role="status" data-table-toast>${tIcon(this.toast.tone === 'bad' ? 'warning' : 'check')}<div><b>${this.toast.head}</b>${this.toast.rest ? html`<small>${this.toast.rest}</small>` : nothing}</div></div>` : nothing}
       ${this.body()}
-      ${showBulk ? html`<tickets-table-bulk .rows=${picked} .meta=${this.meta} @bulk-done=${this.onBulkDone} @ticket-deleted=${this.onOneDeleted} @bulk-clear=${() => (this.selected = new Set())}></tickets-table-bulk>` : nothing}
+      ${showBulk ? html`<tickets-table-bulk .rows=${picked} .meta=${this.meta} .offPage=${picked.length - picked.filter((r) => onPage.has(r.id)).length} .allCount=${this.fit.pages > 1 ? rows.length : 0}
+        @bulk-all=${() => (this.selected = new Set(this.ids()))} @bulk-done=${this.onBulkDone} @ticket-deleted=${this.onOneDeleted} @bulk-clear=${() => (this.selected = new Set())}></tickets-table-bulk>` : nothing}
     </div>
     ${this.cellMenu()}
     ${this.move ? html`<sw-dialog open heading=${tbt('moveTitle', { status: statusLabel(this.move.to) })} data-dialog="table-move" @close=${() => (this.move = null)}>

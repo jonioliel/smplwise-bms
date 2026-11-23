@@ -127,6 +127,8 @@ const he = {
 
   // bulk actions (13.6)
   selected: '{n} {f:נבחרו|m:נבחרו}',
+  selectedOff: '{n} {f:מהן|m:מהם} בעמודים אחרים',
+  selectAllLoaded: 'בחירת כל {n} {the_tickets}',
   clearSelection: 'ביטול הבחירה',
   bulkAssign: 'שיוך',
   bulkRemind: 'תזכורת',

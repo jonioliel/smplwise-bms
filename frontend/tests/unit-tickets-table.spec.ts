@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import {
   activeExtraCount, ageText, applyView, ariaSort, bulkSummary, chooserOrder, COLUMN_KEYS, DEFAULT_COLUMNS, keepAfterBulk, layoutFromPrefs, moveColumn, nextIndex,
   NO_TABLE_FILTERS, normalizeColumns, pageState, parseSort, queryParams, rangeSelect, slaText, sortMark, sortText, spanText, stuckText, tableFilters, toggleColumn,
-  toggleOne, togglePage, toggleSort, viewDoc, monthlyRangeError, monthlyParams, type ExtraFilters,
+  toggleOne, togglePage, toggleSort, viewDoc, monthlyRangeError, monthlyParams, fillHeight, type ExtraFilters,
 } from '../src/tickets/table-model';
 import { TABLE_TEXT_EN_KEYS, TABLE_TEXT_KEYS, tableTemplate, tbt } from '../src/tickets/table-text';
 import { setTicketNames, ticketNames } from '../src/tickets/naming';
@@ -97,6 +97,32 @@ test('selection: one, a Shift range from the anchor (both directions), the page,
   expect(pageState(ids, new Set())).toBe('none');
   expect(pageState(ids, new Set(['a']))).toBe('some');
   expect(pageState(ids, new Set(ids))).toBe('all');
+});
+
+test('TICKETS-PAGING-2490: the header box acts on the page on screen; the rows of the other pages keep their state', () => {
+  const page2 = ['c', 'd'];
+  expect([...togglePage(page2, new Set(['a']))].sort()).toEqual(['a', 'c', 'd']);
+  expect([...togglePage(page2, new Set(['a', 'c', 'd']))]).toEqual(['a']);
+  expect([...togglePage(page2, new Set(['a', 'c']))].sort()).toEqual(['a', 'c', 'd']);
+  expect([...togglePage([], new Set(['a']))]).toEqual(['a']);
+  expect(pageState(page2, new Set(['a']))).toBe('none');
+});
+
+test('TICKETS-PAGING-2490: the row height that fills a page - lower rows grow, taller rows keep, never past the room', () => {
+  const sum = (hs: number[], h: number) => hs.reduce((a, x) => a + Math.max(x, h), 0);
+  expect(fillHeight([68, 68, 68, 68, 68, 68, 68], 66)).toBe(77.25);
+  expect(7 * 68 + 66 - sum([68, 68, 68, 68, 68, 68, 68], 77.25)).toBeLessThan(2);
+  // a taller row keeps its height; the others share the room
+  const mixed = [46, 46, 68, 46];
+  const h = fillHeight(mixed, 40);
+  expect(h).toBe(59.25);
+  expect(sum(mixed, h)).toBeLessThanOrEqual(46 * 3 + 68 + 40);
+  // the room lifts the low rows past the tall one: all grow
+  expect(fillHeight([40, 60], 60)).toBe(80);
+  expect(fillHeight([68, 68], 0)).toBe(0);
+  expect(fillHeight([68, 68], 1)).toBe(68.5);
+  expect(fillHeight([68.2, 68.2], 0.4)).toBe(0);
+  expect(fillHeight([], 50)).toBe(0);
 });
 
 test('keyboard: the vertical moves (the same in RTL), clamped at the edges', () => {

@@ -33,6 +33,10 @@ export class TicketsTableBulk extends LitElement {
   readonly bubbleSkin = new SkinController(this);
   @property({ attribute: false }) rows: TableRow[] = [];
   @property({ attribute: false }) meta: Meta | null = null;
+  /** TICKETS-PAGING-2490: how many of the selected rows are on other pages of the table (said beside the count) */
+  @property({ type: Number }) offPage = 0;
+  /** TICKETS-PAGING-2490: the loaded rows while the table has more than one page (0 = one page): "select all N" selects them all (`bulk-all`) */
+  @property({ type: Number }) allCount = 0;
   @state() private dialog: BulkAction | null = null;
   @state() private eligible: Handler[] | null = null;
   @state() private pick = '';
@@ -47,6 +51,11 @@ export class TicketsTableBulk extends LitElement {
     }
     .bulk .btn {
       background: var(--dv-surface-solid);
+    }
+    .off {
+      color: var(--dv-text-2);
+      font-size: var(--sw-fs-sm);
+      white-space: nowrap;
     }
   `];
 
@@ -152,6 +161,8 @@ export class TicketsTableBulk extends LitElement {
     ];
     return html`<div class="bulk" role="toolbar" aria-label=${tbt('bulkActions')} data-bulk-bar>
       <span class="sel" data-bulk-count>${tIcon('check')}${tbt('selected', { n })}</span>
+      ${this.offPage > 0 ? html`<span class="off" data-bulk-off>${tbt('selectedOff', { n: this.offPage })}</span>` : nothing}
+      ${this.allCount > n ? html`<button type="button" class="btn sm quiet" data-bulk-all @click=${() => this.emit('bulk-all', {})}>${tbt('selectAllLoaded', { n: this.allCount })}</button>` : nothing}
       ${actions.map(([a, icon, label]) => html`<button type="button" class="btn sm" data-bulk=${a} @click=${() => this.open(a)}>${icon}${label}</button>`)}
       ${this.mayDelete ? html`<button type="button" class="btn sm dz" data-bulk="delete" @click=${() => this.open('delete')}>${tIcon('trash')}${dlt('bulkAction')}</button>` : nothing}
       <span class="grow"></span>

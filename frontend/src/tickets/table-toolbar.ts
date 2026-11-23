@@ -307,6 +307,7 @@ export class TicketsTableToolbar extends LitElement {
         @click=${() => this.setLayout({ density: compact ? 'comfortable' : 'compact' })}>${tbIcon('density')}${tbt(compact ? 'density_compact' : 'density_comfortable')}</button>
       <span class="grow"></span>
       ${this.count !== null ? html`<span class="count" data-table-count>${tbt(this.more ? 'countMore' : this.count === 1 ? 'countOne' : 'count', { n: this.count })}</span>` : nothing}
+      <slot name="pager"></slot>
       ${this.canExport ? html`<span class="anchor">
         <button type="button" class="btn sm" aria-haspopup="dialog" aria-expanded=${String(this.pop === 'report')} data-open="report" aria-label=${tbt('monthlyTitle')} @click=${() => this.open('report')}>${tbIcon('download')}${tbt('monthly')}</button>
         ${this.pop === 'report' ? this.reportPop() : nothing}
