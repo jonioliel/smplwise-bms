@@ -94,7 +94,6 @@
       "src/api/mapping-engine.ts#TOKEN_KINDS",
       "src/api/mapping-engine.ts#TOKEN_MAX",
       "src/api/screen-display.ts#PAGE_SIZE_MIN",
-      "src/design/palette.ts#SCHEMA",
       "src/design/palette.ts#TEXT_MIN",
       "src/design/palette.ts#UI_MIN",
       "src/design/sw-logo-art.ts#SwTone",
