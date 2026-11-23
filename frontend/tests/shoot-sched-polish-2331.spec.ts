@@ -78,7 +78,8 @@ async function mountDialog(page: Page, w: number, h: number) {
   });
   await page.goto('about:blank');
   await page.goto(`/?design=a#/devices/building`);
-  await page.waitForFunction(() => !!customElements.get('schedule-create-dialog'));
+  // PERF-2490: the schedule dialogs left the entry chunk (the lazy schedules screens import them); the editor's chunk brings the dialog
+  await loadLazyChunk(page, 'schedule-create-dialog', 'schedule-editor', '/src/screens/schedule-editor.ts');
   await page.evaluate(() => {
     document.querySelector('sw-app')?.remove();
     const el = document.createElement('schedule-create-dialog') as HTMLElement & { open?: boolean };

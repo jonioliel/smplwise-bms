@@ -231,6 +231,7 @@ test.describe('pixel: sw-checkbox', () => {
     await page.locator('[data-spec-link]').evaluate((a) => a.addEventListener('click', (e) => e.preventDefault()));
     await page.locator('[data-spec-link]').click();
     await expect(box(page, 'ack')).not.toHaveAttribute('checked');
+    await settle(page);
     const t = await box(page, 'ack').locator('.text').boundingBox();
     await box(page, 'ack').locator('.text').click({ position: { x: t!.width - 6, y: 6 } }); // the plain text (RTL: its start, the right) ticks it
     await expect(box(page, 'ack')).toHaveAttribute('checked', '');

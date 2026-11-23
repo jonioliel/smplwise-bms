@@ -488,8 +488,10 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
       await expect(sys(page).locator('[data-pol-row]')).toHaveCount(28); // every source of CR §5
       await expect(sys(page).locator('[data-pol-count]')).toHaveText('24 מתוך 28 פעילים'); // the rule-only sources and alarm.state are off by default
     }
-    // the reserved channels are slots, never switches
-    await expect(sys(page).locator('[data-pol-row="sensor.leak"] .chip.soon').first()).toHaveAttribute('aria-disabled', 'true');
+    // the reserved channels are slots, never switches (A11Y-AUDIT-2490: the Companion chip is a named image, not a disabled control)
+    const soon = sys(page).locator('[data-pol-row="sensor.leak"] .chip.soon').first();
+    await expect(soon).toHaveAttribute('role', 'img');
+    await expect(soon).not.toHaveAttribute('aria-disabled');
     await expect(sys(page).locator('[data-pol-row="sensor.leak"] [data-pol-ch="sensor.leak:inbox"]')).toHaveCount(0);
     // the owner's second choice lives here: schedule / automation failures go to the administrators or to everyone who sees them
     await expect(sec(page, 'sources').locator('[data-failures-audience="admins"]')).toHaveAttribute('aria-pressed', 'true');

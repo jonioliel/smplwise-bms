@@ -27,6 +27,10 @@ export interface GuardArgs {
   roots?: string[];
   /** Only elements inside an element matching this selector are measured (one screen of a shell full of other, known layouts). */
   within?: string;
+  /** Selectors exempt from the TARGET rule only (the element or any ancestor across shadow roots); escape / overflow / clipped /
+   *  floating still measure them. For a shared component whose owner-approved desktop key is below the desktop touch dial and that
+   *  keeps its own 44 px coarse-pointer contract (RELEASE-2480-TRAIN: sw-segmented's 28 px module key, SEG-MODULE-LOOK-2480). */
+  targetSkip?: string;
 }
 
 /** Runs inside the page. */
@@ -104,6 +108,8 @@ export function inPageCheck(args: GuardArgs): Finding[] {
     }
   };
   const skip = (el: Element) => matches(el, SKIP) || ancestors(el).some((a) => matches(a, SKIP));
+  const TSKIP = args.targetSkip ?? '';
+  const targetSkip = (el: Element) => !!TSKIP && (matches(el, TSKIP) || ancestors(el).some((a) => matches(a, TSKIP)));
 
   // overflow
   const ov = (el: Element | null, name: string) => {
@@ -194,7 +200,7 @@ export function inPageCheck(args: GuardArgs): Finding[] {
   }
   // targets
   for (const el of scoped) {
-    if (!matches(el, INTER) || el.getAttribute('tabindex') === '-1' || skip(el) || (el as HTMLButtonElement).disabled) continue;
+    if (!matches(el, INTER) || el.getAttribute('tabindex') === '-1' || skip(el) || targetSkip(el) || (el as HTMLButtonElement).disabled) continue;
     if (empty(visRect(el))) continue;
     const r = el.getBoundingClientRect();
     if (r.width < MIN - 0.5 || r.height < MIN - 0.5) add('target', el, `${Math.round(r.width)}x${Math.round(r.height)} < ${MIN}`);
