@@ -5315,7 +5315,7 @@
     "expected": "Design A's rail and phone bar are אבטחה · מפה · חשמל · WisKey · מערכת; לייב and חקירה are sections of the security area with a third section אזעקה, shown as a segmented control in the top bar at every width while each section's pages stay the tab row under it; every existing route keeps working (#/live/..., #/investigate/..., #/system/devices, Lovelace embed views, kiosk, the guide's screens.json), #/security/alarm is new and #/security opens the section last used in the browser (לייב by default); breadcrumbs area › section › page, Ctrl+K offers the sections, the alarm section is gated by alarm.view; design B gains a flat אזעקה entry (CR-010 §3).",
     "status": "PASS",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-alarm.spec.ts (32 passed, 13 skipped by the spec own gate); test_alarm.py (38 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23",
     "notes": "Automated fixture coverage on the branch (tests/test_alarm.py, frontend/tests/evidence-alarm.spec.ts); the acceptance run on the owner's system is pending. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-A-2406; nothing run against the lab. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab."
@@ -5369,7 +5369,7 @@
     "expected": "An administrator stores each panel's code once, encrypted with AES-256-GCM (key file in /data/keys, 0600, never in a project backup), write-only through the API; per user arm_policy and disarm_policy = no_code | code_required (default code_required; bypass follows disarm); alarm.code_mode personal_pin (default; 4-8 digit PIN stored as a salted scrypt hash) or panel_code (constant-time compare with the stored code); without a stored code the typed panel code is passed through; wrong codes: 5 in 5 minutes per user or per panel lock code entry for 10 minutes; remote settings alarm.remote_control, alarm.remote_disarm and alarm.remote_codeless (default on, owner decision); no code or PIN ever appears in a log, an audit row, an API response, an error, a URL or the database in clear (CR-010 §5a).",
     "status": "PASS",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_alarm.py (38 passed); test_backup.py (8 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23",
     "notes": "Automated fixture coverage on the branch (tests/test_alarm.py, frontend/tests/evidence-alarm.spec.ts); the acceptance run on the owner's system is pending. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-A-2406; nothing run against the lab. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab."
@@ -5423,7 +5423,7 @@
     "expected": "Each user can reorder their navigation tabs in a dialog (drag handle with touch and mouse, up/down buttons, arrow/Home/End keys, a live announcement, save, reset to default); the order is stored per user on the server (GET/PUT /api/v1/me/prefs, key nav.order, migration 0037; unknown ids dropped, duplicates removed, missing tabs appended in the default order; unknown keys refused; null resets), applies to the rail and the phone bottom bar on every device, is cached locally per user id for the first paint with the server winning on load, never leaks to another user of the same browser, keeps hidden tabs in their stored place, and never shows a tab the user may not see (CR-013 §2.4).",
     "status": "PASS",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-shell.spec.ts (54 passed, 3 skipped by the spec own gate); test_user_prefs.py (11 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23",
     "notes": "Automated coverage on the branch (frontend/tests/evidence-shell.spec.ts on the static preview with demo data and a mocked backend; backend tests/test_user_prefs.py); the owner's run on his phone, the Android app and an installed web app is pending. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-A-2406; nothing run against the lab. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab."
@@ -6336,7 +6336,7 @@
     "expected": "More Bubble variants (BV1; skin authoring guide section 6d): clock and weather widgets with style 'tile', the home widgets 'agenda' (next event per calendar entity) and 'launcher' (round launch buttons for screens, scenes, scripts and quick actions), the look dials 'sliders: vertical' and 'surface: none'; nothing changes until chosen; every option editable in the UI, installation default and personal choice.",
     "status": "PASS",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_shift114.py (61 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23",
     "notes": "Registered 2026-10-05 by TASKS-SYNC-2; NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab."
@@ -7088,7 +7088,7 @@
     "expected": "Owner-approved inventory read on the installation (CR-033, plan slice WXD7R), built and tested on fakes and fixtures only; entry gate: owner approval (read of the Arx database only). Nothing here authorises a live door test, key action or release without a separate owner approval.",
     "status": "PASS",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_progress_matcher.py (45 passed); test_wxd10_door_jobs.py (13 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23",
     "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built. 2026-11-04: the owner-approved read-only inventory ran on the lab Home Assistant data (0 door-opening items), not on the Arx database; the owner closed WXD7R on that basis. Left NOT_RUN: no execution record with commit and environment against the stated entry gate. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab."
@@ -7160,7 +7160,7 @@
     "expected": "Arx event door jobs (M1), disable-and-list (CR-033, plan slice WXD10A), built and tested on fakes and fixtures only; entry gate: inventory result (only if it finds event-driven items). Nothing here authorises a live door test, key action or release without a separate owner approval.",
     "status": "PASS",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_wiskey_door_enable.py (3 passed); test_wxd10_door_jobs.py (13 passed); unit-door-conversion-wxd10.spec.ts (4 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23",
     "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-A-2406; nothing run against the lab. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab."
@@ -7184,7 +7184,7 @@
     "expected": "Hold-open program hand-over (M3) (CR-033, plan slice WXD10B), built and tested on fakes and fixtures only; entry gate: WisKey offers program creation for an Arx operator. Nothing here authorises a live door test, key action or release without a separate owner approval.",
     "status": "PASS",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_wxd10_door_jobs.py (13 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23",
     "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-A-2406; nothing run against the lab. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab."
@@ -7208,7 +7208,7 @@
     "expected": "Door-path gate T1..T26 on fakes (CR-033, plan slice WXD11), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
     "status": "PASS",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_door_bridge_block_2404.py (21 passed); test_wxd11_t19_fake_ha_context.py (4 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23",
     "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built. 2026-11-05 DOOR-BRIDGE-BLOCK-2404: PASS on fakes only; live acceptance (DR-8) NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab."
@@ -7543,11 +7543,11 @@
     ],
     "expected": "Plan Studio 6 S2: sun, sky, time of day, lamps: Solar position, sky lookup, time-of-day slider, emissive lamps in a fixed light pool, door/cover animation. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
     "status": "PASS",
-    "commit": "eab715e53",
-    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
-    "evidence": "CATALOG-SWEEP-A-2406 receipts (docs/changes/receipts/CATALOG-SWEEP-A-2406.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/unit-plan3d-sun.spec.ts > the solar position matches an independent algorithm within 0.5 deg at six reference points; frontend/tests/unit-plan3d-sun.spec.ts > the lamp pool: the nearest lit lamps by distance bucket, then by id; unlit lamps never; deterministic; frontend/tests/unit-plan3d-sun.spec.ts > the light recipe is monotonic in the elevation: day and the sun rise, night falls; the bands are ordered; frontend/tests/unit-plan-3d-realistic.spec.ts > the time of day moves the sun deterministically; the style re-tints without a rebuild; a chosen rung is never lowered; frontend/tests/unit-plan-3d-realistic.spec.ts > a door opening animates and ends exactly where a cold build of the same description draws it. Solar position against reference points, monotonic sky/light recipe, deterministic lamp pool, the time-of-day slider moving the sun deterministically, and door animation ending in the cold-build state.",
-    "executed_at": "2026-11-06",
-    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-A-2406; nothing run against the lab. | 2026-11-23 (ACC-SWEEP-2211): not re-run at 619f94d04 (Not run (spec needs a server this sweep did not run: unit-plan3d-sun.spec.ts).); the earlier PASS record stands."
+    "commit": "619f94d04",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): unit-plan-3d-realistic.spec.ts (15 passed); unit-plan3d-sun.spec.ts (9 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+    "executed_at": "2026-11-23",
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-A-2406; nothing run against the lab. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab."
   },
   {
     "id": "AT278",
@@ -7591,11 +7591,11 @@
     ],
     "expected": "Plan Studio 6 S3: lighting bake, stills and storage: In-browser lightmap baker, per-room blend mask, pre-rendered stills with masks, plan_bakes storage. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
     "status": "PASS",
-    "commit": "eab715e53",
-    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
-    "evidence": "CATALOG-SWEEP-A-2406 receipts (docs/changes/receipts/CATALOG-SWEEP-A-2406.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_plan_bakes.py::test_upload_list_serve_replace_and_permissions; smplwise_vms/backend/tests/test_plan_bakes.py::test_backup_covers_the_bakes_and_a_restore_sweeps_orphans; smplwise_vms/backend/tests/test_plan_bakes.py::test_a_structure_change_makes_the_bakes_stale_and_the_bundle_drops_them; frontend/tests/unit-still-bake.spec.ts > AO darkens near the wall and under the table; the lamp lights its side only; same bytes every time; frontend/tests/unit-still-bake.spec.ts > UVs, rooms and blend weights (stale / unknown never lights); frontend/tests/evidence-plan-stills.spec.ts > the still renderer: camera, determinism, variants, cleanup. plan_bakes storage (upload/list/delete/permissions/backup/stale key), the in-browser lightmap baker with deterministic AO and per-room blend weights, and the stills renderer are asserted. Bake timing on a real laptop is reported, not part of this acceptance.",
-    "executed_at": "2026-11-06",
-    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-A-2406; nothing run against the lab. | 2026-11-23 (ACC-SWEEP-2211): not re-run at 619f94d04 (Not run (spec needs a server this sweep did not run: unit-still-bake.spec.ts).); the earlier PASS record stands."
+    "commit": "619f94d04",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-plan-stills.spec.ts (2 passed); test_plan_bakes.py (14 passed); unit-still-bake.spec.ts (15 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+    "executed_at": "2026-11-23",
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-A-2406; nothing run against the lab. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab."
   },
   {
     "id": "AT280",
@@ -8212,7 +8212,7 @@
     "expected": "Stabilise flaky backend and frontend tests (15 of 16): built and verified on fakes and fixtures; no live device action.",
     "status": "PASS",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_gate_visual_block_t074.py (14 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23",
     "notes": "NOT_RUN: waits for the tier-L gate of 2.4.6. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab."
@@ -8308,7 +8308,7 @@
     "expected": "Plan Studio 6: integration on 2.4.6, migrations 0074-0075, gate and release: built and verified on fakes and fixtures; no live device action.",
     "status": "PASS",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_plan_bakes.py (14 passed); test_plan_view_settings.py (60 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23",
     "notes": "NOT_RUN: not integrated. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-A-2406; nothing run against the lab. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab."
@@ -10239,11 +10239,11 @@
     ],
     "expected": "Every listed test passes on the branch; with the switch off the HA sign-in answers are unchanged.",
     "status": "PASS",
-    "notes": "Run by the lead's tier-M gate after integration (P1 asks for a tier-L gate at the end of the phase). | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-A-2406; nothing run against the lab. | 2026-11-23 (ACC-SWEEP-2211): not re-run at 619f94d04 (Not run (spec needs a server this sweep did not run: unit-arx-local-login.spec.ts).); the earlier PASS record stands.",
-    "commit": "eab715e53",
-    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
-    "evidence": "CATALOG-SWEEP-A-2406 receipts (docs/changes/receipts/CATALOG-SWEEP-A-2406.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_local_identity.py::test_off_by_default_every_new_route_refuses; smplwise_vms/backend/tests/test_local_identity.py::test_off_leaves_the_ha_sign_in_byte_for_byte_unchanged; smplwise_vms/backend/tests/test_local_identity.py::test_permission_matrix; smplwise_vms/backend/tests/test_local_identity_units.py::test_hash_is_a_phc_string_and_verifies_only_the_right_password; frontend/tests/unit-arx-local-login.spec.ts > the local mode is absent unless the server offers it. All local-identity backend tests (95) and the login unit spec passed, including the check that with the switch off the HA sign-in answers stay byte-for-byte the same.",
-    "executed_at": "2026-11-06"
+    "notes": "Run by the lead's tier-M gate after integration (P1 asks for a tier-L gate at the end of the phase). | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-A-2406; nothing run against the lab. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
+    "commit": "619f94d04",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_local_identity.py (41 passed); test_local_identity_units.py (55 passed); unit-arx-local-login.spec.ts (18 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+    "executed_at": "2026-11-23"
   },
   {
     "id": "AT-USR2-2",
@@ -10290,7 +10290,7 @@
     "status": "PASS",
     "notes": "Run by the lead's tier-M gate after integration. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-A-2406; nothing run against the lab. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_bridge_service_identity.py (171 passed); test_service_identity.py (47 passed); unit-service-identity.spec.ts (14 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -10508,7 +10508,7 @@
     "status": "PASS",
     "notes": "2026-10-27 workstation, pilot/WISKEYA06-297 (from v2.23.2): tests/test_wiskeya06_297.py 88 passed; regression test_t06_admission_295 + test_w031_295 + test_door_emergency_roles_emrole_295 87 passed, 3 xfailed (the strict T06 FINDING xfails). Fakes only. Not a gate. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "executed_at": "2026-11-23",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_door_emergency_roles_emrole_295.py (22 passed); test_t06_admission_295.py (63 passed, 3 skipped by the spec own gate); test_w031_295.py (5 passed); test_wiskeya06_297.py (88 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched."
   },
@@ -10560,7 +10560,7 @@
     "status": "PASS",
     "notes": "2026-10-27 runner, pilot/DOORWRITE-297 @ 005d8dcbb: tests/test_doorwrite_297.py with test_doorwin_watch, test_doorwin_api, test_doorwin2_foreign, test_doorwin2_events, test_doorwin2_review2, test_splitswitch_297, test_wiskey_owner26_callers_297, test_f3a_doorwin_dw03_295: 174 passed. Fakes only (W0 FakeProgramEngine behind the live seam classes); no WisKey, no door. Not a gate. The lab write is prepared, NOT_RUN. Also @005d8dcbb: test_migrations, test_migrations_263_upgrade, test_db_template, test_backup_drill, test_db_gate and the remaining door-window suites 216 passed, 1 failed (test_program_writes_are_pinned: the OWNER26 transport was never pinned - fixed) and 1 error (test_backup_sensitive, 'unable to open database file'); @5a984f4bf: test_doorwrite_297 + test_fake_doorwin_closed_rule_sr1 + test_backup_sensitive 71 passed. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "executed_at": "2026-11-23",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_doorwrite_297.py (34 passed); test_fake_doorwin_closed_rule_sr1.py (5 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched."
   },
@@ -10612,7 +10612,7 @@
     "status": "PASS",
     "notes": "2026-10-27 (PREP2241-297): no recorded run in the repository. Selected by the 2.24.1 gate from the changed files. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "executed_at": "2026-11-23",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): smoke-motionsetting-297.spec.ts (4 passed, 5 skipped by the spec own gate); test_ui_settings.py (20 passed); unit-motionsetting-297.spec.ts (5 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched."
   },
@@ -10639,7 +10639,7 @@
     "status": "PASS",
     "notes": "2026-10-27 workstation, pilot/PREP2241-297 @ e59b11f12 (release/2241 + 2.24.1 prep + merge of 1ea245eb9): tests/test_splitswitch2_297.py, test_splitswitch_297.py, test_door_emergency.py, test_doorwin_api.py 68 passed, 0 failed; test_migrations.py + test_migrations_263_upgrade.py 6 passed; frontend tsc --noEmit clean. Fakes only, not a gate. NOT_RUN (runner): playwright evidence-doorwin-295.spec.ts, tests/test_door_emergency_roles_emrole_295.py, tests/test_capmap_295.py. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "executed_at": "2026-11-23",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-doorwin-295.spec.ts (39 passed); test_splitswitch2_297.py (12 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched."
   },
@@ -10772,7 +10772,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.30.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_coord.py (30 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -10797,7 +10797,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.30.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_third_party_notices.py (7 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -10819,12 +10819,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md is refreshed for v2.29.0 (inventory, licences, vulnerability and secrets scans) with findings H1, M1-M3, L1-L7 and the owner and counsel decisions recorded; the Heebo font licence text ships next to the UI fonts.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.30.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): Not run (spec needs a server this sweep did not run: test_offbox_sftp.py).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.30.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
+    "commit": "619f94d04",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_image_open_formats_2310.py (10 passed); test_offbox_sftp.py (6 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+    "executed_at": "2026-11-23"
   },
   {
     "id": "AT-TASKS-SYNC-3110-1",
@@ -11072,7 +11072,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.32.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): unit-dark-muted-contrast.spec.ts (2 passed). Specs with every test skipped by their own gate (no assertion counted): evidence-mobile-touch.spec.ts. Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -11122,7 +11122,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.32.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_provision_backchannel.py (17 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -11247,7 +11247,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-mapping-assist-2330.spec.ts (27 passed); test_home_links.py (4 passed); test_mapping_assist_2330.py (8 passed); test_setup_wizard.py (32 passed); unit-mapping-assist-2330.spec.ts (13 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -11272,7 +11272,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-calendars-connect-2330.spec.ts (19 passed, 2 skipped by the spec own gate); test_calendar_connect_2330.py (30 passed); test_calendar_sync_2300.py (38 passed); unit-calendars-connect-2330.spec.ts (6 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -11444,12 +11444,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The connections page and the setup guides no longer say Arx never writes to the recorder; the \"ללא שיוך\" choice also governs the unassigned section of the tiles view; the layout editor side panel is a bottom sheet on tablets as well as phones (answers 5A, 6A, 8B).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): Not run (spec needs a server this sweep did not run: evidence-camera-card.spec.ts).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
+    "commit": "619f94d04",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-camera-card.spec.ts (12 passed, 12 skipped by the spec own gate); evidence-frigate-settings.spec.ts (24 passed); evidence-look-polish-2331.spec.ts (15 passed, 30 skipped by the spec own gate); evidence-tree-unassigned-2331.spec.ts (16 passed, 2 skipped by the spec own gate); test_home_screen_options_295.py (11 passed); test_tree_unassigned_2331.py (10 passed); unit-owner-r12-2341.spec.ts (5 passed); FLAKY (failed once with a renderer crash while the runner disk was 100 percent full, passed alone on the re-run): [mobile] a card scrolled far off screen holds no stream; scrolling to it starts one and, after the grace, the first lets go; a hidden tab re. Specs with every test skipped by their own gate (no assertion counted): devpolish-2331-shoot.spec.ts, evidence-area-card-library.spec.ts, evidence-area-redesign.spec.ts, evidence-device-activity-live.spec.ts, evidence-devices-tiles.spec.ts, evidence-devices.spec.ts, evidence-home-screen.spec.ts. Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+    "executed_at": "2026-11-23"
   },
   {
     "id": "AT-POLISH-LEFTOVERS-2341-1",
@@ -11472,7 +11472,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-automations-list.spec.ts (147 passed); evidence-noscroll-295.spec.ts (25 passed, 50 skipped by the spec own gate); evidence-polish2-295.spec.ts (24 passed); evidence-tickets-polish-2331.spec.ts (15 passed); evidence-tickets-table.spec.ts (27 passed, 33 skipped by the spec own gate); evidence-tickets-ui4.spec.ts (19 passed, 11 skipped by the spec own gate); layout-tickets-table.spec.ts (4 passed); layout-uxfix-nav-295.spec.ts (13 passed, 8 skipped by the spec own gate). Specs with every test skipped by their own gate (no assertion counted): devpolish-2331-shoot.spec.ts, evidence-devices.spec.ts, r5-devices-shoot.spec.ts. Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -11497,7 +11497,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_live_h265.py (26 passed); unit-h265-support.spec.ts (11 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -11547,7 +11547,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): pixel-access-events.spec.ts (13 passed, 8 skipped by the spec own gate); pixel-access-status.spec.ts (14 passed, 7 skipped by the spec own gate); visual-matrix.spec.ts (75 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -11797,7 +11797,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-automations-list.spec.ts (147 passed); evidence-ha2610-compat.spec.ts (12 passed); evidence-mobile-options.spec.ts (9 passed); evidence-polish2-295.spec.ts (24 passed); evidence-schedules-editor.spec.ts (36 passed); evidence-schedules-list.spec.ts (114 passed); layout-page-background.spec.ts (5 passed, 4 skipped by the spec own gate); layout-schedules-parity.spec.ts (4 passed, 1 skipped by the spec own gate); layout-visdiff-246.spec.ts (23 passed, 46 skipped by the spec own gate); shoot-sched-polish-2331.spec.ts (27 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -11847,7 +11847,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-insights.spec.ts (57 passed, 3 skipped by the spec own gate). Specs with every test skipped by their own gate (no assertion counted): evidence-insights-polish-2331.spec.ts. Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -11997,7 +11997,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_db_gate_stray_detector.py (6 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -12072,7 +12072,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): a11y-dialog-focus-2310.spec.ts (12 passed); a11y-polished-2342.spec.ts (21 passed); layout-a11y-295.spec.ts (6 passed, 4 skipped by the spec own gate); unit-a11y-polished-lint.spec.ts (6 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -12144,12 +12144,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The shared button is drawn at least 44 px high on a phone.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): Not run (spec needs a server this sweep did not run: evidence-camera-card.spec.ts).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
+    "commit": "619f94d04",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-camera-card.spec.ts (12 passed, 12 skipped by the spec own gate); unit-phone-buttons-44.spec.ts (3 passed); FLAKY (failed once with a renderer crash while the runner disk was 100 percent full, passed alone on the re-run): [mobile] a card scrolled far off screen holds no stream; scrolling to it starts one and, after the grace, the first lets go; a hidden tab re. Specs with every test skipped by their own gate (no assertion counted): evidence-mobile-touch.spec.ts. Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+    "executed_at": "2026-11-23"
   },
   {
     "id": "AT-SYNOPTIC-MOBILE-2342-1",
@@ -12222,7 +12222,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): unit-shell-lazy-2436.spec.ts (8 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -12272,7 +12272,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.35.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_calendar_attendees_2343.py (20 passed); test_messaging_accounts_api.py (21 passed); test_messaging_accounts_runtime.py (10 passed); unit-calendars-attendees-2343.spec.ts (10 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -12322,7 +12322,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.35.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): layout-a11y-295.spec.ts (6 passed, 4 skipped by the spec own gate). Specs with every test skipped by their own gate (no assertion counted): evidence-devices.spec.ts. Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -12444,12 +12444,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Three luxury lobby styles (Gallery, Concierge, Stone) with a day and a night building photo, three hi-tech styles (Lumen, Axis, Prism) and the Ink and Sign board styles for maintenance areas are selectable; nothing changes until an administrator chooses one.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped (see the task evidence); no acceptance run recorded in the registry. A real TV is NOT_RUN. NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): Not run (spec needs a server this sweep did not run: unit-lobbystyles-2300.spec.ts).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped (see the task evidence); no acceptance run recorded in the registry. A real TV is NOT_RUN. NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
+    "commit": "619f94d04",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_lobby_styles_2300.py (31 passed); unit-lobbystyles-2300.spec.ts (10 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+    "executed_at": "2026-11-23"
   },
   {
     "id": "AT-MOBILE-APP-SERVER-295-1",
@@ -12822,7 +12822,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_home_config.py (9 passed); test_home_screen.py (33 passed); unit-generator-home-widget.spec.ts (15 passed); unit-home-config.spec.ts (14 passed); unit-noticepage-295.spec.ts (8 passed); unit-xs-mini-widget-2351.spec.ts (11 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -13097,7 +13097,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-polish4-wp3-service.spec.ts (8 passed, 4 skipped by the spec own gate); evidence-tickets-handlers.spec.ts (24 passed, 12 skipped by the spec own gate); evidence-tickets-s4.spec.ts (12 passed, 6 skipped by the spec own gate); evidence-tickets-vendor-accounts.spec.ts (15 passed, 9 skipped by the spec own gate). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -13172,7 +13172,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): pixel-walk-touch.spec.ts (6 passed, 12 skipped by the spec own gate); pixel-wall-plan.spec.ts (8 passed); unit-polish4-wp6-maps.spec.ts (6 passed); unit-token-lint.spec.ts (7 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -13222,7 +13222,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-access-polish-2331.spec.ts (24 passed); evidence-access-status.spec.ts (26 passed, 1 skipped by the spec own gate); evidence-announcements.spec.ts (16 passed); evidence-notifications.spec.ts (89 passed, 7 skipped by the spec own gate); evidence-polish4-wp8.spec.ts (15 passed); evidence-pwa-push.spec.ts (8 passed, 2 skipped by the spec own gate); test_transit_check_wp8.py (7 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -13247,7 +13247,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_transit_check_wp8.py (7 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -13547,7 +13547,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-wall-followups-2390.spec.ts (28 passed, 29 skipped by the spec own gate); pixel-wall-followups-2390.spec.ts (5 passed); test_wall.py (15 passed); unit-wall-device-class.spec.ts (53 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -13822,7 +13822,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): unit-station-ws-path-2381.spec.ts (3 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -13947,7 +13947,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-wiskey-station-media.spec.ts (58 passed, 8 skipped by the spec own gate); evidence-wiskey-talk-dial-2382.spec.ts (21 passed, 6 skipped by the spec own gate); layout-wiskey-station-media.spec.ts (1 passed); pixel-wiskey-station-media.spec.ts (29 passed, 13 skipped by the spec own gate); pixel-wiskey-talk-dial-2382.spec.ts (4 passed, 2 skipped by the spec own gate); test_intercom_media.py (35 passed); test_station_media_readiness_2382.py (29 passed); test_wiskey_pairing_2382.py (32 passed); unit-wiskey-station-media.spec.ts (14 passed); unit-wiskey-talk-dial-2382.spec.ts (7 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -14022,7 +14022,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-wiskey-managed-2382.spec.ts (20 passed); test_self_update.py (24 passed); test_self_update_s3.py (42 passed); test_wiskey_managed_install_2382.py (73 passed); test_wiskey_native_bundle_2272.py (7 passed); unit-wiskey-managed.spec.ts (8 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -14047,7 +14047,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-incoming-call.spec.ts (35 passed, 4 skipped by the spec own gate); evidence-wiskey-people-native.spec.ts (55 passed, 2 skipped by the spec own gate); pixel-incoming-call.spec.ts (8 passed, 4 skipped by the spec own gate); test_access_permissions_wxperm.py (21 passed); test_intercom.py (184 passed); test_intercom_calls_2382.py (17 passed); test_notify_sources.py (37 passed); test_security_review_wxd_fixes.py (23 passed); unit-incoming-calls.spec.ts (13 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -14147,7 +14147,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-wiskey-station-media.spec.ts (58 passed, 8 skipped by the spec own gate); evidence-wiskey-station-ops.spec.ts (27 passed); evidence-wiskey-stations.spec.ts (134 passed, 7 skipped by the spec own gate); layout-wiskey-stations.spec.ts (3 passed); pixel-wiskey-stations.spec.ts (17 passed, 10 skipped by the spec own gate); test_eccact_readback_295.py (17 passed); test_pwclean_295.py (15 passed); test_wa_pacing_coverage_295.py (39 passed); test_wiskey_channels.py (42 passed, 4 skipped by the spec own gate); test_wiskey_contract.py (53 passed); test_wiskey_diagnostics.py (14 passed); test_wiskey_station_ops.py (26 passed); test_wkdirect_295.py (53 passed); unit-wiskey-station-ops.spec.ts (7 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -14197,7 +14197,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-wiskey-door-tech.spec.ts (14 passed, 7 skipped by the spec own gate); evidence-wiskey-stations.spec.ts (134 passed, 7 skipped by the spec own gate); layout-wiskey-stations.spec.ts (3 passed); pixel-wiskey-door-tech.spec.ts (4 passed, 2 skipped by the spec own gate); pixel-wiskey-stations.spec.ts (17 passed, 10 skipped by the spec own gate); test_eccact_readback_295.py (17 passed); test_fake_doorwin_closed_rule_sr1.py (5 passed); test_intercom_adapter.py (33 passed); test_pwclean_295.py (15 passed); test_wa_pacing_coverage_295.py (39 passed); test_wiskey_channels.py (42 passed, 4 skipped by the spec own gate); test_wiskey_contract.py (53 passed); test_wiskey_door_tech.py (33 passed); test_wkdirect_295.py (53 passed); unit-wiskey-door-tech.spec.ts (8 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -14222,7 +14222,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-access-schedules.spec.ts (25 passed, 2 skipped by the spec own gate); evidence-wiskey-schedule-writes.spec.ts (16 passed, 8 skipped by the spec own gate); layout-access-schedules.spec.ts (8 passed); pixel-access-schedules.spec.ts (14 passed, 7 skipped by the spec own gate); pixel-wiskey-schedule-writes.spec.ts (8 passed, 4 skipped by the spec own gate); test_access_control_wire.py (23 passed); test_capabilities.py (3 passed); test_db_gate.py (31 passed); test_eccact_readback_295.py (17 passed); test_intercom_adapter.py (33 passed); test_plan_routes_unique.py (1 passed); test_pwclean_295.py (15 passed); test_secfix2_pub07_guard_first.py (35 passed); test_wiskey_channels.py (42 passed, 4 skipped by the spec own gate); test_wiskey_contract.py (53 passed); test_wiskey_schedule_writes.py (24 passed); test_wkdirect_295.py (53 passed). Specs with every test skipped by their own gate (no assertion counted): unit-schedule-editor-logic.spec.ts. Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -14247,7 +14247,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-access-status.spec.ts (26 passed, 1 skipped by the spec own gate); evidence-wiskey-deeplinks.spec.ts (10 passed, 1 skipped by the spec own gate); evidence-wiskey-profiles.spec.ts (33 passed); pixel-wiskey-people.spec.ts (22 passed, 11 skipped by the spec own gate); test_pwclean_295.py (15 passed); test_wiskey_channels.py (42 passed, 4 skipped by the spec own gate); test_wiskey_profiles.py (35 passed); unit-wiskey-deeplinks.spec.ts (17 passed); unit-wiskey-profiles.spec.ts (12 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -14272,7 +14272,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-station-people-2390.spec.ts (9 passed, 15 skipped by the spec own gate); test_pwclean_295.py (15 passed); test_wiskey_channels.py (42 passed, 4 skipped by the spec own gate); test_wiskey_station_people_2390.py (18 passed); unit-station-people-2390.spec.ts (11 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -14297,7 +14297,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-wiskey-access-diag.spec.ts (15 passed, 9 skipped by the spec own gate); evidence-wiskey-deeplinks.spec.ts (10 passed, 1 skipped by the spec own gate); pixel-wiskey-access-diag.spec.ts (10 passed, 5 skipped by the spec own gate); pixel-wiskey-deeplinks.spec.ts (4 passed, 2 skipped by the spec own gate); test_access_control_wire.py (23 passed); test_eccact_readback_295.py (17 passed); test_fake_wiskey.py (21 passed); test_intercom_adapter.py (33 passed); test_intercom_authority.py (27 passed); test_pwclean_295.py (15 passed); test_release_check.py (3 passed); test_wa_pacing_coverage_295.py (39 passed); test_wiskey_access_diag.py (18 passed); test_wiskey_channels.py (42 passed, 4 skipped by the spec own gate); unit-wiskey-access-diag.spec.ts (14 passed); unit-wiskey-deeplinks.spec.ts (17 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -14322,7 +14322,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-intercom-ops.spec.ts (36 passed, 18 skipped by the spec own gate); evidence-wiskey-deeplinks.spec.ts (10 passed, 1 skipped by the spec own gate); layout-settings-nav-fit-402.spec.ts (3 passed, 6 skipped by the spec own gate); test_pwclean_295.py (15 passed); test_wiskey_channels.py (42 passed, 4 skipped by the spec own gate); test_wiskey_ops_views_2400.py (32 passed); unit-intercom-ops.spec.ts (13 passed); unit-settings-index.spec.ts (6 passed); unit-wiskey-deeplinks.spec.ts (17 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -14347,7 +14347,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-wa-installed-2400.spec.ts (8 passed, 7 skipped by the spec own gate); evidence-wiskey-messaging-settings.spec.ts (21 passed); layout-wiskey-messaging.spec.ts (8 passed, 16 skipped by the spec own gate); pixel-wiskey-messaging.spec.ts (24 passed, 12 skipped by the spec own gate); test_db_gate.py (31 passed); test_eccact_readback_295.py (17 passed); test_intercom_consent_link.py (35 passed); test_intercom_messaging.py (127 passed); test_intercom_messaging_review265.py (59 passed); test_pwclean_295.py (15 passed); test_release_check.py (3 passed); test_t06_admission_295.py (63 passed, 3 skipped by the spec own gate); test_tplv2_295.py (38 passed); test_wa_pacing_coverage_295.py (39 passed); test_wa_template_send_w11.py (88 passed); test_wiskey_adopt_2272_contrib.py (39 passed); test_wiskey_adopt_2272_features.py (38 passed); test_wiskey_channels.py (42 passed, 4 skipped by the spec own gate); test_wiskey_contract.py (53 passed); test_wiskey_owner26_callers_297.py (20 passed); test_wiskey_rc10_pin.py (94 passed, 1 skipped by the spec own gate); test_wiskey_wa_queue_2400.py (49 passed); test_wkjoin_295.py (23 passed); unit-wa-installed.spec.ts (7 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -14372,7 +14372,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_wiskey_visits_2407.py (18 passed); unit-wiskey-visits.spec.ts (6 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -14397,7 +14397,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_wiskey_installer_clock.py (23 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -14422,7 +14422,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_wiskey_event_cursor_2400.py (22 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -14622,7 +14622,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-wiskey-deeplinks.spec.ts (10 passed, 1 skipped by the spec own gate); evidence-wiskey-installer.spec.ts (52 passed, 26 skipped by the spec own gate); test_capabilities.py (3 passed); test_pwclean_295.py (15 passed); test_wiskey_channels.py (42 passed, 4 skipped by the spec own gate); test_wiskey_contract.py (53 passed); test_wiskey_diagnostics.py (14 passed); test_wiskey_installer_clock.py (23 passed); test_wiskey_installer_lifecycle.py (13 passed); test_wiskey_installer_platform.py (18 passed); test_wiskey_installer_technical.py (9 passed); unit-settings-index.spec.ts (6 passed); unit-wiskey-deeplinks.spec.ts (17 passed); unit-wiskey-installer.spec.ts (9 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -14922,7 +14922,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_bridge_080.py (3 passed); test_bridge_config_drift.py (13 passed); test_bridge_install.py (5 passed); test_bridge_key_activation_295.py (30 passed); test_bridge_lease_event.py (66 passed); test_bridge_media_players.py (17 passed); test_bridge_media_policy.py (49 passed); test_bridge_runnable.py (110 passed, 1 skipped by the spec own gate); test_bridge_schedule_service.py (83 passed); test_bridge_service_identity.py (171 passed); test_bridge_stale_discovery_2383.py (32 passed); test_bridge_stream_source.py (50 passed); test_bridge_update_listener_2401.py (13 passed); test_self_update.py (24 passed); test_self_update_s3.py (42 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -14947,7 +14947,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): layout-dropdown-fit.spec.ts (2 passed, 4 skipped by the spec own gate); test_wall_phone_bar.py (6 passed); unit-wall-phone-bar-2401.spec.ts (16 passed); visual-matrix.spec.ts (75 passed). Specs with every test skipped by their own gate (no assertion counted): evidence-mobile-wall-kiosk.spec.ts. Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -15172,7 +15172,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-05 (RELEASE-2402-TRAIN); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_bridge_install.py (5 passed); test_fake_doorwin_closed_rule_sr1.py (5 passed); test_gate2_select.py (17 passed); test_gate_always_run.py (19 passed); test_readiness_96.py (21 passed); test_remote_hardening.py (40 passed); test_select_tests.py (20 passed); test_self_update.py (24 passed); test_self_update_s3.py (42 passed); test_setup_wizard.py (32 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -15272,7 +15272,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-05 (RELEASE-2403-TRAIN); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): layout-skin-qa-2403.spec.ts (74 passed, 148 skipped by the spec own gate); pixel-skin-qa-2403.spec.ts (5 passed, 10 skipped by the spec own gate). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -15397,7 +15397,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-07 (CAMERA-REBOOT-2407); NOT_RUN as a catalog record (the workstation receipts are in the change record, not a PASS record here). Lab reboot of one camera NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_camera_reboot_2407.py (9 passed); test_nvr_less.py (54 passed); unit-camera-reboot-2407.spec.ts (6 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -15422,7 +15422,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-09 (TASKS-SYNC-2412); NOT_RUN as a catalog record. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-nn1-p2.spec.ts (63 passed); evidence-nvr-cameras.spec.ts (11 passed); evidence-security-polish.spec.ts (14 passed, 19 skipped by the spec own gate); evidence-security-r1.spec.ts (36 passed, 3 skipped by the spec own gate); test_camera_sources_2410.py (48 passed); test_nvr_less.py (54 passed); test_setup_wizard.py (32 passed); unit-camera-reboot-2407.spec.ts (6 passed); unit-camera-sources-2410.spec.ts (7 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -15447,7 +15447,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-09 (TASKS-SYNC-2412); NOT_RUN as a catalog record. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_body_limit.py (12 passed); test_camera_card.py (33 passed); test_camera_sources_2410.py (48 passed); test_cameras.py (8 passed); test_capabilities.py (3 passed); test_capmap_295.py (65 passed); test_db_gate.py (31 passed); test_db_template.py (7 passed); test_gate_always_run.py (19 passed); test_health_report.py (1 passed); test_installation_capabilities.py (52 passed); test_media.py (7 passed); test_media_api.py (37 passed); test_multi_nvr.py (18 passed); test_no_ip_literals.py (2 passed); test_notify_sources.py (37 passed); test_nvr_less.py (54 passed); test_nvrless_cameras_2411.py (27 passed); test_plan_routes_unique.py (1 passed); test_pwclean_295.py (15 passed); test_raw_body_order.py (16 passed); test_recorder_health.py (28 passed); test_remote_access.py (66 passed); test_route.py (3 passed); test_setup_wizard.py (32 passed); unit-camera-sources-2410.spec.ts (7 passed); unit-capabilities.spec.ts (7 passed); unit-nvr-cameras-logic.spec.ts (10 passed); unit-nvrless-cameras-2411.spec.ts (11 passed); unit-security-public.spec.ts (8 passed); unit-tabs-config.spec.ts (11 passed); unit-wiskey-switches.spec.ts (9 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },
@@ -15622,7 +15622,7 @@
     "status": "PASS",
     "notes": "Registered 2026-11-07 (RECORDED-DAYS-MONTH-2407); NOT_RUN (the workstation receipts are in the change record, not a PASS record here). The LAB step on the owner's NVR is NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
     "commit": "619f94d04",
-    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
+    "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): layout-compare-dropdown.spec.ts (4 passed); layout-page-background.spec.ts (5 passed, 4 skipped by the spec own gate); layout-playback-stall.spec.ts (4 passed); layout-sync-dropdown.spec.ts (8 passed); screens.spec.ts (108 passed); test_multi_nvr.py (18 passed); test_provision_playback.py (56 passed); test_recorded_days.py (28 passed); test_recordings.py (6 passed); unit-recorded-month.spec.ts (9 passed). Specs with every test skipped by their own gate (no assertion counted): r5-investigate-shoot.spec.ts. Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
   },

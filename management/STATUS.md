@@ -1,6 +1,6 @@
 # Project status — generated view
 
-Generated: 2026-11-23T07:24:24.487604+00:00
+Generated: 2026-11-23T09:15:55.773828+00:00
 
 Tasks: 647 | Requirements: 761 | Tests: 778 | Screens: 32
 
@@ -11,9 +11,9 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 ## Status counts
 - BACKLOG: 24
 - BLOCKED: 27
-- DONE: 275
+- DONE: 279
 - IN_PROGRESS: 15
-- REVIEW: 306
+- REVIEW: 302
 
 ## Release scope counts
 - BETA: 20
@@ -332,7 +332,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [PRESENCE-COMPACT-2310](tasks/PRESENCE-COMPACT-2310.md) | V1 | DONE | Presence card: compact redesign (owner rejected the tall card 30.10) | — |
 | [COORD-DOCS-2310](tasks/COORD-DOCS-2310.md) | V1 | DONE | Multi-Claude coordination protocol as documents and an optional tool | — |
 | [LICENSE-2310](tasks/LICENSE-2310.md) | V1 | DONE | Proprietary all-rights-reserved licence notice; internal review notes untracked | — |
-| [DEPAUDIT-2310](tasks/DEPAUDIT-2310.md) | V1 | REVIEW | Dependency, licence and secrets audit refreshed for v2.29.0 | — |
+| [DEPAUDIT-2310](tasks/DEPAUDIT-2310.md) | V1 | DONE | Dependency, licence and secrets audit refreshed for v2.29.0 | — |
 | [TASKS-SYNC-3110](tasks/TASKS-SYNC-3110.md) | V1 | REVIEW | Task registry matched to the code history after 2.29.0 | — |
 | [A11Y-2310](tasks/A11Y-2310.md) | V1 | DONE | The shared dialog keeps the keyboard focus inside its box | — |
 | [GDRIVEBK-2310](tasks/GDRIVEBK-2310.md) | V1 | DONE | Google Drive as an off-box backup target (device-flow OAuth, off by default) | — |
@@ -357,7 +357,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [TREE-HIDE-UNASSIGNED-2331](tasks/TREE-HIDE-UNASSIGNED-2331.md) | V1 | DONE | Hide "ללא שיוך" from the building tree | — |
 | [AZIA-LIVE-2331](tasks/AZIA-LIVE-2331.md) | V1 | REVIEW | Provision-ISR live video steadier on a full wall of cameras | — |
 | [SEGFAULT-PLAYBACK-2332](tasks/SEGFAULT-PLAYBACK-2332.md) | V1 | DONE | The add-on recovers by itself after a crash during recorded-playback scrubbing | — |
-| [OWNER-R12-2341](tasks/OWNER-R12-2341.md) | V1 | REVIEW | Owner answers of 01.11 (round 12): wording, unassigned section, tablet side panel | — |
+| [OWNER-R12-2341](tasks/OWNER-R12-2341.md) | V1 | DONE | Owner answers of 01.11 (round 12): wording, unassigned section, tablet side panel | — |
 | [POLISH-LEFTOVERS-2341](tasks/POLISH-LEFTOVERS-2341.md) | V1 | DONE | Three leftovers of the 2.33.1 polish round | — |
 | [LIVE-H265-2341](tasks/LIVE-H265-2341.md) | V1 | DONE | Live video of H.265 cameras in browsers that cannot decode H.265 | — |
 | [NVR-H264-BULK-2341](tasks/NVR-H264-BULK-2341.md) | V1 | DONE | Switch every camera stream to H.264 from the UI; per-recorder NVR writes switch | — |
@@ -385,7 +385,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [A11Y-POLISHED-2342](tasks/A11Y-POLISHED-2342.md) | V1 | DONE | Accessibility pass over the screens polished on 31.10 and 01.11 | — |
 | [DARK-REVIEW-2342](tasks/DARK-REVIEW-2342.md) | V1 | DONE | Dark-mode review of the screens polished on 01.11 | — |
 | [HOME-DEVICES-LOAD-2342](tasks/HOME-DEVICES-LOAD-2342.md) | V1 | DONE | Faster home and devices screens: lazy screens, settings in two queries, shared requests | — |
-| [PHONE-BUTTONS-44-2342](tasks/PHONE-BUTTONS-44-2342.md) | V1 | REVIEW | The shared button is 44 px high on a phone | — |
+| [PHONE-BUTTONS-44-2342](tasks/PHONE-BUTTONS-44-2342.md) | V1 | DONE | The shared button is 44 px high on a phone | — |
 | [SYNOPTIC-MOBILE-2342](tasks/SYNOPTIC-MOBILE-2342.md) | V1 | DONE | The synoptic map on phones in three layouts | — |
 | [SMALL-UI-BUGS-2343](tasks/SMALL-UI-BUGS-2343.md) | V1 | DONE | Tickets table width at 1440 and 1280 px; settings tab duplication | — |
 | [GATE2342](tasks/GATE2342.md) | V1 | DONE | Release gate fixes of 2.34.2 (groups A, B, C and the pixel side) | — |
@@ -397,7 +397,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [NOTICE-BOARD-106](tasks/NOTICE-BOARD-106.md) | V1 | DONE | Building notice board with TV screens (CR-NOTICE106) and the 2.18.0 overhaul | — |
 | [NOTICE-BOARD-FOLLOWUPS-295](tasks/NOTICE-BOARD-FOLLOWUPS-295.md) | V1 | DONE | Notice board follow-ups: news sources, deletion, TV options, removal fix, nearby bus times | — |
 | [TVNOTICE-297](tasks/TVNOTICE-297.md) | V1 | DONE | TV notice board V2 design and the owner answers of 27.10 | — |
-| [LOBBY-STYLES-2290](tasks/LOBBY-STYLES-2290.md) | V1 | REVIEW | Lobby screen styles (Gallery, Concierge, Stone, Lumen, Axis, Prism, Ink and Sign) | — |
+| [LOBBY-STYLES-2290](tasks/LOBBY-STYLES-2290.md) | V1 | DONE | Lobby screen styles (Gallery, Concierge, Stone, Lumen, Axis, Prism, Ink and Sign) | — |
 | [MOBILE-APP-SERVER-295](tasks/MOBILE-APP-SERVER-295.md) | V1 | DONE | Phone-app server side: saved sign-in, device key, WebView session exchange, attestation, critical sound | — |
 | [NOTICEPUSH-295](tasks/NOTICEPUSH-295.md) | V1 | DONE | Push on publish for the notice board to the phone app channel | — |
 | [HA-LABELS-SYNC-2351](tasks/HA-LABELS-SYNC-2351.md) | V1 | DONE | Home-system labels synced into Arx (read-only) for the mapping assistant | — |

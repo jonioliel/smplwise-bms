@@ -7992,7 +7992,7 @@
       "commit b4763b21a (release 2.4.7, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. Plan Studio 6 (CR-029) S2: sun, sky, time of day, lamps; merge of pilot/ST7-port-s1-s2 into integ/247. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (ST7S1:BACKLOG).",
       "commit b4763b21a (release 2.4.7, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now ST7S1:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT277 keep their recorded status (no test run here).",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.4.7. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and a dependency is not DONE (ST7S1); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
-      "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: dependency not DONE: ST7S1; AT277 PASS only at eab715e53 (not re-run: Not run (spec needs a server this sweep did not run: unit-plan3d-sun.spec.ts).)"
+      "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: dependency not DONE: ST7S1"
     ],
     "owner": null,
     "commit": "b4763b21a",
@@ -8093,7 +8093,7 @@
       "commit 6b9176a60 (release 2.4.7, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. Plan Studio 6 (CR-029) S3: stills, room masks and lightmaps, plan_bakes (migration 0075); merge of pilot/ST7-port-s3-stills into integ/247. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (ST7S1:BACKLOG, ST7S2:BACKLOG).",
       "commit 6b9176a60 (release 2.4.7, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now ST7S1:REVIEW, ST7S2:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT279 keep their recorded status (no test run here).",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.4.7. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and a dependency is not DONE (ST7S1, ST7S2); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
-      "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: dependency not DONE: ST7S1, ST7S2; AT279 PASS only at eab715e53 (not re-run: Not run (spec needs a server this sweep did not run: unit-still-bake.spec.ts).)"
+      "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: dependency not DONE: ST7S1, ST7S2"
     ],
     "owner": null,
     "commit": "6b9176a60",
@@ -12304,7 +12304,7 @@
       "2026-10-16 (pilot/USR2-P1): backend tests/test_local_identity.py + tests/test_local_identity_units.py; frontend tests/unit-arx-local-login.spec.ts; screenshots docs/evidence/USR2/. Fakes only. Status REVIEW until the lead's gate and the security review.",
       "commit eedad5866 (release 2.6.4, on origin/main); also 6e4172438 (release 2.6.4, on origin/main), f5ea0c2dc (release 2.6.4, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. Arx-only identities phase 1 (store, passwords, sign-in, sessions, tiers, administration) and the sign-in page mode, behind security.local_identity (off by default), with the security review FIX FIRST items closed; later phases USR2-P2..P4 merged into integ/264.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.6.4. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
-      "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-USR2-1 PASS only at eab715e53 (not re-run: Not run (spec needs a server this sweep did not run: unit-arx-local-login.spec.ts).); AT-USR2-2 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor"
+      "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-USR2-2 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor"
     ],
     "owner": null,
     "commit": "eedad5866",
@@ -13433,7 +13433,7 @@
     "test_ids": [
       "AT-DEPAUDIT-2310-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -13450,10 +13450,10 @@
       "Findings closed in code by DEPFIX-2310 and DEPHARDEN-2310 (2.31.0). The task T005 keeps the owner sign-off.",
       "commit 6b24aa866 (release 2.30.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. chore/DEPAUDIT-2310 merged into main; verified as an ancestor of origin/main.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.30.0. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
-      "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-DEPAUDIT-2310-1 NOT_RUN - Not run (spec needs a server this sweep did not run: test_offbox_sftp.py)."
+      "2026-11-23 (ACC-SWEEP-2211): REVIEW -> DONE. The owner accepted the card on 22.11 (Q80); its acceptance tests now PASS at 619f94d04 on the runner (AT-DEPAUDIT-2310-1). The commit field names 619f94d04 (was 6b24aa866). Live / lab / device steps the card names stay NOT_RUN."
     ],
     "owner": null,
-    "commit": "6b24aa866",
+    "commit": "619f94d04",
     "actual_cost_usd": null
   },
   {
@@ -14444,7 +14444,7 @@
     "test_ids": [
       "AT-OWNER-R12-2341-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -14460,10 +14460,10 @@
       "2026-11-02 (REGISTRY-UPDATE-2380): branch fix/OWNER-R12-2341 merged at de43118d3 into main; first release tag containing it: v2.34.0 (tagged 2026-11-02; smplwise_vms/CHANGELOG.md section 2.34.0). Change record: docs/changes/OWNER-R12-2341.md. Status REVIEW = shipped; no acceptance run is recorded in this registry, so AT-OWNER-R12-2341-1 stays NOT_RUN.",
       "commit de43118d3 (release 2.34.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. fix/OWNER-R12-2341 merged into main; verified as an ancestor of origin/main.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.34.0. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
-      "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-OWNER-R12-2341-1 NOT_RUN - Not run (spec needs a server this sweep did not run: evidence-camera-card.spec.ts)."
+      "2026-11-23 (ACC-SWEEP-2211): REVIEW -> DONE. The owner accepted the card on 22.11 (Q80); its acceptance tests now PASS at 619f94d04 on the runner (AT-OWNER-R12-2341-1). The commit field names 619f94d04 (was de43118d3). Live / lab / device steps the card names stay NOT_RUN."
     ],
     "owner": null,
-    "commit": "de43118d3",
+    "commit": "619f94d04",
     "actual_cost_usd": null
   },
   {
@@ -15580,7 +15580,7 @@
     "test_ids": [
       "AT-PHONE-BUTTONS-44-2342-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -15596,10 +15596,10 @@
       "2026-11-02 (REGISTRY-UPDATE-2380): branch fix/PHONE-BUTTONS-44-2342 merged at 5fc873dda into main; first release tag containing it: v2.34.2 (tagged 2026-11-02; smplwise_vms/CHANGELOG.md section 2.34.2). Change record: docs/changes/PHONE-BUTTONS-44-2342.md. Status REVIEW = shipped; no acceptance run is recorded in this registry, so AT-PHONE-BUTTONS-44-2342-1 stays NOT_RUN.",
       "commit 5fc873dda (release 2.34.2, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. fix/PHONE-BUTTONS-44-2342 merged into main; verified as an ancestor of origin/main.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.34.2. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
-      "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-PHONE-BUTTONS-44-2342-1 NOT_RUN - Not run (spec needs a server this sweep did not run: evidence-camera-card.spec.ts)."
+      "2026-11-23 (ACC-SWEEP-2211): REVIEW -> DONE. The owner accepted the card on 22.11 (Q80); its acceptance tests now PASS at 619f94d04 on the runner (AT-PHONE-BUTTONS-44-2342-1). The commit field names 619f94d04 (was 5fc873dda). Live / lab / device steps the card names stay NOT_RUN."
     ],
     "owner": null,
-    "commit": "5fc873dda",
+    "commit": "619f94d04",
     "actual_cost_usd": null
   },
   {
@@ -16067,7 +16067,7 @@
     "test_ids": [
       "AT-LOBBY-STYLES-2290-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -16084,10 +16084,10 @@
       "NOT_RUN: the styles were never seen on a real TV; the long-notice overflow logic is checked by specs only. Default for new buildings: keep the current style (owner 30.10, per the next-phase plan).",
       "commit 6f09dbab7 (release 2.29.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. merge of pilot/LOBBY-STYLES-2300 into release/2290-train.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.29.0. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
-      "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-LOBBY-STYLES-2290-1 NOT_RUN - Not run (spec needs a server this sweep did not run: unit-lobbystyles-2300.spec.ts)."
+      "2026-11-23 (ACC-SWEEP-2211): REVIEW -> DONE. The owner accepted the card on 22.11 (Q80); its acceptance tests now PASS at 619f94d04 on the runner (AT-LOBBY-STYLES-2290-1). The commit field names 619f94d04 (was 6f09dbab7). Live / lab / device steps the card names stay NOT_RUN."
     ],
     "owner": null,
-    "commit": "6f09dbab7",
+    "commit": "619f94d04",
     "actual_cost_usd": null
   },
   {
