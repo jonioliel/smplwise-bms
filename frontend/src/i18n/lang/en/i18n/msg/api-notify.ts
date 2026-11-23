@@ -206,4 +206,7 @@ export const en = {
   'השרת לא ענה בזמן': 'The server did not answer in time',
   'נשלח מייל בדיקה': 'Test email sent',
   'הבדיקה נכשלה': 'The test failed',
+  'הכרזה': 'Announcement',
+  'בהכרזה': 'by announcement',
+  '{n} מקורות מנותבים להכרזה': 'Sources routed to announcements: {n}',
 };

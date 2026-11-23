@@ -745,4 +745,7 @@ export const en = {
   'חדרים קודמים': 'Previous rooms',
   'חדרים הבאים': 'Next rooms',
   'נדחק בגלל תחזוקה': 'Displaced by maintenance',
+  'הזמנה אחרת': 'another booking',
+  'מתנגש עם {what} · {when}': 'Clashes with {what} · {when}',
+  'מתנגש עם המועד {when}': 'Clashes with the booking at {when}',
 };

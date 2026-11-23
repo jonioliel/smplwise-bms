@@ -839,4 +839,5 @@ export const en = {
   'טבלה': 'Table',
   'שבוע': 'Week',
   'שינויים לפי שכבה': 'Changes by layer',
+  'הכרזה': 'Announcement',
 };

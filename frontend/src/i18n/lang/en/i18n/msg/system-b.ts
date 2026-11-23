@@ -1209,4 +1209,5 @@ export const en = {
   'צעדים': 'Steps',
   'מסירה והיסטוריה': 'Handover and history',
   'סטיית שעון עד {ok} שנ׳ תקינה, עד {fail} שנ׳ אזהרה, מעבר לזה השלב נכשל. "בדוק שוב" אפשרי פעם ב־{every} שנ׳ לכל שלב; בדיקה מול מכשיר מוצגת {min} דקות.': 'A clock drift up to {ok} s is fine, up to {fail} s is a warning, beyond that the step fails. "Check again" is possible once every {every} s per step; a check against a device is shown for {min} minutes.',
+  'נשמעת ברמקול שנבחר בהגדרות ההכרזות': 'Spoken on the speaker chosen in the announcement settings',
 };

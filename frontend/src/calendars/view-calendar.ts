@@ -5,6 +5,7 @@ import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
 import { ToastController } from '../components/toast-controller';
 import { ApiError, describeError } from '../api/client';
+import { calErrorText } from './conflict-hint';
 import type { Calendar, NewEvent, Occurrence } from '../api/calendars';
 import { CAL_EVENTS, emit, visibleCals, type CalCtx } from './ctx';
 import {
@@ -950,7 +951,7 @@ export class CalViewCalendar extends LitElement {
       this.say(text);
       this.changed();
     } catch (err) {
-      this.showToast(describeError(err), false, true);
+      this.showToast(calErrorText(err), false, true);
       this.reload();
     }
   }
@@ -1143,7 +1144,7 @@ export class CalViewCalendar extends LitElement {
       this.focusGrid();
       this.changed();
     } catch (e) {
-      this.ovError = describeError(e);
+      this.ovError = calErrorText(e);
     } finally {
       this.ovBusy = false;
     }
@@ -1240,7 +1241,7 @@ export class CalViewCalendar extends LitElement {
       this.showToast(`${tr('שוכפל ל־{when}', { when: `${other}${hm(found.start)}–${hm(found.end)}` })}${r.state === 'pending' ? ` · ${tr('ממתין לאישור')}` : ''}`, true);
       this.changed();
     } catch (e) {
-      this.ovError = describeError(e);
+      this.ovError = calErrorText(e);
     } finally {
       this.ovBusy = false;
     }
@@ -1259,11 +1260,12 @@ export class CalViewCalendar extends LitElement {
       this.changed();
     } catch (e) {
       if (e instanceof ApiError && e.body.code === 'slot_held' && this.ctx?.access.ui.allow_displace) {
-        const c = ((e.body.details as { conflicts?: { event_id: string; start: string; end: string }[] }).conflicts ?? [])[0];
+        const c = ((e.body.details as { conflicts?: { event_id: string; start: string; end: string; title?: string | null }[] }).conflicts ?? [])[0];
         const other = c ? this.occ.find((x) => x.event_id === c.event_id) : undefined;
-        this.displaceAsk = c ? { title: other?.title ?? null, start: c.start, end: c.end } : null;
+        // RESPONSE-HINTS-2480: the server names the entry (null where this viewer may not read it); the grid's copy is the fallback
+        this.displaceAsk = c ? { title: c.title ?? other?.title ?? null, start: c.start, end: c.end } : null;
         if (!c) this.ovError = describeError(e);
-      } else this.ovError = describeError(e);
+      } else this.ovError = calErrorText(e);
     } finally {
       this.ovBusy = false;
     }
@@ -1346,7 +1348,7 @@ export class CalViewCalendar extends LitElement {
       this.say(tr('הפעולה בוטלה'));
       this.changed();
     } catch (e) {
-      this.showToast(describeError(e), false, true);
+      this.showToast(calErrorText(e), false, true);
       this.reload();
     }
   }

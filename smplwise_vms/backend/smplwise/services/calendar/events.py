@@ -144,6 +144,30 @@ def _can_bypass(role: str | None, settings: dict[str, Any]) -> bool:
     return bool(role and model.ROLE_RANK[role] >= model.ROLE_RANK["edit"] and settings["editors_bypass_approval"])
 
 
+def name_conflicts(ctx: Ctx, conflicts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """RESPONSE-HINTS-2480 (owner N57): each conflict row also names the entry it collides with, so the hint can say WHAT holds the slot.
+    `title` is the entry's title only where this caller would read it on the grid of the calendar that holds the slot (contract 6.3: the
+    same `detail_level` as `occurrences()`; a calendar the caller cannot see, or `busy` only, gives None and the UI says "another booking").
+    The time range is the row's own `start` / `end`. Additive (ADR-015 / ADR-019: extra data under `details`); the rows are named in place."""
+    if not conflicts:
+        return conflicts
+    conn, me = ctx.conn, ctx.principal.user_id
+    cals: dict[str, tuple[sqlite3.Row | None, str | None, bool]] = {}
+    evs: dict[str, sqlite3.Row | None] = {}
+    for c in conflicts:
+        cid, eid = c.get("calendar_id"), c.get("event_id")
+        if cid not in cals:
+            row = conn.execute("SELECT * FROM cal_calendars WHERE id = ?", (cid,)).fetchone()
+            cals[cid] = (row, ctx.role_in(row) if row is not None else None, bool(row is not None and ctx.can_see(row)))
+        if eid not in evs:
+            evs[eid] = conn.execute("SELECT title, organizer_user_id FROM cal_events WHERE id = ?", (eid,)).fetchone()
+        cal, role, seen = cals[cid]
+        ev = evs[eid]
+        level = detail_level(role, cal, organizer=ev["organizer_user_id"] == me) if cal is not None and ev is not None and seen else "busy"
+        c["title"] = ev["title"] if level != "busy" and ev is not None else None
+    return conflicts
+
+
 def evaluate(ctx: Ctx, settings: dict[str, Any], d: Draft, now: dt.datetime, *, exclude: set[str] = frozenset(), skip_rule_checks: bool = False) -> tuple[list[HolderPlan], dict[str, Any]]:
     """Applies hours, holidays, duration, step, lead, horizon, capacity, conflicts and approval. Raises 422 for a hard rule; returns the
     per-holder plan and the soft findings (outside_hours, holiday_hits, capacity_ok)."""
@@ -195,7 +219,7 @@ def evaluate(ctx: Ctx, settings: dict[str, Any], d: Draft, now: dt.datetime, *, 
         if cal["capacity"] and d.headcount and d.headcount > cal["capacity"]:
             findings["capacity_ok"] = False
             raise _422("capacity_exceeded", "׳׳¡׳₪׳¨ ׳”׳׳©׳×׳×׳₪׳™׳ ׳’׳“׳•׳ ׳׳§׳™׳‘׳•׳׳× ׳”׳—׳“׳¨.", calendar_id=cal["id"], capacity=cal["capacity"])
-        plan.conflicts = occ.blockers(conn, cal, [(o.start_utc, o.end_utc) for o in d.occs], settings, exclude=exclude)
+        plan.conflicts = name_conflicts(ctx, occ.blockers(conn, cal, [(o.start_utc, o.end_utc) for o in d.occs], settings, exclude=exclude))
         _maintenance_guard(conn, settings, cal, plan.conflicts)
         is_room_half = cal["id"] != d.cal["id"]
         if plan.conflicts:

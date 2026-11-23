@@ -235,6 +235,57 @@ def test_contested_requests_reject_mode_answers_409_with_suggestions(cc):
     assert len(d["conflicts"]) == 1 and d["suggestions"][0]["start"] == T(3, 11)
 
 
+# ---------------------------------------------------------------- RESPONSE-HINTS-2480 (owner N57): the conflict names what holds the slot
+
+def test_conflict_names_the_entry_and_its_time_range_for_a_caller_who_may_read_it(cc):
+    enable(cc, contested_requests="reject")
+    a = room(cc)
+    ann = user(cc, "ann")
+    members(cc, a, [{"subject_kind": "user", "subject_id": "dev-ann", "cal_role": "book"}])
+    held = ok(book(cc, a, T(3, 10), T(3, 11), title="ישיבת הנהלה"), 201)["event"]
+    r = book(cc, a, T(3, 10, 30), T(3, 11, 30), ann)
+    body = r.json()
+    assert r.status_code == 409 and body["code"] == "conflict"
+    assert set(body) == {"code", "user_message", "retryable", "correlation_id", "details"}  # ADR-019: the five keys, the names under details
+    c = body["details"]["conflicts"][0]
+    assert (c["event_id"], c["title"], c["start"], c["end"], c["state"]) == (held["id"], "ישיבת הנהלה", T(3, 10), T(3, 11), "confirmed")
+    # the preview (the drawer's live hint) names it the same way; default mode = a contested request, not a refusal
+    enable(cc, contested_requests="queue")
+    pre = ok(cc.post(f"{API}/calendar/events/preview", json={"calendar_id": a["id"], "title": "x", "start": T(3, 10, 30), "end": T(3, 11, 30)}, headers=ann))
+    assert [(x["title"], x["start"], x["end"]) for x in pre["conflicts"]] == [("ישיבת הנהלה", T(3, 10), T(3, 11))]
+
+
+def test_conflict_title_stays_hidden_where_the_caller_sees_busy_only(cc):
+    enable(cc, contested_requests="reject")
+    gym = room(cc, "מכון", visibility="busy_to_all")
+    team = ok(cc.post(f"{API}/calendar/calendars", json={"name": "צוות חוגים", "type": "team", "color": "cyan"}), 201)["calendar"]
+    tm = user(cc, "tami")
+    members(cc, team, [{"subject_kind": "user", "subject_id": "dev-tami", "cal_role": "book"}])  # no role in the gym: "busy" there
+    ok(book(cc, gym, T(3, 10), T(3, 11), title="טיפול פרטי"), 201)
+    r = book(cc, team, T(3, 10, 30), T(3, 11, 30), tm, rooms=[gym["id"]])
+    assert r.status_code == 409 and r.json()["code"] == "conflict"
+    c = r.json()["details"]["conflicts"][0]
+    assert c["calendar_id"] == gym["id"] and c["title"] is None and (c["start"], c["end"]) == (T(3, 10), T(3, 11))
+    assert "טיפול פרטי" not in r.text
+    enable(cc, contested_requests="queue")
+    pre = cc.post(f"{API}/calendar/events/preview", json={"calendar_id": team["id"], "title": "x", "rooms": [gym["id"]], "start": T(3, 10, 30), "end": T(3, 11, 30)}, headers=tm)
+    assert pre.status_code == 200 and [x["title"] for x in pre.json()["conflicts"]] == [None] and "טיפול פרטי" not in pre.text
+    # the manager (full detail) reads the title on the same slot
+    assert ok(cc.post(f"{API}/calendar/events/preview", json={"calendar_id": gym["id"], "title": "x", "start": T(3, 10, 30), "end": T(3, 11, 30)}))["conflicts"][0]["title"] == "טיפול פרטי"
+
+
+def test_slot_held_on_approval_names_the_confirmed_entry(cc):
+    enable(cc)
+    a = room(cc)
+    ann, bob = user(cc, "ann"), user(cc, "bob")
+    members(cc, a, [{"subject_kind": "user", "subject_id": "dev-ann", "cal_role": "book"}, {"subject_kind": "user", "subject_id": "dev-bob", "cal_role": "book"}])
+    ok(book(cc, a, T(3, 10), T(3, 11), ann, title="ראשון"), 201)
+    sec = ok(book(cc, a, T(3, 10, 30), T(3, 11, 30), bob, title="שני"), 201)["event"]
+    r = cc.post(f"{API}/calendar/requests/{sec['id']}/decide", json={"decision": "approve", "revision": sec["revision"]})
+    assert r.status_code == 409 and r.json()["code"] == "slot_held"
+    assert [(c["title"], c["start"], c["end"]) for c in r.json()["details"]["conflicts"]] == [("ראשון", T(3, 10), T(3, 11))]
+
+
 def test_pending_holds_slot_setting_restores_the_old_behaviour(cc):
     enable(cc, pending_holds_slot=True)
     a = room(cc, approval_mode="always")

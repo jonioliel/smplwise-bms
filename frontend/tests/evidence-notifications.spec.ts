@@ -778,7 +778,9 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     await expect(l.locator('[data-fail-card="email"]')).toContainText('נשלחו');
     await expect(l.locator('[data-log-window]')).toHaveText('14 יום'); // the table's window; the panel's cards say "24 שעות"
     await expect(l.locator('[data-fail-card="webpush"] .ch')).toContainText('24 שעות');
-    await expect(l.locator('[data-log-row]')).toHaveCount(14);
+    await expect(l.locator('[data-log-row]')).toHaveCount(15); // RESPONSE-HINTS-2480: + one spoken announcement
+    await expect(l.locator('[data-fail-card="announce"] .ch')).toContainText('הכרזה');
+    await expect(l.locator('[data-log-row]').filter({ hasText: 'הכרזה' })).toHaveCount(1); // the channel as text, no pictogram
     await expect(l.locator('[data-log-filter="failed"] small')).toHaveText('3');
     await l.locator('[data-log-filter="failed"]').click();
     await expect(l.locator('[data-log-row]')).toHaveCount(3);

@@ -6,6 +6,7 @@ import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-state-panel';
 import { describeError } from '../api/client';
+import { calErrorText } from './conflict-hint';
 import type { Calendar, Equipment, Occurrence, RoomDay } from '../api/calendars';
 import { CAL_EVENTS, emit, type CalCtx } from './ctx';
 import {
@@ -595,7 +596,7 @@ export class CalResident extends LitElement {
       void this.loadDay();
       await this.loadMine();
     } catch (e) {
-      this.actionError = describeError(e);
+      this.actionError = calErrorText(e);
     } finally {
       this.busy = false;
     }
@@ -664,7 +665,7 @@ export class CalResident extends LitElement {
       this.done = r.state === 'pending' ? tr('הבקשה לזמן החדש נשלחה לאישור') : tr('ההזמנה נקבעה בזמן החדש');
       await this.loadMine();
     } catch (e) {
-      this.actionError = describeError(e);
+      this.actionError = calErrorText(e);
     } finally {
       this.busy = false;
     }

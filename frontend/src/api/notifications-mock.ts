@@ -173,7 +173,7 @@ function buildLog(): Delivery[] {
   const rows: [number, number, number, number, string, string, Channel, Delivery['status'], string | null, string][] = [
     // [row, day, h, m, user, target, channel, status, reason, _]
     [1, 0, 14, 2, 'יוני', P, 'webpush', 'sent', null, ''], [1, 0, 14, 2, 'דנה', P, 'webpush', 'sent', null, ''], [1, 0, 14, 2, 'אורי', A, 'webpush', 'failed', 'http_410', ''],
-    [2, 0, 13, 58, 'יוני', P, 'webpush', 'sent', null, ''], [2, 0, 13, 58, 'דנה', P, 'webpush', 'sent', null, ''],
+    [2, 0, 13, 58, 'יוני', P, 'webpush', 'sent', null, ''], [2, 0, 13, 58, 'דנה', P, 'webpush', 'sent', null, ''], [2, 0, 13, 58, '', 'לובי', 'announce', 'sent', null, ''], // RESPONSE-HINTS-2480: a spoken announcement (no person)
     [3, 0, 13, 46, 'יוני', P, 'webpush', 'sent', null, 'escalation'], [3, 0, 13, 46, 'דנה', P, 'webpush', 'sent', null, 'escalation'], [3, 0, 13, 41, 'אורי', A, 'webpush', 'failed', 'http_410', ''],
     [4, 0, 13, 30, 'יוני', P, 'webpush', 'skipped', 'quiet_hours', ''], [4, 0, 13, 30, 'דנה', P, 'webpush', 'skipped', 'quiet_hours', ''],
     [7, 0, 3, 1, 'מנהלים (2)', E, 'email', 'sent', null, ''], [7, 0, 3, 0, 'יוני', P, 'webpush', 'skipped', 'category_off', ''],

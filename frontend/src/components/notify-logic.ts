@@ -213,7 +213,7 @@ interface FailureCard { channel: Channel; label: string; sent: number; failed: n
 /** The failures panel of the delivery log: per channel, the last 24 h (`/notify/stats`). */
 export function failurePanel(stats: NotifyStats | null): FailureCard[] {
   if (!stats) return [];
-  const label: Record<string, string> = { webpush: tr('דחיפה'), email: tr('דוא"ל'), inbox: tr('מרכז'), ha_mobile: 'Companion', whatsapp: 'WhatsApp', app: tr('אפליקציה') };
+  const label: Record<string, string> = { webpush: tr('דחיפה'), email: tr('דוא"ל'), inbox: tr('מרכז'), ha_mobile: 'Companion', whatsapp: 'WhatsApp', app: tr('אפליקציה'), announce: tr('הכרזה') };
   return (Object.entries(stats.channels) as [Channel, { sent: number; failed: number; skipped: Record<string, number> }][]).filter(([c]) => c !== 'inbox').map(([channel, v]) => ({
     channel, label: label[channel] ?? channel, sent: v.sent, failed: v.failed, skipped: Object.values(v.skipped).reduce((a, b) => a + b, 0), tone: v.failed > 0 ? 'bad' as const : 'ok' as const,
   }));

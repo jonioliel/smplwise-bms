@@ -60,6 +60,7 @@ export const NOTIFY_ICONS: Record<string, string> = {
   flash: '<path d="M8 3h8l-3 6h4L9 21l2-9H7z"/>',
   eye: '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  horn: '<path d="M4 10v4h3l7 4V6l-7 4z"/><path d="M17.5 9.5a4 4 0 0 1 0 5"/><path d="M19.8 7a7.5 7.5 0 0 1 0 10"/>', // RESPONSE-HINTS-2480: the announce channel (the same glyph as the home screen's announcement tile)
 };
 
 /** One pictogram as an inline SVG (`class="ic"`); an unknown name draws the bell. */
