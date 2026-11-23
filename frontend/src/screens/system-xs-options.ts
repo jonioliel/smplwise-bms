@@ -16,6 +16,7 @@ const COL_LABEL: Record<SynColumn, XtKey> = { light: 'colLight', temp: 'colTemp'
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { errLineStyles } from '../styles/fragments';
+import '../components/sw-field';
 
 type Enum = { key: keyof XsOptions; kind: 'enum'; label: XtKey; options: [string | number, XtKey | string][]; hint?: XtKey };
 type Bool = { key: keyof XsOptions; kind: 'bool'; label: XtKey; hint?: XtKey };
@@ -88,7 +89,9 @@ export class SystemXsOptions extends LitElement {
     .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-block-end: 1px solid var(--sw-border); }
     .row .lbl { font-weight: var(--sw-fw-medium); min-inline-size: 0; }
     .row .lbl small { display: block; color: var(--sw-text-3); font-weight: var(--sw-fw-regular); font-size: var(--sw-fs-xs); }
-    select { font: inherit; min-block-size: 36px; max-inline-size: 60%; padding: 0 10px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border-strong); background: var(--sw-surface); color: var(--sw-text); }
+    /* NATIVE-SELECT-A-2480: the select sits in the shared field; the field keeps the 60 % cap the select had in its row */
+    sw-field { max-inline-size: 60%; }
+    select { font: inherit; min-block-size: 36px; max-inline-size: 100%; padding: 0 10px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border-strong); background: var(--sw-surface); color: var(--sw-text); }
     select:disabled { opacity: var(--sw-disabled-opacity, 0.6); }
     .foot { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-block-start: 12px; }
     .ok { color: var(--sw-live); font-size: var(--sw-fs-sm); }
@@ -178,9 +181,9 @@ export class SystemXsOptions extends LitElement {
         <sw-toggle ?checked=${cur === true} ?disabled=${!editable || this.busy} label=${xt(o.label)} labelHidden data-xs-toggle=${o.key} @change=${(e: CustomEvent<{ checked: boolean }>) => this.set(o.key, e.detail.checked)}></sw-toggle></div>`;
     }
     return html`<div class="row" data-xs-option=${o.key}><span class="lbl">${xt(o.label)}${o.hint ? html`<small>${xt(o.hint)}</small>` : nothing}</span>
-      <select data-xs-select=${o.key} aria-label=${xt(o.label)} ?disabled=${!editable || this.busy} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; this.set(o.key, typeof def === 'number' ? Number(v) : v); }}>
+      <sw-field><select data-xs-select=${o.key} aria-label=${xt(o.label)} ?disabled=${!editable || this.busy} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; this.set(o.key, typeof def === 'number' ? Number(v) : v); }}>
         ${o.options.map(([v, l]) => html`<option value=${String(v)} ?selected=${cur === v}>${label(l)}${v === def ? ` ${xt('setDefault')}` : ''}</option>`)}
-      </select></div>`;
+      </select></sw-field></div>`;
   }
 
   render() {

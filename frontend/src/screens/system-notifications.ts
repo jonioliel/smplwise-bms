@@ -43,6 +43,7 @@ import { dateInputLang } from '../api/day-format';
 import './system-quiet-windows'; // APP-SERVER-LEFTOVERS-2380: the quiet-window card (quiet.windows.*, incl. channels)
 import { qwt } from '../i18n/quiet-windows';
 import { tr } from '../i18n/msg/system-b';
+import '../components/sw-field';
 
 type SecId = NotifySectionId; // CR-WISKEY-NOTIF-2443: the ids live in components/notify-logic.ts (with the guard `notifySection`)
 const SECTIONS: { id: SecId; label: string; icon: string }[] = [
@@ -325,6 +326,15 @@ export class SystemNotifications extends LitElement {
         border-block-end: 1px solid var(--dv-border);
         vertical-align: middle;
         block-size: 56px;
+      }
+      /* NATIVE-SELECT-A-2480: the select sits in sw-field; its block padding stays the browser's 0 (the field's 5 px would make it taller) */
+      select.inp {
+        padding-block: 0;
+      }
+      /* NATIVE-SELECT-A-2480: the recipient select sits in the shared field; the field keeps the select's own width in the cell */
+      .mx td > sw-field {
+        display: inline-flex;
+        max-inline-size: 100%;
       }
       .mx tr:last-child td {
         border-block-end: 0;
@@ -1101,13 +1111,13 @@ export class SystemNotifications extends LitElement {
     const forced = FAILURE_SOURCES.includes(p.source);
     const eff = this.settings ? recipientsRuleFor(p, this.settings) : p.recipients.rule;
     const shown = forced ? eff : p.recipients.rule;
-    return html`<select class="inp sm" data-pol-who=${p.source} aria-label=${tr('מי מקבל')} ?disabled=${forced} @change=${(e: Event) => {
+    return html`<sw-field><select class="inp sm" data-pol-who=${p.source} aria-label=${tr('מי מקבל')} ?disabled=${forced} @change=${(e: Event) => {
       const v = (e.target as HTMLSelectElement).value as NotifyPolicy['recipients']['rule'];
       if (v === 'users') {
         this.openPicker(p.source);
         (e.target as HTMLSelectElement).value = shown;
       } else this.patchPolicy(p.source, (x) => policyWithRule(x, v));
-    }}>${(RULES.includes(shown) ? RULES : [...RULES, shown]).map((r) => html`<option value=${r} .selected=${shown === r}>${r === 'users' && p.recipients.rule === 'users' ? `${RECIPIENT_LABEL.users} (${p.recipients.user_ids?.length ?? 0})` : RECIPIENT_LABEL[r]}</option>`)}</select>`;
+    }}>${(RULES.includes(shown) ? RULES : [...RULES, shown]).map((r) => html`<option value=${r} .selected=${shown === r}>${r === 'users' && p.recipients.rule === 'users' ? `${RECIPIENT_LABEL.users} (${p.recipients.user_ids?.length ?? 0})` : RECIPIENT_LABEL[r]}</option>`)}</select></sw-field>`;
   }
   private chans(p: NotifyPolicy) {
     const s = this.settings;
@@ -1231,7 +1241,7 @@ export class SystemNotifications extends LitElement {
       <div class="fgrid">
         <label>${tr('שרת')}<input class="inp ltr" data-mail-host .value=${m.host} @input=${(ev: Event) => set({ host: (ev.target as HTMLInputElement).value })} /></label>
         <label>${tr('פורט')}<input class="inp ltr" inputmode="numeric" data-mail-port .value=${m.port} @input=${(ev: Event) => set({ port: (ev.target as HTMLInputElement).value })} /></label>
-        <label>${tr('אבטחה')}<select class="inp" data-mail-security @change=${(ev: Event) => set({ security: (ev.target as HTMLSelectElement).value as EmailSecurity })}>${(['starttls', 'tls', 'none'] as EmailSecurity[]).map((v) => html`<option value=${v} .selected=${m.security === v}>${v === 'none' ? tr('ללא') : v === 'tls' ? 'TLS' : 'STARTTLS'}</option>`)}</select></label>
+        <label>${tr('אבטחה')}<sw-field><select class="inp" data-mail-security @change=${(ev: Event) => set({ security: (ev.target as HTMLSelectElement).value as EmailSecurity })}>${(['starttls', 'tls', 'none'] as EmailSecurity[]).map((v) => html`<option value=${v} .selected=${m.security === v}>${v === 'none' ? tr('ללא') : v === 'tls' ? 'TLS' : 'STARTTLS'}</option>`)}</select></sw-field></label>
         <label>${tr('משתמש')}<input class="inp ltr" data-mail-user .value=${m.user} @input=${(ev: Event) => set({ user: (ev.target as HTMLInputElement).value })} /></label>
         <label>${tr('סיסמה')}<span style="display:flex;gap:8px"><input class="inp ltr" type="password" autocomplete="new-password" data-mail-password style="flex:1" .value=${m.pwEdit ? m.password : '••••••••••'} ?readonly=${!m.pwEdit} @input=${(ev: Event) => set({ password: (ev.target as HTMLInputElement).value })} />${e.password_set && !m.pwEdit ? html`<button type="button" class="btn quiet sm" data-mail-pw-change @click=${() => set({ pwEdit: true, password: '' })}>${tr('החלפה')}</button>` : nothing}</span></label>
         <label>${tr('מאת')}<input class="inp ltr" data-mail-from .value=${m.from} @input=${(ev: Event) => set({ from: (ev.target as HTMLInputElement).value })} /></label>

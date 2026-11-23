@@ -11,7 +11,11 @@ Metrics (string scans of frontend/src/**/*.ts|css after the comments are removed
   px-literal         a number with px outside src/design/, src/fixtures/, *-mock.ts - use a spacing / size token
   undefined-token    var(--sw-x) with no fallback where --sw-x is defined nowhere in src/ (review 07:F9: the declaration is dropped)
   native-dialog      window.confirm / alert / prompt (and the bare calls) - use sw-dialog / the confirm pattern
-  native-select      <select ...> in a template - use the shared picker components
+  native-select      <select ...> in a template that is NOT slotted inside an <sw-field ...> - put it in sw-field (the shared
+                     form field, CR-CMP2-SELECTS-2450) or use sw-dropdown. NATIVE-SELECT-A-2480: a <select> counts as slotted
+                     when an <sw-field> opened earlier in the same file is not closed yet at that point (the select sits in the
+                     field's markup, also through a nested html`` part); a select returned by a helper and placed into a
+                     field elsewhere still counts
   native-table       <table ...> outside components/sw-table.ts - use sw-table
   hand-switch        role="switch" or type="checkbox" outside components/sw-toggle.ts - use sw-toggle
   scroll-container   overflow / overflow-x / overflow-y: auto | scroll - control screens use pages, not scrolling
@@ -50,6 +54,8 @@ _NATIVE_DIALOG = re.compile(
     r"\b(?:window|globalThis|self)\.(?:confirm|alert|prompt)\s*\("
     r"|(?:[(!=&|?,;:]|\breturn|\bawait|\bvoid)\s*(?:confirm|alert|prompt)\s*\(")
 _SELECT = re.compile(r"<select\b")
+_FIELD_OPEN = re.compile(r"<sw-field(?![\w-])")
+_FIELD_CLOSE = re.compile(r"</sw-field\s*>")
 _TABLE = re.compile(r"<table\b")
 _SWITCH = re.compile(r"role\s*=\s*[\"']switch[\"']|type\s*=\s*[\"']checkbox[\"']")
 _SCROLL = re.compile(r"overflow(?:-[xy])?\s*:\s*(?:auto|scroll)\b")
@@ -72,7 +78,7 @@ METRICS: dict[str, tuple[re.Pattern[str] | None, Callable[[str], bool], str]] = 
     "px-literal": (_PX, _not_design_or_data, "px value outside src/design (use a size / spacing token)"),
     "undefined-token": (None, lambda rel: True, "var(--sw-x) without a fallback where --sw-x is defined nowhere"),
     "native-dialog": (_NATIVE_DIALOG, lambda rel: True, "window.confirm / alert / prompt (use sw-dialog)"),
-    "native-select": (_SELECT, lambda rel: True, "<select> in a template (use the shared pickers)"),
+    "native-select": (_SELECT, lambda rel: True, "<select> outside <sw-field> (slot it into sw-field or use sw-dropdown)"),
     "native-table": (_TABLE, lambda rel: rel != "components/sw-table.ts", "<table> outside sw-table"),
     "hand-switch": (_SWITCH, lambda rel: rel != "components/sw-toggle.ts", "hand-built switch / checkbox outside sw-toggle"),
     "scroll-container": (_SCROLL, lambda rel: True, "overflow: auto | scroll (control screens use pages)"),
@@ -97,6 +103,21 @@ def defined_tokens(texts: dict[str, str]) -> set[str]:
     return out
 
 
+def count_bare_selects(text: str) -> int:
+    """NATIVE-SELECT-A-2480: the `<select` matches that are not slotted inside an `<sw-field>`. One is slotted when the last
+    `<sw-field` before it opened after the last `</sw-field>` before it (the field is still open at that point)."""
+    opens = [m.start() for m in _FIELD_OPEN.finditer(text)]
+    closes = [m.start() for m in _FIELD_CLOSE.finditer(text)]
+    n = 0
+    for m in _SELECT.finditer(text):
+        p = m.start()
+        last_open = max((o for o in opens if o < p), default=-1)
+        last_close = max((c for c in closes if c < p), default=-1)
+        if last_open <= last_close:
+            n += 1
+    return n
+
+
 def count_text(rel: str, text: str, tokens: set[str]) -> dict[str, int]:
     """The metric counts of one source file (text already without comments); rel is the path below frontend/src."""
     out: dict[str, int] = {}
@@ -105,6 +126,8 @@ def count_text(rel: str, text: str, tokens: set[str]) -> dict[str, int]:
             continue
         if name == "color-literal":
             n = len(_HEX.findall(text)) + len(_FUNC_COLOR.findall(text))
+        elif name == "native-select":
+            n = count_bare_selects(text)
         elif name == "undefined-token":
             n = sum(1 for t in _VAR_NOFALLBACK.findall(text) if t not in tokens)
         else:

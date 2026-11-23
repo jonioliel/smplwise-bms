@@ -2151,7 +2151,7 @@ export class SystemDiagnostics extends LitElement {
   private renderRestoreDialog(b: BackupEntry) {
     return html`<sw-dialog open heading="שחזור גיבוי" subheading=${b.name} @close=${() => (this.restoreTarget = null)}>
       <div class="row"><span class="lbl">אופן השחזור<span class="muted">${this.restoreMode === 'replace' ? 'הנתונים הנוכחיים של הפרויקט מוחלפים במה שבגיבוי' : 'רק פריטים שחסרים היום מתווספים; הקיימים נשארים'}</span></span>
-        <select data-restore-mode @change=${(e: Event) => (this.restoreMode = (e.target as HTMLSelectElement).value as 'replace' | 'merge')}><option value="replace" ?selected=${this.restoreMode === 'replace'}>החלפה</option><option value="merge" ?selected=${this.restoreMode === 'merge'}>מיזוג</option></select></div>
+        <sw-field><select data-restore-mode @change=${(e: Event) => (this.restoreMode = (e.target as HTMLSelectElement).value as 'replace' | 'merge')}><option value="replace" ?selected=${this.restoreMode === 'replace'}>החלפה</option><option value="merge" ?selected=${this.restoreMode === 'merge'}>מיזוג</option></select></sw-field></div>
       <div class="row"><span class="lbl">${obr('accessLabel')}<span class="muted">${obr('accessHint')}</span></span><sw-toggle data-restore-access ?checked=${this.restoreAccess} label=${obr('accessLabel')} labelHidden @change=${(e: CustomEvent<{ checked: boolean }>) => (this.restoreAccess = e.detail.checked)}></sw-toggle></div>
       ${this.renderRestoreSensitive(b)}
       ${this.renderRestoreSafety()}
