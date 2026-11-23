@@ -119,8 +119,9 @@ export class TicketsTable extends LitElement {
   /**
    * TICKETS-PAGING-2490 (owner rule 2026-10-24: a control screen never scrolls; owner decision Q20: the tickets table pages): while the
    * host gives the table a fixed region (`fill`: from a tablet up; a phone shows the compact list and its page scrolls, as before - at
-   * 390x844 the screen's header leaves room for one compact row) the loaded rows are cut into pages that fit that region - measured from the real rows (components/page-fit.ts: whole rows, the sticky head counted on
-   * every page), so a page fills the card and nothing scrolls. The pager (and "load more" on the last page while the server has more)
+   * 390x844 the screen's header leaves room for one compact row) the loaded rows are cut into pages that fit that region - measured
+   * from the real rows (components/page-fit.ts: whole rows, the sticky head counted on every page), so a page fills the card and
+   * nothing scrolls. The pager (and "load more" on the last page while the server has more)
    * sits at the end of the toolbar row. The installation's long-lists setting `scroll` keeps the old inner scroll. The operator's place
    * is kept (`keep`): a resize, the bulk bar, a poll, "load more" (its first new row) and a deleted row stay on the page that holds the
    * row first on screen; a new filter, sort, density or view starts at page 1.
