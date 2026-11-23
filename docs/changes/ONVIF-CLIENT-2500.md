@@ -94,7 +94,7 @@ branches found no 0217+); renumber at the train if another branch takes it. Addi
 
 `FoundDevice` + `media` (`media` | `media2` | `none`), `auth_mode?` (`digest` | `wsse`), `profiles: [MediaProfile {token, name, codec,
 width, height, fps, stream, uri_masked}]`, `suggested {main, sub}`, `snapshot: bool`; new `AddResult` / `AddedCamera` / `AddFailure`.
-`uri_masked` is the camera's own stream address without credentials (`camera_sources.mask`: a secret-looking query value masked).
+`uri_masked` is the camera's own address with the path and query replaced by `/***` (security review of ONVIF-UI-2500: a path may carry a secret).
 No field holds a user name, a password, a serial or a URL with credentials (the existing field-name test covers the new models).
 
 **Merge note for RESPONSE-MODELS-E-2480** (it models the `camera_sources` routes): the trial merge conflicts in

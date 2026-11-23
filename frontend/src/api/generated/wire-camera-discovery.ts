@@ -79,7 +79,7 @@ export interface IdentifyResult {
 /**
  * ONVIF-CLIENT-2500: one video profile of an identified camera (Media2 or Media1 `GetProfiles`). `stream` says whether its
  * stream address can be used (`ok`) or why not (`other_host`, `not_rtsp`, `bad_shape`, `no_answer`, `not_read`); `uri_masked`
- * is that address as the camera gave it, never with credentials (a secret-looking query value masked).
+ * is the camera's own address with the path and query replaced by `/***` (a path may carry a secret) - never the full stream address.
  */
 export interface MediaProfile {
   token: string;

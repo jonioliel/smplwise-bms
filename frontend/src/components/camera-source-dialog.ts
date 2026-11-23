@@ -42,6 +42,9 @@ export class CameraSourceDialog extends LitElement {
   @property() mode: 'edit' | 'add' = 'edit';
   @property({ attribute: 'camera-id' }) cameraId = '';
   @property({ attribute: 'camera-name' }) cameraName = '';
+  /** ONVIF-UI-2500: `add` only - a camera the search found without a usable stream opens this dialog with its address started
+   * (`rtsp://<address>:554/`); the installer types the rest. Never a credential. */
+  @property({ attribute: 'prefill-url' }) prefillUrl = '';
 
   @state() private src: CameraSource | null = null;
   @state() private choice: 'nvr' | 'manual' = 'nvr';
@@ -165,7 +168,8 @@ export class CameraSourceDialog extends LitElement {
     this.src = null;
     if (this.mode === 'add') {
       this.choice = 'manual';
-      this.main = this.sub = this.name = this.area = '';
+      this.sub = this.name = this.area = '';
+      this.main = this.prefillUrl;
       void this.loadAreas();
       return;
     }
