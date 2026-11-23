@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="he" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>אימות דו-שלבי - דגם</title>
+<!--
+  T095 full second factor - static design mock-up for the owner's decision (FEATURE-DESIGNS-SEC-2490, target 2.49.0).
+  NOT product code: self-contained, no network request, invented data only (no real person, host, address or key).
+  Design doc: docs/design/full-2fa-t095/DESIGN.md.
+  Visual language = the product's own (owner rule 23.10: the infra temperature / elevators / schedules look): sw-page header,
+  settings underline tabs, sw-card, settings rows (label + one hint line at the start, control at the end), segmented key, KPI row,
+  soft chips, sw-sheet on the phone, tokens of frontend/src/design/tokens.ts (light + dark columns). Nothing new invented where the
+  product has a piece.
+  Skills applied: impeccable (Operate mode: hierarchy = the one question per screen first, craft floor - contrast, states, copy),
+  ui-ux-pro-max (WCAG 2.2 accessible authentication: paste allowed, autocomplete="one-time-code", a non-cognitive method - passkey -
+  always offered first; step indicator; visible labels), emil-design-eng (button press scale .97 at 160 ms, sheet enters with the
+  drawer curve 240 ms and leaves faster, no animation on keyboard actions, prefers-reduced-motion keeps opacity only).
+  No platform branding outside the settings screens: the user-facing screens say "חשבון המערכת"; the admin settings tab may name
+  the platform (UI_COPY_RULES.md).
+  Screens: 1 account security (user) · 2 step-up sheet · 3 remote sign-in second step · 4 recovery codes · 5 admin policy tab
+  · 6 user drawer (admin view of one user). URL: ?s=1..6 ?st=<state> ?theme=dark ?w=phone
+-->
+<style>
+:root {
+  color-scheme: light;
+  --sw-bg: #f5f7fb; --sw-surface: #ffffff; --sw-surface-2: #f7f9fc; --sw-surface-3: #eef2f8;
+  --sw-border: #e7ebf2; --sw-border-strong: #e1e6ef;
+  --sw-text: #22314c; --sw-heading: #1e2e47; --sw-text-2: #4b5976; --sw-text-3: #5e6d88; --sw-text-inverse: #ffffff;
+  --sw-accent: #2767ed; --sw-accent-hover: #1f57d1; --sw-accent-soft: #edf3ff; --sw-accent-text: #2062ec; --sw-focus: #2767ed;
+  --sw-success: #22c55e; --sw-success-soft: #e8f8ee; --sw-success-text: #117d39;
+  --sw-warning: #f59e0b; --sw-warning-soft: #fff4e0; --sw-warning-text: #b45309;
+  --sw-danger: #ef4444; --sw-danger-soft: #fdecec; --sw-danger-text: #b91c1c;
+  --sw-offline: #9aa3b5; --sw-offline-soft: #f1f3f7; --sw-offline-text: #666d7a;
+  --sw-toggle-on: #2767ed; --sw-toggle-thumb: #ffffff;
+  --sw-seg-key: #ffffff; --sw-seg-key-ink: var(--sw-accent-text);
+  --sw-hover-wash: rgba(20,30,50,.05); --sw-scrim: rgba(13,18,32,.42);
+  --sw-skeleton: #eef2f8;
+  --sw-shadow-1: 0 1px 2px rgba(16,24,40,.04); --sw-shadow-2: 0 6px 18px rgba(34,49,76,.06); --sw-shadow-3: 0 14px 36px rgba(34,49,76,.14);
+  --sw-shadow-primary: 0 1px 2px rgba(39,103,237,.25);
+  --sw-font: "Heebo", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Hebrew", Roboto, Arial, sans-serif;
+  --sw-font-mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  --sw-fs-2xs: 10px; --sw-fs-xs: 11px; --sw-fs-sm: 12.5px; --sw-fs-base: 13px; --sw-fs-md: 14px; --sw-fs-lg: 15px; --sw-fs-xl: 17px; --sw-fs-2xl: 20px; --sw-fs-3xl: 26px;
+  --sw-r-2xs: 4px; --sw-r-xs: 6px; --sw-r-sm: 8px; --sw-r-md: 12px; --sw-r-lg: 14px; --sw-r-2xl: 22px; --sw-r-pill: 999px;
+  --sw-s-1: 4px; --sw-s-2: 8px; --sw-s-3: 12px; --sw-s-4: 16px; --sw-page-pad: 30px;
+  --sw-ctl-h-sm: 26px; --sw-ctl-h-md: 30px; --sw-ctl-h-lg: 40px;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --sw-bg: #0d1220; --sw-surface: #151c2c; --sw-surface-2: #1a2336; --sw-surface-3: #222d44;
+  --sw-border: #232e45; --sw-border-strong: #2f3c58;
+  --sw-text: #e6ebf5; --sw-heading: #f3f6fc; --sw-text-2: #a9b4ca; --sw-text-3: #98a4ba;
+  --sw-accent: #3a6ce0; --sw-accent-hover: #5a88f2; --sw-accent-soft: rgba(91,140,255,.18); --sw-accent-text: #8fb2ff; --sw-focus: #7aa2ff;
+  --sw-success: #3ddc84; --sw-success-soft: rgba(61,220,132,.18); --sw-success-text: #3ddc84;
+  --sw-warning: #f5b043; --sw-warning-soft: rgba(245,176,67,.2); --sw-warning-text: #f5b043;
+  --sw-danger: #ff6b62; --sw-danger-soft: rgba(255,107,98,.2); --sw-danger-text: #ff8a82;
+  --sw-offline: #8b96a8; --sw-offline-soft: rgba(139,150,168,.2); --sw-offline-text: #b4bdcc;
+  --sw-toggle-on: #3a6ce0; --sw-seg-key: #e6ebf5; --sw-seg-key-ink: #151c2c;
+  --sw-hover-wash: rgba(255,255,255,.06); --sw-scrim: rgba(0,0,0,.55); --sw-skeleton: #222d44;
+  --sw-shadow-1: 0 1px 2px rgba(0,0,0,.35); --sw-shadow-2: 0 6px 18px rgba(0,0,0,.4); --sw-shadow-3: 0 14px 36px rgba(0,0,0,.55); --sw-shadow-primary: 0 1px 2px rgba(0,0,0,.4);
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--sw-bg); color: var(--sw-text); font-family: var(--sw-font); font-size: var(--sw-fs-md); line-height: 1.5; -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
+::selection { background: var(--sw-accent-soft); color: var(--sw-text); }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 2px; }
+.ltr { direction: ltr; unicode-bidi: isolate; }
+code, .mono { font-family: var(--sw-font-mono); direction: ltr; unicode-bidi: isolate; font-size: var(--sw-fs-xs); color: var(--sw-text-2); background: var(--sw-surface-2); padding: 2px 6px; border-radius: var(--sw-r-2xs); }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--sw-text-3); }
+svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* mock-up gallery (not part of the product) */
+.gallery { position: sticky; top: 0; z-index: 30; display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; padding: 8px 16px; background: var(--sw-surface); border-bottom: 1px solid var(--sw-border); font-size: var(--sw-fs-sm); }
+.gallery .grp { display: flex; gap: 4px; flex-wrap: wrap; }
+.gallery .sep { width: 1px; height: 22px; background: var(--sw-border); }
+.gallery .lbl { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+.gallery button { border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text-2); border-radius: var(--sw-r-pill); padding: 4px 10px; cursor: pointer; font-size: var(--sw-fs-sm); }
+.gallery button[aria-pressed="true"] { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; font-weight: 600; }
+.note { max-width: 1180px; margin: 10px auto 0; padding: 0 var(--sw-page-pad); font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+
+.stage { container-type: inline-size; max-width: 1180px; margin: 0 auto; padding: 14px var(--sw-page-pad) 40px; position: relative; }
+.stage.phone { max-width: 390px; padding: 0; margin: 14px auto 32px; border: 10px solid #0d121b; border-radius: 34px; overflow: hidden; min-height: 780px; background: var(--sw-bg); }
+.stage.phone .scr { padding: 12px 16px 96px; }
+.scr { display: none; flex-direction: column; gap: 14px; }
+.scr.on { display: flex; }
+.st:not(.on) { display: none !important; }
+.st > * + * { margin-top: 14px; }
+
+/* page header */
+.crumbs { font-size: var(--sw-fs-xs); color: var(--sw-text-3); margin-bottom: 4px; }
+.pagehead { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 12px; }
+h1 { margin: 0; font-size: var(--sw-fs-3xl); font-weight: 700; letter-spacing: -.6px; color: var(--sw-heading); line-height: 1.2; text-wrap: balance; }
+.sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-base); }
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--sw-border); overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs a { padding: 8px 12px; border-bottom: 2px solid transparent; margin-bottom: -1px; color: var(--sw-text-2); text-decoration: none; font-size: var(--sw-fs-sm); font-weight: 500; white-space: nowrap; }
+.tabs a.on { color: var(--sw-accent-text); border-bottom-color: var(--sw-accent); }
+
+/* card */
+.card { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); box-shadow: var(--sw-shadow-1); padding: 14px; min-width: 0; }
+.card.flush { padding: 0; overflow: hidden; }
+.card > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.card.flush > header { padding: 12px 14px; margin: 0; border-bottom: 1px solid var(--sw-border); }
+.card h3 { margin: 0; font-size: var(--sw-fs-md); font-weight: 600; }
+.card h3 .csub { display: block; font-size: var(--sw-fs-xs); color: var(--sw-text-3); font-weight: 400; margin-top: 1px; }
+details.card > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: -14px; padding: 12px 14px; min-height: 52px; border-radius: var(--sw-r-md); }
+details.card > summary::-webkit-details-marker { display: none; }
+details.card > summary:hover { background: var(--sw-hover-wash); }
+details.card > summary .chev { color: var(--sw-text-3); transition: transform .18s var(--ease-out); }
+details.card[open] > summary .chev { transform: rotate(180deg); }
+details.card[open] > summary { margin-bottom: 0; border-radius: var(--sw-r-md) var(--sw-r-md) 0 0; border-bottom: 1px solid var(--sw-border); }
+.cols { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+
+/* settings rows */
+.row { display: flex; justify-content: space-between; align-items: center; gap: var(--sw-s-3) var(--sw-s-4); padding: 11px 0; border-bottom: 1px solid var(--sw-border); font-size: var(--sw-fs-sm); min-width: 0; }
+.row:last-child { border-bottom: 0; }
+.row .lbl { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 240px; font-size: var(--sw-fs-base); font-weight: 500; color: var(--sw-text); }
+.row .lbl .muted { font-size: var(--sw-fs-xs); font-weight: 400; color: var(--sw-text-3); line-height: 1.45; }
+.row .end { display: flex; align-items: center; gap: var(--sw-s-2); flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
+.who { display: flex; gap: var(--sw-s-3); align-items: center; min-width: 0; flex: 1; }
+.ic { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--sw-r-sm); background: var(--sw-accent-soft); color: var(--sw-accent-text); flex: none; }
+.ic.ok { background: var(--sw-success-soft); color: var(--sw-success-text); }
+.ic.warn { background: var(--sw-warning-soft); color: var(--sw-warning-text); }
+.ic.bad { background: var(--sw-danger-soft); color: var(--sw-danger-text); }
+.ic.mute { background: var(--sw-surface-3); color: var(--sw-text-3); }
+.ic svg.i { width: 17px; height: 17px; }
+
+/* buttons, toggle, segmented, fields */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: var(--sw-ctl-h-md); padding: 0 12px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border-strong); font-size: var(--sw-fs-sm); font-weight: 500; line-height: 1; cursor: pointer; white-space: nowrap; color: var(--sw-text); background: var(--sw-surface); box-shadow: var(--sw-shadow-1); text-decoration: none; }
+.btn:hover { background: var(--sw-surface-2); }
+.btn.sm { min-height: var(--sw-ctl-h-sm); padding: 0 9px; font-size: var(--sw-fs-xs); border-radius: var(--sw-r-xs); }
+.btn.lg { min-height: var(--sw-ctl-h-lg); padding: 0 16px; font-size: var(--sw-fs-md); }
+.btn.block { width: 100%; }
+.btn.primary { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); box-shadow: var(--sw-shadow-primary); }
+.btn.primary:hover { background: var(--sw-accent-hover); }
+.btn.danger { color: var(--sw-danger-text); }
+.btn.ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--sw-text-2); }
+.btn[disabled] { opacity: .5; pointer-events: none; }
+.link { color: var(--sw-accent-text); font-size: var(--sw-fs-sm); cursor: pointer; background: none; border: 0; padding: 0; white-space: nowrap; }
+.sw { position: relative; width: 42px; height: 24px; flex: none; border-radius: var(--sw-r-pill); border: 0; background: var(--sw-border-strong); cursor: pointer; padding: 0; }
+.sw::after { content: ""; position: absolute; top: 3px; inset-inline-start: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--sw-toggle-thumb); box-shadow: var(--sw-shadow-1); }
+.sw[aria-checked="true"] { background: var(--sw-toggle-on); }
+.sw[aria-checked="true"]::after { inset-inline-start: 21px; }
+.seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--sw-r-sm); background: var(--sw-surface-3); flex-wrap: nowrap; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.seg button { border: 0; background: transparent; padding: 0 11px; min-height: 26px; border-radius: var(--sw-r-xs); font-size: var(--sw-fs-sm); color: var(--sw-text-2); cursor: pointer; white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--sw-seg-key); color: var(--sw-seg-key-ink); font-weight: 600; box-shadow: var(--sw-shadow-1); }
+.sel { min-height: var(--sw-ctl-h-md); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); background: var(--sw-surface); padding: 0 10px; font-size: var(--sw-fs-sm); }
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field label { font-size: var(--sw-fs-sm); font-weight: 600; color: var(--sw-text); }
+.field .help { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+.field .err { font-size: var(--sw-fs-xs); color: var(--sw-danger-text); font-weight: 600; display: flex; gap: 5px; align-items: center; }
+.inp { min-height: var(--sw-ctl-h-lg); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); background: var(--sw-surface-2); padding: 0 12px; font-size: var(--sw-fs-lg); color: var(--sw-text); width: 100%; }
+.inp:focus { outline: 2px solid var(--sw-focus); outline-offset: 0; border-color: transparent; background: var(--sw-surface); }
+.inp.code { font-family: var(--sw-font-mono); letter-spacing: .32em; text-align: center; font-size: 22px; direction: ltr; }
+.inp[aria-invalid="true"] { border-color: var(--sw-danger); background: var(--sw-danger-soft); }
+.inp::placeholder { color: var(--sw-text-3); letter-spacing: normal; }
+@media (prefers-reduced-motion: no-preference) {
+  .btn, .seg button, .kpi, .method { transition: transform 160ms var(--ease-out), background-color .15s ease; }
+  .btn:active, .seg button:active, .kpi:active, .method:active { transform: scale(.97); }
+  .sw, .sw::after { transition: background-color .15s ease, inset-inline-start .15s var(--ease-out); }
+}
+
+/* chips, badges, banners, KPIs */
+[data-look="ok"] { --c: var(--sw-success); --c-text: var(--sw-success-text); --c-soft: var(--sw-success-soft); }
+[data-look="warn"] { --c: var(--sw-warning); --c-text: var(--sw-warning-text); --c-soft: var(--sw-warning-soft); }
+[data-look="bad"] { --c: var(--sw-danger); --c-text: var(--sw-danger-text); --c-soft: var(--sw-danger-soft); }
+[data-look="off"] { --c: var(--sw-offline); --c-text: var(--sw-offline-text); --c-soft: var(--sw-offline-soft); }
+[data-look="all"] { --c: var(--sw-accent); --c-text: var(--sw-accent-text); --c-soft: var(--sw-accent-soft); }
+.chip { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 2px 9px; line-height: 1.5; font-size: var(--sw-fs-xs); font-weight: 500; background: var(--sw-surface-3); color: var(--sw-text-2); white-space: nowrap; }
+.chip[data-tone="ok"] { background: var(--sw-success-soft); color: var(--sw-success-text); }
+.chip[data-tone="warn"] { background: var(--sw-warning-soft); color: var(--sw-warning-text); }
+.chip[data-tone="err"] { background: var(--sw-danger-soft); color: var(--sw-danger-text); }
+.chip[data-tone="acc"] { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
+.chip[data-tone="off"] { background: var(--sw-offline-soft); color: var(--sw-offline-text); }
+.banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--sw-r-md); background: var(--c-soft); color: var(--sw-text); font-size: var(--sw-fs-sm); border: 1px solid color-mix(in srgb, var(--c) 30%, transparent); }
+.banner .ic { background: transparent; color: var(--c-text); width: 24px; height: 24px; }
+.banner b { display: block; font-size: var(--sw-fs-md); }
+.banner .grow { flex: 1; min-width: 0; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.kpi { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--sw-r-md); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); text-align: start; cursor: pointer; }
+.kpi[aria-pressed="true"] { border-color: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 35%, transparent); }
+.kpi .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--c); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 18%, transparent); }
+.kpi b { display: block; font-size: var(--sw-fs-2xl); line-height: 1; font-variant-numeric: tabular-nums; }
+.kpi .l { font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
+
+/* the answer card (state of the page first) */
+.answer { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; }
+.answer .ic { width: 46px; height: 46px; border-radius: var(--sw-r-md); }
+.answer .ic svg.i { width: 24px; height: 24px; }
+.answer .t { font-weight: 700; font-size: var(--sw-fs-xl); line-height: 1.25; color: var(--sw-heading); }
+.answer .s { color: var(--sw-text-2); margin-top: 2px; font-size: var(--sw-fs-base); }
+.answer .act { display: flex; gap: 8px; }
+
+/* tables */
+table { width: 100%; border-collapse: collapse; font-size: var(--sw-fs-sm); }
+th { text-align: start; font-size: var(--sw-fs-xs); color: var(--sw-text-3); font-weight: 500; padding: 8px 12px; border-bottom: 1px solid var(--sw-border-strong); white-space: nowrap; }
+td { padding: 9px 12px; border-bottom: 1px solid var(--sw-border); vertical-align: middle; }
+tbody tr:last-child td { border-bottom: 0; }
+.name { font-weight: 600; }
+.mcards { display: none; }
+.mc { display: grid; gap: 4px; padding: 11px 14px; border-bottom: 1px solid var(--sw-border); }
+.mc:last-child { border-bottom: 0; }
+.mc .r { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+/* account security: method rows */
+.method { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 12px 14px; border-top: 1px solid var(--sw-border); }
+.method:first-of-type { border-top: 0; }
+.method .t { font-weight: 600; font-size: var(--sw-fs-base); }
+.method .d { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+.method .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 3px; }
+.sub-list { margin: 0; padding: 0 14px 10px 14px; list-style: none; }
+.sub-list li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 7px 0 7px; border-top: 1px dashed var(--sw-border); font-size: var(--sw-fs-sm); margin-inline-start: 44px; }
+.sub-list li .muted { font-size: var(--sw-fs-xs); }
+
+/* step-up dialog / sheet */
+.scrim { position: absolute; inset: 0; background: var(--sw-scrim); display: grid; place-items: center; padding: 20px; z-index: 5; }
+.stage:not(.phone) .scr-backdrop { filter: saturate(.9); }
+.dialog { width: min(440px, 100%); background: var(--sw-surface); border-radius: var(--sw-r-2xl); box-shadow: var(--sw-shadow-3); padding: 20px; display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--sw-border); }
+.dialog .dh { display: flex; gap: 12px; align-items: flex-start; }
+.dialog .dh .ic { width: 40px; height: 40px; border-radius: var(--sw-r-md); }
+.dialog h2 { margin: 0; font-size: var(--sw-fs-xl); color: var(--sw-heading); line-height: 1.3; }
+.dialog .what { margin: 2px 0 0; font-size: var(--sw-fs-base); color: var(--sw-text-2); }
+.dialog .what b { color: var(--sw-text); }
+.mlist { display: flex; flex-direction: column; gap: 8px; }
+.mopt { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-md); background: var(--sw-surface); cursor: pointer; text-align: start; width: 100%; }
+.mopt:hover { background: var(--sw-surface-2); }
+.mopt.pri { border-color: var(--sw-accent); background: var(--sw-accent-soft); }
+.mopt .t { font-weight: 600; font-size: var(--sw-fs-md); }
+.mopt .d { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+.dfoot { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: var(--sw-fs-xs); color: var(--sw-text-3); border-top: 1px solid var(--sw-border); padding-top: 12px; }
+.spinner { width: 46px; height: 46px; border-radius: 50%; border: 3px solid var(--sw-accent-soft); border-top-color: var(--sw-accent); margin: 8px auto; }
+@media (prefers-reduced-motion: no-preference) { .spinner { animation: spin .8s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } } }
+.center { text-align: center; }
+.phone .scrim { place-items: end stretch; padding: 0; }
+.phone .dialog { width: 100%; border-radius: var(--sw-r-2xl) var(--sw-r-2xl) 0 0; padding: 10px 16px calc(18px + env(safe-area-inset-bottom)); }
+.phone .dialog::before { content: ""; display: block; width: 38px; height: 4px; border-radius: 4px; background: var(--sw-border-strong); margin: 0 auto 6px; }
+@media (prefers-reduced-motion: no-preference) {
+  .dialog { transition: transform 240ms var(--ease-drawer), opacity 200ms var(--ease-out); }
+  @starting-style { .scr.on .dialog { opacity: 0; transform: scale(.96); } .phone .scr.on .dialog { transform: translateY(100%); opacity: 1; } }
+}
+
+/* recovery codes */
+.codes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 18px; padding: 14px 18px; background: var(--sw-surface-2); border: 1px dashed var(--sw-border-strong); border-radius: var(--sw-r-md); direction: ltr; }
+.codes span { font-family: var(--sw-font-mono); font-size: var(--sw-fs-lg); letter-spacing: .08em; color: var(--sw-text); font-variant-numeric: tabular-nums; }
+.codes span i { font-style: normal; color: var(--sw-text-3); font-size: var(--sw-fs-xs); margin-inline-end: 8px; }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: var(--sw-fs-sm); }
+.check input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--sw-accent); }
+
+/* sign-in page */
+.signin { display: grid; place-items: center; min-height: 600px; }
+.signbox { width: min(400px, 100%); background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-2xl); box-shadow: var(--sw-shadow-2); padding: 26px 24px; display: flex; flex-direction: column; gap: 16px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: var(--sw-fs-lg); color: var(--sw-heading); }
+.brand .logo { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, var(--sw-accent), #6a8fff); display: grid; place-items: center; color: #fff; }
+.steps { display: flex; gap: 6px; align-items: center; font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+.steps i { width: 22px; height: 4px; border-radius: 4px; background: var(--sw-border-strong); }
+.steps i.on { background: var(--sw-accent); }
+.signbox h2 { margin: 0; font-size: var(--sw-fs-2xl); color: var(--sw-heading); }
+.signbox p { margin: 0; color: var(--sw-text-2); font-size: var(--sw-fs-base); }
+.alt { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid var(--sw-border); }
+.alt button { text-align: start; }
+
+/* admin policy */
+.pol { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.polo { border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-md); padding: 10px 12px; background: var(--sw-surface); cursor: pointer; text-align: start; display: flex; flex-direction: column; gap: 3px; }
+.polo b { font-size: var(--sw-fs-base); }
+.polo span { font-size: var(--sw-fs-xs); color: var(--sw-text-3); line-height: 1.4; }
+.polo[aria-pressed="true"] { border-color: var(--sw-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--sw-accent) 30%, transparent); background: var(--sw-accent-soft); }
+.polo .rec { align-self: flex-start; margin-top: 2px; }
+.preview { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; font-size: var(--sw-fs-sm); color: var(--sw-text-2); padding: 10px 12px; background: var(--sw-surface-2); border-radius: var(--sw-r-sm); margin-top: 10px; }
+.preview b { color: var(--sw-text); font-variant-numeric: tabular-nums; }
+.save-bar { display: flex; align-items: center; gap: 10px; justify-content: flex-end; padding-top: 4px; }
+.save-bar .grow { flex: 1; font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+
+/* drawer */
+.drawer-wrap { display: grid; grid-template-columns: 1fr 420px; gap: 0; border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); overflow: hidden; background: var(--sw-surface-2); min-height: 640px; }
+.drawer-bg { padding: 16px; opacity: .55; }
+.drawer { background: var(--sw-surface); border-inline-start: 1px solid var(--sw-border); padding: 16px; display: flex; flex-direction: column; gap: 14px; box-shadow: var(--sw-shadow-3); }
+.dhead { display: flex; gap: 12px; align-items: center; }
+.avatar { width: 42px; height: 42px; border-radius: 50%; background: var(--sw-accent-soft); color: var(--sw-accent-text); display: grid; place-items: center; font-weight: 700; }
+.skl { display: block; border-radius: var(--sw-r-sm); background: var(--sw-skeleton); height: 12px; }
+
+@container (max-width: 760px) {
+  .stage { --sw-page-pad: 16px; }
+  h1 { font-size: var(--sw-fs-xl); }
+  .cols, .drawer-wrap { grid-template-columns: 1fr; }
+  .drawer-bg { display: none; }
+  .answer { grid-template-columns: auto 1fr; }
+  .answer .act { grid-column: 1 / -1; border-top: 1px solid var(--sw-border); padding-top: 10px; }
+  .answer .act .btn { flex: 1; min-height: 40px; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .kpi { padding: 9px 11px; }
+  .pol { grid-template-columns: 1fr 1fr; }
+  .row { flex-direction: column; align-items: stretch; gap: var(--sw-s-2); }
+  .row .lbl { flex-basis: auto; }
+  .card .sticky-act { background: var(--sw-surface); }
+  .row .end { justify-content: flex-start; }
+  table.desk { display: none; }
+  .mcards { display: block; }
+  .method { grid-template-columns: auto 1fr; }
+  .method > .end { grid-column: 1 / -1; display: flex; gap: 8px; }
+  .method > .end .btn { flex: 1; min-height: 40px; }
+  .sub-list li { margin-inline-start: 0; }
+  .codes { grid-template-columns: 1fr 1fr; padding: 12px; gap: 8px 10px; }
+  .codes span { font-size: var(--sw-fs-md); }
+  .signbox { border: 0; box-shadow: none; background: transparent; padding: 10px 0; }
+  .sticky-act { position: sticky; bottom: 0; background: var(--sw-bg); padding: 10px 0 6px; border-top: 1px solid var(--sw-border); }
+  .sticky-act .btn { width: 100%; min-height: 44px; }
+  .save-bar { position: sticky; bottom: 0; background: var(--sw-bg); padding: 10px 0; border-top: 1px solid var(--sw-border); }
+  .save-bar .btn { flex: 1; min-height: 44px; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 9.6C8 19.3 5 15.5 5 11V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+    <symbol id="i-shield-x" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 9.6C8 19.3 5 15.5 5 11V6z"/><path d="M10 10l4 4M14 10l-4 4"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/></symbol>
+    <symbol id="i-finger" viewBox="0 0 24 24"><path d="M12 11v4M8.5 7.8A5 5 0 0 1 17 11v2.5M7 11a5 5 0 0 1 .3-1.7M7 14v-1M17 17c-.4 1.4-1 2.7-1.8 3.8M12 19c-.3.7-.7 1.4-1.1 2M9 17.5c-.2.6-.5 1.2-.8 1.7M4.6 8A8 8 0 0 1 19.6 9M20 13v-.5"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h1M11.5 9h1M15 9h1M8 12.5h1M11.5 12.5h1M15 12.5h1M8 16h1M11.5 16h1M15 16h1"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17h.01"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol>
+    <symbol id="i-unlock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 7.7-1.5"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+    <symbol id="i-fwd" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+    <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 9V3h10v6M7 17H4v-7h16v7h-3M7 14h10v7H7z"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  </defs>
+</svg>
+
+<div class="gallery" role="toolbar" aria-label="מעבר בין מסכי הדגם">
+  <span class="lbl">מסך</span>
+  <div class="grp" id="g-s">
+    <button data-s="1" aria-pressed="true">אבטחת החשבון</button>
+    <button data-s="2">אישור לפני פעולה</button>
+    <button data-s="3">כניסה - שלב שני</button>
+    <button data-s="4">קודי שחזור</button>
+    <button data-s="5">הגדרות: מדיניות</button>
+    <button data-s="6">משתמש (מנהל)</button>
+  </div>
+  <span class="sep"></span>
+  <span class="lbl">מצב</span>
+  <div class="grp" id="g-st"></div>
+  <span class="sep"></span>
+  <div class="grp">
+    <button id="b-phone" aria-pressed="false">טלפון</button>
+    <button id="b-theme" aria-pressed="false">כהה</button>
+  </div>
+</div>
+<p class="note">דגם עיצובי בלבד (T095). נתונים מומצאים. ברירת המחדל של כל מתג = ההתנהגות של היום; שום דבר לא נכפה על אף משתמש עד שהבעלים מפעיל.</p>
+
+<main class="stage" id="stage">
+
+<!-- ================= 1. account security (user) ================= -->
+<section class="scr on" data-s="1" data-states="none:אין גורם,some:חלקי,full:מלא,enrol:חובה להגדיר">
+  <div>
+    <div class="crumbs">החשבון שלי › אבטחת החשבון</div>
+    <div class="pagehead"><div class="head"><h1>אבטחת החשבון</h1><p class="sub">איך מאשרים שזה באמת אתם - בכניסה מבחוץ ולפני פעולות רגישות</p></div></div>
+  </div>
+
+  <div class="st" data-st="enrol">
+    <div class="banner" data-look="warn"><span class="ic"><svg class="i"><use href="#i-alert"/></svg></span>
+      <div class="grow"><b>צריך להגדיר אימות דו-שלבי כדי להמשיך</b>ההגדרה של הארגון מחייבת אותו בכניסה מבחוץ. זה לוקח פחות מדקה. עד אז רק המסך הזה פתוח.</div></div>
+  </div>
+
+  <div class="card">
+    <div class="answer">
+      <span class="ic ok st" data-st="full some"><svg class="i"><use href="#i-shield"/></svg></span>
+      <span class="ic warn st" data-st="none enrol"><svg class="i"><use href="#i-shield-x"/></svg></span>
+      <div>
+        <div class="t st" data-st="full">החשבון מוגן בשתי דרכי אימות ובקודי שחזור</div>
+        <div class="t st" data-st="some">החשבון מוגן - חסרים קודי שחזור</div>
+        <div class="t st" data-st="none enrol">עדיין אין אימות דו-שלבי</div>
+        <div class="s st" data-st="full">בכניסה מבחוץ, ולפני נטרול אזעקה או פתיחת דלת, תתבקשו לאשר בטביעת אצבע או במפתח הגישה.</div>
+        <div class="s st" data-st="some">אם תאבדו את הטלפון, קודי השחזור יאפשרו לכם להיכנס בלי לחכות למנהל.</div>
+        <div class="s st" data-st="none enrol">מפתח גישה הוא הדרך הקלה: טביעת אצבע, פנים או קוד המחשב. בלי סיסמאות נוספות.</div>
+      </div>
+      <div class="act">
+        <button class="btn primary st" data-st="none enrol"><svg class="i"><use href="#i-plus"/></svg>הוספת מפתח גישה</button>
+        <button class="btn primary st" data-st="some"><svg class="i"><use href="#i-list"/></svg>יצירת קודי שחזור</button>
+        <button class="btn st" data-st="full">בדיקת אימות</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="card flush">
+      <header><h3>דרכי אימות<span class="csub">כל אחת מספיקה. מומלץ לפחות שתיים.</span></h3></header>
+      <div class="method">
+        <span class="ic"><svg class="i"><use href="#i-key"/></svg></span>
+        <div><div class="t">מפתחות גישה</div><div class="d">טביעת אצבע, פנים או קוד המכשיר. עמיד לניסיונות התחזות.</div>
+          <div class="meta"><span class="chip st" data-tone="ok" data-st="full some">2 פעילים</span><span class="chip st" data-tone="off" data-st="none enrol">לא הוגדר</span><span class="chip" data-tone="acc">מומלץ</span></div></div>
+        <div class="end"><button class="btn sm"><svg class="i"><use href="#i-plus"/></svg>הוספה</button></div>
+      </div>
+      <ul class="sub-list st" data-st="full some">
+        <li><span>מחשב המשרד <span class="muted">· נוסף 02.11 · שימוש אחרון היום 08:12</span></span><button class="btn sm ghost" aria-label="הסרת מפתח הגישה מחשב המשרד"><svg class="i"><use href="#i-trash"/></svg></button></li>
+        <li><span>הטלפון שלי <span class="muted">· נוסף 02.11 · שימוש אחרון אתמול</span></span><button class="btn sm ghost" aria-label="הסרת מפתח הגישה הטלפון שלי"><svg class="i"><use href="#i-trash"/></svg></button></li>
+      </ul>
+      <div class="method">
+        <span class="ic"><svg class="i"><use href="#i-phone"/></svg></span>
+        <div><div class="t">אישור באפליקציה בטלפון</div><div class="d">האפליקציה מבקשת טביעת אצבע או את קוד המסך של הטלפון.</div>
+          <div class="meta"><span class="chip st" data-tone="ok" data-st="full">טלפון אחד</span><span class="chip st" data-tone="off" data-st="none some enrol">לא הוגדר</span></div></div>
+        <div class="end"><button class="btn sm">הגדרה מהאפליקציה</button></div>
+      </div>
+      <div class="method">
+        <span class="ic"><svg class="i"><use href="#i-grid"/></svg></span>
+        <div><div class="t">קוד מאפליקציית אימות</div><div class="d">6 ספרות שמתחלפות כל 30 שניות.</div>
+          <div class="meta"><span class="chip st" data-tone="ok" data-st="full">פעיל</span><span class="chip st" data-tone="off" data-st="none some enrol">לא הוגדר</span></div></div>
+        <div class="end"><button class="btn sm st" data-st="none some enrol">הגדרה</button><button class="btn sm danger st" data-st="full">הסרה</button></div>
+      </div>
+      <div class="method">
+        <span class="ic"><svg class="i"><use href="#i-list"/></svg></span>
+        <div><div class="t">קודי שחזור</div><div class="d">לכניסה כשאין גישה לשום דרך אחרת. כל קוד עובד פעם אחת.</div>
+          <div class="meta"><span class="chip st" data-tone="ok" data-st="full">נותרו 9 מתוך 10</span><span class="chip st" data-tone="warn" data-st="some">לא נוצרו</span><span class="chip st" data-tone="off" data-st="none enrol">אחרי הגדרת דרך אימות</span></div></div>
+        <div class="end"><button class="btn sm st" data-st="some full">יצירה מחדש</button></div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="card">
+        <header><h3>מתי תתבקשו לאשר</h3></header>
+        <div class="row"><div class="lbl">כניסה מבחוץ<span class="muted">לפי הגדרת הארגון: מי שיש לו הרשאות רגישות</span></div><div class="end"><span class="chip" data-tone="acc">חובה עבורכם</span></div></div>
+        <div class="row"><div class="lbl">לפני פעולה רגישה<span class="muted">נטרול, עקיפת אזור, פתיחת דלת, שינוי הרשאות. האישור תקף 5 דקות.</span></div><div class="end"><span class="chip" data-tone="acc">פעיל</span></div></div>
+        <div class="row"><div class="lbl">ברשת המקומית<span class="muted">בתוך הבניין לא נדרש אישור נוסף</span></div><div class="end"><span class="chip" data-tone="off">לא נדרש</span></div></div>
+      </div>
+      <div class="card flush st" data-st="full some">
+        <header><h3>המכשירים שלי<span class="csub">מכשירים שמחוברים לחשבון כרגע</span></h3></header>
+        <table class="desk"><thead><tr><th>מכשיר</th><th>אישור</th><th>פעילות</th><th></th></tr></thead><tbody>
+          <tr><td class="name">הטלפון שלי · אפליקציה</td><td><span class="chip" data-tone="ok">טביעת אצבע</span></td><td class="muted">לפני 4 דק'</td><td><button class="btn sm ghost">ניתוק</button></td></tr>
+          <tr><td class="name">דפדפן במחשב המשרד</td><td><span class="chip" data-tone="acc">מפתח גישה</span></td><td class="muted">המכשיר הזה</td><td></td></tr>
+        </tbody></table>
+        <div class="mcards">
+          <div class="mc"><div class="r"><span class="name">הטלפון שלי · אפליקציה</span><button class="btn sm ghost">ניתוק</button></div><div class="r"><span class="chip" data-tone="ok">טביעת אצבע</span><span class="muted">לפני 4 דק'</span></div></div>
+          <div class="mc"><div class="r"><span class="name">דפדפן במחשב המשרד</span><span class="muted">המכשיר הזה</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 2. step-up sheet ================= -->
+<section class="scr" data-s="2" data-states="choose:בחירה,passkey:מפתח גישה,code:קוד,pin:קוד אזעקה,wrong:קוד שגוי,locked:ננעל,done:אושר">
+  <div class="scr-backdrop">
+    <div class="crumbs">אבטחה › אזעקה</div>
+    <div class="pagehead"><div class="head"><h1>אזעקה</h1><p class="sub">בניין A · דרוך מלא מ־07:40</p></div></div>
+    <div class="card" style="margin-top:14px;min-height:300px"><span class="skl" style="width:40%"></span><span class="skl" style="width:70%;margin-top:12px"></span><span class="skl" style="width:55%;margin-top:12px"></span></div>
+  </div>
+  <div class="scrim">
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="su-t">
+      <div class="dh">
+        <span class="ic"><svg class="i"><use href="#i-shield"/></svg></span>
+        <div><h2 id="su-t">אישור לפני פעולה רגישה</h2><p class="what">לנטרל את האזעקה ב<b>בניין A</b></p></div>
+      </div>
+
+      <div class="st" data-st="choose">
+        <div class="mlist">
+          <button class="mopt pri"><span class="ic"><svg class="i"><use href="#i-key"/></svg></span><span><span class="t">מפתח גישה</span><br><span class="d">טביעת אצבע, פנים או קוד המכשיר (במחשב: Windows Hello)</span></span><svg class="i"><use href="#i-fwd"/></svg></button>
+          <button class="mopt"><span class="ic mute"><svg class="i"><use href="#i-grid"/></svg></span><span><span class="t">קוד מאפליקציית אימות</span><br><span class="d">6 ספרות</span></span><svg class="i"><use href="#i-fwd"/></svg></button>
+          <button class="mopt"><span class="ic mute"><svg class="i"><use href="#i-lock"/></svg></span><span><span class="t">קוד אזעקה אישי</span><br><span class="d">רק לפעולות אזעקה</span></span><svg class="i"><use href="#i-fwd"/></svg></button>
+        </div>
+      </div>
+
+      <div class="st center" data-st="passkey">
+        <div class="spinner" role="progressbar" aria-label="ממתין לאישור"></div>
+        <p style="margin:0;font-weight:600">אשרו בחלון של המכשיר</p>
+        <p class="muted" style="margin:4px 0 0;font-size:var(--sw-fs-sm)">טביעת אצבע, פנים או קוד המחשב</p>
+      </div>
+
+      <div class="st" data-st="code wrong">
+        <div class="field">
+          <label for="su-code">קוד מאפליקציית האימות</label>
+          <input id="su-code" class="inp code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" value="" data-wrong-value="482913">
+          <span class="help st" data-st="code">אפשר להדביק. הקוד מתחלף כל 30 שניות.</span>
+          <span class="err st" data-st="wrong"><svg class="i"><use href="#i-alert"/></svg>הקוד לא נכון. נשארו 3 ניסיונות לפני נעילה ל-10 דקות.</span>
+        </div>
+      </div>
+
+      <div class="st" data-st="pin">
+        <div class="field">
+          <label for="su-pin">קוד האזעקה האישי שלכם</label>
+          <input id="su-pin" class="inp code" type="password" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="••••">
+          <span class="help">אותו קוד שמקישים בלוח האזעקה.</span>
+        </div>
+      </div>
+
+      <div class="st" data-st="locked">
+        <div class="banner" data-look="bad"><span class="ic"><svg class="i"><use href="#i-clock"/></svg></span><div class="grow"><b>יותר מדי ניסיונות</b>אפשר לנסות שוב בעוד 9 דקות, או לאשר במפתח גישה. נשלחה הודעה לחשבון שלכם.</div></div>
+      </div>
+
+      <div class="st center" data-st="done">
+        <span class="ic ok" style="width:46px;height:46px;margin:6px auto;border-radius:50%"><svg class="i" style="width:24px;height:24px"><use href="#i-check"/></svg></span>
+        <p style="margin:0;font-weight:600">אושר - מבצעים את הפעולה</p>
+        <p class="muted" style="margin:4px 0 0;font-size:var(--sw-fs-sm)">לא תתבקשו שוב ב־5 הדקות הקרובות</p>
+      </div>
+
+      <div class="st" data-st="code wrong pin"><div style="display:flex;gap:8px"><button class="btn primary lg" style="flex:1">אישור</button><button class="btn lg ghost">דרך אחרת</button></div></div>
+      <div class="dfoot"><span>הפעולה תבוצע רק אחרי האישור</span><button class="btn sm ghost">ביטול</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 3. remote sign-in, second step ================= -->
+<section class="scr" data-s="3" data-states="choose:בחירה,code:קוד,recovery:קוד שחזור,refused:חיבור שאינו נתמך">
+  <div class="signin">
+    <div class="signbox">
+      <div class="brand"><span class="logo"><svg class="i"><use href="#i-shield"/></svg></span>SmplWise Arx</div>
+      <div class="steps" aria-label="שלב 2 מתוך 2"><i class="on"></i><i class="on"></i><span>שלב 2 מתוך 2</span></div>
+
+      <div class="st" data-st="choose">
+        <h2>אימות נוסף</h2>
+        <p>שלום דנה. כדי להיכנס מבחוץ, אשרו שזו את.</p>
+        <div class="mlist" style="margin-top:14px">
+          <button class="mopt pri"><span class="ic"><svg class="i"><use href="#i-key"/></svg></span><span><span class="t">מפתח גישה</span><br><span class="d">טביעת אצבע, פנים או קוד המכשיר</span></span><svg class="i"><use href="#i-fwd"/></svg></button>
+          <button class="mopt"><span class="ic mute"><svg class="i"><use href="#i-grid"/></svg></span><span><span class="t">קוד מאפליקציית אימות</span></span><svg class="i"><use href="#i-fwd"/></svg></button>
+        </div>
+        <div class="alt" style="margin-top:14px"><button class="link">אין לי גישה לאף אחת - שימוש בקוד שחזור</button><label class="check" style="margin-top:6px"><input type="checkbox"><span>לזכור את הדפדפן הזה 14 יום<br><span class="muted" style="font-size:var(--sw-fs-xs)">רק לכניסה. פעולות רגישות תמיד מבקשות אישור. נשמר נתון בדפדפן.</span></span></label></div>
+      </div>
+
+      <div class="st" data-st="code">
+        <h2>הקלידו את הקוד</h2>
+        <p>מאפליקציית האימות בטלפון.</p>
+        <div class="field" style="margin-top:14px"><label for="si-code">קוד בן 6 ספרות</label><input id="si-code" class="inp code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"></div>
+        <button class="btn primary lg block" style="margin-top:14px">כניסה</button>
+        <div class="alt" style="margin-top:14px"><button class="link">דרך אחרת</button></div>
+      </div>
+
+      <div class="st" data-st="recovery">
+        <h2>קוד שחזור</h2>
+        <p>כל קוד עובד פעם אחת. אחרי הכניסה תתבקשו להגדיר דרך אימות חדשה.</p>
+        <div class="field" style="margin-top:14px"><label for="si-rec">קוד שחזור</label><input id="si-rec" class="inp code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX" style="letter-spacing:.14em"></div>
+        <button class="btn primary lg block" style="margin-top:14px">כניסה עם קוד שחזור</button>
+        <div class="alt" style="margin-top:14px"><button class="link">חזרה</button></div>
+      </div>
+
+      <div class="st" data-st="refused">
+        <h2>אי אפשר להיכנס כך מבחוץ</h2>
+        <div class="banner" data-look="warn" style="margin-top:12px"><span class="ic"><svg class="i"><use href="#i-alert"/></svg></span><div class="grow">החיבור הזה לא מאפשר אימות דו-שלבי, שהארגון מחייב עבור החשבון שלכם. התחברו עם שם המשתמש והסיסמה של חשבון המערכת.</div></div>
+        <button class="btn primary lg block" style="margin-top:14px">כניסה עם שם משתמש וסיסמה</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 4. recovery codes ================= -->
+<section class="scr" data-s="4" data-states="show:הצגה (פעם אחת),low:מעט קודים">
+  <div>
+    <div class="crumbs">החשבון שלי › אבטחת החשבון</div>
+    <div class="pagehead"><div class="head"><h1>קודי שחזור</h1><p class="sub">לכניסה כשאין לכם את הטלפון או מפתח הגישה</p></div></div>
+  </div>
+  <div class="st" data-st="show">
+    <div class="card" style="max-width:640px">
+      <div class="banner" data-look="warn"><span class="ic"><svg class="i"><use href="#i-alert"/></svg></span><div class="grow"><b>הקודים מוצגים עכשיו בלבד</b>שמרו אותם במקום בטוח - מנהל סיסמאות, או הדפסה. אחרי שתסגרו את המסך לא נוכל להציג אותם שוב.</div></div>
+      <div class="codes" style="margin-top:14px" aria-label="עשרה קודי שחזור">
+        <span><i>1</i>K7QM-3XVA</span><span><i>2</i>P9TR-W2HE</span><span><i>3</i>4NCZ-8JDM</span><span><i>4</i>XB6F-QH3R</span><span><i>5</i>MV2D-9KWT</span>
+        <span><i>6</i>H8RS-ZC4N</span><span><i>7</i>2WJP-VE7Q</span><span><i>8</i>TF5K-M3XB</span><span><i>9</i>D9QN-6RHA</span><span><i>10</i>Z3EW-K8PV</span>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn"><svg class="i"><use href="#i-down"/></svg>הורדה כקובץ</button><button class="btn"><svg class="i"><use href="#i-print"/></svg>הדפסה</button><button class="btn">העתקה</button></div>
+      <label class="check" style="margin-top:16px"><input type="checkbox"> שמרתי את הקודים במקום בטוח</label>
+      <div class="sticky-act" style="margin-top:12px"><button class="btn primary lg" disabled>סיום</button></div>
+    </div>
+  </div>
+  <div class="st" data-st="low">
+    <div class="card" style="max-width:640px">
+      <div class="answer"><span class="ic warn"><svg class="i"><use href="#i-list"/></svg></span><div><div class="t">נותרו 2 קודים</div><div class="s">נוצרו ב־02.11.2026. השתמשתם ב־8. כדאי ליצור חדשים - הישנים יבוטלו.</div></div><div class="act"><button class="btn primary">יצירת קודים חדשים</button></div></div>
+      <p class="muted" style="font-size:var(--sw-fs-xs);margin:12px 0 0">יצירה מחדש דורשת אישור (מפתח גישה או קוד).</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 5. admin policy tab ================= -->
+<section class="scr" data-s="5" data-states="off:כבוי (היום),on:פעיל,saving:תצוגה מקדימה">
+  <div>
+    <div class="crumbs">הגדרות › משתמשים והרשאות</div>
+    <div class="pagehead"><div class="head"><h1>משתמשים והרשאות</h1><p class="sub">מי נכנס, מאיפה, ואיך מאשרים פעולות רגישות</p></div></div>
+  </div>
+  <nav class="tabs" aria-label="לשוניות"><a href="#">משתמשים</a><a href="#">תפקידים</a><a href="#">משתמשי Arx</a><a href="#" class="on" aria-current="page">אימות דו-שלבי</a><a href="#">גישה מרחוק</a></nav>
+
+  <div class="kpis" role="group" aria-label="מצב המשתמשים">
+    <button class="kpi" data-look="all" aria-pressed="false"><span class="dot"></span><span><b>24</b><span class="l">משתמשים עם גישה מבחוץ</span></span></button>
+    <button class="kpi" data-look="ok" aria-pressed="false"><span class="dot"></span><span><b>9</b><span class="l">עם אימות דו-שלבי</span></span></button>
+    <button class="kpi" data-look="warn" aria-pressed="true"><span class="dot"></span><span><b>12</b><span class="l">יידרשו להגדיר</span></span></button>
+    <button class="kpi" data-look="off" aria-pressed="false"><span class="dot"></span><span><b>3</b><span class="l">פטורים (מסכי קיר)</span></span></button>
+  </div>
+
+  <div class="st" data-st="off">
+    <div class="banner" data-look="all"><span class="ic"><svg class="i"><use href="#i-shield"/></svg></span><div class="grow"><b>כרגע: רשות בלבד</b>כל משתמש יכול להגדיר אימות דו-שלבי לעצמו. אף אחד לא מחויב, ואין אישור לפני פעולות רגישות. זו ההתנהגות של היום.</div></div>
+  </div>
+
+  <div class="card">
+    <header><h3>מי חייב אימות דו-שלבי בכניסה מבחוץ<span class="csub">ברשת המקומית לא משתנה דבר. אפשר לקבוע חריגים לאדם או לתפקיד למטה.</span></h3></header>
+    <div class="pol" role="radiogroup" aria-label="מדיניות כניסה">
+      <button class="polo" role="radio" data-pol="optional"><b>רשות</b><span>כל אחד מחליט לעצמו (היום)</span></button>
+      <button class="polo" role="radio" data-pol="admins"><b>מנהלים</b><span>מי שמנהל הגדרות או משתמשים</span></button>
+      <button class="polo" role="radio" data-pol="sensitive"><b>הרשאות רגישות</b><span>מנהלים, נטרול אזעקה, פתיחת דלתות</span><span class="chip rec" data-tone="acc">מומלץ</span></button>
+      <button class="polo" role="radio" data-pol="all"><b>כולם</b><span>כל מי שנכנס מבחוץ</span></button>
+    </div>
+    <div class="preview st" data-st="saving"><svg class="i"><use href="#i-user"/></svg><span>אחרי השמירה: <b>12</b> משתמשים יתבקשו להגדיר בכניסה הבאה מבחוץ · <b>9</b> כבר מוכנים · <b>3</b> פטורים</span><button class="link">הצגת הרשימה</button></div>
+  </div>
+
+  <div class="cols">
+    <div class="card">
+      <header><h3>אישור לפני פעולה רגישה</h3></header>
+      <div class="row"><div class="lbl">לבקש אישור לפני פעולות רגישות<span class="muted">טביעת אצבע, מפתח גישה או קוד - גם אם מישהו השיג את החיבור שלכם</span></div><div class="end"><button class="sw" role="switch" data-sw="stepup" aria-checked="false" aria-label="אישור לפני פעולות רגישות"></button></div></div>
+      <div class="row"><div class="lbl">אילו פעולות<span class="muted">דריכה ושליטה יומיומית לעולם לא דורשות אישור</span></div><div class="end"><div class="seg" role="group" aria-label="אילו פעולות"><button aria-pressed="false">אזעקה</button><button aria-pressed="false">+ דלתות וקודים</button><button aria-pressed="true">+ הגדרות ומשתמשים</button></div></div></div>
+      <div class="row"><div class="lbl">אישור אחד תקף<span class="muted">0 = בכל פעולה מחדש</span></div><div class="end"><select class="sel" aria-label="תוקף אישור"><option>בכל פעולה</option><option selected>5 דקות</option><option>15 דקות</option><option>30 דקות</option></select></div></div>
+      <div class="row"><div class="lbl">גם ברשת המקומית<span class="muted">כבוי: בתוך הבניין לא מבקשים אישור</span></div><div class="end"><button class="sw" role="switch" aria-checked="false" aria-label="גם ברשת המקומית"></button></div></div>
+      <div class="row"><div class="lbl">קוד אזעקה אישי כדרך אישור<span class="muted">רק לפעולות אזעקה, לדפדפן בלי מפתח גישה</span></div><div class="end"><button class="sw" role="switch" aria-checked="true" aria-label="קוד אזעקה כדרך אישור"></button></div></div>
+      <div class="row"><div class="lbl">בטלפון: מה פותח את האישור<span class="muted">החלטת הבעלים: גם קוד המסך של הטלפון</span></div><div class="end"><div class="seg" role="group" aria-label="אישור בטלפון"><button aria-pressed="false">טביעת אצבע/פנים</button><button aria-pressed="true">+ קוד מסך</button></div></div></div>
+    </div>
+
+    <div class="card">
+      <header><h3>כניסה ושחזור</h3></header>
+      <div class="row"><div class="lbl">טוקנים ארוכי-טווח של Home Assistant מבחוץ<span class="muted">טוקן כזה עוקף את האימות הדו-שלבי של המערכת</span></div><div class="end"><select class="sel" aria-label="טוקנים ארוכי טווח"><option>מותר (היום)</option><option selected>אסור למי שחייב אימות</option><option>אסור לכולם</option></select></div></div>
+      <div class="row"><div class="lbl">אימות של Home Assistant נחשב<span class="muted">מי שהגדיר קוד בפרופיל Home Assistant לא יתבקש פעם נוספת</span></div><div class="end"><button class="sw" role="switch" aria-checked="true" aria-label="אימות של Home Assistant נחשב"></button></div></div>
+      <div class="row"><div class="lbl">מפתחות גישה לכל המשתמשים<span class="muted">היום: רק למשתמשי Arx</span></div><div class="end"><button class="sw" role="switch" aria-checked="true" aria-label="מפתחות גישה לכל המשתמשים"></button></div></div>
+      <div class="row"><div class="lbl">קודי שחזור<span class="muted">10 קודים לכל משתמש, כל קוד פעם אחת</span></div><div class="end"><button class="sw" role="switch" aria-checked="true" aria-label="קודי שחזור"></button></div></div>
+      <div class="row"><div class="lbl">איפוס דרכי אימות של משתמש<span class="muted">תמיד עם אישור של המנהל והודעה למשתמש</span></div><div class="end"><div class="seg" role="group" aria-label="איפוס"><button aria-pressed="false">רשת מקומית</button><button aria-pressed="true">מכל מקום</button></div></div></div>
+      <div class="row"><div class="lbl">לזכור דפדפן<span class="muted">רק לכניסה, לעולם לא לפעולות רגישות</span></div><div class="end"><select class="sel" aria-label="לזכור דפדפן"><option selected>לא</option><option>7 ימים</option><option>14 ימים</option><option>30 ימים</option></select></div></div>
+    </div>
+  </div>
+
+  <div class="card flush">
+    <header><h3>חריגים<span class="csub">אדם או תפקיד שמקבלים כלל אחר מהכלל הכללי</span></h3><button class="btn sm"><svg class="i"><use href="#i-plus"/></svg>חריג</button></header>
+    <table class="desk"><thead><tr><th>על מי</th><th>סוג</th><th>כלל</th><th>מצב היום</th><th></th></tr></thead><tbody>
+      <tr><td class="name">מסכי קיר</td><td>תפקיד</td><td><span class="chip" data-tone="off">פטור</span></td><td class="muted">3 מסכים</td><td><button class="btn sm ghost">עריכה</button></td></tr>
+      <tr><td class="name">שומרי לילה</td><td>תפקיד</td><td><span class="chip" data-tone="acc">חובה</span></td><td><span class="chip" data-tone="warn">2 מתוך 4 הגדירו</span></td><td><button class="btn sm ghost">עריכה</button></td></tr>
+      <tr><td class="name">יוסי לוי</td><td>משתמש</td><td><span class="chip">רשות</span></td><td class="muted">אין</td><td><button class="btn sm ghost">עריכה</button></td></tr>
+    </tbody></table>
+    <div class="mcards">
+      <div class="mc"><div class="r"><span class="name">מסכי קיר</span><span class="chip" data-tone="off">פטור</span></div><div class="muted">תפקיד · 3 מסכים</div></div>
+      <div class="mc"><div class="r"><span class="name">שומרי לילה</span><span class="chip" data-tone="acc">חובה</span></div><div class="r"><span class="muted">תפקיד</span><span class="chip" data-tone="warn">2 מתוך 4 הגדירו</span></div></div>
+      <div class="mc"><div class="r"><span class="name">יוסי לוי</span><span class="chip">רשות</span></div><div class="muted">משתמש</div></div>
+    </div>
+  </div>
+
+  <div class="save-bar"><span class="grow">השמירה דורשת אישור שלכם (פעולה רגישה). נרשם ביומן.</span><button class="btn">ביטול</button><button class="btn primary">שמירה</button></div>
+</section>
+
+<!-- ================= 6. user drawer (admin) ================= -->
+<section class="scr" data-s="6" data-states="normal:רגיל,reset:איפוס">
+  <div class="drawer-wrap">
+    <div class="drawer-bg">
+      <div class="crumbs">הגדרות › משתמשים והרשאות</div><h1 style="font-size:var(--sw-fs-2xl)">משתמשים</h1>
+      <div class="card" style="margin-top:12px"><span class="skl" style="width:60%"></span><span class="skl" style="width:80%;margin-top:12px"></span><span class="skl" style="width:50%;margin-top:12px"></span><span class="skl" style="width:70%;margin-top:12px"></span></div>
+    </div>
+    <aside class="drawer" aria-label="פרטי משתמש">
+      <div class="dhead"><span class="avatar">דכ</span><div><div class="name" style="font-size:var(--sw-fs-lg)">דנה כהן</div><div class="muted" style="font-size:var(--sw-fs-xs)">מנהלת בניין · גישה מבחוץ</div></div></div>
+      <nav class="tabs"><a href="#">תפקידים</a><a href="#" class="on">אבטחת חשבון</a><a href="#">חיבורים</a><a href="#">יומן</a></nav>
+      <div class="st" data-st="normal">
+        <div class="row"><div class="lbl">כלל כניסה<span class="muted">מהכלל הכללי: הרשאות רגישות</span></div><div class="end"><select class="sel" aria-label="כלל כניסה"><option selected>לפי הכלל הכללי</option><option>חובה</option><option>רשות</option><option>פטור</option></select></div></div>
+        <div class="row"><div class="lbl">דרכי אימות</div><div class="end"><span class="chip" data-tone="ok">2 מפתחות גישה</span><span class="chip" data-tone="ok">אפליקציה</span></div></div>
+        <div class="row"><div class="lbl">קודי שחזור</div><div class="end"><span class="chip">נותרו 9</span></div></div>
+        <div class="row"><div class="lbl">אימות אחרון<span class="muted">לפני נטרול אזעקה, היום 07:41, טביעת אצבע</span></div><div class="end"></div></div>
+        <div class="row"><div class="lbl">איפוס דרכי אימות<span class="muted">מוחק את כל דרכי האימות והקודים, מנתק את כל החיבורים מבחוץ, ושולח לה הודעה</span></div><div class="end"><button class="btn danger">איפוס…</button></div></div>
+      </div>
+      <div class="st" data-st="reset">
+        <div class="banner" data-look="bad"><span class="ic"><svg class="i"><use href="#i-alert"/></svg></span><div class="grow"><b>איפוס דרכי האימות של דנה כהן</b>2 מפתחות גישה, אישור באפליקציה ו־9 קודי שחזור יימחקו. היא תנותק מכל החיבורים מבחוץ ותתבקש להגדיר מחדש.</div></div>
+        <div class="field"><label for="rs-name">להמשך, הקלידו את השם: דנה כהן</label><input id="rs-name" class="inp" autocomplete="off" style="font-size:var(--sw-fs-md)"></div>
+        <div style="display:flex;gap:8px"><button class="btn danger lg" style="flex:1" disabled>איפוס (ידרוש את האישור שלכם)</button><button class="btn lg ghost">ביטול</button></div>
+        <p class="muted" style="font-size:var(--sw-fs-xs);margin:0">נרשם ביומן. אי אפשר לאפס את עצמכם או את המנהל האחרון.</p>
+      </div>
+    </aside>
+  </div>
+</section>
+
+</main>
+
+<script>
+(() => {
+  const qs = new URLSearchParams(location.search);
+  const stage = document.getElementById('stage');
+  const gS = document.getElementById('g-s');
+  const gSt = document.getElementById('g-st');
+  let screen = qs.get('s') || '1';
+  let state = qs.get('st');
+
+  function states(sec) { return sec.dataset.states.split(',').map(p => p.split(':')); }
+
+  function render() {
+    document.querySelectorAll('.scr').forEach(s => s.classList.toggle('on', s.dataset.s === screen));
+    gS.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.s === screen)));
+    const sec = document.querySelector(`.scr[data-s="${screen}"]`);
+    const list = states(sec);
+    if (!list.some(([k]) => k === state)) state = list[0][0];
+    gSt.innerHTML = '';
+    list.forEach(([k, label]) => {
+      const b = document.createElement('button');
+      b.textContent = label; b.setAttribute('aria-pressed', String(k === state));
+      b.onclick = () => { state = k; render(); };
+      gSt.appendChild(b);
+    });
+    sec.querySelectorAll('.st').forEach(el => el.classList.toggle('on', el.dataset.st.split(' ').includes(state)));
+    // state-driven details
+    const wrong = sec.querySelector('#su-code');
+    if (wrong) { wrong.value = state === 'wrong' ? wrong.dataset.wrongValue : ''; wrong.setAttribute('aria-invalid', String(state === 'wrong')); }
+    const pol = state === 'off' ? 'optional' : 'sensitive';
+    sec.querySelectorAll('.polo').forEach(p => p.setAttribute('aria-pressed', String(p.dataset.pol === pol)));
+    const su = sec.querySelector('[data-sw="stepup"]'); if (su) su.setAttribute('aria-checked', String(state !== 'off'));
+  }
+
+  gS.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; screen = b.dataset.s; state = null; render(); });
+  const bp = document.getElementById('b-phone'), bt = document.getElementById('b-theme');
+  function setPhone(on) { stage.classList.toggle('phone', on); bp.setAttribute('aria-pressed', String(on)); }
+  function setDark(on) { document.documentElement.dataset.theme = on ? 'dark' : 'light'; bt.setAttribute('aria-pressed', String(on)); }
+  bp.onclick = () => setPhone(!stage.classList.contains('phone'));
+  bt.onclick = () => setDark(document.documentElement.dataset.theme !== 'dark');
+  setPhone(qs.get('w') === 'phone'); setDark(qs.get('theme') === 'dark');
+  // interactive bits that a reviewer may press
+  document.addEventListener('click', e => {
+    const sw = e.target.closest('.sw'); if (sw) sw.setAttribute('aria-checked', String(sw.getAttribute('aria-checked') !== 'true'));
+    const sb = e.target.closest('.seg button'); if (sb) sb.parentElement.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === sb)));
+    const po = e.target.closest('.polo'); if (po) po.parentElement.querySelectorAll('.polo').forEach(x => x.setAttribute('aria-pressed', String(x === po)));
+  });
+  document.querySelectorAll('.check input').forEach(c => c.addEventListener('change', () => {
+    const fin = c.closest('.card')?.querySelector('.sticky-act .btn'); if (fin) fin.disabled = !c.checked;
+  }));
+  const rn = document.getElementById('rs-name');
+  if (rn) rn.addEventListener('input', () => { rn.closest('.st').querySelector('.btn.danger').disabled = rn.value.trim() !== 'דנה כהן'; });
+  render();
+})();
+</script>
+</body>
+</html>
