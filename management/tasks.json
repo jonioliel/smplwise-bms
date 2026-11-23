@@ -321,7 +321,8 @@
       "2026-11-07 (BOARD-DECISIONS-2407): dependencies T003 removed (owner decision 2026-11-07, relayed by the lead; no written answers file). Both are OBSOLETE (owner exclusion 2026-09-22, marked 2026-11-05 in BOARD-RULE-2404); the legacy comparison they stood for is done in the lab session now. Dependencies now: none. Status BACKLOG unchanged; acceptance tests unchanged.",
       "2026-11-09 (TASKS-SYNC-2412): no commit since 2026-11-07 closes the card. Open and owner-gated: the playback / seek lab measurement LAB-T006-01 (scripts/lab/t006_seek_plan.json, docs/changes/T070-T006-2406.md section 4) is run by the owner or with his approval on the lab. Status kept BACKLOG.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): go2rtc PUT/DELETE persistence and RTSP playback via go2rtc proven on the lab NVR (ADR-013, services/playback.py, 0.1.3). Missing: the PTS / media-anchor and seek-latency measurement LAB-T006-01 (scripts/lab/t006_seek_plan.json, docs/changes/T070-T006-2406.md s.4), an owner-gated lab run. Root of the pinned T0xx chain. Open acceptance item: lab PTS / media-anchor and seek-latency measurement LAB-T006-01 (scripts/lab/t006_seek_plan.json, owner-gated); AT011/AT012 stay NOT_RUN.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class C; AT011 NOT_RUN (class C); AT012 NOT_RUN (class C)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class C; AT011 NOT_RUN (class C); AT012 NOT_RUN (class C)",
+      "2026-11-23 (LAB-ACCEPT-2311 phase 2): lab write tests run with rollback - AT011 PASS @619f94d04, AT012 NOT_RUN; stays REVIEW (AT012 not PASS at an accepted commit)."
     ],
     "owner": null,
     "commit": null,
@@ -1613,7 +1614,8 @@
       "pre-evidence (segment 4, 2026-09-15): playback groups (routers/playback_groups.py) - one reference time + generation for up to 4 cameras, per-camera sessions created in parallel, members without a recording reported as missing (gap tolerance 60 s), group seek/close, sync labelled best_effort (no verified PTS-UTC anchor); UI shows per-tile drift against the leading camera",
       "commit cf3c596c1 (release 0.1.3, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): implemented. first implementation commit naming this card on origin/main (2026-09-14: \"Recordings search, TimeAdapter and playback sessions with seek (T014/T027/T028/T029 pre-evidence)\"); the existing pre-evidence lines describe the scope.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): services/playback.py + routers/playback.py: generation-based seek, sessions, janitor (0.1.3); precision keyframe_limited labelled. Media-anchor proof is T006.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class D; dependency not DONE: T006, T014, T016, T027; AT055 PASS (class C); AT056 NOT_RUN (class D)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class D; dependency not DONE: T006, T014, T016, T027; AT055 PASS (class C); AT056 NOT_RUN (class D)",
+      "2026-11-23 (LAB-ACCEPT-2311 phase 2): lab write tests run with rollback - AT055 PASS @619f94d04, AT056 NOT_RUN; stays REVIEW (dependency not DONE: T006, T014, T016, T027; AT056 not PASS at an accepted commit)."
     ],
     "owner": null,
     "commit": "cf3c596c1",
@@ -2767,7 +2769,8 @@
       "lab (2026-09-15): the NVR returns Hikvision PS (IMKH header + MPEG-PS, H.264 + G.711u) at ~0.45 MB/s; ffmpeg (added to the image) remuxes to MP4 (video copy, AAC 8 kHz), concatenates and trims at key frames; a 40 s clip from a 54 MB file: done in 141 s, MP4 40.1 s / 10 MB, sha256 in the manifest, requested vs actual recorded; 5 export tests incl. a synthetic-PS end-to-end run with ffmpeg",
       "commit 14c24622a (release 0.1.3, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): implemented. first implementation commit naming this card on origin/main (2026-09-15: \"Export jobs (download by file + ffmpeg remux), playback groups, timeline zoom (T048/T029/T028 pre-evidence)\"); the existing pre-evidence lines describe the scope.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): services/exports.py durable export_jobs, ffmpeg remux, cancel, disk-full pause (14c24622a, 0.1.3 + 0.1.132).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class C; dependency not DONE: T027, T028, T011; AT095 NOT_RUN (class C)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class C; dependency not DONE: T027, T028, T011; AT095 NOT_RUN (class C)",
+      "2026-11-23 (LAB-ACCEPT-2311 phase 2): lab write tests run with rollback - AT095 PASS @619f94d04, AT096 PASS @619f94d04; stays REVIEW (dependency not DONE: T027, T028, T011)."
     ],
     "owner": null,
     "commit": "14c24622a",

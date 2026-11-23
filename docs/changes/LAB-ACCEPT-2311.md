@@ -53,9 +53,21 @@ A card's class is what it still needs to close: one D test makes the card D even
 
 ## Phase 2 (C) and D
 
-C (playback session + seek + close, go2rtc create / update / delete of `smplwise_acc2311_test`, a 30 s export job) waits for the
-lead's 2.48.0 install and probe; script `private-evidence/lab-1611/acceptance-2311/ccheck.py`, one step per run, go2rtc
-snapshot before / after. The D asks are on the owner page `private/planning/lab_acceptance_plan_2026-11-23.html`.
+Phase 2 ran on 23.11 while the lab was on 2.47.0 and no 2.48.0 install was under way (the 2.48.0 gate was red). Scripts
+`ccheck.py` / `ccancel.py` in `private-evidence/lab-1611/acceptance-2311/`, one step per run, go2rtc snapshot before / after,
+each step rolled back; the 34 foreign streams were identical before and after every step.
+
+| Step | Result | Rollback |
+|---|---|---|
+| playback: session at a known instant, media, seek (generation 0 -> 1, old handle superseded), close | AT011 PASS, AT055 PASS | session closed, no `smplwise_pb_` stream left |
+| go2rtc test stream `smplwise_acc2311_test`: create (PATCH; PUT refuses a stream-name source), consume, update, delete | create / consume / delete OK; AT012 stays NOT_RUN (the go2rtc restart part is an owner step) | stream deleted, list identical |
+| export: 30 s job queued -> done with manifest; a 2 h job cancelled | AT095 PASS (with `test_exports.py` partial / cancel at 619f94d04) | both jobs deleted (404) |
+
+Incident: in the first playback attempt the script crashed in its own log redaction right after the session was created; the
+session was closed at once by hand (one open session, `codex`, 13 s -> closed; no playback stream left; go2rtc total unchanged),
+recorded in `c_incident_playback_attempt1.txt`. No card flips from phase 2 (T006, T028, T048 keep other open tests or dependencies).
+
+The D asks are on the owner page `private/planning/lab_acceptance_plan_2026-11-23.html`.
 
 ## Rollback
 

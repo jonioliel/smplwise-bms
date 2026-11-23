@@ -315,12 +315,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "להוכיח מול NVR אמיתי שזמן בקשה ידוע מוביל להקלטה ולפריים הנכונים; למדוד keyframe offset ומיפוי PTS לזמן המקור.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class C - lab write test: planned in phase 2 (one action, rollback recorded)"
+    "status": "PASS",
+    "commit": "619f94d04",
+    "environment": "Lab installation running v2.47.0 (built by its own Supervisor from tag v2.47.0 = 619f94d04 code); phase-2 lab write tests run from the runner (HA WebSocket supervisor/api + an ingress session of the admin service user), one action per step, go2rtc snapshot before / after, every step rolled back; only the smplwise_ namespace touched (34 foreign streams identical before and after), no restart, 2026-11-23",
+    "evidence": "LAB-ACCEPT-2311 phase 2: Lab: a playback session at a known instant of a real recording (requested_at 2026-11-23T20:28:06Z inside a motion segment) answers 201 with requested_at kept, time_precision keyframe_limited (no invented anchor), media init 171 ms + 5 fragments from the recorder; the frame check B08 measured the frame instant 4.0 s from the asked time (X-Frame-At). Session closed, smplwise_pb_ stream removed. Evidence private-evidence/lab-1611/acceptance-2311/c_playback.json, bcheck_b2.json (B08).",
+    "executed_at": "2026-11-23",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class C - lab write test: planned in phase 2 (one action, rollback recorded) | 2026-11-23 (LAB-ACCEPT-2311 phase 2): RUN on the lab (one write step with rollback); PASS."
   },
   {
     "id": "AT012",
@@ -348,7 +348,7 @@
     "environment": null,
     "evidence": [],
     "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class C - lab write test: planned in phase 2 (one action, rollback recorded)"
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class C - lab write test: planned in phase 2 (one action, rollback recorded) | 2026-11-23 (LAB-ACCEPT-2311 phase 2): Lab (phase 2): a test stream smplwise_acc2311_test was created (PATCH; PUT refuses a stream-name source), consumed (331 fragments), deleted; go2rtc list identical before / after, foreign streams untouched (private-evidence/lab-1611/acceptance-2311/c_g2crud.json). Persistence across a go2rtc restart is NOT run: go2rtc is shared with the intercom project - owner step (class D). Stays NOT_RUN."
   },
   {
     "id": "AT013",
@@ -1548,11 +1548,11 @@
     ],
     "expected": "ליישם lifecycle עם requested_at, actual_start/media anchor, generation ו־state; seek מאוחר מבטל תוצאת seek ישנה.",
     "status": "PASS",
-    "commit": "eab715e53",
-    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
-    "evidence": "CATALOG-SWEEP-A-2406 receipts (docs/changes/receipts/CATALOG-SWEEP-A-2406.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_recordings.py::test_playback_session_lifecycle; smplwise_vms/backend/tests/test_playback_race.py::test_seek_does_not_resurrect_a_session_closed_meanwhile; smplwise_vms/backend/tests/test_playback_scrub_2341.py::test_two_seeks_of_one_session_never_overlap; smplwise_vms/backend/tests/test_playback_scrub_2341.py::test_seek_over_the_cap_keeps_the_current_generation. requested_at, media_anchor/time_precision, generation and state are asserted; a seek bumps the generation and a stale-generation socket is refused; overlapping seeks never race.",
-    "executed_at": "2026-11-06",
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-A-2406; nothing run against the lab. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class C - lab write test: planned in phase 2 (one action, rollback recorded)"
+    "commit": "619f94d04",
+    "environment": "Lab installation running v2.47.0 (built by its own Supervisor from tag v2.47.0 = 619f94d04 code); phase-2 lab write tests run from the runner (HA WebSocket supervisor/api + an ingress session of the admin service user), one action per step, go2rtc snapshot before / after, every step rolled back; only the smplwise_ namespace touched (34 foreign streams identical before and after), no restart, 2026-11-23",
+    "evidence": "LAB-ACCEPT-2311 phase 2: Lab: seek on the open session -> generation 0 -> 1; the old generation handle is refused (\"replaced / superseded\", no fragment), the new one streams (init 106 ms, 5 fragments); close 200, no playback stream left. Evidence private-evidence/lab-1611/acceptance-2311/c_playback.json.",
+    "executed_at": "2026-11-23",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-A-2406; nothing run against the lab. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class C - lab write test: planned in phase 2 (one action, rollback recorded) | 2026-11-23 (LAB-ACCEPT-2311 phase 2): RUN on the lab (one write step with rollback); PASS."
   },
   {
     "id": "AT056",
@@ -2667,12 +2667,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לייצא בטווח מוגדר באמצעות endpoint/שיטה שאומתו מול ה־NVR, עם queue, progress, retries בטוחים, cancel ו־partial states.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class C - lab write test: planned in phase 2 (one action, rollback recorded)"
+    "status": "PASS",
+    "commit": "619f94d04",
+    "environment": "Lab installation running v2.47.0 (built by its own Supervisor from tag v2.47.0 = 619f94d04 code); phase-2 lab write tests run from the runner (HA WebSocket supervisor/api + an ingress session of the admin service user), one action per step, go2rtc snapshot before / after, every step rolled back; only the smplwise_ namespace touched (34 foreign streams identical before and after), no restart, 2026-11-23",
+    "evidence": "LAB-ACCEPT-2311 phase 2: Lab: export of 30 s of a real recording: estimate (coverage complete, 1 file), job queued -> running -> done with requested = actual range, manifest (source, timezone, remux, pipeline_version); a 2 h export cancelled at once -> cancelled (\"cancelled by the user\"); both jobs deleted (404 after). Partial / cancel paths also by tests/test_exports.py::test_export_partial_and_cancel PASS at 619f94d04 (runner). Evidence private-evidence/lab-1611/acceptance-2311/c_export.json, c_export_cancel.json.",
+    "executed_at": "2026-11-23",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class C - lab write test: planned in phase 2 (one action, rollback recorded) | 2026-11-23 (LAB-ACCEPT-2311 phase 2): RUN on the lab (one write step with rollback); PASS."
   },
   {
     "id": "AT096",

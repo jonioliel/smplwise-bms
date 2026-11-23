@@ -34,12 +34,12 @@
   "card": "T006",
   "class": "C",
   "card_class": "C",
-  "status": "NOT_RUN",
-  "commit": null,
+  "status": "PASS",
+  "commit": "619f94d04",
   "tests": [],
   "lab_checks": [],
-  "evidence": null,
-  "note": "Lab write test (class C) planned for phase 2: "
+  "evidence": "LAB-ACCEPT-2311 phase 2: Lab: a playback session at a known instant of a real recording (requested_at 2026-11-23T20:28:06Z inside a motion segment) answers 201 with requested_at kept, time_precision keyframe_limited (no invented anchor), media init 171 ms + 5 fragments from the recorder; the frame check B08 measured the frame instant 4.0 s from the asked time (X-Frame-At). Session closed, smplwise_pb_ stream removed. Evidence private-evidence/lab-1611/acceptance-2311/c_playback.json, bcheck_b2.json (B08).",
+  "note": "phase 2 lab write test with rollback"
  },
  {
   "id": "AT012",
@@ -51,7 +51,7 @@
   "tests": [],
   "lab_checks": [],
   "evidence": null,
-  "note": "Lab write test (class C) planned for phase 2: "
+  "note": "Lab (phase 2): a test stream smplwise_acc2311_test was created (PATCH; PUT refuses a stream-name source), consumed (331 fragments), deleted; go2rtc list identical before / after, foreign streams untouched (private-evidence/lab-1611/acceptance-2311/c_g2crud.json). Persistence across a go2rtc restart is NOT run: go2rtc is shared with the intercom project - owner step (class D). Stays NOT_RUN."
  },
  {
   "id": "AT013",
@@ -646,11 +646,11 @@
   "class": "C",
   "card_class": "D",
   "status": "PASS",
-  "commit": "eab715e53",
+  "commit": "619f94d04",
   "tests": [],
   "lab_checks": [],
-  "evidence": null,
-  "note": "Lab write test (class C) planned for phase 2: "
+  "evidence": "LAB-ACCEPT-2311 phase 2: Lab: seek on the open session -> generation 0 -> 1; the old generation handle is refused (\"replaced / superseded\", no fragment), the new one streams (init 106 ms, 5 fragments); close 200, no playback stream left. Evidence private-evidence/lab-1611/acceptance-2311/c_playback.json.",
+  "note": "phase 2 lab write test with rollback"
  },
  {
   "id": "AT056",
@@ -1119,12 +1119,12 @@
   "card": "T048",
   "class": "C",
   "card_class": "C",
-  "status": "NOT_RUN",
-  "commit": null,
+  "status": "PASS",
+  "commit": "619f94d04",
   "tests": [],
   "lab_checks": [],
-  "evidence": null,
-  "note": "Lab write test (class C) planned for phase 2: "
+  "evidence": "LAB-ACCEPT-2311 phase 2: Lab: export of 30 s of a real recording: estimate (coverage complete, 1 file), job queued -> running -> done with requested = actual range, manifest (source, timezone, remux, pipeline_version); a 2 h export cancelled at once -> cancelled (\"cancelled by the user\"); both jobs deleted (404 after). Partial / cancel paths also by tests/test_exports.py::test_export_partial_and_cancel PASS at 619f94d04 (runner). Evidence private-evidence/lab-1611/acceptance-2311/c_export.json, c_export_cancel.json.",
+  "note": "phase 2 lab write test with rollback"
  },
  {
   "id": "AT096",
