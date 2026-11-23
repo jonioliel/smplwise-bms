@@ -24,6 +24,7 @@ from ..recorder_scope import PRIMARY, camera_settings, settings_for
 from ._common import raw_body as _raw_body, rid as _rid
 from .recorders import recorder_settings
 from ..services import camera_reboot, nvr, nvr_schedule, nvr_settings, nvr_system, nvr_write, nvr_write_guard
+from ..services import default_names as dn
 from ..services import nvr_write_store as store
 from ..services.access import require_camera
 from ..services.timeutil import zone
@@ -459,7 +460,7 @@ class NameIn(BaseModel):
 def write_channel_name(camera_id: str, body: NameIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "nvr.config.osd", INSTALLATION)
     cam, ch = _channel_of(conn, camera_id, principal, "nvr.config.osd")
-    name = (body.name or cam["alias"] or cam["name_source"] or f"ערוץ {ch}")[:32]
+    name = (body.name or cam["alias"] or cam["name_source"] or dn.name("nvr.channel", dn.lang_of(conn, principal), n=ch))[:32]  # I18N-EN-2490 (owner N53)
     _guard(camera_settings(settings_of(request), cam), conn, principal, "osd", request, f"name-{ch}")
     with unlocked(conn):
         rec = nvr_system.set_channel_name(camera_settings(settings_of(request), cam), conn, principal, ch, name, request_id=_rid(request))

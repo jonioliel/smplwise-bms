@@ -29,7 +29,8 @@ from typing import Any, Mapping
 from ...audit import audit
 from ...db import new_id
 from ...errors import ApiError
-from . import access, create, intake_rules as rules, model, settings_doc, store
+from .. import default_names
+from . import access, create, intake_rules as rules, model, naming, settings_doc, store
 from .access import Viewer, text
 from .channel import keyed_hash
 from .text_hygiene import clean_text
@@ -536,6 +537,13 @@ def _final_values(conn: sqlite3.Connection, r: Mapping[str, Any]) -> dict[str, A
     }
 
 
+def _default_title(conn: sqlite3.Connection, viewer: Viewer, key: str, **values: Any) -> str:
+    """I18N-EN-2490 (owner N53): the title of a request approved without a subject, in the approver's interface language; the English
+    names the module by its own English name (naming.py tokens rendered first, then the values - a value is never read as a token)."""
+    lang = default_names.lang_of(conn, viewer.principal)
+    return default_names.fill(naming.render_for(conn, default_names.template(key, lang), lang), **values)
+
+
 def approve(conn: sqlite3.Connection, viewer: Viewer, draft_id: str, revision: int, rid: str | None = None, rt: Any | None = None) -> dict[str, Any]:
     """The draft becomes ONE ordinary request through the module's one creation path, as the approver (origin `inbound`). The approver
     needs tickets.create where the ticket lies (create_ticket checks). The request carries a 'needs review' note; nothing is assigned
@@ -545,7 +553,7 @@ def approve(conn: sqlite3.Connection, viewer: Viewer, draft_id: str, revision: i
     v = _final_values(conn, r)
     if not v["department_id"]:
         raise _invalid(conn, "department_id", "required")
-    title = v["title"] or (v["place_other"] and f"פנייה - {v['place_other']}") or "פנייה ללא נושא"
+    title = v["title"] or (v["place_other"] and _default_title(conn, viewer, "ticket.from_place", place=v["place_other"])) or _default_title(conn, viewer, "ticket.no_subject")
     try:
         spec = create.TicketSpec(department_id=v["department_id"], title=title, description=v["description"], category_id=v["category_id"],
                                  priority_key=v["priority_key"], origin="inbound", location_id=v["location_id"], place_other=v["place_other"])

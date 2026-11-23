@@ -207,7 +207,7 @@ export const en = {
   'בדרך כלל 5 עד 20 שניות': 'Usually 5 to 20 seconds',
   'מה שלא תבדוק: "לבדיקה" ייכנס כמו שזוהה, "בספק" לא ייכנס': 'What you do not review: "To review" goes in as detected, "In doubt" does not',
   'מה שלא תבדוק לא ייכנס לתוכנית': 'What you do not review does not go into the plan',
-  'חדר בלי שם יקבל "חדר 7", ואפשר לשנות אחר כך': 'A room without a name gets "חדר 7", and it can be changed later',
+  'חדר בלי שם יקבל "חדר 7", ואפשר לשנות אחר כך': 'A room without a name gets "Room 7", and it can be changed later', // I18N-EN-2490 (owner N53): the server names it in the user's language
   'התצוגה מתעדכנת מיד כשבוחרים ערכה': 'The view updates as soon as a kit is chosen',
   'אפשר לדלג ולהציב התקנים אחר כך מהמפה': 'You can skip this and place devices later from the map',
   'אפשר לחזור ולתקן כל שלב': 'You can go back and correct any step',

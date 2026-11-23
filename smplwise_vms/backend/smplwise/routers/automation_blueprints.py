@@ -26,6 +26,7 @@ from ..services import automation_blueprints_store as store
 from ..services import automation_model as model
 from ..services import automation_ops as ops
 from ..services import automation_scope as scope
+from ..services import default_names
 from ..services import door_path
 from . import automations as base
 
@@ -103,7 +104,7 @@ def _expand(w: ops.W, bp: dict[str, Any], params: dict[str, Any], name: str | No
     values, problems = bps.resolve_params(bp, params, env)
     if problems:
         raise _problems(problems)
-    config = bps.build_config(bp, values, name)
+    config = bps.build_config(bp, values, name, lang=default_names.lang_of(w.conn, w.principal))  # I18N-EN-2490 (owner N53)
     forbidden = bps.check_config(config, env, env.notify_targets)
     if forbidden:
         raise _problems(forbidden)

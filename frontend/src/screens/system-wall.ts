@@ -41,21 +41,22 @@ import { PollController } from '../components/poll-controller';
 import { dateInputLang } from '../api/day-format';
 import { tr } from '../i18n/msg/time'; // CR-I18N-DATES-2442: the relative-time and weekday words
 import { srOnlyStyles } from '../styles/fragments';
+import { tr as trMsg } from '../i18n/msg/system-b';
 
 type CamLite = { id: string; name: string };
 type FloorLite = { id: string; name: string };
 const DAYS = [tr('א׳'), tr('ב׳'), tr('ג׳'), tr('ד׳'), tr('ה׳'), tr('ו׳'), tr('ש׳')];
 const STRIP_CHIPS: { id: string; label: string }[] = [
-  { id: 'clock', label: 'שעון' },
-  { id: 'date', label: 'תאריך' },
-  { id: 'health', label: 'מצב המערכת' },
+  { id: 'clock', label: trMsg('שעון') },
+  { id: 'date', label: trMsg('תאריך') },
+  { id: 'health', label: trMsg('מצב המערכת') },
 ];
 const ALERT_CATEGORIES: { id: string; label: string }[] = [
-  { id: 'safety', label: 'בטיחות' },
-  { id: 'alerts', label: 'התראות חוקים' },
-  { id: 'doors', label: 'דלתות' },
-  { id: 'device_faults', label: 'תקלות התקנים' },
-  { id: 'security', label: 'אבטחה' },
+  { id: 'safety', label: trMsg('בטיחות') },
+  { id: 'alerts', label: trMsg('התראות חוקים') },
+  { id: 'doors', label: trMsg('דלתות') },
+  { id: 'device_faults', label: trMsg('תקלות התקנים') },
+  { id: 'security', label: trMsg('אבטחה') },
 ];
 const POLL_MS = 15_000;
 
@@ -273,10 +274,10 @@ export class SystemWall extends LitElement {
   private renderGeneral() {
     return html`<sw-card class="general" data-wall-general>
       <div class="line">
-        <span>טלפון מתקפל פתוח</span>
-        <sw-field><select aria-label="טלפון מתקפל פתוח" data-wall-foldable ?disabled=${this.foldableBusy} @change=${(e: Event) => void this.setFoldable((e.target as HTMLSelectElement).value === 'phone' ? 'phone' : 'tablet')}>
-          <option value="tablet" ?selected=${this.foldable === 'tablet'}>כמו טאבלט (מסך קיר)</option>
-          <option value="phone" ?selected=${this.foldable === 'phone'}>כמו טלפון (המערכת הרגילה)</option>
+        <span>${trMsg('טלפון מתקפל פתוח')}</span>
+        <sw-field><select aria-label=${trMsg('טלפון מתקפל פתוח')} data-wall-foldable ?disabled=${this.foldableBusy} @change=${(e: Event) => void this.setFoldable((e.target as HTMLSelectElement).value === 'phone' ? 'phone' : 'tablet')}>
+          <option value="tablet" ?selected=${this.foldable === 'tablet'}>${trMsg('כמו טאבלט (מסך קיר)')}</option>
+          <option value="phone" ?selected=${this.foldable === 'phone'}>${trMsg('כמו טלפון (המערכת הרגילה)')}</option>
         </select></sw-field>
       </div>
     </sw-card>`;
@@ -323,20 +324,20 @@ export class SystemWall extends LitElement {
 
   private cams(p: WallProfile): string {
     const names = p.camera_names;
-    if (!names.length) return p.config.scope === 'floor' ? 'כל הקומה' : '0';
+    if (!names.length) return p.config.scope === 'floor' ? trMsg('כל הקומה') : '0';
     return `${names.length} · ${names.slice(0, 2).join(', ')}`;
   }
 
   private actions(p: WallProfile) {
     return html`<span class="acts">
-      <sw-button size="sm" icon="edit" data-wall-edit=${p.user_id} @click=${() => void this.openDrawer(p)}>עריכה</sw-button>
-      <sw-button size="sm" variant="ghost" data-wall-toggle=${p.user_id} @click=${() => void this.toggleEnabled(p)}>${p.enabled ? 'השבתה' : 'הפעלה'}</sw-button>
-      <sw-button size="sm" variant="ghost" icon="trash" data-wall-remove=${p.user_id} @click=${() => (this.removing = p)}>הסרה</sw-button>
+      <sw-button size="sm" icon="edit" data-wall-edit=${p.user_id} @click=${() => void this.openDrawer(p)}>${trMsg('עריכה')}</sw-button>
+      <sw-button size="sm" variant="ghost" data-wall-toggle=${p.user_id} @click=${() => void this.toggleEnabled(p)}>${p.enabled ? trMsg('השבתה') : trMsg('הפעלה')}</sw-button>
+      <sw-button size="sm" variant="ghost" icon="trash" data-wall-remove=${p.user_id} @click=${() => (this.removing = p)}>${trMsg('הסרה')}</sw-button>
     </span>`;
   }
 
   private seen(p: WallProfile) {
-    return html`<span class="seen"><span class="num">${this.rel(p.last_seen_at)}</span>${p.last_channel === 'remote' ? html`<sw-badge kind="neutral" label="מרחוק"></sw-badge>` : nothing}</span>`;
+    return html`<span class="seen"><span class="num">${this.rel(p.last_seen_at)}</span>${p.last_channel === 'remote' ? html`<sw-badge kind="neutral" label=${trMsg('מרחוק')}></sw-badge>` : nothing}</span>`;
   }
 
   private renderList() {
@@ -344,26 +345,26 @@ export class SystemWall extends LitElement {
     if (!rows.length) {
       // LOOK-POLISH-2331: the empty state carries the first step itself (the toolbar button stays for the full list)
       // (the state panel is its own hero card since R5-SYSTEM-297: no sw-card around it, or the card would sit in a card)
-      return html`<sw-state-panel icon="grid" data-wall-empty state="empty" heading="אין מסכי קיר" hint="משתמש מסך קיר הוא משתמש רגיל שמתחבר מטאבלט קבוע ורואה רק את המצלמות שנבחרו."
-        actionLabel=${this.max > 0 ? 'הוספת משתמש מסך' : ''} @action=${() => void this.openAdd()}></sw-state-panel>`;
+      return html`<sw-state-panel icon="grid" data-wall-empty state="empty" heading=${trMsg('אין מסכי קיר')} hint=${trMsg('משתמש מסך קיר הוא משתמש רגיל שמתחבר מטאבלט קבוע ורואה רק את המצלמות שנבחרו.')}
+        actionLabel=${this.max > 0 ? trMsg('הוספת משתמש מסך') : ''} @action=${() => void this.openAdd()}></sw-state-panel>`;
     }
-    const overload = (p: WallProfile) => (p.config.cameras.length > MAX_PER_PAGE ? html`<div class="warn"><sw-icon name="warning" size=${14}></sw-icon>מעל ${MAX_PER_PAGE} זרמים - בדוק שהמקליט עומד בעומס</div>` : nothing);
+    const overload = (p: WallProfile) => (p.config.cameras.length > MAX_PER_PAGE ? html`<div class="warn"><sw-icon name="warning" size=${14}></sw-icon>${trMsg('מעל {MAX_PER_PAGE} זרמים - בדוק שהמקליט עומד בעומס', { MAX_PER_PAGE })}</div>` : nothing);
     // CR-CMP2-TABLES-REST-2470 (owner N10): the wall users on the shared table - the title over the user name (an LTR isolate), the
     // state badge, when last seen (+ "remote"), the cameras (+ the overload warning), the alerts, the row's three keys at the reading end
     const cols: TableColumn<WallProfile>[] = [
-      { key: 'title', label: 'משתמש', render: (p) => html`<span class="t1">${p.title}</span><span class="t2"><bdi dir="ltr">${p.username}</bdi></span>` },
-      { key: 'status', label: 'מצב', kind: 'status', render: (p) => this.statusBadge(p) },
-      { key: 'seen', label: 'נראה לאחרונה', render: (p) => html`${this.rel(p.last_seen_at)}${p.last_channel === 'remote' ? html` <sw-badge kind="neutral" label="מרחוק"></sw-badge>` : nothing}` },
-      { key: 'cams', label: 'מצלמות', render: (p) => html`${this.cams(p)}${p.config.cameras.length > MAX_PER_PAGE ? html`<span class="t2" part="warn"><sw-icon name="warning" size=${14}></sw-icon>מעל ${MAX_PER_PAGE} זרמים - בדוק שהמקליט עומד בעומס</span>` : nothing}` },
-      { key: 'alerts', label: 'התראות', render: (p) => (p.config.alerts.enabled ? 'פעילות' : html`<span class="mut">כבויות</span>`) },
-      { key: 'acts', label: 'פעולות', kind: 'actions', render: (p) => this.actions(p) },
+      { key: 'title', label: trMsg('משתמש'), render: (p) => html`<span class="t1">${p.title}</span><span class="t2"><bdi dir="ltr">${p.username}</bdi></span>` },
+      { key: 'status', label: trMsg('מצב'), kind: 'status', render: (p) => this.statusBadge(p) },
+      { key: 'seen', label: trMsg('נראה לאחרונה'), render: (p) => html`${this.rel(p.last_seen_at)}${p.last_channel === 'remote' ? html` <sw-badge kind="neutral" label=${trMsg('מרחוק')}></sw-badge>` : nothing}` },
+      { key: 'cams', label: trMsg('מצלמות'), render: (p) => html`${this.cams(p)}${p.config.cameras.length > MAX_PER_PAGE ? html`<span class="t2" part="warn"><sw-icon name="warning" size=${14}></sw-icon>${trMsg('מעל {MAX_PER_PAGE} זרמים - בדוק שהמקליט עומד בעומס', { MAX_PER_PAGE })}</span>` : nothing}` },
+      { key: 'alerts', label: trMsg('התראות'), render: (p) => (p.config.alerts.enabled ? trMsg('פעילות') : html`<span class="mut">${trMsg('כבויות')}</span>`) },
+      { key: 'acts', label: trMsg('פעולות'), kind: 'actions', render: (p) => this.actions(p) },
     ];
     if (!this.phone) return html`<sw-card flush class="table-card"><sw-table bare static-rows data-wall-table rowKey="user_id" .columns=${cols as unknown as TableColumn[]} .rows=${rows as unknown as Record<string, unknown>[]}
         .rowAttrs=${(p: Record<string, unknown>) => ({ 'data-wall-row': String(p.user_id) })}></sw-table></sw-card>`;
     return html`<div class="cards">${rows.map(
         (p) => html`<sw-card class="card" data-wall-card=${p.user_id}>
           <div class="row"><span class="who"><b>${p.title}</b><span>${p.username}</span></span>${this.statusBadge(p)}</div>
-          <div class="row"><span class="muted">${this.seen(p)}</span><span class="muted num">מצלמות: ${this.cams(p)}</span></div>
+          <div class="row"><span class="muted">${this.seen(p)}</span><span class="muted num">${trMsg('מצלמות: {cams}', { cams: this.cams(p) })}</span></div>
           ${overload(p)}
           ${this.actions(p)}
         </sw-card>`,
@@ -375,17 +376,17 @@ export class SystemWall extends LitElement {
     if (!this.adding) return nothing;
     const q = this.query.trim().toLowerCase();
     const users = this.candidates.filter((u) => !q || `${u.display_name} ${u.username}`.toLowerCase().includes(q));
-    return html`<sw-dialog open heading="הוספת משתמש מסך" data-wall-add @close=${() => (this.adding = false)}>
+    return html`<sw-dialog open heading=${trMsg('הוספת משתמש מסך')} data-wall-add @close=${() => (this.adding = false)}>
       <div class="sec">
         ${this.candidates.length
-          ? html`<sw-field label="משתמש"><input type="search" placeholder="חיפוש" aria-label="חיפוש משתמש" .value=${this.query} @input=${(e: Event) => (this.query = (e.target as HTMLInputElement).value)} /></sw-field>
-              <sw-field label="בחירת משתמש"><select data-wall-pick size="5" aria-label="משתמש" @change=${(e: Event) => (this.pick = (e.target as HTMLSelectElement).value)}>${users.map((u) => html`<option value=${u.id} ?selected=${u.id === this.pick}>${u.display_name} (${u.username})</option>`)}</select></sw-field>`
-          : html`<p class="muted">אין משתמשים פנויים. משתמש נוצר בתשתית המערכת.</p>`}
-        <sw-field label="כותרת המסך"><input type="text" maxlength="40" data-wall-title aria-label="כותרת" .value=${this.addTitle} @input=${(e: Event) => (this.addTitle = (e.target as HTMLInputElement).value)} /></sw-field>
-        <sw-field label="מקום"><select data-wall-floor aria-label="מקום" @change=${(e: Event) => (this.addFloor = (e.target as HTMLSelectElement).value)}><option value="">מצלמות נבחרות בלבד</option>${this.floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.addFloor}>כל הקומה: ${f.name}</option>`)}</select></sw-field>
+          ? html`<sw-field label=${trMsg('משתמש')}><input type="search" placeholder=${trMsg('חיפוש')} aria-label=${trMsg('חיפוש משתמש')} .value=${this.query} @input=${(e: Event) => (this.query = (e.target as HTMLInputElement).value)} /></sw-field>
+              <sw-field label=${trMsg('בחירת משתמש')}><select data-wall-pick size="5" aria-label=${trMsg('משתמש')} @change=${(e: Event) => (this.pick = (e.target as HTMLSelectElement).value)}>${users.map((u) => html`<option value=${u.id} ?selected=${u.id === this.pick}>${u.display_name} (${u.username})</option>`)}</select></sw-field>`
+          : html`<p class="muted">${trMsg('אין משתמשים פנויים. משתמש נוצר בתשתית המערכת.')}</p>`}
+        <sw-field label=${trMsg('כותרת המסך')}><input type="text" maxlength="40" data-wall-title aria-label=${trMsg('כותרת')} .value=${this.addTitle} @input=${(e: Event) => (this.addTitle = (e.target as HTMLInputElement).value)} /></sw-field>
+        <sw-field label=${trMsg('מקום')}><select data-wall-floor aria-label=${trMsg('מקום')} @change=${(e: Event) => (this.addFloor = (e.target as HTMLSelectElement).value)}><option value="">${trMsg('מצלמות נבחרות בלבד')}</option>${this.floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.addFloor}>${trMsg('כל הקומה: {name}', { name: f.name })}</option>`)}</select></sw-field>
       </div>
-      <sw-button slot="footer" variant="ghost" @click=${() => (this.adding = false)}>ביטול</sw-button>
-      <sw-button slot="footer" variant="primary" data-wall-add-submit ?disabled=${this.busy || !this.pick || !this.addTitle.trim()} @click=${() => void this.submitAdd()}>הוספה</sw-button>
+      <sw-button slot="footer" variant="ghost" @click=${() => (this.adding = false)}>${trMsg('ביטול')}</sw-button>
+      <sw-button slot="footer" variant="primary" data-wall-add-submit ?disabled=${this.busy || !this.pick || !this.addTitle.trim()} @click=${() => void this.submitAdd()}>${trMsg('הוספה')}</sw-button>
     </sw-dialog>`;
   }
 
@@ -418,13 +419,13 @@ export class SystemWall extends LitElement {
     };
     return html`${w.map(
       (x, i) => html`<div class="win" data-wall-window=${i}>
-        <span class="days" role="group" aria-label="ימים">${DAYS.map((d, n) => html`<label><input type="checkbox" aria-label=${`יום ${d}`} .checked=${x.days.includes(n)} @change=${(e: Event) => set(i, { days: (e.target as HTMLInputElement).checked ? [...x.days, n].sort() : x.days.filter((v) => v !== n) })} /><span aria-hidden="true">${d}</span></label>`)}</span>
-        <sw-field><input type="time" lang=${dateInputLang()} aria-label="משעה" .value=${x.from} @change=${(e: Event) => set(i, { from: (e.target as HTMLInputElement).value })} /></sw-field>
-        <sw-field><input type="time" lang=${dateInputLang()} aria-label="עד שעה" .value=${x.to} @change=${(e: Event) => set(i, { to: (e.target as HTMLInputElement).value })} /></sw-field>
-        <sw-button size="sm" variant="ghost" icon="trash" iconOnly label="הסרת חלון הערות" @click=${() => { this.cfg().schedule.windows = w.filter((_, k) => k !== i); this.requestUpdate(); }}></sw-button>
+        <span class="days" role="group" aria-label=${trMsg('ימים')}>${DAYS.map((d, n) => html`<label><input type="checkbox" aria-label=${trMsg('יום {d}', { d })} .checked=${x.days.includes(n)} @change=${(e: Event) => set(i, { days: (e.target as HTMLInputElement).checked ? [...x.days, n].sort() : x.days.filter((v) => v !== n) })} /><span aria-hidden="true">${d}</span></label>`)}</span>
+        <sw-field><input type="time" lang=${dateInputLang()} aria-label=${trMsg('משעה')} .value=${x.from} @change=${(e: Event) => set(i, { from: (e.target as HTMLInputElement).value })} /></sw-field>
+        <sw-field><input type="time" lang=${dateInputLang()} aria-label=${trMsg('עד שעה')} .value=${x.to} @change=${(e: Event) => set(i, { to: (e.target as HTMLInputElement).value })} /></sw-field>
+        <sw-button size="sm" variant="ghost" icon="trash" iconOnly label=${trMsg('הסרת חלון הערות')} @click=${() => { this.cfg().schedule.windows = w.filter((_, k) => k !== i); this.requestUpdate(); }}></sw-button>
       </div>`,
     )}
-    <span><sw-button size="sm" icon="plus" data-wall-add-window @click=${() => { this.cfg().schedule.windows = [...w, { days: [0, 1, 2, 3, 4], from: '07:00', to: '20:00' }]; this.requestUpdate(); }}>הוספת חלון ערות</sw-button></span>`;
+    <span><sw-button size="sm" icon="plus" data-wall-add-window @click=${() => { this.cfg().schedule.windows = [...w, { days: [0, 1, 2, 3, 4], from: '07:00', to: '20:00' }]; this.requestUpdate(); }}>${trMsg('הוספת חלון ערות')}</sw-button></span>`;
   }
 
   private renderDrawer() {
@@ -438,27 +439,27 @@ export class SystemWall extends LitElement {
       html`<div class="line"><span>${label}</span><sw-toggle label=${label} labelHidden .checked=${checked} data-wall-field=${attr} @change=${(e: CustomEvent<{ checked: boolean }>) => { on(e.detail.checked); this.requestUpdate(); }}></sw-toggle></div>`;
     // CR-029 S5-B: the map band of a portrait wall and how it draws the plan; each dial can follow the browser's pin / the installation
     const plan: WallPlanSetting = c.plan ?? (c.plan = { ...FOLLOW_PLAN });
-    const FOLLOW_HE = 'כמו בהגדרות המערכת';
-    const mapSection = html`<div class="sec" data-wall-section="map"><h3>מפה</h3>
-        ${tog('להציג מפה (במסך לאורך)', c.show_map, (v) => (c.show_map = v), 'show-map')}
-        ${c.show_map && !p.floor_id ? html`<div class="warn" data-wall-map-nofloor>למסך הזה אין קומה, ולכן המפה לא תוצג</div>` : nothing}
+    const FOLLOW_HE = trMsg('כמו בהגדרות המערכת');
+    const mapSection = html`<div class="sec" data-wall-section="map"><h3>${trMsg('מפה')}</h3>
+        ${tog(trMsg('להציג מפה (במסך לאורך)'), c.show_map, (v) => (c.show_map = v), 'show-map')}
+        ${c.show_map && !p.floor_id ? html`<div class="warn" data-wall-map-nofloor>${trMsg('למסך הזה אין קומה, ולכן המפה לא תוצג')}</div>` : nothing}
         ${c.show_map
-          ? html`${sel('תצוגת התוכנית', plan.mode, [['follow', FOLLOW_HE], ['live', 'תלת־ממד חי'], ['stills', 'תמונות מוכנות']], (v) => (plan.mode = v as WallPlanSetting['mode']), 'plan-mode')}
-              ${sel('איכות התלת־ממד', plan.quality, [['follow', FOLLOW_HE], ['auto', RUNG_HE.auto], ['realistic', RUNG_HE.realistic], ['lite', RUNG_HE.lite], ['full', RUNG_HE.full], ['schematic', RUNG_HE.schematic]], (v) => (plan.quality = v as WallPlanSetting['quality']), 'plan-quality')}
-              ${sel('מעבר לתמונה מוכנה בלי מגע ובלי שינוי', plan.idle_s, [['follow', FOLLOW_HE], [0, 'לעולם לא'], [10, '10 שנ׳'], [30, '30 שנ׳'], [120, '2 דקות'], [600, '10 דקות']], (v) => (plan.idle_s = v === 'follow' ? 'follow' : (Number(v) as WallPlanSetting['idle_s'])), 'plan-idle')}`
+          ? html`${sel(trMsg('תצוגת התוכנית'), plan.mode, [['follow', FOLLOW_HE], ['live', trMsg('תלת־ממד חי')], ['stills', trMsg('תמונות מוכנות')]], (v) => (plan.mode = v as WallPlanSetting['mode']), 'plan-mode')}
+              ${sel(trMsg('איכות התלת־ממד'), plan.quality, [['follow', FOLLOW_HE], ['auto', RUNG_HE.auto], ['realistic', RUNG_HE.realistic], ['lite', RUNG_HE.lite], ['full', RUNG_HE.full], ['schematic', RUNG_HE.schematic]], (v) => (plan.quality = v as WallPlanSetting['quality']), 'plan-quality')}
+              ${sel(trMsg('מעבר לתמונה מוכנה בלי מגע ובלי שינוי'), plan.idle_s, [['follow', FOLLOW_HE], [0, trMsg('לעולם לא')], [10, trMsg('10 שנ׳')], [30, trMsg('30 שנ׳')], [120, trMsg('2 דקות')], [600, trMsg('10 דקות')]], (v) => (plan.idle_s = v === 'follow' ? 'follow' : (Number(v) as WallPlanSetting['idle_s'])), 'plan-idle')}`
           : nothing}
       </div>`;
     return html`<sw-drawer open modal heading=${p.title} subheading=${p.username} data-wall-drawer @close=${() => { this.editing = null; this.draft = null; }}>
-      <div class="sec" data-wall-section="user"><h3>משתמש</h3>
-        <sw-field label="כותרת"><input type="text" maxlength="40" aria-label="כותרת" data-wall-field="title" .value=${d.title} @input=${(e: Event) => { d.title = (e.target as HTMLInputElement).value; }} /></sw-field>
-        ${tog('פעיל', d.enabled, (v) => (d.enabled = v), 'enabled')}
-        ${tog('גישה מרחוק', d.remote, (v) => (d.remote = v), 'remote')}
-        ${tog('מסך קיר גם במחשב', d.desktop, (v) => (d.desktop = v), 'desktop')}
-        ${d.desktop ? html`<div class="muted" data-wall-desktop-note>מחשב בלי מגע יציג את מסך הקיר במקום המערכת</div>` : nothing}
-        <div class="muted">תפקיד: קיוסק (מפה ווידאו חי בלבד)</div>
+      <div class="sec" data-wall-section="user"><h3>${trMsg('משתמש')}</h3>
+        <sw-field label=${trMsg('כותרת')}><input type="text" maxlength="40" aria-label=${trMsg('כותרת')} data-wall-field="title" .value=${d.title} @input=${(e: Event) => { d.title = (e.target as HTMLInputElement).value; }} /></sw-field>
+        ${tog(trMsg('פעיל'), d.enabled, (v) => (d.enabled = v), 'enabled')}
+        ${tog(trMsg('גישה מרחוק'), d.remote, (v) => (d.remote = v), 'remote')}
+        ${tog(trMsg('מסך קיר גם במחשב'), d.desktop, (v) => (d.desktop = v), 'desktop')}
+        ${d.desktop ? html`<div class="muted" data-wall-desktop-note>${trMsg('מחשב בלי מגע יציג את מסך הקיר במקום המערכת')}</div>` : nothing}
+        <div class="muted">${trMsg('תפקיד: קיוסק (מפה ווידאו חי בלבד)')}</div>
       </div>
-      <div class="sec"><h3>מצלמות ופריסה</h3>
-        <div class="muted">${c.cameras.length ? `נבחרו ${c.cameras.length} מצלמות (עד 12); המספר הוא הסדר במסך` : 'לא נבחרו מצלמות'}</div>
+      <div class="sec"><h3>${trMsg('מצלמות ופריסה')}</h3>
+        <div class="muted">${c.cameras.length ? trMsg('נבחרו {camerasCount} מצלמות (עד 12); המספר הוא הסדר במסך', { camerasCount: c.cameras.length }) : trMsg('לא נבחרו מצלמות')}</div>
         <div class="cams">${this.cameras.map((cam) => {
           const on = c.cameras.includes(cam.id);
           const i = c.cameras.indexOf(cam.id);
@@ -467,74 +468,74 @@ export class SystemWall extends LitElement {
             <input type="checkbox" id=${id} aria-label=${cam.name} .checked=${on} @change=${(e: Event) => this.toggleCam(cam.id, (e.target as HTMLInputElement).checked)} />
             <span class="ord" aria-hidden="true">${on ? i + 1 : ''}</span>
             <label for=${id}>${cam.name}</label>
-            <span class="acts">${on ? html`<sw-button size="sm" variant="ghost" icon="arrowUp" iconOnly label=${`הקדמה: ${cam.name}`} ?disabled=${i === 0} @click=${() => this.moveCam(cam.id, -1)}></sw-button><sw-button size="sm" variant="ghost" icon="arrowDown" iconOnly label=${`דחייה: ${cam.name}`} ?disabled=${i === c.cameras.length - 1} @click=${() => this.moveCam(cam.id, 1)}></sw-button>` : nothing}</span>
+            <span class="acts">${on ? html`<sw-button size="sm" variant="ghost" icon="arrowUp" iconOnly label=${trMsg('הקדמה: {name}', { name: cam.name })} ?disabled=${i === 0} @click=${() => this.moveCam(cam.id, -1)}></sw-button><sw-button size="sm" variant="ghost" icon="arrowDown" iconOnly label=${trMsg('דחייה: {name}', { name: cam.name })} ?disabled=${i === c.cameras.length - 1} @click=${() => this.moveCam(cam.id, 1)}></sw-button>` : nothing}</span>
           </div>`;
         })}</div>
-        ${c.cameras.length > MAX_PER_PAGE ? html`<div class="warn"><sw-icon name="warning" size=${14}></sw-icon>מעל ${MAX_PER_PAGE} זרמים - בדוק שהמקליט עומד בעומס</div>` : nothing}
-        ${sel('פריסה', c.layout, [['auto', 'אוטומטית'], ['tablet-landscape', 'טאבלט לרוחב'], ['tablet-portrait', 'טאבלט לאורך'], ['single', 'מצלמה אחת']], (v) => (c.layout = v as WallConfig['layout']), 'layout')}
-        ${sel('דפדוף', c.rotate_s, [[0, 'אוטומטי'], [15, '15 שנ׳'], [30, '30 שנ׳'], [60, 'דקה'], [120, '2 דקות']], (v) => (c.rotate_s = Number(v) as WallConfig['rotate_s']), 'rotate')}
-        ${sel('ערכה', c.theme, [['dark', 'כהה'], ['light', 'בהירה'], ['follow', 'כמו המערכת']], (v) => (c.theme = v as WallConfig['theme']), 'theme')}
-        <div class="line"><span>שורת מצב</span><span class="chips" role="group" aria-label="שורת מצב">${STRIP_CHIPS.map((s) => html`<label><input type="checkbox" data-wall-strip=${s.id} .checked=${c.strip.includes(s.id)} @change=${(e: Event) => { c.strip = (e.target as HTMLInputElement).checked ? [...c.strip, s.id] : c.strip.filter((x) => x !== s.id); this.requestUpdate(); }} /><span>${s.label}</span></label>`)}</span></div>
-        <sw-field label="ישויות בשורת המצב (עד 8, מופרדות בפסיק)"><input type="text" dir="ltr" data-wall-field="entities" .value=${c.state_entities.join(', ')} @change=${(e: Event) => { c.state_entities = (e.target as HTMLInputElement).value.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 8); this.requestUpdate(); }} /></sw-field>
+        ${c.cameras.length > MAX_PER_PAGE ? html`<div class="warn"><sw-icon name="warning" size=${14}></sw-icon>${trMsg('מעל {MAX_PER_PAGE} זרמים - בדוק שהמקליט עומד בעומס', { MAX_PER_PAGE })}</div>` : nothing}
+        ${sel(trMsg('פריסה'), c.layout, [['auto', trMsg('אוטומטית')], ['tablet-landscape', trMsg('טאבלט לרוחב')], ['tablet-portrait', trMsg('טאבלט לאורך')], ['single', trMsg('מצלמה אחת')]], (v) => (c.layout = v as WallConfig['layout']), 'layout')}
+        ${sel(trMsg('דפדוף'), c.rotate_s, [[0, trMsg('אוטומטי')], [15, trMsg('15 שנ׳')], [30, trMsg('30 שנ׳')], [60, trMsg('דקה')], [120, trMsg('2 דקות')]], (v) => (c.rotate_s = Number(v) as WallConfig['rotate_s']), 'rotate')}
+        ${sel(trMsg('ערכה'), c.theme, [['dark', trMsg('כהה')], ['light', trMsg('בהירה')], ['follow', trMsg('כמו המערכת')]], (v) => (c.theme = v as WallConfig['theme']), 'theme')}
+        <div class="line"><span>${trMsg('שורת מצב')}</span><span class="chips" role="group" aria-label=${trMsg('שורת מצב')}>${STRIP_CHIPS.map((s) => html`<label><input type="checkbox" data-wall-strip=${s.id} .checked=${c.strip.includes(s.id)} @change=${(e: Event) => { c.strip = (e.target as HTMLInputElement).checked ? [...c.strip, s.id] : c.strip.filter((x) => x !== s.id); this.requestUpdate(); }} /><span>${s.label}</span></label>`)}</span></div>
+        <sw-field label=${trMsg('ישויות בשורת המצב (עד 8, מופרדות בפסיק)')}><input type="text" dir="ltr" data-wall-field="entities" .value=${c.state_entities.join(', ')} @change=${(e: Event) => { c.state_entities = (e.target as HTMLInputElement).value.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 8); this.requestUpdate(); }} /></sw-field>
       </div>
       ${mapSection}
-      <div class="sec" data-wall-section="alerts"><h3>התראות במסך</h3>
-        ${tog('להציג התראות', c.alerts.enabled, (v) => (c.alerts.enabled = v), 'alerts-enabled')}
-        <div class="sub">קטגוריות</div>
-        <span class="chips" role="group" aria-label="קטגוריות">${ALERT_CATEGORIES.map((k) => html`<label><input type="checkbox" data-wall-alert-cat=${k.id} .checked=${c.alerts.categories.includes(k.id)} @change=${(e: Event) => { c.alerts.categories = (e.target as HTMLInputElement).checked ? [...c.alerts.categories, k.id] : c.alerts.categories.filter((x) => x !== k.id); this.requestUpdate(); }} /><span>${k.label}</span></label>`)}</span>
-        ${c.alerts.categories.length ? nothing : html`<div class="muted" data-wall-no-cat>לא נבחרה קטגוריה</div>`}
-        ${sel('חומרה מינימלית', c.alerts.min_severity, [['info', 'מידע ומעלה'], ['alert', 'התראה ומעלה'], ['critical', 'קריטי בלבד']], (v) => (c.alerts.min_severity = v), 'alerts-min')}
-        ${sel('התראה מתקפלת לשורת המצב אחרי', c.alerts.takeover_timeout_s, [[60, 'דקה'], [120, '2 דקות'], [300, '5 דקות'], [600, '10 דקות']], (v) => (c.alerts.takeover_timeout_s = Number(v)), 'alerts-timeout')}
-        ${tog('אישור התראה מהמסך (לחיצה ארוכה)', c.alerts.ack_allowed, (v) => (c.alerts.ack_allowed = v), 'alerts-ack')}
-        ${sel('להעיר מסך ישן בהתראה מחומרה', c.schedule.wake_on_alert_severity, [['critical', 'קריטית'], ['alert', 'התראה ומעלה']], (v) => (c.schedule.wake_on_alert_severity = v), 'alerts-wake')}
+      <div class="sec" data-wall-section="alerts"><h3>${trMsg('התראות במסך')}</h3>
+        ${tog(trMsg('להציג התראות'), c.alerts.enabled, (v) => (c.alerts.enabled = v), 'alerts-enabled')}
+        <div class="sub">${trMsg('קטגוריות')}</div>
+        <span class="chips" role="group" aria-label=${trMsg('קטגוריות')}>${ALERT_CATEGORIES.map((k) => html`<label><input type="checkbox" data-wall-alert-cat=${k.id} .checked=${c.alerts.categories.includes(k.id)} @change=${(e: Event) => { c.alerts.categories = (e.target as HTMLInputElement).checked ? [...c.alerts.categories, k.id] : c.alerts.categories.filter((x) => x !== k.id); this.requestUpdate(); }} /><span>${k.label}</span></label>`)}</span>
+        ${c.alerts.categories.length ? nothing : html`<div class="muted" data-wall-no-cat>${trMsg('לא נבחרה קטגוריה')}</div>`}
+        ${sel(trMsg('חומרה מינימלית'), c.alerts.min_severity, [['info', trMsg('מידע ומעלה')], ['alert', trMsg('התראה ומעלה')], ['critical', trMsg('קריטי בלבד')]], (v) => (c.alerts.min_severity = v), 'alerts-min')}
+        ${sel(trMsg('התראה מתקפלת לשורת המצב אחרי'), c.alerts.takeover_timeout_s, [[60, trMsg('דקה')], [120, trMsg('2 דקות')], [300, trMsg('5 דקות')], [600, trMsg('10 דקות')]], (v) => (c.alerts.takeover_timeout_s = Number(v)), 'alerts-timeout')}
+        ${tog(trMsg('אישור התראה מהמסך (לחיצה ארוכה)'), c.alerts.ack_allowed, (v) => (c.alerts.ack_allowed = v), 'alerts-ack')}
+        ${sel(trMsg('להעיר מסך ישן בהתראה מחומרה'), c.schedule.wake_on_alert_severity, [['critical', trMsg('קריטית')], ['alert', trMsg('התראה ומעלה')]], (v) => (c.schedule.wake_on_alert_severity = v), 'alerts-wake')}
       </div>
-      <div class="sec" data-wall-section="frame"><h3>מסגרת תמונות</h3>
-        ${tog('מסגרת תמונות כשהמסך במנוחה', c.frame.enabled, (v) => (c.frame.enabled = v), 'frame-enabled')}
-        ${sel('תיקיית תמונות', c.frame.folder ?? '', [['', 'ללא'], ...this.photoSets.map((x): [string, string] => [x.id, `${x.name} (${x.count})`])], (v) => (c.frame.folder = v || null), 'frame-folder')}
-        ${c.frame.enabled && !c.frame.folder ? html`<div class="warn"><sw-icon name="warning" size=${14}></sw-icon>בחרו תיקייה כדי להפעיל את המסגרת</div>` : nothing}
-        <span><sw-button size="sm" icon="image" data-wall-photos-open @click=${() => (this.managingPhotos = true)}>ניהול התמונות</sw-button></span>
-        ${sel('מופיעה אחרי', c.frame.idle_min, [[5, '5 דק׳'], [10, '10 דק׳'], [30, '30 דק׳'], [60, 'שעה']], (v) => (c.frame.idle_min = Number(v)), 'frame-idle')}
-        ${sel('החלפת תמונה כל', c.frame.interval_s, [[15, '15 שנ׳'], [30, '30 שנ׳'], [60, 'דקה'], [300, '5 דק׳']], (v) => (c.frame.interval_s = Number(v)), 'frame-interval')}
-        ${sel('התאמה', c.frame.fit, [['contain', 'כל התמונה'], ['cover', 'מילוי המסך']], (v) => (c.frame.fit = v), 'frame-fit')}
-        ${tog('שעון ותאריך', c.frame.clock, (v) => (c.frame.clock = v), 'frame-clock')}
-        ${tog('תנועה איטית בתמונה', c.frame.motion === 'slow', (v) => (c.frame.motion = v ? 'slow' : 'none'), 'frame-motion')}
+      <div class="sec" data-wall-section="frame"><h3>${trMsg('מסגרת תמונות')}</h3>
+        ${tog(trMsg('מסגרת תמונות כשהמסך במנוחה'), c.frame.enabled, (v) => (c.frame.enabled = v), 'frame-enabled')}
+        ${sel(trMsg('תיקיית תמונות'), c.frame.folder ?? '', [['', trMsg('ללא')], ...this.photoSets.map((x): [string, string] => [x.id, `${x.name} (${x.count})`])], (v) => (c.frame.folder = v || null), 'frame-folder')}
+        ${c.frame.enabled && !c.frame.folder ? html`<div class="warn"><sw-icon name="warning" size=${14}></sw-icon>${trMsg('בחרו תיקייה כדי להפעיל את המסגרת')}</div>` : nothing}
+        <span><sw-button size="sm" icon="image" data-wall-photos-open @click=${() => (this.managingPhotos = true)}>${trMsg('ניהול התמונות')}</sw-button></span>
+        ${sel(trMsg('מופיעה אחרי'), c.frame.idle_min, [[5, trMsg('5 דק׳')], [10, trMsg('10 דק׳')], [30, trMsg('30 דק׳')], [60, trMsg('שעה')]], (v) => (c.frame.idle_min = Number(v)), 'frame-idle')}
+        ${sel(trMsg('החלפת תמונה כל'), c.frame.interval_s, [[15, trMsg('15 שנ׳')], [30, trMsg('30 שנ׳')], [60, trMsg('דקה')], [300, trMsg('5 דק׳')]], (v) => (c.frame.interval_s = Number(v)), 'frame-interval')}
+        ${sel(trMsg('התאמה'), c.frame.fit, [['contain', trMsg('כל התמונה')], ['cover', trMsg('מילוי המסך')]], (v) => (c.frame.fit = v), 'frame-fit')}
+        ${tog(trMsg('שעון ותאריך'), c.frame.clock, (v) => (c.frame.clock = v), 'frame-clock')}
+        ${tog(trMsg('תנועה איטית בתמונה'), c.frame.motion === 'slow', (v) => (c.frame.motion = v ? 'slow' : 'none'), 'frame-motion')}
       </div>
-      <div class="sec"><h3>שעות והגנה על המסך</h3>
-        ${tog('הזזת פיקסלים', c.burn_in.shift, (v) => (c.burn_in.shift = v), 'shift')}
-        ${sel('עמעום אחרי', c.burn_in.dim_after_min, [[0, 'לעולם לא'], [10, '10 דק׳'], [30, '30 דק׳'], [60, 'שעה']], (v) => (c.burn_in.dim_after_min = Number(v)), 'dim')}
-        ${sel('ערבוב סדר כל', c.burn_in.shuffle_h, [[0, 'כבוי'], [1, 'שעה'], [6, '6 שעות']], (v) => (c.burn_in.shuffle_h = Number(v)), 'shuffle')}
-        ${sel('וידאו תקוע - להציג כבוי אחרי', c.offline.show_last_frame_s, [[30, '30 שנ׳'], [60, 'דקה'], [120, '2 דקות']], (v) => (c.offline.show_last_frame_s = Number(v)), 'offline')}
-        ${tog('נוגעים במסך מעירים אותו', c.schedule.wake_on_touch, (v) => (c.schedule.wake_on_touch = v), 'wake')}
-        <div class="sub">חלונות ערות <span class="muted">(בלי חלון = תמיד פעיל)</span></div>${this.renderWindows()}
+      <div class="sec"><h3>${trMsg('שעות והגנה על המסך')}</h3>
+        ${tog(trMsg('הזזת פיקסלים'), c.burn_in.shift, (v) => (c.burn_in.shift = v), 'shift')}
+        ${sel(trMsg('עמעום אחרי'), c.burn_in.dim_after_min, [[0, trMsg('לעולם לא')], [10, trMsg('10 דק׳')], [30, trMsg('30 דק׳')], [60, trMsg('שעה')]], (v) => (c.burn_in.dim_after_min = Number(v)), 'dim')}
+        ${sel(trMsg('ערבוב סדר כל'), c.burn_in.shuffle_h, [[0, trMsg('כבוי')], [1, trMsg('שעה')], [6, trMsg('6 שעות')]], (v) => (c.burn_in.shuffle_h = Number(v)), 'shuffle')}
+        ${sel(trMsg('וידאו תקוע - להציג כבוי אחרי'), c.offline.show_last_frame_s, [[30, trMsg('30 שנ׳')], [60, trMsg('דקה')], [120, trMsg('2 דקות')]], (v) => (c.offline.show_last_frame_s = Number(v)), 'offline')}
+        ${tog(trMsg('נוגעים במסך מעירים אותו'), c.schedule.wake_on_touch, (v) => (c.schedule.wake_on_touch = v), 'wake')}
+        <div class="sub">${trMsg('חלונות ערות')} <span class="muted">${trMsg('(בלי חלון = תמיד פעיל)')}</span></div>${this.renderWindows()}
       </div>
-      <sw-button slot="footer" variant="ghost" @click=${() => { this.editing = null; this.draft = null; }}>ביטול</sw-button>
-      <sw-button slot="footer" variant="primary" data-wall-save ?disabled=${this.busy} @click=${() => void this.save()}>שמירה</sw-button>
+      <sw-button slot="footer" variant="ghost" @click=${() => { this.editing = null; this.draft = null; }}>${trMsg('ביטול')}</sw-button>
+      <sw-button slot="footer" variant="primary" data-wall-save ?disabled=${this.busy} @click=${() => void this.save()}>${trMsg('שמירה')}</sw-button>
     </sw-drawer>`;
   }
 
   private renderRemove() {
     const p = this.removing;
     if (!p) return nothing;
-    return html`<sw-dialog open heading="להסיר את מסך הקיר?" data-wall-remove-dialog @close=${() => (this.removing = null)}>
-      <p class="confirm">הגישה של המשתמש ${p.username} תוסר והמסך יחזור למסך הכניסה.</p>
-      <sw-button slot="footer" variant="ghost" @click=${() => (this.removing = null)}>ביטול</sw-button>
-      <sw-button slot="footer" variant="danger" data-wall-remove-confirm ?disabled=${this.busy} @click=${() => void this.doRemove()}>הסרה</sw-button>
+    return html`<sw-dialog open heading=${trMsg('להסיר את מסך הקיר?')} data-wall-remove-dialog @close=${() => (this.removing = null)}>
+      <p class="confirm">${trMsg('הגישה של המשתמש {username} תוסר והמסך יחזור למסך הכניסה.', { username: p.username })}</p>
+      <sw-button slot="footer" variant="ghost" @click=${() => (this.removing = null)}>${trMsg('ביטול')}</sw-button>
+      <sw-button slot="footer" variant="danger" data-wall-remove-confirm ?disabled=${this.busy} @click=${() => void this.doRemove()}>${trMsg('הסרה')}</sw-button>
     </sw-dialog>`;
   }
 
   protected render() {
     if (this.error && !this.profiles) {
-      return html`<sw-page crumbs="הגדרות" heading="מסכי קיר"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
+      return html`<sw-page crumbs=${trMsg('הגדרות')} heading=${trMsg('מסכי קיר')}><sw-state-panel state="error" hint=${this.error} actionLabel=${trMsg('נסה שוב')} @action=${() => void this.load()}></sw-state-panel></sw-page>`;
     }
     const n = this.profiles?.length ?? 0;
     const full = n >= this.max;
-    return html`<sw-page crumbs="הגדרות" heading="מסכי קיר">
+    return html`<sw-page crumbs=${trMsg('הגדרות')} heading=${trMsg('מסכי קיר')}>
       <div class="toolbar">
-        <sw-button variant="primary" icon="plus" data-wall-add-open ?disabled=${full} @click=${() => void this.openAdd()}>הוספת משתמש מסך</sw-button>
-        <sw-button icon="image" data-wall-photos-manage @click=${() => (this.managingPhotos = true)}>תמונות למסכי קיר</sw-button>
+        <sw-button variant="primary" icon="plus" data-wall-add-open ?disabled=${full} @click=${() => void this.openAdd()}>${trMsg('הוספת משתמש מסך')}</sw-button>
+        <sw-button icon="image" data-wall-photos-manage @click=${() => (this.managingPhotos = true)}>${trMsg('תמונות למסכי קיר')}</sw-button>
         <span class="grow"></span>
         ${this.error ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}
-        <span class=${full ? 'count full' : 'count'} data-wall-count title=${full ? 'הגעתם למספר המסכים המרבי' : ''}>${n} / ${this.max} מסכים</span>
+        <span class=${full ? 'count full' : 'count'} data-wall-count title=${full ? trMsg('הגעתם למספר המסכים המרבי') : ''}>${trMsg('{n} / {max} מסכים', { n, max: this.max })}</span>
       </div>
       ${this.profiles ? this.renderList() : html`<sw-state-panel state="loading"></sw-state-panel>`}
       ${this.profiles ? this.renderGeneral() : nothing}

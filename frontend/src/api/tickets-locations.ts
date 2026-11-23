@@ -11,6 +11,7 @@
  */
 import { ApiError, api, get, patch, post, put } from './client';
 import { isApi } from './session';
+import { tr } from '../i18n/msg/api-home';
 
 export interface OrgLocation {
   id: string;
@@ -148,7 +149,7 @@ function demoAdmin(): LocationsAdminAnswer {
 function demoCheck(body: LocationInput, id: string | null): void {
   const name = body.name?.trim();
   if (name !== undefined && demo.items.some((x) => x.id !== id && x.name.toLowerCase() === name.toLowerCase())) {
-    throw demoErr(409, 'location_name_taken', 'כבר קיים מיקום בשם הזה.');
+    throw demoErr(409, 'location_name_taken', tr('כבר קיים מיקום בשם הזה.'));
   }
 }
 
@@ -182,7 +183,7 @@ const mock: LocationsBackend = {
   update: async (id, body) => {
     demoCheck(body, id);
     const x = demo.items.find((i) => i.id === id);
-    if (!x) throw demoErr(404, 'location_not_found', 'המיקום לא נמצא.');
+    if (!x) throw demoErr(404, 'location_not_found', tr('המיקום לא נמצא.'));
     if (body.is_default) demo.items.forEach((i) => (i.is_default = false));
     const { revision: _r, ...rest } = body;
     Object.assign(x, rest, { revision: x.revision + 1, updated_at: new Date().toISOString() });
@@ -197,7 +198,7 @@ const mock: LocationsBackend = {
     return demoAdmin();
   },
   remove: async (id) => {
-    if (demo.refs[id]) throw demoErr(409, 'location_in_use', 'המיקום כבר משמש בקשות קיימות. אפשר להשבית אותו במקום למחוק.');
+    if (demo.refs[id]) throw demoErr(409, 'location_in_use', tr('המיקום כבר משמש בקשות קיימות. אפשר להשבית אותו במקום למחוק.'));
     demo.items = demo.items.filter((x) => x.id !== id);
     for (const [d, l] of Object.entries(demo.depts)) if (l === id) delete demo.depts[d];
     return demoAdmin();

@@ -11,6 +11,7 @@ import { isApi } from './session';
 import {
   DEFAULT_BOUNDS, effectiveLimit, placeholdersOk, type DryRunAnswer, type RulesDoc, type TicketRule, type TicketRuleView,
 } from '../tickets/rules-model';
+import { tr } from '../i18n/msg/api-automation';
 
 interface RulesSave {
   revision: number;
@@ -34,10 +35,10 @@ const rest: RulesBackend = {
 // ---------------------------------------------------------------- the demo store (no backend)
 
 const DEMO_SOURCES = [
-  { key: 'sensor.leak', label: 'דליפת מים', category: 'safety', subject: 'entity' },
-  { key: 'device.unavailable', label: 'התקן לא זמין', category: 'device_faults', subject: 'entity' },
-  { key: 'camera.offline', label: 'מצלמה לא זמינה', category: 'device_faults', subject: 'camera' },
-  { key: 'opening.left_open', label: 'דלת / חלון נשארו פתוחים', category: 'doors', subject: 'entity' },
+  { key: 'sensor.leak', label: tr('דליפת מים'), category: 'safety', subject: 'entity' },
+  { key: 'device.unavailable', label: tr('התקן לא זמין'), category: 'device_faults', subject: 'entity' },
+  { key: 'camera.offline', label: tr('מצלמה לא זמינה'), category: 'device_faults', subject: 'camera' },
+  { key: 'opening.left_open', label: tr('דלת / חלון נשארו פתוחים'), category: 'doors', subject: 'entity' },
 ];
 const DEMO_DEPTS = [
   { id: 'dept-maintenance', name: 'אחזקה', priorities: [{ id: 'p-normal', name: 'רגיל', is_default: true }, { id: 'p-high', name: 'גבוה', is_default: false }],
@@ -75,9 +76,9 @@ function demoErr(status: number, code: string, message: string, details: Record<
 const mock: RulesBackend = {
   load: async () => demoDoc(),
   save: async (body) => {
-    if (body.revision !== demo.revision) throw demoErr(409, 'rules_stale', 'הכללים השתנו בינתיים. טענו מחדש.', { revision: demo.revision });
+    if (body.revision !== demo.revision) throw demoErr(409, 'rules_stale', tr('הכללים השתנו בינתיים. טענו מחדש.'), { revision: demo.revision });
     const bad = body.rules.findIndex((r) => !placeholdersOk(r.title, DEFAULT_BOUNDS.placeholders));
-    if (bad >= 0) throw demoErr(422, 'validation', 'ערך לא תקין.', { fields: [{ field: `rules[${bad}].title`, code: 'placeholder' }] });
+    if (bad >= 0) throw demoErr(422, 'validation', tr('ערך לא תקין.'), { fields: [{ field: `rules[${bad}].title`, code: 'placeholder' }] });
     const before = new Map(demo.rules.map((r) => [r.id, r]));
     demo.rules = body.rules.map((r) => {
       const old = r.id ? before.get(r.id) : undefined;
@@ -95,12 +96,12 @@ const mock: RulesBackend = {
     const limit = effectiveLimit(rule.daily_limit, demo.daily);
     const today = saved?.today_created ?? 0;
     const would = !demo.enabled ? 'rules_off' : !rule.enabled ? 'rule_off' : today >= limit ? 'suppressed' : 'create';
-    const values: Record<string, string> = { alert: 'דליפת מים', details: 'חיישן מים מטבח דיווח על מים.', place: 'קומה 1', source: 'דליפת מים', since: '19/10/2026 09:30' };
+    const values: Record<string, string> = { alert: tr('דליפת מים'), details: 'חיישן מים מטבח דיווח על מים.', place: 'קומה 1', source: tr('דליפת מים'), since: '19/10/2026 09:30' };
     const fill = (t: string) => t.replace(/\{(\w+)\}/g, (m, k: string) => values[k] ?? m);
     const dept = DEMO_DEPTS.find((d) => d.id === rule.department_id);
     return {
       would, matches: 1, held: 1, effective_limit: limit, today_created: today, sample_values: false,
-      alerts: [{ title: 'דליפת מים', place: 'קומה 1', first_at: '2026-10-19T06:30:00Z', held: true }],
+      alerts: [{ title: tr('דליפת מים'), place: 'קומה 1', first_at: '2026-10-19T06:30:00Z', held: true }],
       preview: { title: fill(rule.title), description: fill(rule.description), department: dept?.name ?? '',
         priority: dept?.priorities.find((p) => p.id === rule.priority_id)?.name ?? dept?.priorities.find((p) => p.is_default)?.name ?? '' },
     };

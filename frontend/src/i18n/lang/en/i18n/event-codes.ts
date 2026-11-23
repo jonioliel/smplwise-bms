@@ -1,0 +1,37 @@
+// CR-I18N-LAZY-LANG-2443: language pack table of src/i18n/event-codes.ts, fetched only when the page is in this language (i18n/lang-packs.ts).
+// Moved by scripts/i18n-split-langs.mjs; edit the texts here.
+/* eslint-disable */
+
+export const en = {
+  c_vmd: 'Motion detection',
+  c_motiondetection: 'Motion detection',
+  c_linedetection: 'Line crossing',
+  c_fielddetection: 'Intrusion',
+  c_regionentrance: 'Area entry',
+  c_regionexiting: 'Area exit',
+  c_intrusion: 'Intrusion',
+  c_videoloss: 'Video loss',
+  c_videolost: 'Video loss',
+  c_ipcdisconnect: 'Camera disconnected',
+  c_shelteralarm: 'Camera covered',
+  c_tamperdetection: 'Camera tampering',
+  c_facedetection: 'Face detection',
+  c_humandetect: 'Person detection',
+  c_vehicledetection: 'Vehicle detection',
+  c_io: 'Alarm input',
+  c_diskfull: 'Disk full',
+  c_diskerror: 'Disk error',
+  c_nicbroken: 'Network fault',
+  alertOf: '{label} alert',
+  p_device_offset: 'Device clock, corrected for its offset',
+  p_wall_clock: 'Device clock as is',
+  p_received: 'Time received',
+  p_recording_file: 'From the recording file',
+  p_keyframe_limited: 'From a key frame',
+  p_verified: 'Verified',
+  s_sec: '{s} s',
+  s_min: '{m} min',
+  s_min_sec: '{m} min {s} s',
+  s_hour: '{h} h',
+  s_hour_min: '{h} h {m} min',
+};

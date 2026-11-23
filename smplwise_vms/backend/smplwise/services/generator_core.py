@@ -18,6 +18,7 @@ import sqlite3
 from typing import Any
 
 from ..db import get_setting, new_id, now_iso, set_setting
+from . import default_names as dn
 from . import generator_catalog as cat
 
 log = logging.getLogger("smplwise.generator")
@@ -213,7 +214,7 @@ def remap(conn: sqlite3.Connection, device_id: str) -> dict[str, dict[str, Any]]
     return roles
 
 
-def detect(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+def detect(conn: sqlite3.Connection, *, lang: str = "he") -> list[dict[str, Any]]:
     """Run the three-step detection over the registry mirror and store the result. Returns one summary row per generator."""
     now = now_iso()
     domains = set(integration_domains(conn))
@@ -252,7 +253,7 @@ def detect(conn: sqlite3.Connection) -> list[dict[str, Any]]:
             area = next((e["area_id"] for e in by_device[dev_id] if e["area_id"]), None) or devices[dev_id]["area_id"]
             conn.execute(
                 "INSERT INTO generator_devices(id, name, area_id, source_kind, source_domain, source_device_ref, status, detected_at, last_seen_at) VALUES (?,?,?,?,?,?,?,?,?)",
-                (gid, _device_name(devices[dev_id]) or "גנרטור", area, kind, domain, dev_id, status, now, now))
+                (gid, _device_name(devices[dev_id]) or dn.name("generator", lang), area, kind, domain, dev_id, status, now, now))
         else:
             conn.execute("UPDATE generator_devices SET source_kind = ?, source_domain = ?, status = ?, last_seen_at = ?, revision = revision + (status <> ?) WHERE id = ?",
                          (kind, domain, status, now, status, gid))
@@ -265,7 +266,7 @@ def detect(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     return out
 
 
-def add_manual(conn: sqlite3.Connection, ha_device_id: str, name: str | None) -> str | None:
+def add_manual(conn: sqlite3.Connection, ha_device_id: str, name: str | None, *, lang: str = "he") -> str | None:
     """The manual pick: register any registry device as a generator. Returns the generator id (an existing one when already registered)."""
     dev = conn.execute("SELECT * FROM ha_devices WHERE device_id = ? AND removed_at IS NULL", (ha_device_id,)).fetchone()
     if dev is None:
@@ -277,7 +278,7 @@ def add_manual(conn: sqlite3.Connection, ha_device_id: str, name: str | None) ->
     now = now_iso()
     area = next((e["area_id"] for e in _device_entities(conn).get(ha_device_id, []) if e["area_id"]), None) or dev["area_id"]
     conn.execute("INSERT INTO generator_devices(id, name, area_id, source_kind, source_device_ref, status, detected_at, last_seen_at) VALUES (?,?,?,?,?,'partial',?,?)",
-                 (gid, (name or _device_name(dev) or "גנרטור")[:80], area, "manual", ha_device_id, now, now))
+                 (gid, (name or _device_name(dev) or dn.name("generator", lang))[:80], area, "manual", ha_device_id, now, now))
     remap(conn, gid)
     return gid
 

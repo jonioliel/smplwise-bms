@@ -83,8 +83,8 @@ test('finding 8: the settings sub-pages are not named like the settings strip, a
   const sys = (AREA_TABS.system as { id: string; label: string }[]).find((x) => x.id === 'general');
   expect(sys?.label).toBe('כללי');
   const d = read('screens/system-diagnostics.ts');
-  expect(d).toContain("{ id: 'general', label: 'מראה ותצוגה' }");
-  expect(d).not.toContain("{ id: 'general', label: 'כללי' }");
+  expect(d).toContain("{ id: 'general', label: tr('מראה ותצוגה') }"); // I18N-EN-2490: the labels read through tr()
+  expect(d).not.toContain("{ id: 'general', label: tr('כללי') }");
   // release 2.10.0: the phone-only dropdown was reverted (owner rule 0.1.157, no phone-only gate; owner decision pending)
   expect(d).not.toContain("this.phone ? 'dropdown'");
   expect(read('screens/system-index.ts')).toContain("tab: 'general', label: tr('מראה ותצוגה')");

@@ -189,7 +189,7 @@ const playersMock = (): Promise<PlayersMockStore> => import('./media-players-moc
 
 class DemoAdmin implements AdminAdapter {
   devices = demoDevices();
-  suggestions: AdminSuggestion[] = [{ endpoint_id: 'ha:media_player.demo_new', device_key: 'md-kitchen', rule: 'weak', reason: 'אותו חדר ושם דומה' }];
+  suggestions: AdminSuggestion[] = [{ endpoint_id: 'ha:media_player.demo_new', device_key: 'md-kitchen', rule: 'weak', reason: tr('אותו חדר ושם דומה') }];
 
   /** The screens of this demo, then every player of the players mock (CR-016: speakers, players, receivers, groups, approved or not). */
   private async snapshot(): Promise<AdminList> {

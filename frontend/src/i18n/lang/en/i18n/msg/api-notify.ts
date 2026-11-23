@@ -209,4 +209,17 @@ export const en = {
   'הכרזה': 'Announcement',
   'בהכרזה': 'by announcement',
   '{n} מקורות מנותבים להכרזה': 'Sources routed to announcements: {n}',
+  // api/messaging-accounts.ts (demo store)
+  'הודעות בקשות שירות': 'Service request messages',
+  'קודי אימות לבקשות שירות': 'Verification codes for service requests',
+  'ההגדרות השתנו בינתיים. טענו מחדש.': 'The settings changed in the meantime. Reload.',
+  // api/notify-whatsapp.ts (demo store)
+  'ההגדרות השתנו בינתיים; טען מחדש.': 'The settings changed in the meantime; reload.',
+  'ערך מספרי מחוץ לטווח.': 'A number is out of range.',
+  'לא נבחר חשבון וואטסאפ להתראות.': 'No WhatsApp account is chosen for notifications.',
+  'יותר מדי הודעות בדיקה. נסו שוב מאוחר יותר.': 'Too many test messages. Try again later.',
+  'המספר השתנה מאז שהוצג. טענו מחדש ובדקו את המספר.': 'The number changed since it was shown. Reload and check the number.',
+  // api/tickets-messages.ts (demo store)
+  'הודעות': 'Messages',
+  'קודי אימות': 'Verification codes',
 };

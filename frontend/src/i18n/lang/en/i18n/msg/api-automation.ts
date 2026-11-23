@@ -444,4 +444,11 @@ export const en = {
   'בתנאי: {v}': 'If: {v}',
   'אין הרצה קרובה': 'No upcoming run',
   '{v} · בתנאי': '{v} · conditional',
+  // api/tickets-rules.ts (demo store)
+  'דליפת מים': 'Water leak',
+  'התקן לא זמין': 'Device unavailable',
+  'מצלמה לא זמינה': 'Camera unavailable',
+  'דלת / חלון נשארו פתוחים': 'Door / window left open',
+  'הכללים השתנו בינתיים. טענו מחדש.': 'The rules changed in the meantime. Reload.',
+  'ערך לא תקין.': 'Invalid value.',
 };

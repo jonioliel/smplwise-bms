@@ -27,6 +27,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
+from ..services import default_names as dn
 from ..services import incidents as svc
 from ..services import incidents_store as store
 from ..services.access import require_camera
@@ -138,6 +139,7 @@ class OpenIn(BaseModel):
 @router.post("/incidents", status_code=201)
 def open_incident(body: OpenIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _gate(conn)
+    lang = dn.lang_of(conn, principal)  # I18N-EN-2490 (owner N53): a default title is written in the caller's language
     if body.event_id:
         ev = store.event(conn, body.event_id)
         if ev is None:
@@ -152,9 +154,9 @@ def open_incident(body: OpenIn, request: Request, principal: Principal = Depends
 
             eid = (json.loads(ev["details_json"] or "{}") or {}).get("entity_id")
             anchor = svc.anchor_of(conn, "ha_entity", eid) if eid else None
-        label = svc.EVENT_TYPE_HE.get(ev["type"], ev["type"])
+        label = dn.event_type(ev["type"], svc.EVENT_TYPE_HE.get(ev["type"], ev["type"]), lang)
         cam_name = svc._camera_names(conn).get(ev["camera_id"]) if ev["camera_id"] else None
-        title = (body.title or "").strip() or (f"{label} · {cam_name}" if cam_name else label)
+        title = (body.title or "").strip() or (dn.name("incident.event_at", lang, label=label, camera=cam_name) if cam_name else label)
         try:
             row, merged = svc.open_incident(conn, source="event", title=title, floor_id=anchor["floor_id"] if anchor else None, x=anchor["x"] if anchor else None,
                                             y=anchor["y"] if anchor else None, anchor_id=anchor["id"] if anchor else None, source_ref=ev["id"],
@@ -172,7 +174,7 @@ def open_incident(body: OpenIn, request: Request, principal: Principal = Depends
             e = store.entity_name_row(conn, a["resource_id"])
             name = (e["name"] if e and e["name"] else None) or a["label"] or a["resource_id"]
         try:
-            row, merged = svc.open_incident(conn, source="manual", title=(body.title or "").strip() or f"אירוע ידני · {name}", floor_id=a["floor_id"], x=a["x"], y=a["y"],
+            row, merged = svc.open_incident(conn, source="manual", title=(body.title or "").strip() or dn.name("incident.manual_at", lang, name=name), floor_id=a["floor_id"], x=a["x"], y=a["y"],
                                             anchor_id=a["id"], source_ref=a["resource_id"], source_camera=a["resource_id"] if a["resource_type"] == "camera" else None,
                                             actor=principal, request_id=_rid(request))
         except svc.Disabled:
@@ -180,12 +182,12 @@ def open_incident(body: OpenIn, request: Request, principal: Principal = Depends
     elif body.alarm_panel:
         if store.live_entity_row(conn, body.alarm_panel) is None:
             raise ApiError(404, "not_found", "לוח האזעקה לא נמצא.")
-        anchor, title = svc.alarm_location(conn, body.alarm_panel)
+        anchor, title = svc.alarm_location(conn, body.alarm_panel, lang=lang)
         require(conn, principal, ACK, ("floor", anchor["floor_id"]) if anchor else INSTALLATION)
         try:
             row, merged = svc.open_incident(conn, source="alarm", title=(body.title or "").strip() or title, floor_id=anchor["floor_id"] if anchor else None,
                                             x=anchor["x"] if anchor else None, y=anchor["y"] if anchor else None, anchor_id=anchor["id"] if anchor else None,
-                                            source_ref=body.alarm_panel, actor=principal, request_id=_rid(request), event_label="אזעקת פריצה")
+                                            source_ref=body.alarm_panel, actor=principal, request_id=_rid(request), event_label=dn.name("incident.burglary", lang))
         except svc.Disabled:
             raise _off() from None
     else:
@@ -198,7 +200,7 @@ def open_incident(body: OpenIn, request: Request, principal: Principal = Depends
         if (body.x is None) != (body.y is None):
             raise ApiError(422, "validation", "נקודה על התוכנית: x ו־y יחד.", details={"field": "x"})
         try:
-            row, merged = svc.open_incident(conn, source="manual", title=(body.title or "").strip() or "אירוע ידני", floor_id=fl["id"], x=body.x, y=body.y,
+            row, merged = svc.open_incident(conn, source="manual", title=(body.title or "").strip() or dn.name("incident.manual", lang), floor_id=fl["id"], x=body.x, y=body.y,
                                             actor=principal, request_id=_rid(request))
         except svc.Disabled:
             raise _off() from None
