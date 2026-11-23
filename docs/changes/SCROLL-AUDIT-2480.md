@@ -127,9 +127,16 @@ selector that no longer exists), so the list stays exact.
 | 2a: `design_ratchet.py` | workstation | no count above the baseline (px-literal 25485, scroll-container 13) |
 | 2a: `test_scroll_allow_2480.py` + `test_build_guards_2438.py` | workstation, `.venv`, `-p no:xdist` | 14 passed |
 | 2a: `tests/layout-scroll-audit-2480.spec.ts --project=desktop` (8, incl. the new alarm fill / column assertions) | workstation, Vite dev server of the branch source | 8 passed (7.0 m) |
+| 2a: runner `~/work/scroll2480.sh 152087c0c 619f94d04` (under the tests lock; head + base built rc=0) | runner | `layout-scroll-audit-2480` 8 passed (head) + 8 passed (base, screenshots only); `layout-noscroll-1366 -g alarm` 4 passed; `visual-matrix -g security-alarm` 4 passed, **2 failed** = the tablet (1024x768) light / dark baselines: the 6 demo sensors did not fit by area at 1024x768 (the 2.47.0 baseline shows 4 of them and a cut region), now one grid of 3 x 2 with all 6 - a legitimate move, refreshed (next rows); evidence specs 20 passed, 4 skipped, **3 failed** = `evidence-whoin034-295` "12 rows expected, 8 drawn" (the people list pages from 1024x560 - the spec predates the paging) |
+| 2a follow-up `7594961c3`: the spec checks the list count (12), 1..12 rows drawn and the pager; a narrow alarm card drops its area / time whole instead of an ellipsis stump | workstation, Vite dev server | `evidence-whoin034-295` desktop + tablet 14 passed; `layout-scroll-audit-2480` desktop 8 passed |
+| 2a: runner `~/work/scroll2480-refresh.sh 7594961c3` (tests lock) | runner | build rc=0; tablet alarm baselines updated (2 passed with `-u`); all 6 `security-alarm` visual-matrix baselines without `-u`: 6 passed |
 | 2a: measurement + capture pass (42 sensors; 1280 / 1366 / 1440 / 1920 desktop, 1024 landscape tablet, 390 phone; cards + list; before = the 2.47.0 `www` build) | workstation | 12 + 12 measured, numbers in 2a |
 
-Pixel baselines: none changed. Expected pixel-neutral: the demo data (6 sensors, the external mock's 14 grants at 1440x900, 3 people) fits
+Pixel baselines (2a): two refreshed, nothing else - `visual-matrix.spec.ts-snapshots/security-alarm-ready-{light,dark}-tablet-linux.png`
+(runner `~/work/scroll2480-refresh.sh 7594961c3`: `-g security-alarm --project=tablet -u` updated exactly these 2; the re-run of all 6
+security-alarm baselines without `-u` then passed 6/6). At 1024x768 the 6 demo sensors did not fit by area (2.47.0 showed 4 and a cut,
+scrolling region); now all 6 in one 3 x 2 grid, no pager.
+The first version's expectation, for the record: the demo data (6 sensors, the external mock's 14 grants at 1440x900, 3 people) fits
 one page, so no pager is drawn and the region looks as before (a scroll region that did not overflow drew no scrollbar either). The
 visual-matrix alarm baselines are the proof - NOT_RUN until the runner is free.
 
