@@ -11,17 +11,18 @@ committed baseline (scripts/wire_ratchet_baseline.json):
 
 * a count ABOVE its baseline fails (a new route without a model, a model removed, a router that is not in the baseline yet and has an
   unmodelled route) - model the route, or list it in NO_JSON when it answers no JSON;
-* a count BELOW its baseline also fails until the baseline is lowered with `--update`, so a router that got its models can never take
-  an unmodelled route again (the ratchet only goes down).
+* a count BELOW its baseline PASSES and prints a hint to lower the baseline (`--ratchet`), like scripts/design_ratchet.py: only an
+  increase fails, so a row that models routes never has to touch the baseline file (no merge conflicts); whoever lowers it locks the
+  progress in (a router that got its models then cannot take an unmodelled route again).
 
 The route table is the application's own (`create_app`, the settings scripts/api_inventory.py uses), so routes mounted by a Step or by
 main.py itself are counted too.
 
-    python scripts/wire_ratchet.py               check (exit 0 = every count equals its baseline, 1 = a count changed)
+    python scripts/wire_ratchet.py               check (exit 0 = no count above its baseline, 1 = an increase)
     python scripts/wire_ratchet.py --list        the unmodelled routes, per router (largest first)
     python scripts/wire_ratchet.py --list NAME   the unmodelled routes of one router module
-    python scripts/wire_ratchet.py --update      lower the baseline to today's counts (never raises one)
-    python scripts/wire_ratchet.py --update --allow-raise   also raise (an exception the reviewer sees in the baseline diff)
+    python scripts/wire_ratchet.py --ratchet     lower the baseline to today's counts (never raises one; --update is the same)
+    python scripts/wire_ratchet.py --ratchet --allow-raise  also raise (an exception the reviewer sees in the baseline diff)
     python scripts/wire_ratchet.py --json out.json           also write the result
 
 tests/test_wire_ratchet_2480.py runs the check in the backend suite."""
@@ -140,15 +141,16 @@ def check(rows: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     now = counts(rows if rows is not None else routes())
     base = load_baseline()
     up = {k: (base.get(k, 0), n) for k, n in now.items() if n > base.get(k, 0)}
-    down = {k: (b, now.get(k, 0)) for k, b in base.items() if now.get(k, 0) < b}
+    down = {k: (b, now.get(k, 0)) for k, b in base.items() if now.get(k, 0) < b}  # informational: never fails
     total_now, total_base = sum(now.values()), sum(base.values())
     if up:
         detail = "UP (model the route, or list it in its wire module's NO_JSON): " + ", ".join(f"{k} {b}->{n}" for k, (b, n) in up.items())
     elif down:
-        detail = "DOWN - lower the baseline with `python scripts/wire_ratchet.py --update`: " + ", ".join(f"{k} {b}->{n}" for k, (b, n) in down.items())
+        detail = (f"ok, {total_base - total_now} routes modelled since the baseline - lock it in with `python scripts/wire_ratchet.py --ratchet`: "
+                  + ", ".join(f"{k} {b}->{n}" for k, (b, n) in down.items()))
     else:
         detail = f"every count equals its baseline ({total_now} unmodelled JSON routes in {len(now)} router modules)"
-    return {"ok": not up and not down, "detail": detail, "up": up, "down": down, "total": total_now, "baseline_total": total_base,
+    return {"ok": not up, "detail": detail, "up": up, "down": down, "total": total_now, "baseline_total": total_base,
             "counts": now}
 
 
@@ -172,8 +174,8 @@ def update(allow_raise: bool, rows: list[dict[str, Any]] | None = None) -> tuple
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--list", nargs="?", const="", metavar="ROUTER", help="list the unmodelled routes (of one router module)")
-    ap.add_argument("--update", action="store_true", help="lower the baseline to today's counts")
-    ap.add_argument("--allow-raise", action="store_true", help="with --update: also raise")
+    ap.add_argument("--ratchet", "--update", dest="update", action="store_true", help="lower the baseline to today's counts")
+    ap.add_argument("--allow-raise", action="store_true", help="with --ratchet: also raise")
     ap.add_argument("--json", help="write the result as JSON here")
     a = ap.parse_args(argv)
     try:

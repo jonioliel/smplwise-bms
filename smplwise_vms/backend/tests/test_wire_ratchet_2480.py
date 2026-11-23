@@ -1,7 +1,7 @@
 """RESPONSE-MODELS-E-2480: the response-model ratchet (scripts/wire_ratchet.py). Every JSON route of the application has a wire model, or
 its router module's count of unmodelled JSON routes is the one in scripts/wire_ratchet_baseline.json - a new route without a model
-(or a removed model) raises a count and fails here; a modelled route lowers one, and the baseline is lowered with
-`python scripts/wire_ratchet.py --update` in the same change, so the ratchet only goes down."""
+(or a removed model) raises a count and fails here. Only an INCREASE fails: a modelled route lowers a count, which passes with a hint,
+and the baseline is lowered with `python scripts/wire_ratchet.py --ratchet` (like scripts/design_ratchet.py)."""
 from __future__ import annotations
 
 import importlib
@@ -31,7 +31,7 @@ def rows():
     return _script().routes()
 
 
-def test_every_count_equals_its_baseline(rows):
+def test_no_count_is_above_its_baseline(rows):
     res = _script().check(rows)
     assert res["ok"], res["detail"]
 
@@ -82,3 +82,34 @@ def test_the_ratchet_sees_a_new_unmodelled_route(rows):
     fake = [*rows, {**modelled, "key": modelled["key"] + "/x", "full": modelled["full"] + "/x", "modelled": False}]
     res = script.check(fake)
     assert not res["ok"] and modelled["router"] in res["up"]
+
+
+def test_a_decrease_passes_with_a_hint(rows):
+    """Modelling a route (a count below its baseline) must not fail the check; the detail says how to lower the baseline."""
+    script = _script()
+    base = script.load_baseline()
+    name = next(iter(base))
+    victim = next(r for r in rows if r["router"] == name and not r["modelled"] and not r["no_json"])
+    fake = [r for r in rows if r is not victim]
+    res = script.check(fake)
+    assert res["ok"] and not res["up"] and name in res["down"]
+    assert res["down"][name] == (base[name], base[name] - 1)
+    assert "--ratchet" in res["detail"]
+
+
+def test_ratchet_option_lowers_and_never_raises(rows, tmp_path, monkeypatch):
+    script = _script()
+    monkeypatch.setattr(script, "BASELINE", tmp_path / "baseline.json")
+    real = json.loads((ROOT / "scripts" / "wire_ratchet_baseline.json").read_text(encoding="utf-8"))["routers"]
+    name = next(iter(real))
+    (tmp_path / "baseline.json").write_text(json.dumps({"routers": {**real, name: real[name] + 2}}), encoding="utf-8")
+    new, refused = script.update(False, rows)  # today's count is below the file: lowered to today's
+    assert not refused and new[name] == real[name]
+    assert script.check(rows)["ok"]
+    (tmp_path / "baseline.json").write_text(json.dumps({"routers": {**real, name: real[name] - 1}}), encoding="utf-8")
+    new, refused = script.update(False, rows)  # today's count is above the file: refused, file keeps the lower number
+    assert refused == [name] and new[name] == real[name] - 1
+    assert not script.check(rows)["ok"]
+    new, refused = script.update(True, rows)  # --allow-raise
+    assert not refused and new[name] == real[name]
+    assert script.main(["--ratchet"]) == 0  # the CLI option exists (writes the monkeypatched file)

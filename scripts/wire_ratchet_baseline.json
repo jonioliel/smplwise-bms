@@ -1,5 +1,5 @@
 {
- "about": "Response-model ratchet baseline (scripts/wire_ratchet.py, RESPONSE-MODELS-E-2480): unmodelled JSON routes per router module. The check fails when a count differs from its number here: above = a route without a wire model; below = lower the baseline with --update. Raising needs --allow-raise and a reason in the change note.",
+ "about": "Response-model ratchet baseline (scripts/wire_ratchet.py, RESPONSE-MODELS-E-2480): unmodelled JSON routes per router module. The check fails only when a count rises above its number here (a route without a wire model); a lower count passes with a hint to lower the baseline with --ratchet. Raising needs --allow-raise and a reason in the change note.",
  "total": 901,
  "routers": {
   "access_control_calls": 3,

@@ -28,7 +28,7 @@ an int / float difference can never drift. This is what makes models drafted fro
 
 ### 3. Method
 
-1. A shape recorder (scratch pytest plugin, not committed) wrapped FastAPI's `serialize_response` and merged, per route, the JSON shape of
+1. A shape recorder (pytest plugin, `scripts/wire_draft/shaperec.py`) wrapped FastAPI's `serialize_response` and merged, per route, the JSON shape of
    every answer the tests received (keys present always / sometimes, value kinds, nesting), and the drift the wire models logged.
 2. A drafter turned the shapes into `ExactModel` classes per route (keys always present = required; sometimes = default `None`, absent
    under `exclude_unset`; id-like / HA-domain keyed objects, stored documents and deep nesting = `dict[str, Any]`), read against the
@@ -155,8 +155,8 @@ re-run of all 82 files after the last two fixes (only g5's 8 files).
    ERROR once per (model, field) - expect some such lines on the lab. Routes no test reached stay `UNMODELLED`.
 2. Some models are wide (`dict[str, Any]` for stored documents, HA-keyed and deep objects; `Num` for every number): exact for the wire,
    weaker for the client types.
-3. The ratchet is strict both ways: a 2.48.0 row that adds a route without a model (or merges with an older baseline) fails
-   `test_wire_ratchet_2480` until it models the route or runs `--update` (`--allow-raise` with a reason). Merge this row early.
+3. The ratchet fails only on an increase (lead's boarding condition): a route without a model fails `test_wire_ratchet_2480` until it
+   is modelled (or `--ratchet --allow-raise` with a reason); a decrease passes with a hint to run `--ratchet`, which lowers the baseline.
 4. My recorder pass on the runner (8 niced shards, started 08:28 UTC while the gate state read `pass`) ran into the 2.47.0 gate window
    and added to the overload that stopped SSH; I stopped it as soon as SSH answered. Leftovers to delete once the runner is free:
    `~/work/respe` (detached worktree: `git -C ~/smplwisebms worktree remove --force ~/work/respe`), `~/work/respe-out`,
@@ -164,8 +164,7 @@ re-run of all 82 files after the last two fixes (only g5's 8 files).
 
 ## Open questions (recommendation first)
 
-1. The remaining 901 routes: continue with the same method in follow-up rows, a few router families per row. Recommendation: commit
-   the recorder / drafter as `scripts/wire_draft/` in the next row so the method is reproducible (kept out of this row's scope).
-2. Ratchet strictness on a decrease (fails until `--update`): recommendation keep (it locks progress in); alternative: fail only on an
-   increase, like `design_ratchet.py`.
+1. The remaining 901 routes: continue with the same method in follow-up rows, a few router families per row, with the recorder / drafter
+   committed as `scripts/wire_draft/` (README = the method).
+2. Ratchet strictness on a decrease: DECIDED (lead) - fail only on an increase, like `design_ratchet.py`; done.
 3. Drift log level on installations (ERROR): recommendation keep for 2.48.0 so the lab shows the gaps; WARNING later.

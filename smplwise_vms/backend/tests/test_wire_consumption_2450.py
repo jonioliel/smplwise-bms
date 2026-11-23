@@ -146,6 +146,7 @@ def test_drift_is_logged_once_and_answered_unchanged_in_production(monkeypatch, 
             assert wire_oracle.same(out, wire_oracle.legacy_json(BAD)) is None
     drift = [r for r in caplog.records if "contract drift" in r.getMessage()]
     assert len(drift) == 1 and "EnergyVatRate" in drift[0].getMessage()
+    assert drift[0].levelno == logging.ERROR  # RESPONSE-MODELS-E-2480: drift stays at ERROR level
     ok = {"items": [], "current": None, "added": [1]}  # an undeclared key passes through, logged
     assert json.loads(ta.dump_json(ta.validate_python(ok), exclude_unset=True)) == ok
     wire._REPORTED.clear()
