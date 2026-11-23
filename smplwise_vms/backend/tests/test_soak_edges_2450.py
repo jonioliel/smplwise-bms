@@ -87,9 +87,15 @@ def integrity(db: Any) -> str:
         return conn.execute("PRAGMA integrity_check").fetchone()[0]
 
 
-def own_threads() -> list[str]:
-    """The live threads except executor pool workers (they grow on demand up to a cap, then are reused)."""
-    return sorted(t.name for t in threading.enumerate() if t.is_alive() and not t.name.startswith(("asyncio_", "ThreadPoolExecutor")))
+def own_threads(started_before: set[int] | frozenset[int] = frozenset()) -> list[str]:
+    """The live threads except pool workers (they grow on demand up to a cap, then are reused or idle out) and except the threads in
+    `started_before`. TIMING-LANE-2480: AnyIO's worker threads are pool workers too - the test client's requests (summary, report) run
+    their sync routes on them and an idle one exits about 10 s later, so on a loaded machine one is alive in some snapshots and gone
+    in others (seen on the PC under load: cycle 0 `['AnyIO worker thread', 'MainThread', 'ha-sync']`, later cycles without it).
+    `started_before` (idents alive before the test began): a daemon thread an EARLIER test of the same gate shard left behind ends
+    whenever the machine gets round to it, possibly between two of this test's snapshots; it is not this test's."""
+    return sorted(t.name for t in threading.enumerate()
+                  if t.is_alive() and t.ident not in started_before and not t.name.startswith(("asyncio_", "ThreadPoolExecutor", "AnyIO worker thread")))
 
 
 def threads_named(*prefixes: str) -> list[str]:
@@ -204,6 +210,7 @@ def test_d1_ha_websocket_drop_and_reconnect_three_cycles(settings, monkeypatch):
     Home Assistant restarts -> connected again. While down: `connected` false, `last_error` ha_restarting, the summary and the
     report say the sync is disconnected. After each reconnect: the snapshot brings the states changed during the outage, the
     state committed before the drop is still there, `reconnects` counts the drop, and no thread or subscriber is left over."""
+    started_before = frozenset(t.ident for t in threading.enumerate())  # not this test's threads (see own_threads)
     monkeypatch.setattr(ha_sync, "BACKOFF_START_S", 0.05)
     monkeypatch.setattr(ha_sync, "BACKOFF_MAX_S", 0.2)
     monkeypatch.setattr(ha_sync, "RESTART_BACKOFF_CAP_S", 0.2)
@@ -252,7 +259,7 @@ def test_d1_ha_websocket_drop_and_reconnect_three_cycles(settings, monkeypatch):
             assert _mirror(db, "binary_sensor.front_contact") == door["state"]
             assert "ha" not in summary_items(c) and report_checks(c)["ha_sync"]["status"] == "ok"
             seen.append({"cycle": cycle, "down_summary": item["label"], "attempts_while_down": ha.attempts - attempts - 1,
-                         "threads": own_threads()})
+                         "threads": own_threads(started_before)})
         # the event loop's executor grows lazily to a plateau and is left out; every other thread must be the same after each cycle
         assert all(x["threads"] == seen[0]["threads"] for x in seen), f"threads change per reconnect: {seen}"
     finally:

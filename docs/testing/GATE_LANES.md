@@ -43,15 +43,42 @@ and by `tsconfig.json` (`exclude`); the gate (`release_gate.py classify()`), the
 | `test_f3a_doorwin_dw03_295.py::test_the_in_flight_slot_is_freed_when_the_hung_call_ends` (new: the second half of the old in-flight cap test) | the hung call's thread must free its slot within 2 s; the combined test was FLAKY 8 / 40 | `test_the_in_flight_cap_refuses_to_send_rather_than_queue`: with the cap full every call is refused `not_sent:lane_full` and never reaches the engine (physical-command safety) - no clock in it any more. Every other DW-03 test (hung doors, deadline, stale-row claim, late answers) is unchanged and blocking. |
 | `test_lat1_toggle_latency.py::test_toggle_reaches_ha_and_pushes_back_without_waiting` | dispatch / push median bounds under a load factor; FLAKY 3 / 40 | new `test_toggles_reuse_one_connection_and_report_every_hop` (one keep-alive connection, every Server-Timing hop); the record-before-send, never-sent-when-unrecorded and duplicate-click tests of the same file are unchanged and blocking |
 | `test_lat1_toggle_latency.py::test_the_recorded_command_leaves_promptly_once_the_write_lock_is_free` (CR-BE-FOLLOWUPS-2470: the upper bound split out of the held-lock test) | "leaves within 400 ms of the lock being free" is wall-clock; it failed under load on old and new code | `test_the_command_is_recorded_before_it_leaves_and_waits_for_a_short_write_lock`: the record is durable before the call arrives, the call does not leave before the lock is free, the 202 and the `attempt` audit row - no wall-clock ceiling in it |
+| `test_plan_detect_baseline.py::test_every_plan_finishes_inside_the_wall_clock_budget` (TIMING-LANE-2480: the wall-clock half of the detection baseline) | the 15 s per plan of T086 / AT172 is a true latency budget; the 2.47.0 gate run 1 (load ~250) took the `apartment` plan past it | `test_baseline_on_the_synthetic_set`: every quality bound unchanged, and the same 15 s budget as the detector's CPU time (`cpu_ms`, `time.process_time`) - an algorithmic regression still fails the blocking gate, a descheduled run does not |
 | `evidence-nvr-cameras-batch.spec.ts` describe "hundreds of cameras" (300 cameras) | scale / timing under load; FLAKY 10 / 40 | the ONE-confirmation, progress, stop, undo, unknown-outcome and permission tests of the batch (same file) |
 | `unit-plan-3d-realistic.spec.ts` "the level-3 graph is deterministic ..." | two full rebuilds on SwiftShader; FLAKY 6 / 40 | the other level-3 tests |
 | `unit-plan-3d-view.spec.ts` "frames render on demand ..." | counts frames over wall-clock windows; FLAKY 6 / 40 | the other 3D view tests |
 | `evidence-uxfix-rtl.spec.ts` "a russian / english title keeps its beginning" | wrapping measured while the web fonts load; FLAKY 4 / 40 | the Hebrew-date title and the sites / buildings cases |
 
 Kept blocking on purpose although they flake: `test_installation_capabilities.py::test_route_sweep[*]` (permission sweep, security),
-`test_tickets_public_server.py::test_one_upload_in_flight_per_link_at_the_socket` (public-surface abuse guard),
-`test_f3a_doorwin_dw03_295.py::test_four_hung_doors_do_not_hold_back_the_other_four` (emergency door release reaches the other doors).
+`test_tickets_public_server.py::test_one_upload_in_flight_per_link_at_the_socket` (public-surface abuse guard).
 A FLAKY result never blocks a gate anyway (each failure is retried alone).
+
+### Made clock-free instead (TIMING-LANE-2480)
+
+The 2.47.0 gate run 1 (runner load up to ~250) failed eight backend tests that pass alone. Only one of them measures a real latency
+budget (the plan-detection row in the table above); the other seven waited for, or bounded, something by the wall clock that the test
+does not mean to measure. They now pin the clock the product code reads, or wait on the event itself, and stay in the blocking gate
+with every assertion they had (several got stronger). Rule: before a test goes into the lane, look for the clock it reads.
+
+| Test | The wall-clock dependence | Now |
+|---|---|---|
+| `test_f3a_doorwin_dw03_295.py::test_four_hung_doors_do_not_hold_back_the_other_four` | an answering door had to answer inside the real 0.5 s per-call deadline, plus an `elapsed < 4.5 s` bound | `DeadlineClock` (in the test file): door_emergency's own `threading.Event` / `futures_wait` / call-budget clock run on a clock the test advances once the four answering doors HAVE answered while the hung four are in flight; then the hung four end `unknown/deadline`, the incident settles without the dispatcher's grace, and the late answers are awaited (event) instead of a 0.2 s sleep. No product constant changed. |
+| `test_lat1_toggle_latency.py::test_a_command_whose_record_cannot_be_written_in_time_is_never_sent` | the write lock was held for `PENDING_WAIT_S + 2` s of wall clock; a slow request reached its record wait after the holder let go and was sent | the lock is held until the request has answered (event; `HANG_GUARD_S` only frees a hung test) |
+| `test_sync_gate_wait.py::test_sync_handlers_do_not_starve_behind_gate_waiters` | gate waiters timed out (`BUSY_TIMEOUT_S` 8 s) while 45 writers were still being queued; 1 s per-writer cap; `elapsed < 8 s` | the gate queue's entry wait is untimed in this test (db.py's own `threading.Event` only); each writer is awaited into the queue (event); starvation is asserted where it happens: while the writers are parked the shared AnyIO pool keeps a free thread (a mutation that puts the gate wait back into the shared pool fails at once: "writer 38: ... 40 of 40") |
+| `test_soak_edges_2450.py::test_d1_ha_websocket_drop_and_reconnect_three_cycles` | the thread-leak check compared every live thread; an AnyIO worker thread of the test client (idles out ~10 s later) or a daemon thread of an earlier test in the shard came and went between snapshots | AnyIO workers are left out like the other pool workers, and so are threads alive before the test began (`own_threads(started_before)`); a thread leaked per reconnect still fails it |
+| `test_wiskey_door_tech.py::test_the_view_says_who_may_write_what_this_wiskey_offers_and_the_recent_writes` (and `test_the_cooldown_after_a_send_and_not_after_a_refusal`) | two real posts had to land inside the 3 s cool-down | the cool-down's `time.monotonic()` (services/wiskey_door_tech.py) is a `ManualClock`; the cool-down test also proves the end of the window (2.9 s: refused, 3.1 s: sent) |
+| `test_partner_api_113.py::test_sec217_global_failure_flood_never_locks_out_a_valid_token` | 320 failures (a TestClient each) had to fit in one minute of wall clock | `PartnerApp(clock=...)` pinned: all 320 fall in one window on any machine |
+| `test_setup_wizard.py::test_unknown_step_rate_limit_and_audit` | the second check had to come within 5 s of the first live check | the slot's `time.monotonic()` (services/setup_wizard.py) is a `ManualClock`; the test also proves the slot frees after `CHECK_EVERY_S` |
+
+Helpers: `tests/support/waiting.py` `ManualClock` (a monotonic clock only the test moves) and `time_shim(monotonic=..., wall=...)` (a
+stand-in for one module's `import time`; the `datetime_shim` pattern).
+
+### Proposed gate change (for the lead; runner-side, not made here)
+
+The lane already exists and needs nothing new for the one test added to it. Today the lane run uses the gate's backend sharding
+(`GATE_BACKEND_SHARDS`, 6 shards under schedule v2), so its few files still run side by side. To run the lane's backend tests alone and
+SERIALLY after the gate, `timing_lane.sh` would export `GATE_BACKEND_SHARDS=1` next to `GATE_LANE=timing` (one pytest process; the lane
+files take well under its 45 min budget). The quiet-machine wait and the shared tests lock stay as they are.
 
 ### How to put a test in the lane
 

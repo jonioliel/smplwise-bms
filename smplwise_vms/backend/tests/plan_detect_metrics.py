@@ -200,13 +200,15 @@ def evaluate(gt: dict[str, Any], result: dict[str, Any], tol_px: float = 10.0) -
 
 def run_set(detect_fn: Callable[..., dict[str, Any]], folder: Path = FIXTURES, calibrated: bool = True) -> list[dict[str, Any]]:
     """Every plan of a folder through `detect_fn(png_bytes, scale_m_per_px=...)`, scored; the scale is the ground
-    truth's when calibrated, else None (the detector then estimates it and offers a door-width hint)."""
+    truth's when calibrated, else None (the detector then estimates it and offers a door-width hint). `ms` is the wall time of the
+    run, `cpu_ms` the CPU time this process spent on it (TIMING-LANE-2480: it does not grow when a loaded machine deschedules the run)."""
     rows = []
     for name, gt, png in load_set(folder):
-        t0 = time.perf_counter()
+        t0, c0 = time.perf_counter(), time.process_time()
         result = detect_fn(png, scale_m_per_px=gt["scale_m_per_px"] if calibrated else None)
         ms = int((time.perf_counter() - t0) * 1000)
-        rows.append({"name": name, "ms": ms, **evaluate(gt, result, TOLERANCE_PX.get(name, 10.0)), "hint": result.get("calibration_hint"), "counts": {"walls": len(result["walls"]), "openings": len(result["openings"]), "objects": len(result.get("objects") or [])}})
+        cpu_ms = int((time.process_time() - c0) * 1000)
+        rows.append({"name": name, "ms": ms, "cpu_ms": cpu_ms, **evaluate(gt, result, TOLERANCE_PX.get(name, 10.0)), "hint": result.get("calibration_hint"), "counts": {"walls": len(result["walls"]), "openings": len(result["openings"]), "objects": len(result.get("objects") or [])}})
     return rows
 
 

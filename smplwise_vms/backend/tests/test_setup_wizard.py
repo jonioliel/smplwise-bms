@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 from conftest import as_user, bind, png_bytes, seed_tree, warm_routes
+from support.waiting import ManualClock, time_shim
 from fastapi.testclient import TestClient
 
 from smplwise.db import Database, now_iso, set_setting
@@ -136,17 +137,25 @@ def test_unknown_step_rate_limit_and_audit(settings, fake, monkeypatch):
     c = TestClient(create_app(devices(settings)))
     assert check(c, "firmware").status_code == 404
     monkeypatch.setattr(wizard, "CHECK_EVERY_S", 5.0)
+    # TIMING-LANE-2480: the per-user / per-step slot reads `time.monotonic()` of services/setup_wizard.py; pinned, the second check is
+    # 0 s after the first on any machine (on a loaded gate runner the first live check alone outlasted the 5 s and the second one passed)
+    clock = ManualClock()
+    monkeypatch.setattr(wizard, "time", time_shim(monotonic=clock))
     first = check(c, "nvr")
     assert first.status_code == 200 and first.json()["checked"] == "nvr"
     second = check(c, "nvr")
     assert second.status_code == 429 and second.json()["code"] == "check_rate_limited"
     assert 1 <= second.json()["details"]["retry_after_s"] <= 5 and "שניות" in second.json()["user_message"]
     assert check(c, "go2rtc").status_code == 200, "the limit is per step"
+    clock.advance(4.9)
+    assert check(c, "nvr").status_code == 429, "still inside CHECK_EVERY_S"
+    clock.advance(0.2)
+    assert check(c, "nvr").status_code == 200, "and free again once CHECK_EVERY_S has passed"
     bind(c, settings, "yael", "system_admin", "installation", "*")
     assert check(c, "nvr", headers=as_user("yael")).status_code == 200, "and per user"
     with Database(settings.db_path).connection() as conn:
         rows = conn.execute("SELECT actor_username, decision, details_json FROM audit_log WHERE action = 'setup.check' ORDER BY id").fetchall()
-    assert [r["actor_username"] for r in rows] == ["joni", "joni", "yael"]
+    assert [r["actor_username"] for r in rows] == ["joni", "joni", "joni", "yael"]
     assert all(r["decision"] == "allowed" for r in rows) and '"step": "nvr"' in rows[0]["details_json"] and '"status": "done"' in rows[0]["details_json"]
     assert fake.writes == [], "a check never writes to a device"
 
