@@ -360,6 +360,7 @@ export function paletteTokens(pal: Palette, scheme: Scheme): Record<string, stri
   t['--sw-layer-2'] = rgbaStr(layer, Math.min(1, layer[3] * 1.45));
   t['--sw-nav-glass'] = rgbaStr(tint, s.glass.opacity.default);
   t['--sw-glass-blur-sheet'] = `blur(${s.glass.blurPx}px) saturate(160%)`;
+  t['--sw-sheet-alpha-min'] = s.glass.blurPx > 0 ? '0' : '1'; // PHONE-SHEET-2480: a sheet with no blur rests opaque
   t['--sw-glass-blur-nav'] = `blur(${Math.round(s.glass.blurPx * 0.7)}px) saturate(150%)`;
   // states: the same colour names the rest of the product reads (live / stale / forbidden and so on follow success / warning / danger)
   const st: [string[], keyof PaletteScheme['state'], keyof PaletteScheme['state']][] = [

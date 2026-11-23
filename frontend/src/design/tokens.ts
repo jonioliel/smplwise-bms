@@ -498,6 +498,10 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       // the sheet (translucent pop-up): colour as a triplet so the transparency dial can compose the alpha
       '--sw-sheet-rgb': lt('255, 255, 255', '21, 28, 44'),
       '--sw-sheet-alpha': same('1'), // the look dial `transparency` sets this on <html> (design/look.ts); 1 = opaque
+      // PHONE-SHEET-2480: the lowest alpha the open sw-sheet rests at in this skin. 1 = a skin without a sheet blur: the sheet is opaque
+      // whatever the transparency dial says (a translucent fill with no blur let the page and the phone's bottom bar read through a
+      // form). The glass skins (domus, crystal, bubble) set 0, so their frosted sheet follows the dial as before.
+      '--sw-sheet-alpha-min': same('1'),
       '--sw-layer': lt('rgba(255, 255, 255, 0.55)', 'rgba(255, 255, 255, 0.08)'), // a pill sitting ON a translucent sheet
       '--sw-layer-2': lt('rgba(255, 255, 255, 0.8)', 'rgba(255, 255, 255, 0.14)'),
       '--sw-nav-glass': lt('#ffffff', '#151c2c'), // rail, tree panel, phone dock

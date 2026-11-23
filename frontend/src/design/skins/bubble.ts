@@ -96,6 +96,7 @@ const tokens: TokenTable = {
   '--sw-glass-blur': same('none'), // cards stay flat (bubble); the glass surface dial adds blur per component
   '--sw-glass-blur-nav': same('blur(18px) saturate(150%)'),
   '--sw-glass-blur-sheet': same('blur(26px) saturate(160%)'),
+  '--sw-sheet-alpha-min': same('0'), // PHONE-SHEET-2480: a glass skin - its sheet blurs, so the transparency dial keeps reaching it
   '--sw-t-fast': same('200ms'),
   '--sw-t-med': same('300ms'),
   '--sw-t-sheet': same('460ms'),
