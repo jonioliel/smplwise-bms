@@ -1,0 +1,1 @@
+import{bi as n,a1 as a,bj as s}from"./index-eHtAZ44A.js";const c="sw.demo.automations";function t(){if(!a())try{const e=window.localStorage.getItem(c);return e?JSON.parse(e).scheme:void 0}catch{return}}function m(e){n(e).then(()=>{const i=t();!a()&&i&&e.isConnected&&s(e,i)});const o=t();!a()&&o&&s(e,o)}export{m as a};
