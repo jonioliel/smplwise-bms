@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { phoneSkipDesktopShot } from './helpers/phone-skip-shots';
 
 // CR-LIVEEVENT100 F-04 / F-05: the live event page holds the owner's hard rule of 2026-10-24 - NO scrolling at all in a control screen.
 // The static demo (no backend: fake data in the shape of the API) at 1366x768, 1920x1080, 1280x720, 1024x768, 768x1024 and the phone
@@ -75,7 +76,7 @@ test.describe('live event: no scrolling', () => {
         // the live budget: desktop 4 live, phone / tablet 1 live + snapshots (demo: the illustrated tiles keep the same markers)
         const live = await scr.locator('[data-incident-tile][data-live="true"]').count();
         expect(live).toBe(s.w >= 1200 ? 4 : 1);
-        await page.screenshot({ path: path.join(OUT, `detail-${s.w}x${s.h}-${scheme}.png`) });
+        if (!phoneSkipDesktopShot(page)) await page.screenshot({ path: path.join(OUT, `detail-${s.w}x${s.h}-${scheme}.png`) }); // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
       });
     }
   }
@@ -110,14 +111,14 @@ test.describe('live event: no scrolling', () => {
       await expect(form.locator('[data-setting="incident.merge_window_s"]')).toHaveValue('5'); // minutes on screen, seconds stored
       await page.waitForTimeout(300);
       await noScroll(page, `${s.w} sheet`);
-      await page.screenshot({ path: path.join(OUT, `sheet-${s.w}x${s.h}.png`) });
+      if (!phoneSkipDesktopShot(page)) await page.screenshot({ path: path.join(OUT, `sheet-${s.w}x${s.h}.png`) }); // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
       await form.locator('[data-settings-close]').click();
       await open(page, '/investigate/incidents', 'light');
       await expect(scr.locator('[data-incidents-list]')).toBeVisible();
       await page.waitForTimeout(300);
       const m = await page.evaluate(() => { const main = document.querySelector('sw-app')!.shadowRoot!.querySelector('main')!; return main.scrollHeight - main.clientHeight; });
       expect(m, 'the list fits too').toBeLessThanOrEqual(1);
-      await page.screenshot({ path: path.join(OUT, `list-${s.w}x${s.h}.png`) });
+      if (!phoneSkipDesktopShot(page)) await page.screenshot({ path: path.join(OUT, `list-${s.w}x${s.h}.png`) }); // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
     });
   }
 });

@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { phoneSkipDesktopShot } from './helpers/phone-skip-shots';
 
 // HA 2026.10 compatibility (docs/operations/HA_2026_10_COMPATIBILITY_HE.md plan row 4): the administrator-only card on
 // Settings > Automations (`#/system/automations`) that lists what the read-only scan found. Demo mode (no backend: the mock store
@@ -44,7 +45,7 @@ test.describe('HA 2026.10 compatibility card', () => {
         await expect(script.locator('a')).toHaveAttribute('href', '#/devices/automations/scripts/arm_alarm_mqtt');
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
         await card.scrollIntoViewIfNeeded();
-        await page.screenshot({ path: path.join(EVIDENCE, `compat-${size}.png`), fullPage: false });
+        if (!phoneSkipDesktopShot(page)) await page.screenshot({ path: path.join(EVIDENCE, `compat-${size}.png`), fullPage: false }); // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
       });
     }
   }

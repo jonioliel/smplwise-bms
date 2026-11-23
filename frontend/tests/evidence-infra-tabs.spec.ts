@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installGeneratorMock, PERMS, url } from './generator-mocks';
+import { phoneSkipDesktopShot } from './helpers/phone-skip-shots';
 
 // 2.9.2 (owner 2026-10-20, INFRATABS): the infrastructure page rows (גנרטור: מצב חי / התראות פעילות / גרפים / היסטוריה, מוני חשמל: מונים / ...)
 //   1. never jump: the row (or its chip) keeps its position from the first frame (it used to draw under the header and then move down a row
@@ -63,7 +64,7 @@ async function samples(page: Page, rowSel: string, bodySel: string, ms = 2600) {
 }
 
 const box = (page: Page, sel: string) => page.locator(sel).first().boundingBox();
-const shot = (page: Page, name: string) => page.screenshot({ path: path.join(OUT, `${name}.png`) });
+const shot = (page: Page, name: string) => (phoneSkipDesktopShot(page) ? Promise.resolve(Buffer.alloc(0)) : page.screenshot({ path: path.join(OUT, `${name}.png`) })); // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
 
 test.describe('infrastructure page rows: tab mode, placement, no jump', () => {
   test.beforeAll(() => fs.mkdirSync(OUT, { recursive: true }));

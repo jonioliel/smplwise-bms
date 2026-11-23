@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { phoneSkipDesktopShot } from './helpers/phone-skip-shots';
 
 // USR2 phase 1: the sign-in page's "משתמש Arx" mode and the welcome (set-password) page, bundled as they are and run on a mocked
 // same-origin page (no backend, no Home Assistant). Negative first: the mode exists only when the server offers it; the local mode
@@ -371,12 +372,12 @@ for (const view of [{ name: 'desktop', w: 1440, h: 900 }, { name: 'mobile', w: 3
     });
     await mountLogin(page, true);
     await page.locator('arx-login [data-arx-mode="local"]').click();
-    await page.screenshot({ path: path.join(EVIDENCE, `login-local-ready-${view.name}.png`) });
+    if (!phoneSkipDesktopShot(page)) await page.screenshot({ path: path.join(EVIDENCE, `login-local-ready-${view.name}.png`) }); // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
     await page.locator('arx-login #username').fill('maria');
     await page.locator('arx-login #password').fill('x');
     await page.locator('arx-login [data-arx-submit]').click();
     await expect(page.locator('arx-login [data-arx-error]')).toBeVisible();
-    await page.screenshot({ path: path.join(EVIDENCE, `login-local-error-${view.name}.png`) });
+    if (!phoneSkipDesktopShot(page)) await page.screenshot({ path: path.join(EVIDENCE, `login-local-error-${view.name}.png`) }); // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
     await page.evaluate(() => {
       document.querySelector('arx-login')?.remove();
       const el = document.createElement('arx-welcome') as HTMLElement & { token: string };
@@ -384,7 +385,7 @@ for (const view of [{ name: 'desktop', w: 1440, h: 900 }, { name: 'mobile', w: 3
       document.body.appendChild(el);
     });
     await expect(page.locator('arx-welcome [data-arx-welcome]')).toBeVisible();
-    await page.screenshot({ path: path.join(EVIDENCE, `welcome-${view.name}.png`) });
+    if (!phoneSkipDesktopShot(page)) await page.screenshot({ path: path.join(EVIDENCE, `welcome-${view.name}.png`) }); // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
     await page.evaluate(() => {
       document.querySelector('arx-welcome')?.remove();
       const el = document.createElement('system-local-users') as HTMLElement & { roles: unknown[]; scopes: unknown[] };
@@ -397,7 +398,7 @@ for (const view of [{ name: 'desktop', w: 1440, h: 900 }, { name: 'mobile', w: 3
     await page.locator('system-local-users [data-local-add]').click();
     await page.locator('system-local-users [data-local-role]').selectOption('site_admin');
     await expect(page.locator('system-local-users [data-local-admin-note]')).toBeVisible();
-    await page.screenshot({ path: path.join(EVIDENCE, `settings-local-users-${view.name}.png`), fullPage: true });
+    if (!phoneSkipDesktopShot(page)) await page.screenshot({ path: path.join(EVIDENCE, `settings-local-users-${view.name}.png`), fullPage: true }); // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
   });
 }
 
@@ -412,15 +413,15 @@ for (const view of [{ name: 'desktop', w: 1440, h: 900 }, { name: 'mobile', w: 3
     await mountLogin(page, true);
     await page.locator('arx-login [data-arx-mode="local"]').click();
     await page.locator('arx-login [data-arx-forgot]').click();
-    await page.screenshot({ path: path.join(EVIDENCE, `login-local-forgot-${view.name}.png`) });
+    if (!phoneSkipDesktopShot(page)) await page.screenshot({ path: path.join(EVIDENCE, `login-local-forgot-${view.name}.png`) }); // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
     await page.locator('arx-login #runame').fill('noa');
     await page.locator('arx-login [data-arx-send-code]').click();
     await expect(page.locator('arx-login [data-arx-reset-form]')).toBeVisible();
-    await page.screenshot({ path: path.join(EVIDENCE, `login-local-reset-code-${view.name}.png`) });
+    if (!phoneSkipDesktopShot(page)) await page.screenshot({ path: path.join(EVIDENCE, `login-local-reset-code-${view.name}.png`) }); // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
     await page.evaluate(() => document.querySelector('arx-login')?.remove());
     await mountUsers(page);
     await page.locator('system-local-users').getByText('נועה').click();
     await expect(page.locator('system-local-users [data-local-wa]')).toBeVisible();
-    await page.screenshot({ path: path.join(EVIDENCE, `settings-local-users-whatsapp-${view.name}.png`), fullPage: true });
+    if (!phoneSkipDesktopShot(page)) await page.screenshot({ path: path.join(EVIDENCE, `settings-local-users-whatsapp-${view.name}.png`), fullPage: true }); // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
   });
 }
