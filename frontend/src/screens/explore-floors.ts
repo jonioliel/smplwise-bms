@@ -12,6 +12,8 @@ import '../components/sw-scene';
 import '../components/sw-floor-iso';
 import '../components/sw-field';
 import '../components/sw-dialog';
+import '../components/sw-dropdown';
+import '../components/sw-toggle';
 import '../components/sw-state-panel';
 import { demoRooms } from '../fixtures/demo';
 import { navigate } from '../router';
@@ -37,8 +39,11 @@ import type { HomeLinks } from '../api/catalog';
 import { fireReport, onFire, setFireMock } from '../xsection/fire-store';
 import { floorLightsTarget, linksFold, listStep, nearFloors, onXsOptions, phonePlaceFor, signalsOf, xsFromParams, xsMetrics, xsOptions, type FloorSignal, type XsOptions } from '../xsection/xs-model';
 import { tr } from '../i18n/msg/media';
+import { moveFloor, moveGate, moveTargets, peopleOf, previewMove, recordsMoving, type MovePreview } from '../api/mb-safety';
 
-type Dialog = { kind: 'floor' } | { kind: 'rename'; floor: Floor } | { kind: 'delete'; floor: Floor; force: boolean } | { kind: 'building' } | { kind: 'home'; floor: Floor } | null;
+/** MULTI-BUILDING-SAFETY-2500 (owner 22.11, Q62): 'move' = moving the floor to another building of the site, with the server's impact preview. */
+type MoveDialog = { kind: 'move'; floor: Floor; target: string; preview: MovePreview | null; ack: boolean };
+type Dialog = { kind: 'floor' } | { kind: 'rename'; floor: Floor } | { kind: 'delete'; floor: Floor; force: boolean } | { kind: 'building' } | { kind: 'home'; floor: Floor } | MoveDialog | null;
 
 /** SC03 — floor browser (board 1 screen 3) on real catalogue data: add / rename / delete floors, add buildings. */
 @customElement('explore-floors')
@@ -257,6 +262,53 @@ export class ExploreFloors extends LitElement {
     .err {
       color: var(--sw-danger-text);
       font-size: var(--sw-fs-xs);
+    }
+    /* MULTI-BUILDING-SAFETY-2500: the floor's building in the edit dialog, and the move preview */
+    .moverow {
+      display: flex;
+      gap: var(--sw-s-3);
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      margin-block-start: var(--sw-s-1);
+      padding-block-start: var(--sw-s-3);
+      border-block-start: thin solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+    }
+    .mv {
+      display: grid;
+      gap: var(--sw-s-2);
+      font-size: var(--sw-fs-sm);
+      margin-block-start: var(--sw-s-2);
+    }
+    .mv .ln {
+      display: grid;
+      gap: calc(var(--sw-s-1) / 2);
+      padding: var(--sw-s-2) var(--sw-s-3);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
+    }
+    .mv .ln b {
+      color: var(--sw-heading);
+    }
+    .mv .ln span {
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-xs);
+      overflow-wrap: anywhere;
+    }
+    .mv .ln.lose,
+    .mv .ln.block {
+      background: var(--sw-danger-soft);
+    }
+    .mv .ln.lose b,
+    .mv .ln.block b {
+      color: var(--sw-danger-text, var(--sw-danger));
+    }
+    .mv .ack {
+      display: block;
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-danger-text);
     }
     .empty {
       border: 1.5px dashed var(--sw-border-strong);
@@ -768,7 +820,10 @@ export class ExploreFloors extends LitElement {
         </sw-dialog>`;
       case 'rename':
         return html`<sw-dialog open heading=${tr('עריכת קומה')} subheading=${d.floor.name} @close=${() => (this.dialog = null)}>
-          ${nameField}${levelField}${errorLine}${demoLine}
+          ${nameField}${levelField}${this.moveTargets(building).length
+            ? html`<div class="moverow" data-floor-move-row><span>${tr('הקומה שייכת ל{name}', { name: building.name })}</span>
+                <sw-button size="sm" variant="ghost" icon="building" data-floor-move-open @click=${() => this.openMove(d.floor, building)}>${tr('העברה לבניין אחר')}</sw-button></div>`
+            : nothing}${errorLine}${demoLine}
           <sw-button slot="footer" variant="ghost" @click=${() => (this.dialog = null)}>${tr('ביטול')}</sw-button>
           <sw-button slot="footer" variant="primary" ?disabled=${!this.formName.trim() || this.busy || demo} @click=${() => this.run(() => updateFloor(d.floor.id, { name: this.formName.trim(), level: this.formLevel }))}>${tr('שמירה')}</sw-button>
         </sw-dialog>`;
@@ -788,6 +843,8 @@ export class ExploreFloors extends LitElement {
           @close=${() => (this.dialog = null)}
           @saved=${(e: CustomEvent<{ links: HomeLinks }>) => { this.dialog = null; if (this.xsData) this.xsData = { ...this.xsData, links: e.detail.links }; void loadXsData().then((x) => (this.xsData = x)); }}></sw-floor-home-link>`;
       }
+      case 'move':
+        return this.renderMove(d, building, demo);
       case 'building':
         return html`<sw-dialog open heading=${tr('מבנה חדש')} subheading=${this.context?.site.name ?? ''} @close=${() => (this.dialog = null)}>
           ${nameField}${errorLine}${demoLine}
@@ -795,6 +852,88 @@ export class ExploreFloors extends LitElement {
           <sw-button slot="footer" variant="primary" ?disabled=${!this.formName.trim() || this.busy || demo} @click=${() => this.run(async () => { const b = await createBuilding(this.context!.site.id, { name: this.formName.trim() }); navigate(`/explore/buildings/${b.id}/floors`); })}>${tr('הוסף מבנה')}</sw-button>
         </sw-dialog>`;
     }
+  }
+
+  /** MULTI-BUILDING-SAFETY-2500: the other buildings of this building's site - a floor moves only inside its site. */
+  private moveTargets(building: Building): Building[] {
+    return moveTargets(this.context?.site.buildings, building.id);
+  }
+
+  private openMove(floor: Floor, building: Building) {
+    const first = this.moveTargets(building)[0];
+    this.error = '';
+    this.dialog = { kind: 'move', floor, target: first?.id ?? '', preview: null, ack: false };
+    if (first) void this.loadMove(floor, building, first.id);
+  }
+
+  /** The server's impact preview for one target (the demo: a stand-in). A later answer for another target is dropped. */
+  private async loadMove(floor: Floor, building: Building, target: string) {
+    const d = this.dialog;
+    if (d?.kind !== 'move') return;
+    this.dialog = { ...d, target, preview: null, ack: false };
+    try {
+      const to = this.moveTargets(building).find((b) => b.id === target);
+      const p = await previewMove(floor.id, target, { floorName: floor.name, floorLevel: floor.level, fromId: building.id, fromName: building.name, toName: to?.name ?? '' });
+      const now = this.dialog;
+      if (now?.kind === 'move' && now.target === target) this.dialog = { ...now, preview: p };
+    } catch (err) {
+      this.error = describeError(err);
+    }
+  }
+
+  private async doMove(d: MoveDialog, building: Building) {
+    if (!d.preview || !moveGate(d.preview, d.ack).canMove || this.busy) return;
+    this.busy = true;
+    this.error = '';
+    try {
+      await moveFloor(d.floor.id, d.target, d.preview.digest);
+      this.dialog = null;
+      if (this.selected === d.floor.id) this.selected = null;
+      await this.reload();
+      navigate(`/explore/buildings/${d.target}/floors`);
+    } catch (err) {
+      this.error = describeError(err);
+      if (err instanceof ApiError && err.code === 'preview_stale') void this.loadMove(d.floor, building, d.target); // show what changed
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private renderMove(d: MoveDialog, building: Building, demo: boolean) {
+    const targets = this.moveTargets(building);
+    const p = d.preview;
+    const gate = moveGate(p, d.ack);
+    const names = (change: 'loses' | 'gains' | 'changes') => {
+      if (!p) return '';
+      const { shown, more } = peopleOf(p, change);
+      return `${shown.map((x) => x.name).join(', ')}${more ? ` ${tr('ועוד {n}', { n: ltrNum(more) })}` : ''}`;
+    };
+    const w = p?.moves_with;
+    const clash = p?.warnings.find((x) => x.code === 'level_clash');
+    const rooms = p?.blockers.find((x) => x.code === 'shared_room');
+    const errorLine = this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing;
+    return html`<sw-dialog open heading=${tr('העברת קומה לבניין אחר')} subheading=${`${d.floor.name} · ${building.name}`} data-floor-move @close=${() => (this.dialog = null)}>
+      <sw-dropdown tall block icon="building" label=${tr('לאיזה בניין')} data-floor-move-target .items=${targets.map((b) => ({ id: b.id, label: b.name }))} .value=${d.target}
+        @change=${(e: CustomEvent<{ id: string }>) => { e.stopPropagation(); if (e.detail.id && e.detail.id !== d.target) void this.loadMove(d.floor, building, e.detail.id); }}></sw-dropdown>
+      ${p && w
+        ? html`<div class="mv" data-floor-move-preview>
+            ${rooms ? html`<div class="ln block" data-floor-move-blocked><b>${tr('אי אפשר להעביר: חדר משותף מחבר את הקומה לקומה שתישאר בבניין אחר')}</b><span>${rooms.items.map((i) => String(i.name ?? '')).join(', ')} · ${tr('בטלו קודם את השיתוף בעורך התוכנית.')}</span></div>` : nothing}
+            ${p.people.loses
+              ? html`<div class="ln lose" data-floor-move-loses=${p.people.loses}><b>${tr('{n} אנשים יאבדו גישה לקומה', { n: ltrNum(p.people.loses) })}</b><span>${names('loses')}</span>
+                  <span>${tr('כדי שאיש לא יישאר בלי גישה, תנו להם קודם הרשאה לבניין {name}.', { name: p.to_building.name })}</span></div>`
+              : html`<div class="ln" data-floor-move-loses="0"><b>${tr('אף אחד לא יאבד גישה לקומה')}</b></div>`}
+            ${p.people.gains ? html`<div class="ln" data-floor-move-gains=${p.people.gains}><b>${tr('{n} אנשים יקבלו גישה לקומה', { n: ltrNum(p.people.gains) })}</b><span>${names('gains')}</span></div>` : nothing}
+            ${p.people.changes ? html`<div class="ln" data-floor-move-changes=${p.people.changes}><b>${tr('ל־{n} אנשים ישתנו ההרשאות בקומה', { n: ltrNum(p.people.changes) })}</b><span>${names('changes')}</span></div>` : nothing}
+            <div class="ln"><b>${tr('עובר יחד עם הקומה')}</b><span>${tr('{plans} תוכניות · {anchors} פריטים במפה, מהם {cameras} מצלמות · {bindings} הרשאות לקומה · {areas} אזורים ממופים · {records} רשומות', { plans: ltrNum(w.plans), anchors: ltrNum(w.anchors), cameras: ltrNum(w.cameras), bindings: ltrNum(w.floor_bindings), areas: ltrNum(w.areas), records: ltrNum(recordsMoving(p)) })}</span></div>
+            ${clash ? html`<div class="ln" data-floor-move-clash><b>${tr('בבניין {name} כבר יש קומה באותו מפלס', { name: p.to_building.name })}</b><span>${clash.items.map((i) => String(i.name ?? '')).join(', ')} · ${tr('זה מותר.')}</span></div>` : nothing}
+            ${gate.needsAck && !rooms ? html`<sw-toggle class="ack" data-floor-move-ack .checked=${d.ack} label=${tr('אני מבין ש־{n} אנשים יאבדו גישה', { n: ltrNum(p.people.loses) })}
+                @change=${(e: CustomEvent<{ checked: boolean }>) => { e.stopPropagation(); this.dialog = { ...d, ack: e.detail.checked }; }}></sw-toggle>` : nothing}
+          </div>`
+        : this.error ? nothing : html`<div class="mv"><span>${tr('בודק מי יושפע…')}</span></div>`}
+      ${errorLine}${demo ? html`<div class="err">${tr('נתוני הדגמה: אין שרת מחובר, השינוי לא יישמר.')}</div>` : nothing}
+      <sw-button slot="footer" variant="ghost" @click=${() => (this.dialog = null)}>${tr('ביטול')}</sw-button>
+      <sw-button slot="footer" variant=${p?.people.loses ? 'danger' : 'primary'} icon="building" data-floor-move-confirm ?disabled=${!gate.canMove || this.busy || demo} @click=${() => void this.doMove(d, building)}>${tr('העבר את הקומה')}</sw-button>
+    </sw-dialog>`;
   }
 
   render() {

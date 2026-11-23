@@ -11,6 +11,8 @@ import {
   type RuleKind, type Summary, type TableRow, type Target, type TokenKind,
 } from '../api/mapping-engine';
 import { applyMapping, saveState, setMultiBuilding, type MappingData } from '../api/mapping';
+import { needsCheck } from '../api/mb-safety';
+import './mb-enable-check';
 import { OneAtATime } from './editor-guards';
 import { tr } from '../i18n/msg/media';
 import { mappingAssistantStyles } from './mapping-assistant-css';
@@ -67,6 +69,8 @@ export class MappingAssistant extends LitElement {
   @state() private notice = '';
   @state() private applied: { version: number; created: number } | null = null;
   @state() private multiOn = false;
+  /** MULTI-BUILDING-SAFETY-2500: the check before turning multi-building on is open (screens/mb-enable-check.ts). */
+  @state() private checkOpen = false;
   @state() private customSep = '';
   @state() private addTok = '';
   @state() dragTok = '';
@@ -259,6 +263,10 @@ export class MappingAssistant extends LitElement {
   }
 
   private async enableMulti() {
+    if (needsCheck(this.data.review_mode)) {
+      this.checkOpen = true; // MULTI-BUILDING-SAFETY-2500 (owner 22.11, Q63): turning on goes through the check
+      return;
+    }
     this.busy = true;
     try {
       await setMultiBuilding(true);
@@ -562,6 +570,8 @@ export class MappingAssistant extends LitElement {
           ? html`<div class="offer" data-ma-offer><span>${tr('תצוגת ריבוי הבניינים כבויה - המסך הראשי עדיין מציג בניין אחד.')}</span>
               <sw-button variant="primary" icon="building" data-ma-enable-multi ?disabled=${this.busy} @click=${() => void this.enableMulti()}>${tr('הפעל עכשיו את תצוגת ריבוי הבניינים')}</sw-button></div>`
           : html`<p>${tr('תצוגת ריבוי הבניינים כבויה. מי שמנהל את כל האתרים יכול להפעיל אותה בהגדרות ‹ בניינים ומיפוי.')}</p>`}
+      ${this.checkOpen ? html`<mb-enable-check open @close=${(e: Event) => { e.stopPropagation(); this.checkOpen = false; }}
+        @enabled=${(e: Event) => { e.stopPropagation(); this.checkOpen = false; this.multiOn = true; }}></mb-enable-check>` : nothing}
     </div>`;
   }
 
