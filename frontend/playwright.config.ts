@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { installCaptureGuard } from './tests/helpers/capture-guard';
 
 // Screenshot harness for design review (DESIGN_CONTRACT): reference desktop / tablet / mobile widths,
 // RTL shell, deterministic fixtures. Run `npm run build` first; the preview server serves dist/.
@@ -11,6 +12,9 @@ const BASE = process.env.SW_BASE_URL || 'http://127.0.0.1:4173/';
 // differed there and nowhere else (a workstation in Israel never saw it). Set before the workers start, so they inherit it.
 // SW_TEST_TZ overrides it (e.g. SW_TEST_TZ=UTC to reproduce the old runner behaviour).
 process.env.TZ = process.env.SW_TEST_TZ || 'Asia/Jerusalem';
+
+// FLAKY-CAPTURE-SCREENSHOT-2490: one guarded retry of a picture Chromium refused ("Unable to capture screenshot"); never of an assertion.
+installCaptureGuard();
 
 export default defineConfig({
   testDir: 'tests',
