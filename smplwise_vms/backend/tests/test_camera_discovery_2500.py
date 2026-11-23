@@ -212,7 +212,11 @@ def test_only_the_site_network_up_to_1024_addresses():
 # ================================================================ ONVIF device-service reads
 
 def test_only_get_actions_can_be_built():
-    assert onvif_http.ALLOWED_ACTIONS == {"GetSystemDateAndTime", "GetDeviceInformation"}
+    # ONVIF-CLIENT-2500 widened the list to the fuller client's reads: still Get* only, per service
+    assert onvif_http.SERVICE_ACTIONS == {
+        "device": {"GetSystemDateAndTime", "GetDeviceInformation", "GetServices", "GetCapabilities"},
+        "media": {"GetProfiles", "GetStreamUri", "GetSnapshotUri"}, "media2": {"GetProfiles", "GetStreamUri", "GetSnapshotUri"}}
+    assert all(a.startswith("Get") for a in onvif_http.ALLOWED_ACTIONS)
     for action in ("SetSystemDateAndTime", "SystemReboot", "CreateUsers", "DeleteUsers", "SetUser", "SetNetworkInterfaces", "GetDeviceInformation/><x"):
         with pytest.raises(ValueError):
             onvif_http.envelope(action)

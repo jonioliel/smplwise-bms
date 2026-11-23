@@ -14,14 +14,17 @@
 - `POST /cameras/discovery/scans/{scan_id}/identify` - `{device_ids, username, password, same_for_all}`: ONE GetDeviceInformation
   per selected camera (never repeated automatically; more than one device needs `same_for_all: true`). 409 `scan_not_active`;
   422 `credentials_invalid` / `device_unknown` / `same_for_all_required` (field names in `details.fields`); 429 `rate_limited`.
+  ONVIF-CLIENT-2500: an `ok` press also reads the camera's video profiles and stream addresses (`profiles`, `suggested`).
+- `POST /cameras/discovery/scans/{scan_id}/add` - `{cameras: [{device_id, name?, area_id?, main_profile?, sub_profile?}]}` (ONVIF-CLIENT-
+  2500): each through the existing `create_standalone`, partial success `{added, failed}`. 409 `webrtc_server_required` /
+  `scan_not_active`. The preview of a found camera is the `{scan_id, device_id, profile}` form of `POST /cameras/source/test`.
 
 Every route needs `system.configure` at the installation (the permission of the recorder connection and of the cameras without a
 recorder), checked by the service; a refusal is the audited 403. The two body routes check it on a READ connection before the body
 is read (review L7, the raw-body pattern of routers/camera_sources.py): an unauthorised caller gets the 403 whatever it sent. A scan
 another person started is `404 scan_not_found` (no existence leak). Errors are the five-key envelope; a refusal about request fields
 names them in `details.fields` and `details.problems` (ADR-019 D1) and never echoes a value. No answer, error, audit row or log
-line carries a user name, a password, a serial number or a URL with credentials. Adding a found camera (and the preview form of
-`/cameras/source/test`) waits for the stream addresses of the ONVIF-CLIENT row."""
+line carries a user name, a password, a serial number or a URL with credentials."""
 from __future__ import annotations
 
 import json
@@ -36,6 +39,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
+from ..services import camera_sources
 from ..services.camera_discovery import onvif_http, ranges
 from ..services.camera_discovery import service as svc
 from ..wire import camera_discovery as W
@@ -61,6 +65,20 @@ class IdentifyIn(BaseModel):
     username: str = Field(max_length=onvif_http.USER_MAX)
     password: str = Field(max_length=onvif_http.PASSWORD_MAX)
     same_for_all: bool = False
+
+
+class AddCameraIn(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    device_id: str = Field(max_length=DEVICE_ID_MAX)
+    name: str | None = Field(default=None, max_length=120)
+    area_id: str | None = Field(default=None, max_length=120)
+    main_profile: str | None = Field(default=None, max_length=64)
+    sub_profile: str | None = Field(default=None, max_length=64)
+
+
+class AddIn(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    cameras: list[AddCameraIn] = Field(min_length=1, max_length=svc.MAX_IDENTIFY_DEVICES)
 
 
 def _parse(request: Request, raw: bytes, model: type[BaseModel]) -> Any:
@@ -149,3 +167,15 @@ def identify(scan_id: str, request: Request, principal: Principal = Depends(_adm
         if exc.status == 429:
             return _limited(request, exc)
         raise
+
+
+@router.post("/cameras/discovery/scans/{scan_id}/add", **wire(W.AddResult))
+def add(scan_id: str, request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(_raw_body),
+        conn: sqlite3.Connection = Depends(get_conn)) -> Any:
+    """Add the chosen identified cameras as cameras without a recorder (ONVIF-CLIENT-2500; design 4.5). Each one goes through the
+    existing `create_standalone` (sealed addresses, origin `onvif`); partial success is reported per camera. A camera behind the
+    recorder (Q58), a recorder (Q59), an already added or an unidentified camera is refused in `failed`. go2rtc (the WebRTC server)
+    is required like for any camera without a recorder: 409 `webrtc_server_required` after the permission, before the body."""
+    camera_sources.ensure_webrtc_server(settings_of(request))
+    body: AddIn = _parse(request, raw, AddIn)
+    return svc.MANAGER.add(conn, settings_of(request), principal, scan_id, cameras=[c.model_dump() for c in body.cameras], request_id=_rid(request))

@@ -5,7 +5,8 @@
 - `PUT /cameras/{camera_id}/source` - `{mode: nvr|manual, main_url, sub_url, area_id?, if_revision?}`. A masked address sent back keeps
   the stored secret (same host only). A camera without a recorder cannot go back to `nvr`.
 - `POST /cameras/source/test` - `{url, camera_id?, profile}`: one frame through a throwaway go2rtc stream -> preview, resolution, codec,
-  or `{ok: false, code, message}` with a fixed Hebrew text. Six a minute per person.
+  or `{ok: false, code, message}` with a fixed Hebrew text. Six a minute per person. ONVIF-CLIENT-2500 preview form
+  `{scan_id, device_id, profile, profile_token?}`: a camera found by a discovery scan, its address assembled on the server.
 - `POST /cameras/standalone` - `{name, area_id?, main_url, sub_url}`: a camera without a recorder (live + snapshots only).
   NVRLESS-CAMERAS-2411 (owner, 08.11): the stream test and the add answer 409 `webrtc_server_required` when go2rtc (the WebRTC /
   video server) is not configured - after the permission, before the body is parsed (no URL is looked at).
@@ -51,6 +52,10 @@ class TestIn(BaseModel):
     url: str | None = Field(default=None, max_length=URL_MAX)
     camera_id: str | None = Field(default=None, max_length=64)
     profile: Literal["main", "sub"] = "main"
+    # ONVIF-CLIENT-2500, the preview form: a camera found by a discovery scan (the address is assembled on the server)
+    scan_id: str | None = Field(default=None, max_length=32)
+    device_id: str | None = Field(default=None, max_length=32)
+    profile_token: str | None = Field(default=None, max_length=64)
 
 
 class StandaloneIn(BaseModel):
@@ -85,7 +90,27 @@ def test_source(request: Request, principal: Principal = Depends(_admin_ro), raw
     require(conn, principal, PERMISSION, INSTALLATION)
     svc.ensure_webrtc_server(settings_of(request))  # NVRLESS-CAMERAS-2411: before any URL handling
     body: TestIn = _parse(request, raw, TestIn)
+    if body.scan_id is not None or body.device_id is not None or body.profile_token is not None:
+        return _test_discovered(request, conn, principal, body)
     return svc.test_stream(conn, settings_of(request), principal, url=body.url, camera_id=body.camera_id, profile=body.profile, request_id=_rid(request))
+
+
+def _test_discovered(request: Request, conn: sqlite3.Connection, principal: Principal, body: TestIn) -> dict[str, Any]:
+    """The preview form (ONVIF-CLIENT-2500; design section 7): `{scan_id, device_id, profile, profile_token?}` - a camera a discovery
+    scan found and identified. The stream address with the pair that worked is assembled on the server (camera discovery's
+    `preview_source`, which also checks that the scan is this person's and the device addable) and never travels through the
+    browser; the rest is the typed form's path. `url` / `camera_id` cannot be mixed in."""
+    from ..services.camera_discovery import service as discovery
+
+    mixed = [f for f, v in (("url", body.url), ("camera_id", body.camera_id)) if v is not None]
+    missing = [f for f, v in (("scan_id", body.scan_id), ("device_id", body.device_id)) if not v]
+    if mixed or missing:
+        fields = mixed + missing
+        raise ApiError(422, "validation", "הבקשה אינה תקינה: " + ", ".join(fields),
+                       details={"fields": fields, "problems": [{"field": f, "code": "extra_forbidden" if f in mixed else "missing"} for f in fields]})
+    return svc.test_assembled(conn, settings_of(request), principal, profile=body.profile, request_id=_rid(request),
+                              assemble=lambda: discovery.MANAGER.preview_source(conn, principal, body.scan_id, body.device_id, body.profile,
+                                                                               body.profile_token))
 
 
 @router.post("/cameras/standalone", status_code=201)

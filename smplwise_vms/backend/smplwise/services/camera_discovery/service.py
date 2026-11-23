@@ -28,8 +28,10 @@ starts (range, number of addresses, engines) and completed in place when it ends
 `denied` rows with the reason. `camera.discovery.identify` - one row per press (device count, results by class, same_for_all).
 `camera.discovery.cancel`.
 
-The routes (routers/camera_discovery.py), the wire models and the settings registration are the ONVIF-API row (ONVIF-API-2500); the
-add step waits for the stream addresses of the ONVIF-CLIENT row. A refusal about request fields names them (ADR-019 D1: `details.fields`
+The routes (routers/camera_discovery.py), the wire models and the settings registration are the ONVIF-API row (ONVIF-API-2500).
+ONVIF-CLIENT-2500: the identifier is the fuller client (onvif_client.py: HTTP Digest once per press when the camera asks for it, the
+media profiles and stream addresses), the add step (`add`, `camera.discovery.add`: camera ids and refusal codes) and the preview
+(`preview_source`, for `POST /cameras/source/test`). A refusal about request fields names them (ADR-019 D1: `details.fields`
 and `details.problems`, FIELDS_OF); a 429 is retryable and carries `retry_after_s` (the route adds the Retry-After header)."""
 from __future__ import annotations
 
@@ -54,7 +56,7 @@ from ...rbac import INSTALLATION, Principal, is_system_admin, require
 from ...test_reset import register_reset
 from ..tickets.ratelimit import ScopedRateLimiter
 from .. import source_policy
-from . import known, onvif_http, ranges, sweep, wsd
+from . import known, onvif_client, onvif_http, ranges, sweep, wsd
 
 log = logging.getLogger("smplwise.camera_discovery")
 
@@ -161,19 +163,32 @@ def policy(conn: sqlite3.Connection) -> Policy:
 # ---------------------------------------------------------------- identification (the ONVIF-CLIENT row plugs in here)
 
 class Identifier(Protocol):
+    """`clock`: the device clock, no credentials. `information`: ONE press of one camera - the credential attempt and, after `ok`,
+    the reads that make it a video source. Every request the camera refuses is reported to `guard.refused()`, and `guard.allow()`
+    is asked before any credential request after the first (ONVIF-CLIENT-2500: the one HTTP Digest answer of a press)."""
+
     def clock(self, target: onvif_http.Target) -> onvif_http.Clock | None: ...
 
-    def information(self, target: onvif_http.Target, username: str, password: str, offset_s: float | None) -> onvif_http.DeviceInfo: ...
+    def information(self, target: onvif_http.Target, username: str, password: str, offset_s: float | None,
+                    guard: onvif_client.Guard) -> onvif_http.DeviceInfo: ...
 
 
-class OnvifIdentifier:
-    """GetSystemDateAndTime (no credentials) and ONE GetDeviceInformation with a PasswordDigest."""
+# ONVIF-CLIENT-2500: GetSystemDateAndTime, ONE GetDeviceInformation (PasswordDigest; HTTP Digest once when the camera asks for it),
+# then GetServices / GetCapabilities, Media2 / Media1 GetProfiles + GetStreamUri, GetSnapshotUri
+OnvifIdentifier = onvif_client.OnvifClient
 
-    def clock(self, target: onvif_http.Target) -> onvif_http.Clock | None:
-        return onvif_http.device_clock(target)
 
-    def information(self, target: onvif_http.Target, username: str, password: str, offset_s: float | None) -> onvif_http.DeviceInfo:
-        return onvif_http.device_information(target, username, password, offset_s)
+class _DeviceGuard:
+    """The lockout guard of one camera address, as the client sees it (GUARD_FAILURES refusals in GUARD_WINDOW_S, across scans)."""
+
+    def __init__(self, limiter: ScopedRateLimiter, key: str) -> None:
+        self.limiter, self.key = limiter, key
+
+    def allow(self) -> bool:
+        return self.limiter.check(self.key, _GUARD_LIMITS) <= 0
+
+    def refused(self) -> None:
+        self.limiter.record(self.key, _GUARD_LIMITS)
 
 
 # ---------------------------------------------------------------- the job
@@ -201,17 +216,36 @@ class Device:
     creds: tuple[str, str] | None = field(default=None, repr=False)
     refused: set[str] = field(default_factory=set, repr=False)  # keyed digests of user / password pairs this device refused
     lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    # ONVIF-CLIENT-2500: what the media reads of the last successful press found (cleared with the credentials)
+    media: str = "none"  # media2 | media | none
+    auth_mode: str | None = None  # wsse | digest
+    profiles: list[onvif_client.Profile] = field(default_factory=list, repr=False)
+    snapshot_uri: str | None = field(default=None, repr=False)
+    fingerprint: str | None = field(default=None, repr=False)  # the keyed standalone fingerprint (no serial is kept)
 
     @property
     def addable(self) -> bool:
         """Q58 / Q59: never a recorder, never a camera Arx already has (alone or through a recorder)."""
         return self.kind != "nvr" and self.known == "none" and self.target is not None
 
+    def suggested(self) -> dict[str, str | None]:
+        main, sub = onvif_client.suggest(self.profiles)
+        return {"main": main.token if main else None, "sub": sub.token if sub else None}
+
+    def forget(self) -> None:
+        """The typed credentials and what was read with them (cancel, expiry, a refused press, an added camera)."""
+        self.creds = None
+        self.profiles = []
+        self.snapshot_uri = None
+        self.media, self.auth_mode = "none", None
+
     def view(self) -> dict[str, Any]:
         return {"id": self.id, "address": self.address, "port": self.port, "engines": list(self.engines), "kind": self.kind, "known": self.known,
                 **({"known_ref": self.known_ref} if self.known_ref else {}), "addable": self.addable, "manufacturer": self.manufacturer,
                 "model": self.model, "name": self.name, "firmware": self.firmware, "clock_offset_s": self.clock_offset_s, "auth": self.auth,
-                "has_service": self.target is not None, **({"recorder_prefill": self.recorder_prefill()} if self.offer_recorder else {})}
+                "has_service": self.target is not None, **({"recorder_prefill": self.recorder_prefill()} if self.offer_recorder else {}),
+                "media": self.media, **({"auth_mode": self.auth_mode} if self.auth_mode else {}), "profiles": [p.view() for p in self.profiles],
+                "suggested": self.suggested(), "snapshot": self.snapshot_uri is not None}
 
     @property
     def offer_recorder(self) -> bool:
@@ -273,7 +307,7 @@ class Job:
         """Forget every typed credential of the job (expiry, cancel)."""
         with self.lock:
             for d in self.devices.values():
-                d.creds = None
+                d.forget()
                 d.refused.clear()
 
 
@@ -568,16 +602,15 @@ class Manager:
                 if clk is None or not clk.onvif:
                     return outcome("no_answer" if clk is None else "not_onvif")
                 dev.clock_offset_s = clk.offset_s
-            info = self.identifier.information(dev.target, username, password, dev.clock_offset_s)  # THE attempt
-            if info.failed_auth:
-                self.guard.record(guard_key, _GUARD_LIMITS)
+            # THE attempt (ONVIF-CLIENT-2500: the client reports every refusal to the guard and asks it before the one HTTP Digest answer)
+            info = self.identifier.information(dev.target, username, password, dev.clock_offset_s, _DeviceGuard(self.guard, guard_key))
             with job.lock:
                 dev.attempts += 1
                 dev.auth = info.auth
-                if info.failed_auth:
-                    dev.refused.add(pair)
-                    dev.creds = None
                 if info.auth != "ok":
+                    dev.forget()
+                    if info.failed_auth:
+                        dev.refused.add(pair)  # never sent again in this scan (a guard stop is not a refusal of the pair)
                     return
                 dev.manufacturer = info.manufacturer or dev.manufacturer
                 dev.model = info.model or dev.model
@@ -588,7 +621,15 @@ class Manager:
                 dev.kind = "nvr" if dev.known == "recorder" else wsd.classify(dev.types, dev.scope_types, dev.model, dev.name, info.hardware_id)
                 if dev.kind == "unknown":
                     dev.kind = "camera"  # it answered an authenticated ONVIF device read and nothing says recorder
-                dev.creds = (username, password) if dev.addable else None
+                if not dev.addable:
+                    dev.forget()
+                    return
+                dev.creds = (username, password)
+                dev.fingerprint = (known.camera_fingerprint(snap.salt, known.STANDALONE, info.model, info.serial)
+                                   if snap.salt is not None and info.serial else None)
+                if isinstance(info, onvif_client.Identified):
+                    dev.media, dev.auth_mode = info.media, info.auth_mode
+                    dev.profiles, dev.snapshot_uri = list(info.profiles), info.snapshot_uri
         finally:
             dev.lock.release()
 
@@ -602,6 +643,181 @@ class Manager:
             if dev is None or not dev.addable or dev.creds is None or dev.target is None:
                 return None
             return dev.target, dev.creds[0], dev.creds[1]
+
+    # ------------------------------------------------------------ the preview and the add step (ONVIF-CLIENT-2500)
+
+    @staticmethod
+    def _refusal_of(dev: Device | None) -> str | None:
+        """Why a found device cannot become a camera without a recorder (None: it can) - Q58 / Q59 first, then the press."""
+        if dev is None:
+            return "device_unknown"
+        if dev.known == "behind_recorder":
+            return "behind_recorder"  # Q58: it already comes through the recorder - never added, not even as a separate camera
+        if dev.kind == "nvr" or dev.known == "recorder":
+            return "is_recorder"  # Q59: "add as a recorder" in the recorder wizard instead
+        if dev.known == "standalone":
+            return "already_added"
+        if dev.target is None or dev.creds is None or dev.auth != "ok":
+            return "not_identified"
+        if not any(p.uri for p in dev.profiles):
+            return "no_stream"
+        return None
+
+    @staticmethod
+    def _sources(dev: Device, main_token: Any, sub_token: Any) -> tuple[onvif_client.Profile, onvif_client.Profile | None]:
+        """The chosen main / sub profiles (the suggestion when not given). Raises AddRefused(`profile_unknown` / `no_stream`)."""
+        by_token = {p.token: p for p in dev.profiles}
+        suggested = dev.suggested()
+        main_t = main_token if main_token not in (None, "") else suggested["main"]
+        sub_t = sub_token if sub_token not in (None, "") else (suggested["sub"] if main_token in (None, "") else None)
+        main = by_token.get(main_t) if isinstance(main_t, str) else None
+        sub = by_token.get(sub_t) if isinstance(sub_t, str) else None
+        if main is None or (sub_t not in (None, "") and sub is None):
+            raise AddRefused("profile_unknown")
+        if not main.uri or (sub is not None and not sub.uri):
+            raise AddRefused("no_stream")
+        return main, (sub if sub is not None and sub.token != main.token else None)
+
+    def preview_source(self, conn: sqlite3.Connection, principal: Principal, scan_id: Any, device_id: Any, profile: str,
+                       token: Any = None) -> str:
+        """The full stream address (credentials inside) of a found, identified camera's `profile` (main | sub - the suggestion, or
+        `token`) for `POST /cameras/source/test`'s preview form: assembled HERE, on the server, so it never travels through the
+        browser. The caller checks it with the source policy and tests it; it is never stored, returned, logged or audited.
+        ApiError 404 `scan_not_found` (another person's scan too), 409 `scan_not_active`, 422 with the add step's codes."""
+        require(conn, principal, PERMISSION, INSTALLATION)
+        job = self._job(conn, principal, scan_id)
+        if job.state not in ("running", "done"):
+            raise _error(409, "scan_not_active")
+        with job.lock:
+            dev = job.devices.get(device_id) if isinstance(device_id, str) else None
+            code = self._refusal_of(dev)
+            if code is not None or dev is None or dev.creds is None:
+                raise _error(422, code or "not_identified", fields=("device_id",))
+            try:
+                if token not in (None, ""):
+                    main, sub = self._sources(dev, token, None)
+                    chosen: onvif_client.Profile | None = main
+                else:
+                    main, sub = self._sources(dev, None, None)
+                    chosen = sub if profile == "sub" and sub is not None else main
+            except AddRefused as exc:
+                raise _error(422, exc.code, fields=("profile_token",) if token not in (None, "") else ("device_id",)) from None
+            assert chosen is not None and chosen.uri is not None
+            return onvif_client.with_credentials(chosen.uri, dev.creds[0], dev.creds[1])
+
+    def add(self, conn: sqlite3.Connection, settings: Settings, principal: Principal, scan_id: Any, *, cameras: Any,
+            request_id: str | None = None) -> dict[str, Any]:
+        """`POST /cameras/discovery/scans/{id}/add` (design 4.5 / 7, Q58 / Q59): each chosen camera through the existing
+        `camera_sources.create_standalone` - its main / sub addresses shaped from the camera's own stream addresses with the pair
+        that worked, checked by the source policy there and sealed there, origin `onvif`. One camera at a time, partial success
+        reported; a device behind the recorder, a recorder, an already added or an unidentified camera is refused per row. The
+        caller checked go2rtc (`webrtc_server_required`) and the body shape. Audited once (`camera.discovery.add`: camera ids and
+        refusal codes - never an address, a user name or a password); every camera also has its `camera.standalone.create` row."""
+        from .. import camera_sources  # not at import time: it pulls the go2rtc adapter and the connection store
+
+        require(conn, principal, PERMISSION, INSTALLATION)
+        job = self._job(conn, principal, scan_id)
+        if job.state not in ("running", "done"):
+            raise _error(409, "scan_not_active")
+        rows = cameras if isinstance(cameras, list) else []
+        if not rows or len(rows) > MAX_IDENTIFY_DEVICES or not all(isinstance(r, dict) and isinstance(r.get("device_id"), str) for r in rows):
+            raise _error(422, "device_unknown", fields=("cameras",))
+        snap = known.snapshot(conn, settings)  # fresh: a camera added meanwhile (or by another person) is known now
+        added: list[dict[str, str]] = []
+        failed: list[dict[str, str]] = []
+        seen: set[str] = set()
+
+        def refuse(did: str, code: str, message: str | None = None) -> None:
+            failed.append({"device_id": did, "code": code, "message": message or ADD_MSG.get(code, ADD_MSG["not_identified"])})
+
+        for row in rows:
+            did = row["device_id"]
+            if did in seen:
+                refuse(did, "device_duplicate")
+                continue
+            seen.add(did)
+            with job.lock:
+                dev = job.devices.get(did)
+                if dev is not None:
+                    kn, ref = known.by_address(snap, dev.address)
+                    if kn != "none" and dev.known == "none":
+                        dev.known, dev.known_ref = kn, ref
+                        if kn == "recorder":
+                            dev.kind = "nvr"
+                        dev.forget()
+                code = self._refusal_of(dev)
+                if code is None and dev is not None and dev.creds is not None:
+                    try:
+                        main, sub = self._sources(dev, row.get("main_profile"), row.get("sub_profile"))
+                    except AddRefused as exc:
+                        code = exc.code
+                    else:
+                        user, password = dev.creds
+                        plan = {"main_url": onvif_client.with_credentials(main.uri or "", user, password),
+                                "sub_url": onvif_client.with_credentials(sub.uri, user, password) if sub is not None and sub.uri else None,
+                                "origin": self._origin(dev, main, sub, snap),
+                                "probe": {p_name: p for p_name, p in (("main", main), ("sub", sub)) if p is not None},
+                                "fingerprint": dev.fingerprint, "name": self._name(dev, row.get("name"))}
+            if code is not None or dev is None:
+                refuse(did, code or "device_unknown")
+                continue
+            try:
+                cam = camera_sources.create_standalone(
+                    conn, settings, principal, name=plan["name"], area_id=row.get("area_id"), main_url=plan["main_url"], sub_url=plan["sub_url"],
+                    request_id=request_id, origin="onvif", origin_json=plan["origin"], device_fingerprint=plan["fingerprint"],
+                    probe={k: {"codec": p.codec, "codec_label": camera_sources.CODEC_LABEL.get(p.codec or ""), "width": p.width, "height": p.height}
+                           for k, p in plan["probe"].items()})
+            except ApiError as exc:
+                refuse(did, exc.code, exc.user_message)
+                continue
+            with job.lock:
+                dev.known, dev.known_ref = "standalone", str(cam["id"])
+                dev.forget()  # added: the pair of this camera is not kept any longer
+            added.append({"device_id": did, "camera_id": str(cam["id"])})
+        codes = collections.Counter(f["code"] for f in failed)
+        audit(conn, actor=principal, action="camera.discovery.add", decision="allowed" if added else "denied", resource_type="camera_discovery",
+              resource_id=job.id, request_id=request_id, reason=None if added else "nothing_added",
+              details={"requested": len(rows), "added": [a["camera_id"] for a in added], "origin": "onvif",
+                       **({"failed": dict(sorted(codes.items()))} if codes else {})})
+        return {"added": added, "failed": failed}
+
+    @staticmethod
+    def _name(dev: Device, typed: Any) -> str:
+        """The typed name, else design 4.5's `<manufacturer> <model> - <last octet>`."""
+        if isinstance(typed, str) and typed.strip():
+            return typed.strip()
+        octet = dev.address.rsplit(".", 1)[-1] if dev.address.count(".") == 3 else dev.address
+        label = " ".join(x for x in (dev.manufacturer, dev.model) if x) or "מצלמה"
+        return f"{label} - {octet}"[:120]
+
+    @staticmethod
+    def _origin(dev: Device, main: onvif_client.Profile, sub: onvif_client.Profile | None, snap: known.Snapshot) -> dict[str, Any]:
+        """`camera_stream_sources.onvif_json` (migration 0217): where the camera came from - no credential, serial or MAC."""
+        out: dict[str, Any] = {"manufacturer": dev.manufacturer, "model": dev.model, "firmware": dev.firmware, "media": dev.media,
+                               "auth_mode": dev.auth_mode, "main_profile": main.token, "sub_profile": sub.token if sub else None,
+                               "device_host": dev.address, "device_port": dev.port}
+        if dev.endpoint and snap.salt is not None:
+            out["endpoint_hmac"] = hmac.new(snap.salt, f"onvif-endpoint|{dev.endpoint}".encode("utf-8"), hashlib.sha256).hexdigest()[:16]
+        return out
+
+
+class AddRefused(Exception):
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+ADD_MSG = {
+    "device_unknown": "המכשיר אינו ברשימת החיפוש.",
+    "device_duplicate": "המצלמה נבחרה פעמיים.",
+    "behind_recorder": "המצלמה כבר מגיעה דרך המקליט, ולכן אי אפשר להוסיף אותה.",
+    "is_recorder": "המכשיר הזה הוא מקליט: אפשר להוסיף אותו כמקליט.",
+    "already_added": "המצלמה כבר במערכת.",
+    "not_identified": "יש לזהות את המצלמה (שם משתמש וסיסמה) לפני ההוספה.",
+    "no_stream": "המצלמה לא מסרה כתובת וידאו; אפשר להוסיף אותה ידנית.",
+    "profile_unknown": "הפרופיל שנבחר אינו של המצלמה הזו.",
+}
+MSG.update(ADD_MSG)
 
 
 MANAGER = Manager()

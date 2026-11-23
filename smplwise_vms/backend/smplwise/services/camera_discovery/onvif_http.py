@@ -7,9 +7,12 @@
   model, firmware; the serial number is returned to the caller only to compute the keyed fingerprint and is never stored, logged or
   answered.
 
-The SOAP actions this module can build are a closed allow-list (ALLOWED_ACTIONS: reads only); anything else is a code error before
-a socket is opened. The fuller client (Media / Media2 profiles and stream addresses, HTTP Digest fallback) is the ONVIF-CLIENT row; it
-plugs in through `Identifier` (services/camera_discovery/service.py) without changing the attempt rules, which live in the scan job.
+The SOAP actions this module can build are a closed allow-list per service (SERVICE_ACTIONS / ALLOWED_ACTIONS: reads only, each
+with a fixed body template - only a profile token, checked against TOKEN_RE and escaped, is ever filled in); anything else is a code
+error before a socket is opened. ONVIF-CLIENT-2500 widened the list to the reads the fuller client needs (device `GetServices` /
+`GetCapabilities`, Media and Media2 `GetProfiles` / `GetStreamUri` / `GetSnapshotUri`) and lets a request carry an HTTP Digest
+`Authorization` header; the client itself (services/camera_discovery/onvif_client.py) plugs in through `Identifier`
+(services/camera_discovery/service.py) without changing the attempt rules, which live in the scan job.
 
 Every answer is device-controlled: at most MAX_BYTES (read in chunks, the rest is never read), no redirects, a short timeout, no
 DOCTYPE / ENTITY (services/xmlsafe.py), a closed set of read paths by local name. No error text of a device, and never the password,
@@ -19,8 +22,10 @@ from __future__ import annotations
 import base64
 import datetime as dt
 import hashlib
+import re
 import secrets
 from dataclasses import dataclass, field
+from typing import Mapping
 from xml.etree import ElementTree as ET
 from xml.sax.saxutils import escape
 
@@ -29,8 +34,21 @@ import httpx
 from .. import xmlsafe
 from .wsd import _bounded, _child, _local, _text, NotAProbeMatch, clean_value
 
-ALLOWED_ACTIONS = frozenset({"GetSystemDateAndTime", "GetDeviceInformation"})  # design D9: Get* only
 DEVICE_NS = "http://www.onvif.org/ver10/device/wsdl"
+MEDIA_NS = "http://www.onvif.org/ver10/media/wsdl"
+MEDIA2_NS = "http://www.onvif.org/ver20/media/wsdl"
+SCHEMA_NS = "http://www.onvif.org/ver10/schema"
+# service -> (namespace, prefix); the closed set of services a request may be built for
+SERVICES: dict[str, tuple[str, str]] = {"device": (DEVICE_NS, "tds"), "media": (MEDIA_NS, "trt"), "media2": (MEDIA2_NS, "tr2")}
+# design D9: Get* reads only, per service (ONVIF-CLIENT-2500 added everything but the first two)
+SERVICE_ACTIONS: dict[str, frozenset[str]] = {
+    "device": frozenset({"GetSystemDateAndTime", "GetDeviceInformation", "GetServices", "GetCapabilities"}),
+    "media": frozenset({"GetProfiles", "GetStreamUri", "GetSnapshotUri"}),
+    "media2": frozenset({"GetProfiles", "GetStreamUri", "GetSnapshotUri"}),
+}
+ALLOWED_ACTIONS = frozenset().union(*SERVICE_ACTIONS.values())
+# a profile token as a device names it (ONVIF ReferenceToken: at most 64 characters); anything else is never put into a request
+TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:\-][A-Za-z0-9_.:\- ]{0,62}[A-Za-z0-9_.:\-]$|^[A-Za-z0-9_.:\-]$")
 MAX_BYTES = 64 * 1024
 TIMEOUT_S = 3.0  # design D2: 3 s per request
 USER_MAX = 64
@@ -103,35 +121,67 @@ def _security(username: str, password: str, device_now: dt.datetime, nonce: byte
     )
 
 
-def envelope(action: str, security: str = "") -> bytes:
-    """A SOAP 1.2 request for one allow-listed device-service read. ValueError for any other action (design D9)."""
-    if action not in ALLOWED_ACTIONS:
+def _inner(service: str, action: str, token: str | None) -> str:
+    """The fixed body of one allow-listed read; `token` (a profile token) is the only value ever filled in."""
+    p = SERVICES[service][1]
+    needs_token = action in ("GetStreamUri", "GetSnapshotUri")
+    if needs_token != (token is not None):
+        raise ValueError("ONVIF request shape not allowed")
+    if token is not None and not TOKEN_RE.fullmatch(token):
+        raise ValueError("profile token refused")
+    tok = escape(token) if token is not None else ""
+    if service == "device":
+        return {"GetServices": "<tds:GetServices><tds:IncludeCapability>false</tds:IncludeCapability></tds:GetServices>",
+                "GetCapabilities": "<tds:GetCapabilities><tds:Category>All</tds:Category></tds:GetCapabilities>"}.get(action, f"<tds:{action}/>")
+    if action == "GetProfiles":
+        return "<tr2:GetProfiles><tr2:Type>VideoEncoder</tr2:Type></tr2:GetProfiles>" if service == "media2" else "<trt:GetProfiles/>"
+    if action == "GetStreamUri" and service == "media":
+        return ("<trt:GetStreamUri><trt:StreamSetup><tt:Stream>RTP-Unicast</tt:Stream><tt:Transport><tt:Protocol>RTSP</tt:Protocol>"
+                f"</tt:Transport></trt:StreamSetup><trt:ProfileToken>{tok}</trt:ProfileToken></trt:GetStreamUri>")
+    if action == "GetStreamUri":
+        return f"<tr2:GetStreamUri><tr2:Protocol>RTSP</tr2:Protocol><tr2:ProfileToken>{tok}</tr2:ProfileToken></tr2:GetStreamUri>"
+    return f"<{p}:GetSnapshotUri><{p}:ProfileToken>{tok}</{p}:ProfileToken></{p}:GetSnapshotUri>"
+
+
+def envelope(action: str, security: str = "", *, service: str = "device", token: str | None = None) -> bytes:
+    """A SOAP 1.2 request for one allow-listed read of `service`. ValueError for any other action, service or shape (design D9)."""
+    if service not in SERVICE_ACTIONS or action not in SERVICE_ACTIONS[service]:
         raise ValueError("ONVIF action not allowed")
+    ns, prefix = SERVICES[service]
     return ('<?xml version="1.0" encoding="UTF-8"?>'
-            f'<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:tds="{DEVICE_NS}">'
-            f"{security}<s:Body><tds:{action}/></s:Body></s:Envelope>").encode("utf-8")
+            f'<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:{prefix}="{ns}" xmlns:tt="{SCHEMA_NS}">'
+            f"{security}<s:Body>{_inner(service, action, token)}</s:Body></s:Envelope>").encode("utf-8")
+
+
+CHALLENGE_MAX = 1024
 
 
 @dataclass
 class _Answer:
     status: int
     body: bytes
-    digest_challenge: bool
+    challenge: str | None = field(default=None, repr=False)  # the raw WWW-Authenticate header (bounded) when it names Digest
+
+    @property
+    def digest_challenge(self) -> bool:
+        return self.challenge is not None
 
 
-def _post(target: Target, action: str, body: bytes, timeout: float) -> _Answer | None:
-    """POST one envelope; None when nothing usable came back (no connection, timeout, an answer over MAX_BYTES)."""
-    headers = {"Content-Type": f'application/soap+xml; charset=utf-8; action="{DEVICE_NS}/{action}"'}
+def _post(target: Target, action: str, body: bytes, timeout: float, *, service: str = "device",
+          headers: Mapping[str, str] | None = None) -> _Answer | None:
+    """POST one envelope; None when nothing usable came back (no connection, timeout, an answer over MAX_BYTES). `headers`: an
+    `Authorization` header (HTTP Digest) only - never logged, never followed to another address (no redirects)."""
+    sent = {"Content-Type": f'application/soap+xml; charset=utf-8; action="{SERVICES[service][0]}/{action}"', **(headers or {})}
     try:
         with httpx.Client(transport=TRANSPORT, timeout=timeout, follow_redirects=False, trust_env=False) as client:
-            with client.stream("POST", target.url(), content=body, headers=headers) as r:
+            with client.stream("POST", target.url(), content=body, headers=sent) as r:
                 buf = bytearray()
                 for chunk in r.iter_bytes():
                     buf += chunk
                     if len(buf) > MAX_BYTES:
                         return None
-                challenge = "digest" in (r.headers.get("www-authenticate") or "").lower()
-                return _Answer(r.status_code, bytes(buf), challenge)
+                raw = ", ".join(r.headers.get_list("www-authenticate"))[:CHALLENGE_MAX]
+                return _Answer(r.status_code, bytes(buf), raw if "digest" in raw.lower() else None)
     except (httpx.HTTPError, OSError, ValueError):
         return None
 

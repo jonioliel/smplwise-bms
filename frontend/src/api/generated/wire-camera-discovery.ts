@@ -3,6 +3,28 @@
 // sent as null instead); `unknown` is a value the backend passes through as stored. Code review 07:F8 step 2.
 /* eslint-disable */
 
+/**
+ * A camera that was not added: `code` (behind_recorder, is_recorder, already_added, not_identified, no_stream,
+ * profile_unknown, device_unknown, device_duplicate, or the camera-source refusal - standalone_limit, source_not_allowed,
+ * name_required, area_invalid...) and its fixed Hebrew text.
+ */
+export interface AddFailure {
+  device_id: string;
+  code: string;
+  message: string;
+}
+
+/** ONVIF-CLIENT-2500 `POST /cameras/discovery/scans/{scan_id}/add`: one camera at a time, partial success reported. */
+export interface AddResult {
+  added: AddedCamera[];
+  failed: AddFailure[];
+}
+
+export interface AddedCamera {
+  device_id: string;
+  camera_id: string;
+}
+
 /** `GET /cameras/discovery/capabilities`: what the scan screen needs before a scan. */
 export interface DiscoveryCapabilities {
   enabled: boolean;
@@ -22,6 +44,8 @@ export interface DiscoveryEngine {
 /**
  * One device the scan found (job-local id). `auth` is the outcome of the last identification press:
  * not_tried | ok | wrong_password | digest_required | locked_guard | busy | skipped | no_answer | not_onvif.
+ * ONVIF-CLIENT-2500: after an `ok` press of an addable camera, `media` / `profiles` / `suggested` / `snapshot` describe its video
+ * (cleared with the credentials: cancel, expiry, a refused press, an added camera).
  */
 export interface FoundDevice {
   id: string;
@@ -40,11 +64,32 @@ export interface FoundDevice {
   auth: "busy" | "digest_required" | "locked_guard" | "no_answer" | "not_onvif" | "not_tried" | "ok" | "skipped" | "wrong_password";
   has_service: boolean;
   recorder_prefill?: RecorderPrefill;
+  media: "media" | "media2" | "none";
+  auth_mode?: "digest" | "wsse";
+  profiles: MediaProfile[];
+  suggested: SuggestedProfiles;
+  snapshot: boolean;
 }
 
 /** `POST /cameras/discovery/scans/{scan_id}/identify`: the pressed devices after their one attempt each. */
 export interface IdentifyResult {
   devices: FoundDevice[];
+}
+
+/**
+ * ONVIF-CLIENT-2500: one video profile of an identified camera (Media2 or Media1 `GetProfiles`). `stream` says whether its
+ * stream address can be used (`ok`) or why not (`other_host`, `not_rtsp`, `bad_shape`, `no_answer`, `not_read`); `uri_masked`
+ * is that address as the camera gave it, never with credentials (a secret-looking query value masked).
+ */
+export interface MediaProfile {
+  token: string;
+  name: string | null;
+  codec: "h264" | "h265" | "mjpeg" | "mpeg4" | "other" | null;
+  width: number | null;
+  height: number | null;
+  fps: number | null;
+  stream: "bad_shape" | "no_answer" | "not_read" | "not_rtsp" | "ok" | "other_host";
+  uri_masked: string | null;
 }
 
 /** Q59: what the recorder wizard opens with for a device that looks like a recorder. Never a credential. */
@@ -103,6 +148,15 @@ export interface ScanSummary {
   counts: ScanCounts;
 }
 
+/**
+ * Design 4.2 step 3: main = the highest-resolution H.264 / H.265 profile, sub = the lowest one at least 320 px wide (null: one
+ * address serves both / nothing usable).
+ */
+export interface SuggestedProfiles {
+  main: string | null;
+  sub: string | null;
+}
+
 /** The answer of every modelled route of this family: `'METHOD path'` -> type. */
 export interface CameraDiscoveryRoutes {
   "GET /api/v1/cameras/discovery/capabilities": DiscoveryCapabilities;
@@ -111,4 +165,5 @@ export interface CameraDiscoveryRoutes {
   "GET /api/v1/cameras/discovery/scans/{scan_id}": ScanJob;
   "DELETE /api/v1/cameras/discovery/scans/{scan_id}": ScanCancelled;
   "POST /api/v1/cameras/discovery/scans/{scan_id}/identify": IdentifyResult;
+  "POST /api/v1/cameras/discovery/scans/{scan_id}/add": AddResult;
 }
