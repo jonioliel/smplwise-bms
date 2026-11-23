@@ -171,10 +171,8 @@ export function switchPress(shown: boolean, act: () => void): (e: Event) => void
   };
 }
 
-/** HAND-SWITCH-2480: the new value in a sw-toggle's `change` handler (the switch that replaced a check box read `e.target.checked`). */
-export function toggled(e: Event): boolean {
-  return (e.target as SwToggle).checked;
-}
+/** HAND-SWITCH-2480: the new value in a sw-toggle's `change` handler - kept decorator-free in toggle-value.ts (RELEASE-2480-TRAIN). */
+export { toggled } from './toggle-value';
 
 declare global {
   interface HTMLElementTagNameMap {
