@@ -46,7 +46,7 @@ async function specimen(page: Page, scheme: 'light' | 'dark', opts: { skin?: str
     };
     type Opts = { label?: string; checked?: boolean; indeterminate?: boolean; disabled?: boolean; value?: string; id: string; labelHidden?: boolean };
     const box = (o: Opts, into: HTMLElement) => {
-      const el = document.createElement('sw-checkbox') as HTMLElement & Record<string, unknown>;
+      const el = document.createElement('sw-checkbox') as unknown as HTMLElement & Record<string, unknown>;
       if (o.label) el.label = o.label;
       if (o.checked) el.checked = true;
       if (o.indeterminate) el.indeterminate = true;
