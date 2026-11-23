@@ -52,7 +52,7 @@ test('the list: KPIs, states, verified only with proof, the banners and the side
   await expect(s.locator('.gl-r[data-ui-state="accepted"]')).toHaveCount(2); // one of them carries a widening that waits
   await expect(s.locator('[data-banner="revoking"]')).toBeVisible();
   await expect(s.locator('[data-digest-panel]')).toBeVisible();
-  await expect(s.locator('[data-extended-identity="locked"] input')).toBeDisabled();
+  await expect(s.locator('[data-extended-identity="locked"] sw-toggle')).toHaveAttribute('disabled', ''); // HAND-SWITCH-2480: the locked checkbox is a switch now
   const text = await s.innerText();
   expect(text).not.toMatch(/אינטרקום|intercom/i); // decision 1
   expect(text).not.toMatch(/913\d{3}/); // no PIN-like value anywhere
