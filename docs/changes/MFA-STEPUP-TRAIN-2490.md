@@ -166,6 +166,8 @@ Built on design section 12/14; every slice is one agent row, ships behind the sw
 4. POST routes that only read (previews, checks: `POST /access/roles/preview`, `POST /ha-users/check`) are gated like any write -
    asking once per 5 minutes; slice 3 may list them as exempt.
 5. Proofs and the link table live in memory: one process (as the remote session store). A restart asks again.
+6. On the local channel (only when `security.step_up_local = on`) Ingress carries no Arx session, so a proof there is per user
+   (`ingress:<user>`), shared by that user's Ingress tabs - weaker than the per-sign-in proof of the remote channel.
 
 ## 7. Open questions (recommendation first)
 
@@ -186,15 +188,14 @@ Built on design section 12/14; every slice is one agent row, ships behind the sw
 6. **Who may switch step-up off.** (a) anyone with `system.configure`, after a step-up, audited [recommended, design 4.2];
    (b) a system administrator only, from the local channel only.
 
-## 8. Tests
+## 8. Tests (real runs)
 
-Run on the workstation (Windows, Python 3.12 venv of the main checkout), one file at a time (memory limit):
+| Where | Command | Result |
+|---|---|---|
+| workstation (Windows, Python 3.12) | `pytest tests/test_mfa_stepup_2490.py` | 22 passed |
+| workstation | `pytest` on `test_second_factor.py`, `test_second_factor_followups.py`, `test_security_review_220.py`, `test_wxh4_emergency_revoke_2407.py`, `test_singletons_registered.py`, one file at a time | no FAILED / ERROR line (run with `-qq`, so no pass counts printed) |
+| workstation | `npx tsc --noEmit -p frontend` (after `scripts/gen_wire_types.py`) | exit 0 |
+| runner slot B, `5027f0fbf` | 102 backend files matching step / second_factor / remote / local_identity / local_passkeys / settings / rbac / access_(bindings, roles, custom, directory, groups) / backup / identity / wire / bridge_key / ha_users / security / singletons / app_session / t06_admission / db_gate / raw_body / guard, 5 chunks (`-o addopts=""`, junit per chunk, `~/work/mfastep-out`) | **2467 passed, 4 skipped, 3 xfailed, 0 failed** (632 + 819/4s + 583 + 395/3xf + 38) |
+| runner | `ruff check smplwise` (pyflakes lane) | All checks passed |
 
-| Command (from `smplwise_vms/backend`) | Result |
-|---|---|
-| `python -m pytest tests/test_mfa_stepup_2490.py -q` | 22 passed |
-| further files and the server run | see section 9 |
-
-## 9. Test receipts
-
-(filled in below as runs complete)
+NOT_RUN: the full backend suite (the release gate's slot A only), every Playwright / pixel suite (no UI in this slice), any lab check.
