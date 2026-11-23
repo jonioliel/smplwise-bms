@@ -3,6 +3,7 @@ import '../components/sw-button';
 import { customElement, property, state } from 'lit/decorators.js';
 import { toggled } from '../components/sw-toggle';
 import '../components/sw-tabs';
+import '../components/sw-field';
 import '../components/sw-dropdown';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
@@ -16,7 +17,8 @@ import {
   type DeviceCandidate, type DevicesResponse, type GenDevice, type GenSettings, type RoleItem,
 } from '../api/generator';
 import { describeError } from '../api/client';
-import { he } from '../i18n/he';
+import { he, t, uiLang } from '../i18n/he';
+import { en } from '../i18n/en';
 import { elecCss } from '../electricity/styles';
 import { SkinController } from '../design/skin';
 import { genCss } from './gen-styles';
@@ -25,7 +27,22 @@ import { generatorAccess } from './access';
 import { glt, type GltKey } from '../i18n/generator-log';
 import { tr } from '../i18n/msg/misc';
 
-const S = he.generator.settings;
+type SettingsText = typeof he.generator.settings;
+const mergeText = <T extends object>(base: T, over?: object): T => {
+  const out = { ...base } as Record<string, unknown>;
+  for (const [k, v] of Object.entries(over ?? {})) {
+    const b = out[k];
+    out[k] = typeof v === 'string' ? v : v && typeof v === 'object' && b && typeof b === 'object' ? mergeText(b as object, v as object) : b;
+  }
+  return out as T;
+};
+const ENGLISH = mergeText(he.generator.settings, en.generator?.settings);
+/** GEN-UNITS-FIELD-2490: the settings texts of the ACTIVE language (English where it has the key, else Hebrew), read at render time. */
+const S: SettingsText = new Proxy(he.generator.settings, { get: (_t, k) => (uiLang() === 'en' ? ENGLISH : he.generator.settings)[k as keyof SettingsText] });
+/** GEN-UNITS-FIELD-2490: the unit of a value sits inside the field's frame (sw-field unit), not in its label - as electricity and water do. */
+const TH_UNIT = (): Record<string, string> => ({ oil_min_bar: S.units.bar, coolant_max_c: S.units.c, fuel_low_pct: S.units.pct, fuel_empty_pct: S.units.pct, overload_pct: S.units.pct, v_min: S.units.v, v_max: S.units.v, hz_min: S.units.hz, hz_max: S.units.hz, battery_min_12v: S.units.v, battery_min_24v: S.units.v, service_warn_h: S.units.hAhead, service_every_h: S.units.h });
+const RET_UNIT = (): Record<string, string> => ({ alert_retention_days: S.units.days, history_retention_days: S.units.days, stale_after_s: S.units.s });
+const LOG_UNIT = (): Record<string, string> => ({ min_run_s: S.units.s, mains_lookback_s: S.units.s, test_min_minutes: S.units.min, test_max_minutes: S.units.min, test_interval_days: S.units.days, no_data_close_min: S.units.min, refill_min_pct: S.units.pct, refill_settle_min: S.units.min, drop_min_pct: S.units.pct, fuel_window_h: S.units.h, retention_days: S.units.days });
 // GENLOG092-295: 'log' = the run log's switch and every threshold / window of it
 const SUBS = ['routing', 'mapping', 'thresholds', 'retention', 'log', 'permissions'] as const;
 type Sub = (typeof SUBS)[number];
@@ -151,8 +168,8 @@ export class GenSettings_ extends LitElement {
       <div class="row"><sw-button size="sm" icon="refresh" ?disabled=${this.busy} @click=${() => this.rescan()} data-rescan>${S.rescan}</sw-button><sw-button size="sm" @click=${() => this.openPick()} data-manual>${S.manualPick}</sw-button></div></div>
       <div class="form" style="margin-block-start:12px">
         <div class="fld"><label for="gname">${S.name}</label><input id="gname" .value=${this.nameEdit} maxlength="80" @input=${(e: Event) => (this.nameEdit = (e.target as HTMLInputElement).value)} /></div>
-        <div class="fld"><label for="gkw">${S.rated}</label><input id="gkw" type="number" min="0" .value=${this.ratedEdit} @input=${(e: Event) => (this.ratedEdit = (e.target as HTMLInputElement).value)} /></div>
-        <div class="fld"><label for="gkva">${S.ratedKva}</label><input id="gkva" type="number" min="0" .value=${this.ratedKvaEdit} @input=${(e: Event) => (this.ratedKvaEdit = (e.target as HTMLInputElement).value)} /></div>
+        <sw-field class="fld" label=${S.rated} unit=${S.units.kw}><input id="gkw" class="ltr" type="number" min="0" .value=${this.ratedEdit} @input=${(e: Event) => (this.ratedEdit = (e.target as HTMLInputElement).value)} /></sw-field>
+        <sw-field class="fld" label=${S.ratedKva} unit=${S.units.kva}><input id="gkva" class="ltr" type="number" min="0" .value=${this.ratedKvaEdit} @input=${(e: Event) => (this.ratedKvaEdit = (e.target as HTMLInputElement).value)} /></sw-field>
         <div class="fld"><label>&nbsp;</label><sw-button variant="primary" ?disabled=${this.busy || !this.nameEdit.trim()} @click=${() => this.saveMeta()} data-save-meta>${S.save}</sw-button></div></div></div>`;
   }
   private async rescan() {
@@ -211,9 +228,9 @@ export class GenSettings_ extends LitElement {
     const keys = Object.keys(s.threshold_defaults);
     const val = (k: string) => (k in this.thEdits ? this.thEdits[k] : String(eff[k] ?? s.threshold_defaults[k]));
     return html`<div class="col" data-section="thresholds"><div class="mut">${S.thIntro}</div>
-      <div class="th-grid">${keys.map((k) => { const lim = s.threshold_limits[k] ?? [0, 1e6]; return html`<div class="fld"><label for=${`th-${k}`}>${(S.th as Record<string, string>)[k] ?? k}</label>
-        <input id=${`th-${k}`} type="number" step="any" min=${lim[0]} max=${lim[1]} .value=${val(k)} @input=${(e: Event) => (this.thEdits = { ...this.thEdits, [k]: (e.target as HTMLInputElement).value })} />
-        <span class="mut">${fill(S.thDefault, { n: s.threshold_defaults[k] })}</span></div>`; })}</div>
+      <div class="th-grid">${keys.map((k) => { const lim = s.threshold_limits[k] ?? [0, 1e6]; return html`<sw-field class="fld" label=${(S.th as Record<string, string>)[k] ?? k} unit=${TH_UNIT()[k] ?? ''}>
+        <input id=${`th-${k}`} class="ltr" type="number" step="any" min=${lim[0]} max=${lim[1]} .value=${val(k)} @input=${(e: Event) => (this.thEdits = { ...this.thEdits, [k]: (e.target as HTMLInputElement).value })} />
+        <span class="mut" slot="message">${fill(S.thDefault, { n: s.threshold_defaults[k] })}</span></sw-field>`; })}</div>
       <div class="row"><sw-button variant="primary" ?disabled=${this.busy || !Object.keys(this.thEdits).length || !this.device} @click=${() => this.run(async () => {
         const body: Record<string, number> = {};
         for (const k of keys) { const v = Number(val(k)); if (Number.isFinite(v) && v !== s.threshold_defaults[k]) body[k] = v; }
@@ -226,7 +243,7 @@ export class GenSettings_ extends LitElement {
     const s = this.settings!;
     const rows: [string, string, number][] = [['alert_retention_days', S.retAlerts, s.alert_retention_days], ['history_retention_days', S.retHistory, s.history_retention_days], ['stale_after_s', S.retStale, s.stale_after_s]];
     return html`<div class="col" data-section="retention"><div class="mut">${fill(S.retInfo, { a: s.alert_retention_days, h: s.history_retention_days })}</div>
-      <div class="th-grid">${rows.map(([k, label, cur]) => { const lim = s.limits[k] ?? [0, 1e6]; return html`<div class="fld"><label for=${`rt-${k}`}>${label}</label><input id=${`rt-${k}`} type="number" min=${lim[0]} max=${lim[1]} .value=${k in this.retEdits ? this.retEdits[k] : String(cur)} @input=${(e: Event) => (this.retEdits = { ...this.retEdits, [k]: (e.target as HTMLInputElement).value })} /></div>`; })}</div>
+      <div class="th-grid">${rows.map(([k, label, cur]) => { const lim = s.limits[k] ?? [0, 1e6]; return html`<sw-field class="fld" label=${label} unit=${RET_UNIT()[k] ?? ''}><input id=${`rt-${k}`} class="ltr" type="number" min=${lim[0]} max=${lim[1]} .value=${k in this.retEdits ? this.retEdits[k] : String(cur)} @input=${(e: Event) => (this.retEdits = { ...this.retEdits, [k]: (e.target as HTMLInputElement).value })} /></sw-field>`; })}</div>
       <div class="row"><sw-button variant="primary" ?disabled=${this.busy || !Object.keys(this.retEdits).length} @click=${() => this.run(async () => {
         const body: Record<string, number> = {};
         for (const [k, v] of Object.entries(this.retEdits)) body[k] = Number(v);
@@ -246,10 +263,10 @@ export class GenSettings_ extends LitElement {
       <label class="row" style="gap:8px"><sw-toggle size="sm" labelHidden in-label label=${glt('setEnabled')} .checked=${enabled} data-log-enabled @change=${(e: Event) => (this.logEdits = { ...this.logEdits, log_enabled: toggled(e) })}></sw-toggle><b>${glt('setEnabled')}</b></label>
       <div class="th-grid">${Object.entries(specs).map(([k, sp]) => sp.type === 'bool'
         ? html`<div class="fld"><label class="row" style="gap:8px"><sw-toggle size="sm" labelHidden in-label label=${glt(`set_${k}` as GltKey)} .checked=${Boolean(val(k))} data-log-set=${k} @change=${(e: Event) => (this.logEdits = { ...this.logEdits, [k]: toggled(e) })}></sw-toggle>${glt(`set_${k}` as GltKey)}</label></div>`
-        : html`<div class="fld"><label for=${`lg-${k}`}>${glt(`set_${k}` as GltKey)}</label>
-          <input id=${`lg-${k}`} type="number" step=${sp.type === 'float' ? '0.5' : '1'} min=${sp.min ?? ''} max=${sp.max ?? ''} .value=${String(val(k) ?? '')} data-log-set=${k}
+        : html`<sw-field class="fld" label=${glt(`set_${k}` as GltKey)} unit=${LOG_UNIT()[k] ?? ''}>
+          <input id=${`lg-${k}`} class="ltr" type="number" step=${sp.type === 'float' ? '0.5' : '1'} min=${sp.min ?? ''} max=${sp.max ?? ''} .value=${String(val(k) ?? '')} data-log-set=${k}
             @input=${(e: Event) => (this.logEdits = { ...this.logEdits, [k]: (e.target as HTMLInputElement).value })} />
-          <span class="mut">${fill(S.thDefault, { n: String(sp.default) })}</span></div>`)}</div>
+          <span class="mut" slot="message">${fill(S.thDefault, { n: String(sp.default) })}</span></sw-field>`)}</div>
       <div class="row"><sw-button variant="primary" ?disabled=${this.busy || !Object.keys(this.logEdits).length} data-save-log @click=${() => this.run(async () => {
         const log: Record<string, number | boolean> = {};
         for (const [k, v] of Object.entries(this.logEdits)) {
@@ -264,12 +281,12 @@ export class GenSettings_ extends LitElement {
   render() {
     if (!generatorAccess().manage) return html`<sw-state-panel state="forbidden" heading=${tr('אין הרשאה להגדרות הגנרטור')} data-state="forbidden"></sw-state-panel>`;
     if (this.phase === 'loading') return html`<div class="skl" style="block-size:120px" data-state="loading"></div>`;
-    if (this.phase === 'error' || !this.list || !this.settings) return html`<sw-state-panel state="error" heading=${he.generator.loadError} hint=${this.error} actionLabel=${tr('נסו שוב')} data-state="error" @action=${() => { this.phase = 'loading'; void this.load(); }}></sw-state-panel>`;
+    if (this.phase === 'error' || !this.list || !this.settings) return html`<sw-state-panel state="error" heading=${t('generator.loadError')} hint=${this.error} actionLabel=${tr('נסו שוב')} data-state="error" @action=${() => { this.phase = 'loading'; void this.load(); }}></sw-state-panel>`;
     const sub = this.sub();
     const items: TabItem[] = SUBS.map((x) => ({ id: x, label: x === 'log' ? glt('setSub') : S.subs[x], href: `#/system/infra/generator/${x}${this.device ? `?device=${encodeURIComponent(this.device.id)}` : ''}` }));
     const ds = this.list.devices;
     const dd: DropdownItem[] = ds.map((x) => ({ id: x.id, label: x.name, ...(x.core_met ? {} : { alert: 'warn' as const }) }));
-    const pick = ds.length > 1 ? html`<div class="gpick" data-picker><span class="mut">${he.generator.pickerLabel}</span><sw-dropdown .items=${dd} .value=${this.device?.id ?? ''} label=${he.generator.pickerLabel} @change=${(e: CustomEvent<DropdownChange>) => this.go(sub, e.detail.id)}></sw-dropdown><span class="mut">${ds.length}</span></div>` : nothing;
+    const pick = ds.length > 1 ? html`<div class="gpick" data-picker><span class="mut">${t('generator.pickerLabel')}</span><sw-dropdown .items=${dd} .value=${this.device?.id ?? ''} label=${t('generator.pickerLabel')} @change=${(e: CustomEvent<DropdownChange>) => this.go(sub, e.detail.id)}></sw-dropdown><span class="mut">${ds.length}</span></div>` : nothing;
     let body;
     if (!this.device) body = nothing;
     else if (sub === 'routing') body = html`<gen-routing .device=${this.device}></gen-routing>`;
