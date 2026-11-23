@@ -407,6 +407,21 @@ else:
     os.environ.pop("FAKE_DOCKER_MODE", None)
     dk.unlink()
 
+# ---- GATE-ONEPROJECT-2480: "one project" limits a spec to one project only when it is in a header COMMENT, never in code
+ofe = TMP / "oneproj_fe"
+(ofe / "tests").mkdir(parents=True)
+(ofe / "tests" / "code-only.spec.ts").write_text("import { test } from '@playwright/test';\ntest('x', async ({}, info) => {\n  test.skip(info.project.name !== 'desktop', 'one project runs the whole sweep');\n});\n")
+(ofe / "tests" / "line-comment.spec.ts").write_text("// One project is enough here.\ntest('x', async () => {});\n")
+(ofe / "tests" / "block-comment.spec.ts").write_text("/**\n * Runs on\n * one project only.\n */\ntest('x', async () => {});\n")
+(ofe / "tests" / "dev-code-only.spec.ts").write_text("// needs the vite dev server\nimport x from '/src/a';\ntest('x', async () => { test.skip(true, 'one project'); });\n")
+(ofe / "tests" / "dev-comment.spec.ts").write_text("// needs the vite dev server; one project\nimport x from '/src/a';\ntest('x', async () => {});\n")
+oc = g.classify(ofe, "L")
+check("one project: only in code -> every project (desktop, tablet, mobile)", oc["rest"]["code-only.spec.ts"]["projects"] == ["desktop", "tablet", "mobile"], oc["rest"])
+check("one project: in a // comment -> desktop only", oc["rest"]["line-comment.spec.ts"]["projects"] == ["desktop"], oc["rest"])
+check("one project: in a /* */ block comment -> desktop only", oc["rest"]["block-comment.spec.ts"]["projects"] == ["desktop"], oc["rest"])
+check("one project: dev spec, marker in code only -> one stays False", oc["dev"]["dev-code-only.spec.ts"]["one"] is False, oc["dev"])
+check("one project: dev spec, marker in a comment -> one is True", oc["dev"]["dev-comment.spec.ts"]["one"] is True, oc["dev"])
+
 print()
 print("SELFTEST " +("PASSED" if not FAILS else f"FAILED: {len(FAILS)} case(s): " + "; ".join(FAILS)))
 sys.exit(0 if not FAILS else 1)
