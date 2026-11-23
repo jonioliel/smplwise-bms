@@ -37,7 +37,19 @@ lock from the suggestion is the usual one-tap lock command after the dialog's ow
 - Backend: `smplwise_vms/backend/tests/test_home_scene_manage_2500.py` - 5 tests: a floor-scoped scene manager creates / renames / captures / deletes (delete needs `confirm`); a member with only run + control gets 403 on create, update, delete, capture and `can.edit = false`, and still runs the scene; no scene outside the manager's floor; `/home/family` `scenes.capture` follows scene.manage at any scope; `scene_suggest` layout key.
 - Allow-list: `unit-modal-stack-guard-2442.spec.ts` lists the two new files' dialogs (drawn in sw-home's `ovl` slot, one HandModal layer).
 
-Results are in the commit messages / the closing report (real runs only).
+Results (real runs, PC, 23.11): unit 19 passed; home-favorites-2500 browser 9 passed (and 18/18 with --repeat-each=2); the
+whole home browser set (home-*.spec.ts + layout-home-*, preview build, --workers=4) 158 passed, 327 skipped (project / size skips),
+10 failed - all 10 in layout-home-edit-bar-wp4 and layout-home-widgets-wide-298, whose headers say they need the Vite DEV server
+(widget-break harness, the full interface's home-widgets; no file of this branch); NOT_RUN on a dev server. All node unit specs:
+5097 passed, 2 failed (unit-modal-stack-guard-2442: fixed by the allow-list entry, then passed; unit-replay-3d: passes alone, a
+load flake unrelated to this branch). Backend: test_home_scene_manage_2500 + test_home_interface + test_setting_value_parity 39 passed;
+test_automations_scope + _access + _api 26 passed.
+
+Pixel baselines: the dense-flow change moves tiles of the default living-room favourites on the portrait tablet, so
+`pixel-home-auditfix-2437` `auditfix-room-{dark,light}-768` are expected to change (4 x 5 grid: the climate tile no longer back-fills,
+a "+ הוסף" hole appears). The refresh (`run_remote.sh preview ... pixel-home-*.spec.ts --project=desktop --project=mobile -u`,
+SW_WORKERS=1) is queued on runner slot B and had not started when this note was written (slot B busy with other jobs); the
+refreshed *-linux.png files must be reviewed and committed before this branch joins a train.
 
 ## Known limits
 
