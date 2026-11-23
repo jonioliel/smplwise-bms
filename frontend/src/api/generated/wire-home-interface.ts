@@ -3,6 +3,13 @@
 // sent as null instead); `unknown` is a value the backend passes through as stored. Code review 07:F8 step 2.
 /* eslint-disable */
 
+/** MULTI-BUILDING-HOME-2500: one of our buildings the caller's rooms reach (the shared building last). */
+export interface HomeBuilding {
+  id: string;
+  name: string;
+  is_shared: boolean;
+}
+
 export interface HomeClimate {
   entity_id: string;
   name: unknown;
@@ -35,6 +42,7 @@ export interface HomeInstallSettings {
   default_mode: "full_all" | "home_regular" | "choose";
   kiosk_exit: "code" | "none";
   wallpaper: "none" | "gallery" | "gallery_image";
+  building_all: "hide" | "allow";
 }
 
 /** A light, or a switch typed as a light (`kind`), as the caller may see it. */
@@ -82,6 +90,10 @@ export interface HomeOverview {
   scoped: boolean;
   modules: string[];
   policy: HomePolicy;
+  buildings?: HomeBuilding[] | null;
+  area_buildings?: Record<string, string> | null;
+  building_all?: boolean | null;
+  entry_building?: string | null;
 }
 
 export interface HomePolicies {
@@ -89,6 +101,7 @@ export interface HomePolicies {
   modules: string[];
   seed: Record<string, unknown>;
   kiosk_code_set: boolean;
+  buildings?: HomeBuilding[] | null;
 }
 
 /**
@@ -112,6 +125,7 @@ export interface HomePolicy {
   wallpaper: "none" | "gallery" | "gallery_image";
   guests: boolean;
   room_wallpapers: Record<string, string>;
+  building_id?: string | null;
 }
 
 /** The person's own favourites (room key -> items) and layout (stored documents), and the administrator's favourites seed. */
@@ -133,6 +147,7 @@ export interface HomeRoom {
   climate: HomeClimate[];
   shades: HomeShade[];
   locks: HomeLock[];
+  building_id?: string | null;
 }
 
 export interface HomeSeed {
@@ -199,6 +214,7 @@ export interface HomeUserPolicy {
   admin: boolean;
   guests: boolean;
   can_invite: boolean;
+  building_id?: string | null;
 }
 
 /** The first available weather entity: the rounded outside temperature (null when it reports none) and the condition in Hebrew. */

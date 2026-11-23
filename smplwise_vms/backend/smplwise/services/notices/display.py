@@ -86,6 +86,16 @@ def building_name(conn: sqlite3.Connection) -> str:
     return fallback_name(conn)
 
 
+def _board_building(conn: sqlite3.Connection, board: dict[str, Any]) -> str | None:
+    """MULTI-BUILDING-HOME-2500: the board's own building name (services/home_buildings.board_building), or None. A board row without
+    the column (a database before migration 0218) has no building."""
+    if not board.get("building_id"):
+        return None
+    from .. import home_buildings
+
+    return home_buildings.board_building(conn, board)
+
+
 def fallback_name(conn: sqlite3.Connection) -> str:
     """The name the boards use while `notices.building_name` is empty (the Settings field shows it as its placeholder)."""
     project = brand_assets.project_name(conn)
@@ -173,7 +183,9 @@ def build_feed(conn: sqlite3.Connection, board: dict[str, Any], now: dt.datetime
                 stamps.append(int(t.timestamp()))
     s = store.settings(conn)
     doc: dict[str, Any] = {
-        "board": {"name": board["name"], "slug": board["slug"], "display": disp, "building": building_name(conn), "tz": str(tz.key),
+        # MULTI-BUILDING-HOME-2500 (owner Q68): a board that belongs to one of our buildings greets with that building's name (read live,
+        # only while the multi-building switch is on); otherwise the installation's chain of before
+        "board": {"name": board["name"], "slug": board["slug"], "display": disp, "building": _board_building(conn, board) or building_name(conn), "tz": str(tz.key),
                   "logos": {}},
         "now": model.iso(now),
         "notices": [feed_notice(n) for n in items],

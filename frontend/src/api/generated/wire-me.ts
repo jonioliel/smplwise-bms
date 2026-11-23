@@ -24,6 +24,7 @@ export interface HomePolicy {
   wallpaper: "none" | "gallery" | "gallery_image";
   guests: boolean;
   room_wallpapers: Record<string, string>;
+  building_id?: string | null;
 }
 
 export interface Me {

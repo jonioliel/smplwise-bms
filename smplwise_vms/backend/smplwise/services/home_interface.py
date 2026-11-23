@@ -75,6 +75,10 @@ INSTALL_VALUES: dict[str, tuple[str, ...]] = {
     "kiosk_exit": ("code", "none"),
     "wallpaper": ("none", "gallery", "gallery_image"),
 }
+# MULTI-BUILDING-HOME-2500 (owner Q64 = the recommendation): on a multi-building site the home interface hides "כל הבניינים"; "allow"
+# offers it (services/home_buildings reads the same row).
+INSTALL_KEYS["building_all"] = "home.building_all"
+INSTALL_VALUES["building_all"] = ("hide", "allow")
 LEGACY_FROZEN_BY = "migration:0212"
 # the built-in gallery (drawn by the frontend from CSS gradients only - no picture files); the server only checks the names
 GALLERY = ("dusk", "tide", "dune", "moss", "ember", "slate", "aurora", "linen")
@@ -230,7 +234,9 @@ def stored_policy(conn: sqlite3.Connection, user_id: str) -> dict[str, Any] | No
             "kiosk": bool(r["kiosk"]), "kiosk_area_id": r["kiosk_area_id"],
             "rooms": rooms if isinstance(rooms, list) else None, "modules": modules if isinstance(modules, list) else None,
             "current_interface": r["current_interface"], "updated_at": r["updated_at"], "updated_by": r["updated_by"],
-            "guests": bool(r["guests"]) if "guests" in r.keys() else False}
+            "guests": bool(r["guests"]) if "guests" in r.keys() else False,
+            # MULTI-BUILDING-HOME-2500 (Q65): the building the administrator set for this person (display only; migration 0218)
+            "building_id": r["building_id"] if "building_id" in r.keys() else None}
 
 
 def effective(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
@@ -265,6 +271,9 @@ def effective(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
         # HOME-V3-P1-2430: the administrator marked this person for guest invitations; the room wallpapers set for everyone
         "guests": bool(pol.get("guests")),
         "room_wallpapers": _room_walls(conn, inst["wallpaper"]),
+        # MULTI-BUILDING-HOME-2500 (Q65): the person's building, only when an administrator set one (an unset one adds no key: the
+        # answer for a person without it is the answer of before)
+        **({"building_id": pol["building_id"]} if pol.get("building_id") else {}),
     }
 
 
@@ -313,6 +322,14 @@ def set_policy(conn: sqlite3.Connection, actor: Principal, user_id: str, body: d
     for k in ("default_interface", "may_switch", "home_only", "kiosk", "kiosk_area_id", "guests"):
         if k in body and body[k] is not None:
             merged[k] = body[k]
+    if "building_id" in body:  # MULTI-BUILDING-HOME-2500 (Q65): "" / None clears it; a building must be live (display only, never a grant)
+        bid = body["building_id"] or None
+        if bid is not None:
+            from . import home_buildings
+
+            if not isinstance(bid, str) or not home_buildings.is_live_building(conn, bid):
+                raise HomeInterfaceError(422, "building_not_found", "הבניין לא נמצא.")
+        merged["building_id"] = bid
     if "rooms" in body:
         merged["rooms"] = _clean_list(body["rooms"], None, "החדרים")
     if "modules" in body:
@@ -342,6 +359,8 @@ def set_policy(conn: sqlite3.Connection, actor: Principal, user_id: str, body: d
          json.dumps(merged["modules"]) if merged.get("modules") is not None else None,
          current, now_iso(), actor.user_id, int(bool(merged.get("guests")))),
     )
+    if "building_id" in body:
+        conn.execute("UPDATE home_interface_policy SET building_id = ? WHERE user_id = ?", (merged.get("building_id"), user_id))
     return effective(conn, user_id)
 
 
@@ -373,7 +392,8 @@ def list_policies(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         eff = effective(conn, u["id"])
         out.append({"user_id": u["id"], "username": u["username"], "display_name": u["display_name"] or u["username"], "source": u["source"],
                     "system_admin": is_system_admin(conn, u["id"]), **{k: eff[k] for k in ("default_interface", "may_switch", "home_only", "kiosk", "kiosk_area_id", "rooms", "modules", "configured", "admin", "guests")},
-                    "can_invite": holds_anywhere(conn, u["id"], "access.visitor.invite")})
+                    "can_invite": holds_anywhere(conn, u["id"], "access.visitor.invite"),
+                    **({"building_id": eff["building_id"]} if eff.get("building_id") else {})})  # MULTI-BUILDING-HOME-2500 (Q65)
     return out
 
 
