@@ -1,0 +1,1408 @@
+[
+ {
+  "id": "AT013",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT014",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT187",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-alarm.spec.ts",
+   "smplwise_vms/backend/tests/test_alarm.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-alarm.spec.ts (32 passed, 13 skipped by the spec own gate); test_alarm.py (38 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT188",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT189",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "smplwise_vms/backend/tests/test_alarm.py",
+   "smplwise_vms/backend/tests/test_backup.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_alarm.py (38 passed); test_backup.py (8 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT190",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT191",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-shell.spec.ts",
+   "smplwise_vms/backend/tests/test_user_prefs.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-shell.spec.ts (54 passed, 3 skipped by the spec own gate); test_user_prefs.py (11 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT219",
+  "class": "LAB",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "Hardware card (requires_hardware): needs the real recorder / speakers / device; automated suites alone do not meet the acceptance. Not run."
+ },
+ {
+  "id": "AT220",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT225",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT228",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "smplwise_vms/backend/tests/test_shift114.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_shift114.py (61 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT231",
+  "class": "LAB",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "Hardware card (requires_hardware): needs the real recorder / speakers / device; automated suites alone do not meet the acceptance. Not run."
+ },
+ {
+  "id": "AT258",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "smplwise_vms/backend/tests/test_progress_matcher.py",
+   "smplwise_vms/backend/tests/test_wxd10_door_jobs.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_progress_matcher.py (45 passed); test_wxd10_door_jobs.py (13 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT261",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/unit-door-conversion-wxd10.spec.ts",
+   "smplwise_vms/backend/tests/test_wiskey_door_enable.py",
+   "smplwise_vms/backend/tests/test_wxd10_door_jobs.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_wiskey_door_enable.py (3 passed); test_wxd10_door_jobs.py (13 passed); unit-door-conversion-wxd10.spec.ts (4 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT262",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "smplwise_vms/backend/tests/test_wxd10_door_jobs.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_wxd10_door_jobs.py (13 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT263",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "smplwise_vms/backend/tests/test_door_bridge_block_2404.py",
+   "smplwise_vms/backend/tests/test_wxd11_t19_fake_ha_context.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_door_bridge_block_2404.py (21 passed); test_wxd11_t19_fake_ha_context.py (4 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT269",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT271",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT276",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT277",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "Not run (spec needs a server this sweep did not run: unit-plan3d-sun.spec.ts)."
+ },
+ {
+  "id": "AT278",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT279",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "Not run (spec needs a server this sweep did not run: unit-still-bake.spec.ts)."
+ },
+ {
+  "id": "AT280",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT298",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT302",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "smplwise_vms/backend/tests/test_gate_visual_block_t074.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_gate_visual_block_t074.py (14 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT303",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "Every mapped spec skipped by its own gate (evidence-floorstrip.spec.ts); no passing assertion."
+ },
+ {
+  "id": "AT305",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT306",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "smplwise_vms/backend/tests/test_plan_bakes.py",
+   "smplwise_vms/backend/tests/test_plan_view_settings.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_plan_bakes.py (14 passed); test_plan_view_settings.py (60 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT312",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT315",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT316",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT344",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT350",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT374",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-USR2-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "Not run (spec needs a server this sweep did not run: unit-arx-local-login.spec.ts)."
+ },
+ {
+  "id": "AT-USR2-2",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-USR2-3",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/unit-service-identity.spec.ts",
+   "smplwise_vms/backend/tests/test_bridge_service_identity.py",
+   "smplwise_vms/backend/tests/test_service_identity.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_bridge_service_identity.py (171 passed); test_service_identity.py (47 passed); unit-service-identity.spec.ts (14 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-USR2-4",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-WISKEYID-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-WISKEYID-2",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-GATEAUDIT-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "Expected needs the visual matrix (0 differences) and the gate selftest; the sweep did not run them."
+ },
+ {
+  "id": "AT-GATELANES-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "Expected needs tsc, the gate SELFTEST and the pixel baselines of both lanes; the sweep did not run them."
+ },
+ {
+  "id": "AT-WISKEYA06-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "smplwise_vms/backend/tests/test_door_emergency_roles_emrole_295.py",
+   "smplwise_vms/backend/tests/test_t06_admission_295.py",
+   "smplwise_vms/backend/tests/test_w031_295.py",
+   "smplwise_vms/backend/tests/test_wiskeya06_297.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_door_emergency_roles_emrole_295.py (22 passed); test_t06_admission_295.py (63 passed, 3 skipped by the spec own gate); test_w031_295.py (5 passed); test_wiskeya06_297.py (88 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-DOORWRITE-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "smplwise_vms/backend/tests/test_doorwrite_297.py",
+   "smplwise_vms/backend/tests/test_fake_doorwin_closed_rule_sr1.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_doorwrite_297.py (34 passed); test_fake_doorwin_closed_rule_sr1.py (5 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-MOTIONSETTING-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/smoke-motionsetting-297.spec.ts",
+   "frontend/tests/unit-motionsetting-297.spec.ts",
+   "smplwise_vms/backend/tests/test_ui_settings.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): smoke-motionsetting-297.spec.ts (4 passed, 5 skipped by the spec own gate); test_ui_settings.py (20 passed); unit-motionsetting-297.spec.ts (5 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-SPLITSWITCH2-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-doorwin-295.spec.ts",
+   "smplwise_vms/backend/tests/test_splitswitch2_297.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-doorwin-295.spec.ts (39 passed); test_splitswitch2_297.py (12 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-POLISH-PHONE-2310-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-ENTRY-CHECK-2310-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-COORD-DOCS-2310-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "smplwise_vms/backend/tests/test_coord.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_coord.py (30 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-LICENSE-2310-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "smplwise_vms/backend/tests/test_third_party_notices.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_third_party_notices.py (7 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-DEPAUDIT-2310-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "Not run (spec needs a server this sweep did not run: test_offbox_sftp.py)."
+ },
+ {
+  "id": "AT-TASKS-SYNC-3110-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-DEPFIX-2310-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-ADDON-IMAGE-BUILD-FIXES-2311-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-UIPOLISH-2320-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-mobile-touch.spec.ts",
+   "frontend/tests/unit-dark-muted-contrast.spec.ts"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): unit-dark-muted-contrast.spec.ts (2 passed). Specs with every test skipped by their own gate (no assertion counted): evidence-mobile-touch.spec.ts. Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-LEGAL-WKMIT-2320-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-PROVISION-BACKCHANNEL-2320-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "smplwise_vms/backend/tests/test_provision_backchannel.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_provision_backchannel.py (17 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-MAPPING-ASSIST-2330-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-mapping-assist-2330.spec.ts",
+   "frontend/tests/unit-mapping-assist-2330.spec.ts",
+   "smplwise_vms/backend/tests/test_home_links.py",
+   "smplwise_vms/backend/tests/test_mapping_assist_2330.py",
+   "smplwise_vms/backend/tests/test_setup_wizard.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-mapping-assist-2330.spec.ts (27 passed); test_home_links.py (4 passed); test_mapping_assist_2330.py (8 passed); test_setup_wizard.py (32 passed); unit-mapping-assist-2330.spec.ts (13 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-CALCONNECT-2330-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-calendars-connect-2330.spec.ts",
+   "frontend/tests/unit-calendars-connect-2330.spec.ts",
+   "smplwise_vms/backend/tests/test_calendar_connect_2330.py",
+   "smplwise_vms/backend/tests/test_calendar_sync_2300.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-calendars-connect-2330.spec.ts (19 passed, 2 skipped by the spec own gate); test_calendar_connect_2330.py (30 passed); test_calendar_sync_2300.py (38 passed); unit-calendars-connect-2330.spec.ts (6 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-AZIA-LIVE-2331-1",
+  "class": "LAB",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "Device / owner step, not run: needs the owner recorder and a live wall (the measurement on the owner installation)."
+ },
+ {
+  "id": "AT-OWNER-R12-2341-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "Not run (spec needs a server this sweep did not run: evidence-camera-card.spec.ts)."
+ },
+ {
+  "id": "AT-POLISH-LEFTOVERS-2341-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/devpolish-2331-shoot.spec.ts",
+   "frontend/tests/evidence-automations-list.spec.ts",
+   "frontend/tests/evidence-devices.spec.ts",
+   "frontend/tests/evidence-noscroll-295.spec.ts",
+   "frontend/tests/evidence-polish2-295.spec.ts",
+   "frontend/tests/evidence-tickets-polish-2331.spec.ts",
+   "frontend/tests/evidence-tickets-table.spec.ts",
+   "frontend/tests/evidence-tickets-ui4.spec.ts",
+   "frontend/tests/layout-tickets-table.spec.ts",
+   "frontend/tests/layout-uxfix-nav-295.spec.ts",
+   "frontend/tests/r5-devices-shoot.spec.ts"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-automations-list.spec.ts (147 passed); evidence-noscroll-295.spec.ts (25 passed, 50 skipped by the spec own gate); evidence-polish2-295.spec.ts (24 passed); evidence-tickets-polish-2331.spec.ts (15 passed); evidence-tickets-table.spec.ts (27 passed, 33 skipped by the spec own gate); evidence-tickets-ui4.spec.ts (19 passed, 11 skipped by the spec own gate); layout-tickets-table.spec.ts (4 passed); layout-uxfix-nav-295.spec.ts (13 passed, 8 skipped by the spec own gate). Specs with every test skipped by their own gate (no assertion counted): devpolish-2331-shoot.spec.ts, evidence-devices.spec.ts, r5-devices-shoot.spec.ts. Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-LIVE-H265-2341-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/unit-h265-support.spec.ts",
+   "smplwise_vms/backend/tests/test_live_h265.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_live_h265.py (26 passed); unit-h265-support.spec.ts (11 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-SHARED-POLISH-2342-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/pixel-access-events.spec.ts",
+   "frontend/tests/pixel-access-status.spec.ts",
+   "frontend/tests/visual-matrix.spec.ts"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): pixel-access-events.spec.ts (13 passed, 8 skipped by the spec own gate); pixel-access-status.spec.ts (14 passed, 7 skipped by the spec own gate); visual-matrix.spec.ts (75 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-TKSET-POLISH-2331-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-DEVICES-POLISH-2331-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "Every mapped spec skipped by its own gate (devpolish-2331-shoot.spec.ts); no passing assertion."
+ },
+ {
+  "id": "AT-MEDIA-POLISH-2331-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "Every mapped spec skipped by its own gate (layout-bubble-screens.spec.ts); no passing assertion."
+ },
+ {
+  "id": "AT-CAMADMIN-POLISH-2331-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-SCHED-POLISH-2331-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-automations-list.spec.ts",
+   "frontend/tests/evidence-ha2610-compat.spec.ts",
+   "frontend/tests/evidence-mobile-options.spec.ts",
+   "frontend/tests/evidence-polish2-295.spec.ts",
+   "frontend/tests/evidence-schedules-editor.spec.ts",
+   "frontend/tests/evidence-schedules-list.spec.ts",
+   "frontend/tests/layout-page-background.spec.ts",
+   "frontend/tests/layout-schedules-parity.spec.ts",
+   "frontend/tests/layout-visdiff-246.spec.ts",
+   "frontend/tests/shoot-sched-polish-2331.spec.ts"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-automations-list.spec.ts (147 passed); evidence-ha2610-compat.spec.ts (12 passed); evidence-mobile-options.spec.ts (9 passed); evidence-polish2-295.spec.ts (24 passed); evidence-schedules-editor.spec.ts (36 passed); evidence-schedules-list.spec.ts (114 passed); layout-page-background.spec.ts (5 passed, 4 skipped by the spec own gate); layout-schedules-parity.spec.ts (4 passed, 1 skipped by the spec own gate); layout-visdiff-246.spec.ts (23 passed, 46 skipped by the spec own gate); shoot-sched-polish-2331.spec.ts (27 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-INSIGHTS-POLISH-2331-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-insights-polish-2331.spec.ts",
+   "frontend/tests/evidence-insights.spec.ts"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-insights.spec.ts (57 passed, 3 skipped by the spec own gate). Specs with every test skipped by their own gate (no assertion counted): evidence-insights-polish-2331.spec.ts. Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-HOMEEDIT-POLISH-2331-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-SETUPPLAN-POLISH-2331-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-TABSMODE-POLISH-2331-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-WRITE-GATE-EVENTS-2341-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "smplwise_vms/backend/tests/test_db_gate_stray_detector.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_db_gate_stray_detector.py (6 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-A11Y-POLISHED-2342-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/a11y-dialog-focus-2310.spec.ts",
+   "frontend/tests/a11y-polished-2342.spec.ts",
+   "frontend/tests/layout-a11y-295.spec.ts",
+   "frontend/tests/unit-a11y-polished-lint.spec.ts"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): a11y-dialog-focus-2310.spec.ts (12 passed); a11y-polished-2342.spec.ts (21 passed); layout-a11y-295.spec.ts (6 passed, 4 skipped by the spec own gate); unit-a11y-polished-lint.spec.ts (6 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-PHONE-BUTTONS-44-2342-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "Not run (spec needs a server this sweep did not run: evidence-camera-card.spec.ts)."
+ },
+ {
+  "id": "AT-GATE2342-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/unit-shell-lazy-2436.spec.ts"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): unit-shell-lazy-2436.spec.ts (8 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-CAL-ATTENDEES-2343-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/unit-calendars-attendees-2343.spec.ts",
+   "smplwise_vms/backend/tests/test_calendar_attendees_2343.py",
+   "smplwise_vms/backend/tests/test_messaging_accounts_api.py",
+   "smplwise_vms/backend/tests/test_messaging_accounts_runtime.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_calendar_attendees_2343.py (20 passed); test_messaging_accounts_api.py (21 passed); test_messaging_accounts_runtime.py (10 passed); unit-calendars-attendees-2343.spec.ts (10 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-PRE-GATE-2350-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-devices.spec.ts",
+   "frontend/tests/layout-a11y-295.spec.ts"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): layout-a11y-295.spec.ts (6 passed, 4 skipped by the spec own gate). Specs with every test skipped by their own gate (no assertion counted): evidence-devices.spec.ts. Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-LOBBY-STYLES-2290-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "Not run (spec needs a server this sweep did not run: unit-lobbystyles-2300.spec.ts)."
+ },
+ {
+  "id": "AT-XS-MINI-WIDGET-2351-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/unit-generator-home-widget.spec.ts",
+   "frontend/tests/unit-home-config.spec.ts",
+   "frontend/tests/unit-noticepage-295.spec.ts",
+   "frontend/tests/unit-xs-mini-widget-2351.spec.ts",
+   "smplwise_vms/backend/tests/test_home_config.py",
+   "smplwise_vms/backend/tests/test_home_screen.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_home_config.py (9 passed); test_home_screen.py (33 passed); unit-generator-home-widget.spec.ts (15 passed); unit-home-config.spec.ts (14 passed); unit-noticepage-295.spec.ts (8 passed); unit-xs-mini-widget-2351.spec.ts (11 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-POLISH4-WP2-LIVEINV-2370-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-POLISH4-WP3-SERVICE-2370-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-polish4-wp3-service.spec.ts",
+   "frontend/tests/evidence-tickets-handlers.spec.ts",
+   "frontend/tests/evidence-tickets-s4.spec.ts",
+   "frontend/tests/evidence-tickets-vendor-accounts.spec.ts"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-polish4-wp3-service.spec.ts (8 passed, 4 skipped by the spec own gate); evidence-tickets-handlers.spec.ts (24 passed, 12 skipped by the spec own gate); evidence-tickets-s4.spec.ts (12 passed, 6 skipped by the spec own gate); evidence-tickets-vendor-accounts.spec.ts (15 passed, 9 skipped by the spec own gate). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-POLISH4-WP5-MEDIA-2370-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-POLISH4-WP6-MAPS-2370-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/pixel-walk-touch.spec.ts",
+   "frontend/tests/pixel-wall-plan.spec.ts",
+   "frontend/tests/unit-polish4-wp6-maps.spec.ts",
+   "frontend/tests/unit-token-lint.spec.ts"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): pixel-walk-touch.spec.ts (6 passed, 12 skipped by the spec own gate); pixel-wall-plan.spec.ts (8 passed); unit-polish4-wp6-maps.spec.ts (6 passed); unit-token-lint.spec.ts (7 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-POLISH4-WP7-SETSYS-2370-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-POLISH4-WP8-SETMOD-2370-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-access-polish-2331.spec.ts",
+   "frontend/tests/evidence-access-status.spec.ts",
+   "frontend/tests/evidence-announcements.spec.ts",
+   "frontend/tests/evidence-notifications.spec.ts",
+   "frontend/tests/evidence-polish4-wp8.spec.ts",
+   "frontend/tests/evidence-pwa-push.spec.ts",
+   "smplwise_vms/backend/tests/test_transit_check_wp8.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-access-polish-2331.spec.ts (24 passed); evidence-access-status.spec.ts (26 passed, 1 skipped by the spec own gate); evidence-announcements.spec.ts (16 passed); evidence-notifications.spec.ts (89 passed, 7 skipped by the spec own gate); evidence-polish4-wp8.spec.ts (15 passed); evidence-pwa-push.spec.ts (8 passed, 2 skipped by the spec own gate); test_transit_check_wp8.py (7 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-TRANSIT-CHECK-2370-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "smplwise_vms/backend/tests/test_transit_check_wp8.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_transit_check_wp8.py (7 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-APP-TEAM-R11-2380-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-BOARD-ADMIN-2380-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-WALL-FOLLOWUPS-2380-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-wall-followups-2390.spec.ts",
+   "frontend/tests/pixel-wall-followups-2390.spec.ts",
+   "frontend/tests/unit-wall-device-class.spec.ts",
+   "smplwise_vms/backend/tests/test_wall.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-wall-followups-2390.spec.ts (28 passed, 29 skipped by the spec own gate); pixel-wall-followups-2390.spec.ts (5 passed); test_wall.py (15 passed); unit-wall-device-class.spec.ts (53 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-ROUND4-LEFTOVERS-2380-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-REGISTRY-UPDATE-2380-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-STATION-WS-PATH-2381-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/unit-station-ws-path-2381.spec.ts"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): unit-station-ws-path-2381.spec.ts (3 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-WISKEY-TALK-DIAL-2382-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-wiskey-station-media.spec.ts",
+   "frontend/tests/evidence-wiskey-talk-dial-2382.spec.ts",
+   "frontend/tests/layout-wiskey-station-media.spec.ts",
+   "frontend/tests/pixel-wiskey-station-media.spec.ts",
+   "frontend/tests/pixel-wiskey-talk-dial-2382.spec.ts",
+   "frontend/tests/unit-wiskey-station-media.spec.ts",
+   "frontend/tests/unit-wiskey-talk-dial-2382.spec.ts",
+   "smplwise_vms/backend/tests/test_intercom_media.py",
+   "smplwise_vms/backend/tests/test_station_media_readiness_2382.py",
+   "smplwise_vms/backend/tests/test_wiskey_pairing_2382.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-wiskey-station-media.spec.ts (58 passed, 8 skipped by the spec own gate); evidence-wiskey-talk-dial-2382.spec.ts (21 passed, 6 skipped by the spec own gate); layout-wiskey-station-media.spec.ts (1 passed); pixel-wiskey-station-media.spec.ts (29 passed, 13 skipped by the spec own gate); pixel-wiskey-talk-dial-2382.spec.ts (4 passed, 2 skipped by the spec own gate); test_intercom_media.py (35 passed); test_station_media_readiness_2382.py (29 passed); test_wiskey_pairing_2382.py (32 passed); unit-wiskey-station-media.spec.ts (14 passed); unit-wiskey-talk-dial-2382.spec.ts (7 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-WISKEY-MANAGED-INSTALL-2382-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-wiskey-managed-2382.spec.ts",
+   "frontend/tests/unit-wiskey-managed.spec.ts",
+   "smplwise_vms/backend/tests/test_self_update.py",
+   "smplwise_vms/backend/tests/test_self_update_s3.py",
+   "smplwise_vms/backend/tests/test_wiskey_managed_install_2382.py",
+   "smplwise_vms/backend/tests/test_wiskey_native_bundle_2272.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-wiskey-managed-2382.spec.ts (20 passed); test_self_update.py (24 passed); test_self_update_s3.py (42 passed); test_wiskey_managed_install_2382.py (73 passed); test_wiskey_native_bundle_2272.py (7 passed); unit-wiskey-managed.spec.ts (8 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-WISKEY-INBOUND-CALLS-2382-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-incoming-call.spec.ts",
+   "frontend/tests/evidence-wiskey-people-native.spec.ts",
+   "frontend/tests/pixel-incoming-call.spec.ts",
+   "frontend/tests/unit-incoming-calls.spec.ts",
+   "smplwise_vms/backend/tests/test_access_permissions_wxperm.py",
+   "smplwise_vms/backend/tests/test_intercom.py",
+   "smplwise_vms/backend/tests/test_intercom_calls_2382.py",
+   "smplwise_vms/backend/tests/test_notify_sources.py",
+   "smplwise_vms/backend/tests/test_security_review_wxd_fixes.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-incoming-call.spec.ts (35 passed, 4 skipped by the spec own gate); evidence-wiskey-people-native.spec.ts (55 passed, 2 skipped by the spec own gate); pixel-incoming-call.spec.ts (8 passed, 4 skipped by the spec own gate); test_access_permissions_wxperm.py (21 passed); test_intercom.py (184 passed); test_intercom_calls_2382.py (17 passed); test_notify_sources.py (37 passed); test_security_review_wxd_fixes.py (23 passed); unit-incoming-calls.spec.ts (13 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-WISKEY-STATUS-PAGE-2382-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-WISKEY-STATION-OPS-2390-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-wiskey-station-media.spec.ts",
+   "frontend/tests/evidence-wiskey-station-ops.spec.ts",
+   "frontend/tests/evidence-wiskey-stations.spec.ts",
+   "frontend/tests/layout-wiskey-stations.spec.ts",
+   "frontend/tests/pixel-wiskey-stations.spec.ts",
+   "frontend/tests/unit-wiskey-station-ops.spec.ts",
+   "smplwise_vms/backend/tests/test_eccact_readback_295.py",
+   "smplwise_vms/backend/tests/test_pwclean_295.py",
+   "smplwise_vms/backend/tests/test_wa_pacing_coverage_295.py",
+   "smplwise_vms/backend/tests/test_wiskey_channels.py",
+   "smplwise_vms/backend/tests/test_wiskey_contract.py",
+   "smplwise_vms/backend/tests/test_wiskey_diagnostics.py",
+   "smplwise_vms/backend/tests/test_wiskey_station_ops.py",
+   "smplwise_vms/backend/tests/test_wkdirect_295.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-wiskey-station-media.spec.ts (58 passed, 8 skipped by the spec own gate); evidence-wiskey-station-ops.spec.ts (27 passed); evidence-wiskey-stations.spec.ts (134 passed, 7 skipped by the spec own gate); layout-wiskey-stations.spec.ts (3 passed); pixel-wiskey-stations.spec.ts (17 passed, 10 skipped by the spec own gate); test_eccact_readback_295.py (17 passed); test_pwclean_295.py (15 passed); test_wa_pacing_coverage_295.py (39 passed); test_wiskey_channels.py (42 passed, 4 skipped by the spec own gate); test_wiskey_contract.py (53 passed); test_wiskey_diagnostics.py (14 passed); test_wiskey_station_ops.py (26 passed); test_wkdirect_295.py (53 passed); unit-wiskey-station-ops.spec.ts (7 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-WISKEY-CONFLICTS-2390-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-WISKEY-DOOR-TECH-2390-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-wiskey-door-tech.spec.ts",
+   "frontend/tests/evidence-wiskey-stations.spec.ts",
+   "frontend/tests/layout-wiskey-stations.spec.ts",
+   "frontend/tests/pixel-wiskey-door-tech.spec.ts",
+   "frontend/tests/pixel-wiskey-stations.spec.ts",
+   "frontend/tests/unit-wiskey-door-tech.spec.ts",
+   "smplwise_vms/backend/tests/test_eccact_readback_295.py",
+   "smplwise_vms/backend/tests/test_fake_doorwin_closed_rule_sr1.py",
+   "smplwise_vms/backend/tests/test_intercom_adapter.py",
+   "smplwise_vms/backend/tests/test_pwclean_295.py",
+   "smplwise_vms/backend/tests/test_wa_pacing_coverage_295.py",
+   "smplwise_vms/backend/tests/test_wiskey_channels.py",
+   "smplwise_vms/backend/tests/test_wiskey_contract.py",
+   "smplwise_vms/backend/tests/test_wiskey_door_tech.py",
+   "smplwise_vms/backend/tests/test_wkdirect_295.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-wiskey-door-tech.spec.ts (14 passed, 7 skipped by the spec own gate); evidence-wiskey-stations.spec.ts (134 passed, 7 skipped by the spec own gate); layout-wiskey-stations.spec.ts (3 passed); pixel-wiskey-door-tech.spec.ts (4 passed, 2 skipped by the spec own gate); pixel-wiskey-stations.spec.ts (17 passed, 10 skipped by the spec own gate); test_eccact_readback_295.py (17 passed); test_fake_doorwin_closed_rule_sr1.py (5 passed); test_intercom_adapter.py (33 passed); test_pwclean_295.py (15 passed); test_wa_pacing_coverage_295.py (39 passed); test_wiskey_channels.py (42 passed, 4 skipped by the spec own gate); test_wiskey_contract.py (53 passed); test_wiskey_door_tech.py (33 passed); test_wkdirect_295.py (53 passed); unit-wiskey-door-tech.spec.ts (8 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-WISKEY-SCHED-WRITE-2390-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-access-schedules.spec.ts",
+   "frontend/tests/evidence-wiskey-schedule-writes.spec.ts",
+   "frontend/tests/layout-access-schedules.spec.ts",
+   "frontend/tests/pixel-access-schedules.spec.ts",
+   "frontend/tests/pixel-wiskey-schedule-writes.spec.ts",
+   "frontend/tests/unit-schedule-editor-logic.spec.ts",
+   "smplwise_vms/backend/tests/test_access_control_wire.py",
+   "smplwise_vms/backend/tests/test_capabilities.py",
+   "smplwise_vms/backend/tests/test_db_gate.py",
+   "smplwise_vms/backend/tests/test_eccact_readback_295.py",
+   "smplwise_vms/backend/tests/test_intercom_adapter.py",
+   "smplwise_vms/backend/tests/test_plan_routes_unique.py",
+   "smplwise_vms/backend/tests/test_pwclean_295.py",
+   "smplwise_vms/backend/tests/test_secfix2_pub07_guard_first.py",
+   "smplwise_vms/backend/tests/test_wiskey_channels.py",
+   "smplwise_vms/backend/tests/test_wiskey_contract.py",
+   "smplwise_vms/backend/tests/test_wiskey_schedule_writes.py",
+   "smplwise_vms/backend/tests/test_wkdirect_295.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-access-schedules.spec.ts (25 passed, 2 skipped by the spec own gate); evidence-wiskey-schedule-writes.spec.ts (16 passed, 8 skipped by the spec own gate); layout-access-schedules.spec.ts (8 passed); pixel-access-schedules.spec.ts (14 passed, 7 skipped by the spec own gate); pixel-wiskey-schedule-writes.spec.ts (8 passed, 4 skipped by the spec own gate); test_access_control_wire.py (23 passed); test_capabilities.py (3 passed); test_db_gate.py (31 passed); test_eccact_readback_295.py (17 passed); test_intercom_adapter.py (33 passed); test_plan_routes_unique.py (1 passed); test_pwclean_295.py (15 passed); test_secfix2_pub07_guard_first.py (35 passed); test_wiskey_channels.py (42 passed, 4 skipped by the spec own gate); test_wiskey_contract.py (53 passed); test_wiskey_schedule_writes.py (24 passed); test_wkdirect_295.py (53 passed). Specs with every test skipped by their own gate (no assertion counted): unit-schedule-editor-logic.spec.ts. Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-WISKEY-PROFILES-EDIT-2390-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-access-status.spec.ts",
+   "frontend/tests/evidence-wiskey-deeplinks.spec.ts",
+   "frontend/tests/evidence-wiskey-profiles.spec.ts",
+   "frontend/tests/pixel-wiskey-people.spec.ts",
+   "frontend/tests/unit-wiskey-deeplinks.spec.ts",
+   "frontend/tests/unit-wiskey-profiles.spec.ts",
+   "smplwise_vms/backend/tests/test_pwclean_295.py",
+   "smplwise_vms/backend/tests/test_wiskey_channels.py",
+   "smplwise_vms/backend/tests/test_wiskey_profiles.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-access-status.spec.ts (26 passed, 1 skipped by the spec own gate); evidence-wiskey-deeplinks.spec.ts (10 passed, 1 skipped by the spec own gate); evidence-wiskey-profiles.spec.ts (33 passed); pixel-wiskey-people.spec.ts (22 passed, 11 skipped by the spec own gate); test_pwclean_295.py (15 passed); test_wiskey_channels.py (42 passed, 4 skipped by the spec own gate); test_wiskey_profiles.py (35 passed); unit-wiskey-deeplinks.spec.ts (17 passed); unit-wiskey-profiles.spec.ts (12 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-WISKEY-PEOPLE-COMPLETE-2390-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-station-people-2390.spec.ts",
+   "frontend/tests/unit-station-people-2390.spec.ts",
+   "smplwise_vms/backend/tests/test_pwclean_295.py",
+   "smplwise_vms/backend/tests/test_wiskey_channels.py",
+   "smplwise_vms/backend/tests/test_wiskey_station_people_2390.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-station-people-2390.spec.ts (9 passed, 15 skipped by the spec own gate); test_pwclean_295.py (15 passed); test_wiskey_channels.py (42 passed, 4 skipped by the spec own gate); test_wiskey_station_people_2390.py (18 passed); unit-station-people-2390.spec.ts (11 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-WISKEY-ACCESS-DIAG-2400-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-wiskey-access-diag.spec.ts",
+   "frontend/tests/evidence-wiskey-deeplinks.spec.ts",
+   "frontend/tests/pixel-wiskey-access-diag.spec.ts",
+   "frontend/tests/pixel-wiskey-deeplinks.spec.ts",
+   "frontend/tests/unit-wiskey-access-diag.spec.ts",
+   "frontend/tests/unit-wiskey-deeplinks.spec.ts",
+   "smplwise_vms/backend/tests/test_access_control_wire.py",
+   "smplwise_vms/backend/tests/test_eccact_readback_295.py",
+   "smplwise_vms/backend/tests/test_fake_wiskey.py",
+   "smplwise_vms/backend/tests/test_intercom_adapter.py",
+   "smplwise_vms/backend/tests/test_intercom_authority.py",
+   "smplwise_vms/backend/tests/test_pwclean_295.py",
+   "smplwise_vms/backend/tests/test_release_check.py",
+   "smplwise_vms/backend/tests/test_wa_pacing_coverage_295.py",
+   "smplwise_vms/backend/tests/test_wiskey_access_diag.py",
+   "smplwise_vms/backend/tests/test_wiskey_channels.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-wiskey-access-diag.spec.ts (15 passed, 9 skipped by the spec own gate); evidence-wiskey-deeplinks.spec.ts (10 passed, 1 skipped by the spec own gate); pixel-wiskey-access-diag.spec.ts (10 passed, 5 skipped by the spec own gate); pixel-wiskey-deeplinks.spec.ts (4 passed, 2 skipped by the spec own gate); test_access_control_wire.py (23 passed); test_eccact_readback_295.py (17 passed); test_fake_wiskey.py (21 passed); test_intercom_adapter.py (33 passed); test_intercom_authority.py (27 passed); test_pwclean_295.py (15 passed); test_release_check.py (3 passed); test_wa_pacing_coverage_295.py (39 passed); test_wiskey_access_diag.py (18 passed); test_wiskey_channels.py (42 passed, 4 skipped by the spec own gate); unit-wiskey-access-diag.spec.ts (14 passed); unit-wiskey-deeplinks.spec.ts (17 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-WISKEY-OPS-VIEWS-2400-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-intercom-ops.spec.ts",
+   "frontend/tests/evidence-wiskey-deeplinks.spec.ts",
+   "frontend/tests/layout-settings-nav-fit-402.spec.ts",
+   "frontend/tests/unit-intercom-ops.spec.ts",
+   "frontend/tests/unit-settings-index.spec.ts",
+   "frontend/tests/unit-wiskey-deeplinks.spec.ts",
+   "smplwise_vms/backend/tests/test_pwclean_295.py",
+   "smplwise_vms/backend/tests/test_wiskey_channels.py",
+   "smplwise_vms/backend/tests/test_wiskey_ops_views_2400.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-intercom-ops.spec.ts (36 passed, 18 skipped by the spec own gate); evidence-wiskey-deeplinks.spec.ts (10 passed, 1 skipped by the spec own gate); layout-settings-nav-fit-402.spec.ts (3 passed, 6 skipped by the spec own gate); test_pwclean_295.py (15 passed); test_wiskey_channels.py (42 passed, 4 skipped by the spec own gate); test_wiskey_ops_views_2400.py (32 passed); unit-intercom-ops.spec.ts (13 passed); unit-settings-index.spec.ts (6 passed); unit-wiskey-deeplinks.spec.ts (17 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-WISKEY-WA-QUEUE-2400-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-wa-installed-2400.spec.ts",
+   "frontend/tests/evidence-wiskey-messaging-settings.spec.ts",
+   "frontend/tests/layout-wiskey-messaging.spec.ts",
+   "frontend/tests/pixel-wiskey-messaging.spec.ts",
+   "frontend/tests/unit-wa-installed.spec.ts",
+   "smplwise_vms/backend/tests/test_db_gate.py",
+   "smplwise_vms/backend/tests/test_eccact_readback_295.py",
+   "smplwise_vms/backend/tests/test_intercom_consent_link.py",
+   "smplwise_vms/backend/tests/test_intercom_messaging.py",
+   "smplwise_vms/backend/tests/test_intercom_messaging_review265.py",
+   "smplwise_vms/backend/tests/test_pwclean_295.py",
+   "smplwise_vms/backend/tests/test_release_check.py",
+   "smplwise_vms/backend/tests/test_t06_admission_295.py",
+   "smplwise_vms/backend/tests/test_tplv2_295.py",
+   "smplwise_vms/backend/tests/test_wa_pacing_coverage_295.py",
+   "smplwise_vms/backend/tests/test_wa_template_send_w11.py",
+   "smplwise_vms/backend/tests/test_wiskey_adopt_2272_contrib.py",
+   "smplwise_vms/backend/tests/test_wiskey_adopt_2272_features.py",
+   "smplwise_vms/backend/tests/test_wiskey_channels.py",
+   "smplwise_vms/backend/tests/test_wiskey_contract.py",
+   "smplwise_vms/backend/tests/test_wiskey_owner26_callers_297.py",
+   "smplwise_vms/backend/tests/test_wiskey_rc10_pin.py",
+   "smplwise_vms/backend/tests/test_wiskey_wa_queue_2400.py",
+   "smplwise_vms/backend/tests/test_wkjoin_295.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-wa-installed-2400.spec.ts (8 passed, 7 skipped by the spec own gate); evidence-wiskey-messaging-settings.spec.ts (21 passed); layout-wiskey-messaging.spec.ts (8 passed, 16 skipped by the spec own gate); pixel-wiskey-messaging.spec.ts (24 passed, 12 skipped by the spec own gate); test_db_gate.py (31 passed); test_eccact_readback_295.py (17 passed); test_intercom_consent_link.py (35 passed); test_intercom_messaging.py (127 passed); test_intercom_messaging_review265.py (59 passed); test_pwclean_295.py (15 passed); test_release_check.py (3 passed); test_t06_admission_295.py (63 passed, 3 skipped by the spec own gate); test_tplv2_295.py (38 passed); test_wa_pacing_coverage_295.py (39 passed); test_wa_template_send_w11.py (88 passed); test_wiskey_adopt_2272_contrib.py (39 passed); test_wiskey_adopt_2272_features.py (38 passed); test_wiskey_channels.py (42 passed, 4 skipped by the spec own gate); test_wiskey_contract.py (53 passed); test_wiskey_owner26_callers_297.py (20 passed); test_wiskey_rc10_pin.py (94 passed, 1 skipped by the spec own gate); test_wiskey_wa_queue_2400.py (49 passed); test_wkjoin_295.py (23 passed); unit-wa-installed.spec.ts (7 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-WISKEY-VISITS-2400-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/unit-wiskey-visits.spec.ts",
+   "smplwise_vms/backend/tests/test_wiskey_visits_2407.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_wiskey_visits_2407.py (18 passed); unit-wiskey-visits.spec.ts (6 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-WISKEY-CLOCK-VIEW-2400-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "smplwise_vms/backend/tests/test_wiskey_installer_clock.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_wiskey_installer_clock.py (23 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-WISKEY-EVENT-CURSOR-2390-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "smplwise_vms/backend/tests/test_wiskey_event_cursor_2400.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_wiskey_event_cursor_2400.py (22 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-WISKEY-LIVE-VALIDATION-2390-1",
+  "class": "LAB",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "Device / owner step, not run: each live validation run is approved by the owner on a real station."
+ },
+ {
+  "id": "AT-WISKEY-INSTALLER-NATIVE-2400-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-wiskey-deeplinks.spec.ts",
+   "frontend/tests/evidence-wiskey-installer.spec.ts",
+   "frontend/tests/unit-settings-index.spec.ts",
+   "frontend/tests/unit-wiskey-deeplinks.spec.ts",
+   "frontend/tests/unit-wiskey-installer.spec.ts",
+   "smplwise_vms/backend/tests/test_capabilities.py",
+   "smplwise_vms/backend/tests/test_pwclean_295.py",
+   "smplwise_vms/backend/tests/test_wiskey_channels.py",
+   "smplwise_vms/backend/tests/test_wiskey_contract.py",
+   "smplwise_vms/backend/tests/test_wiskey_diagnostics.py",
+   "smplwise_vms/backend/tests/test_wiskey_installer_clock.py",
+   "smplwise_vms/backend/tests/test_wiskey_installer_lifecycle.py",
+   "smplwise_vms/backend/tests/test_wiskey_installer_platform.py",
+   "smplwise_vms/backend/tests/test_wiskey_installer_technical.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-wiskey-deeplinks.spec.ts (10 passed, 1 skipped by the spec own gate); evidence-wiskey-installer.spec.ts (52 passed, 26 skipped by the spec own gate); test_capabilities.py (3 passed); test_pwclean_295.py (15 passed); test_wiskey_channels.py (42 passed, 4 skipped by the spec own gate); test_wiskey_contract.py (53 passed); test_wiskey_diagnostics.py (14 passed); test_wiskey_installer_clock.py (23 passed); test_wiskey_installer_lifecycle.py (13 passed); test_wiskey_installer_platform.py (18 passed); test_wiskey_installer_technical.py (9 passed); unit-settings-index.spec.ts (6 passed); unit-wiskey-deeplinks.spec.ts (17 passed); unit-wiskey-installer.spec.ts (9 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-BRIDGE-UPDATE-LISTENER-2401-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "smplwise_vms/backend/tests/test_bridge_080.py",
+   "smplwise_vms/backend/tests/test_bridge_config_drift.py",
+   "smplwise_vms/backend/tests/test_bridge_install.py",
+   "smplwise_vms/backend/tests/test_bridge_key_activation_295.py",
+   "smplwise_vms/backend/tests/test_bridge_lease_event.py",
+   "smplwise_vms/backend/tests/test_bridge_media_players.py",
+   "smplwise_vms/backend/tests/test_bridge_media_policy.py",
+   "smplwise_vms/backend/tests/test_bridge_runnable.py",
+   "smplwise_vms/backend/tests/test_bridge_schedule_service.py",
+   "smplwise_vms/backend/tests/test_bridge_service_identity.py",
+   "smplwise_vms/backend/tests/test_bridge_stale_discovery_2383.py",
+   "smplwise_vms/backend/tests/test_bridge_stream_source.py",
+   "smplwise_vms/backend/tests/test_bridge_update_listener_2401.py",
+   "smplwise_vms/backend/tests/test_self_update.py",
+   "smplwise_vms/backend/tests/test_self_update_s3.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_bridge_080.py (3 passed); test_bridge_config_drift.py (13 passed); test_bridge_install.py (5 passed); test_bridge_key_activation_295.py (30 passed); test_bridge_lease_event.py (66 passed); test_bridge_media_players.py (17 passed); test_bridge_media_policy.py (49 passed); test_bridge_runnable.py (110 passed, 1 skipped by the spec own gate); test_bridge_schedule_service.py (83 passed); test_bridge_service_identity.py (171 passed); test_bridge_stale_discovery_2383.py (32 passed); test_bridge_stream_source.py (50 passed); test_bridge_update_listener_2401.py (13 passed); test_self_update.py (24 passed); test_self_update_s3.py (42 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-WALL-PHONE-TOOLBAR-2401-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-mobile-wall-kiosk.spec.ts",
+   "frontend/tests/layout-dropdown-fit.spec.ts",
+   "frontend/tests/unit-wall-phone-bar-2401.spec.ts",
+   "frontend/tests/visual-matrix.spec.ts",
+   "smplwise_vms/backend/tests/test_wall_phone_bar.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): layout-dropdown-fit.spec.ts (2 passed, 4 skipped by the spec own gate); test_wall_phone_bar.py (6 passed); unit-wall-phone-bar-2401.spec.ts (16 passed); visual-matrix.spec.ts (75 passed). Specs with every test skipped by their own gate (no assertion counted): evidence-mobile-wall-kiosk.spec.ts. Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-GATE-HYGIENE-2402-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "smplwise_vms/backend/tests/test_bridge_install.py",
+   "smplwise_vms/backend/tests/test_fake_doorwin_closed_rule_sr1.py",
+   "smplwise_vms/backend/tests/test_gate2_select.py",
+   "smplwise_vms/backend/tests/test_gate_always_run.py",
+   "smplwise_vms/backend/tests/test_readiness_96.py",
+   "smplwise_vms/backend/tests/test_remote_hardening.py",
+   "smplwise_vms/backend/tests/test_select_tests.py",
+   "smplwise_vms/backend/tests/test_self_update.py",
+   "smplwise_vms/backend/tests/test_self_update_s3.py",
+   "smplwise_vms/backend/tests/test_setup_wizard.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_bridge_install.py (5 passed); test_fake_doorwin_closed_rule_sr1.py (5 passed); test_gate2_select.py (17 passed); test_gate_always_run.py (19 passed); test_readiness_96.py (21 passed); test_remote_hardening.py (40 passed); test_select_tests.py (20 passed); test_self_update.py (24 passed); test_self_update_s3.py (42 passed); test_setup_wizard.py (32 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-SKIN-QA-2403-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/layout-skin-qa-2403.spec.ts",
+   "frontend/tests/pixel-skin-qa-2403.spec.ts"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): layout-skin-qa-2403.spec.ts (74 passed, 148 skipped by the spec own gate); pixel-skin-qa-2403.spec.ts (5 passed, 10 skipped by the spec own gate). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-BOARD-HYGIENE-2403-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-PY-CONSTRAINTS-2407-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-PY-CONSTRAINTS-2407-2",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "Needs a Supervisor-equivalent Docker build of the add-on image on the runner; not run."
+ },
+ {
+  "id": "AT-CAMERA-REBOOT-2407-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/unit-camera-reboot-2407.spec.ts",
+   "smplwise_vms/backend/tests/test_camera_reboot_2407.py",
+   "smplwise_vms/backend/tests/test_nvr_less.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_camera_reboot_2407.py (9 passed); test_nvr_less.py (54 passed); unit-camera-reboot-2407.spec.ts (6 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-CAMERA-STREAM-SOURCES-2410-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-nn1-p2.spec.ts",
+   "frontend/tests/evidence-nvr-cameras.spec.ts",
+   "frontend/tests/evidence-security-polish.spec.ts",
+   "frontend/tests/evidence-security-r1.spec.ts",
+   "frontend/tests/unit-camera-reboot-2407.spec.ts",
+   "frontend/tests/unit-camera-sources-2410.spec.ts",
+   "smplwise_vms/backend/tests/test_camera_sources_2410.py",
+   "smplwise_vms/backend/tests/test_nvr_less.py",
+   "smplwise_vms/backend/tests/test_setup_wizard.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-nn1-p2.spec.ts (63 passed); evidence-nvr-cameras.spec.ts (11 passed); evidence-security-polish.spec.ts (14 passed, 19 skipped by the spec own gate); evidence-security-r1.spec.ts (36 passed, 3 skipped by the spec own gate); test_camera_sources_2410.py (48 passed); test_nvr_less.py (54 passed); test_setup_wizard.py (32 passed); unit-camera-reboot-2407.spec.ts (6 passed); unit-camera-sources-2410.spec.ts (7 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-NVRLESS-CAMERAS-2411-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/unit-camera-sources-2410.spec.ts",
+   "frontend/tests/unit-capabilities.spec.ts",
+   "frontend/tests/unit-nvr-cameras-logic.spec.ts",
+   "frontend/tests/unit-nvrless-cameras-2411.spec.ts",
+   "frontend/tests/unit-security-public.spec.ts",
+   "frontend/tests/unit-tabs-config.spec.ts",
+   "frontend/tests/unit-wiskey-switches.spec.ts",
+   "smplwise_vms/backend/tests/test_body_limit.py",
+   "smplwise_vms/backend/tests/test_camera_card.py",
+   "smplwise_vms/backend/tests/test_camera_sources_2410.py",
+   "smplwise_vms/backend/tests/test_cameras.py",
+   "smplwise_vms/backend/tests/test_capabilities.py",
+   "smplwise_vms/backend/tests/test_capmap_295.py",
+   "smplwise_vms/backend/tests/test_db_gate.py",
+   "smplwise_vms/backend/tests/test_db_template.py",
+   "smplwise_vms/backend/tests/test_gate_always_run.py",
+   "smplwise_vms/backend/tests/test_health_report.py",
+   "smplwise_vms/backend/tests/test_installation_capabilities.py",
+   "smplwise_vms/backend/tests/test_media.py",
+   "smplwise_vms/backend/tests/test_media_api.py",
+   "smplwise_vms/backend/tests/test_multi_nvr.py",
+   "smplwise_vms/backend/tests/test_no_ip_literals.py",
+   "smplwise_vms/backend/tests/test_notify_sources.py",
+   "smplwise_vms/backend/tests/test_nvr_less.py",
+   "smplwise_vms/backend/tests/test_nvrless_cameras_2411.py",
+   "smplwise_vms/backend/tests/test_plan_routes_unique.py",
+   "smplwise_vms/backend/tests/test_pwclean_295.py",
+   "smplwise_vms/backend/tests/test_raw_body_order.py",
+   "smplwise_vms/backend/tests/test_recorder_health.py",
+   "smplwise_vms/backend/tests/test_remote_access.py",
+   "smplwise_vms/backend/tests/test_route.py",
+   "smplwise_vms/backend/tests/test_setup_wizard.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_body_limit.py (12 passed); test_camera_card.py (33 passed); test_camera_sources_2410.py (48 passed); test_cameras.py (8 passed); test_capabilities.py (3 passed); test_capmap_295.py (65 passed); test_db_gate.py (31 passed); test_db_template.py (7 passed); test_gate_always_run.py (19 passed); test_health_report.py (1 passed); test_installation_capabilities.py (52 passed); test_media.py (7 passed); test_media_api.py (37 passed); test_multi_nvr.py (18 passed); test_no_ip_literals.py (2 passed); test_notify_sources.py (37 passed); test_nvr_less.py (54 passed); test_nvrless_cameras_2411.py (27 passed); test_plan_routes_unique.py (1 passed); test_pwclean_295.py (15 passed); test_raw_body_order.py (16 passed); test_recorder_health.py (28 passed); test_remote_access.py (66 passed); test_route.py (3 passed); test_setup_wizard.py (32 passed); unit-camera-sources-2410.spec.ts (7 passed); unit-capabilities.spec.ts (7 passed); unit-nvr-cameras-logic.spec.ts (10 passed); unit-nvrless-cameras-2411.spec.ts (11 passed); unit-security-public.spec.ts (8 passed); unit-tabs-config.spec.ts (11 passed); unit-wiskey-switches.spec.ts (9 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ },
+ {
+  "id": "AT-DISK-CLEANUP-2411-1",
+  "class": "NONE",
+  "status": "NOT_RUN",
+  "tests": [],
+  "evidence": null,
+  "note": "No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history."
+ },
+ {
+  "id": "AT-RECORDED-DAYS-MONTH-2407-1",
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/layout-compare-dropdown.spec.ts",
+   "frontend/tests/layout-page-background.spec.ts",
+   "frontend/tests/layout-playback-stall.spec.ts",
+   "frontend/tests/layout-sync-dropdown.spec.ts",
+   "frontend/tests/r5-investigate-shoot.spec.ts",
+   "frontend/tests/screens.spec.ts",
+   "frontend/tests/unit-recorded-month.spec.ts",
+   "smplwise_vms/backend/tests/test_multi_nvr.py",
+   "smplwise_vms/backend/tests/test_provision_playback.py",
+   "smplwise_vms/backend/tests/test_recorded_days.py",
+   "smplwise_vms/backend/tests/test_recordings.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): layout-compare-dropdown.spec.ts (4 passed); layout-page-background.spec.ts (5 passed, 4 skipped by the spec own gate); layout-playback-stall.spec.ts (4 passed); layout-sync-dropdown.spec.ts (8 passed); screens.spec.ts (108 passed); test_multi_nvr.py (18 passed); test_provision_playback.py (56 passed); test_recorded_days.py (28 passed); test_recordings.py (6 passed); unit-recorded-month.spec.ts (9 passed). Specs with every test skipped by their own gate (no assertion counted): r5-investigate-shoot.spec.ts. Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
+ }
+]
