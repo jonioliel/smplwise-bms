@@ -1142,7 +1142,7 @@ export const en = {
   'נשמר. מסכי הקיר יקבלו את השינוי בטעינה הבאה של הנתונים.': 'Saved. The wall panels get the change the next time they load their data.',
   'דקה': '1 min',
   '{m} דק׳': '{m} min',
-  'חל על כל המשתמשים שמוגדרים כמסך קיר (משתמשים › מצב מסך קיר).': 'Applies to every user set up as a wall panel (Users › Wall panel mode).',
+  'חל על כל המשתמשים שמוגדרים כמסך קיר (בלשונית «משתמשים», «מצב מסך קיר»).': 'Applies to every user set up as a wall panel (the Users tab, "Wall panel mode").',
   'מסך מנוחה': 'Rest screen',
   'שעה, מזג אוויר, מה יש היום, דלתות ואזעקה. הנגיעה הראשונה רק מעירה את המסך.': 'The time, the weather, what is on today, the doors and the alarm. The first touch only wakes the screen.',
   'אחרי כמה זמן בלי נגיעה': 'After how long without a touch',

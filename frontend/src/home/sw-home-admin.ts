@@ -14,6 +14,7 @@ import { api, apiUrl, describeError, get, post, put } from '../api/client';
 import type * as V3Wire from '../api/generated/wire-home-v3';
 import type * as HiWire from '../api/generated/wire-home-interface';
 import { session } from '../api/session';
+import { dateInputLang } from '../api/day-format';
 import { GALLERY, galleryCss } from './home-wall';
 import { getHomePrefs, getOverview, type HomeModule, type Overview } from './home-api';
 import '../components/sw-button';
@@ -294,9 +295,9 @@ export class SwHomeAdmin extends LitElement {
     const save = (patch: Partial<InstallSettings>) => this.saveInstall(patch, done);
     const opt = <K extends 'wall_night_dim' | 'wall_takeover'>(k: K, v: InstallSettings[K], title: string, note: string) => html`<label class="opt"><input type="radio" name=${k} .checked=${i[k] === v} data-install=${`${k}:${v}`} ?disabled=${k === 'wall_night_dim' && i.wall_night === 'off'} @change=${() => save({ [k]: v } as Partial<InstallSettings>)}><span><b>${title}</b><span class="note">${note}</span></span></label>`;
     const mins = (['1', '2', '5', '10', '15'] as const).map((m) => ({ value: m, label: m === '1' ? tr('דקה') : tr('{m} דק׳', { m }), attrs: { 'data-rest-after': m } }));
-    const time = (k: 'wall_night_start' | 'wall_night_end', label: string) => html`<label>${label}<input type="time" step="60" dir="ltr" data-install-time=${k} .value=${i[k]} ?disabled=${i.wall_night === 'off'} @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value; if (/^\d{2}:\d{2}$/.test(v) && v !== i[k]) void save({ [k]: v }); }}></label>`;
+    const time = (k: 'wall_night_start' | 'wall_night_end', label: string) => html`<label>${label}<input type="time" lang=${dateInputLang()} step="60" dir="ltr" data-install-time=${k} .value=${i[k]} ?disabled=${i.wall_night === 'off'} @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value; if (/^\d{2}:\d{2}$/.test(v) && v !== i[k]) void save({ [k]: v }); }}></label>`;
     const empty = i.wall_night === 'on' && i.wall_night_start === i.wall_night_end;
-    return html`<p class="note">${tr('חל על כל המשתמשים שמוגדרים כמסך קיר (משתמשים › מצב מסך קיר).')}</p><div class="grid3" data-home-wall-settings>
+    return html`<p class="note">${tr('חל על כל המשתמשים שמוגדרים כמסך קיר (בלשונית «משתמשים», «מצב מסך קיר»).')}</p><div class="grid3" data-home-wall-settings>
       <section class="card" aria-label="${tr('מסך מנוחה')}"><h3>${tr('מסך מנוחה')}</h3>
         <div class="srow"><div><b>${tr('מסך מנוחה')}</b><div class="note">${tr('שעה, מזג אוויר, מה יש היום, דלתות ואזעקה. הנגיעה הראשונה רק מעירה את המסך.')}</div></div><sw-toggle label="${tr('מסך מנוחה')}" labelHidden data-wall-rest-toggle ?checked=${i.wall_rest === 'on'} @change=${(e: CustomEvent<{ checked: boolean }>) => save({ wall_rest: e.detail.checked ? 'on' : 'off' })}></sw-toggle></div>
         <div class="srow stack"><div><b>${tr('אחרי כמה זמן בלי נגיעה')}</b><div class="note">${tr('ברירת המחדל: 2 דקות. כשמסך המנוחה כבוי, זה הזמן שאחריו המסך מוחשך בלילה.')}</div></div><sw-segmented size="sm" label="${tr('אחרי כמה זמן בלי נגיעה')}" data-wall-rest-after .options=${mins} value=${i.wall_rest_after} @change=${(e: CustomEvent<SegmentedChange>) => { if (e.detail.value !== i.wall_rest_after) void save({ wall_rest_after: e.detail.value as InstallSettings['wall_rest_after'] }); }}></sw-segmented></div>

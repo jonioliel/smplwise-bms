@@ -16,6 +16,7 @@ import { listNotices, type Notice } from './home-p2-api';
 import { has, warmFamily } from './home-p2-ui';
 import { alarmWord } from './home-v3-words';
 import { canAnywhere } from '../api/session';
+import { HandModal } from '../components/hand-modal';
 import { moreTiles } from './more-registry';
 import type { SwHome } from './sw-home';
 import { WallRest, takeoverFor, wallSettings, type TakeoverItem, type WallSettings } from './wall-rest-logic';
@@ -61,6 +62,14 @@ export class WallPanel {
   private alarmT = 0;
   private callOn = false;
   private shown: TakeoverItem | null = null;
+  /** CR-MODAL-STACK-B-2442: a takeover is a layer of the shared modal stack - Tab stays inside it, the room screen behind it is inert,
+   *  and Escape never dismisses it (only "הבנתי" does), like the door call. */
+  private modal = new HandModal({
+    box: () => this.h.renderRoot.querySelector('.wt'),
+    close: () => undefined,
+    escape: () => false,
+    inert: () => [this.h.renderRoot.querySelector('.app-root > .hs')],
+  });
 
   constructor(private readonly h: SwHome) {}
 
@@ -85,6 +94,7 @@ export class WallPanel {
     this.h.removeEventListener('keydown', this.onInput, { capture: true });
     this.h.removeEventListener('wheel', this.onInput, { capture: true });
     document.removeEventListener('visibilitychange', this.onVisible);
+    this.modal.release();
     window.clearInterval(this.pollT);
     window.clearTimeout(this.alarmT);
     this.pollT = this.alarmT = 0;
@@ -113,6 +123,7 @@ export class WallPanel {
   }
 
   private disconnectMachine() {
+    this.modal.sync(false);
     window.clearInterval(this.pollT);
     this.pollT = 0;
     this.machine?.dispose();
@@ -201,6 +212,7 @@ export class WallPanel {
     }
     const st = m.state(now);
     const take = item && !this.callOn ? this.takeover(item) : nothing;
+    void this.h.updateComplete.then(() => this.modal.sync(!!this.h.renderRoot.querySelector('.wt')));
     return html`${st.rest ? this.rest(st.night) : st.dim > 0 && st.phase === 'idle' ? html`<div class="wcatch" data-wall-catch role="button" tabindex="0" aria-label=${tr('המסך מוחשך ללילה. נגיעה מאירה אותו.')} @click=${this.wake} @keydown=${this.wake}></div>` : nothing}${take}<div class="wdim" data-wall-dim style=${`opacity:${st.dim}`} aria-hidden="true"></div>`;
   }
 
