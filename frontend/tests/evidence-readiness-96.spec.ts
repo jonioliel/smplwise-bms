@@ -94,6 +94,9 @@ test.describe('readiness screen', () => {
     const mock = await installReadinessMock(page);
     await open(page);
     const root = page.locator('system-readiness');
+    // on a phone the side column is one pane at a time (segmented control): open the hand-over pane first
+    const pane = root.locator('[data-panes] [role="tab"]').nth(2);
+    if (await pane.isVisible()) await pane.click();
     await expect(root.locator('[data-below-advice]')).toBeVisible();
     const btn = root.locator('[data-handover-btn]');
     await expect(btn).toBeEnabled();
