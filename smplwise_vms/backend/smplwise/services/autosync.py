@@ -26,6 +26,7 @@ from ..config import Settings
 from ..db import Database, get_setting, has_column, new_id, now_iso, set_setting, unlocked
 from ..errors import ApiError
 from ..recorder_scope import PRIMARY, ready, ready_ids, settings_for
+from . import default_names as dn
 from . import go2rtc as g2
 from . import nvr, stream_codecs
 from ..test_reset import register_reset
@@ -49,10 +50,12 @@ def recorder_state(recorder_id: str) -> dict[str, Any]:
 
 
 def ensure_recorder(conn: sqlite3.Connection, name: str | None = None, model: str | None = None, firmware: str | None = None,
-                    recorder_id: str = DEFAULT_RECORDER) -> None:
+                    recorder_id: str = DEFAULT_RECORDER, lang: str = "he") -> None:
     """Create the recorder row (first discovery of `nvr-1`) or refresh its model / firmware / last-seen. A recorder added in
-    Settings already has its row (with the installer's name); its name is never overwritten here."""
-    label = name or ("NVR ראשי" if recorder_id == DEFAULT_RECORDER else recorder_id)
+    Settings already has its row (with the installer's name); its name is never overwritten here. I18N-DEFAULT-NAMES-2490 (owner
+    N53): the first recorder's default name is made in `lang`, the interface language of the person whose request creates the row
+    (the background discovery passes none: Hebrew)."""
+    label = name or (dn.name("recorder.primary", lang) if recorder_id == DEFAULT_RECORDER else recorder_id)
     conn.execute(
         """INSERT INTO recorders(id, name, model, firmware, last_seen_at, created_at) VALUES (?, ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET model = COALESCE(excluded.model, recorders.model), firmware = COALESCE(excluded.firmware, recorders.firmware), last_seen_at = excluded.last_seen_at""",

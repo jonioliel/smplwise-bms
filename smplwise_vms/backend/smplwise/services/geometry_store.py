@@ -107,14 +107,15 @@ def _prepare(conn: sqlite3.Connection, version: sqlite3.Row, doc: dict[str, Any]
     return pg.apply_anchor_positions(doc, anchor_positions(conn, version["floor_id"]))
 
 
-def working_doc(conn: sqlite3.Connection, version: sqlite3.Row) -> tuple[dict[str, Any], sqlite3.Row | None]:
+def working_doc(conn: sqlite3.Connection, version: sqlite3.Row, lang: str = "he") -> tuple[dict[str, Any], sqlite3.Row | None]:
     """The document the editor starts from: the stored draft, else a copy of the published document, else a new one -
-    prepared, so bodies sit on their anchors even when the anchor moved after the last save."""
+    prepared, so bodies sit on their anchors even when the anchor moved after the last save. `lang`: the requester's interface
+    language, for the default names of a new one (I18N-DEFAULT-NAMES-2490; plan_geometry.new_document)."""
     d = draft_row(conn, version["id"])
     if d is not None:
         return _prepare(conn, version, load_doc(d)), d
     p = published_row(conn, version["id"])
-    return (_prepare(conn, version, load_doc(p)) if p is not None else pg.new_document(version, _asset(conn, version))), None
+    return (_prepare(conn, version, load_doc(p)) if p is not None else pg.new_document(version, _asset(conn, version), lang)), None
 
 
 def save_draft(conn: sqlite3.Connection, version: sqlite3.Row, doc: dict[str, Any], base_revision: int, actor_id: str | None, now: str | None = None,

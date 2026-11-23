@@ -19,6 +19,7 @@ from ..db import new_id, now_iso, rollback_and_restart, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, authorize, require
 from ..services import geometry_store as store
+from ..services import default_names as dn
 from ..services import plan_geometry_store
 from ..services import plan_anchor_scope as anchor_scope
 from ..services import plan_catalog
@@ -220,7 +221,7 @@ def get_geometry(version_id: str, request: Request, draft: bool = False, at: str
     v = get_version(conn, version_id)
     if draft:
         require(conn, principal, "map.edit", _floor(v))
-        doc, row = store.working_doc(conn, v)
+        doc, row = store.working_doc(conn, v, dn.lang_of(conn, principal))
         body = _payload(conn, v, row, doc, principal)
         if pg.is_empty(doc):
             body["copy_candidates"] = store.copy_candidates(conn, v)
@@ -384,7 +385,7 @@ def _can_publish_home(conn: sqlite3.Connection, principal: Principal):
 def geometry_diff(version_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     v = get_version(conn, version_id)
     require(conn, principal, "map.edit", _floor(v))
-    doc, _ = store.working_doc(conn, v)
+    doc, _ = store.working_doc(conn, v, dn.lang_of(conn, principal))
     p = store.published_row(conn, v["id"])
     old = store.load_doc(p) if p is not None else None
     return {"diff": pg.diff(old, doc),
@@ -565,7 +566,7 @@ def calibrate(version_id: str, body: CalibrationIn, request: Request, principal:
         details = {"version_id": v["id"], "method": "two_point", "status": status, "scale_m_per_px": scale, "residual_pct": residual, "pairs": len(pairs)}
     plan_geometry_store.set_calibration(conn, v["id"], scale, json.dumps(record, ensure_ascii=False))
     v2 = get_version(conn, v["id"])
-    doc, row = store.working_doc(conn, v2)
+    doc, row = store.working_doc(conn, v2, dn.lang_of(conn, principal))
     store.save_draft(conn, v2, doc, row["revision"] if row is not None else 0, principal.user_id, now)
     audit(conn, actor=principal, action="plan.calibrate", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request), details=details)
     warning = "הזוגות לא מסכימים ביניהם ביותר מ־3%: ייתכן שהסריקה מעוותת. כייל שוב או הוסף זוג." if residual is not None and residual > 3 else None
@@ -633,7 +634,7 @@ def detect_structure(version_id: str, body: DetectIn, request: Request, principa
     targets = list(dict.fromkeys(body.targets))
     if "walls" not in targets or any(t not in plan_detect.TARGETS for t in targets):
         raise ApiError(422, "validation", "targets: walls חובה, openings אופציונלי.")
-    doc, _row = store.working_doc(conn, v)
+    doc, _row = store.working_doc(conn, v, dn.lang_of(conn, principal))
     level_ids = {lv["id"] for lv in doc["levels"]}
     level_id = body.level_id or next((lv["id"] for lv in doc["levels"] if lv.get("is_default")), pg.DEFAULT_LEVEL_ID)
     if level_id not in level_ids:
@@ -678,7 +679,7 @@ def accept_detection(version_id: str, body: AcceptIn, request: Request, principa
     """The candidates a person kept, merged into the draft under the draft's revision rules (design 9.5). The server
     remembers no candidates: the client sends them back. Nothing is published."""
     v = _editable(conn, principal, version_id)
-    doc, row = store.working_doc(conn, v)
+    doc, row = store.working_doc(conn, v, dn.lang_of(conn, principal))
     current = row["revision"] if row is not None else 0
     if body.base_revision != current:
         raise conflict("stale_revision", "טיוטת המבנה השתנתה בינתיים; טען מחדש את העורך.", current_revision=current, sent_revision=body.base_revision)
@@ -734,7 +735,7 @@ def door_proposal(version_id: str, body: DoorProposalIn, request: Request, debug
     client adds the door to the draft like any other opening once the person accepts it. Needs map.edit on the floor."""
     settings = settings_of(request)
     v = _editable(conn, principal, version_id)
-    doc, _row = store.working_doc(conn, v)
+    doc, _row = store.working_doc(conn, v, dn.lang_of(conn, principal))
     default_level = next((lv["id"] for lv in doc["levels"] if lv.get("is_default")), pg.DEFAULT_LEVEL_ID)
     if body.level_id is not None and body.level_id not in {lv["id"] for lv in doc["levels"]}:
         raise ApiError(422, "unknown_level", "המפלס לא קיים בטיוטת המבנה.")
@@ -775,7 +776,7 @@ def _export_doc(conn: sqlite3.Connection, principal: Principal, version_id: str,
     v = get_version(conn, version_id)
     if draft:
         require(conn, principal, "map.edit", _floor(v))
-        return v, _shown(conn, principal, v["floor_id"], store.working_doc(conn, v)[0], _far_ctx(conn, principal), "draft")
+        return v, _shown(conn, principal, v["floor_id"], store.working_doc(conn, v, dn.lang_of(conn, principal))[0], _far_ctx(conn, principal), "draft")
     require(conn, principal, "map.edit" if v["status"] == "draft" else "map.read", _floor(v))
     row = store.published_row(conn, v["id"])
     if row is None:

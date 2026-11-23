@@ -21,6 +21,7 @@ from . import automation_scope as scope
 from . import automation_text as text
 from . import automation_transport as tr
 from . import automations as store
+from . import default_names as dn
 from . import ha_bridge, ha_sync
 from .timeutil import iso_utc, parse_utc, zone
 
@@ -515,8 +516,11 @@ def catalog_payload(ctx: scope.Ctx, q: str | None, floor: str | None, area: str 
 
 def template_defs(ctx: scope.Ctx) -> list[dict[str, Any]]:
     """§4.2.4: the gallery - pre-filled drafts (read through the model, so they are exactly what the builder would hold) with the pickers left empty. Nothing is
-    saved without review. A template whose notify step needs an approved target uses the first one; without any, that step is shown locked."""
+    saved without review. A template whose notify step needs an approved target uses the first one; without any, that step is shown locked.
+    I18N-DEFAULT-NAMES-2490 (owner N53): a template's name is the alias the automation is saved with and its notification text the
+    message, so both are made in the requester's interface language (default_names; Hebrew exactly as before)."""
     notify = ctx.notify_targets[0] if ctx.notify_targets else "notify.notify"
+    lang = dn.lang_of(ctx.conn, ctx.principal)
 
     def dur(m: int) -> dict[str, int]:
         return {"hours": 0, "minutes": m, "seconds": 0}
@@ -536,13 +540,13 @@ def template_defs(ctx: scope.Ctx) -> list[dict[str, Any]]:
         ("motion_light", "תאורה בתנועה", "mdi:motion-sensor", "מדליק כשיש תנועה ומכבה אחרי כמה דקות בלי תנועה", False,
          {"triggers": [st([], "on")], "actions": [svc("light.turn_on", [], brightness_pct=40), {"delay": dur(5)}, svc("light.turn_off", [])], "mode": "restart"}),
         ("door_open_notify", "דלת או חלון פתוחים זמן רב", "mdi:door-open", "התראה כשדלת או חלון פתוחים יותר מכמה דקות", False,
-         {"triggers": [st([], "on", **{"for": dur(5)})], "actions": [svc(notify, None, message="הדלת פתוחה")]}),
+         {"triggers": [st([], "on", **{"for": dur(5)})], "actions": [svc(notify, None, message=dn.automation_message("הדלת פתוחה", lang))]}),
         ("leaving_home", "יציאה מהבית", "mdi:exit-run", "כשכולם יצאו: כיבוי תאורה ומיזוג (דריכת אזעקה אפשרית)", False,
          {"triggers": [{"trigger": "numeric_state", "entity_id": ["zone.home"], "below": 1, "for": dur(2)}], "actions": [svc("light.turn_off", []), svc("climate.turn_off", [])]}),
         ("arrive_after_sunset", "הגעה אחרי השקיעה", "mdi:home-import-outline", "מדליק תאורת כניסה כשמישהו מגיע אחרי השקיעה", False,
          {"triggers": [st([], "home")], "conditions": [{"condition": "sun", "after": "sunset"}], "actions": [svc("light.turn_on", [])]}),
         ("water_leak", "נזילת מים", "mdi:water-alert", "התראה כשחיישן נזילה מזהה מים", False,
-         {"triggers": [st([], "on")], "actions": [svc(notify, None, message="זוהתה נזילת מים")]}),
+         {"triggers": [st([], "on")], "actions": [svc(notify, None, message=dn.automation_message("זוהתה נזילת מים", lang))]}),
         ("lights_at_sunset", "תאורה בשקיעה", "mdi:weather-sunset", "מדליק תאורה בשקיעה", True,
          {"triggers": [{"trigger": "sun", "event": "sunset"}], "actions": [svc("light.turn_on", [])]}),
         ("ac_by_clock", "מזגן לפי שעות", "mdi:air-conditioner", "מפעיל מזגן בשעה קבועה בימים נבחרים", True,
@@ -551,7 +555,8 @@ def template_defs(ctx: scope.Ctx) -> list[dict[str, Any]]:
     ]
     mctx = ctx.model_ctx(code_view=False, scoped=False)
     out = []
-    for tid, name, icon, desc, time_only, cfg in T:
+    for tid, he_name, icon, he_desc, time_only, cfg in T:
+        name, desc = dn.automation_template(tid, he_name, he_desc, lang)
         draft = model.config_to_draft("automation", {"alias": name, "description": "", "conditions": [], "mode": "single", **cfg}, mctx).draft
         out.append({"id": tid, "name": name, "icon": icon, "description": desc, "target": "automation", "time_only": time_only, "draft": draft})
     return out

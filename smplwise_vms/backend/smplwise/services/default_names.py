@@ -16,6 +16,11 @@ Not here, on purpose (the inventory in docs/changes/I18N-EN-2490.md section 5):
 - tags and other matched words (the case tag "מסלול מוצע").
 
 The Hebrew of every entry is exactly the text the code wrote before this change, so a Hebrew user's stored names are unchanged.
+
+I18N-DEFAULT-NAMES-2490 (the second pass, inventory in docs/changes/I18N-DEFAULT-NAMES-2490.md) adds: the default level of a new
+plan structure, the first NVR's row when a person's request creates it, the group of cameras without a recorder, the labels of objects
+imported from a DXF drawing, and the ready automations of the editor's gallery (their name becomes the automation's alias, their
+notification text its message).
 """
 from __future__ import annotations
 
@@ -54,7 +59,36 @@ TEXTS: dict[str, dict[str, str]] = {
     # services/tickets/naming.py, rendered in the same language)
     "ticket.from_place": {"he": "פנייה - {place}", "en": "{ticket} - {place}"},
     "ticket.no_subject": {"he": "פנייה ללא נושא", "en": "{ticket} without a subject"},
+    # I18N-DEFAULT-NAMES-2490 ------------------------------------------------------------------------------------------------
+    # services/plan_geometry.new_document: the one level of a new structure (stored with the editor's first save)
+    "plan.level_main": {"he": "מפלס ראשי", "en": "Main level"},
+    # routers/cameras.py, routers/nvr_connection.py, routers/recorders.py (via services/autosync.ensure_recorder): the first NVR's row
+    "recorder.primary": {"he": "NVR ראשי", "en": "Main NVR"},
+    # services/camera_sources._ensure_standalone_recorder: the group the cameras without a recorder sit in
+    "recorder.standalone": {"he": "מצלמות ללא מקליט", "en": "Cameras without a recorder"},
+    # services/plan_dxf_map: an imported block that matched no library item (the library's own "object.generic" names)
+    "plan.object_generic": {"he": "עצם כללי", "en": "Generic object"},
 }
+
+# services/plan_dxf_map.BLOCK_WORDS in English: the label of an imported block named by one of these words
+BLOCK_WORD_EN: dict[str, str] = {
+    "door": "Door", "chair": "Chair", "seat": "Chair", "bed": "Bed", "table": "Table", "desk": "Desk", "sofa": "Sofa", "couch": "Sofa",
+    "toilet": "Toilet", "wc": "Toilet", "sink": "Sink", "basin": "Sink", "window": "Window", "lamp": "Lamp", "light": "Lamp",
+    "cabinet": "Cabinet", "closet": "Cabinet", "wardrobe": "Wardrobe", "tree": "Tree", "shower": "Shower", "bath": "Bath",
+}
+
+# services/automation_view.template_defs in English: id -> (name = the alias the automation takes, description); and the notification
+# texts the templates put in their notify step (Hebrew -> English)
+AUTOMATION_TEMPLATE_EN: dict[str, tuple[str, str]] = {
+    "motion_light": ("Motion lighting", "Turns on with motion and off after a few minutes without motion"),
+    "door_open_notify": ("Door or window open too long", "An alert when a door or window stays open for more than a few minutes"),
+    "leaving_home": ("Leaving home", "When everyone has left: lights and air conditioning off (arming the alarm is optional)"),
+    "arrive_after_sunset": ("Arriving after sunset", "Turns on the entrance lights when someone arrives after sunset"),
+    "water_leak": ("Water leak", "An alert when a leak sensor detects water"),
+    "lights_at_sunset": ("Lights at sunset", "Turns on the lights at sunset"),
+    "ac_by_clock": ("Air conditioner by the clock", "Turns on the air conditioner at a fixed time on chosen days"),
+}
+AUTOMATION_MESSAGE_EN: dict[str, str] = {"הדלת פתוחה": "The door is open", "זוהתה נזילת מים": "Water leak detected"}
 
 # services/schedule_ops.DAY_SHORT in English (the split name lists the days it moved)
 DAY_SHORT: dict[str, dict[str, str]] = {
@@ -129,3 +163,18 @@ def event_type(kind: str, he_label: str, lang: str) -> str:
 def blueprint_title(bp: dict[str, Any], lang: str) -> str:
     """A ready template's title as the default alias of the automation made from it."""
     return BLUEPRINT_TITLE_EN.get(str(bp.get("id")), str(bp["title"])) if lang == "en" else str(bp["title"])
+
+
+def block_word(word: str, he_word: str, lang: str) -> str:
+    """A DXF block word's label (services/plan_dxf_map.BLOCK_WORDS): the Hebrew as given, or its English."""
+    return BLOCK_WORD_EN.get(word, he_word) if lang == "en" else he_word
+
+
+def automation_template(tid: str, he_name: str, he_description: str, lang: str) -> tuple[str, str]:
+    """A gallery template's (name, description) in `lang` (the Hebrew as given without an English entry)."""
+    return AUTOMATION_TEMPLATE_EN.get(tid, (he_name, he_description)) if lang == "en" else (he_name, he_description)
+
+
+def automation_message(he_text: str, lang: str) -> str:
+    """A gallery template's notification text in `lang`."""
+    return AUTOMATION_MESSAGE_EN.get(he_text, he_text) if lang == "en" else he_text
