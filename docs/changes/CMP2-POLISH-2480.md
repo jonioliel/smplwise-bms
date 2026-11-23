@@ -8,21 +8,27 @@ Branch `pilot/CMP2-POLISH-2480`, from `pilot/CR-CMP2-POLISH-2470` (1a2c9401d), `
 `styles/fragments.ts` (both sides removed `segTrackStyles`; main's note kept) and five Linux baselines (events windows x3,
 devices-schedules-ready light desktop) - main's copy taken, then re-decided by the runner pass below.
 
-Everything else of CR-CMP2-POLISH-2470 stays (`sw-table` `rowFocusable`, `sw-chip-choice selected-look="setting"` on the events
-centre's two rows, the still rows of the water alerts and the generator alert-type matrix, the polish2 kind-strip contrast checks).
+Everything else of CR-CMP2-POLISH-2470 stays (`sw-table` `rowFocusable`, the still rows of the water alerts and the generator
+alert-type matrix, the polish2 kind-strip contrast checks) - except the events centre's selected-chip look (below).
+
+Lead decision (23.11, the owner's LOOK RULE "keep each module's own look, never force the unified settings look"): the events
+centre's two chip rows had taken the installation's selected-chip setting look (`sw-chip-choice selected-look="setting"`: field,
+ring, check). That was not approved: both rows draw the 2.47.0 module look again (the accent-filled chosen chip), desktop and phone.
+The events centre was the only screen with `selected-look="setting"`, so the option itself is removed from `sw-chip-choice`
+(no user left; the component is back to main's apart from the N48 rule).
 
 ## Owner answers applied
 
 | Question | Answer | Change |
 | --- | --- | --- |
 | N47 generator recipients / channels | revert to the previous look with the checkbox | `generator/gen-routing.ts`, `generator/gen-styles.ts`: the choosers of both routing drawers are the `<label><input type="checkbox">` boxes of 2.47.0 again (the `sw-chip-choice multi` chooser of CR-CMP2-POLISH-2470 removed). The still-row `rowFocusable` of the alert-type matrix is kept. |
-| N48 events centre chips on a phone | 28 px drawn, invisible 44 px hit area | `components/sw-chip-choice.ts`: under a coarse pointer the chip grows to `max(var(--sw-chipc-touch-h, 44px), var(--sw-chipc-h))` and always carries an invisible `::after` hit area 44 px tall (centred; `::before` is the selected-look check mark). `screens/investigate-events.ts`: `--sw-chipc-touch-h: 28px` on the two rows. Every other chip-choice row is unchanged (44 px under a finger). This also changes main (44 px chips live since 2.46.0). |
+| N48 events centre chips on a phone | 28 px drawn, invisible 44 px hit area | `components/sw-chip-choice.ts`: under a coarse pointer the chip grows to `max(var(--sw-chipc-touch-h, 44px), var(--sw-chipc-h))` and always carries an invisible `::after` hit area 44 px tall (centred). `screens/investigate-events.ts`: `--sw-chipc-touch-h: 28px` on the two rows. Every other chip-choice row is unchanged (44 px under a finger). This also changes main (44 px chips live since 2.46.0). |
 | N49 readiness badges | dark text on the same colours | `screens/system-readiness.ts`: `.badge.attention` / `.badge.ok` ink is `--sw-on-warning` / `--sw-on-success` (the dark ink tokens of those fills); the fills are unchanged. The page is on main only; fixed here. |
 | N56 | accept as is | nothing |
 | N61 settings key height | 28 on desktop | no code here: the settings / presence segmented key is `sw-segmented`'s default, which `pilot/CR-SEG-MODULE-LOOK-2470` (another agent) changes to the 28 px module key. This branch does not touch `sw-segmented.ts` or `styles/settings.ts`. |
 
-Follow-up found by the runner pass (fb7713b20): in the review-window mode on a 390 px phone the 28 px chips plus the
-selected-look check mark left the toolbar's spacer item (`<span class="grow">`, one more flex item = one more 12 px gap) without
+Follow-up found by the runner pass (fb7713b20, while the selected-look was still on): in the review-window mode on a 390 px phone
+the 28 px chips plus the selected-look check mark left the toolbar's spacer item (`<span class="grow">`, one more flex item = one more 12 px gap) without
 room, and "mark all handled" fell to a third line (measured: 203 + 12 + 0 + 12 + 141 > 366). The key now takes
 `margin-inline-start: auto` (`.tools .ackall`) instead of the spacer: same place on every width, and the phone page is 17 px
 shorter than 2.47.0 there.

@@ -331,32 +331,26 @@ test('sw-tabs: an item keeps its data-* hooks on its tab, a warning dot can be n
   expect(sync).not.toMatch(/role="tablist"/);
 });
 
-// CR-CMP2-POLISH-2470: sw-chip-choice can take the installation's selected-chip look (`ui.chip_selected`) as sw-chip does - the events
-// centre's two rows (sw-chip rows until CR-CMP2-TABS-2460) follow the setting again; the generator routing drawers' choosers moved in.
-test.describe('sw-chip-choice: the selected-chip setting, the events centre, the generator choosers', () => {
+// CMP2-POLISH-2480 (lead decision 23.11 on the owner's look rule: every module keeps its own look): the events centre's chip rows keep
+// the accent-filled chosen chip of 2.47.0 - the selected-chip setting look of CR-CMP2-POLISH-2470 (`selected-look="setting"`) was
+// reverted and the option removed (no other user); the generator routing drawers' choosers stay checkbox boxes.
+test.describe('sw-chip-choice: the module look kept, the events centre, the generator choosers', () => {
   const src = read('components/sw-chip-choice.ts');
   const styles = src.split('static styles')[1];
 
-  test('selected-look="setting" draws the shared selected fragments (ring, deeper ink, check; the setting knobs); accent stays the default', () => {
-    expect(src).toContain("import { chipSelected, chipSelectedCheck, chipSelectedHover } from '../styles/chip-selected';");
-    expect(src).toContain("@property({ reflect: true, attribute: 'selected-look' }) selectedLook: 'accent' | 'setting' = 'accent';");
-    expect(styles).toMatch(/:host\(\[selected-look='setting'\]\) button\[aria-pressed='true'\] \{\s*\$\{chipSelected\}/);
-    expect(styles).toMatch(/:host\(\[selected-look='setting'\]\) button\[aria-pressed='true'\]::before \{\s*\$\{chipSelectedCheck\}/);
-    expect(styles).toMatch(/:host\(\[selected-look='setting'\]\) button\[aria-pressed='true'\]:hover:not\(:disabled\) \{\s*\$\{chipSelectedHover\}/);
-    // the fragments read the --sw-chip-on-* knobs that <html data-chip-on> sets (design/css.ts CHIP_ON_CSS)
-    const frag = read('styles/chip-selected.ts');
-    for (const k of ['--sw-chip-on-bg', '--sw-chip-on-ink', '--sw-chip-on-ring', '--sw-chip-on-check']) expect(frag, k).toContain(`var(${k}`);
-    // the default accent look is untouched
+  test('no selected-look option: the chosen chip is the accent fill (the --sw-chipc-on-* knobs), no settings selected-chip look', () => {
+    expect(src).not.toContain('selected-look');
+    expect(src).not.toContain('styles/chip-selected');
     expect(styles).toMatch(/button\[aria-pressed='true'\] \{\s*background: var\(--sw-chipc-on-bg, var\(--sw-accent\)\);/);
   });
 
-  test('the events centre: both chip rows follow the setting', () => {
+  test('the events centre: both chip rows draw the module look (no selected-look attribute)', () => {
     const ev = read('screens/investigate-events.ts');
-    expect(ev.match(/<sw-chip-choice class="evc" selected-look="setting"/g) ?? []).toHaveLength(2);
+    expect(ev.match(/<sw-chip-choice class="evc" label=/g) ?? []).toHaveLength(2);
+    expect(ev).not.toContain('selected-look');
     expect(ev).toContain('data-events-ack-filter');
     expect(ev).toContain('data-events-view');
   });
-
   // CMP2-POLISH-2480 (owner N48, 23.11): the events centre's chips are 28 px on a phone again, the finger keeps a 44 px hit area
   test('coarse pointer: a chip grows to 44 px unless the host keeps its height (--sw-chipc-touch-h); the hit area stays 44 px', () => {
     expect(styles).toMatch(/@media \(pointer: coarse\) \{\s*button \{\s*position: relative;\s*min-block-size: max\(var\(--sw-chipc-touch-h, 44px\), var\(--sw-chipc-h, 32px\)\);/);

@@ -1,7 +1,6 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { chipOn, segmentedFocusStep } from './segmented-logic';
-import { chipSelected, chipSelectedCheck, chipSelectedHover } from '../styles/chip-selected';
 
 /** One chip of a chip choice. */
 interface ChipChoiceOption<V extends string = string> {
@@ -46,11 +45,6 @@ export interface ChipChoiceChange<V extends string = string> {
  *  - CR-CMP2-TABS-2460: an option may carry an `icon` and a `count`. `multi`: several chips may be on at once (`values`); a press
  *    fires `change` ({ value, pressed }) with the state it asks for and, controlled as ever, the host re-renders `values` (the
  *    personal home panel's summary tiles: "follow the installation" is one more chip the host keeps exclusive itself).
- *  - CR-CMP2-POLISH-2470: `selected-look="setting"` - the chosen chip takes the installation's selected-chip look (`ui.chip_selected`,
- *    Settings > General > System look) exactly as sw-chip does: the shared fragments of styles/chip-selected.ts (strong = the light
- *    accent field, an accent ring and a check mark; soft / filled / dark through the `--sw-chip-on-*` knobs design/css.ts sets on
- *    <html data-chip-on>). For the rows that were sw-chip rows (the events centre). The default (`accent`) is the accent-filled chip
- *    and its `--sw-chipc-on-*` knobs, unchanged for every other row.
  *  - CMP2-POLISH-2480 (owner N48): under a coarse pointer a chip grows to 44 px unless the host sets `--sw-chipc-touch-h` (its drawn
  *    height there, e.g. the events centre's 28 px); the hit area is 44 px tall either way (an invisible ::after).
  */
@@ -64,8 +58,6 @@ export class SwChipChoice<V extends string = string> extends LitElement {
   /** CR-CMP2-TABS-2460: several chips may be on at once - the chips that are on are `values` (not `value`). */
   @property({ type: Boolean, reflect: true }) multi = false;
   @property({ attribute: false }) values: readonly string[] = [];
-  /** CR-CMP2-POLISH-2470: `accent` (default) = the accent-filled chosen chip; `setting` = the installation's selected-chip look. */
-  @property({ reflect: true, attribute: 'selected-look' }) selectedLook: 'accent' | 'setting' = 'accent';
 
   static styles = css`
     :host {
@@ -122,23 +114,6 @@ export class SwChipChoice<V extends string = string> extends LitElement {
       color: var(--sw-chipc-on-fg, var(--sw-text-inverse));
       font-weight: var(--sw-chipc-on-fw, inherit);
     }
-    /* CR-CMP2-POLISH-2470: the installation's selected-chip look (ui.chip_selected), as sw-chip draws it; a check mark before the label
-       in the strong look (hidden by the other looks: --sw-chip-on-check: none) */
-    :host([selected-look='setting']) button[aria-pressed='true'] {
-      ${chipSelected}
-    }
-    :host([selected-look='setting']) button[aria-pressed='true']::before {
-      ${chipSelectedCheck}
-      margin-inline: 0;
-    }
-    @media (hover: hover) and (pointer: fine) {
-      :host([selected-look='setting']) button[aria-pressed='true']:hover:not(:disabled) {
-        ${chipSelectedHover}
-      }
-    }
-    :host([selected-look='setting']) button[aria-pressed='true']:active:not(:disabled) {
-      ${chipSelectedHover}
-    }
     button:focus-visible {
       outline: var(--sw-focus-w, 2px) solid var(--sw-focus);
       outline-offset: 2px;
@@ -181,7 +156,7 @@ export class SwChipChoice<V extends string = string> extends LitElement {
     }
     /* under a finger a chip is 44 px tall by default. CMP2-POLISH-2480 (owner N48): a host may keep its chip at its own height there
        (--sw-chipc-touch-h, e.g. the events centre's 28 px) - the hit area stays 44 px tall, an invisible ::after centred on the chip
-       (the styles/focus-policy.ts .sw-hit rule; ::before is the check mark of the selected look) */
+       (the styles/focus-policy.ts .sw-hit rule) */
     @media (pointer: coarse) {
       button {
         position: relative;
