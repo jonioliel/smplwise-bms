@@ -75,6 +75,7 @@ export const LAZY_SCREENS: Readonly<Record<string, Loader>> = {
   'multimedia-players': () => import('../screens/multimedia-players'),
   'multimedia-groups': () => import('../screens/multimedia-groups'),
   'system-multimedia': () => import('../screens/system-multimedia'),
+  'cast-my-screens': () => import('../screens/system-cast'), // PERF-2490: #/multimedia/cast (CR-028), out of the entry chunk
   'infra-generator': () => import('../screens/infra-generator'),
   'infra-elevators': () => import('../screens/infra-elevators'),
   'infra-temperature': () => import('../screens/infra-temperature'),

@@ -4,6 +4,7 @@ import { live } from 'lit/directives/live.js';
 import '../components/sw-drawer';
 import '../components/sw-dialog';
 import '../components/sw-schedule-bar';
+import './schedule-lowering-dialog'; // PERF-2490: rendered by tag here, its own import now (it left the shell's entry chunk)
 import { aIcon } from '../components/automation-icons';
 import { automationsStyles } from '../styles/automations-glass';
 import { applyAutomationsGlass } from '../styles/glass';

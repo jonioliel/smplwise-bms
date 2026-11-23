@@ -7,6 +7,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-button';
 import '../components/sw-dialog';
 import '../components/media-screen-card';
+import '../components/media-remote'; // PERF-2490: rendered by tag here, its own import now (it left the entry chunk with the home widgets)
 import '../components/media-bulk-dialog';
 import '../components/sw-pager';
 import '../components/sw-page';

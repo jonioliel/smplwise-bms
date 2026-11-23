@@ -9,13 +9,13 @@ import '../components/sw-remote-sessions';
 // CR-SHELL-LAZY-2436 (review 07:F24): <sw-second-factor> is imported when its section is first opened (onFactorToggle)
 import '../components/sw-native-device-card';
 import { nativeCan } from '../arx/native-app';
-import '../components/sw-passkeys'; // USR2 phase 4: renders nothing unless the caller is an Arx-only identity
+// USR2 phase 4: <sw-passkeys> renders nothing unless the caller is an Arx-only identity; PERF-2490: it is fetched with the second factor's
+// chunk when that section first opens (onFactorToggle), and <sw-home-personal> when "המסך שלי" first opens (onHomeToggle)
 import { t } from '../i18n/he';
 import './sw-wiskey-prefs';
 import './sw-video-prefs';
 import './sw-lang-prefs';
 import { tr } from '../i18n/msg/shell';
-import './sw-home-personal';
 import { can, canAnywhere, cap } from '../api/session';
 import { WISKEY_HIDDEN } from './nav';
 import { ticketsEnabled } from '../tickets/gate';
@@ -88,7 +88,9 @@ export class SwUserMenu extends LitElement {
   /** K11: the optional second factor section loads only while it is open. */
   @state() private factorOpen = false;
   /** CR-SHELL-LAZY-2436: <sw-second-factor>'s chunk landed (see onFactorToggle). */
-  @state() private factorReady = typeof customElements !== 'undefined' && !!customElements.get('sw-second-factor');
+  @state() private factorReady = typeof customElements !== 'undefined' && !!customElements.get('sw-second-factor') && !!customElements.get('sw-passkeys');
+  /** PERF-2490: <sw-home-personal>'s chunk landed (see onHomeToggle). */
+  @state() private homeReady = typeof customElements !== 'undefined' && !!customElements.get('sw-home-personal');
   @state() private deviceOpen = false;
   @state() private staffOpen = false; // TKSTAFF1 review F3: the own work-link mobile
 
@@ -460,9 +462,19 @@ export class SwUserMenu extends LitElement {
   private onFactorToggle(open: boolean) {
     this.factorOpen = open;
     if (!open || this.factorReady) return;
-    void import('../components/sw-second-factor').then(
+    void Promise.all([import('../components/sw-second-factor'), import('../components/sw-passkeys')]).then(
       () => (this.factorReady = true),
       (err: unknown) => console.warn('second factor chunk failed to load', err),
+    );
+  }
+
+  /** PERF-2490: "המסך שלי" opened - <sw-home-personal> is a chunk of its own, fetched on the first opening and rendered once it landed. */
+  private onHomeToggle(open: boolean) {
+    this.homeOpen = open;
+    if (!open || this.homeReady) return;
+    void import('./sw-home-personal').then(
+      () => (this.homeReady = true),
+      (err: unknown) => console.warn('my screen chunk failed to load', err),
     );
   }
 
@@ -591,9 +603,9 @@ export class SwUserMenu extends LitElement {
               <span class="ic"><sw-icon name="bellSettings" size=${18}></sw-icon></span><span class="txt">${tr('הגדרות התראות')}</span></a></li>`
           : nothing}
         ${acc.home
-          ? html`<li><details data-my-home @toggle=${(e: Event) => (this.homeOpen = (e.currentTarget as HTMLDetailsElement).open)}>
+          ? html`<li><details data-my-home @toggle=${(e: Event) => this.onHomeToggle((e.currentTarget as HTMLDetailsElement).open)}>
               <summary><span class="ic"><sw-icon name="dashboard" size=${18}></sw-icon></span><span class="txt">${tr('המסך שלי')}</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
-              <div class="sessions">${this.open && this.homeOpen ? html`<sw-home-personal></sw-home-personal>` : nothing}</div>
+              <div class="sessions">${this.open && this.homeOpen && this.homeReady ? html`<sw-home-personal></sw-home-personal>` : nothing}</div>
             </details></li>`
           : nothing}
         ${acc.lang
@@ -632,7 +644,7 @@ export class SwUserMenu extends LitElement {
         ${acc.factor
           ? html`<li><details data-my-second-factor @toggle=${(e: Event) => this.onFactorToggle((e.currentTarget as HTMLDetailsElement).open)}>
               <summary><span class="ic"><sw-icon name="shield" size=${18}></sw-icon></span><span class="txt">${t('secondFactor.title')}</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
-              <div class="sessions">${this.open && this.factorOpen ? html`${this.factorReady ? html`<sw-second-factor></sw-second-factor>` : nothing}<sw-passkeys></sw-passkeys>` : nothing}</div>
+              <div class="sessions">${this.open && this.factorOpen && this.factorReady ? html`<sw-second-factor></sw-second-factor><sw-passkeys></sw-passkeys>` : nothing}</div>
             </details></li>`
           : nothing}
         ${acc.device
