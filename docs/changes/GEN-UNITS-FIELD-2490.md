@@ -21,5 +21,4 @@ Owner decision Q16 (N54). Base: main 619f94d04. Branch: pilot/GEN-UNITS-FIELD-24
 | Before/after captures (private/planning/gen_units_2490_compare_2026-11-23.html) | done |
 | Runner evidence run | see the branch report |
 
-Known limit (pre-existing, not changed here): the generator settings screen reads the Hebrew catalogue object directly, so labels
-and the unit words stay Hebrew in an English session; the English tables are filled and parity-checked.
+English session (follow-up): the generator settings screen now reads the active-language catalogue (`uiLang()` + the English `generator.settings` merged over the Hebrew; the Hebrew output is unchanged), so labels and unit words are English in an English session. Check: `tests/evidence-gen-units-en-2490.spec.ts`. i18n report: gap 5, missing 20, hard-coded Hebrew 4586 - equal to main (not higher).
