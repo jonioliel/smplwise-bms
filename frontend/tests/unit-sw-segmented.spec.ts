@@ -302,7 +302,8 @@ test.describe('sw-chip-choice: the contract in the source and its adopters', () 
     expect(styles).not.toMatch(/#[0-9a-f]{3,8}|rgba?\(/i);
     expect(src).toMatch(/background: var\(--sw-chipc-on-bg, var\(--sw-accent\)\);/);
     expect(src).toMatch(/color: var\(--sw-chipc-on-fg, var\(--sw-text-inverse\)\);/);
-    expect(src).toMatch(/@media \(pointer: coarse\) \{\s*button \{\s*min-block-size: max\(44px,/);
+    // CMP2-POLISH-2480: 44 px unless the host keeps its own height (--sw-chipc-touch-h); the hit area is 44 px either way (see below)
+    expect(src).toMatch(/@media \(pointer: coarse\) \{\s*button \{\s*position: relative;\s*min-block-size: max\(var\(--sw-chipc-touch-h, 44px\),/);
     expect(src).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*button \{\s*transition-duration: 0ms;/);
     expect(src).toMatch(/\.row \{[^}]*flex-wrap: wrap;/);
   });
@@ -318,6 +319,7 @@ test.describe('sw-chip-choice: the contract in the source and its adopters', () 
     // home panel's summary tiles are a `multi` row
     'screens/investigate-events.ts',
     'shell/sw-home-personal.ts',
+    // (CMP2-POLISH-2480, owner N47: the generator routing drawers' recipient / channel choosers stay checkbox boxes - not adopted)
   ];
   test('adoption: these screens draw their single-choice chip rows with sw-chip-choice (no hand-built `.seg` row comes back)', () => {
     const bad: string[] = [];
@@ -357,5 +359,52 @@ test.describe('sw-segmented: a wrapped track is a rounded box, not a fat pill (S
     expect(src).toMatch(/:host\(\[wrapped\]\) \.seg \{\s*border-radius: min\(var\(--sw-seg-radius, var\(--sw-r-pill\)\), var\(--sw-r-lg\)\);/);
     // the keys keep their own radius (no rule for the wrapped state touches the buttons)
     expect(src).not.toMatch(/:host\(\[wrapped\]\) button/);
+  });
+});
+
+// CMP2-POLISH-2480 (lead decision 23.11 on the owner's look rule: every module keeps its own look): the events centre's chip rows keep
+// the accent-filled chosen chip of 2.47.0 - the selected-chip setting look of CR-CMP2-POLISH-2470 (`selected-look="setting"`) was
+// reverted and the option removed (no other user); the generator routing drawers' choosers stay checkbox boxes.
+test.describe('sw-chip-choice: the module look kept, the events centre, the generator choosers', () => {
+  const src = read('components/sw-chip-choice.ts');
+  const styles = src.split('static styles')[1];
+
+  test('no selected-look option: the chosen chip is the accent fill (the --sw-chipc-on-* knobs), no settings selected-chip look', () => {
+    expect(src).not.toContain('selected-look');
+    expect(src).not.toContain('styles/chip-selected');
+    expect(styles).toMatch(/button\[aria-pressed='true'\] \{\s*background: var\(--sw-chipc-on-bg, var\(--sw-accent\)\);/);
+  });
+
+  test('the events centre: both chip rows draw the module look (no selected-look attribute)', () => {
+    const ev = read('screens/investigate-events.ts');
+    expect(ev.match(/<sw-chip-choice class="evc" label=/g) ?? []).toHaveLength(2);
+    expect(ev).not.toContain('selected-look');
+    expect(ev).toContain('data-events-ack-filter');
+    expect(ev).toContain('data-events-view');
+  });
+  // CMP2-POLISH-2480 (owner N48, 23.11): the events centre's chips are 28 px on a phone again, the finger keeps a 44 px hit area
+  test('coarse pointer: a chip grows to 44 px unless the host keeps its height (--sw-chipc-touch-h); the hit area stays 44 px', () => {
+    expect(styles).toMatch(/@media \(pointer: coarse\) \{\s*button \{\s*position: relative;\s*min-block-size: max\(var\(--sw-chipc-touch-h, 44px\), var\(--sw-chipc-h, 32px\)\);/);
+    expect(styles).toMatch(/button::after \{\s*content: '';\s*position: absolute;\s*inset-inline: 0;\s*inset-block: min\(0px, calc\(\(100% - 44px\) \/ 2\)\);/);
+    const ev = read('screens/investigate-events.ts');
+    expect(ev).toMatch(/sw-chip-choice\.evc \{[^}]*--sw-chipc-h: 28px;\s*--sw-chipc-touch-h: 28px;/);
+  });
+
+  // CMP2-POLISH-2480 (owner N47, 23.11): the generator routing drawers keep the module's checkbox boxes - the square stays, the chosen
+  // box takes the accent wash and rim; the sw-chip-choice chooser of CR-CMP2-POLISH-2470 was reverted
+  test('the generator routing drawers: the recipient / channel choosers are checkbox boxes (the square kept), the hooks kept', () => {
+    const r = read('generator/gen-routing.ts');
+    expect(r).not.toContain('<sw-chip-choice');
+    // two drawers x (roles, users, channels) - each a box of <label><input type="checkbox"> rows
+    expect(r.match(/<div class="chooser" data-roles>\$\{data\.roles\.map\(\(r\) => chk\(/g) ?? []).toHaveLength(2);
+    expect(r.match(/<div class="chooser users" data-users>\$\{users\.map\(\(u\) => chk\(/g) ?? []).toHaveLength(2);
+    expect(r.match(/<div class="chooser" data-channels>/g) ?? []).toHaveLength(2);
+    expect(r.match(/<input type="checkbox" \.checked=\$\{on\}/g) ?? []).toHaveLength(2);
+    // the inbox is always on and cannot be turned off
+    expect(r).toContain('<label class="on dis"><input type="checkbox" checked disabled /> ${S.inboxAlways}</label>');
+    const st = read('generator/gen-styles.ts');
+    expect(st).toMatch(/\.chooser \{\s*display: grid;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+    expect(st).toMatch(/\.chooser label\.on \{\s*border-color: var\(--sw-accent\);\s*background: var\(--sw-accent-soft\);/);
+    expect(st).not.toContain('.chooser sw-chip-choice');
   });
 });

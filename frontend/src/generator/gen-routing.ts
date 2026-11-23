@@ -313,6 +313,7 @@ export class GenRouting extends LitElement {
     // CR-CMP2-GEN-REST-2460 (owner N10): the alert-type matrix is the shared table - a group heading row per group (groupHeading), the "on"
     // switch a sw-toggle (it saves at once and never opens the row), the recipient / channel chips the module's look through parts, a
     // type that is off dimmed (part "off"), a type without its sensor muted with the sensor it needs. A row opens the type's editor.
+    // CR-CMP2-POLISH-2470: a type without its sensor opens nothing, so its row is still (rowFocusable: no tab stop, no pointer).
     const dim = (on: boolean, v: unknown) => html`<span part=${on ? nothing : 'off'}>${v}</span>`;
     const setOn = async (i: PolicyItem, v: boolean) => {
       try {
@@ -379,6 +380,7 @@ export class GenRouting extends LitElement {
         <input type="search" placeholder=${G.history.search} aria-label=${G.history.search} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></div>
       <div class="card flush hide-phone" data-routing-matrix><sw-table bare data-gen-table data-gen-routing-table rowKey="key" .columns=${columns as unknown as TableColumn[]}
         .rows=${matrixRows as unknown as Record<string, unknown>[]} .groupHeading=${(r: Record<string, unknown>) => (r as MatrixRow).grp ?? null} .rowAttrs=${matrixHooks}
+        .rowFocusable=${(r: Record<string, unknown>) => !!(r as MatrixRow).item?.available}
         @row-select=${(e: CustomEvent<{ row: MatrixRow }>) => e.detail.row.item && this.edit(e.detail.row.item)}></sw-table></div>
       <div class="list only-phone" style="flex-direction:column">${groups.map((g) => html`<div class="h3">${g.title}</div>${g.items.filter(match).map(phoneRow)}`)}</div>
       ${this.msg ? html`<div class="mut" role="status" data-saved>${this.msg}</div>` : nothing}${!this.editing && this.fail ? html`<div class="bad" role="alert">${this.fail}</div>` : nothing}

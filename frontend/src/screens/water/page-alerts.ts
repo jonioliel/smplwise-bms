@@ -157,7 +157,8 @@ export class WaterAlertsPage extends LitElement {
    * 1024 px), the kind, since when (until when, once closed), the value (an LTR figure at the reading end), the state chip (eventChip
    * carries the shared tone) and the acknowledge / snooze keys packed at the reading end. The table is the list's card and its scroll box
    * under the tiles (the header row stays in place). An open alert's row opens its meter (click, Enter / Space; a key on a button inside
-   * is the button's); a closed one does nothing. Row hooks `data-alert` (+ `data-closed`). */
+   * is the button's); a closed one does nothing - CR-CMP2-POLISH-2470: and is no tab stop either (`rowFocusable`). Row hooks `data-alert`
+   * (+ `data-closed`). */
   private tableColumns(): TableColumn<WaterEvent>[] {
     return [
       { key: 'meter', label: wt('colMeter'), render: (e) => html`<b>${e.meter_name}</b>` },
@@ -217,6 +218,7 @@ export class WaterAlertsPage extends LitElement {
       ? html`<sw-state-panel icon="check" state="empty" heading=${wt('emptyAlerts')} data-no-alerts></sw-state-panel>`
       : html`<sw-table class="t card flush desk-only fitbox" data-alerts-table .columns=${this.tableColumns() as unknown as TableColumn[]} .rows=${rows as unknown as Record<string, unknown>[]}
           .rowAttrs=${(r: Record<string, unknown>) => ({ 'data-alert': String(r.id), 'data-closed': !!r.closed_at })}
+          .rowFocusable=${(r: Record<string, unknown>) => !r.closed_at}
           @row-select=${(ev: CustomEvent<{ row: Record<string, unknown> }>) => this.openMeter(ev.detail.row as unknown as WaterEvent)}></sw-table>
         <div class="list phone-only" style="flex-direction:column" data-alerts-rows>${rows.map((e) => html`<div class="li ${e.closed_at ? 'dis' : 'pick'}" role=${e.closed_at ? nothing : 'button'} tabindex=${e.closed_at ? nothing : 0} data-alert=${e.id} @click=${() => this.openMeter(e)} @keydown=${(ev: KeyboardEvent) => this.onKey(ev, e)}>
           <div class="grow"><div class="t1">${e.meter_name} · ${eventKindLabel(e.kind)}</div><div class="t2 wrap">${e.area_name ?? ''} · ${wt('colSince')} <span class="num">${dm(e.opened_at)}</span> · ${eventValue(e)}</div></div>${eventChip(e)}${this.actions(e)}</div>`)}</div>`;

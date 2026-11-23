@@ -483,13 +483,15 @@ export class SystemReadiness extends LitElement {
       background: var(--sw-danger);
       color: var(--sw-text-inverse);
     }
+    /* CMP2-POLISH-2480 (owner N49): the warning / success badges keep their colours, the label is the dark ink of that colour
+       (--sw-on-warning / --sw-on-success, >= 4.5:1) - white on green / orange was under 3:1 */
     .badge.attention {
       background: var(--sw-warning);
-      color: var(--sw-text-inverse);
+      color: var(--sw-on-warning);
     }
     .badge.ok {
       background: var(--sw-success);
-      color: var(--sw-text-inverse);
+      color: var(--sw-on-success);
     }
     .badge.pending {
       background: var(--sw-unknown);

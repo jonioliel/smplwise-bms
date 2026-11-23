@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing, noChange, type TemplateResult } from 'l
 import { customElement, property } from 'lit/decorators.js';
 import { Directive, directive, PartType, type ElementPart, type PartInfo } from 'lit/directive.js';
 import { tr } from '../i18n/msg/components';
-import { cellClassOf, cellPartOf, groupSegments, headClassOf, rowAttrMap, rowFocusStep, type CellKind, type RowAttrs } from './table-logic';
+import { cellClassOf, cellPartOf, groupSegments, headClassOf, rowAttrMap, rowFocusStep, rowReach, type CellKind, type RowAttrs } from './table-logic';
 
 export type { CellKind, RowAttrs } from './table-logic';
 
@@ -108,6 +108,11 @@ export class SwTable extends LitElement {
   /** CR-CMP2-GEN-REST-2460: a small grid of figures that fits a phone keeps its columns there (no card stack below 768 px); a column
    * still steps out with `hideBelow`. For a table of a few short columns only (the generator phases): a wide table would overflow. */
   @property({ type: Boolean, reflect: true, attribute: 'keep-columns' }) keepColumns = false;
+  /** CR-CMP2-POLISH-2470 (open question of CR-CMP2-TABLES-CONSUMPTION-2450 / CR-CMP2-GEN-REST-2460): per-row reach (opt-in). A row for
+   * which this returns false does nothing: no tab stop, no Enter / Space, left out of the row walk, no pointer or press tint, a click
+   * fires no `row-select` (part `row still`) - a closed water alert, a generator alert type without its sensor. Its `rowAttrs` hooks
+   * and its cells (a control inside one stays a control) are unchanged. Unset: every row as the table says (table-logic `rowReach`). */
+  @property({ attribute: false }) rowFocusable?: (row: Record<string, unknown>) => boolean;
   /** how many `row-select` listeners are registered on this element itself */
   private rowSelectListeners = 0;
 
@@ -355,6 +360,13 @@ export class SwTable extends LitElement {
       cursor: default;
     }
     :host([static-rows]) tbody tr.clickable:active {
+      background: transparent;
+    }
+    /* CR-CMP2-POLISH-2470: a still row (rowFocusable false) - no pointer and no press tint, as a static-rows table */
+    tr.clickable.still {
+      cursor: default;
+    }
+    tbody tr.clickable.still:active {
       background: transparent;
     }
     /* the shared cell vocabulary - classes a column's render may use (the screen's own classes do not reach this shadow root) */
@@ -672,8 +684,9 @@ export class SwTable extends LitElement {
   /** one data row: its hooks, the pick (a click, or Enter / Space when the rows are tab stops), the hover events */
   private dataRow(row: Record<string, unknown>, card: boolean, focusable: boolean) {
     const hooks = this.rowAttrs;
-    return html`<tr class="clickable ${this.selected === String(row[this.rowKey]) ? 'selected' : ''}" part="row" data-row-id=${String(row[this.rowKey] ?? '')} ${rowHooks(hooks ? hooks(row) : null)} @click=${() => this.staticRows || this.pick(row)}
-              tabindex=${focusable ? '0' : nothing} @keydown=${focusable ? (e: KeyboardEvent) => this.onRowKey(e, row) : nothing}
+    const { live, tab } = rowReach(row, focusable, this.staticRows, this.rowFocusable);
+    return html`<tr class="clickable ${this.selected === String(row[this.rowKey]) ? 'selected' : ''}${live ? '' : ' still'}" part=${live ? 'row' : 'row still'} data-row-id=${String(row[this.rowKey] ?? '')} ${rowHooks(hooks ? hooks(row) : null)} @click=${() => live && this.pick(row)}
+              tabindex=${tab ? '0' : nothing} @keydown=${tab ? (e: KeyboardEvent) => this.onRowKey(e, row) : nothing}
               @pointerenter=${(e: PointerEvent) => this.dispatchEvent(new CustomEvent('row-hover', { detail: { id: String(row[this.rowKey] ?? ''), row, clientX: e.clientX, clientY: e.clientY, pointerType: e.pointerType }, bubbles: true, composed: true }))}
               @pointerleave=${() => this.dispatchEvent(new CustomEvent('row-leave', { detail: { id: String(row[this.rowKey] ?? '') }, bubbles: true, composed: true }))}>
               ${this.columns.map((c) => this.cell(c, row))}${card ? this.metaCell(row) : nothing}

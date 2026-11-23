@@ -104,3 +104,12 @@ export function groupSegments<R>(rows: readonly R[], isHead: (row: R) => boolean
   }
   return out[0].rows.length || out.length === 1 ? out : out.slice(1);
 }
+
+/** CR-CMP2-POLISH-2470: what one data row answers. `live` = it takes a click (pointer, press tint, `row-select`); `tab` = it is a tab
+ * stop that answers Enter / Space and the row walk. A table with `static-rows` has no live row; a row for which the host's
+ * `rowFocusable(row)` returns false is a still row (no tab stop AND no click: a row that does nothing must not be a dead tab stop,
+ * and a row that answers the pointer only would leave the keyboard out). Unset `rowFocusable`: every row as the table says. */
+export function rowReach<R>(row: R, tableTabs: boolean, staticRows: boolean, rowFocusable?: (row: R) => boolean): { live: boolean; tab: boolean } {
+  const live = !staticRows && (!rowFocusable || rowFocusable(row) !== false);
+  return { live, tab: live && tableTabs };
+}
