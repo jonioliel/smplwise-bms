@@ -1,0 +1,1 @@
+import{b3 as o,bl as t,bZ as e,bn as c,b$ as i}from"./index-BYRaM0w7.js";const l=()=>o("views"),w=s=>c("views",s),r=(s,a)=>t(e`views/${s}`,a),m=s=>i(e`views/${s}`),p=s=>`#/live/wall?cameras=${encodeURIComponent(s.cameras.join(","))}`,$=s=>`#/kiosk/all?cameras=${encodeURIComponent(s.cameras.join(","))}&cols=${s.cols}&rows=${s.rows}`;export{w as c,m as d,$ as k,l,r as u,p as w};

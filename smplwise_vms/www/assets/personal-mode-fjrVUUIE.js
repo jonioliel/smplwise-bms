@@ -1,0 +1,1 @@
+const t={combined:"modeCombined",cards:"modeCards",both:"modeBoth"};function r(o,e,n){return n?o.includes(e)?[...o]:[...o,e]:o.filter(d=>d!==e)}const a=(o,e,n)=>r(o,e,!n);export{t as M,a as p,r as t};
