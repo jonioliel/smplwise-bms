@@ -93,11 +93,8 @@ const HEX = /^#[0-9a-f]{6}$/i;
 const get = (o: unknown, path: string): unknown => path.split('.').reduce<unknown>((x, k) => (x && typeof x === 'object' ? (x as Record<string, unknown>)[k] : undefined), o);
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
-/** Structural problems of a palette object (English, for tests and logs); empty = well-formed. */
-export function schemaErrors(pal: unknown): string[] {
-  const errs: string[] = [];
-  if (!pal || typeof pal !== 'object' || Array.isArray(pal)) return ['palette must be an object'];
-  const p = pal as Record<string, unknown>;
+/** The palette's own keys, id, name and character. */
+function headErrors(p: Record<string, unknown>, errs: string[]): void {
   const extra = Object.keys(p).filter((k) => !['id', 'name', 'character', 'schemes'].includes(k));
   if (extra.length) errs.push(`unknown palette keys: ${extra.slice(0, 5).join(', ')}`);
   if (!/^[a-z][a-z0-9-]{1,40}$/.test(String(p.id ?? ''))) errs.push('id: lower-case kebab id required');
@@ -105,6 +102,53 @@ export function schemaErrors(pal: unknown): string[] {
   if (!name || typeof name !== 'object' || !['he', 'en'].every((k) => typeof name[k] === 'string' && (name[k] as string).trim()) || Object.keys(name).some((k) => k !== 'he' && k !== 'en')) errs.push('name.he and name.en required');
   else if (['he', 'en'].some((k) => (name[k] as string).length > 40)) errs.push('name: at most 40 characters');
   if ('character' in p && !(typeof p.character === 'string' && p.character.length <= 200)) errs.push('character: text up to 200 characters');
+}
+
+/** One token of a scheme against its kind ('' when it is well-formed). */
+function tokenError(kind: Kind, v: unknown, at: string): string {
+  if (kind === 'hex' && !(typeof v === 'string' && HEX.test(v))) return `${at} must be #rrggbb`;
+  if (kind === 'color' && !(typeof v === 'string' && parseColor(v))) return `${at}: unsupported colour`;
+  if (kind === 'number' && !isNum(v)) return `${at} must be a number`;
+  if (kind === 'hex[]' && !(Array.isArray(v) && v.length >= 2 && v.length <= 5 && v.every((x) => typeof x === 'string' && HEX.test(x)))) return `${at} must be 2-5 #rrggbb stops`;
+  if (kind === 'pairs' && !(Array.isArray(v) && v.length >= 2 && v.length <= 8 && v.every((q) => Array.isArray(q) && q.length === 2 && q.every((x) => typeof x === 'string' && HEX.test(x))))) return `${at} must be 2-8 [#start, #end] pairs`;
+  return '';
+}
+
+/** One scheme (an object): every token of the closed set, the glass ranges, then the tokens outside the set. */
+function schemeErrors(s: object, sc: string, errs: string[]): void {
+  for (const [path, kind] of Object.entries(SCHEMA)) {
+    const v = get(s, path);
+    const at = `schemes.${sc}.${path}`;
+    if (v === undefined || v === null) {
+      errs.push(`${at} missing`);
+      continue;
+    }
+    const e = tokenError(kind, v, at);
+    if (e) errs.push(e);
+  }
+  const o = get(s, 'glass.opacity') as Record<string, unknown> | undefined;
+  if (o && ['min', 'default', 'max'].every((k) => isNum(o[k]))) {
+    const [a, b, c] = [o.min as number, o.default as number, o.max as number];
+    if (!(a > 0 && a <= b && b <= c && c <= 1)) errs.push(`schemes.${sc}.glass.opacity: need 0 < min <= default <= max <= 1`);
+  }
+  const blur = get(s, 'glass.blurPx');
+  if (isNum(blur) && (blur < 0 || blur > 60)) errs.push(`schemes.${sc}.glass.blurPx: 0..60`);
+  const walk = (x: Record<string, unknown>, pre: string) => {
+    for (const [k, v] of Object.entries(x)) {
+      const path = pre ? `${pre}.${k}` : k;
+      if (v && typeof v === 'object' && !Array.isArray(v) && !KNOWN.has(path)) walk(v as Record<string, unknown>, path);
+      else if (!KNOWN.has(path)) errs.push(`schemes.${sc}.${path.slice(0, 40)}: unknown token (closed set)`);
+    }
+  };
+  walk(s as Record<string, unknown>, '');
+}
+
+/** Structural problems of a palette object (English, for tests and logs); empty = well-formed. */
+export function schemaErrors(pal: unknown): string[] {
+  const errs: string[] = [];
+  if (!pal || typeof pal !== 'object' || Array.isArray(pal)) return ['palette must be an object'];
+  const p = pal as Record<string, unknown>;
+  headErrors(p, errs);
   const schemes = p.schemes as Record<string, unknown> | undefined;
   if (!schemes || typeof schemes !== 'object' || Object.keys(schemes).length !== 2 || !('light' in schemes) || !('dark' in schemes)) return [...errs, 'schemes.light and schemes.dark required'];
   for (const sc of ['light', 'dark']) {
@@ -113,34 +157,7 @@ export function schemaErrors(pal: unknown): string[] {
       errs.push(`schemes.${sc} must be an object`);
       continue;
     }
-    for (const [path, kind] of Object.entries(SCHEMA)) {
-      const v = get(s, path);
-      const at = `schemes.${sc}.${path}`;
-      if (v === undefined || v === null) {
-        errs.push(`${at} missing`);
-        continue;
-      }
-      if (kind === 'hex' && !(typeof v === 'string' && HEX.test(v))) errs.push(`${at} must be #rrggbb`);
-      else if (kind === 'color' && !(typeof v === 'string' && parseColor(v))) errs.push(`${at}: unsupported colour`);
-      else if (kind === 'number' && !isNum(v)) errs.push(`${at} must be a number`);
-      else if (kind === 'hex[]' && !(Array.isArray(v) && v.length >= 2 && v.length <= 5 && v.every((x) => typeof x === 'string' && HEX.test(x)))) errs.push(`${at} must be 2-5 #rrggbb stops`);
-      else if (kind === 'pairs' && !(Array.isArray(v) && v.length >= 2 && v.length <= 8 && v.every((q) => Array.isArray(q) && q.length === 2 && q.every((x) => typeof x === 'string' && HEX.test(x))))) errs.push(`${at} must be 2-8 [#start, #end] pairs`);
-    }
-    const o = get(s, 'glass.opacity') as Record<string, unknown> | undefined;
-    if (o && ['min', 'default', 'max'].every((k) => isNum(o[k]))) {
-      const [a, b, c] = [o.min as number, o.default as number, o.max as number];
-      if (!(a > 0 && a <= b && b <= c && c <= 1)) errs.push(`schemes.${sc}.glass.opacity: need 0 < min <= default <= max <= 1`);
-    }
-    const blur = get(s, 'glass.blurPx');
-    if (isNum(blur) && (blur < 0 || blur > 60)) errs.push(`schemes.${sc}.glass.blurPx: 0..60`);
-    const walk = (x: Record<string, unknown>, pre: string) => {
-      for (const [k, v] of Object.entries(x)) {
-        const path = pre ? `${pre}.${k}` : k;
-        if (v && typeof v === 'object' && !Array.isArray(v) && !KNOWN.has(path)) walk(v as Record<string, unknown>, path);
-        else if (!KNOWN.has(path)) errs.push(`schemes.${sc}.${path.slice(0, 40)}: unknown token (closed set)`);
-      }
-    };
-    walk(s as Record<string, unknown>, '');
+    schemeErrors(s, sc, errs);
   }
   return errs;
 }

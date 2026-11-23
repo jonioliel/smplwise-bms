@@ -253,6 +253,43 @@ interface BatchView {
 
 const join = (parts: (string | false | '')[]): string => parts.filter(Boolean).join(' · ');
 
+type ViewFlags = Pick<BatchView, 'canStop' | 'showUndo' | 'canUndo' | 'showRetry'>;
+
+/** The counts line of a batch that ended: put back / not put back (a rollback), or saved / failed / unknown / not attempted. */
+function countsLine(b: Batch, t: Tally, rb: boolean, left: number): string {
+  const inN = (n: number) => inUnits(b, n);
+  return rb
+    ? join([t.restored > 0 && tr('הוחזר {where}', { where: inN(t.restored) }), left > 0 && tr('לא הוחזר {where}', { where: inN(left) })])
+    : join([t.applied > 0 && tr('נשמר {where}', { where: inN(t.applied) }), t.bad > 0 && tr('נכשל {where}', { where: inN(t.bad) }), t.unknown > 0 && tr('לא ברור אם בוצע {where}', { where: inN(t.unknown) }), t.notAttempted > 0 && tr('לא בוצע {where}', { where: inN(t.notAttempted) })]);
+}
+
+/** A completed batch: what it changed (encoding / SVC wording), then the unchanged and the skipped streams. */
+function completedView(b: Batch, t: Tally, rb: boolean, flags: ViewFlags): BatchView {
+  const inN = (n: number) => inUnits(b, n);
+  return {
+    ...flags, tone: (b.skipped ?? 0) > 0 ? 'warn' : 'done',
+    title: isEncoding(b)
+      ? rb ? tr('הקידוד הוחזר {where}', { where: inN(t.restored) }) : t.applied > 0 ? tr('הקידוד עודכן {where}', { where: inN(t.applied) }) : tr('ללא שינוי')
+      : rb ? tr('SVC הוחזר {where}', { where: inCameras(t.restored) }) : t.applied > 0 ? tr('SVC כבוי {where}', { where: inCameras(t.applied) }) : tr('ללא שינוי'),
+    sub: join([!rb && t.applied > 0 && t.ok > t.applied && tr('ללא שינוי {where}', { where: inN(t.ok - t.applied) }), (b.skipped ?? 0) > 0 && tr('דולג {where}', { where: inN(b.skipped ?? 0) })]),
+  };
+}
+
+/** A batch that ended without completing (or completed past an unverified outcome): where and why it stopped. */
+function stoppedView(b: Batch, rb: boolean, problem: BatchItem | null, pname: string, unknownStop: boolean, flags: ViewFlags, counts: string): BatchView {
+  // the check found the camera still on the old value: a plain failure at that camera
+  if (b.state === 'interrupted' && b.stopped_reason === 'unknown_not_applied' && problem) return { ...flags, tone: 'error', title: rb ? tr('ההחזרה נעצרה במצלמה {pname}', { pname }) : tr('נעצר במצלמה {pname}', { pname }), sub: counts };
+  if (unknownStop) return { ...flags, tone: 'error', title: rb ? tr('ההחזרה נעצרה: לא ברור אם בוצע במצלמה {pname}', { pname }) : tr('נעצר: לא ברור אם בוצע במצלמה {pname}', { pname }), sub: counts };
+  switch (b.state) {
+    case 'stopped':
+      return { ...flags, tone: 'warn', title: rb ? tr('ההחזרה נעצרה בבקשתך') : tr('נעצר בבקשתך'), sub: counts };
+    case 'failed':
+      return { ...flags, tone: 'error', title: rb ? tr('ההחזרה נעצרה במצלמה {pname}', { pname }) : tr('נעצר במצלמה {pname}', { pname }), sub: counts };
+    default:
+      return { ...flags, tone: 'error', title: rb ? tr('ההחזרה נקטעה באמצע') : tr('השינוי נקטע באמצע'), sub: counts };
+  }
+}
+
 /** `nameOf`: the camera's display name. `stopping`: the person pressed "עצור" and the camera in flight is finishing. */
 export function batchView(b: Batch, nameOf: (i: BatchItem) => string, stopping = false): BatchView {
   const t = tally(b);
@@ -268,31 +305,11 @@ export function batchView(b: Batch, nameOf: (i: BatchItem) => string, stopping =
   if (b.state === 'running') {
     return { ...base, tone: 'running', title: tr('{processed} מתוך {total}', { processed: t.processed, total: t.total }), sub: stopping ? tr('עוצר אחרי המצלמה הנוכחית') : t.unknown ? tr('נבדק מול ה־NVR') : '', canStop: !stopping };
   }
-  const inN = (n: number) => inUnits(b, n);
-  const counts = rb
-    ? join([t.restored > 0 && tr('הוחזר {where}', { where: inN(t.restored) }), left > 0 && tr('לא הוחזר {where}', { where: inN(left) })])
-    : join([t.applied > 0 && tr('נשמר {where}', { where: inN(t.applied) }), t.bad > 0 && tr('נכשל {where}', { where: inN(t.bad) }), t.unknown > 0 && tr('לא ברור אם בוצע {where}', { where: inN(t.unknown) }), t.notAttempted > 0 && tr('לא בוצע {where}', { where: inN(t.notAttempted) })]);
+  const counts = countsLine(b, t, rb, left);
   const undo = !rb && t.applied > 0 ? { showUndo: true, canUndo: !undoWait } : {};
   const retry = rb && left > 0 && !!b.rollback_of && b.state !== 'completed' ? { showRetry: true } : {};
-  // the check found the camera still on the old value: a plain failure at that camera
-  if (b.state === 'interrupted' && b.stopped_reason === 'unknown_not_applied' && problem) return { ...base, ...undo, ...retry, tone: 'error', title: rb ? tr('ההחזרה נעצרה במצלמה {pname}', { pname }) : tr('נעצר במצלמה {pname}', { pname }), sub: counts };
-  if (unknownStop) return { ...base, ...undo, ...retry, tone: 'error', title: rb ? tr('ההחזרה נעצרה: לא ברור אם בוצע במצלמה {pname}', { pname }) : tr('נעצר: לא ברור אם בוצע במצלמה {pname}', { pname }), sub: counts };
-  switch (b.state) {
-    case 'completed':
-      return {
-        ...base, ...undo, tone: (b.skipped ?? 0) > 0 ? 'warn' : 'done',
-        title: isEncoding(b)
-          ? rb ? tr('הקידוד הוחזר {where}', { where: inN(t.restored) }) : t.applied > 0 ? tr('הקידוד עודכן {where}', { where: inN(t.applied) }) : tr('ללא שינוי')
-          : rb ? tr('SVC הוחזר {where}', { where: inCameras(t.restored) }) : t.applied > 0 ? tr('SVC כבוי {where}', { where: inCameras(t.applied) }) : tr('ללא שינוי'),
-        sub: join([!rb && t.applied > 0 && t.ok > t.applied && tr('ללא שינוי {where}', { where: inN(t.ok - t.applied) }), (b.skipped ?? 0) > 0 && tr('דולג {where}', { where: inN(b.skipped ?? 0) })]),
-      };
-    case 'stopped':
-      return { ...base, ...undo, ...retry, tone: 'warn', title: rb ? tr('ההחזרה נעצרה בבקשתך') : tr('נעצר בבקשתך'), sub: counts };
-    case 'failed':
-      return { ...base, ...undo, ...retry, tone: 'error', title: rb ? tr('ההחזרה נעצרה במצלמה {pname}', { pname }) : tr('נעצר במצלמה {pname}', { pname }), sub: counts };
-    default:
-      return { ...base, ...undo, ...retry, tone: 'error', title: rb ? tr('ההחזרה נקטעה באמצע') : tr('השינוי נקטע באמצע'), sub: counts };
-  }
+  if (b.state === 'completed' && !unknownStop) return completedView(b, t, rb, { ...base, ...undo });
+  return stoppedView(b, rb, problem, pname, unknownStop, { ...base, ...undo, ...retry }, counts);
 }
 
 /** The toast after a batch that completed in front of the person. */

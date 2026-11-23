@@ -833,6 +833,126 @@ def _clip_unit(a: list[float], b: list[float]) -> tuple[float, float] | None:
     return (u0, u1) if u0 < u1 else None
 
 
+class _Recrop:
+    """One re-crop: the point maths from the old crop to the new one, and what the walk over the document found (dropped items, a
+    clamped point, a flattened arc, the walls that went and the cut spans of the walls that stayed)."""
+
+    def __init__(self, old_crop: Mapping[str, Any] | None, new_crop: Mapping[str, Any] | None) -> None:
+        self.oc = old_crop or {"x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0}
+        self.nc = new_crop or {"x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0}
+        self.dropped = 0
+        self.clamped = False
+        self.flattened = False
+        self.gone_walls: set[str] = set()
+        self.cuts: dict[str, tuple[float, float]] = {}
+
+    def move(self, p: Any) -> list[float]:  # not clamped: the cut or inside() decides first
+        oc, nc = self.oc, self.nc
+        sx, sy = oc["x"] + p[0] * oc["w"], oc["y"] + p[1] * oc["h"]
+        return [round((sx - nc["x"]) / nc["w"], 6), round((sy - nc["y"]) / nc["h"], 6)]
+
+    @staticmethod
+    def inside(p: list[float]) -> bool:
+        return 0.0 <= p[0] <= 1.0 and 0.0 <= p[1] <= 1.0
+
+    @staticmethod
+    def clamp(p: list[float]) -> list[float]:
+        return [min(1.0, max(0.0, p[0])), min(1.0, max(0.0, p[1]))]
+
+    @staticmethod
+    def point_at(a: list[float], b: list[float], u: float) -> list[float]:  # a cut end lies on the edge: float noise must not pass it
+        return _Recrop.clamp([round(a[0] + u * (b[0] - a[0]), 6), round(a[1] + u * (b[1] - a[1]), 6)])
+
+
+def _recrop_segment(w: dict[str, Any], line: list[Any], wid: Any, rc: _Recrop) -> bool:
+    """A two-point wall cut at the new crop's edges (Liang-Barsky); False when nothing of it is inside (dropped)."""
+    a, b = rc.move(line[0]), rc.move(line[1])
+    span = _clip_unit(a, b)
+    if span is None:
+        rc.dropped += 1
+        if isinstance(wid, str):
+            rc.gone_walls.add(wid)
+        return False
+    w["polyline"] = [rc.point_at(a, b, span[0]), rc.point_at(a, b, span[1])]
+    if span != (0.0, 1.0) and isinstance(wid, str):
+        rc.cuts[wid] = span
+    return True
+
+
+def _recrop_polyline(w: dict[str, Any], line: list[Any], wid: Any, rc: _Recrop) -> bool:
+    """A polyline by the per-point rule: dropped (False) when every point is outside, else the points outside are clamped."""
+    moved = [rc.move(p) if _finite_point(p) else p for p in line]
+    if line and all(_finite_point(p) for p in line) and not any(rc.inside(p) for p in moved):
+        rc.dropped += 1
+        if isinstance(wid, str):
+            rc.gone_walls.add(wid)
+        return False
+    kept = []
+    for m, p in zip(moved, line):
+        if _finite_point(p):
+            c = rc.clamp(m)
+            rc.clamped = rc.clamped or c != m
+            kept.append(c)
+        else:
+            kept.append(p)
+    w["polyline"] = kept
+    return True
+
+
+def _recrop_wall(w: Any, rc: _Recrop, can_sample: bool, ow: Any, oh: Any) -> bool:
+    """One wall through the re-crop (in place); False when it is dropped (nothing of it inside)."""
+    line = w.get("polyline") if isinstance(w, dict) else None
+    wid = w.get("id") if isinstance(w, dict) else None
+    if can_sample and isinstance(line, list) and len(line) >= 2 and all(_finite_point(p) for p in line) and wall_path.is_curved(w):
+        # a curved wall: a crop is a similarity in pixels, so the bulges hold while the whole arc stays inside;
+        # an arc the new crop cuts is flattened to its sampled path and takes the per-point rule below
+        sampled = wall_path.sampled_wall(w, ow, oh)
+        if all(rc.inside(rc.move(p)) for p in sampled):
+            w["polyline"] = [rc.move(p) for p in line]
+            return True
+        rc.flattened = True
+        w.pop("bulges", None)
+        line = w["polyline"] = [[round(p[0], 6), round(p[1], 6)] for p in sampled]
+    if isinstance(line, list) and len(line) == 2 and all(_finite_point(p) for p in line):
+        return _recrop_segment(w, line, wid, rc)
+    if isinstance(line, list):
+        return _recrop_polyline(w, line, wid, rc)
+    return True
+
+
+def _recrop_openings(openings: list[Any], rc: _Recrop) -> list[Any]:
+    """The openings that stay: an opening of a dropped wall goes; on a cut wall t follows the cut, and one that falls off it goes."""
+    kept = []
+    for o in openings:
+        wid = o.get("wall_id") if isinstance(o, dict) else None
+        if isinstance(wid, str) and wid in rc.gone_walls:
+            rc.dropped += 1
+            continue
+        if isinstance(wid, str) and wid in rc.cuts and _num(o.get("t")):
+            u0, u1 = rc.cuts[wid]
+            t = round((o["t"] - u0) / (u1 - u0), 6) + 0.0  # + 0.0: never a -0.0
+            if not 0.0 <= t <= 1.0:
+                rc.dropped += 1
+                continue
+            o["t"] = t
+        kept.append(o)
+    return kept
+
+
+def _recrop_labels(labels: list[Any], rc: _Recrop) -> list[Any]:
+    """The labels that stay (moved); a label outside the new crop goes, a malformed one stays as it is."""
+    kept = []
+    for lb in labels:
+        if isinstance(lb, dict) and _finite_point(lb.get("position")):
+            p = rc.move(lb["position"])
+            if not rc.inside(p):
+                rc.dropped += 1
+                continue
+            lb["position"] = rc.clamp(p)  # inside already: only turns a rounded -0.0 into 0.0
+        kept.append(lb)
+    return kept
+
+
 def transform_crop(doc: Mapping[str, Any], old_crop: Mapping[str, Any] | None, new_crop: Mapping[str, Any] | None) -> dict[str, Any]:
     """A re-crop of the same page: every point goes through the old crop to the page and back through the new one
     (the anchors' realign uses the same maths).
@@ -848,111 +968,25 @@ def transform_crop(doc: Mapping[str, Any], old_crop: Mapping[str, Any] | None, n
     A note says so when a point was clamped, another how many items were dropped (R-T7-2, reviews of 80249d1 and
     c6c35fc). A malformed polyline or position (wrong type, missing) is left exactly as it is rather than crashing the
     remap - it already failed validation and stays with the draft."""
-    oc = old_crop or {"x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0}
-    nc = new_crop or {"x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0}
-
-    def move(p: Any) -> list[float]:  # not clamped: the cut or inside() decides first
-        sx, sy = oc["x"] + p[0] * oc["w"], oc["y"] + p[1] * oc["h"]
-        return [round((sx - nc["x"]) / nc["w"], 6), round((sy - nc["y"]) / nc["h"], 6)]
-
-    def inside(p: list[float]) -> bool:
-        return 0.0 <= p[0] <= 1.0 and 0.0 <= p[1] <= 1.0
-
-    def clamp(p: list[float]) -> list[float]:
-        return [min(1.0, max(0.0, p[0])), min(1.0, max(0.0, p[1]))]
-
-    def point_at(a: list[float], b: list[float], u: float) -> list[float]:  # a cut end lies on the edge: float noise must not pass it
-        return clamp([round(a[0] + u * (b[0] - a[0]), 6), round(a[1] + u * (b[1] - a[1]), 6)])
-
+    rc = _Recrop(old_crop, new_crop)
     out = copy.deepcopy(dict(doc))
-    dropped = 0
-    clamped = False
-    flattened = False
-    gone_walls: set[str] = set()
-    cuts: dict[str, tuple[float, float]] = {}
     dims = out.get("dimensions") if isinstance(out.get("dimensions"), dict) else {}
     ow, oh = dims.get("width_px"), dims.get("height_px")
     can_sample = _num(ow) and ow > 0 and _num(oh) and oh > 0
     if isinstance(out.get("walls"), list):
-        walls = []
-        for w in out["walls"]:
-            line = w.get("polyline") if isinstance(w, dict) else None
-            wid = w.get("id") if isinstance(w, dict) else None
-            if can_sample and isinstance(line, list) and len(line) >= 2 and all(_finite_point(p) for p in line) and wall_path.is_curved(w):
-                # a curved wall: a crop is a similarity in pixels, so the bulges hold while the whole arc stays inside;
-                # an arc the new crop cuts is flattened to its sampled path and takes the per-point rule below
-                sampled = wall_path.sampled_wall(w, ow, oh)
-                if all(inside(move(p)) for p in sampled):
-                    w["polyline"] = [move(p) for p in line]
-                    walls.append(w)
-                    continue
-                flattened = True
-                w.pop("bulges", None)
-                line = w["polyline"] = [[round(p[0], 6), round(p[1], 6)] for p in sampled]
-            if isinstance(line, list) and len(line) == 2 and all(_finite_point(p) for p in line):
-                a, b = move(line[0]), move(line[1])
-                span = _clip_unit(a, b)
-                if span is None:
-                    dropped += 1
-                    if isinstance(wid, str):
-                        gone_walls.add(wid)
-                    continue
-                w["polyline"] = [point_at(a, b, span[0]), point_at(a, b, span[1])]
-                if span != (0.0, 1.0) and isinstance(wid, str):
-                    cuts[wid] = span
-            elif isinstance(line, list):
-                moved = [move(p) if _finite_point(p) else p for p in line]
-                if line and all(_finite_point(p) for p in line) and not any(inside(p) for p in moved):
-                    dropped += 1
-                    if isinstance(wid, str):
-                        gone_walls.add(wid)
-                    continue
-                kept = []
-                for m, p in zip(moved, line):
-                    if _finite_point(p):
-                        c = clamp(m)
-                        clamped = clamped or c != m
-                        kept.append(c)
-                    else:
-                        kept.append(p)
-                w["polyline"] = kept
-            walls.append(w)
-        out["walls"] = walls
-    if (gone_walls or cuts) and isinstance(out.get("openings"), list):
-        openings = []
-        for o in out["openings"]:
-            wid = o.get("wall_id") if isinstance(o, dict) else None
-            if isinstance(wid, str) and wid in gone_walls:
-                dropped += 1
-                continue
-            if isinstance(wid, str) and wid in cuts and _num(o.get("t")):
-                u0, u1 = cuts[wid]
-                t = round((o["t"] - u0) / (u1 - u0), 6) + 0.0  # + 0.0: never a -0.0
-                if not 0.0 <= t <= 1.0:
-                    dropped += 1
-                    continue
-                o["t"] = t
-            openings.append(o)
-        out["openings"] = openings
+        out["walls"] = [w for w in out["walls"] if _recrop_wall(w, rc, can_sample, ow, oh)]
+    if (rc.gone_walls or rc.cuts) and isinstance(out.get("openings"), list):
+        out["openings"] = _recrop_openings(out["openings"], rc)
     if isinstance(out.get("labels"), list):
-        labels = []
-        for lb in out["labels"]:
-            if isinstance(lb, dict) and _finite_point(lb.get("position")):
-                p = move(lb["position"])
-                if not inside(p):
-                    dropped += 1
-                    continue
-                lb["position"] = clamp(p)  # inside already: only turns a rounded -0.0 into 0.0
-            labels.append(lb)
-        out["labels"] = labels
+        out["labels"] = _recrop_labels(out["labels"], rc)
     unc = out.setdefault("uncertainty", {"overall": 0.5, "notes": []})
     notes = list(unc.get("notes", []))
-    if clamped:
+    if rc.clamped:
         notes.append("המבנה הועבר מגרסה עם חיתוך אחר; נקודות שמחוץ לחיתוך הוצמדו לשוליים.")
-    if flattened:
+    if rc.flattened:
         notes.append("קיר מעוגל שהחיתוך החדש חוצה הומר לקו שבור.")
-    if dropped:
-        notes.append(_dropped_note(dropped))
+    if rc.dropped:
+        notes.append(_dropped_note(rc.dropped))
     unc["notes"] = notes
     return out
 
@@ -1162,14 +1196,8 @@ class CandidateError(ValueError):
         self.ids = ids or []
 
 
-def merge_candidates(doc: Mapping[str, Any], candidates: Mapping[str, Any], accepted: list[str], edits: Mapping[str, Any] | None, replace_auto: bool,
-                     new_id_fn: Any = new_id) -> tuple[dict[str, Any], dict[str, Any]]:
-    """The accepted candidates merged into a copy of the draft (design 9.5): every candidate must carry a candidate id
-    ("auto-" / "imp-") and source; edits touch the editable fields only (never id, source or confidence); an accepted
-    opening's wall_id must be a string; with replace_auto the draft's unlocked items of the candidates' sources go first
-    (a removed wall takes its other openings with it, counted apart as removed_manual_openings; a locked wall keeps its
-    openings); an accepted opening needs its wall accepted or still in the draft; an accepted id that already exists in
-    the draft is re-issued and the openings pointing to it follow. Returns the merged document and the counts."""
+def _candidate_pool(candidates: Mapping[str, Any]) -> dict[str, tuple[str, dict[str, Any]]]:
+    """Every candidate by id with its collection (a copy): each must carry a candidate id ("auto-" / "imp-") and source, once."""
     pool: dict[str, tuple[str, dict[str, Any]]] = {}
     for coll in CANDIDATE_COLLECTIONS:
         for item in candidates.get(coll) or []:
@@ -1180,10 +1208,11 @@ def merge_candidates(doc: Mapping[str, Any], candidates: Mapping[str, Any], acce
             if item["id"] in pool:
                 raise CandidateError("duplicate_candidate", "אותו מועמד נשלח פעמיים.", [item["id"]])
             pool[item["id"]] = (coll, copy.deepcopy(item))
-    unknown = [i for i in accepted if i not in pool]
-    if unknown:
-        raise CandidateError("unknown_candidate", "מועמד שאושר לא נמצא בין המועמדים שנשלחו.", unknown)
-    chosen = {i: pool[i] for i in dict.fromkeys(accepted)}
+    return pool
+
+
+def _apply_edits(chosen: dict[str, tuple[str, dict[str, Any]]], edits: Mapping[str, Any] | None) -> None:
+    """The edits of the accepted candidates, editable fields only (never id, source or confidence)."""
     for cid, patch in (edits or {}).items():
         if cid in chosen and isinstance(patch, dict):
             coll, item = chosen[cid]
@@ -1194,39 +1223,42 @@ def merge_candidates(doc: Mapping[str, Any], candidates: Mapping[str, Any], acce
             if coll == "walls" and "polyline" in patch and "bulges" not in patch and isinstance(item.get("bulges"), list) \
                     and isinstance(item.get("polyline"), list) and len(item["bulges"]) != max(0, len(item["polyline"]) - 1):
                 del item["bulges"]
-    bad_hosts = [i for i, (coll, item) in chosen.items() if coll == "openings" and not isinstance(item.get("wall_id"), str)]
-    if bad_hosts:  # a list or a dict here would be unhashable below (review of ac60773)
-        raise CandidateError("candidate_shape", "לפתח חייב להיות מזהה קיר מסוג טקסט.", bad_hosts)
-    out = copy.deepcopy(dict(doc))
-    for coll in CANDIDATE_COLLECTIONS:
-        if not isinstance(out.get(coll), list):
-            out[coll] = []
+
+
+def _replace_auto(out: dict[str, Any], chosen: dict[str, tuple[str, dict[str, Any]]]) -> tuple[int, int]:
+    """replace_auto: the draft's items of the accepted candidates' sources go (in place); returns (removed, removed_manual_openings)."""
     removed = 0
     removed_manual_openings = 0
-    if replace_auto:
-        # the draft's items of the accepted candidates' sources go; a locked item (user-protected) stays, and so do the
-        # openings of a locked wall (openings carry no lock of their own)
-        sources = {item.get("source") for _c, item in chosen.values()}
+    # the draft's items of the accepted candidates' sources go; a locked item (user-protected) stays, and so do the
+    # openings of a locked wall (openings carry no lock of their own)
+    sources = {item.get("source") for _c, item in chosen.values()}
 
-        def _replaced(item: Any) -> bool:
-            return isinstance(item, dict) and item.get("source") in sources and item.get("locked") is not True
+    def _replaced(item: Any) -> bool:
+        return isinstance(item, dict) and item.get("source") in sources and item.get("locked") is not True
 
-        gone = {w.get("id") for w in out["walls"] if _replaced(w) and isinstance(w.get("id"), str)}
-        kept_walls = {w.get("id") for w in out["walls"] if isinstance(w, dict) and not _replaced(w) and isinstance(w.get("id"), str)}
-        for coll in ("walls", "objects"):
-            before = len(out[coll])
-            out[coll] = [i for i in out[coll] if not _replaced(i)]
-            removed += before - len(out[coll])
-        openings = []
-        for o in out["openings"]:
-            host = o.get("wall_id") if isinstance(o, dict) else None
-            if _replaced(o) and not (isinstance(host, str) and host in kept_walls):
-                removed += 1
-            elif isinstance(host, str) and host in gone:  # an opening of another source goes with its removed wall, as the editor's remove does
-                removed_manual_openings += 1
-            else:
-                openings.append(o)
-        out["openings"] = openings
+    gone = {w.get("id") for w in out["walls"] if _replaced(w) and isinstance(w.get("id"), str)}
+    kept_walls = {w.get("id") for w in out["walls"] if isinstance(w, dict) and not _replaced(w) and isinstance(w.get("id"), str)}
+    for coll in ("walls", "objects"):
+        before = len(out[coll])
+        out[coll] = [i for i in out[coll] if not _replaced(i)]
+        removed += before - len(out[coll])
+    openings = []
+    for o in out["openings"]:
+        host = o.get("wall_id") if isinstance(o, dict) else None
+        if _replaced(o) and not (isinstance(host, str) and host in kept_walls):
+            removed += 1
+        elif isinstance(host, str) and host in gone:  # an opening of another source goes with its removed wall, as the editor's remove does
+            removed_manual_openings += 1
+        else:
+            openings.append(o)
+    out["openings"] = openings
+    return removed, removed_manual_openings
+
+
+def _append_chosen(out: dict[str, Any], chosen: dict[str, tuple[str, dict[str, Any]]], new_id_fn: Any) -> tuple[dict[str, int], int]:
+    """The accepted candidates appended to the draft (in place): an accepted opening needs its wall accepted or still in the draft; an
+    accepted id that already exists in the draft is re-issued and the openings pointing to it follow. Returns the counts and how many
+    ids were re-issued."""
     existing = {item["id"] for coll in COLLECTIONS for item in out.get(coll) or [] if isinstance(item, dict) and isinstance(item.get("id"), str)}
     accepted_walls = {i for i, (coll, _item) in chosen.items() if coll == "walls"}
     orphans = [i for i, (coll, item) in chosen.items() if coll == "openings" and item.get("wall_id") not in accepted_walls and item.get("wall_id") not in existing]
@@ -1240,4 +1272,30 @@ def merge_candidates(doc: Mapping[str, Any], candidates: Mapping[str, Any], acce
             item["wall_id"] = remap[item["wall_id"]]
         out[coll].append(item)
         counts[coll] += 1
-    return out, {"accepted": counts, "removed_auto": removed, "removed_manual_openings": removed_manual_openings, "reided": len(remap)}
+    return counts, len(remap)
+
+
+def merge_candidates(doc: Mapping[str, Any], candidates: Mapping[str, Any], accepted: list[str], edits: Mapping[str, Any] | None, replace_auto: bool,
+                     new_id_fn: Any = new_id) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The accepted candidates merged into a copy of the draft (design 9.5): every candidate must carry a candidate id
+    ("auto-" / "imp-") and source; edits touch the editable fields only (never id, source or confidence); an accepted
+    opening's wall_id must be a string; with replace_auto the draft's unlocked items of the candidates' sources go first
+    (a removed wall takes its other openings with it, counted apart as removed_manual_openings; a locked wall keeps its
+    openings); an accepted opening needs its wall accepted or still in the draft; an accepted id that already exists in
+    the draft is re-issued and the openings pointing to it follow. Returns the merged document and the counts."""
+    pool = _candidate_pool(candidates)
+    unknown = [i for i in accepted if i not in pool]
+    if unknown:
+        raise CandidateError("unknown_candidate", "מועמד שאושר לא נמצא בין המועמדים שנשלחו.", unknown)
+    chosen = {i: pool[i] for i in dict.fromkeys(accepted)}
+    _apply_edits(chosen, edits)
+    bad_hosts = [i for i, (coll, item) in chosen.items() if coll == "openings" and not isinstance(item.get("wall_id"), str)]
+    if bad_hosts:  # a list or a dict here would be unhashable below (review of ac60773)
+        raise CandidateError("candidate_shape", "לפתח חייב להיות מזהה קיר מסוג טקסט.", bad_hosts)
+    out = copy.deepcopy(dict(doc))
+    for coll in CANDIDATE_COLLECTIONS:
+        if not isinstance(out.get(coll), list):
+            out[coll] = []
+    removed, removed_manual_openings = _replace_auto(out, chosen) if replace_auto else (0, 0)
+    counts, reided = _append_chosen(out, chosen, new_id_fn)
+    return out, {"accepted": counts, "removed_auto": removed, "removed_manual_openings": removed_manual_openings, "reided": reided}

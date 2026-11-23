@@ -37,15 +37,9 @@ def _size_ok(size: Any) -> bool:
     return isinstance(size, dict) and all(_num(size.get(k)) and MIN_SIZE_M <= size[k] <= MAX_SIZE_M for k in ("w_m", "d_m", "h_m")) and set(size) == {"w_m", "d_m", "h_m"}
 
 
-def check_item(item: Any, ids: set[str], *, builtin: bool) -> list[str]:
-    """Problems of one catalog item as "<id>: <what>" strings - the rules the file and a custom item share. `ids` collects
-    the ids seen so far (a duplicate is a problem). A custom item is checked without z_ref / params_schema / anchor_kinds /
-    ifc, which it takes from its base."""
-    if not isinstance(item, dict):
-        return ["item: not an object"]
+def _check_identity(item: dict[str, Any], tag: str, ids: set[str], out: list[str]) -> None:
+    """The id (shape, not seen before: then added to `ids`), the category, the names and the tags."""
     iid = item.get("id")
-    tag = iid if isinstance(iid, str) else "?"
-    out: list[str] = []
     if not isinstance(iid, str) or not ID_RE.match(iid):
         out.append(f"{tag}: id must match {ID_RE.pattern}")
     elif iid in ids:
@@ -62,6 +56,10 @@ def check_item(item: Any, ids: set[str], *, builtin: bool) -> list[str]:
     tags = item.get("tags", [])
     if not isinstance(tags, list) or len(tags) > MAX_TAGS or not all(isinstance(t, str) and 1 <= len(t) <= 40 for t in tags):
         out.append(f"{tag}: tags must be up to {MAX_TAGS} strings of 1..40 characters")
+
+
+def _check_body(item: dict[str, Any], tag: str, out: list[str]) -> None:
+    """The role, the shape, the size, the height, the params (a stepped shape's rows), the icon and the colour token."""
     if item.get("role") not in ROLES:
         out.append(f"{tag}: unknown role")
     if item.get("shape") not in SHAPES:
@@ -79,8 +77,11 @@ def check_item(item: Any, ids: set[str], *, builtin: bool) -> list[str]:
         out.append(f"{tag}: unknown icon")
     if item.get("color_token") not in COLOR_TOKENS:
         out.append(f"{tag}: unknown color_token")
-    # catalog 2026.10.1 (CR-029 S0, Plan Studio 6): optional realistic-3D fields - the item's material (an id of
-    # catalog/materials.json), a lamp's emission and whether the walk passes over the item (a mat, a stair, a tribune)
+
+
+def _check_realistic(item: dict[str, Any], tag: str, out: list[str]) -> None:
+    """Catalog 2026.10.1 (CR-029 S0, Plan Studio 6): optional realistic-3D fields - the item's material (an id of
+    catalog/materials.json), a lamp's emission and whether the walk passes over the item (a mat, a stair, a tribune)."""
     if "material_id" in item:
         from . import plan_studio6  # local: plan_studio6 imports plan_glass only, but keep the catalog importable alone
 
@@ -98,16 +99,35 @@ def check_item(item: Any, ids: set[str], *, builtin: bool) -> list[str]:
             out.append(f"{tag}: light is only for items of role light")
     if "walkable" in item and not isinstance(item["walkable"], bool):
         out.append(f"{tag}: walkable must be true or false")
+
+
+def _check_builtin_only(item: dict[str, Any], tag: str, out: list[str]) -> None:
+    """What a built-in item carries and a custom one takes from its base: z_ref, params_schema, anchor_kinds, ifc."""
+    if item.get("z_ref") not in Z_REFS:
+        out.append(f"{tag}: z_ref must be floor or ceiling")
+    if not isinstance(item.get("params_schema"), dict):
+        out.append(f"{tag}: params_schema must be an object")
+    if not isinstance(item.get("anchor_kinds"), list) or not all(isinstance(k, str) for k in item["anchor_kinds"]):
+        out.append(f"{tag}: anchor_kinds must be a list of domains")
+    ifc = item.get("ifc")
+    if not isinstance(ifc, dict) or not isinstance(ifc.get("class"), str) or not ifc["class"].startswith("Ifc"):
+        out.append(f"{tag}: ifc.class must name an Ifc class")
+
+
+def check_item(item: Any, ids: set[str], *, builtin: bool) -> list[str]:
+    """Problems of one catalog item as "<id>: <what>" strings - the rules the file and a custom item share. `ids` collects
+    the ids seen so far (a duplicate is a problem). A custom item is checked without z_ref / params_schema / anchor_kinds /
+    ifc, which it takes from its base."""
+    if not isinstance(item, dict):
+        return ["item: not an object"]
+    iid = item.get("id")
+    tag = iid if isinstance(iid, str) else "?"
+    out: list[str] = []
+    _check_identity(item, tag, ids, out)
+    _check_body(item, tag, out)
+    _check_realistic(item, tag, out)
     if builtin:
-        if item.get("z_ref") not in Z_REFS:
-            out.append(f"{tag}: z_ref must be floor or ceiling")
-        if not isinstance(item.get("params_schema"), dict):
-            out.append(f"{tag}: params_schema must be an object")
-        if not isinstance(item.get("anchor_kinds"), list) or not all(isinstance(k, str) for k in item["anchor_kinds"]):
-            out.append(f"{tag}: anchor_kinds must be a list of domains")
-        ifc = item.get("ifc")
-        if not isinstance(ifc, dict) or not isinstance(ifc.get("class"), str) or not ifc["class"].startswith("Ifc"):
-            out.append(f"{tag}: ifc.class must name an Ifc class")
+        _check_builtin_only(item, tag, out)
     return out
 
 

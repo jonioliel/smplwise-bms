@@ -88,42 +88,58 @@ export interface Chip {
   id: string;
 }
 
+/** A climate unit's mode / action chip and its setpoint (none while the unit is off). */
+function hvacChips(hv: NonNullable<TempUnit['hvac']>, out: Chip[]): void {
+  const h = hvacText(hv.hvac_mode, hv.hvac_action);
+  if (h) out.push({ tone: hv.hvac_mode === 'off' ? 'mut' : hv.hvac_action === 'heating' ? 'warn' : 'acc', icon: hv.hvac_mode === 'off' ? 'power' : hv.hvac_action === 'heating' ? 'flame' : 'snow', text: h, id: 'hvac' });
+  if (hv.setpoint !== null && hv.hvac_mode !== 'off') {
+    const sp = hv.hvac_mode === 'heat_cool' && hv.setpoint_low !== null && hv.setpoint_high !== null ? bidi(`${deg(hv.setpoint_low)}–${deg(hv.setpoint_high)}`) : degT(hv.setpoint);
+    out.push({ tone: 'mut', icon: 'target', text: tt('setpointChip', { v: sp }), id: 'setpoint' });
+  }
+}
+
+/** The door chip: unknown (stale or no reading), open for / closed for. */
+function doorChip(door: NonNullable<TempUnit['door']>, stale: boolean, now: number): Chip {
+  if (stale || door.open === null) return { tone: 'off', icon: 'door', text: tt('doorUnknown'), id: 'door' };
+  if (door.open) return { tone: 'doorOpen', icon: 'doorOpen', text: tt('doorOpenFor', { d: durationText(minutesSince(door.since, now)) }), id: 'door' };
+  return { tone: 'door', icon: 'door', text: tt('doorClosedFor', { d: durationText(minutesSince(door.since, now)) }), id: 'door' };
+}
+
+/** One open event's chip (a door alarm, an excursion with its "alarm in", an outage) and who acknowledged it. */
+function eventChips(e: TempEvent, now: number, out: Chip[]): void {
+  if (e.kind === 'door' && e.severity === 'alarm') {
+    out.push({ tone: 'err', icon: 'doorOpen', text: tt('doorAlarm', { d: durationText(minutesSince(e.started_at, now)), x: e.threshold ?? '' }), id: `ev-${e.id}` });
+  } else if (e.kind === 'high' || e.kind === 'low') {
+    const base = tt(e.kind === 'high' ? 'aboveFor' : 'belowFor', { v: degT(e.value), t: degT(e.threshold), d: durationText(minutesSince(e.started_at, now)) });
+    const left = e.severity === 'warning' && e.alarm_at ? Math.ceil((Date.parse(e.alarm_at) - now) / MIN) : null;
+    out.push({ tone: e.severity === 'alarm' ? 'err' : 'warn', icon: e.kind === 'high' ? 'arrowUp' : 'snow', text: left !== null && left > 0 ? `${base} · ${tt('alarmIn', { m: left })}` : base, id: `ev-${e.id}` });
+  } else if (e.kind === 'offline') {
+    out.push({ tone: 'off', icon: 'offline', text: tt('noReport', { d: durationText(minutesSince(e.started_at, now)) }), id: `ev-${e.id}` });
+  }
+  if (e.ack_at && e.ack_by_name && (e.severity === 'alarm' || e.severity === 'warning')) out.push({ tone: 'ok', icon: 'check', text: tt('ackedBy', { name: e.ack_by_name }), id: `ack-${e.id}` });
+}
+
+/** The defrost chip of a fresh unit: in the window, the next window (not while offline), or still learning; null otherwise. */
+function defrostChip(u: TempUnit, lang: string): Chip | null {
+  if (!u.stale && u.defrost.in_window) return { tone: 'acc', icon: 'snow', text: tt('inDefrost'), id: 'defrost' };
+  if (!u.stale && u.defrost.next_at && u.status !== 'offline') return { tone: 'acc', icon: 'snow', text: tt('nextDefrost', { t: hhmm(Date.parse(u.defrost.next_at), lang) }), id: 'defrost' };
+  if (!u.stale && u.defrost.mode === 'learn' && u.defrost.state === 'learning') return { tone: 'mut', icon: 'snow', text: tt('learning'), id: 'defrost' };
+  return null;
+}
+
 export function chipsOf(u: TempUnit, now: number, lang = uiLocale()): Chip[] {
   const out: Chip[] = [];
   const stale = u.stale;
-  if (u.hvac) {
-    const h = hvacText(u.hvac.hvac_mode, u.hvac.hvac_action);
-    if (h) out.push({ tone: u.hvac.hvac_mode === 'off' ? 'mut' : u.hvac.hvac_action === 'heating' ? 'warn' : 'acc', icon: u.hvac.hvac_mode === 'off' ? 'power' : u.hvac.hvac_action === 'heating' ? 'flame' : 'snow', text: h, id: 'hvac' });
-    if (u.hvac.setpoint !== null && u.hvac.hvac_mode !== 'off') {
-      const sp = u.hvac.hvac_mode === 'heat_cool' && u.hvac.setpoint_low !== null && u.hvac.setpoint_high !== null ? bidi(`${deg(u.hvac.setpoint_low)}–${deg(u.hvac.setpoint_high)}`) : degT(u.hvac.setpoint);
-      out.push({ tone: 'mut', icon: 'target', text: tt('setpointChip', { v: sp }), id: 'setpoint' });
-    }
-  }
-  if (u.door) {
-    if (stale || u.door.open === null) out.push({ tone: 'off', icon: 'door', text: tt('doorUnknown'), id: 'door' });
-    else if (u.door.open) out.push({ tone: 'doorOpen', icon: 'doorOpen', text: tt('doorOpenFor', { d: durationText(minutesSince(u.door.since, now)) }), id: 'door' });
-    else out.push({ tone: 'door', icon: 'door', text: tt('doorClosedFor', { d: durationText(minutesSince(u.door.since, now)) }), id: 'door' });
-  }
-  for (const e of u.events) {
-    if (e.kind === 'door' && e.severity === 'alarm') {
-      out.push({ tone: 'err', icon: 'doorOpen', text: tt('doorAlarm', { d: durationText(minutesSince(e.started_at, now)), x: e.threshold ?? '' }), id: `ev-${e.id}` });
-    } else if (e.kind === 'high' || e.kind === 'low') {
-      const base = tt(e.kind === 'high' ? 'aboveFor' : 'belowFor', { v: degT(e.value), t: degT(e.threshold), d: durationText(minutesSince(e.started_at, now)) });
-      const left = e.severity === 'warning' && e.alarm_at ? Math.ceil((Date.parse(e.alarm_at) - now) / MIN) : null;
-      out.push({ tone: e.severity === 'alarm' ? 'err' : 'warn', icon: e.kind === 'high' ? 'arrowUp' : 'snow', text: left !== null && left > 0 ? `${base} · ${tt('alarmIn', { m: left })}` : base, id: `ev-${e.id}` });
-    } else if (e.kind === 'offline') {
-      out.push({ tone: 'off', icon: 'offline', text: tt('noReport', { d: durationText(minutesSince(e.started_at, now)) }), id: `ev-${e.id}` });
-    }
-    if (e.ack_at && e.ack_by_name && (e.severity === 'alarm' || e.severity === 'warning')) out.push({ tone: 'ok', icon: 'check', text: tt('ackedBy', { name: e.ack_by_name }), id: `ack-${e.id}` });
-  }
+  if (u.hvac) hvacChips(u.hvac, out);
+  if (u.door) out.push(doorChip(u.door, stale, now));
+  for (const e of u.events) eventChips(e, now, out);
   // phase 3: the projection (idea 5), the maintenance window (idea 9), sensor health and suspected cooling faults (ideas 2, 6, 8), escalation
   if (!stale && u.prediction) out.push({ tone: 'warn', icon: u.prediction.side === 'high' ? 'arrowUp' : 'snow', text: tt('predictChip', { t: degT(u.prediction.threshold), m: u.prediction.eta_min }), id: 'predict' });
   if (u.maintenance) out.push({ tone: 'acc', icon: 'wrench', text: tt('maintChip', { t: hhmm(Date.parse(u.maintenance.until), lang) }), id: 'maint' });
   for (const c of healthChips(u, lang)) out.push(c);
   for (const e of u.events) if ((e.escalation_level ?? 0) > 0 && !e.ack_at) out.push({ tone: 'err', icon: 'bell', text: tt('escalatedChip', { n: e.escalation_level ?? 0 }), id: `esc-${e.id}` });
-  if (!stale && u.defrost.in_window) out.push({ tone: 'acc', icon: 'snow', text: tt('inDefrost'), id: 'defrost' });
-  else if (!stale && u.defrost.next_at && u.status !== 'offline') out.push({ tone: 'acc', icon: 'snow', text: tt('nextDefrost', { t: hhmm(Date.parse(u.defrost.next_at), lang) }), id: 'defrost' });
-  else if (!stale && u.defrost.mode === 'learn' && u.defrost.state === 'learning') out.push({ tone: 'mut', icon: 'snow', text: tt('learning'), id: 'defrost' });
+  const defrost = defrostChip(u, lang);
+  if (defrost) out.push(defrost);
   if (u.muted_until) out.push({ tone: 'mut', icon: 'bellOff', text: tt('mutedUntil', { t: hhmm(Date.parse(u.muted_until), lang) }), id: 'mute' });
   return out;
 }
