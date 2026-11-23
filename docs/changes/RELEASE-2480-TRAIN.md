@@ -92,4 +92,16 @@ train's own intermediate number.
 
 ## 6. Release gate
 
-Not started by this agent (the lead runs it).
+Gate 2 on the runner (`~/gate2/release_gate2.sh release/2480-train`), lead-run.
+
+| Run | Head | Mode | Wall | Verdict |
+|---|---|---|---|---|
+| 1 | 3bbb517ec | full (tier L) | 186 min | FAIL: 1 lint (pixel-sw-checkbox.spec.ts:234 geometry read without settle), stale tests from approved changes (layout-st7-ui, layout-update-screens, shoot-sched-polish-2331, evidence-notifications, evidence-sharedid-293, evidence-sharedui-295), the rest load (peak load 150; the default shard count starved memory) |
+| 2 | 5d5500fbc | targeted `--after` run 1 | 33 min | FAIL: 1 real - evidence-sharedid-293 still read a native input that HAND-SWITCH-2480 made an sw-toggle; 8 flaky passed alone |
+| 3 | 09acc2db4 | targeted `--after` run 2 | 17 min | **PASS** (0 hard, 0 test failures, 0 flaky) |
+
+- Fixes 55af8bc71, 5d5500fbc and 09acc2db4 change tests only; `frontend/src` and the backend are byte-identical to the UI rebuild 3bbb517ec, so the shipped `www` matches.
+- Spec lint (`scripts/gate/lint_spec_waits.py`) on the 7 changed spec files at 09acc2db4: 0 findings.
+- Run 2 was delayed about 3 h: leftover preview servers of a finished fix run held the slot-A lock; stopped with the owner's approval (23.11).
+- Later full runs use the memory-safe flags (`GATE_BACKEND_SHARDS=4 GATE_PW_SLOTS=8 GATE_PW_MAX_WORKERS=4`).
+- Reports: `~/smplwise-results/gate_release-2480-train_{3bbb517ec,5d5500fbc,09acc2db4}.gate2.md`.
