@@ -12823,5 +12823,389 @@
     "test_ids": [
       "AT-T068-EDGE-2450-1"
     ]
+  },
+  {
+    "id": "R-FLAKY-CAPTURE-SCREENSHOT-2490-1",
+    "title": "Find and fix the intermittent \"Unable to capture screenshot\" failure in the UI test runs",
+    "statement": "Find and fix the intermittent \"Unable to capture screenshot\" failure in the UI test runs: the cause of the occasional \"Unable to capture screenshot\" error is found and fixed or quarantined with a ticket; evidence from repeated runs is recorded.",
+    "task_ids": [
+      "FLAKY-CAPTURE-SCREENSHOT-2490"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FLAKY-CAPTURE-SCREENSHOT-2490-1"
+    ]
+  },
+  {
+    "id": "R-SHARED-CHECKBOX-2480-1",
+    "title": "Shared checkbox component for the checkboxes that remain checkboxes",
+    "statement": "Shared checkbox component for the checkboxes that remain checkboxes: one shared checkbox component gives the remaining checkboxes a uniform look; focus, RTL and pixel baselines are covered.",
+    "task_ids": [
+      "SHARED-CHECKBOX-2480"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-SHARED-CHECKBOX-2480-1"
+    ]
+  },
+  {
+    "id": "R-GEN-UNITS-FIELD-2490-1",
+    "title": "Generator settings: units move from the field label into the field frame",
+    "statement": "Generator settings: units move from the field label into the field frame: the generator settings show units inside the field frame like electricity and water; text changes exist in all 4 languages.",
+    "task_ids": [
+      "GEN-UNITS-FIELD-2490"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-GEN-UNITS-FIELD-2490-1"
+    ]
+  },
+  {
+    "id": "R-TICKETS-PAGING-2490-1",
+    "title": "Tickets table paging; case details stay a scrolling document",
+    "statement": "Tickets table paging; case details stay a scrolling document: the tickets table pages instead of scrolling; the case details window stays a scrolling document (permitted scroll); no urgency while the tickets module is off.",
+    "task_ids": [
+      "TICKETS-PAGING-2490"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-TICKETS-PAGING-2490-1"
+    ]
+  },
+  {
+    "id": "R-DOOR-TECH-HOLD-FIX-2480-1",
+    "title": "Door technician screen: hold buttons stay usable while the screen re-reads after a write",
+    "statement": "Door technician screen: hold buttons stay usable while the screen re-reads after a write: after a before/after comparison page is accepted by the owner, the hold buttons are no longer locked after each write during the re-read; delivered on the FLAKY-SWEEP-2480 line.",
+    "task_ids": [
+      "DOOR-TECH-HOLD-FIX-2480"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-DOOR-TECH-HOLD-FIX-2480-1"
+    ]
+  },
+  {
+    "id": "R-HAND-SWITCH-2480-1",
+    "title": "On/off checkboxes become switches (about 160 places in 80 files), including the terms (I agree) checkboxes",
+    "statement": "On/off checkboxes become switches (about 160 places in 80 files), including the terms (I agree) checkboxes: checkboxes that act as on/off switches become 32x18 switches as on the comparison page (152 before/after pairs), and the I agree terms checkboxes become switches too; RTL, phone and pixel baselines refreshed on the runner.",
+    "task_ids": [
+      "HAND-SWITCH-2480"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-HAND-SWITCH-2480-1"
+    ]
+  },
+  {
+    "id": "R-HAND-SWITCH-HOME-PERSONAL-2490-1",
+    "title": "Switches in the home \"personal\" card, after the home panel edit",
+    "statement": "Switches in the home \"personal\" card, after the home panel edit: the personal card of the home interface uses the new switches after the home panel edit lands, so the same file is not edited twice.",
+    "task_ids": [
+      "HAND-SWITCH-HOME-PERSONAL-2490"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-HAND-SWITCH-HOME-PERSONAL-2490-1"
+    ]
+  },
+  {
+    "id": "R-PHONE-SKIP-DESKTOP-SHOTS-2490-1",
+    "title": "The phone test run skips desktop-size screenshots, file by file",
+    "statement": "The phone test run skips desktop-size screenshots, file by file: the phone project skips the screenshots that are desktop-size only, decided per file, so tests are less flaky and faster.",
+    "task_ids": [
+      "PHONE-SKIP-DESKTOP-SHOTS-2490"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-PHONE-SKIP-DESKTOP-SHOTS-2490-1"
+    ]
+  },
+  {
+    "id": "R-SOAK-14H-2490-1",
+    "title": "14 hour soak on the test server after the 2.49.0 release checks",
+    "statement": "14 hour soak on the test server after the 2.49.0 release checks: a 14 hour soak runs on the test server with simulated devices and the new disk-full protections after the 2.49.0 release checks; results recorded; no lab contact.",
+    "task_ids": [
+      "SOAK-14H-2490"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P3",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-SOAK-14H-2490-1"
+    ]
+  },
+  {
+    "id": "R-LAB-V0-ROLE-2490-1",
+    "title": "Lab test account gets the lab system-admin role (owner action)",
+    "statement": "Lab test account gets the lab system-admin role (owner action): the owner gives the lab test account the system-admin role on the lab only, so lab checks 3, 5, 6 and 7 do not need file downloads.",
+    "task_ids": [
+      "LAB-V0-ROLE-2490"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-LAB-V0-ROLE-2490-1"
+    ]
+  },
+  {
+    "id": "R-LAB-V2-DRILLS-2490-1",
+    "title": "Disconnect drills a, b and c (V2) closed",
+    "statement": "Disconnect drills a, b and c (V2) closed: drill a (recorder network cable, 3 minutes), drill b (video service stop and restart) and drill c (home system disconnect) are closed as done.",
+    "task_ids": [
+      "LAB-V2-DRILLS-2490"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P3",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-LAB-V2-DRILLS-2490-1"
+    ]
+  },
+  {
+    "id": "R-LAB-V3-SEEK-2490-1",
+    "title": "Recordings player seek measurement in the lab (V3)",
+    "statement": "Recordings player seek measurement in the lab (V3): the owner plays yesterday's recording and skips to the 8 given hours with a screenshot per skip (about 35 minutes, read-only); results recorded redacted.",
+    "task_ids": [
+      "LAB-V3-SEEK-2490"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-LAB-V3-SEEK-2490-1"
+    ]
+  },
+  {
+    "id": "R-LAB-V4-FRIGATE-2490-1",
+    "title": "Frigate live test parts a and b (V4)",
+    "statement": "Frigate live test parts a and b (V4): part a (read-only cameras, events and recordings through the system) and part b (move a motorised camera to a saved position and back, special lab build) are NOT run.",
+    "task_ids": [
+      "LAB-V4-FRIGATE-2490"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P3",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-LAB-V4-FRIGATE-2490-1"
+    ]
+  },
+  {
+    "id": "R-LAB-V5-WISKEY-WRITE-2490-1",
+    "title": "Real WisKey write through the system, including a disabled test card (V5)",
+    "statement": "Real WisKey write through the system, including a disabled test card (V5): create a test person without a credential at an internal station, edit, switch off and on, add a disabled test card, delete at the end; no door can open; the owner picks the station and watches (about 30 minutes).",
+    "task_ids": [
+      "LAB-V5-WISKEY-WRITE-2490"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-LAB-V5-WISKEY-WRITE-2490-1"
+    ]
+  },
+  {
+    "id": "R-LAB-V6-LOG-EXPORT-2490-1",
+    "title": "Real log export and redaction check (V6)",
+    "statement": "Real log export and redaction check (V6): the redacted log file is exported and scanned for addresses, passwords, keys and serial numbers; the file stays in the private folder (10 minutes).",
+    "task_ids": [
+      "LAB-V6-LOG-EXPORT-2490"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-LAB-V6-LOG-EXPORT-2490-1"
+    ]
+  },
+  {
+    "id": "R-LAB-V7-ENGLISH-WALK-2490-1",
+    "title": "English UI walk in the lab (V7)",
+    "statement": "English UI walk in the lab (V7): an automated browser walks about 40 screens on desktop and phone read-only in English; the language is not saved for users (20 minutes).",
+    "task_ids": [
+      "LAB-V7-ENGLISH-WALK-2490"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-LAB-V7-ENGLISH-WALK-2490-1"
+    ]
+  },
+  {
+    "id": "R-MFA-STEPUP-TRAIN-2490-1",
+    "title": "Two-factor authentication train: step-up before sensitive actions, recovery codes, passkeys, attestation",
+    "statement": "Two-factor authentication train: step-up before sensitive actions, recovery codes, passkeys, attestation: the 2FA design is built as one train after 2.49.0 with the owner decisions; a SETTING can turn step-up off so 2FA is asked only at the initial login; the long token follows the decision below.",
+    "task_ids": [
+      "MFA-STEPUP-TRAIN-2490"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V3",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-MFA-STEPUP-TRAIN-2490-1"
+    ]
+  },
+  {
+    "id": "R-MULTI-BUILDING-NEXT-2490-1",
+    "title": "Multi-building next phase (safety first, then the home interface, then filtering and lobby)",
+    "statement": "Multi-building next phase (safety first, then the home interface, then filtering and lobby): floor move between buildings, a check before multi-building is switched on, the building selector of the home interface and the lobby screen follow the owner decisions; safety first.",
+    "task_ids": [
+      "MULTI-BUILDING-NEXT-2490"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-MULTI-BUILDING-NEXT-2490-1"
+    ]
+  },
+  {
+    "id": "R-HOME-INTERFACE-NEXT-2490-1",
+    "title": "Home interface next phase: rest screen, night mode, takeover, scenes, favourites",
+    "statement": "Home interface next phase: rest screen, night mode, takeover, scenes, favourites: the home interface gets a rest screen, night mode, the new-notice rule, tablet dimming, screen takeover, scene editing rights, favourites ordering and the post-scene suggestion as decided.",
+    "task_ids": [
+      "HOME-INTERFACE-NEXT-2490"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-HOME-INTERFACE-NEXT-2490-1"
+    ]
+  },
+  {
+    "id": "R-NATIVE-SELECT-B-2480-1",
+    "title": "Remaining 241 selects moved to the shared field in design-stripping mode (dropped)",
+    "statement": "Remaining 241 selects moved to the shared field in design-stripping mode (dropped): dropped by the owner: the branch changes nothing on screen and only lowers the technical-debt counter.",
+    "task_ids": [
+      "NATIVE-SELECT-B-2480"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P3",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-NATIVE-SELECT-B-2480-1"
+    ]
+  },
+  {
+    "id": "R-COLOR-LITERAL-A-2480-1",
+    "title": "Colour-literal ratchet A: device palettes file out of the count; shared video text-shadow colour variable now",
+    "statement": "Colour-literal ratchet A: device palettes file out of the count; shared video text-shadow colour variable now: the device palettes file is excluded from the colour-literal count; the video text shadow gets a shared colour variable NOW; no pixel change.",
+    "task_ids": [
+      "COLOR-LITERAL-A-2480"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-COLOR-LITERAL-A-2480-1"
+    ]
+  },
+  {
+    "id": "R-COLOR-LITERAL-B-2480-1",
+    "title": "Colour-literal ratchet B: skip the module palette tables (about 830 colours)",
+    "statement": "Colour-literal ratchet B: skip the module palette tables (about 830 colours): the module palette tables are skipped by the colour-literal count so the number shows the real debt.",
+    "task_ids": [
+      "COLOR-LITERAL-B-2480"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-COLOR-LITERAL-B-2480-1"
+    ]
+  },
+  {
+    "id": "R-I18N-DEFAULT-NAMES-2490-1",
+    "title": "English: default names saved on the server (such as \"(copy)\") are translated at creation",
+    "statement": "English: default names saved on the server (such as \"(copy)\") are translated at creation: server-saved default names are translated at creation time; later comparisons that used the Hebrew name still work.",
+    "task_ids": [
+      "I18N-DEFAULT-NAMES-2490"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-I18N-DEFAULT-NAMES-2490-1"
+    ]
+  },
+  {
+    "id": "R-I18N-SETTINGS-KEYWORDS-2490-1",
+    "title": "English: add English search keywords to the settings search",
+    "statement": "English: add English search keywords to the settings search: settings search keywords exist in English so an English search finds settings, not only labels.",
+    "task_ids": [
+      "I18N-SETTINGS-KEYWORDS-2490"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-I18N-SETTINGS-KEYWORDS-2490-1"
+    ]
   }
 ]

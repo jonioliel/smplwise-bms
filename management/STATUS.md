@@ -1,27 +1,27 @@
 # Project status — generated view
 
-Generated: 2026-11-19T07:27:28.790258+00:00
+Generated: 2026-11-23T07:24:24.487604+00:00
 
-Tasks: 623 | Requirements: 737 | Tests: 754 | Screens: 32
+Tasks: 647 | Requirements: 761 | Tests: 778 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DONE; READY, IN_PROGRESS, VALIDATION and DONE need every dependency DONE. OBSOLETE cards are BLOCKED with a blocker starting "Excluded - OBSOLETE" and an EXCLUDED evidence line (the registry has no OBSOLETE status); a dependency on an OBSOLETE card counts as satisfied under every rule (BOARD-DECISIONS-2407, owner decision 2026-11-07).
 
 ## Status counts
-- BACKLOG: 8
-- BLOCKED: 23
-- DONE: 208
-- IN_PROGRESS: 11
-- REVIEW: 373
+- BACKLOG: 24
+- BLOCKED: 27
+- DONE: 275
+- IN_PROGRESS: 15
+- REVIEW: 306
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 529
+- V1: 552
 - V2: 29
-- V3: 2
+- V3: 3
 
 ## Blockers
 - T003: Excluded - OBSOLETE by owner decision 2026-11-05 (round 22, Q2 = א on the BOARD-HYGIENE-2403 candidates; relayed by the coordinator, no written answers file): superseded by the owner's exclusion of 2026-09-22 (docs/architecture/DECISIONS.md. Not to be worked; the card is kept.
@@ -40,6 +40,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - REAL-TV-SESSION-2380: Waits for the owner (question Q2: a lab TV in a joint session this week, an Android TV box only, or fix blind); TV-FIT-2380 shipped in 2.38.0 (merge 571891e9d).
 - CAST-FIRST-TEST-2380: A device action needs the owner's explicit approval (question Q9: approve one camera to one lab TV in a joint session, or later).
 - WISKEY-SVC-GRANT-2400: Waits for WisKey: a writer for native_service_grants_v1 on a manual install (plan section 5, Q-WK-4).
+- WISKEY-ACTIVATION-RUNBOOK-0411: Excluded - OBSOLETE by owner decision 2026-11-22 (Q83 = defer as obsolete; owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)): the 04.11 joint-session runbook was never run or merged and a general activation runbook now exists. Not to be worked; the card is kept.
 - WISKEY-LISTEN-2410: Waits for WisKey: the standalone listen downlink contract (plan section 5, Q-WK-5).
 - WISKEY-EMERGENCY-LOCK-2410: Waits for WisKey: emergency secure support (today emergency_secure_unsupported_v1; plan section 5, Q-WK-7).
 - WISKEY-RING-STATION-2410: Waits for WisKey and a device investigation: can the station be rung from the operator side (plan section 5, Q-WK-6).
@@ -47,6 +48,9 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - OWNER-LAB-ACTIONS-0411: Owner actions on the lab installation and devices (Arx has no write permission for them).
 - LAB-CHECKS-2412: Owner action on the lab installation (manual checks; Arx agents have no lab or device access for this). Not a code blocker.
 - PRIVATE-REPO-2412: Owner decision pending: the private repository plan questions (hosting, what stays public, history handling) are open with the owner.
+- LAB-V0-ROLE-2490: Owner action on the lab installation: assign the lab system-admin role to the lab test account (Arx agents do not change HA users or roles).
+- LAB-V4-FRIGATE-2490: Owner 22.11 (Q39, Q40): not now. Part b also needs a motorised camera and a special lab build with PTZ on.
+- NATIVE-SELECT-B-2480: Excluded - OBSOLETE by owner decision 2026-11-22 (Q9 = drop the branch; owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)): the 241 selects moved only in a mode that strips the shared field's design, so nothing changes on screen and only the debt counter fell. Not to be worked; the card is kept.
 
 ## Backlog
 | ID | Phase | Status | Task | Depends on |
@@ -149,7 +153,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [T096](tasks/T096.md) | V1 | BLOCKED | התראות באפליקציית Android (CR-012) — השכמת FCM דרך ממסר, חלופת UnifiedPush | T092 |
 | [T097](tasks/T097.md) | V1 | REVIEW | חלל משותף לשתי קומות (CR-009) — אולם בגובה כפול, שלם בכל קומה | T085 |
 | [T098](tasks/T098.md) | V1 | DONE | מולטימדיה - מסכים ושלט (CR-015): מסך המסכים, השלט, כרטיסי מדיה באזורים ובמסך הראשי | — |
-| [T099](tasks/T099.md) | V1 | REVIEW | מולטימדיה שלב 2 - נגנים, רמקולים וקבוצות (CR-016): כרטיסים, חלונית נגן, קבוצות, מועדפים ותחנות | — |
+| [T099](tasks/T099.md) | V1 | DONE | מולטימדיה שלב 2 - נגנים, רמקולים וקבוצות (CR-016): כרטיסים, חלונית נגן, קבוצות, מועדפים ותחנות | — |
 | [T100](tasks/T100.md) | V1 | DONE | אוטומציות, סצנות וסקריפטים (CR-017): צפייה, הרצה, בונה בעברית, שמירה בטוחה דרך רכיב החיבור | — |
 | [T101](tasks/T101.md) | V1 | DONE | התראות (CR-018): מרכז התראות אחד, מקורות מובנים, Push וטלפונים, העדפות אישיות, אישור והסלמה | — |
 | [T102](tasks/T102.md) | V1 | DONE | תזמונים (CR-014): מסך תזמונים מעל רכיב התזמונים, הרשאות, ביטול ושחזור, אימות חי במעבדה | — |
@@ -164,7 +168,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [T111](tasks/T111.md) | V1 | REVIEW | עדכון והפעלה מחדש מתוך Arx (CR-021): בדיקת גרסה, עדכון באישור אחד, מסך מצב ששורד הפעלה מחדש | — |
 | [T112](tasks/T112.md) | V1 | DONE | חיבור ה-NVR בתוך Arx (CR-022): סוג NVR, בדיקת חיבור לקריאה בלבד, שמירה מוצפנת, הפעלה מחדש | — |
 | [T113](tasks/T113.md) | V1 | DONE | מוני חשמל וחיובי צריכה (CR-023): מונים, חשבונות, תעו״ז, קריאות ידניות וכיול, PDF | — |
-| [T114](tasks/T114.md) | V1 | REVIEW | וריאנטים נוספים לסקין בועה (BV1): אריחי שעון ומזג אוויר, יומן, משגר מהיר, מחוונים אנכיים, מראה בלי משטח | — |
+| [T114](tasks/T114.md) | V1 | DONE | וריאנטים נוספים לסקין בועה (BV1): אריחי שעון ומזג אוויר, יומן, משגר מהיר, מחוונים אנכיים, מראה בלי משטח | — |
 | [T115](tasks/T115.md) | V1 | DONE | בחירת מצלמות להשוואה כתפריט נפתח (CMP1 / CMP2): הקלטות › השוואה וניגון מסונכרן | — |
 | [T116](tasks/T116.md) | V1 | REVIEW | מקליטי Frigate (CR-029, NN5): צפייה וניגון (F1) ושליטה מוגנת (F2), כבוי כברירת מחדל | — |
 | [T117](tasks/T117.md) | V1 | REVIEW | הכרזות קוליות (MU2): השמעת שורה מוקלדת ברמקולים מותרים, מגבלות קצב, יומן | — |
@@ -178,11 +182,11 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [WXD5B](tasks/WXD5B.md) | V1 | BLOCKED | WisKey CR-033: Bridge door_open / door_open_status | WXH1, WXD4 |
 | [WXD6](tasks/WXD6.md) | V1 | DONE | WisKey CR-033: WisKey locks without lock.lock / lock-all | WXD1 |
 | [WXD7](tasks/WXD7.md) | V1 | DONE | WisKey CR-033: Read-only door-path inventory and report | WXD1 |
-| [WXD7R](tasks/WXD7R.md) | V1 | REVIEW | WisKey CR-033: Owner-approved inventory read on the installation | WXD7 |
+| [WXD7R](tasks/WXD7R.md) | V1 | DONE | WisKey CR-033: Owner-approved inventory read on the installation | WXD7 |
 | [WXD8](tasks/WXD8.md) | V1 | DONE | WisKey CR-033: Editor block setting (default blocked) | WXD7 |
 | [WXD9](tasks/WXD9.md) | V1 | DONE | WisKey CR-033: Run guard for Arx-started runs (R-17) | WXD4, WXD7 |
-| [WXD10A](tasks/WXD10A.md) | V1 | REVIEW | WisKey CR-033: Arx event door jobs (M1), disable-and-list | WXD9, WXD7R |
-| [WXD10B](tasks/WXD10B.md) | V1 | REVIEW | WisKey CR-033: Hold-open program hand-over (M3) | WXD9, WXD7R |
+| [WXD10A](tasks/WXD10A.md) | V1 | DONE | WisKey CR-033: Arx event door jobs (M1), disable-and-list | WXD9, WXD7R |
+| [WXD10B](tasks/WXD10B.md) | V1 | DONE | WisKey CR-033: Hold-open program hand-over (M3) | WXD9, WXD7R |
 | [WXD11](tasks/WXD11.md) | V1 | REVIEW | WisKey CR-033: Door-path gate T1..T26 on fakes | WXD0, WXD1, WXD2, WXD3, WXD4, WXD5A, WXD5B, WXD6, WXD7, WXD7R, WXD8, WXD9, WXD10A, WXD10B |
 | [WXG0](tasks/WXG0.md) | V1 | BLOCKED | WisKey CR-034: Merge WX3 gate tool to main | — |
 | [WXG1](tasks/WXG1.md) | V1 | BLOCKED | WisKey CR-034: Gate: impact block, exit 5, gate:allow | WXG0 |
@@ -222,7 +226,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [SETPOL](tasks/SETPOL.md) | V1 | DONE | Settings polish: navigation column with search, shared style, switch colour as accent | — |
 | [MEDPOL](tasks/MEDPOL.md) | V1 | DONE | Multimedia, notification centre and electricity charts polish (incl. meter column bug) | — |
 | [KIOPOL](tasks/KIOPOL.md) | V1 | DONE | Wall, kiosk and PWA polish: distance legibility, burn-in, touch | — |
-| [FLAKY](tasks/FLAKY.md) | V1 | REVIEW | Stabilise flaky backend and frontend tests (15 of 16) | — |
+| [FLAKY](tasks/FLAKY.md) | V1 | DONE | Stabilise flaky backend and frontend tests (15 of 16) | — |
 | [FLOORSTRIP](tasks/FLOORSTRIP.md) | V1 | REVIEW | One floor switcher in the 3D view (duplicate floor strip fix) | — |
 | [BILLSTART](tasks/BILLSTART.md) | V1 | DONE | Electricity bill start-reading bug | — |
 | [ST7L](tasks/ST7L.md) | V2 | REVIEW | Plan Studio 6 look development: two rounds, LOOK_SPEC and CC0 assets | — |
@@ -309,25 +313,25 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [WHOIN034-295](tasks/WHOIN034-295.md) | V1 | DONE | Who is in the building (board r034) and the geofence / beacon / Wi-Fi editors on screen (board r035), 2.16.0 | — |
 | [GATEAUDIT-297](tasks/GATEAUDIT-297.md) | V1 | REVIEW | Gate audit and cleanup: classify the repeatedly failing / flaky / obsolete tests of the last 35 gate and nightly runs, remove duplicates, fix the bubble-freeze leftovers, re-take stale visual baselines, refresh the gate baselines | — |
 | [GATELANES-297](tasks/GATELANES-297.md) | V1 | REVIEW | Gate lanes: pixel baselines for classic + domus only (tesla / crystal get a structural smoke), archive the September owner-round live specs, a non-blocking timing lane for the wall-clock tests | — |
-| [WISKEYA06-297](tasks/WISKEYA06-297.md) | V1 | REVIEW | WisKey A06 (T06, W-031, board r152): identity source + role + scope -> admission, working-state mapping (fakes) | — |
+| [WISKEYA06-297](tasks/WISKEYA06-297.md) | V1 | DONE | WisKey A06 (T06, W-031, board r152): identity source + role + scope -> admission, working-state mapping (fakes) | — |
 | [EXTERNALBUILD-297](tasks/EXTERNALBUILD-297.md) | V1 | DONE | External access built to full scope (X0-X6 of EXTERNALSPEC-297 + one-time code + CR-VISITOR105 visitors), fakes only, OFF by default | — |
-| [DOORWRITE-297](tasks/DOORWRITE-297.md) | V1 | REVIEW | Door-window program written from Arx to WisKey (board r129): validate, read-back proof, drift, retries, dry run, write again | — |
+| [DOORWRITE-297](tasks/DOORWRITE-297.md) | V1 | DONE | Door-window program written from Arx to WisKey (board r129): validate, read-back proof, drift, retries, dry run, write again | — |
 | [XSECFIX-297](tasks/XSECFIX-297.md) | V1 | DONE | Security review 2026-10-27 (phone apps): the four medium findings M1-M4 - presence gate exact match, device credentials end on sign-out, failure limiter per source, arx://open waits for the app lock | — |
-| [MOTIONSETTING-297](tasks/MOTIONSETTING-297.md) | V1 | REVIEW | Motion setting ui.motion (auto | full | reduced), separate from the skin and the scheme | — |
-| [SPLITSWITCH2-297](tasks/SPLITSWITCH2-297.md) | V1 | REVIEW | Emergency-buttons switch is a setting (owner q48): default on, admin-only, audited, confirmed when turned off; a gate on the build flags, never an activation | — |
+| [MOTIONSETTING-297](tasks/MOTIONSETTING-297.md) | V1 | DONE | Motion setting ui.motion (auto | full | reduced), separate from the skin and the scheme | — |
+| [SPLITSWITCH2-297](tasks/SPLITSWITCH2-297.md) | V1 | DONE | Emergency-buttons switch is a setting (owner q48): default on, admin-only, audited, confirmed when turned off; a gate on the build flags, never an activation | — |
 | [CURVEDGATE-297](tasks/CURVEDGATE-297.md) | V1 | DONE | Curved walls stage 1a: the two live curved-wall browser specs (evidence-curved-walls, evidence-curve-points) join the release gate's fixture phase | — |
 | [XSECFOLLOW-297](tasks/XSECFOLLOW-297.md) | V1 | DONE | Security review 2026-10-27 follow-ups of XSECFIX-297: the presence block on WebSockets, phone credentials end on a password change / reset and a forced second factor, ?do=run and Android tests | — |
 | [SUPPLIERDOCS-297](tasks/SUPPLIERDOCS-297.md) | V1 | DONE | Supplier certificate reading, slice 1: text-layer PDFs into proposed fields decided field by field (OFF by default, PROVISIONAL on owner questions q52-q56) | — |
 | [SUPPLIERDOCS2-297](tasks/SUPPLIERDOCS2-297.md) | V1 | DONE | Supplier documents: migration renumbered to 0182 after release/2241, merge of release/2241, security review with fixes F1-F3 and F6 | — |
 | [CALENDARS-UI-2310](tasks/CALENDARS-UI-2310.md) | V1 | DONE | Calendars UI: booking calendars, approvals, maintenance calendar, resident view, sync settings (owner answers 30.10) | — |
 | [TEMPREPORT-2310](tasks/TEMPREPORT-2310.md) | V1 | DONE | Temperature report: security review and hardening of the report link and WhatsApp send | — |
-| [WORSTCASE-2310](tasks/WORSTCASE-2310.md) | V1 | REVIEW | Worst-case data on the main screens: long names, empty states, huge counts, no scrolling | — |
+| [WORSTCASE-2310](tasks/WORSTCASE-2310.md) | V1 | DONE | Worst-case data on the main screens: long names, empty states, huge counts, no scrolling | — |
 | [POLISH-PHONE-2310](tasks/POLISH-PHONE-2310.md) | V1 | REVIEW | Phone layer polish: chips and switch hit areas | — |
 | [ENTRY-CHECK-2310](tasks/ENTRY-CHECK-2310.md) | V1 | REVIEW | Gate: runner entry check before a release train + 7-day quarantine list | — |
 | [WISKEY-RC4-2310](tasks/WISKEY-RC4-2310.md) | V1 | DONE | WisKey rc.4 adoption + rc.5 host check (deadline fix, migration 0186, relay-by-door fix) | — |
-| [PRESENCE-COMPACT-2310](tasks/PRESENCE-COMPACT-2310.md) | V1 | REVIEW | Presence card: compact redesign (owner rejected the tall card 30.10) | — |
-| [COORD-DOCS-2310](tasks/COORD-DOCS-2310.md) | V1 | REVIEW | Multi-Claude coordination protocol as documents and an optional tool | — |
-| [LICENSE-2310](tasks/LICENSE-2310.md) | V1 | REVIEW | Proprietary all-rights-reserved licence notice; internal review notes untracked | — |
+| [PRESENCE-COMPACT-2310](tasks/PRESENCE-COMPACT-2310.md) | V1 | DONE | Presence card: compact redesign (owner rejected the tall card 30.10) | — |
+| [COORD-DOCS-2310](tasks/COORD-DOCS-2310.md) | V1 | DONE | Multi-Claude coordination protocol as documents and an optional tool | — |
+| [LICENSE-2310](tasks/LICENSE-2310.md) | V1 | DONE | Proprietary all-rights-reserved licence notice; internal review notes untracked | — |
 | [DEPAUDIT-2310](tasks/DEPAUDIT-2310.md) | V1 | REVIEW | Dependency, licence and secrets audit refreshed for v2.29.0 | — |
 | [TASKS-SYNC-3110](tasks/TASKS-SYNC-3110.md) | V1 | REVIEW | Task registry matched to the code history after 2.29.0 | — |
 | [A11Y-2310](tasks/A11Y-2310.md) | V1 | DONE | The shared dialog keeps the keyboard focus inside its box | — |
@@ -338,15 +342,15 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [ADDON-IMAGE-BUILD-FIXES-2311](tasks/ADDON-IMAGE-BUILD-FIXES-2311.md) | V1 | REVIEW | Add-on image build fixes in 2.31.1 and 2.33.3 | — |
 | [PUBSURF-2310](tasks/PUBSURF-2310.md) | V1 | DONE | Public surfaces re-check before document links; module gate and CDN no-store on document answers | — |
 | [TEMPLINK-2320](tasks/TEMPLINK-2320.md) | V1 | DONE | Report links: revoke on user deactivation, per-sender daily limit | — |
-| [UIPOLISH-2320](tasks/UIPOLISH-2320.md) | V1 | REVIEW | Phone switch 44 px touch target and readable dark-mode muted text | — |
+| [UIPOLISH-2320](tasks/UIPOLISH-2320.md) | V1 | DONE | Phone switch 44 px touch target and readable dark-mode muted text | — |
 | [LEGAL-WKMIT-2320](tasks/LEGAL-WKMIT-2320.md) | V1 | REVIEW | Licence notice of the WisKey embed reference client (MIT) ships with the product | — |
-| [PROVISION-BACKCHANNEL-2320](tasks/PROVISION-BACKCHANNEL-2320.md) | V1 | REVIEW | Provision-ISR live and playback: video-only stream request, talk-back as a recorder setting | — |
+| [PROVISION-BACKCHANNEL-2320](tasks/PROVISION-BACKCHANNEL-2320.md) | V1 | DONE | Provision-ISR live and playback: video-only stream request, talk-back as a recorder setting | — |
 | [SWITCH-AS-LIGHT-2321](tasks/SWITCH-AS-LIGHT-2321.md) | V1 | DONE | A switch typed as a light counts and acts as lighting | — |
 | [SYN-COLUMNS-2321](tasks/SYN-COLUMNS-2321.md) | V1 | DONE | Synoptic map hides columns without a data source; custom board columns | — |
 | [CAL-SWITCH-REACH-2321](tasks/CAL-SWITCH-REACH-2321.md) | V1 | DONE | Calendars module switch reachable while the module is off | — |
 | [MULTIBUILDING-HOME-2330](tasks/MULTIBUILDING-HOME-2330.md) | V1 | DONE | Multi-building home: site level, building cards, building switch, shared building | — |
-| [MAPPING-ASSIST-2330](tasks/MAPPING-ASSIST-2330.md) | V1 | REVIEW | Mapping assistant: which home-system name belongs to which building | — |
-| [CALCONNECT-2330](tasks/CALCONNECT-2330.md) | V1 | REVIEW | External calendar connections: iCal subscription, Google Calendar, Microsoft 365 / Outlook | — |
+| [MAPPING-ASSIST-2330](tasks/MAPPING-ASSIST-2330.md) | V1 | DONE | Mapping assistant: which home-system name belongs to which building | — |
+| [CALCONNECT-2330](tasks/CALCONNECT-2330.md) | V1 | DONE | External calendar connections: iCal subscription, Google Calendar, Microsoft 365 / Outlook | — |
 | [SWITCH-LIGHT-DIMMER-2331](tasks/SWITCH-LIGHT-DIMMER-2331.md) | V1 | DONE | No dimmer on on/off lights; switches in the synoptic lights column; floor lights popup | — |
 | [EVENTS-POLISH-2331](tasks/EVENTS-POLISH-2331.md) | V1 | DONE | Event centre polish (Security > Investigate > Events) | — |
 | [SETTINGS-TABS-SCROLL-2331](tasks/SETTINGS-TABS-SCROLL-2331.md) | V1 | DONE | Scroll arrows, wheel, swipe and keys for long tab strips | — |
@@ -354,10 +358,10 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [AZIA-LIVE-2331](tasks/AZIA-LIVE-2331.md) | V1 | REVIEW | Provision-ISR live video steadier on a full wall of cameras | — |
 | [SEGFAULT-PLAYBACK-2332](tasks/SEGFAULT-PLAYBACK-2332.md) | V1 | DONE | The add-on recovers by itself after a crash during recorded-playback scrubbing | — |
 | [OWNER-R12-2341](tasks/OWNER-R12-2341.md) | V1 | REVIEW | Owner answers of 01.11 (round 12): wording, unassigned section, tablet side panel | — |
-| [POLISH-LEFTOVERS-2341](tasks/POLISH-LEFTOVERS-2341.md) | V1 | REVIEW | Three leftovers of the 2.33.1 polish round | — |
-| [LIVE-H265-2341](tasks/LIVE-H265-2341.md) | V1 | REVIEW | Live video of H.265 cameras in browsers that cannot decode H.265 | — |
+| [POLISH-LEFTOVERS-2341](tasks/POLISH-LEFTOVERS-2341.md) | V1 | DONE | Three leftovers of the 2.33.1 polish round | — |
+| [LIVE-H265-2341](tasks/LIVE-H265-2341.md) | V1 | DONE | Live video of H.265 cameras in browsers that cannot decode H.265 | — |
 | [NVR-H264-BULK-2341](tasks/NVR-H264-BULK-2341.md) | V1 | DONE | Switch every camera stream to H.264 from the UI; per-recorder NVR writes switch | — |
-| [SHARED-POLISH-2342](tasks/SHARED-POLISH-2342.md) | V1 | REVIEW | Shared-layer proposals of the design-polish round | — |
+| [SHARED-POLISH-2342](tasks/SHARED-POLISH-2342.md) | V1 | DONE | Shared-layer proposals of the design-polish round | — |
 | [TICKETS-POLISH-2331](tasks/TICKETS-POLISH-2331.md) | V1 | DONE | Service requests: one compact toolbar for the list and the manager board | — |
 | [TKSET-POLISH-2331](tasks/TKSET-POLISH-2331.md) | V1 | REVIEW | Service request settings and side screens polish | — |
 | [DEVICES-POLISH-2331](tasks/DEVICES-POLISH-2331.md) | V1 | REVIEW | Layout editor, device controls and automations screen polish | — |
@@ -367,72 +371,72 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [WKWATER-POLISH-2331](tasks/WKWATER-POLISH-2331.md) | V1 | DONE | WisKey stations and water pages polish (wave 3) | — |
 | [LOOK-POLISH-2331](tasks/LOOK-POLISH-2331.md) | V1 | DONE | Look and branding settings polish (wave 2, part A) | — |
 | [CAMADMIN-POLISH-2331](tasks/CAMADMIN-POLISH-2331.md) | V1 | REVIEW | Camera administration polish (wave 3) | — |
-| [SCHED-POLISH-2331](tasks/SCHED-POLISH-2331.md) | V1 | REVIEW | Automations and schedules administration polish (wave 3) | — |
+| [SCHED-POLISH-2331](tasks/SCHED-POLISH-2331.md) | V1 | DONE | Automations and schedules administration polish (wave 3) | — |
 | [INVREST-POLISH-2331](tasks/INVREST-POLISH-2331.md) | V1 | DONE | Investigation leftovers polish (cases, one case, exports, event page) | — |
-| [INSIGHTS-POLISH-2331](tasks/INSIGHTS-POLISH-2331.md) | V1 | REVIEW | Insights and infrastructure reports polish (wave 3) | — |
+| [INSIGHTS-POLISH-2331](tasks/INSIGHTS-POLISH-2331.md) | V1 | DONE | Insights and infrastructure reports polish (wave 3) | — |
 | [HOMEEDIT-POLISH-2331](tasks/HOMEEDIT-POLISH-2331.md) | V1 | REVIEW | Home editing screens polish (wave 3) | — |
 | [SETUPPLAN-POLISH-2331](tasks/SETUPPLAN-POLISH-2331.md) | V1 | REVIEW | Setup and plan administration polish (wave 3) | — |
 | [TABSMODE-POLISH-2331](tasks/TABSMODE-POLISH-2331.md) | V1 | REVIEW | Tabs display settings polish (wave 2, part B) | — |
 | [PLAYBACK-SCRUB-2341](tasks/PLAYBACK-SCRUB-2341.md) | V1 | DONE | Smooth recorded playback under fast scrubbing | — |
 | [ASYNCIO-DEFAULT-2342](tasks/ASYNCIO-DEFAULT-2342.md) | V1 | DONE | The server runs on asyncio and h11 by default (uvloop and httptools opt-in) | — |
-| [WRITE-GATE-EVENTS-2341](tasks/WRITE-GATE-EVENTS-2341.md) | V1 | REVIEW | False "write gate held outside a transaction" log alarm removed | — |
+| [WRITE-GATE-EVENTS-2341](tasks/WRITE-GATE-EVENTS-2341.md) | V1 | DONE | False "write gate held outside a transaction" log alarm removed | — |
 | [FRIGATE-FORBIDDEN-2341](tasks/FRIGATE-FORBIDDEN-2341.md) | V1 | DONE | Refused Frigate credentials: one health item instead of a flooded log | — |
 | [SUPERVISOR-BUILD-GATE-2341](tasks/SUPERVISOR-BUILD-GATE-2341.md) | V1 | DONE | Release gate proves the add-on image builds the way the Supervisor builds it | — |
-| [A11Y-POLISHED-2342](tasks/A11Y-POLISHED-2342.md) | V1 | REVIEW | Accessibility pass over the screens polished on 31.10 and 01.11 | — |
+| [A11Y-POLISHED-2342](tasks/A11Y-POLISHED-2342.md) | V1 | DONE | Accessibility pass over the screens polished on 31.10 and 01.11 | — |
 | [DARK-REVIEW-2342](tasks/DARK-REVIEW-2342.md) | V1 | DONE | Dark-mode review of the screens polished on 01.11 | — |
 | [HOME-DEVICES-LOAD-2342](tasks/HOME-DEVICES-LOAD-2342.md) | V1 | DONE | Faster home and devices screens: lazy screens, settings in two queries, shared requests | — |
 | [PHONE-BUTTONS-44-2342](tasks/PHONE-BUTTONS-44-2342.md) | V1 | REVIEW | The shared button is 44 px high on a phone | — |
 | [SYNOPTIC-MOBILE-2342](tasks/SYNOPTIC-MOBILE-2342.md) | V1 | DONE | The synoptic map on phones in three layouts | — |
 | [SMALL-UI-BUGS-2343](tasks/SMALL-UI-BUGS-2343.md) | V1 | DONE | Tickets table width at 1440 and 1280 px; settings tab duplication | — |
-| [GATE2342](tasks/GATE2342.md) | V1 | REVIEW | Release gate fixes of 2.34.2 (groups A, B, C and the pixel side) | — |
+| [GATE2342](tasks/GATE2342.md) | V1 | DONE | Release gate fixes of 2.34.2 (groups A, B, C and the pixel side) | — |
 | [CAL-GRID-EDIT-2343](tasks/CAL-GRID-EDIT-2343.md) | V1 | DONE | Outlook-style editing on the calendar grid | — |
-| [CAL-ATTENDEES-2343](tasks/CAL-ATTENDEES-2343.md) | V1 | REVIEW | Named attendees of calendar entries | — |
+| [CAL-ATTENDEES-2343](tasks/CAL-ATTENDEES-2343.md) | V1 | DONE | Named attendees of calendar entries | — |
 | [DB-CONN-POOL-2343](tasks/DB-CONN-POOL-2343.md) | V1 | DONE | Reuse SQLite connections between requests | — |
-| [PRE-GATE-2350](tasks/PRE-GATE-2350.md) | V1 | REVIEW | Browser and backend evidence before the 2.35.0 gate | — |
+| [PRE-GATE-2350](tasks/PRE-GATE-2350.md) | V1 | DONE | Browser and backend evidence before the 2.35.0 gate | — |
 | [GATE2350-A](tasks/GATE2350-A.md) | V1 | DONE | Release gate of 2.35.0: the six backend failures | — |
-| [NOTICE-BOARD-106](tasks/NOTICE-BOARD-106.md) | V1 | REVIEW | Building notice board with TV screens (CR-NOTICE106) and the 2.18.0 overhaul | — |
-| [NOTICE-BOARD-FOLLOWUPS-295](tasks/NOTICE-BOARD-FOLLOWUPS-295.md) | V1 | REVIEW | Notice board follow-ups: news sources, deletion, TV options, removal fix, nearby bus times | — |
-| [TVNOTICE-297](tasks/TVNOTICE-297.md) | V1 | REVIEW | TV notice board V2 design and the owner answers of 27.10 | — |
+| [NOTICE-BOARD-106](tasks/NOTICE-BOARD-106.md) | V1 | DONE | Building notice board with TV screens (CR-NOTICE106) and the 2.18.0 overhaul | — |
+| [NOTICE-BOARD-FOLLOWUPS-295](tasks/NOTICE-BOARD-FOLLOWUPS-295.md) | V1 | DONE | Notice board follow-ups: news sources, deletion, TV options, removal fix, nearby bus times | — |
+| [TVNOTICE-297](tasks/TVNOTICE-297.md) | V1 | DONE | TV notice board V2 design and the owner answers of 27.10 | — |
 | [LOBBY-STYLES-2290](tasks/LOBBY-STYLES-2290.md) | V1 | REVIEW | Lobby screen styles (Gallery, Concierge, Stone, Lumen, Axis, Prism, Ink and Sign) | — |
 | [MOBILE-APP-SERVER-295](tasks/MOBILE-APP-SERVER-295.md) | V1 | DONE | Phone-app server side: saved sign-in, device key, WebView session exchange, attestation, critical sound | — |
-| [NOTICEPUSH-295](tasks/NOTICEPUSH-295.md) | V1 | REVIEW | Push on publish for the notice board to the phone app channel | — |
+| [NOTICEPUSH-295](tasks/NOTICEPUSH-295.md) | V1 | DONE | Push on publish for the notice board to the phone app channel | — |
 | [HA-LABELS-SYNC-2351](tasks/HA-LABELS-SYNC-2351.md) | V1 | DONE | Home-system labels synced into Arx (read-only) for the mapping assistant | — |
 | [CAL-FEED-REVIEW-2351](tasks/CAL-FEED-REVIEW-2351.md) | V1 | DONE | Security review of the outgoing iCal feed; remote switch, busy-only, 365-day expiry | — |
 | [GDRIVE-READY-2351](tasks/GDRIVE-READY-2351.md) | V1 | DONE | Google Drive backup ready for the owner's first real connection | — |
 | [HOME-EDIT-DRAWER-2351](tasks/HOME-EDIT-DRAWER-2351.md) | V1 | DONE | Home screen edit mode in a drawer | — |
 | [AREA-PRESENCE-LINE-2351](tasks/AREA-PRESENCE-LINE-2351.md) | V1 | DONE | Presence line in the area screen and quick pop-up | — |
-| [XS-MINI-WIDGET-2351](tasks/XS-MINI-WIDGET-2351.md) | V1 | REVIEW | Mini building cross-section on the home widgets row | — |
+| [XS-MINI-WIDGET-2351](tasks/XS-MINI-WIDGET-2351.md) | V1 | DONE | Mini building cross-section on the home widgets row | — |
 | [MAPPING-IMPROVE-2351](tasks/MAPPING-IMPROVE-2351.md) | V1 | DONE | Mapping: floors without a level asked about; auto-insert in the background | — |
 | [BUILDING-SCOPE-CONTROL-2351](tasks/BUILDING-SCOPE-CONTROL-2351.md) | V1 | DONE | "Show and control" per building on a multi-building site | — |
 | [PRE-GATE-2360](tasks/PRE-GATE-2360.md) | V1 | DONE | Runner checks before the 2.36.0 release gate | — |
 | [SYNOPTIC-PHONE-SETTINGS-2360](tasks/SYNOPTIC-PHONE-SETTINGS-2360.md) | V1 | DONE | Phone synoptic map: light and summary-line settings | — |
 | [TICKETS-1440-COLUMN-SETTING-2360](tasks/TICKETS-1440-COLUMN-SETTING-2360.md) | V1 | DONE | Tickets table: which column the default table keeps at a medium width | — |
-| [RELEASE-2360-TRAIN](tasks/RELEASE-2360-TRAIN.md) | V1 | REVIEW | Release train 2.36.0 (building scope, mapping, labels, feed review, GDrive ready, home edit drawer, presence line, xs widget) | — |
+| [RELEASE-2360-TRAIN](tasks/RELEASE-2360-TRAIN.md) | V1 | DONE | Release train 2.36.0 (building scope, mapping, labels, feed review, GDrive ready, home edit drawer, presence line, xs widget) | — |
 | [CAM-H264-VERIFY-2361](tasks/CAM-H264-VERIFY-2361.md) | V1 | DONE | Verify a bulk encoding change at the camera, per-channel report, skip a refused camera | — |
 | [RELEASE-2361-TRAIN](tasks/RELEASE-2361-TRAIN.md) | V1 | DONE | Release train 2.36.1 (camera H.264 verification) | — |
 | [POLISH4-WP1-SHARED-2370](tasks/POLISH4-WP1-SHARED-2370.md) | V1 | DONE | Polish round 4, WP1: shared stage 2 and the shell pill | — |
 | [POLISH4-WP2-LIVEINV-2370](tasks/POLISH4-WP2-LIVEINV-2370.md) | V1 | REVIEW | Polish round 4, WP2: live and investigation screens | — |
-| [POLISH4-WP3-SERVICE-2370](tasks/POLISH4-WP3-SERVICE-2370.md) | V1 | REVIEW | Polish round 4, WP3: the service area | — |
+| [POLISH4-WP3-SERVICE-2370](tasks/POLISH4-WP3-SERVICE-2370.md) | V1 | DONE | Polish round 4, WP3: the service area | — |
 | [POLISH4-WP4-HOME-2370](tasks/POLISH4-WP4-HOME-2370.md) | V1 | DONE | Polish round 4, WP4: home and devices | — |
 | [POLISH4-WP5-MEDIA-2370](tasks/POLISH4-WP5-MEDIA-2370.md) | V1 | REVIEW | Polish round 4, WP5: multimedia, cast, generator, electricity | — |
-| [POLISH4-WP6-MAPS-2370](tasks/POLISH4-WP6-MAPS-2370.md) | V1 | REVIEW | Polish round 4, WP6: maps and plan | — |
+| [POLISH4-WP6-MAPS-2370](tasks/POLISH4-WP6-MAPS-2370.md) | V1 | DONE | Polish round 4, WP6: maps and plan | — |
 | [POLISH4-WP7-SETSYS-2370](tasks/POLISH4-WP7-SETSYS-2370.md) | V1 | REVIEW | Polish round 4, WP7: settings (system) | — |
-| [POLISH4-WP8-SETMOD-2370](tasks/POLISH4-WP8-SETMOD-2370.md) | V1 | REVIEW | Polish round 4, WP8: settings (modules) and the transit check button | — |
-| [TRANSIT-CHECK-2370](tasks/TRANSIT-CHECK-2370.md) | V1 | REVIEW | Transit settings: "בדוק עכשיו" check button and route (owner-approved addition, 02.11 evening) | — |
+| [POLISH4-WP8-SETMOD-2370](tasks/POLISH4-WP8-SETMOD-2370.md) | V1 | DONE | Polish round 4, WP8: settings (modules) and the transit check button | — |
+| [TRANSIT-CHECK-2370](tasks/TRANSIT-CHECK-2370.md) | V1 | DONE | Transit settings: "בדוק עכשיו" check button and route (owner-approved addition, 02.11 evening) | — |
 | [UNLOCK-REASON-2370](tasks/UNLOCK-REASON-2370.md) | V1 | DONE | Say why a lock cannot be opened: one unlock_reason rule behind can_unlock | — |
-| [RELEASE-2370-TRAIN](tasks/RELEASE-2370-TRAIN.md) | V1 | REVIEW | Release train 2.37.0 (polish round 4, transit check, unlock reason) | — |
+| [RELEASE-2370-TRAIN](tasks/RELEASE-2370-TRAIN.md) | V1 | DONE | Release train 2.37.0 (polish round 4, transit check, unlock reason) | — |
 | [WISKEY-RC7-ADOPT-2331](tasks/WISKEY-RC7-ADOPT-2331.md) | V1 | DONE | WisKey Mac rc.7 adoption with auto-install policy B (the owner's switch) | — |
 | [APP-TEAM-R11-2380](tasks/APP-TEAM-R11-2380.md) | V1 | REVIEW | Mobile M1: app-team R11 package (documents only) | T103 |
 | [MOBILE-CONTRACT-V22-2380](tasks/MOBILE-CONTRACT-V22-2380.md) | V1 | DONE | Mobile M2: presence contract v2.2 (sensor shapes, intervals defaults, key-rotation proof) | — |
-| [APP-SERVER-LEFTOVERS-2380](tasks/APP-SERVER-LEFTOVERS-2380.md) | V1 | REVIEW | Mobile M3: brand-logo API for the apps; quiet-window hold narrowed to phone and browser push | — |
+| [APP-SERVER-LEFTOVERS-2380](tasks/APP-SERVER-LEFTOVERS-2380.md) | V1 | DONE | Mobile M3: brand-logo API for the apps; quiet-window hold narrowed to phone and browser push | — |
 | [PUSH-GOLIVE-KIT-2380](tasks/PUSH-GOLIVE-KIT-2380.md) | V1 | REVIEW | Mobile M4: push go-live kit and supervised field-test script | — |
-| [TV-FIT-2380](tasks/TV-FIT-2380.md) | V1 | REVIEW | Display D1: TV fit - portrait footer chips, crest logo, Hebrew-date fallback, overscan margin | — |
+| [TV-FIT-2380](tasks/TV-FIT-2380.md) | V1 | DONE | Display D1: TV fit - portrait footer chips, crest logo, Hebrew-date fallback, overscan margin | — |
 | [REAL-TV-SESSION-2380](tasks/REAL-TV-SESSION-2380.md) | V1 | BLOCKED | Display D2: real-TV runbook, joint session and fixes | TV-FIT-2380 |
 | [BOARD-ADMIN-2380](tasks/BOARD-ADMIN-2380.md) | V1 | REVIEW | Display D3: notice board administration (chips providers, screen count, copy link, re-send, editor role) | POLISH4-WP8-SETMOD-2370 |
 | [CAST-FIRST-TEST-2380](tasks/CAST-FIRST-TEST-2380.md) | V1 | BLOCKED | Display D4: first physical cast test and phase-2 decision memo | T104, POLISH4-WP5-MEDIA-2370 |
 | [WALL-FOLLOWUPS-2380](tasks/WALL-FOLLOWUPS-2380.md) | V1 | REVIEW | Display D5: wall display follow-ups (desktop wall mode, foldable detection, AT221 / AT301 evidence) | POLISH4-WP2-LIVEINV-2370, T107 |
 | [ROUND4-LEFTOVERS-2380](tasks/ROUND4-LEFTOVERS-2380.md) | V1 | REVIEW | Display U1: polish round 4 leftovers (WisKey area, calendars D22, compact presence card redesign) | WISKEY-RC7-ADOPT-2331 |
-| [RELEASE-2380-TRAIN](tasks/RELEASE-2380-TRAIN.md) | V1 | REVIEW | Release train 2.38.0 (display and mobile server; features off by default) | RELEASE-2370-TRAIN |
+| [RELEASE-2380-TRAIN](tasks/RELEASE-2380-TRAIN.md) | V1 | DONE | Release train 2.38.0 (display and mobile server; features off by default) | RELEASE-2370-TRAIN |
 | [REGISTRY-UPDATE-2380](tasks/REGISTRY-UPDATE-2380.md) | V1 | REVIEW | Registry H1: tasks.json and test_catalog brought up to date after v2.35.0 | — |
 | [RELEASE-2371-WISKEY](tasks/RELEASE-2371-WISKEY.md) | V1 | DONE | Release 2.37.1: WisKey alignment (rc.39 native component, one restart decision, readiness, station still) | — |
 | [GATE2370](tasks/GATE2370.md) | V1 | DONE | Release gate fixes of 2.37.0 (groups A-D) | — |
@@ -441,39 +445,39 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [PUSH-RELAY-SAFE-2380](tasks/PUSH-RELAY-SAFE-2380.md) | V1 | DONE | Push relay safety: push stays off while the relay is not live | — |
 | [A11Y-R4-LEFTOVERS-2380](tasks/A11Y-R4-LEFTOVERS-2380.md) | V1 | DONE | Accessibility leftovers of polish round 4 | — |
 | [GATE2380](tasks/GATE2380.md) | V1 | DONE | Release gate fixes of 2.38.0 (groups A-B) | — |
-| [STATION-WS-PATH-2381](tasks/STATION-WS-PATH-2381.md) | V1 | REVIEW | Fix: one api/v1 prefix for the station live, listen and talk sockets | — |
+| [STATION-WS-PATH-2381](tasks/STATION-WS-PATH-2381.md) | V1 | DONE | Fix: one api/v1 prefix for the station live, listen and talk sockets | — |
 | [RELEASE-2381](tasks/RELEASE-2381.md) | V1 | DONE | Release 2.38.1: station sockets fix | — |
 | [RELEASE-2382-TRAIN](tasks/RELEASE-2382-TRAIN.md) | V1 | DONE | Release train 2.38.2 (WisKey activation, TV chips, dialog top layer, board management) | — |
 | [TV-CHIPS-2381](tasks/TV-CHIPS-2381.md) | V1 | DONE | Display: TV footer chips | — |
 | [DIALOG-TOPLAYER-2381](tasks/DIALOG-TOPLAYER-2381.md) | V1 | DONE | Shared dialog in the browser top layer | — |
-| [WISKEY-TALK-DIAL-2382](tasks/WISKEY-TALK-DIAL-2382.md) | V1 | REVIEW | WisKey A-a: talk end to end, the provider row and native dial | — |
+| [WISKEY-TALK-DIAL-2382](tasks/WISKEY-TALK-DIAL-2382.md) | V1 | DONE | WisKey A-a: talk end to end, the provider row and native dial | — |
 | [WISKEY-TALK-CAPS-2382](tasks/WISKEY-TALK-CAPS-2382.md) | V1 | DONE | WisKey: choose the W10 provider from the signed direct capabilities | — |
 | [WISKEY-PAIRING-2382](tasks/WISKEY-PAIRING-2382.md) | V1 | DONE | WisKey A-b: pairing status, signed check, guided re-pair, "מצב WisKey" | — |
-| [WISKEY-MANAGED-INSTALL-2382](tasks/WISKEY-MANAGED-INSTALL-2382.md) | V1 | REVIEW | WisKey A-c: Arx-managed install and upgrade (owner-started, policy B) | — |
-| [WISKEY-INBOUND-CALLS-2382](tasks/WISKEY-INBOUND-CALLS-2382.md) | V1 | REVIEW | WisKey A-e: inbound station calls in Arx | — |
+| [WISKEY-MANAGED-INSTALL-2382](tasks/WISKEY-MANAGED-INSTALL-2382.md) | V1 | DONE | WisKey A-c: Arx-managed install and upgrade (owner-started, policy B) | — |
+| [WISKEY-INBOUND-CALLS-2382](tasks/WISKEY-INBOUND-CALLS-2382.md) | V1 | DONE | WisKey A-e: inbound station calls in Arx | — |
 | [WISKEY-JOIN-LIVE-2382](tasks/WISKEY-JOIN-LIVE-2382.md) | V1 | DONE | WisKey T1: direct join starts and stops at runtime | — |
 | [WISKEY-RC10-PIN-2382](tasks/WISKEY-RC10-PIN-2382.md) | V1 | DONE | WisKey T2: command contract re-pinned to 2.0.1-rc.10 | — |
 | [WISKEY-STATUS-PAGE-2382](tasks/WISKEY-STATUS-PAGE-2382.md) | V1 | REVIEW | WisKey T3: "מצב WisKey" status page | — |
-| [WISKEY-STATION-OPS-2390](tasks/WISKEY-STATION-OPS-2390.md) | V1 | REVIEW | WisKey T4: station maintenance actions (sync, rescan, health and clock refresh) | — |
+| [WISKEY-STATION-OPS-2390](tasks/WISKEY-STATION-OPS-2390.md) | V1 | DONE | WisKey T4: station maintenance actions (sync, rescan, health and clock refresh) | — |
 | [WISKEY-CONFLICTS-2390](tasks/WISKEY-CONFLICTS-2390.md) | V1 | REVIEW | WisKey T5: conflicts resolve and fleet alert actions | — |
-| [WISKEY-DOOR-TECH-2390](tasks/WISKEY-DOOR-TECH-2390.md) | V1 | REVIEW | WisKey T6: door technical writes (hold-open schedules, public codes, programs) | — |
-| [WISKEY-SCHED-WRITE-2390](tasks/WISKEY-SCHED-WRITE-2390.md) | V1 | REVIEW | WisKey T7: device schedule library writes | — |
-| [WISKEY-PROFILES-EDIT-2390](tasks/WISKEY-PROFILES-EDIT-2390.md) | V1 | REVIEW | WisKey T8: groups and profile fields editing | — |
-| [WISKEY-PEOPLE-COMPLETE-2390](tasks/WISKEY-PEOPLE-COMPLETE-2390.md) | V1 | REVIEW | WisKey T9: people completeness (PIN and duplicate checks, unmanaged users) | — |
-| [WISKEY-ACCESS-DIAG-2400](tasks/WISKEY-ACCESS-DIAG-2400.md) | V1 | REVIEW | WisKey T10: access diagnostics views | — |
-| [WISKEY-OPS-VIEWS-2400](tasks/WISKEY-OPS-VIEWS-2400.md) | V1 | REVIEW | WisKey T11: operations and fleet views | — |
-| [WISKEY-WA-QUEUE-2400](tasks/WISKEY-WA-QUEUE-2400.md) | V1 | REVIEW | WisKey T12: messaging completion on the installed client | — |
-| [WISKEY-VISITS-2400](tasks/WISKEY-VISITS-2400.md) | V1 | REVIEW | WisKey T13: visits and guest templates decision and bridge | — |
-| [WISKEY-CLOCK-VIEW-2400](tasks/WISKEY-CLOCK-VIEW-2400.md) | V1 | REVIEW | WisKey T14: clock / NTP and WisKey media options view | — |
-| [WISKEY-EVENT-CURSOR-2390](tasks/WISKEY-EVENT-CURSOR-2390.md) | V1 | REVIEW | WisKey T15: gap-free events after a restart (event cursor) | — |
+| [WISKEY-DOOR-TECH-2390](tasks/WISKEY-DOOR-TECH-2390.md) | V1 | DONE | WisKey T6: door technical writes (hold-open schedules, public codes, programs) | — |
+| [WISKEY-SCHED-WRITE-2390](tasks/WISKEY-SCHED-WRITE-2390.md) | V1 | DONE | WisKey T7: device schedule library writes | — |
+| [WISKEY-PROFILES-EDIT-2390](tasks/WISKEY-PROFILES-EDIT-2390.md) | V1 | DONE | WisKey T8: groups and profile fields editing | — |
+| [WISKEY-PEOPLE-COMPLETE-2390](tasks/WISKEY-PEOPLE-COMPLETE-2390.md) | V1 | DONE | WisKey T9: people completeness (PIN and duplicate checks, unmanaged users) | — |
+| [WISKEY-ACCESS-DIAG-2400](tasks/WISKEY-ACCESS-DIAG-2400.md) | V1 | DONE | WisKey T10: access diagnostics views | — |
+| [WISKEY-OPS-VIEWS-2400](tasks/WISKEY-OPS-VIEWS-2400.md) | V1 | DONE | WisKey T11: operations and fleet views | — |
+| [WISKEY-WA-QUEUE-2400](tasks/WISKEY-WA-QUEUE-2400.md) | V1 | DONE | WisKey T12: messaging completion on the installed client | — |
+| [WISKEY-VISITS-2400](tasks/WISKEY-VISITS-2400.md) | V1 | DONE | WisKey T13: visits and guest templates decision and bridge | — |
+| [WISKEY-CLOCK-VIEW-2400](tasks/WISKEY-CLOCK-VIEW-2400.md) | V1 | DONE | WisKey T14: clock / NTP and WisKey media options view | — |
+| [WISKEY-EVENT-CURSOR-2390](tasks/WISKEY-EVENT-CURSOR-2390.md) | V1 | DONE | WisKey T15: gap-free events after a restart (event cursor) | — |
 | [WISKEY-LIVE-VALIDATION-2390](tasks/WISKEY-LIVE-VALIDATION-2390.md) | V1 | REVIEW | WisKey T16: live validation screen for commissioning | — |
 | [WISKEY-SVC-GRANT-2400](tasks/WISKEY-SVC-GRANT-2400.md) | V1 | BLOCKED | WisKey T17: service-write grant path | — |
 | [WISKEY-DEEPLINKS-2382](tasks/WISKEY-DEEPLINKS-2382.md) | V1 | DONE | WisKey T18: deep links into the embedded panel for everything not native | — |
-| [WISKEY-ACTIVATION-RUNBOOK-0411](tasks/WISKEY-ACTIVATION-RUNBOOK-0411.md) | V1 | REVIEW | WisKey T19: activation runbook for the 04.11 joint session | — |
+| [WISKEY-ACTIVATION-RUNBOOK-0411](tasks/WISKEY-ACTIVATION-RUNBOOK-0411.md) | V1 | BLOCKED | WisKey T19: activation runbook for the 04.11 joint session | — |
 | [WISKEY-LISTEN-2410](tasks/WISKEY-LISTEN-2410.md) | V1 | BLOCKED | WisKey T20: standalone listen to a station | — |
 | [WISKEY-EMERGENCY-LOCK-2410](tasks/WISKEY-EMERGENCY-LOCK-2410.md) | V1 | BLOCKED | WisKey T21: emergency LOCK / secure | — |
 | [WISKEY-RING-STATION-2410](tasks/WISKEY-RING-STATION-2410.md) | V1 | BLOCKED | WisKey T22: operator-initiated ringing call to a station | — |
-| [WISKEY-INSTALLER-NATIVE-2400](tasks/WISKEY-INSTALLER-NATIVE-2400.md) | V1 | REVIEW | WisKey installer tools natively in Arx (platform, clock, station technical settings) | — |
+| [WISKEY-INSTALLER-NATIVE-2400](tasks/WISKEY-INSTALLER-NATIVE-2400.md) | V1 | DONE | WisKey installer tools natively in Arx (platform, clock, station technical settings) | — |
 | [RELEASE-2390-TRAIN](tasks/RELEASE-2390-TRAIN.md) | V1 | DONE | Release 2.39.0: WisKey operator writes, people completeness, live validation, managed install | — |
 | [BRIDGE-STALE-DISCOVERY-2383](tasks/BRIDGE-STALE-DISCOVERY-2383.md) | V1 | DONE | Fix: a stale discovery no longer puts an old pairing code back into the bridge (bridge 0.10.3) | — |
 | [RELEASE-2391](tasks/RELEASE-2391.md) | V1 | DONE | Release 2.39.1: the Arx bridge keeps its pairing after a re-pair and after restarts | — |
@@ -485,8 +489,8 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [WISKEY-OPS-ANSWERS-2400](tasks/WISKEY-OPS-ANSWERS-2400.md) | V1 | DONE | WisKey operations: owner answers 04.11 (maintenance role, permission label, deploy warning, talk reasons) | — |
 | [WISKEY-INSTALL-ANSWERS-2400](tasks/WISKEY-INSTALL-ANSWERS-2400.md) | V1 | DONE | WisKey managed install: owner answers 04.11 (access-control settings group, start-up install switch, kept runs) | — |
 | [RELEASE-2400-TRAIN](tasks/RELEASE-2400-TRAIN.md) | V1 | DONE | Release 2.40.0: video transport, fixed TTS engine, installer tools, presence card, owner answers round 18 | — |
-| [BRIDGE-UPDATE-LISTENER-2401](tasks/BRIDGE-UPDATE-LISTENER-2401.md) | V1 | REVIEW | Bridge 0.10.4: update listener and config-flow reload no longer combine (home system 2026.12) | — |
-| [WALL-PHONE-TOOLBAR-2401](tasks/WALL-PHONE-TOOLBAR-2401.md) | V1 | REVIEW | Phone camera wall: one row of icon keys, two rows of full labels as a setting | — |
+| [BRIDGE-UPDATE-LISTENER-2401](tasks/BRIDGE-UPDATE-LISTENER-2401.md) | V1 | DONE | Bridge 0.10.4: update listener and config-flow reload no longer combine (home system 2026.12) | — |
+| [WALL-PHONE-TOOLBAR-2401](tasks/WALL-PHONE-TOOLBAR-2401.md) | V1 | DONE | Phone camera wall: one row of icon keys, two rows of full labels as a setting | — |
 | [SETTINGS-INTERCOM-CARDS-2401](tasks/SETTINGS-INTERCOM-CARDS-2401.md) | V1 | DONE | "Entrance screen switches" settings tab as folding cards (two tabs or one list as options) | — |
 | [RELEASE-2401-TRAIN](tasks/RELEASE-2401-TRAIN.md) | V1 | DONE | Release 2.40.1: phone wall toolbar, intercom settings cards, bridge 0.10.4 | — |
 | [WISKEY-LAB-ACTIVATION-0411](tasks/WISKEY-LAB-ACTIVATION-0411.md) | V1 | IN_PROGRESS | WisKey activation on the lab installation (04.11 joint session) | — |
@@ -494,25 +498,25 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [LAB-NVR-DOOR-READONLY-0411](tasks/LAB-NVR-DOOR-READONLY-0411.md) | V1 | REVIEW | Read-only checks of 04.11 evening: recorder sub streams of two panoramic cameras, door contact input on one station | — |
 | [WISKEY-ADDENDUM-GAPS-0411](tasks/WISKEY-ADDENDUM-GAPS-0411.md) | V1 | BLOCKED | WisKey gaps found while building 2.38.2 - 2.40.0 (addendum for the WisKey team) | — |
 | [OWNER-LAB-ACTIONS-0411](tasks/OWNER-LAB-ACTIONS-0411.md) | V1 | BLOCKED | Owner lab actions after 04.11 | — |
-| [GUIDE-BOARD-2402](tasks/GUIDE-BOARD-2402.md) | V1 | REVIEW | User guide for 2.40.0 / 2.40.1 and the task board after 04.11 | — |
-| [GATE-HYGIENE-2402](tasks/GATE-HYGIENE-2402.md) | V1 | REVIEW | Gate hygiene: whole-package scanners always run, a Windows-only demo check, the bridge-install state reset between tests | — |
+| [GUIDE-BOARD-2402](tasks/GUIDE-BOARD-2402.md) | V1 | DONE | User guide for 2.40.0 / 2.40.1 and the task board after 04.11 | — |
+| [GATE-HYGIENE-2402](tasks/GATE-HYGIENE-2402.md) | V1 | DONE | Gate hygiene: whole-package scanners always run, a Windows-only demo check, the bridge-install state reset between tests | — |
 | [VIDEO-SUB-FALLBACK-2402](tasks/VIDEO-SUB-FALLBACK-2402.md) | V1 | DONE | Live video, automatic quality: a sub stream that gives nothing moves to the main stream on the same transport | — |
 | [SETTINGS-CARDS-ACCORDION-2402](tasks/SETTINGS-CARDS-ACCORDION-2402.md) | V1 | DONE | Intercom settings cards: "cards opening in place" as a fourth layout | — |
 | [VIDEO-2403](tasks/VIDEO-2403.md) | V1 | DONE | Live video: no video-policy read without live video; the kiosk and the display wall count as automatic quality | — |
-| [SKIN-QA-2403](tasks/SKIN-QA-2403.md) | V1 | REVIEW | The 2.40.1 / 2.40.2 surfaces in every skin, light and dark: fallback tag, phone toolbar, intercom settings cards | — |
+| [SKIN-QA-2403](tasks/SKIN-QA-2403.md) | V1 | DONE | The 2.40.1 / 2.40.2 surfaces in every skin, light and dark: fallback tag, phone toolbar, intercom settings cards | — |
 | [BOARD-HYGIENE-2403](tasks/BOARD-HYGIENE-2403.md) | V1 | REVIEW | Task board hygiene after v2.40.2 | — |
 | [HA-2026-11-COMPAT-2404](tasks/HA-2026-11-COMPAT-2404.md) | V1 | DONE | Home Assistant 2026.11 entity names and child devices | — |
 | [PY-CONSTRAINTS-2407](tasks/PY-CONSTRAINTS-2407.md) | V1 | REVIEW | Python constraints lock file for the add-on + Supervisor build check | — |
-| [CAMERA-REBOOT-2407](tasks/CAMERA-REBOOT-2407.md) | V1 | REVIEW | Reboot one camera through its NVR (legacy parity P09) | — |
-| [CAMERA-STREAM-SOURCES-2410](tasks/CAMERA-STREAM-SOURCES-2410.md) | V1 | REVIEW | Video source per camera and cameras without a recorder (2.41.0) | — |
-| [NVRLESS-CAMERAS-2411](tasks/NVRLESS-CAMERAS-2411.md) | V1 | REVIEW | Camera screens without a recorder, WebRTC server notice, cameras on the floor map (2.41.1) | — |
+| [CAMERA-REBOOT-2407](tasks/CAMERA-REBOOT-2407.md) | V1 | DONE | Reboot one camera through its NVR (legacy parity P09) | — |
+| [CAMERA-STREAM-SOURCES-2410](tasks/CAMERA-STREAM-SOURCES-2410.md) | V1 | DONE | Video source per camera and cameras without a recorder (2.41.0) | — |
+| [NVRLESS-CAMERAS-2411](tasks/NVRLESS-CAMERAS-2411.md) | V1 | DONE | Camera screens without a recorder, WebRTC server notice, cameras on the floor map (2.41.1) | — |
 | [DISK-CLEANUP-2411](tasks/DISK-CLEANUP-2411.md) | V1 | REVIEW | Workstation disk-cleanup script after a release (dry run first) | — |
 | [SOAK-DBGROWTH-2412](tasks/SOAK-DBGROWTH-2412.md) | V1 | REVIEW | Soak findings: event facets from per-day counts, write-lock holds off notify.faults and /health | — |
 | [EVIDENCE-CAMERAS-2412](tasks/EVIDENCE-CAMERAS-2412.md) | V1 | REVIEW | Evidence screenshots for the 2.41.x camera screens (with and without a recorder) | — |
 | [LAB-CHECKS-2412](tasks/LAB-CHECKS-2412.md) | V1 | BLOCKED | Owner manual lab checks for the 2.41.0 / 2.41.1 cameras | — |
 | [PRIVATE-REPO-2412](tasks/PRIVATE-REPO-2412.md) | V1 | BLOCKED | Move development to a private repository (public add-on repository kept) | — |
 | [ONVIF-DISCOVERY-2412](tasks/ONVIF-DISCOVERY-2412.md) | V1 | BACKLOG | ONVIF discovery of cameras without a recorder (later) | — |
-| [RECORDED-DAYS-MONTH-2407](tasks/RECORDED-DAYS-MONTH-2407.md) | V1 | REVIEW | Recordings: month view of the days with recordings (legacy monthly calendar parity) | — |
+| [RECORDED-DAYS-MONTH-2407](tasks/RECORDED-DAYS-MONTH-2407.md) | V1 | DONE | Recordings: month view of the days with recordings (legacy monthly calendar parity) | — |
 | [TEST-DEBT-2412](tasks/TEST-DEBT-2412.md) | V1 | REVIEW | Test debt: wall-clock backend tests and the flaky items of the 2.41.0 / 2.41.1 release gates | — |
 | [FLAKY-S12-PIXEL-2412](tasks/FLAKY-S12-PIXEL-2412.md) | V1 | REVIEW | Flaky pixel test: CR-036 S12 phone cards render 15-23 px taller under gate load (quarantined until 2026-11-16) | — |
 | [T120](tasks/T120.md) | V1 | IN_PROGRESS | Home interface (HOME-SIMPLE-2420): a second, simpler room-centred interface next to the full one, per-person interface policy | — |
@@ -674,3 +678,27 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [CR-CMP2-SELECTS-2450](tasks/CR-CMP2-SELECTS-2450.md) | V1 | IN_PROGRESS | CMP-2 step 2, the selects family (O13 a: family by family, new baselines) | — |
 | [CR-BE-COMPLEXITY-2450](tasks/CR-BE-COMPLEXITY-2450.md) | V1 | IN_PROGRESS | Backend complexity extractions (code-review programme 3.6) | — |
 | [T068-EDGE-2450](tasks/T068-EDGE-2450.md) | V1 | IN_PROGRESS | T068 edge cases of the soak and load work: disconnects and a full disk | — |
+| [FLAKY-CAPTURE-SCREENSHOT-2490](tasks/FLAKY-CAPTURE-SCREENSHOT-2490.md) | V1 | BACKLOG | Find and fix the intermittent "Unable to capture screenshot" failure in the UI test runs | — |
+| [SHARED-CHECKBOX-2480](tasks/SHARED-CHECKBOX-2480.md) | V1 | IN_PROGRESS | Shared checkbox component for the checkboxes that remain checkboxes | — |
+| [GEN-UNITS-FIELD-2490](tasks/GEN-UNITS-FIELD-2490.md) | V1 | BACKLOG | Generator settings: units move from the field label into the field frame | — |
+| [TICKETS-PAGING-2490](tasks/TICKETS-PAGING-2490.md) | V1 | BACKLOG | Tickets table paging; case details stay a scrolling document | — |
+| [DOOR-TECH-HOLD-FIX-2480](tasks/DOOR-TECH-HOLD-FIX-2480.md) | V1 | BACKLOG | Door technician screen: hold buttons stay usable while the screen re-reads after a write | — |
+| [HAND-SWITCH-2480](tasks/HAND-SWITCH-2480.md) | V1 | IN_PROGRESS | On/off checkboxes become switches (about 160 places in 80 files), including the terms (I agree) checkboxes | — |
+| [HAND-SWITCH-HOME-PERSONAL-2490](tasks/HAND-SWITCH-HOME-PERSONAL-2490.md) | V1 | BACKLOG | Switches in the home "personal" card, after the home panel edit | — |
+| [PHONE-SKIP-DESKTOP-SHOTS-2490](tasks/PHONE-SKIP-DESKTOP-SHOTS-2490.md) | V1 | BACKLOG | The phone test run skips desktop-size screenshots, file by file | — |
+| [SOAK-14H-2490](tasks/SOAK-14H-2490.md) | V1 | BACKLOG | 14 hour soak on the test server after the 2.49.0 release checks | — |
+| [LAB-V0-ROLE-2490](tasks/LAB-V0-ROLE-2490.md) | V1 | BLOCKED | Lab test account gets the lab system-admin role (owner action) | — |
+| [LAB-V2-DRILLS-2490](tasks/LAB-V2-DRILLS-2490.md) | V1 | REVIEW | Disconnect drills a, b and c (V2) closed | — |
+| [LAB-V3-SEEK-2490](tasks/LAB-V3-SEEK-2490.md) | V1 | BACKLOG | Recordings player seek measurement in the lab (V3) | — |
+| [LAB-V4-FRIGATE-2490](tasks/LAB-V4-FRIGATE-2490.md) | V1 | BLOCKED | Frigate live test parts a and b (V4) | — |
+| [LAB-V5-WISKEY-WRITE-2490](tasks/LAB-V5-WISKEY-WRITE-2490.md) | V1 | BACKLOG | Real WisKey write through the system, including a disabled test card (V5) | — |
+| [LAB-V6-LOG-EXPORT-2490](tasks/LAB-V6-LOG-EXPORT-2490.md) | V1 | BACKLOG | Real log export and redaction check (V6) | — |
+| [LAB-V7-ENGLISH-WALK-2490](tasks/LAB-V7-ENGLISH-WALK-2490.md) | V1 | BACKLOG | English UI walk in the lab (V7) | — |
+| [MFA-STEPUP-TRAIN-2490](tasks/MFA-STEPUP-TRAIN-2490.md) | V3 | BACKLOG | Two-factor authentication train: step-up before sensitive actions, recovery codes, passkeys, attestation | — |
+| [MULTI-BUILDING-NEXT-2490](tasks/MULTI-BUILDING-NEXT-2490.md) | V1 | BACKLOG | Multi-building next phase (safety first, then the home interface, then filtering and lobby) | MULTIBUILDING-HOME-2330 |
+| [HOME-INTERFACE-NEXT-2490](tasks/HOME-INTERFACE-NEXT-2490.md) | V1 | BACKLOG | Home interface next phase: rest screen, night mode, takeover, scenes, favourites | — |
+| [NATIVE-SELECT-B-2480](tasks/NATIVE-SELECT-B-2480.md) | V1 | BLOCKED | Remaining 241 selects moved to the shared field in design-stripping mode (dropped) | — |
+| [COLOR-LITERAL-A-2480](tasks/COLOR-LITERAL-A-2480.md) | V1 | IN_PROGRESS | Colour-literal ratchet A: device palettes file out of the count; shared video text-shadow colour variable now | — |
+| [COLOR-LITERAL-B-2480](tasks/COLOR-LITERAL-B-2480.md) | V1 | IN_PROGRESS | Colour-literal ratchet B: skip the module palette tables (about 830 colours) | — |
+| [I18N-DEFAULT-NAMES-2490](tasks/I18N-DEFAULT-NAMES-2490.md) | V1 | BACKLOG | English: default names saved on the server (such as "(copy)") are translated at creation | — |
+| [I18N-SETTINGS-KEYWORDS-2490](tasks/I18N-SETTINGS-KEYWORDS-2490.md) | V1 | BACKLOG | English: add English search keywords to the settings search | — |

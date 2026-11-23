@@ -2,7 +2,7 @@
 
 > Generated card. Edit management/tasks.json, then run this script with --write.
 
-**Phase:** V1 | **Priority:** P1 | **Status:** REVIEW
+**Phase:** V1 | **Priority:** P1 | **Status:** BLOCKED
 
 **Owner role:** engineering | **Hardware:** False
 
@@ -31,3 +31,6 @@
 
 ## Guardrails
 Read AGENTS.md and the linked master chapters. Inspect legacy code before replacement. No production configuration writes, physical commands, spending, or claims of passing unrun tests. Record commit, environment, commands and evidence.
+
+## Blocker
+Excluded - OBSOLETE by owner decision 2026-11-22 (Q83 = defer as obsolete; owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)): the 04.11 joint-session runbook was never run or merged and a general activation runbook now exists. Not to be worked; the card is kept.
