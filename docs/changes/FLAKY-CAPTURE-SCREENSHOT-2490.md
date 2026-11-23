@@ -85,6 +85,31 @@ every capture without taking it. 1468 captures reached, 208 of them at 1000 px o
 (`unit-capture-guard.spec.ts` is the guard's own spec, new, not a skip.) Not touched on purpose: pictures that are read back (pixel
 probes, size measurements), `toHaveScreenshot()` baselines, 768-999 px pictures (a tablet-portrait picture is not a desktop picture).
 
-## Verification
+## Verification (runner slot B, own folder `~/work/capflake`, `--workers=2`, never `-u`; PC for tsc and the touched specs)
 
-See the numbers in the report of the row (runner slot B, own folder `~/work/capflake`, `--workers=2`, never `-u`).
+The 16 touched spec files (15 edited + the new guard spec), all projects, base 619f94d04 against head da20b7e72:
+
+| run | base | head |
+|---|---|---|
+| mobile project, 305 tests | 584 s and 577 s (two runs) | 461 s and 453 s (two runs): about 125 s, 21 % less |
+| desktop + tablet, 610 / 614 tests | 922 s, 610 passed | 930 s, 614 passed (+4 = the guard spec's own tests), no time change |
+| mobile pictures written | 341 | 133 (208 fewer = exactly the 208 desktop-size captures the dry run listed) |
+| desktop + tablet pictures written | 346 | 346 (the same files) |
+| "Unable to capture screenshot" in the logs | 0 | 0 (the failure is rare; this run neither shows nor refutes the guard) |
+
+Pixel comparison. The evidence pictures are not baselines and are not deterministic: the same commit run twice (mobile) gives 207 of 341
+pictures that differ at pixel level (clocks, timers, animations). So the check was: pictures that are pixel-identical across the two
+base runs (134 deterministic ones), compared with the head run. 81 of them are the skipped desktop-size ones; of the 53 that head still
+writes, 48 are pixel-identical and 5 differ (media-screens CR-015/s2 editor-820 and settings-390, automations-list CR-017/s3
+121-matrix-scenes-390, automations-builder CR-017/s4 05-builder-picker-390-light, tabs-ui UIR1-tabs editor-edited-phone; 4 to 106,000
+pixels, one region each). All five are PHONE pictures taken after a skipped desktop picture in the SAME test: the skipped capture
+(up to 4.4 s at 2.625x) used to let the page's glow / entrance animation run on, so the phone picture that follows is now taken in an
+earlier animation state. No assertion is involved. That is the price of the skip, and it is stated here instead of hidden.
+
+Baselines: no `*-snapshots` file, no `.png` under `frontend/tests`, and no spec of the pixel groups was edited
+(`git diff --stat 619f94d04 -- frontend/tests ':(glob)**/*.png'` is empty); the guard passes options and bytes through untouched.
+Pixel-baseline specs on the dist preview, base and head, all projects, no `-u`: see the b5 line in the report.
+
+PC: `tsc -p tsconfig.tests.json` rc 0 (191 s), `eslint src` clean, spec lint `--new-since 619f94d04` 0 findings, the 16 files in the mobile
+project 305 passed + 4 skipped (the guard spec's other-project skips), 1062 s on the loaded PC. The guard spec passes on the desktop
+project (4 tests). Not run: the full suite, any gate.
