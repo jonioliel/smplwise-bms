@@ -15,7 +15,7 @@ from . import media_reach
 from ..capabilities import NVR_WITHOUT_GO2RTC, UNSUPPORTED_ACTIONS, UNSUPPORTED_MESSAGES, go2rtc_url, installation_block
 from ..capabilities import resolve as resolve_capabilities
 from ..config import Settings
-from ..db import get_setting, now_iso, permission_revision
+from ..db import get_setting, now_iso, permission_revision, recent_storage_refusal_age
 from ..errors import reason_of
 from . import autosync, events_derive, events_ingest, ha_bridge, ha_client, ha_sync, media_store, thumbnails
 from . import backup as backup_svc
@@ -184,7 +184,11 @@ def _storage_check(settings: Settings) -> dict[str, Any]:
         sizes = {"plans": _dir_size(settings.plans_dir), "thumbs": _dir_size(settings.data_dir / "thumbs"), "backups": _dir_size(settings.data_dir / "backups"), "exports": _dir_size(settings.data_dir / "exports"), "imported": _dir_size(settings.data_dir / "imported")}
         free_ratio = du.free / du.total if du.total else 1
         st = "error" if du.free < STORAGE_ERROR_FREE else "warn" if (du.free < 2 * 1024**3 or free_ratio < 0.10) else "ok"
-        return _check("storage", "אחסון התוסף (/data)", st, f"פנוי {_fmt_bytes(du.free)} מתוך {_fmt_bytes(du.total)} · תוכניות {_fmt_bytes(sizes['plans'])} · תמונות אירועים {_fmt_bytes(sizes['thumbs'])} · גיבויים {_fmt_bytes(sizes['backups'])} · ייצוא {_fmt_bytes(sizes['exports'])} · ראיות מיובאות {_fmt_bytes(sizes['imported'])}", free=du.free, total=du.total, **sizes)
+        refused = recent_storage_refusal_age()  # T068-EDGE-2450: a write was refused for lack of space although `free` looks fine (quota)
+        refusal = " · שמירה נדחתה לאחרונה בגלל מחסור במקום באחסון" if refused is not None else ""
+        if refused is not None:
+            st = "error"
+        return _check("storage", "אחסון התוסף (/data)", st, f"פנוי {_fmt_bytes(du.free)} מתוך {_fmt_bytes(du.total)} · תוכניות {_fmt_bytes(sizes['plans'])} · תמונות אירועים {_fmt_bytes(sizes['thumbs'])} · גיבויים {_fmt_bytes(sizes['backups'])} · ייצוא {_fmt_bytes(sizes['exports'])} · ראיות מיובאות {_fmt_bytes(sizes['imported'])}{refusal}", free=du.free, total=du.total, **sizes)
     except OSError as exc:
         return _check("storage", "אחסון התוסף (/data)", "error", f"לא ניתן לקרוא את שטח הדיסק ({type(exc).__name__})")
 
@@ -447,6 +451,8 @@ def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
     try:  # T035 (outage run): a full data disk reaches every operator, not only the administrator's health report (same threshold)
         if shutil.disk_usage(settings.data_dir).free < STORAGE_ERROR_FREE:
             items.append({"id": "storage", "status": "error", "label": "אחסון התוסף כמעט מלא — שמירות, תיעוד פעולות ופקודות עלולים להיכשל"})
+        elif recent_storage_refusal_age() is not None:  # T068-EDGE-2450: writes are being refused although the volume reports free space
+            items.append({"id": "storage", "status": "error", "label": "האחסון של התוסף מסרב לשמירות (אין מקום לכתיבה) — שמירות, תיעוד פעולות ופקודות נכשלות"})
     except OSError:
         pass
     backups = backup_svc.list_backups(settings)
