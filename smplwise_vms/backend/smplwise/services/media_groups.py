@@ -26,6 +26,7 @@ from typing import Any
 
 from ..db import now_iso
 from ..errors import ApiError
+from ..i18n import DEFAULT_LANG
 from ..rbac import Principal
 from . import device_bulk as bulk, media_commands as mc, media_model as mm, media_store as store
 
@@ -45,8 +46,8 @@ class ConfirmRequired(ApiError):
         super().__init__(409, "confirm_required", mc.MESSAGES["confirm_required"], details={"preview": preview})
         self.preview = preview
 
-    def payload(self, correlation_id: str) -> dict[str, Any]:
-        return {**super().payload(correlation_id), "preview": self.preview}
+    def payload(self, correlation_id: str, lang: str = DEFAULT_LANG) -> dict[str, Any]:
+        return {**super().payload(correlation_id, lang), "preview": self.preview}
 
 
 def load_catalog(conn: sqlite3.Connection) -> store.Catalog:
