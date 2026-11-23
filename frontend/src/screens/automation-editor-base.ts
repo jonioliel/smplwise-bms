@@ -144,8 +144,8 @@ export abstract class AutomationEditorBase extends LitElement {
         gap: 8px;
         padding: 12px 14px;
         border-radius: var(--dv-radius-sm, 14px);
-        background: color-mix(in srgb, var(--dv-warning, #f59e0b) 10%, transparent);
-        border: 1px solid color-mix(in srgb, var(--dv-warning, #f59e0b) 35%, transparent);
+        background: color-mix(in srgb, var(--dv-warning) 10%, transparent);
+        border: 1px solid color-mix(in srgb, var(--dv-warning) 35%, transparent);
       }
       .vbox > b {
         display: flex;
@@ -173,8 +173,8 @@ export abstract class AutomationEditorBase extends LitElement {
         color: var(--dv-text-2);
       }
       .btn.warn {
-        background: color-mix(in srgb, var(--dv-warning, #f59e0b) 18%, transparent);
-        border-color: color-mix(in srgb, var(--dv-warning, #f59e0b) 50%, transparent);
+        background: color-mix(in srgb, var(--dv-warning) 18%, transparent);
+        border-color: color-mix(in srgb, var(--dv-warning) 50%, transparent);
       }
     `,
     css`
@@ -236,7 +236,7 @@ export abstract class AutomationEditorBase extends LitElement {
       }
       /* the confirmations and small forms over the sheet read on a solid surface (the sheet itself is the glass) */
       sw-dialog {
-        --sw-surface: var(--dv-surface-solid, #fff);
+        --sw-surface: var(--dv-surface-solid);
         --sw-glass-blur: none;
       }
       .grab {
@@ -313,7 +313,7 @@ export abstract class AutomationEditorBase extends LitElement {
       }
       .shh .tgl {
         flex: none;
-        --sw-accent: var(--dv-toggle-on, #34c759);
+        --sw-accent: var(--dv-toggle-on);
       }
       .shsub {
         padding: 0 16px 6px;

@@ -13,6 +13,10 @@ import { css } from 'lit';
 
 /** The rules the panel and its volume element share (the volume element lives in its own shadow root). */
 export const playerBase = css`
+  /* COLOR-LITERAL-A-2480: the volume knob's shadow, written once (the same literal) */
+  :host {
+    --mp-knob-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+  }
   svg.ic {
     inline-size: 1em;
     block-size: 1em;
@@ -154,7 +158,7 @@ export const playerBase = css`
     border-radius: 50%;
     background: var(--sw-toggle-thumb);
     margin-block-start: -9px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--mp-knob-shadow), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
   }
   .rng::-moz-range-thumb {
     inline-size: 26px;
@@ -162,7 +166,7 @@ export const playerBase = css`
     border: 0;
     border-radius: 50%;
     background: var(--sw-toggle-thumb);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+    box-shadow: var(--mp-knob-shadow);
   }
   .rng.sm::-webkit-slider-runnable-track {
     block-size: 6px;

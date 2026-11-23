@@ -80,6 +80,12 @@ export class SystemBrandLogos extends LitElement {
   static styles = [settingsStyles, css`
     :host {
       display: block;
+      /* COLOR-LITERAL-A-2480: the fixed colours of the light / dark preview (they show the OTHER scheme whatever the page's), written once */
+      --bl-light: #ffffff;
+      --bl-light-line: #e7ebf2;
+      --bl-dark-2: #151c2c;
+      --bl-dark-line: #232e45;
+      --bl-stub: #8896af;
     }
     .bcard {
       display: flex;
@@ -324,7 +330,7 @@ export class SystemBrandLogos extends LitElement {
     /* the two preview surfaces are fixed colours on purpose: they show the OTHER scheme, whatever scheme the page is in */
     .tile.light,
     .mini.l {
-      background: #ffffff;
+      background: var(--bl-light);
     }
     .tile.dark,
     .mini.d {
@@ -436,12 +442,12 @@ export class SystemBrandLogos extends LitElement {
       padding: 5px 12px;
     }
     .mini.l .bar {
-      background: #ffffff;
-      border-block-end: 1px solid #e7ebf2;
+      background: var(--bl-light);
+      border-block-end: 1px solid var(--bl-light-line);
     }
     .mini.d .bar {
-      background: #151c2c;
-      border-block-end: 1px solid #232e45;
+      background: var(--bl-dark-2);
+      border-block-end: 1px solid var(--bl-dark-line);
     }
     .mini .body {
       block-size: 40px;
@@ -458,12 +464,12 @@ export class SystemBrandLogos extends LitElement {
       background: #f5f7fb;
     }
     .mini.l .body i {
-      background: #ffffff;
-      border: 1px solid #e7ebf2;
+      background: var(--bl-light);
+      border: 1px solid var(--bl-light-line);
     }
     .mini.d .body i {
-      background: #151c2c;
-      border: 1px solid #232e45;
+      background: var(--bl-dark-2);
+      border: 1px solid var(--bl-dark-line);
     }
     /* LOGOSIDE-295: the stub stands for the page title: side start = the logos take the start of the row before the title, side end = the title
        takes the start and the logos sit beside the SmplWise logo */
@@ -472,7 +478,7 @@ export class SystemBrandLogos extends LitElement {
       inline-size: 34px;
       block-size: 8px;
       border-radius: var(--sw-r-pill);
-      background: #8896af;
+      background: var(--bl-stub);
       opacity: 0.45;
     }
     .mini .sp {
@@ -482,7 +488,7 @@ export class SystemBrandLogos extends LitElement {
       inline-size: 44px;
       block-size: 20px;
       border-radius: var(--sw-r-pill);
-      border: 1px solid #8896af;
+      border: 1px solid var(--bl-stub);
       opacity: 0.5;
     }
     .cap {

@@ -51,6 +51,12 @@ function weatherHue(cond: string): number {
 }
 
 export const BV1_STYLES = css`
+  /* COLOR-LITERAL-A-2480: values the home widget sheets repeated (BV1_STYLES is always composed into homeWidgetsStyles), written once:
+     the forecast divider on a hue tile and the round / pill well on a tile */
+  :host {
+    --hw-tone-line: rgba(255, 255, 255, 0.25);
+    --hw-well: rgba(0, 0, 0, 0.14);
+  }
   /* ---- the tiles (Bubble, style: tile): a hue surface, a big glyph / number, the facts under it ---- */
   :host([data-skin='bubble']) .wg.tile {
     justify-content: flex-start;
@@ -67,7 +73,7 @@ export const BV1_STYLES = css`
     color: inherit;
   }
   :host([data-skin='bubble']) .wg.tile .wx-fc {
-    border-color: rgba(255, 255, 255, 0.25);
+    border-color: var(--hw-tone-line);
   }
   /* only the clock / weather tiles are square (their content is fixed); the agenda grows with its rows */
   :host([layout='hero'][data-skin='bubble']) .wg.tile.sq:not([data-size='l']) {
@@ -148,7 +154,7 @@ export const BV1_STYLES = css`
     min-block-size: var(--sw-ctl-h-sm);
     padding: 0 var(--sw-s-2);
     border-radius: var(--sw-r-pill);
-    background: rgba(0, 0, 0, 0.14);
+    background: var(--hw-well);
     font-size: var(--sw-fs-sm);
     font-weight: var(--sw-fw-semibold);
     white-space: nowrap;

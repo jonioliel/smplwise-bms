@@ -119,8 +119,9 @@ export const areaQuickSheetStyles = [
       /* the list scrolls with the finger; the grabber and the head drag the sheet */
       :host([mode='sheet']) .body {
         touch-action: pan-y;
-        -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%); /* taste-skill-ignore: a fade MASK at the cut edge, not a fill */
-        mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%); /* taste-skill-ignore: a fade MASK at the cut edge, not a fill */
+        --_mask: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%); /* taste-skill-ignore: a fade MASK at the cut edge, not a fill */
+        -webkit-mask-image: var(--_mask);
+        mask-image: var(--_mask);
       }
       :host([mode='sheet'][open][data-shown]) .panel {
         transform: translateY(var(--qc-rest, 38%));

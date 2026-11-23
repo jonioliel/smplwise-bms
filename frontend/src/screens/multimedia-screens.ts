@@ -150,8 +150,8 @@ export class MultimediaScreens extends MediaCardsScreenBase<MediaStatus, MediaDe
       padding: 6px 18px;
       /* the first chip lines up with the title above: the fade's room hangs outside the text edge */
       margin-inline-start: -18px;
-      -webkit-mask-image: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
-      mask-image: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
+      -webkit-mask-image: var(--mm-fade-row);
+      mask-image: var(--mm-fade-row);
       user-select: none;
       touch-action: pan-x;
     }

@@ -157,6 +157,10 @@ export const remoteTokens = css`
 export const remoteStyles = css`
   :host {
     display: contents;
+    /* COLOR-LITERAL-A-2480: fixed values this sheet repeated, written once (the same literals): the ink on the accent fill (white in
+       both schemes, unlike --mr-text-inverse) and the volume knob's shadow */
+    --mr-on-accent-ink: #fff;
+    --mr-knob-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
     font-family: var(--mr-font);
     color: var(--mr-text);
     /* the drawer (sw-drawer, modal) reads these: its panel surface, title, hairlines and buttons follow the remote's scheme */
@@ -248,7 +252,7 @@ export const remoteStyles = css`
     block-size: 64px;
     border-radius: 15px;
     overflow: hidden;
-    color: #fff;
+    color: var(--sw-on-video);
     background: var(--mr-screen-off);
     box-shadow: 0 8px 20px rgb(var(--art, 20 24 34) / 0.35);
     display: grid;
@@ -403,7 +407,7 @@ export const remoteStyles = css`
   .btn.primary {
     background: var(--mr-accent);
     border-color: transparent;
-    color: #fff;
+    color: var(--mr-on-accent-ink);
     box-shadow: 0 6px 16px var(--mr-accent-glow);
   }
   .btn.quiet {
@@ -494,17 +498,17 @@ export const remoteStyles = css`
     inline-size: 26px;
     block-size: 26px;
     border-radius: 50%;
-    background: #fff;
+    background: var(--sw-toggle-thumb);
     margin-block-start: -9px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--mr-knob-shadow), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
   }
   .rng::-moz-range-thumb {
     inline-size: 26px;
     block-size: 26px;
     border: 0;
     border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+    background: var(--sw-toggle-thumb);
+    box-shadow: var(--mr-knob-shadow);
   }
   .rng:focus-visible {
     outline: 2px solid var(--mr-focus);
@@ -556,7 +560,7 @@ export const remoteStyles = css`
     position: relative;
     display: grid;
     place-items: center;
-    color: #fff;
+    color: var(--sw-on-video);
     background: linear-gradient(135deg, var(--a1), var(--a2));
     flex: none;
     overflow: hidden;
@@ -1111,7 +1115,7 @@ export const remoteStyles = css`
   }
   .srci[aria-checked='true'] .gi.src {
     background: var(--mr-accent);
-    color: #fff;
+    color: var(--mr-on-accent-ink);
   }
   .srci .ck {
     position: absolute;

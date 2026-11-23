@@ -11,13 +11,13 @@ export const editorTokens = css`
   :host {
     --ab-motion: 200ms;
     --ab-ease: cubic-bezier(0.22, 1, 0.36, 1);
-    --ab-sheet: color-mix(in srgb, var(--dv-surface-solid, #f8fafd) 92%, transparent);
+    --ab-sheet: color-mix(in srgb, var(--dv-surface-solid) 92%, transparent);
     --ab-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0) 46%);
     --ab-seg-thumb: #ffffff;
     --ab-amber-text: #8a4b00;
-    --ab-sens-bg: var(--dv-warning-soft, rgba(255, 159, 10, 0.16));
+    --ab-sens-bg: var(--dv-warning-soft);
     --ab-sens-fg: var(--ab-amber-text);
-    --ab-sens-line: color-mix(in srgb, var(--dv-warning, #ff9f0a) 55%, transparent);
+    --ab-sens-line: color-mix(in srgb, var(--dv-warning) 55%, transparent);
     --ab-ok-text: #1a7f37;
     font-family: var(--dv-font, var(--sw-font));
     color: var(--dv-text, var(--sw-text));
@@ -30,9 +30,9 @@ export const editorTokens = css`
   }
   /* the sensitive-step chip colour is the SETTING automations.sensitive_chip (amber | red) */
   :host([data-chip='red']) {
-    --ab-sens-bg: var(--dv-danger-soft, rgba(255, 59, 48, 0.13));
-    --ab-sens-fg: var(--dv-danger, #d70015);
-    --ab-sens-line: color-mix(in srgb, var(--dv-danger, #d70015) 50%, transparent);
+    --ab-sens-bg: var(--dv-danger-soft);
+    --ab-sens-fg: var(--dv-danger);
+    --ab-sens-line: color-mix(in srgb, var(--dv-danger) 50%, transparent);
   }
   :host([data-chip='red'][data-devices-scheme='dark']) {
     --ab-sens-fg: #ff8a80;
@@ -90,7 +90,7 @@ export const editorShared = [
     }
     .tag.ok {
       background: var(--dv-success-soft);
-      color: var(--ab-ok-text, #1a7f37);
+      color: var(--ab-ok-text);
     }
     .tag.acc {
       background: var(--dv-accent-soft);
@@ -308,9 +308,9 @@ export const editorShared = [
     }
     .seg button[aria-pressed='true'],
     .seg button[aria-selected='true'] {
-      background: var(--ab-seg-thumb, #fff);
+      background: var(--ab-seg-thumb);
       color: var(--dv-text);
-      box-shadow: var(--dv-shadow-control, 0 1px 4px rgba(0, 0, 0, 0.18));
+      box-shadow: var(--dv-shadow-control);
     }
     /* CR-CMP2-TABS-2460: the editors' tab strips (builder / code, the device test's mode) are sw-tabs (pill), in the sheet's palette
        (devices.scheme, not the app's theme) through the tokens the pill and the skins' pill rules read - the .seg look above */

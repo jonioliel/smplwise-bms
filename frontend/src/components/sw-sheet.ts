@@ -208,8 +208,9 @@ export class SwSheet extends LitElement {
       flex-direction: column;
       gap: 12px;
       scrollbar-width: thin;
-      -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
-      mask-image: linear-gradient(to bottom, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+      --_mask: linear-gradient(to bottom, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+      -webkit-mask-image: var(--_mask);
+      mask-image: var(--_mask);
     }
     .body > ::slotted(*) {
       flex-shrink: 0;
