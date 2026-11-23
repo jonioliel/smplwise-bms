@@ -20,7 +20,8 @@ test('D2: the edit bar reserves its measured height in the last sheet, so no dir
   expect(s).not.toContain('padding-block-end: 52px');
   // the bar reports its height to its card
   expect(s).toContain("card.style.setProperty('--wg-e-h', `${h}px`)");
-  expect(s).toMatch(/protected updated\(\) \{\n\s+this\.syncTicker\(\);\n\s+this\.watchEditBars\(\);/);
+  // PERF-2490: updated() first asks for the on-demand remote chunk when it is wanted; the ticker and the edit-bar watch follow
+  expect(s).toMatch(/protected updated\(\) \{\n(?:\s+if \(!this\.remoteReady && this\.wantsRemote\) this\.loadRemote\(\);\n)?\s+this\.syncTicker\(\);\n\s+this\.watchEditBars\(\);/);
   expect(s).toContain('this.barRo?.disconnect();');
 });
 
