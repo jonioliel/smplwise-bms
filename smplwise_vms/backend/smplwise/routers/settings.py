@@ -85,6 +85,13 @@ class SettingsPatch(BaseModel):
     nvr_batch_on_refusal: str | None = Field(default=None, pattern="^(skip|stop)$", alias="nvr.batch_on_refusal")  # CAM-H264-VERIFY-2361
     nvr_privacy_mask_write: str | None = Field(default=None, pattern="^(true|false)$", alias="nvr.privacy_mask_write")  # NVRMASK-295
     nvr_privacy_mask_copy: str | None = Field(default=None, pattern="^(true|false)$", alias="nvr.privacy_mask_copy")  # MASKCOPY62-295
+    # ONVIF-API-2500: finding cameras on the site's network (services/camera_discovery; the ranges are checked in settings_patch/cameras.py)
+    cameras_discovery: str | None = Field(default=None, pattern="^(manual|off)$", alias="cameras.discovery")
+    cameras_discovery_range_max: str | None = Field(default=None, pattern="^/2[2-8]$", alias="cameras.discovery_range_max")  # /22 (1,024) .. /28
+    cameras_discovery_allowed_ranges: str | None = Field(default=None, max_length=600, alias="cameras.discovery_allowed_ranges")
+    cameras_discovery_rate_pps: str | None = Field(default=None, pattern="^([1-9][0-9]|1[0-9]{2}|200)$", alias="cameras.discovery_rate_pps")  # 10..200
+    cameras_discovery_http_fallback: str | None = Field(default=None, pattern="^(on|off)$", alias="cameras.discovery_http_fallback")
+    cameras_discovery_job_ttl_min: str | None = Field(default=None, pattern="^([5-9]|[1-5][0-9]|60)$", alias="cameras.discovery_job_ttl_min")  # 5..60
     snapshots_max_age_s: int | None = Field(default=None, ge=5, le=3600, alias="snapshots.max_age_s")
     time_zone: str | None = Field(default=None, pattern=r"^[A-Za-z_]+(/[A-Za-z_\-+0-9]+)+$", alias="time.zone")
     playback_max_sessions: int | None = Field(default=None, ge=1, le=128, alias="playback.max_sessions")

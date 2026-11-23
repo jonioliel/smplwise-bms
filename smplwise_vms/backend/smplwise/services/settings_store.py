@@ -547,6 +547,17 @@ DEFAULTS: dict[str, str] = {
     # /api/v1/maintenance/docread* and .../files/{id}/read|extraction route answers 404 feature_disabled. No OCR, no model.
     # A security review of the reader boundary gates switching it on in a release (CR-OCR119 section 6).
     "docread.enabled": "false",
+    # ONVIF-API-2500 (design onvif-discovery-2412 section 6, owner decisions 2026-11-22 Q55-Q60): finding cameras on the site's network
+    # (services/camera_discovery). manual = only when an administrator presses "search" (never periodic, Q60) | off. A scan covers
+    # at most a /22 (1,024 addresses, Q56: the range_max setting may only lower it) inside the host's own private networks; the
+    # allowed ranges (CIDRs, empty = the whole site network) may only narrow that and are shown to system.configure only
+    # (PRIVATE_KEYS). The HTTP fallback (one unauthenticated ONVIF clock read on port 80 of each silent address) is off by default.
+    "cameras.discovery": "manual",
+    "cameras.discovery_range_max": "/22",
+    "cameras.discovery_allowed_ranges": "",
+    "cameras.discovery_rate_pps": "50",
+    "cameras.discovery_http_fallback": "off",
+    "cameras.discovery_job_ttl_min": "15",
     # NVRMASK-295: privacy-mask writes to the NVR (preview + guarded apply). OFF by default: a mask blacks out live view AND the
     # recording. While off the preview and apply routes answer 409 feature_disabled; the read and the undo of earlier changes stay.
     "nvr.privacy_mask_write": "false",
@@ -570,7 +581,8 @@ def stored_skin(raw: Any) -> str:
     return raw if raw in ("classic", "domus", "tesla", "bubble", "crystal", "infra", "soft") else DEFAULTS["ui.skin"]
 
 
-PRIVATE_KEYS = ("site.latitude", "site.longitude")  # SEC247 I3: the manual site position - administrators (system.configure) only
+PRIVATE_KEYS = ("site.latitude", "site.longitude",  # SEC247 I3: the manual site position - administrators (system.configure) only
+                "cameras.discovery_allowed_ranges")  # ONVIF-API-2500: the camera-scan ranges describe the site's network
 
 
 def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[str, Any]:
@@ -641,6 +653,9 @@ def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[st
             out[key] = None
         if not private:
             del out[key]
+    if not private:  # ONVIF-API-2500: the other private keys (the camera-scan ranges) leave the answer the same way
+        for key in PRIVATE_KEYS:
+            out.pop(key, None)
     out["plan.bakes"] = plan_bakes.stored_setting(out["plan.bakes"])
     out["home.widgets"] = home_screen.effective_config(conn)
     out["home.screen"] = home_screen_options.stored(out["home.screen"])
