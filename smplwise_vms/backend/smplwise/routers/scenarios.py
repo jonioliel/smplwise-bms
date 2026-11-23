@@ -123,7 +123,9 @@ def list_flags(principal: Principal = Depends(current_principal_ro), conn: sqlit
 @router.get("/scenarios/choices")
 def choices(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, svc.MANAGE, INSTALLATION)  # also while the module is off: the settings card picks the default recipients
-    return svc.choices(conn, principal)
+    from ..i18n import localize_for
+
+    return localize_for(conn, principal, svc.choices(conn, principal))  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
 
 @router.get("/scenarios/settings")
 def get_settings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:

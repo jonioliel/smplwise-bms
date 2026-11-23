@@ -161,8 +161,8 @@ def preview(blueprint_id: str, request: Request, principal: Principal = Depends(
             ops._raise_judgement(w, "automation", j, True, creating=True)
         except ApiError as exc:
             refusal = {"code": exc.code, "message": exc.user_message}
-    return {"blueprint": {"id": bp["id"], "version": bp["version"]}, "draft": draft, "sentence": (j.rd or {}).get("sentence"), "ok": refusal is None, "refusal": refusal,
-            "sensitive": j.sensitive, "enabled_on_create": False}
+    return base._out(conn, principal, {"blueprint": {"id": bp["id"], "version": bp["version"]}, "draft": draft, "sentence": (j.rd or {}).get("sentence"), "ok": refusal is None,
+                                       "refusal": refusal, "sensitive": j.sensitive, "enabled_on_create": False})  # I18N-BACKEND-2490
 
 
 @router.post("/automation-blueprints/{blueprint_id}/instantiate")
@@ -177,4 +177,4 @@ def instantiate(blueprint_id: str, request: Request, principal: Principal = Depe
     w.details.update(blueprint={"id": bp["id"], "version": bp["version"]})
     status_code, payload = ops.create(w, "automation", draft, False, body.confirm, body.client_request_id)
     payload = {**payload, "blueprint": {"id": bp["id"], "version": bp["version"]}}
-    return JSONResponse(status_code=status_code, content=payload)
+    return JSONResponse(status_code=status_code, content=base._out(conn, principal, payload))

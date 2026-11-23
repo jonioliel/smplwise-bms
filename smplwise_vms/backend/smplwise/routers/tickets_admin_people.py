@@ -164,4 +164,6 @@ def holders(principal: Principal = Depends(current_principal_ro), conn: sqlite3.
                       "permissions": [p for p in access.TICKET_PERMISSIONS if p in perms]})
     order = {r: i for i, r in enumerate(("viewer", "kiosk", "operator", "editor", "door_opener", "site_admin", "system_admin"))}
     roles.sort(key=lambda r: (not r["builtin"], order.get(r["id"], 50), r["name"]))
-    return {"users": sorted(people.values(), key=lambda u: u["name"]), "grant_roles": [r for r in GRANT_ROLES if r in ROLES], "roles": roles}
+    from ..i18n import localize_for
+
+    return localize_for(conn, principal, {"users": sorted(people.values(), key=lambda u: u["name"]), "grant_roles": [r for r in GRANT_ROLES if r in ROLES], "roles": roles})  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language

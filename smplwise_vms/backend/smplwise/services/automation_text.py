@@ -7,6 +7,11 @@ in both places and in the golden file.
 
 Pure functions over the block dictionaries of `automation_model` (the JSON shape of AUTOMATIONS_API.md section 2.1). No Home Assistant, no I/O.
 Names come from the caller (`ModelContext.names`): the entity id is the fallback, never an error.
+
+I18N-BACKEND-2490: every sentence is a `Msg` (smplwise/i18n.py) built from the `auto.*` texts of services/automation_text_i18n.py: its
+string value is the Hebrew sentence, byte for byte (the golden file, the stored trace and version summaries, the client mirror), and the
+screens that answer one user render it in that user's interface language (the automation routers call `localize`). Names, numbers,
+times and quoted user texts inside a sentence are data and stay as they are.
 """
 from __future__ import annotations
 
@@ -15,7 +20,9 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable, Collection, Iterable, Mapping
 
+from ..i18n import cat, join, t
 from . import automation_policy as policy
+from . import automation_text_i18n as words
 from . import building_presence_blocks as bpb
 
 Block = Mapping[str, Any]
@@ -85,8 +92,8 @@ def name_of(ctx: ModelContext, entity_id: str) -> str:
     return n if n else entity_id
 
 
-def join_names(ids: Iterable[str], ctx: ModelContext | None = None) -> str:
-    """"a", "a וb", "a, b וc"; "…" for none."""
+def join_names(ids: Iterable[str], ctx: ModelContext | None = None) -> Any:
+    """"a", "a וb", "a, b וc"; "…" for none. The names are data; the word "and" is a `Msg` (I18N-BACKEND-2490)."""
     ctx = ctx or ModelContext()
     n = [name_of(ctx, i) for i in ids]
     if not n:
@@ -94,74 +101,75 @@ def join_names(ids: Iterable[str], ctx: ModelContext | None = None) -> str:
     if len(n) == 1:
         return n[0]
     if len(n) == 2:
-        return f"{n[0]} ו{n[1]}"
-    return f"{', '.join(n[:-1])} ו{n[-1]}"
+        return t("auto.names2", v=n[0], v2=n[1])
+    return t("auto.names2", v=", ".join(n[:-1]), v2=n[-1])
 
 
-def duration_text(d: Mapping[str, Any] | None) -> str:
+def duration_text(d: Mapping[str, Any] | None) -> Any:
     """"5 דקות", "שעה ו30 דקות"."""
     if not d:
         return ""
-    p: list[str] = []
+    p: list[Any] = []
     h, m, s = d.get("hours"), d.get("minutes"), d.get("seconds")
     if h:
-        p.append("שעה" if h == 1 else "שעתיים" if h == 2 else f"{num(h)} שעות")
+        p.append(t("auto.hour1") if h == 1 else t("auto.hour2") if h == 2 else t("auto.hours", n=num(h)))
     if m:
-        p.append("דקה" if m == 1 else "שתי דקות" if m == 2 else f"{num(m)} דקות")
+        p.append(t("auto.minute1") if m == 1 else t("auto.minute2") if m == 2 else t("auto.minutes", n=num(m)))
     if s:
-        p.append("שנייה" if s == 1 else "שתי שניות" if s == 2 else f"{num(s)} שניות")
-    return " ו".join(p)
+        p.append(t("auto.second1") if s == 1 else t("auto.second2") if s == 2 else t("auto.seconds", n=num(s)))
+    return join(t("auto.dur_and"), p)
 
 
 WEEKDAYS = policy.WEEKDAYS
-WD_SHORT = {"sun": "א׳", "mon": "ב׳", "tue": "ג׳", "wed": "ד׳", "thu": "ה׳", "fri": "ו׳", "sat": "ש׳"}
+WD_SHORT = {d: t(f"auto.wd.{d}") for d in ("sun", "mon", "tue", "wed", "thu", "fri", "sat")}
 _CLOCK_ZERO_RE = re.compile(r"^\d{1,2}:\d{2}:00$")
 
 
-def clock(t: str) -> str:
-    return t[:-3] if _CLOCK_ZERO_RE.match(t) else t
+def clock(c: str) -> str:
+    return c[:-3] if _CLOCK_ZERO_RE.match(c) else c
 
 
-def state_word(ids: list[str], to: Any, frm: Any) -> str:
+def state_word(ids: list[str], to: Any, frm: Any) -> Any:
     """What a device "does" when it reaches `to` (by its domain, and for sensors by the id: motion, door, window, leak)."""
     eid = ids[0] if ids else ""
     dom = eid.split(".")[0]
     if to is _UNDEF and frm is _UNDEF:
-        return "משתנה"
+        return t("auto.st.changes")
     if dom == "binary_sensor":
         if re.search(r"motion|occupancy|presence", eid):
-            return "מזהה תנועה" if to == "on" else "מפסיק לזהות תנועה"
+            return t("auto.st.motion_on") if to == "on" else t("auto.st.motion_off")
         if re.search(r"door|window|gate", eid):
-            return "נפתח/ת" if to == "on" else "נסגר/ת"
+            return t("auto.st.opens") if to == "on" else t("auto.st.closes")
         if re.search(r"leak|water|flood", eid):
-            return "מזהה מים" if to == "on" else "מתייבש"
+            return t("auto.st.water_on") if to == "on" else t("auto.st.water_off")
         if re.search(r"smoke|gas|fire", eid):
-            return "מזהה עשן" if to == "on" else "חוזר לתקין"
-        return "מופעל" if to == "on" else "כבוי"
+            return t("auto.st.smoke_on") if to == "on" else t("auto.st.smoke_off")
+        return t("auto.st.on") if to == "on" else t("auto.st.off")
     if dom in ("person", "device_tracker"):
         if to == "home":
-            return "חוזר/ת הביתה" if frm not in (None, _UNDEF, "") else "בבית"
-        return "יוצא/ת מהבית" if to == "not_home" else f"ב{js_str(to)}"
+            return t("auto.st.comes_home") if frm not in (None, _UNDEF, "") else t("auto.st.home")
+        return t("auto.st.leaves_home") if to == "not_home" else t("auto.st.at", to=js_str(to))
     if dom == "climate":
-        return "מקרר" if to == "cool" else "מחמם" if to == "heat" else "כבוי" if to == "off" else f"במצב {js_str(to)}"
+        return t("auto.st.cooling") if to == "cool" else t("auto.st.heating") if to == "heat" else t("auto.st.off") if to == "off" else t("auto.st.in_state", to=js_str(to))
     if dom == "lock":
-        return "ננעל" if to == "locked" else "נפתח" if to == "unlocked" else f"במצב {js_str(to)}"
+        return t("auto.st.locks") if to == "locked" else t("auto.st.unlocks") if to == "unlocked" else t("auto.st.in_state", to=js_str(to))
     if dom == "alarm_control_panel":
         if to == "triggered":
-            return "מופעלת"
+            return t("auto.st.triggered")
         if to == "disarmed":
-            return "מנוטרלת"
-        return "דרוכה" if isinstance(to, str) and to.startswith("armed") else f"במצב {js_str(to)}"
+            return t("auto.st.disarmed")
+        return t("auto.st.armed") if isinstance(to, str) and to.startswith("armed") else t("auto.st.in_state", to=js_str(to))
     if dom == "cover":
-        return "נפתח" if to == "open" else "נסגר" if to == "closed" else f"במצב {js_str(to)}"
+        return t("auto.st.cover_opens") if to == "open" else t("auto.st.cover_closes") if to == "closed" else t("auto.st.in_state", to=js_str(to))
     if to == "on":
-        return "נדלק/ת" if dom == "light" else "מופעל/ת"
+        return t("auto.st.light_on") if dom == "light" else t("auto.st.turns_on")
     if to == "off":
-        return "נכבה/ית" if dom == "light" else "כבוי/ה"
-    return f'במצב "{js_str(to)}"'
+        return t("auto.st.light_off") if dom == "light" else t("auto.st.is_off")
+    return t("auto.st.in_state_q", to=js_str(to))
 
 
-# The verb of a service ("{n}" = where the device names go; without it the names follow the verb).
+# The verb of a service ("{n}" = where the device names go; without it the names follow the verb). Plain Hebrew (the picker's catalogue and the
+# golden strings read it); the sentence and the picker label use the `auto.verb.*` / `auto.label.*` texts built from it (automation_text_i18n).
 ACTION_VERBS: dict[str, str] = {
     "light.turn_on": "הדלק", "light.turn_off": "כבה", "light.toggle": "החלף מצב של",
     "switch.turn_on": "הפעל", "switch.turn_off": "כבה", "switch.toggle": "החלף מצב של",
@@ -180,231 +188,233 @@ ACTION_VERBS: dict[str, str] = {
     "timer.start": "התחל את", "timer.cancel": "בטל את", "timer.pause": "השהה את", "timer.finish": "סיים את",
     "scene.turn_on": "הפעל סצנה", "automation.turn_on": "הפעל את האוטומציה", "automation.turn_off": "כבה את האוטומציה", "automation.trigger": "הרץ את האוטומציה",
 }
+words.register_verbs(ACTION_VERBS)
 
 
-def action_label(action: str) -> str:
-    """The short Hebrew label of a service in the action picker (the verb without its placeholder)."""
-    return ACTION_VERBS.get(action, action).replace("{n}", "").rstrip("־").strip()
+def action_label(action: str) -> Any:
+    """The short label of a service in the action picker (the verb without its placeholder)."""
+    return t(f"auto.label.{action}") if action in ACTION_VERBS else action.replace("{n}", "").rstrip("־").strip()
 
 
 # ---------------------------------------------------------------- locked blocks
 
-LOCK_KEY_LABEL = {
-    "variables": "משתנים", "wait_template": "המתנה לתנאי", "wait_for_trigger": "המתנה לאירוע", "parallel": "פעולות במקביל", "sequence": "רצף צעדים",
-    "event": "שליחת אירוע", "scene": "הפעלת סצנה (פורמט ישן)", "set_conversation_response": "תגובת שיחה", "stop": "עצירה",
-}
+LOCK_KEY_LABEL = {k: t(f"auto.lock.{k}") for k in ("variables", "wait_template", "wait_for_trigger", "parallel", "sequence", "event", "scene", "set_conversation_response", "stop")}
 
 
-def locked_label(raw: Any, reason: str, section: str, ctx: ModelContext | None = None) -> str:
-    """The Hebrew label of a locked block (also its sentence)."""
+def locked_label(raw: Any, reason: str, section: str, ctx: ModelContext | None = None) -> Any:
+    """The label of a locked block (also its sentence)."""
     ctx = ctx or ModelContext()
     r = raw if isinstance(raw, dict) else {}
     if reason == "template":
-        return "תבנית"
+        return t("auto.locked.template")
     if reason == "device":
         did = r.get("device_id")
         name = ctx.device_name(did) if ctx.device_name and isinstance(did, str) else None
-        what = name or "מכשיר"
-        return f"כפתור · {what}" if section == "trigger" else f"תנאי מכשיר · {what}" if section == "condition" else f"פעולת מכשיר · {what}"
+        what = name or t("auto.locked.device")
+        return t("auto.locked.button", v=what) if section == "trigger" else t("auto.locked.device_condition", v=what) if section == "condition" else t("auto.locked.device_action", v=what)
     if reason == "purpose_trigger":
-        return f"טריגר ייעודי · {js_str(r.get('trigger')) if r.get('trigger') is not None else ''}"
+        return t("auto.locked.purpose_trigger", v=js_str(r.get("trigger")) if r.get("trigger") is not None else "")
     if reason == "custom_service":
         svc = r.get("action") if r.get("action") is not None else r.get("service")
-        return f"שירות מיוחד · {(js_str(svc) if svc is not None else '').split('.')[0]}"
+        return t("auto.locked.custom_service", v=(js_str(svc) if svc is not None else "").split(".")[0])
     if reason == "service_not_allowed":
         svc = r.get("action") if r.get("action") is not None else r.get("service")
-        return f"שירות לא מותר · {js_str(svc) if svc is not None else ''}"
+        return t("auto.locked.not_allowed", v=js_str(svc) if svc is not None else "")
     if reason == "disabled_step":
-        return "צעד מושבת" if r.get("enabled") is False else "צעד עם המשך בשגיאה"
+        return t("auto.locked.disabled") if r.get("enabled") is False else t("auto.locked.continue_on_error")
     if reason == "secret":
-        return "ערך חסוי"
+        return t("auto.locked.secret")
     if reason == "code":
-        return "קוד חסוי"
+        return t("auto.locked.code")
     if reason == "unsupported_step":
         key = next((k for k in r if k in LOCK_KEY_LABEL), None)
         if isinstance(r.get("repeat"), dict):
-            return "חזרה מתקדמת"
+            return t("auto.locked.repeat")
         if key:
             return LOCK_KEY_LABEL[key]
-        return "טריגר מתקדם" if section == "trigger" else "תנאי מתקדם" if section == "condition" else "צעד מתקדם"
-    return "טריגר לא מוכר" if section == "trigger" else "תנאי לא מוכר" if section == "condition" else "צעד לא מוכר"
+        return t("auto.locked.adv_trigger") if section == "trigger" else t("auto.locked.adv_condition") if section == "condition" else t("auto.locked.adv_step")
+    return t("auto.locked.unknown_trigger") if section == "trigger" else t("auto.locked.unknown_condition") if section == "condition" else t("auto.locked.unknown_step")
 
 
 # ---------------------------------------------------------------- sentences
 
-PRESS_WORD = {"short": "לחיצה קצרה", "double": "לחיצה כפולה", "long": "לחיצה ארוכה"}  # KAV079-295
+PRESS_WORD = {p: t(f"auto.press.{p}") for p in ("short", "double", "long")}  # KAV079-295
 
-def service_sentence(b: Block, ctx: ModelContext) -> str:
+
+def service_sentence(b: Block, ctx: ModelContext) -> Any:
     n = join_names(b["entity_ids"], ctx)
     d = b.get("data") or {}
     role, action = b.get("role"), b["action"]
     if role == "scene":
-        return f'הפעל סצנה "{n}"'
+        return t("auto.scene", n=n)
     if role == "script":
-        return f'הרץ "{n}"'
+        return t("auto.script", n=n)
     if role == "automation":
-        return f'{ACTION_VERBS.get(action, action)} "{n}"'
+        return t("auto.quoted", verb=t(f"auto.word.{action}") if action in ACTION_VERBS else action, n=n)
     if role == "notify":
         target = ctx.notify_name(action) if ctx.notify_name else None
         if not target:
-            target = re.sub(r"^mobile_app_", "", re.sub(r"^notify\.", "", action)).replace("_", " ") or "התראות"
+            target = re.sub(r"^mobile_app_", "", re.sub(r"^notify\.", "", action)).replace("_", " ") or t("auto.notifications")
         msg = d.get("message") if isinstance(d.get("message"), str) else ""
-        crit = " עם צליל קריטי" if b.get("critical") else ""  # KAV079-295
-        return f'שלח ל{target} "{msg}"{crit}' if msg else f"שלח התראה ל{target}{crit}"
-    verb = ACTION_VERBS.get(action)
-    if not verb:
-        text = f"{action} · {n}"
-    elif "{n}" in verb:
-        text = verb.replace("{n}", n)
-    elif verb.endswith("־"):
-        text = f"{verb}{n}"
-    else:
-        text = f"{verb} {n}"
+        crit = t("auto.critical") if b.get("critical") else ""  # KAV079-295
+        return t("auto.send_msg", target=target, msg=msg, crit=crit) if msg else t("auto.send", target=target, crit=crit)
+    text: Any = t(f"auto.verb.{action}", n=n) if action in ACTION_VERBS else t("auto.service_dot", action=action, n=n)
+    tail: Any = ""
     if action == "light.turn_on":
         if _is_num(d.get("brightness_pct")):
-            text += f" ל־{num(d['brightness_pct'])}%"
+            tail = t("auto.to_pct", v=num(d["brightness_pct"]))
         elif _is_num(d.get("brightness")):
-            text += f" ל־{js_round(d['brightness'] / 255 * 100)}%"
+            tail = t("auto.to_pct", v=js_round(d["brightness"] / 255 * 100))
     if action == "climate.set_temperature" and _is_num(d.get("temperature")):
-        text += f" ל־{num(d['temperature'])}°"
+        tail = t("auto.to_deg", v=num(d["temperature"]))
     if action == "cover.set_cover_position" and _is_num(d.get("position")):
-        text += f" ל־{num(d['position'])}%"
+        tail = t("auto.to_pct", v=num(d["position"]))
     if action == "media_player.volume_set" and _is_num(d.get("volume_level")):
-        text += f" ל־{js_round(d['volume_level'] * 100)}%"
+        tail = t("auto.to_pct", v=js_round(d["volume_level"] * 100))
     if action == "fan.set_percentage" and _is_num(d.get("percentage")):
-        text += f" ל־{num(d['percentage'])}%"
-    return text
+        tail = t("auto.to_pct", v=num(d["percentage"]))
+    return cat(text, tail) if tail else text
 
 
-def _join_steps(blocks: Iterable[Block], ctx: ModelContext) -> str:
-    return ", ".join(action_sentence(x, ctx, True) for x in blocks)
+def _join_steps(blocks: Iterable[Block], ctx: ModelContext) -> Any:
+    return join(", ", [action_sentence(x, ctx, True) for x in blocks])
 
 
-def _time_pattern_every(v: Any, unit: tuple[str, str, str]) -> str | None:
+def _time_pattern_every(v: Any, unit: tuple[Any, Any, Any]) -> Any:
     m = re.match(r"^/(\d+)$", v) if isinstance(v, str) and v else None
     if not m:
         return None
-    return f"כל {unit[0]}" if m.group(1) == "1" else f"כל {m.group(1)} {unit[2]}"
+    return t("auto.every1", v=unit[0]) if m.group(1) == "1" else t("auto.every", v=m.group(1), v2=unit[2])
 
 
-def trigger_sentence(b: Block, ctx: ModelContext | None = None) -> str:
+def _for(b: Block) -> Any:
+    return t("auto.for", **{"for": duration_text(b["for"])}) if b.get("for") is not None else ""
+
+
+def trigger_sentence(b: Block, ctx: ModelContext | None = None) -> Any:
     ctx = ctx or ModelContext()
     if b.get("kind") == "locked":
         return b["label"]
-    t = b["type"]
-    if t == "state":
-        dur = f" במשך {duration_text(b['for'])}" if b.get("for") is not None else ""
-        return f"כש{join_names(b['entity_ids'], ctx)} {state_word(b['entity_ids'], b.get('to', _UNDEF), b.get('from', _UNDEF))}{dur}"
-    if t == "numeric_state":
+    kind = b["type"]
+    if kind == "state":
+        return t("auto.when", v=join_names(b["entity_ids"], ctx), v2=state_word(b["entity_ids"], b.get("to", _UNDEF), b.get("from", _UNDEF)), v3=_for(b))
+    if kind == "numeric_state":
         ids, above, below = b["entity_ids"], b.get("above"), b.get("below")
         if len(ids) == 1 and ids[0] == "zone.home" and below == 1 and above is None:
-            return "כשכולם יוצאים מהבית"
-        rng = (f"בין {num(above)} ל־{num(below)}" if _nn(above) and _nn(below) else f"מעל {num(above)}" if _nn(above)
-               else f"מתחת ל־{num(below)}" if _nn(below) else "משתנה")
-        dur = f" במשך {duration_text(b['for'])}" if b.get("for") is not None else ""
-        return f"כש{join_names(ids, ctx)} {rng}{dur}"
-    if t == "time":
-        return f"בשעה {clock(b['at'])}"
-    if t == "time_pattern":
+            return t("auto.everyone_leaves")
+        rng = (t("auto.between", above=num(above), below=num(below)) if _nn(above) and _nn(below) else t("auto.above", above=num(above)) if _nn(above)
+               else t("auto.below", below=num(below)) if _nn(below) else t("auto.st.changes"))
+        return t("auto.when", v=join_names(ids, ctx), v2=rng, v3=_for(b))
+    if kind == "time":
+        return t("auto.at_time", at=clock(b["at"]))
+    if kind == "time_pattern":
         mins, hrs, secs = b.get("minutes"), b.get("hours"), b.get("seconds")
-        return (_time_pattern_every(mins, ("דקה", "דקות", "דקות")) or _time_pattern_every(hrs, ("שעה", "שעות", "שעות"))
-                or _time_pattern_every(secs, ("שנייה", "שניות", "שניות"))
-                or (f"בדקה {mins} של כל שעה" if mins and re.match(r"^\d+$", str(mins)) else "לפי תבנית זמן"))
-    if t == "sun":
-        word = "שקיעה" if b["event"] == "sunset" else "זריחה"
+        return (_time_pattern_every(mins, (t("auto.unit.minute"), t("auto.unit.minutes"), t("auto.unit.minutes")))
+                or _time_pattern_every(hrs, (t("auto.unit.hour"), t("auto.unit.hours"), t("auto.unit.hours")))
+                or _time_pattern_every(secs, (t("auto.unit.second"), t("auto.unit.seconds"), t("auto.unit.seconds")))
+                or (t("auto.minute_of_hour", minutes=mins) if mins and re.match(r"^\d+$", str(mins)) else t("auto.time_pattern")))
+    if kind == "sun":
+        word = t("auto.sunset") if b["event"] == "sunset" else t("auto.sunrise")
         off = b.get("offset_min") or 0
-        return f"{abs(off)} דק׳ {'לפני' if off < 0 else 'אחרי'} ה{word}" if off else f"ב{word}"
-    if t == "homeassistant":
-        return "כשהמערכת עולה"
-    if t == "building_empty":  # BUILDING-PRESENCE-2271
+        return t("auto.sun_offset", offset_min=abs(off), v=t("auto.before_word") if off < 0 else t("auto.after_word"), word=word) if off else t("auto.at_sun", word=word)
+    if kind == "homeassistant":
+        return t("auto.system_starts")
+    if kind == "building_empty":  # BUILDING-PRESENCE-2271
         return bpb.trigger_sentence(b)
-    if t == "button":  # KAV079-295: a wall button / switch press
+    if kind == "button":  # KAV079-295: a wall button / switch press
         did = b.get("device_id")
-        name = (ctx.device_name(did) if ctx.device_name and isinstance(did, str) else None) or "מפסק"
-        return f"{PRESS_WORD.get(b.get('press'), 'לחיצה')} על כפתור {b.get('button')} · {name}"
+        name = (ctx.device_name(did) if ctx.device_name and isinstance(did, str) else None) or t("auto.switch")
+        return t("auto.press_on_button", v=PRESS_WORD.get(b.get("press")) or t("auto.press"), button=b.get("button"), v2=name)
     return b.get("label", "")
 
 
-def condition_sentence(b: Block, ctx: ModelContext | None = None) -> str:
+def _quoted_or(values: Iterable[Any]) -> Any:
+    return join(t("auto.or"), [f'"{v}"' for v in values])
+
+
+def condition_sentence(b: Block, ctx: ModelContext | None = None) -> Any:
     ctx = ctx or ModelContext()
     if b.get("kind") == "locked":
         return b["label"]
-    t = b["type"]
-    if t == "state":
+    kind = b["type"]
+    if kind == "state":
         st = b["state"] if isinstance(b["state"], list) else [b["state"]]
-        w = state_word(b["entity_ids"], st[0], _UNDEF) if len(st) == 1 else " או ".join(f'"{s}"' for s in st)
-        dur = f" במשך {duration_text(b['for'])}" if b.get("for") is not None else ""
-        return f"{join_names(b['entity_ids'], ctx)} {w if len(st) == 1 else f'במצב {w}'}{dur}"
-    if t == "numeric_state":
+        w = state_word(b["entity_ids"], st[0], _UNDEF) if len(st) == 1 else t("auto.in_state_w", w=_quoted_or(st))
+        return cat(t("auto.names_state", v=join_names(b["entity_ids"], ctx), w=w), _for(b))
+    if kind == "numeric_state":
         above, below = b.get("above"), b.get("below")
-        rng = f"בין {num(above)} ל־{num(below)}" if _nn(above) and _nn(below) else f"מעל {num(above)}" if _nn(above) else f"מתחת ל־{js_str(below)}"
-        return f"{join_names(b['entity_ids'], ctx)} {rng}"
-    if t == "time":
-        p: list[str] = []
+        rng = t("auto.between", above=num(above), below=num(below)) if _nn(above) and _nn(below) else t("auto.above", above=num(above)) if _nn(above) else t("auto.below", below=js_str(below))
+        return t("auto.names_state", v=join_names(b["entity_ids"], ctx), w=rng)
+    if kind == "time":
+        p: list[Any] = []
         after, before, wd = b.get("after"), b.get("before"), b.get("weekday")
         if after and before:
-            p.append(f"בין {clock(after)} ל־{clock(before)}")
+            p.append(t("auto.between_times", after=clock(after), before=clock(before)))
         elif after:
-            p.append(f"אחרי {clock(after)}")
+            p.append(t("auto.after_time", after=clock(after)))
         elif before:
-            p.append(f"לפני {clock(before)}")
+            p.append(t("auto.before_time", before=clock(before)))
         if wd:
-            p.append("בכל יום" if len(wd) == 7 else f"בימים {', '.join(WD_SHORT[d] for d in WEEKDAYS if d in wd)}")
-        return " ".join(p) or "בכל שעה"
-    if t == "sun":
-        def w(r: str) -> str:
-            return "שקיעה" if r == "sunset" else "זריחה"
+            p.append(t("auto.every_day") if len(wd) == 7 else t("auto.on_days", v=join(", ", [WD_SHORT[d] for d in WEEKDAYS if d in wd])))
+        return join(" ", p) if p else t("auto.any_time")
+    if kind == "sun":
+        def w(r: str) -> Any:
+            return t("auto.sunset") if r == "sunset" else t("auto.sunrise")
         after, before = b.get("after"), b.get("before")
         if after and before:
-            return f"בין ה{w(after)} ל{w(before)}"
-        return f"אחרי ה{w(after)}" if after else f"לפני ה{w(before)}" if before else "בכל שעה"
-    if t == "trigger":
-        return "הטריגר הוא " + " או ".join(f'"{i}"' for i in b["ids"])
-    if t == "and":
-        return " וגם ".join(condition_sentence(c, ctx) for c in b["conditions"])
-    if t == "or":
-        return " או ".join(condition_sentence(c, ctx) for c in b["conditions"])
-    if t == "not":
-        return f"לא ({' וגם '.join(condition_sentence(c, ctx) for c in b['conditions'])})"
-    if t == "shabbat":
-        return "בשבת וחג בלבד" if b["mode"] == "only_holy_days" else "לא בשבת וחג"
-    if t == "room_occupied":  # BUILDING-PRESENCE-2271
+            return t("auto.between_sun", after=w(after), before=w(before))
+        return t("auto.after_sun", after=w(after)) if after else t("auto.before_sun", before=w(before)) if before else t("auto.any_time")
+    if kind == "trigger":
+        return t("auto.trigger_is", v=_quoted_or(b["ids"]))
+    if kind == "and":
+        return join(t("auto.and_also"), [condition_sentence(c, ctx) for c in b["conditions"]])
+    if kind == "or":
+        return join(t("auto.or"), [condition_sentence(c, ctx) for c in b["conditions"]])
+    if kind == "not":
+        return t("auto.not", v=join(t("auto.and_also"), [condition_sentence(c, ctx) for c in b["conditions"]]))
+    if kind == "shabbat":
+        return t("auto.holy_only") if b["mode"] == "only_holy_days" else t("auto.not_holy")
+    if kind == "room_occupied":  # BUILDING-PRESENCE-2271
         return bpb.condition_sentence(b, list(ctx.presence_sensors) or None, ctx.names)
-    if t == "presence":  # KAV079-295: "who is in the building"
-        return "אין אף אחד במבנה" if b.get("mode") == "nobody" else "יש מישהו במבנה"
+    if kind == "presence":  # KAV079-295: "who is in the building"
+        return t("auto.nobody") if b.get("mode") == "nobody" else t("auto.somebody")
     return b.get("label", "")
 
 
-def action_sentence(b: Block, ctx: ModelContext | None = None, short: bool = False) -> str:
+def _conditions_and(conditions: Iterable[Block], ctx: ModelContext) -> Any:
+    return join(t("auto.and"), [condition_sentence(c, ctx) for c in conditions]) or "…"
+
+
+def action_sentence(b: Block, ctx: ModelContext | None = None, short: bool = False) -> Any:
     """One action step. `short` = the one-line form of a nested step ("בחר לפי תנאים (2 ענפים)"); the long form spells the branches."""
     ctx = ctx or ModelContext()
     if b.get("kind") == "locked":
         return b["label"]
-    t = b["type"]
-    if t == "service":
+    kind = b["type"]
+    if kind == "service":
         return service_sentence(b, ctx)
-    if t == "delay":
-        return f"המתן {duration_text(b['delay']) or '…'}"
-    if t == "choose":
+    if kind == "delay":
+        return t("auto.wait", v=duration_text(b["delay"]) or "…")
+    if kind == "choose":
         if short:
-            return f"בחר לפי תנאים ({len(b['options'])} ענפים)"
-        parts = [f"אם {' ו'.join(condition_sentence(c, ctx) for c in o['conditions']) or '…'} – {_join_steps(o['sequence'], ctx) or '…'}" for o in b["options"]]
+            return t("auto.choose_short", length=len(b["options"]))
+        parts = [t("auto.if_then", v=_conditions_and(o["conditions"], ctx), v2=_join_steps(o["sequence"], ctx) or "…") for o in b["options"]]
         if b.get("default"):
-            parts.append(f"אחרת – {_join_steps(b['default'], ctx)}")
-        return "; ".join(parts)
-    if t == "if":
-        els = f", אחרת – {_join_steps(b['else'], ctx)}" if b.get("else") else ""
-        return f"אם {' ו'.join(condition_sentence(c, ctx) for c in b['conditions']) or '…'} – {_join_steps(b['then'], ctx) or '…'}{els}"
-    if t == "repeat_count":
-        return f"חזור {b['count']} פעמים: {_join_steps(b['sequence'], ctx) or '…'}"
-    if t == "condition":
-        return f"המשך רק אם {condition_sentence(b['condition'], ctx)}"
-    if t == "stop":
-        return f"עצור: {b['message']}" if b.get("message") else "עצור"
+            parts.append(t("auto.otherwise", v=_join_steps(b["default"], ctx)))
+        return join("; ", parts)
+    if kind == "if":
+        els = t("auto.else_tail", v=_join_steps(b["else"], ctx)) if b.get("else") else ""
+        return t("auto.if_then_else", v=_conditions_and(b["conditions"], ctx), v2=_join_steps(b["then"], ctx) or "…", v3=els)
+    if kind == "repeat_count":
+        return t("auto.repeat", count=b["count"], v=_join_steps(b["sequence"], ctx) or "…")
+    if kind == "condition":
+        return t("auto.continue_if", v=condition_sentence(b["condition"], ctx))
+    if kind == "stop":
+        return t("auto.stop_msg", message=b["message"]) if b.get("message") else t("auto.stop")
     return b.get("label", "")
 
 
-def block_sentence(b: Block, section: str, ctx: ModelContext | None = None) -> str:
+def block_sentence(b: Block, section: str, ctx: ModelContext | None = None) -> Any:
     """The sentence of one block of any section (what the block's `sentence` holds)."""
     if section == "trigger":
         return trigger_sentence(b, ctx)
@@ -413,44 +423,44 @@ def block_sentence(b: Block, section: str, ctx: ModelContext | None = None) -> s
     return action_sentence(b, ctx, True)
 
 
-def _advanced(n: int) -> str:
-    return "פעולה מתקדמת" if n == 1 else f"{n} פעולות מתקדמות"
+def _advanced(n: int) -> Any:
+    return t("auto.advanced1") if n == 1 else t("auto.advanced", n=n)
 
 
-def steps_phrase(blocks: list[Block], ctx: ModelContext) -> str:
+def steps_phrase(blocks: list[Block], ctx: ModelContext) -> Any:
     """Steps as one phrase; locked steps collapse to "ופעולה מתקדמת" (CR section 15.4: the sentence admits there is more than it can say)."""
     typed = [action_sentence(b, ctx) for b in blocks if b.get("kind") == "typed"]
     locked = len(blocks) - len(typed)
     if not locked:
-        return "; ".join(typed)
-    return f"{'; '.join(typed)} ו{_advanced(locked)}" if typed else _advanced(locked)
+        return join("; ", typed)
+    return t("auto.steps_and_locked", v=join("; ", typed), locked=_advanced(locked)) if typed else _advanced(locked)
 
 
-def automation_sentence(d: Mapping[str, Any], ctx: ModelContext | None = None) -> str:
+def automation_sentence(d: Mapping[str, Any], ctx: ModelContext | None = None) -> Any:
     """"כש… או כש… , אם … ו… – פעולה; פעולה"."""
     ctx = ctx or ModelContext()
-    tr = [trigger_sentence(t, ctx) for t in d.get("triggers") or []]
+    tr = [trigger_sentence(x, ctx) for x in d.get("triggers") or []]
     co = [condition_sentence(c, ctx) for c in d.get("conditions") or []]
-    s = " או ".join(tr) if tr else "כש…"
+    s = join(t("auto.or"), tr) if tr else t("auto.when_empty")
     if co:
-        s += f", אם {' ו'.join(co)}"
+        s = cat(s, t("auto.if_tail", v=join(t("auto.and"), co)))
     actions = d.get("actions") or []
-    return f"{s} – {steps_phrase(actions, ctx) if actions else '…'}"
+    return t("auto.item", s=s, v=steps_phrase(actions, ctx) if actions else "…")
 
 
-def script_sentence(d: Mapping[str, Any], ctx: ModelContext | None = None) -> str:
+def script_sentence(d: Mapping[str, Any], ctx: ModelContext | None = None) -> Any:
     ctx = ctx or ModelContext()
     seq = d.get("sequence") or []
     return steps_phrase(seq, ctx) if seq else "…"
 
 
-def scene_sentence(d: Mapping[str, Any], ctx: ModelContext | None = None) -> str:
+def scene_sentence(d: Mapping[str, Any], ctx: ModelContext | None = None) -> Any:
     ctx = ctx or ModelContext()
     members = d.get("members") or []
-    return f"מכוון {join_names([m['entity_id'] for m in members], ctx)}" if members else "סצנה ריקה"
+    return t("auto.sets", v=join_names([m["entity_id"] for m in members], ctx)) if members else t("auto.empty_scene")
 
 
-def draft_sentence(kind: str, draft: Mapping[str, Any], ctx: ModelContext | None = None) -> str:
+def draft_sentence(kind: str, draft: Mapping[str, Any], ctx: ModelContext | None = None) -> Any:
     if kind == "automation":
         return automation_sentence(draft, ctx)
     if kind == "script":

@@ -16,6 +16,7 @@ import sqlite3
 from typing import Any
 
 from ..db import get_setting
+from ..i18n import CATALOGUE, t
 from ..rbac import Principal, bindings_of
 from . import automation_draft as drafts
 from . import automation_model as model
@@ -49,6 +50,11 @@ REASON_MESSAGES = {
     "ha_unavailable": "תשתית המערכת אינה זמינה כרגע.",
     "unsupported_content": "הפריט כולל תוכן שהמערכת אינה מציגה במלואו.",
 }
+# I18N-BACKEND-2490 (third pass): each message a `Msg` (`ascope.reason.<code>`, services/automation_scope_text.py) whose string value is the
+# Hebrew above, byte for byte; the routes render it in the reader's language
+from . import automation_scope_text  # noqa: E402,F401 - registers `ascope.*` and `sched.*`
+
+REASON_MESSAGES = {k: (t(f"ascope.reason.{k}") if CATALOGUE.get(f"ascope.reason.{k}", {}).get("he") == v else v) for k, v in REASON_MESSAGES.items()}
 WRITE_BLOCK_REASON = {"feature_disabled": "feature_disabled", "ha_unavailable": "ha_unavailable", "config_api_unavailable": "config_api_unavailable", "bridge_missing": "bridge_unavailable",
                       "bridge_unpaired": "bridge_unavailable", "bridge_too_old": "bridge_unavailable", "authoring_blocked": "config_api_unavailable", "delegation_off": "delegation_off"}
 
@@ -478,7 +484,7 @@ def grant_reasons(ctx: Ctx, steps: list[dict[str, Any]]) -> list[dict[str, Any]]
             key = f"{perm}|{e}"
             if key not in seen:
                 seen.add(key)
-                out.append(reason("grant_required", e, f"אין לך הרשאה ל{PERMISSION_LABELS[perm]} ב־{ctx.name_of(e)}.", grant=perm, path=s["path"]))
+                out.append(reason("grant_required", e, t("ascope.no_grant_at", perm=PERMISSION_LABELS[perm], name=ctx.name_of(e)), grant=perm, path=s["path"]))
     return out
 
 
@@ -495,7 +501,7 @@ def control_reasons(ctx: Ctx, entity_ids: list[str]) -> list[dict[str, Any]]:
         if e.startswith("alarm_control_panel."):
             continue  # a panel is armed / disarmed under its own grants (grant_reasons), not under entity control
         if not a.control(e):
-            out.append(reason("entity_not_controllable", e, f"אין לך הרשאת שליטה ב־{ctx.name_of(e)}.", grant=None))
+            out.append(reason("entity_not_controllable", e, t("ascope.no_control_of", name=ctx.name_of(e)), grant=None))
     return out
 
 
@@ -550,7 +556,7 @@ def run_reasons(ctx: Ctx, kind: str, facts: dict[str, Any], *, entity_id: str | 
     if kind == "scene":
         if source == "integration":
             if not (entity_id and a.control(entity_id)):
-                out.append(reason("entity_not_controllable", entity_id, f"אין לך הרשאת שליטה ב־{ctx.name_of(entity_id or '')}."))
+                out.append(reason("entity_not_controllable", entity_id, t("ascope.no_control_of", name=ctx.name_of(entity_id or ""))))
             return out
         out.extend(control_reasons(ctx, facts["targets"]))
         out.extend(grant_reasons(ctx, facts["steps"]))
@@ -564,7 +570,7 @@ def run_reasons(ctx: Ctx, kind: str, facts: dict[str, Any], *, entity_id: str | 
         if not a.any_allowed(perms, e):
             out.append(reason("no_permission", e))
     if facts["unknown_effects"] and not any(a.wide(p) for p in perms):
-        out.append(reason("no_permission", message="לפריט פעולות שאינן ידועות מראש; הרצה דורשת הרשאה בכל ההתקנה."))
+        out.append(reason("no_permission", message=t("ascope.unknown_effects")))
     if not out:
         out.extend(control_reasons(ctx, ents))
         out.extend(grant_reasons(ctx, facts["steps"]))

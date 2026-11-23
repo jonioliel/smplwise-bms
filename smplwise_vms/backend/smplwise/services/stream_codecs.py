@@ -19,14 +19,22 @@ import json
 import sqlite3
 from typing import Any
 
+from ..i18n import register, t
 from . import nvr
 
-REASON_HE = {
-    "h265": "מקודד H.265",
-    "mjpeg": "מקודד MJPEG",
-    "b_frames": "מקודד H.264 עם B-frames",
-    "svc": "מקודד H.264 עם SVC",
-}
+# I18N-BACKEND-2490: the hint is a `Msg` (smplwise/i18n.py) - its string value is the Hebrew below, byte for byte, and the screens that
+# answer one user (the setup wizard, the camera detail, the health report) render it in that user's interface language. The camera
+# name inside it is data (`camera_name`'s "ערוץ N" fallback is also written to the NVR's channel name, services/nvr_settings.py, so it
+# stays Hebrew) and the menu path is the device's own (English) wording.
+register("codec", {
+    "reason.h265": ("מקודד H.265", "is encoded in H.265"),
+    "reason.mjpeg": ("מקודד MJPEG", "is encoded in MJPEG"),
+    "reason.b_frames": ("מקודד H.264 עם B-frames", "is encoded in H.264 with B-frames"),
+    "reason.svc": ("מקודד H.264 עם SVC", "is encoded in H.264 with SVC"),
+    "reason.other": ("מקודד {codec}", "is encoded in {codec}"),
+    "hint": ("הזרם הראשי של {name} {what} - לא יתנגן ב-WebRTC; לשינוי: {fix}", "The main stream of {name} {what} - it will not play over WebRTC; to change it: {fix}"),
+})
+REASON_HE = {reason: t(f"codec.reason.{reason}") for reason in ("h265", "mjpeg", "b_frames", "svc")}
 
 
 def is_hikvision(model: str | None) -> bool:
@@ -49,11 +57,11 @@ def fix_path(channel: int, enc: dict[str, Any], model: str | None) -> str:
 
 
 def main_hint(name: str, channel: int, enc: dict[str, Any] | None, model: str | None) -> str | None:
-    """The Hebrew settings hint for a main stream that will not play over WebRTC; None when it will (or is unknown)."""
+    """The settings hint (a `Msg`, Hebrew as a string) for a main stream that will not play over WebRTC; None when it will (or is unknown)."""
     if not enc or enc.get("webrtc") != "no":
         return None
-    what = REASON_HE.get(str(enc.get("reason")), f"מקודד {enc.get('codec') or '?'}")
-    return f"הזרם הראשי של {name} {what} - לא יתנגן ב-WebRTC; לשינוי: {fix_path(channel, enc, model)}"
+    what = REASON_HE.get(str(enc.get("reason"))) or t("codec.reason.other", codec=enc.get("codec") or "?")
+    return t("codec.hint", name=name, what=what, fix=fix_path(channel, enc, model))
 
 
 def build(channel: nvr.DiscoveredChannel, isapi: dict[str, dict[str, Any]] | None, previous: dict[str, Any] | None, *,

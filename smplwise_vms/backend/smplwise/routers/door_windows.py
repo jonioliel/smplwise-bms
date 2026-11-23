@@ -28,6 +28,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import commit_now, rollback_and_restart
 from ..errors import ApiError
 from ..remote_channel import is_remote
+from ..i18n import localize_for
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import door_emergency as de
 from ..services import door_emergency_grants as deg
@@ -580,7 +581,7 @@ def emergency_state(request: Request, principal: Principal = Depends(current_pri
         labels = dw.doors_by_key(conn)
         out["foreign_paused"] = [f | {"label": labels[f["door"]].label if f["door"] in labels else f["door"]} for f in dw.foreign_paused_list(conn)]
         out["recent"] = [de.incident_view(conn, r, with_doors=False) for r in store.recent_incidents(conn)]
-    return out
+    return localize_for(conn, principal, out)  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
 
 
 class PrepareBody(BaseModel):
@@ -594,8 +595,8 @@ class PrepareBody(BaseModel):
 
 @router.post("/doors/emergency/prepare", **wire(W.DwPrepared))
 def emergency_prepare(body: PrepareBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    return de.prepare(conn, settings_of(request), principal, action=body.action, kind=body.kind, scope_type=body.scope_type, scope_id=body.scope_id,
-                      incident_id=body.incident_id, drill=body.drill, now=now_utc(), dev_mode=_dev(request))
+    return localize_for(conn, principal, de.prepare(conn, settings_of(request), principal, action=body.action, kind=body.kind, scope_type=body.scope_type,  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
+                                                    scope_id=body.scope_id, incident_id=body.incident_id, drill=body.drill, now=now_utc(), dev_mode=_dev(request)))
 
 
 class StartBody(BaseModel):
@@ -632,7 +633,7 @@ def emergency_start(body: StartBody, request: Request, principal: Principal = De
     de.pause_windows_for_lock(db, settings, iid)
     de.cancel_capture_leases(db, iid)  # CAPEMERGENCY-295 / CAPEMERGENCY2-295: OPEN or LOCK, after the door action is out; never raises
     with db.connection(mode="read") as rconn:
-        return {"incident": de.incident_view(rconn, de.incident_row(rconn, iid))}
+        return localize_for(rconn, principal, {"incident": de.incident_view(rconn, de.incident_row(rconn, iid))})  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
 
 
 class ReleaseBody(BaseModel):
@@ -653,7 +654,7 @@ def emergency_release(body: ReleaseBody, request: Request, incident_id: str = Pa
     db = request.app.state.db
     de.submit(db, settings, incident_id, "release")
     with db.connection(mode="read") as rconn:
-        return {"incident": de.incident_view(rconn, de.incident_row(rconn, incident_id))}
+        return localize_for(rconn, principal, {"incident": de.incident_view(rconn, de.incident_row(rconn, incident_id))})  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
 
 
 class RetryOpenBody(BaseModel):
@@ -673,7 +674,7 @@ def emergency_retry_open(body: RetryOpenBody, request: Request, incident_id: str
     db = request.app.state.db
     de.submit(db, settings, incident_id, "apply")
     with db.connection(mode="read") as rconn:
-        return {"incident": de.incident_view(rconn, de.incident_row(rconn, incident_id))}
+        return localize_for(rconn, principal, {"incident": de.incident_view(rconn, de.incident_row(rconn, incident_id))})  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
 
 
 class GrantBody(BaseModel):
@@ -692,7 +693,7 @@ class RevokeGrantBody(BaseModel):
 @router.get("/doors/emergency/grants", **wire(W.DwGrants))
 def emergency_grants(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """EMROLE-295: who holds the emergency-open role, and the people / places a grant may name (system administrators and security managers)."""
-    return deg.view(conn, principal)
+    return localize_for(conn, principal, deg.view(conn, principal))  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
 
 
 @router.post("/doors/emergency/grants", status_code=201, **wire(W.DwGrantOne))
@@ -701,7 +702,7 @@ def emergency_grant(body: GrantBody, request: Request, principal: Principal = De
     _confirmed(body.confirmed)
     out = deg.grant(conn, request, principal, user_id=body.user_id, scope_type=body.scope_type, scope_id=body.scope_id, expires_at=body.expires_at, no_expiry=body.no_expiry,
                     now=now_utc(), dev_mode=_dev(request), remote=is_remote(request))
-    return {"grant": out}
+    return localize_for(conn, principal, {"grant": out})  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
 
 
 @router.post("/doors/emergency/grants/{binding_id}/revoke", **wire(W.DwGrantRevoked))
@@ -720,7 +721,7 @@ def emergency_incident(incident_id: str = Path(min_length=1, max_length=64), pri
     row = de.incident_row(conn, incident_id)
     if row is None or (row["drill"] and row["requested_by"] != principal.user_id and not authorize(conn, principal, CONFIGURE, INSTALLATION).allowed):
         raise ApiError(404, "not_found", "לא נמצא.")
-    return {"incident": de.incident_view(conn, row)}
+    return localize_for(conn, principal, {"incident": de.incident_view(conn, row)})  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
 
 
 @router.get("/doors/emergency/settings", **wire(W.DwEmergencySettingsOne))

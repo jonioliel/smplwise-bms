@@ -45,7 +45,9 @@ def get_notify_matrix(principal: Principal = Depends(current_principal_ro), conn
 
     by_dept = notify_matrix.pending_by_department(conn)
     custom = {r["id"]: r["name_he"] for r in tickets_admin_settings_store.live_custom_role_names(conn)}
-    return {"sources": [{"key": k, "label": notify_matrix.LABELS.get(k, k), "digest": k in notify_matrix.DIGESTABLE,
+    from ..i18n import localize_for
+
+    return localize_for(conn, principal, {"sources": [{"key": k, "label": notify_matrix.LABELS.get(k, k), "digest": k in notify_matrix.DIGESTABLE,
                          "assignee": k in notify_matrix.ASSIGNEE_SOURCES, "sla": k in notify_matrix.SLA_SOURCES} for k in notify_matrix.MATRIX_SOURCES],
             # 2.9.1: each department's priorities (the SLA policies are department x priority) and its held events
             "departments": [{"id": d["id"], "name": d["name"], "pending": by_dept.get(d["id"], 0),
@@ -56,7 +58,7 @@ def get_notify_matrix(principal: Principal = Depends(current_principal_ro), conn
             "roles": [{"id": rid, "name": ROLE_NAMES_HE.get(rid) or custom.get(rid) or rid} for rid in all_roles(conn)],
             # the channel groups this installation can deliver (push = web push / the phone app); in-app is always on
             "channels": [g for g, names in notify_matrix.CHANNEL_GROUPS.items() if any(n in notify_channels.CHANNELS for n in names)],
-            "pending": notify_matrix.pending(conn)}
+            "pending": notify_matrix.pending(conn)})  # I18N-BACKEND-2490 (third pass): source labels and role names in the reader's language
 
 
 class UiPatch(BaseModel):

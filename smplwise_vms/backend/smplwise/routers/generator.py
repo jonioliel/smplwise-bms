@@ -19,6 +19,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..db import now_iso
 from ..errors import ApiError, not_found
+from ..i18n import localize_for, register, t
 from ..rbac import INSTALLATION, Principal, require
 from ..services import default_names
 from ..services import generator_alerts as alerts
@@ -33,6 +34,9 @@ from ..wire import wire
 
 router = APIRouter()
 VIEW, MANAGE = "generator.view", "generator.manage"
+# I18N-BACKEND-2490 (third pass): the recipient roles of the alert routing (Hebrew as before; English as the frontend's en.ts `roleNames`)
+register("generator.role", {"operator": ("מפעילים", "Operators"), "site_admin": ("מנהלי אתר", "Site administrators"),
+                            "system_admin": ("מנהלי מערכת", "System administrators")})
 _DETECT_CALLS: collections.deque[float] = collections.deque(maxlen=3)
 
 
@@ -378,8 +382,8 @@ def ack_all(device_id: str, principal: Principal = Depends(_view_w), conn: sqlit
 def get_policies(device_id: str, principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _device(conn, device_id)
     out = alerts.list_policies(conn, device_id)
-    out["roles"] = [{"id": r, "label": {"operator": "מפעילים", "site_admin": "מנהלי אתר", "system_admin": "מנהלי מערכת"}[r]} for r in alerts.ROUTABLE_ROLES]
-    return out
+    out["roles"] = [{"id": r, "label": t(f"generator.role.{r}")} for r in alerts.ROUTABLE_ROLES]
+    return localize_for(conn, principal, out)  # I18N-BACKEND-2490 (third pass): the role labels in the reader's language
 
 
 class PolicyBody(_Body):
