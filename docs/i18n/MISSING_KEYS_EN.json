@@ -2,14 +2,14 @@
  "totals": {
   "lang": "en",
   "catalogues": 152,
-  "keys": 29612,
+  "keys": 29634,
   "missing": 20,
   "identical": 3,
   "hebrew": 0,
   "gap": 4,
   "placeholder": 1,
   "hardcodedModules": 46,
-  "hardcodedLiterals": 3144,
+  "hardcodedLiterals": 3160,
   "hardcodedFiles": 168
  },
  "catalogues": [
@@ -603,7 +603,7 @@
   },
   {
    "name": "i18n/he",
-   "keys": 1298,
+   "keys": 1310,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1480,7 +1480,7 @@
   },
   {
    "name": "msg/api-notify",
-   "keys": 212,
+   "keys": 215,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1562,7 +1562,7 @@
   },
   {
    "name": "msg/calendars",
-   "keys": 741,
+   "keys": 744,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1580,7 +1580,7 @@
   },
   {
    "name": "msg/components",
-   "keys": 836,
+   "keys": 837,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1815,7 +1815,7 @@
   },
   {
    "name": "msg/system-b",
-   "keys": 1465,
+   "keys": 1466,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -2128,7 +2128,7 @@
   },
   {
    "name": "tickets/table-text",
-   "keys": 135,
+   "keys": 137,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -2258,7 +2258,7 @@
    "module": "screens/explore-*",
    "kind": "app",
    "files": 4,
-   "literals": 857,
+   "literals": 865,
    "fileList": [
     {
      "file": "screens/explore-entities.ts",
@@ -2266,11 +2266,11 @@
     },
     {
      "file": "screens/explore-floor-map.ts",
-     "literals": 202
+     "literals": 203
     },
     {
      "file": "screens/explore-plan-editor.ts",
-     "literals": 612
+     "literals": 619
     },
     {
      "file": "screens/explore-presence.ts",
@@ -2282,11 +2282,11 @@
    "module": "screens/plan-*",
    "kind": "app",
    "files": 1,
-   "literals": 598,
+   "literals": 605,
    "fileList": [
     {
      "file": "screens/plan-studio-panel.ts",
-     "literals": 598
+     "literals": 605
     }
    ]
   },
@@ -2518,7 +2518,7 @@
    "module": "screens/system-*",
    "kind": "app",
    "files": 17,
-   "literals": 143,
+   "literals": 144,
    "fileList": [
     {
      "file": "screens/system-access.ts",
@@ -2570,7 +2570,7 @@
     },
     {
      "file": "screens/system-notifications.ts",
-     "literals": 4
+     "literals": 5
     },
     {
      "file": "screens/system-palette-editor.ts",
@@ -3298,7 +3298,7 @@
    "module": "(demo data)",
    "kind": "demo",
    "files": 19,
-   "literals": 1626,
+   "literals": 1627,
    "fileList": [
     {
      "file": "api/automations-demo.ts",
@@ -3334,7 +3334,7 @@
     },
     {
      "file": "api/notifications-mock.ts",
-     "literals": 82
+     "literals": 83
     },
     {
      "file": "api/schedules-mock.ts",
