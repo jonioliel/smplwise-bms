@@ -108,7 +108,31 @@ without an area answers `null`. With `probe.sub: CameraSourcesSourceProbeMain = 
 
 ## Tests
 
-RESULTS_PLACEHOLDER
+`tests/test_onvif_client_2500.py` (34 test functions, 67 cases) with the extended `tests/fixtures/fake_onvif.py` (HTTP Digest MD5 /
+SHA-256 with stale nonces, GetServices / GetCapabilities, Media1 / Media2 profiles, stream and snapshot URIs, other-host, `info_open`
+and `media_refused` variants) and the fake go2rtc of `test_camera_sources_2410.py`: fixed request templates and 14 refused request
+shapes; the RFC 7616 example (MD5 and SHA-256 responses); which challenges are answered; stream shaping (14 cases) and percent-encoded
+credentials the source policy accepts; main / sub suggestion; bounded hostile profile lists; Media2 first; Media1 through
+GetCapabilities with HTTP Digest answered once; a Digest wrong password = two guard entries and one camera-side failure; the guard
+blocking the Digest answer; SHA-256 + stale nonce; an unanswerable challenge; a camera that skips the check on GetDeviceInformation;
+an account without the media right; a media service and streams on another host (never contacted / refused); Media2 -> Media1
+fallback; request caps; hostile media answers; identification through the routes; the guard across presses with Digest; the add step
+(sealed addresses with the percent-encoded pair, origin and `onvif_json`, the H.265 hint, the fingerprint, audit rows, job marks, a new
+scan knows the camera, no secret in answers / audit / log / database dump); per-row refusals without contacting a device; unidentified
+cameras; the standalone limit (partial success); request refusals, cancel, `webrtc_server_required` before the body, RBAC; the preview
+form (address assembled on the server, throwaway stream removed, audited without the address), its refusals, the shared budget;
+migration 0217. Changed: `test_camera_discovery_2500.py::test_only_get_actions_can_be_built` (the widened per-service list) and
+`test_camera_discovery_api_2500.py` (the add route in the route table, the RBAC and the 403-before-body lists).
+
+| Run | Where | Command | Result |
+|---|---|---|---|
+| new tests | PC, main `.venv` Python 3.12.10 | `python -m pytest -q -p no:cacheprovider tests/test_onvif_client_2500.py` | 67 passed, exit 0 |
+| discovery tests | PC, main `.venv` | `tests/test_camera_discovery_2500.py tests/test_camera_discovery_api_2500.py` | 80 passed, exit 0 |
+| touched areas | PC, main `.venv` at 5d7ad5fb5 | the three files above + `test_camera_sources_2410` `test_raw_body_order` `test_plan_routes_unique` `test_wire_routers_b_2450` `test_wire_routers_c_2470` `test_wire_routers_d_2470` `test_wire_consumption_2450` `test_migrations` `test_db_template` `test_nvr_less` `test_singletons_registered` `test_cameras` | 492 passed, exit 0 |
+| touched areas | runner slot B (`~/work/slotb.sh ~/run_remote.sh backend pilot/ONVIF-CLIENT-2500 <18 files>`: the set above + `test_migrations_263_upgrade` `test_query_plans` `test_settings_patch_audit_order`) at 5d7ad5fb5 | | 518 passed in 481 s, exit 0 |
+| pyflakes lane | runner slot B, ruff 0.17.5 (rule set F), in the branch worktree at 5d7ad5fb5 | `ruff check` of the camera_discovery package, `camera_sources.py`, both routers, the wire module, the fixture and the three test files | All checks passed |
+| generated types | PC | `python scripts/gen_wire_types.py --check` | exit 0 (`wire-camera-discovery.ts` regenerated in 75c5d6f57) |
+| trial merge with `origin/pilot/RESPONSE-MODELS-E-2480` (6bf65de99) | PC, throw-away worktree of 5d7ad5fb5 (removed) | merge (one conflict, resolved as in the merge note) + `origin` / `probe.sub` / nullable `area_id` in E's camera-source models; `gen_wire_types.py --check`; `wire_ratchet.py`; `pytest tests/test_wire_ratchet_2480.py tests/test_wire_routers_e_2480.py tests/test_onvif_client_2500.py tests/test_camera_discovery_api_2500.py tests/test_camera_sources_2410.py` | ratchet "every count equals its baseline (901 unmodelled JSON routes in 119 router modules)" - the add route is modelled, nothing went up; gen check exit 0; 255 passed, exit 0. Before the two E-model widenings: 2 failures (`probe.sub`, `area_id` null), both E-model gaps |
 
 ## Known limits / not done here
 
