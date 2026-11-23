@@ -37,7 +37,9 @@ def _sent(fake) -> list[str]:
 
 
 def _multi_on(c) -> None:
-    assert c.put(f"{API}/home/multi-building", json={"enabled": True}).status_code == 200
+    # MULTI-BUILDING-SAFETY-2500: turning the switch on is confirmed with the digest of the check before it
+    digest = c.get(f"{API}/home/multi-building/check").json()["digest"]
+    assert c.put(f"{API}/home/multi-building", json={"enabled": True, "check_digest": digest}).status_code == 200
 
 
 def test_a_single_control_inside_a_building_reaches_only_that_buildings_devices(bulk_app):
