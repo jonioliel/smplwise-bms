@@ -10,7 +10,8 @@ import path from 'node:path';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ORIGIN = 'http://arx.test';
-const EVIDENCE = path.join(HERE, '../../docs/evidence/USR2');
+// UNIT-NO-DOCS-WRITES-2480: a normal unit run writes to test-results/ (untracked); SW_WRITE_EVIDENCE=1 refreshes the tracked docs/evidence/USR2 images.
+const EVIDENCE = process.env.SW_WRITE_EVIDENCE === '1' ? path.join(HERE, '../../docs/evidence/USR2') : path.join(HERE, '../test-results/evidence-usr2');
 const SID = '0123456789abcdef0123456789abcdef';
 
 test.use({ serviceWorkers: 'block' });

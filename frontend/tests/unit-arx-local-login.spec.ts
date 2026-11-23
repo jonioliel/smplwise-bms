@@ -237,8 +237,9 @@ test('settings: a plain user\'s link goes by WhatsApp and is never shown; an adm
 });
 
 // Build screenshots for the design review (desktop / mobile, RTL; error and ready states; the settings tab with mocked rows).
-// Written to docs/evidence/USR2/ - mocked data only, no real name, address or secret.
-const EVIDENCE = path.join(HERE, '../../docs/evidence/USR2');
+// Written to test-results/evidence-usr2/ (docs/evidence/USR2/ with SW_WRITE_EVIDENCE=1) - mocked data only, no real name, address or secret.
+// UNIT-NO-DOCS-WRITES-2480: a normal unit run writes to test-results/ (untracked); SW_WRITE_EVIDENCE=1 refreshes the tracked docs/evidence/USR2 images.
+const EVIDENCE = process.env.SW_WRITE_EVIDENCE === '1' ? path.join(HERE, '../../docs/evidence/USR2') : path.join(HERE, '../test-results/evidence-usr2');
 const ROWS = {
   enabled: true, can_manage: true, channel: 'local',
   users: [
