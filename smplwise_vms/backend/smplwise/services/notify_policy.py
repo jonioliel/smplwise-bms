@@ -14,11 +14,12 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from ..db import now_iso
-from . import values
+from ..i18n import CATALOGUE, t as msg
+from . import notify_policy_text, values
 
 SEVERITIES = ("info", "alert", "critical")
 SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
@@ -309,6 +310,7 @@ def _generator_sources() -> tuple[Source, ...]:
     administrator saves a routing; no push / e-mail by default. The alert always lands in the generator's own history and in the centre."""
     from . import generator_catalog as gc
 
+    notify_policy_text.register_generator_labels([(g.key, g.title_he, g.title_en) for g in gc.ALERT_TYPES])  # I18N-BACKEND-2490
     return tuple(
         Source(f"generator.{t.key}", f"גנרטור: {t.title_he}", "device_faults", t.severity, t.title_he, t.body, who="generator", push=False, subject="generator", resolve_text="הסתיים", resolves=not t.event)
         for t in gc.ALERT_TYPES
@@ -318,6 +320,11 @@ def _generator_sources() -> tuple[Source, ...]:
 SOURCES = SOURCES + _generator_sources()
 from .tickets import notify_sources as _ticket_sources  # noqa: E402 - CR-038 slice 6: the tickets module's sources (plain data, no cycle)
 SOURCES = SOURCES + tuple(Source(**kw) for kw in _ticket_sources.source_kwargs())
+# I18N-BACKEND-2490: a source's settings label is a `Msg` (smplwise/i18n.py; services/notify_policy_text.py) - its string value is the
+# Hebrew label declared above, byte for byte, and the policy screens (routers/notifications.py) render it in the reader's interface
+# language. Titles, bodies and resolve texts stay plain Hebrew: they are written into the notification and sent (push, e-mail, app).
+SOURCES = tuple(replace(s, label=msg(f"notify.label.{s.key}")) if f"notify.label.{s.key}" in CATALOGUE and CATALOGUE[f"notify.label.{s.key}"]["he"] == s.label else s
+                for s in SOURCES)
 class _ByKey(dict):  # type: ignore[type-arg]
     """The catalogue by key. A per-generator source `generator.<type>@<generator id>` (CR-031: routing is per generator) resolves to its
     type's catalogue entry; its policy row is its own (`notify_policies.source` is the full key)."""
@@ -535,22 +542,22 @@ def validate_update(source: str, body: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for f in ("enabled", "resolve_notice"):  # real booleans only: the string "false" is truthy and must never silently switch something on
         if f in body and not isinstance(body[f], bool):
-            raise PolicyInvalid("validation", "הערך חייב להיות כן/לא.", {"field": f})
+            raise PolicyInvalid("validation", msg("notify.invalid.bool"), {"field": f})
     if "enabled" in body:
         out["enabled"] = body["enabled"]
     if "severity" in body:
         if body["severity"] not in SEVERITIES:
-            raise PolicyInvalid("validation", "חומרה לא מוכרת.", {"field": "severity"})
+            raise PolicyInvalid("validation", msg("notify.invalid.severity"), {"field": "severity"})
         out["severity"] = body["severity"]
     if "category" in body:
         if body["category"] not in CATEGORIES:
-            raise PolicyInvalid("validation", "קטגוריה לא מוכרת.", {"field": "category"})
+            raise PolicyInvalid("validation", msg("notify.invalid.category"), {"field": "category"})
         out["category"] = body["category"]
     for f, hi in (("after_s", 86400), ("dedupe_window_s", 7 * 86400)):
         if f in body:
             v = body[f]
             if isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= hi:
-                raise PolicyInvalid("validation", "ערך מספרי מחוץ לטווח.", {"field": f})
+                raise PolicyInvalid("validation", msg("notify.invalid.range"), {"field": f})
             out[f] = v
     if "resolve_notice" in body:
         out["resolve_notice"] = body["resolve_notice"]
@@ -558,7 +565,7 @@ def validate_update(source: str, body: dict[str, Any]) -> dict[str, Any]:
         r = body["recipients"] or {}
         rule = r.get("rule")
         if rule not in RECIPIENT_RULES:
-            raise PolicyInvalid("validation", "כלל נמענים לא מוכר.", {"field": "recipients.rule"})
+            raise PolicyInvalid("validation", msg("notify.invalid.rule"), {"field": "recipients.rule"})
         if source in FAILURE_SOURCES and rule in ("managers", "scope"):
             rule = None  # decided by the installation setting `failures_audience`; the stored rule stays as it is (the client sends the whole body back)
         rec: dict[str, Any] = {"rule": rule}
@@ -567,20 +574,20 @@ def validate_update(source: str, body: dict[str, Any]) -> dict[str, Any]:
         elif rule == "users":
             ids = r.get("user_ids")
             if not isinstance(ids, list) or not ids or not all(isinstance(i, str) and 0 < len(i) <= 128 for i in ids) or len(ids) > 100:
-                raise PolicyInvalid("validation", "יש לבחור משתמש אחד לפחות.", {"field": "recipients.user_ids"})
+                raise PolicyInvalid("validation", msg("notify.invalid.users"), {"field": "recipients.user_ids"})
             rec["user_ids"] = sorted(set(ids))
         if rule is not None:
             out["recipients_json"] = json.dumps(rec)
     if "channels" in body:
         ch = body["channels"] or {}
         if not isinstance(ch, dict) or any(k in ch and not isinstance(ch[k], bool) for k in ("inbox", "webpush", "email", "ha_mobile", "whatsapp", "app", "announce")):
-            raise PolicyInvalid("validation", "ערוצים: ערכי כן/לא בלבד.", {"field": "channels"})
+            raise PolicyInvalid("validation", msg("notify.invalid.channels"), {"field": "channels"})
         for reserved in CHANNELS_RESERVED:
             if ch.get(reserved):
-                raise PolicyInvalid("channel_reserved", "הערוץ הזה עדיין לא זמין.", {"channel": reserved})
+                raise PolicyInvalid("channel_reserved", msg("notify.invalid.reserved"), {"channel": reserved})
         if ch.get("whatsapp") and source in NO_WHATSAPP_SOURCES:
-            raise PolicyInvalid("channel_not_allowed", "ההודעה הזו לא נשלחת בוואטסאפ.", {"channel": "whatsapp"})
+            raise PolicyInvalid("channel_not_allowed", msg("notify.invalid.no_whatsapp"), {"channel": "whatsapp"})
         if ch.get("inbox") is False:
-            raise PolicyInvalid("validation", "מרכז ההתראות פעיל תמיד.", {"field": "channels.inbox"})
+            raise PolicyInvalid("validation", msg("notify.invalid.inbox"), {"field": "channels.inbox"})
         out["channels_json"] = json.dumps({"inbox": True, "webpush": bool(ch.get("webpush")), "email": bool(ch.get("email")), "app": bool(ch.get("app")), "announce": bool(ch.get("announce")), "ha_mobile": False, "whatsapp": bool(ch.get("whatsapp"))})
     return out

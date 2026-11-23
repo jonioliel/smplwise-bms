@@ -27,6 +27,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import Database, unlocked
 from ..errors import ApiError
+from ..i18n import lang_of, localize, t
 from ..rbac import INSTALLATION, Principal, require
 from ..services import notifications_store as store
 from ..services import notify, notify_channels
@@ -329,8 +330,8 @@ def _policy_view(p: dict[str, Any], audience: str = "admins") -> dict[str, Any]:
 def list_policies(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _manager(conn, principal)
     audience = nsettings.failures_audience(conn)
-    return {"policies": [_policy_view(p, audience) for p in policies.list_policies(conn)], "categories": list(policies.CATEGORIES), "severities": list(policies.SEVERITIES),
-            "recipient_rules": list(policies.RECIPIENT_RULES)}
+    return localize({"policies": [_policy_view(p, audience) for p in policies.list_policies(conn)], "categories": list(policies.CATEGORIES), "severities": list(policies.SEVERITIES),
+                     "recipient_rules": list(policies.RECIPIENT_RULES)}, lang_of(conn, principal))  # I18N-BACKEND-2490: the labels in the reader's language
 
 
 @router.get("/notify/policies/{source}", **wire(W.NotifyPolicy))
@@ -338,8 +339,8 @@ def get_policy(source: str, principal: Principal = Depends(current_principal_ro)
     _manager(conn, principal)
     p = policies.get_policy(conn, source)
     if p is None:
-        raise ApiError(404, "not_found", "מקור ההתראות לא נמצא.")
-    return _policy_view(p, nsettings.failures_audience(conn))
+        raise ApiError(404, "not_found", t("notify.source_not_found"))
+    return localize(_policy_view(p, nsettings.failures_audience(conn)), lang_of(conn, principal))
 
 
 @router.put("/notify/policies/{source}", **wire(W.NotifyPolicy))
@@ -350,10 +351,10 @@ def put_policy(source: str, request: Request, body: dict[str, Any] = Body(...), 
     _manager(conn, principal)
     cur = policies.get_policy(conn, source)
     if cur is None:
-        raise ApiError(404, "not_found", "מקור ההתראות לא נמצא.")
+        raise ApiError(404, "not_found", t("notify.source_not_found"))
     expected = _expected_revision(if_match, body.get("base_revision", body.get("revision")))
     if expected is not None and expected != cur["revision"]:
-        raise ApiError(412, "settings_conflict", "המדיניות השתנתה בינתיים; טען מחדש.", details={"current_revision": cur["revision"], "sent_revision": expected})
+        raise ApiError(412, "settings_conflict", t("notify.policy_conflict"), details={"current_revision": cur["revision"], "sent_revision": expected})
     try:
         cols = policies.validate_update(source, {k: v for k, v in body.items() if k not in ("source", "revision", "base_revision", "label", "subject_kind", "resolves")})
     except policies.PolicyInvalid as exc:
@@ -364,7 +365,7 @@ def put_policy(source: str, request: Request, body: dict[str, Any] = Body(...), 
         store.update_policy(conn, source, cols, principal.user_id, iso_utc(dt.datetime.now(dt.timezone.utc)))
     audit(conn, actor=principal, action="notify.policy.update", decision="allowed", resource_type="notify_policy", resource_id=source, request_id=_rid(request),
           details={"changed": sorted(k.removesuffix("_json") for k in cols)})
-    return _policy_view(policies.get_policy(conn, source), nsettings.failures_audience(conn))  # type: ignore[arg-type]
+    return localize(_policy_view(policies.get_policy(conn, source), nsettings.failures_audience(conn)), lang_of(conn, principal))  # type: ignore[arg-type]
 
 
 @router.get("/notify/email", **wire(W.EmailSettingsView))
