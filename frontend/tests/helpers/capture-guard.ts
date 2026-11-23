@@ -2,9 +2,12 @@
  * FLAKY-CAPTURE-SCREENSHOT-2490: one guarded retry of a picture, never of an assertion.
  *
  * Chromium sometimes refuses `Page.captureScreenshot` with "Unable to capture screenshot" (seen in the 2.46.0 gate list and in
- * FLAKY-SWEEP-2480 session 3, in desktop, tablet and phone projects alike). The refusal says nothing about the app: the browser
- * could not copy a frame out of the compositor at that instant (no presented frame yet after a layout change, or a starved GPU
- * process on a loaded runner). Taking the same picture again a beat later works. `playwright.config.ts` calls installCaptureGuard()
+ * FLAKY-SWEEP-2480 session 3, in desktop, tablet and phone projects alike: 21 refusals in the runner's logs, 16-22 Nov). The refusal
+ * says nothing about the app and nothing about the picture's size: on a quiet machine it never happens (not for a 30000 px full page at
+ * 2.6x, not for 3840x2160, not when the capture races a viewport change or a navigation), and it comes in clusters seconds apart across
+ * different workers and different runs - a host-wide moment (the runner shares 15 GB between many sessions; one chrome-headless process
+ * was killed by the kernel OOM killer on 22 Nov) in which the browser cannot get the frame copy out of the compositor. Taking the
+ * same picture again a beat later works. `playwright.config.ts` calls installCaptureGuard()
  * once; it wraps `Page.screenshot` and `Locator.screenshot` for every spec, so no spec file changes and every picture - the evidence
  * shots and the ones that are read back - gets the same guard.
  *
@@ -76,7 +79,7 @@ export function guardShot(original: Shoot, pageOf: (self: unknown) => Page | nul
         if (attempt >= TRIES || !page || !REFUSED.test(e instanceof Error ? e.message : String(e))) throw e;
         // let the compositor present a frame, then a growing beat; a page that went away throws its own error here and that one wins
         await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
-        await page.waitForTimeout(250 * attempt);
+        await page.waitForTimeout(500 * attempt);
       }
     }
   };

@@ -35,7 +35,7 @@ test('a refused capture is taken again after two frames and a growing beat; opti
   expect(n).toBe(3);
   expect(seen.every((o) => o === options)).toBe(true);
   expect(calls.evaluate).toBe(2);
-  expect(calls.waits).toEqual([250, 500]);
+  expect(calls.waits).toEqual([500, 1000]);
 });
 
 test('any other error is thrown at once, never retried', async () => {
