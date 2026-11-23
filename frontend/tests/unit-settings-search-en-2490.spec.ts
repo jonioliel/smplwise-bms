@@ -8,9 +8,8 @@ import { SETTINGS_GROUPS, searchSettings, visibleGroups } from '../src/screens/s
 const all = SETTINGS_GROUPS.flatMap((g) => g.entries);
 const HEB = /[֐-׿]/;
 
-test('every entry has English keywords (the tickets entries follow the language through their own catalogue)', () => {
+test('every searchable entry has English keywords', () => {
   for (const e of all) {
-    if (e.tab === 'tickets') continue;
     expect(e.keywordsEn, e.href).toBeTruthy();
     expect(HEB.test(e.keywordsEn ?? ''), `${e.href}: English keywords without Hebrew letters`).toBe(false);
   }
@@ -32,4 +31,17 @@ test('Hebrew keywords keep working and the two languages may be mixed in one que
   expect(searchSettings(groups, 'גיבוי')[0].entry.href).toBe('#/system/diagnostics?tab=backup');
   expect(searchSettings(groups, 'גיבוי restore').map((r) => r.entry.href)).toContain('#/system/diagnostics?tab=backup');
   expect(searchSettings(groups, 'restore webrtc')).toEqual([]);
+});
+
+// I18N-SETTINGS-KEYWORDS-2490 (owner Q14): common English words find the right settings, tickets entries included.
+test('sample English queries hit the expected entries', () => {
+  const groups = visibleGroups(false);
+  const hrefs = (q: string) => searchSettings(groups, q).map((r) => r.entry.href);
+  for (const q of ['password', 'camera', 'backup', 'notifications', 'tickets']) {
+    expect(hrefs(q).length, q).toBeGreaterThan(0);
+  }
+  expect(hrefs('backup')).toContain('#/system/diagnostics?tab=backup');
+  expect(hrefs('camera')).toContain('#/system/security/cameras');
+  expect(hrefs('notifications').some((h) => h.startsWith('#/system/notifications'))).toBe(true);
+  expect(hrefs('tickets departments')).toContain('#/system/tickets?tab=departments');
 });
