@@ -106,4 +106,25 @@ Tests actually run:
 
 ## 4. Server runs (slot B)
 
-(filled after the runs)
+Runner slot B (`~/work/slotb.sh`, nice 19), commit `e046b545f`, worktree `~/work/defnames`, 47 affected backend test files in 6
+shards of up to 8 files, one pytest process per shard (`pytest -o addopts="" -q`), 23.11 22:17-22:29 UTC:
+
+| shard | files | result |
+| --- | --- | --- |
+| aa | default_names x2, automations access / api / draft / extra / mirror / notify | 75 passed |
+| ab | automations preview / probe / scope / writes, autosync, camera_reboot_2407, camera_sources_2410, nvr_cameras_settings | 148 passed |
+| ac | nvr_connection, nvrless_cameras_2411, multi_nvr, cameras, recorder_health, wire_recorders_2470, anchor_3d, plan_detect_api | 182 passed |
+| ad | plan_door_tool, plan_dxf_export, plan_dxf_map, plan_geometry api / binding / db / export / integration | 83 passed |
+| ae | plan_geometry model / objects / render / render2 / stairs / store, plan_ifc, plan_ifc_build_char_2450 | 263 passed |
+| af | plan_ifc_read_char_2460, plan_package, plan_package_pln2, plan_bakes, async_routes_no_inline_db, async_routes_hold_no_write_conn, router_common_helpers | 610 passed |
+
+Total **1361 passed, 0 failed**. NOT_RUN: the full backend suite, the frontend (no frontend file changed), browser / pixel specs, the
+runner entry check.
+
+## 5. Open questions (recommendation first)
+
+1. The system notes written with a created object (route case event notes, a restored plan version's notes, the structure's
+   uncertainty notes - section 1c) are Hebrew for every user. (a, recommended) leave them for the screens / I18N-BACKEND catalogues
+   as a later row - they are notes, not names; (b) make them in the creator's language too in a follow-up row.
+2. The gallery templates' descriptions and the DXF mapping step's suggestions are served in the requester's language but are not
+   stored; (a, recommended) keep them here with their stored counterparts (done); (b) move them to the frontend catalogues.
