@@ -14,10 +14,10 @@
 from __future__ import annotations
 
 import sqlite3
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, File, Request, Response, UploadFile
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
@@ -302,11 +302,20 @@ class InstallBody(BaseModel):
     default_mode: Literal["full_all", "home_regular", "choose"] | None = None
     kiosk_exit: Literal["code", "none"] | None = None
     wallpaper: Literal["none", "gallery", "gallery_image"] | None = None
+    # HOME-WALL-NIGHT-2500: the wall panel's rest screen, night mode and screen takeover
+    wall_rest: Literal["on", "off"] | None = None
+    wall_rest_after: Literal["2", "1", "5", "10", "15"] | None = None
+    wall_night: Literal["on", "off"] | None = None
+    wall_night_start: Annotated[str, StringConstraints(pattern=r"^([01][0-9]|2[0-3]):[0-5][0-9]$")] | None = None
+    wall_night_end: Annotated[str, StringConstraints(pattern=r"^([01][0-9]|2[0-3]):[0-5][0-9]$")] | None = None
+    wall_night_dim: Literal["medium", "soft", "strong"] | None = None
+    wall_takeover: Literal["alarm_urgent", "alarm", "call_only"] | None = None
 
 
 @router.get("/home/settings", **wire(W.HomeSettingsView))
 def get_install_settings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    """The home interface's installation settings: default interface of new people, wall-panel exit, room wallpaper. rbac.assign."""
+    """The home interface's installation settings: default interface of new people, wall-panel exit, room wallpaper, the wall panel's
+    rest screen / night mode / screen takeover (HOME-WALL-NIGHT-2500). rbac.assign."""
     require(conn, principal, ADMIN, INSTALLATION)
     return {"settings": hi.install_settings(conn), "values": {k: list(v) for k, v in hi.INSTALL_VALUES.items()}, "gallery": list(hi.GALLERY)}
 

@@ -24,6 +24,22 @@ export interface HomePolicy {
   wallpaper: "none" | "gallery" | "gallery_image";
   guests: boolean;
   room_wallpapers: Record<string, string>;
+  wall: HomeWallSettings;
+}
+
+/**
+ * HOME-WALL-NIGHT-2500: the wall panel's rest screen (`rest`, after `rest_after_min` minutes without a touch), its night window
+ * (`night`, local HH:MM `night_start` .. `night_end` in the installation's zone; start == end = no window) with how strongly the screen
+ * is dimmed, and which events take the screen over (a door call always does, and comes first).
+ */
+export interface HomeWallSettings {
+  rest: boolean;
+  rest_after_min: number;
+  night: boolean;
+  night_start: string;
+  night_end: string;
+  night_dim: "medium" | "soft" | "strong";
+  takeover: "alarm_urgent" | "alarm" | "call_only";
 }
 
 export interface Me {

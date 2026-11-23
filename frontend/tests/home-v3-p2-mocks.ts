@@ -19,6 +19,8 @@ export interface P2Opts {
   worst?: boolean;
   empty?: boolean;
   policy?: Record<string, unknown>;
+  /** HOME-WALL-NIGHT-2500: permissions added to the family set (e.g. alarm.view for the wall panel's alarm takeover) */
+  perms?: string[];
 }
 
 export const FEATURES = {
@@ -30,7 +32,7 @@ export async function mockP2(page: Page, o: P2Opts = {}): Promise<HomeMock> {
   const now = o.now ?? await pinToday(page);
   const at = (minsFromNow: number) => new Date(now + minsFromNow * 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
   const policy = { ...(o.kiosk ? { kiosk: true, home_only: true, may_switch: false, kiosk_area_id: 'living' } : {}), ...(o.modules !== undefined ? { modules: o.modules } : {}), ...o.policy };
-  const mock = await mockHome(page, { now, policy, layout: { welcomed: true }, perms: ['devices.read', 'devices.control', 'video.live', 'map.read', 'scene.manage', 'presence.report', 'calendar.view', 'calendar.book'] });
+  const mock = await mockHome(page, { now, policy, layout: { welcomed: true }, perms: ['devices.read', 'devices.control', 'video.live', 'map.read', 'scene.manage', 'presence.report', 'calendar.view', 'calendar.book', ...(o.perms ?? [])] });
   const rec = (r: Route) => { const u = new URL(r.request().url()); mock.calls.push({ method: r.request().method(), path: u.pathname.replace(/^.*api\/v1\//, ''), body: r.request().postDataJSON?.() ?? null }); };
   const features = { ...FEATURES, ...(o.features ?? {}) };
   const long = 'שם ארוך מאוד של אדם שמשתמש בשם מלא עם שם משפחה כפול ועוד כינוי';

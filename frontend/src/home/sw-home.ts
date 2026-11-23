@@ -62,6 +62,9 @@ import { HandModal } from '../components/hand-modal';
 import { sceneScreenActs, wallChips } from './home-v3-p2';
 import { tr } from '../i18n/msg/home';
 import { ToastController } from '../components/toast-controller';
+// HOME-WALL-NIGHT-2500: the wall panel's rest screen, night dimming and screen takeover (home-wall-rest.ts); five hooks below
+import { WallPanel } from './home-wall-rest';
+import { homeWallRestStyles } from './home-wall-rest-styles';
 
 export const THEMES: [string, string, string, 1 | 2][] = [
   ['classic', tr('קלאסי'), tr('פחם חם וכחול. המראה שאושר.'), 2], ['ocean', tr('אוקיינוס'), tr('כחול ים עמוק ותכלת צלול.'), 2], ['sand', tr('חול'), tr('אבן חמה וחימר.'), 2],
@@ -121,7 +124,7 @@ type OwnAct = { [K in keyof SwHome]-?: K extends `a_${infer N}` ? N : never }[ke
 
 @customElement('sw-home')
 export class SwHome extends LitElement implements P3Host {
-  static styles = [homeMockupStyles, homeV3Styles, homeExtraStyles, homeP3Styles]; // HOME-V3-P3-2432 last: its rules refine the shared v3 ones
+  static styles = [homeMockupStyles, homeV3Styles, homeExtraStyles, homeP3Styles, homeWallRestStyles]; // HOME-V3-P3-2432: its rules refine the shared v3 ones
 
   /** The route below #/home (e.g. "r/living", "lights", "settings/themes"). */
   @property() path = '';
@@ -197,6 +200,8 @@ export class SwHome extends LitElement implements P3Host {
   readonly extState: Record<string, unknown> = {};
   /** HOME-V3-P3-2432: media, announcements, bill, water, house systems, map (home-p3.ts). */
   readonly p3 = new P3(this);
+  /** HOME-WALL-NIGHT-2500: rest screen, night dimming, takeover - only on a wall panel. */
+  readonly wall = new WallPanel(this);
 
   // ---------------------------------------------------------------- lifecycle and data
 
@@ -211,8 +216,10 @@ export class SwHome extends LitElement implements P3Host {
     window.addEventListener('resize', this.onResize);
     this.clockT = window.setInterval(() => { this.now = new Date(); }, 20_000);
     void this.load();
+    this.wall.connect();
     this.stopHa = subscribeHa((m) => {
       if (m.type === 'entity_state_changed' || m.type === 'structure_changed') this.scheduleRefresh();
+      if (m.type === 'entity_state_changed') this.wall.haChanged(m.entity.entity_id);
     });
   }
 
@@ -227,6 +234,7 @@ export class SwHome extends LitElement implements P3Host {
     // instead of being dropped.
     this.extFor(this.extRoute)?.leave?.();
     this.p3.dispose();
+    this.wall.disconnect();
     this.modal.release();
     for (const t of [this.refreshT, this.armT, this.holdT]) window.clearTimeout(t);
     this.refreshT = this.armT = this.holdT = this.clockT = 0;
@@ -402,6 +410,7 @@ export class SwHome extends LitElement implements P3Host {
   }
 
   protected willUpdate(changed: PropertyValues): void {
+    this.wall.sync();
     if (changed.has('ovl') && changed.get('ovl') && !this.ovl) this.ghostOverlay();
     if (changed.has('path')) {
       const { name, arg } = this.route();
@@ -1718,7 +1727,7 @@ export class SwHome extends LitElement implements P3Host {
     return html`<div class="app-root" @click=${this.onClick} @pointerover=${this.titleHint} @input=${this.onInput} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove} @pointerup=${this.onPointerUp} @pointercancel=${() => { window.clearTimeout(this.holdT); this.swipe = null; }}>
       <div class=${'hs v2' + (this.kioskLocked() ? ' kiosk' : '') + (name === 'r' && this.wallOf(this.room) ? ' walled' : '')} data-screen=${name} data-wall=${name === 'r' ? this.wallOf(this.room) ?? nothing : nothing} style=${name === 'r' && this.wallOf(this.room) ? `--hs-wall:${this.wallBg(this.room)}` : nothing}>${this.strip(name)}${this.nav(cur)}<main class=${'hs-main' + this.enterCls} id="main">${keyed(this.lastRoute, screen)}</main>${this.nowBar()}</div>
       <div class="ovl">${this.ovlHtml()}</div>${this.toasts()}
-      <sw-home-call data-hs-theme=${this.getAttribute('data-hs-theme') ?? 'classic'} data-hs-scheme=${this.getAttribute('data-hs-scheme') ?? 'dark'} ?data-hs-big=${this.hasAttribute('data-hs-big')} @home-calls=${(e: CustomEvent<HomeCallsState>) => { this.calls = e.detail; }}></sw-home-call></div>`;
+      <sw-home-call data-hs-theme=${this.getAttribute('data-hs-theme') ?? 'classic'} data-hs-scheme=${this.getAttribute('data-hs-scheme') ?? 'dark'} ?data-hs-big=${this.hasAttribute('data-hs-big')} @home-calls=${(e: CustomEvent<HomeCallsState>) => { this.calls = e.detail; this.wall.calls(e.detail.ringing, e.detail.waiting); }}></sw-home-call>${this.wall.render()}</div>`;
   }
 
   /** HOME-V3-AUDITFIX-2437 (audit item 28): a truncated line shows its full text on mouse hover. Measured only when the pointer reaches it
