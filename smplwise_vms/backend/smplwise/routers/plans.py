@@ -20,6 +20,7 @@ from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, require
 from ..services import geometry_store
+from ..services import default_names as dn
 from ..services import plans_store as store
 from ..services import plan_catalog, plan_dxf, plan_dxf_map, plan_render, plan_stylize, safe_paths, wall_path
 from ._common import rid as _rid
@@ -705,7 +706,8 @@ def import_dxf_geometry(version_id: str, body: DxfImportIn, request: Request, pr
     units = _dxf_units(opts)
     if not plan_dxf.METERS.get(units or ""):
         raise ApiError(422, "dxf_unitless", "בחר יחידות לקובץ ה־DXF (בשלב הייבוא) לפני ייבוא הגאומטריה.")
-    doc, _row = geometry_store.working_doc(conn, v)
+    lang = dn.lang_of(conn, principal)  # I18N-DEFAULT-NAMES-2490: a new structure's level and the imported objects' labels
+    doc, _row = geometry_store.working_doc(conn, v, lang)
     if body.level_id is not None:
         level = next((lv for lv in doc["levels"] if lv["id"] == body.level_id), None)
         if level is None:
@@ -720,7 +722,8 @@ def import_dxf_geometry(version_id: str, body: DxfImportIn, request: Request, pr
         with unlocked(conn):
             result = _in_pool(request, plan_dxf_map.import_geometry, _asset_source(settings, asset), render_layers=opts.get("layers"), layer_map=dict(body.layer_map),
                               block_map=dict(body.block_map), units=units, rotation=int(v["rotation"]), crop=json.loads(v["crop_json"]) if v["crop_json"] else None,
-                              level_id=level_id, run_id=new_id()[:6], catalog=catalog, scale_m_per_px=v["scale_m_per_px"], ceiling_m=ceiling_m)
+                              level_id=level_id, run_id=new_id()[:6], catalog=catalog, scale_m_per_px=v["scale_m_per_px"], ceiling_m=ceiling_m,
+                              lang=lang)
     except ApiError as exc:
         if exc.code == "dxf_timeout":
             audit(conn, actor=principal, action="geometry.import", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),

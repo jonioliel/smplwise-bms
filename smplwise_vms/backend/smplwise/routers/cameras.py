@@ -28,6 +28,7 @@ from ..rbac import INSTALLATION, Principal, authorize, require
 from ..recorder_scope import PRIMARY, camera_settings, ready_ids, settings_for
 from ..services import autosync, nvr, stream_codecs
 from ..services import cameras_store as store
+from ..services import default_names as dn
 from ..services.ttl_cache import TtlCache
 from ..services.access import camera_allowed, require_camera, visible_camera_ids
 from ._common import rid as _rid
@@ -42,8 +43,10 @@ router = APIRouter()
 DEFAULT_RECORDER = PRIMARY
 
 
-def _ensure_recorder(conn: sqlite3.Connection, name: str = "NVR ראשי", model: str | None = None, firmware: str | None = None) -> None:
-    store.ensure_recorder(conn, DEFAULT_RECORDER, name, model, firmware, now_iso(), now_iso())
+def _ensure_recorder(conn: sqlite3.Connection, name: str | None = None, model: str | None = None, firmware: str | None = None, lang: str = "he") -> None:
+    """The first recorder's row. I18N-DEFAULT-NAMES-2490 (owner N53): without a name its default is made in `lang`, the interface
+    language of the person registering the camera; an existing row keeps its name (cameras_store.ensure_recorder never renames)."""
+    store.ensure_recorder(conn, DEFAULT_RECORDER, name or dn.name("recorder.primary", lang), model, firmware, now_iso(), now_iso())
 
 
 def disambiguate(cameras: list[dict[str, Any]], recorder_names: dict[str, str] | None = None) -> list[dict[str, Any]]:
@@ -279,7 +282,7 @@ def create_camera(body: CameraIn, request: Request, principal: Principal = Depen
     ensure_nvr(settings_of(request))  # NVR-less mode: no NVR channel to register (after the permission check)
     rec = body.recorder_id or DEFAULT_RECORDER
     if rec == DEFAULT_RECORDER:
-        _ensure_recorder(conn)
+        _ensure_recorder(conn, lang=dn.lang_of(conn, principal))
     else:
         from .recorders import recorder_settings
 

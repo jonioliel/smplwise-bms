@@ -19,6 +19,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable
 
+from . import default_names as dn
 from . import plan_catalog, plan_dxf, wall_path
 
 VERSION = "1.3"  # 1.2: curved walls (arcs, circles and bulged polylines on wall layers); 1.3: openings on curved walls
@@ -39,7 +40,7 @@ IGNORE_BLOCK_WORDS = frozenset({"text", "iden", "patt", "hatch", "dim", "anno", 
 # a door or a window block is an opening, not an object: it is suggested as nothing (catalog_id None)
 OPENING_BLOCK_WORDS = frozenset({"door", "doors", "window", "windows", "wind", "porte", "fenetre", "דלת", "דלתות", "חלון", "חלונות"})
 GENERIC_ID = "object.generic"
-GENERIC_NAME = "עצם כללי"
+GENERIC_NAME = "עצם כללי"  # the Hebrew of default_names "plan.object_generic" (I18N-DEFAULT-NAMES-2490)
 GENERIC_SIZE_M = (0.5, 0.5, 0.8)
 GENERIC_HEIGHT_M = GENERIC_SIZE_M[2]
 FOOTPRINT_RATIO = 4.0  # a name match counts only when the block's area is within this factor of the item's
@@ -90,17 +91,26 @@ def _area_ok(size_m: tuple[float, float] | list[float], item_size: tuple[float, 
     return max(a, b) / min(a, b) <= FOOTPRINT_RATIO
 
 
-def suggest_block(name: str, size_m: tuple[float, float] | list[float], catalog: list[dict[str, Any]]) -> dict[str, Any]:
+def _item_name(item: dict[str, Any], lang: str) -> str:
+    """A library item's name in `lang` (its other language, then its id, when that one is empty)."""
+    first, second = ("name_en", "name_he") if lang == "en" else ("name_he", "name_en")
+    return str(item.get(first) or item.get(second) or item["id"])
+
+
+def suggest_block(name: str, size_m: tuple[float, float] | list[float], catalog: list[dict[str, Any]], lang: str = "he") -> dict[str, Any]:
     """The catalog item a block name points at, by whole words: a word of the item's English or Hebrew name (3) or a
     tag (2), gated by a plausible footprint (area within 4x); ties go to the closest footprint. An annotation word
     (TEXT, TAG, HATCH ...) makes it the generic object; a door or window word makes it no object at all (catalog_id
-    None). Without a match the word list names a generic box of the block's size; without that, the generic object."""
+    None). Without a match the word list names a generic box of the block's size; without that, the generic object.
+    I18N-DEFAULT-NAMES-2490 (owner N53): the name - the label an imported object is stored with - is in `lang`, the interface
+    language of the person importing (Hebrew by default, exactly as before)."""
+    generic = dn.name("plan.object_generic", lang)
     tokens = _tokens(name)
     words = set(tokens)
     if words & IGNORE_BLOCK_WORDS:
-        return {"catalog_id": GENERIC_ID, "name": GENERIC_NAME}
+        return {"catalog_id": GENERIC_ID, "name": generic}
     if words & OPENING_BLOCK_WORDS:
-        return {"catalog_id": None, "name": next((BLOCK_WORDS[t] for t in tokens if t in BLOCK_WORDS), GENERIC_NAME)}
+        return {"catalog_id": None, "name": next((dn.block_word(t, BLOCK_WORDS[t], lang) for t in tokens if t in BLOCK_WORDS), generic)}
     best: tuple[int, float, dict[str, Any]] | None = None
     for item in catalog:
         if item.get("id") == GENERIC_ID:
@@ -121,11 +131,11 @@ def suggest_block(name: str, size_m: tuple[float, float] | list[float], catalog:
             if best is None or (score, -fit) > (best[0], -best[1]):
                 best = (score, fit, item)
     if best is not None:
-        return {"catalog_id": best[2]["id"], "name": best[2].get("name_he") or best[2].get("name_en") or best[2]["id"]}
+        return {"catalog_id": best[2]["id"], "name": _item_name(best[2], lang)}
     for t in tokens:
         if t in BLOCK_WORDS:
-            return {"catalog_id": GENERIC_ID, "name": BLOCK_WORDS[t]}
-    return {"catalog_id": GENERIC_ID, "name": GENERIC_NAME}
+            return {"catalog_id": GENERIC_ID, "name": dn.block_word(t, BLOCK_WORDS[t], lang)}
+    return {"catalog_id": GENERIC_ID, "name": generic}
 
 
 def _norm_item(raw: dict[str, Any]) -> dict[str, Any] | None:
@@ -900,7 +910,7 @@ def _arc_corners(cw: dict[str, Any]) -> tuple[list[Pt], list[float]]:
 
 def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, str | None], units: str, extent: dict[str, float], rotation: int,
                  crop: dict[str, float] | None, level_id: str, run_id: str, catalog: list[dict[str, Any]], scale_m_per_px: float | None,
-                 ceiling_m: float = DEFAULT_CEILING_M, entities: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+                 ceiling_m: float = DEFAULT_CEILING_M, entities: list[dict[str, Any]] | None = None, lang: str = "he") -> dict[str, Any]:
     """Candidates from the drawing by the layer and block mapping: walls, openings (doors and windows) and objects in
     the document model, room polygons for the zones accept. `entities` (read_entities of the same document, covering
     the mapped layers) saves reading the drawing again."""
@@ -1174,19 +1184,19 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
             # the person's choice; null (or an id the library no longer has) is the generic object
             chosen = block_map[name]
             item_id = chosen if isinstance(chosen, str) and chosen in by_id else GENERIC_ID
-            word_name = suggest_block(name, size_m, [])["name"]
+            word_name = suggest_block(name, size_m, [], lang)["name"]
         else:
             if name not in suggestions:
                 if footprints is None:
                     footprints = block_footprints(doc, bbox_cache)
                 fw, fd = footprints.get(name, (0.0, 0.0))
-                suggestions[name] = suggest_block(name, (fw * mpu, fd * mpu), catalog)
+                suggestions[name] = suggest_block(name, (fw * mpu, fd * mpu), catalog, lang)
             suggestion = suggestions[name]
             if suggestion["catalog_id"] is None:
                 continue  # a door or a window block on an object layer is not an object unless the person maps it
             item_id, word_name = suggestion["catalog_id"], suggestion["name"]
         item = by_id.get(item_id)
-        label = (item["name_he"] or item["name_en"] or item_id) if item is not None and item_id != GENERIC_ID else word_name
+        label = _item_name(item, lang) if item is not None and item_id != GENERIC_ID else word_name
         base_size = item["size"] if item and item.get("size") and all(item["size"]) else GENERIC_SIZE_M
         size = [s if plan_catalog.MIN_SIZE_M <= s <= plan_catalog.MAX_SIZE_M else float(base_size[k]) for k, s in enumerate(size_m)]
         h_m = float(base_size[2])
@@ -1229,12 +1239,12 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
 
 def import_geometry(path: Path, *, render_layers: list[str] | None, layer_map: dict[str, str], block_map: dict[str, str | None], units: str, rotation: int,
                     crop: dict[str, float] | None, level_id: str, run_id: str, catalog: list[dict[str, Any]], scale_m_per_px: float | None,
-                    ceiling_m: float = DEFAULT_CEILING_M) -> dict[str, Any]:
+                    ceiling_m: float = DEFAULT_CEILING_M, lang: str = "he") -> dict[str, Any]:
     """The import route's work in one read of the file: the render extent of the version's layers and the candidates
-    of the mapped layers."""
+    of the mapped layers. `lang`: the importer's interface language, for the objects' labels (I18N-DEFAULT-NAMES-2490)."""
     doc = load(path)
     mapped = sorted(layer for layer, t in layer_map.items() if t in TARGETS and t != "ignore")
     ents = read_entities(doc, None if render_layers is None else sorted(set(render_layers) | set(mapped)))
     extent = extent_for(doc, render_layers, entities=ents)
     return map_geometry(doc, layer_map=layer_map, block_map=block_map, units=units, extent=extent, rotation=rotation, crop=crop, level_id=level_id, run_id=run_id,
-                        catalog=catalog, scale_m_per_px=scale_m_per_px, ceiling_m=ceiling_m, entities=ents)
+                        catalog=catalog, scale_m_per_px=scale_m_per_px, ceiling_m=ceiling_m, entities=ents, lang=lang)
