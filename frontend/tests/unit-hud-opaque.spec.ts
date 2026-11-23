@@ -141,7 +141,10 @@ test('the 3D night backdrop is an opaque navy with light ink that reads on it', 
   const css = readFileSync(path.resolve(HERE, '../src/map/sw-plan-3d.ts'), 'utf8');
   const m = /:host\(\[data-night\]\) \.bar,\s*:host\(\[data-night\]\) \.strip \{([^}]*)\}/.exec(css);
   expect(m, 'the night rule of the bar and the strip exists').toBeTruthy();
-  const bg = /background:\s*(#[0-9a-f]{6})\s*;/i.exec(m![1])?.[1];
+  // COLOR-LITERAL-B-2480: the backdrop may name the host's own --p3d-night-navy token; it must still resolve to one plain hex
+  const bgToken = /background:\s*var\((--p3d-[\w-]+)\)\s*;/.exec(m![1])?.[1];
+  const bgDecl = bgToken ? new RegExp(`${bgToken}:\\s*(#[0-9a-f]{6})\\s*;`, 'i').exec(css)?.[1] : undefined;
+  const bg = bgDecl ?? /background:\s*(#[0-9a-f]{6})\s*;/i.exec(m![1])?.[1];
   const ink = /(?:^|[;\s])color:\s*(#[0-9a-f]{6})\s*;/i.exec(m![1])?.[1];
   expect(bg, `the night backdrop is a plain opaque hex, not a mix: ${m![1].trim()}`).toBeTruthy();
   expect(ink).toBeTruthy();
