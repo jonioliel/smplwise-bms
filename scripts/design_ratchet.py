@@ -18,12 +18,16 @@ Metrics (string scans of frontend/src/**/*.ts|css after the comments are removed
                      field elsewhere still counts
   native-table       <table ...> outside components/sw-table.ts - use sw-table
   hand-switch        role="switch" or type="checkbox" outside components/sw-toggle.ts - use sw-toggle
-  scroll-container   overflow / overflow-x / overflow-y: auto | scroll - control screens use pages, not scrolling
+  scroll-container   overflow / overflow-x / overflow-y: auto | scroll - control screens use pages, not scrolling. A rule on the
+                     reviewed allow-list (scripts/design_ratchet_scroll_allow.json, SCROLL-AUDIT-2480: dialogs, pickers, sideways
+                     strips, viewers, the shell, the long-lists `scroll` fallback, settings / editors, side panels, phone-only rules)
+                     is not counted: the metric is the real debt, a list on a control screen that scrolls
 
 Usage:
   python scripts/design_ratchet.py                 check (exit 0 = no count above the baseline, 1 = a count went up, 2 = usage)
   python scripts/design_ratchet.py --json out.json also write the result
   python scripts/design_ratchet.py --files METRIC  list the files that carry METRIC, with counts (largest first)
+  python scripts/design_ratchet.py --scroll-sites  list every overflow: auto | scroll rule (file:line, selector, allow-list kind or DEBT)
   python scripts/design_ratchet.py --update        lower the baseline to today's counts (never raises one)
   python scripts/design_ratchet.py --update --allow-raise   write today's counts even where higher (an owner-approved exception;
                                                    the diff of the baseline file is what the reviewer sees)
@@ -41,6 +45,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 BASELINE_REL = Path("scripts") / "design_ratchet_baseline.json"
+SCROLL_ALLOW_REL = Path("scripts") / "design_ratchet_scroll_allow.json"
 SRC_REL = Path("frontend") / "src"
 
 _BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.S)
@@ -85,6 +90,68 @@ METRICS: dict[str, tuple[re.Pattern[str] | None, Callable[[str], bool], str]] = 
 }
 
 
+def _blank(m: re.Match[str]) -> str:
+    return re.sub(r"[^\n]", " ", m.group(0))
+
+
+def strip_comments_keep_offsets(text: str) -> str:
+    """strip_comments with every removed character replaced by a space (newlines kept): positions and line numbers stay the file's."""
+    text = _BLOCK_COMMENT.sub(_blank, text)
+    text = _LINE_COMMENT.sub(_blank, text)
+    return _TRAILING_COMMENT.sub(_blank, text)
+
+
+_STYLE_ATTR = re.compile(r"style\s*=\s*[\"'][^\"'\n]*$")
+
+
+def scroll_selector(text: str, pos: int) -> str:
+    """The selector of the CSS rule that holds the declaration at pos (text without comments): the text between the rule's '{' and the
+    delimiter before it ('}', ';', '{' or the template's backtick), whitespace collapsed. An inline style attribute is 'style=""'."""
+    line_start = text.rfind("\n", 0, pos) + 1
+    if _STYLE_ATTR.search(text[line_start:pos]):
+        return 'style=""'
+    depth = 0
+    i = pos - 1
+    while i >= 0:
+        c = text[i]
+        if c == "}":
+            depth += 1
+        elif c == "{":
+            if depth == 0:
+                j = max(text.rfind("}", 0, i), text.rfind(";", 0, i), text.rfind("{", 0, i), text.rfind("`", 0, i))
+                return " ".join(text[j + 1:i].split())
+            depth -= 1
+        i -= 1
+    return ""
+
+
+def scroll_sites(text: str) -> list[tuple[int, str]]:
+    """(position, selector) of every overflow: auto | scroll declaration in text (comments already removed)."""
+    return [(m.start(), scroll_selector(text, m.start())) for m in _SCROLL.finditer(text)]
+
+
+AllowList = dict[tuple[str, str], dict[str, str]]
+
+
+def load_scroll_allow(root: Path) -> AllowList:
+    """The reviewed allow-list: {(file below frontend/src, selector): entry}. No file = nothing allowed."""
+    p = root / SCROLL_ALLOW_REL
+    if not p.exists():
+        return {}
+    doc = json.loads(p.read_text(encoding="utf-8"))
+    return {(e["file"], e["selector"]): e for e in doc.get("allow", [])}
+
+
+_ALLOW: dict[str, AllowList] = {}
+
+
+def _allow_for(root: Path) -> AllowList:
+    key = str(root)
+    if key not in _ALLOW:
+        _ALLOW[key] = load_scroll_allow(root)
+    return _ALLOW[key]
+
+
 def strip_comments(text: str) -> str:
     text = _BLOCK_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), text)
     text = _LINE_COMMENT.sub("", text)
@@ -118,8 +185,9 @@ def count_bare_selects(text: str) -> int:
     return n
 
 
-def count_text(rel: str, text: str, tokens: set[str]) -> dict[str, int]:
-    """The metric counts of one source file (text already without comments); rel is the path below frontend/src."""
+def count_text(rel: str, text: str, tokens: set[str], allow: AllowList | None = None) -> dict[str, int]:
+    """The metric counts of one source file (text already without comments); rel is the path below frontend/src. allow: the reviewed
+    scroll allow-list (a rule on it is not scroll-container debt)."""
     out: dict[str, int] = {}
     for name, (rx, applies, _) in METRICS.items():
         if not applies(rel):
@@ -130,6 +198,8 @@ def count_text(rel: str, text: str, tokens: set[str]) -> dict[str, int]:
             n = count_bare_selects(text)
         elif name == "undefined-token":
             n = sum(1 for t in _VAR_NOFALLBACK.findall(text) if t not in tokens)
+        elif name == "scroll-container":
+            n = sum(1 for _, sel in scroll_sites(text) if (rel, sel) not in (allow or {}))
         else:
             assert rx is not None
             n = len(rx.findall(text))
@@ -143,11 +213,31 @@ def scan(root: Path) -> dict[str, dict[str, int]]:
     src = root / SRC_REL
     texts = {p.relative_to(src).as_posix(): strip_comments(p.read_text(encoding="utf-8", errors="replace")) for p in source_files(src)}
     tokens = defined_tokens(texts)
+    allow = _allow_for(root)
     per: dict[str, dict[str, int]] = {m: {} for m in METRICS}
     for rel, text in texts.items():
-        for m, n in count_text(rel, text, tokens).items():
+        for m, n in count_text(rel, text, tokens, allow).items():
             per[m][rel] = n
     return per
+
+
+def scroll_site_rows(root: Path) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    """Every overflow: auto | scroll rule of frontend/src (file, line, selector, its allow-list entry or None) and the allow-list entries
+    that match no rule any more (stale: the selector changed or the rule went away)."""
+    src = root / SRC_REL
+    allow = load_scroll_allow(root)
+    rows: list[dict[str, Any]] = []
+    used: set[tuple[str, str]] = set()
+    for p in source_files(src):
+        rel = p.relative_to(src).as_posix()
+        text = strip_comments_keep_offsets(p.read_text(encoding="utf-8", errors="replace"))
+        for pos, sel in scroll_sites(text):
+            e = allow.get((rel, sel))
+            if e:
+                used.add((rel, sel))
+            rows.append({"file": rel, "line": text.count("\n", 0, pos) + 1, "selector": sel, "allow": e})
+    stale = [e for k, e in allow.items() if k not in used]
+    return rows, stale
 
 
 def totals(per: dict[str, dict[str, int]]) -> dict[str, int]:
@@ -181,7 +271,7 @@ def changed_file_deltas(root: Path, base: str, metrics: list[str], per: dict[str
     out: dict[str, list[dict[str, Any]]] = {m: [] for m in metrics}
     for rel in rels:
         old_text = _git(root, "show", f"{mb}:{SRC_REL.as_posix()}/{rel}")
-        old = count_text(rel, strip_comments(old_text), tokens) if old_text is not None else {}
+        old = count_text(rel, strip_comments(old_text), tokens, _allow_for(root)) if old_text is not None else {}
         for m in metrics:
             now = per.get(m, {}).get(rel, 0)
             if now > old.get(m, 0):
@@ -249,6 +339,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--json", help="write the result as JSON here")
     ap.add_argument("--base", default="origin/main", help="where to look for the files that added debt (merge base with HEAD)")
     ap.add_argument("--files", metavar="METRIC", help="list the files carrying METRIC")
+    ap.add_argument("--scroll-sites", action="store_true", help="list every scroll rule with its allow-list kind (or DEBT)")
     ap.add_argument("--update", action="store_true", help="lower the baseline to today's counts")
     ap.add_argument("--allow-raise", action="store_true", help="with --update: also raise (owner-approved exception)")
     a = ap.parse_args(argv)
@@ -257,6 +348,16 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
     except AttributeError:
         pass
+    if a.scroll_sites:
+        rows, stale = scroll_site_rows(root)
+        for r in rows:
+            kind = r["allow"]["kind"] if r["allow"] else "DEBT"
+            print(f"{kind:18s} {r['file']}:{r['line']}  {r['selector'][:100]}")
+        debt = sum(1 for r in rows if not r["allow"])
+        print(f"{len(rows)} rules: {len(rows) - debt} on the allow-list, {debt} debt")
+        for e in stale:
+            print(f"STALE allow-list entry (matches no rule): {e['file']} | {e['selector']}")
+        return 0
     if a.files:
         if a.files not in METRICS:
             print(f"unknown metric {a.files}; one of {', '.join(METRICS)}")

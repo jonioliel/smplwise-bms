@@ -98,9 +98,10 @@ test.describe('settings, package 8 (POLISH4-WP8)', () => {
       if (AFTER && r.width >= 1024) expect(r.m.mainScroll, `page scroll at ${r.view}`).toBeLessThanOrEqual(1);
     }
     if (AFTER && views()[0].width >= 1024) {
-      // the list region scrolls inside its card (auto), and the page above it stays put
+      // the page above the list stays put; SCROLL-AUDIT-2480: with the long lists paged (the default) the list clips and shows the rows
+      // that fit (the rest are on the next pages); `?long_lists=scroll` keeps the inner scroll (auto)
       const l = await list(page);
-      expect(l.listOverflowY).toBe('auto');
+      expect(l.listOverflowY).toBe('hidden');
     }
     // a narrow window keeps the page scroll (a phone is not trapped in a small inner list)
     if (AFTER && views()[0].width < 768) {

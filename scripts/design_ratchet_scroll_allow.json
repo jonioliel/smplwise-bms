@@ -1,0 +1,1333 @@
+{
+ "about": "SCROLL-AUDIT-2480: the reviewed overflow: auto | scroll rules that are NOT scroll debt (scripts/design_ratchet.py scroll-container counts every other one). Key = file below frontend/src + the rule's selector exactly as `design_ratchet.py --scroll-sites` prints it. Add an entry only for a rule of one of these kinds; a list on a control screen that scrolls is debt - page it (components/page-fit.ts, sw-pager). docs/changes/SCROLL-AUDIT-2480.md has the audit.",
+ "kinds": {
+  "dialog": "dialog / sheet / drawer / popover / menu body (the overlay scrolls, never the screen)",
+  "picker": "a capped choice list inside a form, dialog or drawer",
+  "strip-x": "a sideways strip (tabs, chips, segmented track, KPI row, timeline) when it is wider than its room",
+  "table-x": "a table or chart that scrolls sideways when wider than its card",
+  "viewer": "a text / code / log / JSON / document viewer or a textarea",
+  "shell": "the app shell or a section frame (the page body itself)",
+  "long-lists-scroll": "the installation's long-lists `scroll` fallback of a paged list (or the base rule the paged mode overrides)",
+  "settings": "a settings / setup / tool page (not a control screen, DESIGN L1)",
+  "editor": "a layout / plan / automation editor panel",
+  "side-panel": "a narrow side panel or tree beside the main object (< 55 % of the window)",
+  "phone": "applies only below the desktop edge (phone / tablet keep their scroll)",
+  "component": "a shared component's own scroll contract",
+  "map-overlay": "an overlay panel on a map stage, capped to the stage",
+  "capped-in-card": "a short capped list inside one card",
+  "public": "a public page outside the product shell (login, welcome, the public ticket page)"
+ },
+ "allow": [
+  {
+   "file": "access-external/identity-card.ts",
+   "selector": ".plist",
+   "kind": "picker",
+   "screen": "external access - identity card (drawer)",
+   "reason": "person picker inside the grant drawer"
+  },
+  {
+   "file": "access-external/request-dialog.ts",
+   "selector": ".ntext",
+   "kind": "viewer",
+   "screen": "external access - new request dialog",
+   "reason": "the notice text preview"
+  },
+  {
+   "file": "access-external/request-dialog.ts",
+   "selector": ".plist",
+   "kind": "dialog",
+   "screen": "external access - new request dialog",
+   "reason": "person picker in the dialog"
+  },
+  {
+   "file": "arx/arx-login.ts",
+   "selector": ":host",
+   "kind": "public",
+   "screen": "login page"
+  },
+  {
+   "file": "arx/arx-welcome.ts",
+   "selector": ":host",
+   "kind": "public",
+   "screen": "welcome page"
+  },
+  {
+   "file": "calendars/attendee-picker.ts",
+   "selector": "[role='listbox']",
+   "kind": "dialog",
+   "screen": "calendars - attendee picker",
+   "reason": "suggestion popover"
+  },
+  {
+   "file": "calendars/connect-dialogs.ts",
+   "selector": ".list",
+   "kind": "dialog",
+   "screen": "calendars - connect dialog"
+  },
+  {
+   "file": "calendars/grid-overlays.ts",
+   "selector": ".sheet",
+   "kind": "dialog",
+   "screen": "calendars - grid sheet"
+  },
+  {
+   "file": "calendars/resident.ts",
+   "selector": ".sheet .body",
+   "kind": "dialog",
+   "screen": "calendars - resident booking sheet"
+  },
+  {
+   "file": "calendars/resident.ts",
+   "selector": ":host([data-long-lists='scroll']) .list",
+   "kind": "long-lists-scroll",
+   "screen": "calendars - resident view"
+  },
+  {
+   "file": "calendars/resident.ts",
+   "selector": ":host([data-long-lists='scroll']) .slots",
+   "kind": "long-lists-scroll",
+   "screen": "calendars - resident view"
+  },
+  {
+   "file": "calendars/view-approvals.ts",
+   "selector": ":host([data-long-lists='scroll']) .list",
+   "kind": "long-lists-scroll",
+   "screen": "calendars - approvals"
+  },
+  {
+   "file": "calendars/view-maint.ts",
+   "selector": ":host([data-long-lists='scroll']) .list",
+   "kind": "long-lists-scroll",
+   "screen": "calendars - maintenance view"
+  },
+  {
+   "file": "calendars/view-manage.ts",
+   "selector": ":host([data-long-lists='scroll']) .list",
+   "kind": "long-lists-scroll",
+   "screen": "calendars - manage"
+  },
+  {
+   "file": "calendars/view-manage.ts",
+   "selector": ":host([data-long-lists='scroll']) .tablewrap",
+   "kind": "long-lists-scroll",
+   "screen": "calendars - manage"
+  },
+  {
+   "file": "calendars/view-rooms.ts",
+   "selector": ":host([data-long-lists='scroll']) .rows",
+   "kind": "long-lists-scroll",
+   "screen": "calendars - rooms"
+  },
+  {
+   "file": "components/architect-request-dialog.ts",
+   "selector": ".txt",
+   "kind": "dialog",
+   "screen": "architect request dialog"
+  },
+  {
+   "file": "components/device-activity.ts",
+   "selector": ".fchips",
+   "kind": "phone",
+   "screen": "device activity",
+   "reason": "filter chips on a phone"
+  },
+  {
+   "file": "components/device-activity.ts",
+   "selector": ".pbody",
+   "kind": "dialog",
+   "screen": "device activity (device sheet)",
+   "reason": "capped list in the device sheet; a phone lets the sheet scroll"
+  },
+  {
+   "file": "components/media-bulk-dialog.ts",
+   "selector": "ul",
+   "kind": "dialog",
+   "screen": "multimedia bulk dialog"
+  },
+  {
+   "file": "components/media-group-dialog.ts",
+   "selector": "ul",
+   "kind": "dialog",
+   "screen": "multimedia group dialog"
+  },
+  {
+   "file": "components/media-library-browse.ts",
+   "selector": ".chips",
+   "kind": "strip-x",
+   "screen": "media library browser"
+  },
+  {
+   "file": "components/media-preset-editor.ts",
+   "selector": ".list",
+   "kind": "dialog",
+   "screen": "media preset editor (dialog)"
+  },
+  {
+   "file": "components/media-remote-css.ts",
+   "selector": ".recent",
+   "kind": "strip-x",
+   "screen": "media remote",
+   "reason": "recent items strip"
+  },
+  {
+   "file": "components/notify-center.ts",
+   "selector": ".nbody",
+   "kind": "dialog",
+   "screen": "notification centre (drawer)"
+  },
+  {
+   "file": "components/notify-center.ts",
+   "selector": ".nfilt",
+   "kind": "strip-x",
+   "screen": "notification centre",
+   "reason": "filter chips"
+  },
+  {
+   "file": "components/notify-detail.ts",
+   "selector": ".ndet",
+   "kind": "dialog",
+   "screen": "notification detail"
+  },
+  {
+   "file": "components/sw-card.ts",
+   "selector": ":host([fill]) .body",
+   "kind": "component",
+   "screen": "sw-card fill",
+   "reason": "live overview cards (recent events = 6 items + \"show all\", attention list); system-calendars tab card"
+  },
+  {
+   "file": "components/sw-cast-picker.ts",
+   "selector": ".body",
+   "kind": "dialog",
+   "screen": "cast picker"
+  },
+  {
+   "file": "components/sw-cast-pill.ts",
+   "selector": ".tray",
+   "kind": "dialog",
+   "screen": "cast pill tray (popover)"
+  },
+  {
+   "file": "components/sw-dialog.ts",
+   "selector": ".body",
+   "kind": "dialog",
+   "screen": "sw-dialog"
+  },
+  {
+   "file": "components/sw-drawer.ts",
+   "selector": ".body",
+   "kind": "dialog",
+   "screen": "sw-drawer"
+  },
+  {
+   "file": "components/sw-dropdown.ts",
+   "selector": ".lb",
+   "kind": "dialog",
+   "screen": "sw-dropdown list box"
+  },
+  {
+   "file": "components/sw-fold-cards.ts",
+   "selector": "::slotted([data-fold-scroll])",
+   "kind": "component",
+   "screen": "sw-fold-cards",
+   "reason": "only an unfolded card taller than its room"
+  },
+  {
+   "file": "components/sw-partner-api-card.ts",
+   "selector": ".list",
+   "kind": "settings",
+   "screen": "settings - partner API card"
+  },
+  {
+   "file": "components/sw-sheet.ts",
+   "selector": ".body",
+   "kind": "dialog",
+   "screen": "sw-sheet"
+  },
+  {
+   "file": "components/sw-steps.ts",
+   "selector": ":host",
+   "kind": "strip-x",
+   "screen": "sw-steps"
+  },
+  {
+   "file": "components/sw-table.ts",
+   "selector": ":host",
+   "kind": "component",
+   "screen": "sw-table",
+   "reason": "sideways overflow of a wide table; the screens page the rows (PageFit / perPage)"
+  },
+  {
+   "file": "components/sw-tabs.ts",
+   "selector": ".vp",
+   "kind": "strip-x",
+   "screen": "sw-tabs"
+  },
+  {
+   "file": "components/wk-door-tech.ts",
+   "selector": ".tabs",
+   "kind": "strip-x",
+   "screen": "WisKey door technician tabs"
+  },
+  {
+   "file": "components/wk-ops-charts.ts",
+   "selector": ".tw",
+   "kind": "table-x",
+   "screen": "WisKey operations charts"
+  },
+  {
+   "file": "components/wk-schedule-draft-form.ts",
+   "selector": "sw-week-grid",
+   "kind": "table-x",
+   "screen": "WisKey schedule draft form"
+  },
+  {
+   "file": "door-windows/events-styles.ts",
+   "selector": ".doors",
+   "kind": "picker",
+   "screen": "doors & windows - rule form",
+   "reason": "door choice list"
+  },
+  {
+   "file": "electricity/elec-chart.ts",
+   "selector": ".tw",
+   "kind": "table-x",
+   "screen": "electricity chart table"
+  },
+  {
+   "file": "electricity/meter-picker.ts",
+   "selector": ".scroll",
+   "kind": "picker",
+   "screen": "electricity meter picker"
+  },
+  {
+   "file": "electricity/styles.ts",
+   "selector": ".menu",
+   "kind": "dialog",
+   "screen": "electricity menu (popover)"
+  },
+  {
+   "file": "electricity/styles.ts",
+   "selector": ".scrollx",
+   "kind": "table-x",
+   "screen": "electricity tables"
+  },
+  {
+   "file": "elevators/elevator-alerts.ts",
+   "selector": ".opts.scroll",
+   "kind": "picker",
+   "screen": "elevators - alert settings"
+  },
+  {
+   "file": "generator/gen-styles.ts",
+   "selector": ".chooser.users",
+   "kind": "settings",
+   "screen": "generator settings",
+   "reason": "user chooser (capped 220 px)"
+  },
+  {
+   "file": "generator/gen-styles.ts",
+   "selector": ".list.picklist",
+   "kind": "settings",
+   "screen": "generator settings",
+   "reason": "pick list (capped 300 px)"
+  },
+  {
+   "file": "home/home-styles-v3.ts",
+   "selector": ".n-body",
+   "kind": "viewer",
+   "screen": "home - notice text",
+   "reason": "the owner's home look; not touched"
+  },
+  {
+   "file": "insights/styles.ts",
+   "selector": ".scrollbox",
+   "kind": "picker",
+   "screen": "insights - check list in a form"
+  },
+  {
+   "file": "insights/styles.ts",
+   "selector": ".tw",
+   "kind": "table-x",
+   "screen": "insights tables"
+  },
+  {
+   "file": "maintenance/emergency-config.ts",
+   "selector": ".scroller",
+   "kind": "settings",
+   "screen": "settings - emergency contacts / thresholds"
+  },
+  {
+   "file": "maintenance/emergency-page.ts",
+   "selector": ".scroller",
+   "kind": "long-lists-scroll",
+   "screen": "maintenance - emergency readiness",
+   "reason": "paged (PAGING-SETTING-2439); the base rule the paged mode overrides"
+  },
+  {
+   "file": "maintenance/log-page.ts",
+   "selector": ".scroller",
+   "kind": "long-lists-scroll",
+   "screen": "maintenance - reminder log",
+   "reason": "paged (CR-NOSCROLL-LISTS-2443)"
+  },
+  {
+   "file": "maintenance/round-run.ts",
+   "selector": ".pb",
+   "kind": "dialog",
+   "screen": "maintenance - round run sheet"
+  },
+  {
+   "file": "maintenance/styles.ts",
+   "selector": ".cols > .panel.flush > .scrollx, .cols > .panel.flush > .cards-m",
+   "kind": "long-lists-scroll",
+   "screen": "maintenance lists",
+   "reason": "paged (PAGING-SETTING-2439)"
+  },
+  {
+   "file": "maintenance/styles.ts",
+   "selector": ".cols > .tree-w",
+   "kind": "side-panel",
+   "screen": "maintenance - places tree",
+   "reason": "240 px column"
+  },
+  {
+   "file": "maintenance/styles.ts",
+   "selector": ".scrollx",
+   "kind": "table-x",
+   "screen": "maintenance tables"
+  },
+  {
+   "file": "maintenance/styles.ts",
+   "selector": ".seg",
+   "kind": "phone",
+   "screen": "maintenance",
+   "reason": "segmented row on a phone"
+  },
+  {
+   "file": "maintenance/tags-page.ts",
+   "selector": ".tagscroll",
+   "kind": "settings",
+   "screen": "maintenance - QR / NFC stickers",
+   "reason": "managers only, a print page (owner question 1 of CR-NOSCROLL-LISTS-2443 still open)"
+  },
+  {
+   "file": "map/sw-plan-3d.ts",
+   "selector": ".strip",
+   "kind": "map-overlay",
+   "screen": "3D plan floor strip"
+  },
+  {
+   "file": "map/walk-hud.ts",
+   "selector": ".sheet .body",
+   "kind": "dialog",
+   "screen": "3D walk sheet"
+  },
+  {
+   "file": "map/walk-hud.ts",
+   "selector": ".walkbar",
+   "kind": "strip-x",
+   "screen": "3D walk bar"
+  },
+  {
+   "file": "notices/news-sources.ts",
+   "selector": ".list",
+   "kind": "settings",
+   "screen": "notices - news sources (configure only)"
+  },
+  {
+   "file": "notices/reads-sheet.ts",
+   "selector": ".list",
+   "kind": "dialog",
+   "screen": "notices - who read it (sheet)"
+  },
+  {
+   "file": "public-ticket/claim/claim.css",
+   "selector": ".swq .swq-flow",
+   "kind": "public",
+   "screen": "public ticket page",
+   "reason": "the quote steps strip on a phone"
+  },
+  {
+   "file": "screens/access-external.ts",
+   "selector": ".side",
+   "kind": "side-panel",
+   "screen": "external access",
+   "reason": "the side column (visits, templates), 290-360 px"
+  },
+  {
+   "file": "screens/access-external.ts",
+   "selector": ".tcard.grants > .gl-body",
+   "kind": "long-lists-scroll",
+   "screen": "external access (grants)",
+   "reason": "FIXED here: paged on a desktop (data-pages-on clips it); this rule = the long-lists scroll setting and 1024x560-600"
+  },
+  {
+   "file": "screens/area-quick-sheet-css.ts",
+   "selector": ".body",
+   "kind": "dialog",
+   "screen": "area quick sheet"
+  },
+  {
+   "file": "screens/area-quick-sheet-css.ts",
+   "selector": ".ed-main",
+   "kind": "editor",
+   "screen": "area quick sheet editor"
+  },
+  {
+   "file": "screens/automation-block-forms.ts",
+   "selector": ".lockcode",
+   "kind": "viewer",
+   "screen": "automation editor - code block"
+  },
+  {
+   "file": "screens/automation-code.ts",
+   "selector": "textarea",
+   "kind": "viewer",
+   "screen": "automation code editor"
+  },
+  {
+   "file": "screens/automation-drawer.ts",
+   "selector": ".runchips",
+   "kind": "strip-x",
+   "screen": "automation drawer - run chips"
+  },
+  {
+   "file": "screens/automation-editor-base.ts",
+   "selector": ".shb",
+   "kind": "editor",
+   "screen": "automation editor"
+  },
+  {
+   "file": "screens/automation-editor-base.ts",
+   "selector": ".typepop",
+   "kind": "dialog",
+   "screen": "automation editor - type popover"
+  },
+  {
+   "file": "screens/automation-entity-picker.ts",
+   "selector": ".pb",
+   "kind": "dialog",
+   "screen": "automation entity picker"
+  },
+  {
+   "file": "screens/devices-area-nav.ts",
+   "selector": ".menu",
+   "kind": "dialog",
+   "screen": "devices - area menu (popover)"
+  },
+  {
+   "file": "screens/devices-area.ts",
+   "selector": ":host([data-pages][data-long-lists='scroll']) .fitbox",
+   "kind": "long-lists-scroll",
+   "screen": "devices - area"
+  },
+  {
+   "file": "screens/devices-automations.ts",
+   "selector": ".dh-det .stf",
+   "kind": "phone",
+   "screen": "automations"
+  },
+  {
+   "file": "screens/devices-automations.ts",
+   "selector": ":host([data-list-panel]) .lwrap",
+   "kind": "long-lists-scroll",
+   "screen": "automations list",
+   "reason": "data-list-panel is set only when the lists scroll"
+  },
+  {
+   "file": "screens/devices-building-css.ts",
+   "selector": ".fh-chips",
+   "kind": "phone",
+   "screen": "devices - building"
+  },
+  {
+   "file": "screens/devices-building-css.ts",
+   "selector": ".planfloors",
+   "kind": "strip-x",
+   "screen": "devices - building floors strip"
+  },
+  {
+   "file": "screens/devices-building-css.ts",
+   "selector": "nav.tree",
+   "kind": "side-panel",
+   "screen": "devices - building tree"
+  },
+  {
+   "file": "screens/devices-bulk.ts",
+   "selector": ".panel",
+   "kind": "dialog",
+   "screen": "devices - bulk menu"
+  },
+  {
+   "file": "screens/devices-bulk.ts",
+   "selector": "details ul, .list",
+   "kind": "dialog",
+   "screen": "devices - bulk dialog"
+  },
+  {
+   "file": "screens/devices-camera-picker.ts",
+   "selector": "[role='listbox']",
+   "kind": "dialog",
+   "screen": "devices - camera picker"
+  },
+  {
+   "file": "screens/devices-layout-css.ts",
+   "selector": ".lay-libList",
+   "kind": "editor",
+   "screen": "devices - layout editor library"
+  },
+  {
+   "file": "screens/devices-layout-css.ts",
+   "selector": ".lay-panel",
+   "kind": "editor",
+   "screen": "devices - layout editor panel"
+  },
+  {
+   "file": "screens/devices-schedules-css.ts",
+   "selector": ":host([data-list-panel]) .groups",
+   "kind": "long-lists-scroll",
+   "screen": "schedules list",
+   "reason": "data-list-panel is set only when the lists scroll"
+  },
+  {
+   "file": "screens/devices-synoptic-phone-css.ts",
+   "selector": ".plist, .pbl, .cl",
+   "kind": "phone",
+   "screen": "devices - synoptic (phone)"
+  },
+  {
+   "file": "screens/devices-tiles-panel.ts",
+   "selector": ".la-list",
+   "kind": "editor",
+   "screen": "devices - tiles layout panel"
+  },
+  {
+   "file": "screens/door-windows.ts",
+   "selector": ".doors",
+   "kind": "picker",
+   "screen": "doors & windows - settings drawer",
+   "reason": "door choice list"
+  },
+  {
+   "file": "screens/explore-floor-map.ts",
+   "selector": ".floorbtns",
+   "kind": "map-overlay",
+   "screen": "floor map - floor buttons"
+  },
+  {
+   "file": "screens/explore-floor-map.ts",
+   "selector": ".panel",
+   "kind": "map-overlay",
+   "screen": "floor map - layers panel",
+   "reason": "owner bug 2026-09-30: capped to the stage"
+  },
+  {
+   "file": "screens/explore-floor-map.ts",
+   "selector": ".pickbar",
+   "kind": "phone",
+   "screen": "floor map - pick bar"
+  },
+  {
+   "file": "screens/explore-floor-map.ts",
+   "selector": ".shared-members",
+   "kind": "map-overlay",
+   "screen": "floor map - shared floor members"
+  },
+  {
+   "file": "screens/explore-floor-map.ts",
+   "selector": ".sidelist .body",
+   "kind": "side-panel",
+   "screen": "floor map - side list"
+  },
+  {
+   "file": "screens/explore-floor-map.ts",
+   "selector": ".tools",
+   "kind": "phone",
+   "screen": "floor map - tools (phone / short window)"
+  },
+  {
+   "file": "screens/explore-plan-editor-css.ts",
+   "selector": ".ditems",
+   "kind": "editor",
+   "screen": "plan editor"
+  },
+  {
+   "file": "screens/explore-plan-editor-css.ts",
+   "selector": ".list",
+   "kind": "editor",
+   "screen": "plan editor"
+  },
+  {
+   "file": "screens/explore-plan-editor-css.ts",
+   "selector": ".vlist",
+   "kind": "editor",
+   "screen": "plan editor"
+  },
+  {
+   "file": "screens/explore-plan-import.ts",
+   "selector": ".mapwrap",
+   "kind": "editor",
+   "screen": "plan import"
+  },
+  {
+   "file": "screens/explore-presence.ts",
+   "selector": ".counts",
+   "kind": "side-panel",
+   "screen": "who is in the building - counts only",
+   "reason": "one row per floor / site (names switched off)"
+  },
+  {
+   "file": "screens/explore-presence.ts",
+   "selector": "ul",
+   "kind": "long-lists-scroll",
+   "screen": "who is in the building - people list",
+   "reason": "FIXED here: paged on a desktop; this rule = scroll setting, tablet and phone"
+  },
+  {
+   "file": "screens/home-edit-drawer.ts",
+   "selector": ".he-db",
+   "kind": "dialog",
+   "screen": "home edit drawer"
+  },
+  {
+   "file": "screens/home-screen-css.ts",
+   "selector": ".hsheet",
+   "kind": "dialog",
+   "screen": "home screen - sheet"
+  },
+  {
+   "file": "screens/home-screen-css.ts",
+   "selector": ".pfl .segs",
+   "kind": "strip-x",
+   "screen": "home screen - segments"
+  },
+  {
+   "file": "screens/home-widgets-css.ts",
+   "selector": ":host([layout='snap']) .wrap",
+   "kind": "strip-x",
+   "screen": "home widgets - snap layout",
+   "reason": "a sideways snapping track (layout option)"
+  },
+  {
+   "file": "screens/infra-elevators.ts",
+   "selector": ".hist",
+   "kind": "dialog",
+   "screen": "elevators - history dialog"
+  },
+  {
+   "file": "screens/infra-temperature.ts",
+   "selector": ":host([data-long-lists='scroll']) [data-temp-grid], :host([data-long-lists='scroll']) [data-temp-groups]",
+   "kind": "long-lists-scroll",
+   "screen": "temperature"
+  },
+  {
+   "file": "screens/installer-platform.ts",
+   "selector": ".scroll",
+   "kind": "settings",
+   "screen": "installer platform table"
+  },
+  {
+   "file": "screens/investigate-cases.ts",
+   "selector": ".files",
+   "kind": "picker",
+   "screen": "cases - import files list (dialog)"
+  },
+  {
+   "file": "screens/investigate-event-detail.ts",
+   "selector": ".side",
+   "kind": "side-panel",
+   "screen": "event detail - side column"
+  },
+  {
+   "file": "screens/investigate-history-map.ts",
+   "selector": ".details",
+   "kind": "phone",
+   "screen": "history map"
+  },
+  {
+   "file": "screens/investigate-history-map.ts",
+   "selector": ".layers",
+   "kind": "phone",
+   "screen": "history map"
+  },
+  {
+   "file": "screens/investigate-history-map.ts",
+   "selector": ".layout.ts .panel",
+   "kind": "side-panel",
+   "screen": "history map - side panel"
+  },
+  {
+   "file": "screens/investigate-playback.ts",
+   "selector": ".stage .bar .inner",
+   "kind": "strip-x",
+   "screen": "playback - control bar"
+  },
+  {
+   "file": "screens/investigate-reviews.ts",
+   "selector": ".filters",
+   "kind": "phone",
+   "screen": "reviews"
+  },
+  {
+   "file": "screens/investigate-reviews.ts",
+   "selector": ".layers",
+   "kind": "strip-x",
+   "screen": "reviews - layer chips"
+  },
+  {
+   "file": "screens/investigate-rules.ts",
+   "selector": ".dry",
+   "kind": "viewer",
+   "screen": "rules - dry-run output"
+  },
+  {
+   "file": "screens/kiosk-wall.ts",
+   "selector": ".stats",
+   "kind": "phone",
+   "screen": "kiosk wall"
+  },
+  {
+   "file": "screens/live-camera-css.ts",
+   "selector": ".stage-side",
+   "kind": "side-panel",
+   "screen": "live camera - side column"
+  },
+  {
+   "file": "screens/live-wall.ts",
+   "selector": ".settings-rows",
+   "kind": "dialog",
+   "screen": "video wall - settings popover"
+  },
+  {
+   "file": "screens/mapping-assistant-css.ts",
+   "selector": ".scroll",
+   "kind": "settings",
+   "screen": "mapping assistant (setup)"
+  },
+  {
+   "file": "screens/meters-page-base.ts",
+   "selector": ".cols > .tree-card",
+   "kind": "side-panel",
+   "screen": "meters - tree"
+  },
+  {
+   "file": "screens/multimedia-groups.ts",
+   "selector": ":host([data-fit]) .gcard .members",
+   "kind": "capped-in-card",
+   "screen": "multimedia - groups",
+   "reason": "a group card's member list"
+  },
+  {
+   "file": "screens/multimedia-groups.ts",
+   "selector": ":host([data-fit][data-long-lists='scroll']) .scr",
+   "kind": "long-lists-scroll",
+   "screen": "multimedia - groups"
+  },
+  {
+   "file": "screens/multimedia-players.ts",
+   "selector": ".dh-det sw-segmented::part(track)",
+   "kind": "phone",
+   "screen": "multimedia - players"
+  },
+  {
+   "file": "screens/multimedia-players.ts",
+   "selector": ".scr",
+   "kind": "long-lists-scroll",
+   "screen": "multimedia - players",
+   "reason": "paged by PageFit (NOSCROLL-1366-2437); the base rule the paged mode overrides"
+  },
+  {
+   "file": "screens/multimedia-players.ts",
+   "selector": ".scr.editing .edit-cards",
+   "kind": "editor",
+   "screen": "multimedia - players layout editing"
+  },
+  {
+   "file": "screens/multimedia-screens.ts",
+   "selector": ".dh-det sw-segmented::part(track)",
+   "kind": "phone",
+   "screen": "multimedia - screens"
+  },
+  {
+   "file": "screens/multimedia-screens.ts",
+   "selector": ".edit-side",
+   "kind": "editor",
+   "screen": "multimedia - screens layout editing"
+  },
+  {
+   "file": "screens/multimedia-screens.ts",
+   "selector": ".rooms",
+   "kind": "strip-x",
+   "screen": "multimedia - screens rooms strip"
+  },
+  {
+   "file": "screens/multimedia-screens.ts",
+   "selector": ":host",
+   "kind": "phone",
+   "screen": "multimedia - screens",
+   "reason": "below the desktop edge only (the cards region pages from 1024x560)"
+  },
+  {
+   "file": "screens/multimedia-screens.ts",
+   "selector": ":host([data-fit][data-long-lists='scroll']) .scr",
+   "kind": "long-lists-scroll",
+   "screen": "multimedia - screens"
+  },
+  {
+   "file": "screens/nvr-batch-shell.ts",
+   "selector": ".vl",
+   "kind": "settings",
+   "screen": "NVR batch tool"
+  },
+  {
+   "file": "screens/nvr-confirm.ts",
+   "selector": "ul.names",
+   "kind": "dialog",
+   "screen": "NVR confirm dialog"
+  },
+  {
+   "file": "screens/nvr-verify-report.ts",
+   "selector": ".list",
+   "kind": "settings",
+   "screen": "NVR verify report"
+  },
+  {
+   "file": "screens/plan-studio-panel.ts",
+   "selector": ".dlist",
+   "kind": "editor",
+   "screen": "plan studio"
+  },
+  {
+   "file": "screens/scenario-recipients.ts",
+   "selector": ".pop",
+   "kind": "dialog",
+   "screen": "scenario recipients popover"
+  },
+  {
+   "file": "screens/schedule-conditions.ts",
+   "selector": ".cands",
+   "kind": "picker",
+   "screen": "schedule conditions picker"
+  },
+  {
+   "file": "screens/schedule-table-view.ts",
+   "selector": ".wrap",
+   "kind": "table-x",
+   "screen": "schedule table view"
+  },
+  {
+   "file": "screens/security-alarm.ts",
+   "selector": ".areas",
+   "kind": "long-lists-scroll",
+   "screen": "alarm - sensors",
+   "reason": "FIXED here: paged from 1024x560 (data-pages-on clips it); this rule = the long-lists scroll setting and a short desktop window"
+  },
+  {
+   "file": "screens/system-access.ts",
+   "selector": ".members",
+   "kind": "settings",
+   "screen": "settings - access"
+  },
+  {
+   "file": "screens/system-alarm.ts",
+   "selector": ".scroll",
+   "kind": "settings",
+   "screen": "settings - alarm"
+  },
+  {
+   "file": "screens/system-brand-installer.ts",
+   "selector": ".tabs",
+   "kind": "settings",
+   "screen": "settings - brand installer tabs"
+  },
+  {
+   "file": "screens/system-brand-logos.ts",
+   "selector": ".tabs",
+   "kind": "settings",
+   "screen": "settings - brand logos tabs"
+  },
+  {
+   "file": "screens/system-calendar-sync.ts",
+   "selector": ":host([data-long-lists='scroll']) .flags",
+   "kind": "long-lists-scroll",
+   "screen": "settings - calendar sync"
+  },
+  {
+   "file": "screens/system-calendars.ts",
+   "selector": ":host([data-long-lists='scroll']) .fitbox",
+   "kind": "long-lists-scroll",
+   "screen": "settings - calendars"
+  },
+  {
+   "file": "screens/system-devices.ts",
+   "selector": ":host([data-long-lists='scroll']) .stage > sw-table",
+   "kind": "long-lists-scroll",
+   "screen": "system health / devices"
+  },
+  {
+   "file": "screens/system-fleet-report.ts",
+   "selector": "pre.json",
+   "kind": "viewer",
+   "screen": "fleet report JSON"
+  },
+  {
+   "file": "screens/system-nav.ts",
+   "selector": ":host",
+   "kind": "shell",
+   "screen": "settings navigation"
+  },
+  {
+   "file": "screens/system-notifications.ts",
+   "selector": ".mxw",
+   "kind": "settings",
+   "screen": "settings - notifications matrix"
+  },
+  {
+   "file": "screens/system-readiness.ts",
+   "selector": ".col",
+   "kind": "settings",
+   "screen": "settings - readiness"
+  },
+  {
+   "file": "screens/system-readiness.ts",
+   "selector": ".kpis",
+   "kind": "settings",
+   "screen": "settings - readiness"
+  },
+  {
+   "file": "screens/system-security-cameras.ts",
+   "selector": ".wrap",
+   "kind": "settings",
+   "screen": "settings - security cameras"
+  },
+  {
+   "file": "screens/system-security-privacy-masks.ts",
+   "selector": ".cams",
+   "kind": "settings",
+   "screen": "settings - privacy masks"
+  },
+  {
+   "file": "screens/system-security-privacy-masks.ts",
+   "selector": ".layout > .cams",
+   "kind": "settings",
+   "screen": "settings - privacy masks"
+  },
+  {
+   "file": "screens/system-security-privacy-masks.ts",
+   "selector": ".layout > .insp",
+   "kind": "settings",
+   "screen": "settings - privacy masks"
+  },
+  {
+   "file": "screens/system-security-privacy-masks.ts",
+   "selector": ".main[data-pm-step='review'], .main[data-pm-step='done']",
+   "kind": "settings",
+   "screen": "settings - privacy masks"
+  },
+  {
+   "file": "screens/system-security-privacy-masks.ts",
+   "selector": "sw-dialog ul",
+   "kind": "settings",
+   "screen": "settings - privacy masks"
+  },
+  {
+   "file": "screens/system-transit.ts",
+   "selector": ".res",
+   "kind": "settings",
+   "screen": "settings - transit"
+  },
+  {
+   "file": "screens/system-video-conn-test.ts",
+   "selector": "pre.report",
+   "kind": "viewer",
+   "screen": "video connection test report"
+  },
+  {
+   "file": "screens/system-wizard.ts",
+   "selector": ".rail",
+   "kind": "settings",
+   "screen": "setup wizard rail"
+  },
+  {
+   "file": "screens/tickets-board.ts",
+   "selector": ".scr.paged .side",
+   "kind": "side-panel",
+   "screen": "tickets - board side tree"
+  },
+  {
+   "file": "screens/tickets-maintenance.ts",
+   "selector": ".body > *",
+   "kind": "shell",
+   "screen": "tickets - maintenance section frame",
+   "reason": "the maintenance pages inside page their own lists"
+  },
+  {
+   "file": "screens/tickets-overview.ts",
+   "selector": ".paged .dh-det .depts",
+   "kind": "strip-x",
+   "screen": "tickets - overview departments strip"
+  },
+  {
+   "file": "screens/tickets-overview.ts",
+   "selector": ".paged .wpages",
+   "kind": "strip-x",
+   "screen": "tickets - overview pages track",
+   "reason": "the pages sit side by side and snap page by page (that is the pager)"
+  },
+  {
+   "file": "screens/tickets-overview.ts",
+   "selector": ".paged.scrolls .wpages",
+   "kind": "long-lists-scroll",
+   "screen": "tickets - overview"
+  },
+  {
+   "file": "screens/tickets-overview.ts",
+   "selector": ".rooms",
+   "kind": "phone",
+   "screen": "tickets - overview"
+  },
+  {
+   "file": "screens/water/page-meters.ts",
+   "selector": ".cand",
+   "kind": "picker",
+   "screen": "water - meter candidates"
+  },
+  {
+   "file": "screens/wiskey-bulk-people.ts",
+   "selector": ".rows",
+   "kind": "dialog",
+   "screen": "WisKey bulk people dialog"
+  },
+  {
+   "file": "screens/wiskey-embed.ts",
+   "selector": "nav.tools",
+   "kind": "strip-x",
+   "screen": "WisKey embed tools"
+  },
+  {
+   "file": "screens/wiskey-events.ts",
+   "selector": ".chips",
+   "kind": "phone",
+   "screen": "WisKey events"
+  },
+  {
+   "file": "screens/wiskey-people.ts",
+   "selector": ".filters",
+   "kind": "phone",
+   "screen": "WisKey people"
+  },
+  {
+   "file": "screens/wiskey-profiles.ts",
+   "selector": ".tabs",
+   "kind": "strip-x",
+   "screen": "WisKey profiles tabs"
+  },
+  {
+   "file": "screens/wiskey-stations-css.ts",
+   "selector": ".chips",
+   "kind": "phone",
+   "screen": "WisKey stations"
+  },
+  {
+   "file": "screens/wiskey-stations-css.ts",
+   "selector": ".treecol",
+   "kind": "side-panel",
+   "screen": "WisKey stations tree"
+  },
+  {
+   "file": "shell/sw-app.ts",
+   "selector": ".results",
+   "kind": "dialog",
+   "screen": "shell search results (popover)"
+  },
+  {
+   "file": "shell/sw-app.ts",
+   "selector": ".subnav",
+   "kind": "phone",
+   "screen": "shell sub-navigation"
+  },
+  {
+   "file": "shell/sw-app.ts",
+   "selector": "main",
+   "kind": "shell",
+   "screen": "the shell main (page body)",
+   "reason": "NOSCROLL guards assert it never scrolls on control screens"
+  },
+  {
+   "file": "shell/sw-app.ts",
+   "selector": "nav.rail",
+   "kind": "shell",
+   "screen": "navigation rail"
+  },
+  {
+   "file": "shell/sw-app.ts",
+   "selector": "style=\"\"",
+   "kind": "shell",
+   "screen": "embedded mode main"
+  },
+  {
+   "file": "shell/sw-user-menu.ts",
+   "selector": ".panel",
+   "kind": "dialog",
+   "screen": "user menu"
+  },
+  {
+   "file": "styles/media-glass.ts",
+   "selector": ".pop",
+   "kind": "dialog",
+   "screen": "media glass popover"
+  },
+  {
+   "file": "styles/media-page.ts",
+   "selector": ".dh-det .seg",
+   "kind": "phone",
+   "screen": "media pages"
+  },
+  {
+   "file": "styles/media-page.ts",
+   "selector": ".edit-side",
+   "kind": "editor",
+   "screen": "media pages layout editing"
+  },
+  {
+   "file": "styles/media-page.ts",
+   "selector": ".rooms",
+   "kind": "strip-x",
+   "screen": "media pages rooms strip"
+  },
+  {
+   "file": "styles/media-page.ts",
+   "selector": ":host",
+   "kind": "phone",
+   "screen": "media pages (automations, schedules, multimedia groups / players, notifications)",
+   "reason": "below the desktop edge (the pages fit from 1024 px)"
+  },
+  {
+   "file": "styles/settings.ts",
+   "selector": "nav.tabs",
+   "kind": "strip-x",
+   "screen": "settings tabs"
+  },
+  {
+   "file": "temperature/report.ts",
+   "selector": ".ulist",
+   "kind": "picker",
+   "screen": "temperature report - unit list"
+  },
+  {
+   "file": "temperature/whatsapp.ts",
+   "selector": ".plist",
+   "kind": "picker",
+   "screen": "temperature WhatsApp - people list"
+  },
+  {
+   "file": "temperature/wizard.ts",
+   "selector": ".opts.scroll",
+   "kind": "picker",
+   "screen": "temperature wizard"
+  },
+  {
+   "file": "temperature/wizard.ts",
+   "selector": ".slist",
+   "kind": "picker",
+   "screen": "temperature wizard"
+  },
+  {
+   "file": "tickets/calendar-view.ts",
+   "selector": ".leg",
+   "kind": "phone",
+   "screen": "tickets - calendar legend"
+  },
+  {
+   "file": "tickets/cost-styles.ts",
+   "selector": ".stage",
+   "kind": "viewer",
+   "screen": "tickets - cost document viewer"
+  },
+  {
+   "file": "tickets/list-toolbar.ts",
+   "selector": ".fpop",
+   "kind": "dialog",
+   "screen": "tickets - filter popover"
+  },
+  {
+   "file": "tickets/list-toolbar.ts",
+   "selector": ".fpop ticket-board-tree",
+   "kind": "dialog",
+   "screen": "tickets - filter popover tree"
+  },
+  {
+   "file": "tickets/map-element.ts",
+   "selector": ".list",
+   "kind": "picker",
+   "screen": "tickets - map picker"
+  },
+  {
+   "file": "tickets/my-numbers.ts",
+   "selector": ".kpis",
+   "kind": "phone",
+   "screen": "tickets - my numbers"
+  },
+  {
+   "file": "tickets/rfq-styles.ts",
+   "selector": ".bar2 .sum",
+   "kind": "phone",
+   "screen": "RFQ"
+  },
+  {
+   "file": "tickets/rfq-styles.ts",
+   "selector": ".cmpwrap",
+   "kind": "table-x",
+   "screen": "RFQ comparison"
+  },
+  {
+   "file": "tickets/rfq-styles.ts",
+   "selector": ".thread",
+   "kind": "viewer",
+   "screen": "RFQ message thread (dialog)"
+  },
+  {
+   "file": "tickets/rfq-styles.ts",
+   "selector": ".vlist",
+   "kind": "picker",
+   "screen": "RFQ - vendor choice"
+  },
+  {
+   "file": "tickets/settings-styles.ts",
+   "selector": ".gridwrap",
+   "kind": "settings",
+   "screen": "tickets settings grid"
+  },
+  {
+   "file": "tickets/styles.ts",
+   "selector": ".pick.xpick",
+   "kind": "picker",
+   "screen": "tickets - external assign vendor list"
+  },
+  {
+   "file": "tickets/styles.ts",
+   "selector": ".pop.ov",
+   "kind": "dialog",
+   "screen": "tickets popover"
+  },
+  {
+   "file": "tickets/table-styles.ts",
+   "selector": ".pop .plist",
+   "kind": "dialog",
+   "screen": "tickets table popover"
+  },
+  {
+   "file": "tickets/table-styles.ts",
+   "selector": ".pop.ov",
+   "kind": "dialog",
+   "screen": "tickets table popover"
+  },
+  {
+   "file": "tickets/ticket-detail.ts",
+   "selector": ".pop.ov",
+   "kind": "dialog",
+   "screen": "ticket detail popover"
+  }
+ ]
+}

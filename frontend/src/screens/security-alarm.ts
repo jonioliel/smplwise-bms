@@ -6,6 +6,8 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
+import '../components/sw-pager';
+import { GridFit } from '../components/grid-fit';
 import {
   ARM_LABEL,
   CODE_ERROR_LABEL,
@@ -91,6 +93,12 @@ function when(iso: string | null): string {
 export class SecurityAlarm extends LitElement {
   /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
   readonly bubbleSkin = new SkinController(this);
+  /** SCROLL-AUDIT-2480 (owner rule: a control screen never scrolls; long lists page): from 1024 px the sensors region takes the room the
+   * page leaves and (from 1024x560, `data-pages-on`) never scrolls. When the sensors fit, the areas stay side by side; when they do not,
+   * the sensors are drawn in one grid of the columns x rows that fit the region (cards) or the rows that fit its height (list), each
+   * sensor naming its area, and the rest are on the next pages (`sw-pager` at the end of the toolbar; components/grid-fit.ts). The long
+   * lists set to scroll (הגדרות › כללי › עיצוב הממשק): every sensor is drawn by area and the region scrolls inside itself, as before. */
+  private fit = new GridFit(this, () => this.renderRoot.querySelector<HTMLElement>('.areas'));
   @property() panelId = '';
   @state() private data: AlarmPanels | null = null;
   @state() private error = '';
@@ -939,10 +947,54 @@ export class SecurityAlarm extends LitElement {
         min-block-size: 0;
         overflow-y: auto;
         overscroll-behavior: contain;
-        /* room for the cards' shadow and focus ring inside the scroller */
+        /* room for the cards' shadow and focus ring inside the region */
         padding: 2px 4px 6px;
         margin-inline: -4px;
       }
+      /* SCROLL-AUDIT-2480: the measured pages are in force (long lists paged) - the region clips and shows the sensors that fit */
+      :host([data-pages-on]) .areas {
+        overflow: hidden;
+      }
+      /* SCROLL-AUDIT-2480: the one-grid pages (components/grid-fit.ts, the sensors did not fit by area) - the cards in the columns the
+         region's width takes, the rows that fit its height, stretched (--fit-row-h) so a page fills the region to its bottom edge */
+      .areas.flat {
+        /* a card at least 19 em wide (about 266 px at the screen's text size): a usual sensor name is not cut, and the state line
+           (state, area, time, a flag) stays one line */
+        grid-template-columns: repeat(auto-fill, minmax(19em, 1fr));
+        grid-auto-rows: var(--fit-row-h, auto);
+        gap: var(--sw-s-3);
+        align-items: stretch;
+        align-content: start;
+      }
+      .areas.flat.list {
+        display: block;
+      }
+      /* one line of state: every item keeps one height (the rows are counted from it). The state word and the flags (tamper, low
+         battery, caused the alarm) come first; the area and the time follow and, when the card is too narrow for them, wrap to a
+         second line that is clipped - they leave whole, never as a cut word */
+      .areas.flat .zsub {
+        line-height: 1.5;
+        max-block-size: calc(var(--sw-fs-lg) * 1.5);
+        overflow: hidden;
+      }
+      .areas.flat .zsub > * {
+        white-space: nowrap;
+        order: 2;
+      }
+      .areas.flat .zsub > .zstate {
+        order: 0;
+      }
+      .areas.flat .zsub > .flag {
+        order: 1;
+      }
+      .areas.flat .zrow {
+        box-sizing: border-box;
+        block-size: var(--fit-row-h, auto);
+      }
+    }
+    .zarea {
+      color: var(--sw-text-2);
+      font-weight: var(--sw-fw-medium);
     }
     /* the bubble skin: the list and its rows are flat layers, the view switch a pill track */
     :host([data-skin='bubble']) .zlist {
@@ -1305,6 +1357,12 @@ export class SecurityAlarm extends LitElement {
       faults: p.zones.filter((z) => z.fault || z.tamper).length,
     };
     const list = this.zoneView === 'list';
+    // the measured pages: the sensors in reading order (area by area); a new filter, view, panel or set of sensors starts at page 1
+    this.toggleAttribute('data-pages-on', this.fit.on);
+    this.fit.sync(zones.length, `${p.entity_id}|${this.filter}|${this.zoneView}|${zones.map((z) => z.entity_id).join(',')}`);
+    const flat = this.fit.flat
+      ? [...groups.entries()].flatMap(([area, zs]) => zs.map((z) => [area, z] as const)).filter((_, i) => this.fit.shows(i))
+      : [];
     return html`<div class="toolbar">
         <div class="chips" role="group" aria-label=${tr('סינון חיישנים')}>${FILTERS.map((f) => html`<button type="button" aria-pressed=${this.filter === f.id} data-filter=${f.id} @click=${() => (this.filter = f.id)}>${f.label}${f.id !== 'all' && n[f.id] ? html`<span class="n">${n[f.id]}</span>` : nothing}</button>`)}</div>
         <div class="end">
@@ -1313,18 +1371,25 @@ export class SecurityAlarm extends LitElement {
             <button type="button" aria-pressed=${!list} aria-label=${tr('כרטיסים')} title=${tr('כרטיסים')} data-alarm-view-cards @click=${() => this.setZoneView('cards')}><sw-icon name="grid" size=${15}></sw-icon></button>
             <button type="button" aria-pressed=${list} aria-label=${tr('רשימה')} title=${tr('רשימה')} data-alarm-view-list @click=${() => this.setZoneView('list')}><sw-icon name="list" size=${15}></sw-icon></button>
           </div>
+          ${this.fit.on && this.fit.pages > 1 ? html`<span class="pg"><sw-pager data-alarm-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager></span>` : nothing}
         </div>
       </div>
       ${!p.zones.length
         ? html`<sw-state-panel icon="sensor" compact state="empty" heading=${tr('אין חיישנים ללוח הזה')} hint=${tr('החיישנים מגיעים מאותה מערכת אזעקה. מנהל המערכת יכול לשייך חיישנים ידנית בהגדרות ‹ אבטחה ‹ ניהול אזעקה.')}></sw-state-panel>`
         : !zones.length
           ? html`<sw-state-panel icon="filter" compact state="empty" heading=${tr('אין חיישנים שמתאימים לסינון')} data-alarm-filter-empty actionLabel=${tr('הצג הכל')} @action=${() => (this.filter = 'all')}></sw-state-panel>`
-          : html`<div class="areas ${list ? 'list' : ''}">${[...groups.entries()].map(([area, zs]) => html`<section data-area=${area}><h3>${area}<span class="n">${zs.length}</span></h3>${list
-              ? html`<div class="zlist" data-alarm-zones="list">${zs.map((z) => this.renderZone(p, z, true))}</div>`
-              : html`<div class="grid" data-alarm-zones="cards">${zs.map((z) => this.renderZone(p, z, false))}</div>`}</section>`)}</div>`}`;
+          : this.fit.flat
+            ? list
+              ? html`<div class="areas flat list"><div class="zlist" data-alarm-zones="list">${flat.map(([area, z]) => this.renderZone(p, z, true, area))}</div></div>`
+              : html`<div class="areas flat" data-alarm-zones="cards">${flat.map(([area, z]) => this.renderZone(p, z, false, area))}</div>`
+            : html`<div class="areas ${list ? 'list' : ''}">${[...groups.entries()].map(([area, zs]) => html`<section data-area=${area}><h3>${area}<span class="n">${zs.length}</span></h3>${list
+                ? html`<div class="zlist" data-alarm-zones="list">${zs.map((z) => this.renderZone(p, z, true))}</div>`
+                : html`<div class="grid" data-alarm-zones="cards">${zs.map((z) => this.renderZone(p, z, false))}</div>`}</section>`)}</div>`}`;
   }
 
-  private renderZone(p: AlarmPanel, z: AlarmZone, row = false) {
+  /** `area`: the one-grid pages (GridFit flat) have no area headings - each sensor names its area in its second line */
+  private renderZone(p: AlarmPanel, z: AlarmZone, row = false, area = '') {
+    const areaTag = area ? html`<span class="zarea" data-zone-area>${area}</span>` : nothing;
     const st = zoneState(z);
     const icon = z.kind === 'motion' ? 'activity' : z.kind === 'fault' ? 'warning' : z.kind === 'opening' ? 'door' : 'sensor';
     const b = z.bypass;
@@ -1335,12 +1400,13 @@ export class SecurityAlarm extends LitElement {
             @change=${switchPress(!!z.bypassed, () => this.start({ kind: 'bypass', action: z.bypassed ? 'bypass_off' : 'bypass_on', panel: p, zone: z, prompt: p.code.bypass, needsConfirm: true }))}></sw-toggle>${tr('עקיפה')}</div>`
       : html`<span></span>`;
     if (row) {
-      return html`<article class="zrow" data-tone=${st.tone} data-zone=${z.entity_id}>
+      return html`<article class="zrow" data-fit-item data-tone=${st.tone} data-zone=${z.entity_id}>
         <span class="zicon" aria-hidden="true"><sw-icon name=${icon} size=${15}></sw-icon></span>
         <div class="zname" title=${z.name}>${z.zone_number !== null ? html`<span class="hint">${z.zone_number} · </span>` : nothing}${z.name}</div>
         <span class="zstate" data-zone-state>${st.label}</span>
         ${toggle}
         <div class="zsub">
+          ${areaTag}
           ${z.last_changed ? html`<span>${when(z.last_changed)}</span>` : nothing}
           ${z.tamper ? html`<span class="flag">${tr('חבלה')}</span>` : nothing}
           ${z.battery_low ? html`<span class="flag">${tr('סוללה חלשה')}</span>` : z.battery_level !== null ? html`<span>${tr('סוללה {battery_level}%', { battery_level: z.battery_level })}</span>` : nothing}
@@ -1349,12 +1415,13 @@ export class SecurityAlarm extends LitElement {
         </div>
       </article>`;
     }
-    return html`<article class="zone" data-tone=${st.tone} data-zone=${z.entity_id}>
+    return html`<article class="zone" data-fit-item data-tone=${st.tone} data-zone=${z.entity_id}>
       <span class="zicon" aria-hidden="true"><sw-icon name=${icon} size=${18}></sw-icon></span>
       <div class="zname" title=${z.name}>${z.zone_number !== null ? html`<span class="hint">${z.zone_number} · </span>` : nothing}${z.name}</div>
       ${toggle}
       <div class="zsub">
         <span class="zstate" data-zone-state>${st.label}</span>
+        ${areaTag}
         ${z.last_changed ? html`<span>${when(z.last_changed)}</span>` : nothing}
         ${z.tamper ? html`<span class="flag">${tr('חבלה')}</span>` : nothing}
         ${z.battery_low ? html`<span class="flag">${tr('סוללה חלשה')}</span>` : z.battery_level !== null ? html`<span>${tr('סוללה {battery_level}%', { battery_level: z.battery_level })}</span>` : nothing}
