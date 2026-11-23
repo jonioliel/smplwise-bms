@@ -87,7 +87,7 @@ probes, size measurements), `toHaveScreenshot()` baselines, 768-999 px pictures 
 
 ## Verification (runner slot B, own folder `~/work/capflake`, `--workers=2`, never `-u`; PC for tsc and the touched specs)
 
-The 16 touched spec files (15 edited + the new guard spec), all projects, base 619f94d04 against head da20b7e72:
+The 16 touched spec files (15 edited + the new guard spec), all projects, base 619f94d04 against head da20b7e72 (the later commits only remove 24 win32 baselines a PC run had created and an add had picked up, and change this note):
 
 | run | base | head |
 |---|---|---|
@@ -108,7 +108,9 @@ earlier animation state. No assertion is involved. That is the price of the skip
 
 Baselines: no `*-snapshots` file, no `.png` under `frontend/tests`, and no spec of the pixel groups was edited
 (`git diff --stat 619f94d04 -- frontend/tests ':(glob)**/*.png'` is empty); the guard passes options and bytes through untouched.
-Pixel-baseline specs on the dist preview, base and head, all projects, no `-u`: see the b5 line in the report.
+Pixel-baseline specs on the dist preview (base against head, all projects, no `-u`) were queued on runner slot B but did NOT RUN: the slot stayed
+held by other jobs for over 1.5 h and the job was cancelled. So "0 pixel changes" rests on the diff being free of baselines and on the guard
+passing bytes through; it was not shown by a pixel-spec run.
 
 PC: `tsc -p tsconfig.tests.json` rc 0 (191 s), `eslint src` clean, spec lint `--new-since 619f94d04` 0 findings, the 16 files in the mobile
 project 305 passed + 4 skipped (the guard spec's other-project skips), 1062 s on the loaded PC. The guard spec passes on the desktop
