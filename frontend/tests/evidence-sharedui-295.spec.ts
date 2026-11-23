@@ -37,7 +37,9 @@ async function boot(page: Page, o: ExternalOptions & RequestOptions & { scheme?:
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   await page.goto('about:blank');
-  await page.goto(url('/wiskey/external', 'classic', o.scheme ?? 'light'));
+  // SCROLL-AUDIT-2480: the grants list pages on a desktop (owner rule: a control screen never scrolls); these checks look for
+  // particular rows (and open their drawers), so the page load asks for the "scroll" mode of long lists (every row drawn, as before)
+  await page.goto(url('/wiskey/external', 'classic', o.scheme ?? 'light').replace('#', '&long_lists=scroll#'));
   if (o.ready !== false) await expect(page.locator(`${SCREEN} .kpis`).first()).toBeVisible({ timeout: 30_000 });
   return { mock, errors };
 }
@@ -137,7 +139,9 @@ async function smallTargets(root: Locator): Promise<string[]> {
     const out: string[] = [];
     const walk = (r: ParentNode) => {
       for (const el of Array.from(r.querySelectorAll('button, sw-button, .kpi, label.cb, summary'))) {
-        if (el.tagName === 'BUTTON' && (el.getRootNode() as ShadowRoot).host?.tagName === 'SW-BUTTON') continue;
+        // HAND-SWITCH-2480: the drawn boxes became sw-toggle; the switch keeps its own contract (the row's <label> is the touch target),
+        // as in the layout guards - its inner track is not a target of its own
+        if (el.tagName === 'BUTTON' && ['SW-BUTTON', 'SW-TOGGLE'].includes((el.getRootNode() as ShadowRoot).host?.tagName ?? '')) continue;
         const b = el.getBoundingClientRect();
         if (b.width && b.height && b.height < 43.5 && getComputedStyle(el).visibility !== 'hidden') out.push(`${el.tagName.toLowerCase()} "${(el.textContent ?? '').trim().slice(0, 20)}" ${Math.round(b.height)}`);
         const sr = (el as Element & { shadowRoot: ShadowRoot | null }).shadowRoot;

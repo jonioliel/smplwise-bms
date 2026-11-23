@@ -28,7 +28,9 @@ async function boot(page: Page, o: ExternalOptions & { scheme?: 'light' | 'dark'
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   await page.goto('about:blank');
-  await page.goto(url(o.hash ?? '/wiskey/external', 'classic', o.scheme ?? 'light'));
+  // SCROLL-AUDIT-2480: the grants list pages on a desktop (owner rule: a control screen never scrolls); these checks look for
+  // particular rows (and open their drawers), so the page load asks for the "scroll" mode of long lists (every row drawn, as before)
+  await page.goto(url(o.hash ?? '/wiskey/external', 'classic', o.scheme ?? 'light').replace('#', '&long_lists=scroll#'));
   await expect(page.locator(`${SCREEN} .kpis`).first()).toBeVisible({ timeout: 30_000 });
   return { mock, errors };
 }
