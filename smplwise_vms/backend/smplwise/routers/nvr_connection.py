@@ -31,6 +31,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..recorder_scope import PRIMARY, settings_for
 from ..services import addon_restart, confirm_words, connection_probe, connection_store, update_runs
+from ..services import default_names as dn
 from ..services.recorders import registry
 from ._common import raw_body as _raw_body, rid as _rid
 
@@ -509,7 +510,7 @@ def do_save(request: Request, principal: Principal, body: "SaveIn", conn: sqlite
           details={"vendor": fields["vendor"], "host": fields["host"], "http_port": fields["http_port"], "rtsp_port": fields["rtsp_port"], "changed": changed_fields,
                    "password_changed": changed, "untested": untested, "revision": revision, **({"confirm_word": confirm_word} if confirm_word else {})})
     if candidate_fp:  # which physical recorder this connection reaches (keyed hash; the serial is never stored)
-        autosync.ensure_recorder(conn, recorder_id=rid)
+        autosync.ensure_recorder(conn, recorder_id=rid, lang=dn.lang_of(conn, principal))  # I18N-DEFAULT-NAMES-2490
         autosync.store_identity(conn, rid, candidate_fp)
     if new_recorder:
         audit(conn, actor=principal, action="nvr.recorder.add", decision="allowed", resource_type="recorder", resource_id=rid, request_id=_rid(request),

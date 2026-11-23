@@ -32,6 +32,7 @@ from ..errors import ApiError, conflict, not_found
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import bundle as bundle_svc
 from ..services import geometry_store as store
+from ..services import default_names as dn
 from ..services import plan_catalog_store
 from ..services import plan_anchor_scope as anchor_scope
 from ..services import plan_package as pkg_svc
@@ -72,7 +73,7 @@ def export_package(version_id: str, request: Request, body: PackageIn | None = N
     require(conn, principal, "map.edit", _floor(v))
     draft = bool(body and body.draft)
     if draft:
-        doc, row = store.working_doc(conn, v)
+        doc, row = store.working_doc(conn, v, dn.lang_of(conn, principal))
         revision = row["revision"] if row is not None else 0
     else:
         row = store.published_row(conn, v["id"])

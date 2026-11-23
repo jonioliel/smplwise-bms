@@ -14,6 +14,7 @@ from typing import Any, Mapping
 
 from ..db import new_id
 from .plan_schema import canonical_json as canonical_json
+from . import default_names as dn
 from . import plan_catalog
 from . import plan_glass, plan_studio6, wall_path
 
@@ -31,7 +32,7 @@ SCHEMA_VERSIONS = (SCHEMA_VERSION, SCHEMA_VERSION_21, SCHEMA_VERSION_22)
 SUPPORTED_VERSIONS = SCHEMA_VERSIONS
 TOKENS_VERSION = "map-1"
 DEFAULT_LEVEL_ID = "L0"
-DEFAULT_LEVEL_NAME = "מפלס ראשי"
+DEFAULT_LEVEL_NAME = "מפלס ראשי"  # the Hebrew of default_names "plan.level_main" (I18N-DEFAULT-NAMES-2490)
 DEFAULT_CEILING_M = 2.8
 DEFAULT_WALL_THICKNESS_M = 0.2
 ESTIMATED_WALL_FRACTION = 0.006  # uncalibrated: a 0.2 m wall is drawn 0.6 % of the plan width wide
@@ -175,11 +176,13 @@ def version_block(version: Mapping[str, Any], asset: Mapping[str, Any] | None) -
     }
 
 
-def new_document(version: Mapping[str, Any], asset: Mapping[str, Any] | None) -> dict[str, Any]:
+def new_document(version: Mapping[str, Any], asset: Mapping[str, Any] | None, lang: str = "he") -> dict[str, Any]:
+    """A structure for a version that has none yet. I18N-DEFAULT-NAMES-2490 (owner N53): its level's name is made in `lang`, the
+    interface language of the person whose editor first reads it (the name is stored with that editor's first save); Hebrew without one."""
     doc: dict[str, Any] = {"schema_version": SCHEMA_VERSION, **version_block(version, asset)}
     for coll in COLLECTIONS:
         doc[coll] = []
-    doc["levels"] = [{"id": DEFAULT_LEVEL_ID, "name": DEFAULT_LEVEL_NAME, "elevation_m": 0.0, "ceiling_height_m": DEFAULT_CEILING_M, "is_default": True, "external_ids": {}}]
+    doc["levels"] = [{"id": DEFAULT_LEVEL_ID, "name": dn.name("plan.level_main", lang), "elevation_m": 0.0, "ceiling_height_m": DEFAULT_CEILING_M, "is_default": True, "external_ids": {}}]
     doc["uncertainty"] = {"overall": 0.5, "notes": []}
     doc["meta"] = {"generator": "smplwise-vms", "tokens_version": TOKENS_VERSION, "detector_version": None}
     return doc

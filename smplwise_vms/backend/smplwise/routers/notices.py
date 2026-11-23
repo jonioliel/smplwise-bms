@@ -752,7 +752,9 @@ def audience_options(principal: Principal = Depends(current_principal_ro), conn:
     roles = [{"id": k, "name": v} for k, v in ROLE_NAMES_HE.items() if k in ("viewer", "operator", "editor", "site_admin", "system_admin", "kiosk")]
     # NOTICEPAGE-295: the named areas (rooms / zones) under each floor, for the page's places tree (an area in an audience resolves to its floor)
     areas = [{"id": r["id"], "name": r["name"], "floor": r["floor_id"]} for r in rstore.named_areas(conn)]
-    return {"floors": floors, "areas": areas, "groups": groups, "roles": roles}
+    from ..i18n import localize_for
+
+    return {"floors": floors, "areas": areas, "groups": groups, "roles": localize_for(conn, principal, roles)}  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
 
 
 def _get_visible(conn: sqlite3.Connection, principal: Principal, notice_id: str) -> tuple[dict[str, Any], dict[str, bool]]:

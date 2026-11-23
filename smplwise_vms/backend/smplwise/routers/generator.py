@@ -19,7 +19,9 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..db import now_iso
 from ..errors import ApiError, not_found
+from ..i18n import localize_for, register, t
 from ..rbac import INSTALLATION, Principal, require
+from ..services import default_names
 from ..services import generator_alerts as alerts
 from ..services import generator_catalog as cat
 from ..services import generator_core as core
@@ -32,6 +34,9 @@ from ..wire import wire
 
 router = APIRouter()
 VIEW, MANAGE = "generator.view", "generator.manage"
+# I18N-BACKEND-2490 (third pass): the recipient roles of the alert routing (Hebrew as before; English as the frontend's en.ts `roleNames`)
+register("generator.role", {"operator": ("מפעילים", "Operators"), "site_admin": ("מנהלי אתר", "Site administrators"),
+                            "system_admin": ("מנהלי מערכת", "System administrators")})
 _DETECT_CALLS: collections.deque[float] = collections.deque(maxlen=3)
 
 
@@ -163,7 +168,7 @@ def run_detect(principal: Principal = Depends(_manage_w), conn: sqlite3.Connecti
     if len(_DETECT_CALLS) == 3 and now - _DETECT_CALLS[0] < 60:
         raise ApiError(429, "rate_limited", "בדיקה חוזרת אפשרית שלוש פעמים בדקה.")
     _DETECT_CALLS.append(now)
-    found = core.detect(conn)
+    found = core.detect(conn, lang=default_names.lang_of(conn, principal))  # I18N-EN-2490 (owner N53): an unnamed device's default name
     audit(conn, actor=principal, action="generator.detect", decision="allowed", resource_type="generator_device", resource_id=None, details={"found": len(found)})
     return {"found": found, "count": len(found), "last_detect_at": core.get_setting(conn, "generator.last_detect_at")}
 
@@ -194,7 +199,7 @@ def device_candidates(q: str = Query("", max_length=80), limit: int = Query(50, 
 
 @router.post("/generator/devices", status_code=201, **wire(W.GeneratorDevice))
 def add_device(body: ManualBody, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    gid = core.add_manual(conn, body.ha_device_id, body.name)
+    gid = core.add_manual(conn, body.ha_device_id, body.name, lang=default_names.lang_of(conn, principal))
     if gid is None:
         raise ApiError(404, "device_not_found", "ההתקן לא נמצא ברישום התשתית.")
     audit(conn, actor=principal, action="generator.device.add", decision="allowed", resource_type="generator_device", resource_id=gid)
@@ -377,8 +382,8 @@ def ack_all(device_id: str, principal: Principal = Depends(_view_w), conn: sqlit
 def get_policies(device_id: str, principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _device(conn, device_id)
     out = alerts.list_policies(conn, device_id)
-    out["roles"] = [{"id": r, "label": {"operator": "מפעילים", "site_admin": "מנהלי אתר", "system_admin": "מנהלי מערכת"}[r]} for r in alerts.ROUTABLE_ROLES]
-    return out
+    out["roles"] = [{"id": r, "label": t(f"generator.role.{r}")} for r in alerts.ROUTABLE_ROLES]
+    return localize_for(conn, principal, out)  # I18N-BACKEND-2490 (third pass): the role labels in the reader's language
 
 
 class PolicyBody(_Body):

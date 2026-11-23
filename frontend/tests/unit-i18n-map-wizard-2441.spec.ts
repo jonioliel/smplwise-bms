@@ -103,9 +103,9 @@ test('every tr() text of the two folders has its English, with the same placehol
     expect([...used].filter((k) => !(k in table)), `${dir}: no English`).toEqual([]);
     expect(Object.keys(table).filter((k) => !used.has(k)), `${dir}: unused`).toEqual([]);
     for (const [he, en] of Object.entries(table)) expect(names(en), he).toEqual(names(he));
-    // English is English, but for the one sentence that quotes the stored room name
-    const quoted = 'חדר בלי שם יקבל "חדר 7", ואפשר לשנות אחר כך';
-    expect(Object.entries(table).filter(([he, en]) => HEBREW.test(en) && he !== quoted).map(([he]) => he), dir).toEqual([]);
+    // English is English - the sentence that quotes the stored room name too: since I18N-EN-2490 (owner N53) the server names an
+    // unnamed room in the user's language ("Room 7")
+    expect(Object.entries(table).filter(([, en]) => HEBREW.test(en)).map(([he]) => he), dir).toEqual([]);
   }
 });
 

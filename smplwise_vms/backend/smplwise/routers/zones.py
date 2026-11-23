@@ -15,6 +15,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import INSTALLATION, Principal, authorize, require
+from ..services import default_names as dn
 from ..services import plan_area_links
 from ..services import plan_geometry as pg
 from ..services import plan_zones
@@ -567,8 +568,9 @@ def accept_zones(floor_id: str, body: AcceptIn, request: Request, principal: Pri
         zones_store.delete_auto_zones_except(conn, floor_id, keep, now_iso())
         store_locations.clear_dead_plan_zones(conn)  # ORGPLAN-291
     ids = []
+    lang = dn.lang_of(conn, principal)  # I18N-EN-2490 (owner N53): an unnamed room is named in the caller's language
     for i, cnd in enumerate(body.candidates):
-        name = cnd.name.strip() or f"חדר {i + 1}"
+        name = cnd.name.strip() or dn.name("zone.room", lang, n=i + 1)
         ids.append(_insert(conn, principal, floor_id, v["id"] if v else None, name, cnd.kind, cnd.polygon, None, "auto"))
     audit(conn, actor=principal, action="zone.accept", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request), details={"zones": len(ids), "replace_auto": body.replace_auto})
     return {"zones": floor_zones(conn, floor_id), "created": ids}

@@ -6,6 +6,7 @@
 smplwise.test_reset._ATTRS  # the reset registry itself
 smplwise.test_reset._RESETS  # the reset registry itself
 smplwise.guarded_route._CLASSES  # one route class per guard, built by the @guarded decorators at import
+smplwise.i18n.CATALOGUE  # the server texts (he / en); register() at import of each module that owns texts (I18N-BACKEND-2490)
 smplwise.services.announce_translate.PROVIDERS  # translation provider factories; register() at import
 smplwise.services.calendar.attendee_notices.CHANNELS  # attendee notice channels; register_channel() is the plug point at import
 smplwise.services.calendar_sync.registry._FACTORIES  # calendar provider factories; register() at import

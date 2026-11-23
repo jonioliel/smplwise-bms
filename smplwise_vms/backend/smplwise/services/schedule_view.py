@@ -14,6 +14,8 @@ import sqlite3
 from typing import Any
 
 from ..db import get_setting
+from ..i18n import CATALOGUE
+from ..i18n import t as _t
 from ..rbac import INSTALLATION, Principal, authorize, is_system_admin, permissions_anywhere
 from . import alarm as alarm_svc
 from . import bridge_keys as bk
@@ -53,6 +55,11 @@ REASON_MESSAGES = {
     "bridge_unavailable": "נדרש עדכון או צימוד של רכיב החיבור כדי לשמור תזמונים.",
     "action_invalid": "פעולה בתזמון אינה תקפה עוד (ההתקן חסר או אינו תומך בה); אפשר לערוך ולהסיר אותה.",
 }
+# I18N-BACKEND-2490 (third pass): each message a `Msg` (`sched.reason.<code>`, services/automation_scope_text.py) whose string value is the
+# Hebrew above, byte for byte; the schedules routes render it in the reader's language
+from . import automation_scope_text  # noqa: E402,F401 - registers `ascope.*` and `sched.*`
+
+REASON_MESSAGES = {k: (_t(f"sched.reason.{k}") if CATALOGUE.get(f"sched.reason.{k}", {}).get("he") == v else v) for k, v in REASON_MESSAGES.items()}
 WRITE_BLOCK_REASON = {"feature_disabled": "feature_disabled", "component_missing": "component_unavailable", "ha_unavailable": "ha_unavailable",
                       "bridge_missing": "bridge_unavailable", "bridge_unpaired": "bridge_unavailable", "bridge_too_old": "bridge_unavailable"}
 
@@ -535,7 +542,7 @@ def action_reasons(ctx: Ctx, service: str, entity_id: str, cls: str | None, *, s
     if policy.is_sensitive(cls, info) and not a.allowed(SENSITIVE, entity_id):
         out.append(reason("sensitive_permission_required", entity_id))
     name = ctx.name_of(entity_id)
-    not_controllable = reason("entity_not_controllable", entity_id, f"אין לך הרשאת שליטה ב־{name}.")
+    not_controllable = reason("entity_not_controllable", entity_id, _t("sched.no_control_of", name=name))
     if cls in ("light", "switch", "cover", "climate", "fan", "helper", "humidifier", "vacuum", "number", "select"):
         if not a.control(entity_id):
             out.append(not_controllable)
@@ -555,13 +562,13 @@ def action_reasons(ctx: Ctx, service: str, entity_id: str, cls: str | None, *, s
         if not a.allowed("ha.entity.control", entity_id):
             out.append(not_controllable)
         elif service == "lock.unlock" and not a.allowed("door.unlock", entity_id):
-            out.append(reason("grant_required", entity_id, "הפעולה דורשת הרשאה נפרדת (פתיחת דלת)."))
+            out.append(reason("grant_required", entity_id, _t("sched.needs_door_grant")))
     elif cls == "alarm":
         perm = "alarm.disarm" if _alarm_kind(service) == "disarm" else "alarm.arm"
         if not a.allowed(perm, entity_id, own=True):
             from .rbac_admin import PERMISSION_LABELS
 
-            out.append(reason("grant_required", entity_id, f"הפעולה דורשת הרשאה נפרדת ({PERMISSION_LABELS[perm]})."))
+            out.append(reason("grant_required", entity_id, _t("sched.needs_grant", perm=PERMISSION_LABELS[perm])))
         block = remote_block(ctx, _alarm_kind(service))
         if block:
             out.append({**reason("entity_not_controllable", entity_id, block[1]), "_remote": block[0]})
@@ -580,10 +587,10 @@ def item_run_reasons(ctx: Ctx, cls: str, entity_id: str, info: dict[str, Any] | 
     facts = (info or {}).get("_facts")
     if facts is None:
         if cls == "scene":
-            return [] if a.control(entity_id) else [reason("entity_not_controllable", entity_id, f"אין לך הרשאה להפעיל את {name}.")]
+            return [] if a.control(entity_id) else [reason("entity_not_controllable", entity_id, _t("sched.no_run_of", name=name))]
         if any(ctx.actx.access.wide(p) for p in (ascope.SCRIPT_RUN, ascope.SCRIPT_MANAGE)):
             return []
-        return [reason("entity_not_controllable", entity_id, f"פעולות הסקריפט {name} אינן ידועות למערכת; תזמון שלו דורש הרשאת הרצת סקריפטים בכל ההתקנה.")]
+        return [reason("entity_not_controllable", entity_id, _t("sched.script_unknown_effects", name=name))]
     source = "integration" if (info or {}).get("_source") == "integration" else "ui"
     out: list[dict[str, Any]] = []
     for r in ascope.run_reasons(ctx.actx, cls, facts, entity_id=entity_id, source=source):
@@ -593,7 +600,7 @@ def item_run_reasons(ctx: Ctx, cls: str, entity_id: str, info: dict[str, Any] | 
         elif r.get("_remote"):
             out.append({"code": "entity_not_controllable", "message": r.get("message") or "", "entity_id": entity_id, "_remote": r["_remote"]})
         else:
-            msg = r.get("message") if code == "entity_not_controllable" and r.get("entity_id") else f"אין לך הרשאה להפעיל את {name}."
+            msg = r.get("message") if code == "entity_not_controllable" and r.get("entity_id") else _t("sched.no_run_of", name=name)
             out.append({"code": "entity_not_controllable", "message": msg, "entity_id": entity_id})
     return out
 
@@ -608,15 +615,15 @@ def media_reasons(ctx: Ctx, service: str, entity_id: str, info: dict[str, Any] |
     acc = ctx.media_access()
     name = ctx.name_of(entity_id)
     if acc is None:
-        return [reason("entity_not_controllable", entity_id, f"אין לך הרשאה להפעיל את {name}.")]
+        return [reason("entity_not_controllable", entity_id, _t("sched.no_run_of", name=name))]
     perm = media_store.PERM_POWER if service in ("media_player.turn_on", "media_player.turn_off", "media_player.select_source") else media_store.PERM_CONTROL
     out: list[dict[str, Any]] = []
     if not acc.has(media_store.PERM_READ, anchor) or not acc.has(perm, anchor):
         from .rbac_admin import PERMISSION_LABELS
 
-        out.append(reason("grant_required", entity_id, f"הפעולה דורשת הרשאת מולטימדיה ({PERMISSION_LABELS.get(perm, perm)})."))
+        out.append(reason("grant_required", entity_id, _t("sched.needs_media_grant", perm=PERMISSION_LABELS.get(perm, perm))))
     elif service == "media_player.select_source" and media.get("public") and not acc.has(media_store.PERM_PUBLIC, anchor):
-        out.append(reason("grant_required", entity_id, "החלפת מקור במסך ציבורי דורשת הרשאה נפרדת."))
+        out.append(reason("grant_required", entity_id, _t("sched.needs_public_grant")))
     return out
 
 
@@ -753,7 +760,7 @@ def _warnings(ctx: Ctx, core: dict[str, Any], cls: dict[str, Any], cond_views: l
         for i, c in enumerate(core["conditions"]["items"]):
             info = ctx.entity(c["entity_id"]) if c["entity_id"] else None
             if info is None or not info["available"] or info["state"] in ("unavailable", "unknown"):
-                out.append({"path": f"conditions.items[{i}]", "code": "sensitive_condition_unavailable", "message": "תזמון של פעולה רגישה תלוי בחיישן שאינו זמין כעת."})
+                out.append({"path": f"conditions.items[{i}]", "code": "sensitive_condition_unavailable", "message": _t("sched.sensitive_condition_unavailable")})
     for si, slot in enumerate(core["slots"]):
         for ai, a in enumerate(slot["actions"]):
             res = cls["slots"][si]["actions"][ai]
@@ -761,11 +768,11 @@ def _warnings(ctx: Ctx, core: dict[str, Any], cls: dict[str, Any], cond_views: l
                 panel = ctx.panel(a["entity_id"])
                 needs = panel.get("needs_code_disarm") if a["service"] == policy.LOWERING_ARM_OFF else panel.get("needs_code_arm")
                 if needs:
-                    out.append({"path": f"slots[{si}].actions[{ai}]", "code": "alarm_may_need_code", "message": "לוח האזעקה עשוי לדרוש קוד לפעולה זו."})
+                    out.append({"path": f"slots[{si}].actions[{ai}]", "code": "alarm_may_need_code", "message": _t("sched.alarm_may_need_code")})
     for p in (cls.get("invalid") or []) + (cls.get("blocked") or []):
         out.append({"path": p["path"], "code": p["code"], "message": p["message"]})
     if core["repeat"] == "single":
-        out.append({"path": "repeat", "code": "single_deletes", "message": "תזמון חד־פעמי נמחק מהרכיב לאחר ההרצה."})
+        out.append({"path": "repeat", "code": "single_deletes", "message": _t("sched.single_deletes")})
     return out
 
 
@@ -1146,18 +1153,20 @@ def catalog_actions(cls: str, info: dict[str, Any], ctx: Ctx) -> tuple[list[dict
             else:
                 if policy.ARM_MODE_OF.get(service) not in (panel.get("arm_modes") or []) or panel.get("needs_code_arm"):
                     continue
-        out.append({"service": service, "label": spec["label"], "lowering": policy.is_lowering(service, cls, {"position": 1} if service == "cover.set_cover_position" else {}, info),
+        from .automation_ext import action_label  # I18N-BACKEND-2490 (third pass): the label in the reader's language
+
+        out.append({"service": service, "label": action_label(service, spec["label"]), "lowering": policy.is_lowering(service, cls, {"position": 1} if service == "cover.set_cover_position" else {}, info),
                     "args": _catalog_args(service, spec, info)})
     if not out and too_old:
-        return [], {"code": "bridge_too_old_for_action", "message": "נדרש עדכון של רכיב החיבור כדי לתזמן פעולה זו."}
+        return [], {"code": "bridge_too_old_for_action", "message": _t("sched.bridge_too_old_for_action")}
     if not out and cls == "alarm":
-        return [], {"code": "alarm_code_needed", "message": "לוח האזעקה דורש קוד לפעולה זו. תזמון אינו שומר קודים, ולכן אי אפשר לתזמן אותה."}
+        return [], {"code": "alarm_code_needed", "message": _t("sched.alarm_code_needed")}
     if cls == "lock" and attrs.get("code_format"):
-        return [], {"code": "lock_code_needed", "message": "המנעול דורש קוד. תזמון אינו שומר קודים, ולכן אי אפשר לתזמן אותו."}
+        return [], {"code": "lock_code_needed", "message": _t("sched.lock_code_needed")}
     if cls == "script":
         blocking = [f.get("name") or k for k, f in (info.get("script_fields") or {}).items() if f.get("required") and "default" not in f and f.get("kind") not in VAR_KINDS]
         if blocking:
-            return [], {"code": "script_field_unsupported", "message": f"לסקריפט משתנה חובה שהמערכת אינה מציגה ({blocking[0]}); אפשר לתזמן אותו רק ברכיב המקורי."}
+            return [], {"code": "script_field_unsupported", "message": _t("sched.script_field_unsupported", field=blocking[0])}
         if info.get("approval_required") and not info.get("approval_ok"):
             # listed (the person sees why), disabled: only a system administrator's mark for the script's current content makes it schedulable
             return out, {"code": "script_not_approved", "message": model.SCRIPT_NOT_APPROVED}
@@ -1213,7 +1222,7 @@ def catalog_payload(ctx: Ctx, q: str | None, floor: str | None, area: str | None
         why: dict[str, Any] | None = None
         actions, why = catalog_actions(cls, info, ctx)
         if why is None and not actions:
-            why = {"code": "action_not_allowed", "message": "אין פעולות מותרות להתקן זה."}
+            why = {"code": "action_not_allowed", "message": _t("sched.action_not_allowed")}
         if why is None:
             sample = core_sample(eid, cls, actions)
             blocked = next((x for x in (action_reasons(ctx, s, eid, cls, strict=True) for s in sample) if x), None)

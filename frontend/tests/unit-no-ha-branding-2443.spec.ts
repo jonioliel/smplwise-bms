@@ -61,6 +61,16 @@ const ALLOWED: Allowed[] = [
     readers: ['demoSetupState'],
   },
   {
+    // I18N-EN-2490: the demo setup answers above read through tr(), so their Hebrew keys and English sit in this table
+    file: 'i18n/msg/api-system.ts',
+    why: 'the source-text table (Hebrew -> English) of the api/setup.ts demo answers above, read through tr() by text, not by name',
+    texts: [
+      'Home Assistant והגשר', 'Home Assistant and the bridge', 'Home Assistant 2026.9.3 · ', 'גרסת Home Assistant', 'Home Assistant version',
+      'ממתין להפעלה מחדש של HA', 'Waiting for an HA restart', 'שעון HA מול', 'HA clock vs', 'מול HA', 'vs HA',
+    ],
+    readers: [],
+  },
+  {
     file: 'fixtures/catalog.ts',
     why: 'demo roles and demo audit rows of Settings › Access / Audit',
     texts: ['ניהול HA', 'HA אישר', 'HA bridge'],

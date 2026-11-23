@@ -21,9 +21,9 @@ import { invalidateSettings, TRANSPORT_DEFAULT, transportLabel } from '../api/pr
 import { normalizePolicy, type H265Policy } from '../api/h265-support';
 
 /** LIVE-H265-2341: הגדרות › וידאו ומדיה › "קידוד H.265 בדפדפן" (media.h265_policy). */
-const H265_POLICY_OPTIONS: [H265Policy, string][] = [['auto', 'אוטומטי — ברירת המחדל'], ['sub', 'תמיד זרם משני'], ['transcode', 'תמיד תרגום'], ['off', 'כבוי (הזרם כמו שהוא)']];
+const H265_POLICY_OPTIONS: [H265Policy, string][] = [['auto', tr('אוטומטי — ברירת המחדל')], ['sub', tr('תמיד זרם משני')], ['transcode', tr('תמיד תרגום')], ['off', tr('כבוי (הזרם כמו שהוא)')]];
 /** CAM-H264-VERIFY-2361: הגדרות › וידאו ומדיה › "מצלמה שה־NVR מסרב לשנות" (nvr.batch_on_refusal) - owner 2026-11-02: skip is the default. */
-const REFUSAL_OPTIONS: ['skip' | 'stop', string][] = [['skip', 'לדלג ולהמשיך — ברירת המחדל'], ['stop', 'לעצור את כל ההמרה']];
+const REFUSAL_OPTIONS: ['skip' | 'stop', string][] = [['skip', tr('לדלג ולהמשיך — ברירת המחדל')], ['stop', tr('לעצור את כל ההמרה')]];
 import { ApiError, describeError, get } from '../api/client';
 import { navigate, parseRoute, replaceRoute } from '../router';
 import { settingsStyles } from '../styles/settings';
@@ -98,11 +98,11 @@ import { ToastController } from '../components/toast-controller';
 
 /** הגדרות › מתגי מסכי כניסה: the SMPLWISE WisKey screens that can show either WisKey's own panel or the screen built here. */
 const ACCESS_SCREENS: { screen: WiskeyScreen; label: string; href: string; detail: string }[] = [
-  { screen: 'overview', label: 'מרכז הכניסה', href: '#/wiskey/overview', detail: 'עמדות, צלצולים, פתיחת דלת ושיחה' },
-  { screen: 'events', label: 'פעילות', href: '#/wiskey/events', detail: 'יומן הכניסות והאירועים' },
-  { screen: 'people', label: 'אנשים', href: '#/wiskey/people', detail: 'כולל עורך האדם וקליטת כרטיס שנפתחים ממנו' },
-  { screen: 'stations', label: 'תחנות ודלתות', href: '#/wiskey/devices', detail: 'התחנות, פתיחת דלת, מענה לשיחה והכרזה; לשונית "עמדות" של WisKey' },
-  { screen: 'schedules', label: 'לוחות זמנים', href: '#/wiskey/schedules', detail: 'תוכניות הדלתות, ספריית לוחות הזמנים והצעות הפריסה, לצפייה בלבד; ב־WisKey הם בכלי הניהול, ולכן בבחירת WisKey אין לשונית נפרדת' },
+  { screen: 'overview', label: tr('מרכז הכניסה'), href: '#/wiskey/overview', detail: tr('עמדות, צלצולים, פתיחת דלת ושיחה') },
+  { screen: 'events', label: tr('פעילות'), href: '#/wiskey/events', detail: tr('יומן הכניסות והאירועים') },
+  { screen: 'people', label: tr('אנשים'), href: '#/wiskey/people', detail: tr('כולל עורך האדם וקליטת כרטיס שנפתחים ממנו') },
+  { screen: 'stations', label: tr('תחנות ודלתות'), href: '#/wiskey/devices', detail: tr('התחנות, פתיחת דלת, מענה לשיחה והכרזה; לשונית "עמדות" של WisKey') },
+  { screen: 'schedules', label: tr('לוחות זמנים'), href: '#/wiskey/schedules', detail: tr('תוכניות הדלתות, ספריית לוחות הזמנים והצעות הפריסה, לצפייה בלבד; ב־WisKey הם בכלי הניהול, ולכן בבחירת WisKey אין לשונית נפרדת') },
 ];
 
 /** CR-008 D7: GET /health `video_codecs` - how many main / sub streams play over WebRTC (from the last discovery). */
@@ -116,41 +116,41 @@ interface VideoCodecs {
 
 /** WISKEY-ADOPT-2272 review L9: "install / update" also stages WisKey's native component when the automatic installation is on, and then
  *  requests ONE Home Assistant restart - the button says so (text only). */
-export const BRIDGE_INSTALL_RESTART_WARNING = 'כשהתקנת WisKey האוטומטית פעילה, "התקן / עדכן" עלול להפעיל מחדש את Home Assistant';
+export const BRIDGE_INSTALL_RESTART_WARNING = tr('כשהתקנת WisKey האוטומטית פעילה, "התקן / עדכן" עלול להפעיל מחדש את Home Assistant');
 
 /** SET-polish: one line under the page title per sub-tab - what the tab is about, as the title now names the tab. */
 const TAB_SUB: Record<string, string> = {
-  general: 'המראה של המערכת, הניווט, הזמן והאינטגרציות',
-  tabs: 'אילו לשוניות מוצגות בכל אזור, באיזה סדר ובאיזה סגנון',
-  media: 'תעבורת וידאו, קיר המצלמות, מסך הפתיחה, מכסות ושמירת נתונים',
-  map: 'איך מפות הקומה נפתחות ומה מוצג בסרגל המפלסים',
-  buildings: 'איזה שם במערכת הבית שייך לאיזה בניין אצלנו, ותצוגת ריבוי הבניינים',
-  ha: 'החיבור לתשתית, הגשר והצימוד שלו',
-  'access-control': 'אילו מסכי WisKey מוטמעים ואילו נבנו כאן',
-  devices: 'המראה של מסכי החשמל וההתקנים לכל המשתמשים',
-  remote: 'כניסה מרחוק, אימות, הכניסות הפעילות והווידאו מבחוץ',
-  mobile: 'שיתוף הנתונים של אפליקציית הטלפון ומדיניות החיישנים',
-  health: 'מצב נפרד לכל רכיב, הבדיקות ותור העבודות',
-  backup: 'גיבויים של הפרויקט, העלאה, שחזור וגיבוי אוטומטי',
-  support: 'חבילת תמיכה מצונזרת',
+  general: tr('המראה של המערכת, הניווט, הזמן והאינטגרציות'),
+  tabs: tr('אילו לשוניות מוצגות בכל אזור, באיזה סדר ובאיזה סגנון'),
+  media: tr('תעבורת וידאו, קיר המצלמות, מסך הפתיחה, מכסות ושמירת נתונים'),
+  map: tr('איך מפות הקומה נפתחות ומה מוצג בסרגל המפלסים'),
+  buildings: tr('איזה שם במערכת הבית שייך לאיזה בניין אצלנו, ותצוגת ריבוי הבניינים'),
+  ha: tr('החיבור לתשתית, הגשר והצימוד שלו'),
+  'access-control': tr('אילו מסכי WisKey מוטמעים ואילו נבנו כאן'),
+  devices: tr('המראה של מסכי החשמל וההתקנים לכל המשתמשים'),
+  remote: tr('כניסה מרחוק, אימות, הכניסות הפעילות והווידאו מבחוץ'),
+  mobile: tr('שיתוף הנתונים של אפליקציית הטלפון ומדיניות החיישנים'),
+  health: tr('מצב נפרד לכל רכיב, הבדיקות ותור העבודות'),
+  backup: tr('גיבויים של הפרויקט, העלאה, שחזור וגיבוי אוטומטי'),
+  support: tr('חבילת תמיכה מצונזרת'),
 };
 
 /** UXFIX-NAV-295: the settings' own first page is "מראה ותצוגה" - "כללי" is the label of the settings strip one level up (shell/nav.ts), so the strip, the
  * page title and this list each carry a different name. */
 const TABS = [
-  { id: 'general', label: 'מראה ותצוגה' },
-  { id: 'tabs', label: 'לשוניות' }, // 2026-09-30: which tabs each navigation section shows and in which order (ui.tabs)
-  { id: 'media', label: 'וידאו ומדיה' },
-  { id: 'map', label: 'מפה' },
-  { id: 'buildings', label: 'בניינים ומיפוי' }, // MAPPING-ASSIST-2330: the multi-building switch and the mapping assistant
-  { id: 'ha', label: 'גשר Arx' },
-  { id: 'access-control', label: 'מתגי מסכי כניסה' },
-  { id: 'devices', label: 'חשמל והתקנים' },
-  { id: 'remote', label: 'גישה מרחוק' },
-  { id: 'mobile', label: 'אפליקציה לנייד' }, // CR-027: the phone app's data sharing, the employee notice, the required-sensors policy
-  { id: 'health', label: 'בריאות ועבודות' },
-  { id: 'backup', label: 'גיבוי ושחזור' },
-  { id: 'support', label: 'תמיכה' },
+  { id: 'general', label: tr('מראה ותצוגה') },
+  { id: 'tabs', label: tr('לשוניות') }, // 2026-09-30: which tabs each navigation section shows and in which order (ui.tabs)
+  { id: 'media', label: tr('וידאו ומדיה') },
+  { id: 'map', label: tr('מפה') },
+  { id: 'buildings', label: tr('בניינים ומיפוי') }, // MAPPING-ASSIST-2330: the multi-building switch and the mapping assistant
+  { id: 'ha', label: tr('גשר Arx') },
+  { id: 'access-control', label: tr('מתגי מסכי כניסה') },
+  { id: 'devices', label: tr('חשמל והתקנים') },
+  { id: 'remote', label: tr('גישה מרחוק') },
+  { id: 'mobile', label: tr('אפליקציה לנייד') }, // CR-027: the phone app's data sharing, the employee notice, the required-sensors policy
+  { id: 'health', label: tr('בריאות ועבודות') },
+  { id: 'backup', label: tr('גיבוי ושחזור') },
+  { id: 'support', label: tr('תמיכה') },
 ];
 
 /** SETTINGS-INTERCOM-CARDS-2401: the sub-tabs as drawn - layout b (`access.settings_layout` = tabs) adds "הכרזות וקול" right after
@@ -906,7 +906,7 @@ export class SystemDiagnostics extends LitElement {
     this.setError('ha', '');
     try {
       const st = await installBridge();
-      const text = st.state === 'installed_pending' ? 'האינטגרציה הועתקה ל־Home Assistant; הפעל מחדש את Home Assistant ואשר את הגשר שהתגלה.' : st.state === 'active' ? 'האינטגרציה פעילה.' : st.state === 'not_available' ? 'תיקיית ההגדרות של Home Assistant אינה נגישה ל־Add-on.' : `מצב: ${st.state}`;
+      const text = st.state === 'installed_pending' ? tr('האינטגרציה הועתקה ל־Home Assistant; הפעל מחדש את Home Assistant ואשר את הגשר שהתגלה.') : st.state === 'active' ? tr('האינטגרציה פעילה.') : st.state === 'not_available' ? tr('תיקיית ההגדרות של Home Assistant אינה נגישה ל־Add-on.') : tr('מצב: {state}', { state: st.state });
       this.toaster.show(text, { ms: 0 });
       await this.loadHa();
       this.flash(text, 6000);
@@ -920,21 +920,21 @@ export class SystemDiagnostics extends LitElement {
   private integrationText(i: HaIntegrationStatus): string {
     switch (i.state) {
       case 'active':
-        return `פעילה ב־Home Assistant (גרסה ${i.active_version ?? '?'})`;
+        return tr('פעילה ב־Home Assistant (גרסה {v})', { v: i.active_version ?? '?' });
       case 'installed_pending':
-        return `הועתקה לתיקיית ההגדרות של HA (גרסה ${i.installed_version ?? '?'}) ב־${fmtTime(i.installed_at)} · הפעל מחדש את Home Assistant ואז אשר את "SMPLWISE Bridge" שהתגלה בהגדרות → מכשירים ושירותים`;
+        return tr('הועתקה לתיקיית ההגדרות של HA (גרסה {v}) ב־{fmtTime} · הפעל מחדש את Home Assistant ואז אשר את "SMPLWISE Bridge" שהתגלה בהגדרות → מכשירים ושירותים', { v: i.installed_version ?? '?', fmtTime: fmtTime(i.installed_at) });
       case 'update_pending':
-        return `עודכנה לגרסה ${i.installed_version ?? '?'} אך Home Assistant עדיין מריץ ${i.active_version ?? '?'} · נדרש Restart ל־Home Assistant`;
+        return tr('עודכנה לגרסה {v} אך Home Assistant עדיין מריץ {v2} · נדרש Restart ל־Home Assistant', { v: i.installed_version ?? '?', v2: i.active_version ?? '?' });
       case 'not_installed':
-        return 'טרם הועתקה';
+        return tr('טרם הועתקה');
       case 'error':
-        return `ההעתקה נכשלה (${i.last_error ?? ''})`;
+        return tr('ההעתקה נכשלה ({v})', { v: i.last_error ?? '' });
       default:
         return i.last_error === 'ha_config_not_mapped'
-          ? 'ה־Add-on לא רואה את תיקיית ההגדרות של Home Assistant (המיפוי homeassistant_config לא ניתן) · התקנה ידנית לפי השלבים למטה'
+          ? tr('ה־Add-on לא רואה את תיקיית ההגדרות של Home Assistant (המיפוי homeassistant_config לא ניתן) · התקנה ידנית לפי השלבים למטה')
           : i.last_error === 'source_missing'
-            ? 'קבצי האינטגרציה חסרים בתמונת ה־Add-on · התקנה ידנית לפי השלבים למטה'
-            : `ההתקנה האוטומטית נכשלה (${i.last_error ?? 'סיבה לא ידועה'}) · התקנה ידנית לפי השלבים למטה`;
+            ? tr('קבצי האינטגרציה חסרים בתמונת ה־Add-on · התקנה ידנית לפי השלבים למטה')
+            : tr('ההתקנה האוטומטית נכשלה ({v}) · התקנה ידנית לפי השלבים למטה', { v: i.last_error ?? tr('סיבה לא ידועה') });
     }
   }
 
@@ -942,51 +942,51 @@ export class SystemDiagnostics extends LitElement {
     const i = h.integration;
     if (!i) return nothing;
     const kind = i.state === 'active' ? 'live' : i.state === 'installed_pending' || i.state === 'update_pending' ? 'stale' : i.state === 'error' ? 'error' : 'unknown';
-    const label = i.state === 'active' ? 'פעילה' : i.state === 'installed_pending' ? 'ממתינה ל־Restart' : i.state === 'update_pending' ? 'עדכון ממתין' : i.state === 'error' ? 'שגיאה' : i.state === 'not_installed' ? 'לא הותקנה' : 'לא זמין';
-    return html`<div class="row"><span class="lbl">התקנת האינטגרציה ב־Home Assistant<span class="muted">${this.integrationText(i)}${i.discovery_posted_at ? ` · הוכרזה ל־Supervisor ${fmtTime(i.discovery_posted_at)}` : ''} · ${BRIDGE_INSTALL_RESTART_WARNING}</span></span><span class="end"><sw-badge kind=${kind} label=${label}></sw-badge>${this.canEdit && !onRemote() && i.state !== 'not_available' ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => this.installBridgeNow()}>התקן / עדכן</sw-button>` : nothing}</span></div>`;
+    const label = i.state === 'active' ? tr('פעילה') : i.state === 'installed_pending' ? tr('ממתינה ל־Restart') : i.state === 'update_pending' ? tr('עדכון ממתין') : i.state === 'error' ? tr('שגיאה') : i.state === 'not_installed' ? tr('לא הותקנה') : tr('לא זמין');
+    return html`<div class="row"><span class="lbl">${tr('התקנת האינטגרציה ב־Home Assistant')}<span class="muted">${this.integrationText(i)}${i.discovery_posted_at ? tr(' · הוכרזה ל־Supervisor {fmtTime}', { fmtTime: fmtTime(i.discovery_posted_at) }) : ''} · ${BRIDGE_INSTALL_RESTART_WARNING}</span></span><span class="end"><sw-badge kind=${kind} label=${label}></sw-badge>${this.canEdit && !onRemote() && i.state !== 'not_available' ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => this.installBridgeNow()}>${tr('התקן / עדכן')}</sw-button>` : nothing}</span></div>`;
   }
 
   private renderHa() {
     if (!isApi()) {
-      return html`<div class="sections"><sw-card heading="גשר Arx"><div class="muted">נתוני הדגמה — הסטטוס והצימוד זמינים מול השרת.</div></sw-card></div>`;
+      return html`<div class="sections"><sw-card heading=${tr('גשר Arx')}><div class="muted">${tr('נתוני הדגמה — הסטטוס והצימוד זמינים מול השרת.')}</div></sw-card></div>`;
     }
     const h = this.ha;
     const s = h?.sync;
     const p = this.pairing;
     return html`<div class="sections">
-      <sw-card heading="חיבור ל־Home Assistant" subheading="קריאה בלבד: מצבים, רישום ישויות, אזורים וקומות">
+      <sw-card heading=${tr('חיבור ל־Home Assistant')} subheading=${tr('קריאה בלבד: מצבים, רישום ישויות, אזורים וקומות')}>
         ${!h
           ? this.loadFailed.ha
-            ? html`<sw-state-panel compact state="error" heading="מצב החיבור לא נטען" hint=${this.loadFailed.ha} actionLabel="נסו שוב" @action=${() => void this.loadHa()}></sw-state-panel>`
+            ? html`<sw-state-panel compact state="error" heading=${tr('מצב החיבור לא נטען')} hint=${this.loadFailed.ha} actionLabel=${tr('נסו שוב')} @action=${() => void this.loadHa()}></sw-state-panel>`
             : html`<sw-state-panel compact state="loading"></sw-state-panel>`
           : html`
-            <div class="row"><span class="lbl">גישה ל־API של Home Assistant<span class="muted">${h.configured ? 'דרך ה־Supervisor (homeassistant_api) או HA_URL בפיתוח' : 'לא מוגדר — ה־Add-on לא קיבל SUPERVISOR_TOKEN'}</span></span><sw-badge kind=${h.configured ? 'live' : 'offline'}></sw-badge></div>
-            <div class="row"><span class="lbl">סנכרון מצבים (WebSocket)<span class="muted">${s?.connected ? `מחובר · HA ${s.ha_version ?? '?'} · ${s.entities} ישויות · אירוע אחרון ${fmtTime(s.last_event_at)}` : `${syncDisconnectedText(s?.last_error)} · ${s?.reconnects ?? 0} חיבורים מחדש`}</span></span><sw-badge kind=${s?.connected ? 'live' : 'offline'}></sw-badge></div>
-            <div class="row"><span class="lbl">רישום ישויות (registry)<span class="muted">עודכן ${fmtTime(s?.last_registry_at)} · תמונת מצב ${fmtTime(s?.last_snapshot_at)}</span></span><sw-button size="sm" @click=${() => navigate('/system/entities')}>לקטלוג</sw-button></div>`}
+            <div class="row"><span class="lbl">${tr('גישה ל־API של Home Assistant')}<span class="muted">${h.configured ? tr('דרך ה־Supervisor (homeassistant_api) או HA_URL בפיתוח') : tr('לא מוגדר — ה־Add-on לא קיבל SUPERVISOR_TOKEN')}</span></span><sw-badge kind=${h.configured ? 'live' : 'offline'}></sw-badge></div>
+            <div class="row"><span class="lbl">${tr('סנכרון מצבים (WebSocket)')}<span class="muted">${s?.connected ? tr('מחובר · HA {v} · {entities} ישויות · אירוע אחרון {fmtTime}', { v: s.ha_version ?? '?', entities: s.entities, fmtTime: fmtTime(s.last_event_at) }) : tr('{syncDisconnectedText} · {v} חיבורים מחדש', { syncDisconnectedText: syncDisconnectedText(s?.last_error), v: s?.reconnects ?? 0 })}</span></span><sw-badge kind=${s?.connected ? 'live' : 'offline'}></sw-badge></div>
+            <div class="row"><span class="lbl">${tr('רישום ישויות (registry)')}<span class="muted">${tr('עודכן {fmtTime} · תמונת מצב {fmtTime2}', { fmtTime: fmtTime(s?.last_registry_at), fmtTime2: fmtTime(s?.last_snapshot_at) })}</span></span><sw-button size="sm" @click=${() => navigate('/system/entities')}>${tr('לקטלוג')}</sw-button></div>`}
       </sw-card>
-      <sw-card heading="גשר Arx (אינטגרציה ב־Home Assistant)" subheading="פעולות על ישויות רצות רק דרך הגשר, בזהות המשתמש, לפי ההרשאות של Home Assistant">
+      <sw-card heading=${tr('גשר Arx (אינטגרציה ב־Home Assistant)')} subheading=${tr('פעולות על ישויות רצות רק דרך הגשר, בזהות המשתמש, לפי ההרשאות של Home Assistant')}>
         ${h
-          ? html`${this.renderIntegration(h)}<div class="row"><span class="lbl">צימוד<span class="muted">${h.bridge.paired ? `מצומד מאז ${fmtTime(h.bridge.paired_at)}` : 'לא מצומד — פעולות HA ייחסמו עד להתקנת הגשר'}</span></span><sw-badge kind=${h.bridge.paired ? 'live' : 'stale'} label=${h.bridge.paired ? 'מצומד' : 'לא מצומד'}></sw-badge></div>
-            <div class="row"><span class="lbl">ספריית משתמשי HA<span class="muted">${h.bridge.directory_users} משתמשים · עודכן ${fmtTime(h.bridge.last_directory_at)}</span></span><sw-badge kind=${h.bridge.directory_users ? 'recorded' : 'unknown'}></sw-badge></div>`
+          ? html`${this.renderIntegration(h)}<div class="row"><span class="lbl">${tr('צימוד')}<span class="muted">${h.bridge.paired ? tr('מצומד מאז {fmtTime}', { fmtTime: fmtTime(h.bridge.paired_at) }) : tr('לא מצומד — פעולות HA ייחסמו עד להתקנת הגשר')}</span></span><sw-badge kind=${h.bridge.paired ? 'live' : 'stale'} label=${h.bridge.paired ? tr('מצומד') : tr('לא מצומד')}></sw-badge></div>
+            <div class="row"><span class="lbl">${tr('ספריית משתמשי HA')}<span class="muted">${tr('{directory_users} משתמשים · עודכן {fmtTime}', { directory_users: h.bridge.directory_users, fmtTime: fmtTime(h.bridge.last_directory_at) })}</span></span><sw-badge kind=${h.bridge.directory_users ? 'recorded' : 'unknown'}></sw-badge></div>`
           : nothing}
         ${p
-          ? html`<div class="row"><span class="lbl">כתובת ה־Add-on ברשת של HA<span class="muted">להדביק בשדה "כתובת" של האינטגרציה</span></span><code class="ltr">${p.addon_url}</code></div>
-            <div class="row"><span class="lbl">קוד צימוד<span class="muted">סוד משותף; מוצג רק למנהלי מערכת ונרשם באודיט</span></span><span class="end">${p.pairing_code === null ? html`<span class="muted" data-pairing-replaced>הוחלף במפתח מתחלף (Key rotation)</span>` : html`<code class="ltr">${this.showCode ? p.pairing_code : '••••••••••••'}</code><sw-button size="sm" @click=${() => (this.showCode = !this.showCode)}>${this.showCode ? 'הסתר' : 'הצג'}</sw-button><sw-button size="sm" @click=${() => this.copyCode()}>${this.copied ? 'הועתק' : 'העתק'}</sw-button>`}</span></div>
-            <div class="row"><span class="lbl">יצירת קוד חדש<span class="muted" data-regen-hint>${regenHint(p.announce_path)}</span></span>${this.regenArmed ? html`<span class="end"><sw-button size="sm" variant="danger" @click=${() => this.loadHa(true)}>אשר יצירה</sw-button><sw-button size="sm" variant="ghost" @click=${() => (this.regenArmed = false)}>ביטול</sw-button></span>` : html`<sw-button size="sm" @click=${() => (this.regenArmed = true)}>צור קוד חדש</sw-button>`}</div>`
+          ? html`<div class="row"><span class="lbl">${tr('כתובת ה־Add-on ברשת של HA')}<span class="muted">${tr('להדביק בשדה "כתובת" של האינטגרציה')}</span></span><code class="ltr">${p.addon_url}</code></div>
+            <div class="row"><span class="lbl">${tr('קוד צימוד')}<span class="muted">${tr('סוד משותף; מוצג רק למנהלי מערכת ונרשם באודיט')}</span></span><span class="end">${p.pairing_code === null ? html`<span class="muted" data-pairing-replaced>${tr('הוחלף במפתח מתחלף (Key rotation)')}</span>` : html`<code class="ltr">${this.showCode ? p.pairing_code : '••••••••••••'}</code><sw-button size="sm" @click=${() => (this.showCode = !this.showCode)}>${this.showCode ? tr('הסתר') : tr('הצג')}</sw-button><sw-button size="sm" @click=${() => this.copyCode()}>${this.copied ? tr('הועתק') : tr('העתק')}</sw-button>`}</span></div>
+            <div class="row"><span class="lbl">${tr('יצירת קוד חדש')}<span class="muted" data-regen-hint>${regenHint(p.announce_path)}</span></span>${this.regenArmed ? html`<span class="end"><sw-button size="sm" variant="danger" @click=${() => this.loadHa(true)}>${tr('אשר יצירה')}</sw-button><sw-button size="sm" variant="ghost" @click=${() => (this.regenArmed = false)}>${tr('ביטול')}</sw-button></span>` : html`<sw-button size="sm" @click=${() => (this.regenArmed = true)}>${tr('צור קוד חדש')}</sw-button>`}</div>`
           : onRemote()
             ? html`<div class="muted" data-ha-local-only>${LOCAL_ONLY_GENERIC}</div>`
             : this.canEdit
               ? nothing
-              : html`<div class="muted">קוד הצימוד מוצג למנהלי מערכת בלבד.</div>`}
+              : html`<div class="muted">${tr('קוד הצימוד מוצג למנהלי מערכת בלבד.')}</div>`}
       </sw-card>
-      <sw-card heading="התקנת הגשר (פעם אחת)">
+      <sw-card heading=${tr('התקנת הגשר (פעם אחת)')}>
         <ol class="steps">
-          <li>ה־Add-on מעתיק בעצמו את <code class="ltr">custom_components/smplwise_bridge</code> אל תיקיית ההגדרות של Home Assistant (השורה "התקנת האינטגרציה" למעלה). אם זה לא זמין: העתק את התיקייה מהמאגר אל <code class="ltr">/config/custom_components/</code>, או הוסף את המאגר ב־HACS כ־Custom repository מסוג Integration.</li>
-          <li>הפעל מחדש את Home Assistant (הגדרות → מערכת → הפעלה מחדש) כדי שהרכיב ייטען.</li>
-          <li>הגדרות → מכשירים ושירותים: אשר את <strong>SMPLWISE Bridge</strong> שהתגלה (קוד הצימוד כבר מולא). אם לא הופיע: הוספת אינטגרציה → SMPLWISE Bridge והדבקת הכתובת והקוד מהמסך הזה.</li>
-          <li>הסטטוס למעלה יתעדכן ל"מצומד"; ספריית המשתמשים נשלחת כל דקה ומאפשרת להקצות תפקידים למשתמשי HA.</li>
+          <li>${tr('ה־Add-on מעתיק בעצמו את')} <code class="ltr">custom_components/smplwise_bridge</code> ${tr('אל תיקיית ההגדרות של Home Assistant (השורה "התקנת האינטגרציה" למעלה). אם זה לא זמין: העתק את התיקייה מהמאגר אל')} <code class="ltr">/config/custom_components/</code>${tr(', או הוסף את המאגר ב־HACS כ־Custom repository מסוג Integration.')}</li>
+          <li>${tr('הפעל מחדש את Home Assistant (הגדרות → מערכת → הפעלה מחדש) כדי שהרכיב ייטען.')}</li>
+          <li>${tr('הגדרות → מכשירים ושירותים: אשר את')} <strong>SMPLWISE Bridge</strong> ${tr('שהתגלה (קוד הצימוד כבר מולא). אם לא הופיע: הוספת אינטגרציה → SMPLWISE Bridge והדבקת הכתובת והקוד מהמסך הזה.')}</li>
+          <li>${tr('הסטטוס למעלה יתעדכן ל"מצומד"; ספריית המשתמשים נשלחת כל דקה ומאפשרת להקצות תפקידים למשתמשי HA.')}</li>
         </ol>
-        <div class="muted">הגשר מריץ רק פעולות מרשימת ההיתר (תאורה, מתגים, מאווררים, תריסים, מנעולים, כפתורים, סקריפטים, סצנות) ורק עבור משתמש HA קיים ופעיל. ה־Supervisor token של ה־Add-on אינו משמש לפעולות.</div>
+        <div class="muted">${tr('הגשר מריץ רק פעולות מרשימת ההיתר (תאורה, מתגים, מאווררים, תריסים, מנעולים, כפתורים, סקריפטים, סצנות) ורק עבור משתמש HA קיים ופעיל. ה־Supervisor token של ה־Add-on אינו משמש לפעולות.')}</div>
       </sw-card>
     </div>`;
   }
@@ -1000,7 +1000,7 @@ export class SystemDiagnostics extends LitElement {
     const channels = this.nvrChannels;
     const v = Number(this.value('playback.max_sessions') ?? 0);
     if (!channels || !v || v * 2 <= channels) return '';
-    return `${v} סשני ניגון במקביל זה יותר ממחצית הערוצים שה־NVR בנוי להם (${channels}). זה עלול להעמיס על ה־NVR ולפגוע בהקלטה ובצפייה החיה. השמירה אפשרית.`;
+    return tr('{v} סשני ניגון במקביל זה יותר ממחצית הערוצים שה־NVR בנוי להם ({channels}). זה עלול להעמיס על ה־NVR ולפגוע בהקלטה ובצפייה החיה. השמירה אפשרית.', { v, channels });
   }
 
   /** Same advisory rule for the two live-stream caps (never blocks the save; unknown capacity = no warning). */
@@ -1008,8 +1008,8 @@ export class SystemDiagnostics extends LitElement {
     const channels = this.nvrChannels;
     const v = Number(this.value(key) ?? 0);
     if (!channels || !v || v * 2 <= channels) return '';
-    const what = key === 'media.max_live_sessions' ? 'זרמים חיים במקביל' : 'זרמים חיים לכל כניסה מרחוק';
-    return `${v} ${what} זה יותר ממחצית הערוצים שה־NVR בנוי להם (${channels}). זה עלול להעמיס על ה־NVR ולפגוע בהקלטה. השמירה אפשרית.`;
+    const what = key === 'media.max_live_sessions' ? tr('זרמים חיים במקביל') : tr('זרמים חיים לכל כניסה מרחוק');
+    return tr('{v} {what} זה יותר ממחצית הערוצים שה־NVR בנוי להם ({channels}). זה עלול להעמיס על ה־NVR ולפגוע בהקלטה. השמירה אפשרית.', { v, what, channels });
   }
 
   /** CR-029 S0 / S3: one dial of the installation's `plan.view`, the draft first (a partial object) then the stored value. */
@@ -1050,7 +1050,7 @@ export class SystemDiagnostics extends LitElement {
       applySnapshotHidden(r.settings as unknown as Record<string, unknown>); // ui.security_snapshot: the live overview tab follows
       setGlassScheme(r.settings['devices.glass_scheme']); // 2.4.4: every open glass surface follows at once
       void this.loadSiteLocation(); // CR-029 S2: the sun's location may have changed source
-      this.flash('ההגדרות נשמרו', 2500);
+      this.flash(tr('ההגדרות נשמרו'), 2500);
     } catch (err) {
       this.setError(tab, describeError(err));
     } finally {
@@ -1063,7 +1063,7 @@ export class SystemDiagnostics extends LitElement {
     this.setError('media', '');
     try {
       const r = await syncStreams();
-      this.toaster.show(`זרמים: ${r.created} נוצרו, ${r.updated} עודכנו, ${r.unchanged} ללא שינוי · ${r.foreign_streams_untouched} זרמים זרים לא נגעו`, { ms: 0 });
+      this.toaster.show(tr('זרמים: {created} נוצרו, {updated} עודכנו, {unchanged} ללא שינוי · {foreign_streams_untouched} זרמים זרים לא נגעו', { created: r.created, updated: r.updated, unchanged: r.unchanged, foreign_streams_untouched: r.foreign_streams_untouched }), { ms: 0 });
       await this.loadMedia();
     } catch (err) {
       this.setError('media', describeError(err));
@@ -1083,15 +1083,15 @@ export class SystemDiagnostics extends LitElement {
     const tileOverride = tileLayoutOverride();
     // review M5: the preview shows the INSTALLATION value being chosen; a local override is named next to it
     const previewLayout = resolveTileLayout(tileSetting);
-    return html`<sw-card heading="עיצוב הממשק">
-      <div class="row" data-tile-layout-row><span class="lbl">פריסת אריחים<span class="muted">אריחי הסיכום בתמונת המצב ובחשמל והתקנים: כרטיסים גבוהים, או קומפקטיים - מלבן עם הסמל לצד הערך. אוטומטי: קומפקטי בטלפון, כרטיסים במסך רחב. חל על כל המשתמשים אחרי שמירה; דפדפן שכבר פתוח מקבל את השינוי בטעינה הבאה של הדף</span></span><span class="ctl" style="display:flex;flex-direction:column;align-items:stretch;gap:4px"><sw-field><select data-set-tile-layout ?disabled=${!this.canEdit} @change=${(e: Event) => this.set('ui.tile_layout', (e.target as HTMLSelectElement).value as TileLayoutSetting)}>${TILE_LAYOUTS.map((v) => html`<option value=${v} ?selected=${tileSetting === v}>${TILE_LAYOUT_LABEL[v]}</option>`)}</select></sw-field>${tileOverride ? html`<span class="muted" data-tile-override-note>עקיפה מקומית פעילה בדפדפן הזה: ${TILE_LAYOUT_LABEL[tileOverride]} · <sw-button size="sm" variant="ghost" data-tile-override-clear @click=${() => { setTileLayoutOverride(null); this.requestUpdate(); }}>בטל עקיפה</sw-button></span>` : nothing}</span></div>
-      <div class="row"><span class="lbl">פריסת אריחים בדפדפן הזה<span class="muted">עקיפה אישית שנשמרת במכשיר; לא משנה את ברירת המחדל</span></span><sw-field class="ctl"><select data-set-tile-override @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; setTileLayoutOverride((TILE_LAYOUTS as readonly string[]).includes(v) ? (v as TileLayoutSetting) : null); this.requestUpdate(); }}><option value="" ?selected=${!tileOverride}>לפי ברירת המחדל</option>${TILE_LAYOUTS.map((v) => html`<option value=${v} ?selected=${tileOverride === v}>${TILE_LAYOUT_LABEL[v]}</option>`)}</select></sw-field></div>
+    return html`<sw-card heading=${tr('עיצוב הממשק')}>
+      <div class="row" data-tile-layout-row><span class="lbl">${tr('פריסת אריחים')}<span class="muted">${tr('אריחי הסיכום בתמונת המצב ובחשמל והתקנים: כרטיסים גבוהים, או קומפקטיים - מלבן עם הסמל לצד הערך. אוטומטי: קומפקטי בטלפון, כרטיסים במסך רחב. חל על כל המשתמשים אחרי שמירה; דפדפן שכבר פתוח מקבל את השינוי בטעינה הבאה של הדף')}</span></span><span class="ctl" style="display:flex;flex-direction:column;align-items:stretch;gap:4px"><sw-field><select data-set-tile-layout ?disabled=${!this.canEdit} @change=${(e: Event) => this.set('ui.tile_layout', (e.target as HTMLSelectElement).value as TileLayoutSetting)}>${TILE_LAYOUTS.map((v) => html`<option value=${v} ?selected=${tileSetting === v}>${TILE_LAYOUT_LABEL[v]}</option>`)}</select></sw-field>${tileOverride ? html`<span class="muted" data-tile-override-note>${tr('עקיפה מקומית פעילה בדפדפן הזה: {v} ·', { v: TILE_LAYOUT_LABEL[tileOverride] })} <sw-button size="sm" variant="ghost" data-tile-override-clear @click=${() => { setTileLayoutOverride(null); this.requestUpdate(); }}>${tr('בטל עקיפה')}</sw-button></span>` : nothing}</span></div>
+      <div class="row"><span class="lbl">${tr('פריסת אריחים בדפדפן הזה')}<span class="muted">${tr('עקיפה אישית שנשמרת במכשיר; לא משנה את ברירת המחדל')}</span></span><sw-field class="ctl"><select data-set-tile-override @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; setTileLayoutOverride((TILE_LAYOUTS as readonly string[]).includes(v) ? (v as TileLayoutSetting) : null); this.requestUpdate(); }}><option value="" ?selected=${!tileOverride}>${tr('לפי ברירת המחדל')}</option>${TILE_LAYOUTS.map((v) => html`<option value=${v} ?selected=${tileOverride === v}>${TILE_LAYOUT_LABEL[v]}</option>`)}</select></sw-field></div>
       <div class="row" data-long-lists-row><span class="lbl">${t('longLists.label')}<span class="muted">${t('longLists.hint')}</span></span><sw-field class="ctl"><select data-set-long-lists ?disabled=${!this.canEdit} @change=${(e: Event) => this.set('ui.long_lists', isLongLists((e.target as HTMLSelectElement).value) ? ((e.target as HTMLSelectElement).value as LongLists) : LONG_LISTS_DEFAULT)}>${LONG_LISTS.map((v) => html`<option value=${v} ?selected=${longLists === v}>${t(`longLists.${v}`)}</option>`)}</select></sw-field></div>
-      <div class="tile-preview" data-tile-preview=${previewLayout} aria-label=${`תצוגה מקדימה: ${previewLayout === 'compact' ? 'קומפקטי' : 'כרטיסים'}`}>
-        <sw-kpi icon="bolt" value="0/33" label="מתגים פעילים" tone="neutral" layout=${previewLayout}></sw-kpi>
-        <sw-kpi icon="lock" value="8/8" label="מנעולים נעולים" detail="הכול נעול" tone="live" layout=${previewLayout}></sw-kpi>
+      <div class="tile-preview" data-tile-preview=${previewLayout} aria-label=${tr('תצוגה מקדימה: {v}', { v: previewLayout === 'compact' ? tr('קומפקטי') : tr('כרטיסים') })}>
+        <sw-kpi icon="bolt" value="0/33" label=${tr('מתגים פעילים')} tone="neutral" layout=${previewLayout}></sw-kpi>
+        <sw-kpi icon="lock" value="8/8" label=${tr('מנעולים נעולים')} detail=${tr('הכול נעול')} tone="live" layout=${previewLayout}></sw-kpi>
       </div>
-      ${this.canEdit ? this.renderSaveRow({ tab: 'general', size: 'sm', disabled: !dirty || this.busy, onSave: () => this.saveDesign(), label: 'שמור עיצוב' }) : nothing}
+      ${this.canEdit ? this.renderSaveRow({ tab: 'general', size: 'sm', disabled: !dirty || this.busy, onSave: () => this.saveDesign(), label: tr('שמור עיצוב') }) : nothing}
     </sw-card>`;
   }
 
@@ -1107,13 +1107,13 @@ export class SystemDiagnostics extends LitElement {
   private renderSaveRow(o: { tab: string; disabled: boolean; onSave: () => unknown; hook?: string; size?: 'sm'; label?: string }) {
     const here = this.tab === o.tab;
     const hook = unsafeStatic(o.hook ?? 'data-save-row');
-    return shtml`<div class="foot sticky"><sw-button variant="primary" size=${o.size ?? 'md'} icon="check" ${hook} ?disabled=${o.disabled} @click=${o.onSave}>${o.label ?? 'שמור'}</sw-button>${here && this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${here && this.errorOf(o.tab) ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.errorOf(o.tab)}</span>` : nothing}</div>`;
+    return shtml`<div class="foot sticky"><sw-button variant="primary" size=${o.size ?? 'md'} icon="check" ${hook} ?disabled=${o.disabled} @click=${o.onSave}>${o.label ?? tr('שמור')}</sw-button>${here && this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${here && this.errorOf(o.tab) ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.errorOf(o.tab)}</span>` : nothing}</div>`;
   }
 
   /** NVR-less mode: the neutral notice a settings section shows instead of NVR / video forms that could only fail. */
   private renderNvrLessNotice(what: string) {
-    return html`<sw-card heading="מצב ללא NVR" subheading=${what} data-nvr-less-settings>
-      <div class="muted">ההתקנה פועלת ללא NVR, ולכן ההגדרות של וידאו, הקלטות, ייצוא וחיפוש אירועים מוסתרות כאן. הן יחזרו כמו שהיו כשיחובר NVR בהגדרות ‹ חיבורים.</div>
+    return html`<sw-card heading=${tr('מצב ללא NVR')} subheading=${what} data-nvr-less-settings>
+      <div class="muted">${tr('ההתקנה פועלת ללא NVR, ולכן ההגדרות של וידאו, הקלטות, ייצוא וחיפוש אירועים מוסתרות כאן. הן יחזרו כמו שהיו כשיחובר NVR בהגדרות ‹ חיבורים.')}</div>
     </sw-card>`;
   }
 
@@ -1134,31 +1134,31 @@ export class SystemDiagnostics extends LitElement {
       <system-nav-size></system-nav-size>
       <system-mobile-options></system-mobile-options>
       <system-xs-options></system-xs-options>
-      <sw-card heading="זמן ומיקום">
-        <div class="row" data-general-zone><span class="lbl">אזור זמן לתצוגה<span class="muted">פנימית הכל UTC; שעון קיץ לפי התאריך המבוקש</span></span><span class="ltr">${typeof zone === 'string' && zone ? zone : '—'}</span></div>
+      <sw-card heading=${tr('זמן ומיקום')}>
+        <div class="row" data-general-zone><span class="lbl">${tr('אזור זמן לתצוגה')}<span class="muted">${tr('פנימית הכל UTC; שעון קיץ לפי התאריך המבוקש')}</span></span><span class="ltr">${typeof zone === 'string' && zone ? zone : '—'}</span></div>
       </sw-card>
-      ${NVR ? this.renderNvrLessNotice('מדיניות האחסון נקראת מה־NVR') : nothing}
-      <sw-card heading="אינטגרציות">
-        <div class="row"><span class="lbl">go2rtc (חיצוני)<span class="muted">זרמים בשם smplwise_* בלבד · זרמים זרים לא ייגעו</span></span><sw-button size="sm" @click=${() => this.openTab('media')}>הגדרה</sw-button></div>
-        <div class="row"><span class="lbl">גשר Arx<span class="muted">קטלוג ישויות, פעולות בשם המשתמש וספריית המשתמשים</span></span><sw-button size="sm" @click=${() => this.openTab('ha')}>הגדרה</sw-button></div>
+      ${NVR ? this.renderNvrLessNotice(tr('מדיניות האחסון נקראת מה־NVR')) : nothing}
+      <sw-card heading=${tr('אינטגרציות')}>
+        <div class="row"><span class="lbl">${tr('go2rtc (חיצוני)')}<span class="muted">${tr('זרמים בשם smplwise_* בלבד · זרמים זרים לא ייגעו')}</span></span><sw-button size="sm" @click=${() => this.openTab('media')}>${tr('הגדרה')}</sw-button></div>
+        <div class="row"><span class="lbl">${tr('גשר Arx')}<span class="muted">${tr('קטלוג ישויות, פעולות בשם המשתמש וספריית המשתמשים')}</span></span><sw-button size="sm" @click=${() => this.openTab('ha')}>${tr('הגדרה')}</sw-button></div>
       </sw-card>
-      <sw-card heading="בריאות המערכת">${this.renderGeneralHealth()}</sw-card>
+      <sw-card heading=${tr('בריאות המערכת')}>${this.renderGeneralHealth()}</sw-card>
     </div>`;
   }
 
   /** CR-DIAG-DEFECTS-2436 (06:DIAG-3): the server's summary - the overall status in the health tab's words, then what needs a look. */
   private renderGeneralHealth() {
     const s = this.summary;
-    const open = html`<sw-button size="sm" icon="activity" data-general-health-open @click=${() => this.openTab('health')}>הרצת דיאגנוסטיקה</sw-button>`;
+    const open = html`<sw-button size="sm" icon="activity" data-general-health-open @click=${() => this.openTab('health')}>${tr('הרצת דיאגנוסטיקה')}</sw-button>`;
     if (!s) {
       return this.summaryFailed
-        ? html`<div class="row" data-general-health="failed"><span class="health"><i class="dot" data-status="error"></i><span class="lbl">מצב המערכת לא נטען<span class="muted">${this.summaryFailed}</span></span></span><span class="end"><sw-button size="sm" variant="ghost" @click=${() => void this.loadSummary()}>נסו שוב</sw-button>${open}</span></div>`
-        : html`<div class="row" data-general-health="loading"><span class="health"><i class="dot" data-status="off"></i><span class="lbl">בודק את מצב המערכת…</span></span>${open}</div>`;
+        ? html`<div class="row" data-general-health="failed"><span class="health"><i class="dot" data-status="error"></i><span class="lbl">${tr('מצב המערכת לא נטען')}<span class="muted">${this.summaryFailed}</span></span></span><span class="end"><sw-button size="sm" variant="ghost" @click=${() => void this.loadSummary()}>${tr('נסו שוב')}</sw-button>${open}</span></div>`
+        : html`<div class="row" data-general-health="loading"><span class="health"><i class="dot" data-status="off"></i><span class="lbl">${tr('בודק את מצב המערכת…')}</span></span>${open}</div>`;
     }
-    const label = s.status === 'ok' ? 'הכל תקין' : s.status === 'warn' ? 'יש מה לבדוק' : s.status === 'error' ? 'יש תקלה' : STATUS_LABEL[s.status];
+    const label = s.status === 'ok' ? tr('הכל תקין') : s.status === 'warn' ? tr('יש מה לבדוק') : s.status === 'error' ? tr('יש תקלה') : STATUS_LABEL[s.status];
     const attention = s.items.filter((i) => i.status === 'warn' || i.status === 'error');
-    const detail = attention.length ? attention.map((i) => `${i.label}: ${STATUS_LABEL[i.status]}`).join(' · ') : 'כל הרכיבים תקינים';
-    const checked = s.checked_at ? ` · נבדק ${timeText(new Date(s.checked_at))}` : '';
+    const detail = attention.length ? attention.map((i) => `${i.label}: ${STATUS_LABEL[i.status]}`).join(' · ') : tr('כל הרכיבים תקינים');
+    const checked = s.checked_at ? tr(' · נבדק {timeText}', { timeText: timeText(new Date(s.checked_at)) }) : '';
     return html`<div class="row" data-general-health=${s.status}><span class="health"><i class="dot" data-status=${s.status}></i><span class="lbl">${label}<span class="muted">${detail}${checked}</span></span></span>${open}</div>`;
   }
 
@@ -1175,22 +1175,22 @@ export class SystemDiagnostics extends LitElement {
       <system-nav-size></system-nav-size>
       <system-mobile-options></system-mobile-options>
       <system-xs-options></system-xs-options>
-      <sw-card heading="זמן ומיקום">
-        <div class="row"><span class="lbl">אזור זמן לתצוגה<span class="muted">פנימית הכל UTC; שעון קיץ לפי התאריך המבוקש</span></span><sw-field class="ctl"><select><option>(UTC+02:00) Asia/Jerusalem</option></select></sw-field></div>
-        ${NVR ? nothing : html`<div class="row"><span class="lbl">פרופיל זמן של ה־NVR<span class="muted">נקבע לפי ראיות לדגם ולקושחה</span></span><sw-field class="ctl"><select><option>hikvision · ds-76xx · שעון מקומי</option></select></sw-field></div>`}
-        ${isApi() ? nothing : html`<div class="row"><span class="lbl">NTP במכשיר<span class="muted">pool.ntp.org · סטייה 2 שנ׳</span></span><sw-toggle checked label="פעיל"></sw-toggle></div>`}
+      <sw-card heading=${tr('זמן ומיקום')}>
+        <div class="row"><span class="lbl">${tr('אזור זמן לתצוגה')}<span class="muted">${tr('פנימית הכל UTC; שעון קיץ לפי התאריך המבוקש')}</span></span><sw-field class="ctl"><select><option>(UTC+02:00) Asia/Jerusalem</option></select></sw-field></div>
+        ${NVR ? nothing : html`<div class="row"><span class="lbl">${tr('פרופיל זמן של ה־NVR')}<span class="muted">${tr('נקבע לפי ראיות לדגם ולקושחה')}</span></span><sw-field class="ctl"><select><option>${tr('hikvision · ds-76xx · שעון מקומי')}</option></select></sw-field></div>`}
+        ${isApi() ? nothing : html`<div class="row"><span class="lbl">${tr('NTP במכשיר')}<span class="muted">${tr('pool.ntp.org · סטייה 2 שנ׳')}</span></span><sw-toggle checked label=${tr('פעיל')}></sw-toggle></div>`}
       </sw-card>
-      ${NVR ? this.renderNvrLessNotice('מדיניות האחסון נקראת מה־NVR') : html`<sw-card heading="מדיניות אחסון (קריאה מה־NVR)">
-        <div class="row"><span class="lbl">שמירת הקלטות</span><sw-field class="ctl"><select disabled><option>לפי מקום פנוי (overwrite)</option></select></sw-field></div>
-        <div class="row"><span class="lbl">כשהאחסון מתמלא</span><sw-field class="ctl"><select disabled><option>דריסת הישן ביותר</option></select></sw-field></div>
-        <div class="row"><span class="lbl">התראת אחסון נמוך<span class="muted">מתחת ל־10% פנוי</span></span><sw-toggle checked label="פעיל"></sw-toggle></div>
+      ${NVR ? this.renderNvrLessNotice(tr('מדיניות האחסון נקראת מה־NVR')) : html`<sw-card heading=${tr('מדיניות אחסון (קריאה מה־NVR)')}>
+        <div class="row"><span class="lbl">${tr('שמירת הקלטות')}</span><sw-field class="ctl"><select disabled><option>${tr('לפי מקום פנוי (overwrite)')}</option></select></sw-field></div>
+        <div class="row"><span class="lbl">${tr('כשהאחסון מתמלא')}</span><sw-field class="ctl"><select disabled><option>${tr('דריסת הישן ביותר')}</option></select></sw-field></div>
+        <div class="row"><span class="lbl">${tr('התראת אחסון נמוך')}<span class="muted">${tr('מתחת ל־10% פנוי')}</span></span><sw-toggle checked label=${tr('פעיל')}></sw-toggle></div>
       </sw-card>`}
-      <sw-card heading="אינטגרציות">
-        <div class="row"><span class="lbl">go2rtc (חיצוני)<span class="muted">זרמים בשם smplwise_* בלבד · זרמים זרים לא ייגעו</span></span><span class="end"><sw-toggle checked label="מופעל"></sw-toggle><sw-button size="sm" @click=${() => this.openTab('media')}>הגדרה</sw-button></span></div>
-        <div class="row"><span class="lbl">גשר Arx<span class="muted">קטלוג ישויות, פעולות בשם המשתמש וספריית המשתמשים</span></span><sw-button size="sm" @click=${() => this.openTab('ha')}>הגדרה</sw-button></div>
+      <sw-card heading=${tr('אינטגרציות')}>
+        <div class="row"><span class="lbl">${tr('go2rtc (חיצוני)')}<span class="muted">${tr('זרמים בשם smplwise_* בלבד · זרמים זרים לא ייגעו')}</span></span><span class="end"><sw-toggle checked label=${tr('מופעל')}></sw-toggle><sw-button size="sm" @click=${() => this.openTab('media')}>${tr('הגדרה')}</sw-button></span></div>
+        <div class="row"><span class="lbl">${tr('גשר Arx')}<span class="muted">${tr('קטלוג ישויות, פעולות בשם המשתמש וספריית המשתמשים')}</span></span><sw-button size="sm" @click=${() => this.openTab('ha')}>${tr('הגדרה')}</sw-button></div>
       </sw-card>
-      <sw-card heading="בריאות המערכת">
-        <div class="row"><span class="health"><i class="dot"></i><span class="lbl">מצב חלקי<span class="muted">גשר HA טרם חובר · שאר הרכיבים תקינים</span></span></span><sw-button size="sm" icon="activity">הרצת דיאגנוסטיקה</sw-button></div>
+      <sw-card heading=${tr('בריאות המערכת')}>
+        <div class="row"><span class="health"><i class="dot"></i><span class="lbl">${tr('מצב חלקי')}<span class="muted">${tr('גשר HA טרם חובר · שאר הרכיבים תקינים')}</span></span></span><sw-button size="sm" icon="activity">${tr('הרצת דיאגנוסטיקה')}</sw-button></div>
       </sw-card>
     </div>`;
   }
@@ -1200,198 +1200,198 @@ export class SystemDiagnostics extends LitElement {
     const dirty = Object.keys(this.draft).length > 0;
     const NVR = nvrLess(); // NVR-less mode: only the map, display and retention settings stay
     // CR-013: "ראשי" (the device overview) is the default start screen
-    const starts = NVR ? [['devices', 'ראשי (ברירת מחדל)'], ['explore', 'מפת קומה']] : [['devices', 'ראשי (ברירת מחדל)'], ['explore', 'מפת קומה'], ['live', 'סקירה (לייב)'], ['wall', 'כל המצלמות'], ['events', 'מרכז אירועים'], ['playback', 'הקלטות']];
+    const starts = NVR ? [['devices', tr('ראשי (ברירת מחדל)')], ['explore', tr('מפת קומה')]] : [['devices', tr('ראשי (ברירת מחדל)')], ['explore', tr('מפת קומה')], ['live', tr('סקירה (לייב)')], ['wall', tr('כל המצלמות')], ['events', tr('מרכז אירועים')], ['playback', tr('הקלטות')]];
     return html`<div class="sections">
-      ${NVR ? this.renderNvrLessNotice('הגדרות הווידאו וההקלטות אינן בשימוש') : nothing}
-      <sw-card heading=${NVR ? 'תצוגה ומפה' : 'תעבורת וידאו'} subheading=${NVR ? 'מסך הפתיחה, המפה והתלת-ממד' : 'ברירת המחדל לכל הנגנים; כל נגן יכול לעקוף אותה לדפדפן הנוכחי'}>
-        ${NVR ? nothing : html`<div class="row"><span class="lbl">תעבורה ברירת מחדל<span class="muted">אוטומטי (ברירת המחדל): WebRTC תחילה (השהיה נמוכה), ו־MSE רק כש־WebRTC אינו זמין · WebRTC בלבד: לעולם לא MSE · MSE בלבד: בחירה מכוונת ללקוח שאצלו WebRTC בלתי אפשרי (אין UDP ישיר ל־go2rtc: Ingress, Cloudflare, CGNAT)</span></span>
+      ${NVR ? this.renderNvrLessNotice(tr('הגדרות הווידאו וההקלטות אינן בשימוש')) : nothing}
+      <sw-card heading=${NVR ? tr('תצוגה ומפה') : tr('תעבורת וידאו')} subheading=${NVR ? tr('מסך הפתיחה, המפה והתלת-ממד') : tr('ברירת המחדל לכל הנגנים; כל נגן יכול לעקוף אותה לדפדפן הנוכחי')}>
+        ${NVR ? nothing : html`<div class="row"><span class="lbl">${tr('תעבורה ברירת מחדל')}<span class="muted">${tr('אוטומטי (ברירת המחדל): WebRTC תחילה (השהיה נמוכה), ו־MSE רק כש־WebRTC אינו זמין · WebRTC בלבד: לעולם לא MSE · MSE בלבד: בחירה מכוונת ללקוח שאצלו WebRTC בלתי אפשרי (אין UDP ישיר ל־go2rtc: Ingress, Cloudflare, CGNAT)')}</span></span>
           <sw-field class="ctl"><select data-set-transport-default ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.transport_default', (e.target as HTMLSelectElement).value as ProductSettings['media.transport_default'])}>
-            ${(['auto', 'webrtc', 'mse'] as const).map((t) => html`<option value=${t} ?selected=${(this.value('media.transport_default') ?? TRANSPORT_DEFAULT) === t}>${t === TRANSPORT_DEFAULT ? `${transportLabel(t)} — ברירת המחדל` : transportLabel(t)}</option>`)}
+            ${(['auto', 'webrtc', 'mse'] as const).map((t) => html`<option value=${t} ?selected=${(this.value('media.transport_default') ?? TRANSPORT_DEFAULT) === t}>${t === TRANSPORT_DEFAULT ? tr('{transportLabel} — ברירת המחדל', { transportLabel: transportLabel(t) }) : transportLabel(t)}</option>`)}
           </select></sw-field></div>
-        <div class="row"><span class="lbl">הודעות על אופן ההזרמה<span class="muted">הודעה על הנגן כשהווידאו עובר ב־MSE במקום WebRTC, ושורות ההסבר מתחת למצלמה. כבוי (ברירת מחדל): המסך נקי, והתג על הנגן ממשיך להראות מה מתנגן ומסביר בריחוף. הפעלה מתאימה למי שבודק בעיית תעבורה</span></span>
+        <div class="row"><span class="lbl">${tr('הודעות על אופן ההזרמה')}<span class="muted">${tr('הודעה על הנגן כשהווידאו עובר ב־MSE במקום WebRTC, ושורות ההסבר מתחת למצלמה. כבוי (ברירת מחדל): המסך נקי, והתג על הנגן ממשיך להראות מה מתנגן ומסביר בריחוף. הפעלה מתאימה למי שבודק בעיית תעבורה')}</span></span>
           <sw-field class="ctl"><select data-set-video-notices ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.video_notices', (e.target as HTMLSelectElement).value as 'true' | 'false')}>
-            <option value="false" ?selected=${String(this.value('media.video_notices') ?? 'false') !== 'true'}>מוסתרות</option><option value="true" ?selected=${String(this.value('media.video_notices') ?? 'false') === 'true'}>מוצגות</option>
+            <option value="false" ?selected=${String(this.value('media.video_notices') ?? 'false') !== 'true'}>${tr('מוסתרות')}</option><option value="true" ?selected=${String(this.value('media.video_notices') ?? 'false') === 'true'}>${tr('מוצגות')}</option>
           </select></sw-field></div>
-        <div class="row"><span class="lbl">קידוד H.265 בדפדפן<span class="muted">מצלמה שהזרם שלה H.265 ודפדפן שלא מפענח אותו (Chrome ו־Edge ב־WebRTC). אוטומטי (ברירת מחדל): הזרם האחר של המצלמה כשהוא H.264, אחרת תרגום ל־H.264 בשרת הווידאו, אחרת הודעה על האריח · תמיד זרם משני: רק הזרם האחר · תמיד תרגום: רק תרגום · כבוי: הזרם כמו שהוא. קידוד ה־NVR לא משתנה</span></span>
+        <div class="row"><span class="lbl">${tr('קידוד H.265 בדפדפן')}<span class="muted">${tr('מצלמה שהזרם שלה H.265 ודפדפן שלא מפענח אותו (Chrome ו־Edge ב־WebRTC). אוטומטי (ברירת מחדל): הזרם האחר של המצלמה כשהוא H.264, אחרת תרגום ל־H.264 בשרת הווידאו, אחרת הודעה על האריח · תמיד זרם משני: רק הזרם האחר · תמיד תרגום: רק תרגום · כבוי: הזרם כמו שהוא. קידוד ה־NVR לא משתנה')}</span></span>
           <sw-field class="ctl"><select data-set-h265-policy ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.h265_policy', (e.target as HTMLSelectElement).value as H265Policy)}>
             ${H265_POLICY_OPTIONS.map(([v, l]) => html`<option value=${v} ?selected=${normalizePolicy(this.value('media.h265_policy')) === v}>${l}</option>`)}
           </select></sw-field></div>
-        <div class="row"><span class="lbl">תרגומים במקביל<span class="muted">כמה מצלמות שונות מתורגמות ל־H.264 בו־זמנית (התרגום כבד על המעבד של שרת הווידאו). מעבר למכסה האריח מציג תמונה מתעדכנת עם הודעה. 0 = בלי תרגום</span></span>
+        <div class="row"><span class="lbl">${tr('תרגומים במקביל')}<span class="muted">${tr('כמה מצלמות שונות מתורגמות ל־H.264 בו־זמנית (התרגום כבד על המעבד של שרת הווידאו). מעבר למכסה האריח מציג תמונה מתעדכנת עם הודעה. 0 = בלי תרגום')}</span></span>
           <sw-field class="ctl"><select data-set-h265-transcodes ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.h265_max_transcodes', Number((e.target as HTMLSelectElement).value))}>
-            ${[0, 1, 2, 3, 4, 6, 8].map((n) => html`<option value=${n} ?selected=${Number(this.value('media.h265_max_transcodes') ?? 2) === n}>${n === 2 ? `${n} — ברירת המחדל` : n === 0 ? '0 — בלי תרגום' : n}</option>`)}
+            ${[0, 1, 2, 3, 4, 6, 8].map((n) => html`<option value=${n} ?selected=${Number(this.value('media.h265_max_transcodes') ?? 2) === n}>${n === 2 ? tr('{n} — ברירת המחדל', { n }) : n === 0 ? tr('0 — בלי תרגום') : n}</option>`)}
           </select></sw-field></div>
-        <div class="row"><span class="lbl">מצלמה שה־NVR מסרב לשנות<span class="muted">בהמרת קידוד לכמה מצלמות (למשל הכל ל־H.264). לדלג ולהמשיך (ברירת מחדל): המצלמה נשארת כמו שהיא, נרשמת בדוח הבדיקה, וההמרה ממשיכה · לעצור: ההמרה נעצרת במצלמה הראשונה שנדחתה. אפשר לשנות גם לפני כל המרה</span></span>
+        <div class="row"><span class="lbl">${tr('מצלמה שה־NVR מסרב לשנות')}<span class="muted">${tr('בהמרת קידוד לכמה מצלמות (למשל הכל ל־H.264). לדלג ולהמשיך (ברירת מחדל): המצלמה נשארת כמו שהיא, נרשמת בדוח הבדיקה, וההמרה ממשיכה · לעצור: ההמרה נעצרת במצלמה הראשונה שנדחתה. אפשר לשנות גם לפני כל המרה')}</span></span>
           <sw-field class="ctl"><select data-set-batch-refusal ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('nvr.batch_on_refusal', (e.target as HTMLSelectElement).value as 'skip' | 'stop')}>
             ${REFUSAL_OPTIONS.map(([v, l]) => html`<option value=${v} ?selected=${(this.value('nvr.batch_on_refusal') === 'stop' ? 'stop' : 'skip') === v}>${l}</option>`)}
           </select></sw-field></div>
-        <div class="row"><span class="lbl">פרופיל לקיר המצלמות<span class="muted">משני חוסך CPU ורוחב פס; ראשי לתצוגה בודדת</span></span>
+        <div class="row"><span class="lbl">${tr('פרופיל לקיר המצלמות')}<span class="muted">${tr('משני חוסך CPU ורוחב פס; ראשי לתצוגה בודדת')}</span></span>
           <sw-field class="ctl"><select ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.wall_profile', (e.target as HTMLSelectElement).value as 'sub' | 'main')}>
-            <option value="sub" ?selected=${(this.value('media.wall_profile') ?? 'sub') === 'sub'}>משני</option><option value="main" ?selected=${this.value('media.wall_profile') === 'main'}>ראשי</option>
+            <option value="sub" ?selected=${(this.value('media.wall_profile') ?? 'sub') === 'sub'}>${tr('משני')}</option><option value="main" ?selected=${this.value('media.wall_profile') === 'main'}>${tr('ראשי')}</option>
           </select></sw-field></div>
-        <div class="row"><span class="lbl">מצלמות בקיר כברירת מחדל<span class="muted">כל דפדפן זוכר את הבחירה האחרונה שלו; זו נקודת הפתיחה. מעל מכסת הזרמים החיים האריחים מציגים צילום</span></span>
+        <div class="row"><span class="lbl">${tr('מצלמות בקיר כברירת מחדל')}<span class="muted">${tr('כל דפדפן זוכר את הבחירה האחרונה שלו; זו נקודת הפתיחה. מעל מכסת הזרמים החיים האריחים מציגים צילום')}</span></span>
           <sw-field class="ctl"><select data-set-wall-count ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.wall_count', Number((e.target as HTMLSelectElement).value))}>
             ${[1, 2, 4, 6, 8, 9, 12, 16, 20, 25, 32].map((n) => html`<option value=${n} ?selected=${Number(this.value('ui.wall_count') ?? 4) === n}>${n}</option>`)}
           </select></sw-field></div>
-        <div class="row"><span class="lbl">פריסת קיוסק כברירת מחדל<span class="muted">עמודות × שורות בעמוד; קישור קיוסק עם cols/rows גובר</span></span>
+        <div class="row"><span class="lbl">${tr('פריסת קיוסק כברירת מחדל')}<span class="muted">${tr('עמודות × שורות בעמוד; קישור קיוסק עם cols/rows גובר')}</span></span>
           <sw-field class="ctl"><select data-set-kiosk-layout ?disabled=${!api || !this.canEdit} @change=${(e: Event) => { const [c, r] = (e.target as HTMLSelectElement).value.split('x').map(Number); this.set('ui.kiosk_cols', c); this.set('ui.kiosk_rows', r); }}>
-            ${[[2, 2], [3, 2], [3, 3], [4, 3], [4, 4], [5, 4], [6, 4]].map(([c, r]) => html`<option value=${`${c}x${r}`} ?selected=${Number(this.value('ui.kiosk_cols') ?? 3) === c && Number(this.value('ui.kiosk_rows') ?? 2) === r}>${c}×${r} · ${c * r} מצלמות</option>`)}
+            ${[[2, 2], [3, 2], [3, 3], [4, 3], [4, 4], [5, 4], [6, 4]].map(([c, r]) => html`<option value=${`${c}x${r}`} ?selected=${Number(this.value('ui.kiosk_cols') ?? 3) === c && Number(this.value('ui.kiosk_rows') ?? 2) === r}>${tr('{c}×{r} · {v} מצלמות', { c, r, v: c * r })}</option>`)}
           </select></sw-field></div>
         <div class="row" data-set-wall-phone-bar-row><span class="lbl">${WALL_PHONE_BAR_LABEL}<span class="muted">${WALL_PHONE_BAR_HINT}</span></span>
           <sw-field class="ctl"><select data-set-wall-phone-bar ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.wall_phone_bar', wallPhoneBarMode((e.target as HTMLSelectElement).value))}>
             ${WALL_PHONE_BAR_OPTIONS.map(([v, l]) => html`<option value=${v} ?selected=${wallPhoneBarMode(this.value('ui.wall_phone_bar')) === (v as WallPhoneBarMode)}>${l}</option>`)}
           </select></sw-field></div>`}
-        <div class="row"><span class="lbl">מסך פתיחה<span class="muted">המסך שהמערכת נפתחת עליו כשהכתובת לא מציינת מסך (ריענון של הכתובת הראשית)</span></span>
+        <div class="row"><span class="lbl">${tr('מסך פתיחה')}<span class="muted">${tr('המסך שהמערכת נפתחת עליו כשהכתובת לא מציינת מסך (ריענון של הכתובת הראשית)')}</span></span>
           <sw-field class="ctl"><select data-set-start-route ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.start_route', (e.target as HTMLSelectElement).value)}>
             ${starts.map(([v, l]) => html`<option value=${v} ?selected=${String(this.value('ui.start_route') ?? 'devices') === v}>${l}</option>`)}
           </select></sw-field></div>
-        <div class="row"><span class="lbl">הסתרת המפה<span class="muted">מסיר את אזור המפה מהניווט לכל המשתמשים; למשתמש בודד: תפקיד בלי ההרשאה map.read</span></span>
+        <div class="row"><span class="lbl">${tr('הסתרת המפה')}<span class="muted">${tr('מסיר את אזור המפה מהניווט לכל המשתמשים; למשתמש בודד: תפקיד בלי ההרשאה map.read')}</span></span>
           <sw-field class="ctl"><select data-set-hide-map ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_map', (e.target as HTMLSelectElement).value)}>
-            <option value="false" ?selected=${String(this.value('ui.hide_map') ?? 'false') !== 'true'}>מוצגת</option><option value="true" ?selected=${String(this.value('ui.hide_map') ?? 'false') === 'true'}>מוסתרת</option>
+            <option value="false" ?selected=${String(this.value('ui.hide_map') ?? 'false') !== 'true'}>${tr('מוצגת')}</option><option value="true" ?selected=${String(this.value('ui.hide_map') ?? 'false') === 'true'}>${tr('מוסתרת')}</option>
           </select></sw-field></div>
-        <div class="row"><span class="lbl">גודל תצוגת WisKey<span class="muted">רגיל: ממלא את אזור התוכן. מותאם: WisKey מוצג בגודל וירטואלי גדול יותר ומוקטן, כך שנכנסים בו יותר כרטיסים ואריחים. מסך מלא: מכסה את כל החלון (יציאה: כפתור קטן בפינה, Esc או חזרה)</span></span>
+        <div class="row"><span class="lbl">${tr('גודל תצוגת WisKey')}<span class="muted">${tr('רגיל: ממלא את אזור התוכן. מותאם: WisKey מוצג בגודל וירטואלי גדול יותר ומוקטן, כך שנכנסים בו יותר כרטיסים ואריחים. מסך מלא: מכסה את כל החלון (יציאה: כפתור קטן בפינה, Esc או חזרה)')}</span></span>
           <sw-field class="ctl"><select data-set-wiskey-size ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.wiskey_size', (e.target as HTMLSelectElement).value as ProductSettings['ui.wiskey_size'])}>
-            ${([['normal', 'רגיל'], ['fit', 'מותאם'], ['full', 'מסך מלא']] as const).map(([v, l]) => html`<option value=${v} ?selected=${(this.value('ui.wiskey_size') ?? 'normal') === v}>${l}</option>`)}
+            ${([['normal', tr('רגיל')], ['fit', tr('מותאם')], ['full', tr('מסך מלא')]] as const).map(([v, l]) => html`<option value=${v} ?selected=${(this.value('ui.wiskey_size') ?? 'normal') === v}>${l}</option>`)}
           </select></sw-field></div>
         ${(this.value('ui.wiskey_size') ?? 'normal') === 'fit'
-          ? html`<div class="row"><span class="lbl">קנה מידה במצב מותאם<span class="muted">100% זהה לרגיל; ככל שהמספר נמוך יותר WisKey מציג יותר, בכתב קטן יותר</span></span>
+          ? html`<div class="row"><span class="lbl">${tr('קנה מידה במצב מותאם')}<span class="muted">${tr('100% זהה לרגיל; ככל שהמספר נמוך יותר WisKey מציג יותר, בכתב קטן יותר')}</span></span>
               <sw-field class="ctl"><select data-set-wiskey-scale ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.wiskey_scale', (e.target as HTMLSelectElement).value as ProductSettings['ui.wiskey_scale'])}>
                 ${(['100', '90', '80', '70'] as const).map((v) => html`<option value=${v} ?selected=${String(this.value('ui.wiskey_scale') ?? '90') === v}>${v}%</option>`)}
               </select></sw-field></div>`
           : nothing}
-        <div class="row"><span class="lbl">מספר כרטיסים בסקירת WisKey<span class="muted">נקודת הפתיחה בכל טעינה; משתמש יכול לבחור אחרת בחשבון שלו. שינוי בתוך WisKey אינו נשמר. אוטומטי: WisKey מחליט לפי הגודל הפנוי</span></span>
+        <div class="row"><span class="lbl">${tr('מספר כרטיסים בסקירת WisKey')}<span class="muted">${tr('נקודת הפתיחה בכל טעינה; משתמש יכול לבחור אחרת בחשבון שלו. שינוי בתוך WisKey אינו נשמר. אוטומטי: WisKey מחליט לפי הגודל הפנוי')}</span></span>
           <sw-field class="ctl"><select data-set-wiskey-density ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.wiskey_density', (e.target as HTMLSelectElement).value as ProductSettings['ui.wiskey_density'])}>
-            ${(['auto', '4', '6', '8', '9', '12'] as const).map((v) => html`<option value=${v} ?selected=${String(this.value('ui.wiskey_density') ?? 'auto') === v}>${v === 'auto' ? 'אוטומטי' : v}</option>`)}
+            ${(['auto', '4', '6', '8', '9', '12'] as const).map((v) => html`<option value=${v} ?selected=${String(this.value('ui.wiskey_density') ?? 'auto') === v}>${v === 'auto' ? tr('אוטומטי') : v}</option>`)}
           </select></sw-field></div>
-        <div class="row"><span class="lbl">מספר מצלמות בקיר WisKey<span class="muted">נקודת הפתיחה של קיר המצלמות; משתמש יכול לבחור אחרת בחשבון שלו. ברירת מחדל: 4 (12 דורש מספיק מצלמות פעילות ורוחב פס)</span></span>
+        <div class="row"><span class="lbl">${tr('מספר מצלמות בקיר WisKey')}<span class="muted">${tr('נקודת הפתיחה של קיר המצלמות; משתמש יכול לבחור אחרת בחשבון שלו. ברירת מחדל: 4 (12 דורש מספיק מצלמות פעילות ורוחב פס)')}</span></span>
           <sw-field class="ctl"><select data-set-wiskey-wall ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.wiskey_wall', (e.target as HTMLSelectElement).value as ProductSettings['ui.wiskey_wall'])}>
-            ${(['auto', '4', '9', '12'] as const).map((v) => html`<option value=${v} ?selected=${String(this.value('ui.wiskey_wall') ?? 'auto') === v}>${v === 'auto' ? 'ברירת מחדל' : v}</option>`)}
+            ${(['auto', '4', '9', '12'] as const).map((v) => html`<option value=${v} ?selected=${String(this.value('ui.wiskey_wall') ?? 'auto') === v}>${v === 'auto' ? tr('ברירת מחדל') : v}</option>`)}
           </select></sw-field></div>
-        ${NVR ? nothing : html`<div class="row"><span class="lbl">HA recorder כמקור משני להיסטוריה<span class="muted">במפה ההיסטורית: כשההיסטוריה המקומית לא יודעת מצב של ישות, הוא נקרא מה־recorder של Home Assistant ומסומן כמקור משני</span></span>
+        ${NVR ? nothing : html`<div class="row"><span class="lbl">${tr('HA recorder כמקור משני להיסטוריה')}<span class="muted">${tr('במפה ההיסטורית: כשההיסטוריה המקומית לא יודעת מצב של ישות, הוא נקרא מה־recorder של Home Assistant ומסומן כמקור משני')}</span></span>
           <sw-field class="ctl"><select data-set-ha-secondary ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('history.ha_secondary', (e.target as HTMLSelectElement).value)}>
-            <option value="false" ?selected=${String(this.value('history.ha_secondary') ?? 'false') !== 'true'}>כבוי</option><option value="true" ?selected=${String(this.value('history.ha_secondary') ?? 'false') === 'true'}>פעיל</option>
+            <option value="false" ?selected=${String(this.value('history.ha_secondary') ?? 'false') !== 'true'}>${tr('כבוי')}</option><option value="true" ?selected=${String(this.value('history.ha_secondary') ?? 'false') === 'true'}>${tr('פעיל')}</option>
           </select></sw-field></div>`}
-        ${NVR ? nothing : html`<div class="row" data-set-timescrub-row><span class="lbl">ציר זמן במפה ההיסטורית<span class="muted">שכבות, ניגון תקופה ופסי שינויים לכל שכבה במפה ההיסטורית</span></span>
+        ${NVR ? nothing : html`<div class="row" data-set-timescrub-row><span class="lbl">${tr('ציר זמן במפה ההיסטורית')}<span class="muted">${tr('שכבות, ניגון תקופה ופסי שינויים לכל שכבה במפה ההיסטורית')}</span></span>
           <sw-field class="ctl"><select data-set-timescrub ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('history.timescrub', (e.target as HTMLSelectElement).value)}>
-            <option value="false" ?selected=${String(this.value('history.timescrub') ?? 'false') !== 'true'}>כבוי</option><option value="true" ?selected=${String(this.value('history.timescrub') ?? 'false') === 'true'}>פעיל</option>
+            <option value="false" ?selected=${String(this.value('history.timescrub') ?? 'false') !== 'true'}>${tr('כבוי')}</option><option value="true" ?selected=${String(this.value('history.timescrub') ?? 'false') === 'true'}>${tr('פעיל')}</option>
           </select></sw-field></div>
-        <div class="row"><span class="lbl">טווח ניגון מרבי (ימים)<span class="muted">החלון הארוך ביותר שבקשת ניגון אחת יכולה לכסות</span></span><sw-field class="ctl"><input type="number" min="1" max="30" data-ltr data-set-range-max-days ?disabled=${!api || !this.canEdit} .value=${String(this.value('history.range_max_days') ?? 7)} @change=${(e: Event) => this.set('history.range_max_days', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
-        <div class="row"><span class="lbl">נוכחות בהיסטוריה - ימי שמירה<span class="muted">מצבי חיישני תנועה ונוכחות ישנים יותר נמחקים מההיסטוריה המקומית</span></span><sw-field class="ctl"><input type="number" min="1" max="30" data-ltr data-set-presence-retention ?disabled=${!api || !this.canEdit} .value=${String(this.value('history.presence_retention_days') ?? 7)} @change=${(e: Event) => this.set('history.presence_retention_days', Number((e.target as HTMLInputElement).value))} /></sw-field></div>`}
-        <div class="row"><span class="lbl">מידות לפני כיול<span class="muted">בעורך התוכנית, כשגרסת התוכנית עדיין לא כוילה: להציג אורכים ושטחים משוערים עם ≈, או להסתיר מטרים עד הכיול</span></span>
+        <div class="row"><span class="lbl">${tr('טווח ניגון מרבי (ימים)')}<span class="muted">${tr('החלון הארוך ביותר שבקשת ניגון אחת יכולה לכסות')}</span></span><sw-field class="ctl"><input type="number" min="1" max="30" data-ltr data-set-range-max-days ?disabled=${!api || !this.canEdit} .value=${String(this.value('history.range_max_days') ?? 7)} @change=${(e: Event) => this.set('history.range_max_days', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        <div class="row"><span class="lbl">${tr('נוכחות בהיסטוריה - ימי שמירה')}<span class="muted">${tr('מצבי חיישני תנועה ונוכחות ישנים יותר נמחקים מההיסטוריה המקומית')}</span></span><sw-field class="ctl"><input type="number" min="1" max="30" data-ltr data-set-presence-retention ?disabled=${!api || !this.canEdit} .value=${String(this.value('history.presence_retention_days') ?? 7)} @change=${(e: Event) => this.set('history.presence_retention_days', Number((e.target as HTMLInputElement).value))} /></sw-field></div>`}
+        <div class="row"><span class="lbl">${tr('מידות לפני כיול')}<span class="muted">${tr('בעורך התוכנית, כשגרסת התוכנית עדיין לא כוילה: להציג אורכים ושטחים משוערים עם ≈, או להסתיר מטרים עד הכיול')}</span></span>
           <sw-field class="ctl"><select data-set-plan-estimates ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.estimates', (e.target as HTMLSelectElement).value as 'true' | 'false')}>
-            <option value="true" ?selected=${String(this.value('plan.estimates') ?? 'true') !== 'false'}>משוערות עם ≈</option><option value="false" ?selected=${String(this.value('plan.estimates') ?? 'true') === 'false'}>מוסתרות עד כיול</option>
+            <option value="true" ?selected=${String(this.value('plan.estimates') ?? 'true') !== 'false'}>${tr('משוערות עם ≈')}</option><option value="false" ?selected=${String(this.value('plan.estimates') ?? 'true') === 'false'}>${tr('מוסתרות עד כיול')}</option>
           </select></sw-field></div>
-        <div class="row"><span class="lbl">מפלסים בפתיחת מפה<span class="muted">המפלס שמוצג כברירת מחדל בכל מפה; שבבי המפלסים ממשיכים לאפשר מעבר בין מפלסים</span></span>
+        <div class="row"><span class="lbl">${tr('מפלסים בפתיחת מפה')}<span class="muted">${tr('המפלס שמוצג כברירת מחדל בכל מפה; שבבי המפלסים ממשיכים לאפשר מעבר בין מפלסים')}</span></span>
           <sw-field class="ctl"><select data-set-plan-levels ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.levels', (e.target as HTMLSelectElement).value as 'all' | 'default')}>
-            <option value="all" ?selected=${String(this.value('plan.levels') ?? 'all') !== 'default'}>כל המפלסים יחד</option><option value="default" ?selected=${String(this.value('plan.levels') ?? 'all') === 'default'}>מפלס ברירת המחדל של הקומה</option>
+            <option value="all" ?selected=${String(this.value('plan.levels') ?? 'all') !== 'default'}>${tr('כל המפלסים יחד')}</option><option value="default" ?selected=${String(this.value('plan.levels') ?? 'all') === 'default'}>${tr('מפלס ברירת המחדל של הקומה')}</option>
           </select></sw-field></div>
-        <div class="row"><span class="lbl">מצב תצוגה ברירת מחדל<span class="muted">מצב התלת-ממד במפה לכל המשתמשים. רק במצב אוטומטי התצוגה יורדת לבד לסכמטי; בחירה ידנית נשארת</span></span>
+        <div class="row"><span class="lbl">${tr('מצב תצוגה ברירת מחדל')}<span class="muted">${tr('מצב התלת-ממד במפה לכל המשתמשים. רק במצב אוטומטי התצוגה יורדת לבד לסכמטי; בחירה ידנית נשארת')}</span></span>
           <sw-field class="ctl"><select data-set-plan-quality ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.quality', (e.target as HTMLSelectElement).value as QualityWire)}>
             ${QUALITY_MODES.map((m) => html`<option value=${modeToWire(m)} ?selected=${(modeFromWire(this.value('plan.quality')) ?? 'auto') === m}>${QUALITY_MODE_LABEL[m]} — ${QUALITY_MODE_HINT[m]}</option>`)}
           </select></sw-field></div>
-        <div class="row" data-plan-quality-own-row><span class="lbl">מצב התצוגה שלי<span class="muted">גובר על ברירת המחדל, רק עבורך; גם הבחירה בסרגל התלת-ממד נשמרת כאן</span></span>
+        <div class="row" data-plan-quality-own-row><span class="lbl">${tr('מצב התצוגה שלי')}<span class="muted">${tr('גובר על ברירת המחדל, רק עבורך; גם הבחירה בסרגל התלת-ממד נשמרת כאן')}</span></span>
           <sw-field class="ctl"><select data-set-plan-quality-own ?disabled=${this.ownQuality === undefined} @change=${(e: Event) => void this.saveOwnQuality((e.target as HTMLSelectElement).value)}>
-            <option value="" ?selected=${!this.ownQuality}>לפי ברירת המחדל</option>
+            <option value="" ?selected=${!this.ownQuality}>${tr('לפי ברירת המחדל')}</option>
             ${OWN_MODES.map((m) => html`<option value=${m} ?selected=${this.ownQuality === m}>${RUNG_HE[m]}</option>`)}
           </select></sw-field></div>
-        <div class="row"><span class="lbl">דעיכת סימון תנועה במפה<span class="muted">חדר שזוהתה בו תנועה נצבע בכחול; הצבע דוהה במשך הזמן הזה אחרי שהתנועה פסקה (כבוי: רק בזמן התנועה)</span></span>
+        <div class="row"><span class="lbl">${tr('דעיכת סימון תנועה במפה')}<span class="muted">${tr('חדר שזוהתה בו תנועה נצבע בכחול; הצבע דוהה במשך הזמן הזה אחרי שהתנועה פסקה (כבוי: רק בזמן התנועה)')}</span></span>
           <sw-field class="ctl"><select data-set-plan-presence-fade ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.presence_fade', (e.target as HTMLSelectElement).value)}>
-            ${[['off', 'כבוי — רק בזמן תנועה'], ['1', 'דקה'], ['2', '2 דקות'], ['3', '3 דקות'], ['5', '5 דקות'], ['10', '10 דקות'], ['15', '15 דקות'], ['30', '30 דקות'], ['60', 'שעה']].map(([v, l]) => html`<option value=${v} ?selected=${String(this.value('plan.presence_fade') ?? '3') === v}>${l}</option>`)}
+            ${[['off', tr('כבוי — רק בזמן תנועה')], ['1', tr('דקה')], ['2', tr('2 דקות')], ['3', tr('3 דקות')], ['5', tr('5 דקות')], ['10', tr('10 דקות')], ['15', tr('15 דקות')], ['30', tr('30 דקות')], ['60', tr('שעה')]].map(([v, l]) => html`<option value=${v} ?selected=${String(this.value('plan.presence_fade') ?? '3') === v}>${l}</option>`)}
           </select></sw-field></div>
-        <div class="row" data-set-stills-row><span class="lbl">מסך קיר — תצוגת התוכנית<span class="muted">מסך קיר מציג תלת־ממד חי; תמונות מוכנות חוסכות חום וסוללה. קומה בלי תמונות מוכנות נשארת בתלת־ממד חי</span></span>
+        <div class="row" data-set-stills-row><span class="lbl">${tr('מסך קיר — תצוגת התוכנית')}<span class="muted">${tr('מסך קיר מציג תלת־ממד חי; תמונות מוכנות חוסכות חום וסוללה. קומה בלי תמונות מוכנות נשארת בתלת־ממד חי')}</span></span>
           <sw-field class="ctl"><select data-set-wall-display ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setView({ wall_display: (e.target as HTMLSelectElement).value as 'live' | 'stills' })}>
-            <option value="live" ?selected=${this.viewValue('wall_display', 'live') !== 'stills'}>תלת־ממד חי</option><option value="stills" ?selected=${this.viewValue('wall_display', 'live') === 'stills'}>תמונות מוכנות</option>
+            <option value="live" ?selected=${this.viewValue('wall_display', 'live') !== 'stills'}>${tr('תלת־ממד חי')}</option><option value="stills" ?selected=${this.viewValue('wall_display', 'live') === 'stills'}>${tr('תמונות מוכנות')}</option>
           </select></sw-field></div>
-        <div class="row" data-set-kiosk-idle-row><span class="lbl">מסך קיר — מעבר לתמונה מוכנה<span class="muted">אחרי הזמן הזה בלי נגיעה ובלי שינוי בתוכנית, מסך קיר עובר לתמונה המוכנה ומפסיק לצייר פריימים; נגיעה או שינוי מחזירים את התלת־ממד. כל מסך קיר יכול לקבוע זאת בעצמו (הגדרות ‹ מסכי קיר)</span></span>
+        <div class="row" data-set-kiosk-idle-row><span class="lbl">${tr('מסך קיר — מעבר לתמונה מוכנה')}<span class="muted">${tr('אחרי הזמן הזה בלי נגיעה ובלי שינוי בתוכנית, מסך קיר עובר לתמונה המוכנה ומפסיק לצייר פריימים; נגיעה או שינוי מחזירים את התלת־ממד. כל מסך קיר יכול לקבוע זאת בעצמו (הגדרות ‹ מסכי קיר)')}</span></span>
           <sw-field class="ctl"><select data-set-kiosk-idle ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setView({ kiosk_idle_s: Number((e.target as HTMLSelectElement).value) as 0 | 10 | 30 | 120 | 600 })}>
-            ${([[0, 'לעולם לא'], [10, '10 שניות'], [30, '30 שניות'], [120, '2 דקות'], [600, '10 דקות']] as const).map(([v, l]) => html`<option value=${v} ?selected=${this.viewValue('kiosk_idle_s', 30) === v}>${l}</option>`)}
+            ${([[0, tr('לעולם לא')], [10, tr('10 שניות')], [30, tr('30 שניות')], [120, tr('2 דקות')], [600, tr('10 דקות')]] as const).map(([v, l]) => html`<option value=${v} ?selected=${this.viewValue('kiosk_idle_s', 30) === v}>${l}</option>`)}
           </select></sw-field></div>
-        <div class="row"><span class="lbl">תמונות מוכנות — סגנונות ושעות<span class="muted">מה „הכן תמונות ותאורה” מצייר לכל קומה: יותר סגנונות ושעות = יותר תמונות ואחסון</span></span>
+        <div class="row"><span class="lbl">${tr('תמונות מוכנות — סגנונות ושעות')}<span class="muted">${tr('מה „הכן תמונות ותאורה” מצייר לכל קומה: יותר סגנונות ושעות = יותר תמונות ואחסון')}</span></span>
           <sw-field class="ctl"><select data-set-bake-styles ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setBakes({ styles: (e.target as HTMLSelectElement).value.split(',') as ('light' | 'dark')[] })}>
-            ${[['light,dark', 'שני הסגנונות'], ['light', 'אדריכלי בהיר'], ['dark', 'תאום דיגיטלי כהה']].map(([v, l]) => html`<option value=${v} ?selected=${this.bakeValue('styles', ['light', 'dark']).join(',') === v}>${l}</option>`)}
+            ${[['light,dark', tr('שני הסגנונות')], ['light', tr('אדריכלי בהיר')], ['dark', tr('תאום דיגיטלי כהה')]].map(([v, l]) => html`<option value=${v} ?selected=${this.bakeValue('styles', ['light', 'dark']).join(',') === v}>${l}</option>`)}
           </select></sw-field>
           <sw-field class="ctl"><select data-set-bake-bands ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setBakes({ bands: (e.target as HTMLSelectElement).value.split(',') as ('day' | 'sunset' | 'night')[] })}>
-            ${[['day,sunset,night', 'יום, שקיעה ולילה'], ['day,night', 'יום ולילה'], ['day', 'יום בלבד']].map(([v, l]) => html`<option value=${v} ?selected=${this.bakeValue('bands', ['day', 'sunset', 'night']).join(',') === v}>${l}</option>`)}
+            ${[['day,sunset,night', tr('יום, שקיעה ולילה')], ['day,night', tr('יום ולילה')], ['day', tr('יום בלבד')]].map(([v, l]) => html`<option value=${v} ?selected=${this.bakeValue('bands', ['day', 'sunset', 'night']).join(',') === v}>${l}</option>`)}
           </select></sw-field></div>
-        <div class="row"><span class="lbl">תמונות מוכנות — הפעלה ומבטים<span class="muted">ידני: העורך לוחץ „הכן תמונות ותאורה”. אוטומטי: ההכנה מתחילה לבד כשעורך פותח קומה שתמונותיה חסרות או אינן מעודכנות (בדפדפן שלו)</span></span>
+        <div class="row"><span class="lbl">${tr('תמונות מוכנות — הפעלה ומבטים')}<span class="muted">${tr('ידני: העורך לוחץ „הכן תמונות ותאורה”. אוטומטי: ההכנה מתחילה לבד כשעורך פותח קומה שתמונותיה חסרות או אינן מעודכנות (בדפדפן שלו)')}</span></span>
           <sw-field class="ctl"><select data-set-bake-trigger ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setBakes({ bake_trigger: (e.target as HTMLSelectElement).value as 'manual' | 'auto' })}>
-            <option value="manual" ?selected=${this.bakeValue('bake_trigger', 'manual') !== 'auto'}>ידני — בלחיצה</option><option value="auto" ?selected=${this.bakeValue('bake_trigger', 'manual') === 'auto'}>אוטומטי — בפתיחת קומה</option>
+            <option value="manual" ?selected=${this.bakeValue('bake_trigger', 'manual') !== 'auto'}>${tr('ידני — בלחיצה')}</option><option value="auto" ?selected=${this.bakeValue('bake_trigger', 'manual') === 'auto'}>${tr('אוטומטי — בפתיחת קומה')}</option>
           </select></sw-field>
           <sw-field class="ctl"><select data-set-bake-views ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setBakes({ bake_views: (e.target as HTMLSelectElement).value as 'iso' | 'iso_top' })}>
-            <option value="iso" ?selected=${this.bakeValue('bake_views', 'iso') !== 'iso_top'}>מבט איזומטרי בלבד</option><option value="iso_top" ?selected=${this.bakeValue('bake_views', 'iso') === 'iso_top'}>איזומטרי ומבט מלמעלה</option>
+            <option value="iso" ?selected=${this.bakeValue('bake_views', 'iso') !== 'iso_top'}>${tr('מבט איזומטרי בלבד')}</option><option value="iso_top" ?selected=${this.bakeValue('bake_views', 'iso') === 'iso_top'}>${tr('איזומטרי ומבט מלמעלה')}</option>
           </select></sw-field></div>
-        <div class="row"><span class="lbl">תמונות מוכנות — גודל ומפת תאורה<span class="muted">מפת התאורה מוסיפה הצללה רכה ואור מנורות לתצוגה הריאליסטית</span></span>
+        <div class="row"><span class="lbl">${tr('תמונות מוכנות — גודל ומפת תאורה')}<span class="muted">${tr('מפת התאורה מוסיפה הצללה רכה ואור מנורות לתצוגה הריאליסטית')}</span></span>
           <sw-field class="ctl"><select data-set-bake-size ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setBakes({ size: (e.target as HTMLSelectElement).value })}>
             ${['1280x800', '1600x1000', '1920x1200'].map((v) => html`<option value=${v} ?selected=${this.bakeValue('size', '1600x1000') === v}>${v.replace('x', '×')}</option>`)}
           </select></sw-field>
           <sw-field class="ctl"><select data-set-bake-lightmap ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setBakes({ lightmap: (e.target as HTMLSelectElement).value === 'true' })}>
-            <option value="true" ?selected=${this.bakeValue('lightmap', true) !== false}>עם מפת תאורה</option><option value="false" ?selected=${this.bakeValue('lightmap', true) === false}>בלי מפת תאורה</option>
+            <option value="true" ?selected=${this.bakeValue('lightmap', true) !== false}>${tr('עם מפת תאורה')}</option><option value="false" ?selected=${this.bakeValue('lightmap', true) === false}>${tr('בלי מפת תאורה')}</option>
           </select></sw-field></div>
-        <div class="row"><span class="lbl">אחסון לתמונות מוכנות<span class="muted">לכל קומה / לכל המערכת. כשנגמר המקום נמחקות קודם תמונות שאינן מעודכנות; תמונות מעודכנות לא נמחקות לבד</span></span>
+        <div class="row"><span class="lbl">${tr('אחסון לתמונות מוכנות')}<span class="muted">${tr('לכל קומה / לכל המערכת. כשנגמר המקום נמחקות קודם תמונות שאינן מעודכנות; תמונות מעודכנות לא נמחקות לבד')}</span></span>
           <sw-field class="ctl"><select data-set-bake-floor-cap ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setBakes({ floor_cap_mb: Number((e.target as HTMLSelectElement).value) })}>
-            ${[16, 32, 64, 128, 256].map((v) => html`<option value=${v} ?selected=${this.bakeValue('floor_cap_mb', 64) === v}>${v} MB לקומה</option>`)}
+            ${[16, 32, 64, 128, 256].map((v) => html`<option value=${v} ?selected=${this.bakeValue('floor_cap_mb', 64) === v}>${tr('{v} MB לקומה', { v })}</option>`)}
           </select></sw-field>
           <sw-field class="ctl"><select data-set-bake-total-cap ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setBakes({ total_cap_mb: Number((e.target as HTMLSelectElement).value) })}>
-            ${[128, 256, 512, 1024, 2048].map((v) => html`<option value=${v} ?selected=${this.bakeValue('total_cap_mb', 512) === v}>${v >= 1024 ? `${v / 1024} GB` : `${v} MB`} בסך הכול</option>`)}
+            ${[128, 256, 512, 1024, 2048].map((v) => html`<option value=${v} ?selected=${this.bakeValue('total_cap_mb', 512) === v}>${tr('{v} בסך הכול', { v: v >= 1024 ? `${v / 1024} GB` : `${v} MB` })}</option>`)}
           </select></sw-field></div>
         ${api && this.canEdit ? this.renderSiteLocation(api) : nothing}
         <div class="row" data-global-search-row><span class="lbl">${sa('label')}<span class="muted">${sa('hint')}</span></span>
           <sw-search-access .mode=${searchModeOf(this.value('ui.global_search'))} .roles=${String(this.value('ui.global_search_roles') ?? '')} ?disabled=${!api || !this.canEdit}
             @sw-search-access-change=${(e: CustomEvent<{ mode: 'off' | 'admins' | 'roles' | 'all'; roles: string }>) => { this.set('ui.global_search', e.detail.mode); this.set('ui.global_search_roles', parseSearchRoles(e.detail.roles).join(',')); }}></sw-search-access></div>
-        ${NVR ? nothing : html`<div class="row"><span class="lbl">הסתרת חיפוש AI<span class="muted">מסיר את הלשונית מהניווט; המסך עצמו נשאר זמין בכתובת</span></span>
+        ${NVR ? nothing : html`<div class="row"><span class="lbl">${tr('הסתרת חיפוש AI')}<span class="muted">${tr('מסיר את הלשונית מהניווט; המסך עצמו נשאר זמין בכתובת')}</span></span>
           <sw-field class="ctl"><select data-set-hide-search ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_search', (e.target as HTMLSelectElement).value)}>
-            <option value="false" ?selected=${String(this.value('ui.hide_search') ?? 'false') !== 'true'}>מוצג</option><option value="true" ?selected=${String(this.value('ui.hide_search') ?? 'false') === 'true'}>מוסתר</option>
+            <option value="false" ?selected=${String(this.value('ui.hide_search') ?? 'false') !== 'true'}>${tr('מוצג')}</option><option value="true" ?selected=${String(this.value('ui.hide_search') ?? 'false') === 'true'}>${tr('מוסתר')}</option>
           </select></sw-field></div>
-        <div class="row"><span class="lbl">תמונת מצב באבטחה<span class="muted">העמוד הראשון בלייב; כשהוא מוסתר, לייב נפתח על כל המצלמות והכתובת הישנה מפנה אליהן</span></span>
+        <div class="row"><span class="lbl">${tr('תמונת מצב באבטחה')}<span class="muted">${tr('העמוד הראשון בלייב; כשהוא מוסתר, לייב נפתח על כל המצלמות והכתובת הישנה מפנה אליהן')}</span></span>
           <sw-field class="ctl"><select data-set-security-snapshot ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.security_snapshot', (e.target as HTMLSelectElement).value)}>
-            <option value="true" ?selected=${String(this.value('ui.security_snapshot') ?? 'true') !== 'false'}>מוצגת</option><option value="false" ?selected=${String(this.value('ui.security_snapshot') ?? 'true') === 'false'}>מוסתרת</option>
+            <option value="true" ?selected=${String(this.value('ui.security_snapshot') ?? 'true') !== 'false'}>${tr('מוצגת')}</option><option value="false" ?selected=${String(this.value('ui.security_snapshot') ?? 'true') === 'false'}>${tr('מוסתרת')}</option>
           </select></sw-field></div>
-        <div class="row"><span class="lbl">מקסימום זרמים חיים במקביל<span class="muted">מגן על ה־NVR; מעבר למכסה מוצג צילום בלבד</span></span><sw-field class="ctl"><input type="number" min="1" max="128" data-ltr data-live-max-sessions ?disabled=${!api || !this.canEdit} .value=${String(this.value('media.max_live_sessions') ?? 16)} @change=${(e: Event) => this.set('media.max_live_sessions', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        <div class="row"><span class="lbl">${tr('מקסימום זרמים חיים במקביל')}<span class="muted">${tr('מגן על ה־NVR; מעבר למכסה מוצג צילום בלבד')}</span></span><sw-field class="ctl"><input type="number" min="1" max="128" data-ltr data-live-max-sessions ?disabled=${!api || !this.canEdit} .value=${String(this.value('media.max_live_sessions') ?? 16)} @change=${(e: Event) => this.set('media.max_live_sessions', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         ${this.liveCapWarning('media.max_live_sessions') ? html`<div class="err" data-live-warning style="margin-block-start:-4px">${this.liveCapWarning('media.max_live_sessions')}</div>` : nothing}
-        <div class="row"><span class="lbl">רעננות צילום (שניות)<span class="muted">snapshot מה־NVR לאריחים; cache בשרת</span></span><sw-field class="ctl"><input type="number" min="5" max="3600" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('snapshots.max_age_s') ?? 60)} @change=${(e: Event) => this.set('snapshots.max_age_s', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
-        <div class="row"><span class="lbl">סשני ניגון במקביל<span class="muted">כל ניגון = זרם playback אחד מה־NVR דרך go2rtc</span></span><sw-field class="ctl"><input type="number" min="1" max="128" data-ltr data-playback-max-sessions ?disabled=${!api || !this.canEdit} .value=${String(this.value('playback.max_sessions') ?? 4)} @change=${(e: Event) => this.set('playback.max_sessions', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        <div class="row"><span class="lbl">${tr('רעננות צילום (שניות)')}<span class="muted">${tr('snapshot מה־NVR לאריחים; cache בשרת')}</span></span><sw-field class="ctl"><input type="number" min="5" max="3600" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('snapshots.max_age_s') ?? 60)} @change=${(e: Event) => this.set('snapshots.max_age_s', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        <div class="row"><span class="lbl">${tr('סשני ניגון במקביל')}<span class="muted">${tr('כל ניגון = זרם playback אחד מה־NVR דרך go2rtc')}</span></span><sw-field class="ctl"><input type="number" min="1" max="128" data-ltr data-playback-max-sessions ?disabled=${!api || !this.canEdit} .value=${String(this.value('playback.max_sessions') ?? 4)} @change=${(e: Event) => this.set('playback.max_sessions', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         ${this.playbackWarning() ? html`<div class="err" data-playback-warning style="margin-block-start:-4px">${this.playbackWarning()}</div>` : nothing}
-        <div class="row" data-set-cross-sync-row><span class="lbl">ניגון מסונכרן בין מקליטים (ניסיוני)<span class="muted">לא הוכח על שני מקליטים אמיתיים. כבוי: ניגון מסונכרן רק למצלמות של אותו NVR. פעיל: כל מצלמה מנוגנת לפי אזור הזמן וסטיית השעון של המקליט שלה</span></span>
+        <div class="row" data-set-cross-sync-row><span class="lbl">${tr('ניגון מסונכרן בין מקליטים (ניסיוני)')}<span class="muted">${tr('לא הוכח על שני מקליטים אמיתיים. כבוי: ניגון מסונכרן רק למצלמות של אותו NVR. פעיל: כל מצלמה מנוגנת לפי אזור הזמן וסטיית השעון של המקליט שלה')}</span></span>
           <sw-field class="ctl"><select data-set-cross-sync ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('playback.cross_recorder_sync', (e.target as HTMLSelectElement).value)}>
-            <option value="false" ?selected=${String(this.value('playback.cross_recorder_sync') ?? 'false') !== 'true'}>כבוי</option><option value="true" ?selected=${String(this.value('playback.cross_recorder_sync') ?? 'false') === 'true'}>פעיל (ניסיוני)</option>
+            <option value="false" ?selected=${String(this.value('playback.cross_recorder_sync') ?? 'false') !== 'true'}>${tr('כבוי')}</option><option value="true" ?selected=${String(this.value('playback.cross_recorder_sync') ?? 'false') === 'true'}>${tr('פעיל (ניסיוני)')}</option>
           </select></sw-field></div>
-        <div class="row"><span class="lbl">פקיעת סשן ניגון ללא פעילות (שניות)<span class="muted">אחרי הזמן הזה הזרם נמחק מ־go2rtc אוטומטית</span></span><sw-field class="ctl"><input type="number" min="60" max="3600" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('playback.lease_s') ?? 600)} @change=${(e: Event) => this.set('playback.lease_s', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
-        <div class="row" data-set-stall-row><span class="lbl">זיהוי תקיעה בניגון (שניות)<span class="muted">ללא התקדמות בזמן הזה הנגן מציג "מתחבר מחדש" וממשיך מאותה נקודה</span></span><sw-field class="ctl"><input type="number" min="2" max="30" data-ltr data-set-stall-s ?disabled=${!api || !this.canEdit} .value=${String(this.value('playback.stall_s') ?? 5)} @change=${(e: Event) => this.set('playback.stall_s', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
-        <div class="row" data-set-stall-attempts-row><span class="lbl">ניסיונות חיבור מחדש אוטומטיים<span class="muted">אחריהם: "הניגון נעצר" עם כפתור נסה שוב. 0 = בלי ניסיון אוטומטי</span></span><sw-field class="ctl"><input type="number" min="0" max="5" data-ltr data-set-stall-attempts ?disabled=${!api || !this.canEdit} .value=${String(this.value('playback.auto_resume_attempts') ?? 3)} @change=${(e: Event) => this.set('playback.auto_resume_attempts', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
-        <div class="row"><span class="lbl">גודל ייצוא מקסימלי (MB)<span class="muted">לפי הנפח המשוער של קבצי ה־NVR בטווח</span></span><sw-field class="ctl"><input type="number" min="50" max="20480" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('exports.max_mb') ?? 2048)} @change=${(e: Event) => this.set('exports.max_mb', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
-        <div class="row"><span class="lbl">שמירת קבצי ייצוא (ימים)<span class="muted">אחרי התקופה הקבצים נמחקים מ־/data/exports</span></span><sw-field class="ctl"><input type="number" min="1" max="365" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('exports.retention_days') ?? 7)} @change=${(e: Event) => this.set('exports.retention_days', Number((e.target as HTMLInputElement).value))} /></sw-field></div>`}
-        <div class="row"><span class="lbl">שמירת אירועים (ימים)<span class="muted">אירועים ישנים יותר נמחקים מהמאגר המקומי</span></span><sw-field class="ctl"><input type="number" min="1" max="3650" data-ltr data-set-events-retention ?disabled=${!api || !this.canEdit} .value=${String(this.value('events.retention_days') ?? 30)} @change=${(e: Event) => this.set('events.retention_days', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
-        <div class="row"><span class="lbl">שמירת היסטוריית פעילות (ימים)<span class="muted">מי הדליק, כיבה או שינה התקן; שורות ישנות יותר נמחקות</span></span><sw-field class="ctl"><input type="number" min="7" max="365" data-ltr data-set-activity-retention ?disabled=${!api || !this.canEdit} .value=${String(this.value('device_activity.retention_days') ?? 90)} @change=${(e: Event) => this.set('device_activity.retention_days', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
-        <div class="row"><span class="lbl">שמירת אודיט (ימים)<span class="muted">מי עשה מה ומתי — כתיבות ל־NVR, שינויי הרשאות, ייצוא; שורות ישנות יותר נמחקות</span></span><sw-field class="ctl"><input type="number" min="30" max="3650" data-ltr data-set-audit-retention ?disabled=${!api || !this.canEdit} .value=${String(this.value('audit.retention_days') ?? 365)} @change=${(e: Event) => this.set('audit.retention_days', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
-        ${NVR ? nothing : html`<div class="row"><span class="lbl">גודל מרבי לחבילת ראיות (MB)<span class="muted">אימות וייבוא של חבילה מהתקנה אחרת; הקובץ נכתב לקובץ זמני ונמחק</span></span><sw-field class="ctl"><input type="number" min="16" max="4096" data-ltr data-set-import-max ?disabled=${!api || !this.canEdit} .value=${String(this.value('cases.import_max_mb') ?? 512)} @change=${(e: Event) => this.set('cases.import_max_mb', Number((e.target as HTMLInputElement).value))} /></sw-field></div>`}
-        <div class="row"><span class="lbl">אזור זמן של האתר וה־NVR<span class="muted">IANA · חיפוש והקלטות מתורגמים לשעון הקיר של ה־NVR לפי הכלל הזה (כולל שעון קיץ)</span></span><sw-field class="ctl"><input type="text" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('time.zone') ?? 'Asia/Jerusalem')} @change=${(e: Event) => this.set('time.zone', (e.target as HTMLInputElement).value.trim())} /></sw-field></div>
-        <div class="row" data-set-fast-network-row><span class="lbl">שרת: רכיב תקשורת מהיר<span class="muted">רכיבי התקשורת המהירים (uvloop ו־httptools) במקום הרגילים. כבוי (ברירת המחדל) יציב יותר. השינוי חל אחרי הפעלה מחדש של התוסף</span></span>
+        <div class="row"><span class="lbl">${tr('פקיעת סשן ניגון ללא פעילות (שניות)')}<span class="muted">${tr('אחרי הזמן הזה הזרם נמחק מ־go2rtc אוטומטית')}</span></span><sw-field class="ctl"><input type="number" min="60" max="3600" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('playback.lease_s') ?? 600)} @change=${(e: Event) => this.set('playback.lease_s', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        <div class="row" data-set-stall-row><span class="lbl">${tr('זיהוי תקיעה בניגון (שניות)')}<span class="muted">${tr('ללא התקדמות בזמן הזה הנגן מציג "מתחבר מחדש" וממשיך מאותה נקודה')}</span></span><sw-field class="ctl"><input type="number" min="2" max="30" data-ltr data-set-stall-s ?disabled=${!api || !this.canEdit} .value=${String(this.value('playback.stall_s') ?? 5)} @change=${(e: Event) => this.set('playback.stall_s', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        <div class="row" data-set-stall-attempts-row><span class="lbl">${tr('ניסיונות חיבור מחדש אוטומטיים')}<span class="muted">${tr('אחריהם: "הניגון נעצר" עם כפתור נסה שוב. 0 = בלי ניסיון אוטומטי')}</span></span><sw-field class="ctl"><input type="number" min="0" max="5" data-ltr data-set-stall-attempts ?disabled=${!api || !this.canEdit} .value=${String(this.value('playback.auto_resume_attempts') ?? 3)} @change=${(e: Event) => this.set('playback.auto_resume_attempts', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        <div class="row"><span class="lbl">${tr('גודל ייצוא מקסימלי (MB)')}<span class="muted">${tr('לפי הנפח המשוער של קבצי ה־NVR בטווח')}</span></span><sw-field class="ctl"><input type="number" min="50" max="20480" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('exports.max_mb') ?? 2048)} @change=${(e: Event) => this.set('exports.max_mb', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        <div class="row"><span class="lbl">${tr('שמירת קבצי ייצוא (ימים)')}<span class="muted">${tr('אחרי התקופה הקבצים נמחקים מ־/data/exports')}</span></span><sw-field class="ctl"><input type="number" min="1" max="365" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('exports.retention_days') ?? 7)} @change=${(e: Event) => this.set('exports.retention_days', Number((e.target as HTMLInputElement).value))} /></sw-field></div>`}
+        <div class="row"><span class="lbl">${tr('שמירת אירועים (ימים)')}<span class="muted">${tr('אירועים ישנים יותר נמחקים מהמאגר המקומי')}</span></span><sw-field class="ctl"><input type="number" min="1" max="3650" data-ltr data-set-events-retention ?disabled=${!api || !this.canEdit} .value=${String(this.value('events.retention_days') ?? 30)} @change=${(e: Event) => this.set('events.retention_days', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        <div class="row"><span class="lbl">${tr('שמירת היסטוריית פעילות (ימים)')}<span class="muted">${tr('מי הדליק, כיבה או שינה התקן; שורות ישנות יותר נמחקות')}</span></span><sw-field class="ctl"><input type="number" min="7" max="365" data-ltr data-set-activity-retention ?disabled=${!api || !this.canEdit} .value=${String(this.value('device_activity.retention_days') ?? 90)} @change=${(e: Event) => this.set('device_activity.retention_days', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        <div class="row"><span class="lbl">${tr('שמירת אודיט (ימים)')}<span class="muted">${tr('מי עשה מה ומתי — כתיבות ל־NVR, שינויי הרשאות, ייצוא; שורות ישנות יותר נמחקות')}</span></span><sw-field class="ctl"><input type="number" min="30" max="3650" data-ltr data-set-audit-retention ?disabled=${!api || !this.canEdit} .value=${String(this.value('audit.retention_days') ?? 365)} @change=${(e: Event) => this.set('audit.retention_days', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        ${NVR ? nothing : html`<div class="row"><span class="lbl">${tr('גודל מרבי לחבילת ראיות (MB)')}<span class="muted">${tr('אימות וייבוא של חבילה מהתקנה אחרת; הקובץ נכתב לקובץ זמני ונמחק')}</span></span><sw-field class="ctl"><input type="number" min="16" max="4096" data-ltr data-set-import-max ?disabled=${!api || !this.canEdit} .value=${String(this.value('cases.import_max_mb') ?? 512)} @change=${(e: Event) => this.set('cases.import_max_mb', Number((e.target as HTMLInputElement).value))} /></sw-field></div>`}
+        <div class="row"><span class="lbl">${tr('אזור זמן של האתר וה־NVR')}<span class="muted">${tr('IANA · חיפוש והקלטות מתורגמים לשעון הקיר של ה־NVR לפי הכלל הזה (כולל שעון קיץ)')}</span></span><sw-field class="ctl"><input type="text" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('time.zone') ?? 'Asia/Jerusalem')} @change=${(e: Event) => this.set('time.zone', (e.target as HTMLInputElement).value.trim())} /></sw-field></div>
+        <div class="row" data-set-fast-network-row><span class="lbl">${tr('שרת: רכיב תקשורת מהיר')}<span class="muted">${tr('רכיבי התקשורת המהירים (uvloop ו־httptools) במקום הרגילים. כבוי (ברירת המחדל) יציב יותר. השינוי חל אחרי הפעלה מחדש של התוסף')}</span></span>
           <sw-field class="ctl"><select data-set-fast-network ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('server.fast_network', (e.target as HTMLSelectElement).value)}>
-            <option value="false" ?selected=${String(this.value('server.fast_network') ?? 'false') !== 'true'}>כבוי</option><option value="true" ?selected=${String(this.value('server.fast_network') ?? 'false') === 'true'}>פעיל</option>
+            <option value="false" ?selected=${String(this.value('server.fast_network') ?? 'false') !== 'true'}>${tr('כבוי')}</option><option value="true" ?selected=${String(this.value('server.fast_network') ?? 'false') === 'true'}>${tr('פעיל')}</option>
           </select></sw-field></div>
-        <div class="row" data-set-video-notice-row><span class="lbl">התראה על שירות וידאו לא זמין<span class="muted">כמה זמן שירות הווידאו לא עונה לפני שמנהלי המערכת מקבלים התראה. הפסקה קצרה (הפעלה מחדש של השירות) לא שולחת התראה</span></span>
+        <div class="row" data-set-video-notice-row><span class="lbl">${tr('התראה על שירות וידאו לא זמין')}<span class="muted">${tr('כמה זמן שירות הווידאו לא עונה לפני שמנהלי המערכת מקבלים התראה. הפסקה קצרה (הפעלה מחדש של השירות) לא שולחת התראה')}</span></span>
           <sw-field class="ctl"><select data-set-video-notice-after ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.video_notice_after_min', Number((e.target as HTMLSelectElement).value))}>
-            ${NOTICE_AFTER_CHOICES.map((m) => html`<option value=${m} ?selected=${noticeAfterValue(this.value('media.video_notice_after_min')) === m}>אחרי ${noticeAfterLabel(m)}</option>`)}
+            ${NOTICE_AFTER_CHOICES.map((m) => html`<option value=${m} ?selected=${noticeAfterValue(this.value('media.video_notice_after_min')) === m}>${tr('אחרי {noticeAfterLabel}', { noticeAfterLabel: noticeAfterLabel(m) })}</option>`)}
           </select></sw-field></div>
         ${this.renderSaveRow({ tab: 'media', disabled: !dirty || this.busy || !api, onSave: () => this.save() })}
-        ${!api ? html`<div class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</div>` : nothing}
+        ${!api ? html`<div class="muted">${tr('נתוני הדגמה: ההגדרות נשמרות רק מול השרת.')}</div>` : nothing}
       </sw-card>
       ${NVR ? nothing : html`<system-timeline-colors></system-timeline-colors>`}
       ${this.renderSkins()}
-      <sw-card heading="שירות וידאו" subheading="שירותי הווידאו שנמצאו בהתקנה, מצבם, ובאיזה מהם המערכת משתמשת" data-video-services-card>
+      <sw-card heading=${tr('שירות וידאו')} subheading=${tr('שירותי הווידאו שנמצאו בהתקנה, מצבם, ובאיזה מהם המערכת משתמשת')} data-video-services-card>
         ${!api || !this.canEdit
-          ? html`<div class="muted">${api ? 'נדרשת הרשאת מנהל מערכת.' : 'נתוני הדגמה.'}</div>`
+          ? html`<div class="muted">${api ? tr('נדרשת הרשאת מנהל מערכת.') : tr('נתוני הדגמה.')}</div>`
           : html`<sw-video-service-picker @video-service-changed=${() => this.loadMedia()}></sw-video-service-picker>`}
       </sw-card>
-      <sw-card heading="go2rtc" subheading="זרמים של המוצר בשרת החיצוני (קריאה); זרמים זרים אינם מוצגים ואינם משתנים">
+      <sw-card heading="go2rtc" subheading=${tr('זרמים של המוצר בשרת החיצוני (קריאה); זרמים זרים אינם מוצגים ואינם משתנים')}>
         ${!api || !this.canEdit
-          ? html`<div class="muted">${api ? 'נדרשת הרשאת מנהל מערכת.' : 'נתוני הדגמה.'}</div>`
-          : html`<div class="row"><span class="lbl">שרת<span class="muted">${this.go2rtc ? `גרסה ${String((this.go2rtc as { version?: string }).version ?? '?')}` : 'לא נבדק'}</span></span><span class="end"><sw-button size="sm" icon="refresh" ?disabled=${this.busy} @click=${() => this.loadMedia()}>בדיקה</sw-button><sw-button size="sm" variant="primary" icon="link" ?disabled=${this.busy} @click=${() => this.sync()}>סנכרון זרמים</sw-button></span></div>
-              ${this.streams === null ? nothing : this.streams.length ? this.streams.map((st) => { const l = streamStateLabel(st); return html`<div class="stream" data-stream-state=${l.state}><span>${st.name}</span><span>${l.text}</span></div>`; }) : html`<div class="muted">אין עדיין זרמים של המוצר — לחץ "סנכרון זרמים".</div>`}
-              ${this.streams !== null ? html`<div class="muted" style="margin-block-start:6px">${this.foreign} זרמים זרים (אינטרקום, מצלמות אחרות) קיימים בשרת ולא נגענו בהם.</div>` : nothing}`}
+          ? html`<div class="muted">${api ? tr('נדרשת הרשאת מנהל מערכת.') : tr('נתוני הדגמה.')}</div>`
+          : html`<div class="row"><span class="lbl">${tr('שרת')}<span class="muted">${this.go2rtc ? tr('גרסה {v}', { v: String((this.go2rtc as { version?: string }).version ?? '?') }) : tr('לא נבדק')}</span></span><span class="end"><sw-button size="sm" icon="refresh" ?disabled=${this.busy} @click=${() => this.loadMedia()}>${tr('בדיקה')}</sw-button><sw-button size="sm" variant="primary" icon="link" ?disabled=${this.busy} @click=${() => this.sync()}>${tr('סנכרון זרמים')}</sw-button></span></div>
+              ${this.streams === null ? nothing : this.streams.length ? this.streams.map((st) => { const l = streamStateLabel(st); return html`<div class="stream" data-stream-state=${l.state}><span>${st.name}</span><span>${l.text}</span></div>`; }) : html`<div class="muted">${tr('אין עדיין זרמים של המוצר — לחץ "סנכרון זרמים".')}</div>`}
+              ${this.streams !== null ? html`<div class="muted" style="margin-block-start:6px">${tr('{foreign} זרמים זרים (אינטרקום, מצלמות אחרות) קיימים בשרת ולא נגענו בהם.', { foreign: this.foreign })}</div>` : nothing}`}
       </sw-card>
       ${api && this.canEdit
-        ? html`<sw-card heading="זרמים חיים כרגע" subheading="sessions דרך ה־relay של ה־Add-on">
-            ${this.sessions.length ? this.sessions.map((x) => html`<div class="row"><span class="lbl">${x.stream}<span class="muted">${x.username} · ${x.seconds} שנ׳ · ${(x.bytes_down / 1024 / 1024).toFixed(1)} MB</span></span></div>`) : html`<div class="muted">אין זרמים פתוחים.</div>`}
+        ? html`<sw-card heading=${tr('זרמים חיים כרגע')} subheading=${tr('sessions דרך ה־relay של ה־Add-on')}>
+            ${this.sessions.length ? this.sessions.map((x) => html`<div class="row"><span class="lbl">${x.stream}<span class="muted">${tr('{username} · {seconds} שנ׳ · {v} MB', { username: x.username, seconds: x.seconds, v: (x.bytes_down / 1024 / 1024).toFixed(1) })}</span></span></div>`) : html`<div class="muted">${tr('אין זרמים פתוחים.')}</div>`}
           </sw-card>`
         : nothing}
     </div>`;
@@ -1403,9 +1403,9 @@ export class SystemDiagnostics extends LitElement {
   private renderDefaultFloor(api: boolean) {
     const current = String(this.value('map.default_floor') ?? '');
     const groups = this.floorTree.flatMap((s) => (s.buildings ?? []).map((b) => ({ label: `${s.name} ‹ ${b.name}`, floors: b.floors ?? [] }))).filter((g) => g.floors.length);
-    return html`<div class="row"><span class="lbl">קומת ברירת מחדל במפה<span class="muted">הקומה שנפתחת ראשונה כשנכנסים ללשונית "מפת קומה"; אוטומטי: הקומה הראשונה שהמשתמש רשאי לראות. משתמש שאינו רשאי לראות את הקומה שנבחרה מקבל את הקומה הראשונה שלו</span></span>
+    return html`<div class="row"><span class="lbl">${tr('קומת ברירת מחדל במפה')}<span class="muted">${tr('הקומה שנפתחת ראשונה כשנכנסים ללשונית "מפת קומה"; אוטומטי: הקומה הראשונה שהמשתמש רשאי לראות. משתמש שאינו רשאי לראות את הקומה שנבחרה מקבל את הקומה הראשונה שלו')}</span></span>
       <sw-field class="ctl"><select data-set-default-floor ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('map.default_floor', (e.target as HTMLSelectElement).value)}>
-        <option value="" ?selected=${current === ''}>אוטומטי</option>
+        <option value="" ?selected=${current === ''}>${tr('אוטומטי')}</option>
         ${groups.map((g) => html`<optgroup label=${g.label}>${g.floors.map((f) => html`<option value=${f.id} ?selected=${f.id === current}>${f.name}</option>`)}</optgroup>`)}
       </select></sw-field></div>`;
   }
@@ -1419,28 +1419,28 @@ export class SystemDiagnostics extends LitElement {
     const sel = (key: keyof ProductSettings, dflt: string, attr: string, options: [string, string][]) => html`<sw-field class="ctl"><select data-set=${attr} ?disabled=${!api || !this.canEdit}
         @change=${(e: Event) => this.set(key, (e.target as HTMLSelectElement).value as never)}>${options.map(([v, l]) => html`<option value=${v} ?selected=${String(this.value(key) ?? dflt) === v}>${l}</option>`)}</select></sw-field>`;
     return html`<div class="sections">
-      <sw-card heading="מפה" subheading="איך מפות הקומה נפתחות ומה מוצג בסרגל המפלסים" data-settings-map>
+      <sw-card heading=${tr('מפה')} subheading=${tr('איך מפות הקומה נפתחות ומה מוצג בסרגל המפלסים')} data-settings-map>
         ${this.renderDefaultFloor(api)}
-        <div class="row"><span class="lbl">תצוגת פתיחה של מפה<span class="muted">המפה החיה, המפה ההיסטורית ודף האירוע נפתחים בתצוגה הזו כשלקומה יש מבנה; הכפתור 2D / 3D ממשיך להחליף בכל ביקור</span></span>
-          ${sel('map.default_view', '2d', 'map-default-view', [['2d', 'דו-ממד (2D)'], ['3d', 'תלת-ממד (3D)']])}</div>
-        <div class="row"><span class="lbl">מפלסים בפתיחת מפה<span class="muted">המפלס שמוצג כברירת מחדל בכל מפה; שבבי המפלסים ממשיכים לאפשר מעבר בין מפלסים</span></span>
-          ${sel('plan.levels', 'all', 'map-plan-levels', [['all', 'כל המפלסים יחד'], ['default', 'מפלס ברירת המחדל של הקומה']])}</div>
-        <div class="row"><span class="lbl">מפלסים של חלל משותף<span class="muted">בעורך של הקומה שמציגה חלל משותף (חלל בגובה כפול שהרצפה שלו בקומה אחרת): להציג בסרגל המפלסים גם את מפלסי הקומה שלו ("מפלס ראשי · קומה -1")</span></span>
-          ${sel('map.shared_levels', 'show', 'map-shared-levels', [['show', 'מוצגים'], ['hide', 'מוסתרים']])}</div>
-        <div class="row" data-plan-surfaces><span class="lbl">התוכנית החיה מחוץ ללשונית המפה<span class="muted">איפה עוד מוצגת תוכנית הקומה עם מצבי החדרים; כל מקום לחוד</span></span>
+        <div class="row"><span class="lbl">${tr('תצוגת פתיחה של מפה')}<span class="muted">${tr('המפה החיה, המפה ההיסטורית ודף האירוע נפתחים בתצוגה הזו כשלקומה יש מבנה; הכפתור 2D / 3D ממשיך להחליף בכל ביקור')}</span></span>
+          ${sel('map.default_view', '2d', 'map-default-view', [['2d', tr('דו-ממד (2D)')], ['3d', tr('תלת-ממד (3D)')]])}</div>
+        <div class="row"><span class="lbl">${tr('מפלסים בפתיחת מפה')}<span class="muted">${tr('המפלס שמוצג כברירת מחדל בכל מפה; שבבי המפלסים ממשיכים לאפשר מעבר בין מפלסים')}</span></span>
+          ${sel('plan.levels', 'all', 'map-plan-levels', [['all', tr('כל המפלסים יחד')], ['default', tr('מפלס ברירת המחדל של הקומה')]])}</div>
+        <div class="row"><span class="lbl">${tr('מפלסים של חלל משותף')}<span class="muted">${tr('בעורך של הקומה שמציגה חלל משותף (חלל בגובה כפול שהרצפה שלו בקומה אחרת): להציג בסרגל המפלסים גם את מפלסי הקומה שלו ("מפלס ראשי · קומה -1")')}</span></span>
+          ${sel('map.shared_levels', 'show', 'map-shared-levels', [['show', tr('מוצגים')], ['hide', tr('מוסתרים')]])}</div>
+        <div class="row" data-plan-surfaces><span class="lbl">${tr('התוכנית החיה מחוץ ללשונית המפה')}<span class="muted">${tr('איפה עוד מוצגת תוכנית הקומה עם מצבי החדרים; כל מקום לחוד')}</span></span>
           <span class="ctl" style="display:flex;flex-direction:column;gap:6px">
-            ${([['devices', 'תצוגת "תוכנית" במסך חשמל והתקנים (העץ נשאר בצד)'], ['area', 'כרטיס "על התוכנית" בדף האזור']] as const).map(([v, l]) => html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${l} data-set-plan-surface=${v} ?disabled=${!api || !this.canEdit} .checked=${surfaces.includes(v)} @change=${(e: Event) => this.set('plan.surfaces', toggled(e) ? [...surfaces.filter((x) => x !== v), v] : surfaces.filter((x) => x !== v))}></sw-toggle> ${l}</label>`)}
+            ${([['devices', tr('תצוגת "תוכנית" במסך חשמל והתקנים (העץ נשאר בצד)')], ['area', tr('כרטיס "על התוכנית" בדף האזור')]] as const).map(([v, l]) => html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${l} data-set-plan-surface=${v} ?disabled=${!api || !this.canEdit} .checked=${surfaces.includes(v)} @change=${(e: Event) => this.set('plan.surfaces', toggled(e) ? [...surfaces.filter((x) => x !== v), v] : surfaces.filter((x) => x !== v))}></sw-toggle> ${l}</label>`)}
           </span></div>
-        <div class="row" data-camsuggest-distance><span class="lbl">הצעת מצלמה לאזור: טווח מרבי<span class="muted">בעורך התוכנית, כפתור "הצע מצלמה קרובה" באזור מציע רק מצלמות שנמצאות בתוך הטווח הזה מקצה האזור, באחוזים מרוחב התוכנית. ההצעה לא נשמרת עד שלוחצים "קבל"</span></span>
+        <div class="row" data-camsuggest-distance><span class="lbl">${tr('הצעת מצלמה לאזור: טווח מרבי')}<span class="muted">${tr('בעורך התוכנית, כפתור "הצע מצלמה קרובה" באזור מציע רק מצלמות שנמצאות בתוך הטווח הזה מקצה האזור, באחוזים מרוחב התוכנית. ההצעה לא נשמרת עד שלוחצים "קבל"')}</span></span>
           ${sel('plan.camsuggest_distance', '35', 'camsuggest-distance', [['10', '10%'], ['20', '20%'], ['35', '35%'], ['50', '50%'], ['75', '75%'], ['100', '100%']])}</div>
-        <div class="row" data-camsuggest-fov><span class="lbl">הצעת מצלמה לאזור: משקל כיוון הצילום<span class="muted">מצלמה עם שדה ראייה ידוע שאינה פונה אל האזור יורדת בדירוג; "מרחק בלבד" מתעלם מהכיוון, "חובה" מסתיר מצלמה שמחטיאה את האזור לגמרי</span></span>
-          ${sel('plan.camsuggest_fov', '50', 'camsuggest-fov', [['0', 'מרחק בלבד'], ['25', 'נמוך'], ['50', 'בינוני'], ['75', 'גבוה'], ['100', 'חובה']])}</div>
-        <div class="row" data-camsuggest-count><span class="lbl">הצעת מצלמה לאזור: מספר הצעות</span>
-          ${sel('plan.camsuggest_count', '3', 'camsuggest-count', [['1', 'אחת'], ['2', 'שתיים'], ['3', 'שלוש']])}</div>
+        <div class="row" data-camsuggest-fov><span class="lbl">${tr('הצעת מצלמה לאזור: משקל כיוון הצילום')}<span class="muted">${tr('מצלמה עם שדה ראייה ידוע שאינה פונה אל האזור יורדת בדירוג; "מרחק בלבד" מתעלם מהכיוון, "חובה" מסתיר מצלמה שמחטיאה את האזור לגמרי')}</span></span>
+          ${sel('plan.camsuggest_fov', '50', 'camsuggest-fov', [['0', tr('מרחק בלבד')], ['25', tr('נמוך')], ['50', tr('בינוני')], ['75', tr('גבוה')], ['100', tr('חובה')]])}</div>
+        <div class="row" data-camsuggest-count><span class="lbl">${tr('הצעת מצלמה לאזור: מספר הצעות')}</span>
+          ${sel('plan.camsuggest_count', '3', 'camsuggest-count', [['1', tr('אחת')], ['2', tr('שתיים')], ['3', tr('שלוש')]])}</div>
         <!-- PLAN3D-R32-ANSWERS-2438 (owner round 32): the 3D map's rows (room labels, room card, all floors) moved into the one
              "מפה תלת־ממדית" card below (system-plan-view), with the look dials and the plan wizard's thresholds -->
         ${this.renderSaveRow({ tab: 'map', hook: 'data-save-map', disabled: !dirty || this.busy || !api, onSave: () => this.save() })}
-        ${!api ? html`<div class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</div>` : nothing}
+        ${!api ? html`<div class="muted">${tr('נתוני הדגמה: ההגדרות נשמרות רק מול השרת.')}</div>` : nothing}
       </sw-card>
       <system-plan-view data-section="plan-view"></system-plan-view>
       ${api && this.canEdit ? html`<plan-area-links-admin data-section="area-links"></plan-area-links-admin>` : nothing}
@@ -1456,37 +1456,37 @@ export class SystemDiagnostics extends LitElement {
     const dirty = keys.some((k) => k in this.draft);
     const ack = String(this.value('skins.privacy_ack') ?? 'false') === 'true';
     const t = this.skinsTest;
-    return html`<sw-card data-skins heading="סקינים מרונדרים (AI)" subheading="תמונה פוטוריאליסטית של קומה מספק רינדור חיצוני — נשלחת רק אחרי אישור, פעם אחת לקומה, ונשמרת לשימוש חוזר">
-      <div class="row"><span class="lbl">ספק ומודל<span class="muted">OpenAI (עריכת תמונה לפי תמונת בקרה). המודל ניתן לשינוי כשיוצא מודל חדש</span></span>
+    return html`<sw-card data-skins heading=${tr('סקינים מרונדרים (AI)')} subheading=${tr('תמונה פוטוריאליסטית של קומה מספק רינדור חיצוני — נשלחת רק אחרי אישור, פעם אחת לקומה, ונשמרת לשימוש חוזר')}>
+      <div class="row"><span class="lbl">${tr('ספק ומודל')}<span class="muted">${tr('OpenAI (עריכת תמונה לפי תמונת בקרה). המודל ניתן לשינוי כשיוצא מודל חדש')}</span></span>
         <sw-field class="ctl"><input type="text" data-ltr data-set-skins-model ?disabled=${!api || !this.canEdit} .value=${String(this.value('skins.model') ?? 'gpt-image-1.5')} @change=${(e: Event) => this.set('skins.model', (e.target as HTMLInputElement).value.trim())} /></sw-field></div>
-      <div class="row" data-skins-key><span class="lbl">מפתח API<span class="muted">מוזן בהגדרות ‹ חיבורים ‹ סודות ונשמר מוצפן; לא ביומנים, והמסך יודע רק אם הוגדר</span></span>
-        <sw-badge kind=${st?.key_configured ? 'live' : 'unknown'} label=${!st ? '—' : st.key_configured ? 'מוגדר' : 'לא מוגדר'}></sw-badge></div>
-      <div class="row" data-skins-leaves style="flex-direction:column;align-items:stretch"><span class="lbl">מה יוצא מהמתקן לספק כשנשלח רינדור</span>
+      <div class="row" data-skins-key><span class="lbl">${tr('מפתח API')}<span class="muted">${tr('מוזן בהגדרות ‹ חיבורים ‹ סודות ונשמר מוצפן; לא ביומנים, והמסך יודע רק אם הוגדר')}</span></span>
+        <sw-badge kind=${st?.key_configured ? 'live' : 'unknown'} label=${!st ? '—' : st.key_configured ? tr('מוגדר') : tr('לא מוגדר')}></sw-badge></div>
+      <div class="row" data-skins-leaves style="flex-direction:column;align-items:stretch"><span class="lbl">${tr('מה יוצא מהמתקן לספק כשנשלח רינדור')}</span>
         <ul class="steps">${(st?.leaves ?? []).map((x) => html`<li>${x}</li>`)}</ul>
-        <span class="lbl">מה לעולם לא נשלח</span>
+        <span class="lbl">${tr('מה לעולם לא נשלח')}</span>
         <ul class="steps">${(st?.never_leaves ?? []).map((x) => html`<li>${x}</li>`)}</ul></div>
-      <div class="row"><span class="lbl">אישור פרטיות<span class="muted">כל עוד לא אושר, שום דבר לא נשלח — גם לא בדיקת החיבור</span></span>
+      <div class="row"><span class="lbl">${tr('אישור פרטיות')}<span class="muted">${tr('כל עוד לא אושר, שום דבר לא נשלח — גם לא בדיקת החיבור')}</span></span>
         <sw-field class="ctl"><select data-set-skins-ack ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('skins.privacy_ack', (e.target as HTMLSelectElement).value as 'true' | 'false')}>
-          <option value="false" ?selected=${!ack}>לא אושר — לא נשלח דבר</option><option value="true" ?selected=${ack}>אושר — מותר לשלוח את המתואר למעלה</option>
+          <option value="false" ?selected=${!ack}>${tr('לא אושר — לא נשלח דבר')}</option><option value="true" ?selected=${ack}>${tr('אושר — מותר לשלוח את המתואר למעלה')}</option>
         </select></sw-field></div>
-      <div class="row"><span class="lbl">רינדורים לקומה<span class="muted">לכל קומה ולכל גרסת מבנה (ברירת מחדל 4)</span></span><sw-field class="ctl"><input type="number" min="0" max="6" data-ltr data-set-skins-per-floor ?disabled=${!api || !this.canEdit} .value=${String(this.value('skins.budget_renders_per_floor') ?? 4)} @change=${(e: Event) => this.set('skins.budget_renders_per_floor', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
-      <div class="row"><span class="lbl">רינדורים בחודש<span class="muted">${st ? `נוצלו החודש ${st.budget.used_month} מתוך ${st.budget.monthly_cap} (כולל בדיקות חיבור)` : 'לכל ההתקנה, לחודש קלנדרי'}</span></span><sw-field class="ctl"><input type="number" min="0" max="500" data-ltr data-set-skins-monthly ?disabled=${!api || !this.canEdit} .value=${String(this.value('skins.budget_monthly') ?? 20)} @change=${(e: Event) => this.set('skins.budget_monthly', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
-      ${st ? html`<div class="muted" data-skins-estimate>הערכת עלות לרינדור של קומה (${st.estimate.size}, ${st.estimate.quality}): כ־$${st.estimate.cost_estimate_usd} — הערכה בלבד, לא מחירון מאומת; העלות בפועל מופיעה בחשבון OpenAI.</div>` : nothing}
+      <div class="row"><span class="lbl">${tr('רינדורים לקומה')}<span class="muted">${tr('לכל קומה ולכל גרסת מבנה (ברירת מחדל 4)')}</span></span><sw-field class="ctl"><input type="number" min="0" max="6" data-ltr data-set-skins-per-floor ?disabled=${!api || !this.canEdit} .value=${String(this.value('skins.budget_renders_per_floor') ?? 4)} @change=${(e: Event) => this.set('skins.budget_renders_per_floor', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+      <div class="row"><span class="lbl">${tr('רינדורים בחודש')}<span class="muted">${st ? tr('נוצלו החודש {used_month} מתוך {monthly_cap} (כולל בדיקות חיבור)', { used_month: st.budget.used_month, monthly_cap: st.budget.monthly_cap }) : tr('לכל ההתקנה, לחודש קלנדרי')}</span></span><sw-field class="ctl"><input type="number" min="0" max="500" data-ltr data-set-skins-monthly ?disabled=${!api || !this.canEdit} .value=${String(this.value('skins.budget_monthly') ?? 20)} @change=${(e: Event) => this.set('skins.budget_monthly', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+      ${st ? html`<div class="muted" data-skins-estimate>${tr('הערכת עלות לרינדור של קומה ({estimateCount}, {quality}): כ־${cost_estimate_usd} — הערכה בלבד, לא מחירון מאומת; העלות בפועל מופיעה בחשבון OpenAI.', { estimateCount: st.estimate.size, quality: st.estimate.quality, cost_estimate_usd: st.estimate.cost_estimate_usd })}</div>` : nothing}
       ${this.canEdit && api
         ? html`<div class="foot">
-            <sw-button variant="primary" icon="check" data-save-skins ?disabled=${!dirty || this.busy} @click=${() => this.save().then(() => this.loadSkins())}>שמור</sw-button>
-            <sw-button icon="send" data-skins-test ?disabled=${this.skinsBusy || dirty} @click=${() => this.runSkinsTest()}>בדיקת חיבור לספק הרינדור</sw-button>
-            ${dirty ? html`<span class="muted" style="align-self:center">שמור קודם — הבדיקה משתמשת בהגדרות השמורות</span>` : nothing}
+            <sw-button variant="primary" icon="check" data-save-skins ?disabled=${!dirty || this.busy} @click=${() => this.save().then(() => this.loadSkins())}>${tr('שמור')}</sw-button>
+            <sw-button icon="send" data-skins-test ?disabled=${this.skinsBusy || dirty} @click=${() => this.runSkinsTest()}>${tr('בדיקת חיבור לספק הרינדור')}</sw-button>
+            ${dirty ? html`<span class="muted" style="align-self:center">${tr('שמור קודם — הבדיקה משתמשת בהגדרות השמורות')}</span>` : nothing}
           </div>
-          <div class="muted">הבדיקה שולחת תמונת ניסיון סינתטית אחת בגודל 64×64 (פסי צבע ולוח שחמט — לא תוכנית ולא תמונה מהמתקן) עם הנחיה קבועה, נרשמת ביומן, ונספרת בתקציב החודשי.</div>`
+          <div class="muted">${tr('הבדיקה שולחת תמונת ניסיון סינתטית אחת בגודל 64×64 (פסי צבע ולוח שחמט — לא תוכנית ולא תמונה מהמתקן) עם הנחיה קבועה, נרשמת ביומן, ונספרת בתקציב החודשי.')}</div>`
         : nothing}
-      ${this.skinsBusy ? html`<div class="muted" data-skins-test-busy>שולח בקשת בדיקה…</div>` : nothing}
+      ${this.skinsBusy ? html`<div class="muted" data-skins-test-busy>${tr('שולח בקשת בדיקה…')}</div>` : nothing}
       ${this.skinsError ? html`<div class="err" data-skins-test-error>${this.skinsError}</div>` : nothing}
       ${t
-        ? html`<div class="row" data-skins-test-result data-ok=${t.ok ? 'true' : 'false'}><span class="lbl">${t.ok ? `הספק ענה: HTTP ${t.http_status}` : t.http_status ? `הספק סירב: HTTP ${t.http_status}` : 'הספק לא ענה'}<span class="muted">${t.model}${t.message ? ` · ${t.message}` : ''}${t.request_id ? ` · ${t.request_id}` : ''}${t.ok && !t.image ? ' · התשובה לא כללה תמונה' : ''}</span></span>
-            ${t.image ? html`<img data-skins-test-image src=${t.image} alt="תשובת הספק לבדיקה" style="inline-size:96px;block-size:96px;object-fit:cover;border-radius:var(--sw-r-xs);border:1px solid var(--sw-border)" />` : nothing}</div>`
+        ? html`<div class="row" data-skins-test-result data-ok=${t.ok ? 'true' : 'false'}><span class="lbl">${t.ok ? tr('הספק ענה: HTTP {http_status}', { http_status: t.http_status }) : t.http_status ? tr('הספק סירב: HTTP {http_status}', { http_status: t.http_status }) : tr('הספק לא ענה')}<span class="muted">${t.model}${t.message ? ` · ${t.message}` : ''}${t.request_id ? ` · ${t.request_id}` : ''}${t.ok && !t.image ? tr(' · התשובה לא כללה תמונה') : ''}</span></span>
+            ${t.image ? html`<img data-skins-test-image src=${t.image} alt=${tr('תשובת הספק לבדיקה')} style="inline-size:96px;block-size:96px;object-fit:cover;border-radius:var(--sw-r-xs);border:1px solid var(--sw-border)" />` : nothing}</div>`
         : st?.last_test
-          ? html`<div class="muted" data-skins-last-test>בדיקה אחרונה: ${fmtTime(st.last_test.created_at)} · ${st.last_test.status === 'ok' ? 'הצליחה' : `נכשלה (${st.last_test.error_code ?? st.last_test.http_status ?? ''})`}</div>`
+          ? html`<div class="muted" data-skins-last-test>${tr('בדיקה אחרונה: {fmtTime} · {v}', { fmtTime: fmtTime(st.last_test.created_at), v: st.last_test.status === 'ok' ? tr('הצליחה') : tr('נכשלה ({v})', { v: st.last_test.error_code ?? st.last_test.http_status ?? '' }) })}</div>`
           : nothing}
     </sw-card>`;
   }
@@ -1538,9 +1538,9 @@ export class SystemDiagnostics extends LitElement {
   }
 
   private rowHideWiskey(api: boolean) {
-    return html`<div class="row"><span class="lbl">הצג את WisKey במערכת<span class="muted">הסתרה מסירה את כל אזור WisKey מהניווט לכל המשתמשים, ללא תלות בתפקיד; הבחירות למסכים הבודדים למטה חלות רק כשהאזור מוצג</span></span>
+    return html`<div class="row"><span class="lbl">${tr('הצג את WisKey במערכת')}<span class="muted">${tr('הסתרה מסירה את כל אזור WisKey מהניווט לכל המשתמשים, ללא תלות בתפקיד; הבחירות למסכים הבודדים למטה חלות רק כשהאזור מוצג')}</span></span>
           <sw-field class="ctl"><select data-set-hide-wiskey ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_wiskey', (e.target as HTMLSelectElement).value)}>
-            <option value="false" ?selected=${String(this.value('ui.hide_wiskey') ?? 'false') !== 'true'}>מוצג</option><option value="true" ?selected=${String(this.value('ui.hide_wiskey') ?? 'false') === 'true'}>מוסתר</option>
+            <option value="false" ?selected=${String(this.value('ui.hide_wiskey') ?? 'false') !== 'true'}>${tr('מוצג')}</option><option value="true" ?selected=${String(this.value('ui.hide_wiskey') ?? 'false') === 'true'}>${tr('מוסתר')}</option>
           </select></sw-field></div>`;
   }
 
@@ -1548,16 +1548,16 @@ export class SystemDiagnostics extends LitElement {
     return ACCESS_SCREENS.map(
       (a) => html`<div class="row"><span class="lbl">${a.label}<span class="muted">${a.detail} · <span class="ltr">${a.href}</span></span></span>
             <sw-field class="ctl"><select data-set-access-ui=${a.screen} ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set(`access.ui.${a.screen}`, (e.target as HTMLSelectElement).value as 'wiskey' | 'smplwise')}>
-              <option value="wiskey" ?selected=${this.accessChoice(a.screen) === 'wiskey'}>WisKey (מוטמע)</option>
+              <option value="wiskey" ?selected=${this.accessChoice(a.screen) === 'wiskey'}>${tr('WisKey (מוטמע)')}</option>
               <option value="smplwise" ?selected=${this.accessChoice(a.screen) === 'smplwise'}>Arx</option>
             </select></sw-field></div>`,
     );
   }
 
   private rowPhoneEmbed(api: boolean) {
-    return html`<div class="row"><span class="lbl">הטמעה גם באפליקציית הטלפון (ניסיוני)<span class="muted">כבוי: באפליקציית הטלפון WisKey לא מוטמע - מוצג המסך של Arx או הערה, עם "פתח ב-WisKey". מופעל: Arx מעביר את ההזדהות של האפליקציה לתשתית המערכת שבתוך המסגרת. אם ההזדהות לא מצליחה, המסך חוזר לבד להתנהגות הרגילה.</span></span>
+    return html`<div class="row"><span class="lbl">${tr('הטמעה גם באפליקציית הטלפון (ניסיוני)')}<span class="muted">${tr('כבוי: באפליקציית הטלפון WisKey לא מוטמע - מוצג המסך של Arx או הערה, עם "פתח ב-WisKey". מופעל: Arx מעביר את ההזדהות של האפליקציה לתשתית המערכת שבתוך המסגרת. אם ההזדהות לא מצליחה, המסך חוזר לבד להתנהגות הרגילה.')}</span></span>
           <sw-field class="ctl"><select data-set-phone-embed ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('access.phone_embed', (e.target as HTMLSelectElement).value)}>
-            <option value="false" ?selected=${String(this.value('access.phone_embed') ?? 'false') !== 'true'}>כבוי</option><option value="true" ?selected=${String(this.value('access.phone_embed') ?? 'false') === 'true'}>מופעל</option>
+            <option value="false" ?selected=${String(this.value('access.phone_embed') ?? 'false') !== 'true'}>${tr('כבוי')}</option><option value="true" ?selected=${String(this.value('access.phone_embed') ?? 'false') === 'true'}>${tr('מופעל')}</option>
           </select></sw-field></div>`;
   }
 
@@ -1572,26 +1572,26 @@ export class SystemDiagnostics extends LitElement {
   }
 
   private rowFixed() {
-    return html`<div class="row" data-access-ui-fixed><span class="lbl">שאר מסכי WisKey (סנכרון, בריאות, יומן שינויים, ניהול)<span class="muted">קיימים רק ב־WisKey, ולכן תמיד מוטמעים</span></span><sw-field class="ctl"><select disabled><option selected>WisKey (מוטמע) · קבוע</option></select></sw-field></div>`;
+    return html`<div class="row" data-access-ui-fixed><span class="lbl">${tr('שאר מסכי WisKey (סנכרון, בריאות, יומן שינויים, ניהול)')}<span class="muted">${tr('קיימים רק ב־WisKey, ולכן תמיד מוטמעים')}</span></span><sw-field class="ctl"><select disabled><option selected>${tr('WisKey (מוטמע) · קבוע')}</option></select></sw-field></div>`;
   }
 
   private accessNotes() {
-    return html`<div class="muted" style="margin-block-start:8px">במסך מוטמע הדפדפן מריץ את הממשק של WisKey עצמו בתוך תשתית המערכת, עם החיבור של המשתמש אליה: ההרשאות, האישורים והאודיט שם הם של WisKey, לא של Arx. "פתח בחלון מלא" פותח את אותו לוח בלשונית נפרדת.</div>
-        <div class="muted" data-access-ui-embed-api style="margin-block-start:6px">ההטמעה משתמשת בממשק ההטמעה של WisKey (WisKey 2.0.0-rc.19 ומעלה): הלשוניות נבנות מהמסכים ש־WisKey מתיר למשתמש והמעבר ביניהן נעשה בהודעות; בגרסאות WisKey ישנות יותר ההטמעה עוברת אוטומטית לשיטה הקודמת.</div>
-        <div class="muted" data-access-ui-warning style="margin-block-start:6px;color:var(--sw-text)"><b>שים לב:</b> משתמש שחשבון תשתית המערכת שלו מחזיק ב־WisKey הרשאת ניהול (manage), או שהוא מנהל תשתית המערכת, יכול בתוך WisKey המוטמע לפתוח דלתות ולערוך אנשים (PIN, כרטיסים, תוקף) — בלי שלב האישור של Arx ובלי רישום באודיט של Arx. התיעוד של הפעולות האלה נמצא רק ביומן של WisKey.</div>`;
+    return html`<div class="muted" style="margin-block-start:8px">${tr('במסך מוטמע הדפדפן מריץ את הממשק של WisKey עצמו בתוך תשתית המערכת, עם החיבור של המשתמש אליה: ההרשאות, האישורים והאודיט שם הם של WisKey, לא של Arx. "פתח בחלון מלא" פותח את אותו לוח בלשונית נפרדת.')}</div>
+        <div class="muted" data-access-ui-embed-api style="margin-block-start:6px">${tr('ההטמעה משתמשת בממשק ההטמעה של WisKey (WisKey 2.0.0-rc.19 ומעלה): הלשוניות נבנות מהמסכים ש־WisKey מתיר למשתמש והמעבר ביניהן נעשה בהודעות; בגרסאות WisKey ישנות יותר ההטמעה עוברת אוטומטית לשיטה הקודמת.')}</div>
+        <div class="muted" data-access-ui-warning style="margin-block-start:6px;color:var(--sw-text)"><b>${tr('שים לב:')}</b> ${tr('משתמש שחשבון תשתית המערכת שלו מחזיק ב־WisKey הרשאת ניהול (manage), או שהוא מנהל תשתית המערכת, יכול בתוך WisKey המוטמע לפתוח דלתות ולערוך אנשים (PIN, כרטיסים, תוקף) — בלי שלב האישור של Arx ובלי רישום באודיט של Arx. התיעוד של הפעולות האלה נמצא רק ביומן של WisKey.')}</div>`;
   }
 
   private accessSave(api: boolean, hook: string, dirty: boolean) {
     return this.canEdit
       ? this.renderSaveRow({ tab: 'access-control', hook, disabled: !dirty || this.busy || !api, onSave: () => this.save() })
-      : html`<div class="muted">${api ? 'שינוי הבחירה דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`;
+      : html`<div class="muted">${api ? tr('שינוי הבחירה דורש הרשאת מנהל מערכת.') : tr('נתוני הדגמה: ההגדרות נשמרות רק מול השרת.')}</div>`;
   }
 
   /** Layouts c and b: the 2.40.0 single list (+ the layout row); b moves the announcements and the call banner to "הכרזות וקול". */
   private renderAccessList(layout: AccessLayout) {
     const api = isApi();
     return html`<div class="sections" data-access-layout=${layout}>
-      <sw-card heading="מתגי מסכי כניסה" subheading="לכל מסך: הממשק המקורי של WisKey מוטמע כמו שהוא, או המסך שנבנה ב־Arx. הלשונית נשארת באותו מקום ובאותו שם.">
+      <sw-card heading=${tr('מתגי מסכי כניסה')} subheading=${tr('לכל מסך: הממשק המקורי של WisKey מוטמע כמו שהוא, או המסך שנבנה ב־Arx. הלשונית נשארת באותו מקום ובאותו שם.')}>
         ${this.rowHideWiskey(api)}
         ${this.rowsScreens(api)}
         ${this.rowPhoneEmbed(api)}
@@ -1698,63 +1698,63 @@ export class SystemDiagnostics extends LitElement {
     const idle = v('remote.session', 'rolling_90d') === 'rolling_90d_idle_lock';
     return html`<div class="sections" data-remote-settings>
       ${inAndroidApp()
-        ? html`<sw-card heading="אפליקציית Android" subheading="האפליקציה שומרת רשימת שרתים; אפשר לעבור ביניהם בכל רגע." data-remote-android-app>
-            <div class="row" data-remote-android-switch><span class="lbl">שרתים באפליקציה<span class="muted">רשימת השרתים של האפליקציה: מעבר לשרת אחר, הוספה ועריכה</span></span><sw-button size="sm" icon="list" data-arx-switch-server @click=${() => switchServer()}>החלף שרת</sw-button></div>
+        ? html`<sw-card heading=${tr('אפליקציית Android')} subheading=${tr('האפליקציה שומרת רשימת שרתים; אפשר לעבור ביניהם בכל רגע.')} data-remote-android-app>
+            <div class="row" data-remote-android-switch><span class="lbl">${tr('שרתים באפליקציה')}<span class="muted">${tr('רשימת השרתים של האפליקציה: מעבר לשרת אחר, הוספה ועריכה')}</span></span><sw-button size="sm" icon="list" data-arx-switch-server @click=${() => switchServer()}>${tr('החלף שרת')}</sw-button></div>
           </sw-card>`
         : nothing}
-      <sw-card heading="גישה מרחוק · SmplWise Arx" subheading="כניסה דרך https://&lt;שם ה־Home Assistant&gt;/arx עם מסך הכניסה של המערכת (שם משתמש וסיסמה של Home Assistant). הערוץ עצמו מופעל באפשרות ה־add-on remote_access.">
-        <div class="row"><span class="lbl">מי רשאי להיכנס מרחוק<span class="muted">דגל אישי: רק משתמשים שהופעלה להם גישה מרחוק במסך משתמשים והרשאות · כל בעל תפקיד: כל משתמש Home Assistant עם תפקיד כלשהו במערכת</span></span>
-          ${sel('remote.policy', 'flag', [['flag', 'דגל אישי לכל משתמש'], ['any_role', 'כל משתמש עם תפקיד']])}</div>
-        <div class="row" data-remote-admins-default-row><span class="lbl">מנהלים – גישה מרחוק כברירת מחדל<span class="muted">מנהל מערכת נכנס מרחוק בלי דגל אישי · חל על "דגל אישי לכל משתמש"</span></span>
-          ${sel('remote.admins_default', 'true', [['true', 'מופעלת'], ['false', 'כבויה']])}</div>
-        <div class="row"><span class="lbl">שמירת הכניסה בדפדפן<span class="muted">90 יום מתחדשים: כמו האפליקציה של Home Assistant · עד סגירת הדפדפן: הכניסה נמחקת בסגירה · 90 יום עם נעילה: כניסה חוזרת אחרי זמן ללא פעילות</span></span>
-          ${sel('remote.session', 'rolling_90d', [['rolling_90d', '90 יום מתחדשים'], ['browser_session', 'עד סגירת הדפדפן'], ['rolling_90d_idle_lock', '90 יום עם נעילה בחוסר פעילות']])}</div>
-        <div class="muted" data-remote-shared-login style="margin-block-start:6px">שימו לב: הכניסה ל־Arx מחברת את אותו דפדפן גם ל־Home Assistant בכתובת <span class="ltr">/</span> של אותו שם מתחם (כדי ש־WisKey ייפתח מחובר). ב"עד סגירת הדפדפן" החיבור ל־Home Assistant קיים רק כל עוד דף Arx פתוח; בנעילה בחוסר פעילות הוא מבוטל כשהנעילה מופעלת ב־Arx, אבל עד שפותחים את Arx שוב, Home Assistant בכתובת <span class="ltr">/</span> עדיין פתוח באותו דפדפן. יציאה מ־Arx מנתקת משניהם.</div>
+      <sw-card heading=${tr('גישה מרחוק · SmplWise Arx')} subheading=${tr('כניסה דרך https://<שם ה־Home Assistant>/arx עם מסך הכניסה של המערכת (שם משתמש וסיסמה של Home Assistant). הערוץ עצמו מופעל באפשרות ה־add-on remote_access.')}>
+        <div class="row"><span class="lbl">${tr('מי רשאי להיכנס מרחוק')}<span class="muted">${tr('דגל אישי: רק משתמשים שהופעלה להם גישה מרחוק במסך משתמשים והרשאות · כל בעל תפקיד: כל משתמש Home Assistant עם תפקיד כלשהו במערכת')}</span></span>
+          ${sel('remote.policy', 'flag', [['flag', tr('דגל אישי לכל משתמש')], ['any_role', tr('כל משתמש עם תפקיד')]])}</div>
+        <div class="row" data-remote-admins-default-row><span class="lbl">${tr('מנהלים – גישה מרחוק כברירת מחדל')}<span class="muted">${tr('מנהל מערכת נכנס מרחוק בלי דגל אישי · חל על "דגל אישי לכל משתמש"')}</span></span>
+          ${sel('remote.admins_default', 'true', [['true', tr('מופעלת')], ['false', tr('כבויה')]])}</div>
+        <div class="row"><span class="lbl">${tr('שמירת הכניסה בדפדפן')}<span class="muted">${tr('90 יום מתחדשים: כמו האפליקציה של Home Assistant · עד סגירת הדפדפן: הכניסה נמחקת בסגירה · 90 יום עם נעילה: כניסה חוזרת אחרי זמן ללא פעילות')}</span></span>
+          ${sel('remote.session', 'rolling_90d', [['rolling_90d', tr('90 יום מתחדשים')], ['browser_session', tr('עד סגירת הדפדפן')], ['rolling_90d_idle_lock', tr('90 יום עם נעילה בחוסר פעילות')]])}</div>
+        <div class="muted" data-remote-shared-login style="margin-block-start:6px">${tr('שימו לב: הכניסה ל־Arx מחברת את אותו דפדפן גם ל־Home Assistant בכתובת')} <span class="ltr">/</span> ${tr('של אותו שם מתחם (כדי ש־WisKey ייפתח מחובר). ב"עד סגירת הדפדפן" החיבור ל־Home Assistant קיים רק כל עוד דף Arx פתוח; בנעילה בחוסר פעילות הוא מבוטל כשהנעילה מופעלת ב־Arx, אבל עד שפותחים את Arx שוב, Home Assistant בכתובת')} <span class="ltr">/</span> ${tr('עדיין פתוח באותו דפדפן. יציאה מ־Arx מנתקת משניהם.')}</div>
         ${idle
-          ? html`<div class="row"><span class="lbl">נעילה אחרי (דקות ללא פעילות)<span class="muted">5 עד 10080 דקות · ברירת מחדל 720 (12 שעות)</span></span>
+          ? html`<div class="row"><span class="lbl">${tr('נעילה אחרי (דקות ללא פעילות)')}<span class="muted">${tr('5 עד 10080 דקות · ברירת מחדל 720 (12 שעות)')}</span></span>
               <sw-field class="ctl"><input type="number" min="5" max="10080" step="5" data-set-remote="remote.idle_lock_minutes" .value=${v('remote.idle_lock_minutes', '720')} ?disabled=${ro} @change=${(e: Event) => this.set('remote.idle_lock_minutes', Number((e.target as HTMLInputElement).value))} /></sw-field></div>`
           : nothing}
-        <div class="row"><span class="lbl">אימות דו־שלבי למנהלים<span class="muted">כשמופעל: משתמש עם הרשאות ניהול נכנס מרחוק רק אם הפעיל MFA בפרופיל ה־Home Assistant שלו</span></span>
-          ${sel('remote.require_mfa_admin', 'false', [['false', 'רשות'], ['true', 'חובה למנהלים']])}</div>
+        <div class="row"><span class="lbl">${tr('אימות דו־שלבי למנהלים')}<span class="muted">${tr('כשמופעל: משתמש עם הרשאות ניהול נכנס מרחוק רק אם הפעיל MFA בפרופיל ה־Home Assistant שלו')}</span></span>
+          ${sel('remote.require_mfa_admin', 'false', [['false', tr('רשות')], ['true', tr('חובה למנהלים')]])}</div>
         <div class="row" data-second-factor-policy-row><span class="lbl">${t('secondFactor.policyLabel')}</span>
           ${sel('security.second_factor_policy', 'optional', [['optional', t('secondFactor.policyOptional')], ['admins', t('secondFactor.policyAdmins')]])}</div>
       </sw-card>
-      <sw-card heading="הורדת אפליקציית Android" subheading="מוצגת במסך הכניסה רק למי שנכנס ממכשיר Android, ורק כשהוגדרה כתובת. ריק = לא מוצגת." data-card="remote.android-download" data-android-download-settings>
-        <div class="row"><span class="lbl">כתובת הורדה<span class="muted">https בלבד</span></span>
+      <sw-card heading=${tr('הורדת אפליקציית Android')} subheading=${tr('מוצגת במסך הכניסה רק למי שנכנס ממכשיר Android, ורק כשהוגדרה כתובת. ריק = לא מוצגת.')} data-card="remote.android-download" data-android-download-settings>
+        <div class="row"><span class="lbl">${tr('כתובת הורדה')}<span class="muted">${tr('https בלבד')}</span></span>
           <sw-field class="ctl"><input type="url" inputmode="url" maxlength="2000" placeholder="https://" data-ltr data-set-remote="app.android_url" .value=${v('app.android_url', '')} ?disabled=${ro} @change=${(e: Event) => this.set('app.android_url', (e.target as HTMLInputElement).value.trim() as never)} /></sw-field></div>
-        <div class="row"><span class="lbl">תווית גרסה<span class="muted">לא חובה</span></span>
+        <div class="row"><span class="lbl">${tr('תווית גרסה')}<span class="muted">${tr('לא חובה')}</span></span>
           <sw-field class="ctl"><input type="text" maxlength="32" data-ltr data-set-remote="app.android_version" .value=${v('app.android_version', '')} ?disabled=${ro} @change=${(e: Event) => this.set('app.android_version', (e.target as HTMLInputElement).value.trim() as never)} /></sw-field></div>
-        <div class="row"><span class="lbl">SHA-256<span class="muted">לא חובה · מוצג לאימות הקובץ</span></span>
+        <div class="row"><span class="lbl">SHA-256<span class="muted">${tr('לא חובה · מוצג לאימות הקובץ')}</span></span>
           <sw-field class="ctl"><input type="text" maxlength="64" spellcheck="false" data-ltr data-set-remote="app.android_sha256" .value=${v('app.android_sha256', '')} ?disabled=${ro} @change=${(e: Event) => this.set('app.android_sha256', (e.target as HTMLInputElement).value.trim() as never)} /></sw-field></div>
       </sw-card>
       ${api
-        ? html`<sw-card heading="כניסות פעילות מרחוק" subheading=${this.canEdit ? 'כל הכניסות הפעילות של כל המשתמשים: דפדפן או אפליקציה, מאיפה (מדינה או כתובת מוסתרת), מתי. ניתוק סוגר מיד את חיבורי הווידאו והעדכונים שלה, והכניסה הזו לא תוכל לחזור בלי כניסה מחדש.' : 'הכניסות הפעילות שלך מרחוק.'} data-card="remote.sessions" data-remote-sessions-card>
+        ? html`<sw-card heading=${tr('כניסות פעילות מרחוק')} subheading=${this.canEdit ? tr('כל הכניסות הפעילות של כל המשתמשים: דפדפן או אפליקציה, מאיפה (מדינה או כתובת מוסתרת), מתי. ניתוק סוגר מיד את חיבורי הווידאו והעדכונים שלה, והכניסה הזו לא תוכל לחזור בלי כניסה מחדש.') : tr('הכניסות הפעילות שלך מרחוק.')} data-card="remote.sessions" data-remote-sessions-card>
             <sw-remote-sessions scope=${this.canEdit ? 'all' : 'own'} @remote-signed-out=${() => void arxLogout('logout')}></sw-remote-sessions>
           </sw-card>`
         : nothing}
       ${api && can('system.configure') ? html`<system-app-signin></system-app-signin>` : nothing}
       ${api && this.canEdit
-        ? html`<sw-card heading="מדיניות אבטחת תוכן (CSP)" subheading="מדיניות מחמירה יותר לגישה מרחוק: בלי תגיות עיצוב מוטמעות בדף. היא רצה קודם במצב דיווח בלבד; אחרי שעוברים על הדיווחים כאן אפשר לאכוף אותה." data-card="remote.csp" data-csp-card>
+        ? html`<sw-card heading=${tr('מדיניות אבטחת תוכן (CSP)')} subheading=${tr('מדיניות מחמירה יותר לגישה מרחוק: בלי תגיות עיצוב מוטמעות בדף. היא רצה קודם במצב דיווח בלבד; אחרי שעוברים על הדיווחים כאן אפשר לאכוף אותה.')} data-card="remote.csp" data-csp-card>
             <sw-csp-reports .canEdit=${this.canEdit}></sw-csp-reports>
           </sw-card>`
         : nothing}
-      <sw-card heading="וידאו מרחוק" subheading="WebRTC עובר ישירות בין הדפדפן ל־go2rtc; MSE מעביר את הווידאו עצמו דרך המנהרה ולכן הוא רק מוצא אחרון.">
-        <div class="row"><span class="lbl">זרם ברירת מחדל<span class="muted">הזרם שצופה מרוחק מקבל ראשון, ב־WebRTC</span></span>
-          ${sel('remote.default_profile', 'main', [['main', 'ראשי (main)'], ['sub', 'משני (sub)']])}</div>
-        <div class="row" data-remote-wall-profile-row><span class="lbl">איכות בקיר המצלמות מבחוץ<span class="muted">הזרם שכל אריח בקיר "כל המצלמות" מנגן מרחוק; אפשר לשנות גם במכשיר עצמו, בקיר.<br /><span data-remote-wall-hint>זרם ראשי בקיר דורש חיבור מהיר; במכשיר נייד מוצגות רק המצלמות שעל המסך</span></span></span>
-          ${sel('remote.wall_profile', 'sub', [['sub', 'רגילה (זרם משני)'], ['main', 'גבוהה (זרם ראשי)']])}</div>
-        <div class="row"><span class="lbl">MSE כמוצא אחרון<span class="muted">כש־WebRTC לא מתחבר או לא מפענח (לא כשהתעבורה היא WebRTC בלבד). כבוי: אין וידאו דרך המנהרה בכלל</span></span>
-          ${sel('remote.mse_fallback', 'true', [['true', 'מותר (מוצג לצופה)'], ['false', 'אסור']])}</div>
-        <div class="row"><span class="lbl">זרמים חיים לכל כניסה<span class="muted">כמה צפיות חיות במקביל מותרות לכל דפדפן או אפליקציה שנכנסו מרחוק (1 עד 128, ברירת מחדל 16); הצפייה הבאה נדחית עם הסבר. המכסה הכללית של המערכת חלה בנוסף<br /><span data-remote-cap-hint>מומלץ: לפחות כמספר המצלמות בקיר</span>${this.health?.remote?.live_streams != null ? html` · <span data-remote-live-now>פעילים עכשיו: ${this.health.remote.live_streams}</span>` : nothing}</span></span>
+      <sw-card heading=${tr('וידאו מרחוק')} subheading=${tr('WebRTC עובר ישירות בין הדפדפן ל־go2rtc; MSE מעביר את הווידאו עצמו דרך המנהרה ולכן הוא רק מוצא אחרון.')}>
+        <div class="row"><span class="lbl">${tr('זרם ברירת מחדל')}<span class="muted">${tr('הזרם שצופה מרוחק מקבל ראשון, ב־WebRTC')}</span></span>
+          ${sel('remote.default_profile', 'main', [['main', tr('ראשי (main)')], ['sub', tr('משני (sub)')]])}</div>
+        <div class="row" data-remote-wall-profile-row><span class="lbl">${tr('איכות בקיר המצלמות מבחוץ')}<span class="muted">${tr('הזרם שכל אריח בקיר "כל המצלמות" מנגן מרחוק; אפשר לשנות גם במכשיר עצמו, בקיר.')}<br /><span data-remote-wall-hint>${tr('זרם ראשי בקיר דורש חיבור מהיר; במכשיר נייד מוצגות רק המצלמות שעל המסך')}</span></span></span>
+          ${sel('remote.wall_profile', 'sub', [['sub', tr('רגילה (זרם משני)')], ['main', tr('גבוהה (זרם ראשי)')]])}</div>
+        <div class="row"><span class="lbl">${tr('MSE כמוצא אחרון')}<span class="muted">${tr('כש־WebRTC לא מתחבר או לא מפענח (לא כשהתעבורה היא WebRTC בלבד). כבוי: אין וידאו דרך המנהרה בכלל')}</span></span>
+          ${sel('remote.mse_fallback', 'true', [['true', tr('מותר (מוצג לצופה)')], ['false', tr('אסור')]])}</div>
+        <div class="row"><span class="lbl">${tr('זרמים חיים לכל כניסה')}<span class="muted">${tr('כמה צפיות חיות במקביל מותרות לכל דפדפן או אפליקציה שנכנסו מרחוק (1 עד 128, ברירת מחדל 16); הצפייה הבאה נדחית עם הסבר. המכסה הכללית של המערכת חלה בנוסף')}<br /><span data-remote-cap-hint>${tr('מומלץ: לפחות כמספר המצלמות בקיר')}</span>${this.health?.remote?.live_streams != null ? html` · <span data-remote-live-now>${tr('פעילים עכשיו: {live_streams}', { live_streams: this.health.remote.live_streams })}</span>` : nothing}</span></span>
           <sw-field class="ctl"><input type="number" min="1" max="128" data-ltr data-set-remote="remote.max_live_streams" .value=${v('remote.max_live_streams', '16')} ?disabled=${ro} @change=${(e: Event) => this.set('remote.max_live_streams', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         ${this.liveCapWarning('remote.max_live_streams') ? html`<div class="err" data-remote-live-warning style="margin-block-start:-4px">${this.liveCapWarning('remote.max_live_streams')}</div>` : nothing}
         ${this.renderCodecSummary()}
-        <div class="muted" data-remote-codec-hint style="margin-block-start:8px">דפדפנים מפענחים ב־WebRTC רק H.264 ללא B-frames; H.265 לא מתנגן ב־WebRTC ברוב הדפדפנים. אם הזרם הראשי של ה־NVR אינו כזה, הגדירו בו H.264 ללא B-frames או בחרו כאן בזרם המשני.</div>
+        <div class="muted" data-remote-codec-hint style="margin-block-start:8px">${tr('דפדפנים מפענחים ב־WebRTC רק H.264 ללא B-frames; H.265 לא מתנגן ב־WebRTC ברוב הדפדפנים. אם הזרם הראשי של ה־NVR אינו כזה, הגדירו בו H.264 ללא B-frames או בחרו כאן בזרם המשני.')}</div>
       </sw-card>
       ${api && can('system.configure') ? html`<system-video-conn-test></system-video-conn-test>` : nothing}
       ${this.canEdit
         ? this.renderSaveRow({ tab: 'remote', hook: 'data-save-remote', disabled: !dirty || this.busy, onSave: () => this.save() })
-        : html`<div class="muted">${api ? 'שינוי ההגדרות דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
+        : html`<div class="muted">${api ? tr('שינוי ההגדרות דורש הרשאת מנהל מערכת.') : tr('נתוני הדגמה: ההגדרות נשמרות רק מול השרת.')}</div>`}
     </div>`;
   }
 
@@ -1766,13 +1766,13 @@ export class SystemDiagnostics extends LitElement {
       e.preventDefault();
       this.openTab('health');
     };
-    const link = html`<a href="#/system/diagnostics?tab=health" data-remote-codec-link @click=${open}>לפירוט בבריאות המערכת</a>`;
+    const link = html`<a href="#/system/diagnostics?tab=health" data-remote-codec-link @click=${open}>${tr('לפירוט בבריאות המערכת')}</a>`;
     let text: string;
-    if (!isApi()) text = 'נתוני הדגמה: קידוד הזרמים נקרא מה־NVR רק מול השרת.';
-    else if (!v) text = 'קידוד הזרמים לא נקרא.';
-    else if (!v.checked) text = 'קידוד הזרמים טרם נקרא מה־NVR (נקרא בגילוי המצלמות הבא).';
-    else text = `זרם ראשי: ${v.main.ok} מתוך ${v.checked} מצלמות מתנגנים ב־WebRTC${v.main.no ? ` · ${v.main.no} לא יתנגנו` : ''}${v.main.unknown ? ` · ${v.main.unknown} לא ידוע` : ''} · זרם משני: ${v.sub.ok} מתוך ${v.checked}`;
-    return html`<div class="row" data-remote-codec-summary><span class="lbl">קידוד הזרמים ב־NVR<span class="muted">${text}</span></span>${isApi() ? link : nothing}</div>`;
+    if (!isApi()) text = tr('נתוני הדגמה: קידוד הזרמים נקרא מה־NVR רק מול השרת.');
+    else if (!v) text = tr('קידוד הזרמים לא נקרא.');
+    else if (!v.checked) text = tr('קידוד הזרמים טרם נקרא מה־NVR (נקרא בגילוי המצלמות הבא).');
+    else text = tr('זרם ראשי: {ok} מתוך {checked} מצלמות מתנגנים ב־WebRTC{v}{v2} · זרם משני: {ok2} מתוך {checked}', { ok: v.main.ok, checked: v.checked, v: v.main.no ? tr(' · {no} לא יתנגנו', { no: v.main.no }) : '', v2: v.main.unknown ? tr(' · {unknown} לא ידוע', { unknown: v.main.unknown }) : '', ok2: v.sub.ok });
+    return html`<div class="row" data-remote-codec-summary><span class="lbl">${tr('קידוד הזרמים ב־NVR')}<span class="muted">${text}</span></span>${isApi() ? link : nothing}</div>`;
   }
 
   /** הגדרות › חשמל והתקנים (CR-007 slice 6a): how the device-control screens look for everyone in the installation -
@@ -1792,44 +1792,44 @@ export class SystemDiagnostics extends LitElement {
     </button>`;
     return html`<div class="sections">
       <system-home-screen></system-home-screen>
-      <sw-card data-devices-settings heading="חשמל והתקנים" subheading="המראה של מסכי החשמל וההתקנים לכל המשתמשים במתקן. תצוגה בלבד: כללי הבטיחות של פעולות מרוכזות (חלון אישור, תוקף, בלי מנעולים, אזעקה ושחרור דלתות) אינם הגדרה.">
-        <div class="row"><span class="lbl">סגנון<span class="muted">Arx הוא המראה של שאר המערכת; זכוכית היא הסגנון מהמוקאפ שאושר: משטחים שקופים ומטושטשים, אריחים מעוגלים עם אייקון. שניהם מימין לשמאל.</span></span>
+      <sw-card data-devices-settings heading=${tr('חשמל והתקנים')} subheading=${tr('המראה של מסכי החשמל וההתקנים לכל המשתמשים במתקן. תצוגה בלבד: כללי הבטיחות של פעולות מרוכזות (חלון אישור, תוקף, בלי מנעולים, אזעקה ושחרור דלתות) אינם הגדרה.')}>
+        <div class="row"><span class="lbl">${tr('סגנון')}<span class="muted">${tr('Arx הוא המראה של שאר המערכת; זכוכית היא הסגנון מהמוקאפ שאושר: משטחים שקופים ומטושטשים, אריחים מעוגלים עם אייקון. שניהם מימין לשמאל.')}</span></span>
           <sw-field class="ctl"><select data-set-devices-style ?disabled=${ro} @change=${(e: Event) => pick((e.target as HTMLSelectElement).value === 'glass' ? 'glass' : 'smplwise')}>
-            <option value="smplwise" ?selected=${p.style === 'smplwise'}>Arx</option><option value="glass" ?selected=${p.style === 'glass'}>זכוכית</option>
+            <option value="smplwise" ?selected=${p.style === 'smplwise'}>Arx</option><option value="glass" ?selected=${p.style === 'glass'}>${tr('זכוכית')}</option>
           </select></sw-field></div>
-        <div class="swatches" role="group" aria-label="תצוגה מקדימה של הסגנונות" data-devices-style-preview>
-          ${swatch('smplwise', 'Arx', 'לבן, קווים דקים')}
-          ${swatch('glass', 'זכוכית', 'שקוף, מעוגל, אייקונים')}
+        <div class="swatches" role="group" aria-label=${tr('תצוגה מקדימה של הסגנונות')} data-devices-style-preview>
+          ${swatch('smplwise', 'Arx', tr('לבן, קווים דקים'))}
+          ${swatch('glass', tr('זכוכית'), tr('שקוף, מעוגל, אייקונים'))}
         </div>
         <devices-theme-picker data-devices-theme-picker .theme=${p.theme} .scheme=${p.scheme} ?disabled=${ro} @devices-pick=${(e: CustomEvent<DevicesPick>) => this.set(e.detail.key, e.detail.value as never)}></devices-theme-picker>
         <div class="row" data-glass-scheme-row><span class="lbl">${t('glassScheme.label')}<span class="muted">${t('glassScheme.hint')}</span></span>
           <sw-field class="ctl"><select data-set-glass-scheme ?disabled=${ro} @change=${(e: Event) => this.set('devices.glass_scheme', (e.target as HTMLSelectElement).value as never)}>
             ${GLASS_SCHEMES.map((g) => html`<option value=${g} ?selected=${p.glassScheme === g}>${t(`glassScheme.${g}`)}</option>`)}
           </select></sw-field></div>
-        <div class="row"><span class="lbl">תצוגת הפתיחה של המבנה<span class="muted">מה שמשתמש רואה בפעם הראשונה. מי שבחר בעצמו "כרטיסים" או "אריחים" ממשיך עם הבחירה שלו.</span></span>
+        <div class="row"><span class="lbl">${tr('תצוגת הפתיחה של המבנה')}<span class="muted">${tr('מה שמשתמש רואה בפעם הראשונה. מי שבחר בעצמו "כרטיסים" או "אריחים" ממשיך עם הבחירה שלו.')}</span></span>
           <sw-field class="ctl"><select data-set-devices-view ?disabled=${ro} @change=${(e: Event) => this.set('devices.default_view', (e.target as HTMLSelectElement).value === 'tiles' ? 'tiles' : 'cards')}>
-            <option value="cards" ?selected=${p.defaultView === 'cards'}>כרטיסים: עץ המבנה וכרטיסי קומה</option><option value="tiles" ?selected=${p.defaultView === 'tiles'}>אריחים: אריח לכל אזור</option>
+            <option value="cards" ?selected=${p.defaultView === 'cards'}>${tr('כרטיסים: עץ המבנה וכרטיסי קומה')}</option><option value="tiles" ?selected=${p.defaultView === 'tiles'}>${tr('אריחים: אריח לכל אזור')}</option>
           </select></sw-field></div>
-        <div class="row"><span class="lbl">כיוון מסך האזור<span class="muted">אריחים צפופים: כרטיס לכל סוג התקנים, בעמודות. מקטעים ברצף: קטע אחרי קטע עם הכותרת בצד והחיישנים לצידם. משתמש עם ההרשאה "התאמה אישית של מסכי חשמל והתקנים" יכול לבחור אחרת רק לעצמו.</span></span>
+        <div class="row"><span class="lbl">${tr('כיוון מסך האזור')}<span class="muted">${tr('אריחים צפופים: כרטיס לכל סוג התקנים, בעמודות. מקטעים ברצף: קטע אחרי קטע עם הכותרת בצד והחיישנים לצידם. משתמש עם ההרשאה "התאמה אישית של מסכי חשמל והתקנים" יכול לבחור אחרת רק לעצמו.')}</span></span>
           <sw-field class="ctl"><select data-set-devices-area-design ?disabled=${ro} @change=${(e: Event) => this.set('devices.area_design', (e.target as HTMLSelectElement).value === 'sections' ? 'sections' : 'tiles')}>
-            <option value="tiles" ?selected=${areaDesign === 'tiles'}>אריחים צפופים</option><option value="sections" ?selected=${areaDesign === 'sections'}>מקטעים ברצף</option>
+            <option value="tiles" ?selected=${areaDesign === 'tiles'}>${tr('אריחים צפופים')}</option><option value="sections" ?selected=${areaDesign === 'sections'}>${tr('מקטעים ברצף')}</option>
           </select></sw-field></div>
-        <div class="row"><span class="lbl">צפיפות<span class="muted">דחוסה: אריחים, שורות ורווחים קטנים יותר, יותר אזורים במסך אחד</span></span>
+        <div class="row"><span class="lbl">${tr('צפיפות')}<span class="muted">${tr('דחוסה: אריחים, שורות ורווחים קטנים יותר, יותר אזורים במסך אחד')}</span></span>
           <sw-field class="ctl"><select data-set-devices-density ?disabled=${ro} @change=${(e: Event) => this.set('devices.density', (e.target as HTMLSelectElement).value === 'compact' ? 'compact' : 'comfortable')}>
-            <option value="comfortable" ?selected=${p.density === 'comfortable'}>מרווחת</option><option value="compact" ?selected=${p.density === 'compact'}>דחוסה</option>
+            <option value="comfortable" ?selected=${p.density === 'comfortable'}>${tr('מרווחת')}</option><option value="compact" ?selected=${p.density === 'compact'}>${tr('דחוסה')}</option>
           </select></sw-field></div>
-        <div class="row"><span class="lbl">חיישנים<span class="muted">כרטיס החיישנים במסך האזור ומונה החיישנים במסך המבנה</span></span>
+        <div class="row"><span class="lbl">${tr('חיישנים')}<span class="muted">${tr('כרטיס החיישנים במסך האזור ומונה החיישנים במסך המבנה')}</span></span>
           <sw-field class="ctl"><select data-set-devices-sensors ?disabled=${ro} @change=${(e: Event) => this.set('devices.show_sensors', (e.target as HTMLSelectElement).value === 'false' ? 'false' : 'true')}>
-            <option value="true" ?selected=${p.showSensors}>מוצג</option><option value="false" ?selected=${!p.showSensors}>מוסתר</option>
+            <option value="true" ?selected=${p.showSensors}>${tr('מוצג')}</option><option value="false" ?selected=${!p.showSensors}>${tr('מוסתר')}</option>
           </select></sw-field></div>
         <div data-area-row-setting style="margin-block:12px">
-          <div class="lbl" style="margin-block-end:8px"><strong>מה מוצג ליד שם האזור</strong><span class="muted">בשורת כל אזור ובכותרת הקומה, שורה אחת בלי גלישה. הסדר קובע: בטלפון מוצגים רק הפריטים שמעל הקו, השאר נאספים ל־+N. כל השאר תמיד בתוך האזור. מי שמוגדרת לו התאמה אישית של המסך יכול לבחור אחרת לעצמו.</span></div>
+          <div class="lbl" style="margin-block-end:8px"><strong>${tr('מה מוצג ליד שם האזור')}</strong><span class="muted">${tr('בשורת כל אזור ובכותרת הקומה, שורה אחת בלי גלישה. הסדר קובע: בטלפון מוצגים רק הפריטים שמעל הקו, השאר נאספים ל־+N. כל השאר תמיד בתוך האזור. מי שמוגדרת לו התאמה אישית של המסך יכול לבחור אחרת לעצמו.')}</span></div>
           <area-row-editor style="display:block;max-inline-size:460px" data-area-row-editor-settings .area=${p.areaRow} .floor=${p.floorRow} ?disabled=${ro} @area-row-change=${(e: CustomEvent<AreaRowChange>) => { this.set('devices.area_row', e.detail.area); this.set('devices.floor_row', e.detail.floor); }}></area-row-editor>
         </div>
-        <div class="muted" data-devices-layout-next style="margin-block-start:8px">הפריסה עצמה (מיקום וגודל של כרטיסים ואריחים, כותרת, אייקון, גודל טקסט וצבע לפי תפקיד) נערכת במסך המבנה ובמסך האזור, בכפתור "ערוך פריסה".</div>
+        <div class="muted" data-devices-layout-next style="margin-block-start:8px">${tr('הפריסה עצמה (מיקום וגודל של כרטיסים ואריחים, כותרת, אייקון, גודל טקסט וצבע לפי תפקיד) נערכת במסך המבנה ובמסך האזור, בכפתור "ערוך פריסה".')}</div>
         ${this.canEdit && api
           ? this.renderSaveRow({ tab: 'devices', hook: 'data-save-devices', disabled: !dirty || this.busy, onSave: () => this.save() })
-          : html`<div class="muted" data-devices-readonly>${api ? 'שינוי ההגדרות דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
+          : html`<div class="muted" data-devices-readonly>${api ? tr('שינוי ההגדרות דורש הרשאת מנהל מערכת.') : tr('נתוני הדגמה: ההגדרות נשמרות רק מול השרת.')}</div>`}
       </sw-card>
       ${api && this.canEdit ? html`<devices-climate-kind-admin data-section="climate-kind"></devices-climate-kind-admin>` : nothing}
       ${api && this.canEdit ? html`<devices-type-admin data-section="device-types"></devices-type-admin>` : nothing}
@@ -1853,17 +1853,17 @@ export class SystemDiagnostics extends LitElement {
   private renderReport() {
     const r = this.report;
     if (!r) {
-      return html`<div class="sections"><sw-card heading="בריאות המערכת">${this.loadFailed.health && !this.reportBusy
-        ? html`<sw-state-panel compact state="error" heading="דוח הבריאות לא נטען" hint=${this.loadFailed.health} actionLabel="נסו שוב" @action=${() => void this.loadReport(true)}></sw-state-panel>`
-        : html`<sw-state-panel compact state="loading" heading=${this.reportBusy ? 'בודק…' : 'טוען…'}></sw-state-panel>`}</sw-card>${this.loadFailed.health ? this.renderLogExport() : nothing}</div>`;
+      return html`<div class="sections"><sw-card heading=${tr('בריאות המערכת')}>${this.loadFailed.health && !this.reportBusy
+        ? html`<sw-state-panel compact state="error" heading=${tr('דוח הבריאות לא נטען')} hint=${this.loadFailed.health} actionLabel=${tr('נסו שוב')} @action=${() => void this.loadReport(true)}></sw-state-panel>`
+        : html`<sw-state-panel compact state="loading" heading=${this.reportBusy ? tr('בודק…') : tr('טוען…')}></sw-state-panel>`}</sw-card>${this.loadFailed.health ? this.renderLogExport() : nothing}</div>`;
     }
     const checked = timeText(new Date(r.checked_at), { seconds: true });
     return html`<div class="sections">
-      <sw-card heading="בריאות המערכת" subheading="מצב נפרד לכל רכיב, לא נורה אחת">
-        <div class="hsum"><sw-badge kind=${STATUS_KIND[r.status]} label=${r.status === 'ok' ? 'הכל תקין' : r.status === 'warn' ? 'יש מה לבדוק' : 'יש תקלה'}></sw-badge><span>גרסה <span class="ltr">${r.version}</span> · פעיל ${fmtUptime(r.uptime_s)} · נבדק <span class="ltr" data-health-checked>${checked}</span></span><span class="grow"></span><sw-button size="sm" icon="refresh" ?disabled=${this.reportBusy} @click=${() => this.loadReport(true)}>${this.reportBusy ? 'בודק…' : 'בדוק עכשיו'}</sw-button></div>
-        ${r.installation && !r.installation.supported ? html`<div class="hcard error" role="alert" data-health-unsupported=${r.installation.reason ?? ""}><div class="hh"><span>התקנה לא נתמכת</span></div><div class="hd">${r.installation.message} ${r.installation.action}</div></div>` : nothing}
+      <sw-card heading=${tr('בריאות המערכת')} subheading=${tr('מצב נפרד לכל רכיב, לא נורה אחת')}>
+        <div class="hsum"><sw-badge kind=${STATUS_KIND[r.status]} label=${r.status === 'ok' ? tr('הכל תקין') : r.status === 'warn' ? tr('יש מה לבדוק') : tr('יש תקלה')}></sw-badge><span>${tr('גרסה')} <span class="ltr">${r.version}</span> ${tr('· פעיל {fmtUptime} · נבדק', { fmtUptime: fmtUptime(r.uptime_s) })} <span class="ltr" data-health-checked>${checked}</span></span><span class="grow"></span><sw-button size="sm" icon="refresh" ?disabled=${this.reportBusy} @click=${() => this.loadReport(true)}>${this.reportBusy ? tr('בודק…') : tr('בדוק עכשיו')}</sw-button></div>
+        ${r.installation && !r.installation.supported ? html`<div class="hcard error" role="alert" data-health-unsupported=${r.installation.reason ?? ""}><div class="hh"><span>${tr('התקנה לא נתמכת')}</span></div><div class="hd">${r.installation.message} ${r.installation.action}</div></div>` : nothing}
         <div class="hgrid">${r.checks.map((c) => html`<div class="hcard ${c.status}" data-health-card=${c.id}><div class="hh"><span>${c.label}</span><sw-badge kind=${STATUS_KIND[c.status]} label=${STATUS_LABEL[c.status]}></sw-badge></div><div class="hd">${c.detail}</div>${this.renderVideoHints(c)}</div>`)}</div>
-        <div class="muted" style="margin-block-start:10px">בדיקות המכשירים (NVR, go2rtc) נשמרות ${r.probe_ttl_s} שניות; "בדוק עכשיו" מריץ אותן מחדש. זרמים זרים ב־go2rtc לעולם אינם נוגעים.</div>
+        <div class="muted" style="margin-block-start:10px">${tr('בדיקות המכשירים (NVR, go2rtc) נשמרות {probe_ttl_s} שניות; "בדוק עכשיו" מריץ אותן מחדש. זרמים זרים ב־go2rtc לעולם אינם נוגעים.', { probe_ttl_s: r.probe_ttl_s })}</div>
       </sw-card>
       ${r.mode !== 'ha_only' ? html`<recorder-health-panel ?manage=${this.canEdit}></recorder-health-panel>` : nothing}
       ${r.mode !== 'ha_only' && this.canEdit ? html`<camera-image-health-settings></camera-image-health-settings>` : nothing}
@@ -1887,11 +1887,11 @@ export class SystemDiagnostics extends LitElement {
   private renderHealth() {
     if (isApi()) return this.renderReport();
     return html`<div class="sections">
-      <sw-card heading="מצבים נפרדים, לא נורה אחת">${demoHealth.map((h) => html`<div class="row"><span class="lbl">${h.name}<span class="muted">${h.detail}</span></span><sw-badge kind=${h.state}></sw-badge></div>`)}
-        <div class="row"><span class="lbl">הקלטה ב־NVR<span class="muted">5/10 ערוצים מקליטים כרגע (לפי תצורה)</span></span><sw-badge kind="live"></sw-badge></div>
-        <div class="row"><span class="lbl">זרמים פעילים<span class="muted">4 חיים · 1 ניגון · 0 יתומים</span></span><sw-badge kind="live"></sw-badge></div>
+      <sw-card heading=${tr('מצבים נפרדים, לא נורה אחת')}>${demoHealth.map((h) => html`<div class="row"><span class="lbl">${h.name}<span class="muted">${h.detail}</span></span><sw-badge kind=${h.state}></sw-badge></div>`)}
+        <div class="row"><span class="lbl">${tr('הקלטה ב־NVR')}<span class="muted">${tr('5/10 ערוצים מקליטים כרגע (לפי תצורה)')}</span></span><sw-badge kind="live"></sw-badge></div>
+        <div class="row"><span class="lbl">${tr('זרמים פעילים')}<span class="muted">${tr('4 חיים · 1 ניגון · 0 יתומים')}</span></span><sw-badge kind="live"></sw-badge></div>
       </sw-card>
-      <sw-card heading="תור עבודות">${demoJobs.map((j) => html`<div class="row"><span class="lbl">${j.title}<span class="muted">${j.status}</span></span><span style="display:flex;align-items:center;gap:10px"><span class="bar ${j.status.startsWith('נכשל') ? 'fail' : ''}"><i style="--p:${j.progress}%"></i></span><span class="ltr">${j.progress}%</span></span></div>`)}</sw-card>
+      <sw-card heading=${tr('תור עבודות')}>${demoJobs.map((j) => html`<div class="row"><span class="lbl">${j.title}<span class="muted">${j.status}</span></span><span style="display:flex;align-items:center;gap:10px"><span class="bar ${j.status.startsWith('נכשל') ? 'fail' : ''}"><i style="--p:${j.progress}%"></i></span><span class="ltr">${j.progress}%</span></span></div>`)}</sw-card>
     </div>`;
   }
 
@@ -1929,9 +1929,9 @@ export class SystemDiagnostics extends LitElement {
   private renderMeterBackup() {
     const m = this.meterBackup;
     if (!m) return nothing;
-    const size = m.bytes != null && m.bytes > 0 ? ` (כרגע ${fmtBytes(m.bytes)})` : '';
-    return html`<div class="row" data-backup-meters><span class="lbl">נתוני מוני החשמל<span class="muted">${m.on ? `כל הקריאות נכנסות לגיבוי${size}` : 'בלי הקריאות עצמן; מונים, חיובים וסיכומים יומיים נכנסים תמיד'}</span></span>
-        <sw-toggle data-backup-meters-toggle ?checked=${m.on} ?disabled=${!m.editable || this.meterBackupBusy} label="לכלול את נתוני המונים בגיבוי" labelHidden
+    const size = m.bytes != null && m.bytes > 0 ? tr(' (כרגע {fmtBytes})', { fmtBytes: fmtBytes(m.bytes) }) : '';
+    return html`<div class="row" data-backup-meters><span class="lbl">${tr('נתוני מוני החשמל')}<span class="muted">${m.on ? tr('כל הקריאות נכנסות לגיבוי{size}', { size }) : tr('בלי הקריאות עצמן; מונים, חיובים וסיכומים יומיים נכנסים תמיד')}</span></span>
+        <sw-toggle data-backup-meters-toggle ?checked=${m.on} ?disabled=${!m.editable || this.meterBackupBusy} label=${tr('לכלול את נתוני המונים בגיבוי')} labelHidden
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.toggleMeterBackup(e.detail.checked)}></sw-toggle></div>
       ${this.meterBackupError ? html`<div class="msg err" role="alert" data-backup-meters-error>${this.meterBackupError}</div>` : nothing}`;
   }
@@ -1946,7 +1946,7 @@ export class SystemDiagnostics extends LitElement {
       this.backupNote = '';
       this.backupPassword = '';
       const sens = e.sensitive?.state === 'encrypted' ? bpt('createdEncrypted') : (e.sensitive?.counts?.password_hashes ?? 0) > 0 ? bpt('createdOmitted') : '';
-      this.backupMsg = `הגיבוי ${e.name} נוצר (${fmtBytes(e.bytes)})${sens ? ` · ${sens}` : ''}`;
+      this.backupMsg = tr('הגיבוי {name} נוצר ({fmtBytes}){v}', { name: e.name, fmtBytes: fmtBytes(e.bytes), v: sens ? ` · ${sens}` : '' });
       await this.loadBackups();
     } catch (err) {
       this.setError('backup', describeError(err));
@@ -2023,7 +2023,7 @@ export class SystemDiagnostics extends LitElement {
     this.setError('backup', '');
     try {
       const e = await uploadBackup(file);
-      this.backupMsg = `הקובץ הועלה כ־${e.name}; עכשיו אפשר לשחזר ממנו`;
+      this.backupMsg = tr('הקובץ הועלה כ־{name}; עכשיו אפשר לשחזר ממנו', { name: e.name });
       await this.loadBackups();
     } catch (err) {
       this.setError('backup', describeError(err));
@@ -2039,7 +2039,7 @@ export class SystemDiagnostics extends LitElement {
     this.setError('backup', '');
     try {
       await deleteBackup(b.name);
-      this.backupMsg = `הגיבוי ${b.name} נמחק`;
+      this.backupMsg = tr('הגיבוי {name} נמחק', { name: b.name });
       await this.loadBackups();
     } catch (err) {
       this.setError('backup', describeError(err));
@@ -2049,9 +2049,9 @@ export class SystemDiagnostics extends LitElement {
   }
 
   private renderRemoveDialog(b: BackupEntry) {
-    return html`<sw-dialog open heading="למחוק את הגיבוי?" subheading=${b.name} data-backup-remove-dialog @close=${() => (this.removeTarget = null)}>
-      <div class="hint" style="font-size:var(--sw-fs-sm)">${this.fmtWhen(b.created_at)} · ${fmtBytes(b.bytes)} · ${KIND_LABEL[b.kind] ?? b.kind}${b.note ? ` · ${b.note}` : ''}. הקובץ נמחק מ־/data/backups ואי אפשר לשחזר ממנו אחר כך; עותק שהורד למחשב אינו מושפע.</div>
-      <div slot="footer"><sw-button variant="danger" icon="trash" ?disabled=${this.backupBusy} data-backup-remove-go @click=${() => void this.removeBackup(b)}>${this.backupBusy ? 'מוחק…' : 'מחק'}</sw-button><sw-button variant="ghost" @click=${() => (this.removeTarget = null)}>ביטול</sw-button></div>
+    return html`<sw-dialog open heading=${tr('למחוק את הגיבוי?')} subheading=${b.name} data-backup-remove-dialog @close=${() => (this.removeTarget = null)}>
+      <div class="hint" style="font-size:var(--sw-fs-sm)">${tr('{fmtWhen} · {fmtBytes} · {v}{v2}. הקובץ נמחק מ־/data/backups ואי אפשר לשחזר ממנו אחר כך; עותק שהורד למחשב אינו מושפע.', { fmtWhen: this.fmtWhen(b.created_at), fmtBytes: fmtBytes(b.bytes), v: KIND_LABEL[b.kind] ?? b.kind, v2: b.note ? ` · ${b.note}` : '' })}</div>
+      <div slot="footer"><sw-button variant="danger" icon="trash" ?disabled=${this.backupBusy} data-backup-remove-go @click=${() => void this.removeBackup(b)}>${this.backupBusy ? tr('מוחק…') : tr('מחק')}</sw-button><sw-button variant="ghost" @click=${() => (this.removeTarget = null)}>${tr('ביטול')}</sw-button></div>
     </sw-dialog>`;
   }
 
@@ -2082,7 +2082,7 @@ export class SystemDiagnostics extends LitElement {
       const safety = r.safety_archive ? ` · ${obr('safetyDone', { safety: r.safety_archive.name })}` : '';
       const parts = Object.entries(r.tables).filter(([k]) => TABLE_LABEL[k]).map(([k, n]) => `${n} ${TABLE_LABEL[k]}`);
       const reset = r.passwords?.need_reset_count ? ` · ${bpt('resultNeedReset', { n: r.passwords.need_reset_count })}` : '';
-      this.backupMsg = `שוחזר מ־${b.name} (${r.mode === 'replace' ? 'החלפה' : 'מיזוג'}): ${parts.join(', ')} · ${r.files} קבצים${r.files_skipped ? ` · ${r.files_skipped} קבצים לא שוחזרו` : ''}${reset}${safety}`;
+      this.backupMsg = tr('שוחזר מ־{name} ({v}): {join} · {files} קבצים{v2}{reset}{safety}', { name: b.name, v: r.mode === 'replace' ? tr('החלפה') : tr('מיזוג'), join: parts.join(', '), files: r.files, v2: r.files_skipped ? tr(' · {files_skipped} קבצים לא שוחזרו', { files_skipped: r.files_skipped }) : '', reset, safety });
       this.restoreTarget = null;
       invalidateSettings();
       await this.loadBackups();
@@ -2105,14 +2105,14 @@ export class SystemDiagnostics extends LitElement {
     const counts = ['sites', 'floors', 'plan_versions', 'map_anchors', 'spatial_zones', 'cameras'].filter((k) => b.tables[k] !== undefined).map((k) => `${b.tables[k]} ${TABLE_LABEL[k]}`).join(' · ');
     return html`<div class="brow" data-backup-row>
       <div>
-        <div class="name"><span class="ltr">${b.name}</span><sw-badge kind=${b.kind.startsWith('auto') ? 'neutral' : b.kind === 'upload' ? 'stale' : 'live'} label=${KIND_LABEL[b.kind] ?? b.kind}></sw-badge>${this.renderSensitiveBadge(b)}${!b.valid ? html`<sw-badge kind="error" label="קובץ לא תקין"></sw-badge>` : nothing}</div>
-        <div class="sub">${this.fmtWhen(b.created_at)} · ${fmtBytes(b.bytes)} · גרסה ${b.app_version ?? '?'}${b.note ? ` · ${b.note}` : ''}</div>
-        ${counts ? html`<div class="sub">${counts} · ${b.files} קבצי תוכנית</div>` : nothing}
+        <div class="name"><span class="ltr">${b.name}</span><sw-badge kind=${b.kind.startsWith('auto') ? 'neutral' : b.kind === 'upload' ? 'stale' : 'live'} label=${KIND_LABEL[b.kind] ?? b.kind}></sw-badge>${this.renderSensitiveBadge(b)}${!b.valid ? html`<sw-badge kind="error" label=${tr('קובץ לא תקין')}></sw-badge>` : nothing}</div>
+        <div class="sub">${tr('{fmtWhen} · {fmtBytes} · גרסה {v}{v2}', { fmtWhen: this.fmtWhen(b.created_at), fmtBytes: fmtBytes(b.bytes), v: b.app_version ?? '?', v2: b.note ? ` · ${b.note}` : '' })}</div>
+        ${counts ? html`<div class="sub">${tr('{counts} · {files} קבצי תוכנית', { counts, files: b.files })}</div>` : nothing}
       </div>
       <div class="acts">
-        <a href=${backupDownloadUrl(b.name)} download=${b.name} data-backup-download><sw-button size="sm" icon="download">הורד</sw-button></a>
-        <sw-button size="sm" icon="history" ?disabled=${!b.valid || this.backupBusy} data-backup-restore @click=${() => this.openRestore(b)}>שחזר</sw-button>
-        <sw-button size="sm" variant="ghost" icon="trash" ?disabled=${this.backupBusy} data-backup-remove @click=${() => (this.removeTarget = b)}>מחק</sw-button>
+        <a href=${backupDownloadUrl(b.name)} download=${b.name} data-backup-download><sw-button size="sm" icon="download">${tr('הורד')}</sw-button></a>
+        <sw-button size="sm" icon="history" ?disabled=${!b.valid || this.backupBusy} data-backup-restore @click=${() => this.openRestore(b)}>${tr('שחזר')}</sw-button>
+        <sw-button size="sm" variant="ghost" icon="trash" ?disabled=${this.backupBusy} data-backup-remove @click=${() => (this.removeTarget = b)}>${tr('מחק')}</sw-button>
       </div>
     </div>`;
   }
@@ -2149,25 +2149,25 @@ export class SystemDiagnostics extends LitElement {
   }
 
   private renderRestoreDialog(b: BackupEntry) {
-    return html`<sw-dialog open heading="שחזור גיבוי" subheading=${b.name} @close=${() => (this.restoreTarget = null)}>
-      <div class="row"><span class="lbl">אופן השחזור<span class="muted">${this.restoreMode === 'replace' ? 'הנתונים הנוכחיים של הפרויקט מוחלפים במה שבגיבוי' : 'רק פריטים שחסרים היום מתווספים; הקיימים נשארים'}</span></span>
-        <sw-field><select data-restore-mode @change=${(e: Event) => (this.restoreMode = (e.target as HTMLSelectElement).value as 'replace' | 'merge')}><option value="replace" ?selected=${this.restoreMode === 'replace'}>החלפה</option><option value="merge" ?selected=${this.restoreMode === 'merge'}>מיזוג</option></select></sw-field></div>
+    return html`<sw-dialog open heading=${tr('שחזור גיבוי')} subheading=${b.name} @close=${() => (this.restoreTarget = null)}>
+      <div class="row"><span class="lbl">${tr('אופן השחזור')}<span class="muted">${this.restoreMode === 'replace' ? tr('הנתונים הנוכחיים של הפרויקט מוחלפים במה שבגיבוי') : tr('רק פריטים שחסרים היום מתווספים; הקיימים נשארים')}</span></span>
+        <sw-field><select data-restore-mode @change=${(e: Event) => (this.restoreMode = (e.target as HTMLSelectElement).value as 'replace' | 'merge')}><option value="replace" ?selected=${this.restoreMode === 'replace'}>${tr('החלפה')}</option><option value="merge" ?selected=${this.restoreMode === 'merge'}>${tr('מיזוג')}</option></select></sw-field></div>
       <div class="row"><span class="lbl">${obr('accessLabel')}<span class="muted">${obr('accessHint')}</span></span><sw-toggle data-restore-access ?checked=${this.restoreAccess} label=${obr('accessLabel')} labelHidden @change=${(e: CustomEvent<{ checked: boolean }>) => (this.restoreAccess = e.detail.checked)}></sw-toggle></div>
       ${this.renderRestoreSensitive(b)}
       ${this.renderRestoreSafety()}
       ${this.errorOf('backup') ? html`<div class="msg err" role="alert" data-restore-error><sw-icon name="warning" size=${13}></sw-icon>${this.errorOf('backup')}</div>` : nothing}
-      <div class="muted" style="margin-block-start:8px">הגיבוי מגרסה ${b.app_version ?? '?'} מ־${this.fmtWhen(b.created_at)}. השחזור נרשם באודיט. לאישור הקלד <code>RESTORE</code>:</div>
+      <div class="muted" style="margin-block-start:8px">${tr('הגיבוי מגרסה {v} מ־{fmtWhen}. השחזור נרשם באודיט. לאישור הקלד', { v: b.app_version ?? '?', fmtWhen: this.fmtWhen(b.created_at) })} <code>RESTORE</code>:</div>
       <input class="confirm-in" data-restore-confirm placeholder="RESTORE" .value=${this.restoreConfirm} @input=${(e: Event) => (this.restoreConfirm = (e.target as HTMLInputElement).value)} />
-      <div slot="footer"><sw-button variant="danger" icon="history" ?disabled=${this.restoreConfirm !== 'RESTORE' || this.backupBusy} data-restore-go @click=${() => this.doRestore()}>${this.backupBusy ? 'משחזר…' : 'שחזר עכשיו'}</sw-button><sw-button variant="ghost" @click=${() => (this.restoreTarget = null)}>ביטול</sw-button></div>
+      <div slot="footer"><sw-button variant="danger" icon="history" ?disabled=${this.restoreConfirm !== 'RESTORE' || this.backupBusy} data-restore-go @click=${() => this.doRestore()}>${this.backupBusy ? tr('משחזר…') : tr('שחזר עכשיו')}</sw-button><sw-button variant="ghost" @click=${() => (this.restoreTarget = null)}>${tr('ביטול')}</sw-button></div>
     </sw-dialog>`;
   }
 
   private renderBackup() {
     const list = this.backups ?? [];
     return html`<div class="sections">
-      <sw-card heading="גיבויים של הפרויקט" subheading="אתרים, קומות, תוכניות, עוגנים, אזורים, מצלמות והגדרות · בלי סודות גלויים ובלי וידאו">
-        <div class="row"><span class="lbl">גיבוי ידני עכשיו<span class="muted">נשמר בתוך התוסף (/data/backups) ואפשר להוריד למחשב</span></span>
-          <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input class="note-in" placeholder="הערה (אופציונלי)" .value=${this.backupNote} @input=${(e: Event) => (this.backupNote = (e.target as HTMLInputElement).value)} /><sw-button variant="primary" size="sm" icon="download" ?disabled=${this.backupBusy || !isApi()} data-backup-create @click=${() => this.createBackup()}>${this.backupBusy ? 'עובד…' : 'צור גיבוי'}</sw-button></span></div>
+      <sw-card heading=${tr('גיבויים של הפרויקט')} subheading=${tr('אתרים, קומות, תוכניות, עוגנים, אזורים, מצלמות והגדרות · בלי סודות גלויים ובלי וידאו')}>
+        <div class="row"><span class="lbl">${tr('גיבוי ידני עכשיו')}<span class="muted">${tr('נשמר בתוך התוסף (/data/backups) ואפשר להוריד למחשב')}</span></span>
+          <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input class="note-in" placeholder=${tr('הערה (אופציונלי)')} .value=${this.backupNote} @input=${(e: Event) => (this.backupNote = (e.target as HTMLInputElement).value)} /><sw-button variant="primary" size="sm" icon="download" ?disabled=${this.backupBusy || !isApi()} data-backup-create @click=${() => this.createBackup()}>${this.backupBusy ? tr('עובד…') : tr('צור גיבוי')}</sw-button></span></div>
         <div class="row" data-backup-password-row><span class="lbl">${bpt('createLabel')}<span class="muted">${bpt('createHint')}</span></span>
           <input class="note-in" type="password" autocomplete="new-password" data-backup-password placeholder=${bpt('createPlaceholder', { n: this.backupMin() })} .value=${this.backupPassword} @input=${(e: Event) => (this.backupPassword = (e.target as HTMLInputElement).value)} /></div>
         <div class="row" data-backup-min-row><span class="lbl">${bpt('minLabel')}<span class="muted">${bpt('minHint')}</span></span>
@@ -2178,27 +2178,27 @@ export class SystemDiagnostics extends LitElement {
         <div class="row" data-backup-local-safety-row><span class="lbl">${obr('localSafety')}<span class="muted">${obr('localSafetyHint')}</span></span>
           <sw-toggle data-backup-local-safety ?checked=${localSafetyOn(this.settings?.['backup.safety_before_local_restore'])} ?disabled=${!isApi() || !this.canEdit || this.localSafetyBusy}
             label=${obr('localSafety')} labelHidden @change=${(e: CustomEvent<{ checked: boolean }>) => void this.toggleLocalSafety(e.detail.checked)}></sw-toggle></div>
-        <div class="row"><span class="lbl">העלאת גיבוי<span class="muted">קובץ zip שהורד מכאן (גם מהתקנה קודמת); אחרי ההעלאה לוחצים "שחזר"</span></span>
-          <span><input type="file" accept=".zip,application/zip" hidden @change=${(e: Event) => { const inp = e.target as HTMLInputElement; void this.onBackupFile(inp.files?.[0]); inp.value = ''; }} /><sw-button size="sm" icon="upload" ?disabled=${this.backupBusy || !isApi()} @click=${() => (this.renderRoot.querySelector('input[type=file]') as HTMLInputElement | null)?.click()}>בחר קובץ…</sw-button></span></div>
+        <div class="row"><span class="lbl">${tr('העלאת גיבוי')}<span class="muted">${tr('קובץ zip שהורד מכאן (גם מהתקנה קודמת); אחרי ההעלאה לוחצים "שחזר"')}</span></span>
+          <span><input type="file" accept=".zip,application/zip" hidden @change=${(e: Event) => { const inp = e.target as HTMLInputElement; void this.onBackupFile(inp.files?.[0]); inp.value = ''; }} /><sw-button size="sm" icon="upload" ?disabled=${this.backupBusy || !isApi()} @click=${() => (this.renderRoot.querySelector('input[type=file]') as HTMLInputElement | null)?.click()}>${tr('בחר קובץ…')}</sw-button></span></div>
         ${this.renderMeterBackup()}
         ${this.backupMsg ? html`<div class="msg ok" role="status" data-backup-msg><sw-icon name="check" size=${13}></sw-icon>${this.backupMsg}</div>` : nothing}
         ${this.errorOf('backup') && !this.restoreTarget ? html`<div class="msg err" role="alert" data-backup-error><sw-icon name="warning" size=${13}></sw-icon>${this.errorOf('backup')}</div>` : nothing}
         ${!isApi()
-          ? html`<div class="muted">נתוני הדגמה: הגיבויים עובדים מול השרת.</div>`
+          ? html`<div class="muted">${tr('נתוני הדגמה: הגיבויים עובדים מול השרת.')}</div>`
           : this.backups === null
             ? html`<sw-state-panel compact state="loading"></sw-state-panel>`
             : list.length
               ? html`<div class="blist" data-backups>${list.map((b) => this.renderBackupRow(b))}</div>`
               : this.loadFailed
-                ? html`<sw-state-panel compact state="error" heading="רשימת הגיבויים לא נטענה" hint=${this.loadFailed.backup} actionLabel="נסו שוב" @action=${() => void this.loadBackups()}></sw-state-panel>`
-                : html`<sw-state-panel icon="history" compact state="empty" heading="עדיין אין גיבויים" hint="הראשון ייווצר אוטומטית לפני העדכון הבא, או עכשיו בלחיצה."></sw-state-panel>`}
+                ? html`<sw-state-panel compact state="error" heading=${tr('רשימת הגיבויים לא נטענה')} hint=${this.loadFailed.backup} actionLabel=${tr('נסו שוב')} @action=${() => void this.loadBackups()}></sw-state-panel>`
+                : html`<sw-state-panel icon="history" compact state="empty" heading=${tr('עדיין אין גיבויים')} hint=${tr('הראשון ייווצר אוטומטית לפני העדכון הבא, או עכשיו בלחיצה.')}></sw-state-panel>`}
       </sw-card>
       ${isApi() && can('backup.manage') ? html`<sw-offbox-backup data-offbox-section></sw-offbox-backup>` : nothing}
-      <sw-card heading="אוטומטי ו־Rollback">
-        <div class="row"><span class="lbl">לפני כל עדכון גרסה<span class="muted">עותק של הנתונים נכתב לפני שהגרסה החדשה נוגעת במסד; נשמרים ${this.backupPolicy['auto-pre-upgrade'] ?? 5} האחרונים</span></span><sw-badge kind="live" label="פעיל"></sw-badge></div>
-        <div class="row"><span class="lbl">יומי<span class="muted">עותק אחד ביום, נשמרים ${this.backupPolicy['auto-daily'] ?? 7} האחרונים</span></span><sw-badge kind="live" label="פעיל"></sw-badge></div>
-        <div class="row"><span class="lbl">Rollback<span class="muted">חוזרים לגרסה קודמת דרך Home Assistant ואז משחזרים את הגיבוי "לפני עדכון" (החלפה)</span></span><span class="ltr">${this.version || '…'}</span></div>
-        <div class="row"><span class="lbl">גיבוי Home Assistant<span class="muted">ה־Add-on מוגדר backup: hot, ולכן /data (כולל הגיבויים האלה) נכלל גם בגיבוי המלא של HA</span></span></div>
+      <sw-card heading=${tr('אוטומטי ו־Rollback')}>
+        <div class="row"><span class="lbl">${tr('לפני כל עדכון גרסה')}<span class="muted">${tr('עותק של הנתונים נכתב לפני שהגרסה החדשה נוגעת במסד; נשמרים {v} האחרונים', { v: this.backupPolicy['auto-pre-upgrade'] ?? 5 })}</span></span><sw-badge kind="live" label=${tr('פעיל')}></sw-badge></div>
+        <div class="row"><span class="lbl">${tr('יומי')}<span class="muted">${tr('עותק אחד ביום, נשמרים {v} האחרונים', { v: this.backupPolicy['auto-daily'] ?? 7 })}</span></span><sw-badge kind="live" label=${tr('פעיל')}></sw-badge></div>
+        <div class="row"><span class="lbl">Rollback<span class="muted">${tr('חוזרים לגרסה קודמת דרך Home Assistant ואז משחזרים את הגיבוי "לפני עדכון" (החלפה)')}</span></span><span class="ltr">${this.version || '…'}</span></div>
+        <div class="row"><span class="lbl">${tr('גיבוי Home Assistant')}<span class="muted">${tr('ה־Add-on מוגדר backup: hot, ולכן /data (כולל הגיבויים האלה) נכלל גם בגיבוי המלא של HA')}</span></span></div>
       </sw-card>
     </div>
     ${this.restoreTarget ? this.renderRestoreDialog(this.restoreTarget) : nothing}
@@ -2206,11 +2206,11 @@ export class SystemDiagnostics extends LitElement {
   }
 
   private renderSupport() {
-    return html`<div class="sections"><sw-card heading="חבילת תמיכה מצונזרת">
-      <div class="muted" style="padding-block-end:8px">כוללת logs עם request/session/job id, מדדים, capability matrix, גרסאות. לא כוללת וידאו, תוכניות, סודות או כתובות מלאות ללא הסכמה.</div>
-      <div class="row"><span class="lbl">כלול תוכניות קומה</span><sw-toggle label="לא"></sw-toggle></div>
-      <div class="row"><span class="lbl">כלול תמונות מצלמה</span><sw-toggle label="לא"></sw-toggle></div>
-      <div class="foot"><sw-button variant="primary" icon="download" disabled>יצירת חבילה (בהמשך)</sw-button></div>
+    return html`<div class="sections"><sw-card heading=${tr('חבילת תמיכה מצונזרת')}>
+      <div class="muted" style="padding-block-end:8px">${tr('כוללת logs עם request/session/job id, מדדים, capability matrix, גרסאות. לא כוללת וידאו, תוכניות, סודות או כתובות מלאות ללא הסכמה.')}</div>
+      <div class="row"><span class="lbl">${tr('כלול תוכניות קומה')}</span><sw-toggle label=${tr('לא')}></sw-toggle></div>
+      <div class="row"><span class="lbl">${tr('כלול תמונות מצלמה')}</span><sw-toggle label=${tr('לא')}></sw-toggle></div>
+      <div class="foot"><sw-button variant="primary" icon="download" disabled>${tr('יצירת חבילה (בהמשך)')}</sw-button></div>
     </sw-card></div>`;
   }
 
@@ -2218,7 +2218,7 @@ export class SystemDiagnostics extends LitElement {
   private renderTab() {
     const chunk = TAB_CHUNKS[this.tab] ? this.tabChunks.get(this.tab) : 'ready';
     if (chunk === 'failed')
-      return html`<div class="sections"><sw-state-panel compact state="error" heading="הלשונית לא נטענה" hint="בדקו את החיבור ונסו שוב" actionLabel="נסו שוב" data-tab-chunk-failed @action=${() => this.retryTabChunk(this.tab)}></sw-state-panel></div>`;
+      return html`<div class="sections"><sw-state-panel compact state="error" heading=${tr('הלשונית לא נטענה')} hint=${tr('בדקו את החיבור ונסו שוב')} actionLabel=${tr('נסו שוב')} data-tab-chunk-failed @action=${() => this.retryTabChunk(this.tab)}></sw-state-panel></div>`;
     if (chunk !== 'ready') return html`<div class="sections" data-tab-chunk-loading><sw-state-panel compact state="loading"></sw-state-panel></div>`;
     return this.tab === 'general' ? this.renderGeneral() : this.tab === 'tabs' ? html`<system-tabs-config></system-tabs-config>` : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'buildings' ? html`<system-mapping></system-mapping>` : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === VOICE_TAB ? this.renderAccessVoice() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'remote' ? this.renderRemote() : this.tab === 'mobile' ? html`<system-presence></system-presence>` : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport();
   }
@@ -2227,8 +2227,8 @@ export class SystemDiagnostics extends LitElement {
     const tabs = this.layoutKnown() ? tabsFor(this.accessLayout()) : TABS; // SETTINGS-INTERCOM-CARDS-2401: layout b adds "הכרזות וקול"
     const cur = tabs.find((t) => t.id === this.tab) ?? tabs[0];
     return html`
-      <sw-page crumbs=${cur.id === 'general' ? 'הגדרות' : 'הגדרות | כללי'} heading=${cur.label} subheading=${`${(cur.id === VOICE_TAB ? sct().voiceTabSub : TAB_SUB[cur.id]) ?? ''}${isApi() ? '' : ' · נתוני הדגמה'}`}>
-        <sw-tabs underline data-settings-tabs .variant=${this.phoneSelect ? 'dropdown' : this.tabsMode.props('').variant} ?adaptive=${this.phoneSelect ? false : this.tabsMode.props('').adaptive} ?tall=${this.phoneSelect} ?block=${this.phoneSelect} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel} group-label="קטגוריה" .items=${tabs} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.openTab(e.detail.id)}></sw-tabs>
+      <sw-page crumbs=${cur.id === 'general' ? tr('הגדרות') : tr('הגדרות | כללי')} heading=${cur.label} subheading=${`${(cur.id === VOICE_TAB ? sct().voiceTabSub : TAB_SUB[cur.id]) ?? ''}${isApi() ? '' : tr(' · נתוני הדגמה')}`}>
+        <sw-tabs underline data-settings-tabs .variant=${this.phoneSelect ? 'dropdown' : this.tabsMode.props('').variant} ?adaptive=${this.phoneSelect ? false : this.tabsMode.props('').adaptive} ?tall=${this.phoneSelect} ?block=${this.phoneSelect} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel} group-label=${tr('קטגוריה')} .items=${tabs} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.openTab(e.detail.id)}></sw-tabs>
         ${this.message && this.tab === 'ha' ? html`<div class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</div>` : nothing}
         ${this.errorOf('ha') && this.tab === 'ha' ? html`<div class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.errorOf('ha')}</div>` : nothing}
         ${this.renderTab()}

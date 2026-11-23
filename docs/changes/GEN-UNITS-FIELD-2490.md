@@ -1,0 +1,24 @@
+# GEN-UNITS-FIELD-2490 - generator settings: units inside the field frame
+
+Owner decision Q16 (N54). Base: main 619f94d04. Branch: pilot/GEN-UNITS-FIELD-2490.
+
+## What changed
+
+- `frontend/src/generator/gen-settings.ts`: the rated power (kW, kVA), the alert thresholds, the retention windows and the run-log
+  thresholds are `sw-field` fields with the shared `unit` slot (the same component and look as electricity and water). The
+  "default N" line moved to the field's `message` slot (outside the unit frame).
+- Labels lost their "(unit)" suffix in `he.ts`, `lang/en/i18n/en.ts` and both `generator-log.ts` catalogues; a new `settings.units`
+  table carries the unit words (kW, kVA, bar, C, %, V, Hz, hours, hours ahead, seconds, minutes, days) in Hebrew and English.
+- Unchanged: element ids, `data-*` hooks, values, min/max validation, request bodies and saved data.
+
+## Progress note
+
+| Row | State |
+|---|---|
+| Component reuse (`sw-field`, CR-FIELD-UNIT-2470), no new look | done |
+| Labels without units, Hebrew + English tables | done |
+| PC: tsc, eslint on touched files, unit specs (144 passed), generator evidence specs (36 passed) | done |
+| Before/after captures (private/planning/gen_units_2490_compare_2026-11-23.html) | done |
+| Runner evidence run | see the branch report |
+
+English session (follow-up): the generator settings screen now reads the active-language catalogue (`uiLang()` + the English `generator.settings` merged over the Hebrew; the Hebrew output is unchanged), so labels and unit words are English in an English session. Check: `tests/evidence-gen-units-en-2490.spec.ts`. i18n report: gap 5, missing 20, hard-coded Hebrew 4586 - equal to main (not higher).

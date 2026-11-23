@@ -11,6 +11,9 @@
  *   hebrew     - an entry that differs from the Hebrew but still carries Hebrew letters
  *   gap        - keys whose text, as the target-language screen shows it, carries Hebrew letters (missing + identical + hebrew,
  *                minus Hebrew entries without Hebrew letters such as "WhatsApp")
+ *   placeholder - (I18N-EN-2490) an entry whose `{name}` placeholders differ from the Hebrew (a value would be lost or shown raw);
+ *                the tickets module's term tokens ({ticket}, {the_tickets}, {module} ..., filled by tickets/naming.ts in every
+ *                language) do not count
  * Part 1b - source-text tables (frontend/src/i18n/msg.ts): the Hebrew text is the key. The keys are the plain literals passed
  * to `tr(...)` in the files that import the module's table (`src/i18n/msg/<module>.ts`); a key the table lacks is missing.
  * Part 2 - hard-coded text. Hebrew string and template literals in source files that register no catalogue (they ignore the
@@ -23,6 +26,9 @@
  *   node scripts/i18n_missing_keys.mjs --write         # also write docs/i18n/MISSING_KEYS_EN.md and .json
  *   node scripts/i18n_missing_keys.mjs --lang ar       # another language (report only; ar / ru are not offered in the switch)
  *   node scripts/i18n_missing_keys.mjs --json          # the JSON on stdout
+ *   node scripts/i18n_missing_keys.mjs --ratchet       # (I18N-EN-2490) lower docs/i18n/EN_RATCHET.json to today's counts; it never
+ *                                                      # raises a count unless --allow-raise is given too (read by the unit spec
+ *                                                      # frontend/tests/unit-i18n-en-ratchet-2490.spec.ts)
  */
 import { createRequire } from 'node:module';
 import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
@@ -37,8 +43,13 @@ const args = process.argv.slice(2);
 const LANG = args.includes('--lang') ? args[args.indexOf('--lang') + 1] : 'en';
 const WRITE = args.includes('--write');
 const JSON_OUT = args.includes('--json');
+const RATCHET = args.includes('--ratchet');
+const ALLOW_RAISE = args.includes('--allow-raise');
 
 const HEB = /[֐-׿]/;
+// the tickets module's term tokens (tickets/naming.ts TOKEN): filled in every language, so the English may word them differently
+const TERM_TOKENS = new Set(['the_tickets', 'the_ticket', 'tickets', 'ticket', 'module']);
+const placeholders = (s) => [...new Set([...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).filter((n) => !TERM_TOKENS.has(n)))].sort().join(',');
 const LETTER = /[A-Za-z֐-׿؀-ۿЀ-ӿ]/;
 
 function walk(dir, out = []) {
@@ -98,14 +109,21 @@ function flatten(table, prefix = '', out = {}) {
 function catalogueRow(cat) {
   const he = flatten(cat.tables.he);
   const target = cat.tables[LANG] ? flatten(cat.tables[LANG]) : null;
-  const row = { name: cat.name, keys: 0, missing: 0, identical: 0, hebrew: 0, gap: 0, hasTable: !!target, devMarked: cat.devMarked.includes(LANG), gapKeys: [] };
+  const row = { name: cat.name, keys: 0, missing: 0, identical: 0, hebrew: 0, gap: 0, placeholder: 0, hasTable: !!target, devMarked: cat.devMarked.includes(LANG), gapKeys: [], missingKeys: [], placeholderKeys: [] };
   for (const [key, heText] of Object.entries(he)) {
     row.keys++;
     const v = target ? target[key] : undefined;
     const heHasHeb = HEB.test(heText);
-    if (v === undefined) row.missing++;
+    if (v === undefined) {
+      row.missing++;
+      row.missingKeys.push(key);
+    }
     else if (v === heText && heHasHeb) row.identical++;
     else if (HEB.test(v)) row.hebrew++;
+    if (v !== undefined && placeholders(v) !== placeholders(heText)) {
+      row.placeholder++;
+      row.placeholderKeys.push(key);
+    }
     const shown = v ?? heText;
     if (HEB.test(shown)) {
       row.gap++;
@@ -141,11 +159,21 @@ function msgRows(catalogues) {
     const missing = keys.filter((k) => en[k] === undefined);
     const hebrew = keys.filter((k) => en[k] !== undefined && HEB.test(en[k]));
     const unused = Object.keys(en).filter((k) => !used.get(name).has(k));
-    return { name, keys: keys.length, missing: missing.length, identical: 0, hebrew: hebrew.length, gap: missing.length + hebrew.length, hasTable: true, devMarked: false, gapKeys: [...missing, ...hebrew], unused: unused.length };
+    // every entry of the table, used or not (a key read through a variable is not seen by the scan above)
+    const placeholderKeys = Object.keys(en).filter((k) => placeholders(en[k]) !== placeholders(k));
+    return { name, keys: keys.length, missing: missing.length, identical: 0, hebrew: hebrew.length, gap: missing.length + hebrew.length, placeholder: placeholderKeys.length, hasTable: true, devMarked: false, gapKeys: [...missing, ...hebrew], missingKeys: missing, placeholderKeys, unused: unused.length, unusedKeys: unused };
   });
 }
 
 // ---------------------------------------------------------------- part 2: hard-coded Hebrew outside the catalogues
+/** The local names a source reads source-text tables under: `tr`, plus the aliases of `import { tr as trTime } from '../i18n/msg/time'`
+ * (I18N-EN-2490: a key passed to an aliased translator is a catalogue key of part 1b, not a hard-coded text). */
+function translatorCall(src) {
+  const names = new Set(['tr']);
+  for (const m of src.matchAll(/import\s*\{([^}]*)\}\s*from\s+['"][./]*(?:i18n\/)?msg\/[\w-]+['"]/g)) for (const a of m[1].matchAll(/\btr\s+as\s+(\w+)/g)) names.add(a[1]);
+  return new RegExp(`\\b(?:${[...names].join('|')})\\(\\s*$`);
+}
+
 /** Hebrew-bearing literal segments of a TS source: '...', "...", `...` text parts (comments skipped). */
 function hebrewLiterals(src) {
   const found = [];
@@ -153,9 +181,10 @@ function hebrewLiterals(src) {
   const n = src.length;
   const tplStack = []; // brace depth per open template `${`
   let braceDepth = 0;
+  const trCall = translatorCall(src);
   const push = (s, start) => {
     if (!HEB.test(s)) return;
-    if (start !== undefined && /\btr\(\s*$/.test(src.slice(Math.max(0, start - 12), start))) return; // a source-text key: part 1b
+    if (start !== undefined && trCall.test(src.slice(Math.max(0, start - 24), start))) return; // a source-text key: part 1b
     found.push(s.trim().slice(0, 80));
   };
   const readTemplateText = () => {
@@ -217,7 +246,7 @@ function hebrewLiterals(src) {
       i++;
       const before = found.length;
       readTemplateText();
-      if (found.length > before && /\btr\(\s*$/.test(src.slice(Math.max(0, start - 12), start))) found.length = before;
+      if (found.length > before && trCall.test(src.slice(Math.max(0, start - 24), start))) found.length = before;
       continue;
     }
     if (c === '{') {
@@ -252,6 +281,9 @@ function moduleOf(r) {
 
 function kindOf(r) {
   if (/(^|\/)fixtures\//.test(r) || /-mock/.test(r) || /(^|\/)mock/.test(r)) return 'demo';
+  // I18N-EN-2490: the api demo stores as the api lint names them (tests/unit-i18n-api-2442.spec.ts DEMO_FILE): whole files of fake data
+  // that may not call tr()
+  if (/^api\/[\w-]+-demo\.ts$/.test(r) || r === 'api/messaging-fake.ts') return 'demo';
   if (r.startsWith('public-ticket/')) return 'public';
   return 'app';
 }
@@ -289,6 +321,7 @@ const totals = {
   identical: sum(cats, 'identical'),
   hebrew: sum(cats, 'hebrew'),
   gap: sum(cats, 'gap'),
+  placeholder: sum(cats, 'placeholder'),
   hardcodedModules: lits.filter((r) => r.kind === 'app').length,
   hardcodedLiterals: sum(lits.filter((r) => r.kind === 'app'), 'literals'),
   hardcodedFiles: sum(lits.filter((r) => r.kind === 'app'), 'files'),
@@ -298,7 +331,7 @@ if (JSON_OUT) {
   process.stdout.write(JSON.stringify({ totals, catalogues: cats, hardcoded: lits }, null, 2) + '\n');
 } else {
   console.log(`language: ${LANG}`);
-  console.log(`catalogues: ${totals.catalogues}, keys: ${totals.keys}, missing: ${totals.missing}, identical: ${totals.identical}, hebrew: ${totals.hebrew}, gap: ${totals.gap}`);
+  console.log(`catalogues: ${totals.catalogues}, keys: ${totals.keys}, missing: ${totals.missing}, identical: ${totals.identical}, hebrew: ${totals.hebrew}, gap: ${totals.gap}, placeholder: ${totals.placeholder}`);
   console.log(`hard-coded Hebrew (app): ${totals.hardcodedLiterals} literals in ${totals.hardcodedFiles} files, ${totals.hardcodedModules} modules`);
 }
 
@@ -321,15 +354,26 @@ if (WRITE) {
   md.push(`| identical to the Hebrew | ${totals.identical} |`);
   md.push(`| ${LANG} text with Hebrew letters | ${totals.hebrew} |`);
   md.push(`| **gap: keys that show Hebrew in the ${LANG} interface** | **${totals.gap}** |`);
+  md.push(`| ${LANG} text whose \`{placeholders}\` differ from the Hebrew | ${totals.placeholder} |`);
   md.push(`| hard-coded Hebrew literals outside catalogues (app) | ${totals.hardcodedLiterals} in ${totals.hardcodedFiles} files |`);
   md.push('');
   md.push('## Catalogues (per module)');
   md.push('');
-  md.push(`| catalogue | keys | missing | identical | hebrew | gap | note |`);
-  md.push('| --- | ---: | ---: | ---: | ---: | ---: | --- |');
+  md.push(`| catalogue | keys | missing | identical | hebrew | gap | placeholder | note |`);
+  md.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |');
   for (const r of cats) {
-    const note = [!r.hasTable ? `no ${LANG} table` : '', r.devMarked ? 'dev-marked' : ''].filter(Boolean).join(', ');
-    md.push(`| ${r.name} | ${r.keys} | ${r.missing} | ${r.identical} | ${r.hebrew} | ${r.gap} | ${note} |`);
+    const note = [!r.hasTable ? `no ${LANG} table` : '', r.devMarked ? 'dev-marked' : '', r.unused ? `${r.unused} unused` : ''].filter(Boolean).join(', ');
+    md.push(`| ${r.name} | ${r.keys} | ${r.missing} | ${r.identical} | ${r.hebrew} | ${r.gap} | ${r.placeholder} | ${note} |`);
+  }
+  const listed = cats.filter((r) => r.gapKeys.length || r.placeholderKeys.length);
+  if (listed.length) {
+    md.push('');
+    md.push(`### Keys that show Hebrew in ${LANG}, or whose placeholders differ`);
+    md.push('');
+    for (const r of listed) {
+      for (const k of r.gapKeys) md.push(`- ${r.name}: gap \`${k}\``);
+      for (const k of r.placeholderKeys) md.push(`- ${r.name}: placeholder \`${k}\``);
+    }
   }
   md.push('');
   md.push('## Hard-coded Hebrew outside catalogues (per module)');
@@ -343,4 +387,46 @@ if (WRITE) {
   writeFileSync(join(outDir, `MISSING_KEYS_${L}.md`), md.join('\n'), 'utf8');
   writeFileSync(join(outDir, `MISSING_KEYS_${L}.json`), JSON.stringify({ totals, catalogues: cats, hardcoded: lits }, null, 1) + '\n', 'utf8');
   console.log(`wrote docs/i18n/MISSING_KEYS_${L}.md and .json`);
+}
+
+// ---------------------------------------------------------------- ratchet (I18N-EN-2490)
+// docs/i18n/EN_RATCHET.json: the keys allowed to show Hebrew / to differ in placeholders, and the most hard-coded Hebrew literals each
+// module may still hold. The unit spec fails on anything above it; this mode only lowers it (a fixed key leaves the list, a module's
+// count drops). --allow-raise is for a reviewed exception and must be explained in the change note.
+function ratchetOf(t, catalogues, hardcoded) {
+  const app = hardcoded.filter((r) => r.kind === 'app');
+  return {
+    lang: 'en',
+    gapKeys: catalogues.flatMap((r) => r.gapKeys.map((k) => `${r.name}: ${k}`)).sort(),
+    placeholderKeys: catalogues.flatMap((r) => r.placeholderKeys.map((k) => `${r.name}: ${k}`)).sort(),
+    hardcodedTotal: t.hardcodedLiterals,
+    hardcoded: Object.fromEntries(app.map((r) => [r.module, r.literals]).sort((a, b) => a[0].localeCompare(b[0]))),
+  };
+}
+if (RATCHET) {
+  if (LANG !== 'en') throw new Error('--ratchet is for English only');
+  const file = join(ROOT, 'docs', 'i18n', 'EN_RATCHET.json');
+  const now = ratchetOf(totals, cats, lits);
+  let old = null;
+  try {
+    old = JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    old = null;
+  }
+  const raised = [];
+  if (old) {
+    for (const k of now.gapKeys) if (!old.gapKeys.includes(k)) raised.push(`gap ${k}`);
+    for (const k of now.placeholderKeys) if (!old.placeholderKeys.includes(k)) raised.push(`placeholder ${k}`);
+    for (const [m, n] of Object.entries(now.hardcoded)) if (n > (old.hardcoded[m] ?? 0)) raised.push(`hard-coded ${m}: ${old.hardcoded[m] ?? 0} -> ${n}`);
+  }
+  if (raised.length && !ALLOW_RAISE) {
+    console.error(`refused: the ratchet would go up (fix these, or pass --allow-raise with a reason in the change note):\n  ${raised.join('\n  ')}`);
+    process.exit(1);
+  }
+  // the reasons of the allowed keys are written by hand and kept; a reason whose key left the lists is dropped
+  const allowed = new Set([...now.gapKeys, ...now.placeholderKeys]);
+  const why = Object.fromEntries(Object.entries(old?.why ?? {}).filter(([k]) => allowed.has(k)));
+  const note = 'I18N-EN-2490: written by `node scripts/i18n_missing_keys.mjs --ratchet` (it only lowers); read by frontend/tests/unit-i18n-en-ratchet-2490.spec.ts';
+  writeFileSync(file, JSON.stringify({ note, why, ...now }, null, 1) + '\n', 'utf8');
+  console.log(`wrote docs/i18n/EN_RATCHET.json (hard-coded ${old ? old.hardcodedTotal : '-'} -> ${now.hardcodedTotal}, gap keys ${now.gapKeys.length}, placeholder keys ${now.placeholderKeys.length})`);
 }

@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..errors import ApiError
+from ..i18n import localize_for
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import schedule_model as model
 from ..services import schedule_ops as ops
@@ -231,8 +232,15 @@ def _bridge_writer(request: Request, conn: sqlite3.Connection, principal: Princi
     return _writer(request, conn, principal)
 
 
-def _reply(result: tuple[int, dict[str, Any]]) -> JSONResponse:
-    return JSONResponse(status_code=result[0], content=result[1])
+def _out(conn: sqlite3.Connection, principal: Principal, value: Any) -> Any:
+    """I18N-BACKEND-2490 (third pass): the refusals and warnings of an answer (`Msg`s, services/schedule_view.py and the permission labels
+    they quote) in the requester's interface language; a Hebrew reader gets the value as it is."""
+    return localize_for(conn, principal, value)
+
+
+def _reply(result: tuple[int, dict[str, Any]], conn: sqlite3.Connection | None = None, principal: Principal | None = None) -> JSONResponse:
+    content = result[1] if conn is None or principal is None else _out(conn, principal, result[1])
+    return JSONResponse(status_code=result[0], content=content)
 
 
 def _feature_or_409(ctx: view.Ctx) -> None:
@@ -249,7 +257,7 @@ def schedules_status(request: Request, principal: Principal = Depends(current_pr
     a = view.Access(conn, principal)
     if a.anywhere(view.VIEW) or a.anywhere(view.MANAGE):
         store.MIRROR.ensure(conn, force=recheck)
-    return view.status_payload(conn, principal)
+    return _out(conn, principal, view.status_payload(conn, principal))
 
 
 @router.get("/schedules")
@@ -266,7 +274,7 @@ def list_schedules(
     ctx = _ctx(request, conn, principal)
     filters = {"q": q, "floor": floor, "area": area, "entity": entity, "condition": condition, "has_conditions": has_conditions, "preset": preset, "day": day, "state": state,
                "tag": tag, "folder": folder, "source": source, "sensitive": sensitive, "editable": editable}
-    return view.list_payload(ctx, filters, sort, limit, offset)
+    return _out(conn, principal, view.list_payload(ctx, filters, sort, limit, offset))
 
 
 @router.get("/schedules/catalog")
@@ -275,7 +283,7 @@ def catalog(request: Request, principal: Principal = Depends(_manager), conn: sq
     """§3.4 - the editor's action-entity picker (one server-side source of classes, allow-list and door / alarm rules)."""
     ctx = _ctx(request, conn, principal, sync=False)
     _feature_or_409(ctx)
-    return view.catalog_payload(ctx, q, floor, area, cls)
+    return _out(conn, principal, view.catalog_payload(ctx, q, floor, area, cls))
 
 
 @router.get("/schedules/condition-candidates")
@@ -287,7 +295,7 @@ def condition_candidates(request: Request, principal: Principal = Depends(curren
     if not a.anywhere(view.MANAGE) and not authorize(conn, principal, "system.configure", INSTALLATION).allowed:
         require(conn, principal, view.MANAGE, INSTALLATION)
     ctx = view.Ctx(conn, principal)
-    return view.candidates_payload(ctx, q, domain)
+    return _out(conn, principal, view.candidates_payload(ctx, q, domain))
 
 
 @router.post("/schedules/preview")
@@ -295,7 +303,7 @@ def preview(request: Request, principal: Principal = Depends(_viewer_gate), raw:
     """§3.5 - always 200 for a well-formed body; problems are data."""
     body, _ = _parse(request, raw, PreviewBody)
     w = _writer(request, conn, principal)
-    return ops.preview(w, body.draft.model_dump(), body.schedule_id, body.count)
+    return _out(conn, principal, ops.preview(w, body.draft.model_dump(), body.schedule_id, body.count))
 
 
 # ---------------------------------------------------------------- writes: create, trash, bulk, organisation (static paths first)
@@ -304,45 +312,45 @@ def preview(request: Request, principal: Principal = Depends(_viewer_gate), raw:
 def create_schedule(request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, CreateBody, ("alarm_code",))
     code = _code_ok(secret.get("alarm_code"))
-    return _reply(ops.create(_bridge_writer(request, conn, principal), body.draft.model_dump(), body.enabled, body.client_request_id, body.confirm_lowering, code))
+    return _reply(ops.create(_bridge_writer(request, conn, principal), body.draft.model_dump(), body.enabled, body.client_request_id, body.confirm_lowering, code), conn, principal)
 
 
 @router.get("/schedules/trash")
 def list_trash(request: Request, principal: Principal = Depends(_viewer_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """§3.13 - the 30-day trash the caller may see (the snapshot's action entities follow the same visibility rule)."""
-    return ops.trash_list(_writer(request, conn, principal))
+    return _out(conn, principal, ops.trash_list(_writer(request, conn, principal)))
 
 
 @router.post("/schedules/trash/{trash_id}/restore")
 def restore_trash(trash_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, RestoreBody, ("alarm_code",))
     code = _code_ok(secret.get("alarm_code"))
-    return _reply(ops.restore(_bridge_writer(request, conn, principal), trash_id, body.client_request_id, body.confirm_lowering, code))
+    return _reply(ops.restore(_bridge_writer(request, conn, principal), trash_id, body.client_request_id, body.confirm_lowering, code), conn, principal)
 
 
 @router.post("/schedules/trash/{trash_id}/purge")
 def purge_trash(trash_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body, _ = _parse(request, raw, PurgeBody)
-    return ops.purge(_writer(request, conn, principal), trash_id, body.confirm)
+    return _out(conn, principal, ops.purge(_writer(request, conn, principal), trash_id, body.confirm))
 
 
 @router.post("/schedules/bulk")
 def bulk_schedules(request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body, _ = _parse(request, raw, BulkBody)
-    return ops.bulk(_bridge_writer(request, conn, principal), body.op, body.ids, body.confirm, body.client_request_id)
+    return _out(conn, principal, ops.bulk(_bridge_writer(request, conn, principal), body.op, body.ids, body.confirm, body.client_request_id))
 
 
 @router.get("/schedules/organisation")
 def get_organisation(request: Request, principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.15 - folders, order and pins of the visible schedules (Arx only)."""
     _ctx(request, conn, principal)
-    return ops.org_get(_writer(request, conn, principal))
+    return _out(conn, principal, ops.org_get(_writer(request, conn, principal)))
 
 
 @router.put("/schedules/organisation")
 def put_organisation(request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body, _ = _parse(request, raw, OrgBody)
-    return ops.org_put(_writer(request, conn, principal), [f.model_dump() for f in body.folders], [i.model_dump() for i in body.items])
+    return _out(conn, principal, ops.org_put(_writer(request, conn, principal), [f.model_dump() for f in body.folders], [i.model_dump() for i in body.items]))
 
 
 @router.get("/schedules/runs")
@@ -352,7 +360,7 @@ def list_runs(request: Request, principal: Principal = Depends(_viewer), conn: s
     """§3.16 - derived activity (best effort, §6.6); the wording is never "failed"."""
     ctx = _ctx(request, conn, principal)
     store.settle_runs(conn, store.MIRROR.now())
-    return view.runs_payload(ctx, schedule_id, since, result, limit)
+    return _out(conn, principal, view.runs_payload(ctx, schedule_id, since, result, limit))
 
 
 @router.get("/schedules/review")
@@ -362,14 +370,14 @@ def review(request: Request, principal: Principal = Depends(_viewer), conn: sqli
     if not ctx.access.wide(view.MANAGE):
         require(conn, principal, view.MANAGE, INSTALLATION)
     rows, _ = view.visible_rows(ctx)
-    return {"items": view.review_items(ctx, rows)}
+    return _out(conn, principal, {"items": view.review_items(ctx, rows)})
 
 
 @router.get("/schedules/scripts")
 def scripts(request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Owner decision 2 (2026-10-04): the scripts a schedule may run, the ones that need a system administrator's "allowed in schedules" mark,
     and the marks (who, when, lapsed because the script changed)."""
-    return view.scripts_payload(_ctx(request, conn, principal, sync=False))
+    return _out(conn, principal, view.scripts_payload(_ctx(request, conn, principal, sync=False)))
 
 
 @router.post("/schedules/scripts/{entity_id}/mark")
@@ -378,13 +386,13 @@ def mark_script(entity_id: str, request: Request, principal: Principal = Depends
     body, _ = _parse(request, raw, MarkBody)
     if not re.match(r"^script\.[a-z0-9_]{1,100}$", entity_id):
         raise ApiError(404, "not_found", "הסקריפט אינו מוכר למערכת.")
-    return ops.mark_script(_writer(request, conn, principal), entity_id, body.undo)
+    return _out(conn, principal, ops.mark_script(_writer(request, conn, principal), entity_id, body.undo))
 
 
 @router.get("/schedules/tags")
 def list_tags(request: Request, principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.18 - tags on the visible schedules."""
-    return view.tags_payload(_ctx(request, conn, principal))
+    return _out(conn, principal, view.tags_payload(_ctx(request, conn, principal)))
 
 
 # ---------------------------------------------------------------- one schedule
@@ -402,54 +410,54 @@ def get_schedule(schedule_id: str, request: Request, principal: Principal = Depe
         raise ApiError(404, "schedule_not_found", "התזמון לא נמצא.")
     meta = store.meta_rows(conn).get(schedule_id)
     runs = view.last_runs(conn, [schedule_id])
-    return view.build_schedule(ctx, row, meta, runs.get(schedule_id), detail=True)
+    return _out(conn, principal, view.build_schedule(ctx, row, meta, runs.get(schedule_id), detail=True))
 
 
 @router.put("/schedules/{schedule_id}")
 def update_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, UpdateBody, ("alarm_code",))
     code = _code_ok(secret.get("alarm_code"))
-    return _reply(ops.update(_bridge_writer(request, conn, principal), schedule_id, body.draft.model_dump(), body.base_revision, body.client_request_id, body.confirm_lowering, code))
+    return _reply(ops.update(_bridge_writer(request, conn, principal), schedule_id, body.draft.model_dump(), body.base_revision, body.client_request_id, body.confirm_lowering, code), conn, principal)
 
 
 @router.post("/schedules/{schedule_id}/enable")
 def enable_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, ToggleBody, ("alarm_code",))
-    return _reply(ops.set_enabled(_bridge_writer(request, conn, principal), schedule_id, True, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))))
+    return _reply(ops.set_enabled(_bridge_writer(request, conn, principal), schedule_id, True, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))), conn, principal)
 
 
 @router.post("/schedules/{schedule_id}/disable")
 def disable_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, ToggleBody, ("alarm_code",))
-    return _reply(ops.set_enabled(_bridge_writer(request, conn, principal), schedule_id, False, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))))
+    return _reply(ops.set_enabled(_bridge_writer(request, conn, principal), schedule_id, False, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))), conn, principal)
 
 
 @router.post("/schedules/{schedule_id}/run")
 def run_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, RunBody, ("alarm_code",))
-    return _reply(ops.run(_bridge_writer(request, conn, principal), schedule_id, body.slot_index, body.skip_conditions, body.confirm, body.client_request_id, _code_ok(secret.get("alarm_code"))))
+    return _reply(ops.run(_bridge_writer(request, conn, principal), schedule_id, body.slot_index, body.skip_conditions, body.confirm, body.client_request_id, _code_ok(secret.get("alarm_code"))), conn, principal)
 
 
 @router.post("/schedules/{schedule_id}/split")
 def split_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, SplitBody, ("alarm_code",))
-    return _reply(ops.split(_bridge_writer(request, conn, principal), schedule_id, body.base_revision, list(body.days), body.name, body.confirm, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))))
+    return _reply(ops.split(_bridge_writer(request, conn, principal), schedule_id, body.base_revision, list(body.days), body.name, body.confirm, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))), conn, principal)
 
 
 @router.post("/schedules/{schedule_id}/delete")
 def delete_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, _ = _parse(request, raw, DeleteBody)
-    return _reply(ops.delete(_bridge_writer(request, conn, principal), schedule_id, body.base_revision, body.confirm, body.client_request_id))
+    return _reply(ops.delete(_bridge_writer(request, conn, principal), schedule_id, body.base_revision, body.confirm, body.client_request_id), conn, principal)
 
 
 @router.post("/schedules/{schedule_id}/acknowledge")
 def acknowledge_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A system administrator silences (or, with `undo`, restores) a review warning of one schedule; bound to its content (2026-10-04)."""
     body, _ = _parse(request, raw, AckBody)
-    return ops.acknowledge(_writer(request, conn, principal), schedule_id, body.issue, body.undo)
+    return _out(conn, principal, ops.acknowledge(_writer(request, conn, principal), schedule_id, body.issue, body.undo))
 
 
 @router.post("/schedules/{schedule_id}/copy")
 def copy_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, CopyBody, ("alarm_code",))
-    return _reply(ops.copy(_bridge_writer(request, conn, principal), schedule_id, body.name, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))))
+    return _reply(ops.copy(_bridge_writer(request, conn, principal), schedule_id, body.name, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))), conn, principal)

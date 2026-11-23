@@ -6,7 +6,7 @@ export const en = { pageTitle: 'Live incident', activePill: 'Active incident', a
   railDot: 'Active incident', statusOpen: 'Active', statusClosed: 'Closed', openedBy: 'Opened {t} by {who}', clock: 'Current time', ack: 'Acknowledge',
   acked: 'Acknowledged', addCase: 'Add to case', addCaseShort: 'Case', close: 'Close incident', closeShort: 'Close',
   closeConfirm: 'Close the incident? Closing is audited; it does not silence the alarm and does not touch any door.', closeNote: 'Closing note (optional)',
-  closeDo: 'Close', cancel: 'Cancel', settings: 'Live incident settings', toEvents: 'Event center', toEvent: 'Event page', partCams: 'Cameras', partMap: 'Map',
+  closeDo: 'Close', cancel: 'Cancel', settings: 'Live incident settings', toEvents: 'Event centre', toEvent: 'Event page', partCams: 'Cameras', partMap: 'Map',
   partDoors: 'Doors', partChain: 'Handling', parts: 'Page parts', mapTitle: 'Location', liveMap: 'Live map', historyMap: 'History map',
   noMap: 'No floor plan for this location', noLocation: 'The incident has no location on the map', mapForbidden: 'No permission for this floor map',
   camsTitle: 'Nearest cameras', camsLive: '{n} live · sub stream', camsPhone: '{n} live · {s} stills', camsNone: 'No cameras nearby',

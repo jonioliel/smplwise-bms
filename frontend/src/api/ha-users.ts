@@ -8,6 +8,7 @@
 import { get, post } from './client';
 import { isApi } from './session';
 import type * as Wire from './generated/wire-ha-users';
+import { tr } from '../i18n/msg/api-system';
 
 type ManagedState = 'active' | 'inactive' | 'needs_repair';
 export type AccessState = 'unknown' | 'ok' | 'not_authorised' | 'unavailable' | 'not_configured' | 'failed';
@@ -39,17 +40,17 @@ interface CreateRequest {
 
 const demo: HaUsersView = {
   users: [
-    { ha_user_id: 'demo-1', username: 'dana', display_name: 'דנה לוי', role_id: 'viewer', role_name: 'צופה', scope_type: 'installation', scope_id: '*', scope_name: 'כל ההתקנה',
+    { ha_user_id: 'demo-1', username: 'dana', display_name: 'דנה לוי', role_id: 'viewer', role_name: tr('צופה'), scope_type: 'installation', scope_id: '*', scope_name: tr('כל ההתקנה'),
       state: 'active', repair: null, person: true, created_at: '2026-10-16T08:00:00Z', created_by_name: 'מנהל', is_self: false },
-    { ha_user_id: 'demo-2', username: 'yossi', display_name: 'יוסי כהן', role_id: 'operator', role_name: 'מפעיל', scope_type: 'installation', scope_id: '*', scope_name: 'כל ההתקנה',
+    { ha_user_id: 'demo-2', username: 'yossi', display_name: 'יוסי כהן', role_id: 'operator', role_name: tr('מפעיל'), scope_type: 'installation', scope_id: '*', scope_name: tr('כל ההתקנה'),
       state: 'inactive', repair: null, person: true, created_at: '2026-10-15T08:00:00Z', created_by_name: 'מנהל', is_self: false },
   ],
   can_manage: true,
   actor_ha_admin: true,
   transport: 'supervisor',
   access: { state: 'ok', checked_at: '2026-10-16T08:00:00Z' },
-  roles: [{ id: 'viewer', name: 'צופה' }, { id: 'operator', name: 'מפעיל' }, { id: 'editor', name: 'עורך מפות ותצוגות' }],
-  scopes: [{ type: 'installation', id: '*', name: 'כל ההתקנה' }],
+  roles: [{ id: 'viewer', name: tr('צופה') }, { id: 'operator', name: tr('מפעיל') }, { id: 'editor', name: tr('עורך מפות ותצוגות') }],
+  scopes: [{ type: 'installation', id: '*', name: tr('כל ההתקנה') }],
   password: { min_length: 10, max_length: 128 },
   limit: 50,
 };
@@ -67,7 +68,7 @@ export const haUsersApi = {
     if (isApi()) return post<{ user: ManagedUser; replayed: boolean }>('/ha-users', body);
     const role = demo.roles.find((r) => r.id === body.role_id);
     const user: ManagedUser = { ha_user_id: `demo-${Date.now()}`, username: body.username, display_name: body.display_name, role_id: body.role_id, role_name: role?.name ?? body.role_id,
-      scope_type: body.scope_type, scope_id: body.scope_id, scope_name: 'כל ההתקנה', state: 'active', repair: null, person: body.create_person,
+      scope_type: body.scope_type, scope_id: body.scope_id, scope_name: tr('כל ההתקנה'), state: 'active', repair: null, person: body.create_person,
       created_at: new Date().toISOString(), created_by_name: 'מנהל', is_self: false };
     demo.users.push(user);
     return { user: clone(user), replayed: false };

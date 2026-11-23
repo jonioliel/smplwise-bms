@@ -42,6 +42,16 @@ function sectionOf(el: HTMLElement): Element | null {
   return root instanceof ShadowRoot ? root.host.closest('section') : null;
 }
 
+/** TICKETS-PAGING-2490: how a region keeps the operator's place. */
+interface PageFitOptions {
+  /** Keep the place instead of going back to page 1 when the region changes size (a bar shown or hidden above it, the window resized)
+   * or when the same set grows or shrinks (`sync` with the same signature and another total: "load more", a poll, a row deleted): the
+   * page measured next is the one that holds the item that was first on the page before (or the item given to `reveal`). */
+  keep?: boolean;
+  /** Measure the region's content box (inside its border and padding), not its border box: a region that is itself a bordered card. */
+  content?: boolean;
+}
+
 interface Geo {
   top: number;
   bottom: number;
@@ -63,12 +73,19 @@ export class PageFit implements ReactiveController {
   private mq: MediaQueryList;
   /** the installation's long-lists setting: `scroll` draws every card (the region scrolls inside itself) */
   readonly lists: LongListsController;
+  /** TICKETS-PAGING-2490 (`keep`): the item whose page the next measure shows (null = page 1) */
+  private want: number | null = null;
+  /** (`keep`) how many times a drawn page that still overflowed was measured again from every item (bounded: then it is split) */
+  private refits = 0;
+  /** (`keep`) the page count shown while measuring again */
+  private held = 1;
 
   constructor(
     private host: ReactiveControllerHost & HTMLElement,
     private region: () => HTMLElement | null,
     private enabled: () => boolean,
     mq: string = FIT_MQ,
+    private opts: PageFitOptions = {},
   ) {
     this.mq = window.matchMedia(mq);
     this.lists = new LongListsController(host, () => this.reset());
@@ -87,7 +104,11 @@ export class PageFit implements ReactiveController {
   }
 
   get pages(): number {
-    return !this.on || !this.starts ? 1 : Math.max(1, this.starts.length - 1);
+    if (!this.on) return 1;
+    // (`keep`) while measuring again, the count measured before: the pager keeps its place, so the room the measure sees is the room
+    // the pages will have (a pager that left and came back would move the region's edge and start the measure over)
+    if (!this.starts) return this.opts.keep ? this.held : 1;
+    return Math.max(1, this.starts.length - 1);
   }
 
   hostConnected() {
@@ -112,14 +133,63 @@ export class PageFit implements ReactiveController {
     this.page = 1;
   }
 
-  /** Called while rendering: how many cards there are and what identifies the set (keys + filters). A new set starts at page 1. */
+  /** TICKETS-PAGING-2490 (`keep`): measure again and come back to the item first on the page now (unless one is already wanted). */
+  private resetKeep() {
+    if (this.want === null && this.on && this.starts) this.want = this.starts[this.page - 1];
+    if (this.starts) this.held = this.pages;
+    this.reset();
+  }
+
+  /** Called while rendering: how many cards there are and what identifies the set (keys + filters). A new set starts at page 1; with
+   * `keep`, the same set with another total keeps the place. */
   sync(total: number, sig: string) {
-    if (sig !== this.sig || total !== this.total) {
+    if (sig !== this.sig) {
       this.sig = sig;
       this.total = total;
+      this.want = null;
+      this.refits = 0;
       this.reset();
+    } else if (total !== this.total) {
+      this.total = total;
+      this.refits = 0;
+      if (this.opts.keep) this.resetKeep();
+      else this.reset();
     }
     if (this.page > this.pages) this.page = this.pages;
+  }
+
+  /** The index of the first item on the page shown (0 while not paged or not measured). */
+  get first(): number {
+    return this.on && this.starts ? this.starts[this.page - 1] : 0;
+  }
+
+  /** TICKETS-PAGING-2490: show the page that holds item `i` - now when the pages are measured and hold it, else after the next measure
+   * (an item that is not drawn yet: the first row a "load more" brings). Nothing while the pages are not in force. */
+  reveal(i: number) {
+    if (!this.on) return;
+    if (this.starts && i < this.total && i < this.starts[this.starts.length - 1]) {
+      this.go(this.pageOf(i));
+      return;
+    }
+    this.want = i;
+  }
+
+  /** TICKETS-PAGING-2490: the items' layout changed without the region changing size or the set changing (other columns, another
+   * density): measure again from every item (with `keep`, back to the item first on the page now). */
+  refit() {
+    if (!this.on) return;
+    this.refits = 0;
+    if (this.opts.keep) this.resetKeep();
+    else this.reset();
+    this.host.requestUpdate();
+  }
+
+  private pageOf(i: number): number {
+    const s = this.starts;
+    if (!s) return 1;
+    let p = 1;
+    while (p < s.length - 1 && i >= s[p]) p++;
+    return p;
   }
 
   /** Is the card at reading-order index `i` on the current page? */
@@ -146,7 +216,10 @@ export class PageFit implements ReactiveController {
         const first = this.size === '';
         this.size = s;
         if (first) return;
-        this.reset(); // the region changed size: measure from every card again
+        this.refits = 0;
+        // the region changed size: measure from every card again (with `keep`, back to the item first on the page now)
+        if (this.opts.keep) this.resetKeep();
+        else this.reset();
         this.host.requestUpdate();
       });
       this.ro.observe(r);
@@ -195,18 +268,22 @@ export class PageFit implements ReactiveController {
   /** The top of the first drawn section (where a page's content starts). */
   private firstTop(r: HTMLElement): number {
     const sec = [...r.querySelectorAll('section')].find((s) => s.getClientRects().length > 0);
+    if (!sec && this.opts.content) return r.getBoundingClientRect().top + r.clientTop + (parseFloat(getComputedStyle(r).paddingBlockStart) || 0);
     return (sec ?? r).getBoundingClientRect().top;
   }
 
   private measure() {
     const r = this.region();
     if (!r || !this.on) return;
-    const bottom = r.getBoundingClientRect().bottom - (parseFloat(getComputedStyle(r).paddingBlockEnd) || 0);
+    const rb = r.getBoundingClientRect();
+    const padEnd = parseFloat(getComputedStyle(r).paddingBlockEnd) || 0;
+    const bottom = (this.opts.content ? rb.top + r.clientTop + r.clientHeight : rb.bottom) - padEnd;
     const { g } = this.geo(r);
     if (!g.length) return;
     if (!this.starts) {
       if (r.scrollHeight - r.clientHeight <= 1) {
         this.starts = [0, g.length];
+        this.want = null;
         return;
       }
       // every card is drawn: compute every page break from this one layout
@@ -222,12 +299,21 @@ export class PageFit implements ReactiveController {
         starts.push(i);
       }
       this.starts = starts;
-      this.page = 1;
+      this.page = this.want === null ? 1 : this.pageOf(this.want);
+      this.want = null;
       this.host.requestUpdate();
       return;
     }
     // a drawn page: if it still overflows, split it where it does (the pages before it keep their cards)
     if (r.scrollHeight - r.clientHeight <= 1) return;
+    // TICKETS-PAGING-2490 (`keep`): the items changed height since they were measured (a late font, a cell that filled in) - measure
+    // every page again rather than leave a page of one item behind the split; twice at most, then split as before
+    if (this.opts.keep && this.refits < 2) {
+      this.refits++;
+      this.resetKeep();
+      this.host.requestUpdate();
+      return;
+    }
     const base = this.firstTop(r);
     const k = this.fitFrom(g, 0, base, bottom - base);
     const s = this.starts[this.page - 1];

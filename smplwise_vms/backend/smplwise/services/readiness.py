@@ -25,6 +25,8 @@ from ..audit import audit
 from ..config import Settings
 from ..db import get_setting, set_setting
 from ..errors import ApiError
+from ..i18n import t
+from . import readiness_text  # noqa: F401 - registers the report's texts (I18N-BACKEND-2490)
 from . import values
 from ..rbac import Principal
 from .timeutil import iso_utc
@@ -37,21 +39,24 @@ PERMISSION = "system.configure"  # read, check, attest and edit the thresholds: 
 # status: ok | attention | blocked | pending | not_applicable
 OK, ATTENTION, BLOCKED, PENDING, NOT_APPLICABLE = "ok", "attention", "blocked", "pending", "not_applicable"
 LEVELS = ("building", "almost", "ready")
-LEVEL_TEXT = {"building": "בהקמה", "almost": "כמעט מוכן למסירה", "ready": "מוכן למסירה"}
+# I18N-BACKEND-2490: every user-visible text of the report is a `Msg` (services/readiness_text.py): its str value is the Hebrew the
+# report always wrote (what the history, the fleet report and every background reader see); routers/readiness.py renders it in the
+# requesting user's language.
+LEVEL_TEXT = {level: t(f"readiness.level.{level}") for level in LEVELS}
 
 # id -> (group, source, default weight, critical, title). The order is the order of the page.
 CHECKS: dict[str, tuple[str, str, int, bool, str]] = {
-    "cameras_connected": ("video", "computed", 12, True, "מצלמות מחוברות"),
-    "cameras_verified": ("video", "computed", 12, False, "מצלמות מאומתות"),
-    "places": ("map", "computed", 8, False, "קומות ומיקומים"),
-    "people": ("people", "computed", 10, True, "אנשים והרשאות"),
-    "notifications": ("notify", "computed", 10, False, "התראות"),
-    "backup": ("data", "computed", 12, True, "גיבוי"),
-    "remote": ("access", "computed", 8, False, "גישה מרחוק"),
-    "time": ("system", "computed", 4, False, "שעון ואזור זמן"),
-    "integrations": ("system", "computed", 10, False, "חיבורים לתשתית"),
-    "modules": ("modules", "computed", 8, False, "מודולים פעילים"),
-    "handover": ("handover", "configured", 6, False, "מסירה ללקוח"),
+    "cameras_connected": ("video", "computed", 12, True, t("readiness.title.cameras_connected")),
+    "cameras_verified": ("video", "computed", 12, False, t("readiness.title.cameras_verified")),
+    "places": ("map", "computed", 8, False, t("readiness.title.places")),
+    "people": ("people", "computed", 10, True, t("readiness.title.people")),
+    "notifications": ("notify", "computed", 10, False, t("readiness.title.notifications")),
+    "backup": ("data", "computed", 12, True, t("readiness.title.backup")),
+    "remote": ("access", "computed", 8, False, t("readiness.title.remote")),
+    "time": ("system", "computed", 4, False, t("readiness.title.time")),
+    "integrations": ("system", "computed", 10, False, t("readiness.title.integrations")),
+    "modules": ("modules", "computed", 8, False, t("readiness.title.modules")),
+    "handover": ("handover", "configured", 6, False, t("readiness.title.handover")),
 }
 CRITICAL = frozenset(k for k, v in CHECKS.items() if v[3])
 HANDOVER = "handover"
@@ -90,12 +95,12 @@ def update_settings(conn: sqlite3.Connection, principal: Principal, changes: dic
     """Validate and store; {key: (before, after)} of what changed. Unknown key / bad value = 422; the "almost" band must stay below the advice score."""
     for key, value in changes.items():
         if key not in SETTINGS or not isinstance(value, str) or not SETTINGS[key][1](value):
-            raise ApiError(422, "invalid_setting", "ערך לא תקין להגדרה.", details={"key": str(key)[:64]})
+            raise ApiError(422, "invalid_setting", t("readiness.invalid_setting"), details={"key": str(key)[:64]})
     merged = {**settings_view(conn), **changes}
     if int(merged["readiness.band_almost_min"]) >= int(merged["readiness.advice_score"]):
-        raise ApiError(422, "invalid_setting", "סף 'כמעט מוכן' חייב להיות נמוך מציון המסירה המומלץ.", details={"key": "readiness.band_almost_min"})
+        raise ApiError(422, "invalid_setting", t("readiness.band_below_advice"), details={"key": "readiness.band_almost_min"})
     if all(int(merged[f"readiness.weight.{cid}"]) == 0 for cid in CHECKS):
-        raise ApiError(422, "invalid_setting", "לפחות לבדיקה אחת חייב להיות משקל.", details={"key": "readiness.weight"})
+        raise ApiError(422, "invalid_setting", t("readiness.one_weight"), details={"key": "readiness.weight"})
     out: dict[str, tuple[str, str]] = {}
     for key, value in changes.items():
         before = setting(conn, key)
@@ -143,46 +148,48 @@ def _ha_only(c: Ctx) -> bool:
 def check_cameras_connected(c: Ctx) -> dict[str, Any]:
     cams = _enabled_cameras(c.conn)
     if not cams and _ha_only(c):
-        return _res(None, "ההתקנה פועלת ללא NVR - אין מצלמות לבדוק.", [], None)
+        return _res(None, t("readiness.cameras.nvrless"), [], None)
     online = sum(1 for r in cams if r["status"] == "online")
-    nxt = {"label": "פתיחת אשף ההתקנה", "href": "#/system/wizard"}
+    nxt = {"label": t("readiness.next.wizard"), "href": "#/system/wizard"}
     if not cams:
-        return _res(0.0, "לא נמצאו מצלמות פעילות.", [_fact("מצלמות פעילות", "0", False)], nxt)
-    return _res(online / len(cams), f"{online} מתוך {len(cams)} מצלמות מחוברות.", [_fact("מחוברות", f"{online}/{len(cams)}", online == len(cams))],
+        return _res(0.0, t("readiness.cameras.none_active"), [_fact(t("readiness.cameras.active"), "0", False)], nxt)
+    return _res(online / len(cams), t("readiness.cameras.connected_summary", online=online, total=len(cams)),
+                [_fact(t("readiness.cameras.connected"), f"{online}/{len(cams)}", online == len(cams))],
                 None if online == len(cams) else nxt)
 
 
 def check_cameras_verified(c: Ctx) -> dict[str, Any]:
     cams = _enabled_cameras(c.conn)
     if not cams and _ha_only(c):
-        return _res(None, "ההתקנה פועלת ללא NVR.", [], None)
+        return _res(None, t("readiness.cameras.verified_nvrless"), [], None)
     cutoff = c.ago(hours=c.t["readiness.cameras_seen_hours"])
     seen = sum(1 for r in cams if r["last_seen_at"] and r["last_seen_at"] >= cutoff)
-    nxt = {"label": "בדיקת מצלמות באשף", "href": "#/system/wizard"}
+    nxt = {"label": t("readiness.next.wizard_cameras"), "href": "#/system/wizard"}
     if not cams:
-        return _res(0.0, "אין מצלמות לאימות.", [], nxt)
-    return _res(seen / len(cams), f"{seen} מתוך {len(cams)} מצלמות נראו ב-{c.t['readiness.cameras_seen_hours']} השעות האחרונות.",
-                [_fact("נראו לאחרונה", f"{seen}/{len(cams)}", seen == len(cams))], None if seen == len(cams) else nxt)
+        return _res(0.0, t("readiness.cameras.none_to_verify"), [], nxt)
+    return _res(seen / len(cams), t("readiness.cameras.verified_summary", seen=seen, total=len(cams), hours=c.t['readiness.cameras_seen_hours']),
+                [_fact(t("readiness.cameras.seen"), f"{seen}/{len(cams)}", seen == len(cams))], None if seen == len(cams) else nxt)
 
 
 def check_places(c: Ctx) -> dict[str, Any]:
     floors = c.conn.execute("SELECT id FROM floors WHERE deleted_at IS NULL").fetchall()
-    nxt = {"label": "למפה ולתוכניות", "href": "#/explore/sites"}
+    nxt = {"label": t("readiness.next.map"), "href": "#/explore/sites"}
     if not floors:
-        return _res(0.0, "אין קומות מוגדרות.", [_fact("קומות", "0", False)], nxt)
+        return _res(0.0, t("readiness.places.no_floors"), [_fact(t("readiness.places.floors"), "0", False)], nxt)
     with_plan = c.conn.execute(
         "SELECT COUNT(DISTINCT v.floor_id) FROM plan_versions v JOIN floors f ON f.id = v.floor_id AND f.deleted_at IS NULL WHERE v.status = 'published'").fetchone()[0]
     parts = [with_plan / len(floors)]
-    facts = [_fact("קומות עם תוכנית מפורסמת", f"{with_plan}/{len(floors)}", with_plan == len(floors))]
+    facts = [_fact(t("readiness.places.published"), f"{with_plan}/{len(floors)}", with_plan == len(floors))]
     cams = _enabled_cameras(c.conn)
     if cams:
         placed = c.conn.execute(
             "SELECT COUNT(DISTINCT a.resource_id) FROM map_anchors a JOIN cameras k ON k.id = a.resource_id AND k.enabled = 1 "
             "WHERE a.resource_type = 'camera' AND a.effective_to IS NULL").fetchone()[0]
         parts.append(placed / len(cams))
-        facts.append(_fact("מצלמות על המפה", f"{placed}/{len(cams)}", placed == len(cams)))
+        facts.append(_fact(t("readiness.places.on_map"), f"{placed}/{len(cams)}", placed == len(cams)))
     f = sum(parts) / len(parts)
-    return _res(f, f"{with_plan} מתוך {len(floors)} קומות עם תוכנית" + (f" · {facts[1]['value']} מצלמות ממוקמות." if len(facts) > 1 else "."), facts, None if f >= 1 else nxt)
+    tail = t("readiness.places.cameras_tail", placed=facts[1]['value']) if len(facts) > 1 else t("readiness.places.dot")
+    return _res(f, t("readiness.places.summary", with_plan=with_plan, floors=len(floors), tail=tail), facts, None if f >= 1 else nxt)
 
 
 def check_people(c: Ctx) -> dict[str, Any]:
@@ -193,9 +200,10 @@ def check_people(c: Ctx) -> dict[str, Any]:
     admins = {r["subject_id"] for r in rows if r["role_id"] == "system_admin" and r["scope_type"] == "installation"}
     others = {r["subject_id"] for r in rows if r["role_id"] != "system_admin"}
     f = 0.5 * bool(admins) + 0.5 * bool(others)
-    nxt = {"label": "משתמשים והרשאות", "href": "#/system/access"}
-    return _res(f, f"{len(admins)} מנהלי מערכת · {len(others)} משתמשים עם תפקיד.",
-                [_fact("מנהל מערכת", str(len(admins)), bool(admins)), _fact("משתמשים עם תפקיד", str(len(others)), bool(others))], None if f >= 1 else nxt)
+    nxt = {"label": t("readiness.next.access"), "href": "#/system/access"}
+    return _res(f, t("readiness.people.summary", admins=len(admins), others=len(others)),
+                [_fact(t("readiness.people.admin"), str(len(admins)), bool(admins)), _fact(t("readiness.people.with_role"), str(len(others)), bool(others))],
+                None if f >= 1 else nxt)
 
 
 def check_notifications(c: Ctx) -> dict[str, Any]:
@@ -208,12 +216,13 @@ def check_notifications(c: Ctx) -> dict[str, Any]:
     attempted = {r["channel"] for r in recent if r["status"] != "skipped"}
     reached = {r["channel"] for r in recent if r["status"] == "sent"}
     configured = subs | attempted
-    nxt = {"label": "הגדרות התראות", "href": "#/system/notifications"}
+    nxt = {"label": t("readiness.next.notifications"), "href": "#/system/notifications"}
     if not configured:
-        return _res(0.0, "לא הוגדר ערוץ התראות.", [_fact("ערוצים", "0", False)], nxt)
+        return _res(0.0, t("readiness.notify.none"), [_fact(t("readiness.notify.channels"), "0", False)], nxt)
     f = len(reached & configured) / len(configured)
-    return _res(f, f"{len(reached & configured)} מתוך {len(configured)} ערוצים הגיעו ליעד ב-{c.t['readiness.notify_days']} הימים האחרונים.",
-                [_fact("ערוצים שהוגדרו", str(len(configured)), True), _fact("הגיעו ליעד", str(len(reached & configured)), f >= 1)], None if f >= 1 else nxt)
+    return _res(f, t("readiness.notify.summary", reached=len(reached & configured), configured=len(configured), days=c.t['readiness.notify_days']),
+                [_fact(t("readiness.notify.configured"), str(len(configured)), True), _fact(t("readiness.notify.reached"), str(len(reached & configured)), f >= 1)],
+                None if f >= 1 else nxt)
 
 
 def check_backup(c: Ctx) -> dict[str, Any]:
@@ -231,22 +240,27 @@ def check_backup(c: Ctx) -> dict[str, Any]:
             "SELECT 1 FROM backup_offbox_runs r JOIN backup_offbox_targets t ON t.id = r.target_id AND t.enabled = 1 WHERE r.ok = 1 AND r.verified = 1 LIMIT 1").fetchone() is not None
     except sqlite3.OperationalError:
         offbox = False
-    facts = [_fact(f"גיבוי מקומי מ-{c.t['readiness.backup_max_age_days']} הימים האחרונים", "כן" if young else "לא", young),
-             _fact("גיבוי עם סיסמת גיבוי", "כן" if sealed else "לא", sealed),
-             _fact("תרגיל שחזור עבר", "כן" if drill_ok else "לא", drill_ok),
-             _fact("גיבוי מחוץ למכשיר נבדק", "כן" if offbox else "לא", offbox)]
+    def yes_no(ok: bool) -> Any:
+        return t("readiness.yes") if ok else t("readiness.no")
+
+    facts = [_fact(t("readiness.backup.local", days=c.t['readiness.backup_max_age_days']), yes_no(young), young),
+             _fact(t("readiness.backup.sealed"), yes_no(sealed), sealed),
+             _fact(t("readiness.backup.drill"), yes_no(drill_ok), drill_ok),
+             _fact(t("readiness.backup.offbox"), yes_no(offbox), offbox)]
     f = sum(1 for x in facts if x["ok"]) / 4
-    return _res(f, f"{sum(1 for x in facts if x['ok'])} מתוך 4 תנאי הגיבוי מתקיימים.", facts, None if f >= 1 else {"label": "גיבוי ושחזור", "href": "#/system/diagnostics?tab=backup"})
+    return _res(f, t("readiness.backup.summary", n=sum(1 for x in facts if x['ok'])), facts,
+                None if f >= 1 else {"label": t("readiness.next.backup"), "href": "#/system/diagnostics?tab=backup"})
 
 
 def check_remote(c: Ctx) -> dict[str, Any]:
     if not getattr(c.settings, "remote_access", False):
-        return _res(None, "הגישה מרחוק כבויה בהחלטה.", [], None)
+        return _res(None, t("readiness.remote.off"), [], None)
     mfa = (get_setting(c.conn, "remote.require_mfa_admin", "false") or "false") == "true"
     policy = get_setting(c.conn, "remote.policy", "flag") or "flag"
     f = 0.5 + 0.5 * mfa
-    return _res(f, "גישה מרחוק פעילה" + (" עם אימות למנהלים." if mfa else " בלי אימות דו-שלבי למנהלים."),
-                [_fact("מדיניות", policy, True), _fact("אימות למנהלים", "נדרש" if mfa else "לא נדרש", mfa)], None if mfa else {"label": "אבטחה", "href": "#/system/security"})
+    return _res(f, t("readiness.remote.summary", tail=t("readiness.remote.with_mfa") if mfa else t("readiness.remote.without_mfa")),
+                [_fact(t("readiness.remote.policy"), policy, True), _fact(t("readiness.remote.mfa"), t("readiness.remote.required") if mfa else t("readiness.remote.not_required"), mfa)],
+                None if mfa else {"label": t("readiness.next.security"), "href": "#/system/security"})
 
 
 def check_time(c: Ctx) -> dict[str, Any]:
@@ -256,11 +270,11 @@ def check_time(c: Ctx) -> dict[str, Any]:
         valid = bool(tz)
     except Exception:  # noqa: BLE001 - an unknown zone name
         valid = False
-    return _res(1.0 if valid else 0.0, f"אזור הזמן: {tz}." if valid else "אזור הזמן לא תקין.", [_fact("אזור זמן", tz or "-", valid)],
-                None if valid else {"label": "הגדרות כלליות", "href": "#/system/diagnostics"})
+    return _res(1.0 if valid else 0.0, t("readiness.time.summary", tz=tz) if valid else t("readiness.time.invalid"), [_fact(t("readiness.time.zone"), tz or "-", valid)],
+                None if valid else {"label": t("readiness.next.general"), "href": "#/system/diagnostics"})
 
 
-DOOR_MAP_NEXT = {"label": "שיוך דלתות", "href": "#/system/setup"}  # the "שיוך דלתות" card (Settings › חיבורים)
+DOOR_MAP_NEXT = {"label": t("readiness.next.door_map"), "href": "#/system/setup"}  # the "שיוך דלתות" card (Settings › חיבורים)
 
 
 def _doors_waiting(c: Ctx) -> dict[str, Any] | None:
@@ -276,7 +290,7 @@ def _doors_waiting(c: Ctx) -> dict[str, Any] | None:
     if waiting["count"] <= 0:
         return None
     n, sug = waiting["count"], waiting["with_suggestion"]
-    text = f"{sug} דלתות ממתינות לשיוך - אשר הצעות" if sug == n else f"{n} דלתות ממתינות לשיוך ({sug} עם הצעה מוכנה)" if sug else f"{n} דלתות ממתינות לשיוך ידני"
+    text = t("readiness.doors.all_suggested", n=sug) if sug == n else t("readiness.doors.some_suggested", n=n, sug=sug) if sug else t("readiness.doors.manual", n=n)
     return {"count": n, "with_suggestion": sug, "text": text}
 
 
@@ -287,22 +301,22 @@ def check_integrations(c: Ctx) -> dict[str, Any]:
         report = health_report.build(c.settings, c.conn, probe=False)
     except Exception:  # noqa: BLE001 - the health report must never take the readiness page down
         log.warning("readiness: health report unavailable", exc_info=True)
-        return _res(0.0, "דוח הבריאות לא זמין.", [], {"label": "בריאות ועבודות", "href": "#/system/diagnostics?tab=health"}, status=ATTENTION)
+        return _res(0.0, t("readiness.integrations.no_report"), [], {"label": t("readiness.next.health"), "href": "#/system/diagnostics?tab=health"}, status=ATTENTION)
     wanted = [x for x in report.get("checks", []) if x["id"] in ("nvr", "go2rtc", "ha_sync", "bridge") and x["status"] != "off"]
     doors = _doors_waiting(c)  # an intercom door nobody can open is an unfinished connection: one more item, half credit while it waits
     if not wanted and doors is None:
-        return _res(None, "אין חיבורים לבדוק.", [], None)
+        return _res(None, t("readiness.integrations.none"), [], None)
     health_score = sum(1.0 if x["status"] == "ok" else 0.5 if x["status"] == "warn" else 0.0 for x in wanted)
     total = len(wanted) + (1 if doors else 0)
     f = (health_score + (0.5 if doors else 0.0)) / total
     facts = [_fact(x["label"], x["status"], x["status"] == "ok") for x in wanted]
     if doors:
-        facts.append(_fact("שיוך דלתות", doors["text"], False))
-    summary = f"{sum(1 for x in wanted if x['status'] == 'ok')} מתוך {len(wanted)} חיבורים תקינים." if wanted else "החיבורים תקינים."
+        facts.append(_fact(t("readiness.next.door_map"), doors["text"], False))
+    summary = t("readiness.integrations.summary", ok=sum(1 for x in wanted if x['status'] == 'ok'), total=len(wanted)) if wanted else t("readiness.integrations.all_ok")
     if doors:
-        summary = f"{summary} {doors['text']}."
+        summary = t("readiness.integrations.with_doors", summary=summary, doors=doors['text'])
     health_ok = all(x["status"] == "ok" for x in wanted)
-    nxt = None if f >= 1 else DOOR_MAP_NEXT if (health_ok and doors) else {"label": "בריאות ועבודות", "href": "#/system/diagnostics?tab=health"}
+    nxt = None if f >= 1 else DOOR_MAP_NEXT if (health_ok and doors) else {"label": t("readiness.next.health"), "href": "#/system/diagnostics?tab=health"}
     return _res(f, summary, facts, nxt)
 
 
@@ -310,23 +324,24 @@ def check_modules(c: Ctx) -> dict[str, Any]:
     from .tickets import access as tickets_access
 
     if not tickets_access.module_on(c.conn):
-        return _res(None, "אין מודולים אופציונליים פעילים.", [], None)
+        return _res(None, t("readiness.modules.none"), [], None)
     n = c.conn.execute("SELECT COUNT(*) FROM ticket_departments WHERE active = 1").fetchone()[0]
-    return _res(1.0 if n else 0.0, f"{n} מחלקות פעילות במודול הבקשות." if n else "מודול הבקשות פעיל ואין בו מחלקה.", [_fact("מחלקות", str(n), n > 0)],
-                None if n else {"label": "הגדרות המודול", "href": "#/system/tickets?tab=departments"})
+    return _res(1.0 if n else 0.0, t("readiness.modules.departments", n=n) if n else t("readiness.modules.no_department"),
+                [_fact(t("readiness.modules.departments_fact"), str(n), n > 0)],
+                None if n else {"label": t("readiness.next.module_settings"), "href": "#/system/tickets?tab=departments"})
 
 
 def check_handover(c: Ctx) -> dict[str, Any]:
     row = c.conn.execute("SELECT done, note, payload_json, user_id, updated_at FROM readiness_attestations WHERE check_id = ?", (HANDOVER,)).fetchone()
     if row is None or not row["done"]:
-        return _res(0.0, "המסירה ללקוח עדיין לא נרשמה.", [], None, status=PENDING)
+        return _res(0.0, t("readiness.handover.pending"), [], None, status=PENDING)
     payload = json.loads(row["payload_json"] or "{}")
-    facts = [_fact("נרשם", row["updated_at"], True)]
+    facts = [_fact(t("readiness.handover.recorded_fact"), row["updated_at"], True)]
     if payload.get("customer_name"):
-        facts.append(_fact("לקוח", str(payload["customer_name"]), True))
+        facts.append(_fact(t("readiness.handover.customer"), str(payload["customer_name"]), True))
     if payload.get("below_advice"):
-        facts.append(_fact("נמסר מתחת לציון המומלץ", f"ציון {payload.get('score_at')}", False))
-    return _res(1.0, "המסירה נרשמה.", facts, None)
+        facts.append(_fact(t("readiness.handover.below_advice"), t("readiness.handover.score", score=payload.get('score_at')), False))
+    return _res(1.0, t("readiness.handover.done"), facts, None)
 
 
 FUNCS: dict[str, Callable[[Ctx], dict[str, Any]]] = {
@@ -365,7 +380,7 @@ def evaluate(conn: sqlite3.Connection, settings: Settings, now: dt.datetime | No
             r = FUNCS[cid](ctx)
         except Exception:  # noqa: BLE001 - one failing check never hides the others
             log.warning("readiness check %s failed", cid, exc_info=True)
-            r = _res(0.0, "הבדיקה נכשלה.", [], None, status=ATTENTION)
+            r = _res(0.0, t("readiness.check_failed"), [], None, status=ATTENTION)
         status = _status_of(cid, r)
         applicable = status != NOT_APPLICABLE and weights[cid] > 0
         checks.append({"id": cid, "group": group, "source": source, "title": title, "weight": weights[cid], "critical": critical, "status": status,
@@ -416,7 +431,7 @@ def record(conn: sqlite3.Connection, report: dict[str, Any]) -> bool:
 def attest(conn: sqlite3.Connection, settings: Settings, principal: Principal, check_id: str, done: bool, note: str, payload: dict[str, Any], rid: str | None) -> dict[str, Any]:
     """The installer records (or withdraws) the hand-over. Never refused for a low score: the advice is shown, the fact is recorded."""
     if check_id != HANDOVER:
-        raise ApiError(404, "check_not_configurable", "אי אפשר לאשר את הבדיקה הזו ידנית.")
+        raise ApiError(404, "check_not_configurable", t("readiness.not_configurable"))
     before = evaluate(conn, settings)
     below = bool(done) and not before["handover"]["advice_met"]
     stored = {**payload, "below_advice": below, "score_at": before["score"], "blockers_at": before["handover"]["blockers"]} if done else {}

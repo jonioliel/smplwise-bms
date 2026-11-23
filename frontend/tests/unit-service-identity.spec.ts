@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { phoneSkipDesktopShot } from './helpers/phone-skip-shots';
 
 // USR2 phase 3: the service-identity card (Settings › משתמשים והרשאות › משתמשי Arx), bundled as it is and run on a mocked same-origin page
 // (no backend, no Home Assistant). Negative first: hidden for a caller without system.configure, one line on the remote channel, a refused
@@ -210,7 +211,7 @@ for (const view of [{ name: 'desktop', w: 1440, h: 900 }, { name: 'mobile', w: 3
     await setup(page, { [`GET ${API}`]: [{ status: 200, body: NOT_READY }] });
     await mount(page);
     await expect(page.locator('system-service-identity [data-si-step="not_configured"]')).toBeVisible();
-    await page.screenshot({ path: path.join(EVIDENCE, `service-identity-not-ready-${view.name}.png`), fullPage: true });
+    if (!phoneSkipDesktopShot(page)) await page.screenshot({ path: path.join(EVIDENCE, `service-identity-not-ready-${view.name}.png`), fullPage: true }); // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     expect(overflow).toBe(false);
   });
@@ -224,7 +225,7 @@ for (const view of [{ name: 'desktop', w: 1440, h: 900 }, { name: 'mobile', w: 3
     await setup(page, { [`GET ${API}`]: { status: 200, body: { ...READY, extended, runnable, steps } } });
     await mount(page);
     await expect(page.locator('system-service-identity [data-si-runnable="differs"]')).toBeVisible();
-    await page.screenshot({ path: path.join(EVIDENCE, `service-identity-runnable-${view.name}.png`), fullPage: true });
+    if (!phoneSkipDesktopShot(page)) await page.screenshot({ path: path.join(EVIDENCE, `service-identity-runnable-${view.name}.png`), fullPage: true }); // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     expect(overflow).toBe(false);
   });

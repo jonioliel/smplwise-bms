@@ -297,9 +297,35 @@ export function toggleOne(selected: ReadonlySet<string>, id: string): Set<string
   return out;
 }
 
-/** The header checkbox: all of the page selected -> none; otherwise the whole page. */
+/**
+ * TICKETS-PAGING-2490: the row height that stretches the rows of a page (their heights `hs`) over `room` more pixels to the region's
+ * bottom edge - the lower rows grow to it, a taller row keeps its height, the sum never passes the room (quarter pixels: a page of
+ * seven rows ends within 2 px of the edge). 0 = nothing to stretch (no room, or the room does not lift even the lowest row).
+ */
+export function fillHeight(hs: readonly number[], room: number): number {
+  if (!hs.length || room < 1) return 0;
+  const s = [...hs].sort((a, b) => a - b);
+  const total = s.reduce((a, b) => a + b, 0) + room;
+  let above = 0; // the rows that keep their height (taller than the answer)
+  for (let k = s.length; k >= 1; k--) {
+    const h = (total - above) / k;
+    const q = Math.floor(h * 4) / 4;
+    if (h >= s[k - 1] && (k === s.length || h <= s[k])) return q > s[0] ? q : 0;
+    above += s[k - 1];
+  }
+  return 0;
+}
+
+/** The header checkbox: every row of the page selected -> they leave the selection; otherwise they all join it. */
 export function togglePage(ids: readonly string[], selected: ReadonlySet<string>): Set<string> {
-  return ids.length && ids.every((id) => selected.has(id)) ? new Set() : new Set(ids);
+  // TICKETS-PAGING-2490: `ids` are the rows of the page on screen; the rows of the other pages keep their state
+  const all = ids.length > 0 && ids.every((id) => selected.has(id));
+  const next = new Set(selected);
+  for (const id of ids) {
+    if (all) next.delete(id);
+    else next.add(id);
+  }
+  return next;
 }
 
 export function pageState(ids: readonly string[], selected: ReadonlySet<string>): 'none' | 'some' | 'all' {

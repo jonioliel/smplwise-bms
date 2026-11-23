@@ -55,6 +55,7 @@ from ..audit import audit
 from ..config import Settings
 from ..db import Database, new_id, now_iso, unlocked
 from ..errors import ApiError
+from . import default_names as dn
 from . import connection_store as cs
 from . import go2rtc as g2
 from . import source_policy
@@ -64,7 +65,7 @@ from ..test_reset import register_reset
 log = logging.getLogger("smplwise.camera_sources")
 
 STANDALONE = "standalone"  # the pseudo-recorder of the cameras without a recorder (never a server-assigned nvr-<n>)
-STANDALONE_NAME = "מצלמות ללא מקליט"
+STANDALONE_NAME = "מצלמות ללא מקליט"  # the Hebrew of default_names "recorder.standalone" (I18N-DEFAULT-NAMES-2490)
 STANDALONE_VENDOR = "standalone"
 STANDALONE_MAX = 64  # cameras without a recorder per installation
 STANDALONE_SORT_BASE = 10000  # after every recorder channel in the catalogue order
@@ -506,10 +507,12 @@ def _open_or_none(settings: Settings, camera_id: str, p: str, blob: str) -> str 
 
 # ---------------------------------------------------------------- cameras without a recorder
 
-def _ensure_standalone_recorder(conn: sqlite3.Connection) -> None:
+def _ensure_standalone_recorder(conn: sqlite3.Connection, lang: str = "he") -> None:
+    """The pseudo-recorder row. I18N-DEFAULT-NAMES-2490 (owner N53): its name is made once, by the first camera added without a
+    recorder, in that person's interface language (`lang`); an existing row keeps its name."""
     now = now_iso()
     conn.execute(
-        """INSERT INTO recorders(id, name, created_at) VALUES (?, ?, ?) ON CONFLICT(id) DO NOTHING""", (STANDALONE, STANDALONE_NAME, now))
+        """INSERT INTO recorders(id, name, created_at) VALUES (?, ?, ?) ON CONFLICT(id) DO NOTHING""", (STANDALONE, dn.name("recorder.standalone", lang), now))
     try:
         conn.execute("UPDATE recorders SET vendor = ?, removed_at = NULL, enabled = 1, sort_order = ? WHERE id = ?", (STANDALONE_VENDOR, STANDALONE_SORT_BASE, STANDALONE))
     except sqlite3.OperationalError:  # a database before 0055 (never with 0209 applied)
@@ -568,7 +571,7 @@ def create_standalone(conn: sqlite3.Connection, settings: Settings, principal: A
             audit(conn, actor=principal, action="camera.standalone.create", decision="denied", resource_type="camera", resource_id=None, reason=exc.code,
                   request_id=request_id)
         raise
-    _ensure_standalone_recorder(conn)
+    _ensure_standalone_recorder(conn, dn.lang_of(conn, principal))
     channel = int(conn.execute("SELECT COALESCE(MAX(channel), 0) + 1 FROM cameras WHERE recorder_id = ?", (STANDALONE,)).fetchone()[0])
     now = now_iso()
     conn.execute(

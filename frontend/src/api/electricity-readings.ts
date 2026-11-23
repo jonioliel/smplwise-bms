@@ -88,15 +88,15 @@ const http: ReadingsAdapter = {
 
 const UNIT_WH: Record<ReadingUnit, number> = { kWh: 1000, Wh: 1, MWh: 1_000_000 };
 const TEXT: Record<EffectReason, string> = {
-  open_gap: 'הקריאה השלימה את הפער מאז הדיווח האחרון. הצריכה עד הקריאה חולקה לפי זמן.',
-  closed_gap: 'הקריאה חילקה מחדש את הצריכה בפער הדיווח. הסכום הכולל לא השתנה.',
-  head_gap: 'הקריאה נקבעה כקריאת פתיחה לפני הקריאה הראשונה של המונה. הצריכה עד הקריאה הראשונה חולקה לפי זמן.',
-  reported: 'המונה דיווח בזמן הזה. הקריאה נשמרה להשוואה בלבד.',
-  outside_counter: 'הקריאה שונה מערך המונה במערכת. היא נשמרה להשוואה; לתיקון קבוע אפשר להגדיר כיול.',
-  no_counter_data: 'אין במערכת קריאות סביב הזמן הזה. הקריאה נשמרה להשוואה בלבד.',
-  counter_events: 'בזמן הזה היה איפוס או קפיצה במונה. הקריאה נשמרה להשוואה בלבד.',
-  implausible: 'הקריאה גבוהה מהסביר להספק המרבי של המונה. היא נשמרה להשוואה בלבד.',
-  billed: 'התקופה הזו כבר חויבה. הקריאה נשמרה להשוואה בלבד.',
+  open_gap: tr('הקריאה השלימה את הפער מאז הדיווח האחרון. הצריכה עד הקריאה חולקה לפי זמן.'),
+  closed_gap: tr('הקריאה חילקה מחדש את הצריכה בפער הדיווח. הסכום הכולל לא השתנה.'),
+  head_gap: tr('הקריאה נקבעה כקריאת פתיחה לפני הקריאה הראשונה של המונה. הצריכה עד הקריאה הראשונה חולקה לפי זמן.'),
+  reported: tr('המונה דיווח בזמן הזה. הקריאה נשמרה להשוואה בלבד.'),
+  outside_counter: tr('הקריאה שונה מערך המונה במערכת. היא נשמרה להשוואה; לתיקון קבוע אפשר להגדיר כיול.'),
+  no_counter_data: tr('אין במערכת קריאות סביב הזמן הזה. הקריאה נשמרה להשוואה בלבד.'),
+  counter_events: tr('בזמן הזה היה איפוס או קפיצה במונה. הקריאה נשמרה להשוואה בלבד.'),
+  implausible: tr('הקריאה גבוהה מהסביר להספק המרבי של המונה. היא נשמרה להשוואה בלבד.'),
+  billed: tr('התקופה הזו כבר חויבה. הקריאה נשמרה להשוואה בלבד.'),
 };
 
 /** The fixed fake log of a meter: m1 has two compared readings and a calibration, m8 (not reporting) one reading that closed its gap. */
@@ -138,11 +138,11 @@ const demo: ReadingsAdapter = {
   addReading(id, body) {
     const log = dlog(id);
     const kwh = (Number(body.value) * UNIT_WH[body.unit]) / 1000;
-    if (!Number.isFinite(kwh) || kwh < 0) return demoError(422, 'validation', 'הערך אינו מספר.', { fields: ['value'] });
-    if (Date.parse(body.read_at) > Date.now() + 300_000) return demoError(422, 'validation', 'זמן הקריאה בעתיד.', { fields: ['read_at'] });
+    if (!Number.isFinite(kwh) || kwh < 0) return demoError(422, 'validation', tr('הערך אינו מספר.'), { fields: ['value'] });
+    if (Date.parse(body.read_at) > Date.now() + 300_000) return demoError(422, 'validation', tr('זמן הקריאה בעתיד.'), { fields: ['read_at'] });
     const live = log.items.filter((r) => !r.voided_at);
     const before = live.filter((r) => r.read_at < body.read_at).sort((a, b) => (a.read_at < b.read_at ? 1 : -1))[0];
-    if (before && kwh < before.value_kwh) return demoError(422, 'reading_not_monotonic', 'הקריאה נמוכה מקריאה ידנית קודמת של אותו מונה.', { fields: ['value'] });
+    if (before && kwh < before.value_kwh) return demoError(422, 'reading_not_monotonic', tr('הקריאה נמוכה מקריאה ידנית קודמת של אותו מונה.'), { fields: ['value'] });
     const sys = id === 'm8' ? null : 1000;
     const reason: EffectReason = id === 'm8' ? 'open_gap' : 'reported';
     const r: ManualReading = {
@@ -158,16 +158,16 @@ const demo: ReadingsAdapter = {
   undoReading(id, rid, reason) {
     const log = dlog(id);
     const r = log.items.find((x) => x.id === rid);
-    if (!r) return demoError(404, 'not_found', 'הקריאה לא נמצאה.');
-    if (!r.can_undo) return demoError(409, 'undo_window_passed', 'עבר הזמן שבו אפשר לבטל את הקריאה (24 שעות).');
+    if (!r) return demoError(404, 'not_found', tr('הקריאה לא נמצאה.'));
+    if (!r.can_undo) return demoError(409, 'undo_window_passed', tr('עבר הזמן שבו אפשר לבטל את הקריאה (24 שעות).'));
     Object.assign(r, { voided_at: new Date().toISOString(), voided_by_name: 'דנה', void_reason: reason ?? null, can_undo: false });
     return delay(clone(log));
   },
   addCalibration(id, body) {
     const log = dlog(id);
     const f = Number(body.factor);
-    if (!Number.isFinite(f) || f < 0.5 || f > 2) return demoError(422, 'validation', 'המקדם חייב להיות בין 0.5 ל-2.', { fields: ['factor'] });
-    if (log.first_calibration_date && body.effective_date < log.first_calibration_date) return demoError(409, 'calibration_billed', 'התקופה הזו כבר חויבה. אפשר לכייל רק מ-' + log.first_calibration_date.split('-').reverse().join('.') + ' והלאה.');
+    if (!Number.isFinite(f) || f < 0.5 || f > 2) return demoError(422, 'validation', tr('המקדם חייב להיות בין 0.5 ל-2.'), { fields: ['factor'] });
+    if (log.first_calibration_date && body.effective_date < log.first_calibration_date) return demoError(409, 'calibration_billed', tr('התקופה הזו כבר חויבה. אפשר לכייל רק מ-{date} והלאה.', { date: log.first_calibration_date.split('-').reverse().join('.') }));
     const anchor = log.items.find((r) => r.id === body.anchor_reading_id);
     const offset = anchor && anchor.system_kwh != null ? Math.round((anchor.value_kwh - f * anchor.system_kwh) * 1000) / 1000 : Number(body.offset_kwh ?? 0);
     const c: Calibration = {
@@ -182,7 +182,7 @@ const demo: ReadingsAdapter = {
   undoCalibration(id, cid, reason) {
     const log = dlog(id);
     const c = log.calibrations.find((x) => x.id === cid);
-    if (!c) return demoError(404, 'not_found', 'הכיול לא נמצא.');
+    if (!c) return demoError(404, 'not_found', tr('הכיול לא נמצא.'));
     Object.assign(c, { voided_at: new Date().toISOString(), voided_by_name: 'דנה', void_reason: reason ?? null, can_undo: false, in_force: false });
     return delay(clone(log));
   },

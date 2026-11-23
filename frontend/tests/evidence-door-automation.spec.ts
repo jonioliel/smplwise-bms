@@ -2,6 +2,7 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { phoneSkipDesktopShot } from './helpers/phone-skip-shots';
 
 // CR-AUTODOORS-295: the "open a door" block of the automation editor, mounted the way the builder mounts it (`<door-automation-block
 // .automationId>`), against a MOCKED backend (page.route on api/v1/door-automations - the shapes of routers/door_automations.py). What is
@@ -108,6 +109,7 @@ async function mount(page: Page, st: St, size: Size = '1440', lang: 'he' | 'en' 
 }
 
 async function shot(page: Page, name: string) {
+  if (phoneSkipDesktopShot(page)) return; // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
   fs.mkdirSync(OUT, { recursive: true });
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(OUT, `${name}.png`), fullPage: true });

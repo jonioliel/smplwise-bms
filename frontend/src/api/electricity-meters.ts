@@ -351,7 +351,7 @@ function dm(): Meter[] {
 }
 function find(id: string): Meter {
   const m = dm().find((x) => x.id === id);
-  return m ?? demoError(404, 'not_found', 'המונה לא נמצא');
+  return m ?? demoError(404, 'not_found', tr('המונה לא נמצא'));
 }
 
 const demoNow: MeterAdapter = {
@@ -363,7 +363,7 @@ const demoNow: MeterAdapter = {
   },
   add: (body) => {
     const c = fx().fixtureCandidates().find((x) => x.entity_id === body.entity_id);
-    if (!c) return demoError(404, 'not_found', 'החיישן לא נמצא');
+    if (!c) return demoError(404, 'not_found', tr('החיישן לא נמצא'));
     if (c.verdict === 'rejected') return demoError(422, 'meter_unit_rejected', c.message ?? REASON_TEXT[c.reason_code ?? 'unit']);
     const m: Meter = { id: `m${dm().length + 1}`, name: body.name?.trim() || c.name, device_id: c.device_id, device_name: c.device_name, entity_name: c.entity_name, area_id: c.area_id, area_name: c.area_name, floor_id: null, floor_name: c.floor_name, status: 'reporting', reading_kwh: parseFloat((c.value ?? '0').replace(/,/g, '')) || 0, last_report_at: fx().FIXTURE_NOW, today_kwh: 0, month_kwh: 0, accounts: [], accounts_count: 0, revision: 1 };
     dm().push(m);
@@ -377,14 +377,14 @@ const demoNow: MeterAdapter = {
   },
   rename: (id, name, revision) => {
     const m = find(id);
-    if (m.revision !== revision) return demoError(409, 'revision_conflict', 'המונה השתנה בינתיים. רעננו ונסו שוב.');
+    if (m.revision !== revision) return demoError(409, 'revision_conflict', tr('המונה השתנה בינתיים. רעננו ונסו שוב.'));
     m.name = name;
     m.revision += 1;
     return delay({ ...m });
   },
   remove: (id) => {
     const m = find(id);
-    if (m.accounts.length) return demoError(409, 'meter_in_use', 'המונה משמש בחשבון ולכן אי אפשר להסיר אותו');
+    if (m.accounts.length) return demoError(409, 'meter_in_use', tr('המונה משמש בחשבון ולכן אי אפשר להסיר אותו'));
     demoMeters = dm().filter((x) => x.id !== id);
     return delay(undefined);
   },
@@ -409,7 +409,7 @@ const demoNow: MeterAdapter = {
     demoSettings ??= fx().fixtureSettings();
     for (const [k, v] of Object.entries(p) as [RetentionKey, number][]) {
       const r = RETENTION_RANGES[k];
-      if (!Number.isInteger(v) || v < r.min || v > r.max) return demoError(422, 'validation', `הערך חייב להיות בין ${r.min} ל-${r.max}`);
+      if (!Number.isInteger(v) || v < r.min || v > r.max) return demoError(422, 'validation', tr('הערך חייב להיות בין {min} ל-{max}', { min: r.min, max: r.max }));
       demoSettings[k] = v;
     }
     return delay(JSON.parse(JSON.stringify(demoSettings)) as EnergySettings);

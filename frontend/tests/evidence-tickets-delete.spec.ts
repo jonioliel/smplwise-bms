@@ -131,7 +131,9 @@ test.describe('tickets deletion evidence', () => {
         return same;
       }, { intervals: [600], timeout: 15_000 })
       .toBe(true);
-    const before = await page.locator(`${T} tbody tr`).count();
+    // TICKETS-PAGING-2490: the table pages - count the loaded rows (aria-rowcount = rows + the head row), not the rows of the page drawn
+    const loaded = async () => Number(await page.locator(`${T} table[data-tickets-table]`).getAttribute('aria-rowcount')) - 1;
+    const before = await loaded();
     await page.locator(`${T} tbody [data-select]`).nth(0).click();
     await page.locator(`${T} tbody [data-select]`).nth(2).click({ modifiers: ['Shift'] });
     const dlg = `${T} tickets-delete-dialog`;
@@ -143,7 +145,7 @@ test.describe('tickets deletion evidence', () => {
     await page.locator(`${dlg} [data-delete-go]`).click();
     await expect.poll(() => mock.calls.at(-1)?.path).toBe('tickets/bulk-delete');
     expect((mock.calls.at(-1)?.body as { ids: string[] }).ids).toHaveLength(3);
-    await expect(page.locator(`${T} tbody tr`)).toHaveCount(before - 2); // two deleted; the blocked one stays (selected for a retry)
+    await expect.poll(loaded).toBe(before - 2); // two deleted; the blocked one stays (selected for a retry)
     await expect(page.locator(`${T} tbody tr[data-row="0000000000000a04"]`)).toHaveCount(1);
     await shot(page, 'bulk-after');
   });

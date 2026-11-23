@@ -6,6 +6,7 @@
  */
 import { ApiError, get, post, put } from './client';
 import { isApi } from './session';
+import { tr } from '../i18n/msg/api-notify';
 
 export interface WaNotifyView {
   enabled: boolean;
@@ -78,31 +79,31 @@ function demoWaNotify(): WaNotifyAdapter {
   return {
     view: async () => structuredClone(v),
     save: async (body) => {
-      if (body.revision !== v.revision) throw err(412, 'settings_conflict', 'ההגדרות השתנו בינתיים; טען מחדש.');
+      if (body.revision !== v.revision) throw err(412, 'settings_conflict', tr('ההגדרות השתנו בינתיים; טען מחדש.'));
       const [ulo, uhi] = v.ranges.per_user_hour;
       const [dlo, dhi] = v.ranges.dedupe_min;
-      if (body.per_user_hour !== undefined && (body.per_user_hour < ulo || body.per_user_hour > uhi)) throw err(422, 'validation', 'ערך מספרי מחוץ לטווח.');
-      if (body.dedupe_min !== undefined && (body.dedupe_min < dlo || body.dedupe_min > dhi)) throw err(422, 'validation', 'ערך מספרי מחוץ לטווח.');
+      if (body.per_user_hour !== undefined && (body.per_user_hour < ulo || body.per_user_hour > uhi)) throw err(422, 'validation', tr('ערך מספרי מחוץ לטווח.'));
+      if (body.dedupe_min !== undefined && (body.dedupe_min < dlo || body.dedupe_min > dhi)) throw err(422, 'validation', tr('ערך מספרי מחוץ לטווח.'));
       const bp = body.budget_pct ?? v.budget_pct;
       const bc = body.budget_critical_pct ?? v.budget_critical_pct;
-      if (bp < 10 || bp > 90 || bc < 10 || bc > 90 || bc < bp) throw err(422, 'validation', 'ערך מספרי מחוץ לטווח.');
+      if (bp < 10 || bp > 90 || bc < 10 || bc > 90 || bc < bp) throw err(422, 'validation', tr('ערך מספרי מחוץ לטווח.'));
       v = { ...v, ...('enabled' in body ? { enabled: !!body.enabled } : {}), ...(body.per_user_hour !== undefined ? { per_user_hour: body.per_user_hour } : {}),
         ...(body.dedupe_min !== undefined ? { dedupe_min: body.dedupe_min } : {}), budget_pct: bp, budget_critical_pct: bc, ...(body.detail ? { detail: body.detail } : {}), revision: v.revision + 1 };
       mine = { ...mine, channel_enabled: v.enabled };
       return structuredClone(v);
     },
     test: async () => {
-      if (!v.account.mapped) throw err(409, 'channel_unavailable', 'לא נבחר חשבון וואטסאפ להתראות.');
-      if (++tests > 3) throw err(429, 'rate_limited', 'יותר מדי הודעות בדיקה. נסו שוב מאוחר יותר.');
+      if (!v.account.mapped) throw err(409, 'channel_unavailable', tr('לא נבחר חשבון וואטסאפ להתראות.'));
+      if (++tests > 3) throw err(429, 'rate_limited', tr('יותר מדי הודעות בדיקה. נסו שוב מאוחר יותר.'));
       return { ok: true, outcome: 'sent', code: null };
     },
     mine: async () => ({ ...mine }),
     setOptIn: async (opted_in, confirm) => {
-      if (opted_in && confirm !== mine.confirm) throw err(409, 'number_changed', 'המספר השתנה מאז שהוצג. טענו מחדש ובדקו את המספר.');
+      if (opted_in && confirm !== mine.confirm) throw err(409, 'number_changed', tr('המספר השתנה מאז שהוצג. טענו מחדש ובדקו את המספר.'));
       return (mine = { ...mine, opted_in, stored_opt_in: opted_in, number_changed: false, consent: opted_in && !mine.directory_declined ? 'granted' : 'declined' });
     },
     setOptOut: async (opted_out, confirm) => {
-      if (!opted_out && confirm !== mine.confirm) throw err(409, 'number_changed', 'המספר השתנה מאז שהוצג. טענו מחדש ובדקו את המספר.');
+      if (!opted_out && confirm !== mine.confirm) throw err(409, 'number_changed', tr('המספר השתנה מאז שהוצג. טענו מחדש ובדקו את המספר.'));
       return (mine = { ...mine, opted_in: !opted_out, stored_opt_in: !opted_out, number_changed: false, consent: !opted_out && !mine.directory_declined ? 'granted' : 'declined' });
     },
   };

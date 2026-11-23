@@ -4,6 +4,7 @@ import path from 'node:path';
 import { ADMIN, EDITOR, OUT, expandAll, fresh, install, open, openSize, type St } from './media-players-harness';
 import { skipDesktopSizeOnPhone } from './helpers/phone-project';
 
+import { phoneSkipDesktopShot } from './helpers/phone-skip-shots';
 // CR-016 S2: the new sections of הגדרות › מולטימדיה - נגנים ורמקולים (kind, approval, room, linked amplifier, volume ceiling WITHOUT a
 // default, night window), איחוד כפילויות (the merge wizard fed by the suggestions, the folded non-physical entries), קבוצות שמורות
 // (CRUD), מועדפים ותחנות (order, hide, the lists on / off), חיבור (with / without a music library) and הרשאות - in demo / mock mode: a
@@ -18,6 +19,7 @@ const row = (page: Page, key: string) => sys(page).locator(`[data-mm-admin-devic
 async function tall(page: Page, name: string, width: number, height: number) {
   fs.mkdirSync(OUT, { recursive: true });
   await page.setViewportSize({ width, height });
+  if (phoneSkipDesktopShot(page)) return; // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
   await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(OUT, `${name}-${width}.png`) });
 }
@@ -123,7 +125,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.waitForTimeout(300);
     await row(page, 'mp-kit').scrollIntoViewIfNeeded();
-    await page.screenshot({ path: path.join(OUT, 'settings-night-window-1440.png') });
+    if (!phoneSkipDesktopShot(page)) await page.screenshot({ path: path.join(OUT, 'settings-night-window-1440.png') }); // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
   });
 
   test('a device without a room is placed from the settings (an administrator action); a placed one shows its place', async ({ page }) => {
@@ -322,6 +324,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
 });
 
 async function shot(page: Page, name: string) {
+  if (phoneSkipDesktopShot(page)) return; // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
   fs.mkdirSync(OUT, { recursive: true });
   await page.waitForTimeout(350);
   await page.screenshot({ path: path.join(OUT, `${name}-1440.png`) });

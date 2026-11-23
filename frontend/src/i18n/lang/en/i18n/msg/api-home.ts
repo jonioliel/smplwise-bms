@@ -201,4 +201,8 @@ export const en = {
   'מסדרון': 'Corridor',
   'חוץ': 'Outdoors',
   'שירות / טכני': 'Service / technical',
+  // api/tickets-locations.ts (demo store)
+  'כבר קיים מיקום בשם הזה.': 'A location with this name already exists.',
+  'המיקום לא נמצא.': 'The location was not found.',
+  'המיקום כבר משמש בקשות קיימות. אפשר להשבית אותו במקום למחוק.': 'Existing requests already use this location. You can deactivate it instead of deleting it.',
 };

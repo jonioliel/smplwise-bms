@@ -483,7 +483,7 @@ export class SystemStorage extends LitElement {
               <rect x="470" y="18" width="110" height="34" rx="6" fill="var(--sw-surface)" stroke="var(--sw-border)" />
               <text x="525" y="32" font-size="10.5" text-anchor="middle" fill="var(--sw-text-3)" font-family="var(--sw-font)">${tr('אומדן מילוי')}</text>
               <text x="525" y="46" font-size="11" font-weight="600" text-anchor="middle" fill="var(--sw-text)" font-family="var(--sw-font)">≈ 25.09.2026</text>
-              ${['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול'].map((m, i) => svg`<text x=${px(i)} y="190" font-size="10" text-anchor="middle" fill="var(--sw-text-3)" font-family="var(--sw-font)">${m}</text>`)}
+              ${[tr('ינו'), tr('פבר'), tr('מרץ'), tr('אפר'), tr('מאי'), tr('יונ'), tr('יול')].map((m, i) => svg`<text x=${px(i)} y="190" font-size="10" text-anchor="middle" fill="var(--sw-text-3)" font-family="var(--sw-font)">${m}</text>`)}
               ${['0.5 TB', '1 TB', '1.5 TB', '1.9 TB'].map((t, i) => svg`<text x="4" y=${py(0.25 * (i + 1)) - 3} font-size="9.5" fill="var(--sw-text-3)" font-family="var(--sw-font)">${t}</text>`)}
             `}
           </svg>

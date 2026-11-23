@@ -41,6 +41,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import bump_permission_revision, get_setting, now_iso, set_setting
 from ..errors import ApiError
+from ..i18n import localize_for
 from ..rbac import INSTALLATION, ROLES, STATION, Principal, authorize, require, role_name, role_permissions, scope_name
 from ..services import (bridge_rotation, door_authority, door_blocks, door_conversion, door_overrides, door_path, door_path_guard, ha_bridge, intercom_doors, intercom_sync,
                         revocation, trusted_door)
@@ -173,7 +174,8 @@ def place_station(body: PlacementBody, request: Request, station_id: str = Path(
     audit(conn, actor=principal, action="intercom.station.placed", decision="allowed", resource_type=STATION, resource_id=station_id, request_id=_rid(request),
           details={"site_id": row["site_id"] if row else None, "building_id": row["building_id"] if row else None,
                    "before": {"site_id": before["site_id"], "building_id": before["building_id"]} if before else None, "revision": rev})
-    return {"placement": {"site_id": row["site_id"], "building_id": row["building_id"]} if row else None, "scope_name": scope_name(conn, STATION, station_id)}
+    return localize_for(conn, principal, {"placement": {"site_id": row["site_id"], "building_id": row["building_id"]} if row else None,  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
+                                          "scope_name": scope_name(conn, STATION, station_id)})
 
 
 # ---------------------------------------------------------------- door opening grants (D3)
@@ -244,8 +246,8 @@ def door_grants(principal: Principal = Depends(current_principal_ro), conn: sqli
         sens = json.loads(r["sensitive_json"] or "[]")
         roles.append({"id": r["id"], "name": r["name_he"], "custom": True, "includes": any(p in sens for p in DOOR_GRANTS), "editable": can_roles, "delegable": bool(r["delegable"]), "revision": r["revision"]})
     # UNLOCK-REASON-2370: intercom doors waiting for a door mapping (counts only) - no grant opens them until an administrator maps them
-    return {"users": users, "groups": groups, "roles": roles if can_roles else [], "can_manage_roles": can_roles, "can_manage_subjects": can_subjects, "delegated": not full,
-            "unmapped_doors": intercom_doors.unmapped_summary(conn)}
+    return localize_for(conn, principal, {"users": users, "groups": groups, "roles": roles if can_roles else [], "can_manage_roles": can_roles,  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
+                                          "can_manage_subjects": can_subjects, "delegated": not full, "unmapped_doors": intercom_doors.unmapped_summary(conn)})
 
 
 class SubjectSwitch(BaseModel):

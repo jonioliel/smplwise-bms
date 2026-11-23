@@ -20,6 +20,7 @@ import copy
 import re
 from typing import Any
 
+from . import default_names
 
 SCHEMA_VERSION = 1
 LIBRARY_VERSION = 1
@@ -563,10 +564,10 @@ def _subst(node: Any, values: dict[str, Any]) -> Any:
     return copy.deepcopy(node)
 
 
-def build_config(bp: dict[str, Any], values: dict[str, Any], alias: str | None = None) -> dict[str, Any]:
+def build_config(bp: dict[str, Any], values: dict[str, Any], alias: str | None = None, *, lang: str = "he") -> dict[str, Any]:
     """The automation config a blueprint stands for with these values (new HA schema, key order of the model). No id: the create path assigns it."""
     tpl = _subst(bp["template"], values)
-    return {"alias": (alias or bp["title"]).strip(), "description": bp["description"], "mode": tpl["mode"], "triggers": tpl["triggers"], "conditions": tpl.get("conditions") or [],
+    return {"alias": (alias or default_names.blueprint_title(bp, lang)).strip(), "description": bp["description"], "mode": tpl["mode"], "triggers": tpl["triggers"], "conditions": tpl.get("conditions") or [],
             "actions": tpl["actions"]}
 
 

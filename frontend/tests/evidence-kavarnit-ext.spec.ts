@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { phoneSkipDesktopShot } from './helpers/phone-skip-shots';
 
 // KAV079-295 ("הרחבת הקברניט", mockup r079 state 8): הגדרות › אוטומציות in demo mode (no backend: api/automations-mock.ts answers) at 1440 / 390 -
 // the two new cards ("כפתורי קיר ומתגים", "בדיקות לפני שמירה"), everything OFF by default, a switch reveals its rows, the role table gains the
@@ -44,6 +45,6 @@ test('the new cards are there, off by default, and a switch reveals its rows', a
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);
     fs.mkdirSync(EVIDENCE, { recursive: true });
-    await page.screenshot({ path: path.join(EVIDENCE, `08-settings-${size}.png`), fullPage: false });
+    if (!phoneSkipDesktopShot(page)) await page.screenshot({ path: path.join(EVIDENCE, `08-settings-${size}.png`), fullPage: false }); // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
   }
 });

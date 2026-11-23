@@ -16,6 +16,9 @@ import { tr as trVideo } from '../src/i18n/msg/api-video';
 import { warningsHeading } from '../src/api/automations-ext';
 import { describeError } from '../src/api/client';
 import { elecErrorText } from '../src/api/electricity-billing';
+import { closedErrorText } from '../src/api/closed-errors';
+import { demoReadiness } from '../src/api/readiness';
+import { demoSetupState } from '../src/api/setup';
 import { hasHebrew, hebrewOutsideTr, trCalls, trModule } from './helpers/i18n-source-scan';
 
 // CR-I18N-API-2442: the texts built in src/api/* (labels, error sentences, summaries the screens show as they are).
@@ -50,10 +53,14 @@ const TABLES: Record<string, Translator> = {
 const DEMO_FILE = /-mock\.ts$|-demo\.ts$|^messaging-fake\.ts$/;
 /** Whole files that stay as they are, with the reason. */
 const OWN_FILES: Record<string, string> = {
-  'closed-errors.ts': 'carries its own he / en pair per code and picks by the document language (UI2122)',
+  'closed-errors.ts': 'a he / en catalogue of its own (api/closed-errors, UI2122; I18N-EN-2490): the Hebrew table is in the file, the English in the language pack',
 };
 
-const DEMO = 'the demo store of the module (fake data and the demo server\'s answers, never shown outside the demo mode)';
+// I18N-EN-2490: the demo store inside a translated file (fake data and the demo server's answers, never shown outside the demo mode)
+// reads its product wording (error sentences, report titles and facts, labels of built-in roles / sources / uses) through tr() too;
+// what stays Hebrew there is the fake data itself - names of people, places, devices, accounts and departments, a user's note - as a
+// Hebrew site would hold it in either interface language.
+const DEMO_DATA = 'the demo store\'s fake data (names of people, places, devices, accounts, departments; a user\'s note), as a Hebrew site holds it in either language';
 /** The second translator of an api file: the shared time words (`import { tr as trTime } from '../i18n/msg/time'`). */
 const TRANSLATORS = ['tr', 'trTime'];
 const HEBREW_DATE = 'the Hebrew calendar date, Hebrew in both languages until the owner decides otherwise (docs/changes/CR-I18N-UNITS-2442.md, owner question 1): the letters of gematria 29, its geresh / gershayim 2, the two particles of hebrewDate 2, the word of parshaText 1';
@@ -66,26 +73,24 @@ const HEBREW_DATE = 'the Hebrew calendar date, Hebrew in both languages until th
  */
 const KEPT: Record<string, { why: string; count?: number; texts?: string[] }> = {
   'automations.ts': { why: 'the maqaf the verb table is tested for', texts: ['־'] },
-  'calendar-attendees.ts': { why: DEMO, count: 5 },
-  'door-automations.ts': { why: DEMO, count: 4 },
-  'electricity-meters.ts': { why: DEMO, count: 6 },
-  'electricity-readings.ts': { why: DEMO, count: 25 },
-  'ha-users.ts': { why: DEMO, count: 14 },
+  'calendar-attendees.ts': { why: DEMO_DATA, count: 5 },
+  'door-automations.ts': { why: DEMO_DATA, count: 4 },
+  'electricity-readings.ts': { why: DEMO_DATA, count: 7 },
+  'ha-users.ts': { why: DEMO_DATA, count: 5 },
   'home-config.ts': { why: HEBREW_DATE, count: 34 },
-  'incidents.ts': { why: DEMO, count: 39 },
+  'incidents.ts': { why: DEMO_DATA, count: 29 },
   'mapping-engine.ts': { why: 'data: the building marker of the naming rule and the name saved for a new building', texts: ['בניין', 'משותף', 'בניין'] },
-  'mapping.ts': { why: DEMO, count: 3 },
-  'media-admin.ts': { why: DEMO, count: 39 },
-  'messaging-accounts.ts': { why: DEMO, count: 11 },
-  'messaging-policy.ts': { why: DEMO, count: 2 },
-  'notify-whatsapp.ts': { why: DEMO, count: 9 },
-  'nvr-settings.ts': { why: DEMO, count: 25 },
-  'readiness.ts': { why: DEMO, count: 48 },
-  'setup.ts': { why: DEMO, count: 82 },
-  'tickets-board.ts': { why: DEMO, count: 6 },
-  'tickets-locations.ts': { why: DEMO, count: 15 },
-  'tickets-messages.ts': { why: `${DEMO}; its starter message templates are texts sent to people`, count: 14 },
-  'tickets-rules.ts': { why: DEMO, count: 20 },
+  'mapping.ts': { why: DEMO_DATA, count: 3 },
+  'media-admin.ts': { why: DEMO_DATA, count: 38 },
+  'messaging-accounts.ts': { why: `${DEMO_DATA}; the manual-account fallback label as the server writes it`, count: 7 },
+  'messaging-policy.ts': { why: DEMO_DATA, count: 2 },
+  'notify-whatsapp.ts': { why: DEMO_DATA, count: 1 },
+  'nvr-settings.ts': { why: DEMO_DATA, count: 5 },
+  'setup.ts': { why: DEMO_DATA, count: 3 },
+  'tickets-board.ts': { why: DEMO_DATA, count: 6 },
+  'tickets-locations.ts': { why: DEMO_DATA, count: 12 },
+  'tickets-messages.ts': { why: `${DEMO_DATA}; its starter message templates are texts sent to people, and the preview shows the template as sent`, count: 11 },
+  'tickets-rules.ts': { why: `${DEMO_DATA}; the sample alert of the rule test`, count: 11 },
   'tts-default.ts': { why: 'the name of the Hebrew language in Hebrew (each language is listed in its own script)', texts: ['עברית', 'עברית'] },
 };
 
@@ -289,5 +294,27 @@ test('behaviour: the helpers answer in the document language at call time; Hebre
     expect(warningsHeading(3)).toBe('3 warnings');
     expect(describeError(new TypeError('x'))).toBe('No connection to the server.');
     expect(elecErrorText(new TypeError('x'))).toBe('No connection to the server.');
+  });
+});
+
+// I18N-EN-2490: the demo stores' product wording follows the language (the fake names stay as written), and the closed error sentences
+// are a catalogue whose English comes from the language pack.
+test('behaviour: demo reports and closed error sentences in Hebrew as written, in English from the tables', () => {
+  withLang('he', () => {
+    const steps = demoSetupState(false).steps;
+    expect(steps[0].title).toBe('התקנת ה־Add-on');
+    expect(steps[4].warnings[0].message).toBe('ל־1 קומות אין עדיין תוכנית מפורסמת (למשל "מרתף").');
+    expect(steps[4].facts[2].value).toBe('מבנה א / קומת קרקע · מבנה א / קומה 1');
+    expect(demoReadiness().checks[0].summary).toBe('8 מתוך 8 מצלמות מחוברות.');
+    expect(closedErrorText('media_not_configured')).toBe('שירות הווידאו לא הוגדר. פנו למנהל המערכת.');
+  });
+  withLang('en', () => {
+    const steps = demoSetupState(false).steps;
+    expect(steps[0].title).toBe('Add-on installation');
+    expect(steps[4].warnings[0].message).toBe('Floors without a published plan yet: 1 (for example "מרתף").');
+    expect(steps[4].facts[2].value).toBe('מבנה א / קומת קרקע · מבנה א / קומה 1');
+    expect(demoReadiness().checks[0].summary).toBe('8 of 8 cameras are connected.');
+    expect(closedErrorText('media_not_configured')).toBe('The video service is not set up. Contact the system administrator.');
+    expect(closedErrorText('no_such_code')).toBeNull();
   });
 });

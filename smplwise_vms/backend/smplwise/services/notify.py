@@ -466,9 +466,11 @@ def serialize(conn: sqlite3.Connection, row: sqlite3.Row, principal: Principal, 
     }
     if n["source"] == "ticket.digest":  # TKNOTIFMATRIX: the digest's ticket list, rendered for THIS reader now (never stored, never pushed)
         try:
+            from ..i18n import localize_for
             from .tickets import notify_matrix
 
-            out["digest"] = notify_matrix.detail_for(conn, principal, n["params"])
+            # I18N-BACKEND-2490 (third pass): the event labels in the reader's language (read now, never stored)
+            out["digest"] = localize_for(conn, principal, notify_matrix.detail_for(conn, principal, n["params"]))
         except Exception:  # noqa: BLE001 - the row itself still reads
             log.warning("digest detail failed for %s", n["id"], exc_info=True)
     return out
