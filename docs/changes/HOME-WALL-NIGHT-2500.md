@@ -41,7 +41,8 @@ takeover reads the existing `GET /alarm/panels` and `GET /notices`; the door cal
     (entry delay: enter the code at the keypad), with up to three open sensors; an urgent notice (`severity` `critical` / `urgent`,
     published within the last 48 hours, not ended), newest first. "הבנתי" hides that alarm episode (panel + state + last change: a new
     change shows again) or that notice on this panel (kept in `localStorage` `arx-wall-seen`, last 60); "ללוח ההודעות" opens the board.
-    The takeover wakes the panel and holds it awake; no dim under it. No disarm button: a locked wall panel has no alarm screen today,
+    The takeover wakes the panel and holds it awake; no dim under it. It is a layer of the shared modal stack (`HandModal`,
+    CR-MODAL-STACK-B-2442): Tab stays inside, the room screen behind it is inert, Escape never dismisses it (as the door call). No disarm button: a locked wall panel has no alarm screen today,
     and adding one is not part of the answer.
   * **night layer** (`[data-wall-dim]`, z 70, `pointer-events: none`): black at the chosen opacity on an idle panel at night (soft 0.5 /
     medium 0.68 / strong 0.82), 40 % of that while someone uses it (0.2 / 0.27 / 0.33), 0 by day or under a takeover or a call. With the
@@ -54,7 +55,8 @@ takeover reads the existing `GET /alarm/panels` and `GET /notices`; the door cal
 * `frontend/src/home/sw-home-admin.ts`: a fourth sub-tab **"מסכי קיר"** in משתמשים והרשאות › ממשק ביתי, drawn in this tab's own look
   (cards, switch rows, option lists): rest screen on / off, after 1 / 2 / 5 / 10 / 15 minutes (`sw-segmented`), night mode on / off, the
   two hours (`input type=time`), the dim (soft / medium / strong), takeover (alarm + urgent notice / alarm only / door call only, as
-  before). `saveInstall` takes the saved message, and clears an old error.
+  before). The two wide controls stack under their text; the time inputs carry `lang=dateInputLang()`. `saveInstall` takes the
+  saved message, and clears an old error. Everything fits one 1440x900 screen without scrolling.
 * `frontend/src/i18n/lang/en/i18n/msg/home.ts`: 39 English texts (unit-i18n-home keeps the table complete).
 
 ### Backend
@@ -70,23 +72,31 @@ takeover reads the existing `GET /alarm/panels` and `GET /notices`; the door cal
 
 ## Tests
 
+All numbers below were run; nothing is claimed that was not.
+
 | Command | Where | Result |
 |---|---|---|
-| `pytest tests/test_home_interface.py` (2 new: defaults reach the panel; change + validate + audit + bad stored value; 1 assertion extended) | PC | see the closing report of the branch commit |
-| `npx playwright test -c playwright.unit.config.ts tests/unit-home-wall-night-2500.spec.ts tests/unit-kiosk-idle.spec.ts` (15 new, fake clock) | PC | 29 passed |
-| `npx playwright test -c playwright.unit.config.ts tests/unit-i18n-home.spec.ts` | PC | 6 passed |
-| `npx playwright test tests/home-wall-night-2500.spec.ts --project=desktop` (8 new, mocked backend, installed page clock) | PC | see the closing report |
-| `npx tsc --noEmit`, `eslint` on the changed sources | PC | clean |
+| `pytest tests/test_home_interface.py` (2 new: the defaults reach the panel; change + validation + audit + a bad stored value; 1 assertion extended) | PC | 28 passed (320 s) |
+| `scripts/gen_wire_types.py --check` | PC | exit 0 |
+| `npx tsc --noEmit -p tsconfig.json`; `eslint` on the five changed sources | PC | clean / clean |
+| `playwright -c playwright.unit.config.ts tests/unit-home-wall-night-2500.spec.ts tests/unit-kiosk-idle.spec.ts` (15 new, fake clock) | PC | 29 passed |
+| `playwright -c playwright.unit.config.ts tests/unit-i18n-home.spec.ts` | PC | 6 passed |
+| `playwright test tests/home-wall-night-2500.spec.ts --project=desktop` (8 new, mocked backend, installed page clock) | PC, `vite build` preview | 8 passed; `--repeat-each=3 --workers=4`: 24 passed |
+| the same + `tests/home-simple-2421.spec.ts` (the installation-settings tab next to the new one) | PC | 17 passed |
+| after the guard fixes (89b73b6f3) and a 1.5 s settle wait in the spec's `open()` (the shell may draw a new `<sw-home>` once more): home-wall-night-2500 + home-simple-2420 + home-simple-2421 + home-v3-auditfix-2437, `--workers=2` | PC | 61 passed, 1 skipped; home-wall-night-2500 `--repeat-each=3 --workers=4`: 24 passed |
+| `playwright -c playwright.unit.config.ts` unit-date-format-module, unit-modal-stack-guard-2442, unit-uxfix-rtl, unit-i18n-home, unit-home-wall-night-2500 | PC | 47 passed |
+| related home specs: home-simple-2420/2421, home-v3-p1/p2/p3, home-v3-fb-2431, home-v3-followup-a, home-v3-auditfix-2437, home-leave-2435, home-v3-gaps-2436, home-r32-answers-2438, pixel-home-fb-2431 (`--project=desktop --project=tablet --workers=4`) | PC | 143 passed, 8 failed, 149 skipped (the tablet project's self-skips); the 8 (time-outs / `.hs.v2` not drawn in time under 4 workers on a loaded PC) re-run alone with `--last-failed --workers=1`: 8 passed - load, not this change |
+| runner slot A (`flock ~/.smplwise-tests.lock nice -n 19`): backend `test_home_interface.py test_home_v3_p1.py test_wire_routers_c_2470.py test_wire_routers_b_2450.py test_wire_consumption_2450.py`, `tsc`, the whole node-only unit suite | runner | run 1 at b22504def: backend 172 passed (150 s); tsc ok; node-only unit suite 5093 passed, 3 failed, 10 skipped - the 3 were guards this branch broke (modal stack, date-input lang, U+203A), fixed in 89b73b6f3; run 2 at the fix: see below |
 
-The browser spec: the rest screen after exactly 2 minutes with its pills, no scroll, the first touch on top of a light switches nothing and
+The browser spec: the rest screen after 2 minutes (the exact second is the unit spec's, on a fake clock) with its pills, no scroll, the first touch on top of a light switches nothing and
 the second does; night dim 0.27 in use / 0.68 at rest; settings (rest off, 1 minute, strong, 22:00-07:00) reach the panel; a sounding
 alarm takes over a resting night panel (dim 0) and "הבנתי" gives it back; an urgent notice takes over once per panel and not with
 "alarm only" / "door call only"; a door call wakes the rest screen and hides the takeover until it ends; a non-wall person sees nothing;
 the settings tab sends the five PUTs.
 
 Captures (evidence, not a gate): `tests/home-wall-night-2500-shots.spec.ts` (`SW_SHOTS=1`, `SW_SHOTS_PHASE=before|after`) ran against a
-build of 619f94d04 (before) and of this branch (after), wall 1280x800 and tablet 1024x768, day / night, awake / rest, plus the two
-takeovers. Owner page: `private/planning/home_wall_night_2500_compare_2026-11-23.html` (local, not in Git).
+build of 619f94d04 (before: 8 images) and of this branch (after: 13 images), wall 1280x800 and tablet 1024x768, day / night,
+awake / rest, the two takeovers, and the settings tab at 1440x900. Owner page: `private/planning/home_wall_night_2500_compare_2026-11-23.html` (local, not in Git).
 
 ## Known limits
 

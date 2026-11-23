@@ -27,6 +27,8 @@ async function open(page: Page, time: number, o: P2Opts = {}, routes?: () => Pro
   await home(page).waitFor();
   await expect.poll(() => page.evaluate(() => !!document.querySelector('sw-app')?.shadowRoot?.querySelector('sw-home')?.shadowRoot?.querySelector('.hs.v2'))).toBe(true);
   await settle(page);
+  // the shell may draw the screen once more after the session settles (a new <sw-home>, a new rest count): let it, before the clock moves
+  await page.waitForTimeout(1500);
   return mock;
 }
 

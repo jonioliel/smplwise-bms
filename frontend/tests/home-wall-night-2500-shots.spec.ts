@@ -26,7 +26,7 @@ async function open(page: Page, at: number) {
   await page.goto('/#/home/r/living');
   await page.locator('sw-home').waitFor();
   await page.locator('sw-home').locator('.hs.v2').waitFor();
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(1500);
   await settle(page);
   return mock;
 }
@@ -86,9 +86,9 @@ test.describe('HOME-WALL-NIGHT-2500 captures', () => {
       await page.goto('/#/home/r/living');
       await page.locator('sw-home').waitFor();
       await page.locator('sw-home').locator('.hs.v2').waitFor();
-      await page.waitForTimeout(800);
+      await page.waitForTimeout(1500);
       await page.clock.fastForward(130_000);
-      await page.waitForTimeout(800);
+      await page.waitForTimeout(1500);
       await shot(page, size, 'takeover-notice');
     });
     test(`alarm ${size}`, async ({ page }) => {
@@ -101,9 +101,9 @@ test.describe('HOME-WALL-NIGHT-2500 captures', () => {
       await page.goto('/#/home/r/living');
       await page.locator('sw-home').waitFor();
       await page.locator('sw-home').locator('.hs.v2').waitFor();
-      await page.waitForTimeout(800);
+      await page.waitForTimeout(1500);
       await page.clock.fastForward(130_000);
-      await page.waitForTimeout(800);
+      await page.waitForTimeout(1500);
       await shot(page, size, 'takeover-alarm');
     });
   }
