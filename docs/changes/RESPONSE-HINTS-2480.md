@@ -40,3 +40,19 @@ Owner decisions Q18 (N57) and Q19 (N58), both "yes". Base `main` 619f94d04 (rele
 * Before / after captures (demo data, 1440 and 390): `private/planning/response_hints_2480_compare_2026-11-23.html`.
 
 Rollback: revert the branch commits; the server change is additive (a client that ignores `title` is unaffected).
+
+## Runner (Linux) pass at b2cfbdc2b, 2026-11-23
+
+`~/work/hints2480`, under `flock ~/.smplwise-tests.lock`, `nice -n 19`, `--workers=2`, no gate running; first run WITHOUT `-u`:
+
+| Run | Result |
+|---|---|
+| `visual-matrix -g settings-notifications` | 4 passed, 2 failed (desktop light / dark: the wrapped chips, wider channels column, the הכרזה chip) |
+| `audit30-f-calendars` + `pixel-round4-leftovers-2390` | 43 passed, 4 failed (the new-booking drawer x classic / domus x 1440 / 390: the clash line now shows the range), 34 skipped |
+| `evidence-notifications` (all projects) | 89 passed, 7 skipped |
+| `evidence-calendars-views-2310` + `evidence-calendars-grid-edit-2343` | 62 passed, 16 skipped |
+
+Each diff was reviewed (only the clash line in the drawer; only the channels column in the matrix). Refreshed with
+`--update-snapshots=changed` on those tests only, then verified without `-u`: audit30-f + round4 47 passed / 34 skipped;
+visual-matrix notifications + "no two screens share a baseline" 9 passed. Six Linux baselines changed (4 `a30f-drawer-*`,
+2 `settings-notifications-ready-*-desktop`).
