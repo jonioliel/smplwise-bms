@@ -109,6 +109,8 @@ export const en = {
   stuck_overdue: 'Overdue',
   stuckSince: '{kind} · {t}',
   selected: '{n} selected',
+  selectedOff: '{n} of them on other pages',
+  selectAllLoaded: 'Select all {n} {tickets}',
   clearSelection: 'Clear the selection',
   bulkAssign: 'Assign',
   bulkRemind: 'Remind',

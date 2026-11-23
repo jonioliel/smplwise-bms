@@ -216,10 +216,13 @@ test.describe('tickets table evidence', () => {
     await expect(page.locator(`${T} [data-table-toast]`)).toContainText('בוצע ב־1 מתוך 2');
     await shot(page, 'bulk-result');
     await expect(page.locator(`${T} tickets-table-bulk [data-bulk-count]`), 'what failed stays selected').toContainText('1');
-    // the page checkbox selects every row of the page; Escape clears
+    // the page checkbox selects every row of the page; Escape clears (TICKETS-PAGING-2490: the rows of the page on screen - compared
+    // once the pages are measured again after the bulk bar came and went)
     await page.locator(`${T} tickets-table-bulk [data-bulk-clear]`).click();
     await page.locator(`${T} [data-select-page]`).click();
-    await expect(page.locator(`${T} tickets-table-bulk [data-bulk-count]`)).toContainText(String(await page.locator(`${T} tbody tr`).count()));
+    await expect
+      .poll(async () => ((await page.locator(`${T} tickets-table-bulk [data-bulk-count]`).textContent()) ?? '').includes(String(await page.locator(`${T} tbody tr`).count())))
+      .toBe(true);
   });
 
   test('2.5.6: a row waiting for a part reads "in progress · waiting for a part"; its status menu has no separate waiting status', async ({ page }) => {
@@ -358,7 +361,8 @@ test.describe('tickets table evidence', () => {
     await page.keyboard.press('Space');
     await expect(rows.nth(1)).toHaveAttribute('aria-selected', 'true');
     await page.keyboard.press('Control+A');
-    await expect(page.locator(`${T} tbody tr[aria-selected="true"]`)).toHaveCount(await rows.count());
+    // TICKETS-PAGING-2490: Ctrl+A takes the rows of the page on screen (compared once the pages settle after the bulk bar appeared)
+    await expect.poll(async () => (await page.locator(`${T} tbody tr[aria-selected="true"]`).count()) === (await rows.count())).toBe(true);
     await page.keyboard.press('Escape');
     await expect(page.locator(`${T} tbody tr[aria-selected="true"]`)).toHaveCount(0);
     await rows.nth(1).focus();
@@ -422,6 +426,12 @@ test.describe('tickets table evidence', () => {
     await shot(page, 'error');
     const mock = await go(page, '/tickets/mine?status=all', { ...TABLE, many: 70 });
     await page.waitForSelector(isPhone(page) ? `${T} [data-compact-list]` : `${T} tbody tr`);
+    if (!isPhone(page)) {
+      // TICKETS-PAGING-2490: the table pages; "load more" sits beside the pager on the last page
+      const pager = page.locator(`${T} [data-table-pager]`);
+      await pager.waitFor();
+      await pager.evaluate((el) => el.dispatchEvent(new CustomEvent('page-change', { detail: { page: (el as HTMLElement & { pages: number }).pages }, bubbles: true, composed: true })));
+    }
     await page.locator(`${T} [data-load-more]`).click();
     await expect.poll(() => mock.calls.filter((c) => c.path === 'tickets/table').at(-1)?.search ?? '').toContain('cursor=o50');
   });
