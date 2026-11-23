@@ -22,6 +22,9 @@ import { tr } from '../i18n/msg/components';
 import { confirmWord, confirmWordMatches } from '../i18n/confirm-words';
 import { hostBlockStyles, ltrStyles } from '../styles/fragments';
 
+/** ONVIF-UI-2500: what the camera search hands the add form (the wire `RecorderPrefill`). */
+type RecorderPrefill = { host: string; http_port: number; vendor?: string; name?: string };
+
 /** Fields the server keeps as columns; any other field of a vendor's catalogue entry travels in `extra`. */
 const CORE = new Set(['host', 'http_port', 'rtsp_port', 'username', 'password']);
 
@@ -81,6 +84,9 @@ export class NvrConnectionForm extends LitElement {
   @property() context: 'settings' | 'wizard' | 'add' = 'settings';
   /** CR-024: the recorder this form edits (ignored in `add`). */
   @property({ attribute: 'recorder-id' }) recorderId = PRIMARY_RECORDER;
+  /** ONVIF-UI-2500 (Q59): `add` only - a device the camera search found that looks like a recorder opens this form with its address,
+   * HTTP port, the vendor when known and its name. Never a credential: the user name and the password are typed here as always. */
+  @property({ attribute: false }) prefill: RecorderPrefill | null = null;
   @state() private addName = '';
   @state() private loadState: 'loading' | 'ready' | 'error' = 'loading';
   @state() private loadError = '';
@@ -173,6 +179,12 @@ export class NvrConnectionForm extends LitElement {
     this.changePassword = false;
     this.testLine = null;
     this.offerUntested = false;
+    const p = this.context === 'add' ? this.prefill : null;
+    if (p) {
+      this.draft = { ...this.draft, host: p.host, http_port: p.http_port ? String(p.http_port) : '' };
+      if (p.vendor) this.chooseVendor(p.vendor); // only an available vendor is taken (chooseVendor checks); otherwise the type is chosen here
+      this.addName = p.name ?? '';
+    }
   }
 
   private get spec(): Vendor | undefined {
