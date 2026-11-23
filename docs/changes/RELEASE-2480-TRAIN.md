@@ -45,6 +45,9 @@ TICKETS-PAGING-2490, FLAKY-CAPTURE-SCREENSHOT-2490 (2.49.0), RESPONSE-MODELS-E-2
 |---|---|
 | c7756d161 | `scripts/error_contract_inventory.py` docstring: ADR-019 covers both L2 and L14 (there is no ADR-020) - the trial's db82dc6ec |
 | 60b5f7c45 | regenerated: `design_ratchet_baseline.json` (`--update`; against 2.47.0 every count is lower or equal: color-literal 2497 -> 1984, px-literal 25485 -> 25462, native-select 551 -> 262, hand-switch 359 -> 161, scroll-container 226 -> 13; undefined-token 0, native-dialog 3, native-table 58 unchanged), `gates-baseline.json` (`unused-exports.mjs --update-baseline`: `src/design/palette.ts#SCHEMA` pruned; unreferenced 47, file-local 52), management views (`project_status.py --write`: only the timestamp moves) |
+| b48f6542b | `tests/pixel-sw-checkbox.spec.ts`: the created element is cast through `unknown` (`tsc -p tsconfig.tests.json` TS2352 on the merged tree: `SwCheckbox` in `HTMLElementTagNameMap` is not comparable to `HTMLElement & Record<string, unknown>`); test-only |
+| 6a6aaf716 | merge regression of HAND-SWITCH-2480: `screens/plan-studio-panel.ts` imported `toggled` from `components/sw-toggle`, so the Node unit specs that import plain helpers from it (`unit-geometry`, `unit-curve-fit`, `unit-glass-wall`) loaded the decorated element and the WHOLE unit run aborted at collection ("Unsupported decorator location: field", the R5-ASSEMBLY pattern). `toggled()` moved to the decorator-free `components/toggle-value.ts`; `sw-toggle.ts` re-exports it (every other caller unchanged); the panel imports it from there. No run-time change (sw-toggle is registered by the shell). A relative-import walk of every `unit-*.spec.ts` finds no other path to a decorated module |
+| eabc1ee75 | `tests/unit-polish4-wp4-home.spec.ts` (D2 source guard): PERF-2490 put `if (!this.remoteReady && this.wantsRemote) this.loadRemote();` first in `home-widgets.ts` `updated()`; the guard allows that one optional line before `syncTicker()` / `watchEditBars()`; test-only |
 
 Note on px-literal: the value written after merge 5 was 25456; the rows merged later each added a few px literals against their own
 25485 baseline (sw-toggle, sw-chip-choice, sw-segmented, public-ticket arrival / claim, explore-presence, ...), so the final count is
@@ -53,11 +56,29 @@ train's own intermediate number.
 
 ## 3. Release commits
 
-(filled below as they land)
+| Commit | What |
+|---|---|
+| 2dd223282 | release: 2.48.0 - version (`config.yaml`, `Dockerfile`, `smplwise/__init__.py`), bilingual CHANGELOG, API inventory (1910 routes, unchanged). No migration (0216 stays the last). Bridge unchanged (0.10.8) |
+| (UI) | release: 2.48.0 - rebuilt UI: see the end of this section |
 
 ## 4. Checks before the gate (workstation, Python 3.12, Node 24.21.0, `npm ci` in the worktree)
 
-(filled below)
+| Check | At | Result |
+|---|---|---|
+| `py -3.12 scripts/design_ratchet.py` | 6a6aaf716 | no count above the baseline (color 1984, px 25462, undefined-token 0, native-dialog 3, native-select 262, native-table 58, hand-switch 161, scroll 13) |
+| `test_build_guards_2438.py` + `test_scroll_allow_2480.py` (main `.venv`) | after merges 4 and 5 | 14 / 15 passed |
+| `scripts/gen_wire_types.py --check`, `scripts/sync_integration.py --check` (main `.venv`) | 60b5f7c45 | exit 0 / up to date |
+| `npx tsc --noEmit -p tsconfig.json` / `tsconfig.tests.json` / `tsconfig.scripts.json` | 6a6aaf716 / eabc1ee75 / 60b5f7c45 | exit 0 / 0 (after b48f6542b; 1 error before) / 0 |
+| `npx eslint src --pass-on-unpruned-suppressions` | 050fe87b3 (+ the three files of 6a6aaf716) | exit 0 |
+| `node scripts/unused-exports.mjs --enforce` | 6a6aaf716 | OK (unreferenced 47, file-local 52) |
+| EN ratchet | - | NOT_RUN: the ratchet lives on I18N-EN-2490 (not on this train) |
+| `scripts/api_inventory.py` | 2dd223282 | 1910 routes (unchanged) |
+| `project_status.py --write` | 60b5f7c45 | PASS (647 tasks, 761 requirements) |
+| Full frontend unit suite `playwright.unit.config.ts --workers=2` | 050fe87b3 | ABORTED at collection (the sw-toggle decorator, fixed in 6a6aaf716) |
+| same | 6a6aaf716 | **5,127 passed, 1 failed, 10 skipped** (14.0 min); the failure = the D2 guard fixed in eabc1ee75 |
+| `unit-polish4-wp4-home` + `unit-geometry` + `unit-curve-fit` + `unit-glass-wall` | eabc1ee75 | 47 passed (the full suite was not re-run after this test-only fix) |
+| Backend: the 21 test files the train adds / changes + `test_singletons_registered.py` + the 8 `test_calendar*.py` (30 files, main `.venv`, `-m "not timing_lane"`) | 050fe87b3 | PARTIAL: stopped by its own 2,400 s cap at ~99 % (the PC was shared with the unit run): **16,708 passed, 0 failed**; the last ~1 % did not run - the gate's full backend covers it |
+| `ruff` | - | NOT_RUN (not installed in the main `.venv`; the gate's fe/be static runs it) |
 
 ## 5. Lead steps before the release gate
 
