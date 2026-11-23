@@ -404,6 +404,8 @@ export class SwPlan3d extends LitElement {
       block-size: 100%;
       min-block-size: 240px;
       background: var(--sw-map-bg);
+      --p3d-night-navy: #0f1729; /* COLOR-LITERAL-B-2480: the night bar / strip / room fill (one literal, two rules) */
+      --p3d-chip-shade: rgba(17, 24, 39, 0.1); /* COLOR-LITERAL-B-2480: the shadow of the two HUD panels */
       direction: ltr;
       overflow: hidden;
       border-radius: inherit;
@@ -416,12 +418,12 @@ export class SwPlan3d extends LitElement {
     :host([data-night]) {
       /* PLAN3D-POLISH-2430: a faint ground glow under the building (the stage's lower middle) so the outer walls' outline reads
          against the night sky; the sky stays dark at the edges */
-      background: radial-gradient(ellipse 60% 42% at 50% 60%, rgba(86, 116, 178, 0.34) 0%, rgba(86, 116, 178, 0) 100%), linear-gradient(180deg, #060b18 0%, #152442 100%);
+      background: radial-gradient(ellipse 60% 42% at 50% 60%, rgba(86, 116, 178, 0.34) 0%, rgba(86, 116, 178, 0) 100%), var(--sw-map-stack-night);
     }
     /* the night sky is dark whatever the theme: the bar and the strip stand on its own opaque navy (a translucent backdrop showed the scene through the chips' row) */
     :host([data-night]) .bar,
     :host([data-night]) .strip {
-      background: #0f1729;
+      background: var(--p3d-night-navy);
       color: #dfe7f5;
     }
     /* CR-029 S1 / S2, level 3: the sky behind the canvas follows the sun and the style (the element sets the stops), the
@@ -463,7 +465,7 @@ export class SwPlan3d extends LitElement {
       /* a HUD panel over the 3D canvas is opaque (owner 2026-10-13, styles/menu-surface.ts): the menu surface and the strong hairline, no blur */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-border-strong);
-      box-shadow: 0 8px 24px rgba(17, 24, 39, 0.1);
+      box-shadow: 0 8px 24px var(--p3d-chip-shade);
       direction: rtl;
     }
     .timepill button {
@@ -502,7 +504,7 @@ export class SwPlan3d extends LitElement {
       /* the time-of-day picker (date + slider + presets) is a menu over the canvas: opaque, never see-through (owner 2026-10-13); the pill above it is opaque too (second report, same day) */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-menu-border);
-      box-shadow: 0 8px 24px rgba(17, 24, 39, 0.1);
+      box-shadow: 0 8px 24px var(--p3d-chip-shade);
       direction: rtl;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
@@ -717,7 +719,7 @@ export class SwPlan3d extends LitElement {
       color: var(--sw-text);
     }
     :host([data-night]:not([data-quality='3'])) .room {
-      background: #0f1729;
+      background: var(--p3d-night-navy);
       border-color: #33456b;
       color: #e8eefb;
     }

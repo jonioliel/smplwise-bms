@@ -165,7 +165,7 @@
 #nbk[data-skin="lumen"] .nb-bd { font-size: calc(40px * var(--fs)); line-height: 1.45; font-weight: 300; max-inline-size: 25em; }
 #nbk[data-skin="lumen"] .nb-msg[data-sev="alert"] .nb-meta .nb-sv { color: var(--acc); }
 #nbk[data-skin="lumen"] .nb-msg.nb-idle .nb-ttl { font-size: 180px; font-weight: 200; }
-#nbk[data-skin="lumen"] .nb-pic { inline-size: 440px; align-self: flex-end; block-size: 100%; max-block-size: 560px; -webkit-mask-image: radial-gradient(120% 100% at 50% 40%, #000 55%, transparent 100%); mask-image: radial-gradient(120% 100% at 50% 40%, #000 55%, transparent 100%); }
+#nbk[data-skin="lumen"] .nb-pic { inline-size: 440px; align-self: flex-end; block-size: 100%; max-block-size: 560px; -webkit-mask-image: radial-gradient(120% 100% at 50% 40%, var(--tv-black) 55%, transparent 100%); mask-image: radial-gradient(120% 100% at 50% 40%, var(--tv-black) 55%, transparent 100%); }
 #nbk[data-skin="lumen"] .nb-pic img { filter: brightness(0.86) contrast(1.05); }
 #nbk[data-skin="lumen"] .nb-q { top: 244px; bottom: 296px; left: 96px; inline-size: 450px; display: flex; flex-direction: column; justify-content: flex-end; gap: 22px; }
 #nbk[data-skin="lumen"] .nb-q ol { display: flex; flex-direction: column; gap: 18px; }
@@ -271,21 +271,21 @@
 @keyframes nb-pr-b { to { transform: translate(-160px, -200px) scale(0.9); } }
 @keyframes nb-pr-c { to { transform: translate(-120px, 160px) scale(1.18); } }
 /* a neutral scrim keeps the white type on the field legible whatever the sky is doing */
-#nbk[data-skin="prism"] .nb-fld::after { content: ''; position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, rgba(4,8,16,.34) 0%, rgba(4,8,16,.06) 38%, rgba(4,8,16,.10) 62%, rgba(4,8,16,.42) 100%); }
+#nbk[data-skin="prism"] .nb-fld::after { content: ''; position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, var(--tv-prism-veil) 0%, rgba(4,8,16,.06) 38%, rgba(4,8,16,.10) 62%, rgba(4,8,16,.42) 100%); }
 #nbk[data-skin="prism"][data-theme="dark"] .nb-fld::after { background: linear-gradient(180deg, rgba(4,8,16,.46) 0%, rgba(4,8,16,.22) 40%, rgba(4,8,16,.28) 62%, rgba(4,8,16,.55) 100%); }
-#nbk[data-skin="prism"][data-pic="1"] .nb-fld::after { background: linear-gradient(180deg, rgba(4,8,16,.62) 0%, rgba(4,8,16,.34) 45%, rgba(4,8,16,.62) 100%); }
+#nbk[data-skin="prism"][data-pic="1"] .nb-fld::after { background: linear-gradient(180deg, var(--tv-prism-veil-strong) 0%, var(--tv-prism-veil) 45%, var(--tv-prism-veil-strong) 100%); }
 #nbk[data-skin="prism"] .nb-fld .nb-fimg { z-index: 0; }
-#nbk[data-skin="prism"] .nb-time { top: 96px; left: 96px; color: #fff; align-items: flex-end; }
+#nbk[data-skin="prism"] .nb-time { top: 96px; left: 96px; color: var(--tv-white); align-items: flex-end; }
 #nbk[data-skin="prism"] .nb-time .nb-t { font-size: 210px; font-weight: 200; letter-spacing: -0.02em; }
-#nbk[data-skin="prism"] .nb-time .nb-d { color: rgba(255,255,255,.92); font-size: 30px; margin-block-start: 14px; }
-#nbk[data-skin="prism"] .nb-wx { bottom: 96px; left: 96px; inline-size: 608px; color: #fff; flex-direction: column; align-items: flex-end; gap: 6px; }
+#nbk[data-skin="prism"] .nb-time .nb-d { color: var(--tv-prism-ink-2); font-size: 30px; margin-block-start: 14px; }
+#nbk[data-skin="prism"] .nb-wx { bottom: 96px; left: 96px; inline-size: 608px; color: var(--tv-white); flex-direction: column; align-items: flex-end; gap: 6px; }
 #nbk[data-skin="prism"] .nb-wx .nb-tmp { font-size: 128px; font-weight: 200; line-height: 1; }
-#nbk[data-skin="prism"] .nb-wx .nb-tx { color: rgba(255,255,255,.92); font-size: 24px; }
+#nbk[data-skin="prism"] .nb-wx .nb-tx { color: var(--tv-prism-ink-2); font-size: 24px; }
 #nbk[data-skin="prism"] .nb-wx .nb-hrs { display: flex; gap: 0; margin-block-start: 18px; padding: 14px 8px; border-radius: 20px; background: rgba(6,10,18,.40); box-shadow: inset 0 1px 0 rgba(255,255,255,.2); direction: ltr; }
 #nbk[data-skin="prism"][data-fx="high"] .nb-wx .nb-hrs { background: rgba(6,10,18,.26); -webkit-backdrop-filter: blur(14px) saturate(140%); backdrop-filter: blur(14px) saturate(140%); }
 @media (prefers-reduced-transparency: reduce) { #nbk[data-skin="prism"] .nb-wx .nb-hrs { background: rgba(6,10,18,.78) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; } }
 #nbk[data-skin="prism"] .nb-wx .nb-hrs span { display: flex; flex-direction: column; align-items: center; min-inline-size: 104px; font-size: 22px; color: rgba(255,255,255,.88); }
-#nbk[data-skin="prism"] .nb-wx .nb-hrs b { font-size: 30px; font-weight: 400; color: #fff; }
+#nbk[data-skin="prism"] .nb-wx .nb-hrs b { font-size: 30px; font-weight: 400; color: var(--tv-white); }
 #nbk[data-skin="prism"][data-kind="slide"] .nb-wx { display: none; }
 #nbk[data-skin="prism"] .nb-brand { top: 80px; right: 96px; max-inline-size: 900px; }
 #nbk[data-skin="prism"] .nb-st { top: 216px; bottom: 360px; right: 96px; left: calc(var(--fw) + 96px); }
@@ -312,8 +312,8 @@
 #nbk[data-skin="prism"] .nb-take .nb-tbg i:nth-child(3) { inline-size: 800px; block-size: 800px; top: 20%; left: 40%; background: radial-gradient(closest-side, rgba(226,96,40,.35), transparent); animation: nb-pr-c 60s ease-in-out infinite alternate; }
 #nbk[data-fx="low"] .nb-take .nb-tbg i, #nbk[data-fx="off"] .nb-take .nb-tbg i, #nbk[data-rm="1"] .nb-take .nb-tbg i { animation-play-state: paused; }
 #nbk[data-skin="prism"] .nb-take .nb-ttl { font-weight: 600; }
-#nbk[data-skin="prism"] .nb-ann .nb-al > div:first-child { position: relative; overflow: hidden; color: #fff; background: var(--f0); padding: 40px 44px; border-radius: 28px; }
-#nbk[data-skin="prism"] .nb-ann .nb-al > div:first-child p, #nbk[data-skin="prism"] .nb-ann .nb-al > div:first-child small { color: #fff; position: relative; z-index: 1; }
+#nbk[data-skin="prism"] .nb-ann .nb-al > div:first-child { position: relative; overflow: hidden; color: var(--tv-white); background: var(--f0); padding: 40px 44px; border-radius: 28px; }
+#nbk[data-skin="prism"] .nb-ann .nb-al > div:first-child p, #nbk[data-skin="prism"] .nb-ann .nb-al > div:first-child small { color: var(--tv-white); position: relative; z-index: 1; }
 #nbk[data-skin="prism"] .nb-ann .nb-al > div:first-child::after { content: ''; position: absolute; inset: 0; background: rgba(4,8,16,.45); }
 #nbk[data-skin="prism"] .nb-ann .nb-al > div:first-child > * { position: relative; z-index: 2; }
 #nbk[data-skin="prism"][data-long="1"][data-orient="l"] { --fw: 420px; }

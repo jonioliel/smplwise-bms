@@ -7,6 +7,7 @@
  */
 :root {
   color-scheme: light;
+  --pt-white: #fff; /* COLOR-LITERAL-B-2480: the white plate behind a logo / a map figure, every theme (two rules) */
   --sw-bg: #f2f4f8;
   --sw-surface: #ffffff;
   --sw-surface-2: #f6f8fb;
@@ -196,7 +197,7 @@ body {
 /* VPORTAL: the organisation's logo in place of the initial (brand.ts) */
 .brand-logo {
   object-fit: contain;
-  background: #fff;
+  background: var(--pt-white);
 }
 
 .who {
@@ -1086,7 +1087,7 @@ body {
   border: 1px solid var(--sw-border);
   border-radius: var(--sw-r-md);
   overflow: hidden;
-  background: #ffffff; /* the picture is drawn on white in both themes (plan ink), framed by the page's border */
+  background: var(--pt-white); /* the picture is drawn on white in both themes (plan ink), framed by the page's border */
 }
 
 .map-figure.empty {

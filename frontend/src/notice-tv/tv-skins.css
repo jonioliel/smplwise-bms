@@ -127,8 +127,8 @@
 #nbk .nb-live .nb-sw { block-size: 30px; }
 #nbk .nb-co { display: flex; align-items: center; flex: none; block-size: min(calc(34px * var(--coa, 1)), 44px); }
 #nbk .nb-co img { block-size: 100%; inline-size: auto; max-inline-size: calc(200px * var(--cow, 1)); object-fit: contain; }
-#nbk .nb-co[data-tr="plate"], #nbk .nb-co[data-tr="darkplate"] { box-sizing: border-box; padding: 3px 10px; border-radius: 8px; background: #ffffff; }
-#nbk .nb-co[data-tr="darkplate"] { background: #0d1220; }
+#nbk .nb-co[data-tr="plate"], #nbk .nb-co[data-tr="darkplate"] { box-sizing: border-box; padding: 3px 10px; border-radius: 8px; background: var(--tv-white); }
+#nbk .nb-co[data-tr="darkplate"] { background: var(--tv-darkplate); }
 #nbk .nb-co[data-tr="invert"] img { filter: invert(1) hue-rotate(180deg); }
 /* ticker (shared mechanics) */
 #nbk .nb-tk { position: relative; overflow: hidden; display: flex; align-items: center; }
@@ -178,7 +178,7 @@
 /* =====================================================================================  SIGN (wayfinding)  */
 #nbk[data-skin="sign"] .nb-pg { padding: 44px 56px 40px; row-gap: 30px; column-gap: 40px; grid-template-rows: 156px minmax(0, 1fr) 176px; grid-template-columns: minmax(0, 1fr) 520px; }
 /* a sign = colour field + the white inset keyline every road sign carries */
-#nbk[data-skin="sign"] .nb-sgn { border-radius: 18px; box-shadow: inset 0 0 0 8px var(--f, var(--blue)), inset 0 0 0 13px var(--k, #fff); background: var(--f, var(--blue)); }
+#nbk[data-skin="sign"] .nb-sgn { border-radius: 18px; box-shadow: inset 0 0 0 8px var(--f, var(--blue)), inset 0 0 0 13px var(--k, var(--tv-white)); background: var(--f, var(--blue)); }
 #nbk[data-skin="sign"] .nb-plate { border-radius: 12px; background: var(--plate); color: var(--onplate); box-shadow: inset 0 0 0 6px var(--plate), inset 0 0 0 10px var(--onplate); }
 #nbk[data-skin="sign"] .nb-hd { display: grid; grid-template-columns: minmax(0, 1fr) auto 156px; gap: 28px; align-items: stretch; }
 #nbk[data-skin="sign"] .nb-hd .nb-nm { --f: var(--blue); color: var(--onblue); display: grid; align-content: safe center; padding: 0 52px 0 64px; min-inline-size: 0; justify-self: start; max-inline-size: 100%; }
@@ -204,7 +204,7 @@
 #nbk[data-skin="sign"] .nb-msg .nb-bd { font-size: calc(44px * var(--fs, 1)); font-weight: 400; line-height: 1.4; max-inline-size: 1100px; }
 /* the supplementary plate under the sign holds the time window, as on a road sign */
 #nbk[data-skin="sign"] .nb-msg .nb-sup { justify-self: start; display: inline-flex; align-items: center; gap: 16px; padding: 14px 34px 14px 30px; font-size: 38px; font-weight: 700; }
-#nbk[data-skin="sign"] .nb-msg .nb-sup .nb-pgn { font-size: 26px; font-weight: 600; color: #39414A; padding-inline-start: 18px; }
+#nbk[data-skin="sign"] .nb-msg .nb-sup .nb-pgn { font-size: 26px; font-weight: 600; color: var(--tv-sign-ink-2); padding-inline-start: 18px; }
 /* verify loop: --ink2 is a light grey in the night theme, 1.6:1 on the white plate */
 #nbk[data-skin="sign"] .nb-msg.nb-slide .nb-panel { --f: var(--plate); --k: var(--onplate); color: var(--onplate); grid-template-columns: minmax(0, 1fr) minmax(0, 44%); column-gap: 56px; padding: 40px 48px 40px 56px; }
 #nbk[data-skin="sign"] .nb-msg.nb-slide .nb-pic { margin: 0; aspect-ratio: 8 / 5; border-radius: 10px; overflow: hidden; position: relative; }
@@ -242,7 +242,7 @@
 #nbk[data-skin="sign"] .nb-ft .nb-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 28px; min-block-size: 0; }
 #nbk[data-skin="sign"] .nb-info { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 18px; }
 #nbk[data-skin="sign"] .nb-info li { display: grid; grid-template-columns: 96px minmax(0, 1fr); column-gap: 16px; align-items: center; min-inline-size: 0; }
-#nbk[data-skin="sign"] .nb-info .nb-pk { --f: var(--blue); color: #fff; inline-size: 96px; block-size: 96px; border-radius: 14px; display: grid; place-items: center; box-shadow: inset 0 0 0 5px var(--f), inset 0 0 0 8px #fff; background: var(--f); }
+#nbk[data-skin="sign"] .nb-info .nb-pk { --f: var(--blue); color: var(--tv-white); inline-size: 96px; block-size: 96px; border-radius: 14px; display: grid; place-items: center; box-shadow: inset 0 0 0 5px var(--f), inset 0 0 0 8px var(--tv-white); background: var(--f); }
 #nbk[data-skin="sign"] .nb-info .nb-tx2 { display: grid; gap: 6px; min-inline-size: 0; }
 #nbk[data-skin="sign"] .nb-info span svg { display: inline-block; vertical-align: -3px; margin-inline-end: 6px; }
 #nbk[data-skin="sign"] .nb-info b { font-size: 25px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -258,7 +258,7 @@
 #nbk[data-skin="sign"] .nb-live[data-net="stale"] .nb-st8, #nbk[data-skin="sign"] .nb-live[data-net="offline"] .nb-st8 { background: var(--yel); color: var(--onyel); padding: 6px 14px; border-radius: 8px; }
 /* takeover = one big red sign */
 #nbk[data-skin="sign"] .nb-take { padding: 44px 56px; background: var(--wall); }
-#nbk[data-skin="sign"] .nb-take .nb-tsg { --f: var(--red); color: var(--onred); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; padding: 56px 88px; border-radius: 28px; box-shadow: inset 0 0 0 12px var(--f), inset 0 0 0 20px #fff; background: var(--f); min-block-size: 0; }
+#nbk[data-skin="sign"] .nb-take .nb-tsg { --f: var(--red); color: var(--onred); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; padding: 56px 88px; border-radius: 28px; box-shadow: inset 0 0 0 12px var(--f), inset 0 0 0 20px var(--tv-white); background: var(--f); min-block-size: 0; }
 #nbk[data-skin="sign"] .nb-take .nb-tb { display: flex; align-items: center; justify-content: space-between; font-size: 44px; font-weight: 800; }
 #nbk[data-skin="sign"] .nb-take .nb-tb .nb-w { display: flex; align-items: center; gap: 22px; }
 #nbk[data-skin="sign"] .nb-take .nb-tb .nb-t { font-size: 68px; font-weight: 600; }
@@ -275,7 +275,7 @@
 #nbk[data-skin="sign"] .nb-ann .nb-ah .nb-lock { margin-inline-start: auto; font-size: 26px; font-weight: 600; }
 #nbk[data-skin="sign"] .nb-ann .nb-al { gap: 14px; }
 #nbk[data-skin="sign"] .nb-ann .nb-al > div { border-radius: 14px; background: var(--plate); color: var(--onplate); box-shadow: inset 0 0 0 6px var(--plate), inset 0 0 0 10px var(--onplate); padding: 0 64px; }
-#nbk[data-skin="sign"] .nb-ann .nb-al small { color: #39414A; }
+#nbk[data-skin="sign"] .nb-ann .nb-al small { color: var(--tv-sign-ink-2); }
 #nbk[data-skin="sign"] .nb-gone { background: var(--wall); }
 /* =====================================================================================  portrait + 16:10  */
 #nbk[data-orient="p"] .nb-pg { grid-template-areas: "hd" "st" "q" "ft"; grid-template-columns: minmax(0, 1fr); }

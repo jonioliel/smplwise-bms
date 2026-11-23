@@ -198,7 +198,7 @@
 
 /* ---------- STONE (travertine slab on the building) ---------- */
 #nbk[data-skin="stone"] .nb-scrim { position: absolute; inset: 0; z-index: 0; pointer-events: none;
-  background: linear-gradient(to top, rgba(12,11,10,.82) 0%, rgba(12,11,10,.62) 32%, rgba(12,11,10,.3) 56%, rgba(12,11,10,0) 76%); }
+  background: linear-gradient(to top, rgba(12,11,10,.82) 0%, rgba(12,11,10,.62) 32%, var(--tv-stone-scrim) 56%, var(--tv-stone-scrim-0) 76%); }
 #nbk[data-skin="stone"][data-theme="dark"] .nb-scrim { background: linear-gradient(to top, rgba(6,6,6,.7) 0%, rgba(6,6,6,.25) 45%, rgba(6,6,6,.1) 100%); }
 #nbk[data-skin="stone"] .nb-slab { position: absolute; z-index: 1; inset-block: 0; right: 0; inline-size: 900px; background: var(--slab); overflow: hidden; }
 #nbk[data-skin="stone"] .nb-slab::before { content: ''; position: absolute; inset: 0; z-index: 1; opacity: .5; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' seed='3'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .42 0 0 0 0 .38 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E"); }
@@ -242,7 +242,7 @@
 #nbk[data-skin="stone"] .nb-msg.nb-idle .nb-big { font-weight: 200; font-size: 112px; line-height: 1.05; }
 #nbk[data-skin="stone"] .nb-msg.nb-idle .nb-line { font-size: 32px; margin-block-start: 30px; color: var(--ink2); order: 3; }
 #nbk[data-skin="stone"][data-orient="p"] .nb-slab { inset-block: auto 0; left: 0; inline-size: auto; block-size: calc(100% - 780px); }
-#nbk[data-skin="stone"][data-orient="p"] .nb-scrim { inset: 0 0 auto 0; block-size: 780px; background: linear-gradient(to top, rgba(12,11,10,.8) 0%, rgba(12,11,10,.66) 34%, rgba(12,11,10,.3) 58%, rgba(12,11,10,0) 80%); }
+#nbk[data-skin="stone"][data-orient="p"] .nb-scrim { inset: 0 0 auto 0; block-size: 780px; background: linear-gradient(to top, rgba(12,11,10,.8) 0%, rgba(12,11,10,.66) 34%, var(--tv-stone-scrim) 58%, var(--tv-stone-scrim-0) 80%); }
 #nbk[data-fam="luxury"][data-skin="stone"][data-orient="p"] .nb-pg { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 780px auto minmax(0, 1fr) auto auto; grid-template-areas: "time wx" "brand brand" "st st" "q q" "ft ft"; }
 #nbk[data-skin="stone"][data-orient="p"] .nb-time { justify-self: start; align-items: flex-start; padding: 0 76px 48px 0; text-align: right; }
 #nbk[data-skin="stone"][data-orient="p"] .nb-time .nb-t { font-size: 190px; }
