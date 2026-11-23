@@ -16,6 +16,8 @@ import { loadXsData, type XsData } from '../xsection/xs-data';
 import { detect, health, levelWaiting, MAPPING_SETTING_CHOICES, resolve, summarize, tableRows, type MappingSettings, type Target } from '../api/mapping-engine';
 import { BUILDING_REACH_CHOICES, BUILDING_REACH_TEXT, loadMapping, restoreVersion, saveSettings, setBuildingReach, setMultiBuilding, type BuildingReach, type MappingData, type MappingVersion } from '../api/mapping';
 import { tr } from '../i18n/msg/system-b';
+import { needsCheck, REVIEW_MODES, setReview, type ReviewMode } from '../api/mb-safety';
+import './mb-enable-check';
 import '../components/sw-toggle';
 import { switchPress } from '../components/sw-toggle';
 import { live } from 'lit/directives/live.js';
@@ -65,6 +67,8 @@ export class SystemMapping extends LitElement {
   @state() private message = '';
   /** The single-building view can be left for the assistant ("יש לכם כמה בניינים?"). */
   @state() private forceFull = false;
+  /** MULTI-BUILDING-SAFETY-2500 (owner 22.11, Q63): the check before turning the switch on is open. */
+  @state() private checkOpen = false;
 
   static styles = css`
     :host {
@@ -305,6 +309,11 @@ export class SystemMapping extends LitElement {
 
   private async toggleMulti() {
     if (!this.data || this.busy) return;
+    if (!this.data.multi_building && needsCheck(this.data.review_mode)) {
+      this.message = '';
+      this.checkOpen = true; // turning on goes through the check (owner 22.11, Q63); turning off stays one press
+      return;
+    }
     this.busy = true;
     this.message = '';
     try {
@@ -367,11 +376,11 @@ export class SystemMapping extends LitElement {
       ? html`<mapping-assistant .data=${d} start=${this.assistant.start} ?advancedOpen=${this.assistant.advanced}
           @close=${() => { this.assistant = null; void this.load(); }} @applied=${() => void 0}></mapping-assistant>`
       : nothing;
-    if (this.single) return html`${this.renderSwitch()}${this.renderSingle()}${assistant}${this.renderFloorDialog()}`;
+    if (this.single) return html`${this.renderSwitch()}${this.renderSingle()}${assistant}${this.renderFloorDialog()}${this.renderCheck()}`;
     const c = this.computed();
     if (this.compact)
       return html`${this.renderSwitch()}<div class="head" style="margin-block-start:12px"><p>${d.versions.length ? tr('המיפוי הוחל (גרסה {n}).', { n: d.versions[0].number }) : tr('עדיין לא מופה: איזה שם במערכת הבית שייך לאיזה בניין אצלנו.')}</p>
-        <sw-button variant="primary" icon="play" data-mapping-open @click=${() => (this.assistant = { start: 'mark', advanced: false })}>${d.versions.length ? tr('פתח את האשף מחדש') : tr('פתח את אשף המיפוי')}</sw-button></div>${assistant}`;
+        <sw-button variant="primary" icon="play" data-mapping-open @click=${() => (this.assistant = { start: 'mark', advanced: false })}>${d.versions.length ? tr('פתח את האשף מחדש') : tr('פתח את אשף המיפוי')}</sw-button></div>${assistant}${this.renderCheck()}`;
     return html`
       <div class="head"><p>${tr('איזה שם במערכת הבית שייך לאיזה בניין אצלנו. האשף קורא את כל השמות, מציע, ושואל רק על החריגים. שום דבר לא משתנה במערכת הבית עצמה.')}</p>
         <sw-button variant="primary" icon="play" data-mapping-open @click=${() => (this.assistant = { start: 'mark', advanced: false })}>${d.versions.length ? tr('פתח את האשף מחדש') : tr('פתח את אשף המיפוי')}</sw-button>
@@ -382,7 +391,14 @@ export class SystemMapping extends LitElement {
         <div class="col">${this.renderHealth(c.health)}${this.renderSwitch()}${this.renderBuildings(c.sum)}</div>
         <div class="col">${this.renderVersions()}${this.renderSettings()}</div>
       </div>
-      ${assistant}${this.renderRestoreDialog()}`;
+      ${assistant}${this.renderRestoreDialog()}${this.renderCheck()}`;
+  }
+
+  /** MULTI-BUILDING-SAFETY-2500: the check before turning multi-building on (screens/mb-enable-check.ts). */
+  private renderCheck() {
+    if (!this.checkOpen) return nothing;
+    return html`<mb-enable-check open @close=${() => (this.checkOpen = false)}
+      @enabled=${() => { this.checkOpen = false; if (this.data) this.data = { ...this.data, multi_building: true }; this.message = tr('תצוגת ריבוי הבניינים פעילה במסך הראשי.'); }}></mb-enable-check>`;
   }
 
   private renderSwitch() {
@@ -469,7 +485,7 @@ export class SystemMapping extends LitElement {
       <sw-segmented label=${SETTING_TEXT[k].label} value=${String(d.settings[k])}
         @change=${(e: CustomEvent<SegmentedChange>) => { const v = (MAPPING_SETTING_CHOICES[k] as readonly MappingSettings[K][]).find((x) => String(x) === e.detail.value); if (v !== undefined) void this.setSetting(k, v); }}
         .options=${(MAPPING_SETTING_CHOICES[k] as readonly MappingSettings[K][]).map((v) => ({ value: String(v), label: (SETTING_TEXT[k].options as Record<string, string>)[v as string], attrs: { 'data-mapping-option': String(v) } }))}></sw-segmented></div>`;
-    return html`<sw-card heading=${tr('איך המיפוי מתנהג')} data-mapping-settings>${row('floor_inherit')}${row('auto_insert')}${row('new_token')}${this.renderReach()}</sw-card>`;
+    return html`<sw-card heading=${tr('איך המיפוי מתנהג')} data-mapping-settings>${row('floor_inherit')}${row('auto_insert')}${row('new_token')}${this.renderReach()}${this.renderReview()}</sw-card>`;
   }
 
   /** Round 14 (owner 02.11): what a building-scoped role binding reaches while the multi-building switch is on - an installation setting,
@@ -483,6 +499,35 @@ export class SystemMapping extends LitElement {
       <span class="h">${cur === 'map_and_mapping' ? tr('מי שקיבל הרשאה לבניין שולט בהתקנים שמוצבים במפות הקומות שלו, וגם בהתקנים שהאזור שלהם ממופה לבניין.') : tr('מי שקיבל הרשאה לבניין שולט בהתקנים שמוצבים במפות הקומות שלו בלבד.')} ${tr('חל רק כשריבוי בניינים פעיל.')}${d.can_set_reach ? '' : ` ${tr('רק מנהל הרשאות יכול לשנות.')}`}</span>
       <sw-segmented label=${tr('הרשאת בניין לפי')} value=${cur} ?disabled=${!can} @change=${(e: CustomEvent<SegmentedChange>) => void this.setReach(e.detail.value as (typeof BUILDING_REACH_CHOICES)[number])}
         .options=${BUILDING_REACH_CHOICES.map((v) => ({ value: v, label: BUILDING_REACH_TEXT[v], attrs: { 'data-mapping-option': v } }))}></sw-segmented></div>`;
+  }
+
+  /** MULTI-BUILDING-SAFETY-2500 (owner 22.11, Q63): whether turning the switch on needs the check - an installation setting, changed only by
+   * an administrator of roles (the server checks it again and audits it). */
+  private renderReview() {
+    const d = this.data!;
+    const cur: ReviewMode = d.review_mode ?? 'required';
+    const can = d.can_set_review === true && !this.busy;
+    const text: Record<ReviewMode, string> = { required: tr('חובה'), skip: tr('לדלג') };
+    return html`<div class="set" data-mapping-setting="review">
+      <span class="l">${tr('בדיקה לפני הפעלת ריבוי בניינים')}</span>
+      <span class="h">${cur === 'required' ? tr('לפני ההפעלה מוצגת בדיקה של המיפוי ושל ההרשאות שישתנו, ורק אחריה אפשר להפעיל.') : tr('ההפעלה מיידית, בלי בדיקה. תוצאות הבדיקה נרשמות ביומן הפעולות.')}${d.can_set_review ? '' : ` ${tr('רק מנהל הרשאות יכול לשנות.')}`}</span>
+      <sw-segmented label=${tr('בדיקה לפני הפעלת ריבוי בניינים')} value=${cur} ?disabled=${!can} @change=${(e: CustomEvent<SegmentedChange>) => void this.setReviewMode(e.detail.value as ReviewMode)}
+        .options=${REVIEW_MODES.map((v) => ({ value: v, label: text[v], attrs: { 'data-mapping-option': v } }))}></sw-segmented></div>`;
+  }
+
+  private async setReviewMode(mode: ReviewMode) {
+    if (!this.data || this.busy || (this.data.review_mode ?? 'required') === mode) return;
+    this.busy = true;
+    this.message = '';
+    try {
+      const r = await setReview(mode);
+      this.data = { ...this.data, review_mode: r.mode };
+      this.message = tr('ההגדרה של הבדיקה לפני ההפעלה עודכנה.');
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
   }
 
   private async setReach(mode: BuildingReach) {
