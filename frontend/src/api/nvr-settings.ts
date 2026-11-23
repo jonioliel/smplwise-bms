@@ -344,7 +344,7 @@ class DemoNvrSettings implements NvrSettingsAdapter {
   seq = 0;
 
   private find(cameraId: string): NvrCamera {
-    return this.cameras_.find((c) => c.camera_id === cameraId) ?? fail(404, 'not_found', 'המצלמה לא נמצאה.');
+    return this.cameras_.find((c) => c.camera_id === cameraId) ?? fail(404, 'not_found', tr('המצלמה לא נמצאה.'));
   }
 
   private optionsOf(s: StreamEncoding): StreamOptions {
@@ -365,28 +365,28 @@ class DemoNvrSettings implements NvrSettingsAdapter {
   }
 
   async options(cameraId: string, streamRef: string, codec?: string) {
-    const s = this.find(cameraId).streams.find((x) => x.stream_ref === streamRef) ?? fail(404, 'not_found', 'הזרם לא נמצא.');
+    const s = this.find(cameraId).streams.find((x) => x.stream_ref === streamRef) ?? fail(404, 'not_found', tr('הזרם לא נמצא.'));
     const o = this.optionsOf(s);
-    if (codec && !o.codec.includes(codec)) fail(422, 'value_not_allowed', 'הערך אינו נתמך במצלמה.', { field: 'codec', allowed: o.codec });
+    if (codec && !o.codec.includes(codec)) fail(422, 'value_not_allowed', tr('הערך אינו נתמך במצלמה.'), { field: 'codec', allowed: o.codec });
     return o;
   }
 
   /** Same order as the server: confirm, etag, per-field options, locks; then apply, new etag, verdict, change row. */
   async writeStream(cameraId: string, streamRef: string, req: StreamWriteRequest): Promise<StreamWriteResult> {
     const c = this.find(cameraId);
-    const s = c.streams.find((x) => x.stream_ref === streamRef) ?? fail(404, 'not_found', 'הזרם לא נמצא.');
-    if (req.confirm !== true) fail(422, 'confirm_required', 'נדרש אישור.');
-    if (req.if_match !== s.etag) fail(409, 'stale', 'הערכים השתנו ב־NVR. נטען מחדש.', { stream: clone(s) });
-    if (c.online === false) fail(503, 'source_unavailable', 'המצלמה אינה זמינה כרגע.');
+    const s = c.streams.find((x) => x.stream_ref === streamRef) ?? fail(404, 'not_found', tr('הזרם לא נמצא.'));
+    if (req.confirm !== true) fail(422, 'confirm_required', tr('נדרש אישור.'));
+    if (req.if_match !== s.etag) fail(409, 'stale', tr('הערכים השתנו ב־NVR. נטען מחדש.'), { stream: clone(s) });
+    if (c.online === false) fail(503, 'source_unavailable', tr('המצלמה אינה זמינה כרגע.'));
     const o = this.optionsOf(s);
     const ch = req.changes;
     const fields = Object.keys(ch) as EncodingField[];
-    if (!fields.length) fail(422, 'validation', 'אין מה לשנות.');
+    if (!fields.length) fail(422, 'validation', tr('אין מה לשנות.'));
     const codec = ch.codec ?? s.codec ?? 'H.264';
     const allowed = (field: EncodingField, ok: boolean, list?: unknown[]) => {
-      if (!ok) fail(422, 'value_not_allowed', 'הערך אינו נתמך במצלמה.', { field, allowed: list ?? [] });
+      if (!ok) fail(422, 'value_not_allowed', tr('הערך אינו נתמך במצלמה.'), { field, allowed: list ?? [] });
     };
-    for (const f of fields) if (s.fields[f]?.supported === false) fail(422, 'field_not_supported', `${FIELD_LABEL[f]} אינו נתמך בזרם הזה.`, { field: f });
+    for (const f of fields) if (s.fields[f]?.supported === false) fail(422, 'field_not_supported', tr('{field} אינו נתמך בזרם הזה.', { field: FIELD_LABEL[f] }), { field: f });
     if (ch.codec !== undefined) allowed('codec', o.codec.includes(ch.codec), o.codec);
     if (ch.profile !== undefined) allowed('profile', (o.profile[codec] ?? []).includes(ch.profile), o.profile[codec]);
     if (ch.resolution !== undefined) allowed('resolution', (o.resolution[codec] ?? []).includes(ch.resolution), o.resolution[codec]);
@@ -397,9 +397,9 @@ class DemoNvrSettings implements NvrSettingsAdapter {
     if (ch.gop !== undefined) allowed('gop', ch.gop >= o.gop.min && ch.gop <= o.gop.max, [o.gop.min, o.gop.max]);
     if (ch.svc !== undefined) allowed('svc', o.svc);
     if (ch.smart_codec !== undefined) allowed('smart_codec', o.smart_codec);
-    if (ch.b_frames !== undefined) fail(422, 'field_not_supported', 'B-frames אינו נתמך בזרם הזה.', { field: 'b_frames' });
+    if (ch.b_frames !== undefined) fail(422, 'field_not_supported', tr('{field} אינו נתמך בזרם הזה.', { field: 'B-frames' }), { field: 'b_frames' });
     const smartOn = ch.smart_codec ?? s.smart_codec;
-    for (const f of smartOn ? o.locks.smart_codec ?? [] : []) if (f in ch && f !== 'smart_codec') fail(422, 'field_locked', `${FIELD_LABEL[f]} נעול כש־Smart codec פעיל.`, { field: f, locked_by: 'smart_codec' });
+    for (const f of smartOn ? o.locks.smart_codec ?? [] : []) if (f in ch && f !== 'smart_codec') fail(422, 'field_locked', tr('{field} נעול כש־Smart codec פעיל.', { field: FIELD_LABEL[f] }), { field: f, locked_by: 'smart_codec' });
 
     const before = clone(s);
     const applied: EncodingField[] = [];
@@ -448,11 +448,11 @@ class DemoNvrSettings implements NvrSettingsAdapter {
   }
 
   async undo(changeId: string): Promise<UndoResult> {
-    const ch = this.changes_.find((x) => x.id === changeId) ?? fail(404, 'not_found', 'השינוי לא נמצא.');
-    if (ch.status !== 'applied') fail(409, 'not_rollbackable', 'אין לשינוי הזה מסמך קודם להחזיר.', { status: ch.status });
+    const ch = this.changes_.find((x) => x.id === changeId) ?? fail(404, 'not_found', tr('השינוי לא נמצא.'));
+    if (ch.status !== 'applied') fail(409, 'not_rollbackable', tr('אין לשינוי הזה מסמך קודם להחזיר.'), { status: ch.status });
     const c = this.find(ch.camera_id);
     const i = c.streams.findIndex((x) => x.stream_ref === ch.stream_ref);
-    if (i < 0 || c.streams[i].etag !== ch.after.etag) fail(409, 'stale', 'הערכים השתנו ב־NVR. נטען מחדש.');
+    if (i < 0 || c.streams[i].etag !== ch.after.etag) fail(409, 'stale', tr('הערכים השתנו ב־NVR. נטען מחדש.'));
     c.streams[i] = { ...clone(ch.before), etag: `${ch.stream_ref}-${++this.seq + 1}` };
     ch.status = 'rolled_back';
     const id = `demo-change-${++this.seq}`;
@@ -463,14 +463,14 @@ class DemoNvrSettings implements NvrSettingsAdapter {
   }
 
   async addChannel(recorderId: string, spec: NewChannel): Promise<AddChannelResult> {
-    if (recorderId !== DEMO_RECORDER.recorder_id) fail(404, 'not_found', 'ה־NVR לא נמצא.');
-    if (spec.confirm !== true) fail(422, 'confirm_required', 'נדרש אישור.');
-    if (!spec.name.trim() || !spec.address.trim() || !spec.username.trim() || !spec.password) fail(422, 'validation', 'חסרים פרטים.');
+    if (recorderId !== DEMO_RECORDER.recorder_id) fail(404, 'not_found', tr('ה־NVR לא נמצא.'));
+    if (spec.confirm !== true) fail(422, 'confirm_required', tr('נדרש אישור.'));
+    if (!spec.name.trim() || !spec.address.trim() || !spec.username.trim() || !spec.password) fail(422, 'validation', tr('חסרים פרטים.'));
     const used = new Set(this.cameras_.map((c) => c.channel));
     const max = DEMO_RECORDER.capabilities.max_channels ?? 0;
     let n = 1;
     while (used.has(n)) n++;
-    if (n > max) fail(409, 'channel_slots_full', 'אין ערוץ פנוי ב־NVR.');
+    if (n > max) fail(409, 'channel_slots_full', tr('אין ערוץ פנוי ב־NVR.'));
     // the demo plays "discovery ran": the camera appears at once (the server queues a discovery run)
     this.cameras_.push({
       camera_id: `demo-cam-${n}`, recorder_id: recorderId, source_ref: String(n), channel: n, name: spec.name.trim(), online: true, enabled_in_arx: true, error: null,
@@ -482,7 +482,7 @@ class DemoNvrSettings implements NvrSettingsAdapter {
 
   async removeChannel(cameraId: string, confirmName: string): Promise<void> {
     const c = this.find(cameraId);
-    if (confirmName.trim() !== c.name) fail(422, 'confirm_required', 'השם אינו תואם.');
+    if (confirmName.trim() !== c.name) fail(422, 'confirm_required', tr('השם אינו תואם.'));
     this.cameras_ = this.cameras_.filter((x) => x.camera_id !== cameraId);
   }
 }

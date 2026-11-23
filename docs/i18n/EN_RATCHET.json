@@ -17,12 +17,12 @@
  "placeholderKeys": [
   "tickets/rfq-text: previewNumber"
  ],
- "hardcodedTotal": 3762,
+ "hardcodedTotal": 3144,
  "hardcoded": {
   "access-control": 23,
   "access-external": 2,
   "announce": 4,
-  "api": 636,
+  "api": 190,
   "arx": 4,
   "calendars": 223,
   "components": 144,
@@ -54,7 +54,7 @@
   "screens/scenarios-*": 2,
   "screens/schedule-*": 11,
   "screens/styleguide-*": 4,
-  "screens/system-*": 315,
+  "screens/system-*": 143,
   "screens/tickets-*": 2,
   "screens/water": 2,
   "screens/wiskey-*": 36,

@@ -1,16 +1,16 @@
 {
  "totals": {
   "lang": "en",
-  "catalogues": 151,
-  "keys": 29430,
+  "catalogues": 152,
+  "keys": 29612,
   "missing": 20,
   "identical": 3,
   "hebrew": 0,
   "gap": 4,
   "placeholder": 1,
   "hardcodedModules": 46,
-  "hardcodedLiterals": 3762,
-  "hardcodedFiles": 181
+  "hardcodedLiterals": 3144,
+  "hardcodedFiles": 168
  },
  "catalogues": [
   {
@@ -65,6 +65,20 @@
     "lang_ar",
     "lang_ru"
    ],
+   "placeholderKeys": []
+  },
+  {
+   "name": "api/closed-errors",
+   "keys": 3,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "placeholder": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "missingKeys": [],
    "placeholderKeys": []
   },
   {
@@ -1368,7 +1382,7 @@
   },
   {
    "name": "msg/api-automation",
-   "keys": 436,
+   "keys": 442,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1418,7 +1432,7 @@
   },
   {
    "name": "msg/api-electricity",
-   "keys": 74,
+   "keys": 96,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1434,7 +1448,7 @@
   },
   {
    "name": "msg/api-home",
-   "keys": 186,
+   "keys": 189,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1450,7 +1464,7 @@
   },
   {
    "name": "msg/api-media",
-   "keys": 124,
+   "keys": 125,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1466,7 +1480,7 @@
   },
   {
    "name": "msg/api-notify",
-   "keys": 202,
+   "keys": 212,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1498,7 +1512,7 @@
   },
   {
    "name": "msg/api-system",
-   "keys": 114,
+   "keys": 223,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1514,7 +1528,7 @@
   },
   {
    "name": "msg/api-video",
-   "keys": 151,
+   "keys": 179,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -2265,142 +2279,6 @@
    ]
   },
   {
-   "module": "api",
-   "kind": "app",
-   "files": 32,
-   "literals": 636,
-   "fileList": [
-    {
-     "file": "api/automations-demo.ts",
-     "literals": 2
-    },
-    {
-     "file": "api/automations.ts",
-     "literals": 32
-    },
-    {
-     "file": "api/calendar-attendees.ts",
-     "literals": 5
-    },
-    {
-     "file": "api/closed-errors.ts",
-     "literals": 3
-    },
-    {
-     "file": "api/door-automations.ts",
-     "literals": 4
-    },
-    {
-     "file": "api/electricity-meters.ts",
-     "literals": 6
-    },
-    {
-     "file": "api/electricity-readings.ts",
-     "literals": 25
-    },
-    {
-     "file": "api/frigate.ts",
-     "literals": 3
-    },
-    {
-     "file": "api/ha-users.ts",
-     "literals": 14
-    },
-    {
-     "file": "api/health.ts",
-     "literals": 3
-    },
-    {
-     "file": "api/home-config.ts",
-     "literals": 62
-    },
-    {
-     "file": "api/incidents.ts",
-     "literals": 39
-    },
-    {
-     "file": "api/mapping-demo.ts",
-     "literals": 98
-    },
-    {
-     "file": "api/mapping-engine.ts",
-     "literals": 4
-    },
-    {
-     "file": "api/mapping.ts",
-     "literals": 3
-    },
-    {
-     "file": "api/media-admin.ts",
-     "literals": 39
-    },
-    {
-     "file": "api/messaging-accounts.ts",
-     "literals": 11
-    },
-    {
-     "file": "api/messaging-fake.ts",
-     "literals": 13
-    },
-    {
-     "file": "api/messaging-policy.ts",
-     "literals": 2
-    },
-    {
-     "file": "api/notifications.ts",
-     "literals": 21
-    },
-    {
-     "file": "api/notify-whatsapp.ts",
-     "literals": 9
-    },
-    {
-     "file": "api/nvr-settings.ts",
-     "literals": 25
-    },
-    {
-     "file": "api/readiness.ts",
-     "literals": 48
-    },
-    {
-     "file": "api/remote.ts",
-     "literals": 2
-    },
-    {
-     "file": "api/rules.ts",
-     "literals": 7
-    },
-    {
-     "file": "api/schedules.ts",
-     "literals": 17
-    },
-    {
-     "file": "api/setup.ts",
-     "literals": 82
-    },
-    {
-     "file": "api/tickets-board.ts",
-     "literals": 6
-    },
-    {
-     "file": "api/tickets-locations.ts",
-     "literals": 15
-    },
-    {
-     "file": "api/tickets-messages.ts",
-     "literals": 14
-    },
-    {
-     "file": "api/tickets-rules.ts",
-     "literals": 20
-    },
-    {
-     "file": "api/tts-default.ts",
-     "literals": 2
-    }
-   ]
-  },
-  {
    "module": "screens/plan-*",
    "kind": "app",
    "files": 1,
@@ -2409,86 +2287,6 @@
     {
      "file": "screens/plan-studio-panel.ts",
      "literals": 598
-    }
-   ]
-  },
-  {
-   "module": "screens/system-*",
-   "kind": "app",
-   "files": 18,
-   "literals": 315,
-   "fileList": [
-    {
-     "file": "screens/system-access.ts",
-     "literals": 3
-    },
-    {
-     "file": "screens/system-announce-templates.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/system-announcements.ts",
-     "literals": 2
-    },
-    {
-     "file": "screens/system-audit.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/system-calendar-sync.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/system-cast.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/system-devices.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/system-diagnostics.ts",
-     "literals": 3
-    },
-    {
-     "file": "screens/system-index.ts",
-     "literals": 68
-    },
-    {
-     "file": "screens/system-multimedia-players.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/system-nav-size.ts",
-     "literals": 2
-    },
-    {
-     "file": "screens/system-notices.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/system-notifications.ts",
-     "literals": 4
-    },
-    {
-     "file": "screens/system-palette-editor.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/system-storage.ts",
-     "literals": 5
-    },
-    {
-     "file": "screens/system-tickets.ts",
-     "literals": 3
-    },
-    {
-     "file": "screens/system-wall.ts",
-     "literals": 172
-    },
-    {
-     "file": "screens/system-wiskey-validation.ts",
-     "literals": 45
     }
    ]
   },
@@ -2521,6 +2319,94 @@
     {
      "file": "calendars/view-manage.ts",
      "literals": 4
+    }
+   ]
+  },
+  {
+   "module": "api",
+   "kind": "app",
+   "files": 20,
+   "literals": 190,
+   "fileList": [
+    {
+     "file": "api/automations.ts",
+     "literals": 1
+    },
+    {
+     "file": "api/calendar-attendees.ts",
+     "literals": 5
+    },
+    {
+     "file": "api/door-automations.ts",
+     "literals": 4
+    },
+    {
+     "file": "api/electricity-readings.ts",
+     "literals": 7
+    },
+    {
+     "file": "api/ha-users.ts",
+     "literals": 5
+    },
+    {
+     "file": "api/home-config.ts",
+     "literals": 34
+    },
+    {
+     "file": "api/incidents.ts",
+     "literals": 29
+    },
+    {
+     "file": "api/mapping-engine.ts",
+     "literals": 4
+    },
+    {
+     "file": "api/mapping.ts",
+     "literals": 3
+    },
+    {
+     "file": "api/media-admin.ts",
+     "literals": 38
+    },
+    {
+     "file": "api/messaging-accounts.ts",
+     "literals": 7
+    },
+    {
+     "file": "api/messaging-policy.ts",
+     "literals": 2
+    },
+    {
+     "file": "api/notify-whatsapp.ts",
+     "literals": 1
+    },
+    {
+     "file": "api/nvr-settings.ts",
+     "literals": 5
+    },
+    {
+     "file": "api/setup.ts",
+     "literals": 3
+    },
+    {
+     "file": "api/tickets-board.ts",
+     "literals": 6
+    },
+    {
+     "file": "api/tickets-locations.ts",
+     "literals": 12
+    },
+    {
+     "file": "api/tickets-messages.ts",
+     "literals": 11
+    },
+    {
+     "file": "api/tickets-rules.ts",
+     "literals": 11
+    },
+    {
+     "file": "api/tts-default.ts",
+     "literals": 2
     }
    ]
   },
@@ -2625,6 +2511,82 @@
     {
      "file": "components/update-run.ts",
      "literals": 17
+    }
+   ]
+  },
+  {
+   "module": "screens/system-*",
+   "kind": "app",
+   "files": 17,
+   "literals": 143,
+   "fileList": [
+    {
+     "file": "screens/system-access.ts",
+     "literals": 3
+    },
+    {
+     "file": "screens/system-announce-templates.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/system-announcements.ts",
+     "literals": 2
+    },
+    {
+     "file": "screens/system-audit.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/system-calendar-sync.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/system-cast.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/system-devices.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/system-diagnostics.ts",
+     "literals": 3
+    },
+    {
+     "file": "screens/system-index.ts",
+     "literals": 68
+    },
+    {
+     "file": "screens/system-multimedia-players.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/system-nav-size.ts",
+     "literals": 2
+    },
+    {
+     "file": "screens/system-notices.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/system-notifications.ts",
+     "literals": 4
+    },
+    {
+     "file": "screens/system-palette-editor.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/system-storage.ts",
+     "literals": 5
+    },
+    {
+     "file": "screens/system-tickets.ts",
+     "literals": 3
+    },
+    {
+     "file": "screens/system-wiskey-validation.ts",
+     "literals": 45
     }
    ]
   },
@@ -3335,9 +3297,13 @@
   {
    "module": "(demo data)",
    "kind": "demo",
-   "files": 16,
-   "literals": 1513,
+   "files": 19,
+   "literals": 1626,
    "fileList": [
+    {
+     "file": "api/automations-demo.ts",
+     "literals": 2
+    },
     {
      "file": "api/automations-mock.ts",
      "literals": 231
@@ -3351,12 +3317,20 @@
      "literals": 223
     },
     {
+     "file": "api/mapping-demo.ts",
+     "literals": 98
+    },
+    {
      "file": "api/media-players-mock.ts",
      "literals": 132
     },
     {
      "file": "api/media-screens-mock.ts",
      "literals": 45
+    },
+    {
+     "file": "api/messaging-fake.ts",
+     "literals": 13
     },
     {
      "file": "api/notifications-mock.ts",

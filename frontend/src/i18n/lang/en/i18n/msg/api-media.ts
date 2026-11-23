@@ -132,4 +132,6 @@ export const en = {
   'לא מחובר': 'Not connected',
   'טרם התחבר': 'Never connected',
   'מושבת': 'Disabled',
+  // api/media-admin.ts (demo store)
+  'אותו חדר ושם דומה': 'Same room and a similar name',
 };

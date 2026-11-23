@@ -8,6 +8,7 @@
 import { api, get, patch, post, put } from './client';
 import { isApi } from './session';
 import type { TicketDetail } from './tickets';
+import { tr } from '../i18n/msg/api-notify';
 
 export type MessagePurpose = 'assign' | 'reminder' | 'code' | 'closed' | 'reassigned' | 'reopened' | 'update' | 'test';
 type MessageState = 'queued' | 'held' | 'sending' | 'sent' | 'refused' | 'unknown' | 'not_sent' | 'cancelled' | 'superseded';
@@ -181,9 +182,9 @@ const demo = {
   channel: {
     revision: 3, whatsapp: { enabled: true, use_buttons: false, reply_window_h: 72 }, email_fallback: true,
     uses: [
-      { key: 'tickets.messages', label: 'הודעות', value: 'entry:01JDEMOA', resolved: 'entry:01JDEMOA', inherits: null, inherits_label: null, required: true, queued: 1,
+      { key: 'tickets.messages', label: tr('הודעות'), value: 'entry:01JDEMOA', resolved: 'entry:01JDEMOA', inherits: null, inherits_label: null, required: true, queued: 1,
         departments: [{ id: 'dept-maintenance', name: 'אחזקה', value: null, resolved: 'entry:01JDEMOA' }] },
-      { key: 'tickets.codes', label: 'קודי אימות', value: null, resolved: 'entry:01JDEMOA', inherits: 'tickets.messages', inherits_label: 'הודעות', required: false, queued: 0 },
+      { key: 'tickets.codes', label: tr('קודי אימות'), value: null, resolved: 'entry:01JDEMOA', inherits: 'tickets.messages', inherits_label: tr('הודעות'), required: false, queued: 0 },
     ],
     accounts: [{ key: 'entry:01JDEMOA', label: 'וואטסאפ שירות ····0191', last4: '0191', state: 'connected', kind: 'discovered', uses: ['tickets.messages'],
       sends_24h: 7, per_day: 150, last_send_at: '2026-10-14T05:12:00Z', last_ok_at: '2026-10-14T05:12:00Z', shared_outside: false, ticket: true }],

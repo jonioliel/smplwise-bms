@@ -6,6 +6,7 @@
 import { get, post, put } from './client';
 import { canAnywhere, isApi } from './session';
 import { isoZ } from './day-format';
+import { tr } from '../i18n/msg/api-video';
 
 type IncidentStatus = 'open' | 'closed';
 type IncidentSource = 'alarm' | 'event' | 'notification' | 'manual';
@@ -117,27 +118,27 @@ const ago = (s: number) => isoZ(DEMO_NOW - s * 1000);
 const DEMO_ID = 'demo-incident';
 let demoSettings: IncidentSettings = { ...DEFAULT_SETTINGS, 'incident.enabled': true };
 const demoIncident = (): IncidentDetail => ({
-  id: DEMO_ID, status: 'open', source: 'alarm', source_ref: 'alarm_control_panel.demo', source_label: 'אזעקת פריצה', title: 'פריצה · דלת חניון -1',
+  id: DEMO_ID, status: 'open', source: 'alarm', source_ref: 'alarm_control_panel.demo', source_label: tr('אזעקת פריצה'), title: tr('פריצה · {name}', { name: 'דלת חניון -1' }),
   building_id: 'b0', building_name: 'בניין א', floor_id: 'f0', floor_name: 'קומה -1', anchor_id: null, x: 0.3, y: 0.55, zone: 'אזור 3 · חניון',
-  opened_at: ago(252), opened_by: 'system', opened_by_name: 'המערכת', acked_at: ago(200), acked_by: 'דנה כהן', closed_at: null, closed_by: null, close_note: null,
-  event_label: 'אזעקת פריצה',
+  opened_at: ago(252), opened_by: 'system', opened_by_name: tr('המערכת'), acked_at: ago(200), acked_by: 'דנה כהן', closed_at: null, closed_by: null, close_note: null,
+  event_label: tr('אזעקת פריצה'),
   steps: [
-    { at: ago(262), kind: 'opened', actor: null, actor_kind: 'system', ref_type: 'alarm', ref_id: null, text: 'אזעקת פריצה · אזור 3' },
+    { at: ago(262), kind: 'opened', actor: null, actor_kind: 'system', ref_type: 'alarm', ref_id: null, text: tr('אזעקת פריצה · {zone}', { zone: 'אזור 3' }) },
     { at: ago(247), kind: 'notified', actor: null, actor_kind: 'system', ref_type: 'notification', ref_id: 'n1', text: '3', recipients: ['דנה כהן', 'מיכל בר', 'יוסי לוי'] },
     { at: ago(219), kind: 'door_open', actor: 'יוסי לוי', actor_kind: 'user', ref_type: 'door', ref_id: 'lock.demo_parking', text: 'דלת חניון -1' },
     { at: ago(200), kind: 'acked', actor: 'דנה כהן', actor_kind: 'user', ref_type: null, ref_id: null, text: 'first' },
-    { at: ago(124), kind: 'event_added', actor: null, actor_kind: 'system', ref_type: 'alarm', ref_id: null, text: 'יציאת חירום מרתף נפתחה' },
+    { at: ago(124), kind: 'event_added', actor: null, actor_kind: 'system', ref_type: 'alarm', ref_id: null, text: tr('{name} נפתחה', { name: 'יציאת חירום מרתף' }) },
     { at: ago(92), kind: 'note', actor: 'דנה כהן', actor_kind: 'user', ref_type: null, ref_id: null, text: 'שומר בדרך לחניון' },
   ],
   pending: ['מיכל בר', 'יוסי לוי'], can_ack: true, can_case: true, can_audit: true, can_configure: true, settings: demoSettings,
-  policy: 'מצב אירוע חי מציג מידע בלבד.',
+  policy: tr('מצב אירוע חי מציג מידע בלבד.'),
 });
 const DEMO_CAMERAS: IncidentCameras = {
   cameras: [
-    { camera_id: 'c1', name: 'חניון -1 מזרח', relation: 'same_zone', relation_label: 'אותו חדר', distance: 0.05 },
-    { camera_id: 'c2', name: 'מסדרון מרתף', relation: 'adjacent_zone', relation_label: 'חדר סמוך', distance: 0.2 },
-    { camera_id: 'c3', name: 'חדר מכונות', relation: 'adjacent_zone', relation_label: 'חדר סמוך', distance: 0.3 },
-    { camera_id: 'c4', name: 'כניסה M1', relation: 'nearby', relation_label: 'בקרבת מקום', distance: 0.4 },
+    { camera_id: 'c1', name: 'חניון -1 מזרח', relation: 'same_zone', relation_label: tr('אותו חדר'), distance: 0.05 },
+    { camera_id: 'c2', name: 'מסדרון מרתף', relation: 'adjacent_zone', relation_label: tr('חדר סמוך'), distance: 0.2 },
+    { camera_id: 'c3', name: 'חדר מכונות', relation: 'adjacent_zone', relation_label: tr('חדר סמוך'), distance: 0.3 },
+    { camera_id: 'c4', name: 'כניסה M1', relation: 'nearby', relation_label: tr('בקרבת מקום'), distance: 0.4 },
   ],
   withheld: false, max_live: 4, max_live_phone: 1, snapshot_refresh_s: 10,
 };
@@ -150,8 +151,8 @@ const DEMO_DOORS: IncidentDoors = {
   state_visible: true, window: { from: ago(852), to: ago(0) }, window_s: 600,
 };
 const DEMO_CLOSED: Incident[] = [
-  { ...demoIncident(), id: 'd2', status: 'closed', source: 'manual', source_label: 'פתיחה ידנית', title: 'תרגיל · חניון -1', opened_at: ago(4 * 86400), closed_at: ago(4 * 86400 - 1320), x: null, y: null },
-  { ...demoIncident(), id: 'd3', status: 'closed', source: 'event', source_label: 'מרכז האירועים', title: 'חדירה לאזור · יציאת חירום 2', opened_at: ago(6 * 86400), closed_at: ago(6 * 86400 - 1020), x: null, y: null },
+  { ...demoIncident(), id: 'd2', status: 'closed', source: 'manual', source_label: tr('פתיחה ידנית'), title: tr('תרגיל · {name}', { name: 'חניון -1' }), opened_at: ago(4 * 86400), closed_at: ago(4 * 86400 - 1320), x: null, y: null },
+  { ...demoIncident(), id: 'd3', status: 'closed', source: 'event', source_label: tr('מרכז האירועים'), title: tr('חדירה לאזור · {name}', { name: 'יציאת חירום 2' }), opened_at: ago(6 * 86400), closed_at: ago(6 * 86400 - 1020), x: null, y: null },
 ];
 let demoOpen = true;
 
