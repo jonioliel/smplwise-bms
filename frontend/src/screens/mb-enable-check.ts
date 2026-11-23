@@ -4,6 +4,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-dialog';
 import '../components/sw-button';
 import '../components/sw-icon';
+import '../components/sw-toggle';
 import { ApiError, describeError } from '../api/client';
 import { setMultiBuilding } from '../api/mapping';
 import { checkGate, loadCheck, orderedFindings, type MultiCheck, type MultiFinding } from '../api/mb-safety';
@@ -35,20 +36,20 @@ export class MbEnableCheck extends LitElement {
 
   static styles = css`
     .lead {
-      margin: 0 0 12px;
+      margin: 0 0 var(--sw-s-3);
       color: var(--sw-text-2);
       font-size: var(--sw-fs-sm);
     }
     .list {
       display: grid;
-      gap: 8px;
+      gap: var(--sw-s-2);
     }
     .f {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr);
-      gap: 4px 10px;
+      gap: var(--sw-s-1) var(--sw-s-3);
       align-items: start;
-      padding: 10px 12px;
+      padding: var(--sw-s-3);
       border-radius: var(--sw-r-md);
       background: var(--sw-surface-2);
       font-size: var(--sw-fs-sm);
@@ -60,7 +61,7 @@ export class MbEnableCheck extends LitElement {
       background: var(--sw-warning-soft);
     }
     .f > sw-icon {
-      margin-block-start: 2px;
+      margin-block-start: calc(var(--sw-s-1) / 2);
       color: var(--sw-text-2);
     }
     .f.blocking > sw-icon {
@@ -75,7 +76,7 @@ export class MbEnableCheck extends LitElement {
     .f .sev {
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-semibold);
-      margin-inline-start: 6px;
+      margin-inline-start: var(--sw-s-1h);
       color: var(--sw-text-2);
     }
     .f.blocking .sev {
@@ -87,30 +88,23 @@ export class MbEnableCheck extends LitElement {
       padding: 0;
       list-style: none;
       display: grid;
-      gap: 2px;
+      gap: calc(var(--sw-s-1) / 2);
       color: var(--sw-text-2);
       font-size: var(--sw-fs-xs);
       overflow-wrap: anywhere;
     }
     .ok {
-      padding: 10px 12px;
+      padding: var(--sw-s-3);
       border-radius: var(--sw-r-md);
       background: var(--sw-accent-soft);
       font-size: var(--sw-fs-sm);
     }
     .ack {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      margin-block-start: 12px;
+      display: block;
+      margin-block-start: var(--sw-s-3);
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-heading);
-      cursor: pointer;
-    }
-    .ack input {
-      inline-size: 18px;
-      block-size: 18px;
     }
     .msg {
       color: var(--sw-text-2);
@@ -119,7 +113,7 @@ export class MbEnableCheck extends LitElement {
     .err {
       color: var(--sw-danger-text, var(--sw-danger));
       font-size: var(--sw-fs-sm);
-      margin-block-start: 8px;
+      margin-block-start: var(--sw-s-2);
     }
   `;
 
@@ -222,7 +216,7 @@ export class MbEnableCheck extends LitElement {
           </div>
           ${gate.blocked
             ? html`<div class="err" role="alert" data-mb-blocked>${tr('יש ממצא חוסם. תקנו אותו במפה או במיפוי, ואז בדקו שוב. מנהל הרשאות יכול גם להגדיר לדלג על הבדיקה.')}</div>`
-            : html`<label class="ack"><input type="checkbox" data-mb-ack .checked=${this.ack} @change=${(e: Event) => (this.ack = (e.target as HTMLInputElement).checked)} />${tr('עברתי על הממצאים')}</label>`}`
+            : html`<sw-toggle class="ack" data-mb-ack .checked=${this.ack} label=${tr('עברתי על הממצאים')} @change=${(e: CustomEvent<{ checked: boolean }>) => { e.stopPropagation(); this.ack = e.detail.checked; }}></sw-toggle>`}`
         : this.error ? nothing : html`<div class="msg">${tr('בודק…')}</div>`}
       ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
       <sw-button slot="footer" variant="ghost" @click=${() => this.close()}>${tr('ביטול')}</sw-button>

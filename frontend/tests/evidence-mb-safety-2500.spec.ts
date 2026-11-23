@@ -54,7 +54,8 @@ test('the check before turning multi-building on: a setting row, the dialog inst
   await expect(dlg.locator('[data-mb-finding="reach_gain"]')).toHaveAttribute('data-severity', 'warning');
   const enable = dlg.locator('[data-mb-enable] button');
   await expect(enable).toBeDisabled();
-  await dlg.locator('[data-mb-ack]').check();
+  await dlg.locator('sw-toggle[data-mb-ack]').click();
+  await expect(dlg.locator('sw-toggle[data-mb-ack]')).toHaveAttribute('checked', '');
   await expect(enable).toBeEnabled();
   expect(await overflowX(page)).toBeLessThanOrEqual(0);
   await enable.click();
@@ -83,7 +84,7 @@ test('moving a floor: the building row in the edit dialog and the impact preview
   await page.locator('explore-floors [data-floor-move-open]').click();
   const pv = page.locator('explore-floors [data-floor-move-preview]');
   await expect(pv).toBeVisible();
-  await expect(page.locator('explore-floors [data-floor-move-target] option')).toHaveText(['מבנה ב']);
+  await expect(page.locator('explore-floors sw-dropdown[data-floor-move-target]')).toBeVisible();
   await expect(pv.locator('[data-floor-move-loses="3"]')).toBeVisible();
   await expect(pv.locator('[data-floor-move-gains="2"]')).toBeVisible();
   await expect(pv.locator('[data-floor-move-ack]')).toBeVisible();

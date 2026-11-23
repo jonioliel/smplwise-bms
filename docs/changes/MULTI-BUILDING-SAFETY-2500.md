@@ -76,16 +76,16 @@ version per site). No migration (the design's `reviewed_version` column became t
 
 - `api/mb-safety.ts` - the pure rules (`moveTargets`, `moveGate`, `peopleOf`, `recordsMoving`, `checkGate`, `needsCheck`,
   `orderedFindings`), the routes, and the static demo's stand-ins (`?mbcheck=block`, `?mbmove=clean`).
-- `screens/mb-enable-check.ts` `<mb-enable-check>` - the check dialog (sw-dialog `wide`): the findings blocking first, "עברתי על הממצאים",
+- `screens/mb-enable-check.ts` `<mb-enable-check>` - the check dialog (sw-dialog `wide`): the findings blocking first, "עברתי על הממצאים" (an `sw-toggle`, like the other confirmations since HAND-SWITCH),
   "הפעל ריבוי בניינים" confirmed with the digest; a stale / blocked answer reloads the report. Its events do not bubble.
 - הגדרות › בניינים ומיפוי (`screens/system-mapping.ts`): pressing the switch ON opens the check (with `skip` it turns on at once, as
   before); turning it off is one press, as before. A new row in "איך המיפוי מתנהג": "בדיקה לפני הפעלת ריבוי בניינים" - חובה / לדלג,
   disabled for anyone but an administrator of roles.
 - The mapping assistant's last step ("הפעל עכשיו את תצוגת ריבוי הבניינים") goes through the same check.
 - מפה › בניין › קומות › עריכה (`screens/explore-floors.ts`): on a site with two or more buildings the edit dialog shows the floor's
-  building and "העברה לבניין אחר", which opens the move dialog: the target building, the preview (people who lose access first, in red,
+  building and "העברה לבניין אחר", which opens the move dialog: the target building (the shared `sw-dropdown`), the preview (people who lose access first, in red,
   a few names and "ועוד N"; gains; changes; what moves with the floor; a level clash; a shared-room blocker), "אני מבין ש־N אנשים יאבדו
-  גישה" when anybody loses access, and "העבר את הקומה" (danger when somebody loses access). After the move the screen opens the target
+  גישה" (`sw-toggle`) when anybody loses access, and "העבר את הקומה" (danger when somebody loses access). After the move the screen opens the target
   building. A one-building site: nothing new is drawn.
 - English for every new text (`i18n/lang/en/i18n/msg/system-b.ts`, `media.ts`).
 
@@ -116,13 +116,17 @@ Run on the workstation 23.11 (one worker unless said).
 - Mutation check (each guard disabled in turn, its tests must fail; the file restored after each): target-building permission,
   source-building permission, the move digest, the shared-room blocker, `check_required`, `check_stale`, `check_blocked`, the review
   setting's permission, the preview's after-chain - **9 of 9 caught** (1-2 tests fail each).
+- `scripts/design_ratchet.py`: no count above the baseline (the first runner run caught +28 px literals, one native select and two
+  native checkboxes in the new dialogs; replaced by spacing tokens, `sw-dropdown` and `sw-toggle`). `scripts/release_check.py` on the
+  workstation after the fix: see Runner below.
 - `scripts/gen_wire_types.py` and `scripts/api_inventory.py` regenerated (1910 -> 1914 routes).
 - Frontend: `npx tsc --noEmit` (app and tests) clean; `tests/unit-mb-safety-2500.spec.ts` **7 passed**; with
   unit-building-scope-control-2351, unit-home-site-2330, unit-mapping-assist-2330: 34 passed before the last unit was added;
   unit-i18n-api-2442 (Hebrew literals stay in the demo module `api/mb-safety-demo.ts`) + the new unit spec **34 passed**;
   `scripts/unused-exports.mjs --enforce` OK; `scripts/lazy-tags-check.mjs` OK.
-- Evidence `tests/evidence-mb-safety-2500.spec.ts` against a build of the branch (demo mode; desktop / tablet / mobile): **10 passed,
-  2 skipped** (the floor dialogs on the phone, which has no structure editing).
+- Evidence against a build of the branch (demo mode; desktop / tablet / mobile): `evidence-mb-safety-2500` + `evidence-mapping-assist-2330`
+  (its "turn on now" step now goes through the check) **37 passed, 2 skipped** (the floor dialogs on the phone, which has no structure
+  editing).
 - Before / after captures: 24 images, all with 0 px horizontal overflow (`private/planning/mb_safety_2500_compare_2026-11-23.html`).
 
 RUNNER_PLACEHOLDER

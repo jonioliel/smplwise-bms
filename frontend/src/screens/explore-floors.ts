@@ -12,6 +12,8 @@ import '../components/sw-scene';
 import '../components/sw-floor-iso';
 import '../components/sw-field';
 import '../components/sw-dialog';
+import '../components/sw-dropdown';
+import '../components/sw-toggle';
 import '../components/sw-state-panel';
 import { demoRooms } from '../fixtures/demo';
 import { navigate } from '../router';
@@ -264,26 +266,26 @@ export class ExploreFloors extends LitElement {
     /* MULTI-BUILDING-SAFETY-2500: the floor's building in the edit dialog, and the move preview */
     .moverow {
       display: flex;
-      gap: 10px;
+      gap: var(--sw-s-3);
       align-items: center;
       justify-content: space-between;
       flex-wrap: wrap;
-      margin-block-start: 4px;
-      padding-block-start: 10px;
-      border-block-start: 1px solid var(--sw-border);
+      margin-block-start: var(--sw-s-1);
+      padding-block-start: var(--sw-s-3);
+      border-block-start: thin solid var(--sw-border);
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
     }
     .mv {
       display: grid;
-      gap: 8px;
+      gap: var(--sw-s-2);
       font-size: var(--sw-fs-sm);
-      margin-block-start: 8px;
+      margin-block-start: var(--sw-s-2);
     }
     .mv .ln {
       display: grid;
-      gap: 2px;
-      padding: 8px 10px;
+      gap: calc(var(--sw-s-1) / 2);
+      padding: var(--sw-s-2) var(--sw-s-3);
       border-radius: var(--sw-r-md);
       background: var(--sw-surface-2);
     }
@@ -304,17 +306,9 @@ export class ExploreFloors extends LitElement {
       color: var(--sw-danger-text, var(--sw-danger));
     }
     .mv .ack {
-      display: flex;
-      gap: 8px;
-      align-items: center;
+      display: block;
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-danger-text);
-      cursor: pointer;
-    }
-    .mv .ack input {
-      inline-size: 18px;
-      block-size: 18px;
-      accent-color: var(--sw-danger);
     }
     .empty {
       border: 1.5px dashed var(--sw-border-strong);
@@ -919,8 +913,8 @@ export class ExploreFloors extends LitElement {
     const rooms = p?.blockers.find((x) => x.code === 'shared_room');
     const errorLine = this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing;
     return html`<sw-dialog open heading=${tr('העברת קומה לבניין אחר')} subheading=${`${d.floor.name} · ${building.name}`} data-floor-move @close=${() => (this.dialog = null)}>
-      <sw-field label=${tr('לאיזה בניין')}><select data-floor-move-target @change=${(e: Event) => void this.loadMove(d.floor, building, (e.target as HTMLSelectElement).value)}>
-        ${targets.map((b) => html`<option value=${b.id} ?selected=${b.id === d.target}>${b.name}</option>`)}</select></sw-field>
+      <sw-dropdown tall block icon="building" label=${tr('לאיזה בניין')} data-floor-move-target .items=${targets.map((b) => ({ id: b.id, label: b.name }))} .value=${d.target}
+        @change=${(e: CustomEvent<{ id: string }>) => { e.stopPropagation(); if (e.detail.id && e.detail.id !== d.target) void this.loadMove(d.floor, building, e.detail.id); }}></sw-dropdown>
       ${p && w
         ? html`<div class="mv" data-floor-move-preview>
             ${rooms ? html`<div class="ln block" data-floor-move-blocked><b>${tr('אי אפשר להעביר: חדר משותף מחבר את הקומה לקומה שתישאר בבניין אחר')}</b><span>${rooms.items.map((i) => String(i.name ?? '')).join(', ')} · ${tr('בטלו קודם את השיתוף בעורך התוכנית.')}</span></div>` : nothing}
@@ -932,7 +926,8 @@ export class ExploreFloors extends LitElement {
             ${p.people.changes ? html`<div class="ln" data-floor-move-changes=${p.people.changes}><b>${tr('ל־{n} אנשים ישתנו ההרשאות בקומה', { n: ltrNum(p.people.changes) })}</b><span>${names('changes')}</span></div>` : nothing}
             <div class="ln"><b>${tr('עובר יחד עם הקומה')}</b><span>${tr('{plans} תוכניות · {anchors} פריטים במפה, מהם {cameras} מצלמות · {bindings} הרשאות לקומה · {areas} אזורים ממופים · {records} רשומות', { plans: ltrNum(w.plans), anchors: ltrNum(w.anchors), cameras: ltrNum(w.cameras), bindings: ltrNum(w.floor_bindings), areas: ltrNum(w.areas), records: ltrNum(recordsMoving(p)) })}</span></div>
             ${clash ? html`<div class="ln" data-floor-move-clash><b>${tr('בבניין {name} כבר יש קומה באותו מפלס', { name: p.to_building.name })}</b><span>${clash.items.map((i) => String(i.name ?? '')).join(', ')} · ${tr('זה מותר.')}</span></div>` : nothing}
-            ${gate.needsAck && !rooms ? html`<label class="ack"><input type="checkbox" data-floor-move-ack .checked=${d.ack} @change=${(e: Event) => (this.dialog = { ...d, ack: (e.target as HTMLInputElement).checked })} />${tr('אני מבין ש־{n} אנשים יאבדו גישה', { n: ltrNum(p.people.loses) })}</label>` : nothing}
+            ${gate.needsAck && !rooms ? html`<sw-toggle class="ack" data-floor-move-ack .checked=${d.ack} label=${tr('אני מבין ש־{n} אנשים יאבדו גישה', { n: ltrNum(p.people.loses) })}
+                @change=${(e: CustomEvent<{ checked: boolean }>) => { e.stopPropagation(); this.dialog = { ...d, ack: e.detail.checked }; }}></sw-toggle>` : nothing}
           </div>`
         : this.error ? nothing : html`<div class="mv"><span>${tr('בודק מי יושפע…')}</span></div>`}
       ${errorLine}${demo ? html`<div class="err">${tr('נתוני הדגמה: אין שרת מחובר, השינוי לא יישמר.')}</div>` : nothing}
