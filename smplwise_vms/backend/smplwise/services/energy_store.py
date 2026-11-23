@@ -25,6 +25,7 @@ from zoneinfo import ZoneInfo
 
 from ..db import Database, now_iso
 from . import energy_counter as ec
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.energy")
 
@@ -789,3 +790,12 @@ def forget_store(path: Path) -> None:
 def store_for(settings: Any) -> EnergyStore:
     """The energy store of an installation (`<data_dir>/energy.db`), migrated on first use."""
     return store_at(Path(settings.data_dir) / FILE_NAME)
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    with _STORES_LOCK:
+        _STORES.clear()
+
+
+register_reset(__name__, ("_STORES",), _reset_for_tests)  # SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

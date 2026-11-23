@@ -34,6 +34,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from ..config import Settings
 from ..db import now_iso
 from . import secret_files
+from ..test_reset import register_reset
 
 KEY_NAME = "alarm-codes.key"
 POLICIES = ("no_code", "code_required")
@@ -377,3 +378,6 @@ def janitor(db: Any) -> int:
 
 
 LOCKOUT = Lockout()
+
+
+register_reset(__name__, ("LOCKOUT",), LOCKOUT.reset)  # SINGLETONS-REST-2480 group 5: module-level tables (tests/test_singletons_registered.py)

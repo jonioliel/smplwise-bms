@@ -37,6 +37,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable, TypeVar
+from ..test_reset import register_reset
 
 T = TypeVar("T")
 
@@ -382,3 +383,14 @@ def reset_for_tests() -> None:
         _dummy.clear()
     with _lists_lock:
         _lists.clear()
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    with _dummy_lock:
+        _dummy.clear()
+    with _lists_lock:
+        _lists.clear()
+
+
+register_reset(__name__, ("_dummy", "_lists"), _reset_for_tests)  # SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

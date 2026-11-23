@@ -21,6 +21,7 @@ from typing import Any, Iterable
 from ...audit import audit
 from ...db import get_setting, set_setting
 from ...rbac import INSTALLATION, Principal, authorize
+from ...test_reset import register_reset
 
 # ---------------------------------------------------------------- go-live and switches
 
@@ -663,3 +664,12 @@ def _emit(notify: Any, conn: sqlite3.Connection, source: str, subject_id: str, p
         notify.emit_full(conn, notify.Signal(source, "system", subject_id, params=params, link="#/system/connections"))
     except Exception:  # noqa: BLE001 - a notice never stops the janitor
         pass
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    with USAGE._lock:
+        USAGE._pending.clear()
+
+
+register_reset(__name__, ("USAGE",), _reset_for_tests)  # SINGLETONS-REST-2480 group 5: module-level tables (tests/test_singletons_registered.py)

@@ -34,6 +34,7 @@ from . import intercom_adapter as ad
 from . import intercom_client, intercom_sync
 from . import wiskey_write_limits as wl
 from .intercom_client import IntercomError, UnclearAnswer
+from ..test_reset import register_reset
 
 CHANNEL = "installer"  # services/wiskey_channels.py INSTALLER
 LANE = "installer"  # intercom_sync: no lane of its own -> a read slot and the read buckets (module note)
@@ -214,3 +215,6 @@ def station_name(settings: Settings, station_id: str) -> str | None:
 
 def reset() -> None:
     LIMITS.reset()
+
+
+register_reset(__name__, ("LIMITS",), reset)  # SINGLETONS-REST-2480 group 4: module-level tables (tests/test_singletons_registered.py)

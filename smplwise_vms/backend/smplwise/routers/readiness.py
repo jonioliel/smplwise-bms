@@ -22,6 +22,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import readiness as svc
 from ._common import rid as _rid
+from ..test_reset import register_reset
 
 router = APIRouter()
 
@@ -90,3 +91,11 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
         raise ApiError(409, "confirmation_required", "הפעולה דורשת אישור מפורש.")
     changed = svc.update_settings(conn, principal, body.changes, _rid(request))
     return {"settings": svc.settings_view(conn), "changed": sorted(changed)}
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _last_check.clear()
+
+
+register_reset(__name__, ("_last_check",), _reset_for_tests)  # CR-SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

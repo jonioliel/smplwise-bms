@@ -37,6 +37,7 @@ from ..services.timeutil import parse_utc
 from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
 from ..wire import alarm as W
 from ..wire import wire
+from ..test_reset import register_reset
 
 router = APIRouter()
 
@@ -905,3 +906,11 @@ def delete_user_pin(user_id: str, request: Request, principal: Principal = Depen
     pol = codes.set_pin(conn, user_id, None, principal.username)
     _Act(request, conn, principal, "alarm.pin", "user", user_id).audit("allowed", None, pin="cleared")
     return {"user_id": user_id, **pol}
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _PASS_THROUGH.clear()
+
+
+register_reset(__name__, ("_PASS_THROUGH",), _reset_for_tests)  # CR-SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

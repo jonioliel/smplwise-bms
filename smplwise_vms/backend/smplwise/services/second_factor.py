@@ -39,6 +39,7 @@ from urllib.parse import quote
 from ..config import Settings
 from ..db import now_iso
 from . import alarm_codes
+from ..test_reset import register_reset
 
 PERIOD_S = 30
 DIGITS = 6
@@ -352,3 +353,12 @@ def effective_policy(conn: sqlite3.Connection, principal: Any, admin_permissions
     if policy(conn) == "admins" and set(permissions_anywhere(conn, principal)) & admin_permissions:
         return "required", "global"
     return "optional", "global"
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    with FAILURES._lock:
+        FAILURES._mem.clear()
+
+
+register_reset(__name__, ("FAILURES",), _reset_for_tests)  # SINGLETONS-REST-2480 group 5: module-level tables (tests/test_singletons_registered.py)

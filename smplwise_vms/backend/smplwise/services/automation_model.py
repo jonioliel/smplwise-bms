@@ -405,79 +405,103 @@ def parse_condition(raw: Any, ctx: ModelContext | None = None, in_group: bool = 
     common: Block = {"uid": _uid(ctx), "kind": "typed", "raw": raw}
     head = ["condition"]
     if typ == "state":
-        if not _only_keys(r, [*head, "entity_id", "state", "for"]):
-            return bad()
-        ids, f = _entity_list(r.get("entity_id")), _parse_duration(r.get("for"))
-        st = r["state"] if isinstance(r.get("state"), list) else [r.get("state")]
-        if ids is None or f is _INVALID or not st or not all(isinstance(s, str) for s in st):
-            return bad()
-        state = list(r["state"]) if isinstance(r.get("state"), list) else r["state"]
-        sensor = ctx.shabbat_sensor
-        if sensor and len(ids) == 1 and ids[0] == sensor and not f and state in ("on", "off") and isinstance(state, str):
-            return _finish({**common, "type": "shabbat", "mode": "only_holy_days" if state == "on" else "not_holy_days"}, "condition", ctx)
-        pres = ctx.presence_entity  # KAV079-295: "who is in the building"
-        if pres and len(ids) == 1 and ids[0] == pres and not f and state in ("on", "off") and isinstance(state, str):
-            return _finish({**common, "type": "presence", "mode": "someone" if state == "on" else "nobody", "where": "building"}, "condition", ctx)
-        b = {**common, "type": "state", "entity_ids": ids, "state": state}
-        if f:
-            b["for"] = f
-        return _finish(b, "condition", ctx)
+        return _condition_state(r, ctx, common, head, bad)
     if typ == "numeric_state":
-        if not _only_keys(r, [*head, "entity_id", "above", "below"]):
-            return bad()
-        ids, above, below = _entity_list(r.get("entity_id")), _num(r.get("above")), _num(r.get("below"))
-        if ids is None or above is _INVALID or below is _INVALID:
-            return bad()
-        b = {**common, "type": "numeric_state", "entity_ids": ids}
-        if above is not None:
-            b["above"] = above
-        if below is not None:
-            b["below"] = below
-        return _finish(b, "condition", ctx)
+        return _condition_numeric_state(r, ctx, common, head, bad)
     if typ == "time":
-        if not _only_keys(r, [*head, "after", "before", "weekday"]):
-            return bad()
-
-        def ok_t(k: str) -> bool:
-            return k not in r or (isinstance(r[k], str) and bool(pol.TIME_RE.match(r[k])))
-
-        wd = _to_list(r["weekday"]) if "weekday" in r else None
-        if not ok_t("after") or not ok_t("before") or (wd is not None and not all(isinstance(d, str) and d in pol.WEEKDAYS for d in wd)):
-            return bad()
-        b = {**common, "type": "time"}
-        if "after" in r:
-            b["after"] = r["after"]
-        if "before" in r:
-            b["before"] = r["before"]
-        if wd is not None:
-            b["weekday"] = wd
-        return _finish(b, "condition", ctx)
+        return _condition_time(r, ctx, common, head, bad)
     if typ == "sun":
-        if not _only_keys(r, [*head, "after", "before"]):
-            return bad()
-
-        def ok_s(k: str) -> bool:
-            return k not in r or r[k] in ("sunrise", "sunset")
-
-        if not ok_s("after") or not ok_s("before"):
-            return bad()
-        b = {**common, "type": "sun"}
-        if "after" in r:
-            b["after"] = r["after"]
-        if "before" in r:
-            b["before"] = r["before"]
-        return _finish(b, "condition", ctx)
+        return _condition_sun(r, ctx, common, head, bad)
     if typ == "trigger":
-        ids = _to_list(r.get("id"))
-        if not _only_keys(r, [*head, "id"]) or not ids or not all(isinstance(i, str) for i in ids):
-            return bad()
-        return _finish({**common, "type": "trigger", "ids": ids}, "condition", ctx)
+        return _condition_trigger(r, ctx, common, head, bad)
     if typ in ("and", "or", "not"):
-        if in_group or not _only_keys(r, [*head, "conditions"]) or not isinstance(r.get("conditions"), list):
-            return bad()
-        kids = [parse_condition(c, ctx, True) for c in r["conditions"]]
-        return _finish({**common, "type": typ, "conditions": kids}, "condition", ctx)
+        return _condition_group(r, ctx, common, head, bad, typ, in_group)
     return bad("unknown")
+
+
+def _condition_state(r: Raw, ctx: ModelContext, common: Block, head: list[str], bad: Callable[..., Block]) -> Block:
+    if not _only_keys(r, [*head, "entity_id", "state", "for"]):
+        return bad()
+    ids, f = _entity_list(r.get("entity_id")), _parse_duration(r.get("for"))
+    st = r["state"] if isinstance(r.get("state"), list) else [r.get("state")]
+    if ids is None or f is _INVALID or not st or not all(isinstance(s, str) for s in st):
+        return bad()
+    state = list(r["state"]) if isinstance(r.get("state"), list) else r["state"]
+    sensor = ctx.shabbat_sensor
+    if sensor and len(ids) == 1 and ids[0] == sensor and not f and state in ("on", "off") and isinstance(state, str):
+        return _finish({**common, "type": "shabbat", "mode": "only_holy_days" if state == "on" else "not_holy_days"}, "condition", ctx)
+    pres = ctx.presence_entity  # KAV079-295: "who is in the building"
+    if pres and len(ids) == 1 and ids[0] == pres and not f and state in ("on", "off") and isinstance(state, str):
+        return _finish({**common, "type": "presence", "mode": "someone" if state == "on" else "nobody", "where": "building"}, "condition", ctx)
+    b = {**common, "type": "state", "entity_ids": ids, "state": state}
+    if f:
+        b["for"] = f
+    return _finish(b, "condition", ctx)
+
+
+def _condition_numeric_state(r: Raw, ctx: ModelContext, common: Block, head: list[str], bad: Callable[..., Block]) -> Block:
+    if not _only_keys(r, [*head, "entity_id", "above", "below"]):
+        return bad()
+    ids, above, below = _entity_list(r.get("entity_id")), _num(r.get("above")), _num(r.get("below"))
+    if ids is None or above is _INVALID or below is _INVALID:
+        return bad()
+    b = {**common, "type": "numeric_state", "entity_ids": ids}
+    if above is not None:
+        b["above"] = above
+    if below is not None:
+        b["below"] = below
+    return _finish(b, "condition", ctx)
+
+
+def _condition_time(r: Raw, ctx: ModelContext, common: Block, head: list[str], bad: Callable[..., Block]) -> Block:
+    if not _only_keys(r, [*head, "after", "before", "weekday"]):
+        return bad()
+
+    def ok_t(k: str) -> bool:
+        return k not in r or (isinstance(r[k], str) and bool(pol.TIME_RE.match(r[k])))
+
+    wd = _to_list(r["weekday"]) if "weekday" in r else None
+    if not ok_t("after") or not ok_t("before") or (wd is not None and not all(isinstance(d, str) and d in pol.WEEKDAYS for d in wd)):
+        return bad()
+    b = {**common, "type": "time"}
+    if "after" in r:
+        b["after"] = r["after"]
+    if "before" in r:
+        b["before"] = r["before"]
+    if wd is not None:
+        b["weekday"] = wd
+    return _finish(b, "condition", ctx)
+
+
+def _condition_sun(r: Raw, ctx: ModelContext, common: Block, head: list[str], bad: Callable[..., Block]) -> Block:
+    if not _only_keys(r, [*head, "after", "before"]):
+        return bad()
+
+    def ok_s(k: str) -> bool:
+        return k not in r or r[k] in ("sunrise", "sunset")
+
+    if not ok_s("after") or not ok_s("before"):
+        return bad()
+    b = {**common, "type": "sun"}
+    if "after" in r:
+        b["after"] = r["after"]
+    if "before" in r:
+        b["before"] = r["before"]
+    return _finish(b, "condition", ctx)
+
+
+def _condition_trigger(r: Raw, ctx: ModelContext, common: Block, head: list[str], bad: Callable[..., Block]) -> Block:
+    ids = _to_list(r.get("id"))
+    if not _only_keys(r, [*head, "id"]) or not ids or not all(isinstance(i, str) for i in ids):
+        return bad()
+    return _finish({**common, "type": "trigger", "ids": ids}, "condition", ctx)
+
+
+def _condition_group(r: Raw, ctx: ModelContext, common: Block, head: list[str], bad: Callable[..., Block], typ: str, in_group: bool) -> Block:
+    if in_group or not _only_keys(r, [*head, "conditions"]) or not isinstance(r.get("conditions"), list):
+        return bad()
+    kids = [parse_condition(c, ctx, True) for c in r["conditions"]]
+    return _finish({**common, "type": typ, "conditions": kids}, "condition", ctx)
 
 
 def _parse_conditions(v: Any, ctx: ModelContext) -> list[Block]:
@@ -508,36 +532,15 @@ def parse_action(raw: Any, ctx: ModelContext | None = None) -> Block:
         return _finish(b, "action", ctx)
 
     if "choose" in r:
-        if not _only_keys(r, ["choose", "default"]) or not isinstance(r["choose"], list):
-            return bad()
-        opts = []
-        for o in r["choose"]:
-            if not isinstance(o, dict) or not all(k in ("conditions", "sequence") for k in o):
-                return bad()
-            opts.append({"conditions": _parse_conditions(o.get("conditions"), ctx), "sequence": parse_actions(o.get("sequence"), ctx)})
-        return mk({"kind": "typed", "raw": raw, "type": "choose", "options": opts, "default": parse_actions(r["default"], ctx) if "default" in r else None})
+        return _action_choose(raw, r, ctx, bad, mk)
     if "if" in r:
-        if not _only_keys(r, ["if", "then", "else"]) or "then" not in r:
-            return bad()
-        return mk({"kind": "typed", "raw": raw, "type": "if", "conditions": _parse_conditions(r["if"], ctx), "then": parse_actions(r["then"], ctx),
-                   "else": parse_actions(r["else"], ctx) if "else" in r else None})
+        return _action_if(raw, r, ctx, bad, mk)
     if "repeat" in r:
-        rp = r["repeat"]
-        if (not _only_keys(r, ["repeat"]) or not isinstance(rp, dict) or not all(k in ("count", "sequence") for k in rp) or not is_number(rp.get("count"))
-                or float(rp["count"]) != int(rp["count"]) or rp["count"] < 1):
-            return bad()
-        return mk({"kind": "typed", "raw": raw, "type": "repeat_count", "count": int(rp["count"]), "sequence": parse_actions(rp.get("sequence"), ctx)})
+        return _action_repeat(raw, r, ctx, bad, mk)
     if "delay" in r:
-        if not _only_keys(r, ["delay"]):
-            return bad()
-        d = _parse_duration(r["delay"])
-        if d is None or d is _INVALID:
-            return bad()
-        return mk({"kind": "typed", "raw": raw, "type": "delay", "delay": d})
+        return _action_delay(raw, r, ctx, bad, mk)
     if "stop" in r:
-        if not _only_keys(r, ["stop"]) or not isinstance(r["stop"], str):
-            return bad()
-        return mk({"kind": "typed", "raw": raw, "type": "stop", "message": r["stop"]})
+        return _action_stop(raw, r, ctx, bad, mk)
     if isinstance(r.get("condition"), str) and "action" not in r and "service" not in r:
         c = parse_condition(raw, ctx)
         if c["kind"] == "locked":
@@ -545,6 +548,51 @@ def parse_action(raw: Any, ctx: ModelContext | None = None) -> Block:
         return mk({"kind": "typed", "raw": raw, "type": "condition", "condition": c})
     if "type" in r and "device_id" in r and "domain" in r:
         return mk_locked(raw, "device", "action", ctx)
+    return _action_service(raw, r, ctx, bad, mk)
+
+
+def _action_choose(raw: Any, r: Raw, ctx: ModelContext, bad: Callable[..., Block], mk: Callable[[Block], Block]) -> Block:
+    if not _only_keys(r, ["choose", "default"]) or not isinstance(r["choose"], list):
+        return bad()
+    opts = []
+    for o in r["choose"]:
+        if not isinstance(o, dict) or not all(k in ("conditions", "sequence") for k in o):
+            return bad()
+        opts.append({"conditions": _parse_conditions(o.get("conditions"), ctx), "sequence": parse_actions(o.get("sequence"), ctx)})
+    return mk({"kind": "typed", "raw": raw, "type": "choose", "options": opts, "default": parse_actions(r["default"], ctx) if "default" in r else None})
+
+
+def _action_if(raw: Any, r: Raw, ctx: ModelContext, bad: Callable[..., Block], mk: Callable[[Block], Block]) -> Block:
+    if not _only_keys(r, ["if", "then", "else"]) or "then" not in r:
+        return bad()
+    return mk({"kind": "typed", "raw": raw, "type": "if", "conditions": _parse_conditions(r["if"], ctx), "then": parse_actions(r["then"], ctx),
+               "else": parse_actions(r["else"], ctx) if "else" in r else None})
+
+
+def _action_repeat(raw: Any, r: Raw, ctx: ModelContext, bad: Callable[..., Block], mk: Callable[[Block], Block]) -> Block:
+    rp = r["repeat"]
+    if (not _only_keys(r, ["repeat"]) or not isinstance(rp, dict) or not all(k in ("count", "sequence") for k in rp) or not is_number(rp.get("count"))
+            or float(rp["count"]) != int(rp["count"]) or rp["count"] < 1):
+        return bad()
+    return mk({"kind": "typed", "raw": raw, "type": "repeat_count", "count": int(rp["count"]), "sequence": parse_actions(rp.get("sequence"), ctx)})
+
+
+def _action_delay(raw: Any, r: Raw, ctx: ModelContext, bad: Callable[..., Block], mk: Callable[[Block], Block]) -> Block:
+    if not _only_keys(r, ["delay"]):
+        return bad()
+    d = _parse_duration(r["delay"])
+    if d is None or d is _INVALID:
+        return bad()
+    return mk({"kind": "typed", "raw": raw, "type": "delay", "delay": d})
+
+
+def _action_stop(raw: Any, r: Raw, ctx: ModelContext, bad: Callable[..., Block], mk: Callable[[Block], Block]) -> Block:
+    if not _only_keys(r, ["stop"]) or not isinstance(r["stop"], str):
+        return bad()
+    return mk({"kind": "typed", "raw": raw, "type": "stop", "message": r["stop"]})
+
+
+def _action_service(raw: Any, r: Raw, ctx: ModelContext, bad: Callable[..., Block], mk: Callable[[Block], Block]) -> Block:
     svc = _service_of(r)
     if svc is None:
         return bad()  # variables, wait_*, parallel, sequence, event, scene ... : known, not typed

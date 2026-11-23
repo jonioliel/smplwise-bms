@@ -27,6 +27,7 @@ from . import energy_meters as meters
 from . import energy_settings as es
 from . import energy_store as st
 from .timeutil import site_zone
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.energy")
 
@@ -188,3 +189,11 @@ def janitor(db: Database, settings: Settings, now: float | None = None) -> dict[
     except Exception:  # noqa: BLE001
         log.warning("energy vacuum check failed", exc_info=True)
     return out
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _LAST.update(retention=0.0, vacuum=0.0)
+
+
+register_reset(__name__, ("_LAST",), _reset_for_tests)  # SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

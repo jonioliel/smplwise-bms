@@ -38,6 +38,7 @@ from ..services.notify_visibility import MANAGE, Reach
 from ..services.timeutil import iso_utc, parse_utc
 from ._common import rid as _rid
 from ..services.settings_store import setting_value
+from ..test_reset import register_reset
 from ..wire import notifications as W
 from ..wire import wire
 
@@ -462,3 +463,12 @@ def stats(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Co
 
     return {"since": since, "channels": channels, "worker": worker, "by_source": by_source, "push_devices": store.push_subscription_count(conn),
             "app_relay": mobile_push.relay_health()}
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    ACTION_FAILURES.hits.clear()
+    ACTION_GLOBAL.hits.clear()
+
+
+register_reset(__name__, ("ACTION_FAILURES", "ACTION_GLOBAL"), _reset_for_tests)  # CR-SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

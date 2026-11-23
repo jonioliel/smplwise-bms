@@ -23,6 +23,7 @@ from ..db import Database
 from . import energy_store as st
 from . import water_meters as wm
 from . import water_settings as ws
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.water")
 
@@ -164,3 +165,11 @@ def janitor(db: Database, settings: Settings, now: float | None = None) -> dict[
         return None
     _LAST["retention"] = t
     return retention(db, settings, t)
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _LAST.update(retention=0.0)
+
+
+register_reset(__name__, ("_LAST",), _reset_for_tests)  # SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

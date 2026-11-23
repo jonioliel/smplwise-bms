@@ -20,3 +20,11 @@ smplwise.services.notify_whatsapp.RESOLVERS  # phone resolvers; register_resolve
 smplwise.services.recorders.registry.SPEC_BY_ID  # recorder vendor specs; register_vendor() at import
 smplwise.services.recorders.registry.VENDORS  # recorder vendor adapters; register_vendor() at import
 smplwise.services.tickets.contact_reports.PROVIDERS  # contact report providers; register() at import (temperature_vendor_reports)
+
+# SINGLETONS-REST-2480 (22.11): constant OBJECTS the class rule counts (their class is defined in the same module) that nothing changes
+# after import; there is no state to reset.
+smplwise.services.notify_policy.BY_KEY  # the source catalogue by key (a dict subclass for per-generator keys), built once from SOURCES
+smplwise.services.plan_ifc.STAR  # the IFC `*` token, an immutable marker value
+smplwise.services.semantic.EXTERNAL_TEMPLATE  # the descriptor of the (not bundled) external search provider, read only
+smplwise.services.semantic.LOCAL  # the descriptor of the local search provider, read only
+smplwise.services.tickets.public_store.NO_GRANT  # the "no grant" marker object (scope None), read only

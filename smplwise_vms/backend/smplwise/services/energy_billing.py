@@ -36,6 +36,7 @@ from . import energy_settings as es
 from . import energy_tou as tou
 from .energy_billing_provider import BillingReadings, get_provider
 from .energy_consumption import MeterWindow, data_until, meter_window
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.energy_billing")
 
@@ -1455,3 +1456,12 @@ def pdf_rel_path(row: sqlite3.Row) -> str:
 
 def b64(data: bytes) -> str:  # pragma: no cover - helper for tools
     return base64.b64encode(data).decode("ascii")
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _LAST_AUTO.clear()
+    _LAST_RETENTION.clear()
+
+
+register_reset(__name__, ("_LAST_AUTO", "_LAST_RETENTION"), _reset_for_tests)  # SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

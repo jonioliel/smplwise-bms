@@ -31,6 +31,7 @@ from ..services import playback, recordings, thumbnails
 from ..services.access import require_camera
 from ..services.timeutil import UTC, iso_utc, parse_utc
 from ..services.settings_store import setting_value
+from ..test_reset import register_reset
 
 router = APIRouter()
 
@@ -312,3 +313,12 @@ def camera_frame(camera_id: str, request: Request, at: str = Query(..., min_leng
         neg.write_text("unavailable", encoding="utf-8")
         raise ApiError(404, "frame_unavailable", "אין פריים בהקלטה בזמן זה.")
     raise ApiError(503, "frame_retry", "ההקלטה קיימת אבל הפריים לא נטען כרגע; נסה שוב בעוד רגע.", retryable=True, details={"tried": tried})
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    MEMO.clear()
+    _flights.clear()
+
+
+register_reset(__name__, ("MEMO", "_flights"), _reset_for_tests)  # CR-SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

@@ -1,5 +1,25 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.48.0 (pilot) - Switches and selects on the shared controls; paged lists instead of scrolling; solid phone forms; faster first load; code-review clean-up
+
+### תוקן - Fixed
+- טכנאי הדלת (WisKey): אחרי שמירה המסך קורא את הדלת מחדש, ובזמן הקריאה הכפתורים ממתינים - לחיצה באמצע הקריאה כבר לא נדחית כ"גרסה ישנה" ולא מוצג שם ישן אחרי התשובה. - Door technician (WisKey): after a write the screen reads the door again and the buttons wait for that read - a press during the read is no longer refused as an old revision, and an old name is no longer drawn after the answer.
+- טלפון: גיליון טפסים (חשמל, מים, לקוחות וחשבונות) אטום, כך שהדף ופס הניווט התחתון לא נראים דרכו; בסקינים הזכוכיתיים הגיליון נשאר מטושטש כמו קודם. - Phone: form sheets (electricity, water, customers and accounts) are opaque, so the page and the bottom bar no longer show through; in the glass skins the sheet stays frosted as before.
+- נגישות: שמות נגישים לכפתורים שחסרו להם, צ'יפ ה-Companion בהתראות הוא תמונה עם שם, מקשי החומרה בהתראות הם כפתורי רדיו בלבד, ואזור מטרה גדול יותר לכפתור "קפל הכל" במכשירי המבנה. - Accessibility: names for buttons that had none, the Companion chip in notifications is a named image, the notification severity keys are radios only, and a larger target for "fold all" in the building devices.
+
+### שופר - Improved
+- מתגים: תיבות סימון ומתגים שנבנו ביד (הגדרה אחת של כן/לא) הם עכשיו המתג המשותף, בגודל קומפקטי כך שהשורה שומרת על גובהה; מתגי מסך הבית ושורות ההגדרות נשארו כפי שהיו. - Switches: the hand-built check boxes and switches that stand for one on/off setting are now the shared switch, in a compact size so the row keeps its height; the home screen switches and the settings row switches are unchanged.
+- תיבות בחירה: כל תיבות הבחירה במסכי ההגדרות יושבות בתוך השדה המשותף (תווית, מסגרת ושגיאה אחידות); הבחירה עצמה, המקלדת ובורר הטלפון לא השתנו. - Selects: every select on the settings screens sits inside the shared form field (one label, frame and error look); the select itself, the keyboard and the phone's own picker are unchanged.
+- בלי גלילה במסכי בקרה: חיישני האזעקה, רשימת הגישה החיצונית ורשימת "מי במבנה" מתחלקים לעמודים כשיש יותר שורות ממה שנכנס; עם ההגדרה "גלילה" לרשימות ארוכות הן נגללות כמו קודם. - No scrolling on control screens: the alarm sensors, the external access list and the "who is in the building" list split into pages when there are more rows than fit; with the "scroll" long-lists setting they scroll as before.
+- מראה לפי מודול: בכל 14 דפי ההגדרות עם בורר מקטעים כל מודול שומר על המקש שלו (28 פיקסלים במחשב, 44 במגע בטלפון); בורר שנשבר לשתי שורות מצויר כקופסה מעוגלת. - Module look: on all 14 settings pages with a segmented selector each module keeps its own key (28 px on a desktop, 44 px under a finger on a phone); a selector that wraps to two lines is drawn as a rounded box.
+- מרכז האירועים: הצ'יפים חזרו למראה של 2.47.0, ובטלפון הם 28 פיקסלים עם אזור לחיצה של 44. הגנרטור: בוחרי הנמענים והערוצים חזרו לתיבות הסימון. טבלאות: שורות שאינן ניתנות לעריכה ניתנות למיקוד במקלדת. - Events centre: the chips draw the 2.47.0 look again, and on a phone they are 28 px with a 44 px touch area. Generator: the recipient and channel choosers are check boxes again. Tables: read-only rows can be reached with the keyboard.
+- יומנים: כשהזמנה נדחית בגלל התנגשות, ההודעה מציינת עם מה היא מתנגשת (שם ההזמנה כשמותר לראות אותו, ואת טווח השעות). התראות: ערוץ ההכרזה מופיע ברשימות הערוצים. - Calendars: when a booking is refused for a conflict, the message names what holds the slot (the booking's name where you may see it, and the time range). Notifications: the announce channel appears in the channel lists.
+- טעינה ראשונה מהירה יותר: החלקים הכבדים שנפתחים רק לפי דרישה יצאו מהקובץ הראשי (כ-21% פחות בטעינה הראשונה). - Faster first load: the heavy parts that open only on demand left the main file (about 21% less on the first load).
+- סקירת קוד: צבעים קבועים הוחלפו באסימוני עיצוב בלי שינוי במראה; פונקציות מורכבות בשרת ובממשק פוצלו מאחורי בדיקות אפיון; איפוס מצב בין בדיקות ובדיקות תזמון יציבות יותר. - Code review: fixed colours became design tokens with no change in the look; complex server and interface functions were split behind characterisation tests; state resets between tests and steadier timing tests.
+
+### התקנה - Install
+- אין מיגרציה חדשה ואין שינוי בגשר (0.10.8). - No new migration and no bridge change (0.10.8).
+
 ## 2.47.0 (pilot) - Units inside the fields; more tables on the shared table; home choices on the shared selector; code-review clean-up
 
 ### שופר - Improved

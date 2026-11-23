@@ -26,6 +26,7 @@ from ..services import generator_core as core
 from ..services import generator_history as history
 from ..services import generator_log as glog
 from ..services import generator_store as store
+from ..test_reset import register_reset
 from ..wire import generator as W
 from ..wire import wire
 
@@ -550,3 +551,10 @@ def put_settings(body: SettingsBody, principal: Principal = Depends(_manage_w), 
     audit(conn, actor=principal, action="generator.settings.update", decision="allowed", resource_type="generator_settings", resource_id=None, details={"keys": sorted(sent)})
     return _settings_out(conn)
 
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _DETECT_CALLS.clear()
+
+
+register_reset(__name__, ("_DETECT_CALLS",), _reset_for_tests)  # CR-SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

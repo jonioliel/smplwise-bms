@@ -35,6 +35,7 @@ from ..errors import ApiError
 from . import nvr, recordings
 from .child_env import minimal_env
 from .timeutil import UTC, iso_utc, nvr_wall_to_utc, parse_utc, zone
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.exports")
 PIPELINE_VERSION = "export-1"
@@ -853,3 +854,13 @@ def scrub_credentials(conn: sqlite3.Connection) -> int:
             conn.execute("UPDATE export_jobs SET payload_json = ? WHERE id = ?", (clean, row["id"]))
             n += 1
     return n
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    with _stats_lock:
+        for key in STATS:
+            STATS[key] = 0
+
+
+register_reset(__name__, ("STATS",), _reset_for_tests)  # SINGLETONS-REST-2480 group 5: module-level tables (tests/test_singletons_registered.py)

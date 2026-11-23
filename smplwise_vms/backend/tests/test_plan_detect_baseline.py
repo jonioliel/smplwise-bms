@@ -12,6 +12,7 @@ import subprocess
 import sys
 
 import numpy as np
+import pytest
 
 import plan_detect_metrics as pm
 from smplwise.services import plan_detect as pd
@@ -24,6 +25,9 @@ BUDGET_MS = 15000
 
 
 def test_baseline_on_the_synthetic_set():
+    """The quality baseline, and the budget as CPU time (TIMING-LANE-2480): the detector itself may spend at most BUDGET_MS of CPU on
+    a plan - an algorithmic regression still fails here, in the blocking gate - but a loaded machine that deschedules the run no
+    longer does (the gate runner at load ~250 took a plan past 15 s of wall clock). The wall-clock budget is the timing-lane test below."""
     rows = pm.run_set(pd.detect)
     print(pm.summary_line(rows))
     for row in rows:
@@ -31,8 +35,19 @@ def test_baseline_on_the_synthetic_set():
         assert row["doors"]["recall"] >= 0.80 and row["doors"]["kind_recall"] >= 0.80, (row["name"], row["doors"])
         assert row["doors"]["false"] + row["windows"]["false"] <= 1, (row["name"], row["doors"], row["windows"])
         assert row["windows"]["recall"] >= 0.60, (row["name"], row["windows"])
-        assert row["ms"] <= BUDGET_MS, (row["name"], row["ms"])
+        assert row["cpu_ms"] <= BUDGET_MS, (row["name"], row["cpu_ms"])
     assert sum(r["windows"]["found"] for r in rows) >= 12 and sum(r["doors"]["found"] for r in rows) >= 20
+
+
+@pytest.mark.timing_lane
+def test_every_plan_finishes_inside_the_wall_clock_budget():
+    """TIMING-LANE-2480 timing lane: the 15 s budget of T086 / AT172 as the user waits for it (wall clock). It is a true latency
+    budget, so it runs when the runner is quiet (scripts/gate/timing_lane.sh, docs/testing/GATE_LANES.md); the CPU-time form of the
+    same budget stays in the blocking baseline above."""
+    rows = pm.run_set(pd.detect)
+    print(pm.summary_line(rows))
+    for row in rows:
+        assert row["ms"] <= BUDGET_MS, (row["name"], row["ms"], row["cpu_ms"])
 
 
 def test_the_door_width_hint_measures_the_drawn_doors():

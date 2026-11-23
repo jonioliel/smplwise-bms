@@ -265,11 +265,13 @@ class CalEventCreated(WireModel):
 
 
 class CalConflict(WireModel):
+    """`title`: the entry that holds the slot, only where the caller may read it on that calendar (null = "another booking"; RESPONSE-HINTS-2480)."""
     event_id: str
     calendar_id: str
     start: str
     end: str
     state: str
+    title: str | None = None
 
 
 class CalFreeSlot(WireModel):

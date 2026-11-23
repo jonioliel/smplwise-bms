@@ -369,48 +369,69 @@ def validate_changes(current: dict[str, Any], options: dict[str, Any], requested
     mode_after = requested.get("bitrate_mode", current.get("bitrate_mode"))
     smart_after = requested.get("smart_codec", current.get("smart_codec"))
     for name, value in requested.items():
-        if name == "b_frames":
-            if not options.get("b_frames"):
-                raise _not_supported(name)
-            continue
-        if name in unsupported and not (name == "bitrate_kbps" and mode_after == "CBR" and "bitrate_mode" in requested):
+        _check_requested(name, value, options, requested, unsupported, codec_after, mode_after)
+    _check_smart_locks(current, options, requested, smart_after)
+    _check_kept_under_new_codec(current, options, requested, codec_after)
+    return _stream_diff(current, requested)
+
+
+def _check_requested(name: str, value: Any, options: dict[str, Any], requested: dict[str, Any], unsupported: set[str], codec_after: Any, mode_after: Any) -> None:
+    """One requested field: supported by the device and the stream, then its value (validate_changes)."""
+    if name == "b_frames":
+        if not options.get("b_frames"):
             raise _not_supported(name)
-        if name == "codec":
-            if value not in (options.get("codec") or []):
-                raise _not_allowed(name, options.get("codec"))
-        elif name == "profile":
-            allowed = (options.get("profile") or {}).get(str(codec_after)) or []
-            if value not in allowed:
-                raise _not_allowed(name, allowed)
-        elif name == "resolution":
-            allowed = (options.get("resolution") or {}).get(str(codec_after)) or []
-            if value not in allowed:
-                raise _not_allowed(name, allowed)
-        elif name == "fps":
-            if value == "full":
-                if not options.get("fps_full"):
-                    raise _not_allowed(name, options.get("fps"))
-            elif not any(_same(value, f) for f in (options.get("fps") or [])):
+        return
+    if name in unsupported and not (name == "bitrate_kbps" and mode_after == "CBR" and "bitrate_mode" in requested):
+        raise _not_supported(name)
+    _check_field_value(name, value, options, codec_after, mode_after)
+
+
+def _check_field_value(name: str, value: Any, options: dict[str, Any], codec_after: Any, mode_after: Any) -> None:
+    """The value of one requested field: membership in the device's options, ranges, the bitrate-mode lock of quality."""
+    if name == "codec":
+        if value not in (options.get("codec") or []):
+            raise _not_allowed(name, options.get("codec"))
+    elif name == "profile":
+        allowed = (options.get("profile") or {}).get(str(codec_after)) or []
+        if value not in allowed:
+            raise _not_allowed(name, allowed)
+    elif name == "resolution":
+        allowed = (options.get("resolution") or {}).get(str(codec_after)) or []
+        if value not in allowed:
+            raise _not_allowed(name, allowed)
+    elif name == "fps":
+        if value == "full":
+            if not options.get("fps_full"):
                 raise _not_allowed(name, options.get("fps"))
-        elif name == "bitrate_mode":
-            if value not in (options.get("bitrate_mode") or []):
-                raise _not_allowed(name, options.get("bitrate_mode"))
-        elif name in ("bitrate_kbps", "gop"):
-            bounds = options.get(name)
-            if not isinstance(bounds, dict) or not bounds["min"] <= value <= bounds["max"]:
-                raise _not_allowed(name, bounds)
-        elif name == "quality":
-            if mode_after != "VBR":
-                raise ApiError(422, "field_locked", "השדה נעול בגלל ערך של שדה אחר.", details={"field": name, "by": "bitrate_mode"})
-            if value not in (options.get("quality") or []):
-                raise _not_allowed(name, options.get("quality"))
-        elif name in ("svc", "smart_codec"):
-            if not options.get(name):
-                raise _not_supported(name)
+        elif not any(_same(value, f) for f in (options.get("fps") or [])):
+            raise _not_allowed(name, options.get("fps"))
+    elif name == "bitrate_mode":
+        if value not in (options.get("bitrate_mode") or []):
+            raise _not_allowed(name, options.get("bitrate_mode"))
+    elif name in ("bitrate_kbps", "gop"):
+        bounds = options.get(name)
+        if not isinstance(bounds, dict) or not bounds["min"] <= value <= bounds["max"]:
+            raise _not_allowed(name, bounds)
+    elif name == "quality":
+        if mode_after != "VBR":
+            raise ApiError(422, "field_locked", "השדה נעול בגלל ערך של שדה אחר.", details={"field": name, "by": "bitrate_mode"})
+        if value not in (options.get("quality") or []):
+            raise _not_allowed(name, options.get("quality"))
+    elif name in ("svc", "smart_codec"):
+        if not options.get(name):
+            raise _not_supported(name)
+
+
+def _check_smart_locks(current: dict[str, Any], options: dict[str, Any], requested: dict[str, Any], smart_after: Any) -> None:
+    """The fields the smart codec locks (validate_changes)."""
     if smart_after is True:
         for name in (options.get("locks") or {}).get("smart_codec", []):
             if name in requested and not _same(requested[name], field_value(current, name)):
                 raise ApiError(422, "field_locked", "השדה נעול בגלל ערך של שדה אחר.", details={"field": name, "by": "smart_codec"})
+
+
+def _check_kept_under_new_codec(current: dict[str, Any], options: dict[str, Any], requested: dict[str, Any], codec_after: Any) -> None:
+    """The profile / resolution a stream keeps through a codec change must exist under the new codec (validate_changes)."""
     codec_changes = "codec" in requested and requested["codec"] != current.get("codec")
     if codec_changes and current.get("profile") is not None and "profile" not in requested:
         allowed = (options.get("profile") or {}).get(str(codec_after)) or []
@@ -422,6 +443,10 @@ def validate_changes(current: dict[str, Any], options: dict[str, Any], requested
         allowed = (options.get("resolution") or {}).get(str(codec_after)) or []
         if allowed and current.get("resolution") not in allowed:
             raise _kept_not_allowed("resolution", str(codec_after), allowed)
+
+
+def _stream_diff(current: dict[str, Any], requested: dict[str, Any]) -> tuple[dict[str, Any], dict[str, list[Any]], list[str]]:
+    """(the changes to write, {field: [from, to]}, the unchanged field names) (validate_changes)."""
     effective: dict[str, Any] = {}
     fields: dict[str, list[Any]] = {}
     unchanged: list[str] = []

@@ -35,6 +35,7 @@ from .settings import read_settings
 from ..services.settings_store import setting_value
 from ..wire import cameras as W
 from ..wire import wire
+from ..test_reset import register_reset
 
 router = APIRouter()
 
@@ -409,3 +410,11 @@ def _video_facts(conn: sqlite3.Connection, cam: sqlite3.Row) -> dict[str, Any] |
     hint = stream_codecs.main_hint(stream_codecs.camera_name(cam), int(cam["channel"]), enc.get("main"), stream_codecs.recorder_model(conn, cam["recorder_id"]))
     return {**enc, "hint": hint}
 
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _CAPS_CACHE.clear()
+    _ZONES_CACHE.clear()
+
+
+register_reset(__name__, ("_CAPS_CACHE", "_ZONES_CACHE"), _reset_for_tests)  # CR-SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

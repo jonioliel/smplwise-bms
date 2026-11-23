@@ -36,6 +36,7 @@ from typing import Any, Callable
 from . import intercom_adapter as ad
 from . import intercom_client
 from . import wiskey_write_limits as wl
+from ..test_reset import register_reset
 
 CHANNEL = "maintenance"  # services/wiskey_channels.py MAINTENANCE
 LANE = "maintenance"  # intercom_sync: no lane of its own -> a read slot and the read buckets (module note)
@@ -304,3 +305,6 @@ def reset() -> None:
     LIMITS.reset()
     SEEN.reset()
     HEALTH.reset()
+
+
+register_reset(__name__, ("HEALTH", "LIMITS", "SEEN"), reset)  # SINGLETONS-REST-2480 group 4: module-level tables (tests/test_singletons_registered.py)
