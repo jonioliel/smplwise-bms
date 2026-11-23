@@ -3,6 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { loadLazyChunk } from './lazy-chunk';
+import { phoneSkipDesktopShot } from './helpers/phone-skip-shots';
 
 // SCHED-POLISH-2331 shoot harness (design review only, not a gate spec): the schedules / automations settings pages, the slot panel,
 // the table view and the create dialog at 1920 / 1440 / 1180 / 1024 / 390, demo mode. SHOT_PHASE=before|after picks the folder.
@@ -14,6 +15,7 @@ fs.mkdirSync(OUT, { recursive: true });
 const SIZES: [number, number][] = [[1920, 1080], [1440, 900], [1180, 820], [1024, 768], [390, 844]];
 
 async function shot(page: Page, name: string, w: number, h: number, full = false) {
+  if (phoneSkipDesktopShot(page)) return; // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(OUT, `${name}-${w}x${h}.png`), fullPage: full });
 }

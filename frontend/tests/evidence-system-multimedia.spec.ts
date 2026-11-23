@@ -121,7 +121,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.waitForTimeout(300);
     await row(page, 'mp-kit').scrollIntoViewIfNeeded();
-    await page.screenshot({ path: path.join(OUT, 'settings-night-window-1440.png') });
+    if (!phoneSkipDesktopShot(page)) await page.screenshot({ path: path.join(OUT, 'settings-night-window-1440.png') }); // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
   });
 
   test('a device without a room is placed from the settings (an administrator action); a placed one shows its place', async ({ page }) => {
@@ -320,6 +320,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
 });
 
 async function shot(page: Page, name: string) {
+  if (phoneSkipDesktopShot(page)) return; // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
   fs.mkdirSync(OUT, { recursive: true });
   await page.waitForTimeout(350);
   await page.screenshot({ path: path.join(OUT, `${name}-1440.png`) });
