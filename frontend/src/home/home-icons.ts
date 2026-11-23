@@ -5,6 +5,8 @@ import { iconSvg } from '../components/icon-paths';
 
 const P: Record<string, string> = {
   home: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v10h13V10"/><path d="M10 20v-6h4v6"/>',
+  // MULTI-BUILDING-HOME-2500: the building chip and sheet (same grid and stroke as the set)
+  building: '<path d="M4.5 20.5h15"/><path d="M6.5 20.5V5a1.5 1.5 0 0 1 1.5-1.5h6A1.5 1.5 0 0 1 15.5 5v15.5"/><path d="M15.5 9.5h2.5a1.5 1.5 0 0 1 1.5 1.5v9.5"/><path d="M9.5 7.5h3M9.5 11h3M9.5 14.5h3"/>',
   rooms: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>',
   bulb: '<path d="M9.5 18h5"/><path d="M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2h5c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"/>',
   thermo: '<path d="M12 3.5a2 2 0 0 0-2 2v8.6a4 4 0 1 0 4 0V5.5a2 2 0 0 0-2-2z"/><path d="M12 10.5v6.5"/>',

@@ -13,7 +13,8 @@ import { newSceneSchedule, rid, sceneScheduleOp, sceneSchedules, type SceneSched
 import { DAY_KEY, DAY_LETTER, canManageSchedules, errText, has, plural, stepper, sw, warmFamily, seen, offScreen } from './home-p2-ui';
 import { tr } from '../i18n/msg/home';
 
-interface Scene { entity: string; name: string }
+/** `areas`: the scene's areas (MULTI-BUILDING-HOME-2500, Q67: a schedule shows under every building its scene serves) */
+interface Scene { entity: string; name: string; areas: string[] }
 const st: { items: SceneSchedule[]; scenes: Scene[]; canCreate: boolean; at: number; loading: boolean; error: string; busy: boolean; draft: { scene: string; at: number; days: number[]; crid: string } } =
   { items: [], scenes: [], canCreate: false, at: 0, loading: false, error: '', busy: false, draft: { scene: '', at: 420, days: [0, 1, 2, 3, 4], crid: '' } };
 
@@ -22,7 +23,7 @@ function load(h: HomeHost, force = false) {
   st.loading = true;
   void Promise.all([
     sceneSchedules(),
-    httpAutomations.list({ kind: 'scene', limit: 200 } as never).then((r) => r.items.filter((s: Item) => !s.hidden && s.entity_id && s.can.run).map((s: Item) => ({ entity: s.entity_id as string, name: s.name }))).catch(() => [] as Scene[]),
+    httpAutomations.list({ kind: 'scene', limit: 200 } as never).then((r) => r.items.filter((s: Item) => !s.hidden && s.entity_id && s.can.run).map((s: Item) => ({ entity: s.entity_id as string, name: s.name, areas: s.areas.map((a) => a.id) }))).catch(() => [] as Scene[]),
   ]).then(([r, scenes]) => { st.items = r.items; st.canCreate = r.can_create; st.scenes = scenes; st.error = ''; st.at = Date.now(); })
     .catch((e) => { st.error = errText(e); })
     .finally(() => { st.loading = false; h.requestUpdate(); });
@@ -77,11 +78,19 @@ registerScreen((h: HomeHost) => ({
     if (!st.at && !st.loading && !st.error) load(h); // a deep link: the feature map arrived after enter()
     if (st.error && !st.at) return html`${h.head(tr('תזמונים'), '')}${h.empty('x', tr('לא הצלחנו לטעון את התזמונים'), st.error)}`;
     const can = st.canCreate && canManageSchedules() && !h.kioskLocked();
-    const n = st.items.filter((s) => s.enabled).length;
-    const pg = paged(st.items, h.phone ? 4 : 8, h.pg('sch'));
-    return html`${h.head(tr('תזמונים'), !st.items.length ? tr('סצנות שקורות מעצמן, בשעה קבועה') : plural(n, tr('תזמון אחד פעיל'), tr('תזמונים פעילים')),
+    // MULTI-BUILDING-HOME-2500 (Q67): on a multi-building site, the schedules whose scene serves the chosen building (a scene serving two
+    // buildings shows in each, with "גם ב...")
+    const notes = new Map<string, string>();
+    const items = st.items.filter((s) => {
+      const b = h.bldOf(st.scenes.find((x) => x.entity === s.scene)?.areas ?? []);
+      if (b.note) notes.set(s.id, b.note);
+      return b.show;
+    });
+    const n = items.filter((s) => s.enabled).length;
+    const pg = paged(items, h.phone ? 4 : 8, h.pg('sch'));
+    return html`${h.head(tr('תזמונים'), !items.length ? tr('סצנות שקורות מעצמן, בשעה קבועה') : plural(n, tr('תזמון אחד פעיל'), tr('תזמונים פעילים')),
       html`${h.pager('sch', pg.pages)}${can && st.scenes.length ? html`<button class="hbtn strong" data-act="p2SchNew">${hi('plus')}<span class="bt">${tr('תזמון חדש')}</span></button>` : nothing}`)}
-      <div class="card-grid schg">${pg.items.length ? pg.items.map((s) => html`<div class=${'tile srow' + (s.enabled ? '' : ' offr')}><span class="ai">${hi('scenes')}</span><span class="at"><b class="clamp1">${s.name}</b><span class="muted clamp1 num-r">${whenOf(s)}</span><span class="muted clamp1 what">${tr('מפעיל את סצנת')} ${sceneName(s.scene)}</span></span>
+      <div class="card-grid schg">${pg.items.length ? pg.items.map((s) => html`<div class=${'tile srow' + (s.enabled ? '' : ' offr')}><span class="ai">${hi('scenes')}</span><span class="at"><b class="clamp1">${s.name}</b><span class="muted clamp1 num-r">${whenOf(s)}</span><span class="muted clamp1 what">${tr('מפעיל את סצנת')} ${sceneName(s.scene)}${notes.has(s.id) ? html` <span data-also>· ${notes.get(s.id)}</span>` : nothing}</span></span>
         <span class="row-acts">${can ? html`<button class="rb" data-act="p2SchRun" data-id=${s.id} aria-label=${tr('הפעל עכשיו: ') + s.name}>${hi('play')}</button>` : nothing}${sw(s.enabled, 'p2SchTog', s.name, { id: s.id }, !can)}</span></div>`)
         : h.empty('clock', st.loading ? tr('טוענים…') : tr('עוד אין תזמונים'), can ? tr('למשל: להפעיל את סצנת הבוקר כל יום ב-06:45.') : tr('מנהל הבית יכול להגדיר תזמונים של סצנות.'))}</div>`;
   },

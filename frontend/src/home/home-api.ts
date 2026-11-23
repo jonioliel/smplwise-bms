@@ -11,6 +11,7 @@ import { notify, type Notification } from '../api/notifications';
 import { httpAutomations, type Item as AutoItem } from '../api/automations';
 import { can, canAnywhere } from '../api/session';
 import { tr } from '../i18n/msg/home';
+import type { HBuilding } from './home-buildings';
 
 export type Interface = 'home' | 'full';
 export type HomeModule = 'lights' | 'climate' | 'shades' | 'doors' | 'cameras' | 'energy' | 'alerts' | 'scenes' | 'security'
@@ -89,12 +90,14 @@ export interface HDoor { id: string; name: string; locked: boolean; can: boolean
 export interface HRoom {
   id: string; name: string; floor: string; temp: number | null; canBulk: boolean;
   lights: HLight[]; loads: HLoad[]; zones: HZone[]; shades: HShade[]; doors: HDoor[]; cams: string[];
+  /** MULTI-BUILDING-HOME-2500: the room's building on a multi-building answer (null = in no building; absent = no building level) */
+  bld?: string | null;
 }
 export interface HFloor { id: string; name: string; short: string }
 export interface HCamera { id: string; name: string; ok: boolean; room: string | null }
 export interface HScene { id: string; name: string; rooms: string[]; canRun: boolean; canEdit: boolean; sensitive: boolean; icon: string; does: string; lastRun?: string | null }
 export interface HAlert { id: string; tone: 'warn' | 'info' | 'ok'; icon: string; text: string; when: string; open: boolean; canAck: boolean; link: string; door: Notification['door'] }
-interface HEnergy { today: number[]; usual: number[]; week: [string, number | null, number][]; byRoom: [string, number][]; price: number | null }
+interface HEnergy { today: number[]; usual: number[]; week: [string, number | null, number][]; byRoom: [string, number, string?][]; price: number | null }
 
 export interface HomeData {
   floors: HFloor[];
@@ -107,6 +110,11 @@ export interface HomeData {
   modules: Set<HomeModule>;
   policy: InterfacePolicy;
   weather: { t: number | null; text: string } | null;
+  /** MULTI-BUILDING-HOME-2500 (owner Q64-Q67): the building level - empty while the switch is off or the rooms reach one building */
+  buildings?: HBuilding[];
+  areaB?: Record<string, string>;
+  bAll?: boolean;
+  bEntry?: string | null;
 }
 
 const GATE_WORDS = /שער|gate/i;
@@ -124,7 +132,7 @@ function shortFloor(name: string): string {
   return s.length > 10 ? s.slice(0, 10) : s;
 }
 
-export function adaptOverview(ov: Overview, cameras: HCamera[]): Pick<HomeData, 'floors' | 'rooms' | 'canBulk' | 'modules' | 'policy' | 'weather'> {
+export function adaptOverview(ov: Overview, cameras: HCamera[]): Pick<HomeData, 'floors' | 'rooms' | 'canBulk' | 'modules' | 'policy' | 'weather' | 'buildings' | 'areaB' | 'bAll' | 'bEntry'> {
   const rooms: HRoom[] = ov.rooms.map((r) => {
     const lights: HLight[] = r.lights.map((l) => ({
       id: l.entity_id, name: l.name, on: l.active, lvl: l.dimmable ? (l.brightness_pct ?? (l.active ? 100 : 80)) : 100, sw: !l.dimmable,
@@ -140,10 +148,14 @@ export function adaptOverview(ov: Overview, cameras: HCamera[]): Pick<HomeData, 
     }));
     const shades: HShade[] = r.shades.map((s) => ({ id: s.entity_id, name: s.name, pos: s.position ?? (s.state === 'open' ? 100 : s.state === 'closed' ? 0 : null), state: s.state, moving: s.moving, can: s.can_control && s.available, ok: s.available, room: r.id }));
     const doors: HDoor[] = r.locks.map((d) => ({ id: d.entity_id, name: d.name, locked: d.locked, can: d.can_control && d.available, ok: d.available, wiskey: d.wiskey_door, room: r.id, kind: GATE_WORDS.test(d.name) ? 'gate' : 'door', noOpen: d.unlock_reason && d.unlock_reason !== 'ok' ? d.unlock_reason : null }));
-    return { id: r.id, name: r.name, floor: r.floor_id, temp: r.temperature, canBulk: r.can_bulk, lights, loads, zones, shades, doors, cams: cameras.filter((c) => c.room === r.id).map((c) => c.id) };
+    return { id: r.id, name: r.name, floor: r.floor_id, temp: r.temperature, canBulk: r.can_bulk, lights, loads, zones, shades, doors, cams: cameras.filter((c) => c.room === r.id).map((c) => c.id),
+      ...(ov.buildings ? { bld: r.building_id ?? null } : {}) };
   });
   const floors = ov.floors.map((f) => ({ id: f.id, name: f.name, short: shortFloor(f.name) }));
-  return { floors, rooms, canBulk: ov.can_bulk, modules: new Set(ov.modules), policy: ov.policy, weather: ov.weather ?? null };
+  // MULTI-BUILDING-HOME-2500: the building level, only when the server sent it (the switch on, two or more buildings reached)
+  const buildings = (ov.buildings ?? []).map((b) => ({ id: b.id, name: b.name, shared: b.is_shared }));
+  return { floors, rooms, canBulk: ov.can_bulk, modules: new Set(ov.modules), policy: ov.policy, weather: ov.weather ?? null,
+    buildings, areaB: ov.area_buildings ?? {}, bAll: !!ov.building_all, bEntry: ov.entry_building ?? null };
 }
 
 export async function loadCameras(): Promise<HCamera[]> {
@@ -215,13 +227,23 @@ function startOfDayLocal(at: number): number {
 
 /** Today by hour and the usual hour (the mean of the same hour over the 7 days before), this week by day and the usual day (the mean of
  * the 4 weeks before), and today by room - summed over the meters the person may see (at most 12, the busiest of today first). */
-export async function loadEnergy(): Promise<HEnergy | null> {
+export async function loadEnergy(keep?: (area: string | null) => string | null): Promise<HEnergy | null> {
   if (!canAnywhere('energy.view')) return null;
   let meters;
   try {
     meters = await listMeters();
   } catch {
     return null;
+  }
+  // MULTI-BUILDING-HOME-2500 (Q67): on a multi-building site, the chosen building's meters only; a meter serving two buildings counts in
+  // each, its place carrying "גם ב..." (`keep` answers null = not in this building, '' = in it, a text = in it and that note)
+  const notes = new Map<string, string>();
+  if (keep) {
+    meters = meters.filter((m) => {
+      const n = keep(m.area_id);
+      if (n) notes.set(m.area_name || tr('שאר הבית'), n);
+      return n !== null;
+    });
   }
   if (!meters.length) return { today: [], usual: [], week: [], byRoom: [], price: null };
   const top = [...meters].sort((a, b) => (b.today_kwh ?? 0) - (a.today_kwh ?? 0)).slice(0, 12);
@@ -260,7 +282,7 @@ export async function loadEnergy(): Promise<HEnergy | null> {
     today: today.map(round),
     usual: usualSum.map(round),
     week: HE_DAYS.map((label, i) => [label, weekDays[i] == null ? null : round(weekDays[i] as number), round(usualDay[i])]),
-    byRoom: byRoom.map(([n, v]) => [n, round(v)]),
+    byRoom: byRoom.map(([n, v]): [string, number, string?] => (notes.has(n) ? [n, round(v), notes.get(n)] : [n, round(v)])),
     price: null,
   };
 }

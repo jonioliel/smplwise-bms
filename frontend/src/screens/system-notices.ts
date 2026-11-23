@@ -12,6 +12,7 @@ import '../components/sw-dialog';
 import '../components/sw-tabs';
 import '../components/sw-state-panel';
 import '../components/sw-table';
+import '../components/sw-dropdown'; // MULTI-BUILDING-HOME-2500: the board's building
 import type { TableColumn } from '../components/sw-table';
 import { qrSvg } from '../components/sw-second-factor';
 import { ApiError, describeError } from '../api/client';
@@ -126,6 +127,8 @@ export class SystemNotices extends LitElement {
   @state() private draft: Display | null = null;
   @state() private dirty = false;
   @state() private nameDraft = '';
+  /** MULTI-BUILDING-HOME-2500 (Q68): the buildings a board can belong to (empty = one building, or the multi-building switch off) */
+  @state() private bldChoices: { id: string; name: string }[] = [];
   @state() private notices: Notice[] = [];
   @state() private feedPick = '';
   @state() private feedUrl = '';
@@ -187,7 +190,9 @@ export class SystemNotices extends LitElement {
       return;
     }
     try {
-      this.boards = (await listBoards()).boards;
+      const r = await listBoards();
+      this.boards = r.boards;
+      this.bldChoices = r.buildings ?? []; // MULTI-BUILDING-HOME-2500 (Q68): only on a multi-building site
     } catch {
       this.boards = [];
     }
@@ -573,6 +578,7 @@ export class SystemNotices extends LitElement {
         <div class="form">
           <div class="r"><div class="fld"><label for="bg-name">${nt('bName')}</label><sw-field><input id="bg-name" maxlength="60" .value=${this.nameDraft} @input=${(e: Event) => (this.nameDraft = (e.target as HTMLInputElement).value)}></sw-field></div>
             <div class="fld"><label for="bg-slug">${nt('bSlug')}</label><sw-field><input id="bg-slug" class="ltr" .value=${b.slug} disabled></sw-field></div></div>
+          ${this.bldChoices.length ? html`<div class="fld" data-board-building><label>${nt('bBuilding')}</label><sw-dropdown block label=${nt('bBuilding')} .items=${[{ id: '', label: nt('bBuildingSite') }, ...this.bldChoices.map((x) => ({ id: x.id, label: x.name }))]} .value=${b.building_id ?? ''} @change=${(e: CustomEvent<{ id: string }>) => this.saveBoard({ building_id: e.detail.id })}></sw-dropdown><p class="hint">${nt('bBuildingHint')}</p></div>` : nothing}
           <div class="r">${this.placeField(d.place)}
             <div class="fld"><label for="bg-lang">${nt('lang')}</label><sw-field><select id="bg-lang" data-v=${d.lang} @change=${(e: Event) => this.setD({ lang: (e.target as HTMLSelectElement).value as 'he' | 'en' })}><option value="he">עברית</option><option value="en">English</option></select></sw-field></div></div>
           <dl class="kv"><dt>${nt('kvTemplate')}</dt><dd>${this.summary(b)}</dd><dt>${nt('bItems')}</dt><dd class="num">${this.detail!.notices.length}</dd>
