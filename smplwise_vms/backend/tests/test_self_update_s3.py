@@ -109,7 +109,8 @@ EXPECTED_ALLOWED = {("GET", "/addons/self/info"), ("POST", "/store/reload"), ("P
                     # WISKEY-MANAGED-INSTALL-2382: the owner-started WisKey run reads the backup list and stops / starts the core (no body)
                     ("GET", "/backups"), ("POST", "/core/stop"), ("POST", "/core/start"),
                     ("DELETE", "/discovery/{uuid}"),  # BRIDGE-STALE-DISCOVERY-2383: Arx's own stale announcement
-                    ("GET", "/addons"), ("GET", "/addons/{addon}/info")}  # HEALTH-GO2RTC-FOLLOWUP-2431: which video services run (read only)
+                    ("GET", "/addons"), ("GET", "/addons/{addon}/info"),  # HEALTH-GO2RTC-FOLLOWUP-2431: which video services run (read only)
+                    ("GET", "/network/info")}  # ONVIF-DISCOVER-2500: the host's own interface networks (camera discovery range, read only)
 
 
 def test_the_allow_list_is_exact(settings, sup):  # noqa: F811
