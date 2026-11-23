@@ -99,7 +99,7 @@ Run on the workstation 23.11. The runner was NOT used (the 2.48.0 release gate i
 |---|---|
 | `tests/test_mb_home_2500.py` | **11 passed** |
 | Targeted backend regression, 24 existing files (sequential, 21 min) | **495 passed, 1 failed** - `test_home_interface.py::test_new_default_is_full_for_everyone_and_the_setting_changes_it` compared the whole `GET /home/settings` answer, which now carries the new setting `building_all` (Q64); expectation updated |
-| `test_home_interface.py` + `test_mb_home_2500.py` after the fix | FIXRUN_PLACEHOLDER |
+| `test_home_interface.py` + `test_mb_home_2500.py` after the fix | **37 passed** (exit 0) |
 | Mutation check, backend (each guard disabled in turn, its test must fail, the file restored after each): the two-building rule, the seen-areas-only map, the board greeting's switch rule, the person's building must be live, the board's building must be live, the wall panel's room building first | **6 of 6 caught** |
 | Mutation check, frontend: "כבה הכל" of a building without `building` (rebuilt, the Q66 evidence test) | **caught** (the test fails), source restored |
 | Unit specs (node): unit-mb-home-2500, unit-i18n-home, unit-home-simple-logic, unit-home-site-2330 | **28 passed** |
