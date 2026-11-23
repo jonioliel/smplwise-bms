@@ -32,6 +32,9 @@ from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Mapping
 
 from . import automation_model as model
+from ..i18n import CATALOGUE, cat
+from ..i18n import t as _t
+from . import automation_ext_text  # noqa: F401 - registers `ext.*` and `action.label.*` (I18N-BACKEND-2490, third pass)
 from . import automation_settings as aset
 from . import wall_buttons as wb
 from ..test_reset import register_reset
@@ -263,15 +266,14 @@ def _clock(m: int) -> str:
 
 
 def conflict_text(c: Mapping[str, Any], entity_name: str, window_min: int, *, mine_kind: str = "automation") -> tuple[str, str]:
-    """(title, detail) in Hebrew, as drawn: "התנגשות עם התזמון ״X״" / "התזמון מכבה את Y ב־21:55, וכאן הוא נדלק ב־22:00: ..."."""
+    """(title, detail) as drawn: "התנגשות עם התזמון ״X״" / "התזמון מכבה את Y ב־21:55, וכאן הוא נדלק ב־22:00: ...". I18N-BACKEND-2490: `Msg`s
+    (`ext.*`) - their string value is that Hebrew; the route renders them in the reader's language."""
     other = c["other"]
-    noun = "התזמון" if other["kind"] == "schedule" else "האוטומציה"
-    fem = other["kind"] == "automation"
-    verb_other = ("מדליקה" if fem else "מדליק") if c["theirs"] == "on" else ("מכבה")
-    here = "נדלק" if c["mine"] == "on" else "נכבה"
-    title = f"התנגשות עם {noun} ״{other['name']}״"
-    detail = (f"{noun} {verb_other} את {entity_name} ב־{c['other_at']}, וכאן הוא {here} ב־{c['mine_at']}: פעולות הפוכות בהפרש של {c['delta_min']} דקות, "
-              f"בתוך חלון של {window_min} דקות.")
+    kind = "schedule" if other["kind"] == "schedule" else "automation"
+    who = _t(f"ext.who.{kind}_{'on' if c['theirs'] == 'on' else 'off'}")
+    here = _t("ext.here.on" if c["mine"] == "on" else "ext.here.off")
+    title = _t(f"ext.conflict_title.{kind}", name=other["name"])
+    detail = _t("ext.conflict_detail", who=who, entity=entity_name, other_at=c["other_at"], here=here, mine_at=c["mine_at"], delta=c["delta_min"], window=window_min)
     return title, detail
 
 
@@ -382,8 +384,8 @@ def _reuse_issues(ctx: Any, draft: Mapping[str, Any], item_id: str | None) -> li
     for key, path in keys:
         if key in used:
             who = used[key][0]["name"]
-            out.append({"path": path, "code": "button_in_use", "message": f"הכפתור והלחיצה כבר מפעילים את ״{who}״",
-                        "detail": "אותה לחיצה תפעיל את שני הפריטים.", "other": used[key][0]})
+            out.append({"path": path, "code": "button_in_use", "message": _t("ext.button_in_use", name=who),
+                        "detail": _t("ext.button_in_use_detail"), "other": used[key][0]})
     return out
 
 
@@ -401,8 +403,8 @@ def precheck_warnings(ctx: Any, draft: Mapping[str, Any], item_id: str | None) -
         for e in b.get("entity_ids") or []:
             info = ctx.entity(e)
             if info is not None and not info["available"] and ctx.access.can_read_state(e):
-                out.append({"path": w.path, "code": "device_unavailable", "message": f"{info['name']} לא זמין כרגע",
-                            "detail": "השמירה אפשרית; הפעולה תיכשל אם ההתקן לא יחזור."})
+                out.append({"path": w.path, "code": "device_unavailable", "message": _t("ext.device_unavailable", name=info["name"]),
+                            "detail": _t("ext.device_unavailable_detail")})
                 break
     return out
 
@@ -423,11 +425,11 @@ def device_reachable(ctx: Any, device_id: str) -> bool:
     return any(a.allowed(scope.MANAGE, e) for e in _device_entities(ctx.conn, device_id))
 
 
-SAFETY_TRIGGER_TEXT = "צליל קריטי מותר רק לאירועי בטיחות שהופעלו בהגדרות › התראות"
+SAFETY_TRIGGER_TEXT = _t("ext.critical_safety_only")  # I18N-BACKEND-2490: a `Msg`, its string value the Hebrew as before
 # The first bridge whose closed schema accepts a wall-button press and the critical-sound payload (custom_components/smplwise_bridge/config_policy.py,
 # KAV079-295). The release that ships this change bumps the bridge to this version; an older bridge would refuse such a save as a changed locked part.
 BRIDGE_KAV_REQUIRED = "0.10.0"
-BRIDGE_TOO_OLD_TEXT = "נדרש עדכון של רכיב החיבור כדי לשמור את החלק הזה"
+BRIDGE_TOO_OLD_TEXT = _t("ext.bridge_too_old")
 
 
 def bridge_ready(conn: sqlite3.Connection) -> bool:
@@ -484,7 +486,7 @@ def draft_errors(ctx: Any, kind: str, draft: Mapping[str, Any], item_id: str | N
         fresh = model.block_changed(b, w.section, mctx)
         if w.section == "trigger" and b.get("type") == "button" and fresh and isinstance(b.get("device_id"), str) and b["device_id"]:
             if ctx.principal is not None and not device_reachable(ctx, b["device_id"]):
-                out.append({"path": w.path, "code": "device_not_in_scope", "message": "המפסק אינו בהיקף ההרשאה שלך"})
+                out.append({"path": w.path, "code": "device_not_in_scope", "message": _t("ext.device_not_in_scope")})
             elif not bridge_ready(ctx.conn):
                 out.append({"path": w.path, "code": "bridge_too_old", "message": BRIDGE_TOO_OLD_TEXT})
         if w.section == "action" and b.get("type") == "service" and b.get("role") == "notify" and b.get("critical") and fresh:
@@ -640,7 +642,7 @@ def detect_press(ctx: Any, device_id: str, buttons: list[dict[str, Any]]) -> dic
         if time.monotonic() - _ACTIVE.get(user, -1e9) < 1:
             from ..errors import ApiError
 
-            raise ApiError(429, "rate_limited", "יותר מדי בקשות ברצף; נסו שוב בעוד רגע.")
+            raise ApiError(429, "rate_limited", _t("ext.rate_limited"))
         _ACTIVE[user] = time.monotonic()
     timeout = _int(ctx.cfg, "automations.wall_listen_s")
     triggers = [{"device_id": device_id, "domain": p["domain"], "type": p["ha_type"], "subtype": p["ha_subtype"], **({"discovery_id": p["discovery_id"]} if p.get("discovery_id") else {})}
@@ -713,16 +715,36 @@ def schedule_test_plan(ctx: Any, draft: Mapping[str, Any], may_manage: Callable[
             else:
                 cleaned = {}
             name = ctx.name_of(eid) if eid and ctx.access.can_read_state(eid) else (eid or "")
-            label = spec["label"] if spec else (a.get("service") or "")
+            label = action_label(a["service"], spec["label"]) if spec else (a.get("service") or "")
             if testable:
                 s = snapshot_of(ctx.entity(eid))
                 if s is not None:
                     snap.setdefault(eid, s)
-            steps.append({"path": f"slots.{sl['index']}.actions.{ai}", "sentence": f"{when} · {label} · {name}".strip(" ·"), "action": a.get("service"),
+            steps.append({"path": f"slots.{sl['index']}.actions.{ai}", "sentence": _step_sentence(when, label, name), "action": a.get("service"),
                           "data": {k: v for k, v in cleaned.items() if k != "entity_id"} if testable else {}, "entity_ids": [eid] if testable else [],
                           "sensitive": bool(testable and (spec["sensitive"] or ctx.sens_class(a["service"], eid))),
                           "now": [{"entity_id": eid, "state": (ctx.entity(eid) or {}).get("state")}] if testable else []})
     return {"steps": steps, "snapshot": list(snap.values()), "triggers": [], "end": _enum(ctx.cfg, "automations.device_test_end")}
+
+
+def action_label(service: str, label: str) -> str:
+    """I18N-BACKEND-2490 (third pass): an allow-listed action's label (services/ha_bridge.ACTIONS) as a `Msg` (`action.label.<id>`) when the
+    catalogue holds the same Hebrew, else the label as it is."""
+    key = f"action.label.{service}"
+    return _t(key) if CATALOGUE.get(key, {}).get("he") == label else label
+
+
+def _step_sentence(when: str, label: str, name: str) -> str:
+    """"<time> · <action> · <device>" without the empty parts - the Hebrew exactly as the f-string `.strip(" ·")` wrote it; the action label
+    renders in the reader's language. Anything the parts-wise form would not reproduce byte for byte (a name that itself starts or ends
+    with a dot or a space) keeps the plain string."""
+    plain = f"{when} · {label} · {name}".strip(" ·")
+    parts: list[str] = []
+    for p in (when, label, name):
+        if p:
+            parts += [" · ", p] if parts else [p]
+    built = cat(*parts) if parts else ""
+    return built if str.__str__(built) == plain else plain
 
 
 def restore_actions(snapshot: list[Mapping[str, Any]], current: Callable[[str], Mapping[str, Any] | None]) -> list[dict[str, Any]]:

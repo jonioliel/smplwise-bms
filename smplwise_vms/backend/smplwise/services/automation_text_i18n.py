@@ -181,6 +181,12 @@ TEXTS: dict[str, tuple[str, str]] = {
     "bp.in": ("{word} ב{v}{v2}", "{word} in {v}{v2}"),
     "bp.more": (" ועוד {v}", " and {v} more"),
     "bp.chosen_area": ("{word} באזור שנבחר", "{word} in the chosen area"),
+    # building presence: validate() problems (third pass; English as the frontend's building-presence / api-automation words)
+    "bp.err.off": ("אין חיישני נוכחות מסומנים במבנה", "No sensors in the building are marked as presence sensors"),
+    "bp.err.sensors_required": ("בחרו חיישני נוכחות", "Choose presence sensors"),
+    "bp.err.untagged": ("החיישן אינו מסומן כחיישן נוכחות", "The sensor is not marked as a presence sensor"),
+    "bp.err.minutes": ("הגדירו זמן בדקות (1 עד 1440)", "Set a time in minutes (1 to 1440)"),
+    "bp.err.mode": ("בחרו מצב", "Choose a state"),
 }
 
 # The verb of a service (services/automation_text.ACTION_VERBS holds the same Hebrew; a test keeps the two in step). English from the

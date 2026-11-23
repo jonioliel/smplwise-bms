@@ -113,20 +113,21 @@ def condition_sentence(b: Mapping[str, Any], building_sensors: list[str] | None 
 
 
 def validate(b: Mapping[str, Any], section: str, tagged: list[str] | None, enabled: bool) -> list[tuple[str, str]]:
-    """(code, Hebrew message) per problem of a NEW / CHANGED block."""
+    """(code, message) per problem of a NEW / CHANGED block; the message a `Msg` (`auto.bp.err.*`, I18N-BACKEND-2490) - its string value
+    the Hebrew as before, rendered in the reader's language at the automation routes' edge."""
     out: list[tuple[str, str]] = []
     if not enabled:
-        out.append(("building_presence_off", "אין חיישני נוכחות מסומנים במבנה"))
+        out.append(("building_presence_off", t("auto.bp.err.off")))
         return out
     sensors = b.get("sensors")
     if not isinstance(sensors, list) or not sensors or len(sensors) > MAX_SENSORS or not all(isinstance(s, str) and is_entity_id(s) for s in sensors):
-        out.append(("presence_sensors_required", "בחרו חיישני נוכחות"))
+        out.append(("presence_sensors_required", t("auto.bp.err.sensors_required")))
     elif tagged is not None and any(s not in tagged for s in sensors):
-        out.append(("presence_sensor_untagged", "החיישן אינו מסומן כחיישן נוכחות"))
+        out.append(("presence_sensor_untagged", t("auto.bp.err.untagged")))
     if section == "trigger":
         m = b.get("minutes")
         if isinstance(m, bool) or not isinstance(m, int) or not 1 <= m <= MAX_MINUTES:
-            out.append(("presence_minutes_invalid", "הגדירו זמן בדקות (1 עד 1440)"))
+            out.append(("presence_minutes_invalid", t("auto.bp.err.minutes")))
     elif b.get("mode") not in MODES:
-        out.append(("presence_mode_invalid", "בחרו מצב"))
+        out.append(("presence_mode_invalid", t("auto.bp.err.mode")))
     return out
