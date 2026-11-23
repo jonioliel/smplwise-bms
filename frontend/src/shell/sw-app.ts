@@ -7,6 +7,7 @@ import '../components/sw-icon';
 import '../components/sw-button';
 import '../components/sw-badge';
 import '../components/sw-tabs';
+import '../components/sw-checkbox'; // SHARED-CHECKBOX-2480: the shared selection check box, registered app-wide (as sw-toggle is) for the screens that move onto it
 import '../components/sw-avatar';
 import './sw-user-menu';
 import './sw-nav-order';

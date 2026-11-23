@@ -475,6 +475,19 @@ export const TOKEN_GROUPS: TokenGroup[] = [
     },
   },
   {
+    // SHARED-CHECKBOX-2480: the SIZE knobs of the shared check box (components/sw-checkbox.ts) - the sizes live here because a size is
+    // a px value. A module look tunes them on its own host (`--sw-check-size: 16px` for a dense table). Its colour, radius, gap and
+    // font knobs (--sw-check-on / -off / -bg / -mark / -radius / -gap / -fs) are read with a token fallback inside the component, so
+    // they follow a screen that re-tints its accent or surface locally; they are not declared here.
+    id: 'check',
+    title: 'Check box sizes (sw-checkbox knobs)',
+    tokens: {
+      '--sw-check-size': same('18px'), // the drawn box, border included (the size most native boxes of the product were set to)
+      '--sw-check-border-w': same('2px'), // the unchecked box's ring (a UI boundary, >= 3:1 on its surface)
+      '--sw-check-touch': same('44px'), // the transparent hit area's block size under a coarse pointer
+    },
+  },
+  {
     // Bubble foundation (2026-10-02). Every name here is NEW. The base values are neutral: the classic skin draws nothing with
     // them that it did not draw before (a sheet is opaque, a pill is a plain surface, the hues are the accent). The bubble skin
     // gives them their values; a PALETTE (later phase) is a set of values for the colour names of this group and of
