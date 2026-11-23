@@ -19,6 +19,12 @@ ROLES: dict[str, list[str]] = {
 ROLE_NAMES_HE: dict[str, str] = {
     role["id"]: role["name_he"] for role in json.loads((Path(__file__).parent / "roles.json").read_text(encoding="utf-8"))["roles"]
 }
+# I18N-BACKEND-2490 (third pass): every built-in role name is a `Msg` (smplwise/i18n.py; the texts in smplwise/rbac_text.py) whose string
+# value is roles.json's `name_he` above, byte for byte (a `{tickets}` token included); the screens render it in the reader's language.
+from . import rbac_text  # noqa: E402,F401 - registers `role.*` and `scope.*`
+from .i18n import CATALOGUE as _CATALOGUE, Lit, t  # noqa: E402
+
+ROLE_NAMES_HE = {k: (t(f"role.{k}") if _CATALOGUE.get(f"role.{k}", {}).get("he") == v else v) for k, v in ROLE_NAMES_HE.items()}
 
 SCOPE_ORDER = ("installation", "site", "building", "floor", "camera", "access_control_station")
 INSTALLATION = ("installation", "*")
@@ -458,7 +464,12 @@ def role_name(conn: sqlite3.Connection, role_id: str) -> str:
     if "{" in name:
         from .services.tickets import naming
 
-        return naming.render_for(conn, name, "he")
+        key = getattr(name, "key", None)
+        if key not in _CATALOGUE:
+            return naming.render_for(conn, name, "he")
+        # I18N-BACKEND-2490: the token filled in each language from ONE read of the setting; the string value is the Hebrew as before
+        doc = naming.read(conn)
+        return Lit({"he": naming.render(str.__str__(name), doc["he"]), "en": naming.render(_CATALOGUE[key]["en"], doc["en"])})
     return name
 
 
@@ -480,17 +491,18 @@ def bindings_of(conn: sqlite3.Connection, principal: Principal) -> list[dict]:
 
 
 def scope_name(conn: sqlite3.Connection, scope_type: str, scope_id: str) -> str:
+    # I18N-BACKEND-2490 (third pass): the words are `Msg`s (`scope.*`, smplwise/rbac_text.py) - the Hebrew as before; names are data
     if scope_type == "installation":
-        return "כל ההתקנה"
+        return t("scope.installation")
     if scope_type == "camera":
         row = conn.execute("SELECT alias, name_source, channel FROM cameras WHERE id = ?", (scope_id,)).fetchone()
-        return f"מצלמה · {row['alias'] or row['name_source'] or 'ערוץ ' + str(row['channel'])}" if row else scope_id
+        return t("scope.camera", name=row["alias"] or row["name_source"] or t("scope.channel", n=row["channel"])) if row else scope_id
     if scope_type == STATION:
         # the station's name from the WisKey copy the add-on serves; never its opaque id on a screen
         from .services import intercom_sync
 
         station = intercom_sync.SYNC.station(scope_id)
-        return f"עמדה · {station['name']}" if station and station.get("name") else "עמדת אינטרקום (לא זמינה כרגע)"
+        return t("scope.station", name=station["name"]) if station and station.get("name") else t("scope.station_unavailable")
     table = {"site": "sites", "building": "buildings", "floor": "floors"}[scope_type]
     row = conn.execute(f"SELECT name FROM {table} WHERE id = ?", (scope_id,)).fetchone()
     return row["name"] if row else scope_id

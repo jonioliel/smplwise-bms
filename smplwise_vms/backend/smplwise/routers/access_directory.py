@@ -12,7 +12,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import get_setting, permission_revision, unlocked
 from ..errors import ApiError
-from ..i18n import lang_of, localize
+from ..i18n import lang_of, localize, localize_for
 from ..rbac import INSTALLATION, Principal, all_roles, authorize, require
 from ..services import access_directory_store as store
 from ..services import ha_client
@@ -31,7 +31,7 @@ def list_users(principal: Principal = Depends(current_principal_ro), conn: sqlit
         return localize(_delegated_directory(conn, principal), lang_of(conn, principal))  # I18N-BACKEND-2490: the scope names
     require(conn, principal, "identity.directory.read", INSTALLATION)
     return {
-        "users": _users(conn, principal),
+        "users": localize_for(conn, principal, _users(conn, principal)),  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
         "directory": {
             "paired": bool(get_setting(conn, "bridge.paired_at")),
             "last_directory_at": get_setting(conn, "bridge.directory_at") or None,

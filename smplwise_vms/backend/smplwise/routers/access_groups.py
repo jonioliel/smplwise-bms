@@ -32,7 +32,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import bump_permission_revision, new_id, now_iso
 from ..errors import ApiError
-from ..i18n import lang_of
+from ..i18n import lang_of, localize_for
 from ..rbac import INSTALLATION, Principal, all_roles, authorize, effective_permissions, require, scope_name
 from ..services import access_groups_store as store
 from ..services import revocation
@@ -143,6 +143,7 @@ def _group_dict(conn: sqlite3.Connection, g: sqlite3.Row, principal: Principal |
     }
     if principal is not None:
         out["is_member"] = any(m["id"] == principal.user_id for m in members)
+        return localize_for(conn, principal, out)  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
     return out
 
 
@@ -435,14 +436,14 @@ def group_impact(group_id: str, body: ImpactBody, principal: Principal = Depends
         rows.append({"id": uid, "name": _subject_name(conn, "user", uid), "change": change,
                      "added": sorted({p for x in per_scope for p in x["added"]}), "removed": sorted({p for x in per_scope for p in x["removed"]}), "scopes": per_scope})
     rows.sort(key=lambda r: (r["change"], r["name"].lower()))
-    return {
+    return localize_for(conn, principal, {  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
         "group_id": group_id,
         "op": body.op,
         "revision": g["revision"],
         "scopes": [{"scope_type": s[0], "scope_id": s[1], "scope_name": scope_name(conn, *s)} for s in scopes],
         "users": rows,
         "labels": rendered_labels(conn, lang_of(conn, principal)),  # I18N-BACKEND-2490; CR-038 D33: a module's templated label carries its display name
-    }
+    })
 
 
 # ---------------------------------------------------------------- bulk bindings

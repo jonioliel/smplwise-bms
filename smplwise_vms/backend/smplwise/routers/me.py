@@ -16,6 +16,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..capabilities import may_see_recorders, resolve as resolve_capabilities
 from ..db import Database, get_setting, now_iso, permission_revision
 from ..errors import forbidden, validation
+from ..i18n import localize_for
 from ..mode import installation_mode
 from ..rbac import INSTALLATION, Principal, bindings_of, effective_permissions, has_any_binding, permissions_anywhere, permissions_fingerprint
 from ..services import brand_assets, revocation
@@ -134,7 +135,7 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
             "source": principal.source,
         },
         "active": _active(conn, principal),
-        "bindings": bindings_of(conn, principal),
+        "bindings": localize_for(conn, principal, bindings_of(conn, principal)),  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
         "permissions_installation": installation_permissions,
         "permissions_any": permissions_anywhere(conn, principal),  # what the shell may show at all (any scope)
         "has_access": has_any_binding(conn, principal),

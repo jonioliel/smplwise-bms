@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Request
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import now_iso, permission_revision
 from ..errors import ApiError
+from ..i18n import localize_for
 from ..rbac import INSTALLATION, Principal, require
 from ..services import access_bindings_store as store
 from ..services import revocation
@@ -31,7 +32,7 @@ def list_bindings(principal: Principal = Depends(current_principal_ro), conn: sq
     rows = store.active_bindings(conn, now_iso())
     if not full_authority(conn, principal):
         rows = [b for b in rows if delegated_sees(conn, principal, b)]
-    return {"bindings": [_binding_dict(conn, b) for b in rows], "revision": permission_revision(conn)}
+    return localize_for(conn, principal, {"bindings": [_binding_dict(conn, b) for b in rows], "revision": permission_revision(conn)})  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
 
 
 @router.post("/access/bindings", status_code=201, **wire(W.BindingCreated))
@@ -43,7 +44,7 @@ def create_binding(body: BindingBody, request: Request, principal: Principal = D
     else:
         revocation.changed(affected_users(conn, body.subject_kind, body.subject_id))  # the shell shows what was granted
     row = store.binding(conn, bid)
-    return {**_binding_dict(conn, row), "revision": rev}
+    return localize_for(conn, principal, {**_binding_dict(conn, row), "revision": rev})  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
 
 
 @router.delete("/access/bindings/{binding_id}", **wire(W.BindingRevoked))

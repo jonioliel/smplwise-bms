@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from ..auth import current_principal_ro, get_read_conn
-from ..i18n import lang_of
+from ..i18n import lang_of, localize
 from ..rbac import INSTALLATION, LEGACY_PERMISSIONS, Principal, ROLES, authorize, require, role_name
 from ..services import access_roles_store as store
 from ..services.rbac_admin import SENSITIVE, SYSTEM_PERMISSIONS, _custom_role_dict, assigns_anywhere, delegable_roles, delegation_block, full_authority, rendered_labels
@@ -40,7 +40,8 @@ def list_roles(principal: Principal = Depends(current_principal_ro), conn: sqlit
         roles.append(_custom_role_dict(conn, r))
     if delegated_only:
         roles = [r for r in roles if r["id"] in delegable]
-    return {"roles": roles, "labels": rendered_labels(conn, lang_of(conn, principal)),  # I18N-BACKEND-2490: in the reader's language
+    lang = lang_of(conn, principal)
+    return {"roles": localize(roles, lang), "labels": rendered_labels(conn, lang),  # I18N-BACKEND-2490: in the reader's language (names and labels)
             "sensitive": SENSITIVE, "system_permissions": sorted(SYSTEM_PERMISSIONS), "delegable_roles": delegable,
             "legacy_permissions": LEGACY_PERMISSIONS,  # WXPERM: old name -> the permission it stands for (the editor hides an old name a role does not hold)
             "can_manage_roles": authorize(conn, principal, "rbac.roles.manage", INSTALLATION).allowed, "delegated": delegated_only or not full_authority(conn, principal)}

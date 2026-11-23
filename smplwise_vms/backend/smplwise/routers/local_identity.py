@@ -63,6 +63,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import bump_permission_revision, now_iso
 from ..errors import ApiError
+from ..i18n import localize_for
 from ..rbac import INSTALLATION, Principal, authorize, is_system_admin, require, role_name, scope_name
 from ..remote_channel import csrf_reason, is_remote
 from ..services import ha_user_auth as hua
@@ -457,7 +458,7 @@ def list_local_users(request: Request, include_deleted: bool = Query(False), pri
     for c in li.chains(conn, None):
         live[c["user_id"]] = live.get(c["user_id"], 0) + 1
     return {"enabled": li.enabled(conn), "can_manage": authorize(conn, principal, "identity.local.manage", INSTALLATION).allowed,
-            "channel": "remote" if is_remote(request) else "local", "users": [_user_dict(conn, r, live) for r in rows],
+            "channel": "remote" if is_remote(request) else "local", "users": localize_for(conn, principal, [_user_dict(conn, r, live) for r in rows]),  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
             # USR2 phase 2: can a code / a link leave by WhatsApp at all (an account mapped and connected), and where links point
             "whatsapp_ready": lr.channel_ready(conn), "public_url": lr.public_origin(conn, request),
             # USR2 phase 4: the owner switch of passkey-only sign-in (the tab shows it next to the address passkeys depend on)
@@ -612,7 +613,7 @@ def _create_local_user(body: LocalUserCreate, request: Request, principal: Princ
         audit(conn, actor=principal, action="auth.local.link.issued", decision="allowed", resource_type="user", resource_id=uid, request_id=_rid(request),
               details={"purpose": "first_login", "via": "shown", "channel": channel, "temporary": False})
     revocation.changed([uid])
-    return {"user": _user_dict(conn, _user_row(conn, uid)), "password_set": hashed is not None,
+    return {"user": localize_for(conn, principal, _user_dict(conn, _user_row(conn, uid))), "password_set": hashed is not None,  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
             "link": _link_answer(request, token, expires, "first_login") if token is not None else None}
 
 
@@ -659,7 +660,7 @@ def set_local_password(user_id: str, body: PasswordSetBody, request: Request, pr
     revocation.changed([user_id])
     if ended:
         li.close_sockets_from_thread()
-    return {**_user_dict(conn, _user_row(conn, user_id)), "sessions_ended": ended, "links_invalidated": links}
+    return localize_for(conn, principal, {**_user_dict(conn, _user_row(conn, user_id)), "sessions_ended": ended, "links_invalidated": links})  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
 
 
 @router.get("/identity/local-users/export")
@@ -687,7 +688,7 @@ def export_local_users(request: Request, principal: Principal = Depends(current_
 @router.get("/identity/local-users/{user_id}", **wire(W.LocalUser))
 def get_local_user(user_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "identity.directory.read", INSTALLATION)
-    return _user_dict(conn, _user_row(conn, user_id))
+    return localize_for(conn, principal, _user_dict(conn, _user_row(conn, user_id)))  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
 
 
 def _end_access(conn: sqlite3.Connection, user_id: str, reason: str) -> dict[str, int]:
@@ -771,7 +772,7 @@ def patch_local_user(user_id: str, body: LocalUserPatch, request: Request, princ
     out = _user_dict(conn, _user_row(conn, user_id))
     if suggest:
         out["suggest_also"] = {"ha_user_id": suggest, "active": not bool(fields["active"])}
-    return out
+    return localize_for(conn, principal, out)  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
 
 
 @router.delete("/identity/local-users/{user_id}", **wire(W.LocalUserDeleted))
@@ -824,7 +825,7 @@ def change_local_role(user_id: str, body: RoleBody, request: Request, principal:
                    "after": {"role_id": body.role_id, "scope": f"{scope[0]}:{scope[1]}", "binding_id": bid}, "admin": admin,
                    **({"reset_mode_switched": "manager_only"} if reset_switched else {})})
     revocation.mark([user_id])
-    return _user_dict(conn, _user_row(conn, user_id))
+    return localize_for(conn, principal, _user_dict(conn, _user_row(conn, user_id)))  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
 
 
 @router.post("/identity/local-users/{user_id}/link", **wire(W.LocalUserLink))
@@ -885,7 +886,7 @@ def unlock_local_user(user_id: str, request: Request, principal: Principal = Dep
     store.unlock(conn, user_id, principal.user_id, now_iso())
     li.TIERS.acct_clear_name(row["username"])  # USR2-FIX F2: the per-network delays of the name end too
     audit(conn, actor=principal, action="identity.local.user.unlocked", decision="allowed", resource_type="user", resource_id=user_id, request_id=_rid(request))
-    return _user_dict(conn, _user_row(conn, user_id))
+    return localize_for(conn, principal, _user_dict(conn, _user_row(conn, user_id)))  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
 
 
 @router.post("/identity/local-users/{user_id}/sessions/revoke", **wire(W.LocalUserSessionsRevoked))
@@ -915,7 +916,7 @@ def set_ha_link(user_id: str, body: HaLinkBody, request: Request, principal: Pri
     store.insert_ha_link(conn, body.ha_user_id, user_id, principal.user_id, now_iso())
     audit(conn, actor=principal, action="identity.link.created", decision="allowed", resource_type="user", resource_id=user_id, request_id=_rid(request),
           details={"ha_user_id": body.ha_user_id})
-    return _user_dict(conn, _user_row(conn, user_id))
+    return localize_for(conn, principal, _user_dict(conn, _user_row(conn, user_id)))  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
 
 
 @router.delete("/identity/local-users/{user_id}/ha-link", **wire(W.LocalUser))
@@ -925,4 +926,4 @@ def remove_ha_link(user_id: str, request: Request, principal: Principal = Depend
     n = store.delete_ha_link(conn, user_id)
     if n:
         audit(conn, actor=principal, action="identity.link.removed", decision="allowed", resource_type="user", resource_id=user_id, request_id=_rid(request))
-    return _user_dict(conn, _user_row(conn, user_id))
+    return localize_for(conn, principal, _user_dict(conn, _user_row(conn, user_id)))  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language

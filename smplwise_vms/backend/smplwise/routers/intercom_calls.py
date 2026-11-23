@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from ..audit import audit
 from ..auth import current_principal, get_conn, get_read_conn, read_gate, settings_of
 from ..errors import ApiError
+from ..i18n import localize_for
 from ..rbac import INSTALLATION, Principal, ROLES, custom_roles, require, role_name
 from ..services import door_authority, intercom_calls, intercom_sync, wiskey_camera
 from ..services import intercom_authority as ia
@@ -87,7 +88,7 @@ def _settings_view(conn: sqlite3.Connection, request: Request) -> dict[str, Any]
 
 @router.get("/intercom/calls/settings")
 def get_call_settings(request: Request, principal: Principal = Depends(_admin_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    return _settings_view(conn, request)
+    return localize_for(conn, principal, _settings_view(conn, request))  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
 
 
 @router.put("/intercom/calls/settings")
@@ -103,4 +104,4 @@ def put_call_settings(request: Request, body: dict[str, Any], principal: Princip
     intercom_calls.save_settings(conn, value)
     audit(conn, actor=principal, action="intercom.call_banner.settings", decision="allowed", resource_type="setting", resource_id=intercom_calls.SETTING_KEY,
           request_id=_rid(request), details={"old": old, "new": value})
-    return _settings_view(conn, request)
+    return localize_for(conn, principal, _settings_view(conn, request))  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language

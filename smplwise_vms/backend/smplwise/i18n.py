@@ -99,6 +99,32 @@ class Cat(Msg):
         return "".join(text(p, lang) for p in self.parts)
 
 
+LIT_KEY = "i18n.lit"
+
+
+class Lit(Msg):
+    """A text already worded in each language (third pass: a role name whose `{tickets}` token is filled with the installation's own name
+    of the tickets module in each language, services/tickets/naming.py): its `str` value is the Hebrew, `render(lang)` the text of `lang`
+    (Hebrew when it has none)."""
+
+    texts: dict[str, str]
+
+    def __new__(cls, texts: Mapping[str, str]) -> "Lit":
+        self = str.__new__(cls, texts[DEFAULT_LANG])
+        self.key = LIT_KEY
+        self.params = {}
+        self.texts = dict(texts)
+        return self
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        return (Lit, (self.texts,))
+
+    def render(self, lang: str) -> str:
+        if lang == DEFAULT_LANG:
+            return str.__str__(self)
+        return str(self.texts.get(lang) or self.texts[DEFAULT_LANG])
+
+
 def cat(*parts: Any) -> Any:
     """The parts one after the other: a `Cat` when any part is a `Msg`, else the plain concatenation (no wrapper around data)."""
     if any(isinstance(p, Msg) for p in parts):
@@ -134,6 +160,13 @@ def localize(value: Any, lang: str) -> Any:
     if isinstance(value, (list, tuple)):
         return [localize(v, lang) for v in value]
     return value
+
+
+def localize_for(conn: Any, principal: Any, value: Any) -> Any:
+    """`value` for the requesting principal (third pass: the routes that show role and scope names, schedules' refusals): rendered in
+    their interface language; a Hebrew reader gets the value as it is (every `Msg`'s string value is the Hebrew), with no copy."""
+    lang = lang_of(conn, principal)
+    return value if lang == DEFAULT_LANG else localize(value, lang)
 
 
 def text(value: Any, lang: str) -> str:

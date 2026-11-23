@@ -14,7 +14,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import bump_permission_revision, new_id, now_iso, permission_revision, set_setting
 from ..errors import ApiError
-from ..i18n import lang_of
+from ..i18n import lang_of, localize_for
 from ..rbac import INSTALLATION, Principal, ROLES, ROLE_NAMES_HE, all_roles, require, role_name
 from ..services import access_custom_roles_store as store
 from ..services import revocation
@@ -81,7 +81,7 @@ def preview_role_change(body: RolePreviewBody, principal: Principal = Depends(cu
     perms, sens = _validate_role_body(body.permissions, body.sensitive)
     if body.role_id and body.role_id not in all_roles(conn):
         raise ApiError(404, "not_found", "התפקיד לא נמצא.")
-    return {**_role_impact(conn, body.role_id, sorted(set(perms) | set(sens))), "labels": rendered_labels(conn, lang_of(conn, principal))}
+    return localize_for(conn, principal, {**_role_impact(conn, body.role_id, sorted(set(perms) | set(sens))), "labels": rendered_labels(conn, lang_of(conn, principal))})  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
 
 
 @router.patch("/access/roles/{role_id}", **wire(CustomRoleUpdated))
@@ -105,7 +105,7 @@ def update_custom_role(role_id: str, body: CustomRolePatch, request: Request, pr
         revocation.changed({u["id"] for u in impact["users"]})
     audit(conn, actor=principal, action="rbac.role.update", decision="allowed", resource_type="role", resource_id=role_id, request_id=_rid(request),
           details={"added": impact["added"], "removed": impact["removed"], "affected_users": len(impact["users"]), "affected_bindings": impact["bindings"], "delegable": body.delegable, "revision": rev})
-    return {**_custom_role_dict(conn, store.custom_role(conn, role_id)), "impact": impact}
+    return localize_for(conn, principal, {**_custom_role_dict(conn, store.custom_role(conn, role_id)), "impact": impact})  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
 
 
 @router.delete("/access/roles/{role_id}", **wire(CustomRoleDeleted))
