@@ -16,6 +16,8 @@ from __future__ import annotations
 import re
 from typing import Any, Mapping
 
+from ..i18n import t
+from . import automation_text_i18n  # noqa: F401 - registers the `auto.*` texts (I18N-BACKEND-2490)
 from .automation_policy import is_entity_id
 
 TRIGGER_TYPE = "building_empty"
@@ -92,21 +94,22 @@ def build_condition(b: Mapping[str, Any]) -> dict[str, Any]:
     return {"condition": "template", "value_template": template_for(b["mode"], list(b["sensors"]))}
 
 
-def trigger_sentence(b: Mapping[str, Any]) -> str:
+def trigger_sentence(b: Mapping[str, Any]) -> Any:
+    """I18N-BACKEND-2490: a `Msg` (services/automation_text_i18n.py `auto.bp.*`), its string value the Hebrew sentence as before."""
     n = int(b.get("minutes") or 0)
-    return f"כשהמבנה ריק במשך {n} דקות" if n != 1 else "כשהמבנה ריק במשך דקה"
+    return t("auto.bp.empty", minutes=n) if n != 1 else t("auto.bp.empty1")
 
 
-def condition_sentence(b: Mapping[str, Any], building_sensors: list[str] | None = None, names: Any = None) -> str:
+def condition_sentence(b: Mapping[str, Any], building_sensors: list[str] | None = None, names: Any = None) -> Any:
     """"יש נוכחות במבנה" for the whole building (the block lists exactly the tagged sensors), else "ב<names>"."""
     occupied = b.get("mode") != "empty"
-    word = "יש נוכחות" if occupied else "אין נוכחות"
+    word = t("auto.bp.occupied") if occupied else t("auto.bp.not_occupied")
     sensors = list(b.get("sensors") or [])
     if building_sensors is not None and set(sensors) == set(building_sensors):
-        return f"{word} במבנה"
+        return t("auto.bp.building", word=word)
     if names:
-        return f"{word} ב" + " · ".join(names(s) for s in sensors[:3]) + (f" ועוד {len(sensors) - 3}" if len(sensors) > 3 else "")
-    return f"{word} באזור שנבחר"
+        return t("auto.bp.in", word=word, v=" · ".join(names(s) for s in sensors[:3]), v2=t("auto.bp.more", v=len(sensors) - 3) if len(sensors) > 3 else "")
+    return t("auto.bp.chosen_area", word=word)
 
 
 def validate(b: Mapping[str, Any], section: str, tagged: list[str] | None, enabled: bool) -> list[tuple[str, str]]:

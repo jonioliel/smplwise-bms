@@ -33,6 +33,7 @@ from ..services import automation_transport as tr
 from ..services import automation_view as view
 from ..services import automations as store
 from ._common import rid as _rid
+from .automations import _out  # I18N-BACKEND-2490: the step sentences in the reader's language
 
 router = APIRouter()
 
@@ -107,8 +108,8 @@ def conflict_summary(request: Request, principal: Principal = Depends(current_pr
     _require_any(conn, principal, (scope.MANAGE, *SCHEDULE_PERMS))
     ctx = _ctx(request, conn, principal)
     if not ext.precheck_on(ctx.cfg):
-        return {"enabled": False, "window_min": None, "items": []}
-    return {"enabled": True, **ext.conflict_summary(ctx)}
+        return _out(conn, principal, {"enabled": False, "window_min": None, "items": []})
+    return _out(conn, principal, {"enabled": True, **ext.conflict_summary(ctx)})
 
 
 @router.post("/automations-ext/conflicts")
@@ -122,13 +123,13 @@ def conflicts(request: Request, raw: bytes = Depends(_raw), principal: Principal
     ctx = _ctx(request, conn, principal)
     dev = {"device_test": ext.flags(ctx.cfg)["device_test"], "device_test_end": ext.flags(ctx.cfg)["device_test_end"]}
     if not ext.precheck_on(ctx.cfg):
-        return {"enabled": False, "conflicts": [], **dev}
+        return _out(conn, principal, {"enabled": False, "conflicts": [], **dev})
     try:
         rows = ext.conflicts_for(ctx, body.source, body.id, body.draft)
     except (KeyError, TypeError, ValueError, AttributeError):
         raise ApiError(422, "validation", "הטיוטה אינה שלמה או אינה תקינה.", details={"fields": ["draft"]}) from None
     f = ext.flags(ctx.cfg)
-    return {"enabled": True, "window_min": f["conflict_window_min"], "save_with_warnings": f["save_with_warnings"], "conflicts": rows, **dev}
+    return _out(conn, principal, {"enabled": True, "window_min": f["conflict_window_min"], "save_with_warnings": f["save_with_warnings"], "conflicts": rows, **dev})
 
 
 # ---------------------------------------------------------------- wall buttons
@@ -155,7 +156,7 @@ def wall_devices(request: Request, principal: Principal = Depends(current_princi
     _manage(conn, principal)
     ctx = _ctx(request, conn, principal)
     _flag(ctx, "automations.wall_buttons_editable")
-    return {"devices": ext.wall_devices(ctx), "timing": ext.flags(ctx.cfg)["wall_timing"]}
+    return _out(conn, principal, {"devices": ext.wall_devices(ctx), "timing": ext.flags(ctx.cfg)["wall_timing"]})
 
 
 @router.get("/automations-ext/wall-buttons/{device_id}")
@@ -165,7 +166,7 @@ def device_buttons(request: Request, device_id: str = DEVICE_ID, item_id: str | 
     ctx = _ctx(request, conn, principal)
     _flag(ctx, "automations.wall_buttons_editable")
     _device_or_404(ctx, device_id)
-    return ext.device_buttons(ctx, device_id, item_id, _list_triggers)
+    return _out(conn, principal, ext.device_buttons(ctx, device_id, item_id, _list_triggers))
 
 
 @router.post("/automations-ext/wall-buttons/{device_id}/detect")
@@ -180,7 +181,7 @@ def detect(request: Request, device_id: str = DEVICE_ID, principal: Principal = 
     out = ext.detect_press(ctx, device_id, info["buttons"])
     audit(conn, actor=principal, action="automation.button_detect", decision="allowed", resource_type="ha_device", resource_id=device_id,
           request_id=_rid(request), details={"detected": out["detected"]})
-    return out
+    return _out(conn, principal, out)
 
 
 # ---------------------------------------------------------------- the on-device test
@@ -210,7 +211,7 @@ def device_test(request: Request, item_id: str = Path(min_length=1, max_length=1
     plan = ext.test_plan(ctx, draft)
     audit(conn, actor=principal, action="automation.device_test", decision="allowed", resource_type="automation", resource_id=item_id,
           request_id=_rid(request), details={"steps": len(plan["steps"])})
-    return plan
+    return _out(conn, principal, plan)
 
 
 @router.post("/automations-ext/schedule/{schedule_id}/device-test")
@@ -244,7 +245,7 @@ def schedule_device_test(request: Request, schedule_id: str = Path(min_length=1,
         raise ApiError(422, "validation", "הטיוטה אינה שלמה או אינה תקינה.", details={"fields": ["draft"]}) from None
     audit(conn, actor=principal, action="schedule.device_test", decision="allowed", resource_type="schedule", resource_id=schedule_id,
           request_id=_rid(request), details={"steps": len(plan["steps"]), "testable": sum(1 for x in plan["steps"] if x["entity_ids"])})
-    return plan
+    return _out(conn, principal, plan)
 
 
 @router.post("/automations-ext/device-test/restore")
