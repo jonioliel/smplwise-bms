@@ -115,9 +115,33 @@ The hooks moved from `<input>` to the `sw-toggle` host, so the specs that drove 
     both passed on a rerun).
   - the base `092bbc9a1` was run with the same 11 evidence specs for the before / after screenshots: 183 passed, 2 failed (the same
     two grants3 public-page tests).
-- NOT RUN: the pixel specs and the full lanes on the runner (`~/work/hsw.sh HEAD 092bbc9a1` is ready there: every spec with a
-  linux baseline without `-u`, the changed functional specs, a before / after capture). Pixel baselines: none refreshed yet - the
-  runner pixel check decides which ones move (`evidence-wiskey-installer`, `pixel-plan-wizard-2433` are the likely ones).
+- (superseded by the runner passes below)
 
+## Runner passes (22.11 night - 23.11, `nice -n 19`, `--workers=2`, under `~/.smplwise-tests.lock`)
+
+Pass 1 (`~/work/hsw.sh a0512a2d9 092bbc9a1`): pixel 12 failed / 815 passed; functional 52 failed, 1 flaky, 93 did not run,
+1629 passed; capture head and base 1 failed each. Classification:
+
+- 43 functional failures: dev-server specs (their header says so; the gate runs them on the Vite dev server, desktop) run against the
+  dist preview - `layout-widgets-break-297` 24, `layout-home-widgets-wide-298` 8, `evidence-grants3-295` 4, `evidence-media-remote`
+  3 (+ the 93 "did not run" behind it in its serial chain), `layout-home-edit-bar-wp4` 2, `layout-bv1-tiles` 1,
+  `layout-media-admin-list` 1. On the dev server (pass 3): 81 passed, 3 skipped, 0 failed.
+- 8 expected (switch): `layout-update-screens` x8 - the backup switch's 32 x 18 track under the 44 px target check at 320 px; the
+  guard now skips `sw-toggle` (0b3d69761), as the other layout guards do.
+- 1 not this branch: `layout-visdiff-246` settings-automations - the role matrix overflow, fixed on main by 1e38a5cf6 (merged here).
+- 1 flaky, then 2 x failed in pass 2: `evidence-announceb-295:247` - a spec race (the form clears itself on the late answer and wipes
+  the re-typed text; `devices-announce` is not touched here). The spec waits for the cleared field (1b9920503): 3 / 3 passed.
+- capture (head and base alike): `evidence-media-remote` - the dev-server spec on the preview.
+- pixel 12: all the switch (`evidence-wiskey-installer` x6, `pixel-plan-wizard-2433` x2, `pixel-wiskey-people-writes` x2,
+  `pixel-wiskey-triage-2400` x2); each diff reviewed - only the switch and the row it shortened.
+
+Pass 2/3 (`hsw2.sh` / `hsw3.sh`, head 00b52488c / 1b9920503, base main 619f94d04): functional 865 passed, 2 failed (the announce
+race above; `evidence-readiness-96:93` on mobile, which fails the same on the base - on a phone the hand-over card sits on its own
+tab); dev-server 81 passed; pixel the same 12 (the acknowledgement switches moved no linux baseline); capture 127 + 18 passed on
+head and on base.
+
+Baselines: the refresh of the 12 (`~/work/hsw4.sh`: `--update-snapshots=changed` limited to the four spec files above, then the same
+files without -u) is queued on the runner behind the tests lock; its commit follows in this branch when it has run.
 Before / after: `private/planning/hand_switch_compare_2026-11-22.html` (152 screens from the workstation evidence specs, cropped to
-the changed area; some differences are live data such as the clock).
+the changed area; some differences are live data such as the clock), plus a section of 10 acknowledgement screens from the runner
+capture (base main 619f94d04) and the 12 pixel baselines that moved.
