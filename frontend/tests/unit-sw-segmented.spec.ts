@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { segmentedFocusStep, segmentedTabStop } from '../src/components/segmented-logic';
+import { segmentedFocusStep, segmentedTabStop, segmentedWrapped } from '../src/components/segmented-logic';
 
 // CR-CMP2-SELECTS-2450 (owner N11, 19.11): the shared segmented control `sw-segmented` - its keyboard rule (node), its contract (the
 // source), and the screens that adopted it (no hand-built `.seg` group comes back there). The look is pinned by
@@ -75,14 +75,26 @@ test.describe('sw-segmented: the contract in the source', () => {
     expect(src).toMatch(/button:focus-visible \{\s*outline: var\(--sw-focus-w, 2px\) solid var\(--sw-focus\);/);
   });
 
-  test('the look is the settings key (POLISH4-WP1) and reads the --sw-seg-* knobs; the chosen key is the dark-safe light pill', () => {
+  test('the look is the module look (CR-SEG-MODULE-LOOK-2470) and reads the --sw-seg-* knobs; the chosen key is the dark-safe light pill', () => {
     const settings = read('styles/settings.ts');
     // the same knobs as styles/settings.ts settingsSegStyles, so a glass host that sets them draws the same through the shadow root
     for (const knob of ['--sw-seg-border', '--sw-seg-radius', '--sw-seg-track', '--sw-seg-pad', '--sw-seg-gap', '--sw-seg-btn-radius', '--sw-seg-h', '--sw-seg-divider', '--sw-seg-on-bg', '--sw-seg-on-fg', '--sw-seg-on-shadow']) {
       expect(src, knob).toContain(`var(${knob}`);
       expect(settings, knob).toContain(`var(${knob}`);
     }
-    expect(src).toMatch(/\.seg button\[aria-pressed='true'\] \{[^}]*background: var\(--sw-seg-on-bg, var\(--sw-seg-key, var\(--sw-surface\)\)\);[^}]*color: var\(--sw-seg-on-fg, var\(--sw-seg-key-ink, var\(--sw-accent-text\)\)\);/);
+    // CR-SEG-MODULE-LOOK-2470 (owner, 20.11): the default is the modules' common key - the chosen key on the solid surface in the text
+    // ink (the light pill in dark), a pill track with pill keys, 28 px keys with 12 px sides, 13 px labels, regular / semibold chosen
+    expect(src).toMatch(/\.seg button\[aria-pressed='true'\] \{[^}]*background: var\(--sw-seg-on-bg, var\(--sw-seg-key, var\(--sw-surface-solid\)\)\);[^}]*color: var\(--sw-seg-on-fg, var\(--sw-seg-key-ink, var\(--sw-text\)\)\);/);
+    expect(src).toMatch(/border-radius: var\(--sw-seg-radius, var\(--sw-r-pill\)\);/);
+    expect(src).toMatch(/border-radius: var\(--sw-seg-btn-radius, var\(--sw-r-pill\)\);/);
+    expect(src).toMatch(/min-block-size: var\(--sw-seg-h, 28px\);\s*padding: 0 var\(--sw-seg-key-pad, 12px\);/);
+    expect(src).toMatch(/font-size: var\(--sw-seg-fs, var\(--sw-fs-sm\)\);\s*font-weight: var\(--sw-seg-fw, var\(--sw-fw-regular\)\);/);
+    // the chosen key is semibold unless the host set a weight for the keys (then it keeps that weight, as before)
+    expect(src).toMatch(/font-weight: var\(--sw-seg-on-fw, var\(--sw-seg-fw, var\(--sw-fw-semibold\)\)\);/);
+    // a phone (coarse pointer): the default key is 44 px tall; a compact key stays 28 px with the 44 px target around it
+    expect(src).toMatch(/:host\(:not\(\[size='sm'\]\)\) button \{\s*min-block-size: var\(--sw-seg-h, 44px\);/);
+    // the settings key of 2.45.0 is gone from the defaults
+    expect(src).not.toMatch(/var\(--sw-seg-h, 34px\)|var\(--sw-seg-key-pad, 14px\)|var\(--sw-seg-radius, var\(--sw-r-md\)\)/);
     // tokens only: no colour literal
     expect(src.split('static styles')[1]).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i);
   });
@@ -106,7 +118,8 @@ test.describe('sw-segmented: the contract in the source', () => {
   });
 
   test('touch and motion: a 44 px tall target on a coarse pointer, hover only under a hovering pointer, no motion when reduced', () => {
-    expect(src).toMatch(/@media \(max-width: 767px\) and \(pointer: coarse\) \{\s*button::before \{/);
+    // CR-SEG-MODULE-LOOK-2470: the default key grows to 44 px there first, then the target rule
+    expect(src).toMatch(/@media \(max-width: 767px\) and \(pointer: coarse\) \{\s*:host\(:not\(\[size='sm'\]\)\) button \{[^}]*\}\s*button::before \{/);
     expect(src).toMatch(/- 44px\) \/ 2\)\)/);
     expect(src).toMatch(/@media \(hover: hover\) and \(pointer: fine\) \{\s*button:hover/);
     expect(src).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*button \{\s*transition-duration: 0ms;/);
@@ -327,4 +340,20 @@ test('sw-tabs: an item keeps its data-* hooks on its tab, a warning dot can be n
   expect(sync).toMatch(/<sw-tabs variant="pill" group-label=\$\{tr\('ספק'\)\} data-provider-tabs/);
   expect(sync).toMatch(/attrs: \{ 'data-provider-tab': p \}/);
   expect(sync).not.toMatch(/role="tablist"/);
+});
+
+test.describe('sw-segmented: a wrapped track is a rounded box, not a fat pill (SEG-WRAP-2480)', () => {
+  test('wrapped is true only when the keys sit on more than one line', () => {
+    expect(segmentedWrapped([])).toBe(false);
+    expect(segmentedWrapped([3])).toBe(false);
+    expect(segmentedWrapped([3, 3, 3.4])).toBe(false);
+    expect(segmentedWrapped([3, 3, 3, 35])).toBe(true);
+  });
+  test('the source measures the keys, sets the wrapped attribute and caps the track radius at the large token', () => {
+    const src = read('components/sw-segmented.ts');
+    expect(src).toContain('new ResizeObserver(this.measureWrap)');
+    expect(src).toMatch(/:host\(\[wrapped\]\) \.seg \{\s*border-radius: min\(var\(--sw-seg-radius, var\(--sw-r-pill\)\), var\(--sw-r-lg\)\);/);
+    // the keys keep their own radius (no rule for the wrapped state touches the buttons)
+    expect(src).not.toMatch(/:host\(\[wrapped\]\) button/);
+  });
 });

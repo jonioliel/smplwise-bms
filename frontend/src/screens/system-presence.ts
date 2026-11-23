@@ -145,24 +145,10 @@ export class SystemPresence extends LitElement {
       --sw-table-min: 0;
       --sw-table-trunc: 220px;
     }
-    /* CR-CMP2-SEGMENTED-B-2450: the presence pages' round pill keys (the bordered pill track, 13 px keys; 40 / 44 px under a finger)
-       drawn by sw-segmented through its knobs */
+    /* CR-SEG-MODULE-LOOK-2470 (owner, 20.11): the presence pages draw sw-segmented's own default, the module look (their bordered
+       pill track with the plain chosen key went) */
     sw-segmented {
-      --sw-seg-border: var(--sw-border);
-      --sw-seg-radius: var(--sw-r-pill);
-      --sw-seg-btn-radius: var(--sw-r-pill);
-      --sw-seg-pad: 2px;
-      --sw-seg-track: var(--sw-surface-2);
-      --sw-seg-h: 28px;
-      --sw-seg-fs: var(--sw-fs-sm);
-      --sw-seg-fw: var(--sw-fw-regular);
       justify-self: start;
-    }
-    @media (pointer: coarse) {
-      sw-segmented {
-        --sw-seg-h: 44px;
-        --sw-seg-key-pad: 16px;
-      }
     }
     @media (max-width: 767px) {
       .row {

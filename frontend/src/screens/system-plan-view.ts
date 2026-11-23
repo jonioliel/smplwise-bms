@@ -100,11 +100,11 @@ export class SystemPlanView extends LitElement {
       color: var(--sw-heading, var(--sw-text));
       letter-spacing: -0.005em;
     }
-    /* the settings segment (sw-segmented, CR-CMP2-SELECTS-2450), wrapping instead of clipping (five kiosk choices at 320 px) and on
-       the 44 px dial */
+    /* the settings segment (sw-segmented, CR-CMP2-SELECTS-2450), wrapping instead of clipping (five kiosk choices at 320 px).
+       SEG-MODULE-LOOK-2480 (owner Q5 / Q6, 22.11): the module look, 28 px on a desktop like every settings page (the page's own 44 px
+       desktop key went); 44 px under a finger (the coarse-pointer rule below) */
     sw-segmented {
       flex: 0 1 auto;
-      --sw-seg-h: var(--sw-touch-desktop, 44px);
     }
     .dirty {
       font-size: var(--sw-fs-sm);

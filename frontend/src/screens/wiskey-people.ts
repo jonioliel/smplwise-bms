@@ -1144,6 +1144,10 @@ export class WiskeyPeople extends LitElement {
       --sw-seg-on-bg: var(--sw-accent-soft);
       --sw-seg-on-fg: var(--sw-accent-text);
       --sw-seg-on-shadow: none;
+      /* CR-SEG-MODULE-LOOK-2470: the sw-segmented default is the module look now; this key keeps the old default values it used */
+      --sw-seg-key-pad: 14px;
+      --sw-seg-fs: var(--sw-fs-md);
+      --sw-seg-fw: var(--sw-fw-semibold);
     }
     sw-segmented[data-people-views]::part(track) {
       overflow: hidden;

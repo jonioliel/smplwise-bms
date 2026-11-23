@@ -44,3 +44,9 @@ export function chipOn(value: string, current: string, multi: boolean, values: r
 export function tabPillShown(pill: number | string | null | undefined): boolean {
   return pill !== undefined && pill !== null && pill !== '';
 }
+
+/** SEG-WRAP-2480: a track whose keys sit on more than one line (the tops of the keys differ) has wrapped; the host then softens the
+ * track's pill radius to a large rounded box so a two-line track does not become a fat pill. */
+export function segmentedWrapped(tops: readonly number[]): boolean {
+  return tops.length > 1 && tops.some((t) => Math.abs(t - tops[0]) > 1);
+}

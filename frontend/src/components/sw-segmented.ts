@@ -1,6 +1,6 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { segmentedFocusStep, segmentedTabStop } from './segmented-logic';
+import { segmentedFocusStep, segmentedTabStop, segmentedWrapped } from './segmented-logic';
 
 /** One key of a segmented control. */
 export interface SegmentOption<V extends string = string> {
@@ -31,9 +31,14 @@ export interface SegmentedChange<V extends string = string> {
 
 /**
  * CR-CMP2-SELECTS-2450 (owner N11, 19.11; 06:CMP-2): THE segmented control - a short row of mutually exclusive keys on a sunken track,
- * the chosen key a lifted thumb. The look is the settings key style the owner chose (POLISH4-WP1, Q3a: styles/settings.ts
- * `settingsSegStyles`), so a screen that swaps its hand-built `.seg` for this element keeps that language; the `--sw-seg-*` knobs a
- * glass host sets (TKUI6, the service-management pages) still reach every part through the shadow boundary.
+ * the chosen key a lifted thumb. CR-SEG-MODULE-LOOK-2470 (owner, 20.11): the default look is the MODULE LOOK - the common key of the
+ * calendars, electricity, water, generator, temperature, notice board and maintenance modules (majority where they differ): a pill
+ * track (surface-3, 3 px inset, no border) with pill keys, 28 px keys (44 px under a finger on a phone), 13 px labels, regular for
+ * the keys and semibold for the chosen one, the chosen key on the solid surface in the text ink (in dark the light pill of
+ * --sw-seg-key / --sw-seg-key-ink). It replaced the settings key of 2.45.0 (34 px, semibold, slight radius, accent ink), which the
+ * owner did not take; the settings pages and presence draw the module look now. The `--sw-seg-*` knobs a host sets (a module, a
+ * glass host - TKUI6, the service-management pages - the bubble skin) still reach every part through the shadow boundary, so a host
+ * with its own key keeps it.
  *
  *     <sw-segmented label="רמת פירוט" .options=${[{ value: 'generic', label: 'כללי' }, ...]} value=${s.lockscreen}
  *       @change=${(e: CustomEvent<SegmentedChange>) => this.patch({ lockscreen: e.detail.value })}></sw-segmented>
@@ -44,7 +49,8 @@ export interface SegmentedChange<V extends string = string> {
  *    well: some screens reopen something from it (the "selected users" key opens the picker again).
  *  - each key is a `<button aria-pressed>` in a `role="group"` named by `label`; the screens' specs that read `button[aria-pressed]`
  *    keep working (Playwright's CSS pierces the shadow root). The arrow keys and Home / End move the focus along the keys.
- *  - `size="sm"`: the 28 px key of the compact rows (notification settings); default 34 px. `block`: the track fills its row and the
+ *  - `size="sm"`: the compact key (notification settings): 28 px, 10 px sides, on a phone it stays 28 px (the 44 px target grows
+ *    around it); default 28 px with 12 px sides, 44 px tall under a finger on a phone. `block`: the track fills its row and the
  *    keys share it equally; a host that only stretches it on some widths sets `--sw-seg-key-flex: 1 1 auto` there. On a coarse pointer every key keeps a 44 px tall touch target (an absolute ::before, no layout change).
  *  - knobs a host may set beside the track ones (CR-CMP2-SEGMENTED-B-2450, so a screen keeps its key through the shadow root):
  *    --sw-seg-fg (the ink of a key that is not chosen), --sw-seg-fs / --sw-seg-fw / --sw-seg-on-fw (the label size, weight, the
@@ -104,10 +110,14 @@ export class SwSegmented<V extends string = string> extends LitElement {
       max-inline-size: 100%;
       box-sizing: border-box;
       border: 1px solid var(--sw-seg-border, transparent);
-      border-radius: var(--sw-seg-radius, var(--sw-r-md));
+      border-radius: var(--sw-seg-radius, var(--sw-r-pill));
       background: var(--sw-seg-track, var(--sw-surface-3));
       padding: var(--sw-seg-pad, 3px);
       gap: var(--sw-seg-gap, 2px);
+    }
+    /* SEG-WRAP-2480: a track that wraps to two lines is a rounded box (the large radius), not a fat pill; a smaller radius stays */
+    :host([wrapped]) .seg {
+      border-radius: min(var(--sw-seg-radius, var(--sw-r-pill)), var(--sw-r-lg));
     }
     :host([block]) .seg {
       display: flex;
@@ -120,15 +130,15 @@ export class SwSegmented<V extends string = string> extends LitElement {
       justify-content: center;
       gap: 6px;
       box-sizing: border-box;
-      min-block-size: var(--sw-seg-h, 34px);
-      padding: 0 var(--sw-seg-key-pad, 14px);
+      min-block-size: var(--sw-seg-h, 28px);
+      padding: 0 var(--sw-seg-key-pad, 12px);
       border: 0;
-      border-radius: var(--sw-seg-btn-radius, var(--sw-r-sm));
+      border-radius: var(--sw-seg-btn-radius, var(--sw-r-pill));
       background: transparent;
       color: var(--sw-seg-fg, var(--sw-text-2));
       font: inherit;
-      font-size: var(--sw-seg-fs, var(--sw-fs-md));
-      font-weight: var(--sw-seg-fw, var(--sw-fw-semibold));
+      font-size: var(--sw-seg-fs, var(--sw-fs-sm));
+      font-weight: var(--sw-seg-fw, var(--sw-fw-regular));
       min-inline-size: var(--sw-seg-key-min-w, 0);
       line-height: 1.2;
       white-space: nowrap;
@@ -171,9 +181,10 @@ export class SwSegmented<V extends string = string> extends LitElement {
     }
     .seg button[aria-pressed='true'] {
       /* GATE2370-B: in dark the chosen key is the light pill (--sw-seg-key / --sw-seg-key-ink) - 3:1 from the track (WCAG 1.4.11) */
-      background: var(--sw-seg-on-bg, var(--sw-seg-key, var(--sw-surface)));
-      color: var(--sw-seg-on-fg, var(--sw-seg-key-ink, var(--sw-accent-text)));
+      background: var(--sw-seg-on-bg, var(--sw-seg-key, var(--sw-surface-solid)));
+      color: var(--sw-seg-on-fg, var(--sw-seg-key-ink, var(--sw-text)));
       box-shadow: var(--sw-seg-on-shadow, var(--sw-seg-thumb-shadow, var(--sw-shadow-1)));
+      /* a host that sets only --sw-seg-fw keeps that weight on the chosen key too (as before); the module look: 400 / 600 */
       font-weight: var(--sw-seg-on-fw, var(--sw-seg-fw, var(--sw-fw-semibold)));
     }
     button:focus-visible {
@@ -209,7 +220,7 @@ export class SwSegmented<V extends string = string> extends LitElement {
     }
     button.ico {
       padding-inline: var(--sw-seg-ico-pad, 8px);
-      min-inline-size: max(var(--sw-seg-key-min-w, 0px), var(--sw-seg-h, 34px));
+      min-inline-size: max(var(--sw-seg-key-min-w, 0px), var(--sw-seg-h, 28px));
     }
     :host([size='sm']) button.ico {
       min-inline-size: max(var(--sw-seg-key-min-w, 0px), var(--sw-seg-h, 28px));
@@ -258,13 +269,18 @@ export class SwSegmented<V extends string = string> extends LitElement {
       background: var(--sw-seg-count-bg, color-mix(in srgb, currentColor 14%, transparent));
       text-align: center;
     }
-    /* UIPOLISH-2320 rule (sw-toggle): on a phone the key keeps a 44 px tall touch target, grown in the block axis only */
+    /* UIPOLISH-2320 rule (sw-toggle): on a phone the key keeps a 44 px tall touch target, grown in the block axis only.
+       CR-SEG-MODULE-LOOK-2470: the module look draws the default key 44 px tall under a finger on a phone (calendars, electricity,
+       water, generator); a host that sets --sw-seg-h keeps its height and the target grows around it */
     @media (max-width: 767px) and (pointer: coarse) {
+      :host(:not([size='sm'])) button {
+        min-block-size: var(--sw-seg-h, 44px);
+      }
       button::before {
         content: '';
         position: absolute;
         inset-inline: 0;
-        inset-block: min(0px, calc((var(--sw-seg-h, 34px) - 44px) / 2));
+        inset-block: min(0px, calc((var(--sw-seg-h, 44px) - 44px) / 2));
       }
       :host([size='sm']) button::before {
         inset-block: min(0px, calc((var(--sw-seg-h, 28px) - 44px) / 2));
@@ -316,7 +332,38 @@ export class SwSegmented<V extends string = string> extends LitElement {
     for (const [name, v] of Object.entries(want)) if (el.getAttribute(name) !== v) el.setAttribute(name, v);
   }
 
+  private ro?: ResizeObserver;
+
+  private measureWrap = () => {
+    const wrapped = segmentedWrapped(this.keys.map((k) => k.offsetTop));
+    if (wrapped !== this.hasAttribute('wrapped')) this.toggleAttribute('wrapped', wrapped);
+  };
+
+  private observeWrap() {
+    if (this.ro || typeof ResizeObserver === 'undefined') return;
+    const seg = this.renderRoot?.querySelector('.seg');
+    if (!seg) return;
+    this.ro = new ResizeObserver(this.measureWrap);
+    this.ro.observe(seg);
+  }
+
+  protected firstUpdated() {
+    this.observeWrap();
+  }
+
+  override connectedCallback() {
+    super.connectedCallback();
+    if (this.hasUpdated) this.observeWrap();
+  }
+
+  override disconnectedCallback() {
+    super.disconnectedCallback();
+    this.ro?.disconnect();
+    this.ro = undefined;
+  }
+
   protected updated(changed: PropertyValues) {
+    if (changed.has('options') || changed.has('labels')) this.measureWrap();
     if (!changed.has('options') && !changed.has('value') && !changed.has('labels')) return;
     // the screens' data-* hooks: set on the keys (and their badges) as given. `value` too: a badge comes and goes with the choice.
     const keys = this.keys;

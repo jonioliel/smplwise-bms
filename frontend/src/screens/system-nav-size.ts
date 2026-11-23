@@ -60,12 +60,8 @@ export class SystemNavSize extends LitElement {
     }
     ${settingsStackLabelStyles}
     ${settingsMutedHintStyles}
-    /* CR-CMP2-SEGMENTED-C-2450: the keys are sw-segmented (the settings key); this page keeps its 36 px key with the medium label */
-    sw-segmented {
-      --sw-seg-h: 36px;
-      --sw-seg-fw: var(--sw-fw-medium);
-      --sw-seg-on-fw: var(--sw-fw-semibold);
-    }
+    /* CR-SEG-MODULE-LOOK-2470 (owner, 20.11): the keys are sw-segmented in its default, the module look, like every settings page
+       (the page's own 36 px key with the medium label went) */
     input:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
