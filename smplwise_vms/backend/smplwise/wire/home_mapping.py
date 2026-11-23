@@ -93,6 +93,9 @@ class HomeMappingRead(WireModel):
     can_toggle: bool
     building_reach: str
     can_set_reach: bool
+    review_mode: Literal["required", "skip"]
+    """MULTI-BUILDING-SAFETY-2500: whether turning the switch on needs the check (`home.multi_building.review`)."""
+    can_set_review: bool
     versions: list[HomeMappingVersion]
     seen: list[Any] | None
     """The item keys the last apply saw (null before the first)."""
@@ -111,6 +114,33 @@ class HomeMappingSettingsAnswer(WireModel):
 
 class HomeMappingMulti(WireModel):
     enabled: bool
+    check: Literal["passed", "skipped"] | None = None
+    """MULTI-BUILDING-SAFETY-2500: present only when this request turned the switch on - the check passed, or the setting skipped it."""
+
+
+class HomeMultiBuildingFinding(WireModel):
+    """One finding of the check before turning multi-building on. `items` (at most 20) depend on the code: a device, a building with its
+    reach gain, an area, a mapping version."""
+    code: str
+    severity: Literal["blocking", "warning", "info"]
+    count: int
+    items: list[dict[str, Any]]
+
+
+class HomeMultiBuildingCheck(WireModel):
+    """`GET /home/multi-building/check` (MULTI-BUILDING-SAFETY-2500): the report, and the digest `PUT /home/multi-building` is confirmed with."""
+    digest: str
+    reach_mode: str
+    review_mode: Literal["required", "skip"]
+    buildings: int
+    blocking: int
+    warnings: int
+    last_on: str | None
+    findings: list[HomeMultiBuildingFinding]
+
+
+class HomeMultiBuildingReview(WireModel):
+    mode: Literal["required", "skip"]
 
 
 class HomeMappingReach(WireModel):
