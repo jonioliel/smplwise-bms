@@ -1,0 +1,30 @@
+{
+  "_doc": "PHONE-SKIP-DESKTOP-SHOTS-2490: spec files the Playwright 'mobile' (phone) project does not run. One entry per file, decided file by file; a file that checks phone behaviour never belongs here. scripts/check-phone-skip-list.mjs fails when a listed file no longer exists.",
+  "files": {
+    "evidence-announce-297.spec.ts": "sets its own viewports, one project is enough (was already skipped at run time)",
+    "evidence-announceb-295.spec.ts": "sets its own viewports, one project is enough (was already skipped at run time)",
+    "evidence-brand-tv.spec.ts": "TV page checked on desktop Chromium (was already skipped at run time)",
+    "evidence-notice-tv.spec.ts": "TV page at its own viewports, desktop Chromium (was already skipped at run time)",
+    "layout-noticeboard-hitech-2300.spec.ts": "notice board TV layout, desktop Chromium only (was already skipped at run time)",
+    "layout-noticeboard-luxury-2300.spec.ts": "notice board TV layout, desktop Chromium only (was already skipped at run time)",
+    "layout-noticeboard-skins-2300.spec.ts": "notice board TV layout, desktop Chromium only (was already skipped at run time)",
+    "layout-noticeboard-v2-297.spec.ts": "notice board TV layout, desktop Chromium only (was already skipped at run time)",
+    "notice-tv-bustimes-295.spec.ts": "TV page, desktop Chromium only (was already skipped at run time)",
+    "notice-tv-fonts-2443.spec.ts": "TV page, desktop Chromium only (was already skipped at run time)",
+    "notice-tv-header-295.spec.ts": "TV page, desktop Chromium only (was already skipped at run time)",
+    "notice-tv-header-worst-297.spec.ts": "TV page, desktop Chromium only (was already skipped at run time)",
+    "notice-tv-hostile-2443.spec.ts": "TV page, desktop Chromium only (was already skipped at run time)",
+    "notice-tv-saver-295.spec.ts": "TV page, desktop Chromium only (was already skipped at run time)",
+    "notice-tv-slides-295.spec.ts": "TV page, desktop Chromium only (was already skipped at run time)",
+    "notice-tv-tvnotice2-297.spec.ts": "TV page, desktop Chromium only (was already skipped at run time)",
+    "pixel-notice-tv-mock.spec.ts": "one desktop pixel comparison (was already skipped at run time)",
+    "pixel-notice-tv-portrait-chips.spec.ts": "one desktop pixel set (was already skipped at run time)",
+    "evidence-uxrest-295.spec.ts": "fixed desktop clips and desktop tab order (was already skipped below 1200 px)",
+    "evidence-uxrest2-295.spec.ts": "desktop evidence (was already skipped below 1200 px)",
+    "evidence-shared-space-stations.spec.ts": "plan editor is not offered on a phone (was already skipped on touch)",
+    "evidence-local-user-create-2438.spec.ts": "opens its own 1440x900 context and takes desktop evidence; the phone project repeated the same run",
+    "evidence-event-structure.spec.ts": "live evidence with a fixed 1000 px probe, header names the desktop project only; no phone checks",
+    "evidence-shared-space.spec.ts": "plan editor evidence, the editor is not offered on a phone; desktop project only",
+    "evidence-plan-studio-stairs.spec.ts": "plan editor evidence, the editor is not offered on a phone; desktop project only"
+  }
+}

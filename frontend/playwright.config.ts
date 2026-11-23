@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
 
 // Screenshot harness for design review (DESIGN_CONTRACT): reference desktop / tablet / mobile widths,
@@ -11,6 +12,12 @@ const BASE = process.env.SW_BASE_URL || 'http://127.0.0.1:4173/';
 // differed there and nowhere else (a workstation in Israel never saw it). Set before the workers start, so they inherit it.
 // SW_TEST_TZ overrides it (e.g. SW_TEST_TZ=UTC to reproduce the old runner behaviour).
 process.env.TZ = process.env.SW_TEST_TZ || 'Asia/Jerusalem';
+
+// PHONE-SKIP-DESKTOP-SHOTS-2490: spec files the phone project does not run (desktop-size evidence); one reason per file in the list,
+// scripts/check-phone-skip-list.mjs fails when a listed file is gone.
+const PHONE_SKIP = Object.keys(
+  (JSON.parse(readFileSync(new URL('./tests/phone-skip-list.json', import.meta.url), 'utf8')) as { files: Record<string, string> }).files,
+).map((f) => `**/${f}`);
 
 export default defineConfig({
   testDir: 'tests',
@@ -39,6 +46,6 @@ export default defineConfig({
   projects: [
     { name: 'desktop', use: { viewport: { width: 1440, height: 900 } } },
     { name: 'tablet', use: { viewport: { width: 1024, height: 768 } } },
-    { name: 'mobile', use: { ...devices['Pixel 7'], viewport: { width: 390, height: 844 } } },
+    { name: 'mobile', testIgnore: ['**/archive/**', ...PHONE_SKIP], use: { ...devices['Pixel 7'], viewport: { width: 390, height: 844 } } },
   ],
 });
