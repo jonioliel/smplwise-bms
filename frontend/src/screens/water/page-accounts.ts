@@ -300,7 +300,7 @@ export class WaterAccountsPage extends LitElement {
   private renderForm(id: string | null) {
     const f = this.form;
     const meterOpts = (sel: string) => html`<option value="" ?selected=${!sel}>${wt('accPickMeter')}</option>${this.meters.map((m) => html`<option value=${m.id} ?selected=${m.id === sel}>${m.display_name}</option>`)}`;
-    return html`<sw-sheet open wide .heading=${id ? wt('accFormEdit') : wt('accFormNew')} data-account-form @close=${() => navigate(id ? `${BASE}/${id}` : BASE)}>
+    return html`<sw-sheet open wide solid .heading=${id ? wt('accFormEdit') : wt('accFormNew')} data-account-form @close=${() => navigate(id ? `${BASE}/${id}` : BASE)}>
       <div class="col">
         <div class="formgrid">
           ${this.fld('name', wt('accName'), html`<input id="wa-name" name="name" class=${this.errs.name ? 'err' : ''} .value=${f.name} @input=${(e: Event) => this.setF('name', (e.target as HTMLInputElement).value)} />`, true)}

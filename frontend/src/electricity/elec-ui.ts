@@ -80,7 +80,9 @@ export function val(root: ParentNode | null | undefined, name: string): string {
 }
 
 /** A modal dialog: the system sheet (`sw-sheet`, the Bubble foundation's one pop-up: a centred dialog on a desktop, a bottom sheet on a phone). The
- * default slot is the body, `slot="actions"` the footer buttons. Closes on Escape or a click on the backdrop unless `locked`. */
+ * default slot is the body, `slot="actions"` the footer buttons. Closes on Escape or a click on the backdrop unless `locked`.
+ * PHONE-SHEET-2480: `solid` - a form, so it is opaque in every skin (the owner's one opaque dialog, Q-DES-8A / Q-DES-23 b): the page's figures
+ * and, on a phone, the bottom bar under the action row no longer read through it. */
 @customElement('elec-dialog')
 export class ElecDialog extends LitElement {
   @property({ type: Boolean, reflect: true }) open = false;
@@ -110,7 +112,7 @@ export class ElecDialog extends LitElement {
     }
   `;
   render() {
-    return html`<sw-sheet ?open=${this.open} .heading=${this.heading} ?narrow=${!this.wide} ?wide=${this.wide} ?locked=${this.locked} @close=${() => (this.open = false)}>
+    return html`<sw-sheet solid ?open=${this.open} .heading=${this.heading} ?narrow=${!this.wide} ?wide=${this.wide} ?locked=${this.locked} @close=${() => (this.open = false)}>
       <div class="body"><slot></slot></div>
       <div class="act" slot="footer"><slot name="actions"></slot></div>
     </sw-sheet>`;

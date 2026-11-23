@@ -141,7 +141,7 @@ export class ElecCustomersPage extends ElecBase {
   private renderCard() {
     const perms = energyAccess();
     const c = this.card;
-    return html`<sw-sheet open wide .heading=${c ? tr('כרטיס לקוח') : tr('לקוח חדש')} data-customer-card @close=${() => this.close()}>
+    return html`<sw-sheet open wide solid .heading=${c ? tr('כרטיס לקוח') : tr('לקוח חדש')} data-customer-card @close=${() => this.close()}>
         <div class="col" style="gap:14px">
         ${this.cardSt === 'loading' ? skeleton(4) : this.cardSt === 'error' ? stateBox('error', 'warning', tr('לא ניתן לטעון את הלקוח'), { label: tr('נסה שוב'), run: () => void this.loadCard(this.segments[0]) }) : html`
           <div class="form">${this.field('name', tr('שם הלקוח'), { wide: true })}${this.field('customer_number', tr('מספר לקוח'), { ltr: true })}${this.field('tax_id', tr('ח.פ. / ע.מ. (לא חובה)'), { ltr: true, ph: tr('לא חובה') })}

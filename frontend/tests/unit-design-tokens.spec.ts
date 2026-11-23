@@ -125,6 +125,27 @@ test('translucent sheet: the computed alpha floor keeps every text at >= 4.5:1 o
   }
 });
 
+// PHONE-SHEET-2480: the look dial writes --sw-sheet-alpha on <html> for EVERY skin, so a skin whose sheet does not blur needs a floor of 1
+// (sw-sheet paints max(alpha, --sw-sheet-alpha-min)); otherwise the page and the phone's bottom bar read through an unblurred 72 % sheet.
+test('sheet floor: a skin with no sheet blur rests the sheet opaque, a glass skin lets the transparency dial reach it', () => {
+  for (const id of SKIN_IDS) {
+    const t = skinTable(id);
+    for (const mode of ['light', 'dark'] as const) {
+      const blur = (t['--sw-glass-blur-sheet']?.[mode] ?? 'none').trim();
+      const min = t['--sw-sheet-alpha-min']?.[mode];
+      expect(min, `${id}/${mode} --sw-sheet-alpha-min`).toBeTruthy();
+      expect(min, `${id}/${mode}: sheet blur "${blur}"`).toBe(blur === 'none' ? '1' : '0');
+    }
+  }
+  for (const p of BUILTIN_PALETTES) {
+    for (const mode of ['light', 'dark'] as const) {
+      const t = paletteTokens(p, mode);
+      if (!t['--sw-glass-blur-sheet']) continue;
+      expect(t['--sw-sheet-alpha-min'], `${p.id}/${mode}`).toBe(/blur\(0px\)/.test(t['--sw-glass-blur-sheet']) ? '1' : '0');
+    }
+  }
+});
+
 test('the generated CSS: light on :root, dark on [data-theme=dark] and on the OS query, a block set per skin, reduced motion', () => {
   const css = tokensCss();
   expect(css).toContain(':root{color-scheme:light;');
