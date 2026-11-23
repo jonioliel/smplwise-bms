@@ -540,7 +540,7 @@ class Manager:
 
     # ------------------------------------------------------------ for the add step (ONVIF-API row)
 
-    def credentials_for(self, principal: Principal, conn: sqlite3.Connection, scan_id: Any, device_id: Any) -> tuple[onvif_http.Target, str, str] | None:
+    def credentials_for(self, conn: sqlite3.Connection, principal: Principal, scan_id: Any, device_id: Any) -> tuple[onvif_http.Target, str, str] | None:
         """The identified, addable device's service and the credentials that worked - for the server-side add / preview only."""
         job = self._job(conn, principal, scan_id)
         with job.lock:

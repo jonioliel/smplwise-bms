@@ -527,7 +527,7 @@ def test_the_job_expires_and_forgets_the_credentials(env):
     d = by_addr(job)
     identify(env, job, [d["10.77.0.71"]["id"]])
     with env.db.connection() as conn:
-        creds = env.m.credentials_for(ADMIN, conn, job["id"], d["10.77.0.71"]["id"])
+        creds = env.m.credentials_for(conn, ADMIN, job["id"], d["10.77.0.71"]["id"])
     assert creds is not None and creds[1:] == (USER, PASSWORD) and creds[0].address == "10.77.0.71"
     internal = env.m._jobs[job["id"]]
     shift[0] += 16 * 60
@@ -602,7 +602,7 @@ def test_identification_marks_by_fingerprint(env):
     assert (out["10.77.0.71"]["known"], out["10.77.0.71"]["kind"], out["10.77.0.71"]["addable"]) == ("recorder", "nvr", False)
     assert (out["10.77.0.72"]["known"], out["10.77.0.72"]["known_ref"], out["10.77.0.72"]["addable"]) == ("behind_recorder", "nvr-1", False)
     with env.db.connection() as conn:
-        assert env.m.credentials_for(ADMIN, conn, job["id"], d["10.77.0.72"]["id"]) is None  # not addable: the password is not kept
+        assert env.m.credentials_for(conn, ADMIN, job["id"], d["10.77.0.72"]["id"]) is None  # not addable: the password is not kept
 
 
 def test_identify_input_rules(env):
