@@ -41,7 +41,7 @@ class Patch:
 
 Handler = Callable[[Patch], None]
 
-from . import content, effects, identity, modules, site, ui  # noqa: E402 - the handler modules use Patch
+from . import cameras, content, effects, identity, modules, site, ui  # noqa: E402 - the handler modules use Patch
 
 # In the order the checks run. Python keeps a dict in insertion order; `run` relies on it.
 VALIDATORS: dict[str, Handler] = {
@@ -57,6 +57,7 @@ VALIDATORS: dict[str, Handler] = {
     "tickets.enabled": modules.tickets_switch,
     "maintenance.enabled": modules.maintenance_switch,
     "docread.enabled": modules.docread_switch,
+    "cameras.discovery_allowed_ranges": cameras.discovery_ranges,  # ONVIF-API-2500: private site networks only, stored normalised
     "emergency_readiness.enabled": modules.emergency_switch,
     "schedules.shabbat_sensor": site.shabbat_sensor,  # and schedules.shabbat_sensor_force
     "map.default_floor": site.default_floor,

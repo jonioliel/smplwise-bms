@@ -64,6 +64,7 @@ FAMILIES: dict[str, tuple[str, tuple[str, ...]]] = {
     "Recorders": ("wire-recorders.ts", ("recorders",)),
     "Calendar": ("wire-calendar.ts", ("calendar",)),
     "Notifications": ("wire-notifications.ts", ("notifications",)),
+    "CameraDiscovery": ("wire-camera-discovery.ts", ("camera_discovery",)),  # ONVIF-API-2500
 }
 
 IDENT = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
