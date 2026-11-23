@@ -27144,7 +27144,7 @@
     "test_ids": [
       "AT-RELEASE-2440-TRAIN-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "DONE",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -27157,10 +27157,11 @@
       "Train merges, release commit, runner build, one release gate with targeted re-runs, tag and lab install after a green gate"
     ],
     "evidence": [
-      "2026-11-19 (TASKS-SYNC-1911): train head e9d17b5ab on origin/release/2440-train (191 commits over main at the time of the sync; it contains the 2.43.9 build 670716c08 and the eight 2.44.0 branches). Its release gate starts only after 2.43.9 is released (owner answers 19.11, N20: tag, push and lab install pre-approved after a green gate, as for 2.43.9). Gate NOT_RUN; no release note yet."
+      "2026-11-19 (TASKS-SYNC-1911): train head e9d17b5ab on origin/release/2440-train (191 commits over main at the time of the sync; it contains the 2.43.9 build 670716c08 and the eight 2.44.0 branches). Its release gate starts only after 2.43.9 is released (owner answers 19.11, N20: tag, push and lab install pre-approved after a green gate, as for 2.43.9). Gate NOT_RUN; no release note yet.",
+      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> DONE: v2.44.0 released: tag v2.44.0 = 51da93753 is an ancestor of origin/main; release gate run 1 FAIL (fixed forward), run 3 targeted PASS at 6261bc7c4 (0 hard, 0 test failures, 0 flaky; backend 3,750 passed) - docs/changes/RELEASE-2440-TRAIN.md section 5. AT-RELEASE-2440-TRAIN-1 PASS (release gate of the train, as RELEASE-2438/2439-TRAIN). The commit field names the gated head 6261bc7c4 (tag v2.44.0 = 51da93753 is the note commit on top)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "6261bc7c4",
     "actual_cost_usd": null
   },
   {
@@ -27182,7 +27183,7 @@
     "test_ids": [
       "AT-CR-FEED-BASE-2450-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27195,10 +27196,11 @@
       "Branch pilot/CR-FEED-BASE-2450, change note docs/changes/CR-FEED-BASE-2450.md, tests"
     ],
     "evidence": [
-      "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/CR-FEED-BASE-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN."
+      "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/CR-FEED-BASE-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN.",
+      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: branch pilot/CR-FEED-BASE-2450 head 90e84cef0 is an ancestor of origin/main (git merge-base --is-ancestor, 24.11); change note docs/changes/CR-FEED-BASE-2450.md on main. Merged, but the card's own acceptance test AT-CR-FEED-BASE-2450-1 stays NOT_RUN (no per-card run recorded), so not DONE."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "90e84cef0",
     "actual_cost_usd": null
   },
   {
@@ -27220,7 +27222,7 @@
     "test_ids": [
       "AT-CR-ROUTER-SQL-2450-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27233,10 +27235,12 @@
       "Branch pilot/CR-ROUTER-SQL-2450, change note docs/changes/CR-ROUTER-SQL-2450.md, tests"
     ],
     "evidence": [
-      "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/CR-ROUTER-SQL-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN."
+      "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/CR-ROUTER-SQL-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN.",
+      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: branch pilot/CR-ROUTER-SQL-2450 head 0a5d0431e is an ancestor of origin/main (git merge-base --is-ancestor, 24.11); change note docs/changes/CR-ROUTER-SQL-2450.md on main. Merged, but the card's own acceptance test AT-CR-ROUTER-SQL-2450-1 stays NOT_RUN (no per-card run recorded), so not DONE.",
+      "2026-11-24 (MGMT-SYNC-2411): Code-review master plan audit (24.11): 122 of 123 planned branches are merged; CR-CONFIRM-ADOPT-2441 was verification only (pilot head d84432eec, not merged, no card); CR-ROUTER-SQL-E-2470 (pilot/CR-ROUTER-SQL-E-2470 808a4e826, 2 commits ahead of main) found no router left - documentation only, not merged, no card."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "0a5d0431e",
     "actual_cost_usd": null
   },
   {
@@ -27258,7 +27262,7 @@
     "test_ids": [
       "AT-CR-RESPONSE-MODELS-CONSUMPTION-2450-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27271,10 +27275,11 @@
       "Branch pilot/CR-RESPONSE-MODELS-CONSUMPTION-2450, change note docs/changes/CR-RESPONSE-MODELS-CONSUMPTION-2450.md, tests"
     ],
     "evidence": [
-      "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/CR-RESPONSE-MODELS-CONSUMPTION-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN."
+      "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/CR-RESPONSE-MODELS-CONSUMPTION-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN.",
+      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: branch pilot/CR-RESPONSE-MODELS-CONSUMPTION-2450 head 4e528f019 is an ancestor of origin/main (git merge-base --is-ancestor, 24.11); change note docs/changes/CR-RESPONSE-MODELS-CONSUMPTION-2450.md on main. Merged, but the card's own acceptance test AT-CR-RESPONSE-MODELS-CONSUMPTION-2450-1 stays NOT_RUN (no per-card run recorded), so not DONE."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "4e528f019",
     "actual_cost_usd": null
   },
   {
@@ -27296,7 +27301,7 @@
     "test_ids": [
       "AT-CR-SHELL-EXTRACT-B-2450-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27310,10 +27315,11 @@
     ],
     "evidence": [
       "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/CR-SHELL-EXTRACT-B-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN.",
-      "2026-11-19 (TASKS-SYNC-1911): owner answer N5 of 19.11 (private/planning/questions_2026-11-19.html) approved two further sw-app.ts extracts (the floating-window history management and the 'your permissions were updated' notice) as a new task; this row covers it, no separate card."
+      "2026-11-19 (TASKS-SYNC-1911): owner answer N5 of 19.11 (private/planning/questions_2026-11-19.html) approved two further sw-app.ts extracts (the floating-window history management and the 'your permissions were updated' notice) as a new task; this row covers it, no separate card.",
+      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: branch pilot/CR-SHELL-EXTRACT-B-2450 head 36f1f259a is an ancestor of origin/main (git merge-base --is-ancestor, 24.11); change note docs/changes/CR-SHELL-EXTRACT-B-2450.md on main. Merged, but the card's own acceptance test AT-CR-SHELL-EXTRACT-B-2450-1 stays NOT_RUN (no per-card run recorded), so not DONE."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "36f1f259a",
     "actual_cost_usd": null
   },
   {
@@ -27335,7 +27341,7 @@
     "test_ids": [
       "AT-CR-CMP2-SELECTS-2450-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27348,10 +27354,11 @@
       "Branch pilot/CR-CMP2-SELECTS-2450, change note docs/changes/CR-CMP2-SELECTS-2450.md, tests"
     ],
     "evidence": [
-      "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/CR-CMP2-SELECTS-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN."
+      "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/CR-CMP2-SELECTS-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN.",
+      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: branch pilot/CR-CMP2-SELECTS-2450 head 18911c376 is an ancestor of origin/main (git merge-base --is-ancestor, 24.11); change note docs/changes/CR-CMP2-SELECTS-2450.md on main. Merged, but the card's own acceptance test AT-CR-CMP2-SELECTS-2450-1 stays NOT_RUN (no per-card run recorded), so not DONE."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "18911c376",
     "actual_cost_usd": null
   },
   {
@@ -27373,7 +27380,7 @@
     "test_ids": [
       "AT-CR-BE-COMPLEXITY-2450-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27386,10 +27393,11 @@
       "Branch pilot/CR-BE-COMPLEXITY-2450, change note docs/changes/CR-BE-COMPLEXITY-2450.md, tests"
     ],
     "evidence": [
-      "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/CR-BE-COMPLEXITY-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN."
+      "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/CR-BE-COMPLEXITY-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN.",
+      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: branch pilot/CR-BE-COMPLEXITY-2450 head e5b7ab627 is an ancestor of origin/main (git merge-base --is-ancestor, 24.11); change note docs/changes/CR-BE-COMPLEXITY-2450.md on main. Merged, but the card's own acceptance test AT-CR-BE-COMPLEXITY-2450-1 stays NOT_RUN (no per-card run recorded), so not DONE."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "e5b7ab627",
     "actual_cost_usd": null
   },
   {
@@ -27449,7 +27457,7 @@
     "test_ids": [
       "AT-FLAKY-CAPTURE-SCREENSHOT-2490-1"
     ],
-    "status": "BACKLOG",
+    "status": "IN_PROGRESS",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27462,7 +27470,8 @@
       "Branch pilot/FLAKY-CAPTURE-SCREENSHOT-2490, change note docs/changes/FLAKY-CAPTURE-SCREENSHOT-2490.md, tests"
     ],
     "evidence": [
-      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.49.0. Owner Q29 = yes, own row (split from FLAKY-SWEEP-2480)."
+      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.49.0. Owner Q29 = yes, own row (split from FLAKY-SWEEP-2480).",
+      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/FLAKY-CAPTURE-SCREENSHOT-2490 head 169570cf5; not merged into origin/main (2.49.0 candidate)."
     ],
     "owner": null,
     "commit": null,
@@ -27487,7 +27496,7 @@
     "test_ids": [
       "AT-SHARED-CHECKBOX-2480-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27500,10 +27509,11 @@
       "Branch pilot/SHARED-CHECKBOX-2480, change note docs/changes/SHARED-CHECKBOX-2480.md, tests"
     ],
     "evidence": [
-      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.48.0. Owner Q31 = yes, confirmed as its own row. Branch pilot/SHARED-CHECKBOX-2480 exists (2 commits ahead of main 619f94d04); nothing run or released."
+      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.48.0. Owner Q31 = yes, confirmed as its own row. Branch pilot/SHARED-CHECKBOX-2480 exists (2 commits ahead of main 619f94d04); nothing run or released.",
+      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: shipped in v2.48.0 (main = tag v2.48.0 = d6f09395e, released 24.11; RELEASE-2480-TRAIN.md section 1, merge 83b0fd3e2); release gate run 3 PASS at 09acc2db4; lab install 2.48.0 + read-only probe PASS (private-evidence/lab-1611/lab_check_2480_HE.md). Branch pilot/SHARED-CHECKBOX-2480 head 3d35ce1c9 is an ancestor of origin/main. Stays REVIEW: the card's own acceptance test AT-SHARED-CHECKBOX-2480-1 has no per-card PASS record (the gate run is not mapped to it)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "3d35ce1c9",
     "actual_cost_usd": null
   },
   {
@@ -27525,7 +27535,7 @@
     "test_ids": [
       "AT-GEN-UNITS-FIELD-2490-1"
     ],
-    "status": "BACKLOG",
+    "status": "IN_PROGRESS",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27538,7 +27548,8 @@
       "Branch pilot/GEN-UNITS-FIELD-2490, change note docs/changes/GEN-UNITS-FIELD-2490.md, tests"
     ],
     "evidence": [
-      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.49.0. Owner Q16 = yes, separate row (N54)."
+      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.49.0. Owner Q16 = yes, separate row (N54).",
+      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/GEN-UNITS-FIELD-2490 head bd551962d (settings read the active-language catalogue; spec evidence-gen-units-en-2490); not merged into origin/main (2.49.0 candidate)."
     ],
     "owner": null,
     "commit": null,
@@ -27563,7 +27574,7 @@
     "test_ids": [
       "AT-TICKETS-PAGING-2490-1"
     ],
-    "status": "BACKLOG",
+    "status": "IN_PROGRESS",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27576,7 +27587,8 @@
       "Branch pilot/TICKETS-PAGING-2490, change note docs/changes/TICKETS-PAGING-2490.md, tests"
     ],
     "evidence": [
-      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.49.0. Owner Q20 = option a: paging for the tickets table as the next SCROLL-AUDIT row, case details stay a scrolling document."
+      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.49.0. Owner Q20 = option a: paging for the tickets table as the next SCROLL-AUDIT row, case details stay a scrolling document.",
+      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/TICKETS-PAGING-2490 head 164b1fb7a; not merged into origin/main (2.49.0 candidate)."
     ],
     "owner": null,
     "commit": null,
@@ -27601,7 +27613,7 @@
     "test_ids": [
       "AT-DOOR-TECH-HOLD-FIX-2480-1"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27614,10 +27626,11 @@
       "Branch pilot/FLAKY-SWEEP-2480, change note docs/changes/DOOR-TECH-HOLD-FIX-2480.md, tests"
     ],
     "evidence": [
-      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.48.0. Owner Q11 = fix after a comparison page (the fix is visible, so the comparison page comes first)."
+      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.48.0. Owner Q11 = fix after a comparison page (the fix is visible, so the comparison page comes first).",
+      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> REVIEW: delivered by pilot/FLAKY-SWEEP-2480 (the product fix DOOR-TECH-REREAD-2480 in components/wk-door-tech.ts; head 67efe251c, merged 848f2ec20 on the 2.48.0 train; change note docs/changes/FLAKY-SWEEP-2480.md). Shipped in v2.48.0 (gate run 3 PASS at 09acc2db4). There is no docs/changes/DOOR-TECH-HOLD-FIX-2480.md and no comparison-page record found, and AT-DOOR-TECH-HOLD-FIX-2480-1 is NOT_RUN, so not DONE. Open: the owner's Q11 condition (comparison page first) is not recorded."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "67efe251c",
     "actual_cost_usd": null
   },
   {
@@ -27639,7 +27652,7 @@
     "test_ids": [
       "AT-HAND-SWITCH-2480-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27652,10 +27665,11 @@
       "Branch pilot/HAND-SWITCH-2480, change note docs/changes/HAND-SWITCH-2480.md, tests"
     ],
     "evidence": [
-      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.48.0. Owner Q7 = approve as the comparison page; Q30 = the terms checkboxes ALSO become switches (non-recommended choice). Branch pilot/HAND-SWITCH-2480 exists (14 commits ahead of main 619f94d04); nothing released."
+      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.48.0. Owner Q7 = approve as the comparison page; Q30 = the terms checkboxes ALSO become switches (non-recommended choice). Branch pilot/HAND-SWITCH-2480 exists (14 commits ahead of main 619f94d04); nothing released.",
+      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: shipped in v2.48.0 (main = tag v2.48.0 = d6f09395e, released 24.11; RELEASE-2480-TRAIN.md section 1, merge b51274eb0); release gate run 3 PASS at 09acc2db4; lab install 2.48.0 + read-only probe PASS (private-evidence/lab-1611/lab_check_2480_HE.md). Branch pilot/HAND-SWITCH-2480 head dab624c06 is an ancestor of origin/main. Stays REVIEW: the card's own acceptance test AT-HAND-SWITCH-2480-1 has no per-card PASS record (the gate run is not mapped to it)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "dab624c06",
     "actual_cost_usd": null
   },
   {
@@ -27715,7 +27729,7 @@
     "test_ids": [
       "AT-PHONE-SKIP-DESKTOP-SHOTS-2490-1"
     ],
-    "status": "BACKLOG",
+    "status": "IN_PROGRESS",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27728,7 +27742,8 @@
       "Branch pilot/PHONE-SKIP-DESKTOP-SHOTS-2490, change note docs/changes/PHONE-SKIP-DESKTOP-SHOTS-2490.md, tests"
     ],
     "evidence": [
-      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target open. Owner Q21 = yes, file by file (N59). Target version not stated."
+      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target open. Owner Q21 = yes, file by file (N59). Target version not stated.",
+      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/PHONE-SKIP-DESKTOP-SHOTS-2490 head d8c95810a (the phone project skips 25 desktop-only spec files with an explicit list + guard; the tablet project also ignores the 20 files that already skipped on every non-desktop project); not merged into origin/main."
     ],
     "owner": null,
     "commit": null,
@@ -28058,7 +28073,7 @@
     "test_ids": [
       "AT-MFA-STEPUP-TRAIN-2490-1"
     ],
-    "status": "BACKLOG",
+    "status": "IN_PROGRESS",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28071,7 +28086,8 @@
       "change note docs/changes/MFA-STEPUP-TRAIN-2490.md, tests"
     ],
     "evidence": [
-      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target after 2.49.0, one train (about 19 agent days). Owner Q44-Q53. Q44 = after 2.49.0 as one train. Q45/Q46 = step-up before every settings, users and permissions change with a 5 minute grace, PLUS a setting to turn step-up off (owner note). Q47 = keep the authenticator code beside passkeys. Q48 = long-lived token from outside while the rule is active ALLOWED, as today (non-recommended). Q49 = recovery codes (10 per user, single use). Q50 = passkeys for all users. Q51 = in the app, password plus phone key suffices as two-factor. Q52 = phone hardware attestation YES (non-recommended). Q53 = reset of auth methods from anywhere with admin approval (non-recommended; the security recommendation was local network only and the risk was explained)."
+      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target after 2.49.0, one train (about 19 agent days). Owner Q44-Q53. Q44 = after 2.49.0 as one train. Q45/Q46 = step-up before every settings, users and permissions change with a 5 minute grace, PLUS a setting to turn step-up off (owner note). Q47 = keep the authenticator code beside passkeys. Q48 = long-lived token from outside while the rule is active ALLOWED, as today (non-recommended). Q49 = recovery codes (10 per user, single use). Q50 = passkeys for all users. Q51 = in the app, password plus phone key suffices as two-factor. Q52 = phone hardware attestation YES (non-recommended). Q53 = reset of auth methods from anywhere with admin approval (non-recommended; the security recommendation was local network only and the risk was explained).",
+      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: slice 1 (STEPUP-CORE, backend core) on pilot/MFA-STEPUP-2490 head fb9a3ac1e, built from v2.47.0 619f94d04; not merged. Tests recorded in the branch note docs/changes/MFA-STEPUP-TRAIN-2490.md: tests/test_mfa_stepup_2490.py 22 passed (workstation); slot-B run of 102 backend files in 5 chunks: 2467 passed; ruff clean; tsc exit 0; full backend suite, Playwright / pixel and lab NOT_RUN. 12-slice plan (section 4 of that note): 1 STEPUP-CORE (done on the branch), 2 STEPUP-UI, 3 STEPUP-GATES, 4 PASSKEYS-ALL, 5 POLICY + PROVENANCE, 6 TOKENS, 7 RECOVERY, 8 DEVICEKEY-SRV + APP, 9 DEVICEKEY-ATTEST, 10 RESET-HARDENING, 11 SCREENS, 12 REVIEW-DOCS. Open questions are in section 7 of the note, each with a recommendation (notably: merge slices 1 + 2 together, never release slice 1 alone, because the step-up switch defaults ON before any UI exists)."
     ],
     "owner": null,
     "commit": null,
@@ -28213,7 +28229,7 @@
     "test_ids": [
       "AT-COLOR-LITERAL-A-2480-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28226,10 +28242,11 @@
       "Branch pilot/COLOR-LITERAL-A-2480, change note docs/changes/COLOR-LITERAL-A-2480.md, tests"
     ],
     "evidence": [
-      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.48.0. Owner Q24 = yes, exclude the device palettes file; Q26 = YES, shared video text-shadow colour variable NOW (non-recommended; the recommendation was later). Branch pilot/COLOR-LITERAL-A-2480 exists (7 commits ahead of main 619f94d04)."
+      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.48.0. Owner Q24 = yes, exclude the device palettes file; Q26 = YES, shared video text-shadow colour variable NOW (non-recommended; the recommendation was later). Branch pilot/COLOR-LITERAL-A-2480 exists (7 commits ahead of main 619f94d04).",
+      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: shipped in v2.48.0 (main = tag v2.48.0 = d6f09395e, released 24.11; RELEASE-2480-TRAIN.md section 1, merge 76e1ad582); release gate run 3 PASS at 09acc2db4; lab install 2.48.0 + read-only probe PASS (private-evidence/lab-1611/lab_check_2480_HE.md). Branch pilot/COLOR-LITERAL-A-2480 head e4899b75d is an ancestor of origin/main. Stays REVIEW: the card's own acceptance test AT-COLOR-LITERAL-A-2480-1 has no per-card PASS record (the gate run is not mapped to it)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "e4899b75d",
     "actual_cost_usd": null
   },
   {
@@ -28251,7 +28268,7 @@
     "test_ids": [
       "AT-COLOR-LITERAL-B-2480-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28264,10 +28281,11 @@
       "Branch pilot/COLOR-LITERAL-B-2480, change note docs/changes/COLOR-LITERAL-B-2480.md, tests"
     ],
     "evidence": [
-      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.48.0. Owner Q25 = yes, skip them. Branch pilot/COLOR-LITERAL-B-2480 exists (9 commits ahead of main 619f94d04)."
+      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.48.0. Owner Q25 = yes, skip them. Branch pilot/COLOR-LITERAL-B-2480 exists (9 commits ahead of main 619f94d04).",
+      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: shipped in v2.48.0 (main = tag v2.48.0 = d6f09395e, released 24.11; RELEASE-2480-TRAIN.md section 1, merge 9815fc5be); release gate run 3 PASS at 09acc2db4; lab install 2.48.0 + read-only probe PASS (private-evidence/lab-1611/lab_check_2480_HE.md). Branch pilot/COLOR-LITERAL-B-2480 head cc342daa4 is an ancestor of origin/main. Stays REVIEW: the card's own acceptance test AT-COLOR-LITERAL-B-2480-1 has no per-card PASS record (the gate run is not mapped to it)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "cc342daa4",
     "actual_cost_usd": null
   },
   {
@@ -28289,7 +28307,7 @@
     "test_ids": [
       "AT-I18N-DEFAULT-NAMES-2490-1"
     ],
-    "status": "BACKLOG",
+    "status": "IN_PROGRESS",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28302,7 +28320,8 @@
       "Branch pilot/I18N-EN-2490, change note docs/changes/I18N-DEFAULT-NAMES-2490.md, tests"
     ],
     "evidence": [
-      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.49.0. Owner Q15 = TRANSLATE at creation (non-recommended choice; the recommendation was to keep Hebrew) (N53). Branch line pilot/I18N-EN-2490 exists."
+      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.49.0. Owner Q15 = TRANSLATE at creation (non-recommended choice; the recommendation was to keep Hebrew) (N53). Branch line pilot/I18N-EN-2490 exists.",
+      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/I18N-DEFAULT-NAMES-2490 head 9b6c82cb3 (server default names made in the creator's language); slot-B backend run of 47 files in 6 shards: 1361 passed (branch change note); not merged into origin/main, so not DONE."
     ],
     "owner": null,
     "commit": null,
@@ -28327,7 +28346,7 @@
     "test_ids": [
       "AT-I18N-SETTINGS-KEYWORDS-2490-1"
     ],
-    "status": "BACKLOG",
+    "status": "IN_PROGRESS",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28340,7 +28359,160 @@
       "Branch pilot/I18N-EN-2490, change note docs/changes/I18N-SETTINGS-KEYWORDS-2490.md, tests"
     ],
     "evidence": [
-      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.49.0. Owner Q14 = add English keywords (N52)."
+      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.49.0. Owner Q14 = add English keywords (N52).",
+      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/I18N-SETTINGS-KEYWORDS-2490 head 1df34dc24 (English search keywords for the settings search); not merged into origin/main."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "RELEASE-2480-TRAIN",
+    "title": "RELEASE-2480-TRAIN - the 2.48.0 train and its release",
+    "epic": "RELEASE",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "release",
+    "requires_hardware": false,
+    "acceptance": [
+      "The 2.48.0 train on release/2480-train (22 merges, see docs/changes/RELEASE-2480-TRAIN.md section 1) passes the release gate, is tagged v2.48.0, published and installed in the lab with a passing read-only probe."
+    ],
+    "requirement_ids": [
+      "R-RELEASE-2480-TRAIN-1"
+    ],
+    "test_ids": [
+      "AT-RELEASE-2480-TRAIN-1"
+    ],
+    "status": "DONE",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Train merges, release commit, runner build, release gate with targeted re-runs, tag, #addon refresh and lab install"
+    ],
+    "evidence": [
+      "2026-11-24 (MGMT-SYNC-2411): Released 24.11: main = tag v2.48.0 = d6f09395e. Gate run 1 (3bbb517ec, full) FAIL, run 2 (5d5500fbc, targeted) FAIL, run 3 (09acc2db4, targeted) PASS (0 hard, 0 test failures, 0 flaky); the fixes were test-only (frontend/src and backend byte-identical to the UI rebuild 3bbb517ec). Lab install 2.48.0 and read-only probe PASS (private-evidence/lab-1611/lab_check_2480_HE.md; bridge stays 0.10.8, no HA restart). Change note docs/changes/RELEASE-2480-TRAIN.md. Not on the train: I18N-EN-2490, I18N-BACKEND-2490, GEN-UNITS-FIELD-2490, TICKETS-PAGING-2490, FLAKY-CAPTURE-SCREENSHOT-2490, NATIVE-SELECT-B-2480 (dropped), RESPONSE-MODELS-E-2480 (pending). Known limits: the pre-gate unit run was 5,127 passed / 1 failed (fixed test-only), and the pre-gate backend partial run stopped at about 99 percent; the gate full backend covers it. The commit field names the gated head 09acc2db4 (tag v2.48.0 = d6f09395e is the note commit on top)."
+    ],
+    "owner": null,
+    "commit": "09acc2db4",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "RELEASE-2490-TRAIN",
+    "title": "RELEASE-2490-TRAIN - the 2.49.0 train",
+    "epic": "RELEASE",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "release",
+    "requires_hardware": false,
+    "acceptance": [
+      "The 2.49.0 train on release/2490-train passes ONE release gate with targeted re-runs, then is tagged, pushed and installed in the lab after the owner pre-approval."
+    ],
+    "requirement_ids": [
+      "R-RELEASE-2490-TRAIN-1"
+    ],
+    "test_ids": [
+      "AT-RELEASE-2490-TRAIN-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Train merges, release commit, runner build, release gate, tag and lab install after a green gate"
+    ],
+    "evidence": [
+      "2026-11-24 (MGMT-SYNC-2411): Assembling on origin/release/2490-train (head 11eccfba8 at the sync, worktree C:\\cloude\\smplwise-2490train), cut from main = v2.48.0. Candidate rows: GEN-UNITS-FIELD-2490, TICKETS-PAGING-2490, FLAKY-CAPTURE-SCREENSHOT-2490, I18N-EN-2490, I18N-BACKEND-2490, I18N-DEFAULT-NAMES-2490, I18N-SETTINGS-KEYWORDS-2490, PHONE-SKIP-DESKTOP-SHOTS-2490 (the board is kept by the train assembler). Gate NOT_RUN; no release note yet."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "ADR019-STEP0-2500",
+    "title": "ADR-019 Step 0: error envelope contract and reader (wire/errors.py, field_error(), fieldsOf/problemsOf, additive RequestValidationError fields)",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "ADR-019 Migration plan Step 0, one row with no envelope change: wire/errors.py models (ErrorEnvelope, FieldProblem, FieldErrorDetails) and generated wire-errors.ts; errors.field_error(); fieldsOf / problemsOf in api/client.ts; the global RequestValidationError handler adds fields and problems additively; backend contract test that every RequestValidationError answer carries fields and problems next to errors."
+    ],
+    "requirement_ids": [
+      "R-ADR019-STEP0-2500-1"
+    ],
+    "test_ids": [
+      "AT-ADR019-STEP0-2500-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/ADR019-STEP0-2500, change note docs/changes/ADR019-STEP0-2500.md, tests"
+    ],
+    "evidence": [
+      "2026-11-24 (MGMT-SYNC-2411): Registered from ADR-019 (docs/architecture/ADR-019-error-envelope-and-request-strictness.md, proposed 2026-11-22, on main; lead decisions L2 and L14, no owner decision needed). Worktree C:\\cloude\\smplwise-adr019a on branch pilot/ADR019-STEP0-2500 at d6f09395e (= main, no commits yet, branch not pushed): IN_PROGRESS, nothing delivered."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "ADR019-L14-OBSERVE-2500",
+    "title": "ADR-019 L14 step 1: observing base model and SW_REQUEST_STRICT=1 in the backend test settings",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "ADR-019 L14 step 1: the observing request-body base model (records unknown keys) and SW_REQUEST_STRICT=1 in the backend test settings, so the tolerant web-UI models can adopt it family by family; no model flips to forbid in this row."
+    ],
+    "requirement_ids": [
+      "R-ADR019-L14-OBSERVE-2500-1"
+    ],
+    "test_ids": [
+      "AT-ADR019-L14-OBSERVE-2500-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/ADR019-L14-OBSERVE-2500, change note docs/changes/ADR019-L14-OBSERVE-2500.md, tests"
+    ],
+    "evidence": [
+      "2026-11-24 (MGMT-SYNC-2411): Registered from ADR-019 (docs/architecture/ADR-019-error-envelope-and-request-strictness.md, proposed 2026-11-22, on main; lead decisions L2 and L14, no owner decision needed). Worktree C:\\cloude\\smplwise-adr019b on branch pilot/ADR019-L14-OBSERVE-2500 at d6f09395e (= main, no commits yet, branch not pushed): IN_PROGRESS, nothing delivered. L14 steps run after Step 0 (ADR019-STEP0-2500) in parallel with the families."
     ],
     "owner": null,
     "commit": null,

@@ -19525,12 +19525,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "The 2.44.0 train on release/2440-train (shell controller, home/area, toasts and switches, redacted log export, English tariff names, water customer form and the rest) passes ONE release gate with targeted re-runs, then is tagged, pushed and installed in the lab.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-24 (MGMT-SYNC-2411): PASS at 6261bc7c4.",
+    "commit": "6261bc7c4",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 (full run 1 + targeted runs 2-3) on release/2440-train; tag v2.44.0 (51da93753)",
+    "evidence": "docs/changes/RELEASE-2440-TRAIN.md section 5 (gate run 3 PASS at 6261bc7c4); gate reports on the runner were not re-read in MGMT-SYNC-2411, the verdict is taken from the merged change note.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-CR-FEED-BASE-2450-1",
@@ -20302,6 +20302,106 @@
     "expected": "English: add English search keywords to the settings search: settings search keywords exist in English so an English search finds settings, not only labels.",
     "status": "NOT_RUN",
     "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-RELEASE-2480-TRAIN-1",
+    "requirement_ids": [
+      "R-RELEASE-2480-TRAIN-1"
+    ],
+    "task_ids": [
+      "RELEASE-2480-TRAIN"
+    ],
+    "title": "RELEASE-2480-TRAIN - the 2.48.0 train and its release",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The 2.48.0 train on release/2480-train (22 merges, see docs/changes/RELEASE-2480-TRAIN.md section 1) passes the release gate, is tagged v2.48.0, published and installed in the lab with a passing read-only probe.",
+    "status": "PASS",
+    "notes": "Registered 2026-11-24 (MGMT-SYNC-2411); NOT_RUN as a catalog record. | 2026-11-24 (MGMT-SYNC-2411): PASS at 09acc2db4.",
+    "commit": "09acc2db4",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 (full run 1 + targeted runs 2-3) on release/2480-train; tag v2.48.0 (d6f09395e); lab add-on 2.48.0 read-only probe",
+    "evidence": "docs/changes/RELEASE-2480-TRAIN.md section 6 (gate run 3 PASS at 09acc2db4; reports gate_release-2480-train_{3bbb517ec,5d5500fbc,09acc2db4}.gate2.md on the runner); private-evidence/lab-1611/lab_check_2480_HE.md (lab probe PASS).",
+    "executed_at": "2026-11-24"
+  },
+  {
+    "id": "AT-RELEASE-2490-TRAIN-1",
+    "requirement_ids": [
+      "R-RELEASE-2490-TRAIN-1"
+    ],
+    "task_ids": [
+      "RELEASE-2490-TRAIN"
+    ],
+    "title": "RELEASE-2490-TRAIN - the 2.49.0 train",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The 2.49.0 train on release/2490-train passes ONE release gate with targeted re-runs, then is tagged, pushed and installed in the lab after the owner pre-approval.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-24 (MGMT-SYNC-2411); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-ADR019-STEP0-2500-1",
+    "requirement_ids": [
+      "R-ADR019-STEP0-2500-1"
+    ],
+    "task_ids": [
+      "ADR019-STEP0-2500"
+    ],
+    "title": "ADR-019 Step 0: error envelope contract and reader (wire/errors.py, field_error(), fieldsOf/problemsOf, additive RequestValidationError fields)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "ADR-019 Migration plan Step 0, one row with no envelope change: wire/errors.py models (ErrorEnvelope, FieldProblem, FieldErrorDetails) and generated wire-errors.ts; errors.field_error(); fieldsOf / problemsOf in api/client.ts; the global RequestValidationError handler adds fields and problems additively; backend contract test that every RequestValidationError answer carries fields and problems next to errors.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-24 (MGMT-SYNC-2411); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-ADR019-L14-OBSERVE-2500-1",
+    "requirement_ids": [
+      "R-ADR019-L14-OBSERVE-2500-1"
+    ],
+    "task_ids": [
+      "ADR019-L14-OBSERVE-2500"
+    ],
+    "title": "ADR-019 L14 step 1: observing base model and SW_REQUEST_STRICT=1 in the backend test settings",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "ADR-019 L14 step 1: the observing request-body base model (records unknown keys) and SW_REQUEST_STRICT=1 in the backend test settings, so the tolerant web-UI models can adopt it family by family; no model flips to forbid in this row.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-24 (MGMT-SYNC-2411); NOT_RUN as a catalog record.",
     "commit": null,
     "environment": null,
     "evidence": [],

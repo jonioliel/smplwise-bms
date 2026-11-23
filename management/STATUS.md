@@ -1,25 +1,25 @@
 # Project status — generated view
 
-Generated: 2026-11-23T21:10:33.893224+00:00
+Generated: 2026-11-23T23:58:39.996075+00:00
 
-Tasks: 647 | Requirements: 761 | Tests: 778 | Screens: 32
+Tasks: 651 | Requirements: 765 | Tests: 782 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DONE; READY, IN_PROGRESS, VALIDATION and DONE need every dependency DONE. OBSOLETE cards are BLOCKED with a blocker starting "Excluded - OBSOLETE" and an EXCLUDED evidence line (the registry has no OBSOLETE status); a dependency on an OBSOLETE card counts as satisfied under every rule (BOARD-DECISIONS-2407, owner decision 2026-11-07).
 
 ## Status counts
-- BACKLOG: 24
+- BACKLOG: 16
 - BLOCKED: 27
-- DONE: 438
-- IN_PROGRESS: 15
-- REVIEW: 143
+- DONE: 440
+- IN_PROGRESS: 14
+- REVIEW: 154
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 552
+- V1: 556
 - V2: 29
 - V3: 3
 
@@ -670,22 +670,22 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [RELEASE-2438-TRAIN](tasks/RELEASE-2438-TRAIN.md) | V1 | DONE | RELEASE-2438-TRAIN: assembly of the 2.43.8 train (first part - the branches whose entry check is GREEN) | — |
 | [RELEASE-2439-TRAIN](tasks/RELEASE-2439-TRAIN.md) | V1 | DONE | RELEASE-2439-TRAIN - the 2.43.9 train | — |
 | [TEST-STABLE-2442](tasks/TEST-STABLE-2442.md) | V1 | DONE | TEST-STABLE-2442 - two test-stability fixes (the home calendar near midnight, the intercom cards' pixel wait) | — |
-| [RELEASE-2440-TRAIN](tasks/RELEASE-2440-TRAIN.md) | V1 | IN_PROGRESS | RELEASE-2440-TRAIN - the 2.44.0 train (nine branches) and its release gate | — |
-| [CR-FEED-BASE-2450](tasks/CR-FEED-BASE-2450.md) | V1 | IN_PROGRESS | HA feed base (code-review 02:P2-5): one base for the Home Assistant state feed consumers | — |
-| [CR-ROUTER-SQL-2450](tasks/CR-ROUTER-SQL-2450.md) | V1 | IN_PROGRESS | SQL out of the remaining routers (code-review programme 3.6) | — |
-| [CR-RESPONSE-MODELS-CONSUMPTION-2450](tasks/CR-RESPONSE-MODELS-CONSUMPTION-2450.md) | V1 | IN_PROGRESS | Response models and the generated client consumption (code-review 07:F8 step 2) | — |
-| [CR-SHELL-EXTRACT-B-2450](tasks/CR-SHELL-EXTRACT-B-2450.md) | V1 | IN_PROGRESS | Shell extraction part B: further controllers out of the shell (sw-app.ts), after CR-SHELL-EXTRACT-2440 | — |
-| [CR-CMP2-SELECTS-2450](tasks/CR-CMP2-SELECTS-2450.md) | V1 | IN_PROGRESS | CMP-2 step 2, the selects family (O13 a: family by family, new baselines) | — |
-| [CR-BE-COMPLEXITY-2450](tasks/CR-BE-COMPLEXITY-2450.md) | V1 | IN_PROGRESS | Backend complexity extractions (code-review programme 3.6) | — |
+| [RELEASE-2440-TRAIN](tasks/RELEASE-2440-TRAIN.md) | V1 | DONE | RELEASE-2440-TRAIN - the 2.44.0 train (nine branches) and its release gate | — |
+| [CR-FEED-BASE-2450](tasks/CR-FEED-BASE-2450.md) | V1 | REVIEW | HA feed base (code-review 02:P2-5): one base for the Home Assistant state feed consumers | — |
+| [CR-ROUTER-SQL-2450](tasks/CR-ROUTER-SQL-2450.md) | V1 | REVIEW | SQL out of the remaining routers (code-review programme 3.6) | — |
+| [CR-RESPONSE-MODELS-CONSUMPTION-2450](tasks/CR-RESPONSE-MODELS-CONSUMPTION-2450.md) | V1 | REVIEW | Response models and the generated client consumption (code-review 07:F8 step 2) | — |
+| [CR-SHELL-EXTRACT-B-2450](tasks/CR-SHELL-EXTRACT-B-2450.md) | V1 | REVIEW | Shell extraction part B: further controllers out of the shell (sw-app.ts), after CR-SHELL-EXTRACT-2440 | — |
+| [CR-CMP2-SELECTS-2450](tasks/CR-CMP2-SELECTS-2450.md) | V1 | REVIEW | CMP-2 step 2, the selects family (O13 a: family by family, new baselines) | — |
+| [CR-BE-COMPLEXITY-2450](tasks/CR-BE-COMPLEXITY-2450.md) | V1 | REVIEW | Backend complexity extractions (code-review programme 3.6) | — |
 | [T068-EDGE-2450](tasks/T068-EDGE-2450.md) | V1 | IN_PROGRESS | T068 edge cases of the soak and load work: disconnects and a full disk | — |
-| [FLAKY-CAPTURE-SCREENSHOT-2490](tasks/FLAKY-CAPTURE-SCREENSHOT-2490.md) | V1 | BACKLOG | Find and fix the intermittent "Unable to capture screenshot" failure in the UI test runs | — |
-| [SHARED-CHECKBOX-2480](tasks/SHARED-CHECKBOX-2480.md) | V1 | IN_PROGRESS | Shared checkbox component for the checkboxes that remain checkboxes | — |
-| [GEN-UNITS-FIELD-2490](tasks/GEN-UNITS-FIELD-2490.md) | V1 | BACKLOG | Generator settings: units move from the field label into the field frame | — |
-| [TICKETS-PAGING-2490](tasks/TICKETS-PAGING-2490.md) | V1 | BACKLOG | Tickets table paging; case details stay a scrolling document | — |
-| [DOOR-TECH-HOLD-FIX-2480](tasks/DOOR-TECH-HOLD-FIX-2480.md) | V1 | BACKLOG | Door technician screen: hold buttons stay usable while the screen re-reads after a write | — |
-| [HAND-SWITCH-2480](tasks/HAND-SWITCH-2480.md) | V1 | IN_PROGRESS | On/off checkboxes become switches (about 160 places in 80 files), including the terms (I agree) checkboxes | — |
+| [FLAKY-CAPTURE-SCREENSHOT-2490](tasks/FLAKY-CAPTURE-SCREENSHOT-2490.md) | V1 | IN_PROGRESS | Find and fix the intermittent "Unable to capture screenshot" failure in the UI test runs | — |
+| [SHARED-CHECKBOX-2480](tasks/SHARED-CHECKBOX-2480.md) | V1 | REVIEW | Shared checkbox component for the checkboxes that remain checkboxes | — |
+| [GEN-UNITS-FIELD-2490](tasks/GEN-UNITS-FIELD-2490.md) | V1 | IN_PROGRESS | Generator settings: units move from the field label into the field frame | — |
+| [TICKETS-PAGING-2490](tasks/TICKETS-PAGING-2490.md) | V1 | IN_PROGRESS | Tickets table paging; case details stay a scrolling document | — |
+| [DOOR-TECH-HOLD-FIX-2480](tasks/DOOR-TECH-HOLD-FIX-2480.md) | V1 | REVIEW | Door technician screen: hold buttons stay usable while the screen re-reads after a write | — |
+| [HAND-SWITCH-2480](tasks/HAND-SWITCH-2480.md) | V1 | REVIEW | On/off checkboxes become switches (about 160 places in 80 files), including the terms (I agree) checkboxes | — |
 | [HAND-SWITCH-HOME-PERSONAL-2490](tasks/HAND-SWITCH-HOME-PERSONAL-2490.md) | V1 | BACKLOG | Switches in the home "personal" card, after the home panel edit | — |
-| [PHONE-SKIP-DESKTOP-SHOTS-2490](tasks/PHONE-SKIP-DESKTOP-SHOTS-2490.md) | V1 | BACKLOG | The phone test run skips desktop-size screenshots, file by file | — |
+| [PHONE-SKIP-DESKTOP-SHOTS-2490](tasks/PHONE-SKIP-DESKTOP-SHOTS-2490.md) | V1 | IN_PROGRESS | The phone test run skips desktop-size screenshots, file by file | — |
 | [SOAK-14H-2490](tasks/SOAK-14H-2490.md) | V1 | BACKLOG | 14 hour soak on the test server after the 2.49.0 release checks | — |
 | [LAB-V0-ROLE-2490](tasks/LAB-V0-ROLE-2490.md) | V1 | BLOCKED | Lab test account gets the lab system-admin role (owner action) | — |
 | [LAB-V2-DRILLS-2490](tasks/LAB-V2-DRILLS-2490.md) | V1 | REVIEW | Disconnect drills a, b and c (V2) closed | — |
@@ -694,11 +694,15 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [LAB-V5-WISKEY-WRITE-2490](tasks/LAB-V5-WISKEY-WRITE-2490.md) | V1 | BACKLOG | Real WisKey write through the system, including a disabled test card (V5) | — |
 | [LAB-V6-LOG-EXPORT-2490](tasks/LAB-V6-LOG-EXPORT-2490.md) | V1 | BACKLOG | Real log export and redaction check (V6) | — |
 | [LAB-V7-ENGLISH-WALK-2490](tasks/LAB-V7-ENGLISH-WALK-2490.md) | V1 | BACKLOG | English UI walk in the lab (V7) | — |
-| [MFA-STEPUP-TRAIN-2490](tasks/MFA-STEPUP-TRAIN-2490.md) | V3 | BACKLOG | Two-factor authentication train: step-up before sensitive actions, recovery codes, passkeys, attestation | — |
+| [MFA-STEPUP-TRAIN-2490](tasks/MFA-STEPUP-TRAIN-2490.md) | V3 | IN_PROGRESS | Two-factor authentication train: step-up before sensitive actions, recovery codes, passkeys, attestation | — |
 | [MULTI-BUILDING-NEXT-2490](tasks/MULTI-BUILDING-NEXT-2490.md) | V1 | BACKLOG | Multi-building next phase (safety first, then the home interface, then filtering and lobby) | MULTIBUILDING-HOME-2330 |
 | [HOME-INTERFACE-NEXT-2490](tasks/HOME-INTERFACE-NEXT-2490.md) | V1 | BACKLOG | Home interface next phase: rest screen, night mode, takeover, scenes, favourites | — |
 | [NATIVE-SELECT-B-2480](tasks/NATIVE-SELECT-B-2480.md) | V1 | BLOCKED | Remaining 241 selects moved to the shared field in design-stripping mode (dropped) | — |
-| [COLOR-LITERAL-A-2480](tasks/COLOR-LITERAL-A-2480.md) | V1 | IN_PROGRESS | Colour-literal ratchet A: device palettes file out of the count; shared video text-shadow colour variable now | — |
-| [COLOR-LITERAL-B-2480](tasks/COLOR-LITERAL-B-2480.md) | V1 | IN_PROGRESS | Colour-literal ratchet B: skip the module palette tables (about 830 colours) | — |
-| [I18N-DEFAULT-NAMES-2490](tasks/I18N-DEFAULT-NAMES-2490.md) | V1 | BACKLOG | English: default names saved on the server (such as "(copy)") are translated at creation | — |
-| [I18N-SETTINGS-KEYWORDS-2490](tasks/I18N-SETTINGS-KEYWORDS-2490.md) | V1 | BACKLOG | English: add English search keywords to the settings search | — |
+| [COLOR-LITERAL-A-2480](tasks/COLOR-LITERAL-A-2480.md) | V1 | REVIEW | Colour-literal ratchet A: device palettes file out of the count; shared video text-shadow colour variable now | — |
+| [COLOR-LITERAL-B-2480](tasks/COLOR-LITERAL-B-2480.md) | V1 | REVIEW | Colour-literal ratchet B: skip the module palette tables (about 830 colours) | — |
+| [I18N-DEFAULT-NAMES-2490](tasks/I18N-DEFAULT-NAMES-2490.md) | V1 | IN_PROGRESS | English: default names saved on the server (such as "(copy)") are translated at creation | — |
+| [I18N-SETTINGS-KEYWORDS-2490](tasks/I18N-SETTINGS-KEYWORDS-2490.md) | V1 | IN_PROGRESS | English: add English search keywords to the settings search | — |
+| [RELEASE-2480-TRAIN](tasks/RELEASE-2480-TRAIN.md) | V1 | DONE | RELEASE-2480-TRAIN - the 2.48.0 train and its release | — |
+| [RELEASE-2490-TRAIN](tasks/RELEASE-2490-TRAIN.md) | V1 | IN_PROGRESS | RELEASE-2490-TRAIN - the 2.49.0 train | — |
+| [ADR019-STEP0-2500](tasks/ADR019-STEP0-2500.md) | V1 | IN_PROGRESS | ADR-019 Step 0: error envelope contract and reader (wire/errors.py, field_error(), fieldsOf/problemsOf, additive RequestValidationError fields) | — |
+| [ADR019-L14-OBSERVE-2500](tasks/ADR019-L14-OBSERVE-2500.md) | V1 | IN_PROGRESS | ADR-019 L14 step 1: observing base model and SW_REQUEST_STRICT=1 in the backend test settings | — |
