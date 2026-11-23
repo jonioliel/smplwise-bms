@@ -5,6 +5,8 @@
 // HOME-SIMPLE-2421: three sub-tabs - people, the installation settings (default interface of new people, wall-panel exit, room
 // wallpaper) and the switch classification (light / not a light / protected: the system suggests by name, the administrator approves;
 // many at once, filtered by suggestion / class / room). The classification needs system.configure (its stores are Settings').
+// HOME-WALL-NIGHT-2500: a fourth sub-tab, "מסכי קיר" - the wall panels' rest screen, night mode and screen takeover (installation settings,
+// the same PUT /home/settings; owner 22.11 Q70 / Q71 / Q73 / Q74). Drawn in this tab's own look: cards, switch rows and option lists.
 import { P3_MODULE_LABEL } from './home-p3-logic'; // HOME-V3-P3-2432
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
@@ -17,6 +19,8 @@ import { getHomePrefs, getOverview, type HomeModule, type Overview } from './hom
 import '../components/sw-button';
 import '../components/sw-toggle';
 import '../components/sw-view-switch';
+import '../components/sw-segmented'; // HOME-WALL-NIGHT-2500: the rest time keys
+import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-tabs';
 import '../components/sw-state-panel';
 import { tr } from '../i18n/msg/home';
@@ -71,7 +75,11 @@ export class SwHomeAdmin extends LitElement {
     @media (max-width: 600px) { .cols { grid-template-columns: 1fr; } }
     .chk { display: flex; align-items: center; gap: 8px; min-block-size: 32px; font-size: var(--sw-fs-sm, 13px); }
     .chk input { inline-size: 18px; block-size: 18px; accent-color: var(--sw-accent); }
-    select, input[type='password'] { font: inherit; min-block-size: 36px; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-md, 8px); background: var(--sw-surface); color: var(--sw-text); padding: 0 10px; }
+    .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: var(--sw-gap-lg, 20px); align-items: start; }
+    .srow.stack { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    .times { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .times label { display: inline-flex; gap: 8px; align-items: center; font-size: var(--sw-fs-sm, 13px); color: var(--sw-text-2); }
+    select, input[type='password'], input[type='time'] { font: inherit; min-block-size: 36px; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-md, 8px); background: var(--sw-surface); color: var(--sw-text); padding: 0 10px; }
     .msg { margin-block: 8px; font-size: var(--sw-fs-sm, 13px); } .msg.err { color: var(--sw-danger); } .msg.ok { color: var(--sw-success); }
     .extra { display: grid; gap: 10px; margin-block-start: 16px; }
     .inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -107,7 +115,7 @@ export class SwHomeAdmin extends LitElement {
   @state() private message = '';
   @state() private busy = false;
   @state() private code = '';
-  @state() private sub: 'users' | 'install' | 'switches' = 'users';
+  @state() private sub: 'users' | 'install' | 'wall' | 'switches' = 'users';
   @state() private inst: InstallSettings | null = null;
   @state() private vis: VisitorSwitch | 'denied' | null = null;
   @state() private sw: SwitchRow[] | null = null;
@@ -217,11 +225,12 @@ export class SwHomeAdmin extends LitElement {
     }
   }
 
-  private async saveInstall(patch: Partial<InstallSettings>) {
+  private async saveInstall(patch: Partial<InstallSettings>, done = tr('נשמר. משתמשים קיימים לא הושפעו.')) {
     this.message = '';
+    this.error = '';
     try {
       this.inst = (await put<HiWire.HomeSettingsSaved>('home/settings', patch)).settings;
-      this.message = tr('נשמר. משתמשים קיימים לא הושפעו.');
+      this.message = done;
     } catch (err) {
       this.error = describeError(err);
     }
@@ -274,6 +283,38 @@ export class SwHomeAdmin extends LitElement {
         ${opt('wallpaper', 'gallery', tr('גלריה מוכנה'), tr('כל משתמש בוחר רקע מעומעם לכל חדר מתוך גלריה מובנית.'))}
         ${opt('wallpaper', 'gallery_image', tr('גלריה ותמונה אישית'), tr('בנוסף אפשר להעלות תמונה לחדר (JPEG או PNG, עד 2 MB). התמונה נשמרת בשרת ונראית רק למי שהעלה אותה.'))}
       </div></section>${this.roomWallPane()}${this.visitorsCard()}</div>`;
+  }
+
+  // ---------------------------------------------------------------- HOME-WALL-NIGHT-2500: the wall panels' rest screen, night and takeover
+
+  private wallPane() {
+    const i = this.inst;
+    if (!i) return html`<sw-state-panel state="loading"></sw-state-panel>`;
+    const done = tr('נשמר. מסכי הקיר יקבלו את השינוי בטעינה הבאה של הנתונים.');
+    const save = (patch: Partial<InstallSettings>) => this.saveInstall(patch, done);
+    const opt = <K extends 'wall_night_dim' | 'wall_takeover'>(k: K, v: InstallSettings[K], title: string, note: string) => html`<label class="opt"><input type="radio" name=${k} .checked=${i[k] === v} data-install=${`${k}:${v}`} ?disabled=${k === 'wall_night_dim' && i.wall_night === 'off'} @change=${() => save({ [k]: v } as Partial<InstallSettings>)}><span><b>${title}</b><span class="note">${note}</span></span></label>`;
+    const mins = (['1', '2', '5', '10', '15'] as const).map((m) => ({ value: m, label: m === '1' ? tr('דקה') : tr('{m} דק׳', { m }), attrs: { 'data-rest-after': m } }));
+    const time = (k: 'wall_night_start' | 'wall_night_end', label: string) => html`<label>${label}<input type="time" step="60" dir="ltr" data-install-time=${k} .value=${i[k]} ?disabled=${i.wall_night === 'off'} @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value; if (/^\d{2}:\d{2}$/.test(v) && v !== i[k]) void save({ [k]: v }); }}></label>`;
+    const empty = i.wall_night === 'on' && i.wall_night_start === i.wall_night_end;
+    return html`<p class="note">${tr('חל על כל המשתמשים שמוגדרים כמסך קיר (משתמשים › מצב מסך קיר).')}</p><div class="grid3" data-home-wall-settings>
+      <section class="card" aria-label="${tr('מסך מנוחה')}"><h3>${tr('מסך מנוחה')}</h3>
+        <div class="srow"><div><b>${tr('מסך מנוחה')}</b><div class="note">${tr('שעה, מזג אוויר, מה יש היום, דלתות ואזעקה. הנגיעה הראשונה רק מעירה את המסך.')}</div></div><sw-toggle label="${tr('מסך מנוחה')}" labelHidden data-wall-rest-toggle ?checked=${i.wall_rest === 'on'} @change=${(e: CustomEvent<{ checked: boolean }>) => save({ wall_rest: e.detail.checked ? 'on' : 'off' })}></sw-toggle></div>
+        <div class="srow stack"><div><b>${tr('אחרי כמה זמן בלי נגיעה')}</b><div class="note">${tr('ברירת המחדל: 2 דקות. כשמסך המנוחה כבוי, זה הזמן שאחריו המסך מוחשך בלילה.')}</div></div><sw-segmented size="sm" label="${tr('אחרי כמה זמן בלי נגיעה')}" data-wall-rest-after .options=${mins} value=${i.wall_rest_after} @change=${(e: CustomEvent<SegmentedChange>) => { if (e.detail.value !== i.wall_rest_after) void save({ wall_rest_after: e.detail.value as InstallSettings['wall_rest_after'] }); }}></sw-segmented></div>
+      </section>
+      <section class="card" aria-label="${tr('מצב לילה')}"><h3>${tr('מצב לילה')}</h3>
+        <div class="srow"><div><b>${tr('מצב לילה')}</b><div class="note">${tr('בשעות הלילה רק מחשיכים את המסך. זה עובד בכל טאבלט, בלי לגעת בתאורה האחורית של המכשיר.')}</div></div><sw-toggle label="${tr('מצב לילה')}" labelHidden data-wall-night-toggle ?checked=${i.wall_night === 'on'} @change=${(e: CustomEvent<{ checked: boolean }>) => save({ wall_night: e.detail.checked ? 'on' : 'off' })}></sw-toggle></div>
+        <div class="srow stack"><div><b>${tr('שעות הלילה')}</b><div class="note">${empty ? tr('שעת ההתחלה ושעת הסיום זהות, ולכן אין לילה.') : tr('ברירת המחדל: 23:00 עד 06:00, לפי השעון של הבניין.')}</div></div><div class="times">${time('wall_night_start', tr('מ-'))}${time('wall_night_end', tr('עד'))}</div></div>
+        <div class="opts" style="margin-block-start:8px">
+          ${opt('wall_night_dim', 'soft', tr('החשכה קלה'), tr('המסך עדיין קריא מרחוק.'))}
+          ${opt('wall_night_dim', 'medium', tr('החשכה בינונית'), tr('ברירת המחדל.'))}
+          ${opt('wall_night_dim', 'strong', tr('החשכה חזקה'), tr('לחדר שינה או למסדרון חשוך.'))}
+        </div>
+      </section>
+      <section class="card" aria-label="${tr('השתלטות על המסך')}"><h3>${tr('השתלטות על המסך')}</h3><p class="note">${tr('מה מעיר את המסך ומופיע על כולו, גם בלילה. שיחת דלת תמיד קודמת.')}</p><div class="opts">
+        ${opt('wall_takeover', 'alarm_urgent', tr('אזעקה והודעה דחופה'), tr('ברירת המחדל. הודעה דחופה מלוח ההודעות מופיעה פעם אחת בכל מסך, ב-48 השעות הראשונות.'))}
+        ${opt('wall_takeover', 'alarm', tr('רק אזעקה'), tr('הודעות דחופות מופיעות רק בלוח ההודעות.'))}
+        ${opt('wall_takeover', 'call_only', tr('רק שיחת דלת, כמו קודם'), tr('אזעקה והודעות לא משתלטות על המסך.'))}
+      </div></section></div>`;
   }
 
   // ---------------------------------------------------------------- HOME-V3-P1-2430: a room's wallpaper for everyone (owner decision 16b)
@@ -384,10 +425,11 @@ export class SwHomeAdmin extends LitElement {
     if (this.error && !this.data) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="${tr('נסה שוב')}" @action=${() => this.load()}></sw-state-panel>`;
     if (!this.data) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     const u = this.data.users.find((x) => x.user_id === this.sel) ?? this.data.users[0];
-    const tabs = html`<div class="subtabs"><sw-tabs variant="underline-compact" group-label="${tr('ממשק ביתי')}" data-home-subtabs .items=${[{ id: 'users', label: tr('משתמשים') }, { id: 'install', label: tr('הגדרות התקנה') }, { id: 'switches', label: tr('סיווג מפסקים') }]} .active=${this.sub}
+    const tabs = html`<div class="subtabs"><sw-tabs variant="underline-compact" group-label="${tr('ממשק ביתי')}" data-home-subtabs .items=${[{ id: 'users', label: tr('משתמשים') }, { id: 'install', label: tr('הגדרות התקנה') }, { id: 'wall', label: tr('מסכי קיר') }, { id: 'switches', label: tr('סיווג מפסקים') }]} .active=${this.sub}
       @change=${(e: CustomEvent<{ id: string }>) => { this.sub = e.detail.id as typeof this.sub; this.message = ''; this.error = ''; if (this.sub === 'switches' && !this.sw) void this.loadSwitches(); }}></sw-tabs></div>`;
     const msgs = html`${this.message ? html`<p class="msg ok" role="status">${this.message}</p>` : nothing}${this.error ? html`<p class="msg err" role="alert">${this.error}</p>` : nothing}`;
     if (this.sub === 'install') return html`${tabs}${msgs}${this.installPane()}`;
+    if (this.sub === 'wall') return html`${tabs}${msgs}${this.wallPane()}`;
     if (this.sub === 'switches') return html`${tabs}${msgs}${this.switchesPane()}`;
     return html`${tabs}
       ${msgs}
