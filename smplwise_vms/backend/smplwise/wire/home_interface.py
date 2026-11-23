@@ -49,6 +49,8 @@ class HomePolicy(WireModel):
     guests: bool
     room_wallpapers: dict[str, str]
     wall: HomeWallSettings
+    # MULTI-BUILDING-HOME-2500 (Q65): the building an administrator set for this person (absent = not set; display only)
+    building_id: str | None = None
 
 
 class HomeWeather(WireModel):
@@ -155,6 +157,15 @@ class HomeRoom(WireModel):
     climate: list[HomeClimate]
     shades: list[HomeShade]
     locks: list[HomeLock]
+    # MULTI-BUILDING-HOME-2500: the room's building (null = the mapping puts it in no building); only on a multi-building answer
+    building_id: str | None = None
+
+
+class HomeBuilding(WireModel):
+    """MULTI-BUILDING-HOME-2500: one of our buildings the caller's rooms reach (the shared building last)."""
+    id: str
+    name: str
+    is_shared: bool
 
 
 class HomeOverview(WireModel):
@@ -167,6 +178,12 @@ class HomeOverview(WireModel):
     scoped: bool
     modules: list[str]
     policy: HomePolicy
+    # MULTI-BUILDING-HOME-2500 (owner Q64-Q67): present only while the multi-building switch is on and the caller's rooms reach two or
+    # more buildings (services/home_buildings.overview_extra); absent = the home interface of before
+    buildings: list[HomeBuilding] | None = None
+    area_buildings: dict[str, str] | None = None
+    building_all: bool | None = None
+    entry_building: str | None = None
 
 
 class HomePrefs(WireModel):
@@ -194,6 +211,7 @@ class HomeUserPolicy(WireModel):
     admin: bool
     guests: bool
     can_invite: bool
+    building_id: str | None = None  # MULTI-BUILDING-HOME-2500 (Q65)
 
 
 class HomePolicies(WireModel):
@@ -201,6 +219,7 @@ class HomePolicies(WireModel):
     modules: list[str]
     seed: dict[str, Any]
     kiosk_code_set: bool
+    buildings: list[HomeBuilding] | None = None  # MULTI-BUILDING-HOME-2500 (Q65): only on a multi-building site
 
 
 class HomeSeed(WireModel):
@@ -226,6 +245,7 @@ class HomeInstallSettings(WireModel):
     wall_night_end: str
     wall_night_dim: Literal["medium", "soft", "strong"]
     wall_takeover: Literal["alarm_urgent", "alarm", "call_only"]
+    building_all: Literal["hide", "allow"]  # MULTI-BUILDING-HOME-2500 (Q64)
 
 
 class HomeSettingsView(WireModel):

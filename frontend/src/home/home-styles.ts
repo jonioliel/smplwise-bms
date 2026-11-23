@@ -659,6 +659,11 @@ sw-segmented {--sw-seg-key-flex: 1 0 auto; --sw-seg-key-min-w: 48px; --sw-seg-ke
 .tb-room > .hi {inline-size: 22px; block-size: 22px; color: var(--hs-text-2);}
 .tb-fav {display: flex; align-items: center; gap: 2px; flex: none;}
 .hs .tb-fav .rb {background: transparent; color: var(--hs-text-2);}
+/* MULTI-BUILDING-HOME-2500: the building chip next to the room name (only on a multi-building site) - the room chip's look, one size down */
+.hs .tb-bld {display: flex; align-items: center; gap: .5rem; min-block-size: var(--hit); padding: 0 .875rem; border: 0; border-radius: 1.125rem; background: var(--hs-surface); color: var(--hs-heading); font: inherit; font-size: .95rem; font-weight: 600; min-inline-size: 0; flex: 0 1 auto; max-inline-size: 22ch; cursor: pointer; transition: transform 120ms var(--hs-ease), background-color var(--hs-t-med) ease;}
+.hs .tb-bld:active {transform: scale(.97);}
+.hs .tb-bld:hover {background: var(--hs-surface-2);}
+.hs .tb-bld > .hi {inline-size: 1.25rem; block-size: 1.25rem; color: var(--hs-text-2); flex: none;}
 .dots {display: flex; gap: 7px; padding-inline: 4px;}
 .dots i {inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--hs-border-strong); transition: background-color var(--hs-t-med) ease, transform var(--hs-t-med) var(--hs-ease);}
 .dots i.on {background: var(--hs-heading); transform: scale(1.25);}
@@ -758,6 +763,8 @@ sw-segmented {--sw-seg-key-flex: 1 0 auto; --sw-seg-key-min-w: 48px; --sw-seg-ke
 .tb-room {min-block-size: 44px; padding: 0 12px; gap: 6px; border-radius: 14px;}
 .hs .tb-room h1 {font-size: 19px;}
 .tb-c, .tb-fav .rb, .hs.v2 .hs-status a.st-pill, .hs.v2 .hs-now {display: none;}
+.hs .tb-bld {min-block-size: 2.75rem; padding: 0 .625rem; gap: .25rem; border-radius: .875rem; max-inline-size: 11ch; font-size: .875rem;}
+.hs .tb-bld > .hi:first-child {display: none;}
 .hs.v2 .hs-status {margin-inline-start: auto;}
 .dots {gap: 5px;}
 .dots i {inline-size: 6px; block-size: 6px;}

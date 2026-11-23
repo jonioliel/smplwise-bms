@@ -25,6 +25,7 @@ export interface HomePolicy {
   guests: boolean;
   room_wallpapers: Record<string, string>;
   wall: HomeWallSettings;
+  building_id?: string | null;
 }
 
 /**

@@ -60,6 +60,8 @@ import './home-v3-p1';
 import './home-p3-ext'; // RELEASE-2430-TRAIN: phase 3's screens and hub tiles join the registry
 // HOME-V3-P3-2432: phase 3 (media + systems) lives in its own files; these few hooks are the only edits here
 import { P3, type P3Host, type P3Ovl } from './home-p3';
+// MULTI-BUILDING-HOME-2500 (owner Q64-Q67): the building level (display only; the server cuts "כבה הכל" of one building)
+import { ALL, alsoNote, byBuilding, floorBuilding, keepBuilding, nameOf, offLabel, offRooms, pickBuilding, readLast, roomsIn, saveLast, servedBy, shows } from './home-buildings';
 import { homeP3Styles } from './home-p3-styles';
 import { HandModal } from '../components/hand-modal';
 // HOME-V3-P2-2431: the family and building screens (home-v3-p2.ts); two hooks below: the scenes screen's buttons, the wall panel's chips
@@ -88,6 +90,7 @@ type Ovl =
   | { type: 'code'; title: string; code: string; error: string; run: (code: string) => void }
   | { type: 'talk' }
   | { type: 'switchHost' }
+  | { type: 'bld' } // MULTI-BUILDING-HOME-2500: the building sheet
   | ExtOvl
   | P3Ovl
   | null;
@@ -152,6 +155,8 @@ export class SwHome extends LitElement implements P3Host {
   @state() private doorsOnly = false;
   @state() private shadesOnly = false;
   @state() private floor = '';
+  /** MULTI-BUILDING-HOME-2500: the chosen building ('' = no building level, ALL = "כל הבניינים" where the installation offers it) */
+  @state() bld = '';
   @state() page: Record<string, number> = {};
   @state() ovl: Ovl = null;
   @state() private wallStamp = 0;
@@ -280,7 +285,7 @@ export class SwHome extends LitElement implements P3Host {
         const [scenes, alerts, energy] = await Promise.all([
           mods.has('scenes') || mods.has('lights') ? loadScenes() : Promise.resolve([] as HScene[]),
           mods.has('alerts') ? loadAlerts() : Promise.resolve([] as HAlert[]),
-          mods.has('energy') ? loadEnergy() : Promise.resolve(null),
+          mods.has('energy') ? loadEnergy(this.meterKeep()) : Promise.resolve(null),
         ]);
         this.data = { ...this.data, scenes, alerts, energy };
         if (!this.isConnected) return; // FE-LEAK-TEXTKEY-2435: left the page while loading - start nothing (a reconnect loads again)
@@ -295,6 +300,17 @@ export class SwHome extends LitElement implements P3Host {
     } catch (err) {
       this.error = describeError(err);
     }
+  }
+
+  /** MULTI-BUILDING-HOME-2500 (Q67): the meters of the chosen building (a meter serving two buildings counts in each, with its note). */
+  private meterKeep(): ((area: string | null) => string | null) | undefined {
+    if (!this.data?.buildings?.length) return undefined;
+    return (area) => { const b = this.bldOf([area]); return b.show ? b.note : null; };
+  }
+
+  private async reloadEnergy() {
+    const energy = await loadEnergy(this.meterKeep());
+    if (this.data) this.data = { ...this.data, energy };
   }
 
   private async loadTalk() {
@@ -337,6 +353,9 @@ export class SwHome extends LitElement implements P3Host {
       const [ov, cameras] = await Promise.all([getOverview(), this.data ? Promise.resolve(this.data.cameras) : loadCameras()]);
       const base = adaptOverview(ov, ov.modules.includes('cameras') ? cameras : []);
       this.data = { scenes: [], alerts: [], energy: null, ...(this.data ?? {}), ...base, cameras: ov.modules.includes('cameras') ? cameras : [] };
+      // MULTI-BUILDING-HOME-2500 (Q65): open on the wall panel's / the person's building, else the device's last choice, else the first
+      const bs = base.buildings ?? [];
+      this.bld = this.bld ? keepBuilding(this.bld, bs, !!base.bAll, base.bEntry ?? null) : pickBuilding(bs, base.bEntry ?? null, readLast(), !!base.bAll);
       if (!this.floor && base.floors[0]) this.floor = base.floors[0].id;
       this.error = '';
     } catch (err) {
@@ -513,7 +532,30 @@ export class SwHome extends LitElement implements P3Host {
 
   visRooms(): HRoom[] {
     const hidden = new Set(this.prefs.layout.hidden_rooms ?? []);
-    return this.d.rooms.filter((r) => !hidden.has(r.id));
+    return roomsIn(this.d.rooms.filter((r) => !hidden.has(r.id)), this.bld); // MULTI-BUILDING-HOME-2500: the chosen building's rooms
+  }
+
+  /** MULTI-BUILDING-HOME-2500 (Q66): the rooms "כבה הכל" reaches - the chosen building's own rooms (never a room in no building). */
+  private houseRooms(): HRoom[] {
+    return offRooms(this.visRooms(), this.bld);
+  }
+
+  /** The chosen building's name ('' = none or "כל הבניינים"). */
+  bName(): string {
+    return nameOf(this.d.buildings ?? [], this.bld);
+  }
+
+  /** Q66: no whole-site "כבה הכל" in the home interface - under "כל הבניינים" the house-wide off is not offered. */
+  private houseOffShown(): boolean {
+    return this.bld !== ALL;
+  }
+
+  /** Q67: whether an item touching these areas shows under the chosen building, and its "גם ב..." note. */
+  bldOf(areas: (string | null | undefined)[]): { show: boolean; note: string } {
+    const bs = this.d.buildings ?? [];
+    if (!bs.length) return { show: true, note: '' };
+    const served = servedBy(areas, this.d.areaB ?? {}, bs);
+    return { show: shows(served, this.bld), note: alsoNote(served, this.bld, bs) };
   }
 
   roomById(id: string): HRoom | undefined {
@@ -526,14 +568,16 @@ export class SwHome extends LitElement implements P3Host {
 
   private scopeRooms(): HRoom[] {
     const r = this.ctx();
-    if (!r || this.scope === 'house') return this.visRooms();
+    if (!r || this.scope === 'house') return this.houseRooms();
     if (this.scope === 'floor') return this.visRooms().filter((x) => x.floor === r.floor);
     return [r];
   }
 
   scopeWord(): string {
     const r = this.ctx();
-    return !r || this.scope === 'house' ? tr('בכל הבית') : tr('ב{name}', { name: this.scope === 'floor' ? floorName(this.d.floors, r.floor) : r.name });
+    // MULTI-BUILDING-HOME-2500: "the house" of a multi-building site is the chosen building
+    const house = this.bName() ? tr('ב{name}', { name: this.bName() }) : this.bld === ALL ? tr('בכל הבניינים') : tr('בכל הבית');
+    return !r || this.scope === 'house' ? house : tr('ב{name}', { name: this.scope === 'floor' ? floorName(this.d.floors, r.floor) : r.name });
   }
 
   allDoors(): HDoor[] {
@@ -621,8 +665,12 @@ export class SwHome extends LitElement implements P3Host {
     };
   }
 
-  private bulkScope(rs: HRoom[]): { kind: 'building' | 'area'; id: string } | null {
-    if (rs.length === 1 && rs[0].canBulk) return { kind: 'area', id: rs[0].id };
+  private bulkScope(rs: HRoom[]): { kind: 'building' | 'area'; id: string; building?: string } | null {
+    // MULTI-BUILDING-HOME-2500 (Q66): inside a building the request names it, and the server cuts the scope to that building's areas
+    const b = this.bld && this.bld !== ALL ? this.bld : '';
+    if (rs.length === 1 && rs[0].canBulk) return { kind: 'area', id: rs[0].id, ...(b && rs[0].bld === b ? { building: b } : {}) };
+    if (b) return rs.length > 1 && rs.length === offRooms(this.d.rooms, b).length && this.d.canBulk ? { kind: 'building', id: '*', building: b } : null;
+    if (this.bld === ALL) return null; // no whole-site off from the home interface: one command per light of the rooms shown
     if (rs.length > 1 && rs.length === this.d.rooms.length && this.d.canBulk) return { kind: 'building', id: '*' };
     return null;
   }
@@ -671,6 +719,7 @@ export class SwHome extends LitElement implements P3Host {
     p3Announce: () => this.a_p3Announce(), ring: () => this.a_ring(), switchUser: () => this.a_switchUser(),
     switchHostGo: () => this.a_switchHostGo(), kioskKey: (el) => this.a_kioskKey(el), kioskGo: () => this.a_kioskGo(),
     wall: (el) => this.a_wall(el), wallDel: () => this.a_wallDel(),
+    bldPick: () => this.a_bldPick(), bld: (el) => this.a_bld(el), // MULTI-BUILDING-HOME-2500
   };
 
   private onClick = (ev: Event) => {
@@ -809,11 +858,23 @@ export class SwHome extends LitElement implements P3Host {
     this.requestUpdate();
     this.scheduleRefresh(1200);
   }
-  a_allOff() { this.offLights(this.visRooms(), false, ''); }
-  a_scopeOff() { this.offLights(this.scopeRooms(), false, ''); }
-  a_roomOff() { const r = this.ctx(); this.offLights(r ? [r] : this.visRooms(), true, r ? tr('{name}: האורות והמיזוג כובו', { name: r.name }) : tr('האורות והמיזוג בכל הבית כובו')); }
+  a_allOff() { if (this.houseOffShown()) this.offLights(this.houseRooms(), false, ''); }
+  a_scopeOff() { if (this.ctx() && this.scope !== 'house' || this.houseOffShown()) this.offLights(this.scopeRooms(), false, ''); }
+  a_roomOff() { const r = this.ctx(); if (r) this.offLights([r], true, tr('{name}: האורות והמיזוג כובו', { name: r.name })); else this.a_houseOff(); }
   a_roomOffId(el: HTMLElement) { const r = this.roomById(el.dataset.room ?? ''); if (r) this.offLights([r], true, tr('{name}: האורות והמיזוג כובו', { name: r.name })); }
-  a_houseOff() { this.offLights(this.visRooms(), true, tr('האורות והמיזוג בכל הבית כובו')); }
+  // MULTI-BUILDING-HOME-2500 (Q66): the house of a multi-building site is the chosen building, never the whole site
+  a_houseOff() { if (this.houseOffShown()) this.offLights(this.houseRooms(), true, this.bName() ? tr('האורות והמיזוג ב{name} כובו', { name: this.bName() }) : tr('האורות והמיזוג בכל הבית כובו')); }
+  a_bldPick() { this.ovl = { type: 'bld' }; }
+  a_bld(el: HTMLElement) {
+    const v = el.dataset.v ?? '';
+    this.ovl = null;
+    if (!v || v === this.bld) return;
+    this.bld = v;
+    saveLast(v); // Q65: the device remembers the last building chosen
+    this.page = {};
+    if (this.room !== 'home' && !this.visRooms().some((r) => r.id === this.room)) this.go('r/home');
+    if (this.data?.modules.has('energy')) void this.reloadEnergy();
+  }
   a_undo() { this.toastMsg?.undo?.(); }
   a_scene(el: HTMLElement) {
     const s = this.d.scenes.find((x) => x.id === el.dataset.scene);
@@ -1169,6 +1230,7 @@ export class SwHome extends LitElement implements P3Host {
     return html`<header class="hs-strip">
       ${sub ? (this.extBack(name) ? html`<a class="tb-back" href=${this.href(this.extBack(name) as string)} aria-label="${tr('חזרה')}">${hi('back')}</a>` : html`<a class="tb-back" href=${this.href('r/' + this.room)} aria-label=${tr('חזרה אל ') + (r ? r.name : tr('הבית שלי'))}>${hi('back')}</a>`) : nothing}
       ${locked ? html`<span class="tb-room">${roomTitle}</span>` : html`<a class="tb-room" href=${this.href('rooms')} aria-label=${tr('החלפת חדר. עכשיו: ') + (r ? r.name : tr('הבית שלי'))}>${roomTitle}${hi('down')}</a>`}
+      ${this.bld && !locked ? html`<button class="tb-bld" data-act="bldPick" aria-haspopup="dialog" aria-label=${tr('החלפת בניין. עכשיו: ') + (this.bName() || tr('כל הבניינים'))}>${hi('building')}<span class="clamp1">${this.bName() || tr('כל הבניינים')}</span>${hi('down')}</button>` : nothing}
       ${fr.length > 1 && !locked ? html`<div class="tb-fav" role="group" aria-label="${tr('חדרים מועדפים')}"><button class="rb" data-act="roomStep" data-d="-1" aria-label="${tr('החדר המועדף הקודם')}">${hi('back')}</button><span class="dots" aria-hidden="true">${fr.map((_, i) => html`<i class=${i === at ? 'on' : ''}></i>`)}</span><button class="rb" data-act="roomStep" data-d="1" aria-label="${tr('החדר המועדף הבא')}">${hi('fwd')}</button></div>` : nothing}
       <div class="hs-now"><span class="time num">${HE_TIME.format(this.now)}</span><span class="date">${HE_WEEKDAY.format(this.now)}</span>${this.d.weather && this.d.weather.t != null ? (this.extFor('weather') ? html`<a class="wx" href=${this.href('weather')} aria-label="${tr('מזג האוויר בחוץ')}">${hi('sun')}<span class="num">${this.d.weather.t}°</span><span class="wxt ellip">${this.d.weather.text}</span></a>` : html`<span class="wx" title="${tr('מזג האוויר בחוץ')}">${hi('sun')}<span class="num">${this.d.weather.t}°</span><span class="wxt ellip">${this.d.weather.text}</span></span>`) : nothing}</div>
       <div class="hs-status">
@@ -1200,7 +1262,7 @@ export class SwHome extends LitElement implements P3Host {
     return html`<footer class="nowbar" aria-label=${r ? tr('עכשיו ב') + r.name : tr('עכשיו בבית')}><a class="nb-t" href=${this.href('active')}><span class="nb-k">${r ? tr('עכשיו בחדר') : tr('עכשיו בבית')}</span><b class="clamp1">${text}</b></a>
       ${!r && !this.phone ? html`<span class="nb-rooms">${activeRooms(this.visRooms()).slice(0, 3).map((x) => html`<a class="chip2" href=${this.href('r/' + x.id)}><span class="clamp1">${x.name}</span></a>`)}</span>` : nothing}
       ${m != null && r ? html`<span class="nb-ml">${tr('כל האורות')}</span><label class="dim master${m >= 50 ? '' : ' lo'}"><span class="dim-fill" style=${`transform:scaleX(${m / 100})`}></span><span class="dim-edge" style=${`transform:translateX(${-m}%);opacity:${m ? 1 : 0}`}><i></i></span><input type="range" min="0" max="100" .value=${String(m)} data-master=${r.id} aria-label=${tr('עוצמת כל האורות ב') + r.name}><span class="dim-v num">${m ? m + '%' : tr('כבוי')}</span></label>` : nothing}
-      <button class="hbtn nb-off" data-act="roomOff" ?disabled=${!any}>${hi('power')}<span class="bt">${r ? tr('כיבוי החדר') : tr('כיבוי כל הבית')}</span></button></footer>`;
+      ${r || this.houseOffShown() ? html`<button class="hbtn nb-off" data-act="roomOff" ?disabled=${!any} aria-label=${!r && this.bName() ? offLabel(this.bName()) : nothing}>${hi('power')}<span class="bt">${r ? tr('כיבוי החדר') : this.bName() ? offLabel(this.bName()) : tr('כיבוי כל הבית')}</span></button>` : nothing}</footer>`;
   }
 
   // ---------------------------------------------------------------- the room screen
@@ -1278,7 +1340,7 @@ export class SwHome extends LitElement implements P3Host {
       body = html`<span class="dn"><b class="clamp1">${s.name}</b><span class="muted">${shadeText(s.pos, s.moving, s.state)}</span></span>${this.trio(s)}`;
     } else if (f.t === 'allLights') {
       const n = onCount(this.visRooms());
-      body = html`<a class="cover" href=${this.href('lights')} aria-label="${tr('אורות')}"></a><div class="wg-c"><span class="wg-k">${hi('bulb', n ? 'lit' : '')}${tr('אורות בבית')}</span><b class="mid">${lightsText(n)}</b></div><button class="hbtn" data-act="allOff" ?disabled=${!n}>${hi('power')}<span class="bt">${tr('כבה הכל')}</span></button>`;
+      body = html`<a class="cover" href=${this.href('lights')} aria-label="${tr('אורות')}"></a><div class="wg-c"><span class="wg-k">${hi('bulb', n ? 'lit' : '')}${tr('אורות בבית')}</span><b class="mid">${lightsText(n)}</b></div>${this.houseOffShown() ? html`<button class="hbtn" data-act="allOff" ?disabled=${!n}>${hi('power')}<span class="bt">${this.bName() ? offLabel(this.bName()) : tr('כבה הכל')}</span></button>` : nothing}`;
     } else {
       const t = (this.d.energy?.today ?? []).reduce((a, b) => a + b, 0);
       body = html`<a class="cover" href=${this.href('energy')} aria-label=${tr('חשמל היום: {v1} קוט״ש', { v1: t.toFixed(1) })}></a><div class="wg-c en1"><span class="wg-k">${hi('bolt')}${tr('חשמל היום')}</span><b class="mid num">${t.toFixed(1)}</b><span class="muted">${tr('קוט״ש')}</span></div>`;
@@ -1326,7 +1388,12 @@ export class SwHome extends LitElement implements P3Host {
   private sRooms() {
     const acts = html`<button class="hbtn" data-act="roomsEdit" aria-pressed=${String(this.roomsEdit)}>${hi(this.roomsEdit ? 'check' : 'heart')}<span class="bt">${this.roomsEdit ? tr('סיום') : tr('חדרים מועדפים')}</span></button><a class="hbtn${this.room === 'home' ? ' cur' : ''}" href=${this.href('r/home')}>${hi('home')}<span class="bt">${tr('הבית שלי')}</span></a>`;
     const vis = this.visRooms();
-    const fl = this.d.floors.filter((f) => vis.some((r) => r.floor === f.id));
+    const fl0 = this.d.floors.filter((f) => vis.some((r) => r.floor === f.id));
+    // MULTI-BUILDING-HOME-2500: under "כל הבניינים" the floor columns are grouped by building and each names its building
+    const all = this.bld === ALL;
+    const bs = this.d.buildings ?? [];
+    const fl = all ? byBuilding(fl0, vis, bs) : fl0;
+    const fName = (f: { id: string; name: string }) => { const b = all ? floorBuilding(f.id, vis, bs) : undefined; return b ? `${b.name} · ${f.name}` : f.name; };
     if (!vis.length) return html`${this.head(tr('לאיזה חדר?'), '', acts)}${this.empty('rooms', tr('עוד אין חדרים'), tr('כשיוגדרו חדרים בבית, הם יופיעו כאן לפי קומות.'))}`;
     if (this.phone) {
       const cur = fl.some((f) => f.id === this.floor) ? this.floor : fl[0]?.id ?? '';
@@ -1336,7 +1403,7 @@ export class SwHome extends LitElement implements P3Host {
     return html`${this.head(tr('לאיזה חדר?'), this.roomsEdit ? tr('סמנו בלב חדרים שתרצו לעבור ביניהם בהחלקה או בחצים שלמעלה') : tr('כל הבית לפי קומות. הנורה מדליקה ומכבה את החדר בלי להיכנס אליו.'), acts)}<div class="floors-cols" style=${`--n:${fl.length}`}>${fl.map((f) => {
       const rs = vis.filter((r) => r.floor === f.id);
       const pg = paged(rs, 6, this.pg('fl-' + f.id));
-      return html`<section class="fcol"><div class="fch"><h2>${f.name}</h2><span class="muted">${lightsText(onCount(rs))}</span></div><div class="fcl">${pg.items.map((r) => this.roomTile(r))}</div>${this.pager('fl-' + f.id, pg.pages)}</section>`;
+      return html`<section class="fcol"><div class="fch"><h2 class=${all ? 'clamp1' : nothing} title=${all ? fName(f) : nothing}>${fName(f)}</h2><span class="muted">${lightsText(onCount(rs))}</span></div><div class="fcl">${pg.items.map((r) => this.roomTile(r))}</div>${this.pager('fl-' + f.id, pg.pages)}</section>`;
     })}</div>`;
   }
 
@@ -1367,7 +1434,10 @@ export class SwHome extends LitElement implements P3Host {
     let list = rs.flatMap((r) => r.lights);
     if (this.only) list = list.filter((l) => l.on);
     const pg = paged(list, this.phone ? 3 : 8, this.pg('lights'));
-    return html`${this.headT(lightsText(n), this.scopeWord(), tabs, html`<button class="hbtn strong" data-act="scopeOff" ?disabled=${!n}>${hi('power')}<span class="bt">${tr('כבה הכל')}</span></button>`)}
+    // MULTI-BUILDING-HOME-2500 (Q66): the house-wide "כבה הכל" names the building; under "כל הבניינים" it is not offered
+    const house = !this.ctx() || this.scope === 'house';
+    const offBtn = house && !this.houseOffShown() ? nothing : html`<button class="hbtn strong" data-act="scopeOff" ?disabled=${!n}>${hi('power')}<span class="bt">${house && this.bName() ? offLabel(this.bName()) : tr('כבה הכל')}</span></button>`;
+    return html`${this.headT(lightsText(n), this.scopeWord(), tabs, offBtn)}
       <div class="bar wrap">${this.scopeSeg()}${this.onlySeg('only', this.only, tr('דולקים'))}</div>
       <div class="card-grid">${pg.items.length ? pg.items.map((l) => html`<div class="tile lcard lrow${l.sw ? ' sw' : ''}${l.on ? ' is-on' : ''}" data-ft="light" data-fid=${l.id}>${this.lampBtn(l)}<span class="ln"><b class="clamp1">${l.name}</b>${l.sw || multi || !l.ok ? html`<span class="muted clamp1">${[!l.ok ? tr('לא זמין כרגע') : '', l.sw ? tr('מפסק, בלי עמעום') : '', multi ? this.roomById(l.room)?.name ?? '' : ''].filter(Boolean).join(' · ')}</span>` : nothing}</span>${l.sw ? this.swCtl(l) : this.dimmer(l)}${this.star({ t: 'light', id: l.id })}</div>`)
         : this.empty('bulb', this.only ? tr('אין אור דולק ') + this.scopeWord() : tr('אין אורות ') + this.scopeWord(), this.only ? tr('בחרו "הכל" כדי לראות את כל האורות.') : tr('כשיחוברו אורות הם יופיעו כאן.'))}</div>${this.pager('lights', pg.pages)}`;
@@ -1480,7 +1550,7 @@ export class SwHome extends LitElement implements P3Host {
         <div class="plot" style=${`--n:${rows.length}`} @pointerover=${this.tipOver} @pointerleave=${this.tipOff} @focusin=${this.tipOver} @focusout=${this.tipOff}><div class="yax">${ticks.map((v) => html`<span style=${`bottom:${v / top * 100}%`}><em class="num">${v}</em></span>`)}</div>
           <div class="cols">${rows.map((r) => html`<div class=${'col' + (r[1] == null ? ' future' : '')} tabindex="0" data-tip=${`${r[0]}|${r[1] == null ? '' : r[1].toFixed(1)}|${r[2].toFixed(1)}`}>${r[1] == null ? nothing : html`<i class="b" style=${`height:${Math.max(1.5, r[1] / top * 100)}%`}></i>`}<i class="u" style=${`bottom:${r[2] / top * 100}%`}></i></div>`)}</div>
           <div class="xax">${rows.map((r, i) => html`<span>${day ? (i % 3 === 0 ? html`<em class="num">${r[0].slice(0, 2)}</em>` : nothing) : r[0]}</span>`)}</div><div class="tip" hidden></div></div><p class="unit muted">${tr('קוט״ש ל')}${day ? tr('שעה') : tr('יום')}</p></section>
-      <section class="tile pane byroom" aria-label="${tr('מה צורך הכי הרבה')}"><h2>${tr('איפה צורכים הכי הרבה')}</h2>${br.slice(0, 5).map((b) => html`<div class="hb"><span class="hl clamp1" dir="auto">${b[0]}</span><span class="ht"><i style=${`transform:scaleX(${b[1] / brMax})`}></i></span><span class="hv"><span class="num">${num1(b[1])}</span> <small>${tr('קוט״ש')}</small></span></div>`)}<p class="unit muted">${tr('הצריכה היום')}</p></section></div>`;
+      <section class="tile pane byroom" aria-label="${tr('מה צורך הכי הרבה')}"><h2>${tr('איפה צורכים הכי הרבה')}</h2>${br.slice(0, 5).map((b) => html`<div class="hb"><span class="hl clamp1" dir="auto" title=${b[2] ?? nothing}>${b[0]}${b[2] ? html` <small class="muted" data-also>· ${b[2]}</small>` : nothing}</span><span class="ht"><i style=${`transform:scaleX(${b[1] / brMax})`}></i></span><span class="hv"><span class="num">${num1(b[1])}</span> <small>${tr('קוט״ש')}</small></span></div>`)}<p class="unit muted">${tr('הצריכה היום')}</p></section></div>`;
   }
 
   private tipOver = (ev: Event) => {
@@ -1531,7 +1601,7 @@ export class SwHome extends LitElement implements P3Host {
     const items: ({ r: HRoom } | { kept: HLoad[] })[] = [...list.map((r) => ({ r })), ...(kept.length ? [{ kept }] : [])];
     const pg = paged(items, this.phone ? 4 : 5, this.pg('active'));
     const n = onCount(this.visRooms());
-    return html`${this.head(tr('פעיל עכשיו בבית'), list.length === 0 ? tr('כל האורות והמיזוג כבויים') : `${lightsText(n)} · ${list.length === 1 ? tr('חדר אחד פעיל') : list.length + tr(' חדרים פעילים')}`, html`<button class="hbtn strong" data-act="houseOff" ?disabled=${!list.length}>${hi('power')}<span class="bt">${tr('כיבוי כל הבית')}</span></button>`)}
+    return html`${this.head(tr('פעיל עכשיו בבית'), list.length === 0 ? tr('כל האורות והמיזוג כבויים') : `${lightsText(n)} · ${list.length === 1 ? tr('חדר אחד פעיל') : list.length + tr(' חדרים פעילים')}`, this.houseOffShown() ? html`<button class="hbtn strong" data-act="houseOff" ?disabled=${!list.length}>${hi('power')}<span class="bt">${this.bName() ? offLabel(this.bName()) : tr('כיבוי כל הבית')}</span></button>` : nothing)}
       <div class="alert-list act">${pg.items.length ? pg.items.map((o) => 'kept' in o
         ? html`<div class="tile arow kept"><span class="ai">${hi('plug')}</span><span class="at"><b class="clamp1">${o.kept.length === 1 ? tr('מפסק אחד שאינו אור דולק') : o.kept.length + tr(' מפסקים שאינם אור דולקים')}</b><span class="muted clamp1">${o.kept.slice(0, 3).map((k) => k.name).join(', ')}${o.kept.length > 3 ? tr(' ועוד') : ''} ${tr('· לא נכבים ב"כיבוי כל הבית"')}</span></span><a class="hbtn" href=${this.href('lights')} data-act="goLoads">${hi('fwd')}<span class="bt">${tr('למפסקים')}</span></a></div>`
         : html`<div class="tile arow"><span class="ai" data-on="1">${hi('pulse')}</span><a class="at" href=${this.href('r/' + o.r.id)}><b class="clamp1">${o.r.name}</b><span class="muted">${activeText(o.r)} · ${floorName(this.d.floors, o.r.floor)}</span></a><button class="hbtn" data-act="roomOffId" data-room=${o.r.id}>${hi('power')}<span class="bt">${tr('כבה')}</span></button></div>`)
@@ -1629,6 +1699,10 @@ export class SwHome extends LitElement implements P3Host {
       return html`<div class="hscrim clear" data-act="close"></div><section class="sheet umenu" role="dialog" aria-modal="true" aria-label="${tr('התפריט האישי')}"><header class="menu-h"><span class="av lg">${(this.userName || '?').slice(0, 1)}</span><span class="mh-t"><b class="clamp1">${this.userFull || this.userName}</b><span class="muted">${this.role}</span></span><button class="rb" data-act="close" aria-label="${tr('סגור')}">${hi('x')}</button></header>
         <h3>${tr('הממשק שלי')}</h3>${this.faceChoice('home')}
         <div class="menu-rows">${gapMenuRow(this)}<a class="mrow" href=${this.href('settings/favs')} data-act="closeNav">${hi('sliders')}<span>${tr('ההגדרות שלי')}</span>${hi('fwd')}</a><button class="mrow" data-act="theme" data-v=${scheme === 'dark' ? 'light' : 'dark'}>${hi(scheme === 'dark' ? 'sun' : 'night')}<span>${scheme === 'dark' ? tr('מראה בהיר') : tr('מראה כהה')}</span></button>${switchUserMode() ? html`<button class="mrow" data-act="switchUser" data-home-switch-user>${hi('user')}<span>${tr('החלף משתמש')}</span>${hi('fwd')}</button>` : nothing}</div></section>`;
+    }
+    if (o.type === 'bld') { // MULTI-BUILDING-HOME-2500 (Q64 / Q65): the buildings (shared last), "כל הבניינים" only where offered
+      const bs: [string, string][] = [...(this.d.buildings ?? []).map((b): [string, string] => [b.id, b.name]), ...(this.d.bAll ? [[ALL, tr('כל הבניינים')] as [string, string]] : [])];
+      return html`<div class="hscrim" data-act="close"></div><section class="sheet bottom" role="dialog" aria-modal="true" aria-label="${tr('בחירת בניין')}"><span class="grab" aria-hidden="true"></span><h2>${tr('איזה בניין?')}</h2><div class="pick-list">${bs.map(([id, name]) => html`<button class="mrow" data-act="bld" data-v=${id} aria-pressed=${String(id === this.bld)}>${hi(id === ALL ? 'grid' : 'building')}<span class="clamp1">${name}</span><b class="num">${id === ALL ? '' : lightsText(onCount(offRooms(this.d.rooms, id)))}</b></button>`)}</div></section>`;
     }
     if (o.type === 'zones') {
       const zs = this.zonesOf(this.scopeRooms()).slice(0, 6);

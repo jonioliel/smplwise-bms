@@ -32,11 +32,12 @@ export function setLevel(l: HLight, v: number, done: (o: Outcome) => void): void
 }
 
 /** Lights off in a set of rooms: lights and light-typed switches only (a boiler, a fridge, a socket never). */
-export async function lightsOff(rooms: HRoom[], scope: { kind: BulkScope; id: string } | null): Promise<Outcome> {
+export async function lightsOff(rooms: HRoom[], scope: { kind: BulkScope; id: string; building?: string } | null): Promise<Outcome> {
   if (scope) {
     try {
-      const p = await previewBulk(scope.kind, scope.id, 'lights_off');
-      const first = await runBulk(scope.kind, scope.id, 'lights_off', p.digest);
+      // MULTI-BUILDING-HOME-2500 (owner Q66): "כבה הכל" of one building names it - the server cuts the scope to that building's areas
+      const p = await previewBulk(scope.kind, scope.id, 'lights_off', undefined, undefined, undefined, scope.building);
+      const first = await runBulk(scope.kind, scope.id, 'lights_off', p.digest, undefined, undefined, undefined, scope.building);
       const r = await followBulk(first, () => undefined);
       return { ok: r.counts.total === 0 || (r.counts.confirmed + (r.counts.sent ?? 0)) > 0, note: null };
     } catch (err) {

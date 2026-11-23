@@ -3,6 +3,25 @@
 /* eslint-disable */
 
 export const en = {
+  // MULTI-BUILDING-HOME-2500: the building level of a multi-building site
+  'גם ב{names}': 'also in {names}',
+  ' וב': ' and in ',
+  'כבה הכל ב{name}': 'Turn everything off in {name}',
+  'בכל הבניינים': 'in all buildings',
+  'האורות והמיזוג ב{name} כובו': 'The lights and the air conditioning in {name} are off',
+  'החלפת בניין. עכשיו: ': 'Change building. Now: ',
+  'כל הבניינים': 'All buildings',
+  'בחירת בניין': 'Choose a building',
+  'איזה בניין?': 'Which building?',
+  'ריבוי בניינים': 'Several buildings',
+  'בכל אתר עם כמה בניינים, הממשק הביתי מציג בניין אחד בכל פעם.': 'On a site with several buildings, the home interface shows one building at a time.',
+  'בניין אחד בכל פעם': 'One building at a time',
+  'ברירת המחדל. מחליפים בניין בכפתור הבניין שליד שם החדר.': 'The default. Change the building with the building button next to the room name.',
+  'גם "כל הבניינים"': 'Also "All buildings"',
+  'מוסיף לבחירה את כל הבניינים יחד. "כבה הכל" לא מוצע במצב הזה: הוא תמיד של בניין אחד.': 'Adds all the buildings together to the choice. "Turn everything off" is not offered there: it always belongs to one building.',
+  'הבניין שנפתח': 'Opening building',
+  'הבניין שהממשק הביתי מציג בכניסה. בלי בחירה: הבניין שנבחר לאחרונה במכשיר. לא משנה הרשאות.': 'The building the home interface shows on entry. Without a choice: the building last chosen on the device. It changes no permission.',
+  'האחרון שנבחר במכשיר': 'The last one chosen on the device',
   'הקוד האישי הנוכחי': 'Your current personal code',
   'הקישו את הקוד שלכם היום': 'Enter the code you use today',
   'קוד הלוח': 'Panel code',

@@ -319,6 +319,10 @@ const he = {
   boardEmpty: 'הלוח ריק',
   boardEmptyHint: 'הטלוויזיה מציגה "אין הודעות כרגע" עם השעון. סמנו הודעות ללוח הזה מתוך לוח ההודעות או מכאן.',
   kvTemplate: 'תבנית',
+  // MULTI-BUILDING-HOME-2500 (owner Q68): a lobby board belongs to a building
+  bBuilding: 'בניין',
+  bBuildingSite: 'כל האתר',
+  bBuildingHint: 'הברכה בראש המסך משתמשת בשם הבניין. אילו הודעות מוצגות נקבע כמו קודם: לפי הסימון ללוח.',
   kvSeen: 'נראה לאחרונה',
   kvCreated: 'נוצר',
   kvRotated: 'תאריך הקישור',
