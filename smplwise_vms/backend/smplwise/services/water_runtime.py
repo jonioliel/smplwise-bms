@@ -42,6 +42,7 @@ from . import water_alerts as wa
 from . import water_meters as wm
 from . import water_settings as ws
 from .timeutil import epoch_or_none, iso_from_epoch
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.water")
 
@@ -495,3 +496,6 @@ def summary(conn: sqlite3.Connection, visible: Callable[[Any], bool], now_ts: fl
     return {"open": len(open_), "acked": sum(1 for r in open_ if r["ack_at"]), "last_7d": sum(1 for r in rows if r["opened_at"] >= since),
             "open_leaks": sum(1 for r in open_ if r["kind"] in LEAK_KINDS),
             "snoozed": sum(1 for r in open_ if r["snoozed_until"] and r["snoozed_until"] > now)}  # section 16: the tile "מנודנדות"
+
+
+register_reset(__name__, ("_LAST",), reset)  # SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

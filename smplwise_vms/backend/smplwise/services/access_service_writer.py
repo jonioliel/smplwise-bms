@@ -35,6 +35,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Iterator, Mapping, Protocol
 
 from .access_grant_engine import EngineError
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.access_service_writer")
 
@@ -282,3 +283,13 @@ def reset_for_tests() -> None:
     install(None)
     with _LOCK:
         LAST = PathRecord()
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    global LAST
+    with _LOCK:
+        LAST = PathRecord()
+
+
+register_reset(__name__, ("LAST",), _reset_for_tests)  # SINGLETONS-REST-2480 group 5: module-level tables (tests/test_singletons_registered.py)

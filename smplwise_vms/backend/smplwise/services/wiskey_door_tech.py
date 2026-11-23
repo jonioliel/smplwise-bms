@@ -53,6 +53,7 @@ from . import intercom_authority as ia
 from . import intercom_client
 from . import wiskey_write_limits as wl
 from .intercom_client import IntercomError, UnclearAnswer
+from ..test_reset import register_reset
 
 CHANNEL = "door_technical"  # services/wiskey_channels.py DOOR_TECHNICAL
 LANE = "door_tech"  # intercom_sync: no lane of its own -> a read slot and the read buckets; Arx's own limits below on top
@@ -455,3 +456,6 @@ LIMITS = Limits()
 
 def reset() -> None:
     LIMITS.reset()
+
+
+register_reset(__name__, ("LIMITS",), reset)  # SINGLETONS-REST-2480 group 4: module-level tables (tests/test_singletons_registered.py)

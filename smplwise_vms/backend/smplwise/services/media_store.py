@@ -24,6 +24,7 @@ from ..rbac import INSTALLATION, Decision, Principal, authorize, permissions_any
 from . import bridge_keys as bk
 from . import ha_scope, ha_sync, media_layout, media_model as mm, media_profiles as profiles
 from .timeutil import zone as _zone
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.media")
 
@@ -1224,3 +1225,12 @@ def janitor(db: Any) -> dict[str, int]:
                 conn.execute("UPDATE media_layouts SET layout_json = ?, revision = ?, updated_at = ? WHERE scope = 'installation'", (json.dumps(pruned, ensure_ascii=False, separators=(",", ":")), rev + 1, now_iso()))
         commands = conn.execute("DELETE FROM media_commands WHERE created_at < ?", (old,)).rowcount
     return {"devices": len(gone), "commands": commands}
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    ARTWORK.clear()
+    QUEUE_CACHE.clear()
+
+
+register_reset(__name__, ("ARTWORK", "QUEUE_CACHE"), _reset_for_tests)  # SINGLETONS-REST-2480 group 5: module-level tables (tests/test_singletons_registered.py)

@@ -51,6 +51,7 @@ from . import intercom_adapter as ad
 from . import intercom_authority as ia
 from . import intercom_client
 from . import wiskey_write_limits as wl
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.intercom")
 
@@ -448,3 +449,6 @@ FEED = AlertFeed()
 
 def reset() -> None:
     LIMITS.reset()
+
+
+register_reset(__name__, ("LIMITS",), reset)  # SINGLETONS-REST-2480 group 4: module-level tables (tests/test_singletons_registered.py)

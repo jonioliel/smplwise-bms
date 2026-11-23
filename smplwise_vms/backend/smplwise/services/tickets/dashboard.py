@@ -38,6 +38,7 @@ from ...db import permission_revision
 from . import access, board, handler_load, rfq, settings_doc, store, store_dash, store_links, stuck
 from .access import Seen, Viewer
 from .costs import COSTS_VIEW
+from ...test_reset import register_reset
 
 PERIODS: dict[str, int] = {"today": 1, "7d": 7, "30d": 30}
 DAILY_DAYS = 14
@@ -440,3 +441,6 @@ def cached_summary(conn, viewer: Viewer, *, department_id: str | None, period: s
     out = CACHE.get_or_build(key, lambda: {**summary(conn, viewer, department_id=department_id, period=period, now=now, tz=tz),
                                            "generated_at": stuck.iso(now)})
     return out
+
+
+register_reset(__name__, ("CACHE",), CACHE.clear)  # SINGLETONS-REST-2480 group 5: module-level tables (tests/test_singletons_registered.py)

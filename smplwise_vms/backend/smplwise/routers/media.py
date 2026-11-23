@@ -38,6 +38,7 @@ from ..services.relay import close_with_error, relay_ws
 from .settings import read_settings
 from ..services.settings_store import setting_value
 from ._common import rid as _rid
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.media")
 router = APIRouter()
@@ -733,3 +734,12 @@ async def live_ha_ws(websocket: WebSocket, entity_id: str) -> None:
         lease=hls.HaLiveLease(db, principal, entity_id), chain=chain, remote_cap=remote_cap, cap=cap,
         on_text=lambda text: hls.sanitize_frame(entity_id, text), on_end=lambda reason, seconds: hls.note_session_end(entity_id, reason, seconds),
     )
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    REGISTRY.sessions.clear()
+    _cap_audited.clear()
+
+
+register_reset(__name__, ("REGISTRY", "_cap_audited"), _reset_for_tests)  # CR-SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

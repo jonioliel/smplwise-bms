@@ -54,6 +54,7 @@ from typing import Any
 from . import intercom_adapter as ad
 from . import intercom_client
 from .intercom_client import IntercomError, UnclearAnswer
+from ..test_reset import register_reset
 
 CHANNEL = "profiles"  # services/wiskey_channels.py PROFILES
 LANE = "config"  # intercom_sync's people-write lane (one slot of its own, CONFIG_TIMEOUT_S): the apply is a configuration write
@@ -703,3 +704,6 @@ REVIEWS = Reviews()
 
 def reset() -> None:
     REVIEWS.reset()
+
+
+register_reset(__name__, ("REVIEWS",), reset)  # SINGLETONS-REST-2480 group 4: module-level tables (tests/test_singletons_registered.py)

@@ -34,6 +34,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import go2rtc as g2
+from ..test_reset import register_reset
 
 POLICIES = ("auto", "sub", "transcode", "off")
 DEFAULT_POLICY = "auto"
@@ -172,3 +173,12 @@ class TranscodeBudget:
 
 
 BUDGET = TranscodeBudget()
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    with BUDGET.lock:
+        BUDGET.held.clear()
+
+
+register_reset(__name__, ("BUDGET",), _reset_for_tests)  # SINGLETONS-REST-2480 group 5: module-level tables (tests/test_singletons_registered.py)

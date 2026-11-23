@@ -49,6 +49,7 @@ from ..wire import wire
 from .events import _with_names, _with_thumbs
 from .settings import read_settings
 from ..services.settings_store import setting_value
+from ..test_reset import register_reset
 
 router = APIRouter()
 
@@ -1011,3 +1012,10 @@ def rotate_signing(request: Request, principal: Principal = Depends(current_prin
           details={"active": info["active"], "keys": len(info["keys"])})
     return {**info, "can_rotate": True}
 
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _integrity_last.clear()
+
+
+register_reset(__name__, ("_integrity_last",), _reset_for_tests)  # CR-SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

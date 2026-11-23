@@ -25,6 +25,7 @@ from .db import Database, commit_now, database_of, get_setting, is_storage_full,
 from .errors import unauthenticated
 from .rbac import LOCAL_ID_PREFIX, Principal
 from .remote_channel import is_remote
+from .test_reset import register_reset
 
 HEADER_ID = "x-remote-user-id"
 HEADER_NAME = "x-remote-user-name"
@@ -403,3 +404,11 @@ def read_gate(check: Callable[[sqlite3.Connection, Principal], None]):
         return principal
 
     return gate
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _gate_wait_limiters.clear()
+
+
+register_reset(__name__, ("_gate_wait_limiters",), _reset_for_tests)  # SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

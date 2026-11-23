@@ -39,6 +39,7 @@ from typing import Any, Iterable
 from ..db import now_iso
 from . import intercom_client
 from .intercom_client import API_CONTRACT, Call, IntercomError, UnclearAnswer, command_type
+from ..test_reset import register_reset
 
 CHANNEL = "station_people"
 INVENTORY_TIMEOUT_S = 45.0  # WisKey scans the station (identity, capabilities, the user and card lists) before it answers
@@ -390,3 +391,12 @@ class PinBudget:
 
 
 PIN_BUDGET = PinBudget()
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    CACHE.reset()
+    PIN_BUDGET.reset()
+
+
+register_reset(__name__, ("CACHE", "PIN_BUDGET"), _reset_for_tests)  # SINGLETONS-REST-2480 group 5: module-level tables (tests/test_singletons_registered.py)
