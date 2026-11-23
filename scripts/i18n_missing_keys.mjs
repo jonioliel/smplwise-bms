@@ -166,6 +166,14 @@ function msgRows(catalogues) {
 }
 
 // ---------------------------------------------------------------- part 2: hard-coded Hebrew outside the catalogues
+/** The local names a source reads source-text tables under: `tr`, plus the aliases of `import { tr as trTime } from '../i18n/msg/time'`
+ * (I18N-EN-2490: a key passed to an aliased translator is a catalogue key of part 1b, not a hard-coded text). */
+function translatorCall(src) {
+  const names = new Set(['tr']);
+  for (const m of src.matchAll(/import\s*\{([^}]*)\}\s*from\s+['"][./]*(?:i18n\/)?msg\/[\w-]+['"]/g)) for (const a of m[1].matchAll(/\btr\s+as\s+(\w+)/g)) names.add(a[1]);
+  return new RegExp(`\\b(?:${[...names].join('|')})\\(\\s*$`);
+}
+
 /** Hebrew-bearing literal segments of a TS source: '...', "...", `...` text parts (comments skipped). */
 function hebrewLiterals(src) {
   const found = [];
@@ -173,9 +181,10 @@ function hebrewLiterals(src) {
   const n = src.length;
   const tplStack = []; // brace depth per open template `${`
   let braceDepth = 0;
+  const trCall = translatorCall(src);
   const push = (s, start) => {
     if (!HEB.test(s)) return;
-    if (start !== undefined && /\btr\(\s*$/.test(src.slice(Math.max(0, start - 12), start))) return; // a source-text key: part 1b
+    if (start !== undefined && trCall.test(src.slice(Math.max(0, start - 24), start))) return; // a source-text key: part 1b
     found.push(s.trim().slice(0, 80));
   };
   const readTemplateText = () => {
@@ -237,7 +246,7 @@ function hebrewLiterals(src) {
       i++;
       const before = found.length;
       readTemplateText();
-      if (found.length > before && /\btr\(\s*$/.test(src.slice(Math.max(0, start - 12), start))) found.length = before;
+      if (found.length > before && trCall.test(src.slice(Math.max(0, start - 24), start))) found.length = before;
       continue;
     }
     if (c === '{') {
@@ -272,6 +281,9 @@ function moduleOf(r) {
 
 function kindOf(r) {
   if (/(^|\/)fixtures\//.test(r) || /-mock/.test(r) || /(^|\/)mock/.test(r)) return 'demo';
+  // I18N-EN-2490: the api demo stores as the api lint names them (tests/unit-i18n-api-2442.spec.ts DEMO_FILE): whole files of fake data
+  // that may not call tr()
+  if (/^api\/[\w-]+-demo\.ts$/.test(r) || r === 'api/messaging-fake.ts') return 'demo';
   if (r.startsWith('public-ticket/')) return 'public';
   return 'app';
 }
