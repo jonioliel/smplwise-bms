@@ -140,8 +140,8 @@ race above; `evidence-readiness-96:93` on mobile, which fails the same on the ba
 tab); dev-server 81 passed; pixel the same 12 (the acknowledgement switches moved no linux baseline); capture 127 + 18 passed on
 head and on base.
 
-Baselines: the refresh of the 12 (`~/work/hsw4.sh`: `--update-snapshots=changed` limited to the four spec files above, then the same
-files without -u) is queued on the runner behind the tests lock; its commit follows in this branch when it has run.
+Baselines: the 12 refreshed on the runner (`~/work/hsw4.sh` at 1b9920503: `--update-snapshots=changed` limited to the four spec
+files above - 97 passed, 50 skipped - then the same files without -u: 97 passed, 50 skipped), committed in 05904db5c.
 Before / after: `private/planning/hand_switch_compare_2026-11-22.html` (152 screens from the workstation evidence specs, cropped to
 the changed area; some differences are live data such as the clock), plus a section of 10 acknowledgement screens from the runner
 capture (base main 619f94d04) and the 12 pixel baselines that moved.
