@@ -16,6 +16,9 @@
  *    pixel baselines do not move. `toHaveScreenshot()` is not wrapped (it goes through its own protocol call and stability loop);
  *  - nothing here touches an `expect`: a failed assertion is never run again.
  *
+ * SW_CAPTURE_GUARD=0 switches the guard off (to measure the refusal rate without it).
+ * SW_SHOT_LOG_ONLY=1 (with SW_SHOT_LOG) takes no picture at all: it logs "dry", the viewport and the call site, and returns a 1x1 PNG - a
+ * cheap dry run that lists which captures a project reaches (specs that read a picture back fail in it).
  * SW_SHOT_LOG=<file> appends one line per capture ("<image w>x<h> vp=<viewport w>x<h> <spec>:<line>", plus "retry n" when a capture was repeated): the
  * measurement behind PHONE-SKIP-DESKTOP-SHOTS-2490 and the retry rate.
  */
@@ -24,6 +27,7 @@ import { chromium, type Page } from '@playwright/test';
 
 const REFUSED = /Unable to capture screenshot/i;
 const TRIES = 4;
+const ONE_PIXEL_PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
 const MARK = Symbol.for('smplwise.captureGuard');
 
 export type Shoot = (this: unknown, options?: unknown) => Promise<Buffer>;
@@ -54,6 +58,11 @@ export function guardShot(original: Shoot, pageOf: (self: unknown) => Page | nul
   const wrapped: Shoot = async function (this: unknown, options?: unknown) {
     const log = process.env.SW_SHOT_LOG;
     const site = log ? callSite() : '';
+    if (log && process.env.SW_SHOT_LOG_ONLY === '1') {
+      const vp = pageOf(this)?.viewportSize();
+      try { appendFileSync(log, `dry vp=${vp ? `${vp.width}x${vp.height}` : '?'} ${site}\n`); } catch { /* a log is not worth a test */ }
+      return ONE_PIXEL_PNG;
+    }
     for (let attempt = 1; ; attempt += 1) {
       try {
         const buf = await original.call(this, options);
@@ -82,7 +91,7 @@ let installed = false;
  * no-op (the specs still run, unguarded) if the browser object does not look as expected.
  */
 export function installCaptureGuard(): void {
-  if (installed) return;
+  if (installed || process.env.SW_CAPTURE_GUARD === '0') return;
   installed = true;
   const launch = chromium.launch.bind(chromium);
   (chromium as unknown as { launch: typeof launch }).launch = async (...args: Parameters<typeof launch>) => {
