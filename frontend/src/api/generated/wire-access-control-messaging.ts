@@ -7,7 +7,7 @@
 export interface AccessControlMessagingMessagingConfig {
   state: string;
   configured: boolean;
-  last_error: string;
+  last_error: string | null;
   fetched_at: unknown;
   sync: AccessControlMessagingMessagingConfigSync;
   messaging: AccessControlMessagingMessagingConfigMessaging;
@@ -45,7 +45,7 @@ export interface AccessControlMessagingMessagingConfigSync {
 export interface AccessControlMessagingMessagingSettings {
   state: string;
   configured: boolean;
-  last_error: string;
+  last_error: string | null;
   fetched_at: unknown;
   sync: AccessControlMessagingMessagingConfigSync;
   settings: Record<string, unknown>;
@@ -55,7 +55,7 @@ export interface AccessControlMessagingMessagingSettings {
 }
 
 export interface AccessControlMessagingMessagingSettingsConsent {
-  page_problem: string;
+  page_problem: string | null;
   notice_version: string;
   resend_days: number;
   held_per_person: number;
@@ -84,8 +84,8 @@ export interface AccessControlMessagingMessagingSettingsService {
   state: string;
   connected: unknown;
   accounts: unknown[];
-  problem: string;
-  last_error: string;
+  problem: string | null;
+  last_error: string | null;
   accounts_total: number;
   accounts_truncated: boolean;
 }

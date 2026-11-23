@@ -14,9 +14,11 @@ UNMODELLED: frozenset[str] = frozenset({'GET /access-control/operations/capacity
 
 class AccessControlOpsOverviewSummary(ExactModel):
     state: str
-    code: str
-    message: str
-    details: dict[str, str]
+    code: str | None = None
+    message: str | None = None
+    details: dict[str, str] | None = None
+    data: Any = None
+    fetched_at: Any = None
 
 
 class AccessControlOpsOverviewViews(ExactModel):

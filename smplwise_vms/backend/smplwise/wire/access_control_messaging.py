@@ -44,7 +44,7 @@ class AccessControlMessagingMessagingConfig(ExactModel):
     """What the message dialog needs to know, for THIS caller: `feature` (an administrator switched messaging on), `enabled` (and the messaging service is connected), the administrator's `free_text` / `bulk_max`, `text_max`, the approved `template"""
     state: str
     configured: bool
-    last_error: str
+    last_error: str | None
     fetched_at: Any
     sync: AccessControlMessagingMessagingConfigSync
     messaging: AccessControlMessagingMessagingConfigMessaging
@@ -69,14 +69,14 @@ class AccessControlMessagingMessagingSettingsService(ExactModel):
     state: str
     connected: Any
     accounts: list[Any]
-    problem: str
-    last_error: str
+    problem: str | None
+    last_error: str | None
     accounts_total: Num
     accounts_truncated: bool
 
 
 class AccessControlMessagingMessagingSettingsConsent(ExactModel):
-    page_problem: str
+    page_problem: str | None
     notice_version: str
     resend_days: Num
     held_per_person: Num
@@ -90,7 +90,7 @@ class AccessControlMessagingMessagingSettings(ExactModel):
     """The administrator's message settings (`system.configure`): the master switch, free text, the bulk and hourly limits, the organization name, the messaging account, the TEMPLATES and the catalogue's `revision` - plus the limits the editor val"""
     state: str
     configured: bool
-    last_error: str
+    last_error: str | None
     fetched_at: Any
     sync: AccessControlMessagingMessagingConfigSync
     settings: dict[str, Any]

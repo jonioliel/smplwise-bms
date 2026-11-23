@@ -32,7 +32,7 @@ class WiskeyPairingPairingStatusLineFacts(ExactModel):
     source: str | None = None
     feed_video: bool = None
     feed_talk: bool = None
-    feed_reason: str = None
+    feed_reason: str | None = None
     listed: dict[str, Any] = None
     choice: str = None
     readiness: list[str] = None
@@ -50,6 +50,16 @@ class WiskeyPairingPairingStatusLineFacts(ExactModel):
     refused_since: str = None
     refused_code: str = None
     blocked_by_wiskey: bool = None
+    checked_at: Any = None
+    clock: Any = None
+    code: Any = None
+    commands: Any = None
+    protocol: Any = None
+    repository: Any = None
+    schema_version: Any = None
+    service_subject: Any = None
+    talk_audio: Any = None
+    transport: Any = None
 
 
 class WiskeyPairingPairingStatusLine(ExactModel):
@@ -80,7 +90,7 @@ class WiskeyPairingPairingStatusFeature(ExactModel):
     group: str
     label: str
     state: str
-    reasons: list[dict[str, str]]
+    reasons: list[dict[str, Any]]
     link: WiskeyPairingPairingStatusFeatureLink | None
 
 
@@ -120,7 +130,7 @@ class WiskeyPairingPairingRepairStatusFeature(ExactModel):
     group: str
     label: str
     state: str
-    reasons: list[dict[str, str]]
+    reasons: list[dict[str, Any]]
     link: dict[str, str] | None
 
 

@@ -11,7 +11,7 @@ export interface IntercomListenListenCapability {
   codec: string;
   sample_rate: number;
   frame_ms: number;
-  max_seconds: number;
+  max_seconds: number | null;
   listeners: number;
 }
 

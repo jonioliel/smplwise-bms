@@ -45,7 +45,7 @@ export interface AccessControlPeoplePersonCreatePerson {
   display_name: string;
   active: boolean;
   valid_from: unknown;
-  valid_until: string;
+  valid_until: string | null;
   revision: number;
   access_category: string;
   access_known: boolean;
@@ -59,7 +59,7 @@ export interface AccessControlPeoplePersonCreatePerson {
   pin_configured: boolean | null;
   credentials_known: boolean;
   cards: AccessControlPeoplePersonEditorPersonCard[] | null;
-  permission_overrides: AccessControlPeoplePersonEditorPersonPermissionOverrides;
+  permission_overrides: Record<string, unknown>;
   has_timing: boolean;
   archived: boolean;
   responsible_person: string | null;
@@ -76,7 +76,7 @@ export interface AccessControlPeoplePersonCreatePersonStation {
   doors: number[];
   sync_state: string;
   last_error: unknown;
-  desired_revision: number;
+  desired_revision: number | null;
   applied_revision: number | null;
 }
 
@@ -128,7 +128,7 @@ export interface AccessControlPeoplePersonEditorPerson {
   pin_configured: boolean | null;
   credentials_known: boolean;
   cards: AccessControlPeoplePersonEditorPersonCard[] | null;
-  permission_overrides: AccessControlPeoplePersonEditorPersonPermissionOverrides;
+  permission_overrides: Record<string, unknown>;
   has_timing: boolean;
   archived: boolean;
   responsible_person: string | null;
@@ -145,10 +145,6 @@ export interface AccessControlPeoplePersonEditorPersonCard {
   label: string;
   card_type: string;
   enabled: boolean;
-}
-
-export interface AccessControlPeoplePersonEditorPersonPermissionOverrides {
-  events?: string;
 }
 
 export interface AccessControlPeoplePersonEditorPersonStation {
@@ -250,17 +246,17 @@ export interface AccessControlPeoplePersonUpdatePerson {
   operator_editable: unknown;
   group_ids: string[];
   stations: AccessControlPeoplePersonCreatePersonStation[];
-  phone: string;
+  phone: string | null;
   identity_locked: boolean;
-  pin_configured: boolean;
+  pin_configured: boolean | null;
   credentials_known: boolean;
-  cards: AccessControlPeoplePersonEditorPersonCard[];
-  permission_overrides: AccessControlPeoplePersonEditorPersonPermissionOverrides;
+  cards: AccessControlPeoplePersonEditorPersonCard[] | null;
+  permission_overrides: Record<string, unknown>;
   has_timing: boolean;
   archived: boolean;
   responsible_person: string | null;
   access_purpose: string | null;
-  photo_configured: boolean;
+  photo_configured: boolean | null;
   timing_draft: AccessControlPeoplePersonEditorPersonTimingDraft | null;
   timing_policy: AccessControlPeoplePersonEditorPersonTimingPolicy | null;
   level: string;

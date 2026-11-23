@@ -26,7 +26,7 @@ export interface AccessControlStationOpsMaintenanceViewReport {
   state: string;
   fresh: boolean;
   fetched_at: unknown;
-  last_error: string;
+  last_error: string | null;
   health: unknown;
   auth: unknown;
 }

@@ -14,7 +14,7 @@ export interface HaAction {
   status: string;
   error: string | null;
   requested_at: string;
-  responded_at: string;
+  responded_at: string | null;
   confirmed_at: string | null;
   expected_state: string | null;
   observed_state: string | null;
@@ -242,7 +242,7 @@ export interface HaRunAction {
   status: string;
   error?: string | null;
   requested_at?: string;
-  responded_at?: string;
+  responded_at?: string | null;
   confirmed_at?: string | null;
   expected_state?: string | null;
   observed_state?: unknown;
@@ -308,7 +308,7 @@ export interface HaStatusSync {
   last_snapshot_at: string | null;
   last_event_at: unknown;
   last_registry_at: string | null;
-  last_error: string;
+  last_error: string | null;
   reconnects: number;
   sequence: number;
   entities: number;

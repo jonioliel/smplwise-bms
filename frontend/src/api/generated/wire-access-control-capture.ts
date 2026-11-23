@@ -8,18 +8,14 @@ export interface AccessControlCaptureCardCaptureCancel {
   state: string;
   configured: boolean;
   last_error: unknown;
-  fetched_at: string;
-  cancelled: AccessControlCaptureCardCaptureCancelCancelled;
-  sync: AccessControlCaptureCardCaptureStartSync;
+  fetched_at?: string | null;
+  cancelled: unknown;
+  sync?: AccessControlCaptureCardCaptureStartSync | null;
   command_id: string;
   capture: AccessControlCaptureCardCaptureCancelCapture;
   note: string;
   effect: string;
   pending: boolean;
-}
-
-export interface AccessControlCaptureCardCaptureCancelCancelled {
-  cancelled: boolean;
 }
 
 export interface AccessControlCaptureCardCaptureCancelCapture {
@@ -45,9 +41,9 @@ export interface AccessControlCaptureCardCaptureConfirm {
   state: string;
   configured: boolean;
   last_error: unknown;
-  fetched_at: string;
+  fetched_at?: string | null;
   person: AccessControlCaptureCardCaptureConfirmPerson;
-  sync: AccessControlCaptureCardCaptureStartSync;
+  sync?: AccessControlCaptureCardCaptureStartSync | null;
   command_id: string;
   capture: AccessControlCaptureCardCaptureCancelCapture;
   note: string;
@@ -61,7 +57,7 @@ export interface AccessControlCaptureCardCaptureConfirmPerson {
   display_name: string;
   active: boolean;
   valid_from: unknown;
-  valid_until: string;
+  valid_until: string | null;
   revision: number;
   access_category: string;
   access_known: boolean;
@@ -72,7 +68,7 @@ export interface AccessControlCaptureCardCaptureConfirmPerson {
   stations: AccessControlCaptureCardCaptureConfirmPersonStation[];
   phone: string;
   identity_locked: boolean;
-  pin_configured: boolean;
+  pin_configured: boolean | null;
   credentials_known: boolean;
   cards: AccessControlCaptureCardCaptureConfirmPersonCard[];
   permission_overrides: AccessControlCaptureCardCaptureConfirmPersonPermissionOverrides;
@@ -80,9 +76,9 @@ export interface AccessControlCaptureCardCaptureConfirmPerson {
   archived: boolean;
   responsible_person: unknown;
   access_purpose: unknown;
-  photo_configured: boolean;
+  photo_configured: boolean | null;
   timing_draft: unknown;
-  timing_policy: AccessControlCaptureCardCaptureConfirmPersonTimingPolicy;
+  timing_policy: AccessControlCaptureCardCaptureConfirmPersonTimingPolicy | null;
   level: string;
 }
 
@@ -95,7 +91,7 @@ export interface AccessControlCaptureCardCaptureConfirmPersonCard {
 }
 
 export interface AccessControlCaptureCardCaptureConfirmPersonPermissionOverrides {
-  events: string;
+  events?: string | null;
 }
 
 export interface AccessControlCaptureCardCaptureConfirmPersonStation {
@@ -104,8 +100,8 @@ export interface AccessControlCaptureCardCaptureConfirmPersonStation {
   doors: number[];
   sync_state: string;
   last_error: string | null;
-  desired_revision: number;
-  applied_revision: number;
+  desired_revision: number | null;
+  applied_revision: number | null;
 }
 
 export interface AccessControlCaptureCardCaptureConfirmPersonTimingPolicy {

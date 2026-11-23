@@ -168,3 +168,17 @@ re-run of all 82 files after the last two fixes (only g5's 8 files).
    committed as `scripts/wire_draft/` (README = the method).
 2. Ratchet strictness on a decrease: DECIDED (lead) - fail only on an increase, like `design_ratchet.py`; done.
 3. Drift log level on installations (ERROR): recommendation keep for 2.48.0 so the lab shows the gaps; WARNING later.
+
+
+## Runner backend run at 952d2c641 and the fix (update)
+
+The full 4-shard runner run at 952d2c641 (2026-11-23 05:00-06:34 UTC): shard_00 91 failed / 7619 passed, shard_01 52 failed + 27 errors /
+6131 passed, shard_02 57 failed + 2 errors / 7136 passed, shard_03 22 failed + 41 errors / 7244 passed (222 failed + 71 errors, 290 distinct test
+functions in ~45 files). Classification: all REAL, none environmental - every one is a `ResponseValidationError` raised by an `ExactModel`
+under `SW_WIRE_STRICT=1`: models drafted from the PC-recorded answers declared `str` / `int` / `bool` / a nested object for fields that are
+`null` in other states (messaging `last_error` / `problem` / `page_problem`, health report installation + capabilities, backup archives,
+HA action `responded_at`, ...), required keys that other answers omit (card-capture cancel / confirm, ops overview summary), and keys the
+recorder never saw (`wall_button`, `discovery`, pairing line facts, ...). In an installation these would only have been logged at ERROR.
+Fix: the fields are nullable / optional / `Any`, the undeclared keys are declared, `permission_overrides` is `dict[str, Any]`
+(about 60 field edits in 20 wire modules; `frontend/src/api/generated/wire-*.ts` regenerated). The 290 functions were re-run strict on the
+workstation (304 tests): 304 passed; the wire block tests + ratchet + route coverage (403) passed; `gen_wire_types.py --check` rc 0.

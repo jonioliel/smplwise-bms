@@ -227,6 +227,7 @@ export interface BulkPeopleWiskeyConfirm {
 export interface BulkPeopleWiskeyConfirmOperation {
   state: string;
   replay_available: boolean;
+  code?: unknown;
 }
 
 /** WisKey's own verified preview of the file the job was staged from (the same bytes: their SHA-256 must equal the job's). */

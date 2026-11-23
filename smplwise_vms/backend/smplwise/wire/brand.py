@@ -25,6 +25,11 @@ class BrandBrandPublicCompany(ExactModel):
 
 class BrandBrandPublicInstaller(ExactModel):
     enabled: bool
+    accent: Any = None
+    contact: Any = None
+    logo: Any = None
+    logo_file: Any = None
+    name: Any = None
 
 
 class BrandBrandPublic(ExactModel):

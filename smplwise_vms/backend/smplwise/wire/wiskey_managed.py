@@ -58,10 +58,10 @@ class WiskeyManagedManagedAdoption(ExactModel):
 
 
 class WiskeyManagedManagedJobStep(ExactModel):
-    at: str
-    code: str | None
+    at: str | None = None
+    code: str | None = None
     name: str
-    state: str
+    state: str | None = None
 
 
 class WiskeyManagedManagedJob(ExactModel):

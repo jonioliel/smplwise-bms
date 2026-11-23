@@ -25,7 +25,7 @@ export interface WiskeyInstallerClockClockViewDefaults {
 
 export interface WiskeyInstallerClockClockViewHost {
   state: string;
-  error: WiskeyInstallerClockClockViewHostError;
+  error: WiskeyInstallerClockClockViewHostError | null;
   fetched_at: unknown;
   data: unknown;
 }

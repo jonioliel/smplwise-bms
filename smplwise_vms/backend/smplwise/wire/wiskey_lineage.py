@@ -15,3 +15,4 @@ UNMODELLED: frozenset[str] = frozenset({'POST /access-control/wiskey-lineage/rei
 class WiskeyLineageView(ExactModel):
     installed: bool
     lineage: Any
+    discovery: Any = None

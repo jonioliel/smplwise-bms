@@ -467,8 +467,8 @@ export interface AccessControlReadsParityReportParityScreen {
   feature: string | null;
   permission: string;
   route: string;
-  source: Record<string, unknown>;
-  expected_count: number;
+  source: Record<string, unknown> | null;
+  expected_count: number | null;
   native: Record<string, unknown> | null;
   rule: string | null;
   reason: unknown;

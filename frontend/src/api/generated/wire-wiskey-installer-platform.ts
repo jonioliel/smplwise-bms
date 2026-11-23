@@ -15,7 +15,7 @@ export interface WiskeyInstallerPlatformPlatformView {
 
 export interface WiskeyInstallerPlatformPlatformViewPlatform {
   state: string;
-  error: WiskeyInstallerPlatformPlatformViewPlatformError;
+  error: WiskeyInstallerPlatformPlatformViewPlatformError | null;
   fetched_at: unknown;
   data: unknown;
 }

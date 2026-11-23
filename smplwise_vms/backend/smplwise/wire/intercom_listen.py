@@ -20,7 +20,7 @@ class IntercomListenListenCapability(ExactModel):
     codec: str
     sample_rate: Num
     frame_ms: Num
-    max_seconds: Num
+    max_seconds: Num | None
     listeners: Num
 
 

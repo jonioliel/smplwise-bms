@@ -164,7 +164,7 @@ class AccessControlWritesPersonPhotoSetPerson(ExactModel):
     responsible_person: str
     access_purpose: str
     photo_configured: bool
-    timing_draft: AccessControlWritesPersonArchivePersonTimingDraft
+    timing_draft: AccessControlWritesPersonArchivePersonTimingDraft | None
     timing_policy: Any
     level: str
 

@@ -140,9 +140,9 @@ class AccessControlCaptureCardCaptureCancel(ExactModel):
     state: str
     configured: bool
     last_error: Any
-    fetched_at: str
-    cancelled: AccessControlCaptureCardCaptureCancelCancelled
-    sync: AccessControlCaptureCardCaptureStartSync
+    fetched_at: str | None = None
+    cancelled: Any
+    sync: AccessControlCaptureCardCaptureStartSync | None = None
     command_id: str
     capture: AccessControlCaptureCardCaptureCancelCapture
     note: str
@@ -156,8 +156,8 @@ class AccessControlCaptureCardCaptureConfirmPersonStation(ExactModel):
     doors: list[Num]
     sync_state: str
     last_error: str | None
-    desired_revision: Num
-    applied_revision: Num
+    desired_revision: Num | None
+    applied_revision: Num | None
 
 
 class AccessControlCaptureCardCaptureConfirmPersonCard(ExactModel):
@@ -169,7 +169,7 @@ class AccessControlCaptureCardCaptureConfirmPersonCard(ExactModel):
 
 
 class AccessControlCaptureCardCaptureConfirmPersonPermissionOverrides(ExactModel):
-    events: str
+    events: str | None = None
 
 
 class AccessControlCaptureCardCaptureConfirmPersonTimingPolicySchedule(ExactModel):
@@ -192,7 +192,7 @@ class AccessControlCaptureCardCaptureConfirmPerson(ExactModel):
     display_name: str
     active: bool
     valid_from: Any
-    valid_until: str
+    valid_until: str | None
     revision: Num
     access_category: str
     access_known: bool
@@ -203,7 +203,7 @@ class AccessControlCaptureCardCaptureConfirmPerson(ExactModel):
     stations: list[AccessControlCaptureCardCaptureConfirmPersonStation]
     phone: str
     identity_locked: bool
-    pin_configured: bool
+    pin_configured: bool | None
     credentials_known: bool
     cards: list[AccessControlCaptureCardCaptureConfirmPersonCard]
     permission_overrides: AccessControlCaptureCardCaptureConfirmPersonPermissionOverrides
@@ -211,9 +211,9 @@ class AccessControlCaptureCardCaptureConfirmPerson(ExactModel):
     archived: bool
     responsible_person: Any
     access_purpose: Any
-    photo_configured: bool
+    photo_configured: bool | None
     timing_draft: Any
-    timing_policy: AccessControlCaptureCardCaptureConfirmPersonTimingPolicy
+    timing_policy: AccessControlCaptureCardCaptureConfirmPersonTimingPolicy | None
     level: str
 
 
@@ -222,9 +222,9 @@ class AccessControlCaptureCardCaptureConfirm(ExactModel):
     state: str
     configured: bool
     last_error: Any
-    fetched_at: str
+    fetched_at: str | None = None
     person: AccessControlCaptureCardCaptureConfirmPerson
-    sync: AccessControlCaptureCardCaptureStartSync
+    sync: AccessControlCaptureCardCaptureStartSync | None = None
     command_id: str
     capture: AccessControlCaptureCardCaptureCancelCapture
     note: str

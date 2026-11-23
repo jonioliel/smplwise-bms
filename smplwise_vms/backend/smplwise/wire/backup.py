@@ -149,7 +149,7 @@ class BackupDrillStatus(ExactModel):
 
 class BackupDrillRun(ExactModel):
     started: bool
-    archive: str
+    archive: str | None
     target_id: Any
 
 
@@ -286,4 +286,4 @@ class BackupRestoreBackup(ExactModel):
     capture_lease_settings: BackupRestoreBackupCaptureLeaseSettings
     sensitive: BackupRestoreBackupSensitive
     passwords: BackupRestoreBackupPasswords | None
-    safety_archive: BackupRestoreBackupSafetyArchive
+    safety_archive: BackupRestoreBackupSafetyArchive | None

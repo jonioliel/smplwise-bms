@@ -52,10 +52,6 @@ class AccessControlPeoplePersonEditorPersonCard(ExactModel):
     enabled: bool
 
 
-class AccessControlPeoplePersonEditorPersonPermissionOverrides(ExactModel):
-    events: str = None
-
-
 class AccessControlPeoplePersonEditorPersonTimingDraft(ExactModel):
     mode: str
     timezone: str
@@ -98,7 +94,7 @@ class AccessControlPeoplePersonEditorPerson(ExactModel):
     pin_configured: bool | None
     credentials_known: bool
     cards: list[AccessControlPeoplePersonEditorPersonCard] | None
-    permission_overrides: AccessControlPeoplePersonEditorPersonPermissionOverrides
+    permission_overrides: dict[str, Any]
     has_timing: bool
     archived: bool
     responsible_person: str | None
@@ -163,7 +159,7 @@ class AccessControlPeoplePersonCreatePersonStation(ExactModel):
     doors: list[Num]
     sync_state: str
     last_error: Any
-    desired_revision: Num
+    desired_revision: Num | None
     applied_revision: Num | None
 
 
@@ -173,7 +169,7 @@ class AccessControlPeoplePersonCreatePerson(ExactModel):
     display_name: str
     active: bool
     valid_from: Any
-    valid_until: str
+    valid_until: str | None
     revision: Num
     access_category: str
     access_known: bool
@@ -187,7 +183,7 @@ class AccessControlPeoplePersonCreatePerson(ExactModel):
     pin_configured: bool | None
     credentials_known: bool
     cards: list[AccessControlPeoplePersonEditorPersonCard] | None
-    permission_overrides: AccessControlPeoplePersonEditorPersonPermissionOverrides
+    permission_overrides: dict[str, Any]
     has_timing: bool
     archived: bool
     responsible_person: str | None
@@ -227,17 +223,17 @@ class AccessControlPeoplePersonUpdatePerson(ExactModel):
     operator_editable: Any
     group_ids: list[str]
     stations: list[AccessControlPeoplePersonCreatePersonStation]
-    phone: str
+    phone: str | None
     identity_locked: bool
-    pin_configured: bool
+    pin_configured: bool | None
     credentials_known: bool
-    cards: list[AccessControlPeoplePersonEditorPersonCard]
-    permission_overrides: AccessControlPeoplePersonEditorPersonPermissionOverrides
+    cards: list[AccessControlPeoplePersonEditorPersonCard] | None
+    permission_overrides: dict[str, Any]
     has_timing: bool
     archived: bool
     responsible_person: str | None
     access_purpose: str | None
-    photo_configured: bool
+    photo_configured: bool | None
     timing_draft: AccessControlPeoplePersonEditorPersonTimingDraft | None
     timing_policy: AccessControlPeoplePersonEditorPersonTimingPolicy | None
     level: str

@@ -104,7 +104,7 @@ export interface BackupCreateBackupSensitive {
 
 export interface BackupDrillRun {
   started: boolean;
-  archive: string;
+  archive: string | null;
   target_id: unknown;
 }
 
@@ -232,7 +232,7 @@ export interface BackupRestoreBackup {
   capture_lease_settings: BackupRestoreBackupCaptureLeaseSettings;
   sensitive: BackupRestoreBackupSensitive;
   passwords: BackupRestoreBackupPasswords | null;
-  safety_archive: BackupRestoreBackupSafetyArchive;
+  safety_archive: BackupRestoreBackupSafetyArchive | null;
 }
 
 export interface BackupRestoreBackupCaptureLeaseSettings {

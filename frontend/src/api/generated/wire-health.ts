@@ -321,7 +321,7 @@ export interface HealthHealthReportCapabilities {
   ha_cameras_live: boolean;
   cameras_available: boolean;
   supported: boolean;
-  unsupported_reason: string;
+  unsupported_reason: string | null;
   webrtc_server_configured: boolean;
   recorders: HealthHealthCapabilitiesRecorder[];
 }
@@ -336,9 +336,9 @@ export interface HealthHealthReportCheck {
 
 export interface HealthHealthReportInstallation {
   supported: boolean;
-  reason: string;
-  message: string;
-  action: string;
+  reason: string | null;
+  message: string | null;
+  action: string | null;
 }
 
 /** What the top bar shows every signed-in user: cached states only, no device probes, no details that a non-administrator should not see (labels are operator wording, never addresses or credentials). */

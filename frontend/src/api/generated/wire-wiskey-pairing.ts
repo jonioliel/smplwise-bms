@@ -32,7 +32,7 @@ export interface WiskeyPairingPairingRepairStatusFeature {
   group: string;
   label: string;
   state: string;
-  reasons: Record<string, string>[];
+  reasons: Record<string, unknown>[];
   link: Record<string, string> | null;
 }
 
@@ -72,7 +72,7 @@ export interface WiskeyPairingPairingStatusFeature {
   group: string;
   label: string;
   state: string;
-  reasons: Record<string, string>[];
+  reasons: Record<string, unknown>[];
   link: WiskeyPairingPairingStatusFeatureLink | null;
 }
 
@@ -111,7 +111,7 @@ export interface WiskeyPairingPairingStatusLineFacts {
   source?: string | null;
   feed_video?: boolean;
   feed_talk?: boolean;
-  feed_reason?: string;
+  feed_reason?: string | null;
   listed?: Record<string, unknown>;
   choice?: string;
   readiness?: string[];
@@ -129,6 +129,16 @@ export interface WiskeyPairingPairingStatusLineFacts {
   refused_since?: string;
   refused_code?: string;
   blocked_by_wiskey?: boolean;
+  checked_at?: unknown;
+  clock?: unknown;
+  code?: unknown;
+  commands?: unknown;
+  protocol?: unknown;
+  repository?: unknown;
+  schema_version?: unknown;
+  service_subject?: unknown;
+  talk_audio?: unknown;
+  transport?: unknown;
 }
 
 export interface WiskeyPairingPairingStatusRepair {

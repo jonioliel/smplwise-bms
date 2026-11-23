@@ -56,6 +56,11 @@ export interface BrandBrandPublicCompanyLogo {
 
 export interface BrandBrandPublicInstaller {
   enabled: boolean;
+  accent?: unknown;
+  contact?: unknown;
+  logo?: unknown;
+  logo_file?: unknown;
+  name?: unknown;
 }
 
 export interface BrandBrandPut {

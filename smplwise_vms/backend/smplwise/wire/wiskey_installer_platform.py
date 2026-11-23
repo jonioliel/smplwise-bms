@@ -20,7 +20,7 @@ class WiskeyInstallerPlatformPlatformViewPlatformError(ExactModel):
 
 class WiskeyInstallerPlatformPlatformViewPlatform(ExactModel):
     state: str
-    error: WiskeyInstallerPlatformPlatformViewPlatformError
+    error: WiskeyInstallerPlatformPlatformViewPlatformError | None
     fetched_at: Any
     data: Any
 

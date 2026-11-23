@@ -236,6 +236,7 @@ class BulkPeopleWiskeyPreview(ExactModel):
 class BulkPeopleWiskeyConfirmOperation(ExactModel):
     state: str
     replay_available: bool
+    code: Any = None
 
 
 class BulkPeopleWiskeyConfirm(ExactModel):

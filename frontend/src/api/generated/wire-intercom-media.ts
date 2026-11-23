@@ -39,7 +39,7 @@ export interface IntercomMediaStationMediaReadinessWiskeyCapabilities {
   state: string;
   video_listed: boolean;
   talk_listed: boolean;
-  reason: string;
+  reason: string | null;
   reason_kind: unknown;
   source: unknown;
   read_at: unknown;

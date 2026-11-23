@@ -17,7 +17,7 @@ class HaStatusSync(ExactModel):
     last_snapshot_at: str | None
     last_event_at: Any
     last_registry_at: str | None
-    last_error: str
+    last_error: str | None
     reconnects: Num
     sequence: Num
     entities: Num
@@ -220,7 +220,7 @@ class HaRunAction(ExactModel):
     status: str
     error: str | None = None
     requested_at: str = None
-    responded_at: str = None
+    responded_at: str | None = None
     confirmed_at: str | None = None
     expected_state: str | None = None
     observed_state: Any = None
@@ -244,7 +244,7 @@ class HaAction(ExactModel):
     status: str
     error: str | None
     requested_at: str
-    responded_at: str
+    responded_at: str | None
     confirmed_at: str | None
     expected_state: str | None
     observed_state: str | None

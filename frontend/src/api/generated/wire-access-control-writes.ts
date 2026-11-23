@@ -124,7 +124,7 @@ export interface AccessControlWritesPersonPhotoSetPerson {
   responsible_person: string;
   access_purpose: string;
   photo_configured: boolean;
-  timing_draft: AccessControlWritesPersonArchivePersonTimingDraft;
+  timing_draft: AccessControlWritesPersonArchivePersonTimingDraft | null;
   timing_policy: unknown;
   level: string;
 }

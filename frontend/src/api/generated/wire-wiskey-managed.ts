@@ -74,10 +74,10 @@ export interface WiskeyManagedManagedJob {
 }
 
 export interface WiskeyManagedManagedJobStep {
-  at: string;
-  code: string | null;
+  at?: string | null;
+  code?: string | null;
   name: string;
-  state: string;
+  state?: string | null;
 }
 
 export interface WiskeyManagedManagedPhrases {

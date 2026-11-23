@@ -534,6 +534,7 @@ export interface AccessGrantsReadinessLine {
   provider?: string;
   direct_selected?: boolean;
   count?: number;
+  negotiated_at?: unknown;
 }
 
 export interface AccessGrantsRefuse {
@@ -723,7 +724,7 @@ export interface AccessGrantsRevokeGrant {
   code_sends: number | null;
   card_state: unknown;
   notice: AccessGrantsRequestGrantGrantNoticeItem[];
-  attention: string;
+  attention: string | null;
   linked: boolean;
   company: string;
   category: string;

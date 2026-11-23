@@ -77,7 +77,7 @@ class IntercomMediaStationMediaReadinessWiskeyCapabilities(ExactModel):
     state: str
     video_listed: bool
     talk_listed: bool
-    reason: str
+    reason: str | None
     reason_kind: Any
     source: Any
     read_at: Any

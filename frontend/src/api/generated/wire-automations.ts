@@ -77,6 +77,8 @@ export interface AutomationsAutomationsStatusUiExt {
   device_test_end: string;
   presence: boolean;
   bridge_required: string;
+  presence_entity?: unknown;
+  presence_sources?: unknown;
 }
 
 export interface AutomationsAutomationsStatusUiExtWallTiming {
@@ -189,7 +191,7 @@ export interface AutomationsDryRunEffectsEntity {
 export interface AutomationsItem {
   kind: string;
   id: string;
-  config_id: string;
+  config_id: string | null;
   entity_id: string;
   name: string;
   description: string;
@@ -213,19 +215,20 @@ export interface AutomationsItem {
   created_via: string;
   owner: AutomationsItemsItemOwner | null;
   updated_at: string;
-  revision: string;
+  revision: string | null;
   pinned: boolean;
   favourite: boolean;
   hidden: boolean;
   can: AutomationsItemsItemCan;
   read_only: AutomationsItemReadOnly | null;
   warnings: AutomationsItemWarning[];
-  draft: Record<string, unknown>;
+  draft: Record<string, unknown> | null;
   versions: number;
   trash_restore_of: unknown;
   config: Record<string, unknown> | null;
   config_masked: boolean;
   suggest_schedule?: AutomationsPreviewSuggestSchedule | null;
+  wall_button?: unknown;
 }
 
 export interface AutomationsItemReadOnly {
@@ -297,6 +300,7 @@ export interface AutomationsItemsItem {
   can: AutomationsItemsItemCan;
   read_only: AutomationsItemsItemReadOnly | null;
   warnings: Record<string, string>[];
+  wall_button?: unknown;
 }
 
 export interface AutomationsItemsItemCan {
@@ -361,6 +365,9 @@ export interface AutomationsPreviewError {
   path: string;
   code: string;
   message: string;
+  delta_min?: unknown;
+  detail?: unknown;
+  other?: unknown;
 }
 
 export interface AutomationsPreviewExtension {

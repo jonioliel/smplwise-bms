@@ -20,7 +20,7 @@ class WiskeyInstallerClockClockViewHostError(ExactModel):
 
 class WiskeyInstallerClockClockViewHost(ExactModel):
     state: str
-    error: WiskeyInstallerClockClockViewHostError
+    error: WiskeyInstallerClockClockViewHostError | None
     fetched_at: Any
     data: Any
 

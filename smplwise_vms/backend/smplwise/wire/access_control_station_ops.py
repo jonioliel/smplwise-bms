@@ -16,7 +16,7 @@ class AccessControlStationOpsMaintenanceViewReport(ExactModel):
     state: str
     fresh: bool
     fetched_at: Any
-    last_error: str
+    last_error: str | None
     health: Any
     auth: Any
 

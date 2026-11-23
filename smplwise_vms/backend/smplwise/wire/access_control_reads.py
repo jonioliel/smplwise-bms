@@ -908,8 +908,8 @@ class AccessControlReadsParityReportParityScreen(ExactModel):
     feature: str | None
     permission: str
     route: str
-    source: dict[str, Any]
-    expected_count: Num
+    source: dict[str, Any] | None
+    expected_count: Num | None
     native: dict[str, Any] | None
     rule: str | None
     reason: Any

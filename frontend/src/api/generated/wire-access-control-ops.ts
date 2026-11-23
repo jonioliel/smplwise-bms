@@ -21,9 +21,11 @@ export interface AccessControlOpsOverviewCan {
 
 export interface AccessControlOpsOverviewSummary {
   state: string;
-  code: string;
-  message: string;
-  details: Record<string, string>;
+  code?: string | null;
+  message?: string | null;
+  details?: Record<string, string> | null;
+  data?: unknown;
+  fetched_at?: unknown;
 }
 
 export interface AccessControlOpsOverviewViews {

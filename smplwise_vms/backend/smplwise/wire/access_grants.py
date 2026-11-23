@@ -293,6 +293,7 @@ class AccessGrantsReadinessLine(ExactModel):
     provider: str = None
     direct_selected: bool = None
     count: Num = None
+    negotiated_at: Any = None
 
 
 class AccessGrantsReadiness(ExactModel):
@@ -643,7 +644,7 @@ class AccessGrantsRevokeGrant(ExactModel):
     code_sends: Num | None
     card_state: Any
     notice: list[AccessGrantsRequestGrantGrantNoticeItem]
-    attention: str
+    attention: str | None
     linked: bool
     company: str
     category: str

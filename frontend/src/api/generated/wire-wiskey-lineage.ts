@@ -6,6 +6,7 @@
 export interface WiskeyLineageView {
   installed: boolean;
   lineage: unknown;
+  discovery?: unknown;
 }
 
 /** The answer of every modelled route of this family: `'METHOD path'` -> type. */

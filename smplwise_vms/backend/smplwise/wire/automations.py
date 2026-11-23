@@ -60,6 +60,8 @@ class AutomationsAutomationsStatusUiExt(ExactModel):
     device_test_end: str
     presence: bool
     bridge_required: str
+    presence_entity: Any = None
+    presence_sources: Any = None
 
 
 class AutomationsAutomationsStatusUi(ExactModel):
@@ -216,6 +218,9 @@ class AutomationsPreviewError(ExactModel):
     path: str
     code: str
     message: str
+    delta_min: Any = None
+    detail: Any = None
+    other: Any = None
 
 
 class AutomationsPreviewEffectsEntity(ExactModel):
@@ -362,6 +367,7 @@ class AutomationsItemsItem(ExactModel):
     can: AutomationsItemsItemCan
     read_only: AutomationsItemsItemReadOnly | None
     warnings: list[dict[str, str]]
+    wall_button: Any = None
 
 
 class AutomationsItemsStatus(ExactModel):
@@ -409,7 +415,7 @@ class AutomationsItem(ExactModel):
     """§3.1 row 3 - the `ItemDetail`."""
     kind: str
     id: str
-    config_id: str
+    config_id: str | None
     entity_id: str
     name: str
     description: str
@@ -433,19 +439,20 @@ class AutomationsItem(ExactModel):
     created_via: str
     owner: AutomationsItemsItemOwner | None
     updated_at: str
-    revision: str
+    revision: str | None
     pinned: bool
     favourite: bool
     hidden: bool
     can: AutomationsItemsItemCan
     read_only: AutomationsItemReadOnly | None
     warnings: list[AutomationsItemWarning]
-    draft: dict[str, Any]
+    draft: dict[str, Any] | None
     versions: Num
     trash_restore_of: Any
     config: dict[str, Any] | None
     config_masked: bool
     suggest_schedule: AutomationsPreviewSuggestSchedule | None = None
+    wall_button: Any = None
 
 
 class AutomationsPutMetaTarget(ExactModel):

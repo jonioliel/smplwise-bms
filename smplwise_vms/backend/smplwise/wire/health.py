@@ -331,16 +331,16 @@ class HealthHealthReportCapabilities(ExactModel):
     ha_cameras_live: bool
     cameras_available: bool
     supported: bool
-    unsupported_reason: str
+    unsupported_reason: str | None
     webrtc_server_configured: bool
     recorders: list[HealthHealthCapabilitiesRecorder]
 
 
 class HealthHealthReportInstallation(ExactModel):
     supported: bool
-    reason: str
-    message: str
-    action: str
+    reason: str | None
+    message: str | None
+    action: str | None
 
 
 class HealthHealthReportCheck(ExactModel):
