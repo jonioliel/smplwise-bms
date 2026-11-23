@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { screenshotRetrying } from './shot-retry';
 import { loadLazyChunk } from './lazy-chunk';
+import { phoneSkipDesktopShot } from './helpers/phone-skip-shots';
 
 // CR-014 S4: the schedule editor in DEMO mode (no backend: run the preview with SW_API_PORT pointing at a port nothing
 // listens on), against the typed client's in-memory store (persona through localStorage `sw.demo.schedules`). The editor is
@@ -13,6 +14,7 @@ const SHOTS = fileURLToPath(new URL('../../docs/evidence/CR014-s4', import.meta.
 fs.mkdirSync(SHOTS, { recursive: true });
 
 async function shot(page: Page, name: string) {
+  if (phoneSkipDesktopShot(page)) return; // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
   await screenshotRetrying(page, { path: path.join(SHOTS, `${name}.png`) });
 }
 
@@ -138,7 +140,7 @@ test.describe('week grid: linked days, mouse and keyboard (1440)', () => {
     expect(first.x).toBeLessThan(last.x);
     await expect(editor(page).locator('sw-schedule-grid .hour').first()).toHaveText('00');
     await shot(page, 'editor-week-1440');
-    await page.screenshot({ path: path.join(SHOTS, 'editor-week-full-1440.png'), fullPage: true });
+    if (!phoneSkipDesktopShot(page)) await page.screenshot({ path: path.join(SHOTS, 'editor-week-full-1440.png'), fullPage: true }); // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
   });
 
   test('drag on an empty track creates a snapped slot on every linked day; move and resize snap to 15 minutes', async ({ page }) => {

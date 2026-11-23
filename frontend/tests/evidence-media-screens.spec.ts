@@ -7,6 +7,7 @@ import { resetMediaMock, type MediaMockStore } from '../src/api/media-screens-mo
 import { mediaAdmin, resetMediaAdminDemo } from '../src/api/media-admin';
 import type { MediaDevice } from '../src/api/media-screens';
 import { tallDesktop } from './helpers/tall-desktop';
+import { phoneSkipDesktopShot } from './helpers/phone-skip-shots';
 
 // CR-015 S2: the multimedia screens page ("מולטימדיה › מסכים"), its card, the layout editor (installation layout and the
 // personal override), the floor "כבה מסכים" confirmation and the settings page "הגדרות › מולטימדיה". Static preview + a MOCKED
@@ -189,6 +190,7 @@ async function open(page: Page, hash: string, size: Size = '1440') {
 }
 
 async function shot(page: Page, name: string, size: Size) {
+  if (phoneSkipDesktopShot(page)) return; // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
   fs.mkdirSync(OUT, { recursive: true });
   await page.waitForTimeout(350); // let the entrance / glow settle
   // One image pixel per CSS pixel in every project: the evidence set is 1440x900 / 820x1180 / 390x844. The mobile project

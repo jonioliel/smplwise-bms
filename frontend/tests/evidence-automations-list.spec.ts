@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resetAutomationsMock, type AutomationsMockStore, type MockUserId } from '../src/api/automations-mock';
 import { ApiError } from '../src/api/client';
+import { phoneSkipDesktopShot } from './helpers/phone-skip-shots';
 
 // CR-017 S3: the automations screen ("אוטומציות", the third tab of the home area), its drawer (detail, "למה זה רץ", versions, dry-run, trash), the scenes panel
 // with the capture editor, the script runner and הגדרות › אוטומציות, in demo mode (no backend: api/automations-mock.ts answers; the persona, the state and the
@@ -69,6 +70,7 @@ const drawer = (page: Page) => scr(page).locator('automation-drawer');
 const hashOf = (page: Page) => page.evaluate(() => location.hash);
 
 async function shot(page: Page, name: string, size: Size, scheme: 'light' | 'dark' = 'light') {
+  if (phoneSkipDesktopShot(page)) return; // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
   fs.mkdirSync(EVIDENCE, { recursive: true });
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(EVIDENCE, `${name}-${size}${scheme === 'dark' ? '-dark' : ''}.png`) });

@@ -38,7 +38,7 @@ export type Shoot = (this: unknown, options?: unknown) => Promise<Buffer>;
 /** where in the spec the capture was asked for (first stack frame inside tests/) */
 function callSite(): string {
   for (const m of (new Error().stack ?? '').matchAll(/tests[\\/]([^\s:()]+\.ts):(\d+)/g)) {
-    if (!/capture-guard\.ts$/.test(m[1])) return `${m[1].replace(/\\/g, '/')}:${m[2]}`;
+    if (!/(capture-guard|shot-retry)\.ts$/.test(m[1])) return `${m[1].replace(/\\/g, '/')}:${m[2]}`;
   }
   return 'unknown';
 }

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { screenshotRetrying } from './shot-retry';
+import { phoneSkipDesktopShot } from './helpers/phone-skip-shots';
 
 // UI round 1 (2026-09-30), the tabs: הגדרות › כללי › לשוניות (`ui.tabs`: show / hide / reorder every navigation section's
 // tabs, installation-wide), the map's default floor (`map.default_floor`) and the device catalogue that left the map for
@@ -118,6 +119,7 @@ const navSel = (info: { project: { name: string } }) => (phone(info) ? 'sw-app n
 const rail = (page: Page, info: { project: { name: string } }) => page.locator(`${navSel(info)} a[data-nav]`).evaluateAll((els) => els.map((e) => e.getAttribute('data-nav') ?? ''));
 const rowTabs = (page: Page) => page.locator('sw-app .subnav sw-tabs a').allTextContents();
 async function shot(page: Page, name: string) {
+  if (phoneSkipDesktopShot(page)) return; // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
   fs.mkdirSync(EVIDENCE, { recursive: true });
   await screenshotRetrying(page, { path: path.join(EVIDENCE, `${name}.png`) });
 }

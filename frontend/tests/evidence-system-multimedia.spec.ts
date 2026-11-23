@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ADMIN, EDITOR, OUT, expandAll, fresh, install, open, type St } from './media-players-harness';
+import { phoneSkipDesktopShot } from './helpers/phone-skip-shots';
 
 // CR-016 S2: the new sections of הגדרות › מולטימדיה - נגנים ורמקולים (kind, approval, room, linked amplifier, volume ceiling WITHOUT a
 // default, night window), איחוד כפילויות (the merge wizard fed by the suggestions, the folded non-physical entries), קבוצות שמורות
@@ -17,6 +18,7 @@ const row = (page: Page, key: string) => sys(page).locator(`[data-mm-admin-devic
 async function tall(page: Page, name: string, width: number, height: number) {
   fs.mkdirSync(OUT, { recursive: true });
   await page.setViewportSize({ width, height });
+  if (phoneSkipDesktopShot(page)) return; // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
   await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(OUT, `${name}-${width}.png`) });
 }

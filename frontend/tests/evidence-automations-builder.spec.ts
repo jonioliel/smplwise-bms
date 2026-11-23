@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { ApiError } from '../src/api/client';
 import { resetAutomationsMock, type AutomationsMockStore, type MockUserId } from '../src/api/automations-mock';
 import { AUTOMATION_SETTINGS_DEFAULT, type AutomationDraft, type ItemKind } from '../src/api/automations';
+import { phoneSkipDesktopShot } from './helpers/phone-skip-shots';
 
 // CR-017 S4: the editors - `<automation-builder>`, `<script-editor>`, `<scene-editor>` - in the static preview with a MOCKED backend (page.route on
 // api/v1, the pattern of evidence-media-screens.spec.ts): every `automations/*` route is answered by the S0 client's own MOCK store (the fixture house,
@@ -131,6 +132,7 @@ const ready = async (page: Page, tag: string) => { await page.locator(`${tag} [d
 const events = (page: Page) => page.evaluate(() => (window as unknown as { __ev: Array<{ name: string; detail: unknown }> }).__ev);
 
 async function shot(page: Page, name: string) {
+  if (phoneSkipDesktopShot(page)) return; // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
   fs.mkdirSync(OUT, { recursive: true });
   await page.waitForTimeout(350);
   await page.screenshot({ path: path.join(OUT, `${name}.png`) });

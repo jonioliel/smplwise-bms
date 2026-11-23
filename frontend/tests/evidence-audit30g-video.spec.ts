@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { phoneSkipDesktopShot } from './helpers/phone-skip-shots';
 
 // AUDIT30-G-VIDEO (design audit round 30, branch G: video and investigation). Demo fixtures, every /api/v1 call aborted.
 // One regression test per fix:
@@ -27,6 +28,7 @@ async function open(page: Page, hash: string, scheme: Scheme = 'light') {
 }
 
 async function shot(page: Page, name: string) {
+  if (phoneSkipDesktopShot(page)) return; // PHONE-SKIP-DESKTOP-SHOTS-2490: a desktop-wide picture is not taken in the mobile project (desktop and tablet save it)
   fs.mkdirSync(EVIDENCE, { recursive: true });
   await page.screenshot({ path: path.join(EVIDENCE, `${name}.png`) });
 }
