@@ -95,7 +95,7 @@ test.describe('calendars settings (הגדרות › יומנים)', () => {
     await expect(page.locator(`${S} [data-overlap="first_holds"]`)).toHaveAttribute('aria-checked', 'true');
     await page.locator(`${S} [data-overlap="block"]`).click();
     await expect(page.locator(`${S} [data-overlap="block"]`)).toHaveAttribute('aria-checked', 'true');
-    await expect(opt(page, 'override_scope', 'both')).toHaveAttribute('aria-pressed', 'true');
+    await expect(opt(page, 'override_scope', 'both')).toHaveAttribute('aria-checked', 'true');
     if (!phone()) await expect(page.locator(`${S} [data-override]`)).toHaveCount(2);
     await page.locator(`${S} [data-calset-tabs] [role="tab"][href$="tab=behavior"]`).click();
     await page.locator(`${S} [data-calset-tabs] [role="tab"][href$="tab=overlap"]`).click();
@@ -117,17 +117,17 @@ test.describe('calendars settings (הגדרות › יומנים)', () => {
     for (const k of keys) expect(seen, k).toContain(k);
     // the placement has three options, the side rail by default (owner, 2026-10-30 night)
     await open(page, '/system/calendars?tab=behavior'); // back on the first page (a hash-only goto keeps the page turned above)
-    await expect(opt(page, 'menu_position', 'rail')).toHaveAttribute('aria-pressed', 'true');
+    await expect(opt(page, 'menu_position', 'rail')).toHaveAttribute('aria-checked', 'true');
     await expect(page.locator(`${S} [data-setting="menu_position"] [data-opt]`)).toHaveCount(3);
     await expect(page.locator(`${S} [data-setting="menu_position"] .sub`)).toContainText('ברירת מחדל: סרגל צד');
     await opt(page, 'menu_position', 'both').click();
-    await expect(opt(page, 'menu_position', 'both')).toHaveAttribute('aria-pressed', 'true');
+    await expect(opt(page, 'menu_position', 'both')).toHaveAttribute('aria-checked', 'true');
     await page.locator(`${S} [data-reset="menu_position"]`).click();
-    await expect(opt(page, 'menu_position', 'rail')).toHaveAttribute('aria-pressed', 'true');
+    await expect(opt(page, 'menu_position', 'rail')).toHaveAttribute('aria-checked', 'true');
     await expect(page.locator(`${S} [data-reset="menu_position"]`)).toHaveCount(0);
     // answer 11B: automatic first come is the default
     await toSetting(page, 'contested_order');
-    await expect(opt(page, 'contested_order', 'first_come')).toHaveAttribute('aria-pressed', 'true');
+    await expect(opt(page, 'contested_order', 'first_come')).toHaveAttribute('aria-checked', 'true');
     // auto-move of a displaced booking was not built: shown, not selectable
     await open(page, '/system/calendars?tab=behavior');
     await toSetting(page, 'displaced');

@@ -406,7 +406,7 @@ export class SystemNotifications extends LitElement {
       /* AUDIT30-I1 (#3): left as the segmented thumb on purpose - measured readable in dark (label 15.6:1, key 11.3:1 from its track,
          tests/evidence-sys-audit-quickfix-2437.spec.ts); the Blue Wash pair would fall under the owner-approved DARK-SEG-ALL-2380 rule
          (the chosen key at least 3:1 from its track). Recorded in docs/changes/AUDIT30-I-DEVICES.md. */
-      .sevseg button[aria-pressed='true'] {
+      .sevseg button[aria-checked='true'] {
         background: var(--mm-seg-thumb);
         color: var(--mm-seg-fg-on, var(--dv-text));
         box-shadow: var(--dv-shadow-control);
@@ -1105,7 +1105,7 @@ export class SystemNotifications extends LitElement {
   // ---------------------------------------------------------------------------------------------- sections
 
   private sevSeg(source: string, cur: Severity) {
-    return html`<span class="sevseg" role="radiogroup" aria-label=${tr('חומרה')}>${SEVERITIES.slice().reverse().map((s) => html`<button type="button" role="radio" aria-checked=${String(cur === s)} aria-pressed=${String(cur === s)} data-pol-sev=${`${source}:${s}`} style=${`--sev:var(--nt-sev-${s})`} title=${SEVERITY_LABEL[s]} @click=${() => this.patchPolicy(source, (p) => policyWithSeverity(p, s))}><i aria-hidden="true"></i>${SEVERITY_LABEL[s]}</button>`)}</span>`;
+    return html`<span class="sevseg" role="radiogroup" aria-label=${tr('חומרה')}>${SEVERITIES.slice().reverse().map((s) => html`<button type="button" role="radio" aria-checked=${String(cur === s)} data-pol-sev=${`${source}:${s}`} style=${`--sev:var(--nt-sev-${s})`} title=${SEVERITY_LABEL[s]} @click=${() => this.patchPolicy(source, (p) => policyWithSeverity(p, s))}><i aria-hidden="true"></i>${SEVERITY_LABEL[s]}</button>`)}</span>`;
   }
   private whoSel(p: NotifyPolicy) {
     const forced = FAILURE_SOURCES.includes(p.source);
@@ -1127,7 +1127,7 @@ export class SystemNotifications extends LitElement {
     const wa = channelCell(p, 'whatsapp', s, this.wa); // NOTIFWA: editable; "unconfigured" while the channel's master switch is off
     const unconfTitle: Partial<Record<Channel, string>> = { email: tr('הדוא"ל לא מוגדר'), whatsapp: tr('וואטסאפ כבוי') };
     const chip = (c: Channel, cell: ReturnType<typeof channelCell>, icon: string) => html`<button type="button" class=${classMap({ chip: true, unconf: cell.note === 'unconfigured' })} aria-pressed=${String(cell.on)} data-pol-ch=${`${p.source}:${c}`} title=${cell.note === 'unconfigured' ? unconfTitle[c] ?? '' : ''} @click=${() => this.patchPolicy(p.source, (x) => policyWithChannel(x, c, !cell.on))}>${nIcon(icon)}${CHANNEL_LABEL[c]}</button>`;
-    return html`<span class="chs"><span class="chip lock" title=${tr('תמיד')}>${nIcon('inbox')}${CHANNEL_LABEL.inbox}</span>${chip('webpush', push, 'phone')}${chip('email', mail, 'mail')}${chip('app', app, 'phone')}${chip('whatsapp', wa, 'chat')}<span class="chip soon" aria-disabled="true" title=${tr('Companion – בקרוב')} aria-label=${tr('Companion – בקרוב')}>${nIcon('phone')}</span></span>`;
+    return html`<span class="chs"><span class="chip lock" title=${tr('תמיד')}>${nIcon('inbox')}${CHANNEL_LABEL.inbox}</span>${chip('webpush', push, 'phone')}${chip('email', mail, 'mail')}${chip('app', app, 'phone')}${chip('whatsapp', wa, 'chat')}<span class="chip soon" role="img" title=${tr('Companion – בקרוב')} aria-label=${tr('Companion – בקרוב')}>${nIcon('phone')}</span></span>`;
   }
   private tog(on: boolean, attr: string, label: string, click: () => void, disabled = false) {
     // CR-CMP2-TOAST-2440 (06:CMP-2 step 2, owner O13 a): the shared sw-toggle instead of a hand-built track (switchPress: the model's value)

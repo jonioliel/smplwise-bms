@@ -1,0 +1,1752 @@
+{
+ "rows": 432,
+ "routes": 108,
+ "errors": [],
+ "rules": [
+  {
+   "rule": "aria-allowed-attr",
+   "impact": "critical",
+   "help": "Elements must only use supported ARIA attributes",
+   "nodes": 552,
+   "pages": 47,
+   "modules": [
+    "components/sw-segmented",
+    "screens",
+    "shell/document"
+   ]
+  },
+  {
+   "rule": "button-name",
+   "impact": "critical",
+   "help": "Buttons must have discernible text",
+   "nodes": 16,
+   "pages": 4,
+   "modules": [
+    "components/sw-toggle"
+   ]
+  },
+  {
+   "rule": "select-name",
+   "impact": "critical",
+   "help": "Select element must have an accessible name",
+   "nodes": 12,
+   "pages": 3,
+   "modules": [
+    "components/sw-field"
+   ]
+  },
+  {
+   "rule": "aria-roles",
+   "impact": "critical",
+   "help": "ARIA roles used must conform to valid values",
+   "nodes": 4,
+   "pages": 4,
+   "modules": [
+    "home"
+   ]
+  },
+  {
+   "rule": "label-content-name-mismatch",
+   "impact": "serious",
+   "help": "Elements must have their visible text as part of their accessible name",
+   "nodes": 655,
+   "pages": 428,
+   "modules": [
+    "calendars",
+    "components/frigate-review-card",
+    "components/media-player-card",
+    "components/media-screen-card",
+    "components/sw-camera-tile",
+    "components/sw-card",
+    "screens",
+    "shell"
+   ]
+  },
+  {
+   "rule": "touch-target-44",
+   "impact": "serious",
+   "help": "Touch targets are at least 44 x 44 px on a phone (owner rule; WCAG 2.5.5 AAA)",
+   "nodes": 230,
+   "pages": 68,
+   "modules": [
+    "components/media-player-card",
+    "components/media-screen-card",
+    "components/sw-card",
+    "components/sw-chip",
+    "components/sw-page",
+    "components/sw-segmented",
+    "components/sw-tabs",
+    "components/sw-toggle",
+    "electricity",
+    "screens",
+    "tickets"
+   ]
+  },
+  {
+   "rule": "aria-prohibited-attr",
+   "impact": "serious",
+   "help": "Elements must only use permitted ARIA attributes",
+   "nodes": 112,
+   "pages": 4,
+   "modules": [
+    "screens"
+   ]
+  },
+  {
+   "rule": "color-contrast",
+   "impact": "serious",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "nodes": 28,
+   "pages": 11,
+   "modules": [
+    "calendars",
+    "components/frigate-review-card",
+    "screens"
+   ]
+  },
+  {
+   "rule": "target-size",
+   "impact": "serious",
+   "help": "All touch targets must be 24px large, or leave sufficient space",
+   "nodes": 24,
+   "pages": 10,
+   "modules": [
+    "components/media-player-card",
+    "screens"
+   ]
+  },
+  {
+   "rule": "nested-interactive",
+   "impact": "serious",
+   "help": "Interactive controls must not be nested",
+   "nodes": 23,
+   "pages": 13,
+   "modules": [
+    "calendars",
+    "components/sw-card",
+    "map"
+   ]
+  },
+  {
+   "rule": "scrollable-region-focusable",
+   "impact": "serious",
+   "help": "Scrollable region must have keyboard access",
+   "nodes": 6,
+   "pages": 6,
+   "modules": [
+    "screens",
+    "tickets"
+   ]
+  }
+ ],
+ "modules": [
+  {
+   "module": "shell",
+   "files": [
+    "src/shell/sw-app.ts"
+   ],
+   "rules": [
+    {
+     "rule": "label-content-name-mismatch",
+     "impact": "serious",
+     "nodes": 424,
+     "pages": [
+      "desktop/dark #/calendars/approvals",
+      "desktop/dark #/calendars/cal",
+      "desktop/dark #/calendars/maint",
+      "desktop/dark #/calendars/manage",
+      "desktop/dark #/calendars/rooms",
+      "desktop/dark #/devices/announce",
+      "desktop/dark #/devices/building",
+      "desktop/dark #/devices/calendars/cal",
+      "desktop/dark #/devices/notices",
+      "desktop/dark #/devices/schedules",
+      "desktop/dark #/devices/synoptic",
+      "desktop/dark #/explore/floors/f0",
+      "desktop/dark #/explore/presence",
+      "desktop/dark #/explore/sites",
+      "desktop/dark #/infra/electricity/accounts",
+      "desktop/dark #/infra/electricity/bills",
+      "desktop/dark #/infra/electricity/customers",
+      "desktop/dark #/infra/electricity/meters",
+      "desktop/dark #/infra/elevators",
+      "desktop/dark #/infra/generator/alerts",
+      "desktop/dark #/infra/generator/charts",
+      "desktop/dark #/infra/generator/history",
+      "desktop/dark #/infra/generator/live",
+      "desktop/dark #/infra/generator/log",
+      "desktop/dark #/infra/temperature",
+      "desktop/dark #/infra/water/accounts",
+      "desktop/dark #/infra/water/alerts",
+      "desktop/dark #/infra/water/bills",
+      "desktop/dark #/infra/water/customers",
+      "desktop/dark #/infra/water/meters",
+      "desktop/dark #/infra/water/settings",
+      "desktop/dark #/infra/water/usage",
+      "desktop/dark #/investigate/cases",
+      "desktop/dark #/investigate/events",
+      "desktop/dark #/investigate/exports",
+      "desktop/dark #/investigate/floors/f0/history",
+      "desktop/dark #/investigate/health",
+      "desktop/dark #/investigate/incidents",
+      "desktop/dark #/investigate/playback",
+      "desktop/dark #/investigate/playback/sync",
+      "desktop/dark #/investigate/reviews",
+      "desktop/dark #/investigate/rules",
+      "desktop/dark #/investigate/search",
+      "desktop/dark #/live",
+      "desktop/dark #/live/views",
+      "desktop/dark #/live/wall",
+      "desktop/dark #/multimedia/groups",
+      "desktop/dark #/multimedia/players",
+      "desktop/dark #/multimedia/screens",
+      "desktop/dark #/screens",
+      "desktop/dark #/security",
+      "desktop/dark #/security/alarm",
+      "desktop/dark #/system/access",
+      "desktop/dark #/system/access-control",
+      "desktop/dark #/system/audit",
+      "desktop/dark #/system/automations",
+      "desktop/dark #/system/calendar-sync",
+      "desktop/dark #/system/calendars",
+      "desktop/dark #/system/diagnostics",
+      "desktop/dark #/system/entities",
+      "desktop/dark #/system/fleet-report",
+      "desktop/dark #/system/infra",
+      "desktop/dark #/system/intercom-installer",
+      "desktop/dark #/system/intercom-operations",
+      "desktop/dark #/system/messaging-accounts",
+      "desktop/dark #/system/multimedia",
+      "desktop/dark #/system/notices",
+      "desktop/dark #/system/notifications",
+      "desktop/dark #/system/readiness",
+      "desktop/dark #/system/schedules",
+      "desktop/dark #/system/security",
+      "desktop/dark #/system/security/alarm",
+      "desktop/dark #/system/security/cameras",
+      "desktop/dark #/system/security/incidents",
+      "desktop/dark #/system/security/manage",
+      "desktop/dark #/system/security/nvr",
+      "desktop/dark #/system/security/privacy-masks",
+      "desktop/dark #/system/security/public",
+      "desktop/dark #/system/security/wiskey",
+      "desktop/dark #/system/setup",
+      "desktop/dark #/system/storage",
+      "desktop/dark #/system/tickets",
+      "desktop/dark #/system/transit",
+      "desktop/dark #/system/update",
+      "desktop/dark #/system/wall",
+      "desktop/dark #/system/wizard",
+      "desktop/dark #/tickets/accounts",
+      "desktop/dark #/tickets/all",
+      "desktop/dark #/tickets/board",
+      "desktop/dark #/tickets/department",
+      "desktop/dark #/tickets/external",
+      "desktop/dark #/tickets/handlers",
+      "desktop/dark #/tickets/maintenance",
+      "desktop/dark #/tickets/maintenance/ledger",
+      "desktop/dark #/tickets/mine",
+      "desktop/dark #/tickets/overview",
+      "desktop/dark #/tickets/reports/building",
+      "desktop/dark #/tickets/rfqs",
+      "desktop/dark #/wiskey/audit",
+      "desktop/dark #/wiskey/devices",
+      "desktop/dark #/wiskey/events",
+      "desktop/dark #/wiskey/external",
+      "desktop/dark #/wiskey/health",
+      "desktop/dark #/wiskey/overview",
+      "desktop/dark #/wiskey/people",
+      "desktop/dark #/wiskey/sync",
+      "desktop/dark #/wiskey/tools",
+      "desktop/light #/calendars/approvals",
+      "desktop/light #/calendars/cal",
+      "desktop/light #/calendars/maint",
+      "desktop/light #/calendars/manage",
+      "desktop/light #/calendars/rooms",
+      "desktop/light #/devices/announce",
+      "desktop/light #/devices/building",
+      "desktop/light #/devices/calendars/cal",
+      "desktop/light #/devices/notices",
+      "desktop/light #/devices/schedules",
+      "desktop/light #/devices/synoptic",
+      "desktop/light #/explore/floors/f0",
+      "desktop/light #/explore/presence",
+      "desktop/light #/explore/sites",
+      "desktop/light #/infra/electricity/accounts",
+      "desktop/light #/infra/electricity/bills",
+      "desktop/light #/infra/electricity/customers",
+      "desktop/light #/infra/electricity/meters",
+      "desktop/light #/infra/elevators",
+      "desktop/light #/infra/generator/alerts",
+      "desktop/light #/infra/generator/charts",
+      "desktop/light #/infra/generator/history",
+      "desktop/light #/infra/generator/live",
+      "desktop/light #/infra/generator/log",
+      "desktop/light #/infra/temperature",
+      "desktop/light #/infra/water/accounts",
+      "desktop/light #/infra/water/alerts",
+      "desktop/light #/infra/water/bills",
+      "desktop/light #/infra/water/customers",
+      "desktop/light #/infra/water/meters",
+      "desktop/light #/infra/water/settings",
+      "desktop/light #/infra/water/usage",
+      "desktop/light #/investigate/cases",
+      "desktop/light #/investigate/events",
+      "desktop/light #/investigate/exports",
+      "desktop/light #/investigate/floors/f0/history",
+      "desktop/light #/investigate/health",
+      "desktop/light #/investigate/incidents",
+      "desktop/light #/investigate/playback",
+      "desktop/light #/investigate/playback/sync",
+      "desktop/light #/investigate/reviews",
+      "desktop/light #/investigate/rules",
+      "desktop/light #/investigate/search",
+      "desktop/light #/live",
+      "desktop/light #/live/views",
+      "desktop/light #/live/wall",
+      "desktop/light #/multimedia/groups",
+      "desktop/light #/multimedia/players",
+      "desktop/light #/multimedia/screens",
+      "desktop/light #/screens",
+      "desktop/light #/security",
+      "desktop/light #/security/alarm",
+      "desktop/light #/system/access",
+      "desktop/light #/system/access-control",
+      "desktop/light #/system/audit",
+      "desktop/light #/system/automations",
+      "desktop/light #/system/calendar-sync",
+      "desktop/light #/system/calendars",
+      "desktop/light #/system/diagnostics",
+      "desktop/light #/system/entities",
+      "desktop/light #/system/fleet-report",
+      "desktop/light #/system/infra",
+      "desktop/light #/system/intercom-installer",
+      "desktop/light #/system/intercom-operations",
+      "desktop/light #/system/messaging-accounts",
+      "desktop/light #/system/multimedia",
+      "desktop/light #/system/notices",
+      "desktop/light #/system/notifications",
+      "desktop/light #/system/readiness",
+      "desktop/light #/system/schedules",
+      "desktop/light #/system/security",
+      "desktop/light #/system/security/alarm",
+      "desktop/light #/system/security/cameras",
+      "desktop/light #/system/security/incidents",
+      "desktop/light #/system/security/manage",
+      "desktop/light #/system/security/nvr",
+      "desktop/light #/system/security/privacy-masks",
+      "desktop/light #/system/security/public",
+      "desktop/light #/system/security/wiskey",
+      "desktop/light #/system/setup",
+      "desktop/light #/system/storage",
+      "desktop/light #/system/tickets",
+      "desktop/light #/system/transit",
+      "desktop/light #/system/update",
+      "desktop/light #/system/wall",
+      "desktop/light #/system/wizard",
+      "desktop/light #/tickets/accounts",
+      "desktop/light #/tickets/all",
+      "desktop/light #/tickets/board",
+      "desktop/light #/tickets/department",
+      "desktop/light #/tickets/external",
+      "desktop/light #/tickets/handlers",
+      "desktop/light #/tickets/maintenance",
+      "desktop/light #/tickets/maintenance/ledger",
+      "desktop/light #/tickets/mine",
+      "desktop/light #/tickets/overview",
+      "desktop/light #/tickets/reports/building",
+      "desktop/light #/tickets/rfqs",
+      "desktop/light #/wiskey/audit",
+      "desktop/light #/wiskey/devices",
+      "desktop/light #/wiskey/events",
+      "desktop/light #/wiskey/external",
+      "desktop/light #/wiskey/health",
+      "desktop/light #/wiskey/overview",
+      "desktop/light #/wiskey/people",
+      "desktop/light #/wiskey/sync",
+      "desktop/light #/wiskey/tools",
+      "mobile/dark #/calendars/approvals",
+      "mobile/dark #/calendars/cal",
+      "mobile/dark #/calendars/maint",
+      "mobile/dark #/calendars/manage",
+      "mobile/dark #/calendars/rooms",
+      "mobile/dark #/devices/announce",
+      "mobile/dark #/devices/calendars/cal",
+      "mobile/dark #/devices/notices",
+      "mobile/dark #/devices/schedules",
+      "mobile/dark #/devices/synoptic",
+      "mobile/dark #/explore/floors/f0",
+      "mobile/dark #/explore/presence",
+      "mobile/dark #/explore/sites",
+      "mobile/dark #/infra/electricity/accounts",
+      "mobile/dark #/infra/electricity/bills",
+      "mobile/dark #/infra/electricity/customers",
+      "mobile/dark #/infra/electricity/meters",
+      "mobile/dark #/infra/elevators",
+      "mobile/dark #/infra/generator/alerts",
+      "mobile/dark #/infra/generator/charts",
+      "mobile/dark #/infra/generator/history",
+      "mobile/dark #/infra/generator/live",
+      "mobile/dark #/infra/generator/log",
+      "mobile/dark #/infra/temperature",
+      "mobile/dark #/infra/water/accounts",
+      "mobile/dark #/infra/water/alerts",
+      "mobile/dark #/infra/water/bills",
+      "mobile/dark #/infra/water/customers",
+      "mobile/dark #/infra/water/meters",
+      "mobile/dark #/infra/water/settings",
+      "mobile/dark #/infra/water/usage",
+      "mobile/dark #/investigate/cases",
+      "mobile/dark #/investigate/events",
+      "mobile/dark #/investigate/exports",
+      "mobile/dark #/investigate/floors/f0/history",
+      "mobile/dark #/investigate/health",
+      "mobile/dark #/investigate/incidents",
+      "mobile/dark #/investigate/playback",
+      "mobile/dark #/investigate/playback/sync",
+      "mobile/dark #/investigate/reviews",
+      "mobile/dark #/investigate/rules",
+      "mobile/dark #/investigate/search",
+      "mobile/dark #/live",
+      "mobile/dark #/live/views",
+      "mobile/dark #/live/wall",
+      "mobile/dark #/multimedia/groups",
+      "mobile/dark #/multimedia/screens",
+      "mobile/dark #/screens",
+      "mobile/dark #/security",
+      "mobile/dark #/security/alarm",
+      "mobile/dark #/system/access",
+      "mobile/dark #/system/access-control",
+      "mobile/dark #/system/audit",
+      "mobile/dark #/system/automations",
+      "mobile/dark #/system/calendar-sync",
+      "mobile/dark #/system/calendars",
+      "mobile/dark #/system/diagnostics",
+      "mobile/dark #/system/entities",
+      "mobile/dark #/system/fleet-report",
+      "mobile/dark #/system/infra",
+      "mobile/dark #/system/intercom-installer",
+      "mobile/dark #/system/intercom-operations",
+      "mobile/dark #/system/messaging-accounts",
+      "mobile/dark #/system/multimedia",
+      "mobile/dark #/system/notices",
+      "mobile/dark #/system/notifications",
+      "mobile/dark #/system/readiness",
+      "mobile/dark #/system/schedules",
+      "mobile/dark #/system/security",
+      "mobile/dark #/system/security/alarm",
+      "mobile/dark #/system/security/cameras",
+      "mobile/dark #/system/security/incidents",
+      "mobile/dark #/system/security/manage",
+      "mobile/dark #/system/security/nvr",
+      "mobile/dark #/system/security/privacy-masks",
+      "mobile/dark #/system/security/public",
+      "mobile/dark #/system/security/wiskey",
+      "mobile/dark #/system/setup",
+      "mobile/dark #/system/storage",
+      "mobile/dark #/system/tickets",
+      "mobile/dark #/system/transit",
+      "mobile/dark #/system/update",
+      "mobile/dark #/system/wall",
+      "mobile/dark #/system/wizard",
+      "mobile/dark #/tickets/accounts",
+      "mobile/dark #/tickets/all",
+      "mobile/dark #/tickets/board",
+      "mobile/dark #/tickets/department",
+      "mobile/dark #/tickets/external",
+      "mobile/dark #/tickets/handlers",
+      "mobile/dark #/tickets/maintenance",
+      "mobile/dark #/tickets/maintenance/ledger",
+      "mobile/dark #/tickets/mine",
+      "mobile/dark #/tickets/overview",
+      "mobile/dark #/tickets/reports/building",
+      "mobile/dark #/tickets/rfqs",
+      "mobile/dark #/wiskey/audit",
+      "mobile/dark #/wiskey/devices",
+      "mobile/dark #/wiskey/events",
+      "mobile/dark #/wiskey/external",
+      "mobile/dark #/wiskey/health",
+      "mobile/dark #/wiskey/overview",
+      "mobile/dark #/wiskey/people",
+      "mobile/dark #/wiskey/sync",
+      "mobile/dark #/wiskey/tools",
+      "mobile/light #/calendars/approvals",
+      "mobile/light #/calendars/cal",
+      "mobile/light #/calendars/maint",
+      "mobile/light #/calendars/manage",
+      "mobile/light #/calendars/rooms",
+      "mobile/light #/devices/announce",
+      "mobile/light #/devices/calendars/cal",
+      "mobile/light #/devices/notices",
+      "mobile/light #/devices/schedules",
+      "mobile/light #/devices/synoptic",
+      "mobile/light #/explore/floors/f0",
+      "mobile/light #/explore/presence",
+      "mobile/light #/explore/sites",
+      "mobile/light #/infra/electricity/accounts",
+      "mobile/light #/infra/electricity/bills",
+      "mobile/light #/infra/electricity/customers",
+      "mobile/light #/infra/electricity/meters",
+      "mobile/light #/infra/elevators",
+      "mobile/light #/infra/generator/alerts",
+      "mobile/light #/infra/generator/charts",
+      "mobile/light #/infra/generator/history",
+      "mobile/light #/infra/generator/live",
+      "mobile/light #/infra/generator/log",
+      "mobile/light #/infra/temperature",
+      "mobile/light #/infra/water/accounts",
+      "mobile/light #/infra/water/alerts",
+      "mobile/light #/infra/water/bills",
+      "mobile/light #/infra/water/customers",
+      "mobile/light #/infra/water/meters",
+      "mobile/light #/infra/water/settings",
+      "mobile/light #/infra/water/usage",
+      "mobile/light #/investigate/cases",
+      "mobile/light #/investigate/events",
+      "mobile/light #/investigate/exports",
+      "mobile/light #/investigate/floors/f0/history",
+      "mobile/light #/investigate/health",
+      "mobile/light #/investigate/incidents",
+      "mobile/light #/investigate/playback",
+      "mobile/light #/investigate/playback/sync",
+      "mobile/light #/investigate/reviews",
+      "mobile/light #/investigate/rules",
+      "mobile/light #/investigate/search",
+      "mobile/light #/live",
+      "mobile/light #/live/views",
+      "mobile/light #/live/wall",
+      "mobile/light #/multimedia/groups",
+      "mobile/light #/multimedia/screens",
+      "mobile/light #/screens",
+      "mobile/light #/security",
+      "mobile/light #/security/alarm",
+      "mobile/light #/system/access",
+      "mobile/light #/system/access-control",
+      "mobile/light #/system/audit",
+      "mobile/light #/system/automations",
+      "mobile/light #/system/calendar-sync",
+      "mobile/light #/system/calendars",
+      "mobile/light #/system/diagnostics",
+      "mobile/light #/system/entities",
+      "mobile/light #/system/fleet-report",
+      "mobile/light #/system/infra",
+      "mobile/light #/system/intercom-installer",
+      "mobile/light #/system/intercom-operations",
+      "mobile/light #/system/messaging-accounts",
+      "mobile/light #/system/multimedia",
+      "mobile/light #/system/notices",
+      "mobile/light #/system/notifications",
+      "mobile/light #/system/readiness",
+      "mobile/light #/system/schedules",
+      "mobile/light #/system/security",
+      "mobile/light #/system/security/alarm",
+      "mobile/light #/system/security/cameras",
+      "mobile/light #/system/security/incidents",
+      "mobile/light #/system/security/manage",
+      "mobile/light #/system/security/nvr",
+      "mobile/light #/system/security/privacy-masks",
+      "mobile/light #/system/security/public",
+      "mobile/light #/system/security/wiskey",
+      "mobile/light #/system/setup",
+      "mobile/light #/system/storage",
+      "mobile/light #/system/tickets",
+      "mobile/light #/system/transit",
+      "mobile/light #/system/update",
+      "mobile/light #/system/wall",
+      "mobile/light #/system/wizard",
+      "mobile/light #/tickets/accounts",
+      "mobile/light #/tickets/all",
+      "mobile/light #/tickets/board",
+      "mobile/light #/tickets/department",
+      "mobile/light #/tickets/external",
+      "mobile/light #/tickets/handlers",
+      "mobile/light #/tickets/maintenance",
+      "mobile/light #/tickets/maintenance/ledger",
+      "mobile/light #/tickets/mine",
+      "mobile/light #/tickets/overview",
+      "mobile/light #/tickets/reports/building",
+      "mobile/light #/tickets/rfqs",
+      "mobile/light #/wiskey/audit",
+      "mobile/light #/wiskey/devices",
+      "mobile/light #/wiskey/events",
+      "mobile/light #/wiskey/external",
+      "mobile/light #/wiskey/health",
+      "mobile/light #/wiskey/overview",
+      "mobile/light #/wiskey/people",
+      "mobile/light #/wiskey/sync",
+      "mobile/light #/wiskey/tools"
+     ],
+     "hosts": [
+      "sw-app"
+     ],
+     "example": {
+      "host": "sw-app",
+      "target": [
+       [
+        "sw-app",
+        "button[data-profile-menu=\"\"]"
+       ]
+      ],
+      "html": "<button type=\"button\" aria-haspopup=\"dialog\" class=\" me rail \" data-profile-menu=\"\" data-has-alerts=\"false\" aria-current=\"false\" aria-expanded=\"false\" aria-label=\"תפריט המשתמש · יוני\" title=\"תפריט המשתמש · יוני\">",
+      "summary": "Fix any of the following:\n  Text inside the element is not included in the accessible name"
+     }
+    }
+   ]
+  },
+  {
+   "module": "screens",
+   "files": [
+    "src/screens/devices-building.ts",
+    "src/screens/devices-bulk.ts",
+    "src/screens/devices-schedules.ts",
+    "src/screens/devices-synoptic.ts",
+    "src/screens/investigate-history-map.ts",
+    "src/screens/investigate-playback.ts",
+    "src/screens/media-admin-list.ts",
+    "src/screens/multimedia-screens.ts",
+    "src/screens/system-brand-colors.ts",
+    "src/screens/system-notifications.ts",
+    "src/screens/system-readiness.ts",
+    "src/screens/system-tickets.ts",
+    "src/screens/system-wizard.ts",
+    "src/screens/tickets-list.ts",
+    "src/screens/wiskey-people.ts"
+   ],
+   "rules": [
+    {
+     "rule": "aria-allowed-attr",
+     "impact": "critical",
+     "nodes": 125,
+     "pages": [
+      "desktop/dark #/devices/schedules",
+      "desktop/dark #/system/diagnostics",
+      "desktop/dark #/system/notifications",
+      "desktop/dark #/tickets/all",
+      "desktop/dark #/tickets/department",
+      "desktop/dark #/tickets/maintenance",
+      "desktop/dark #/tickets/mine",
+      "desktop/light #/devices/schedules",
+      "desktop/light #/system/notifications",
+      "desktop/light #/tickets/all",
+      "desktop/light #/tickets/department",
+      "desktop/light #/tickets/maintenance",
+      "mobile/dark #/system/diagnostics",
+      "mobile/dark #/system/notifications",
+      "mobile/dark #/tickets/all",
+      "mobile/dark #/tickets/department",
+      "mobile/dark #/tickets/maintenance",
+      "mobile/dark #/tickets/mine",
+      "mobile/light #/system/diagnostics",
+      "mobile/light #/system/notifications",
+      "mobile/light #/tickets/all",
+      "mobile/light #/tickets/department",
+      "mobile/light #/tickets/maintenance",
+      "mobile/light #/tickets/mine"
+     ],
+     "hosts": [
+      "devices-schedules",
+      "system-brand-colors",
+      "system-notifications",
+      "tickets-list"
+     ],
+     "example": {
+      "host": "devices-schedules",
+      "target": [
+       [
+        "sw-app",
+        "devices-schedules",
+        ".stf",
+        "button[data-state-filter=\"all\"]"
+       ]
+      ],
+      "html": "<button type=\"button\" part=\"key key-on\" aria-pressed=\"true\" role=\"radio\" aria-checked=\"true\" data-state-filter=\"all\">",
+      "summary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-pressed=\"true\""
+     }
+    },
+    {
+     "rule": "label-content-name-mismatch",
+     "impact": "serious",
+     "nodes": 34,
+     "pages": [
+      "desktop/dark #/devices/building",
+      "desktop/dark #/devices/synoptic",
+      "desktop/dark #/system/wizard",
+      "desktop/light #/devices/building",
+      "desktop/light #/devices/synoptic",
+      "mobile/dark #/devices/building",
+      "mobile/dark #/devices/synoptic",
+      "mobile/light #/devices/building",
+      "mobile/light #/devices/synoptic"
+     ],
+     "hosts": [
+      "devices-building",
+      "devices-bulk-menu",
+      "devices-synoptic",
+      "system-wizard"
+     ],
+     "example": {
+      "host": "devices-bulk-menu",
+      "target": [
+       [
+        "sw-app",
+        "devices-building",
+        "devices-bulk-menu[data-tree-area=\"lobby\"] > a[href$=\"#/devices/areas/lobby\"][data-area-row=\"lobby\"][aria-label=\"לובי · 8 התקנים · כניסה לאזור\"]"
+       ]
+      ],
+      "html": "<a slot=\"trigger\" class=\"tree-row\" href=\"#/devices/areas/lobby\" data-area-row=\"lobby\" data-on=\"true\" data-counts=\"lights:3/4 switches:1/1 covers:1/1 climate:1/1 locks:1/1 cameras:1 sensors:1\" aria-label=\"לובי · 8 התקנים · כניסה לאזור\">",
+      "summary": "Fix any of the following:\n  Text inside the element is not included in the accessible name"
+     }
+    },
+    {
+     "rule": "aria-prohibited-attr",
+     "impact": "serious",
+     "nodes": 24,
+     "pages": [
+      "desktop/dark #/system/notifications",
+      "desktop/light #/system/notifications",
+      "mobile/dark #/system/notifications",
+      "mobile/light #/system/notifications"
+     ],
+     "hosts": [
+      "system-notifications"
+     ],
+     "example": {
+      "host": "system-notifications",
+      "target": [
+       [
+        "sw-app",
+        "system-notifications",
+        "tr[data-pol-row=\"sensor.leak\"] > td:nth-child(5) > .chs > .soon[title=\"Companion – בקרוב\"][aria-label=\"Companion – בקרוב\"]"
+       ]
+      ],
+      "html": "<span class=\"chip soon\" aria-disabled=\"true\" title=\"Companion – בקרוב\" aria-label=\"Companion – בקרוב\">",
+      "summary": "Fix all of the following:\n  aria-label attribute cannot be used on \"span\" elements with no valid role attribute."
+     }
+    },
+    {
+     "rule": "target-size",
+     "impact": "serious",
+     "nodes": 16,
+     "pages": [
+      "desktop/dark #/devices/building",
+      "desktop/light #/devices/building",
+      "mobile/dark #/multimedia/screens",
+      "mobile/dark #/system/notifications",
+      "mobile/dark #/system/tickets",
+      "mobile/light #/multimedia/screens",
+      "mobile/light #/system/notifications",
+      "mobile/light #/system/tickets"
+     ],
+     "hosts": [
+      "devices-building",
+      "multimedia-screens",
+      "system-notifications",
+      "system-tickets"
+     ],
+     "example": {
+      "host": "devices-building",
+      "target": [
+       [
+        "sw-app",
+        "devices-building",
+        "button[data-tree-fold-all=\"\"]"
+       ]
+      ],
+      "html": "<button type=\"button\" class=\"tfold\" data-tree-fold-all=\"\" aria-label=\"כווץ הכל\" title=\"כווץ הכל\"><!--?lit$485989230$--><sw-icon name=\"chevronDown\" class=\" chev \" size=\"14\" style=\"--sw-icon-size: 14px;\"></sw-icon></button>",
+      "summary": "Fix any of the following:\n  Target has insufficient size (22px by 28px, should be at least 24px by 24px)\n  Target has insufficient space to its closest neighbors. Safe clickable space has a diameter of 22px instead of at least 24px."
+     }
+    },
+    {
+     "rule": "color-contrast",
+     "impact": "serious",
+     "nodes": 16,
+     "pages": [
+      "desktop/dark #/investigate/playback",
+      "desktop/dark #/system/notifications",
+      "desktop/light #/system/notifications",
+      "desktop/light #/system/readiness",
+      "mobile/dark #/investigate/playback",
+      "mobile/dark #/system/notifications",
+      "mobile/light #/system/notifications",
+      "mobile/light #/system/readiness"
+     ],
+     "hosts": [
+      "investigate-playback",
+      "system-notifications",
+      "system-readiness"
+     ],
+     "example": {
+      "host": "system-notifications",
+      "target": [
+       [
+        "sw-app",
+        "system-notifications",
+        "button[data-pol-sev=\"alarm.state:info\"]"
+       ]
+      ],
+      "html": "<button type=\"button\" role=\"radio\" aria-checked=\"true\" aria-pressed=\"true\" data-pol-sev=\"alarm.state:info\" style=\"--sev:var(--nt-sev-info)\" title=\"מידע\"><i aria-hidden=\"true\"></i><!--?lit$901525146$-->מידע</button>",
+      "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.9 (foreground color: #8d929f, background color: #f5f7fb, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1"
+     }
+    },
+    {
+     "rule": "touch-target-44",
+     "impact": "serious",
+     "nodes": 2,
+     "pages": [
+      "mobile/light #/investigate/floors/f0/history",
+      "mobile/light #/system/multimedia"
+     ],
+     "hosts": [
+      "investigate-history-map",
+      "media-admin-toolbar"
+     ],
+     "example": {
+      "host": "investigate-history-map",
+      "target": [
+       "sw-app > investigate-history-map > input"
+      ],
+      "html": "<input type=\"range\" min=\"0\" max=\"1439\" aria-label=\"זמן\">",
+      "summary": "drawn 260x16, the 44 px cross misses: top, bottom"
+     }
+    },
+    {
+     "rule": "scrollable-region-focusable",
+     "impact": "serious",
+     "nodes": 2,
+     "pages": [
+      "mobile/dark #/wiskey/people",
+      "mobile/light #/wiskey/people"
+     ],
+     "hosts": [
+      "wiskey-people"
+     ],
+     "example": {
+      "host": "wiskey-people",
+      "target": [
+       [
+        "sw-app",
+        "wiskey-people",
+        ".filters"
+       ]
+      ],
+      "html": "<div class=\"filters\" role=\"group\" data-people-filters=\"\" aria-label=\"סינון\">",
+      "summary": "Fix any of the following:\n  Element should have focusable content\n  Element should be focusable"
+     }
+    }
+   ]
+  },
+  {
+   "module": "components/sw-tabs",
+   "files": [
+    "src/components/sw-tabs.ts"
+   ],
+   "rules": [
+    {
+     "rule": "touch-target-44",
+     "impact": "serious",
+     "nodes": 112,
+     "pages": [
+      "mobile/light #/explore/floors/f0",
+      "mobile/light #/explore/sites",
+      "mobile/light #/infra/water/accounts",
+      "mobile/light #/infra/water/alerts",
+      "mobile/light #/infra/water/bills",
+      "mobile/light #/infra/water/customers",
+      "mobile/light #/infra/water/meters",
+      "mobile/light #/infra/water/settings",
+      "mobile/light #/infra/water/usage",
+      "mobile/light #/investigate/cases",
+      "mobile/light #/investigate/events",
+      "mobile/light #/investigate/exports",
+      "mobile/light #/investigate/floors/f0/history",
+      "mobile/light #/investigate/health",
+      "mobile/light #/investigate/incidents",
+      "mobile/light #/investigate/playback",
+      "mobile/light #/investigate/playback/sync",
+      "mobile/light #/investigate/reviews",
+      "mobile/light #/investigate/rules",
+      "mobile/light #/investigate/search",
+      "mobile/light #/live",
+      "mobile/light #/live/views",
+      "mobile/light #/live/wall",
+      "mobile/light #/security",
+      "mobile/light #/system/access",
+      "mobile/light #/system/calendars",
+      "mobile/light #/system/diagnostics",
+      "mobile/light #/system/intercom-installer",
+      "mobile/light #/system/multimedia",
+      "mobile/light #/system/notifications",
+      "mobile/light #/system/security",
+      "mobile/light #/system/security/alarm",
+      "mobile/light #/system/security/cameras",
+      "mobile/light #/system/security/manage",
+      "mobile/light #/system/security/nvr",
+      "mobile/light #/system/security/public",
+      "mobile/light #/system/tickets",
+      "mobile/light #/system/update",
+      "mobile/light #/tickets/accounts",
+      "mobile/light #/tickets/all",
+      "mobile/light #/tickets/board",
+      "mobile/light #/tickets/department",
+      "mobile/light #/tickets/external",
+      "mobile/light #/tickets/handlers",
+      "mobile/light #/tickets/maintenance",
+      "mobile/light #/tickets/maintenance/ledger",
+      "mobile/light #/tickets/mine",
+      "mobile/light #/tickets/rfqs",
+      "mobile/light #/wiskey/devices",
+      "mobile/light #/wiskey/people",
+      "mobile/light #/wiskey/tools"
+     ],
+     "hosts": [
+      "sw-tabs"
+     ],
+     "example": {
+      "host": "sw-tabs",
+      "target": [
+       "sw-app > sw-tabs > a"
+      ],
+      "html": "<a role=\"tab\" href=\"#/live\" class=\"on\" aria-selected=\"true\" tabindex=\"0\" aria-current=\"page\"><!--?lit$990534023$--><span class=\"lbl\"><!--?lit$990534023$-->תמונת מצב<!--?lit$990534023$--><!--?lit$990534023$--><!--?lit$990534023$--></span></a",
+      "summary": "drawn 79x44, the 44 px cross misses: bottom"
+     }
+    }
+   ]
+  },
+  {
+   "module": "components/sw-segmented",
+   "files": [
+    "src/components/sw-segmented.ts"
+   ],
+   "rules": [
+    {
+     "rule": "aria-allowed-attr",
+     "impact": "critical",
+     "nodes": 98,
+     "pages": [
+      "desktop/dark #/multimedia/players",
+      "desktop/dark #/multimedia/screens",
+      "desktop/dark #/system/calendar-sync",
+      "desktop/dark #/system/calendars",
+      "desktop/dark #/system/tickets",
+      "desktop/dark #/tickets/board",
+      "desktop/dark #/tickets/handlers",
+      "desktop/light #/multimedia/players",
+      "desktop/light #/system/calendar-sync",
+      "desktop/light #/system/calendars",
+      "desktop/light #/tickets/handlers",
+      "mobile/dark #/multimedia/players",
+      "mobile/dark #/multimedia/screens",
+      "mobile/dark #/system/calendars",
+      "mobile/dark #/system/tickets",
+      "mobile/dark #/tickets/board",
+      "mobile/dark #/tickets/handlers",
+      "mobile/light #/multimedia/players",
+      "mobile/light #/multimedia/screens",
+      "mobile/light #/system/calendars",
+      "mobile/light #/system/tickets",
+      "mobile/light #/tickets/board",
+      "mobile/light #/tickets/handlers"
+     ],
+     "hosts": [
+      "sw-segmented"
+     ],
+     "example": {
+      "host": "sw-segmented",
+      "target": [
+       [
+        "sw-app",
+        "multimedia-players",
+        "sw-segmented[radio=\"\"]",
+        "button[data-state-filter=\"all\"]"
+       ]
+      ],
+      "html": "<button type=\"button\" part=\"key key-on\" aria-pressed=\"true\" role=\"radio\" aria-checked=\"true\" data-state-filter=\"all\"><!--?lit$097985628$--><!--?lit$097985628$--><span class=\"l\" part=\"label\"><!--?lit$097985628$-->הכל</span><!--?lit$097985628",
+      "summary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-pressed=\"true\""
+     }
+    },
+    {
+     "rule": "touch-target-44",
+     "impact": "serious",
+     "nodes": 2,
+     "pages": [
+      "mobile/light #/calendars/cal",
+      "mobile/light #/devices/calendars/cal"
+     ],
+     "hosts": [
+      "sw-segmented"
+     ],
+     "example": {
+      "host": "sw-segmented",
+      "target": [
+       "sw-app > calendars-page > sw-page > cal-view-calendar > sw-segmented > button"
+      ],
+      "html": "<button type=\"button\" part=\"key\" aria-pressed=\"false\" data-cal-mode=\"day\"><!--?lit$612868746$--><!--?lit$612868746$--><span class=\"l\" part=\"label\"><!--?lit$612868746$-->יום</span><!--?lit$612868746$--><!--?lit$612868746$--><!--?lit$61286874",
+      "summary": "drawn 40x44, the 44 px cross misses: start, end"
+     }
+    }
+   ]
+  },
+  {
+   "module": "components/sw-camera-tile",
+   "files": [
+    "src/components/sw-camera-tile.ts"
+   ],
+   "rules": [
+    {
+     "rule": "label-content-name-mismatch",
+     "impact": "serious",
+     "nodes": 40,
+     "pages": [
+      "desktop/dark #/investigate/playback/sync",
+      "desktop/dark #/live/wall",
+      "desktop/light #/investigate/playback/sync",
+      "desktop/light #/live/wall",
+      "mobile/dark #/investigate/playback/sync",
+      "mobile/dark #/live",
+      "mobile/dark #/live/wall",
+      "mobile/dark #/security",
+      "mobile/light #/investigate/playback/sync",
+      "mobile/light #/live",
+      "mobile/light #/live/wall",
+      "mobile/light #/security"
+     ],
+     "hosts": [
+      "sw-camera-tile"
+     ],
+     "example": {
+      "host": "sw-camera-tile",
+      "target": [
+       [
+        "sw-app",
+        "live-wall",
+        "sw-camera-tile[name=\"כניסה ראשית\"]"
+       ]
+      ],
+      "html": "<sw-camera-tile name=\"כניסה ראשית\" meta=\"קומה 0 · ראשי\" state=\"live\" scene=\"entrance\" tabindex=\"0\" role=\"button\" aria-label=\"כניסה ראשית\"></sw-camera-tile>",
+      "summary": "Fix any of the following:\n  Text inside the element is not included in the accessible name"
+     }
+    }
+   ]
+  },
+  {
+   "module": "components/sw-page",
+   "files": [
+    "src/components/sw-page.ts"
+   ],
+   "rules": [
+    {
+     "rule": "touch-target-44",
+     "impact": "serious",
+     "nodes": 37,
+     "pages": [
+      "mobile/light #/devices/schedules",
+      "mobile/light #/explore/floors/f0",
+      "mobile/light #/explore/presence",
+      "mobile/light #/investigate/playback",
+      "mobile/light #/investigate/reviews",
+      "mobile/light #/investigate/search",
+      "mobile/light #/multimedia/players",
+      "mobile/light #/multimedia/screens",
+      "mobile/light #/system/readiness",
+      "mobile/light #/system/wizard",
+      "mobile/light #/tickets/all",
+      "mobile/light #/tickets/department",
+      "mobile/light #/tickets/handlers",
+      "mobile/light #/tickets/maintenance",
+      "mobile/light #/tickets/mine",
+      "mobile/light #/wiskey/devices",
+      "mobile/light #/wiskey/overview"
+     ],
+     "hosts": [
+      "sw-page"
+     ],
+     "example": {
+      "host": "sw-page",
+      "target": [
+       "sw-app > multimedia-screens > sw-page > input"
+      ],
+      "html": "<input type=\"search\" data-search=\"\" placeholder=\"חיפוש מסך או חדר\">",
+      "summary": "drawn 312x31, the 44 px cross misses: top, bottom"
+     }
+    }
+   ]
+  },
+  {
+   "module": "calendars",
+   "files": [
+    "src/calendars/view-approvals.ts",
+    "src/calendars/view-calendar.ts",
+    "src/calendars/view-rooms.ts"
+   ],
+   "rules": [
+    {
+     "rule": "label-content-name-mismatch",
+     "impact": "serious",
+     "nodes": 17,
+     "pages": [
+      "desktop/dark #/calendars/cal",
+      "desktop/dark #/devices/calendars/cal",
+      "desktop/light #/calendars/cal",
+      "mobile/dark #/calendars/rooms",
+      "mobile/light #/calendars/rooms"
+     ],
+     "hosts": [
+      "cal-view-calendar",
+      "cal-view-rooms"
+     ],
+     "example": {
+      "host": "cal-view-calendar",
+      "target": [
+       [
+        "sw-app",
+        "calendars-page",
+        "cal-view-calendar",
+        "button[aria-label=\"2 בנובמבר, 1 אירועים\"]"
+       ]
+      ],
+      "html": "<button type=\"button\" class=\"mcell\" aria-pressed=\"false\" aria-label=\"2 בנובמבר, 1 אירועים\" data-cal-day=\"2026-11-02\">",
+      "summary": "Fix any of the following:\n  Text inside the element is not included in the accessible name"
+     }
+    },
+    {
+     "rule": "nested-interactive",
+     "impact": "serious",
+     "nodes": 12,
+     "pages": [
+      "desktop/dark #/calendars/approvals",
+      "desktop/light #/calendars/approvals",
+      "mobile/dark #/calendars/approvals",
+      "mobile/light #/calendars/approvals"
+     ],
+     "hosts": [
+      "cal-view-approvals"
+     ],
+     "example": {
+      "host": "cal-view-approvals",
+      "target": [
+       [
+        "sw-app",
+        "calendars-page",
+        "cal-view-approvals",
+        "div[data-req=\"r1\"]"
+       ]
+      ],
+      "html": "<div class=\"req\" role=\"button\" tabindex=\"0\" aria-current=\"false\" data-req=\"r1\">",
+      "summary": "Fix any of the following:\n  Element has focusable descendants. Move them outside of the element, or remove them."
+     }
+    },
+    {
+     "rule": "color-contrast",
+     "impact": "serious",
+     "nodes": 4,
+     "pages": [
+      "desktop/light #/calendars/rooms"
+     ],
+     "hosts": [
+      "cal-view-rooms"
+     ],
+     "example": {
+      "host": "cal-view-rooms",
+      "target": [
+       [
+        "sw-app",
+        "calendars-page",
+        "cal-view-rooms",
+        "button[data-cal-entry=\"e2\"] > small"
+       ]
+      ],
+      "html": "<small><!--?lit$717277816$-->רונית קפלן</small>",
+      "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #3b67c8, background color: #d9e4fb, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+     }
+    }
+   ]
+  },
+  {
+   "module": "components/media-player-card",
+   "files": [
+    "src/components/media-player-card.ts"
+   ],
+   "rules": [
+    {
+     "rule": "label-content-name-mismatch",
+     "impact": "serious",
+     "nodes": 22,
+     "pages": [
+      "desktop/dark #/multimedia/players",
+      "desktop/light #/multimedia/players",
+      "mobile/dark #/multimedia/players",
+      "mobile/light #/multimedia/players"
+     ],
+     "hosts": [
+      "media-player-card"
+     ],
+     "example": {
+      "host": "media-player-card",
+      "target": [
+       [
+        "sw-app",
+        "multimedia-players",
+        "media-player-card[data-player-card=\"mp-liv\"]",
+        "button[aria-label=\"פתח נגן · רמקול סלון\"]"
+       ]
+      ],
+      "html": "<button class=\"cov\" type=\"button\" aria-label=\"פתח נגן · רמקול סלון\">",
+      "summary": "Fix any of the following:\n  Text inside the element is not included in the accessible name"
+     }
+    },
+    {
+     "rule": "target-size",
+     "impact": "serious",
+     "nodes": 8,
+     "pages": [
+      "mobile/dark #/multimedia/players",
+      "mobile/light #/multimedia/players"
+     ],
+     "hosts": [
+      "media-player-card"
+     ],
+     "example": {
+      "host": "media-player-card",
+      "target": [
+       [
+        "sw-app",
+        "multimedia-players",
+        "media-player-card[data-player-card=\"mp-per\"]",
+        "button[aria-label=\"הנמך\"]"
+       ]
+      ],
+      "html": "<button type=\"button\" aria-label=\"הנמך\"><!--?lit$077612137$--><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" class=\"ic\" style=\"\"><!--?lit$077612137$--><path d=\"M5 12h14\"></path></svg></button>",
+      "summary": "Fix any of the following:\n  Target has insufficient size because it is partially obscured (smallest space is 44px by 17.3px, should be at least 24px by 24px)\n  Target has insufficient space to its closest neighbors. Safe clickable space has a diameter of 17.2px instead of at least 24px."
+     }
+    },
+    {
+     "rule": "touch-target-44",
+     "impact": "serious",
+     "nodes": 2,
+     "pages": [
+      "mobile/light #/multimedia/players"
+     ],
+     "hosts": [
+      "media-player-card"
+     ],
+     "example": {
+      "host": "media-player-card",
+      "target": [
+       "sw-app > multimedia-players > sw-page > media-player-card > button"
+      ],
+      "html": "<button class=\"cov\" type=\"button\" aria-label=\"פתח נגן · רמקול פרגולה\"><!--?lit$077612137$--><div class=\"art\" style=\"--a1:hsl(220 55% 22%);--a2:hsl(220 60% 52%)\"><!--?lit$077612137$--><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" class=\"ic gl\"",
+      "summary": "drawn 84x84, the 44 px cross misses: bottom"
+     }
+    }
+   ]
+  },
+  {
+   "module": "components/sw-card",
+   "files": [
+    "src/components/sw-card.ts"
+   ],
+   "rules": [
+    {
+     "rule": "touch-target-44",
+     "impact": "serious",
+     "nodes": 14,
+     "pages": [
+      "mobile/light #/explore/sites",
+      "mobile/light #/screens",
+      "mobile/light #/system/calendars",
+      "mobile/light #/system/messaging-accounts",
+      "mobile/light #/system/schedules"
+     ],
+     "hosts": [
+      "sw-card"
+     ],
+     "example": {
+      "host": "sw-card",
+      "target": [
+       "sw-app > explore-sites > sw-page > sw-card"
+      ],
+      "html": "<sw-card flush=\"\" interactive=\"\" tabindex=\"0\" role=\"button\" aria-label=\"סניף צפון\" data-site-card=\"site-b\">\n          <div class=\"pic\"><!--?lit$317956866$--><sw-scene kind=\"building\"></sw-scene><!--?lit$317956866$--><span class=\"demo\"><!--?",
+      "summary": "drawn 366x382, the 44 px cross misses: bottom"
+     }
+    },
+    {
+     "rule": "label-content-name-mismatch",
+     "impact": "serious",
+     "nodes": 12,
+     "pages": [
+      "desktop/dark #/explore/sites",
+      "desktop/light #/explore/sites",
+      "mobile/dark #/explore/sites",
+      "mobile/light #/explore/sites"
+     ],
+     "hosts": [
+      "sw-card"
+     ],
+     "example": {
+      "host": "sw-card",
+      "target": [
+       [
+        "sw-app",
+        "explore-sites",
+        "sw-card[role=\"link\"]"
+       ]
+      ],
+      "html": "<sw-card flush=\"\" interactive=\"\" tabindex=\"0\" role=\"link\" aria-label=\"אתר הדגמה\" data-site-card=\"site-a\">",
+      "summary": "Fix any of the following:\n  Text inside the element is not included in the accessible name"
+     }
+    },
+    {
+     "rule": "nested-interactive",
+     "impact": "serious",
+     "nodes": 4,
+     "pages": [
+      "desktop/dark #/explore/sites",
+      "desktop/light #/explore/sites"
+     ],
+     "hosts": [
+      "sw-card"
+     ],
+     "example": {
+      "host": "sw-card",
+      "target": [
+       [
+        "sw-app",
+        "explore-sites",
+        "sw-card[aria-label=\"סניף צפון\"]"
+       ]
+      ],
+      "html": "<sw-card flush=\"\" interactive=\"\" tabindex=\"0\" role=\"button\" aria-label=\"סניף צפון\" data-site-card=\"site-b\">",
+      "summary": "Fix any of the following:\n  Element has focusable descendants. Move them outside of the element, or remove them."
+     }
+    }
+   ]
+  },
+  {
+   "module": "components/sw-toggle",
+   "files": [
+    "src/components/sw-toggle.ts"
+   ],
+   "rules": [
+    {
+     "rule": "button-name",
+     "impact": "critical",
+     "nodes": 16,
+     "pages": [
+      "desktop/dark #/investigate/rules",
+      "desktop/light #/investigate/rules",
+      "mobile/dark #/investigate/rules",
+      "mobile/light #/investigate/rules"
+     ],
+     "hosts": [
+      "sw-toggle"
+     ],
+     "example": {
+      "host": "sw-toggle",
+      "target": [
+       [
+        "sw-app",
+        "investigate-rules",
+        ".rule:nth-child(1) > sw-toggle",
+        "button[role=\"switch\"][aria-label=\"\"]"
+       ]
+      ],
+      "html": "<button type=\"button\" role=\"switch\" aria-checked=\"true\" aria-label=\"\"></button>",
+      "summary": "Fix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  "
+     }
+    },
+    {
+     "rule": "touch-target-44",
+     "impact": "serious",
+     "nodes": 13,
+     "pages": [
+      "mobile/light #/devices/schedules",
+      "mobile/light #/investigate/rules",
+      "mobile/light #/live/views",
+      "mobile/light #/security/alarm",
+      "mobile/light #/system/automations",
+      "mobile/light #/system/calendars",
+      "mobile/light #/system/multimedia",
+      "mobile/light #/system/notifications",
+      "mobile/light #/system/security/cameras",
+      "mobile/light #/system/security/incidents",
+      "mobile/light #/system/tickets"
+     ],
+     "hosts": [
+      "sw-toggle"
+     ],
+     "example": {
+      "host": "sw-toggle",
+      "target": [
+       "sw-app > devices-schedules > sw-page > sw-toggle > button"
+      ],
+      "html": "<button type=\"button\" role=\"switch\" aria-checked=\"true\" aria-label=\"השבתה · סלון – קירור בשבת\"></button>",
+      "summary": "drawn 42x24, the 44 px cross misses: end"
+     }
+    }
+   ]
+  },
+  {
+   "module": "components/frigate-review-card",
+   "files": [
+    "src/components/frigate-review-card.ts"
+   ],
+   "rules": [
+    {
+     "rule": "label-content-name-mismatch",
+     "impact": "serious",
+     "nodes": 16,
+     "pages": [
+      "desktop/dark #/investigate/reviews",
+      "desktop/light #/investigate/reviews",
+      "mobile/dark #/investigate/reviews",
+      "mobile/light #/investigate/reviews"
+     ],
+     "hosts": [
+      "frigate-review-card"
+     ],
+     "example": {
+      "host": "frigate-review-card",
+      "target": [
+       [
+        "sw-app",
+        "investigate-reviews",
+        "frigate-review-card:nth-child(1)",
+        ".thumb[aria-label=\"פתח: כניסה ראשית\"][data-review-open=\"\"]"
+       ]
+      ],
+      "html": "<button type=\"button\" class=\"thumb\" data-review-open=\"\" aria-label=\"פתח: כניסה ראשית\" data-settled=\"\">",
+      "summary": "Fix any of the following:\n  Text inside the element is not included in the accessible name"
+     }
+    },
+    {
+     "rule": "color-contrast",
+     "impact": "serious",
+     "nodes": 8,
+     "pages": [
+      "desktop/dark #/investigate/reviews",
+      "mobile/dark #/investigate/reviews"
+     ],
+     "hosts": [
+      "frigate-review-card"
+     ],
+     "example": {
+      "host": "frigate-review-card",
+      "target": [
+       [
+        "sw-app",
+        "investigate-reviews",
+        "frigate-review-card:nth-child(1)",
+        ".state[data-review-state=\"new\"] > span"
+       ]
+      ],
+      "html": "<span><!--?lit$434326708$-->חדש</span>",
+      "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.53 (foreground color: #ffffff, background color: #6ea2ff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+     }
+    }
+   ]
+  },
+  {
+   "module": "components/media-screen-card",
+   "files": [
+    "src/components/media-screen-card.ts"
+   ],
+   "rules": [
+    {
+     "rule": "label-content-name-mismatch",
+     "impact": "serious",
+     "nodes": 11,
+     "pages": [
+      "desktop/dark #/multimedia/screens",
+      "mobile/dark #/multimedia/screens",
+      "mobile/light #/multimedia/screens"
+     ],
+     "hosts": [
+      "media-screen-card"
+     ],
+     "example": {
+      "host": "media-screen-card",
+      "target": [
+       [
+        "sw-app",
+        "multimedia-screens",
+        "media-screen-card[data-screen-card=\"md-kitchen\"]",
+        "button[aria-label=\"פתח שלט · טלוויזיה מטבח\"]"
+       ]
+      ],
+      "html": "<button class=\"shot\" type=\"button\" aria-label=\"פתח שלט · טלוויזיה מטבח\">",
+      "summary": "Fix any of the following:\n  Text inside the element is not included in the accessible name"
+     }
+    },
+    {
+     "rule": "touch-target-44",
+     "impact": "serious",
+     "nodes": 1,
+     "pages": [
+      "mobile/light #/multimedia/screens"
+     ],
+     "hosts": [
+      "media-screen-card"
+     ],
+     "example": {
+      "host": "media-screen-card",
+      "target": [
+       "sw-app > multimedia-screens > sw-page > media-screen-card > button"
+      ],
+      "html": "<button type=\"button\" class=\"rbtn\" aria-label=\"שלט · מסך פרגולה\"><!--?lit$246796483$--><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" class=\"ic\" style=\"\"><!--?lit$246796483$--><rect x=\"7.5\" y=\"2.5\" width=\"9\" height=\"19\" rx=\"4.5\"></rect><circle",
+      "summary": "drawn 83x44, the 44 px cross misses: bottom"
+     }
+    }
+   ]
+  },
+  {
+   "module": "components/sw-field",
+   "files": [
+    "src/components/sw-field.ts"
+   ],
+   "rules": [
+    {
+     "rule": "select-name",
+     "impact": "critical",
+     "nodes": 12,
+     "pages": [
+      "desktop/dark #/system/diagnostics",
+      "mobile/dark #/system/diagnostics",
+      "mobile/light #/system/diagnostics"
+     ],
+     "hosts": [
+      "sw-field"
+     ],
+     "example": {
+      "host": "sw-field",
+      "target": [
+       [
+        "sw-app",
+        "system-diagnostics",
+        "sw-card[heading=\"זמן ומיקום\"] > .row:nth-child(1) > sw-field > select"
+       ]
+      ],
+      "html": "<select><option>(UTC+02:00) Asia/Jerusalem</option></select>",
+      "summary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Elem"
+     }
+    }
+   ]
+  },
+  {
+   "module": "map",
+   "files": [
+    "src/map/sw-plan-canvas.ts"
+   ],
+   "rules": [
+    {
+     "rule": "nested-interactive",
+     "impact": "serious",
+     "nodes": 7,
+     "pages": [
+      "desktop/dark #/explore/floors/f0",
+      "desktop/dark #/investigate/floors/f0/history",
+      "desktop/light #/explore/floors/f0",
+      "mobile/dark #/explore/floors/f0",
+      "mobile/dark #/investigate/floors/f0/history",
+      "mobile/light #/explore/floors/f0",
+      "mobile/light #/investigate/floors/f0/history"
+     ],
+     "hosts": [
+      "sw-plan-canvas"
+     ],
+     "example": {
+      "host": "sw-plan-canvas",
+      "target": [
+       [
+        "sw-app",
+        "explore-floor-map",
+        "sw-plan-canvas",
+        "svg[aria-label=\"תוכנית קומה\"]"
+       ]
+      ],
+      "html": "<svg xmlns=\"http://www.w3.org/2000/svg\" role=\"img\" aria-label=\"תוכנית קומה\">",
+      "summary": "Fix any of the following:\n  Element has focusable descendants. Move them outside of the element, or remove them."
+     }
+    }
+   ]
+  },
+  {
+   "module": "shell/document",
+   "files": [],
+   "rules": [
+    {
+     "rule": "aria-allowed-attr",
+     "impact": "critical",
+     "nodes": 7,
+     "pages": [
+      "desktop/light #/tickets/department",
+      "desktop/light #/tickets/handlers",
+      "desktop/light #/tickets/maintenance",
+      "mobile/light #/tickets/department",
+      "mobile/light #/tickets/handlers",
+      "mobile/light #/tickets/maintenance",
+      "mobile/light #/tickets/mine"
+     ],
+     "hosts": [
+      "key-on"
+     ],
+     "example": {
+      "host": "key-on",
+      "target": [
+       [
+        "sw-app",
+        "tickets-list",
+        ".scope",
+        "button[data-scope=\"mine\"][part=\"key key-on\"][role=\"radio\"]"
+       ]
+      ],
+      "html": "<button type=\"button\" part=\"key key-on\" aria-pressed=\"true\" role=\"radio\" aria-checked=\"true\" data-scope=\"mine\">",
+      "summary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-pressed=\"true\""
+     }
+    }
+   ]
+  },
+  {
+   "module": "tickets",
+   "files": [
+    "src/tickets/handlers-members.ts",
+    "src/tickets/my-numbers.ts"
+   ],
+   "rules": [
+    {
+     "rule": "scrollable-region-focusable",
+     "impact": "serious",
+     "nodes": 4,
+     "pages": [
+      "mobile/dark #/tickets/maintenance",
+      "mobile/dark #/tickets/mine",
+      "mobile/light #/tickets/maintenance",
+      "mobile/light #/tickets/mine"
+     ],
+     "hosts": [
+      "tickets-my-numbers"
+     ],
+     "example": {
+      "host": "tickets-my-numbers",
+      "target": [
+       [
+        "sw-app",
+        "tickets-list",
+        "tickets-my-numbers",
+        ".kpis"
+       ]
+      ],
+      "html": "<div class=\"kpis\" role=\"group\" data-my-numbers=\"\" aria-label=\"המספרים שלי\">",
+      "summary": "Fix any of the following:\n  Element should have focusable content\n  Element should be focusable"
+     }
+    },
+    {
+     "rule": "touch-target-44",
+     "impact": "serious",
+     "nodes": 3,
+     "pages": [
+      "mobile/light #/tickets/handlers"
+     ],
+     "hosts": [
+      "tickets-handlers-members"
+     ],
+     "example": {
+      "host": "tickets-handlers-members",
+      "target": [
+       "sw-app > tickets-handlers > sw-page > tickets-handlers-members > button"
+      ],
+      "html": "<button type=\"button\" class=\"rb sm\" data-member-toggle=\"\" aria-expanded=\"false\" aria-label=\"ניהול · רונית לוי\" title=\"ניהול\"><!--?lit$433990741$--><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" class=\"ic\"><!--?lit$433990741$--><circle cx=\"6\" c",
+      "summary": "drawn 40x40, the 44 px cross misses: start, end, top, bottom"
+     }
+    }
+   ]
+  },
+  {
+   "module": "home",
+   "files": [
+    "src/home/sw-home.ts"
+   ],
+   "rules": [
+    {
+     "rule": "aria-roles",
+     "impact": "critical",
+     "nodes": 4,
+     "pages": [
+      "desktop/dark #/home",
+      "desktop/light #/home",
+      "mobile/dark #/home",
+      "mobile/light #/home"
+     ],
+     "hosts": [
+      "sw-home"
+     ],
+     "example": {
+      "host": "sw-home",
+      "target": [
+       [
+        "sw-app",
+        "sw-home"
+       ]
+      ],
+      "html": "<sw-home role=\"מנהל מערכת\"></sw-home>",
+      "summary": "Fix all of the following:\n  Roles must be one of the valid ARIA roles: מנהל, מערכת"
+     }
+    }
+   ]
+  },
+  {
+   "module": "components/sw-chip",
+   "files": [
+    "src/components/sw-chip.ts"
+   ],
+   "rules": [
+    {
+     "rule": "touch-target-44",
+     "impact": "serious",
+     "nodes": 3,
+     "pages": [
+      "mobile/light #/investigate/health",
+      "mobile/light #/system/entities"
+     ],
+     "hosts": [
+      "sw-chip"
+     ],
+     "example": {
+      "host": "sw-chip",
+      "target": [
+       "sw-app > system-devices > sw-page > sw-chip > button"
+      ],
+      "html": "<button type=\"button\" class=\"sw-hit\" aria-pressed=\"true\">\n        <!--?lit$870213325$--><sw-icon class=\"ck\" name=\"check\" aria-hidden=\"true\" size=\"12\" style=\"--sw-icon-size: 12px;\"></sw-icon>\n        <!--?lit$870213325$-->\n        <!--?lit$8",
+      "summary": "drawn 91x28, the 44 px cross misses: bottom"
+     }
+    }
+   ]
+  },
+  {
+   "module": "electricity",
+   "files": [
+    "src/electricity/elec-customers.ts"
+   ],
+   "rules": [
+    {
+     "rule": "touch-target-44",
+     "impact": "serious",
+     "nodes": 3,
+     "pages": [
+      "mobile/light #/infra/electricity/customers"
+     ],
+     "hosts": [
+      "elec-customers-page"
+     ],
+     "example": {
+      "host": "elec-customers-page",
+      "target": [
+       "sw-app > infra-electricity > sw-page > elec-customers-page > a"
+      ],
+      "html": "<a class=\"rowlink h3\" href=\"#/infra/electricity/customers/c1\"><!--?lit$827264968$-->סטודיו אורן לעיצוב</a>",
+      "summary": "drawn 127x44, the 44 px cross misses: bottom"
+     }
+    }
+   ]
+  }
+ ]
+}

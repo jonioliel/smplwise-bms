@@ -48,7 +48,8 @@ export interface SegmentedChange<V extends string = string> {
  *    (a key showed the model's value before too - a refused save leaves the thumb where it was). A press on the chosen key fires as
  *    well: some screens reopen something from it (the "selected users" key opens the picker again).
  *  - each key is a `<button aria-pressed>` in a `role="group"` named by `label`; the screens' specs that read `button[aria-pressed]`
- *    keep working (Playwright's CSS pierces the shadow root). The arrow keys and Home / End move the focus along the keys.
+ *    keep working (Playwright's CSS pierces the shadow root). A `radio` group's keys are radios with `aria-checked` only (see `radio`).
+ *    The arrow keys and Home / End move the focus along the keys.
  *  - `size="sm"`: the compact key (notification settings): 28 px, 10 px sides, on a phone it stays 28 px (the 44 px target grows
  *    around it); default 28 px with 12 px sides, 44 px tall under a finger on a phone. `block`: the track fills its row and the
  *    keys share it equally; a host that only stretches it on some widths sets `--sw-seg-key-flex: 1 1 auto` there. On a coarse pointer every key keeps a 44 px tall touch target (an absolute ::before, no layout change).
@@ -81,8 +82,9 @@ export class SwSegmented<V extends string = string> extends LitElement {
   @property({ reflect: true }) size: 'md' | 'sm' = 'md';
   @property({ type: Boolean, reflect: true }) block = false;
   /** CR-CMP2-SEGMENTED-B-2450: a choice the screen already named a radio group (the settings rows of tickets, calendars, timeline
-   * colours ...): the track is a `radiogroup` and each key a `radio` with `aria-checked`. The key keeps `aria-pressed` beside it, as
-   * the hand-built groups did (their specs read either attribute); the look reads `aria-pressed` only. */
+   * colours ...): the track is a `radiogroup` and each key a `radio` with `aria-checked`. A11Y-AUDIT-2490 (owner N51): the key no
+   * longer carries `aria-pressed` beside it - a radio may not (axe aria-allowed-attr, critical), and two "chosen" markers were one too
+   * many; the look reads either attribute, so the key draws the same. */
   @property({ type: Boolean }) radio = false;
   /** CR-CMP2-SEGMENTED-C-2450: which keys show their label beside their icon (a key without an icon always shows its label). */
   @property({ reflect: true }) labels: 'all' | 'chosen' | 'none' = 'all';
@@ -168,7 +170,7 @@ export class SwSegmented<V extends string = string> extends LitElement {
       border-inline-start: var(--sw-seg-divider, 0 solid transparent);
     }
     @media (hover: hover) and (pointer: fine) {
-      button:hover:not([aria-pressed='true']):not(:disabled) {
+      button:hover:not([aria-pressed='true']):not([aria-checked='true']):not(:disabled) {
         background: var(--sw-hover-wash);
         color: var(--sw-text);
       }
@@ -176,9 +178,11 @@ export class SwSegmented<V extends string = string> extends LitElement {
     button:active:not(:disabled) {
       transform: scale(var(--sw-press-scale, 1));
     }
+    .seg button[aria-checked='true'] .n,
     .seg button[aria-pressed='true'] .n {
       background: var(--sw-seg-count-on-bg, var(--sw-seg-count-bg, color-mix(in srgb, currentColor 14%, transparent)));
     }
+    .seg button[aria-checked='true'],
     .seg button[aria-pressed='true'] {
       /* GATE2370-B: in dark the chosen key is the light pill (--sw-seg-key / --sw-seg-key-ink) - 3:1 from the track (WCAG 1.4.11) */
       background: var(--sw-seg-on-bg, var(--sw-seg-key, var(--sw-surface-solid)));
@@ -385,7 +389,7 @@ export class SwSegmented<V extends string = string> extends LitElement {
         // an icon key shows its label unless the group says otherwise; a key without an icon always shows it
         const shown = !o.icon || this.labels === 'all' || (this.labels === 'chosen' && on);
         const cls = [o.icon && !shown ? 'ico' : '', o.sub ? 'two' : '', o.dimmed ? 'dim' : ''].filter(Boolean).join(' ');
-        return html`<button type="button" part=${on ? 'key key-on' : 'key'} class=${cls || nothing} aria-pressed=${on ? 'true' : 'false'} role=${radio ? 'radio' : nothing} aria-checked=${radio ? String(on) : nothing}
+        return html`<button type="button" part=${on ? 'key key-on' : 'key'} class=${cls || nothing} aria-pressed=${radio ? nothing : on ? 'true' : 'false'} role=${radio ? 'radio' : nothing} aria-checked=${radio ? String(on) : nothing}
           ?disabled=${!enabled[i]} title=${o.title || (shown ? nothing : o.label)} aria-label=${shown ? nothing : o.label}
           tabindex=${this.roving ? (i === stop ? '0' : '-1') : nothing}
           @click=${() => this.press(o)}>${o.icon ? html`<span class="ic" part=${on ? 'icon icon-on' : 'icon'} aria-hidden="true">${o.icon}</span>` : nothing}${shown ? html`<span class="l" part="label">${o.label}</span>` : nothing}${o.sub ? html`<small class="sub" part="sub">${o.sub}</small>` : nothing}${o.badge ? html`<span class="badge" part="badge">${o.badge}</span>` : nothing}${o.count ? html`<small class="n">${o.count}</small>` : nothing}</button>`;

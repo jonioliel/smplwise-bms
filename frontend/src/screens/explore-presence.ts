@@ -106,6 +106,12 @@ export class ExplorePresence extends LitElement {
     .chips button[aria-pressed='true']::before { ${chipSelectedCheck} }
     .chips .n { font-variant-numeric: tabular-nums; color: var(--sw-text-3); }
     .chips button[aria-pressed='true'] .n { color: inherit; }
+    /* A11Y-AUDIT-2490: a 44 px hit area on a touch screen (the keys keep their drawn 34 / 29 px) */
+    @media (pointer: coarse) {
+      .btn, .chips button { position: relative; }
+      .btn::after, .chips button::after { content: ''; position: absolute; inset: -5px 0; }
+      .chips button::after { inset-block: -8px; }
+    }
     .stage { position: relative; flex: 1; min-block-size: 0; border-radius: var(--sw-r-md); overflow: hidden; background: var(--sw-map-bg); }
     .stage sw-plan-canvas { block-size: 100%; min-block-size: 0; }
     .stage .note {

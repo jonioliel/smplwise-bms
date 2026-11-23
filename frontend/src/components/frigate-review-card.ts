@@ -214,6 +214,11 @@ export class FrigateReviewCard extends LitElement {
     }
     .state[data-review-state='new'] {
       background: var(--sw-accent);
+      /* A11Y-AUDIT-2490: the ink of an accent fill (white on the dark scheme's light accent read 2.5:1); the dot follows it */
+      color: var(--sw-text-inverse);
+    }
+    .state[data-review-state='new'] i {
+      background: currentColor;
     }
     .state i {
       inline-size: 6px;

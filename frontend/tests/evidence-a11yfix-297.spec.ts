@@ -96,7 +96,7 @@ test.describe('A11YFIX-297 contrast', () => {
         await enter(page, '/system/notifications', skin, scheme);
         const sys = page.locator('sw-app system-notifications');
         await expect(sys.locator('[data-notify-settings]')).toBeVisible();
-        const sel = sys.locator('.sevseg button[aria-pressed="true"]');
+        const sel = sys.locator('.sevseg button[aria-checked="true"]');
         await expect(sel.first()).toBeVisible();
         const n = await sel.count();
         expect(n, 'at least one selected level').toBeGreaterThan(0);

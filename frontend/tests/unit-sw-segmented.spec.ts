@@ -67,10 +67,11 @@ test.describe('sw-segmented: the contract in the source', () => {
 
   test('accessible: a named group of toggle buttons (aria-pressed), the arrows move the focus', () => {
     expect(src).toMatch(/role=\$\{radio \? 'radiogroup' : 'group'\} aria-label=\$\{this\.label \|\| nothing\}/);
-    // CR-CMP2-SEGMENTED-B-2450: a radio group keeps its radios (role + aria-checked) and the aria-pressed the look reads
+    // CR-CMP2-SEGMENTED-B-2450: a radio group keeps its radios (role + aria-checked); A11Y-AUDIT-2490 (owner N51): a radio carries no
+    // aria-pressed beside aria-checked (axe aria-allowed-attr), a plain group's toggle keys keep aria-pressed
     expect(src).toMatch(/const on = o\.value === this\.value;/);
     expect(src).toMatch(/role=\$\{radio \? 'radio' : nothing\} aria-checked=\$\{radio \? String\(on\) : nothing\}/);
-    expect(src).toMatch(/<button type="button" part=\$\{on \? 'key key-on' : 'key'\} class=\$\{cls \|\| nothing\} aria-pressed=\$\{on \? 'true' : 'false'\}/);
+    expect(src).toMatch(/<button type="button" part=\$\{on \? 'key key-on' : 'key'\} class=\$\{cls \|\| nothing\} aria-pressed=\$\{radio \? nothing : on \? 'true' : 'false'\}/);
     expect(src).toMatch(/@keydown=\$\{this\.onKey\}/);
     expect(src).toMatch(/button:focus-visible \{\s*outline: var\(--sw-focus-w, 2px\) solid var\(--sw-focus\);/);
   });
@@ -84,7 +85,8 @@ test.describe('sw-segmented: the contract in the source', () => {
     }
     // CR-SEG-MODULE-LOOK-2470 (owner, 20.11): the default is the modules' common key - the chosen key on the solid surface in the text
     // ink (the light pill in dark), a pill track with pill keys, 28 px keys with 12 px sides, 13 px labels, regular / semibold chosen
-    expect(src).toMatch(/\.seg button\[aria-pressed='true'\] \{[^}]*background: var\(--sw-seg-on-bg, var\(--sw-seg-key, var\(--sw-surface-solid\)\)\);[^}]*color: var\(--sw-seg-on-fg, var\(--sw-seg-key-ink, var\(--sw-text\)\)\);/);
+    // the chosen key reads either marker (a radio's aria-checked, a toggle key's aria-pressed) - A11Y-AUDIT-2490
+    expect(src).toMatch(/\.seg button\[aria-checked='true'\],\s+\.seg button\[aria-pressed='true'\] \{[^}]*background: var\(--sw-seg-on-bg, var\(--sw-seg-key, var\(--sw-surface-solid\)\)\);[^}]*color: var\(--sw-seg-on-fg, var\(--sw-seg-key-ink, var\(--sw-text\)\)\);/);
     expect(src).toMatch(/border-radius: var\(--sw-seg-radius, var\(--sw-r-pill\)\);/);
     expect(src).toMatch(/border-radius: var\(--sw-seg-btn-radius, var\(--sw-r-pill\)\);/);
     expect(src).toMatch(/min-block-size: var\(--sw-seg-h, 28px\);\s*padding: 0 var\(--sw-seg-key-pad, 12px\);/);

@@ -478,7 +478,7 @@ export class InvestigateRules extends LitElement {
                   <div class="ic"><sw-icon .name=${ic.icon} size=${18}></sw-icon></div>
                   <div class="txt"><b>${r.name}</b><small>${r.trigger} · ${r.scope} · ${r.action}</small></div>
                   <span class="last">${tr('הופעל:')} ${r.last}</span>
-                  <sw-toggle ?checked=${r.enabled} label=""></sw-toggle>
+                  <sw-toggle ?checked=${r.enabled} labelHidden label=${`${tr('פעיל')} · ${r.name}`}></sw-toggle>
                   <sw-button size="sm" @click=${() => navigate(`/investigate/rules/${r.id}`)}>${tr('עריכה')}</sw-button>
                   <sw-button variant="ghost" size="sm" iconOnly icon="more" label=${tr('עוד')}></sw-button>
                 </div>`;

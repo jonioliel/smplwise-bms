@@ -121,8 +121,9 @@ test.describe('finding 3: dark scheme, the selected settings tab / severity pill
   // stays; the key-vs-track rule (3:1, written for the old lifted thumb) does not apply.
   const CASES: [name: string, hash: string, sel: string, track: boolean][] = [
     ['tickets-settings-tabs', '/system/tickets', "button[role='tab'][aria-selected='true']", false],
-    ['tickets-settings-segments', '/system/tickets?tab=display', ".seg button[aria-pressed='true']", false],
-    ['notifications-severity', '/system/notifications', ".sevseg button[aria-pressed='true']", true],
+    // A11Y-AUDIT-2490: a radio segment key is marked by aria-checked only (no aria-pressed beside it)
+    ['tickets-settings-segments', '/system/tickets?tab=display', ".seg button[aria-checked='true'], .seg button[aria-pressed='true']", false],
+    ['notifications-severity', '/system/notifications', ".sevseg button[aria-checked='true']", true],
   ];
   for (const [name, hash, sel, track] of CASES) {
     test(name, async ({ page }) => {

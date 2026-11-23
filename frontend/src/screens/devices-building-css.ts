@@ -1124,7 +1124,9 @@ export const devicesBuildingStyles = [devicesStyleTokens, css`
       align-items: center;
       justify-content: center;
       box-sizing: border-box;
-      inline-size: 22px;
+      /* A11Y-AUDIT-2490: a 24 px target (WCAG 2.5.8) in the 22 px column it had - the extra pixel each side overlaps the margins */
+      inline-size: 24px;
+      margin-inline: -1px;
       block-size: 28px;
       padding: 0;
       border: 0;
