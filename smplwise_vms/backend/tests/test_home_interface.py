@@ -296,7 +296,8 @@ def test_gate_passes_on_a_database_from_before_0211():
 def test_new_default_is_full_for_everyone_and_the_setting_changes_it(app):
     c = _client(app)
     bind(c, app[1], "dana", "operator", "installation", "*")
-    assert c.get("/api/v1/home/settings").json()["settings"] == {"default_mode": "full_all", "kiosk_exit": "code", "wallpaper": "none"}
+    # MULTI-BUILDING-HOME-2500 (owner Q64): + building_all, "hide" by default
+    assert c.get("/api/v1/home/settings").json()["settings"] == {"default_mode": "full_all", "kiosk_exit": "code", "wallpaper": "none", "building_all": "hide"}
     user = c.get("/api/v1/me", headers=as_user("dana")).json()["interface"]
     assert user["interface"] == "full" and user["default_interface"] == "full" and user["choose"] is False
     assert c.put("/api/v1/home/settings", json={"default_mode": "home_regular"}).status_code == 200
