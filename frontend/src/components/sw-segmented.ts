@@ -1,6 +1,6 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { segmentedFocusStep, segmentedTabStop } from './segmented-logic';
+import { segmentedFocusStep, segmentedTabStop, segmentedWrapped } from './segmented-logic';
 
 /** One key of a segmented control. */
 export interface SegmentOption<V extends string = string> {
@@ -114,6 +114,10 @@ export class SwSegmented<V extends string = string> extends LitElement {
       background: var(--sw-seg-track, var(--sw-surface-3));
       padding: var(--sw-seg-pad, 3px);
       gap: var(--sw-seg-gap, 2px);
+    }
+    /* SEG-WRAP-2480: a track that wraps to two lines is a rounded box (the large radius), not a fat pill; a smaller radius stays */
+    :host([wrapped]) .seg {
+      border-radius: min(var(--sw-seg-radius, var(--sw-r-pill)), var(--sw-r-lg));
     }
     :host([block]) .seg {
       display: flex;
@@ -328,7 +332,38 @@ export class SwSegmented<V extends string = string> extends LitElement {
     for (const [name, v] of Object.entries(want)) if (el.getAttribute(name) !== v) el.setAttribute(name, v);
   }
 
+  private ro?: ResizeObserver;
+
+  private measureWrap = () => {
+    const wrapped = segmentedWrapped(this.keys.map((k) => k.offsetTop));
+    if (wrapped !== this.hasAttribute('wrapped')) this.toggleAttribute('wrapped', wrapped);
+  };
+
+  private observeWrap() {
+    if (this.ro || typeof ResizeObserver === 'undefined') return;
+    const seg = this.renderRoot?.querySelector('.seg');
+    if (!seg) return;
+    this.ro = new ResizeObserver(this.measureWrap);
+    this.ro.observe(seg);
+  }
+
+  protected firstUpdated() {
+    this.observeWrap();
+  }
+
+  override connectedCallback() {
+    super.connectedCallback();
+    if (this.hasUpdated) this.observeWrap();
+  }
+
+  override disconnectedCallback() {
+    super.disconnectedCallback();
+    this.ro?.disconnect();
+    this.ro = undefined;
+  }
+
   protected updated(changed: PropertyValues) {
+    if (changed.has('options') || changed.has('labels')) this.measureWrap();
     if (!changed.has('options') && !changed.has('value') && !changed.has('labels')) return;
     // the screens' data-* hooks: set on the keys (and their badges) as given. `value` too: a badge comes and goes with the choice.
     const keys = this.keys;

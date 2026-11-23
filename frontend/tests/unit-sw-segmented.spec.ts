@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { segmentedFocusStep, segmentedTabStop } from '../src/components/segmented-logic';
+import { segmentedFocusStep, segmentedTabStop, segmentedWrapped } from '../src/components/segmented-logic';
 
 // CR-CMP2-SELECTS-2450 (owner N11, 19.11): the shared segmented control `sw-segmented` - its keyboard rule (node), its contract (the
 // source), and the screens that adopted it (no hand-built `.seg` group comes back there). The look is pinned by
@@ -340,4 +340,20 @@ test('sw-tabs: an item keeps its data-* hooks on its tab, a warning dot can be n
   expect(sync).toMatch(/<sw-tabs variant="pill" group-label=\$\{tr\('ספק'\)\} data-provider-tabs/);
   expect(sync).toMatch(/attrs: \{ 'data-provider-tab': p \}/);
   expect(sync).not.toMatch(/role="tablist"/);
+});
+
+test.describe('sw-segmented: a wrapped track is a rounded box, not a fat pill (SEG-WRAP-2480)', () => {
+  test('wrapped is true only when the keys sit on more than one line', () => {
+    expect(segmentedWrapped([])).toBe(false);
+    expect(segmentedWrapped([3])).toBe(false);
+    expect(segmentedWrapped([3, 3, 3.4])).toBe(false);
+    expect(segmentedWrapped([3, 3, 3, 35])).toBe(true);
+  });
+  test('the source measures the keys, sets the wrapped attribute and caps the track radius at the large token', () => {
+    const src = read('components/sw-segmented.ts');
+    expect(src).toContain('new ResizeObserver(this.measureWrap)');
+    expect(src).toMatch(/:host\(\[wrapped\]\) \.seg \{\s*border-radius: min\(var\(--sw-seg-radius, var\(--sw-r-pill\)\), var\(--sw-r-lg\)\);/);
+    // the keys keep their own radius (no rule for the wrapped state touches the buttons)
+    expect(src).not.toMatch(/:host\(\[wrapped\]\) button/);
+  });
 });
