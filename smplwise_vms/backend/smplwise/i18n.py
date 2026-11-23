@@ -73,6 +73,52 @@ def _rebuild(key: str, params: dict[str, Any]) -> Msg:
     return Msg(key, **params)
 
 
+CAT_KEY = "i18n.cat"
+
+
+class Cat(Msg):
+    """Texts written one after the other (a sentence built from parts, a list joined by a word): its `str` value is the parts' values
+    concatenated (so the Hebrew equals the concatenation it replaced), and each part - a `Msg` or a plain string (data: a name, a number)
+    - is rendered in the language on its own."""
+
+    parts: tuple[Any, ...]
+
+    def __new__(cls, *parts: Any) -> "Cat":
+        self = str.__new__(cls, "".join(str.__str__(p) if isinstance(p, str) else str(p) for p in parts))
+        self.key = CAT_KEY
+        self.params = {}
+        self.parts = parts
+        return self
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        return (Cat, self.parts)
+
+    def render(self, lang: str) -> str:
+        if lang == DEFAULT_LANG:
+            return str.__str__(self)
+        return "".join(text(p, lang) for p in self.parts)
+
+
+def cat(*parts: Any) -> Any:
+    """The parts one after the other: a `Cat` when any part is a `Msg`, else the plain concatenation (no wrapper around data)."""
+    if any(isinstance(p, Msg) for p in parts):
+        return Cat(*parts)
+    return "".join(str(p) for p in parts)
+
+
+def join(sep: Any, items: Any) -> Any:
+    """`sep.join(items)` where the separator and the items may be `Msg`s (the separator "or" / "and" is a word of the language)."""
+    items = list(items)
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    parts: list[Any] = [items[0]]
+    for it in items[1:]:
+        parts += [sep, it]
+    return cat(*parts)
+
+
 def t(key: str, **params: Any) -> Msg:
     """The text `key` with its params (its value is the Hebrew)."""
     return Msg(key, **params)

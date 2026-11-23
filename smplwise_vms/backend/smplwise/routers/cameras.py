@@ -22,6 +22,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked, new_id, now_iso
 from ..errors import ApiError, not_found
+from ..i18n import lang_of, localize
 from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..recorder_scope import PRIMARY, camera_settings, ready_ids, settings_for
@@ -396,7 +397,7 @@ def camera_capabilities(camera_id: str, request: Request, refresh: bool = False,
         "cached": cached,
         **data,
         # CR-008 D7: from the capability registry (the last discovery), not from this request
-        "video": _video_facts(conn, cam),
+        "video": localize(_video_facts(conn, cam), lang_of(conn, principal)),  # I18N-BACKEND-2490: the hint in the user's language
     }
 
 
