@@ -32,6 +32,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import bump_permission_revision, new_id, now_iso
 from ..errors import ApiError
+from ..i18n import lang_of
 from ..rbac import INSTALLATION, Principal, all_roles, authorize, effective_permissions, require, scope_name
 from ..services import access_groups_store as store
 from ..services import revocation
@@ -440,7 +441,7 @@ def group_impact(group_id: str, body: ImpactBody, principal: Principal = Depends
         "revision": g["revision"],
         "scopes": [{"scope_type": s[0], "scope_id": s[1], "scope_name": scope_name(conn, *s)} for s in scopes],
         "users": rows,
-        "labels": rendered_labels(conn),  # CR-038 D33: a module's templated label carries its display name
+        "labels": rendered_labels(conn, lang_of(conn, principal)),  # I18N-BACKEND-2490; CR-038 D33: a module's templated label carries its display name
     }
 
 

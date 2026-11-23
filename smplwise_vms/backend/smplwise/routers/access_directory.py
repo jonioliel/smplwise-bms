@@ -12,6 +12,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import get_setting, permission_revision, unlocked
 from ..errors import ApiError
+from ..i18n import lang_of, localize
 from ..rbac import INSTALLATION, Principal, all_roles, authorize, require
 from ..services import access_directory_store as store
 from ..services import ha_client
@@ -27,7 +28,7 @@ router = APIRouter()
 @router.get("/identity/users", **wire(W.Directory))
 def list_users(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     if not authorize(conn, principal, "identity.directory.read", INSTALLATION).allowed and assigns_anywhere(conn, principal):
-        return _delegated_directory(conn, principal)
+        return localize(_delegated_directory(conn, principal), lang_of(conn, principal))  # I18N-BACKEND-2490: the scope names
     require(conn, principal, "identity.directory.read", INSTALLATION)
     return {
         "users": _users(conn, principal),
@@ -39,7 +40,7 @@ def list_users(principal: Principal = Depends(current_principal_ro), conn: sqlit
         "revision": permission_revision(conn),
         "can_assign": authorize(conn, principal, "rbac.assign", INSTALLATION).allowed,
         "delegated": not full_authority(conn, principal),
-        "assign_scopes": assign_scopes(conn, principal),
+        "assign_scopes": localize(assign_scopes(conn, principal), lang_of(conn, principal)),  # I18N-BACKEND-2490
         "assignable_roles": sorted(all_roles(conn)) if full_authority(conn, principal) else delegable_roles(conn),
         # CR-008 P2: turning a user's remote flag off ends their remote sessions only under remote.policy = flag
         "remote_policy": get_setting(conn, "remote.policy", "flag") or "flag",

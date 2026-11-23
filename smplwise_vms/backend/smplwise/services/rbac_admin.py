@@ -21,6 +21,7 @@ from .. import correlation_id
 from ..audit import audit
 from ..db import bump_permission_revision, get_setting, new_id, now_iso, permission_revision, unlocked
 from ..errors import ApiError
+from ..i18n import CATALOGUE, t, text
 from ..rbac import Evaluator, INSTALLATION, LEGACY_PERMISSIONS, LOCAL_ID_PREFIX, Principal, ROLES, STATION, STATION_PERMISSIONS, all_roles, authorize, camera_floors, effective_permissions, expand_legacy, permissions_anywhere, admin_count as rbac_admin_count, require, role_name, role_permissions, scope_name
 from ..remote_channel import is_remote
 from . import playback as pb, revocation
@@ -449,6 +450,13 @@ PERMISSION_LABELS: dict[str, str] = {
     "calendar.configure": "יומנים: הגדרות המודול",
     "calendar.connect": "יומנים: חיבור יומנים חיצוניים ופידים",
 }
+
+# I18N-BACKEND-2490: every label is a `Msg` (smplwise/i18n.py; the texts in services/rbac_admin_text.py): its string value is the Hebrew
+# above, byte for byte (what other modules quote in their own sentences and what the tests compare), and the role screens render it in
+# the reader's interface language (`rendered_labels(conn, lang)`).
+from . import rbac_admin_text  # noqa: E402,F401 - registers `perm.*` and `rbac.*`
+
+PERMISSION_LABELS = {k: (t(f"perm.{k}") if CATALOGUE.get(f"perm.{k}", {}).get("he") == v else v) for k, v in PERMISSION_LABELS.items()}
 SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage", "nvr.configure", "system.update",
                       "users.ha_manage", "identity.local.manage", "bridge.key.rotate", "partner.manage"}  # rbac.assign is delegable (T082); USR1: users.ha_manage; USR2: identity.local.manage (system_admin only, never in a custom role)
 # T082 (R164): the per-installation allow-list of roles a delegated administrator may hand out. Setting key
@@ -471,11 +479,12 @@ def _rid(request: Request) -> str | None:
     return correlation_id.of(request)
 
 
-def rendered_labels(conn: sqlite3.Connection) -> dict[str, str]:
-    """PERMISSION_LABELS as a screen shows them: a module's templated label rendered with its display name (CR-038 D33)."""
+def rendered_labels(conn: sqlite3.Connection, lang: str = "he") -> dict[str, str]:
+    """PERMISSION_LABELS as a screen shows them: in the reader's interface language (I18N-BACKEND-2490), a module's templated label
+    rendered with its display name in that language (CR-038 D33)."""
     from ..services.tickets import naming
 
-    return naming.render_catalogue(conn, PERMISSION_LABELS)
+    return naming.render_catalogue(conn, {k: text(v, lang) for k, v in PERMISSION_LABELS.items()}, lang)
 
 
 # ---------------------------------------------------------------- shaping
@@ -606,7 +615,7 @@ def _ensure_user_row(conn: sqlite3.Connection, user_id: str) -> None:
         return
     ha = conn.execute("SELECT * FROM ha_users WHERE id = ?", (user_id,)).fetchone()
     if not ha:
-        raise ApiError(404, "user_unknown", "המשתמש לא נמצא בספריית Home Assistant.")
+        raise ApiError(404, "user_unknown", t("rbac.user_unknown"))
     now = now_iso()
     conn.execute(
         "INSERT INTO users(id, username, display_name, source, active, first_seen_at, last_seen_at) VALUES (?, ?, ?, 'ingress', ?, ?, ?)",
@@ -733,43 +742,43 @@ def check_delegation(conn: sqlite3.Connection, principal: Principal, role_id: st
     action = "rbac.bind" if op == "bind" else "rbac.unbind"
     require(conn, principal, "rbac.assign", scope)
     if op == "bind" and effect == "allow" and role_id == "system_admin" and scope != INSTALLATION:
-        raise ApiError(422, "scope_not_allowed_for_role", "מנהל מערכת מוקצה רק ברמת ההתקנה כולה.")
+        raise ApiError(422, "scope_not_allowed_for_role", t("rbac.admin_installation_only"))
     if op == "bind" and effect == "allow" and scope[0] == "camera" and "rbac.assign" in role_permissions(conn, role_id):
         # T055 ruling R3: no "administrator of one camera" - an ALLOW at camera scope carries viewing / operating roles
         # only; a full administrator may still DENY any role (system_admin, site_admin) on one camera (review M2)
-        raise ApiError(422, "scope_not_allowed_for_role", "תפקיד שכולל שיוך תפקידים אינו מוקצה ברמת מצלמה.", details={"role_id": role_id})
+        raise ApiError(422, "scope_not_allowed_for_role", t("rbac.assign_not_camera"), details={"role_id": role_id})
     if op == "bind" and effect == "allow" and scope[0] == STATION and "rbac.assign" in role_permissions(conn, role_id):
         # CR-033 D2, as the camera rule: no "administrator of one station" - an ALLOW at station scope carries operating roles only
-        raise ApiError(422, "scope_not_allowed_for_role", "תפקיד שכולל שיוך תפקידים אינו מוקצה ברמת עמדת אינטרקום.", details={"role_id": role_id})
+        raise ApiError(422, "scope_not_allowed_for_role", t("rbac.assign_not_station"), details={"role_id": role_id})
     if op == "bind" and effect == "allow" and scope[0] == STATION and set(role_permissions(conn, role_id)) - STATION_PERMISSIONS:
         # SEC-WXD L4: a station binding grants nothing above or beside itself - an ALLOW there carries the door permissions only
-        raise ApiError(422, "scope_not_allowed_for_role", "ברמת עמדת אינטרקום מוקצים רק תפקידי פתיחת דלתות.", details={"role_id": role_id})
+        raise ApiError(422, "scope_not_allowed_for_role", t("rbac.station_door_roles_only"), details={"role_id": role_id})
     if full_authority(conn, principal):
         return
     if scope[0] == "camera" and not scope_in_reach(conn, principal, scope):
-        raise _refuse(conn, principal, action, scope, "delegation_camera_scope", "המצלמה מוצבת גם מחוץ להיקף שבאחריותך (או שאינה מוצבת בכלל); רק מנהל המערכת משייך אותה.",
+        raise _refuse(conn, principal, action, scope, "delegation_camera_scope", t("rbac.delegation_camera_scope"),
                       {"role_id": role_id, "camera_id": scope[1]})
     if op == "bind" and effect == "deny":
         # security review T082 (M2): a delegated administrator could deny people above them (a system admin, a peer
         # site admin) inside their scope. Deny bindings stay a full-authority tool.
-        raise _refuse(conn, principal, action, scope, "delegation_deny_forbidden", "מנהל מקומי אינו יוצר חסימות; חסימה היא כלי של מנהל המערכת בלבד.", {"role_id": role_id, "subject_kind": subject_kind, "subject_id": subject_id})
+        raise _refuse(conn, principal, action, scope, "delegation_deny_forbidden", t("rbac.delegation_deny_forbidden"), {"role_id": role_id, "subject_kind": subject_kind, "subject_id": subject_id})
     perms = set(role_permissions(conn, role_id))
     if perms & SYSTEM_PERMISSIONS:
-        raise _refuse(conn, principal, action, scope, "delegation_exceeded", "מנהל מקומי אינו מקצה תפקידי ניהול או תפקידים עם הרשאות מערכת.", {"role_id": role_id})
+        raise _refuse(conn, principal, action, scope, "delegation_exceeded", t("rbac.delegation_exceeded"), {"role_id": role_id})
     if role_id not in delegable_roles(conn):
-        raise _refuse(conn, principal, action, scope, "role_not_delegable", "מנהל מקומי רשאי להקצות רק תפקידים מרשימת ההאצלה.", {"role_id": role_id, "delegable": delegable_roles(conn)})
+        raise _refuse(conn, principal, action, scope, "role_not_delegable", t("rbac.role_not_delegable"), {"role_id": role_id, "delegable": delegable_roles(conn)})
     if op == "bind" or effect == "deny":
         # granting an allow, or revoking a deny (security review T082, M1): either one hands out these permissions
         missing = sorted(perms - set(effective_permissions(conn, principal, scope)))
         if missing:
-            raise _refuse(conn, principal, action, scope, "delegation_escalation", "אי אפשר להאציל הרשאות שאין לך בהיקף הזה.", {"role_id": role_id, "missing": missing})
+            raise _refuse(conn, principal, action, scope, "delegation_escalation", t("rbac.delegation_escalation"), {"role_id": role_id, "missing": missing})
     if subject_id is not None:
         if (subject_kind == "user" and subject_id == principal.user_id) or (subject_kind == "group" and is_member(conn, subject_id, principal.user_id)):
-            raise _refuse(conn, principal, action, scope, "delegation_self", "מנהל מקומי אינו משנה את השיוכים של עצמו (גם לא דרך קבוצה שהוא חבר בה).", {"role_id": role_id, "subject_kind": subject_kind, "subject_id": subject_id})
+            raise _refuse(conn, principal, action, scope, "delegation_self", t("rbac.delegation_self"), {"role_id": role_id, "subject_kind": subject_kind, "subject_id": subject_id})
         if subject_kind == "group":
             problem = group_reach_problem(conn, principal, subject_id)
             if problem:
-                raise _refuse(conn, principal, action, scope, "delegation_group_scope", "הקבוצה משויכת מחוץ להיקף שבאחריותך (או שאין לה שיוך); רק מנהל המערכת מנהל אותה.", {"role_id": role_id, "group_id": subject_id, **problem})
+                raise _refuse(conn, principal, action, scope, "delegation_group_scope", t("rbac.delegation_group_scope"), {"role_id": role_id, "group_id": subject_id, **problem})
 
 
 def assign_scopes(conn: sqlite3.Connection, principal: Principal) -> list[dict[str, str]]:
@@ -778,10 +787,10 @@ def assign_scopes(conn: sqlite3.Connection, principal: Principal) -> list[dict[s
     out: list[dict[str, str]] = []
     ev = Evaluator(conn, principal)  # CR-ADMIN-GATE-2438 (02:P1-5): one bindings read for every node of the picker, not one per node
     if ev.authorize("rbac.assign", INSTALLATION).allowed:
-        out.append({"type": "installation", "id": "*", "name": "כל ההתקנה"})
+        out.append({"type": "installation", "id": "*", "name": t("rbac.scope.installation")})
     for s in conn.execute("SELECT id, name FROM sites WHERE deleted_at IS NULL ORDER BY sort_order, name").fetchall():
         if ev.authorize("rbac.assign", ("site", s["id"])).allowed:
-            out.append({"type": "site", "id": s["id"], "name": f"אתר · {s['name']}"})
+            out.append({"type": "site", "id": s["id"], "name": t("rbac.scope.site", name=s["name"])})
         for b in conn.execute("SELECT id, name FROM buildings WHERE site_id = ? AND deleted_at IS NULL ORDER BY sort_order, name", (s["id"],)).fetchall():
             if ev.authorize("rbac.assign", ("building", b["id"])).allowed:
                 out.append({"type": "building", "id": b["id"], "name": f"{s['name']} · {b['name']}"})
@@ -869,7 +878,7 @@ def keep_an_admin(conn: sqlite3.Connection) -> Iterator[None]:
     try:
         yield
         if before and not admin_count(conn):
-            raise ApiError(409, "last_admin", "השינוי משאיר את ההתקנה בלי מנהל מערכת פעיל; הקצה מנהל אחר קודם.")
+            raise ApiError(409, "last_admin", t("rbac.last_admin"))
     except BaseException:
         conn.execute("ROLLBACK TO t082_keep_admin")
         conn.execute("RELEASE t082_keep_admin")
@@ -945,22 +954,22 @@ def validate_binding(conn: sqlite3.Connection, principal: Principal, body: Bindi
     if not assigns_anywhere(conn, principal):
         require(conn, principal, "rbac.assign", INSTALLATION)
     if body.role_id not in all_roles(conn):
-        raise ApiError(422, "role_unknown", "תפקיד לא מוכר.")
+        raise ApiError(422, "role_unknown", t("rbac.role_unknown"))
     scope = (body.scope_type, body.scope_id)
     require(conn, principal, "rbac.assign", scope)
     if not _scope_exists(conn, *scope):
-        raise ApiError(422, "scope_unknown", "ההיקף (אתר / מבנה / קומה / מצלמה) לא נמצא.")
+        raise ApiError(422, "scope_unknown", t("rbac.scope_unknown"))
     if body.expires_at:
         try:
             if parse_utc(body.expires_at) <= dt.datetime.now(dt.timezone.utc):
-                raise ApiError(422, "validation", "expires_at כבר עבר.")
+                raise ApiError(422, "validation", t("rbac.expires_past"))
         except ValueError:
-            raise ApiError(422, "validation", "expires_at חייב להיות UTC (Z).")
+            raise ApiError(422, "validation", t("rbac.expires_utc"))
     if body.subject_kind == "group" and not conn.execute("SELECT 1 FROM groups WHERE id = ?", (body.subject_id,)).fetchone():
-        raise ApiError(404, "group_unknown", "הקבוצה לא נמצאה.")
+        raise ApiError(404, "group_unknown", t("rbac.group_unknown"))
     check_delegation(conn, principal, body.role_id, scope, body.subject_kind, body.subject_id, op="bind", effect=body.effect)
     if body.subject_kind == "user" and not user_known(conn, body.subject_id):
-        raise ApiError(404, "user_unknown", "המשתמש לא נמצא בספריית Home Assistant.")
+        raise ApiError(404, "user_unknown", t("rbac.user_unknown"))
     if body.subject_kind == "user" and body.effect == "allow":
         from ..services import service_identity
 
@@ -977,12 +986,12 @@ def validate_binding(conn: sqlite3.Connection, principal: Principal, body: Bindi
         (now_iso(), body.subject_kind, body.subject_id, body.role_id, body.scope_type, body.scope_id, body.effect),
     ).fetchone()
     if dup:
-        raise ApiError(409, "binding_exists", "השיוך הזה כבר קיים.", details={"binding_id": dup["id"]})
+        raise ApiError(409, "binding_exists", t("rbac.binding_exists"), details={"binding_id": dup["id"]})
 
 
-LOCAL_ONE_BINDING_HE = "למשתמש Arx יש תפקיד אחד בהיקף אחד. כדי להחליף אותו, השתמש ב״שינוי תפקיד״ במסך משתמשי Arx."
-LOCAL_ROLE_HE = "התפקיד הזה אינו ניתן למשתמש Arx (מנהל מערכת והרשאות מערכת שמורים למשתמשי תשתית המערכת)."
-LOCAL_DENY_HE = "למשתמש Arx אין חסימות: יש לו תפקיד אחד בהיקף אחד."
+LOCAL_ONE_BINDING_HE = t("rbac.local_one_binding")  # I18N-BACKEND-2490: `Msg`s - their string value is the Hebrew, as before
+LOCAL_ROLE_HE = t("rbac.local_role")
+LOCAL_DENY_HE = t("rbac.local_deny")
 
 
 def local_binding_check(conn: sqlite3.Connection, principal: Principal, user_id: str, role_id: str, effect: str, *, remote: bool = True) -> None:
@@ -1100,15 +1109,15 @@ def _validate_role_body(permissions: list[str], sensitive: list[str]) -> tuple[l
     sens = sorted({p for p in sensitive if p})
     unknown = [p for p in perms + sens if p not in PERMISSION_LABELS]
     if unknown:
-        raise ApiError(422, "permission_unknown", "הרשאה לא מוכרת.", details={"unknown": unknown})
+        raise ApiError(422, "permission_unknown", t("rbac.permission_unknown"), details={"unknown": unknown})
     if set(perms) & set(SENSITIVE):
-        raise ApiError(422, "sensitive_in_permissions", "הרשאות רגישות ניתנות רק ברשימת ההרשאות הרגישות, במפורש.", details={"sensitive": sorted(set(perms) & set(SENSITIVE))})
+        raise ApiError(422, "sensitive_in_permissions", t("rbac.sensitive_in_permissions"), details={"sensitive": sorted(set(perms) & set(SENSITIVE))})
     if set(perms) & SYSTEM_PERMISSIONS or set(sens) & SYSTEM_PERMISSIONS:
-        raise ApiError(422, "system_permission_not_allowed", "הרשאות מערכת נשארות בתפקידים המובנים בלבד.", details={"system": sorted((set(perms) | set(sens)) & SYSTEM_PERMISSIONS)})
+        raise ApiError(422, "system_permission_not_allowed", t("rbac.system_permission_not_allowed"), details={"system": sorted((set(perms) | set(sens)) & SYSTEM_PERMISSIONS)})
     if set(sens) - set(SENSITIVE):
-        raise ApiError(422, "not_sensitive", "רק הרשאות מהרשימה הרגישה נכנסות לרשימת ההרשאות הרגישות.", details={"invalid": sorted(set(sens) - set(SENSITIVE))})
+        raise ApiError(422, "not_sensitive", t("rbac.not_sensitive"), details={"invalid": sorted(set(sens) - set(SENSITIVE))})
     if not perms and not sens:
-        raise ApiError(422, "validation", "תפקיד חייב לכלול לפחות הרשאה אחת.")
+        raise ApiError(422, "validation", t("rbac.role_needs_permission"))
     return perms, sens
 
 
@@ -1116,7 +1125,7 @@ def _check_delegable_flag(delegable: bool, perms: list[str], sens: list[str]) ->
     """T082 (R164): a custom role with a sensitive grant (or with rbac.assign) is never delegable - refused, not
     silently dropped, so the dialog says why."""
     if delegable and (sens or "rbac.assign" in perms):
-        raise ApiError(422, "sensitive_role_not_delegable", "תפקיד עם הרשאה רגישה או עם שיוך תפקידים אינו ניתן להאצלה למנהל אתר.",
+        raise ApiError(422, "sensitive_role_not_delegable", t("rbac.sensitive_role_not_delegable"),
                        details={"sensitive": sens, "assign": "rbac.assign" in perms})
 
 

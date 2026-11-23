@@ -25,6 +25,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import get_setting, new_id, now_iso, set_setting, unlocked
 from ..errors import ApiError
+from ..i18n import lang_of, localize
 from ..rbac import INSTALLATION, Principal, all_roles, require, role_name, scope_name
 from ..services import ha_user_admin as hua
 from ..services import ha_users_store as store, revocation, secrets_store
@@ -159,7 +160,7 @@ def list_managed(request: Request, principal: Principal = Depends(current_princi
         "transport": hua.transport_kind(_ha_settings(request, conn)),
         "access": _access(conn),
         "roles": [{"id": rid, "name": role_name(conn, rid)} for rid in sorted(roles)],
-        "scopes": [s for s in acc.assign_scopes(conn, principal) if s["type"] in ("installation", "site", "building", "floor")],
+        "scopes": localize([s for s in acc.assign_scopes(conn, principal) if s["type"] in ("installation", "site", "building", "floor")], lang_of(conn, principal)),
         "password": {"min_length": hua.PASSWORD_MIN, "max_length": hua.PASSWORD_MAX},
         "limit": MAX_MANAGED,
     }

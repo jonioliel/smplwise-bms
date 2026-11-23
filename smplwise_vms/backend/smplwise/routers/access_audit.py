@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..db import permission_revision
 from ..errors import ApiError
+from ..i18n import lang_of
 from ..rbac import INSTALLATION, Principal, effective_permissions, require, scope_name
 from ..services import access_audit_store as store
 from ..services.rbac_admin import PERMISSION_LABELS, _scope_exists, _user_bindings, delegated_sees, full_authority, rendered_labels
@@ -55,7 +56,7 @@ def preview(body: PreviewBody, principal: Principal = Depends(current_principal)
         "allowed": allowed,
         "denied": [p for p in PERMISSION_LABELS if p not in allowed],
         "limited_to_own": limited,
-        "labels": rendered_labels(conn),
+        "labels": rendered_labels(conn, lang_of(conn, principal)),  # I18N-BACKEND-2490: in the reader's language
         # a delegated administrator previews inside their reach: the bindings listed are the ones there, too
         "bindings": [b for b in _user_bindings(conn, body.user_id) if not limited or delegated_sees(conn, principal, b)],
         "revision": permission_revision(conn),
