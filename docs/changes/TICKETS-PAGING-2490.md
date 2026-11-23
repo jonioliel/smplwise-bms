@@ -80,7 +80,7 @@ the place kept when the bulk bar appears; "load more" beside the pager on the la
 `TKPAGE_SHOTS=<dir>` saves the captures, `TKPAGE_SHOTS_ONLY=1` skips the assertions (for the base build).
 `tests/unit-tickets-table.spec.ts`: `togglePage` across pages, `fillHeight`.
 
-Results: section 5 (filled in as the runs finish).
+Results: section 5.
 
 ## 4. Owner questions (recommendation first)
 
@@ -95,3 +95,16 @@ Comparison page (local): `private/planning/tickets_paging_2490_compare_2026-11-2
 the dropped paged option), 1280 / 1024 / 820 tablet and `long_lists=scroll`, the selection across pages.
 
 ## 5. Runs
+
+| Run | Where | Outcome |
+|---|---|---|
+| `npx tsc --noEmit -p tsconfig.json` | workstation (twice, last on the final source) | exit 0 |
+| `npx eslint` on the changed files (page-fit, tickets-table, table-bulk / toolbar / model / text, en table-text) | workstation | exit 0, no findings |
+| `py -3.12 scripts/design_ratchet.py` | workstation | no count above the baseline (px-literal 25485, scroll-container 226 - the new rules use tokens and `overflow-y: hidden`) |
+| `tests/unit-tickets-table.spec.ts` | workstation | 16 passed |
+| new `tests/layout-tickets-table-paging-2490.spec.ts` (desktop + mobile) | workstation, Vite dev server of the branch | 10 passed (the numbers in section 2) |
+| `evidence-tickets-table`, `evidence-tickets-ui4`, `evidence-tickets-polish-2331`, `evidence-small-ui-bugs-2343` (desktop + mobile) | workstation, Vite dev server | 56 passed, 3 failed, 17 skipped at `17ea71883` - all three in evidence-tickets-table and all from the pages (a selection count read while the pages were measured again; "load more" now on the last page's toolbar row); spec adapted (`363e0c253`), the 3 re-run: 4 passed |
+| `evidence-tickets-delete` "the bulk bar" | workstation | 1 passed after `ff9badfbe` |
+| full `npm run lint` | workstation | NOT_RUN to the end (stopped after ~30 min: the workstation was at 100 % CPU / 0.3 GB free); run on the runner instead |
+| runner slot B `~/work/tkpage/run.sh` at `3318d09a8`: tsc, full `eslint src`, `vite build`, the 93 spec files `tests/*tickets*.spec.ts` + `evidence-small-ui-bugs-2343` on vite preview, all three projects, `--workers=2`, no `-u` | runner | tsc 0, lint 0, build 0; Playwright **1737 passed, 1 failed, 359 skipped** (21.0 min). The failure: `evidence-tickets-delete` "the bulk bar" ("expected 5 rows, received 7": the page refills) - fixed in `ff9badfbe`. The paging spec measured the same numbers as the workstation (1440x900: 7 per page, 6 pages, 2 px left); `layout-tickets-table` (the 4 skins under test x 2 themes x 11 screens x 10 widths = 880 checks): 0 findings, 0 page errors; the pixel baselines in the set (`evidence-audit30c-tickets`, the board) passed without `-u` - no baseline moved, none refreshed |
+| runner slot B `~/work/tkpage/rerun.sh` at `ff9badfbe` (the delete fix): `evidence-tickets-delete`, the paging spec, `evidence-tickets-table`, `unit-tickets-table`, all projects | runner | queued behind other slot B jobs when this was written - result in `~/work/tkpage/run2.log` / `pw2.log` |
