@@ -1,6 +1,7 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { demoSceneInput } from '../src/fixtures/demo-3d';
 import { buildScene, type SceneDescription, type SceneInput } from '../src/map/scene-builder';
+import { realisticDescription } from './helpers/plan-3d-wait';
 
 // CR-029 S1 / S2 (section 8, ST7 build plan 5.2) in headless Chromium (SwiftShader) on the style guide's demo floor: the
 // realistic level is additive (level 2 after a round trip is the same graph), the rungs carry their post chains in the
@@ -45,7 +46,7 @@ async function realistic(el: Locator, page: Page, rung: 'lite' | 'realistic'): P
   await el.locator(rung === 'lite' ? '[data-quality-3-lite]' : '[data-quality-3]').click();
   await expect(el).toHaveAttribute('data-quality', '3');
   await expect(el).toHaveAttribute('data-rung', rung);
-  await expect.poll(() => el.evaluate((n) => !!(n as unknown as Probe).description.real), { timeout: 20000 }).toBe(true);
+  await realisticDescription(el); // FLAKY-SWEEP-2480: waited for inside the page (helpers/plan-3d-wait.ts), no Node-side poll budget
   await el.evaluate((n) => (n as unknown as Probe).setTimeHour(13));
   await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).view.realPending), { timeout: 90000 }).toBe(0);
   await page.waitForTimeout(400);
@@ -66,7 +67,6 @@ const graph = (el: Locator): Promise<Node[]> =>
     });
     return out;
   });
-const setDescription = (el: Locator, d: SceneDescription) => el.evaluate((n, desc) => { (n as unknown as Probe).description = desc; }, d);
 const frameInfo = (el: Locator) => el.evaluate((n) => { const v = (n as unknown as Probe).view; v.redrawNow(); return { ...v.lastFrameInfo, stats: v.realStats, passes: v.postPasses }; });
 
 test('level 3 is additive and carries its rungs: lite and realistic post chains, Neutral tone mapping, the cut, the counts per rung', async ({ page }) => {
@@ -207,13 +207,20 @@ test('a door opening animates and ends exactly where a cold build of the same de
     input.doc.openings[0].anchor_ref = { resource_type: 'ha_entity', resource_id: 'binary_sensor.d0' };
     return buildScene(input);
   };
-  await setDescription(el, withDoor('off'));
-  await page.waitForTimeout(400);
-  await setDescription(el, withDoor('on')); // the leaf swings over 350 ms
-  await page.waitForTimeout(900);
+  // FLAKY-SWEEP-2480: each description is applied (the rebuild runs inside the element's update, see the deterministic test above) and
+  // every door / shutter motion it started has ended (scene-three stepAnims, one step per frame) before the graph is read. Fixed
+  // 400 / 900 / 300 ms sleeps were outlasted by single SwiftShader frames on a loaded runner: the "animated" read caught the leaf
+  // mid-swing (2.46.0 gate, tablet: 4 numbers off).
+  const applyAndRest = (d: SceneDescription) => el.evaluate(async (n, desc) => {
+    const e = n as unknown as Probe & { updateComplete: Promise<boolean>; view: { anims: unknown[] } };
+    e.description = desc;
+    await e.updateComplete;
+    while (e.view.anims.length) await new Promise((r) => requestAnimationFrame(r));
+  }, d);
+  await applyAndRest(withDoor('off'));
+  await applyAndRest(withDoor('on')); // the leaf swings over 350 ms
   const animated = (await graph(el)).filter((o) => String(o.name).startsWith('door:do0'));
-  await setDescription(el, withDoor('on')); // an equal description, a new object: a cold rebuild, nothing to animate from
-  await page.waitForTimeout(300);
+  await applyAndRest(withDoor('on')); // an equal description, a new object: a cold rebuild, nothing to animate from
   const cold = (await graph(el)).filter((o) => String(o.name).startsWith('door:do0'));
   expect(animated.length).toBeGreaterThan(0);
   expect(animated).toEqual(cold);

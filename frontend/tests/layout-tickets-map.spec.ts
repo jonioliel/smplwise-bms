@@ -3,6 +3,7 @@ import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { installTicketsMock, url } from './tickets-mocks';
 import { drawerScrollers } from './tickets-scrollers';
+import { appReady } from './helpers/app-ready';
 import { installMapMock, ATTACHED, GONE, T_MAP, F0, type MapMockOptions } from './tickets-map-mocks';
 
 // TKMAPSPEC: the layout guard (tests/layout-guard.ts) over the TKMAP1 map chip in the request drawer's Overview tab and over its picker
@@ -110,27 +111,30 @@ async function pickerBox(page: Page): Promise<{ l: number; t: number; r: number;
 const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 test.use({ timezoneId: 'Asia/Jerusalem', locale: 'he-IL' });
 
+// FLAKY-SWEEP-2480: one test per skin x theme x screen (each sweeps the widths). The guard used to run all 14 theme x screen loads of a
+// skin in ONE test (a 60-minute budget, 140 width checks); one late page among them failed the whole skin (2.44.0 and 2.45.0 gates:
+// [crystal] at the 20 s wait for the chip) and the retry alone re-ran every load. Each case now loads its page once, after the
+// shell's first load is over (helpers/app-ready.ts), and reports its own findings.
 test.describe('tickets map chip and picker layout guard', () => {
-  test.describe.configure({ timeout: 60 * 60_000 });
+  test.describe.configure({ timeout: 180_000 }); // one page and its ten widths (the whole skin had 60 minutes)
   for (const skin of SKIN_IDS) {
-    test(`the chip and the picker at every width and theme [${skin}]`, async ({ page }, info) => {
-      test.skip(info.project.name !== 'desktop', 'one project runs the whole sweep');
-      await page.emulateMedia({ reducedMotion: 'reduce' });
-      const errors: string[] = [];
-      page.on('pageerror', (e) => errors.push(e.message));
-      const results: Finding[] = [];
-      const targets: Finding[] = [];
-      const scrollFindings: string[] = [];
-      const pickerScrollers = new Set<string>();
-      let runs = 0;
-      for (const theme of THEMES) {
-        for (const s of SCREENS) {
-          await page.unrouteAll({ behavior: 'ignoreErrors' });
+    for (const theme of THEMES) {
+      for (const s of SCREENS) {
+        test(`${s.name} at every width [${skin} ${theme}]`, async ({ page }, info) => {
+          test.skip(info.project.name !== 'desktop', 'one project runs the whole sweep');
+          await page.emulateMedia({ reducedMotion: 'reduce' });
+          const errors: string[] = [];
+          page.on('pageerror', (e) => errors.push(e.message));
+          const results: Finding[] = [];
+          const targets: Finding[] = [];
+          const scrollFindings: string[] = [];
+          const pickerScrollers = new Set<string>();
           await installTicketsMock(page, { persona: 'admin' });
           await installMapMock(page, s.mock);
           await page.setViewportSize({ width: 1440, height: 900 });
           await page.goto('about:blank');
           await page.goto(url(`/tickets/all?t=${T_MAP}`, skin, theme));
+          await appReady(page);
           await page.waitForSelector(s.wait, { timeout: 20_000 });
           await page.evaluate((v) => v && document.documentElement.style.setProperty('--sw-touch-desktop', v), skin === 'bubble' ? '' : '32px');
           if (s.prep) await s.prep(page);
@@ -138,7 +142,6 @@ test.describe('tickets map chip and picker layout guard', () => {
             await page.setViewportSize({ width: w, height: height(w) });
             await settle(page);
             await page.waitForTimeout(60);
-            runs++;
             const sc = await drawerScrollers(page);
             if (sc.length !== 1 || sc[0] !== 'div.body') scrollFindings.push(`${s.name} ${skin} ${theme} ${w}: drawer scroll containers [${sc.join(', ')}]`);
             const own = await chipScrollers(page);
@@ -160,17 +163,17 @@ test.describe('tickets map chip and picker layout guard', () => {
               }
             }
           }
-        }
+          const { byCls, lines } = summarize(results);
+          const t = summarize(targets);
+          console.log(`tickets map layout [${s.name} ${skin} ${theme}]: ${WIDTHS.length} widths, findings ${results.length} (${JSON.stringify(byCls)}), reported ${targets.length} (${JSON.stringify(t.byCls)}), scroll findings ${scrollFindings.length}, page errors ${errors.length}`);
+          if (s.picker) console.log(`  picker inner scrollers (reported): ${[...pickerScrollers].join(' | ') || 'none'}`);
+          for (const l of lines) console.log('  ' + l);
+          for (const l of t.lines.slice(0, 25)) console.log('  (reported) ' + l);
+          expect(errors, 'page errors').toEqual([]);
+          expect(scrollFindings, 'ONE scroll per tab').toEqual([]);
+          expect(lines, 'layout findings').toEqual([]);
+        });
       }
-      const { byCls, lines } = summarize(results);
-      const t = summarize(targets);
-      console.log(`tickets map layout [${skin}]: ${runs} checks (${WIDTHS.length} widths), findings ${results.length} (${JSON.stringify(byCls)}), reported ${targets.length} (${JSON.stringify(t.byCls)}), scroll findings ${scrollFindings.length}, page errors ${errors.length}`);
-      console.log(`  picker inner scrollers (reported): ${[...pickerScrollers].join(' | ') || 'none'}`);
-      for (const l of lines) console.log('  ' + l);
-      for (const l of t.lines.slice(0, 25)) console.log('  (reported) ' + l);
-      expect(errors, 'page errors').toEqual([]);
-      expect(scrollFindings, 'ONE scroll per tab').toEqual([]);
-      expect(lines, 'layout findings').toEqual([]);
-    });
+    }
   }
 });

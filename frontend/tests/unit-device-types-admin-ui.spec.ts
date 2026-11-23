@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
+import { gotoApp } from './helpers/app-ready';
 
 // DEVTYPE (owner 2026-10-09): הגדרות › חשמל והתקנים › סוגי התקנים against a MOCKED wire contract of smplwise/routers/devices.py
 // (GET devices/device-types, PUT devices/entities/{id}/device-type, POST devices/device-types). Invented devices, no secrets.
@@ -76,7 +77,7 @@ async function setup(page: Page) {
 
 test('settings > devices: the device-type list - per-row choice overrides the name guess, back to automatic, group change, search', async ({ page }) => {
   const { calls } = await setup(page);
-  await page.goto('/?design=a#/system/diagnostics?tab=devices');
+  await gotoApp(page, '/?design=a#/system/diagnostics?tab=devices'); // FLAKY-SWEEP-2480: the shell's first load is over (helpers/app-ready.ts); the screen's own wait keeps its budget
   const card = page.locator('sw-app system-diagnostics devices-type-admin');
   await expect(card.locator('[data-device-types]')).toBeVisible();
   const visible = (sel: string) => card.locator(sel).locator('visible=true').first();
@@ -120,7 +121,7 @@ test('settings > devices: the device-type list - per-row choice overrides the na
 
 test('settings > devices: a fixed valve / water heater can be included in "הדלק הכל" per device (SEC246 L2)', async ({ page }) => {
   const { calls } = await setup(page);
-  await page.goto('/?design=a#/system/diagnostics?tab=devices');
+  await gotoApp(page, '/?design=a#/system/diagnostics?tab=devices'); // FLAKY-SWEEP-2480: the shell's first load is over (helpers/app-ready.ts); the screen's own wait keeps its budget
   const card = page.locator('sw-app system-diagnostics devices-type-admin');
   await expect(card.locator('[data-device-types]')).toBeVisible();
   const visible = (sel: string) => card.locator(sel).locator('visible=true').first();

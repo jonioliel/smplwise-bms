@@ -4,6 +4,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installTicketsMock, url, type TicketsMock, type TicketsMockOptions } from './tickets-mocks';
 import { tallDesktop } from './helpers/tall-desktop';
+import { appReady } from './helpers/app-ready';
+import { settle } from './helpers/settle';
 
 // CR-038 slice 1 evidence: the tickets screens from the REAL build against the mock layer (fake data), desktop 1440 and phone 390, light and
 // dark, the classic and domus skins (the five-skin sweep is layout-tickets.spec.ts). Also asserts behaviour: the area follows the module
@@ -18,12 +20,13 @@ async function go(page: Page, hash: string, o: TicketsMockOptions = {}, scheme: 
   const mock = await installTicketsMock(page, o);
   await page.goto('about:blank');
   await page.goto(url(hash, skin, scheme));
+  await appReady(page); // FLAKY-SWEEP-2480: the shell's first load is over (helpers/app-ready.ts)
   return mock;
 }
 
 async function shot(page: Page, name: string, scheme: 'light' | 'dark' = 'light', skin = 'classic'): Promise<void> {
   await page.evaluate(() => document.fonts.ready);
-  await page.waitForTimeout(350);
+  await settle(page); // FLAKY-SWEEP-2480: every finite animation has ended (was a fixed 350 ms)
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow, `${name}: horizontal overflow`).toBeLessThanOrEqual(1);
   await page.screenshot({ path: path.join(OUT, `${name}-${test.info().project.name}-${scheme}-${skin}.png`) });
@@ -37,14 +40,38 @@ test.describe('tickets evidence', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
   });
 
-  test('list: cards, filters, chips - light / dark x classic / domus', async ({ page }) => {
-    for (const skin of ['classic', 'domus'])
-      for (const scheme of ['light', 'dark'] as const) {
+  // FLAKY-SWEEP-2480: the light / dark x classic / domus pictures are one test each. The list, drawer, full-screen and create tests
+  // used to load the screen four times before their own checks and timed out in the full run (60 s) on two gates of 19.11; each
+  // picture now loads the screen once, and the behaviour checks below load it once more (classic, light).
+  for (const skin of ['classic', 'domus'])
+    for (const scheme of ['light', 'dark'] as const) {
+      test(`pictures ${skin} ${scheme}: list`, async ({ page }) => {
         await go(page, '/tickets/mine', {}, scheme, skin);
         await page.waitForSelector(`${L} ticket-card`);
         await expect(page.locator(`${L} [data-tickets-title]`)).toHaveAttribute('heading', 'ניהול השירות'); // AUDIT30-C-TICKETS (#6): the title is sw-page's
         await shot(page, 'list', scheme, skin);
-      }
+      });
+      test(`pictures ${skin} ${scheme}: drawer`, async ({ page }) => {
+        await go(page, '/tickets/mine?t=0000000000000a01', {}, scheme, skin);
+        await page.waitForSelector(`${L} ticket-detail [data-ticket-detail="0000000000000a01"]`);
+        await shot(page, 'drawer', scheme, skin);
+      });
+      test(`pictures ${skin} ${scheme}: full screen`, async ({ page }) => {
+        await go(page, '/tickets/0000000000000a01', {}, scheme, skin);
+        await page.waitForSelector('sw-app tickets-detail ticket-detail [data-ticket-page]');
+        await shot(page, 'full', scheme, skin);
+      });
+      test(`pictures ${skin} ${scheme}: create sheet`, async ({ page }) => {
+        await go(page, '/tickets/mine?new=1', {}, scheme, skin);
+        await page.waitForSelector(`${L} ticket-create [data-create-form]`);
+        await shot(page, 'create-sheet', scheme, skin);
+      });
+    }
+
+  test('list: cards, filters, chips', async ({ page }) => {
+    await go(page, '/tickets/mine');
+    await page.waitForSelector(`${L} ticket-card`);
+    await expect(page.locator(`${L} [data-tickets-title]`)).toHaveAttribute('heading', 'ניהול השירות');
     const cards = page.locator(`${L} ticket-card`);
     await expect(cards).toHaveCount(7); // the open ones: closed tickets are behind the "סגורות" filter
     await page.locator(`${L} [data-filter-toggle]`).click(); // TICKETS-POLISH-2331: the state and the departments live in the "סינון" panel
@@ -54,12 +81,8 @@ test.describe('tickets evidence', () => {
   });
 
   test('drawer: the ticket over the list (D18 drawer + full screen), strip, handler, timeline', async ({ page }) => {
-    for (const skin of ['classic', 'domus'])
-      for (const scheme of ['light', 'dark'] as const) {
-        await go(page, '/tickets/mine?t=0000000000000a01', {}, scheme, skin);
-        await page.waitForSelector(`${L} ticket-detail [data-ticket-detail="0000000000000a01"]`);
-        await shot(page, 'drawer', scheme, skin);
-      }
+    await go(page, '/tickets/mine?t=0000000000000a01');
+    await page.waitForSelector(`${L} ticket-detail [data-ticket-detail="0000000000000a01"]`);
     const d = page.locator(`${L} ticket-detail`);
     // 2.5.6 + TKUI1 (v5): the part wait is a sub-state of "in progress": a read-only flow of six steps, the current one "בטיפול", the ONE status
     // chip carries the "ממתין לחלק" sub-label; the moves live in the "⋯" menu ("חזרה לטיפול" there, never a waiting_part step)
@@ -100,23 +123,15 @@ test.describe('tickets evidence', () => {
   });
 
   test('full screen (D18): #/tickets/<id>', async ({ page }) => {
-    for (const skin of ['classic', 'domus'])
-      for (const scheme of ['light', 'dark'] as const) {
-        await go(page, '/tickets/0000000000000a01', {}, scheme, skin);
-        await page.waitForSelector('sw-app tickets-detail ticket-detail [data-ticket-page]');
-        await shot(page, 'full', scheme, skin);
-      }
+    await go(page, '/tickets/0000000000000a01');
+    await page.waitForSelector('sw-app tickets-detail ticket-detail [data-ticket-page]');
     await expect(page.locator('sw-app tickets-detail ticket-detail [data-ticket-title]')).toHaveText('מזגן לא מקרר - חדר 102');
     await expect(page.locator('sw-app tickets-detail ticket-detail [data-to-drawer]')).toHaveAttribute('href', /t=0000000000000a01/);
   });
 
   test('create: the side sheet (D22 default) and the centred dialog; the request carries a client request id', async ({ page }) => {
-    for (const skin of ['classic', 'domus'])
-      for (const scheme of ['light', 'dark'] as const) {
-        await go(page, '/tickets/mine?new=1', {}, scheme, skin);
-        await page.waitForSelector(`${L} ticket-create [data-create-form]`);
-        await shot(page, 'create-sheet', scheme, skin);
-      }
+    await go(page, '/tickets/mine?new=1');
+    await page.waitForSelector(`${L} ticket-create [data-create-form]`);
     const c = page.locator(`${L} ticket-create`);
     await c.locator('[data-create-submit]').click();
     await expect(c.locator('[data-create-title][aria-invalid="true"]')).toBeVisible();

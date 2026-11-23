@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { url } from './generator-mocks';
 import { installMaintenanceMock } from './maintenance-mocks';
+import { appReady } from './helpers/app-ready';
 
 // CR-MAINT215 slice 2 evidence: the section "תחזוקה ובקרה" of the service-management area (ledger + task sheet + supplier card, preventive plans,
 // rounds with the digital checklist, QR / NFC tags, the scan route, Settings) from the REAL build against a mocked backend (fake data only):
@@ -18,6 +19,7 @@ const phone = () => test.info().project.name === 'mobile';
 async function open(page: Page, hash: string, scheme: 'light' | 'dark' = 'light') {
   await page.goto('about:blank');
   await page.goto(url(hash, 'classic', scheme));
+  await appReady(page); // FLAKY-SWEEP-2480: the shell's first load is over (helpers/app-ready.ts); the screen's own wait keeps its budget
 }
 
 test.describe('maintenance evidence', () => {

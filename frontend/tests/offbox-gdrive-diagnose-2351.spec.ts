@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
+import { gotoApp } from './helpers/app-ready';
 
 // GDRIVE-READY-2351 / PRE-GATE-2360: Settings › אבחון › גיבוי ושחזור - the "בדיקת חיבור Google" dialog of a Google Drive target, against a
 // MOCKED wire contract of POST backups/offbox/targets/{id}/gdrive/diagnose (services/offbox_gdrive_diagnose.py). No Google contact: every
@@ -76,7 +77,7 @@ async function setup(page: Page, answers: Mock['answers'], delayMs = 0): Promise
 }
 
 async function open(page: Page) {
-  await page.goto('/?design=a#/system/diagnostics?tab=backup');
+  await gotoApp(page, '/?design=a#/system/diagnostics?tab=backup'); // FLAKY-SWEEP-2480: the shell's first load is over (helpers/app-ready.ts); the screen's own wait keeps its budget
   const card = page.locator('sw-offbox-backup');
   await expect(card.locator('[data-offbox-target="g1"] [data-offbox-gdrive="not-connected"]')).toBeVisible();
   return card;

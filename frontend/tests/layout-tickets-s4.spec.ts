@@ -3,6 +3,7 @@ import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { installTicketsMock, url } from './tickets-mocks';
 import { installS4Mock, serveBuiltApp, type S4MockOptions } from './tickets-s4-mocks';
+import { appReady } from './helpers/app-ready';
 
 // CR-038 slice 4: the layout guard (tests/layout-guard.ts) over the outside-contact screens against the MOCKED backend - the directory
 // with a card open, the handler page card on the general tab (proxies unfolded), the assign dialog sending outside with the preview
@@ -88,20 +89,22 @@ const SCREENS: Screen[] = [
 
 const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 
+// FLAKY-SWEEP-2480: one test per skin x theme x screen (each sweeps the widths), the shape tests/layout-tickets-map.spec.ts got in this
+// row. All theme x screen loads of a skin shared ONE test (a 60-minute budget); one late page failed the whole skin (2.46.0 gate:
+// [crystal] at the 20 s wait for the drawer) and its retry re-ran every load. Each case now loads its page once, after the shell's first
+// load is over (helpers/app-ready.ts), and reports its own findings.
 test.describe('outside contacts layout guard (slice 4)', () => {
-  test.describe.configure({ timeout: 60 * 60_000 });
+  test.describe.configure({ timeout: 180_000 }); // one page and its widths (the whole skin had 60 minutes)
   for (const skin of SKIN_IDS) {
-    test(`every screen, width and theme [${skin}]`, async ({ page }, info) => {
-      test.skip(info.project.name !== 'desktop', 'one project runs the whole sweep');
-      await page.emulateMedia({ reducedMotion: 'reduce' });
-      const errors: string[] = [];
-      page.on('pageerror', (e) => errors.push(e.message));
-      const results: Finding[] = [];
-      const targets: Finding[] = [];
-      let runs = 0;
-      for (const theme of THEMES) {
-        for (const s of SCREENS) {
-          await page.unrouteAll({ behavior: 'ignoreErrors' });
+    for (const theme of THEMES) {
+      for (const s of SCREENS) {
+        test(`${s.name} at every width [${skin} ${theme}]`, async ({ page }, info) => {
+          test.skip(info.project.name !== 'desktop', 'one project runs the whole sweep');
+          await page.emulateMedia({ reducedMotion: 'reduce' });
+          const errors: string[] = [];
+          page.on('pageerror', (e) => errors.push(e.message));
+          const results: Finding[] = [];
+          const targets: Finding[] = [];
           const base = info.project.use.baseURL;
           if (process.env.SW_DIST_ROUTE === '1' && base) await serveBuiltApp(page, new URL(base).origin);
           await installTicketsMock(page, { persona: 'admin', name: NAME });
@@ -109,6 +112,7 @@ test.describe('outside contacts layout guard (slice 4)', () => {
           await page.setViewportSize({ width: 1440, height: 900 });
           await page.goto('about:blank');
           await page.goto(url(s.hash, skin, theme));
+          await appReady(page);
           await page.waitForSelector(s.wait, { timeout: 20_000 });
           await page.evaluate((v) => v && document.documentElement.style.setProperty('--sw-touch-desktop', v), skin === 'bubble' ? '' : '32px');
           if (s.prep) await s.prep(page);
@@ -116,19 +120,18 @@ test.describe('outside contacts layout guard (slice 4)', () => {
             await page.setViewportSize({ width: w, height: height(w) });
             await settle(page);
             await page.waitForTimeout(60);
-            runs++;
             const found = await page.evaluate(inPageCheck, { ctx: `${s.name} ${skin} ${theme} ${w}`, bubble: BUBBLE, skip: SKIP, roots: [], within: s.within });
             for (const f of found) (f.cls === 'target' || f.cls === 'floating' ? targets : results).push(f);
           }
-        }
+          const { byCls, lines } = summarize(results);
+          const t = summarize(targets);
+          console.log(`outside contacts layout [${s.name} ${skin} ${theme}]: ${WIDTHS.length} widths, findings ${results.length} (${JSON.stringify(byCls)}), reported ${targets.length} (${JSON.stringify(t.byCls)}), page errors ${errors.length}`);
+          for (const l of lines) console.log('  ' + l);
+          for (const l of t.lines.slice(0, 25)) console.log('  (reported) ' + l);
+          expect(errors, 'page errors').toEqual([]);
+          expect(lines, 'layout findings').toEqual([]);
+        });
       }
-      const { byCls, lines } = summarize(results);
-      const t = summarize(targets);
-      console.log(`outside contacts layout [${skin}]: ${runs} checks (${WIDTHS.length} widths), findings ${results.length} (${JSON.stringify(byCls)}), reported ${targets.length} (${JSON.stringify(t.byCls)}), page errors ${errors.length}`);
-      for (const l of lines) console.log('  ' + l);
-      for (const l of t.lines.slice(0, 25)) console.log('  (reported) ' + l);
-      expect(errors, 'page errors').toEqual([]);
-      expect(lines, 'layout findings').toEqual([]);
-    });
+    }
   }
 });

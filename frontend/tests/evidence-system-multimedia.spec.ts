@@ -1,7 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { ADMIN, EDITOR, OUT, expandAll, fresh, install, open, type St } from './media-players-harness';
+import { ADMIN, EDITOR, OUT, expandAll, fresh, install, open, openSize, type St } from './media-players-harness';
+import { skipDesktopSizeOnPhone } from './helpers/phone-project';
 
 // CR-016 S2: the new sections of הגדרות › מולטימדיה - נגנים ורמקולים (kind, approval, room, linked amplifier, volume ceiling WITHOUT a
 // default, night window), איחוד כפילויות (the merge wizard fed by the suggestions, the folded non-physical entries), קבוצות שמורות
@@ -24,6 +25,9 @@ async function tall(page: Page, name: string, width: number, height: number) {
 test.describe('settings › מולטימדיה: the players sections (mocked backend)', () => {
   let st: St;
   test.beforeEach(async ({ page }) => {
+    // FLAKY-SWEEP-2480: every test here opens the 1440 x 2400 desktop window (`open`'s default size) - on the phone project that is
+    // 3780 x 6300 device pixels a frame (helpers/phone-project.ts; 8 of the 2.46.0 gate's timeouts). Desktop and tablet keep them.
+    skipDesktopSizeOnPhone(openSize('1440').width);
     st = fresh(ADMIN);
     await page.addInitScript(() => {
       try {

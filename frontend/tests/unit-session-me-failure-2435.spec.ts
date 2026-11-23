@@ -45,12 +45,18 @@ test.describe('SESSION-DEMO-WS-2435 a failed /me', () => {
     await watchModes(page);
     const meCalls: number[] = [];
     let fail = 1;
-    await page.route('**/api/v1/**', (route) => {
+    // FLAKY-SWEEP-2480: the retry's answer is held until the connecting state has been checked. The banner used to live only from the
+    // 502 to the retry 1 s later; on a loaded gate runner the page's own start ate that second and the checks below read the real user
+    // already (2.44.0 mobile, 2.45.0 tablet). Holding the answer keeps the state under test on screen for as long as it is looked at.
+    let answerRetry!: () => void;
+    const retryAnswered = new Promise<void>((r) => (answerRetry = r));
+    await page.route('**/api/v1/**', async (route) => {
       const p = new URL(route.request().url()).pathname.replace(/^.*\/api\/v1\//, '');
       if (p === 'me') {
         meCalls.push(Date.now());
         // what HA Ingress answers while the add-on restarts: a bare text 502
         if (fail-- > 0) return route.fulfill({ status: 502, contentType: 'text/plain', body: '502: Bad Gateway' });
+        await retryAnswered;
         return json(route, ME);
       }
       if (p === 'me/ws') return route.abort();
@@ -64,6 +70,9 @@ test.describe('SESSION-DEMO-WS-2435 a failed /me', () => {
       capabilities: { nvr: false, ha: false, live_video: false, supported: false },
     });
     // the retry (1 s) brings the real user
+    await expect.poll(() => meCalls.length).toBe(2); // the retry has asked (its answer is held)
+    await expect(page.locator('[data-session-retry]')).toBeVisible(); // still connecting while it is on its way
+    answerRetry();
     await expect(page.locator('[data-session-retry]')).toHaveCount(0, { timeout: 10_000 });
     await expect.poll(() => page.evaluate(() => (document.querySelector('sw-app') as unknown as { session: { mode: string; me: { user: { display_name: string } } | null } }).session.me?.user.display_name ?? null)).toBe(REAL_NAME);
     await expect(page.locator('button.me').first()).toHaveAttribute('title', new RegExp(REAL_NAME.split(' ')[0]));
@@ -84,6 +93,7 @@ test.describe('SESSION-DEMO-WS-2435 a failed /me', () => {
       }
       return route.abort();
     });
+    await page.clock.install(); // runs at the real pace until the press below pauses it
     await page.goto('./#/devices');
     await expect(page.locator('[data-session-retry]')).toContainText('השרת מופעל מחדש');
     await expect.poll(() => meCalls.length, { timeout: 12_000 }).toBeGreaterThanOrEqual(4);
@@ -91,6 +101,11 @@ test.describe('SESSION-DEMO-WS-2435 a failed /me', () => {
     expect(gaps[0]).toBeGreaterThanOrEqual(800);
     expect(gaps[1]).toBeGreaterThanOrEqual(1_700);
     expect(gaps[2]).toBeGreaterThanOrEqual(3_500);
+    // FLAKY-SWEEP-2480: the page's clock stops before the press, so the back-off timer that is due next cannot add its own ask between
+    // the count and the press (on a loaded runner the count read 6 instead of 5): the one new ask is the button's
+    // (pauseAt only moves forward: 500 ms ahead; an ask a timer started in that jump is let in before counting - nothing new for 300 ms)
+    await page.clock.pauseAt(new Date((await page.evaluate(() => Date.now())) + 500));
+    await expect.poll(async () => { const n = meCalls.length; await new Promise((r) => setTimeout(r, 300)); return meCalls.length === n; }).toBe(true);
     const before = meCalls.length;
     await page.locator('[data-session-retry]').getByRole('button', { name: 'נסה עכשיו' }).click();
     await expect.poll(() => meCalls.length).toBe(before + 1);

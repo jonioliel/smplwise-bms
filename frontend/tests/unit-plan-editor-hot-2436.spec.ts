@@ -67,19 +67,24 @@ test.describe('plan editor hot path (demo data)', () => {
   });
 
   test('MSG-1: the same message flashed again lives its full time; a newer message is not cut short', async ({ page }) => {
+    // FLAKY-SWEEP-2480: the page's clock is Playwright's, paused while the timers are checked. With wall-clock sleeps on the test side
+    // the "1300 ms after the first" check really ran 1300 ms + two evaluate round trips later; on a loaded gate runner that was past the
+    // second message's 1600 ms end and `info` was already '' (flaky in the 2.45.0 gate). runFor advances exactly the time it names.
+    await page.clock.install();
     const editor = await open(page);
+    await page.clock.pauseAt(new Date((await page.evaluate(() => Date.now())) + 1000));
     await editor.evaluate((n) => (n as Probe).flash('first', 1000));
-    await page.waitForTimeout(600);
+    await page.clock.runFor(600);
     await editor.evaluate((n) => (n as Probe).flash('first', 1000)); // the older timer (due at 1000 ms) must not wipe it
-    await page.waitForTimeout(700); // 1300 ms after the first
+    await page.clock.runFor(700); // 1300 ms after the first
     expect(await editor.evaluate((n) => (n as Probe).info)).toBe('first');
-    await page.waitForTimeout(600); // 1900 ms: the second's own time is over
+    await page.clock.runFor(600); // 1900 ms: the second's own time is over
     expect(await editor.evaluate((n) => (n as Probe).info)).toBe('');
 
     await editor.evaluate((n) => (n as Probe).flash('older', 800));
-    await page.waitForTimeout(300);
+    await page.clock.runFor(300);
     await editor.evaluate((n) => (n as Probe).flash('newer', 1500));
-    await page.waitForTimeout(800); // the older one's time has passed
+    await page.clock.runFor(800); // the older one's time has passed
     expect(await editor.evaluate((n) => (n as Probe).info)).toBe('newer');
   });
 

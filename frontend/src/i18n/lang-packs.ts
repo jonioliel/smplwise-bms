@@ -123,11 +123,30 @@ function refreshRendered(root: ParentNode): void {
   }
 }
 
+/**
+ * FLAKY-SWEEP-2480: `<html data-lang-words>` names the language whose words the rendered page carries: set at start and again once a
+ * later `<html lang>` change has its pack in and the components were asked to render again ('he' for Hebrew, which needs no pack).
+ * Nothing in the UI reads it; a spec that switches `<html lang>` in place waits for it instead of giving the 1.4 MB English pack a fixed
+ * 5 s to arrive and parse (evidence-bridge-key.spec.ts failed that way on a loaded gate runner).
+ */
+const LANG_WORDS_ATTR = 'data-lang-words';
+function markLangWords(lang: string): void {
+  document.documentElement.setAttribute(LANG_WORDS_ATTR, lang);
+}
+
 function watchDocLang(): void {
   if (typeof MutationObserver === 'undefined' || typeof document === 'undefined' || !document.documentElement) return;
+  markLangWords(packLangOf(docLangRaw()) ?? 'he');
   new MutationObserver(() => {
     const l = packLangOf(docLangRaw());
-    if (l && !READY.has(l)) void ensureLangPack(l).then((ok) => ok && refreshRendered(document));
+    if (!l) markLangWords('he');
+    else if (READY.has(l)) markLangWords(l);
+    else
+      void ensureLangPack(l).then((ok) => {
+        if (!ok) return;
+        refreshRendered(document);
+        if (packLangOf(docLangRaw()) === l) markLangWords(l); // still the language asked for (not changed again meanwhile)
+      });
   }).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
 }
 
