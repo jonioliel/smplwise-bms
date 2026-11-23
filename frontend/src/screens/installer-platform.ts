@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-badge';
@@ -277,7 +278,7 @@ export class InstallerPlatform extends LitElement {
                   @input=${(e: Event) => (this.meta = { ...m, thresholds: { ...m.thresholds, [k]: Number((e.target as HTMLInputElement).value) } })} /></label>`,
               )}
             </div>
-            <label class="opt"><input type="checkbox" .checked=${w.enabled} @change=${(e: Event) => setW({ enabled: (e.target as HTMLInputElement).checked })} data-window-on /><span>${X.windowOn}</span></label>
+            <label class="opt"><sw-toggle size="sm" labelHidden in-label label=${X.windowOn} .checked=${w.enabled} @change=${(e: Event) => setW({ enabled: toggled(e) })} data-window-on></sw-toggle><span>${X.windowOn}</span></label>
             ${w.enabled
               ? html`<div class="days" role="group" aria-label=${X.dayNames}>
                     ${X.days.map((label, i) => html`<label><input type="checkbox" .checked=${w.days.includes(i)}
@@ -450,7 +451,7 @@ export class InstallerPlatform extends LitElement {
     const changed = JSON.stringify({ ...h, kinds: [...h.kinds].sort() }) !== JSON.stringify({ ...p.webhook, kinds: [...p.webhook.kinds].sort() });
     return html`<sw-card heading=${X.webhookTitle} data-webhook>
       <div class="hint">${X.webhookHint}</div>
-      <label class="opt"><input type="checkbox" .checked=${h.enabled} @change=${(e: Event) => (this.hook = { ...h, enabled: (e.target as HTMLInputElement).checked })} data-hook-on /><span>${X.webhookOn}</span></label>
+      <label class="opt"><sw-toggle size="sm" labelHidden in-label label=${X.webhookOn} .checked=${h.enabled} @change=${(e: Event) => (this.hook = { ...h, enabled: toggled(e) })} data-hook-on></sw-toggle><span>${X.webhookOn}</span></label>
       <label class="f"><span>${X.url}</span><input dir="ltr" inputmode="url" .value=${h.url} aria-invalid=${bad.includes('url') ? 'true' : 'false'} @input=${(e: Event) => (this.hook = { ...h, url: (e.target as HTMLInputElement).value.trim() })} data-hook-url />
         ${bad.includes('url') ? html`<span class="field-error">${X.invalid.url}</span>` : nothing}</label>
       <div class="days" role="group">${Object.entries(X.kinds).map(([k, label]) => html`<label><input type="checkbox" .checked=${h.kinds.includes(k)}

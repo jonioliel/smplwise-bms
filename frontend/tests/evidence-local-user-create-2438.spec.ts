@@ -154,7 +154,7 @@ test('remote channel: create with a password, the user is saved, signs in and mu
 
   // capitals are fine (the name is kept lower-case); a Hebrew display name; the password the administrator chose
   await fillCreate(page, name.toUpperCase(), 'דנה קליין', ADMIN_PW);
-  await expect(page.locator(`${TAB} [data-local-pw-must="create"]`)).toBeChecked();
+  await expect(page.locator(`${TAB} [data-local-pw-must="create"]`)).toHaveAttribute('checked', '');
   await page.locator(`${TAB} [data-local-create-save]`).click();
   await expect(page.locator(`${TAB} [data-local-done]`)).toContainText(name);
   expect(posts.at(-1)?.status).toBe(201);
@@ -208,7 +208,7 @@ test('local channel: create with a password that need not be changed, then set a
   await openTab(page);
   const posts = watchCreates(page);
   await fillCreate(page, name, AVI, ADMIN_PW);
-  await page.locator(`${TAB} [data-local-pw-must="create"]`).uncheck();
+  await page.locator(`${TAB} [data-local-pw-must="create"]`).click();
   await page.locator(`${TAB} [data-local-display]`).press('Enter'); // Enter sends the form too
   await expect(page.locator(`${TAB} [data-local-done]`)).toContainText(name);
   expect(posts.map((p) => p.status)).toEqual([201]);
@@ -221,7 +221,7 @@ test('local channel: create with a password that need not be changed, then set a
   await page.locator(`${TAB} [data-local-pw-set]`).click();
   await page.locator(`${TAB} [data-local-pw="user"]`).fill(OWN_PW);
   await page.locator(`${TAB} [data-local-pw-again="user"]`).fill(OWN_PW);
-  await expect(page.locator(`${TAB} [data-local-pw-must="user"]`)).toBeChecked();
+  await expect(page.locator(`${TAB} [data-local-pw-must="user"]`)).toHaveAttribute('checked', '');
   await page.screenshot({ path: test.info().outputPath('set-password-panel.png') });
   await page.locator(`${TAB} [data-local-pw-save]`).click();
   await expect(page.locator(`${TAB} [data-local-done]`)).toContainText(`הסיסמה של ${AVI} נקבעה`);

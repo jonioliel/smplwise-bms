@@ -90,7 +90,7 @@ test('the slides grid shows each slide with edit, the count and the seconds, and
 test('the promo switch is part of the display draft and is saved with it', async ({ page }) => {
   const calls = await install(page);
   const root = await openDisplay(page);
-  await root.locator('notice-display-slides [data-promo]').check();
+  await root.locator('notice-display-slides [data-promo]').click();
   await root.locator('[data-save-display]').click();
   await expect.poll(() => (calls.find((c) => c.method === 'PATCH' && c.path === 'notices/boards/b1')?.body as { display?: { blocks?: { promo?: boolean } } } | undefined)?.display?.blocks?.promo).toBe(true);
 });

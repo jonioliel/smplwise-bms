@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import '../components/sw-button';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-tabs';
 import '../components/sw-dropdown';
 import '../components/sw-icon';
@@ -242,9 +243,9 @@ export class GenSettings_ extends LitElement {
     const val = (k: string) => (k in this.logEdits ? this.logEdits[k] : cur[k] ?? specs[k]?.default);
     const enabled = 'log_enabled' in this.logEdits ? Boolean(this.logEdits.log_enabled) : Boolean(s.log_enabled);
     return html`<div class="col" data-section="log"><div class="mut">${glt('setIntro')}</div>
-      <label class="row" style="gap:8px"><input type="checkbox" .checked=${enabled} data-log-enabled @change=${(e: Event) => (this.logEdits = { ...this.logEdits, log_enabled: (e.target as HTMLInputElement).checked })} /><b>${glt('setEnabled')}</b></label>
+      <label class="row" style="gap:8px"><sw-toggle size="sm" labelHidden in-label label=${glt('setEnabled')} .checked=${enabled} data-log-enabled @change=${(e: Event) => (this.logEdits = { ...this.logEdits, log_enabled: toggled(e) })}></sw-toggle><b>${glt('setEnabled')}</b></label>
       <div class="th-grid">${Object.entries(specs).map(([k, sp]) => sp.type === 'bool'
-        ? html`<div class="fld"><label class="row" style="gap:8px"><input type="checkbox" .checked=${Boolean(val(k))} data-log-set=${k} @change=${(e: Event) => (this.logEdits = { ...this.logEdits, [k]: (e.target as HTMLInputElement).checked })} />${glt(`set_${k}` as GltKey)}</label></div>`
+        ? html`<div class="fld"><label class="row" style="gap:8px"><sw-toggle size="sm" labelHidden in-label label=${glt(`set_${k}` as GltKey)} .checked=${Boolean(val(k))} data-log-set=${k} @change=${(e: Event) => (this.logEdits = { ...this.logEdits, [k]: toggled(e) })}></sw-toggle>${glt(`set_${k}` as GltKey)}</label></div>`
         : html`<div class="fld"><label for=${`lg-${k}`}>${glt(`set_${k}` as GltKey)}</label>
           <input id=${`lg-${k}`} type="number" step=${sp.type === 'float' ? '0.5' : '1'} min=${sp.min ?? ''} max=${sp.max ?? ''} .value=${String(val(k) ?? '')} data-log-set=${k}
             @input=${(e: Event) => (this.logEdits = { ...this.logEdits, [k]: (e.target as HTMLInputElement).value })} />

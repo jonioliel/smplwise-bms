@@ -56,7 +56,7 @@ async function fill(page: Page, o: { self?: boolean } = {}) {
   await d.locator('#vu').fill('2026-10-22');
   await d.locator('#vu').dispatchEvent('change');
   await d.locator('[data-sec="notes"] textarea').fill('לתאם עם השומר בכניסה');
-  await d.locator('[data-told]').check();
+  await d.locator('[data-told]').click();
   if (o.self === false) await d.locator('[data-path="send"] input').check();
 }
 
@@ -105,7 +105,7 @@ test('owner decision (a)+(b): a manager who may only request - entrances + the t
   await d.locator('#vf').dispatchEvent('change');
   await d.locator('#vu').fill('2026-10-21');
   await d.locator('#vu').dispatchEvent('change');
-  await d.locator('[data-told]').check();
+  await d.locator('[data-told]').click();
   await shot(page, info, '03-requester-light');
   await d.locator('[data-request-ok]').click();
   await expect(page.locator(`${SCREEN} [data-toast]`)).toContainText('הבקשה נשלחה למאשרים');
@@ -146,7 +146,7 @@ test('a new person: the contact is created, the confirmation code is sent, then 
   await d.locator('#vf').dispatchEvent('change');
   await d.locator('#vu').fill('2026-10-23');
   await d.locator('#vu').dispatchEvent('change');
-  await d.locator('[data-told]').check();
+  await d.locator('[data-told]').click();
   await expect(d.locator('[data-self-block="blk_numberNew"]')).toBeVisible();
   await d.locator('[data-request-ok]').click();
   await expect(page.locator(`${SCREEN} [data-toast]`)).toContainText('הבקשה נשלחה');

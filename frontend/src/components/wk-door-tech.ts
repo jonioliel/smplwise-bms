@@ -1,6 +1,7 @@
 import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from './sw-toggle';
 import './sw-badge';
 import './sw-dialog';
 import './sw-dropdown';
@@ -886,7 +887,7 @@ export class WkDoorTech extends LitElement {
         ? html`<label class="f">${t.codes.current}<input type="password" inputmode="numeric" autocomplete="off" maxlength="16" data-wk-dt-code-field="current" /><span class="line">${t.codes.currentHint}</span></label>`
         : nothing}
       ${c.capabilities.advertised === false && f.action === 'set'
-        ? html`<label class="check"><input type="checkbox" data-wk-dt-code-compat .checked=${f.compatibility} @change=${(e: Event) => (this.codeForm = { ...f, compatibility: (e.target as HTMLInputElement).checked })} />${t.codes.compatibility}</label>`
+        ? html`<label class="check"><sw-toggle size="sm" labelHidden in-label label=${t.codes.compatibility} data-wk-dt-code-compat .checked=${f.compatibility} @change=${(e: Event) => (this.codeForm = { ...f, compatibility: toggled(e) })}></sw-toggle>${t.codes.compatibility}</label>`
         : nothing}
       <label class="f">${fill(t.codes.typed, { phrase })}<input autocomplete="off" maxlength="32" data-wk-dt-code-field="typed" /></label>
       <span class="problem" role="alert" data-wk-dt-code-problem></span>

@@ -1,5 +1,6 @@
 import { LitElement, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from './sw-toggle';
 import './sw-button';
 import './sw-dropdown';
 import { describeError } from '../api/client';
@@ -118,7 +119,7 @@ export class FrigateManualEvents extends LitElement {
           <label>${t.subLabel}<input type="text" maxlength="60" data-fe-sub-label .value=${this.subLabel} ?disabled=${!canCreate} @input=${(e: Event) => (this.subLabel = (e.target as HTMLInputElement).value)} /></label>
           <label>${t.duration}<input type="number" min="1" max=${EVENT_MAX_S} step="1" data-fe-duration .value=${this.duration} ?disabled=${!canCreate || this.openEnded} @input=${(e: Event) => (this.duration = (e.target as HTMLInputElement).value)} /></label>
         </div>
-        <label class="row"><input type="checkbox" data-fe-open .checked=${this.openEnded} ?disabled=${!canCreate} @change=${(e: Event) => (this.openEnded = (e.target as HTMLInputElement).checked)} /><span>${t.openEnded}</span></label>
+        <label class="row"><sw-toggle size="sm" labelHidden in-label label=${t.openEnded} data-fe-open .checked=${this.openEnded} ?disabled=${!canCreate} @change=${(e: Event) => (this.openEnded = toggled(e))}></sw-toggle><span>${t.openEnded}</span></label>
         ${supervisedBox(this.first, 'event_create', this.supervised, (v) => (this.supervised = v), 'event_create')}
         ${this.error ? html`<div class="err" role="alert" data-fe-error>${this.error}</div>` : nothing}
         <div class="inline"><sw-button size="sm" variant="primary" icon="plus" data-fe-create ?disabled=${this.busy || !canCreate || (needSup && !this.supervised)} @click=${() => void this.create()}>${t.create}</sw-button></div>

@@ -257,7 +257,7 @@ test.describe('TKUI3B evidence', () => {
     await dlg.locator('[data-dialog-ok]').click(); // without the tick: a plain message in the dialog, nothing is sent
     await expect(dlg.locator('[data-quote-error]')).toContainText('לסמן את האישור');
     expect(posts(m, /q-8\/approve$/)).toHaveLength(0);
-    await dlg.locator('[data-quote-expired-ok]').check();
+    await dlg.locator('[data-quote-expired-ok]').click();
     await dlg.locator('[data-dialog-ok]').click();
     await expect.poll(() => posts(m, /q-8\/approve$/).length).toBe(1);
     expect(posts(m, /q-8\/approve$/)[0].body).toMatchObject({ revision: 1, confirm_expired: true });

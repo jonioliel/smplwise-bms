@@ -37,7 +37,7 @@ import { ApiError, describeError } from '../api/client';
 import type { Anchor } from '../api/types';
 import { pointInPolygon } from '../api/zones';
 import { createView, listViews, wallHref, type SavedView } from '../api/views';
-import '../components/sw-toggle';
+import { toggled } from '../components/sw-toggle';
 import { ACTION_ERROR_LABEL, ACTION_STATUS_LABEL, awaitAction, domainLabel, entityMarkerKind, entityTone, fmtTime, runAction, stateLabel, subscribeHa, type HaActionArgSpec, type HaActionRecord, type HaActionSpec, type HaEntity } from '../api/ha';
 import { geometryFor } from '../api/geometry';
 import { circuitToken, type AnchorPosition, type CatalogLookup, type GeometryDoc } from '../map/geometry';
@@ -2762,7 +2762,7 @@ export class ExploreFloorMap extends LitElement {
     return html`<div class="sidelist ${this.sheetTall ? 'tall' : ''}" data-sidelist data-sheet-tall=${this.sheetTall ? '1' : nothing}>
       <button class="grab" data-sheet-grab aria-label=${this.sheetTall ? 'הקטן את הרשימה' : 'הגדל את הרשימה'} @click=${() => (this.sheetTall = !this.sheetTall)}><span></span></button>
       <div class="sh"><sw-icon name="list" size=${14}></sw-icon>על התוכנית<span class="grow"></span><sw-button variant="ghost" size="sm" iconOnly icon="close" label="סגור" @click=${() => this.toggleSideList()}></sw-button></div>
-      <label class="jz" data-jump-zoom-row><input type="checkbox" data-jump-zoom .checked=${this.jumpZoom} @change=${(e: Event) => this.setJumpZoom((e.target as HTMLInputElement).checked)} /> זום בקפיצה לרכיב</label>
+      <label class="jz" data-jump-zoom-row><sw-toggle size="sm" labelHidden in-label label="זום בקפיצה לרכיב" data-jump-zoom .checked=${this.jumpZoom} @change=${(e: Event) => this.setJumpZoom(toggled(e))}></sw-toggle> זום בקפיצה לרכיב</label>
       <div class="body">
         ${this.embedded ? nothing : html`<div class="grp">קומות</div>
         ${this.floors.map((f) => html`<button class="it ${f.id === this.floorId ? 'on' : ''}" data-side-floor=${f.id} @click=${() => { if (f.id !== this.floorId) navigate(`/explore/floors/${f.id}`); }}>

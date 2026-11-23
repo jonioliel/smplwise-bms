@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-icon';
 import '../components/sw-dialog';
 import { describeError } from '../api/client';
@@ -97,7 +98,7 @@ export class TempTicket extends LitElement {
               @input=${(e: Event) => { this.subject = (e.target as HTMLInputElement).value; }} data-ticket-title /></div>
             <div class="field"><label class="l" for="tk-desc">${tt('ticketDesc')}</label><textarea id="tk-desc" class="in" maxlength="4000" .value=${this.desc}
               @input=${(e: Event) => { this.desc = (e.target as HTMLTextAreaElement).value; }} data-ticket-desc></textarea></div>
-            <label class="sw"><input type="checkbox" .checked=${this.chart} @change=${(e: Event) => { this.chart = (e.target as HTMLInputElement).checked; }} data-ticket-chart />${tt('ticketChart')}</label>`}
+            <label class="sw"><sw-toggle size="sm" labelHidden in-label label=${tt('ticketChart')} .checked=${this.chart} @change=${(e: Event) => { this.chart = toggled(e); }} data-ticket-chart></sw-toggle>${tt('ticketChart')}</label>`}
       </div>
         <div slot="footer" class="bar">${this.err && d ? html`<span class="err" role="alert">${this.err}</span>` : nothing}
           <button type="button" class="btn ghost" @click=${() => this.close()}>${tt('cancel')}</button>

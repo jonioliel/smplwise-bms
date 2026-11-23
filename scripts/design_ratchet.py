@@ -17,7 +17,8 @@ Metrics (string scans of frontend/src/**/*.ts|css after the comments are removed
                      field's markup, also through a nested html`` part); a select returned by a helper and placed into a
                      field elsewhere still counts
   native-table       <table ...> outside components/sw-table.ts - use sw-table
-  hand-switch        role="switch" or type="checkbox" outside components/sw-toggle.ts - use sw-toggle
+  hand-switch        role="switch" or type="checkbox" outside components/sw-toggle.ts - use sw-toggle (not counted, owner N12: the home
+                     `<button class="hsw" role="switch">` and the settings row switch `<button class="sw" role="switch">`)
   scroll-container   overflow / overflow-x / overflow-y: auto | scroll - control screens use pages, not scrolling. A rule on the
                      reviewed allow-list (scripts/design_ratchet_scroll_allow.json, SCROLL-AUDIT-2480: dialogs, pickers, sideways
                      strips, viewers, the shell, the long-lists `scroll` fallback, settings / editors, side panels, phone-only rules)
@@ -63,6 +64,10 @@ _FIELD_OPEN = re.compile(r"<sw-field(?![\w-])")
 _FIELD_CLOSE = re.compile(r"</sw-field\s*>")
 _TABLE = re.compile(r"<table\b")
 _SWITCH = re.compile(r"role\s*=\s*[\"']switch[\"']|type\s*=\s*[\"']checkbox[\"']")
+# HAND-SWITCH-2480 (owner N12, 22.11: "the home .hsw and the row switches stay"): two hand-built switches are design, not debt, and are
+# not counted - the home screen's own `<button class="hsw" role="switch">` (Domus home) and the settings ROW switch
+# `<button class="sw" role="switch">` (messaging/policy-switch.ts: the whole row - title, text and track - is one button).
+_SWITCH_ALLOWED = re.compile(r"<button\b[^>]*?\bclass\s*=\s*\"(?:hsw|sw)\"[^>]*?\brole\s*=\s*\"switch\"")
 _SCROLL = re.compile(r"overflow(?:-[xy])?\s*:\s*(?:auto|scroll)\b")
 _VAR_NOFALLBACK = re.compile(r"var\(\s*(--sw-[\w-]+)\s*\)")
 _DEFINED_TOKEN = re.compile(r"(--sw-[\w-]+)\s*:")
@@ -200,6 +205,8 @@ def count_text(rel: str, text: str, tokens: set[str], allow: AllowList | None = 
             n = sum(1 for t in _VAR_NOFALLBACK.findall(text) if t not in tokens)
         elif name == "scroll-container":
             n = sum(1 for _, sel in scroll_sites(text) if (rel, sel) not in (allow or {}))
+        elif name == "hand-switch":
+            n = len(_SWITCH.findall(text)) - len(_SWITCH_ALLOWED.findall(text))
         else:
             assert rx is not None
             n = len(rx.findall(text))

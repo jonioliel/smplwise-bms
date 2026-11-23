@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-card';
 import '../components/sw-button';
@@ -293,8 +294,8 @@ export class TicketsLocationsSettings extends LitElement {
           @input=${(e: Event) => this.set('lng', (e.target as HTMLInputElement).value)} /></div>${this.err(p, 'coords')}</div>
       ${this.areaField(p)}
       <div class="checks wide">
-        <label><input type="checkbox" data-location-field="active" .checked=${d.active} @change=${(e: Event) => this.set('active', (e.target as HTMLInputElement).checked)} /> ${loct('fActive')}</label>
-        <label><input type="checkbox" data-location-field="is_default" .checked=${d.is_default} @change=${(e: Event) => this.set('is_default', (e.target as HTMLInputElement).checked)} /> ${loct('fDefault')}</label>
+        <label><sw-toggle size="sm" labelHidden in-label label=${loct('fActive')} data-location-field="active" .checked=${d.active} @change=${(e: Event) => this.set('active', toggled(e))}></sw-toggle> ${loct('fActive')}</label>
+        <label><sw-toggle size="sm" labelHidden in-label label=${loct('fDefault')} data-location-field="is_default" .checked=${d.is_default} @change=${(e: Event) => this.set('is_default', toggled(e))}></sw-toggle> ${loct('fDefault')}</label>
         ${this.err(p, 'default')}
       </div>
       <div class="acts wide">

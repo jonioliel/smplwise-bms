@@ -275,9 +275,9 @@ test.describe('the global pill and the tray', () => {
     const first = pill(page).locator('[data-cast-session="cs-1"]');
     await first.locator('[data-cast-stop]').click();
     await expect(first.locator('[data-cast-stop-confirm]')).toBeVisible();
-    await expect(first.locator('[data-cast-stop-off]')).toBeChecked();
+    await expect(first.locator('[data-cast-stop-off]')).toHaveAttribute('checked', '');
     await shot(page, 'tray-stop-poweroff');
-    await first.locator('[data-cast-stop-off]').uncheck();
+    await first.locator('[data-cast-stop-off]').click();
     await first.locator('[data-cast-stop-yes]').click();
     await expect.poll(() => m.calls.find((c) => c.method === 'DELETE' && c.path.startsWith('sessions/cs-1'))?.path).toBe('sessions/cs-1?power_off=false');
     await expect(pill(page).locator('[data-cast-session="cs-1"]')).toHaveCount(0);

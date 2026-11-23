@@ -480,7 +480,7 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     await page.locator(`${dlg} [data-level-create]`).click();
     await expect(page.locator(`${ed} [data-level-chips] [data-level-chip]`)).toHaveCount(4);
     await page.locator(`${ed} [data-level-edit="L2"]`).click();
-    await page.locator(`${dlg} [data-level-make-default]`).check();
+    await page.locator(`${dlg} [data-level-make-default]`).click();
     await page.locator(`${dlg} [data-level-save]`).click();
     await expect.poll(defaults, { timeout: 10000 }).toEqual(['L2']);
     await page.locator(`${ed} [data-level-edit="L2"]`).click();
@@ -488,7 +488,7 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     await expect(page.locator(`${dlg} [data-level-error]`)).toContainText('המפלס הראשי');
     await page.locator(`${dlg} [data-level-cancel]`).click();
     await page.locator(`${ed} [data-level-edit="L0"]`).click();
-    await page.locator(`${dlg} [data-level-make-default]`).check();
+    await page.locator(`${dlg} [data-level-make-default]`).click();
     await page.locator(`${dlg} [data-level-save]`).click();
     await expect.poll(defaults, { timeout: 10000 }).toEqual(['L0']);
     await page.locator(`${ed} [data-level-chip="L2"]`).click();

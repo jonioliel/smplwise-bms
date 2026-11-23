@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-icon';
 import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
@@ -228,7 +229,7 @@ export class TempWa extends LitElement {
           <div class="field"><span class="lbl">${tt('waPreview')}</span><div class="bubble" dir=${this.repLang === 'he' ? 'rtl' : 'ltr'} data-wa-text>${this.text || '…'}</div>
             <span class="hint">${tt('waTextOnly')}</span></div>
           <div class="sched">
-            <label class="sw"><input type="checkbox" .checked=${this.scheduled} @change=${(e: Event) => { this.scheduled = (e.target as HTMLInputElement).checked; }} data-wa-sched />${tt('waSchedule')}</label>
+            <label class="sw"><sw-toggle size="sm" labelHidden in-label label=${tt('waSchedule')} .checked=${this.scheduled} @change=${(e: Event) => { this.scheduled = toggled(e); }} data-wa-sched></sw-toggle>${tt('waSchedule')}</label>
             ${this.scheduled ? html`<div class="r"><sw-segmented value=${this.freq} @change=${(e: CustomEvent<SegmentedChange>) => { this.freq = e.detail.value as Freq; }}
                 .options=${(['daily', 'weekly', 'monthly'] as Freq[]).map((f) => ({ value: f, label: tt(f === 'daily' ? 'waDaily' : f === 'weekly' ? 'waWeekly' : 'waMonthly') }))}></sw-segmented>
               ${this.freq === 'weekly' ? html`<select class="in" aria-label=${tt('waWeekly')} @change=${(e: Event) => { this.dow = Number((e.target as HTMLSelectElement).value); }}>

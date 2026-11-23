@@ -300,12 +300,12 @@ test.describe('tickets message channel evidence (slice 5b)', () => {
     const P = `${D} [data-assign-preview]`;
     await expect(page.locator(`${P} [data-assign-channel="whatsapp"]`)).toContainText(ACCOUNT_LABEL);
     await expect(page.locator(`${P} [data-assign-hours]`)).toContainText('מחוץ לשעות השליחה');
-    await expect(page.locator(`${P} [data-assign-send-now]`)).toBeChecked(); // a critical priority preselects it (D29)
+    await expect(page.locator(`${P} [data-assign-send-now]`)).toHaveAttribute('checked', ''); // a critical priority preselects it (D29)
     await expect(page.locator(`${P} [data-assign-down]`)).toHaveCount(0);
     await shot(page, 'assign-outside', 'light', 'classic', false);
     await page.locator(`${D} [data-contact="c-elec"] input`).check();
     await expect(page.locator(`${P} [data-assign-down]`)).toContainText('יהיה צריך להעתיק את הקישור');
-    await page.locator(`${P} [data-assign-send-now]`).uncheck();
+    await page.locator(`${P} [data-assign-send-now]`).click();
     await shot(page, 'assign-outside-down', 'light', 'classic', false);
     await page.locator(`${D} [data-dialog-ok]`).click();
     await expect.poll(() => last(calls, 'POST', new RegExp(`^tickets/${TID}/assign$`))?.body).toMatchObject({ assignee: { kind: 'contact', id: 'c-elec' } });

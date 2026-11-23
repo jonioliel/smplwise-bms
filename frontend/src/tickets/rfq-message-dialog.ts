@@ -1,5 +1,6 @@
 import { LitElement, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-dialog';
 import { automationsStyles } from '../styles/automations-glass';
 import { applyAutomationsGlass } from '../styles/glass';
@@ -105,7 +106,7 @@ export class TicketsRfqMessageDialog extends LitElement {
         </div>
         <label class="fld">${rt('writeVendor')}<textarea class="inp" style="min-block-size:96px;padding-block:10px" maxlength=${MESSAGE_MAX} data-rfq-message-text .value=${this.text}
           @input=${(e: Event) => (this.text = (e.target as HTMLTextAreaElement).value)}></textarea></label>
-        ${canNotify ? html`<label class="chk"><input type="checkbox" data-rfq-message-notify .checked=${this.notify} @change=${(e: Event) => (this.notify = (e.target as HTMLInputElement).checked)} />${rt('writeNotify')}</label>` : nothing}
+        ${canNotify ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${rt('writeNotify')} data-rfq-message-notify .checked=${this.notify} @change=${(e: Event) => (this.notify = toggled(e))}></sw-toggle>${rt('writeNotify')}</label>` : nothing}
         <div class="note">${rt('writeNote')}</div>
         ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
       </div>

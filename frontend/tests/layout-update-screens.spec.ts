@@ -15,8 +15,10 @@ const SKINS = SKIN_IDS;
 const SCHEMES = ['light', 'dark'] as const;
 const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);
 const BUBBLE = '.step, .row, .outcome, .chk, .wait';
-// the shell's own section row and tab row (not this screen's), and the shared dialog's close button, are not measured
-const SKIP = '.vh, nav.sections, nav.sectabs, .subnav, .tabpair, sw-tabs, header sw-button';
+// the shell's own section row and tab row (not this screen's), and the shared dialog's close button, are not measured; nor the shared
+// sw-toggle (HAND-SWITCH-2480: the backup switch replaced the drawn box; the row's <label> is the touch target and the switch keeps its own
+// contract, as in the other layout guards)
+const SKIP = '.vh, nav.sections, nav.sectabs, .subnav, .tabpair, sw-tabs, header sw-button, sw-toggle';
 
 interface Scenario {
   name: string;

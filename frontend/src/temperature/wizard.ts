@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-icon';
 import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
@@ -262,8 +263,8 @@ export class TempWizard extends LitElement {
       <div class="field"><span class="lbl">${tt('doorSensor')} <span class="chip">${tt('optional')}</span></span>
         <input class="in" type="search" placeholder=${tt('searchDoor')} .value=${this.qd} @input=${(e: Event) => { this.qd = (e.target as HTMLInputElement).value; }} aria-label=${tt('searchDoor')} />
         ${this.sensorList('door')}
-        ${this.d.door_entity_id ? html`<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center"><label class="sw"><input type="checkbox" .checked=${this.d.door_invert}
-            @change=${(e: Event) => this.patch({ door_invert: (e.target as HTMLInputElement).checked })} data-w-invert /><span>${tt('invert')}</span></label>${now ? html`<span class="hint">${tt('doorNow', { s: now })}</span>` : nothing}</div>` : nothing}</div>
+        ${this.d.door_entity_id ? html`<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center"><label class="sw"><sw-toggle size="sm" labelHidden in-label label=${tt('invert')} .checked=${this.d.door_invert}
+            @change=${(e: Event) => this.patch({ door_invert: toggled(e) })} data-w-invert></sw-toggle><span>${tt('invert')}</span></label>${now ? html`<span class="hint">${tt('doorNow', { s: now })}</span>` : nothing}</div>` : nothing}</div>
       ${this.powers.length || this.d.power_entity_id ? this.powerField() : nothing}`;
   }
 
@@ -287,7 +288,7 @@ export class TempWizard extends LitElement {
 
   /** Phase 3: a switch row of a rule, with "default: x" when this unit overrides it. */
   private check(key: string, label: TtKey) {
-    return html`<label class="sw" data-w-rule=${key}><input type="checkbox" .checked=${this.rule<boolean>(key)} @change=${(e: Event) => this.setRule(key, (e.target as HTMLInputElement).checked)} />${tt(label)}
+    return html`<label class="sw" data-w-rule=${key}><sw-toggle size="sm" labelHidden in-label label=${tt(label)} .checked=${this.rule<boolean>(key)} @change=${(e: Event) => this.setRule(key, toggled(e))}></sw-toggle>${tt(label)}
       ${key in this.d.rules ? html`<span class="def">${tt('fromDefault', { v: String(this.defaults[key]) })}</span>` : nothing}</label>`;
   }
 
@@ -317,7 +318,7 @@ export class TempWizard extends LitElement {
   private ruleRow(onKey: string, minKey: string, lead: TtKey, chip: 'alarm' | 'warn', icon: string, extra?: unknown) {
     const on = this.rule<boolean>(onKey);
     const def = this.defaults[minKey];
-    return html`<div class="rule" ?data-off=${!on} data-rule=${onKey}><label class="sw"><input type="checkbox" .checked=${on} aria-label=${tt(lead)} @change=${(e: Event) => this.setRule(onKey, (e.target as HTMLInputElement).checked)} /></label>
+    return html`<div class="rule" ?data-off=${!on} data-rule=${onKey}><label class="sw"><sw-toggle size="sm" labelHidden in-label .checked=${on} label=${tt(lead)} @change=${(e: Event) => this.setRule(onKey, toggled(e))}></sw-toggle></label>
       <div class="txt"><sw-icon name=${icon} size="16"></sw-icon>${tt(lead)}<input class="in n" type="number" min="0" max="1440" .value=${String(this.rule<number>(minKey))} aria-label=${tt('minutes')}
         @change=${(e: Event) => this.setRule(minKey, Math.max(0, Math.round(this.num(e))))} data-rule-min=${minKey} />${tt('minutes')}
         <span class="chip" data-tone=${chip === 'alarm' ? 'err' : 'warn'}>${tt(chip === 'alarm' ? 'chipAlarm' : 'chipWarn')}</span>${extra ?? nothing}
@@ -346,8 +347,8 @@ export class TempWizard extends LitElement {
         ${this.ruleRow('high_alarm', 'high_alarm_min', 'ruleHigh', 'alarm', 'arrowUp', html`<span class="hint">· ${tt('ruleWarnNow')}</span>`)}
         ${this.ruleRow('low_alarm', 'low_alarm_min', 'ruleLow', 'alarm', 'snow')}
         ${this.ruleRow('offline_warn', 'offline_min', 'ruleOffline', 'warn', 'offline')}
-        <label class="sw"><input type="checkbox" .checked=${this.rule<boolean>('warn_on_excursion')} @change=${(e: Event) => this.setRule('warn_on_excursion', (e.target as HTMLInputElement).checked)} data-w-warnnow /><span>${tt('ruleWarnNow')}</span></label>
-        ${this.isClimate ? html`<label class="sw"><input type="checkbox" .checked=${this.rule<boolean>('alert_when_off')} @change=${(e: Event) => this.setRule('alert_when_off', (e.target as HTMLInputElement).checked)} data-w-whenoff /><span>${tt('alertWhenOff')}</span></label><span class="hint">${tt('offHint')}</span>` : nothing}
+        <label class="sw"><sw-toggle size="sm" labelHidden in-label label=${tt('ruleWarnNow')} .checked=${this.rule<boolean>('warn_on_excursion')} @change=${(e: Event) => this.setRule('warn_on_excursion', toggled(e))} data-w-warnnow></sw-toggle><span>${tt('ruleWarnNow')}</span></label>
+        ${this.isClimate ? html`<label class="sw"><sw-toggle size="sm" labelHidden in-label label=${tt('alertWhenOff')} .checked=${this.rule<boolean>('alert_when_off')} @change=${(e: Event) => this.setRule('alert_when_off', toggled(e))} data-w-whenoff></sw-toggle><span>${tt('alertWhenOff')}</span></label><span class="hint">${tt('offHint')}</span>` : nothing}
       </div></div>`;
   }
 
@@ -370,13 +371,13 @@ export class TempWizard extends LitElement {
               @change=${(e: Event) => this.patch({ recipients: { ...d.recipients, groups: toggle(d.recipients.groups, g.id, (e.target as HTMLInputElement).checked) } })} />${g.name}</label>`)}</div>` : nothing}
         </div>` : nothing}</div>
       <div class="field"><span class="lbl">${tt('quiet')}</span><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <label class="sw"><input type="checkbox" .checked=${this.rule<boolean>('quiet_enabled')} @change=${(e: Event) => this.setRule('quiet_enabled', (e.target as HTMLInputElement).checked)} data-w-quiet /></label>
+        <label class="sw"><sw-toggle size="sm" labelHidden in-label label=${tt('quiet')} .checked=${this.rule<boolean>('quiet_enabled')} @change=${(e: Event) => this.setRule('quiet_enabled', toggled(e))} data-w-quiet></sw-toggle></label>
         <input class="in" style="inline-size:auto" type="time" lang=${dateInputLang()} .value=${this.rule<string>('quiet_from')} ?disabled=${!this.rule<boolean>('quiet_enabled')} @change=${(e: Event) => this.setRule('quiet_from', (e.target as HTMLInputElement).value)} aria-label=${tt('start')} />
         <span>${tt('to')}</span>
         <input class="in" style="inline-size:auto" type="time" lang=${dateInputLang()} .value=${this.rule<string>('quiet_to')} ?disabled=${!this.rule<boolean>('quiet_enabled')} @change=${(e: Event) => this.setRule('quiet_to', (e.target as HTMLInputElement).value)} aria-label=${tt('to')} /></div></div>
-      <div class="field" data-w-holds><label class="sw"><input type="checkbox" .checked=${this.rule<boolean>('alerts_enabled')} @change=${(e: Event) => this.setRule('alerts_enabled', (e.target as HTMLInputElement).checked)} data-w-alerts />${tt('alertsEnabled')}</label>
-        <label class="sw"><input type="checkbox" .checked=${this.rule<boolean>('quiet_includes_alarms')} @change=${(e: Event) => this.setRule('quiet_includes_alarms', (e.target as HTMLInputElement).checked)} />${tt('quietAlarms')}</label>
-        <label class="sw"><input type="checkbox" .checked=${this.rule<boolean>('mute_includes_alarms')} @change=${(e: Event) => this.setRule('mute_includes_alarms', (e.target as HTMLInputElement).checked)} />${tt('muteAlarms')}</label>
+      <div class="field" data-w-holds><label class="sw"><sw-toggle size="sm" labelHidden in-label label=${tt('alertsEnabled')} .checked=${this.rule<boolean>('alerts_enabled')} @change=${(e: Event) => this.setRule('alerts_enabled', toggled(e))} data-w-alerts></sw-toggle>${tt('alertsEnabled')}</label>
+        <label class="sw"><sw-toggle size="sm" labelHidden in-label label=${tt('quietAlarms')} .checked=${this.rule<boolean>('quiet_includes_alarms')} @change=${(e: Event) => this.setRule('quiet_includes_alarms', toggled(e))}></sw-toggle>${tt('quietAlarms')}</label>
+        <label class="sw"><sw-toggle size="sm" labelHidden in-label label=${tt('muteAlarms')} .checked=${this.rule<boolean>('mute_includes_alarms')} @change=${(e: Event) => this.setRule('mute_includes_alarms', toggled(e))}></sw-toggle>${tt('muteAlarms')}</label>
         <span class="hint">${tt('alarmsNever')}</span></div>
       ${this.phase3Rules()}
       <div class="field"><span class="lbl">${tt('defrost')}</span>
@@ -390,7 +391,7 @@ export class TempWizard extends LitElement {
               @change=${(e: Event) => this.patch({ defrost_windows: d.defrost_windows.map((x, j) => (j === i ? { ...x, minutes: Math.max(5, Math.min(180, Math.round(this.num(e)))) } : x)) })} />
             <button type="button" class="btn sm ghost" aria-label=${tt('removeWindow')} @click=${() => this.patch({ defrost_windows: d.defrost_windows.filter((_x, j) => j !== i) })}><sw-icon name="close" size="14"></sw-icon></button></div>`)}
           ${d.defrost_windows.length < 6 ? html`<button type="button" class="btn sm" style="justify-self:start" @click=${() => this.patch({ defrost_windows: [...d.defrost_windows, { start: '15:00', minutes: 30 }] })}><sw-icon name="plus" size="14"></sw-icon>${tt('addWindow')}</button>` : nothing}</div>` : nothing}
-        ${d.defrost_mode !== 'none' ? html`<label class="sw"><input type="checkbox" .checked=${this.rule<boolean>('exclude_defrost_stats')} @change=${(e: Event) => this.setRule('exclude_defrost_stats', (e.target as HTMLInputElement).checked)} data-w-exclude /><span>${tt('excludeStats')}</span></label>
+        ${d.defrost_mode !== 'none' ? html`<label class="sw"><sw-toggle size="sm" labelHidden in-label label=${tt('excludeStats')} .checked=${this.rule<boolean>('exclude_defrost_stats')} @change=${(e: Event) => this.setRule('exclude_defrost_stats', toggled(e))} data-w-exclude></sw-toggle><span>${tt('excludeStats')}</span></label>
           <label class="sw">${tt('hardMargin')}<input class="in n" type="number" step="0.5" min="0" max="50" .value=${String(hard)} @change=${(e: Event) => this.setRule('defrost_hard_margin', this.num(e))} data-w-hard /></label>
           <span class="hint">${tt('hardMax', { v: deg((d.band_mode === 'setpoint' && this.isClimate ? d.high : d.high) + hard) })}</span>` : nothing}</div>`;
   }
@@ -410,7 +411,7 @@ export class TempWizard extends LitElement {
         <div><span>${tt('rulesTitle')}</span><b>${[this.rule<boolean>('high_alarm') ? `↑ ${this.rule<number>('high_alarm_min')}′` : '', this.rule<boolean>('low_alarm') ? `↓ ${this.rule<number>('low_alarm_min')}′` : '', d.door_entity_id && this.rule<boolean>('door_alarm') ? `${tt('kDoor')} ${this.rule<number>('door_alarm_min')}′` : ''].filter(Boolean).join(' · ')}</b></div>
         <div><span>${tt('who')}</span><b>${d.ownRecipients ? tt('whoOwn') : tt('whoDefault')}</b></div>
         <div><span>${tt('defrost')}</span><b>${defrost}</b></div>
-        ${d.id ? html`<div><span>${tt('enabled')}</span><b><label class="sw"><input type="checkbox" .checked=${d.enabled} @change=${(e: Event) => this.patch({ enabled: (e.target as HTMLInputElement).checked })} data-w-enabled /></label></b></div>` : nothing}
+        ${d.id ? html`<div><span>${tt('enabled')}</span><b><label class="sw"><sw-toggle size="sm" labelHidden in-label label=${tt('enabled')} .checked=${d.enabled} @change=${(e: Event) => this.patch({ enabled: toggled(e) })} data-w-enabled></sw-toggle></label></b></div>` : nothing}
       </div></div>
       <div class="banner"><sw-icon name="check" size="16"></sw-icon><span>${tt('summaryBanner')}</span></div>`;
   }

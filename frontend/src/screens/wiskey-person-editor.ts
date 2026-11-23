@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import { live } from 'lit/directives/live.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-dropdown';
@@ -631,7 +632,7 @@ export class WiskeyPersonEditor extends LitElement {
                     <input type="tel" autocomplete="tel" maxlength="32" data-ltr placeholder="05X-xxx-xxxx" data-wiskey-editor-phone .value=${live(d.phone)} @input=${(e: Event) => this.patch('phone', mobileDisplay((e.target as HTMLInputElement).value))} />
                   </sw-field>`
                 : nothing}
-              <label class="check"><input type="checkbox" data-wiskey-editor-active .checked=${live(d.active)} ?disabled=${!!this.original?.archived} @change=${(e: Event) => this.patch('active', (e.target as HTMLInputElement).checked)} />${t('active')}</label>
+              <label class="check"><sw-toggle size="sm" labelHidden in-label label=${t('active')} data-wiskey-editor-active .checked=${live(d.active)} ?disabled=${!!this.original?.archived} @change=${(e: Event) => this.patch('active', toggled(e))}></sw-toggle>${t('active')}</label>
             </fieldset>
             ${this.renderCategory()}
             ${this.isNew ? nothing : this.renderActions()}
@@ -842,7 +843,7 @@ export class WiskeyPersonEditor extends LitElement {
             </sw-field>
           </div>
           <div class="row between">
-            <label class="check"><input type="checkbox" data-wiskey-editor-card-enabled .checked=${live(c.enabled)} @change=${(e: Event) => this.editCard(c.key, { enabled: (e.target as HTMLInputElement).checked })} />${t('active')} · ${t('normal_card')}</label>
+            <label class="check"><sw-toggle size="sm" labelHidden in-label label=${`${t('active')} · ${t('normal_card')}`} data-wiskey-editor-card-enabled .checked=${live(c.enabled)} @change=${(e: Event) => this.editCard(c.key, { enabled: toggled(e) })}></sw-toggle>${t('active')} · ${t('normal_card')}</label>
             <sw-button size="sm" variant="ghost" icon="trash" data-wiskey-editor-card-remove @click=${() => this.patch('cards', d.cards.filter((x) => x.key !== c.key))}>${t('remove')}</sw-button>
           </div>
         </div>`,
@@ -924,7 +925,7 @@ export class WiskeyPersonEditor extends LitElement {
         const badge = enabled && a ? syncBadge(a.sync_state ?? 'pending') : null;
         return html`<div class="station" data-wiskey-editor-station=${s.id} data-wiskey-editor-station-enabled=${String(enabled)}>
           <label class="check">
-            <input type="checkbox" data-wiskey-editor-station-toggle .checked=${live(enabled)} ?disabled=${!s.lock_enabled} @change=${(e: Event) => this.setStation(s.id, (e.target as HTMLInputElement).checked)} />
+            <sw-toggle size="sm" labelHidden in-label label=${s.name} data-wiskey-editor-station-toggle .checked=${live(enabled)} ?disabled=${!s.lock_enabled} @change=${(e: Event) => this.setStation(s.id, toggled(e))}></sw-toggle>
             <b>${s.name}</b>
           </label>
           <sw-badge kind=${s.online ? 'recorded' : 'offline'} label=${t(s.online ? 'online' : 'offline')}></sw-badge>

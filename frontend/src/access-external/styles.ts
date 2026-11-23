@@ -105,6 +105,7 @@ export const xCss = css`
   .in::placeholder { color: var(--sw-text-2); opacity: 1; }
   label.cb { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; padding: 8px 10px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border-strong); cursor: pointer; min-block-size: var(--sw-touch-desktop); box-sizing: border-box; }
   label.cb input { inline-size: 18px; block-size: 18px; margin: 2px 0 0; accent-color: var(--sw-accent); }
+  label.cb:has(> sw-toggle) { grid-template-columns: auto 1fr; }
   label.cb small { display: block; color: var(--sw-text-2); font-size: var(--sw-fs-xs); }
   .stack { display: grid; gap: 14px; }
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }

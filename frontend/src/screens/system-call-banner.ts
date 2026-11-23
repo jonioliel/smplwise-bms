@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-field';
@@ -180,7 +181,7 @@ export class SystemCallBanner extends LitElement {
                     @change=${(e: Event) => this.toggle('stations', s.id, (e.target as HTMLInputElement).checked)} />${s.name || '—'}</label>`)}</div>`
                 : html`<span class="muted">${t.stationsNone}</span>`}</div>
             <div class="row"><span class="lbl">${t.sound}<span class="muted">${t.soundText}</span></span>
-              <label class="one"><input type="checkbox" data-call-banner-sound aria-label=${t.sound} .checked=${d.sound} ?disabled=${this.busy} @change=${(e: Event) => this.patch({ sound: (e.target as HTMLInputElement).checked })} /></label></div>`
+              <label class="one"><sw-toggle size="sm" labelHidden in-label data-call-banner-sound label=${t.sound} .checked=${d.sound} ?disabled=${this.busy} @change=${(e: Event) => this.patch({ sound: toggled(e) })}></sw-toggle></label></div>`
         : nothing}
       <div class="foot">
         <sw-button variant="primary" icon="check" data-save-call-banner ?disabled=${!this.dirty() || needRole || this.busy} @click=${() => void this.save()}>${t.save}</sw-button>

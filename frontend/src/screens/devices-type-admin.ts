@@ -1,5 +1,6 @@
 import { html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-dialog';
@@ -116,9 +117,9 @@ export class DevicesTypeAdmin extends DevicesOverrideListAdmin<DeviceTypeRow, Ty
 
   private bulkOn(r: DeviceTypeRow) {
     if (!r.set || !BULK_ON_SENSITIVE.includes(r.set)) return nothing;
-    return html`<label class="bulk-on muted"><input type="checkbox" data-type-bulk-on=${r.entity_id} .checked=${!!r.bulk_on_allowed}
+    return html`<label class="bulk-on muted"><sw-toggle size="sm" labelHidden in-label label=${tr('לכלול בהדלק הכל')} data-type-bulk-on=${r.entity_id} .checked=${!!r.bulk_on_allowed}
         ?disabled=${this.busyId === r.entity_id || this.busy}
-        @change=${(e: Event) => void this.setBulkOn(r, (e.target as HTMLInputElement).checked)} />${tr('לכלול בהדלק הכל')}</label>`;
+        @change=${(e: Event) => void this.setBulkOn(r, toggled(e))}></sw-toggle>${tr('לכלול בהדלק הכל')}</label>`;
   }
 
   private typeSelect(r: DeviceTypeRow) {

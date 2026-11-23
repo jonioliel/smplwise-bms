@@ -1,5 +1,6 @@
 import { LitElement, html, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-dialog';
 import { automationsStyles } from '../styles/automations-glass';
 import { applyAutomationsGlass } from '../styles/glass';
@@ -130,7 +131,7 @@ export class TicketsRfqQuoteDialog extends LitElement {
         <div class="frm">
           <label class="fld">${rt('qCurrency')}<select class="inp" data-q-currency @change=${(e: Event) => (this.currency = (e.target as HTMLSelectElement).value)}>
             ${this.currencies.map((c) => html`<option value=${c} ?selected=${c === this.currency}>${c}</option>`)}</select></label>
-          <label class="chk"><input type="checkbox" data-q-vat .checked=${this.includesVat} @change=${(e: Event) => (this.includesVat = (e.target as HTMLInputElement).checked)} />${rt('qIncludesVat')}</label>
+          <label class="chk"><sw-toggle size="sm" labelHidden in-label label=${rt('qIncludesVat')} data-q-vat .checked=${this.includesVat} @change=${(e: Event) => (this.includesVat = toggled(e))}></sw-toggle>${rt('qIncludesVat')}</label>
           <label class="fld">${rt('qWindowFrom')}<input class="inp" type="date" lang=${dateInputLang()} .value=${this.from} @change=${(e: Event) => (this.from = (e.target as HTMLInputElement).value)} /></label>
           <label class="fld">${rt('qWindowTo')}<input class="inp" type="date" lang=${dateInputLang()} .value=${this.to} min=${this.from || ''} @change=${(e: Event) => (this.to = (e.target as HTMLInputElement).value)} /></label>
           <label class="fld wide">${rt('qNote')}<input class="inp" maxlength="500" .value=${this.note} @input=${(e: Event) => (this.note = (e.target as HTMLInputElement).value)} /></label>

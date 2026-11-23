@@ -53,12 +53,12 @@ test('settings: "הפוך" on a picked on / off source, saved at once; a number 
   const gym = box.locator('[data-info-source="gym"]');
   await expect(parking.locator('[data-info-source-item="sensor.lot_free"] [data-info-source-invert]')).toHaveCount(0);
   const spot = parking.locator('[data-info-source-item="binary_sensor.spot_1"] [data-info-source-invert]');
-  await expect(spot).not.toBeChecked();
-  await expect(gym.locator('[data-info-source-item="input_boolean.gym_closed"] [data-info-source-invert]')).toBeChecked();
+  await expect(spot).not.toHaveAttribute('checked');
+  await expect(gym.locator('[data-info-source-item="input_boolean.gym_closed"] [data-info-source-invert]')).toHaveAttribute('checked', '');
   await expect(parking.locator('[data-info-source-invert-hint]')).toContainText('פעיל = פנוי');
-  await spot.check();
+  await spot.click();
   await expect.poll(() => calls.filter((c) => c.method === 'PATCH' && c.path === 'notices/settings').map((c) => c.body).at(-1)).toEqual({ parking_inverted: ['binary_sensor.spot_1'] });
-  await gym.locator('[data-info-source-item="input_boolean.gym_closed"] [data-info-source-invert]').uncheck();
+  await gym.locator('[data-info-source-item="input_boolean.gym_closed"] [data-info-source-invert]').click();
   await expect.poll(() => calls.filter((c) => c.method === 'PATCH' && c.path === 'notices/settings').map((c) => c.body).at(-1)).toEqual({ gym_inverted: [] });
   expect(await box.evaluate((el) => el.shadowRoot?.textContent ?? '')).not.toMatch(/Home Assistant|\bHA\b/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);

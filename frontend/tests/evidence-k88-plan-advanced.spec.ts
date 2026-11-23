@@ -151,9 +151,9 @@ test.describe('settings', () => {
     const diag = page.locator('system-diagnostics');
     const row = diag.locator('[data-plan-surfaces]');
     await expect(row).toBeVisible();
-    await expect(row.locator('[data-set-plan-surface="devices"]')).toBeChecked();
-    await expect(row.locator('[data-set-plan-surface="area"]')).toBeChecked();
-    await row.locator('[data-set-plan-surface="area"]').uncheck();
+    await expect(row.locator('[data-set-plan-surface="devices"]')).toHaveAttribute('checked', '');
+    await expect(row.locator('[data-set-plan-surface="area"]')).toHaveAttribute('checked', '');
+    await row.locator('[data-set-plan-surface="area"]').click();
     await diag.locator('[data-save-map]').click();
     await expect.poll(() => st.settingsPatches.length).toBe(1);
     expect(st.settingsPatches[0]).toEqual({ 'plan.surfaces': ['devices'] });

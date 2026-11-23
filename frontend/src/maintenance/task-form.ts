@@ -1,5 +1,6 @@
 import { LitElement, html, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-dialog';
 import '../components/sw-segmented';
 import '../components/sw-field';
@@ -154,7 +155,7 @@ export class MaintTaskForm extends LitElement {
         <div class="range">
           ${it.kind === 'number' ? html`<label class="mut" for=${`mn-${it._id}`}>${mt('fItemMin')}</label><sw-field><input id=${`mn-${it._id}`} class="num" inputmode="decimal" .value=${it.min ?? ''} @input=${(e: Event) => upd(i, { min: num((e.target as HTMLInputElement).value) })}></sw-field>
             <label class="mut" for=${`mx-${it._id}`}>${mt('fItemMax')}</label><sw-field><input id=${`mx-${it._id}`} class="num" inputmode="decimal" .value=${it.max ?? ''} @input=${(e: Event) => upd(i, { max: num((e.target as HTMLInputElement).value) })}></sw-field>` : nothing}
-          <label class="check"><input type="checkbox" .checked=${it.required !== false} @change=${(e: Event) => upd(i, { required: (e.target as HTMLInputElement).checked })}>${mt('fItemRequired')}</label>
+          <label class="check"><sw-toggle size="sm" labelHidden in-label label=${mt('fItemRequired')} .checked=${it.required !== false} @change=${(e: Event) => upd(i, { required: toggled(e) })}></sw-toggle>${mt('fItemRequired')}</label>
           ${this.err(`item${i}`)}
         </div></div>`)}
       <button type="button" class="btn sm" data-maint-add-item @click=${() => this.set('checklist', [...items, newItem()])}><sw-icon name="plus" size="14"></sw-icon>${mt('fAddItem')}</button>
@@ -193,7 +194,7 @@ export class MaintTaskForm extends LitElement {
         <option value="" ?selected=${!this.d.owner_user_id}>${mt('fOwnerNone')}</option>${o.people.map((p) => html`<option value=${p.id} ?selected=${p.id === this.d.owner_user_id}>${p.name}</option>`)}</select></sw-field></div>
       ${plan ? this.checklist() : nothing}
       ${this.ticketsOn && o.tickets_on && k !== 'vendor_document' ? html`<div class="fld" data-maint-auto-ticket>
-        <label class="check"><input type="checkbox" .checked=${this.d.auto_ticket} @change=${(e: Event) => this.set('auto_ticket', (e.target as HTMLInputElement).checked)}>${mt('fAutoTicket')}</label>
+        <label class="check"><sw-toggle size="sm" labelHidden in-label label=${mt('fAutoTicket')} .checked=${this.d.auto_ticket} @change=${(e: Event) => this.set('auto_ticket', toggled(e))}></sw-toggle>${mt('fAutoTicket')}</label>
         ${this.d.auto_ticket ? html`<sw-field><select aria-label=${mt('fDepartment')} aria-invalid=${String(!!this.errors.department_id)} data-maint-field="department_id" @change=${(e: Event) => this.set('department_id', (e.target as HTMLSelectElement).value)}>
           <option value="" ?selected=${!this.d.department_id} disabled>${mt('fDepartmentPick')}</option>${o.departments.map((x) => html`<option value=${x.id} ?selected=${x.id === this.d.department_id}>${x.name}</option>`)}</select></sw-field>${this.err('department_id')}` : nothing}</div>` : nothing}
       ${this.text('notes', 'fNotes', true)}

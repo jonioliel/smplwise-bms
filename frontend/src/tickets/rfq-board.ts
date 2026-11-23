@@ -1,5 +1,6 @@
 import { LitElement, html, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-dialog';
 import './rfq-quote-dialog';
@@ -239,8 +240,8 @@ export class TicketsRfqBoard extends LitElement {
     if (!n || n.mode !== 'confirm') return nothing;
     const on = this.secondNotice.get(a.id) ?? !!n.requested;
     const set = (v: boolean) => { const m = new Map(this.secondNotice); m.set(a.id, v); this.secondNotice = m; };
-    return html`<label class="chk" data-rfq-second-notice><input type="checkbox" data-rfq-second-notice-send .checked=${on} ?disabled=${this.busy}
-        @change=${(e: Event) => set((e.target as HTMLInputElement).checked)} />${rt('anSecondSend')}</label>
+    return html`<label class="chk" data-rfq-second-notice><sw-toggle size="sm" labelHidden in-label label=${rt('anSecondSend')} data-rfq-second-notice-send .checked=${on} ?disabled=${this.busy}
+        @change=${(e: Event) => set(toggled(e))}></sw-toggle>${rt('anSecondSend')}</label>
       ${on && n.requested ? html`<small>${rt('anSecondNote')}</small>` : nothing}`;
   }
 
@@ -583,8 +584,8 @@ export class TicketsRfqBoard extends LitElement {
           <input type="radio" name="bmode" .checked=${this.sendMode === m} ?disabled=${disabled || this.busy} @change=${() => (this.sendMode = m)} /><b>${rt(title)}</b><small>${disabled ? rt('sendPageOff') : rt(sub)}</small></label>`;
         return dlg(rt('sendTitle'), 'send', html`<p class="note">${rt('sendTo', { n })}</p>
           <div class="choice" role="radiogroup" aria-label=${rt('sendTitle')}>${opt('auto', 'sendAuto', 'sendAutoSub', pageOff)}${opt('manual', 'sendManual', 'sendManualSub', false)}</div>
-          ${this.sendMode === 'auto' && d.location ? html`<label class="chk" data-rfq-location-nav><input type="checkbox" .checked=${this.sendNav}
-            ?disabled=${this.busy || !d.location.map_url} @change=${(e: Event) => (this.sendNav = (e.target as HTMLInputElement).checked)} />
+          ${this.sendMode === 'auto' && d.location ? html`<label class="chk" data-rfq-location-nav><sw-toggle size="sm" labelHidden in-label label=${loct('navOn')} .checked=${this.sendNav}
+            ?disabled=${this.busy || !d.location.map_url} @change=${(e: Event) => (this.sendNav = toggled(e))}></sw-toggle>
             <span><b>${loct('navOn')}</b><small>${d.location.map_url ? loct('navOnSub') : loct('navNoCoords')}</small></span></label>` : nothing}
           ${this.sendMode === 'auto' ? html`<pre class="pv" dir=${ticketsLang() === 'en' ? 'ltr' : 'rtl'} data-rfq-send-preview>${pv}</pre>` : nothing}
           ${this.sendFiles(d)}`,
@@ -668,7 +669,7 @@ export class TicketsRfqBoard extends LitElement {
         const quoted = d.vendors.some((v) => v.quote && v.quote.state === 'submitted');
         return dlg(rt('cancelQ'), 'cancel', html`<label class="fld">${rt('cancelReason')}<input class="inp" maxlength="500" data-dlg-reason .value=${this.reason}
             @input=${(e: Event) => (this.reason = (e.target as HTMLInputElement).value)} /></label>
-          ${quoted ? html`<label class="chk"><input type="checkbox" data-cancel-notify .checked=${this.notify} @change=${(e: Event) => (this.notify = (e.target as HTMLInputElement).checked)} />${rt('cancelNotify')}</label>` : nothing}`,
+          ${quoted ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${rt('cancelNotify')} data-cancel-notify .checked=${this.notify} @change=${(e: Event) => (this.notify = toggled(e))}></sw-toggle>${rt('cancelNotify')}</label>` : nothing}`,
           foot(rt('cancelRfq'), 'cancel', () => void this.run(() => ticketsRfqApi().cancel(d.id, d.revision, this.reason.trim() || undefined, quoted && this.notify), rt('cancelled')), false, true));
       }
       case 'delete':

@@ -158,8 +158,8 @@ test.describe('outside contacts - internal screens (slice 4)', () => {
     await page.locator(`${D} [data-assign-kind="person"]`).click();
     // a contact whose own setting requires a code: locked on, and refused while no channel can carry the code (slice 4)
     await page.locator(`${D} [data-contact="c000000000000p02"] input`).check();
-    await expect(page.locator(`${D} [data-require-code]`)).toBeChecked();
-    await expect(page.locator(`${D} [data-require-code]`)).toBeDisabled();
+    await expect(page.locator(`${D} [data-require-code]`)).toHaveAttribute('checked', '');
+    await expect(page.locator(`${D} [data-require-code]`)).toHaveAttribute('disabled', '');
     await expect(page.locator(`${D} [data-refusal="code_channel_unavailable"]`)).toBeVisible();
     await expect(page.locator(`${D} [data-dialog-ok]`)).toBeDisabled();
     // the technician: assigned with the contact kind; the link panel appears

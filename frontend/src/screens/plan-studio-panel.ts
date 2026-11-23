@@ -4,6 +4,7 @@
  * state and passes callbacks; its shadow root provides the shared classes (.row, .two, .note, .btns, .err).
  */
 import { css, html, nothing, type TemplateResult } from 'lit';
+import { toggled } from '../components/sw-toggle';
 import type { CalibrationHint, CopyCandidate, GeometryIssue, IfcImportReport } from '../api/geometry';
 import { OUTSIDE_MAIN_HE, isOutsideMain, outsideMainSummary, type CandidateSet, type CandKind, type CandSource, type CandState, objectsSummary } from '../map/candidates';
 import { connectorTargets, currentTarget, isTwinCopy, otherFloorOf, type LinkTargetFloor } from '../map/connector-targets';
@@ -776,14 +777,14 @@ export function renderDetectPanel(v: DetectView, a: DetectActions): TemplateResu
       ? renderCandidates(v, c, a)
       : html`<div class="note">הזיהוי מציע מועמדים בשכבה נפרדת (כחול מקווקו). דבר לא נשמר עד "אשר", ודבר לא מתפרסם בלי פרסום.</div>
           <div class="chks">
-            <label class="chk"><input type="checkbox" data-detect-walls .checked=${o.walls} @change=${(e: Event) => { const on = (e.target as HTMLInputElement).checked; a.setOpts({ ...o, walls: on, openings: on && o.openings }); }} /> קירות</label>
-            <label class="chk"><input type="checkbox" data-detect-openings .checked=${o.openings} ?disabled=${!o.walls} @change=${(e: Event) => a.setOpts({ ...o, openings: (e.target as HTMLInputElement).checked })} /> פתחים (דלתות, חלונות, מעברים)</label>
-            <label class="chk"><input type="checkbox" data-detect-hollow .checked=${o.hollow !== false} ?disabled=${!o.walls} @change=${(e: Event) => a.setOpts({ ...o, hollow: (e.target as HTMLInputElement).checked })} /> קירות חלולים (חיצוניים דקים)</label>
-            ${DETECT_RULES.map((rule) => html`<label class="chk"><input type="checkbox" data-detect-rule=${rule.attr} .checked=${o[rule.key] !== false} ?disabled=${!o.walls} @change=${(e: Event) => a.setOpts({ ...o, [rule.key]: (e.target as HTMLInputElement).checked })} /> ${rule.label}</label>`)}
+            <label class="chk"><sw-toggle size="sm" labelHidden in-label label="קירות" data-detect-walls .checked=${o.walls} @change=${(e: Event) => { const on = toggled(e); a.setOpts({ ...o, walls: on, openings: on && o.openings }); }}></sw-toggle> קירות</label>
+            <label class="chk"><sw-toggle size="sm" labelHidden in-label label="פתחים (דלתות, חלונות, מעברים)" data-detect-openings .checked=${o.openings} ?disabled=${!o.walls} @change=${(e: Event) => a.setOpts({ ...o, openings: toggled(e) })}></sw-toggle> פתחים (דלתות, חלונות, מעברים)</label>
+            <label class="chk"><sw-toggle size="sm" labelHidden in-label label="קירות חלולים (חיצוניים דקים)" data-detect-hollow .checked=${o.hollow !== false} ?disabled=${!o.walls} @change=${(e: Event) => a.setOpts({ ...o, hollow: toggled(e) })}></sw-toggle> קירות חלולים (חיצוניים דקים)</label>
+            ${DETECT_RULES.map((rule) => html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${rule.label} data-detect-rule=${rule.attr} .checked=${o[rule.key] !== false} ?disabled=${!o.walls} @change=${(e: Event) => a.setOpts({ ...o, [rule.key]: toggled(e) })}></sw-toggle> ${rule.label}</label>`)}
           </div>
           <sw-field label=${`עוצמת ניקוי: ${o.strength.toFixed(2)} (קל ← חזק)`}><input type="range" min="0.3" max="1" step="0.05" data-detect-strength .value=${String(o.strength)}
             @input=${(e: Event) => a.setOpts({ ...o, strength: parseFloat((e.target as HTMLInputElement).value) })} /></sw-field>
-          ${v.autoInDraft ? html`<label class="chk"><input type="checkbox" data-detect-replace .checked=${o.replaceAuto} @change=${(e: Event) => a.setOpts({ ...o, replaceAuto: (e.target as HTMLInputElement).checked })} /> החלף אוטומטיים קודמים (${v.autoInDraft} בטיוטה)</label>` : nothing}
+          ${v.autoInDraft ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label="החלף אוטומטיים קודמים" data-detect-replace .checked=${o.replaceAuto} @change=${(e: Event) => a.setOpts({ ...o, replaceAuto: toggled(e) })}></sw-toggle> החלף אוטומטיים קודמים (${v.autoInDraft} בטיוטה)</label>` : nothing}
           ${v.autoRemovable && a.removeAuto ? renderRemoveAuto(v, a) : nothing}
           <div class="btns">
             <sw-button variant="primary" size="sm" icon="sparkle" data-detect-run aria-busy=${v.run.busy ? 'true' : 'false'} ?disabled=${v.run.busy || !o.walls || v.busy} @click=${() => a.run()}>${v.run.busy ? html`מזהה… <span data-detect-elapsed>${v.run.elapsed}</span> שנ׳` : 'זהה אוטומטית'}</sw-button>
@@ -856,8 +857,8 @@ function renderCandidates(v: DetectView, c: DetectCandidatesView, a: DetectActio
       ${ids.length > CAND_ROWS ? html`<div class="note">מוצגים ${CAND_ROWS} הראשונים ברשימה; במפה מוצגים כולם.</div>` : nothing}
     </div>
     ${sel ? html`<div class="note" data-cand-selected=${sel.id}>${CAND_KIND_LABEL[sel.kind]} נבחר${isOutsideMain(set, sel.id) ? ` · ${OUTSIDE_MAIN_HE}` : ''} · ביטחון ${sel.score.toFixed(2)} · ${candSize(v, set, sel.id)} · ${(c.states[sel.id] ?? 'accepted') === 'accepted' ? 'יאושר' : 'נדחה'}</div>` : nothing}
-    ${set.objects.length ? html`<label class="chk"><input type="checkbox" data-detect-objects .checked=${v.objectsOn} @change=${(e: Event) => a.setObjects((e.target as HTMLInputElement).checked)} /> כולל ${objectsSummary(set, c.source)}</label>` : nothing}
-    ${existing ? html`<label class="chk"><input type="checkbox" data-detect-replace .checked=${v.opts.replaceAuto} @change=${(e: Event) => a.setOpts({ ...v.opts, replaceAuto: (e.target as HTMLInputElement).checked })} /> החלף ${earlier} קודמים (${existing} בטיוטה)</label>` : nothing}
+    ${set.objects.length ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${`כולל ${objectsSummary(set, c.source)}`} data-detect-objects .checked=${v.objectsOn} @change=${(e: Event) => a.setObjects(toggled(e))}></sw-toggle> כולל ${objectsSummary(set, c.source)}</label>` : nothing}
+    ${existing ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${`החלף ${earlier} קודמים`} data-detect-replace .checked=${v.opts.replaceAuto} @change=${(e: Event) => a.setOpts({ ...v.opts, replaceAuto: toggled(e) })}></sw-toggle> החלף ${earlier} קודמים (${existing} בטיוטה)</label>` : nothing}
     ${c.rooms ? html`<div class="btns"><sw-button size="sm" icon="map" data-detect-rooms ?disabled=${v.busy} @click=${() => a.importRooms()}>ייבא ${countLabel(c.rooms, 'חדר אחד', 'חדרים')} כאזורים</sw-button><span class="note">החדרים נשמרים כאזורים, לא כחלק מהמבנה</span></div>` : nothing}
     ${err
       ? html`<div class="err" role="alert" data-detect-accept-error=${err.code}>${err.message}</div>
@@ -1260,7 +1261,7 @@ export function renderGridOptions(v: GridOptionsView, onToggle: (on: boolean) =>
   const label = (m: number, i: number) => (words ? GRID_SIZE_WORDS[i] ?? fmtMetres(m, false) : fmtMetres(m, v.estimated));
   const hint = v.estimated ? 'לפי קנה מידה משוער עד שהתוכנית תכויל' : 'לפי קנה המידה המכויל של התוכנית';
   return html`<div class="gridopts" data-grid-options>
-    <label><input type="checkbox" data-grid-toggle .checked=${v.on} @change=${(e: Event) => onToggle((e.target as HTMLInputElement).checked)} /> רשת עזר</label>
+    <label><sw-toggle size="sm" labelHidden in-label label="רשת עזר" data-grid-toggle .checked=${v.on} @change=${(e: Event) => onToggle(toggled(e))}></sw-toggle> רשת עזר</label>
     <div class="note">גרירה והצבה של עצם נצמדות לצמתי הרשת; Ctrl בזמן הגרירה - בלי הצמדה.</div>
     <sw-field label="מרווח הרשת" hint=${hint}>
       <select data-grid-step ?disabled=${!v.on} @change=${(e: Event) => onStep(Number((e.target as HTMLSelectElement).value))}>
@@ -1441,7 +1442,7 @@ export function renderLevelDialog(v: LevelDialogView, a: LevelDialogActions): Te
       <sw-field label="גובה תקרה (מ׳)"><input type="number" min="0.1" max="50" step="0.1" data-ltr data-level-ceiling .value=${String(v.ceiling)} @input=${(e: Event) => a.change({ ceiling: num(e) })} /></sw-field>
     </div>
     ${editing && v.isDefault ? html`<div class="note" data-level-is-default>זה המפלס הראשי: פריטים חדשים מוצבים בו כשאין סינון מפלס.</div>` : nothing}
-    ${editing && !v.isDefault ? html`<label class="chk"><input type="checkbox" data-level-make-default .checked=${v.makeDefault} @change=${(e: Event) => a.change({ makeDefault: (e.target as HTMLInputElement).checked })} /> הפוך למפלס הראשי</label>` : nothing}
+    ${editing && !v.isDefault ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label="הפוך למפלס הראשי" data-level-make-default .checked=${v.makeDefault} @change=${(e: Event) => a.change({ makeDefault: toggled(e) })}></sw-toggle> הפוך למפלס הראשי</label>` : nothing}
     ${editing ? html`<sw-button slot="footer" variant="danger" icon="trash" data-level-delete @click=${a.remove}>מחק מפלס</sw-button>` : nothing}
     <sw-button slot="footer" variant="ghost" data-level-cancel @click=${a.cancel}>ביטול</sw-button>
     ${editing
@@ -1577,11 +1578,11 @@ function renderStairModel(c: GeomConnector, a: ConnectorActions, num: (e: Event)
           ${shape !== 'straight'
             ? html`<sw-field label="פנייה"><select data-stair-turn @change=${(e: Event) => a.patchStair(c.id, { turn: (e.target as HTMLSelectElement).value as 'left' | 'right' })}>
                 <option value="right" ?selected=${c.turn !== 'left'}>ימינה</option><option value="left" ?selected=${c.turn === 'left'}>שמאלה</option></select></sw-field>`
-            : html`<label class="chk"><input type="checkbox" data-stair-mid .checked=${two} @change=${(e: Event) => {
-                const on = (e.target as HTMLInputElement).checked;
+            : html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label="פודסט באמצע" data-stair-mid .checked=${two} @change=${(e: Event) => {
+                const on = toggled(e);
                 const total = flights.reduce((n, f) => n + f.steps, 0);
                 a.patchStair(c.id, { flights: on ? [{ steps: Math.max(1, Math.ceil(total / 2)) }, { steps: Math.max(1, Math.floor(total / 2)) }] : [{ steps: Math.min(MAX_STAIR_STEPS, total) }] });
-              }} /> פודסט באמצע</label>`}
+              }}></sw-toggle> פודסט באמצע</label>`}
           ${two || shape !== 'straight'
             ? html`<sw-field label="עומק הפודסט (מ׳)"><input type="number" min=${LANDING_RANGE[0]} max=${LANDING_RANGE[1]} step="0.1" data-ltr data-stair-landing .value=${String(c.landing_depth_m ?? c.width_m)}
                 @change=${(e: Event) => { const x = num(e); if (x >= LANDING_RANGE[0] && x <= LANDING_RANGE[1]) a.patchStair(c.id, { landing_depth_m: x }); }} /></sw-field>`

@@ -29,7 +29,7 @@ import type { TableColumn } from '../components/sw-table';
 import { demoGroups, demoRoles, demoUsers, demoAudit } from '../fixtures/catalog';
 import { can, isApi, session } from '../api/session';
 import { doorPermissionNote } from './lock-reason';
-import '../components/sw-toggle';
+import { toggled } from '../components/sw-toggle';
 import { describeError } from '../api/client';
 import { TabsModeController } from '../shell/tabs-mode';
 import { parseRoute, replaceRoute } from '../router';
@@ -1144,8 +1144,8 @@ export class SystemAccess extends LitElement {
         </span>
       </div>
       <div class="perms">${sensitive.map((p) => html`<label class="chk sens"><input type="checkbox" data-role-sensitive=${p} .checked=${e.sensitive.includes(p)} @change=${() => this.toggleRolePerm(p, true)} /> ${roles.labels[p] ?? p}</label>`)}</div>
-      ${!e.id ? html`<label class="chk" style="margin-block-start:6px"><input type="checkbox" data-role-assign-me .checked=${e.assignMe !== false} @change=${(ev: Event) => (this.roleEdit = { ...e, assignMe: (ev.target as HTMLInputElement).checked })} /> ${tr('שייך את התפקיד אליי מיד (כל המתקן)')}</label>` : nothing}
-      <label class="chk" style="margin-block-start:6px"><input type="checkbox" data-role-delegable ?disabled=${e.sensitive.length > 0 || e.permissions.includes('rbac.assign')} .checked=${e.delegable && !e.sensitive.length && !e.permissions.includes('rbac.assign')} @change=${(ev: Event) => (this.roleEdit = { ...e, delegable: (ev.target as HTMLInputElement).checked })} /> ${tr('מנהל אתר רשאי להקצות תפקיד זה בהיקפו (בכפוף להרשאות שהוא מחזיק)')}${e.sensitive.length || e.permissions.includes('rbac.assign') ? html`<span class="hint"> · ${tr('לא זמין: תפקיד עם הרשאה רגישה או עם שיוך תפקידים אינו ניתן להאצלה')}</span>` : nothing}</label>
+      ${!e.id ? html`<label class="chk" style="margin-block-start:6px"><sw-toggle size="sm" labelHidden in-label label=${tr('שייך את התפקיד אליי מיד (כל המתקן)')} data-role-assign-me .checked=${e.assignMe !== false} @change=${(ev: Event) => (this.roleEdit = { ...e, assignMe: toggled(ev) })}></sw-toggle> ${tr('שייך את התפקיד אליי מיד (כל המתקן)')}</label>` : nothing}
+      <label class="chk" style="margin-block-start:6px"><sw-toggle size="sm" labelHidden in-label label=${tr('מנהל אתר רשאי להקצות תפקיד זה בהיקפו (בכפוף להרשאות שהוא מחזיק)')} data-role-delegable ?disabled=${e.sensitive.length > 0 || e.permissions.includes('rbac.assign')} .checked=${e.delegable && !e.sensitive.length && !e.permissions.includes('rbac.assign')} @change=${(ev: Event) => (this.roleEdit = { ...e, delegable: toggled(ev) })}></sw-toggle> ${tr('מנהל אתר רשאי להקצות תפקיד זה בהיקפו (בכפוף להרשאות שהוא מחזיק)')}${e.sensitive.length || e.permissions.includes('rbac.assign') ? html`<span class="hint"> · ${tr('לא זמין: תפקיד עם הרשאה רגישה או עם שיוך תפקידים אינו ניתן להאצלה')}</span>` : nothing}</label>
       ${im
         ? html`<div class="impact" data-role-impact>
             <strong>${tr('השפעת השינוי:')}</strong> ${tr('{n} שיוכים', { n: im.bindings })} · ${tr('{n} משתמשים', { n: im.users.length })}${im.users.length ? ` (${im.users.map((u) => u.name).join(', ')})` : ''}${im.groups.length ? ` · ${tr('{n} קבוצות', { n: im.groups.length })}` : ''}${im.scopes.length ? ` · ${tr('היקפים:')} ${im.scopes.join(', ')}` : ''}

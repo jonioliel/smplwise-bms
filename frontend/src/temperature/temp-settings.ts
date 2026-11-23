@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-icon';
 import { describeError } from '../api/client';
 import { getAlertSettings, getReportLinks, getReportRecipients, getSettings, putAlertSettings, putSettings, revokeAllReportLinks, revokeReportLink, type AlertChannel, type AlertKind,
@@ -74,7 +75,6 @@ export class TempSettings extends LitElement {
     .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-block-end: 1px solid var(--sw-border); font-size: var(--sw-fs-md); font-weight: var(--sw-fw-medium); color: var(--sw-heading); }
     .row input[type='number'] { inline-size: 84px; }
     .row input { min-block-size: 30px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); padding: 0 8px; font: inherit; }
-    .row input[type='checkbox'] { inline-size: 18px; block-size: 18px; accent-color: var(--sw-accent); }
     .row select { min-block-size: 30px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); padding: 0 8px; font: inherit; }
     .row input.idin { inline-size: 140px; direction: ltr; }
     .row input.txtin { inline-size: 100%; min-inline-size: 0; }
@@ -171,7 +171,7 @@ export class TempSettings extends LitElement {
     const max = a.steps_max ?? 4;
     const setStep = (i: number, patch: Partial<Escalation['steps'][number]>) => { this.esc = { ...e, steps: e.steps.map((s, j) => (j === i ? { ...s, ...patch } : s)) }; };
     return html`<div class="kind" data-on=${String(e.enabled)} data-temp-escalation>
-      <label class="sw"><input type="checkbox" .checked=${e.enabled} ?disabled=${ro} @change=${(ev: Event) => { this.esc = { ...e, enabled: (ev.target as HTMLInputElement).checked }; }} /><b>${tt('escTitle')}</b></label>
+      <label class="sw"><sw-toggle size="sm" labelHidden in-label label=${tt('escTitle')} .checked=${e.enabled} ?disabled=${ro} @change=${(ev: Event) => { this.esc = { ...e, enabled: toggled(ev) }; }}></sw-toggle><b>${tt('escTitle')}</b></label>
       <p class="hint" style="margin:0">${tt('escIntro')}</p>
       <div class="body" style="display:grid;gap:8px">
         ${e.steps.map((s, i) => html`<div class="step" data-esc-step=${i}><span>${tt('escStep', { n: i + 1 })}</span>
@@ -217,11 +217,11 @@ export class TempSettings extends LitElement {
     }
   }
 
-  private input(key: string) {
+  private input(key: string, name = '') {
     const spec = this.s?.rule_specs[key];
     const v = this.draft[key];
     if (!spec) return nothing;
-    if (spec.type === 'bool') return html`<input type="checkbox" .checked=${Boolean(v)} data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLInputElement).checked }; }} />`;
+    if (spec.type === 'bool') return html`<sw-toggle size="sm" labelHidden label=${name} .checked=${Boolean(v)} data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: toggled(e) }; }}></sw-toggle>`;
     if (spec.type === 'hhmm') return html`<input type="time" lang=${dateInputLang()} .value=${String(v)} data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLInputElement).value }; }} />`;
     if (spec.type === 'choice') {
       return html`<select data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLSelectElement).value }; }}>
@@ -247,14 +247,14 @@ export class TempSettings extends LitElement {
     if (!this.s) return this.err ? html`<p class="err">${this.err}</p>` : html`<div class="skl" style="block-size:120px"></div>`;
     const a = this.alerts;
     return html`<div class="panel" data-temp-settings><h3>${tt('setTitle')}</h3><p class="hint">${tt('setIntro')}</p>
-        ${GROUPS.map((g) => html`<h4>${tt(g.title)}</h4><div class="grid">${g.keys.filter(([k]) => ticketsEnabled() || !k.startsWith('ticket_')).map(([k, label]) => html`<div class=${k === 'report_link_wa_recipients' || k.startsWith('report_link_wa_text') ? 'row wide' : 'row'}><span>${tt(label)}${label === 'minutes' ? ` (${k.replace(/_/g, ' ')})` : ''}</span>${this.input(k)}</div>`)}${g.title === 'setLink' ? this.linksBlock() : nothing}</div>`)}
+        ${GROUPS.map((g) => html`<h4>${tt(g.title)}</h4><div class="grid">${g.keys.filter(([k]) => ticketsEnabled() || !k.startsWith('ticket_')).map(([k, label]) => html`<div class=${k === 'report_link_wa_recipients' || k.startsWith('report_link_wa_text') ? 'row wide' : 'row'}><span>${tt(label)}${label === 'minutes' ? ` (${k.replace(/_/g, ' ')})` : ''}</span>${this.input(k, tt(label))}</div>`)}${g.title === 'setLink' ? this.linksBlock() : nothing}</div>`)}
         <div class="bar" style="margin-top:12px"><button type="button" class="btn pri" ?disabled=${this.busy} data-temp-settings-save @click=${() => this.save()}>${tt('save')}</button>
           ${this.err ? html`<span class="err" role="alert">${this.err}</span>` : nothing}${this.ok ? html`<span class="okm" role="status">${this.ok}</span>` : nothing}</div></div>
       ${a ? html`<div class="panel" data-temp-alerts><h3>${tt('alertsTitle')}</h3><p class="hint">${tt('alertsIntro')}${a.can_edit ? '' : ` · ${tt('readOnly')}`}</p>
         <div style="display:grid;gap:10px">${a.kinds_order.map((k) => {
           const s = a.kinds[k];
           return html`<div class="kind" data-on=${String(s.enabled)} data-kind=${k}>
-            <label class="sw"><input type="checkbox" .checked=${s.enabled} ?disabled=${!a.can_edit} @change=${(e: Event) => this.saveAlert(k, { enabled: (e.target as HTMLInputElement).checked })} /><b>${tt(KIND_LABEL[k])}</b></label>
+            <label class="sw"><sw-toggle size="sm" labelHidden in-label label=${tt(KIND_LABEL[k])} .checked=${s.enabled} ?disabled=${!a.can_edit} @change=${(e: Event) => this.saveAlert(k, { enabled: toggled(e) })}></sw-toggle><b>${tt(KIND_LABEL[k])}</b></label>
             <div class="body"><div class="opts">${a.roles.map((r) => html`<label class="sw"><input type="checkbox" .checked=${s.recipients.roles.includes(r.id)} ?disabled=${!a.can_edit}
               @change=${(e: Event) => this.saveAlert(k, { recipients: { ...s.recipients, roles: (e.target as HTMLInputElement).checked ? [...s.recipients.roles, r.id] : s.recipients.roles.filter((x) => x !== r.id) } })} />${r.label}</label>`)}</div>
             <div class="opts">${a.channels.map((c) => html`<label class="sw"><input type="checkbox" .checked=${s.channels.includes(c)} ?disabled=${!a.can_edit}

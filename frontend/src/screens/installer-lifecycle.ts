@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-badge';
@@ -269,8 +270,8 @@ export class InstallerLifecycle extends LitElement {
             </select></label>
           ${this.field('port', 'number')}${this.field('rtsp_port', 'number')}
         </div>
-        <label class="opt"><input type="checkbox" .checked=${this.form.verify_ssl === true} ?disabled=${this.busy} data-flow-field="verify_ssl"
-          @change=${(e: Event) => (this.form = { ...this.form, verify_ssl: (e.target as HTMLInputElement).checked })} /><span>${L.fields.verify_ssl}</span></label>`;
+        <label class="opt"><sw-toggle size="sm" labelHidden in-label label=${L.fields.verify_ssl} .checked=${this.form.verify_ssl === true} ?disabled=${this.busy} data-flow-field="verify_ssl"
+          @change=${(e: Event) => (this.form = { ...this.form, verify_ssl: toggled(e) })}></sw-toggle><span>${L.fields.verify_ssl}</span></label>`;
     } else if (step === 'confirm_device') {
       body = html`<div class="hint">${L.device}</div>
         <div class="check"><span>${L.model}</span><span class="val" dir="ltr">${f.device?.model ?? T.none}</span></div>

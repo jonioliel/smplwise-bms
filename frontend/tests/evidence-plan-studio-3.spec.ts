@@ -337,7 +337,7 @@ test.describe.serial('plan studio phase 3 (SW A)', () => {
     await expect.poll(() => distinct(page.locator(cands('wall')))).toBe(7); // six paired walls and the single-line partition
     await expect(page.locator(cands('door'))).toHaveCount(2); // the loose arc and the DOOR90 block on the door layer
     await expect(page.locator(cands('window'))).toHaveCount(1);
-    await expect(page.locator(`${ED} [data-detect-objects]`)).toBeChecked();
+    await expect(page.locator(`${ED} [data-detect-objects]`)).toHaveAttribute('checked', '');
     await expect(page.locator(`${ED} [data-detect-rooms]`)).toContainText('חדר אחד');
     // owner form item 54 (round 9): the button imports the room as a zone of the floor
     const zonesNow = async () => ((await (await api.get(`api/v1/floors/${ids.floor}/zones`)).json()).zones as unknown[]).length;
@@ -381,8 +381,8 @@ test.describe.serial('plan studio phase 3 (SW A)', () => {
     await page.goto('about:blank');
     await openDetect(page);
     // item 44: the panel's controls
-    await expect(page.locator(`${ED} [data-detect-walls]`)).toBeChecked();
-    await expect(page.locator(`${ED} [data-detect-openings]`)).toBeChecked();
+    await expect(page.locator(`${ED} [data-detect-walls]`)).toHaveAttribute('checked', '');
+    await expect(page.locator(`${ED} [data-detect-openings]`)).toHaveAttribute('checked', '');
     await expect(page.locator(`${ED} [data-detect-strength]`)).toBeAttached();
     await expect(page.locator(`${ED} [data-detect-run]`)).toContainText('זהה אוטומטית');
     // item 45: the response is held back 2.5 s in the browser, so the running state can be seen: the button is locked

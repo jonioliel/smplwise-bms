@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-dialog';
 import '../components/sw-icon';
 import '../components/sw-badge';
@@ -165,8 +166,8 @@ export class ElevatorSettings extends LitElement {
     return html`<sw-dialog open wide heading=${d.id ? elt('edit') : elt('add')} data-elevator-dialog @close=${() => (this.draft = null)}>
       <div class="col" style="gap:12px">
         <div class="fld"><label for="elname">${elt('name')}</label><input id="elname" maxlength="60" .value=${d.name} @input=${(e: Event) => this.setDraft({ name: (e.target as HTMLInputElement).value })} /></div>
-        <label class="row"><input type="checkbox" .checked=${d.enabled} @change=${(e: Event) => this.setDraft({ enabled: (e.target as HTMLInputElement).checked })} /> ${elt('enabled')}</label>
-        <label class="row" data-travel-option><input type="checkbox" data-travel-toggle .checked=${d.showTravel} @change=${(e: Event) => this.setDraft({ showTravel: (e.target as HTMLInputElement).checked })} /> ${elt('travelOption')}</label>
+        <label class="row"><sw-toggle size="sm" labelHidden in-label label=${elt('enabled')} .checked=${d.enabled} @change=${(e: Event) => this.setDraft({ enabled: toggled(e) })}></sw-toggle> ${elt('enabled')}</label>
+        <label class="row" data-travel-option><sw-toggle size="sm" labelHidden in-label label=${elt('travelOption')} data-travel-toggle .checked=${d.showTravel} @change=${(e: Event) => this.setDraft({ showTravel: toggled(e) })}></sw-toggle> ${elt('travelOption')}</label>
         <div class="mut">${elt('travelOptionHint')}</div>
         <div class="map" data-roles>${ELEVATOR_ROLES.filter((r) => SHOWN_ROLES.includes(r) || !!d.sensors[r]).map((r) => html`<label for=${`el-${r}`}>${elt(ROLE_LABEL[r])}</label>
           <select id=${`el-${r}`} data-role=${r} @change=${(e: Event) => this.setDraft({ sensors: { ...d.sensors, [r]: (e.target as HTMLSelectElement).value } })}>${this.options(d.sensors[r])}</select>`)}

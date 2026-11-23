@@ -1,6 +1,6 @@
 import { LitElement, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
-import '../components/sw-toggle';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-dialog';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
@@ -211,7 +211,7 @@ export class InsightsSettings extends LitElement {
       <div class="formrow">${ix('pairRex')}<div class="checks scrollbox">${rex.map((d) => html`<label><input type="checkbox" data-pair-rex .checked=${ed.pair.rex_entity_ids.includes(d.entity_id)}
         ?disabled=${!ed.pair.rex_entity_ids.includes(d.entity_id) && ed.pair.rex_entity_ids.length >= 4}
         @change=${() => set({ rex_entity_ids: this.toggleIn(ed.pair.rex_entity_ids, d.entity_id) })} />${label(d)}</label>`)}</div></div>
-      <label class="checks"><span><input type="checkbox" data-pair-invert .checked=${ed.pair.invert} @change=${(e: Event) => set({ invert: (e.target as HTMLInputElement).checked })} /> ${ix('pairInvert')}</span></label>
+      <label class="checks"><span><sw-toggle size="sm" labelHidden in-label label=${ix('pairInvert')} data-pair-invert .checked=${ed.pair.invert} @change=${(e: Event) => set({ invert: toggled(e) })}></sw-toggle> ${ix('pairInvert')}</span></label>
       <div slot="footer" class="row"><button class="btn pri" data-pair-ok ?disabled=${!ok} @click=${() => {
         const f = this.form!;
         const pairs = ed.index < 0 ? [...f.pairs, ed.pair] : f.pairs.map((p, i) => (i === ed.index ? ed.pair : p));

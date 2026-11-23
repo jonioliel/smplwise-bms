@@ -1,5 +1,6 @@
 import { LitElement, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
@@ -193,8 +194,8 @@ export class NoticeCompose extends LitElement {
     if (d.status === 'published' || d.status === 'archived') return nothing;
     const p = pushState(d, this.pushDefault, this.canPush);
     return html`<div class="fld" data-push-row><span class="lbl">${nt('pushTick')}</span>
-      <label class="ck"><input type="checkbox" data-push .checked=${p.checked} ?disabled=${p.disabled}
-        @change=${(e: Event) => this.set({ push: (e.target as HTMLInputElement).checked })}>${nt('pushTick')}</label>
+      <label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('pushTick')} data-push .checked=${p.checked} ?disabled=${p.disabled}
+        @change=${(e: Event) => this.set({ push: toggled(e) })}></sw-toggle>${nt('pushTick')}</label>
       <span class="hint">${d.aud === 'tv' ? nt('pushTv') : !this.canPush ? nt('pushNoPerm') : nt('pushHint')}</span></div>`;
   }
 
@@ -213,13 +214,13 @@ export class NoticeCompose extends LitElement {
           <div class="r">
             <div class="fld"><span class="lbl">${nt('fSeverity')}</span><sw-segmented label=${nt('fSeverity')} data-sev value=${d.severity} @change=${(e: CustomEvent<SegmentedChange>) => this.set({ severity: e.detail.value as typeof d.severity })}
               .options=${sevs.map((s) => ({ value: s, label: nt(SEV_KEY[s]) }))}></sw-segmented></div>
-            <div class="fld"><span class="lbl">&nbsp;</span><label class="ck"><input type="checkbox" .checked=${d.pinned} @change=${(e: Event) => this.set({ pinned: (e.target as HTMLInputElement).checked })}>${nt('fPinned')}</label></div>
+            <div class="fld"><span class="lbl">&nbsp;</span><label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('fPinned')} .checked=${d.pinned} @change=${(e: Event) => this.set({ pinned: toggled(e) })}></sw-toggle>${nt('fPinned')}</label></div>
           </div>
           <div class="r">
             <div class="fld"><label for="nt-from">${nt('fFrom')}</label><input id="nt-from" class="inp num" type="datetime-local" lang=${dateInputLang()} .value=${d.from} @input=${(e: Event) => this.set({ from: (e.target as HTMLInputElement).value })}></div>
             <div class="fld"><label for="nt-to">${nt('fTo')}</label><input id="nt-to" class="inp num" type="datetime-local" lang=${dateInputLang()} ?disabled=${d.untilArchived} .value=${d.to} @input=${(e: Event) => this.set({ to: (e.target as HTMLInputElement).value })}>
               ${d.severity === 'critical' ? html`<span class="hint">${nt('criticalNeedsEnd')}</span>`
-                : html`<label class="ck"><input type="checkbox" .checked=${d.untilArchived} @change=${(e: Event) => this.set({ untilArchived: (e.target as HTMLInputElement).checked })}>${nt('fUntilArchived')}</label>`}</div>
+                : html`<label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('fUntilArchived')} .checked=${d.untilArchived} @change=${(e: Event) => this.set({ untilArchived: toggled(e) })}></sw-toggle>${nt('fUntilArchived')}</label>`}</div>
           </div>
           <div class="r">
             <div class="fld"><label for="nt-dwell">${nt('fDwell')}</label><input id="nt-dwell" class="inp short num" type="number" min="3" max="600" .value=${d.dwell} @input=${(e: Event) => this.set({ dwell: (e.target as HTMLInputElement).value })}><span class="hint">${nt('fDwellHint')}</span></div>

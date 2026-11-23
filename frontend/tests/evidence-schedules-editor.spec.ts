@@ -301,11 +301,11 @@ test.describe('day view, the slot panel, phone', () => {
     const first = editor(page).locator('sw-schedule-grid .slot').first();
     await first.click();
     // the companion of a cover slot does not exist (no off counterpart): the helper is not offered
-    await expect(editor(page).locator('schedule-slot-panel sw-toggle')).toHaveCount(0);
+    await expect(editor(page).locator('schedule-slot-panel sw-toggle:not([size="sm"])')).toHaveCount(0); // the small switches of the bool fields (HAND-SWITCH-2480) are not the helper
     await mount(page, '4d6e0a');
     await editor(page).locator('[data-view-btn="day"]').click();
     await editor(page).locator('sw-schedule-grid .slot').first().click();
-    const toggle = editor(page).locator('schedule-slot-panel sw-toggle');
+    const toggle = editor(page).locator('schedule-slot-panel sw-toggle:not([size="sm"])');
     await expect(toggle).toHaveCount(1);
     await expect(toggle).toHaveAttribute('checked', '');
     await toggle.locator('button').click(); // remove the paired off pin
@@ -384,7 +384,7 @@ test.describe('conditions', () => {
     await expect(cond.locator('[data-cond-type="and"]')).toHaveAttribute('aria-pressed', 'true');
     await cond.locator('[data-cond-type="or"]').click();
     await expect(cond.locator('[data-cond-type="or"]')).toHaveAttribute('aria-pressed', 'true');
-    await cond.locator('[data-cond-track]').check();
+    await cond.locator('[data-cond-track]').click();
     // no window end on the off pin: the tracking warning appears
     await expect(cond.locator('[data-cond-warnings]')).toContainText('שעת סיום');
     // removing the preset condition clears it and the preset chip
@@ -427,7 +427,7 @@ test.describe('sensitive schedules', () => {
     await expect(dialog.locator('[data-lowering-warning]')).toContainText('שער חניה');
     await expect(dialog.locator('[data-lowering-ok]')).toHaveAttribute('disabled', '');
     await shot(page, 'editor-lowering-1440');
-    await dialog.locator('[data-lowering-ack]').check();
+    await dialog.locator('[data-lowering-ack]').click();
     await expect(dialog.locator('[data-lowering-ok]')).not.toHaveAttribute('disabled', '');
     await dialog.locator('[data-lowering-ok]').click();
     await expect(editor(page).locator('[data-note]')).toContainText('נשמרו');
@@ -852,7 +852,7 @@ test.describe('S3 integration: the routes and the shared dialog', () => {
     const dlg = page.locator('schedule-lowering-dialog');
     await expect(dlg.locator('[data-lowering-warning]')).toContainText('השחזור יחזיר תזמון שמנטרל אזעקה');
     await expect(dlg.locator('[data-lowering-code]')).toBeVisible();
-    await dlg.locator('[data-lowering-ack]').check();
+    await dlg.locator('[data-lowering-ack]').click();
     await expect(dlg.locator('[data-lowering-ok]')).toHaveAttribute('disabled', ''); // the code is still missing
     await dlg.locator('[data-lowering-code]').fill('1234');
     await dlg.locator('[data-lowering-ok]').click();

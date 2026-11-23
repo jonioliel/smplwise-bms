@@ -88,7 +88,7 @@ test.describe('the intercom installer: clock', () => {
     await page.locator(`${CLOCK} [data-typed]`).fill('שער');
     await expect(page.locator(`${CLOCK} [data-confirm-send]`)).toHaveAttribute('disabled', '');
     await page.locator(`${CLOCK} [data-typed]`).fill('שער ראשי');
-    await page.locator(`${CLOCK} [data-copy-system]`).check();
+    await page.locator(`${CLOCK} [data-copy-system]`).click();
     await page.locator(`${CLOCK} [data-confirm-send]`).click();
     await expect(page.locator(`${CLOCK} [data-flash]`)).toContainText('מאומת');
     expect(m.writes).toHaveLength(1);
@@ -193,7 +193,7 @@ test.describe('the intercom installer: station technical settings', () => {
   test('a relay inversion warns and needs the typed station name', async ({ page }) => {
     const m = newInstallerMock();
     await openTech(page, m);
-    await page.locator(`${TECH} sw-card[data-door="1"] [data-field="relayReverseEnabled"]`).check();
+    await page.locator(`${TECH} sw-card[data-door="1"] [data-field="relayReverseEnabled"]`).click();
     await expect(page.locator(`${TECH} sw-card[data-door="1"] .msg.warn`)).toBeVisible();
     await page.locator(`${TECH} [data-door-save]`).click();
     await expect(page.locator(`${TECH} [data-confirm-send]`)).toHaveAttribute('disabled', '');
@@ -225,7 +225,7 @@ test.describe('the intercom installer: station technical settings', () => {
 
   test('classic is pixel-stable: the relay-inversion confirmation', async ({ page }, info) => {
     await openTech(page, newInstallerMock());
-    await page.locator(`${TECH} sw-card[data-door="1"] [data-field="relayReverseEnabled"]`).check();
+    await page.locator(`${TECH} sw-card[data-door="1"] [data-field="relayReverseEnabled"]`).click();
     await page.locator(`${TECH} [data-door-save]`).click();
     await page.waitForSelector(`${TECH} [data-typed]`);
     await settlePage(page);

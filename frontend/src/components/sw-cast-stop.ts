@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from './sw-toggle';
 import './sw-icon';
 import { castStop, type CastSession, type CastStopResult } from '../api/cast';
 import { describeError } from '../api/client';
@@ -115,7 +116,7 @@ export class SwCastStop extends LitElement {
     if (!s || !s.can.stop) return nothing;
     if (this.confirming) {
       return html`<div class="confirm" role="group" aria-label=${t('cast.stopTitle')} data-cast-stop-confirm>
-        <label><input type="checkbox" data-cast-stop-off .checked=${this.off} @change=${(e: Event) => (this.off = (e.target as HTMLInputElement).checked)} />${t('cast.stopOff')}</label>
+        <label><sw-toggle size="sm" labelHidden in-label label=${t('cast.stopOff')} data-cast-stop-off .checked=${this.off} @change=${(e: Event) => (this.off = toggled(e))}></sw-toggle>${t('cast.stopOff')}</label>
         <span class="hint">${t('cast.stopOffHint')}</span>
         <button class="stop" type="button" data-cast-stop-yes ?disabled=${this.busy} @click=${() => void this.run()}>${t('cast.stopYes')}</button>
         <button type="button" data-cast-stop-keep ?disabled=${this.busy} @click=${() => (this.confirming = false)}>${t('cast.stopKeep')}</button>

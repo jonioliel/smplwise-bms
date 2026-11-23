@@ -1,6 +1,7 @@
 import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-card';
 import '../components/sw-badge';
 import '../components/sw-button';
@@ -360,7 +361,7 @@ export class SystemWiskeyPairing extends LitElement {
       <div class="dlg">
         <div>${tr('Arx ייצור קוד צימוד חדש. עד שהגשר יקבל אותו, פעולות דרך הגשר (פתיחת דלת, פעולות בהתקנים, רשימת המשתמשים) ו־WisKey לא יעבדו, וכל אישור קליטת כרטיס פתוח יבוטל.')}</div>
         <div>${d.repair.announce ? tr('הקוד יישלח לגשר אוטומטית; ייתכן שתופיע בקשת אישור בתשתית המערכת.') : tr('בהתקנה הזו הקוד לא נשלח אוטומטית: יוצגו כאן הקוד והשלבים להזנתו בגשר.')}</div>
-        <label class="chk"><input type="checkbox" data-wkp-pause .checked=${this.pauseRotation} @change=${(e: Event) => (this.pauseRotation = (e.target as HTMLInputElement).checked)} />
+        <label class="chk"><sw-toggle size="sm" labelHidden in-label label=${tr('לכבות גם את החלפת מפתח הגשר (מומלץ: החלפה מנתקת את WisKey)')} data-wkp-pause .checked=${this.pauseRotation} @change=${(e: Event) => (this.pauseRotation = toggled(e))}></sw-toggle>
           <span>${tr('לכבות גם את החלפת מפתח הגשר (מומלץ: החלפה מנתקת את WisKey)')}</span></label>
         ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
       </div>

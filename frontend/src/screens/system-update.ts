@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import { settingsLadderStyles } from '../styles/settings';
 import '../components/sw-page';
 import '../components/sw-segmented';
@@ -197,7 +198,7 @@ export class SystemUpdate extends LitElement {
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
     }
-    /* the checkbox row is one 44 px target: the native input covers the whole row (invisible), the box is drawn beside the text */
+    /* the backup row is one 44 px target: a press on the row flips its switch (HAND-SWITCH-2480: was a drawn check box) */
     .chk {
       position: relative;
       display: flex;
@@ -206,44 +207,6 @@ export class SystemUpdate extends LitElement {
       min-block-size: 44px;
       cursor: pointer;
       font-size: var(--sw-fs-md);
-    }
-    .chk input {
-      position: absolute;
-      inset: 0;
-      inline-size: 100%;
-      block-size: 100%;
-      margin: 0;
-      opacity: 0;
-      cursor: pointer;
-    }
-    .chk .box {
-      flex: none;
-      display: grid;
-      place-items: center;
-      inline-size: 22px;
-      block-size: 22px;
-      border: 2px solid var(--sw-border-strong);
-      border-radius: var(--sw-r-xs);
-      background: var(--sw-surface);
-    }
-    .chk input:checked + .box {
-      background: var(--sw-accent);
-      border-color: var(--sw-accent);
-    }
-    .chk input:checked + .box::after {
-      content: '';
-      inline-size: 6px;
-      block-size: 11px;
-      border: solid var(--sw-text-inverse);
-      border-width: 0 2px 2px 0;
-      transform: translateY(-1px) rotate(45deg);
-    }
-    .chk input:focus-visible + .box {
-      outline: var(--sw-focus-w) solid var(--sw-focus);
-      outline-offset: 2px;
-    }
-    .chk input:disabled + .box {
-      opacity: var(--sw-disabled-opacity);
     }
     /* touch layouts: every button of this screen is a 44 px target (the inner button stretches to the host) */
     @media (max-width: 1100px) {
@@ -452,7 +415,7 @@ export class SystemUpdate extends LitElement {
       <div class="col">
         <div class="msg ver-line" data-update-dialog-versions>${tr('מגרסה')} <span class="ver">${d.installed ?? '—'}</span> ${tr('לגרסה')} <span class="ver">${d.latest ?? '—'}</span></div>
         <div class="msg">${tr('המערכת לא תהיה זמינה כמה דקות')}</div>
-        <label class="chk"><input type="checkbox" data-update-backup .checked=${this.backup} ?disabled=${this.applying} @change=${(e: Event) => (this.backup = (e.target as HTMLInputElement).checked)} /><span class="box" aria-hidden="true"></span><span>${tr('צור גיבוי לפני העדכון')}</span></label>
+        <label class="chk"><sw-toggle size="sm" labelHidden in-label label=${tr('צור גיבוי לפני העדכון')} data-update-backup .checked=${this.backup} ?disabled=${this.applying} @change=${(e: Event) => (this.backup = toggled(e))}></sw-toggle><span>${tr('צור גיבוי לפני העדכון')}</span></label>
         ${this.applyError ? html`<p class="msg err" role="alert" data-update-apply-error>${this.applyError}</p>` : nothing}
       </div>
       <div slot="footer">

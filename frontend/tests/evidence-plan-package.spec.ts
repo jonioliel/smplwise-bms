@@ -132,9 +132,9 @@ test.describe('fixture: the import dialog', () => {
     const confirm = dlg.locator('[data-pkg-confirm] button');
     await expect(confirm).toBeDisabled();
     await page.screenshot({ path: path.join(OUT, `dialog-foreign-gate-${info.project.name}.png`) });
-    await dlg.locator('[data-pkg-accept-foreign]').check();
+    await dlg.locator('[data-pkg-accept-foreign]').click();
     await expect(dlg.locator('[data-pkg-other-drawing]')).toBeVisible();
-    await expect(dlg.locator('[data-pkg-accept-foreign]')).toBeChecked();
+    await expect(dlg.locator('[data-pkg-accept-foreign]')).toHaveAttribute('checked', '');
     expect(calls.preview).toEqual(['?mode=replace', '?mode=replace&accept_foreign=true']);
     await expect(confirm).toBeEnabled();
     await noOverflow(page);

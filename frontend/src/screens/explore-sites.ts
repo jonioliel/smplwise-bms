@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-page';
 import '../components/sw-card';
 import '../components/sw-badge';
@@ -556,7 +557,7 @@ export class ExploreSites extends LitElement {
                 <sw-field label=${tr('שם')}><input data-form-name .value=${this.formName} @input=${(e: Event) => (this.formName = (e.target as HTMLInputElement).value)} placeholder=${d.kind === 'site' || d.kind === 'edit-site' ? tr('למשל: משרדי החברה') : tr('למשל: מבנה ראשי')} /></sw-field>
                 ${d.kind === 'site' || d.kind === 'edit-site' ? html`<sw-field label=${tr('כתובת (אופציונלי)')}><input data-form-address .value=${this.formAddress} @input=${(e: Event) => (this.formAddress = (e.target as HTMLInputElement).value)} /></sw-field>` : nothing}
                 ${d.kind === 'edit-building' && this.multiOn
-                  ? html`<label class="shared-flag" data-form-shared><input type="checkbox" .checked=${this.formShared} @change=${(e: Event) => (this.formShared = (e.target as HTMLInputElement).checked)} /><span><b>${tr('בניין משותף')}</b><small>${tr('חניון, חדר חשמל, גינה - מוצג אחרון במסך הראשי ולא מסומן ב"כבה הכל באתר"')}</small></span></label>`
+                  ? html`<label class="shared-flag" data-form-shared><sw-toggle size="sm" labelHidden in-label label=${tr('בניין משותף')} .checked=${this.formShared} @change=${(e: Event) => (this.formShared = toggled(e))}></sw-toggle><span><b>${tr('בניין משותף')}</b><small>${tr('חניון, חדר חשמל, גינה - מוצג אחרון במסך הראשי ולא מסומן ב"כבה הכל באתר"')}</small></span></label>`
                   : nothing}
                 ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
                 ${tree.source === 'demo' ? html`<div class="err">${tr('נתוני הדגמה: אין שרת מחובר, השינוי לא יישמר.')}</div>` : nothing}

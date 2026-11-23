@@ -1,5 +1,6 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-icon';
 import { ApiError, describeError } from '../api/client';
@@ -135,7 +136,7 @@ export class NoticeNewsSources extends LitElement {
       <input class="inp ltr url" data-ns-url .value=${r.url} placeholder="https://" aria-label=${nt('nsUrl')} @input=${(e: Event) => this.set(i, { url: (e.target as HTMLInputElement).value })}>
       <div class="tools">
         ${r.custom ? html`<span class="chip">${nt('nsCustomTag')}</span>` : nothing}
-        <label class="ck"><input type="checkbox" data-ns-on .checked=${r.enabled} @change=${(e: Event) => this.set(i, { enabled: (e.target as HTMLInputElement).checked })}>${nt('nsEnabled')}</label>
+        <label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('nsEnabled')} data-ns-on .checked=${r.enabled} @change=${(e: Event) => this.set(i, { enabled: toggled(e) })}></sw-toggle>${nt('nsEnabled')}</label>
         <span class="sp"></span>
         <button class="ib" type="button" data-ns-logo-btn ?disabled=${!canLogo} title=${r.id ? label : nt('nsLogoSaveFirst')} aria-label=${label}
           @click=${(e: Event) => ((e.currentTarget as HTMLElement).nextElementSibling as HTMLInputElement).click()}><sw-icon name="upload" size="14"></sw-icon></button>

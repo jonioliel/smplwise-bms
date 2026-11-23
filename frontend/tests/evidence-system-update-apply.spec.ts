@@ -50,7 +50,7 @@ async function apply(page: Page, mock: UpdateMock, backup = true) {
   await expect(root(page).locator('[data-update-apply]')).toBeVisible({ timeout: 15000 });
   await root(page).locator('[data-update-apply]').click();
   await expect(root(page).locator('[data-update-dialog]')).toHaveAttribute('open', '');
-  if (!backup) await root(page).locator('[data-update-backup]').uncheck();
+  if (!backup) await root(page).locator('[data-update-backup]').click();
   await root(page).locator('[data-update-confirm]').click();
   await expect(run(page)).toBeVisible();
   expect(mock.applyBodies.length).toBe(1);
@@ -68,7 +68,7 @@ test.describe('apply: the confirmation (CR-021 S3)', () => {
     await expect(dlg.locator('[data-update-dialog-versions]')).toContainText('0.1.156');
     await expect(dlg.locator('[data-update-dialog-versions]')).toContainText('0.1.157');
     await expect(dlg).toContainText('המערכת לא תהיה זמינה כמה דקות');
-    await expect(dlg.locator('[data-update-backup]')).toBeChecked();
+    await expect(dlg.locator('[data-update-backup]')).toHaveAttribute('checked', '');
     await expect(dlg).toContainText('צור גיבוי לפני העדכון');
     await expect(dlg.locator('input[type="text"], input:not([type="checkbox"]), textarea')).toHaveCount(0);
     await expect(dlg.locator('[data-update-confirm]')).toContainText('עדכן עכשיו');

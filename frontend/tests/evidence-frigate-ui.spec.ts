@@ -150,7 +150,8 @@ test.describe('review: the restyled screen', () => {
     const sup = dlg.locator('[data-review-export-supervised]');
     await expect(sup).toBeVisible();
     await expect(dlg.locator('[data-review-export-ok]')).toHaveAttribute('disabled', '');
-    await sup.check();
+    await sup.click();
+    await expect(sup).toHaveAttribute('checked', '');
     await shot(page, 'review-export');
     await dlg.locator('[data-review-export-ok]').click();
     await expect.poll(() => writes(m, 'POST frigate/nvr-2/exports').length).toBe(1);
@@ -276,7 +277,7 @@ test.describe('settings: the Frigate management card', () => {
     const dlg = page.locator('[data-auto-confirm]');
     await expect(dlg.locator('[data-auto-apply-ok]')).toBeVisible();
     await expect(dlg.locator('[data-auto-apply-ok]')).toHaveAttribute('disabled', ''); // the supervision box first
-    await dlg.locator('[data-supervised-box="profile_auto"] input').check();
+    await dlg.locator('[data-supervised-box="profile_auto"] sw-toggle').click();
     await shot(page, 'settings-auto-apply');
     await dlg.locator('[data-auto-apply-ok]').click();
     await expect.poll(() => writes(m, 'profile-auto/au1/apply').length).toBe(1);
@@ -363,8 +364,8 @@ test.describe('settings: the Frigate management card', () => {
     await dlg.locator('[data-fx-name]').fill('ראשון');
     await expect(dlg.locator('[data-supervised-box="export_create"]')).toBeVisible();
     await expect(dlg.locator('[data-fx-create-ok]')).toHaveAttribute('disabled', '');
-    await dlg.locator('[data-supervised-box="export_create"] input').check();
-    await expect(dlg.locator('[data-supervised-box="export_create"] input')).toBeChecked();
+    await dlg.locator('[data-supervised-box="export_create"] sw-toggle').click();
+    await expect(dlg.locator('[data-supervised-box="export_create"] sw-toggle')).toHaveAttribute('checked', '');
     await expect(dlg.locator('[data-fx-create-ok]')).not.toHaveAttribute('disabled', '');
     await dlg.locator('[data-fx-create-ok]').click();
     await expect.poll(() => writes(m, 'POST frigate/nvr-2/exports').length).toBe(1);
@@ -412,7 +413,7 @@ test.describe('settings: the Frigate management card', () => {
     await panel.locator('[data-fe-duration]').fill('900');
     await panel.locator('[data-fe-create]').click();
     await expect(panel.locator('[data-fe-error]')).toHaveText('משך בין 1 ל־600 שניות');
-    await panel.locator('[data-fe-open]').check();
+    await panel.locator('[data-fe-open]').click();
     await panel.locator('[data-fe-sub-label]').fill('טכנאי');
     await noOverflow(page);
     await shot(page, 'settings-events', 'light');
@@ -444,7 +445,7 @@ test.describe('settings: the Frigate management card', () => {
     await expect(panel.locator('[data-fs-kind="export_create"]')).toHaveAttribute('data-done', 'true');
     await expect(panel.locator('[data-fs-kind="clip_read"]')).toHaveAttribute('data-done', 'false');
     await expect(panel.locator('[data-fs-open]')).toHaveAttribute('disabled', ''); // the supervision box first
-    await panel.locator('[data-supervised-box="clip_read"] input').check();
+    await panel.locator('[data-supervised-box="clip_read"] sw-toggle').click();
     await panel.locator('[data-fs-start]').fill('2026-10-06T08:00');
     await panel.locator('[data-fs-end]').fill('2026-10-06T09:30'); // over an hour
     await panel.locator('[data-fs-open]').click();

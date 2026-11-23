@@ -172,7 +172,7 @@ class ArrivalCard {
     const hours = h('select', { class: 'input', attrs: { 'data-arrival-hours': true, 'aria-label': this.t('hours') },
       on: { change: (e) => this.set({ hours: (e.target as HTMLSelectElement).value }) } });
     for (const x of v.hours) hours.appendChild(h('option', { attrs: { value: x, selected: x === d.hours, dir: 'ltr' } }, x === '00:00-24:00' ? this.t('allDay') : x));
-    const ack = h('label', { class: 'arr-ack' }, h('input', { attrs: { type: 'checkbox', checked: d.ack, 'data-arrival-ack': true },
+    const ack = h('label', { class: 'arr-ack' }, h('input', { attrs: { type: 'checkbox', role: 'switch', checked: d.ack, 'data-arrival-ack': true },
       on: { change: (e) => this.set({ ack: (e.target as HTMLInputElement).checked }, true) } }), h('span', { attrs: { dir: 'auto' } }, v.notice.attest));
     return [
       h('p', { class: 'msg-body start' }, this.t('lead')),

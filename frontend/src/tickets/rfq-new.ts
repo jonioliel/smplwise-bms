@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-drawer';
 import '../components/sw-dialog';
@@ -207,8 +208,8 @@ export class TicketsRfqNew extends LitElement {
         ${v && options ? html`<sw-segmented radio size="sm" labels="none" label=${rt('chTitle')} data-rfq-channel=${c.id} value=${ch}
             @change=${(e: CustomEvent<SegmentedChange>) => this.setVendorOpt(c.id, { channel: e.detail.value as RfqChannel })}
             .options=${CHANNELS.map((x) => ({ value: x, label: rt(`ch_${x}`), icon: this.chIcon(x), disabled: !this.channelOk(c, x) || this.busy, attrs: { 'data-ch': x } }))}></sw-segmented>
-          <label class="chk" data-rfq-code=${c.id}><input type="checkbox" .checked=${code} ?disabled=${c.require_code || this.busy}
-            @change=${(e: Event) => this.setVendorOpt(c.id, { require_code: (e.target as HTMLInputElement).checked })} />${rt('codeOn')}</label>`
+          <label class="chk" data-rfq-code=${c.id}><sw-toggle size="sm" labelHidden in-label label=${rt('codeOn')} .checked=${code} ?disabled=${c.require_code || this.busy}
+            @change=${(e: Event) => this.setVendorOpt(c.id, { require_code: toggled(e) })}></sw-toggle>${rt('codeOn')}</label>`
         : html`<span class="chan" data-rfq-channel-ro=${ch}>${this.chIcon(ch)}${rt(`ch_${ch}`)}</span>${code ? html`<span class="chip" data-rfq-code-ro>${tIcon('lock')}${rt('codeOn')}</span>` : nothing}`}
       </div>
     </div>`;
@@ -454,8 +455,8 @@ export class TicketsRfqNew extends LitElement {
           ${opt('manual', 'sendManual', 'sendManualSub', false)}
         </div>
         ${this.mode === 'auto' && this.d.location_pick && this.d.location_pick !== OTHER ? html`<label class="chk" data-rfq-location-nav>
-            <input type="checkbox" .checked=${!!this.d.location_nav} ?disabled=${this.busy || !navAvailable(this.locs, this.d.location_pick)}
-              @change=${(e: Event) => this.set('location_nav', (e.target as HTMLInputElement).checked)} />
+            <sw-toggle size="sm" labelHidden in-label label=${loct('navOn')} .checked=${!!this.d.location_nav} ?disabled=${this.busy || !navAvailable(this.locs, this.d.location_pick)}
+              @change=${(e: Event) => this.set('location_nav', toggled(e))}></sw-toggle>
             <span><b>${loct('navOn')}</b><small>${navAvailable(this.locs, this.d.location_pick) ? loct('navOnSub') : loct('navNoCoords')}</small></span></label>` : nothing}
         ${this.mode === 'auto' ? html`<pre class="pv" dir=${ticketsLang() === 'en' ? 'ltr' : 'rtl'} data-rfq-send-preview>${this.preview()}</pre>` : nothing}
         ${this.sendFiles()}

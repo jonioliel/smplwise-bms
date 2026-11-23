@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import { classMap } from 'lit/directives/class-map.js';
 import { repeat } from 'lit/directives/repeat.js';
 import type { GroupBy, MediaDevice, MediaLayout, Size } from '../api/media-screens';
@@ -274,7 +275,7 @@ export class MultimediaEditPanel extends LitElement {
       @dragend=${() => (this.drag = '')} @dragover=${(e: DragEvent) => this.drag && e.preventDefault()} @drop=${(e: DragEvent) => this.onDrop(e, d.key)}>
       <div class="l1">
         <span class="grip" aria-hidden="true">${mIcon('grip')}</span>
-        <label class="check"><input type="checkbox" data-mm-on=${d.key} .checked=${c.on} aria-label=${tr('הצג {name}', { name: d.name })} @change=${(e: Event) => this.change(setCard(l, d.key, { on: (e.target as HTMLInputElement).checked }))} /><b>${nameText(bidi(d.name))}</b>${d.area_name ? html`<small>${nameText(bidi(d.area_name))}</small>` : nothing}</label>
+        <label class="check"><sw-toggle size="sm" labelHidden in-label data-mm-on=${d.key} .checked=${c.on} label=${tr('הצג {name}', { name: d.name })} @change=${(e: Event) => this.change(setCard(l, d.key, { on: toggled(e) }))}></sw-toggle><b>${nameText(bidi(d.name))}</b>${d.area_name ? html`<small>${nameText(bidi(d.area_name))}</small>` : nothing}</label>
         <span class="sp"></span>
         <button type="button" class="ib" data-mm-up ?disabled=${index === 0} aria-label=${tr('הקדם את {name}', { name: d.name })} title=${tr('הקדם')} @click=${() => this.move(d.key, -1)}>${mIcon('arrowUp')}</button>
         <button type="button" class="ib" data-mm-down ?disabled=${index === count - 1} aria-label=${tr('אחר את {name}', { name: d.name })} title=${tr('אחר')} @click=${() => this.move(d.key, 1)}>${mIcon('arrowDown')}</button>
@@ -289,7 +290,7 @@ export class MultimediaEditPanel extends LitElement {
       </div>
       ${personal || this.simple || !open ? nothing : html`<div class="phone" data-mm-phone=${d.key}>
         <span class="pl">${tr('בנייד')}</span>
-        <label class="check"><input type="checkbox" data-mm-phone-on=${d.key} .checked=${phoneOn} aria-label=${tr('הצג בנייד: {name}', { name: d.name })} @change=${(e: Event) => { const v = (e.target as HTMLInputElement).checked; this.change(setCard(l, d.key, { phone_on: v === c.on ? null : v })); }} />${tr('הצג')}</label>
+        <label class="check"><sw-toggle size="sm" labelHidden in-label data-mm-phone-on=${d.key} .checked=${phoneOn} label=${tr('הצג בנייד: {name}', { name: d.name })} @change=${(e: Event) => { const v = toggled(e); this.change(setCard(l, d.key, { phone_on: v === c.on ? null : v })); }}></sw-toggle>${tr('הצג')}</label>
         <select data-mm-phone-size=${d.key} aria-label=${tr('גודל בנייד: {name}', { name: d.name })} ?disabled=${!phoneOn} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; this.change(setCard(l, d.key, { phone_size: v === 's' || v === 'm' ? v : null })); }}>
           <option value="" ?selected=${!c.phone_size}>${tr('אוטומטי ({size})', { size: SIZE_LABEL[c.size === 'l' ? 'm' : c.size] })}</option>
           <option value="s" ?selected=${c.phone_size === 's'}>${SIZE_LABEL.s}</option><option value="m" ?selected=${c.phone_size === 'm'}>${SIZE_LABEL.m}</option>

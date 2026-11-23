@@ -140,9 +140,9 @@ test.describe.serial('plan studio (SW A)', () => {
     await expect(walls).toHaveCount(3, { timeout: 20000 });
     await expect(image).toHaveCount(1);
     await page.locator(`${ed} [data-tool="layers"]`).click();
-    const box = page.locator(`${ed} .layerlist input[data-plan-background]`);
-    await expect(box).toBeChecked();
-    await box.uncheck();
+    const box = page.locator(`${ed} .layerlist sw-toggle[data-plan-background]`);
+    await expect(box).toHaveAttribute('checked', '');
+    await box.click();
     await expect(image).toHaveCount(0);
     await expect(sheet).toHaveCount(1);
     await expect(walls).toHaveCount(3);
@@ -158,8 +158,8 @@ test.describe.serial('plan studio (SW A)', () => {
     await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
     await expect(walls).toHaveCount(3, { timeout: 20000 });
     await page.locator(`${ed} [data-tool="layers"]`).click();
-    await expect(box).not.toBeChecked();
-    await box.check();
+    await expect(box).not.toHaveAttribute('checked');
+    await box.click();
     await expect(image).toHaveCount(1);
     await expect(sheet).toHaveCount(0);
   });
@@ -211,8 +211,8 @@ test.describe.serial('plan studio (SW A)', () => {
     expect(svgBefore).toBeTruthy();
     expect(pngBefore).toBeTruthy();
     await page.locator(`${ed} [data-tool="layers"]`).click();
-    const box = page.locator(`${ed} .layerlist input[data-plan-background]`);
-    await box.uncheck(); // hide the raster for this viewer
+    const box = page.locator(`${ed} .layerlist sw-toggle[data-plan-background]`);
+    await box.click(); // hide the raster for this viewer
     await page.locator(`${ed} [data-tool="structure"]`).click();
     const svgAfter = await page.locator(`${ed} [data-export-svg]`).getAttribute('href');
     const pngAfter = await page.locator(`${ed} [data-export-png]`).getAttribute('href');
@@ -222,7 +222,7 @@ test.describe.serial('plan studio (SW A)', () => {
     const svgRes = await api.get(`${svgUrl.pathname}${svgUrl.search}`);
     expect(svgRes.status(), 'the export route still serves the raster/structure regardless of the viewer toggle').toBe(200);
     await page.locator(`${ed} [data-tool="layers"]`).click();
-    await box.check(); // restore for the following tests
+    await box.click(); // restore for the following tests
   });
 
   test('draw a wall, place a door, select, delete and undo in the editor; the draft autosaves and viewers keep the published one', async ({ page }) => {

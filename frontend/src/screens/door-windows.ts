@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-page';
 import '../components/sw-button';
 import '../components/sw-icon';
@@ -361,7 +362,7 @@ export class DoorWindowsScreen extends LitElement {
   }
 
   private check(on: boolean, label: DwtKey, set: (v: boolean) => void, disabled = false, key = ''): TemplateResult {
-    return html`<label class="occ" data-dw-switch=${key}><input type="checkbox" .checked=${on} ?disabled=${disabled} @change=${(e: Event) => set((e.target as HTMLInputElement).checked)}> ${dwt(label)}</label>`;
+    return html`<label class="occ" data-dw-switch=${key}><sw-toggle size="sm" labelHidden in-label label=${dwt(label)} .checked=${on} ?disabled=${disabled} @change=${(e: Event) => set(toggled(e))}></sw-toggle> ${dwt(label)}</label>`;
   }
 
   private renderSettings(): TemplateResult | typeof nothing {

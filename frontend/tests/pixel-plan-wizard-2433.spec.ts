@@ -91,8 +91,8 @@ test.describe('pixel: the plan wizard', () => {
     await expect(side.locator('[data-kit="apartment"]')).toHaveAttribute('aria-checked', 'true');
     await side.locator('[data-kit="empty"]').click();
     await expect(side.locator('[data-kit="empty"]')).toHaveAttribute('aria-checked', 'true');
-    await expect(side.locator('[data-wz-furniture]')).toBeDisabled();
-    await expect(side.locator('[data-wz-furniture]')).not.toBeChecked();
+    await expect(side.locator('[data-wz-furniture]')).toHaveAttribute('disabled', '');
+    await expect(side.locator('[data-wz-furniture]')).not.toHaveAttribute('checked');
   });
 
   test('the devices: the ones without an area wait for a place; selecting one and clicking the plan places it', async ({ page }) => {

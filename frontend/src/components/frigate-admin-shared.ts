@@ -1,4 +1,5 @@
 import { css, html, nothing } from 'lit';
+import { toggled } from './sw-toggle';
 import type { FirstWrites, SupervisedKind } from '../api/frigate-control';
 import { fx } from '../i18n/frigate-text';
 import { dayMonthTimeText } from '../api/day-format';
@@ -236,11 +237,7 @@ export const adminStyles = css`
     color: var(--sw-stale-text);
     font-size: var(--sw-fs-xs);
   }
-  .sup input {
-    margin: 2px 0 0;
-    accent-color: var(--sw-accent);
-    inline-size: 16px;
-    block-size: 16px;
+  .sup sw-toggle {
     flex: none;
   }
   .err {
@@ -305,7 +302,7 @@ export function supervisedBox(first: FirstWrites | null, kind: SupervisedKind, c
   if (!first || !first.can_supervise || first.done[kind]) return nothing;
   const s = fx().control.settings.supervised;
   // the attribute name is static per call site (a data-* hook for the specs); lit needs a literal attribute, so the hook is a class + data value
-  return html`<label class="sup" data-supervised-box=${attr}><input type="checkbox" .checked=${checked} @change=${(e: Event) => onChange((e.target as HTMLInputElement).checked)} /><span><b>${s.label}</b> · ${s.hint}</span></label>`;
+  return html`<label class="sup" data-supervised-box=${attr}><sw-toggle size="sm" labelHidden in-label label=${s.label} .checked=${checked} @change=${(e: Event) => onChange(toggled(e))}></sw-toggle><span><b>${s.label}</b> · ${s.hint}</span></label>`;
 }
 
 /** The first write of a kind is still pending and the caller cannot supervise it: the action would be refused, say so in one line. */

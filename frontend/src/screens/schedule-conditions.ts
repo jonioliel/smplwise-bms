@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-segmented';
@@ -347,7 +348,7 @@ export class ScheduleConditions extends LitElement {
             .options=${[{ value: 'and', label: tr('כל התנאים'), attrs: { 'data-cond-type': 'and' } }, { value: 'or', label: tr('אחד מהם'), attrs: { 'data-cond-type': 'or' } }]}></sw-segmented></div>`
         : nothing}
       ${c.items.length
-        ? html`<div class="row"><label class="check"><input type="checkbox" data-cond-track ?disabled=${this.readOnly} .checked=${c.track} @change=${(e: Event) => this.emit({ ...c, track: (e.target as HTMLInputElement).checked })} />${tr('המשך לבדוק עד סוף החלון')}</label></div>`
+        ? html`<div class="row"><label class="check"><sw-toggle size="sm" labelHidden in-label label=${tr('המשך לבדוק עד סוף החלון')} data-cond-track ?disabled=${this.readOnly} .checked=${c.track} @change=${(e: Event) => this.emit({ ...c, track: toggled(e) })}></sw-toggle>${tr('המשך לבדוק עד סוף החלון')}</label></div>`
         : nothing}
       ${this.adding ? this.renderAdd() : this.readOnly ? nothing : html`<div class="row"><sw-button size="sm" icon="plus" data-condition-new @click=${() => this.openAdd()}>${tr('תנאי')}</sw-button></div>`}
       ${this.warnings.length ? html`<ul class="warn" data-cond-warnings>${this.warnings.map((w) => html`<li>${w.message}</li>`)}</ul>` : nothing}
