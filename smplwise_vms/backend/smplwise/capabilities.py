@@ -21,23 +21,32 @@ from typing import Any
 
 from .config import Settings
 from .errors import ApiError
+from .i18n import register, t
 
 CAPABILITY_NAMES = ("nvr", "go2rtc", "ha", "live_video", "playback", "events_recorder", "events_ha", "ha_cameras_still", "ha_cameras_live",
                     "cameras_available")
 NVR_WITHOUT_GO2RTC = "nvr_without_go2rtc"
 
-# operator language, no infrastructure branding (shown in the wizard, the health pill and 409 answers)
+# operator language, no infrastructure branding (shown in the wizard, the health pill and 409 answers). I18N-BACKEND-2490: `Msg`s
+# (smplwise/i18n.py) - Hebrew as a string, English for an English user where the wizard and the error envelope render them.
+register("capability", {
+    "nvr_without_go2rtc": ("התקנה עם NVR אינה נתמכת בלי שרת המדיה (go2rtc): בלעדיו אין וידאו חי ואין ניגון הקלטות.",
+                           "An installation with an NVR is not supported without the media server (go2rtc): without it there is no live video and no recording playback."),
+    "nvr_without_go2rtc_action": ("השלימו את כתובת שרת המדיה (go2rtc_url) בהגדרות החיבור של ההתקנה והפעילו את המערכת מחדש.",
+                                  "Fill in the media server address (go2rtc_url) in the connection settings of the installation and restart the system."),
+    "go2rtc": ("שרת המדיה (go2rtc) לא הוגדר בהתקנה זו.", "The media server (go2rtc) is not set up in this installation."),
+    "live_video": ("וידאו חי אינו זמין בהתקנה זו: שרת המדיה (go2rtc) לא הוגדר.", "Live video is not available in this installation: the media server (go2rtc) is not set up."),
+    "playback": ("ניגון הקלטות אינו זמין בהתקנה זו: שרת המדיה (go2rtc) לא הוגדר.",
+                 "Recording playback is not available in this installation: the media server (go2rtc) is not set up."),
+    "unavailable": ("היכולת אינה זמינה בהתקנה זו.", "The capability is not available in this installation."),
+})
 UNSUPPORTED_MESSAGES = {
-    NVR_WITHOUT_GO2RTC: "התקנה עם NVR אינה נתמכת בלי שרת המדיה (go2rtc): בלעדיו אין וידאו חי ואין ניגון הקלטות.",
+    NVR_WITHOUT_GO2RTC: t("capability.nvr_without_go2rtc"),
 }
 UNSUPPORTED_ACTIONS = {
-    NVR_WITHOUT_GO2RTC: "השלימו את כתובת שרת המדיה (go2rtc_url) בהגדרות החיבור של ההתקנה והפעילו את המערכת מחדש.",
+    NVR_WITHOUT_GO2RTC: t("capability.nvr_without_go2rtc_action"),
 }
-CAPABILITY_MESSAGES = {
-    "go2rtc": "שרת המדיה (go2rtc) לא הוגדר בהתקנה זו.",
-    "live_video": "וידאו חי אינו זמין בהתקנה זו: שרת המדיה (go2rtc) לא הוגדר.",
-    "playback": "ניגון הקלטות אינו זמין בהתקנה זו: שרת המדיה (go2rtc) לא הוגדר.",
-}
+CAPABILITY_MESSAGES = {name: t(f"capability.{name}") for name in ("go2rtc", "live_video", "playback")}
 
 
 # ---------------------------------------------------------------- the connection sources (the only place that reads them)
@@ -193,7 +202,7 @@ def may_see_recorders(permissions: list[str] | set[str]) -> bool:
 
 
 def capability_unavailable(name: str) -> ApiError:
-    return ApiError(409, "capability_unavailable", CAPABILITY_MESSAGES.get(name, "היכולת אינה זמינה בהתקנה זו."),
+    return ApiError(409, "capability_unavailable", CAPABILITY_MESSAGES.get(name) or t("capability.unavailable"),
                     details={"capability": name, "reason": "media_not_configured" if name in MEDIA_BACKED else "not_configured"})
 
 

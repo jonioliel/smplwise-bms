@@ -378,6 +378,9 @@ def _principal(request: Request, conn: sqlite3.Connection) -> Principal:
                 principal = resolve_principal(request, settings)
     else:
         principal = resolve_principal(request, settings)
+    from .i18n import remember_user
+
+    remember_user(request, principal)  # I18N-BACKEND-2490: an error answered later in this request speaks this user's language
     shared_steps(request, conn, principal)
     return principal
 
