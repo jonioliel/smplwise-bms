@@ -27,7 +27,8 @@ Owner answers (all final):
    and the codec - or a fixed Hebrew error. Saving does not require a passing test.
 5. a manual source that stops working stays as it is (no fallback to the recorder); `HEALTH` records it and the notification source
    `camera.source` (services/notify_sources.py) raises "the camera's manual source is not working" until it works again.
-6. ONVIF discovery: not in scope.
+6. ONVIF discovery: not in scope of 2.41.0. ONVIF-CLIENT-2500 (camera discovery's add step, services/camera_discovery) creates
+   cameras through `create_standalone` with origin `onvif` and the stream test's server-assembled preview form (`test_assembled`).
 
 Security: every address goes through services/source_policy.py before it is stored, tested or written to go2rtc (rtsp / rtsps only,
 no loopback / link-local / multicast host in any spelling, no go2rtc itself on its ports, a host name judged by what it resolves to),
@@ -343,6 +344,7 @@ def view(conn: sqlite3.Connection, cam: Any) -> dict[str, Any]:
     return {
         "camera_id": cam["id"],
         "mode": "manual" if row is not None else "nvr",
+        "origin": origin_of(row),  # ONVIF-CLIENT-2500: manual | onvif ("added from ONVIF discovery"); null on the recorder
         "standalone": standalone,
         "main": _side(row, "main"),
         "sub": _side(row, "sub"),
@@ -514,10 +516,43 @@ def _ensure_standalone_recorder(conn: sqlite3.Connection) -> None:
         pass
 
 
+ORIGINS = ("manual", "onvif")  # camera_stream_sources.origin (migration 0217, ONVIF-CLIENT-2500)
+
+
+def _set_origin(conn: sqlite3.Connection, camera_id: str, origin: str, origin_json: dict[str, Any] | None) -> None:
+    """Where a source came from (typed by hand, or added from ONVIF discovery with the camera's own description - never a
+    credential, a serial or a MAC). A database before 0217 has no such columns: nothing is recorded (the source still works)."""
+    if origin not in ORIGINS:
+        raise ValueError("unknown source origin")
+    try:
+        conn.execute("UPDATE camera_stream_sources SET origin = ?, onvif_json = ? WHERE camera_id = ?",
+                     (origin, json.dumps(origin_json, ensure_ascii=False, sort_keys=True) if origin_json else None, camera_id))
+    except sqlite3.OperationalError:
+        pass
+
+
+def origin_of(row: Any) -> str | None:
+    """`manual` | `onvif` for a stored source (a row from before 0217: `manual`), None without one."""
+    if row is None:
+        return None
+    try:
+        value = row["origin"]
+    except (KeyError, IndexError):
+        value = None
+    return value if value in ORIGINS else "manual"
+
+
 def create_standalone(conn: sqlite3.Connection, settings: Settings, principal: Any, *, name: str, area_id: Any, main_url: str | None, sub_url: str | None,
-                      request_id: str | None = None) -> dict[str, Any]:
+                      request_id: str | None = None, origin: str = "manual", origin_json: dict[str, Any] | None = None,
+                      probe: dict[str, dict[str, Any]] | None = None, device_fingerprint: str | None = None) -> dict[str, Any]:
     """`POST /cameras/standalone`: a catalogue camera of the pseudo-recorder STANDALONE with its manual source. The caller has
-    checked `system.configure`. The addresses are checked BEFORE anything is written."""
+    checked `system.configure`. The addresses are checked BEFORE anything is written.
+
+    ONVIF-CLIENT-2500 (the discovery add step, services/camera_discovery): `origin` `onvif` with `origin_json` (the camera's own
+    description), `probe` (the codec / resolution the camera declared per profile - the live player's H.265 hint, as a stream test
+    would record it) and `device_fingerprint` (the keyed model + serial hash, so a later scan knows the camera by identity)."""
+    if origin not in ORIGINS:
+        raise ValueError("unknown source origin")
     name = (name or "").strip()
     if not name or len(name) > NAME_MAX:
         raise ApiError(422, "name_required", MSG["name_required"], details={"fields": ["name"]})
@@ -544,8 +579,18 @@ def create_standalone(conn: sqlite3.Connection, settings: Settings, principal: A
     except sqlite3.OperationalError:
         pass
     _write(conn, settings, cid, urls, principal.user_id, area, keep_probe=False)
+    _set_origin(conn, cid, origin, origin_json)
+    for p, declared in (probe or {}).items():
+        if p in PROFILES and urls[p] and isinstance(declared, dict) and declared.get("codec"):
+            _record_probe(conn, cid, p, declared)
+    if device_fingerprint:
+        try:
+            conn.execute("UPDATE cameras SET device_fingerprint = ? WHERE id = ?", (device_fingerprint, cid))
+        except sqlite3.OperationalError:  # a database before 0055 (never with 0209 applied)
+            pass
     audit(conn, actor=principal, action="camera.standalone.create", decision="allowed", resource_type="camera", resource_id=cid, request_id=request_id,
-          details={"channel": channel, "alias": name, "area": bool(area), "main": bool(urls["main"]), "sub": bool(urls["sub"])})
+          details={"channel": channel, "alias": name, "area": bool(area), "main": bool(urls["main"]), "sub": bool(urls["sub"]),
+                   **({"origin": origin} if origin != "manual" else {})})
     from ..routers.anchors import camera_row
 
     return {**camera_row(conn.execute("SELECT * FROM cameras WHERE id = ?", (cid,)).fetchone()), "standalone": True, "video_source": "manual",
@@ -823,6 +868,36 @@ def test_stream(conn: sqlite3.Connection, settings: Settings, principal: Any, *,
     if camera_id and row is not None and result["ok"] and stored is not None:
         _record_probe(conn, str(camera_id), profile, result)
         record_ok(str(camera_id))
+    return result
+
+
+def test_assembled(conn: sqlite3.Connection, settings: Settings, principal: Any, *, assemble: Callable[[], str], profile: str,
+                   request_id: str | None = None) -> dict[str, Any]:
+    """`POST /cameras/source/test`, preview form (ONVIF-CLIENT-2500: `{scan_id, device_id, profile, profile_token?}`): the address
+    is assembled on the server by `assemble` (camera discovery: the found camera's stream address with the pair that worked), so
+    it never travels through the browser. Then exactly the typed form's path: the same per-person budget, the source policy, one
+    frame through a throwaway `smplwise_cam_probe_*` stream. Audited with the outcome only (`origin: onvif`); nothing is recorded
+    on a camera (there is none yet). The assembled address is dropped when this returns."""
+    if not settings.go2rtc_url:
+        raise ApiError(409, "media_not_configured", MSG["media_not_configured"])
+    if profile not in PROFILES:
+        raise ApiError(422, "validation", "פרופיל לא תקין.", details={"fields": ["profile"]})
+    src = assemble()  # raises the discovery's own refusals (404 / 409 / 422) before the budget is spent
+    if not _test_budget(principal.user_id):
+        raise ApiError(429, "rate_limited", MSG["rate_limited"], retryable=True)
+    try:
+        with unlocked(conn):
+            code = refusal(src, settings)
+            if code:
+                raise _refuse(code)
+            result = test_url(settings, src)
+    except ApiError as exc:
+        if exc.code.startswith("source_") or exc.code == "no_stream_source":
+            audit(conn, actor=principal, action="camera.source.test", decision="denied", resource_type="camera", resource_id=None, reason=exc.code,
+                  request_id=request_id, details={"profile": profile, "origin": "onvif"})
+        raise
+    audit(conn, actor=principal, action="camera.source.test", decision="allowed", resource_type="camera", resource_id=None, request_id=request_id,
+          details={"profile": profile, "origin": "onvif", "outcome": "ok" if result["ok"] else result["code"]})
     return result
 
 
