@@ -118,7 +118,7 @@ Run on the workstation 23.11 (one worker unless said).
   setting's permission, the preview's after-chain - **9 of 9 caught** (1-2 tests fail each).
 - `scripts/design_ratchet.py`: no count above the baseline (the first runner run caught +28 px literals, one native select and two
   native checkboxes in the new dialogs; replaced by spacing tokens, `sw-dropdown` and `sw-toggle`). `scripts/release_check.py` on the
-  workstation after the fix: see Runner below.
+  workstation after the fix: ready.
 - `scripts/gen_wire_types.py` and `scripts/api_inventory.py` regenerated (1910 -> 1914 routes).
 - Frontend: `npx tsc --noEmit` (app and tests) clean; `tests/unit-mb-safety-2500.spec.ts` **7 passed**; with
   unit-building-scope-control-2351, unit-home-site-2330, unit-mapping-assist-2330: 34 passed before the last unit was added;
@@ -129,7 +129,15 @@ Run on the workstation 23.11 (one worker unless said).
   editing).
 - Before / after captures: 24 images, all with 0 px horizontal overflow (`private/planning/mb_safety_2500_compare_2026-11-23.html`).
 
-RUNNER_PLACEHOLDER
+Runner (23.11):
+- A full backend run on slot A at 13d5cea16: shard 2 **15,460 passed, 1 failed** (`test_release_check` - the design-debt ratchet above,
+  fixed in eebe0ff07), 16 skipped, 3 xfailed; shard 1 was **stopped by request of the lead** after 3 h 12 min (slot A is reserved for
+  the 2.48.0 gate) - NOT_RUN to the end.
+- Slot B at eebe0ff07, the backend files the branch touches plus the building / mapping / catalogue / shared spaces / rbac / wire /
+  release-check files (24 files): **467 passed, 0 failed**.
+- Slot B at eebe0ff07, `run_remote.sh preview` (fresh build): `evidence-mb-safety-2500`, `evidence-mapping-assist-2330`,
+  `evidence-multibuilding-home-2330` on desktop / tablet / mobile: **58 passed, 2 skipped, 0 failed**.
+- Workstation `scripts/release_check.py` at eebe0ff07: ready (design ratchet: no count above the baseline).
 
 ## Open questions for the owner (not blockers; recommendation first)
 
