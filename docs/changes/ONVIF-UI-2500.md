@@ -78,7 +78,7 @@ password on the face (a unit test checks both languages).
 | `frontend/src/i18n/camera-discovery.ts`, `frontend/src/i18n/lang/en/i18n/camera-discovery.ts`, `frontend/src/i18n/lang/en.ts` | the words |
 | `frontend/tests/unit-camera-discovery-2500.spec.ts` | unit (Node) |
 | `frontend/tests/camera-discovery-2500.spec.ts`, `frontend/tests/camera-discovery-mocks.ts` | browser specs on the mocked backend, desktop + phone, no-scroll checks, axe-core |
-| `frontend/tests/evidence-onvif-ui-2500.spec.ts` | the before / after capture of the entry card (skipped without `SW_ONVIF_SHOTS`) |
+| `frontend/tests/evidence-onvif-ui-2500.spec.ts` | the before / after capture of the entry card (skipped without `SW_ONVIF_SHOTS`; `SW_SCHEME=dark`) |
 
 ## Tests
 
@@ -111,6 +111,8 @@ axe-core (critical / serious) finds nothing inside the wizard.
 | type check | PC | `npx tsc --noEmit -p tsconfig.json`; `-p tsconfig.tests.json` | both exit 0 (0 errors) |
 | lint | PC, eslint 10.13.0 | `npx eslint` on the 7 changed / new `src` files | exit 0, no finding |
 | gates | PC | `node scripts/unused-exports.mjs --enforce`; `node scripts/bundle-budget.mjs --dir dist --enforce` | no export outside the baseline; entry budget OK (the wizard is its own 40,216-byte chunk, not in the entry) |
+| browser, second pass (this follow-up) | PC, rebuilt `dist` (tsc + vite, exit 0) on `vite preview`, Chromium, axe-core 4.x from a sibling worktree's node_modules | `npx playwright test tests/camera-discovery-2500.spec.ts tests/evidence-onvif-ui-2500.spec.ts --project=desktop --project=tablet --project=mobile`, light and `SW_SCHEME=dark` (the app's `?scheme=dark`) | light 15 passed; dark 18 passed (15 + 3 captures); axe 0 critical / serious inside the wizard at every checkpoint on 3 viewports x 2 schemes (contrast included). First tablet run: 1 failure - see "Tablet" below |
+| backend, discovery chain | PC, main `.venv` Python 3.12 | `pytest tests/test_camera_discovery_2500.py tests/test_camera_discovery_api_2500.py tests/test_onvif_client_2500.py tests/test_camera_sources_2410.py` (198 tests, before the last test was added) and the 3 new / changed tests of `test_onvif_client_2500.py` | 198 passed; 3 passed; `scripts/gen_wire_types.py --check` exit 0 |
 | runner | slot B | - | NOT_RUN (PC-targeted row; slot A is the release gate's) |
 | real devices / lab | - | - | NOT_RUN (ONVIF-LAB-DOCS, owner approval per step) |
 
@@ -121,6 +123,20 @@ axe-core (critical / serious) finds nothing inside the wizard.
 results, add, result), desktop and phone. Before = a build of `pilot/ONVIF-CLIENT-2500` @ d58353161; after = this branch; the same mocked
 backend for both.
 
+## Dark scheme and tablet (follow-up, 2026-11-23)
+
+Every step captured and checked in the dark scheme (desktop 1440, tablet 1024x768, phone 390) and on the tablet in light: the same
+no-scroll rule and axe at every step. The dark captures use the app's own `?scheme=dark` (Playwright's `colorScheme` alone does not switch
+this app; `SW_SCHEME=dark` sets both). The wizard uses only `--sw-*` tokens, so the dark scheme needed no change: contrast findings 0.
+**Tablet finding (fixed)**: at 1024x768 the identify step's 4 rows overflowed the dialog body by 36 px (`sh 635 > ch 599`). `pageSize`
+now gives 4 rows from a 820 px viewport height and 3 below (unit test `pageSize('identify', false, 768) == 3`); 1440x900 still shows 5.
+The captures are in section 10 of `private/planning/onvif_ui_2500_compare_2026-11-23.html`.
+
+**Shell axe finding (not part of this row, only reported)**: `label-content-name-mismatch` (serious) on the shell's profile button
+`button[data-profile-menu]` (desktop / tablet) and the navigation's `button[data-nav-me]` (phone): the accessible name does not contain the
+visible text. It is on every page of the app (seen here with the wizard open or closed), not in the wizard; it needs its own row (the
+A11Y-AUDIT-2490 family).
+
 ## Known limits / not done here
 
 - Pixel baselines (`npm run visual`) are not refreshed in this row: the wizard is a new dialog behind a button, no existing baseline
@@ -129,9 +145,41 @@ backend for both.
   without it.
 - `contracts/API_INVENTORY.md` does not list the discovery routes yet (regenerated at release); `report:api-client` therefore lists
   `GET/POST cameras/discovery/scans` as "no inventory route" (report only).
-- Dark scheme and tablet were not captured (the shared tokens and the same components; the spec runs desktop + phone).
 - Real devices: NOT_RUN. The lab read-only run is the ONVIF-LAB-DOCS row and needs the owner's per-step approval.
 - No `management/tasks.json` change (the lead registers the 2.5x ONVIF rows).
+
+## Security review of the whole discovery chain (2026-11-23)
+
+Scope: `origin/pilot/ONVIF-DISCOVER-2500 .. origin/pilot/ONVIF-UI-2500` (routers/camera_discovery.py, camera_sources.py preview form,
+services/camera_discovery/{service,sweep,ranges,onvif_http,onvif_client,wsd,known}.py, settings registration, wire models, and the
+front end: api, logic, dialog, card). Read-only review plus the two fixes below; no device, runner or lab was used.
+
+| Area | Result |
+|---|---|
+| Credentials in a response | none: the answer models are exact (no user / password field, test `test_the_models_are_exact_and_have_no_secret_field`); a refusal names `details.fields` only, never a value; the preview form assembles the address with the pair on the server (`preview_source`) and returns the frame outcome only. **Finding 1 (fixed)**: see below |
+| Serial / MAC | the serial is read once, used for the keyed fingerprint (HMAC with the installation salt) and dropped; `Device.view()` has no serial, `hardware_id` only feeds the classifier; no MAC is read anywhere |
+| URLs in a response / log / audit | the audit rows carry range, counts, camera ids and refusal codes; logs carry job id and exception class only (two `log.warning` calls in the package); `onvif_json` stores manufacturer / model / firmware / profile tokens / device host and port - no stream address - and is not in any answer (`camera_sources.view` returns `origin` only). **Finding 1**: `profiles[].uri_masked` |
+| Browser storage / URL | the wizard uses no `localStorage` / `sessionStorage` / IndexedDB / cookie / history / query string / console output; user and password live in component state, `autocomplete="new-password"`, cleared on close, on a new search and (**Finding 2, fixed**) on removal |
+| SSRF: sweep | targets come only from `ranges.plan`: IPv4, at most 1,024, inside an RFC 1918 interface network of the HA host (never the Supervisor bridge, never public / CGNAT / link-local / loopback / multicast, never the host's own address, `source_policy.address_refused`), optionally narrowed by the allowed-ranges setting (which can never widen). Fail-closed when the site network is unknown. An answer is accepted only from a probed address and only for the probe sent to it |
+| SSRF: outbound HTTP | every request goes to `Target(address, port, path)` where the address is the one that answered the probe; XAddrs of the device are kept only when their host is that same IP literal (names are never resolved, no user info, no query, `same_host_xaddrs`); no redirects, `trust_env=False` (no proxy), 3 s, 64 KiB, no DOCTYPE / ENTITY, closed allow-list of Get* actions, profile token regex-checked and escaped. Accepted residual: a device may announce another TCP port **on itself**, so Arx sends it a signed SOAP read there; it cannot reach another host |
+| SSRF: stream addresses | `shape_stream` keeps rtsp / rtsps to the camera's own IP only, no user info, no fragment, no go2rtc `src` / `name` keys, bounded; the add and the preview go through `camera_sources.refusal` (source policy) and sealing as for a typed address |
+| RBAC | all 7 routes and the preview form call `require(system.configure, INSTALLATION)` in the service (the two body routes also on a read connection before the body is read); every route is in the parametrised 403 + audit test; a scan of another person is `404` (no existence leak) unless the caller is a system administrator; the front end shows the button to `system.configure` only and a non-holder's session does not even call the routes (browser spec) |
+| Rate limits | 6 scans an hour per installation, 3 per 10 minutes per person, one running scan, 20 identification presses per 10 minutes per person, the lockout guard (3 refusals per camera address per 15 minutes, across scans), one attempt per camera per press, one authenticated request in flight per camera, 16 requests / 20 s per camera per press, the preview shares the 6 / minute stream-test budget; the sweep is paced (10-200 datagrams a second) with a 10-minute deadline. Not limited, by design: the read routes (`GET` scan polling, in-memory) and `DELETE` |
+| Body handling | 16 KiB cap, JSON content type, `extra=forbid`, strict types, per-field maxima (user 64, password 128, 64 devices) |
+
+**Finding 1 (low-medium, fixed)** - `profiles[].uri_masked` returned the camera's stream address with only a secret-looking *query*
+value masked. Some cameras put a user name, password or token in the *path* (`rtsp://ip/user=admin&password=...&channel=1`), so a
+device-supplied secret could reach an answer. The front end never reads the field. Fix: `onvif_client.shown()` - the answer now carries
+scheme, host and port only, the path and query become `/***`. Test: `test_a_stream_address_never_reaches_an_answer_with_its_path_or_query`
+(`tests/test_onvif_client_2500.py`); the wire comment and `docs/changes/ONVIF-CLIENT-2500.md` follow.
+
+**Finding 2 (low, fixed)** - closing the wizard cleared the typed pair and forgot the scan, but removing the element while it was open (a
+route change) did not. `disconnectedCallback` now clears user, password, row passwords and the one-attempt memory, and sends `DELETE` for
+a finished scan. Browser test: "security review: the wizard removed while open forgets the typed pair".
+
+Noted, not changed: the one-attempt memory (`tried`) keeps `userpassword` of the pair last sent per device in component memory (never
+stored or sent), until close / new search / removal; the identify and add routes are write routes behind the existing session and CSRF
+rules (nothing new); the shell profile-button axe finding is a separate row (below).
 
 ## Rollback
 

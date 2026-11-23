@@ -189,7 +189,7 @@ export function pageSlice<T>(list: readonly T[], page: number, size: number): { 
 export function pageSize(step: Step, phone: boolean, viewportHeight: number): number {
   if (step === 'add') return phone ? 1 : viewportHeight >= 860 ? 4 : viewportHeight >= 720 ? 3 : 2; // the phone steps through one camera at a time
   if (phone) return viewportHeight >= 800 ? 3 : 2;
-  return viewportHeight >= 860 ? 5 : viewportHeight >= 720 ? 4 : 3;
+  return viewportHeight >= 860 ? 5 : viewportHeight >= 820 ? 4 : 3; // 1024x768 (a tablet) showed 4 rows overflow the body by 36px
 }
 
 /** The identification step's summary line. */

@@ -28,12 +28,15 @@ const AXE_SRC = (() => {
   }
 })();
 const SHOTS = process.env.SW_ONVIF_SHOTS ?? '';
+// SW_SCHEME=dark runs every test (and every capture) in the dark scheme; the captures get the scheme in their name
+const SCHEME = process.env.SW_SCHEME === 'dark' ? 'dark' : 'light';
+test.use({ colorScheme: SCHEME });
 
 async function shot(page: Page, info: TestInfo, name: string) {
   if (!SHOTS) return;
   fs.mkdirSync(SHOTS, { recursive: true });
   await page.waitForTimeout(350);
-  await page.screenshot({ path: path.join(SHOTS, `after-${name}-${info.project.name}.png`) });
+  await page.screenshot({ path: path.join(SHOTS, `after-${name}-${info.project.name}${SCHEME === 'dark' ? '-dark' : ''}.png`) });
 }
 
 const dialog = (page: Page) => page.locator('camera-discovery-dialog sw-dialog[data-camera-discovery]');
@@ -53,7 +56,7 @@ async function openWizard(page: Page, m: DiscoveryMock) {
   await installDiscovery(page, m);
   await openApp(page, NVR);
   await page.locator('[data-discovery-open]').click();
-  await expect(dialog(page)).toBeAttached();
+  await expect(dialog(page)).toBeAttached({ timeout: 20_000 });
 }
 
 /** The dialog's body never scrolls and the page never scrolls sideways (owner rule: control screens never scroll). */
@@ -133,7 +136,7 @@ test.describe('ONVIF-UI-2500 camera discovery', () => {
     await expect(page.locator('[data-discovery-open]')).toBeVisible();
     await page.locator('[data-discovery-open]').click();
     const d = dialog(page);
-    await expect(d).toBeAttached();
+    await expect(d).toBeAttached({ timeout: 20_000 }); // the wizard is a lazy chunk: the first open on a busy PC is slow
 
     // step 1: the suggested range, the cap explained, a too-large range refused before anything is sent
     const range = page.locator('[data-discovery-range]');
@@ -296,6 +299,33 @@ test.describe('ONVIF-UI-2500 camera discovery', () => {
     await expect(dialog(page)).toHaveCount(0);
     await expect(page.locator('[data-camera-source-dialog="add"]')).toBeAttached();
     await expect(page.locator('[data-source-name]')).toBeVisible();
+  });
+
+  test('security review: the wizard removed while open forgets the typed pair (the scan job too)', async ({ page }) => {
+    const m = newDiscoveryMock({ pollsToDone: 1 });
+    await openWizard(page, m);
+    await page.locator('[data-discovery-start]').click();
+    await expect(dialog(page)).toHaveAttribute('data-camera-discovery', 'identify', { timeout: 10_000 });
+    await page.locator('[data-discovery-password]').fill('invented-pass');
+    const gone = await page.evaluate(() => {
+      const deep = (root: Document | ShadowRoot): Element | null => {
+        const hit = root.querySelector('camera-discovery-dialog');
+        if (hit) return hit;
+        for (const el of Array.from(root.querySelectorAll('*'))) {
+          const sr = (el as HTMLElement).shadowRoot;
+          const found = sr ? deep(sr) : null;
+          if (found) return found;
+        }
+        return null;
+      };
+      const el = deep(document) as (HTMLElement & { password?: string }) | null;
+      if (!el) return null;
+      el.remove(); // a route change while the wizard is open
+      return { password: (el as unknown as { password: string }).password };
+    });
+    expect(gone, 'the wizard element').not.toBeNull();
+    expect(gone!.password, 'the typed password is dropped on removal').toBe('');
+    await expect.poll(() => m.hits.includes('DELETE cameras/discovery/scans/scan-1')).toBe(true); // the job forgets the pair
   });
 
   test('a refused range says why, in words', async ({ page }) => {

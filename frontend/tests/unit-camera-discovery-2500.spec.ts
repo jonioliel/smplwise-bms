@@ -204,7 +204,8 @@ test('pages: a slice per page, clamped; the page sizes keep the dialog without s
   expect(pageSlice(list, 9, 5).page).toBe(3);
   expect(pageSlice([], 1, 5)).toEqual({ items: [], page: 1, pages: 1 });
   expect(pageSize('identify', false, 900)).toBe(5);
-  expect(pageSize('identify', false, 768)).toBe(4);
+  expect(pageSize('identify', false, 768)).toBe(3); // tablet 1024x768: 4 rows overflowed the body (security-review capture)
+  expect(pageSize('identify', false, 820)).toBe(4);
   expect(pageSize('identify', true, 844)).toBe(3);
   expect(pageSize('add', false, 900)).toBe(4);
   expect(pageSize('add', false, 768)).toBe(3);

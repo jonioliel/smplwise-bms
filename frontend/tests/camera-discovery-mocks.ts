@@ -281,6 +281,8 @@ export async function installDiscovery(page: Page, m: DiscoveryMock): Promise<vo
 
 export async function openApp(page: Page, hash: string, query = ''): Promise<void> {
   await page.goto('about:blank');
-  await page.goto(`/?design=a${query}#${hash}`);
+  // SW_SCHEME=dark: the app takes its scheme from ?scheme= (src/design/apply.ts), not from the browser's prefers-color-scheme
+  const scheme = process.env.SW_SCHEME === 'dark' ? '&scheme=dark' : '';
+  await page.goto(`/?design=a${scheme}${query}#${hash}`);
   await page.waitForSelector('sw-app');
 }

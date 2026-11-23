@@ -12,6 +12,8 @@ import { installDiscovery, newDiscoveryMock, openApp } from './camera-discovery-
 
 const DIR = process.env.SW_ONVIF_SHOTS ?? '';
 const TAG = process.env.SW_ONVIF_TAG ?? 'after';
+const SCHEME = process.env.SW_SCHEME === 'dark' ? 'dark' : 'light';
+test.use({ colorScheme: SCHEME });
 
 test('the NVR page card (entry point)', async ({ page }, info) => {
   test.skip(!DIR, 'capture only (SW_ONVIF_SHOTS)');
@@ -21,5 +23,5 @@ test('the NVR page card (entry point)', async ({ page }, info) => {
   await page.waitForTimeout(1200);
   await page.locator('[data-standalone-cameras]').scrollIntoViewIfNeeded();
   fs.mkdirSync(DIR, { recursive: true });
-  await page.screenshot({ path: path.join(DIR, `${TAG}-entry-${info.project.name}.png`) });
+  await page.screenshot({ path: path.join(DIR, `${TAG}-entry-${info.project.name}${SCHEME === 'dark' ? '-dark' : ''}.png`) });
 });
