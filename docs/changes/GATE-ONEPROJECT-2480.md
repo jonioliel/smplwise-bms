@@ -91,7 +91,7 @@ a time (`data-panes` tabs: checks / steps / hand-over); `[data-below-advice]` is
 A stale test, not a product bug; fixed in the spec (a click on the third tab when the switcher is visible), now green on all three projects.
 
 Reading the numbers: most of the 588 skipped are in-test skips by design (`test.skip(info.project.name !== 'desktop', ...)`), including every test
-of the two pixel specs and of 28 `layout-*`/`evidence-*` files, so for them the added projects are executed and skipped, and the gate's
+of the two pixel specs and of most `layout-*` files (all their tests skip off desktop), so for them the added projects are executed and skipped, and the gate's
 no-run accounting (`norun` = skipped without a skip annotation) is not affected. Files with real new tablet/mobile coverage (tests that ran and
 passed): evidence-cast-ui, evidence-kiosk-polish (mobile), evidence-mobile-layers, evidence-mobile-touch (mobile), evidence-mobile-wall-kiosk
 (mobile), evidence-playback-controls-below (mobile), evidence-readiness-96, evidence-wiskey-deeplinks (mobile),
