@@ -43,7 +43,7 @@ function sectionOf(el: HTMLElement): Element | null {
 }
 
 /** TICKETS-PAGING-2490: how a region keeps the operator's place. */
-export interface PageFitOptions {
+interface PageFitOptions {
   /** Keep the place instead of going back to page 1 when the region changes size (a bar shown or hidden above it, the window resized)
    * or when the same set grows or shrinks (`sync` with the same signature and another total: "load more", a poll, a row deleted): the
    * page measured next is the one that holds the item that was first on the page before (or the item given to `reveal`). */
