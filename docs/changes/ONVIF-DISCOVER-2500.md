@@ -88,10 +88,12 @@ periodic job and no write path in the package. Every secret-bearing test greps a
 |---|---|---|---|
 | discovery tests | PC, main `.venv` Python 3.12.10 | `python -m pytest -q -p no:cacheprovider tests/test_camera_discovery_2500.py` | 41 passed (41 dots, no failure) |
 | pyflakes lane | runner | `python -m ruff check smplwise` (ruff 0.17.5) at f55518ad7 | All checks passed |
-| touched areas | runner slot A (`flock ~/.smplwise-tests.lock nice -n 19`) | discovery + `test_self_update_s3`, `test_self_update`, `test_singletons_registered`, `test_autosync`, `test_source_policy`, `test_camera_sources_2410`, `test_nvr_system` | RUNNER_RESULT |
+| discovery tests (rerun at 0dd1419a1) | PC | `-k "expires or marks_by_fingerprint"` (the two tests the argument-order change touched) | 2 passed |
+| touched areas | PC, main `.venv` | `tests/test_singletons_registered.py tests/test_autosync.py tests/test_source_policy.py tests/test_nvr_system.py tests/test_self_update.py "tests/test_self_update_s3.py::test_the_allow_list_is_exact"` | 241 passed, exit 0 |
+| touched areas, full | runner slot A (`flock ~/.smplwise-tests.lock nice -n 19`) at 0dd1419a1 | discovery + the files above + the whole `test_self_update_s3.py` + `test_camera_sources_2410.py` | NOT_RUN at hand-back: queued behind other agents' jobs on the slot; result file `~/smplwise-results/onvif2500_tests.out` (last line `EXIT=<code>`) |
 
-On the PC the touched-area set did not finish inside 900 s (the workstation was loaded; `test_self_update_s3` alone ran for minutes)
-- that PC attempt is NOT a result; the runner row is.
+A first PC attempt at the whole touched-area set including all of `test_self_update_s3.py` did not finish inside 900 s (the
+workstation was loaded; that file's platform-poll tests run for minutes on Windows) - not a result; the runner row covers it.
 
 ## Known limits / not done here
 
