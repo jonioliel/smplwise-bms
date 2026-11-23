@@ -21,14 +21,37 @@ centre's two rows, the still rows of the water alerts and the generator alert-ty
 | N56 | accept as is | nothing |
 | N61 settings key height | 28 on desktop | no code here: the settings / presence segmented key is `sw-segmented`'s default, which `pilot/CR-SEG-MODULE-LOOK-2470` (another agent) changes to the 28 px module key. This branch does not touch `sw-segmented.ts` or `styles/settings.ts`. |
 
+Follow-up found by the runner pass (fb7713b20): in the review-window mode on a 390 px phone the 28 px chips plus the
+selected-look check mark left the toolbar's spacer item (`<span class="grow">`, one more flex item = one more 12 px gap) without
+room, and "mark all handled" fell to a third line (measured: 203 + 12 + 0 + 12 + 141 > 366). The key now takes
+`margin-inline-start: auto` (`.tools .ackall`) instead of the spacer: same place on every width, and the phone page is 17 px
+shorter than 2.47.0 there.
+
 ## Tests
 
-See the report of this row (numbers filled in after the runs):
+PC (Windows, Node 24):
 
-- PC unit (`playwright.unit.config.ts`): see below.
-- PC `tsc` (app + tests), `eslint` on the touched files: see below.
-- Runner pixel verify (without `-u`): see below.
+- Unit (`playwright.unit.config.ts`): `unit-sw-segmented`, `unit-readiness-96`, `unit-sw-table`, `unit-noscroll-lists-2443`,
+  `unit-sw-tabs-2460`, `unit-chip-selected-2439`, `unit-a11y-rows-2443`, `unit-polish4-shared`, `unit-phone-buttons-44`,
+  `unit-dark-polish-beds`: first run 108 passed / 1 failed (the sw-chip-choice coarse-pointer pattern in `unit-sw-segmented`, updated
+  to the new rule); re-run of `unit-sw-segmented` + `unit-readiness-96`: 29 passed.
+- `tsc --noEmit` app and tests: 0 errors (app again after fb7713b20: 0). `eslint` on the touched source files: 0 problems.
+- Captures for the comparison page (PC preview of 2.47.0 and of this branch, mocked data, 1440 / 390, light): 6 + 6 passed.
+  Measured on the phone (coarse pointer): events centre chip 44 -> 28 px, `::after` hit area 44 px (-9 px from the padding box).
+
+Runner (linux, own worktree `~/work/cmp2p2480`, `flock ~/.smplwise-tests.lock`, `nice -n 19`, `--workers=2`, no gate running), at
+fb7713b20: build OK; pixel verify without `-u` over pixel-events-windows-2443, pixel-sw-tabs, pixel-sw-segmented, pixel-sw-table,
+pixel-plan-wizard-2433 / -2434, evidence-audit30c-tickets, pixel-audit30a-glass-bridge, evidence-audit30b-shared, pixel-home-gaps-2436,
+layout-audit30-e-infra, pixel-access-events, pixel-wiskey-access-diag, pixel-audit30g-video, visual-matrix: 303 passed, 106 skipped
+(no baseline for that project), 2 failed (pixel-events-windows-2443 desktop + mobile); rewrite of those only: 3 images; verify again:
+305 passed, 106 skipped, 0 failed. Behaviour (evidence-polish2-295, evidence-genalert, all projects): 27 passed. evidence-readiness-96
+(desktop): 18 passed. The merge-conflict baseline `visual-matrix devices-schedules-ready-light-desktop` (main's copy) matched.
+
+Baselines refreshed (looked at, old vs new): `pixel-events-windows-2443` `events-windows-classic-{table-1440-desktop,drawer-1440-desktop,
+table-390-mobile}-linux.png` - the chosen chips take the selected-chip look (ring, field, check; CR-CMP2-POLISH-2470) instead of the
+accent fill; on the phone the chips are 28 px again and the mark-all key stays on the view row (17 px shorter than 2.47.0).
 
 ## NOT_RUN
 
 - Full unit / evidence / pixel suites, the entry check (`branch_check.sh`), tablet captures; no lab / device test (UI only).
+- The generator routing drawers and the readiness page have no pixel baseline (behaviour specs above cover them).
