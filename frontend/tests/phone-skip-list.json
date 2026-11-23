@@ -1,5 +1,5 @@
 {
-  "_doc": "PHONE-SKIP-DESKTOP-SHOTS-2490: spec files the Playwright 'mobile' (phone) project does not run. One entry per file, decided file by file; a file that checks phone behaviour never belongs here. scripts/check-phone-skip-list.mjs fails when a listed file no longer exists.",
+  "_doc": "PHONE-SKIP-DESKTOP-SHOTS-2490: spec files the Playwright 'mobile' (phone) project does not run. One entry per file, decided file by file; a file that checks phone behaviour never belongs here. scripts/check-phone-skip-list.mjs fails when a listed file no longer exists. 'tabletAlso' lists the subset that also skipped itself on the tablet project (1024 px) at run time, so the tablet project ignores it too; every entry must also be in 'files'.",
   "files": {
     "evidence-announce-297.spec.ts": "sets its own viewports, one project is enough (was already skipped at run time)",
     "evidence-announceb-295.spec.ts": "sets its own viewports, one project is enough (was already skipped at run time)",
@@ -26,5 +26,27 @@
     "evidence-event-structure.spec.ts": "live evidence with a fixed 1000 px probe, header names the desktop project only; no phone checks",
     "evidence-shared-space.spec.ts": "plan editor evidence, the editor is not offered on a phone; desktop project only",
     "evidence-plan-studio-stairs.spec.ts": "plan editor evidence, the editor is not offered on a phone; desktop project only"
-  }
+  },
+  "tabletAlso": [
+    "evidence-announce-297.spec.ts",
+    "evidence-announceb-295.spec.ts",
+    "evidence-brand-tv.spec.ts",
+    "evidence-notice-tv.spec.ts",
+    "layout-noticeboard-hitech-2300.spec.ts",
+    "layout-noticeboard-luxury-2300.spec.ts",
+    "layout-noticeboard-skins-2300.spec.ts",
+    "layout-noticeboard-v2-297.spec.ts",
+    "notice-tv-bustimes-295.spec.ts",
+    "notice-tv-fonts-2443.spec.ts",
+    "notice-tv-header-295.spec.ts",
+    "notice-tv-header-worst-297.spec.ts",
+    "notice-tv-hostile-2443.spec.ts",
+    "notice-tv-saver-295.spec.ts",
+    "notice-tv-slides-295.spec.ts",
+    "notice-tv-tvnotice2-297.spec.ts",
+    "pixel-notice-tv-mock.spec.ts",
+    "pixel-notice-tv-portrait-chips.spec.ts",
+    "evidence-uxrest-295.spec.ts",
+    "evidence-uxrest2-295.spec.ts"
+  ]
 }

@@ -15,9 +15,12 @@ process.env.TZ = process.env.SW_TEST_TZ || 'Asia/Jerusalem';
 
 // PHONE-SKIP-DESKTOP-SHOTS-2490: spec files the phone project does not run (desktop-size evidence); one reason per file in the list,
 // scripts/check-phone-skip-list.mjs fails when a listed file is gone.
-const PHONE_SKIP = Object.keys(
-  (JSON.parse(readFileSync(new URL('./tests/phone-skip-list.json', import.meta.url), 'utf8')) as { files: Record<string, string> }).files,
-).map((f) => `**/${f}`);
+const SKIP_LIST = JSON.parse(readFileSync(new URL('./tests/phone-skip-list.json', import.meta.url), 'utf8')) as {
+  files: Record<string, string>;
+  tabletAlso: string[];
+};
+const PHONE_SKIP = Object.keys(SKIP_LIST.files).map((f) => `**/${f}`);
+const TABLET_SKIP = SKIP_LIST.tabletAlso.map((f) => `**/${f}`);
 
 export default defineConfig({
   testDir: 'tests',
@@ -45,7 +48,7 @@ export default defineConfig({
   },
   projects: [
     { name: 'desktop', use: { viewport: { width: 1440, height: 900 } } },
-    { name: 'tablet', use: { viewport: { width: 1024, height: 768 } } },
+    { name: 'tablet', testIgnore: ['**/archive/**', ...TABLET_SKIP], use: { viewport: { width: 1024, height: 768 } } },
     { name: 'mobile', testIgnore: ['**/archive/**', ...PHONE_SKIP], use: { ...devices['Pixel 7'], viewport: { width: 390, height: 844 } } },
   ],
 });

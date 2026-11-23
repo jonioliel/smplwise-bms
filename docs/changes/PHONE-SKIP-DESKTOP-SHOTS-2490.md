@@ -30,3 +30,12 @@ desktop-size evidence or assert the desktop layout.
 ## Tests run
 - `npm run check:phone-skip`: ok, 25 files (PC).
 - Server slot B sample run of the phone project: see the report below.
+
+## Follow-up: tablet project
+The 20 listed files that already skipped themselves on every non-desktop project (18 notice-board / TV files with the
+`project.name !== 'desktop'` hook, plus the two `evidence-uxrest*` files that skip below 1200 px) are also ignored by the `tablet` project
+(1024 px). They are named in the `tabletAlso` array of `phone-skip-list.json`; the guard checks each is also in `files` and exists.
+- tablet before: 12811 tests in 1188 files
+- tablet after: 12385 tests in 1168 files (-426 tests, -20 files)
+- phone after: 12374 tests in 1163 files (unchanged by the follow-up)
+- `npm run check:phone-skip`: ok, 25 files, 20 also skipped on tablet (PC).
