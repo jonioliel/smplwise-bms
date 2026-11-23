@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""API-CONTRACT-ADR-2490: the inventory behind ADR-019 (one error envelope, L2) and ADR-020 (`extra="forbid"` per client, L14).
+"""API-CONTRACT-ADR-2490: the inventory behind ADR-019 (one error envelope, L2, and `extra="forbid"` per client, L14).
 
     python scripts/error_contract_inventory.py                 # Markdown report on stdout
     python scripts/error_contract_inventory.py --json          # the same facts as JSON
