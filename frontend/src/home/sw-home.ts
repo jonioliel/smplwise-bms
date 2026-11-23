@@ -17,7 +17,7 @@ import {
 } from './home-api';
 import {
   MODES, PRESETS, activeRooms, activeText, defaultFavs, doorState, doorsText, favHeight, favOk, favWidth, floorName, greeting, homeBarText,
-  doorNoOpenText, homeScenes, keptNote, lightsText, loadsOn, masterLevel, onCount, onWord, packPages, paged, roomLights, sameFav, shadeText, zoneOn,
+  doorNoOpenText, homeScenes, keptNote, lightsText, loadsOn, masterLevel, onCount, onWord, paged, roomLights, sameFav, shadeText, zoneOn,
   type FavWorld,
 } from './home-logic';
 import * as act from './home-actions';
@@ -37,6 +37,10 @@ import { alarmPanels, panelAction, type AlarmAction, type AlarmPanel } from '../
 import { canAnywhere } from '../api/session';
 import { getIntercomOverview } from '../api/intercom';
 import { keyedDebounce } from './keyed-debounce';
+// HOME-FAVORITES-2500: the favourites grid in the person's order with "+ הוסף" holes, the long-press drag, the scene sheet and suggestion
+import { cellArea, layoutFavPages, type FavCell } from './home-favgrid';
+import { FavDrag, favHole } from './home-fav-ui';
+import { afterScene, sceneEditBtn, sceneSuggestRow } from './home-scene-2500';
 import { getStationMedia, type StationMediaTalk } from '../api/station-media';
 import { get } from '../api/client';
 import { logout as arxLogout } from '../arx/auth';
@@ -186,6 +190,19 @@ export class SwHome extends LitElement implements P3Host {
     400,
     { set: (fn, ms) => window.setTimeout(fn, ms), clear: (id) => window.clearTimeout(id) },
   );
+  /** HOME-FAVORITES-2500: the favourites as home-fav-ui.ts and home-scene-2500.ts use them; `list` is what the grid shows, in order */
+  readonly favApi = {
+    key: (): string => this.room,
+    editing: (): boolean => this.edit,
+    list: (key: string): Fav[] => this.favs(key).filter((f) => favOk(f, this.world())),
+    save: (key: string, list: Fav[]) => this.saveFavs(key, list),
+    label: (f: Fav): string => this.favLabel(f),
+    world: (): FavWorld => this.world(),
+    layout: (): HomeLayout => this.prefs.layout,
+    /** a drag took the press: no room swipe, no click at the release */
+    claim: () => { this.held = true; this.swipe = null; window.clearTimeout(this.holdT); },
+  };
+  private favDrag = new FavDrag(this);
   private lastRoute = '';
   private lastName = ''; // HOME-R32-ANSWERS-2438: the screen shown before, for the entry motion
   /** HOME-R32-ANSWERS-2438: the entry class of the current screen, kept until the next one (a data reload mid-entry no longer cuts it);
@@ -696,6 +713,7 @@ export class SwHome extends LitElement implements P3Host {
   };
 
   private onPointerDown = (ev: PointerEvent) => {
+    this.favDrag.down(ev); // HOME-FAVORITES-2500 (Q77): a long press in "עריכה" lifts the tile
     const path = ev.composedPath() as HTMLElement[];
     const host = path.find((n) => n instanceof HTMLElement && n.dataset?.ft && (n.classList.contains('lcard') || n.classList.contains('wdg')));
     const inCtl = path.some((n) => n instanceof HTMLElement && (n.tagName === 'INPUT' || n.classList?.contains('dim') || n.classList?.contains('star')));
@@ -796,7 +814,8 @@ export class SwHome extends LitElement implements P3Host {
       window.setTimeout(() => { this.sceneRun = null; }, 620);
       this.lastScene = s.id;
       try { sessionStorage.setItem('home.lastScene', s.id); } catch { /* storage unavailable: this page only */ }
-      void this.outcome(act.applyScene(s), tr('סצנת {name} הופעלה', { name: s.name }));
+      // HOME-FAVORITES-2500 (Q79): once it ran, a leaving / night scene may suggest locking the doors or arming (always asked, with the code)
+      void act.applyScene(s).then((o) => { void this.outcome(Promise.resolve(o), tr('סצנת {name} הופעלה', { name: s.name })); if (o.ok) void afterScene(this, s); });
     };
     if (s.sensitive) this.ovl = { type: 'ask', title: tr('להפעיל את {name}?', { name: s.name }), text: tr('הסצנה הזו משנה גם דברים רגישים.'), yes: tr('כן, הפעל'), run: runIt };
     else runIt();
@@ -1218,7 +1237,7 @@ export class SwHome extends LitElement implements P3Host {
     return st.badges ? (st.badges === 1 ? tr('דבר חדש') : tr('{badges} חדשים', { badges: st.badges })) : tr('{tiles} נוספים', { tiles: st.tiles });
   }
 
-  private widget(f: Fav, ix: number) {
+  private widget(f: Fav, ix: number, at?: FavCell<Fav>) {
     const w = favWidth(f, f.t === 'light' && !!this.findLight(f.id ?? '')?.sw);
     const ed = this.edit ? html`<div class="wg-ed"><span class="ed-n clamp1">${this.favLabel(f)}</span><span class="ed-b"><button class="rb" data-act="wgMove" data-ix=${ix} data-d="-1" aria-label="${tr('הזז אחורה')}">${hi('back')}</button>${f.t === 'light' && !this.findLight(f.id ?? '')?.sw ? html`<button class="rb" data-act="wgSize" data-ix=${ix} aria-label=${w === 2 ? tr('הקטן') : tr('הגדל, עם עמעום')}>${hi('size')}</button>` : nothing}<button class="rb" data-act="wgMove" data-ix=${ix} data-d="1" aria-label="${tr('הזז קדימה')}">${hi('fwd')}</button><button class="rb del" data-act="wgDel" data-ix=${ix} aria-label="${tr('הסר מהמועדפים')}">${hi('x')}</button></span></div>` : nothing;
     const cls = `tile wdg w${this.edit && this.phone ? 2 : w} h${favHeight(f)} wg-${f.t === 'switch' ? 'load' : f.t}${w === 1 ? ' s1' : ''}${this.edit ? ' editing' : ''}`;
@@ -1255,7 +1274,7 @@ export class SwHome extends LitElement implements P3Host {
       const t = (this.d.energy?.today ?? []).reduce((a, b) => a + b, 0);
       body = html`<a class="cover" href=${this.href('energy')} aria-label=${tr('חשמל היום: {v1} קוט״ש', { v1: t.toFixed(1) })}></a><div class="wg-c en1"><span class="wg-k">${hi('bolt')}${tr('חשמל היום')}</span><b class="mid num">${t.toFixed(1)}</b><span class="muted">${tr('קוט״ש')}</span></div>`;
     }
-    return html`<div class=${cls} data-ft=${f.t} data-fid=${f.id ?? ''}>${body}${ed}</div>`;
+    return html`<div class=${cls} data-ft=${f.t} data-fid=${f.id ?? ''} data-ix=${at ? String(ix) : nothing} style=${at ? cellArea(at) : nothing}>${body}${ed}</div>`;
   }
 
   private doorBody(d: HDoor, withStar: boolean) {
@@ -1273,19 +1292,18 @@ export class SwHome extends LitElement implements P3Host {
     // HOME-R32-ANSWERS-2438 (Q-HOME-1): a portrait tablet packs four tiles per row; a wide tile takes half the row there (a whole row on a phone)
     const cols = this.phone ? (this.tab4 ? 4 : 3) : 6;
     const rows = this.phone ? 5 : 3;
-    const area = (x: [Fav, number]) => {
-      const f = x[0];
+    const size = (f: Fav) => {
       const fw = favWidth(f, f.t === 'light' && !!this.findLight(f.id ?? '')?.sw);
-      const span = !this.phone ? fw : this.edit ? cols : fw === 2 ? (this.tab4 ? 2 : 3) : fw;
-      return span * favHeight(f);
+      return { w: !this.phone ? fw : this.edit ? cols : fw === 2 ? (this.tab4 ? 2 : 3) : fw, h: favHeight(f) };
     };
-    const pages = packPages(all.map((f, i) => [f, i] as [Fav, number]), area, cols, rows);
+    // HOME-FAVORITES-2500 (Q78): each tile in its own cell, in the person's order (no dense packing); a hole is "+ הוסף"
+    const pages = layoutFavPages(all, size, cols, rows);
     const key = 'fav-' + this.room;
     const p = Math.min(this.pg(key), pages.length - 1);
     const ch = this.chips();
     return html`<nav class="chips3" style=${`--c:${ch.n <= 5 ? ch.n : 4}`} aria-label=${r ? tr('מה יש ב') + r.name : tr('מה יש בבית')}>${ch.t}</nav>
       <section class="favz" aria-label="${tr('מועדפים')}"><div class="bar"><h2 class="clamp2">${r ? tr('המועדפים שלי כאן') : greeting(this.userName, this.now)}</h2><div class="acts">${this.pager(key, pages.length)}<button class="hbtn" data-act="edit" aria-pressed=${String(this.edit)}>${hi(this.edit ? 'check' : 'edit')}<span class="bt">${this.edit ? tr('סיום') : tr('עריכה')}</span></button></div></div>
-        <div class="wgrid">${pages[p].length ? pages[p].map(([f, ix]) => this.widget(f, ix)) : this.empty('star', tr('עוד אין כאן מועדפים'), tr('פתחו אורות, סצנות או מצלמות ולחצו על הכוכב כדי להצמיד אותם לכאן.'))}</div></section>`;
+        <div class=${'wgrid' + (this.edit ? ' editing' : '')}>${pages[p].favs.length ? pages[p].cells.map((x) => (x.kind === 'fav' ? this.widget(x.item, x.ix, x) : favHole(this, x))) : this.empty('star', tr('עוד אין כאן מועדפים'), tr('פתחו אורות, סצנות או מצלמות ולחצו על הכוכב כדי להצמיד אותם לכאן.'))}</div></section>`;
   }
 
   // ---------------------------------------------------------------- rooms
@@ -1538,8 +1556,9 @@ export class SwHome extends LitElement implements P3Host {
       const pg = paged(this.d.rooms.filter((x) => x.floor === cur), this.phone ? 5 : 8, this.pg('setRooms'));
       body = html`<div class="bar wrap"><p class="hint">${tr('לב: חדר מועדף, עוברים אליו בהחלקה. מתג: האם החדר מופיע בכלל.')}</p>${this.seg('floor', fl.map((f) => [f.id, f.short]), cur, tr('קומה'))}</div><div class="set-list two">${pg.items.map((x) => html`<div class="tile setrow"><span class="sname clamp1">${x.name}</span><button class="lamp heart" data-act="favRoom" data-id=${x.id} aria-pressed=${String(this.favRooms().includes(x.id))} aria-label="${tr('חדר מועדף')}">${hi('heart')}</button>${this.sw(!hidden.has(x.id), 'roomVis', tr('הצג את ') + x.name, x.id)}</div>`)}</div>${this.pager('setRooms', pg.pages)}`;
     } else if (t === 'scenes') {
-      const pg = paged(this.d.scenes, this.phone ? 5 : 8, this.pg('setScenes'));
-      body = html`<p class="hint">${tr('סצנה מפעילה כמה דברים בנגיעה אחת.')} ${this.d.scenes.some((s) => s.canEdit) ? tr('את תוכן הסצנה עורכים בממשק המלא.') : tr('רק מנהל הבית יכול לערוך סצנות.')}</p><div class="set-list two">${pg.items.map((s) => html`<div class="tile setrow">${hi(s.icon)}<span class="sname"><b>${s.name}</b><span class="muted clamp1">${s.does}</span></span>${s.canEdit && !this.pol()?.home_only ? html`<a class="hbtn" href="#/devices/automations/scenes">${hi('edit')}<span class="bt">${tr('עריכה')}</span></a>` : nothing}</div>`)}</div>${this.pager('setScenes', pg.pages)}`;
+      const pg = paged(this.d.scenes, this.phone ? 4 : 6, this.pg('setScenes'));
+      // HOME-FAVORITES-2500: Q75 the edit sheet for whoever holds scene.manage (home-scene-2500.ts), Q79 the personal switch of the suggestion
+      body = html`<p class="hint">${tr('סצנה מפעילה כמה דברים בנגיעה אחת.')} ${this.d.scenes.some((s) => s.canEdit) ? tr('אפשר לשנות שם, לשמור את המצב של עכשיו או להעביר לסל.') : tr('רק מי שמחזיק הרשאת ניהול סצנות יכול לערוך אותן.')}</p>${sceneSuggestRow(this)}<div class="set-list two">${pg.items.map((s) => html`<div class="tile setrow">${hi(s.icon)}<span class="sname"><b>${s.name}</b><span class="muted clamp1">${s.does}</span></span>${sceneEditBtn(this, s)}</div>`)}</div>${this.pager('setScenes', pg.pages)}`;
     } else if (t === 'themes') {
       const curT = this.getAttribute('data-hs-theme') ?? 'classic';
       const scheme = this.getAttribute('data-hs-scheme') ?? 'dark';

@@ -599,7 +599,7 @@ def clean_layout(v: Any) -> dict[str, Any]:
         if v["theme"] is not None and (not isinstance(v["theme"], str) or not THEME_RE.match(v["theme"])):
             raise HomeInterfaceError(422, "validation", "ערכת הצבעים אינה מוכרת.")
         out["theme"] = v["theme"]
-    for k in ("big_text", "welcomed"):
+    for k in ("big_text", "welcomed", "scene_suggest"):  # HOME-FAVORITES-2500 (Q79): scene_suggest = the suggestion after a scene (on when absent)
         if k in v:
             out[k] = bool(v[k])
     for k, allowed, what in (("motion", LAYOUT_MOTION, "התנועה"), ("cal_week", LAYOUT_CAL_WEEK, "תצוגת השבוע")):
