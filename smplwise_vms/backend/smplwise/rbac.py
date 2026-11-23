@@ -374,6 +374,11 @@ def require(conn: sqlite3.Connection, principal: Principal, permission: str, tar
         audit(conn, actor=principal, action=permission, decision="denied", resource_type=target[0], resource_id=target[1], reason=decision.reason, under=decision)
         raise forbidden(permission=permission, target_type=target[0], target_id=target[1], reason=decision.reason)
     note_grant(decision, permission)
+    # MFA-STEPUP-TRAIN-2490: a WRITE that uses a settings / users / permissions permission needs a fresh second-factor proof
+    # (services/step_up.py - one central gate, after the authorisation, before the handler acts; a no-op outside a request)
+    from .services import step_up
+
+    step_up.on_grant(conn, principal, permission)
     return decision
 
 

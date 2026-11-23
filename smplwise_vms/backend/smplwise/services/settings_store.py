@@ -413,6 +413,12 @@ DEFAULTS: dict[str, str] = {
     "remote.mse_fallback": "true",  # MSE through the tunnel only as an announced last resort; false = never (D7)
     "security.second_factor_policy": "optional",  # K11 (owner 2026-10-06): the TOTP second factor is optional; "admins" refuses a remote sign-in of an administrator who has none
     "security.second_factor_bearer": "enforce",  # security review 2.2.0 H1: enforce = the factor / admins policy also on a new bearer sign-in (HTTP + WS); off = the pre-2.2.1 bearer path
+    # MFA-STEPUP-TRAIN-2490 (owner decisions 2026-11-22, Q45/Q46 + note; services/step_up.py): on = a change of settings, users or
+    # permissions needs a fresh second-factor proof (the authenticator code) - off = the factor is asked only at sign-in; the proof
+    # counts for N minutes (0-30, 0 = every action); local = also on the local channel (Ingress). Security policy: never restored.
+    "security.step_up": "on",
+    "security.step_up_minutes": "5",
+    "security.step_up_local": "off",
     # USR2 (docs/changes/CR-USR2-ARX-ONLY-IDENTITY.md, owner answers 2026-10-16): Arx-only identities. `security.local_identity` is the
     # feature switch - off (default): no local user can be created or sign in, and the HA-based sign-in is exactly as before. Changing
     # it needs a system administrator and is audited; switching it off ends every local session. The other keys shape the sessions,
@@ -556,7 +562,7 @@ DEFAULTS: dict[str, str] = {
 }
 
 SCHEDULE_CLASSES = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum", "siren", "media", "number", "select")
-INT_KEYS = ("media.video_notice_after_min", "privacy.local_purge_days", "security.local_admin_session_days", "security.local_password_min", "backup.password_min", "security.local_link_ttl_h", "media.max_live_sessions", "media.h265_max_transcodes", "access.station_media_max_talk_s", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.max_seeks_per_min", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", "history.range_max_days", "history.presence_retention_days", "ui.page_size.schedules", "ui.page_size.schedules_phone", "ui.page_size.automations", "ui.page_size.automations_phone", "ui.page_size.automations_cards", "ui.page_size.automations_cards_phone", *automation_settings.INT_KEYS)
+INT_KEYS = ("media.video_notice_after_min", "privacy.local_purge_days", "security.local_admin_session_days", "security.local_password_min", "security.step_up_minutes", "backup.password_min", "security.local_link_ttl_h", "media.max_live_sessions", "media.h265_max_transcodes", "access.station_media_max_talk_s", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.max_seeks_per_min", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", "history.range_max_days", "history.presence_retention_days", "ui.page_size.schedules", "ui.page_size.schedules_phone", "ui.page_size.automations", "ui.page_size.automations_phone", "ui.page_size.automations_cards", "ui.page_size.automations_cards_phone", *automation_settings.INT_KEYS)
 # BUBBLE-FREEZE-295 (owner 2026-10-26): skins that are frozen - kept in the code, rejected by new writes, and a stored value is read as the fallback.
 # Keep in step with FROZEN_SKINS / FROZEN_FALLBACK_SKIN in frontend/src/design/skins/index.ts. Unfreeze = empty FROZEN_SKINS.
 FROZEN_SKINS = ("bubble",)

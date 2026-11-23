@@ -10,6 +10,8 @@
 `DELETE auth/second-factor/users/{user_id}`     system.configure: reset (remove) ANOTHER user's factor from any channel - audited;
                                                 an administrator who has a factor sends their own current code
                                                 (X-Arx-Second-Factor or {code}); the target's remote sign-ins end
+`GET    auth/step-up`                           MFA-STEPUP-TRAIN-2490: the step-up switch, window and the caller's current proof
+`POST   auth/step-up/verify {method, code}`     MFA-STEPUP-TRAIN-2490: a current code -> a step-up proof on THIS session (services/step_up)
 
 The factor is applied to the remote sign-in (services/ha_user_auth.exchange). Codes and secrets are never logged or audited;
 audit rows carry the method and the target user only. Code attempts are limited (5 wrong in 5 minutes lock the user for
@@ -31,6 +33,7 @@ from ..services import ha_user_auth as hua
 from ..services import capture_lease, notify_sources, presence
 from ..services import second_factor as sf
 from ..services import second_factor_store as store
+from ..services import step_up
 from ._common import rid as _rid
 from ..wire import second_factor as W
 from ..wire import wire
@@ -105,6 +108,7 @@ def confirm(body: CodeBody, request: Request, principal: Principal = Depends(cur
 
         ended += local_identity.on_factor_enabled(conn, settings_of(request), request, principal)
     _audit(conn, request, principal, "auth.second_factor.enrolled", principal.user_id, other_sign_ins_ended=ended, device_tokens_revoked=tokens)
+    step_up.note_proof(request, principal, "totp")  # MFA-STEPUP-TRAIN-2490: the first code was just shown in this session
     capture_lease.on_authority_change("second_factor_changed", user_ids=[principal.user_id])  # CR-WISKEY-LEASE-REVOCATION-EVENT T6
     return sf.status(conn, principal.user_id)
 
@@ -120,6 +124,7 @@ def disable(body: CodeBody, request: Request, principal: Principal = Depends(cur
         _audit_failed(conn, request, principal, "disable", exc)
         raise _fail(exc) from None
     sf.remove(conn, principal.user_id)
+    step_up.forget_user(principal.user_id)  # MFA-STEPUP-TRAIN-2490: no proof outlives the factor it came from
     factor_cleared = False
     if principal.source == "local":  # USR2 review RELEASE_264 F2: no factor left -> this session no longer counts as factor-verified
         from ..services import local_identity
@@ -225,6 +230,7 @@ def admin_reset(user_id: str, request: Request, body: ResetBody | None = None, p
     require_step_up(conn, request, principal, body.code if body else None, action="auth.second_factor.reset", target=user_id)
     was_active = sf.is_enrolled(conn, user_id)
     removed = sf.remove(conn, user_id)
+    step_up.forget_user(user_id)  # MFA-STEPUP-TRAIN-2490: the target's step-up proofs end with the factor
     capture_lease.on_authority_change("second_factor_changed", user_ids=[user_id])  # CR-WISKEY-LEASE-REVOCATION-EVENT T6
     ended = hua.revoke_user_sign_ins(conn, user_id, actor=principal, reason="second_factor_reset", request_id=_rid(request))
     tokens = presence.revoke_tokens(conn, user_id)  # TFA2: the phone app's device tokens end with the factor (it re-registers through a session)
@@ -236,3 +242,47 @@ def admin_reset(user_id: str, request: Request, body: ResetBody | None = None, p
     _audit(conn, request, principal, "auth.second_factor.reset", user_id, removed=removed, step_up=sf.is_enrolled(conn, principal.user_id), sign_ins_ended=ended,
            device_tokens_revoked=tokens, user_notified=was_active)
     return {"user_id": user_id, "removed": removed}
+
+
+# ---------------------------------------------------------------- step-up (MFA-STEPUP-TRAIN-2490, services/step_up.py)
+
+STEP_UP_LIMITS: list[tuple[float, int]] = [(300.0, 10), (3600.0, 30)]
+
+
+@router.get("/auth/step-up", **wire(W.StepUpStatus))
+def step_up_status(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    return step_up.status(conn, request, principal)
+
+
+class StepUpBody(BaseModel):
+    method: str = Field(default=step_up.METHOD_TOTP, pattern="^totp$")
+    code: str = Field(min_length=1, max_length=16)
+    action: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_.]{0,63}$")  # the change the proof is for (audit only)
+
+
+@router.post("/auth/step-up/verify", **wire(W.StepUpProof))
+def step_up_verify(body: StepUpBody, request: Request, principal: Principal = Depends(current_principal),
+                   conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """A current authenticator code -> a step-up proof on the caller's session (memory, server-side), good for
+    `security.step_up_minutes` (0: one gated request). Audited `auth.step_up.ok` / `auth.step_up.failed` with the method and the
+    action, never the code. Wrong codes count towards the factor's lockout (5 in 5 minutes); the route is rate-limited per user."""
+    if not hua.LIMITER.hit(f"stepup:{principal.user_id}", STEP_UP_LIMITS):
+        raise ApiError(429, "rate_limited", hua.RATE_LIMITED_HE, retryable=True)
+    reason = step_up.not_applicable(conn, request, principal)
+    if reason == "no_method":
+        raise ApiError(409, "step_up_no_method", step_up.NO_METHOD_HE)
+    if reason is not None:
+        raise ApiError(409, "step_up_not_applicable", step_up.NOT_APPLICABLE_HE, details={"reason": reason})
+    if step_up.session_key(request, principal) is None:
+        raise ApiError(409, "step_up_no_session", step_up.NO_SESSION_HE)
+    details = {"method": body.method, "action": body.action or ""}
+    try:
+        sf.verify(conn, settings_of(request), principal.user_id, body.code)
+    except sf.SecondFactorError as exc:
+        audit(conn, actor=principal, action="auth.step_up.failed", decision="denied", resource_type="user", resource_id=principal.user_id,
+              reason=f"step_up_{exc.code}", request_id=_rid(request), details=details)
+        raise _fail(exc) from None
+    until = step_up.mark(conn, request, principal, body.method)
+    audit(conn, actor=principal, action="auth.step_up.ok", decision="allowed", resource_type="user", resource_id=principal.user_id,
+          request_id=_rid(request), details={**details, "minutes": step_up.minutes(conn)})
+    return {"method": body.method, "minutes": step_up.minutes(conn), "valid_until": step_up.iso(until)}

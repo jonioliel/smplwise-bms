@@ -64,3 +64,23 @@ class FactorReset(WireModel):
     """`DELETE /auth/second-factor/users/{id}`: `removed` = a factor (active or pending) was there."""
     user_id: str
     removed: bool
+
+
+class StepUpStatus(WireModel):
+    """`GET /auth/step-up` (MFA-STEPUP-TRAIN-2490): the switch, the window in minutes (0 = every action), whether the local channel is
+    gated too, whether step-up applies to the caller (`reason` says why not: off | local_channel | bearer_token | no_method), the
+    methods the caller can use and until when the current proof counts (null: none)."""
+    enabled: bool
+    minutes: int
+    local_channel: bool
+    applies: bool
+    reason: Literal["off", "local_channel", "bearer_token", "no_method"] | None
+    methods: list[Literal["totp"]]
+    valid_until: str | None
+
+
+class StepUpProof(WireModel):
+    """`POST /auth/step-up/verify`: the proof was accepted; it counts until `valid_until` (one gated request when `minutes` is 0)."""
+    method: Literal["totp"]
+    minutes: int
+    valid_until: str | None

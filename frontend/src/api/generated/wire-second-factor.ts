@@ -58,6 +58,28 @@ export interface OwnFactor {
   policy: "optional" | "admins";
 }
 
+/** `POST /auth/step-up/verify`: the proof was accepted; it counts until `valid_until` (one gated request when `minutes` is 0). */
+export interface StepUpProof {
+  method: "totp";
+  minutes: number;
+  valid_until: string | null;
+}
+
+/**
+ * `GET /auth/step-up` (MFA-STEPUP-TRAIN-2490): the switch, the window in minutes (0 = every action), whether the local channel is
+ * gated too, whether step-up applies to the caller (`reason` says why not: off | local_channel | bearer_token | no_method), the
+ * methods the caller can use and until when the current proof counts (null: none).
+ */
+export interface StepUpStatus {
+  enabled: boolean;
+  minutes: number;
+  local_channel: boolean;
+  applies: boolean;
+  reason: "off" | "local_channel" | "bearer_token" | "no_method" | null;
+  methods: "totp"[];
+  valid_until: string | null;
+}
+
 /** The answer of every modelled route of this family: `'METHOD path'` -> type. */
 export interface SecondFactorRoutes {
   "GET /api/v1/auth/second-factor": OwnFactor;
@@ -68,4 +90,6 @@ export interface SecondFactorRoutes {
   "GET /api/v1/auth/second-factor/overrides": Overrides;
   "PUT /api/v1/auth/second-factor/overrides/{kind}/{subject_id}": OverrideSet;
   "DELETE /api/v1/auth/second-factor/users/{user_id}": FactorReset;
+  "GET /api/v1/auth/step-up": StepUpStatus;
+  "POST /api/v1/auth/step-up/verify": StepUpProof;
 }

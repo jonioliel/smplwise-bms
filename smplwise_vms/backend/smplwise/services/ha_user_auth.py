@@ -1224,6 +1224,10 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
     except ChainRevoked:  # review M2: a revoke of this sign-in landed while the token was being validated
         _remember_rejected(token)
         raise await rejected("remote_session_revoked", unauthenticated("remote_session_revoked", REVOKED_HE), principal)
+    if factor == "code":  # MFA-STEPUP-TRAIN-2490: the code was shown moments ago - the session starts with a fresh step-up proof
+        from . import step_up
+
+        step_up.note_sign_in_factor(session)
 
     def touch_and_audit() -> None:
         from ..auth import touch_user
