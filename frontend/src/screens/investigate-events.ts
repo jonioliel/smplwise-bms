@@ -318,8 +318,11 @@ export class InvestigateEvents extends LitElement {
       --sw-chipc-pad: 11px;
       --sw-chipc-fs: var(--sw-fs-sm);
     }
-    .tools .grow {
-      flex: 1;
+    /* the "mark all handled" key sits at the row's end. CMP2-POLISH-2480: pushed there by its own auto margin, not by a spacer item -
+       a spacer is one more flex item and one more 12 px gap, which on a 390 px phone sent the key to a third line under the 28 px
+       chip rows (the page grew); without it the key shares the view row as it did in 2.47.0 */
+    .tools .ackall {
+      margin-inline-start: auto;
     }
     .active {
       display: inline-flex;
@@ -1388,8 +1391,7 @@ export class InvestigateEvents extends LitElement {
               <button type="button" class="reset" data-filter-reset @click=${() => this.resetFilters()}>${tr('איפוס')}</button>
             </span>`
           : nothing}
-        <span class="grow"></span>
-        <sw-button size="sm" icon="check" ?disabled=${!unacked || this.busy} data-ack-all title=${tr('מסמן כטופלו את כל האירועים ברשימה שעדיין לבדיקה (לפי הסינון הנוכחי)')} @click=${() => this.ackAll()}>${tr('סמן הכול כטופל ({n})', { n: unacked })}</sw-button>
+        <sw-button class="ackall" size="sm" icon="check" ?disabled=${!unacked || this.busy} data-ack-all title=${tr('מסמן כטופלו את כל האירועים ברשימה שעדיין לבדיקה (לפי הסינון הנוכחי)')} @click=${() => this.ackAll()}>${tr('סמן הכול כטופל ({n})', { n: unacked })}</sw-button>
       </div>
       </div>
       ${this.renderTech(noAlerts)}
