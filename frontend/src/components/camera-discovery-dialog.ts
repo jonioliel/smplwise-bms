@@ -594,6 +594,14 @@ export class CameraDiscoveryDialog extends LitElement {
     this.mq.removeEventListener('change', this.onResize);
     window.removeEventListener('resize', this.onResize);
     this.stopPolling();
+    // removed while open (a route change, a reload of the card): the typed pair must not outlive the dialog, here or in the scan job
+    if (this.open) {
+      this.user = this.password = '';
+      this.rowPw = {};
+      this.tried.clear();
+      const job = this.job;
+      if (job && job.state !== 'running') void cancelScan(job.id).catch(() => undefined);
+    }
   }
 
   protected updated(changed: Map<string, unknown>) {
