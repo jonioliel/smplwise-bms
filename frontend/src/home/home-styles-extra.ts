@@ -121,4 +121,17 @@ export const homeExtraStyles = css`
   .week .wd[data-past]:not([aria-pressed="true"]) b { opacity: .7; }
   .hs.v2 .tabsrow:has(> sw-segmented + sw-segmented) { flex-wrap: nowrap; gap: 6px; }
   .hs.v2 .tabsrow > sw-segmented + sw-segmented, .hs.v2 .tabsrow > sw-segmented:has(+ sw-segmented) { inline-size: auto; flex: 1 1 auto; min-inline-size: 0; }
+  /* HOME-FAVORITES-2500: Q78 a hole the person's order leaves in the favourites grid is a quiet "+ add" cell (dashed, never a tile);
+     Q77 in edit mode a long press lifts a tile (no browser pan while it is held) and the cell under the finger is outlined. */
+  .wgrid > .fav-add { display: flex; align-items: center; justify-content: center; gap: 8px; min-inline-size: 0; padding: 0 10px; border: 2px dashed var(--hs-border-strong); background: transparent; color: var(--hs-text-2); font: inherit; font-size: var(--f-body); font-weight: 600; cursor: pointer; transition: background-color var(--hs-t-med) ease, color var(--hs-t-med) ease; }
+  .wgrid > .fav-add:hover, .wgrid > .fav-add:focus-visible { background: var(--hs-surface-2); color: var(--hs-heading); }
+  .wgrid > .fav-add .hi { inline-size: 22px; block-size: 22px; }
+  .wgrid > .fav-gap { pointer-events: none; }
+  .wgrid.editing > .wdg { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  .wgrid > .wdg.fav-lift { z-index: 6; pointer-events: none; scale: 1.04; opacity: .94; box-shadow: var(--hs-shadow-3, 0 12px 32px rgb(0 0 0 / .35)); transition: scale 120ms var(--hs-ease), box-shadow 120ms ease; }
+  .wgrid.fav-dragging > .fav-add { color: var(--hs-accent-text); border-color: var(--hs-accent); }
+  .wgrid > .wdg.fav-drop, .wgrid > .fav-add.fav-drop { outline: 3px solid var(--hs-accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { .wgrid > .wdg.fav-lift { transition: none; } }
+  .fav-pick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  @media (max-width: 700px), (max-width: 899px) and (orientation: portrait) { .fav-pick { grid-template-columns: minmax(0, 1fr); } }
 `;
