@@ -53,10 +53,17 @@ layout-audit30-e-infra, pixel-access-events, pixel-wiskey-access-diag, pixel-aud
 305 passed, 106 skipped, 0 failed. Behaviour (evidence-polish2-295, evidence-genalert, all projects): 27 passed. evidence-readiness-96
 (desktop): 18 passed. The merge-conflict baseline `visual-matrix devices-schedules-ready-light-desktop` (main's copy) matched.
 
-Baselines refreshed (looked at, old vs new): `pixel-events-windows-2443` `events-windows-classic-{table-1440-desktop,drawer-1440-desktop,
-table-390-mobile}-linux.png` - the chosen chips take the selected-chip look (ring, field, check; CR-CMP2-POLISH-2470) instead of the
-accent fill; on the phone the chips are 28 px again and the mark-all key stays on the view row (17 px shorter than 2.47.0).
+After the look-rule revert (52ee4edc4), PC: unit `unit-sw-segmented`, `unit-sw-tabs-2460`, `unit-chip-selected-2439`,
+`unit-phone-buttons-44`, `unit-readiness-96`: 52 passed; `tsc` app + tests 0 errors; `eslint` on `sw-chip-choice.ts` /
+`investigate-events.ts`: 0 problems; events centre re-captured (desktop + phone): 2 passed, chip 28 px, hit area 44 px.
+Runner (slot B, `~/work/slotb.sh`, same specs, `--workers=2`) at 52ee4edc4: verify without `-u` 303 passed, 106 skipped, 2 failed
+(pixel-events-windows-2443 desktop + mobile, against the selected-look images of 9c899ce41); rewrite of those only: 3 images; verify
+again 305 passed, 106 skipped, 0 failed; behaviour 27 passed; evidence-readiness-96 (desktop) 18 passed.
 
+Baselines (looked at, old vs new, and compared with main pixel by pixel): `pixel-events-windows-2443`
+`events-windows-classic-{table,drawer}-1440-desktop-linux.png` are byte-identical to main's 2.47.0 images again (the module look, no
+desktop change at all); `events-windows-classic-table-390-mobile-linux.png` differs from main only from the chip rows down (y >= 508):
+the chips are 28 px, the accent fill kept, the mark-all key on the view row - the page is 17 px shorter than 2.47.0.
 ## NOT_RUN
 
 - Full unit / evidence / pixel suites, the entry check (`branch_check.sh`), tablet captures; no lab / device test (UI only).
