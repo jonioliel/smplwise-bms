@@ -78,6 +78,35 @@ export function setUnauthorizedHandler(fn: (() => Promise<boolean>) | null): voi
   onUnauthorized = fn;
 }
 
+/** MFA-STEPUP-TRAIN-2490: what the server's central step-up gate says with its 403 `step_up_required` (services/step_up.py). Only an
+ * answer that names `verify_path` comes from that gate; the bridge-key reveal's own 403 of the same code asks for its code itself. */
+export interface StepUpDetails {
+  action?: string;
+  methods?: string[];
+  minutes?: number;
+  verify_path?: string;
+}
+
+/** MFA-STEPUP-TRAIN-2490: on a 403 `step_up_required` from the central gate the shell asks for the authenticator code
+ * (shell/step-up.ts); true = a fresh proof was recorded, retry the request ONCE. Never a second prompt for the retried request. */
+let onStepUp: ((details: StepUpDetails) => Promise<boolean>) | null = null;
+export function setStepUpHandler(fn: ((details: StepUpDetails) => Promise<boolean>) | null): void {
+  onStepUp = fn;
+}
+
+/** The gate's details when this answer is the central step-up refusal, else null. Reads a clone: the answer stays readable. */
+async function stepUpRefusal(res: Response): Promise<StepUpDetails | null> {
+  if (res.status !== 403) return null;
+  try {
+    const b = JSON.parse(await res.clone().text()) as { code?: unknown; details?: unknown };
+    if (b?.code !== 'step_up_required' || !b.details || typeof b.details !== 'object') return null;
+    const d = b.details as StepUpDetails;
+    return typeof d.verify_path === 'string' ? d : null;
+  } catch {
+    return null;
+  }
+}
+
 /** One HTTP answer, read to its text (a 204 carries none). */
 interface RawReply {
   status: number;
@@ -93,6 +122,11 @@ async function fetchApi(path: string, init: RequestInit): Promise<Response> {
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   let res = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin' });
   if (res.status === 401 && onUnauthorized && (await onUnauthorized())) res = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin' });
+  if (res.status === 403 && onStepUp) {
+    const details = await stepUpRefusal(res);
+    // the user confirmed with a current code: the same request once more (never queued, never retried again - a second refusal is final)
+    if (details && (await onStepUp(details))) res = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin' });
+  }
   return res;
 }
 
