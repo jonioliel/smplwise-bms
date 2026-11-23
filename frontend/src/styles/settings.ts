@@ -326,7 +326,10 @@ export const settingsKitStyles = css`
   sw-table.set-matrix {
     --sw-table-min: 0;
     --sw-table-fs: var(--sw-fs-base);
-    --sw-table-cell-pad: 10px 8px;
+    /* RELEASE-2470-TRAIN: a phone keeps the matrix's columns (keep-columns), so the side padding narrows with the viewport
+       (8 px from an 800 px wide window as before, 4 px at 390 px) to keep the grid inside its card (layout-visdiff-246
+       settings-automations at 390 px: the 4-5 right columns pushed main 5 px wide) */
+    --sw-table-cell-pad: 10px clamp(var(--sw-s-1), 1vw, var(--sw-s-2));
   }
   sw-table.set-matrix::part(yes) {
     color: var(--sw-success-text);
