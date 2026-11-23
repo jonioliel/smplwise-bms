@@ -25,8 +25,10 @@ Owner decisions Q18 (N57) and Q19 (N58), both "yes". Base `main` 619f94d04 (rele
 * Settings > Notifications: a "הכרזה" switch in every source row (the policy flag `channels.announce` the server already
   validates) and a card in "ערוצים" (on while a source routes to it). Pictogram `horn` added to `NOTIFY_ICONS` (the same path
   data as the home screen's announcement tile). The demo log has one spoken announcement.
-* Known: at 1440 px the sources matrix already scrolled sideways before this change (WhatsApp / Companion clipped); the new
-  switch sits after WhatsApp. Question to the owner in the compare page.
+* Owner decision (option ב, 2026-11-23): the channel chips of the sources matrix wrap inside their cell (`.mx td .chs`), the
+  channels column is wider (18/6/22/16/rest %). Measured on the demo: sideways overflow of the matrix 169 px -> 0 (1280),
+  119 px -> 0 (1440), 0 -> 0 (1920); chips outside their cell 84 -> 0 / 56 -> 0; rows 56 -> 107 px at 1280 / 1440 (two chip
+  lines), 61 px at 1920. The phone (cards) is unchanged in layout.
 
 ## Tests
 

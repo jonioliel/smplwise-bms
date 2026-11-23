@@ -411,6 +411,13 @@ export class SystemNotifications extends LitElement {
         align-items: center;
         flex-wrap: nowrap;
       }
+      /* RESPONSE-HINTS-2480 (owner decision, option ב): in the sources matrix the channel chips wrap inside their cell (two lines),
+         so no channel (WhatsApp, Companion, הכרזה) hides behind a sideways scroll of the table at 1280-1920 px */
+      .mx td .chs {
+        flex-wrap: wrap;
+        max-inline-size: 100%;
+        padding-block: 4px;
+      }
       .chip {
         display: inline-flex;
         align-items: center;
@@ -1135,7 +1142,7 @@ export class SystemNotifications extends LitElement {
     const s = this.settings as NotifySettings;
     let body: TemplateResult;
     if (!this.phone) {
-      body = html`<div class="mxw"><table class="mx"><colgroup><col style="width:20%"><col style="width:7%"><col style="width:24%"><col style="width:18%"><col></colgroup>
+      body = html`<div class="mxw"><table class="mx"><colgroup><col style="width:18%"><col style="width:6%"><col style="width:22%"><col style="width:16%"><col></colgroup>
         <thead><tr><th>${tr('מקור')}</th><th class="c">${tr('פעיל')}</th><th>${tr('חומרה')}</th><th>${tr('מי מקבל')}</th><th>${tr('ערוצים')}</th></tr></thead>
         <tbody>${groups.map((g: MatrixGroup) => html`<tr class="cat"><td colspan="5">${nIcon(g.icon)}${g.label}</td></tr>${g.rows.map(({ info, policy: p }) => html`<tr class=${p.enabled ? '' : 'off'} data-pol-row=${p.source}>
           <td class="keep"><span class="nm"><span class="ring">${nIcon(info.icon)}</span><b>${info.label}</b></span></td>

@@ -70,3 +70,9 @@ test('the settings screen: a switch per source and a card in "ערוצים" with
   expect(src).toContain("{ key: 'channel', label: tr('ערוץ'), render: (d) => CHANNEL_LABEL[d.channel] }");
   expect(NOTIFY_ICONS.horn).toMatch(/^<path /);
 });
+
+test('owner decision (option ב): in the sources matrix the channel chips wrap inside their cell, and the channels column is the widest', () => {
+  const src = readFileSync(new URL('../src/screens/system-notifications.ts', import.meta.url), 'utf8');
+  expect(src).toMatch(/\.mx td \.chs \{\s*flex-wrap: wrap;/);
+  expect(src).toContain('<colgroup><col style="width:18%"><col style="width:6%"><col style="width:22%"><col style="width:16%"><col></colgroup>');
+});
