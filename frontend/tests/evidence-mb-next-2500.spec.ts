@@ -61,7 +61,9 @@ async function openMeters(page: Page, after: boolean, scheme: 'light' | 'dark') 
 // ---------------------------------------------------------------------------------------------------------------- the shared rooms
 
 async function openRooms(page: Page, after: boolean, scheme: 'light' | 'dark') {
-  await installCalendarsMock(page, { perms: ['devices.read', 'calendar.view', 'calendar.book'] });
+  // a calendar administrator: on the phone a person who manages nothing gets the resident flow (CALENDARS-UI-2310, cal-page.ts
+  // `phoneResident`), which has no rooms timeline - the filter under test lives in the rooms view
+  await installCalendarsMock(page, { perms: ['devices.read', 'calendar.view', 'calendar.book'], can: { manage: true } });
   const cal = (id: string, name: string) => ({ id, name, type: 'room', color: 'blue', tz: 'Asia/Jerusalem', owner: { id: 'u2', name: 'נועה ברק' }, my_role: 'book', visibility: 'members',
     approval_mode: 'none', approval_timeout_h: 2, capacity: 8, equipment: [], floor_id: null, area_ref: null, overlap_override: null, sync: null, pending_count: 0, archived: false, revision: 1 });
   const rooms = [['a', 'חדר ישיבות אלון'], ['b', 'חדר ישיבות ברוש'], ['c', 'אולם הלובי']] as const;
