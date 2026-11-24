@@ -96,7 +96,18 @@ PC (at e18863785): `ruff check` of the five conflict-resolved backend files - al
 exit 0; `node scripts/i18n_missing_keys.mjs --json` against `docs/i18n/EN_RATCHET.json` - no new English gap key, no new placeholder
 key, hard-coded Hebrew total 3160 = the ratchet (the 2.50 rows add no untranslated text on top of the 2.49 train).
 
-Runner (tsc, build, unit suite, row browser specs, backend shards): PENDING - queued on runner slot B since 00:33 UTC.
+Runner (tsc x3, vite build, Node unit suite, the rows' browser specs desktop + mobile `--workers=2`, backend in 4 shards):
+**NOT_RUN - BLOCKED by the runner.** The job (`~/work/trial2500_tests.sh`, specs list below) waited on slots B/C/D from 00:33 to
+~04:50 UTC without getting a slot (10-15 other agents' jobs queued, several running 2-3 h); from ~04:00 UTC the runner was
+out of memory (OOM kills of headless Chromium, load 100-250, SSH banner time-outs). The waiting job was cancelled to stop adding
+load. No tsc / build / unit / browser / full-backend result exists for the trial head - nothing here is a PASS.
+
+Specs the run was to cover (from `frontend/`): camera-discovery-2500, evidence-onvif-ui-2500, home-wall-night-2500,
+home-wall-night-2500-shots, home-favorites-2500, home-favorites-2500-shots, evidence-mapping-assist-2330, evidence-mb-safety-2500,
+evidence-mb-home-2500, pixel-home-auditfix-2437, pixel-home-fb-2431, pixel-home-gaps-2436 (plus the whole Node unit suite, which holds
+unit-camera-discovery-2500, unit-home-wall-night-2500, unit-home-favorites-2500, unit-mb-safety-2500, unit-mb-home-2500 and
+unit-modal-stack-guard-2442). Re-run: a worktree of `origin/trial/2500` at `~/work/trial2500`, then
+`~/work/slotb.sh ~/work/trial2500_tests.sh <specs file>`.
 
 ## 6. What each row still needs before boarding
 
