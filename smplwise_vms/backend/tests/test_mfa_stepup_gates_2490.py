@@ -113,6 +113,7 @@ def gated_alarm(alarm_app, monkeypatch, clock):  # noqa: F811 - pytest fixtures 
     monkeypatch.setattr(sf, "time", types.SimpleNamespace(time=lambda: float(frozen)))
 
     def enable() -> None:
+        assert c.patch("/api/v1/settings", json={"security.step_up": "on"}).status_code == 200  # MFA-SECFIX-2500: off by default (Q2 = b)
         assert c.post("/api/v1/auth/second-factor/enroll").status_code == 200
         assert c.post("/api/v1/auth/second-factor/confirm", json={"code": _totp(app, s, "dev-joni")}).status_code == 200
         assert c.patch("/api/v1/settings", json={"security.step_up_local": "on"}).status_code == 200  # inside the enrolment's grace

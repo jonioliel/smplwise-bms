@@ -297,32 +297,38 @@ def test_the_authenticator_code_in_the_request_also_removes_a_passkey(arx, clock
     assert details(arx.audit("auth.passkey.removed")[-1])["proof"] == "code"
 
 
-def test_factor_changes_still_need_a_proof_while_step_up_is_off(arx, clock):
+def test_factor_changes_need_no_proof_while_step_up_is_off(arx, clock):
+    """MFA-SECFIX-2500 (owner Q2 = b: "never ask for re-confirmation unless I switched it on"): with the switch off a passkey is
+    added and removed with no proof (slice 4 had asked one whatever the switch said)."""
     local = configure(arx)
     auth, _ = add_passkey(arx, arx.owner)
     assert local.patch("/api/v1/settings", json={"security.step_up": "off"}).status_code == 200
     clock.advance(6)
     assert title(arx, "free").status_code == 200  # the switch is off: no step-up for settings
-    r = arx.client.post(REG_OPTS)
-    assert r.status_code == 403 and r.json()["code"] == "step_up_required"
-    # a proof for an ordinary action is "not applicable" while the switch is off; for the factor change it is accepted
+    assert arx.client.post(REG_OPTS).status_code == 200
+    # a proof for an ordinary action is "not applicable" while the switch is off; for the factor change it is still accepted
     assert passkey_step_up(arx, auth, "system.configure").json()["code"] == "step_up_not_applicable"
-    assert passkey_step_up(arx, auth, upk.ACTION_REGISTER).status_code == 200
-    add_passkey(arx, arx.owner, FakeAuthenticator(), login=False, label="phone")
+    _, second = add_passkey(arx, arx.owner, FakeAuthenticator(), login=False, label="phone")
     assert len(arx.client.get(PK).json()["credentials"]) == 2
+    pk = second["passkey"]["id"]
+    assert arx.client.delete(f"{PK}/{pk}").status_code == 200
+    assert details(arx.audit("auth.passkey.removed")[-1])["proof"] == "step_up_off"
 
 
-def test_the_authenticator_code_proves_a_factor_change_while_step_up_is_off(arx, clock):
-    local = configure(arx)
+def test_the_authenticator_code_proves_a_factor_change_while_step_up_is_on(arx, clock):
+    """MFA-SECFIX-2500: the proof for a factor change applies only while the switch is on (owner Q2 = b)."""
+    configure(arx)
     enrol(arx, arx.owner)
-    assert local.patch("/api/v1/settings", json={"security.step_up": "off"}).status_code == 200
     clock.advance(6)
     assert arx.client.post(REG_OPTS).json()["code"] == "step_up_required"
     bump_step(arx, "u-owner")
     r = arx.client.post(VERIFY, json={"method": "totp", "code": code_now(arx, "u-owner"), "action": upk.ACTION_REGISTER})
     assert r.status_code == 200, r.text
     assert arx.client.post(REG_OPTS).status_code == 200
-    bump_step(arx, "u-owner")  # an ordinary action stays "not applicable" while the switch is off
+    arx.setting("security.step_up", "off")  # the owner's default: no proof for the factor change
+    clock.advance(6)
+    assert arx.client.post(REG_OPTS).status_code == 200
+    bump_step(arx, "u-owner")  # an ordinary action is "not applicable" while the switch is off
     assert arx.client.post(VERIFY, json={"method": "totp", "code": code_now(arx, "u-owner"), "action": "system.configure"}).json()["code"] == "step_up_not_applicable"
 
 

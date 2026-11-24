@@ -277,3 +277,37 @@ def test_arming_with_a_bypass_on_the_generic_route_needs_alarm_bypass(settings, 
                headers=o)
     assert r.status_code == 202, r.text
     assert calls and calls[-1]["service"] == "alarm_arm_custom_bypass"
+
+
+# ---------------------------------------------------------------- owner answer Q2 = b: step-up OFF by default
+
+def test_the_switch_is_off_by_default():
+    from smplwise.services.settings_store import DEFAULTS
+
+    assert DEFAULTS["security.step_up"] == "off" and step_up.DEFAULT_ON == "off"
+
+
+def test_with_step_up_off_only_what_2490_asked_is_asked(arx, clock):
+    """Owner Q2 = b / Q5 ("never ask for re-confirmation unless I switched it on"): with the switch off no new proof prompt of the train
+    applies - a second phone key, its revoke, a settings change, a physical action - while the once-action that always asked (another
+    user's factor reset) still asks, and SR-3's recent sign-in for a FIRST factor stays (a re-sign-in, not a code prompt)."""
+    import test_mfa_devicekey_2490 as tdk
+
+    arx.setting("security.step_up", "off")
+    assert fresh_login(arx, arx.viewer).status_code == 200
+    _age_remote_sessions(3600)
+    assert arx.client.post(ENROLL).json()["code"] == "reauth_required"  # SR-3 stays with the switch off
+    enrol(arx, arx.viewer)
+    assert fresh_login(arx, arx.owner).status_code == 200
+    first = tdk.Phone()
+    assert tdk.register(arx, first).status_code == 200
+    clock.advance(6)
+    second = tdk.Phone()
+    assert tdk.register(arx, second).status_code == 200  # no proof for a second key while the switch is off
+    assert arx.client.delete(f"{tdk.KEYS}/{second.key_id}").status_code == 200  # nor for a revoke
+    assert title(arx, "free").status_code == 200
+    st = arx.client.get(f"{API}/auth/step-up").json()
+    assert st["applies"] is False and st["reason"] == "off"  # the physical gates (guard_action) use the same answer
+    r = arx.client.delete(RESET_VIEWER)  # the once-action asks on every call, as before the train
+    assert r.status_code == 403 and r.json()["code"] == "second_factor_step_up_required"
+    assert arx.audit("auth.step_up.required") == []

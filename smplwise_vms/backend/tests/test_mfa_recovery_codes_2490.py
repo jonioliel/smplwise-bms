@@ -207,10 +207,11 @@ def test_a_step_up_proof_on_the_session_is_enough_to_regenerate(arx, clock):
     assert arx.client.post(VERIFY, json={"method": "totp", "code": code_now(arx, "u-owner")}).status_code == 200
     r = arx.client.post(CODES)
     assert r.status_code == 200 and len(r.json()["codes"]) == 10
-    # with the switch OFF the action still asks for a fresh factor (a stolen session alone must not mint codes)
+    # MFA-SECFIX-2500 (owner Q2 = b): with the switch OFF nothing is asked - a new batch is made with no proof
     clock.advance(6)
+    assert arx.client.post(CODES).status_code == 403  # switch on, the proof ran out
     arx.setting("security.step_up", "off")
-    assert arx.client.post(CODES).status_code == 403
+    assert arx.client.post(CODES).status_code == 200
 
 
 def test_right_after_enrolment_the_enrolment_proof_counts(arx):

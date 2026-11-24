@@ -49,8 +49,9 @@ METHOD = "passkey"
 PURPOSE = "step_up"
 ACTION_REGISTER = "auth.passkey.register"
 ACTION_REMOVE = "auth.passkey.remove"
-# The factor changes: a proof is needed for them whatever `security.step_up` says, so `auth/step-up/verify` accepts these actions also
-# while the switch is off, on the local channel, or for a bearer caller (the proof lands on the session as usual).
+# The factor changes: `auth/step-up/verify` accepts these actions also while the switch is off, on the local channel, or for a bearer
+# caller (the proof lands on the session as usual). MFA-SECFIX-2500 (owner Q2 = b): the proof itself is ASKED only while
+# `security.step_up` is on (step_up.factor_change_proof_on); an Arx-only identity keeps its own fresh-sign-in rule.
 FACTOR_ACTIONS = frozenset({ACTION_REGISTER, ACTION_REMOVE})
 CHALLENGE_PATH = "auth/step-up/challenge"
 
@@ -176,7 +177,8 @@ def registration_options(conn: sqlite3.Connection, request: Any, principal: Any)
     if len(existing) >= lpk.MAX_PER_USER:
         raise ApiError(409, "passkey_limit", lpk.LIMIT_HE)
     if has_factor(conn, uid) or step_up.methods_of(conn, uid):
-        if not step_up.fresh_proof(conn, request, principal):  # strict: never a recovery-code proof (MFA-SECFIX-2500 SR-4)
+        # strict: never a recovery-code proof (MFA-SECFIX-2500 SR-4); only while step-up is on (owner Q2 = b)
+        if step_up.factor_change_proof_on(conn) and not step_up.fresh_proof(conn, request, principal):
             raise proof_required(conn, uid, ACTION_REGISTER)
     else:  # MFA-SECFIX-2500 SR-3: a FIRST factor needs a recent sign-in of this session (403 reauth_required)
         step_up.require_first_factor_freshness(conn, request, principal, ACTION_REGISTER)
@@ -283,6 +285,8 @@ def removal_proof(conn: sqlite3.Connection, request: Any, principal: Any, code: 
         return "code"
     if local_session is not None and lpk.recent_auth(conn, local_session):
         return "recent_sign_in"
+    if local_session is None and not step_up.factor_change_proof_on(conn):
+        return "step_up_off"  # MFA-SECFIX-2500 (owner Q2 = b): with step-up off nothing is asked (an Arx-only identity keeps its rule)
     # MFA-SECFIX-2500: removing one's own (lost) passkey may rest on a recovery-code proof - not strict
     if step_up.fresh_proof(conn, request, principal, local_sign_in=local_session is None, strict=False):
         return "step_up"

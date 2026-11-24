@@ -416,7 +416,7 @@ DEFAULTS: dict[str, str] = {
     # MFA-STEPUP-TRAIN-2490 (owner decisions 2026-11-22, Q45/Q46 + note; services/step_up.py): on = a change of settings, users or
     # permissions needs a fresh second-factor proof (the authenticator code) - off = the factor is asked only at sign-in; the proof
     # counts for N minutes (0-30, 0 = every action); local = also on the local channel (Ingress). Security policy: never restored.
-    "security.step_up": "on",
+    "security.step_up": "off",  # MFA-SECFIX-2500: owner answer Q2 = b (2026-11-24) - off until the owner switches it on
     "security.step_up_minutes": "5",
     "security.step_up_local": "off",
     # MFA-PASSKEYS-2490 (owner decision 2026-11-22, Q50 "passkeys for all users"; services/user_passkeys.py): on = every user who signs

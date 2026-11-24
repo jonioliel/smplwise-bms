@@ -96,7 +96,7 @@ A user's proofs are dropped when their factor is removed (`disable`) or reset by
 
 | Key | Values | Default |
 |---|---|---|
-| `security.step_up` | `on` \| `off` | `on` (the lead's instruction; see contradiction 5.1) |
+| `security.step_up` | `on` \| `off` | `off` since MFA-SECFIX-2500 (owner answer Q2 = b, 2026-11-24; was `on` per the lead - contradiction 5.1, resolved) |
 | `security.step_up_minutes` | 0-30 (int) | 5 |
 | `security.step_up_local` | `on` \| `off` | `off` |
 
@@ -140,6 +140,9 @@ Built on design section 12/14; every slice is one agent row, ships behind the sw
    only remote users who enrolled the authenticator code are asked (3.3), but **no UI exists until slice 2**: a remote enrolled
    administrator would get 403 `step_up_required` on every settings / users / permissions change after the grace. This branch must not
    ship without slice 2 (or the default must be flipped for the release that carries slice 1 alone). Open question 7.2.
+   **RESOLVED 2026-11-24 by the owner (questions page, Q2 = b - not the recommendation): the default is OFF; he turns it on himself
+   ("never ask for re-confirmation unless I switched it on"). Applied in MFA-SECFIX-2500 (`docs/changes/MFA-SECFIX-2500.md`): with the
+   switch off the train asks nothing beyond 2.49.0 - only the once-actions that always asked their own code.**
 2. **Channel scope.** CR-011 E and design 4.2 put step-up on the remote channel by default (`security.step_up_local = off`); the owner's
    Q45 says "every change". Implemented: remote by default, Ingress on by the setting. Open question 7.3.
 3. **Bearer vs long-lived token.** Q48 allows long-lived tokens. Without the provenance check (slice 5) a long-lived token cannot be told

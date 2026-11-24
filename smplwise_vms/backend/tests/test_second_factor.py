@@ -56,6 +56,9 @@ def arx(settings, tmp_path, monkeypatch):
     a.flag("u-owner")
     bind_raw(a, "u-owner", "system_admin")
     bind_raw(a, "dev-joni", "system_admin")  # the local developer identity administers the installation
+    # MFA-SECFIX-2500: `security.step_up` is OFF by default since the owner's answer Q2 = b; the second-factor tests run with the
+    # owner's switch ON (what they were written for). The default-off behaviour has its own tests (test_mfa_secfix_2500.py).
+    a.setting("security.step_up", "on")
     yield a
     hua.reset_for_tests()
 

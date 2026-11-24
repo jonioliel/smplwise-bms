@@ -75,16 +75,19 @@ def test_the_gated_permissions_are_settings_users_and_permissions():
     assert not {"alarm.disarm", "alarm.bypass", "access.doors.open", "devices.control", "video.live"} & step_up.GATED_PERMISSIONS
 
 
-def test_defaults_step_up_on_five_minutes_remote_only_and_never_restored(arx):
+def test_defaults_step_up_off_five_minutes_remote_only_and_never_restored(arx):
+    """MFA-SECFIX-2500: the owner's answer Q2 = b (2026-11-24) - the switch is OFF by default; he turns it on himself."""
     from smplwise.services import backup
     from smplwise.services.settings_store import DEFAULTS, INT_KEYS
 
-    assert (DEFAULTS["security.step_up"], DEFAULTS["security.step_up_minutes"], DEFAULTS["security.step_up_local"]) == ("on", "5", "off")
+    assert (DEFAULTS["security.step_up"], DEFAULTS["security.step_up_minutes"], DEFAULTS["security.step_up_local"]) == ("off", "5", "off")
     assert "security.step_up_minutes" in INT_KEYS
     assert {"security.step_up", "security.step_up_minutes", "security.step_up_local"} <= backup.SETTINGS_KEEP
     local = TestClient(arx.app)
+    with arx.db.connection() as conn:  # the fixture switched it on: back to a fresh installation's state
+        conn.execute("DELETE FROM settings WHERE key = 'security.step_up'")
     got = local.get("/api/v1/settings").json()["settings"]
-    assert got["security.step_up"] == "on" and int(got["security.step_up_minutes"]) == 5 and got["security.step_up_local"] == "off"
+    assert got["security.step_up"] == "off" and int(got["security.step_up_minutes"]) == 5 and got["security.step_up_local"] == "off"
 
 
 # ---------------------------------------------------------------- required / satisfied / expired

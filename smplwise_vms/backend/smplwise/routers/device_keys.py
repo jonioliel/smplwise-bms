@@ -66,8 +66,8 @@ def _limit(key: str, limits: list[tuple[float, int]]) -> None:
 def _proof_missing(conn: sqlite3.Connection, request: Request, principal: Principal) -> bool:
     """A factor change on the remote channel by a user who already has a step-up method needs a fresh proof in this session (whatever
     `security.step_up` says - like the passkey changes of slice 4). The local channel (Ingress) stays the break-glass path (design T11)."""
-    if not is_remote(request) or not step_up.methods_of(conn, principal.user_id):
-        return False
+    if not is_remote(request) or not step_up.methods_of(conn, principal.user_id) or not step_up.factor_change_proof_on(conn):
+        return False  # MFA-SECFIX-2500 (owner Q2 = b): only while step-up is on
     # (revoke only; registration: step_up.require_first_factor_freshness). MFA-SECFIX-2500: removing one's own (lost) phone key may
     # rest on a recovery-code proof (the lost-device path) - not strict
     return not step_up.fresh_proof(conn, request, principal, strict=False)
