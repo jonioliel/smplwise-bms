@@ -38,7 +38,7 @@ All three slices were cut from the same commit (`fb9a3ac1e`, slice 1), so each m
    may carry the client-side marker `STEP_UP_INLINE` (`X-Sw-Step-Up-Inline`, `api/client.ts`); `fetchApi` takes it off before the
    request leaves (it never reaches the server) and leaves that answer's 403 to the screen. `api/passkeys.ts` sets it on the own
    register options, register and remove calls only. Everything else - the central gate, the administrator's passkey removal of another
-   user - still opens the shell dialog. Recommended alternative left open (question 5.1).
+   user - still opens the shell dialog. Recommended alternative left open (question 6.1).
 3. **Two clients for the code proof** (`api/second-factor.ts verifyStepUp`, slice 2; `api/step-up-passkey.ts verifyCodeStepUp`, slice 4 -
    the same call). Kept one: `verifyCodeStepUp` is now a re-export of `verifyStepUp`.
 4. **Generated files of slice 6 missing.** `frontend/src/api/access-tokens.ts` imports `./generated/wire-access-tokens`, which slice 6 never
@@ -55,7 +55,7 @@ All three slices were cut from the same commit (`fb9a3ac1e`, slice 1), so each m
 
 Not changed (recorded): slice 3's `PHYSICAL_HE` / `REQUIRED_HE` texts still name "the authenticator code" only - they live on the slice-3
 branch, to be fixed when it merges here. The step-up settings card text (`stepUp.settingsSub`) still says "the code from the authenticator
-app"; left as is (question 5.2).
+app"; left as is (question 6.2).
 
 ## 3. Files (integration commit)
 
@@ -66,8 +66,10 @@ app"; left as is (question 5.2).
 passkey-only dialog, both methods, a refused passkey then success, cancel after a refusal, compare shots),
 `frontend/tests/unit-step-up-client.spec.ts` (+1: the marker is stripped and leaves the 403 to the screen; without it the dialog is asked).
 
-Compare page: `private/planning/mfa_train_compare_2026-11-24.html` (the dialog before / after: both methods and passkey only; desktop +
-phone; light + dark; server screenshots).
+Compare page: **NOT_RUN** - the shots come from the runner job above (`SW_SHOTS_DIR`, after = this branch, before = `f112ae586`,
+the merged slices without the dialog change). When they exist, `private/planning/mfa_train_compare_build_2026-11-24.py <dir>` (a folder
+holding `before/` and `after/`) writes `private/planning/mfa_train_compare_2026-11-24.html` (both methods and passkey only; desktop +
+phone; light + dark).
 
 ## 4. Tests (real runs)
 
@@ -79,12 +81,26 @@ phone; light + dark; server screenshots).
 | workstation | `pytest tests/test_local_passkeys.py` | **73 passed** |
 | workstation | `scripts/gen_wire_types.py` then `--check` | wrote `wire-access-tokens.ts`; `--check` clean |
 | workstation | `scripts/api_inventory.py` | 1916 routes (+3 `auth/tokens`), committed |
-| runner slot B | `~/work/mfatrain_run.sh` (quick backend files incl. `test_migrations.py`, wire `--check`, inventory, tsc, eslint, node unit `unit-step-up-client.spec.ts`, Playwright `unit-mfa-train-2500` + `unit-step-up-ui` + `unit-mfa-passkeys-2490` + `evidence-access-tokens` + `evidence-second-factor` desktop + mobile `--workers=2`, compare shots after / before, backend auth / security families in 4 shards, ruff) | queued 2026-11-24 04:22 UTC behind the night queue; output `~/work/mfatrain-out/summary.txt` |
+| runner slot B | `~/work/mfatrain_run.sh` (quick backend files incl. `test_migrations.py`, wire `--check`, inventory, tsc, eslint, node unit `unit-step-up-client.spec.ts`, Playwright `unit-mfa-train-2500` + `unit-step-up-ui` + `unit-mfa-passkeys-2490` + `evidence-access-tokens` + `evidence-second-factor` desktop + mobile `--workers=2`, compare shots after / before, backend auth / security families in 4 shards, ruff) | **NOT_RUN**: queued 04:22 UTC; the server ran out of memory and was rebooted (~05:55 UTC, queue lost); re-queued once at 05:58 UTC (`~/work/slotb.sh ~/work/mfatrain_run.sh`, log `~/work/mfatrain_run.nohup`, results will land in `~/work/mfatrain-out/summary.txt`); not started by 07:55 UTC (14 jobs waiting, the 2.49.0 gate running, < 1 GB free) |
 
-Not run on the workstation by rule (memory): tsc, eslint, every Playwright spec, ruff (not installed in the workstation venv).
+Not run on the workstation by rule (memory): tsc, eslint, every Playwright spec (including the new `unit-mfa-train-2500.spec.ts` and the
+extended `unit-step-up-client.spec.ts`), ruff (not installed in the workstation venv). So the front-end change is NOT type-checked or
+executed yet.
 NOT_RUN anywhere: any real device or browser passkey, any lab check.
 
-## 5. Open questions (recommendation first)
+## 5. Security review MFA-SECREVIEW-2500 (SR-1..SR-7) - not fixed here
+
+The review (`docs/changes/MFA-SECREVIEW-2500.md` on `origin/pilot/MFA-SECREVIEW-2500`, which reviewed this branch at `3d0768add`) is
+answered by a separate fix row; nothing in it is fixed on this branch. This branch CARRIES, through the merged slices: SR-1 (a
+passkey-only administrator resets another user's factor with no step-up - closes when slice 3 merges here), SR-2 (factor reset leaves
+passkeys), SR-3 (first-factor enrolment from an old session, TOTP and passkey), SR-5 (wall-clock proof window, slice 1), SR-6 (a restore
+brings back removed passkeys) and SR-7 (delegated administrator's permission changes ungated - closes with slice 3). SR-4 is slice 7's
+(not merged). The integration commit `d597eec2b` touches none of the code paths named there: it is front-end only (the dialog's passkey
+button, the client's in-place marker, generated files); the passkey proof the dialog asks for goes through the same server routes the
+review checked (`auth/step-up/challenge`, `auth/step-up/verify`). Consequence for the train: per SR-1 / SR-7 this branch must not ship
+before slice 3 is merged into it.
+
+## 6. Open questions (recommendation first)
 
 1. **One prompt for passkey changes in My Account.** (a) keep the in-place confirmation of slice 4 for the own add / remove and the shell
    dialog for everything else (built) [recommended: the change and its proof stay in one place]; (b) drop the in-place confirmation and
