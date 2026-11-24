@@ -66,6 +66,7 @@ PINNED_HA_LOCK = frozenset({
     ("smplwise/services/automation_scope.py", "lock.unlock"),
     ("smplwise/services/automation_text.py", "lock.unlock"),
     ("smplwise/services/automation_text_i18n.py", "lock.unlock"),  # I18N-BACKEND-2490: the English verb table of the sentences - a label, never a call
+    ("smplwise/services/automation_ext_text.py", "lock.unlock"),  # I18N-BACKEND-2490: ACTION_LABELS, the editor extension's he / en action labels - a label, never a call
     ("smplwise/services/door_path.py", "lock.open"),  # OPEN_SERVICES: the refusal list of the door path
     ("smplwise/services/door_path.py", "lock.unlock"),
     ("smplwise/services/door_path_guard.py", "lock.open"),  # the editor block
