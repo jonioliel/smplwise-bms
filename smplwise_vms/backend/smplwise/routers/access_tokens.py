@@ -130,7 +130,7 @@ def revoke_all_tokens(request: Request, principal: Principal = Depends(current_p
         devices = []
     # the reason DELETE auth/app/families uses for the user's own "end them all" (it releases the devices' key pins, owner decision Q296)
     reason = "signed_out_everywhere"
-    n = app_refresh.revoke_user(conn, principal.user_id, reason, actor=principal, request_id=_rid(request), subject=principal.user_id)
+    n = app_refresh.revoke_user(conn, principal.user_id, reason, actor=principal, request_id=_rid(request))
     if devices:
         app_refresh.release_pins(conn, devices, reason, actor=principal, request_id=_rid(request))
     audit(conn, actor=principal, action="auth.token.revoked", decision="allowed", resource_type="user", resource_id=principal.user_id,

@@ -325,7 +325,7 @@ def test_the_token_code_only_reads_from_home_assistant():
     for mod in (router, service):
         text = Path(mod.__file__).read_text(encoding="utf-8")
         for forbidden in ("auth/delete_refresh_token", "auth/long_lived_access_token", "config/auth", "auth/delete_all_refresh_tokens",
-                          "delete_refresh_token_at_ha", "revoke_sessions", "/auth/token"):
+                          "delete_refresh_token_at_ha", "revoke_sessions", "grant_type", "action=revoke", "revoke_user_sign_ins"):
             assert forbidden not in text, (mod.__name__, forbidden)
 
 
