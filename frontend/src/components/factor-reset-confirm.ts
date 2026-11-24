@@ -100,6 +100,7 @@ export const resetConfirmStyles = css`
     gap: var(--sw-s-1);
   }
   input.typed {
+    box-sizing: border-box;
     inline-size: 100%;
     max-inline-size: 20em;
     letter-spacing: normal;
