@@ -6,6 +6,8 @@ import '../components/sw-card';
 import { openArchitectRequest } from '../components/architect-request-dialog';
 import '../components/sw-button';
 import '../components/sw-field';
+import '../components/sw-building-filter';
+import type { BuildingFilterMeta } from '../components/building-filter-logic';
 import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
@@ -198,6 +200,10 @@ export class ExplorePlanEditor extends LitElement {
   @state() private guides: Guide[] = [];
   @state() private placing: { kind: 'camera'; camera: Camera } | { kind: 'entity'; entity: HaEntity } | null = null;
   @state() private entQ = '';
+  /** MULTI-BUILDING-NEXT-2500: the device search's building (null = the edited floor's building, '' = the whole site) and the filter the
+   * last search answered (null = none: one building, or the multi-building filter off - the server then ignores the parameter). */
+  @state() private entBuilding: string | null = null;
+  @state() private entMeta: BuildingFilterMeta | null = null;
   @state() private entResults: HaEntity[] | null = null;
   @state() private entBusy = false;
   /** The lighting tool lists switches only (the owner's relays); this adds `light.*` entities to it (R3). */
@@ -1341,8 +1347,10 @@ export class ExplorePlanEditor extends LitElement {
       // lighting tool: switches only (plus light.* when asked); the other tool: anything in the catalogue
       const lights = this.tool === 'lights';
       const lightsAll = this.lightsAll;
-      const r = await listEntities({ q: this.entQ || undefined, domain: lights && !lightsAll ? 'switch' : undefined, limit: lights ? 200 : 40 });
+      const building = this.entBuilding ?? this.bundle?.buildingId ?? '';
+      const r = await listEntities({ q: this.entQ || undefined, domain: lights && !lightsAll ? 'switch' : undefined, limit: lights ? 200 : 40, building: building || undefined });
       if (seq !== this.entSeq) return;
+      this.entMeta = r.building_filter ?? null;
       this.entResults = lights ? r.entities.filter((e) => e.domain === 'switch' || (lightsAll && e.domain === 'light')).slice(0, 60) : r.entities;
     } catch (err) {
       if (seq !== this.entSeq) return;
@@ -4836,6 +4844,8 @@ export class ExplorePlanEditor extends LitElement {
       const results = (this.entResults ?? []).filter((e) => !anchoredIds.has(e.entity_id));
       return html`<sw-card heading=${lights ? 'הוספת תאורה' : 'הוספת התקן אחר'} subheading=${lights ? 'מפסקים (switch) מהקטלוג; לחץ על התוכנית להצבה. השם ניתן לשינוי אחרי ההצבה.' : 'כל ישות אחרת בקטלוג (דלתות, חיישנים, מזגנים…) ואז לחיצה על התוכנית'} data-tool-panel=${this.tool}>
         <sw-field><input type="search" placeholder=${lights ? 'חיפוש מפסק לפי שם או אזור' : 'חיפוש לפי שם, entity_id או אזור'} data-ltr .value=${this.entQ} @input=${(e: Event) => this.onEntQuery((e.target as HTMLInputElement).value)} /></sw-field>
+        ${this.entMeta ? html`<sw-building-filter data-ent-building .filter=${this.entMeta} value=${this.entMeta.building ?? ''}
+          @building-change=${(e: CustomEvent<{ value: string }>) => { this.entBuilding = e.detail.value; void this.searchEntities(); }}></sw-building-filter>` : nothing}
         ${lights ? html`<label class="note" style="display:flex;gap:6px;align-items:center"><sw-toggle size="sm" labelHidden in-label label="להציג גם ישויות light (נורות חכמות)" data-lights-all .checked=${this.lightsAll} @change=${(e: Event) => { this.lightsAll = toggled(e); void this.searchEntities(); }}></sw-toggle> להציג גם ישויות light (נורות חכמות)</label>` : nothing}
         ${b.source === 'demo'
           ? html`<div class="note">נתוני הדגמה: החיפוש עובד מול השרת.</div>`

@@ -8,6 +8,7 @@ from typing import Literal
 from pydantic import Field
 
 from . import WireModel
+from .building_filter import BuildingFilter
 
 Coverage = Literal["full", "partial", "none"]
 MeterStatus = Literal["active", "paused", "retired"]
@@ -96,11 +97,15 @@ class EnergyMeter(WireModel):
     epochs: list[EnergyMeterEpoch] = None
     used_in: list[EnergyMeterUse] = None
     warning: str | None = None
+    # MULTI-BUILDING-NEXT-2500: the buildings the meter's area serves - only in a list answer that carries `building_filter`
+    buildings: list[str] | None = None
 
 
 class EnergyMeterList(WireModel):
     items: list[EnergyMeter]
     stale_after_minutes: int
+    # MULTI-BUILDING-NEXT-2500: present only on a multi-building site whose meters sit in two or more buildings (services/building_filter)
+    building_filter: BuildingFilter | None = None
 
 
 # ---------------------------------------------------------------- EL6: manual readings and calibration

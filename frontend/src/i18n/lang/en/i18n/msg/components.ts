@@ -840,4 +840,9 @@ export const en = {
   'שבוע': 'Week',
   'שינויים לפי שכבה': 'Changes by layer',
   'הכרזה': 'Announcement',
+  // MULTI-BUILDING-NEXT-2500: the building filter of the lists (components/sw-building-filter.ts, building-filter-logic.ts)
+  'בניין': 'Building',
+  'כל האתר': 'Whole site',
+  'גם ב{names}': 'also in {names}',
+  ' וב': ' and in ',
 };

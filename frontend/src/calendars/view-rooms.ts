@@ -2,6 +2,8 @@ import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
+import '../components/sw-building-filter';
+import { keepBuilding, pickChosen, readChosen, type BuildingFilterMeta } from '../components/building-filter-logic';
 import { describeError } from '../api/client';
 import type { Calendar, Equipment, RoomDay } from '../api/calendars';
 import { CAL_EVENTS, emit, visibleCals, type CalCtx } from './ctx';
@@ -85,6 +87,9 @@ export class CalViewRooms extends LitElement {
   @property({ attribute: false }) ctx: CalCtx | null = null;
   @state() private day: Date = startOfDay(new Date());
   @state() private rooms: RoomDay[] | null = null;
+  /** MULTI-BUILDING-NEXT-2500: the rooms' building filter (null = none drawn) and the chosen building ('' = the whole site). */
+  @state() private buildingMeta: BuildingFilterMeta | null = null;
+  @state() private building = '';
   @state() private error = '';
   @state() private capacity = 0;
   @state() private equipment = new Set<Equipment>();
@@ -166,6 +171,8 @@ export class CalViewRooms extends LitElement {
       const r = await ctx.api.roomsDay(isoDate(this.day));
       if (key !== this.loadedKey) return;
       this.rooms = r.rooms;
+      this.buildingMeta = r.building_filter ?? null;
+      this.building = pickChosen(this.buildingMeta, this.building || readChosen());
       this.error = '';
     } catch (e) {
       this.error = describeError(e);
@@ -185,7 +192,7 @@ export class CalViewRooms extends LitElement {
   private filtered(): RoomDay[] {
     const ctx = this.ctx as CalCtx;
     const allowed = new Set(visibleCals(ctx).map((c) => c.id));
-    return (this.rooms ?? []).filter((r) => allowed.has(r.calendar_id) && (!this.capacity || (r.capacity ?? 0) >= this.capacity) && [...this.equipment].every((e) => r.equipment.includes(e)));
+    return keepBuilding(this.rooms ?? [], this.building).filter((r) => allowed.has(r.calendar_id) && (!this.capacity || (r.capacity ?? 0) >= this.capacity) && [...this.equipment].every((e) => r.equipment.includes(e)));
   }
 
   private findFree(): void {
@@ -229,6 +236,8 @@ export class CalViewRooms extends LitElement {
           <button type="button" class="btn sm" data-cal-equipment aria-pressed=${String(this.equipment.size > 0)} aria-expanded=${String(this.eqOpen)} @click=${() => (this.eqOpen = !this.eqOpen)}><sw-icon name="filter" size="16"></sw-icon>${tr('ציוד')}${this.equipment.size ? html` <span class="num">${this.equipment.size}</span>` : nothing}</button>`}
         <button type="button" class="btn sm" data-cal-find @click=${() => this.findFree()}><sw-icon name="search" size="16"></sw-icon>${phone ? tr('חדר פנוי') : tr('מצא חדר פנוי')}</button>
       </div>
+      ${this.buildingMeta ? html`<sw-building-filter class="bf" data-cal-building .filter=${this.buildingMeta} value=${this.building}
+        @building-change=${(e: CustomEvent<{ value: string }>) => { this.building = e.detail.value; this.page = 1; this.free = undefined; }}></sw-building-filter>` : nothing}
       ${this.eqOpen ? this.equipmentPop() : nothing}
       ${this.error ? html`<div class="fail" role="alert">${this.error}</div>` : nothing}
       ${this.free === null ? html`<div class="found" role="status" data-cal-free-none>${tr('אין היום חדר פנוי לשעה אחת שמתאים לסינון.')}</div>` : nothing}

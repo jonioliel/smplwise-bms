@@ -245,6 +245,7 @@ export const en = {
   bBuilding: 'Building',
   bBuildingSite: 'The whole site',
   bBuildingHint: 'The greeting at the top of the screen uses the building\'s name. Which notices are shown is decided as before: by marking them for the board.',
+  audBuilding: 'All of {name}',
   kvSeen: 'Last seen',
   kvCreated: 'Created',
   kvRotated: 'Link date',

@@ -3,6 +3,19 @@
 // sent as null instead); `unknown` is a value the backend passes through as stored. Code review 07:F8 step 2.
 /* eslint-disable */
 
+/** The filter of one list: the choices and the chosen building (null = the whole site). */
+export interface BuildingFilter {
+  buildings: BuildingFilterChoice[];
+  building: string | null;
+}
+
+/** One building the filter offers (the buildings the caller's items sit in; the full interface's order, the shared building last). */
+export interface BuildingFilterChoice {
+  id: string;
+  name: string;
+  is_shared: boolean;
+}
+
 export interface EnergyAccount {
   id: string;
   name: string;
@@ -560,6 +573,7 @@ export interface EnergyMeter {
   epochs?: EnergyMeterEpoch[];
   used_in?: EnergyMeterUse[];
   warning?: string | null;
+  buildings?: string[] | null;
 }
 
 export interface EnergyMeterEpoch {
@@ -577,6 +591,7 @@ export interface EnergyMeterEpoch {
 export interface EnergyMeterList {
   items: EnergyMeter[];
   stale_after_minutes: number;
+  building_filter?: BuildingFilter | null;
 }
 
 export interface EnergyMeterUse {

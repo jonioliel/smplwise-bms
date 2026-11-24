@@ -56,6 +56,8 @@ export class DevicesNotices extends LitElement {
   @state() private seg: Seg = 'all';
   @state() private q = '';
   @state() private boards: Board[] = [];
+  /** MULTI-BUILDING-NEXT-2500: the buildings a board can belong to (only on a multi-building site): the compose dialog names a board's building. */
+  @state() private boardBuildings: { id: string; name: string }[] = [];
   @state() private floors: { id: string; name: string; building: string }[] = [];
   @state() private groups: { id: string; name: string }[] = [];
   @state() private roles: { id: string; name: string }[] = [];
@@ -102,6 +104,7 @@ export class DevicesNotices extends LitElement {
     try {
       const [b, o] = await Promise.all([listBoards(), audienceOptions()]);
       this.boards = b.boards;
+      this.boardBuildings = b.buildings ?? [];
       this.floors = o.floors;
       this.areas = o.areas ?? [];
       this.groups = o.groups;
@@ -341,7 +344,7 @@ export class DevicesNotices extends LitElement {
   }
 
   private composeDialog() {
-    return html`<notice-compose .draft=${this.draft} .canDelete=${this.data?.can.delete ?? false} .canPush=${this.data?.can.push ?? false} .pushDefault=${this.data?.defaults.push_default ?? 'by_severity'} .boards=${this.boards} .floors=${this.floors} .groups=${this.groups} .roles=${this.roles}
+    return html`<notice-compose .draft=${this.draft} .canDelete=${this.data?.can.delete ?? false} .canPush=${this.data?.can.push ?? false} .pushDefault=${this.data?.defaults.push_default ?? 'by_severity'} .boards=${this.boards} .boardBuildings=${this.boardBuildings} .floors=${this.floors} .groups=${this.groups} .roles=${this.roles}
       @notice-close=${() => (this.draft = null)} @notice-delete=${(e: CustomEvent<{ id: string }>) => this.askDelete(e.detail.id)} @notice-saved=${(e: CustomEvent<NoticeSavedDetail>) => this.saved(e)}></notice-compose>`;
   }
 }

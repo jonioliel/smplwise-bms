@@ -10,6 +10,7 @@ import { tr } from '../i18n/msg/api-home';
 import type * as SyncWire from './generated/wire-calendar-sync';
 import type * as FeedWire from './generated/wire-calendar-feeds';
 import type * as CalWire from './generated/wire-calendar';
+import type { BuildingFilterMeta } from '../components/building-filter-logic';
 
 export type CalType = 'room' | 'team' | 'maintenance' | 'event';
 export type CalColor = 'blue' | 'rose' | 'cyan' | 'orange' | 'violet' | 'brown' | 'magenta' | 'slate';
@@ -249,7 +250,8 @@ export interface CalendarsApi {
   members(id: string): Promise<{ members: Member[] }>;
   putMembers(id: string, revision: number, members: Member[]): Promise<{ members: Member[] }>;
   occurrences(from: string, to: string, calendars?: string[]): Promise<{ occurrences: Occurrence[]; truncated: boolean }>;
-  roomsDay(date: string): Promise<{ rooms: RoomDay[] }>;
+  /** MULTI-BUILDING-NEXT-2500: `building_filter` only on a multi-building site whose rooms sit in two or more buildings. */
+  roomsDay(date: string): Promise<{ rooms: RoomDay[]; building_filter?: BuildingFilterMeta }>;
   createEvent(body: NewEvent): Promise<{ event: CalEvent; state: EntryState }>;
   previewEvent(body: NewEvent): Promise<EventPreview>;
   /** The server also answers the approval history and the guest count / visibility (the demo store answers the entry only). */

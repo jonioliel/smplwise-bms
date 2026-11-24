@@ -5,6 +5,7 @@
 import { get } from './client';
 import type { IconName } from '../components/sw-icon';
 import { tr } from '../i18n/msg/api-video';
+import type { BuildingFilterMeta } from '../components/building-filter-logic';
 
 /** page (CR-010): a screen of the app itself (the security sections), matched in the browser - never sent to the server. */
 type SearchKind = 'zone' | 'camera' | 'floor' | 'building' | 'entity' | 'object' | 'page';
@@ -34,12 +35,16 @@ interface SearchResponse {
   q: string;
   results: SearchResult[];
   counts: Partial<Record<SearchKind, number>>;
+  /** MULTI-BUILDING-NEXT-2500: only on a multi-building site whose hits sit in two or more buildings (or a building was named). */
+  building_filter?: BuildingFilterMeta;
 }
 
 export const KIND_LABEL: Record<SearchKind, string> = { zone: tr('חדר / אזור'), camera: tr('מצלמה'), floor: tr('קומה'), building: tr('מבנה'), entity: tr('התקן'), object: tr('עצם'), page: tr('מסך') };
 export const KIND_ICON: Record<SearchKind, IconName> = { zone: 'map', camera: 'camera', floor: 'floor', building: 'building', entity: 'light', object: 'grid', page: 'shield' };
 
-export const search = (q: string, limit = 8) => get<SearchResponse>(`search?q=${encodeURIComponent(q)}&limit=${limit}`);
+/** `building` (MULTI-BUILDING-NEXT-2500): keep one building's hits - the server ignores it while the multi-building filter is off. */
+export const search = (q: string, limit = 8, building = '') =>
+  get<SearchResponse>(`search?q=${encodeURIComponent(q)}&limit=${limit}${building ? `&building=${encodeURIComponent(building)}` : ''}`);
 
 /** Semantic search (T063): the local baseline parses the question into the event centre's filters; results are metadata matches, never identity evidence. */
 interface SemanticPlace {

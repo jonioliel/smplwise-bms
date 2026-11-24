@@ -21,6 +21,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
+from ..services import building_filter
 from ..services import calendar_store as store
 from ..services.calendar import calendars as cals
 from ..services.calendar import decisions, events, guests, jobs, model, occ
@@ -250,7 +251,10 @@ def get_occurrences(frm: str = Query(alias="from"), to: str = Query(), calendars
 
 
 @router.get("/calendar/rooms/day", **wire(W.CalRoomsDay))
-def rooms_day(date: str = Query(), calendars: str = Query(default=""), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+def rooms_day(date: str = Query(), calendars: str = Query(default=""), building: str | None = Query(None, max_length=120),
+              principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The shared rooms of one day. MULTI-BUILDING-NEXT-2500: on a multi-building site each room names the buildings its floor serves and
+    `building` narrows the list to one building's rooms (services/building_filter; display only, after the visibility rule)."""
     _need_view(conn, principal)
     try:
         day = dt.date.fromisoformat(date)
@@ -263,7 +267,8 @@ def rooms_day(date: str = Query(), calendars: str = Query(default=""), principal
 
     from ..services.tickets.hours import _local_instant  # noqa: PLC0415
 
-    rooms = []
+    rooms: list[dict[str, Any]] = []
+    floors: list[str | None] = []
     for cal in store.live_rooms(conn):
         if (want and cal["id"] not in want) or not ctx.can_see(cal):
             continue
@@ -273,7 +278,12 @@ def rooms_day(date: str = Query(), calendars: str = Query(default=""), principal
         open_ = [{"from": "00:00", "to": "24:00"}] if hours is None else ([{"from": hours["start"], "to": hours["end"]}] if day.isoweekday() in hours["weekdays"] else [])
         entries = events.occurrences(ctx, a, b, calendars=[cal["id"]], kinds=None, states=None)["occurrences"]
         rooms.append({"calendar_id": cal["id"], "name": cal["name"], "capacity": cal["capacity"], "equipment": json.loads(cal["equipment_json"]), "open": open_, "entries": entries})
-    return {"rooms": rooms}
+        floors.append(cal["floor_id"])
+    out: dict[str, Any] = {"rooms": rooms}
+    bf = building_filter.prepare(conn, building)
+    if bf is not None:
+        building_filter.apply(bf, rooms, [bf.place(floors=[f]) for f in floors], out, "rooms")
+    return out
 
 
 @router.post("/calendar/availability", **wire(W.CalAvailability))

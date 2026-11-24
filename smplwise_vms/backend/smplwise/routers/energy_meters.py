@@ -24,6 +24,7 @@ from ..audit import audit
 from ..auth import current_principal, get_conn, get_read_conn, read_gate, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, effective_permissions, require
+from ..services import building_filter
 from ..services import energy_calibration as ecal
 from ..services import energy_meters as meters
 from ..services import energy_meters_store as mstore
@@ -153,15 +154,22 @@ def list_candidates(q: str | None = Query(None, max_length=80), area_id: str | N
 
 
 @router.get("/energy/meters", **wire(W.EnergyMeterList))
-def list_meters(request: Request, include_retired: bool = Query(False), principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    """Electricity meters with their status (reporting / not reporting / paused), current value and today's kWh (energy.view)."""
+def list_meters(request: Request, include_retired: bool = Query(False), building: str | None = Query(None, max_length=120),
+                principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """Electricity meters with their status (reporting / not reporting / paused), current value and today's kWh (energy.view).
+    MULTI-BUILDING-NEXT-2500: on a multi-building site (the switch and the filter setting on) each meter names the buildings its area
+    serves and `building` narrows the list to one building's meters (services/building_filter; display only, never widens)."""
     p = _provider(request, conn)
     rows = meters.list_rows(conn, include_retired)
     ids = [r["id"] for r in rows]
     statuses = p.statuses(ids)
     counts = meters.accounts_counts(conn, ids)
     now = p.now()
-    return {"items": [_meter_out(p, r, statuses[r["id"]], now, counts[r["id"]]) for r in rows], "stale_after_minutes": int(es.value(conn, "energy.stale_after_minutes"))}
+    out: dict[str, Any] = {"items": [_meter_out(p, r, statuses[r["id"]], now, counts[r["id"]]) for r in rows], "stale_after_minutes": int(es.value(conn, "energy.stale_after_minutes"))}
+    bf = building_filter.prepare(conn, building)
+    if bf is not None:
+        building_filter.apply(bf, out["items"], [bf.place(areas=[m["area_id"]]) for m in out["items"]], out, "items")
+    return out
 
 
 @router.get("/energy/meters/{meter_id}", **wire(W.EnergyMeter))

@@ -26,7 +26,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import get_setting, new_id, now_iso, set_setting
 from ..errors import ApiError, conflict, validation
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import building_scope, home_mapping_store as store
+from ..services import building_filter, building_scope, home_mapping_store as store
 from ..services import multi_building_check as mbc
 from ._common import rid as _rid
 from .catalog import P_CONTENT, get_site
@@ -137,6 +137,9 @@ def read_mapping(site_id: str, principal: Principal = Depends(current_principal_
         # MULTI-BUILDING-SAFETY-2500 (owner 22.11, Q63): the check before turning the switch on - required, or skipped by this setting
         "review_mode": mbc.review_mode(conn),
         "can_set_review": authorize(conn, principal, "rbac.roles.manage", INSTALLATION).allowed,
+        # MULTI-BUILDING-NEXT-2500 (owner 22.11, Q69 "the filtering"): the building filter of the lists - display only, the switch's own rule
+        "filter_mode": building_filter.filter_mode(conn),
+        "can_set_filter": _can_toggle(conn, principal),
         "versions": _versions(conn, site_id),
         "seen": seen if isinstance(seen, list) else None,
         "items": items,
@@ -279,6 +282,23 @@ def put_multi_building_review(body: ReviewIn, request: Request, principal: Princ
     was = mbc.review_mode(conn)
     set_setting(conn, mbc.REVIEW_KEY, body.mode)
     audit(conn, actor=principal, action="home.multi_building.review", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
+          details={"mode": body.mode, "was": was, "multi_building": multi_building_on(conn)})
+    return {"mode": body.mode}
+
+
+class FilterIn(BaseModel):
+    mode: Literal["on", "off"]
+
+
+@router.put("/home/multi-building/filter", **wire(W.HomeMultiBuildingFilter))
+def put_multi_building_filter(body: FilterIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """MULTI-BUILDING-NEXT-2500: whether the full interface's lists (energy meters, schedules, shared rooms, the plan editor's device
+    search, the global search) offer a building filter on a multi-building site. Display only - it never changes who sees what - so it
+    takes the switch's own rule (site.content.configure on every live site). Audited `home.multi_building.filter`."""
+    _require_toggle(conn, principal)
+    was = building_filter.filter_mode(conn)
+    set_setting(conn, building_filter.FILTER_KEY, body.mode)
+    audit(conn, actor=principal, action="home.multi_building.filter", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
           details={"mode": body.mode, "was": was, "multi_building": multi_building_on(conn)})
     return {"mode": body.mode}
 

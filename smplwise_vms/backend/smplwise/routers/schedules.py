@@ -25,6 +25,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..errors import ApiError
 from ..i18n import localize_for
 from ..rbac import INSTALLATION, Principal, authorize, require
+from ..services import building_filter
 from ..services import schedule_model as model
 from ..services import schedule_ops as ops
 from ..services import schedule_view as view
@@ -269,12 +270,14 @@ def list_schedules(
     state: Literal["enabled", "disabled", "triggered", "completed", "unavailable"] | None = None, tag: str | None = Query(None, max_length=40),
     folder: str | None = Query(None, max_length=40), source: Literal["arx", "external"] | None = None, sensitive: bool | None = None, editable: bool | None = None,
     sort: Literal["next_run", "name", "order", "updated"] = "next_run", limit: int = Query(200, ge=1, le=500), offset: int = Query(0, ge=0),
+    building: str | None = Query(None, max_length=120),
 ) -> dict[str, Any]:
-    """§3.2 - visibility is applied before filters, totals and pagination."""
+    """§3.2 - visibility is applied before filters, totals and pagination. MULTI-BUILDING-NEXT-2500: `building` (a multi-building site only)
+    keeps one building's schedules; each schedule then names the buildings it serves (services/building_filter, display only)."""
     ctx = _ctx(request, conn, principal)
     filters = {"q": q, "floor": floor, "area": area, "entity": entity, "condition": condition, "has_conditions": has_conditions, "preset": preset, "day": day, "state": state,
                "tag": tag, "folder": folder, "source": source, "sensitive": sensitive, "editable": editable}
-    return _out(conn, principal, view.list_payload(ctx, filters, sort, limit, offset))
+    return _out(conn, principal, view.list_payload(ctx, filters, sort, limit, offset, building_filter.prepare(conn, building)))
 
 
 @router.get("/schedules/catalog")

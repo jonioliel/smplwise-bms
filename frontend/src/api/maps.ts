@@ -33,6 +33,8 @@ export interface MapBundle {
   /** The floor's number (CR-009: the share dialog's default - the room's surface is on the lower floor). */
   floorLevel?: number | null;
   buildingName: string;
+  /** MULTI-BUILDING-NEXT-2500: the floor's building (the plan editor's device search opens on it); absent in the demo. */
+  buildingId?: string;
   siteName: string;
   /** Raster background (API) or synthetic SVG (demo). Coordinates are normalized to width/height. */
   width: number;
@@ -136,6 +138,7 @@ export async function loadMap(floorId: string, draft = false, at?: string): Prom
     floorName: m.floor.name,
     floorLevel: m.floor.level,
     buildingName: m.building.name,
+    buildingId: m.building.id,
     siteName: m.site.name,
     width: m.plan?.width_px ?? 1200,
     height: m.plan?.height_px ?? 800,

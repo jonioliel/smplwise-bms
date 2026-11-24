@@ -122,6 +122,8 @@ export interface HomeMappingRead {
   can_set_reach: boolean;
   review_mode: "required" | "skip";
   can_set_review: boolean;
+  filter_mode: "on" | "off";
+  can_set_filter: boolean;
   versions: HomeMappingVersion[];
   seen: unknown[] | null;
   items: HomeMappingItems;
@@ -180,6 +182,10 @@ export interface HomeMultiBuildingCheck {
   findings: HomeMultiBuildingFinding[];
 }
 
+export interface HomeMultiBuildingFilter {
+  mode: "on" | "off";
+}
+
 /**
  * One finding of the check before turning multi-building on. `items` (at most 20) depend on the code: a device, a building with its
  * reach gain, an area, a mapping version.
@@ -203,6 +209,7 @@ export interface HomeMappingRoutes {
   "GET /api/v1/home/multi-building/check": HomeMultiBuildingCheck;
   "PUT /api/v1/home/multi-building": HomeMappingMulti;
   "PUT /api/v1/home/multi-building/review": HomeMultiBuildingReview;
+  "PUT /api/v1/home/multi-building/filter": HomeMultiBuildingFilter;
   "PUT /api/v1/home/building-reach": HomeMappingReach;
   "POST /api/v1/sites/{site_id}/mapping/apply": HomeMappingApply;
   "POST /api/v1/sites/{site_id}/mapping/versions/{number}/restore": HomeMappingRestore;

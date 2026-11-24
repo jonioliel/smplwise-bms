@@ -9,6 +9,7 @@ import '../components/sw-dialog';
 import { describeError } from '../api/client';
 import { archiveNotice, audiencePreview, createNotice, deleteNotice, patchNotice, publishNotice, resendNotice, type Board, type Severity } from '../api/notices';
 import { nt } from '../i18n/notices';
+import { audienceBuildings, buildingState, toggleBuilding } from './building-audience';
 import { SEV_KEY, audienceOf, inputOf, pushState, validate, type Draft } from './model';
 import { canResendDraft, resendOutcome } from './resend-model';
 import { noticesCss } from './styles';
@@ -32,6 +33,9 @@ export class NoticeCompose extends LitElement {
   @property({ attribute: false }) draft: Draft | null = null;
   @property({ attribute: false }) boards: Board[] = [];
   @property({ attribute: false }) floors: { id: string; name: string; building: string }[] = [];
+  /** MULTI-BUILDING-HOME-2500 / NEXT-2500: the buildings a board can belong to (GET /notices/boards `buildings`; only on a multi-building
+   * site) - a board chip names its building. */
+  @property({ attribute: false }) boardBuildings: { id: string; name: string }[] = [];
   @property({ attribute: false }) groups: { id: string; name: string }[] = [];
   @property({ attribute: false }) roles: { id: string; name: string }[] = [];
   /** NOTICEPUSH-295: the writer holds notices.push (the checkbox can be changed) and the installation's "התראה בפרסום" default. */
@@ -199,6 +203,24 @@ export class NoticeCompose extends LitElement {
       <span class="hint">${d.aud === 'tv' ? nt('pushTv') : !this.canPush ? nt('pushNoPerm') : nt('pushHint')}</span></div>`;
   }
 
+  /** MULTI-BUILDING-NEXT-2500: "כל מגדל א" - one key per building (only when the floors span two or more) that picks or clears all its
+   * floors in the "לפי מקום" audience. */
+  private buildingKeys(selected: string[]) {
+    const names = audienceBuildings(this.floors);
+    if (names.length < 2) return nothing;
+    return html`<div class="chips" data-aud-buildings>${names.map((b) => {
+      const st = buildingState(this.floors, selected, b);
+      return html`<button class="pick" aria-pressed=${String(st === 'all')} data-aud-building=${b} data-state=${st}
+        @click=${() => this.set({ floors: toggleBuilding(this.floors, this.draft?.floors ?? selected, b) })}><sw-icon name="building" size="12"></sw-icon>${nt('audBuilding', { name: b })}</button>`;
+    })}</div>`;
+  }
+
+  /** " · מגדל א" after a board that belongs to a building (MULTI-BUILDING-HOME-2500, Q68). */
+  private boardBuilding(id: string | null | undefined) {
+    const name = id ? this.boardBuildings.find((x) => x.id === id)?.name : undefined;
+    return name ? html`<span class="bb" data-board-building> · ${name}</span>` : nothing;
+  }
+
   render() {
     const d = this.d;
     if (!d) return html`<sw-dialog></sw-dialog>`;
@@ -231,6 +253,7 @@ export class NoticeCompose extends LitElement {
           <div class="fld"><span class="lbl">${nt('fAudience')}</span>
             <sw-segmented data-aud value=${d.aud} @change=${(e: CustomEvent<SegmentedChange>) => this.set({ aud: e.detail.value as typeof d.aud })}
               .options=${auds.map((a) => ({ value: a, label: nt(a === 'all' ? 'audAll' : a === 'place' ? 'audPlace' : a === 'group' ? 'audGroup' : 'audTv'), attrs: { 'data-a': a } }))}></sw-segmented>
+            ${d.aud === 'place' ? this.buildingKeys(d.floors) : nothing}
             ${d.aud === 'place' ? html`<div class="chips">${this.floors.map((f) => html`<button class="pick" aria-pressed=${String(d.floors.includes(f.id))} @click=${() => this.set({ floors: this.toggle(d.floors, f.id) })}>${f.building} · ${f.name}</button>`)}</div>` : nothing}
             ${d.aud === 'group' ? html`<div class="chips">${this.groups.map((g) => html`<button class="pick" aria-pressed=${String(d.groups.includes(g.id))} @click=${() => this.set({ groups: this.toggle(d.groups, g.id) })}>${g.name}</button>`)}
               ${this.roles.map((r) => html`<button class="pick" aria-pressed=${String(d.roles.includes(r.id))} @click=${() => this.set({ roles: this.toggle(d.roles, r.id) })}>${r.name}</button>`)}</div>` : nothing}
@@ -239,7 +262,7 @@ export class NoticeCompose extends LitElement {
           </div>
           <div class="fld"><span class="lbl">${nt('fBoards')}</span>
             ${this.boards.length ? html`<div class="chips" data-boards>${this.boards.map((b) => html`<button class="pick" ?disabled=${!b.enabled} aria-pressed=${String(d.boards.includes(b.id))} data-board-pick=${b.id}
-              @click=${() => this.set({ boards: this.toggle(d.boards, b.id) })}><sw-icon name="wall" size="12"></sw-icon>${b.enabled ? b.name : nt('boardOff', { name: b.name })}</button>`)}</div>`
+              @click=${() => this.set({ boards: this.toggle(d.boards, b.id) })}><sw-icon name="wall" size="12"></sw-icon>${b.enabled ? b.name : nt('boardOff', { name: b.name })}${this.boardBuilding(b.building_id)}</button>`)}</div>`
               : html`<span class="hint">${nt('noBoards')}</span>`}
           </div>
           ${this.pushRow(d)}

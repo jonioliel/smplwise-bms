@@ -19,6 +19,7 @@ from ..i18n import t as _t
 from ..rbac import INSTALLATION, Principal, authorize, is_system_admin, permissions_anywhere
 from . import alarm as alarm_svc
 from . import bridge_keys as bk
+from . import building_filter
 from . import devices as dsvc
 from . import ha_scope, ha_sync
 from . import schedule_model as model
@@ -1351,9 +1352,18 @@ def sort_key(sort: str):
     return lambda s: (s["next_run"] is None, s["next_run"]["at"] if s["next_run"] else "", (s["display_name"] or "").casefold(), s["id"])
 
 
-def list_payload(ctx: Ctx, f: dict[str, Any], sort: str, limit: int, offset: int) -> dict[str, Any]:
+def list_payload(ctx: Ctx, f: dict[str, Any], sort: str, limit: int, offset: int, bf: Any = None) -> dict[str, Any]:
+    """`bf`: MULTI-BUILDING-NEXT-2500's building filter of the request (services/building_filter.View, None = the list of before). It
+    runs after visibility and the other filters and before totals and paging: each schedule names the buildings its targets' areas serve
+    (Q67: one touching two buildings shows in both) and `building` keeps one building's schedules."""
     rows, _ = visible_rows(ctx)
     items = [s for s in build_all(ctx, rows) if matches(s, f, ctx)]
+    meta = None
+    if bf is not None:
+        served = [bf.place(areas=[e.get("area_id") for e in s["entities"]]) for s in items]
+        holder: dict[str, Any] = {}
+        items = building_filter.apply(bf, items, served, holder, "items")
+        meta = holder.get("building_filter")
     if sort == "updated":
         items.sort(key=lambda s: s["updated_at"] or "", reverse=True)
     else:
@@ -1362,7 +1372,10 @@ def list_payload(ctx: Ctx, f: dict[str, Any], sort: str, limit: int, offset: int
     st = store.MIRROR.state(ctx.conn)
     avail = availability(ctx.conn, ctx.cfg)
     stale = avail in ("ha_unavailable", "error", "not_configured") or _older_than(st.get("last_sync_at"), store.STALE_AFTER_S)
-    return {"items": items[offset:offset + limit], "total": total, "offset": offset, "limit": limit, "status": {"available": avail, "stale": stale, "last_sync_at": st.get("last_sync_at")}}
+    out = {"items": items[offset:offset + limit], "total": total, "offset": offset, "limit": limit, "status": {"available": avail, "stale": stale, "last_sync_at": st.get("last_sync_at")}}
+    if meta is not None:
+        out["building_filter"] = meta
+    return out
 
 
 def tags_payload(ctx: Ctx) -> dict[str, Any]:

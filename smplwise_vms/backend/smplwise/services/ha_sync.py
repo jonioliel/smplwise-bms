@@ -370,6 +370,16 @@ def upsert_state(conn: sqlite3.Connection, st: dict[str, Any], seen: str | None 
     return entity_row(conn.execute("SELECT * FROM ha_entities WHERE entity_id = ?", (eid,)).fetchone())
 
 
+def _reach_snapshot(conn: sqlite3.Connection) -> dict[str, str] | None:
+    """services/building_scope.reach_snapshot, never costing the refresh (a mirror before the mapping tables answers None)."""
+    from . import building_scope
+
+    try:
+        return building_scope.reach_snapshot(conn)
+    except sqlite3.Error:
+        return None
+
+
 def apply_registry(conn: sqlite3.Connection, maps: dict[str, dict[str, Any]]) -> int:
     n = 0
     now = now_iso()
@@ -1266,6 +1276,7 @@ class HaSync:
                     result["incomplete"] = True
                     return
                 before = mirror_fingerprint(conn)
+                reach_before = _reach_snapshot(conn)  # MULTI-BUILDING-NEXT-2500: building reach that moves with an area change
                 # a listing that failed resolves names from the mirror it keeps, not from nothing (an entity's area
                 # name and floor would otherwise be blanked until the next refresh)
                 areas = areas_listing if areas_listing is not None else [dict(r) for r in conn.execute("SELECT area_id, name, floor_id, icon FROM ha_areas")]
@@ -1317,6 +1328,16 @@ class HaSync:
                 publish({"type": "media_devices_changed", "reason": "registry"})
             with db.connection(mode="read") as conn:
                 result["changed"] = mirror_fingerprint(conn) != before
+            if reach_before is not None and result["changed"]:
+                def _reach() -> None:
+                    from . import building_scope
+
+                    with db.connection(label="building_scope.registry_moved") as conn:  # durable: the audit row
+                        building_scope.registry_moved(conn, reach_before)
+                try:
+                    _busy_retry(_reach)
+                except Exception:  # noqa: BLE001 - never costs the refresh; the 60 s sweep re-scopes the sockets as before
+                    log.exception("building reach signal after the registry refresh failed")
 
         write = loop.run_in_executor(None, _apply)
         try:

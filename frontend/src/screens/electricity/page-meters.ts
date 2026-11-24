@@ -9,7 +9,8 @@ import '../../components/sw-table';
 import type { TableColumn } from '../../components/sw-table';
 import '../../electricity/meter-picker';
 import '../../electricity/meter-card';
-import { addMeters, buildAreaTree, listMeters, summarize, type Meter } from '../../api/electricity-meters';
+import { addMeters, buildAreaTree, listMeters, meterBuildingFilter, summarize, type Meter } from '../../api/electricity-meters';
+import { alsoNote, shows } from '../../components/building-filter-logic';
 import { energyAccess, onEnergyAccess, type EnergyAccess } from '../../electricity/access';
 import { fmtInt, fmtKwh, fmtTime } from '../../electricity/format';
 import { checkMeterName, meterNames, meterSearchText } from '../../electricity/meter-name';
@@ -119,8 +120,23 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
     return listMeters();
   }
 
+  /** MULTI-BUILDING-NEXT-2500: the meters list's building filter (services/building_filter) and each meter's buildings. */
+  protected readBuildingFilter() {
+    return meterBuildingFilter();
+  }
+
+  protected inBuilding(m: Meter, building: string): boolean {
+    return shows(m.buildings, building);
+  }
+
+  /** Q67: " · גם ב..." after the area of a meter that serves the chosen building and others (nothing otherwise). */
+  private alsoTag(m: Meter) {
+    const note = alsoNote(m.buildings, this.building, this.buildingMeta);
+    return note ? html`<span class="mut" data-also> · ${note}</span>` : nothing;
+  }
+
   protected areaTree() {
-    return buildAreaTree(this.meters);
+    return buildAreaTree(this.scoped());
   }
 
   protected inArea(m: Meter, area: string): boolean {
@@ -203,7 +219,7 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
   }
 
   protected renderTiles() {
-    const s = summarize(this.meters);
+    const s = summarize(this.scoped());
     return html`<div class="tiles" data-tiles>
       <div class="tile"><div class="k">${tr('היום')}</div><div class="v"><span class="num">${fmtInt(s.today_kwh)}</span><span class="u">${tr('קוט״ש')}</span></div></div>
       <div class="tile"><div class="k">${tr('מתחילת החודש')}</div><div class="v"><span class="num" data-month>${this.meters.some((m) => m.month_kwh != null) ? fmtInt(s.month_kwh) : '-'}</span><span class="u">${tr('קוט״ש')}</span></div></div>
@@ -232,7 +248,7 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
         cellTitle: (m) => [meterNames(m).primary, meterNames(m).secondary].filter(Boolean).join(' - '),
         render: (m) => html`<span class="t1">${meterNames(m).primary}</span>${this.entityLine(m, 't2')}`,
       },
-      { key: 'area', label: tr('אזור'), render: (m) => html`${m.area_name ?? '-'}${this.narrow ? nothing : html`<span class="mut"> · ${m.floor_name ?? ''}</span>`}` },
+      { key: 'area', label: tr('אזור'), render: (m) => html`${m.area_name ?? '-'}${this.narrow ? nothing : html`<span class="mut"> · ${m.floor_name ?? ''}</span>`}${this.alsoTag(m)}` },
       { key: 'reading', label: tr('קריאה נוכחית (קוט״ש)'), kind: 'num', render: (m) => fmtKwh(m.reading_kwh) },
       { key: 'today', label: tr('היום'), kind: 'num', render: (m) => fmtKwh(m.today_kwh) },
       { key: 'month', label: tr('מתחילת החודש'), kind: 'num', render: (m) => fmtKwh(m.month_kwh) },
@@ -252,14 +268,14 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
     return html`<div class="cards desk-only" data-meters-cards>${list.map((m) => html`<div class="card mcard" role="button" tabindex="0" data-meter=${m.id} @click=${() => this.openMeter(m)} @keydown=${(e: KeyboardEvent) => this.onKey(e, m)}>
       <div class="row"><b>${meterNames(m).primary}</b><span class="sp"></span>${this.statusChip(m)}</div>
       ${this.entityLine(m, 'mut')}
-      <div class="mut">${m.area_name ?? ''}${m.floor_name ? ` · ${m.floor_name}` : ''}</div>
+      <div class="mut">${m.area_name ?? ''}${m.floor_name ? ` · ${m.floor_name}` : ''}${this.alsoTag(m)}</div>
       <div class="row" style="align-items:baseline"><span class="big num">${fmtKwh(m.today_kwh)}</span><span class="mut">${tr('קוט״ש היום')}</span><span class="sp"></span><span class="mut num">${fmtKwh(m.reading_kwh)}</span></div></div>`)}</div>`;
   }
 
   /** The phone's list (the same rows as the table, one line of context). */
   protected renderRows(list: Meter[]) {
     return html`<div class="list phone-only" style="flex-direction:column" data-meters-rows>${list.map((m) => html`<div class="li pick" role="button" tabindex="0" data-meter=${m.id} @click=${() => this.openMeter(m)} @keydown=${(e: KeyboardEvent) => this.onKey(e, m)}>
-      <div class="grow"><div class="t1">${meterNames(m).primary}</div>${this.entityLine(m, 't2')}<div class="t2">${m.area_name ?? ''} · ${tr('היום')} <span class="num">${fmtKwh(m.today_kwh)}</span> ${tr('קוט״ש')}</div></div>
+      <div class="grow"><div class="t1">${meterNames(m).primary}</div>${this.entityLine(m, 't2')}<div class="t2">${m.area_name ?? ''}${this.alsoTag(m)} · ${tr('היום')} <span class="num">${fmtKwh(m.today_kwh)}</span> ${tr('קוט״ש')}</div></div>
       <div style="text-align:end">${this.statusChip(m)}<div class="t2 num" style="margin-block-start:4px">${fmtKwh(m.reading_kwh)}</div></div></div>`)}</div>`;
   }
 

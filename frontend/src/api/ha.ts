@@ -7,6 +7,7 @@ import { openReconnectingSocket, wsUrl, type SocketEnv } from './reconnecting-so
 import { ltrIsolate } from '../i18n/bidi';
 import { commandId } from './request-id';
 import type { StateKind } from '../components/sw-badge';
+import type { BuildingFilterMeta } from '../components/building-filter-logic';
 import type { MarkerKind } from '../map/sw-plan-canvas';
 import type { MediaLive } from './media-screens';
 import type { PlayerLive } from './media-players';
@@ -162,11 +163,15 @@ export interface HaCatalogue {
   areas: { area_id: string; area_name: string | null }[];
   sync: HaSyncState;
   can_control: boolean;
+  /** MULTI-BUILDING-NEXT-2500: only on a multi-building site, when the request named a building or the entities sit in two or more. */
+  building_filter?: BuildingFilterMeta;
 }
 
-export function listEntities(opts: { domain?: string; q?: string; area?: string; placed?: boolean; includeDisabled?: boolean; limit?: number } = {}) {
+/** `building` (MULTI-BUILDING-NEXT-2500): keep one building's entities - the server ignores it while the multi-building filter is off. */
+export function listEntities(opts: { domain?: string; q?: string; area?: string; placed?: boolean; includeDisabled?: boolean; limit?: number; building?: string } = {}) {
   const p = new URLSearchParams();
   if (opts.domain) p.set('domain', opts.domain);
+  if (opts.building) p.set('building', opts.building);
   if (opts.q) p.set('q', opts.q);
   if (opts.area) p.set('area', opts.area);
   if (opts.placed !== undefined) p.set('placed', String(opts.placed));

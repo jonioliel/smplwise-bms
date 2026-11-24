@@ -4,6 +4,8 @@ import { customElement, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { keyed } from 'lit/directives/keyed.js';
 import '../components/sw-icon';
+import '../components/sw-building-filter';
+import { pickChosen, readChosen, type BuildingFilterMeta } from '../components/building-filter-logic';
 import '../components/sw-button';
 import '../components/sw-badge';
 import '../components/sw-tabs';
@@ -134,6 +136,9 @@ export class SwApp extends LitElement {
   private stopSetupDismissal: (() => void) | null = null;
   @state() private searchQ = '';
   @state() private searchResults: SearchResult[] = [];
+  /** MULTI-BUILDING-NEXT-2500: the search's building ('' = the whole site) and the filter the last search answered (null = none). */
+  @state() private searchBuilding = '';
+  @state() private searchMeta: BuildingFilterMeta | null = null;
   @state() private searchOpen = false;
   @state() private searchIndex = -1;
   @state() private searchBusy = false;
@@ -2459,8 +2464,16 @@ export class SwApp extends LitElement {
     const seq = ++this.searchSeq;
     this.searchBusy = true;
     try {
-      const r = await apiSearch(q, 6);
+      const r = await apiSearch(q, 6, this.searchBuilding);
       if (seq !== this.searchSeq) return;
+      this.searchMeta = r.building_filter ?? null;
+      // the device's last building, once a search shows this person's hits span buildings (one more read, then kept for the session)
+      const want = this.searchBuilding || pickChosen(this.searchMeta, readChosen());
+      if (want !== this.searchBuilding && !this.searchBuilding) {
+        this.searchBuilding = want;
+        void this.runSearch(q);
+        return;
+      }
       this.searchResults = [...this.pageHits(q), ...r.results];
       this.searchIndex = r.results.length ? 0 : -1;
       this.searchOpen = true;
@@ -2619,7 +2632,9 @@ export class SwApp extends LitElement {
 
   /** The result list of the search popover. */
   private renderResults() {
-    return html`<div class="results" id="search-results" role="listbox" aria-label=${tr('תוצאות חיפוש')}>
+    return html`${this.searchMeta && isApi() ? html`<sw-building-filter class="sbf" data-search-building .filter=${this.searchMeta} value=${this.searchBuilding}
+      @mousedown=${(e: Event) => e.preventDefault()}
+      @building-change=${(e: CustomEvent<{ value: string }>) => { this.searchBuilding = e.detail.value; void this.runSearch(this.searchQ); }}></sw-building-filter>` : nothing}<div class="results" id="search-results" role="listbox" aria-label=${tr('תוצאות חיפוש')}>
       ${!isApi() && !this.searchResults.length
         ? html`<div class="empty">${tr('החיפוש עובד מול השרת (במצב הדגמה אין נתונים).')}</div>`
         : this.searchBusy && !this.searchResults.length
