@@ -748,8 +748,9 @@ def test_l6_a_pending_job_still_moves_on() -> None:
 
 def test_l9_the_bridge_install_button_warns_about_the_restart() -> None:
     src = (REPO / "frontend/src/screens/system-diagnostics.ts").read_text(encoding="utf-8")
-    assert "export const BRIDGE_INSTALL_RESTART_WARNING = '" in src
-    warning = src.split("export const BRIDGE_INSTALL_RESTART_WARNING = '", 1)[1].split("';", 1)[0]
+    # I18N-EN-2490: the Hebrew text is the key of the settings table, read through tr() (English for an English user)
+    assert "export const BRIDGE_INSTALL_RESTART_WARNING = tr('" in src
+    warning = src.split("export const BRIDGE_INSTALL_RESTART_WARNING = tr('", 1)[1].split("');", 1)[0]
     assert "להפעיל מחדש את Home Assistant" in warning and "WisKey" in warning
     row = next(line for line in src.splitlines() if "this.installBridgeNow()" in line and "<sw-button" in line)
     assert "${BRIDGE_INSTALL_RESTART_WARNING}" in row  # in the same row as the button (text only, same structure)
