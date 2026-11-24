@@ -189,16 +189,20 @@ Generators on the workstation: `scripts/gen_wire_types.py` (wrote `wire-second-f
 Not run on the workstation (PC memory rule): ruff, `test_capture_lease_triggers.py`, `test_local_identity.py`,
 `test_bill_ledger_lifecycle_b.py`, the wider backend families - they are in the runner job below.
 
-Runner (slot B): ONE job `~/work/mfareset_run.sh` (the 22 MFA / auth files above plus `test_capture_lease_triggers`, `test_local_identity`,
-`test_bill_ledger_lifecycle_b`, `test_migrations*`, `test_local_auth_inventory`; `gen_wire_types --check`; ruff; then the auth / identity /
-remote / access / app-session / bridge-key / backup / security / wire / settings / rbac / notify-policy / privacy / presence families in
-shards of 40, each pytest with its own `--basetemp`, deleted after). Queued 13:15 UTC; slot B stayed taken by other jobs until 16:12 UTC
-(the 3-hour box): **NOT_RUN**. The lease is still queued; when it runs, results land in `~/work/mfareset-out/summary.txt` (the job
-checks out the branch head when it starts).
+Runner (slot B): ONE job `~/work/mfareset_run.sh` at `aeb9db142` (queued 13:15 UTC, slot B reached at 19:05 UTC - past the 3-hour box,
+then run to the end; each pytest with its own `--basetemp`, deleted after):
+
+| Step | Result |
+|---|---|
+| 22 files one by one (the 15 above + `test_local_passkeys`, `test_capture_lease_triggers`, `test_local_identity`, `test_bill_ledger_lifecycle_b`, `test_migrations`, `test_migrations_263_upgrade`, `test_local_auth_inventory`) | 21 green (e.g. reset hardening 22, secfix 17, local passkeys 73, local identity 41, local auth inventory 4); `test_migrations_263_upgrade` 1 failed (pre-existing, below) |
+| `gen_wire_types.py --check` | exit 0 |
+| `ruff check smplwise tests/test_mfa_reset_hardening_2510.py` | `smplwise` clean; the new test had 1 unused import + 35 F811 (fixtures imported by name) - fixed in the next commit (`# ruff: noqa: F811`, import removed); re-check below |
+| backend families: 107 files (auth / identity / remote / access / app session / bridge key / backup / security / wire / settings / rbac / notify policy / privacy / presence), 3 shards of 40 | **2599 passed, 5 skipped, 1 failed**: chunk 0 1117 passed / 4 skipped, chunk 1 913 passed / 1 skipped, chunk 2 569 passed / 1 failed - `test_wire_routers_d_2470.py::test_no_raw_sql_came_back_into_the_router[access_tokens]` (`routers/access_tokens.py`, slice 6 MFA-TOKENS-2490; this slice does not touch that file - pre-existing on the train) |
 
 Known red on the train head before this slice (seen in MFA-SECFIX-2500's runner job, not caused here): `test_migrations_263_upgrade::
 test_the_release_numbers_are_contiguous_and_final` (the train skips 0217 / 0218 until the merge; 0224 continues that) and
-`test_local_auth_inventory::test_identity_dependencies_outside_principal_are_listed` (`GET /auth/tokens`, slice 6).
+`test_local_auth_inventory::test_identity_dependencies_outside_principal_are_listed` (`GET /auth/tokens`, slice 6 - green in this run), and
+`test_wire_routers_d_2470::test_no_raw_sql_came_back_into_the_router[access_tokens]` (raw SQL in `routers/access_tokens.py`, slice 6).
 
 ## 5. For MFA-SCREENS-2510 (what the screens need; nothing of it is built here)
 

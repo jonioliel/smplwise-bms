@@ -12,11 +12,11 @@ docs/changes/MFA-RESET-HARDENING-2510.md). services/factor_reset.py and routers/
   while step-up applies - nothing with step-up off.
 
 Fakes only (the fake HA core of tests/test_remote_access.py); no lab, no Home Assistant, no network."""
+# ruff: noqa: F811 - the `arx` / `clock` fixtures are imported by name and used as test parameters
 from __future__ import annotations
 
 import json
 
-import pytest
 from fastapi.testclient import TestClient
 
 from smplwise.services import factor_reset as fr
