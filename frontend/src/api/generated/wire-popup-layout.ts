@@ -23,7 +23,7 @@ export interface PopupLayoutDoc {
 /** The whole stored pop-up document after the save and the alert switch; the site save adds how many areas follow the site layout. */
 export interface PopupSaved {
   popup: Popup;
-  popup_alert: "show" | "hide";
+  popup_alert: "hide" | "show";
   affected_areas?: number;
 }
 

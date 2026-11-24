@@ -10,7 +10,7 @@ export interface EnrolledUser {
 }
 
 export interface EnrolledUsers {
-  policy: "optional" | "admins";
+  policy: "admins" | "optional";
   users: EnrolledUser[];
 }
 
@@ -36,7 +36,7 @@ export interface FactorStatus {
 
 /** `PUT /auth/second-factor/overrides/{kind}/{id}`: the change and every override after it. */
 export interface OverrideSet {
-  kind: "user" | "role";
+  kind: "role" | "user";
   subject_id: string;
   policy: "inherit" | "optional" | "required";
   user: Record<string, string>;
@@ -45,7 +45,7 @@ export interface OverrideSet {
 
 /** The per-user and per-role policy overrides (subject id -> stored policy); a subject without a row inherits. */
 export interface Overrides {
-  policy: "optional" | "admins";
+  policy: "admins" | "optional";
   user: Record<string, string>;
   role: Record<string, string>;
 }
@@ -55,7 +55,7 @@ export interface OwnFactor {
   enabled: boolean;
   enabled_at: string | null;
   last_used_at: string | null;
-  policy: "optional" | "admins";
+  policy: "admins" | "optional";
 }
 
 /** The answer of every modelled route of this family: `'METHOD path'` -> type. */

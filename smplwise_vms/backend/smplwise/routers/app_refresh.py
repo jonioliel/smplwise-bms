@@ -47,6 +47,8 @@ from ..services import app_session as xs
 from ..services import ha_user_auth as hua
 from ._common import db_of as _db, rid as _rid
 from .presence import Caller, session_caller
+from ..wire import app_refresh as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -164,7 +166,7 @@ class SignOutIn(BaseModel):
 
 # ---------------------------------------------------------------- minting (session)
 
-@router.post("/auth/app/refresh-tokens", status_code=201)
+@router.post("/auth/app/refresh-tokens", status_code=201, **wire(W.AppRefreshIssue))
 def issue(body: IssueIn, request: Request, caller: Caller = Depends(session_caller)) -> dict[str, Any]:
     # Security review F-02 (owner: the safer choice): a family is minted on the remote channel only - from a remote sign-in Arx can see,
     # anchor and end. The local channel (Ingress, developer) never mints: the same 404 as the public routes there.
@@ -195,7 +197,7 @@ def issue(body: IssueIn, request: Request, caller: Caller = Depends(session_call
 
 # ---------------------------------------------------------------- the public routes
 
-@guarded_route.post(router, _public_guard, "/auth/app/refresh")
+@guarded_route.post(router, _public_guard, "/auth/app/refresh", **wire(W.AppRefreshRefresh))
 def refresh(body: RefreshIn, request: Request) -> dict[str, Any]:
     key = _client_key(request)
     if svc.client_blocked(key):
@@ -218,7 +220,7 @@ def refresh(body: RefreshIn, request: Request) -> dict[str, Any]:
             raise  # an ApiError: the connection commits (the family's end, a consumed nonce and the audit row are kept)
 
 
-@guarded_route.post(router, _public_guard, "/auth/app/refresh-challenge")
+@guarded_route.post(router, _public_guard, "/auth/app/refresh-challenge", **wire(W.AppRefreshRefreshChallenge))
 def refresh_challenge(body: ChallengeIn, request: Request) -> dict[str, Any]:
     """APPREFRESH2: a single-use nonce (NONCE_TTL_S) for the next device-key proof of this device's family. The same answer shape for an
     unknown device (a nonce stored nowhere); an unknown device counts on the client's failure tier, a known one on its family bucket."""
@@ -261,7 +263,7 @@ def sign_out(body: SignOutIn, request: Request) -> Response:
     return Response(status_code=204)
 
 
-@router.get("/auth/app/whoami")
+@router.get("/auth/app/whoami", **wire(W.AppRefreshWhoami))
 def whoami(request: Request) -> dict[str, Any]:
     _public_guard(request)
     key = _client_key(request)
@@ -306,7 +308,7 @@ class SessionIn(BaseModel):
     proof: SessionProofIn | None = None  # absent for a keyed family = a theft signal: the service ends the family (spec 5 step 7)
 
 
-@guarded_route.post(router, _session_guard, "/auth/app/session")
+@guarded_route.post(router, _session_guard, "/auth/app/session", **wire(W.AppRefreshSessionExchange))
 def session_exchange(body: SessionIn, request: Request) -> dict[str, Any]:
     """The exchange (spec section 5): authenticated by the bearer access token ONLY - the route never reads, touches, rotates or ends a
     cookie (review S-06; a POST carrying the session cookie without its origin never gets here: the channel answers 403 csrf_refused)."""
@@ -387,7 +389,7 @@ def _may_manage(conn, caller: Caller, target_user: str | None, request: Request)
     raise ApiError(403, "forbidden", "אין הרשאה.", details={"permission": CONFIGURE})
 
 
-@router.get("/auth/app/families")
+@router.get("/auth/app/families", **wire(W.AppRefreshFamilies))
 def families(request: Request, caller: Caller = Depends(session_caller), user_id: str | None = Query(None, max_length=200), all: bool = False) -> dict[str, Any]:
     target = None if all else (user_id or caller.principal.user_id)
     with _db(request).connection(mode="read", label="app_refresh.families") as conn:
@@ -410,7 +412,7 @@ def end_family(family_id: str, request: Request, caller: Caller = Depends(sessio
     return Response(status_code=204)
 
 
-@router.delete("/auth/app/families")
+@router.delete("/auth/app/families", **wire(W.AppRefreshEndFamilies))
 def end_families(request: Request, caller: Caller = Depends(session_caller), user_id: str | None = Query(None, max_length=200)) -> dict[str, Any]:
     target = user_id or caller.principal.user_id
     with _db(request).connection(label="app_refresh.end_all") as conn:
@@ -436,7 +438,7 @@ def _device_owner(conn, device_id: str) -> str | None:
     return r["user_id"] if r else None
 
 
-@router.get("/auth/app/devices/{device_id}/key")
+@router.get("/auth/app/devices/{device_id}/key", **wire(W.AppRefreshDeviceKey))
 def device_key(device_id: str, request: Request, caller: Caller = Depends(session_caller)) -> dict[str, Any]:
     """The device's pinned key status (never the key; a 16-hex fingerprint prefix): its user, or system.configure."""
     with _db(request).connection(mode="read", label="app_refresh.device_key") as conn:
@@ -448,7 +450,7 @@ def device_key(device_id: str, request: Request, caller: Caller = Depends(sessio
         return svc.key_status(conn, device_id[:64])
 
 
-@router.get("/auth/app/devices/{device_id}/attestation")
+@router.get("/auth/app/devices/{device_id}/attestation", **wire(W.AppRefreshDeviceAttestation))
 def device_attestation(device_id: str, request: Request, caller: Caller = Depends(session_caller)) -> dict[str, Any]:
     """ATTEST232: the last hardware-attestation verdict of the device (never the chain): its user, or system.configure."""
     with _db(request).connection(mode="read", label="app_refresh.attestation") as conn:
@@ -460,7 +462,7 @@ def device_attestation(device_id: str, request: Request, caller: Caller = Depend
         return svc.attestation_status(conn, device_id[:64])
 
 
-@router.post("/auth/app/devices/{device_id}/key-reset")
+@router.post("/auth/app/devices/{device_id}/key-reset", **wire(W.AppRefreshApproveKeyReset))
 def approve_key_reset(device_id: str, body: KeyResetIn, request: Request, caller: Caller = Depends(session_caller)) -> dict[str, Any]:
     """A system administrator approves a device-key reset (the lost-key path): audited, the user notified, the old sign-in ended."""
     remote = is_remote(request)
@@ -501,7 +503,7 @@ def _attestation_weakened(conn, body: dict[str, Any]) -> bool:
     return svc.ATTEST_ROOTS_KEY in body and roots != svc.attest_roots(conn) and svc.clean_roots(roots) != svc.attest_roots(conn)
 
 
-@router.get("/auth/app/settings")
+@router.get("/auth/app/settings", **wire(W.AppRefreshSettings))
 def get_settings(request: Request, caller: Caller = Depends(session_caller)) -> dict[str, Any]:
     with _db(request).connection(mode="read", label="app_refresh.settings") as conn:
         touch_user(conn, caller.principal)
@@ -509,7 +511,7 @@ def get_settings(request: Request, caller: Caller = Depends(session_caller)) -> 
         return {"settings": svc.settings_out(conn)}
 
 
-@router.put("/auth/app/settings")
+@router.put("/auth/app/settings", **wire(W.AppRefreshPutSettings))
 def put_settings(request: Request, body: dict[str, Any] = Body(...), caller: Caller = Depends(session_caller)) -> dict[str, Any]:
     remote = is_remote(request)
     with _db(request).connection(label="app_refresh.settings.update") as conn:

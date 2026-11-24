@@ -25,6 +25,8 @@ from ..errors import ApiError
 from ..rbac import Principal, require_system_admin
 from ..services import wiskey_managed_install as wmi
 from ._common import rid as _rid
+from ..wire import wiskey_managed as W
+from ..wire import wire
 
 router = APIRouter()
 BASE = "/wiskey/managed"
@@ -83,14 +85,14 @@ def _refused(conn: sqlite3.Connection | None, request: Request, principal: Princ
     return ApiError(exc.status, exc.code, _TEXT.get(exc.code, _TEXT["validation"]), details=details)
 
 
-@router.get(BASE)
+@router.get(BASE, **wire(W.WiskeyManagedManaged))
 def get_managed(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """WISKEY-MANAGED-INSTALL-2382: installed / shipped WisKey versions, ownership, plan, switches and the last run (system administrator)."""
     _admin_or_403(conn, principal, request, "settings.read")
     return wmi.view(conn)
 
 
-@router.put(BASE + "/switch")
+@router.put(BASE + "/switch", **wire(W.WiskeyManagedPutSwitch))
 def put_switch(body: SwitchIn, request: Request, principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     """WISKEY-MANAGED-INSTALL-2382: turn the managed installation (or the accepted Core-image risk) on with the typed phrase, or off (system administrator)."""
     key = wmi.SWITCH_NAMES[body.switch]
@@ -126,14 +128,14 @@ def _admin(request: Request, principal: Principal, action: str) -> None:
         _admin_or_403(conn, principal, request, action)
 
 
-@router.post(BASE + "/check")
+@router.post(BASE + "/check", **wire(W.WiskeyManagedPostCheck))
 def post_check(request: Request, principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     """WISKEY-MANAGED-INSTALL-2382: the dry run of a managed upgrade - preflight, Core gate, full-backup check; reads only (system administrator)."""
     _admin(request, principal, "settings.read")
     return wmi.check(request.app.state.db, request.app.state.settings)
 
 
-@router.post(BASE + "/adopt")
+@router.post(BASE + "/adopt", **wire(W.WiskeyManagedPostAdopt))
 def post_adopt(body: ConfirmIn, request: Request, principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     """WISKEY-MANAGED-INSTALL-2382: convert the manual WisKey install into "managed by Arx" (typed phrase, private backup, audited; no config write)."""
     _admin(request, principal, "wiskey.managed.adopt")
@@ -156,13 +158,13 @@ def _start(kind: str, request: Request, principal: Principal) -> dict[str, Any]:
     return {"job": job}
 
 
-@router.post(BASE + "/upgrade", status_code=202)
+@router.post(BASE + "/upgrade", status_code=202, **wire(W.WiskeyManagedPostUpgrade))
 def post_upgrade(request: Request, principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     """WISKEY-MANAGED-INSTALL-2382: start the managed install / upgrade / conversion (backup check, Core stop/start, verified swap, compare, rollback)."""
     return _start("forward", request, principal)
 
 
-@router.post(BASE + "/rollback", status_code=202)
+@router.post(BASE + "/rollback", status_code=202, **wire(W.WiskeyManagedPostRollback))
 def post_rollback(request: Request, principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     """WISKEY-MANAGED-INSTALL-2382: put back the WisKey tree the last managed run replaced (Core stop/start, compare)."""
     return _start("rollback", request, principal)

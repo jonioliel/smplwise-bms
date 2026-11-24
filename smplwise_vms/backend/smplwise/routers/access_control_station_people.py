@@ -46,6 +46,8 @@ from ..services import station_people as sp
 from ..services.timeutil import parse_utc
 from ._common import db_of as _db, is_json as _is_json, raw_body as _raw_body, rid as _rid
 from .access_control import COMMAND_ID, DEDUPE_WINDOW_S, EXPIRY_MAX_S, SEND_WITHIN_S, people_writer
+from ..wire import access_control_station_people as W
+from ..wire import wire
 
 log = logging.getLogger("smplwise.intercom")
 router = APIRouter()
@@ -110,7 +112,7 @@ def _numbers_visible(auth: ia.Authority, station_id: str) -> bool:
 
 # ---------------------------------------------------------------- reads
 
-@router.get("/access-control/station-people/stations")
+@router.get("/access-control/station-people/stations", **wire(W.AccessControlStationPeopleStationList))
 def station_list(request: Request, auth: ia.Authority = Depends(people_writer())) -> dict[str, Any]:
     """The stations whose users the caller may review (`access.people.manage` on each), from the served copy (no WisKey call):
     `{stations: [{id, name, online, ignored, credentials, numbers}]}` - `ignored` how many of its users an administrator chose to
@@ -145,7 +147,7 @@ def _scan(request: Request, auth: ia.Authority, station_id: str, refresh: bool) 
     return inv, {"state": "ready", "last_error": None, "cached": False}
 
 
-@router.get("/access-control/station-people/stations/{station_id}")
+@router.get("/access-control/station-people/stations/{station_id}", **wire(W.AccessControlStationPeopleStationUsers))
 def station_users(request: Request, response: Response, auth: ia.Authority = Depends(people_writer()),
                   station_id: str = Path(pattern=STATION_ID), refresh: bool = Query(False)) -> dict[str, Any]:
     """The station's users that no WisKey person is bound to: `{state, last_error, station: {id, name}, read_at, cached, people}`; each
@@ -207,7 +209,7 @@ def _matches(request: Request, auth: ia.Authority, data: dict[str, Any], user_id
             "restricted": not full}
 
 
-@router.post("/intercom/station-people/check")
+@router.post("/intercom/station-people/check", **wire(W.AccessControlStationPeopleStationUserCheck))
 def station_user_check(request: Request, auth: ia.Authority = Depends(people_writer()), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
     """Before adopting: is this station user already a WisKey person (same user number - adopt links to them) or possibly the same
     person under another number (same name / phone; WisKey `users/duplicate_check`)? Body `{station_id, employee_no}`; the name is the
@@ -227,7 +229,7 @@ def station_user_check(request: Request, auth: ia.Authority = Depends(people_wri
     return _matches(request, auth, data)
 
 
-@router.get("/access-control/people-duplicates")
+@router.get("/access-control/people-duplicates", **wire(W.AccessControlStationPeoplePeopleDuplicates))
 def people_duplicates(request: Request, response: Response, auth: ia.Authority = Depends(people_writer())) -> dict[str, Any]:
     """People who may be the same person twice (WisKey `users/data_quality`, duplicates only): groups `{code, field_id, label, people:
     [{id, display_name}], more}`, never the shared value. `restricted: true` (and no groups) for a caller whose people permissions do
@@ -269,7 +271,7 @@ class PinCheckBody(BaseModel):
     pin: str = Field(pattern=r"^[0-9]{1,128}$")
 
 
-@router.post("/intercom/people/pin-check")
+@router.post("/intercom/people/pin-check", **wire(W.AccessControlStationPeoplePinCheck))
 def pin_check(request: Request, response: Response, auth: ia.Authority = Depends(people_writer(ia.PEOPLE_SENSITIVE)), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
     """Whether a PIN typed in the editor is free in WisKey (`users/pin_check`; body `{user_id, pin}`, `user_id` "" for a new person).
     Reply `{state, last_error, available}` (`available` null when WisKey could not answer). The PIN goes to WisKey once and is never
@@ -440,7 +442,7 @@ def _public(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [{k: v for k, v in r.items() if k != "result"} for r in results]
 
 
-@router.post("/intercom/station-people/adopt")
+@router.post("/intercom/station-people/adopt", **wire(W.AccessControlStationPeopleAdopt))
 def adopt(request: Request, auth: ia.Authority = Depends(people_writer()), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
     """Adopt a station user (WisKey `users/adopt`): WisKey creates the person from the user as the station holds it and binds them -
     nothing is created on the station. Body `{employee_no, station_ids, confirmed, allow_possible_duplicate, client_request_id,
@@ -542,7 +544,7 @@ def _raw_same(request: Request, auth: ia.Authority, data: dict[str, Any]) -> dic
     return next((m for m in raw.get("matches") or [] if isinstance(m, dict) and "employee_no" in (m.get("reasons") or []) and isinstance(m.get("id"), str)), None)
 
 
-@router.post("/intercom/station-people/delete")
+@router.post("/intercom/station-people/delete", **wire(W.AccessControlStationPeopleDeleteFromStation))
 def delete_from_station(request: Request, auth: ia.Authority = Depends(people_writer()), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
     """Delete a user from the station (WisKey `users/delete_unmanaged`: WisKey records the user and its removal in one commit and its
     own sync deletes it from the device - a DEVICE WRITE, not immediate). Body `{employee_no, station_ids, confirmed, typed,
@@ -587,7 +589,7 @@ def delete_from_station(request: Request, auth: ia.Authority = Depends(people_wr
             "note": "WisKey קיבל את המחיקה. ההסרה מהעמדה מתבצעת בסנכרון של WisKey ואינה מיידית - רעננו את הרשימה כדי לראות שהמשתמש ירד."}
 
 
-@router.post("/intercom/station-people/ignore")
+@router.post("/intercom/station-people/ignore", **wire(W.AccessControlStationPeopleIgnore))
 def ignore(request: Request, auth: ia.Authority = Depends(people_writer()), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
     """Ignore a station user (or undo it): stored in Arx's list first (migration 0198 - the screen hides it from then on), then
     mirrored to WisKey's own flag (`users/ignore`) so its unmanaged counts agree. Body `{employee_no, station_ids, ignored, confirmed,

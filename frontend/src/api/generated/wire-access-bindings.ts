@@ -6,7 +6,7 @@
 /** An active binding of the group (services/rbac_admin._binding_dict); `via_group` is null here (the group's own binding). */
 export interface AccessGroupBinding {
   id: string;
-  subject_kind: "user" | "group";
+  subject_kind: "group" | "user";
   subject_id: string;
   subject_name: string;
   role_id: string;
@@ -25,7 +25,7 @@ export interface AccessGroupBinding {
 /** `POST /access/bindings`: the new binding (`via_group` null) and the permission revision after the change. */
 export interface BindingCreated {
   id: string;
-  subject_kind: "user" | "group";
+  subject_kind: "group" | "user";
   subject_id: string;
   subject_name: string;
   role_id: string;

@@ -21,6 +21,8 @@ from ..services.access_control_core import PERSON, PersonData
 from ._common import raw_body as _raw_body, rid as _rid
 from .access_control_base import CAPTURE, MANAGE, PIN_GENERATE
 from .access_control_command import CommandEnvelope, _Action, _envelope, _parse, _perform
+from ..wire import access_control_people as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -146,7 +148,7 @@ def people_send(act: "_Action", conn: sqlite3.Connection, command: str, business
     return native
 
 
-@router.get("/intercom/people-editor/context")
+@router.get("/intercom/people-editor/context", **wire(W.AccessControlPeoplePeopleEditorContext))
 def people_editor_context(request: Request, auth: ia.Authority = Depends(people_writer())) -> dict[str, Any]:
     """What the editor needs from WisKey's `overview` beyond the entry center (intercom_sync.project_editor_context):
     the stations with their relays and whether each can take a keypad PIN, the HA display zone, WisKey's
@@ -168,7 +170,7 @@ def people_editor_context(request: Request, auth: ia.Authority = Depends(people_
     return reply
 
 
-@router.get("/intercom/people/{user_id}/editor")
+@router.get("/intercom/people/{user_id}/editor", **wire(W.AccessControlPeoplePersonEditor))
 def person_editor(request: Request, auth: ia.Authority = Depends(people_writer()), user_id: str = Path(min_length=1, max_length=128)) -> dict[str, Any]:
     """One person for editing (WisKey `users/get`): the read projection plus phone, the PIN flag, the cards in WisKey's masked
     form (`•••• 1234` - the full number never leaves WisKey), the overrides, `identity_locked`, `has_timing`, each assignment's
@@ -194,7 +196,7 @@ def person_editor(request: Request, auth: ia.Authority = Depends(people_writer()
     return reply
 
 
-@router.post("/intercom/people/pin-generate")
+@router.post("/intercom/people/pin-generate", **wire(W.AccessControlPeoplePersonPinGenerate))
 def person_pin_generate(request: Request, response: Response, auth: ia.Authority = Depends(people_writer(PIN_GENERATE)), raw: bytes = Depends(_raw_body),
                         conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A free six-digit PIN from WisKey (`users/pin_generate`; body `{user_id}`, "" for a person not saved yet). Not
@@ -249,7 +251,7 @@ RATE_LIMITED_CODE = intercom_sync.RATE_LIMITED
 SAVE_NOTE = "WisKey שמר את הרשומה. הסנכרון לתחנות מתבצע על ידי WisKey בנפרד - מצב הסנכרון של כל תחנה מוצג ברשומה."
 
 
-@router.post("/intercom/people")
+@router.post("/intercom/people", **wire(W.AccessControlPeoplePersonCreate))
 def person_create(request: Request, auth: ia.Authority = Depends(people_writer()), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Create a person in WisKey (`users/create`). Body: `{data: PersonData, sync_now, client_request_id, expires_at}`;
     `data` needs at least `display_name` and `employee_no`. Refused before sending (each refusal audited): a malformed
@@ -283,7 +285,7 @@ def person_create(request: Request, auth: ia.Authority = Depends(people_writer()
     return reply
 
 
-@router.put("/intercom/people/{user_id}")
+@router.put("/intercom/people/{user_id}", **wire(W.AccessControlPeoplePersonUpdate))
 def person_update(request: Request, user_id: str, auth: ia.Authority = Depends(people_writer()), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Update a person in WisKey (`users/update`, compare-and-set on `revision`). Body: `{data: PersonData (a patch),
     revision, sync_now, client_request_id, expires_at}`. A stale revision is a 409 `intercom_revision_conflict`
@@ -313,7 +315,7 @@ def person_update(request: Request, user_id: str, auth: ia.Authority = Depends(p
     return reply
 
 
-@router.post("/intercom/people/{user_id}/delete")
+@router.post("/intercom/people/{user_id}/delete", **wire(W.AccessControlPeoplePersonDelete))
 def person_delete(request: Request, user_id: str, auth: ia.Authority = Depends(people_writer()), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Delete a person from WisKey (`users/delete`). Body: `{revision, confirmed, client_request_id, expires_at}`;
     `confirmed: true` is sent only by the confirmation dialog (WisKey's own `confirm_delete`, naming the stations the

@@ -8,20 +8,20 @@
  * force home and no switch; `rooms` / `modules` null = all; `choose` = nobody configured the person and the installation asks first.
  */
 export interface HomePolicy {
-  default_interface: "home" | "full";
+  default_interface: "full" | "home";
   may_switch: boolean;
   home_only: boolean;
   kiosk: boolean;
   kiosk_area_id: string | null;
   rooms: unknown[] | null;
   modules: unknown[] | null;
-  interface: "home" | "full";
+  interface: "full" | "home";
   configured: boolean;
   admin: boolean;
   kiosk_code_set: boolean;
   choose: boolean;
   kiosk_exit: "code" | "none";
-  wallpaper: "none" | "gallery" | "gallery_image";
+  wallpaper: "gallery" | "gallery_image" | "none";
   guests: boolean;
   room_wallpapers: Record<string, string>;
 }
@@ -55,7 +55,7 @@ export interface Me {
 /** An active binding of the caller (rbac.bindings_of). */
 export interface MeBinding {
   id: string;
-  subject_kind: "user" | "group";
+  subject_kind: "group" | "user";
   role_id: string;
   role_name: string;
   scope_type: string;
@@ -92,7 +92,7 @@ export interface MeModules {
   notices: boolean;
   tickets: boolean;
   tickets_name: Record<string, unknown>;
-  tickets_long_press: "sheet" | "menu";
+  tickets_long_press: "menu" | "sheet";
   incidents: boolean;
   announce: boolean;
 }

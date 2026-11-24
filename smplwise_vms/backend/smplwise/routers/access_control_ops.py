@@ -36,6 +36,8 @@ from ..services import intercom_authority as ia, savepoints
 from ..services import wiskey_ops_views as ov
 from ._common import raw_body as _raw_body, rid as _rid
 from .access_control import CommandEnvelope, _Action, _envelope, _parse
+from ..wire import access_control_ops as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -114,7 +116,7 @@ def _person_view(auth: ia.Authority) -> dict[str, bool]:
 
 # ---------------------------------------------------------------- the overview (KPIs) and what this WisKey offers
 
-@router.get(f"{BASE}/overview")
+@router.get(f"{BASE}/overview", **wire(W.AccessControlOpsOverview))
 def overview(request: Request, auth: ia.Authority = Depends(_viewer)) -> dict[str, Any]:
     """The KPI row and the stations (from `overview/summary`), which views this WisKey lists, and what the caller may do here.
     The summary is a part of its own: when it fails the page still opens and says why."""

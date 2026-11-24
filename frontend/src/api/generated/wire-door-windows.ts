@@ -67,7 +67,7 @@ export interface DwEmergencyCan {
 }
 
 export interface DwEmergencyScope {
-  scope_type: "installation" | "site" | "building";
+  scope_type: "building" | "installation" | "site";
   scope_id: string;
   name: string;
   doors: number;
@@ -163,7 +163,7 @@ export interface DwGrantCandidate {
 
 export interface DwGrantHolder {
   id: string;
-  subject_kind: "user" | "group";
+  subject_kind: "group" | "user";
   subject_id: string;
   name: string;
   scope_type: string;
@@ -193,7 +193,7 @@ export interface DwGrantScope {
 
 /** Who holds the emergency-open role, and the people / places a grant may name. */
 export interface DwGrants {
-  basis: "system_admin" | "security_manager";
+  basis: "security_manager" | "system_admin";
   default_hours: number;
   max_hours: number;
   can_no_expiry: boolean;
@@ -205,7 +205,7 @@ export interface DwGrants {
 
 export interface DwHoliday {
   date: string;
-  kind: "holiday" | "holiday_eve" | "regular" | "closed";
+  kind: "closed" | "holiday" | "holiday_eve" | "regular";
   name_he: string;
   source: "generated" | "manual";
   generated_kind: string | null;
@@ -273,7 +273,7 @@ export interface DwOccurrence {
   end_at: string;
   zone: string;
   state: string;
-  tier: "program" | "prepared";
+  tier: "prepared" | "program";
   retries: number;
   unconfirmed_at: string | null;
   last_reason: string | null;
@@ -311,7 +311,7 @@ export interface DwPrepared {
   expires_at: string;
   doors: number;
   kind: "lock_secure" | "open";
-  action: "start" | "release";
+  action: "release" | "start";
   drill: boolean;
   scope_type: string;
   scope_id: string;
@@ -363,7 +363,7 @@ export interface DwProgramPreview {
   label: string;
   zone: string;
   enabled: boolean;
-  tier: "program" | "prepared";
+  tier: "prepared" | "program";
   sha: string | null;
   program: DwProgramSummary | null;
   errors: string[];
@@ -407,9 +407,9 @@ export interface DwProgramSummary {
 export interface DwRule {
   id: string;
   name: string;
-  kind: "weekly" | "once" | "event";
+  kind: "event" | "once" | "weekly";
   state: "draft" | "enabled" | "paused" | "retired";
-  calendar_policy: "skip_holidays" | "holidays_like_friday" | "ignore_calendar";
+  calendar_policy: "holidays_like_friday" | "ignore_calendar" | "skip_holidays";
   notes: string;
   revision: number;
   updated_at: string | null;
@@ -436,7 +436,7 @@ export interface DwRuleOne {
 
 export interface DwRulePreview {
   doors: DwPreviewDoor[];
-  tier: "program" | "prepared";
+  tier: "prepared" | "program";
 }
 
 /** A save: the rule, and for a new `ha_event` trigger its token ONCE (with the action text carrying it). */
@@ -460,7 +460,7 @@ export interface DwSettingsSaved {
 /** GET /doors/windows/state: everything the door-windows screen shows to this person. */
 export interface DwState {
   enabled: boolean;
-  tier: "program" | "prepared";
+  tier: "prepared" | "program";
   go_live_permitted: boolean;
   settings: Record<string, string>;
   can: DwCan;
@@ -480,14 +480,14 @@ export interface DwToken {
 
 /** An `event` rule's trigger: never the token, only whether one exists and when it was made. */
 export interface DwTrigger {
-  source: "ha_event" | "arx_automation";
+  source: "arx_automation" | "ha_event";
   duration_s: number;
   automation_id: string | null;
   allowed_from: string | null;
   allowed_to: string | null;
   max_per_day: number;
   cooldown_s: number;
-  arm_state: "simulate" | "armed";
+  arm_state: "armed" | "simulate";
   has_token: boolean;
   token_set_at: string | null;
   can_arm: boolean;

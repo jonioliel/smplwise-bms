@@ -53,7 +53,7 @@ export interface ZoneList {
 export interface ZoneMember {
   resource_type: "camera" | "ha_entity" | "wiskey_station";
   resource_id: string;
-  kind: "camera" | "station" | "door" | "device";
+  kind: "camera" | "device" | "door" | "station";
   name: string;
   added_at?: string;
   floors: ZoneFloorRef[];
@@ -83,7 +83,7 @@ export interface ZonePlacement {
 
 /** Where the room sits on the other plan: `same_frame`, or `fit` with from / to points, rotation and scale. */
 export interface ZonePlacementDoc {
-  mode: "same_frame" | "fit";
+  mode: "fit" | "same_frame";
   from?: number[];
   to?: number[];
   rotation_deg?: number;
@@ -103,7 +103,7 @@ export interface ZoneShareAnchor {
   resource_type: "camera" | "ha_entity";
   resource_id: string;
   name: string | null;
-  action: "member" | "drop_duplicate" | "kept";
+  action: "drop_duplicate" | "kept" | "member";
 }
 
 export interface ZoneShareCandidate {

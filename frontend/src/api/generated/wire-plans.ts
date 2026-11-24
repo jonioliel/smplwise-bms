@@ -14,7 +14,7 @@ export interface PlanAsset {
   page_count: number;
   created_at: string;
   pages: PlanAssetPage[];
-  kind: "pdf" | "dxf" | "image";
+  kind: "dxf" | "image" | "pdf";
 }
 
 export interface PlanAssetPage {
@@ -147,7 +147,7 @@ export interface PlanVersion {
   width_px: number;
   height_px: number;
   scale_m_per_px: number | null;
-  status: "draft" | "published" | "archived";
+  status: "archived" | "draft" | "published";
   revision: number;
   notes: string;
   calibration: unknown;
@@ -173,7 +173,7 @@ export interface PlanVersionCreated {
   width_px: number;
   height_px: number;
   scale_m_per_px: number | null;
-  status: "draft" | "published" | "archived";
+  status: "archived" | "draft" | "published";
   revision: number;
   notes: string;
   calibration: unknown;
@@ -199,7 +199,7 @@ export interface PlanVersionListed {
   width_px: number;
   height_px: number;
   scale_m_per_px: number | null;
-  status: "draft" | "published" | "archived";
+  status: "archived" | "draft" | "published";
   revision: number;
   notes: string;
   calibration: unknown;

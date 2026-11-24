@@ -36,7 +36,7 @@ export interface TempCandidate {
   name: string;
   device_class: string | null;
   area_name: string | null;
-  group: "sensor" | "climate" | "door" | "power";
+  group: "climate" | "door" | "power" | "sensor";
   value: number | null;
   setpoint: number | null;
   hvac_mode: string | null;
@@ -88,7 +88,7 @@ export interface TempEvent {
   id: string;
   unit_id: string;
   kind: string;
-  severity: "info" | "warning" | "alarm";
+  severity: "alarm" | "info" | "warning";
   started_at: string;
   warned_at: string | null;
   alarmed_at: string | null;
@@ -136,7 +136,7 @@ export interface TempExplanation {
   high?: number;
   factors: TempExplainFactor[];
   primary: string | null;
-  confidence: "high" | "medium" | "low" | "none";
+  confidence: "high" | "low" | "medium" | "none";
   profile: TempExplainProfile | null;
   reason: "no_samples" | null;
   neighbors_scope: string;
@@ -153,7 +153,7 @@ export interface TempHistory {
   from: number;
   to: number;
   step: number;
-  source: "raw" | "5m";
+  source: "5m" | "raw";
   points: ((number | null)[])[];
   low: number;
   high: number;
@@ -181,13 +181,13 @@ export interface TempInsights {
 export interface TempLinkSendResult {
   user_id: string;
   name: string;
-  status: "sent" | "not_sendable" | "failed";
+  status: "failed" | "not_sendable" | "sent";
   reason: string | null;
 }
 
 /** WALINK-295: one typed result per recipient; `not_sendable` is never a sent. */
 export interface TempLinkSent {
-  status: "sent" | "partial" | "not_sendable" | "failed";
+  status: "failed" | "not_sendable" | "partial" | "sent";
   sent: number;
   not_sendable: number;
   failed: number;
@@ -243,7 +243,7 @@ export interface TempManagedUnit {
   power_entity_id: string | null;
   power_sensor_name: string;
   power_missing: boolean;
-  source: "sensor" | "climate";
+  source: "climate" | "sensor";
   rules: Record<string, unknown>;
   recipients: TempRecipients | null;
   defrost_mode: "fixed" | "learn" | "none";
@@ -286,7 +286,7 @@ export interface TempReportLink {
   expires_at: string;
   opens: number;
   max_opens: number;
-  state: "live" | "expired" | "revoked" | "used";
+  state: "expired" | "live" | "revoked" | "used";
   created_by: string | null;
   sent: boolean;
   recipient: string | null;
@@ -300,7 +300,7 @@ export interface TempReportLinkCreated {
   expires_at: string;
   opens: number;
   max_opens: number;
-  state: "live" | "expired" | "revoked" | "used";
+  state: "expired" | "live" | "revoked" | "used";
   created_by: string | null;
   sent: boolean;
   recipient: string | null;
@@ -321,7 +321,7 @@ export interface TempReportLinks {
  */
 export interface TempReportPreview {
   v: number;
-  lang: "he" | "en";
+  lang: "en" | "he";
   from: number;
   to: number;
   zone: string;
@@ -330,7 +330,7 @@ export interface TempReportPreview {
   chart: boolean;
   events: boolean;
   signature: TempReportSignature | null;
-  layout: "standard" | "haccp";
+  layout: "haccp" | "standard";
   samples: boolean;
   installer?: TempReportInstaller;
   digest: string;
@@ -364,7 +364,7 @@ export interface TempReportSignature {
 export interface TempReportUser {
   id: string;
   name: string;
-  reach: "ok" | "no_address" | "no_consent";
+  reach: "no_address" | "no_consent" | "ok";
   selectable: boolean;
 }
 
@@ -377,7 +377,7 @@ export interface TempReportVendor {
   selectable: boolean;
   reason: string | null;
   channels?: Record<string, string>;
-  channel?: "whatsapp" | "email";
+  channel?: "email" | "whatsapp";
 }
 
 export interface TempRevoked {
@@ -400,8 +400,8 @@ export interface TempRuleSpec {
 export interface TempSchedule {
   id: string;
   range_key: string;
-  lang: "he" | "en";
-  freq: "daily" | "weekly" | "monthly";
+  lang: "en" | "he";
+  freq: "daily" | "monthly" | "weekly";
   dow: number | null;
   dom: number | null;
   at: string;
@@ -418,7 +418,7 @@ export interface TempSchedule {
 export interface TempScheduleRecipient {
   kind: "user" | "vendor";
   id: string;
-  channel?: "whatsapp" | "email";
+  channel?: "email" | "whatsapp";
 }
 
 export interface TempSchedules {
@@ -466,7 +466,7 @@ export interface TempStats {
   alarms: number;
   warnings: number;
   samples: number;
-  source: "raw" | "5m";
+  source: "5m" | "raw";
 }
 
 export interface TempStats24h {
@@ -494,7 +494,7 @@ export interface TempTicketDraft {
 export interface TempTicketOpened {
   ticket_id: string;
   number: number;
-  result: "created" | "absorbed";
+  result: "absorbed" | "created";
   chart_attached: boolean;
 }
 
@@ -512,13 +512,13 @@ export interface TempUnit {
   high: number;
   hard_max: number;
   band_mode: "fixed" | "setpoint";
-  source: "sensor" | "climate";
+  source: "climate" | "sensor";
   hvac: TempHvac | null;
-  status: "ok" | "warning" | "alarm" | "offline" | "off" | "unknown";
+  status: "alarm" | "off" | "offline" | "ok" | "unknown" | "warning";
   value: number | null;
   value_last: number | null;
   updated_at: string | null;
-  trend: "up" | "down" | "flat" | null;
+  trend: "down" | "flat" | "up" | null;
   temp_sensor_name: string;
   door: TempDoor | null;
   events: TempEvent[];

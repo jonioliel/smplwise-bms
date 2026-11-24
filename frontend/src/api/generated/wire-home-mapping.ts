@@ -106,7 +106,7 @@ export interface HomeMappingPlatformFloor {
 }
 
 export interface HomeMappingReach {
-  mode: "map_and_mapping" | "map";
+  mode: "map" | "map_and_mapping";
 }
 
 /** `GET /sites/{id}/mapping`: everything the assistant needs. */
@@ -140,9 +140,9 @@ export interface HomeMappingRevision {
 
 /** The assistant's settings (each a choice; an unknown stored value reads as the default). */
 export interface HomeMappingSettings {
-  floor_inherit: "on" | "off";
+  floor_inherit: "off" | "on";
   auto_insert: "off" | "on";
-  new_token: "new_first" | "existing_first" | "unassigned_first";
+  new_token: "existing_first" | "new_first" | "unassigned_first";
 }
 
 export interface HomeMappingSettingsAnswer {

@@ -49,9 +49,9 @@ export interface AlarmCandidates {
 
 /** Per action what the user must type. */
 export interface AlarmCodePrompts {
-  arm: "none" | "pin" | "pin_missing" | "panel" | "unverifiable";
-  disarm: "none" | "pin" | "pin_missing" | "panel" | "unverifiable";
-  bypass: "none" | "pin" | "pin_missing" | "panel" | "unverifiable";
+  arm: "none" | "panel" | "pin" | "pin_missing" | "unverifiable";
+  disarm: "none" | "panel" | "pin" | "pin_missing" | "unverifiable";
+  bypass: "none" | "panel" | "pin" | "pin_missing" | "unverifiable";
 }
 
 /**
@@ -91,16 +91,16 @@ export interface AlarmIntegration {
 }
 
 export interface AlarmMe {
-  arm_policy: "no_code" | "code_required";
-  disarm_policy: "no_code" | "code_required";
+  arm_policy: "code_required" | "no_code";
+  disarm_policy: "code_required" | "no_code";
   pin_set: boolean;
   pin_set_at: string | null;
-  code_mode: "personal_pin" | "panel_code";
+  code_mode: "panel_code" | "personal_pin";
 }
 
 export interface AlarmMeBrief {
-  arm_policy: "no_code" | "code_required";
-  disarm_policy: "no_code" | "code_required";
+  arm_policy: "code_required" | "no_code";
+  disarm_policy: "code_required" | "no_code";
   pin_set: boolean;
 }
 
@@ -181,9 +181,9 @@ export interface AlarmPanelCodeInfo {
 export interface AlarmPanels {
   panels: AlarmPanel[];
   counts: AlarmCounts;
-  channel: "remote" | "local";
+  channel: "local" | "remote";
   remote: AlarmRemote;
-  code_mode: "personal_pin" | "panel_code";
+  code_mode: "panel_code" | "personal_pin";
   me: AlarmMeBrief;
   can_configure: boolean;
   sync: Record<string, unknown>;
@@ -215,7 +215,7 @@ export interface AlarmSettings {
   remote_control: boolean;
   remote_disarm: boolean;
   remote_codeless: boolean;
-  code_mode: "personal_pin" | "panel_code";
+  code_mode: "panel_code" | "personal_pin";
   pin_min_length: number;
 }
 
@@ -230,12 +230,12 @@ export interface AlarmUnpairedControl {
 /** A user's code policy and PIN facts (never the PIN). `code_mode` only on the read. */
 export interface AlarmUserPolicy {
   user_id: string;
-  arm_policy: "no_code" | "code_required";
-  disarm_policy: "no_code" | "code_required";
+  arm_policy: "code_required" | "no_code";
+  disarm_policy: "code_required" | "no_code";
   pin_set: boolean;
   pin_set_at: string | null;
   pin_set_by: string | null;
-  code_mode?: "personal_pin" | "panel_code";
+  code_mode?: "panel_code" | "personal_pin";
 }
 
 /** One zone (services/alarm._zone_view). Redacted for this caller: the state fields are null, `state` is "unknown", `kind` "zone". */
@@ -244,7 +244,7 @@ export interface AlarmZone {
   name: string;
   platform: string | null;
   device_class: string | null;
-  kind: "opening" | "motion" | "fault" | "other" | "zone";
+  kind: "fault" | "motion" | "opening" | "other" | "zone";
   state: string | null;
   available: boolean | null;
   open: boolean | null;

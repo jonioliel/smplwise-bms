@@ -27,12 +27,14 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require, require_system_admin
 from ..services import wiskey_pairing as wp
 from ._common import rid as _rid
+from ..wire import wiskey_pairing as W
+from ..wire import wire
 
 router = APIRouter()
 CONFIGURE = "system.configure"
 
 
-@router.get("/system/wiskey-pairing")
+@router.get("/system/wiskey-pairing", **wire(W.WiskeyPairingPairingStatus))
 def pairing_status(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The Arx <-> WisKey pairing status (read only; nothing is sent to WisKey)."""
     require(conn, principal, CONFIGURE, INSTALLATION)
@@ -57,7 +59,7 @@ class RepairBody(BaseModel):
     pause_rotation: bool = True
 
 
-@router.post("/system/wiskey-pairing/repair")
+@router.post("/system/wiskey-pairing/repair", **wire(W.WiskeyPairingPairingRepair))
 def pairing_repair(body: RepairBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Re-pair Arx with the bridge (and so with WisKey): a new pairing code, announced to the bridge when possible. System administrators."""
     from ..services import bridge_install, bridge_rotation as br, bridge_rotation_peer as peer_mod, capture_lease, ha_bridge, lease_events

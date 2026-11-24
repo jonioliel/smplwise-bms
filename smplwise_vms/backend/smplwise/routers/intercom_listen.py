@@ -44,6 +44,8 @@ from ..services.leases import CameraLease
 from ._common import raw_body as _raw_body, rid as _rid
 from . import media
 from .intercom_media import CALL, MAX_STATION_ID, READ, _gate, _served_station, _visible_station, run_until_first
+from ..wire import intercom_listen as WM
+from ..wire import wire
 
 router = APIRouter()
 log = logging.getLogger("smplwise.intercom.listen")
@@ -76,7 +78,7 @@ def _refuse(conn: sqlite3.Connection, principal: Principal, station_id: str, rid
 
 # ---------------------------------------------------------------- what the drawer may offer
 
-@router.get("/access-control/stations/{station_id}/listen")
+@router.get("/access-control/stations/{station_id}/listen", **wire(WM.IntercomListenListenCapability))
 def listen_capability(request: Request, auth: ia.Authority = Depends(_gate(READ)), station_id: str = Path(min_length=1, max_length=MAX_STATION_ID)) -> dict[str, Any]:
     """`available` false with a short `reason`: `off` (the setting), `forbidden` (no `access.call` on the station), `feed`, `offline`,
     `unavailable`, `unsupported` (this provider has no downlink), `no_listen` (the station does not say it can be listened to)."""
@@ -104,7 +106,7 @@ def listen_capability(request: Request, auth: ia.Authority = Depends(_gate(READ)
 
 # ---------------------------------------------------------------- start / stop
 
-@router.post("/access-control/stations/{station_id}/listen")
+@router.post("/access-control/stations/{station_id}/listen", **wire(WM.IntercomListenListenStart))
 def listen_start(request: Request, auth: ia.Authority = Depends(_gate(CALL)), station_id: str = Path(min_length=1, max_length=MAX_STATION_ID), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
     """Reserves a listen session for the caller. Refusals (each one an audit row, nothing is sent anywhere): 404
     `intercom_station_not_found`, 403 `forbidden` (no `access.call` on this station), 409 `intercom_listen_off` (the setting),

@@ -14,7 +14,7 @@ export interface EnergyAccount {
   period_anchor_month: number;
   first_period_start: string;
   timezone: string;
-  auto_mode: "off" | "draft" | "issue";
+  auto_mode: "draft" | "issue" | "off";
   status: "active" | "paused";
   revision: number;
   created_at: string;
@@ -37,7 +37,7 @@ export interface EnergyAccountPeriod {
   from: string;
   to: string;
   end_exclusive: string;
-  state: "future" | "open" | "billed" | "draft";
+  state: "billed" | "draft" | "future" | "open";
   bill: EnergyBillSummary | null;
 }
 
@@ -73,7 +73,7 @@ export interface EnergyAccountTariff {
 export interface EnergyAutoRun {
   account_id: string;
   period: EnergyPeriod;
-  status: "created" | "issued" | "skipped" | "failed";
+  status: "created" | "failed" | "issued" | "skipped";
   bill_id: string | null;
   error_code: string | null;
   attempts: number;
@@ -109,8 +109,8 @@ export interface EnergyBill {
   customer: EnergyCustomerRef;
   number: string | null;
   revision: number;
-  state: "draft" | "issued" | "sent" | "paid" | "void";
-  origin: "manual" | "auto";
+  state: "draft" | "issued" | "paid" | "sent" | "void";
+  origin: "auto" | "manual";
   period: EnergyPeriod;
   issue_date: string | null;
   due_date: string | null;
@@ -126,12 +126,12 @@ export interface EnergyBill {
   sent: EnergyBillSent | null;
   paid: EnergyBillPaid | null;
   void: EnergyBillVoid | null;
-  actions: ("recalculate" | "delete" | "issue" | "pdf" | "sent" | "paid" | "correct" | "void")[];
+  actions: ("correct" | "delete" | "issue" | "paid" | "pdf" | "recalculate" | "sent" | "void")[];
   pdf: EnergyBillPdf;
 }
 
 export interface EnergyBillActor {
-  kind: "user" | "system";
+  kind: "system" | "user";
   display_name: string | null;
 }
 
@@ -165,7 +165,7 @@ export interface EnergyBillPaid {
 
 /** stored = the issued bill's PDF is saved; ready = produced on request; failed = the last attempt failed; unavailable = no engine. */
 export interface EnergyBillPdf {
-  state: "stored" | "ready" | "failed" | "unavailable";
+  state: "failed" | "ready" | "stored" | "unavailable";
   error_code: string | null;
   failed_at: string | null;
   engine: string | null;
@@ -185,8 +185,8 @@ export interface EnergyBillSummary {
   customer: EnergyCustomerRef;
   number: string | null;
   revision: number;
-  state: "draft" | "issued" | "sent" | "paid" | "void";
-  origin: "manual" | "auto";
+  state: "draft" | "issued" | "paid" | "sent" | "void";
+  origin: "auto" | "manual";
   period: EnergyPeriod;
   issue_date: string | null;
   due_date: string | null;
@@ -335,7 +335,7 @@ export interface EnergyCandidate {
   device_class: string | null;
   state_class: string | null;
   state: string | null;
-  verdict: "ok" | "warning" | "rejected";
+  verdict: "ok" | "rejected" | "warning";
   code: string;
   message: string;
   already_meter_id: string | null;
@@ -362,12 +362,12 @@ export interface EnergyConsumptionItem {
   meter_id: string;
   wh: number | null;
   kwh: number | null;
-  coverage: "full" | "partial" | "none";
+  coverage: "full" | "none" | "partial";
   covered_seconds: number;
   total_seconds: number;
   source: string;
   last_report_at: string | null;
-  state: "reporting" | "not_reporting" | "paused" | "retired";
+  state: "not_reporting" | "paused" | "reporting" | "retired";
   events: EnergyCounterEvent[];
 }
 
@@ -469,7 +469,7 @@ export interface EnergyHistoryPeriod {
   from: string;
   to: string;
   kwh: string | null;
-  status: "measured" | "partial" | "missing";
+  status: "measured" | "missing" | "partial";
   source: "bill" | "readings" | null;
   bill: EnergyBillSummary | null;
 }
@@ -479,7 +479,7 @@ export interface EnergyHistoryPoint {
   from: string;
   to: string;
   kwh: string | null;
-  status: "measured" | "partial" | "missing";
+  status: "measured" | "missing" | "partial";
   source: "bill" | "readings" | null;
 }
 
@@ -501,7 +501,7 @@ export interface EnergyManualReading {
   value_wh: number;
   value_kwh: number | null;
   typed_value: string;
-  typed_unit: "kWh" | "Wh" | "MWh";
+  typed_unit: "MWh" | "Wh" | "kWh";
   counter_kwh: number | null;
   system_kwh: number | null;
   system_exact: boolean;
@@ -536,7 +536,7 @@ export interface EnergyMeter {
   display_name: string;
   source_kind: "ha_entity" | "satec";
   source_ref: string;
-  unit: "kWh" | "Wh" | "MWh";
+  unit: "MWh" | "Wh" | "kWh";
   device_id: string | null;
   device_name: string | null;
   entity_name: string | null;
@@ -550,7 +550,7 @@ export interface EnergyMeter {
   revision: number;
   created_at: string;
   retired_at: string | null;
-  state: "reporting" | "not_reporting" | "paused" | "retired";
+  state: "not_reporting" | "paused" | "reporting" | "retired";
   last_report_at: string | null;
   value_kwh: number | null;
   today_kwh: number | null;
@@ -600,7 +600,7 @@ export interface EnergyNumbering {
 }
 
 export interface EnergyPaymentTerms {
-  mode: "net_days" | "day_of_month";
+  mode: "day_of_month" | "net_days";
   days: number;
   day_of_month: number;
 }
@@ -671,7 +671,7 @@ export interface EnergyReadings {
 
 export interface EnergySeries {
   meter_id: string;
-  step: "15m" | "1h" | "1d";
+  step: "15m" | "1d" | "1h";
   unit: "kWh";
   items: EnergySeriesPoint[];
 }
@@ -683,7 +683,7 @@ export interface EnergySeriesPoint {
   date?: string;
   wh: number | null;
   kwh: number | null;
-  coverage: "full" | "partial" | "none";
+  coverage: "full" | "none" | "partial";
 }
 
 export interface EnergySettingRange {
@@ -883,7 +883,7 @@ export interface WaterAccount {
   period_anchor_month: number;
   first_period_start: string;
   timezone: string;
-  auto_mode: "off" | "draft" | "issue";
+  auto_mode: "draft" | "issue" | "off";
   status: "active" | "paused";
   revision: number;
   created_at: string;
@@ -961,8 +961,8 @@ export interface WaterBill {
   customer: EnergyCustomerRef;
   number: string | null;
   revision: number;
-  state: "draft" | "issued" | "sent" | "paid" | "void";
-  origin: "manual" | "auto";
+  state: "draft" | "issued" | "paid" | "sent" | "void";
+  origin: "auto" | "manual";
   period: EnergyPeriod;
   issue_date: string | null;
   due_date: string | null;
@@ -978,7 +978,7 @@ export interface WaterBill {
   sent: WaterBillSent | null;
   paid: WaterBillPaid | null;
   void: WaterBillVoid | null;
-  actions: ("recalculate" | "delete" | "issue" | "sent" | "paid" | "correct" | "void")[];
+  actions: ("correct" | "delete" | "issue" | "paid" | "recalculate" | "sent" | "void")[];
   pdf: WaterBillPdf;
 }
 
@@ -1022,8 +1022,8 @@ export interface WaterBillSummary {
   customer: EnergyCustomerRef;
   number: string | null;
   revision: number;
-  state: "draft" | "issued" | "sent" | "paid" | "void";
-  origin: "manual" | "auto";
+  state: "draft" | "issued" | "paid" | "sent" | "void";
+  origin: "auto" | "manual";
   period: EnergyPeriod;
   issue_date: string | null;
   due_date: string | null;
@@ -1072,7 +1072,7 @@ export interface WaterCandidate {
   device_class: string | null;
   state_class: string | null;
   state: string | null;
-  verdict: "ok" | "warning" | "rejected";
+  verdict: "ok" | "rejected" | "warning";
   code: string;
   message: string;
   already_meter_id: string | null;
@@ -1094,19 +1094,19 @@ export interface WaterConsumption {
   total_litres: number | null;
   total: WaterDisplay | null;
   previous_total_litres: number | null;
-  bucket?: "1h" | "1d";
+  bucket?: "1d" | "1h";
   series?: WaterTotalPoint[];
 }
 
 export interface WaterConsumptionItem {
   meter_id: string;
   display_name: string;
-  kind: "main" | "sub" | "irrigation" | "cooling" | "pool" | "other";
+  kind: "cooling" | "irrigation" | "main" | "other" | "pool" | "sub";
   area_name: string | null;
   floor_name: string | null;
   litres: number | null;
   value: WaterDisplay | null;
-  coverage: "full" | "partial" | "none";
+  coverage: "full" | "none" | "partial";
   source: string;
   previous_litres: number | null;
   share: number | null;
@@ -1144,7 +1144,7 @@ export interface WaterCustomerList {
 /** A volume for display: m3 with 3 decimals, or litres with 1 below 1 m3. */
 export interface WaterDisplay {
   value: number;
-  unit: "m3" | "L";
+  unit: "L" | "m3";
 }
 
 export interface WaterEpoch {
@@ -1162,16 +1162,16 @@ export interface WaterEvent {
   id: string;
   meter_id: string;
   meter_name: string;
-  meter_kind: "main" | "sub" | "irrigation" | "cooling" | "pool" | "other";
+  meter_kind: "cooling" | "irrigation" | "main" | "other" | "pool" | "sub";
   area_name: string | null;
   floor_name: string | null;
-  kind: "night_flow" | "abnormal" | "burst" | "offline" | "health";
-  severity: "warning" | "alarm";
+  kind: "abnormal" | "burst" | "health" | "night_flow" | "offline";
+  severity: "alarm" | "warning";
   opened_at: string;
   closed_at: string | null;
   close_reason: string | null;
   value: Record<string, unknown>;
-  suppressed: "off" | "quiet" | "mute" | "maintenance" | null;
+  suppressed: "maintenance" | "mute" | "off" | "quiet" | null;
   ack_at: string | null;
   ack_by_display: string | null;
   notified: boolean;
@@ -1208,7 +1208,7 @@ export interface WaterHistoryPeriod {
   from: string;
   to: string;
   m3: string | null;
-  status: "measured" | "partial" | "missing" | "open";
+  status: "measured" | "missing" | "open" | "partial";
   source: "bill" | "readings" | null;
   bill: WaterBillSummary | null;
 }
@@ -1253,9 +1253,9 @@ export interface WaterManualReadings {
 export interface WaterMeter {
   id: string;
   display_name: string;
-  medium: "water" | "gas";
-  kind: "main" | "sub" | "irrigation" | "cooling" | "pool" | "other";
-  unit: "L" | "m3" | "gal" | "ft3";
+  medium: "gas" | "water";
+  kind: "cooling" | "irrigation" | "main" | "other" | "pool" | "sub";
+  unit: "L" | "ft3" | "gal" | "m3";
   device_name: string | null;
   area_id: string | null;
   area_name: string | null;
@@ -1268,7 +1268,7 @@ export interface WaterMeter {
   created_at: string;
   retired_at: string | null;
   muted_until: string | null;
-  state: "reporting" | "not_reporting" | "paused" | "retired";
+  state: "not_reporting" | "paused" | "reporting" | "retired";
   last_report_at: string | null;
   value_l: number | null;
   value: WaterDisplay | null;
@@ -1377,7 +1377,7 @@ export interface WaterRules {
 
 export interface WaterSeries {
   meter_id: string;
-  bucket: "15m" | "1h" | "1d";
+  bucket: "15m" | "1d" | "1h";
   unit: "L";
   items: WaterSeriesPoint[];
 }
@@ -1389,7 +1389,7 @@ export interface WaterSeriesPoint {
   date?: string;
   litres: number | null;
   value: WaterDisplay | null;
-  coverage: "full" | "partial" | "none";
+  coverage: "full" | "none" | "partial";
 }
 
 export interface WaterSettingRange {

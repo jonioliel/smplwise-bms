@@ -57,6 +57,8 @@ from .settings_patch.identity import (
     LOCAL_ONLY_HE,  # noqa: F401 - re-export
     _local_only_identity_key,  # noqa: F401 - re-export
 )
+from ..wire import settings as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -379,7 +381,7 @@ def _capacity_info(conn: sqlite3.Connection) -> dict[str, Any]:
     return {"nvr_channels": channels, "warnings": warnings}
 
 
-@router.get("/settings")
+@router.get("/settings", **wire(W.SettingsSettings))
 def get_settings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     can_edit = authorize(conn, principal, "system.configure", INSTALLATION).allowed
     from .search import search_allowed
@@ -387,7 +389,7 @@ def get_settings(principal: Principal = Depends(current_principal_ro), conn: sql
     return {"settings": read_settings(conn, private=can_edit), "can_edit": can_edit, "search_allowed": search_allowed(conn, principal), **_capacity_info(conn)}
 
 
-@router.patch("/settings")
+@router.patch("/settings", **wire(W.SettingsPatchSettings))
 def patch_settings(body: SettingsPatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
     patch = settings_patch.Patch(conn, request, principal, {k: v for k, v in body.model_dump(by_alias=True).items() if v is not None})

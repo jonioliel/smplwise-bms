@@ -33,6 +33,8 @@ from ..remote_channel import channel_of
 from ..services import cast_sessions as cs
 from ..services import media_store as store
 from ._common import rid as _rid
+from ..wire import cast as W
+from ..wire import wire
 
 router = APIRouter()
 SID = r"^[0-9a-f]{32}$"
@@ -88,7 +90,7 @@ def _sid(session_id: str) -> str:
 
 # ---------------------------------------------------------------- administration (local only)
 
-@router.get("/multimedia/cast/config")
+@router.get("/multimedia/cast/config", **wire(W.CastConfig))
 def get_config(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _configure(conn, principal)
     settings = settings_of(request)
@@ -99,7 +101,7 @@ def get_config(request: Request, principal: Principal = Depends(current_principa
             "ready": ready and b_ok, "reason": why or b_why}
 
 
-@router.put("/multimedia/cast/config")
+@router.put("/multimedia/cast/config", **wire(W.CastPutConfig))
 def put_config(body: dict[str, Any], request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _configure(conn, principal)
     changed = cs.update_config(conn, settings_of(request), body)
@@ -110,7 +112,7 @@ def put_config(body: dict[str, Any], request: Request, principal: Principal = De
     return {"changed": changed, **get_config(request, principal, conn)}
 
 
-@router.post("/multimedia/cast/origin/check")
+@router.post("/multimedia/cast/origin/check", **wire(W.CastCheckOrigin))
 def check_origin(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _configure(conn, principal)
     out = cs.check_origin(conn, settings_of(request))
@@ -119,13 +121,13 @@ def check_origin(request: Request, principal: Principal = Depends(current_princi
     return out
 
 
-@router.get("/multimedia/cast/screens")
+@router.get("/multimedia/cast/screens", **wire(W.CastAdminScreens))
 def admin_screens(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _configure(conn, principal)
     return {"screens": cs.admin_screens(conn)}
 
 
-@router.put("/multimedia/cast/screens/{key}")
+@router.put("/multimedia/cast/screens/{key}", **wire(W.CastPutScreen))
 def put_screen(key: str, body: dict[str, Any], request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _configure(conn, principal)
     new, changed = cs.update_screen(conn, key, body)
@@ -146,14 +148,14 @@ def test_cast(body: TestBody, request: Request, principal: Principal = Depends(c
 
 # ---------------------------------------------------------------- operators
 
-@router.get("/multimedia/cast/targets")
+@router.get("/multimedia/cast/targets", **wire(W.CastTargets))
 def get_targets(request: Request, camera: str | None = Query(None, min_length=1, max_length=64), principal: Principal = Depends(current_principal_ro),
                 conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _caster(conn, principal)
     return cs.targets(conn, settings_of(request), principal, camera)
 
 
-@router.get("/multimedia/cast/sessions")
+@router.get("/multimedia/cast/sessions", **wire(W.CastSessions))
 def list_sessions(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     access = store.Access(conn, principal, (store.PERM_READ, cs.PERM_CAST))
     if not (access.anywhere(store.PERM_READ) or access.anywhere(cs.PERM_CAST)):
@@ -161,7 +163,7 @@ def list_sessions(principal: Principal = Depends(current_principal_ro), conn: sq
     return {"sessions": cs.list_sessions(conn, principal), "max_sessions": cs.config(conn)["max_sessions"]}
 
 
-@router.get("/multimedia/cast/sessions/{session_id}")
+@router.get("/multimedia/cast/sessions/{session_id}", **wire(W.CastSession))
 def get_session(session_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return cs.get_session(conn, principal, _sid(session_id))
 
@@ -173,7 +175,7 @@ def start_session(body: StartBody, request: Request, principal: Principal = Depe
     return JSONResponse(status_code=status, content=result)
 
 
-@router.post("/multimedia/cast/sessions/{session_id}/extend")
+@router.post("/multimedia/cast/sessions/{session_id}/extend", **wire(W.CastSessionsSession))
 def extend_session(session_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     return cs.extend(conn, principal, _rid(request), _sid(session_id))
 
@@ -184,7 +186,7 @@ def switch_session(session_id: str, body: SwitchBody, request: Request, principa
     return JSONResponse(status_code=status, content=result)
 
 
-@router.delete("/multimedia/cast/sessions/{session_id}")
+@router.delete("/multimedia/cast/sessions/{session_id}", **wire(W.CastStopSession))
 def stop_session(session_id: str, request: Request, power_off: bool | None = Query(None), principal: Principal = Depends(current_principal),
                  conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     return cs.stop(conn, settings_of(request), principal, _rid(request), _sid(session_id), power_off=power_off)

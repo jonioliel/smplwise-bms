@@ -54,7 +54,7 @@ export interface LocalSessionLabel {
  */
 export interface LocalSignInPending {
   second_factor: "required";
-  methods?: ("totp" | "passkey")[];
+  methods?: ("passkey" | "totp")[];
 }
 
 /**
@@ -63,7 +63,7 @@ export interface LocalSignInPending {
  */
 export interface LocalSignInSession {
   user: LocalSignInUser;
-  second_factor: "none" | "required" | "enroll_required";
+  second_factor: "enroll_required" | "none" | "required";
   must_change_password: boolean;
   session_expires_in: number;
 }
@@ -88,7 +88,7 @@ export interface LocalUser {
   display_name: string;
   email: string | null;
   notes: string | null;
-  status: "deleted" | "disabled" | "pending_first_login" | "delayed" | "active";
+  status: "active" | "delayed" | "deleted" | "disabled" | "pending_first_login";
   active: boolean;
   created_at: string;
   created_by: string | null;
@@ -138,7 +138,7 @@ export interface LocalUserLink {
 export interface LocalUserList {
   enabled: boolean;
   can_manage: boolean;
-  channel: "remote" | "local";
+  channel: "local" | "remote";
   users: LocalUser[];
   whatsapp_ready: boolean;
   public_url: string | null;
@@ -157,7 +157,7 @@ export interface LocalUserPasswordSet {
   display_name: string;
   email: string | null;
   notes: string | null;
-  status: "deleted" | "disabled" | "pending_first_login" | "delayed" | "active";
+  status: "active" | "delayed" | "deleted" | "disabled" | "pending_first_login";
   active: boolean;
   created_at: string;
   created_by: string | null;
@@ -191,7 +191,7 @@ export interface LocalUserPatched {
   display_name: string;
   email: string | null;
   notes: string | null;
-  status: "deleted" | "disabled" | "pending_first_login" | "delayed" | "active";
+  status: "active" | "delayed" | "deleted" | "disabled" | "pending_first_login";
   active: boolean;
   created_at: string;
   created_by: string | null;

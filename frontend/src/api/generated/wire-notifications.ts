@@ -39,7 +39,7 @@ export interface EmailSettings {
   configured: boolean;
   host: string;
   port: number;
-  security: "starttls" | "tls" | "none";
+  security: "none" | "starttls" | "tls";
   user: string;
   password_set: boolean;
   from: string;
@@ -52,7 +52,7 @@ export interface EmailSettingsView {
   configured: boolean;
   host: string;
   port: number;
-  security: "starttls" | "tls" | "none";
+  security: "none" | "starttls" | "tls";
   user: string;
   password_set: boolean;
   from: string;
@@ -82,7 +82,7 @@ export interface Notification {
   id: string;
   source: string;
   category: string;
-  severity: "info" | "alert" | "critical";
+  severity: "alert" | "critical" | "info";
   title: string;
   body: string;
   place_name: string | null;
@@ -91,7 +91,7 @@ export interface Notification {
   count: number;
   first_at: string;
   last_at: string;
-  state: "open" | "acknowledged" | "resolved";
+  state: "acknowledged" | "open" | "resolved";
   acked_at: string | null;
   acked_by_display: string | null;
   resolved_at: string | null;
@@ -120,7 +120,7 @@ export interface NotificationMe {
 /** One of the caller's own delivery rows of this notification. */
 export interface NotificationOwnDelivery {
   channel: string;
-  status: "queued" | "sent" | "retry" | "failed" | "gone" | "skipped";
+  status: "failed" | "gone" | "queued" | "retry" | "sent" | "skipped";
   reason: string | null;
   at: string;
 }
@@ -142,7 +142,7 @@ export interface NotificationSummary {
   unread: number;
   open_critical: number;
   by_category: Record<string, number>;
-  center_layout: "sheet" | "page";
+  center_layout: "page" | "sheet";
   quiet_active: boolean;
   quiet_until: string | null;
 }
@@ -173,7 +173,7 @@ export interface NotifyDelivery {
   source: string;
   channel: string;
   target: string;
-  status: "queued" | "sent" | "retry" | "failed" | "gone" | "skipped";
+  status: "failed" | "gone" | "queued" | "retry" | "sent" | "skipped";
   reason: string | null;
   attempt: number;
   at: string;
@@ -189,7 +189,7 @@ export interface NotifyDeliveryList {
 export interface NotifyPolicy {
   source: string;
   enabled: boolean;
-  severity: "info" | "alert" | "critical";
+  severity: "alert" | "critical" | "info";
   category: string;
   after_s: number;
   dedupe_window_s: number;
@@ -220,7 +220,7 @@ export interface NotifySettings {
   companion: CompanionSettings;
   retention_days: number;
   deliveries_retention_days: number;
-  center_layout: "sheet" | "page";
+  center_layout: "page" | "sheet";
   failures_audience: "admins" | "visible";
   email: EmailSettings;
   revision: number;

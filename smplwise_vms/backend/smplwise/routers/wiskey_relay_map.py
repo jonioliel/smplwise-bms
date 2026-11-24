@@ -29,6 +29,8 @@ from ..services import intercom_doors, intercom_sync
 from ..services import wiskey_relay_map as rm
 from ..services import wiskey_relay_map_export as rmx
 from ._common import rid as _rid
+from ..wire import wiskey_relay_map as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -73,7 +75,7 @@ def _station_view(conn: sqlite3.Connection, station_id: str, s: dict[str, Any] |
     }
 
 
-@router.get("/wiskey/relay-map")
+@router.get("/wiskey/relay-map", **wire(W.WiskeyRelayMapRelayMap))
 def relay_map(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The WisKey relay map per station, with its revision and who approved it; read-only without system.configure."""
     can_edit = authorize(conn, principal, CONFIGURE, INSTALLATION).allowed
@@ -86,14 +88,14 @@ def relay_map(request: Request, principal: Principal = Depends(current_principal
             "stations": [_station_view(conn, sid, stations.get(sid)) for sid in ids]}
 
 
-@router.get("/wiskey/relay-map/export")
+@router.get("/wiskey/relay-map/export", **wire(W.WiskeyRelayMapRelayMapExport))
 def relay_map_export(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """WISKEY-RELAYEXPORT-2320: the full relay map snapshot (tombstones too) with its digest and the numbered export log; admin only, read only."""
     require(conn, principal, CONFIGURE, INSTALLATION)
     return rmx.status(conn)
 
 
-@router.get("/wiskey/relay-map/export/{seq}")
+@router.get("/wiskey/relay-map/export/{seq}", **wire(W.WiskeyRelayMapRelayMapExportRecord))
 def relay_map_export_record(seq: int = Path(ge=1, le=9007199254740991), principal: Principal = Depends(current_principal_ro),
                             conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """WISKEY-RELAYEXPORT-2320: one sealed relay map export with its snapshot, ack and stale state; admin only, read only."""
@@ -116,7 +118,7 @@ class SaveBody(BaseModel):
     confirm_text: str | None = Field(default=None, max_length=32)
 
 
-@router.put("/wiskey/relay-map/{station_id}")
+@router.put("/wiskey/relay-map/{station_id}", **wire(W.WiskeyRelayMapApproveRelayMap))
 def approve_relay_map(body: SaveBody, request: Request, station_id: str = Path(min_length=1, max_length=MAX_ID), principal: Principal = Depends(current_principal),
                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Approve one station's api relay -> physical relay map (CAS on the station revision; nothing is sent to a device; the committed

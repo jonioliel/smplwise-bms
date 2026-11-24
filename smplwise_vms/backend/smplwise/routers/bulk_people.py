@@ -40,6 +40,8 @@ from ..services import intercom_writes as iw
 from ..services import wiskey_people_csv as wpc
 from ..services.access_grant_engine import EngineError
 from ._common import db_of as _db, rid as _rid
+from ..wire import bulk_people as WM
+from ..wire import wire
 
 router = APIRouter()
 BASE = "/access-control/bulk-people"
@@ -82,7 +84,7 @@ class SettingsIn(BaseModel):
     enabled: Literal["off", "on"]
 
 
-@router.get(f"{BASE}/settings")
+@router.get(f"{BASE}/settings", **wire(WM.BulkPeopleSettings))
 def get_settings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     auth = ia.Authority(conn, principal)
     if not (auth.anywhere(ia.PEOPLE_READ) or auth.anywhere(ia.PEOPLE_MANAGE)):
@@ -91,7 +93,7 @@ def get_settings(principal: Principal = Depends(current_principal_ro), conn: sql
             "may_import": auth.anywhere(ia.PEOPLE_MANAGE), "may_export": auth.anywhere(ia.PEOPLE_READ)}
 
 
-@router.put(f"{BASE}/settings")
+@router.put(f"{BASE}/settings", **wire(WM.BulkPeoplePutSettings))
 def put_settings(body: SettingsIn, request: Request, principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     with _db(request).connection(label="bulk_people.settings") as conn:
         if not is_system_admin(conn, principal.user_id):
@@ -144,7 +146,7 @@ def _job_or_404(conn: sqlite3.Connection, principal: Principal, job_id: str) -> 
     return job
 
 
-@router.post(f"{BASE}/jobs")
+@router.post(f"{BASE}/jobs", **wire(WM.BulkPeopleStageImport))
 def stage_import(request: Request, auth: ia.Authority = Depends(_gate(ia.PEOPLE_MANAGE)), data: bytes = Depends(_file_body),
                  idempotency_key: str = Header("", alias="Idempotency-Key", max_length=64)) -> dict[str, Any]:
     """Upload -> parse -> the validation report. Nothing is sent to WisKey. The bytes are never stored (their SHA-256 is)."""
@@ -174,7 +176,7 @@ class EditIn(BaseModel):
     groups_remove: list[str] | None = Field(default=None, max_length=bp.MAX_GROUPS)
 
 
-@router.post(f"{BASE}/jobs/edit")
+@router.post(f"{BASE}/jobs/edit", **wire(WM.BulkPeopleStageEdit))
 def stage_edit(body: EditIn, request: Request, auth: ia.Authority = Depends(_gate(ia.PEOPLE_MANAGE)),
                idempotency_key: str = Header("", alias="Idempotency-Key", max_length=64)) -> dict[str, Any]:
     """Bulk edit: validity window, doors add / remove, groups add / remove, activate / deactivate - staged like an import."""
@@ -189,7 +191,7 @@ def stage_edit(body: EditIn, request: Request, auth: ia.Authority = Depends(_gat
         return {"job": bp.job_view(job), "replayed": replayed}
 
 
-@router.get(f"{BASE}/jobs/{{job_id}}")
+@router.get(f"{BASE}/jobs/{{job_id}}", **wire(WM.BulkPeopleJob))
 def get_job(request: Request, job_id: str = Path(pattern=_JOB), principal: Principal = Depends(current_principal_ro),
             conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _on(conn)
@@ -199,7 +201,7 @@ def get_job(request: Request, job_id: str = Path(pattern=_JOB), principal: Princ
     return {"job": bp.job_view(job)}
 
 
-@router.post(f"{BASE}/jobs/{{job_id}}/dry-run")
+@router.post(f"{BASE}/jobs/{{job_id}}/dry-run", **wire(WM.BulkPeopleDryRun))
 def dry_run(request: Request, job_id: str = Path(pattern=_JOB), auth: ia.Authority = Depends(_gate(ia.PEOPLE_MANAGE))) -> dict[str, Any]:
     """The diff at the caller's field level against one fresh directory read. Never writes to WisKey."""
     principal = auth.principal
@@ -224,7 +226,7 @@ class ConfirmIn(BaseModel):
     confirm: str = Field(max_length=16)
 
 
-@router.post(f"{BASE}/jobs/{{job_id}}/confirm")
+@router.post(f"{BASE}/jobs/{{job_id}}/confirm", **wire(WM.BulkPeopleConfirm))
 def confirm(body: ConfirmIn, request: Request, job_id: str = Path(pattern=_JOB), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     with _db(request).connection(label="bulk_people.confirm") as conn:
         _on(conn)
@@ -233,14 +235,14 @@ def confirm(body: ConfirmIn, request: Request, job_id: str = Path(pattern=_JOB),
         return {"job": bp.job_view(job)}
 
 
-@router.post(f"{BASE}/jobs/{{job_id}}/apply")
+@router.post(f"{BASE}/jobs/{{job_id}}/apply", **wire(WM.BulkPeopleApply))
 def apply(request: Request, job_id: str = Path(pattern=_JOB), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     """The next bounded batch. `more` true = call again; `stalled` true = WisKey could not be reached (resume later); the job is
     `done` when every row has a final outcome."""
     return {"job": bp.apply_batch(_db(request), principal, job_id, bp.engine(settings_of(request)), _rid(request))}
 
 
-@router.post(f"{BASE}/jobs/{{job_id}}/cancel")
+@router.post(f"{BASE}/jobs/{{job_id}}/cancel", **wire(WM.BulkPeopleJob))
 def cancel(request: Request, job_id: str = Path(pattern=_JOB), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     with _db(request).connection(label="bulk_people.cancel") as conn:
         job = _job_or_404(conn, principal, job_id)
@@ -256,7 +258,7 @@ class WiskeyCsvSettingsIn(BaseModel):
     enabled: Literal["off", "on"]
 
 
-@router.put(f"{BASE}/wiskey-csv/settings")
+@router.put(f"{BASE}/wiskey-csv/settings", **wire(WM.BulkPeopleSettingsWiskeyCsv))
 def put_wiskey_csv_settings(body: WiskeyCsvSettingsIn, request: Request, principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     with _db(request).connection(label="bulk_people.wiskey_csv.settings") as conn:
         if not is_system_admin(conn, principal.user_id):
@@ -311,7 +313,7 @@ def _preview_view(preview: wpc.Preview, job: dict[str, Any]) -> dict[str, Any]:
             "rows": [{"source_line": r.source_line, "row": r.row, "op": r.op} for r in preview.rows]}
 
 
-@router.post(f"{BASE}/jobs/{{job_id}}/wiskey-preview")
+@router.post(f"{BASE}/jobs/{{job_id}}/wiskey-preview", **wire(WM.BulkPeopleWiskeyPreview))
 def wiskey_preview(request: Request, job_id: str = Path(pattern=_JOB), auth: ia.Authority = Depends(_gate(ia.PEOPLE_MANAGE)),
                    data: bytes = Depends(_file_body), mode: str = Query(default=wpc.MODE_CREATE, pattern="^(create|upsert)$")) -> dict[str, Any]:
     """WisKey's own verified preview of the file the job was staged from (the same bytes: their SHA-256 must equal the job's). A READ -
@@ -345,7 +347,7 @@ class WiskeyConfirmIn(BaseModel):
     confirm: str = Field(max_length=16)
 
 
-@router.post(f"{BASE}/jobs/{{job_id}}/wiskey-confirm")
+@router.post(f"{BASE}/jobs/{{job_id}}/wiskey-confirm", **wire(WM.BulkPeopleWiskeyConfirm))
 def wiskey_confirm(body: WiskeyConfirmIn, request: Request, job_id: str = Path(pattern=_JOB), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     """The explicit confirm: a system administrator in an interactive session types the number of lines shown. Arx asks WisKey for a FRESH
     preview of the same file, compares it with the one the person saw (same lines, persons, digests and stamps) and only then passes the fresh

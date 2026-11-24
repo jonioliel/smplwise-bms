@@ -15,8 +15,8 @@ export interface GeneratorAlert {
   key: string;
   group: string | null;
   title: string;
-  severity: "critical" | "alert" | "info";
-  state: "open" | "closed";
+  severity: "alert" | "critical" | "info";
+  state: "closed" | "open";
   raised_at: string;
   cleared_at: string | null;
   last_at: string;
@@ -34,8 +34,8 @@ export interface GeneratorAlertDetail {
   key: string;
   group: string | null;
   title: string;
-  severity: "critical" | "alert" | "info";
-  state: "open" | "closed";
+  severity: "alert" | "critical" | "info";
+  state: "closed" | "open";
   raised_at: string;
   cleared_at: string | null;
   last_at: string;
@@ -98,14 +98,14 @@ export interface GeneratorDevice {
   area_id: string | null;
   area_name: string | null;
   status: "detected" | "partial" | "removed";
-  source_kind: "integration" | "generic" | "manual";
+  source_kind: "generic" | "integration" | "manual";
   rated_kw: number | null;
   rated_kva: number | null;
   fuel_type: string;
   detected_at: string | null;
   last_seen_at: string | null;
   revision: number;
-  availability: "online" | "stale" | "offline";
+  availability: "offline" | "online" | "stale";
   stale: boolean;
   core_met: boolean;
   open_alerts: number;
@@ -152,7 +152,7 @@ export interface GeneratorFound {
 
 export interface GeneratorFuelEvent {
   id: string;
-  kind: "refill" | "drop";
+  kind: "drop" | "refill";
   started_at: string;
   ended_at: string;
   from_pct: number;
@@ -180,7 +180,7 @@ export interface GeneratorHistoryPoint {
 
 export interface GeneratorLive {
   id: string;
-  availability: "online" | "stale" | "offline";
+  availability: "offline" | "online" | "stale";
   stale: boolean;
   values: Record<string, GeneratorValue>;
   at: string;
@@ -197,7 +197,7 @@ export interface GeneratorLiveBrief {
   name: string;
   area_id: string | null;
   status: "detected" | "partial" | "removed";
-  availability: "online" | "stale" | "offline";
+  availability: "offline" | "online" | "stale";
   stale: boolean;
   open_alerts: number;
   open_critical: number;
@@ -206,7 +206,7 @@ export interface GeneratorLiveBrief {
 }
 
 export interface GeneratorLogSpec {
-  type: "bool" | "int" | "float";
+  type: "bool" | "float" | "int";
   default: boolean | number;
   min: number | null;
   max: number | null;
@@ -240,10 +240,10 @@ export interface GeneratorPoliciesReset {
 /** An alert type's stored routing (services/generator_alerts._policy_dict). */
 export interface GeneratorPolicy {
   enabled: boolean;
-  severity: "critical" | "alert" | "info";
+  severity: "alert" | "critical" | "info";
   recipients: GeneratorRecipients;
   channels: string[];
-  quiet_mode: "pass" | "matrix" | "hold";
+  quiet_mode: "hold" | "matrix" | "pass";
   escalate: boolean;
   after_s: number;
   escalate_after_s: number;
@@ -261,7 +261,7 @@ export interface GeneratorPolicyItem {
   group: string;
   title: string;
   title_en: string;
-  default_severity: "critical" | "alert" | "info";
+  default_severity: "alert" | "critical" | "info";
   event: boolean;
   available: boolean;
   needs: string | null;
@@ -313,7 +313,7 @@ export interface GeneratorRoutableRole {
 /** One run of the run log (services/generator_log.run_out). */
 export interface GeneratorRun {
   id: string;
-  kind: "test" | "mains_failure" | "manual" | "other";
+  kind: "mains_failure" | "manual" | "other" | "test";
   kind_reason: string | null;
   started_at: string;
   ended_at: string | null;

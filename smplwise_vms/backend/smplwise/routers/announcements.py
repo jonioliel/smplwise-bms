@@ -39,6 +39,8 @@ from ..services import announce_templates as tpl
 from ..services import announce_translate as tr
 from ..services import announcements as svc
 from ._common import rid as _rid
+from ..wire import announcements as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -92,7 +94,7 @@ class TemplatesBody(_Body):
     templates: list[dict[str, Any]] = Field(max_length=tpl.MAX_TEMPLATES)
 
 
-@router.get("/announcements/areas")
+@router.get("/announcements/areas", **wire(W.AnnouncementsAreas))
 def get_areas(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, svc.PERM, INSTALLATION)
     cfg = svc.config(conn)
@@ -103,7 +105,7 @@ def get_areas(principal: Principal = Depends(current_principal_ro), conn: sqlite
             "translate_enabled": bool(cfg["enabled"] and tr.ready(cfg["translate"])), "translate_targets": cfg["translate"]["targets"]}
 
 
-@router.post("/announcements")
+@router.post("/announcements", **wire(W.AnnouncementsSpeak))
 def speak(body: SpeakBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, svc.PERM, INSTALLATION)
     if (body.text is None) == (body.texts is None):
@@ -114,7 +116,7 @@ def speak(body: SpeakBody, request: Request, principal: Principal = Depends(curr
                         machine=_machine(body.texts))
 
 
-@router.post("/announcements/emergency")
+@router.post("/announcements/emergency", **wire(W.AnnouncementsEmergency))
 def emergency(body: EmergencyBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, svc.PERM, INSTALLATION)  # one click: no confirmation step, the permission is the whole gate
     if sum(x is not None for x in (body.template_id, body.text, body.texts)) != 1:
@@ -123,7 +125,7 @@ def emergency(body: EmergencyBody, request: Request, principal: Principal = Depe
                          texts=[(p.language, p.text) for p in body.texts] if body.texts is not None else None, machine=_machine(body.texts))
 
 
-@router.get("/announcements/config")
+@router.get("/announcements/config", **wire(W.AnnouncementsConfig))
 def get_config(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, svc.CONFIGURE, INSTALLATION)
     info = [{"entity_id": r[0], "name": r[1] or r[0], "platform": r[2] or "", "cloud": (r[2] or "") in svc.CLOUD_PLATFORMS}
@@ -133,7 +135,7 @@ def get_config(principal: Principal = Depends(current_principal_ro), conn: sqlit
             "screen_options": scr.admin_screens(conn)}
 
 
-@router.put("/announcements/config")
+@router.put("/announcements/config", **wire(W.AnnouncementsPutConfig))
 def put_config(body: dict[str, Any], request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, svc.CONFIGURE, INSTALLATION)
     changed = svc.update_config(conn, body, actor=principal.username or principal.user_id, settings=settings_of(request))
@@ -144,7 +146,7 @@ def put_config(body: dict[str, Any], request: Request, principal: Principal = De
     return {"changed": changed, **get_config(principal, conn)}
 
 
-@router.post("/announcements/translate")
+@router.post("/announcements/translate", **wire(W.AnnouncementsTranslate))
 def translate(body: TranslateBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """ANNOUNCE-297: draft translations for review (nothing is announced). Audited as `media.announce.translate`: the provider, the languages, the length
     and how many came from the cache - never the text and never the key."""
@@ -177,13 +179,13 @@ def translate(body: TranslateBody, request: Request, principal: Principal = Depe
     return out
 
 
-@router.get("/announcements/templates")
+@router.get("/announcements/templates", **wire(W.AnnouncementsTemplates))
 def get_templates(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, svc.PERM, INSTALLATION)
     return {"templates": tpl.load(conn), "languages": list(tpl.LANGUAGES)}
 
 
-@router.put("/announcements/templates")
+@router.put("/announcements/templates", **wire(W.AnnouncementsPutTemplates))
 def put_templates(body: TemplatesBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, svc.CONFIGURE, INSTALLATION)
     try:
@@ -199,14 +201,14 @@ def put_templates(body: TemplatesBody, request: Request, principal: Principal = 
     return {"templates": tpl.load(conn)}
 
 
-@router.post("/announcements/test")
+@router.post("/announcements/test", **wire(W.AnnouncementsTestAnnouncement))
 def test_announcement(body: TestBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, svc.CONFIGURE, INSTALLATION)
     return svc.announce(conn, settings_of(request), principal, _rid(request), source="test", scope=body.scope, ref=body.ref, text=svc.TEST_TEXT[body.language], language=body.language,
                         on_screens=False, unlock=lambda: unlocked(conn))  # the test button tries the speaker, never a screen
 
 
-@router.post("/announcements/{announcement_id}/screens/stop")
+@router.post("/announcements/{announcement_id}/screens/stop", **wire(W.AnnouncementsStopScreens))
 def stop_screens(announcement_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """ANNOUNCEB-295: take an announcement off the screens now (the speech is not touched). `media.announce`, installation scope; audited."""
     require(conn, principal, svc.PERM, INSTALLATION)
@@ -218,7 +220,7 @@ def stop_screens(announcement_id: str, request: Request, principal: Principal = 
     return {"stopped": stopped}
 
 
-@router.get("/announcements/history")
+@router.get("/announcements/history", **wire(W.AnnouncementsHistory))
 def get_history(limit: int = Query(20, ge=1, le=100), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, svc.CONFIGURE, INSTALLATION)
     return {"history": svc.history(conn, limit)}

@@ -28,6 +28,8 @@ from ..services.ttl_cache import TtlCache
 from ._common import rid as _rid
 from .storage import local_state
 from ..test_reset import register_reset
+from ..wire import health as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -102,7 +104,7 @@ def _renderer() -> str:
     return name
 
 
-@router.get("/health")
+@router.get("/health", **wire(W.HealthHealth))
 def health(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The add-on's own cached state. A system.configure holder also gets `process` (uptime, threads, open fds, RSS) and the db file sizes.
     SOAK-DBGROWTH-2412: a read - it writes nothing, yet it ran under the write lock (BEGIN IMMEDIATE) with a COUNT(*) over the
@@ -157,7 +159,7 @@ def health(request: Request, principal: Principal = Depends(current_principal_ro
     }
 
 
-@router.get("/health/video")
+@router.get("/health/video", **wire(W.HealthHealthMedia))
 def health_video(request: Request, principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     """HEALTH-GO2RTC-2430: is the video service reachable - what a camera, live or playback screen asks before it retries, every
     signed-in user. At most one probe of go2rtc runs, and only when due (every 60 s while reachable and idle, on a 10 -> 60 s backoff
@@ -167,7 +169,7 @@ def health_video(request: Request, principal: Principal = Depends(current_princi
     return media_reach.REACH.view(settings)
 
 
-@router.get("/health/report")
+@router.get("/health/report", **wire(W.HealthHealthReport))
 def health_report(request: Request, fresh: bool = False, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """One status per subsystem (T033). Device probes are network calls, so they run outside the request's
     write transaction; `fresh=1` drops the probe cache first."""
@@ -180,7 +182,7 @@ def health_report(request: Request, fresh: bool = False, principal: Principal = 
     return report
 
 
-@router.get("/health/summary")
+@router.get("/health/summary", **wire(W.HealthHealthSummary))
 def health_summary(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """What the top bar shows every signed-in user: cached states only, no device probes, no details that a
     non-administrator should not see (labels are operator wording, never addresses or credentials)."""
