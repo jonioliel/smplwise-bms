@@ -164,7 +164,41 @@ Tests: `tests/test_mfa_reset_hardening_2510.py` (new); updated `test_second_fact
 
 ## 4. Tests (real runs)
 
-RESULTS_PLACEHOLDER
+Workstation (Windows, Python 3.12, the project venv), each file in its own pytest process with its own `--basetemp` (deleted after),
+`-o addopts=""`, at `d98180f8b` + the W-1 limiter fix (`bfb32affc`):
+
+| File | Result |
+|---|---|
+| `test_mfa_reset_hardening_2510.py` (new) | **22 passed** (first run found a duplicate-binding test bug, fixed before the commit) |
+| `test_mfa_secfix_2500.py` | 16 passed, 1 failed at `d98180f8b`: `test_w1_...` - the loop over `NO_RECOVERY_ACTIONS` (now 11 actions) ran into the verify route's 10 per 5 minutes; fixed in the test (`bfb32affc`, clears the limiter per action); the test re-run alone: **1 passed** |
+| `test_mfa_secreview_2500.py` | 8 passed |
+| `test_mfa_stepup_2490.py` | 22 passed |
+| `test_mfa_stepup_gates_2490.py` | 19 passed |
+| `test_mfa_passkeys_2490.py` | 26 passed |
+| `test_mfa_tokens_2490.py` | 22 passed |
+| `test_mfa_recovery_codes_2490.py` | 21 passed |
+| `test_mfa_policy_2490.py` | 70 passed |
+| `test_mfa_devicekey_2490.py` | 19 passed |
+| `test_mfa_devicekey_attest_2490.py` | 23 passed |
+| `test_second_factor.py` | 23 passed |
+| `test_second_factor_followups.py` | 11 passed |
+| `test_security_review_220.py` | 37 passed |
+| `test_settings_patch_audit_order.py` | 8 passed (was red on the train head: the slice-4 validator was not pinned) |
+
+Generators on the workstation: `scripts/gen_wire_types.py` (wrote `wire-second-factor.ts`), `scripts/api_inventory.py` (+1 route).
+Not run on the workstation (PC memory rule): ruff, `test_capture_lease_triggers.py`, `test_local_identity.py`,
+`test_bill_ledger_lifecycle_b.py`, the wider backend families - they are in the runner job below.
+
+Runner (slot B): ONE job `~/work/mfareset_run.sh` (the 22 MFA / auth files above plus `test_capture_lease_triggers`, `test_local_identity`,
+`test_bill_ledger_lifecycle_b`, `test_migrations*`, `test_local_auth_inventory`; `gen_wire_types --check`; ruff; then the auth / identity /
+remote / access / app-session / bridge-key / backup / security / wire / settings / rbac / notify-policy / privacy / presence families in
+shards of 40, each pytest with its own `--basetemp`, deleted after). Queued 13:15 UTC; slot B stayed taken by other jobs until 16:12 UTC
+(the 3-hour box): **NOT_RUN**. The lease is still queued; when it runs, results land in `~/work/mfareset-out/summary.txt` (the job
+checks out the branch head when it starts).
+
+Known red on the train head before this slice (seen in MFA-SECFIX-2500's runner job, not caused here): `test_migrations_263_upgrade::
+test_the_release_numbers_are_contiguous_and_final` (the train skips 0217 / 0218 until the merge; 0224 continues that) and
+`test_local_auth_inventory::test_identity_dependencies_outside_principal_are_listed` (`GET /auth/tokens`, slice 6).
 
 ## 5. For MFA-SCREENS-2510 (what the screens need; nothing of it is built here)
 
