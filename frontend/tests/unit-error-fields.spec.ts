@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { ApiError, fieldsOf, problemsOf, type ApiErrorBody, type FieldProblem } from '../src/api/client';
 import { fieldErrors } from '../src/api/insights';
+import { errorLine } from '../src/screens/nvr-cameras-edit';
 
 // ADR019-STEP0-2500 (ADR-019 Step 0, item 3): the one field-error reader. `fieldsOf` / `problemsOf` read the canonical
 // `details.fields` (names) and `details.problems` ({field, code, message?}) first and every legacy form second: `field`, `key`,
@@ -77,4 +78,14 @@ test('family 1 screen reader: insights fieldErrors reads through fieldsOf (422 o
   ]);
   expect(fieldErrors(err({ fields: ['x'] }, 409, 'revision_conflict'))).toEqual([]);
   expect(fieldErrors(new Error('x'))).toEqual([]);
+});
+
+test('family 3 screen reader: the NVR stream editor names the refused field through fieldsOf (canonical, legacy, both)', () => {
+  const line = (details: Record<string, unknown>) => errorLine({ status: 422, code: 'value_not_allowed', details }).text;
+  const want = 'GOP: הערך אינו נתמך במצלמה.';
+  expect(line({ fields: ['gop'], field: 'gop' })).toBe(want); // the migration window: both keys
+  expect(line({ fields: ['gop'] })).toBe(want); // after Step 1 (d): the canonical key alone
+  expect(line({ field: 'gop' })).toBe(want); // an older server: the legacy key alone
+  expect(line({ fields: ['not_a_stream_field'] })).toBe('הערך אינו נתמך במצלמה.');
+  expect(errorLine({ status: 422, code: 'field_locked', details: { fields: ['gop'] } }).text).toBe('השדה נעול כרגע.');
 });

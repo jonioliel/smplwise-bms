@@ -106,7 +106,7 @@ def test_f2_the_stored_password_is_never_sent_to_another_destination(world, fake
     keep = {k: v for k, v in GOOD.items() if k != "password"}
     for change in ({"host": "198.51.100.9"}, {"http_port": 8000}, {"rtsp_port": 10554}):
         r = j(c, "post", API + "/test", json={**keep, **change, "use_stored_password": True})
-        assert r.status_code == 422 and r.json()["code"] == "password_required" and r.json()["details"] == {"field": "password", "reason": "destination_changed"}, (change, r.text)
+        assert r.status_code == 422 and r.json()["code"] == "password_required" and r.json()["details"] == {"fields": ["password"], "field": "password", "reason": "destination_changed"}, (change, r.text)
         r = j(c, "put", json={**keep, **change})  # keep_password defaults to true
         assert r.status_code == 422 and r.json()["code"] == "password_required" and r.json()["details"]["reason"] == "destination_changed", (change, r.text)
     assert seen == [], "the stored password never reached a probe of another destination"
@@ -246,9 +246,9 @@ def test_f9_own_interface_addresses_and_platform_ports_are_refused(world, fake, 
         assert r.status_code == 422 and r.json()["code"] == "host_refused", host
     for port in (8123, 1984, 8554, 8555, 4357, 8099):
         r = j(c, "post", API + "/test", json={**GOOD, "http_port": port})
-        assert r.status_code == 422 and r.json()["code"] == "port_refused" and r.json()["details"] == {"field": "http_port"}, port
+        assert r.status_code == 422 and r.json()["code"] == "port_refused" and r.json()["details"] == {"fields": ["http_port"], "field": "http_port"}, port
     r = j(c, "put", json={**GOOD, "rtsp_port": 8554})
-    assert r.status_code == 422 and r.json()["code"] == "port_refused" and r.json()["details"] == {"field": "rtsp_port"}
+    assert r.status_code == 422 and r.json()["code"] == "port_refused" and r.json()["details"] == {"fields": ["rtsp_port"], "field": "rtsp_port"}
     assert seen == [] and fake.hits == []
     assert any(a["reason"] == "port_refused" for a in audit_rows(settings, "nvr.connection.update"))
 
@@ -304,7 +304,7 @@ def test_f7_a_refused_host_on_save_is_audited_without_the_host(world, fake, sett
 def test_f10_if_revision_is_required(world, fake, settings):
     _, c = world
     r = j(c, "put", auto_revision=False, json=GOOD)
-    assert r.status_code == 422 and r.json()["code"] == "revision_required" and r.json()["details"] == {"field": "if_revision"}
+    assert r.status_code == 422 and r.json()["code"] == "revision_required" and r.json()["details"] == {"fields": ["if_revision"], "field": "if_revision"}
     r = j(c, "put", auto_revision=False, json={"vendor": "none"})
     assert r.status_code == 422 and r.json()["code"] == "revision_required"
     assert j(c, "put", json=GOOD).status_code == 200

@@ -367,7 +367,7 @@ class DemoNvrSettings implements NvrSettingsAdapter {
   async options(cameraId: string, streamRef: string, codec?: string) {
     const s = this.find(cameraId).streams.find((x) => x.stream_ref === streamRef) ?? fail(404, 'not_found', tr('הזרם לא נמצא.'));
     const o = this.optionsOf(s);
-    if (codec && !o.codec.includes(codec)) fail(422, 'value_not_allowed', tr('הערך אינו נתמך במצלמה.'), { field: 'codec', allowed: o.codec });
+    if (codec && !o.codec.includes(codec)) fail(422, 'value_not_allowed', tr('הערך אינו נתמך במצלמה.'), { fields: ['codec'], field: 'codec', allowed: o.codec });
     return o;
   }
 
@@ -386,7 +386,7 @@ class DemoNvrSettings implements NvrSettingsAdapter {
     const allowed = (field: EncodingField, ok: boolean, list?: unknown[]) => {
       if (!ok) fail(422, 'value_not_allowed', tr('הערך אינו נתמך במצלמה.'), { field, allowed: list ?? [] });
     };
-    for (const f of fields) if (s.fields[f]?.supported === false) fail(422, 'field_not_supported', tr('{field} אינו נתמך בזרם הזה.', { field: FIELD_LABEL[f] }), { field: f });
+    for (const f of fields) if (s.fields[f]?.supported === false) fail(422, 'field_not_supported', tr('{field} אינו נתמך בזרם הזה.', { field: FIELD_LABEL[f] }), { fields: [f], field: f });
     if (ch.codec !== undefined) allowed('codec', o.codec.includes(ch.codec), o.codec);
     if (ch.profile !== undefined) allowed('profile', (o.profile[codec] ?? []).includes(ch.profile), o.profile[codec]);
     if (ch.resolution !== undefined) allowed('resolution', (o.resolution[codec] ?? []).includes(ch.resolution), o.resolution[codec]);
@@ -397,9 +397,9 @@ class DemoNvrSettings implements NvrSettingsAdapter {
     if (ch.gop !== undefined) allowed('gop', ch.gop >= o.gop.min && ch.gop <= o.gop.max, [o.gop.min, o.gop.max]);
     if (ch.svc !== undefined) allowed('svc', o.svc);
     if (ch.smart_codec !== undefined) allowed('smart_codec', o.smart_codec);
-    if (ch.b_frames !== undefined) fail(422, 'field_not_supported', tr('{field} אינו נתמך בזרם הזה.', { field: 'B-frames' }), { field: 'b_frames' });
+    if (ch.b_frames !== undefined) fail(422, 'field_not_supported', tr('{field} אינו נתמך בזרם הזה.', { field: 'B-frames' }), { fields: ['b_frames'], field: 'b_frames' });
     const smartOn = ch.smart_codec ?? s.smart_codec;
-    for (const f of smartOn ? o.locks.smart_codec ?? [] : []) if (f in ch && f !== 'smart_codec') fail(422, 'field_locked', tr('{field} נעול כש־Smart codec פעיל.', { field: FIELD_LABEL[f] }), { field: f, locked_by: 'smart_codec' });
+    for (const f of smartOn ? o.locks.smart_codec ?? [] : []) if (f in ch && f !== 'smart_codec') fail(422, 'field_locked', tr('{field} נעול כש־Smart codec פעיל.', { field: FIELD_LABEL[f] }), { fields: [f], field: f, locked_by: 'smart_codec' });
 
     const before = clone(s);
     const applied: EncodingField[] = [];

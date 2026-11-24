@@ -748,7 +748,7 @@ def test_connection_test_refuses_port_80_on_the_ha_host_and_allows_an_nvr_on_80(
     _, c = world
     fake.resolved["ha-box.test"] = [NVR_ADDR]  # the browser reached the platform at the same address the NVR form names
     r = c.post(API + "/test", json=GOOD, headers={**as_user("joni"), "X-Forwarded-Host": "ha-box.test:8123"})
-    assert (r.status_code, r.json()["code"], r.json()["details"]) == (422, "port_refused", {"field": "http_port"}), r.text
+    assert (r.status_code, r.json()["code"], r.json()["details"]) == (422, "port_refused", {"fields": ["http_port"], "field": "http_port"}), r.text
     assert fake.hits == [] and fake.writes == [], "nothing is connected on a refusal"
     assert audit_rows(settings, "nvr.connection.test")[-1]["reason"] == "port_refused"
     r = c.put(API, json={**GOOD, "if_revision": 0}, headers={**as_user("joni"), "X-Forwarded-Host": "ha-box.test"})
@@ -772,7 +772,7 @@ def test_cw2442_an_untested_save_takes_the_hebrew_or_the_english_word_only(world
     fake.nvr["up"] = False
     for text in bad("nvr_save_untested"):
         r = j(c, "put", json={**GOOD, "save_untested": True, "confirm_text": text})
-        assert r.status_code == 422 and r.json()["code"] == "confirm_required" and r.json()["details"] == {"field": "confirm_text"}, text
+        assert r.status_code == 422 and r.json()["code"] == "confirm_required" and r.json()["details"] == {"fields": ["confirm_text"], "field": "confirm_text"}, text
     assert rows(settings, "SELECT * FROM recorder_connections") == [], "nothing is saved on a wrong word or a near-miss"
     typed = good("nvr_save_untested", lang)
     r = j(c, "put", json={**GOOD, "save_untested": True, "confirm_text": typed})

@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, Path, Query, Request
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured, after the permission check
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import nvr_settings
@@ -108,7 +108,7 @@ def write_stream(camera_id: str, stream_ref: str, request: Request, principal: P
     try:
         req = nvr_settings.parse_write_body(json_body(raw))
         if not STREAM_REF_RE.fullmatch(stream_ref):
-            raise ApiError(422, "validation", "מזהה זרם לא תקין.", details={"field": "stream_ref"})
+            raise field_error("מזהה זרם לא תקין.", ["stream_ref"], legacy={"field": "stream_ref"})
     except ApiError as exc:
         raise nvr_settings.refuse_attempt(conn, principal, camera_id, stream_ref[:16], exc, _rid(request)) from None
     settings = settings_of(request)

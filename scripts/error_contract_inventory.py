@@ -139,8 +139,15 @@ def family_of(rel: str) -> str:
 def is_legacy(site: dict[str, Any]) -> bool:
     """A 422 whose field names are not (only) in `details.fields` as a list of names: `details.field`, `details.key`, an `errors`
     issue list, or `fields` as objects / a map. These are what ADR-019 migrates; the ratchet counts them per family."""
-    sh = shape_of(site["details"])
+    sh = site_shape(site)
     return sh in LEGACY_SHAPES or (sh == "fields" and site.get("fields_form") in {"list[object]", "map"})
+
+
+def site_shape(site: dict[str, Any]) -> str:
+    """The shape of one error site: `fields` for a site built by the canonical helpers (`field_error`, `to_api_error`) - they own
+    `fields` / `problems`, so a legacy key passed beside them (`legacy={"errors": ...}`) rides along without making the site
+    legacy (ADR019-FAMILY3-2510: a domain `errors` list sorts before `fields` in `shape_of`); `shape_of` of its keys otherwise."""
+    return "fields" if site.get("canonical") else shape_of(site["details"])
 
 
 def shape_of(keys: list[str] | str | None) -> str:
@@ -162,7 +169,7 @@ def _error_site(node: ast.Call) -> dict[str, Any] | None:
     spread = any(kw.arg is None for kw in node.keywords)
     if isinstance(node.func, ast.Attribute) and name == "to_api_error":
         status = _statuses(kwargs.get("status")) or [422]
-        return {"callee": "to_api_error", "status": status, "code": None, "details": ["fields"], "fields_form": "list[str]"}
+        return {"callee": "to_api_error", "status": status, "code": None, "details": ["fields"], "fields_form": "list[str]", "canonical": True}
     if name == "field_error" and isinstance(node.func, (ast.Name, ast.Attribute)):
         # ADR019-STEP0-2500: errors.field_error(message, fields, *, problems, code, status, legacy, extra) - the canonical
         # `fields` (names) always, `problems` when passed, then the keys of `legacy` / `extra` (a family's legacy key rides along).
@@ -173,7 +180,7 @@ def _error_site(node: ast.Call) -> dict[str, Any] | None:
             if kw in kwargs:
                 keys = _dict_keys(kwargs[kw])
                 details += keys if isinstance(keys, list) else ["**"]
-        return {"callee": "field_error", "status": status, "code": code, "details": details, "fields_form": "list[str]"}
+        return {"callee": "field_error", "status": status, "code": code, "details": details, "fields_form": "list[str]", "canonical": True}
     if name == "ApiError":
         status = _statuses(node.args[0]) if node.args else _statuses(kwargs.get("status"))
         code = _str(node.args[1]) if len(node.args) > 1 else _str(kwargs.get("code"))
@@ -536,22 +543,22 @@ def build(root: Path = ROOT, fe_root: Path = FRONTEND) -> dict[str, Any]:
     fe = scan_frontend(fe_root)
     s422 = [s for s in err["sites"] if s["status"] and 422 in s["status"] and s["layer"] != "public_app"]
     public_sites = [s for s in err["sites"] if s["layer"] == "public_app"]
-    other_keys = Counter(k for s in s422 if shape_of(s["details"]) == "other" for k in s["details"])
-    shapes = Counter(shape_of(s["details"]) for s in s422)
-    by_shape_layer = Counter((shape_of(s["details"]), s["layer"]) for s in s422)
-    forms = Counter(s["fields_form"] for s in s422 if shape_of(s["details"]) == "fields" and s["fields_form"])
+    other_keys = Counter(k for s in s422 if site_shape(s) == "other" for k in s["details"])
+    shapes = Counter(site_shape(s) for s in s422)
+    by_shape_layer = Counter((site_shape(s), s["layer"]) for s in s422)
+    forms = Counter(s["fields_form"] for s in s422 if site_shape(s) == "fields" and s["fields_form"])
     examples: dict[str, list[str]] = defaultdict(list)
     for s in s422:
-        sh = shape_of(s["details"])
+        sh = site_shape(s)
         if len(examples[sh]) < 4:
             examples[sh].append(f'{s["module"]}:{s["line"]} {s["callee"]}({s["code"] or "?"}) details={s["details"]}')
     shape_modules: dict[str, set[str]] = defaultdict(set)
     for s in s422:
-        shape_modules[shape_of(s["details"])].add(s["module"])
+        shape_modules[site_shape(s)].add(s["module"])
     mixed = sorted(m for m in {s["module"] for s in s422}
-                   if len({shape_of(x["details"]) for x in s422 if x["module"] == m} - {"none", "other", "dynamic"}) > 1)
+                   if len({site_shape(x) for x in s422 if x["module"] == m} - {"none", "other", "dynamic"}) > 1)
     legacy = Counter(family_of(s["module"]) for s in s422 if is_legacy(s))
-    canonical = Counter(family_of(s["module"]) for s in s422 if shape_of(s["details"]) == "fields" and not is_legacy(s))
+    canonical = Counter(family_of(s["module"]) for s in s422 if site_shape(s) == "fields" and not is_legacy(s))
     status_counts = Counter(str(st) for s in err["sites"] for st in (s["status"] or ["dynamic"]))
     callee_counts = Counter(s["callee"] for s in err["sites"])
     extra_counts = Counter(m["extra"] for m in req["models"])

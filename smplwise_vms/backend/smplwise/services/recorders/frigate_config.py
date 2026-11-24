@@ -25,7 +25,7 @@ import math
 import re
 from typing import Any
 
-from ...errors import ApiError
+from ...errors import ApiError, field_error
 from .frigate import FrigateAdapter
 
 SCHEMA_VERSION = "arx-frigate-0.18/1"
@@ -79,7 +79,7 @@ def zone_name(name: str) -> str:
 
 def labels(value: Any, *, field: str) -> list[str]:
     if not isinstance(value, list) or len(value) > LABELS_MAX or not all(isinstance(x, str) and LABEL.fullmatch(x) for x in value):
-        raise ApiError(422, "frigate_config_value_invalid", "רשימת העצמים אינה תקינה.", details={"key": field})
+        raise field_error("רשימת העצמים אינה תקינה.", [field], code="frigate_config_value_invalid", legacy={"key": field})
     return sorted(set(value))
 
 
@@ -102,7 +102,7 @@ def points(value: Any) -> list[list[float]]:
 
 def _int(value: Any, lo: int, hi: int, key: str) -> int:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or int(value) != value or not lo <= value <= hi:
-        raise ApiError(422, "frigate_config_value_invalid", "הערך מחוץ לטווח.", details={"key": key, "min": lo, "max": hi})
+        raise field_error("הערך מחוץ לטווח.", [key], code="frigate_config_value_invalid", legacy={"key": key}, extra={"min": lo, "max": hi})
     return int(value)
 
 
@@ -110,14 +110,14 @@ def setting_value(key: str, value: Any) -> Any:
     """One value of `SETTINGS`, checked against its type and range; None = remove the key (Frigate's default applies)."""
     spec = SETTING.get(key)
     if spec is None:
-        raise ApiError(422, "frigate_config_key_unknown", "ההגדרה אינה מוכרת.", details={"key": str(key)[:60]})
+        raise field_error("ההגדרה אינה מוכרת.", [str(key)[:60]], code="frigate_config_key_unknown", legacy={"key": str(key)[:60]})
     if value is None:
         return None
     if spec["type"] == "int":
         return _int(value, spec["min"], spec["max"], key)
     if spec["type"] == "number":
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not spec["min"] <= value <= spec["max"]:
-            raise ApiError(422, "frigate_config_value_invalid", "הערך מחוץ לטווח.", details={"key": key, "min": spec["min"], "max": spec["max"]})
+            raise field_error("הערך מחוץ לטווח.", [key], code="frigate_config_value_invalid", legacy={"key": key}, extra={"min": spec["min"], "max": spec["max"]})
         return round(float(value), 3)
     return labels(value, field=key)
 
@@ -367,7 +367,7 @@ class FrigateConfig:
         data: dict[str, Any] = {}
         for key, val in values.items():
             if SETTING.get(key, {}).get("section") != section:
-                raise ApiError(422, "frigate_config_key_unknown", "ההגדרה אינה שייכת לקבוצה.", details={"key": str(key)[:60]})
+                raise field_error("ההגדרה אינה שייכת לקבוצה.", [str(key)[:60]], code="frigate_config_key_unknown", legacy={"key": str(key)[:60]})
             node = data
             parts = key.split(".")[1:]
             for p in parts[:-1]:

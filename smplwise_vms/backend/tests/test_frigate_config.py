@@ -125,11 +125,15 @@ def test_validation_refuses_bad_zones_and_settings_before_any_write(world):
                              ("cam_front", {}, "frigate_zone_name_invalid")]:
         r = _zone(world, name, **body)
         assert r.status_code == 422 and r.json()["code"] == code, (name, body, r.text)
+        if code == "frigate_config_value_invalid":  # ADR-019: the refused key is the canonical field, the legacy `key` stays
+            assert r.json()["details"]["fields"] == [r.json()["details"]["key"]], r.text
     for section, values, code in [("motion", {"motion.threshold": 0}, "frigate_config_value_invalid"), ("motion", {"detect.fps": 5}, "frigate_config_key_unknown"),
                                   ("ffmpeg", {"ffmpeg.inputs": []}, "frigate_config_section_unknown"), ("motion", {"motion.mask": "0,0"}, "frigate_config_key_unknown"),
                                   ("detect", {"detect.fps": 2.5}, "frigate_config_value_invalid"), ("objects", {"objects.track": ["person", 3]}, "frigate_config_value_invalid")]:
         r = _settings(world, section, values)
         assert r.status_code == 422 and r.json()["code"] == code, (section, values, r.text)
+        if code != "frigate_config_section_unknown":  # ADR-019: the refused key is the canonical field, the legacy `key` stays
+            assert r.json()["details"]["fields"] == [r.json()["details"]["key"]] == [next(iter(values))], r.text
     assert world.fake.writes == []
 
 

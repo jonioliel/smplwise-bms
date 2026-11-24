@@ -140,7 +140,7 @@ test.describe('NVR connection against the fixture backend (fake NVR)', () => {
     const base = { vendor: 'hikvision', host: HOST, http_port: 80, rtsp_port: 554, username: 'viewer' };
     const noRev = await request.put('/api/v1/nvr/connection', { data: base });
     expect(noRev.status()).toBe(422);
-    expect(await noRev.json()).toMatchObject({ code: 'revision_required', details: { field: 'if_revision' } });
+    expect(await noRev.json()).toMatchObject({ code: 'revision_required', details: { fields: ['if_revision'], field: 'if_revision' } });
     const stale = await request.put('/api/v1/nvr/connection', { data: { ...base, if_revision: view.revision - 1 } });
     expect(stale.status()).toBe(409);
     expect((await stale.json()).code).toBe('stale');
@@ -150,7 +150,7 @@ test.describe('NVR connection against the fixture backend (fake NVR)', () => {
     // the stored password with another port: asked again, nothing connected (test and save alike)
     const moved = await request.post('/api/v1/nvr/connection/test', { data: { ...base, http_port: 8080, use_stored_password: true } });
     expect(moved.status()).toBe(422);
-    expect(await moved.json()).toMatchObject({ code: 'password_required', details: { field: 'password', reason: 'destination_changed' } });
+    expect(await moved.json()).toMatchObject({ code: 'password_required', details: { fields: ['password'], field: 'password', reason: 'destination_changed' } });
     const movedSave = await request.put('/api/v1/nvr/connection', { data: { ...base, http_port: 8080, if_revision: view.revision } });
     expect(movedSave.status()).toBe(422);
     expect((await movedSave.json()).details).toMatchObject({ reason: 'destination_changed' });
