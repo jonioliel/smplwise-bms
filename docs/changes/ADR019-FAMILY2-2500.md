@@ -63,9 +63,30 @@ PC (one file at a time, worktree code confirmed on the import path):
 - `tests/test_error_envelope_family2_2500.py` - 7 passed.
 - `tests/test_error_envelope_step0_2500.py` - 17 passed.
 - `tests/test_presence_contract_v22.py` - 63 passed.
+- `tests/test_presence.py` - 21 passed.
+- `tests/test_whoin034_295.py` - 9 passed.
+- `tests/test_mobile_push.py` - 53 passed.
 - `ruff check` on the three changed product files - clean; on the changed tests - no new finding (the F811 fixture
   redefinitions in `test_presence_contract_v22.py` / `test_mobile_push.py` are pre-existing).
 
-Runner (slot B, `~/work/slotb.sh ~/work/adr019f2_run.sh`, summary `~/work/adr019f2-out/summary.txt`): RUNNER_RESULTS_PENDING
+Runner (slot B, `~/work/slotb.sh ~/work/adr019f2_run.sh`):
+- Run 1 (07:55-08:00 UTC, at bf7700c07; summary kept in `~/work/adr019f2-out-run1/`): `gen_wire_types.py --check` exit 0 (no
+  `wire-errors.ts` drift), `error_contract_inventory.py` exit 0, `tsc -p tsconfig.json` (app) exit 0, `tsc -p tsconfig.tests.json`
+  exit 2 - one error, `tests/unit-error-fields.spec.ts(15,33)` TS2558 (a type argument on Playwright's `toEqual`; the spec came
+  with Step 0 and its runner job never ran). Fixed here (6b5b9319d: a typed `const` instead). The backend shards did not start
+  (exit 4: my script passed the file names without the `tests/` prefix) - NOT_RUN in run 1.
+- Run 2 (fixed script, queued 08:06 UTC, at 6b5b9319d or later): backend related files in 3 shards (80 files: every test file
+  that mentions presence / mobile push / `field_error`), `gen_wire_types --check`, inventory, `tsc` app + tests, the node unit specs
+  `unit-error-fields.spec.ts` + `unit-insights.spec.ts` (`--workers=2`). **NOT_RUN** - still waiting for slot B at 10:05 UTC
+  (17-20 jobs queued on the slot); it stays queued and writes `~/work/adr019f2-out/summary.txt` when it runs.
 
 Not run on purpose: eslint, `vite build` and Playwright - no frontend file changed in this row (the bundle equals the base's).
+
+## Open questions (built to the recommendation)
+
+1. Phone-app `contract_version`: bump `presence_values.CONTRACT_VERSION` to `2.3` now? Recommendation: no - the change is additive
+   and documented as a v2.3 note; bump it with the next phone-app contract text (together with the legacy-`field` removal notice).
+2. The strict value refusal's `reason` is normative in contract v2.2 (section 4.1). Recommendation: keep `reason` for all of v2.x
+   even after Step 1 (d); only `details.field` is retired there, after the apps read `fields` / `problems`.
+3. `pilot/ADR019-STEP0-2500` carries the same TS2558 in `frontend/tests/unit-error-fields.spec.ts`. Recommendation: cherry-pick
+   6b5b9319d onto it (or merge this branch after it in the same train).
