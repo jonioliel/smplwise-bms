@@ -1172,8 +1172,8 @@ export const en = {
   'יומיים': '2 days',
   '3 ימים': '3 days',
   'שבוע': '1 week',
-  '«קראתי»': '"Read"',
-  'כמה זמן הודעה חדשה': 'How long a notice is new',
+  'לפי «קראתי»': 'By "Read"',
+  'כמה זמן הודעה מסומנת «חדש»': 'How long a notice is marked "new"',
   'כמו קודם: כל מסך קיר מסמן «קראתי» לעצמו, וההודעה כבר לא חדשה אחרי שמישהו קרא אותה בו.': 'As before: each wall panel marks notices "read" for itself, and a notice is no longer new once someone read it there.',
   'מסך קיר משותף לכל הבית, ולכן אין בו «קראתי». הודעה מסומנת «חדש» מרגע הפרסום. ברירת המחדל: יומיים.': 'A wall panel is shared by the whole home, so it has no "read". A notice is marked "new" from when it is published. Default: 2 days.',
 };
