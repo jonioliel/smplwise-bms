@@ -28,7 +28,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..db import new_id, now_iso
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import temperature as t
 from ..services import temperature_access as ta
@@ -57,7 +57,9 @@ def _err(status: int, code: str, **details: Any) -> ApiError:
 
 
 def _invalid(e: t.Invalid) -> ApiError:
-    return _err(422, e.code, fields=e.fields)
+    """ADR-019 Step 1: the one field-error envelope (`fields` as before, also when empty) with the module's texts."""
+    m = t.MESSAGES[e.code]
+    return field_error(m["he"], e.fields, code=e.code, extra={"message_en": m["en"]})
 
 
 class _Body(BaseModel):
@@ -834,8 +836,8 @@ def put_alerts(body: AlertsIn, principal: Principal = Depends(_alerts_writer), c
 
     try:
         out = temperature_alerts.save(conn, principal, body.model_dump(exclude_none=True))
-    except temperature_alerts.AlertsInvalid as e:
-        raise ApiError(409 if e.code == "revision_conflict" else 422, e.code, e.message, details={**e.details, "message_en": e.message_en}) from None
+    except temperature_alerts.AlertsInvalid as e:  # ADR-019 Step 1
+        raise e.to_api_error(status=409 if e.code == "revision_conflict" else None, extra={"message_en": e.message_en}) from None
     return {**out, "can_edit": True}
 
 
@@ -880,8 +882,8 @@ def _validate_unit(conn: sqlite3.Connection, principal: Principal, body: UnitIn)
     if body.recipients is not None:
         try:
             rec = temperature_alerts.validate_recipients(conn, body.recipients.model_dump(), "recipients")
-        except temperature_alerts.AlertsInvalid as e:
-            raise ApiError(422, e.code, e.message, details={**e.details, "message_en": e.message_en}) from None
+        except temperature_alerts.AlertsInvalid as e:  # ADR-019 Step 1
+            raise e.to_api_error(status=422, extra={"message_en": e.message_en}) from None
     return {"temp": temp, "door": door, "power": power, "low": low, "high": high, "rules": rules, "mode": mode, "wins": wins, "rec": rec}
 
 

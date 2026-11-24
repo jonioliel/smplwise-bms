@@ -163,6 +163,17 @@ def _error_site(node: ast.Call) -> dict[str, Any] | None:
     if isinstance(node.func, ast.Attribute) and name == "to_api_error":
         status = _statuses(kwargs.get("status")) or [422]
         return {"callee": "to_api_error", "status": status, "code": None, "details": ["fields"], "fields_form": "list[str]"}
+    if name == "field_error" and isinstance(node.func, (ast.Name, ast.Attribute)):
+        # ADR019-STEP0-2500: errors.field_error(message, fields, *, problems, code, status, legacy, extra) - the canonical
+        # `fields` (names) always, `problems` when passed, then the keys of `legacy` / `extra` (a family's legacy key rides along).
+        status = _statuses(kwargs.get("status")) or [422]
+        code = _str(kwargs.get("code")) if "code" in kwargs else "validation"
+        details = ["fields"] + (["problems"] if "problems" in kwargs else [])
+        for kw in ("legacy", "extra"):
+            if kw in kwargs:
+                keys = _dict_keys(kwargs[kw])
+                details += keys if isinstance(keys, list) else ["**"]
+        return {"callee": "field_error", "status": status, "code": code, "details": details, "fields_form": "list[str]"}
     if name == "ApiError":
         status = _statuses(node.args[0]) if node.args else _statuses(kwargs.get("status"))
         code = _str(node.args[1]) if len(node.args) > 1 else _str(kwargs.get("code"))

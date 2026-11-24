@@ -266,8 +266,13 @@ def test_emergency_cameras_make_e18_critical(ew: EW) -> None:
 
 def test_contacts_privacy_and_verification(ew: EW) -> None:
     ew.on()
-    assert ew.c.post(f"{E}/contacts", json={"display_name": "ללא דרך קשר"}, headers=ew.h("joni")).status_code == 422
-    assert ew.c.post(f"{E}/contacts", json={"display_name": "x", "phone": "abc"}, headers=ew.h("joni")).status_code == 422
+    r = ew.c.post(f"{E}/contacts", json={"display_name": "ללא דרך קשר"}, headers=ew.h("joni"))
+    assert r.status_code == 422
+    # ADR-019 Step 1: fields + problems, the legacy `code` still sent
+    assert r.json()["details"] == {"code": "route_required", "fields": ["phone"], "problems": [{"field": "phone", "code": "route_required"}]}
+    r = ew.c.post(f"{E}/contacts", json={"display_name": "x", "phone": "abc"}, headers=ew.h("joni"))
+    assert r.status_code == 422 and r.json()["code"] == "validation"
+    assert r.json()["details"] == {"code": "format", "fields": ["phone"], "problems": [{"field": "phone", "code": "format"}]}
     c = ew.c.post(f"{E}/contacts", json={"display_name": "דנה", "phone": "050-1234567"}, headers=ew.h("joni"))
     assert c.status_code == 201
     cid = c.json()["id"]

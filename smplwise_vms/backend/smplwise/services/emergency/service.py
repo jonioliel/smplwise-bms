@@ -11,7 +11,7 @@ from typing import Any
 from ...audit import audit
 from ...config import Settings
 from ...db import get_setting, new_id, set_setting
-from ...errors import ApiError
+from ...errors import ApiError, field_error
 from ..maintenance import access as maccess
 from . import access, engine, model
 from .access import Viewer
@@ -164,8 +164,8 @@ def put_config(conn: sqlite3.Connection, settings: Settings | None, viewer: View
         if body.get("not_applicable") is not None:
             _set_na(conn, viewer, body["not_applicable"], request_id)
             changed.append("not_applicable")
-    except model.Invalid as exc:
-        raise ApiError(422, "validation", "ערך לא תקין.", details={"fields": [exc.field], "code": exc.code}) from exc
+    except model.Invalid as exc:  # ADR-019 Step 1: fields + problems; `code` still sent (legacy)
+        raise exc.to_api_error("ערך לא תקין.", code="validation", legacy={"code": exc.code}) from exc
     if changed:
         set_setting(conn, access.CONFIG_REVISION_KEY, str(config_revision(conn) + 1))
         audit(conn, actor=viewer.principal, action="emergency_readiness.config.update", decision="allowed", resource_type="installation", resource_id="emergency_readiness",
@@ -273,8 +273,8 @@ def _contact_fields(body: dict[str, Any], *, partial: bool) -> dict[str, Any]:
             if not isinstance(body["active"], bool):
                 raise model.Invalid("active", "type")
             out["active"] = 1 if body["active"] else 0
-    except model.Invalid as exc:
-        raise ApiError(422, "validation", "ערך לא תקין.", details={"fields": [exc.field], "code": exc.code}) from exc
+    except model.Invalid as exc:  # ADR-019 Step 1: fields + problems; `code` still sent (legacy)
+        raise exc.to_api_error("ערך לא תקין.", code="validation", legacy={"code": exc.code}) from exc
     return out
 
 
@@ -289,9 +289,9 @@ def create_contact(conn: sqlite3.Connection, viewer: Viewer, body: dict[str, Any
     viewer.require_manage()
     f = _contact_fields(body, partial=False)
     if not (f.get("phone") or f.get("email") or f.get("user_id")):
-        raise ApiError(422, "validation", "נדרש טלפון, דוא״ל או משתמש.", details={"fields": ["phone"], "code": "route_required"})
+        raise field_error("נדרש טלפון, דוא״ל או משתמש.", problems=[{"field": "phone", "code": "route_required"}], legacy={"code": "route_required"})
     if conn.execute("SELECT COUNT(*) FROM emergency_contacts WHERE deleted_at IS NULL").fetchone()[0] >= CONTACT_MAX:
-        raise ApiError(422, "validation", "הגעת למספר המרבי של אנשי קשר.", details={"fields": ["display_name"], "code": "too_many"})
+        raise field_error("הגעת למספר המרבי של אנשי קשר.", problems=[{"field": "display_name", "code": "too_many"}], legacy={"code": "too_many"})
     now = access.now_iso()
     cid = new_id()
     conn.execute("INSERT INTO emergency_contacts(id, display_name, role_title, phone, email, user_id, priority, active, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
@@ -310,7 +310,7 @@ def update_contact(conn: sqlite3.Connection, viewer: Viewer, cid: str, body: dic
     if f:
         merged = {**dict(cur), **f}
         if not (merged["phone"] or merged["email"] or merged["user_id"]):
-            raise ApiError(422, "validation", "נדרש טלפון, דוא״ל או משתמש.", details={"fields": ["phone"], "code": "route_required"})
+            raise field_error("נדרש טלפון, דוא״ל או משתמש.", problems=[{"field": "phone", "code": "route_required"}], legacy={"code": "route_required"})
         sets = ", ".join(f"{k} = ?" for k in f)
         # a changed route is no longer a verified route
         reset = ", last_verified_at = NULL, last_verified_by = NULL" if any(k in f and f[k] != cur[k] for k in ("phone", "email", "user_id")) else ""

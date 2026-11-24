@@ -66,10 +66,13 @@ def test_partner_invalid_is_left_alone():
 
 
 def test_to_api_error_works_for_each_adopter():
-    for e in (calendar_model.Invalid("m", "f"), emergency_model.Invalid("f", "c"), notices_model.Invalid("f", "m"), insights_common.Invalid(["f"]),
-              generator_log.Invalid("f")):
+    for e in (calendar_model.Invalid("m", "f"), notices_model.Invalid("f", "m"), insights_common.Invalid(["f"]), generator_log.Invalid("f")):
         api = e.to_api_error()
         assert api.status == 422 and api.details == {"fields": ["f"]} and api.user_message
+    # ADR019-STEP0-2500: the (field, code) classes carry a per-field reason -> details.problems (ADR-019 Step 0 item 2)
+    for e in (emergency_model.Invalid("f", "c"), maintenance_model.Invalid("f", "c")):
+        api = e.to_api_error()
+        assert api.status == 422 and api.details == {"fields": ["f"], "problems": [{"field": "f", "code": "c"}]} and api.user_message
 
 
 def test_clip_is_the_shared_one():

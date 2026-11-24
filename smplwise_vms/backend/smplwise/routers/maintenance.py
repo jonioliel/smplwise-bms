@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import Principal
 from ..services.maintenance import access, files as mfiles, model, service
 from ..services.maintenance.access import Viewer
@@ -110,9 +110,7 @@ def update_task(body: TaskBody, request: Request, task_id: str = Path(..., patte
     """Edit a task (maintenance.manage on its place, and on the new place when it moves); `revision` guards a concurrent edit."""
     data = body.model_dump(exclude_unset=True)
     if "kind" in data:
-        from ..errors import ApiError
-
-        raise ApiError(422, "validation", "סוג המשימה אינו ניתן לשינוי.", details={"fields": ["kind"]})
+        raise field_error("סוג המשימה אינו ניתן לשינוי.", ["kind"])
     return service.update_task(Viewer(conn, principal), task_id, data, _rid(request))
 
 

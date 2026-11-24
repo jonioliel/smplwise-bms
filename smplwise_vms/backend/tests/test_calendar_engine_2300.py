@@ -126,6 +126,7 @@ def test_calendar_crud_validation_and_visibility(cc):
     enable(cc)
     r = cc.post(f"{API}/calendar/calendars", json={"name": "x", "type": "room", "color": "green"})
     assert r.status_code == 422 and r.json()["details"]["field"] == "color"  # green is status only
+    assert r.json()["details"]["fields"] == ["color"]  # ADR-019 Step 1: the canonical key next to the legacy one
     a = room(cc, "חדר ישיבות")
     assert a["my_role"] == "manage" and a["buffer_after_min"] == 0 and a["conflict_policy"] == "exclusive"
     assert cc.post(f"{API}/calendar/calendars", json={"name": " חדר   ישיבות ", "type": "room", "color": "rose"}).status_code == 409  # unique, case/space folded

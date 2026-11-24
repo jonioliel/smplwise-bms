@@ -6,7 +6,7 @@ import '../components/sw-segmented';
 import '../components/sw-field';
 import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-icon';
-import { ApiError, describeError } from '../api/client';
+import { ApiError, describeError, fieldsOf } from '../api/client';
 import { dateInputLang } from '../api/day-format';
 import { CATEGORIES, DOC_TYPES, INTERVAL_UNITS, maintApi, type Options, type TaskDetail, type TaskKind } from '../api/maintenance';
 import { mt, type MtKey } from '../i18n/maintenance';
@@ -74,7 +74,7 @@ export class MaintTaskForm extends LitElement {
       this.dispatchEvent(new CustomEvent('saved', { detail: { id: saved.id, text: mt('saved') } }));
     } catch (e) {
       if (e instanceof ApiError && e.status === 422) {
-        const f = (e.body.details?.fields as string[] | undefined)?.[0];
+        const f = fieldsOf(e)[0]; // ADR-019 Step 1: the shared field reader
         if (f) this.errors = { ...this.errors, [f === 'interval' ? 'every' : f]: 'fRequired' };
       }
       if (e instanceof ApiError && e.code === 'revision_conflict') {

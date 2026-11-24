@@ -14,7 +14,7 @@ from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 from ...db import now_iso
-from ...errors import ApiError
+from ...errors import ApiError, field_error
 from ..tickets.hours import _local_instant
 from . import guests, model, notices, occ
 from .access import Ctx, Denied, detail_level, get_visible, scope_of
@@ -25,6 +25,10 @@ UTC = dt.timezone.utc
 
 
 def _422(code: str, message: str, **details: Any) -> ApiError:
+    """A 422 of the module; one that names a `field` answers the canonical field keys too (ADR-019 Step 1, `field` still sent)."""
+    field = details.pop("field", None)
+    if isinstance(field, str) and field:
+        return field_error(message, [field], code=code, legacy={"field": field}, extra=details or None)
     return ApiError(422, code, message, details=details)
 
 

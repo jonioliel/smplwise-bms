@@ -120,6 +120,7 @@ def test_one_slide_on_several_boards_and_ten_per_board(client):
     assert len(client.get(f"{API}/notices/boards/{b}/slides").json()["slides"]) == 1
     r = client.post(f"{API}/notices/promo-slides", json={"title": "אחת עשרה", "board_ids": [a]})
     assert r.status_code == 422 and r.json()["details"]["field"] == "board_ids"
+    assert r.json()["details"]["fields"] == ["board_ids"]  # ADR-019 Step 1
     assert client.patch(f"{API}/notices/promo-slides/{shared}", json={"board_ids": [b]}).status_code == 200  # leaving a board is fine
     free = _slide(client, "חופשית")
     assert client.patch(f"{API}/notices/promo-slides/{free}", json={"board_ids": [a]}).status_code == 200  # now 9 + 1

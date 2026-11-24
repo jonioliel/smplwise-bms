@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..db import now_iso
-from ..errors import ApiError, not_found
+from ..errors import ApiError, field_error, not_found
 from ..i18n import localize_for, register, t
 from ..rbac import INSTALLATION, Principal, require
 from ..services import default_names
@@ -444,7 +444,17 @@ def put_policy(device_id: str, alert_key: str, body: PolicyBody, principal: Prin
         return alerts.save_policy(conn, principal, device_id, alert_key, body.model_dump(exclude_unset=True))
     except alerts.RoutingInvalid as exc:
         status = 409 if exc.code == "revision_conflict" else 400 if exc.code == "template_invalid" else 422
-        raise ApiError(status, exc.code, exc.message, details=exc.details) from None
+        raise _routing_error(exc, status) from None
+
+
+def _routing_error(exc: Any, status: int) -> ApiError:
+    """A routing refusal (services/generator_alerts.RoutingInvalid): one that names a `details.field` answers the canonical field keys
+    too (ADR-019 Step 1; `field` and the other details still sent), any other keeps its details."""
+    details = dict(exc.details or {})
+    field = details.pop("field", None)
+    if isinstance(field, str) and field:
+        return field_error(exc.message, [field], code=exc.code, status=status, legacy={"field": field}, extra=details or None)
+    return ApiError(status, exc.code, exc.message, details=details)
 
 
 class SeverityRoutingBody(_Body):
@@ -462,7 +472,7 @@ def put_severity_routing(device_id: str, severity: str, body: SeverityRoutingBod
     try:
         return alerts.save_severity_routing(conn, principal, device_id, severity, body.model_dump(exclude_unset=True))
     except alerts.RoutingInvalid as exc:
-        raise ApiError(409 if exc.code == "revision_conflict" else 422, exc.code, exc.message, details=exc.details) from None
+        raise _routing_error(exc, 409 if exc.code == "revision_conflict" else 422) from None
 
 
 class PreviewBody(_Body):
@@ -478,7 +488,7 @@ def preview_policy(device_id: str, alert_key: str, body: PreviewBody, principal:
     try:
         return {"text": alerts.render_preview(alerts.validate_template(body.template_he), alert_key)}
     except alerts.RoutingInvalid as exc:
-        raise ApiError(400, exc.code, exc.message, details=exc.details) from None
+        raise _routing_error(exc, 400) from None
 
 
 @router.post("/generator/devices/{device_id}/policies/reset", **wire(W.GeneratorPoliciesReset))
@@ -547,8 +557,8 @@ def put_settings(body: SettingsBody, principal: Principal = Depends(_manage_w), 
     if "log" in sent and body.log is not None:
         try:
             part = glog.validate(body.log)
-        except glog.Invalid as exc:
-            raise ApiError(422, "validation", "ערך לא תקין ביומן ההפעלות.", details={"fields": [f"log.{exc.key}"]}) from None
+        except glog.Invalid as exc:  # ADR-019 Step 1
+            raise field_error("ערך לא תקין ביומן ההפעלות.", [f"log.{exc.key}"]) from None
         stored = core.jget(conn, "generator.log", {})
         core.jset(conn, "generator.log", {**(stored if isinstance(stored, dict) else {}), **part})
     if "log_enabled" in sent and body.log_enabled is not None:
