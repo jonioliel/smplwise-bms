@@ -178,6 +178,11 @@ The add-on also runs without a Hikvision NVR, for an installation that uses it f
   409 `nvr_not_configured` (hidden is not unprotected; every route keeps its permission check). The Lovelace card falls
   back to the map for its NVR views. The storage page shows the add-on's own disk only; the video settings tab shows a
   neutral notice instead of video forms.
+- **Cameras without a recorder (2.41.0 and later).** An installation without an NVR can still add cameras by their own
+  RTSP addresses (see "Live video" below). Once at least one such camera exists, the live screens (live, the wall, the
+  camera screen and the area camera cards) appear; recordings, playback, recorder events and the recorder settings stay
+  hidden. They need a WebRTC server (go2rtc): without one a clear notice with a link to the connection settings replaces
+  the empty player, and adding a camera or "test stream" is blocked until a server is set.
 - **Health and the wizard.** The NVR shows as "לא מוגדר" (neutral, never red); no NVR job (camera discovery, alert
   stream, derived events, thumbnails, exports) runs or is reported. The setup wizard marks the NVR step done for the
   explicit "ללא NVR" choice and the camera step "דילוג - מצב ללא NVR" (and go2rtc as optional while neither it nor the
@@ -198,6 +203,13 @@ Design note: `docs/operations/NVR_LESS_MODE.md`.
 - Nobody has access until a VMS administrator assigns a role in a scope (site, building, floor).
   Home Assistant admin status grants nothing inside the product, and the product never changes HA
   users, groups or admin flags.
+- **Arx users** are people who exist only in Arx and sign in through remote access. They are off by default; since 2.43.8
+  a system administrator turns them on or off on the tab Settings › Users and permissions › "Arx users" itself (with a
+  confirmation; turning them off ends every Arx-user sign-in at once and keeps the users). The administrator sets the
+  password at creation and can set a new one later; by default the user is asked to change it at the first sign-in.
+- **Home only.** A person limited to the home interface (see "The home interface") reaches only the home interface's
+  areas; the server refuses that person's requests to the full interface as well. It never grants anything: every
+  route still checks its own permission.
 - Every decision, upload, publish and placement is recorded in the audit log (no secrets).
 
 ## Data and backups
@@ -305,6 +317,22 @@ consistent copy.
   `snapshots.max_age_s`) until the stream plays.
 - Session cap (`media.max_live_sessions`, default 16, was 8; a saved value is kept) protects the NVR; the wall and the kiosk use sub
   streams, the single-camera view the main stream. Tiles beyond the cap show the snapshot only.
+- **Video source per camera (2.41.0).** In the camera settings choose whether video comes from the recorder (the default)
+  or from a manual RTSP address for the main and the sub stream (one filled address serves both). "Test stream" shows a
+  frame, the resolution and the codec before saving. The addresses are stored encrypted, never shown again, and pass the
+  source policy (RTSP only, never the video server itself); changes need `system.configure` and are audited without the
+  address. When a manual source stops working the camera stays on it and an alert is raised until it works again.
+- **Choosing the video service (2.43.5).** Settings › Video and media lists the go2rtc services found on the system (state,
+  version, whether it answers); an administrator chooses the one Arx uses, and the choice wins over the address in the
+  add-on options. The list is available on the local network only. The administrator setting "notice when the video service
+  is unavailable" (`media.video_notice_after_min`: 1 / 5 / 15 / 30 / 60 minutes, default 15) sets when administrators are
+  told; the live and player screens show one clear message and recover by themselves (2.43.0).
+- **Stream sync (2.43.4).** A stream is written to go2rtc only when it really changed, and once after an add-on restart (it
+  used to be rewritten on every view). The diagnostics screen shows each stream's real state: "active now" with the viewer
+  count, "ready - connects when watched" or "no source".
+- **Camera reboot (2.40.7).** The camera screen can reboot one camera through its recorder: permission `nvr.camera.reboot`,
+  the recorder's "allow changes to the NVR settings" switch on, and a confirmation; at most once per 5 minutes per camera
+  and three times per 10 minutes per user. Restarting the whole recorder now also needs that switch.
 
 ### go2rtc exposure (T069 review)
 
@@ -1508,6 +1536,110 @@ and scales it down (100 / 90 / 80 / 70 %), `full` covers the whole window (Esc o
 looked an hour off (+3599 s). The clock is now read in the installation's time zone, so the system screen and the setup
 wizard show no phantom drift. "סנכרן לשעון השרת עכשיו" writes the same way, reads the clock back and, when the device is
 still more than 2 minutes off, answers 502 `clock_verify_failed` (audited). That write has not been tried on a real device.
+
+**Look and lists (2.43.8 and 2.48.0).** Domus is the default look (Settings › Display); a system that had "classic" saved
+moved to Domus once at the 2.43.8 update, and classic can be chosen again. The selected chip is a strengthened light blue with
+a ring and a check mark; "selected chip" (`ui.chip_selected`) offers three other looks. Long lists on the control screens page
+instead of scrolling (`ui.long_lists`, Settings › General › Interface design › "Long lists on the control screens": pages by
+default, or scroll inside the list; it applies to every user). Since 2.48.0 this also covers the alarm sensors, the external
+access list and "who is in the building", and since 2.49.0 the tickets table.
+
+**Start-up warm-up (2.42.1).** After the add-on starts, the server reads what the first screens need and the browser fetches
+the common screens in the background, so the first screen opens faster after an update. On by default
+(`server.startup_warmup`).
+
+## The home interface (2.42.0 and later)
+
+A second, simple interface that starts from the room, next to the full interface. Nothing changes for existing users until an
+administrator says so: everyone known at the 2.42.0 update stays on the full interface. End-user guide:
+`docs/user-guide/he/23-home-interface_HE.md`.
+
+- **What it shows.** Room screens with one-tap scenes, lights and switches, climate, shutters, doors and the intercom,
+  cameras, energy, alerts, the alarm and "active now", with no scrolling on a tablet, a phone or a desktop (long lists page).
+  2.43.0 adds the "More" screen, where every further capability has a live status line: recordings (one camera, one day, a
+  simple timeline), the house log (the last 7 days in plain words; from 2.43.4 also the alarm's arming and disarming for a
+  person allowed to view the alarm), the intercom (call log, "talk to the entrance", who may come in - view only - and guest
+  invitations), a new alarm screen (a large state, open sensors, arming with a confirmation, disarming with the code, changing
+  your personal code), music and screens with a home announcement to chosen rooms (not the emergency announcement), the
+  electricity bill with a forecast to the end of the period, water use and a suspected leak, house systems (generator,
+  elevators, temperatures; read only) and a home map by floor. 2.43.1 adds family and building screens: who is home (and
+  hiding yourself), the family calendar and adding an event, booking shared rooms, the notice board with "read", nearby
+  buses, service tickets (only the ones you opened; up to 3 photos from 2.43.2; opened also from the water and systems screens
+  from 2.43.4), weather, my notifications and "do not disturb" (alarm, door and safety notices always come through), scene
+  schedules and a new scene from the current state. Each screen appears only when its module is on and the person holds its
+  permission.
+- **Switches.** "All off", room off and house off reach lights and switches typed as lights (room and house off also turn off
+  the climate) and never a switch that is not a light (boiler, fridge, pump); a protected switch asks before it is turned off,
+  even by hand. User management › "Home interface" › "Switch classification" lists every switch with the system's suggestion
+  ("light" or "protected", from the name); the administrator approves, several at a time, or marks switches that were not
+  suggested.
+- **Per person** (User management › "Home interface" › "Users", `rbac.assign`): the default interface (full or home), may
+  switch, home only (enforced by the server; a system administrator can never be made home only), visible rooms and
+  categories (recordings, the house log and the intercom are their own categories since 2.43.1), "may invite guests", and a
+  wall panel locked to its room. "Copy my favourites" makes your favourites the starting set for people who have not arranged
+  their own.
+- **Installation settings** (same page, "Installation settings"): the interface a new user gets (`home.default_mode`: full for
+  everyone - the default; home for regular users and full for administrators; or a choice at the first sign-in; existing
+  users keep theirs); the wall panel exit (`home.kiosk_exit`: the administrator's code after a long press on the clock - the
+  default; or none, locked to its room with no personal menu) and the exit code (4 to 8 digits); room wallpaper
+  (`home.wallpaper`: none - the default; a built-in gallery; or the gallery and a personal picture, JPEG or PNG up to 2 MB, seen
+  only by the person who uploaded it). The administrator can also set a room wallpaper for everyone (2.43.0): a person's own
+  wallpaper wins, except on a wall panel, where the administrator's always shows.
+- **Guest invitations** (off at install): a switch for the system administrator on the same page. It works only while external
+  access is on too, and only for people marked "may invite guests" who also hold the visitor permission. The guest gets a
+  temporary door code; the host never sees the code.
+- **Personal choices** (the home interface's own settings): seven themes (classic, ocean, sand, plum, midnight, nordic, pastel),
+  dark or light, big text, what opens first (home, the last room or a fixed room), the screen transition (a quick fade, or each
+  screen rising into place; 2.43.7), favourite rooms and favourites per room. The calendar has "this week" / "the coming days".
+  A portrait tablet shows the phone layout with the bottom bar (2.43.7).
+- **Moving between the interfaces.** "To the home interface" in the full interface's personal menu (when the person may
+  switch) and the interface choice in the home interface's own menu. "Switch user" on the remote sign-in returns to the sign-in
+  page; inside the home system it opens the home system's own account page, where the person signs out (Arx signs nobody out).
+- **Wall panel** (2.43.2): it can add an event to the family calendar and nothing else; the server refuses every other calendar
+  write from a wall panel.
+- **Install notes.** Migrations 0211 (2.42.0), 0212 (2.42.1), 0213 (2.43.0), 0214 and 0215 (2.43.1) run by themselves. A
+  person whose category list the home administrator set before 2.43.0 does not see the new categories until they are marked.
+
+## Interface language (2.43.8 and later)
+
+- Each user chooses the language under the personal menu › "My account" › "Language" › "Interface language": Hebrew (the
+  default) or English. The choice is saved on the server (`ui.lang`), applies on every device the account signs in on, and the
+  page reloads once in the chosen language. Hebrew is right-to-left, English left-to-right. Arabic and Russian are not offered.
+- 2.43.8: the home screens, calendars, electricity, the map and the plan wizard, server messages, durations and units are in
+  English; typed confirmation words are accepted in English too. 2.43.9: the English pack loads only when it is chosen.
+  2.44.0: optional English names for time-of-use seasons, day types and bands (the Hebrew bill does not change).
+- 2.49.0: every settings screen that still showed Hebrew is in English; the server's texts follow the user's language (the
+  setup wizard, the readiness report, error messages, permission, role and scope names, permission refusals, the notification
+  policy, the health report and the top-bar summary, automation and schedule sentences, the generator routing roles and the
+  tickets matrix labels); the recorder's event names and the label of an unnamed device follow the language. Default names the
+  server stores (a room from the plan wizard, a manual incident, a route or imported case, a generator, a door window, a
+  schedule split, automation templates, a plan's main level, the first NVR, the "cameras without a recorder" group and more)
+  are made in the language of the user who creates them; names already stored do not change, and a name made with no user (a
+  background pass, a rule) stays Hebrew. The settings search finds a setting by English words too (for example restore, codec,
+  ntp, do not disturb, tickets), in either language.
+- For a Hebrew user nothing changes. Known limit: a few arrows and pagers still point the right-to-left way in English.
+
+## Calendars, presence and several buildings
+
+These shipped before 2.40.0; this is a short map of where they live.
+
+- **Calendars** (2.31.0 and later; the module is off until it is switched on under Settings › Calendars): month, week and day
+  views, a rooms timeline, booking with approvals, maintenance and calendar management; Outlook-style editing (drag to
+  create, move and resize, undo) and named attendees (2.35.0); external calendars - an iCal subscription, Google Calendar or
+  Microsoft 365 / Outlook with your own app registration (2.33.0; setup guide `docs/operations/CALENDAR_CONNECT_SETUP.md`).
+  Outgoing iCal feeds are off by default; a "from outside" switch per feed opens it to remote access as busy-only, and new
+  links expire after 365 days by default (2.36.0). Since 2.48.0 a booking refused for a conflict names what holds the slot
+  (the booking's name where you may see it, and the time range).
+- **Presence.** The home screen's building presence card (2.31.0) shows the active rooms; its default style since 2.40.0 is
+  "count and names" (the number of active rooms, their names and a mark per room); the other styles stay under Settings ›
+  Presence. The presence line on the area screen (2.36.0) is off by default. Presence from the phone app is off until it is
+  switched on (`presence.enabled`).
+- **Several buildings** (2.33.0 and later; off by default - the multiple-buildings switch under Settings › Buildings and
+  mapping): a site level on the home screen with a card per building, a building switch and "turn everything off" per
+  building or for the whole site; a shared building (parking, main electrical room) is listed last. The mapping assistant
+  matches home-system areas to buildings and never writes to the home system. Inside a building every control reaches only
+  that building's devices, and the server refuses another building's device (2.36.0). With one building nothing changes.
+
 ## Releases 2.6.4 to 2.11.0: what is on, off and locked
 
 Written from the release notes and the code of `integ/280`, `integ/290`, `integ/291`, `integ/292`, `integ/293`, `integ/2100`, `integ/2101` and `integ/2111` (2.8.0 to 2.10.0 are released; 2.10.1 and 2.11.0 are release candidates). Nothing here was verified against a live
@@ -1626,6 +1758,47 @@ fixes; a faster 3D screen on phones. Bridge 0.9.4 (allowlist picker) needs one r
 2.8.0 adds 0119 (elevators) and 0120 (dashboard indexes), 2.9.0 adds 0121 (door-system write journal), 2.9.1 adds 0122 (elevator "show travelling" option) and 0123 (requests opened from alerts), 2.9.2 adds 0124 (temperature control), 2.9.3 adds 0125 (temperature phase 3), 0126 (external-access identity) and 0127 (access-request form), 2.10.0 adds 0128..0135 (vendor report queue, bulk people, passkeys only, generator routing, arrival and cards, door automations, station access, bridge key set), 2.10.1 adds none, 2.11.0 adds 0136..0145 (off-box backup, door windows and emergency, door-automation hardening, bridge key activation, revoke proof, vendor marker, group-grant deny flag, event-triggered door windows, WhatsApp pacing, WisKey intents and feature registry). Bridge 0.9.2 (from 2.7.1), bridge 0.9.4 (2.10.0) and bridge 0.9.5 (2.11.0) each need one restart of the home system. Reload the
 installed web app once after each update.
 
+## Releases 2.40.3 to 2.43.8: what changed for users
+
+Reload the installed web app once after each update. Nothing new switches itself on unless named below. The end-user
+description (Hebrew, then English) is in `docs/user-guide/he/15-whats-new-2403-2438_HE.md`; 2.40.0 to 2.40.2 are in
+`docs/user-guide/he/15-whats-new-2400-2401_HE.md`.
+
+**Restarts and migrations.** The home system needs one restart after 2.40.4 (bridge 0.10.5; **install 2.40.4 before upgrading
+the home system to 2026.11**), 2.40.7 (bridge 0.10.6) and 2.43.7 (bridge 0.10.7). Migrations that run by themselves: 0206
+(2.40.4, entity short names and parent devices), an events index (2.40.6), the WisKey visit links table (2.40.7), the camera
+video sources table (2.41.0), 0210 (2.41.2, per-day event counts), 0211 (2.42.0), 0212 (2.42.1), 0213 (2.43.0), 0214 and 0215
+(2.43.1) and 0216 (2.43.7, indexes only). Going back past an additive migration needs the backup taken before the update.
+
+**2.40.3 to 2.40.7.** An installation without video no longer asks for video settings; the kiosk and the display wall move to
+the main stream when a sub stream sends nothing, like the camera wall. Entity names match the home system's own (device name
+plus entity name), child devices take their parent's area, and alarm zones pair by the new names (2.40.4). Bridge 0.10.5 blocks
+intercom (WisKey) door commands sent through the bridge's device commands by default (the switch is in the bridge's own
+options; WisKey's screens are not affected). A command whose link dropped after it left is reported as "unknown - check the
+device" and never offered for a blind retry; a full disk is said clearly and actions that must be recorded are refused until
+space is freed; up to five system administrators can be chosen as "the owner" contacts for bridge-key alerts; a large room fits
+the area screen (2.40.5). No long database locks under heavy event load, a faster WisKey return, a slower retry ladder for a
+refused access token, and the licence notices ship in the add-on (2.40.6). Emergency revoke of the bridge key (showing the new
+code needs an authenticator code), camera reboot, a monthly calendar of recorded days, and WisKey visits managed from Arx
+(visits made in WisKey's panel shown read only; pushing an Arx invitation to WisKey is off) (2.40.7).
+
+**2.41.0 to 2.41.2.** A video source per camera and cameras without a recorder (see "Live video" and "NVR-less mode"); a
+WebRTC-server notice; cameras without a recorder on the floor map's camera layer; a faster events screen (per-day counts) and
+no database waits from the camera fault check.
+
+**2.42.0 to 2.43.8.** The home interface and its settings (see "The home interface"). Also: switch classification; "switch
+user" inside the home system; the start-up warm-up; a camera player that says when the video server is unavailable, with "try
+again" (2.42.1); the video service is reported "degraded" when unavailable and administrators get a notice (2.43.0); the
+realistic 3D map (2.43.1, 2.43.3: soft shading, reflections on polished floors - a personal setting, marble and porcelain
+floors, + / - zoom buttons); the "new plan from a picture" wizard - from a picture or PDF of a floor plan to a 3D floor in seven
+steps, detection runs locally and nothing reaches the map before publishing (2.43.2); choosing the video service and the notice
+delay, and thirteen control screens that fit 1366x768 without scrolling (2.43.5); one pill per room on the 3D map, the room card,
+a "building / spread" switch and eight new settings under Settings › Map › "3D map", and "no connection to the server - trying to
+reconnect" instead of a demo when the server is briefly away (2.43.6); the management screens on the shared components, faster
+loading, Settings › General shows the real system health and the backup tab shows its own errors (2.43.7); Arx users can be
+created again with a password set by the administrator and switched on from their tab, Domus is the default look, one dialog and
+one drawer across the system (opaque, Escape closes one layer at a time), and the English interface (2.43.8).
+
 ## Releases 2.43.9 to 2.45.0: what changed for users
 
 No migration and no change to the bridge (it stays 0.10.7) in any of the three, so the home system needs no restart. Reload the
@@ -1682,8 +1855,8 @@ phase table keeps its columns.
 **Fields with a unit (2.47.0).** The unit (₪, %, kWh, m3, days, months, years) sits inside the field frame on the reading end (left in
 Hebrew, right in English); the number never runs under it. It covers the tariff prices and VAT, business details, the account
 wizard, meter replacement, data retention (electricity and water) and the water tariff prices, which now show ₪. The time-of-use
-prices are a shared table (a row per band, a column per season; stacked cards on a phone). Generator settings keep their units in the
-labels.
+prices are a shared table (a row per band, a column per season; stacked cards on a phone). Generator settings kept their units in the
+labels until 2.49.0.
 
 **Shared tables in Settings (2.47.0).** Announcement history (now with headers), "who may do what" in automations and schedules,
 registered presence devices, the intercom events report, wall users, the notification delivery log, calendar permissions, the
@@ -1693,3 +1866,27 @@ open by keyboard. Wall users switch to cards at 768 px and below (was 721).
 **Server (2.46.0 and 2.47.0).** More server routes are defined exactly against the client types; answers and values are unchanged.
 In 2.47.0 the home screen's choosing controls become the shared segmented control with the
 home look kept (row switches and the home switch unchanged).
+
+## Releases 2.48.0 and 2.49.0: what changed for users
+
+No new migration and no bridge change in either (the bridge stays 0.10.8), so the home system needs no restart. Reload the
+installed web app once after each update. The end-user description (Hebrew, then English) is in
+`docs/user-guide/he/18-whats-new-2480-2490_HE.md`.
+
+**2.48.0.** The hand-built check boxes and switches that stand for one on/off setting are the shared switch in a compact size
+(the home screen switches and the settings row switches are unchanged); every select on the settings screens sits in the
+shared field. The alarm sensors, the external access list and "who is in the building" page when there are more rows than fit
+(the "scroll" long-lists setting keeps the scroll). On all 14 settings pages with a segmented selector each module keeps its own
+key look (28 px on a desktop, 44 px under a finger on a phone). The events centre chips draw the 2.47.0 look again; the generator
+recipient and channel choosers are check boxes again. Phone form sheets (electricity, water, customers and accounts) are opaque
+(frosted in the glass skins). A refused calendar booking names what holds the slot; the announce channel appears in the
+notification channel lists. The door technician screen (WisKey) waits for its re-read after a write instead of refusing a press as
+an old revision. Accessibility names for buttons that had none. About 21% less on the first load.
+
+**2.49.0.** The English interface covers every settings screen and the server's texts, and default names are made in the
+creating user's language (see "Interface language"); the settings search also finds English words. The tickets table splits into
+pages that fill the card instead of scrolling inside it, from a tablet up (selection, the keyboard and "load more" work across
+pages, and the place is kept on a refresh or a resize; on a phone nothing changed); to keep the scroll choose Settings › General ›
+Interface design › "Long lists on the control screens" › scroll inside the list (it applies to every user). In the generator
+settings the unit (kW, kVA, bar, °C, %, V, Hz, hours, seconds, minutes, days) sits inside the input as in electricity and water,
+and in English the labels and units are English.
