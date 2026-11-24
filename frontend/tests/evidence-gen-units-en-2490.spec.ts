@@ -43,4 +43,20 @@ test.describe('generator settings: units in the field frame, per language', () =
     expect(f.find((x) => x.label === 'דלק נמוך')?.unit).toBe('%');
     for (const x of f) expect(x.label).not.toMatch(/\(/);
   });
+  // REVIEW-2490-FIXES-2500 (finding F2): a page that booted in Hebrew and switches to English in place (no reload - the path taken when
+  // the browser's storage is blocked): the English pack arrives after the settings module was evaluated; the labels follow it.
+  test('Hebrew page switched to English in place: English labels and unit words', async ({ page }) => {
+    const s = await open(page, 'he', '/system/infra/generator/thresholds', 'thresholds');
+    expect((await fields(s)).find((x) => x.label === 'לחץ שמן מינימלי')?.unit).toBe('bar');
+    await page.evaluate(() => {
+      document.documentElement.setAttribute('lang', 'en');
+      document.documentElement.setAttribute('dir', 'ltr');
+    });
+    // the English words are a lazy pack: wait until it is in and the page was asked to render again (i18n/lang-packs.ts)
+    await page.locator('html[data-lang-words="en"]').waitFor({ state: 'attached', timeout: 0 });
+    await expect.poll(async () => (await fields(s)).find((x) => x.label === 'Minimum oil pressure')?.unit ?? null).toBe('bar');
+    const f = await fields(s);
+    for (const x of f) expect(x.label, 'label has no Hebrew letters').not.toMatch(/[֐-׿]/);
+    expect(f.find((x) => x.label === 'Low fuel')?.unit).toBe('%');
+  });
 });

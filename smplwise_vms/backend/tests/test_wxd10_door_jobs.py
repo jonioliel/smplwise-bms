@@ -462,6 +462,28 @@ def test_wxd10b_program_plan_reasons(scheds, monkeypatch):
         assert door_conversion.program_plan(conn, ids["hold"])["reason"] == "unresolvable"
 
 
+def test_review2500_hand_over_preview_names_an_unnamed_window_in_the_readers_language(scheds):
+    """REVIEW-2490-FIXES-2500 (finding F3): the offers listing previews an unnamed schedule's door window with the default name in the
+    reader's interface language - the same name the hand-over then creates (I18N-EN-2490, owner N53). Hebrew without a stored language."""
+    c, app, ids = scheds["c"], scheds["app"], scheds["ids"]
+    key = f"schedule:{ids['hold']}"
+    with app.state.db.connection() as conn:
+        conn.execute("UPDATE schedule_cache SET item_json = json_set(item_json, '$.name', '') WHERE schedule_id = ?", (ids["hold"],))
+
+    def preview() -> dict[str, Any]:
+        offer = _item(c.get(CONV).json(), key)["actions"]["hand_over_program"]
+        assert offer["available"] is True, offer
+        return offer["program"]
+
+    assert preview()["name"] == "חלון פתיחה"
+    assert c.put(f"{API}/me/prefs", json={"ui.lang": "en"}).status_code == 200
+    assert preview()["name"] == "Door window"
+    with app.state.db.connection(mode="read") as conn:
+        # the service's own default (no reader: a background caller) stays Hebrew
+        assert _item(door_conversion.listing(conn), key)["actions"]["hand_over_program"]["program"]["name"] == "חלון פתיחה"
+        assert _item(door_conversion.listing(conn, lang="en"), key)["actions"]["hand_over_program"]["program"]["name"] == "Door window"
+
+
 # ================================================================ static guarantees
 
 def test_wxd10_the_restore_pass_has_one_caller_and_the_module_sends_no_door_command():

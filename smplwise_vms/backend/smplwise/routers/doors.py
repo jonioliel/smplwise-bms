@@ -45,6 +45,7 @@ from ..i18n import localize_for
 from ..rbac import INSTALLATION, ROLES, STATION, Principal, authorize, require, role_name, role_permissions, scope_name
 from ..services import (bridge_rotation, door_authority, door_blocks, door_conversion, door_overrides, door_path, door_path_guard, ha_bridge, intercom_doors, intercom_sync,
                         revocation, trusted_door)
+from ..services import default_names as dn
 from ..services import doors_store as store
 from ..wire import doors as W
 from ..wire import wire
@@ -451,7 +452,8 @@ def door_path_conversion(request: Request, principal: Principal = Depends(curren
     window) and why not, the register of what was done, and the switch `doors.conversion`. An empty inventory answers
     `state = nothing_found` with nothing offered. System administrator only; names only."""
     require(conn, principal, CONFIGURE, INSTALLATION)
-    return door_conversion.listing(conn, dev_mode=bool(settings_of(request).dev_user))
+    # REVIEW-2490-FIXES-2500: the hand-over preview names an unnamed schedule's window in the reader's language (as the hand-over does)
+    return door_conversion.listing(conn, dev_mode=bool(settings_of(request).dev_user), lang=dn.lang_of(conn, principal))
 
 
 class DoorConversionBody(BaseModel):

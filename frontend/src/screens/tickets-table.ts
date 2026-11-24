@@ -368,7 +368,9 @@ export class TicketsTable extends LitElement {
     void this.load(false);
   }
 
-  private async load(more: boolean, silent = false): Promise<void> {
+  /** `auto` (REVIEW-2490-FIXES-2500): the table's own follow-up load after a short page, not a pressed "load more" - it keeps the page
+   * the operator is on instead of jumping to its first new row. */
+  private async load(more: boolean, silent = false, auto = false): Promise<void> {
     const seq = ++this.seq;
     if (more) this.loadingMore = true;
     else if (!silent) {
@@ -382,7 +384,9 @@ export class TicketsTable extends LitElement {
       const prev = more ? this.rows ?? [] : [];
       const seen = new Set(prev.map((r) => r.id));
       this.rows = [...prev, ...page.items.filter((r) => !seen.has(r.id))];
-      if (more) this.fit.reveal(prev.length); // TICKETS-PAGING-2490: "load more" shows the page of its first new row
+      // TICKETS-PAGING-2490: a pressed "load more" shows the page of its first new row (REVIEW-2490-FIXES-2500: the automatic follow-up
+      // load does not - the table opened on page 1 stays on page 1)
+      if (more && !auto) this.fit.reveal(prev.length);
       this.next = page.next_cursor;
       this.pages = more ? this.pages + 1 : 1;
       // the selection keeps what is still on the screen (a poll, a filter change)
@@ -390,7 +394,7 @@ export class TicketsTable extends LitElement {
       if ([...this.selected].some((id) => !ids.has(id))) this.selected = new Set([...this.selected].filter((id) => ids.has(id)));
       this.screen = 'ready';
       // a short page with a cursor (the server's scan budget under the visibility check): keep loading until the page is full
-      if (page.next_cursor && page.items.length < Math.min(10, this.layout.limit) && !silent) void this.load(true);
+      if (page.next_cursor && page.items.length < Math.min(10, this.layout.limit) && !silent) void this.load(true, false, true);
     } catch (e) {
       if (seq !== this.seq) return;
       if (!more && !silent) {
