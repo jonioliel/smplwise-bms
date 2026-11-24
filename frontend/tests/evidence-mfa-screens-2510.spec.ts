@@ -164,13 +164,13 @@ test('users & permissions › second factor: read-only for a holder of rbac.assi
   await expect(tab.locator('sw-toggle[data-fp-wall]')).toHaveAttribute('disabled', '');
 });
 
-test('user drawer: the factors list and the policy verdict; a user with passkeys but no authenticator code can be reset', async ({ page }) => {
+test('user drawer: the factors list and the policy verdict; the authenticator row keeps its own reset', async ({ page }) => {
   skipTablet();
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  const mock = await installMfaMock(page);
-  let drawer = await openUserDrawer(page, 'דנה כהן');
-  let f = drawer.locator('sw-user-factors');
+  await installMfaMock(page);
+  const drawer = await openUserDrawer(page, 'דנה כהן');
+  const f = drawer.locator('sw-user-factors');
   await expect(f.locator('[data-uf="passkeys"]')).toContainText('1');
   await expect(f.locator('[data-uf="device-keys"]')).toContainText('2');
   await expect(f.locator('[data-uf="recovery"]')).toContainText('7 מתוך 10');
@@ -179,10 +179,16 @@ test('user drawer: the factors list and the policy verdict; a user with passkeys
   await expect(f.locator('[data-sf-admin-state]')).toContainText('פעיל'); // the authenticator row (its own reset)
   await expect(f.locator('[data-uf-reset]')).toHaveCount(0);
   expect(await axe(page, ['sw-user-factors'])).toEqual([]);
+  expect(errors).toEqual([]);
+});
 
-  await page.keyboard.press('Escape');
-  drawer = await openUserDrawer(page, 'רון לוי');
-  f = drawer.locator('sw-user-factors');
+test('user drawer: a user with passkeys but no authenticator code - the reset, with the administrator own code', async ({ page }) => {
+  skipTablet();
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const mock = await installMfaMock(page);
+  const drawer = await openUserDrawer(page, 'רון לוי');
+  const f = drawer.locator('sw-user-factors');
   await expect(f.locator('[data-uf="passkeys"]')).toContainText('2');
   await expect(f.locator('[data-uf="policy"]')).toContainText('חובה');
   await expect(f.locator('[data-sf-admin-state]')).toContainText('כבוי');
