@@ -35,7 +35,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from .. import guarded_route
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import Principal
 from ..remote_channel import is_remote
 from ..services import device_attestation as da
@@ -98,7 +98,7 @@ def challenge(body: ChallengeBody, request: Request, principal: Principal = Depe
         raise ApiError(409, "step_up_no_session", step_up.NO_SESSION_HE)
     if body.purpose == dk.PURPOSE_STEP_UP:
         if not body.key_id:
-            raise ApiError(422, "validation", dk.UNKNOWN_HE, details={"field": "key_id"})
+            raise field_error(dk.UNKNOWN_HE, ["key_id"], legacy={"field": "key_id"})  # ADR-019 family 3 (device), RELEASE-2510-TRAIN
         if not dk.has_active(conn, principal.user_id):
             raise ApiError(409, "step_up_no_method", dk.NO_KEY_HE)
         cid, text, ttl = dk.issue(dk.PURPOSE_STEP_UP, origin, user_id=principal.user_id, key_id=body.key_id, action=body.action, session=session)
