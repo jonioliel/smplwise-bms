@@ -64,9 +64,32 @@ class RecorderPrefill(ExactModel):
     name: str = None
 
 
+class MediaProfile(ExactModel):
+    """ONVIF-CLIENT-2500: one video profile of an identified camera (Media2 or Media1 `GetProfiles`). `stream` says whether its
+    stream address can be used (`ok`) or why not (`other_host`, `not_rtsp`, `bad_shape`, `no_answer`, `not_read`); `uri_masked`
+    is that address as the camera gave it, never with credentials (a secret-looking query value masked)."""
+    token: str
+    name: str | None
+    codec: Literal["h264", "h265", "mjpeg", "mpeg4", "other"] | None
+    width: int | None
+    height: int | None
+    fps: int | None
+    stream: Literal["bad_shape", "no_answer", "not_read", "not_rtsp", "ok", "other_host"]
+    uri_masked: str | None
+
+
+class SuggestedProfiles(ExactModel):
+    """Design 4.2 step 3: main = the highest-resolution H.264 / H.265 profile, sub = the lowest one at least 320 px wide (null: one
+    address serves both / nothing usable)."""
+    main: str | None
+    sub: str | None
+
+
 class FoundDevice(ExactModel):
     """One device the scan found (job-local id). `auth` is the outcome of the last identification press:
-    not_tried | ok | wrong_password | digest_required | locked_guard | busy | skipped | no_answer | not_onvif."""
+    not_tried | ok | wrong_password | digest_required | locked_guard | busy | skipped | no_answer | not_onvif.
+    ONVIF-CLIENT-2500: after an `ok` press of an addable camera, `media` / `profiles` / `suggested` / `snapshot` describe its video
+    (cleared with the credentials: cancel, expiry, a refused press, an added camera)."""
     id: str
     address: str
     port: int | None
@@ -85,6 +108,13 @@ class FoundDevice(ExactModel):
     auth: Literal["busy", "digest_required", "locked_guard", "no_answer", "not_onvif", "not_tried", "ok", "skipped", "wrong_password"]
     has_service: bool
     recorder_prefill: RecorderPrefill = None
+    media: Literal["media", "media2", "none"]
+    auth_mode: Literal["digest", "wsse"] = None
+    """How the camera accepted the pair: WS-Security PasswordDigest, or HTTP Digest (asked for by the camera; answered once)."""
+    profiles: list[MediaProfile]
+    suggested: SuggestedProfiles
+    snapshot: bool
+    """The camera named a snapshot address on itself (not used for the preview, which goes through the stream test)."""
 
 
 class ScanSummary(ExactModel):
@@ -116,3 +146,23 @@ class ScanCancelled(ExactModel):
 class IdentifyResult(ExactModel):
     """`POST /cameras/discovery/scans/{scan_id}/identify`: the pressed devices after their one attempt each."""
     devices: list[FoundDevice]
+
+
+class AddedCamera(ExactModel):
+    device_id: str
+    camera_id: str
+
+
+class AddFailure(ExactModel):
+    """A camera that was not added: `code` (behind_recorder, is_recorder, already_added, not_identified, no_stream,
+    profile_unknown, device_unknown, device_duplicate, or the camera-source refusal - standalone_limit, source_not_allowed,
+    name_required, area_invalid...) and its fixed Hebrew text."""
+    device_id: str
+    code: str
+    message: str
+
+
+class AddResult(ExactModel):
+    """ONVIF-CLIENT-2500 `POST /cameras/discovery/scans/{scan_id}/add`: one camera at a time, partial success reported."""
+    added: list[AddedCamera]
+    failed: list[AddFailure]

@@ -8,6 +8,17 @@
   nonce + created + password, `Created` within CLOCK_SKEW_S of the DEVICE's clock) and can lock its account after N failures.
   Any other action answers a SOAP fault (and is recorded: the tests assert none is ever sent).
 
+ONVIF-CLIENT-2500 extended the device service to what the fuller client reads, still all from the specification shapes:
+- HTTP Digest (RFC 7616, MD5 or SHA-256, qop=auth): a `digest_only` device answers a WS-Security request with 401 and a Digest
+  challenge, and accepts a request whose `Authorization: Digest` answers a nonce it issued (`stale_after` ages a nonce);
+- `GetServices` (or, when `services=False`, an ActionNotSupported fault and the `GetCapabilities` answer) naming the Media
+  (`/onvif/Media`) and / or Media2 (`/onvif/Media2`) service - `media_host` points them at another host (the SSRF guard);
+- Media1 and Media2 `GetProfiles` (video encoder: codec, resolution, frame rate), `GetStreamUri` (RTSP; `stream_host` puts the
+  address on another host, `stream_uris` overrides it per token) and `GetSnapshotUri`;
+- `info_open`: GetDeviceInformation answered without checking the credentials (some firmwares), the media reads still checked;
+  `media_refused`: the account may not read media.
+Every request is recorded per device: `actions` (action names), `calls` ((service path, action, auth method)).
+
 The answers are built from the ONVIF / WS-Discovery specification shapes with made-up values (a made-up 10.77.0.0/24 network,
 made-up serials and endpoint ids) - nothing is captured from the lab."""
 from __future__ import annotations
@@ -16,6 +27,7 @@ import base64
 import datetime as dt
 import hashlib
 import re
+import secrets
 import threading
 import time
 from dataclasses import dataclass, field
@@ -26,6 +38,16 @@ CLOCK_SKEW_S = 5.0
 NS_ENV = "http://www.w3.org/2003/05/soap-envelope"
 NS_A = "http://schemas.xmlsoap.org/ws/2004/08/addressing"
 NS_D = "http://schemas.xmlsoap.org/ws/2005/04/discovery"
+NS_MEDIA = "http://www.onvif.org/ver10/media/wsdl"
+NS_MEDIA2 = "http://www.onvif.org/ver20/media/wsdl"
+REALM = "fake-onvif"
+PATHS = {"/onvif/device_service": "device", "/onvif/Media": "media", "/onvif/Media2": "media2"}
+
+
+def default_profiles() -> list[dict]:
+    """A Hikvision-like camera: a 2560x1440 main stream and a 640x360 sub stream, both H.264."""
+    return [{"token": "Profile_1", "name": "mainStream", "encoding": "H264", "width": 2560, "height": 1440, "fps": 25},
+            {"token": "Profile_2", "name": "subStream", "encoding": "H264", "width": 640, "height": 360, "fps": 15}]
 
 
 @dataclass
@@ -45,11 +67,24 @@ class FakeOnvifDevice:
     answers_http: bool = True
     relates: str = "ok"  # ok | missing | other
     digest_only: bool = False  # answers 401 + an HTTP Digest challenge to a WS-Security request
+    digest_algorithm: str = "MD5"  # MD5 | SHA-256
+    stale_after: int | None = None  # a Digest nonce is answered `stale=true` after this many uses
     lock_after: int | None = None  # the account locks after this many failed logins
+    info_open: bool = False  # GetDeviceInformation without checking the credentials
+    media_refused: bool = False  # the media reads are refused (an account without the media right)
+    services: bool = True  # GetServices supported (else the client falls back to GetCapabilities)
+    media1: bool = True
+    media2: bool = False
+    media_host: str | None = None  # the media services announced on another host
+    stream_host: str | None = None  # the stream addresses on another host
+    stream_uris: dict[str, str] = field(default_factory=dict)  # token -> the stream address the camera gives
+    profiles: list[dict] = field(default_factory=default_profiles)
     failures: int = 0
     probes: int = 0
     auth_requests: int = 0
     actions: list[str] = field(default_factory=list)
+    calls: list[tuple[str, str, str]] = field(default_factory=list)  # (service, action, auth: wsse | digest | none)
+    nonces: dict[str, int] = field(default_factory=dict)  # issued Digest nonces -> uses
 
     def xaddr(self) -> str:
         return self.xaddrs if self.xaddrs is not None else f"http://{self.address}/onvif/device_service"
@@ -129,8 +164,8 @@ class FakeNetwork:
     def http(self, request: httpx.Request) -> httpx.Response:
         host = request.url.host
         body = request.content.decode("utf-8", "replace")
-        m = re.search(r"<tds:(\w+)\s*/>", body)
-        action = m.group(1) if m else "?"
+        m = re.search(r"<s:Body>\s*<(\w+):(\w+)", body)
+        action = m.group(2) if m else "?"
         with self.lock:
             self.http_requests.append((host, action))
             self.http_in_flight += 1
@@ -141,32 +176,137 @@ class FakeNetwork:
             dev = self.devices.get(host)
             if dev is None or not dev.answers_http:
                 raise httpx.ConnectError("no route", request=request)
+            service = PATHS.get(request.url.path, "?")
+            authz = request.headers.get("authorization") or ""
             dev.actions.append(action)
+            dev.calls.append((service, action, "digest" if authz.startswith("Digest ") else ("wsse" if "<wsse:Security" in body else "none")))
             now = dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=dev.clock_offset_s)
-            if action == "GetSystemDateAndTime":
+            if service == "device" and action == "GetSystemDateAndTime":
                 return _soap(200, f"<tds:GetSystemDateAndTimeResponse><tds:SystemDateAndTime><tt:DateTimeType>NTP</tt:DateTimeType>"
                                   f"<tt:UTCDateTime><tt:Date><tt:Year>{now.year}</tt:Year><tt:Month>{now.month}</tt:Month><tt:Day>{now.day}</tt:Day></tt:Date>"
                                   f"<tt:Time><tt:Hour>{now.hour}</tt:Hour><tt:Minute>{now.minute}</tt:Minute><tt:Second>{now.second}</tt:Second></tt:Time>"
                                   f"</tt:UTCDateTime></tds:SystemDateAndTime></tds:GetSystemDateAndTimeResponse>")
-            if action != "GetDeviceInformation":
+            known = {"device": ("GetDeviceInformation", "GetServices", "GetCapabilities"),
+                     "media": ("GetProfiles", "GetStreamUri", "GetSnapshotUri") if dev.media1 else (),
+                     "media2": ("GetProfiles", "GetStreamUri", "GetSnapshotUri") if dev.media2 else ()}
+            if action not in known.get(service, ()) or (action == "GetServices" and not dev.services):
                 return _fault(400, "ter:ActionNotSupported")
-            dev.auth_requests += 1
-            if dev.digest_only:
-                return httpx.Response(401, headers={"WWW-Authenticate": 'Digest realm="cam", nonce="abc", qop="auth"'})
-            if dev.lock_after is not None and dev.failures >= dev.lock_after:
-                return _fault(400, "ter:NotAuthorized")  # locked: even the right password is refused
-            if not _digest_ok(body, dev, now):
-                dev.failures += 1
-                return _fault(400, "ter:NotAuthorized")
-            return _soap(200, f"<tds:GetDeviceInformationResponse><tds:Manufacturer>{dev.manufacturer}</tds:Manufacturer><tds:Model>{dev.model}</tds:Model>"
-                              f"<tds:FirmwareVersion>V5.7.3 build 220112</tds:FirmwareVersion><tds:SerialNumber>{dev.serial}</tds:SerialNumber>"
-                              f"<tds:HardwareId>88</tds:HardwareId></tds:GetDeviceInformationResponse>")
+            if action == "GetDeviceInformation":
+                dev.auth_requests += 1
+            if not (action == "GetDeviceInformation" and dev.info_open):
+                denied = self._authenticate(request, body, dev, now, authz)
+                if denied is not None:
+                    return denied
+                if dev.media_refused and service != "device":
+                    dev.failures += 1
+                    return _fault(400, "ter:NotAuthorized")
+            return self._answer(dev, service, action, body)
         finally:
             with self.lock:
                 self.http_in_flight -= 1
 
+    def _authenticate(self, request: httpx.Request, body: str, dev: FakeOnvifDevice, now: dt.datetime, authz: str) -> httpx.Response | None:
+        """None when the request carries the right credentials; else the camera's refusal (and a failed login counted)."""
+        if dev.lock_after is not None and dev.failures >= dev.lock_after:
+            return _fault(400, "ter:NotAuthorized")  # locked: even the right password is refused
+        if authz.startswith("Digest "):
+            verdict = _http_digest_ok(authz, dev, request.url.raw_path.decode("ascii"))
+            if verdict == "ok":
+                return None
+            if verdict == "stale":
+                return self._challenge(dev, stale=True)
+            dev.failures += 1
+            return self._challenge(dev)
+        if dev.digest_only:
+            return self._challenge(dev)  # HTTP authentication first: the WS-Security header is not even read (not a failed login)
+        if not _digest_ok(body, dev, now):
+            dev.failures += 1
+            return _fault(400, "ter:NotAuthorized")
+        return None
+
+    @staticmethod
+    def _challenge(dev: FakeOnvifDevice, stale: bool = False) -> httpx.Response:
+        nonce = secrets.token_hex(12)
+        dev.nonces[nonce] = 0
+        algo = "" if dev.digest_algorithm == "MD5" else f", algorithm={dev.digest_algorithm}"
+        return httpx.Response(401, headers={"WWW-Authenticate": f'Digest realm="{REALM}", qop="auth", nonce="{nonce}", opaque="op-77"{algo}'
+                                                                f'{", stale=true" if stale else ""}'})
+
+    def _answer(self, dev: FakeOnvifDevice, service: str, action: str, body: str) -> httpx.Response:
+        a = dev.address
+        if action == "GetDeviceInformation":
+            return _soap(200, f"<tds:GetDeviceInformationResponse><tds:Manufacturer>{dev.manufacturer}</tds:Manufacturer><tds:Model>{dev.model}</tds:Model>"
+                              f"<tds:FirmwareVersion>V5.7.3 build 220112</tds:FirmwareVersion><tds:SerialNumber>{dev.serial}</tds:SerialNumber>"
+                              f"<tds:HardwareId>88</tds:HardwareId></tds:GetDeviceInformationResponse>")
+        mh = dev.media_host or a
+        if action == "GetServices":
+            svcs = [("http://www.onvif.org/ver10/device/wsdl", f"http://{a}/onvif/device_service")]
+            if dev.media1:
+                svcs.append((NS_MEDIA, f"http://{mh}/onvif/Media"))
+            if dev.media2:
+                svcs.append((NS_MEDIA2, f"http://{mh}/onvif/Media2"))
+            inner = "".join(f"<tds:Service><tds:Namespace>{ns}</tds:Namespace><tds:XAddr>{x}</tds:XAddr><tds:Version><tt:Major>2</tt:Major>"
+                            f"<tt:Minor>60</tt:Minor></tds:Version></tds:Service>" for ns, x in svcs)
+            return _soap(200, f"<tds:GetServicesResponse>{inner}</tds:GetServicesResponse>")
+        if action == "GetCapabilities":
+            media = f"<tt:Media><tt:XAddr>http://{mh}/onvif/Media</tt:XAddr></tt:Media>" if dev.media1 else ""
+            return _soap(200, f"<tds:GetCapabilitiesResponse><tds:Capabilities><tt:Device><tt:XAddr>http://{a}/onvif/device_service</tt:XAddr></tt:Device>"
+                              f"{media}</tds:Capabilities></tds:GetCapabilitiesResponse>")
+        p = "tr2" if service == "media2" else "trt"
+        token = re.search(r"ProfileToken>([^<]*)<", body)
+        tok = token.group(1) if token else None
+        if action == "GetProfiles":
+            out = []
+            for prof in dev.profiles:
+                enc = (f"<tt:Name>{prof['token']}-enc</tt:Name><tt:UseCount>1</tt:UseCount><tt:Encoding>{prof['encoding']}</tt:Encoding>"
+                       f"<tt:Resolution><tt:Width>{prof['width']}</tt:Width><tt:Height>{prof['height']}</tt:Height></tt:Resolution>"
+                       f"<tt:RateControl><tt:FrameRateLimit>{prof['fps']}</tt:FrameRateLimit><tt:BitrateLimit>2048</tt:BitrateLimit></tt:RateControl>")
+                if service == "media2":
+                    out.append(f'<tr2:Profiles token="{prof["token"]}" fixed="true"><tr2:Name>{prof["name"]}</tr2:Name><tr2:Configurations>'
+                               f'<tr2:VideoEncoder token="VE-{prof["token"]}" GovLength="50">{enc}</tr2:VideoEncoder></tr2:Configurations></tr2:Profiles>')
+                else:
+                    out.append(f'<trt:Profiles token="{prof["token"]}" fixed="true"><tt:Name>{prof["name"]}</tt:Name>'
+                               f'<tt:VideoEncoderConfiguration token="VE-{prof["token"]}">{enc}</tt:VideoEncoderConfiguration></trt:Profiles>')
+            return _soap(200, f"<{p}:GetProfilesResponse>{''.join(out)}</{p}:GetProfilesResponse>")
+        idx = next((i for i, prof in enumerate(dev.profiles) if prof["token"] == tok), None)
+        if idx is None:
+            return _fault(400, "ter:NoProfile")
+        if action == "GetStreamUri":
+            uri = dev.stream_uris.get(tok) or f"rtsp://{dev.stream_host or a}:554/Streaming/Channels/1{idx + 1:02d}?transportmode=unicast"
+            uri = uri.replace("&", "&amp;")
+            if service == "media2":
+                return _soap(200, f"<tr2:GetStreamUriResponse><tr2:Uri>{uri}</tr2:Uri></tr2:GetStreamUriResponse>")
+            return _soap(200, f"<trt:GetStreamUriResponse><trt:MediaUri><tt:Uri>{uri}</tt:Uri><tt:InvalidAfterConnect>false</tt:InvalidAfterConnect>"
+                              f"<tt:InvalidAfterReboot>false</tt:InvalidAfterReboot><tt:Timeout>PT0S</tt:Timeout></trt:MediaUri></trt:GetStreamUriResponse>")
+        snap = f"http://{a}/onvif-http/snapshot?Profile_{idx + 1}"
+        if service == "media2":
+            return _soap(200, f"<tr2:GetSnapshotUriResponse><tr2:Uri>{snap}</tr2:Uri></tr2:GetSnapshotUriResponse>")
+        return _soap(200, f"<trt:GetSnapshotUriResponse><trt:MediaUri><tt:Uri>{snap}</tt:Uri></trt:MediaUri></trt:GetSnapshotUriResponse>")
+
     def transport(self) -> httpx.MockTransport:
         return httpx.MockTransport(self.http)
+
+
+def _http_digest_ok(authz: str, dev: FakeOnvifDevice, path: str) -> str:
+    """ok | stale | bad - the camera's check of an `Authorization: Digest` header (RFC 7616, qop=auth)."""
+    params = {k.lower(): (q if q else b) for k, q, b in re.findall(r'(\w+)=(?:"([^"]*)"|([^\s,]+))', authz[len("Digest "):])}
+    nonce = params.get("nonce", "")
+    if params.get("username") != dev.username or params.get("realm") != REALM or nonce not in dev.nonces or params.get("uri") != path:
+        return "bad"
+    fn = hashlib.sha256 if dev.digest_algorithm == "SHA-256" else hashlib.md5
+
+    def h(s: str) -> str:
+        return fn(s.encode()).hexdigest()
+
+    ha1 = h(f"{dev.username}:{REALM}:{dev.password}")
+    ha2 = h(f"POST:{path}")
+    want = h(f"{ha1}:{nonce}:{params.get('nc')}:{params.get('cnonce')}:auth:{ha2}")
+    if params.get("qop") != "auth" or params.get("response") != want or params.get("opaque") != "op-77":
+        return "bad"
+    dev.nonces[nonce] += 1
+    if dev.stale_after is not None and dev.nonces[nonce] > dev.stale_after:
+        return "stale"
+    return "ok"
 
 
 def _digest_ok(body: str, dev: FakeOnvifDevice, device_now: dt.datetime) -> bool:
@@ -185,12 +325,17 @@ def _digest_ok(body: str, dev: FakeOnvifDevice, device_now: dt.datetime) -> bool
 
 def _soap(status: int, inner: str) -> httpx.Response:
     return httpx.Response(status, content=(f'<?xml version="1.0" encoding="UTF-8"?><env:Envelope xmlns:env="{NS_ENV}" '
-                                           f'xmlns:tds="http://www.onvif.org/ver10/device/wsdl" xmlns:tt="http://www.onvif.org/ver10/schema">'
+                                           f'xmlns:tds="http://www.onvif.org/ver10/device/wsdl" xmlns:tt="http://www.onvif.org/ver10/schema" '
+                                           f'xmlns:trt="{NS_MEDIA}" xmlns:tr2="{NS_MEDIA2}">'
                                            f"<env:Body>{inner}</env:Body></env:Envelope>").encode("utf-8"),
                           headers={"Content-Type": "application/soap+xml; charset=utf-8"})
 
 
+FAULT_TEXT = {"ter:NotAuthorized": "Sender not Authorized", "ter:ActionNotSupported": "Optional Action Not Implemented",
+              "ter:NoProfile": "The requested profile token does not exist"}
+
+
 def _fault(status: int, subcode: str) -> httpx.Response:
     return _soap(status, f'<env:Fault><env:Code><env:Value>env:Sender</env:Value><env:Subcode><env:Value xmlns:ter="http://www.onvif.org/ver10/error">'
-                         f"{subcode}</env:Value></env:Subcode></env:Code><env:Reason><env:Text xml:lang=\"en\">Sender not Authorized</env:Text>"
+                         f"{subcode}</env:Value></env:Subcode></env:Code><env:Reason><env:Text xml:lang=\"en\">{FAULT_TEXT[subcode]}</env:Text>"
                          f"</env:Reason></env:Fault>")

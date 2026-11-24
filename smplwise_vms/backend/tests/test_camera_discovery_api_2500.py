@@ -126,7 +126,7 @@ def test_every_route_has_an_exact_wire_model_and_the_generated_types_name_it():
     keys = [k for k, _r in _routes()]
     assert keys == ["GET /cameras/discovery/capabilities", "GET /cameras/discovery/scans", "POST /cameras/discovery/scans",
                     "GET /cameras/discovery/scans/{scan_id}", "DELETE /cameras/discovery/scans/{scan_id}",
-                    "POST /cameras/discovery/scans/{scan_id}/identify"]
+                    "POST /cameras/discovery/scans/{scan_id}/identify", "POST /cameras/discovery/scans/{scan_id}/add"]  # add: ONVIF-CLIENT-2500
     for key, r in _routes():
         models = gen.wire_models(r.response_model)
         assert models and r.response_model_exclude_unset, key
@@ -233,6 +233,7 @@ def test_cancel_forgets_the_scan_for_identification(env):
     ("GET", "/scans/{sid}", None),
     ("DELETE", "/scans/{sid}", None),
     ("POST", "/scans/{sid}/identify", {"device_ids": ["d1"], "username": USER, "password": PASSWORD}),
+    ("POST", "/scans/{sid}/add", {"cameras": [{"device_id": "d1"}]}),  # ONVIF-CLIENT-2500
 ])
 def test_every_route_needs_system_configure_and_the_refusal_is_audited(env, method, path, body):
     job = start(env).json()
@@ -246,7 +247,7 @@ def test_every_route_needs_system_configure_and_the_refusal_is_audited(env, meth
     assert all(d.auth_requests == 0 for d in env.net.devices.values())
 
 
-@pytest.mark.parametrize("path", ["/scans", "/scans/{sid}/identify"])
+@pytest.mark.parametrize("path", ["/scans", "/scans/{sid}/identify", "/scans/{sid}/add"])
 def test_a_refused_caller_gets_the_403_before_the_body_is_read(env, path):
     job = start(env).json()
     env.c.get("/api/v1/me", headers=as_user("guard"))
