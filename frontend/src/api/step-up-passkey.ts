@@ -13,7 +13,7 @@ export type StepUpChallenge = PkWire.StepUpChallenge;
 export type StepUpProof = SfWire.StepUpProof;
 
 /** What a 403 `step_up_required` carries (the central gate, or a factor change of My Account). */
-export interface StepUpNeed {
+interface StepUpNeed {
   action?: string;
   methods?: string[];
   minutes?: number;
@@ -21,9 +21,9 @@ export interface StepUpNeed {
   challenge_path?: string;
 }
 
-export const stepUpChallenge = (action?: string) => post<StepUpChallenge>('auth/step-up/challenge', action ? { action } : {});
+const stepUpChallenge = (action?: string) => post<StepUpChallenge>('auth/step-up/challenge', action ? { action } : {});
 
-export const verifyPasskeyStepUp = (challengeId: string, assertion: Record<string, unknown>, action?: string) =>
+const verifyPasskeyStepUp = (challengeId: string, assertion: Record<string, unknown>, action?: string) =>
   post<StepUpProof>('auth/step-up/verify', { method: 'passkey', challenge_id: challengeId, assertion, ...(action ? { action } : {}) });
 
 /** MFA-TRAIN-2500: the code proof is slice 2's `verifyStepUp` (./second-factor.ts) - one call, two names. */

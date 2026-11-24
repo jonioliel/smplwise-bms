@@ -42,7 +42,6 @@
       "src/api/notices.ts#removeCompanyLogo",
       "src/api/notices.ts#uploadCompanyLogo",
       "src/api/partners.ts#updateEndpoint",
-      "src/api/passkeys.ts#renamePasskey",
       "src/api/plan-catalog.ts#updateItem",
       "src/api/plans.ts#getVersion",
       "src/api/presence.ts#myPresenceGate",
