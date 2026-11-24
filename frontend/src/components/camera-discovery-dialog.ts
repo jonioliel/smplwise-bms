@@ -24,6 +24,7 @@ import './sw-field';
 import './sw-icon';
 import './sw-pager';
 import './sw-steps';
+import { toggled } from './sw-toggle'; // the "same user for all" switch (HAND-SWITCH-2480 pattern, DESIGN-LITERALS-2510)
 import {
   addDiscovered,
   cancelScan,
@@ -135,7 +136,7 @@ export class CameraDiscoveryDialog extends LitElement {
     }
     .body {
       display: grid;
-      gap: 12px;
+      gap: var(--sw-s-3);
       min-inline-size: 0;
     }
     sw-steps {
@@ -166,15 +167,15 @@ export class CameraDiscoveryDialog extends LitElement {
     .cols {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 12px 16px;
+      gap: var(--sw-s-3) var(--sw-s-4);
       align-items: start;
     }
     .panel {
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-md);
-      padding: 12px 14px;
+      padding: var(--sw-s-3) var(--sw-s-3h);
       display: grid;
-      gap: 8px;
+      gap: var(--sw-s-2);
       background: var(--sw-surface);
     }
     .panel h4 {
@@ -199,8 +200,8 @@ export class CameraDiscoveryDialog extends LitElement {
     .chip {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      padding: 2px 8px;
+      gap: var(--sw-s-1);
+      padding: 2px var(--sw-s-2);
       border-radius: 999px;
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-semibold);
@@ -252,7 +253,7 @@ export class CameraDiscoveryDialog extends LitElement {
     }
     .stats {
       display: flex;
-      gap: 18px;
+      gap: var(--sw-s-4h);
       flex-wrap: wrap;
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
@@ -266,9 +267,9 @@ export class CameraDiscoveryDialog extends LitElement {
     .list-head {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: var(--sw-s-2);
       flex-wrap: wrap;
-      padding: 8px 12px;
+      padding: var(--sw-s-2) var(--sw-s-3);
       border-block-end: 1px solid var(--sw-border);
     }
     .list-head h4 {
@@ -283,7 +284,7 @@ export class CameraDiscoveryDialog extends LitElement {
       grid-template-columns: auto auto minmax(0, 1.2fr) minmax(0, 1.3fr) auto;
       gap: 10px;
       align-items: center;
-      padding: 9px 12px;
+      padding: 9px var(--sw-s-3);
       border-block-start: 1px solid var(--sw-border);
       min-block-size: 44px;
     }
@@ -295,8 +296,8 @@ export class CameraDiscoveryDialog extends LitElement {
       font-weight: var(--sw-fw-medium, 500);
     }
     .dev input[type='checkbox'] {
-      inline-size: 18px;
-      block-size: 18px;
+      inline-size: var(--sw-check-size);
+      block-size: var(--sw-check-size);
       margin: 0;
       accent-color: var(--sw-accent);
     }
@@ -317,7 +318,7 @@ export class CameraDiscoveryDialog extends LitElement {
     .d {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
+      gap: var(--sw-s-1h);
       align-items: center;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
@@ -332,23 +333,23 @@ export class CameraDiscoveryDialog extends LitElement {
     }
     .end {
       display: flex;
-      gap: 6px;
+      gap: var(--sw-s-1h);
       flex-wrap: wrap;
       justify-content: flex-end;
       align-items: center;
     }
     .pw {
       display: flex;
-      gap: 6px;
+      gap: var(--sw-s-1h);
       align-items: center;
     }
     .pw input {
       inline-size: 160px;
-      min-block-size: var(--sw-ctl-h-md, 36px);
+      min-block-size: var(--sw-ctl-h-md);
       box-sizing: border-box;
       border: 1px solid var(--sw-border-strong, var(--sw-border));
       border-radius: var(--sw-r-sm);
-      padding: 0 8px;
+      padding: 0 var(--sw-s-2);
       background: var(--sw-surface);
       color: var(--sw-text);
       font: inherit;
@@ -382,17 +383,11 @@ export class CameraDiscoveryDialog extends LitElement {
     }
     .check {
       display: flex;
-      gap: 8px;
+      gap: var(--sw-s-2);
       align-items: center;
       font-size: var(--sw-fs-sm);
       min-block-size: 32px;
       cursor: pointer;
-    }
-    .check input {
-      inline-size: 18px;
-      block-size: 18px;
-      margin: 0;
-      accent-color: var(--sw-accent);
     }
     .foot-line {
       display: flex;
@@ -408,7 +403,7 @@ export class CameraDiscoveryDialog extends LitElement {
       justify-items: center;
       text-align: center;
       gap: 10px;
-      padding: 16px 8px;
+      padding: var(--sw-s-4) var(--sw-s-2);
     }
     .empty h4 {
       margin: 0;
@@ -417,26 +412,26 @@ export class CameraDiscoveryDialog extends LitElement {
     }
     .empty ul {
       margin: 0;
-      padding-inline-start: 18px;
+      padding-inline-start: var(--sw-s-4h);
       text-align: start;
       display: grid;
-      gap: 6px;
+      gap: var(--sw-s-1h);
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
       max-inline-size: 520px;
     }
     .btns {
       display: flex;
-      gap: 8px;
+      gap: var(--sw-s-2);
       flex-wrap: wrap;
       justify-content: center;
     }
     .addrow {
       display: grid;
       grid-template-columns: 132px minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.6fr);
-      gap: 12px;
+      gap: var(--sw-s-3);
       align-items: start;
-      padding: 10px 12px;
+      padding: 10px var(--sw-s-3);
       border-block-start: 1px solid var(--sw-border);
     }
     .addrow:first-child {
@@ -445,7 +440,7 @@ export class CameraDiscoveryDialog extends LitElement {
     .streams {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 8px;
+      gap: var(--sw-s-2);
     }
     .thumb {
       inline-size: 132px;
@@ -470,9 +465,9 @@ export class CameraDiscoveryDialog extends LitElement {
     }
     .result {
       display: flex;
-      gap: 12px;
+      gap: var(--sw-s-3);
       align-items: center;
-      padding: 12px 14px;
+      padding: var(--sw-s-3) var(--sw-s-3h);
       border-radius: var(--sw-r-md);
       border: 1px solid var(--sw-border);
     }
@@ -486,9 +481,9 @@ export class CameraDiscoveryDialog extends LitElement {
     .resrow {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
-      gap: 4px 10px;
+      gap: var(--sw-s-1) 10px;
       align-items: center;
-      padding: 8px 12px;
+      padding: var(--sw-s-2) var(--sw-s-3);
       border-block-start: 1px solid var(--sw-border);
     }
     .resrow:first-child {
@@ -506,7 +501,7 @@ export class CameraDiscoveryDialog extends LitElement {
     .foot {
       flex: 1;
       display: flex;
-      gap: 8px;
+      gap: var(--sw-s-2);
       align-items: center;
       justify-content: flex-end;
       flex-wrap: wrap;
@@ -535,8 +530,8 @@ export class CameraDiscoveryDialog extends LitElement {
       }
       .dev {
         grid-template-columns: auto minmax(0, 1fr) auto;
-        gap: 4px 10px;
-        padding: 8px 10px;
+        gap: var(--sw-s-1) 10px;
+        padding: var(--sw-s-2) 10px;
       }
       .dev > sw-icon {
         display: none;
@@ -565,8 +560,8 @@ export class CameraDiscoveryDialog extends LitElement {
       }
       .addrow {
         grid-template-columns: 112px minmax(0, 1fr);
-        gap: 8px 10px;
-        padding: 8px 10px;
+        gap: var(--sw-s-2) 10px;
+        padding: var(--sw-s-2) 10px;
       }
       .addrow .thumb {
         inline-size: 112px;
@@ -578,7 +573,7 @@ export class CameraDiscoveryDialog extends LitElement {
         grid-template-columns: 1fr; /* a full-width select keeps the whole "2688×1520 · H.265" label */
       }
       .list-head {
-        padding: 6px 10px;
+        padding: var(--sw-s-1h) 10px;
       }
     }
   `;
@@ -1076,8 +1071,8 @@ export class CameraDiscoveryDialog extends LitElement {
             @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') this.identifyAll(); }} /></sw-field>
           <sw-button variant="primary" icon="lock" ?disabled=${!!block || busy} data-discovery-identify @click=${() => this.identifyAll()}>
             ${busy ? cdt('identifying') : targets.length > 1 ? cdt('identify', { n: targets.length }) : targets.length ? cdt('identifyOne') : cdt('stepIdentify')}</sw-button>
-          <label class="check"><input type="checkbox" .checked=${this.sameForAll} data-discovery-same
-            @change=${(e: Event) => (this.sameForAll = (e.target as HTMLInputElement).checked)} />${cdt('sameForAll')}</label>
+          <label class="check"><sw-toggle size="sm" labelHidden in-label label=${cdt('sameForAll')} .checked=${this.sameForAll} data-discovery-same
+            @change=${(e: Event) => (this.sameForAll = toggled(e))}></sw-toggle>${cdt('sameForAll')}</label>
         </div>
         <p class="help hide-phone">${cdt('sameForAllNote')}</p>
         ${blockText ? html`<p class="msg tone-warn" data-discovery-block=${block}>${blockText}</p>` : nothing}
