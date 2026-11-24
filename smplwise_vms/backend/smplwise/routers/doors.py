@@ -506,7 +506,8 @@ def door_blocks_list(request: Request, principal: Principal = Depends(current_pr
     launcher buttons it refuses to run or enable, each with the reason (a real door step, or only virtual devices). Read only over
     Arx's own mirror: nothing is called, released or sent. System administrator only."""
     require(conn, principal, CONFIGURE, INSTALLATION)
-    return door_blocks.listing(conn, dev_mode=bool(settings_of(request).dev_user))
+    # DOOR-BLOCKS-I18N-2510: an item's kind, run-guard sentence, "why it stays" and unresolved reasons in the reader's language
+    return localize_for(conn, principal, door_blocks.listing(conn, dev_mode=bool(settings_of(request).dev_user)))
 
 
 class EntityBlockBody(BaseModel):
