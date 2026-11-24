@@ -26,6 +26,7 @@ from ..services import log_export
 from ..services import media_reach
 from ..services import process_stats
 from ..services.ttl_cache import TtlCache
+from ..wire import request as request_observe
 from ._common import rid as _rid
 from .storage import local_state
 from ..test_reset import register_reset
@@ -127,7 +128,7 @@ def health(request: Request, principal: Principal = Depends(current_principal_ro
         "db": {"ok": store.select_one(conn) == 1, "permission_revision": permission_revision(conn), "write_lock": _write_lock_view(conn, principal),
                **(stats.get("db") or {})},
         # soak measurement (diagnostics only): coarse counters, no paths or names
-        **({"process": stats["process"]} if diagnostics else {}),
+        **({"process": stats["process"], "request_unknown_keys": request_observe.counts()} if diagnostics else {}),  # ADR-019 L14 step 1
         "data_dir_writable": os.access(settings.data_dir, os.W_OK),
         "nvr_configured": bool(settings.nvr_host and settings.nvr_user),  # the placeholder host (no user) is not configured
         "go2rtc_configured": bool(settings.go2rtc_url),
