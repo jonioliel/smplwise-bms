@@ -92,4 +92,28 @@ desktop 1440 + phone 390, light + dark; screenshots made on the test server with
 
 ## 5. Tests (real runs)
 
-Filled in below from the runs.
+New tests: `smplwise_vms/backend/tests/test_mfa_recovery_codes_2490.py` (21: format, hashes only, first batch at enrolment, sign-in with
+a code once, reuse refused, codes of one user do not open another, shared lockout at sign-in and at step-up, regenerate needs a fresh
+step-up and voids the old batch (also with the switch off), enrolment proof counts, step-up proof once, a 6-digit code under
+`recovery_code` refused, `passkey` refused on this branch, removal with a recovery code, admin reset deletes codes, the admin's own
+code is never a recovery code, low warning, single use + the hash primitive, the production scrypt profile, the Arx-only sign-in
+step, backup / privacy plumbing, wire models) and `frontend/tests/unit-mfa-recovery-codes-2490.spec.ts` (4 + the compare-shot test).
+
+| Where | Head | Command | Result |
+|---|---|---|---|
+| workstation (one file) | `db58e5520` | `pytest tests/test_mfa_recovery_codes_2490.py` | 20 passed |
+| workstation (one file each) | `efaeb9e85` | `test_mfa_stepup_2490.py` / `test_second_factor.py` / `test_second_factor_followups.py` | 22 / 23 / 11 passed |
+| workstation (one file) | `1384b3f3d` | `pytest tests/test_mfa_recovery_codes_2490.py` | 21 passed |
+| workstation | `4bec3787c` | `scripts/design_ratchet.py` | no count above the baseline (px-literal 25485 = baseline) |
+| test server, slot B | `efaeb9e85` | `tsc --noEmit -p frontend` | exit 0 |
+| test server, slot B | `b2dc67ad7` | `tsc --noEmit -p frontend` | exit 0 |
+| test server, slot B | `efaeb9e85` | Playwright desktop + mobile `--workers=2`: this spec, `evidence-second-factor`, `unit-second-factor-admin-ui`, `evidence-android-download` (vite dev server) | 46 passed, 2 skipped (the compare-shot test without `SW_SHOTS`) |
+| test server, slot B | `b2dc67ad7` | the same | 45 passed, 1 failed, 2 skipped: `evidence-android-download` [mobile] `page.screenshot` timeout - the worktree was switched to `4bec3787c` under the running dev server (my own action); it passed in the run above. Not re-run (see below). |
+| test server, slot B | `efaeb9e85` | backend, 129 files (second factor / step / recover / local identity / passkeys / remote / wire / route / backup / privacy / security / rbac / settings / access / migrations / schema ...), 6 shards, `-o addopts=""` | shard 0: 535 passed, **1 failed** `test_build_guards_2438::test_the_checkout_is_at_or_below_its_baseline` (px-literal 25485 -> 25499 from my CSS; **fixed** in `4bec3787c`, `test_build_guards_2438.py` then 10 passed on the server); shard 1: 1341 passed, 4 skipped, **1 failed** `test_migrations_263_upgrade::test_the_release_numbers_are_contiguous_and_final` (expected on this branch: 0217-0219 belong to other rows; green once the train merges them in order); shard 2: 570 passed; shard 3: 429 passed; shard 4: **BLOCKED** - killed by its 3000 s timeout while the server ran at load ~200 (other agents; no failure seen in its output before the cut, 3 xfail); shard 5: NOT_RUN (stopped by me to relieve the overloaded server) |
+| test server | `7018cd613` | `scripts/gen_wire_types.py`, `scripts/api_inventory.py` | regenerated and committed |
+
+NOT_RUN: the full backend suite (slot A, the release gate's), pixel baselines, axe, any lab check, Playwright and the backend shards at
+the final head `1384b3f3d` (the last commit only renumbers the migration file and adds the `passkey` refusal; the recovery test file
+was re-run on the workstation at that head: 21 passed).
+The test server was unreachable for ~25 minutes around 04:00 UTC (load average 178-240); my queued re-run at `4bec3787c` never got a
+slot and was cancelled. Recommended before the train merge: shards 4-5 and the Playwright set at the final head.
