@@ -79,3 +79,21 @@ baselines and check, the backend file, the captures before / after) is `~/work/h
 ## Rollback
 
 Revert the branch commits. The `home.wall_notice_new` row stays in `settings` and is ignored by older code.
+
+## Runner verification 24.11
+
+Run on the test server, slot B, 24.11 14:33-14:37 UTC, at `87dbf121a` (job `~/work/verify_night_2411.sh`, logs
+`~/work/verify-night/homenext/`). Scope by the lead: only the pixel baselines and the before / after captures; tsc, eslint, the unit
+and browser specs and the backend of this branch are covered by the release/2500-train job (NOT_RUN here).
+
+| Check | Result |
+|---|---|
+| `vite build` (this branch) / (`c0fb81e2e`, the "before") | exit 0 / exit 0 |
+| pixel `tests/pixel-home-next-2500.spec.ts` desktop + mobile `-u --workers=1` (vite preview of the build) | 10 passed, 10 baselines written |
+| the same, check run right after | **9 passed, 1 failed**: `[mobile] wall settings tab` - 11420 px (3 %) differ, the captured element is 1179 px high in one run and 1229 px in the other |
+| baselines committed | the 9 stable ones (wall board light / dark and the notice sheet light / dark at 1440 and 390, the wall settings tab at 1440). The 390 settings-tab baseline was **not** committed: it shows an empty top band of ~400 px and a floating control over the night-hours card, and its height is not stable, so the check skips it ("no baseline") instead of failing |
+| captures `tests/home-next-2500-shots.spec.ts` (`SW_SHOTS=1`) after / before | 6 passed / 6 passed; 38 pictures in `private/planning/home_next_compare_2026-11-24/` |
+
+Observation (before and after alike, so not from this row): the wall notice board's cards have no inner padding - the date line
+and the text touch the card's right edge. After this row, the third card (not new) starts its date line with a separator dot at the
+edge.
