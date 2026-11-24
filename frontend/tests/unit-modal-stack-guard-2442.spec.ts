@@ -33,6 +33,8 @@ const ON_STACK: Record<string, { n: number; via?: string }> = {
   'home/home-p3-announce.ts': { n: 1, via: 'home/sw-home.ts' },
   'home/home-p3-media.ts': { n: 2, via: 'home/sw-home.ts' },
   'home/home-scene-new.ts': { n: 1, via: 'home/sw-home.ts' },
+  'home/home-fav-ui.ts': { n: 1, via: 'home/sw-home.ts' }, // HOME-FAVORITES-2500: the "+ add" picker sheet
+  'home/home-scene-2500.ts': { n: 3, via: 'home/sw-home.ts' }, // HOME-FAVORITES-2500: the scene suggestion (lock / arm) and the scene edit sheet
   'home/home-schedules.ts': { n: 1, via: 'home/sw-home.ts' },
   'home/home-tickets.ts': { n: 2, via: 'home/sw-home.ts' },
   'home/sw-home-call.ts': { n: 1 },

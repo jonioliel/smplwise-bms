@@ -9,7 +9,7 @@ import { listCameras } from '../api/maps';
 import { listMeters, meterSeries } from '../api/electricity-meters';
 import { notify, type Notification } from '../api/notifications';
 import { httpAutomations, type Item as AutoItem } from '../api/automations';
-import { can, canAnywhere } from '../api/session';
+import { canAnywhere } from '../api/session';
 import { tr } from '../i18n/msg/home';
 
 export type Interface = 'home' | 'full';
@@ -57,6 +57,8 @@ export interface HomeLayout {
   scheme?: 'dark' | 'light' | 'auto';
   theme?: string | null;
   big_text?: boolean;
+  /** HOME-FAVORITES-2500 (Q79): the suggestion after a leaving / night scene; on when absent */
+  scene_suggest?: boolean;
   welcomed?: boolean;
   /** HOME-SIMPLE-2421: per room, 'g:<gallery name>' or 'img' (the person's own picture) */
   wallpapers?: Record<string, string>;
@@ -168,8 +170,9 @@ export async function loadScenes(): Promise<HScene[]> {
     const r = await httpAutomations.list({ kind: 'scene', limit: 200 } as never);
     return r.items
       .filter((s: AutoItem) => !s.hidden && s.state !== 'invalid' && s.can.run)
+      // HOME-FAVORITES-2500 (Q75): canEdit = the server's can.edit and scene.manage at ANY scope (a floor-scoped home manager; was installation only)
       .map((s: AutoItem) => ({
-        id: s.id, name: s.name, rooms: s.areas.map((a) => a.id), canRun: s.can.run, canEdit: s.can.edit && can('scene.manage'), sensitive: s.sensitive,
+        id: s.id, name: s.name, rooms: s.areas.map((a) => a.id), canRun: s.can.run, canEdit: s.can.edit && canAnywhere('scene.manage'), sensitive: s.sensitive,
         icon: SCENE_ICON.find(([re]) => re.test(s.name))?.[1] ?? 'scenes', does: s.description || s.sentence || '', lastRun: s.last_run?.at ?? null,
       }));
   } catch {
