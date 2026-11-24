@@ -5,6 +5,8 @@ import { expect, type Page, type Route } from '@playwright/test';
 // user_factors.py, settings and the users directory. Invented users and values only - no secret, no real code, no address.
 
 export const GOOD = '246810';
+export const GOOD_RECOVERY = 'H4TW-2PRB';
+export const GOOD_SIGNATURE = 'c2lnLW9r';
 const PERMS = ['video.live', 'map.read', 'entity.state.read', 'access.read', 'devices.read', 'alarm.view', 'events.read', 'system.configure', 'rbac.assign', 'identity.directory.read'];
 const READER_PERMS = ['video.live', 'map.read', 'access.read', 'devices.read', 'events.read', 'rbac.assign'];
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
@@ -47,9 +49,12 @@ interface Mock {
   factors: Record<string, { totp: boolean; passkeys: number; device_keys: number; recovery: number }>;
   enrolled: Set<string>;
   reader: boolean;
+  /** the step-up methods the gate's 403 lists (the shell dialog offers what it can of them) */
+  methods: string[];
+  verifies: Record<string, unknown>[];
 }
 
-export async function installMfaMock(page: Page, over: Partial<Pick<Mock, 'settings' | 'reader'>> = {}): Promise<Mock> {
+export async function installMfaMock(page: Page, over: Partial<Pick<Mock, 'settings' | 'reader' | 'methods'>> = {}): Promise<Mock> {
   const st: Mock = {
     calls: [],
     settings: { 'ui.design': 'a', 'security.factor_policy': 'admins', 'security.factor_policy_mode': 'report', 'security.factor_wall_exempt': 'on', 'security.remote_long_lived_tokens': 'allow', 'security.step_up': 'off', 'security.step_up_minutes': 5, 'security.step_up_local': 'off', ...(over.settings ?? {}) },
@@ -65,6 +70,8 @@ export async function installMfaMock(page: Page, over: Partial<Pick<Mock, 'setti
     },
     enrolled: new Set(['u-dana']),
     reader: over.reader ?? false,
+    methods: over.methods ?? ['totp'],
+    verifies: [],
   };
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.routeWebSocket(/\/me\/ws/, () => undefined);
@@ -86,7 +93,7 @@ export async function installMfaMock(page: Page, over: Partial<Pick<Mock, 'setti
     if (p === 'me/prefs') return json(route, { prefs: {}, stored: [], updated_at: null });
     if (p === 'settings' && method === 'PATCH') {
       if (st.settings['security.step_up'] === 'on' && !st.proof)
-        return json(route, err('step_up_required', 'לפני שינוי הגדרות, משתמשים או הרשאות צריך לאשר שוב את הזהות.', { action: 'system.configure', methods: ['totp'], minutes: 5, verify_path: 'auth/step-up/verify' }), 403);
+        return json(route, err('step_up_required', 'לפני שינוי הגדרות, משתמשים או הרשאות צריך לאשר שוב את הזהות.', { action: 'system.configure', methods: st.methods, minutes: 5, verify_path: 'auth/step-up/verify' }), 403);
       st.settings = { ...st.settings, ...(body as Record<string, unknown>) };
       return json(route, { settings: st.settings, can_edit: true });
     }
@@ -124,10 +131,15 @@ export async function installMfaMock(page: Page, over: Partial<Pick<Mock, 'setti
     }
     if (p === 'auth/step-up' && method === 'GET')
       return json(route, { enabled: st.settings['security.step_up'] === 'on', minutes: 5, local_channel: false, applies: st.settings['security.step_up'] === 'on', reason: st.settings['security.step_up'] === 'on' ? null : 'off', methods: ['totp'], valid_until: st.proof ? '2026-11-24T10:05:00+00:00' : null });
+    if (p === 'auth/device-keys/challenge' && method === 'POST')
+      return json(route, { challenge_id: 'dkc_mock1', purpose: 'step_up', payload: 'arx-device-key|step_up|mock', expires_in: 60, auth_kind: 'biometric_or_screen_lock', allowed_auth_kinds: ['biometric', 'biometric_or_screen_lock'], attestation: 'preferred' });
     if (p === 'auth/step-up/verify' && method === 'POST') {
-      if ((body as { code?: string })?.code !== GOOD) return json(route, err('second_factor_invalid', 'קוד האימות אינו נכון.'), 400);
+      const b = (body ?? {}) as { method?: string; code?: string; signature?: string; challenge_id?: string; key_id?: string };
+      st.verifies.push(b);
+      const ok = b.method === 'recovery_code' ? b.code === GOOD_RECOVERY : b.method === 'device_key' ? b.signature === GOOD_SIGNATURE && b.challenge_id === 'dkc_mock1' : b.code === GOOD;
+      if (!ok) return json(route, err('second_factor_invalid', 'קוד האימות אינו נכון.'), 400);
       st.proof = true;
-      return json(route, { method: 'totp', minutes: 5, valid_until: '2026-11-24T10:05:00+00:00' });
+      return json(route, { method: b.method ?? 'totp', minutes: 5, valid_until: '2026-11-24T10:05:00+00:00' });
     }
     // the policy tab
     if (p === 'security/factor-policy' && method === 'GET') {

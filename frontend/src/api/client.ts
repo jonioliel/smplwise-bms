@@ -88,6 +88,8 @@ export interface StepUpDetails {
   /** MFA-PASSKEYS-2490: where a passkey challenge is asked (`auth/step-up/challenge`); the dialog offers the passkey when `methods`
    * lists it. */
   challenge_path?: string;
+  /** MFA-STEPUP-GATES-2490 / MFA-SCREENS-2510: a once-action (a proof for exactly one call) - a recovery code is never offered for it. */
+  once?: boolean;
 }
 
 /** MFA-TRAIN-2500: a request that confirms its own step-up in place (My Account's passkey changes, components/sw-passkeys.ts, which

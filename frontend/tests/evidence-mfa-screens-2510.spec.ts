@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { GOOD, installMfaMock, isPhone, openPolicyTab, openSecurity, openUserDrawer } from './mfa-screens-mocks';
+import { GOOD, GOOD_RECOVERY, GOOD_SIGNATURE, installMfaMock, isPhone, openPolicyTab, openSecurity, openUserDrawer } from './mfa-screens-mocks';
 
 // MFA-SCREENS-2510 (slice 11 of the second-factor train), against a MOCKED backend (tests/mfa-screens-mocks.ts; invented users):
 //   1. החשבון שלי › אבטחה - the overview (authenticator on, passkeys, phone keys, recovery codes low, a long-lived token), each block in
@@ -204,6 +204,82 @@ test('user drawer: a user with passkeys but no authenticator code - the reset, w
   expect(errors).toEqual([]);
 });
 
+// ---------------------------------------------------------------- the step-up dialog's other methods (MFA-SECFIX-2500 open question 5)
+
+test('step-up is OFF when the server stores no value (owner Q2 = b): the switch reads off, nothing is asked', async ({ page }) => {
+  skipTablet();
+  const mock = await installMfaMock(page, { settings: { 'security.step_up': undefined } });
+  const tab = await openPolicyTab(page);
+  await expect(tab.locator('[data-fp-step-up-card] sw-toggle[data-fp-step-up]')).not.toHaveAttribute('checked', '');
+  await tab.locator('[data-fp-mode-option="enforce"]').click();
+  await tab.locator('[data-fp-save]').click();
+  await expect(tab.locator('[data-fp-message]')).toBeVisible();
+  await expect(page.locator('sw-step-up-dialog')).toHaveCount(0);
+  expect(mock.verifies).toEqual([]);
+});
+
+/** Step-up on, a change saved: the gate's 403 opens the shell dialog. */
+async function saveWithStepUp(page: Page, methods: string[]) {
+  const mock = await installMfaMock(page, { settings: { 'security.step_up': 'on' }, methods });
+  const tab = await openPolicyTab(page);
+  await tab.locator('[data-fp-mode-option="enforce"]').click();
+  await tab.locator('[data-fp-save]').click();
+  const dialog = page.locator('sw-step-up-dialog');
+  await expect(dialog.locator('[data-step-up-dialog]')).toBeVisible();
+  return { mock, tab, dialog };
+}
+
+test('step-up dialog: a recovery code confirms the normal window; the save is sent once more and only once', async ({ page }) => {
+  skipTablet();
+  const { mock, tab, dialog } = await saveWithStepUp(page, ['totp']);
+  const field = dialog.locator('[data-step-up-code]');
+  await expect(field).toHaveAttribute('inputmode', 'numeric');
+  await dialog.locator('[data-step-up-recovery]').click();
+  await expect(field).toHaveAttribute('inputmode', 'text');
+  await expect(field).toHaveAttribute('placeholder', 'XXXX-XXXX');
+  await field.fill('123456');
+  await expect(dialog.locator('[data-step-up-confirm]')).toHaveAttribute('disabled', '');
+  await field.fill(GOOD_RECOVERY);
+  await dialog.locator('[data-step-up-confirm]').click();
+  await expect(tab.locator('[data-fp-message]')).toBeVisible();
+  expect(mock.verifies).toEqual([{ method: 'recovery_code', code: GOOD_RECOVERY, action: 'system.configure' }]);
+  expect(mock.calls.filter((c) => c.method === 'PATCH')).toHaveLength(2); // refused once, sent once more
+});
+
+test('step-up dialog: the phone key inside the Android app - the app signs the server challenge; outside the app it is not offered', async ({ page }) => {
+  skipTablet();
+  // the Android shell's bridge (mobile/android-shell BridgeScript.kt), faked: a key exists, the prompt signs
+  await page.addInitScript((sig) => {
+    const w = window as unknown as Record<string, unknown>;
+    w.__signed = [];
+    w.ArxApp = { deviceKey: {
+      status: () => Promise.resolve({ available: true, exists: true, keyId: 'dk_pixel000000000000001', authKind: 'biometric' }),
+      sign: (payload: string, text: string) => { (w.__signed as unknown[]).push([payload, text]); return Promise.resolve({ signature: sig }); },
+    } };
+  }, GOOD_SIGNATURE);
+  const { mock, tab, dialog } = await saveWithStepUp(page, ['totp', 'device_key']);
+  await dialog.locator('[data-step-up-device-key]').click();
+  await expect(tab.locator('[data-fp-message]')).toBeVisible();
+  expect(mock.verifies).toEqual([{ method: 'device_key', challenge_id: 'dkc_mock1', key_id: 'dk_pixel000000000000001', signature: GOOD_SIGNATURE, action: 'system.configure' }]);
+  expect(mock.calls.filter((c) => c.path === 'auth/device-keys/challenge').map((c) => c.body)).toEqual([{ purpose: 'step_up', key_id: 'dk_pixel000000000000001', action: 'system.configure' }]);
+  expect(await page.evaluate(() => (window as unknown as { __signed: unknown[] }).__signed)).toEqual([['arx-device-key|step_up|mock', 'אישור זהות']]);
+});
+
+test('step-up dialog: phone key listed but not in the app - the code only, no phone-key button', async ({ page }) => {
+  skipTablet();
+  const { dialog } = await saveWithStepUp(page, ['totp', 'device_key']);
+  await expect(dialog.locator('[data-step-up-code]')).toBeVisible();
+  await expect(dialog.locator('[data-step-up-device-key]')).toHaveCount(0);
+  await expect(dialog.locator('[data-step-up-recovery]')).toBeVisible();
+});
+
+test('step-up dialog: a phone-key-only user outside the app is told to confirm from the app', async ({ page }) => {
+  skipTablet();
+  const { dialog } = await saveWithStepUp(page, ['device_key']);
+  await expect(dialog.locator('[data-step-up-no-method]')).toContainText('אפליקציית Android');
+  await expect(dialog.locator('[data-step-up-recovery]')).toHaveCount(0);
+});
+
 // ---------------------------------------------------------------- compare-page pictures (SW_SHOTS_DIR only; before and after builds)
 
 const SHOTS = process.env.SW_SHOTS_DIR || '';
@@ -213,6 +289,12 @@ test('shots: the three screens, light and dark', async ({ page }) => {
   test.setTimeout(120_000);
   fs.mkdirSync(SHOTS, { recursive: true });
   const vp = isPhone(page) ? 'phone' : 'desktop';
+  await page.addInitScript(() => {
+    (window as unknown as Record<string, unknown>).ArxApp = { deviceKey: {
+      status: () => Promise.resolve({ available: true, exists: true, keyId: 'dk_pixel000000000000001' }),
+      sign: () => new Promise(() => undefined),
+    } };
+  });
   for (const scheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
     await installMfaMock(page);
@@ -251,6 +333,30 @@ test('shots: the three screens, light and dark', async ({ page }) => {
     await openUserDrawer(page, 'רון לוי');
     await page.waitForTimeout(600);
     await shot('drawer');
+    // 4. the step-up dialog (step-up on; the code and the phone key listed; the app's bridge faked): phone key + recovery (after)
+    await installMfaMock(page, { settings: { 'security.step_up': 'on' }, methods: ['totp', 'device_key'] });
+    await page.goto('/?design=a#/system/access?tab=factor');
+    await page.waitForSelector('sw-app system-access');
+    await page.waitForTimeout(800);
+    if (await page.locator('sw-factor-policy-admin [data-fp-admin]').count()) {
+      await page.locator('sw-factor-policy-admin [data-fp-mode-option="enforce"]').click();
+      await page.locator('sw-factor-policy-admin [data-fp-save]').click();
+    } else {
+      await page.goto('/?design=a#/system/diagnostics?tab=remote');
+      await page.waitForSelector('sw-app system-diagnostics');
+      const minutes = page.locator('system-diagnostics input[data-set-step-up="security.step_up_minutes"]');
+      await minutes.fill('10');
+      await minutes.dispatchEvent('change');
+      await page.locator('system-diagnostics [data-save-remote]').click();
+    }
+    const dialog = page.locator('sw-step-up-dialog');
+    await expect(dialog.locator('[data-step-up-code]')).toBeVisible();
+    await shot('dialog');
+    if (await dialog.locator('[data-step-up-recovery]').count()) {
+      await dialog.locator('[data-step-up-recovery]').click();
+      await shot('dialog-recovery');
+    }
+    await dialog.locator('[data-step-up-cancel]').click();
     await page.unrouteAll({ behavior: 'ignoreErrors' });
   }
 });

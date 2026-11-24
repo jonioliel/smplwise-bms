@@ -92,4 +92,9 @@ export const en = {
   'שינוי ההגדרות דורש הרשאת מנהל מערכת.': 'Changing the settings needs a system administrator.',
   'שמור': 'Save',
   'תצוגה מקדימה: {policy} · עוד לא נשמר': 'Preview: {policy} · not saved yet',
+  'האישור בטלפון בוטל או נכשל.': 'The confirmation on the phone was cancelled or failed.',
+  'כדי לשנות הגדרות, משתמשים או הרשאות, אשר במפתח הטלפון.': 'To change settings, users or permissions, confirm with the phone key.',
+  'ממתין לטלפון…': 'Waiting for the phone…',
+  'אישור במפתח הטלפון': 'Confirm with the phone key',
+  'את מפתח הטלפון אפשר לאשר רק מתוך אפליקציית Android.': 'The phone key can confirm only from inside the Android app.',
 };
