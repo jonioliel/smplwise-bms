@@ -73,6 +73,16 @@ def test_forbid_and_allow_subclasses_are_not_observed(monkeypatch):
     assert obs.counts()["distinct"] == 0
 
 
+def test_dump_file_lists_every_unknown_key(monkeypatch, tmp_path):
+    f = tmp_path / "d.tsv"
+    monkeypatch.setenv("SW_REQUEST_OBSERVE_DUMP", str(f))
+    _Plain.model_validate({"name": "a", "x": 1, "y": 2})
+    monkeypatch.setenv("SW_REQUEST_STRICT", "1")
+    with pytest.raises(ValidationError):
+        _Plain.model_validate({"name": "a", "x": 1})
+    assert f.read_text(encoding="utf8").splitlines() == ["_Plain	x", "_Plain	y", "_Plain	x"]
+
+
 def test_table_is_bounded(monkeypatch):
     monkeypatch.setattr(obs, "_MAX_KEYS", 3)
     _Plain.model_validate({"name": "a", **{f"k{i}": 1 for i in range(6)}})

@@ -7,7 +7,8 @@ that no screen sends an extra key. `RequestModel` is that proof's instrument, in
 * behaviour does not change: `extra="ignore"`, the unknown key is dropped exactly as before;
 * a `model_validator(mode="before")` compares the incoming keys with the model's field names and aliases; for each unknown key it logs
   one line per (model, key) per process and counts it (`counts()`; the /health diagnostics block shows the totals);
-* `SW_REQUEST_STRICT=1` (set by the backend tests, like `SW_WIRE_STRICT`) raises instead, so a test that sends an extra key fails.
+* `SW_REQUEST_STRICT=1` (set by the backend tests, like `SW_WIRE_STRICT`) raises instead, so a test that sends an extra key fails;
+  `SW_REQUEST_OBSERVE_DUMP=<file>` (a test aid) appends every unknown (model, key) to a file, strict or not.
 
 A subclass that sets `extra="forbid"` or `extra="allow"` has decided already and is not observed. The log line names the model and the
 key (field names of the API, never a value) and the request's correlation id when there is one."""
@@ -76,6 +77,20 @@ def _note(model: str, keys: list[str]) -> None:
         log.warning("request carries an undeclared key: %s.%s (dropped as before; correlation_id=%s)", model, key, _correlation())
 
 
+def _dump(model: str, keys: list[str]) -> None:
+    """Test aid: `SW_REQUEST_OBSERVE_DUMP=<file>` appends `model<TAB>key` for every unknown key seen (also in strict mode, where the
+    request is refused), so a whole backend suite run lists every (model, key) the tests send extra. Unset in production."""
+    path = os.environ.get("SW_REQUEST_OBSERVE_DUMP")
+    if not path:
+        return
+    try:
+        with open(path, "a", encoding="utf8") as f:
+            f.writelines(f"{model}	{k}
+" for k in keys)
+    except OSError:
+        pass
+
+
 def counts() -> dict[str, Any]:
     """Diagnostics: `{distinct, total, overflow, items}` - the (model, key) pairs seen by this process, most frequent first (at most 20)."""
     with _LOCK:
@@ -105,6 +120,7 @@ class RequestModel(BaseModel):
             return data
         unknown = sorted(k for k in data if isinstance(k, str) and k not in _known(cls))
         if unknown:
+            _dump(cls.__name__, unknown)
             if strict():
                 raise ValueError(f"{cls.__name__}: undeclared keys {unknown}")
             _note(cls.__name__, unknown)
