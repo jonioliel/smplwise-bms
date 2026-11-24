@@ -82,9 +82,9 @@ the setting is step-up gated and never restored from a backup.
 |---|---|---|
 | workstation (Windows, Python 3.12, `.venv` of the main checkout, `SW_WIRE_STRICT=1`), one file at a time | `pytest tests/test_mfa_devicekey_attest_2490.py -o addopts=""` | **23 passed** (after one fix: a broken last link to a pinned root key now reads `chain_signature`, and the listing assertion no longer depends on row order) |
 | workstation | `pytest tests/test_mfa_devicekey_2490.py` (slice 8; two assertions updated: default mode records `none`, row has `counts`) | **19 passed** |
-| workstation | `pytest tests/test_local_privacy.py` | see section 6.1 |
+| workstation | `pytest tests/test_local_privacy.py` (export gains `attested`) | **18 passed** |
 | workstation | `python scripts/gen_wire_types.py --check` (after regenerating) | exit 0 |
-| runner slot B | see section 6.1 | see section 6.1 |
+| runner slot B | ONE job (`ruff check smplwise`, `gen_wire_types --check`, 19 auth / wire / migration / singleton test files in 4 shards), queued 2026-11-24 06:18 UTC via `~/work/slotb.sh` v4 | **NOT_RUN**: never started within the 2-hour limit (the 2.49.0 gate ran the whole time and the server had ~2.9 GB free, below slot B's 6 GB threshold). The waiter was stopped and its files removed at 08:21 UTC. `ruff` is **NOT_RUN** (not installed on the workstation); the wider auth suite (`test_second_factor*`, `test_mfa_stepup_2490`, `test_migrations`, `test_singletons_registered`, `test_wire_routers_*`, `test_app_refresh_attestation_232`) is **NOT_RUN** |
 | runner | Android `testDebugUnitTest assembleDebug` (incl. the new `DeviceKeyPolicyTest` case) | **NOT_RUN**: no JDK / Android SDK on the runner |
 | real phone | attested key creation (TEE / StrongBox), the chain sent, a phone that cannot attest | **NOT_RUN** (owner must be present) |
 | any | web UI / Playwright | not applicable (no UI in this slice) |
