@@ -106,6 +106,7 @@ class HaEntitiesEntity(ExactModel):
     schedule_entity: bool
     media_managed: bool
     actions: list[dict[str, Any]]
+    buildings: list[str] = None  # MULTI-BUILDING-NEXT-2500: the buildings the entity serves, only while the building filter applies
 
 
 class HaEntitiesArea(ExactModel):
@@ -131,6 +132,17 @@ class HaEntitiesSync(ExactModel):
     next_attempt_at: Any
 
 
+class HaEntitiesBuildingFilterChoice(ExactModel):
+    id: str
+    name: str
+    is_shared: Any
+
+
+class HaEntitiesBuildingFilter(ExactModel):
+    buildings: list[HaEntitiesBuildingFilterChoice]
+    building: str | None
+
+
 class HaEntities(ExactModel):
     """The catalogue: everything for installation-wide readers, only placed entities on visible floors otherwise."""
     entities: list[HaEntitiesEntity]
@@ -138,6 +150,9 @@ class HaEntities(ExactModel):
     areas: list[HaEntitiesArea]
     sync: HaEntitiesSync
     can_control: bool
+    # MULTI-BUILDING-NEXT-2500 (services/building_filter.apply): the building filter's choices, only while the filter applies.
+    # Declared at the RELEASE-2510-TRAIN merge: RESPONSE-MODELS-E modelled this route on 2.48.0, before the filter existed.
+    building_filter: HaEntitiesBuildingFilter = None
 
 
 class HaEntityPlacement(ExactModel):

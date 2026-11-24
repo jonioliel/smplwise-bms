@@ -261,3 +261,7 @@ async def check(settings: Any, token: str, *, client_id: str, first_seen_at: str
 
 def reset_for_tests() -> None:
     OBSERVED.forget()
+
+
+from ..test_reset import register_reset  # noqa: E402 - imports nothing from the package
+register_reset(__name__, ("OBSERVED",), reset_for_tests)  # RELEASE-2510-TRAIN: test_singletons_registered (CR-TEST-SUPPORT-2440)

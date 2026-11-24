@@ -23,7 +23,7 @@ export interface CameraSourcesCreateStandalone {
   wall_hidden: boolean;
   standalone: boolean;
   video_source: string;
-  area_id: string;
+  area_id: string | null;
 }
 
 /** Remove a camera without a recorder (a camera on a recorder is refused: 409 not_standalone). */
@@ -96,6 +96,7 @@ export interface CameraSourcesSourceMain {
 
 export interface CameraSourcesSourceProbe {
   main?: CameraSourcesSourceProbeMain;
+  sub?: CameraSourcesSourceProbeMain;
 }
 
 export interface CameraSourcesSourceProbeMain {

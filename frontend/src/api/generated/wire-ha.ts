@@ -96,11 +96,23 @@ export interface HaEntities {
   areas: HaEntitiesArea[];
   sync: HaEntitiesSync;
   can_control: boolean;
+  building_filter?: HaEntitiesBuildingFilter;
 }
 
 export interface HaEntitiesArea {
   area_id: string;
   area_name: string;
+}
+
+export interface HaEntitiesBuildingFilter {
+  buildings: HaEntitiesBuildingFilterChoice[];
+  building: string | null;
+}
+
+export interface HaEntitiesBuildingFilterChoice {
+  id: string;
+  name: string;
+  is_shared: unknown;
 }
 
 export interface HaEntitiesEntity {
@@ -141,6 +153,7 @@ export interface HaEntitiesEntity {
   schedule_entity: boolean;
   media_managed: boolean;
   actions: Record<string, unknown>[];
+  buildings?: string[];
 }
 
 export interface HaEntitiesSync {

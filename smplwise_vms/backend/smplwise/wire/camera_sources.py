@@ -26,6 +26,7 @@ class CameraSourcesSourceProbeMain(ExactModel):
 
 class CameraSourcesSourceProbe(ExactModel):
     main: CameraSourcesSourceProbeMain = None
+    sub: CameraSourcesSourceProbeMain = None  # the sub profile's last probe (declared at the RELEASE-2510-TRAIN merge)
 
 
 class CameraSourcesSourceHealth(ExactModel):
@@ -117,7 +118,7 @@ class CameraSourcesCreateStandalone(ExactModel):
     wall_hidden: bool
     standalone: bool
     video_source: str
-    area_id: str
+    area_id: str | None  # ONVIF-CLIENT-2500 adds a camera without an area (declared at the RELEASE-2510-TRAIN merge)
 
 
 class CameraSourcesDeleteStandalone(ExactModel):
