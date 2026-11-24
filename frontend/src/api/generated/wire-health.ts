@@ -12,6 +12,7 @@ export interface HealthHealth {
   nvr: HealthHealthNvr;
   db: HealthHealthDb;
   process?: HealthHealthProcess;
+  request_unknown_keys?: HealthHealthRequestUnknownKeys;
   data_dir_writable: boolean;
   nvr_configured: boolean;
   go2rtc_configured: boolean;
@@ -339,6 +340,23 @@ export interface HealthHealthReportInstallation {
   reason: string | null;
   message: string | null;
   action: string | null;
+}
+
+/**
+ * ADR-019 L14 step 1 (ADR019-L14-OBSERVE-2500, observe mode): the request keys no model declares, seen by this process
+ * (diagnostics holders only). Declared at the RELEASE-2510-TRAIN merge: RESPONSE-MODELS-E modelled `/health` on 2.48.0, before the key.
+ */
+export interface HealthHealthRequestUnknownKeys {
+  distinct: number;
+  total: number;
+  overflow: number;
+  items: HealthHealthRequestUnknownKeysItem[];
+}
+
+export interface HealthHealthRequestUnknownKeysItem {
+  model: string;
+  key: string;
+  count: number;
 }
 
 /** What the top bar shows every signed-in user: cached states only, no device probes, no details that a non-administrator should not see (labels are operator wording, never addresses or credentials). */

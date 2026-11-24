@@ -291,6 +291,21 @@ class HealthHealthRecorder(ExactModel):
     events_last_error: str | None
 
 
+class HealthHealthRequestUnknownKeysItem(ExactModel):
+    model: str
+    key: str
+    count: Num
+
+
+class HealthHealthRequestUnknownKeys(ExactModel):
+    """ADR-019 L14 step 1 (ADR019-L14-OBSERVE-2500, observe mode): the request keys no model declares, seen by this process
+    (diagnostics holders only). Declared at the RELEASE-2510-TRAIN merge: RESPONSE-MODELS-E modelled `/health` on 2.48.0, before the key."""
+    distinct: Num
+    total: Num
+    overflow: Num
+    items: list[HealthHealthRequestUnknownKeysItem]
+
+
 class HealthHealth(ExactModel):
     """The add-on's own cached state."""
     status: str
@@ -300,6 +315,7 @@ class HealthHealth(ExactModel):
     nvr: HealthHealthNvr
     db: HealthHealthDb
     process: HealthHealthProcess = None
+    request_unknown_keys: HealthHealthRequestUnknownKeys = None
     data_dir_writable: bool
     nvr_configured: bool
     go2rtc_configured: bool
