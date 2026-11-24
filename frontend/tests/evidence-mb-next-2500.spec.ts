@@ -123,7 +123,7 @@ test.describe('MULTI-BUILDING-NEXT-2500 the building filter of the lists', () =>
         const f = filterOf(page, 'elec-meters-page');
         await expect(f).toBeVisible();
         await f.locator('[data-building="bB"]').click();
-        await expect(f.locator('[data-building="bB"]')).toHaveAttribute('aria-pressed', 'true');
+        await expect(f.locator('[data-building="bB"]')).toHaveAttribute('aria-checked', 'true'); // a radio sw-segmented key: aria-checked only since A11Y-AUDIT-2490 (2.48)
         await expect(page.locator('sw-app elec-meters-page [data-also]').first()).toContainText('גם ב');
         expect(await overflowX(page)).toBeLessThanOrEqual(0);
         await shot(page, `meters-after-${size.id}-${scheme}`);
