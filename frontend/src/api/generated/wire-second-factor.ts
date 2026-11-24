@@ -21,6 +21,17 @@ export interface Enrolment {
   issuer: string;
 }
 
+/**
+ * `POST /auth/second-factor/confirm`: the factor is on; `recovery_codes` is the first batch of one-time recovery codes
+ * (`XXXX-XXXX`, MFA-RECOVERY-CODES-2490) - shown in this answer ONCE and never readable again.
+ */
+export interface FactorEnabled {
+  enabled: boolean;
+  enabled_at: string | null;
+  last_used_at: string | null;
+  recovery_codes: string[];
+}
+
 /** `DELETE /auth/second-factor/users/{id}`: `removed` = a factor (active or pending) was there. */
 export interface FactorReset {
   user_id: string;
@@ -58,9 +69,38 @@ export interface OwnFactor {
   policy: "optional" | "admins";
 }
 
-/** `POST /auth/step-up/verify`: the proof was accepted; it counts until `valid_until` (one gated request when `minutes` is 0). */
+/** `POST /auth/recovery-codes`: the new batch (`XXXX-XXXX`), shown in this answer ONCE; the previous batch no longer works. */
+export interface RecoveryBatch {
+  codes: string[];
+  remaining: number;
+  total: number;
+  created_at: string | null;
+  last_used_at: string | null;
+  low: boolean;
+  low_at: number;
+}
+
+/**
+ * `GET /auth/recovery-codes` (MFA-RECOVERY-CODES-2490): `available` = the authenticator factor is on (codes exist only with it);
+ * how many codes remain of the batch's `total`, when the batch was made and a code last used, and `low` = at most `low_at` remain.
+ * Never a code or a hash.
+ */
+export interface RecoveryStatus {
+  available: boolean;
+  remaining: number;
+  total: number;
+  created_at: string | null;
+  last_used_at: string | null;
+  low: boolean;
+  low_at: number;
+}
+
+/**
+ * `POST /auth/step-up/verify`: the proof was accepted; it counts until `valid_until` (one gated request when `minutes` is 0).
+ * `recovery_code`: a one-time recovery code was spent for it (MFA-RECOVERY-CODES-2490).
+ */
 export interface StepUpProof {
-  method: "totp";
+  method: "totp" | "recovery_code";
   minutes: number;
   valid_until: string | null;
 }
@@ -84,7 +124,7 @@ export interface StepUpStatus {
 export interface SecondFactorRoutes {
   "GET /api/v1/auth/second-factor": OwnFactor;
   "POST /api/v1/auth/second-factor/enroll": Enrolment;
-  "POST /api/v1/auth/second-factor/confirm": FactorStatus;
+  "POST /api/v1/auth/second-factor/confirm": FactorEnabled;
   "POST /api/v1/auth/second-factor/disable": FactorStatus;
   "GET /api/v1/auth/second-factor/users": EnrolledUsers;
   "GET /api/v1/auth/second-factor/overrides": Overrides;
@@ -92,4 +132,6 @@ export interface SecondFactorRoutes {
   "DELETE /api/v1/auth/second-factor/users/{user_id}": FactorReset;
   "GET /api/v1/auth/step-up": StepUpStatus;
   "POST /api/v1/auth/step-up/verify": StepUpProof;
+  "GET /api/v1/auth/recovery-codes": RecoveryStatus;
+  "POST /api/v1/auth/recovery-codes": RecoveryBatch;
 }
