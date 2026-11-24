@@ -60,7 +60,7 @@ export interface OwnFactor {
 
 /** `POST /auth/step-up/verify`: the proof was accepted; it counts until `valid_until` (one gated request when `minutes` is 0). */
 export interface StepUpProof {
-  method: "totp";
+  method: "totp" | "device_key";
   minutes: number;
   valid_until: string | null;
 }
@@ -76,7 +76,7 @@ export interface StepUpStatus {
   local_channel: boolean;
   applies: boolean;
   reason: "off" | "local_channel" | "bearer_token" | "no_method" | null;
-  methods: "totp"[];
+  methods: ("totp" | "device_key")[];
   valid_until: string | null;
 }
 

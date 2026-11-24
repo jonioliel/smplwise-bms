@@ -97,6 +97,7 @@ FAMILIES_D: dict[str, tuple[str, tuple[str, ...]]] = {
     "CalendarAttendees": ("wire-calendar-attendees.ts", ("calendar_attendees",)),
     "CameraImageHealth": ("wire-camera-image-health.ts", ("camera_image_health",)),
     "CameraSuggest": ("wire-camera-suggest.ts", ("camera_suggest",)),
+    "DeviceKeys": ("wire-device-keys.ts", ("device_keys",)),  # MFA-DEVICEKEY-2490
     "DeviceLayouts": ("wire-device-layouts.ts", ("device_layouts",)),
     "DoorAutomations": ("wire-door-automations.ts", ("door_automations",)),
     "Exports": ("wire-exports.ts", ("exports",)),
