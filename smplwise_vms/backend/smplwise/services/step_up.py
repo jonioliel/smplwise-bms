@@ -246,12 +246,10 @@ def _now() -> float:
     return time.monotonic()
 
 
-_WALL_SKEW_S = 0.0  # tests only: a test clock that moves `_now` forward moves the wall clock by the same amount
-
-
 def _wall() -> float:
-    """The wall clock, for stored instants (`auth_local_sessions.factor_at`, a session's sign-in time) and for answers (ISO times)."""
-    return time.time() + _WALL_SKEW_S
+    """The wall clock, for stored instants (`auth_local_sessions.factor_at`, a session's sign-in time - both written with
+    time.time()) and for answers (ISO times). Ages against it are checked with `_fresh` (a negative age never counts)."""
+    return time.time()
 
 
 def _to_wall(mono: float) -> float:
