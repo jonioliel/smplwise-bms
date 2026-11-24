@@ -2,6 +2,8 @@
 // GET /notices (the caller's audience), POST /notices/{id}/read; the buses are GET /home/buses (the transit module's digest). Reading and
 // "קראתי" only - writing and publishing stay in the full interface. Owner decision (round 27 q11): a long notice scrolls ONLY inside its
 // sheet (the single allowed scroll of the home interface); the list pages. A wall panel locked to its room shows the board too (q12 "ב").
+// HOME-NEXT-2500 (owner 22.11, Q72): a wall panel is shared - no "קראתי" there; a notice is "new" for 48 hours after it was published
+// (installation setting, wall-notice-logic.ts). The "new" filter, the badges and the counts follow that rule on a wall panel.
 import { html, nothing } from 'lit';
 import { registerScreen, type ExtOvl, type HomeHost } from './home-ext';
 import { hi } from './home-icons';
@@ -10,6 +12,7 @@ import { registerMoreTile } from './more-registry';
 import { getBuses, listNotices, readNotice, type Buses, type Notice } from './home-p2-api';
 import { errText, has, plural, warmFamily, whenText, seen, offScreen } from './home-p2-ui';
 import { tr } from '../i18n/msg/home';
+import { isNewNotice, sharedNewHours } from './wall-notice-logic';
 
 const st: { list: Notice[]; bus: Buses | null; tab: 'new' | 'all'; at: number; loading: boolean; error: string } = { list: [], bus: null, tab: 'new', at: 0, loading: false, error: '' };
 
@@ -22,14 +25,17 @@ function load(h: HomeHost, force = false) {
     .finally(() => { st.loading = false; h.requestUpdate(); });
 }
 
-const unread = () => st.list.filter((n) => !n.read).length;
+/** HOME-NEXT-2500: the "new" window of this screen in hours (a wall panel), or 0 = "new" is "not read by me". */
+const sharedH = (h: HomeHost) => sharedNewHours(!!h.pol()?.kiosk, h.pol()?.wall);
+const isNew = (h: HomeHost, n: Notice) => isNewNotice(n, h.now.getTime(), sharedH(h));
+const unread = (h: HomeHost) => st.list.filter((n) => isNew(h, n)).length;
 const important = (n: Notice) => n.pinned || n.severity === 'important' || n.severity === 'urgent' || n.severity === 'critical';
 
 registerMoreTile({
   id: 'notices', order: 60, href: 'notices', label: tr('לוח הודעות'), icon: 'board',
   visible: (h) => seen(h) && has('notices'),
   warm: (h) => load(h),
-  line: () => { const n = unread(); return n ? { text: plural(n, tr('הודעה חדשה'), tr('הודעות חדשות')), tone: 'info', badge: n } : { text: tr('אין הודעות חדשות') }; },
+  line: (h) => { const n = unread(h); return n ? { text: plural(n, tr('הודעה חדשה'), tr('הודעות חדשות')), tone: 'info', badge: n } : { text: tr('אין הודעות חדשות') }; },
 });
 
 function busLine(h: HomeHost) {
@@ -47,12 +53,13 @@ registerScreen((h: HomeHost) => ({
     if (!has('notices')) return offScreen(h, tr('לוח הודעות'));
     if (!st.at && !st.loading && !st.error) load(h); // a deep link: the feature map arrived after enter()
     if (st.error && !st.at) return html`${h.head(tr('לוח הודעות'), '')}${h.empty('x', tr('לא הצלחנו לטעון את הלוח'), st.error)}`;
-    const n = unread();
+    const n = unread(h);
+    const shared = sharedH(h) > 0;
     const tab = n ? st.tab : 'all';
-    const list = tab === 'new' ? st.list.filter((x) => !x.read) : st.list;
+    const list = tab === 'new' ? st.list.filter((x) => isNew(h, x)) : st.list;
     const pg = paged(list, h.phone ? 3 : 4, h.pg('nt'));
-    return html`${h.headT(tr('לוח הודעות'), n ? plural(n, tr('הודעה חדשה אחת'), tr('הודעות חדשות')) : tr('קראת את כל ההודעות'), h.seg('p2NtTab', [['new', tr('חדשות')], ['all', tr('הכל')]], tab, tr('סינון')), h.pager('nt', pg.pages))}${busLine(h)}
-      <div class="card-grid ntg">${pg.items.length ? pg.items.map((x) => html`<button class=${'tile ncard' + (x.read ? '' : ' new')} data-act="p2Notice" data-id=${x.id}><span class="nh">${x.read ? nothing : html`<span class="newp">${tr('חדש')}</span>`}${important(x) ? html`<span class="pinp" data-tone="warn">${hi('bell')}${tr('חשוב')}</span>` : nothing}<span class="muted clamp1">${whenText(x.published_at ?? x.starts_at, h.now)}</span></span><b class="nt clamp2">${x.title}</b><span class="nb">${x.body.slice(0, 220)}</span></button>`)
+    return html`${h.headT(tr('לוח הודעות'), n ? plural(n, tr('הודעה חדשה אחת'), tr('הודעות חדשות')) : shared ? tr('אין הודעות חדשות') : tr('קראת את כל ההודעות'), h.seg('p2NtTab', [['new', tr('חדשות')], ['all', tr('הכל')]], tab, tr('סינון')), h.pager('nt', pg.pages))}${busLine(h)}
+      <div class="card-grid ntg">${pg.items.length ? pg.items.map((x) => { const fresh = isNew(h, x); return html`<button class=${'tile ncard' + (fresh ? ' new' : '')} data-act="p2Notice" data-id=${x.id}><span class="nh">${fresh ? html`<span class="newp">${tr('חדש')}</span>` : nothing}${important(x) ? html`<span class="pinp" data-tone="warn">${hi('bell')}${tr('חשוב')}</span>` : nothing}<span class="muted clamp1">${whenText(x.published_at ?? x.starts_at, h.now)}</span></span><b class="nt clamp2">${x.title}</b><span class="nb">${x.body.slice(0, 220)}</span></button>`; })
         : h.empty('board', st.loading ? tr('טוענים…') : tr('אין הודעות בלוח'), tr('הודעות מוועד הבית ומחברת הניהול יופיעו כאן.'))}</div>`;
   },
   ovl(o: ExtOvl) {
@@ -61,7 +68,7 @@ registerScreen((h: HomeHost) => ({
     return html`<div class="hscrim" data-act="close"></div><section class="sheet dialog wide v3" role="dialog" aria-modal="true" aria-label=${n.title} data-sheet="notice">
       <header class="menu-h"><span class="mh-t"><span class="muted clamp1">${whenText(n.published_at ?? n.starts_at, h.now)}</span><b class="clamp2">${n.title}</b></span><button class="rb" data-act="close" aria-label="${tr('סגור')}">${hi('x')}</button></header>
       <div class="n-body" tabindex="0" data-scroll-ok style="white-space:pre-line">${n.body}</div>
-      <div class="dlg-acts">${n.read ? nothing : html`<button class="hbtn strong" data-act="p2NoticeRead" data-id=${n.id}>${hi('check')}${tr('קראתי')}</button>`}<button class="hbtn" data-act="close">${tr('סגור')}</button></div></section>`;
+      <div class="dlg-acts">${n.read || sharedH(h) ? nothing : html`<button class="hbtn strong" data-act="p2NoticeRead" data-id=${n.id}>${hi('check')}${tr('קראתי')}</button>`}<button class="hbtn" data-act="close">${tr('סגור')}</button></div></section>`;
   },
   acts: {
     p2NtTab: (el) => { st.tab = el.dataset.v as 'new' | 'all'; h.page = { ...h.page, nt: 0 }; h.requestUpdate(); },
@@ -69,7 +76,7 @@ registerScreen((h: HomeHost) => ({
     p2NoticeRead: (el) => {
       const n = st.list.find((k) => k.id === el.dataset.id);
       h.ovl = null;
-      if (!n) return;
+      if (!n || sharedH(h)) return; // HOME-NEXT-2500: never from a shared wall panel
       n.read = true;
       h.requestUpdate();
       void readNotice(n.id).catch((e) => { n.read = false; h.toast(errText(e)); h.requestUpdate(); });

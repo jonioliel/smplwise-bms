@@ -295,7 +295,7 @@ def test_gate_passes_on_a_database_from_before_0211():
 
 # HOME-WALL-NIGHT-2500 (owner 22.11, Q70 / Q71 / Q73 / Q74): the wall panel's settings at install
 WALL_DEFAULTS = {"wall_rest": "on", "wall_rest_after": "2", "wall_night": "on", "wall_night_start": "23:00", "wall_night_end": "06:00",
-                 "wall_night_dim": "medium", "wall_takeover": "alarm_urgent"}
+                 "wall_night_dim": "medium", "wall_takeover": "alarm_urgent", "wall_notice_new": "48"}
 
 def test_new_default_is_full_for_everyone_and_the_setting_changes_it(app):
     c = _client(app)
@@ -451,7 +451,7 @@ def test_wall_panel_rest_night_and_takeover_defaults_reach_the_panel(app):
     c = _client(app)
     bind(c, app[1], "dana", "operator", "installation", "*")
     wall = c.get("/api/v1/me", headers=as_user("dana")).json()["interface"]["wall"]
-    assert wall == {"rest": True, "rest_after_min": 2, "night": True, "night_start": "23:00", "night_end": "06:00", "night_dim": "medium", "takeover": "alarm_urgent"}
+    assert wall == {"rest": True, "rest_after_min": 2, "night": True, "night_start": "23:00", "night_end": "06:00", "night_dim": "medium", "takeover": "alarm_urgent", "notice_new_h": 48}
     view = c.get("/api/v1/home/settings").json()
     assert view["values"]["wall_rest_after"] == ["2", "1", "5", "10", "15"] and view["values"]["wall_takeover"] == ["alarm_urgent", "alarm", "call_only"]
     assert "wall_night_start" not in view["values"]  # a time, not a list of values
@@ -464,7 +464,7 @@ def test_wall_panel_settings_change_validate_and_audit(app):
     r = c.put("/api/v1/home/settings", json=body)
     assert r.status_code == 200 and {k: r.json()["settings"][k] for k in body} == body
     wall = c.get("/api/v1/me", headers=as_user("dana")).json()["interface"]["wall"]
-    assert wall == {"rest": False, "rest_after_min": 10, "night": True, "night_start": "22:30", "night_end": "07:15", "night_dim": "strong", "takeover": "alarm"}
+    assert wall == {"rest": False, "rest_after_min": 10, "night": True, "night_start": "22:30", "night_end": "07:15", "night_dim": "strong", "takeover": "alarm", "notice_new_h": 48}
     for bad in ({"wall_night_start": "24:00"}, {"wall_night_end": "7:00"}, {"wall_night_start": "23:60"}, {"wall_rest_after": "3"}, {"wall_takeover": "everything"}, {"wall_night_dim": "off"}):
         assert c.put("/api/v1/home/settings", json=bad).status_code == 422, bad
     assert c.put("/api/v1/home/settings", headers=as_user("dana"), json={"wall_rest": "on"}).status_code == 403
@@ -476,3 +476,28 @@ def test_wall_panel_settings_change_validate_and_audit(app):
         assert hi.install_settings(conn)["wall_night_end"] == "06:00"
         with pytest.raises(hi.HomeInterfaceError):
             hi.set_install_settings(conn, {"wall_night_start": "2300"})
+
+
+# ---------------------------------------------------------------- HOME-NEXT-2500
+
+def test_wall_panel_notice_new_window_is_a_setting(app):
+    """Owner 22.11 Q72: no "read" on the shared wall panel; a notice is "new" for 48 hours by default (24 / 72 / a week, or "read" as
+    before). The panel gets the hours with its policy (0 = its own "read"); the PUT is validated and audited like the other wall keys."""
+    c = _client(app)
+    bind(c, app[1], "dana", "operator", "installation", "*")
+    view = c.get("/api/v1/home/settings").json()
+    assert view["settings"]["wall_notice_new"] == "48" and view["values"]["wall_notice_new"] == ["48", "24", "72", "168", "read"]
+    for v, hours in (("24", 24), ("168", 168), ("read", 0), ("48", 48)):
+        r = c.put("/api/v1/home/settings", json={"wall_notice_new": v})
+        assert r.status_code == 200 and r.json()["settings"]["wall_notice_new"] == v
+        assert c.get("/api/v1/me", headers=as_user("dana")).json()["interface"]["wall"]["notice_new_h"] == hours
+    for bad in ("0", "12", "week", 48):
+        assert c.put("/api/v1/home/settings", json={"wall_notice_new": bad}).status_code == 422, bad
+    assert c.put("/api/v1/home/settings", headers=as_user("dana"), json={"wall_notice_new": "24"}).status_code == 403
+    with app[0].state.db.connection() as conn:
+        rows = conn.execute("SELECT details_json FROM audit_log WHERE action = 'home_interface.settings.set'").fetchall()
+        assert len(rows) == 4 and any('"wall_notice_new": "read"' in r["details_json"] for r in rows)
+        # an unknown stored value (an old or hand-edited row) reads as the default
+        conn.execute("UPDATE settings SET value = 'forever' WHERE key = 'home.wall_notice_new'")
+        assert hi.install_settings(conn)["wall_notice_new"] == "48"
+        assert hi.wall_settings(hi.install_settings(conn))["notice_new_h"] == 48

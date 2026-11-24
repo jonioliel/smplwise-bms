@@ -19,7 +19,7 @@ import { canAnywhere } from '../api/session';
 import { HandModal } from '../components/hand-modal';
 import { moreTiles } from './more-registry';
 import type { SwHome } from './sw-home';
-import { WallRest, takeoverFor, wallSettings, type TakeoverItem, type WallSettings } from './wall-rest-logic';
+import { WallRest, takeoverFor, urgentFreshMs, wallSettings, type TakeoverItem, type WallSettings } from './wall-rest-logic';
 
 const ZONE = 'Asia/Jerusalem';
 const F_TIME = new Intl.DateTimeFormat(uiLocale(), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: ZONE });
@@ -204,7 +204,7 @@ export class WallPanel {
     const now = Date.now();
     // the person's features arrive after the panel starts: the first board read waits for them (then the minute poll keeps it fresh)
     if (m.settings.takeover === 'alarm_urgent' && !this.noticesAt && !this.noticesLoading && has('notices')) this.loadNotices();
-    const item = takeoverFor(m.settings.takeover, this.h.panels, this.notices, this.seen, now);
+    const item = takeoverFor(m.settings.takeover, this.h.panels, this.notices, this.seen, now, urgentFreshMs(m.settings));
     if ((item?.key ?? null) !== (this.shown?.key ?? null)) {
       this.shown = item;
       // a takeover wakes the panel (rest and night dim step aside) and holds it awake while it is on screen

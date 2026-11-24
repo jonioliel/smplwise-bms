@@ -83,8 +83,12 @@ INSTALL_VALUES: dict[str, tuple[str, ...]] = {
     "wall_night": ("on", "off"),
     "wall_night_dim": ("medium", "soft", "strong"),
     "wall_takeover": ("alarm_urgent", "alarm", "call_only"),
+    # HOME-NEXT-2500 (owner 22.11, Q72 = the recommendation): a wall panel is shared, so its notice board has no "קראתי" - a notice is
+    # marked "new" for 48 hours after it was published (editable: 24 / 72 hours or a week), and an urgent notice may take the screen
+    # over only while it is new. "read" keeps the 2.48 behaviour (the panel's own account marks notices read).
+    "wall_notice_new": ("48", "24", "72", "168", "read"),
 }
-INSTALL_KEYS.update({k: f"home.{k}" for k in ("wall_rest", "wall_rest_after", "wall_night", "wall_night_dim", "wall_takeover")})
+INSTALL_KEYS.update({k: f"home.{k}" for k in ("wall_rest", "wall_rest_after", "wall_night", "wall_night_dim", "wall_takeover", "wall_notice_new")})
 # HOME-WALL-NIGHT-2500: the night window's two local wall times (the installation's zone, HH:MM, 24 h); start == end = no window
 INSTALL_TIMES: dict[str, tuple[str, str]] = {"wall_night_start": ("home.wall_night_start", "23:00"), "wall_night_end": ("home.wall_night_end", "06:00")}
 HM_RE = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]$")
@@ -229,6 +233,8 @@ def wall_settings(inst: dict[str, str]) -> dict[str, Any]:
         "night_end": inst["wall_night_end"],
         "night_dim": inst["wall_night_dim"],
         "takeover": inst["wall_takeover"],
+        # HOME-NEXT-2500: hours a notice stays "new" on a wall panel; 0 = the panel's own "קראתי" (as before)
+        "notice_new_h": 0 if inst["wall_notice_new"] == "read" else int(inst["wall_notice_new"]),
     }
 
 

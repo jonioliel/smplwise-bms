@@ -10,6 +10,7 @@
 // - Takeover (Q74): the alarm and an urgent notice take the whole screen over and wake the panel (rest and night dim step aside). A door
 //   call always comes first: while it rings, no takeover is drawn over it. `call_only` keeps the 2.47 behaviour (only the door call).
 import { KioskIdle, type IdlePhase, type IdleScheduler } from '../map/kiosk-idle';
+import { noticeNewHours, NOTICE_NEW_DEFAULT_H } from './wall-notice-logic';
 
 export type NightDim = 'soft' | 'medium' | 'strong';
 export type Takeover = 'alarm_urgent' | 'alarm' | 'call_only';
@@ -24,10 +25,12 @@ export interface WallSettings {
   nightEnd: number;
   nightDim: NightDim;
   takeover: Takeover;
+  /** HOME-NEXT-2500 (Q72): hours a notice stays "new" on the shared panel; 0 = the panel's own "read" (as before) */
+  noticeNewH: number;
 }
 
 /** The installation defaults (services/home_interface.INSTALL_VALUES / INSTALL_TIMES): what a server older than 2.50 implies. */
-export const WALL_DEFAULTS: WallSettings = { rest: true, restAfterMin: 2, night: true, nightStart: 23 * 60, nightEnd: 6 * 60, nightDim: 'medium', takeover: 'alarm_urgent' };
+export const WALL_DEFAULTS: WallSettings = { rest: true, restAfterMin: 2, night: true, nightStart: 23 * 60, nightEnd: 6 * 60, nightDim: 'medium', takeover: 'alarm_urgent', noticeNewH: NOTICE_NEW_DEFAULT_H };
 
 const HM = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -55,6 +58,7 @@ export function wallSettings(raw: unknown): WallSettings {
     nightEnd: parseHm(w.night_end) ?? WALL_DEFAULTS.nightEnd,
     nightDim: w.night_dim === 'soft' || w.night_dim === 'strong' || w.night_dim === 'medium' ? w.night_dim : WALL_DEFAULTS.nightDim,
     takeover: w.takeover === 'alarm' || w.takeover === 'call_only' || w.takeover === 'alarm_urgent' ? w.takeover : WALL_DEFAULTS.takeover,
+    noticeNewH: noticeNewHours(w),
   };
 }
 
@@ -109,8 +113,13 @@ export const URGENT = new Set(['critical', 'urgent']);
 /** An urgent notice takes the screen over only while it is new: published within the last 48 hours (owner Q72's "new" window). */
 export const URGENT_FRESH_MS = 48 * 3600_000;
 
+/** HOME-NEXT-2500: the takeover's "fresh" window follows the panel's "new" window (Q72 setting); "read" mode keeps the 48 hours. */
+export function urgentFreshMs(s: WallSettings): number {
+  return s.noticeNewH > 0 ? s.noticeNewH * 3600_000 : URGENT_FRESH_MS;
+}
+
 /** What takes the screen over now, if anything: the alarm first, then the newest fresh urgent notice not yet seen on this panel. */
-export function takeoverFor(mode: Takeover, panels: readonly PanelLike[], notices: readonly NoticeLike[], seen: ReadonlySet<string>, now: number): TakeoverItem | null {
+export function takeoverFor(mode: Takeover, panels: readonly PanelLike[], notices: readonly NoticeLike[], seen: ReadonlySet<string>, now: number, freshMs = URGENT_FRESH_MS): TakeoverItem | null {
   if (mode === 'call_only') return null;
   for (const p of panels) {
     if (!p.available || !ALARM_TAKEOVER.has(p.state ?? '')) continue;
@@ -121,7 +130,7 @@ export function takeoverFor(mode: Takeover, panels: readonly PanelLike[], notice
   const fresh = notices
     .filter((n) => URGENT.has(n.severity))
     .map((n) => ({ n, at: Date.parse(n.published_at ?? n.starts_at ?? '') }))
-    .filter(({ n, at }) => Number.isFinite(at) && at <= now + 60_000 && now - at < URGENT_FRESH_MS && !(n.ends_at && Date.parse(n.ends_at) <= now) && !seen.has(`notice:${n.id}`))
+    .filter(({ n, at }) => Number.isFinite(at) && at <= now + 60_000 && now - at < freshMs && !(n.ends_at && Date.parse(n.ends_at) <= now) && !seen.has(`notice:${n.id}`))
     .sort((a, b) => b.at - a.at);
   return fresh.length ? { kind: 'notice', key: `notice:${fresh[0].n.id}`, notice: fresh[0].n } : null;
 }

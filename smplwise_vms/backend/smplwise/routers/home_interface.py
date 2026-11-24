@@ -310,6 +310,7 @@ class InstallBody(BaseModel):
     wall_night_end: Annotated[str, StringConstraints(pattern=r"^([01][0-9]|2[0-3]):[0-5][0-9]$")] | None = None
     wall_night_dim: Literal["medium", "soft", "strong"] | None = None
     wall_takeover: Literal["alarm_urgent", "alarm", "call_only"] | None = None
+    wall_notice_new: Literal["48", "24", "72", "168", "read"] | None = None  # HOME-NEXT-2500
 
 
 @router.get("/home/settings", **wire(W.HomeSettingsView))

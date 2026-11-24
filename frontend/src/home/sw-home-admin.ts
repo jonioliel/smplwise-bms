@@ -297,6 +297,10 @@ export class SwHomeAdmin extends LitElement {
     const mins = (['1', '2', '5', '10', '15'] as const).map((m) => ({ value: m, label: m === '1' ? tr('דקה') : tr('{m} דק׳', { m }), attrs: { 'data-rest-after': m } }));
     const time = (k: 'wall_night_start' | 'wall_night_end', label: string) => html`<label>${label}<input type="time" lang=${dateInputLang()} step="60" dir="ltr" data-install-time=${k} .value=${i[k]} ?disabled=${i.wall_night === 'off'} @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value; if (/^\d{2}:\d{2}$/.test(v) && v !== i[k]) void save({ [k]: v }); }}></label>`;
     const empty = i.wall_night === 'on' && i.wall_night_start === i.wall_night_end;
+    // HOME-NEXT-2500 (owner 22.11, Q72): a shared wall panel has no "קראתי"; a notice is "new" for 48 hours (or 24 / 72 hours, a week, or
+    // the panel's own "קראתי" as before). An urgent notice takes the screen over only while it is new.
+    const fresh: [InstallSettings['wall_notice_new'], string][] = [['24', tr('יממה')], ['48', tr('יומיים')], ['72', tr('3 ימים')], ['168', tr('שבוע')], ['read', tr('לפי «קראתי»')]];
+    const freshOpts = fresh.map(([value, label]) => ({ value, label, attrs: { 'data-notice-new': value } }));
     return html`<p class="note">${tr('חל על כל המשתמשים שמוגדרים כמסך קיר (בלשונית «משתמשים», «מצב מסך קיר»).')}</p><div class="grid3" data-home-wall-settings>
       <section class="card" aria-label="${tr('מסך מנוחה')}"><h3>${tr('מסך מנוחה')}</h3>
         <div class="srow"><div><b>${tr('מסך מנוחה')}</b><div class="note">${tr('שעה, מזג אוויר, מה יש היום, דלתות ואזעקה. הנגיעה הראשונה רק מעירה את המסך.')}</div></div><sw-toggle label="${tr('מסך מנוחה')}" labelHidden data-wall-rest-toggle ?checked=${i.wall_rest === 'on'} @change=${(e: CustomEvent<{ checked: boolean }>) => save({ wall_rest: e.detail.checked ? 'on' : 'off' })}></sw-toggle></div>
@@ -312,10 +316,12 @@ export class SwHomeAdmin extends LitElement {
         </div>
       </section>
       <section class="card" aria-label="${tr('השתלטות על המסך')}"><h3>${tr('השתלטות על המסך')}</h3><p class="note">${tr('מה מעיר את המסך ומופיע על כולו, גם בלילה. שיחת דלת תמיד קודמת.')}</p><div class="opts">
-        ${opt('wall_takeover', 'alarm_urgent', tr('אזעקה והודעה דחופה'), tr('ברירת המחדל. הודעה דחופה מלוח ההודעות מופיעה פעם אחת בכל מסך, ב-48 השעות הראשונות.'))}
+        ${opt('wall_takeover', 'alarm_urgent', tr('אזעקה והודעה דחופה'), tr('ברירת המחדל. הודעה דחופה מלוח ההודעות מופיעה פעם אחת בכל מסך, כל עוד היא חדשה.'))}
         ${opt('wall_takeover', 'alarm', tr('רק אזעקה'), tr('הודעות דחופות מופיעות רק בלוח ההודעות.'))}
         ${opt('wall_takeover', 'call_only', tr('רק שיחת דלת, כמו קודם'), tr('אזעקה והודעות לא משתלטות על המסך.'))}
-      </div></section></div>`;
+      </div>
+        <div class="srow stack" data-wall-notice-new style="margin-block-start:12px"><div><b>${tr('כמה זמן הודעה מסומנת «חדש»')}</b><div class="note">${i.wall_notice_new === 'read' ? tr('כמו קודם: כל מסך קיר מסמן «קראתי» לעצמו, וההודעה כבר לא חדשה אחרי שמישהו קרא אותה בו.') : tr('מסך קיר משותף לכל הבית, ולכן אין בו «קראתי». הודעה מסומנת «חדש» מרגע הפרסום. ברירת המחדל: יומיים.')}</div></div><sw-segmented size="sm" label="${tr('כמה זמן הודעה מסומנת «חדש»')}" .options=${freshOpts} value=${i.wall_notice_new} @change=${(e: CustomEvent<SegmentedChange>) => { if (e.detail.value !== i.wall_notice_new) void save({ wall_notice_new: e.detail.value as InstallSettings['wall_notice_new'] }); }}></sw-segmented></div>
+      </section></div>`;
   }
 
   // ---------------------------------------------------------------- HOME-V3-P1-2430: a room's wallpaper for everyone (owner decision 16b)
