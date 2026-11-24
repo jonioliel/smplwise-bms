@@ -462,6 +462,7 @@ export const en = {
     recoveryUse: 'Use a recovery code',
     recoveryUseApp: 'Use the code from the app',
     recoveryCodeLabel: 'Recovery code',
+    recoveryLoginPrompt: 'Enter one of the recovery codes you saved. Each code works once.',
   },
   whiteLabel: {
     heading: 'Installer branding',

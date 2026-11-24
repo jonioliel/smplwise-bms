@@ -693,6 +693,8 @@ export class ArxLogin extends LitElement {
           ? lit('forgotSub')
           : this.step === 'reset'
           ? lit('resetSub')
+          : (this.step === 'factor' || this.step === 'lfactor') && this.recoveryCode
+          ? t('secondFactor.recoveryLoginPrompt')
           : this.step === 'factor'
           ? t('secondFactor.loginPrompt')
           : this.step === 'lfactor'

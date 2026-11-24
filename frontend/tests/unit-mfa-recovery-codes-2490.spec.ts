@@ -37,7 +37,7 @@ async function setup(page: Page, init: Partial<Mock> = {}): Promise<Mock> {
     const perms = ['video.live', 'devices.read'];
     if (p === 'me') return json(route, { user: { id: 'u-dana', username: 'dana', display_name: 'דנה', source: 'ingress' }, channel: 'local', remote: null, bindings: [], permissions_installation: perms, permissions_any: perms, has_access: true, permission_revision: 1, bootstrap_state: 'done' });
     if (p === 'me/prefs') return json(route, { prefs: {}, stored: [] });
-    if (p === 'settings') return json(route, { settings: { 'ui.design': 'a' }, can_edit: false });
+    if (p === 'settings') return json(route, { settings: { 'ui.design': 'a', 'ui.scheme': 'auto' }, can_edit: false }); // auto: the shots follow the emulated light / dark
     if (p.startsWith('notifications')) return json(route, { unread: 0, items: [] });
     if (p === 'auth/sessions') return json(route, { scope: 'own', can_manage: false, channel: 'local', sessions: [] });
     const body = method === 'GET' ? null : (req.postDataJSON() as { code?: string } | null);
@@ -204,6 +204,7 @@ test('the sign-in code step switches to a recovery code (letters, a placeholder)
   await expect(code).toHaveAttribute('inputmode', 'text');
   await expect(code).toHaveAttribute('placeholder', 'XXXX-XXXX');
   await expect(login.locator('[data-arx-recovery-toggle]')).toHaveText('שימוש בקוד מהאפליקציה');
+  await expect(login.locator('p.sub')).toHaveText('הזן אחד מקודי השחזור ששמרת. כל קוד עובד פעם אחת.');
   if (process.env.SW_SHOTS) {
     fs.mkdirSync(process.env.SW_SHOTS, { recursive: true });
     for (const scheme of ['light', 'dark'] as const) {

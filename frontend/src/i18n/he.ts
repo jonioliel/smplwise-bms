@@ -949,6 +949,7 @@ export const he = {
     recoveryUse: 'שימוש בקוד שחזור',
     recoveryUseApp: 'שימוש בקוד מהאפליקציה',
     recoveryCodeLabel: 'קוד שחזור',
+    recoveryLoginPrompt: 'הזן אחד מקודי השחזור ששמרת. כל קוד עובד פעם אחת.',
   },
   /** 2.4.4: the brand colours (הגדרות › כללי, `ui.accent`, `ui.toggle_on`). */
   brandColors: {
