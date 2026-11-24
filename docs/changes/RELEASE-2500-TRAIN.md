@@ -40,8 +40,8 @@ Still to board (in progress when the train was assembled; merged when pushed): s
 
 | # | Branch | Head | Merge | Conflicts and resolution |
 |---|---|---|---|---|
-| - | `pilot/HAND-SWITCH-HOME-EDIT-2500` | - | - | not pushed yet |
-| - | `pilot/DOOR-PREVIEW-I18N-2500` | - | - | not pushed yet |
+| 19 | `pilot/DOOR-PREVIEW-I18N-2500` (on REVIEW-2490-FIXES) | 8d512f1fd | 93b28da97 | none. Workstation: `test_wxd10_door_jobs` **16 passed**, ruff of the door files clean, `gen_wire_types.py --check` exit 0; its own runner job was cancelled by the lead, the train's full backend covers it |
+| 20 | `pilot/HAND-SWITCH-HOME-EDIT-2500` (on HAND-SWITCH-HOME-PERSONAL) | 2c019f37f | 444dda163 | none. Workstation: `unit-hand-switch-home-edit-2500` **4 passed**; its `-shots` spec added to the train's runner list |
 | - | `pilot/NOTICE-NEWS-EMPTY-2500` | - | - | not pushed yet |
 | - | `pilot/NOTICE-NEWS-FEEDS-2500` | - | - | not pushed yet |
 | - | `pilot/RESPONSE-MODELS-E-2500` | - | - | not pushed yet |
@@ -50,8 +50,9 @@ Still to board (in progress when the train was assembled; merged when pushed): s
 
 | Commit | What |
 |---|---|
-| 9c91fca72 | Design ratchet (`scripts/design_ratchet_baseline.json`) raised with `--update --allow-raise` in its own commit (lead decision, section 5): the rows were cut from 2.47.0 and checked against its baseline (color 2497, px 25485, hand-switch 359); 2.48.0 lowered it afterwards. color-literal 1984 -> 1986 (a fallback inside `var(--hs-shadow-3, ...)` of the favourites drag, the `#000` night dim layer), px-literal 25462 -> 25612 (camera-discovery-dialog +87, home-wall-rest-styles +43, home-styles-extra +12, sw-home-admin +8), hand-switch 161 -> 163 (camera-discovery-dialog +3: the per-row select check box and its CSS selector - a chooser, like the 2.48 recipient choosers - and the "same user for all" check box; sw-home-personal -1). Every other count unchanged |
+| 9c91fca72 | Design ratchet (`scripts/design_ratchet_baseline.json`) raised with `--update --allow-raise` in its own commit; **kept by the lead's decision (24.11)** - tokenising these literals is a later cleanup row, not a blocker. The rows were cut from 2.47.0 and checked against its baseline (color 2497, px 25485, hand-switch 359); 2.48.0 lowered it afterwards. Per file, `origin/main` (v2.49.0) -> train (`design_ratchet.py --files`, both trees): **color-literal 1984 -> 1986**: `home/home-styles-extra.ts` 0 -> 1 (HOME-FAVORITES-2500: the fallback shadow inside `var(--hs-shadow-3, 0 12px 32px rgb(0 0 0 / .35))` of the lifted favourite tile while dragging, Q77), `home/home-wall-rest-styles.ts` 0 -> 1 (HOME-WALL-NIGHT-2500: `#000` of the night dimming layer `.wdim`, Q73). **px-literal 25462 -> 25612**: `components/camera-discovery-dialog.ts` 0 -> 87 (ONVIF-UI-2500: the new "find cameras on the network" wizard), `home/home-wall-rest-styles.ts` 0 -> 43 (HOME-WALL-NIGHT-2500: the new wall panel rest screen and takeover), `home/home-styles-extra.ts` 68 -> 80 (HOME-FAVORITES-2500: the "+ add" hole cell and the drag lift / drop outline, Q77-Q78), `home/sw-home-admin.ts` 91 -> 99 (the wall panel settings tab: HOME-WALL-NIGHT-2500 +7, HOME-NEXT-2500 +1 for the "new for" setting). hand-switch was raised 161 -> 163 here (camera-discovery-dialog +3, sw-home-personal -1) and lowered back to 161 in c33d4cd4e. Every other count unchanged |
 | 4377d886b | `en/i18n/msg/system-b.ts`: MULTI-BUILDING-NEXT-2500's building filter note ("the plan editor's device search") closed its single-quoted string early - a syntax error that breaks esbuild / vite on the merged tree and on the row itself (found by `unit-i18n-en-ratchet-2490`). Escaped. A TypeScript parse of the 104 frontend `.ts` files the train changes finds no other syntax error |
+| c33d4cd4e | Design ratchet hand-switch 163 -> 161 (`--update`, as HAND-SWITCH-HOME-EDIT-2500's note recommends): that row turns the home editor's widget on / off check boxes into the compact switch, so the merged count equals the 2.49.0 baseline again. The camera wizard's "same user for all" box stays a check box for now (see section 5) |
 
 ## 3. Release commits
 
@@ -87,8 +88,7 @@ Runner (slot B/C via `~/work/slotb.sh ~/work/rel2500_tests.sh origin/release/250
 
 ## 5. Lead steps before the release gate
 
-1. Decide on the design ratchet raise (section 2, `9c91fca72`): keep it (recommended - the debt is the new camera wizard and the wall
-   rest screen, accepted when the rows were checked against 2.47.0; tokenising 150 px values is a design pass of its own) or revert the
-   commit and send ONVIF-UI / HOME-WALL-NIGHT back. Follow-up either way: the "same user for all" check box of the camera wizard is an
-   on/off option - under the HAND-SWITCH-2480 rule it should be the compact switch (a row change with its own compare page).
+1. Design ratchet raise (section 2, `9c91fca72`): DECIDED by the lead on 24.11 - colour-literal 1986 and px-literal 25612 are kept;
+   tokenising them is a later cleanup row. Follow-up for that row: the camera wizard's "same user for all" check box is an on/off option -
+   under the HAND-SWITCH-2480 rule it should be the compact switch (a row change with its own compare page).
 2. MULTI-BUILDING-NEXT-2500's own branch still has the syntax error fixed in `4377d886b` (only matters if the row is rebuilt).
