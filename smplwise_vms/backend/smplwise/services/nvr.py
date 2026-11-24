@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from ..config import Settings
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from . import device_http, xmlsafe
 
 # CR-DEVICE-HTTP-2438 (review 03 F15): the shared device-HTTP code moved to services/device_http.py; the old names stay importable
@@ -1073,11 +1073,11 @@ def parse_stream_element(element: str) -> dict[str, object]:
 
 
 def _not_supported(field: str) -> ApiError:
-    return ApiError(422, "field_not_supported", "המכשיר אינו מאפשר לשנות את השדה הזה בזרם הזה.", details={"field": field})
+    return field_error("המכשיר אינו מאפשר לשנות את השדה הזה בזרם הזה.", [field], code="field_not_supported", legacy={"field": field})
 
 
 def _not_allowed(field: str, message: str = "הערך אינו מותר.") -> ApiError:
-    return ApiError(422, "value_not_allowed", message, details={"field": field})
+    return field_error(message, [field], code="value_not_allowed", legacy={"field": field})
 
 
 def _token(field: str, value: object) -> str:

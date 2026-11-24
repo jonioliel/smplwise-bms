@@ -9,7 +9,7 @@ import './frigate-summary';
 import './nvr-writes-switch';
 import { he } from '../i18n/he';
 import { capabilitiesOfTest } from '../api/frigate';
-import { ApiError, describeError } from '../api/client';
+import { ApiError, describeError, fieldsOf } from '../api/client';
 import {
   nvrConnection, nvrVendors, removeNvrConnection, saveNvrConnection, testNvrConnection,
   type ConnectionBody, type NvrConnection, type SaveResult, type TestResult, type Vendor,
@@ -63,7 +63,7 @@ const WARNING_TEXT: Record<string, string> = {
   tls_trust_any: tr('תעודת ה־HTTPS אינה נבדקת. מומלץ לנעוץ את תעודת המכשיר.'),
   vendor_auth_version: tr('המכשיר מבקש גרסת אימות של היצרן שאינה נתמכת. אם הכניסה נכשלת, החליפו בשרת ה־API של המכשיר את סוג ההצפנה.'),
 };
-/** 422 answers that name one field (`details.field`): the line is short and the field is marked invalid. */
+/** 422 answers that name one field (`details.fields`, read through `fieldsOf`): the line is short and the field is marked invalid. */
 const FIELD_CODES = new Set(['host_refused', 'host_invalid', 'port_refused', 'port_invalid', 'username_invalid', 'username_required', 'password_required']);
 /** Failures of an unreachable NVR: the only ones that may be saved after a typed confirmation (D6). */
 const UNREACHABLE = new Set(['source_unavailable', 'timeout']);
@@ -108,7 +108,7 @@ export class NvrConnectionForm extends LitElement {
   @state() private lockedByServer = false;
   /** Someone else changed the connection meanwhile (409 stale): the form offers "טען מחדש" and sends nothing until then. */
   @state() private stale = false;
-  /** The field a 422 answer named (`details.field`): marked `aria-invalid` until the draft changes. */
+  /** The field a 422 answer named (`fieldsOf`): marked `aria-invalid` until the draft changes. */
   @state() private invalidField = '';
   /** CR-025: the last test's transport facts, warnings and certificate (cleared when the draft changes). */
   @state() private lastTest: TestResult | null = null;
@@ -207,10 +207,11 @@ export class NvrConnectionForm extends LitElement {
   }
 
   /** A 422 that names a field (security review contract): mark it; `password_required` - also with `details.reason =
-   * destination_changed` - drops the "kept" state so the password has to be typed. Returns the short line, or null. */
+   * destination_changed` - drops the "kept" state so the password has to be typed. Returns the short line, or null.
+   * ADR-019 (ADR019-FAMILY3-2510): the field is read through the one field reader (canonical `details.fields`, legacy `field`). */
   private fieldError(err: unknown): string | null {
     if (!(err instanceof ApiError) || !FIELD_CODES.has(err.code)) return null;
-    const field = typeof err.body.details?.field === 'string' ? (err.body.details.field as string) : '';
+    const field = fieldsOf(err)[0] ?? '';
     if (err.code === 'password_required') {
       this.changePassword = true;
       this.draft = { ...this.draft, password: '' };

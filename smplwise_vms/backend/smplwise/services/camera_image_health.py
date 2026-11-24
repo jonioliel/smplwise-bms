@@ -46,7 +46,7 @@ import numpy as np
 
 from ..config import Settings
 from ..db import Database, get_setting, now_iso, set_setting
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from .poller import PeriodicWorker
 from ..test_reset import register_reset
 
@@ -154,19 +154,19 @@ def validate(body: Any) -> dict[str, Any]:
     for k, v in body.items():
         if k in BOOLS:
             if not isinstance(v, bool):
-                raise ApiError(422, "validation", "ערך לא תקין.", details={"field": k})
+                raise field_error("ערך לא תקין.", [k], legacy={"field": k})
             out[k] = v
         elif k in NUMBERS:
             if not _num_ok(k, v):
                 lo, hi = NUMBERS[k][1], NUMBERS[k][2]
-                raise ApiError(422, "validation", f"הערך מחוץ לטווח ({lo:g} עד {hi:g}).", details={"field": k, "min": lo, "max": hi})
+                raise field_error(f"הערך מחוץ לטווח ({lo:g} עד {hi:g}).", [k], legacy={"field": k}, extra={"min": lo, "max": hi})
             out[k] = float(v) if _is_float(k) else int(v)
         elif k == EXCLUDED_KEY:
             if not _ids_ok(v):
-                raise ApiError(422, "validation", "רשימת מצלמות לא תקינה.", details={"field": k})
+                raise field_error("רשימת מצלמות לא תקינה.", [k], legacy={"field": k})
             out[k] = sorted(set(v))
         else:
-            raise ApiError(422, "validation", "שדה לא מוכר.", details={"field": k})
+            raise field_error("שדה לא מוכר.", [k], legacy={"field": k})
     return out
 
 

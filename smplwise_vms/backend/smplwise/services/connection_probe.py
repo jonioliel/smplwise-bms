@@ -54,7 +54,7 @@ import httpcore
 import httpx
 
 from ..config import Settings
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from . import source_policy, xmlsafe
 
 log = logging.getLogger("smplwise.connection_probe")
@@ -310,7 +310,7 @@ def connect_target(host: str, settings: Settings) -> str | None:
     None when a name does not resolve: the caller must NOT connect (handing the name to the HTTP client would resolve it a
     second time, unchecked - review F3)."""
     h = host.strip().lower().rstrip(".")
-    refused = ApiError(422, "host_refused", "הכתובת אינה מותרת לחיבור NVR.", details={"field": "host"})
+    refused = field_error("הכתובת אינה מותרת לחיבור NVR.", ["host"], code="host_refused", legacy={"field": "host"})
     own_name = (HOSTNAME() or "").strip().lower()
     if h in REFUSED_NAMES or h.endswith(".localhost") or (own_name and h in (own_name, own_name.split(".")[0])):
         raise refused
@@ -646,7 +646,7 @@ def check_and_probe(host: str, settings: Settings, build: Callable[[str], Settin
         target = connect_target(host, settings)
         field = ha_host_port_field(host, target, ports or {}, ha_names or set())
         if field is not None:
-            raise ApiError(422, "port_refused", "הפורט שמור לשירותי המערכת ואינו מותר לחיבור NVR.", details={"field": field})
+            raise field_error("הפורט שמור לשירותי המערכת ואינו מותר לחיבור NVR.", [field], code="port_refused", legacy={"field": field})
         if target is None:
             return {"ok": False, "code": "timeout" if _budget_left(total) <= 0 else "source_unavailable"}
         return probe(build(target))

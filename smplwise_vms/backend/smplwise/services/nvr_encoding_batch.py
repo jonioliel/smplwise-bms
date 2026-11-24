@@ -34,7 +34,7 @@ from typing import Any
 
 from ..config import Settings
 from ..db import commit_now, unlocked
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from . import nvr, nvr_batch, nvr_settings
 from .recorders import registry
 from .recorders.base import StreamOptions
@@ -89,7 +89,12 @@ SKIP_HE = {
 # ------------------------------------------------------------------------------------------------ the body
 
 def _invalid(message: str, **details: Any) -> ApiError:
-    return ApiError(422, "validation", message, details=details or None)
+    """A refused body. One that names a field (`field=`) answers the canonical `details.fields` (ADR-019 D1,
+    ADR019-FAMILY3-2510) with the legacy `field` and the other details (`min`, `max`) beside it."""
+    field = details.pop("field", None)
+    if field is None:
+        return ApiError(422, "validation", message, details=details or None)
+    return field_error(message, [field], legacy={"field": field}, extra=details)
 
 
 def _typed(name: str, v: Any) -> bool:

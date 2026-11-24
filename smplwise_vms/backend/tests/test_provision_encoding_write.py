@@ -94,7 +94,7 @@ def test_values_outside_the_device_documents_are_refused_before_a_request(settin
         return
     with pytest.raises(ApiError) as e:
         a.write_stream_encoding("101", snap.etag, item, "direct")
-    assert e.value.code == "value_not_allowed" and e.value.details["field"] == field and fake.writes == []
+    assert e.value.code == "value_not_allowed" and e.value.details["field"] == field and e.value.details["fields"] == [field] and fake.writes == []
 
 
 def test_svc_and_b_frames_are_not_writable_on_provision(settings, fake):

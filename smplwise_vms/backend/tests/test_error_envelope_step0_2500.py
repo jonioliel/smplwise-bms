@@ -162,7 +162,8 @@ def test_the_inventory_counts_field_error_as_canonical():
     inv = _script("error_contract_inventory")
     call = ast.parse('field_error("m", ["a"], code="feed_refused", legacy={"field": "a"}, extra={"max": 3}, problems=[])').body[0].value
     site = inv._error_site(call)
-    assert site == {"callee": "field_error", "status": [422], "code": "feed_refused", "details": ["fields", "problems", "field", "max"], "fields_form": "list[str]"}
+    assert site == {"callee": "field_error", "status": [422], "code": "feed_refused", "details": ["fields", "problems", "field", "max"], "fields_form": "list[str]",
+                    "canonical": True}
     assert inv.shape_of(site["details"]) == "fields" and not inv.is_legacy(site)
     assert inv._error_site(ast.parse('errors.field_error("m", ["a"], status=409)').body[0].value)["status"] == [409]
 

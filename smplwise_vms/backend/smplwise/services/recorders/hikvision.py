@@ -19,7 +19,7 @@ import xml.etree.ElementTree as ET
 import httpx
 
 from ...config import Settings
-from ...errors import ApiError
+from ...errors import ApiError, field_error
 from ...test_reset import register_reset
 from .. import nvr, xmlsafe
 from ..nvr_write import response_status
@@ -375,7 +375,7 @@ class HikvisionAdapter:
 
     def _discover_options(self, stream_ref: str, codec: str | None = None) -> StreamOptions:
         if codec is not None and not nvr.SAFE_TOKEN.match(codec):
-            raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "codec"})
+            raise field_error("הערך אינו מותר.", ["codec"], code="value_not_allowed", legacy={"field": "codec"})
         key = (self.recorder_id, stream_ref, codec or "")
         with _OPTIONS_LOCK:
             hit = _OPTIONS.get(key)

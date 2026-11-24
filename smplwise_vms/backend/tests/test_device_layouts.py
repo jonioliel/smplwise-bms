@@ -137,6 +137,8 @@ def test_validation(dev_app):  # noqa: F811
         assert bad({"v": 1, "cols": 12, "items": {"card:lighting": {**item, "hidden_entities": bad_list}}}) == 422, bad_list[:2]
     assert bad({"v": 1, "cols": 12, "items": {"floor:ground": {**item, "hidden_entities": ["light.lobby"]}}}, scope="building", sid="main") == 422
     assert bad({"v": 1, "cols": 4, "items": {}}) == 422  # a desktop layout has 12 columns
+    sem = _put(c, "area", "lobby", "desktop", 0, {"v": 1, "cols": 12, "items": {"floor:ground": item}}).json()  # ADR-019 D1
+    assert sem["details"]["fields"] == ["layout.items.floor:ground"] and len(sem["details"]["errors"]) == 1, sem
     assert bad({"v": 1, "cols": 12, "items": {}}, variant="phone") == 422  # a phone layout has 4
     assert bad({"v": 1, "cols": 4, "items": {"card:lighting": {"x": 2, "y": 0, "w": 4, "h": 5}}}, variant="phone") == 422
     assert bad({"v": 4, "cols": 12, "items": {}}) == 422  # 1 (6b), 2 (6c, device tiles) and 3 (custom / deleted cards) only

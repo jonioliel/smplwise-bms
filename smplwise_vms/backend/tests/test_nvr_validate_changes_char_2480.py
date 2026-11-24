@@ -8,7 +8,10 @@ The corpus (tests/fixtures/nvr_validate_changes_char_2480.json, format: tests/su
 - seeded mutations of them (the stream document, the device options or the request: a key dropped or added, a value of another
   type, a number moved),
 with the whole answer: (changes, {field: [from, to]}, unchanged) or the `ApiError` raised (status, code, message, details). The replay
-must give the same answer."""
+must give the same answer.
+
+ADR019-FAMILY3-2510 (ADR-019 Step 1, family 3): the 137 recorded refusals that name a field gained the additive canonical
+`details.fields` (= [details.field]) in the fixture; the legacy `field` and every other recorded value are unchanged."""
 from __future__ import annotations
 
 from collections import Counter

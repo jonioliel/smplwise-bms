@@ -71,7 +71,7 @@ from typing import Any
 from ..audit import audit
 from ..config import Settings
 from ..db import commit_now, get_setting, new_id, now_iso, set_setting, unlocked
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import INSTALLATION, require
 from . import nvr, nvr_settings
 from .access import camera_scope, require_camera
@@ -149,7 +149,12 @@ class BatchRequest:
 
 
 def _invalid(message: str, **details: Any) -> ApiError:
-    return ApiError(422, "validation", message, details=details or None)
+    """A refused body. One that names a field (`field=`) answers the canonical `details.fields` (ADR-019 D1,
+    ADR019-FAMILY3-2510) with the legacy `field` and the other details (`min`, `max`) beside it."""
+    field = details.pop("field", None)
+    if field is None:
+        return ApiError(422, "validation", message, details=details or None)
+    return field_error(message, [field], legacy={"field": field}, extra=details)
 
 
 def parse_batch_body(body: Any) -> BatchRequest:

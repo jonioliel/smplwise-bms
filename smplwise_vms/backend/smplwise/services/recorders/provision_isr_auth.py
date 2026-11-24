@@ -20,7 +20,7 @@ from typing import Any
 
 import httpx
 
-from ...errors import ApiError
+from ...errors import ApiError, field_error
 
 SCHEMES = ("basic", "digest", "vendor_v1_1")
 _PARAM = re.compile(r'(\w+)=("[^"]*"|[^,\s]+)')
@@ -90,4 +90,4 @@ def build(scheme: str, username: str, password: str) -> httpx.Auth:
         return httpx.DigestAuth(username, password)
     if scheme == "vendor_v1_1":
         return VendorDigestV11(username, password)
-    raise ApiError(422, "value_not_allowed", "שיטת אימות לא מוכרת.", details={"field": "auth"})
+    raise field_error("שיטת אימות לא מוכרת.", ["auth"], code="value_not_allowed", legacy={"field": "auth"})

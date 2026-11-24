@@ -27,7 +27,7 @@ from ..audit import audit
 from ..auth import current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..config import DEV_NVR_PLACEHOLDER, Settings
 from ..db import unlocked
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import INSTALLATION, Principal, require
 from ..recorder_scope import PRIMARY, settings_for
 from ..services import addon_restart, confirm_words, connection_probe, connection_store, update_runs
@@ -149,29 +149,29 @@ def connection_view(conn: sqlite3.Connection, request: Request, rid: str = PRIMA
 def _validated(body: _Base) -> dict[str, Any]:
     vendor = body.vendor
     if vendor not in registry.SPEC_BY_ID or not registry.selectable(vendor):
-        raise ApiError(422, "vendor_not_available", "סוג ה־NVR שנבחר אינו זמין.", details={"field": "vendor"})
+        raise field_error("סוג ה־NVR שנבחר אינו זמין.", ["vendor"], code="vendor_not_available", legacy={"field": "vendor"})
     if vendor == registry.NO_NVR:
         return {"vendor": vendor}
     spec = registry.SPEC_BY_ID[vendor]
     host = (body.host or "").strip()
     if not connection_probe.valid_host(host):
-        raise ApiError(422, "host_invalid", "הכתובת אינה תקינה: שם מארח או כתובת IP בלבד, בלי פרוטוקול, נתיב או פורט.", details={"field": "host"})
+        raise field_error("הכתובת אינה תקינה: שם מארח או כתובת IP בלבד, בלי פרוטוקול, נתיב או פורט.", ["host"], code="host_invalid", legacy={"field": "host"})
     ports = {}
     for name in ("http_port", "rtsp_port"):
         value = getattr(body, name)
         value = spec.default_ports.get(name) if value is None else value
         if not connection_probe.valid_port(value):
-            raise ApiError(422, "port_invalid", "מספר הפורט אינו תקין (1-65535).", details={"field": name})
+            raise field_error("מספר הפורט אינו תקין (1-65535).", [name], code="port_invalid", legacy={"field": name})
         ports[name] = value
     username = (body.username or "").strip()
     if not username:
-        raise ApiError(422, "username_required", "יש להזין שם משתמש.", details={"field": "username"})
+        raise field_error("יש להזין שם משתמש.", ["username"], code="username_required", legacy={"field": "username"})
     if any(ord(ch) < 32 or 127 <= ord(ch) < 160 for ch in username):  # review F14: no control characters in a stored, displayed name
-        raise ApiError(422, "username_invalid", "שם המשתמש מכיל תווים לא חוקיים.", details={"field": "username"})
+        raise field_error("שם המשתמש מכיל תווים לא חוקיים.", ["username"], code="username_invalid", legacy={"field": "username"})
     allowed_extra = {f.key for f in spec.fields} - {"host", "http_port", "rtsp_port", "username", "password"}
     extra = body.extra or {}
     if any(k not in allowed_extra for k in extra) or any(not isinstance(v, (str, int, bool)) or isinstance(v, str) and len(v) > 200 for v in extra.values()):
-        raise ApiError(422, "extra_invalid", "שדה נוסף אינו מוכר לסוג ה־NVR הזה.", details={"field": "extra"})
+        raise field_error("שדה נוסף אינו מוכר לסוג ה־NVR הזה.", ["extra"], code="extra_invalid", legacy={"field": "extra"})
     by_key = {f.key: f for f in spec.fields}
     extra = {k: _extra_value(by_key[k], v) for k, v in extra.items()}
     return {"vendor": vendor, "host": host, **ports, "username": username, "extra": {k: v for k, v in extra.items() if v is not None}}
@@ -189,7 +189,7 @@ def _extra_value(f: Any, v: Any) -> Any:
     """One vendor extra checked against its field kind (port 1-65535, bool, a listed select value, text without control
     characters and, for known keys, of the right shape). Empty text = not set (None). 422 extra_invalid otherwise."""
     def bad() -> ApiError:
-        return ApiError(422, "extra_invalid", "ערך לא תקין בשדה נוסף.", details={"field": f"extra.{f.key}"})
+        return field_error("ערך לא תקין בשדה נוסף.", [f"extra.{f.key}"], code="extra_invalid", legacy={"field": f"extra.{f.key}"})
 
     if isinstance(v, str):
         v = v.strip()
@@ -279,13 +279,13 @@ def _password_for(body: _Base, settings: Settings, row: sqlite3.Row | None, fiel
             return None, False
         wanted = (fields["vendor"], _norm_host(fields["host"]), fields["http_port"], fields["rtsp_port"], *_transport(fields.get("extra")))
         if stored != wanted:
-            raise ApiError(422, "password_required", DESTINATION_CHANGED, details={"field": "password", "reason": "destination_changed"})
+            raise field_error(DESTINATION_CHANGED, ["password"], code="password_required", legacy={"field": "password"}, extra={"reason": "destination_changed"})
         try:
             if row is not None:
                 return connection_store.stored_password(settings, row), False
             return settings.nvr_password, False  # before any save: the legacy password the process runs with
         except connection_store.SecretError:
-            raise ApiError(422, "password_required", "לא ניתן לקרוא את הסיסמה השמורה - יש להזין אותה מחדש.", details={"field": "password"}) from None
+            raise field_error("לא ניתן לקרוא את הסיסמה השמורה - יש להזין אותה מחדש.", ["password"], code="password_required", legacy={"field": "password"}) from None
     return None, False
 
 
@@ -327,7 +327,7 @@ def _check_ports(fields: dict[str, Any]) -> None:
     """Review F9: the platform's own service ports are never a probe target, on any host."""
     for name in ("http_port", "rtsp_port"):
         if connection_probe.port_refused(fields.get(name)):
-            raise ApiError(422, "port_refused", "הפורט שמור לשירותי המערכת ואינו מותר לחיבור NVR.", details={"field": name})
+            raise field_error("הפורט שמור לשירותי המערכת ואינו מותר לחיבור NVR.", [name], code="port_refused", legacy={"field": name})
 
 
 def _run_probe(request: Request, conn: sqlite3.Connection, settings: Settings, fields: dict[str, Any], password: str | None) -> dict[str, Any]:
@@ -351,7 +351,7 @@ def _revision_now(conn: sqlite3.Connection, rid: str = PRIMARY) -> int:
 def _require_revision(if_revision: int | None, conn: sqlite3.Connection, rid: str = PRIMARY) -> None:
     """Review F10: `if_revision` is mandatory on PUT / DELETE and must equal the stored revision (0 before any save)."""
     if if_revision is None:
-        raise ApiError(422, "revision_required", "חסר מספר הגרסה של פרטי החיבור; טענו את הדף מחדש.", details={"field": "if_revision"})
+        raise field_error("חסר מספר הגרסה של פרטי החיבור; טענו את הדף מחדש.", ["if_revision"], code="revision_required", legacy={"field": "if_revision"})
     current = _revision_now(conn, rid)
     if if_revision != current:
         raise ApiError(409, "stale", "פרטי החיבור השתנו בינתיים; טענו את הדף מחדש.", details={"revision": current})
@@ -386,7 +386,7 @@ def do_test(request: Request, principal: Principal, raw: bytes, conn: sqlite3.Co
     settings = settings_of(request)
     fields = _validated(body)
     if fields["vendor"] == registry.NO_NVR:
-        raise ApiError(422, "vendor_not_testable", "אין מה לבדוק כשנבחר \"ללא NVR\".", details={"field": "vendor"})
+        raise field_error("אין מה לבדוק כשנבחר \"ללא NVR\".", ["vendor"], code="vendor_not_testable", legacy={"field": "vendor"})
     row = connection_store.get_row(conn, rid)
     try:
         _check_ports(fields)
@@ -395,7 +395,7 @@ def do_test(request: Request, principal: Principal, raw: bytes, conn: sqlite3.Co
         _deny(request, conn, principal, "nvr.connection.test", (exc.details or {}).get("reason") or exc.code, fields["vendor"], rid)
         raise
     if not password:
-        raise ApiError(422, "password_required", "יש להזין סיסמה.", details={"field": "password"})
+        raise field_error("יש להזין סיסמה.", ["password"], code="password_required", legacy={"field": "password"})
     _limit(request, conn, principal, "nvr.connection.test", rid)
     try:
         result = _run_probe(request, conn, settings, fields, password)
@@ -427,7 +427,7 @@ def do_save(request: Request, principal: Principal, body: "SaveIn", conn: sqlite
     settings = settings_of(request)
     fields = _validated(body)
     if fields["vendor"] == registry.NO_NVR and not allow_none:
-        raise ApiError(422, "vendor_not_available", "סוג ה־NVR שנבחר אינו זמין.", details={"field": "vendor"})
+        raise field_error("סוג ה־NVR שנבחר אינו זמין.", ["vendor"], code="vendor_not_available", legacy={"field": "vendor"})
     _require_revision(body.if_revision, conn, rid)
     row = connection_store.get_row(conn, rid)
     _check_vendor_change(conn, settings, row, fields, rid)
@@ -445,7 +445,7 @@ def do_save(request: Request, principal: Principal, body: "SaveIn", conn: sqlite
         _deny(request, conn, principal, "nvr.connection.update", (exc.details or {}).get("reason") or exc.code, fields["vendor"], rid)
         raise
     if not password:
-        raise ApiError(422, "password_required", "יש להזין סיסמה.", details={"field": "password"})
+        raise field_error("יש להזין סיסמה.", ["password"], code="password_required", legacy={"field": "password"})
     _limit(request, conn, principal, "nvr.connection.update", rid)
     try:
         result = _run_probe(request, conn, settings, fields, password)  # 422 host_refused propagates: never saved, even untested
@@ -460,13 +460,13 @@ def do_save(request: Request, principal: Principal, body: "SaveIn", conn: sqlite
     untested = False
     confirm_word: str | None = None  # which word confirmed an untested save ("he" / "en"), for the audit row
     if result.get("pin_required"):  # CR-025: "pin" chosen but no fingerprint in the body - the form pins it from the test
-        raise ApiError(422, "tls_pin_required", "יש לנעוץ את תעודת ה־NVR (בדיקת חיבור ואז נעיצה) לפני השמירה.", details={"field": "tls_pin"})
+        raise field_error("יש לנעוץ את תעודת ה־NVR (בדיקת חיבור ואז נעיצה) לפני השמירה.", ["tls_pin"], code="tls_pin_required", legacy={"field": "tls_pin"})
     if not result["ok"]:
         code = result["code"]
         if code in UNTESTED_OK and body.save_untested:
             confirm_word = confirm_words.typed_lang("nvr_save_untested", body.confirm_text)
             if confirm_word is None:
-                raise ApiError(422, "confirm_required", f"כדי לשמור בלי בדיקה יש להקליד \"{SAVE_WORD}\".", details={"field": "confirm_text"})
+                raise field_error(f"כדי לשמור בלי בדיקה יש להקליד \"{SAVE_WORD}\".", ["confirm_text"], code="confirm_required", legacy={"field": "confirm_text"})
             untested = True
         else:
             messages = {"source_forbidden": "ה־NVR דחה את שם המשתמש או הסיסמה.", "source_unavailable": "לא ניתן להתחבר ל־NVR.", "timeout": "ה־NVR לא ענה בזמן.",
@@ -493,7 +493,7 @@ def do_save(request: Request, principal: Principal, body: "SaveIn", conn: sqlite
 
             rid = connection_store.next_free_id(conn)
             if destination_taken(conn, settings, fields, rid):
-                raise ApiError(409, "recorder_duplicate", "ה־NVR הזה כבר מחובר למערכת.", details={"field": "host"})
+                raise field_error("ה־NVR הזה כבר מחובר למערכת.", ["host"], code="recorder_duplicate", status=409, legacy={"field": "host"})
             create_recorder_row(conn, rid, "NVR", fields["vendor"])
             row = None
             new_recorder = True
@@ -528,7 +528,7 @@ def remove_connection(request: Request, background: BackgroundTasks, principal: 
     body: RemoveIn = _parse(request, raw, RemoveIn)
     confirm_word = confirm_words.typed_lang("nvr_remove", body.confirm_text)
     if confirm_word is None:
-        raise ApiError(422, "confirm_required", f"כדי להסיר את ה־NVR יש להקליד \"{REMOVE_WORD}\".", details={"field": "confirm_text"})
+        raise field_error(f"כדי להסיר את ה־NVR יש להקליד \"{REMOVE_WORD}\".", ["confirm_text"], code="confirm_required", legacy={"field": "confirm_text"})
     _require_revision(body.if_revision, conn)  # the request holds the write lock from here to the commit
     revision, disabled = connection_store.remove(conn, settings_of(request), principal.user_id)
     audit(conn, actor=principal, action="nvr.connection.remove", decision="allowed", resource_type="nvr", resource_id="connection", request_id=_rid(request),
@@ -554,7 +554,7 @@ def restart_system(request: Request, background: BackgroundTasks, principal: Pri
     require(conn, principal, PERMISSION, INSTALLATION)
     body: RestartIn = _parse(request, raw, RestartIn)
     if body.confirm is not True:
-        raise ApiError(422, "confirm_required", "יש לאשר את ההפעלה מחדש.", details={"field": "confirm"})
+        raise field_error("יש לאשר את ההפעלה מחדש.", ["confirm"], code="confirm_required", legacy={"field": "confirm"})
     try:  # CR-021 S3 owner decision 2026-10-04: an Arx restart never starts while a self-update run is active
         update_runs.refuse_arx_restart_during_update(conn)
     except ApiError:

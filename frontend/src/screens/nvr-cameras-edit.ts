@@ -13,6 +13,7 @@
 import type { BitrateMode, CameraDetail, EncodingChanges, EncodingField, NvrCamera, StreamChange, StreamEncoding, StreamOptions } from '../api/nvr-settings';
 import { DASH, ROLE_HE } from './nvr-cameras-logic';
 import { tr } from '../i18n/msg/media';
+import { ApiError, fieldsOf } from '../api/client';
 
 export const FIELD_HE: Record<EncodingField, string> = {
   codec: tr('קידוד'), profile: tr('פרופיל'), resolution: tr('רזולוציה'), fps: 'FPS', bitrate_mode: tr('סוג קצב'), bitrate_kbps: tr('קצב'), quality: tr('איכות'), gop: 'GOP',
@@ -175,13 +176,20 @@ const LINE: Record<string, string> = {
   source_forbidden: tr('ל־NVR אין הרשאה לשינוי הזה.'),
 };
 
+/** The first field an error names, read through the one field reader (ADR-019, ADR019-FAMILY3-2510: the canonical
+ * `details.fields`, the legacy `details.field` second). */
+function fieldOf(e: ErrorShape): string | undefined {
+  return fieldsOf(new ApiError(e.status, { code: e.code, user_message: e.user_message ?? '', retryable: false, correlation_id: '', details: e.details ?? {} }))[0];
+}
+
 /** The one muted line under a row / in the editor for a failed write or undo. */
 export function errorLine(e: ErrorShape): ErrorLine {
   if (isUnknownOutcome(e)) return { text: tr('הסטטוס נבדק'), reload: true };
   const reload = e.code === 'stale' || e.code === 'nvr_diverged';
   // a value kept through a codec change that the new codec lacks: the server's own line names the field and the codec
   if (e.code === 'value_not_allowed' && typeof e.details?.codec === 'string' && e.user_message) return { text: e.user_message, reload };
-  if (e.code === 'value_not_allowed' && typeof e.details?.field === 'string' && e.details.field in FIELD_HE) return { text: `${FIELD_HE[e.details.field as EncodingField]}: ${LINE.value_not_allowed}`, reload };
+  const field = e.code === 'value_not_allowed' ? fieldOf(e) : undefined;
+  if (field && field in FIELD_HE) return { text: `${FIELD_HE[field as EncodingField]}: ${LINE.value_not_allowed}`, reload };
   const text = LINE[e.code] ?? (e.user_message || tr('השינוי לא נשמר.'));
   return { text, reload };
 }

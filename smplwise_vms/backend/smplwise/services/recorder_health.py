@@ -33,7 +33,7 @@ from typing import Any
 from ..config import Settings
 from ..db import Database, get_setting, set_setting
 from .timeutil import iso_from_epoch_or_none, site_zone_name
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from .poller import PeriodicWorker
 from .recorders.base import HealthReading
 from ..test_reset import register_reset
@@ -162,19 +162,19 @@ def validate(body: Any) -> dict[str, Any]:
     for k, v in body.items():
         if k == CONTINUOUS_KEY:
             if not _valid_ids(v):
-                raise ApiError(422, "validation", "רשימת מקליטים לא תקינה.", details={"field": k})
+                raise field_error("רשימת מקליטים לא תקינה.", [k], legacy={"field": k})
             out[k] = sorted(set(v))
             continue
         if k == CAMERA_KEY:
             if not _valid_camera_map(v):
-                raise ApiError(422, "validation", "בחירת מצלמות לא תקינה.", details={"field": k})
+                raise field_error("בחירת מצלמות לא תקינה.", [k], legacy={"field": k})
             out[k] = dict(sorted(v.items()))
             continue
         spec = THRESHOLDS.get(k)
         if spec is None:
-            raise ApiError(422, "validation", "שדה לא מוכר.", details={"field": k})
+            raise field_error("שדה לא מוכר.", [k], legacy={"field": k})
         if isinstance(v, bool) or not isinstance(v, int) or not spec[1] <= v <= spec[2]:
-            raise ApiError(422, "validation", f"הערך מחוץ לטווח ({spec[1]} עד {spec[2]}).", details={"field": k, "min": spec[1], "max": spec[2]})
+            raise field_error(f"הערך מחוץ לטווח ({spec[1]} עד {spec[2]}).", [k], legacy={"field": k}, extra={"min": spec[1], "max": spec[2]})
         out[k] = v
     return out
 

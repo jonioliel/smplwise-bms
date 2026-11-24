@@ -41,7 +41,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from ..audit import audit
 from ..auth import current_principal_ro, get_conn, get_read_conn
 from ..db import now_iso
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import INSTALLATION, Principal, authorize
 from ..services import device_layouts_store as store
 from ..services import camera_cards
@@ -332,6 +332,13 @@ def _overlaps(layout: Layout, grid_of: Any) -> list[str]:
     return out
 
 
+def _issue_field(issue: str) -> str:
+    """The field a semantic issue line names (ADR-019 D1, ADR019-FAMILY3-2510): the text before `: `
+    (`layout.items.area:a1.tiles: ...` -> `layout.items.area:a1.tiles`), else its first word (`layout.cols must be 12 ...`)."""
+    head = issue.split(": ", 1)[0] if ": " in issue else issue.split(" ", 1)[0]
+    return head or "layout"
+
+
 def _validate_semantics(scope: str, variant: str, layout: Layout) -> list[str]:
     """What pydantic cannot say alone: the variant's column count, items inside the grid, keys of this screen."""
     errors: list[str] = []
@@ -544,7 +551,7 @@ def put_layout(scope: str, scope_id: str, request: Request, principal: Principal
     assert isinstance(body, PutBody)
     errors = _validate_semantics(scope, body.variant, body.layout)
     if errors:
-        raise ApiError(422, "validation", "הפריסה אינה תקינה: " + "; ".join(errors[:5]), details={"errors": errors[:50]})
+        raise field_error("הפריסה אינה תקינה: " + "; ".join(errors[:5]), [_issue_field(e) for e in errors[:50]], legacy={"errors": errors[:50]})
     overlaps = _overlaps(body.layout, _grid_of(conn, scope))
     if overlaps:
         raise ApiError(422, "layout_overlap", "שני כרטיסים באותו מקום: " + "; ".join(overlaps[:5]), details={"overlaps": overlaps[:50]})

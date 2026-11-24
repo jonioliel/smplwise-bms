@@ -32,7 +32,7 @@ from typing import Any
 from ..audit import audit
 from ..config import Settings
 from ..db import is_busy, new_id, now_iso, unlocked
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from . import nvr, stream_codecs, xmlsafe
 from .access import CameraScope
 from .nvr_write import _row as change_row
@@ -325,7 +325,7 @@ def parse_write_body(body: Any) -> WriteRequest:
             "svc": isinstance(v, bool), "smart_codec": isinstance(v, bool), "b_frames": isinstance(v, bool),
         }[k]
         if not ok:
-            raise ApiError(422, "validation", "ערך בסוג לא תקין.", details={"field": k})
+            raise field_error("ערך בסוג לא תקין.", [k], legacy={"field": k})
     return WriteRequest(if_match=etag, changes=dict(changes))
 
 
@@ -345,7 +345,8 @@ def _same(a: Any, b: Any) -> bool:
 
 
 def _not_allowed(name: str, allowed: Any = None) -> ApiError:
-    return ApiError(422, "value_not_allowed", "הערך אינו בין הערכים שהמכשיר מקבל.", details={"field": name, **({"allowed": allowed} if allowed is not None else {})})
+    return field_error("הערך אינו בין הערכים שהמכשיר מקבל.", [name], code="value_not_allowed", legacy={"field": name},
+                       extra={"allowed": allowed} if allowed is not None else None)
 
 
 _KEPT_HE = {"profile": "הפרופיל הנוכחי אינו נתמך", "resolution": "הרזולוציה הנוכחית אינה נתמכת"}
@@ -353,12 +354,11 @@ _KEPT_HE = {"profile": "הפרופיל הנוכחי אינו נתמך", "resolut
 
 def _kept_not_allowed(name: str, codec: str, allowed: Any) -> ApiError:
     """A value the stream keeps through a codec change that the new codec does not offer: the person must choose one."""
-    return ApiError(422, "value_not_allowed", f"{_KEPT_HE[name]} בקידוד {codec}. בחרו ערך אחר ושמרו שוב.",
-                    details={"field": name, "codec": codec, "allowed": allowed})
+    return field_error(f"{_KEPT_HE[name]} בקידוד {codec}. בחרו ערך אחר ושמרו שוב.", [name], code="value_not_allowed", legacy={"field": name}, extra={"codec": codec, "allowed": allowed})
 
 
 def _not_supported(name: str) -> ApiError:
-    return ApiError(422, "field_not_supported", "המכשיר אינו מאפשר לשנות את השדה הזה בזרם הזה.", details={"field": name})
+    return field_error("המכשיר אינו מאפשר לשנות את השדה הזה בזרם הזה.", [name], code="field_not_supported", legacy={"field": name})
 
 
 def validate_changes(current: dict[str, Any], options: dict[str, Any], requested: dict[str, Any]) -> tuple[dict[str, Any], dict[str, list[Any]], list[str]]:
@@ -414,7 +414,7 @@ def _check_field_value(name: str, value: Any, options: dict[str, Any], codec_aft
             raise _not_allowed(name, bounds)
     elif name == "quality":
         if mode_after != "VBR":
-            raise ApiError(422, "field_locked", "השדה נעול בגלל ערך של שדה אחר.", details={"field": name, "by": "bitrate_mode"})
+            raise field_error("השדה נעול בגלל ערך של שדה אחר.", [name], code="field_locked", legacy={"field": name}, extra={"by": "bitrate_mode"})
         if value not in (options.get("quality") or []):
             raise _not_allowed(name, options.get("quality"))
     elif name in ("svc", "smart_codec"):
@@ -427,7 +427,7 @@ def _check_smart_locks(current: dict[str, Any], options: dict[str, Any], request
     if smart_after is True:
         for name in (options.get("locks") or {}).get("smart_codec", []):
             if name in requested and not _same(requested[name], field_value(current, name)):
-                raise ApiError(422, "field_locked", "השדה נעול בגלל ערך של שדה אחר.", details={"field": name, "by": "smart_codec"})
+                raise field_error("השדה נעול בגלל ערך של שדה אחר.", [name], code="field_locked", legacy={"field": name}, extra={"by": "smart_codec"})
 
 
 def _check_kept_under_new_codec(current: dict[str, Any], options: dict[str, Any], requested: dict[str, Any], codec_after: Any) -> None:

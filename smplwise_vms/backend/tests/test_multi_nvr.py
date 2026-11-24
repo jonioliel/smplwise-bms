@@ -294,10 +294,12 @@ def test_duplicate_destination_rename_disable_and_time_zone(base, fakes):
     app, c = two_recorders(base, fakes)
     r = c.post("/api/v1/recorders", json={**ADD, "host": NVR_HOST, "name": "שוב"})
     assert r.status_code == 409 and r.json()["code"] == "recorder_duplicate", "the first recorder's device cannot be added twice"
+    assert r.json()["details"] == {"fields": ["host"], "field": "host"}, "ADR-019: the canonical key beside the legacy one"
     r = c.post("/api/v1/recorders", json={**ADD, "name": "שוב"})
     assert r.status_code == 409 and r.json()["code"] == "recorder_duplicate"
     assert rows(base, "SELECT COUNT(*) AS n FROM audit_log WHERE action = 'nvr.recorder.add' AND decision = 'denied' AND reason = 'recorder_duplicate'")[0]["n"] >= 2
-    assert c.patch("/api/v1/recorders/nvr-2", json={"time_zone": "Mars/Base"}).json()["code"] == "time_zone_invalid"
+    tz = c.patch("/api/v1/recorders/nvr-2", json={"time_zone": "Mars/Base"}).json()
+    assert tz["code"] == "time_zone_invalid" and tz["details"] == {"fields": ["time_zone"], "field": "time_zone"}, tz
     r = c.patch("/api/v1/recorders/nvr-2", json={"name": "מחסן צפון", "time_zone": "Europe/London", "sort_order": 5})
     assert r.status_code == 200 and r.json()["recorder"]["name"] == "מחסן צפון" and r.json()["recorder"]["time_zone"] == "Europe/London"
     assert r.json()["restart_required"] is False
@@ -346,11 +348,11 @@ def test_a_stream_batch_never_mixes_recorders_and_a_sync_group_never_spans_them(
     body = {"confirm": True, "changes": {"svc": False}, "targets": [{"camera_id": a["id"], "stream_ref": "101", "if_match": "0" * 16},
                                                                      {"camera_id": b["id"], "stream_ref": "201", "if_match": "0" * 16}]}
     r = c.post("/api/v1/nvr/stream-batches", json=body)
-    assert r.status_code == 422 and r.json()["details"].get("field") == "targets", r.text
+    assert r.status_code == 422 and r.json()["details"].get("field") == "targets" and r.json()["details"]["fields"] == ["targets"], r.text
     b2 = next(x for x in cams if x["recorder_id"] == "nvr-2" and x["id"] != b["id"])
     r = c.post("/api/v1/nvr/stream-batches", json={**body, "recorder_id": "nvr-1", "targets": [
         body["targets"][1], {"camera_id": b2["id"], "stream_ref": "999", "if_match": "0" * 16}]})
-    assert r.status_code == 422 and r.json()["details"].get("field") == "recorder_id"
+    assert r.status_code == 422 and r.json()["details"].get("field") == "recorder_id" and r.json()["details"]["fields"] == ["recorder_id"]
     r = c.post("/api/v1/playback/groups", json={"camera_ids": [a["id"], b["id"]], "start_at": "2026-10-04T08:00:00Z"})
     assert r.status_code == 409 and r.json()["code"] == "sync_cross_recorder_unproven"
     # the batch device lock is the recorder's own device
