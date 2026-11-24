@@ -117,7 +117,10 @@ object BridgePolicy {
     const val NATIVE_OBJECT = "ArxAppNative"
 
     /** The kinds of message the page may send; anything else is ignored. */
-    val MESSAGE_TYPES = setOf("switchServer", "blob", "blobError")
+    val MESSAGE_TYPES = setOf("switchServer", "blob", "blobError", "deviceKeyStatus", "deviceKeyCreate", "deviceKeySign", "deviceKeySetId", "deviceKeyDelete")
+
+    /** MFA-DEVICEKEY-2490: the phone-key calls (DeviceKey.kt), answered through the listener's reply port. */
+    val DEVICE_KEY_TYPES = setOf("deviceKeyStatus", "deviceKeyCreate", "deviceKeySign", "deviceKeySetId", "deviceKeyDelete")
 
     /** `https://Host:443/` → `https://host`; null when it is not an http(s) origin. */
     fun canonicalOrigin(origin: String?): String? {

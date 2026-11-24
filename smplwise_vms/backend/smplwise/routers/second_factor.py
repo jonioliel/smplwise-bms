@@ -11,7 +11,9 @@
                                                 an administrator who has a factor sends their own current code
                                                 (X-Arx-Second-Factor or {code}); the target's remote sign-ins end
 `GET    auth/step-up`                           MFA-STEPUP-TRAIN-2490: the step-up switch, window and the caller's current proof
-`POST   auth/step-up/verify {method, code}`     MFA-STEPUP-TRAIN-2490: a current code -> a step-up proof on THIS session (services/step_up)
+`POST   auth/step-up/verify {method, code}`     MFA-STEPUP-TRAIN-2490: a current code -> a step-up proof on THIS session (services/step_up);
+                                                MFA-DEVICEKEY-2490: {method: "device_key", challenge_id, key_id, signature} answers a
+                                                `step_up` challenge of `POST auth/device-keys/challenge` (routers/device_keys.py)
 
 The factor is applied to the remote sign-in (services/ha_user_auth.exchange). Codes and secrets are never logged or audited;
 audit rows carry the method and the target user only. Code attempts are limited (5 wrong in 5 minutes lock the user for
@@ -255,8 +257,11 @@ def step_up_status(request: Request, principal: Principal = Depends(current_prin
 
 
 class StepUpBody(BaseModel):
-    method: str = Field(default=step_up.METHOD_TOTP, pattern="^totp$")
-    code: str = Field(min_length=1, max_length=16)
+    method: str = Field(default=step_up.METHOD_TOTP, pattern="^(totp|device_key)$")
+    code: str | None = Field(default=None, min_length=1, max_length=16)  # method totp
+    challenge_id: str | None = Field(default=None, max_length=80)  # method device_key (MFA-DEVICEKEY-2490)
+    key_id: str | None = Field(default=None, max_length=40)  # method device_key
+    signature: str | None = Field(default=None, max_length=120)  # method device_key: base64url ECDSA P-256 signature of the payload
     action: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_.]{0,63}$")  # the change the proof is for (audit only)
 
 
@@ -268,6 +273,13 @@ def step_up_verify(body: StepUpBody, request: Request, principal: Principal = De
     action, never the code. Wrong codes count towards the factor's lockout (5 in 5 minutes); the route is rate-limited per user."""
     if not hua.LIMITER.hit(f"stepup:{principal.user_id}", STEP_UP_LIMITS):
         raise ApiError(429, "rate_limited", hua.RATE_LIMITED_HE, retryable=True)
+    if body.method == step_up.METHOD_DEVICE_KEY:  # MFA-DEVICEKEY-2490: a phone-key signature of a step-up challenge
+        from . import device_keys
+
+        return device_keys.verify_step_up(conn, request, principal, challenge_id=body.challenge_id, key_id=body.key_id,
+                                          signature=body.signature, action=body.action)
+    if not body.code:
+        raise ApiError(422, "validation", "הזן את הקוד מאפליקציית האימות.", details={"field": "code"})
     reason = step_up.not_applicable(conn, request, principal)
     if reason == "no_method":
         raise ApiError(409, "step_up_no_method", step_up.NO_METHOD_HE)

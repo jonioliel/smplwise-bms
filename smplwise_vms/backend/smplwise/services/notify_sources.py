@@ -728,6 +728,13 @@ def second_factor_reset(conn: sqlite3.Connection, user_id: str) -> None:
                                          initiator_user_id=user_id, link="#/system/notifications", origin={"kind": "second_factor"}))
 
 
+def device_key_added(conn: sqlite3.Connection, user_id: str) -> None:
+    """MFA-DEVICEKEY-2490: a phone key was registered for this account (services/device_keys.register, inside its transaction): the
+    ACCOUNT'S OWN user gets `security.device_key_added` (inbox, the app and the channels of its policy). No key, no label, no actor."""
+    notify.emit_full(conn, notify.Signal("security.device_key_added", "session", user_id, dedupe_key=f"security.device_key_added:session:{user_id}:{notify.new_id()}",
+                                         initiator_user_id=user_id, link="#/system/notifications", origin={"kind": "device_key"}))
+
+
 def _reset_all_for_tests() -> None:
     """Test seam: the module's existing reset, then the remaining module-level tables back to a fresh process (smplwise.test_reset; product code never calls it)."""
     reset()

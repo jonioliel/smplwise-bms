@@ -1116,7 +1116,11 @@ def second_factor_need(conn, principal: Principal, replaces: str | None) -> str:
         return "code"
     # TFA2: the per-user / per-role override on top of the global policy; `required` and no factor = the enrolment-required answer
     if sf.effective_policy(conn, principal, ADMIN_PERMISSIONS)[0] == "required":
-        return "enroll"
+        from . import device_keys
+
+        # MFA-DEVICEKEY-2490 (owner Q51): an active phone key is a factor too - the sign-in owes its signature (the app answers in the
+        # same header); without any factor the answer stays enrolment-required
+        return "code" if device_keys.has_active(conn, principal.user_id) else "enroll"
     return "none"
 
 
@@ -1142,20 +1146,29 @@ def _check_second_factor_sync(db: Any, settings: Settings, conn_like: Any, princ
     Failures are audited (the method and the reason only, never the code). Blocking (the database)."""
     from . import second_factor as sf
 
+    from . import device_keys
+
     code = (conn_like.headers.get(SECOND_FACTOR_HEADER) or "").strip()
     if not code:
         raise ApiError(401, "second_factor_required", sf.REQUIRED_HE)
+    # MFA-DEVICEKEY-2490 (owner Q51: in the app, password + phone key counts as two-factor): `dk1:<challenge_id>:<signature>` is the
+    # phone key's signature of a sign-in challenge (POST auth/device-keys/sign-in/challenge) instead of the authenticator code
+    method = device_keys.METHOD if device_keys.is_answer(code) else "totp"
     err: sf.SecondFactorError | None = None
     with db.connection(label="auth/session second factor") as conn:
         try:
-            sf.verify(conn, settings, principal.user_id, code)
+            if method == device_keys.METHOD:
+                device_keys.check_sign_in_answer(conn, principal.user_id, code, device_keys.origin_of(settings, conn_like))
+            else:
+                sf.verify(conn, settings, principal.user_id, code)
         except sf.SecondFactorError as exc:
             err = exc
     if err is None:
         return
     reason = {"locked": "second_factor_locked", "unreadable": "second_factor_unreadable"}.get(err.code, "second_factor_invalid")
     status = 429 if err.code == "locked" else 401
-    _audit_refusal(db, actor=principal, reason=reason, meta={**meta, "method": "totp"}, action="auth.second_factor.failed", subject=principal.user_id)
+    extra = {"why": err.reason} if isinstance(err, device_keys.DeviceKeyError) else {}
+    _audit_refusal(db, actor=principal, reason=reason, meta={**meta, "method": method, **extra}, action="auth.second_factor.failed", subject=principal.user_id)
     raise ApiError(status, reason, err.message, retryable=err.code == "locked")
 
 
@@ -1368,7 +1381,9 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
         raise rejected("second_factor_enrollment_required", ApiError(403, "second_factor_enrollment_required", sf.ENROLL_REQUIRED_HE), principal)
     elif factor == "code":
         _check_second_factor_sync(db, settings, request, principal, meta)
-        factor_meta = {"second_factor": "totp"}
+        from . import device_keys  # MFA-DEVICEKEY-2490: which factor answered
+
+        factor_meta = {"second_factor": device_keys.METHOD if device_keys.is_answer((request.headers.get(SECOND_FACTOR_HEADER) or "").strip()) else "totp"}
     try:
         s = STORE.create(principal, ha_user, token, exp, ip, via="bearer", meta=meta, client_id=arx_client_id(settings, request))
     except ChainRevoked:  # review M2: revoked while this request was validating the token

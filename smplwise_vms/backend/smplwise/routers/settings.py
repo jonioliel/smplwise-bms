@@ -275,6 +275,7 @@ class SettingsPatch(BaseModel):
     security_step_up: str | None = Field(default=None, pattern="^(on|off)$", alias="security.step_up")  # MFA-STEPUP-TRAIN-2490
     security_step_up_minutes: int | None = Field(default=None, ge=0, le=30, alias="security.step_up_minutes")
     security_step_up_local: str | None = Field(default=None, pattern="^(on|off)$", alias="security.step_up_local")
+    security_device_key_auth: str | None = Field(default=None, pattern="^(biometric|biometric_or_screen_lock)$", alias="security.device_key_auth")  # MFA-DEVICEKEY-2490
     remote_require_mfa_admin: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.require_mfa_admin")
     security_local_identity: str | None = Field(default=None, pattern="^(on|off)$", alias="security.local_identity")  # USR2: system_admin only (checked below)
     security_local_identity_extended: str | None = Field(default=None, pattern="^(on|off)$", alias="security.local_identity_extended")  # SVCIDENT2: system_admin; on = local channel only, off = any channel (AMEND273)

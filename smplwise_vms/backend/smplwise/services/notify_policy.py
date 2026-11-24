@@ -222,6 +222,9 @@ SOURCES: tuple[Source, ...] = (
     _s("security.lockout", "נעילת קוד", "security", "alert", "נעילת קוד", "הוזנו קודים שגויים ונשארה נעילה זמנית.", window_s=3600, subject="session", resolves=False),
     # TFA2: an administrator reset the account's second factor - the account's own user is told (never who, never a secret)
     _s("security.second_factor_reset", "איפוס אימות דו־שלבי", "security", "alert", "האימות הדו־שלבי של החשבון אופס", "מנהל המערכת אפס את האימות הדו־שלבי של החשבון שלך. אם לא ביקשת זאת - פנה למנהל המערכת. אפשר להפעיל אותו מחדש ב״החשבון שלי״.", window_s=3600, who="initiator", subject="session", resolves=False),
+    # MFA-DEVICEKEY-2490 (design 8.3): a phone key was added to the account - the account's own user is told on every device (never the key,
+    # never the label they typed)
+    _s("security.device_key_added", "מפתח טלפון נוסף לחשבון", "security", "alert", "מפתח טלפון נוסף לחשבון", "נוסף לחשבון שלך מפתח טלפון לאימות. אם לא אתה הוספת אותו - הסר אותו ב״החשבון שלי״ ופנה למנהל המערכת.", window_s=3600, who="initiator", subject="session", resolves=False, app=True),
     # APPREFRESH3-295 (owner Q297): an administrator approved a reset of the user's phone-app device key - the device's own user is told in
     # the app and on the phone; the title / body are the wording kept in the Settings (security.app_refresh_key_reset_notice_*), rendered
     # by services/app_refresh before the signal (never the administrator, the reason or key material)

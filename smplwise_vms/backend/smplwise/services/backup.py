@@ -97,6 +97,8 @@ NEVER_EXPORTED_COLUMNS: dict[str, frozenset[str]] = {"auth_local_credentials": f
 # The archive format is an allow-list (PROJECT_TABLES / ACCESS_TABLES / OPTIONAL_TABLES); this set is the guard that none of them
 # is ever added to it, checked at import and again by `snapshot`.
 NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "auth_local_failures", "auth_totp", "auth_totp_failures",
+                                   # MFA-DEVICEKEY-2490: the phone keys are factor material (design 6: they never travel, like auth_totp)
+                                   "auth_device_keys",
                                    "auth_local_reset_codes", "auth_local_reset_sends",
                                    # CR-WISKEY-HMAC-ROTATION-295: the bridge HMAC key set (sealed material) and its rotation history
                                    "bridge_keys", "bridge_rotations",
@@ -272,6 +274,8 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"occupancy.enabled", "occupancy.retention_days"
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_device_key"}
 # MFA-STEPUP-TRAIN-2490: the step-up switch, its window and its channel are security policy - a restore must never weaken them
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.step_up", "security.step_up_minutes", "security.step_up_local"}
+# MFA-DEVICEKEY-2490: what a phone key needs per signature is security policy too
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.device_key_auth"}
 # WKWRITE-295: the anchor of the WisKey people-write lineage (generation + last intent sequence) describes THIS installation's lineage
 # file, which lives outside every backup - an archive must never carry it or move it backwards (services/wiskey_write_lineage.py)
 SETTINGS_KEEP = SETTINGS_KEEP | {"wiskey.native_write.lineage_anchor"}

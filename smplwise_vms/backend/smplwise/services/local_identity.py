@@ -1266,6 +1266,7 @@ def sign_in(db: Any, settings: Settings, conn_like: Any, username: str, password
 
 
 def second_factor_step(db: Any, settings: Settings, conn_like: Any, pid: str | None, code: str, request_id: str | None) -> SignInResult:
+    from . import device_keys
     from . import second_factor as sf
     from .ha_user_auth import _record_sign_in, mask_address, request_meta
 
@@ -1274,6 +1275,8 @@ def second_factor_step(db: Any, settings: Settings, conn_like: Any, pid: str | N
         raise ApiError(401, "second_factor_expired", PENDING_EXPIRED_HE)
     meta = request_meta(conn_like)
     err: sf.SecondFactorError | None = None
+    # MFA-DEVICEKEY-2490 (owner Q51): the phone key's signature of a sign-in challenge answers the step like the authenticator code
+    method = device_keys.METHOD if device_keys.is_answer(code) else "totp"
     with db.connection(label="local sign-in second factor") as conn:
         user = conn.execute("SELECT id, username, display_name, active, deleted_at FROM users WHERE id = ? AND source = 'local'", (p.user_id,)).fetchone()
         if user is None or not user["active"] or user["deleted_at"]:
@@ -1281,20 +1284,25 @@ def second_factor_step(db: Any, settings: Settings, conn_like: Any, pid: str | N
             raise ApiError(401, "second_factor_expired", PENDING_EXPIRED_HE)
         principal = Principal(user_id=user["id"], username=user["username"], display_name=user["display_name"] or user["username"], source="local", via="cookie")
         try:
-            sf.verify(conn, settings, user["id"], code)
+            if method == device_keys.METHOD:
+                device_keys.check_sign_in_answer(conn, user["id"], code, device_keys.origin_of(settings, conn_like))
+            else:
+                if len(code) > 16:
+                    raise sf.SecondFactorError("invalid", sf.INVALID_HE)  # the code's own limit (the field widened for the phone key)
+                sf.verify(conn, settings, user["id"], code)
         except sf.SecondFactorError as exc:
             err = exc
         if err is None:
             drop_pending(pid)
             value, s = create_session(conn, settings, conn_like, user["id"], factor=True, meta=meta)
             _audit(conn, actor=principal, action="auth.local.sign_in.succeeded", decision="allowed",
-                   details={"kind": s.kind, "ip": mask_address(meta.get("client_ip", "")), "country": meta.get("country", ""), "factor": "totp",
+                   details={"kind": s.kind, "ip": mask_address(meta.get("client_ip", "")), "country": meta.get("country", ""), "factor": method,
                             "id": public_id(s.chain_id)}, request_id=request_id)
             cred = conn.execute("SELECT must_change FROM auth_local_credentials WHERE user_id = ?", (user["id"],)).fetchone()
         else:
             _audit(conn, actor=principal, action="auth.second_factor.failed", decision="denied",
                    reason={"locked": "second_factor_locked", "unreadable": "second_factor_unreadable"}.get(err.code, "second_factor_invalid"),
-                   details={"method": "totp", "step": "local_sign_in"}, request_id=request_id)
+                   details={"method": method, "step": "local_sign_in"}, request_id=request_id)
     if err is not None:
         if err.code != "invalid":
             drop_pending(pid)
