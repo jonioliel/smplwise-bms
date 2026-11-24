@@ -17,6 +17,10 @@
 - הגדרות › גישה מרחוק: הגדרות האישור לפני שינויים עברו ללשונית "אימות דו־שלבי" במשתמשים והרשאות; בגישה מרחוק נשאר קישור אליה. - Settings › Remote access: the confirmation-before-changes settings moved to the "Two-step verification" tab of Users and permissions; Remote access keeps a link to it.
 - החשבון שלי › אסימוני גישה: רשימת האסימונים ארוכי הטווח של מערכת הבית (לקריאה בלבד) וכניסות האפליקציה (אפשר לבטל). - My account › Access tokens: the home system's long-lived tokens (read only) and the app sign-ins (revocable).
 - חסימות דלתות ושומר ההפעלה של הדלתות: הטקסטים בשפת הקורא; באנגלית המונח "door window" אחיד בתפקידים, בהרשאות ובשמות ההתראות. - Door blocks and the door run guard: the texts are in the reader's language; in English the term "door window" is the same in roles, permissions and notification names.
+- הודעות שגיאה על שדות: גם בהגדרות ה-NVR, המקליטים, החיבור, המצלמות, פריסות ההתקנים ומסכי הקיר שגיאת שדה מחזירה את שמות השדות בצורה אחידה, כך שהמסך מסמן את השדה הנכון. הטקסטים לא השתנו. - Field errors: the NVR, recorder, connection, camera, device layout and wall screen settings also return the refused field names in the one uniform form, so the screen marks the right field. The texts did not change.
+
+### תוקן - Fixed
+- לוח ההודעות בממשק הביתי: לכרטיסי ההודעות חזר הריווח הפנימי - הטקסט כבר לא נוגע בקצה הכרטיס, והאות הראשונה של התאריך לא נחתכת (נכנס ב-2.50.0). - The home interface notice board: the notice cards have their inner padding again - the text no longer touches the card's edge and the first letter of the date is no longer cut (since 2.50.0).
 
 ### אבטחה - Security
 - מפתחות גישה כבר לא נשמרים בגיבוי (כמו קודי האימות ומפתחות הטלפון); שחזור גיבוי משאיר את מפתחות הגישה הנוכחיים. במעבר לשרת חדש צריך לרשום מפתחות גישה מחדש. - Passkeys are no longer stored in backups (like the authenticator codes and phone keys); restoring a backup keeps the current passkeys. On a move to a new server, passkeys must be registered again.
