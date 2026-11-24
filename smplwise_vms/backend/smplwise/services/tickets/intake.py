@@ -647,6 +647,13 @@ def counts(conn: sqlite3.Connection, viewer: Viewer) -> dict[str, Any]:
 
 # ---------------------------------------------------------------- the configurer's lexicon rows
 
+def _configure_used(conn: sqlite3.Connection, viewer: Viewer) -> None:
+    """MFA-STEPUP-GATES-2490: the intake lexicon is a module setting granted by tickets.configure without require()."""
+    from .. import step_up
+
+    step_up.on_grant(conn, viewer.principal, access.CONFIGURE)
+
+
 def lexicon_overview(conn: sqlite3.Connection, viewer: Viewer) -> dict[str, Any]:
     if not viewer.holds_installation(access.CONFIGURE):
         raise ApiError(403, "forbidden", text(conn, "אין הרשאה להגדרת מילון הפניות."), details={"permission": access.CONFIGURE})
@@ -658,6 +665,7 @@ def lexicon_overview(conn: sqlite3.Connection, viewer: Viewer) -> dict[str, Any]
 def lexicon_add(conn: sqlite3.Connection, viewer: Viewer, body: Mapping[str, Any], rid: str | None = None) -> dict[str, Any]:
     if not viewer.holds_installation(access.CONFIGURE):
         raise ApiError(403, "forbidden", text(conn, "אין הרשאה להגדרת מילון הפניות."), details={"permission": access.CONFIGURE})
+    _configure_used(conn, viewer)
     kind = body.get("kind")
     if kind not in LEXICON_KINDS:
         raise _invalid(conn, "kind", "choice")
@@ -698,6 +706,7 @@ def lexicon_add(conn: sqlite3.Connection, viewer: Viewer, body: Mapping[str, Any
 def lexicon_remove(conn: sqlite3.Connection, viewer: Viewer, lexicon_id: str, rid: str | None = None) -> dict[str, Any]:
     if not viewer.holds_installation(access.CONFIGURE):
         raise ApiError(403, "forbidden", text(conn, "אין הרשאה להגדרת מילון הפניות."), details={"permission": access.CONFIGURE})
+    _configure_used(conn, viewer)
     cur = conn.execute("DELETE FROM ticket_intake_lexicon WHERE id = ?", (lexicon_id,))
     if cur.rowcount == 0:
         raise ApiError(404, "lexicon_not_found", text(conn, "הערך לא נמצא."))

@@ -599,6 +599,9 @@ def _need_configure(conn, viewer: Viewer, action: str, rid: str | None) -> None:
         audit(conn, actor=viewer.principal, action=action, decision="denied", resource_type="installation", resource_id=str(INSTALLATION[1]),
               reason="permission_missing", request_id=rid, details={"permission": access.CONFIGURE})
         raise ApiError(403, "forbidden", text(conn, "אין הרשאה לפעולה הזו."), details={"permission": access.CONFIGURE})
+    from ..services import step_up
+
+    step_up.on_grant(conn, viewer.principal, access.CONFIGURE)  # MFA-STEPUP-GATES-2490: a module setting granted without require() (a GET is never gated)
 
 
 @router.get("/tickets/costs/departments", **wire(W.DepartmentCostsAnswer))

@@ -703,9 +703,16 @@ class CorrelationId:
         cid = correlation_id.resolve(Headers(scope=scope).getlist(correlation_id.HEADER))
         scope.setdefault("state", {})["correlation_id"] = cid  # request.state.correlation_id
 
+        from .services import step_up
+
+        # MFA-STEPUP-GATES-2490: the step-up gate finds the request also from a connection the handler opened itself; the request
+        # context closes when the response starts (a background task after the answer is never gated)
+        su_token, su_holder = step_up.enter_request(scope)
+
         async def send_with_id(message) -> None:
             if message["type"] == "http.response.start":
                 MutableHeaders(scope=message)["X-Correlation-Id"] = cid
+                step_up.close_request(su_holder)
             await send(message)
 
         token = correlation_id.CURRENT.set(cid)  # T033: the log ring stamps this request's log lines with its id
@@ -713,6 +720,7 @@ class CorrelationId:
             await self.app(scope, receive, send_with_id)
         finally:
             correlation_id.CURRENT.reset(token)
+            step_up.leave_request(su_token)
 
 
 class CommitBeforeSend:

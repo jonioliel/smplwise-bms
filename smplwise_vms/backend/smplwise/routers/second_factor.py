@@ -194,19 +194,18 @@ def set_override(kind: str, subject_id: str, body: OverrideBody, request: Reques
 def require_step_up(conn: sqlite3.Connection, request: Request, principal: Principal, body_code: str | None, *, action: str, target: str) -> bool:
     """Security review 2.2.0 M1: an administrator who has a factor shows their OWN current code (`X-Arx-Second-Factor`, or the body's
     `code`) before stripping a factor from someone else - a stolen session or cookie alone cannot. True when a code was checked.
-    Shared by the TOTP reset below and the administrator's passkey removal (USR2 phase 4, routers/local_passkeys.py)."""
-    if not sf.is_enrolled(conn, principal.user_id):
-        return False
-    code = (request.headers.get(hua.SECOND_FACTOR_HEADER) or body_code or "").strip()
-    if not code:
-        raise ApiError(403, "second_factor_step_up_required", STEP_UP_HE)
+    Shared by the TOTP reset below and the administrator's passkey removal (USR2 phase 4, routers/local_passkeys.py).
+    MFA-STEPUP-GATES-2490: a once-action on the central proof (services/step_up.once_proof, grace 0) - the own code in this request as
+    before, or a once-proof from `POST auth/step-up/verify {action}` for exactly this action; a window proof never counts."""
     try:
-        sf.verify(conn, settings_of(request), principal.user_id, code)
+        method = step_up.once_proof(conn, request, principal, action, body_code)
+    except step_up.OnceProofMissing:
+        raise ApiError(403, "second_factor_step_up_required", STEP_UP_HE, details=step_up.once_details(conn, principal, action)) from None
     except sf.SecondFactorError as exc:
         audit(conn, actor=principal, action=action, decision="denied", resource_type="user", resource_id=target,
               reason=f"step_up_{exc.code}", request_id=_rid(request), details={"method": "totp"})
         raise _fail(exc) from None
-    return True
+    return method is not None
 
 
 class ResetBody(BaseModel):
@@ -280,7 +279,8 @@ def step_up_verify(body: StepUpBody, request: Request, principal: Principal = De
         raise ApiError(422, "validation", "הזן את הקוד מאפליקציית האימות.", details={"field": "code"})
     from ..services.user_passkeys import FACTOR_ACTIONS
 
-    if body.action in FACTOR_ACTIONS:  # MFA-PASSKEYS-2490: a passkey change needs a proof whatever the switch / channel says
+    once = body.action in step_up.ONCE_ACTIONS  # MFA-STEPUP-GATES-2490: a proof for ONE call of a once-action, on every channel
+    if once or body.action in FACTOR_ACTIONS:  # MFA-PASSKEYS-2490: a passkey change needs a proof whatever the switch / channel says
         reason = None if step_up.methods_of(conn, principal.user_id) else "no_method"
     else:
         reason = step_up.not_applicable(conn, request, principal)
@@ -297,6 +297,11 @@ def step_up_verify(body: StepUpBody, request: Request, principal: Principal = De
         audit(conn, actor=principal, action="auth.step_up.failed", decision="denied", resource_type="user", resource_id=principal.user_id,
               reason=f"step_up_{exc.code}", request_id=_rid(request), details=details)
         raise _fail(exc) from None
+    if once:
+        until = step_up.mark_once(request, principal, body.action or "", body.method)
+        audit(conn, actor=principal, action="auth.step_up.ok", decision="allowed", resource_type="user", resource_id=principal.user_id,
+              request_id=_rid(request), details={**details, "minutes": 0, "once": True})
+        return {"method": body.method, "minutes": 0, "valid_until": step_up.iso(until)}
     until = step_up.mark(conn, request, principal, body.method)
     audit(conn, actor=principal, action="auth.step_up.ok", decision="allowed", resource_type="user", resource_id=principal.user_id,
           request_id=_rid(request), details={**details, "minutes": step_up.minutes(conn)})
