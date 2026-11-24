@@ -279,6 +279,23 @@ def remove(conn: sqlite3.Connection, user_id: str) -> bool:
     return conn.execute("DELETE FROM auth_totp WHERE user_id = ?", (user_id,)).rowcount > 0
 
 
+def remove_every_factor(conn: sqlite3.Connection, user_id: str, *, by: str) -> dict[str, Any]:
+    """MFA-SECFIX-2500 SR-2: the administrator's factor reset (routers/second_factor.admin_reset). Every factor kind of the user goes:
+    the authenticator code (active or pending) with its lockout and recovery codes, every passkey (auth_webauthn_credentials - an
+    Arx-only identity's passkey-only mode then falls back to its password, local_passkeys.only_effective) and every phone key
+    (device_keys.revoke_all, kept as revoked rows). The caller ends the step-up proofs, the sign-ins and the device tokens."""
+    from . import device_keys, recovery_codes
+
+    codes = recovery_codes.remove_all(conn, user_id)
+    totp = remove(conn, user_id)
+    try:
+        passkeys = conn.execute("DELETE FROM auth_webauthn_credentials WHERE user_id = ?", (user_id,)).rowcount
+    except sqlite3.OperationalError:
+        passkeys = 0
+    keys = device_keys.revoke_all(conn, user_id, by=by, reason="admin_reset")
+    return {"totp": totp, "recovery_codes": max(codes, 0), "passkeys": max(passkeys, 0), "device_keys": max(keys, 0)}
+
+
 def policy(conn: sqlite3.Connection) -> str:
     from ..db import get_setting
 

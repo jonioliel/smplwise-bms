@@ -49,12 +49,16 @@ class Phone:
 
 
 class Clock:
+    """The step-up clock: the monotonic clock of the marks and (MFA-SECFIX-2500 SR-5) the wall clock of stored instants move together."""
+
     def __init__(self, monkeypatch):
         self.t = step_up._now()
         monkeypatch.setattr(step_up, "_now", lambda: self.t)
+        monkeypatch.setattr(step_up, "_WALL_SKEW_S", 0.0)
 
     def advance(self, minutes: float) -> None:
         self.t += minutes * 60
+        step_up._WALL_SKEW_S += minutes * 60
 
 
 @pytest.fixture()

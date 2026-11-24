@@ -32,10 +32,18 @@ export interface FactorEnabled {
   recovery_codes: string[];
 }
 
-/** `DELETE /auth/second-factor/users/{id}`: `removed` = a factor (active or pending) was there. */
+/**
+ * `DELETE /auth/second-factor/users/{id}`: `removed` = a factor (active or pending) was there. MFA-SECFIX-2500 SR-2: every factor
+ * kind goes - `totp` (the authenticator code was removed), how many `passkeys` were deleted, `device_keys` (phone keys) revoked and
+ * `recovery_codes` deleted.
+ */
 export interface FactorReset {
   user_id: string;
   removed: boolean;
+  totp: boolean;
+  passkeys: number;
+  device_keys: number;
+  recovery_codes: number;
 }
 
 /** The caller's own factor: whether it is active, when it was enabled and last used (null while it is not active). */
@@ -100,7 +108,7 @@ export interface RecoveryStatus {
  * `recovery_code`: a one-time recovery code was spent for it (MFA-RECOVERY-CODES-2490).
  */
 export interface StepUpProof {
-  method: "totp" | "passkey";
+  method: "totp" | "passkey" | "recovery_code" | "device_key";
   minutes: number;
   valid_until: string | null;
 }
@@ -116,7 +124,7 @@ export interface StepUpStatus {
   local_channel: boolean;
   applies: boolean;
   reason: "off" | "local_channel" | "bearer_token" | "no_method" | null;
-  methods: ("totp" | "passkey")[];
+  methods: ("totp" | "passkey" | "device_key")[];
   valid_until: string | null;
 }
 

@@ -68,8 +68,9 @@ def _proof_missing(conn: sqlite3.Connection, request: Request, principal: Princi
     `security.step_up` says - like the passkey changes of slice 4). The local channel (Ingress) stays the break-glass path (design T11)."""
     if not is_remote(request) or not step_up.methods_of(conn, principal.user_id):
         return False
-    key = step_up.session_key(request, principal)
-    return key is None or not step_up._satisfied(conn, request, principal, key)
+    # (revoke only; registration: step_up.require_first_factor_freshness). MFA-SECFIX-2500: removing one's own (lost) phone key may
+    # rest on a recovery-code proof (the lost-device path) - not strict
+    return not step_up.fresh_proof(conn, request, principal, strict=False)
 
 
 def _refuse_without_proof(conn: sqlite3.Connection, request: Request, principal: Principal, action: str) -> None:
@@ -169,8 +170,14 @@ class RegisterBody(BaseModel):
 def register(body: RegisterBody, request: Request, principal: Principal = Depends(current_principal),
              conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _limit(f"dkreg:{principal.user_id}", REGISTER_LIMITS)
-    if _proof_missing(conn, request, principal):
-        _refuse_without_proof(conn, request, principal, REGISTER_ACTION)
+    # a user with a step-up method needs a fresh proof (design 4.4, remote channel); MFA-SECFIX-2500 SR-3: a FIRST factor needs a
+    # recent sign-in of this session instead (a stolen old session cannot take it)
+    try:
+        step_up.require_first_factor_freshness(conn, request, principal, REGISTER_ACTION)
+    except ApiError as exc:
+        audit(conn, actor=principal, action="auth.device_key.refused", decision="denied", resource_type="user", resource_id=principal.user_id,
+              reason=exc.code, request_id=_rid(request), details={"step": REGISTER_ACTION})
+        raise
     try:
         row = dk.register(conn, principal.user_id, challenge_id=body.challenge_id, public_key=body.public_key, signature=body.signature,
                           label=body.label, auth_kind=body.auth_kind, origin=dk.origin_of(settings_of(request), request),
@@ -221,8 +228,17 @@ def verify_step_up(conn: sqlite3.Connection, request: Request, principal: Princi
                    signature: str | None, action: str | None) -> dict[str, Any]:
     """`POST auth/step-up/verify {method: "device_key", challenge_id, key_id, signature, action?}`: the signature of a `step_up`
     challenge of this session -> a step-up proof (services/step_up.mark, method `device_key`). Audited `auth.step_up.ok` /
-    `auth.step_up.failed` like the authenticator code; the same 400 `second_factor_invalid` / 429 `second_factor_locked` answers."""
-    reason = step_up.not_applicable(conn, request, principal)
+    `auth.step_up.failed` like the authenticator code; the same 400 `second_factor_invalid` / 429 `second_factor_locked` answers.
+    MFA-SECFIX-2500 W-2: a challenge signed for a once-action (step_up.ONCE_ACTIONS - another user's factor reset, the bridge-key
+    reveal, an Arx-only passkey removal) gives a once-proof for exactly that action, on every channel and whatever the switch says,
+    so a phone-key-only administrator can still do them; a factor change of the caller's own (step_up.FACTOR_CHANGE_ACTIONS) needs a
+    proof whatever the switch says too."""
+    act = action or ""
+    once = act in step_up.ONCE_ACTIONS
+    if once or act in step_up.FACTOR_CHANGE_ACTIONS:
+        reason = None if step_up.methods_of(conn, principal.user_id) else "no_method"
+    else:
+        reason = step_up.not_applicable(conn, request, principal)
     if reason == "no_method" or (reason is None and not dk.has_active(conn, principal.user_id)):
         raise ApiError(409, "step_up_no_method", dk.NO_KEY_HE)
     if reason is not None:
@@ -238,6 +254,11 @@ def verify_step_up(conn: sqlite3.Connection, request: Request, principal: Princi
         audit(conn, actor=principal, action="auth.step_up.failed", decision="denied", resource_type="user", resource_id=principal.user_id,
               reason=f"step_up_{exc.code}", request_id=_rid(request), details={**details, "why": exc.reason})
         raise ApiError(429 if exc.code == "locked" else 400, f"second_factor_{exc.code}", exc.message, retryable=exc.code == "locked") from None
+    if once:  # W-2: a proof for ONE call of that action within step_up.ONE_SHOT_S (never a window)
+        until = step_up.mark_once(request, principal, act, dk.METHOD)
+        audit(conn, actor=principal, action="auth.step_up.ok", decision="allowed", resource_type="user", resource_id=principal.user_id,
+              request_id=_rid(request), details={**details, "minutes": 0, "once": True, "key_id": row["id"]})
+        return {"method": dk.METHOD, "minutes": 0, "valid_until": step_up.iso(until)}
     until = step_up.mark(conn, request, principal, dk.METHOD)
     audit(conn, actor=principal, action="auth.step_up.ok", decision="allowed", resource_type="user", resource_id=principal.user_id,
           request_id=_rid(request), details={**details, "minutes": step_up.minutes(conn), "key_id": row["id"]})

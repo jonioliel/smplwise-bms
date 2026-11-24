@@ -490,16 +490,17 @@ def test_a_passkey_only_user_changes_the_password_only_after_a_fresh_passkey_sig
 
 # ---------------------------------------------------------------- 6. backup, settings, audit hygiene, assetlinks
 
-def test_backup_carries_public_keys_only_and_never_the_passkey_settings(px):
+def test_backup_carries_no_passkey_and_never_the_passkey_settings(px):
+    """MFA-SECFIX-2500 SR-6 (replaces USR2 phase 4's "public keys travel"): passkeys are factor material like the TOTP secrets and the
+    phone keys - never in an archive, so a restore can never bring back a removed one."""
     from smplwise.services import backup
 
     px.configure(first=True)
-    uid, _c, auth = _with_passkey(px)
-    assert "auth_webauthn_credentials" in backup.ACCESS_TABLES
+    _with_passkey(px)
+    assert "auth_webauthn_credentials" not in backup.ACCESS_TABLES and "auth_webauthn_credentials" in backup.NEVER_EXPORTED_TABLES
     with px.db.connection(mode="read") as conn:
         snap = backup.snapshot(conn)
-    rows = snap["auth_webauthn_credentials"]
-    assert len(rows) == 1 and rows[0]["user_id"] == uid and wa.b64url_decode(rows[0]["public_key"]) == auth.cose()
+    assert "auth_webauthn_credentials" not in snap
     assert not any("challenge" in t for t in snap)
     keys = {r["key"] for r in snap.get("settings", [])}
     assert "security.local_passkey_first" not in keys and "security.local_passkey_android" not in keys

@@ -1205,10 +1205,11 @@ def bearer_factor_enforced(conn) -> bool:
         return True
 
 
-def _check_second_factor_sync(db: Any, settings: Settings, conn_like: Any, principal: Principal, meta: dict[str, Any]) -> None:
+def _check_second_factor_sync(db: Any, settings: Settings, conn_like: Any, principal: Principal, meta: dict[str, Any]) -> str:
     """The code of a new sign-in of an enrolled user, from the `X-Arx-Second-Factor` header: absent -> 401
     `second_factor_required` (the page asks for it and retries); wrong -> 401 `second_factor_invalid`; locked out -> 429.
-    Failures are audited (the method and the reason only, never the code). Blocking (the database)."""
+    Failures are audited (the method and the reason only, never the code). Blocking (the database). Returns the method that
+    answered (`totp` / `device_key` / `recovery_code`; MFA-SECFIX-2500 SR-4: a recovery-code sign-in is a window proof only)."""
     from . import recovery_codes as rc
     from . import second_factor as sf
 
@@ -1228,10 +1229,11 @@ def _check_second_factor_sync(db: Any, settings: Settings, conn_like: Any, princ
             # MFA-RECOVERY-CODES-2490: a one-time recovery code is accepted in place of the authenticator code (spent on success)
             elif rc.verify_factor(conn, settings, principal.user_id, code, "sign_in") == rc.METHOD:
                 rc.audit_use(conn, principal, "sign_in")
+                method = rc.METHOD
         except sf.SecondFactorError as exc:
             err = exc
     if err is None:
-        return
+        return method
     reason = {"locked": "second_factor_locked", "unreadable": "second_factor_unreadable"}.get(err.code, "second_factor_invalid")
     status = 429 if err.code == "locked" else 401
     if method != device_keys.METHOD and rc.canonical(code) is not None:
@@ -1241,10 +1243,10 @@ def _check_second_factor_sync(db: Any, settings: Settings, conn_like: Any, princ
     raise ApiError(status, reason, err.message, retryable=err.code == "locked")
 
 
-async def _check_second_factor(app_state: Any, settings: Settings, conn_like: Any, principal: Principal, meta: dict[str, Any]) -> None:
+async def _check_second_factor(app_state: Any, settings: Settings, conn_like: Any, principal: Principal, meta: dict[str, Any]) -> str:
     from starlette.concurrency import run_in_threadpool
 
-    await run_in_threadpool(_check_second_factor_sync, app_state.db, settings, conn_like, principal, meta)
+    return await run_in_threadpool(_check_second_factor_sync, app_state.db, settings, conn_like, principal, meta)
 
 
 # ---------------------------------------------------------------- the exchange (POST / DELETE auth/session)
@@ -1310,8 +1312,9 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
         from . import second_factor as sf
 
         raise await rejected("second_factor_enrollment_required", ApiError(403, "second_factor_enrollment_required", sf.ENROLL_REQUIRED_HE), principal)
+    answered: str | None = None
     if factor == "code":
-        await _check_second_factor(app_state, settings, conn_like, principal, meta)
+        answered = await _check_second_factor(app_state, settings, conn_like, principal, meta)
     try:
         session = STORE.create(principal, ha_user, token, exp, ip, replaces=replaces, meta=meta,
                                client_id=arx_client_id(settings, conn_like))
@@ -1321,7 +1324,7 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
     if factor == "code":  # MFA-STEPUP-TRAIN-2490: the code was shown moments ago - the session starts with a fresh step-up proof
         from . import step_up
 
-        step_up.note_sign_in_factor(session)
+        step_up.note_sign_in_factor(session, answered)  # MFA-SECFIX-2500 SR-4: a recovery-code sign-in is a window proof only
 
     def touch_and_audit() -> None:
         from ..auth import touch_user
@@ -1481,10 +1484,8 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
 
         raise rejected("second_factor_enrollment_required", ApiError(403, "second_factor_enrollment_required", sf.ENROLL_REQUIRED_HE), principal)
     elif factor == "code":
-        _check_second_factor_sync(db, settings, request, principal, meta)
-        from . import device_keys  # MFA-DEVICEKEY-2490: which factor answered
-
-        factor_meta = {"second_factor": device_keys.METHOD if device_keys.is_answer((request.headers.get(SECOND_FACTOR_HEADER) or "").strip()) else "totp"}
+        answered = _check_second_factor_sync(db, settings, request, principal, meta)  # MFA-DEVICEKEY-2490: which factor answered
+        factor_meta = {"second_factor": answered}
     from . import access_tokens
 
     kind = access_tokens.kind_of(token)  # MFA-TOKENS-2490: HA accepted the token above, so its lifetime claims are HA's own
@@ -1499,7 +1500,7 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
         STORE.mark_factor_verified(s.iss_hash, principal.user_id)
         from . import step_up
 
-        step_up.note_sign_in_factor(s)  # MFA-TOKENS-2490: a bearer sign-in that just showed the code starts with a step-up proof too
+        step_up.note_sign_in_factor(s, answered if factor == "code" else None)  # MFA-TOKENS-2490: a bearer sign-in that just showed the code starts with a step-up proof too
     if not s.continued:  # a new sign-in of a bearer client (not its next access token)
         _record_sign_in(db, principal, meta)
         _audit(db, actor=principal, action="auth.remote_session.created", decision="allowed", reason=None,

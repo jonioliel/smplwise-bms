@@ -175,8 +175,11 @@ def registration_options(conn: sqlite3.Connection, request: Any, principal: Any)
     existing = lpk.rows(conn, uid)
     if len(existing) >= lpk.MAX_PER_USER:
         raise ApiError(409, "passkey_limit", lpk.LIMIT_HE)
-    if has_factor(conn, uid) and not step_up.fresh_proof(conn, request, principal):
-        raise proof_required(conn, uid, ACTION_REGISTER)
+    if has_factor(conn, uid) or step_up.methods_of(conn, uid):
+        if not step_up.fresh_proof(conn, request, principal):  # strict: never a recovery-code proof (MFA-SECFIX-2500 SR-4)
+            raise proof_required(conn, uid, ACTION_REGISTER)
+    else:  # MFA-SECFIX-2500 SR-3: a FIRST factor needs a recent sign-in of this session (403 reauth_required)
+        step_up.require_first_factor_freshness(conn, request, principal, ACTION_REGISTER)
     admin = _admin(conn, uid)
     challenge = lpk._issue("register", uid, _bind(key, ACTION_REGISTER), relying, admin)
     user = conn.execute("SELECT username, display_name FROM users WHERE id = ?", (uid,)).fetchone()
@@ -254,6 +257,9 @@ def register(conn: sqlite3.Connection, request: Any, principal: Any, body: Any, 
     _audit(conn, actor=principal, action="auth.passkey.registered", decision="allowed", user_id=uid,
            details={"passkey": pk, "alg": reg.alg, "synced": reg.backup_eligible, "uv": reg.uv, "first_factor": first_factor,
                     "other_sign_ins_ended": ended, "device_tokens_revoked": tokens}, request_id=request_id)
+    from . import notify_sources
+
+    notify_sources.second_factor_added(conn, uid, "passkey")  # MFA-SECFIX-2500 SR-3: the user hears of it on every device
     row = conn.execute("SELECT * FROM auth_webauthn_credentials WHERE id = ?", (pk,)).fetchone()
     return {"passkey": lpk.view(row, relying[0], _admin(conn, uid)), "first_factor": first_factor, "other_sessions_ended": ended}
 
@@ -277,7 +283,8 @@ def removal_proof(conn: sqlite3.Connection, request: Any, principal: Any, code: 
         return "code"
     if local_session is not None and lpk.recent_auth(conn, local_session):
         return "recent_sign_in"
-    if step_up.fresh_proof(conn, request, principal, local_sign_in=local_session is None):
+    # MFA-SECFIX-2500: removing one's own (lost) passkey may rest on a recovery-code proof - not strict
+    if step_up.fresh_proof(conn, request, principal, local_sign_in=local_session is None, strict=False):
         return "step_up"
     if local_session is not None:
         raise ApiError(403, "reauth_required", lpk.REAUTH_HE)

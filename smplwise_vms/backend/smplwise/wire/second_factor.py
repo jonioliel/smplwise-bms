@@ -67,9 +67,15 @@ class OverrideSet(WireModel):
 
 
 class FactorReset(WireModel):
-    """`DELETE /auth/second-factor/users/{id}`: `removed` = a factor (active or pending) was there."""
+    """`DELETE /auth/second-factor/users/{id}`: `removed` = a factor (active or pending) was there. MFA-SECFIX-2500 SR-2: every factor
+    kind goes - `totp` (the authenticator code was removed), how many `passkeys` were deleted, `device_keys` (phone keys) revoked and
+    `recovery_codes` deleted."""
     user_id: str
     removed: bool
+    totp: bool
+    passkeys: int
+    device_keys: int
+    recovery_codes: int
 
 
 class StepUpStatus(WireModel):

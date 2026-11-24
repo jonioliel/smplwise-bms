@@ -81,8 +81,11 @@ PROJECT_TABLES = PROJECT_TABLES + ["home_notify_quiet"]
 # ONLY inside the encrypted sensitive section (backup_sensitive.py; an export without a backup password leaves it out); sessions, links, the failure counters and the TOTP secrets
 # (auth_local_sessions, auth_local_links, auth_local_failures, auth_totp*) are never written to an archive. identity_links: the
 # manual "same person" link. Listed right after `users` (they reference it).
-# USR2 phase 4: the passkeys' PUBLIC keys (auth_webauthn_credentials) travel the same way; WebAuthn challenges exist in memory only.
-ACCESS_TABLES = ["users", "auth_local_credentials", "auth_webauthn_credentials", "identity_links", "groups", "group_members", "bindings", "custom_roles",
+# USR2 phase 4 put the passkeys' public keys (auth_webauthn_credentials) here too. MFA-SECFIX-2500 SR-6: no more - since slice 4 a
+# passkey is a step-up method for every user, and a restore of an older archive brought back a passkey the user had removed (a lost
+# phone's). Passkeys now follow the other factor material (NEVER_EXPORTED_TABLES): never written to an archive, never read from one,
+# and a restore keeps the installation's CURRENT passkeys (`_keep_passkeys` / `_put_back_passkeys`: deleting `users` would cascade).
+ACCESS_TABLES = ["users", "auth_local_credentials", "identity_links", "groups", "group_members", "bindings", "custom_roles",
                  # CR-033: where stations sit (station scope), which relay each WisKey lock is, and the door grant card's own bindings
                  "intercom_station_placement", "intercom_door_map", "door_grant_bindings",
                  # HOME-SIMPLE-2420 (migration 0211): who sees the home or the full interface, home-only and wall-panel locks
@@ -101,6 +104,8 @@ NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "a
                                    "auth_recovery_codes",
                                    # MFA-DEVICEKEY-2490: the phone keys are factor material (design 6: they never travel, like auth_totp)
                                    "auth_device_keys",
+                                   # MFA-SECFIX-2500 SR-6: passkeys too - a restore never brings back a removed one
+                                   "auth_webauthn_credentials",
                                    "auth_local_reset_codes", "auth_local_reset_sends",
                                    # CR-WISKEY-HMAC-ROTATION-295: the bridge HMAC key set (sealed material) and its rotation history
                                    "bridge_keys", "bridge_rotations",
@@ -741,6 +746,7 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
         update_switch = _update_switch(conn, data)
         kept_current = [t for t in tables if t in KEEP_WHEN_ABSENT and t not in data]
         door_history = _keep_door_history(conn) if mode == "replace" and "door_automations" in tables else None
+        passkeys_now = _keep_passkeys(conn) if "users" in tables else None  # MFA-SECFIX-2500 SR-6
         if mode == "replace":
             for t in reversed(tables):  # children before parents; a table missing from the archive is emptied too
                 if t in kept_current:
@@ -768,6 +774,9 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
         for t, rows in keep.items():
             if rows:
                 _insert_rows(conn, t, rows, replace=False)
+        if passkeys_now is not None:
+            _put_back_passkeys(conn, passkeys_now)
+            kept_current.append("auth_webauthn_credentials")  # the restore answer says the passkeys stayed as they are now
         roles_pruned = _prune_role_permissions(conn) if "custom_roles" in data else []
         backgrounds_rejected: list[dict[str, str]] = []  # SEC246 I2
         files = 0
@@ -881,6 +890,28 @@ def _sanitise_door_blocks(data: dict[str, list[dict[str, Any]]]) -> tuple[int, i
         kept.append(r)
     data["door_automations"] = kept
     return len(rows) - len(kept), disarmed
+
+
+def _keep_passkeys(conn: sqlite3.Connection) -> list[dict[str, Any]] | None:
+    """MFA-SECFIX-2500 SR-6: the installation's passkeys as they are NOW, set aside before the archive's users replace the current ones
+    (the table cascades from `users`). The archive never carries passkeys, so a removed passkey cannot come back."""
+    try:
+        return [dict(r) for r in conn.execute("SELECT * FROM auth_webauthn_credentials").fetchall()]
+    except sqlite3.OperationalError:  # a database before the migration
+        return None
+
+
+def _put_back_passkeys(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> int:
+    """Put the current passkeys back for the users the restored directory still has (a user the archive does not have loses theirs
+    with the user row, as before). Returns how many."""
+    users = {r[0] for r in conn.execute("SELECT id FROM users").fetchall()}
+    n = 0
+    for r in rows:
+        if r.get("user_id") not in users:
+            continue
+        cols = ", ".join(r)
+        n += conn.execute(f"INSERT OR IGNORE INTO auth_webauthn_credentials({cols}) VALUES ({', '.join('?' * len(r))})", list(r.values())).rowcount
+    return n
 
 
 def _keep_door_history(conn: sqlite3.Connection) -> tuple[list[dict[str, Any]], list[dict[str, Any]]] | None:

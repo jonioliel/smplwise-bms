@@ -1299,6 +1299,9 @@ def second_factor_step(db: Any, settings: Settings, conn_like: Any, pid: str | N
             value, s = create_session(conn, settings, conn_like, user["id"], factor=True, meta=meta)
             if method == rc.METHOD:
                 rc.audit_use(conn, principal, "local_sign_in", request_id)
+                from . import step_up
+
+                step_up.note_recovery_sign_in(s)  # MFA-SECFIX-2500 SR-4: this sign-in is a window proof only, never for a factor change
             _audit(conn, actor=principal, action="auth.local.sign_in.succeeded", decision="allowed",
                    details={"kind": s.kind, "ip": mask_address(meta.get("client_ip", "")), "country": meta.get("country", ""), "factor": method,
                             "id": public_id(s.chain_id)}, request_id=request_id)

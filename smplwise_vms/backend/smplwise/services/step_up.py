@@ -100,12 +100,15 @@ ONCE_ROUTES: dict[tuple[str, str], str] = {
     ("DELETE", "/identity/local-users/{user_id}/passkeys/{pk_id}"): ONCE_PASSKEY,
 }
 ONCE_ACTIONS = frozenset(ONCE_ROUTES.values())
-# MFA-SECFIX-2500 (SR-4, W-1; owner questions page Q13, recommendation): a recovery code is a step-up proof for the normal window
-# only. Never for a once-action, and never for a change of the caller's own factors - a new batch of recovery codes, adding or
-# removing a passkey, registering or revoking a phone key - so one leaked code cannot be laundered into a lasting factor.
-FACTOR_CHANGE_ACTIONS = frozenset({"auth.recovery_codes.regenerate", "auth.passkey.register", "auth.passkey.remove",
+# The caller's own factor changes: each needs a proof whatever `security.step_up` says (slices 4, 7, 8).
+FACTOR_CHANGE_ACTIONS = frozenset({"auth.second_factor.enroll", "auth.recovery_codes.regenerate", "auth.passkey.register", "auth.passkey.remove",
                                    "auth.device_key.register", "auth.device_key.revoke"})
-NO_RECOVERY_ACTIONS = ONCE_ACTIONS | FACTOR_CHANGE_ACTIONS
+# MFA-SECFIX-2500 (SR-4, W-1; owner questions page Q13, recommendation): a recovery code is a step-up proof for the normal window
+# only. Never for a once-action, never to mint a new batch of recovery codes, and never to ADD a factor (a passkey, a phone key) - so
+# one leaked code cannot be laundered into something lasting. Removing one's own lost passkey / phone key stays possible with it
+# (the lost-device path, as removing the authenticator code with a recovery code - slice 7's `disable`).
+FACTOR_ADD_ACTIONS = frozenset({"auth.second_factor.enroll", "auth.recovery_codes.regenerate", "auth.passkey.register", "auth.device_key.register"})
+NO_RECOVERY_ACTIONS = ONCE_ACTIONS | FACTOR_ADD_ACTIONS
 EXEMPT_ROUTES = frozenset(ONCE_ROUTES)
 
 # MFA-STEPUP-GATES-2490: write-method routes that authorise a gated permission but change nothing (previews, checks, dry runs,
@@ -133,8 +136,9 @@ METHOD_RECOVERY = "recovery_code"  # MFA-RECOVERY-CODES-2490: a one-time recover
 METHOD_DEVICE_KEY = "device_key"  # MFA-DEVICEKEY-2490 (slice 8): a phone-key signature on a step-up challenge (services/device_keys)
 STATE_ATTR = "sw_step_up"  # request.state: "ok" once this request passed the gate (require() may run several times)
 
-REQUIRED_HE = "לפני שינוי הגדרות, משתמשים או הרשאות צריך לאשר שוב את הזהות: הזן את הקוד הנוכחי מאפליקציית האימות."
-PHYSICAL_HE = "לפני נטרול אזעקה, עקיפת חיישן או פתיחת דלת צריך לאשר שוב את הזהות: הזן את הקוד הנוכחי מאפליקציית האימות."
+# MFA-SECFIX-2500: the texts name every method (the code, a passkey, the phone key; a recovery code where it counts)
+REQUIRED_HE = "לפני שינוי הגדרות, משתמשים או הרשאות צריך לאשר שוב את הזהות: בקוד הנוכחי מאפליקציית האימות, במפתח גישה, במפתח הטלפון או בקוד שחזור."
+PHYSICAL_HE = "לפני נטרול אזעקה, עקיפת חיישן או פתיחת דלת צריך לאשר שוב את הזהות: בקוד הנוכחי מאפליקציית האימות, במפתח גישה, במפתח הטלפון או בקוד שחזור."
 NO_SESSION_HE = "לא נמצאה כניסה פעילה לאישור. היכנס מחדש ונסה שוב."
 NO_METHOD_HE = "אין לחשבון הזה דרך אימות נוספת. הפעל אימות דו־שלבי ב״החשבון שלי״."
 NOT_APPLICABLE_HE = "אין צורך באישור נוסף בחיבור הזה."
@@ -237,7 +241,27 @@ _MARKS: dict[str, Mark] = {}
 
 
 def _now() -> float:
-    return time.time()
+    """MFA-SECFIX-2500 SR-5: the clock of the in-memory marks is MONOTONIC - a wall-clock step (NTP correction, a restored VM, a Pi
+    without RTC that synced late) never stretches or revives a proof. Tests move it (and `_wall` with it)."""
+    return time.monotonic()
+
+
+_WALL_SKEW_S = 0.0  # tests only: a test clock that moves `_now` forward moves the wall clock by the same amount
+
+
+def _wall() -> float:
+    """The wall clock, for stored instants (`auth_local_sessions.factor_at`, a session's sign-in time) and for answers (ISO times)."""
+    return time.time() + _WALL_SKEW_S
+
+
+def _to_wall(mono: float) -> float:
+    """A monotonic instant of a mark as a wall-clock instant (for `valid_until` / ISO answers)."""
+    return _wall() + (mono - _now())
+
+
+def _fresh(age: float, limit: float) -> bool:
+    """SR-5: an age counts only when it is between 0 and the limit - a negative age (a backward clock step) is refused."""
+    return 0.0 <= age <= limit
 
 
 def _hash(key: str) -> str:
@@ -280,6 +304,8 @@ def forget_user(user_id: str) -> int:
 def reset_for_tests() -> None:
     with _MARK_LOCK:
         _MARKS.clear()
+    with _RECOVERY_CHAINS_LOCK:
+        _RECOVERY_CHAINS.clear()
     with _LINK_LOCK:
         _LINKS.clear()
 
@@ -383,30 +409,104 @@ def valid_until(conn: sqlite3.Connection, request: Any, principal: Any) -> float
     m = _get(key)
     if m is not None and m.user_id == principal.user_id:
         end = m.at + (ONE_SHOT_S if m.one_shot else window)
-        if (m.one_shot or window > 0) and end > now:
-            best = end
+        if (m.one_shot or window > 0) and m.at <= now < end:
+            best = _to_wall(end)
     if window > 0:
         at = _local_sign_in_factor_at(conn, request, principal)
-        if at is not None and at + window > now:
+        wall = _wall()
+        if at is not None and at <= wall < at + window:
             best = max(best or 0.0, at + window)
     return best
 
 
-def _satisfied(conn: sqlite3.Connection, request: Any, principal: Any, key: str) -> bool:
+def _satisfied(conn: sqlite3.Connection, request: Any, principal: Any, key: str, *, strict: bool = False) -> bool:
+    """Does the session hold a proof that counts now? `strict` (MFA-SECFIX-2500 SR-4, a change of the caller's own factors): a proof
+    made with a recovery code - at step-up or at sign-in - does not count."""
     window = minutes(conn) * 60
     now = _now()
     m = _get(key)
-    if m is not None and m.user_id == principal.user_id:
+    if m is not None and m.user_id == principal.user_id and not (strict and m.method in RECOVERY_PROOFS):
         if m.one_shot:
-            if now - m.at <= ONE_SHOT_S and _consume(key, m):
+            if _fresh(now - m.at, ONE_SHOT_S) and _consume(key, m):
                 return True
-        elif window > 0 and now - m.at <= window:
+        elif window > 0 and _fresh(now - m.at, window):
             return True
-    if window > 0:
+    if window > 0 and not (strict and _recovery_sign_in(key)):
         at = _local_sign_in_factor_at(conn, request, principal)
-        if at is not None and now - at <= window:
+        if at is not None and _fresh(_wall() - at, window):
             return True
     return False
+
+
+METHOD_SIGN_IN = "sign_in"
+METHOD_SIGN_IN_RECOVERY = "sign_in:recovery_code"  # MFA-SECFIX-2500 SR-4: a remote sign-in whose factor was a recovery code
+RECOVERY_PROOFS = frozenset({METHOD_RECOVERY, METHOD_SIGN_IN_RECOVERY})
+
+_RECOVERY_CHAINS_LOCK = threading.Lock()
+_RECOVERY_CHAINS: dict[str, float] = {}  # hashed session key of an Arx-only sign-in made with a recovery code -> when (monotonic)
+
+
+def note_recovery_sign_in(session: Any) -> None:
+    """MFA-SECFIX-2500 SR-4: an Arx-only sign-in whose second step was a recovery code. Its `factor_at` still makes the session
+    factor-verified and a window proof, but never a proof for a factor change (a new batch of codes, a new passkey / phone key).
+    Memory only, like the marks (a restart forgets it; the window is minutes)."""
+    sign_in = getattr(session, "sign_in", None)
+    value = sign_in() if callable(sign_in) else ""
+    if not value:
+        return
+    with _RECOVERY_CHAINS_LOCK:
+        if len(_RECOVERY_CHAINS) >= MAX_MARKS:
+            for k in list(_RECOVERY_CHAINS)[: MAX_MARKS // 10]:
+                _RECOVERY_CHAINS.pop(k, None)
+        _RECOVERY_CHAINS[_hash(f"remote:{value}")] = _now()
+
+
+def _recovery_sign_in(key: str) -> bool:
+    with _RECOVERY_CHAINS_LOCK:
+        return _hash(key) in _RECOVERY_CHAINS
+
+
+RECENT_SIGN_IN_S = 300.0  # MFA-SECFIX-2500 SR-3: = services/local_passkeys.RECENT_AUTH_S (the Arx-only passkey registration's rule)
+REAUTH_HE = "לפעולה הזו צריך כניסה טרייה: צא והיכנס שוב, ואז נסה שוב תוך 5 דקות."
+
+
+def sign_in_started(request: Any) -> float | None:
+    """When the caller's session signed in (wall clock): the chain start of an Arx-only session, the sign-in (cookie chain or bearer
+    sign-in) of a Home Assistant session, the creation of a phone-app session. None: no session."""
+    from . import ha_user_auth as hua
+
+    s = hua.session_of(request)
+    if s is None:
+        return None
+    for attr in ("chain_started_at", "chain_started", "created_at"):
+        value = getattr(s, attr, None)
+        if isinstance(value, (int, float)) and value > 0:
+            return float(value)
+    return None
+
+
+def recent_sign_in(request: Any) -> bool:
+    """MFA-SECFIX-2500 SR-3: did this session sign in within RECENT_SIGN_IN_S (and not in the future)? The local channel (Ingress) is
+    the break-glass path and always passes; a remote request without a session never does."""
+    if not _is_remote(request):
+        return True
+    at = sign_in_started(request)
+    return at is not None and _fresh(_wall() - at, RECENT_SIGN_IN_S)
+
+
+def require_first_factor_freshness(conn: sqlite3.Connection, request: Any, principal: Any, action: str) -> None:
+    """MFA-SECFIX-2500 SR-3: enrolling a factor - the authenticator code, a passkey, a phone key. A user who has a step-up method
+    already needs a proof that counts for a factor change (`fresh_proof`, never a recovery code); a user with NO method (a first
+    factor) needs a recent sign-in of this session - else 403 `reauth_required` (sign in again). A stolen session long after its
+    sign-in therefore cannot take the account's first factor."""
+    if methods_of(conn, principal.user_id):
+        if not _is_remote(request):
+            return  # the local channel stays the break-glass path for an extra factor (as for the passkey / phone-key rules)
+        if not fresh_proof(conn, request, principal):
+            raise required_error(conn, principal, action)
+        return
+    if not recent_sign_in(request):
+        raise ApiError(403, "reauth_required", REAUTH_HE, details={"action": action, "within_s": int(RECENT_SIGN_IN_S)})
 
 
 def recovery_allowed(action: str | None) -> bool:
@@ -414,24 +514,27 @@ def recovery_allowed(action: str | None) -> bool:
     return (action or "") not in NO_RECOVERY_ACTIONS
 
 
-def fresh_proof(conn: sqlite3.Connection, request: Any, principal: Any, *, local_sign_in: bool = True) -> bool:
+def fresh_proof(conn: sqlite3.Connection, request: Any, principal: Any, *, local_sign_in: bool = True, strict: bool = True) -> bool:
     """MFA-PASSKEYS-2490: does the caller's session hold a proof right now (the window, a one-shot proof - then spent - or, unless
     `local_sign_in` is False, a local sign-in that showed the factor within the window)? For the factor changes that need a proof
     whatever the switch says (adding a passkey to an account that already has a factor, removing one): not the gate, so neither the
     switch nor the channel matter. `local_sign_in=False`: only a proof given in this session (an Arx-only identity's passkey removal
-    keeps its own fresh-sign-in rule for the sign-in part)."""
+    keeps its own fresh-sign-in rule for the sign-in part).
+    MFA-SECFIX-2500 SR-4: `strict` (default; minting recovery codes, adding a passkey or a phone key - FACTOR_ADD_ACTIONS): a proof
+    made with a recovery code (at step-up or at sign-in) never counts (owner questions page Q13: a recovery code is a window proof
+    only). `strict=False`: removing one's own passkey / phone key (the lost-device path)."""
     key = session_key(request, principal)
     if key is None:
         return False
     if local_sign_in:
-        return _satisfied(conn, request, principal, key)
+        return _satisfied(conn, request, principal, key, strict=strict)
     m = _get(key)
-    if m is None or m.user_id != principal.user_id:
+    if m is None or m.user_id != principal.user_id or (strict and m.method in RECOVERY_PROOFS):
         return False
     if m.one_shot:
-        return _now() - m.at <= ONE_SHOT_S and _consume(key, m)
+        return _fresh(_now() - m.at, ONE_SHOT_S) and _consume(key, m)
     window = minutes(conn) * 60
-    return window > 0 and _now() - m.at <= window
+    return window > 0 and _fresh(_now() - m.at, window)
 
 
 # ---------------------------------------------------------------- proofs
@@ -444,7 +547,7 @@ def mark(conn: sqlite3.Connection, request: Any, principal: Any, method: str) ->
     one_shot = minutes(conn) == 0
     m = Mark(user_id=principal.user_id, at=_now(), method=method, one_shot=one_shot)
     _put(key, m)
-    return m.at + (ONE_SHOT_S if one_shot else minutes(conn) * 60)
+    return _to_wall(m.at + (ONE_SHOT_S if one_shot else minutes(conn) * 60))
 
 
 def note_proof(request: Any, principal: Any, method: str) -> None:
@@ -454,12 +557,14 @@ def note_proof(request: Any, principal: Any, method: str) -> None:
         _put(key, Mark(user_id=principal.user_id, at=_now(), method=method))
 
 
-def note_sign_in_factor(session: Any) -> None:
-    """A remote sign-in that just showed the second factor (ha_user_auth.exchange): the session starts with a fresh proof."""
+def note_sign_in_factor(session: Any, factor: str | None = None) -> None:
+    """A remote sign-in that just showed the second factor (ha_user_auth.exchange): the session starts with a fresh proof.
+    MFA-SECFIX-2500 SR-4: `factor` = the method that answered; a recovery code makes a window proof only (`sign_in:recovery_code`)."""
     sign_in = getattr(session, "sign_in", None)
     value = sign_in() if callable(sign_in) else ""
     if value:
-        _put(f"remote:{value}", Mark(user_id=session.principal.user_id, at=_now(), method="sign_in"))
+        method = METHOD_SIGN_IN_RECOVERY if factor == METHOD_RECOVERY else METHOD_SIGN_IN
+        _put(f"remote:{value}", Mark(user_id=session.principal.user_id, at=_now(), method=method))
 
 
 # ---------------------------------------------------------------- the gate
@@ -560,9 +665,11 @@ def mark_once(request: Any, principal: Any, action: str, method: str) -> float |
     key = session_key(request, principal)
     if key is None:
         return None
+    if method in RECOVERY_PROOFS:  # MFA-SECFIX-2500 W-1: never a once-proof from a recovery code (callers refuse it first)
+        raise ValueError(method)
     m = Mark(user_id=principal.user_id, at=_now(), method=method, one_shot=True)
     _put(_once_key(action, key), m)
-    return m.at + ONE_SHOT_S
+    return _to_wall(m.at + ONE_SHOT_S)
 
 
 def _take_once(request: Any, principal: Any, action: str) -> bool:
@@ -571,7 +678,7 @@ def _take_once(request: Any, principal: Any, action: str) -> bool:
         return False
     k = _once_key(action, key)
     m = _get(k)
-    return m is not None and m.user_id == principal.user_id and _now() - m.at <= ONE_SHOT_S and _consume(k, m)
+    return m is not None and m.user_id == principal.user_id and _fresh(_now() - m.at, ONE_SHOT_S) and _consume(k, m)
 
 
 def once_proof(conn: sqlite3.Connection, request: Any, principal: Any, action: str, inline_code: str | None) -> str | None:
@@ -617,4 +724,4 @@ def status(conn: sqlite3.Connection, request: Any, principal: Any) -> dict[str, 
 
 from ..test_reset import register_reset  # noqa: E402 - imports nothing from the package
 
-register_reset(__name__, ("_MARKS", "_LINKS"), reset_for_tests)
+register_reset(__name__, ("_MARKS", "_LINKS", "_RECOVERY_CHAINS"), reset_for_tests)

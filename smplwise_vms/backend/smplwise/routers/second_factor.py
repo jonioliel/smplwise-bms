@@ -57,7 +57,8 @@ ALREADY_HE = "האימות הדו־שלבי כבר פעיל. כדי להחליף
 NOT_ENABLED_HE = "האימות הדו־שלבי אינו פעיל."
 NOT_STARTED_HE = "ההפעלה לא התחילה או שפגה. התחל שוב."
 SELF_RESET_HE = "אי אפשר לאפס את האימות הדו־שלבי של עצמך. כדי להסיר אותו, השתמש ב״הסרה״ בחשבון שלך עם קוד נוכחי."
-STEP_UP_HE = "כדי לאפס אימות דו־שלבי של משתמש אחר, הזן את הקוד הנוכחי מאפליקציית האימות שלך."
+ENROLL_ACTION = "auth.second_factor.enroll"
+STEP_UP_HE = "כדי לאפס אימות דו־שלבי של משתמש אחר, אשר את הזהות שלך: הקוד הנוכחי מאפליקציית האימות, מפתח גישה או מפתח הטלפון."
 
 
 class CodeBody(BaseModel):
@@ -103,6 +104,14 @@ def enroll(request: Request, principal: Principal = Depends(current_principal), 
     _limit(principal)
     if sf.is_enrolled(conn, principal.user_id):
         raise ApiError(409, "second_factor_already_enabled", ALREADY_HE)
+    # MFA-SECFIX-2500 SR-3: a FIRST factor needs a recent sign-in of this session (403 reauth_required); a user who already has a
+    # passkey / phone key needs a fresh step-up proof (never a recovery code) - a stolen old session cannot take the account's factor
+    try:
+        step_up.require_first_factor_freshness(conn, request, principal, ENROLL_ACTION)
+    except ApiError as exc:
+        audit(conn, actor=principal, action="auth.second_factor.failed", decision="denied", resource_type="user", resource_id=principal.user_id,
+              reason=exc.code, request_id=_rid(request), details={"method": "totp", "step": "enroll"})
+        raise
     return sf.begin_enrolment(conn, settings_of(request), principal.user_id, principal.username or principal.display_name or principal.user_id)
 
 
@@ -127,6 +136,7 @@ def confirm(body: CodeBody, request: Request, principal: Principal = Depends(cur
 
         ended += local_identity.on_factor_enabled(conn, settings_of(request), request, principal)
     _audit(conn, request, principal, "auth.second_factor.enrolled", principal.user_id, other_sign_ins_ended=ended, device_tokens_revoked=tokens)
+    notify_sources.second_factor_added(conn, principal.user_id, "totp")  # MFA-SECFIX-2500 SR-3: the user hears of it on every device
     step_up.note_proof(request, principal, "totp")  # MFA-STEPUP-TRAIN-2490: the first code was just shown in this session
     # MFA-RECOVERY-CODES-2490 (owner Q49): the first batch of one-time recovery codes, shown once in this answer and never again
     codes, voided = rc.generate(conn, principal.user_id)
@@ -253,8 +263,12 @@ def admin_reset(user_id: str, request: Request, body: ResetBody | None = None, p
     _limit(principal)
     require_step_up(conn, request, principal, body.code if body else None, action="auth.second_factor.reset", target=user_id)
     was_active = sf.is_enrolled(conn, user_id)
-    removed = sf.remove(conn, user_id)
-    step_up.forget_user(user_id)  # MFA-STEPUP-TRAIN-2490: the target's step-up proofs end with the factor
+    # MFA-SECFIX-2500 SR-2: "reset the second factor" removes EVERY factor kind - the authenticator code and its recovery codes,
+    # every passkey and every phone key - so a factor an attacker added cannot survive the reset the user asked for
+    wiped = sf.remove_every_factor(conn, user_id, by=principal.user_id)
+    removed = wiped["totp"] or any(wiped[k] for k in ("passkeys", "device_keys", "recovery_codes"))
+    was_active = was_active or bool(wiped["passkeys"] or wiped["device_keys"])
+    step_up.forget_user(user_id)  # MFA-STEPUP-TRAIN-2490: the target's step-up proofs end with the factor (once-proofs too)
     capture_lease.on_authority_change("second_factor_changed", user_ids=[user_id])  # CR-WISKEY-LEASE-REVOCATION-EVENT T6
     ended = hua.revoke_user_sign_ins(conn, user_id, actor=principal, reason="second_factor_reset", request_id=_rid(request))
     tokens = presence.revoke_tokens(conn, user_id)  # TFA2: the phone app's device tokens end with the factor (it re-registers through a session)
@@ -264,8 +278,10 @@ def admin_reset(user_id: str, request: Request, body: ResetBody | None = None, p
     if was_active:
         notify_sources.second_factor_reset(conn, user_id)  # TFA2: the user hears of it in their inbox - no actor, no secret
     _audit(conn, request, principal, "auth.second_factor.reset", user_id, removed=removed, step_up=sf.is_enrolled(conn, principal.user_id), sign_ins_ended=ended,
-           device_tokens_revoked=tokens, user_notified=was_active)
-    return {"user_id": user_id, "removed": removed}
+           device_tokens_revoked=tokens, user_notified=was_active, totp_removed=wiped["totp"], passkeys_removed=wiped["passkeys"],
+           device_keys_revoked=wiped["device_keys"], recovery_codes_removed=wiped["recovery_codes"])
+    return {"user_id": user_id, "removed": removed, "totp": wiped["totp"], "passkeys": wiped["passkeys"], "device_keys": wiped["device_keys"],
+            "recovery_codes": wiped["recovery_codes"]}
 
 
 # ---------------------------------------------------------------- step-up (MFA-STEPUP-TRAIN-2490, services/step_up.py)
@@ -307,10 +323,10 @@ def step_up_verify(body: StepUpBody, request: Request, principal: Principal = De
                                           signature=body.signature, action=body.action)
     if not body.code:
         raise ApiError(422, "validation", "הזן את הקוד מאפליקציית האימות.", details={"field": "code"})
-    from ..services.user_passkeys import FACTOR_ACTIONS
-
     once = body.action in step_up.ONCE_ACTIONS  # MFA-STEPUP-GATES-2490: a proof for ONE call of a once-action, on every channel
-    if once or body.action in FACTOR_ACTIONS:  # MFA-PASSKEYS-2490: a passkey change needs a proof whatever the switch / channel says
+    # MFA-PASSKEYS-2490: a factor change needs a proof whatever the switch / channel says (MFA-SECFIX-2500: every factor change -
+    # passkeys, phone keys, a new batch of recovery codes - step_up.FACTOR_CHANGE_ACTIONS)
+    if once or body.action in step_up.FACTOR_CHANGE_ACTIONS:
         reason = None if step_up.methods_of(conn, principal.user_id) else "no_method"
     else:
         reason = step_up.not_applicable(conn, request, principal)
@@ -363,7 +379,7 @@ def _wrong_recovery(conn: sqlite3.Connection, user_id: str) -> sf.SecondFactorEr
 # ---------------------------------------------------------------- recovery codes (MFA-RECOVERY-CODES-2490, services/recovery_codes.py)
 
 RECOVERY_UNAVAILABLE_HE = "קודי שחזור זמינים רק כשהאימות הדו־שלבי מאפליקציית אימות פעיל בחשבון."
-RECOVERY_STEP_UP_HE = "כדי ליצור קודי שחזור חדשים צריך לאשר שוב את הזהות: הזן את הקוד הנוכחי מאפליקציית האימות."
+RECOVERY_STEP_UP_HE = "כדי ליצור קודי שחזור חדשים צריך לאשר שוב את הזהות: בקוד הנוכחי מאפליקציית האימות, במפתח גישה או במפתח הטלפון (לא בקוד שחזור)."
 
 
 @router.get("/auth/recovery-codes", **wire(W.RecoveryStatus))
