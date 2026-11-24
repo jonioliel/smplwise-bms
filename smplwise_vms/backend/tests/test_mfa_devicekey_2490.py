@@ -121,10 +121,11 @@ def test_register_stores_the_public_key_only_audits_and_tells_the_user(arx):
                                     "label": "Pixel 8", "auth_kind": "biometric_or_screen_lock"})
     assert r.status_code == 200, r.text
     row = r.json()
-    assert set(row) == {"id", "label", "auth_kind", "platform", "created_at", "last_used_at", "attested"}
-    assert row["label"] == "Pixel 8" and row["platform"] == "android" and row["attested"] == "not_checked" and row["id"].startswith("dk_")
+    assert set(row) == {"id", "label", "auth_kind", "platform", "created_at", "last_used_at", "attested", "counts"}
+    # MFA-DEVICEKEY-ATTEST-2490: the default attestation mode `preferred` records `none` for a key sent without a chain, never refuses
+    assert row["label"] == "Pixel 8" and row["platform"] == "android" and row["attested"] == "none" and row["counts"] is True and row["id"].startswith("dk_")
     stored = key_row(arx, row["id"])
-    assert stored["user_id"] == "u-viewer" and stored["alg"] == "ES256" and stored["revoked_at"] is None and stored["attestation_json"] is None
+    assert stored["user_id"] == "u-viewer" and stored["alg"] == "ES256" and stored["revoked_at"] is None and json.loads(stored["attestation_json"])["attested"] == "none"
     listed = arx.client.get(KEYS).json()
     assert [k["id"] for k in listed["keys"]] == [row["id"]] and listed["max"] == dk.MAX_KEYS_PER_USER
     audit = arx.audit("auth.device_key.registered")[-1]

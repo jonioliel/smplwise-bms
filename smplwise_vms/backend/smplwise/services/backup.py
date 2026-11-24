@@ -276,6 +276,8 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_device_key"}
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.step_up", "security.step_up_minutes", "security.step_up_local"}
 # MFA-DEVICEKEY-2490: what a phone key needs per signature is security policy too
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.device_key_auth"}
+# MFA-DEVICEKEY-ATTEST-2490: the phone-key attestation mode (off | preferred | required) - a restore must never weaken it
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.device_key_attestation"}
 # WKWRITE-295: the anchor of the WisKey people-write lineage (generation + last intent sequence) describes THIS installation's lineage
 # file, which lives outside every backup - an archive must never carry it or move it backwards (services/wiskey_write_lineage.py)
 SETTINGS_KEEP = SETTINGS_KEEP | {"wiskey.native_write.lineage_anchor"}

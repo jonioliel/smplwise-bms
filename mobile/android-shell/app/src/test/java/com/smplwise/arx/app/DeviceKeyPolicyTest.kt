@@ -7,7 +7,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** MFA-DEVICEKEY-2490: what the app agrees to sign with the phone key (DeviceKeyPolicy) and the bridge calls that reach it. */
+/** MFA-DEVICEKEY-2490 (+ MFA-DEVICEKEY-ATTEST-2490 attestation challenge): what the app agrees to sign with the phone key (DeviceKeyPolicy) and the bridge calls that reach it. */
 class DeviceKeyPolicyTest {
     private val origin = "https://site.example.com"
     private val key = "dk_0123456789abcdef01234567"
@@ -75,5 +75,18 @@ class DeviceKeyPolicyTest {
         assertTrue(js.contains("m.type !== 'deviceKeyResult'"))
         assertTrue(BridgePolicy.MESSAGE_TYPES.containsAll(BridgePolicy.DEVICE_KEY_TYPES))
         assertEquals("AAEC", DeviceKeyPolicy.b64u(byteArrayOf(0, 1, 2)))
+        assertTrue(js.contains("payload: String((o && o.payload) || '')")) // MFA-DEVICEKEY-ATTEST-2490: create() takes the register payload
+    }
+
+    @Test
+    fun theAttestationChallengeIsTheHashOfThisServersRegisterPayload() { // MFA-DEVICEKEY-ATTEST-2490 (owner Q52)
+        val reg = p("register", k = "-")
+        val expected = java.security.MessageDigest.getInstance("SHA-256").digest(reg.toByteArray(Charsets.UTF_8))
+        assertTrue(expected.contentEquals(DeviceKeyPolicy.attestationChallenge(reg, origin)))
+        assertEquals(32, DeviceKeyPolicy.attestationChallenge(reg, origin)!!.size)
+        assertNull(DeviceKeyPolicy.attestationChallenge(p("register", o = "https://evil.example.com", k = "-"), origin))
+        assertNull(DeviceKeyPolicy.attestationChallenge(p("step_up", action = "system.configure"), origin)) // only a registration
+        assertNull(DeviceKeyPolicy.attestationChallenge(null, origin))
+        assertEquals(listOf("AAEC"), DeviceKeyPolicy.chainB64(listOf(byteArrayOf(0, 1, 2))))
     }
 }
