@@ -13,7 +13,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import Principal
 from . import frigate_control_svc as cs
 from . import frigate_native_svc as native
@@ -122,7 +122,8 @@ def put_settings(conn: sqlite3.Connection, principal: Principal, adapter: Frigat
     clean: dict[str, Any] = {}
     for key, val in values.items():
         if fcfg.SETTING.get(key, {}).get("section") != section:
-            raise ApiError(422, "frigate_config_key_unknown", "ההגדרה אינה שייכת לקבוצה.", details={"key": str(key)[:60]})
+            # ADR019-FAMILY3-2510: the same refusal as `FrigateConfig.write_settings` (family 3), so the route answers one shape
+            raise field_error("ההגדרה אינה שייכת לקבוצה.", [str(key)[:60]], code="frigate_config_key_unknown", legacy={"key": str(key)[:60]})
         clean[key] = fcfg.setting_value(key, val)
     _gates(conn, principal, adapter, cam, "config_settings", confirm=confirm, supervised=supervised, request_id=request_id)
     cfg = fcfg.FrigateConfig(adapter)
