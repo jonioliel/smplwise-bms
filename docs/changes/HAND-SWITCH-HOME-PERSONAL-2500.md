@@ -50,11 +50,15 @@ Spec updated: `tests/evidence-home-screen.spec.ts` (the personal screen test) cl
 of `uncheck()` on a check box.
 
 Runner (slot B, job `~/work/hsphome_job.sh`: tsc, eslint, unit specs, ratchet, build, `evidence-ui-polish-2443` mocked,
-`evidence-home-screen --grep personal` against the devices fixture backend, `--workers=2`, before / after captures):
+`evidence-home-screen --grep personal` against the devices fixture backend, `--workers=2`, before / after captures into
+`~/work/hsphome-out/shots`): queued 24.11 ~08:00 IL behind a running release gate and ~12 other slot-B jobs (runner memory ~3.4 GB
+free); it had not started after 2 hours, so every runner item is NOT_RUN. The job stays queued and writes `~/work/hsphome_job.log`
+and `~/work/hsphome-out/` when it runs (it removes its own worktree at the end).
 
 - tsc: NOT_RUN
 - eslint: NOT_RUN
 - unit specs on the runner: NOT_RUN
 - build: NOT_RUN
-- browser specs: NOT_RUN
-- before / after captures (`tests/hand-switch-home-personal-2500-shots.spec.ts`, desktop + phone, light + dark): NOT_RUN
+- browser specs (`evidence-ui-polish-2443`, `evidence-home-screen` personal tests): NOT_RUN
+- before / after captures (`tests/hand-switch-home-personal-2500-shots.spec.ts`, desktop + phone, light + dark) and the compare page
+  `private/planning/hand_switch_home_personal_compare_2026-11-24.html`: NOT_RUN
