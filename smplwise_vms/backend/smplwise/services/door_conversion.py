@@ -436,8 +436,9 @@ def active_records(conn: sqlite3.Connection) -> dict[str, sqlite3.Row]:
     return {r["item_key"]: r for r in conn.execute("SELECT * FROM door_path_conversions WHERE state = 'done'")}
 
 
-def _offer(conn: sqlite3.Connection, item: dict[str, Any], handled: bool) -> dict[str, dict[str, Any]]:
-    """For each action: {available, reason, reason_text} (+ the M1 / M3 preview where it applies)."""
+def _offer(conn: sqlite3.Connection, item: dict[str, Any], handled: bool, lang: str = dn.DEFAULT_LANG) -> dict[str, dict[str, Any]]:
+    """For each action: {available, reason, reason_text} (+ the M1 / M3 preview where it applies). `lang`: the reader's language, for
+    the previewed window's default name (REVIEW-2490-FIXES-2500: the same name the hand-over then creates)."""
     kind, item_id = _split_key(item["key"])
     has_door = bool(item["door_steps"] or item["unresolved"])
 
@@ -466,7 +467,7 @@ def _offer(conn: sqlite3.Connection, item: dict[str, Any], handled: bool) -> dic
         offers["hand_over_program"] = no("kind")
     else:
         offers["convert_event_job"] = no("kind")
-        plan = program_plan(conn, item_id)
+        plan = program_plan(conn, item_id, lang=lang)
         offers["hand_over_program"] = ({"available": True, "reason": None, "reason_text": "", "program": plan["program"]}
                                        if plan["available"] else no(plan["reason"] or "invalid"))
     return offers
@@ -478,13 +479,14 @@ def _record_view(r: sqlite3.Row) -> dict[str, Any]:
             "done_by": r["done_by_name"] or r["done_by"], "done_at": r["done_at"], "undone_by": r["undone_by_name"] or r["undone_by"], "undone_at": r["undone_at"]}
 
 
-def listing(conn: sqlite3.Connection, *, dev_mode: bool = False) -> dict[str, Any]:
-    """Read only. The inventory with what may be done to each item, the register, and the switch. Names only (as the inventory)."""
+def listing(conn: sqlite3.Connection, *, dev_mode: bool = False, lang: str = dn.DEFAULT_LANG) -> dict[str, Any]:
+    """Read only. The inventory with what may be done to each item, the register, and the switch. Names only (as the inventory).
+    `lang`: the reader's language (the hand-over preview's default window name)."""
     inv = door_path.inventory(conn, dev_mode=dev_mode)
     active = active_records(conn)
     items = []
     for it in inv["items"]:
-        offers = _offer(conn, it, it["key"] in active)
+        offers = _offer(conn, it, it["key"] in active, lang)
         rec = active.get(it["key"])
         items.append({
             "key": it["key"], "kind": it["kind"], "name": it["name"], "category": _category(it), "category_text": CATEGORY_TEXT[_category(it)],
