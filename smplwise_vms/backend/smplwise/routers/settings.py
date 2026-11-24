@@ -281,6 +281,7 @@ class SettingsPatch(BaseModel):
     security_factor_wall_exempt: str | None = Field(default=None, pattern="^(on|off)$", alias="security.factor_wall_exempt")
     security_remote_long_lived_tokens: str | None = Field(default=None, pattern="^(allow|refuse_under_policy|refuse)$", alias="security.remote_long_lived_tokens")
     security_device_key_auth: str | None = Field(default=None, pattern="^(biometric|biometric_or_screen_lock)$", alias="security.device_key_auth")  # MFA-DEVICEKEY-2490
+    security_device_key_attestation: str | None = Field(default=None, pattern="^(off|preferred|required)$", alias="security.device_key_attestation")  # MFA-DEVICEKEY-ATTEST-2490
     remote_require_mfa_admin: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.require_mfa_admin")
     security_local_identity: str | None = Field(default=None, pattern="^(on|off)$", alias="security.local_identity")  # USR2: system_admin only (checked below)
     security_local_identity_extended: str | None = Field(default=None, pattern="^(on|off)$", alias="security.local_identity_extended")  # SVCIDENT2: system_admin; on = local channel only, off = any channel (AMEND273)

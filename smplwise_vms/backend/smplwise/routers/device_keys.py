@@ -19,12 +19,15 @@
 
 Audit rows: `auth.device_key.registered` / `.revoked` / `.refused` (key id, 16-hex fingerprint prefix, auth kind; never a nonce, a
 signature or a key). Rate limits per user (challenges, registration) and per address (the public sign-in challenge). Errors use the
-project's ApiError envelope, like the authenticator-code routes. Attestation (owner Q52) is slice 9: the `attestation` field is accepted
-and handed to `device_keys.check_attestation`, which checks nothing yet."""
+project's ApiError envelope, like the authenticator-code routes. Attestation (owner Q52, slice 9 MFA-DEVICEKEY-ATTEST-2490): the
+`attestation` field is the Keystore certificate chain of the new key; `device_keys.check_attestation` judges it offline
+(services/device_key_attestation.py) by `security.device_key_attestation` - under `required` a key that is not hardware-attested is
+refused (422 `device_key_attestation_required`, audited `auth.device_key.refused`)."""
 from __future__ import annotations
 
+import json
 import sqlite3
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -35,6 +38,8 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..errors import ApiError
 from ..rbac import Principal
 from ..remote_channel import is_remote
+from ..services import device_attestation as da
+from ..services import device_key_attestation as dka
 from ..services import device_keys as dk
 from ..services import ha_user_auth as hua
 from ..services import step_up
@@ -99,7 +104,7 @@ def challenge(body: ChallengeBody, request: Request, principal: Principal = Depe
     else:
         cid, text, ttl = dk.issue(dk.PURPOSE_REGISTER, origin, user_id=principal.user_id, session=session)
     return {"challenge_id": cid, "purpose": body.purpose, "payload": text, "expires_in": ttl, "auth_kind": dk.auth_setting(conn),
-            "allowed_auth_kinds": dk.allowed_kinds(conn)}
+            "allowed_auth_kinds": dk.allowed_kinds(conn), "attestation": dka.mode(conn)}
 
 
 def _remote_only(request: Request) -> None:
@@ -129,6 +134,26 @@ def sign_in_challenge(body: SignInChallengeBody, request: Request) -> dict[str, 
 
 # ---------------------------------------------------------------- register / list / revoke
 
+def _refusal_details(exc: ApiError) -> dict[str, Any]:
+    """Audit details of a refused registration: codes only (never a certificate or key)."""
+    d = exc.details if isinstance(exc.details, dict) else {}
+    out: dict[str, Any] = {"why": d["reason"]} if "reason" in d else {}
+    if exc.code == "device_key_attestation_required":
+        out.update({"attested": d.get("attested"), "attestation_why": d.get("why")})
+    return out
+
+
+def _attest_why(row: Any) -> dict[str, Any]:
+    """The level / reason code of a recorded verdict for the audit row (from the kept summary)."""
+    try:
+        kept = json.loads(row["attestation_json"] or "null")
+    except (ValueError, TypeError):
+        kept = None
+    if not isinstance(kept, dict):
+        return {}
+    return {k: kept[k] for k in ("level", "reason") if kept.get(k)}
+
+
 class RegisterBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     challenge_id: str = Field(pattern=dk.CHALLENGE_PATTERN)
@@ -136,7 +161,8 @@ class RegisterBody(BaseModel):
     signature: str = Field(min_length=40, max_length=120)  # base64url DER ECDSA-Sig-Value (or raw r||s)
     label: str = Field(default="", max_length=dk.LABEL_MAX)
     auth_kind: Literal["biometric", "biometric_or_screen_lock"]
-    attestation: list[str] | None = Field(default=None, max_length=10)  # slice 9: the Keystore certificate chain (base64 DER), unused yet
+    # slice 9: the Keystore certificate chain of the new key (leaf first, base64 / base64url DER; KeyStore.getCertificateChain)
+    attestation: list[Annotated[str, Field(min_length=1, max_length=da.MAX_ITEM_LEN)]] | None = Field(default=None, max_length=da.MAX_ITEMS)
 
 
 @router.post("/auth/device-keys", **wire(W.DeviceKeyRow))
@@ -151,24 +177,25 @@ def register(body: RegisterBody, request: Request, principal: Principal = Depend
                           session=step_up.session_key(request, principal), attestation=body.attestation)
     except ApiError as exc:
         audit(conn, actor=principal, action="auth.device_key.refused", decision="denied", resource_type="user", resource_id=principal.user_id,
-              reason=exc.code, request_id=_rid(request), details={"step": REGISTER_ACTION, **({"why": exc.details["reason"]} if isinstance(exc.details, dict) and "reason" in exc.details else {})})
+              reason=exc.code, request_id=_rid(request), details={"step": REGISTER_ACTION, **_refusal_details(exc)})
         raise
     audit(conn, actor=principal, action="auth.device_key.registered", decision="allowed", resource_type="device_key", resource_id=row["id"],
           request_id=_rid(request), details={"user_id": principal.user_id, "fp": dk.fingerprint_prefix(row), "auth_kind": row["auth_kind"],
-                                             "platform": row["platform"], "attested": "not_checked"})
+                                             "platform": row["platform"], "attested": dk.attested_of(row),
+                                             "attestation_mode": dka.mode(conn), **_attest_why(row)})
     from ..services import notify_sources
 
     try:
         notify_sources.device_key_added(conn, principal.user_id)  # design 8.3: the user hears of it on every device
     except Exception:  # noqa: BLE001 - a notice never undoes a registration (emit_full rolled its own savepoint back)
         pass
-    return dk.view(row)
+    return dk.view(row, conn)
 
 
 @router.get("/auth/device-keys", **wire(W.DeviceKeyList))
 def list_keys(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    return {"keys": [dk.view(r) for r in dk.active_rows(conn, principal.user_id)], "auth_kind": dk.auth_setting(conn),
-            "max": dk.MAX_KEYS_PER_USER}
+    return {"keys": [dk.view(r, conn) for r in dk.active_rows(conn, principal.user_id)], "auth_kind": dk.auth_setting(conn),
+            "attestation": dka.mode(conn), "max": dk.MAX_KEYS_PER_USER}
 
 
 @router.delete("/auth/device-keys/{key_id}", **wire(W.DeviceKeyRevoked))

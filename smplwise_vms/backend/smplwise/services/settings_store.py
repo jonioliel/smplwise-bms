@@ -436,6 +436,10 @@ DEFAULTS: dict[str, str] = {
     # `biometric_or_screen_lock` (default: a fingerprint / face OR the phone's screen code) or `biometric` (fingerprint / face only).
     # A key already registered keeps the kind it was made with. Never restored from a backup.
     "security.device_key_auth": "biometric_or_screen_lock",
+    # MFA-DEVICEKEY-ATTEST-2490 (owner Q52; services/device_key_attestation.py): the Android key attestation of a new phone key, checked
+    # offline against the pinned Google roots - `off` (not checked), `preferred` (default: recorded, never refused), `required` (only a
+    # hardware-attested key registers and counts). A settings change (step-up gated). Never restored from a backup.
+    "security.device_key_attestation": "preferred",
     # USR2 (docs/changes/CR-USR2-ARX-ONLY-IDENTITY.md, owner answers 2026-10-16): Arx-only identities. `security.local_identity` is the
     # feature switch - off (default): no local user can be created or sign in, and the HA-based sign-in is exactly as before. Changing
     # it needs a system administrator and is audited; switching it off ends every local session. The other keys shape the sessions,

@@ -5,7 +5,8 @@
 
 /**
  * `POST /auth/device-keys/challenge`: the exact text the app signs (`payload`, UTF-8), its single-use id, how long it lives, and
- * which auth kinds a new key may declare (`security.device_key_auth`).
+ * which auth kinds a new key may declare (`security.device_key_auth`). `attestation`: the installation's attestation mode; for a
+ * `register` challenge the app attests the new key with `setAttestationChallenge(SHA-256(payload))` and sends the chain.
  */
 export interface DeviceKeyChallenge {
   challenge_id: string;
@@ -14,12 +15,14 @@ export interface DeviceKeyChallenge {
   expires_in: number;
   auth_kind: "biometric" | "biometric_or_screen_lock";
   allowed_auth_kinds: ("biometric" | "biometric_or_screen_lock")[];
+  attestation: "off" | "preferred" | "required";
 }
 
-/** `GET /auth/device-keys`: the caller's active keys, the installation's auth-kind setting and the per-user maximum. */
+/** `GET /auth/device-keys`: the caller's active keys, the installation's auth-kind and attestation settings and the per-user maximum. */
 export interface DeviceKeyList {
   keys: DeviceKeyRow[];
   auth_kind: "biometric" | "biometric_or_screen_lock";
+  attestation: "off" | "preferred" | "required";
   max: number;
 }
 
@@ -29,7 +32,11 @@ export interface DeviceKeyRevoked {
   revoked: boolean;
 }
 
-/** One active phone key of the caller. `attested` is `not_checked` until the attestation slice (DEVICEKEY-ATTEST). */
+/**
+ * One active phone key of the caller. `attested`: the verdict of the Android key attestation made at registration (`not_checked`:
+ * registered before slice 9 or while the mode was off). `counts`: whether the key is usable under the current mode (False only under
+ * `required` for a key that is not `hardware`: register it again).
+ */
 export interface DeviceKeyRow {
   id: string;
   label: string;
@@ -37,7 +44,8 @@ export interface DeviceKeyRow {
   platform: "android";
   created_at: string;
   last_used_at: string | null;
-  attested: "not_checked";
+  attested: "hardware" | "software" | "none" | "failed" | "not_checked";
+  counts: boolean;
 }
 
 /**

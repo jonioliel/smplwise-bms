@@ -21,8 +21,11 @@ the phone's prompt and refuses to sign a payload whose origin is not its own ser
 Wrong signatures count towards a lockout of the phone-key method (5 in 5 minutes -> 10 minutes, persisted in `auth_totp_failures`
 under the key `dk:<user id>`, separate from the authenticator-code lockout - design 8.2 "method lockouts stay per method").
 
-Hardware attestation is slice 9 (DEVICEKEY-ATTEST, owner Q52): `check_attestation()` is the hook; today it checks nothing and stores
-nothing (`attestation_json` stays NULL, the key row says `attested: not_checked`).
+Hardware attestation is slice 9 (MFA-DEVICEKEY-ATTEST-2490, owner Q52; services/device_key_attestation.py): the app attests the new
+key with `setAttestationChallenge(SHA-256(register payload))` and sends the Keystore chain; `check_attestation()` judges it offline
+against the pinned Google roots and `security.device_key_attestation` (off / preferred (default) / required) decides what follows. The
+verdict is kept in `attested` (migration 0223) and summarised in `attestation_json`; under `required` a key that is not `hardware`
+does not count (`has_active`, `check`).
 
 Nothing here logs, audits or returns a nonce, a signature or key material: audit rows carry the key id, a 16-hex fingerprint prefix and
 the declared auth kind only."""
@@ -38,6 +41,7 @@ from typing import Any
 
 from ..errors import ApiError
 from . import app_refresh_key as ark
+from . import device_key_attestation as dka
 from . import second_factor as sf
 
 TABLE = "auth_device_keys"
@@ -221,6 +225,11 @@ def active_rows(conn: sqlite3.Connection, user_id: str) -> list[sqlite3.Row]:
 
 
 def has_active(conn: sqlite3.Connection, user_id: str) -> bool:
+    """Has the user a phone key that COUNTS (a sign-in factor, a step-up method)? Under `security.device_key_attestation` = required
+    only a `hardware`-attested key counts (MFA-DEVICEKEY-ATTEST-2490); a missing column (an older schema) then means none."""
+    if dka.mode(conn) == dka.MODE_REQUIRED:
+        return bool(_rows(conn, f"SELECT 1 FROM {TABLE} WHERE user_id = ? AND revoked_at IS NULL AND attested = ? LIMIT 1",
+                          (user_id, dka.HARDWARE)))
     return bool(_rows(conn, f"SELECT 1 FROM {TABLE} WHERE user_id = ? AND revoked_at IS NULL LIMIT 1", (user_id,)))
 
 
@@ -231,19 +240,38 @@ def _active_row(conn: sqlite3.Connection, user_id: str, key_id: Any) -> sqlite3.
     return rows[0] if rows else None
 
 
-def view(row: sqlite3.Row) -> dict[str, Any]:
-    """What the API may say about a key: never the public key, never the full fingerprint."""
-    return {"id": row["id"], "label": row["label"] or "", "auth_kind": row["auth_kind"], "platform": row["platform"],
-            "created_at": row["created_at"], "last_used_at": row["last_used_at"],
-            # slice 9 (DEVICEKEY-ATTEST) turns this into hardware | software | none from attestation_json
-            "attested": "not_checked"}
+def attested_of(row: sqlite3.Row) -> str:
+    """The stored verdict (migration 0223): hardware | software | none | failed, or `not_checked` (NULL / an older schema)."""
+    try:
+        value = row["attested"]
+    except (IndexError, KeyError):
+        value = None
+    return value if value in dka.VERDICTS else dka.NOT_CHECKED
 
 
-def check_attestation(conn: sqlite3.Connection, attestation: Any, challenge: Challenge) -> str | None:
-    """HOOK for slice 9 (DEVICEKEY-ATTEST, owner Q52; design 4.4a): verify the Keystore attestation chain of the new key offline against
-    the pinned Google roots (the registration nonce is the attestation challenge), apply `security.device_key_attestation` (off /
-    preferred / required) and return the JSON to keep in `attestation_json`. This slice checks nothing and keeps nothing: None."""
-    return None
+def view(row: sqlite3.Row, conn: sqlite3.Connection | None = None) -> dict[str, Any]:
+    """What the API may say about a key: never the public key, never the full fingerprint, never a certificate. `counts` (with a
+    connection): whether the key is usable under the current `security.device_key_attestation` (False: re-register under required)."""
+    out = {"id": row["id"], "label": row["label"] or "", "auth_kind": row["auth_kind"], "platform": row["platform"],
+           "created_at": row["created_at"], "last_used_at": row["last_used_at"], "attested": attested_of(row)}
+    if conn is not None:
+        out["counts"] = dka.counts(conn, attested_of(row))
+    return out
+
+
+def check_attestation(conn: sqlite3.Connection, attestation: Any, challenge: Challenge, spki: bytes) -> tuple[str | None, str | None]:
+    """MFA-DEVICEKEY-ATTEST-2490 (owner Q52; design 4.4a): judge the Keystore attestation chain of the new key offline against the pinned
+    Google roots; the attestation challenge is SHA-256 of this registration's payload (the bytes the key signed), so a chain made for
+    another registration, user, origin or nonce never passes. Returns (attested, attestation_json) to keep - (None, None) when the mode
+    is `off`. Under `required` anything but `hardware` raises 422 `device_key_attestation_required` (the challenge is already spent)."""
+    mode_now = dka.mode(conn)
+    if mode_now == dka.MODE_OFF:
+        return None, None
+    result = dka.verify_chain(attestation, key_spki=spki, challenge=dka.challenge_of(challenge.message()))
+    if mode_now == dka.MODE_REQUIRED and result.attested != dka.HARDWARE:
+        raise ApiError(422, "device_key_attestation_required", dka.REQUIRED_HE,
+                       details={"reason": "attestation", "attested": result.attested, "why": result.reason or result.level})
+    return result.attested, dka.summary(result, mode_now, _iso(_now()))
 
 
 # ---------------------------------------------------------------- registration
@@ -267,11 +295,11 @@ def register(conn: sqlite3.Connection, user_id: str, *, challenge_id: Any, publi
         raise ApiError(409, "device_key_exists", EXISTS_HE)
     if len(active_rows(conn, user_id)) >= MAX_KEYS_PER_USER:
         raise ApiError(409, "device_key_limit", LIMIT_HE, details={"max": MAX_KEYS_PER_USER})
-    attested = check_attestation(conn, attestation, ch)
+    attested, attestation_json = check_attestation(conn, attestation, ch, spki)
     key_id = ID_PREFIX + secrets.token_hex(12)
-    conn.execute(f"""INSERT INTO {TABLE}(id, user_id, label, spki, fp, alg, auth_kind, platform, created_at, attestation_json)
-                     VALUES (?, ?, ?, ?, ?, 'ES256', ?, 'android', ?, ?)""",
-                 (key_id, user_id, (label or "").strip()[:LABEL_MAX], spki, fp, auth_kind, _iso(_now()), attested))
+    conn.execute(f"""INSERT INTO {TABLE}(id, user_id, label, spki, fp, alg, auth_kind, platform, created_at, attestation_json, attested)
+                     VALUES (?, ?, ?, ?, ?, 'ES256', ?, 'android', ?, ?, ?)""",
+                 (key_id, user_id, (label or "").strip()[:LABEL_MAX], spki, fp, auth_kind, _iso(_now()), attestation_json, attested))
     return conn.execute(f"SELECT * FROM {TABLE} WHERE id = ?", (key_id,)).fetchone()
 
 
@@ -304,6 +332,9 @@ def check(conn: sqlite3.Connection, user_id: str, challenge_id: Any, signature: 
     row = _active_row(conn, user_id, ch.key_id or key_id)
     if row is None:
         raise wrong("key_unknown")  # another user's key, a revoked key, or no key at all
+    if not dka.counts(conn, attested_of(row)):
+        # `required` and this key is not hardware-attested: it does not count. Not a wrong signature, so no lockout step.
+        raise DeviceKeyError("invalid", dka.KEY_NOT_ATTESTED_HE, "attestation_required")
     if not isinstance(signature, str) or not ark.verify(row["spki"], signature, ch.message()):
         raise wrong("signature")
     conn.execute(f"UPDATE {TABLE} SET last_used_at = ?, sign_count = sign_count + 1 WHERE id = ?", (_iso(_now()), row["id"]))

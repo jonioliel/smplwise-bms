@@ -79,7 +79,7 @@ EXPORT_LISTS: dict[str, tuple[str, str, tuple[str, ...], str]] = {
     "remote_sign_in": ("remote_sign_ins", "user_id", ("last_at", "last_address", "last_country", "sign_ins"), "last_at"),
     "alarm_policy": ("alarm_user_policy", "user_id", ("arm_policy", "disarm_policy", "pin_set_at", "updated_at"), "updated_at"),
     "second_factor": ("auth_totp", "user_id", ("enabled", "created_at", "enabled_at", "last_used_at"), "created_at"),
-    "phone_keys": ("auth_device_keys", "user_id", ("id", "label", "auth_kind", "platform", "created_at", "last_used_at", "revoked_at"), "created_at"),  # MFA-DEVICEKEY-2490
+    "phone_keys": ("auth_device_keys", "user_id", ("id", "label", "auth_kind", "platform", "created_at", "last_used_at", "revoked_at", "attested"), "created_at"),  # MFA-DEVICEKEY-2490 (+ attested: MFA-DEVICEKEY-ATTEST-2490)
 }
 
 

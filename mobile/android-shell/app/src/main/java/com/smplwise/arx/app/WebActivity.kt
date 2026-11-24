@@ -57,6 +57,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.android.material.snackbar.Snackbar
+import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import org.json.JSONTokener
@@ -338,9 +339,13 @@ class WebActivity : LockedActivity() {
                 if (!activated) return fail("no_gesture")
                 val kind = DeviceKeyPolicy.effectiveKind(msg.optString("authKind"), Build.VERSION.SDK_INT)
                 if (!DeviceKey.canSign(this, kind)) return fail("unavailable")
+                // MFA-DEVICEKEY-ATTEST-2490: the register payload (optional) -> the attestation challenge; a payload that is not this
+                // server's register payload is refused rather than ignored, so the page learns of the mistake
+                val payload = msg.optString("payload")
+                val challenge = if (payload.isEmpty()) null else DeviceKeyPolicy.attestationChallenge(payload, serverOrigin) ?: return fail("refused")
                 io.execute {
                     val result = try {
-                        DeviceKey.create(this, alias, kind)
+                        DeviceKey.create(this, alias, kind, challenge)
                     } catch (e: Exception) {
                         null
                     }
@@ -349,7 +354,11 @@ class WebActivity : LockedActivity() {
                             fail("error")
                         } else {
                             DeviceKey.setKind(this, alias, kind)
-                            answer(true) { put("publicKey", result); put("authKind", kind) }
+                            answer(true) {
+                                put("publicKey", result.publicKey)
+                                put("authKind", kind)
+                                put("attestation", JSONArray(result.attestation)) // [] = not attested (the server records `none`)
+                            }
                         }
                     }
                 }

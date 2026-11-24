@@ -85,6 +85,20 @@ object DeviceKeyPolicy {
         text?.replace(Regex("[\\p{Cntrl}]"), " ")?.trim()?.take(MAX_PROMPT_TEXT)?.takeIf { it.isNotEmpty() } ?: fallback
 
     fun b64u(bytes: ByteArray): String = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+
+    /**
+     * MFA-DEVICEKEY-ATTEST-2490 (owner Q52): the Keystore attestation challenge of a new key = SHA-256 of the server's REGISTER payload
+     * the new key is about to sign (server: services/device_key_attestation.challenge_of). Only a register payload for this app's own
+     * server is accepted - a page cannot have the app attest a key for another site or another purpose. Null: no attestation.
+     */
+    fun attestationChallenge(text: String?, serverOrigin: String): ByteArray? {
+        val p = acceptable(text, serverOrigin, null) ?: return null
+        if (p.purpose != "register") return null
+        return MessageDigest.getInstance("SHA-256").digest(text!!.toByteArray(Charsets.UTF_8))
+    }
+
+    /** The certificate chain as the server takes it: leaf first, each certificate standard base64 DER. */
+    fun chainB64(encoded: List<ByteArray>): List<String> = encoded.map { java.util.Base64.getEncoder().encodeToString(it) }
 }
 
 /**
@@ -95,7 +109,10 @@ object DeviceKeyPolicy {
  * - `setInvalidatedByBiometricEnrollment(true)`: a new fingerprint voids the key (threat T1); the app then says so and the user
  *   registers again;
  * - StrongBox when the phone has it, else the TEE;
- * - [create] takes an attestation challenge (the registration nonce) for slice 9 DEVICEKEY-ATTEST (owner Q52); this slice passes none.
+ * - [create] attests the key (MFA-DEVICEKEY-ATTEST-2490, owner Q52): `setAttestationChallenge(SHA-256(register payload))` and the
+ *   Keystore's certificate chain goes to the server with the registration, which checks it offline against Google's roots. A phone
+ *   that cannot attest (no attestation keys, a vendor bug) still gets a key, without a chain: the server records `none` and its
+ *   `security.device_key_attestation` decides (preferred: accepted; required: refused).
  *
  * Only public material leaves the Keystore. The server's id of the key and the declared kind are kept in plain preferences (they
  * are not secret).
@@ -123,15 +140,33 @@ object DeviceKey {
     private fun authenticators(kind: String): Int =
         if (kind == DeviceKeyPolicy.AUTH_ANY && Build.VERSION.SDK_INT >= 30) BIOMETRIC_STRONG or DEVICE_CREDENTIAL else BIOMETRIC_STRONG
 
-    /** A new key for [alias] (any older one is deleted first). Returns the base64url SubjectPublicKeyInfo DER. */
-    fun create(context: Context, alias: String, kind: String, attestationChallenge: ByteArray? = null): String {
+    /** A new key: its base64url SubjectPublicKeyInfo DER and, when it was attested, the Keystore chain (leaf first, base64 DER). */
+    data class Created(val publicKey: String, val attestation: List<String>)
+
+    /** A new key for [alias] (any older one is deleted first), attested with [attestationChallenge] when one is given. */
+    fun create(context: Context, alias: String, kind: String, attestationChallenge: ByteArray? = null): Created {
         delete(context, alias)
         val strongBox = Build.VERSION.SDK_INT >= 28 && context.packageManager.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)
-        return try {
-            generate(alias, kind, attestationChallenge, strongBox)
+        val publicKey = try {
+            generateAny(alias, kind, attestationChallenge, strongBox)
         } catch (e: Exception) {
-            if (strongBox && (Build.VERSION.SDK_INT >= 28 && e is StrongBoxUnavailableException)) generate(alias, kind, attestationChallenge, false) else throw e
+            if (attestationChallenge == null) throw e
+            // some phones cannot attest (no attestation keys provisioned, a vendor bug): a key without a chain, the server decides
+            return Created(generateAny(alias, kind, null, strongBox), emptyList())
         }
+        if (attestationChallenge == null) return Created(publicKey, emptyList())
+        val chain = try {
+            keyStore().getCertificateChain(alias)?.map { it.encoded }.orEmpty()
+        } catch (e: Exception) {
+            emptyList()
+        }
+        return Created(publicKey, if (chain.size >= 2) DeviceKeyPolicy.chainB64(chain) else emptyList())
+    }
+
+    private fun generateAny(alias: String, kind: String, attestationChallenge: ByteArray?, strongBox: Boolean): String = try {
+        generate(alias, kind, attestationChallenge, strongBox)
+    } catch (e: Exception) {
+        if (strongBox && (Build.VERSION.SDK_INT >= 28 && e is StrongBoxUnavailableException)) generate(alias, kind, attestationChallenge, false) else throw e
     }
 
     private fun generate(alias: String, kind: String, attestationChallenge: ByteArray?, strongBox: Boolean): String {
@@ -152,7 +187,7 @@ object DeviceKey {
                     @Suppress("DEPRECATION")
                     setUserAuthenticationValidityDurationSeconds(-1)
                 }
-                if (attestationChallenge != null) setAttestationChallenge(attestationChallenge) // slice 9 (DEVICEKEY-ATTEST)
+                if (attestationChallenge != null) setAttestationChallenge(attestationChallenge) // MFA-DEVICEKEY-ATTEST-2490
                 if (strongBox && Build.VERSION.SDK_INT >= 28) setIsStrongBoxBacked(true)
             }
             .build()
