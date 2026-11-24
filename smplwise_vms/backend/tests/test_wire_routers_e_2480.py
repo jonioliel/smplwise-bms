@@ -151,3 +151,24 @@ def test_the_route_map_names_every_modelled_route(name):
         if key not in no_json and GEN.wire_models(r.response_model):
             method, path = key.split(" ", 1)
             assert f'"{method} /api/v1{path}"' in text, key
+
+
+def test_the_states_before_a_snapshot_and_before_a_call_ends_are_declared(monkeypatch):
+    """RESPONSE-MODELS-E-2500: the runner run at 6bf65de99 reached two answers the draft had not seen - `GET /ha/entities` before the
+    first Home Assistant snapshot (`sync.last_snapshot_at` null, ha_sync.SyncState) and `GET /intercom/calls` with a call that still
+    rings (`outcome` and `ended_at` null until state = ended, migrations/0197_intercom_calls.sql). Both are valid under strict mode."""
+    from smplwise.services import ha_sync
+    from smplwise.services import intercom_calls as calls
+    from smplwise.wire import ha as WH
+    from smplwise.wire import intercom_calls as WI
+
+    monkeypatch.setenv("SW_WIRE_STRICT", "1")
+    sync = ha_sync.SyncState().as_dict()
+    assert sync["last_snapshot_at"] is None
+    WH.HaEntitiesSync.model_validate(sync)
+    WH.HaStatusSync.model_validate(sync)
+
+    row = calls.Call(id="c1", station_id="s1", station_name="Gate", rang_at="2026-11-24T00:00:00Z", updated_at="2026-11-24T00:00:00Z").row()
+    row = {k: v for k, v in row.items() if k not in ("answered_by", "ended_by", "door_opened_by")} | {"answered_by_me": False}
+    assert row["outcome"] is None and row["ended_at"] is None
+    WI.IntercomCallsCallLog.model_validate({"calls": [row], "next": None, "retention_days": calls.RETENTION_DAYS})

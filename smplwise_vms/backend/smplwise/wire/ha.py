@@ -115,7 +115,7 @@ class HaEntitiesArea(ExactModel):
 
 class HaEntitiesSync(ExactModel):
     connected: bool
-    last_snapshot_at: str
+    last_snapshot_at: str | None  # RESPONSE-MODELS-E-2500: null until the first snapshot (ha_sync.SyncState)
     last_event_at: Any
     last_registry_at: str | None
     last_error: str | None

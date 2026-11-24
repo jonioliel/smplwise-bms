@@ -46,11 +46,11 @@ class IntercomCallsCallLogCall(ExactModel):
     rang_at: str
     observed: str
     state: str
-    outcome: str
+    outcome: str | None  # RESPONSE-MODELS-E-2500: null while the call rings or is in progress (0197_intercom_calls.sql)
     answered_at: str | None
     answered_via: str | None
     answered_by_name: str | None
-    ended_at: str
+    ended_at: str | None  # RESPONSE-MODELS-E-2500: null until state = ended
     ended_by_name: str | None
     door_opened_at: str | None
     door_opened_by_name: str | None
