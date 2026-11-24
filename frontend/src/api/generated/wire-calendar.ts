@@ -3,6 +3,19 @@
 // sent as null instead); `unknown` is a value the backend passes through as stored. Code review 07:F8 step 2.
 /* eslint-disable */
 
+/** The filter of one list: the choices and the chosen building (null = the whole site). */
+export interface BuildingFilter {
+  buildings: BuildingFilterChoice[];
+  building: string | null;
+}
+
+/** One building the filter offers (the buildings the caller's items sit in; the full interface's order, the shared building last). */
+export interface BuildingFilterChoice {
+  id: string;
+  name: string;
+  is_shared: boolean;
+}
+
 export interface CalAvailability {
   free: CalSlot[];
   nearest: CalSlot[];
@@ -358,10 +371,12 @@ export interface CalRoomDay {
   equipment: string[];
   open: CalOpenSpan[];
   entries: CalOccurrence[];
+  buildings?: string[] | null;
 }
 
 export interface CalRoomsDay {
   rooms: CalRoomDay[];
+  building_filter?: BuildingFilter | null;
 }
 
 export interface CalSettingsSaved {
