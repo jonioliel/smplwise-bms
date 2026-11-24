@@ -429,7 +429,11 @@ def test_settings_roundtrip_defaults_names_and_validation(client, settings):
     assert names == ["שדרות חיים וייצמן/הרצל", "שלי"] and put["config"]["clock_after_min"] == 90 and put["config"]["stops"][0]["city"] == "נתניה"
     bad = lambda body: client.put(f"{API}/transit/settings", json=body)  # noqa: E731
     assert bad({"stops": [{"code": c} for c in (33323, 33324, 51439, 11111, 57453)]}).status_code == 422  # five
-    assert bad({"stops": [{"code": 99999}]}).status_code == 422  # not in the catalogue
+    r = bad({"stops": [{"code": 99999}]})
+    assert r.status_code == 422  # not in the catalogue
+    assert (r.json()["details"]["fields"], r.json()["details"]["field"], r.json()["details"]["code"]) == (["stops"], "stops", 99999)  # ADR-019 Step 1
+    r = bad({"clock_after_min": 241})
+    assert r.status_code == 422 and r.json()["details"]["fields"] == [r.json()["details"]["field"]] == ["clock_after_min"]
     assert bad({"clock_after_min": 241}).status_code == 422 and bad({"stale_grace_min": -1}).status_code == 422 and bad({"colour": 1}).status_code == 422
     assert client.get(f"{API}/transit/settings").json()["config"]["clock_after_min"] == 90  # a refused save changed nothing
 

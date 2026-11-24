@@ -4,15 +4,11 @@
  */
 import { closedErrorText } from './closed-errors';
 import { tr } from '../i18n/msg/api-core';
+import type { ErrorEnvelope, FieldProblem } from './generated/wire-errors';
 
-export interface ApiErrorBody {
-  code: string;
-  user_message: string;
-  retryable: boolean;
-  correlation_id: string;
-  details: Record<string, unknown>;
-}
-
+/** ADR-019 Step 0: the server's five-key error envelope, typed from the backend model (smplwise/wire/errors.py, generated). */
+export type ApiErrorBody = ErrorEnvelope;
+export type { FieldProblem };
 export class ApiError extends Error {
   constructor(public status: number, public body: ApiErrorBody) {
     super(body.user_message || body.code);
@@ -201,4 +197,77 @@ export function describeError(err: unknown): string {
   if (err instanceof ApiError) return closedErrorText(err.body.code) ?? (err.body.user_message || err.body.code || tr('השרת דחה את הבקשה ({status})', { status: err.status }));
   if (err instanceof TypeError) return tr('אין חיבור לשרת.');
   return err instanceof Error ? err.message : String(err);
+}
+
+// ---------------------------------------------------------------- ADR-019: the one field-error reader
+
+type Bag = Record<string, unknown>;
+const isBag = (v: unknown): v is Bag => !!v && typeof v === 'object' && !Array.isArray(v);
+const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
+const uniq = (xs: string[]): string[] => [...new Set(xs)];
+
+/** The `details` of an ApiError; {} for anything else. */
+function detailsOf(err: unknown): Bag {
+  return err instanceof ApiError && isBag(err.body.details) ? err.body.details : {};
+}
+
+/** A path as one dotted string: `a.b` as is, `['doors', 'pairs', 0]` -> `doors.pairs.0` (the global handler's `loc`). */
+function pathOf(v: unknown): string | null {
+  if (typeof v === 'string') return v || null;
+  if (Array.isArray(v) && v.length && v.every((p) => typeof p === 'string' || typeof p === 'number')) return v.join('.');
+  return null;
+}
+
+/** One `{field, code, message?}` from the canonical entry or a legacy issue (`{field, code}`, `{path, code, message}`, `{loc, type, msg}`). */
+function problemOf(v: unknown): FieldProblem | null {
+  if (!isBag(v)) return null;
+  const field = str(v.field) ?? pathOf(v.path) ?? pathOf(v.loc);
+  if (!field) return null;
+  const code = str(v.code) ?? str(v.type) ?? 'invalid';
+  const message = str(v.message) ?? str(v.msg);
+  return message ? { field, code, message } : { field, code };
+}
+
+/** The canonical `details.problems`. */
+function canonicalProblems(d: Bag): FieldProblem[] {
+  return Array.isArray(d.problems) ? d.problems.map(problemOf).filter((p): p is FieldProblem => !!p) : [];
+}
+
+/** The legacy issue lists: `fields` as objects or as a map field -> message, a domain `errors` list with `path` or `loc`. */
+function legacyProblems(d: Bag): FieldProblem[] {
+  const out: FieldProblem[] = [];
+  if (Array.isArray(d.fields)) out.push(...d.fields.filter(isBag).map(problemOf).filter((p): p is FieldProblem => !!p));
+  else if (isBag(d.fields)) {
+    for (const [field, m] of Object.entries(d.fields)) out.push(str(m) ? { field, code: 'invalid', message: m as string } : { field, code: 'invalid' });
+  }
+  if (Array.isArray(d.errors)) out.push(...d.errors.map(problemOf).filter((p): p is FieldProblem => !!p));
+  return out;
+}
+
+/**
+ * ADR-019 Step 0: the fields an error names - the canonical `details.fields` (names) and the fields of `details.problems` first; when
+ * the answer has neither, every legacy form (`details.field`, `details.key`, `fields` as objects or as a map, an `errors` list with
+ * `path` or `loc`). Each name once, in the server's order; [] for an error that names no field and for anything not an ApiError.
+ * Screens read field errors through this (and `problemsOf`) instead of their own `details.*` reads.
+ */
+export function fieldsOf(err: unknown): string[] {
+  const d = detailsOf(err);
+  const canonical = [
+    ...(Array.isArray(d.fields) ? d.fields.filter((f): f is string => typeof f === 'string' && !!f) : []),
+    ...canonicalProblems(d).map((p) => p.field),
+  ];
+  if (canonical.length) return uniq(canonical);
+  const legacy = [str(d.field), str(d.key), ...legacyProblems(d).map((p) => p.field)].filter((f): f is string => !!f);
+  return uniq(legacy);
+}
+
+/**
+ * ADR-019 Step 0: the per-field reasons of an error - the canonical `details.problems` first; without them the legacy issue lists
+ * (`fields` as objects `{field, code}`, `fields` as a map field -> message (code `invalid`), `errors` with `path` or `loc`). A form
+ * that only names fields (`fields` as names, `field`, `key`) has no reason: [] (read the names with `fieldsOf`).
+ */
+export function problemsOf(err: unknown): FieldProblem[] {
+  const d = detailsOf(err);
+  const canonical = canonicalProblems(d);
+  return canonical.length ? canonical : legacyProblems(d);
 }

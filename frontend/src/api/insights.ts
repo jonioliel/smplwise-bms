@@ -4,7 +4,7 @@
  * uniform 404 - `isOff()` tells that apart from a real failure. Door and waste rows carry names, never entity ids; the settings route (for
  * its managers) is the one exception: the door pairs are entity ids by nature.
  */
-import { ApiError, apiBlob, get, put } from './client';
+import { ApiError, apiBlob, fieldsOf, get, put } from './client';
 import { dispositionName, saveBlob } from './download';
 
 export type SectionId = 'summary' | 'tickets' | 'energy' | 'elevators' | 'generator' | 'temperature' | 'doors' | 'cameras' | 'waste';
@@ -62,11 +62,10 @@ export interface SettingsAnswer {
 export const getSettings = () => get<SettingsAnswer>('insights/settings');
 export const putSettings = (body: { settings?: InsightSettings; switches?: Partial<Record<SwitchKey, boolean>> }) => put<SettingsAnswer>('insights/settings', body);
 
-/** The fields a 422 names (`details.fields`: `doors.min_open_s`, `doors.pairs[0].lock_entity_id`, ...); [] for any other error. */
+/** The fields a 422 names (`details.fields`: `doors.min_open_s`, `doors.pairs[0].lock_entity_id`, ...); [] for any other error.
+ * ADR-019 Step 1: read through the shared field reader. */
 export function fieldErrors(err: unknown): string[] {
-  if (!(err instanceof ApiError) || err.status !== 422) return [];
-  const f = err.body.details?.fields;
-  return Array.isArray(f) ? f.filter((x): x is string => typeof x === 'string') : [];
+  return err instanceof ApiError && err.status === 422 ? fieldsOf(err) : [];
 }
 
 /** The uniform 404 of a switched-off part. */

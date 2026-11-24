@@ -106,6 +106,7 @@ def test_critical_needs_an_end_and_is_pinned_by_default(client):
     _on(client)
     r = client.post(f"{API}/notices", json={"title": "דחוף", "severity": "critical", "until_archived": True})
     assert r.status_code == 422 and r.json()["details"]["field"] == "ends_at"
+    assert r.json()["details"]["fields"] == ["ends_at"]  # ADR-019 Step 1
     n = _notice(client, title="דחוף", severity="critical", ends_at=_iso(3))
     assert n["pinned"] is True
 

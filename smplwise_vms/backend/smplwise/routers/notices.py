@@ -45,7 +45,8 @@ OFF_HE = "לוח ההודעות כבוי בהגדרות המערכת."
 
 
 def _invalid(exc: Invalid) -> ApiError:
-    return ApiError(422, "validation", str(exc), details={"field": exc.field})
+    """ADR-019 Step 1: the canonical field keys; `field` is still sent (legacy) until its readers moved."""
+    return exc.to_api_error(str(exc), legacy={"field": exc.field})
 
 
 def module_gate(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> None:

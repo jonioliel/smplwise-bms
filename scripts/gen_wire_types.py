@@ -136,6 +136,12 @@ FAMILIES_D: dict[str, tuple[str, tuple[str, ...]]] = {
 }
 FAMILIES.update(FAMILIES_D)
 
+# ADR-019 Step 0 (item 1): models no route answers with, written as types only (no `<Family>Routes` map): output file -> (module, attribute
+# holding the tuple of models, in their order). The error envelope is built as a dict by the handlers; its models exist for these types.
+NON_ROUTE: dict[str, tuple[str, str]] = {
+    "wire-errors.ts": ("smplwise.wire.errors", "MODELS"),
+}
+
 
 def wire_models(response_model: Any) -> tuple[type, ...]:
     """The WireModel classes of a route's response model: the model, or the members of a union of models; () for anything else."""
@@ -265,15 +271,10 @@ def _object(s: dict[str, Any], indent: str) -> str:
     return "{\n" + "\n".join(_fields(s, inner)) + f"\n{indent}}}"
 
 
-def render(family: str, modules: tuple[str, ...]) -> str:
+def _declarations(models: list[type]) -> list[str]:
+    """The header and one `export interface` / `export type` per model (and per model they reach), sorted by name."""
     from pydantic.json_schema import models_json_schema
 
-    routes = _routes(modules)
-    models: list[type] = []
-    for _m, _p, members in routes:
-        for model in members:
-            if model not in models:
-                models.append(model)
     _, top = models_json_schema([(m, "serialization") for m in models], ref_template="#/$defs/{model}")
     defs: dict[str, Any] = top.get("$defs", {})
     lines = [
@@ -293,11 +294,30 @@ def render(family: str, modules: tuple[str, ...]) -> str:
         else:
             lines.append(f"export type {name} = {_ts(d, '')};")
         lines.append("")
+    return lines
+
+
+def render(family: str, modules: tuple[str, ...]) -> str:
+    routes = _routes(modules)
+    models: list[type] = []
+    for _m, _p, members in routes:
+        for model in members:
+            if model not in models:
+                models.append(model)
+    lines = _declarations(models)
     lines.append("/** The answer of every modelled route of this family: `'METHOD path'` -> type. */")
     lines.append(f"export interface {family}Routes {{")
     for method, path, members in routes:
         lines.append(f"  {_lit(f'{method} {path}')}: {' | '.join(m.__name__ for m in members)};")
     lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
+def render_models(module: str, attr: str) -> str:
+    """A NON_ROUTE file: the declarations of the module's models, no route map."""
+    lines = _declarations(list(getattr(importlib.import_module(module), attr)))
+    while lines and lines[-1] == "":
+        lines.pop()
     return "\n".join(lines) + "\n"
 
 
@@ -307,13 +327,19 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     sys.path.insert(0, str(BACKEND))
     stale: list[str] = []
-    for family, (fname, modules) in FAMILIES.items():
+    jobs: list[tuple[str, Any]] = [(fname, (family, modules)) for family, (fname, modules) in FAMILIES.items()]
+    jobs += [(fname, spec) for fname, spec in NON_ROUTE.items()]
+    for fname, spec in jobs:
         path = OUT_DIR / fname
-        if not _routes(modules):  # a family without a modelled route has no file (yet)
-            if path.exists():
-                stale.append(str(path.relative_to(ROOT)) + " (no modelled route)")
-            continue
-        text = render(family, modules)
+        if fname in NON_ROUTE:
+            text = render_models(*spec)
+        else:
+            family, modules = spec
+            if not _routes(modules):  # a family without a modelled route has no file (yet)
+                if path.exists():
+                    stale.append(str(path.relative_to(ROOT)) + " (no modelled route)")
+                continue
+            text = render(family, modules)
         current = path.read_text(encoding="utf-8") if path.exists() else None
         if args.check:
             if current != text:

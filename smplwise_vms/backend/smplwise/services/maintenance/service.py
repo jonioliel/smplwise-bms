@@ -28,7 +28,8 @@ EDITABLE = ("title", "category", "notes", "place", "entity_id", "elevator_id", "
 
 
 def invalid(exc: model.Invalid) -> ApiError:
-    return ApiError(422, "validation", "ערך לא תקין: " + exc.field, details={"fields": [exc.field], "problem": exc.code})
+    """ADR-019 Step 1: fields + problems; `problem` is still sent (legacy) until its readers moved."""
+    return exc.to_api_error("ערך לא תקין: " + exc.field, code="validation", legacy={"problem": exc.code})
 
 
 def _row(conn: sqlite3.Connection, task_id: str) -> sqlite3.Row | None:

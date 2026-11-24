@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import calendar_store as store
 from ..services.calendar import calendars as cals
@@ -54,8 +54,8 @@ def _errors(conn: sqlite3.Connection, principal: Principal, request: Request) ->
     except Denied as exc:
         audit(conn, actor=principal, action=exc.permission, decision="denied", resource_type="calendar", resource_id=exc.resource_id, reason=exc.need or "no_role", request_id=_rid(request))
         raise ApiError(403, "forbidden", "אין הרשאה לפעולה הזו ביומן.", details={"permission": exc.permission}) from None
-    except model.Invalid as exc:
-        raise ApiError(422, exc.code, str(exc), details={"field": exc.field}) from None
+    except model.Invalid as exc:  # ADR-019 Step 1: the canonical keys, `field` still sent (legacy)
+        raise exc.to_api_error(str(exc), legacy={"field": exc.field}) from None
 
 
 def _ctx(request: Request, conn: sqlite3.Connection, principal: Principal) -> Ctx:
@@ -85,11 +85,11 @@ def _body(b: Body) -> dict[str, Any]:
 
 def _instant(v: str | None, field: str) -> dt.datetime:
     if v is None:
-        raise ApiError(422, "validation", f"{field} is required", details={"field": field})
+        raise field_error(f"{field} is required", [field], legacy={"field": field})
     try:
         return model.parse_utc(v, field)
     except model.Invalid as exc:
-        raise ApiError(422, "validation", str(exc), details={"field": field}) from None
+        raise field_error(str(exc), [field], legacy={"field": field}) from None
 
 
 # ---------------------------------------------------------------- module state and settings (answer while the module is off)
@@ -244,7 +244,7 @@ def get_occurrences(frm: str = Query(alias="from"), to: str = Query(), calendars
     _need_view(conn, principal)
     a, b = _instant(frm, "from"), _instant(to, "to")
     if b <= a or b - a > dt.timedelta(days=62):
-        raise ApiError(422, "validation", "from..to: up to 62 days", details={"field": "to"})
+        raise field_error("from..to: up to 62 days", ["to"], legacy={"field": "to"})
     split = lambda v: [x for x in v.split(",") if x] or None  # noqa: E731
     return events.occurrences(Ctx(conn, principal), a, b, calendars=split(calendars), kinds=split(kinds), states=split(states))
 
@@ -255,7 +255,7 @@ def rooms_day(date: str = Query(), calendars: str = Query(default=""), principal
     try:
         day = dt.date.fromisoformat(date)
     except ValueError:
-        raise ApiError(422, "validation", "date: YYYY-MM-DD", details={"field": "date"}) from None
+        raise field_error("date: YYYY-MM-DD", ["date"], legacy={"field": "date"}) from None
     ctx = Ctx(conn, principal)
     s = model.read_settings(conn)
     want = {x for x in calendars.split(",") if x}
@@ -283,7 +283,7 @@ def availability(body: Body, principal: Principal = Depends(current_principal_ro
     a, b = _instant(d.get("from"), "from"), _instant(d.get("to"), "to")
     dur = d.get("duration_min")
     if isinstance(dur, bool) or not isinstance(dur, int) or not 5 <= dur <= 1440 or b <= a or b - a > dt.timedelta(days=14):
-        raise ApiError(422, "validation", "duration_min 5..1440, from < to within 14 days", details={"field": "duration_min"})
+        raise field_error("duration_min 5..1440, from < to within 14 days", ["duration_min"], legacy={"field": "duration_min"})
     hc = d.get("headcount")
     eq = d.get("equipment") or []
     ctx = Ctx(conn, principal)
@@ -440,7 +440,7 @@ def my_calendar(frm: str | None = Query(default=None, alias="from"), to: str | N
     a = _instant(frm, "from") if frm else _now()
     b = _instant(to, "to") if to else a + dt.timedelta(days=31)
     if b <= a or b - a > dt.timedelta(days=62):
-        raise ApiError(422, "validation", "from..to: up to 62 days", details={"field": "to"})
+        raise field_error("from..to: up to 62 days", ["to"], legacy={"field": "to"})
     ctx = Ctx(conn, principal)
     mine = [o for o in events.occurrences(ctx, a, b, calendars=None, kinds=None, states=None)["occurrences"] if (o["organizer"] or {}).get("id") == principal.user_id]
     pending = [{"event_id": r["id"], "title": r["title"], "start": r["starts_at"], "end": r["ends_at"], "calendar_id": r["calendar_id"]}
@@ -456,7 +456,7 @@ def list_requests(state: str = Query(default="pending"), calendars: str = Query(
                   conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _need_view(conn, principal)
     if state not in ("pending", "rejected", "expired", "withdrawn"):
-        raise ApiError(422, "validation", "state", details={"field": "state"})
+        raise field_error("state", ["state"], legacy={"field": "state"})
     return {"requests": decisions.requests(Ctx(conn, principal), calendars=[c for c in calendars.split(",") if c] or None, state=state,
                                           order=model.read_settings(conn)["contested_order"])}
 
