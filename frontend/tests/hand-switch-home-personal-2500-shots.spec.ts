@@ -38,7 +38,8 @@ test.describe('HAND-SWITCH-HOME-PERSONAL-2500 captures', () => {
         await mayPersonalize(page);
         await openSt7(page, '/system/diagnostics?tab=map', scheme === 'dark' ? '&scheme=dark' : '');
         if (scheme === 'dark') await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
-        await page.locator('sw-app [data-profile-menu]').click();
+        // the rail's profile button on a desktop, the bottom bar's "me" on a phone (no rail there)
+        await page.locator('sw-app [data-profile-menu]:visible, sw-app [data-nav-me]:visible').first().click();
         await page.locator('sw-app sw-user-menu [data-menu-account]').click();
         await page.locator('sw-app sw-user-menu [data-my-home] summary').click();
         const mine = page.locator('sw-app sw-user-menu sw-home-personal');
