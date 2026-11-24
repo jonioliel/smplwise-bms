@@ -61,14 +61,23 @@ def _seed() -> list[dict[str, Any]]:
 
 
 def _clean_stored(raw: Any) -> list[dict[str, Any]]:
+    """The stored rows that are still valid. NOTICE-NEWS-FEEDS-2500: a retired curated address reads as its replacement (the seed's
+    "on read" rule, no migration); when the list already holds the replacement address too, the retired row is left out so the
+    list never shows the same address twice. Any other address is kept exactly as stored."""
+    rows = raw if isinstance(raw, list) else []
+    present = {x.get("url") for x in rows if isinstance(x, dict)}
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for x in raw if isinstance(raw, list) else []:
+    for x in rows:
         if not isinstance(x, dict) or not isinstance(x.get("id"), str) or not ID_RE.match(x["id"]) or x["id"] in seen:
             continue
         name, url = str(x.get("name") or "").strip()[:NAME_MAX], str(x.get("url") or "")
         if not name or not url.startswith("https://"):
             continue
+        if url in model.RETIRED_NEWS_URLS:
+            if model.current_news_url(url) in present:
+                continue
+            url = model.current_news_url(url)
         item: dict[str, Any] = {"id": x["id"], "name": name, "url": url, "enabled": x.get("enabled") is not False}
         logo = x.get("logo")
         if isinstance(logo, dict) and logo.get("mime") in ("image/png", "image/jpeg") and isinstance(logo.get("stamp"), str) and re.fullmatch(r"[0-9a-f]{6,16}", logo["stamp"]):
@@ -121,13 +130,18 @@ def logo_url(source: dict[str, Any]) -> str:
     return f"api/v1/notices/news-sources/{source['id']}/logo?v={source['logo']['stamp']}" if source.get("logo") else ""
 
 
-def listing(conn: sqlite3.Connection) -> list[dict[str, Any]]:
-    """What the settings screen shows: the list in order, then the boards' unadopted raw URLs flagged `custom`."""
+def listing(conn: sqlite3.Connection, cache: Any = None) -> list[dict[str, Any]]:
+    """What the settings screen shows: the list in order, then the boards' unadopted raw URLs flagged `custom`. NOTICE-NEWS-FEEDS-2500:
+    each row carries the feed's health from the news cache (`last_ok_at` ISO UTC, `last_error` a short reason code), both null while no
+    board has fetched it since the add-on started. Reading the health never fetches."""
+    from . import sources
+
+    news = cache or sources.NEWS
     items = load(conn)
     rows = [{"id": s["id"], "name": s["name"], "url": s["url"], "enabled": s["enabled"], "has_logo": bool(s.get("logo")), "logo_url": logo_url(s),
              "custom": False} for s in items]
     rows += [{**o, "has_logo": False, "logo_url": "", "custom": True} for o in orphans(conn, items)]
-    return rows
+    return [{**r, **news.health(r["url"])} for r in rows]
 
 
 # ---------------------------------------------------------------- writing

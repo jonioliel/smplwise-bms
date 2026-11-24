@@ -87,6 +87,10 @@ export interface NewsSource {
   /** a stamped relative URL of the signed-in logo route ('' without a logo) */
   logo_url?: string;
   custom?: boolean;
+  /** NOTICE-NEWS-FEEDS-2500: ISO UTC of the feed's last good fetch; null while no board fetched it since the add-on started (absent from an older backend) */
+  last_ok_at?: string | null;
+  /** NOTICE-NEWS-FEEDS-2500: the reason code of the last failed fetch (status, size, xml, timeout, ...); null after a success */
+  last_error?: string | null;
 }
 export interface NewsSourcesAnswer {
   sources: NewsSource[];

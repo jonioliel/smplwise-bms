@@ -19,16 +19,41 @@ export interface Row {
   has_logo: boolean;
   logo_url: string;
   custom: boolean;
+  /** NOTICE-NEWS-FEEDS-2500: the feed's health as the server last saw it (null = no board fetched it since the add-on started) */
+  last_ok_at: string | null;
+  last_error: string | null;
 }
 
 type RowError = 'name' | 'url' | 'dup' | '';
 
 export function rowsOf(list: NewsSource[]): Row[] {
-  return list.map((s) => ({ id: s.id, name: s.name, url: s.url, enabled: s.enabled !== false, has_logo: !!s.has_logo, logo_url: s.logo_url || '', custom: !!s.custom }));
+  return list.map((s) => ({ id: s.id, name: s.name, url: s.url, enabled: s.enabled !== false, has_logo: !!s.has_logo, logo_url: s.logo_url || '', custom: !!s.custom,
+    last_ok_at: s.last_ok_at ?? null, last_error: s.last_error ?? null }));
 }
 
 export function emptyRow(): Row {
-  return { id: '', name: '', url: 'https://', enabled: true, has_logo: false, logo_url: '', custom: false };
+  return { id: '', name: '', url: 'https://', enabled: true, has_logo: false, logo_url: '', custom: false, last_ok_at: null, last_error: null };
+}
+
+/** The i18n key of a failure reason the server reports (`last_error`: services/notices/sources.failure_code and FetchRefused codes). */
+export type HealthKey = 'nsWhyStatus' | 'nsWhySize' | 'nsWhyXml' | 'nsWhyTimeout' | 'nsWhyDns' | 'nsWhyTls' | 'nsWhyNetwork' | 'nsWhyEncoding' | 'nsWhyEmpty'
+  | 'nsWhyRedirect' | 'nsWhyBlocked' | 'nsWhyOther';
+
+const WHY: Record<string, HealthKey> = {
+  status: 'nsWhyStatus', size: 'nsWhySize', xml: 'nsWhyXml', timeout: 'nsWhyTimeout', dns: 'nsWhyDns', tls: 'nsWhyTls', network: 'nsWhyNetwork',
+  encoding: 'nsWhyEncoding', empty: 'nsWhyEmpty', redirect: 'nsWhyRedirect', redirects: 'nsWhyRedirect',
+  syntax: 'nsWhyBlocked', scheme: 'nsWhyBlocked', credentials: 'nsWhyBlocked', port: 'nsWhyBlocked', name: 'nsWhyBlocked', address: 'nsWhyBlocked',
+};
+
+/**
+ * NOTICE-NEWS-FEEDS-2500: the "not working" chip of a row - shown only when the server reports a failure of the address it fetched and
+ * the row still shows that address (an edited, unsaved address is not judged by the old one's result). Null = no chip.
+ */
+export function healthOf(row: Row, saved: Row[]): { why: HealthKey; code: string; lastOk: string | null } | null {
+  if (!row.id || !row.last_error) return null;
+  const was = saved.find((s) => s.id === row.id);
+  if (!was || was.url.trim() !== row.url.trim()) return null;
+  return { why: WHY[row.last_error] ?? 'nsWhyOther', code: row.last_error, lastOk: row.last_ok_at };
 }
 
 /** The same address rule the server applies before it fetches: https, no credentials, no spaces, no private literal host, at most 400 characters. */

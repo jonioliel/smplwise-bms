@@ -5,7 +5,9 @@ Home Assistant or the internet (CSP `self` only):
   temperature and, when the entity reports one, the hourly forecast. No entity = no block. The internet fallback (Q11) is not built.
 * news - RSS feeds chosen per board (the curated list or an https URL), fetched by the add-on at most every 15 minutes per feed,
   titles only, markup stripped, 2 KB per item, never images or links. A fetch never blocks a feed read: a stale cache answers and a
-  background refresh starts (one at a time per URL).
+  background refresh starts (one at a time per URL). A gzip / deflate body (some feeds compress although we ask for `identity`) is
+  inflated under the same NEWS_MAX_BYTES cap (NOTICE-NEWS-FEEDS-2500); each URL's last success and last failure reason are kept
+  for the managers' sources list.
 * sun - sunrise / sunset at the installation's coordinates (NOAA approximation, local, no network) for the automatic day / night
   switch, and the Shabbat candle-lighting time (Friday's sunset - 18 minutes). The coordinates themselves never reach the TV.
 """
@@ -21,6 +23,7 @@ import threading
 import socket
 import ssl
 import time
+import zlib
 import http.client
 import ipaddress
 from urllib.parse import urljoin, urlsplit
@@ -345,13 +348,85 @@ def fetch_feed(url: str, *, resolve: Callable[[str], list[str]] | None = None, c
                 data += chunk
             if len(data) > NEWS_MAX_BYTES:
                 raise FetchRefused("size")
-            return bytes(data)
+            return decode_body(bytes(data), resp.getheader("Content-Encoding") or "")
         finally:
             try:
                 conn.close()
             except Exception:  # noqa: BLE001
                 pass
     raise FetchRefused("redirects")
+
+
+_GZIP_MAGIC = b"\x1f\x8b"
+
+
+def _zlib_header(data: bytes) -> bool:
+    """A zlib (RFC 1950) stream header: deflate method, a 32 KB window at most and the FCHECK bits. An XML document never starts so."""
+    return len(data) >= 2 and data[0] & 0x0F == 8 and data[0] >> 4 <= 7 and (data[0] << 8 | data[1]) % 31 == 0
+
+
+def _inflate(data: bytes, wbits: int) -> bytes:
+    """Stream-inflate with a hard output cap: at most NEWS_MAX_BYTES + 1 bytes are ever produced (a decompression bomb stops there and
+    is refused as `size`); a broken or truncated stream is refused as `encoding`."""
+    d = zlib.decompressobj(wbits)
+    out = bytearray()
+    buf = data
+    try:
+        while buf and not d.eof:
+            room = NEWS_MAX_BYTES + 1 - len(out)  # always >= 1 here: max_length 0 would mean "unbounded"
+            out += d.decompress(buf, room)
+            if len(out) > NEWS_MAX_BYTES:
+                raise FetchRefused("size")
+            buf = d.unconsumed_tail
+        if not d.eof:
+            out += d.flush(NEWS_MAX_BYTES + 1 - len(out))
+            if len(out) > NEWS_MAX_BYTES:
+                raise FetchRefused("size")
+            if not d.eof:
+                raise FetchRefused("encoding")
+    except zlib.error:
+        raise FetchRefused("encoding") from None
+    return bytes(out)
+
+
+def decode_body(data: bytes, content_encoding: str = "") -> bytes:
+    """NOTICE-NEWS-FEEDS-2500: the feed body as plain bytes. gzip is recognised by its magic bytes whatever the header says (a feed
+    server may compress without saying so); deflate by `Content-Encoding: deflate` or a zlib header (zlib-wrapped, else raw). Any
+    other declared coding (br, zstd, compress) is refused as `encoding`; a `gzip` header over a plain body is passed to the XML
+    parser as it is. One coding layer only; the inflated size has the same NEWS_MAX_BYTES cap as a plain body."""
+    codings = [c.strip().lower() for c in content_encoding.split(",") if c.strip() and c.strip().lower() != "identity"]
+    if len(codings) > 1:
+        raise FetchRefused("encoding")
+    coding = codings[0] if codings else ""
+    if data.startswith(_GZIP_MAGIC):
+        return _inflate(data, 16 + zlib.MAX_WBITS)
+    if coding == "deflate" or (not coding and _zlib_header(data)):
+        try:
+            return _inflate(data, zlib.MAX_WBITS)
+        except FetchRefused as exc:
+            if exc.code != "encoding":
+                raise
+            return _inflate(data, -zlib.MAX_WBITS)  # "deflate" sent as a raw stream (a common server mistake)
+    if coding in ("", "gzip", "x-gzip"):
+        return data
+    raise FetchRefused("encoding")
+
+
+def failure_code(exc: BaseException) -> str:
+    """A short reason of a failed feed for the managers and the log - never the URL, never the server's own words."""
+    import xml.etree.ElementTree as ET
+
+    if isinstance(exc, FetchRefused):
+        return exc.code
+    if isinstance(exc, ET.ParseError):
+        return "xml"
+    if isinstance(exc, (TimeoutError, socket.timeout)):
+        return "timeout"
+    if isinstance(exc, (ssl.SSLError, ssl.CertificateError)):
+        return "tls"
+    if isinstance(exc, (OSError, http.client.HTTPException)):
+        return "network"
+    return "error"
 
 
 def _default_fetch(url: str) -> bytes:
@@ -366,19 +441,27 @@ class NewsCache:
         self._lock = threading.Lock()
         self._items: dict[str, tuple[float, list[str]]] = {}
         self._busy: set[str] = set()
+        self._health: dict[str, tuple[float | None, str | None]] = {}  # url -> (last success, last failure code; None after a success)
 
     def _refresh(self, url: str) -> None:
+        code: str | None = None
+        titles: list[str] | None
         try:
             titles = parse_feed(self._fetch(url))
+            if not titles:
+                code, titles = "empty", None  # a feed without titles keeps the last good ones
         except Exception as exc:  # noqa: BLE001 - a broken feed keeps its last good titles; never the URL in the log (owner's choice)
-            log.info("notice board news feed failed: %s", type(exc).__name__)
-            titles = None
+            code, titles = failure_code(exc), None
+        if code:
+            log.info("notice board news feed failed: %s", code)
         with self._lock:
             self._busy.discard(url)
+            now = self._clock()
+            self._health[url] = (now, None) if titles is not None else (self._health.get(url, (None, None))[0], code)
             if titles is not None:
-                self._items[url] = (self._clock(), titles)
+                self._items[url] = (now, titles)
             elif url in self._items:
-                self._items[url] = (self._clock(), self._items[url][1])  # back off for one TTL
+                self._items[url] = (now, self._items[url][1])  # back off for one TTL
 
     def titles(self, url: str) -> list[str]:
         with self._lock:
@@ -396,10 +479,21 @@ class NewsCache:
                     got = self._items.get(url)
         return list(got[1]) if got else []
 
+    def health(self, url: str) -> dict[str, str | None]:
+        """NOTICE-NEWS-FEEDS-2500: `{last_ok_at, last_error}` of a URL this process fetched for a board (ISO UTC / a failure_code;
+        `last_error` is None after a success), both None while it was never fetched. Asking never starts a fetch."""
+        with self._lock:
+            ok_at, code = self._health.get(url, (None, None))
+        iso = None
+        if ok_at is not None:
+            iso = dt.datetime.fromtimestamp(ok_at, tz=dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+        return {"last_ok_at": iso, "last_error": code}
+
     def clear(self) -> None:
         with self._lock:
             self._items.clear()
             self._busy.clear()
+            self._health.clear()
 
 
 NEWS = NewsCache()

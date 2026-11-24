@@ -6,7 +6,8 @@ import '../components/sw-icon';
 import { ApiError, describeError } from '../api/client';
 import { putNewsSources, removeNewsLogo, uploadNewsLogo, type NewsSource, type NewsSourcesAnswer } from '../api/notices';
 import { nt } from '../i18n/notices';
-import { LOGO_ACCEPT, LOGO_MAX_BYTES, NAME_MAX, SOURCES_MAX, canSave, emptyRow, isDirty, move, payload, rowsOf, validate, type Row } from './news-model';
+import { agoText } from './model';
+import { LOGO_ACCEPT, LOGO_MAX_BYTES, NAME_MAX, SOURCES_MAX, canSave, emptyRow, healthOf, isDirty, move, payload, rowsOf, validate, type Row } from './news-model';
 import { noticesCss } from './styles';
 
 /**
@@ -14,6 +15,7 @@ import { noticesCss } from './styles';
  * name, address, on / off, reorder and delete. The list scrolls inside its own box (the page never grows with it). A new source is saved
  * with the list; a logo is uploaded straight to a saved source. `@news-sources-change` carries the list the server answered with, so the
  * boards' pickers show the same names and logos; `@ns-message` carries a short confirmation or the server's refusal.
+ * NOTICE-NEWS-FEEDS-2500: a source whose last fetch failed shows a small "not working" chip with the reason (its title: when it last worked).
  */
 @customElement('notice-news-sources')
 export class NoticeNewsSources extends LitElement {
@@ -73,7 +75,7 @@ export class NoticeNewsSources extends LitElement {
     this.rows = keepEdits
       ? this.saved.map((s) => {
           const k = keep.find((x) => x.id === s.id);
-          return k ? { ...k, has_logo: s.has_logo, logo_url: s.logo_url, custom: s.custom } : { ...s };
+          return k ? { ...k, has_logo: s.has_logo, logo_url: s.logo_url, custom: s.custom, last_ok_at: s.last_ok_at, last_error: s.last_error } : { ...s };
         }).concat(keep.filter((x) => !x.id))
       : this.saved.map((r) => ({ ...r }));
     this.dispatchEvent(new CustomEvent<NewsSource[]>('news-sources-change', { detail: a.sources, bubbles: true, composed: true }));
@@ -130,12 +132,16 @@ export class NoticeNewsSources extends LitElement {
     const last = this.rows.length - 1;
     const canLogo = !!r.id && !this.busy;
     const label = r.has_logo ? nt('nsLogoReplace') : nt('nsLogoUpload');
+    const bad = healthOf(r, this.saved);
     return html`<div class="row" data-ns-row=${r.id || 'new'} data-off=${r.enabled ? '0' : '1'} data-bad=${err ? '1' : '0'}>
       <div class="lg" data-ns-logo>${r.has_logo && r.logo_url ? html`<img alt="" src=${r.logo_url}>` : html`<sw-icon name="image" size="18"></sw-icon>`}</div>
       <input class="inp" data-ns-name maxlength=${NAME_MAX} .value=${r.name} placeholder=${nt('nsName')} aria-label=${nt('nsName')} @input=${(e: Event) => this.set(i, { name: (e.target as HTMLInputElement).value })}>
       <input class="inp ltr url" data-ns-url .value=${r.url} placeholder="https://" aria-label=${nt('nsUrl')} @input=${(e: Event) => this.set(i, { url: (e.target as HTMLInputElement).value })}>
       <div class="tools">
         ${r.custom ? html`<span class="chip">${nt('nsCustomTag')}</span>` : nothing}
+        ${bad ? html`<span class="chip health" data-look="warn" data-ns-health=${bad.code} role="status"
+          title=${nt('nsBrokenTip', { why: nt(bad.why) }) + ' · ' + (bad.lastOk ? nt('nsLastOk', { t: agoText(bad.lastOk, Date.now()) }) : nt('nsNeverOk'))}
+          ><sw-icon name="warning" size="12"></sw-icon>${nt('nsBroken')} · ${nt(bad.why)}</span>` : nothing}
         <label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('nsEnabled')} data-ns-on .checked=${r.enabled} @change=${(e: Event) => this.set(i, { enabled: toggled(e) })}></sw-toggle>${nt('nsEnabled')}</label>
         <span class="sp"></span>
         <button class="ib" type="button" data-ns-logo-btn ?disabled=${!canLogo} title=${r.id ? label : nt('nsLogoSaveFirst')} aria-label=${label}
