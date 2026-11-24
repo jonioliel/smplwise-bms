@@ -123,11 +123,7 @@ def revoke_token(token_id: str, request: Request, principal: Principal = Depends
 def revoke_all_tokens(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     from ..services import app_refresh
 
-    try:
-        devices = [r["device_id"] for r in conn.execute("SELECT device_id FROM app_refresh_families WHERE user_id = ? AND revoked_at IS NULL",
-                                                       (principal.user_id,)).fetchall()]
-    except sqlite3.OperationalError:  # before migration 0146
-        devices = []
+    devices = svc.active_app_devices(conn, principal.user_id)
     # the reason DELETE auth/app/families uses for the user's own "end them all" (it releases the devices' key pins, owner decision Q296)
     reason = "signed_out_everywhere"
     n = app_refresh.revoke_user(conn, principal.user_id, reason, actor=principal, request_id=_rid(request))

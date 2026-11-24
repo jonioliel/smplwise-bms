@@ -332,3 +332,15 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
             "long_lived_tokens": long_lived_mode(conn),
             "legacy": {"second_factor_policy": sf.policy(conn),
                        "require_mfa_admin": (get_setting(conn, "remote.require_mfa_admin", "false") or "false") == "true"}}
+
+
+def directory_user_known(conn: sqlite3.Connection, user_id: str) -> bool:
+    """An Arx user row or a Home Assistant directory user (a user the directory lists who never signed in has no `users` row).
+    `GET /security/user-factors/{id}` (MFA-SCREENS-2510); RELEASE-2510-TRAIN: moved out of the router (the SQL boundary of
+    CR-ROUTER-SQL-C-2450, `test_wire_routers_d_2470`)."""
+    if conn.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone() is not None:
+        return True
+    try:
+        return conn.execute("SELECT 1 FROM ha_users WHERE id = ?", (user_id,)).fetchone() is not None
+    except sqlite3.OperationalError:
+        return False

@@ -169,6 +169,16 @@ def seen_rows(conn: Any, user_id: str) -> dict[str, dict[str, Any]]:
     return {r["token_key"]: dict(r) for r in rows}
 
 
+def active_app_devices(conn: Any, user_id: str) -> list[str]:
+    """The devices of the user's live app sign-ins (`DELETE auth/tokens` releases their key pins). RELEASE-2510-TRAIN: moved out of the
+    router (the SQL boundary of CR-ROUTER-SQL-C-2450, `test_wire_routers_d_2470`)."""
+    try:
+        rows = conn.execute("SELECT device_id FROM app_refresh_families WHERE user_id = ? AND revoked_at IS NULL", (user_id,)).fetchall()
+    except Exception:  # noqa: BLE001 - before migration 0146
+        return []
+    return [r["device_id"] for r in rows]
+
+
 # ---------------------------------------------------------------- Home Assistant's own list (read-only)
 
 async def ha_refresh_tokens(settings: Any, token: str) -> list[dict[str, Any]] | None:

@@ -31,22 +31,12 @@ from ..wire import wire
 router = APIRouter()
 
 
-def _known(conn: sqlite3.Connection, user_id: str) -> bool:
-    """An Arx user row or a Home Assistant directory user (a user the directory lists who never signed in has no `users` row)."""
-    if conn.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone() is not None:
-        return True
-    try:
-        return conn.execute("SELECT 1 FROM ha_users WHERE id = ?", (user_id,)).fetchone() is not None
-    except sqlite3.OperationalError:
-        return False
-
-
 @router.get("/security/user-factors/{user_id}", **wire(W.UserFactors))
 def user_factors(user_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The factors one user has and the policy's verdict for them (no secret, no credential id, no code)."""
     if not authorize(conn, principal, "rbac.assign", INSTALLATION).allowed:
         require(conn, principal, "system.configure", INSTALLATION)
-    if len(user_id) > 200 or not _known(conn, user_id):
+    if len(user_id) > 200 or not fp.directory_user_known(conn, user_id):
         raise ApiError(404, "user_unknown", "המשתמש לא נמצא בספריית המערכת.")
     keys = dk.active_rows(conn, user_id)
     rec = rc.status(conn, user_id)
