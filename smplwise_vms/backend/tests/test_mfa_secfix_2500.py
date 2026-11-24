@@ -21,6 +21,7 @@ from dataclasses import replace
 import pytest
 from fastapi.testclient import TestClient
 
+from smplwise.services import ha_user_auth as hua
 from smplwise.services import local_passwords as lp
 from smplwise.services import notify_policy
 from smplwise.services import step_up
@@ -140,6 +141,7 @@ def test_w1_a_recovery_code_is_refused_for_a_once_action_and_not_spent(arx, cloc
     for action in sorted(step_up.NO_RECOVERY_ACTIONS):
         r = arx.client.post(VERIFY, json={"method": "recovery_code", "code": codes[0], "action": action})
         assert r.status_code == 409 and r.json()["code"] == "step_up_method_refused", (action, r.text)
+        hua.LIMITER.clear()  # MFA-RESET-HARDENING-2510: more refused actions than the verify route's 10 per 5 minutes
     assert arx.client.request("DELETE", RESET_VIEWER, json={"confirm": "dana"}).status_code == 403  # no once-proof came of it
     # the code was not spent: it still makes an ordinary window proof
     assert arx.client.post(VERIFY, json={"method": "recovery_code", "code": codes[0]}).status_code == 200
