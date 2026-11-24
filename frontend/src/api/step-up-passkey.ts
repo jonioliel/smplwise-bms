@@ -26,8 +26,8 @@ export const stepUpChallenge = (action?: string) => post<StepUpChallenge>('auth/
 export const verifyPasskeyStepUp = (challengeId: string, assertion: Record<string, unknown>, action?: string) =>
   post<StepUpProof>('auth/step-up/verify', { method: 'passkey', challenge_id: challengeId, assertion, ...(action ? { action } : {}) });
 
-export const verifyCodeStepUp = (code: string, action?: string) =>
-  post<StepUpProof>('auth/step-up/verify', { method: 'totp', code, ...(action ? { action } : {}) });
+/** MFA-TRAIN-2500: the code proof is slice 2's `verifyStepUp` (./second-factor.ts) - one call, two names. */
+export { verifyStepUp as verifyCodeStepUp } from './second-factor';
 
 /** The whole passkey ceremony: a challenge, the device (fingerprint / device PIN), the verification. Throws PasskeyCancelled
  * (arx/webauthn.ts) when the device side is cancelled or finds no passkey, ApiError when the server refuses. */

@@ -85,7 +85,16 @@ export interface StepUpDetails {
   methods?: string[];
   minutes?: number;
   verify_path?: string;
+  /** MFA-PASSKEYS-2490: where a passkey challenge is asked (`auth/step-up/challenge`); the dialog offers the passkey when `methods`
+   * lists it. */
+  challenge_path?: string;
 }
+
+/** MFA-TRAIN-2500: a request that confirms its own step-up in place (My Account's passkey changes, components/sw-passkeys.ts, which
+ * offers the passkey and the code next to the change) sets this header; the client takes it off before the request leaves and leaves
+ * that answer's 403 `step_up_required` to the screen - never the shell dialog too (one prompt per change, the retry-once rule of the
+ * screen). The header never reaches the server. */
+export const STEP_UP_INLINE = 'X-Sw-Step-Up-Inline';
 
 /** MFA-STEPUP-TRAIN-2490: on a 403 `step_up_required` from the central gate the shell asks for the authenticator code
  * (shell/step-up.ts); true = a fresh proof was recorded, retry the request ONCE. Never a second prompt for the retried request. */
@@ -120,11 +129,13 @@ interface RawReply {
 async function fetchApi(path: string, init: RequestInit): Promise<Response> {
   const headers = new Headers(init.headers);
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  const inline = headers.has(STEP_UP_INLINE); // MFA-TRAIN-2500: the screen confirms this one itself
+  headers.delete(STEP_UP_INLINE);
   let res = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin' });
   if (res.status === 401 && onUnauthorized && (await onUnauthorized())) res = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin' });
-  if (res.status === 403 && onStepUp) {
+  if (res.status === 403 && onStepUp && !inline) {
     const details = await stepUpRefusal(res);
-    // the user confirmed with a current code: the same request once more (never queued, never retried again - a second refusal is final)
+    // the user confirmed (a current code or a passkey): the same request once more (never queued, never retried again - a second refusal is final)
     if (details && (await onStepUp(details))) res = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin' });
   }
   return res;

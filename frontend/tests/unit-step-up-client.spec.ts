@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { ApiError, patch, post, setStepUpHandler, type StepUpDetails } from '../src/api/client';
+import { ApiError, STEP_UP_INLINE, api, patch, post, setStepUpHandler, type StepUpDetails } from '../src/api/client';
 
 // MFA-STEPUP-TRAIN-2490 slice 2: the client's answer to the server's step-up gate (403 step_up_required with `verify_path`). The handler
 // (the shell's code dialog) is asked once; a true answer re-sends the SAME request exactly once, a false answer or a second refusal is
 // final. A 403 of the same code without `verify_path` (the bridge-key reveal, which asks for its own code) is left to its screen.
 // No browser page: a stubbed fetch and document.
 
-type Call = { url: string; method: string; body: unknown };
+type Call = { url: string; method: string; body: unknown; headers: Headers };
 type Reply = { status: number; body?: unknown };
 
 async function withFetch<T>(reply: (n: number) => Reply, run: (calls: Call[]) => Promise<T>): Promise<T> {
@@ -15,7 +15,7 @@ async function withFetch<T>(reply: (n: number) => Reply, run: (calls: Call[]) =>
   (globalThis as { document?: unknown }).document = { baseURI: 'http://h/app/' };
   const calls: Call[] = [];
   globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
-    calls.push({ url: String(url), method: init?.method ?? 'GET', body: init?.body ?? null });
+    calls.push({ url: String(url), method: init?.method ?? 'GET', body: init?.body ?? null, headers: new Headers(init?.headers) });
     const r = reply(calls.length);
     return new Response(r.body === undefined ? null : JSON.stringify(r.body), { status: r.status, headers: { 'Content-Type': 'application/json' } });
   }) as typeof fetch;
@@ -97,4 +97,30 @@ test('without a handler (a page that never installed the shell) the refusal is r
     expect((err as ApiError).body.code).toBe('step_up_required');
     expect(calls).toHaveLength(1);
   });
+});
+
+test('MFA-TRAIN-2500: a request that confirms in place (My Account passkey changes) is left to its screen; the marker never leaves', async () => {
+  let asked = 0;
+  setStepUpHandler(async () => {
+    asked += 1;
+    return true;
+  });
+  const OWN = { ...GATE, details: { ...GATE.details, action: 'auth.passkey.register', methods: ['passkey'], challenge_path: 'auth/step-up/challenge' } };
+  await withFetch(() => ({ status: 403, body: OWN }), async (calls) => {
+    const err = await api('auth/passkeys/register/options', { method: 'POST', headers: { [STEP_UP_INLINE]: '1' } }).catch((e: unknown) => e);
+    expect((err as ApiError).body.code).toBe('step_up_required');
+    expect(calls).toHaveLength(1);
+    expect(calls[0].headers.has(STEP_UP_INLINE)).toBe(false);
+  });
+  expect(asked).toBe(0);
+  // the same answer without the marker still goes to the shell dialog (the central gate's path); withFetch cleared the handler
+  setStepUpHandler(async () => {
+    asked += 1;
+    return true;
+  });
+  await withFetch((n) => (n === 1 ? { status: 403, body: OWN } : { status: 200, body: { ok: true } }), async (calls) => {
+    expect(await api('auth/passkeys/register/options', { method: 'POST' })).toEqual({ ok: true });
+    expect(calls).toHaveLength(2);
+  });
+  expect(asked).toBe(1);
 });
