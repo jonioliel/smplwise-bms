@@ -1466,6 +1466,8 @@ Ingress identity and the scoped role check named in its handler; errors use the 
 | remote | PUT | `/api/v1/access/users/{user_id}/remote-access` |  |
 | remote | GET | `/api/v1/auth/app-download` | Public (no identity), remote channel only: the Android app download offer of the sign-in page. Only url / version / |
 | remote | GET | `/api/v1/auth/app-download/file` | Public (no identity), remote channel only: the signed release APK bundled in the add-on image. The path is fixed (no |
+| remote | GET | `/api/v1/auth/recovery-codes` | The caller's own recovery codes: whether they can have any (the authenticator factor is on), how many remain of how many, |
+| remote | POST | `/api/v1/auth/recovery-codes` | A new batch of recovery codes for the caller (shown ONCE in this answer); every code of the previous batch stops working. |
 | remote | GET | `/api/v1/auth/remote-config` |  |
 | remote | GET | `/api/v1/auth/second-factor` |  |
 | remote | POST | `/api/v1/auth/second-factor/confirm` |  |

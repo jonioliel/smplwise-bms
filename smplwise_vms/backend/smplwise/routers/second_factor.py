@@ -14,6 +14,13 @@
 `POST   auth/step-up/verify {method, code}`     MFA-STEPUP-TRAIN-2490: a current code -> a step-up proof on THIS session (services/step_up);
                                                 MFA-PASSKEYS-2490: {method: "passkey", challenge_id, assertion} answers a challenge of
                                                 `POST auth/step-up/challenge` (routers/local_passkeys.py, services/user_passkeys.py)
+                                                method `recovery_code`: a one-time recovery code instead (MFA-RECOVERY-CODES-2490)
+`GET    auth/recovery-codes`                    MFA-RECOVERY-CODES-2490: how many of the caller's recovery codes remain (never a code)
+`POST   auth/recovery-codes {code?}`            MFA-RECOVERY-CODES-2490: a new batch of 10 (the old one stops working); needs a fresh
+                                                step-up (a proof from the last minutes, or the current authenticator code in the body)
+
+The enrolment's confirm answer carries the first batch of recovery codes (shown once). Removing one's own factor accepts a recovery
+code in place of the current code (the lost-phone path); removing or resetting the factor deletes the codes.
 
 The factor is applied to the remote sign-in (services/ha_user_auth.exchange). Codes and secrets are never logged or audited;
 audit rows carry the method and the target user only. Code attempts are limited (5 wrong in 5 minutes lock the user for
@@ -33,6 +40,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, all_roles, require
 from ..services import ha_user_auth as hua
 from ..services import capture_lease, notify_sources, presence
+from ..services import recovery_codes as rc
 from ..services import second_factor as sf
 from ..services import second_factor_store as store
 from ..services import step_up
@@ -64,12 +72,19 @@ def _audit(conn: sqlite3.Connection, request: Request, principal: Principal, act
           request_id=_rid(request), details={"method": "totp", **details})
 
 
-def _audit_failed(conn: sqlite3.Connection, request: Request, principal: Principal, step: str, exc: sf.SecondFactorError) -> None:
+def _audit_failed(conn: sqlite3.Connection, request: Request, principal: Principal, step: str, exc: sf.SecondFactorError, code: str | None = None) -> None:
     """A refused code on enrol-confirm / disable: the same row type as a failed sign-in (`auth.second_factor.failed`, denied, the
     reason, the method) plus the step; the code itself is never written. An ApiError commits, so the row survives the 400 / 429."""
     audit(conn, actor=principal, action="auth.second_factor.failed", decision="denied", resource_type="user", resource_id=principal.user_id,
           reason={"locked": "second_factor_locked", "unreadable": "second_factor_unreadable"}.get(exc.code, "second_factor_invalid"),
-          request_id=_rid(request), details={"method": "totp", "step": step})
+          request_id=_rid(request), details={"method": rc.METHOD if rc.canonical(code) is not None else "totp", "step": step})
+
+
+def _audit_batch(conn: sqlite3.Connection, request: Request, principal: Principal, why: str, voided: int) -> None:
+    """MFA-RECOVERY-CODES-2490: `auth.recovery_codes.generated` - why (enrolment | regenerate), how many, how many unused old codes
+    stopped working. Never a code."""
+    audit(conn, actor=principal, action="auth.recovery_codes.generated", decision="allowed", resource_type="user", resource_id=principal.user_id,
+          request_id=_rid(request), details={"method": rc.METHOD, "reason": why, "count": rc.COUNT, "voided": voided})
 
 
 def _fail(exc: sf.SecondFactorError) -> ApiError:
@@ -89,7 +104,7 @@ def enroll(request: Request, principal: Principal = Depends(current_principal), 
     return sf.begin_enrolment(conn, settings_of(request), principal.user_id, principal.username or principal.display_name or principal.user_id)
 
 
-@router.post("/auth/second-factor/confirm", **wire(W.FactorStatus))
+@router.post("/auth/second-factor/confirm", **wire(W.FactorEnabled))
 def confirm(body: CodeBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _limit(principal)
     if sf.is_enrolled(conn, principal.user_id):
@@ -111,8 +126,11 @@ def confirm(body: CodeBody, request: Request, principal: Principal = Depends(cur
         ended += local_identity.on_factor_enabled(conn, settings_of(request), request, principal)
     _audit(conn, request, principal, "auth.second_factor.enrolled", principal.user_id, other_sign_ins_ended=ended, device_tokens_revoked=tokens)
     step_up.note_proof(request, principal, "totp")  # MFA-STEPUP-TRAIN-2490: the first code was just shown in this session
+    # MFA-RECOVERY-CODES-2490 (owner Q49): the first batch of one-time recovery codes, shown once in this answer and never again
+    codes, voided = rc.generate(conn, principal.user_id)
+    _audit_batch(conn, request, principal, "enrolment", voided)
     capture_lease.on_authority_change("second_factor_changed", user_ids=[principal.user_id])  # CR-WISKEY-LEASE-REVOCATION-EVENT T6
-    return sf.status(conn, principal.user_id)
+    return {**sf.status(conn, principal.user_id), "recovery_codes": codes}
 
 
 @router.post("/auth/second-factor/disable", **wire(W.FactorStatus))
@@ -121,10 +139,13 @@ def disable(body: CodeBody, request: Request, principal: Principal = Depends(cur
     if not sf.is_enrolled(conn, principal.user_id):
         raise ApiError(409, "second_factor_not_enabled", NOT_ENABLED_HE)
     try:
-        sf.verify(conn, settings_of(request), principal.user_id, body.code)
+        # MFA-RECOVERY-CODES-2490: a recovery code works here too - the lost-phone path is "remove with a recovery code, enrol again"
+        method = rc.verify_factor(conn, settings_of(request), principal.user_id, body.code, "disable")
     except sf.SecondFactorError as exc:
-        _audit_failed(conn, request, principal, "disable", exc)
+        _audit_failed(conn, request, principal, "disable", exc, body.code)
         raise _fail(exc) from None
+    if method == rc.METHOD:
+        rc.audit_use(conn, principal, "disable", _rid(request))
     sf.remove(conn, principal.user_id)
     step_up.forget_user(principal.user_id)  # MFA-STEPUP-TRAIN-2490: no proof outlives the factor it came from
     factor_cleared = False
@@ -256,8 +277,8 @@ def step_up_status(request: Request, principal: Principal = Depends(current_prin
 
 
 class StepUpBody(BaseModel):
-    method: str = Field(default=step_up.METHOD_TOTP, pattern="^(totp|passkey)$")
-    code: str | None = Field(default=None, min_length=1, max_length=16)  # method totp
+    method: str = Field(default=step_up.METHOD_TOTP, pattern="^(totp|passkey|recovery_code)$")
+    code: str | None = Field(default=None, min_length=1, max_length=16)  # method totp / recovery_code
     challenge_id: str | None = Field(default=None, max_length=64)  # method passkey (MFA-PASSKEYS-2490)
     assertion: dict[str, Any] | None = None  # method passkey: PublicKeyCredential.toJSON() of the assertion
     action: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_.]{0,63}$")  # the change the proof is for (audit only)
@@ -291,8 +312,22 @@ def step_up_verify(body: StepUpBody, request: Request, principal: Principal = De
     if step_up.session_key(request, principal) is None:
         raise ApiError(409, "step_up_no_session", step_up.NO_SESSION_HE)
     details = {"method": body.method, "action": body.action or ""}
+    if body.method == step_up.METHOD_RECOVERY and not step_up.recovery_allowed(body.action):
+        # MFA-SECFIX-2500 W-1 / SR-4 (owner questions page Q13, recommendation): a recovery code is a window proof only - never a
+        # once-action (another user's factor reset, the bridge-key reveal, a passkey removal) and never a factor change; refused
+        # before the code is read, so it is not spent
+        audit(conn, actor=principal, action="auth.step_up.failed", decision="denied", resource_type="user", resource_id=principal.user_id,
+              reason="step_up_method_refused", request_id=_rid(request), details=details)
+        raise ApiError(409, "step_up_method_refused", step_up.RECOVERY_REFUSED_HE, details={"method": body.method, "action": body.action or ""})
     try:
-        sf.verify(conn, settings_of(request), principal.user_id, body.code)
+        if body.method == step_up.METHOD_RECOVERY:
+            # MFA-RECOVERY-CODES-2490: a one-time recovery code (spent here). Only the recovery-code shape is checked under this method:
+            # a 6-digit code sent as `recovery_code` is a wrong code (counted towards the shared lockout), never checked as the app's code
+            if rc.canonical(body.code) is None:
+                raise _wrong_recovery(conn, principal.user_id)
+            rc.verify_factor(conn, settings_of(request), principal.user_id, body.code, "step_up")
+        else:
+            sf.verify(conn, settings_of(request), principal.user_id, body.code)
     except sf.SecondFactorError as exc:
         audit(conn, actor=principal, action="auth.step_up.failed", decision="denied", resource_type="user", resource_id=principal.user_id,
               reason=f"step_up_{exc.code}", request_id=_rid(request), details=details)
@@ -302,7 +337,63 @@ def step_up_verify(body: StepUpBody, request: Request, principal: Principal = De
         audit(conn, actor=principal, action="auth.step_up.ok", decision="allowed", resource_type="user", resource_id=principal.user_id,
               request_id=_rid(request), details={**details, "minutes": 0, "once": True})
         return {"method": body.method, "minutes": 0, "valid_until": step_up.iso(until)}
+    if body.method == step_up.METHOD_RECOVERY:
+        rc.audit_use(conn, principal, "step_up", _rid(request), action=body.action or "")
     until = step_up.mark(conn, request, principal, body.method)
     audit(conn, actor=principal, action="auth.step_up.ok", decision="allowed", resource_type="user", resource_id=principal.user_id,
           request_id=_rid(request), details={**details, "minutes": step_up.minutes(conn)})
     return {"method": body.method, "minutes": step_up.minutes(conn), "valid_until": step_up.iso(until)}
+
+
+def _wrong_recovery(conn: sqlite3.Connection, user_id: str) -> sf.SecondFactorError:
+    if sf.FAILURES.locked(conn, user_id) or sf.FAILURES.fail(conn, user_id):
+        return sf.SecondFactorError("locked", sf.LOCKED_HE)
+    return sf.SecondFactorError("invalid", rc.INVALID_HE)
+
+
+# ---------------------------------------------------------------- recovery codes (MFA-RECOVERY-CODES-2490, services/recovery_codes.py)
+
+RECOVERY_UNAVAILABLE_HE = "קודי שחזור זמינים רק כשהאימות הדו־שלבי מאפליקציית אימות פעיל בחשבון."
+RECOVERY_STEP_UP_HE = "כדי ליצור קודי שחזור חדשים צריך לאשר שוב את הזהות: הזן את הקוד הנוכחי מאפליקציית האימות."
+
+
+@router.get("/auth/recovery-codes", **wire(W.RecoveryStatus))
+def recovery_status(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The caller's own recovery codes: whether they can have any (the authenticator factor is on), how many remain of how many,
+    when the batch was made and a code last used, and whether few remain (`low`). Never a code."""
+    return {"available": sf.is_enrolled(conn, principal.user_id), **rc.status(conn, principal.user_id)}
+
+
+class RecoveryBody(BaseModel):
+    code: str | None = Field(default=None, max_length=16)
+
+
+@router.post("/auth/recovery-codes", **wire(W.RecoveryBatch))
+def recovery_regenerate(request: Request, body: RecoveryBody | None = None, principal: Principal = Depends(current_principal),
+                        conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """A new batch of recovery codes for the caller (shown ONCE in this answer); every code of the previous batch stops working.
+    Needs a fresh step-up whatever `security.step_up` says (a stolen session alone must not mint codes that outlive it): a proof that
+    counts now on this session (`auth/step-up/verify`, a sign-in or enrolment that just showed the factor), or the CURRENT
+    authenticator code in the body / X-Arx-Second-Factor - never a recovery code. Audited `auth.recovery_codes.generated`
+    (or denied with the reason); rate-limited like every factor action."""
+    _limit(principal)
+    if not sf.is_enrolled(conn, principal.user_id):
+        raise ApiError(409, "recovery_codes_unavailable", RECOVERY_UNAVAILABLE_HE)
+    code = (request.headers.get(hua.SECOND_FACTOR_HEADER) or (body.code if body else None) or "").strip()
+    if code:
+        try:
+            sf.verify(conn, settings_of(request), principal.user_id, code)
+        except sf.SecondFactorError as exc:
+            audit(conn, actor=principal, action="auth.recovery_codes.generated", decision="denied", resource_type="user", resource_id=principal.user_id,
+                  reason=f"step_up_{exc.code}", request_id=_rid(request), details={"method": "totp", "reason": "regenerate"})
+            raise _fail(exc) from None
+        step_up.note_proof(request, principal, "totp")
+    elif not step_up.fresh_proof(conn, request, principal):
+        audit(conn, actor=principal, action="auth.recovery_codes.generated", decision="denied", resource_type="user", resource_id=principal.user_id,
+              reason="step_up_required", request_id=_rid(request), details={"method": rc.METHOD, "reason": "regenerate"})
+        raise ApiError(403, "step_up_required", RECOVERY_STEP_UP_HE,
+                       details={"action": "auth.recovery_codes.regenerate", "methods": [step_up.METHOD_TOTP], "minutes": step_up.minutes(conn),
+                                "verify_path": "auth/step-up/verify"})
+    codes, voided = rc.generate(conn, principal.user_id)
+    _audit_batch(conn, request, principal, "regenerate", voided)
+    return {"codes": codes, **rc.status(conn, principal.user_id)}

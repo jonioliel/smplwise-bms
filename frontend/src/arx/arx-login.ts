@@ -56,6 +56,8 @@ export class ArxLogin extends LitElement {
   @state() private busy = false;
   @state() private error = '';
   @state() private mfaName = '';
+  /** MFA-RECOVERY-CODES-2490: the Arx code step takes a one-time recovery code instead of the app's code (letters, not a number pad). */
+  @state() private recoveryCode = false;
   /** The Android download offer (only on an Android device, only when an administrator configured an address). */
   @state() private offer: AndroidOffer | null = null;
   @query('#username') private usernameEl?: HTMLInputElement;
@@ -650,6 +652,7 @@ export class ArxLogin extends LitElement {
     if (this.mode !== 'local' && (this.step === 'factor' || hasPendingSecondFactor())) void abandonSecondFactor();
     this.flow = null;
     this.step = 'credentials';
+    this.recoveryCode = false;
     if (clearError) this.error = '';
   }
 
@@ -690,6 +693,8 @@ export class ArxLogin extends LitElement {
           ? lit('forgotSub')
           : this.step === 'reset'
           ? lit('resetSub')
+          : (this.step === 'factor' || this.step === 'lfactor') && this.recoveryCode
+          ? t('secondFactor.recoveryLoginPrompt')
           : this.step === 'factor'
           ? t('secondFactor.loginPrompt')
           : this.step === 'lfactor'
@@ -759,8 +764,14 @@ export class ArxLogin extends LitElement {
             <button type="button" class="link" ?disabled=${this.busy} @click=${() => this.restart()}>${lit('back')}</button>
           </div>`
         : html`<form @submit=${this.onCode} novalidate>
-            <label>${tr('קוד אימות')}<input id="code" class="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required ?disabled=${this.busy} /></label>
+            <label>${this.recoveryCode ? t('secondFactor.recoveryCodeLabel') : tr('קוד אימות')}<input id="code" class="code" name="code" inputmode=${this.recoveryCode ? 'text' : 'numeric'}
+              autocomplete="one-time-code" autocapitalize=${this.recoveryCode ? 'characters' : 'off'} spellcheck="false" placeholder=${this.recoveryCode ? 'XXXX-XXXX' : ''}
+              maxlength="12" required ?disabled=${this.busy} data-arx-code /></label>
             <button type="submit" ?disabled=${this.busy} data-arx-verify>${this.busy ? tr('בודק…') : tr('אימות')}</button>
+            ${this.step === 'factor' || this.step === 'lfactor'
+              ? html`<button type="button" class="link" ?disabled=${this.busy} data-arx-recovery-toggle
+                  @click=${() => { this.recoveryCode = !this.recoveryCode; this.error = ''; if (this.codeEl) this.codeEl.value = ''; this.codeEl?.focus(); }}>${this.recoveryCode ? t('secondFactor.recoveryUseApp') : t('secondFactor.recoveryUse')}</button>`
+              : nothing}
             ${this.step === 'lfactor' && this.factorMethods.includes('passkey') && passkeysSupported()
               ? html`<button type="button" class="secondary" ?disabled=${this.busy} @click=${() => void this.onPasskeyFactor()} data-arx-passkey-factor>${lit('passkeyUse')}</button>`
               : nothing}

@@ -272,7 +272,10 @@ def confirm(conn: sqlite3.Connection, settings: Settings, user_id: str, code: An
 
 
 def remove(conn: sqlite3.Connection, user_id: str) -> bool:
+    from . import recovery_codes
+
     FAILURES.clear(conn, user_id)
+    recovery_codes.remove_all(conn, user_id)  # MFA-RECOVERY-CODES-2490: the recovery codes belong to the factor and go with it
     return conn.execute("DELETE FROM auth_totp WHERE user_id = ?", (user_id,)).rowcount > 0
 
 

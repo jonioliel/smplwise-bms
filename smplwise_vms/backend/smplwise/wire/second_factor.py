@@ -20,6 +20,12 @@ class FactorStatus(WireModel):
     last_used_at: str | None
 
 
+class FactorEnabled(FactorStatus):
+    """`POST /auth/second-factor/confirm`: the factor is on; `recovery_codes` is the first batch of one-time recovery codes
+    (`XXXX-XXXX`, MFA-RECOVERY-CODES-2490) - shown in this answer ONCE and never readable again."""
+    recovery_codes: list[str]
+
+
 class OwnFactor(FactorStatus):
     """`GET /auth/second-factor`: the status and the installation's policy."""
     policy: Policy
@@ -80,7 +86,32 @@ class StepUpStatus(WireModel):
 
 
 class StepUpProof(WireModel):
-    """`POST /auth/step-up/verify`: the proof was accepted; it counts until `valid_until` (one gated request when `minutes` is 0)."""
-    method: Literal["totp", "passkey"]  # MFA-PASSKEYS-2490
+    """`POST /auth/step-up/verify`: the proof was accepted; it counts until `valid_until` (one gated request when `minutes` is 0).
+    `recovery_code`: a one-time recovery code was spent for it (MFA-RECOVERY-CODES-2490)."""
+    method: Literal["totp", "passkey", "recovery_code"]  # MFA-PASSKEYS-2490, MFA-RECOVERY-CODES-2490
     minutes: int
     valid_until: str | None
+
+
+class RecoveryStatus(WireModel):
+    """`GET /auth/recovery-codes` (MFA-RECOVERY-CODES-2490): `available` = the authenticator factor is on (codes exist only with it);
+    how many codes remain of the batch's `total`, when the batch was made and a code last used, and `low` = at most `low_at` remain.
+    Never a code or a hash."""
+    available: bool
+    remaining: int
+    total: int
+    created_at: str | None
+    last_used_at: str | None
+    low: bool
+    low_at: int
+
+
+class RecoveryBatch(WireModel):
+    """`POST /auth/recovery-codes`: the new batch (`XXXX-XXXX`), shown in this answer ONCE; the previous batch no longer works."""
+    codes: list[str]
+    remaining: int
+    total: int
+    created_at: str | None
+    last_used_at: str | None
+    low: bool
+    low_at: int

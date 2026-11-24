@@ -97,6 +97,8 @@ NEVER_EXPORTED_COLUMNS: dict[str, frozenset[str]] = {"auth_local_credentials": f
 # The archive format is an allow-list (PROJECT_TABLES / ACCESS_TABLES / OPTIONAL_TABLES); this set is the guard that none of them
 # is ever added to it, checked at import and again by `snapshot`.
 NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "auth_local_failures", "auth_totp", "auth_totp_failures",
+                                   # MFA-RECOVERY-CODES-2490: the recovery codes' hashes belong to the TOTP factor, which never travels either
+                                   "auth_recovery_codes",
                                    "auth_local_reset_codes", "auth_local_reset_sends",
                                    # CR-WISKEY-HMAC-ROTATION-295: the bridge HMAC key set (sealed material) and its rotation history
                                    "bridge_keys", "bridge_rotations",

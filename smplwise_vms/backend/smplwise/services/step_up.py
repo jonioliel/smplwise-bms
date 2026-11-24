@@ -100,6 +100,12 @@ ONCE_ROUTES: dict[tuple[str, str], str] = {
     ("DELETE", "/identity/local-users/{user_id}/passkeys/{pk_id}"): ONCE_PASSKEY,
 }
 ONCE_ACTIONS = frozenset(ONCE_ROUTES.values())
+# MFA-SECFIX-2500 (SR-4, W-1; owner questions page Q13, recommendation): a recovery code is a step-up proof for the normal window
+# only. Never for a once-action, and never for a change of the caller's own factors - a new batch of recovery codes, adding or
+# removing a passkey, registering or revoking a phone key - so one leaked code cannot be laundered into a lasting factor.
+FACTOR_CHANGE_ACTIONS = frozenset({"auth.recovery_codes.regenerate", "auth.passkey.register", "auth.passkey.remove",
+                                   "auth.device_key.register", "auth.device_key.revoke"})
+NO_RECOVERY_ACTIONS = ONCE_ACTIONS | FACTOR_CHANGE_ACTIONS
 EXEMPT_ROUTES = frozenset(ONCE_ROUTES)
 
 # MFA-STEPUP-GATES-2490: write-method routes that authorise a gated permission but change nothing (previews, checks, dry runs,
@@ -123,6 +129,7 @@ READ_ONLY_ROUTES: dict[tuple[str, str], str] = {
 API_PREFIX = "/api/v1"
 METHOD_TOTP = "totp"
 METHOD_PASSKEY = "passkey"  # MFA-PASSKEYS-2490 (slice 4): a WebAuthn assertion on a step-up challenge (services/user_passkeys)
+METHOD_RECOVERY = "recovery_code"  # MFA-RECOVERY-CODES-2490: a one-time recovery code, accepted by `verify` in place of the code
 STATE_ATTR = "sw_step_up"  # request.state: "ok" once this request passed the gate (require() may run several times)
 
 REQUIRED_HE = "לפני שינוי הגדרות, משתמשים או הרשאות צריך לאשר שוב את הזהות: הזן את הקוד הנוכחי מאפליקציית האימות."
@@ -130,6 +137,7 @@ PHYSICAL_HE = "לפני נטרול אזעקה, עקיפת חיישן או פתי
 NO_SESSION_HE = "לא נמצאה כניסה פעילה לאישור. היכנס מחדש ונסה שוב."
 NO_METHOD_HE = "אין לחשבון הזה דרך אימות נוספת. הפעל אימות דו־שלבי ב״החשבון שלי״."
 NOT_APPLICABLE_HE = "אין צורך באישור נוסף בחיבור הזה."
+RECOVERY_REFUSED_HE = "קוד שחזור לא מתאים לפעולה הזו. אשר עם הקוד מאפליקציית האימות, מפתח גישה או מפתח הטלפון."
 
 
 # ---------------------------------------------------------------- settings
@@ -393,6 +401,11 @@ def _satisfied(conn: sqlite3.Connection, request: Any, principal: Any, key: str)
         if at is not None and now - at <= window:
             return True
     return False
+
+
+def recovery_allowed(action: str | None) -> bool:
+    """MFA-SECFIX-2500: may a recovery code be the proof for this action? Only for the normal window (see NO_RECOVERY_ACTIONS)."""
+    return (action or "") not in NO_RECOVERY_ACTIONS
 
 
 def fresh_proof(conn: sqlite3.Connection, request: Any, principal: Any, *, local_sign_in: bool = True) -> bool:
