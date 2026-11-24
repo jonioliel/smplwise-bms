@@ -77,8 +77,8 @@ export class SwAccountSecurity extends LitElement {
     };
   }
 
-  private line(key: string, icon: string, label: string, value: string, state: 'on' | 'off' | 'warn' = 'on') {
-    return html`<li data-sec-line=${key} data-state=${state}><sw-icon name=${icon} size=${16}></sw-icon><span class="l">${label}</span><span class="v">${value}</span></li>`;
+  private line(key: string, icon: string, label: string, value: string, tone: 'on' | 'off' | 'warn' = 'on') {
+    return html`<li data-sec-line=${key} data-state=${tone}><sw-icon name=${icon} size=${16}></sw-icon><span class="l">${label}</span><span class="v">${value}</span></li>`;
   }
 
   private renderOverview() {
