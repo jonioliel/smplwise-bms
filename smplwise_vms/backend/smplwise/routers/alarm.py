@@ -32,7 +32,7 @@ from ..rbac import INSTALLATION, Decision, Principal, authorize, note_grant, per
 from ..services import alarm as svc
 from ..services import alarm_codes as codes
 from ..services import alarm_store as store
-from ..services import ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, service_identity
+from ..services import ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, service_identity, step_up
 from ..services.timeutil import parse_utc
 from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
 from ..wire import alarm as W
@@ -396,6 +396,17 @@ def verify_code_for(conn: sqlite3.Connection, principal: Principal, settings: An
     return plan["prompt"]
 
 
+def _step_up(act: "_Act", plan: dict[str, Any], action: str) -> None:
+    """MFA-STEPUP-GATES-2490 (owner Q45: alarm disarm and zone bypass): a fresh step-up proof - after the permission, the remote rules and
+    the explicit confirmation, before any code is judged or anything is reserved, recorded or sent. The alarm-PIN fallback (design 4.2,
+    owner q24 a): when this action asks for the caller's personal alarm code, that code - verified by the code gate in this same
+    request, with its own lockout - is the proof for this one action (never a window, never for anything else)."""
+    if plan.get("prompt") == "pin":
+        act.details["step_up"] = "alarm_pin"
+        return
+    step_up.guard_action(act.conn, act.request, act.principal, action)
+
+
 def _send(act: _Act, request: Request, entity_id: str, action_id: str, args: dict[str, Any], send_code: str | None, client_request_id: str, attributes: dict[str, Any] | None,
           feature: str = "alarm") -> dict[str, Any]:
     """The device-action path: allow-list, ha_actions record (never the code), signed bridge call, honest status."""
@@ -492,6 +503,8 @@ def panel_action(entity_id: str, request: Request, principal: Principal = Depend
     plan = codes.code_plan(action="disarm" if disarm else "arm", panel=panel, user_policy=pol, mode=cfg["code_mode"], stored=entity_id in stored,
                            remote=principal.source in ("remote", "local"), remote_codeless=cfg["remote_codeless"])
     act.details["code"] = plan["prompt"]  # which kind of code was asked for (none / pin / panel) - never the code
+    if disarm or body.action == "arm_custom_bypass":
+        _step_up(act, plan, step_up.ACTION_DISARM if disarm else step_up.ACTION_BYPASS)
     stored_code = None
     if entity_id in stored and (plan["send"] == "stored" or plan["prompt"] == "panel"):
         try:
@@ -591,6 +604,8 @@ def zone_bypass(zone_entity_id: str, request: Request, principal: Principal = De
     plan = codes.code_plan(action="bypass", panel=panel, user_policy=codes.policy(conn, principal.user_id), mode=cfg["code_mode"], stored=panel["entity_id"] in stored,
                            remote=principal.source in ("remote", "local"), remote_codeless=cfg["remote_codeless"])
     act.details["code"] = plan["prompt"]
+    if body.bypassed:
+        _step_up(act, plan, step_up.ACTION_BYPASS)  # restoring a bypassed zone (re-protecting it) is never gated
     stored_code = None
     if plan["prompt"] == "panel" and panel["entity_id"] in stored:
         try:

@@ -194,6 +194,11 @@ def pulse(request: Request, body: PulseBody, auth: ia.Authority = Depends(_gate)
             raise ApiError(404, "not_found", "הבדיקה לא נמצאה.")
         if lv.pulse_done_for(auth.conn, body.parent_run_id, sid):
             raise _refuse(auth, request, sid, "pulse_already_done", 409, "pulse_already_done", "בבדיקה הזו כבר נעשה ניסיון פתיחה לעמדה הזו. ניסיון נוסף - בבדיקה חדשה.")
+    # MFA-STEPUP-GATES-2490: the pulse opens a door - a fresh step-up proof (the route is local-only: a no-op while
+    # security.step_up_local is off), before the attempt is recorded or sent
+    from ..services import step_up
+
+    step_up.guard_action(auth.conn, request, auth.principal, step_up.ACTION_DOOR_OPEN)
     # the attempt is audited BEFORE anything is sent
     audit(auth.conn, actor=auth.principal, action="wiskey.validation.pulse", decision="allowed", resource_type="intercom_station", resource_id=sid,
           request_id=_rid(request), details={"door": body.door, "parent_run_id": body.parent_run_id, "witness": "named"})

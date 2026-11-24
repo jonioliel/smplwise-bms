@@ -708,6 +708,9 @@ def set_settings(conn: sqlite3.Connection, principal: Principal, body: dict[str,
     if not _is_admin(conn, principal):
         _audit(conn, principal, "door_automation.settings", "denied", None, "no_binding", rid)
         raise forbidden(permission="system.configure")
+    from . import step_up
+
+    step_up.on_grant(conn, principal, "system.configure")  # MFA-STEPUP-GATES-2490: a settings change granted without require()
     if body.get("confirmed") is not True:
         raise ApiError(409, "confirmation_required", "נדרש אישור מפורש.")
     feature, lim, roles = body.get("feature"), body.get("limits"), body.get("excluded_roles")
@@ -745,6 +748,9 @@ def set_user_removed(conn: sqlite3.Connection, principal: Principal, user_id: st
     if not admin:
         _audit(conn, principal, "door_automation.user", "denied", None, "no_binding", rid, user=user_id)
         raise forbidden(permission="rbac.roles.manage")
+    from . import step_up
+
+    step_up.on_grant(conn, principal, "rbac.roles.manage")  # MFA-STEPUP-GATES-2490: a permissions change granted without require()
     if not isinstance(removed, bool):
         raise _invalid(["removed"])
     if confirmed is not True:

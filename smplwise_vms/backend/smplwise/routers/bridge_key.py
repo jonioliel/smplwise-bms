@@ -265,7 +265,7 @@ def reveal_new_code(request: Request, body: RevealBody | None = None, principal:
     """The new pairing code after an emergency revocation, for the manual entry in the bridge. Any system administrator, after a fresh
     re-authentication with their OWN current authenticator code (owner decision 2). Every outcome is audited."""
     from ..services import bridge_install
-    from ..services import ha_user_auth as hua
+    from ..services import step_up
 
     _gate(conn, request, principal, "bridge.key.code_revealed")
 
@@ -277,19 +277,20 @@ def reveal_new_code(request: Request, body: RevealBody | None = None, principal:
     if not bkr.is_revoked(conn):
         denied("not_revoked")
         raise ApiError(409, "not_revoked", MESSAGES["not_revoked"])
-    if not sf.is_enrolled(conn, principal.user_id):
-        denied("step_up_unavailable")
-        raise ApiError(403, "step_up_unavailable", MESSAGES["step_up_unavailable"])
-    code = (request.headers.get(hua.SECOND_FACTOR_HEADER) or (body.code if body else None) or "").strip()
-    if not code:
-        denied("step_up_required")
-        raise ApiError(403, "step_up_required", MESSAGES["step_up_required"])
+    # MFA-STEPUP-GATES-2490: a once-action on the central proof (services/step_up.once_proof, grace 0): the own current code in this
+    # request as before, or a once-proof from `POST auth/step-up/verify {action: "bridge.key.code_revealed"}`; a window proof never counts
     try:
-        sf.verify(conn, request.app.state.settings, principal.user_id, code)
+        method = step_up.once_proof(conn, request, principal, step_up.ONCE_REVEAL, body.code if body else None)
+    except step_up.OnceProofMissing:
+        denied("step_up_required")
+        raise ApiError(403, "step_up_required", MESSAGES["step_up_required"], details=step_up.once_details(conn, principal, step_up.ONCE_REVEAL)) from None
     except sf.SecondFactorError as exc:
         denied(f"step_up_{exc.code}")
         raise ApiError(429 if exc.code == "locked" else 403 if exc.code == "invalid" else 409, f"second_factor_{exc.code}", exc.message,
                        retryable=exc.code == "locked") from None
+    if method is None:
+        denied("step_up_unavailable")
+        raise ApiError(403, "step_up_unavailable", MESSAGES["step_up_unavailable"])
     try:
         pairing_code = bkr.reveal(conn, actor=principal, request_id=_rid(request))
     except bkr.RevocationRefused as exc:

@@ -135,6 +135,9 @@ def set_visitor_entrance(db: Database, principal: Principal, station_id: str, en
         if not (authorize(conn, principal, ag.PERMISSION, (STATION, station_id)).allowed and authorize(conn, principal, "system.configure", INSTALLATION).allowed):
             ag._audit(conn, principal, "access.visitor.station_flag", station_id, decision="denied", reason="no_binding", resource_type=STATION, request_id=request_id)
             raise forbidden(permission=ag.PERMISSION, target_type=STATION, target_id=station_id, reason="no_binding")
+        from . import step_up
+
+        step_up.on_grant(conn, principal, "system.configure")  # MFA-STEPUP-GATES-2490: a station setting granted without require()
         if entrance:
             conn.execute("INSERT OR IGNORE INTO access_station_visitor_entrance(station_id, set_by, set_at) VALUES (?, ?, ?)",
                          (station_id, principal.user_id, ag.iso(ag.now())))

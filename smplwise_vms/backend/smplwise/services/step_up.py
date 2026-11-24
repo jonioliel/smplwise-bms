@@ -27,13 +27,28 @@ Settings: `security.step_up` on (default, the owner's decision) | off (only the 
 
 Not gated (slice 1): a bearer caller (an HA access token on every request: long-lived tokens stay allowed, owner decision Q48); a
 user with no step-up method (no authenticator code enrolled: current behaviour kept, an open question in
-docs/changes/MFA-STEPUP-TRAIN-2490.md); the two routes that already demand their own per-action code (`EXEMPT_ROUTES`)."""
+docs/changes/MFA-STEPUP-TRAIN-2490.md); the routes that demand their own per-call code (`EXEMPT_ROUTES`).
+
+Slice 3 (MFA-STEPUP-GATES-2490, docs/changes/MFA-STEPUP-GATES-2490.md):
+
+* the physical-safety actions (`PHYSICAL_ACTIONS`: alarm disarm, zone bypass, opening a door) are gated by `guard_action()` at their
+  choke points (routers/alarm.py, routers/ha.py, routers/access_control_door.open_door, the door runs, the hold-open button, the
+  acceptance pulse) - same switch, window and proofs; the personal alarm code typed for an alarm action is that action's proof;
+* once-actions (`ONCE_ROUTES`, grace 0): the factor reset, the bridge-key reveal and the passkey removal need a proof on EVERY call
+  (`once_proof()`: the own code in the request, or a once-proof from `auth/step-up/verify` bound to the action);
+* an authority that grants a gated change without require() calls `on_grant()` itself (rbac_admin.assigns_anywhere, the
+  door-automation settings, the visitor entrance flag, the WisKey door settings, the tickets costs and intake lexicon);
+* a handler that opens its own connection is inside its request too (`current_request()`, set by main.CorrelationId until the
+  response starts);
+* write-method routes that change nothing are listed in `READ_ONLY_ROUTES`; tests/test_mfa_stepup_gates_2490.py walks the route
+  table and fails on a write route that uses a gated permission without a gate or a listed reason."""
 from __future__ import annotations
 
 import hashlib
 import sqlite3
 import threading
 import time
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -59,18 +74,57 @@ PERMISSIONS_PERMISSIONS = frozenset({"rbac.assign", "rbac.roles.manage"})
 GATED_PERMISSIONS = SETTINGS_PERMISSIONS | USERS_PERMISSIONS | PERMISSIONS_PERMISSIONS
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
-# Routes that already demand their OWN current code for every call (stricter than the window); the gate leaves them to it. The
-# next slice (2FA-STEPUP-GATES) moves them onto the central proof.
-EXEMPT_ROUTES = frozenset({
-    ("DELETE", "/auth/second-factor/users/{user_id}"),  # routers/second_factor.admin_reset: the administrator's own code
-    ("POST", "/system/bridge-key/revoke/reveal"),  # routers/bridge_key.reveal_new_code: mandatory own code
-})
+# MFA-STEPUP-GATES-2490 (slice 3): the physical-safety actions. Owner Q45 names alarm disarm and zone bypass; the slice card adds
+# opening a door (design 4.2 scope `alarm_doors`, inside the owner's `all_sensitive`). They are authorised by their own authorities
+# (the alarm scope, the one door rule, the bridge action's grant), not by require(), so each choke point calls guard_action()
+# explicitly, after its authorisation and before anything is sent. Same switch, same window, same proofs as the settings gate (the
+# security docs are silent on a separate grace: recorded as an open question in docs/changes/MFA-STEPUP-GATES-2490.md).
+ACTION_DISARM = "alarm.disarm"
+ACTION_BYPASS = "alarm.bypass"
+ACTION_DOOR_OPEN = "door.open"
+PHYSICAL_ACTIONS = frozenset({ACTION_DISARM, ACTION_BYPASS, ACTION_DOOR_OPEN})
+# the permissions those actions are judged by (the route-table ratchet looks for them; never gated through require() directly)
+PHYSICAL_PERMISSIONS = frozenset({"alarm.disarm", "alarm.bypass", "door.unlock", "access.doors.open", "access.release"})
+
+# MFA-STEPUP-GATES-2490: once-actions (grace 0). These routes demand a proof for EVERY call - the caller's own current code in the
+# request (`X-Arx-Second-Factor` or the body's `code`, as before), or a once-proof made by `POST auth/step-up/verify` with this
+# action, consumed by the one call within ONE_SHOT_S. A window proof or a sign-in proof never counts for them, and the window gate
+# leaves them to their own check (EXEMPT_ROUTES).
+ONCE_RESET = "auth.second_factor.reset"  # routers/second_factor.admin_reset: the administrator's own code
+ONCE_REVEAL = "bridge.key.code_revealed"  # routers/bridge_key.reveal_new_code: mandatory own code
+ONCE_PASSKEY = "auth.local.passkey.removed"  # routers/local_passkeys.admin_remove: the administrator's own code
+ONCE_ROUTES: dict[tuple[str, str], str] = {
+    ("DELETE", "/auth/second-factor/users/{user_id}"): ONCE_RESET,
+    ("POST", "/system/bridge-key/revoke/reveal"): ONCE_REVEAL,
+    ("DELETE", "/identity/local-users/{user_id}/passkeys/{pk_id}"): ONCE_PASSKEY,
+}
+ONCE_ACTIONS = frozenset(ONCE_ROUTES.values())
+EXEMPT_ROUTES = frozenset(ONCE_ROUTES)
+
+# MFA-STEPUP-GATES-2490: write-method routes that authorise a gated permission but change nothing (previews, checks, dry runs,
+# connection tests that store nothing). The gate leaves them alone; each entry says why. The route-table ratchet
+# (tests/test_mfa_stepup_gates_2490.py) fails on an entry that names no route.
+READ_ONLY_ROUTES: dict[tuple[str, str], str] = {
+    ("POST", "/access/preview"): "the effect of a binding before it is saved - computed, nothing written",
+    ("POST", "/access/roles/preview"): "the effect of a role edit before it is saved - computed, nothing written",
+    ("POST", "/access/groups/{group_id}/impact"): "a group change applied inside a savepoint and rolled back",
+    ("POST", "/ha-users/check"): "a read-only probe of the user list; only the probe's own result is kept",
+    ("POST", "/nvr/encoding-batches/preview"): "the plan of an encoding batch - nothing is sent to the recorder",
+    ("POST", "/access-control/installer/platform/import/preview"): "an import preview - nothing is written to WisKey or Arx",
+    ("POST", "/access-control/installer/platform/retention/preview"): "a retention preview - nothing is deleted",
+    ("POST", "/access-control/installer/platform/config/read"): "reads the station configuration",
+    ("POST", "/access-control/installer/platform/config/preview"): "a configuration preview - nothing is applied",
+    ("POST", "/access-control/installer/platform/maintenance/preview"): "a maintenance preview - nothing is queued",
+    ("POST", "/tickets/admin/message-templates/preview"): "renders a template with sample values",
+    ("POST", "/tickets/rules/test"): "a dry run of a rule on a read connection",
+}
 
 API_PREFIX = "/api/v1"
 METHOD_TOTP = "totp"
 STATE_ATTR = "sw_step_up"  # request.state: "ok" once this request passed the gate (require() may run several times)
 
 REQUIRED_HE = "לפני שינוי הגדרות, משתמשים או הרשאות צריך לאשר שוב את הזהות: הזן את הקוד הנוכחי מאפליקציית האימות."
+PHYSICAL_HE = "לפני נטרול אזעקה, עקיפת חיישן או פתיחת דלת צריך לאשר שוב את הזהות: הזן את הקוד הנוכחי מאפליקציית האימות."
 NO_SESSION_HE = "לא נמצאה כניסה פעילה לאישור. היכנס מחדש ונסה שוב."
 NO_METHOD_HE = "אין לחשבון הזה דרך אימות נוספת. הפעל אימות דו־שלבי ב״החשבון שלי״."
 NOT_APPLICABLE_HE = "אין צורך באישור נוסף בחיבור הזה."
@@ -120,9 +174,41 @@ def detach(conn: Any) -> None:
 
 
 def request_of(conn: Any) -> Any | None:
+    """The HTTP request `conn` serves: the link made by auth._track, else (MFA-STEPUP-GATES-2490) the request this code runs in -
+    a handler that opens its own connection (`db.connection()`, `write_aside`) is inside its request too. The request context
+    ends when the response starts (a background task after the answer, or a streamed body, is never gated)."""
     with _LINK_LOCK:
         held = _LINKS.get(id(conn))
-    return held[1] if held is not None and held[0] is conn else None
+    if held is not None and held[0] is conn:
+        return held[1]
+    return current_request()
+
+
+# MFA-STEPUP-GATES-2490: the request the current code runs in (set by main.CorrelationId for every HTTP request; FastAPI runs a sync
+# handler in a worker thread with a copy of this context). A mutable holder, so the middleware can close it when the response starts.
+_CURRENT: ContextVar[dict[str, Any] | None] = ContextVar("sw_step_up_request", default=None)
+
+
+def enter_request(scope: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
+    holder: dict[str, Any] = {"scope": scope, "open": True}
+    return _CURRENT.set(holder), holder
+
+
+def close_request(holder: dict[str, Any]) -> None:
+    holder["open"] = False
+
+
+def leave_request(token: Any) -> None:
+    _CURRENT.reset(token)
+
+
+def current_request() -> Any | None:
+    held = _CURRENT.get()
+    if not held or not held.get("open"):
+        return None
+    from starlette.requests import Request
+
+    return Request(held["scope"])  # state, headers and the matched route all live in the shared scope dict
 
 
 # ---------------------------------------------------------------- marks (server-side, per session, memory only)
@@ -334,12 +420,22 @@ def _route(request: Any) -> str:
     return template[len(API_PREFIX):] if template.startswith(API_PREFIX + "/") else template
 
 
+def route_key(request: Any) -> tuple[str, str]:
+    return ((request.scope.get("method") or "").upper(), _route(request))
+
+
 def _exempt(request: Any) -> bool:
-    return (request.scope.get("method") or "", _route(request)) in EXEMPT_ROUTES
+    key = route_key(request)
+    return key in EXEMPT_ROUTES or key in READ_ONLY_ROUTES
+
+
+def _write_request(request: Any) -> bool:
+    scope = getattr(request, "scope", None) or {}
+    return scope.get("type") == "http" and (scope.get("method") or "GET").upper() not in SAFE_METHODS
 
 
 def required_error(conn: sqlite3.Connection, principal: Any, permission: str) -> ApiError:
-    return ApiError(403, "step_up_required", REQUIRED_HE,
+    return ApiError(403, "step_up_required", PHYSICAL_HE if permission in PHYSICAL_ACTIONS else REQUIRED_HE,
                     details={"action": permission, "methods": methods_of(conn, principal.user_id), "minutes": minutes(conn),
                              "verify_path": "auth/step-up/verify"})
 
@@ -372,18 +468,86 @@ def _refuse(conn: sqlite3.Connection, request: Any, principal: Any, permission: 
 
 
 def on_grant(conn: sqlite3.Connection, principal: Any, permission: str) -> None:
-    """rbac.require() allowed `permission` on `conn`: gate it when it is a write of a gated permission inside an HTTP request."""
+    """`permission` was granted on `conn` - by rbac.require(), or (MFA-STEPUP-GATES-2490) by an authority that decides a gated change
+    without require() and calls this itself (rbac_admin.assigns_anywhere, the door-automation administrator settings...): gate it
+    when it is a write of a gated permission inside an HTTP request, unless the route is a once-action or a read-only route."""
     if permission not in GATED_PERMISSIONS:
         return
     request = request_of(conn)
-    if request is None:
-        return
-    scope = getattr(request, "scope", None) or {}
-    if scope.get("type") != "http" or (scope.get("method") or "GET").upper() in SAFE_METHODS:
-        return
-    if _exempt(request):
+    if request is None or not _write_request(request) or _exempt(request):
         return
     guard(conn, request, principal, permission)
+
+
+def guard_action(conn: sqlite3.Connection, request: Any, principal: Any, action: str) -> None:
+    """MFA-STEPUP-GATES-2490: a physical-safety action (PHYSICAL_ACTIONS: alarm disarm, zone bypass, opening a door) inside an HTTP
+    write request - called by its choke point after the action's own authorisation and BEFORE anything is reserved, recorded or
+    sent. `request` None: the request this code runs in, if any; outside one (a timer, an automation firing, a background run)
+    never gated. Same switch, window and proofs as the settings gate; nothing is queued or retried (the caller answers
+    403 step_up_required and the person taps again)."""
+    assert action in PHYSICAL_ACTIONS, action
+    if request is None:
+        request = request_of(conn)
+    if request is None or not _write_request(request):
+        return
+    guard(conn, request, principal, action)
+
+
+# ---------------------------------------------------------------- once-actions (grace 0)
+
+class OnceProofMissing(Exception):
+    """A once-action was called with no code and no once-proof for it."""
+
+
+def _once_key(action: str, key: str) -> str:
+    return f"once:{action}|{key}"
+
+
+def mark_once(request: Any, principal: Any, action: str, method: str) -> float | None:
+    """`POST auth/step-up/verify {action: <once-action>}`: a proof for ONE call of that action within ONE_SHOT_S (never a window)."""
+    key = session_key(request, principal)
+    if key is None:
+        return None
+    m = Mark(user_id=principal.user_id, at=_now(), method=method, one_shot=True)
+    _put(_once_key(action, key), m)
+    return m.at + ONE_SHOT_S
+
+
+def _take_once(request: Any, principal: Any, action: str) -> bool:
+    key = session_key(request, principal)
+    if key is None:
+        return False
+    k = _once_key(action, key)
+    m = _get(k)
+    return m is not None and m.user_id == principal.user_id and _now() - m.at <= ONE_SHOT_S and _consume(k, m)
+
+
+def once_proof(conn: sqlite3.Connection, request: Any, principal: Any, action: str, inline_code: str | None) -> str | None:
+    """The proof a once-action (ONCE_ACTIONS) needs on EVERY call, whatever the switch, the window or the channel - the behaviour
+    these routes always had. Returns the method that proved it (`totp`: the caller's own current code in this request, header
+    `X-Arx-Second-Factor` or the body; `once`: a once-proof from `auth/step-up/verify` for this action, now consumed), or None when
+    the caller has no step-up method (the route decides: the factor reset goes on as before, the bridge-key reveal refuses).
+    Raises OnceProofMissing without either, and second_factor.SecondFactorError for a wrong code (the route maps and audits both,
+    as before). A window proof or a sign-in proof never counts here."""
+    if action not in ONCE_ACTIONS:
+        raise ValueError(action)
+    if not methods_of(conn, principal.user_id):
+        return None
+    from . import ha_user_auth as hua
+    from . import second_factor as sf
+
+    code = (request.headers.get(hua.SECOND_FACTOR_HEADER) or inline_code or "").strip()
+    if not code:
+        if _take_once(request, principal, action):
+            return "once"
+        raise OnceProofMissing(action)
+    sf.verify(conn, request.app.state.settings, principal.user_id, code)
+    return METHOD_TOTP
+
+
+def once_details(conn: sqlite3.Connection, principal: Any, action: str) -> dict[str, Any]:
+    """The `details` of a once-action's refusal, for the step-up sheet (slice 2): verify with this action, then retry once."""
+    return {"action": action, "methods": methods_of(conn, principal.user_id), "minutes": 0, "once": True, "verify_path": "auth/step-up/verify"}
 
 
 def iso(at: float | None) -> str | None:

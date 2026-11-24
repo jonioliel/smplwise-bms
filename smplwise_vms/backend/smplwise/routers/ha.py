@@ -25,7 +25,7 @@ from ..db import Database, bump_permission_revision, get_setting, is_storage_ful
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, permissions_anywhere, require
 from ..services import bridge_install, bridge_rotation_peer as peer_mod, building_scope, device_activity, door_authority, door_path_guard, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, intercom_doors, media_store
-from ..services import bridge_discovery, push_queue, service_identity
+from ..services import bridge_discovery, push_queue, service_identity, step_up
 from ..services import ha_store as store
 from ..services import devices as dsvc
 from ..services.timeutil import parse_utc
@@ -195,6 +195,10 @@ def run_action(entity_id: str, body: ActionBody, request: Request, response: Res
     return out
 
 
+# MFA-STEPUP-GATES-2490: the bridge actions whose grant is a physical-safety action (lock.unlock -> door.unlock, alarm_disarm -> alarm.disarm)
+STEP_UP_GRANTS = {"door.unlock": step_up.ACTION_DOOR_OPEN, "alarm.disarm": step_up.ACTION_DISARM, "alarm.bypass": step_up.ACTION_BYPASS}
+# ... and arming with the bypass set (a zone bypass; its bridge action carries no grant of its own - recorded in the change note)
+STEP_UP_ACTIONS = {"alarm_control_panel.alarm_arm_custom_bypass": step_up.ACTION_BYPASS}
 PENDING_WAIT_S = 2.0  # SEC246 L3: the longest wait for the command's record before the command is refused (503 busy, nothing sent)
 # T035: the httpx failures that happen before the request could leave (the connection was never made) - nothing reached Home
 # Assistant. Any other transport failure of `execute` may follow a delivered command (services/device_bulk.py reads the same names).
@@ -284,6 +288,11 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
         raise ApiError(403, "grant_required", f"הפעולה דורשת הרשאה נפרדת ({_grant_label(grant)}); שליטה כללית בישויות אינה כוללת אותה.", details={"action": body.allowed_action_id, "grant": grant})
     if spec["sensitive"] and body.confirmation_grant != "confirmed":
         raise ApiError(409, "confirmation_required", "פעולה רגישה דורשת אישור מפורש.", details={"action": body.allowed_action_id})
+    su_action = STEP_UP_GRANTS.get(grant or "") or STEP_UP_ACTIONS.get(body.allowed_action_id)
+    if su_action:
+        # MFA-STEPUP-GATES-2490: an unlock, a disarm or a bypass arming needs a fresh step-up proof - after its grant and confirmation,
+        # before anything is recorded or sent
+        step_up.guard_action(conn, request, principal, su_action)
     if not service_identity.identity_ok(principal, settings):  # CR-008: the Arx remote channel is the same HA user; USR2 P3: a local one, the service identity
         raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן.")
     if (spec["domain"], spec["service"]) == ("script", "turn_on") and service_identity.is_local(principal) and service_identity.extended_on(conn):
