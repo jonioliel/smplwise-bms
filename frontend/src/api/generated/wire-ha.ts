@@ -145,7 +145,7 @@ export interface HaEntitiesEntity {
 
 export interface HaEntitiesSync {
   connected: boolean;
-  last_snapshot_at: string;
+  last_snapshot_at: string | null;
   last_event_at: unknown;
   last_registry_at: string | null;
   last_error: string | null;

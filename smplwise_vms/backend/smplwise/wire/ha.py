@@ -115,7 +115,7 @@ class HaEntitiesArea(ExactModel):
 
 class HaEntitiesSync(ExactModel):
     connected: bool
-    last_snapshot_at: str
+    last_snapshot_at: str | None
     last_event_at: Any
     last_registry_at: str | None
     last_error: str | None

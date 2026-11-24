@@ -44,11 +44,11 @@ export interface IntercomCallsCallLogCall {
   rang_at: string;
   observed: string;
   state: string;
-  outcome: string;
+  outcome: string | null;
   answered_at: string | null;
   answered_via: string | null;
   answered_by_name: string | null;
-  ended_at: string;
+  ended_at: string | null;
   ended_by_name: string | null;
   door_opened_at: string | null;
   door_opened_by_name: string | null;
