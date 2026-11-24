@@ -484,6 +484,136 @@ def test_review2500_hand_over_preview_names_an_unnamed_window_in_the_readers_lan
         assert _item(door_conversion.listing(conn, lang="en"), key)["actions"]["hand_over_program"]["program"]["name"] == "Door window"
 
 
+# ================================================================ DOOR-PREVIEW-I18N-2500: the preview's words in the reader's language
+
+HEB = re.compile(r"[֐-׿]")
+TEXT_KEYS = ("category_text", "origin_text", "approver_text", "run_guard_text", "reason_text", "state_text", "days_text", "kind_text", "suggestion_text")
+
+
+def _texts(value: Any, out: list[tuple[str, str]] | None = None, key: str = "") -> list[tuple[str, str]]:
+    """Every (key, string) of an answer, the items of `unresolved` included."""
+    out = [] if out is None else out
+    if isinstance(value, dict):
+        for k, v in value.items():
+            _texts(v, out, k)
+    elif isinstance(value, list):
+        for v in value:
+            _texts(v, out, key)
+    elif isinstance(value, str):
+        out.append((key, value))
+    return out
+
+
+def _machine(value: Any) -> Any:
+    """The answer without its words: what must not change with the reader's language."""
+    if isinstance(value, dict):
+        return {k: _machine(v) for k, v in value.items() if k not in TEXT_KEYS and k not in ("unresolved", "generated_at")}
+    if isinstance(value, list):
+        return [_machine(v) for v in value]
+    return value
+
+
+def test_door_preview_i18n_2500_hebrew_unchanged_english_for_an_english_reader(scheds):
+    """The hand-over preview (and the inventory words it carries) in Hebrew exactly as before for a reader without a stored language,
+    in English for an English reader: weekdays, why-not reasons, categories, origin / approver / run-guard texts. Names stay data."""
+    c, app, ids = scheds["c"], scheds["app"], scheds["ids"]
+    hold, mixed, tpl = (f"schedule:{ids[k]}" for k in ("hold", "mixed", "template"))
+    he = c.get(CONV).json()
+    h = _item(he, hold)
+    assert h["actions"]["hand_over_program"]["program"]["days_text"] == "א' ב' ג' ד' ה'", "the old bytes: ASCII apostrophes, one space"
+    assert h["category_text"] == "תזמון" and h["origin_text"] == "נוצר ב-Arx" and h["approver_text"] == "אין מאשר"
+    assert h["run_guard_text"] == "הרצה מ-Arx נחסמת: יש בפריט פתיחת דלת שלא הוסבה"
+    assert h["actions"]["convert_event_job"]["reason_text"] == "פעולה זו אינה מתאימה לסוג הפריט"
+    assert _item(he, mixed)["actions"]["hand_over_program"]["reason_text"] == "בתזמון יש גם פעולות אחרות"
+    assert _item(he, tpl)["category_text"] == "פריט שלא ניתן לזהות בו את הדלתות"
+    assert _item(he, tpl)["actions"]["hand_over_program"]["reason_text"] == "לא ניתן לזהות את הדלתות בפריט"
+    with app.state.db.connection(mode="read") as conn:
+        svc = door_conversion.listing(conn)
+    assert json.dumps(_machine(svc), ensure_ascii=False, sort_keys=True) == json.dumps(_machine(he), ensure_ascii=False, sort_keys=True)
+    assert [t for t in _texts(svc) if t[0] in TEXT_KEYS or t[0] == "unresolved"] == [t for t in _texts(he) if t[0] in TEXT_KEYS or t[0] == "unresolved"], \
+        "the route's Hebrew is the service's Hebrew, string for string"
+    # an English reader
+    assert c.put(f"{API}/me/prefs", json={"ui.lang": "en"}).status_code == 200
+    en = c.get(CONV).json()
+    assert _machine(en) == _machine(he), "only the words change: codes, offers, counts, names, doors"
+    h = _item(en, hold)
+    assert h["actions"]["hand_over_program"]["program"]["days_text"] == "Sun, Mon, Tue, Wed, Thu"
+    assert h["category_text"] == "Schedule" and h["origin_text"] == "Created in Arx" and h["approver_text"] == "No approver"
+    assert h["run_guard_text"] == "Run blocked from Arx: the item has a door opening that was not converted"
+    assert h["actions"]["convert_event_job"]["reason_text"] == "This action does not suit the item's type"
+    assert _item(en, mixed)["actions"]["hand_over_program"]["reason_text"] == "The schedule also has other actions"
+    assert _item(en, tpl)["category_text"] == "An item whose doors cannot be identified"
+    assert _item(en, tpl)["actions"]["hand_over_program"]["reason_text"] == "The doors in the item cannot be identified"
+    assert all(not HEB.search(u) for i in en["items"] for u in i["unresolved"]), [i["unresolved"] for i in en["items"]]
+    # no Hebrew letter left in English except data: item, door and window names
+    data = {i["name"] for i in en["items"]} | {d for i in en["items"] for d in i["doors"]}
+    data |= {d for i in en["items"] for a in i["actions"].values() for d in (a.get("program") or {}).get("doors", [])}
+    data |= {(a.get("program") or {}).get("name") for i in en["items"] for a in i["actions"].values()}
+    left = [t for t in _texts(en) if HEB.search(t[1]) and t[1] not in data]
+    assert left == [], left
+    # the inventory report the preview is built from follows the reader too
+    inv = c.get(f"{API}/intercom/door-path-inventory").json()
+    row = next(i for i in inv["items"] if i["key"] == hold)
+    assert row["kind_text"] == "Schedule" and row["suggestion_text"] == "A hold-open program in WisKey" and row["origin_text"] == "Created in Arx"
+    # a refusal that quotes a reason reaches the reader in their language (the error envelope renders the `Msg`)
+    r = _act(c, hold, "disable", h["revision"])
+    assert r.status_code == 409 and r.json()["user_message"] == "Disabling and converting items that open doors is turned off in Settings.", r.text
+    _switch(c, True)
+    r = _act(c, mixed, "hand_over_program", _item(en, mixed)["revision"])
+    assert r.status_code == 409 and r.json()["code"] == "action_not_offered" and r.json()["user_message"] == "The schedule also has other actions", r.text
+    assert c.put(f"{API}/me/prefs", json={"ui.lang": "he"}).status_code == 200
+    r = _act(c, mixed, "hand_over_program", _item(en, mixed)["revision"])
+    assert r.status_code == 409 and r.json()["user_message"] == "בתזמון יש גם פעולות אחרות", r.text
+    assert c.get(CONV).json()["items"] == he["items"], "back to Hebrew: the same answer as before"
+
+
+def test_door_preview_i18n_2500_every_text_has_a_key_and_no_hebrew_literal_is_left():
+    """The missing-key scan of this pass: every table the preview and the report read is made of `Msg`s of `doorconv.*` / `doorpath.*`
+    (Hebrew = the module's old word, handwritten English, the same slots); every reason the planners can answer has a text; and no
+    Hebrew literal is left in door_conversion.py / door_path.py outside those tables (docstrings aside; the door job's default name
+    "משימת דלת" is a stored name, outside this pass)."""
+    import ast
+
+    from smplwise.i18n import CATALOGUE, Msg
+    from smplwise.services import door_conversion_text as dct
+    from smplwise.services import door_path
+
+    slot = re.compile(r"\{(\w+)\}")
+    keys = [k for k in CATALOGUE if k.split(".", 1)[0] in ("doorconv", "doorpath")]
+    assert len(keys) == len(dct.DOOR_PATH) + len(dct.DOOR_CONVERSION)
+    for k in keys:
+        e = CATALOGUE[k]
+        assert e["he"] and e["en"] and not HEB.search(e["en"]), k
+        assert sorted(slot.findall(e["he"])) == sorted(slot.findall(e["en"])), k
+    tables = ((door_conversion.CATEGORY_TEXT, "doorconv.category"), (door_conversion.ACTION_TEXT, "doorconv.action"),
+              (door_conversion.STATE_TEXT, "doorconv.state"), (door_conversion.UNAVAILABLE_TEXT, "doorconv.why"),
+              (door_path.UNRESOLVED_TEXT, "doorpath.unresolved"), (door_path.DOOR_PROBLEM_TEXT, "doorpath.door_problem"),
+              (door_path.ORIGIN_TEXT, "doorpath.origin"), (door_path.KIND_TEXT, "doorpath.kind"), (door_path.SUGGESTION_TEXT, "doorpath.suggestion"),
+              (door_path.GUARD_TEXT, "doorpath.guard"), (door_path.APPROVER_TEXT, "doorpath.approver"))
+    for table, prefix in tables:
+        for code, m in table.items():
+            if code == "items" and prefix == "doorconv.state":
+                assert m == "", "the list's state with items has no text"
+                continue
+            assert isinstance(m, Msg) and m.key == f"{prefix}.{code}" and m == CATALOGUE[m.key]["he"], (prefix, code)
+    assert all(type(v) is str for v in door_path.KIND_NAME.values()) and door_path.KIND_NAME == {k: str(v) for k, v in door_path.KIND_TEXT.items()}
+    assert tuple(door_conversion.DAY_MSG) == door_conversion.DAY_TEXT and [m.render("en") for m in door_conversion.DAY_MSG] == ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    # every reason literal the planners and `_offer` can answer has a text (else the screen would show "invalid"'s text)
+    src = (SMPLWISE / "services" / "door_conversion.py").read_text(encoding="utf-8")
+    reasons = set(re.findall(r'out\["reason"\] = "(\w+)"', src)) | set(re.findall(r'return None, \[\], "(\w+)"', src)) | set(re.findall(r'\bno\("(\w+)"\)', src))
+    reasons |= set(re.findall(r'common = "(\w+)"', src)) | set(re.findall(r'return True, "(\w+)"', src)) | set(re.findall(r'problems\.append\("(\w+)"\)', src))
+    assert len(reasons) > 20 and reasons - set(door_conversion.UNAVAILABLE_TEXT) == set(), reasons - set(door_conversion.UNAVAILABLE_TEXT)
+    # no Hebrew literal left outside the catalogue's words
+    allowed = {he for he, _en in (*dct.DOOR_PATH.values(), *dct.DOOR_CONVERSION.values())} | {"משימת דלת"}
+    for rel in ("services/door_conversion.py", "services/door_path.py", "services/door_conversion_text.py"):
+        tree = ast.parse((SMPLWISE / rel).read_text(encoding="utf-8"))
+        docs = {id(n.body[0].value) for n in ast.walk(tree) if isinstance(n, (ast.Module, ast.FunctionDef, ast.ClassDef)) and n.body
+                and isinstance(n.body[0], ast.Expr) and isinstance(n.body[0].value, ast.Constant)}
+        left = [n.value for n in ast.walk(tree) if isinstance(n, ast.Constant) and isinstance(n.value, str) and HEB.search(n.value)
+                and id(n) not in docs and n.value not in allowed]
+        assert left == [], (rel, left)
+
+
 # ================================================================ static guarantees
 
 def test_wxd10_the_restore_pass_has_one_caller_and_the_module_sends_no_door_command():
