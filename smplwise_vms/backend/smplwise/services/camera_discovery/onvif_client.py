@@ -71,6 +71,19 @@ class _NoGuard:
 
 # ---------------------------------------------------------------- results
 
+def shown(uri: str) -> str:
+    """The only form of a camera's stream address an answer may carry: scheme, host and port, the path and query replaced by `/***`.
+    Some cameras put a user name, a password or a token in the path (`/user=admin&password=...`), which the query-only masking of the
+    camera-source model would let through (security review, ONVIF-UI-2500)."""
+    try:
+        p = urlsplit(uri)
+        host = p.hostname or ""
+        hostport = (f"[{host}]" if ":" in host else host) + (f":{p.port}" if p.port else "")
+    except ValueError:
+        return "***"
+    return f"{p.scheme.lower()}://{hostport}/***" if host else "***"
+
+
 @dataclass
 class Profile:
     """One video profile of a camera. `uri` (repr hidden) is the camera's own stream address WITHOUT credentials, already shaped;
@@ -86,10 +99,8 @@ class Profile:
     stream: str = "not_read"
 
     def view(self) -> dict[str, Any]:
-        from ..camera_sources import mask  # the one masking rule of the camera-source model (a secret query value -> ***)
-
         return {"token": self.token, "name": self.name, "codec": self.codec, "width": self.width, "height": self.height, "fps": self.fps,
-                "stream": self.stream, "uri_masked": mask(self.uri)[0] if self.uri else None}
+                "stream": self.stream, "uri_masked": shown(self.uri) if self.uri else None}
 
     @property
     def pixels(self) -> int:

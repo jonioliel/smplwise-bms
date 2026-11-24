@@ -21,137 +21,138 @@ import * as t16 from './en/i18n/backup-password';
 import * as t17 from './en/i18n/bridge-key';
 import * as t18 from './en/i18n/building-presence';
 import * as t19 from './en/i18n/bulk-people';
-import * as t20 from './en/i18n/camera-image-health';
-import * as t21 from './en/i18n/camera-reboot';
-import * as t22 from './en/i18n/camera-sources';
-import * as t23 from './en/i18n/confirm-dialog';
-import * as t24 from './en/i18n/door-automation';
-import * as t25 from './en/i18n/door-blocks';
-import * as t26 from './en/i18n/door-windows';
-import * as t27 from './en/i18n/door-windows-widget';
-import * as t28 from './en/i18n/elevators';
-import * as t29 from './en/i18n/emergency';
-import * as t30 from './en/i18n/en';
-import * as t31 from './en/i18n/entity-label';
-import * as t32 from './en/i18n/event-codes';
-import * as t33 from './en/i18n/fleet-report';
-import * as t34 from './en/i18n/frigate-en';
-import * as t35 from './en/i18n/generator-escalation';
-import * as t36 from './en/i18n/generator-log';
-import * as t37 from './en/i18n/generator-routing';
-import * as t38 from './en/i18n/generator-widget';
-import * as t39 from './en/i18n/ha-events';
-import * as t40 from './en/i18n/ha-users';
-import * as t41 from './en/i18n/home-live';
-import * as t42 from './en/i18n/home-screen';
-import * as t43 from './en/i18n/home-widget-failure';
-import * as t44 from './en/i18n/incidents';
-import * as t45 from './en/i18n/incoming-calls';
-import * as t46 from './en/i18n/insights';
-import * as t47 from './en/i18n/intake';
-import * as t48 from './en/i18n/local-identity';
-import * as t49 from './en/i18n/log-export';
-import * as t50 from './en/i18n/maintenance';
-import * as t51 from './en/i18n/messaging-accounts';
-import * as t52 from './en/i18n/messaging-pacing';
-import * as t53 from './en/i18n/messaging-policy';
-import * as t54 from './en/i18n/msg/api-automation';
-import * as t55 from './en/i18n/msg/api-core';
-import * as t56 from './en/i18n/msg/api-devices';
-import * as t57 from './en/i18n/msg/api-electricity';
-import * as t58 from './en/i18n/msg/api-home';
-import * as t59 from './en/i18n/msg/api-media';
-import * as t60 from './en/i18n/msg/api-notify';
-import * as t61 from './en/i18n/msg/api-plan-view';
-import * as t62 from './en/i18n/msg/api-system';
-import * as t63 from './en/i18n/msg/api-video';
-import * as t64 from './en/i18n/msg/automation';
-import * as t65 from './en/i18n/msg/calendars';
-import * as t66 from './en/i18n/msg/components';
-import * as t67 from './en/i18n/msg/devices';
-import * as t68 from './en/i18n/msg/electricity';
-import * as t69 from './en/i18n/msg/home';
-import * as t70 from './en/i18n/msg/investigate';
-import * as t71 from './en/i18n/msg/live';
-import * as t72 from './en/i18n/msg/map';
-import * as t73 from './en/i18n/msg/media';
-import * as t74 from './en/i18n/msg/misc';
-import * as t75 from './en/i18n/msg/plan-view-card';
-import * as t76 from './en/i18n/msg/plan-wizard';
-import * as t77 from './en/i18n/msg/screens';
-import * as t78 from './en/i18n/msg/shell';
-import * as t79 from './en/i18n/msg/system-a';
-import * as t80 from './en/i18n/msg/system-b';
-import * as t81 from './en/i18n/msg/time';
-import * as t82 from './en/i18n/msg/wiskey';
-import * as t83 from './en/i18n/notice-chips';
-import * as t84 from './en/i18n/notices';
-import * as t85 from './en/i18n/notify-matrix';
-import * as t86 from './en/i18n/notify-whatsapp';
-import * as t87 from './en/i18n/partners';
-import * as t88 from './en/i18n/passkey-only';
-import * as t89 from './en/i18n/plan-curves';
-import * as t90 from './en/i18n/plan-glass';
-import * as t91 from './en/i18n/plan-ifc';
-import * as t92 from './en/i18n/plan-package';
-import * as t93 from './en/i18n/polish';
-import * as t94 from './en/i18n/presence';
-import * as t95 from './en/i18n/privacy-mask';
-import * as t96 from './en/i18n/quiet-windows';
-import * as t97 from './en/i18n/rfq-notify';
-import * as t98 from './en/i18n/scenarios';
-import * as t99 from './en/i18n/schedule-editor';
-import * as t100 from './en/i18n/search-access';
-import * as t101 from './en/i18n/security-public';
-import * as t102 from './en/i18n/settings-cards';
-import * as t103 from './en/i18n/station-people';
-import * as t104 from './en/i18n/station-permissions';
-import * as t105 from './en/i18n/tab-sections';
-import * as t106 from './en/i18n/temperature';
-import * as t107 from './en/i18n/transit';
-import * as t108 from './en/i18n/tts-default';
-import * as t109 from './en/i18n/vendor-reports';
-import * as t110 from './en/i18n/wa-installed';
-import * as t111 from './en/i18n/wiskey-door-tech';
-import * as t112 from './en/i18n/wiskey-embed';
-import * as t113 from './en/i18n/wiskey-installer';
-import * as t114 from './en/i18n/wiskey-managed';
-import * as t115 from './en/i18n/wiskey-profiles';
-import * as t116 from './en/i18n/wiskey-station-listen';
-import * as t117 from './en/i18n/wiskey-station-media';
-import * as t118 from './en/i18n/wiskey-station-ops';
-import * as t119 from './en/i18n/wiskey-stations';
-import * as t120 from './en/i18n/wiskey-switches';
-import * as t121 from './en/i18n/wiskey-triage';
-import * as t122 from './en/i18n/xsection';
-import * as t123 from './en/tickets/board-text';
-import * as t124 from './en/tickets/calendar-text';
-import * as t125 from './en/tickets/camera-viewfinder';
-import * as t126 from './en/tickets/conversation-text';
-import * as t127 from './en/tickets/cost-text';
-import * as t128 from './en/tickets/delete-text';
-import * as t129 from './en/tickets/device-text';
-import * as t130 from './en/tickets/drawer-text';
-import * as t131 from './en/tickets/list-text';
-import * as t132 from './en/tickets/map-text';
-import * as t133 from './en/tickets/messages-text';
-import * as t134 from './en/tickets/nav-text';
-import * as t135 from './en/tickets/org-locations-text';
-import * as t136 from './en/tickets/overview-text';
-import * as t137 from './en/tickets/quote-text';
-import * as t138 from './en/tickets/rfq-settings-text';
-import * as t139 from './en/tickets/rfq-text';
-import * as t140 from './en/tickets/rules-text';
-import * as t141 from './en/tickets/table-text';
-import * as t142 from './en/tickets/text';
-import * as t143 from './en/tickets/text-deptmgr';
-import * as t144 from './en/tickets/text-needsreview';
-import * as t145 from './en/tickets/text-otp';
-import * as t146 from './en/tickets/text-s4';
-import * as t147 from './en/tickets/text-ui6';
-import * as t148 from './en/tickets/visits-settings-text';
-import * as t149 from './en/tickets/work-calendar-text';
-import * as t150 from './en/water/i18n';
+import * as t20 from './en/i18n/camera-discovery';
+import * as t21 from './en/i18n/camera-image-health';
+import * as t22 from './en/i18n/camera-reboot';
+import * as t23 from './en/i18n/camera-sources';
+import * as t24 from './en/i18n/confirm-dialog';
+import * as t25 from './en/i18n/door-automation';
+import * as t26 from './en/i18n/door-blocks';
+import * as t27 from './en/i18n/door-windows';
+import * as t28 from './en/i18n/door-windows-widget';
+import * as t29 from './en/i18n/elevators';
+import * as t30 from './en/i18n/emergency';
+import * as t31 from './en/i18n/en';
+import * as t32 from './en/i18n/entity-label';
+import * as t33 from './en/i18n/event-codes';
+import * as t34 from './en/i18n/fleet-report';
+import * as t35 from './en/i18n/frigate-en';
+import * as t36 from './en/i18n/generator-escalation';
+import * as t37 from './en/i18n/generator-log';
+import * as t38 from './en/i18n/generator-routing';
+import * as t39 from './en/i18n/generator-widget';
+import * as t40 from './en/i18n/ha-events';
+import * as t41 from './en/i18n/ha-users';
+import * as t42 from './en/i18n/home-live';
+import * as t43 from './en/i18n/home-screen';
+import * as t44 from './en/i18n/home-widget-failure';
+import * as t45 from './en/i18n/incidents';
+import * as t46 from './en/i18n/incoming-calls';
+import * as t47 from './en/i18n/insights';
+import * as t48 from './en/i18n/intake';
+import * as t49 from './en/i18n/local-identity';
+import * as t50 from './en/i18n/log-export';
+import * as t51 from './en/i18n/maintenance';
+import * as t52 from './en/i18n/messaging-accounts';
+import * as t53 from './en/i18n/messaging-pacing';
+import * as t54 from './en/i18n/messaging-policy';
+import * as t55 from './en/i18n/msg/api-automation';
+import * as t56 from './en/i18n/msg/api-core';
+import * as t57 from './en/i18n/msg/api-devices';
+import * as t58 from './en/i18n/msg/api-electricity';
+import * as t59 from './en/i18n/msg/api-home';
+import * as t60 from './en/i18n/msg/api-media';
+import * as t61 from './en/i18n/msg/api-notify';
+import * as t62 from './en/i18n/msg/api-plan-view';
+import * as t63 from './en/i18n/msg/api-system';
+import * as t64 from './en/i18n/msg/api-video';
+import * as t65 from './en/i18n/msg/automation';
+import * as t66 from './en/i18n/msg/calendars';
+import * as t67 from './en/i18n/msg/components';
+import * as t68 from './en/i18n/msg/devices';
+import * as t69 from './en/i18n/msg/electricity';
+import * as t70 from './en/i18n/msg/home';
+import * as t71 from './en/i18n/msg/investigate';
+import * as t72 from './en/i18n/msg/live';
+import * as t73 from './en/i18n/msg/map';
+import * as t74 from './en/i18n/msg/media';
+import * as t75 from './en/i18n/msg/misc';
+import * as t76 from './en/i18n/msg/plan-view-card';
+import * as t77 from './en/i18n/msg/plan-wizard';
+import * as t78 from './en/i18n/msg/screens';
+import * as t79 from './en/i18n/msg/shell';
+import * as t80 from './en/i18n/msg/system-a';
+import * as t81 from './en/i18n/msg/system-b';
+import * as t82 from './en/i18n/msg/time';
+import * as t83 from './en/i18n/msg/wiskey';
+import * as t84 from './en/i18n/notice-chips';
+import * as t85 from './en/i18n/notices';
+import * as t86 from './en/i18n/notify-matrix';
+import * as t87 from './en/i18n/notify-whatsapp';
+import * as t88 from './en/i18n/partners';
+import * as t89 from './en/i18n/passkey-only';
+import * as t90 from './en/i18n/plan-curves';
+import * as t91 from './en/i18n/plan-glass';
+import * as t92 from './en/i18n/plan-ifc';
+import * as t93 from './en/i18n/plan-package';
+import * as t94 from './en/i18n/polish';
+import * as t95 from './en/i18n/presence';
+import * as t96 from './en/i18n/privacy-mask';
+import * as t97 from './en/i18n/quiet-windows';
+import * as t98 from './en/i18n/rfq-notify';
+import * as t99 from './en/i18n/scenarios';
+import * as t100 from './en/i18n/schedule-editor';
+import * as t101 from './en/i18n/search-access';
+import * as t102 from './en/i18n/security-public';
+import * as t103 from './en/i18n/settings-cards';
+import * as t104 from './en/i18n/station-people';
+import * as t105 from './en/i18n/station-permissions';
+import * as t106 from './en/i18n/tab-sections';
+import * as t107 from './en/i18n/temperature';
+import * as t108 from './en/i18n/transit';
+import * as t109 from './en/i18n/tts-default';
+import * as t110 from './en/i18n/vendor-reports';
+import * as t111 from './en/i18n/wa-installed';
+import * as t112 from './en/i18n/wiskey-door-tech';
+import * as t113 from './en/i18n/wiskey-embed';
+import * as t114 from './en/i18n/wiskey-installer';
+import * as t115 from './en/i18n/wiskey-managed';
+import * as t116 from './en/i18n/wiskey-profiles';
+import * as t117 from './en/i18n/wiskey-station-listen';
+import * as t118 from './en/i18n/wiskey-station-media';
+import * as t119 from './en/i18n/wiskey-station-ops';
+import * as t120 from './en/i18n/wiskey-stations';
+import * as t121 from './en/i18n/wiskey-switches';
+import * as t122 from './en/i18n/wiskey-triage';
+import * as t123 from './en/i18n/xsection';
+import * as t124 from './en/tickets/board-text';
+import * as t125 from './en/tickets/calendar-text';
+import * as t126 from './en/tickets/camera-viewfinder';
+import * as t127 from './en/tickets/conversation-text';
+import * as t128 from './en/tickets/cost-text';
+import * as t129 from './en/tickets/delete-text';
+import * as t130 from './en/tickets/device-text';
+import * as t131 from './en/tickets/drawer-text';
+import * as t132 from './en/tickets/list-text';
+import * as t133 from './en/tickets/map-text';
+import * as t134 from './en/tickets/messages-text';
+import * as t135 from './en/tickets/nav-text';
+import * as t136 from './en/tickets/org-locations-text';
+import * as t137 from './en/tickets/overview-text';
+import * as t138 from './en/tickets/quote-text';
+import * as t139 from './en/tickets/rfq-settings-text';
+import * as t140 from './en/tickets/rfq-text';
+import * as t141 from './en/tickets/rules-text';
+import * as t142 from './en/tickets/table-text';
+import * as t143 from './en/tickets/text';
+import * as t144 from './en/tickets/text-deptmgr';
+import * as t145 from './en/tickets/text-needsreview';
+import * as t146 from './en/tickets/text-otp';
+import * as t147 from './en/tickets/text-s4';
+import * as t148 from './en/tickets/text-ui6';
+import * as t149 from './en/tickets/visits-settings-text';
+import * as t150 from './en/tickets/work-calendar-text';
+import * as t151 from './en/water/i18n';
 
 export const PACK: LangPack = {
   'api/closed-errors': t0,
@@ -174,135 +175,136 @@ export const PACK: LangPack = {
   'i18n/bridge-key': t17,
   'i18n/building-presence': t18,
   'i18n/bulk-people': t19,
-  'i18n/camera-image-health': t20,
-  'i18n/camera-reboot': t21,
-  'i18n/camera-sources': t22,
-  'i18n/confirm-dialog': t23,
-  'i18n/door-automation': t24,
-  'i18n/door-blocks': t25,
-  'i18n/door-windows': t26,
-  'i18n/door-windows-widget': t27,
-  'i18n/elevators': t28,
-  'i18n/emergency': t29,
-  'i18n/en': t30,
-  'i18n/entity-label': t31,
-  'i18n/event-codes': t32,
-  'i18n/fleet-report': t33,
-  'i18n/frigate-en': t34,
-  'i18n/generator-escalation': t35,
-  'i18n/generator-log': t36,
-  'i18n/generator-routing': t37,
-  'i18n/generator-widget': t38,
-  'i18n/ha-events': t39,
-  'i18n/ha-users': t40,
-  'i18n/home-live': t41,
-  'i18n/home-screen': t42,
-  'i18n/home-widget-failure': t43,
-  'i18n/incidents': t44,
-  'i18n/incoming-calls': t45,
-  'i18n/insights': t46,
-  'i18n/intake': t47,
-  'i18n/local-identity': t48,
-  'i18n/log-export': t49,
-  'i18n/maintenance': t50,
-  'i18n/messaging-accounts': t51,
-  'i18n/messaging-pacing': t52,
-  'i18n/messaging-policy': t53,
-  'i18n/msg/api-automation': t54,
-  'i18n/msg/api-core': t55,
-  'i18n/msg/api-devices': t56,
-  'i18n/msg/api-electricity': t57,
-  'i18n/msg/api-home': t58,
-  'i18n/msg/api-media': t59,
-  'i18n/msg/api-notify': t60,
-  'i18n/msg/api-plan-view': t61,
-  'i18n/msg/api-system': t62,
-  'i18n/msg/api-video': t63,
-  'i18n/msg/automation': t64,
-  'i18n/msg/calendars': t65,
-  'i18n/msg/components': t66,
-  'i18n/msg/devices': t67,
-  'i18n/msg/electricity': t68,
-  'i18n/msg/home': t69,
-  'i18n/msg/investigate': t70,
-  'i18n/msg/live': t71,
-  'i18n/msg/map': t72,
-  'i18n/msg/media': t73,
-  'i18n/msg/misc': t74,
-  'i18n/msg/plan-view-card': t75,
-  'i18n/msg/plan-wizard': t76,
-  'i18n/msg/screens': t77,
-  'i18n/msg/shell': t78,
-  'i18n/msg/system-a': t79,
-  'i18n/msg/system-b': t80,
-  'i18n/msg/time': t81,
-  'i18n/msg/wiskey': t82,
-  'i18n/notice-chips': t83,
-  'i18n/notices': t84,
-  'i18n/notify-matrix': t85,
-  'i18n/notify-whatsapp': t86,
-  'i18n/partners': t87,
-  'i18n/passkey-only': t88,
-  'i18n/plan-curves': t89,
-  'i18n/plan-glass': t90,
-  'i18n/plan-ifc': t91,
-  'i18n/plan-package': t92,
-  'i18n/polish': t93,
-  'i18n/presence': t94,
-  'i18n/privacy-mask': t95,
-  'i18n/quiet-windows': t96,
-  'i18n/rfq-notify': t97,
-  'i18n/scenarios': t98,
-  'i18n/schedule-editor': t99,
-  'i18n/search-access': t100,
-  'i18n/security-public': t101,
-  'i18n/settings-cards': t102,
-  'i18n/station-people': t103,
-  'i18n/station-permissions': t104,
-  'i18n/tab-sections': t105,
-  'i18n/temperature': t106,
-  'i18n/transit': t107,
-  'i18n/tts-default': t108,
-  'i18n/vendor-reports': t109,
-  'i18n/wa-installed': t110,
-  'i18n/wiskey-door-tech': t111,
-  'i18n/wiskey-embed': t112,
-  'i18n/wiskey-installer': t113,
-  'i18n/wiskey-managed': t114,
-  'i18n/wiskey-profiles': t115,
-  'i18n/wiskey-station-listen': t116,
-  'i18n/wiskey-station-media': t117,
-  'i18n/wiskey-station-ops': t118,
-  'i18n/wiskey-stations': t119,
-  'i18n/wiskey-switches': t120,
-  'i18n/wiskey-triage': t121,
-  'i18n/xsection': t122,
-  'tickets/board-text': t123,
-  'tickets/calendar-text': t124,
-  'tickets/camera-viewfinder': t125,
-  'tickets/conversation-text': t126,
-  'tickets/cost-text': t127,
-  'tickets/delete-text': t128,
-  'tickets/device-text': t129,
-  'tickets/drawer-text': t130,
-  'tickets/list-text': t131,
-  'tickets/map-text': t132,
-  'tickets/messages-text': t133,
-  'tickets/nav-text': t134,
-  'tickets/org-locations-text': t135,
-  'tickets/overview-text': t136,
-  'tickets/quote-text': t137,
-  'tickets/rfq-settings-text': t138,
-  'tickets/rfq-text': t139,
-  'tickets/rules-text': t140,
-  'tickets/table-text': t141,
-  'tickets/text': t142,
-  'tickets/text-deptmgr': t143,
-  'tickets/text-needsreview': t144,
-  'tickets/text-otp': t145,
-  'tickets/text-s4': t146,
-  'tickets/text-ui6': t147,
-  'tickets/visits-settings-text': t148,
-  'tickets/work-calendar-text': t149,
-  'water/i18n': t150,
+  'i18n/camera-discovery': t20,
+  'i18n/camera-image-health': t21,
+  'i18n/camera-reboot': t22,
+  'i18n/camera-sources': t23,
+  'i18n/confirm-dialog': t24,
+  'i18n/door-automation': t25,
+  'i18n/door-blocks': t26,
+  'i18n/door-windows': t27,
+  'i18n/door-windows-widget': t28,
+  'i18n/elevators': t29,
+  'i18n/emergency': t30,
+  'i18n/en': t31,
+  'i18n/entity-label': t32,
+  'i18n/event-codes': t33,
+  'i18n/fleet-report': t34,
+  'i18n/frigate-en': t35,
+  'i18n/generator-escalation': t36,
+  'i18n/generator-log': t37,
+  'i18n/generator-routing': t38,
+  'i18n/generator-widget': t39,
+  'i18n/ha-events': t40,
+  'i18n/ha-users': t41,
+  'i18n/home-live': t42,
+  'i18n/home-screen': t43,
+  'i18n/home-widget-failure': t44,
+  'i18n/incidents': t45,
+  'i18n/incoming-calls': t46,
+  'i18n/insights': t47,
+  'i18n/intake': t48,
+  'i18n/local-identity': t49,
+  'i18n/log-export': t50,
+  'i18n/maintenance': t51,
+  'i18n/messaging-accounts': t52,
+  'i18n/messaging-pacing': t53,
+  'i18n/messaging-policy': t54,
+  'i18n/msg/api-automation': t55,
+  'i18n/msg/api-core': t56,
+  'i18n/msg/api-devices': t57,
+  'i18n/msg/api-electricity': t58,
+  'i18n/msg/api-home': t59,
+  'i18n/msg/api-media': t60,
+  'i18n/msg/api-notify': t61,
+  'i18n/msg/api-plan-view': t62,
+  'i18n/msg/api-system': t63,
+  'i18n/msg/api-video': t64,
+  'i18n/msg/automation': t65,
+  'i18n/msg/calendars': t66,
+  'i18n/msg/components': t67,
+  'i18n/msg/devices': t68,
+  'i18n/msg/electricity': t69,
+  'i18n/msg/home': t70,
+  'i18n/msg/investigate': t71,
+  'i18n/msg/live': t72,
+  'i18n/msg/map': t73,
+  'i18n/msg/media': t74,
+  'i18n/msg/misc': t75,
+  'i18n/msg/plan-view-card': t76,
+  'i18n/msg/plan-wizard': t77,
+  'i18n/msg/screens': t78,
+  'i18n/msg/shell': t79,
+  'i18n/msg/system-a': t80,
+  'i18n/msg/system-b': t81,
+  'i18n/msg/time': t82,
+  'i18n/msg/wiskey': t83,
+  'i18n/notice-chips': t84,
+  'i18n/notices': t85,
+  'i18n/notify-matrix': t86,
+  'i18n/notify-whatsapp': t87,
+  'i18n/partners': t88,
+  'i18n/passkey-only': t89,
+  'i18n/plan-curves': t90,
+  'i18n/plan-glass': t91,
+  'i18n/plan-ifc': t92,
+  'i18n/plan-package': t93,
+  'i18n/polish': t94,
+  'i18n/presence': t95,
+  'i18n/privacy-mask': t96,
+  'i18n/quiet-windows': t97,
+  'i18n/rfq-notify': t98,
+  'i18n/scenarios': t99,
+  'i18n/schedule-editor': t100,
+  'i18n/search-access': t101,
+  'i18n/security-public': t102,
+  'i18n/settings-cards': t103,
+  'i18n/station-people': t104,
+  'i18n/station-permissions': t105,
+  'i18n/tab-sections': t106,
+  'i18n/temperature': t107,
+  'i18n/transit': t108,
+  'i18n/tts-default': t109,
+  'i18n/vendor-reports': t110,
+  'i18n/wa-installed': t111,
+  'i18n/wiskey-door-tech': t112,
+  'i18n/wiskey-embed': t113,
+  'i18n/wiskey-installer': t114,
+  'i18n/wiskey-managed': t115,
+  'i18n/wiskey-profiles': t116,
+  'i18n/wiskey-station-listen': t117,
+  'i18n/wiskey-station-media': t118,
+  'i18n/wiskey-station-ops': t119,
+  'i18n/wiskey-stations': t120,
+  'i18n/wiskey-switches': t121,
+  'i18n/wiskey-triage': t122,
+  'i18n/xsection': t123,
+  'tickets/board-text': t124,
+  'tickets/calendar-text': t125,
+  'tickets/camera-viewfinder': t126,
+  'tickets/conversation-text': t127,
+  'tickets/cost-text': t128,
+  'tickets/delete-text': t129,
+  'tickets/device-text': t130,
+  'tickets/drawer-text': t131,
+  'tickets/list-text': t132,
+  'tickets/map-text': t133,
+  'tickets/messages-text': t134,
+  'tickets/nav-text': t135,
+  'tickets/org-locations-text': t136,
+  'tickets/overview-text': t137,
+  'tickets/quote-text': t138,
+  'tickets/rfq-settings-text': t139,
+  'tickets/rfq-text': t140,
+  'tickets/rules-text': t141,
+  'tickets/table-text': t142,
+  'tickets/text': t143,
+  'tickets/text-deptmgr': t144,
+  'tickets/text-needsreview': t145,
+  'tickets/text-otp': t146,
+  'tickets/text-s4': t147,
+  'tickets/text-ui6': t148,
+  'tickets/visits-settings-text': t149,
+  'tickets/work-calendar-text': t150,
+  'water/i18n': t151,
 };

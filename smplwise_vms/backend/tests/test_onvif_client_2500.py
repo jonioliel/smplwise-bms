@@ -440,7 +440,7 @@ def test_identification_answers_the_profiles_and_the_suggestion(env, caplog):
     assert (hik["auth"], hik["auth_mode"], hik["media"], hik["snapshot"]) == ("ok", "wsse", "media2", True)
     assert hik["suggested"] == {"main": "MainH265", "sub": "Sub"}
     assert hik["profiles"][0] == {"token": "MainH265", "name": "main", "codec": "h265", "width": 3840, "height": 2160, "fps": 20, "stream": "ok",
-                                  "uri_masked": "rtsp://10.77.0.71:554/Streaming/Channels/101?transportmode=unicast"}
+                                  "uri_masked": "rtsp://10.77.0.71:554/***"}
     assert (dahua["auth"], dahua["auth_mode"], dahua["media"], dahua["suggested"]) == ("ok", "digest", "media", {"main": "Profile_1", "sub": "Profile_2"})
     assert got["10.77.0.76"]["suggested"] == {"main": None, "sub": None} and {p["stream"] for p in got["10.77.0.76"]["profiles"]} == {"other_host"}
     for a in ("10.77.0.74", "10.77.0.80"):  # Q58 / Q59: never contacted, nothing read
@@ -662,3 +662,27 @@ def test_the_origin_columns(env):
     with env.db.connection(mode="read") as conn:
         assert tuple(conn.execute("SELECT origin, onvif_json FROM camera_stream_sources WHERE camera_id = ?", (cid,)).fetchone()) == ("manual", None)
     assert cs.origin_of({"origin": None}) == "manual" and cs.origin_of(None) is None
+
+
+def test_a_stream_address_never_reaches_an_answer_with_its_path_or_query():
+    """Security review (ONVIF-UI-2500): some cameras carry a user name / password / token in the PATH of the stream address, which the
+    query-only masking does not catch. The answer shows scheme, host and port only."""
+    from smplwise.services.camera_discovery import onvif_client as oc
+
+    for uri in ("rtsp://10.77.0.71:554/user=admin&password=SECRETPATH&channel=1&stream=0.sdp",
+                "rtsp://10.77.0.71/live/SECRETTOKEN/main?token=SECRETQ&x=1", "rtsps://10.77.0.71:322/a/b"):
+        view = oc.Profile("t", None, "h264", 1920, 1080, 25, uri=uri, stream="ok").view()
+        assert view["uri_masked"] in ("rtsp://10.77.0.71:554/***", "rtsp://10.77.0.71/***", "rtsps://10.77.0.71:322/***")
+        assert "SECRET" not in json.dumps(view) and "admin" not in json.dumps(view)
+    assert oc.shown("rtsp://[fd00::5]:554/x?y=1") == "rtsp://[fd00::5]:554/***"
+    assert oc.shown("not a url") == "***"
+
+
+def test_preview_form_rbac(env):
+    """Security review (ONVIF-UI-2500): the preview form of POST /cameras/source/test is system.configure only, whatever the body."""
+    job, got = scan_and_identify(env, ("10.77.0.71",))
+    env.c.get("/api/v1/me", headers=as_user("guard"))
+    r = env.c.post("/api/v1/cameras/source/test", json={"scan_id": job["id"], "device_id": got["10.77.0.71"]["id"], "profile": "main"},
+                   headers=as_user("guard"))
+    assert r.status_code == 403 and r.json()["code"] == "forbidden"
+    assert "Cam" not in r.text and not [p for m, path, p in env.go.requests if path == "/api/frame.jpeg"]  # nothing assembled, nothing fetched
